@@ -23,13 +23,27 @@ from typing import List, Optional
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-EXPECTED = """
+
+EXPECTED_HOOK = """
 # sphinx_gallery_start_ignore
 from tvm import testing
 
-testing.utils.install_request_hook(depth=3)
+testing.utils.install_request_hook(depth=3)\
 # sphinx_gallery_end_ignore
-""".rstrip()
+"""
+
+# Extra sphinx-gallery config options may be passed inside the ignore block before the hook. This
+# is a workaround that can be removed once sphinx-gallery #1059 merges and the version is updated.
+EXPECTED_REGEX = re.compile(
+    r"""
+\# sphinx_gallery_start_ignore
+(?:.*\n)*from tvm import testing
+
+testing\.utils\.install_request_hook\(depth=3\)\
+\# sphinx_gallery_end_ignore
+""".rstrip(),
+    re.MULTILINE,
+)
 IGNORE_PATTERNS = ["*/micro_tvmc.py", "*/micro_train.py"]
 APACHE_HEADER_LINES = 16
 
@@ -84,14 +98,13 @@ if __name__ == "__main__":
         with open(file) as f:
             content = f.read()
 
-        if EXPECTED not in content:
+        regex_match = EXPECTED_REGEX.search(content)
+        if not regex_match:
             errors.append((file, None))
             continue
 
-        index = content.index(EXPECTED)
-        line = content.count("\n", 0, index) + EXPECTED.count("\n") + 2
+        line = content.count("\n", 0, regex_match.end()) + 2
         expected = find_code_block_line(content.split("\n"))
-
         if expected is not None and line < expected:
             errors.append((file, (line, expected)))
 
@@ -106,19 +119,19 @@ if __name__ == "__main__":
             if "from __future__" in content:
                 # Place after the last __future__ import
                 new_content = re.sub(
-                    r"((?:from __future__.*?\n)+)", r"\1\n" + EXPECTED, content, flags=re.MULTILINE
+                    r"((?:from __future__.*?\n)+)", r"\1\n" + EXPECTED_HOOK, content, flags=re.M
                 )
             else:
                 # Place in the first codeblock
                 lines = content.split("\n")
                 position = find_code_block_line(lines)
                 if position is None:
-                    new_content = "\n".join(lines) + EXPECTED + "\n"
+                    new_content = "\n".join(lines) + EXPECTED_HOOK + "\n"
                 else:
                     print(position)
                     new_content = (
                         "\n".join(lines[:position])
-                        + EXPECTED
+                        + EXPECTED_HOOK
                         + "\n\n"
                         + "\n".join(lines[position:])
                     )
@@ -134,7 +147,7 @@ if __name__ == "__main__":
                 "the whitespace is incorrect.\n"
                 "You can run 'python3 tests/lint/check_request_hook.py --fix' to "
                 "automatically fix these errors:\n"
-                f"{EXPECTED}\n\nFiles:"
+                f"{EXPECTED_HOOK}\n\nFiles:"
             )
             for file, line_info in errors:
                 if line_info is None:

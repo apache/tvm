@@ -6,9 +6,9 @@
     "License"); you may not use this file except in compliance
     with the License.  You may obtain a copy of the License at
 
-..    http://www.apache.org/licenses/LICENSE-2.0
+      http://www.apache.org/licenses/LICENSE-2.0
 
-..  Unless required by applicable law or agreed to in writing,
+    Unless required by applicable law or agreed to in writing,
     software distributed under the License is distributed on an
     "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
     KIND, either express or implied.  See the License for the
@@ -46,7 +46,7 @@ Install Zephyr
         wget --no-verbose -O $ZEPHYR_SDK_FILE \
             https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}/zephyr-sdk-${ZEPHYR_SDK_VERSION}-linux-x86_64-setup.run
         chmod +x $ZEPHYR_SDK_FILE
-        "$ZEPHYR_SDK_FILE" -- -d /content/zephyr-sdk
+        "$ZEPHYR_SDK_FILE" -- -d /content/zephyr-sdk --quiet
 
         # Install python dependencies
         python3 -m pip install -r "${ZEPHYR_BASE}/scripts/requirements.txt"

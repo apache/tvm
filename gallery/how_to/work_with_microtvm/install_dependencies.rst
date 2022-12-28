@@ -6,9 +6,9 @@
     "License"); you may not use this file except in compliance
     with the License.  You may obtain a copy of the License at
 
-..    http://www.apache.org/licenses/LICENSE-2.0
+      http://www.apache.org/licenses/LICENSE-2.0
 
-..  Unless required by applicable law or agreed to in writing,
+    Unless required by applicable law or agreed to in writing,
     software distributed under the License is distributed on an
     "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
     KIND, either express or implied.  See the License for the
@@ -23,8 +23,11 @@
 Install microTVM Python dependencies
 ------------------------------------
 
+TVM does not include a package for Python serial communication, so
+we must install one before using microTVM. We will also need TFLite
+to load models.
+
     .. code-block:: bash
 
         %%shell
-        wget https://github.com/guberti/tvm/raw/hackathon/tutorials/apps/microtvm/requirements.txt
-        pip install -r requirements.txt
+        pip install pyserial==3.5 tflite==2.1
