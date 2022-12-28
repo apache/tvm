@@ -147,6 +147,23 @@ def clml_pattern_table():
         pattern = pattern.optional(is_op("clip"))
         return pattern
 
+    def pad_conv_pattern():
+        """Create a pad with convolution pattern."""
+        pattern = is_op("nn.pad")(wildcard(), is_constant())
+        pattern = is_op("nn.conv2d")(pattern, is_constant())
+        pattern = pattern.optional(lambda x: is_op("nn.bias_add")(x, is_constant()))
+        pattern = pattern.optional(lambda x: is_op("add")(x, is_constant()))
+        pattern = pattern.optional(
+            lambda x: is_tuple_get_item(
+                is_op("nn.batch_norm")(
+                    x, is_constant(), is_constant(), is_constant(), is_constant()
+                )
+            )
+        )
+        pattern = pattern.optional(is_op("nn.relu"))
+        pattern = pattern.optional(is_op("clip"))
+        return pattern
+
     def batch_norm_pattern():
         """Create a batch norm pattern."""
         pattern = is_op("nn.batch_norm")(
@@ -200,9 +217,11 @@ def clml_pattern_table():
 
         while call.op.name != "nn.conv2d":
             call = call.args[0]
+
         attrs, args = call.attrs, call.args
         if attrs.data_layout != "NCHW":
             return False
+
         if (
             (not clip_found)
             and (attrs.kernel_size[0] == 3)
@@ -211,6 +230,7 @@ def clml_pattern_table():
             and (attrs.channels == attrs.groups)
         ):
             return False
+
         data_typ = args[0].checked_type
         kernel_typ = args[1].checked_type
         is_depthwise = is_depthwise_conv2d(
@@ -246,6 +266,7 @@ def clml_pattern_table():
         return True
 
     return [
+        ("clml.pad_conv2d", pad_conv_pattern(), check_conv),
         ("clml.conv2d", conv_pattern(), check_conv),
         ("clml.dense", dense_pattern(), check_default_op),
         ("clml.pad", pad_pattern(), check_pad_op),

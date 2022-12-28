@@ -45,7 +45,7 @@ def _get_conv_model(
     a = relay.var(next(iter(var)), shape=shape, dtype=dtype)
     input_arr = var[next(iter(var))]
     if has_pad:
-        p = ((0, 0), (padding[0], padding[0]), (padding[1], padding[1]), (0, 0))
+        p = ((0, 0), (0, 0), (padding[0], padding[0]), (padding[1], padding[1]))
         a = relay.nn.pad(a, pad_width=p)
         padding = (0, 0, 0, 0)
     else:
@@ -97,7 +97,7 @@ def test_conv2d(device, dtype):
     trials = [
         # Normal convolution
         [3, 3, (1, 1), (1, 1), (1, 1), 4, (14, 10, 10), (False, False, False)],
-        [2, 1, (2, 2), (1, 1), (1, 1), 7, (15, 16, 12), (False, False, True)],
+        [2, 1, (2, 2), (1, 1), (1, 1), 7, (15, 16, 12), (True, False, True)],
         [3, 3, (2, 1), (1, 1), (1, 1), 4, (14, 10, 10), (False, True, False)],
         [3, 3, (2, 1), (1, 1), (1, 1), 4, (14, 10, 10), (False, True, True)],
         # Normal convolution

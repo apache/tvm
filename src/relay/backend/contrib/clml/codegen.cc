@@ -83,7 +83,7 @@ class CLMLJSONSerializer : public backend::contrib::JSONSerializer {
     ICHECK(comp.defined()) << "CLML JSON runtime only supports composite functions.";
     const std::string name = comp.value();
     std::shared_ptr<JSONGraphNode> json_node;
-    if (name == "clml.conv2d") {
+    if (name == "clml.conv2d" || name == "clml.pad_conv2d") {
       json_node = CreateCompositeConvJSONNode(cn);
     } else if (name == "clml.batch_norm") {
       json_node = CreateBatchNormJSONNode(cn);
