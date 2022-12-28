@@ -90,7 +90,8 @@ Layout::Layout(const Array<IterVar>& axes) {
   data_ = std::move(node);
 }
 
-Layout::Layout(const std::string& name) {  // NOLINT(*)
+Layout::Layout(const std::string& name, DataType dtype) {  // NOLINT(*)
+  CHECK(dtype.is_int()) << "TypeError: The input dtype should be integer type";
   if (name == "__undef__") return;
 
   auto node = make_object<LayoutNode>();
@@ -106,14 +107,14 @@ Layout::Layout(const std::string& name) {  // NOLINT(*)
                            << " before dimension " << c;
       std::string shape_name("_shape");
       shape_name.insert(0, 1, c);
-      IterVar axis =
-          IterVar(Range(PrimExpr(0), Var(shape_name)), Var(std::string(1, c)), tir::kDataPar);
+      IterVar axis(Range(IntImm(dtype, 0), Var(shape_name, dtype)), Var(std::string(1, c), dtype),
+                   tir::kDataPar);
       node->axes.push_back(axis);
     } else if (c >= 'a' && c <= 'z') {
       ICHECK_GT(factor, 0) << "Invalid layout " << name << ": invalid factor size " << factor
                            << " for dimension " << c;
-      IterVar axis =
-          IterVar(Range(PrimExpr(0), PrimExpr(factor)), Var(std::string(1, c)), tir::kDataPar);
+      IterVar axis(Range(IntImm(dtype, 0), IntImm(dtype, factor)), Var(std::string(1, c), dtype),
+                   tir::kDataPar);
       node->axes.push_back(axis);
       factor = 0;
     } else if (c >= '0' && c <= '9') {
@@ -426,7 +427,9 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ")";
     });
 
-TVM_REGISTER_GLOBAL("tir.Layout").set_body_typed([](std::string name) { return Layout(name); });
+TVM_REGISTER_GLOBAL("tir.Layout").set_body_typed([](std::string name, DataType dtype) {
+  return Layout(name, dtype);
+});
 
 TVM_REGISTER_GLOBAL("tir.LayoutIndexOf").set_body_typed([](Layout layout, std::string axis) -> int {
   return layout.IndexOf(LayoutAxis::Get(axis));
