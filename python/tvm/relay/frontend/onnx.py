@@ -1401,9 +1401,11 @@ class QAttention(OnnxOpConverter):
         # (3 * out_hidden,)
         bias = inputs[2]
 
+        # Scale of quantized input tensor.
         # Scalar, which means a per-tensor/layer quantization
         input_scale = inputs[3]
 
+        # Scale of quantized weight tensor.
         # Scalar or a 1D tensor, which means a per-tensor/per-column quantization.
         # Its size should be 3 * out_hidden if it is per-column quantization
         weight_scale = inputs[4]
@@ -1420,9 +1422,11 @@ class QAttention(OnnxOpConverter):
         #  Currently only (batch, past_seq_length + seq_length) shape is supported.
         mask_index = inputs[5]
 
+        # Zero point of quantized input tensor.
         # Scalar, which means a per-tensor/layer quantization
         input_zero_point = inputs[6]
 
+        # Zero point of quantized weight tensor.
         # Scalar or a 1D tensor, which means a per-tensor/per-column quantization.
         # Its size should be 3 * out_hidden if it is per-column quantization
         weight_zero_point = inputs[7]
@@ -1549,11 +1553,11 @@ class QAttention(OnnxOpConverter):
             result = _qnn.op.batch_matmul(
                 lhs, rhs_transposed, lhs_zero_point, rhs_zero_point, lhs_scale, rhs_scale
             )
+            # In our case zero point and scale are scalar, therefore 'axis' doesn't matter
             result = _qnn.op.dequantize(
                 result,
                 _op.multiply(lhs_scale, rhs_scale),
                 zero_point_zero,
-                axis=-1,  # TODO(agladyshev): what is 'axis' parameter for?
             )
             result = _op.add(result, bias)
             return result
