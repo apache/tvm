@@ -400,7 +400,7 @@ class CLMLRuntime : public JSONRuntimeBase {
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
           this->layer_.func_outs.push_back(out);
         } else if ("add" == op_name || "subtract" == op_name || "multiply" == op_name ||
-                   "minimum" == op_name || "maximum" == op_name) {
+                   "minimum" == op_name || "maximum" == op_name || "divide" == op_name) {
           auto out = CreateBinaryLayer(&layer_, node);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
           this->layer_.func_outs.push_back(out);
@@ -1236,6 +1236,8 @@ class CLMLRuntime : public JSONRuntimeBase {
       binary_op = CL_TENSOR_OP_SUB_QCOM;
     else if (op_name == "multiply")
       binary_op = CL_TENSOR_OP_MUL_QCOM;
+    else if (op_name == "divide")
+      binary_op = CL_TENSOR_OP_DIV_QCOM;
     else if (op_name == "minimum")
       binary_op = CL_TENSOR_OP_MIN_QCOM;
     else if (op_name == "maximum")

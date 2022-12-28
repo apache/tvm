@@ -332,6 +332,10 @@ class CLMLJSONSerializer : public backend::contrib::JSONSerializer {
       bias = dense;
       dense = dense->args[0].as<CallNode>();
     }
+    if (backend::IsOp(dense, "nn.bias_add")) {
+      bias = dense;
+      dense = dense->args[0].as<CallNode>();
+    }
     ICHECK(backend::IsOp(dense, "nn.dense"));
     const auto* dense_op = dense->op.as<OpNode>();
     ICHECK(dense_op);
