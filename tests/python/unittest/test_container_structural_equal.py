@@ -108,6 +108,20 @@ def test_array_structural_equal_to_self(contents):
 
 
 @pytest.mark.parametrize(
+    "contents",
+    [
+        [],
+        [1],
+        [1, 2, 3],
+    ],
+)
+def test_shape_tuple_structural_equal_to_self(contents):
+    a = tvm.runtime.ShapeTuple(list(contents))
+    b = tvm.runtime.ShapeTuple(list(contents))
+    assert get_first_mismatch_ensure_symmetry(a, b) is None
+
+
+@pytest.mark.parametrize(
     "a, b, expected_a_path, expected_b_path",
     [
         (
