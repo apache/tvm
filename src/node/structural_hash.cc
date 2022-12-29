@@ -484,6 +484,50 @@ TVM_REGISTER_REFLECTION_VTABLE(ArrayNode, ArrayNodeTrait)
       return ::tvm::runtime::make_object<ArrayNode>();
     });
 
+struct ShapeTupleObjTrait {
+  static constexpr const std::nullptr_t VisitAttrs = nullptr;
+
+  static void SHashReduce(const ShapeTupleObj* self, SHashReducer hash_reduce) {
+    hash_reduce(self->size);
+    for (size_t i = 0; i < self->size; ++i) {
+      hash_reduce(self->data[i]);
+    }
+  }
+
+  static bool SEqualReduce(const ShapeTupleObj* lhs, const ShapeTupleObj* rhs,
+                           SEqualReducer equal) {
+    if (lhs->size != rhs->size) return false;
+    for (size_t i = 0; i < lhs->size; ++i) {
+      if (!equal(lhs->data[i], rhs->data[i])) return false;
+    }
+    return true;
+  }
+};
+
+TVM_REGISTER_REFLECTION_VTABLE(ShapeTupleObj, ShapeTupleObjTrait)
+    .set_creator([](const std::string& blob) {
+      // Store shape tuple in blob to avoid large integer overflow in JSON.
+      dmlc::MemoryStringStream mstrm(const_cast<std::string*>(&blob));
+      support::Base64InStream b64strm(&mstrm);
+      b64strm.InitPosition();
+      uint64_t size;
+      b64strm.Read<uint64_t>(&size);
+      std::vector<int64_t> data(size);
+      b64strm.ReadArray(data.data(), size);
+      ShapeTuple shape(data);
+      return RefToObjectPtr::Get(shape);
+    })
+    .set_repr_bytes([](const Object* n) -> std::string {
+      std::string blob;
+      dmlc::MemoryStringStream mstrm(&blob);
+      support::Base64OutStream b64strm(&mstrm);
+      const auto* shape = static_cast<const runtime::ShapeTupleObj*>(n);
+      b64strm.Write<uint64_t>(shape->size);
+      b64strm.WriteArray(shape->data, shape->size);
+      b64strm.Finish();
+      return blob;
+    });
+
 struct MapNodeTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
 
