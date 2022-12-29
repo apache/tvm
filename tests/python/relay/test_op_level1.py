@@ -781,6 +781,7 @@ def dense_x86_test(m, n, k, target="llvm -mcpu=cascadelake", intrins=["vpdpbusd"
             for intrin in intrins:
                 assert intrin in asm
 
+        dev = tvm.device(target, 0)
         runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
 
         a = np.random.uniform(1, 10, size=data_shape).astype(data_dtype)

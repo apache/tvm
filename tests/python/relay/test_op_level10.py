@@ -495,6 +495,7 @@ def batch_matmul_x86_test(b, m, n, k, target="llvm -mcpu=cascadelake", intrins=[
             for intrin in intrins:
                 assert intrin in asm
 
+        dev = tvm.device(target, 0)
         runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
 
         x_np = np.random.uniform(1, 10, size=x_shape).astype(lhs_dtype)
