@@ -29,52 +29,58 @@ from tvm.meta_schedule.testing.tlcbench import load_quantized_bert_base
 from tvm.tir.tensor_intrin.arm_cpu import DP4A_INTRIN
 from tvm.tir.tensor_intrin.rocm import AMDGPU_SDOT4_INTRIN
 from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
+from tvm.tir.tensor_intrin.x86 import AVX512_DOT_16x4_INTRIN as AVX512_INTRIN
 
-SCH_RULES_FOR_VNNI = [
-    ms.schedule_rule.ApplyCustomRule(),
-    ms.schedule_rule.AutoInline(
-        into_producer=False,
-        into_consumer=True,
-        inline_const_tensor=True,
-        disallow_if_then_else=True,
-        require_injective=True,
-        require_ordered=True,
-        disallow_op=["tir.exp"],
-    ),
-    ms.schedule_rule.AddRFactor(max_jobs_per_core=16, max_innermost_factor=64),
-    ms.schedule_rule.MultiLevelTilingWithIntrin(
-        VNNI_INTRIN,
-        structure="SSRSRS",
-        tile_binds=None,
-        max_innermost_factor=64,
-        vector_load_lens=None,
-        reuse_read=None,
-        reuse_write=ms.schedule_rule.ReuseType(
-            req="may",
-            levels=[1, 2],
-            scope="global",
+
+def _get_schedule_rules_for_x86(intrin):
+    return [
+        ms.schedule_rule.ApplyCustomRule(),
+        ms.schedule_rule.AutoInline(
+            into_producer=False,
+            into_consumer=True,
+            inline_const_tensor=True,
+            disallow_if_then_else=True,
+            require_injective=True,
+            require_ordered=True,
+            disallow_op=["tir.exp"],
         ),
-    ),
-    ms.schedule_rule.MultiLevelTiling(
-        structure="SSRSRS",
-        tile_binds=None,
-        max_innermost_factor=64,
-        vector_load_lens=None,
-        reuse_read=None,
-        reuse_write=ms.schedule_rule.ReuseType(
-            req="may",
-            levels=[1, 2],
-            scope="global",
+        ms.schedule_rule.AddRFactor(max_jobs_per_core=16, max_innermost_factor=64),
+        ms.schedule_rule.MultiLevelTilingWithIntrin(
+            intrin,
+            structure="SSRSRS",
+            tile_binds=None,
+            max_innermost_factor=64,
+            vector_load_lens=None,
+            reuse_read=None,
+            reuse_write=ms.schedule_rule.ReuseType(
+                req="may",
+                levels=[1, 2],
+                scope="global",
+            ),
         ),
-    ),
-    ms.schedule_rule.ParallelizeVectorizeUnroll(
-        max_jobs_per_core=16,
-        max_vectorize_extent=64,
-        unroll_max_steps=[0, 16, 64, 512],
-        unroll_explicit=True,
-    ),
-    ms.schedule_rule.RandomComputeLocation(),
-]
+        ms.schedule_rule.MultiLevelTiling(
+            structure="SSRSRS",
+            tile_binds=None,
+            max_innermost_factor=64,
+            vector_load_lens=None,
+            reuse_read=None,
+            reuse_write=ms.schedule_rule.ReuseType(
+                req="may",
+                levels=[1, 2],
+                scope="global",
+            ),
+        ),
+        ms.schedule_rule.ParallelizeVectorizeUnroll(
+            max_jobs_per_core=16,
+            max_vectorize_extent=64,
+            unroll_max_steps=[0, 16, 64, 512],
+            unroll_explicit=True,
+        ),
+        ms.schedule_rule.RandomComputeLocation(),
+    ]
+
+SCH_RULES_FOR_VNNI = _get_schedule_rules_for_x86(VNNI_INTRIN)
+SCH_RULES_FOR_AVX512 = _get_schedule_rules_for_x86(AVX512_INTRIN)
 
 
 def _get_sch_rules_for_dp4a(intrin):
@@ -279,19 +285,21 @@ def _test_bert_int8(relay_mod, params, input_info, target, sch_rules, postprocs)
 @tvm.testing.requires_cascadelake
 def test_vnni_dense():
     _test_dense(
-        "uint8", SCH_RULES_FOR_VNNI, POSTPROCS_FOR_VNNI, "llvm -mcpu=cascadelake -num-cores 4"
+        "uint8",
+        SCH_RULES_FOR_VNNI,
+        POSTPROCS_FOR_VNNI,
+        "llvm -mcpu=cascadelake -num-cores 4"
     )
 
 
-# TODO(vvchernov): need schedule rules and postprocs for avx512
-# @tvm.testing.requires_skylake_avx512
-# def test_avx512_dense():
-#     _test_dense(
-#         "uint8",
-#         SCH_RULES_FOR_AVX512,
-#         POSTPROCS_FOR_AVX512,
-#         "llvm -mcpu=skylake-avx512 -num-cores 4"
-#     )
+@tvm.testing.requires_skylake_avx512
+def test_avx512_dense():
+    _test_dense(
+        "uint8",
+        SCH_RULES_FOR_AVX512,
+        POSTPROCS_FOR_VNNI,
+        "llvm -mcpu=skylake-avx512 -num-cores 4"
+    )
 
 
 @pytest.mark.skip("Only tested locally on sm_86 (for cuda) which is not supported by CI")
@@ -314,15 +322,14 @@ def test_vnni_conv2d():
     )
 
 
-# TODO(vvchernov): need schedule rules and postprocs for avx512
-# @tvm.testing.requires_skylake_avx512
-# def test_avx512_conv2d():
-#     _test_conv2d(
-#         "uint8",
-#         SCH_RULES_FOR_AVX512,
-#         POSTPROCS_FOR_AVX512,
-#         "llvm -mcpu=skylake-avx512 -num-cores 4"
-#     )
+@tvm.testing.requires_skylake_avx512
+def test_avx512_conv2d():
+    _test_conv2d(
+        "uint8",
+        SCH_RULES_FOR_AVX512,
+        POSTPROCS_FOR_VNNI,
+        "llvm -mcpu=skylake-avx512 -num-cores 4"
+    )
 
 
 @pytest.mark.skip("Only tested locally on sm_86 (for cuda) which is not supported by CI")
@@ -352,7 +359,18 @@ def test_vnni_bert_int8():
     )
 
 
-# TODO(vvchernov): check BERT on skylake-avx512?
+@tvm.testing.requires_skylake_avx512
+@pytest.mark.skip_if(tvm.testing.IS_IN_CI, reason="Slow on CI")
+def test_avx512_bert_int8():
+    relay_mod, params, input_info = load_quantized_bert_base()
+    _test_bert_int8(
+        relay_mod,
+        params,
+        input_info,
+        "llvm -mcpu=skylake-avx512 -num-cores 4",
+        SCH_RULES_FOR_AVX512,
+        POSTPROCS_FOR_VNNI,
+    )
 
 
 @tvm.testing.requires_gpu
