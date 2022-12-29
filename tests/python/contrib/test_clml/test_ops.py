@@ -29,7 +29,7 @@ from test_clml.infrastructure import (
     skip_codegen_test,
     verify_codegen,
     build_module,
-   get_cpu_op_count,
+    get_cpu_op_count,
 )
 import pytest
 
@@ -82,7 +82,7 @@ def _get_conv_model(
     )
     params = {"w": w}
     if has_bias:
-        bias_shape = (weight_shape[0], )
+        bias_shape = (weight_shape[0],)
         b = tvm.nd.array(np.random.uniform(-1, 1, bias_shape).astype(dtype))
         biasc = relay.const(b, dtype)
         out = relay.nn.bias_add(out, biasc, axis=1)
@@ -120,7 +120,7 @@ def _get_conv_expected_codegen(
         weight_shape = (channels, shape[1] // groups, kernel_h, kernel_w)
     else:
         weight_shape = (shape[1] // groups, channels, kernel_h, kernel_w)
-    #weight_shape = (channels, shape[1] // groups, kernel_h, kernel_w)
+    # weight_shape = (channels, shape[1] // groups, kernel_h, kernel_w)
 
     if is_depthwise:
         name = "nn.depthwise_conv2d"
@@ -323,7 +323,7 @@ def test_concat(device, dtype):
                 "shape": [[list(in_shape_1)]],
             },
             "name": "",
-            "op": "input"
+            "op": "input",
         },
         {
             "attrs": {
@@ -331,7 +331,7 @@ def test_concat(device, dtype):
                 "shape": [[list(in_shape_2)]],
             },
             "name": "",
-           "op": "input"
+            "op": "input",
         },
         {
             "attrs": {
@@ -341,32 +341,33 @@ def test_concat(device, dtype):
                 "num_outputs": "1",
                 "shape": [[list(clml_out[0].shape)]],
             },
-           "inputs": [[0, 0, 0], [1, 0, 0]],
-           "name": "concatenate",
-           "op": "kernel"
-       }
+            "inputs": [[0, 0, 0], [1, 0, 0]],
+            "name": "concatenate",
+            "op": "kernel",
+        },
     ]
     verify_codegen(func, exp_codegen, device, params)
 
 
 def _get_pool_expected_codegen(input_shape, pool_size, stride, padding, pool_type, dtype):
     import math
+
     pool_height = math.floor(((input_shape[2] + padding[2] - pool_size[0]) / stride[0]) + 1)
     pool_width = math.floor(((input_shape[3] + padding[3] - pool_size[1]) / stride[1]) + 1)
     output_shape = [input_shape[0], input_shape[1], pool_height, pool_width]
     attrs = {
-                "ceil_mode": [["0"]],
-                "dilation": [["1", "1"]],
-                "layout": [["NCHW"]],
-                "num_inputs": "1",
-                "num_outputs": "1",
-                "out_layout": [[""]],
-                "padding": [[str(p) for p in padding]],
-                "pool_size": [[str(p) for p in pool_size]],
-                "shape": [[list(output_shape)]],
-                "dtype": [[dtype]],
-                "strides": [[str(s) for s in stride]],
-            }
+        "ceil_mode": [["0"]],
+        "dilation": [["1", "1"]],
+        "layout": [["NCHW"]],
+        "num_inputs": "1",
+        "num_outputs": "1",
+        "out_layout": [[""]],
+        "padding": [[str(p) for p in padding]],
+        "pool_size": [[str(p) for p in pool_size]],
+        "shape": [[list(output_shape)]],
+        "dtype": [[dtype]],
+        "strides": [[str(s) for s in stride]],
+    }
     if sum(padding):
         attrs["count_include_pad"] = [["0"]]
 
@@ -381,7 +382,7 @@ def _get_pool_expected_codegen(input_shape, pool_size, stride, padding, pool_typ
             "name": "nn.avg_pool2d" if pool_type == "avg" else "nn.max_pool2d",
             "inputs": [[0, 0, 0]],
             "attrs": attrs,
-        }
+        },
     ]
     return exp_codegen
 
@@ -449,7 +450,7 @@ def test_dense(device, dtype):
                     "shape": [[list(x_shape)]],
                 },
                 "name": "",
-                "op": "input"
+                "op": "input",
             },
             {
                 "attrs": {
@@ -457,7 +458,7 @@ def test_dense(device, dtype):
                     "shape": [[list(k_shape)]],
                 },
                 "name": "",
-               "op": "const"
+                "op": "const",
             },
         ]
         if has_bias:
@@ -469,23 +470,23 @@ def test_dense(device, dtype):
                     "shape": [[list((1, k_shape[0]))]],
                 },
                 "name": "",
-                "op": "const"
+                "op": "const",
             }
             exp_codegen.append(bias_node)
             params["bias"] = tvm.nd.array(np.random.uniform(-1, 1, (k_shape[0],)).astype(dtype))
 
-        dense_node =     {
+        dense_node = {
             "attrs": {
                 "num_inputs": "3" if has_bias else "2",
                 "num_outputs": "1",
                 "dtype": [[dtype]],
                 "out_dtype": [[""]],
                 "shape": [[[x_shape[0], k_shape[0]]]],
-                "units": [[str(k_shape[0])]]
+                "units": [[str(k_shape[0])]],
             },
-           "inputs": [[0, 0, 0], [1, 0, 0], [2, 0, 0]] if has_bias else [[0, 0, 0], [1, 0, 0]],
-           "name": "nn.dense",
-           "op": "kernel"
+            "inputs": [[0, 0, 0], [1, 0, 0], [2, 0, 0]] if has_bias else [[0, 0, 0], [1, 0, 0]],
+            "name": "nn.dense",
+            "op": "kernel",
         }
         exp_codegen.append(dense_node)
         return out, params, inputs, exp_codegen
@@ -510,8 +511,10 @@ def test_binary_ops(device, dtype):
         a = relay.var("a", shape=(a_shape), dtype=dtype)
         b = relay.var("b", shape=(b_shape), dtype=dtype)
         out = op(a, b)
-        inputs = {"a": tvm.nd.array(np.random.uniform(-1, 1, a_shape).astype(dtype)),
-                  "b": tvm.nd.array(np.random.uniform(-1, 1, b_shape).astype(dtype))}
+        inputs = {
+            "a": tvm.nd.array(np.random.uniform(-1, 1, a_shape).astype(dtype)),
+            "b": tvm.nd.array(np.random.uniform(-1, 1, b_shape).astype(dtype)),
+        }
         params = {}
         return out, params, inputs
 
@@ -527,10 +530,9 @@ def test_binary_ops(device, dtype):
         with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
             mod = clml.partition_for_clml(mod, params)
             tvm_op_count = get_cpu_op_count(mod)
-            assert (
-                tvm_op_count == 0
-            ), "Got {} TVM Native Compute partitions, expected 0".format(tvm_op_count)
-
+            assert tvm_op_count == 0, "Got {} TVM Native Compute partitions, expected 0".format(
+                tvm_op_count
+            )
 
     _verify(*(_get_model((1, 16), (1, 16), relay.add)))
     _verify(*(_get_model((1, 16), (1, 16), relay.subtract)))
@@ -562,10 +564,9 @@ def test_unary_ops(device, dtype):
         with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
             mod = clml.partition_for_clml(mod, params)
             tvm_op_count = get_cpu_op_count(mod)
-            assert (
-                tvm_op_count == 0
-            ), "Got {} TVM Native Compute partitions, expected 0".format(tvm_op_count)
-
+            assert tvm_op_count == 0, "Got {} TVM Native Compute partitions, expected 0".format(
+                tvm_op_count
+            )
 
     _verify(*(_get_model((1, 16), relay.nn.softmax)))
     _verify(*(_get_model((1, 16), relay.nn.relu)))

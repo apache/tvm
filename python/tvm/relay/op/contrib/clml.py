@@ -93,7 +93,6 @@ def preprocess_module(mod):
     """
 
     def alter_conv(attrs, inputs, tinfos, out_type):
-        data, weight = inputs
         new_attrs = dict(attrs)
         data_info = tinfos[0]
         weight_info = tinfos[1]
@@ -112,7 +111,7 @@ def preprocess_module(mod):
             new_attrs["kernel_layout"] = dkl[1] + dkl[0] + dkl[2] + dkl[3]
         return relay.nn.conv2d(*inputs, **new_attrs)
 
-    with OpAttrContext( "nn.conv2d", "FTVMAlterOpLayout", alter_conv):
+    with OpAttrContext("nn.conv2d", "FTVMAlterOpLayout", alter_conv):
         seq = tvm.transform.Sequential(
             [
                 transform.ConvertLayout({"nn.conv2d": ["NCHW", "OIHW"]}),

@@ -173,9 +173,9 @@ def build_and_run(
     for _ in range(no_runs):
         gen_module.run()
         out.append([gen_module.get_output(i) for i in range(outputs)])
-    #time_f = gen_module.module.time_evaluator("run", device.device.cl(0), number=1)
-    #cost = time_f().mean
-    #print("%g secs/iteration\n" % cost)
+    # time_f = gen_module.module.time_evaluator("run", device.device.cl(0), number=1)
+    # cost = time_f().mean
+    # print("%g secs/iteration\n" % cost)
     return out
 
 
@@ -222,9 +222,7 @@ def verify_codegen(
 
         assert (
             num_clml_modules == partition_count
-        ), "Got {} Open CLML partitions, expected {}".format(
-            partition_count, num_clml_modules
-        )
+        ), "Got {} Open CLML partitions, expected {}".format(partition_count, num_clml_modules)
     relay.backend.te_compiler.get().clear()
 
     module = relay.build(mod, target=device.target, target_host=device.target_host, params=params)
