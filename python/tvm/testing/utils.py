@@ -1029,6 +1029,9 @@ def _has_vnni():
 
 # check avx512 intrinsic groups for SkyLake X
 def _has_slavx512():
+    # Check LLVM support
+    llvm_version = tvm.target.codegen.llvm_version_major()
+    is_llvm_support = llvm_version >= 8
     arch = platform.machine()
     # Only linux is supported for now.
     if arch == "x86_64" and sys.platform.startswith("linux"):
@@ -1041,7 +1044,7 @@ def _has_slavx512():
                 and "avx512dq" in ctx
                 and "avx512vl" in ctx
             )
-            return check
+            return check and is_llvm_support
 
     return False
 
