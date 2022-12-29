@@ -1199,6 +1199,58 @@ class Schedule(Object):
         )
 
     @type_checked
+    def reverse_cache_read(
+        self, block: BlockRV, read_buffer_index: int, storage_scope: str, dim_order: List[int] = []
+    ) -> BlockRV:
+        """Create a block that reads a buffer region into a read cache.
+        The index mapping was performed at producer rather than consumer.
+        Parameters
+        ----------
+        block : BlockRV
+            The consumer block of the target buffer.
+        read_buffer_index: int
+            The index of the buffer in block's read region.
+        storage_scope: str
+            The target storage scope.
+        dim_order: List[int]
+            The user-defined dimension order of allocated buffer.
+            Numbers indicate the index of block iter vars.
+        Returns
+        -------
+        cached_block : BlockRV
+            The block of the cache stage
+        """
+        return _ffi_api.ScheduleReverseCacheRead(  # type: ignore # pylint: disable=no-member
+            self, block, read_buffer_index, storage_scope, dim_order
+        )
+
+    @type_checked
+    def reverse_cache_write(
+        self, block: BlockRV, write_buffer_index: int, storage_scope: str, dim_order: List[int] = []
+    ) -> BlockRV:
+        """Create a block that reads a buffer region into a write cache.
+        The index mapping was performed at consumer rather than producer.
+        Parameters
+        ----------
+        block : BlockRV
+            The consumer block of the target buffer.
+        write_buffer_index: int
+            The index of the buffer in block's write region.
+        storage_scope: str
+            The target storage scope.
+        dim_order: List[int]
+            The user-defined dimension order of allocated buffer.
+            Numbers indicate the index of block iter vars.
+        Returns
+        -------
+        cached_block : BlockRV
+            The block of the cache stage
+        """
+        return _ffi_api.ScheduleReverseCacheWrite(  # type: ignore # pylint: disable=no-member
+            self, block, write_buffer_index, storage_scope, dim_order
+        )
+
+    @type_checked
     def cache_inplace(
         self,
         block: Union[BlockRV, str],

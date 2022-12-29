@@ -309,6 +309,36 @@ BlockRV TracedScheduleNode::CacheWrite(const BlockRV& block_rv, int write_buffer
   return result;
 }
 
+BlockRV TracedScheduleNode::ReverseCacheRead(const BlockRV& block_rv, int read_buffer_index,
+                                             const String& storage_scope,
+                                             Array<Integer> dim_order) {
+  BlockRV result =
+      ConcreteScheduleNode::ReverseCacheRead(block_rv, read_buffer_index, storage_scope, dim_order);
+
+  static const InstructionKind& kind = InstructionKind::Get("ReverseCacheRead");
+  trace_->Append(
+      /*inst=*/Instruction(/*kind=*/kind,
+                           /*inputs=*/{block_rv},
+                           /*attrs=*/{Integer(read_buffer_index), storage_scope, dim_order},
+                           /*outputs=*/{result}));
+  return result;
+}
+
+BlockRV TracedScheduleNode::ReverseCacheWrite(const BlockRV& block_rv, int write_buffer_index,
+                                              const String& storage_scope,
+                                              Array<Integer> dim_order) {
+  BlockRV result = ConcreteScheduleNode::ReverseCacheWrite(block_rv, write_buffer_index,
+                                                           storage_scope, dim_order);
+
+  static const InstructionKind& kind = InstructionKind::Get("ReverseCacheWrite");
+  trace_->Append(
+      /*inst=*/Instruction(/*kind=*/kind,
+                           /*inputs=*/{block_rv},
+                           /*attrs=*/{Integer(write_buffer_index), storage_scope, dim_order},
+                           /*outputs=*/{result}));
+  return result;
+}
+
 Array<BlockRV> TracedScheduleNode::CacheInplace(const BlockRV& block_rv, int read_buffer_index,
                                                 const String& storage_scope) {
   Array<BlockRV> result =
