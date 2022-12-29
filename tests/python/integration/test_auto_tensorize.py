@@ -32,6 +32,9 @@ from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 from tvm.tir.tensor_intrin.x86 import AVX512_DOT_16x4_INTRIN as AVX512_INTRIN
 
 
+CASCADELAKE_VNNI_TARGET = "llvm -mcpu=cascadelake -num-cores 4"
+SKYLAKE_AVX512_TARGET = "llvm -mcpu=skylake-avx512 -num-cores 4"
+
 def _get_schedule_rules_for_x86(intrin):
     return [
         ms.schedule_rule.ApplyCustomRule(),
@@ -288,7 +291,7 @@ def test_vnni_dense():
         "uint8",
         SCH_RULES_FOR_VNNI,
         POSTPROCS_FOR_VNNI,
-        "llvm -mcpu=cascadelake -num-cores 4"
+        CASCADELAKE_VNNI_TARGET
     )
 
 
@@ -298,7 +301,7 @@ def test_avx512_dense():
         "uint8",
         SCH_RULES_FOR_AVX512,
         POSTPROCS_FOR_VNNI,
-        "llvm -mcpu=skylake-avx512 -num-cores 4"
+        SKYLAKE_AVX512_TARGET
     )
 
 
@@ -318,7 +321,7 @@ def test_dp4a_dense():
 @tvm.testing.requires_cascadelake
 def test_vnni_conv2d():
     _test_conv2d(
-        "uint8", SCH_RULES_FOR_VNNI, POSTPROCS_FOR_VNNI, "llvm -mcpu=cascadelake -num-cores 4"
+        "uint8", SCH_RULES_FOR_VNNI, POSTPROCS_FOR_VNNI, CASCADELAKE_VNNI_TARGET
     )
 
 
@@ -328,7 +331,7 @@ def test_avx512_conv2d():
         "uint8",
         SCH_RULES_FOR_AVX512,
         POSTPROCS_FOR_VNNI,
-        "llvm -mcpu=skylake-avx512 -num-cores 4"
+        SKYLAKE_AVX512_TARGET
     )
 
 
@@ -353,7 +356,7 @@ def test_vnni_bert_int8():
         relay_mod,
         params,
         input_info,
-        "llvm -mcpu=cascadelake -num-cores 4",
+        CASCADELAKE_VNNI_TARGET,
         SCH_RULES_FOR_VNNI,
         POSTPROCS_FOR_VNNI,
     )
@@ -367,7 +370,7 @@ def test_avx512_bert_int8():
         relay_mod,
         params,
         input_info,
-        "llvm -mcpu=skylake-avx512 -num-cores 4",
+        SKYLAKE_AVX512_TARGET,
         SCH_RULES_FOR_AVX512,
         POSTPROCS_FOR_VNNI,
     )
