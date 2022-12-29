@@ -2223,7 +2223,7 @@ def test_conv2d_int8_alter_dtype_vnni():
 @tvm.testing.requires_skylake_avx512
 def test_conv2d_int8_alter_dtype_avx512():
     _test_conv2d_int8_alter_dtype(
-        "int8", "llvm -mcpu=skylake-avx512", ["pmaddubs", "pmaddw", "pmaddd"]
+        "int8", "llvm -mcpu=skylake-avx512", ["pmaddubs", "pmaddw", "vpaddd"]
     )
 
 

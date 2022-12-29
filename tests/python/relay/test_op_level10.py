@@ -590,7 +590,7 @@ def test_batch_matmul_vnni(b, m, n, k):
     ],
 )
 def test_batch_matmul_skylake_avx512(b, m, n, k):
-    batch_matmul_x86_test(b, m, n, k, "llvm -mcpu=skylake-avx512", ["pmaddubs", "pmaddw", "pmaddd"])
+    batch_matmul_x86_test(b, m, n, k, "llvm -mcpu=skylake-avx512", ["pmaddubs", "pmaddw", "vpaddd"])
 
 
 @pytest.mark.skip("Requires GFX10 AMDGPU")
