@@ -348,7 +348,7 @@ def test_vnni_bert_int8():
 
 
 @tvm.testing.requires_skylake_avx512
-@pytest.mark.skip_if(tvm.testing.IS_IN_CI, reason="Slow on CI")
+@pytest.mark.skip("Due to quantized BERT download issue")
 def test_avx512_bert_int8():
     relay_mod, params, input_info = load_quantized_bert_base()
     _test_bert_int8(
