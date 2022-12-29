@@ -260,7 +260,10 @@ def test_conv2d(device, dtype):
 
 @pytest.mark.parametrize("dtype", ["float16"])
 @tvm.testing.requires_openclml
-def _test_batchnorm(device, dtype):
+def test_batchnorm(device, dtype):
+    if tvm.support.libinfo().get("TVM_CLML_VERSION", 2) < 3:
+        print("Skip due to unsupported CLML version")
+        return
     in_shape = (1, 8, 64, 64)
     channels = 8
 

@@ -153,13 +153,24 @@ class CLMLRuntime : public JSONRuntimeBase {
     ICHECK(result == CL_SUCCESS) << "clQueryMLInterfaceVersionsQCOM:" << result;
 
     for (cl_uint i = 0; i < numVersions; ++i) {
+#if CL_QCOM_ML_OPS_H_MAJOR_VERSION == 2
       if (majorVersions[i] == 2) {
-        LOG(WARNING) << "CLML Version Selected:" << majorVersions[i] << " : " << majorVersions[i];
         h_ClmlIntf = clGetMLInterfaceV2QCOM(0);
-        ICHECK(h_ClmlIntf != NULL) << "clGetMLInterfaceV2QCOM:" << result;
+        LOG(WARNING) << "CLML Target version:" << majorVersions[i];
         break;
       }
+#endif
+#if CL_QCOM_ML_OPS_H_MAJOR_VERSION == 3
+      if (majorVersions[i] == 3) {
+        h_ClmlIntf = clGetMLInterfaceV3QCOM(0);
+        LOG(WARNING) << "CLML Target version:" << majorVersions[i];
+        break;
+      }
+#endif
     }
+    ICHECK(h_ClmlIntf != NULL)
+        << "clGetMLInterfaceVxQCOM:" << result
+        << " Perhaps there is mispatch between CLML SDK version to target supported version";
     char* tune_flag;
     if ((tune_flag = getenv("CLML_IS_TUNNING_RUN")))
       this->is_tuning_run = std::stoi(tune_flag);
@@ -523,7 +534,7 @@ class CLMLRuntime : public JSONRuntimeBase {
   }
 
   cl_ml_tensor_qcom DeviceMakeCLMLTensor(
-      void* pClmlIntf, cl_context context, tensor_dims_t dims,
+      cl_context context, tensor_dims_t dims,
       cl_ml_tensor_layout_qcom layout = CL_TENSOR_LAYOUT_OPTIMAL_QCOM,
       cl_channel_type dtype = CL_FLOAT) {
     cl_ml_tensor_qcom tensor;
@@ -531,8 +542,7 @@ class CLMLRuntime : public JSONRuntimeBase {
 
     cl_ml_tensor_desc_qcom desc = {
         dtype, layout, dims.n, dims.c, dims.h, dims.w, 0, CL_TENSOR_DIMENSIONS_4D_QCOM, { 0 }};
-    CLMLInterfaceV2QCOM* clmlIntf = reinterpret_cast<CLMLInterfaceV2QCOM*>(pClmlIntf);
-    result = clmlIntf->clCreateMLTensorQCOM(workspace->context, NULL, &desc, &tensor);
+    result = h_ClmlIntf->clCreateMLTensorQCOM(workspace->context, NULL, &desc, &tensor);
     ICHECK(tensor && result == CL_SUCCESS) << "clCreateMLTensorQCOM:" << result;
     (void)result;
     return tensor;
@@ -544,9 +554,8 @@ class CLMLRuntime : public JSONRuntimeBase {
     cl_int result = CL_OUT_OF_HOST_MEMORY;
     cl_mem buffer = NULL;
 
-    CLMLInterfaceV2QCOM* clmlIntf = reinterpret_cast<CLMLInterfaceV2QCOM*>(pClmlIntf);
     result =
-        clmlIntf->clGetMLTensorMemorySizeQCOM(workspace->context, pTensorMemDesc->tensor, &size);
+        h_ClmlIntf->clGetMLTensorMemorySizeQCOM(workspace->context, pTensorMemDesc->tensor, &size);
     ICHECK(result == CL_SUCCESS) << "clGetMLTensorMemorySizeQCOM:" << result;
 
     buffer = clCreateBuffer(workspace->context, CL_MEM_READ_WRITE, size, NULL, &result);
@@ -612,8 +621,7 @@ class CLMLRuntime : public JSONRuntimeBase {
     cl_channel_type cl_dtype = MakeCLDataType(tvm_dtype);
 
     auto tensor_dsc = std::make_shared<cl_ml_tensor_memory_desc_qcom>();
-    tensor_dsc->tensor =
-        DeviceMakeCLMLTensor(h_ClmlIntf, workspace->context, dims, layout, cl_dtype);
+    tensor_dsc->tensor = DeviceMakeCLMLTensor(workspace->context, dims, layout, cl_dtype);
     return tensor_dsc;
   }
 
@@ -901,7 +909,6 @@ class CLMLRuntime : public JSONRuntimeBase {
     auto input = MakeCLMLTensorFromJSONEntry(node.GetInputs()[0], {}, CL_TENSOR_LAYOUT_OPTIMAL_QCOM,
                                              cl_dtype);
     auto output = MakeCLMLTensorFromJSONNode(node, CL_TENSOR_LAYOUT_OPTIMAL_QCOM, cl_dtype);
-    auto in_dims = get_tensor_dims(nodes_[node.GetInputs()[0].id_]);
 
     std::vector<std::string> windows = node.GetAttr<std::vector<std::string>>("pool_size");
     std::vector<std::string> strides = node.GetAttr<std::vector<std::string>>("strides");
@@ -1103,7 +1110,6 @@ class CLMLRuntime : public JSONRuntimeBase {
     cl_channel_type cl_dtype = MakeCLDataType(tvm_dtype);
     cl_arithmetic_mode_qcom cl_arithmetic_mode = MakeCLArithMode(cl_dtype);
     int inputSize = input_.size();
-    int axis = std::stoi(node.GetAttr<std::vector<std::string>>("axis")[0]);
     auto output = MakeCLMLTensorFromJSONNode(node, CL_TENSOR_LAYOUT_OPTIMAL_QCOM, cl_dtype);
     cl_ml_tensor_qcom* concatInputs = new cl_ml_tensor_qcom[inputSize];
     for (int i = 0; i < inputSize; i++) {
@@ -1262,7 +1268,12 @@ class CLMLRuntime : public JSONRuntimeBase {
 
   CachedLayer layer_;
   // CLML Context
+#if CL_QCOM_ML_OPS_H_MAJOR_VERSION == 2
   CLMLInterfaceV2QCOM* h_ClmlIntf = NULL;
+#endif
+#if CL_QCOM_ML_OPS_H_MAJOR_VERSION == 3
+  CLMLInterfaceV3QCOM* h_ClmlIntf = NULL;
+#endif
   cl::OpenCLWorkspace* workspace = NULL;
   cl::OpenCLThreadEntry* tentry = NULL;
   cl_ml_tuningcache_qcom tuning_cache = NULL;

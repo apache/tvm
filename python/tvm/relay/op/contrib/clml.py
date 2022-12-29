@@ -28,6 +28,12 @@ from .register import register_pattern_table
 from ..strategy.generic import is_depthwise_conv2d
 
 
+def clml_sdk_version():
+    """Utility function to get clml version version"""
+
+    return tvm.support.libinfo().get("TVM_CLML_VERSION", 2)
+
+
 def is_clml_runtime_enabled():
     """Check if the CLML graph runtime is present.
 
