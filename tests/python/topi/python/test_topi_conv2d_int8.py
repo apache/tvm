@@ -28,6 +28,7 @@ from tvm.topi.nn.utils import get_pad_tuple
 from tvm.topi.utils import get_const_tuple
 from tvm.topi.nn.conv2d import _get_workload
 from tvm.topi.generic.conv2d import fallback_schedule_cpu_common_int8
+from tvm.testing.aot import get_dtype_range
 
 from common import Int8Fallback
 import tvm.testing
@@ -125,6 +126,8 @@ def test_conv2d_NHWC_gemm_int8(params, device):
             add_relu,
         ) = params
 
+        dtype = "int8"
+
         # TODO(ekalda): These combinations hang during compilation
         failing_cases = [
             (devices[1], (1, 128, 17, 192, 7, 1, "SAME", 2, False, False)),
@@ -135,7 +138,7 @@ def test_conv2d_NHWC_gemm_int8(params, device):
             ),  # this one passes but is just incredibly slow
         ]
         if (device, params) in failing_cases:
-            return
+            pytest.skip("Skipping because this test will hang")
 
         print("Compiling for target: %s" % target)
 
@@ -148,19 +151,15 @@ def test_conv2d_NHWC_gemm_int8(params, device):
 
         in_height = in_width = in_size
 
-        A = te.placeholder((batch, in_height, in_width, in_channel), name="A", dtype="int8")
-        W = te.placeholder((kernel, kernel, in_channel, num_filter), name="W", dtype="int8")
-        bias = te.placeholder((num_filter,), name="bias", dtype="int8")
+        a_shape = (batch, in_height, in_width, in_channel)
+        w_shape = (kernel, kernel, in_channel, num_filter)
+        bias_shape = (num_filter,)
 
-        a_shape = get_const_tuple(A.shape)
-        w_shape = get_const_tuple(W.shape)
-        bias_shape = get_const_tuple(bias.shape)
-        dtype = A.dtype
-
-        @memoize("topi.tests.test_topi_conv2d_int8.verify_conv2d_nchw")
+        @memoize("topi.tests.test_topi_conv2d_int8.test_conv2d_NHWC_gemm_int8")
         def get_ref_data():
-            a_np = np.random.randint(low=-128, high=127, size=a_shape).astype(dtype)
-            w_np = np.random.randint(low=-128, high=128, size=w_shape).astype(dtype)
+            input_min, input_max = get_dtype_range(dtype)
+            a_np = np.random.randint(low=input_min, high=input_max, size=a_shape).astype(dtype)
+            w_np = np.random.randint(low=input_min, high=input_max, size=w_shape).astype(dtype)
             b_np = np.random.uniform(size=bias_shape).astype(dtype)
             dw_np = tvm.topi.testing.dilate_python(w_np, (dilation, dilation, 1, 1))
             c_np = tvm.topi.testing.conv2d_nhwc_python(a_np, dw_np, stride, padding).astype(dtype)
@@ -173,10 +172,10 @@ def test_conv2d_NHWC_gemm_int8(params, device):
 
             return a_np, w_np, b_np, c_np
 
-        a_np, w_np, b_np, c_np = get_ref_data()
-
-        dev = tvm.device(target, 0)
         with tvm.target.Target(target) as tvm_target:
+            A = te.placeholder(a_shape, name="A", dtype=dtype)
+            W = te.placeholder(w_shape, name="W", dtype=dtype)
+            bias = te.placeholder(bias_shape, name="bias", dtype=dtype)
             C = compute(A, W, (stride, stride), padding, (dilation, dilation), dtype)
             if add_bias:
                 C = topi.add(C, bias)
@@ -184,17 +183,11 @@ def test_conv2d_NHWC_gemm_int8(params, device):
                 C = topi.nn.relu(C)
             s = schedule([C])
 
-            a = tvm.nd.array(a_np, dev)
-            w = tvm.nd.array(w_np, dev)
-            b = tvm.nd.array(b_np, dev)
-            c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
-
-            build_inputs = [A, W, bias, C] if add_bias else [A, W, C]
-            inference_inputs = (a, w, b, c) if add_bias else (a, w, c)
+            build_args = [A, W, bias, C] if add_bias else [A, W, C]
 
             func = tvm.build(
                 s,
-                build_inputs,
+                build_args,
                 target,
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (
@@ -211,10 +204,22 @@ def test_conv2d_NHWC_gemm_int8(params, device):
 
             build_only = tvm_target.features.is_aarch64 and (platform.machine() != "aarch64")
 
-            if not build_only:
-                print("Running on target: %s" % target)
-                func(*inference_inputs)
-                tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
+            if build_only:
+                return
+
+            print("Running on target: %s" % target)
+
+            dev = tvm.device(target, 0)
+            a_np, w_np, b_np, c_np = get_ref_data()
+            a = tvm.nd.array(a_np, dev)
+            w = tvm.nd.array(w_np, dev)
+            b = tvm.nd.array(b_np, dev)
+            c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
+
+            run_args = [a, w, b, c] if add_bias else [a, w, c]
+            func(*run_args)
+
+            tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
 
 @pytest.mark.parametrize("in_dtype", ["int8", "uint8"])
@@ -339,27 +344,28 @@ def test_conv2d_NCHWc_int8(in_dtype, params):
         w_shape = get_const_tuple(W.shape)
         dtype = A.dtype
         out_dtype = "int32" if in_dtype == "int8" else "uint32"
-        lo = -128 if in_dtype == "int8" else 0
-        hi = 127 if in_dtype == "int8" else 255
+        input_min, input_max = get_dtype_range(in_dtype)
 
         def check_target(target, compute, schedule, oc_block_factor, build_only):
             dev = tvm.device(target, 0)
             if not tvm.testing.device_enabled(target):
-                print("Skip because %s is not enabled" % target)
-                return
+                pytest.skip(reason="Skip because %s is not enabled" % target)
             if target == "cuda" and not tvm.contrib.nvcc.have_int8(dev.compute_version):
-                print("Skip because int8 intrinsics are not available")
-                return
+                pytest.skip(reason="Skip because %s is not enabled" % target)
 
             bias = te.placeholder(
                 (num_filter // oc_block_factor, 1, 1, oc_block_factor), name="bias", dtype=out_dtype
             )
             bias_shape = get_const_tuple(bias.shape)
 
-            @memoize("topi.tests.test_topi_conv2d_int8.verify_conv2d_nchw")
+            @memoize("topi.tests.test_topi_conv2d_int8.test_conv2d_NCHWc_int8")
             def get_ref_data():
-                a_np = np.random.randint(low=lo, high=hi, size=a_shape).astype(out_dtype)
-                w_np = np.random.randint(low=lo, high=hi, size=w_shape).astype(out_dtype)
+                a_np = np.random.randint(low=input_min, high=input_max, size=a_shape).astype(
+                    out_dtype
+                )
+                w_np = np.random.randint(low=input_min, high=input_max, size=w_shape).astype(
+                    out_dtype
+                )
                 b_np = np.random.uniform(size=bias_shape).astype(out_dtype)
                 dw_np = tvm.topi.testing.dilate_python(w_np, (1, 1, dilation, dilation))
                 c_np = tvm.topi.testing.conv2d_nchw_python(a_np, dw_np, stride, padding).astype(
@@ -380,8 +386,6 @@ def test_conv2d_NCHWc_int8(in_dtype, params):
 
                 return a_np, w_np, b_np, c_np
 
-            a_np, w_np, b_np, c_np = get_ref_data()
-
             with tvm.target.Target(target):
                 C = compute(
                     A,
@@ -399,17 +403,7 @@ def test_conv2d_NCHWc_int8(in_dtype, params):
                     C = topi.nn.relu(C)
                 s = schedule([C])
 
-            a = tvm.nd.array(a_np.astype(dtype), dev)
-            w = tvm.nd.array(w_np.astype(dtype), dev)
-            b = tvm.nd.array(b_np.astype(out_dtype), dev)
-            c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
-
-            if add_bias:
-                compile_args = [A, W, bias, C]
-                run_args = [a, w, b, c]
-            else:
-                compile_args = [A, W, C]
-                run_args = [a, w, c]
+            compile_args = [A, W, bias, C] if add_bias else [A, W, C]
 
             func = tvm.build(
                 s,
@@ -421,6 +415,14 @@ def test_conv2d_NCHWc_int8(in_dtype, params):
 
             if build_only:
                 return
+
+            a_np, w_np, b_np, c_np = get_ref_data()
+
+            a = tvm.nd.array(a_np.astype(dtype), dev)
+            w = tvm.nd.array(w_np.astype(dtype), dev)
+            b = tvm.nd.array(b_np.astype(out_dtype), dev)
+            c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
+            run_args = [a, w, b, c] if add_bias else [a, w, c]
 
             print("Running on target: %s" % target)
 
@@ -531,7 +533,7 @@ def test_conv2d_nchw_int8(in_dtype, params):
         bias_shape = get_const_tuple(bias.shape)
         dtype = A.dtype
 
-        @memoize("topi.tests.test_topi_conv2d_int8.verify_conv2d_nchw")
+        @memoize("topi.tests.test_topi_conv2d_int8.test_conv2d_nchw_int8")
         def get_ref_data():
             a_np = np.random.randint(low=-128, high=127, size=a_shape).astype(dtype)
             w_np = np.random.randint(low=-128, high=128, size=w_shape).astype(dtype)
@@ -550,7 +552,7 @@ def test_conv2d_nchw_int8(in_dtype, params):
         a_np, w_np, b_np, c_np = get_ref_data()
 
         def verify_workload_padding():
-            _, _, out_height, out_width = get_const_tuple(c_np.shape)
+            _, _, _, out_width = get_const_tuple(c_np.shape)
             wkl = _get_workload(A, W, (stride, stride), padding, dilation, dtype)
 
             # for testing functionality,
@@ -568,11 +570,9 @@ def test_conv2d_nchw_int8(in_dtype, params):
         def check_target(target):
             dev = tvm.device(target, 0)
             if not tvm.testing.device_enabled(target):
-                print("Skip because %s is not enabled" % target)
-                return
+                pytest.skip("Skip because %s is not enabled" % target)
             if target == "cuda" and not tvm.contrib.nvcc.have_int8(dev.compute_version):
-                print("Skip because int8 intrinsics are not available")
-                return
+                pytest.skip("Skip because int8 intrinsics are not available")
 
             print("Running on target: %s" % target)
             with tvm.target.Target(target):
@@ -585,52 +585,39 @@ def test_conv2d_nchw_int8(in_dtype, params):
                     C = topi.nn.relu(C)
                 s = topi.cuda.schedule_conv2d_nchw_int8([C])
 
+            build_args = [A, W, bias, C] if add_bias else [A, W, C]
+
+            func = tvm.build(
+                s,
+                build_args,
+                target,
+                name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
+                % (
+                    batch,
+                    in_channel,
+                    in_size,
+                    num_filter,
+                    kernel,
+                    stride,
+                    padding_sum,
+                    dilation,
+                ),
+            )
+
             a = tvm.nd.array(a_np, dev)
             w = tvm.nd.array(w_np, dev)
             b = tvm.nd.array(b_np, dev)
             c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
-            if add_bias:
-                func = tvm.build(
-                    s,
-                    [A, W, bias, C],
-                    target,
-                    name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
-                    % (
-                        batch,
-                        in_channel,
-                        in_size,
-                        num_filter,
-                        kernel,
-                        stride,
-                        padding_sum,
-                        dilation,
-                    ),
-                )
-                func(a, w, b, c)
-            else:
-                func = tvm.build(
-                    s,
-                    [A, W, C],
-                    target,
-                    name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
-                    % (
-                        batch,
-                        in_channel,
-                        in_size,
-                        num_filter,
-                        kernel,
-                        stride,
-                        padding_sum,
-                        dilation,
-                    ),
-                )
-                func(a, w, c)
+
+            run_args = [a, w, b, c] if add_bias else [a, w, c]
+
+            func(*run_args)
+
             tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
         verify_workload_padding()
 
-        for target in ["cuda"]:
-            check_target(target)
+        check_target("cuda")
 
 
 if __name__ == "__main__":
