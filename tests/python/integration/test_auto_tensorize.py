@@ -35,6 +35,7 @@ from tvm.tir.tensor_intrin.x86 import AVX512_DOT_16x4_INTRIN as AVX512_INTRIN
 CASCADELAKE_VNNI_TARGET = "llvm -mcpu=cascadelake -num-cores 4"
 SKYLAKE_AVX512_TARGET = "llvm -mcpu=skylake-avx512 -num-cores 4"
 
+
 def _get_schedule_rules_for_x86(intrin):
     return [
         ms.schedule_rule.ApplyCustomRule(),
@@ -81,6 +82,7 @@ def _get_schedule_rules_for_x86(intrin):
         ),
         ms.schedule_rule.RandomComputeLocation(),
     ]
+
 
 SCH_RULES_FOR_VNNI = _get_schedule_rules_for_x86(VNNI_INTRIN)
 SCH_RULES_FOR_AVX512 = _get_schedule_rules_for_x86(AVX512_INTRIN)
@@ -287,22 +289,12 @@ def _test_bert_int8(relay_mod, params, input_info, target, sch_rules, postprocs)
 
 @tvm.testing.requires_cascadelake
 def test_vnni_dense():
-    _test_dense(
-        "uint8",
-        SCH_RULES_FOR_VNNI,
-        POSTPROCS_FOR_VNNI,
-        CASCADELAKE_VNNI_TARGET
-    )
+    _test_dense("uint8", SCH_RULES_FOR_VNNI, POSTPROCS_FOR_VNNI, CASCADELAKE_VNNI_TARGET)
 
 
 @tvm.testing.requires_skylake_avx512
 def test_avx512_dense():
-    _test_dense(
-        "uint8",
-        SCH_RULES_FOR_AVX512,
-        POSTPROCS_FOR_VNNI,
-        SKYLAKE_AVX512_TARGET
-    )
+    _test_dense("uint8", SCH_RULES_FOR_AVX512, POSTPROCS_FOR_VNNI, SKYLAKE_AVX512_TARGET)
 
 
 @pytest.mark.skip("Only tested locally on sm_86 (for cuda) which is not supported by CI")
@@ -320,19 +312,12 @@ def test_dp4a_dense():
 
 @tvm.testing.requires_cascadelake
 def test_vnni_conv2d():
-    _test_conv2d(
-        "uint8", SCH_RULES_FOR_VNNI, POSTPROCS_FOR_VNNI, CASCADELAKE_VNNI_TARGET
-    )
+    _test_conv2d("uint8", SCH_RULES_FOR_VNNI, POSTPROCS_FOR_VNNI, CASCADELAKE_VNNI_TARGET)
 
 
 @tvm.testing.requires_skylake_avx512
 def test_avx512_conv2d():
-    _test_conv2d(
-        "uint8",
-        SCH_RULES_FOR_AVX512,
-        POSTPROCS_FOR_VNNI,
-        SKYLAKE_AVX512_TARGET
-    )
+    _test_conv2d("uint8", SCH_RULES_FOR_AVX512, POSTPROCS_FOR_VNNI, SKYLAKE_AVX512_TARGET)
 
 
 @pytest.mark.skip("Only tested locally on sm_86 (for cuda) which is not supported by CI")
