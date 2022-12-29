@@ -30,7 +30,7 @@ ExprDoc ExprDocNode::Attr(String attr) const { return AttrAccessDoc(GetRef<ExprD
 ExprDoc ExprDocNode::Attr(TracedObject<String> attr) const {
   auto doc = AttrAccessDoc(GetRef<ExprDoc>(this), attr.Get());
   doc->source_paths.push_back(attr.GetPath());
-  return doc;
+  return std::move(doc);
 }
 
 ExprDoc ExprDocNode::operator[](Array<Doc> indices) const {

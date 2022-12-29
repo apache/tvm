@@ -2852,7 +2852,7 @@ def resnet50():
           %223 = reshape(%222, newshape=[0, -1]);
           %224 = nn.dense(%223, meta[relay.Constant][257], units=1000);
           add(%224, meta[relay.Constant][258])
-        }   
+        }
         """,
         "from_string",
         None,
@@ -3100,7 +3100,7 @@ def resnet50_16():
           %223 = reshape(%222, newshape=[0, -1]);
           %224 = nn.dense(%223, meta[relay.Constant][257], units=1000);
           add(%224, meta[relay.Constant][258])
-        }   
+        }
         """,
         "from_string",
         None,

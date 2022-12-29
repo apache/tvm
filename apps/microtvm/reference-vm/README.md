@@ -30,8 +30,8 @@ For more information on how to use them, see the
 
 Each RTOS or platform (like Zephyr, Ardunio, etc) that integrates with microTVM
 can check-in installation scripts in the Reference VM in this directory to help
-the community collaborate. You should use the tools provided here to ensure a 
-uniform release process across all platforms. Typically, releases need to be 
+the community collaborate. You should use the tools provided here to ensure a
+uniform release process across all platforms. Typically, releases need to be
 created by TVM committers.
 
 Generally speaking, it's expected that any integrated platform with a regression

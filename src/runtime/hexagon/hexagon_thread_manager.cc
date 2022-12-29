@@ -24,10 +24,10 @@ namespace runtime {
 namespace hexagon {
 
 HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread_stack_size_bytes,
-                                           unsigned thread_pipe_size_words) {
-  // Note: could technically manage more software threads than allowable hardware threads, but there
-  // is no system constant defined
-  //  in the qurt libs for that maximum.
+                                           unsigned thread_pipe_size_words,
+                                           const std::vector<HardwareResourceType> hw_resources) {
+  // Note: could technically manage more software threads than allowable hardware threads, but
+  // there is no system constant defined in the qurt libs for that maximum.
   CHECK(num_threads);
   CHECK_LE(num_threads, QURT_MAX_HTHREAD_LIMIT);
   nthreads_ = num_threads;
@@ -37,6 +37,19 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
 
   CHECK_GE(thread_pipe_size_words, MIN_PIPE_SIZE_WORDS);
   CHECK_LE(thread_pipe_size_words, MAX_PIPE_SIZE_WORDS);
+
+  hw_resources_ = hw_resources;
+  CheckResources();
+
+  if (create_resource_managers_) {
+    DLOG(INFO) << "Initialize hardware resource managers";
+    // This creates the manager objects, which reserves (acquires) the resources.
+    // Calls to lock/unlock will be performed on threads dedicated to instances.
+    // This must be done before spawning threads so we can pass pointers to the
+    // objects in the thread context.
+    htp_ = std::make_unique<HexagonHtp>();
+    hvx_ = std::make_unique<HexagonHvx>();
+  }
 
   DLOG(INFO) << "Spawning threads";
   SpawnThreads(thread_stack_size_bytes, thread_pipe_size_words);
@@ -58,9 +71,9 @@ HexagonThreadManager::~HexagonThreadManager() {
 
   // dispatch a command to each thread to exit with status 0
   for (unsigned i = 0; i < nthreads_; i++) {
-    bool success = Dispatch(reinterpret_cast<TVMStreamHandle>(i), thread_exit, nullptr);
+    bool success = Dispatch(reinterpret_cast<TVMStreamHandle>(i), thread_exit, contexts_[i]);
     while (!success) {
-      success = Dispatch(reinterpret_cast<TVMStreamHandle>(i), thread_exit, nullptr);
+      success = Dispatch(reinterpret_cast<TVMStreamHandle>(i), thread_exit, contexts_[i]);
     }
   }
 
@@ -97,6 +110,30 @@ HexagonThreadManager::~HexagonThreadManager() {
   hexbuffs_.FreeHexagonBuffer(pipe_buffer_);
 
   DLOG(INFO) << "Buffers freed";
+
+  // Release hardware
+  htp_.reset();
+  hvx_.reset();
+
+  DLOG(INFO) << "Hardware resources released";
+}
+
+void HexagonThreadManager::CheckResources() {
+  create_resource_managers_ = false;
+  CHECK(hw_resources_.empty() || hw_resources_.size() == nthreads_)
+      << "Thread count must match resource count";
+  if (!hw_resources_.empty()) {
+    // Ensure that no more than one of each hardware resource is specified
+    for (int i = 0; i < hw_resources_.size(); i++) {
+      if (hw_resources_[i] != NONE) {
+        create_resource_managers_ = true;
+        for (int j = i + 1; j < hw_resources_.size(); j++) {
+          CHECK(hw_resources_[i] != hw_resources_[j])
+              << "No more than one of each resource type may be specified " << hw_resources_[i];
+        }
+      }
+    }
+  }
 }
 
 void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes,
@@ -146,7 +183,8 @@ void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes,
     next_stack_start += thread_stack_size_bytes;
 
     // create the thread
-    contexts_[i] = new ThreadContext(&pipes_[i], i);
+    contexts_[i] = new ThreadContext(&pipes_[i], i, hw_resources_.empty() ? NONE : hw_resources_[i],
+                                     hvx_.get(), htp_.get());
     int rc = qurt_thread_create(&threads_[i], &thread_attr, thread_main, contexts_[i]);
     CHECK_EQ(rc, QURT_EOK);
   }
@@ -161,6 +199,21 @@ const std::vector<TVMStreamHandle> HexagonThreadManager::GetStreamHandles() {
     out.push_back(reinterpret_cast<TVMStreamHandle>(i));
   }
   return out;
+}
+
+TVMStreamHandle HexagonThreadManager::GetStreamHandleByResourceType(HardwareResourceType type) {
+  for (unsigned i = 0; i < hw_resources_.size(); i++) {
+    if (hw_resources_[i] == type) {
+      return reinterpret_cast<TVMStreamHandle>(i);
+    }
+  }
+  CHECK(false) << "Thread for resource type " << type << " not found";
+}
+
+HardwareResourceType HexagonThreadManager::GetResourceTypeForStreamHandle(TVMStreamHandle thread) {
+  CHECK(hw_resources_.size() > reinterpret_cast<int>(thread))
+      << "No thread for handle id exists " << thread;
+  return hw_resources_[reinterpret_cast<int>(thread)];
 }
 
 bool HexagonThreadManager::Dispatch(TVMStreamHandle stream, voidfunc f, void* args) {
@@ -212,9 +265,15 @@ void HexagonThreadManager::WaitOnThreads() {
 }
 
 void HexagonThreadManager::CheckSemaphore(unsigned syncID) {
+  // We want the success case to be fast, so do not lock the mutex
   if (semaphores_.find(syncID) == semaphores_.end()) {
-    semaphores_[syncID] = reinterpret_cast<qurt_sem_t*>(malloc(sizeof(qurt_sem_t)));
-    qurt_sem_init_val(semaphores_[syncID], 0);
+    // If we don't find it, lock the mutex, make sure it hasn't
+    // been added by another thread before creating it.
+    std::lock_guard<std::mutex> lock(semaphores_mutex_);
+    if (semaphores_.find(syncID) == semaphores_.end()) {
+      semaphores_[syncID] = reinterpret_cast<qurt_sem_t*>(malloc(sizeof(qurt_sem_t)));
+      qurt_sem_init_val(semaphores_[syncID], 0);
+    }
   }
 }
 
@@ -262,17 +321,42 @@ void HexagonThreadManager::thread_wait_free(void* semaphore) {
   free(semaphore);
 }
 
-void HexagonThreadManager::thread_exit(void* status) {
-  DLOG(INFO) << "thread exiting";
-  qurt_thread_exit((uint64_t)status);
+void HexagonThreadManager::thread_exit(void* context) {
+  ThreadContext* tc = static_cast<ThreadContext*>(context);
+  unsigned index = tc->index;
+  HardwareResourceType resource_type = tc->resource_type;
+
+  if ((resource_type == HVX_0) || (resource_type == HVX_1) || (resource_type == HVX_2) ||
+      (resource_type == HVX_3)) {
+    tc->hvx->Unlock();
+    DLOG(INFO) << "Thread " << index << " unlocked an HVX instance";
+  } else if (resource_type == HTP_0) {
+    // TODO(HWE): Perform HTP lock/unlock in thread instead of HexagonHtp
+    // tc->htp->Unlock();
+    // DLOG(INFO) << "Thread " << index << " unlocked the HTP";
+  }
+
+  DLOG(INFO) << "Thread " << index << " exiting";
+  qurt_thread_exit((uint64_t)tc->status);
 }
 
 void HexagonThreadManager::thread_main(void* context) {
   ThreadContext* tc = static_cast<ThreadContext*>(context);
   unsigned index = tc->index;
   qurt_pipe_t* mypipe = tc->pipe;
+  HardwareResourceType resource_type = tc->resource_type;
 
   DLOG(INFO) << "Thread " << index << " spawned";
+
+  if ((resource_type == HVX_0) || (resource_type == HVX_1) || (resource_type == HVX_2) ||
+      (resource_type == HVX_3)) {
+    tc->hvx->Lock();
+    DLOG(INFO) << "Thread " << index << " locked an HVX instance";
+  } else if (resource_type == HTP_0) {
+    // TODO(HWE): Perform HTP lock/unlock in thread instead of HexagonHtp
+    // tc->htp->Lock();
+    // DLOG(INFO) << "Thread " << index << " locked the HTP";
+  }
 
   while (true) {  // loop, executing commands from pipe
     DLOG(INFO) << "Thread " << index << " receiving command";

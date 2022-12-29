@@ -23,6 +23,7 @@ from tvm import relay
 from tvm.relay.op.contrib import cmsisnn
 
 from tvm.testing.aot import (
+    get_dtype_range,
     generate_ref_data,
     AOTTestModel,
     compile_models,
@@ -31,7 +32,6 @@ from tvm.testing.aot import (
 from tvm.micro.testing.aot_test_utils import AOT_USMP_CORSTONE300_RUNNER
 from .utils import (
     make_module,
-    get_range_for_dtype_str,
     get_same_padding,
     make_qnn_relu,
     assert_partitioned_function,
@@ -126,7 +126,7 @@ def test_reshape_removal(padding):
 
     # generate reference output
     rng = np.random.default_rng(12345)
-    in_min, in_max = get_range_for_dtype_str("int8")
+    in_min, in_max = get_dtype_range("int8")
     inputs = {"input": rng.integers(in_min, high=in_max, size=in_shape, dtype="int8")}
     output_list = generate_ref_data(orig_mod["main"], inputs, params=None)
 

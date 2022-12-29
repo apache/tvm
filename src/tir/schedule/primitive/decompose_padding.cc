@@ -212,16 +212,15 @@ static std::pair<Stmt, BlockRealize> CreateConstBlock(const BlockRealizeNode* re
 
   // create new write region
   ICHECK_EQ(block->writes.size(), 1U);
-  BufferRegion write_region =
-      BufferRegion(block->writes[0]->buffer,
-                   MutateArray(block->writes[0]->region, [rewrite_expr](const Range& r) {
-                     return Range::FromMinExtent(rewrite_expr(r->min), rewrite_expr(r->extent));
-                   }));
+  BufferRegion write_region = BufferRegion(
+      block->writes[0]->buffer, block->writes[0]->region.Map([rewrite_expr](const Range& r) {
+        return Range::FromMinExtent(rewrite_expr(r->min), rewrite_expr(r->extent));
+      }));
 
   // create block to fill const pad values
   BufferStore store = Downcast<BufferStore>(block->body);
   store.CopyOnWrite()->value = info.pad_value;
-  store.CopyOnWrite()->indices = MutateArray(store->indices, rewrite_expr);
+  store.CopyOnWrite()->indices = store->indices.Map(rewrite_expr);
   Block new_block(/*iter_vars=*/new_iter_vars, /*reads=*/{}, /*writes=*/{write_region},
                   /*name_hint=*/block->name_hint + "_pad_const", /*body=*/std::move(store));
 
@@ -307,7 +306,7 @@ static std::pair<Stmt, BlockRealize> CreateInBoundBlock(const BlockRealizeNode* 
     return analyzer->Simplify(Substitute(e, repl_dict));
   };
   auto rewrite_region = [rewrite_expr](const Region& region) {
-    return MutateArray(region, [rewrite_expr](const Range& r) {
+    return region.Map([rewrite_expr](const Range& r) {
       return Range::FromMinExtent(rewrite_expr(r->min), rewrite_expr(r->extent));
     });
   };
@@ -324,7 +323,7 @@ static std::pair<Stmt, BlockRealize> CreateInBoundBlock(const BlockRealizeNode* 
   // create new block realize node
   BufferStore store = Downcast<BufferStore>(block->body);
   store.CopyOnWrite()->value = rewrite_expr(info.in_bound_value);
-  store.CopyOnWrite()->indices = MutateArray(store->indices, rewrite_expr);
+  store.CopyOnWrite()->indices = store->indices.Map(rewrite_expr);
   Block new_block(/*iter_vars=*/new_iter_vars, /*reads=*/reads, /*writes=*/writes,
                   /*name_hint=*/block->name_hint, /*body=*/std::move(store));
   PrimExpr new_predicate = rewrite_expr(info.in_bound_predicate);

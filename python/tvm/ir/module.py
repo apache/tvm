@@ -278,18 +278,24 @@ class IRModule(Node):
             self, tir_prefix, show_meta
         )  # type: ignore
 
-    def show(self, style: Optional[str] = None) -> None:
-        """
-        A sugar for print highlighted TVM script.
+    def show(self, style: Optional[str] = None, black_format: bool = True) -> None:
+        """A sugar for print highlighted TVM script.
+
         Parameters
         ----------
         style : str, optional
-            Pygments styles extended by "light" (default) and "dark", by default "light"
+
+            Pygmentize printing style, auto-detected if None.  See
+            `tvm.script.highlight.cprint` for more details.
+
+        black_format: bool
+
+            If true (default), use the formatter Black to format the TVMScript
         """
         from tvm.script.highlight import cprint  # pylint: disable=import-outside-toplevel
 
         # Use deferred import to avoid circular import while keeping cprint under tvm/script
-        cprint(self, style=style)
+        cprint(self, style=style, black_format=black_format)
 
     def get_attr(self, attr_key):
         """Get the IRModule attribute.

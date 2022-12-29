@@ -16,38 +16,49 @@
 # under the License.
 """Meta Schedule tuning context."""
 
-import logging
-from typing import TYPE_CHECKING, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, List, Optional, Union
+
+# isort: off
+from typing_extensions import Literal
+
+# isort: on
 
 from tvm import IRModule
 from tvm._ffi import register_object
-from tvm.meta_schedule.utils import cpu_count, make_logging_func
 from tvm.runtime import Object
 from tvm.target import Target
 from tvm.tir import PrimFunc, Schedule
 
 from . import _ffi_api
+from .logging import Logger, get_logger, get_logging_func
+from .utils import cpu_count
 
 if TYPE_CHECKING:
     from .cost_model import CostModel
     from .database import Database
-    from .mutator import Mutator
-    from .postproc import Postproc
     from .runner import RunnerResult
-    from .schedule_rule import ScheduleRule
     from .search_strategy import MeasureCandidate, SearchStrategy
-    from .space_generator import ScheduleFn, ScheduleFnType, SpaceGenerator
-    from .tune import TuneConfig
+    from .space_generator import SpaceGenerator
+
+
+def _normalize_mod(mod: Union[PrimFunc, IRModule]) -> IRModule:
+    """Normalize the input to an IRModule"""
+    if isinstance(mod, PrimFunc):
+        mod = mod.with_attr("global_symbol", "main")
+        mod = mod.with_attr("tir.noalias", True)
+        mod = IRModule({"main": mod})
+    if not isinstance(mod, IRModule):
+        raise TypeError(f"Expected `mod` to be PrimFunc or IRModule, but gets: {mod}")
+    func_names = mod.get_global_vars()
+    (func_name,) = func_names
+    if len(func_names) == 1 and func_name.name_hint != "main":
+        mod = IRModule({"main": mod[func_name]})
+    return mod
 
 
 @register_object("meta_schedule.TuneContext")
 class TuneContext(Object):
-    """
-    The tune context class is designed to contain all resources for a tuning task.
-
-    Different tuning tasks are separated in different TuneContext classes, but different classes in
-    the same task can interact with each other through tune context. Most classes have a function
-    to initialize with a tune context.
+    """The tune context class is designed to contain all resources for a tuning task.
 
     Parameters
     ----------
@@ -57,22 +68,9 @@ class TuneContext(Object):
         The target to be optimized for.
     space_generator : Union[None, ScheduleFnType, SpaceGenerator] = None
         The design space generator.
-    search_strategy : Union[None, TuneConfig, SearchStrategy] = None
+    search_strategy : Union[None, SearchStrategy] = None
         The search strategy.
         if None, the strategy is left blank.
-        If TuneConfig, the strategy is initialized with the TuneConfig.create_strategy().
-    sch_rules: Union[None, str, List[ScheduleRule]] = None,
-        The schedule rules.
-        If None, use an empty list of rules.
-        if "default", use target-default rules.
-    postprocs: Union[None, str, List[Postproc"]] = None,
-        The postprocessors.
-        If None, use an empty list of rules.
-        if "default", use target-default rules.
-    mutator_probs: Union[None, str, Dict[Mutator, float]]
-        Mutators and their probability mass.
-        If None, use an empty list of rules.
-        if "default", use target-default rules.
     task_name : Optional[str] = None
         The name of the tuning task.
     logger : logging.Logger
@@ -82,24 +80,14 @@ class TuneContext(Object):
         Need to be in integer in [1, 2^31-1], -1 means using random number.
     num_threads : int = None
         The number of threads to be used, None means using the logical cpu count.
-
-    Note
-    ----
-    In most cases, mod and target should be available in the tuning context. They are "Optional"
-    because we allow the user to customize the tuning context, along with other classes, sometimes
-    without mod and target. E.g., we can have a stand alone search strategy that generates measure
-    candidates without initializing with the tune context.
     """
 
     mod: Optional[IRModule]
     target: Optional[Target]
     space_generator: Optional["SpaceGenerator"]
     search_strategy: Optional["SearchStrategy"]
-    sch_rules: List["ScheduleRule"]
-    postprocs: List["Postproc"]
-    mutator_probs: Optional[Dict["Mutator", float]]
     task_name: str
-    logger: Optional[logging.Logger]
+    logger: Optional[Logger]
     rand_state: int
     num_threads: int
 
@@ -107,113 +95,56 @@ class TuneContext(Object):
         self,
         mod: Optional[IRModule] = None,
         *,
-        target: Optional[Target] = None,
-        space_generator: Union[None, "ScheduleFnType", "ScheduleFn", "SpaceGenerator"] = None,
-        search_strategy: Union[None, "SearchStrategy", "TuneConfig"] = None,
-        sch_rules: Union[None, str, List["ScheduleRule"]] = None,
-        postprocs: Union[None, str, List["Postproc"]] = None,
-        mutator_probs: Union[None, str, Dict["Mutator", float]] = None,
+        target: Union[Target, str, None] = None,
+        space_generator: Union["SpaceGenerator.SpaceGeneratorType", None] = None,
+        search_strategy: Union["SearchStrategy.SearchStrategyType", None] = None,
         task_name: str = "main",
-        logger: Optional[logging.Logger] = None,
         rand_state: int = -1,
-        num_threads: Optional[int] = None,
+        num_threads: Union[int, Literal["physical", "logical"]] = "physical",
+        logger: Optional[Logger] = None,
     ):
         # pylint: disable=import-outside-toplevel
-        from . import default_config
-        from .space_generator import ScheduleFn
-        from .tune import TuneConfig
+        import tvm.tir.tensor_intrin  # pylint: disable=unused-import
+
+        from .search_strategy import SearchStrategy
+        from .space_generator import SpaceGenerator
 
         # pylint: enable=import-outside-toplevel
         if isinstance(mod, PrimFunc):
-            mod = IRModule.from_expr(mod)
-        if callable(space_generator):
-            space_generator = ScheduleFn(space_generator)
-        if isinstance(search_strategy, TuneConfig):
-            search_strategy = search_strategy.create_strategy()
-        if isinstance(sch_rules, str):
-            if sch_rules == "default":
-                if target is None:
-                    raise ValueError("target is required when sch_rules is 'default'")
-                sch_rules = default_config.schedule_rules(None, target)
-            else:
-                raise ValueError("sch_rules should be a list of ScheduleRule or 'default'")
-        if isinstance(postprocs, str):
-            if postprocs == "default":
-                if target is None:
-                    raise ValueError("target is required when postprocs is 'default'")
-                postprocs = default_config.postproc(None, target)
-            else:
-                raise ValueError("postprocs should be a list of Postproc or 'default'")
-        if isinstance(mutator_probs, str):
-            if mutator_probs == "default":
-                if target is None:
-                    raise ValueError("target is required when mutator_probs is 'default'")
-                mutator_probs = default_config.mutator_probs(None, target)
+            mod = _normalize_mod(mod)
+        if target is not None:
+            if not isinstance(target, Target):
+                target = Target(target)
+        if space_generator is not None:
+            if not isinstance(space_generator, SpaceGenerator):
+                space_generator = SpaceGenerator.create(space_generator)
+        if search_strategy is not None:
+            if not isinstance(search_strategy, SearchStrategy):
+                search_strategy = SearchStrategy.create(search_strategy)
         if logger is None:
-            self.logger = logging.getLogger(__name__)
-        else:
-            self.logger = None
-        if num_threads is None:
-            num_threads = cpu_count(logical=False)
+            logger = get_logger(__name__)
+        if not isinstance(num_threads, int):
+            if num_threads == "physical":
+                num_threads = cpu_count(logical=False)
+            elif num_threads == "logical":
+                num_threads = cpu_count(logical=True)
+            else:
+                raise ValueError(
+                    f"Invalid num_threads: {num_threads}, "
+                    "should be either an integer, 'physical', or 'logical'"
+                )
         self.__init_handle_by_constructor__(
             _ffi_api.TuneContext,  # type: ignore # pylint: disable=no-member
             mod,
             target,
             space_generator,
             search_strategy,
-            sch_rules,
-            postprocs,
-            mutator_probs,
             task_name,
-            make_logging_func(logger),
-            rand_state,
             num_threads,
+            rand_state,
+            get_logging_func(logger),
         )
         _ffi_api.TuneContextInitialize(self)  # type: ignore # pylint: disable=no-member
-
-    def _set_measure_candidates(self, candidates):
-        """Set candidates in a tuning context.
-
-        Parameters
-        ----------
-        candidates : List[MeasureCandidate]
-            A list of measure candidates for the tuning context.
-        """
-        _ffi_api.TuneContextSetMeasureCandidates(self, candidates)  # type: ignore # pylint: disable=no-member
-
-    def _send_to_builder(self, builder):
-        """Send candidates to builder.
-
-        Parameters
-        ----------
-        builder : Builder
-            The builder for building the candidates.
-        """
-        _ffi_api.TuneContextSendToBuilder(self, builder)  # type: ignore # pylint: disable=no-member
-
-    def _send_to_runner(self, runner):
-        """Send candidates to runner.
-
-        Parameters
-        ----------
-        runner : Runner
-            The runner for running the candidates.
-        """
-        _ffi_api.TuneContextSendToRunner(self, runner)  # type: ignore # pylint: disable=no-member
-
-    def _join(self):
-        """Join the runner processes.
-
-        Returns
-        -------
-        result : List[RunnerResult]
-            The runner results.
-        """
-        return _ffi_api.TuneContextJoin(self)  # type: ignore # pylint: disable=no-member
-
-    def _clear_measure_state(self):
-        """Clear the measure states."""
-        _ffi_api.TuneContextClearMeasureState(self)  # type: ignore # pylint: disable=no-member
 
     def generate_design_space(self) -> List[Schedule]:
         """Generate design spaces given a module.
@@ -236,6 +167,8 @@ class TuneContext(Object):
 
     def pre_tuning(
         self,
+        max_trials: int,
+        num_trials_per_iter: int = 64,
         design_spaces: Optional[List[Schedule]] = None,
         database: Optional["Database"] = None,
         cost_model: Optional["CostModel"] = None,
@@ -246,6 +179,10 @@ class TuneContext(Object):
 
         Parameters
         ----------
+        max_trials : int
+            The maximum number of trials to be executed.
+        num_trials_per_iter : int = 64
+            The number of trials to be executed per iteration.
         design_spaces : Optional[List[Schedule]]
             The design spaces used during tuning process.
             If None, use the outcome of `self.generate_design_space()`.
@@ -278,7 +215,13 @@ class TuneContext(Object):
         if cost_model is None:
             if isinstance(self.search_strategy, EvolutionarySearch):
                 cost_model = RandomModel()  # type: ignore
-        return self.search_strategy.pre_tuning(design_spaces, database, cost_model)
+        return self.search_strategy.pre_tuning(
+            max_trials,
+            num_trials_per_iter,
+            design_spaces,
+            database,
+            cost_model,
+        )
 
     def post_tuning(self) -> None:
         """A method to be called for SearchStrategy to do necessary cleanup after tuning.

@@ -457,6 +457,13 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
  */
 template <typename T>
 void NDArrayToTIR(::tvm::runtime::NDArray arr, std::ostream& os) {
+  if ((arr.DataType().code() == runtime::DataType::kInt ||
+       arr.DataType().code() == runtime::DataType::kUInt) &&
+      arr.DataType().bits() == 8) {
+    // Printing int8 NDArrays causes "UnicodeDecodeError: 'utf-8' codec can't decode byte"
+    // error during MetaSchedule tuning on int8 models.
+    return;
+  }
   int ndim = arr->ndim;
   int tot_dim = 1;
   for (int i = 0; i < ndim; i++) {
@@ -749,18 +756,15 @@ Doc TVMScriptPrinter::Print(const ObjectRef& node) {
     return PrintTarget(node.as<TargetNode>());
   } else {
     LOG(FATAL) << "Do not know how to print " << node->GetTypeKey();
-    return Doc();
   }
 }
 
 Doc TVMScriptPrinter::VisitExprDefault_(const Object* op, ExprPrecedence* out_precedence) {
   LOG(FATAL) << "Do not know how to print " << op->GetTypeKey();
-  return Doc();
 }
 
 Doc TVMScriptPrinter::VisitStmtDefault_(const Object* op) {
   LOG(FATAL) << "Do not know how to print " << op->GetTypeKey();
-  return Doc();
 }
 
 Doc TVMScriptPrinter::VisitExpr_(const IntImmNode* op, ExprPrecedence* out_precedence) {
@@ -781,7 +785,7 @@ Doc TVMScriptPrinter::VisitExpr_(const StringImmNode* op, ExprPrecedence* out_pr
 Doc TVMScriptPrinter::VisitExpr_(const CastNode* op, ExprPrecedence* out_precedence) {
   *out_precedence = ExprPrecedence::kIdentity;
   Doc doc;
-  doc << tir_prefix_ << ".cast(" << Print(op->value) << ", " << PrintDType(op->dtype) << ")";
+  doc << tir_prefix_ << ".Cast(" << PrintDType(op->dtype) << ", " << Print(op->value) << ")";
   return doc;
 }
 
@@ -791,46 +795,63 @@ Doc TVMScriptPrinter::VisitExpr_(const VarNode* op, ExprPrecedence* out_preceden
   return meta_.InMeta(var) ? meta_.GetMetaNode(var) : AllocVar(GetRef<Var>(op));
 }
 
-#define TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(OpName, OpString, OpPrecedence)            \
-  Doc TVMScriptPrinter::VisitExpr_(const OpName* op, ExprPrecedence* out_precedence) { \
-    Doc doc;                                                                           \
-    ExprPrecedence lhs_precedence = ExprPrecedence::kUnknown;                          \
-    ExprPrecedence rhs_precedence = ExprPrecedence::kUnknown;                          \
-    /* Get children expr out_precedence */                                             \
-    Doc lhs_doc = VisitExpr(op->a, &lhs_precedence);                                   \
-    Doc rhs_doc = VisitExpr(op->b, &rhs_precedence);                                   \
-    ICHECK(lhs_precedence != ExprPrecedence::kUnknown);                                \
-    ICHECK(rhs_precedence != ExprPrecedence::kUnknown);                                \
-    /* Update out_precedence of current node. */                                       \
-    *out_precedence = OpPrecedence;                                                    \
-    if (lhs_precedence > OpPrecedence) {                                               \
-      doc << "(" << lhs_doc << ")";                                                    \
-    } else {                                                                           \
-      doc << lhs_doc;                                                                  \
-    }                                                                                  \
-    doc << OpString;                                                                   \
-    if (rhs_precedence >= OpPrecedence) {                                              \
-      doc << "(" << rhs_doc << ")";                                                    \
-    } else {                                                                           \
-      doc << rhs_doc;                                                                  \
-    }                                                                                  \
-    return doc;                                                                        \
+bool WillPrintConstScalar(const PrimExpr& expr) {
+  if (const auto* imm = expr.as<IntImmNode>()) {
+    DataType dtype = imm->dtype;
+    return dtype == DataType::Int(32) || dtype == DataType::Bool();
+  }
+  return false;
+}
+
+#define TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(OpName, OpString, OpClass, OpPrecedence)              \
+  Doc TVMScriptPrinter::VisitExpr_(const OpName* op, ExprPrecedence* out_precedence) {            \
+    Doc doc;                                                                                      \
+    if (WillPrintConstScalar(op->a) && WillPrintConstScalar(op->b)) {                             \
+      *out_precedence = ExprPrecedence::kIdentity;                                                \
+      doc << tir_prefix_ << "." << OpClass << "(" << Print(op->a) << ", " << Print(op->b) << ")"; \
+      return doc;                                                                                 \
+    }                                                                                             \
+    ExprPrecedence lhs_precedence = ExprPrecedence::kUnknown;                                     \
+    ExprPrecedence rhs_precedence = ExprPrecedence::kUnknown;                                     \
+    /* Get children expr out_precedence */                                                        \
+    Doc lhs_doc = VisitExpr(op->a, &lhs_precedence);                                              \
+    Doc rhs_doc = VisitExpr(op->b, &rhs_precedence);                                              \
+    ICHECK(lhs_precedence != ExprPrecedence::kUnknown);                                           \
+    ICHECK(rhs_precedence != ExprPrecedence::kUnknown);                                           \
+    /* Update out_precedence of current node. */                                                  \
+    *out_precedence = OpPrecedence;                                                               \
+    if (lhs_precedence > OpPrecedence ||                                                          \
+        (lhs_precedence == ExprPrecedence::kAnd && OpPrecedence == ExprPrecedence::kOr)) {        \
+      doc << "(" << lhs_doc << ")";                                                               \
+    } else {                                                                                      \
+      doc << lhs_doc;                                                                             \
+    }                                                                                             \
+    doc << OpString;                                                                              \
+    if (rhs_precedence >= OpPrecedence ||                                                         \
+        (rhs_precedence == ExprPrecedence::kAnd && OpPrecedence == ExprPrecedence::kOr)) {        \
+      doc << "(" << rhs_doc << ")";                                                               \
+    } else {                                                                                      \
+      doc << rhs_doc;                                                                             \
+    }                                                                                             \
+    return doc;                                                                                   \
   }
 
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(MulNode, " * ", ExprPrecedence::kMultiplicationDivision)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(DivNode, " / ", ExprPrecedence::kMultiplicationDivision)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(FloorDivNode, " // ", ExprPrecedence::kMultiplicationDivision)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(FloorModNode, " % ", ExprPrecedence::kMultiplicationDivision)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(AddNode, " + ", ExprPrecedence::kAdditionSubtraction)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(SubNode, " - ", ExprPrecedence::kAdditionSubtraction)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(LTNode, " < ", ExprPrecedence::kRelational)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(LENode, " <= ", ExprPrecedence::kRelational)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(GTNode, " > ", ExprPrecedence::kRelational)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(GENode, " >= ", ExprPrecedence::kRelational)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(EQNode, " == ", ExprPrecedence::kEquality)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(NENode, " != ", ExprPrecedence::kEquality)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(AndNode, " and ", ExprPrecedence::kAnd)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(OrNode, " or ", ExprPrecedence::kOr)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(MulNode, " * ", "Mul", ExprPrecedence::kMultiplicationDivision)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(DivNode, " / ", "Div", ExprPrecedence::kMultiplicationDivision)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(FloorDivNode, " // ", "FloorDiv",
+                                    ExprPrecedence::kMultiplicationDivision)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(FloorModNode, " % ", "FloorMod",
+                                    ExprPrecedence::kMultiplicationDivision)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(AddNode, " + ", "Add", ExprPrecedence::kAdditionSubtraction)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(SubNode, " - ", "Sub", ExprPrecedence::kAdditionSubtraction)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(LTNode, " < ", "LT", ExprPrecedence::kRelational)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(LENode, " <= ", "LE", ExprPrecedence::kRelational)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(GTNode, " > ", "GT", ExprPrecedence::kRelational)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(GENode, " >= ", "GE", ExprPrecedence::kRelational)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(EQNode, " == ", "EQ", ExprPrecedence::kEquality)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(NENode, " != ", "NE", ExprPrecedence::kEquality)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(AndNode, " and ", "And", ExprPrecedence::kAnd)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(OrNode, " or ", "Or", ExprPrecedence::kOr)
 
 Doc TVMScriptPrinter::VisitExpr_(const ModNode* op, ExprPrecedence* out_precedence) {
   *out_precedence = ExprPrecedence::kIdentity;
@@ -1024,7 +1045,6 @@ Doc TVMScriptPrinter::VisitStmt_(const AttrStmtNode* op) {
             << ")";
         doc << Doc::NewLine() << PrintBody(op->body);
       }
-      TryDeallocVar(iter_var->var);
       return doc;
     }
   }
@@ -1166,7 +1186,7 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateConstNode* alloc) {
     }
   } else if (alloc->dtype.is_uint()) {
     if (alloc->dtype.bits() == 8) {
-      // NDArrayToTIR<uint8_t>(data, ss);
+      NDArrayToTIR<uint8_t>(data, ss);
     } else if (alloc->dtype.bits() == 16) {
       NDArrayToTIR<uint16_t>(data, ss);
     } else if (alloc->dtype.bits() == 32) {
@@ -1237,10 +1257,22 @@ Doc TVMScriptPrinter::VisitStmt_(const IfThenElseNode* op) {
   Doc doc;
   doc << "if " << Print(op->condition) << ":";
   doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->then_case));
-  if (!is_one(op->condition) && op->else_case.defined()) {
-    doc << Doc::NewLine();
-    doc << "else:" << Doc::Indent(4, Doc::NewLine() << PrintBody(op->else_case));
+
+  Optional<Stmt> else_case = op->else_case;
+  while (else_case) {
+    if (auto* else_if = else_case.value().as<IfThenElseNode>()) {
+      doc << Doc::NewLine();
+      doc << "elif " << Print(else_if->condition) << ":";
+      doc << Doc::Indent(4, Doc::NewLine() << PrintBody(else_if->then_case));
+
+      else_case = else_if->else_case;
+    } else {
+      doc << Doc::NewLine();
+      doc << "else:" << Doc::Indent(4, Doc::NewLine() << PrintBody(else_case.value()));
+      break;
+    }
   }
+
   return doc;
 }
 
@@ -1253,16 +1285,17 @@ Doc TVMScriptPrinter::VisitStmt_(const SeqStmtNode* op) {
 }
 
 Doc TVMScriptPrinter::VisitStmt_(const EvaluateNode* op) {
-  if (auto* call = op->value.as<CallNode>()) {
-    if (call->op.same_as(builtin::assume())) {
-      Doc doc;
-      doc << tir_prefix_ << ".assume(" << Print(call->args[0]) << ")";
-      return doc;
-    }
-  }
-
+  // When parsing TVMScript, a PrimExpr that occurs as a statement is
+  // automatically wrapped in `tir::Evaluate`.  Therefore, when
+  // printing, it's only necessary to print the value.  For
+  // readability, though, we still print T.evaluate() when the
+  // expression is something other than a call node.
   Doc doc;
-  doc << tir_prefix_ << ".evaluate(" << Print(op->value) << ")";
+  if (op->value.as<CallNode>()) {
+    doc << Print(op->value);
+  } else {
+    doc << tir_prefix_ << ".evaluate(" << Print(op->value) << ")";
+  }
   return doc;
 }
 
@@ -1627,7 +1660,14 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
     }
     params.push_back(Print(param) << ": " << Print(GetType(param)));
   }
-  doc << PrintSep(params, Doc::Text(", ")) << ") -> " << Print(primFunc->ret_type) << ":";
+  doc << PrintSep(params, Doc::Text(", ")) << ")";
+  if (primFunc->ret_type.defined()) {
+    auto as_tuple = primFunc->ret_type.as<TupleTypeNode>();
+    if (!as_tuple || as_tuple->fields.size()) {
+      doc << " -> " << Print(primFunc->ret_type);
+    }
+  }
+  doc << ":";
 
   Doc body = Doc::NewLine();
   // print buffer_bind
@@ -1642,41 +1682,55 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
     body << Print((*it).first) << ", " << memo_buf_decl_[buf];
     body << ")" << Doc::NewLine();
   }
-  // print preflattened buffer map
-  for (const auto& param : op->params) {
-    auto pf_buf_it = op->preflattened_buffer_map.find(param);
-    if (pf_buf_it != op->preflattened_buffer_map.end()) {
-      const Buffer& preflattened = (*pf_buf_it).second;
-
-      auto buf_it = op->buffer_map.find(param);
-      ICHECK(buf_it != op->buffer_map.end()) << "Found pre-flattened buffer " << preflattened->name
-                                             << " with no corresponding post-flatten buffer.";
-      const Buffer& postflattened = (*buf_it).second;
-
-      // Call Print() without assigning in order to fill memo_buf_decl_.
-      Print(preflattened);
-      buf_not_in_headers_.insert(preflattened.get());
-      ICHECK(memo_buf_decl_.count(preflattened));
-
-      body << tir_prefix_ << ".preflattened_buffer(" << Print(postflattened) << ", "
-           << memo_buf_decl_.at(preflattened) << ")" << Doc::NewLine();
-    }
-  }
   // print body
   body << "# body" << Doc::NewLine();
-  if (op->body->IsInstance<BlockRealizeNode>() &&
-      op->body.as<BlockRealizeNode>()->iter_values.empty()) {
-    const BlockNode* block = op->body.as<BlockRealizeNode>()->block.get();
-    if (block->annotations.empty() && !ContainsOptionalInfo(GetRef<Stmt>(block))) {
-      // Skip print root block
-      body << "# with " << tir_prefix_ << ".block(\"root\")" << Doc::NewLine();
-      body << PrintBlockBody(block);
-    } else {
-      body << PrintBody(op->body);
+
+  Optional<Block> elided_root_block_body = [&]() -> Optional<Block> {
+    auto block_realize = op->body.as<BlockRealizeNode>();
+    if (!block_realize || block_realize->iter_values.size()) {
+      return NullOpt;
     }
+
+    const auto& block = block_realize->block;
+    if (block->annotations.size() || ContainsOptionalInfo(block)) {
+      return NullOpt;
+    }
+
+    // The autocomplete might recognize the body itself as being a
+    // root block, and fail to insert it.
+    bool autocomplete_would_insert_root_block = [&]() -> bool {
+      if (block->alloc_buffers.size()) {
+        return true;
+      }
+
+      auto* block_realize = block->body.as<BlockRealizeNode>();
+      if (block_realize && block_realize->block->iter_vars.size()) {
+        return true;
+      }
+      if (!block_realize && ContainsNode<BlockRealizeNode>(block->body)) {
+        return true;
+      }
+      return false;
+    }();
+
+    if (autocomplete_would_insert_root_block) {
+      return block;
+    } else {
+      return NullOpt;
+    }
+  }();
+
+  if (elided_root_block_body) {
+    // Skip printing of root block in cases where tvm::tir::ScriptComplete
+    // would re-insert it.
+    body << "# with " << tir_prefix_ << ".block(\"root\")" << Doc::NewLine();
+    body << PrintBlockBody(elided_root_block_body.value().get());
   } else {
+    // If this is a non-root block, or is an unskippable root block,
+    // just print it without skipping.
     body << PrintBody(op->body);
   }
+
   // print func attrs
   Doc header_attr;
   if (primFunc->attrs.defined()) {

@@ -102,13 +102,6 @@ inline std::string PrefixGeneratedName(const Array<String>& names) {
   return "TVMGen_" + CombineNames(names);
 }
 
-/*!
- * \brief Sanitize name for output into compiler artifacts
- * \param name Original name
- * \return Sanitized name
- */
-std::string SanitizeName(const std::string& name);
-
 }  // namespace backend
 }  // namespace relay
 }  // namespace tvm

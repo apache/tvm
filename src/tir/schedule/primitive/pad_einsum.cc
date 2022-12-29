@@ -227,6 +227,8 @@ class PadEinsumRewriter : public ReplaceBufferMutator {
         producer_predicate_(producer_predicate),
         padded_iter_extents_(padded_iter_extents),
         analyzer_(analyzer) {}
+  using ReplaceBufferMutator::VisitExpr_;
+  using ReplaceBufferMutator::VisitStmt_;
 
   Stmt VisitStmt_(const ForNode* op) final {
     For new_for = Downcast<For>(ReplaceBufferMutator::VisitStmt_(op));
@@ -371,8 +373,7 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const Array<Integ
   Map<Buffer, Buffer> buffer_remap;  // mapping from buffers to new buffers with padded shapes
 
   // Utility function to pad a buffer with the new shape
-  auto f_pad_buffer = [&padded_iter_extents, &buffer_remap](Buffer buffer,
-                                                            const Array<Var>& indices) -> Buffer {
+  auto f_pad_buffer = [&padded_iter_extents](Buffer buffer, const Array<Var>& indices) -> Buffer {
     Array<PrimExpr> new_shape;
     for (const Var& index : indices) {
       new_shape.push_back(padded_iter_extents.at(index));

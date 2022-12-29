@@ -18,14 +18,15 @@
 """Operators used in TIR expression."""
 import warnings
 from typing import Any, Optional
-import tvm._ffi
-from tvm.ir.base import Span
-from tvm.runtime import convert, const
-from tvm.ir import Array, Op
 
-from .buffer import Buffer
-from .expr import Call, PrimExprWithOp, StringImm, Var, CommReducer
+import tvm._ffi
+from tvm.ir import Array, Op, PrimExpr
+from tvm.ir.base import Span
+from tvm.runtime import const, convert
+
 from . import _ffi_api
+from .buffer import Buffer
+from .expr import Call, CommReducer, IntImm, PrimExprWithOp, StringImm, Var
 
 
 def _pack_buffer(buf, span=None):
@@ -263,8 +264,6 @@ def call_llvm_intrin(dtype, name, *args, span=None):
     # pylint: disable=import-outside-toplevel
     from tvm.target import codegen
 
-    from .expr import IntImm
-
     if isinstance(name, str):
         llvm_id = codegen.llvm_lookup_intrinsic_id(name)
     elif isinstance(name, IntImm):
@@ -307,8 +306,6 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
     # pylint: disable=import-outside-toplevel
     from tvm.target import codegen
 
-    from .expr import IntImm
-
     if isinstance(name, str):
         llvm_id = codegen.llvm_lookup_intrinsic_id(name)
     elif isinstance(name, IntImm):
@@ -324,6 +321,24 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
         *args,
         span=span,
     )
+
+
+def tvm_check_return(expected, return_unexpected, nested_call):
+    """Return new on stack dtype[num]
+    Parameters
+    ----------
+    expected : int
+        The expected return code.
+    return_unexpected : int
+        The unexpected return code.
+    nested_call : PrimExpr
+        The call expression to check return.
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("int32", "tir.tvm_check_return", expected, return_unexpected, nested_call)
 
 
 def tvm_stack_alloca(dtype_str, num):
@@ -407,7 +422,7 @@ def assume(cond=None):
     call : PrimExpr
         The call expression.
     """
-    return call_intrin("int32", "tir.assume", cond)
+    return call_intrin("bool", "tir.assume", cond)
 
 
 def undef():
@@ -419,6 +434,34 @@ def undef():
         The call expression.
     """
     return call_intrin("int32", "tir.undef")
+
+
+def start_profile_intrinsic(id):
+    """Start profile intrinsic.
+    Parameters
+    ----------
+    id : int
+        The intrinsic id.
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.start_profile_intrinsic", id)
+
+
+def end_profile_intrinsic(id):
+    """End profile intrinsic.
+    Parameters
+    ----------
+    id : int
+        The intrinsic id.
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.end_profile_intrinsic", id)
 
 
 def tvm_tuple(*value):
@@ -2236,6 +2279,52 @@ def q_multiply_shift(x, y, q, s):
         The result.
     """
     return call_intrin("int32", "tir.q_multiply_shift", x, y, q, s)
+
+
+def q_multiply_shift_per_axis(
+    x: PrimExpr,
+    y: PrimExpr,
+    ls: PrimExpr,
+    rs: PrimExpr,
+    q: IntImm,
+    is_lshift_required: IntImm,
+    is_rshift_required: IntImm,
+):
+    """Execute a multiplication between two Q-numbers x and y
+
+    Parameters
+    ----------
+    x : PrimExpr
+        First Q-number.
+    y : PrimExpr
+        Second Q-number.
+    ls : PrimExpr
+         Integer left shift.
+    rs : PrimExpr
+         Integer right shift.
+    q : IntImm
+        Number of fractional bits in x and y. Needs to be > 0.
+    is_lshift_required : IntImm
+                         Whether we need to do left shift or not.
+    is_rshift_required : IntImm
+                         Whether we need to do right shift or not.
+
+    Returns
+    -------
+    z : PrimExpr
+        The result.
+    """
+    return call_intrin(
+        "int32",
+        "tir.q_multiply_shift_per_axis",
+        x,
+        y,
+        ls,
+        rs,
+        q,
+        is_lshift_required,
+        is_rshift_required,
+    )
 
 
 def shift_left(x, y, span=None):

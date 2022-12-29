@@ -193,7 +193,7 @@ class SubgraphMutator : public ExprMutator {
       return Mutate(expr);
     } catch (std::exception& e) {
       if (hard_fail_) {
-        throw e;
+        LOG(FATAL) << e.what();
       } else {
         DLOG(INFO) << "Ran into an error rewriting a subgraph, skipping" << expr << std::endl;
         return expr;
@@ -542,7 +542,7 @@ Pass FakeQuantizationToInteger(bool hard_fail, bool use_qat) {
       [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(FakeQuantizationToInteger(f, m, hard_fail, use_qat));
       };
-  return CreateFunctionPass(pass_func, 0, "FakeQuantizationToInteger", {"InferType"});
+  return CreateFunctionPass(pass_func, 0, "FakeQuantizationToInteger", {"InferType", "DivToMul"});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.FakeQuantizationToInteger")

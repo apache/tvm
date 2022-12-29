@@ -23,44 +23,6 @@ import tvm
 from tvm import te
 
 
-def allocate_hexagon_array(
-    dev, tensor_shape=None, dtype=None, data=None, axis_separators=None, mem_scope=None
-):
-    """
-    Allocate a hexagon array which could be a 2D array
-    on physical memory defined by axis_separators
-    """
-    if tensor_shape is None:
-        assert data is not None, "Must provide either tensor shape or numpy data array"
-        tensor_shape = data.shape
-    elif data is not None:
-        assert (
-            tensor_shape == data.shape
-        ), "Mismatch between provided tensor shape and numpy data array shape"
-
-    if dtype is None:
-        assert data is not None, "Must provide either dtype or numpy data array"
-        dtype = data.dtype.name
-    elif data is not None:
-        assert dtype == data.dtype, "Mismatch between provided dtype and numpy data array dtype"
-
-    if axis_separators is None:
-        axis_separators = []
-
-    boundaries = [0, *axis_separators, len(tensor_shape)]
-    physical_shape = [
-        numpy.prod(tensor_shape[dim_i:dim_f])
-        for dim_i, dim_f in zip(boundaries[:-1], boundaries[1:])
-    ]
-
-    arr = tvm.nd.empty(physical_shape, dtype=dtype, device=dev, mem_scope=mem_scope)
-
-    if data is not None:
-        arr.copyfrom(data.reshape(physical_shape))
-
-    return arr._create_view(tensor_shape)
-
-
 def ceildiv(o, d):
     assert o >= 0
     assert d >= 0
@@ -128,7 +90,7 @@ def get_packed_filter_shape(logical_shape_oihw):
     return physical_shape_oihw8i32o4i
 
 
-def build_and_run(inputs, func, target, target_host, *args, **kwargs):
+def build_and_run(inputs, func, target: str, target_host: str, *args, **kwargs):
     """build and run the function func"""
     schedule, placeholders, binds = func(*args, **kwargs)
 
@@ -306,6 +268,28 @@ def transform_numpy(arr_np, current_layout: str, new_layout: str):
 
         raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
 
+    if current_layout == "ncw":
+        if new_layout == "ncw":
+            return arr_np
+        if new_layout in ["ncw-32c64w-2d"]:
+            n, c, w = arr_np.shape
+            return arr_np.reshape([n, c // 32, 32, w // 64, 64]).transpose(0, 1, 3, 2, 4)
+
+        raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
+
+    if current_layout == "nchw":
+        if new_layout in ["nchw-32c8h8w-2d", "nchw-32c8h8w-1d"]:
+            n, c, h, w = arr_np.shape
+            return arr_np.reshape([n, c // 32, 32, h // 8, 8, w // 8, 8]).transpose(
+                0, 1, 3, 5, 2, 4, 6
+            )
+        if new_layout in ["nchw-32c8h4w-2d", "nchw-32c8h4w-1d"]:
+            n, c, h, w = arr_np.shape
+            return arr_np.reshape([n, c // 32, 32, h // 8, 8, w // 4, 4]).transpose(
+                0, 1, 3, 5, 2, 4, 6
+            )
+        raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
+
     raise RuntimeError(f"Unexpected current_layout '{current_layout}'")
 
 
@@ -334,8 +318,8 @@ def quantize_np(arr_np: numpy.ndarray, dtype: str):
         qmax = 255
         qmin = 0
     elif dtype == "int8":
-        qmax = 128
-        qmin = -127
+        qmax = 127
+        qmin = -128
     else:
         raise RuntimeError(f"Unsupported quantized data type '{dtype}'")
     fmin = numpy.amin(arr_np)
@@ -349,5 +333,11 @@ def quantize_np(arr_np: numpy.ndarray, dtype: str):
 
     scale = (fmax - fmin) / (qmax - qmin)
     zero_point = numpy.rint((fmax * qmin - fmin * qmax) / (fmax - fmin)).astype("int32")
-    quant_np = (arr_np / scale + zero_point).astype(dtype)
+    quant_np = numpy.clip(((arr_np / scale).round() + zero_point), qmin, qmax).astype(dtype)
     return quant_np, scale, zero_point
+
+
+def get_hexagon_target(cpu_ver: str, **kwargs) -> tvm.target.Target:
+    """Creates a Hexagon target"""
+    target = tvm.target.hexagon(cpu_ver, **kwargs)
+    return tvm.target.Target(target, host=target)

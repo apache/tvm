@@ -122,7 +122,7 @@ class AttrScopeLifter : public StmtMutator {
   }
 
   Stmt VisitStmt_(const IfThenElseNode* op) final {
-    if (!op->else_case.defined()) {
+    if (!op->else_case) {
       return StmtMutator::VisitStmt_(op);
     }
     Stmt then_case = this->VisitStmt(op->then_case);
@@ -130,7 +130,7 @@ class AttrScopeLifter : public StmtMutator {
     PrimExpr first_value;
     std::swap(first_node, attr_node_);
     std::swap(first_value, attr_value_);
-    Stmt else_case = this->VisitStmt(op->else_case);
+    Stmt else_case = this->VisitStmt(op->else_case.value());
     if (attr_node_.defined() && attr_value_.defined() && first_node.defined() &&
         first_value.defined() && attr_node_.same_as(first_node) &&
         ValueSame(attr_value_, first_value)) {
@@ -160,7 +160,6 @@ class AttrScopeLifter : public StmtMutator {
   Stmt VisitStmt_(const WhileNode* op) final {
     // TODO(masahi): Do we need a special handling for While nodes?
     LOG(FATAL) << "WhileNode not supported in LiftAttrScope.";
-    return Stmt();
   }
 
  private:

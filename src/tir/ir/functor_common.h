@@ -38,8 +38,7 @@ inline void VisitArray(const Array<T>& arr, F fvisit) {
 
 template <typename T, typename F>
 inline Array<T> MutateArray(Array<T> arr, F fmutate) {
-  arr.MutateByApply(fmutate);
-  return arr;
+  return arr.Map(fmutate);
 }
 
 }  // namespace tir

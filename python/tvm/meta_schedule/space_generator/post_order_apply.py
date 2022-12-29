@@ -15,11 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 """Post Order Apply Space Generator."""
-
-
 from tvm._ffi import register_object
-from .space_generator import SpaceGenerator
+
 from .. import _ffi_api
+from .space_generator import (
+    MutatorProbType,
+    PostprocType,
+    ScheduleRuleType,
+    SpaceGenerator,
+    _normalize_rules,
+)
 
 
 @register_object("meta_schedule.PostOrderApply")
@@ -37,8 +42,19 @@ class PostOrderApply(SpaceGenerator):
         all blocks will have schedules generated.
     """
 
-    def __init__(self, f_block_filter=None):
+    def __init__(
+        self,
+        f_block_filter=None,
+        sch_rules: ScheduleRuleType = "from-target",
+        postprocs: PostprocType = "from-target",
+        mutator_probs: MutatorProbType = "from-target",
+    ):
         """Constructor"""
+        sch_rules, postprocs, mutator_probs = _normalize_rules(sch_rules, postprocs, mutator_probs)
         self.__init_handle_by_constructor__(
-            _ffi_api.SpaceGeneratorPostOrderApply, f_block_filter  # type: ignore # pylint: disable=no-member
+            _ffi_api.SpaceGeneratorPostOrderApply,  # type: ignore # pylint: disable=no-member
+            f_block_filter,
+            sch_rules,
+            postprocs,
+            mutator_probs,
         )

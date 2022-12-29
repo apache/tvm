@@ -24,7 +24,7 @@ import numpy as np
 import tvm
 from tvm import autotvm, te
 from tvm.auto_scheduler import is_auto_scheduler_enabled
-from tvm.meta_schedule import is_meta_schedule_dispatch_enabled
+from tvm.meta_schedule import is_meta_schedule_enabled
 from tvm.runtime import Object
 from tvm.support import libinfo
 from tvm.target import Target
@@ -181,7 +181,7 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
 
     # Disable autotvm if auto_scheduler is enabled.
     # (i.e., always return the implementation with the highest priority for auto-scheduler).
-    if is_auto_scheduler_enabled() or is_meta_schedule_dispatch_enabled():
+    if is_auto_scheduler_enabled() or is_meta_schedule_enabled():
         use_autotvm = False
 
     # If not use autotvm, always return the implementation with the highest priority
@@ -281,25 +281,28 @@ def get_shape(shape):
 
 
 @tvm._ffi.register_func("relay.backend.lower_call")
-def lower_call(call, inputs, target):
+def lower_call(call, inputs, target, otype=None):
     """Lower the call expression to op implementation and tensor outputs."""
     assert isinstance(call.op, tvm.ir.Op)
     op = call.op
 
-    # Prepare the call_node->checked_type(). For the call node inputs, we ensure that
-    # the shape is Int32. Following code ensures the same for the output as well.
-    # TODO(@icemelon9): Support recursive tuple
-    ret_type = call.checked_type
-    if isinstance(ret_type, _ty.TensorType):
-        ret_type = _ty.TensorType(get_shape(ret_type.shape), ret_type.dtype)
-    elif isinstance(ret_type, _ty.TupleType):
-        new_fields = []
-        for field in ret_type.fields:
-            if isinstance(field, _ty.TensorType):
-                new_fields.append(_ty.TensorType(get_shape(field.shape), field.dtype))
-            else:
-                new_fields.append(field)
-        ret_type = _ty.TupleType(new_fields)
+    if otype is not None:
+        ret_type = otype
+    else:
+        # Prepare the call_node->checked_type(). For the call node inputs, we ensure that
+        # the shape is Int32. Following code ensures the same for the output as well.
+        # TODO(@icemelon9): Support recursive tuple
+        ret_type = call.checked_type
+        if isinstance(ret_type, _ty.TensorType):
+            ret_type = _ty.TensorType(get_shape(ret_type.shape), ret_type.dtype)
+        elif isinstance(ret_type, _ty.TupleType):
+            new_fields = []
+            for field in ret_type.fields:
+                if isinstance(field, _ty.TensorType):
+                    new_fields.append(_ty.TensorType(get_shape(field.shape), field.dtype))
+                else:
+                    new_fields.append(field)
+            ret_type = _ty.TupleType(new_fields)
 
     is_dyn = _ty.is_dynamic(call.checked_type)
     for arg in call.args:
@@ -409,3 +412,26 @@ def get():
         The TE Compiler.
     """
     return _backend._TECompilerGlobal()
+
+
+def lower_to_primfunc(relay_func, target):
+    """Lower Relay Function to TIR PrimFunc.
+
+    Parameters
+    ----------
+    relay_func: relay.Function
+        The source primitive function, created by FuseOps.
+
+    target : Target
+        The compilation target.
+
+    Returns
+    -------
+    prim_func : tir.PrimFunc
+        The created prim func.
+    """
+    f = tvm._ffi.get_global_func("relay.backend.LowerToPrimFunc")
+    assert f is not None, "relay.backend.LowerToPrimFunc does not exist. "
+
+    with target:
+        return f(relay_func, target)

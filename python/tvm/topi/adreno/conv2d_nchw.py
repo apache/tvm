@@ -260,7 +260,15 @@ def schedule_conv2d_NCHWc_KCRSk(cfg, s, output):
     cfg.define_split("tile_rx", rx, num_outputs=2)
     cfg.define_knob("auto_unroll_max_step", [0, 512, 1500])
     cfg.define_knob("unroll_explicit", [0, 1])
-
+    cfg.multi_filter(
+        filter=lambda entity: (  # pylint: disable=chained-comparison
+            entity["tile_fc"].size[1] * entity["tile_y"].size[1] * entity["tile_x"].size[1]
+        )
+        <= 24
+        and 32
+        <= (entity["tile_fc"].size[2] * entity["tile_y"].size[2] * entity["tile_x"].size[2])
+        < 1024
+    )
     if cfg.is_fallback:
         get_default_conv2d_config(cfg, conv.shape[1], conv.shape[2], conv.shape[3])
     ##### space definition end #####
@@ -297,8 +305,9 @@ def schedule_conv2d_NCHWc_KCRSk(cfg, s, output):
     if autotvm.GLOBAL_SCOPE.in_tuning or filter_pack_rt:
         if not autotvm.GLOBAL_SCOPE.in_tuning:
             bind_data_copy(s[kernel])
-        WT = s.cache_read(kernel, get_texture_storage(kernel.shape), [conv])
-        bind_data_copy(s[WT])
+        if kernel.shape[2] == 1 and kernel.shape[3] == 1:
+            WT = s.cache_read(kernel, get_texture_storage(kernel.shape), [conv])
+            bind_data_copy(s[WT])
 
     s[conv].set_scope("local")
     if latest_blocked == latest and output != latest:

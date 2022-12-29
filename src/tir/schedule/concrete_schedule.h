@@ -114,8 +114,11 @@ class ConcreteScheduleNode : public ScheduleNode {
   /******** Schedule: Insert cache stages ********/
   BlockRV CacheRead(const BlockRV& block_rv, int read_buffer_index, const String& storage_scope,
                     const Array<BlockRV> consumer_blocks = {}) override;
-  BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index,
-                     const String& storage_scope) override;
+  BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index, const String& storage_scope,
+                     const Array<BlockRV> consumer_blocks = {}) override;
+  Array<BlockRV> CacheInplace(const BlockRV& block_rv, int read_buffer_index,
+                              const String& storage_scope) override;
+  Array<BlockRV> CacheIndex(const BlockRV& block_rv, int write_buffer_index) override;
   BlockRV ReIndex(const BlockRV& block_rv, int buffer_index,
                   BufferIndexType buffer_index_type) override;
   /******** Schedule: Compute location ********/
@@ -134,9 +137,9 @@ class ConcreteScheduleNode : public ScheduleNode {
                     int offset) override;
   void SetScope(const BlockRV& block_rv, int buffer_index, const String& storage_scope) override;
   /******** Schedule: Blockize & Tensorize ********/
-  BlockRV Blockize(const LoopRV& loop_rv) override;
-  void Tensorize(const BlockRV& block_rv, const String& intrin) override;
-  void Tensorize(const LoopRV& loop_rv, const String& intrin) override;
+  BlockRV Blockize(const LoopRV& loop_rv, bool preserve_unit_iters) override;
+  void Tensorize(const BlockRV& block_rv, const String& intrin, bool preserve_unit_iters) override;
+  void Tensorize(const LoopRV& loop_rv, const String& intrin, bool preserve_unit_iters) override;
   /******** Schedule: Annotation ********/
   void Annotate(const LoopRV& loop_rv, const String& ann_key, const ObjectRef& ann_val) override;
   void Unannotate(const LoopRV& loop_rv, const String& ann_key) override;
@@ -151,6 +154,8 @@ class ConcreteScheduleNode : public ScheduleNode {
                         const Array<IntImm>& axis_separators) override;
   /******** Schedule: Padding decomposition ********/
   BlockRV DecomposePadding(const BlockRV& block_rv, const LoopRV& loop_rv) override;
+  /******** Schedule: Buffer transformation ********/
+  void RollingBuffer(const BlockRV& block_rv, int write_buffer_index) override;
   /******** Schedule: Misc ********/
   void EnterPostproc() override {}
 

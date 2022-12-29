@@ -1256,7 +1256,6 @@ inline const char* ArgTypeCode2Str(int type_code) {
       return "ObjectRValueRefArg";
     default:
       LOG(FATAL) << "unknown type_code=" << static_cast<int>(type_code);
-      return "";
   }
 }
 

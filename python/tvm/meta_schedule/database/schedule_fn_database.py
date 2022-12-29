@@ -26,13 +26,32 @@ from .database import Database
 
 @register_object("meta_schedule.ScheduleFnDatabase")
 class ScheduleFnDatabase(Database):
-    """A database for injecting handcrafted schedule functions."""
+    """A database for injecting handcrafted schedule functions.
+
+    Parameters
+    ----------
+    schedule_fn : Callable[[Schedule], bool],
+        The function to do scheduling, which takes a TIR schedule, and returns
+        a boolean indicating if the schedule is committed to the database.
+    module_equality : Optional[str]
+        A string to specify the module equality testing and hashing method.
+        It must be one of the followings:
+          - "structural": Use StructuralEqual/Hash
+          - "ignore-ndarray": Same as "structural", but ignore ndarray raw data during
+                              equality testing and hashing.
+          - "anchor-block": Apply equality testing and hashing on the anchor block extracted from a
+                            given module. The "ignore-ndarray" varint is used for the extracted
+                            blocks or in case no anchor block is found.
+                            For the definition of the anchor block, see tir/analysis/analysis.py.
+    """
 
     def __init__(
         self,
         schedule_fn: Callable[[Schedule], bool],
+        module_equality: str = "structural",
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.DatabaseScheduleFnDatabase,  # type: ignore # pylint: disable=no-member
             schedule_fn,
+            module_equality,
         )

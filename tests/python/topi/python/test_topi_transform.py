@@ -1040,6 +1040,7 @@ def test_gather():
     verify_gather(np.random.randn(4, 7, 5), 1, np.random.randint(low=0, high=7, size=(4, 10, 5)))
     verify_gather(np.random.randn(4, 7, 5), 2, np.random.randint(low=0, high=5, size=(4, 7, 2)))
     verify_gather(np.random.randn(4, 7, 5), 2, np.random.randint(low=0, high=5, size=(4, 7, 10)))
+    verify_gather(np.random.randn(4, 7, 2), 0, np.random.randint(low=0, high=4, size=(4, 7, 2)))
 
 
 @tvm.testing.uses_gpu

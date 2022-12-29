@@ -121,7 +121,6 @@ inline DataType DTypeFromString(const std::string str) {
     return DataType::kBit64;
   } else {
     LOG(FATAL) << "Unrecognized PTX data type " << str;
-    return DataType(0);
   }
 }
 
@@ -162,7 +161,6 @@ LayoutType LayoutTypeFromString(const std::string& str) {
     return LayoutType::kColumnMajor;
   } else {
     LOG(FATAL) << "Unrecognized layout type " << str;
-    return LayoutType::kRowMajor;
   }
 }
 

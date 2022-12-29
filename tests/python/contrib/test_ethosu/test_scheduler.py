@@ -180,8 +180,10 @@ def test_schedule_cache_reads():
 @tvm.script.ir_module
 class DiamondGraphTir:
     @T.prim_func
-    def main(placeholder: T.Buffer[(301056,), "int8"], ethosu_write: T.Buffer[(75264,), "int8"]) -> None:
+    def main(input_placeholder: T.Buffer[(1, 56, 56, 96), "int8"], input_ethosu_write: T.Buffer[(1, 56, 56, 24), "int8"]) -> None:
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+        placeholder = T.buffer_decl([301056], dtype='int8', data=input_placeholder.data)
+        ethosu_write = T.buffer_decl([75264], dtype='int8', data=input_ethosu_write.data)
         buffer1 = T.buffer_decl([2848], "uint8")
         buffer3 = T.buffer_decl([976], "uint8")
         p1_data = T.allocate([2848], "uint8", "global", annotations={"disable_lower_builtin":True})
@@ -213,6 +215,22 @@ def test_schedule_diamond_graph():
     test_mod, _ = _lower_to_tir(func, copy_constants())
     reference_mod = DiamondGraphTir
     tvm.ir.assert_structural_equal(test_mod["main"], reference_mod["main"], True)
+
+
+def test_copy_constants_fully_connected_weights():
+    """Check that MatMul-like conv2d ops do not copy weights to SRAM."""
+    ifm = relay.var("IFM", shape=(1, 1, 1, 32), dtype="int8")
+    conv = make_ethosu_conv2d(ifm, 32, 8, (1, 1), (0, 0), (1, 1), (1, 1))
+    func = relay.Function(relay.analysis.free_vars(conv), conv)
+    func = run_opt_pass(func, relay.transform.InferType())
+
+    func, const_dict = extract_constants(func)
+    cached_func = lower_to_te(func)
+
+    sch = te.create_schedule([cached_func.outputs[0].op])
+    planner = copy_constants()
+    planner(cached_func, const_dict, sch)
+    assert True not in [".global" in s.op.name for s in sch.stages]
 
 
 if __name__ == "__main__":

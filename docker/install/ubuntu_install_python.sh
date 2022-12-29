@@ -65,6 +65,13 @@ mkdir -p "${venv_dir}"
 python3 -mvenv "${TVM_VENV}"
 . "${TVM_VENV}/bin/activate"
 
+# NOTE: Only in python3.9 does venv guarantee it creates the python3.X binary.
+# This is needed so that cmake's find_package(PythonInterp) works inside the venv.
+# See https://bugs.python.org/issue39656
+if [ ! -e "${TVM_VENV}/bin/python${PYTHON_VERSION}" ]; then
+    ln -s "${TVM_VENV}/bin/python" "${TVM_VENV}/bin/python${PYTHON_VERSION}"
+fi
+
 # Update pip to match version used to produce requirements-hashed.txt. This step
 # is necessary so that pip's dependency solver is recent.
 pip_spec=$(cat /install/python/bootstrap/lockfiles/constraints-${PYTHON_VERSION}.txt | grep 'pip==')
@@ -82,6 +89,7 @@ pip3 install \
 addgroup tvm-venv
 chgrp -R tvm-venv "${TVM_VENV}"
 setfacl -R -d -m group:tvm-venv:rwx "${TVM_VENV}"
+setfacl -R -m group:tvm-venv:rwx "${TVM_VENV}"
 
 # Prevent further use of pip3 via the system.
 # There may be multiple (i.e. from python3-pip apt package and pip3 install -U).

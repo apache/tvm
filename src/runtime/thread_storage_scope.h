@@ -78,7 +78,6 @@ inline StorageRank DefaultStorageRank(int thread_scope_rank) {
       return StorageRank::kLocal;
     default: {
       LOG(FATAL) << "unknown rank";
-      return StorageRank::kGlobal;
     }
   }
 }
@@ -115,7 +114,6 @@ struct StorageScope {
         return "texture" + tag;
       default:
         LOG(FATAL) << "unknown storage scope";
-        return "";
     }
   }
   /*!

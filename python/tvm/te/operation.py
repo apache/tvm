@@ -19,7 +19,7 @@ import inspect
 
 # pylint: disable=invalid-name
 from numbers import Integral as _Integral
-from typing import List
+from typing import List, Optional
 
 import tvm._ffi
 import tvm.arith._ffi_api
@@ -326,7 +326,11 @@ def extern(
         if not isinstance(t, _tensor.Tensor):
             raise ValueError("expect inputs to be tensor")
         if in_buffers is None:
-            input_placeholders.append(tvm.tir.decl_buffer(t.shape, t.dtype, t.op.name))
+            input_placeholders.append(
+                tvm.tir.decl_buffer(
+                    t.shape, t.dtype, t.op.name, elem_offset=tvm.tir.Var("elem_offset", "int32")
+                )
+            )
         types.add(t.dtype)
 
     if dtype is None:
@@ -339,7 +343,9 @@ def extern(
 
     if out_buffers is None:
         for shp, dt in zip(shape, dtype):
-            output_placeholders.append(tvm.tir.decl_buffer(shp, dt, name))
+            output_placeholders.append(
+                tvm.tir.decl_buffer(shp, dt, name, elem_offset=tvm.tir.Var("elem_offset", "int32"))
+            )
     body = fcompute(input_placeholders, output_placeholders)
     if isinstance(body, tvm.tir.PrimExpr):
         body = tvm.tir.Evaluate(body)
@@ -392,11 +398,12 @@ def extern_primfunc(input_tensors: List[_tensor.Tensor], primfunc: tvm.tir.PrimF
 
         C = te.extern_primfunc([A, B], func)
     """
-    access_map = {
-        k: tuple(v) for k, v in tvm.arith._ffi_api.DomainTouchedAccessMap(primfunc).items()
-    }
-    in_buffers = [buf for buf, access in access_map.items() if len(access[0])]
-    out_buffers = [buf for buf, access in access_map.items() if len(access[1])]
+
+    # dt_access_map and primfunc.buffer_map are unordered, so use order from primfunc.params
+    dt_access_map = tvm.arith._ffi_api.DomainTouchedAccessMap(primfunc)
+    ordered_buffers = [primfunc.buffer_map[param] for param in primfunc.params]
+    in_buffers = [buf for buf in ordered_buffers if len(dt_access_map[buf][0])]
+    out_buffers = [buf for buf in ordered_buffers if len(dt_access_map[buf][1])]
     assert in_buffers, "PrimFunc has no input buffers"
     assert out_buffers, "PrimFunc has no output buffers"
 
@@ -560,7 +567,9 @@ def reduce_axis(dom, name="rv", thread_tag="", span=None):
     return tvm.tir.IterVar(dom, name, 2, thread_tag, span)
 
 
-def create_prim_func(ops: List[_tensor.Tensor]) -> tvm.tir.PrimFunc:
+def create_prim_func(
+    ops: List[_tensor.Tensor], index_dtype_override: Optional[str] = None
+) -> tvm.tir.PrimFunc:
     """Create a TensorIR PrimFunc from tensor expression
 
     Parameters
@@ -612,4 +621,4 @@ def create_prim_func(ops: List[_tensor.Tensor]) -> tvm.tir.PrimFunc:
     """
     if not isinstance(ops, (list, tuple, Array)):
         ops = [ops]
-    return _ffi_api.CreatePrimFunc(ops)
+    return _ffi_api.CreatePrimFunc(ops, index_dtype_override)

@@ -71,7 +71,16 @@ def test_reshape(dtype, input_shape, output_shape):
     for npu in [False, True]:
         model, params = _get_model(input_shape, output_shape, dtype)
         mod = tei.make_module(model, params)
-        outputs.append(tei.build_and_run(mod, inputs, 1, params, npu=npu))
+        outputs.append(
+            tei.build_and_run(
+                mod,
+                inputs,
+                1,
+                params,
+                npu=npu,
+                additional_config_args={"inline_non_compute_intensive_partitions": False},
+            )
+        )
 
     tei.verify(outputs, dtype, 1)
 
@@ -91,4 +100,10 @@ def test_reshape_failure(input_shape, output_shape):
 
     model, params = _get_model(input_shape, output_shape, "int8")
     mod = tei.make_module(model, params)
-    tei.build(mod, params, expected_host_ops=1, npu_partitions=0)
+    tei.build(
+        mod,
+        params,
+        expected_host_ops=1,
+        npu_partitions=0,
+        additional_config_args={"inline_non_compute_intensive_partitions": False},
+    )

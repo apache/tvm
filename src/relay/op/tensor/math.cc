@@ -77,7 +77,7 @@ bool EinsumRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   }
 
   // Calculate output shape
-  Array<IndexExpr> oshape = topi::NumpyEinsumShape(param->equation, input_shapes);
+  Array<IndexExpr> oshape = topi::InferEinsumShape(param->equation, input_shapes);
 
   auto rtype = TensorType(oshape, dtype);
   reporter->Assign(types[1], rtype);

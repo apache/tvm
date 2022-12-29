@@ -43,6 +43,7 @@ class Tuner(object):
         self.recorder = None
 
         self.task = task
+        self.space = self.task.config_space
 
         # keep the current best
         self.best_config = None

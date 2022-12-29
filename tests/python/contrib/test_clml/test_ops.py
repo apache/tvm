@@ -16,21 +16,14 @@
 # under the License.
 """CLML integration conv2d tests."""
 
-import numpy as np
-
-np.random.seed(0)
-
 import tvm
-from tvm import testing
+import numpy as np
 from tvm import relay
+from tvm.relay import testing
 from tvm.ir import IRModule
-
-from test_clml.infrastructure import (
-    skip_runtime_test,
-    skip_codegen_test,
-    build_and_run,
-    Device,
-)
+from tvm.contrib import utils
+from test_clml.infrastructure import build_and_run, Device, skip_codegen_test
+import pytest
 
 
 def _get_conv_model(
@@ -52,7 +45,7 @@ def _get_conv_model(
     a = relay.var(next(iter(var)), shape=shape, dtype=dtype)
     input_arr = var[next(iter(var))]
     if has_pad:
-        p = ((0, 0), (padding[0], padding[0]), (padding[1], padding[1]), (0, 0))
+        p = ((0, 0), (0, 0), (padding[0], padding[0]), (padding[1], padding[1]))
         a = relay.nn.pad(a, pad_width=p)
         padding = (0, 0, 0, 0)
     else:
@@ -98,21 +91,13 @@ def _get_conv_model(
     return out, params
 
 
-def test_conv2d():
-    Device.load("test_config.json")
-
-    if skip_runtime_test():
-        return
-
-    device = Device()
-    np.random.seed(0)
-
-    dtype = "float32"
-
+@pytest.mark.parametrize("dtype", ["float32"])
+@tvm.testing.requires_openclml
+def test_conv2d(device, dtype):
     trials = [
         # Normal convolution
         [3, 3, (1, 1), (1, 1), (1, 1), 4, (14, 10, 10), (False, False, False)],
-        [2, 1, (2, 2), (1, 1), (1, 1), 7, (15, 16, 12), (False, False, True)],
+        [2, 1, (2, 2), (1, 1), (1, 1), 7, (15, 16, 12), (True, False, True)],
         [3, 3, (2, 1), (1, 1), (1, 1), 4, (14, 10, 10), (False, True, False)],
         [3, 3, (2, 1), (1, 1), (1, 1), 4, (14, 10, 10), (False, True, True)],
         # Normal convolution
@@ -168,17 +153,9 @@ def test_conv2d():
         )
 
 
-def test_batchnorm():
-    Device.load("test_config.json")
-
-    if skip_runtime_test():
-        return
-
-    device = Device()
-    np.random.seed(0)
-
-    dtype = "float32"
-
+@pytest.mark.parametrize("dtype", ["float16"])
+@tvm.testing.requires_openclml
+def _test_batchnorm(device, dtype):
     in_shape = (1, 8, 64, 64)
     channels = 8
 
@@ -211,14 +188,9 @@ def test_batchnorm():
     )
 
 
-def test_concat():
-    Device.load("test_config.json")
-
-    if skip_runtime_test():
-        return
-
-    device = Device()
-    dtype = "float16"
+@pytest.mark.parametrize("dtype", ["float16"])
+@tvm.testing.requires_openclml
+def test_concat(device, dtype):
     in_shape_1 = (1, 16, 16, 16)
     in_shape_2 = (1, 16, 16, 16)
     a = relay.var("input_1", shape=in_shape_1, dtype=dtype)
@@ -241,14 +213,9 @@ def test_concat():
     )
 
 
-def test_avgpool():
-    Device.load("test_config.json")
-
-    if skip_runtime_test():
-        return
-
-    device = Device()
-    dtype = "float16"
+@pytest.mark.parametrize("dtype", ["float16"])
+@tvm.testing.requires_openclml
+def test_avgpool(device, dtype):
     trials = [
         # input size         pool_size stride  paading
         [(1, 64, 147, 147), (3, 3), (2, 2), (0, 0, 0, 0), "max"],
@@ -288,10 +255,3 @@ def test_avgpool():
         tvm.testing.assert_allclose(
             clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
         )
-
-
-if __name__ == "__main__":
-    test_conv2d()
-    # test_batchnorm()
-    test_avgpool()
-    test_concat()

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 from tvm import te
 
 
@@ -97,6 +98,8 @@ def test_split_index_simplify():
     # cannot simplify mixed case, unless we canonicalize into one mode.
     ck.verify(tdiv(x, 6) * 2 + tmod(fld(x, 3), 2), tdiv(x, 6) * 2 + tmod(fld(x, 3), 2))
 
+    ck.verify(tmod(-x, 2), tmod(x, -2) * -1)
+
 
 def test_div_simplify():
     ck = CanonicalChecker()
@@ -122,12 +125,30 @@ def test_div_simplify():
     ck.verify(fld(17 + 47 * x, 16), fld(x * 47 + 17, 16))
 
 
+def test_fp16_const_fold():
+    ck = CanonicalChecker()
+    zero = tvm.tir.const(0, "float16")
+    one = tvm.tir.const(1, "float16")
+    half = tvm.tir.const(0.5, "float16")
+
+    ck.verify(zero + half, half)
+    ck.verify(half - zero, half)
+
+    ck.verify(zero * half, zero)
+    ck.verify(half * one, half)
+
+    ck.verify(half / one, half)
+    ck.verify(zero / half, zero)
+
+
 def test_floormod_simplify():
     ck = CanonicalChecker()
     flm = tvm.te.floormod
     x, y = te.var("x"), te.var("y")
     ck.verify(flm(flm((x * 4) + y - 466036, 24528) - 24512, 16), flm((x * 4) + y + 12, 16))
     ck.verify(flm(flm((x * 4), 16), 8), flm(x, 2) * 4)
+
+    ck.verify(flm(-x, 2), flm(x, -2) * -1)
 
 
 def test_canonical_mixed():
@@ -352,14 +373,4 @@ def test_simplify_cast():
 
 
 if __name__ == "__main__":
-    test_floormod_simplify()
-    test_mul_sum_simplify()
-    test_simplify_if_then_else()
-    test_div_simplify()
-    test_reduce_simplify()
-    test_reduce_combiner_simplify()
-
-    test_split_index_simplify()
-    test_canonical_mixed()
-    test_complex_cases()
-    test_simplify_cast()
+    tvm.testing.main()

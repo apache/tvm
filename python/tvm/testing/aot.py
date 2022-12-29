@@ -24,7 +24,7 @@ import shutil
 import subprocess
 import tarfile
 import logging
-from typing import Any, NamedTuple, Union, Optional, List, Dict
+from typing import Any, NamedTuple, Union, Tuple, Optional, List, Dict
 import numpy as np
 
 import tvm
@@ -899,6 +899,35 @@ def compile_and_run(
         test_dir=test_dir,
         verbose=verbose,
     )
+
+
+def get_dtype_range(dtype: str) -> Tuple[int, int]:
+    """
+    Produces the min,max for a give data type.
+
+    Parameters
+    ----------
+    dtype : str
+        a type string (e.g., int8, float64)
+
+    Returns
+    -------
+    type_info.min : int
+        the minimum of the range
+    type_info.max : int
+        the maximum of the range
+    """
+    type_info = None
+    np_dtype = np.dtype(dtype)
+    kind = np_dtype.kind
+
+    if kind == "f":
+        type_info = np.finfo(np_dtype)
+    elif kind in ["i", "u"]:
+        type_info = np.iinfo(np_dtype)
+    else:
+        raise TypeError(f"dtype ({dtype}) must indicate some floating-point or integral data type.")
+    return type_info.min, type_info.max
 
 
 def generate_ref_data(mod, input_data, params=None, target="llvm"):

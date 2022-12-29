@@ -30,6 +30,9 @@ from tvm.contrib import utils
 from tvm.autotvm.measure import request_remote
 
 
+QNN_DTYPES = ("uint8", "int8")
+
+
 class Device:
     """
     Configuration for Arm Compute Library tests.
@@ -118,6 +121,21 @@ class Device:
         cls.target = test_config["target"]
         cls.device_key = test_config.get("device_key") or ""
         cls.cross_compile = test_config.get("cross_compile") or ""
+
+
+def get_low_high_atol_rtol(dtype):
+    """Returns a tuple with boundary values and and tolerance for ACL tests."""
+
+    if dtype == "float32":
+        low, high, atol, rtol = (-127, 128, 0.001, 0.001)
+    elif dtype == "uint8":
+        low, high, atol, rtol = (0, 255, 1, 0)
+    elif dtype == "int8":
+        low, high, atol, rtol = (-127, 128, 1, 0)
+    else:
+        raise Exception(f"dtype not expected: {dtype}")
+
+    return low, high, atol, rtol
 
 
 def get_cpu_op_count(mod):

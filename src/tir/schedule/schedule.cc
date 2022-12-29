@@ -179,6 +179,10 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheRead")
     .set_body_method<Schedule>(&ScheduleNode::CacheRead);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheWrite")
     .set_body_method<Schedule>(&ScheduleNode::CacheWrite);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheInplace")
+    .set_body_method<Schedule>(&ScheduleNode::CacheInplace);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheIndex")
+    .set_body_method<Schedule>(&ScheduleNode::CacheIndex);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReIndex")
     .set_body_typed([](Schedule self, const BlockRV& block_rv, int buffer_index,
                        int buffer_index_type) {
@@ -207,11 +211,11 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSetScope")
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleBlockize")
     .set_body_method<Schedule>(&ScheduleNode::Blockize);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleTensorize")
-    .set_body_typed([](Schedule self, ObjectRef rv, String intrin) {
+    .set_body_typed([](Schedule self, ObjectRef rv, String intrin, bool preserve_unit_iters) {
       if (const auto* block_rv = rv.as<BlockRVNode>()) {
-        self->Tensorize(GetRef<BlockRV>(block_rv), intrin);
+        self->Tensorize(GetRef<BlockRV>(block_rv), intrin, preserve_unit_iters);
       } else if (const auto* loop_rv = rv.as<LoopRVNode>()) {
-        self->Tensorize(GetRef<LoopRV>(loop_rv), intrin);
+        self->Tensorize(GetRef<LoopRV>(loop_rv), intrin, preserve_unit_iters);
       } else {
         LOG(FATAL) << "TypeError: Cannot evaluate the random variable of type: " << rv->GetTypeKey()
                    << ". Its value is: " << rv;
@@ -268,6 +272,9 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleDecomposePadding")
     .set_body_method<Schedule>(&ScheduleNode::DecomposePadding);
 TVM_REGISTER_GLOBAL("tir.schedule.SchedulePadEinsum")
     .set_body_method<Schedule>(&ScheduleNode::PadEinsum);
+/******** (FFI) Buffer transformation ********/
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleRollingBuffer")
+    .set_body_method<Schedule>(&ScheduleNode::RollingBuffer);
 /******** (FFI) Misc ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleEnterPostproc")
     .set_body_method<Schedule>(&ScheduleNode::EnterPostproc);

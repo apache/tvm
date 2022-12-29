@@ -44,6 +44,26 @@ def _run_tvmc(cmd_args: list, *args, **kwargs):
     return subprocess.check_call(cmd_args_list, *args, **kwargs)
 
 
+def create_project_command(project_path: str, mlf_path: str, platform: str, board: str) -> list:
+    """Returns create project command with tvmc micro."""
+    cmd = [
+        "micro",
+        "create-project",
+        project_path,
+        mlf_path,
+        platform,
+        "--project-option",
+        "project_type=host_driven",
+        f"board={board}",
+    ]
+
+    if platform == "zephyr":
+        # TODO: 4096 is driven by experiment on nucleo_l4r5zi. We should cleanup this after we have
+        # better memory management.
+        cmd.append("config_main_stack_size=4096")
+    return cmd
+
+
 @tvm.testing.requires_micro
 def test_tvmc_exist(platform, board):
     cmd_result = _run_tvmc(["micro", "-h"])
@@ -93,24 +113,10 @@ def test_tvmc_model_build_only(platform, board, output_dir):
     )
     assert cmd_result == 0, "tvmc failed in step: compile"
 
-    create_project_cmd = [
-        "micro",
-        "create-project",
-        project_dir,
-        tar_path,
-        platform,
-        "--project-option",
-        "project_type=host_driven",
-    ]
-    if platform == "zephyr":
-        create_project_cmd.append(f"{platform}_board={board}")
-
-    cmd_result = _run_tvmc(create_project_cmd)
+    cmd_result = _run_tvmc(create_project_command(project_dir, tar_path, platform, board))
     assert cmd_result == 0, "tvmc micro failed in step: create-project"
 
     build_cmd = ["micro", "build", project_dir, platform]
-    if platform == "arduino":
-        build_cmd += ["--project-option", f"{platform}_board={board}"]
     cmd_result = _run_tvmc(build_cmd)
     assert cmd_result == 0, "tvmc micro failed in step: build"
     shutil.rmtree(output_dir)
@@ -160,31 +166,15 @@ def test_tvmc_model_run(platform, board, output_dir):
     )
     assert cmd_result == 0, "tvmc failed in step: compile"
 
-    create_project_cmd = [
-        "micro",
-        "create-project",
-        project_dir,
-        tar_path,
-        platform,
-        "--project-option",
-        "project_type=host_driven",
-    ]
-    if platform == "zephyr":
-        create_project_cmd.append(f"{platform}_board={board}")
-
-    cmd_result = _run_tvmc(create_project_cmd)
+    cmd_result = _run_tvmc(create_project_command(project_dir, tar_path, platform, board))
     assert cmd_result == 0, "tvmc micro failed in step: create-project"
 
     build_cmd = ["micro", "build", project_dir, platform]
-    if platform == "arduino":
-        build_cmd += ["--project-option", f"{platform}_board={board}"]
     cmd_result = _run_tvmc(build_cmd)
 
     assert cmd_result == 0, "tvmc micro failed in step: build"
 
     flash_cmd = ["micro", "flash", project_dir, platform]
-    if platform == "arduino":
-        flash_cmd += ["--project-option", f"{platform}_board={board}"]
     cmd_result = _run_tvmc(flash_cmd)
     assert cmd_result == 0, "tvmc micro failed in step: flash"
 
@@ -194,8 +184,6 @@ def test_tvmc_model_run(platform, board, output_dir):
         "micro",
         project_dir,
     ]
-    if platform == "arduino":
-        run_cmd += ["--project-option", f"{platform}_board={board}"]
     run_cmd += ["--fill-mode", "random"]
     cmd_result = _run_tvmc(run_cmd)
     assert cmd_result == 0, "tvmc micro failed in step: run"

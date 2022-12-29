@@ -19,7 +19,7 @@
 import numpy as np
 import pytest
 import tvm
-import tvm.testing
+from tvm.testing.aot import get_dtype_range
 from tvm import relay
 from .utils import CheckForPadsWithinCompositeFunc
 
@@ -59,10 +59,11 @@ def test_invalid_padding_for_fusion(ifm_shape, pad_width, conv2d_padding, ofm_sh
         pad_mode="constant",
     )
     rng = np.random.default_rng(12321)
+    in_min, in_max = get_dtype_range(dtype)
     local_weight = tvm.nd.array(
         rng.integers(
-            np.iinfo(dtype).min,
-            high=np.iinfo(dtype).max,
+            in_min,
+            high=in_max,
             size=(ofm_channels, kernel_size[0], kernel_size[1], ifm_shape[3]),
             dtype=dtype,
         )
@@ -139,10 +140,11 @@ def test_pad_conv2d_fusion_noncmsisnn_target(ifm_shape, pad_width, conv2d_paddin
         pad_mode="constant",
     )
     rng = np.random.default_rng(12321)
+    in_min, in_max = get_dtype_range(dtype)
     local_weight = tvm.nd.array(
         rng.integers(
-            np.iinfo(dtype).min,
-            high=np.iinfo(dtype).max,
+            in_min,
+            high=in_max,
             size=(ofm_channels, kernel_size[0], kernel_size[1], ifm_shape[3]),
             dtype=dtype,
         )
@@ -217,10 +219,11 @@ def test_pad_conv2d_fusion(ifm_shape, pad_width, conv2d_padding, ofm_shape):
         pad_mode="constant",
     )
     rng = np.random.default_rng(12321)
+    kmin, kmax = get_dtype_range(dtype)
     local_weight = tvm.nd.array(
         rng.integers(
-            np.iinfo(dtype).min,
-            high=np.iinfo(dtype).max,
+            kmin,
+            high=kmax,
             size=(ofm_channels, kernel_size[0], kernel_size[1], ifm_shape[3]),
             dtype=dtype,
         )
@@ -281,10 +284,11 @@ def test_without_preceding_pad():
     ofm_shape = (1, 56, 56, 64)
     local_input = relay.var("local_input", shape=ifm_shape, dtype=dtype)
     rng = np.random.default_rng(12321)
+    kmin, kmax = get_dtype_range(dtype)
     local_weight = tvm.nd.array(
         rng.integers(
-            np.iinfo(dtype).min,
-            high=np.iinfo(dtype).max,
+            kmin,
+            high=kmax,
             size=(64, 3, 3, 64),
             dtype=dtype,
         )

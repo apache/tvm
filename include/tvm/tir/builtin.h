@@ -714,11 +714,14 @@ TVM_DLL const Op& texture2d_store();
 TVM_DLL const Op& texture2d_load();
 
 /*!
- * \brief Copy 1d memory from source to destination
- * Same semantics as memcpy(destination, source, size)
- * Allows for device specific implementations e.g. direct memory access (DMA)
+ * \brief Initiate a non-blocking DMA copy from source to destination
  */
-TVM_DLL const Op& mem_copy();
+TVM_DLL const Op& dma_copy();
+
+/*!
+ * \brief Wait until the number of DMAs in flight is less than or equal to some maximum
+ */
+TVM_DLL const Op& dma_wait();
 
 /*!
  * \brief Provide a true statement that can be used for simplifications
@@ -736,6 +739,16 @@ TVM_DLL const Op& assume();
  * altered as a result of optimizations.
  */
 TVM_DLL const Op& undef();
+
+/*!
+ * \brief Profiling intrinsic
+ */
+TVM_DLL const Op& start_profile_intrinsic();
+
+/*!
+ * \brief Profiling intrinsic
+ */
+TVM_DLL const Op& end_profile_intrinsic();
 
 /*! \brief The kind of structure field info used in intrinsic */
 enum TVMStructFieldKind : int {

@@ -459,7 +459,7 @@ def convert_conv3d(attrs, inputs, tinfos, desired_layouts):
 # conv3d_winograd related operators
 reg.register_strategy(
     "nn.contrib_conv3d_winograd_without_weight_transform",
-    strategy.conv3d_winograd_without_weight_transfrom_strategy,
+    strategy.conv3d_winograd_without_weight_transform_strategy,
 )
 
 
@@ -733,7 +733,7 @@ def mirror_pad_func(attrs, inputs, _):
 # conv2d_winograd related operators
 reg.register_strategy(
     "nn.contrib_conv2d_winograd_without_weight_transform",
-    strategy.conv2d_winograd_without_weight_transfrom_strategy,
+    strategy.conv2d_winograd_without_weight_transform_strategy,
 )
 
 
@@ -875,6 +875,23 @@ def convert_deformable_conv2d(attrs, inputs, tinfos, desired_layouts):
         raise ValueError("Layout %s is not yet supported." % desired_data_layout)
 
     return relay.nn.deformable_conv2d(data, offset, weight, **new_attrs)
+
+
+# QNN ops
+@reg.register_alter_op_layout("add")
+def alter_op_layout_add(attrs, inputs, tinfos, out_type):
+    """Alter the layout of a add op.
+
+    Useful for fusing the bias constant with an input zero point constant in a previous quantized
+    op. Only used when previous op is a quantized op, which is why it lives in topi.nn.qnn.
+    """
+    return topi.nn.qnn.qnn_add_alter_layout(attrs, inputs, tinfos, out_type)
+
+
+@reg.register_alter_op_layout("qnn.requantize")
+def alter_op_layout_qnn_requantize(attrs, inputs, tinfos, out_type):
+    """Alter the layout of a requantization op."""
+    return topi.nn.qnn.qnn_requantize_alter_layout(attrs, inputs, tinfos, out_type)
 
 
 # bitpack

@@ -297,7 +297,8 @@ def test_compile_tflite_module_nhwc_to_nchw(tflite_mobilenet_v1_1_quant):
     before = tvmc_model.mod
 
     expected_layout = "NCHW"
-    after = tvmc.transform.convert_graph_layout(before, expected_layout)
+    with tvm.transform.PassContext(opt_level=3):
+        after = tvmc.transform.convert_graph_layout(before, expected_layout)
 
     layout_transform_calls = []
 
@@ -322,7 +323,8 @@ def test_compile_onnx_module_nchw_to_nhwc(onnx_resnet50):
     before = tvmc_model.mod
 
     expected_layout = "NHWC"
-    after = tvmc.transform.convert_graph_layout(before, expected_layout)
+    with tvm.transform.PassContext(opt_level=3):
+        after = tvmc.transform.convert_graph_layout(before, expected_layout)
 
     layout_transform_calls = []
 
@@ -347,7 +349,8 @@ def test_compile_paddle_module_nchw_to_nhwc(paddle_resnet50):
     before = tvmc_model.mod
 
     expected_layout = "NHWC"
-    after = tvmc.transform.convert_graph_layout(before, expected_layout)
+    with tvm.transform.PassContext(opt_level=3):
+        after = tvmc.transform.convert_graph_layout(before, expected_layout)
 
     layout_transform_calls = []
 
@@ -372,7 +375,9 @@ def test_compile_tflite_module__same_layout__nhwc_to_nhwc(tflite_mobilenet_v1_1_
     before = tvmc_model.mod
 
     expected_layout = "NHWC"
-    after = tvmc.transform.convert_graph_layout(before, expected_layout)
+
+    with tvm.transform.PassContext(opt_level=3):
+        after = tvmc.transform.convert_graph_layout(before, expected_layout)
 
     layout_transform_calls = []
 
@@ -397,7 +402,9 @@ def test_compile_onnx_module__same_layout__nchw_to_nchw(onnx_resnet50):
     before = tvmc_model.mod
 
     expected_layout = "NCHW"
-    after = tvmc.transform.convert_graph_layout(before, expected_layout)
+
+    with tvm.transform.PassContext(opt_level=3):
+        after = tvmc.transform.convert_graph_layout(before, expected_layout)
 
     layout_transform_calls = []
 

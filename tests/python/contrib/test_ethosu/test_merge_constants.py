@@ -399,12 +399,12 @@ def test_read_from_the_same_buffer():
     @tvm.script.ir_module
     class InputModule:
         @T.prim_func
-        def main(placeholder: T.Buffer[(8192,), "int8"], buffer1: T.Buffer[(368,), "uint8"], buffer2: T.Buffer[(96,), "uint8"], ethosu_write: T.Buffer[(2048,), "int8"]) -> None:
+        def main(input_placeholder: T.Buffer[(1, 16, 16, 32), "int8"], buffer1: T.Buffer[(368,), "uint8"], buffer2: T.Buffer[(96,), "uint8"], input_ethosu_write: T.Buffer[(1, 16, 16, 8), "int8"]) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
             # buffer definition
-            T.preflattened_buffer(placeholder, [1, 16, 16, 32], dtype="int8", data=placeholder.data)
-            T.preflattened_buffer(ethosu_write, [1, 16, 16, 8], dtype="int8", data=ethosu_write.data)
+            placeholder = T.buffer_decl(8192, dtype="int8", data=input_placeholder.data)
+            ethosu_write = T.buffer_decl(2048, dtype="int8", data=input_ethosu_write.data)
             # body
             p1_data = T.allocate([368], "uint8", "global")
             p1 = T.buffer_decl([368], "uint8", data=p1_data)
@@ -419,9 +419,12 @@ def test_read_from_the_same_buffer():
     @tvm.script.ir_module
     class ReferenceModule:
         @T.prim_func
-        def main(placeholder: T.Buffer[(8192,), "int8"], buffer1: T.Buffer[(464,), "uint8"], ethosu_write: T.Buffer[(2048,), "int8"]) -> None:
+        def main(input_placeholder: T.Buffer[(1,16,16,32), "int8"], buffer1: T.Buffer[(464,), "uint8"], input_ethosu_write: T.Buffer[(1,16,16,8), "int8"]) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+            # buffer definition
+            placeholder = T.buffer_decl(8192, dtype="int8", data=input_placeholder.data)
+            ethosu_write = T.buffer_decl(2048, dtype="int8", data=input_ethosu_write.data)
             # body
             p1_data = T.allocate([464], "uint8", "global")
             p1 = T.buffer_decl([464], "uint8", data=p1_data)
@@ -435,6 +438,204 @@ def test_read_from_the_same_buffer():
         2: np.array([2], dtype=np.uint8),
     }
     new_const_dict = {1: np.concatenate((const_dict[1], const_dict[2]))}
+    test_mod, const_dict = MergeConstants(const_dict)(InputModule)
+    reference_mod = ReferenceModule
+    tvm.ir.assert_structural_equal(test_mod, reference_mod, True)
+    check_const_dictionaries(const_dict, new_const_dict)
+
+
+def test_arbitrary_argument_order():
+    # fmt: off
+    @tvm.script.ir_module
+    class InputModule:
+        @T.prim_func
+        def main(input_placeholder: T.Buffer[(1,16,16,32), "int8"], buffer1: T.Buffer[(368,), "uint8"], buffer2: T.Buffer[(96,), "uint8"], input_ethosu_write: T.Buffer[(1,16,16,8), "int8"], buffer3: T.Buffer[(368,), "uint8"], buffer4: T.Buffer[(96,), "uint8"]) -> None:
+            # function attr dict
+            T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+            # buffer definition
+            placeholder = T.buffer_decl(8192, dtype="int8", data=input_placeholder.data)
+            ethosu_write = T.buffer_decl(2048, dtype="int8", data=input_ethosu_write.data)
+            # body
+            p1_data = T.allocate([368], "uint8", "global")
+            p1 = T.buffer_decl([368], "uint8", data=p1_data)
+            p2_data = T.allocate([96], "uint8", "global")
+            p2 = T.buffer_decl([96], "uint8", data=p2_data)
+            p3_data = T.allocate([368], "uint8", "global")
+            p3 = T.buffer_decl([368], "uint8", data=p3_data)
+            p4_data = T.allocate([96], "uint8", "global")
+            p4 = T.buffer_decl([96], "uint8", data=p4_data)
+            T.evaluate(T.call_extern("ethosu_copy", buffer1[0], 368, p1[0], dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_copy", buffer2[0], 96, p2[0], dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 8, 32, 16, 0, 8, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 8, 8, 16, 0, 8, ethosu_write[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, p1[0], 192, p1[192], 176, 12, p2[0], 48, p2[48], 48, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_copy", buffer3[0], 368, p3[0], dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_copy", buffer4[0], 96, p4[0], dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 8, 32, 16, 0, 8, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 8, 8, 16, 0, 8, ethosu_write[2048], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, p3[0], 192, p3[192], 176, 12, p4[0], 48, p4[48], 48, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+        __tvm_meta__ = None
+
+
+    @tvm.script.ir_module
+    class ReferenceModule:
+        @T.prim_func
+        def main(input_placeholder: T.Buffer[(1,16,16,32), "int8"], buffer1: T.Buffer[(464,), "uint8"], input_ethosu_write: T.Buffer[(1,16,16,8), "int8"], buffer2: T.Buffer[(464,), "uint8"]) -> None:
+            # function attr dict
+            T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+            # buffer definition
+            placeholder = T.buffer_decl(8192, dtype="int8", data=input_placeholder.data)
+            ethosu_write = T.buffer_decl(2048, dtype="int8", data=input_ethosu_write.data)
+            # body
+            p1_data = T.allocate([464], "uint8", "global")
+            p1 = T.buffer_decl([464], "uint8", data=p1_data)
+            p2_data = T.allocate([464], "uint8", "global")
+            p2 = T.buffer_decl([464], "uint8", data=p2_data)
+            T.evaluate(T.call_extern("ethosu_copy", buffer1[0], 464, p1[0], dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 8, 32, 16, 0, 8, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 8, 8, 16, 0, 8, ethosu_write[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, p1[0], 192, p1[192], 176, 12, p1[368], 48, p1[416], 48, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_copy", buffer2[0], 464, p2[0], dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 8, 32, 16, 0, 8, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 8, 8, 16, 0, 8, ethosu_write[2048], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, p2[0], 192, p2[192], 176, 12, p2[368], 48, p2[416], 48, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+    __tvm_meta__ = None
+    # fmt: on
+
+    const_dict = {
+        1: np.array([1], dtype=np.uint8),
+        2: np.array([2], dtype=np.uint8),
+        4: np.array([4], dtype=np.uint8),
+        5: np.array([5], dtype=np.uint8),
+    }
+    new_const_dict = {
+        1: np.concatenate((const_dict[1], const_dict[2])),
+        3: np.concatenate((const_dict[4], const_dict[5])),
+    }
+    test_mod, const_dict = MergeConstants(const_dict)(InputModule)
+    reference_mod = ReferenceModule
+    tvm.ir.assert_structural_equal(test_mod, reference_mod, False)
+    check_const_dictionaries(const_dict, new_const_dict)
+
+
+def test_arbitrary_argument_order_const_split():
+    # fmt: off
+    @tvm.script.ir_module
+    class InputModule:
+        @T.prim_func
+        def main(input_placeholder: T.Buffer[(1,16,16,32), "int8"], buffer1: T.Buffer[(368,), "uint8"], input_ethosu_write: T.Buffer[(1,16,16,8), "int8"], buffer2: T.Buffer[(96,), "uint8"], buffer3: T.Buffer[(368,), "uint8"], buffer4: T.Buffer[(96,), "uint8"]) -> None:
+            # function attr dict
+            T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+            # buffer definition
+            placeholder = T.buffer_decl(8192, dtype="int8", data=input_placeholder.data)
+            ethosu_write = T.buffer_decl(2048, dtype="int8", data=input_ethosu_write.data)
+            # body
+            p1_data = T.allocate([368], "uint8", "global")
+            p1 = T.buffer_decl([368], "uint8", data=p1_data)
+            p2_data = T.allocate([96], "uint8", "global")
+            p2 = T.buffer_decl([96], "uint8", data=p2_data)
+            p3_data = T.allocate([368], "uint8", "global")
+            p3 = T.buffer_decl([368], "uint8", data=p3_data)
+            p4_data = T.allocate([96], "uint8", "global")
+            p4 = T.buffer_decl([96], "uint8", data=p4_data)
+            T.evaluate(T.call_extern("ethosu_copy", buffer1[0], 368, p1[0], dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_copy", buffer2[0], 96, p2[0], dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 8, 32, 16, 0, 8, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 8, 8, 16, 0, 8, ethosu_write[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, p1[0], 192, p1[192], 176, 12, p2[0], 48, p2[48], 48, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_copy", buffer3[0], 368, p3[0], dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_copy", buffer4[0], 96, p4[0], dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 8, 32, 16, 0, 8, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 8, 8, 16, 0, 8, ethosu_write[2048], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, p3[0], 192, p3[192], 176, 12, p4[0], 48, p4[48], 48, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+        __tvm_meta__ = None
+
+
+    @tvm.script.ir_module
+    class ReferenceModule:
+        @T.prim_func
+        def main(input_placeholder: T.Buffer[(1,16,16,32), "int8"], buffer1: T.Buffer[(464,), "uint8"], input_ethosu_write: T.Buffer[(1,16,16,8), "int8"], buffer2: T.Buffer[(464,), "uint8"]) -> None:
+            # function attr dict
+            T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+            # buffer definition
+            placeholder = T.buffer_decl(8192, dtype="int8", data=input_placeholder.data)
+            ethosu_write = T.buffer_decl(2048, dtype="int8", data=input_ethosu_write.data)
+            # body
+            p1_data = T.allocate([464], "uint8", "global")
+            p1 = T.buffer_decl([464], "uint8", data=p1_data)
+            p2_data = T.allocate([464], "uint8", "global")
+            p2 = T.buffer_decl([464], "uint8", data=p2_data)
+            T.evaluate(T.call_extern("ethosu_copy", buffer1[0], 464, p1[0], dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 8, 32, 16, 0, 8, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 8, 8, 16, 0, 8, ethosu_write[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, p1[0], 192, p1[192], 176, 12, p1[368], 48, p1[416], 48, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_copy", buffer2[0], 464, p2[0], dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 8, 32, 16, 0, 8, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 8, 8, 16, 0, 8, ethosu_write[2048], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, p2[0], 192, p2[192], 176, 12, p2[368], 48, p2[416], 48, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+    __tvm_meta__ = None
+    # fmt: on
+
+    const_dict = {
+        1: np.array([1], dtype=np.uint8),
+        3: np.array([3], dtype=np.uint8),
+        4: np.array([4], dtype=np.uint8),
+        5: np.array([5], dtype=np.uint8),
+    }
+    new_const_dict = {
+        1: np.concatenate((const_dict[1], const_dict[3])),
+        3: np.concatenate((const_dict[4], const_dict[5])),
+    }
+    test_mod, const_dict = MergeConstants(const_dict)(InputModule)
+    reference_mod = ReferenceModule
+    tvm.ir.assert_structural_equal(test_mod, reference_mod, True)
+    check_const_dictionaries(const_dict, new_const_dict)
+
+
+def test_arbitrary_argument_order_const_split_mixed():
+    # fmt: off
+    @tvm.script.ir_module
+    class InputModule:
+        @T.prim_func
+        def main(input_placeholder: T.Buffer[(1,16,16,32), "int8"], buffer1: T.Buffer[(368,), "uint8"], buffer2: T.Buffer[(368,), "uint8"], input_ethosu_write: T.Buffer[(2,16,16,8), "int8"], buffer3: T.Buffer[(96,), "uint8"], buffer4: T.Buffer[(96,), "uint8"]) -> None:
+            # function attr dict
+            T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+            # buffer definition
+            placeholder = T.buffer_decl(8192, dtype='int8', data=input_placeholder.data)
+            ethosu_write = T.buffer_decl(4096, dtype='int8', data=input_ethosu_write.data)
+            # body
+            p1_data = T.allocate([368], "uint8", "global")
+            p1 = T.buffer_decl([368], "uint8", data=p1_data)
+            p2_data = T.allocate([368], "uint8", "global")
+            p2 = T.buffer_decl([368], "uint8", data=p2_data)
+            p3_data = T.allocate([96], "uint8", "global")
+            p3 = T.buffer_decl([96], "uint8", data=p3_data)
+            p4_data = T.allocate([96], "uint8", "global")
+            p4 = T.buffer_decl([96], "uint8", data=p4_data)
+            T.evaluate(T.call_extern("ethosu_copy", buffer1[0], 368, p1[0], dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_copy", buffer3[0], 96, p3[0], dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 8, 32, 16, 0, 8, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 8, 8, 16, 0, 8, ethosu_write[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, p1[0], 192, p1[192], 176, 12, p3[0], 48, p3[48], 48, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_copy", buffer2[0], 368, p2[0], dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_copy", buffer4[0], 96, p4[0], dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 8, 32, 16, 0, 8, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 8, 8, 16, 0, 8, ethosu_write[2048], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, p2[0], 192, p2[192], 176, 12, p4[0], 48, p4[48], 48, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+        __tvm_meta__ = None
+
+
+    @tvm.script.ir_module
+    class ReferenceModule:
+        @T.prim_func
+        def main(input_placeholder: T.Buffer[(1,16,16,32), "int8"], buffer1: T.Buffer[(464,), "uint8"], buffer2: T.Buffer[(464,), "uint8"], input_ethosu_write: T.Buffer[(2,16,16,8), "int8"]) -> None:
+            # function attr dict
+            T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+            # buffer definition
+            placeholder = T.buffer_decl(8192, dtype='int8', data=input_placeholder.data)
+            ethosu_write = T.buffer_decl(4096, dtype='int8', data=input_ethosu_write.data)
+            # body
+            p1_data = T.allocate([464], "uint8", "global")
+            p1 = T.buffer_decl([464], "uint8", data=p1_data)
+            p2_data = T.allocate([464], "uint8", "global")
+            p2 = T.buffer_decl([464], "uint8", data=p2_data)
+            T.evaluate(T.call_extern("ethosu_copy", buffer1[0], 464, p1[0], dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 8, 32, 16, 0, 8, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 8, 8, 16, 0, 8, ethosu_write[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, p1[0], 192, p1[192], 176, 12, p1[368], 48, p1[416], 48, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_copy", buffer2[0], 464, p2[0], dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 8, 32, 16, 0, 8, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 8, 8, 16, 0, 8, ethosu_write[2048], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, p2[0], 192, p2[192], 176, 12, p2[368], 48, p2[416], 48, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+    __tvm_meta__ = None
+    # fmt: on
+
+    const_dict = {
+        1: np.array([1], dtype=np.uint8),
+        2: np.array([2], dtype=np.uint8),
+        4: np.array([4], dtype=np.uint8),
+        5: np.array([5], dtype=np.uint8),
+    }
+    new_const_dict = {
+        1: np.concatenate((const_dict[1], const_dict[4])),
+        2: np.concatenate((const_dict[2], const_dict[5])),
+    }
     test_mod, const_dict = MergeConstants(const_dict)(InputModule)
     reference_mod = ReferenceModule
     tvm.ir.assert_structural_equal(test_mod, reference_mod, True)

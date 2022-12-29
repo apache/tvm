@@ -27,4 +27,3 @@ if(USE_BNNS STREQUAL "ON")
   list(APPEND RUNTIME_SRCS ${BNNS_CONTRIB_SRC})
   message(STATUS "Build with BNNS JSON runtime: " ${EXTERN_LIBRARY_BNNS})
 endif()
-

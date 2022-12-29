@@ -47,7 +47,16 @@ class UnsupportedInModelLibraryFormatError(Exception):
 
 
 def generate_c_interface_header(
-    module_name, inputs, outputs, pools, io_pool_allocations, devices, workspace_size, include_path
+    module_name,
+    inputs,
+    outputs,
+    pools,
+    io_pool_allocations,
+    devices,
+    workspace_size,
+    include_path,
+    input_sizes,
+    output_sizes,
 ):
     """Generate C Interface header to be included in MLF"""
     mangled_name = to_c_variable_style(prefix_generated_name(module_name))
@@ -55,7 +64,15 @@ def generate_c_interface_header(
 
     interface_c_create = tvm._ffi.get_global_func("runtime.InterfaceCCreate")
     interface_c_module = interface_c_create(
-        module_name, inputs, outputs, pools, io_pool_allocations, devices, workspace_size
+        module_name,
+        inputs,
+        outputs,
+        pools,
+        io_pool_allocations,
+        devices,
+        workspace_size,
+        input_sizes,
+        output_sizes,
     )
 
     with open(metadata_header, "w") as header_file:
@@ -193,6 +210,13 @@ def _build_sid_map(graph_json):
     return memory_map
 
 
+def _create_type_metadata(input_type):
+    return {
+        "size": int(_shape_to_size(input_type.shape, input_type.dtype)),
+        "dtype": str(input_type.dtype),
+    }
+
+
 def _build_function_memory_map(function_metadata):
     """Build a simple map that shows how much workspace is required to execute
     each primitive function. The main_func describes how much memory is required
@@ -226,12 +250,12 @@ def _build_function_memory_map(function_metadata):
         for target in dict(finfo.workspace_sizes).keys():
             workspace_size = finfo.workspace_sizes[target]
             target_entry = {
-                "device": int(target.kind.device_type),
+                "device": int(target.get_target_device_type()),
                 "workspace_size_bytes": int(workspace_size),
             }
             target_local_entries[func_name].append(target_entry)
-            if workspace_size >= device_max_workspace.get(int(target.kind.device_type), 0):
-                device_max_workspace[int(target.kind.device_type)] = workspace_size
+            if workspace_size >= device_max_workspace.get(int(target.get_target_device_type()), 0):
+                device_max_workspace[int(target.get_target_device_type())] = workspace_size
 
     for func_name, target_entries_ in target_local_entries.items():
         func_entry = {
@@ -252,30 +276,50 @@ def _build_function_memory_map(function_metadata):
 
     for target in dict(main_func_metadata.workspace_sizes).keys():
         main_func_local_workspace = main_func_metadata.workspace_sizes[target]
-        target_main_entries[int(target.kind.device_type)] = _create_empty_entry(
-            int(target.kind.device_type)
+        target_main_entries[int(target.get_target_device_type())] = _create_empty_entry(
+            int(target.get_target_device_type())
         )
-        target_main_entries[int(target.kind.device_type)]["workspace_size_bytes"] = int(
-            device_max_workspace.get(int(target.kind.device_type), 0)
+        target_main_entries[int(target.get_target_device_type())]["workspace_size_bytes"] = int(
+            device_max_workspace.get(int(target.get_target_device_type()), 0)
         ) + int(main_func_local_workspace)
 
     for target in dict(main_func_metadata.constant_sizes).keys():
-        if int(target.kind.device_type) not in target_main_entries.keys():
-            target_main_entries[int(target.kind.device_type)] = _create_empty_entry(
-                int(target.kind.device_type)
+        if int(target.get_target_device_type()) not in target_main_entries.keys():
+            target_main_entries[int(target.get_target_device_type())] = _create_empty_entry(
+                int(target.get_target_device_type())
             )
-        target_main_entries[int(target.kind.device_type)]["constants_size_bytes"] = int(
+        target_main_entries[int(target.get_target_device_type())]["constants_size_bytes"] = int(
             main_func_metadata.constant_sizes[target]
         )
 
     for target in dict(main_func_metadata.io_sizes).keys():
-        if int(target.kind.device_type) not in target_main_entries.keys():
-            target_main_entries[int(target.kind.device_type)] = _create_empty_entry(
-                int(target.kind.device_type)
+        if int(target.get_target_device_type()) not in target_main_entries.keys():
+            target_main_entries[int(target.get_target_device_type())] = _create_empty_entry(
+                int(target.get_target_device_type())
             )
-        target_main_entries[int(target.kind.device_type)]["io_size_bytes"] = int(
+        target_main_entries[int(target.get_target_device_type())]["io_size_bytes"] = int(
             main_func_metadata.io_sizes[target]
         )
+
+        # Now, we also add the information about the size of each input and output of the main
+        # function (in bytes)
+        input_dict = {}
+        for input_param in main_func_metadata.relay_primfuncs[target].params:
+            input_dict[input_param.name_hint] = _create_type_metadata(input_param.checked_type)
+        target_main_entries[int(target.get_target_device_type())]["inputs"] = input_dict
+
+        output_dict = {}
+        # For output, we dont have the name of the output, so we enumerate them
+        if isinstance(main_func_metadata.relay_primfuncs[target].ret_type, tvm.ir.type.TupleType):
+            output_list = _convert_tuple_to_outputs(
+                main_func_metadata.relay_primfuncs[target].ret_type
+            )
+            for i, output_type in enumerate(output_list):
+                output_dict[f"output{i}"] = _create_type_metadata(output_type)
+        else:
+            output_type = main_func_metadata.relay_primfuncs[target].ret_type
+            output_dict["output"] = _create_type_metadata(output_type)
+        target_main_entries[int(target.get_target_device_type())]["outputs"] = output_dict
 
     ret = {
         "operator_functions": func_entries,
@@ -298,7 +342,7 @@ def _convert_tuple_to_outputs(ret_type, offset=0):
         if isinstance(ret_type.fields[output_index], TupleType):
             outputs.extend(_convert_tuple_to_outputs(ret_type.fields[output_index], next_output))
         else:
-            outputs.append(f"output{next_output}")
+            outputs.append(ret_type.fields[output_index])
     return outputs
 
 
@@ -427,6 +471,20 @@ def _export_graph_model_library_format(
                     "workspace_size_bytes"
                 ]
             )
+            inputs_sizes = metadata["modules"][mod.libmod_name]["memory"]["functions"]["main"][0][
+                "inputs"
+            ]
+            # Here, we merge the output sizes with the actual output names
+            output_sizes = {}
+            for i, key in enumerate(
+                metadata["modules"][mod.libmod_name]["memory"]["functions"]["main"][0][
+                    "outputs"
+                ].keys()
+            ):
+                output_sizes[outputs[i]] = metadata["modules"][mod.libmod_name]["memory"][
+                    "functions"
+                ]["main"][0]["outputs"][key]
+
             generate_c_interface_header(
                 mod.libmod_name,
                 inputs,
@@ -436,6 +494,8 @@ def _export_graph_model_library_format(
                 devices,
                 workspace_size,
                 include_path,
+                inputs_sizes,
+                output_sizes,
             )
 
         is_aot = isinstance(mod, executor_factory.AOTExecutorFactoryModule)
@@ -459,7 +519,7 @@ class NonStaticShapeError(Exception):
 
 def _shape_to_size(shape, dtype):
     bits_per_item = int(
-        re.match(r"((float)|(int))(?P<width_bits>[0-9]+)", dtype).group("width_bits")
+        re.match(r"((float)|(int)|(uint))(?P<width_bits>[0-9]+)", dtype).group("width_bits")
     )
     assert bits_per_item is not None, f"don't know how to compute size of type {dtype}"
     total_bits = bits_per_item
@@ -483,7 +543,7 @@ def _write_tir_and_build_operator_memory_map(src_dir, targets, ir_module_by_targ
     memory_map = {}
     for target in targets:
         # TODO(mbs): The device type is not unique, better would be to use target.kind.name
-        target_device_type = target.kind.device_type
+        target_device_type = target.get_target_device_type()
         ir_mod = ir_module_by_target[target]
         printer = get_global_func("tir.ModelLibraryFormatPrinter")(False, None, False)
         with open(src_dir / f"tir-{target_device_type}.txt", "w") as f:

@@ -75,8 +75,6 @@ class PrimFuncFrameNode : public TIRFrameNode {
   Optional<Type> ret_type;
   /*! \brief Maps some parameters to specific Buffer data structures. */
   Map<tvm::tir::Var, tvm::tir::Buffer> buffer_map;
-  /*! \brief The buffer map prior to flattening. */
-  Map<tvm::tir::Var, tvm::tir::Buffer> preflattened_buffer_map;
   /*! \brief Additional attributes storing the meta-data */
   Optional<Map<String, ObjectRef>> attrs;
   /*! \brief The variable map bound to thread env. */
@@ -90,7 +88,6 @@ class PrimFuncFrameNode : public TIRFrameNode {
     v->Visit("args", &args);
     v->Visit("ret_type", &ret_type);
     v->Visit("buffer_map", &buffer_map);
-    v->Visit("preflattened_buffer_map", &preflattened_buffer_map);
     v->Visit("attrs", &attrs);
     v->Visit("env_threads", &env_threads);
     v->Visit("root_alloc_buffers", &root_alloc_buffers);
@@ -453,8 +450,8 @@ class AllocateFrameNode : public TIRFrameNode {
   PrimExpr condition;
   /*! \brief Additional annotation hints. */
   Map<String, ObjectRef> annotations;
-  /*! \brief The buffer. */
-  tvm::tir::Buffer buffer;
+  /*! \brief The buffer var. */
+  tvm::tir::Var buffer_var;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     TIRFrameNode::VisitAttrs(v);
@@ -463,7 +460,7 @@ class AllocateFrameNode : public TIRFrameNode {
     v->Visit("storage_scope", &storage_scope);
     v->Visit("condition", &condition);
     v->Visit("annotations", &annotations);
-    v->Visit("buffer", &buffer);
+    v->Visit("buffer_var", &buffer_var);
   }
 
   static constexpr const char* _type_key = "script.ir_builder.tir.AllocateFrame";
@@ -500,8 +497,8 @@ class AllocateConstFrameNode : public TIRFrameNode {
   Array<PrimExpr> extents;
   /*! \brief The data associated with the constant. */
   tvm::runtime::NDArray data;
-  /*! \brief The buffer */
-  tvm::tir::Buffer buffer;
+  /*! \brief The buffer var */
+  tvm::tir::Var buffer_var;
   /*! \brief Additional annotations about the allocation. */
   Map<String, ObjectRef> annotations;
 
@@ -510,7 +507,7 @@ class AllocateConstFrameNode : public TIRFrameNode {
     v->Visit("dtype", &dtype);
     v->Visit("extents", &extents);
     v->Visit("data", &data);
-    v->Visit("buffer", &buffer);
+    v->Visit("buffer_var", &buffer_var);
     v->Visit("annotations", &annotations);
   }
 
@@ -723,11 +720,15 @@ class ElseFrame : public TIRFrame {
 
 class DeclBufferFrameNode : public TIRFrameNode {
  public:
+  /*! \brief The declared buffer. */
   tvm::tir::Buffer buffer;
+  /*! \brief The buffer allocated or not. */
+  bool allocated;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     TIRFrameNode::VisitAttrs(v);
     v->Visit("buffer", &buffer);
+    v->Visit("allocated", &allocated);
   }
 
   static constexpr const char* _type_key = "script.ir_builder.tir.DeclBufferFrame";

@@ -145,11 +145,27 @@ class Postproc : public runtime::ObjectRef {
    */
   TVM_DLL static Postproc VerifyGPUCode();
   /*!
+   * \brief Verifies that the VTCM usage of a given schedule is within the provided limit.
+   * \return The postprocessor created
+   */
+  TVM_DLL static Postproc VerifyVTCMLimit();
+  /*!
    * \brief Creates a postprocessor that rewrites the layout of input tensor
    * \note Weight layout rewrite is supported so far, activation layout rewrite will be added.
    * \return The postprocessor created
    */
   TVM_DLL static Postproc RewriteLayout();
+  /*! \brief Create default postprocessors for LLVM */
+  TVM_DLL static Array<Postproc, void> DefaultLLVM();
+  /*! \brief Create default postprocessors for x86 VNNI */
+  TVM_DLL static Array<Postproc, void> DefaultVNNI();
+  /*! \brief Create default postprocessors for CUDA */
+  TVM_DLL static Array<Postproc, void> DefaultCUDA();
+  /*! \brief Create default postprocessors for CUDA with TensorCore */
+  TVM_DLL static Array<Postproc, void> DefaultCUDATensorCore();
+  /*! \brief Create default postprocessors for Hexagon */
+  TVM_DLL static Array<Postproc, void> DefaultHexagon();
+
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Postproc, ObjectRef, PostprocNode);
 };
 

@@ -22,6 +22,7 @@ import numpy as np
 
 import tvm
 from tvm import relay
+from tvm.relay.op.contrib import ethosn_api_version
 from tvm.testing import requires_ethosn
 
 from . import infrastructure as tei
@@ -55,9 +56,12 @@ def test_leaky_relu(dtype, shape, alpha):
     iinfo = np.iinfo(dtype)
     zp_min = iinfo.min
     zp_max = iinfo.max
-    input_zp = zp_min + 120
+    if ethosn_api_version() == "3.2.0":
+        input_zp = zp_min + 128
+    else:
+        input_zp = zp_min + 120
     input_sc = 0.0068132
-    output_zp = zp_min + 128
+    output_zp = zp_min + 126  # values offset more than 126 can cause saturation
     output_sc = 0.0078125
 
     inputs = {"x": tvm.nd.array(np.random.randint(zp_min, high=zp_max, size=shape, dtype=dtype))}
@@ -65,7 +69,16 @@ def test_leaky_relu(dtype, shape, alpha):
     for npu in [False, True]:
         model = _get_model(shape, input_zp, input_sc, output_zp, output_sc, dtype, alpha)
         mod = tei.make_module(model, [])
-        outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
+        outputs.append(
+            tei.build_and_run(
+                mod,
+                inputs,
+                1,
+                {},
+                npu=npu,
+                additional_config_args={"inline_non_compute_intensive_partitions": False},
+            )
+        )
 
     tei.verify(outputs, dtype, 1)
 

@@ -22,7 +22,7 @@
 #
 # Usage: docker/bash.sh [-i|--interactive] [--net=host] [-t|--tty]
 #          [--mount MOUNT_DIR] [--repo-mount-point REPO_MOUNT_POINT]
-#          [--dry-run] [--name NAME]
+#          [--dry-run] [--name NAME] [--privileged]
 #          <DOCKER_IMAGE_NAME> [--] [COMMAND]
 #
 # Usage: docker/bash.sh <CONTAINER_NAME>
@@ -97,6 +97,10 @@ Usage: docker/bash.sh [-i|--interactive] [--net=host] [-t|--tty]
     Set the name of the docker container, and the hostname that will
     appear inside the container.
 
+--privileged
+
+    Give extended privileges to this container.
+
 DOCKER_IMAGE_NAME
 
     The name of the docker container to be run.  This can be an
@@ -137,7 +141,7 @@ CONTAINER_NAME=
 # "${REPO_DIR}".  The consistent directory for Jenkins is currently
 # necessary to allow cmake build commands to run in CI after the build
 # steps.
-# TODO(https://github.com/apache/tvm/issues/11952): 
+# TODO(https://github.com/apache/tvm/issues/11952):
 # Figure out a better way to keep the same path
 # between build and testing stages.
 if [[ -n "${JENKINS_HOME:-}" ]]; then
@@ -161,6 +165,7 @@ function parse_error() {
 break_joined_flag='if (( ${#1} == 2 )); then shift; else set -- -"${1#-i}" "${@:2}"; fi'
 
 DOCKER_ENV=( )
+DOCKER_FLAGS=( )
 
 while (( $# )); do
     case "$1" in
@@ -182,6 +187,11 @@ while (( $# )); do
         --net=host)
             USE_NET_HOST=true
             shift
+            ;;
+
+        --net)
+            DOCKER_FLAGS+=( --net "$2" )
+            shift 2
             ;;
 
         --mount)
@@ -207,8 +217,18 @@ while (( $# )); do
             fi
             ;;
 
+        --privileged)
+            DOCKER_FLAGS+=( "--privileged" )
+            shift 1
+            ;;
+
         --env)
             DOCKER_ENV+=( --env "$2" )
+            shift 2
+            ;;
+
+        --volume)
+            DOCKER_FLAGS+=( --volume "$2" )
             shift 2
             ;;
 
@@ -284,18 +304,15 @@ fi
 
 source "$(dirname $0)/dev_common.sh" || exit 2
 
-DOCKER_FLAGS=( )
 DOCKER_MOUNT=( )
 DOCKER_DEVICES=( )
-
-
 # If the user gave a shortcut defined in the Jenkinsfile, use it.
 EXPANDED_SHORTCUT=$(lookup_image_spec "${DOCKER_IMAGE_NAME}")
 if [ -n "${EXPANDED_SHORTCUT}" ]; then
     if [ "${CI+x}" == "x" ]; then
         DOCKER_IMAGE_NAME="${EXPANDED_SHORTCUT}"
     else
-        python3 ci/scripts/determine_docker_images.py "$DOCKER_IMAGE_NAME=$EXPANDED_SHORTCUT" 2> /dev/null
+        python3 ci/scripts/jenkins/determine_docker_images.py "$DOCKER_IMAGE_NAME" 2> /dev/null
         DOCKER_IMAGE_NAME=$(cat ".docker-image-names/$DOCKER_IMAGE_NAME")
         if [[ "$DOCKER_IMAGE_NAME" == *"tlcpackstaging"* ]]; then
             echo "WARNING: resolved docker image to fallback tag in tlcpackstaging" >&2
@@ -319,16 +336,6 @@ DOCKER_ENV+=( --env CI_BUILD_HOME="${REPO_MOUNT_POINT}"
               --env CI_PYTEST_ADD_OPTIONS="${CI_PYTEST_ADD_OPTIONS:-}"
               --env CI_IMAGE_NAME="${DOCKER_IMAGE_NAME}"
             )
-
-
-# Pass tvm test data folder through to the docker container, to avoid
-# repeated downloads.  Check if we have permissions to write to the
-# directory first, since the CI may not.
-TEST_DATA_PATH="${TVM_DATA_ROOT_PATH:-${HOME}/.tvm_test_data}"
-if [[ -d "${TEST_DATA_PATH}" && -w "${TEST_DATA_PATH}" ]]; then
-    DOCKER_MOUNT+=( --volume "${TEST_DATA_PATH}":"${REPO_MOUNT_POINT}"/.tvm_test_data )
-fi
-
 
 # Remove the container once it finishes running (--rm) and share the
 # PID namespace (--pid=host).  The process inside does not have pid 1
@@ -459,7 +466,6 @@ echo "DOCKER CONTAINER NAME: ${DOCKER_IMAGE_NAME}"
 echo ""
 
 echo Running \'${COMMAND[@]+"${COMMAND[@]}"}\' inside ${DOCKER_IMAGE_NAME}...
-
 
 DOCKER_CMD=(${DOCKER_BINARY} run
             ${DOCKER_FLAGS[@]+"${DOCKER_FLAGS[@]}"}

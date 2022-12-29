@@ -90,7 +90,8 @@ Layout::Layout(const Array<IterVar>& axes) {
   data_ = std::move(node);
 }
 
-Layout::Layout(const std::string& name) {  // NOLINT(*)
+Layout::Layout(const std::string& name, DataType dtype) {  // NOLINT(*)
+  CHECK(dtype.is_int()) << "TypeError: The input dtype should be integer type";
   if (name == "__undef__") return;
 
   auto node = make_object<LayoutNode>();
@@ -106,14 +107,14 @@ Layout::Layout(const std::string& name) {  // NOLINT(*)
                            << " before dimension " << c;
       std::string shape_name("_shape");
       shape_name.insert(0, 1, c);
-      IterVar axis =
-          IterVar(Range(PrimExpr(0), Var(shape_name)), Var(std::string(1, c)), tir::kDataPar);
+      IterVar axis(Range(IntImm(dtype, 0), Var(shape_name, dtype)), Var(std::string(1, c), dtype),
+                   tir::kDataPar);
       node->axes.push_back(axis);
     } else if (c >= 'a' && c <= 'z') {
       ICHECK_GT(factor, 0) << "Invalid layout " << name << ": invalid factor size " << factor
                            << " for dimension " << c;
-      IterVar axis =
-          IterVar(Range(PrimExpr(0), PrimExpr(factor)), Var(std::string(1, c)), tir::kDataPar);
+      IterVar axis(Range(IntImm(dtype, 0), IntImm(dtype, factor)), Var(std::string(1, c), dtype),
+                   tir::kDataPar);
       node->axes.push_back(axis);
       factor = 0;
     } else if (c >= '0' && c <= '9') {
@@ -334,13 +335,9 @@ inline Array<PrimExpr> TransformShape(const Array<PrimExpr>& src_shape,
   // for minor-axis, simply bind it as 0, so that we can reuse forward/backward_rule,
   // e.g., (C * 16 + c) / 32
   std::unordered_map<const tir::VarNode*, PrimExpr> bind_map;
-  std::unordered_set<size_t> symbolic_var_set;
   for (size_t i = 0; i < src_shape.size(); ++i) {
     PrimExpr orig_shape = src_shape[i];
     IterVar orig_axis = src_axis[i];
-    if (orig_shape.as<tir::AnyNode>()) {
-      symbolic_var_set.insert(i);
-    }
     if (!LayoutAxis::Get(orig_axis).IsPrimal()) {
       if (orig_shape.defined()) {
         const auto* orig_shape_const = orig_shape.as<IntImmNode>();
@@ -369,11 +366,7 @@ inline Array<PrimExpr> TransformShape(const Array<PrimExpr>& src_shape,
     if (!LayoutAxis::Get(axis).IsPrimal()) {
       result.push_back(axis->dom->extent);
     } else {
-      if (symbolic_var_set.count(i)) {
-        result.push_back(tir::Any());
-      } else {
-        result.push_back(ana.Simplify(tir::Substitute(rule, bind_map)));
-      }
+      result.push_back(ana.Simplify(tir::Substitute(rule, bind_map)));
     }
   }
 
@@ -434,7 +427,9 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ")";
     });
 
-TVM_REGISTER_GLOBAL("tir.Layout").set_body_typed([](std::string name) { return Layout(name); });
+TVM_REGISTER_GLOBAL("tir.Layout").set_body_typed([](std::string name, DataType dtype) {
+  return Layout(name, dtype);
+});
 
 TVM_REGISTER_GLOBAL("tir.LayoutIndexOf").set_body_typed([](Layout layout, std::string axis) -> int {
   return layout.IndexOf(LayoutAxis::Get(axis));

@@ -394,6 +394,7 @@ bool IsAllPositiveConstant(const Expr& expr) {
   static const auto& reshape_op = Op::Get("reshape");
   static const auto& transpose_op = Op::Get("transpose");
   static const auto& squeeze_op = Op::Get("squeeze");
+  static const auto& repeat_op = Op::Get("repeat");
 
   // peel through a few common transform ops.
   if (const auto* constant = expr.as<ConstantNode>()) {
@@ -419,7 +420,7 @@ bool IsAllPositiveConstant(const Expr& expr) {
   } else if (const auto* op = expr.as<CallNode>()) {
     // tail recursion.
     if (op->op == expand_dims_op || op->op == reshape_op || op->op == transpose_op ||
-        op->op == squeeze_op) {
+        op->op == squeeze_op || op->op == repeat_op) {
       return IsAllPositiveConstant(op->args[0]);
     } else {
       return false;

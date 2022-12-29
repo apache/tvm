@@ -60,7 +60,16 @@ def test_relu(dtype, shape, a_min, a_max):
     for npu in [False, True]:
         model = _get_model(inputs["a"].shape, dtype, a_min, a_max)
         mod = tei.make_module(model, {})
-        outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
+        outputs.append(
+            tei.build_and_run(
+                mod,
+                inputs,
+                1,
+                {},
+                npu=npu,
+                additional_config_args={"inline_non_compute_intensive_partitions": False},
+            )
+        )
 
     tei.verify(outputs, dtype, 1)
 

@@ -397,24 +397,28 @@ def test_argmin_argmax_get_last_elements():
                 assert op_res.numpy().item() == ans
 
 
-def verify_mean_var_std(executor_kind, funcs, shape, axis, keepdims):
+def verify_mean_var_std(executor_kind, funcs, shape, axis, keepdims, dtype="float32"):
     test_func = funcs[0]
     ref_func = funcs[1]
-    dtype = "float32"
 
     x = relay.var("x", relay.TensorType(shape, dtype))
     z = test_func(x, axis, keepdims)
     func = relay.Function([x], z.astuple())
-    x_data = np.random.uniform(size=shape).astype(dtype)
-    ref_mean = np.mean(x_data, axis=axis, dtype=dtype, keepdims=keepdims)
-    ref_res = ref_func(x_data, axis=axis, dtype=dtype, keepdims=keepdims)
+    x_data = np.random.uniform(size=shape).astype("float32")
+    ref_mean = np.mean(x_data, axis=axis, dtype="float32", keepdims=keepdims).astype(dtype)
+    ref_res = ref_func(x_data, axis=axis, dtype="float32", keepdims=keepdims).astype(dtype)
 
     for target, dev in tvm.testing.enabled_targets():
         op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
-            x_data
+            x_data.astype(dtype)
         )
-        tvm.testing.assert_allclose(op_res[0].numpy(), ref_mean, rtol=1e-5)
-        tvm.testing.assert_allclose(op_res[1].numpy(), ref_res, rtol=1e-5)
+        # FP16 is always a little less accurate.
+        if dtype == "float16":
+            rtol, atol = (1e-2, 1e-2)
+        else:
+            rtol, atol = (1e-5, 1e-5)
+        tvm.testing.assert_allclose(op_res[0].numpy(), ref_mean, rtol=rtol, atol=atol)
+        tvm.testing.assert_allclose(op_res[1].numpy(), ref_res, rtol=rtol, atol=atol)
 
 
 @tvm.testing.uses_gpu
@@ -430,6 +434,9 @@ def test_mean_var_std(executor_kind):
         verify_mean_var_std(executor_kind, func, (128, 24, 128), (0, 2), False)
         verify_mean_var_std(executor_kind, func, (128, 24, 128), (0, 1), True)
         verify_mean_var_std(executor_kind, func, (128, 24, 128), (0, 2), True)
+        # Test FP16 reduction with large indices.
+        verify_mean_var_std(executor_kind, func, (128, 24, 128), (0, 2), True, "float16")
+        verify_mean_var_std(executor_kind, func, (128, 24, 128), None, False, "float16")
 
 
 @tvm.testing.uses_gpu
