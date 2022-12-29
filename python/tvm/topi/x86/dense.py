@@ -29,7 +29,7 @@ from ..utils import get_const_tuple, traverse_inline
 from .tensor_intrin import dot_16x1x16_uint8_int8_int32_cascadelake
 from .tensor_intrin import dot_32x128x32_u8s8s32_sapphirerapids
 from .tensor_intrin import acc_32x32_int32_sapphirerapids
-from .utils import get_simd_32bit_lanes
+from .utils import get_simd_32bit_lanes, target_has_vnni, target_has_amx
 
 
 def _schedule_dense_pack_template(cfg, s, C, O):
@@ -280,7 +280,36 @@ def schedule_dense_pack(cfg, outs):
     return s
 
 
-def dense_vnni_compute(cfg, X, packed_w, bias=None):
+@autotvm.register_topi_compute("dense_int8.x86")
+def dense_int8(cfg, data, weight, bias=None, out_dtype=None):
+    """Compute for uint8 x int8 -> int32 dense"""
+    if out_dtype is None:
+        out_dtype = data.dtype
+    assert len(weight.shape) == 4
+    assert data.dtype == "uint8" and weight.dtype == "int8"
+    _, _, n_inner, k_inner = get_const_tuple(weight.shape)  # out_dim
+    assert n_inner == 16 and k_inner == 4
+    return dense_int8_compute(cfg, data, weight, bias)
+
+
+@autotvm.register_topi_schedule("dense_int8.x86")
+def schedule_dense_int8(cfg, outs):
+    """Create a schedule for dense__int8"""
+    s = te.create_schedule([x.op for x in outs])
+    mcpu = tvm.target.Target.current().mcpu
+
+    def _callback(op):
+        if "dense_int8" in op.tag:
+            if target_has_amx(mcpu):
+                dense_amx_int8_schedule(cfg, s, op.output(0), outs[0])
+            elif target_has_vnni(mcpu):
+                dense_vnni_schedule(cfg, s, op.output(0), outs[0])
+
+    traverse_inline(s, outs[0].op, _callback)
+    return s
+
+
+def dense_int8_compute(cfg, X, packed_w, bias=None):
     """Compute for uint8 x int8 -> int32 dense"""
     m, k = X.shape
     n_o, _, n_i, _ = packed_w.shape
@@ -295,15 +324,12 @@ def dense_vnni_compute(cfg, X, packed_w, bias=None):
             ),
             axis=ak,
         ),
-        tag="dense_vnni",
-        attrs={"schedule_rule": "dense_vnni"},
+        tag="dense_int8",
+        attrs={"schedule_rule": "dense_int8"},
     )
 
     if bias is not None:
         C = te.compute(C.shape, lambda i, j: C[i, j] + bias[j], tag=tag.BROADCAST)
-
-    a_y, _ = C.op.axis
-    cfg.define_split("tile_y", a_y, num_outputs=2)
 
     return C
 
@@ -319,6 +345,7 @@ def dense_vnni_schedule(cfg, s, C, O, do_parallel=True):
         if cfg.is_fallback:
             return s[out].split(a_y, factor=default_y_split_factor)
 
+        cfg.define_split("tile_y", a_y, num_outputs=2)
         return cfg["tile_y"].apply(s, out, a_y)
 
     (a_k,) = C.op.reduce_axis
@@ -348,56 +375,6 @@ def dense_vnni_schedule(cfg, s, C, O, do_parallel=True):
         s[O].parallel(fused)
 
     return s, fused
-
-
-@autotvm.register_topi_compute("dense_vnni.x86")
-def dense_vnni(cfg, data, weight, bias=None, out_dtype=None):
-    """Compute for uint8 x int8 -> int32 dense"""
-    if out_dtype is None:
-        out_dtype = data.dtype
-    assert len(weight.shape) == 4
-    assert data.dtype == "uint8" and weight.dtype == "int8"
-    _, _, n_inner, k_inner = get_const_tuple(weight.shape)  # out_dim
-    assert n_inner == 16 and k_inner == 4
-    return dense_vnni_compute(cfg, data, weight, bias)
-
-
-@autotvm.register_topi_schedule("dense_vnni.x86")
-def schedule_dense_vnni(cfg, outs):
-    """Create a schedule for dense_vnni"""
-    s = te.create_schedule([x.op for x in outs])
-
-    def _callback(op):
-        if "dense_vnni" in op.tag:
-            dense_vnni_schedule(cfg, s, op.output(0), outs[0])
-
-    traverse_inline(s, outs[0].op, _callback)
-    return s
-
-
-def dense_amx_int8_compute(cfg, data, packed_w, bias=None):
-    """Compute for uint8 x int8 -> int32 dense"""
-    m, k = data.shape
-    n_o, _, n_i, _ = packed_w.shape
-    ak = te.reduce_axis((0, k), name="k")
-
-    C = te.compute(
-        (m, n_o * n_i),
-        lambda i, j: te.sum(
-            data[i, ak].astype("int32")
-            * packed_w[tvm.tir.indexdiv(j, 16), tvm.tir.indexdiv(ak, 4), j % 16, ak % 4].astype(
-                "int32"
-            ),
-            axis=ak,
-        ),
-        tag="dense_amx_int8",
-        attrs={"schedule_rule": "meta_schedule.dense_amx_int8"},
-    )
-
-    if bias is not None:
-        C = te.compute(C.shape, lambda i, j: C[i, j] + bias[j], tag=tag.BROADCAST)
-
-    return C
 
 
 def dense_amx_int8_schedule(cfg, s, C, O, do_parallel=True):
@@ -495,18 +472,6 @@ def dense_amx_int8_schedule(cfg, s, C, O, do_parallel=True):
         s[O].parallel(fused)
 
     return s, fused
-
-
-@autotvm.register_topi_compute("dense_amx_int8.x86")
-def dense_amx_int8(cfg, data, weight, bias=None, out_dtype=None):
-    """Compute for uint8 x int8 -> int32 dense"""
-    if out_dtype is None:
-        out_dtype = data.dtype
-    assert len(weight.shape) == 4
-    assert data.dtype == "uint8" and weight.dtype == "int8"
-    _, _, _, n_inner = get_const_tuple(weight.shape)  # out_dim
-    assert n_inner == 4
-    return dense_amx_int8_compute(cfg, data, weight, bias)
 
 
 @autotvm.register_topi_schedule("dense_amx_int8.x86")
