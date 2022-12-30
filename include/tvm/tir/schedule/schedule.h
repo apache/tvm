@@ -414,10 +414,12 @@ class ScheduleNode : public runtime::Object {
    * \param read_buffer_index The index of the buffer in block's read region.
    * \param storage_scope The target storage scope.
    * \param dim_order The user-defined dimension order of allocated buffer.
+   * \param consumer_blocks An optional list of consumers to read from cache directly.
    * \return The cache stage block.
    */
   virtual BlockRV ReverseCacheRead(const BlockRV& block_rv, int read_buffer_index,
-                                   const String& storage_scope, Array<Integer> dim_order) = 0;
+                                   const String& storage_scope, Array<Integer> dim_order,
+                                   Array<BlockRV> consumer_blocks) = 0;
   /*!
    * \brief Create a block that writes a buffer region into a write cache. It requires:
    * 1) There is only one block who writes the target buffer.
@@ -427,10 +429,12 @@ class ScheduleNode : public runtime::Object {
    * \param write_buffer_index The index of the buffer in block's write region
    * \param storage_scope The target storage scope
    * \param dim_order The user-defined dimension order of allocated buffer.
+   * \param consumer_blocks An optional list of consumers to read from cache directly.
    * \return The cache stage block.
    */
   virtual BlockRV ReverseCacheWrite(const BlockRV& block_rv, int write_buffer_index,
-                                    const String& storage_scope, Array<Integer> dim_order) = 0;
+                                    const String& storage_scope, Array<Integer> dim_order,
+                                    Array<BlockRV> consumer_blocks) = 0;
   /*!
    * \brief Create 2 blocks that read&write a buffer region into a read/write cache.
    * It requires the the target block both read & write the target buffer.

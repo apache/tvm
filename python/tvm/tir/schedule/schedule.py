@@ -1200,7 +1200,8 @@ class Schedule(Object):
 
     @type_checked
     def reverse_cache_read(
-        self, block: BlockRV, read_buffer_index: int, storage_scope: str, dim_order: List[int] = []
+        self, block: BlockRV, read_buffer_index: int, storage_scope: str, dim_order: List[int] = [], 
+        consumer_blocks=None,
     ) -> BlockRV:
         """Create a block that reads a buffer region into a read cache.
         The index mapping was performed at producer rather than consumer.
@@ -1215,18 +1216,25 @@ class Schedule(Object):
         dim_order: List[int]
             The user-defined dimension order of allocated buffer.
             Numbers indicate the index of block iter vars.
+        consumer_blocks: Optional[List[Union[BlockRV, str]]]
+            An optional list of consumers that should read directly from the cache.
+            If not specified, all consumers will read from the original buffer.
+
         Returns
         -------
         cached_block : BlockRV
             The block of the cache stage
         """
+        if consumer_blocks is None:
+            consumer_blocks = []
         return _ffi_api.ScheduleReverseCacheRead(  # type: ignore # pylint: disable=no-member
-            self, block, read_buffer_index, storage_scope, dim_order
+            self, block, read_buffer_index, storage_scope, dim_order, consumer_blocks
         )
 
     @type_checked
     def reverse_cache_write(
-        self, block: BlockRV, write_buffer_index: int, storage_scope: str, dim_order: List[int] = []
+        self, block: BlockRV, write_buffer_index: int, storage_scope: str, dim_order: List[int] = [], 
+        consumer_blocks=None,
     ) -> BlockRV:
         """Create a block that reads a buffer region into a write cache.
         The index mapping was performed at consumer rather than producer.
@@ -1241,13 +1249,19 @@ class Schedule(Object):
         dim_order: List[int]
             The user-defined dimension order of allocated buffer.
             Numbers indicate the index of block iter vars.
+        consumer_blocks: Optional[List[Union[BlockRV, str]]]
+            An optional list of consumers that should read directly from the cache.
+            If not specified, all consumers will read from the original buffer.
+
         Returns
         -------
         cached_block : BlockRV
             The block of the cache stage
         """
+        if consumer_blocks is None:
+            consumer_blocks = []
         return _ffi_api.ScheduleReverseCacheWrite(  # type: ignore # pylint: disable=no-member
-            self, block, write_buffer_index, storage_scope, dim_order
+            self, block, write_buffer_index, storage_scope, dim_order, consumer_blocks
         )
 
     @type_checked

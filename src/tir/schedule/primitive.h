@@ -279,11 +279,13 @@ TVM_DLL StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int 
  * \param read_buffer_index The index of the buffer in block's read region.
  * \param storage_scope The target storage scope.
  * \param dim_order The user-defined dimension order of allocated buffer.
+ * \param consumer_blocks Array of blocks that consume the cache.
  * \return The cache stage block.
  */
 TVM_DLL StmtSRef ReverseCacheRead(ScheduleState self, const StmtSRef& block_sref,
                                   int read_buffer_index, const String& storage_scope,
-                                  Array<Integer> dim_order);
+                                  Array<Integer> dim_order = {},
+                                  Array<StmtSRef> consumer_blocks = {});
 /*!
  * \brief Create a block that writes a buffer region into a write cache. It requires:
  * 1) There is only one block that writes the target buffer.
@@ -294,11 +296,13 @@ TVM_DLL StmtSRef ReverseCacheRead(ScheduleState self, const StmtSRef& block_sref
  * \param write_buffer_index The index of the buffer in block's write region
  * \param storage_scope The target storage scope
  * \param dim_order The user-defined dimension order of allocated buffer.
+ * \param consumer_blocks Array of blocks that consume the cache.
  * \return The cache stage block.
  */
 TVM_DLL StmtSRef ReverseCacheWrite(ScheduleState self, const StmtSRef& block_sref,
                                    int write_buffer_index, const String& storage_scope,
-                                   Array<Integer> dim_order);
+                                   Array<Integer> dim_order = {},
+                                   Array<StmtSRef> consumer_blocks = {});
 
 /*!
  *!

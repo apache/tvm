@@ -764,6 +764,19 @@ class ReverseCacheReadRewriter : public StmtExprMutator {
 
   Stmt VisitStmt_(const BlockNode* block) final {
     Block old_stmt = GetRef<Block>(block);
+    // Check if this block is one of the specified consumers.
+    // If no consumer blocks are specified, all blocks should be considered consumers.
+    bool is_consumer = info_->consumer_blocks.empty();
+    // Otherwise check if this is one of the specified blocks.
+    for (StmtSRef consumer_sref : info_->consumer_blocks) {
+      const BlockNode* consumer_node = TVM_SREF_TO_BLOCK(consumer_sref);
+      Block consumer_block = GetRef<Block>(consumer_node);
+      if (old_stmt.same_as(consumer_block)) {
+        is_consumer = true;
+      }
+    }
+    // Keep track of this blocks status. We'll use this when rewriting loads.
+    current_block_consumes = is_consumer;
     if (block != scope_sref_->stmt &&
         GetBufferRegionFromBuffer(block->writes, info_->read_buffer).defined()) {
       return std::move(old_stmt);
@@ -785,24 +798,27 @@ class ReverseCacheReadRewriter : public StmtExprMutator {
       stmt = Block(n);
     } else {
       // Otherwise, update read regions and match_buffers
-      Array<BufferRegion> reads;
-      for (const BufferRegion& buf_region : block->reads) {
-        if (buf_region->buffer.same_as(info_->read_buffer)) {
-          Array<Range> region;
-          for (const PrimExpr index : new_indices_) {
-            region.push_back(Range::FromMinExtent(index, Integer(1)));
+      // Only make this change if the block is one of the specified consumers.
+      if (is_consumer) {
+        Array<BufferRegion> reads;
+        for (const BufferRegion& buf_region : block->reads) {
+          if (buf_region->buffer.same_as(info_->read_buffer)) {
+            Array<Range> region;
+            for (const PrimExpr index : new_indices_) {
+              region.push_back(Range::FromMinExtent(index, Integer(1)));
+            }
+            reads.push_back(BufferRegion(info_->write_buffer, region));
+          } else {
+            reads.push_back(buf_region);
           }
-          reads.push_back(BufferRegion(info_->write_buffer, region));
-        } else {
-          reads.push_back(buf_region);
         }
-      }
 
-      // NOTE(Zihao): do not process match buffers for now.
-      if (!reads.same_as(block->reads)) {
-        ObjectPtr<BlockNode> n = make_object<BlockNode>(*stmt.as<BlockNode>());
-        n->reads = std::move(reads);
-        stmt = Block(n);
+        // NOTE(Zihao): do not process match buffers for now.
+        if (!reads.same_as(block->reads)) {
+          ObjectPtr<BlockNode> n = make_object<BlockNode>(*stmt.as<BlockNode>());
+          n->reads = std::move(reads);
+          stmt = Block(n);
+        }
       }
     }
     info_->block_reuse.Set(old_stmt, stmt);
@@ -817,7 +833,7 @@ class ReverseCacheReadRewriter : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* load) final {
-    if (load->buffer.same_as(info_->read_buffer)) {
+    if (load->buffer.same_as(info_->read_buffer) && current_block_consumes) {
       ObjectPtr<BufferLoadNode> n = make_object<BufferLoadNode>(*load);
       n->buffer = info_->write_buffer;
       n->indices = new_indices_;
@@ -832,6 +848,8 @@ class ReverseCacheReadRewriter : public StmtExprMutator {
   CacheStageInfo* info_;
   /*! \brief The indices to use for new buffer. */
   Array<PrimExpr> new_indices_;
+  /*! \brief Whether the most recently visited block is a specified consumer. */
+  bool current_block_consumes;
 };
 
 /*! \brief Mutator for CacheRead. */
@@ -996,6 +1014,30 @@ class ReverseCacheWriteRewriter : public StmtExprMutator {
 
   Stmt VisitStmt_(const BlockNode* block) final {
     Block old_stmt = GetRef<Block>(block);
+
+    // Check if this block is one of the specified cache consumers.
+    // update the read buffer to the cache.
+    for (StmtSRef consumer_sref : info_->consumer_blocks) {
+      const BlockNode* consumer_node = TVM_SREF_TO_BLOCK(consumer_sref);
+      Block consumer_block = GetRef<Block>(consumer_node);
+      if (old_stmt.same_as(consumer_block)) {
+        Array<BufferRegion> reads =
+            ReplaceBuffer(block->reads, info_->write_buffer, info_->read_buffer);
+        Array<MatchBufferRegion> match_buffers =
+            ReplaceBuffer(block->match_buffers, info_->write_buffer, info_->read_buffer);
+        if (!reads.same_as(block->reads) || !match_buffers.same_as(block->match_buffers)) {
+          auto n = CopyOnWrite(block);
+          n->reads = std::move(reads);
+          n->match_buffers = std::move(match_buffers);
+          n->body = VisitStmt(block->body);
+          Block new_consumer = Block(n);
+          info_->block_reuse.Set(old_stmt, new_consumer);
+          return std::move(new_consumer);
+        }
+        return std::move(old_stmt);
+      }
+    }
+
     // We only mutate the block which generates info->write_buffer
     if (block != writer_block_sref_->stmt && block != scope_sref_->stmt && !under_writer_block_) {
       return std::move(old_stmt);
@@ -1697,7 +1739,8 @@ Array<StmtSRef> GetLoopsUnderScope(const StmtSRef& block_sref, const StmtSRef& t
 }
 
 StmtSRef ReverseCacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buffer_index,
-                          const String& storage_scope, Array<Integer> dim_order) {
+                          const String& storage_scope, Array<Integer> dim_order,
+                          const Array<StmtSRef> consumer_blocks) {
   /*!
    * Check:
    *   - The index is in the array of block reading region
@@ -1722,6 +1765,14 @@ StmtSRef ReverseCacheRead(ScheduleState self, const StmtSRef& block_sref, int re
   // Step 2. Create CacheStageInfo
   CacheStageInfo info;
   info.read_buffer = read_buffer;
+
+  // info.consumer_blocks indicates which buffers should consume the cache.
+  for (auto consumer : consumer_blocks) {
+    info.consumer_blocks.insert(consumer);
+    for (auto child : tir::GetChildBlocks(self, consumer)) {
+      info.consumer_blocks.insert(child);
+    }
+  }
 
   // Step 3. Update cache stage info.
   Optional<BufferRegion> maybe_region = GetBufferRegionFromBuffer(block->reads, read_buffer);
@@ -1819,7 +1870,8 @@ StmtSRef ReverseCacheRead(ScheduleState self, const StmtSRef& block_sref, int re
 }
 
 StmtSRef ReverseCacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_buffer_index,
-                           const String& storage_scope, Array<Integer> dim_order) {
+                           const String& storage_scope, Array<Integer> dim_order,
+                           const Array<StmtSRef> consumer_blocks) {
   /*!
    * Check:
    *   - The index is in the array of block reading region
@@ -1843,6 +1895,14 @@ StmtSRef ReverseCacheWrite(ScheduleState self, const StmtSRef& block_sref, int w
   // Step 2. Creating CacheStageInfo
   CacheStageInfo info;
   info.write_buffer = write_buffer;
+
+  // info.consumer_blocks indicates which buffers should consume the cache.
+  for (auto consumer : consumer_blocks) {
+    info.consumer_blocks.insert(consumer);
+    for (auto child : tir::GetChildBlocks(self, consumer)) {
+      info.consumer_blocks.insert(child);
+    }
+  }
 
   // Step 3. Check the only writer block.
   ICHECK_EQ(block_sref.get(), GetOnlyWriteBlock(self, scope_sref, write_buffer).get());
@@ -2247,21 +2307,29 @@ struct ReverseCacheReadTraits : public UnpackedInstTraits<ReverseCacheReadTraits
 
  private:
   static constexpr size_t kNumInputs = 1;
-  static constexpr size_t kNumAttrs = 3;
+  static constexpr size_t kNumAttrs = 4;
   static constexpr size_t kNumDecisions = 0;
 
   static BlockRV UnpackedApplyToSchedule(Schedule sch, BlockRV block, Integer read_buffer_index,
-                                         String storage_scope, Array<Integer> dim_order) {
-    return sch->ReverseCacheRead(block, read_buffer_index->value, storage_scope, dim_order);
+                                         String storage_scope, Array<Integer> dim_order,
+                                         Array<BlockRV> consumer_blocks) {
+    return sch->ReverseCacheRead(block, read_buffer_index->value, storage_scope, dim_order,
+                                 consumer_blocks);
   }
 
   static String UnpackedAsPython(Array<String> outputs, String block, Integer read_buffer_index,
-                                 String storage_scope, Array<Integer> dim_order) {
+                                 String storage_scope, Array<Integer> dim_order,
+                                 Array<BlockRV> consumer_blocks) {
     PythonAPICall py("reverse_cache_read");
     py.Input("block", block);
     py.Input("read_buffer_index", read_buffer_index->value);
     py.Input("storage_scope", storage_scope);
-    py.Input("dim_order", dim_order);
+    if (!dim_order.empty()) {
+      py.Input("dim_order", dim_order);
+    }
+    if (!consumer_blocks.empty()) {
+      py.Input("consumer_blocks", consumer_blocks);
+    }
     py.SingleOutput(outputs);
     return py.Str();
   }
@@ -2276,21 +2344,29 @@ struct ReverseCacheWriteTraits : public UnpackedInstTraits<ReverseCacheWriteTrai
 
  private:
   static constexpr size_t kNumInputs = 1;
-  static constexpr size_t kNumAttrs = 3;
+  static constexpr size_t kNumAttrs = 4;
   static constexpr size_t kNumDecisions = 0;
 
   static BlockRV UnpackedApplyToSchedule(Schedule sch, BlockRV block, Integer write_buffer_index,
-                                         String storage_scope, Array<Integer> dim_order) {
-    return sch->ReverseCacheWrite(block, write_buffer_index->value, storage_scope, dim_order);
+                                         String storage_scope, Array<Integer> dim_order,
+                                         Array<BlockRV> consumer_blocks) {
+    return sch->ReverseCacheWrite(block, write_buffer_index->value, storage_scope, dim_order,
+                                  consumer_blocks);
   }
 
   static String UnpackedAsPython(Array<String> outputs, String block, Integer write_buffer_index,
-                                 String storage_scope, Array<Integer> dim_order) {
+                                 String storage_scope, Array<Integer> dim_order,
+                                 Array<BlockRV> consumer_blocks) {
     PythonAPICall py("reverse_cache_write");
     py.Input("block", block);
     py.Input("write_buffer_index", write_buffer_index->value);
     py.Input("storage_scope", storage_scope);
-    py.Input("dim_order", dim_order);
+    if (!dim_order.empty()) {
+      py.Input("dim_order", dim_order);
+    }
+    if (!dim_order.empty()) {
+      py.Input("consumer_blocks", consumer_blocks);
+    }
     py.SingleOutput(outputs);
     return py.Str();
   }

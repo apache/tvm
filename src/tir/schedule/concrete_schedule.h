@@ -117,9 +117,11 @@ class ConcreteScheduleNode : public ScheduleNode {
   BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index, const String& storage_scope,
                      const Array<BlockRV> consumer_blocks = {}) override;
   BlockRV ReverseCacheRead(const BlockRV& block_rv, int read_buffer_index,
-                           const String& storage_scope, Array<Integer> dim_order) override;
+                           const String& storage_scope, Array<Integer> dim_order = {},
+                           Array<BlockRV> consumer_blocks = {}) override;
   BlockRV ReverseCacheWrite(const BlockRV& block_rv, int write_buffer_index,
-                            const String& storage_scope, Array<Integer> dim_order) override;
+                            const String& storage_scope, Array<Integer> dim_order = {},
+                            Array<BlockRV> consumer_blocks = {}) override;
   Array<BlockRV> CacheInplace(const BlockRV& block_rv, int read_buffer_index,
                               const String& storage_scope) override;
   Array<BlockRV> CacheIndex(const BlockRV& block_rv, int write_buffer_index) override;
