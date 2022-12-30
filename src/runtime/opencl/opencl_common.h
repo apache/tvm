@@ -212,6 +212,7 @@ inline cl_channel_type DTypeToOpenCLChannelType(DLDataType data_type) {
   }
 
 class OpenCLThreadEntry;
+struct BufferDescriptor;
 
 /*!
  * \brief Process global OpenCL workspace.
@@ -290,6 +291,7 @@ class OpenCLWorkspace : public DeviceAPI {
   void* AllocDataSpace(Device dev, size_t size, size_t alignment, DLDataType type_hint) final;
   void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
                        Optional<String> mem_scope = NullOpt) final;
+  void* GetNativePtr(const tvm::runtime::NDArray& narr);
   void FreeDataSpace(Device dev, void* ptr) final;
   void StreamSync(Device dev, TVMStreamHandle stream) final;
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
@@ -309,6 +311,8 @@ class OpenCLWorkspace : public DeviceAPI {
   static OpenCLWorkspace* Global();
 
   void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) final;
+
+  void* CreateHostPtrIfEnabled(BufferDescriptor* desc, Device dev, size_t size);
 
  private:
   std::string GetError() {
@@ -377,6 +381,7 @@ struct BufferDescriptor {
   static String ScopeFromMemoryLayout(MemoryLayout mem_scope);
 
   cl_mem buffer{nullptr};
+  cl_uchar* host_ptr{nullptr};
   MemoryLayout layout{MemoryLayout::kBuffer1D};
 };
 }  // namespace cl
