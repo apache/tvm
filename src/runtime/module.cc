@@ -62,6 +62,7 @@ void ModuleNode::Import(Module other) {
 }
 
 PackedFunc ModuleNode::GetFunction(const std::string& name, bool query_imports) {
+  LOG(INFO)<<"ZHF Module Get Function: "<<name;
   ModuleNode* self = this;
   PackedFunc pf = self->GetFunction(name, GetObjectPtr<Object>(this));
   if (pf != nullptr) return pf;
