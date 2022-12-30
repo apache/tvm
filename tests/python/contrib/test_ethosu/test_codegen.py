@@ -1109,42 +1109,23 @@ def test_tflite_leaky_relu(accel_type, ifm_shape, alpha):
     )
 
 
-def test_tflite_relu6():
-    np.random.seed(0)
-    accel_type = "ethos-u55-128"
-    ifm_shape = (1, 12, 16, 8)
-
-    @tf.function
-    def relu6(x):
-        return tf.nn.relu6(x)
-
-    infra.compare_tvm_with_tflite(
-        relu6,
-        [ifm_shape],
-        accel_type,
-        enable_cascader=is_u55_accel_type(accel_type),
-        ranges=[(-1, 1)],
-    )
-
-
 def test_tflite_relu_n1_to_1():
     np.random.seed(0)
     accel_type = "ethos-u55-128"
     ifm_shape = (1, 12, 16, 8)
 
     @tf.function
-    def relu_n1_to_1(x):
-        """
-        The specific pattern will be replaced into RELU_N1_TO_1 by tflite.
-        """
-        return tf.math.maximum(-1.0, tf.math.minimum(x, 1.0))
+    def max_relu_n1_to_1(lhs, rhs):
+        op = tf.math.maximum(lhs, rhs)
+        # The specific pattern will be replaced into RELU_N1_TO_1 by tflite.
+        return tf.math.maximum(-1.0, tf.math.minimum(op, 1.0))
 
     infra.compare_tvm_with_tflite(
-        relu_n1_to_1,
-        [ifm_shape],
+        max_relu_n1_to_1,
+        [ifm_shape, ifm_shape],
         accel_type,
         enable_cascader=is_u55_accel_type(accel_type),
-        ranges=[(-1, 1)],
+        ranges=[(-1, 1), (0, 2)],
     )
 
 
