@@ -173,6 +173,11 @@ using f_clEnqueueNDRangeKernel = cl_int (*)(cl_command_queue, cl_kernel, cl_uint
                                             cl_event*);
 using f_clCreateCommandQueue = cl_command_queue (*)(cl_context, cl_device_id,
                                                     cl_command_queue_properties, cl_int*);
+using f_clEnqueueUnmapMemObject = cl_int (*)(cl_command_queue, cl_mem, void*, cl_uint,
+                                             const cl_event*, cl_event*);
+using f_clEnqueueMapBuffer = void* (*)(cl_command_queue, cl_mem, cl_bool, cl_map_flags, size_t,
+                                       size_t, cl_uint, const cl_event*, cl_event*, cl_int*);
+
 }  // namespace
 
 cl_int clGetPlatformIDs(cl_uint num_entries, cl_platform_id* platforms, cl_uint* num_platforms) {
@@ -568,6 +573,32 @@ cl_command_queue clCreateCommandQueue(cl_context context, cl_device_id device,
   auto func = (f_clCreateCommandQueue)lib.getOpenCLFunction("clCreateCommandQueue");
   if (func) {
     return func(context, device, properties, errcode_ret);
+  } else {
+    return nullptr;
+  }
+}
+
+cl_int clEnqueueUnmapMemObject(cl_command_queue queue, cl_mem memobj, void* mapped_ptr,
+                               cl_uint num_events_in_wait_list, const cl_event* event_wait_list,
+                               cl_event* event) {
+  auto& lib = LibOpenCLWrapper::getInstance();
+  auto func = (f_clEnqueueUnmapMemObject)lib.getOpenCLFunction("clEnqueueUnmapMemObject");
+  if (func) {
+    return func(queue, memobj, mapped_ptr, num_events_in_wait_list, event_wait_list, event);
+  } else {
+    return CL_INVALID_PLATFORM;
+  }
+}
+
+void* clEnqueueMapBuffer(cl_command_queue command_queue, cl_mem buffer, cl_bool blocking_map,
+                         cl_map_flags map_flags, size_t offset, size_t cb,
+                         cl_uint num_events_in_wait_list, const cl_event* event_wait_list,
+                         cl_event* event, cl_int* errcode_ret) {
+  auto& lib = LibOpenCLWrapper::getInstance();
+  auto func = (f_clEnqueueMapBuffer)lib.getOpenCLFunction("clEnqueueMapBuffer");
+  if (func) {
+    return func(command_queue, buffer, blocking_map, map_flags, offset, cb, num_events_in_wait_list,
+                event_wait_list, event, errcode_ret);
   } else {
     return nullptr;
   }

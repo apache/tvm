@@ -29,6 +29,12 @@
 
 #include "opencl_common.h"
 
+#ifdef OPENCL_ENABLE_HOST_PTR
+#define CL_MEM_CREATE_FLAGS CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR
+#else
+#define CL_MEM_CREATE_FLAGS CL_MEM_READ_WRITE
+#endif
+
 namespace tvm {
 namespace runtime {
 namespace cl {
@@ -191,6 +197,17 @@ void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
   }
 }
 
+void* OpenCLWorkspace::CreateHostPtrIfEnabled(cl::BufferDescriptor* desc, Device dev, size_t size) {
+#if defined(OPENCL_ENABLE_HOST_PTR)
+  cl_int err_code;
+  desc->host_ptr = reinterpret_cast<cl_uchar*>(
+      clEnqueueMapBuffer(this->GetQueue(dev), desc->buffer, CL_TRUE, CL_MAP_WRITE, 0,
+                         sizeof(cl_uchar) * size, 0, NULL, NULL, &err_code));
+  OPENCL_CHECK_ERROR(err_code);
+#endif  // OPENCL_ENABLE_HOST_PTR
+  return desc;
+}
+
 void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t size, size_t alignment,
                                       DLDataType type_hint) {
   this->Init();
@@ -201,10 +218,10 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t size, size_t alignment,
   if (size == 0) {
     size = 1;
   }
-  desc->buffer = clCreateBuffer(this->context, CL_MEM_READ_WRITE, size, nullptr, &err_code);
+  desc->buffer = clCreateBuffer(this->context, CL_MEM_CREATE_FLAGS, size, nullptr, &err_code);
   desc->layout = cl::BufferDescriptor::MemoryLayout::kBuffer1D;
   OPENCL_CHECK_ERROR(err_code);
-  return desc;
+  return CreateHostPtrIfEnabled(desc, dev, size);
 }
 
 void* OpenCLWorkspace::AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
@@ -226,12 +243,21 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, int ndim, const int64_t* shape
   return desc;
 }
 
+void* OpenCLWorkspace::GetNativePtr(const tvm::runtime::NDArray& narr) {
+  cl::BufferDescriptor* desc = static_cast<cl::BufferDescriptor*>(narr.operator->()->data);
+  return desc->host_ptr;
+}
+
 void OpenCLWorkspace::FreeDataSpace(Device dev, void* ptr) {
   // We have to make sure that the memory object is not in the command queue
   // for some OpenCL platforms.
   OPENCL_CALL(clFinish(this->GetQueue(dev)));
 
   cl::BufferDescriptor* desc = static_cast<cl::BufferDescriptor*>(ptr);
+  if (desc->host_ptr) {
+    clEnqueueUnmapMemObject(this->GetQueue(dev), desc->buffer,
+                            reinterpret_cast<void*>(desc->host_ptr), 0, NULL, NULL);
+  }
   OPENCL_CALL(clReleaseMemObject(desc->buffer));
   delete desc;
 }
@@ -245,7 +271,7 @@ cl_mem OpenCLWorkspace::AllocTexture(Device dev, size_t width, size_t height,
   cl_image_format format = {CL_RGBA, cl_type};
   cl_image_desc descriptor = {CL_MEM_OBJECT_IMAGE2D, width, height, 0, 0, 0, 0, 0, 0};
   cl_mem mptr =
-      clCreateImage(this->context, CL_MEM_READ_WRITE, &format, &descriptor, nullptr, &err_code);
+      clCreateImage(this->context, CL_MEM_CREATE_FLAGS, &format, &descriptor, nullptr, &err_code);
   OPENCL_CHECK_ERROR(err_code);
   return mptr;
 }
