@@ -120,7 +120,7 @@ class EnvFunc(Object):
         return _ffi_api.EnvFuncGet(name)
 
 
-def load_json(json_str):
+def load_json(json_str) -> Object:
     """Load tvm object from json_str.
 
     Parameters
@@ -141,7 +141,7 @@ def load_json(json_str):
         return tvm.runtime._ffi_node_api.LoadJSON(json_str)
 
 
-def save_json(node):
+def save_json(node) -> str:
     """Save tvm object as json string.
 
     Parameters
