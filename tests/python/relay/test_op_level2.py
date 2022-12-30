@@ -30,6 +30,9 @@ from tvm.relay import transform
 from tvm.relay.testing import run_infer_type
 from tvm.topi.cuda.conv3d_winograd import _infer_tile_size
 
+from onnx import helper, mapping
+import onnxruntime
+
 executor_kind = tvm.testing.parameter("graph", "vm")
 
 
@@ -2159,6 +2162,55 @@ def _test_conv2d_int8_alter_dtype(data_dtype, target, dot_product_instrs):
             out_dtype=out_dtype,
         )
 
+    def verify_by_ort(x_data, w_data, b_data, out):
+        def get_onnx_model(x_shape, w_shape, out_shape):
+            x_dtype = "int8"
+            w_dtype = "int8"
+            b_dtype = "int32"
+            x_proto_type = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(x_dtype)]
+            w_proto_type = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(w_dtype)]
+            b_proto_type = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(b_dtype)]
+
+            y_dtype = "int32"
+            y_proto_type = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(y_dtype)]
+
+
+            input_nodes = [
+                helper.make_tensor_value_info("x", x_proto_type, list(x_shape)),
+                helper.make_tensor_value_info("w", w_proto_type, list(w_shape)),
+                helper.make_tensor_value_info("b", b_proto_type, (w_shape[0],)),
+            ]
+            input_names = [
+                "x",
+                "w",
+                "b",
+            ]
+
+            node = helper.make_node(
+                "Conv",
+                inputs=input_names,
+                outputs=["y"],
+            )
+
+            graph = helper.make_graph(
+                [node],
+                "ort_conv2d_test",
+                inputs=input_nodes,
+                outputs=[helper.make_tensor_value_info("y", y_proto_type, list(out_shape))],
+            )
+            model = helper.make_model(graph, producer_name="ort_conv2d_test")
+            return model
+
+        onnx_model = get_onnx_model(x_data.shape, w_data.shape, out.shape)
+        ort_exec = onnxruntime.backend.prepare(onnx_model.SerializeToString(), "CPU")
+        ort_out = ort_exec.run([x_data, w_data, b_data])
+        # Unpack output if there's only a single value.
+        if len(ort_out) == 1:
+            ort_out = ort_out[0]
+        if len(out) == 1:
+            out = out[0]
+        np.testing.assert_equal(out, ort_out)
+
     I, O, H, W = 64, 64, 56, 56
     kH = kW = 3
 
@@ -2204,6 +2256,9 @@ def _test_conv2d_int8_alter_dtype(data_dtype, target, dot_product_instrs):
     rt_mod.run()
 
     out = rt_mod.get_output(0).numpy()
+
+    verify_by_ort(data_np, weight_np, bias_np, out)
+    verify_by_ort(data_np, weight_np, bias_np, ref)
 
     np.testing.assert_equal(out, ref)
 
