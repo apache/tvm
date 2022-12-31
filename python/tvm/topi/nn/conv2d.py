@@ -606,8 +606,14 @@ def conv2d_gemm_weight_transform(kernel, tile_rows, tile_cols):
     if N % tile_rows != 0:
         pad_N = tile_rows - (N % tile_rows)
 
-    if K % tile_cols != 0:
-        pad_K = tile_cols - (K % tile_cols)
+    # Tensorize will later make use of 4 tiles at once across the columns so make sure we pad such
+    # that the columns is multiple of 4
+    column_multiplier = 4
+    tile_cols_multiplied = tile_cols * column_multiplier
+    K_misalignment = K % tile_cols_multiplied
+
+    if K_misalignment != 0:
+        pad_K = tile_cols_multiplied - K_misalignment
 
     N_padded = N + pad_N
     K_padded = K + pad_K
