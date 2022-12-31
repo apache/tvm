@@ -30,6 +30,7 @@
 #include "../../runtime/texture.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../build_common.h"
+#include "../spirv/codegen_spirv.h"
 
 namespace tvm {
 namespace codegen {
@@ -585,6 +586,13 @@ void CodeGenOpenCL::SetTextureScope(
 }
 
 runtime::Module BuildOpenCL(IRModule mod, Target target) {
+  Optional<String> device = target->GetAttr<String>("device");
+
+  if (device && device.value() == "spirv") {
+    auto [smap, spirv_text] = TranslateToSPIRV(mod, target);
+    return runtime::OpenCLModuleCreate(smap, spirv_text, ExtractFuncInfo(mod));
+  }
+
   using tvm::runtime::Registry;
   bool output_ssa = false;
 

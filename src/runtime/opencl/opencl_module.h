@@ -32,6 +32,7 @@
 #include <vector>
 
 #include "../meta_data.h"
+#include "../vulkan/spirv_shader.h"
 
 namespace tvm {
 namespace runtime {
@@ -44,6 +45,10 @@ namespace runtime {
  */
 Module OpenCLModuleCreate(std::string data, std::string fmt,
                           std::unordered_map<std::string, FunctionInfo> fmap, std::string source);
+
+Module OpenCLModuleCreate(const std::unordered_map<std::string, vulkan::SPIRVShader>& shaders,
+                          const std::string& spirv_text,
+                          std::unordered_map<std::string, FunctionInfo> fmap);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_OPENCL_OPENCL_MODULE_H_

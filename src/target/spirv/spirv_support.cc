@@ -32,8 +32,9 @@ namespace tvm {
 namespace codegen {
 
 SPIRVSupport::SPIRVSupport(tvm::Target target) {
-  ICHECK_EQ(target->GetTargetDeviceType(), kDLVulkan)
-      << "SPIRVSupport can only be checked for vulkan device type";
+  auto device_type = target->GetTargetDeviceType();
+  ICHECK(device_type == kDLVulkan || device_type == kDLOpenCL || device_type == kDLWebGPU)
+      << "Unsupported device type for SPIRV codegen:" << device_type;
 
   if (target->GetAttr<Integer>("vulkan_api_version")) {
     vulkan_api_version = target->GetAttr<Integer>("vulkan_api_version").value().IntValue();

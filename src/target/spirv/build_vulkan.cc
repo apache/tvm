@@ -29,8 +29,8 @@
 #include <fstream>
 #include <sstream>
 
+#include "../../runtime/vulkan/spirv_shader.h"
 #include "../../runtime/vulkan/vulkan_module.h"
-#include "../../runtime/vulkan/vulkan_shader.h"
 #include "../../support/utils.h"
 #include "../build_common.h"
 #include "codegen_spirv.h"
@@ -47,19 +47,24 @@ class SPIRVTools {
         target->GetAttr<Integer>("max_spirv_version").value_or(0x10000).IntValue();
 
     spv_target_env validation_version;
-    if (vulkan_version >= VK_API_VERSION_1_2) {
-      validation_version = SPV_ENV_VULKAN_1_2;
-    } else if (vulkan_version >= VK_API_VERSION_1_1 && spirv_version >= 0x10400) {
-      validation_version = SPV_ENV_VULKAN_1_1_SPIRV_1_4;
-    } else if (vulkan_version >= VK_API_VERSION_1_1) {
-      validation_version = SPV_ENV_VULKAN_1_1;
+    if (target->kind->name == "opencl") {
+      validation_version = SPV_ENV_OPENCL_2_2;
     } else {
-      validation_version = SPV_ENV_VULKAN_1_0;
+      if (vulkan_version >= VK_API_VERSION_1_2) {
+        validation_version = SPV_ENV_VULKAN_1_2;
+      } else if (vulkan_version >= VK_API_VERSION_1_1 && spirv_version >= 0x10400) {
+        validation_version = SPV_ENV_VULKAN_1_1_SPIRV_1_4;
+      } else if (vulkan_version >= VK_API_VERSION_1_1) {
+        validation_version = SPV_ENV_VULKAN_1_1;
+      } else {
+        validation_version = SPV_ENV_VULKAN_1_0;
+      }
     }
-
     ctx_ = spvContextCreate(validation_version);
   }
+
   ~SPIRVTools() { spvContextDestroy(ctx_); }
+
   std::string BinaryToText(const std::vector<uint32_t>& bin) {
     spv_text text = nullptr;
     spv_diagnostic diagnostic = nullptr;
@@ -97,13 +102,14 @@ class SPIRVTools {
   spv_context ctx_;
 };
 
-runtime::Module BuildSPIRV(IRModule mod, Target target) {
+std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> TranslateToSPIRV(
+    IRModule mod, Target target, bool webgpu_restriction) {
   using tvm::runtime::Registry;
-  using tvm::runtime::VulkanShader;
+  using tvm::runtime::SPIRVShader;
 
   std::ostringstream code_data;
   SPIRVTools spirv_tools(target);
-  std::unordered_map<std::string, VulkanShader> smap;
+  std::unordered_map<std::string, SPIRVShader> smap;
 
   const auto* postproc = Registry::Get("tvm_callback_vulkan_postproc");
 
@@ -124,7 +130,7 @@ runtime::Module BuildSPIRV(IRModule mod, Target target) {
     std::string f_name = global_symbol.value();
     std::string entry = f_name;
 
-    VulkanShader shader = cg.BuildFunction(f, entry);
+    SPIRVShader shader = cg.BuildFunction(f, entry);
 
     if (auto path = std::getenv("TVM_VULKAN_DEBUG_SHADER_SAVEPATH")) {
       if (*path) {
@@ -158,7 +164,12 @@ runtime::Module BuildSPIRV(IRModule mod, Target target) {
     smap[f_name] = std::move(shader);
   }
 
-  return runtime::VulkanModuleCreate(smap, ExtractFuncInfo(mod), code_data.str());
+  return std::make_pair(smap, code_data.str());
+}
+
+runtime::Module BuildSPIRV(IRModule mod, Target target, bool webgpu_restriction) {
+  auto [smap, spirv_text] = TranslateToSPIRV(mod, target, webgpu_restriction);
+  return runtime::VulkanModuleCreate(smap, ExtractFuncInfo(mod), spirv_text);
 }
 
 TVM_REGISTER_GLOBAL("target.build.vulkan").set_body_typed([](IRModule mod, Target target) {

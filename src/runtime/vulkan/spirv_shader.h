@@ -31,7 +31,7 @@ namespace tvm {
 namespace runtime {
 namespace vulkan {
 
-struct VulkanShader {
+struct SPIRVShader {
   /*! \brief header flag */
   uint32_t flag{0};
   /*! \brief Data segment */
@@ -50,11 +50,11 @@ struct VulkanShader {
 
 }  // namespace vulkan
 
-using vulkan::VulkanShader;
+using vulkan::SPIRVShader;
 }  // namespace runtime
 }  // namespace tvm
 
 namespace dmlc {
-DMLC_DECLARE_TRAITS(has_saveload, ::tvm::runtime::vulkan::VulkanShader, true);
+DMLC_DECLARE_TRAITS(has_saveload, ::tvm::runtime::vulkan::SPIRVShader, true);
 }  // namespace dmlc
 #endif  // TVM_RUNTIME_VULKAN_VULKAN_SHADER_H_

@@ -37,7 +37,7 @@
 #include <vector>
 
 #include "../../runtime/thread_storage_scope.h"
-#include "../../runtime/vulkan/vulkan_shader.h"
+#include "../../runtime/vulkan/spirv_shader.h"
 #include "ir_builder.h"
 #include "spirv_support.h"
 
@@ -66,7 +66,7 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
    * \param name The name of the target function.
    * \return The final spirv module.
    */
-  virtual runtime::VulkanShader BuildFunction(const PrimFunc& f, const std::string& name);
+  virtual runtime::SPIRVShader BuildFunction(const PrimFunc& f, const std::string& name);
   /*!
    * \brief Create Value for expression e
    * \param e The expression to be created value for.
@@ -153,7 +153,7 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
      * product of the number of lanes of the buffer element type and
      * the number of lanes of the index.
      */
-    void CheckContentType(DataType type, int index_lanes = 1) {
+    void CheckContentType(DataType type, int index_lanes = 1) const {
       ICHECK(element_type_known) << "Cannot check element type of buffer " << name_hint
                                  << " no previous element type defined";
       DataType expected_type = element_type.with_lanes(index_lanes * element_type.lanes());
@@ -219,6 +219,9 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
   // Checked against the max_shared_memory_per_group
   size_t shared_memory_bytes_used_{0};
 };
+
+std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> TranslateToSPIRV(
+    IRModule mod, Target target, bool webgpu_restriction = false);
 
 }  // namespace codegen
 }  // namespace tvm

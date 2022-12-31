@@ -38,6 +38,7 @@
 #include <string>
 
 #include "../../src/runtime/meta_data.h"
+#include "../../src/runtime/vulkan/spirv_shader.h"
 #include "../../src/runtime/workspace_pool.h"
 
 namespace tvm {

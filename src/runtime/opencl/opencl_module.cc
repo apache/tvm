@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "../source_utils.h"
+#include "../vulkan/spirv_shader.h"
 #include "opencl_common.h"
 
 namespace tvm {
@@ -38,7 +39,7 @@ namespace runtime {
 class OpenCLWrappedFunc {
  public:
   // initialize the OpenCL function.
-  void Init(OpenCLModuleNode* m, ObjectPtr<Object> sptr, OpenCLModuleNode::KTRefEntry entry,
+  void Init(OpenCLModuleNodeBase* m, ObjectPtr<Object> sptr, OpenCLModuleNode::KTRefEntry entry,
             std::string func_name, std::vector<size_t> arg_size,
             const std::vector<std::string>& launch_param_tags) {
     w_ = m->GetGlobalWorkspace();
@@ -95,7 +96,7 @@ class OpenCLWrappedFunc {
   // global workspace.
   cl::OpenCLWorkspace* w_;
   // The module
-  OpenCLModuleNode* m_;
+  OpenCLModuleNodeBase* m_;
   // resource handle
   ObjectPtr<Object> sptr_;
   // global kernel id in the kernel table.
@@ -108,7 +109,30 @@ class OpenCLWrappedFunc {
   LaunchParamConfig launch_param_config_;
 };
 
-OpenCLModuleNode::~OpenCLModuleNode() {
+class OpenCLSPIRVModuleNode : public OpenCLModuleNodeBase {
+ public:
+  explicit OpenCLSPIRVModuleNode(const std::unordered_map<std::string, SPIRVShader>& shaders,
+                                 const std::string& spirv_text,
+                                 std::unordered_map<std::string, FunctionInfo> fmap)
+      : OpenCLModuleNodeBase(fmap), shaders_(shaders), spirv_text_(spirv_text) {}
+
+  void SaveToFile(const std::string& file_name, const std::string& format) final;
+  void SaveToBinary(dmlc::Stream* stream) final;
+
+  std::string GetSource(const std::string&) final { return spirv_text_; }
+
+  // Initialize the programs
+  void Init() override;
+  // install a new kernel to thread local entry
+  cl_kernel InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThreadEntry* t,
+                          const std::string& func_name, const KTRefEntry& e) override;
+
+ private:
+  std::unordered_map<std::string, SPIRVShader> shaders_;
+  std::string spirv_text_;
+};
+
+OpenCLModuleNodeBase::~OpenCLModuleNodeBase() {
   {
     // free the kernel ids in global table.
     std::lock_guard<std::mutex> lock(workspace_->mu);
@@ -130,12 +154,12 @@ OpenCLModuleNode::~OpenCLModuleNode() {
   }
 }
 
-cl::OpenCLWorkspace* OpenCLModuleNode::GetGlobalWorkspace() {
+cl::OpenCLWorkspace* OpenCLModuleNodeBase::GetGlobalWorkspace() {
   return cl::OpenCLWorkspace::Global();
 }
 
-PackedFunc OpenCLModuleNode::GetFunction(const std::string& name,
-                                         const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc OpenCLModuleNodeBase::GetFunction(const std::string& name,
+                                             const ObjectPtr<Object>& sptr_to_self) {
   ICHECK_EQ(sptr_to_self.get(), this);
   if (name == "opencl.GetPreCompiledPrograms") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -218,8 +242,8 @@ void OpenCLModuleNode::Init() {
   ICHECK_EQ(fmap_.size(), parsed_kernels_.size())
       << "The number of parsed kernel sources does not match the number of kernel functions";
   // zero initialize cl_program pointers for each device kernel
-  for (auto& kv : parsed_kernels_) {
-    programs_.insert({kv.first, std::vector<cl_program>(workspace_->devices.size(), nullptr)});
+  for (const auto& [func_name, _] : parsed_kernels_) {
+    programs_.insert({func_name, std::vector<cl_program>(workspace_->devices.size(), nullptr)});
   }
 }
 
@@ -238,7 +262,7 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
       programs_[func_name][device_id] =
           clCreateProgramWithSource(w->contexts[platform], 1, &s, &len, &err);
       OPENCL_CHECK_ERROR(err);
-    } else if (fmt_ == "xclbin" || fmt_ == "awsxclbin" || fmt_ == "aocx") {
+    } else if (fmt_ == "xclbin" || fmt_ == "awsxclbin" || fmt_ == "aocx" || fmt_ == "spirv") {
       const unsigned char* s = (const unsigned char*)data_.c_str();
       size_t len = data_.length();
       cl_int err;
@@ -347,6 +371,85 @@ std::string OpenCLModuleNode::GetPreCompiledPrograms() {
 Module OpenCLModuleCreate(std::string data, std::string fmt,
                           std::unordered_map<std::string, FunctionInfo> fmap, std::string source) {
   auto n = make_object<OpenCLModuleNode>(data, fmt, fmap, source);
+  n->Init();
+  return Module(n);
+}
+
+void OpenCLSPIRVModuleNode::SaveToFile(const std::string& file_name, const std::string& format) {
+  LOG(FATAL) << "Not implemented";
+}
+
+void OpenCLSPIRVModuleNode::SaveToBinary(dmlc::Stream* stream) {
+  stream->Write(fmap_);
+  stream->Write(shaders_);
+}
+
+void OpenCLSPIRVModuleNode::Init() {
+  workspace_ = GetGlobalWorkspace();
+  workspace_->Init();
+  // initialize the kernel id, need to lock global table.
+  std::lock_guard<std::mutex> lock(workspace_->mu);
+  for (const auto& kv : fmap_) {
+    const std::string& key = kv.first;
+    KTRefEntry e;
+    if (workspace_->free_kernel_ids.size() != 0) {
+      e.kernel_id = workspace_->free_kernel_ids.back();
+      workspace_->free_kernel_ids.pop_back();
+    } else {
+      e.kernel_id = workspace_->num_registered_kernels++;
+    }
+    e.version = workspace_->timestamp++;
+    kid_map_[key] = e;
+  }
+
+  // zero initialize cl_program pointers for each device kernel
+  for (const auto& [func_name, _] : shaders_) {
+    programs_.insert({func_name, std::vector<cl_program>(workspace_->devices.size(), nullptr)});
+  }
+}
+
+cl_kernel OpenCLSPIRVModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThreadEntry* t,
+                                               const std::string& func_name, const KTRefEntry& e) {
+  std::lock_guard<std::mutex> lock(build_lock_);
+  int device_id = t->device.device_id;
+  if (programs_[func_name][device_id] == nullptr) {
+    auto it = shaders_.find(func_name);
+    const unsigned char* s = (const unsigned char*)it->second.data.data();
+    size_t len = it->second.data.size() * sizeof(uint32_t);
+    cl_int err;
+    cl_device_id dev = w->devices[device_id];
+    programs_[func_name][device_id] =
+        clCreateProgramWithBinary(w->context, 1, &dev, &len, &s, nullptr, &err);
+    OPENCL_CHECK_ERROR(err);
+
+    // build program
+    err = clBuildProgram(programs_[func_name][device_id], 1, &dev, nullptr, nullptr, nullptr);
+
+    if (err != CL_SUCCESS) {
+      size_t len;
+      std::string log;
+      clGetProgramBuildInfo(programs_[func_name][device_id], dev, CL_PROGRAM_BUILD_LOG, 0, nullptr,
+                            &len);
+      log.resize(len);
+      clGetProgramBuildInfo(programs_[func_name][device_id], dev, CL_PROGRAM_BUILD_LOG, len,
+                            &log[0], nullptr);
+      LOG(FATAL) << "OpenCL build error for device=" << dev << "\n" << log;
+    }
+  }
+  // build kernel
+  cl_int err;
+  cl_kernel kernel = clCreateKernel(programs_[func_name][device_id], func_name.c_str(), &err);
+  OPENCL_CHECK_ERROR(err);
+  t->kernel_table[e.kernel_id].kernel = kernel;
+  t->kernel_table[e.kernel_id].version = e.version;
+  kernels_.push_back(kernel);
+  return kernel;
+}
+
+Module OpenCLModuleCreate(const std::unordered_map<std::string, SPIRVShader>& shaders,
+                          const std::string& spirv_text,
+                          std::unordered_map<std::string, FunctionInfo> fmap) {
+  auto n = make_object<OpenCLSPIRVModuleNode>(shaders, spirv_text, fmap);
   n->Init();
   return Module(n);
 }
