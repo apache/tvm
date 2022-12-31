@@ -178,9 +178,10 @@ def evaluate_network(network, target, target_host, dtype, repeat):
                     net, target=tvm.target.Target(target, host=target_host), params=params
                 )
     else:
-        print("WARNING: Benchmark running with out tuning cache file - ", tune_log)
         with tvm.transform.PassContext(opt_level=3):
-            lib = relay.build(net, target=tvm.target.Target(target, host=target_host), params=params)
+            lib = relay.build(
+                net, target=tvm.target.Target(target, host=target_host), params=params
+            )
 
     tmp = tempdir()
 
@@ -208,7 +209,7 @@ def evaluate_network(network, target, target_host, dtype, repeat):
     prof_res = np.array(ftimer().results) * 1000  # multiply 1000 for converting to millisecond
     print(
         "%-20s %-19s (%s)"
-        % (network+"-"+dtype, "%.2f ms" % np.mean(prof_res), "%.2f ms" % np.std(prof_res))
+        % (network + "-" + dtype, "%.2f ms" % np.mean(prof_res), "%.2f ms" % np.std(prof_res))
     )
     return (np.mean(prof_res), np.std(prof_res))
 

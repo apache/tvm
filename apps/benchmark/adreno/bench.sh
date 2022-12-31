@@ -18,8 +18,6 @@
 
 set -euxo pipefail
 
-echo "Bench called"
-
 source tests/scripts/setup-pytest-env.sh
 export PYTHONPATH=${PYTHONPATH}:${TVM_PATH}/apps/extension/python
 export LD_LIBRARY_PATH="build:${LD_LIBRARY_PATH:-}"
