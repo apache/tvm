@@ -118,6 +118,7 @@ tvm_option(SUMMARIZE "Print CMake option summary after configuring" OFF)
 tvm_option(USE_CLML "Build with CLML Codegen support" OFF)
 tvm_option(USE_CLML_GRAPH_EXECUTOR "Build with CLML graph runtime" OFF)
 tvm_option(USE_UMA "Build with UMA support" OFF)
+tvm_option(USE_VERILATOR "Build with Verilator support" OFF)
 
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
