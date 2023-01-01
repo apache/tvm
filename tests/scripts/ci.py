@@ -727,6 +727,13 @@ generated = [
                     "./tests/scripts/task_python_adreno.sh " + os.environ.get("ANDROID_SERIAL", ""),
                 ],
             ),
+            "benchmarks": (
+                "run Adreno Texture Benchmarks",
+                [
+                    "./apps/benchmark/adreno/bench.sh texture "
+                    + os.environ.get("ANDROID_SERIAL", ""),
+                ],
+            ),
         },
     ),
 ]
