@@ -753,6 +753,19 @@ class Schedule(Object):
         _ffi_api.ScheduleReorder(self, ordered_loops)  # type: ignore # pylint: disable=no-member
 
     @type_checked
+    def reorder_block_iter_var(self, block: BlockRV, new_order: List[int]) -> None:
+        """Reorder the itervars inside a given block.
+
+        Parameters
+        ----------
+        block : BlockRV
+            The block to be transformed. 
+        new_order : List[int]
+            The new block itervar order.
+        """
+        _ffi_api.ScheduleReorderBlockIterVar(self, block, new_order)  # type: ignore # pylint: disable=no-member
+
+    @type_checked
     def add_unit_loop(self, block_or_loop: Union[LoopRV, BlockRV]) -> LoopRV:
         """Create a new unit loop on top of the specific block or loop.
 
