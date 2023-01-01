@@ -47,7 +47,7 @@ def _schedule_dense(m: Optional[int], do_tune: bool):
         if dense_block is None:
             assert has_block(sch, "compute")
             dense_block = sch.get_block("compute")
-            assert "dense_int8" in sch.get(dense_block).annotations["schedule_rule"]
+            assert "dense_vnni" in sch.get(dense_block).annotations["schedule_rule"]
 
         post_blocks = sch.get_consumers(dense_block)
         if len(post_blocks) > 0:
@@ -176,12 +176,12 @@ def test_vnni_schedule_fn_tune():
 
     C = te.compute(
         ...
-        attrs={"schedule_rule": "meta_schedule.x86.dense_int8"},
+        attrs={"schedule_rule": "meta_schedule.x86.dense_vnni"},
     )
 
     When the MetaSchedule encounters a TensorIR block with the "schedule_rule" annotation,
     it looks up the packed func registry for a function that is associated with the given schedule
-    rule key ("meta_schedule.x86.dense_int8" in this example). The signature of such custom
+    rule key ("meta_schedule.x86.dense_vnni" in this example). The signature of such custom
     schedule functions must be
 
        (tir.schedule.Schedule, tir.schedule.BlockRV) -> [tir.schedule.Schedule].
@@ -195,7 +195,7 @@ def test_vnni_schedule_fn_tune():
         _schedule_dense(m=None, do_tune=True)(sch, dense_block)
         return [sch]
 
-    register_func("meta_schedule.x86.dense_int8", schedule_rule_dense_vnni)
+    register_func("meta_schedule.x86.dense_vnni", schedule_rule_dense_vnni)
 
     m, n, k = 1024, 1024, 1024
     target = tvm.target.Target("llvm -keys=x86,cpu -mcpu=cascadelake -num-cores=4")
