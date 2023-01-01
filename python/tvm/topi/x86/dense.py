@@ -325,7 +325,7 @@ def dense_int8_compute(cfg, X, packed_w, bias=None):
             axis=ak,
         ),
         tag="dense_int8",
-        attrs={"schedule_rule": "dense_int8"},
+        attrs={"schedule_rule": "meta_schedule.x86.dense_vnni"},
     )
 
     if bias is not None:
