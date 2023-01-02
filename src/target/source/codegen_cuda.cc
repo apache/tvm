@@ -579,6 +579,23 @@ void CodeGenCUDA::PrintStorageScope(const std::string& scope, std::ostream& os) 
   }
 }
 
+std::string CodeGenCUDA::CastFromTo(std::string value, DataType from, DataType target) {
+  if (from == target) return value;
+  std::ostringstream os;
+  os << "((";
+  this->PrintType(target, os);
+  os << ")";
+  if (from.is_float16() && (target.is_int() || target.is_uint()) && target.bits() == 8) {
+    os << "(";
+    if (target.is_uint()) {
+      os << "u";
+    }
+    os << "int)";
+  }
+  os << value << ")";
+  return os.str();
+}
+
 void CodeGenCUDA::VisitExpr_(const CastNode* op, std::ostream& os) {
   DataType from_ty = op->value.dtype();
   DataType target_ty = op->dtype;
