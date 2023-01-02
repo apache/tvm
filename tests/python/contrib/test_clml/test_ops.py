@@ -120,7 +120,6 @@ def _get_conv_expected_codegen(
         weight_shape = (channels, shape[1] // groups, kernel_h, kernel_w)
     else:
         weight_shape = (shape[1] // groups, channels, kernel_h, kernel_w)
-    # weight_shape = (channels, shape[1] // groups, kernel_h, kernel_w)
 
     if is_depthwise:
         name = "nn.depthwise_conv2d"

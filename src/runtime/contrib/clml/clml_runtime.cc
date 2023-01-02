@@ -170,7 +170,8 @@ class CLMLRuntime : public JSONRuntimeBase {
     }
     ICHECK(h_ClmlIntf != NULL)
         << "clGetMLInterfaceVxQCOM:" << result
-        << " Perhaps there is mispatch between CLML SDK version to target supported version";
+        << " Perhaps there is mispatch between CLML SDK version to target supported version:"
+        << majorVersions[numVersions - 1];
     char* tune_flag;
     if ((tune_flag = getenv("CLML_IS_TUNNING_RUN")))
       this->is_tuning_run = std::stoi(tune_flag);

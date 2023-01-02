@@ -23,8 +23,6 @@ mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 cp ../cmake/config.cmake .
 
-[[ -z "${ADRENO_OPENCL}" ]] && CLML_PATH='ON' || CLML_PATH="${ADRENO_OPENCL}"
-
 echo set\(USE_OPENCL ON\) >> config.cmake
 echo set\(USE_CLML ${CLML_PATH}\) >> config.cmake
 echo set\(USE_RPC ON\) >> config.cmake
