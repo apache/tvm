@@ -188,17 +188,19 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   // Get the outer loops from high to low
   Array<StmtSRef> loops = GetLoops(block_sref);
   const BlockRealizeNode* realize = GetBlockRealize(self, block_sref).get();
-  // Cond 0. Check loop_sref is an ancestor of block_sref
-  if (std::find(loops.begin(), loops.end(), loop_sref) == loops.end()) {
-    throw LoopPositionError(self->mod, GetRef<For>(loop), GetRef<Block>(block),
-                            "decompose_reduction");
+  if (self->enable_check) {
+    // Cond 0. Check loop_sref is an ancestor of block_sref
+    if (std::find(loops.begin(), loops.end(), loop_sref) == loops.end()) {
+      throw LoopPositionError(self->mod, GetRef<For>(loop), GetRef<Block>(block),
+                              "decompose_reduction");
+    }
+    // Cond 1. Check block is reduction
+    StmtSRef scope_root_sref = GetScopeRoot(self, block_sref,
+                                            /*require_stage_pipeline=*/false);
+    CheckReductionBlock(self, block_sref, scope_root_sref);
+    // Cond 2. Check 'loop' is higher than all the loops related to block var of type reduction
+    LoopHeightError::CheckLoopHigherThanReduceLoops(self->mod, block, realize, loops, loop_sref);
   }
-  // Cond 1. Check block is reduction
-  StmtSRef scope_root_sref = GetScopeRoot(self, block_sref,
-                                          /*require_stage_pipeline=*/false);
-  CheckReductionBlock(self, block_sref, scope_root_sref);
-  // Cond 2. Check 'loop' is higher than all the loops related to block var of type reduction
-  LoopHeightError::CheckLoopHigherThanReduceLoops(self->mod, block, realize, loops, loop_sref);
   // IR Manipulation
   ObjectPtr<BlockNode> init_block = make_object<BlockNode>();
   ObjectPtr<BlockRealizeNode> init_realize = make_object<BlockRealizeNode>();
