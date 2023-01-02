@@ -37,7 +37,8 @@ It is recommended that you run tuning by yourself if you have your customized ne
 Please follow the tutorial for
 [NVIDIA GPU](https://tvm.apache.org/docs/tutorials/autotvm/tune_conv2d_cuda.html),
 [ARM CPU](https://tvm.apache.org/docs/tutorials/autotvm/tune_relay_arm.html),
-[Mobile GPU](https://tvm.apache.org/docs/tutorials/autotvm/tune_relay_mobile_gpu.html).
+[Mobile GPU](https://tvm.apache.org/docs/tutorials/autotvm/tune_relay_mobile_gpu.html) and
+[Adreno GPU](https://www.qualcomm.com/products/features/adreno).
 
 ### NVIDIA GPU
 
@@ -127,3 +128,16 @@ Build TVM with LLVM and ROCm enabled. [Help](https://tvm.apache.org/docs/install
 ```bash
 python3 gpu_imagenet_bench.py --model gfx900 --target rocm
 ```
+
+### Adreno GPU
+
+Adreno benchmarks are automated over the docker - [ci_adreno](https://github.com/apache/tvm/blob/main/docker/Dockerfile.ci_adreno).
+Adreno docker share the Android devices from host. It is adviced to have host adb version same as docker, which is ```1.0.41```
+
+Below command runs all the benchmarks over given Android device.
+```bash
+export ANDROID_SERIAL=<ADB ID>
+./tests/scripts/ci.py adreno -b
+```
+
+Note: Tuning cache is implicite through tophub repo for all the benchmarks and is tuned over Snapdragon Gen 1.
