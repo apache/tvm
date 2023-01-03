@@ -34,13 +34,25 @@ namespace contrib {
 
 using namespace runtime;
 
-template <typename DType>
+template <typename DType, bool stable_comparison=false>
 bool CompareAscend(const std::pair<int64_t, DType>& lhs, const std::pair<int64_t, DType>& rhs) {
+  if constexpr(stable_comparison) {
+    if (lhs.second == rhs.second) {
+      return lhs.first < rhs.first;
+    }
+  }
+
   return lhs.second < rhs.second;
 }
 
-template <typename DType>
+template <typename DType, bool stable_comparison=false>
 bool CompareDescend(const std::pair<int64_t, DType>& lhs, const std::pair<int64_t, DType>& rhs) {
+  if constexpr(stable_comparison) {
+    if (lhs.second == rhs.second) {
+      return lhs.first < rhs.first;
+    }
+  }
+
   return lhs.second > rhs.second;
 }
 
@@ -49,18 +61,14 @@ struct float16 {
   float to_float() const {
     return __extendXfYf2__<uint16_t, uint16_t, 10, float, uint32_t, 23>(bits);
   }
+
+ inline bool operator==(const float16& rhs) const { return to_float() == rhs.to_float(); }
+ inline bool operator!=(const float16& rhs) const { return to_float() != rhs.to_float(); }
+ inline bool operator< (const float16& rhs) const { return to_float() < rhs.to_float(); }
+ inline bool operator> (const float16& rhs) const { return to_float() > rhs.to_float(); }
+ inline bool operator<=(const float16& rhs) const { return to_float() <= rhs.to_float(); }
+ inline bool operator>=(const float16& rhs) const { return to_float() >= rhs.to_float(); }
 };
-
-template <>
-bool CompareAscend(const std::pair<int64_t, float16>& lhs, const std::pair<int64_t, float16>& rhs) {
-  return lhs.second.to_float() < rhs.second.to_float();
-}
-
-template <>
-bool CompareDescend(const std::pair<int64_t, float16>& lhs,
-                    const std::pair<int64_t, float16>& rhs) {
-  return lhs.second.to_float() > rhs.second.to_float();
-}
 
 // Argsort implemented C library sort for nms.
 // Return indices of sorted tensor.
@@ -347,7 +355,7 @@ void topk(DLTensor* input, DLTensor* out_values, DLTensor* out_indices, int k, i
   IndicesType* indices_ptr =
       (out_indices == nullptr) ? nullptr : static_cast<IndicesType*>(out_indices->data);
 
-  // Maintain a min_heap containing the top-k elements
+  // Maintain a min/max containing the top-k elements
   std::vector<std::pair<int64_t, DataType>> running_heap;
 
   // Need +1 when inserting new element before maintaining heap invariant
@@ -372,13 +380,13 @@ void topk(DLTensor* input, DLTensor* out_values, DLTensor* out_indices, int k, i
       int64_t src_base_idx = i * input->shape[axis] * axis_mul_after + j;
       int64_t dst_base_idx = i * k * axis_mul_after + j;
 
-      // Start by creating min heap with fixed-k elements
+      // Start by creating min/max heap with fixed-k elements
       int cur_axis_index = 0;
       for (; cur_axis_index < k && cur_axis_index < input->shape[axis]; cur_axis_index++) {
         int64_t full_idx = src_base_idx + cur_axis_index * axis_mul_after;
         running_heap.emplace_back(std::make_pair(cur_axis_index, data_ptr[full_idx]));
       }
-      std::make_heap(running_heap.begin(), running_heap.end(), CompareDescend<DataType>);
+      std::make_heap(running_heap.begin(), running_heap.end(), CompareDescend<DataType, true>);
 
       // Iterate through all elements, adding to heap along the way
       for (; cur_axis_index < input->shape[axis]; cur_axis_index++) {
@@ -386,19 +394,24 @@ void topk(DLTensor* input, DLTensor* out_values, DLTensor* out_indices, int k, i
         std::pair<int64_t, DataType> cur_val = {cur_axis_index, data_ptr[full_idx]};
 
         // Eq. to cur_val.second > running_heap.second
-        if (CompareDescend(cur_val, running_heap[0])) {
+        if (!is_ascend && CompareDescend<DataType, true>(cur_val, running_heap[0])) {
           running_heap.push_back(cur_val);
-          std::push_heap(running_heap.begin(), running_heap.end(), CompareDescend<DataType>);
-          std::pop_heap(running_heap.begin(), running_heap.end(), CompareDescend<DataType>);
+          std::push_heap(running_heap.begin(), running_heap.end(), CompareDescend<DataType, true>);
+          std::pop_heap(running_heap.begin(), running_heap.end(), CompareDescend<DataType, true>);
+          running_heap.pop_back();
+        } else if (is_ascend && CompareAscend<DataType, true>(cur_val, running_heap[0])) {
+          running_heap.push_back(cur_val);
+          std::push_heap(running_heap.begin(), running_heap.end(), CompareAscend<DataType, true>);
+          std::pop_heap(running_heap.begin(), running_heap.end(), CompareAscend<DataType, true>);
           running_heap.pop_back();
         }
       }
 
       // finally sort heap and deliver results
       if (is_ascend) {
-        std::stable_sort(running_heap.begin(), running_heap.end(), CompareAscend<DataType>);
+        std::stable_sort(running_heap.begin(), running_heap.end(), CompareAscend<DataType, true>);
       } else {
-        std::stable_sort(running_heap.begin(), running_heap.end(), CompareDescend<DataType>);
+        std::stable_sort(running_heap.begin(), running_heap.end(), CompareDescend<DataType, true>);
       }
 
       for (uint32_t kk = 0; kk < running_heap.size(); ++kk) {
