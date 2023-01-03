@@ -165,7 +165,6 @@ TEST(PackedFunc, AsTVMRetValue) {
   });
   TVMRetValue value;
   value = obj;
-  value.operator PackedFunc();
   ICHECK_EQ(value.operator PackedFunc()(1).operator int(), 2);
 }
 
