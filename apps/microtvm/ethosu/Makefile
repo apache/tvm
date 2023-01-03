@@ -40,7 +40,7 @@ PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
 	-I${ETHOSU_PATH}/core_driver/include \
 	-I${CMSIS_PATH}/Device/ARM/${ARM_CPU}/Include/ \
 	-I${CMSIS_PATH}/CMSIS/Core/Include \
-	-I${CMSIS_PATH}/CMSIS/NN/Include \
+	-I${CMSIS_PATH}/CMSIS-NN/Include \
 	-I${CMSIS_PATH}/CMSIS/DSP/Include \
 	-I$(abspath $(BUILD_DIR))/codegen/host/include \
 	-DETHOSU_TEST_RUNNER_TOL=${ETHOSU_TEST_RUNNER_TOL}
@@ -78,7 +78,7 @@ endif
 CODEGEN_SRCS = $(wildcard $(abspath $(BUILD_DIR))/codegen/host/src/*.c)
 CODEGEN_OBJS = $(subst .c,.o,$(CODEGEN_SRCS))
 CMSIS_STARTUP_SRCS = $(wildcard ${CMSIS_PATH}/Device/ARM/${ARM_CPU}/Source/*.c)
-CMSIS_NN_SOFTMAX_SRCS = $(shell find ${CMSIS_PATH}/CMSIS/NN/Source/SoftmaxFunctions/*.c)
+CMSIS_NN_SOFTMAX_SRCS = $(shell find ${CMSIS_PATH}/CMSIS-NN/Source/SoftmaxFunctions/*.c)
 UART_SRCS = $(wildcard ${CORSTONE_300_PATH}/*.c)
 
 demo: $(BUILD_DIR)/demo
