@@ -29,8 +29,12 @@ cd ${output_directory}
 cp ../cmake/config.cmake .
 
 echo set\(USE_MICRO OFF\) >> config.cmake
-echo set\(USE_CLML ON\) >> config.cmake
+if [ -f "${ADRENO_OPENCL}/CL/cl_qcom_ml_ops.h" ] ; then
+echo set\(USE_CLML "${ADRENO_OPENCL}"\) >> config.cmake
 echo set\(USE_CLML_GRAPH_EXECUTOR "${ADRENO_OPENCL}"\) >> config.cmake
+else
+echo set\(USE_OPENCL ON\) >> config.cmake
+fi
 echo set\(USE_RPC ON\) >> config.cmake
 echo set\(USE_CPP_RPC ON\) >> config.cmake
 echo set\(USE_GRAPH_EXECUTOR ON\) >> config.cmake
