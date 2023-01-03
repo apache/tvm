@@ -23,6 +23,9 @@ if(MSVC)
   # When building for Windows, use standard CMake for compatibility with
   # Visual Studio build tools and not require Make to be on the system.
 
+  # TODO: test building with this MSVC conditional code removed
+  # when USE_MICRO is enabled
+
   set(CRT_CONFIG, "src/runtime/micro/crt_config.h")
 
   add_library(host_standalone_crt
