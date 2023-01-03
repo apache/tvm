@@ -16,14 +16,14 @@
 # under the License.
 """MetaSchedule-Relay integration"""
 from contextlib import contextmanager
-from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Tuple, Union, Set
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
 # isort: off
 from typing_extensions import Literal
 
 # isort: on
 import numpy as np  # type: ignore
+
 from tvm import nd
 from tvm._ffi import get_global_func
 from tvm.ir import IRModule, transform
