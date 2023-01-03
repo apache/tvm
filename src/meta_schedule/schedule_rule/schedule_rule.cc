@@ -271,11 +271,6 @@ Array<ScheduleRule> ScheduleRule::DefaultMicro() {
           Map<String, ObjectRef>{{"req", String("may")},
                                  {"levels", Array<Integer>{1, 2}},
                                  {"scope", String("global")}}),
-      ScheduleRule::ParallelizeVectorizeUnroll(
-          /*max_jobs_per_core=*/16,
-          /*max_vectorize_extent=*/1,
-          /*unroll_max_steps=*/Array<Integer>{0, 16, 64, 512},
-          /*unroll_explicit=*/true),
   };
 }
 

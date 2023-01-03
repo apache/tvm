@@ -82,8 +82,7 @@ Map<Mutator, FloatImm> Mutator::DefaultMicro() {
   return Map<Mutator, FloatImm>{
       {Mutator::MutateTileSize(), FloatImm(DataType::Float(64), 0.9)},
       {Mutator::MutateComputeLocation(), FloatImm(DataType::Float(64), 0.05)},
-      {Mutator::MutateUnroll(), FloatImm(DataType::Float(64), 0.03)},
-      {Mutator::MutateParallel(/*max_jobs_per_core=*/16), FloatImm(DataType::Float(64), 0.02)}};
+      {Mutator::MutateUnroll(), FloatImm(DataType::Float(64), 0.03)}};
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)

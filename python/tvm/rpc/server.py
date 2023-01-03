@@ -319,7 +319,7 @@ class PopenRPCServerState(object):
         load_library=None,
         custom_addr=None,
         silent=False,
-        reuse_addr=False,
+        reuse_addr=True,
         timeout=None,
     ):
 
@@ -377,7 +377,7 @@ def _popen_start_rpc_server(
     silent=False,
     no_fork=False,
     server_init_callback=None,
-    reuse_addr=False,
+    reuse_addr=True,
     timeout=None,
 ):
     if no_fork:
@@ -488,7 +488,7 @@ class Server(object):
         silent=False,
         no_fork=False,
         server_init_callback=None,
-        reuse_addr=False,
+        reuse_addr=True,
         timeout=None,
     ):
         try:

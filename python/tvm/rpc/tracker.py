@@ -387,9 +387,7 @@ class PopenTrackerServerState(object):
 
     current = None
 
-    def __init__(
-        self, host, port=9190, port_end=9199, silent=False, reuse_addr=False, timeout=None
-    ):
+    def __init__(self, host, port=9190, port_end=9199, silent=False, reuse_addr=True, timeout=None):
         if silent:
             logger.setLevel(logging.WARN)
 
@@ -419,7 +417,7 @@ class PopenTrackerServerState(object):
 
 
 def _popen_start_tracker_server(
-    host, port=9190, port_end=9199, silent=False, reuse_addr=False, timeout=None
+    host, port=9190, port_end=9199, silent=False, reuse_addr=True, timeout=None
 ):
     # This is a function that will be sent to the
     # Popen worker to run on a separate process.
@@ -458,7 +456,7 @@ class Tracker(object):
     """
 
     def __init__(
-        self, host="0.0.0.0", port=9190, port_end=9199, silent=False, reuse_addr=False, timeout=None
+        self, host="0.0.0.0", port=9190, port_end=9199, silent=False, reuse_addr=True, timeout=None
     ):
         if silent:
             logger.setLevel(logging.WARN)

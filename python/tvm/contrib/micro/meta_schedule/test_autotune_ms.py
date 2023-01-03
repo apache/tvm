@@ -76,7 +76,7 @@ def get_module():
 )
 def test_micro_tuning_with_meta_schedule(platform, options):
     if platform == "crt":
-        target = tvm.target.target.micro(model="host", options="-num-cores=1")
+        target = tvm.target.target.micro(model="host")
     else:
         boards_file = (
             pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr")) / "boards.json"
@@ -84,7 +84,7 @@ def test_micro_tuning_with_meta_schedule(platform, options):
         with open(boards_file) as f:
             boards = json.load(f)
         target = tvm.target.target.micro(
-            model=boards[options["board"]]["model"], options="-mcpu=cortex-m4 -num-cores=1"
+            model=boards[options["board"]]["model"], options="-mcpu=cortex-m4"
         )
 
     work_dir = utils.tempdir()
@@ -156,7 +156,7 @@ def test_micro_tuning_with_meta_schedule(platform, options):
 
     # Build reference model (without tuning)
     dev = tvm.cpu()
-    target = tvm.target.target.micro(model="host", options="-num-cores=1")
+    target = tvm.target.target.micro(model="host")
     with tvm.transform.PassContext(
         opt_level=3, config={"tir.disable_vectorize": True}, disabled_pass=["AlterOpLayout"]
     ):
