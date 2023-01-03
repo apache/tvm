@@ -97,6 +97,10 @@ void ModuleNode::SaveToFile(const std::string& file_name, const std::string& for
   LOG(FATAL) << "Module[" << type_key() << "] does not support SaveToFile";
 }
 
+std::string ModuleNode::SaveToFileSeparateFuncs(const std::string& prefix, const std::string& format) {
+  LOG(FATAL) << "Module[" << type_key() << "] does not support SaveToFileSeparateFuncs";
+}
+
 void ModuleNode::SaveToBinary(dmlc::Stream* stream) {
   LOG(FATAL) << "Module[" << type_key() << "] does not support SaveToBinary";
 }
@@ -198,6 +202,10 @@ TVM_REGISTER_GLOBAL("runtime.ModuleLoadFromFile").set_body_typed(Module::LoadFro
 
 TVM_REGISTER_GLOBAL("runtime.ModuleSaveToFile")
     .set_body_typed([](Module mod, String name, tvm::String fmt) { mod->SaveToFile(name, fmt); });
+
+TVM_REGISTER_GLOBAL("runtime.ModuleSaveToFileSeparateFuncs")
+    .set_body_typed([](Module mod, String name, tvm::String fmt) { return mod->SaveToFileSeparateFuncs(name, fmt); });
+
 
 TVM_REGISTER_GLOBAL("runtime.ModuleIsDSOExportable").set_body_typed([](Module mod) {
   return mod->IsDSOExportable();

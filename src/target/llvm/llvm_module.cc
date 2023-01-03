@@ -93,6 +93,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
 
+  std::string SaveToFileSeparateFuncs(const std::string& prefix, const std::string& format) final;
   void SaveToFile(const std::string& file_name, const std::string& format) final;
   void SaveToBinary(dmlc::Stream* stream) final;
   std::string GetSource(const std::string& format) final;
@@ -109,15 +110,20 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   bool IsCompatibleWithHost(const llvm::TargetMachine* tm) const;
   void* GetGlobalAddr(const std::string& name, const LLVMTarget& llvm_target) const;
   void* GetFunctionAddr(const std::string& name, const LLVMTarget& llvm_target) const;
+  void AddFuncModule(const IRModule& mod, const Target& target, PrimFunc func);
 
   // The LLVM scope object.
   std::unique_ptr<LLVMInstance> llvm_instance_;
+  // llvm instance for each function
+  std::vector<LLVMInstance> func_llvm_instances_;
   // JIT lock
   std::mutex mutex_;
   // execution engine
   llvm::ExecutionEngine* ee_{nullptr};
   // The raw pointer to the module.
   llvm::Module* module_{nullptr};
+  // llvm module for each function
+  std::vector<llvm::Module*> func_modules_;
   // The unique_ptr owning the module. This becomes empty once JIT has been initialized
   // (EngineBuilder takes ownership of the module).
   std::unique_ptr<llvm::Module> module_owning_ptr_;
@@ -167,6 +173,86 @@ PackedFunc LLVMModuleNode::GetFunction(const std::string& name,
   if (faddr == nullptr) return PackedFunc();
   return WrapPackedFunc(faddr, sptr_to_self);
 }
+
+std::string LLVMModuleNode::SaveToFileSeparateFuncs(const std::string& file_prefix, const std::string& format) {
+  std::string files="";
+  for(int i=0;i<func_modules_.size();i++){
+    LLVMInstance func_llvm_instance = func_llvm_instances_[i];
+    llvm::Module* func_llvm_module = func_modules_[i];
+    String func_name=function_names_[i];
+
+    std::string fmt = format;
+
+    std::string func_file_name = file_prefix + "_" + func_name + "." + fmt;
+    LOG(INFO)<<"Save file: "<<func_file_name;
+    files=files + "," + func_file_name;
+    
+    std::error_code ecode;
+  #if TVM_LLVM_VERSION <= 70
+    llvm::raw_fd_ostream dest(func_file_name, ecode, llvm::sys::fs::F_None);
+  #else
+    llvm::raw_fd_ostream dest(func_file_name, ecode, llvm::sys::fs::OF_None);
+  #endif
+    ICHECK_EQ(ecode.value(), 0) << "Cannot open file: " << func_file_name << " " << ecode.message();
+    if (fmt == "o" || fmt == "obj") {
+      With<LLVMTarget> llvm_target(func_llvm_instance, LLVMTarget::GetTargetMetadata(*func_llvm_module));
+  #if TVM_LLVM_VERSION <= 60
+      std::unique_ptr<llvm::Module> m = llvm::CloneModule(func_llvm_module);
+  #else
+      std::unique_ptr<llvm::Module> m = llvm::CloneModule(*func_llvm_module);
+  #endif
+      llvm::legacy::PassManager pass;
+      llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
+  #if TVM_LLVM_VERSION <= 60
+      ICHECK(tm->addPassesToEmitFile(pass, dest, llvm::TargetMachine::CGFT_ObjectFile) == 0)
+          << "Cannot emit target CGFT_ObjectFile";
+  #elif TVM_LLVM_VERSION <= 90
+      ICHECK(tm->addPassesToEmitFile(pass, dest, nullptr, llvm::TargetMachine::CGFT_ObjectFile) == 0)
+          << "Cannot emit target CGFT_ObjectFile";
+  #else
+      ICHECK(tm->addPassesToEmitFile(pass, dest, nullptr, llvm::CGFT_ObjectFile) == 0)
+          << "Cannot emit target CGFT_ObjectFile";
+  #endif
+      pass.run(*m);
+    } else if (fmt == "s" || fmt == "asm") {
+      With<LLVMTarget> llvm_target(func_llvm_instance, LLVMTarget::GetTargetMetadata(*func_llvm_module));
+  #if TVM_LLVM_VERSION <= 60
+      std::unique_ptr<llvm::Module> m = llvm::CloneModule(func_llvm_module);
+  #else
+      std::unique_ptr<llvm::Module> m = llvm::CloneModule(*func_llvm_module);
+  #endif
+      llvm::legacy::PassManager pass;
+      llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
+  #if TVM_LLVM_VERSION <= 60
+      ICHECK(tm->addPassesToEmitFile(pass, dest, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+          << "Cannot emit target CGFT_AssemblyFile";
+  #elif TVM_LLVM_VERSION <= 90
+      ICHECK(tm->addPassesToEmitFile(pass, dest, nullptr, llvm::TargetMachine::CGFT_AssemblyFile) ==
+            0)
+          << "Cannot emit target CGFT_AssemblyFile";
+  #else
+      ICHECK(tm->addPassesToEmitFile(pass, dest, nullptr, llvm::CGFT_AssemblyFile) == 0)
+          << "Cannot emit target CGFT_AssemblyFile";
+  #endif
+      pass.run(*m);
+    } else if (fmt == "ll") {
+      func_llvm_module->print(dest, nullptr);
+    } else if (fmt == "bc") {
+  #if TVM_LLVM_VERSION <= 60
+      llvm::WriteBitcodeToFile(func_llvm_module, dest);
+  #else
+      llvm::WriteBitcodeToFile(*func_llvm_module, dest);
+  #endif
+    } else {
+      LOG(FATAL) << "Do not know how to save file " << func_file_name << " with format=\'" << format
+                << "\'";
+    }
+    dest.close();
+  }
+  return files;
+
+}
+
 
 void LLVMModuleNode::SaveToFile(const std::string& file_name, const std::string& format) {
   std::string fmt = runtime::GetFileFormat(file_name, format);
@@ -276,6 +362,53 @@ std::string LLVMModuleNode::GetSource(const std::string& format) {
   return "";
 }
 
+void LLVMModuleNode::AddFuncModule(const IRModule& mod, const Target& target, PrimFunc func) {
+  LLVMInstance func_llvm_instance_ = LLVMInstance();
+  With<LLVMTarget> llvm_target(func_llvm_instance_, target);
+  llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
+  std::unique_ptr<CodeGenLLVM> cg = CodeGenLLVM::Create(llvm_target.get());
+
+  std::vector<PrimFunc> funcs;
+  std::string entry_func;
+  relay::Runtime runtime =
+      mod->GetAttr<relay::Runtime>(tvm::attr::kRuntime).value_or(relay::Runtime::Create("cpp"));
+  bool system_lib = runtime->GetAttr<Bool>("system-lib").value_or(Bool(false));
+  bool target_c_runtime = runtime->name == "crt";
+
+  funcs.push_back(func);
+
+  cg->Init("TVMMod", llvm_target.get(), system_lib, system_lib, target_c_runtime);
+  cg->SetFastMathFlags(llvm_target->GetFastMathFlags());
+
+  cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
+
+  // (jzh18) assume no entry function
+  // if (entry_func.length() != 0) {
+  //   cg->AddMainFunction(entry_func);
+  // }
+
+  // // (@jzh18) what's the usage of module_owning_ptr_
+  std::unique_ptr<llvm::Module> func_module_owning_ptr_ = cg->Finish();
+  llvm::Module* func_module_ = func_module_owning_ptr_.get();
+  llvm_target->SetTargetMetadata(func_module_);
+  func_module_->addModuleFlag(llvm::Module::Override, "Debug Info Version",
+                         llvm::DEBUG_METADATA_VERSION);
+
+  if (tm->getTargetTriple().isOSDarwin()) {
+    func_module_->addModuleFlag(llvm::Module::Override, "Dwarf Version", 2);
+  }
+
+  func_llvm_instances_.push_back(func_llvm_instance_);
+  func_modules_.push_back(func_module_);
+  std::string verify_errors_storage;
+  llvm::raw_string_ostream verify_errors(verify_errors_storage);
+  LOG_IF(FATAL, llvm::verifyModule(*func_module_, &verify_errors))
+      << "LLVM module verification failed with the following errors: \n"
+      << verify_errors.str();
+  
+}
+
+
 void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
   llvm_instance_ = std::make_unique<LLVMInstance>();
   With<LLVMTarget> llvm_target(*llvm_instance_, target);
@@ -303,6 +436,7 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
       entry_func = global_symbol.value();
     }
     funcs.push_back(f);
+    AddFuncModule(mod, target, f);
   }
   // TODO(@jroesch): follow up on this condition.
   // ICHECK(funcs.size() > 0);
