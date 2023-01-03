@@ -20,12 +20,16 @@
  * \file span.cc
  * \brief The span data structure.
  */
+#include <tvm/ir/expr.h>
 #include <tvm/ir/span.h>
+#include <tvm/ir/transform.h>
 #include <tvm/runtime/registry.h>
 
 #include <algorithm>
 
 namespace tvm {
+
+TVM_REGISTER_PASS_CONFIG_OPTION("relay.frontend.fill_span", Bool);
 
 ObjectPtr<Object> GetSourceNameNode(const String& name) {
   // always return pointer as the reference can change as map re-allocate.

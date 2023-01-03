@@ -252,6 +252,7 @@ struct EthosnCompilerConfigNode : public tvm::AttrsNode<EthosnCompilerConfigNode
   bool disable_winograd;
   String debug_dir;
   bool inline_non_compute_intensive_partitions;
+  bool experimental_compiler;
 
   TVM_DECLARE_ATTRS(EthosnCompilerConfigNode, "ext.attrs.EthosnCompilerConfigNode") {
     TVM_ATTR_FIELD(variant).describe("See Ethos-N documentation.").set_default("n78");
@@ -285,6 +286,9 @@ struct EthosnCompilerConfigNode : public tvm::AttrsNode<EthosnCompilerConfigNode
             "Ethos(TM)-N that are deemed 'non-compute-intensive'. The inlined functions will "
             "continue through TVM's standard compilation flow.")
         .set_default(true);
+    TVM_ATTR_FIELD(experimental_compiler)
+        .describe("An exprimental cascading compiler for Arm(R) Ethos(TM)-N.")
+        .set_default(false);
   }
 };
 

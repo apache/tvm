@@ -16,8 +16,9 @@
 # under the License.
 """Test layout and bijective-layout node"""
 
+import pytest
 import tvm
-from tvm import te
+import tvm.error
 from tvm.topi.utils import get_const_tuple
 
 
@@ -50,6 +51,29 @@ def test_layout():
     assert layout[3] == "W"
     assert layout[4] == "c"
     assert layout[-1] == "c"
+
+
+def test_layout_dtype():
+    layout_i32 = tvm.tir.layout("NCHW")
+    assert layout_i32.axes[0].var.dtype == "int32"
+    assert layout_i32.axes[0].dom.min.dtype == "int32"
+    assert layout_i32.axes[0].dom.extent.dtype == "int32"
+    assert layout_i32.axes[1].var.dtype == "int32"
+    assert layout_i32.axes[1].dom.min.dtype == "int32"
+    assert layout_i32.axes[1].dom.extent.dtype == "int32"
+
+    layout_i64 = tvm.tir.layout("NCHW", dtype="int64")
+    assert layout_i64.axes[2].var.dtype == "int64"
+    assert layout_i64.axes[2].dom.min.dtype == "int64"
+    assert layout_i64.axes[2].dom.extent.dtype == "int64"
+    assert layout_i64.axes[3].var.dtype == "int64"
+    assert layout_i64.axes[3].dom.min.dtype == "int64"
+    assert layout_i64.axes[3].dom.extent.dtype == "int64"
+
+    with pytest.raises(TypeError):
+        tvm.tir.layout("NCHW", dtype="float32")
+    with pytest.raises(TypeError):
+        tvm.tir.layout("NCHW", dtype=None)
 
 
 def test_bilayout_convertible():
@@ -88,6 +112,7 @@ def test_bilayout_index():
 
 if __name__ == "__main__":
     test_layout()
+    test_layout_dtype()
     test_bilayout_convertible()
     test_bilayout_shape()
     test_bilayout_index()

@@ -124,8 +124,8 @@ TVM_REGISTER_NODE_TYPE(FunctionNode);
 
 TVM_REGISTER_GLOBAL("relay.ir.Function")
     .set_body_typed([](tvm::Array<Var> params, Expr body, Type ret_type,
-                       tvm::Array<TypeVar> ty_params, tvm::DictAttrs attrs) {
-      return Function(params, body, ret_type, ty_params, attrs);
+                       tvm::Array<TypeVar> ty_params, tvm::DictAttrs attrs, Span span) {
+      return Function(params, body, ret_type, ty_params, attrs, span);
     });
 TVM_REGISTER_GLOBAL("relay.ir.FunctionWithFields")
     .set_body_typed([](Function function, Optional<Array<Var>> opt_params, Optional<Expr> opt_body,

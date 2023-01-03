@@ -28,6 +28,12 @@ from .register import register_pattern_table
 from ..strategy.generic import is_depthwise_conv2d
 
 
+def clml_sdk_version():
+    """Utility function to get clml version version"""
+
+    return tvm.support.libinfo().get("TVM_CLML_VERSION", 2)
+
+
 def is_clml_runtime_enabled():
     """Check if the CLML graph runtime is present.
 
@@ -92,38 +98,35 @@ def preprocess_module(mod):
     preprocessed_mod : The processed module.
     """
 
-    def convert_layout_conv2d(conv2d_function):
-        def convert_conv(attrs, inputs, tinfos, desired_layouts):
-            new_attrs = dict(attrs)
-            data_info = tinfos[0]
-            weight_info = tinfos[1]
-            desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
-            new_attrs["data_layout"] = desired_data_layout
-            new_attrs["kernel_layout"] = desired_kernel_layout
+    def alter_conv(attrs, inputs, tinfos, out_type):
+        new_attrs = dict(attrs)
+        data_info = tinfos[0]
+        weight_info = tinfos[1]
+        (desired_data_layout, desired_kernel_layout) = ("NCHW", "OIHW")
+        new_attrs["data_layout"] = desired_data_layout
+        new_attrs["kernel_layout"] = desired_kernel_layout
 
-            if is_depthwise_conv2d(
-                data_info.shape,
-                attrs["data_layout"],
-                weight_info.shape,
-                attrs["kernel_layout"],
-                attrs["groups"],
-            ):
-                dkl = desired_kernel_layout
-                new_attrs["kernel_layout"] = dkl[1] + dkl[0] + dkl[2] + dkl[3]
-            return conv2d_function(*inputs, **new_attrs)
+        if is_depthwise_conv2d(
+            data_info.shape,
+            attrs["data_layout"],
+            weight_info.shape,
+            attrs["kernel_layout"],
+            attrs["groups"],
+        ):
+            dkl = desired_kernel_layout
+            new_attrs["kernel_layout"] = dkl[1] + dkl[0] + dkl[2] + dkl[3]
+        return relay.nn.conv2d(*inputs, **new_attrs)
 
-        return convert_conv
-
-    with OpAttrContext(
-        "nn.conv2d", "FTVMConvertOpLayout", convert_layout_conv2d(tvm.relay.nn.conv2d)
-    ):
+    with OpAttrContext("nn.conv2d", "FTVMAlterOpLayout", alter_conv):
         seq = tvm.transform.Sequential(
             [
                 transform.ConvertLayout({"nn.conv2d": ["NCHW", "OIHW"]}),
+                transform.AlterOpLayout(),
                 transform.FoldConstant(),
             ]
         )
-        preprocessed_mod = seq(mod)
+        with tvm.transform.PassContext(opt_level=3):
+            preprocessed_mod = seq(mod)
     return preprocessed_mod
 
 
@@ -134,6 +137,23 @@ def clml_pattern_table():
     def conv_pattern():
         """Create a convolution pattern."""
         pattern = is_op("nn.conv2d")(wildcard(), is_constant())
+        pattern = pattern.optional(lambda x: is_op("nn.bias_add")(x, is_constant()))
+        pattern = pattern.optional(lambda x: is_op("add")(x, is_constant()))
+        pattern = pattern.optional(
+            lambda x: is_tuple_get_item(
+                is_op("nn.batch_norm")(
+                    x, is_constant(), is_constant(), is_constant(), is_constant()
+                )
+            )
+        )
+        pattern = pattern.optional(is_op("nn.relu"))
+        pattern = pattern.optional(is_op("clip"))
+        return pattern
+
+    def pad_conv_pattern():
+        """Create a pad with convolution pattern."""
+        pattern = is_op("nn.pad")(wildcard(), is_constant())
+        pattern = is_op("nn.conv2d")(pattern, is_constant())
         pattern = pattern.optional(lambda x: is_op("nn.bias_add")(x, is_constant()))
         pattern = pattern.optional(lambda x: is_op("add")(x, is_constant()))
         pattern = pattern.optional(
@@ -200,9 +220,11 @@ def clml_pattern_table():
 
         while call.op.name != "nn.conv2d":
             call = call.args[0]
+
         attrs, args = call.attrs, call.args
         if attrs.data_layout != "NCHW":
             return False
+
         if (
             (not clip_found)
             and (attrs.kernel_size[0] == 3)
@@ -211,6 +233,7 @@ def clml_pattern_table():
             and (attrs.channels == attrs.groups)
         ):
             return False
+
         data_typ = args[0].checked_type
         kernel_typ = args[1].checked_type
         is_depthwise = is_depthwise_conv2d(
@@ -246,6 +269,7 @@ def clml_pattern_table():
         return True
 
     return [
+        ("clml.pad_conv2d", pad_conv_pattern(), check_conv),
         ("clml.conv2d", conv_pattern(), check_conv),
         ("clml.dense", dense_pattern(), check_default_op),
         ("clml.pad", pad_pattern(), check_pad_op),
@@ -254,6 +278,9 @@ def clml_pattern_table():
         ("clml.add", is_op("add")(wildcard(), wildcard()), check_binary_op),
         ("clml.subtract", is_op("subtract")(wildcard(), wildcard()), check_binary_op),
         ("clml.multiply", is_op("multiply")(wildcard(), wildcard()), check_binary_op),
+        ("clml.divide", is_op("divide")(wildcard(), wildcard()), check_binary_op),
+        ("clml.minimum", is_op("minimum")(wildcard(), wildcard()), check_binary_op),
+        ("clml.maximum", is_op("maximum")(wildcard(), wildcard()), check_binary_op),
         ("clml.softmax", is_op("nn.softmax")(wildcard()), check_softmax_op),
         ("clml.reshape", is_op("reshape")(wildcard()), check_default_op),
         ("clml.avg_pool2d", is_op("nn.avg_pool2d")(wildcard()), check_default_op),

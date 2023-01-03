@@ -132,6 +132,7 @@ def schedule_conv_NCHWc_cpu_common_int8(
     int8_elems=4,
     intrin=None,
     inline_fused=True,
+    mem_scope="global",
 ):
     """
     Defines the schedule for INT8 for Intel and ARM machines
@@ -186,7 +187,7 @@ def schedule_conv_NCHWc_cpu_common_int8(
 
     # schedule 5-D NCHW[x]c conv
     C, O = conv_out, last
-    CC = s.cache_write(C, "global")
+    CC = s.cache_write(C, mem_scope)
 
     batch, oc_chunk, oh, ow, oc_block = s[C].op.axis
     ow_chunk, ow_block = s[C].split(ow, factor=reg_n)
@@ -279,6 +280,7 @@ def schedule_conv_NCHWc_cpu_1x1_int8(
     int8_elems=4,
     intrin=None,
     inline_fused=False,
+    mem_scope="global",
 ):
     """
     Defines the 1x1 conv schedule for INT8 for Intel and ARM machines
@@ -323,7 +325,7 @@ def schedule_conv_NCHWc_cpu_1x1_int8(
         s[kernel_vec].parallel(parallel_axis)
 
     C, O = conv_out, last
-    CC = s.cache_write(C, "global")
+    CC = s.cache_write(C, mem_scope)
 
     batch, oc_chunk, oh, ow, oc_block = s[C].op.axis
     oh_outer, oh_inner = s[C].split(oh, factor=oh_factor)

@@ -169,6 +169,7 @@ def winograd_transform_matrices(tile_size, kernel_size, out_dtype):
     intp_pts = _interpolation_points(degree)
     A_data, B_data, G_data = _cook_toom_convolution(intp_pts, tile_size, kernel_size)
 
+    out_dtype = "uint16" if out_dtype == "bfloat16" else out_dtype
     return (
         const_matrix(A_data.astype(out_dtype), "A"),
         const_matrix(B_data.astype(out_dtype), "B"),

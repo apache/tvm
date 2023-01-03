@@ -22,6 +22,7 @@ import numpy as np
 
 import tvm
 from tvm import relay
+from tvm.relay.op.contrib import ethosn_api_version
 from tvm.testing import requires_ethosn
 from . import infrastructure as tei
 
@@ -115,11 +116,76 @@ def _get_model(
     [
         ((1, 2, 2, 1), (2, 2), (1, 1), 1, False),
         ((1, 2, 2, 5), (2, 2), (3, 5), 4, False),
-        ((1, 7, 7, 4), (2, 2), (7, 9), 8, True),
+        ((1, 7, 7, 4), (2, 2), (7, 7), 8, True),
     ],
 )
 def test_conv2d_transpose(ifm_shape, strides, kernel_size, out_channels, dtype, bias):
     """Check transpose convolution output with TVM."""
+    np.random.seed(0)
+
+    kernel_layout = "IOHW"
+    dilation = (1, 1)
+    groups = 1
+
+    iinfo = np.iinfo(dtype)
+    data_min = iinfo.min
+    data_max = iinfo.max
+
+    input_zp = np.random.randint(data_min, data_max)
+    input_sc = np.random.random() * 2
+    kernel_zp = np.random.randint(data_min, data_max)
+    kernel_sc = np.random.random() * 4
+    output_zp, output_sc = tei.get_conv2d_qnn_params(
+        dtype, input_zp, input_sc, kernel_zp, kernel_sc, ifm_shape[1], ifm_shape[2], ifm_shape[3]
+    )
+
+    model, params = _get_model(
+        shape=ifm_shape,
+        kernel_h=kernel_size[0],
+        kernel_w=kernel_size[1],
+        input_zp=input_zp,
+        input_sc=input_sc,
+        kernel_zp=kernel_zp,
+        kernel_sc=kernel_sc,
+        output_zp=output_zp,
+        output_sc=output_sc,
+        stride=strides,
+        dilation=dilation,
+        groups=groups,
+        kernel_layout=kernel_layout,
+        dtype=dtype,
+        out_channels=out_channels,
+        bias=bias,
+    )
+
+    outputs = []
+    inputs = {
+        "a": tvm.nd.array(np.random.randint(data_min, data_max + 1, size=ifm_shape, dtype=dtype))
+    }
+
+    for npu in [False, True]:
+        mod = tei.make_module(model, params)
+        outputs.append(tei.build_and_run(mod, inputs, 1, params, npu=npu))
+
+    tei.verify(outputs, dtype, 1)
+
+
+@requires_ethosn
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+@pytest.mark.parametrize(
+    "ifm_shape,strides,kernel_size,out_channels,bias",
+    [
+        ((1, 10, 20, 3), (1, 1), (8, 5), 4, False),
+        ((1, 10, 10, 2), (2, 2), (7, 9), 8, True),
+    ],
+)
+def test_conv2d_transpose_kernel_size_gt_8(
+    ifm_shape, strides, kernel_size, out_channels, dtype, bias
+):
+    """Check transpose convolution for big kernel sizes."""
+    if ethosn_api_version() in ["3.2.0", "3.1.0"]:
+        pytest.skip("Skipping because NPU driver 22.11 fails to interpret zp used in the test.")
+
     np.random.seed(0)
 
     kernel_layout = "IOHW"

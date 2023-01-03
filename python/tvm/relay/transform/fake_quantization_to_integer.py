@@ -502,6 +502,37 @@ def register_binary_qnn(op_name, op):
 
     def binary(expr, type_map):
         left, right, left_t, right_t, out_t = get_binary_types(expr, type_map)
+
+        if (
+            op_name == "add"
+            and approx_equal(left_t.scale, right_t.scale)
+            and approx_equal(left_t.zero_point, right_t.zero_point)
+            and tvm.ir.structural_equal(left_t.dtype, right_t.dtype)
+            and left_t.dtype == "int32"
+            and approx_equal(left_t.scale, out_t.scale)
+            and approx_equal(left_t.zero_point, out_t.zero_point)
+            and np.all(out_t.zero_point.data.numpy() == 0)
+        ):
+            # If this add op comes after conv2d or dense, out_t.scale and out_t.zero_point
+            # can be a vector, which is not supported by QNN binary operators.
+            # In particular, the pattern of an `add` op following `dense`, where the addition is
+            # really a bias addtion, can come up often. We identify that pattern and convert it to
+            # `qnn.dense` -> `add`.
+            # To avoid overflow, we do this conversion only when the input data type is 32 bit (bias
+            # addition is typically done in 32 bit).
+            return [left + right, left_t]
+
+        assert (
+            len(out_t.scale.data.shape) == 0
+        ), "The output scale needs to be a scalar, but got a tensor of shape {}".format(
+            out_t.scale.data.shape
+        )
+        assert (
+            len(out_t.zero_point.data.shape) == 0
+        ), "The output zero point needs to be a scalar, but got a tensor of shape {}".format(
+            out_t.zero_point.data.shape
+        )
+
         out = op(
             left,
             right,

@@ -36,9 +36,9 @@ const TargetFeatures kHasDSP = {{"has_dsp", Bool(true)}, {"has_mve", Bool(false)
 const TargetFeatures kHasMVE = {{"has_dsp", Bool(true)}, {"has_mve", Bool(true)}};
 
 static const char* baseCPUs[] = {"cortex-m0", "cortex-m3"};
-static const char* dspCPUs[] = {"cortex-m55", "cortex-m4", "cortex-m7", "cortex-m33",
-                                "cortex-m35p"};
-static const char* mveCPUs[] = {"cortex-m55"};
+static const char* dspCPUs[] = {"cortex-m55", "cortex-m4",   "cortex-m7",
+                                "cortex-m33", "cortex-m35p", "cortex-m85"};
+static const char* mveCPUs[] = {"cortex-m55", "cortex-m85"};
 
 template <typename Container>
 static inline bool MatchesCpu(Optional<String> mcpu, const Container& cpus) {

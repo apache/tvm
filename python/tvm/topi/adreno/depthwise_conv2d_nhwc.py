@@ -250,8 +250,9 @@ def schedule_depthwise_conv2d_NHWC_HWOI(cfg, s, output):
         # create cache stage for tuning only or in case of 4d case
         AT = s.cache_read(pad_data, get_texture_storage(pad_data.shape), [conv])
         bind_data_copy(s[AT])
-        WT = s.cache_read(kernel, get_texture_storage(kernel.shape), [conv])
-        bind_data_copy(s[WT])
+        if kernel.shape[0] == 1 and kernel.shape[1] == 1:
+            WT = s.cache_read(kernel, get_texture_storage(kernel.shape), [conv])
+            bind_data_copy(s[WT])
 
     # tile and bind spatial axes
     n, y, x, fc, fb = s[latest_blocked].op.axis

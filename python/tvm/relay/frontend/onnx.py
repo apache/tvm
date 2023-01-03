@@ -1406,7 +1406,10 @@ class Gemm(OnnxOpConverter):
             inputs[0] *= _expr.const(alpha, dtype=dtype)
         out = _op.nn.dense(inputs[0], inputs[1], units=channels)
         if len(inputs) == 3:
-            out = out + _expr.const(beta, dtype=dtype) * inputs[2]
+            if beta != 1.0:
+                out += _expr.const(float(beta), dtype=dtype) * inputs[2]
+            else:
+                out += inputs[2]
         return out
 
 
@@ -3123,8 +3126,7 @@ class RNN(OnnxOpConverter):
         Wp = inputs[1]
         Rp = inputs[2]
         Bp = inputs[3]
-        # Sequence length currently unused as it can be inferred from shapes.
-        # sequence_lens = inputs['sequence_lens']
+        sequence_lens = inputs[4]
         Hp_0 = inputs[5]
 
         num_directions = infer_shape(Wp)[0]
@@ -3155,11 +3157,11 @@ class RNN(OnnxOpConverter):
         Bs = None
         if Bp is not None:
             Bs = _op.split(Bp, num_directions)
-        return X_steps, H_ts, Ws, Rs, Bs, num_directions
+        return X_steps, H_ts, Ws, Rs, Bs, num_directions, sequence_lens
 
     @classmethod
     def _impl_common(cls, inputs, attr, layout):
-        X_steps, H_ts, Ws, Rs, Bs, num_directions = cls._inputs_helper(inputs, layout)
+        X_steps, H_ts, Ws, Rs, Bs, num_directions, _ = cls._inputs_helper(inputs, layout)
         acts = cls._get_activations(attr, 1, num_directions, "RNN")
 
         weights_dicts = []
@@ -3258,7 +3260,7 @@ class LSTM(RNN):
 
     @classmethod
     def _impl_common(cls, inputs, attr, layout):
-        X_steps, H_ts, Ws, Rs, Bs, num_directions = cls._inputs_helper(inputs, layout)
+        X_steps, H_ts, Ws, Rs, Bs, num_directions, _ = cls._inputs_helper(inputs, layout)
         acts = cls._get_activations(attr, 3, num_directions, "LSTM")
 
         # cell state
@@ -3343,6 +3345,7 @@ class GRU(RNN):
         input_seqs,
         weight_dicts,
         acts,
+        sequence_lens=None,
     ):
         """
         Bidirectional GRU cell
@@ -3353,6 +3356,7 @@ class GRU(RNN):
             **weight_dicts[0],
             rz_act=acts[0],
             n_act=acts[1],
+            sequence_lens=sequence_lens,
         )
 
         reverse_outputs, rev_H_t = gru_cell(
@@ -3361,6 +3365,7 @@ class GRU(RNN):
             rz_act=acts[2],
             n_act=acts[3],
             backwards=True,
+            sequence_lens=sequence_lens,
         )
 
         final_outputs = []
@@ -3380,7 +3385,9 @@ class GRU(RNN):
 
     @classmethod
     def _impl_common(cls, inputs, attr, layout):
-        X_steps, H_ts, Ws, Rs, Bs, num_directions = cls._inputs_helper(inputs, layout)
+        X_steps, H_ts, Ws, Rs, Bs, num_directions, sequence_lens = cls._inputs_helper(
+            inputs, layout
+        )
         acts = cls._get_activations(attr, 2, num_directions, "GRU")
         linear_before_reset = attr.get("linear_before_reset", 0)
 
@@ -3409,6 +3416,7 @@ class GRU(RNN):
                 input_seqs=X_steps,
                 weight_dicts=weights_dicts,
                 acts=acts,
+                sequence_lens=sequence_lens,
             )
         else:
             # outputs shape = [seqs_num, (batch_size, hidden_size)]
@@ -3417,6 +3425,7 @@ class GRU(RNN):
                 **weights_dicts[0],
                 rz_act=acts[0],
                 n_act=acts[1],
+                sequence_lens=sequence_lens,
             )
 
             # output shape = (seqs_num, num_directions, batch_size, hidden_size)
@@ -4004,6 +4013,23 @@ class If(OnnxOpConverter):
         else_free_vars = analysis.free_vars(else_expr)
         for var in else_free_vars:
             graph_scope._nodes.update({var.name_hint: var})
+
+        # Sometimes pytorch to onnx will insert silly if statements that produce dynamic ranks.
+        # Often these dont contribute anything. If we see a dynamic rank output, try to unify
+        # them so we can continue without breaking.
+        if not isinstance(then_expr, _expr.Tuple) and not isinstance(else_expr, _expr.Tuple):
+            then_shape = infer_shape(then_expr)
+            else_shape = infer_shape(else_expr)
+            if len(then_shape) != len(else_shape):
+                warning_msg = (
+                    "If statement produced outputs with different rank. "
+                    "Attempting to unify ranks but this may produce incorrect results."
+                )
+                warnings.warn(warning_msg)
+                if len(then_shape) < len(else_shape):
+                    then_expr = _op.broadcast_to_like(then_expr, else_expr)
+                else:
+                    else_expr = _op.broadcast_to_like(else_expr, then_expr)
 
         # Now we can construct the relay if statement and return.
         ret = _expr.If(cond, then_expr, else_expr)
@@ -5562,6 +5588,66 @@ class ConcatFromSequence(OnnxOpConverter):
         return _op.concatenate(inputs[0], axis=axis)
 
 
+class SplitToSequence(OnnxOpConverter):
+    """Operator converter for split to sequence op."""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        axis = attr.get("axis", 0)
+        keepdims = attr.get("keepdims", 1)
+
+        input_tensor = inputs[0]
+        input_shape = infer_shape(input_tensor)
+        split = inputs[1]
+
+        # If split is not provided, we split all values along axis.
+        if split is None:
+            output = _op.split(input_tensor, input_shape[axis], axis=axis)
+            # If keepdims is 0, then we need to squeeze off the axis.
+            if not keepdims:
+                output = [_op.squeeze(tensor_slice, axis=[axis]) for tensor_slice in output]
+            return _expr.Tuple(list(output))
+
+        # Otherwise, split based on provided split value.
+        else:
+            # For now we only support constant valued split.
+            assert isinstance(
+                split, _expr.Constant
+            ), "Only constant split supported for SplitToSequence"
+            split = split.data.numpy()
+            if len(split.shape) == 1 and split.shape[0] > 1:
+                # If split is a 1D tensor, it must be converted to indices for relay compatibility.
+                split = np.cumsum(split)
+                # Remove final invalid index.
+                split = split[:-1]
+            else:
+                # Otherwise get split as an integer.
+                split = int(split)
+
+            output = _op.split(input_tensor, split, axis=axis)
+
+            # If keepdims is set to 0 remove split axis. Note that this is
+            # an inconsistency with the onnx spec but is needed for pytorch compatibility.
+            if not keepdims:
+                output = [_op.squeeze(tensor_slice, axis=[axis]) for tensor_slice in output]
+            return _expr.Tuple(list(output))
+
+
+class SequenceAt(OnnxOpConverter):
+    """Operator converter for sequence at op."""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        input_sequence = inputs[0]
+        position = inputs[1]
+        assert isinstance(
+            position, _expr.Constant
+        ), "Only constant position supported for SequenceAt"
+        # Convert position to integer.
+        position = int(position.data.numpy())
+        return input_sequence[position]
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -5790,6 +5876,8 @@ def _get_convert_map(opset):
         "SequenceConstruct": SequenceConstruct.get_converter(opset),
         "SequenceInsert": SequenceInsert.get_converter(opset),
         "ConcatFromSequence": ConcatFromSequence.get_converter(opset),
+        "SplitToSequence": SplitToSequence.get_converter(opset),
+        "SequenceAt": SequenceAt.get_converter(opset),
     }
 
 

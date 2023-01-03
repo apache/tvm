@@ -18,6 +18,7 @@
 """Test Meta Schedule Database"""
 import os.path as osp
 import tempfile
+import pytest
 from typing import Callable, Optional, List
 
 import tvm
@@ -534,6 +535,44 @@ def test_meta_schedule_pydatabase_current():
     db = PyMemoryDatabaseDefault()  # pylint: disable=invalid-name
     with db:  # pylint: disable=not-context-manager
         assert ms.database.Database.current() == db
+
+
+def call_get_top_k(run_secs_list, database, k):
+    mod: IRModule = Matmul
+    workload = database.commit_workload(mod)
+    for run_secs in run_secs_list:
+        record = ms.database.TuningRecord(
+            _create_schedule(mod, _schedule_matmul).trace,
+            workload,
+            run_secs,
+            tvm.target.Target("llvm"),
+            ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
+        )
+        database.commit_tuning_record(record)
+    return [[v.value for v in record.run_secs] for record in database.get_top_k(workload, k)]
+
+
+@pytest.mark.parametrize(
+    "k,expected",
+    [(0, []), (3, [[0.0, 2.0], [2.0], [1.5, 4.5]]), (5, [[0.0, 2.0], [2.0], [1.5, 4.5]])],
+)
+def test_memory_database_get_top_k(k, expected):
+    run_secs_list = [[1.5, 4.5], [], [0.0, 2.0], None, [2.0]]
+    database = ms.database.MemoryDatabase()
+    result = call_get_top_k(run_secs_list, database, k)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    "k,expected",
+    [(0, []), (3, [[0.0, 2.0], [2.0], [1.5, 4.5]]), (5, [[0.0, 2.0], [2.0], [1.5, 4.5]])],
+)
+def test_json_database_get_top_k(k, expected):
+    run_secs_list = [[1.5, 4.5], [], [0.0, 2.0], None, [2.0]]
+    with tempfile.TemporaryDirectory() as tmpdir:
+        database = _create_tmp_database(tmpdir)
+        result = call_get_top_k(run_secs_list, database, k)
+    assert result == expected
 
 
 if __name__ == "__main__":

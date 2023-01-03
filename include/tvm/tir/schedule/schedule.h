@@ -399,10 +399,12 @@ class ScheduleNode : public runtime::Object {
    * \param block_rv The producer of the buffer
    * \param write_buffer_index The index of the buffer in block's write region
    * \param storage_scope The target storage scope
+   * \param consumer_blocks An optional list of consumers to read from cache directly.
    * \return The cache stage block.
    */
   virtual BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index,
-                             const String& storage_scope) = 0;
+                             const String& storage_scope,
+                             const Array<BlockRV> consumer_blocks = {}) = 0;
   /*!
    * \brief Create 2 blocks that read&write a buffer region into a read/write cache.
    * It requires the the target block both read & write the target buffer.
@@ -563,21 +565,26 @@ class ScheduleNode : public runtime::Object {
   /*!
    * \brief Convert the subtree rooted at a specific loop into a block.
    * \param loop_rv the root of the subtree
+   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
    * \return the new block
    */
-  virtual BlockRV Blockize(const LoopRV& loop_rv) = 0;
+  virtual BlockRV Blockize(const LoopRV& loop_rv, bool preserve_unit_iters = true) = 0;
   /*!
    * \brief Tensorize the computation enclosed by loop with the tensor intrin.
    * \param loop_rv The loop to be tensorized
    * \param intrin Name of the tensor intrinsic
+   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
    */
-  virtual void Tensorize(const LoopRV& loop_rv, const String& intrin) = 0;
+  virtual void Tensorize(const LoopRV& loop_rv, const String& intrin,
+                         bool preserve_unit_iters = true) = 0;
   /*!
    * \brief Tensorize the computation enclosed by loop with the tensor intrin.
    * \param block_rv The block to be tensorized
    * \param intrin Name of the tensor intrinsic
+   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
    */
-  virtual void Tensorize(const BlockRV& block_rv, const String& intrin) = 0;
+  virtual void Tensorize(const BlockRV& block_rv, const String& intrin,
+                         bool preserve_unit_iters = true) = 0;
 
   /******** Schedule: Annotation ********/
   /*!

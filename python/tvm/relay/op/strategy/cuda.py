@@ -261,6 +261,8 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                     )
             if (
                 target.kind.name == "cuda"
+                and not is_auto_scheduler_enabled()
+                and not is_meta_schedule_enabled()
                 and nvcc.have_tensorcore(target=target)
                 and (
                     (N % 16 == 0 and CI % 16 == 0 and CO % 16 == 0)
