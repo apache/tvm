@@ -386,8 +386,12 @@ void topk(DLTensor* input, DLTensor* out_values, DLTensor* out_indices, int k, i
         int64_t full_idx = src_base_idx + cur_axis_index * axis_mul_after;
         running_heap.emplace_back(std::make_pair(cur_axis_index, data_ptr[full_idx]));
       }
-      std::make_heap(running_heap.begin(), running_heap.end(), CompareDescend<DataType, true>);
-
+      if (!is_ascend) {
+        std::make_heap(running_heap.begin(), running_heap.end(), CompareDescend<DataType, true>);
+      } else {
+        std::make_heap(running_heap.begin(), running_heap.end(), CompareAscend<DataType, true>);
+      }
+      
       // Iterate through all elements, adding to heap along the way
       for (; cur_axis_index < input->shape[axis]; cur_axis_index++) {
         int64_t full_idx = src_base_idx + cur_axis_index * axis_mul_after;
