@@ -157,20 +157,6 @@ void HexagonDeviceAPI::FreeWorkspace(Device dev, void* data) {
   dmlc::ThreadLocalStore<HexagonWorkspacePool>::Get()->FreeWorkspace(dev, data);
 }
 
-void* HexagonDeviceAPI::AllocVtcmWorkspace(Device dev, int ndim, const int64_t* shape,
-                                           DLDataType dtype, Optional<String> mem_scope) {
-  // must be Hexagon device (not CPU)
-  CHECK(dev.device_type == kDLHexagon) << "dev.device_type: " << dev.device_type;
-  CHECK((ndim == 1 || ndim == 2) && "Hexagon Device API supports only 1d and 2d allocations");
-  return AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
-}
-
-void HexagonDeviceAPI::FreeVtcmWorkspace(Device dev, void* ptr) {
-  // must be Hexagon device (not CPU)
-  CHECK(dev.device_type == kDLHexagon) << "dev.device_type: " << dev.device_type;
-  FreeDataSpace(dev, ptr);
-}
-
 void HexagonDeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
   CHECK_EQ(from->byte_offset, 0);
   CHECK_EQ(to->byte_offset, 0);
@@ -268,7 +254,7 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.alloc_nd").set_body([](TVMArgs args, TVM
   type_hint.lanes = 1;
 
   HexagonDeviceAPI* hexapi = HexagonDeviceAPI::Global();
-  *rv = hexapi->AllocVtcmWorkspace(dev, ndim, shape, type_hint, String(scope));
+  *rv = hexapi->AllocDataSpace(dev, ndim, shape, type_hint, String(scope));
 });
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.free_nd").set_body([](TVMArgs args, TVMRetValue* rv) {
@@ -283,7 +269,7 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.free_nd").set_body([](TVMArgs args, TVMR
   dev.device_id = device_id;
 
   HexagonDeviceAPI* hexapi = HexagonDeviceAPI::Global();
-  hexapi->FreeVtcmWorkspace(dev, ptr);
+  hexapi->FreeDataSpace(dev, ptr);
   *rv = static_cast<int32_t>(0);
 });
 
