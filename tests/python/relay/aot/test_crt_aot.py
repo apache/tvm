@@ -242,9 +242,9 @@ def test_io_size_definition():
     mod = transform.InferType()(mod)
 
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
-    w1_data = np.random.uniform(0, 1, wshape).astype(dtype)
+    w_data = np.random.uniform(0, 1, wshape).astype(dtype)
 
-    inputs = OrderedDict([("data", i_data), ("weight", w1_data)])
+    inputs = OrderedDict([("data", i_data), ("weight", w_data)])
 
     output_list = generate_ref_data(mod, inputs)
     compiled_models_list = compile_models(
@@ -257,7 +257,10 @@ def test_io_size_definition():
         use_runtime_executor=True,
         target=tvm.target.Target("c"),
     )
-    ref_output_size = output_list["output"].size * np.dtype(dtype).itemsize
+    dtype_itemsize = np.dtype(dtype).itemsize
+    ref_input_size = i_data.size * dtype_itemsize
+    ref_weight_size = w_data.size * dtype_itemsize
+    ref_output_size = output_list["output"].size * dtype_itemsize
     compiled_model = compiled_models_list[0]
 
     tmp_path = utils.tempdir()
@@ -269,18 +272,14 @@ def test_io_size_definition():
     t = tarfile.open(tar_file)
     t.extractall(base_path)
 
-    file_list = []
-    for path in (pathlib.Path(base_path) / "codegen" / "host" / "include").iterdir():
-        if path.is_file():
-            file_list.append(path)
-    assert len(file_list) > 0
-
-    for path in file_list:
-        with open(path, "r") as header:
-            contents = header.readlines()
-            contents = "".join(map(str, contents))
-            assert contents.count("_SIZE") == 4
-            assert str(ref_output_size) in contents
+    header_path = f"{base_path}/codegen/host/include/tvmgen_{model.name}.h"
+    with open(header_path, "r") as header:
+        contents = header.readlines()
+        contents = "".join(map(str, contents))
+        assert contents.count("_SIZE") == 4
+        assert f"TVMGEN_DEFAULT_DATA_SIZE {ref_input_size}" in contents
+        assert f"TVMGEN_DEFAULT_WEIGHT_SIZE {ref_weight_size}" in contents
+        assert f"TVMGEN_DEFAULT_OUTPUT_SIZE {ref_output_size}" in contents
 
 
 @parametrize_aot_options
