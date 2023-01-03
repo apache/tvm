@@ -69,7 +69,11 @@ PROJECT_OPTIONS = server.default_project_options(
 ) + [
     server.ProjectOption(
         "arduino_cli_cmd",
-        required=(["generate_project", "flash", "open_transport"] if not ARDUINO_CLI_CMD else None),
+        required=(
+            ["generate_project", "build", "flash", "open_transport"]
+            if not ARDUINO_CLI_CMD
+            else None
+        ),
         optional=(
             ["generate_project", "build", "flash", "open_transport"] if ARDUINO_CLI_CMD else None
         ),
