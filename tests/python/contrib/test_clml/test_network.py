@@ -91,13 +91,8 @@ def test_mobilenet(device, dtype):
         mod, params, inputs, input_data, device=device, atol=1e-5, rtol=1e-5
     )
 
-    # test
-    print("OpenCL:", outputs[0].asnumpy().shape)
-    print("CLML:", outputs[1].asnumpy().shape)
-
     opencl_sort = np.argsort(outputs[1].asnumpy()).flatten()
     clml_sort = np.argsort(outputs[0].asnumpy()).flatten()
-
     tvm.testing.assert_allclose(opencl_sort[:10], clml_sort[:10], rtol=1e-5, atol=1e-5)
 
 
@@ -134,7 +129,6 @@ def test_inception_v3(device, dtype):
 
     opencl_sort = np.argsort(outputs[1].asnumpy()).flatten()
     clml_sort = np.argsort(outputs[0].asnumpy()).flatten()
-
     tvm.testing.assert_allclose(opencl_sort[:5], clml_sort[:5], rtol=1e-5, atol=1e-5)
 
 
@@ -176,11 +170,10 @@ def test_resnet50v2(device, dtype):
         mod, params, inputs, input_data, device=device, atol=1e-5, rtol=1e-5
     )
 
-    # test
-    print("OpenCL:", outputs[0].asnumpy().shape)
-    print("CLML:", outputs[1].asnumpy().shape)
-
     opencl_sort = np.argsort(outputs[1].asnumpy()).flatten()
     clml_sort = np.argsort(outputs[0].asnumpy()).flatten()
-
     tvm.testing.assert_allclose(opencl_sort[:10], clml_sort[:10], rtol=1e-5, atol=1e-5)
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

@@ -39,9 +39,9 @@ class Device:
     Configuration for CLML tests.
 
     Check tests/python/contrib/clml/ for the presence of an test_config.json file.
-    This file can be used to override the default configuration here which will attempt to run the Arm
-    Compute Library runtime tests locally if the runtime is available. Changing the configuration
-    will allow these runtime tests to be offloaded to a remote Arm device via a tracker for example.
+    This file can be used to override the default configuration here which will attempt to run the
+    Open CLML runtime tests locally if the runtime is available. Changing the configuration
+    will allow these runtime tests to be offloaded to a remote Snapdragon device via a tracker for example.
 
     Notes
     -----
@@ -101,6 +101,25 @@ class Device:
         return device
 
 
+def get_cpu_op_count(mod):
+    """Traverse graph counting ops offloaded to TVM."""
+
+    class Counter(tvm.relay.ExprVisitor):
+        def __init__(self):
+            super().__init__()
+            self.count = 0
+
+        def visit_call(self, call):
+            if isinstance(call.op, tvm.ir.Op):
+                self.count += 1
+
+            super().visit_call(call)
+
+    c = Counter()
+    c.visit(mod["main"])
+    return c.count
+
+
 def skip_codegen_test():
     """Skip test if it requires the CLML codegen and it's not present."""
     if not tvm.get_global_func("relay.ext.clml", True):
@@ -130,7 +149,6 @@ def build_and_run(
 
     try:
         libm = build_module(mod, device.target, device.target_host, params, enable_clml, tune_log)
-
         clml_modules = extract_clml_modules(libm)
         for mod in clml_modules:
             source = mod.get_source("json")
@@ -155,9 +173,9 @@ def build_and_run(
     for _ in range(no_runs):
         gen_module.run()
         out.append([gen_module.get_output(i) for i in range(outputs)])
-    time_f = gen_module.module.time_evaluator("run", device.device.cl(0), number=1)
-    cost = time_f().mean
-    print("%g secs/iteration\n" % cost)
+    # time_f = gen_module.module.time_evaluator("run", device.device.cl(0), number=1)
+    # cost = time_f().mean
+    # print("%g secs/iteration\n" % cost)
     return out
 
 
@@ -181,16 +199,34 @@ def extract_clml_modules(module):
 
 
 def verify_codegen(
-    module,
+    mod,
     known_good_codegen,
+    device,
+    params,
     num_clml_modules=1,
     tvm_ops=0,
-    target="llvm -mtriple=aarch64-linux-gnu",
 ):
     """Check clml codegen against a known good output."""
-    module = build_module(module, target, tvm_ops=tvm_ops, clml_partitions=num_clml_modules)
-    clml_modules = extract_clml_modules(module)
+    if isinstance(mod, tvm.relay.expr.Call):
+        mod = tvm.IRModule.from_expr(mod)
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
+        mod = clml.partition_for_clml(mod, params)
+        tvm_op_count = get_cpu_op_count(mod)
+        assert tvm_op_count == tvm_ops, "Got {} TVM operators, expected {}".format(
+            tvm_op_count, tvm_ops
+        )
+        partition_count = 0
+        for global_var in mod.get_global_vars():
+            if "clml" in global_var.name_hint:
+                partition_count += 1
 
+        assert (
+            num_clml_modules == partition_count
+        ), "Got {} Open CLML partitions, expected {}".format(partition_count, num_clml_modules)
+    relay.backend.te_compiler.get().clear()
+
+    module = relay.build(mod, target=device.target, target_host=device.target_host, params=params)
+    clml_modules = extract_clml_modules(module)
     assert len(clml_modules) == num_clml_modules, (
         f"The number of CLML modules produced ({len(clml_modules)}) does not "
         f"match the expected value ({num_clml_modules})."
