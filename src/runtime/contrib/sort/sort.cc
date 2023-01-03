@@ -34,9 +34,9 @@ namespace contrib {
 
 using namespace runtime;
 
-template <typename DType, bool stable_comparison=false>
+template <typename DType, bool stable_comparison = false>
 bool CompareAscend(const std::pair<int64_t, DType>& lhs, const std::pair<int64_t, DType>& rhs) {
-  if constexpr(stable_comparison) {
+  if constexpr (stable_comparison) {
     if (lhs.second == rhs.second) {
       return lhs.first < rhs.first;
     }
@@ -45,9 +45,9 @@ bool CompareAscend(const std::pair<int64_t, DType>& lhs, const std::pair<int64_t
   return lhs.second < rhs.second;
 }
 
-template <typename DType, bool stable_comparison=false>
+template <typename DType, bool stable_comparison = false>
 bool CompareDescend(const std::pair<int64_t, DType>& lhs, const std::pair<int64_t, DType>& rhs) {
-  if constexpr(stable_comparison) {
+  if constexpr (stable_comparison) {
     if (lhs.second == rhs.second) {
       return lhs.first < rhs.first;
     }
@@ -62,12 +62,12 @@ struct float16 {
     return __extendXfYf2__<uint16_t, uint16_t, 10, float, uint32_t, 23>(bits);
   }
 
- inline bool operator==(const float16& rhs) const { return to_float() == rhs.to_float(); }
- inline bool operator!=(const float16& rhs) const { return to_float() != rhs.to_float(); }
- inline bool operator< (const float16& rhs) const { return to_float() < rhs.to_float(); }
- inline bool operator> (const float16& rhs) const { return to_float() > rhs.to_float(); }
- inline bool operator<=(const float16& rhs) const { return to_float() <= rhs.to_float(); }
- inline bool operator>=(const float16& rhs) const { return to_float() >= rhs.to_float(); }
+  inline bool operator==(const float16& rhs) const { return to_float() == rhs.to_float(); }
+  inline bool operator!=(const float16& rhs) const { return to_float() != rhs.to_float(); }
+  inline bool operator<(const float16& rhs) const { return to_float() < rhs.to_float(); }
+  inline bool operator>(const float16& rhs) const { return to_float() > rhs.to_float(); }
+  inline bool operator<=(const float16& rhs) const { return to_float() <= rhs.to_float(); }
+  inline bool operator>=(const float16& rhs) const { return to_float() >= rhs.to_float(); }
 };
 
 // Argsort implemented C library sort for nms.
@@ -391,7 +391,7 @@ void topk(DLTensor* input, DLTensor* out_values, DLTensor* out_indices, int k, i
       } else {
         std::make_heap(running_heap.begin(), running_heap.end(), CompareAscend<DataType, true>);
       }
-      
+
       // Iterate through all elements, adding to heap along the way
       for (; cur_axis_index < input->shape[axis]; cur_axis_index++) {
         int64_t full_idx = src_base_idx + cur_axis_index * axis_mul_after;
