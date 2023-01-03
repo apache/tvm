@@ -144,6 +144,14 @@ class TVM_DLL ModuleNode : public Object {
    * \param format The format of the file.
    */
   virtual void SaveToFile(const std::string& file_name, const std::string& format);
+
+  /*!
+   * \brief Save the module with separate funciton files.
+   * \param file_name The prefix of the files to be saved to.
+   * \param format The format of the file.
+   */
+  virtual std::string SaveToFileSeparateFuncs(const std::string& prefix, const std::string& format);
+
   /*!
    * \brief Save the module to binary stream.
    * \param stream The binary stream to save to.

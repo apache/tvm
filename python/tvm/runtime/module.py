@@ -29,7 +29,7 @@ from tvm._ffi.libinfo import find_include_path
 from .packed_func import PackedFunc, PackedFuncHandle, _set_class_module
 
 from . import _ffi_api
-
+import logging
 
 class BenchmarkResult:
     """Runtimes from benchmarking"""
@@ -251,6 +251,10 @@ class Module(object):
         """
         return _ffi_api.ModuleIsDSOExportable(self)
 
+    def save_separate_funcs(self, file_name, fmt=""):
+        return _ffi_api.ModuleSaveToFileSeparateFuncs(self, file_name, fmt)
+
+
     def save(self, file_name, fmt=""):
         """Save the module to file.
 
@@ -393,6 +397,63 @@ class Module(object):
 
     def _collect_dso_modules(self):
         return self._collect_from_import_tree(lambda m: m.is_dso_exportable)
+
+    # Most of the following code is copied from `export_library`
+    def export_library_separate_funcs(self, output_dir, prefix, fcompile=None, addons=None, workspace_dir=None, **kwargs):
+        # NOTE: this function depends on contrib library features
+        # which are only available in when TVM function is available.
+        if _RUNTIME_ONLY:
+            raise RuntimeError("Cannot call export_library in runtime only mode")
+        # Extra dependencies during runtime.
+        from pathlib import Path
+        from tvm.contrib import cc as _cc, tar as _tar, utils as _utils
+
+        if self.type_key == "stackvm":
+            raise NotImplementedError()
+
+        modules = self._collect_dso_modules()
+        if workspace_dir is None:
+            temp = _utils.tempdir()
+            workspace_dir = temp.temp_dir
+        is_system_lib = False
+        llvm_target_string = None
+        assert len(modules) == 1
+        for index, module in enumerate(modules):
+
+            object_format = "o"
+            path_prefix = os.path.join(workspace_dir, f"lib{index}_{prefix}")
+            #build_files_str=""
+            build_files_str=module.save_separate_funcs(path_prefix, fmt=object_format)
+            build_files=build_files_str.split(",")
+            logging.info(f'Build files: {build_files}')
+            
+            
+            if module.type_key == "llvm":
+                is_system_lib = module.get_function("__tvm_is_system_module")()
+                llvm_target_string = module.get_function("_get_target_string")()
+        if not fcompile:
+            fcompile = _cc.create_shared
+
+        if llvm_target_string is None and hasattr(fcompile, "get_target_triple"):
+            triple = fcompile.get_target_triple()
+            assert triple, "Target triple should not be empty"
+            llvm_target_string = "llvm -mtriple " + triple
+
+        if getattr(fcompile, "need_system_lib", False) and not is_system_lib:
+            raise ValueError("%s need --system-lib option" % str(fcompile))
+
+        if self.imported_modules:
+            raise NotImplementedError()
+
+        for file in build_files:
+            file=file.strip()
+            if file=='':
+                continue
+            compiled_file_name=file.split("/")[-1][:-2]+".so"
+            compiled_file_name=os.path.join(output_dir, compiled_file_name)
+            logging.info(f'compiled_file_name: {compiled_file_name}')
+            fcompile(compiled_file_name, [file], **kwargs)
+
 
     def export_library(self, file_name, fcompile=None, addons=None, workspace_dir=None, **kwargs):
         """
