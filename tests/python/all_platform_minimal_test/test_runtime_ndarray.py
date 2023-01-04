@@ -29,7 +29,7 @@ def test_nd_create():
         for dtype in ["uint8", "int8", "uint16", "int16", "uint32", "int32", "float32"]:
             main_data = np.random.randint(0, 10, size=(3, 4))
             np_array = np.array(main_data, dtype=dtype)
-            tvm_array = tvm.nd.array(np_array, device=dev)
+            tvm_array = tvm.nd.array(np_array, dev)
             tvm_array_device = tvm_array.copyto(dev)
             assert tvm_array.dtype == np_array.dtype
             assert tvm_array.shape == np_array.shape
