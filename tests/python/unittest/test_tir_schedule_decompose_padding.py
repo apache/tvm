@@ -309,5 +309,68 @@ def test_decompose_hw_padding_non_perfect_tiled():
     check_decompose_padding(sum_pool_2d, sch.mod["main"], pooling_decompose_3, check_run=True)
 
 
+def test_decompose_wrt_single_child_subtree():
+    """Test the case when the decompose position is under the single child subtree"""
+
+    @T.prim_func
+    def pad_op(
+        x: T.Buffer[(1, 16, 225, 225), "int8"], y: T.Buffer([1, 16, 231, 231], dtype="int8")
+    ):
+        for i0, i1, i2, i3 in T.grid(1, 16, 231, 231):
+            with T.block("pad_temp"):
+                ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                y[ax0, ax1, ax2, ax3] = T.if_then_else(
+                    3 <= ax2 and ax2 < 228 and 3 <= ax3 and ax3 < 228,
+                    x[ax0, ax1, ax2 - 3, ax3 - 3],
+                    T.int8(0),
+                    dtype="int8",
+                )
+
+    @T.prim_func
+    def pad_op_after(
+        x: T.Buffer[(1, 16, 225, 225), "int8"], y: T.Buffer[(1, 16, 231, 231), "int8"]
+    ):
+        for i0, i1 in T.grid(1, 16):
+            for i2, i3 in T.grid(231, 231):
+                with T.block("pad_temp_pad_const"):
+                    ax0 = T.axis.spatial(1, 0)
+                    ax1, ax2, ax3 = T.axis.remap("SSS", [i1, i2, i3])
+                    y[ax0, ax1, ax2, ax3] = T.int8(0)
+            for i2, i3 in T.grid(225, 225):
+                with T.block("pad_temp"):
+                    ax0 = T.axis.spatial(1, 0)
+                    ax1, ax2, ax3 = T.axis.remap("SSS", [i1, i2, i3])
+                    y[ax0, ax1, ax2 + 3, ax3 + 3] = x[ax0, ax1, ax2, ax3]
+
+    sch = tir.Schedule(pad_op, debug_mask="all")
+    pad = sch.get_block("pad_temp")
+    _, _, h, _ = sch.get_loops(pad)
+    sch.decompose_padding(pad, h)
+    check_decompose_padding(pad_op, sch.mod["main"], pad_op_after, check_run=True)
+
+
+def test_not_to_decompose_trivial_predicate():
+    """Test the case when the padding condition is trivial"""
+
+    @T.prim_func
+    def trivial_pad(
+        x: T.Buffer[(1, 16, 225, 225), "int8"], y: T.Buffer([1, 16, 225, 225], dtype="int8")
+    ):
+        for i0, i1, i2, i3 in T.grid(1, 16, 225, 225):
+            with T.block("pad_temp"):
+                ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                y[ax0, ax1, ax2, ax3] = T.if_then_else(
+                    0 <= ax2 and ax2 < 225 and 0 <= ax3 and ax3 < 225,
+                    x[ax0, ax1, ax2, ax3],
+                    T.int8(0),
+                    dtype="int8",
+                )
+
+    sch = tir.Schedule(trivial_pad, debug_mask="all")
+    pad = sch.get_block("pad_temp")
+    _, _, h, _ = sch.get_loops(pad)
+    assert not sch.can_decompose_padding(pad, h)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
