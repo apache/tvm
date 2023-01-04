@@ -377,7 +377,7 @@ void LLVMModuleNode::AddFuncModule(const IRModule& mod, const Target& target, Pr
 
   funcs.push_back(func);
 
-  cg->Init("TVMMod", llvm_target.get(), system_lib, system_lib, target_c_runtime);
+  cg->Init("TVMFuncMod", llvm_target.get(), system_lib, system_lib, target_c_runtime);
   cg->SetFastMathFlags(llvm_target->GetFastMathFlags());
 
   cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
@@ -390,6 +390,7 @@ void LLVMModuleNode::AddFuncModule(const IRModule& mod, const Target& target, Pr
   // // (@jzh18) what's the usage of module_owning_ptr_
   std::unique_ptr<llvm::Module> func_module_owning_ptr_ = cg->Finish();
   llvm::Module* func_module_ = func_module_owning_ptr_.get();
+  func_module_owning_ptr_.release();
   llvm_target->SetTargetMetadata(func_module_);
   func_module_->addModuleFlag(llvm::Module::Override, "Debug Info Version",
                          llvm::DEBUG_METADATA_VERSION);
@@ -459,7 +460,6 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
   if (tm->getTargetTriple().isOSDarwin()) {
     module_->addModuleFlag(llvm::Module::Override, "Dwarf Version", 2);
   }
-
   std::string verify_errors_storage;
   llvm::raw_string_ostream verify_errors(verify_errors_storage);
   LOG_IF(FATAL, llvm::verifyModule(*module_, &verify_errors))
