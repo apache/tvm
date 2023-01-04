@@ -28,7 +28,7 @@ if(USE_MICRO)
       "apps/microtvm/zephyr/template_project/src/host_driven *.c -> zephyr/src/host_driven"
       "apps/microtvm/zephyr/template_project/src/host_driven *.h -> zephyr/src/host_driven"
       "apps/microtvm/zephyr/template_project/src/mlperftiny * -> zephyr/src/mlperftiny"
-      "3rdparty/tiny/api * -> zephyr/src/mlperftiny/api"
+      "3rdparty/mlperftiny/api * -> zephyr/src/mlperftiny/api"
       "apps/microtvm/zephyr/template_project/fvp-hack * -> zephyr/fvp-hack"
       "apps/microtvm/zephyr/template_project/qemu-hack * -> zephyr/qemu-hack"
       "apps/microtvm/zephyr/template_project/app-overlay * -> zephyr/app-overlay"
