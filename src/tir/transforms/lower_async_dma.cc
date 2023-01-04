@@ -211,7 +211,8 @@ namespace transform {
 Pass LowerAsyncDMA() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto fptr = f.CopyOnWrite();
-    bool dma_bypass_cache = ctx->GetConfig<Bool>("tir.dma_bypass_cache", Bool(false)).value();
+    bool dma_bypass_cache =
+        ctx->GetConfig<Bool>("tir.experimental_dma_bypass_cache", Bool(false)).value();
     fptr->body = AsyncDMALowerer(dma_bypass_cache)(std::move(fptr->body));
     return f;
   };
