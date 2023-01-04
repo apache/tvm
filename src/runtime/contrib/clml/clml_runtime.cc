@@ -259,7 +259,7 @@ class CLMLRuntime : public JSONRuntimeBase {
           layer_.in_placeholder[i]->memory = static_cast<cl_mem>(
               ((cl::BufferDescriptor*)const_cast<DLTensor*>(data_entry_[eid])->data)->buffer);
           cl_event cpy_evt = NULL;
-          cl_event *evt = &cpy_evt;
+          cl_event* evt = &cpy_evt;
           if (workspace->IsProfiling(tentry->device)) {
             evts.resize(evts.size() + 1);
             evt = &(evts.back());
@@ -323,7 +323,7 @@ class CLMLRuntime : public JSONRuntimeBase {
         layer_.out_placeholder[i]->memory = static_cast<cl_mem>(
             ((cl::BufferDescriptor*)const_cast<DLTensor*>(data_entry_[eid])->data)->buffer);
         cl_event cpy_evt = NULL;
-        cl_event *evt = &cpy_evt;
+        cl_event* evt = &cpy_evt;
         if (workspace->IsProfiling(tentry->device)) {
           evts.resize(evts.size() + 1);
           evt = &(evts.back());
