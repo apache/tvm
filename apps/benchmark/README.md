@@ -134,10 +134,23 @@ python3 gpu_imagenet_bench.py --model gfx900 --target rocm
 Adreno benchmarks are automated over the docker - [ci_adreno](https://github.com/apache/tvm/blob/main/docker/Dockerfile.ci_adreno).
 Adreno docker share the Android devices from host. It is adviced to have host adb version same as docker, which is ```1.0.41```
 
-Below command runs all the benchmarks over given Android device.
+Below command runs all (OpenCL native, CLML SDK) the benchmarks over given Android device.
 ```bash
 export ANDROID_SERIAL=<ADB ID>
 ./tests/scripts/ci.py adreno -b
+```
+Below command runs all OpenCL native benchmarks over given Android device.
+```bash
+export ANDROID_SERIAL=<ADB ID>
+./tests/scripts/ci.py adreno -n
+```
+CLML SDK benchmarks require CLML SDK path to be exported and the SDK version should match with target device's SDK version.
+
+Below command runs all CLML SDK benchmarks over given Android device.
+```bash
+export ADRENO_OPENCL=<CLML SDK PATH>
+export ANDROID_SERIAL=<ADB ID>
+./tests/scripts/ci.py adreno -c
 ```
 
 Note: Tuning cache is implicite through tophub repo for all the benchmarks and is tuned over Snapdragon Gen 1.
