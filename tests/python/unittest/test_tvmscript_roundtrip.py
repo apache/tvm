@@ -3622,5 +3622,14 @@ def test_return_none_no_trailing_type():
     assert "-> None" not in script
 
 
+def test_pow_roundtripable():
+    @T.prim_func
+    def original_pow():
+        T.pow(T.float32(1), T.float32(1))
+
+    after_roundtrip = tvm.script.from_source(original_pow.script(show_meta=True))
+    tvm.ir.assert_structural_equal(original_pow, after_roundtrip, True)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
