@@ -28,6 +28,17 @@ from .project_api import client
 from .transport import Transport, TransportTimeouts
 
 
+def add_unspecified_options(options: dict, server_project_options: list) -> dict:
+    """Adds default value of project template options that are not specified by user."""
+    if not options:
+        options = dict()
+    for option in server_project_options:
+        name = option["name"]
+        if name not in options.keys():
+            options[name] = option["default"]
+    return options
+
+
 class ProjectTransport(Transport):
     """A Transport implementation that uses the Project API client."""
 
@@ -69,10 +80,10 @@ class GeneratedProject:
 
     def __init__(self, api_client, options):
         self._api_client = api_client
-        self._options = options
         self._info = self._api_client.server_info_query(__version__)
         if self._info["is_template"]:
             raise TemplateProjectError()
+        self._options = add_unspecified_options(options, self._info["project_options"])
 
     def build(self):
         self._api_client.build(self._options)
@@ -124,6 +135,8 @@ class TemplateProject:
     def generate_project_from_mlf(self, model_library_format_path, project_dir, options: dict):
         """Generate a project from MLF file."""
         self._check_project_options(options)
+        options = add_unspecified_options(options, self._info["project_options"])
+
         self._api_client.generate_project(
             model_library_format_path=str(model_library_format_path),
             standalone_crt_dir=get_standalone_crt_dir(),

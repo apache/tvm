@@ -56,15 +56,6 @@ except FileNotFoundError:
     raise FileNotFoundError(f"Board file {{{BOARDS}}} does not exist.")
 
 
-def get_cmsis_path(cmsis_path: pathlib.Path) -> pathlib.Path:
-    """Returns CMSIS dependency path"""
-    if cmsis_path:
-        return pathlib.Path(cmsis_path)
-    if os.environ.get("CMSIS_PATH"):
-        return pathlib.Path(os.environ.get("CMSIS_PATH"))
-    assert False, "'cmsis_path' option not passed!"
-
-
 class BoardAutodetectFailed(Exception):
     """Raised when no attached hardware is found matching the requested board"""
 
@@ -78,7 +69,11 @@ PROJECT_OPTIONS = server.default_project_options(
 ) + [
     server.ProjectOption(
         "arduino_cli_cmd",
-        required=(["generate_project", "flash", "open_transport"] if not ARDUINO_CLI_CMD else None),
+        required=(
+            ["generate_project", "build", "flash", "open_transport"]
+            if not ARDUINO_CLI_CMD
+            else None
+        ),
         optional=(
             ["generate_project", "build", "flash", "open_transport"] if ARDUINO_CLI_CMD else None
         ),
@@ -337,7 +332,7 @@ class Handler(server.ProjectAPIHandler):
         However, the latest release does not include header files that are copied in this function.
         """
         (project_path / "include" / "cmsis").mkdir()
-        cmsis_path = get_cmsis_path(cmsis_path)
+        cmsis_path = pathlib.Path(cmsis_path)
         for item in self.CMSIS_INCLUDE_HEADERS:
             shutil.copy2(
                 cmsis_path / "CMSIS" / "NN" / "Include" / item,
@@ -357,7 +352,7 @@ class Handler(server.ProjectAPIHandler):
         flags = {
             "FQBN": self._get_fqbn(board),
             "VERBOSE_FLAG": "--verbose" if verbose else "",
-            "ARUINO_CLI_CMD": self._get_arduino_cli_cmd(arduino_cli_cmd),
+            "ARUINO_CLI_CMD": arduino_cli_cmd,
             "BOARD": board,
             "BUILD_EXTRA_FLAGS": build_extra_flags,
         }
@@ -377,9 +372,10 @@ class Handler(server.ProjectAPIHandler):
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
         # List all used project options
         board = options["board"]
-        verbose = options.get("verbose")
         project_type = options["project_type"]
-        arduino_cli_cmd = options.get("arduino_cli_cmd")
+        arduino_cli_cmd = options["arduino_cli_cmd"]
+        verbose = options["verbose"]
+
         cmsis_path = options.get("cmsis_path")
         compile_definitions = options.get("compile_definitions")
         extra_files_tar = options.get("extra_files_tar")
@@ -455,12 +451,6 @@ class Handler(server.ProjectAPIHandler):
             build_extra_flags,
         )
 
-    def _get_arduino_cli_cmd(self, arduino_cli_cmd: str):
-        if not arduino_cli_cmd:
-            arduino_cli_cmd = ARDUINO_CLI_CMD
-        assert arduino_cli_cmd, "'arduino_cli_cmd' command not passed and not found by default!"
-        return arduino_cli_cmd
-
     def _get_platform_version(self, arduino_cli_path: str) -> float:
         # sample output of this command:
         # 'arduino-cli alpha Version: 0.18.3 Commit: d710b642 Date: 2021-05-14T12:36:58Z\n'
@@ -494,11 +484,10 @@ class Handler(server.ProjectAPIHandler):
 
     def build(self, options):
         # List all used project options
-        arduino_cli_cmd = options.get("arduino_cli_cmd")
+        arduino_cli_cmd = options["arduino_cli_cmd"]
         warning_as_error = options.get("warning_as_error")
 
-        cli_command = self._get_arduino_cli_cmd(arduino_cli_cmd)
-        self._check_platform_version(cli_command, warning_as_error)
+        self._check_platform_version(arduino_cli_cmd, warning_as_error)
         compile_cmd = ["make", "build"]
         # Specify project to compile
         subprocess.run(compile_cmd, check=True, cwd=API_SERVER_DIR)
@@ -539,7 +528,7 @@ class Handler(server.ProjectAPIHandler):
 
     def _auto_detect_port(self, arduino_cli_cmd: str, board: str) -> str:
         # It is assumed only one board with this type is connected to this host machine.
-        list_cmd = [self._get_arduino_cli_cmd(arduino_cli_cmd), "board", "list"]
+        list_cmd = [arduino_cli_cmd, "board", "list"]
         list_cmd_output = subprocess.run(
             list_cmd, check=True, stdout=subprocess.PIPE
         ).stdout.decode("utf-8")
@@ -599,7 +588,7 @@ class Handler(server.ProjectAPIHandler):
 
     def flash(self, options):
         # List all used project options
-        arduino_cli_cmd = options.get("arduino_cli_cmd")
+        arduino_cli_cmd = options["arduino_cli_cmd"]
         warning_as_error = options.get("warning_as_error")
         port = options.get("port")
         board = options.get("board")
@@ -608,9 +597,8 @@ class Handler(server.ProjectAPIHandler):
         if not board:
             board = self._get_board_from_makefile(API_SERVER_DIR / MAKEFILE_FILENAME)
 
-        cli_command = self._get_arduino_cli_cmd(arduino_cli_cmd)
-        self._check_platform_version(cli_command, warning_as_error)
-        port = self._get_arduino_port(cli_command, board, port, serial_number)
+        self._check_platform_version(arduino_cli_cmd, warning_as_error)
+        port = self._get_arduino_port(arduino_cli_cmd, board, port, serial_number)
 
         upload_cmd = ["make", "flash", f"PORT={port}"]
         for _ in range(self.FLASH_MAX_RETRIES):
@@ -639,7 +627,7 @@ class Handler(server.ProjectAPIHandler):
         import serial.tools.list_ports
 
         # List all used project options
-        arduino_cli_cmd = options.get("arduino_cli_cmd")
+        arduino_cli_cmd = options["arduino_cli_cmd"]
         port = options.get("port")
         board = options.get("board")
         serial_number = options.get("serial_number")
