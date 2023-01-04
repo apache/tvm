@@ -31,7 +31,6 @@
 #ifndef TVM_RUNTIME_PACK_ARGS_H_
 #define TVM_RUNTIME_PACK_ARGS_H_
 
-#include <tvm/runtime/builtin_fp16.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/packed_func.h>
 
@@ -44,8 +43,6 @@ namespace runtime {
  * \brief argument union type of 32bit.
  */
 union ArgUnion32 {
-  // uint16 useful for 16 bit types like FP16.
-  uint16_t v_uint16[2];
   int32_t v_int32;
   uint32_t v_uint32;
   float v_float32;
@@ -55,8 +52,6 @@ union ArgUnion32 {
  * \brief argument union type of 64 bit, for use by Vulkan and Metal runtime.
  */
 union ArgUnion64 {
-  // uint16 useful for 16 bit types like FP16.
-  uint16_t v_uint16[4];
   int32_t v_int32[2];
   uint32_t v_uint32[2];
   float v_float32[2];
@@ -130,7 +125,6 @@ enum ArgConvertCode {
   INT64_TO_INT64,
   INT64_TO_INT32,
   INT64_TO_UINT32,
-  FLOAT64_TO_FLOAT16,
   FLOAT64_TO_FLOAT32,
   FLOAT64_TO_FLOAT64,
   HANDLE_TO_HANDLE
@@ -146,7 +140,6 @@ inline ArgConvertCode GetArgConvertCode(DLDataType t) {
   } else if (t.code == kDLFloat) {
     if (t.bits == 64U) return FLOAT64_TO_FLOAT64;
     if (t.bits == 32U) return FLOAT64_TO_FLOAT32;
-    if (t.bits == 16U) return FLOAT64_TO_FLOAT16;
   } else if (t.code == kTVMOpaqueHandle) {
     return HANDLE_TO_HANDLE;
   }
@@ -184,12 +177,6 @@ inline PackedFunc PackFuncVoidAddr_(F f, const std::vector<ArgConvertCode>& code
           addr[i] = &(holder[i]);
           break;
         }
-        case FLOAT64_TO_FLOAT16: {
-          holder[i].v_float32 = (args.values[i].v_float64);
-          holder[i].v_uint16[0] = __gnu_f2h_ieee(holder[i].v_float32);
-          addr[i] = &(holder[i]);
-          break;
-        }
       }
     }
     f(args, ret, addr);
@@ -223,11 +210,6 @@ inline PackedFunc PackFuncNonBufferArg_(F f, int base, const std::vector<ArgConv
         }
         case FLOAT64_TO_FLOAT32: {
           holder[i].v_float32[0] = static_cast<float>(args.values[base + i].v_float64);
-          break;
-        }
-        case FLOAT64_TO_FLOAT16: {
-          holder[i].v_uint16[0] =
-              __gnu_f2h_ieee(static_cast<float>(args.values[base + i].v_float64));
           break;
         }
         case HANDLE_TO_HANDLE: {
@@ -275,12 +257,6 @@ inline PackedFunc PackFuncPackedArg_(F f, const std::vector<ArgConvertCode>& cod
         }
         case FLOAT64_TO_FLOAT32: {
           *reinterpret_cast<float*>(ptr) = static_cast<float>(args.values[i].v_float64);
-          ++ptr;
-          break;
-        }
-        case FLOAT64_TO_FLOAT16: {
-          *reinterpret_cast<uint16_t*>(ptr) =
-              __gnu_f2h_ieee(static_cast<float>(args.values[i].v_float64));
           ++ptr;
           break;
         }
