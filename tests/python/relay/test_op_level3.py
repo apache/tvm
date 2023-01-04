@@ -595,7 +595,7 @@ def test_full_infer_type():
     # change the shape and dtype
     x = relay.var("x", relay.TensorType((), "float32"))
     y = relay.full(x, (1, 2), "int8")
-    "shape=" in y.astext()
+    assert "shape=" in y.astext()
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((1, 2), "int8")
 
@@ -1580,7 +1580,7 @@ class TestSparseReshape:
         new_shape_np: np.ndarray,
     ):
         """
-        This function calculates the expected output of sparseshape operator given the inputs.
+        This function calculates the expected output of sparse_reshape operator given the inputs.
         """
 
         new_sparse_indices = np.ones(
