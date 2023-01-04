@@ -2214,7 +2214,7 @@ def isinf(x, span=None):
     return _ffi_api.isinf(x, span)  # type: ignore
 
 
-def pow(x, y, span=None):
+def power(x, y, span=None):
     """x power y
 
     Parameters

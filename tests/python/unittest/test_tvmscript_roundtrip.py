@@ -3550,6 +3550,14 @@ def multi_env_threads():
     return mod["main"]
 
 
+def intrinsic_pow():
+    @T.prim_func
+    def func():
+        T.pow(T.float32(1), T.float32(1))
+
+    return func
+
+
 ir_generator = tvm.testing.parameter(
     opt_gemm_normalize,
     opt_gemm_lower,
@@ -3607,6 +3615,7 @@ ir_generator = tvm.testing.parameter(
     elif_chain_with_else,
     *nested_boolean_expressions(),
     multi_env_threads,
+    intrinsic_pow,
 )
 
 
@@ -3620,15 +3629,6 @@ def test_return_none_no_trailing_type():
     func = return_none()
     script = func.script()
     assert "-> None" not in script
-
-
-def test_pow_roundtripable():
-    @T.prim_func
-    def original_pow():
-        T.pow(T.float32(1), T.float32(1))
-
-    after_roundtrip = tvm.script.from_source(original_pow.script(show_meta=True))
-    tvm.ir.assert_structural_equal(original_pow, after_roundtrip, True)
 
 
 if __name__ == "__main__":
