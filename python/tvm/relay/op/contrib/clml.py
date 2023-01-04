@@ -19,9 +19,12 @@
 import tvm
 
 from tvm import relay
+from tvm.ir import Op
 from tvm._ffi import register_func
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
+from tvm.relay.expr_functor import ExprMutator
+from tvm.relay.expr import Call, TupleGetItem
 
 from ...dataflow_pattern import wildcard, is_op, is_constant, is_tuple_get_item, is_tuple
 from .register import register_pattern_table
@@ -48,6 +51,33 @@ def is_clml_runtime_enabled():
     return False
 
 
+class RemoveDropout(ExprMutator):
+    """
+    Removes all nn.dropout from an expr.
+    """
+
+    def visit_tuple_getitem(self, op: TupleGetItem) -> relay.expr.Expr:
+        visit = super().visit_tuple_getitem(op)
+        if visit.index != 0:
+            return visit
+        if (
+            isinstance(visit.tuple_value, Call)
+            and isinstance(visit.tuple_value.op, Op)
+            and visit.tuple_value.op.name == "nn.dropout"
+            and visit.index == 0
+        ):
+            return visit.tuple_value.args[0]
+        return visit
+
+
+@transform.function_pass(opt_level=0)
+class RemoveDropoutPass:
+    def transform_function(
+        self, func: relay.function.Function, mod: tvm.IRModule, _: tvm.transform.PassContext
+    ) -> relay.function.Function:
+        return RemoveDropout().visit(func)
+
+
 def partition_for_clml(mod, params=None):
     """Partition the graph greedily offloading supported
     operators to CLML Library.
@@ -70,6 +100,7 @@ def partition_for_clml(mod, params=None):
     seq = tvm.transform.Sequential(
         [
             transform.InferType(),
+            RemoveDropoutPass(),
             transform.FoldConstant(),
             transform.MergeComposite(clml_pattern_table()),
             transform.AnnotateTarget("clml", False),
@@ -289,6 +320,7 @@ def clml_pattern_table():
         ("clml.global_max_pool2d", is_op("nn.global_max_pool2d")(wildcard()), check_default_op),
         ("clml.relu", is_op("nn.relu")(wildcard()), check_default_op),
         ("clml.clip", is_op("clip")(wildcard()), check_default_op),
+        ("clml.batch_flatten", is_op("nn.batch_flatten")(wildcard()), check_default_op),
     ]
 
 

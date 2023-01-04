@@ -728,10 +728,24 @@ generated = [
                 ],
             ),
             "benchmarks": (
+                "run Adreno Benchmarks (Native OpenCL, CLML SDK)",
+                [
+                    "./apps/benchmark/adreno/bench.sh texture "
+                    + os.environ.get("ANDROID_SERIAL", ""),
+                    "./apps/benchmark/adreno/bench.sh clml " + os.environ.get("ANDROID_SERIAL", ""),
+                ],
+            ),
+            "nativebenchmarks": (
                 "run Adreno Texture Benchmarks",
                 [
                     "./apps/benchmark/adreno/bench.sh texture "
                     + os.environ.get("ANDROID_SERIAL", ""),
+                ],
+            ),
+            "clmlbenchmarks": (
+                "run Adreno CLML SDK Benchmarks",
+                [
+                    "./apps/benchmark/adreno/bench.sh clml " + os.environ.get("ANDROID_SERIAL", ""),
                 ],
             ),
         },
