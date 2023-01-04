@@ -55,5 +55,10 @@ if [ "texture" == $1 ] ; then
     python3 apps/benchmark/adreno/adreno_gpu_bench_texture.py --host ${TVM_TRACKER_HOST} --port ${TVM_TRACKER_PORT} --rpc-key ${RPC_DEVICE_KEY}
 fi
 
+if [ "clml" == $1 ] ; then
+    python3 apps/benchmark/adreno/adreno_gpu_bench_clml.py --host ${TVM_TRACKER_HOST} --port ${TVM_TRACKER_PORT} --rpc-key ${RPC_DEVICE_KEY}
+fi
+
+
 kill ${TRACKER_PID}
 kill ${DEVICE_PID}

@@ -259,9 +259,14 @@ class CLMLRuntime : public JSONRuntimeBase {
           layer_.in_placeholder[i]->memory = static_cast<cl_mem>(
               ((cl::BufferDescriptor*)const_cast<DLTensor*>(data_entry_[eid])->data)->buffer);
           cl_event cpy_evt = NULL;
+          cl_event* evt = &cpy_evt;
+          if (workspace->IsProfiling(tentry->device)) {
+            evts.resize(evts.size() + 1);
+            evt = &(evts.back());
+          }
           result = h_ClmlIntf->clEnqueueCopyMLTensorDataQCOM(
               queue, layer_.in_placeholder[i]->tensor, layer_.in_placeholder[i]->memory,
-              layer_.inputs[i]->tensor, layer_.inputs[i]->memory, 0, NULL, &cpy_evt);
+              layer_.inputs[i]->tensor, layer_.inputs[i]->memory, 0, NULL, evt);
           ICHECK(result == CL_SUCCESS) << "clEnqueueCopyMLTensorDataQCOM:" << result;
         } else {
           DLDataType tvm_dtype = const_cast<DLTensor*>(data_entry_[eid])->dtype;
@@ -277,7 +282,8 @@ class CLMLRuntime : public JSONRuntimeBase {
     }
 
     for (size_t i = 0; i < this->layer_.function.size(); ++i) {
-      if (getenv("CLML_PROFILING")) {
+      // Make CLML subgraphs accounted by OpenCLTimerNode.
+      if (getenv("CLML_PROFILING") || workspace->IsProfiling(tentry->device)) {
         evts.resize(evts.size() + 1);
         cl_event* evt = &(evts.back());
         result = h_ClmlIntf->clEnqueueMLOpQCOM(queue, this->layer_.function[i],
@@ -317,10 +323,14 @@ class CLMLRuntime : public JSONRuntimeBase {
         layer_.out_placeholder[i]->memory = static_cast<cl_mem>(
             ((cl::BufferDescriptor*)const_cast<DLTensor*>(data_entry_[eid])->data)->buffer);
         cl_event cpy_evt = NULL;
+        cl_event* evt = &cpy_evt;
+        if (workspace->IsProfiling(tentry->device)) {
+          evts.resize(evts.size() + 1);
+          evt = &(evts.back());
+        }
         result = h_ClmlIntf->clEnqueueCopyMLTensorDataQCOM(
             queue, layer_.outputs[i]->tensor, layer_.outputs[i]->memory,
-            layer_.out_placeholder[i]->tensor, layer_.out_placeholder[i]->memory, 0, NULL,
-            &cpy_evt);
+            layer_.out_placeholder[i]->tensor, layer_.out_placeholder[i]->memory, 0, NULL, evt);
         ICHECK(result == CL_SUCCESS) << "clEnqueueCopyMLTensorDataQCOM:" << result;
       } else {
         DLDataType tvm_dtype = const_cast<DLTensor*>(data_entry_[eid])->dtype;
@@ -405,6 +415,10 @@ class CLMLRuntime : public JSONRuntimeBase {
           this->layer_.func_outs.push_back(out);
         } else if ("nn.pad" == op_name) {
           auto out = CreatePadLayer(&layer_, node);
+          this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
+          this->layer_.func_outs.push_back(out);
+        } else if ("nn.batch_flatten" == op_name) {
+          auto out = CreateBatchFlattenLayer(&layer_, node);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
           this->layer_.func_outs.push_back(out);
         } else if ("clip" == op_name) {
@@ -1064,6 +1078,31 @@ class CLMLRuntime : public JSONRuntimeBase {
     result = h_ClmlIntf->clCreateMLOpPadQCOM(workspace->context, 0, &pad_desc, input->tensor,
                                              output->tensor, &op, tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << "Pad Error:" << result;
+
+    layer_.func_ins.push_back(input);
+    layer->function.push_back(op);
+    return output;
+  }
+
+  /*!
+   * \brief Create a Batch Flatten layer.
+   *
+   * \param layer The CLML layer to build. Containing inputs, outputs and the CLML output.
+   * \param node The JSON representation of the operator.
+   */
+  std::shared_ptr<cl_ml_tensor_memory_desc_qcom> CreateBatchFlattenLayer(
+      CachedLayer* layer, const JSONGraphNode& node) {
+    cl_int result = 0;
+    cl_ml_op_qcom op = NULL;
+    DLDataType tvm_dtype = node.GetOpDataType()[0];
+    cl_channel_type cl_dtype = MakeCLDataType(tvm_dtype);
+    auto input = MakeCLMLTensorFromJSONEntry(node.GetInputs()[0], {}, CL_TENSOR_LAYOUT_OPTIMAL_QCOM,
+                                             cl_dtype);
+    auto output = MakeCLMLTensorFromJSONNode(node, CL_TENSOR_LAYOUT_OPTIMAL_QCOM, cl_dtype);
+
+    result = h_ClmlIntf->clCreateMLOpReshapeQCOM(workspace->context, 0, input->tensor,
+                                                 output->tensor, &op, tuning_cache);
+    ICHECK(op && result == CL_SUCCESS) << "Reshape Error:" << result;
 
     layer_.func_ins.push_back(input);
     layer->function.push_back(op);
