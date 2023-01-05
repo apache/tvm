@@ -293,7 +293,7 @@ def test_multiple_output():
     device = tvm.cpu()
     lib = relay.build(mod, target=target)
     m = debug_executor.GraphModuleDebug(
-        lib["debug_create"]("default", device), [device], lib.get_graph_json()
+        lib["debug_create"]("default", device), [device], lib.get_graph_json(), None
     )
     nodes = m.debug_datum.get_graph_nodes()
     assert nodes[2]["shape"] == [3, 3, 1, 1]
