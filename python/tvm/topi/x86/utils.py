@@ -123,6 +123,13 @@ def target_has_vnni(target):
     }
 
 
+@tvm._ffi.register_func("tvm.topi.x86.utils.target_has_amx")
+def target_has_amx(target):
+    return target in {
+        "sapphirerapids",
+    }
+
+
 @tvm._ffi.register_func("tvm.topi.x86.utils.get_simd_32bit_lanes")
 def get_simd_32bit_lanes():
     mcpu = tvm.target.Target.current().mcpu

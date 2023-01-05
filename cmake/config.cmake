@@ -179,6 +179,9 @@ set(USE_MKL OFF)
 # - OFF: Disable DNNL
 set(USE_DNNL OFF)
 
+# Whether use Intel AMX instructions.
+set(USE_AMX OFF)
+
 # Whether use OpenMP thread pool, choices: gnu, intel
 # Note: "gnu" uses gomp library, "intel" uses iomp5 library
 set(USE_OPENMP none)
