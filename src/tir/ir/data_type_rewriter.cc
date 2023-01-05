@@ -122,6 +122,7 @@ Stmt DataTypeLegalizer::VisitStmt_(const LetStmtNode* op) {
     Map<Var, PrimExpr> vmap{{op->var, new_var}};
     auto new_body = SubstituteWithDataTypeLegalization(
         std::move(body), [&](const Var& var) { return vmap.Get(var); });
+    // We need to visit the body again to insert additional casts
     return LetStmt(new_var, value, this->VisitStmt(new_body), op->span);
   }
 }
