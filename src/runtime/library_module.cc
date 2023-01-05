@@ -43,6 +43,7 @@ class LibraryModuleNode final : public ModuleNode {
   const char* type_key() const final { return "library"; }
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+    LOG(INFO)<<"Library module load func: "<<name;
     TVMBackendPackedCFunc faddr;
     if (name == runtime::symbol::tvm_module_main) {
       const char* entry_name =
@@ -198,6 +199,7 @@ void ProcessModuleBlob(const char* mblob, ObjectPtr<Library> lib,
 }
 
 Module CreateModuleFromLibrary(ObjectPtr<Library> lib, PackedFuncWrapper packed_func_wrapper) {
+  LOG(INFO)<<"Create Module from lib: ";
   InitContextFunctions([lib](const char* fname) { return lib->GetSymbol(fname); });
   auto n = make_object<LibraryModuleNode>(lib, packed_func_wrapper);
   // Load the imported modules
@@ -210,6 +212,7 @@ Module CreateModuleFromLibrary(ObjectPtr<Library> lib, PackedFuncWrapper packed_
     ProcessModuleBlob(dev_mblob, lib, packed_func_wrapper, &root_mod, &dso_ctx_addr);
   } else {
     // Only have one single DSO Module
+    LOG(INFO)<<"Only have one dso";
     root_mod = Module(n);
     dso_ctx_addr = root_mod.operator->();
   }
@@ -223,8 +226,14 @@ Module CreateModuleFromLibrary(ObjectPtr<Library> lib, PackedFuncWrapper packed_
 }
 
 TVM_REGISTER_GLOBAL("runtime.module.loadfile_so").set_body([](TVMArgs args, TVMRetValue* rv) {
+  LOG(INFO)<<"loadfile_so";
   ObjectPtr<Library> n = CreateDSOLibraryObject(args[0]);
   *rv = CreateModuleFromLibrary(n);
 });
+
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_func_so").set_body([](TVMArgs args, TVMRetValue* rv) {
+  LOG(INFO)<<"loadfile_func_so";
+});
+
 }  // namespace runtime
 }  // namespace tvm

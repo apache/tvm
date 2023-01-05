@@ -83,6 +83,7 @@ Module Module::LoadFromFile(const std::string& file_name, const std::string& for
     fmt = "so";
   }
   std::string load_f_name = "runtime.module.loadfile_" + fmt;
+  LOG(INFO)<<"load from file"<<load_f_name;
   VLOG(1) << "Loading module from '" << file_name << "' of format '" << fmt << "'";
   const PackedFunc* f = Registry::Get(load_f_name);
   ICHECK(f != nullptr) << "Loader for `." << format << "` files is not registered,"
@@ -92,6 +93,27 @@ Module Module::LoadFromFile(const std::string& file_name, const std::string& for
   Module m = (*f)(file_name, format);
   return m;
 }
+
+Module Module::LoadFromSeparateFuncFiles(const std::string& dest_dir, 
+                                                    const std::string& prefix, 
+                                                    const std::string& format = "") {
+  std::string fmt = format;
+  ICHECK(fmt.length() != 0) << "Cannot deduce format of file " << fmt;
+  if (fmt == "dll" || fmt == "dylib" || fmt == "dso") {
+    fmt = "so";
+  }
+  std::string load_f_name = "runtime.module.loadfile_func_" + fmt;
+  LOG(INFO)<<"load from file"<<load_f_name;
+  const PackedFunc* f = Registry::Get(load_f_name);
+  ICHECK(f != nullptr) << "Loader for `." << format << "` files is not registered,"
+                       << " resolved to (" << load_f_name << ") in the global registry."
+                       << "Ensure that you have loaded the correct runtime code, and"
+                       << "that you are on the correct hardware architecture.";
+  // Module m = (*f)(file_name, format);
+  // return m;
+}
+
+
 
 void ModuleNode::SaveToFile(const std::string& file_name, const std::string& format) {
   LOG(FATAL) << "Module[" << type_key() << "] does not support SaveToFile";
