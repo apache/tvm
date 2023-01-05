@@ -23,6 +23,7 @@
 int main(int argc, char* argv[]) {
 #if NRF_BOARD == 1
   // Set frequency to 128MHz for nrf5340dk_nrf534 by setting the clock divider to 0.
+  // 0x50005558 is the clock division reg address.
   uint32_t* clock_div = (uint32_t*)0x50005558;
   *clock_div = 0;
 #endif

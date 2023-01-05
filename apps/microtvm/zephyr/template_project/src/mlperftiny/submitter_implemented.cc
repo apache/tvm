@@ -41,10 +41,12 @@ static const gpio_pin_t g_gpio_pin = 6;
 #endif
 
 // Implement this method to prepare for inference and preprocess inputs.
+// Modified from source
 void th_load_tensor() {
 #if TARGET_MODEL == 1  // KWS
   g_input_data = static_cast<void*>(ee_get_buffer_pointer());
 #elif TARGET_MODEL == 2  // VWW
+  // Converting uint8 to int8
   int8_t* temp_int = reinterpret_cast<int8_t*>(ee_get_buffer_pointer());
   for (size_t i = 0; i < MAX_DB_INPUT_SIZE; i++) {
     temp_int[i] -= 128;
@@ -111,9 +113,11 @@ void th_results() {
 }
 
 // Implement this method with the logic to perform one inference cycle.
+// Modified from source
 void th_infer() { TVMInfer(g_input_data); }
 
 /// \brief optional API.
+// Modified from source
 void th_final_initialize(void) { TVMRuntimeInit(); }
 
 void th_pre() {}
@@ -143,6 +147,8 @@ void* th_memcpy(void* dst, const void* src, size_t n) { return memcpy(dst, src, 
 
 /* N.B.: Many embedded *printf SDKs do not support all format specifiers. */
 int th_vprintf(const char* format, va_list ap) { return vprintf(format, ap); }
+
+// Modified from source
 void th_printf(const char* p_fmt, ...) {
   char buffer[128];
   int size;
@@ -153,8 +159,10 @@ void th_printf(const char* p_fmt, ...) {
   TVMPlatformWriteSerial(buffer, (size_t)size);
 }
 
+// Modified from source
 char th_getchar() { return TVMPlatformUartRxRead(); }
 
+// Modified from source
 void th_serialport_initialize(void) {
 #if EE_CFG_ENERGY_MODE == 1 && NRF_BOARD != 1
   TVMPlatformUARTInit(9600);
@@ -163,6 +171,7 @@ void th_serialport_initialize(void) {
 #endif
 }
 
+// Modified from source
 void th_timestamp(void) {
 #if EE_CFG_ENERGY_MODE == 1 && NRF_BOARD != 1
   /* USER CODE 1 BEGIN */
@@ -182,6 +191,7 @@ void th_timestamp(void) {
 #endif
 }
 
+// Modified from source
 void th_timestamp_initialize(void) {
   /* USER CODE 1 BEGIN */
   // Setting up BOTH perf and energy here
