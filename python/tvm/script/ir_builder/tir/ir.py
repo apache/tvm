@@ -1532,7 +1532,7 @@ min_value = _op_wrapper(_tir_op.min_value)
 nearbyint = _op_wrapper(_tir_op.nearbyint)
 nextafter = _op_wrapper(_tir_op.nextafter)
 popcount = _op_wrapper(_tir_op.popcount)
-power = _op_wrapper(_tir_op.power)
+pow = _op_wrapper(_tir_op.pow)  # pylint: disable=redefined-builtin
 q_multiply_shift = _op_wrapper(_tir_op.q_multiply_shift)
 q_multiply_shift_per_axis = _op_wrapper(_tir_op.q_multiply_shift_per_axis)
 ret = _op_wrapper(_tir_op.ret)
@@ -1713,7 +1713,7 @@ __all__ += [
     "nearbyint",
     "nextafter",
     "popcount",
-    "power",
+    "pow",
     "q_multiply_shift",
     "q_multiply_shift_per_axis",
     "ret",
