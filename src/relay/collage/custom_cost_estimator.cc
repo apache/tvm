@@ -33,7 +33,6 @@ namespace collage {
 TVM_REGISTER_OBJECT_TYPE(CustomCostEstimatorNode);
 
 Cost CustomCostEstimatorNode::Estimate(const IRModule& mod, const Target& target) const {
-  // TODO(mbs): Eventually should be abstract. For now bounce to the Python local impl.
   static const runtime::PackedFunc* estimate_seconds = runtime::Registry::Get(py_fn_estimator_);
   ICHECK(estimate_seconds);
   const double value = (*estimate_seconds)(mod, target);
