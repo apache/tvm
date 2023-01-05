@@ -90,8 +90,6 @@ PartitionRule MakeTVMPartitionRule() {
 
 /*!
  * \brief Returns the fusion style for default compiler.
- *
- * TODO(mbs): Defer to per-BYOC integration definition.
  */
 BYOCStyle DefaultBYOCFusionStyleForCompiler(const String& compiler) {
   if (compiler == "cutlass" || compiler == "cublas" || compiler == "cudnn") {
@@ -105,8 +103,6 @@ BYOCStyle DefaultBYOCFusionStyleForCompiler(const String& compiler) {
 
 /*!
  * \brief Returns the fusion style for /p compiler.
- *
- * TODO(mbs): Defer to per-BYOC integration definition.
  */
 BYOCStyle BYOCFusionStyleForCompiler(const String& compiler) {
   tvm::transform::PassContext ctxt = tvm::transform::PassContext::Current();
