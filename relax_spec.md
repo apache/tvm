@@ -53,7 +53,7 @@ PrimExpr ::=
          # (others may be added later, as deemed necessary)
 
 Type ::=   DynTensorType(ndim: int, dtype: DataType)
-         | ShapeType()
+         | ShapeType(ndim: int)
          | ObjectType()
          | TupleType(fields: [Type])
          | FuncType(arg_types: [Type], ret_type: Type, «pure: bool»)
@@ -159,7 +159,7 @@ The types in Relax correspond to the broad categories of the values given above:
 
 1. `DynTensorType` corresponds to tensor values, giving the scalar data type and the number of dimensions (rank), both of which are optional.
 2. `TupleType` corresponds to tuple values, giving the type of each member of the tuple.
-3. `ShapeType` corresponds to shape values.
+3. `ShapeType` corresponds to shape values, optionally giving the number of dimensions in the shape.
 4. `FunctionType` corresponds to function values (closures), giving the types of the parameters, the return type, «and whether the function is pure.»
 5. `PackedFuncType` is the type given to arbitrary packed functions (external functions). Since packed functions are not first-class values (`ExternFunc` can appear only in the `op` position of a `Call` node), these do not actually correspond to any value in Relax, but can be used to assign a type to `ExternFunc` nodes.
 6. `ObjectType` is the parent type of all Relax types and corresponds to all the values above as well as any values returned by `PackedFunc` calls that do not fit in the above categories.
@@ -285,7 +285,7 @@ Additionally, the criteria for normal form listed in the previous section must a
 Relax presently has six types, defined in the implementation in `python/tvm/relax/ty.py` and `include/tvm/relax/type.h`:
 
 1. `DynTensorType`, referring to tensor values (referred to in the front-end as `Tensor`). In Relax, tensor types keep track of the rank (number of dimensions) in the `ndim` field and the data type of the tensor data in the `dtype` field. Both the rank and data type are optional: Using -1 for `ndim` indicates that the tensor is of unknown rank and using `DataType::Void()` for  `dtype` indicates that it's of unknown data type.
-2. `ShapeType`, referring to shape values.
+2. `ShapeType`, referring to shape values. The number of dimensions in the shape as given as `ndim` and is optional (using -1 for `ndim` indicates an unknown number of dimensions).
 3. `FuncType`, referring to functions (closures). `FuncType`s specify the types of their parameters, a return type, and whether the function is pure.
 4. `TupleType`, referring to tuple values, giving the types of their fields.
 5. `PackedFuncType`, referring to the type of PackedFunctions.
@@ -325,6 +325,13 @@ def find_glb(T1 : Type, T2 : Type) -> Type?:
         return T1
     if T1 and T2 are not both DynTensorType, not both TupleType, not both FuncType, or not both ShapeType, or not both PackedFuncType:
         return None
+    if T1 and T2 are both ShapeType:
+        ret_ndim = T1.ndim
+        if ret_ndim == -1:
+            ret_ndim == T2.ndim
+        if ret_ndim != -1 and T2.ndim != ret_ndim:
+            return None
+        return ShapeType(ret_ndim)
     if T1 and T2 are both DynTensorType:
         ret_ndim = T1.ndim
         ret_dtype = T1.dtype
@@ -371,6 +378,11 @@ def find_lub(T1 : Type, T2 : Type) -> Type:
         return Object
     if T1 or T2 are not both DynTensorType, or both TupleType, or both FuncType, or both ShapeType, or both PackedFuncType:
         return ObjectType
+    if T1 and T2 are both ShapeType:
+        res_ndim = T1.ndim
+        if T1.ndim != T2.ndim:
+            res_ndim = -1
+        return ShapeType(res_ndim)
     if T1 and T2 are both DynTensorType:
         res_ndim = T1.ndim
         res_dtype = T1.dtype
@@ -417,8 +429,8 @@ Let us consider a typing context `Γ`, which is a map of variables to types.
 1. «We type check the entire `IRModule` one function definition at a time. To handle mutual recursion, we prepopulate `Γ` with the annotated types of all global functions that are called mutually recursively. We then proceed to check the types of the global functions one at a time.»
 2. Given a variable `v`, if `v` is in `Γ`, then we return `Γ[v]`. Otherwise, it is an error.
 3. Given a constant expression `Constant(data)`, the type is `DynTensorType(ndim=n, dtype=d)` where `n` is the number of dimensions in `data` and `d` is its data type (recall that `data` is an `NDArray` literal).
-4. Given a shape expression `ShapeExpr(dims)`, its type is `ShapeType`.
-5. The type of a `RuntimeDepShape` expression is `ShapeType`.
+4. Given a shape expression `ShapeExpr(dims)`, its type is `ShapeType(n)`, where `n` is the length of `dims`.
+5. The type of a `RuntimeDepShape` expression is `ShapeType(-1)`.
 6. Given a tuple literal `Tuple([e1, e2, ..., en])`, suppose that `e1` has the type `T1`, `e2` has the type `T2`, …, and `en` has the type `Tn`. Then the type is `TupleType([T1, T2, .., Tn])`.
 7. Given an `ExternFunc` expression, assign it the type `PackedFuncType()`.
 8. Given a call node `Call(op=op, args=[a1, a2, ..., an], type_args=[aT])`:
@@ -432,7 +444,10 @@ Let us consider a typing context `Γ`, which is a map of variables to types.
         1. «If the current block is a `DataflowBlock`, consider it an error if any binding contains a call to an expression with a function type that is not pure, a call to an `ExternFunc` that does not have the `pure` attribute, or a call to an `Op` that does not have a `pure` attribute.»
         2. For each binding `VarBinding(v : T, e)` in the current block, where `T` is the optional annotation on `v`, check the type of `e` and suppose it is `T'`. If `T` has been omitted, then add `v` to `Γ` with type `T'`. If `T` has been defined, then emit an error if `T'` is not a subtype of `T` and add `v` to `Γ` with type `T`. «If `T'` is a supertype of `T`, emit an error and require a cast.» Note that this means that annotated types can be *less specific* than the inferred type and that a user annotation forces the type system to consider the variable as having a less specific type than it does. (Note: In the case where `e` is a `Function` literal, the type annotation `T` is not optional and we add `v` to `Γ` before type-checking the function body; see the rule for `Function` nodes.)
         3. For each `MatchShape(v: T, e, shape_pattern)`, where `T` is an optional type annotation, let the checked type of `e` be `T'`. 
-            1. If `T'` is `ShapeType`, then emit an error if `T` is not a supertype of `ShapeType`. Add `v` to `Γ` with type `T`.
+            1. If `T'` is `ShapeType`:
+                1. Emit an error if `T` is not a supertype of `ShapeType`.
+                2. If the `ndim` of `T'` is `n` ≥ 0, then emit an error if the length of the given `shape_pattern` is not `n`.
+                3. Add `v` to `Γ` with type `T`.
             2. If `T'` is `DynTensorType`:
                 1. If the `ndim` of `T'` is `n` ≥ 0, then emit an error if the length of the given `shape_pattern` is not `n`. Let the datatype of `T'` be `d`.
                 2. If `T` is not a supertype of `DynTensorType(ndim=len(shape_pattern), dtype=d)`, then emit an error. If `T` is a subtype of that type, emit an error and request a cast.
