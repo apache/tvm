@@ -53,6 +53,7 @@ class DataTypeLegalizer : public StmtExprMutator {
   Stmt VisitStmt_(const AttrStmtNode* op) override;
   Stmt VisitStmt_(const BlockRealizeNode* op) override;
   Stmt VisitStmt_(const BlockNode* op) override;
+  Stmt VisitStmt_(const LetStmtNode* op) override;
   PrimExpr VisitExpr_(const SelectNode* op) override;
   PrimExpr VisitExpr_(const RampNode* op) override;
   PrimExpr VisitExpr_(const AddNode* op) override;
