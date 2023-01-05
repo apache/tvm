@@ -1687,5 +1687,15 @@ def test_forward_rnn():
         )
 
 
+@tvm.testing.uses_gpu
+def test_forward_topk():
+    @paddle.jit.to_static
+    def topk1(inputs):
+        return paddle.topk(inputs, k=1)
+
+    input_data = paddle.to_tensor([1, 4, 5, 7])
+    verify_model(topk1, input_data=input_data)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
