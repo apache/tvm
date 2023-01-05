@@ -314,6 +314,11 @@ def dense_int8_compute(cfg, X, packed_w, bias=None):
     m, k = X.shape
     n_o, _, n_i, _ = packed_w.shape
     ak = te.reduce_axis((0, k), name="k")
+    mcpu = tvm.target.Target.current().mcpu
+    if target_has_vnni(mcpu):
+        target_attr = {"schedule_rule": "meta_schedule.x86.dense_vnni"}
+    else:
+        target_attr = None
 
     C = te.compute(
         (m, n_o * n_i),
@@ -325,7 +330,7 @@ def dense_int8_compute(cfg, X, packed_w, bias=None):
             axis=ak,
         ),
         tag="dense_int8",
-        attrs={"schedule_rule": "meta_schedule.x86.dense_vnni"},
+        attrs=target_attr,
     )
 
     if bias is not None:
