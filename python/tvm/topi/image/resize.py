@@ -313,7 +313,7 @@ def _resize_1d(
         The computed result with type out_dtype
     """
 
-    if out_dtype is None:
+    if not out_dtype:
         out_dtype = data.dtype
 
     n, c, x, cc, inum, ic = get_1d_indices(indices, layout)
@@ -1044,7 +1044,7 @@ def _resize_3d(
         The computed result with type out_dtype
     """
 
-    if out_dtype is None:
+    if not out_dtype:
         out_dtype = data.dtype
 
     n, c, z, y, x, cc = get_3d_indices(indices, layout)
