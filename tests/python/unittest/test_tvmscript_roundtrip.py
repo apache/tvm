@@ -3550,6 +3550,14 @@ def multi_env_threads():
     return mod["main"]
 
 
+def intrinsic_pow():
+    @T.prim_func
+    def func():
+        T.pow(T.float32(1), T.float32(1))
+
+    return func
+
+
 ir_generator = tvm.testing.parameter(
     opt_gemm_normalize,
     opt_gemm_lower,
@@ -3607,6 +3615,7 @@ ir_generator = tvm.testing.parameter(
     elif_chain_with_else,
     *nested_boolean_expressions(),
     multi_env_threads,
+    intrinsic_pow,
 )
 
 
