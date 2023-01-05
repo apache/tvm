@@ -1693,8 +1693,34 @@ def test_forward_topk():
     def topk1(inputs):
         return paddle.topk(inputs, k=1)
 
-    input_data = paddle.to_tensor([1, 4, 5, 7])
+    @paddle.jit.to_static
+    def topk2(inputs):
+        k = paddle.to_tensor([1])
+        return paddle.topk(inputs, k=k)
+
+    @paddle.jit.to_static
+    def topk3(inputs):
+        return paddle.topk(inputs, k=1, largest=False)
+
+    @paddle.jit.to_static
+    def topk4(inputs):
+        return paddle.topk(inputs, k=2, sorted=True)
+
+    @paddle.jit.to_static
+    def topk5(inputs):
+        return paddle.topk(inputs, k=2, sorted=False)
+
+    @paddle.jit.to_static
+    def topk6(inputs):
+        return paddle.topk(inputs, k=1, axis=0)
+
+    input_data = paddle.to_tensor([[1, 4, 5, 7], [3, 6, 2, 5]])
     verify_model(topk1, input_data=input_data)
+    verify_model(topk2, input_data=input_data)
+    verify_model(topk3, input_data=input_data)
+    verify_model(topk4, input_data=input_data)
+    verify_model(topk5, input_data=input_data)
+    verify_model(topk6, input_data=input_data)
 
 
 if __name__ == "__main__":
