@@ -27,10 +27,8 @@
 
 static const struct device* g_microtvm_uart;
 
-// Ring buffer used to store data read from the UART on rx interrupt.
-// RING_BUF_DECLARE(uart_rx_rbuf, 1);
-
 static uint8_t uart_data[8];
+
 // UART interrupt callback.
 void uart_irq_cb(const struct device* dev, void* user_data) {
   while (uart_irq_update(dev) && uart_irq_is_pending(dev)) {
@@ -54,12 +52,13 @@ void uart_irq_cb(const struct device* dev, void* user_data) {
   }
 }
 
-// Used to initialize the UART receiver.
+// Initialize the UART receiver.
 void uart_rx_init(struct ring_buf* rbuf, const struct device* dev) {
   uart_irq_callback_user_data_set(dev, uart_irq_cb, (void*)rbuf);
   uart_irq_rx_enable(dev);
 }
 
+// UART read.
 char TVMPlatformUartRxRead() {
   unsigned char c;
   int ret = -1;
@@ -69,6 +68,7 @@ char TVMPlatformUartRxRead() {
   return (char)c;
 }
 
+// UART write.
 uint32_t TVMPlatformWriteSerial(const char* data, uint32_t size) {
   for (uint32_t i = 0; i < size; i++) {
     uart_poll_out(g_microtvm_uart, data[i]);
@@ -76,7 +76,7 @@ uint32_t TVMPlatformWriteSerial(const char* data, uint32_t size) {
   return size;
 }
 
-// Initialize UART
+// Initialize UART.
 void TVMPlatformUARTInit(uint32_t baudrate /* = TVM_UART_DEFAULT_BAUDRATE */) {
   // Claim console device.
   g_microtvm_uart = device_get_binding(DT_LABEL(DT_CHOSEN(zephyr_console)));

@@ -17,6 +17,9 @@
  * under the License.
  */
 
+#ifndef APPS_MICROTVM_ZEPHYR_TEMPLATE_PROJECT_SRC_MLPERFTINY_TVMRUNTIME_H_
+#define APPS_MICROTVM_ZEPHYR_TEMPLATE_PROJECT_SRC_MLPERFTINY_TVMRUNTIME_H_
+
 #include <stdarg.h>
 #include <tvm/runtime/crt/error_codes.h>
 #include <unistd.h>
@@ -38,8 +41,22 @@ extern int8_t* g_output_data;
 extern float g_quant_scale;
 extern int8_t g_quant_zero;
 
+/*!
+ * \brief Initialize TVM runtime.
+ */
 void TVMRuntimeInit();
 
+/*!
+ * \brief Run TVM inference.
+ */
 void TVMInfer(void* input_ptr);
 
+/*!
+ * \brief Quantize float to int8.
+ * \param value Input data in float.
+ * \param scale Quantization scale factor.
+ * \param zero_point Quantization zero point.
+ */
 int8_t QuantizeFloatToInt8(float value, float scale, int zero_point);
+
+#endif /* APPS_MICROTVM_ZEPHYR_TEMPLATE_PROJECT_SRC_MLPERFTINY_TVMRUNTIME_H_ */
