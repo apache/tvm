@@ -381,8 +381,8 @@ def test_sub_index_simplify():
     ck.verify(fld(x + 5, 3) - fld(x + 2, 3), fld(flm(x + 2, 3), 3) + 1)
 
     ck.verify(fld(y, 3) * 3 - y, 0 - flm(y, 3))
-    ck.verify(y - fld(y - 6, 5) * 5, flm(y + (-6), 5) + 6)
-    ck.verify(fld(y - 6, 5) * 5 - y, (-6) - flm(y + (-6), 5))
+    ck.verify(y - fld(y - 6, 5) * 5, flm(y + 4, 5) + 6)
+    ck.verify(fld(y - 6, 5) * 5 - y, (-6) - flm(y + 4, 5))
     ck.verify(y - fld(y + z, 5) * 5, flm(y + z, 5) - z)
     ck.verify(fld(y + z, 5) * 5 - y, z - flm(y + z, 5))
     ck.verify(y - fld(y - z, 5) * 5, flm(y - z, 5) + z)
@@ -471,14 +471,14 @@ def test_floordiv_index_simplify():
     ck.verify(fld(x * 4, 2), x * 2)
     ck.verify(fld(x * 8 + 7, 16), fld(x, 2))
     ck.verify(fld(x * 8 + 39, 16), fld(x, 2) + 2)
-    ck.verify(fld(x * 8 - 1, 16), fld(x * 8 + -1, 16))
+    ck.verify(fld(x * 8 - 1, 16), fld(x * 8 + 15, 16) + -1)
     ck.verify(fld(x * 8 - 9, 16), fld(x, 2) + -1)
 
     ck.analyzer.update(x, tvm.arith.ConstIntBound(0, 1), override=True)
     ck.analyzer.update(y, tvm.arith.ConstIntBound(0, 7), override=True)
     ck.verify(fld(x * 360 + y, 16), x * 22)
     ck.verify(fld(x * 360 + y, 25), x * 14)
-    ck.verify(fld(x * 360 - 8, 25), fld(x * 360 + -8, 25))
+    ck.verify(fld(x * 360 - 8, 25), fld(x * 360 + 17, 25) + -1)
 
     ck.verify(fld(x * 4 + y, 2), x * 2 + fld(y, 2))
     ck.verify(fld(tvm.te.min(x * 6, y), 2), tvm.te.min(x * 3, fld(y, 2)))
@@ -487,6 +487,9 @@ def test_floordiv_index_simplify():
     ck.verify(fld(y + x * 4, 2), x * 2 + fld(y, 2))
     ck.verify(fld(tvm.te.min(y, x * 6), 2), tvm.te.min(fld(y, 2), x * 3))
     ck.verify(fld(tvm.te.max(y, x * 6), 2), tvm.te.max(fld(y, 2), x * 3))
+
+    # removal of negative offsets
+    ck.verify(fld(x - 17, 5), fld(x + 3, 5) + -4)
 
     # 3-operands
     ck.verify(fld(x * 6 + y + z, 2), x * 3 + fld(y + z, 2))
@@ -573,6 +576,10 @@ def test_floormod_index_simplify():
     ck.verify(flm(x * (-10) + y, 2), flm(y, 2))
     ck.verify(flm(x + (-10), 2), flm(x, 2))
     ck.verify(flm(x + y * (-10), 2), flm(x, 2))
+
+    # removal of negative offsets
+    ck.verify(flm(x - 17, 5), flm(x + 3, 5))
+    ck.verify(flm(x + 17, 5), flm(x + 2, 5))
 
     ck.analyzer.update(y, tvm.arith.ConstIntBound(0, 31), override=True)
     ck.verify(flm(x * 32 + y, 64), flm(x, 2) * 32 + y)
