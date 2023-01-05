@@ -126,15 +126,21 @@ class JSONDatabaseNode : public DatabaseNode {
     }
     Array<TuningRecord> results;
     results.reserve(top_k);
-    int counter = 0;
     for (const TuningRecord& record : this->tuning_records_) {
+      if (!record->run_secs.defined() || record->run_secs.value().empty()) {
+        continue;
+      }
       if (record->workload.same_as(workload) ||
           WorkloadEqual(GetModuleEquality())(record->workload, workload)) {
         results.push_back(record);
-        if (++counter == top_k) {
+        if (results.size() == static_cast<size_t>(top_k)) {
           break;
         }
       }
+    }
+    if (results.size() < static_cast<size_t>(top_k)) {
+      LOG(WARNING) << "The size of the GetTopK result is smaller than requested. There are not "
+                      "enough valid records in the database for this workload.";
     }
     return results;
   }

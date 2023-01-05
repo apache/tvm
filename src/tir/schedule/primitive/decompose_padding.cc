@@ -114,6 +114,10 @@ class PaddingInfoAnalyzer {
 
     // Step 3. Analyze in-bound write region.
     PrimExpr in_bound_predicate = RewritePredicate(pad_predicate && realize->predicate);
+    if (analyzer_->CanProveEqual(in_bound_predicate, 1)) {
+      SetError("The in-bound predicate is trivial");
+      return false;
+    }
     Array<Range> in_bound_region = this->EstimateInBoundRegion(
         /*iter_values=*/realize->iter_values, /*dom_map=*/dom_map,
         /*in_bound_predicate=*/in_bound_predicate);
@@ -439,13 +443,14 @@ StmtSRef DecomposePaddingImpl(ScheduleState self, const StmtSRef& block_sref,
     analyzer.Bind(cur_loop->loop_var, range);
     loops.push_back(cur_loop);
 
-    if (!found_const_filling_pos) {
-      if (cur_loop.same_as(const_filling_pos)) {
-        found_const_filling_pos = true;
+    if (cur_loop.same_as(const_filling_pos)) {
+      ICHECK(!found_const_filling_pos);
+      found_const_filling_pos = true;
+      if (!found_in_bound_filling_pos) {
+        found_in_bound_filling_pos = true;
+        in_bound_filling_pos = cur_loop;
       }
-    }
-
-    if (!found_in_bound_filling_pos) {
+    } else if (!found_in_bound_filling_pos) {
       if (!cur_loop->body->IsInstance<ForNode>() &&
           !cur_loop->body->IsInstance<BlockRealizeNode>()) {
         found_in_bound_filling_pos = true;

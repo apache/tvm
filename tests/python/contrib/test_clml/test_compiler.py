@@ -14,8 +14,29 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVM Script APIs of TVM Python Package, aimed to support TIR"""
+"""CLML compiler tests."""
 
-from . import tir
+import tvm
+import numpy as np
+from tvm import relay
+from tvm.relay import testing
+from tvm.relay.op.contrib import clml
+import pytest
 
-from .parser import ir_module, from_source
+
+@tvm.testing.requires_openclml
+def test_device_annotation():
+    mod, params = relay.testing.mobilenet.get_workload(batch_size=1)
+    mod = clml.partition_for_clml(mod, params)
+    with tvm.transform.PassContext(opt_level=3):
+        relay.backend.te_compiler.get().clear()
+        lib = relay.build(
+            mod,
+            target="opencl -device=adreno",
+            target_host="llvm -mtriple=aarch64-linux-gnu",
+            params=params,
+        )
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

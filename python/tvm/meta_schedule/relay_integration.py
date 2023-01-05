@@ -17,7 +17,7 @@
 """MetaSchedule-Relay integration"""
 from contextlib import contextmanager
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Tuple, Union, Set
 
 # isort: off
 from typing_extensions import Literal
@@ -120,6 +120,7 @@ def extract_tasks(
     ),
     executor: Optional["relay.backend.Executor"] = None,
     module_equality: str = "structural",
+    disabled_pass: Optional[Union[List[str], Set[str], Tuple[str]]] = None,
 ) -> List[ExtractedTask]:
     """Extract tuning tasks from a relay program.
 
@@ -147,6 +148,8 @@ def extract_tasks(
                             given module. The "ignore-ndarray" varint is used for the extracted
                             blocks or in case no anchor block is found.
                             For the definition of the anchor block, see tir/analysis/analysis.py.
+    disabled_pass : Optional[Union[List[str], Set[str], Tuple[str]]]
+        The list of disabled passes
 
     Returns
     -------
@@ -171,6 +174,7 @@ def extract_tasks(
             with transform.PassContext(
                 opt_level=opt_level,
                 config=pass_config,
+                disabled_pass=disabled_pass,
             ):
                 return list(_extract_task(mod, target, params, module_equality))
 
@@ -250,6 +254,7 @@ def tune_relay(
     seed: Optional[int] = None,
     module_equality: str = "structural",
     num_tuning_cores: Union[Literal["physical", "logical"], int] = "physical",
+    disabled_pass: Optional[Union[List[str], Set[str], Tuple[str]]] = None,
 ) -> Database:
     """Tune a Relay program.
 
@@ -299,6 +304,8 @@ def tune_relay(
                             For the definition of the anchor block, see tir/analysis/analysis.py.
     num_tuning_cores : Union[Literal["physical", "logical"], int]
         The number of CPU cores to use during tuning.
+    disabled_pass : Optional[Union[List[str], Set[str], Tuple[str]]]
+        The list of disabled passes during tasks extraction
 
     Returns
     -------
@@ -306,7 +313,9 @@ def tune_relay(
         The database that contains the tuning records
     """
     tasks, task_weights = extracted_tasks_to_tune_contexts(
-        extracted_tasks=extract_tasks(mod, target, params, module_equality=module_equality),
+        extracted_tasks=extract_tasks(
+            mod, target, params, module_equality=module_equality, disabled_pass=disabled_pass
+        ),
         work_dir=work_dir,
         space=space,
         strategy=strategy,
@@ -345,6 +354,7 @@ def compile_relay(
         }
     ),
     executor: Optional["relay.backend.Executor"] = None,
+    disabled_pass: Optional[Union[List[str], Set[str], Tuple[str]]] = None,
 ):
     """Compile a relay program with a MetaSchedule database.
 
@@ -368,6 +378,8 @@ def compile_relay(
         The pass configuration
     executor : Optional[relay.backend.Executor]
         The executor to use in relay.build. It is not supported by RelayVM.
+    disabled_pass : Optional[Union[List[str], Set[str], Tuple[str]]]
+        The list of disabled passes
 
     Returns
     -------
@@ -387,6 +399,7 @@ def compile_relay(
             with transform.PassContext(
                 opt_level=opt_level,
                 config=pass_config,
+                disabled_pass=disabled_pass,
             ):
                 if backend == "graph":
                     return relay.build(mod, target=target, params=params, executor=executor)

@@ -120,7 +120,9 @@ void TaskCleanUp(TaskRecordNode* self, int task_id, const Array<RunnerResult>& r
       std::string err = error_msg.value();
       TVM_PY_LOG(INFO, logger) << std::fixed << std::setprecision(4)  //
                                << "[Task #" << task_id << ": " << name << "] Trial #" << trials
-                               << ": Error in building:\n"
+                               << ": Error in "
+                               << (builder_result->error_msg.defined() ? "building" : "running")
+                               << ":\n"
                                << err << "\n"
                                << tir::AsTVMScript(sch->mod()) << "\n"
                                << Concat(sch->trace().value()->AsPython(false), "\n");

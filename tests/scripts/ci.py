@@ -274,7 +274,6 @@ def docs(
         requirements = [
             "Sphinx==4.2.0",
             "tlcpack-sphinx-addon==0.2.1",
-            "synr==0.5.0",
             "image==1.5.33",
             # Temporary git link until a release is published
             "git+https://github.com/sphinx-gallery/sphinx-gallery.git@6142f1791151849b5bec4bf3959f75697ba226cd",
@@ -726,6 +725,27 @@ generated = [
                 "run Adreno API/Python tests",
                 [
                     "./tests/scripts/task_python_adreno.sh " + os.environ.get("ANDROID_SERIAL", ""),
+                ],
+            ),
+            "benchmarks": (
+                "run Adreno Benchmarks (Native OpenCL, CLML SDK)",
+                [
+                    "./apps/benchmark/adreno/bench.sh texture "
+                    + os.environ.get("ANDROID_SERIAL", ""),
+                    "./apps/benchmark/adreno/bench.sh clml " + os.environ.get("ANDROID_SERIAL", ""),
+                ],
+            ),
+            "nativebenchmarks": (
+                "run Adreno Texture Benchmarks",
+                [
+                    "./apps/benchmark/adreno/bench.sh texture "
+                    + os.environ.get("ANDROID_SERIAL", ""),
+                ],
+            ),
+            "clmlbenchmarks": (
+                "run Adreno CLML SDK Benchmarks",
+                [
+                    "./apps/benchmark/adreno/bench.sh clml " + os.environ.get("ANDROID_SERIAL", ""),
                 ],
             ),
         },
