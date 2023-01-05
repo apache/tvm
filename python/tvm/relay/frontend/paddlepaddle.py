@@ -1884,7 +1884,8 @@ def convert_slice(g, op, block):
         strides = _op.const([1] * dims, dtype="int64")
 
     out = _op.strided_slice(data, begin=starts, end=ends, strides=strides)
-    if decrease_axis:
+    out_shape = infer_shape(out)
+    if decrease_axis and len(out_shape) > 1:
         out = _op.squeeze(out, axis=decrease_axis)
     g.add_node(op.output("Out")[0], out)
 

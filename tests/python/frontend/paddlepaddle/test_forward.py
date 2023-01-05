@@ -1351,6 +1351,11 @@ def test_forward_slice():
         x1 = paddle.to_tensor([3]) + paddle.to_tensor([1])
         return inputs[:, x0:, 1:x1, :]
 
+    @paddle.jit.to_static
+    def slice5(inputs):
+        b, c, h, w = paddle.shape(inputs)  # add decrease_axis
+        return h
+
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(
@@ -1362,6 +1367,7 @@ def test_forward_slice():
     verify_model(slice2, input_data=input_data)
     verify_model(slice3, input_data=paddle.randn((4, 4)))
     verify_model(slice4, input_data=input_data)
+    verify_model(slice5, input_data=input_data)
 
 
 @tvm.testing.uses_gpu
