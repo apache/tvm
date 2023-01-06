@@ -73,7 +73,7 @@ def detect_common_subexpr(expr, thresh):
 
     Returns
     -------
-    cse : Dict{PrimExpr: int}
+    cse_dict : Dict[PrimExpr, int]
         The detected common sub expression dict, with sub expression and repeat times
     """
     return _ffi_api.DetectCommonSubExpr(expr, thresh)
