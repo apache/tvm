@@ -497,6 +497,13 @@ TVM_DLL Pass LowerAsyncDMA();
 TVM_DLL Pass CommonSubexprElimTIR(bool enable_cse_tir = true, bool identify_equiv_terms = false);
 
 /*!
+ * \brief Add TIR-printer output as debug information to all ops in the module
+ * \return The pass.
+ */
+
+TVM_DLL Pass InstallDebugSpans();
+
+/*!
  * \brief Unify all the thread bindings for "blockIdx.x/y/z", "threadIdx.x/y/z", and
  *        "vthread.x/y/z". Before the unification, two vars that are bound to a thread axis (e.g.,
  *        "threadIdx.x") use different IterVars and variables in their AttrStmts. After the

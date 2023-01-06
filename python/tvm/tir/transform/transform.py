@@ -1028,3 +1028,15 @@ def InstrumentProfileIntrinsics():
         The result pass
     """
     return _ffi_api.InstrumentProfileIntrinsics()  # type: ignore
+
+
+def InstallDebugSpans():
+    """Add line information from the TIR printer as spans on each statement and
+    expression.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InstallDebugSpans()  # type: ignore
