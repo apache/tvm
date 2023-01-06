@@ -1353,7 +1353,7 @@ def test_forward_slice():
 
     @paddle.jit.to_static
     def slice5(inputs):
-        b, c, h, w = paddle.shape(inputs)  # add decrease_axis
+        b, c, h, w = inputs  # add decrease_axis
         return h
 
     input_shape = [1, 3, 10, 10]
@@ -1367,7 +1367,7 @@ def test_forward_slice():
     verify_model(slice2, input_data=input_data)
     verify_model(slice3, input_data=paddle.randn((4, 4)))
     verify_model(slice4, input_data=input_data)
-    verify_model(slice5, input_data=input_data)
+    verify_model(slice5, input_data=paddle.randn((4,)))
 
 
 @tvm.testing.uses_gpu
