@@ -16,6 +16,7 @@
 # under the License.
 """Detect common patterns."""
 from . import _ffi_api
+from tvm.tir import PrimExpr
 
 
 def detect_linear_equation(expr, var_list):
