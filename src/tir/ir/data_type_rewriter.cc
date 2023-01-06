@@ -109,16 +109,13 @@ Stmt DataTypeLegalizer::VisitStmt_(const AttrStmtNode* op) {
 
 Stmt DataTypeLegalizer::VisitStmt_(const LetStmtNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
-  auto body = op->body;
   auto new_var = op->var.copy_with_dtype(value.dtype());
 
   if (value.dtype() != op->var->dtype) {
-    Map<Var, PrimExpr> vmap{{op->var, new_var}};
-    body =
-        SubstituteWithDataTypeLegalization(op->body, [&](const Var& var) { return vmap.Get(var); });
+    var_remap_[op->var.get()] = new_var;
   }
 
-  Stmt new_body = this->VisitStmt(body);
+  Stmt new_body = this->VisitStmt(op->body);
 
   if (value.same_as(op->value) && new_body.same_as(op->body)) {
     return GetRef<Stmt>(op);
@@ -130,6 +127,13 @@ Stmt DataTypeLegalizer::VisitStmt_(const LetStmtNode* op) {
   } else {
     return LetStmt(new_var, value, new_body, op->span);
   }
+}
+
+PrimExpr DataTypeLegalizer::VisitExpr_(const VarNode* op) {
+  if (auto it = var_remap_.find(op); it != var_remap_.end()) {
+    return (*it).second;
+  }
+  return GetRef<Var>(op);
 }
 
 PrimExpr DataTypeLegalizer::VisitExpr_(const SelectNode* op) {
@@ -563,12 +567,12 @@ PrimExpr IndexDataTypeNormalizer::VisitExpr_(const IntImmNode* op) {
 }
 
 PrimExpr IndexDataTypeNormalizer::VisitExpr_(const VarNode* op) {
-  if (auto it = var_remap_.find(GetRef<Var>(op)); it != var_remap_.end()) {
+  if (auto it = var_remap_.find(op); it != var_remap_.end()) {
     return (*it).second;
   }
   if (is_enabled_ && op->dtype != target_data_type_) {
     Var new_var = GetRef<Var>(op).copy_with_dtype(target_data_type_);
-    var_remap_.Set(GetRef<Var>(op), new_var);
+    var_remap_[op] = new_var;
     return std::move(new_var);
   }
   return GetRef<PrimExpr>(op);
