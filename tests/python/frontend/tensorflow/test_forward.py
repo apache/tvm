@@ -5835,4 +5835,4 @@ def test_forward_dense_bincount():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

@@ -2807,4 +2807,4 @@ def test_tflite_hard_swish(ifm_shape):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

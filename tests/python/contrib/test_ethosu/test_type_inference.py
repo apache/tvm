@@ -475,4 +475,4 @@ def test_ethosu_unary_elementwise_invalid_dtype():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

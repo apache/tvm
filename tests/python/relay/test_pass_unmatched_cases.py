@@ -467,4 +467,4 @@ def @expand_on_empty_tuple_match(%a: (List[()], ())) -> int {
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

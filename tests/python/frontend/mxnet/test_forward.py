@@ -2363,4 +2363,4 @@ def test_forward_split_v2(
 
 
 if __name__ == "__main__":
-    pytest.main(["test_forward.py"])
+    tvm.testing.main()

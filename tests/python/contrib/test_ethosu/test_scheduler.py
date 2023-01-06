@@ -234,4 +234,4 @@ def test_copy_constants_fully_connected_weights():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

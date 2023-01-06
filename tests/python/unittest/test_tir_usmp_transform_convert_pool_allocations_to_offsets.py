@@ -622,4 +622,4 @@ def test_tensor_intrin():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__] + sys.argv[1:])
+    tvm.testing.main()

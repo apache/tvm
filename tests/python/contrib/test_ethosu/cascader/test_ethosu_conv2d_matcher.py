@@ -179,4 +179,4 @@ def test_ethosu_conv2d_block_config_from_matcher(
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

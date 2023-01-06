@@ -60,4 +60,4 @@ def test_ethosu_conv2d():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()
