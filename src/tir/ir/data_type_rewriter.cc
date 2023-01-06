@@ -131,7 +131,7 @@ Stmt DataTypeLegalizer::VisitStmt_(const LetStmtNode* op) {
 
 PrimExpr DataTypeLegalizer::VisitExpr_(const VarNode* op) {
   if (auto it = var_remap_.find(op); it != var_remap_.end()) {
-    return (*it).second;
+    return it->second;
   }
   return GetRef<Var>(op);
 }
@@ -426,7 +426,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BufferStoreNode* op) {
 
   Buffer new_buffer = GetRemappedBuffer(op->buffer);
   auto value = this->VisitExpr(op->value);
-  if (new_buffer->dtype != value->dtype) {
+  if (new_buffer->dtype != value->dtype && value->dtype.lanes() == 1) {
     value = cast(new_buffer->dtype, value);
   }
   auto indices = VisitIndices(op->indices);
@@ -567,15 +567,10 @@ PrimExpr IndexDataTypeNormalizer::VisitExpr_(const IntImmNode* op) {
 }
 
 PrimExpr IndexDataTypeNormalizer::VisitExpr_(const VarNode* op) {
-  if (auto it = var_remap_.find(op); it != var_remap_.end()) {
-    return (*it).second;
+  if (is_enabled_ && op->dtype != target_data_type_ && !var_remap_.count(op)) {
+    var_remap_[op] = GetRef<Var>(op).copy_with_dtype(target_data_type_);
   }
-  if (is_enabled_ && op->dtype != target_data_type_) {
-    Var new_var = GetRef<Var>(op).copy_with_dtype(target_data_type_);
-    var_remap_[op] = new_var;
-    return std::move(new_var);
-  }
-  return GetRef<PrimExpr>(op);
+  return DataTypeLegalizer::VisitExpr_(op);
 }
 
 PrimExpr IndexDataTypeNormalizer::VisitExpr_(const CastNode* op) {
