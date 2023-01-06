@@ -56,7 +56,7 @@ class MockCostEstimator(Object):
 class CustomCostEstimator(Object):
     """CustomEstimator class"""
 
-    def __init__(self, py_fn_estimator="tvm.relay.collage.estimate_seconds_cust"):
+    def __init__(self, py_fn_estimator="tvm.relay.collage.estimate_seconds_custom"):
         self.__init_handle_by_constructor__(_ffi_api.CustomCostEstimator, py_fn_estimator)
 
 
