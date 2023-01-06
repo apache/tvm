@@ -109,21 +109,26 @@ Stmt DataTypeLegalizer::VisitStmt_(const AttrStmtNode* op) {
 
 Stmt DataTypeLegalizer::VisitStmt_(const LetStmtNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
-  Stmt body = this->VisitStmt(op->body);
-  if (value.same_as(op->value) && body.same_as(op->body)) {
+  auto body = op->body;
+  auto new_var = op->var.copy_with_dtype(value.dtype());
+
+  if (value.dtype() != op->var->dtype) {
+    Map<Var, PrimExpr> vmap{{op->var, new_var}};
+    body =
+        SubstituteWithDataTypeLegalization(op->body, [&](const Var& var) { return vmap.Get(var); });
+  }
+
+  Stmt new_body = this->VisitStmt(body);
+
+  if (value.same_as(op->value) && new_body.same_as(op->body)) {
     return GetRef<Stmt>(op);
   } else if (value.dtype() == op->var->dtype) {
     auto n = CopyOnWrite(op);
     n->value = std::move(value);
-    n->body = std::move(body);
+    n->body = std::move(new_body);
     return Stmt(n);
   } else {
-    auto new_var = op->var.copy_with_dtype(value.dtype());
-    Map<Var, PrimExpr> vmap{{op->var, new_var}};
-    auto new_body = SubstituteWithDataTypeLegalization(
-        std::move(body), [&](const Var& var) { return vmap.Get(var); });
-    // We need to visit the body again to insert additional casts
-    return LetStmt(new_var, value, this->VisitStmt(new_body), op->span);
+    return LetStmt(new_var, value, new_body, op->span);
   }
 }
 
