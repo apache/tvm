@@ -82,7 +82,7 @@ def test_vector_simplify():
     ck.verify(fld(tvm.tir.Ramp(x, 8, 5), tvm.tir.Broadcast(4, 5)), tvm.tir.Ramp(fld(x, 4), 2, 5))
     ck.verify(
         fld(tvm.tir.Ramp(flm(x * 4, 256), 1, 4), tvm.tir.Broadcast(8, 4)),
-        tvm.tir.Broadcast(fld(flm(x * 4, 256), 8), 4),
+        tvm.tir.Broadcast(fld(flm(x, 64), 2), 4),
     )
     ck.verify(
         fld(tvm.tir.Ramp(x, 7, 4), tvm.tir.Broadcast(4, 4)),
@@ -136,10 +136,10 @@ def test_vector_simplify():
         flm(tvm.tir.Ramp(3, 1, 4), tvm.tir.Broadcast(4, 4)),
     )
     ck.verify(
-        flm(tvm.tir.Ramp(x * 4, 1, 4), tvm.tir.Broadcast(64, 4)), tvm.tir.Ramp(flm(x * 4, 64), 1, 4)
+        flm(tvm.tir.Ramp(x * 4, 1, 4), tvm.tir.Broadcast(64, 4)), tvm.tir.Ramp(flm(x, 16) * 4, 1, 4)
     )
     ck.verify(
-        flm(tvm.tir.Ramp(x * 8, 2, 4), tvm.tir.Broadcast(64, 4)), tvm.tir.Ramp(flm(x * 8, 64), 2, 4)
+        flm(tvm.tir.Ramp(x * 8, 2, 4), tvm.tir.Broadcast(64, 4)), tvm.tir.Ramp(flm(x, 8) * 8, 2, 4)
     )
     ck.verify(
         flm(tvm.tir.Ramp(x * 4, 1, 5), tvm.tir.Broadcast(64, 5)),
@@ -255,7 +255,7 @@ def test_add_index_simplify():
     ck.verify(x * y + 10 * x, x * (y + 10))
 
     ck.verify((2 * z) + tvm.te.min(x, y - (2 * z)), tvm.te.min(x + (z * 2), y))
-    ck.verify(y * x + x, x * (y + 1))
+    ck.verify(y * x + x, (y + 1) * x)
     ck.verify(x * y + x, x * (y + 1))
     ck.verify((x + 10) + 13, x + 23)
     ck.verify((x + 10) + (13 + z), x + z + 23)
@@ -281,7 +281,7 @@ def test_add_index_simplify():
     flm = tvm.te.floormod
     ck.verify(y * flm(x, 8) + 10 * flm(x, 8), flm(x, 8) * (y + 10))
     ck.verify(fld(x, 8) * 8 + flm(x, 8), x)
-    ck.verify(fld(flm(x, 2) + 7, 2) + fld(x, 2), fld(x + 7, 2))
+    ck.verify(fld(flm(x, 2) + 7, 2) + fld(x, 2), fld(x + 1, 2) + 3)
 
 
 def test_sub_index_simplify():
@@ -377,8 +377,8 @@ def test_sub_index_simplify():
     ck.analyzer.update(x, tvm.arith.ConstIntBound(-1000, 1000), override=True)
     ck.analyzer.update(y, tvm.arith.ConstIntBound(-1000, 1000), override=True)
     ck.verify(x - fld(x, 3) * 3, flm(x, 3))
-    ck.verify(fld(x + 5, 3) - fld(x, 3), fld(flm(x, 3) + 5, 3))
-    ck.verify(fld(x + 5, 3) - fld(x + 2, 3), fld(flm(x + 2, 3), 3) + 1)
+    ck.verify(fld(x + 5, 3) - fld(x, 3), fld(flm(x, 3) + 2, 3) + 1)
+    ck.verify(fld(x + 5, 3) - fld(x + 2, 3), 1)
 
     ck.verify(fld(y, 3) * 3 - y, 0 - flm(y, 3))
     ck.verify(y - fld(y - 6, 5) * 5, flm(y + 4, 5) + 6)
@@ -471,14 +471,14 @@ def test_floordiv_index_simplify():
     ck.verify(fld(x * 4, 2), x * 2)
     ck.verify(fld(x * 8 + 7, 16), fld(x, 2))
     ck.verify(fld(x * 8 + 39, 16), fld(x, 2) + 2)
-    ck.verify(fld(x * 8 - 1, 16), fld(x * 8 + 15, 16) + -1)
+    ck.verify(fld(x * 8 - 1, 16), fld(x + 1, 2) + -1)
     ck.verify(fld(x * 8 - 9, 16), fld(x, 2) + -1)
 
     ck.analyzer.update(x, tvm.arith.ConstIntBound(0, 1), override=True)
     ck.analyzer.update(y, tvm.arith.ConstIntBound(0, 7), override=True)
     ck.verify(fld(x * 360 + y, 16), x * 22)
     ck.verify(fld(x * 360 + y, 25), x * 14)
-    ck.verify(fld(x * 360 - 8, 25), fld(x * 360 + 17, 25) + -1)
+    ck.verify(fld(x * 360 - 8, 25), fld(x * 72 + 3, 5) + -1)
 
     ck.verify(fld(x * 4 + y, 2), x * 2 + fld(y, 2))
     ck.verify(fld(tvm.te.min(x * 6, y), 2), tvm.te.min(x * 3, fld(y, 2)))
@@ -565,7 +565,7 @@ def test_floormod_index_simplify():
     x, y, nx, ny, z = te.var("x"), te.var("y"), te.var("nx"), te.var("ny"), te.var("z")
 
     ck.verify(flm(x * 10, 2), 0)
-    ck.verify(flm(x * 9600, 6400), flm(x * 3200, 6400))
+    ck.verify(flm(x * 9600, 6400), flm(x, 2) * 3200)
     ck.verify(flm(x * 10 + y, 2), flm(y, 2))
     ck.verify(flm(x * 360 + y, 16), flm(x * 8 + y, 16))
     ck.verify(flm(x + 10, 2), flm(x, 2))
