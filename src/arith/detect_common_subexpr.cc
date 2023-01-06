@@ -33,7 +33,7 @@ namespace arith {
 using namespace tir;
 
 Map<PrimExpr, Integer> DetectCommonSubExpr(const PrimExpr& e, const Integer thresh) {
-  // Check the treshold in range of size_t
+  // Check the threshold in the range of size_t
   int64_t i64_thr = thresh.IntValue();
   CHECK_GE(i64_thr, std::numeric_limits<size_t>::min());
   CHECK_LE(i64_thr, std::numeric_limits<size_t>::max());
