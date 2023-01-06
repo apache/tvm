@@ -15,9 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """Detect common patterns."""
-from . import _ffi_api
-from tvm.tir import PrimExpr
+
 from typing import Dict
+
+from tvm.tir import PrimExpr
+from . import _ffi_api
 
 
 def detect_linear_equation(expr, var_list):
