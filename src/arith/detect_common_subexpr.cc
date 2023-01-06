@@ -34,10 +34,9 @@ using namespace tir;
 
 Map<PrimExpr, Integer> DetectCommonSubExpr(const PrimExpr& e, int thresh) {
   // Check the threshold in the range of size_t
-  int64_t i64_thr = thresh.IntValue();
-  CHECK_GE(i64_thr, std::numeric_limits<size_t>::min());
-  CHECK_LE(i64_thr, std::numeric_limits<size_t>::max());
-  size_t repeat_thr = static_cast<size_t>(i64_thr);
+  CHECK_GE(thresh, std::numeric_limits<size_t>::min());
+  CHECK_LE(thresh, std::numeric_limits<size_t>::max());
+  size_t repeat_thr = static_cast<size_t>(thresh);
   auto IsEligibleComputation = [](const PrimExpr& expr) {
     return (SideEffect(expr) <= CallEffectKind::kPure && CalculateExprComplexity(expr) > 1 &&
             (expr.as<RampNode>() == nullptr) && (expr.as<BroadcastNode>() == nullptr));
