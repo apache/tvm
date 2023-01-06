@@ -26,3 +26,5 @@ chmod +x llvm.sh
 ./llvm.sh 11
 ./llvm.sh 12
 ./llvm.sh 13
+
+rm llvm.sh
