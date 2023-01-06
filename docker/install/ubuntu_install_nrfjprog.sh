@@ -21,19 +21,24 @@ set -u
 set -o pipefail
 set -x
 
+TEMP_PATH_NAME="nrfjprog_tmp_path"
+
+# Install JLink
 NRF_COMMANDLINE_TOOLS_FILE=nRFCommandLineToolsLinuxamd64.tar.gz
-NRF_COMMANDLINE_TOOLS_URL=https://nsscprodmedia.blob.core.windows.net/prod/software-and-other-downloads/desktop-software/nrf-command-line-tools/sw/versions-10-x-x/10-12-1/nrfcommandlinetools10121linuxamd64.tar.gz
-NRF_COMMANDLINE_TOOLS_INSTALLER=nRF-Command-Line-Tools_10_12_1_Linux-amd64.deb
-JLINK_LINUX_INSTALLER=JLink_Linux_V688a_x86_64.deb
+NRF_COMMANDLINE_TOOLS_URL=https://nsscprodmedia.blob.core.windows.net/prod/software-and-other-downloads/desktop-software/nrf-command-line-tools/sw/versions-10-x-x/10-18-1/nrf-command-line-tools-10.18.1_linux-amd64.tar.gz
+JLINK_LINUX_INSTALLER=JLink_Linux_V780c_x86_64.deb
 
 cd ~
-mkdir -p nrfjprog
+mkdir -p ${TEMP_PATH_NAME}
 wget --no-verbose -O $NRF_COMMANDLINE_TOOLS_FILE $NRF_COMMANDLINE_TOOLS_URL
 
-cd nrfjprog
+cd ${TEMP_PATH_NAME}
 tar -xzvf "../${NRF_COMMANDLINE_TOOLS_FILE}"
 apt-install-and-clear -y "./${JLINK_LINUX_INSTALLER}"
-apt-install-and-clear -y "./${NRF_COMMANDLINE_TOOLS_INSTALLER}"
+
+# Install nrfjprog
+wget --no-verbose https://nsscprodmedia.blob.core.windows.net/prod/software-and-other-downloads/desktop-software/nrf-command-line-tools/sw/versions-10-x-x/10-18-1/nrf-command-line-tools_10.18.1_amd64.deb
+apt-install-and-clear -y ./nrf-command-line-tools_10.18.1_amd64.deb
 
 cd ..
-rm -rf nrfjprog "${NRF_COMMANDLINE_TOOLS_FILE}"
+rm -rf ${TEMP_PATH_NAME} "${NRF_COMMANDLINE_TOOLS_FILE}"
