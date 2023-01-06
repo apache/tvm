@@ -385,7 +385,12 @@ void RewriteSimplifier::Impl::Update(const Var& var, const PrimExpr& info, bool 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<AddNode>();
-  if (auto const_res = TryConstFold<Add>(op->a, op->b)) return const_res.value();
+  if (auto const_res = TryConstFold<Add>(op->a, op->b)) {
+    std::cout << "\t\t"
+              << "Rewriting " << ret << " to " << const_res.value() << " using rule on line "
+              << __LINE__ << std::endl;
+    return const_res.value();
+  }
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1, b2, s1, s2;
   // Pattern var match IntImm
@@ -536,7 +541,12 @@ RewriteSimplifier::Extension RewriteSimplifier::Impl::GetEnabledExtensions() con
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<SubNode>();
-  if (auto const_res = TryConstFold<Sub>(op->a, op->b)) return const_res.value();
+  if (auto const_res = TryConstFold<Sub>(op->a, op->b)) {
+    std::cout << "\t\t"
+              << "Rewriting " << ret << " to " << const_res.value() << " using rule on line "
+              << __LINE__ << std::endl;
+    return const_res.value();
+  }
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1, b2, s1, s2;
   // Pattern var match IntImm
@@ -725,7 +735,12 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MulNode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<MulNode>();
-  if (auto const_res = TryConstFold<Mul>(op->a, op->b)) return const_res.value();
+  if (auto const_res = TryConstFold<Mul>(op->a, op->b)) {
+    std::cout << "\t\t"
+              << "Rewriting " << ret << " to " << const_res.value() << " using rule on line "
+              << __LINE__ << std::endl;
+    return const_res.value();
+  }
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1, b2, s1, s2;
   // Pattern var match IntImm
@@ -766,7 +781,12 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MulNode* op) {
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<DivNode>();
-  if (auto const_res = TryConstFold<Div>(op->a, op->b)) return const_res.value();
+  if (auto const_res = TryConstFold<Div>(op->a, op->b)) {
+    std::cout << "\t\t"
+              << "Rewriting " << ret << " to " << const_res.value() << " using rule on line "
+              << __LINE__ << std::endl;
+    return const_res.value();
+  }
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1;
   // Pattern var match IntImm
@@ -926,7 +946,12 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const ModNode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<ModNode>();
-  if (auto const_res = TryConstFold<Mod>(op->a, op->b)) return const_res.value();
+  if (auto const_res = TryConstFold<Mod>(op->a, op->b)) {
+    std::cout << "\t\t"
+              << "Rewriting " << ret << " to " << const_res.value() << " using rule on line "
+              << __LINE__ << std::endl;
+    return const_res.value();
+  }
 
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1;
@@ -1016,7 +1041,12 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const ModNode* op) {
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<FloorDivNode>();
-  if (auto const_res = TryConstFold<FloorDiv>(op->a, op->b)) return const_res.value();
+  if (auto const_res = TryConstFold<FloorDiv>(op->a, op->b)) {
+    std::cout << "\t\t"
+              << "Rewriting " << ret << " to " << const_res.value() << " using rule on line "
+              << __LINE__ << std::endl;
+    return const_res.value();
+  }
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1;
   // Pattern var match IntImm
@@ -1034,7 +1064,11 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
       int64_t c2val = c2.Eval()->value;
       ICHECK(c2val != 0) << "division by zero";
       if (c1val % c2val == 0) {
-        return ramp(floordiv(b1, c2), floordiv(c1, c2), lanes).Eval();
+        PrimExpr out = ramp(floordiv(b1, c2), floordiv(c1, c2), lanes).Eval();
+        std::cout << "\t\t"
+                  << "Rewriting " << ret << " to " << out << " using rule on line " << __LINE__
+                  << std::endl;
+        return out;
       }
       // If all possible indices in ramp are the same.
       if (!arith::ExtractVscaleFactor(lanes.Eval())) {
@@ -1069,7 +1103,11 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
       PrimExpr yval = y.EvalOr(Integer(0));
-      if (c2val == 0) return ret;
+      if (c2val == 0) {
+        std::cout << "\t\t"
+                  << "Found denominator of zero in " << ret << ", bailing out" << std::endl;
+        return ret;
+      };
 
       // try eliminate residue part
       PrimExpr residue =
@@ -1077,7 +1115,11 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
       PrimExpr y_div = CanProveEqual(floordiv(yval, c2val), 0) ? 0 : floordiv(yval, c2val);
       auto bound = analyzer_->const_int_bound(residue);
       if (bound.defined() && bound->max_value == bound->min_value) {
-        return x.Eval() * floordiv(c1val, c2.Eval()) + (y_div + Integer(bound->max_value));
+        PrimExpr out = x.Eval() * floordiv(c1val, c2.Eval()) + (y_div + Integer(bound->max_value));
+        std::cout << "\t\t"
+                  << "Rewriting " << ret << " to " << out << " using rule on line " << __LINE__
+                  << std::endl;
+        return RecursiveRewrite(out);
       }
 
       // try simplify divisor
@@ -1089,7 +1131,11 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
         // ==> x' + d + (b * c1 + e) // c2
         // ==> x' + d since 0 <= b * c1 <= (a-1) * c1, 0 <= e < c1
         // ==> x // (c2 // c1) + (y // c2)
-        return floordiv(x.Eval(), floordiv(c2val, c1val)) + y_div;
+        PrimExpr out = floordiv(x.Eval(), floordiv(c2val, c1val)) + y_div;
+        std::cout << "\t\t"
+                  << "Rewriting " << ret << " to " << out << " using rule on line " << __LINE__
+                  << std::endl;
+        return RecursiveRewrite(out);
       }
     }
 
@@ -1161,7 +1207,12 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<FloorModNode>();
-  if (auto const_res = TryConstFold<FloorMod>(op->a, op->b)) return const_res.value();
+  if (auto const_res = TryConstFold<FloorMod>(op->a, op->b)) {
+    std::cout << "\t\t"
+              << "Rewriting " << ret << " to " << const_res.value() << " using rule on line "
+              << __LINE__ << std::endl;
+    return const_res.value();
+  }
 
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1;
@@ -1181,7 +1232,11 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
       int64_t c2val = c2.Eval()->value;
       ICHECK(c2val != 0) << "division by zero";
       if (c1val % c2val == 0) {
-        return broadcast(floormod(b1, c2), lanes).Eval();
+        PrimExpr out = broadcast(floormod(b1, c2), lanes).Eval();
+        std::cout << "\t\t"
+                  << "Rewriting " << ret << " to " << out << " using rule on line " << __LINE__
+                  << std::endl;
+        return out;
       }
       // If all possible indices in ramp are the same.
       ModularSet bmod = analyzer_->modular_set(b1.Eval());
@@ -1201,6 +1256,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
         }
         // If b1 can divide c2
         if (bmod->coeff % c2val == 0) {
+<<<<<<< HEAD
           return floormod(ramp(floormod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
         }
       } else { /* scalable vectors */
@@ -1208,6 +1264,31 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
           return floormod(ramp(floormod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
         }
       }
+=======
+          PrimExpr out = ramp(floormod(bmod->base, c2), c1, lanes).Eval();
+          std::cout << "\t\t"
+                    << "Rewriting " << ret << " to " << out << " using rule on line " << __LINE__
+                    << std::endl;
+          return out;
+        }
+        // If all indices can be guaranteed to settle inside a coeff range
+        if (c2val % bmod->coeff == 0 && bmod->base + (lanes.Eval() - 1) * c1val < bmod->coeff) {
+          PrimExpr out = ramp(floormod(b1, c2), c1, lanes).Eval();
+          std::cout << "\t\t"
+                    << "Rewriting " << ret << " to " << out << " using rule on line " << __LINE__
+                    << std::endl;
+          return out;
+        }
+      }
+      if (bmod->coeff % c2val == 0) {
+        PrimExpr out =
+            floormod(ramp(floormod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
+        std::cout << "\t\t"
+                  << "Rewriting " << ret << " to " << out << " using rule on line " << __LINE__
+                  << std::endl;
+        return out;
+      }
+>>>>>>> 99950669ad ([Debug] Print statements for RewriteSimplifier)
     }
   }
 
@@ -1260,7 +1341,11 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
         // try modular analysis
         ModularSet mod = analyzer_->modular_set(x.Eval());
         if (mod->coeff % c1val == 0) {
-          return floormod(mod->base, c1).Eval();
+          auto out = floormod(mod->base, c1).Eval();
+          std::cout << "\t\t"
+                    << "Rewriting " << ret << " to " << out << " using rule on line " << __LINE__
+                    << std::endl;
+          return out;
         }
 
         // floormod(x,c1) is a no-op when x is already in the
@@ -1278,7 +1363,12 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MinNode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<MinNode>();
-  if (auto const_res = TryConstFold<Min>(op->a, op->b)) return const_res.value();
+  if (auto const_res = TryConstFold<Min>(op->a, op->b)) {
+    std::cout << "\t\t"
+              << "Rewriting " << ret << " to " << const_res.value() << " using rule on line "
+              << __LINE__ << std::endl;
+    return const_res.value();
+  }
 
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, s1, s2;
@@ -1462,7 +1552,12 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MinNode* op) {
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MaxNode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<MaxNode>();
-  if (auto const_res = TryConstFold<Max>(op->a, op->b)) return const_res.value();
+  if (auto const_res = TryConstFold<Max>(op->a, op->b)) {
+    std::cout << "\t\t"
+              << "Rewriting " << ret << " to " << const_res.value() << " using rule on line "
+              << __LINE__ << std::endl;
+    return const_res.value();
+  }
 
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, s1, s2;
@@ -1672,9 +1767,15 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const EQNode* op) {
   op = ret.get();
 
   if (auto const_res = TryConstFold<EQ>(op->a, op->b)) {
+    std::cout << "\t\t"
+              << "Rewriting " << ret << " to " << const_res.value() << " using rule on line "
+              << __LINE__ << std::endl;
     return const_res.value();
   }
   if (auto match = TryMatchLiteralConstraint(ret)) {
+    std::cout << "\t\t"
+              << "Rewriting " << ret << " to " << match.value() << " using rule on line "
+              << __LINE__ << std::endl;
     return match.value();
   }
 
@@ -1727,8 +1828,18 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const NENode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<NENode>();
 
-  if (auto const_res = TryConstFold<NE>(op->a, op->b)) return const_res.value();
-  if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
+  if (auto const_res = TryConstFold<NE>(op->a, op->b)) {
+    std::cout << "\t\t"
+              << "Rewriting " << ret << " to " << const_res.value() << " using rule on line "
+              << __LINE__ << std::endl;
+    return const_res.value();
+  }
+  if (auto match = TryMatchLiteralConstraint(ret)) {
+    std::cout << "\t\t"
+              << "Rewriting " << ret << " to " << match.value() << " using rule on line "
+              << __LINE__ << std::endl;
+    return match.value();
+  }
 
   if (IsIndexType(op->a.dtype())) {
     CompareResult result = TryCompare(op->a, op->b);
@@ -1764,8 +1875,18 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const LENode* op) {
   op = ret.as<LENode>();
   ICHECK(op);
 
-  if (auto const_res = TryConstFold<LE>(op->a, op->b)) return const_res.value();
-  if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
+  if (auto const_res = TryConstFold<LE>(op->a, op->b)) {
+    std::cout << "\t\t"
+              << "Rewriting " << ret << " to " << const_res.value() << " using rule on line "
+              << __LINE__ << std::endl;
+    return const_res.value();
+  }
+  if (auto match = TryMatchLiteralConstraint(ret)) {
+    std::cout << "\t\t"
+              << "Rewriting " << ret << " to " << match.value() << " using rule on line "
+              << __LINE__ << std::endl;
+    return match.value();
+  }
 
   // Check for applicable rewrites before attempting to prove/disprove
   // the inequality.  This preserves earlier behavior, where (A<=B*x)
@@ -1815,8 +1936,18 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const LTNode* op) {
   LT node = Downcast<LT>(IRMutatorWithAnalyzer::VisitExpr_(op));
   op = node.get();
 
-  if (auto const_res = TryConstFold<LT>(op->a, op->b)) return const_res.value();
-  if (auto match = TryMatchLiteralConstraint(node)) return match.value();
+  if (auto const_res = TryConstFold<LT>(op->a, op->b)) {
+    std::cout << "\t\t"
+              << "Rewriting " << node << " to " << const_res.value() << " using rule on line "
+              << __LINE__ << std::endl;
+    return const_res.value();
+  }
+  if (auto match = TryMatchLiteralConstraint(node)) {
+    std::cout << "\t\t"
+              << "Rewriting " << node << " to " << match.value() << " using rule on line "
+              << __LINE__ << std::endl;
+    return match.value();
+  }
 
   return ApplyRewriteRules(node);
 }
@@ -1986,8 +2117,18 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(LT ret) {
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const NotNode* op) {
   Not ret = Downcast<Not>(IRMutatorWithAnalyzer::VisitExpr_(op));
-  if (auto const_res = TryConstFold<Not>(ret->a)) return const_res.value();
-  if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
+  if (auto const_res = TryConstFold<Not>(ret->a)) {
+    std::cout << "\t\t"
+              << "Rewriting " << ret << " to " << const_res.value() << " using rule on line "
+              << __LINE__ << std::endl;
+    return const_res.value();
+  }
+  if (auto match = TryMatchLiteralConstraint(ret)) {
+    std::cout << "\t\t"
+              << "Rewriting " << ret << " to " << match.value() << " using rule on line "
+              << __LINE__ << std::endl;
+    return match.value();
+  }
 
   return ApplyRewriteRules(ret);
 }
@@ -2059,8 +2200,18 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AndNode* op) {
 
   op = ret.as<AndNode>();
 
-  if (auto const_res = TryConstFold<And>(op->a, op->b)) return const_res.value();
-  if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
+  if (auto const_res = TryConstFold<And>(op->a, op->b)) {
+    std::cout << "\t\t"
+              << "Rewriting " << ret << " to " << const_res.value() << " using rule on line "
+              << __LINE__ << std::endl;
+    return const_res.value();
+  }
+  if (auto match = TryMatchLiteralConstraint(ret)) {
+    std::cout << "\t\t"
+              << "Rewriting " << ret << " to " << match.value() << " using rule on line "
+              << __LINE__ << std::endl;
+    return match.value();
+  }
   if ((enabled_extensions_ & RewriteSimplifier::kConvertBooleanToAndOfOrs) &&
       !recursively_visiting_boolean_) {
     return SimplifyAsAndOfOrs(ret, analyzer_);
@@ -2207,8 +2358,18 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const OrNode* op) {
   }();
 
   op = ret.as<OrNode>();
-  if (auto const_res = TryConstFold<Or>(op->a, op->b)) return const_res.value();
-  if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
+  if (auto const_res = TryConstFold<Or>(op->a, op->b)) {
+    std::cout << "\t\t"
+              << "Rewriting " << ret << " to " << const_res.value() << " using rule on line "
+              << __LINE__ << std::endl;
+    return const_res.value();
+  }
+  if (auto match = TryMatchLiteralConstraint(ret)) {
+    std::cout << "\t\t"
+              << "Rewriting " << ret << " to " << match.value() << " using rule on line "
+              << __LINE__ << std::endl;
+    return match.value();
+  }
   if ((enabled_extensions_ & RewriteSimplifier::kConvertBooleanToAndOfOrs) &&
       !recursively_visiting_boolean_) {
     return SimplifyAsAndOfOrs(ret, analyzer_);
@@ -2329,6 +2490,9 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
   if (op->op.same_as(tir::builtin::likely())) {
     // Cases such as for (i, 0, bound) {if (likely(iter_var < bound)) { .. } }
     if (auto match = TryMatchLiteralConstraint(op->args[0])) {
+      std::cout << "\t\t"
+                << "Rewriting " << ret << " to " << match.value() << " using rule on line "
+                << __LINE__ << std::endl;
       return match.value();
     }
   }
@@ -2360,12 +2524,18 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const VarNode* op) {
   Var var = GetRef<Var>(op);
   if (op->dtype == DataType::Bool()) {
     if (auto match = TryMatchLiteralConstraint(var)) {
+      std::cout << "\t\t"
+                << "Rewriting " << var << " to " << match.value() << " using rule on line "
+                << __LINE__ << std::endl;
       return match.value();
     }
   }
 
   auto it = var_map_.find(var);
   if (it != var_map_.end()) {
+    std::cout << "\t\t"
+              << "Rewriting " << var << " to " << it->second << " using rule on line " << __LINE__
+              << std::endl;
     return it->second;
   }
   return GetRef<PrimExpr>(op);
