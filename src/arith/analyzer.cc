@@ -254,16 +254,34 @@ PrimExpr Analyzer::Simplify(const PrimExpr& expr, int steps) {
   // of an expression might be destroyed by rewrite simplification.
   res = this->canonical_simplify(res);
 
+  std::cout << "Simplifying " << res << std::endl;
+
   for (int i = 0; i < steps; ++i) {
     if (tir::is_const_int(res)) {
-      return res;
+      break;
     }
     if (i % 2 == 0) {
-      res = this->rewrite_simplify(res);
+      std::cout << "\t"
+                << "Simplifying " << res << " using rewrite simplifier" << std::endl;
+      auto after = this->rewrite_simplify(res);
+      std::cout << "\t"
+                << "Simplified from " << res << " to " << after << " using rewrite simplifier"
+                << std::endl;
+      res = after;
+      // res = this->rewrite_simplify(res);
     } else {
-      res = this->canonical_simplify(res);
+      std::cout << "\t"
+                << "Simplifying " << res << " using canonical simplifier" << std::endl;
+      auto after = this->canonical_simplify(res);
+      std::cout << "\t"
+                << "Simplified from " << res << " to " << after << " using canonical simplifier"
+                << std::endl;
+      res = after;
+      // res = this->canonical_simplify(res);
     }
   }
+
+  std::cout << "Simplified into " << res << std::endl;
 
   return res;
 }
