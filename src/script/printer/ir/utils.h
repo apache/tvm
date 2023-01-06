@@ -16,39 +16,46 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#ifndef TVM_SCRIPT_PRINTER_IR_UTILS_H_
+#define TVM_SCRIPT_PRINTER_IR_UTILS_H_
 
-#include <tvm/runtime/registry.h>
-#include <tvm/script/printer.h>
-#include <tvm/script/printer/doc.h>
-#include <tvm/script/printer/doc_printer.h>
-#include <tvm/script/printer/frame.h>
+#include <tvm/ir/expr.h>
+#include <tvm/ir/function.h>
+#include <tvm/ir/op.h>
 #include <tvm/script/printer/ir_docsifier.h>
+#include <tvm/script/printer/printer.h>
+#include <tvm/support/with.h>
+
+#include <utility>
 
 namespace tvm {
 namespace script {
 namespace printer {
 
-String Script(                              //
-    const ObjectRef& root_node,             //
-    String ir_name,                         //
-    Map<String, String> ir_prefix,          //
-    int indent_spaces,                      //
-    bool print_line_numbers,                //
-    int num_context_lines,                  //
-    Optional<ObjectPath> path_to_underline  //
-) {
-  IRDocsifier ir_docsifier(ir_prefix);
+inline ExprDoc IR(const IRDocsifier& d) { return IdDoc("tvm")->Attr("script"); }
 
-  auto dispatch_ctx = ir_docsifier->WithDispatchToken(ir_name);
+class IRFrameNode : public FrameNode {
+ public:
+  void VisitAttrs(AttrVisitor* v) { FrameNode::VisitAttrs(v); }
 
-  Doc doc = ir_docsifier->AsDoc<Doc>(MakeTraced(RootNodeContainer(root_node)));
+  static constexpr const char* _type_key = "script.printer.IRFrame";
+  TVM_DECLARE_FINAL_OBJECT_INFO(IRFrameNode, FrameNode);
+};
 
-  return DocToPythonScript(doc, indent_spaces, print_line_numbers, num_context_lines,
-                           path_to_underline);
-}
+class IRFrame : public Frame {
+ public:
+  explicit IRFrame(const IRDocsifier& d) {
+    ObjectPtr<IRFrameNode> n = make_object<IRFrameNode>();
+    n->stmts.clear();
+    n->d = d.get();
+    data_ = std::move(n);
+  }
 
-TVM_REGISTER_GLOBAL("script.printer.Script").set_body_typed(&Script);
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(IRFrame, Frame, IRFrameNode);
+};
 
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm
+
+#endif  // TVM_SCRIPT_PRINTER_IR_UTILS_H_

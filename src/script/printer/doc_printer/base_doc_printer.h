@@ -16,11 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SCRIPT_PRINTER_BASE_DOC_PRINTER_H_
-#define TVM_SCRIPT_PRINTER_BASE_DOC_PRINTER_H_
+#ifndef TVM_SCRIPT_PRINTER_DOC_PRINTER_BASE_DOC_PRINTER_H_
+#define TVM_SCRIPT_PRINTER_DOC_PRINTER_BASE_DOC_PRINTER_H_
 
 #include <tvm/script/printer/doc.h>
-#include <tvm/script/printer/doc_printer.h>
 
 #include <limits>
 #include <memory>
@@ -287,4 +286,4 @@ class DocPrinter {
 }  // namespace script
 }  // namespace tvm
 
-#endif  // TVM_SCRIPT_PRINTER_BASE_DOC_PRINTER_H_
+#endif  // TVM_SCRIPT_PRINTER_DOC_PRINTER_BASE_DOC_PRINTER_H_

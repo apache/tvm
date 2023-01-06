@@ -16,33 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SCRIPT_PRINTER_DOC_PRINTER_H_
-#define TVM_SCRIPT_PRINTER_DOC_PRINTER_H_
-
-#include <tvm/script/printer/doc.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/script/printer/printer.h>
 
 namespace tvm {
 namespace script {
 namespace printer {
 
-/*!
- * \brief Convert Doc into Python script.
- *
- * This function unpacks the DocPrinterOptions into function arguments
- * to be FFI friendly.
- *
- * \param doc Doc to be converted
- * \param indent_spaces Number of spaces used for indentation
- * \param print_line_numbers Whether to print line numbers
- * \param num_context_lines Number of context lines to print around the underlined text
- * \param path_to_underline Object path to be underlined
- */
-String DocToPythonScript(Doc doc, int indent_spaces = 4, bool print_line_numbers = false,
-                         int num_context_lines = -1,
-                         Optional<ObjectPath> path_to_underline = NullOpt);
+String Script(ObjectRef obj, Map<String, String> ir_prefix, int indent_spaces,
+              bool print_line_numbers, int num_context_lines,
+              Optional<ObjectPath> path_to_underline) {
+  IRDocsifier d(ir_prefix);
+  Doc doc = d->AsDoc(obj, ObjectPath::Root());
+  return DocToPythonScript(doc, indent_spaces, print_line_numbers, num_context_lines,
+                           path_to_underline);
+}
+
+Default* Default::Instance() {
+  static Default inst;
+  return &inst;
+}
+
+TVM_REGISTER_GLOBAL("script.printer.Script").set_body_typed(Script);
 
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm
-
-#endif  // TVM_SCRIPT_PRINTER_DOC_PRINTER_H_

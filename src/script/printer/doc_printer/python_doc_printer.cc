@@ -21,10 +21,11 @@
 #include <tvm/script/printer/doc.h>
 
 #include <algorithm>
+#include <cmath>
 #include <string>
 
-#include "../../support/str_escape.h"
-#include "../../support/utils.h"
+#include "../../../support/str_escape.h"
+#include "../../../support/utils.h"
 #include "./base_doc_printer.h"
 
 namespace tvm {
@@ -294,7 +295,11 @@ void PythonDocPrinter::PrintTypedDoc(const LiteralDoc& doc) {
   } else if (const auto* float_imm = value.as<FloatImmNode>()) {
     // TODO(yelite): Make float number printing roundtrippable
     output_.precision(17);
-    output_ << float_imm->value;
+    if (std::isinf(float_imm->value) || std::isnan(float_imm->value)) {
+      output_ << '"' << float_imm->value << '"';
+    } else {
+      output_ << float_imm->value;
+    }
   } else if (const auto* string_obj = value.as<StringObj>()) {
     output_ << "\"" << support::StrEscape(string_obj->data, string_obj->size) << "\"";
   } else {
