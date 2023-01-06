@@ -60,7 +60,7 @@ def detect_clip_bound(expr, var_list):
     return _ffi_api.DetectClipBound(expr, var_list)
 
 
-def detect_common_subexpr(expr, thresh):
+def detect_common_subexpr(expr: PrimExpr, threshold: int) -> Dict[PrimExpr, int]:
     """Detect common sub expression which shows up more than a threshold times
 
     Parameters
