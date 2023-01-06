@@ -119,6 +119,9 @@ class AsyncDMALowerer : public StmtExprMutator {
         return StmtExprMutator::VisitStmt_(op);
       }
 
+      // Add the current loop to the input iters mapping.
+      input_iters.Set(for_loop->loop_var, Range(for_loop->min, for_loop->extent));
+
       // 3) for loop contains buffer store with single index
       auto bufferstorenode = for_loop->body.as<BufferStoreNode>();
       if (!bufferstorenode || bufferstorenode->indices.size() != 1) {
@@ -156,8 +159,8 @@ class AsyncDMALowerer : public StmtExprMutator {
 
       // Use DetectIterMap to detect whether store index is non-contiguous.
       arith::Analyzer analyzer;
-      auto store_iter_map = DetectIterMap(store_index, input_iters, 1, arith::IterMapLevel::NoCheck,
-                                          &analyzer, false);
+      auto store_iter_map = DetectIterMap(store_index, input_iters, 1,
+                                          arith::IterMapLevel::Surjective, &analyzer, false);
       if (!store_iter_map->errors.empty()) {
         LOG(FATAL)
             << "Unable to lower async dma for non contiguous memory access with store index: "
@@ -173,8 +176,8 @@ class AsyncDMALowerer : public StmtExprMutator {
       Array<PrimExpr> load_index = bufferloadnode->indices;
 
       // Use DetectIterMap to detect whether load index is non-contiguous.
-      auto load_iter_map =
-          DetectIterMap(load_index, input_iters, 1, arith::IterMapLevel::NoCheck, &analyzer, false);
+      auto load_iter_map = DetectIterMap(load_index, input_iters, 1,
+                                         arith::IterMapLevel::Surjective, &analyzer, false);
       if (!load_iter_map->errors.empty()) {
         LOG(FATAL) << "Unable to lower async dma for non contiguous memory access with load index: "
                    << load_index;

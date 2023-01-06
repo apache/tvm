@@ -110,6 +110,12 @@ class Postproc : public runtime::ObjectRef {
    */
   TVM_DLL static Postproc DisallowDynamicLoop();
   /*!
+   * \brief Create a postprocessor that checks if all async mem copies are not strided.
+   * \param merge_async_commit_queue_scope Whether or not to merge async commit queue scope.
+   * \return The postprocessor created
+   */
+  TVM_DLL static Postproc DisallowAsyncStridedMemCopy(bool merge_async_commit_queue_scope = true);
+  /*!
    * \brief Create a postprocessor that rewrites the cooperative fetch annotation to
    * actual vectorized cooperative fetching in loop bindings.
    * \return The postprocessor created.
