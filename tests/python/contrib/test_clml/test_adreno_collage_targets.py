@@ -38,7 +38,7 @@ logging.basicConfig(level=logging.INFO)
 ########### Configuration ###########
 
 ###
-### TVM opencl autotvm log file name
+### TVM Opencl AutoTvm log file name
 ###
 TUNING_LOG = ""
 
@@ -156,7 +156,7 @@ def is_already_tuned(task, log_filename):
 
 
 def tune_autotvm_tasks(tasks, log_filename):
-    """Appends to log_filename the best strategies for tasks"""
+    """Appends to log filename the best strategies for tasks"""
     if len(tasks) == 0:
         return
 
@@ -203,7 +203,7 @@ def tune_autotvm_tasks(tasks, log_filename):
             ],
         )
 
-    # pick best records and copy back to main log file
+    # Pick best records and copy back to main log file
     tvm.autotvm.record.pick_best(tmp_log_filename, log_filename)
     os.remove(tmp_log_filename)
 
