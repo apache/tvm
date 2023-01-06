@@ -423,13 +423,14 @@ __attribute__((always_inline)) static inline int32_t gemm16_{M}x{K}x{N}_body_{un
 
   for (int i = 0; i < {M}; i++) {{
     for (int j = 0; j < {N}; j++) {{
-      int32_t *aa_ptr = (int32_t *) &aa[i*A_stride];
-      int32_t *bb_ptr = (int32_t *) &bb[j*B_stride];
+      int32_t aa_vector[{K} / 2];
+      int32_t bb_vector[{K} / 2];
+      memcpy(&aa_vector, &aa[i * A_stride], sizeof(aa_vector));
+      memcpy(&bb_vector, &bb[j * B_stride], sizeof(bb_vector));
 
       int32_t sum = 0;
       for (int l = 0; l < {K} / 2; l++) {{
-        sum = __smlad(*aa_ptr, *bb_ptr, sum);
-        ++ aa_ptr; ++ bb_ptr;
+        sum = __smlad(aa_vector[l], bb_vector[l], sum);
       }}
       // NOTE: this is the line where `*_body` differs from `*_update`. here
       // we're *setting* the result, instead of accumulating, because we know
@@ -496,13 +497,14 @@ __attribute__((always_inline)) static inline int32_t gemm16_{M}x{K}x{N}_update_{
 
   for (int i = 0; i < {M}; i++) {{
     for (int j = 0; j < {N}; j++) {{
-      int32_t *aa_ptr = (int32_t *) &aa[i*A_stride];
-      int32_t *bb_ptr = (int32_t *) &bb[j*B_stride];
+      int32_t aa_vector[{K} / 2];
+      int32_t bb_vector[{K} / 2];
+      memcpy(&aa_vector, &aa[i * A_stride], sizeof(aa_vector));
+      memcpy(&bb_vector, &bb[j * B_stride], sizeof(bb_vector));
 
       int32_t sum = 0;
       for (int l = 0; l < {K} / 2; l++) {{
-        sum = __smlad(*aa_ptr, *bb_ptr, sum);
-        ++ aa_ptr; ++ bb_ptr;
+        sum = __smlad(aa_vector[l], bb_vector[l], sum);
       }}
       cc[i*C_stride + j] += sum;
     }}
