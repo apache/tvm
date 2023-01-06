@@ -651,7 +651,15 @@ class IterMapRewriter : public ExprMutator {
           return Array<IterSplitExpr>();
         }
       } else {
-        ErrorLogger(this) << "The lower factor is not divisible by the full iter space extent";
+        ErrorLogger(this) << "The lower factor " << mark->extent
+                          << " is not divisible by the full iter space extent";
+        ErrorLogger(this) << "This mark's extent " << mark->extent
+                          << " is neither equal to, nor divisible by, the expected factor "
+                          << expected_lower_factor << ".";
+        std::cout << "start" << std::endl;
+        ErrorLogger(this) << "Expected floormod(extent,divisor) == 0, but was "
+                          << analyzer_->Simplify(floormod(mark->extent, expected_lower_factor));
+        std::cout << "end" << std::endl;
         return {};
       }
     }
@@ -1758,6 +1766,12 @@ std::pair<IterSplitExpr, PrimExpr> IterMapRewriter::PadDividendToDivisor(IterSpl
     // on the iter mark is compatible with it's own left padding.
     requires_padding_ = true;
     PrimExpr mark_left_pad = left_pad * split->lower_factor;
+    std::cout << "Defining info.left_pad based on max(" << info.left_pad << ", " << mark_left_pad
+              << ")" << std::endl;
+    std::cout << "\t"
+              << "base = " << base << std::endl;
+    std::cout << "\t"
+              << "divisor = " << divisor << std::endl;
     info.left_pad = max(info.left_pad, mark_left_pad);
 
     // Since we only care the extent in the first pass's result
@@ -1778,6 +1792,11 @@ std::pair<IterSplitExpr, PrimExpr> IterMapRewriter::PadDividendToDivisor(IterSpl
     // the iter mark requires no padding
     return {split, left_pad};
   }
+
+  std::cout << "Couldn't prove that extent " << mark->extent << " is divisible by "
+            << info.padding_factor << std::endl;
+  std::cout << "\t"
+            << "info.left_pad = " << info.left_pad << std::endl;
 
   // check that padding factor is compatible with current split and divisor
   ICHECK(CanProveDivisible(info.padding_factor, split->lower_factor))
@@ -1816,6 +1835,10 @@ std::pair<IterSplitExpr, PrimExpr> IterMapRewriter::PadDividendToDivisor(IterSpl
     info.right_pad = mark_right_pad;
     info.padded = IterMark(IterSumExpr({IterSplitExpr(mark)}, mark_left_pad), padded_extent);
     padded_origin_map_[info.padded] = mark;
+
+    std::cout << "Created padded version of " << mark << " with (left_pad,right_pad) = ("
+              << mark_left_pad << ", " << mark_right_pad << "), extent = " << padded_extent
+              << std::endl;
 
     auto left_padding_introduced = (mark_left_pad != 0);
 
