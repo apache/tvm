@@ -54,6 +54,9 @@ name = "microtvm"
 version = "0.1.0"
 description = ""
 authors = []
+packages = [
+    { include = "tvm", from = "../../python" },
+]
 
 [tool.poetry.dependencies]
 python = ">=3.7, <3.9"
@@ -95,21 +98,20 @@ onnxoptimizer = { version = "==0.2.6", optional = true }
 onnxruntime = { version = "==1.9.0", optional = true }
 
 # Pytorch (also used by ONNX)
-torch = { version = "==1.11.0" }
-torchvision = { version = "==0.12.0" }
+torch = { version = "==1.11.0", optional = true }
+torchvision = { version = "==0.12.0", optional = true }
 
 future = { version = "==*", optional = true }
 
 # Tensorflow frontend
-tensorflow = {version = "^2.1"}
-tensorflow-estimator = {version = "^2.1"}
+tensorflow = {version = "^2.1", optional = true}
+tensorflow-estimator = {version = "^2.1", optional = true}
 
 # TFLite frontend
-tflite = {version = "2.1.0"}
+tflite = {version = "2.1.0", optional = true}
 wheel = "*"
 cloudpickle = "^1.6.0"
 pyusb = "^1.2.1"
-
 
 
 [tool.poetry.extras]
