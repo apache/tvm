@@ -1695,7 +1695,7 @@ def test_forward_topk():
 
     @paddle.jit.to_static
     def topk2(inputs):
-        k = paddle.to_tensor([1])
+        k = paddle.to_tensor([1], dtype=paddle.int32)
         return paddle.topk(inputs, k=k)
 
     @paddle.jit.to_static
