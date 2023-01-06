@@ -21,14 +21,14 @@ Compile ONNX Models
 
 This article is an introductory tutorial to deploy ONNX models with Relay.
 
-For us to begin with, ONNX package must be installed:
+To begin, install the ONNX package:
 
 .. code-block:: bash
 
     %%shell
     pip install onnx onnxoptimizer
 
-or please refer to official site.
+Alternatively, you can refer to official site:
 https://github.com/onnx/onnx
 """
 

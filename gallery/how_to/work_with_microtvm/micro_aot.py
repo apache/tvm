@@ -41,10 +41,12 @@ from tvm import testing
 testing.utils.install_request_hook(depth=3)
 # sphinx_gallery_end_ignore
 
-# You can skip the following two sections (installing Zephyr and CMSIS-NN) if the following flag is False.
-# Installing Zephyr takes ~20 min.
 import os
 
+# By default, this tutorial runs on x86 CPU using TVM's C runtime. If you would like
+# to run on real Zephyr hardware, you must export the `TVM_MICRO_USE_HW` environment
+# variable. Otherwise (if you are using the C runtime), you can skip installing
+# Zephyr and CMSIS-NN. It takes ~20 minutes to install both of them.
 use_physical_hw = bool(os.getenv("TVM_MICRO_USE_HW"))
 
 ######################################################################
@@ -162,12 +164,8 @@ if use_physical_hw:
         "board": BOARD,
         "serial_number": SERIAL,
         "config_main_stack_size": 4096,
-        "cmsis_path": "/content/cmsis"
-        if os.environ.get("CMSIS_PATH") is None
-        else os.environ.get("CMSIS_PATH"),
-        "zephyr_base": "/content/zephyrproject/zephyr"
-        if os.environ.get("ZEPHYR_BASE") is None
-        else os.environ.get("ZEPHYR_BASE"),
+        "cmsis_path": os.getenv("CMSIS_PATH", default="/content/cmsis"),
+        "zephyr_base": os.getenv("ZEPHYR_BASE", default="/content/zephyrproject/zephyr"),
     }
 
 temp_dir = tvm.contrib.utils.tempdir()
