@@ -68,7 +68,7 @@ def detect_common_subexpr(expr: PrimExpr, threshold: int) -> Dict[PrimExpr, int]
     expr : PrimExpr
         The expression to be analyzed.
 
-    thresh : int
+    threshold : int
         The threshold of repeat times that determines a common sub expression
 
     Returns
