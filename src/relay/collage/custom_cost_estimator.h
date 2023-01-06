@@ -47,7 +47,7 @@ class CustomCostEstimatorNode : public CostEstimatorNode {
 
  protected:
   /*!
-   * \brief Python implementation function register name to invote.
+   * \brief Python implementation function register name to invoke.
    */
   String py_fn_estimator_;
 
