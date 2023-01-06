@@ -31,7 +31,7 @@ from tvm.driver import build as tvm_build
 from tvm.tir.transform import RemoveWeightLayoutRewriteBlock
 
 
-def get_micro_local_builder():
+def get_local_builder_micro():
     """Return micro-compatible Builder for meta schedule."""
 
     def _micro_build(

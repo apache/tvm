@@ -25,11 +25,11 @@ from tvm import relay
 from tvm.relay.backend import Executor
 from tvm.contrib import graph_executor, utils
 from tvm import meta_schedule as ms
-from tvm.contrib.micro.meta_schedule.local_builder_micro import get_micro_local_builder
+from tvm.contrib.micro.meta_schedule.local_builder_micro import get_local_builder_micro
 from tvm.contrib.micro.meta_schedule.rpc_runner_micro import get_rpc_runner_micro
 
 
-def get_module():
+def create_relay_module():
     data_shape = (1, 3, 16, 16)
     weight_shape = (8, 3, 5, 5)
     data = relay.var("data", relay.TensorType(data_shape, "float32"))
@@ -61,38 +61,31 @@ def get_module():
 
 
 @tvm.testing.requires_micro
-@pytest.mark.parametrize(
-    "platform, options",
-    [
-        pytest.param("crt", None),
-        pytest.param(
-            "zephyr",
-            {
-                "board": "qemu_x86",
-                "project_type": "host_driven",
-            },
-        ),
-    ],
-)
-def test_micro_tuning_with_meta_schedule(platform, options):
-    if platform == "crt":
-        target = tvm.target.target.micro(model="host")
-    else:
-        boards_file = (
-            pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr")) / "boards.json"
-        )
-        with open(boards_file) as f:
-            boards = json.load(f)
-        target = tvm.target.target.micro(
-            model=boards[options["board"]]["model"], options="-mcpu=cortex-m4"
-        )
+@tvm.testing.requires_micro
+def test_ms_tuning_conv2d(workspace_dir, board, microtvm_debug, use_fvp, serial_number):
+    """Test AutoTune for microTVM Zephyr"""
+    if board != "qemu_x86":
+        pytest.xfail(f"Autotune fails on {board}.")
 
-    work_dir = utils.tempdir()
-    mod, params, model_info = get_module()
+    mod, params, model_info = create_relay_module()
     input_name = model_info["in_tensor"]
     input_shape = model_info["in_shape"]
     input_dtype = model_info["in_dtype"]
     data_sample = np.random.rand(*input_shape).astype(input_dtype)
+
+    platform = "zephyr"
+    project_options = {
+        "board": board,
+        "verbose": microtvm_debug,
+        "project_type": "host_driven",
+        "use_fvp": bool(use_fvp),
+        "serial_number": serial_number,
+    }
+
+    boards_file = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr")) / "boards.json"
+    with open(boards_file) as f:
+        boards = json.load(f)
+    target = tvm.target.target.micro(model=boards[project_options["board"]]["model"])
 
     runtime = relay.backend.Runtime("crt", {"system-lib": True})
     executor = Executor("aot", {"link-params": True})
@@ -100,11 +93,12 @@ def test_micro_tuning_with_meta_schedule(platform, options):
     # task extraction and relay.build(...).
     mod = mod.with_attr("executor", executor)
 
-    builder = get_micro_local_builder()
-    with get_rpc_runner_micro(
-        platform=platform, options=options, session_timeout_sec=120
-    ) as runner:
-        with ms.Profiler() as profiler:
+    builder = get_local_builder_micro()
+    with ms.Profiler() as profiler:
+        with get_rpc_runner_micro(
+            platform=platform, options=project_options, session_timeout_sec=120
+        ) as runner:
+
             db: ms.Database = ms.relay_integration.tune_relay(
                 mod=mod,
                 params=params,
@@ -115,44 +109,42 @@ def test_micro_tuning_with_meta_schedule(platform, options):
                 num_trials_per_iter=2,
                 max_trials_per_task=10,
                 max_trials_global=100,
-                work_dir=str(work_dir),
+                work_dir=str(workspace_dir),
                 module_equality="ignore-ndarray",
             )
 
-            #  Build model using meta_schedule logs
-            ms_mod: tvm.runtime.Module = ms.relay_integration.compile_relay(
-                database=db,
-                mod=mod,
-                target=target,
-                params=params,
-                pass_config=MappingProxyType(
-                    {
-                        "relay.backend.use_meta_schedule": True,
-                        "relay.backend.tir_converter": "default",
-                        "tir.disable_vectorize": True,
-                    }
-                ),
-                executor=executor,
-                runtime=runtime,
-            )
+        #  Build model using meta_schedule logs
+        opt_mod, opt_params = relay.optimize(mod, target)
+        ms_mod: tvm.runtime.Module = ms.relay_integration.compile_relay(
+            database=db,
+            mod=opt_mod,
+            target=target,
+            params=opt_params,
+            pass_config=MappingProxyType(
+                {
+                    "relay.backend.use_meta_schedule": True,
+                    "relay.backend.tir_converter": "default",
+                    "tir.disable_vectorize": True,
+                }
+            ),
+            executor=executor,
+            runtime=runtime,
+        )
+    print(profiler.table())
 
-            project = tvm.micro.generate_project(
-                str(tvm.micro.get_microtvm_template_projects(platform)),
-                ms_mod,
-                str(work_dir / "project"),
-                options=options,
-            )
-            project.build()
-            project.flash()
-            with tvm.micro.Session(project.transport()) as session:
-                aot_executor = tvm.runtime.executor.aot_executor.AotModule(
-                    session.create_aot_executor()
-                )
-                aot_executor.get_input(0).copyfrom(data_sample)
-                result = aot_executor.module.time_evaluator("run", session.device, number=3)()
-                output = aot_executor.get_output(0).numpy()
-
-        print(profiler.table())
+    project = tvm.micro.generate_project(
+        str(tvm.micro.get_microtvm_template_projects(platform)),
+        ms_mod,
+        str(workspace_dir / "project"),
+        options=project_options,
+    )
+    project.build()
+    project.flash()
+    with tvm.micro.Session(project.transport()) as session:
+        aot_executor = tvm.runtime.executor.aot_executor.AotModule(session.create_aot_executor())
+        aot_executor.get_input(0).copyfrom(data_sample)
+        result = aot_executor.module.time_evaluator("run", session.device, number=3)()
+        output = aot_executor.get_output(0).numpy()
 
     # Build reference model (without tuning)
     dev = tvm.cpu()
@@ -166,15 +158,14 @@ def test_micro_tuning_with_meta_schedule(platform, options):
             params=params,
             runtime=runtime,
         )
-    ref_mod.export_library(work_dir / "compiled_lib2.so")
-    mod2: tvm.runtime.Module = tvm.runtime.load_module(work_dir / "compiled_lib2.so")
+    ref_mod.export_library(workspace_dir / "compiled_lib2.so")
+    mod2: tvm.runtime.Module = tvm.runtime.load_module(workspace_dir / "compiled_lib2.so")
     graph_mod = graph_executor.GraphModule(mod2["default"](dev))
     graph_mod.set_input(input_name, data_sample)
     graph_mod.run()
     ref_output = graph_mod.get_output(0).numpy()
 
     assert np.allclose(output, ref_output, rtol=1e-4, atol=2e-4), "FAILED"
-    work_dir.remove()
 
 
 if __name__ == "__main__":

@@ -105,7 +105,6 @@ Array<Postproc> Postproc::DefaultMicro() {
       Postproc::DisallowDynamicLoop(),
       Postproc::RewriteParallelVectorizeUnroll(),
       Postproc::RewriteReductionBlock(),
-      Postproc::RewriteLayout(),
   };
 }
 
