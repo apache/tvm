@@ -18,7 +18,7 @@
 import numpy as np
 import tvm
 import tvm.testing
-from tvm import te, tir, topi
+from tvm import te, tir, topi, relay
 from tvm.script import tir as T
 import pytest
 
@@ -634,6 +634,59 @@ def tir_reshape(
 
 def test_reshape():
     _check_workload(te_reshape, tir_reshape, index_dtype_override="int64")
+
+
+@T.prim_func
+def argmax_expected(
+    p0: T.Buffer[(T.int64(1), T.int64(64), T.int64(56), T.int64(56)), "uint8"],
+    p0_red: T.Buffer[(T.int64(1), T.int64(56), T.int64(56)), "int32"],
+):
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    p0_red_temp_v0 = T.alloc_buffer([T.int64(1), T.int64(56), T.int64(56)], dtype="int32")
+    p0_red_temp_v1 = T.alloc_buffer([T.int64(1), T.int64(56), T.int64(56)], dtype="uint8")
+    for ax0, ax1, ax2, k1 in T.grid(T.int64(1), T.int64(56), T.int64(56), T.int64(64)):
+        with T.block("p0_red_temp"):
+            v_ax0, v_ax1, v_ax2, v_k1 = T.axis.remap("SSSR", [ax0, ax1, ax2, k1])
+            T.reads(p0[v_ax0, v_k1, v_ax1, v_ax2])
+            T.writes(p0_red_temp_v0[v_ax0, v_ax1, v_ax2], p0_red_temp_v1[v_ax0, v_ax1, v_ax2])
+            with T.init():
+                p0_red_temp_v0[v_ax0, v_ax1, v_ax2] = -1
+                p0_red_temp_v1[v_ax0, v_ax1, v_ax2] = T.uint8(0)
+            v_p0_red_temp_v0: T.int64 = T.Select(
+                p0_red_temp_v1[v_ax0, v_ax1, v_ax2] > p0[v_ax0, v_k1, v_ax1, v_ax2]
+                or (
+                    p0_red_temp_v1[v_ax0, v_ax1, v_ax2] == p0[v_ax0, v_k1, v_ax1, v_ax2]
+                    and T.Cast("int64", p0_red_temp_v0[v_ax0, v_ax1, v_ax2]) < v_k1
+                ),
+                T.Cast("int64", p0_red_temp_v0[v_ax0, v_ax1, v_ax2]),
+                v_k1,
+            )
+            v_p0_red_temp_v1: T.uint8 = T.Select(
+                p0_red_temp_v1[v_ax0, v_ax1, v_ax2] > p0[v_ax0, v_k1, v_ax1, v_ax2],
+                p0_red_temp_v1[v_ax0, v_ax1, v_ax2],
+                p0[v_ax0, v_k1, v_ax1, v_ax2],
+            )
+            p0_red_temp_v0[v_ax0, v_ax1, v_ax2] = T.Cast("int32", v_p0_red_temp_v0)
+            p0_red_temp_v1[v_ax0, v_ax1, v_ax2] = v_p0_red_temp_v1
+    for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(56), T.int64(56)):
+        with T.block("p0_red"):
+            v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+            T.reads(p0_red_temp_v0[v_ax0, v_ax1, v_ax2])
+            T.writes(p0_red[v_ax0, v_ax1, v_ax2])
+            p0_red[v_ax0, v_ax1, v_ax2] = p0_red_temp_v0[v_ax0, v_ax1, v_ax2]
+
+
+def test_argmax():
+    data = relay.var("data", shape=(1, 64, 56, 56), dtype="uint8")
+    mod = tvm.IRModule.from_expr(relay.argmax(data, axis=1))
+
+    target = tvm.target.Target("llvm")
+
+    opt_mod, _ = relay.optimize(mod, params={}, target=target)
+
+    prim_func = relay.backend.te_compiler.lower_to_primfunc(opt_mod["main"].body.op, target)
+
+    tvm.ir.assert_structural_equal(prim_func, argmax_expected)
 
 
 if __name__ == "__main__":
