@@ -27,6 +27,7 @@ from .cross_thread_reduction import CrossThreadReduction
 from .multi_level_tiling import (
     MultiLevelTiling,
     MultiLevelTilingTensorCore,
+    MultiLevelTilingHexagon,
     MultiLevelTilingWideVector,
     MultiLevelTilingWithIntrin,
     ReuseType,

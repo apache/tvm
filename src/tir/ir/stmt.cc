@@ -672,6 +672,10 @@ BlockRealize::BlockRealize(Array<PrimExpr> values, PrimExpr predicate, Block blo
       << "ValueError: BlockRealize needs to have the same number of iter_vars and binding values";
   CHECK(predicate.dtype().is_bool()) << "TypeError: Expect Block.predicate to be a bool expression";
   ObjectPtr<BlockRealizeNode> node = make_object<BlockRealizeNode>();
+  for (size_t i = 0; i < values.size(); ++i) {
+    ICHECK(block->iter_vars[i]->var.dtype() == values[i].dtype());
+  }
+
   node->iter_values = std::move(values);
   node->predicate = std::move(predicate);
   node->block = std::move(block);

@@ -197,6 +197,60 @@ class MultiLevelTilingTensorCore(ScheduleRule):
         )
 
 
+@register_object("meta_schedule.MultiLevelTilingHexagon")
+class MultiLevelTilingHexagon(ScheduleRule):
+    """Extension of MultiLevelTiling for auto-tensorizing with multiple groups of candidate hexagon
+    intrinsics.
+
+    Parameters
+    ----------
+    intrin_groups : List[Mapping[str, str]]
+        A list of groups of tensor core intrinsics. The map should contain key
+        "compute" which represents the tensor intrin for computation. The value of the map should be
+        names of tensor intrinsics, must be registered via
+        TensorIntrin.register(...) beforehand
+    structure : str
+        The tiling structure. Recommended:
+        - 'SRSRS' on Hexagon
+    tile_bind : Optional[List[str]]
+        For each level of tiles, which thread axis it is bound to. Not supported on Hexagon.
+    max_innermost_factor : Optional[int]
+        The maximum size of the innermost factor. None means no limit
+    vector_load_lens : Optional[List[int]]
+        The length of vector lane in vectorized cooperative fetching.
+        None means disable vectorization
+    reuse_read : Optional[ReuseType]
+        Data reuse configuration for reading. None means no reuse.
+    reuse_write : Optional[ReuseType]
+        Data reuse configuration for writing. None means no reuse.
+    use_software_pipeline : bool
+        Whether to use the software pipeline.
+    """
+
+    def __init__(
+        self,
+        intrin_groups: List[Mapping[str, str]],
+        structure: str,
+        tile_binds: Optional[List[str]] = None,
+        max_innermost_factor: Optional[int] = None,
+        vector_load_lens: Optional[List[int]] = None,
+        reuse_read: Optional[ReuseType] = None,
+        reuse_write: Optional[ReuseType] = None,
+        use_software_pipeline: bool = False,
+    ) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.ScheduleRuleMultiLevelTilingHexagon,  # type: ignore # pylint: disable=no-member
+            intrin_groups,
+            structure,
+            tile_binds,
+            max_innermost_factor,
+            vector_load_lens,
+            reuse_read.as_dict() if reuse_read is not None else None,
+            reuse_write.as_dict() if reuse_write is not None else None,
+            use_software_pipeline,
+        )
+
+
 @register_object("meta_schedule.MultiLevelTilingWideVector")
 class MultiLevelTilingWideVector(ScheduleRule):
     """Extension of MultiLevelTiling for backends with wide vectors. The loop over the innermost

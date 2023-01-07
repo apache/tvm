@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name,missing-function-docstring
 """Intrinsics for Hexagon tensorization."""
+
 from tvm.script import tir as T
 from .. import TensorIntrin
 
@@ -68,12 +69,12 @@ def generate_dma_load_intrin(
     return sync_dma_load_desc, sync_dma_load_impl
 
 
-def generate_dot_product_32x4_u8u8i32(mem_scope="global"):
+def generate_dot_product_32x4_u8u8i32(read_mem_scope="global", write_mem_scope="global"):
     @T.prim_func
     def dot_product_32x4_u8u8i32_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (4,), "uint8", offset_factor=1, scope=mem_scope)
-        B = T.match_buffer(b, (32, 4), "uint8", offset_factor=1, scope=mem_scope)
-        C = T.match_buffer(c, (32,), "int32", offset_factor=1, scope=mem_scope)
+        A = T.match_buffer(a, (4,), "uint8", offset_factor=1, scope=read_mem_scope)
+        B = T.match_buffer(b, (32, 4), "uint8", offset_factor=1, scope=read_mem_scope)
+        C = T.match_buffer(c, (32,), "int32", offset_factor=1, scope=write_mem_scope)
         with T.block("root"):
             T.reads(C[0:32], A[0:4], B[0:32, 0:4])
             T.writes(C[0:32])
@@ -85,9 +86,9 @@ def generate_dot_product_32x4_u8u8i32(mem_scope="global"):
 
     @T.prim_func
     def dot_product_32x4_u8u8i32_vrmpy(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (4,), "uint8", offset_factor=1, scope=mem_scope)
-        B = T.match_buffer(b, (32, 4), "uint8", offset_factor=1, scope=mem_scope)
-        C = T.match_buffer(c, (32,), "int32", offset_factor=1, scope=mem_scope)
+        A = T.match_buffer(a, (4,), "uint8", offset_factor=1, scope=read_mem_scope)
+        B = T.match_buffer(b, (32, 4), "uint8", offset_factor=1, scope=read_mem_scope)
+        C = T.match_buffer(c, (32,), "int32", offset_factor=1, scope=write_mem_scope)
         with T.block("root"):
             T.reads(C[0:32], A[0:4], B[0:32, 0:4])
             T.writes(C[0:32])
@@ -110,12 +111,12 @@ def generate_dot_product_32x4_u8u8i32(mem_scope="global"):
     return dot_product_32x4_u8u8i32_desc, dot_product_32x4_u8u8i32_vrmpy
 
 
-def generate_dot_product_32x4_u8i8i32(mem_scope="global"):
+def generate_dot_product_32x4_u8i8i32(read_mem_scope="global", write_mem_scope="global"):
     @T.prim_func
     def dot_product_32x4_u8i8i32_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (4,), "uint8", offset_factor=1, scope=mem_scope)
-        B = T.match_buffer(b, (32, 4), "int8", offset_factor=1, scope=mem_scope)
-        C = T.match_buffer(c, (32,), "int32", offset_factor=1, scope=mem_scope)
+        A = T.match_buffer(a, (4,), "uint8", offset_factor=1, scope=read_mem_scope)
+        B = T.match_buffer(b, (32, 4), "int8", offset_factor=1, scope=read_mem_scope)
+        C = T.match_buffer(c, (32,), "int32", offset_factor=1, scope=write_mem_scope)
         with T.block("root"):
             T.reads(C[0:32], A[0:4], B[0:32, 0:4])
             T.writes(C[0:32])
@@ -127,9 +128,9 @@ def generate_dot_product_32x4_u8i8i32(mem_scope="global"):
 
     @T.prim_func
     def dot_product_32x4_u8i8i32_vrmpy(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (4,), "uint8", offset_factor=1, scope=mem_scope)
-        B = T.match_buffer(b, (32, 4), "int8", offset_factor=1, scope=mem_scope)
-        C = T.match_buffer(c, (32,), "int32", offset_factor=1, scope=mem_scope)
+        A = T.match_buffer(a, (4,), "uint8", offset_factor=1, scope=read_mem_scope)
+        B = T.match_buffer(b, (32, 4), "int8", offset_factor=1, scope=read_mem_scope)
+        C = T.match_buffer(c, (32,), "int32", offset_factor=1, scope=write_mem_scope)
         with T.block("root"):
             T.reads(C[0:32], A[0:4], B[0:32, 0:4])
             T.writes(C[0:32])
@@ -152,12 +153,12 @@ def generate_dot_product_32x4_u8i8i32(mem_scope="global"):
     return dot_product_32x4_u8i8i32_desc, dot_product_32x4_u8i8i32_vrmpy
 
 
-def generate_dot_product_32x2_i16i16i32(mem_scope="global"):
+def generate_dot_product_32x2_i16i16i32(read_mem_scope="global", write_mem_scope="global"):
     @T.prim_func
     def dot_product_32x2_i16i16i32_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (2,), "int16", offset_factor=1, scope=mem_scope)
-        B = T.match_buffer(b, (32, 2), "int16", offset_factor=1, scope=mem_scope)
-        C = T.match_buffer(c, (32,), "int32", offset_factor=1, scope=mem_scope)
+        A = T.match_buffer(a, (2,), "int16", offset_factor=1, scope=read_mem_scope)
+        B = T.match_buffer(b, (32, 2), "int16", offset_factor=1, scope=read_mem_scope)
+        C = T.match_buffer(c, (32,), "int32", offset_factor=1, scope=write_mem_scope)
         with T.block("root"):
             T.reads(C[0:32], A[0:2], B[0:32, 0:2])
             T.writes(C[0:32])
@@ -169,9 +170,9 @@ def generate_dot_product_32x2_i16i16i32(mem_scope="global"):
 
     @T.prim_func
     def dot_product_32x2_i16i16i32_vdmpy(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (2,), "int16", offset_factor=1, scope=mem_scope)
-        B = T.match_buffer(b, (32, 2), "int16", offset_factor=1, scope=mem_scope)
-        C = T.match_buffer(c, (32,), "int32", offset_factor=1, scope=mem_scope)
+        A = T.match_buffer(a, (2,), "int16", offset_factor=1, scope=read_mem_scope)
+        B = T.match_buffer(b, (32, 2), "int16", offset_factor=1, scope=read_mem_scope)
+        C = T.match_buffer(c, (32,), "int32", offset_factor=1, scope=write_mem_scope)
         with T.block("root"):
             T.reads(C[0:32], A[0:2], B[0:32, 0:2])
             T.writes(C[0:32])
@@ -207,10 +208,22 @@ VDMPY_i16i16i32_INTRIN = "dot_product_32x2_i16i16i32_vdmpy"
 TensorIntrin.register(VDMPY_i16i16i32_INTRIN, *generate_dot_product_32x2_i16i16i32())
 
 VRMPY_u8u8i32_VTCM_INTRIN = "dot_32x4_u8u8i32_vtcm_vrmpy"
-TensorIntrin.register(VRMPY_u8u8i32_VTCM_INTRIN, *generate_dot_product_32x4_u8u8i32("global.vtcm"))
+TensorIntrin.register(
+    VRMPY_u8u8i32_VTCM_INTRIN,
+    *generate_dot_product_32x4_u8u8i32("global.vtcm", "global.vtcm"),
+)
+
+VRMPY_u8u8i32_VTCM_READS_INTRIN = "dot_32x4_u8u8i32_vtcm_reads_vrmpy"
+TensorIntrin.register(
+    VRMPY_u8u8i32_VTCM_READS_INTRIN,
+    *generate_dot_product_32x4_u8u8i32("global.vtcm", "global"),
+)
 
 VRMPY_u8i8i32_VTCM_INTRIN = "dot_32x4_u8i8i32_vtcm_vrmpy"
-TensorIntrin.register(VRMPY_u8i8i32_VTCM_INTRIN, *generate_dot_product_32x4_u8i8i32("global.vtcm"))
+TensorIntrin.register(
+    VRMPY_u8i8i32_VTCM_INTRIN,
+    *generate_dot_product_32x4_u8i8i32("global.vtcm", "global.vtcm"),
+)
 
 DMA_READ_128_u8 = "dma_read_128_u8"
 TensorIntrin.register(DMA_READ_128_u8, *generate_dma_load_intrin(128, "uint8"))
