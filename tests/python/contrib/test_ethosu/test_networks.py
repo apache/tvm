@@ -199,4 +199,4 @@ def test_networks_with_usmp_and_cascader_with_striping(accel_type, model_url, wo
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

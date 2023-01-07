@@ -911,4 +911,4 @@ def test_extern_concat_injective_fuse():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

@@ -1499,4 +1499,4 @@ def test_translate_ethosu_binary_elementwise_broadcasting(operator_type):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()
