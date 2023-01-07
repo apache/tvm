@@ -2174,7 +2174,6 @@ def _test_conv2d_int8_alter_dtype(data_dtype, target, dot_product_instrs):
             y_dtype = "int32"
             y_proto_type = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(y_dtype)]
 
-
             input_nodes = [
                 helper.make_tensor_value_info("x", x_proto_type, list(x_shape)),
                 helper.make_tensor_value_info("w", w_proto_type, list(w_shape)),
