@@ -22,21 +22,19 @@ Compile MXNet Models
 **Author**: `Joshua Z. Zhang <https://zhreshold.github.io/>`_, \
             `Kazutaka Morita <https://github.com/kazum>`_
 
-This article is an introductory tutorial to deploy mxnet models with Relay.
-
-For us to begin with, mxnet module is required to be installed.
-
-A quick solution is
+This article is an introductory tutorial to deploy mxnet models with Relay. To begin, we must install `mxnet`:
 
 .. code-block:: bash
 
-    pip install mxnet --user
+    %%shell
+    pip install mxnet
 
 or please refer to official installation guide.
 https://mxnet.apache.org/versions/master/install/index.html
 """
 
 # sphinx_gallery_start_ignore
+# sphinx_gallery_requires_cuda = True
 from tvm import testing
 
 testing.utils.install_request_hook(depth=3)

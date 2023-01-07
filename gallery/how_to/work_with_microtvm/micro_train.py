@@ -27,17 +27,6 @@ deployed to Arduino using TVM.
 """
 
 ######################################################################
-# .. note::
-#
-#   This tutorial is best viewed as a Jupyter Notebook. You can download and run it locally
-#   using the link at the bottom of this page, or open it online for free using Google Colab.
-#   Click the icon below to open in Google Colab.
-#
-# .. image:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/utilities/colab_button.png
-#      :align: center
-#      :target: https://colab.research.google.com/github/apache/tvm-site/blob/asf-site/docs/_downloads/a7c7ea4b5017ae70db1f51dd8e6dcd82/micro_train.ipynb
-#      :width: 300px
-#
 # Motivation
 # ----------
 # When building IOT devices, we often want them to **see and understand** the world around them.
@@ -71,7 +60,7 @@ deployed to Arduino using TVM.
 #
 #     .. code-block:: bash
 #
-#       %%bash
+#       %%shell
 #       pip install -q tensorflow tflite
 #       pip install -q tlcpack-nightly -f https://tlcpack.ai/wheels
 #       apt-get -qq install imagemagick curl
@@ -515,7 +504,7 @@ arduino_project = tvm.micro.generate_project(
 #
 #     .. code-block:: bash
 #
-#       %%bash
+#       %%shell
 #       mkdir -p ~/tests
 #       curl "https://i.imgur.com/JBbEhxN.png" -o ~/tests/car_224.png
 #       convert ~/tests/car_224.png -resize 64 ~/tests/car_64.png
