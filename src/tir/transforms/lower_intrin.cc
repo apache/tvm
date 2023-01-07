@@ -112,20 +112,31 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // Common path, positive divisor
       if (analyzer_->CanProveGreaterEqual(op->a, 0) || analyzer_->CanProveGreaterEqual(e, 0)) {
         return truncdiv(op->a, op->b);
-      } else {
-        DLOG(INFO) << "LowerFloorDiv: Cannot decide the sign of divident";
-        PrimExpr rdiv = truncdiv(op->a, op->b);
-        PrimExpr rmod = truncmod(op->a, op->b);
-        // condition on b >= 0.
-        // truncmod(a, b) < 0 will implies ceildiv,
-        // So we need to correct these cases.
-        if ((dtype == DataType::Int(32) || dtype == DataType::Int(64)) && support_bitwise_op_) {
-          // equivalent to rdiv + (rmod >= 0 ? 0: -1);
-          return rdiv + (rmod >> make_const(dtype, dtype.bits() - 1));
-        } else {
-          return tir::Select(rmod >= 0, rdiv, rdiv - make_const(dtype, 1));
-        }
       }
+
+      // If the numerator's lower bound is known, express the floordiv
+      // in terms of truncdiv using only positive operands.
+      arith::ConstIntBound const_int_bound = analyzer_->const_int_bound(op->a);
+      if (const_int_bound->min_value != arith::ConstIntBound::kNegInf &&
+          const_int_bound->min_value < 0) {
+        IntImm min(op->a->dtype, const_int_bound->min_value);
+        PrimExpr ceildiv = truncdiv(-min + (op->b - 1), op->b);
+        return truncdiv(op->a + op->b * ceildiv, op->b) - ceildiv;
+      }
+
+      DLOG(INFO) << "LowerFloorDiv: Cannot decide the sign of divident";
+      PrimExpr rdiv = truncdiv(op->a, op->b);
+      PrimExpr rmod = truncmod(op->a, op->b);
+      // condition on b >= 0.
+      // truncmod(a, b) < 0 will implies ceildiv,
+      // So we need to correct these cases.
+      if ((dtype == DataType::Int(32) || dtype == DataType::Int(64)) && support_bitwise_op_) {
+        // equivalent to rdiv + (rmod >= 0 ? 0: -1);
+        return rdiv + (rmod >> make_const(dtype, dtype.bits() - 1));
+      } else {
+        return tir::Select(rmod >= 0, rdiv, rdiv - make_const(dtype, 1));
+      }
+
     } else {
       if (dtype.is_float()) {
         // floor(a / b)
@@ -165,21 +176,32 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // Common pass, positive divisor
       if (analyzer_->CanProveGreaterEqual(op->a, 0)) {
         return truncmod(op->a, op->b);
-      } else {
-        DLOG(INFO) << "LowerFloorMod: Cannot decide the sign of divident";
-        // NOTE:condition on b >= 0.
-        // mod(a, b) < 0 will imply we are doing ceildiv,
-        // So we need to correct these cases.
-        PrimExpr rmod = truncmod(op->a, op->b);
-        if ((dtype == DataType::Int(32) || dtype == DataType::Int(64)) && support_bitwise_op_) {
-          // (rmod >> shift) & b
-          // -> (rmod >= 0 ? 0: -1) & b
-          // -> rmod >= 0 ? 0 : b
-          return rmod + (op->b & (rmod >> make_const(dtype, dtype.bits() - 1)));
-        } else {
-          return tir::Select(rmod >= 0, rmod, rmod + op->b);
-        }
       }
+
+      // If the numerator's lower bound is known, express the floormod
+      // in terms of truncmod using only positive operands.
+      arith::ConstIntBound const_int_bound = analyzer_->const_int_bound(op->a);
+      if (const_int_bound->min_value != arith::ConstIntBound::kNegInf &&
+          const_int_bound->min_value < 0) {
+        IntImm min(op->a->dtype, const_int_bound->min_value);
+        PrimExpr ceildiv = truncdiv(-min + (op->b - 1), op->b);
+        return truncmod(op->a + op->b * ceildiv, op->b);
+      }
+
+      DLOG(INFO) << "LowerFloorMod: Cannot decide the sign of divident";
+      // NOTE:condition on b >= 0.
+      // mod(a, b) < 0 will imply we are doing ceildiv,
+      // So we need to correct these cases.
+      PrimExpr rmod = truncmod(op->a, op->b);
+      if ((dtype == DataType::Int(32) || dtype == DataType::Int(64)) && support_bitwise_op_) {
+        // (rmod >> shift) & b
+        // -> (rmod >= 0 ? 0: -1) & b
+        // -> rmod >= 0 ? 0 : b
+        return rmod + (op->b & (rmod >> make_const(dtype, dtype.bits() - 1)));
+      } else {
+        return tir::Select(rmod >= 0, rmod, rmod + op->b);
+      }
+
     } else {
       if (dtype.is_float()) {
         // a - floor(a / b) * b
