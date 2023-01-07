@@ -53,6 +53,8 @@ class DataTypeLegalizer : public StmtExprMutator {
   Stmt VisitStmt_(const AttrStmtNode* op) override;
   Stmt VisitStmt_(const BlockRealizeNode* op) override;
   Stmt VisitStmt_(const BlockNode* op) override;
+  Stmt VisitStmt_(const LetStmtNode* op) override;
+  PrimExpr VisitExpr_(const VarNode* op) override;
   PrimExpr VisitExpr_(const SelectNode* op) override;
   PrimExpr VisitExpr_(const RampNode* op) override;
   PrimExpr VisitExpr_(const AddNode* op) override;
@@ -79,6 +81,8 @@ class DataTypeLegalizer : public StmtExprMutator {
   // a map from IterVar before rewrite to that after rewrite,
   // ensures one old IterVar maps to exactly one new IterVar
   std::unordered_map<const IterVarNode*, IterVar> ivmap_;
+  // a map from original vars to ones with new dtype
+  std::unordered_map<const VarNode*, Var> var_remap_;
 };
 
 /*!
@@ -123,7 +127,6 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
   // indicator of condition
   bool is_condition_{false};
 
-  Map<Var, Var> var_remap_;
   Map<Buffer, Buffer> buffer_remap_;
 };
 
