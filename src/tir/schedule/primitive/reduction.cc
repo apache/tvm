@@ -1178,7 +1178,9 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   const Block& block = block_realize->block;
   StmtSRef scope_root = GetScopeRoot(self, block_sref,  //
                                      /*require_stage_pipeline=*/true);
-  CheckReductionBlock(self, block_sref, scope_root);
+  if (self->enable_check) {
+    CheckReductionBlock(self, block_sref, scope_root);
+  }
   const ForNode* rf_loop = TVM_SREF_TO_FOR(rf_loop_sref);
   if (rf_loop->kind != ForKind::kSerial) {
     throw NotSerialLoopKindError(self->mod, GetRef<For>(rf_loop));
@@ -1201,8 +1203,10 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   // - the outermost loop should have the reduction block as its first child block;
   // - the outermost loop that is touched by some reduction block iters can only have one child
   // block.
-  LoopPropertyError::CheckLoopProperty(self, loops, rf_loop, block, data_par_loop_vars,
-                                       reduce_loop_vars);
+  if (self->enable_check) {
+    LoopPropertyError::CheckLoopProperty(self, loops, rf_loop, block, data_par_loop_vars,
+                                        reduce_loop_vars);
+  }
 
   // Step 5. Get the `init` identity and the `update` combiner of the reduction. Extract the
   // commutative reducer, combiner lhs and combiner rhs from the reduction identity and the
