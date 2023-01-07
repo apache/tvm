@@ -782,4 +782,4 @@ def test_static_tensor_get_data():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

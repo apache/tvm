@@ -349,4 +349,4 @@ def test_lower_warp_memory_divide_by_factor():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

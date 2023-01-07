@@ -51,4 +51,4 @@ def test_no_anchor_block():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

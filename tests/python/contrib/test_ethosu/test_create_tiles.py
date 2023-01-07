@@ -167,4 +167,4 @@ def test_create_tiles_multiple_var_occurrences():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

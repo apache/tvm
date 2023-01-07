@@ -818,4 +818,4 @@ def test_conv2d_big_pad():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

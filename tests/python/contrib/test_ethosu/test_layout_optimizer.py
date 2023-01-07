@@ -737,4 +737,4 @@ def test_layout_optimizer_runs_in_compilation_pipeline():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__] + sys.argv[1:])
+    tvm.testing.main()
