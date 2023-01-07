@@ -27,8 +27,8 @@ A quick solution is to install via pip
 
 .. code-block:: bash
 
-    pip install torch==1.7.0
-    pip install torchvision==0.8.1
+    pip install torch
+    pip install torchvision
 
 or please refer to official site
 https://pytorch.org/get-started/locally/
