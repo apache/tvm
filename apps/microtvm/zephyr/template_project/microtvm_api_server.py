@@ -448,6 +448,7 @@ class Handler(server.ProjectAPIHandler):
     CRT_LIBS_BY_PROJECT_TYPE = {
         "host_driven": "microtvm_rpc_server microtvm_rpc_common aot_executor_module aot_executor common",
         "aot_standalone_demo": "memory microtvm_rpc_common common",
+        "mlperftiny": "memory common",
     }
 
     def _get_platform_version(self, zephyr_base: str) -> float:
@@ -623,7 +624,13 @@ class Handler(server.ProjectAPIHandler):
                 if compile_definitions:
                     flags = compile_definitions
                     for item in flags:
-                        cmake_f.write(f"target_compile_definitions(app PUBLIC {item})\n")
+                        if "MAX_DB_INPUT_SIZE" in item or "TH_MODEL_VERSION" in item:
+                            compile_target = "tinymlperf_api"
+                        else:
+                            compile_target = "app"
+                        cmake_f.write(
+                            f"target_compile_definitions({compile_target} PUBLIC {item})\n"
+                        )
 
                 if self._is_fvp(zephyr_board, use_fvp):
                     cmake_f.write(f"target_compile_definitions(app PUBLIC -DFVP=1)\n")

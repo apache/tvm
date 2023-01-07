@@ -23,6 +23,8 @@ set(ENV{QEMU_BIN_PATH} "${CMAKE_SOURCE_DIR}/qemu-hack")
 
 set(QEMU_PIPE <QEMU_PIPE> CACHE PATH "Path to QEMU pipe")
 
+option(ENERGY_MODE "Enable energy mode for MLPerfTiny tests." 0)
+
 <CMAKE_ARGS>
 
 find_package(Zephyr HINTS $ENV{ZEPHYR_BASE})
@@ -70,6 +72,15 @@ target_include_directories(tvm_model PRIVATE ${CMAKE_SOURCE_DIR}/include crt_con
 target_compile_options(tvm_model PRIVATE -Wno-unused-variable)  # TVM-generated code tends to include lots of these.
 target_link_libraries(app PRIVATE tvm_model)
 
-file(GLOB_RECURSE app_srcs src/**.c)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/api)
+  zephyr_library_named(tinymlperf_api)
+  file(GLOB_RECURSE tiny_internal_srcs src/api/*.cpp)
+  target_sources(tinymlperf_api PRIVATE ${tiny_internal_srcs})
+  target_compile_options(tinymlperf_api PRIVATE -Wno-unused-variable)  # TVM-generated code tends to include lots of these.
+  target_link_libraries(app PRIVATE tinymlperf_api)
+  target_compile_definitions(tinymlperf_api PUBLIC -DEE_CFG_ENERGY_MODE=${ENERGY_MODE})
+endif()
+
+file(GLOB_RECURSE app_srcs src/**.c src/**.cc)
 target_sources(app PRIVATE ${app_srcs} ${cmsis_lib_srcs})
 target_include_directories(app PRIVATE crt_config ${CMAKE_SOURCE_DIR}/include crt/include ${cmsis_includes})
