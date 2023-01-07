@@ -1045,4 +1045,4 @@ def test_try_unaligned_vector_load():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()
