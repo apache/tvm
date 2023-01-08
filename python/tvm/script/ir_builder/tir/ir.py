@@ -27,6 +27,7 @@ from typing_extensions import Literal
 # isort: on
 
 import numpy as np  # type: ignore
+
 from tvm.ir import Range, Type
 from tvm.runtime import convert, ndarray
 from tvm.target import Target
@@ -508,7 +509,9 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def spatial(
-        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]], binding: PrimExpr, dtype: str = "int32"
+        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]],
+        binding: PrimExpr,
+        dtype: str = "int32",
     ) -> Var:
         """The spatial block axis defining function.
 
@@ -534,7 +537,9 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def reduce(
-        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]], binding: PrimExpr, dtype: str = "int32"
+        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]],
+        binding: PrimExpr,
+        dtype: str = "int32",
     ) -> Var:
         """The reduced block axis defining function.
 
@@ -560,7 +565,9 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def scan(
-        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]], binding: PrimExpr, dtype: str = "int32"
+        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]],
+        binding: PrimExpr,
+        dtype: str = "int32",
     ) -> Var:
         """The scanning block axis defining function.
 
@@ -586,7 +593,9 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def opaque(
-        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]], binding: PrimExpr, dtype: str = "int32"
+        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]],
+        binding: PrimExpr,
+        dtype: str = "int32",
     ) -> Var:
         """The opaque block axis defining function.
 
@@ -1534,6 +1543,30 @@ def target(target_config: Union[Dict, str]) -> Target:
     return Target(target_config)
 
 
+class meta_var:  # pylint: disable=invalid-name
+    """A meta variable used in TVMScript metaprogramming. It means that the value of the variable
+    does not appear in the final TIR, but only stays in the parser.
+
+    Parameters
+    ----------
+    value: Any
+        The meta variable.
+    """
+
+    def __init__(self, value: Any) -> None:
+        self.value = value
+
+    def __iter__(self):
+        def f():
+            for i in self.value:
+                yield meta_var(i)
+
+        return f()
+
+
+# pylint: disable=invalid-name
+
+
 def _op_wrapper(func):
     @functools.wraps(func)
     def wrapped(*args, **kwargs):
@@ -1544,24 +1577,7 @@ def _op_wrapper(func):
     return wrapped
 
 
-def _dtype_forward(func):
-    @functools.wraps(func)
-    def wrapped(*args, **kwargs):
-        if "dtype" in kwargs:
-            args = (kwargs.pop("dtype"),) + args
-        return func(*args, **kwargs)
-
-    return wrapped
-
-
-# pylint: disable=invalid-name
-
-broadcast = Broadcast
-ramp = Ramp
-
-buffer_var = ptr
 abs = _op_wrapper(_tir_op.abs)  # pylint: disable=redefined-builtin
-fabs = abs
 acos = _op_wrapper(_tir_op.acos)
 acosh = _op_wrapper(_tir_op.acosh)
 address_of = _op_wrapper(_tir_op.address_of)
@@ -1607,7 +1623,6 @@ pow = _op_wrapper(_tir_op.pow)  # pylint: disable=redefined-builtin
 q_multiply_shift = _op_wrapper(_tir_op.q_multiply_shift)
 q_multiply_shift_per_axis = _op_wrapper(_tir_op.q_multiply_shift_per_axis)
 ret = _op_wrapper(_tir_op.ret)
-reinterpret = _dtype_forward(_tir_op.reinterpret)
 round = _op_wrapper(_tir_op.round)  # pylint: disable=redefined-builtin
 rsqrt = _op_wrapper(_tir_op.rsqrt)
 shift_left = _op_wrapper(_tir_op.shift_left)
@@ -1631,11 +1646,6 @@ call_packed = _op_wrapper(_tir_op.call_packed)
 call_cpacked = _op_wrapper(_tir_op.call_cpacked)
 call_packed_lowered = _op_wrapper(_tir_op.call_packed_lowered)
 call_cpacked_lowered = _op_wrapper(_tir_op.call_cpacked_lowered)
-call_extern = _dtype_forward(_tir_op.call_extern)
-call_intrin = _dtype_forward(_tir_op.call_intrin)
-call_llvm_intrin = _dtype_forward(_tir_op.call_llvm_intrin)
-call_llvm_pure_intrin = _dtype_forward(_tir_op.call_llvm_pure_intrin)
-call_pure_extern = _dtype_forward(_tir_op.call_pure_extern)
 tvm_tuple = _op_wrapper(_tir_op.tvm_tuple)
 tvm_struct_set = _op_wrapper(_tir_op.tvm_struct_set)
 tvm_struct_get = _tir_op.tvm_struct_get
@@ -1645,48 +1655,51 @@ tvm_mma_sync = _op_wrapper(_tir_op.tvm_mma_sync)
 tvm_bmma_sync = _op_wrapper(_tir_op.tvm_bmma_sync)
 tvm_fill_fragment = _op_wrapper(_tir_op.tvm_fill_fragment)
 tvm_store_matrix_sync = _op_wrapper(_tir_op.tvm_store_matrix_sync)
-ptx_mma = _dtype_forward(_tir_op.ptx_mma)
-ptx_mma_sp = _dtype_forward(_tir_op.ptx_mma_sp)
-ptx_ldmatrix = _dtype_forward(_tir_op.ptx_ldmatrix)
-ptx_cp_async = _dtype_forward(_tir_op.ptx_cp_async)
 ptx_wait_group = _op_wrapper(_tir_op.ptx_wait_group)
 ptx_commit_group = _op_wrapper(_tir_op.ptx_commit_group)
-mma_store = _dtype_forward(_tir_op.mma_store)
-mma_fill = _dtype_forward(_tir_op.mma_fill)
-vectorlow = _dtype_forward(_tir_op.vectorlow)
-vectorhigh = _dtype_forward(_tir_op.vectorhigh)
-vectorcombine = _dtype_forward(_tir_op.vectorcombine)
 assume = _op_wrapper(_tir_op.assume)
 undef = _op_wrapper(_tir_op.undef)
-tvm_call_packed = call_packed
-tvm_call_cpacked = call_cpacked
-tvm_call_packed_lowered = call_packed_lowered
-tvm_call_cpacked_lowered = call_cpacked_lowered
 TVMBackendAllocWorkspace = _op_wrapper(_tir_op.TVMBackendAllocWorkspace)
 TVMBackendFreeWorkspace = _op_wrapper(_tir_op.TVMBackendFreeWorkspace)
 start_profile_intrinsic = _op_wrapper(_tir_op.start_profile_intrinsic)
 end_profile_intrinsic = _op_wrapper(_tir_op.end_profile_intrinsic)
 
 
-class meta_var:
-    """A meta variable used in TVMScript metaprogramming. It means that the value of the variable
-    does not appear in the final TIR, but only stays in the parser.
+def _dtype_forward(func):
+    @functools.wraps(func)
+    def wrapped(*args, **kwargs):
+        if "dtype" in kwargs:
+            args = (kwargs.pop("dtype"),) + args
+        return func(*args, **kwargs)
 
-    Parameters
-    ----------
-    value: Any
-        The meta variable.
-    """
+    return wrapped
 
-    def __init__(self, value: Any) -> None:
-        self.value = value
 
-    def __iter__(self):
-        def f():
-            for i in self.value:
-                yield meta_var(i)
+reinterpret = _dtype_forward(_tir_op.reinterpret)
+call_extern = _dtype_forward(_tir_op.call_extern)
+call_intrin = _dtype_forward(_tir_op.call_intrin)
+call_llvm_intrin = _dtype_forward(_tir_op.call_llvm_intrin)
+call_llvm_pure_intrin = _dtype_forward(_tir_op.call_llvm_pure_intrin)
+call_pure_extern = _dtype_forward(_tir_op.call_pure_extern)
+ptx_mma = _dtype_forward(_tir_op.ptx_mma)
+ptx_mma_sp = _dtype_forward(_tir_op.ptx_mma_sp)
+ptx_ldmatrix = _dtype_forward(_tir_op.ptx_ldmatrix)
+ptx_cp_async = _dtype_forward(_tir_op.ptx_cp_async)
+mma_store = _dtype_forward(_tir_op.mma_store)
+mma_fill = _dtype_forward(_tir_op.mma_fill)
+vectorlow = _dtype_forward(_tir_op.vectorlow)
+vectorhigh = _dtype_forward(_tir_op.vectorhigh)
+vectorcombine = _dtype_forward(_tir_op.vectorcombine)
 
-        return f()
+
+broadcast = Broadcast
+ramp = Ramp
+buffer_var = ptr
+fabs = abs
+tvm_call_packed = call_packed
+tvm_call_cpacked = call_cpacked
+tvm_call_packed_lowered = call_packed_lowered
+tvm_call_cpacked_lowered = call_cpacked_lowered
 
 
 # pylint: enable=invalid-name

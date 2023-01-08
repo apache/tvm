@@ -27,18 +27,12 @@ namespace printer {
 
 ExprDoc ExprDocNode::Attr(String attr) const { return AttrAccessDoc(GetRef<ExprDoc>(this), attr); }
 
-ExprDoc ExprDocNode::Attr(TracedObject<String> attr) const {
-  auto doc = AttrAccessDoc(GetRef<ExprDoc>(this), attr.Get());
-  doc->source_paths.push_back(attr.GetPath());
-  return std::move(doc);
-}
-
 ExprDoc ExprDocNode::operator[](Array<Doc> indices) const {
   return IndexDoc(GetRef<ExprDoc>(this), indices);
 }
 
 ExprDoc ExprDocNode::Call(Array<ExprDoc, void> args) const {
-  return CallDoc(GetRef<ExprDoc>(this), args, {}, {});
+  return CallDoc(GetRef<ExprDoc>(this), args, Array<String>(), Array<ExprDoc>());
 }
 
 ExprDoc ExprDocNode::Call(Array<ExprDoc, void> args, Array<String, void> kwargs_keys,
@@ -258,7 +252,7 @@ TVM_REGISTER_GLOBAL("script.printer.StmtBlockDoc").set_body_typed([](Array<StmtD
 TVM_REGISTER_NODE_TYPE(LiteralDocNode);
 TVM_REGISTER_GLOBAL("script.printer.LiteralDocNone").set_body_typed<LiteralDoc()>(LiteralDoc::None);
 TVM_REGISTER_GLOBAL("script.printer.LiteralDocInt")
-    .set_body_typed<LiteralDoc(int)>(LiteralDoc::Int);
+    .set_body_typed<LiteralDoc(int64_t)>(LiteralDoc::Int);
 TVM_REGISTER_GLOBAL("script.printer.LiteralDocBoolean")
     .set_body_typed<LiteralDoc(bool)>(LiteralDoc::Boolean);
 TVM_REGISTER_GLOBAL("script.printer.LiteralDocFloat")
