@@ -43,7 +43,7 @@ def test_evaluator_flush_l2_cache():
     i, j, k = sch.get_loops(blk)
     sch.bind(i, "blockIdx.x")
     sch.bind(k, "threadIdx.x")
-    f = tvm.build(sch.mod["main"], target=tvm.target.cuda(arch="sm_86"))
+    f = tvm.build(sch.mod["main"], target="cuda")
     dev = tvm.cuda(0)
     evaluator_no_flush = f.time_evaluator(f.entry_name, dev, number=100)
 
