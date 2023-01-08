@@ -32,7 +32,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
                 C[vi, vj] = 0.0
-            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 
 @tvm.testing.requires_cuda
@@ -42,10 +42,10 @@ def test_evaluator_flush_l2_cache():
     blk = sch.get_block("matmul")
     i, j, k = sch.get_loops(blk)
     sch.bind(i, "blockIdx.x")
-    sch.bind(k, "threadIdx.x")
+    sch.bind(j, "threadIdx.x")
     f = tvm.build(sch.mod["main"], target="cuda")
     dev = tvm.cuda(0)
-    evaluator_no_flush = f.time_evaluator(f.entry_name, dev, repeat=100)
+    evaluator_no_flush = f.time_evaluator(f.entry_name, dev, repeat=1000)
 
     a = tvm.nd.array(np.random.rand(128, 128).astype("float32"), device=dev)
     b = tvm.nd.array(np.random.rand(128, 128).astype("float32"), device=dev)
@@ -54,7 +54,7 @@ def test_evaluator_flush_l2_cache():
     print("Evaluator (w/o L2 flush):\t{:.5f}ms".format(evaluator_no_flush(*args).mean * 1000))
 
     evaluator_with_flush = f.time_evaluator(
-        f.entry_name, dev, repeat=100, f_preproc="l2_cache_flush_cuda"
+        f.entry_name, dev, repeat=1000, f_preproc="l2_cache_flush_cuda"
     )
     print("Evaluator (w/ L2 flush):\t{:.5f}ms".format(evaluator_with_flush(*args).mean * 1000))
 
