@@ -178,21 +178,21 @@ def test_avx512_schedule_fn_database():
     schedule_16x4_dense_fn_database(target, AVX512_INTRIN)
 
 
-def schedule_16x4_dense_fn_tune(target, intrin, tag="meta_schedule.x86.dense_vnni"):
+def schedule_16x4_dense_fn_tune(target, intrin):
     # pylint: disable=W0105
     """
     We can inject and apply a custom TIR scheduling to a TE compute of interest, using
     the "schedule_rule" annotation. For example, in topi/x86/dense.py we have the following
-    declaration for int8 dense targeting the VNNI instruction.
+    declaration for int8 dense targeting the VNNI or AVX512 instructions.
 
     C = te.compute(
         ...
-        attrs={"schedule_rule": "meta_schedule.x86.dense_vnni"},
+        attrs={"schedule_rule": "meta_schedule.x86.dense_int8"},
     )
 
     When the MetaSchedule encounters a TensorIR block with the "schedule_rule" annotation,
     it looks up the packed func registry for a function that is associated with the given schedule
-    rule key ("meta_schedule.x86.dense_vnni" in this example). The signature of such custom
+    rule key ("meta_schedule.x86.dense_int8" in this example). The signature of such custom
     schedule functions must be
 
        (tir.schedule.Schedule, tir.schedule.BlockRV) -> [tir.schedule.Schedule].
@@ -206,7 +206,7 @@ def schedule_16x4_dense_fn_tune(target, intrin, tag="meta_schedule.x86.dense_vnn
         _schedule_dense(m=None, do_tune=True, intrin=intrin)(sch, dense_block)
         return [sch]
 
-    register_func(tag, schedule_rule_dense_16x4)
+    register_func("meta_schedule.x86.dense_int8", schedule_rule_dense_16x4)
 
     m, n, k = 1024, 1024, 1024
     dev = tvm.cpu(0)
@@ -266,7 +266,7 @@ def test_vnni_schedule_fn_tune():
 @tvm.testing.requires_skylake_avx512
 def test_avx512_schedule_fn_tune():
     target = tvm.target.Target("llvm -keys=x86,cpu -mcpu=skylake-avx512 -num-cores=4")
-    schedule_16x4_dense_fn_tune(target, AVX512_INTRIN, "meta_schedule.x86.dense_avx512")
+    schedule_16x4_dense_fn_tune(target, AVX512_INTRIN)
 
 
 if __name__ == """__main__""":
