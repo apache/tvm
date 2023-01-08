@@ -1089,7 +1089,7 @@ PrimExpr TypeAnnotation(DataType dtype, Span span) {
   return tir::Call(dtype, op, {}, span);
 }
 
-TVM_REGISTER_OP("tir.type_annotation")
+TVM_TIR_REGISTER_OP("type_annotation")
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
 
 }  // namespace tir
