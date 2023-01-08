@@ -33,7 +33,7 @@ namespace runtime {
 
 class L2Flush {
  public:
-  explicit L2Flush() : initialized_(false), l2_size_(0), l2_buffer_(nullptr) {}
+  L2Flush() : initialized_(false), l2_size_(0), l2_buffer_(nullptr) {}
 
   ~L2Flush() {
     if (l2_size_ > 0) {

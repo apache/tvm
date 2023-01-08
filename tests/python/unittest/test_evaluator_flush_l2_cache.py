@@ -45,7 +45,7 @@ def test_evaluator_flush_l2_cache():
     sch.bind(k, "threadIdx.x")
     f = tvm.build(sch.mod["main"], target="cuda")
     dev = tvm.cuda(0)
-    evaluator_no_flush = f.time_evaluator(f.entry_name, dev, number=100)
+    evaluator_no_flush = f.time_evaluator(f.entry_name, dev, repeat=100)
 
     a = tvm.nd.array(np.random.rand(128, 128).astype("float32"), device=dev)
     b = tvm.nd.array(np.random.rand(128, 128).astype("float32"), device=dev)
@@ -54,7 +54,7 @@ def test_evaluator_flush_l2_cache():
     print("Evaluator (w/o L2 flush):\t{:.5f}ms".format(evaluator_no_flush(*args).mean * 1000))
 
     evaluator_with_flush = f.time_evaluator(
-        f.entry_name, dev, number=100, f_preproc="l2_cache_flush_cuda"
+        f.entry_name, dev, repeat=100, f_preproc="l2_cache_flush_cuda"
     )
     print("Evaluator (w/ L2 flush):\t{:.5f}ms".format(evaluator_with_flush(*args).mean * 1000))
 
