@@ -28,6 +28,7 @@ from tvm._ffi import register_func
 from tvm.tir.schedule import BlockRV, Schedule
 from tvm.tir.schedule.analysis import has_block
 from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
+from tvm.tir.tensor_intrin.x86 import AVX512_DOT_16x4_INTRIN as AVX512_INTRIN
 
 logging.basicConfig(
     format="%(asctime)s.%(msecs)03d %(levelname)s %(message)s",
@@ -36,9 +37,9 @@ logging.basicConfig(
 logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
 
 
-def _schedule_dense(m: Optional[int], do_tune: bool):
+def _schedule_dense(m: Optional[int], do_tune: bool, intrin=VNNI_INTRIN):
     """Manually schedule a dense block, created from TE compute op via CreatePrimFunc,
-    using VNNI instruction.
+    using VNNI or AVX512 instructions.
     """
 
     def schedule_fn(sch, dense_block: Optional[BlockRV] = None) -> bool:
@@ -90,7 +91,7 @@ def _schedule_dense(m: Optional[int], do_tune: bool):
         dec = sch.decompose_reduction(dense_block, a_ko)
         init_loop = sch.get_loops(dec)[-1]
         sch.vectorize(init_loop)
-        sch.tensorize(a_xi, VNNI_INTRIN)
+        sch.tensorize(a_xi, intrin)
         return True
 
     return schedule_fn
@@ -135,10 +136,8 @@ def _relay_dense(m, n, k):
     return relay_mod, params, f_check
 
 
-@tvm.testing.requires_cascadelake
-def test_vnni_schedule_fn_database():
+def schedule_16x4_dense_fn_database(target, intrin):
     m, n, k = 1024, 1024, 1024
-    target = tvm.target.Target("llvm -mcpu=cascadelake -num-cores 4")
     dev = tvm.cpu(0)
     relay_mod, params, f_check = _relay_dense(m, n, k)
 
@@ -146,6 +145,7 @@ def test_vnni_schedule_fn_database():
         _schedule_dense(
             m=m,
             do_tune=False,
+            intrin=intrin,
         )
     ), tvm.transform.PassContext(
         opt_level=3,
@@ -167,7 +167,18 @@ def test_vnni_schedule_fn_database():
 
 
 @tvm.testing.requires_cascadelake
-def test_vnni_schedule_fn_tune():
+def test_vnni_schedule_fn_database():
+    target = tvm.target.Target("llvm -keys=x86,cpu -mcpu=cascadelake -num-cores=4")
+    schedule_16x4_dense_fn_database(target, VNNI_INTRIN)
+
+
+@tvm.testing.requires_skylake_avx512
+def test_avx512_schedule_fn_database():
+    target = tvm.target.Target("llvm -keys=x86,cpu -mcpu=skylake-512 -num-cores=4")
+    schedule_16x4_dense_fn_database(target, AVX512_INTRIN)
+
+
+def schedule_16x4_dense_fn_tune(target, intrin, tag="meta_schedule.x86.dense_vnni"):
     # pylint: disable=W0105
     """
     We can inject and apply a custom TIR scheduling to a TE compute of interest, using
@@ -191,14 +202,13 @@ def test_vnni_schedule_fn_tune():
     The relevant code is in `src/meta_schedule/space_generator/apply_custom_rule.cc`.
     """
 
-    def schedule_rule_dense_vnni(sch: Schedule, dense_block: BlockRV):
-        _schedule_dense(m=None, do_tune=True)(sch, dense_block)
+    def schedule_rule_dense_16x4(sch: Schedule, dense_block: BlockRV):
+        _schedule_dense(m=None, do_tune=True, intrin=intrin)(sch, dense_block)
         return [sch]
 
-    register_func("meta_schedule.x86.dense_vnni", schedule_rule_dense_vnni)
+    register_func(tag, schedule_rule_dense_16x4)
 
     m, n, k = 1024, 1024, 1024
-    target = tvm.target.Target("llvm -keys=x86,cpu -mcpu=cascadelake -num-cores=4")
     dev = tvm.cpu(0)
     relay_mod, params, f_check = _relay_dense(m, n, k)
 
@@ -247,6 +257,20 @@ def test_vnni_schedule_fn_tune():
     f_check(lib, dev)
 
 
+@tvm.testing.requires_cascadelake
+def test_vnni_schedule_fn_tune():
+    target = tvm.target.Target("llvm -keys=x86,cpu -mcpu=cascadelake -num-cores=4")
+    schedule_16x4_dense_fn_tune(target, VNNI_INTRIN)
+
+
+@tvm.testing.requires_skylake_avx512
+def test_avx512_schedule_fn_tune():
+    target = tvm.target.Target("llvm -keys=x86,cpu -mcpu=skylake-avx512 -num-cores=4")
+    schedule_16x4_dense_fn_tune(target, AVX512_INTRIN, "meta_schedule.x86.dense_avx512")
+
+
 if __name__ == """__main__""":
     test_vnni_schedule_fn_database()
+    test_avx512_schedule_fn_database()
     test_vnni_schedule_fn_tune()
+    test_avx512_schedule_fn_tune()
