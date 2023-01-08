@@ -25,6 +25,9 @@ from tvm.tir.tensor_intrin.cuda import *
 from tvm.target import Target
 from tvm.target.codegen import llvm_lookup_intrinsic_id
 
+from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
+from tvm.tir.tensor_intrin.x86 import AVX512_DOT_16x4_INTRIN as AVX512_INTRIN
+
 
 # fmt: off
 @tvm.script.ir_module
@@ -1131,12 +1134,34 @@ class Conv2dInt8_NCHWc_target:
                 T_cast[ax0, ax1, ax2, ax3, ax4] = T.cast(compute_2[ax0, ax1, ax2, ax3, ax4], "int32")
 
 
-# TODO(vvchernov): construct avx512 reference module (without vnni)
-def get_conv2d_vnni_mod(intrin_id):
+def get_conv2d_16x4_mod(intrin):
     @tvm.script.ir_module
     class Conv2dInt8_NCHWc_scheduled:
         @T.prim_func
         def main(p0: T.Buffer[(1, 32, 7, 7, 16), "uint8"], p1: T.Buffer[(128, 32, 1, 1, 4, 16, 4), "int8"], p2: T.Buffer[(1, 128, 1, 1, 16), "int32"], p3: T.Buffer[(1, 128, 1, 1, 16), "float32"], p4: T.Buffer[1, "float32"], p5: T.Buffer[(1, 128, 7, 7, 16), "uint8"], T_cast: T.Buffer[(1, 128, 7, 7, 16), "int32"]) -> None:
+            def calculate_with_intrin(A, B, C):
+                if intrin == "vnni":
+                    A_u8x4: T.uint8x4 = A[0:4]
+                    A_i32: T.int32 = T.reinterpret(A_u8x4, dtype="int32")
+                    B_i8x64: T.int8x64 = B[0, 0:64]
+                    B_i32x16: T.int32x16 = T.reinterpret(B_i8x64, dtype="int32x16")
+                    C_i32x16: T.int32x16 = C[0:16]
+                    vnni_id = llvm_lookup_intrinsic_id("llvm.x86.avx512.vpdpbusd.512")
+                    C[0:16] = T.call_llvm_pure_intrin(T.uint32(vnni_id), T.uint32(3), C_i32x16, T.broadcast(A_i32, 16), B_i32x16, dtype="int32x16")
+                elif intrin == "avx512":
+                    A_u8x4: T.uint8x4 = A[0:4]
+                    A_i32: T.int32 = T.reinterpret(A_u8x4, dtype="int32")
+                    A_brdcst: T.int32x16 = T.broadcast(A_i32, 16)
+                    A_u8x64: T.uint8x64 = T.reinterpret(A_brdcst, dtype="uint8x64")
+
+                    B_i8x64: T.int8x64 = B[0, 0:64]
+
+                    avx512_id_1 = T.llvm_lookup_intrinsic_id("llvm.x86.avx512.pmaddubs.w.512")
+                    Red: T.int16x32 = T.call_llvm_pure_intrin(avx512_id_1, T.uint32(2), A_u8x64, B_i8x64, dtype="int16x32")
+
+                    avx512_id_2 = T.llvm_lookup_intrinsic_id("llvm.x86.avx512.pmaddw.d.512")
+                    C[0:16] += T.call_llvm_pure_intrin(avx512_id_2, T.uint32(2), Red, T.int16x32(1), dtype="int32x16")
+
             # function attr dict
             T.func_attr({"global_symbol": "main", "tir.noalias": True})
             # body
@@ -1176,12 +1201,7 @@ def get_conv2d_vnni_mod(intrin_id):
                             A = T.match_buffer(p0[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4], [4], dtype="uint8", offset_factor=1)
                             B = T.match_buffer(p1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0 : 16, 0 : 4], [16, 4], dtype="int8", offset_factor=1)
                             C = T.match_buffer(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 16], [16], dtype="int32", offset_factor=1)
-                            A_u8x4: T.uint8x4 = A[0:4]
-                            A_i32: T.int32 = T.reinterpret(A_u8x4, dtype="int32")
-                            B_i8x64: T.int8x64 = B[0, 0:64]
-                            B_i32x16: T.int32x16 = T.reinterpret(B_i8x64, dtype="int32x16")
-                            C_i32x16: T.int32x16 = C[0:16]
-                            C[0:16] = T.call_llvm_pure_intrin(T.uint32(intrin_id), T.uint32(0), C_i32x16, T.broadcast(A_i32, 16), B_i32x16, dtype="int32x16")
+                            calculate_with_intrin(A, B, C)
                     for ax0, ax1, ax2, ax3 in T.grid(1, 1, 1, 7):
                         for ax4_fused in T.vectorized(16):
                             with T.block("T_cast_8"):
@@ -2503,243 +2523,256 @@ def test_conv2d_int8_tensorcore():
     verify(Conv2dInt8, apply_trace, Conv2dInt8_target, "cuda", Conv2dInt8_tensorcore_scheduled)
 
 
-# TODO(vvchernov): test int8 conv2d foravx512 without VNNI
+def apply_trace_16x4(sch, intrin):
+    b0 = sch.get_block(name="compile_engine_const", func_name="main")
+    b1 = sch.get_block(name="conv2d_NCHWc_int8", func_name="main")
+    b2 = sch.get_block(name="T_add", func_name="main")
+    b3 = sch.get_block(name="T_cast", func_name="main")
+    b4 = sch.get_block(name="T_multiply", func_name="main")
+    b5 = sch.get_block(name="compile_engine_const_1", func_name="main")
+    b6 = sch.get_block(name="T_add_1", func_name="main")
+    b7 = sch.get_block(name="T_floor", func_name="main")
+    b8 = sch.get_block(name="T_cast_1", func_name="main")
+    b9 = sch.get_block(name="compute", func_name="main")
+    b10 = sch.get_block(name="T_cast_2", func_name="main")
+    b11 = sch.get_block(name="T_cast_3", func_name="main")
+    b12 = sch.get_block(name="T_subtract", func_name="main")
+    b13 = sch.get_block(name="T_multiply_1", func_name="main")
+    b14 = sch.get_block(name="compile_engine_const_2", func_name="main")
+    b15 = sch.get_block(name="T_add_2", func_name="main")
+    b16 = sch.get_block(name="T_floor_1", func_name="main")
+    b17 = sch.get_block(name="T_cast_4", func_name="main")
+    b18 = sch.get_block(name="T_add_3", func_name="main")
+    b19 = sch.get_block(name="compute_1", func_name="main")
+    b20 = sch.get_block(name="T_cast_5", func_name="main")
+    b21 = sch.get_block(name="root", func_name="main")
+    sch.compute_inline(block=b20)
+    sch.compute_inline(block=b19)
+    sch.compute_inline(block=b18)
+    sch.compute_inline(block=b17)
+    sch.compute_inline(block=b16)
+    sch.compute_inline(block=b15)
+    sch.compute_inline(block=b14)
+    sch.compute_inline(block=b13)
+    sch.compute_inline(block=b12)
+    sch.compute_inline(block=b11)
+    sch.compute_inline(block=b10)
+    sch.compute_inline(block=b9)
+    sch.compute_inline(block=b8)
+    sch.compute_inline(block=b7)
+    sch.compute_inline(block=b6)
+    sch.compute_inline(block=b5)
+    sch.compute_inline(block=b4)
+    sch.compute_inline(block=b3)
+    sch.compute_inline(block=b2)
+    sch.compute_inline(block=b0)
+    sch.annotate(block_or_loop=b1, ann_key="meta_schedule.tiling_structure", ann_val="SSRSRS")
+    l22, l23, l24, l25, l26, l27, l28, l29, l30, l31 = sch.get_loops(block=b1)
+    l32, l33 = sch.split(loop=l31, factors=[None, 4], preserve_unit_iters=True)
+    l34, l35 = sch.split(loop=l26, factors=[None, 16], preserve_unit_iters=True)
+    l36, l37, l38, l39, l40, l41, l42, l43, l44, l45, l46, l47 = sch.get_loops(block=b1)
+    sch.reorder(l42, l43, l44, l45, l46, l35, l33)
+    b48 = sch.blockize(loop=l35)
+    sch.annotate(block_or_loop=b48, ann_key="meta_schedule.auto_tensorize", ann_val=intrin)
+    l49, l50, l51, l52, l53, l54, l55, l56, l57, l58 = sch.get_loops(block=b48)
+    v59, v60, v61, v62 = sch.sample_perfect_tile(
+        loop=l49, n=4, max_innermost_factor=64, decision=[1, 1, 1, 1]
+    )
+    l63, l64, l65, l66 = sch.split(
+        loop=l49, factors=[v59, v60, v61, v62], preserve_unit_iters=True
+    )
+    v67, v68, v69, v70 = sch.sample_perfect_tile(
+        loop=l50, n=4, max_innermost_factor=64, decision=[4, 32, 1, 1]
+    )
+    l71, l72, l73, l74 = sch.split(
+        loop=l50, factors=[v67, v68, v69, v70], preserve_unit_iters=True
+    )
+    v75, v76, v77, v78 = sch.sample_perfect_tile(
+        loop=l51, n=4, max_innermost_factor=64, decision=[1, 7, 1, 1]
+    )
+    l79, l80, l81, l82 = sch.split(
+        loop=l51, factors=[v75, v76, v77, v78], preserve_unit_iters=True
+    )
+    v83, v84, v85, v86 = sch.sample_perfect_tile(
+        loop=l52, n=4, max_innermost_factor=64, decision=[1, 1, 1, 7]
+    )
+    l87, l88, l89, l90 = sch.split(
+        loop=l52, factors=[v83, v84, v85, v86], preserve_unit_iters=True
+    )
+    v91, v92, v93, v94 = sch.sample_perfect_tile(
+        loop=l53, n=4, max_innermost_factor=64, decision=[1, 1, 1, 1]
+    )
+    l95, l96, l97, l98 = sch.split(
+        loop=l53, factors=[v91, v92, v93, v94], preserve_unit_iters=True
+    )
+    v99, v100 = sch.sample_perfect_tile(loop=l54, n=2, max_innermost_factor=64, decision=[1, 1])
+    l101, l102 = sch.split(loop=l54, factors=[v99, v100], preserve_unit_iters=True)
+    v103, v104 = sch.sample_perfect_tile(
+        loop=l55, n=2, max_innermost_factor=64, decision=[1, 1]
+    )
+    l105, l106 = sch.split(loop=l55, factors=[v103, v104], preserve_unit_iters=True)
+    v107, v108 = sch.sample_perfect_tile(
+        loop=l56, n=2, max_innermost_factor=64, decision=[4, 8]
+    )
+    l109, l110 = sch.split(loop=l56, factors=[v107, v108], preserve_unit_iters=True)
+    v111, v112 = sch.sample_perfect_tile(
+        loop=l57, n=2, max_innermost_factor=64, decision=[4, 1]
+    )
+    l113, l114 = sch.split(loop=l57, factors=[v111, v112], preserve_unit_iters=True)
+    v115, v116 = sch.sample_perfect_tile(
+        loop=l58, n=2, max_innermost_factor=64, decision=[1, 1]
+    )
+    l117, l118 = sch.split(loop=l58, factors=[v115, v116], preserve_unit_iters=True)
+    sch.reorder(
+        l63,
+        l71,
+        l79,
+        l87,
+        l95,
+        l64,
+        l72,
+        l80,
+        l88,
+        l96,
+        l101,
+        l105,
+        l109,
+        l113,
+        l117,
+        l65,
+        l73,
+        l81,
+        l89,
+        l97,
+        l102,
+        l106,
+        l110,
+        l114,
+        l118,
+        l66,
+        l74,
+        l82,
+        l90,
+        l98,
+    )
+    (b119,) = sch.get_consumers(block=b48)
+    sch.reverse_compute_at(block=b119, loop=l96, preserve_unit_loops=True, index=-1)
+    sch.annotate(block_or_loop=b21, ann_key="meta_schedule.parallel", ann_val=96)
+    sch.annotate(block_or_loop=b21, ann_key="meta_schedule.vectorize", ann_val=64)
+    v120 = sch.sample_categorical(
+        candidates=[0, 16, 64, 512], probs=[0.25, 0.25, 0.25, 0.25], decision=2
+    )
+    sch.annotate(block_or_loop=b21, ann_key="meta_schedule.unroll_explicit", ann_val=v120)
+    sch.enter_postproc()
+    b121 = sch.get_block(name="root", func_name="main")
+    sch.unannotate(block_or_loop=b121, ann_key="meta_schedule.parallel")
+    sch.unannotate(block_or_loop=b121, ann_key="meta_schedule.vectorize")
+    sch.unannotate(block_or_loop=b121, ann_key="meta_schedule.unroll_explicit")
+    b122, b123 = sch.get_child_blocks(b121)
+    (
+        l124,
+        l125,
+        l126,
+        l127,
+        l128,
+        l129,
+        l130,
+        l131,
+        l132,
+        l133,
+        l134,
+        l135,
+        l136,
+        l137,
+        l138,
+        l139,
+        l140,
+        l141,
+        l142,
+        l143,
+        l144,
+        l145,
+        l146,
+        l147,
+        l148,
+        l149,
+        l150,
+        l151,
+        l152,
+        l153,
+    ) = sch.get_loops(block=b122)
+    l154 = sch.fuse(l124, l125, l126, l127, l128, l129, l130, preserve_unit_iters=True)
+    sch.parallel(loop=l154)
+    sch.annotate(block_or_loop=l154, ann_key="pragma_auto_unroll_max_step", ann_val=64)
+    sch.annotate(block_or_loop=l154, ann_key="pragma_unroll_explicit", ann_val=1)
+    l155, l156, l157, l158, l159, l160, l161, l162, l163 = sch.get_loops(block=b123)
+    l164 = sch.fuse(l163, preserve_unit_iters=True)
+    sch.vectorize(loop=l164)
+    sch.annotate(block_or_loop=l155, ann_key="pragma_auto_unroll_max_step", ann_val=64)
+    sch.annotate(block_or_loop=l155, ann_key="pragma_unroll_explicit", ann_val=1)
+    b165 = sch.get_block(name="conv2d_NCHWc_int8_o", func_name="main")
+    (
+        l166,
+        l167,
+        l168,
+        l169,
+        l170,
+        l171,
+        l172,
+        l173,
+        l174,
+        l175,
+        l176,
+        l177,
+        l178,
+        l179,
+        l180,
+        l181,
+        l182,
+        l183,
+        l184,
+        l185,
+        l186,
+        l187,
+        l188,
+        l189,
+    ) = sch.get_loops(block=b165)
+    b190 = sch.decompose_reduction(block=b165, loop=l170)
+    sch.unannotate(block_or_loop=b190, ann_key="meta_schedule.auto_tensorize")
+    sch.annotate(block_or_loop=b190, ann_key="meta_schedule.auto_tensorize", ann_val="")
+    b191 = sch.get_block(name="conv2d_NCHWc_int8_o_init", func_name="main")
+    sch.unannotate(block_or_loop=b191, ann_key="meta_schedule.auto_tensorize")
+    (b192,) = sch.get_child_blocks(b191)
+    (l193,) = sch.get_loops(block=b192)
+    sch.vectorize(loop=l193)
+    b194 = sch.get_block(name="conv2d_NCHWc_int8_o_update", func_name="main")
+    sch.unannotate(block_or_loop=b194, ann_key="meta_schedule.auto_tensorize")
+    sch.tensorize(block_or_loop=b194, tensor_intrin=intrin)
+
+
 def test_conv2d_int8_vnni():
     def apply_trace(sch):
-        b0 = sch.get_block(name="compile_engine_const", func_name="main")
-        b1 = sch.get_block(name="conv2d_NCHWc_int8", func_name="main")
-        b2 = sch.get_block(name="T_add", func_name="main")
-        b3 = sch.get_block(name="T_cast", func_name="main")
-        b4 = sch.get_block(name="T_multiply", func_name="main")
-        b5 = sch.get_block(name="compile_engine_const_1", func_name="main")
-        b6 = sch.get_block(name="T_add_1", func_name="main")
-        b7 = sch.get_block(name="T_floor", func_name="main")
-        b8 = sch.get_block(name="T_cast_1", func_name="main")
-        b9 = sch.get_block(name="compute", func_name="main")
-        b10 = sch.get_block(name="T_cast_2", func_name="main")
-        b11 = sch.get_block(name="T_cast_3", func_name="main")
-        b12 = sch.get_block(name="T_subtract", func_name="main")
-        b13 = sch.get_block(name="T_multiply_1", func_name="main")
-        b14 = sch.get_block(name="compile_engine_const_2", func_name="main")
-        b15 = sch.get_block(name="T_add_2", func_name="main")
-        b16 = sch.get_block(name="T_floor_1", func_name="main")
-        b17 = sch.get_block(name="T_cast_4", func_name="main")
-        b18 = sch.get_block(name="T_add_3", func_name="main")
-        b19 = sch.get_block(name="compute_1", func_name="main")
-        b20 = sch.get_block(name="T_cast_5", func_name="main")
-        b21 = sch.get_block(name="root", func_name="main")
-        sch.compute_inline(block=b20)
-        sch.compute_inline(block=b19)
-        sch.compute_inline(block=b18)
-        sch.compute_inline(block=b17)
-        sch.compute_inline(block=b16)
-        sch.compute_inline(block=b15)
-        sch.compute_inline(block=b14)
-        sch.compute_inline(block=b13)
-        sch.compute_inline(block=b12)
-        sch.compute_inline(block=b11)
-        sch.compute_inline(block=b10)
-        sch.compute_inline(block=b9)
-        sch.compute_inline(block=b8)
-        sch.compute_inline(block=b7)
-        sch.compute_inline(block=b6)
-        sch.compute_inline(block=b5)
-        sch.compute_inline(block=b4)
-        sch.compute_inline(block=b3)
-        sch.compute_inline(block=b2)
-        sch.compute_inline(block=b0)
-        sch.annotate(block_or_loop=b1, ann_key="meta_schedule.tiling_structure", ann_val="SSRSRS")
-        l22, l23, l24, l25, l26, l27, l28, l29, l30, l31 = sch.get_loops(block=b1)
-        l32, l33 = sch.split(loop=l31, factors=[None, 4], preserve_unit_iters=True)
-        l34, l35 = sch.split(loop=l26, factors=[None, 16], preserve_unit_iters=True)
-        l36, l37, l38, l39, l40, l41, l42, l43, l44, l45, l46, l47 = sch.get_loops(block=b1)
-        sch.reorder(l42, l43, l44, l45, l46, l35, l33)
-        b48 = sch.blockize(loop=l35)
-        sch.annotate(
-            block_or_loop=b48, ann_key="meta_schedule.auto_tensorize", ann_val="dot_16x4_vnni"
-        )
-        l49, l50, l51, l52, l53, l54, l55, l56, l57, l58 = sch.get_loops(block=b48)
-        v59, v60, v61, v62 = sch.sample_perfect_tile(
-            loop=l49, n=4, max_innermost_factor=64, decision=[1, 1, 1, 1]
-        )
-        l63, l64, l65, l66 = sch.split(
-            loop=l49, factors=[v59, v60, v61, v62], preserve_unit_iters=True
-        )
-        v67, v68, v69, v70 = sch.sample_perfect_tile(
-            loop=l50, n=4, max_innermost_factor=64, decision=[4, 32, 1, 1]
-        )
-        l71, l72, l73, l74 = sch.split(
-            loop=l50, factors=[v67, v68, v69, v70], preserve_unit_iters=True
-        )
-        v75, v76, v77, v78 = sch.sample_perfect_tile(
-            loop=l51, n=4, max_innermost_factor=64, decision=[1, 7, 1, 1]
-        )
-        l79, l80, l81, l82 = sch.split(
-            loop=l51, factors=[v75, v76, v77, v78], preserve_unit_iters=True
-        )
-        v83, v84, v85, v86 = sch.sample_perfect_tile(
-            loop=l52, n=4, max_innermost_factor=64, decision=[1, 1, 1, 7]
-        )
-        l87, l88, l89, l90 = sch.split(
-            loop=l52, factors=[v83, v84, v85, v86], preserve_unit_iters=True
-        )
-        v91, v92, v93, v94 = sch.sample_perfect_tile(
-            loop=l53, n=4, max_innermost_factor=64, decision=[1, 1, 1, 1]
-        )
-        l95, l96, l97, l98 = sch.split(
-            loop=l53, factors=[v91, v92, v93, v94], preserve_unit_iters=True
-        )
-        v99, v100 = sch.sample_perfect_tile(loop=l54, n=2, max_innermost_factor=64, decision=[1, 1])
-        l101, l102 = sch.split(loop=l54, factors=[v99, v100], preserve_unit_iters=True)
-        v103, v104 = sch.sample_perfect_tile(
-            loop=l55, n=2, max_innermost_factor=64, decision=[1, 1]
-        )
-        l105, l106 = sch.split(loop=l55, factors=[v103, v104], preserve_unit_iters=True)
-        v107, v108 = sch.sample_perfect_tile(
-            loop=l56, n=2, max_innermost_factor=64, decision=[4, 8]
-        )
-        l109, l110 = sch.split(loop=l56, factors=[v107, v108], preserve_unit_iters=True)
-        v111, v112 = sch.sample_perfect_tile(
-            loop=l57, n=2, max_innermost_factor=64, decision=[4, 1]
-        )
-        l113, l114 = sch.split(loop=l57, factors=[v111, v112], preserve_unit_iters=True)
-        v115, v116 = sch.sample_perfect_tile(
-            loop=l58, n=2, max_innermost_factor=64, decision=[1, 1]
-        )
-        l117, l118 = sch.split(loop=l58, factors=[v115, v116], preserve_unit_iters=True)
-        sch.reorder(
-            l63,
-            l71,
-            l79,
-            l87,
-            l95,
-            l64,
-            l72,
-            l80,
-            l88,
-            l96,
-            l101,
-            l105,
-            l109,
-            l113,
-            l117,
-            l65,
-            l73,
-            l81,
-            l89,
-            l97,
-            l102,
-            l106,
-            l110,
-            l114,
-            l118,
-            l66,
-            l74,
-            l82,
-            l90,
-            l98,
-        )
-        (b119,) = sch.get_consumers(block=b48)
-        sch.reverse_compute_at(block=b119, loop=l96, preserve_unit_loops=True, index=-1)
-        sch.annotate(block_or_loop=b21, ann_key="meta_schedule.parallel", ann_val=96)
-        sch.annotate(block_or_loop=b21, ann_key="meta_schedule.vectorize", ann_val=64)
-        v120 = sch.sample_categorical(
-            candidates=[0, 16, 64, 512], probs=[0.25, 0.25, 0.25, 0.25], decision=2
-        )
-        sch.annotate(block_or_loop=b21, ann_key="meta_schedule.unroll_explicit", ann_val=v120)
-        sch.enter_postproc()
-        b121 = sch.get_block(name="root", func_name="main")
-        sch.unannotate(block_or_loop=b121, ann_key="meta_schedule.parallel")
-        sch.unannotate(block_or_loop=b121, ann_key="meta_schedule.vectorize")
-        sch.unannotate(block_or_loop=b121, ann_key="meta_schedule.unroll_explicit")
-        b122, b123 = sch.get_child_blocks(b121)
-        (
-            l124,
-            l125,
-            l126,
-            l127,
-            l128,
-            l129,
-            l130,
-            l131,
-            l132,
-            l133,
-            l134,
-            l135,
-            l136,
-            l137,
-            l138,
-            l139,
-            l140,
-            l141,
-            l142,
-            l143,
-            l144,
-            l145,
-            l146,
-            l147,
-            l148,
-            l149,
-            l150,
-            l151,
-            l152,
-            l153,
-        ) = sch.get_loops(block=b122)
-        l154 = sch.fuse(l124, l125, l126, l127, l128, l129, l130, preserve_unit_iters=True)
-        sch.parallel(loop=l154)
-        sch.annotate(block_or_loop=l154, ann_key="pragma_auto_unroll_max_step", ann_val=64)
-        sch.annotate(block_or_loop=l154, ann_key="pragma_unroll_explicit", ann_val=1)
-        l155, l156, l157, l158, l159, l160, l161, l162, l163 = sch.get_loops(block=b123)
-        l164 = sch.fuse(l163, preserve_unit_iters=True)
-        sch.vectorize(loop=l164)
-        sch.annotate(block_or_loop=l155, ann_key="pragma_auto_unroll_max_step", ann_val=64)
-        sch.annotate(block_or_loop=l155, ann_key="pragma_unroll_explicit", ann_val=1)
-        b165 = sch.get_block(name="conv2d_NCHWc_int8_o", func_name="main")
-        (
-            l166,
-            l167,
-            l168,
-            l169,
-            l170,
-            l171,
-            l172,
-            l173,
-            l174,
-            l175,
-            l176,
-            l177,
-            l178,
-            l179,
-            l180,
-            l181,
-            l182,
-            l183,
-            l184,
-            l185,
-            l186,
-            l187,
-            l188,
-            l189,
-        ) = sch.get_loops(block=b165)
-        b190 = sch.decompose_reduction(block=b165, loop=l170)
-        sch.unannotate(block_or_loop=b190, ann_key="meta_schedule.auto_tensorize")
-        sch.annotate(block_or_loop=b190, ann_key="meta_schedule.auto_tensorize", ann_val="")
-        b191 = sch.get_block(name="conv2d_NCHWc_int8_o_init", func_name="main")
-        sch.unannotate(block_or_loop=b191, ann_key="meta_schedule.auto_tensorize")
-        (b192,) = sch.get_child_blocks(b191)
-        (l193,) = sch.get_loops(block=b192)
-        sch.vectorize(loop=l193)
-        b194 = sch.get_block(name="conv2d_NCHWc_int8_o_update", func_name="main")
-        sch.unannotate(block_or_loop=b194, ann_key="meta_schedule.auto_tensorize")
-        sch.tensorize(block_or_loop=b194, tensor_intrin="dot_16x4_vnni")
+        return apply_trace_16x4(sch, VNNI_INTRIN)
 
-    vnni_id = llvm_lookup_intrinsic_id("llvm.x86.avx512.vpdpbusd.512")
     verify(
         Conv2dInt8_NCHWc,
         apply_trace,
         Conv2dInt8_NCHWc_target,
         "llvm -mcpu=cascadelake",
-        get_conv2d_vnni_mod(vnni_id),
+        get_conv2d_16x4_mod("vnni"),
+    )
+
+
+def test_conv2d_int8_vavx512():
+    def apply_trace(sch):
+        return apply_trace_16x4(sch, AVX512_INTRIN)
+
+    verify(
+        Conv2dInt8_NCHWc,
+        apply_trace,
+        Conv2dInt8_NCHWc_target,
+        "llvm -mcpu=skylake-avx512",
+        get_conv2d_16x4_mod("avx512"),
     )
 
 
