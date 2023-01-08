@@ -175,7 +175,7 @@ The type checking rules assign types to every variable in scope and every type o
 
 ## Structural Information System Survey
 
-In Relax, tensor shapes are not handled in the type system; each expression instead a has an associated shape expression. In many cases, these shape computations can allow for statically concluding that two shapes are the same and thus eliminate the need for dynamic checks via `MatchShape`. However, when shapes cannot be statically concluded to be the same, it may be necessary for there to be dynamic checks. The compiler is also free to make use of shape expressions for memory planning purposes. «Relax is "strongly shaped," meaning that if the compiler cannot conclude that shapes match in certain cases, an error will be issued and an explicit `MatchShape` will be required.»
+In Relax, tensor shapes are not handled in the type system, even though it would be greatly beneficial for the compiler to make use of shape information for static optimizations. Instead, shape information is tracked using Relax's structural information system, in which every expression has structural information associated with it (like tensor shapes) that is more expressive than its type. Structural information can convey richer properties about expressions, like tensor shapes, and can facilitate a greater degree of static reasoning. However, when it is not feasible for the compiler to draw conclusions about structural information, this information can be checked dynamically via `MatchCast`. The structural information is essentially an extended type system, so `MatchCast` also serves to handle type casting.
 
 ---
 
@@ -526,7 +526,7 @@ A tensor shape is a tuple of TIR `PrimExpr`s, where each `PrimExpr` corresponds 
 
 **Scope of Shape Variables**
 
-New shape variables can be bound in two places in a Relax program: In `TensorStructInfo` or `ShapeStructInfo` annotations on function parameters or as the `struct_info` parameter in a `MatchCast` binding. Shape variables used in the function signature are scoped to the entire function in which they appear (including in the return structural annotation). Shape variables used in `MatchShape` bindings are scoped only to the `SeqExpr` in which they appear.
+New shape variables can be bound in two places in a Relax program: In `TensorStructInfo` or `ShapeStructInfo` annotations on function parameters or as the `struct_info` parameter in a `MatchCast` binding. Shape variables used in the function signature are scoped to the entire function in which they appear (including in the return structural annotation). Shape variables used in `MatchCast` bindings are scoped only to the `SeqExpr` in which they appear.
 
 **Informal Semantics of `PrimExpr`s for Dimensions**
 
@@ -555,7 +555,7 @@ This section describes the run-time checking performed by `MatchCast(var, value,
 
 ### Checking Structural Information at the Start and End of a Function
 
-«Shape variables are bound at the start and end of a function or in `MatchShape` bindings. We can describe the behavior at the start and end of a function in terms of the semantics of `MatchCast`, as the shape annotations in function arguments and return types are treated as "syntactic sugar" for `MatchCast` bindings. Suppose a function has the following signature, where the `Si` are structural annotations:
+«Shape variables are bound at the start and end of a function or in `MatchCast` bindings. We can describe the behavior at the start and end of a function in terms of the semantics of `MatchCast`, as the shape annotations in function arguments and return types are treated as "syntactic sugar" for `MatchCast` bindings. Suppose a function has the following signature, where the `Si` are structural annotations:
 
 ```python
 def f(arg1 : S1, arg2 : S2, ..., argn : Sn) -> Sr: 
