@@ -2578,50 +2578,32 @@ def apply_trace_16x4(sch, intrin):
     v59, v60, v61, v62 = sch.sample_perfect_tile(
         loop=l49, n=4, max_innermost_factor=64, decision=[1, 1, 1, 1]
     )
-    l63, l64, l65, l66 = sch.split(
-        loop=l49, factors=[v59, v60, v61, v62], preserve_unit_iters=True
-    )
+    l63, l64, l65, l66 = sch.split(loop=l49, factors=[v59, v60, v61, v62], preserve_unit_iters=True)
     v67, v68, v69, v70 = sch.sample_perfect_tile(
         loop=l50, n=4, max_innermost_factor=64, decision=[4, 32, 1, 1]
     )
-    l71, l72, l73, l74 = sch.split(
-        loop=l50, factors=[v67, v68, v69, v70], preserve_unit_iters=True
-    )
+    l71, l72, l73, l74 = sch.split(loop=l50, factors=[v67, v68, v69, v70], preserve_unit_iters=True)
     v75, v76, v77, v78 = sch.sample_perfect_tile(
         loop=l51, n=4, max_innermost_factor=64, decision=[1, 7, 1, 1]
     )
-    l79, l80, l81, l82 = sch.split(
-        loop=l51, factors=[v75, v76, v77, v78], preserve_unit_iters=True
-    )
+    l79, l80, l81, l82 = sch.split(loop=l51, factors=[v75, v76, v77, v78], preserve_unit_iters=True)
     v83, v84, v85, v86 = sch.sample_perfect_tile(
         loop=l52, n=4, max_innermost_factor=64, decision=[1, 1, 1, 7]
     )
-    l87, l88, l89, l90 = sch.split(
-        loop=l52, factors=[v83, v84, v85, v86], preserve_unit_iters=True
-    )
+    l87, l88, l89, l90 = sch.split(loop=l52, factors=[v83, v84, v85, v86], preserve_unit_iters=True)
     v91, v92, v93, v94 = sch.sample_perfect_tile(
         loop=l53, n=4, max_innermost_factor=64, decision=[1, 1, 1, 1]
     )
-    l95, l96, l97, l98 = sch.split(
-        loop=l53, factors=[v91, v92, v93, v94], preserve_unit_iters=True
-    )
+    l95, l96, l97, l98 = sch.split(loop=l53, factors=[v91, v92, v93, v94], preserve_unit_iters=True)
     v99, v100 = sch.sample_perfect_tile(loop=l54, n=2, max_innermost_factor=64, decision=[1, 1])
     l101, l102 = sch.split(loop=l54, factors=[v99, v100], preserve_unit_iters=True)
-    v103, v104 = sch.sample_perfect_tile(
-        loop=l55, n=2, max_innermost_factor=64, decision=[1, 1]
-    )
+    v103, v104 = sch.sample_perfect_tile(loop=l55, n=2, max_innermost_factor=64, decision=[1, 1])
     l105, l106 = sch.split(loop=l55, factors=[v103, v104], preserve_unit_iters=True)
-    v107, v108 = sch.sample_perfect_tile(
-        loop=l56, n=2, max_innermost_factor=64, decision=[4, 8]
-    )
+    v107, v108 = sch.sample_perfect_tile(loop=l56, n=2, max_innermost_factor=64, decision=[4, 8])
     l109, l110 = sch.split(loop=l56, factors=[v107, v108], preserve_unit_iters=True)
-    v111, v112 = sch.sample_perfect_tile(
-        loop=l57, n=2, max_innermost_factor=64, decision=[4, 1]
-    )
+    v111, v112 = sch.sample_perfect_tile(loop=l57, n=2, max_innermost_factor=64, decision=[4, 1])
     l113, l114 = sch.split(loop=l57, factors=[v111, v112], preserve_unit_iters=True)
-    v115, v116 = sch.sample_perfect_tile(
-        loop=l58, n=2, max_innermost_factor=64, decision=[1, 1]
-    )
+    v115, v116 = sch.sample_perfect_tile(loop=l58, n=2, max_innermost_factor=64, decision=[1, 1])
     l117, l118 = sch.split(loop=l58, factors=[v115, v116], preserve_unit_iters=True)
     sch.reorder(
         l63,
