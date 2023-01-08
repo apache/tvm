@@ -882,9 +882,6 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
     DeviceAPI::Get(dev)->StreamSync(dev, nullptr);
 
     for (int i = 0; i < repeat; ++i) {
-      if (f_preproc != nullptr) {
-        f_preproc.CallPacked(args, &temp);
-      }
       double duration_ms = 0.0;
       int absolute_zero_times = 0;
       do {
@@ -894,15 +891,21 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
               std::max((min_repeat_ms / (duration_ms / number) + 1), number * golden_ratio));
         }
 
+        int64_t accum_t_nanos = 0;
         // start timing
-        Timer t = Timer::Start(dev);
         for (int j = 0; j < number; ++j) {
+          // call preprocessing function
+          if (f_preproc != nullptr) {
+            f_preproc.CallPacked(args, &temp);
+          }
+          Timer t = Timer::Start(dev);
           pf.CallPacked(args, &temp);
+          t->Stop();
+          int64_t t_nanos = t->SyncAndGetElapsedNanos();
+          accum_t_nanos += t_nanos;
         }
-        t->Stop();
-        int64_t t_nanos = t->SyncAndGetElapsedNanos();
-        if (t_nanos == 0) absolute_zero_times++;
-        duration_ms = t_nanos / 1e6;
+        if (accum_t_nanos == 0) absolute_zero_times++;
+        duration_ms = accum_t_nanos / 1e6;
       } while (duration_ms < min_repeat_ms && absolute_zero_times < limit_zero_time_iterations);
 
       double speed = duration_ms / 1e3 / number;
