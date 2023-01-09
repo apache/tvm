@@ -347,7 +347,7 @@ def tune_conv2d_template(
             else None
         )
 
-    with tempfile.TemporaryDirectory() as work_dir:
+    with tempfile.TemporaryDirectory() as work_dir, pass_context:
         database = ms.relay_integration.tune_relay(
             mod=mod,
             target=TARGET_HEXAGON,
@@ -382,15 +382,11 @@ def tune_conv2d_template(
             module_equality="ignore-ndarray",
         )
 
-        # Add default options so that it still uses the base config.
-        pass_config["relay.backend.use_meta_schedule"] = True
-        pass_config["relay.backend.tir_converter"] = "default"
         return ms.relay_integration.compile_relay(
             database=database,
             mod=mod,
             target=TARGET_HEXAGON,
             params=params,
-            pass_config=pass_config,
         )
 
 
