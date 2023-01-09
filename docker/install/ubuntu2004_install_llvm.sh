@@ -18,13 +18,16 @@
 
 set -euxo pipefail
 
-wget https://apt.llvm.org/llvm.sh
-chmod +x llvm.sh
+echo deb http://apt.llvm.org/focal/ llvm-toolchain-focal main\
+    >> /etc/apt/sources.list.d/llvm.list
 
-./llvm.sh 9
-./llvm.sh 10
-./llvm.sh 11
-./llvm.sh 12
-./llvm.sh 13
+echo deb http://apt.llvm.org/focal/ llvm-toolchain-focal-13 main\
+    >> /etc/apt/sources.list.d/llvm.list
 
-rm llvm.sh
+apt-get update && apt-install-and-clear -y \
+     llvm-9 llvm-10 llvm-11 llvm-12 llvm-13 \
+     clang-9 libclang-9-dev \
+     clang-10 libclang-10-dev \
+     clang-11 libclang-11-dev \
+     clang-12 libclang-12-dev \
+     clang-13 libclang-13-dev
