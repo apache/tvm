@@ -468,12 +468,6 @@ def _export_graph_model_library_format(
             input_names = list(inputs.keys())
             output_names = list(outputs.keys())
 
-            input_name_to_size_map = {
-                name: property_map["size"] for name, property_map in inputs_sizes.items()
-            }
-            output_name_to_size_map = {
-                name: property_map["size"] for name, property_map in output_sizes.items()
-            }
             generate_c_interface_header(
                 mod.libmod_name,
                 input_names,
@@ -483,8 +477,8 @@ def _export_graph_model_library_format(
                 devices,
                 workspace_size,
                 include_path,
-                input_name_to_size_map,
-                output_name_to_size_map,
+                inputs_sizes,
+                output_sizes,
             )
 
         is_aot = isinstance(mod, executor_factory.AOTExecutorFactoryModule)
