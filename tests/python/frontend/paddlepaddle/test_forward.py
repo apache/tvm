@@ -1714,7 +1714,7 @@ def test_forward_topk():
     def topk6(inputs):
         return paddle.topk(inputs, k=1, axis=0)
 
-    input_data = paddle.to_tensor([[1, 4, 5, 7], [3, 6, 2, 5]])
+    input_data = paddle.to_tensor([[1, 4, 5, 7], [3, 6, 2, 5]], dtype=paddle.int32)
     verify_model(topk1, input_data=input_data)
     verify_model(topk2, input_data=input_data)
     verify_model(topk3, input_data=input_data)
