@@ -23,9 +23,10 @@ import tempfile
 import os
 import shutil
 import numpy as np
-from test_clml import menangerie
+from tvm.relay import testing
 from tvm import rpc
 from tvm.contrib import utils, ndk
+from tvm.relay.build_module import bind_params_by_name
 
 # The following are necessary to force global functions or pattern tables to be registered
 from tvm.relay.collage.collage import *
@@ -358,34 +359,43 @@ def just_tvm(model):
             compile_and_benchmark("just_tvm", model, OPENCL, tmp_dir)
 
 
+def get_model(model_name, dtype):
+
+    if "mobilenet" in model_name:
+        mod, params = testing.mobilenet.get_workload(batch_size=1, dtype=dtype)
+    elif "resnet" in model_name:
+        mod, params = testing.resnet.get_workload(
+            num_layers=50, batch_size=1, dtype=dtype
+        )
+    if params:
+        mod["main"] = bind_params_by_name(mod["main"], params)
+        mod = tvm.relay.transform.FoldConstant()(mod) 
+    return {
+        "name": model_name,
+        "input_shapes": {"data": [1, 3, 224, 224]},
+        "input_dtypes": {"data": dtype},
+        "mod": mod,
+        "params": params,
+        "main_dtype": dtype,
+    }
+
+
 ########### Runners ###########
 @pytest.mark.parametrize("dtype", ["float32"])
 @tvm.testing.requires_openclml
 def run_resnet50(dtype):
-    if dtype == "float32":
-        just_clml(menangerie.resnet50())
-        just_tvm(menangerie.resnet50())
-        """Run Collage on a resnet50."""
-        collage(menangerie.resnet50())
 
-    elif dtype == "float16":
-        just_clml(menangerie.resnet50_16())
-        just_tvm(menangerie.resnet50_16())
-        """Run Collage on a resnet50."""
-        collage(menangerie.resnet50_16())
+    just_clml(get_model("resnet-50", dtype))
+    just_tvm(get_model("resnet-50", dtype))
+    """Run Collage for tvm and clml compiler target."""
+    collage(get_model("resnet-50", dtype))
 
 
 @pytest.mark.parametrize("dtype", ["float32"])
 @tvm.testing.requires_openclml
 def run_mobilenetv1(dtype):
-    if dtype == "float32":
-        just_clml(menangerie.mobilenet())
-        just_tvm(menangerie.mobilenet())
-        """Run Collage on a mobilenetV1."""
-        collage(menangerie.mobilenet())
 
-    elif dtype == "float16":
-        just_clml(menangerie.mobilenet_16())
-        just_tvm(menangerie.mobilenet_16())
-        """Run Collage on a mobilenetV1."""
-        collage(menangerie.mobilenet_16())
+    just_clml(get_model("mobilenet", dtype))
+    just_tvm(get_model("mobilenet", dtype))
+    """Run Collage for tvm and clml compiler target."""
+    collage(get_model("mobilenet", dtype))

@@ -108,23 +108,24 @@ BYOCStyle BYOCFusionStyleForCompiler(const String& compiler) {
   tvm::transform::PassContext ctxt = tvm::transform::PassContext::Current();
   std::string config_key = "relay.collage.byoc_fusion_style";
   Optional<Array<String>> byoc_configs = ctxt->GetConfig(config_key, Optional<Array<String>>());
-  if (!byoc_configs.defined()) {
-    return DefaultBYOCFusionStyleForCompiler(compiler);
+  BYOCStyle byoc_fusion_style = DefaultBYOCFusionStyleForCompiler(compiler);
+  if (!byoc_configs) {
+    LOG(INFO)<<"default fusion style";
+    return byoc_fusion_style;
   }
-  BYOCStyle byoc_fusion_style;
   for (auto config_ : byoc_configs.value()) {
-    std::string byoc_str = static_cast<std::string>(config_);
-    std::string byoc_compiler = byoc_str.substr(0, byoc_str.find(".", 0));
-    if (byoc_compiler == compiler) {
-      std::string fusion_name = byoc_str.substr(byoc_str.find(".", 0) + 1, byoc_str.size());
-      if (fusion_name == "NoFusion") {
+    std::vector<std::string> byoc_cfg = SplitString(config_, ".");
+    LOG(INFO) <<"byoc cfg: "<<byoc_cfg[0]<<" : "<<byoc_cfg[1];
+    if (byoc_cfg[0] == compiler) {
+      if (byoc_cfg[1] == "NoFusion") {
+        LOG(INFO)<<"NoFusion detected";
         byoc_fusion_style = kNoFusionBYOCStyle;
-      } else if (fusion_name == "TVMFusion") {
+      } else if (byoc_cfg[1] == "TVMFusion") {
         byoc_fusion_style = kTVMFusionBYOCStyle;
-      } else if (fusion_name == "MaxDepthFusion") {
+      } else if (byoc_cfg[1] == "ArbitraryFusion") {
         byoc_fusion_style = kArbitraryFusionBYOCStyle;
       } else {
-        ICHECK(false) << "Invalid fusion name for compiler " << byoc_compiler << " in pass context";
+        ICHECK(false) << "Invalid fusion name for compiler " << byoc_cfg[0] << " in pass context";
       }
       break;
     }

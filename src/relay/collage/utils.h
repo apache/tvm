@@ -79,6 +79,11 @@ bool IsSpecialOp(const OpNode* op_node);
  */
 bool MustBeLowered(const Expr& expr);
 
+/*!
+ * \brief Returns the list of split strings of given statement with delimiter.
+ */
+std::vector<std::string> SplitString(std::string stmt, const char* del);
+
 }  // namespace collage
 }  // namespace relay
 }  // namespace tvm
