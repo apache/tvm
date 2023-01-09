@@ -14,23 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Integer bound analysis, simplification and pattern detection."""
+import tvm
+import tvm.testing
+from tvm.script import tir as T
 
-from .int_set import (
-    IntSet,
-    IntervalSet,
-    estimate_region_lower_bound,
-    estimate_region_strict_bound,
-    estimate_region_upper_bound,
-)
-from .analyzer import ModularSet, ConstIntBound, Analyzer
-from .bound import deduce_bound
-from .pattern import detect_linear_equation, detect_clip_bound, detect_common_subexpr
-from .int_solver import solve_linear_equations, solve_linear_inequalities
-from .iter_affine_map import IterMapExpr, IterMark, IterSplitExpr, IterSumExpr
-from .iter_affine_map import (
-    detect_iter_map,
-    normalize_iter_map_to_expr,
-    subspace_divide,
-    inverse_affine_iter_map,
-)
+
+def test_detect_cs():
+    x = T.Var("x", dtype="int32")
+    y = T.Var("y", dtype="int32")
+    z = T.Var("z", dtype="int32")
+    c = T.floor(x + y + 0.5) + x + z * (T.floor(x + y + 0.5))
+    m = tvm.arith.detect_common_subexpr(c, 2)
+    assert c.a.a in m
+    assert m[c.a.a] == 2
+
+
+if __name__ == "__main__":
+    tvm.testing.main()
