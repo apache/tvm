@@ -369,7 +369,7 @@ def get_model(model_name, dtype):
         )
     if params:
         mod["main"] = bind_params_by_name(mod["main"], params)
-        mod = tvm.relay.transform.FoldConstant()(mod) 
+        mod = tvm.relay.transform.FoldConstant()(mod)
     return {
         "name": model_name,
         "input_shapes": {"data": [1, 3, 224, 224]},
