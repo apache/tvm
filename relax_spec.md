@@ -657,13 +657,17 @@ def erase_to_well_defined(
         )
     if s is FuncStructInfo:
         if params is defined:
-            return FuncStructInfo(
-                params=[
-                    erase_to_well_defined(param, var_scope, shape_var_scope) 
-                    for param in s.params
-                ],
+            new_params = []
+            for param in s.params:
+                if param contains unbound shape variables:
+                    insert unbound shape variables into shape_var_scope
+                new_params.append(erase_to_well_defined(param, var_scope, shape_var_scope))
+            ret = FuncStructInfo(
+                params=new_params,
                 ret=erase_to_well_defined(s.ret, var_scope, shape_var_scope)
             )
+            remove any unbound shape variables added into shape_var_scope above
+            return ret
         else:
             return FuncStructInfo(
                 ret=erase_to_well_defined(s.ret, var_scope, shape_var_scope),
