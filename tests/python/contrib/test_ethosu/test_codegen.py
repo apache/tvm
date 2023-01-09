@@ -258,6 +258,29 @@ def test_tflite_depthwise_conv2d_with_separate_pad():
     infra.compare_tvm_with_tflite(depthwise_conv2d, [ifm_shape], "ethos-u55-256")
 
 
+@pytest.mark.parametrize("ifm_shape", [(1, 55, 55, 3), (1, 23, 32, 7)])
+@pytest.mark.parametrize("padding", [(0, 1, 0, 0), (1, 1, 1, 1), (1, 1, 5, 5)])
+@pytest.mark.parametrize("const_value", [0, 5, 125, -5])
+def test_tflite_separate_pad(
+    ifm_shape,
+    padding,
+    const_value,
+):
+
+    np.random.seed(0)
+
+    @tf.function
+    def pad2d(x):
+        return tf.pad(
+            x,
+            [[0, 0], [padding[0], padding[2]], [padding[1], padding[3]], [0, 0]],
+            "CONSTANT",
+            const_value,
+        )
+
+    infra.compare_tvm_with_tflite(pad2d, [ifm_shape], "ethos-u55-256")
+
+
 @pytest.mark.parametrize(
     "accel_type",
     ACCEL_TYPES,
