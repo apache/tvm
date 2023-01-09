@@ -210,9 +210,10 @@ template std::vector<Var> VectorMap(const std::vector<std::pair<Var, MaybeValue>
 
 void InsertElemToSortedSemanticComputations(std::vector<std::pair<PrimExpr, size_t>>* sorted_vec,
                                             const std::pair<PrimExpr, size_t>& pair);
+
 void InsertVectorToSortedSemanticComputations(std::vector<std::pair<PrimExpr, size_t>>* sorted_vec,
                                               const std::vector<PrimExpr>& vec_to_add,
-                                              bool identify_equiv_terms);
+                                              bool identify_equiv_terms, size_t increase_count = 1);
 
 }  // namespace tir
 }  // namespace tvm
