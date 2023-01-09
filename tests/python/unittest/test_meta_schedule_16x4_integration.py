@@ -206,7 +206,7 @@ def schedule_16x4_dense_fn_tune(target, intrin):
         _schedule_dense(m=None, do_tune=True, intrin=intrin)(sch, dense_block)
         return [sch]
 
-    register_func("meta_schedule.x86.dense_int8", schedule_rule_dense_16x4)
+    register_func("meta_schedule.x86.dense_int8", schedule_rule_dense_16x4, override=True)
 
     m, n, k = 1024, 1024, 1024
     dev = tvm.cpu(0)
