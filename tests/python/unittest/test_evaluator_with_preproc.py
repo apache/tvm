@@ -20,6 +20,7 @@ from tvm import te
 from tvm.script import tir as T
 import tvm.testing
 import numpy as np
+import pytest
 
 
 @T.prim_func
@@ -36,7 +37,8 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @tvm.testing.requires_cuda
-def test_evaluator_flush_l2_cache():
+@pytest.mark.parametrize("f_preproc", ["", "l2_cache_flush_cuda"])
+def test_time_evalutor_with_preproc(f_preproc: str):
     mod = tvm.IRModule.from_expr(matmul)
     sch = tvm.tir.Schedule(mod)
     blk = sch.get_block("matmul")
@@ -45,19 +47,14 @@ def test_evaluator_flush_l2_cache():
     sch.bind(j, "threadIdx.x")
     f = tvm.build(sch.mod["main"], target="cuda")
     dev = tvm.cuda(0)
-    evaluator_no_flush = f.time_evaluator(f.entry_name, dev, repeat=1000, number=1)
+    evaluator = f.time_evaluator(f.entry_name, dev, repeat=1000, number=1, f_preproc=f_preproc)
 
     a = tvm.nd.array(np.random.rand(128, 128).astype("float32"), device=dev)
     b = tvm.nd.array(np.random.rand(128, 128).astype("float32"), device=dev)
     c = tvm.nd.array(np.zeros((128, 128)).astype("float32"), device=dev)
     args = [a, b, c]
-    print("Evaluator (w/o L2 flush):\t{:.5f}ms".format(evaluator_no_flush(*args).mean * 1000))
-
-    evaluator_with_flush = f.time_evaluator(
-        f.entry_name, dev, repeat=1000, number=1, f_preproc="l2_cache_flush_cuda"
-    )
-    print("Evaluator (w/ L2 flush):\t{:.5f}ms".format(evaluator_with_flush(*args).mean * 1000))
+    print("Evaluator (f_preproc={}):\t{:.5f}ms".format(f_preproc, evaluator(*args).mean * 1000))
 
 
 if __name__ == "__main__":
-    test_evaluator_flush_l2_cache()
+    test_time_evalutor_with_preproc("l2_cache_flush_cuda")
