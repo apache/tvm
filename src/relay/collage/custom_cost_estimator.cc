@@ -19,7 +19,7 @@
 
 /*!
  * \file src/relay/collage/custom_cost_estimator.cc
- * \brief A custom CostEstimator to support Alternative cost functions.
+ * \brief A custom CostEstimator to support alternative cost functions.
  */
 
 #include "./custom_cost_estimator.h"
