@@ -27,6 +27,7 @@
 #include <tvm/tir/op.h>
 #include <tvm/tir/transform.h>
 
+#include <limits>
 #include <unordered_set>
 
 #include "../../arith/ir_mutator_with_analyzer.h"
@@ -118,10 +119,12 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // in terms of truncdiv using only positive operands.
       arith::ConstIntBound const_int_bound = analyzer_->const_int_bound(op->a);
       if (const_int_bound->min_value != arith::ConstIntBound::kNegInf &&
-          const_int_bound->min_value < 0) {
+          const_int_bound->min_value < 0 &&
+          const_int_bound->min_value > -(1LL << (op->a->dtype.bits() - 1))) {
         IntImm min(op->a->dtype, const_int_bound->min_value);
-        PrimExpr ceildiv = truncdiv(-min + (op->b - 1), op->b);
-        return truncdiv(op->a + op->b * ceildiv, op->b) - ceildiv;
+        PrimExpr ceildiv = truncdiv((op->b - 1) - min, op->b);
+        PrimExpr offset_numerator = analyzer_->Simplify(op->a + op->b * ceildiv);
+        return truncdiv(offset_numerator, op->b) - ceildiv;
       }
 
       DLOG(INFO) << "LowerFloorDiv: Cannot decide the sign of divident";
@@ -182,10 +185,12 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // in terms of truncmod using only positive operands.
       arith::ConstIntBound const_int_bound = analyzer_->const_int_bound(op->a);
       if (const_int_bound->min_value != arith::ConstIntBound::kNegInf &&
-          const_int_bound->min_value < 0) {
+          const_int_bound->min_value < 0 &&
+          const_int_bound->min_value > -(1LL << (op->a->dtype.bits() - 1))) {
         IntImm min(op->a->dtype, const_int_bound->min_value);
         PrimExpr ceildiv = truncdiv(-min + (op->b - 1), op->b);
-        return truncmod(op->a + op->b * ceildiv, op->b);
+        PrimExpr offset_numerator = analyzer_->Simplify(op->a + op->b * ceildiv);
+        return truncmod(offset_numerator, op->b);
       }
 
       DLOG(INFO) << "LowerFloorMod: Cannot decide the sign of divident";
