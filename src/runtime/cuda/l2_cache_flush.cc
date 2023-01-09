@@ -49,7 +49,7 @@ class L2Flush {
       CUDA_CALL(cudaGetDevice(&device_id));
       CUDA_CALL(cudaDeviceGetAttribute(&l2_size_, cudaDevAttrL2CacheSize, device_id));
       if (l2_size_ > 0) {
-        CUDA_CALL(cudaMalloc((void**)&l2_buffer_, l2_size_));
+        CUDA_CALL(cudaMalloc(reinterpret_cast<void**>(&l2_buffer_), l2_size_));
       }
     }
     cudaStream_t stream = CUDAThreadEntry::ThreadLocal()->stream;
