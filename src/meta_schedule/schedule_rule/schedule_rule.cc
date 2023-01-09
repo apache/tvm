@@ -253,6 +253,8 @@ Array<ScheduleRule> ScheduleRule::DefaultHexagon() {
 
 Array<ScheduleRule> ScheduleRule::DefaultMicro() {
   return {
+      ScheduleRule::ApplyCustomRule(),
+      ScheduleRule::InlineConstantScalars(),
       ScheduleRule::AutoInline(
           /*into_producer=*/false,
           /*into_consumer=*/true,
