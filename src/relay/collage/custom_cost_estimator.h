@@ -19,7 +19,7 @@
 
 /*!
  * \file src/relay/collage/custom_cost_estimator.cc
- * \brief A custom CostEstimator to support all different compiler cost.
+ * \brief A custom CostEstimator to support target-specific cost functions.
  */
 
 #ifndef TVM_RELAY_COLLAGE_CUSTOM_COST_ESTIMATOR_H_
@@ -35,8 +35,7 @@ namespace relay {
 namespace collage {
 
 /*!
- * \brief A custom cost estimator which can determine the cost of a candidate based on
- * the candidate's target.
+ * \brief A cost estimator that uses a target-specific cost function.
  */
 class CustomCostEstimatorNode : public CostEstimatorNode {
  public:
@@ -47,7 +46,7 @@ class CustomCostEstimatorNode : public CostEstimatorNode {
 
  protected:
   /*!
-   * \brief Python implementation function register name to invoke.
+   * \brief Python implemented cost function name.
    */
   String py_fn_estimator_;
 
