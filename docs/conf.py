@@ -153,7 +153,9 @@ COLAB_URL_BASE = "https://colab.research.google.com/github"
 IPYTHON_GITHUB_BASE = "apache/tvm-site/blob/asf-site/docs/_downloads/"
 
 # The SVG image of the "Open in Colab" button.
-BUTTON = "https://raw.githubusercontent.com/apache/web-data/main/images/utilities/colab_button.svg"
+BUTTON = (
+    "https://raw.githubusercontent.com/tlc-pack/web-data/main/images/utilities/colab_button.svg"
+)
 
 
 @monkey_patch("sphinx_gallery.gen_rst", "save_rst_example")
