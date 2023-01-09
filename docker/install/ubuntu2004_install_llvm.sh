@@ -24,6 +24,8 @@ echo deb http://apt.llvm.org/focal/ llvm-toolchain-focal main\
 echo deb http://apt.llvm.org/focal/ llvm-toolchain-focal-13 main\
     >> /etc/apt/sources.list.d/llvm.list
 
+wget -q -O - http://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -
+
 apt-get update && apt-install-and-clear -y \
      llvm-9 llvm-10 llvm-11 llvm-12 llvm-13 \
      clang-9 libclang-9-dev \
