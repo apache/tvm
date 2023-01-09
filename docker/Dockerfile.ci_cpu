@@ -144,5 +144,3 @@ ENV PATH /opt/sccache:$PATH
 # Libxsmm deps
 COPY install/ubuntu_install_libxsmm.sh /install
 RUN bash /install/ubuntu_install_libxsmm.sh
-RUN echo test code please delete
-
