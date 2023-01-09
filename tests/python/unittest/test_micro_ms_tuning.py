@@ -123,4 +123,4 @@ def test_micro_tuning_with_meta_schedule():
 
 
 if __name__ == "__main__":
-    test_micro_tuning_with_meta_schedule()
+    tvm.testing.main()
