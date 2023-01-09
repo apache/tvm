@@ -303,8 +303,8 @@ def test_slash_in_identifier():
     y = relay.var("base/y")
     z = x + y
     txt = astext(z)
-    assert "base/x" in txt
-    assert "base/y" in txt
+    assert "base_x" in txt
+    assert "base_y" in txt
 
 
 if __name__ == "__main__":

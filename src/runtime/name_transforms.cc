@@ -29,8 +29,6 @@ namespace tvm {
 namespace runtime {
 
 std::string SanitizeName(const std::string& name) {
-  ICHECK(!name.empty()) << "Name is empty";
-
   auto isNotAlnum = [](char c) { return !std::isalnum(c); };
   std::string sanitized_input = name;
   std::replace_if(sanitized_input.begin(), sanitized_input.end(), isNotAlnum, '_');

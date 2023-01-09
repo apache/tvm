@@ -49,7 +49,7 @@ def convert(func, params):
         name = str(item)
         w_np = params[name].numpy()
         new_w = np.transpose(w_np, axes=[1, 0])
-        params[name + ".T"] = tvm.nd.array(new_w)
+        params[name + "_T"] = tvm.nd.array(new_w)
         del params[name]
     new_func = _run_opt_pass(
         func,

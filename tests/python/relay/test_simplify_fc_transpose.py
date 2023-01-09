@@ -67,4 +67,4 @@ def test_simplify_fc_transpose():
 
 
 if __name__ == "__main__":
-    test_simplify_fc_transpose()
+    tvm.testing.main()

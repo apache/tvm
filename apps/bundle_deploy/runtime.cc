@@ -30,6 +30,7 @@
 #include "../../src/runtime/library_module.cc"
 #include "../../src/runtime/logging.cc"
 #include "../../src/runtime/module.cc"
+#include "../../src/runtime/name_transforms.cc"
 #include "../../src/runtime/ndarray.cc"
 #include "../../src/runtime/object.cc"
 #include "../../src/runtime/registry.cc"

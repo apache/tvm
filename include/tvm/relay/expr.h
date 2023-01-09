@@ -28,6 +28,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/op.h>
+#include <tvm/runtime/name_transforms.h>
 #include <tvm/target/virtual_device.h>
 
 #include <functional>
@@ -241,7 +242,7 @@ class Var : public Expr {
    * \param span The source span of the expression.
    */
   TVM_DLL Var(String name_hint, Type type_annotation, Span span = Span())
-      : Var(Id(name_hint), type_annotation, span) {}
+      : Var(Id(tvm::runtime::SanitizeName(name_hint)), type_annotation, span) {}
 
   /*!
    * \brief The constructor
