@@ -689,5 +689,35 @@ def test_argmax():
     tvm.ir.assert_structural_equal(prim_func, argmax_expected)
 
 
+def test_extern_with_explicit_buffer_access():
+    def te_extern():
+        A = te.placeholder((128, 128), name="A")
+        B = te.placeholder((128, 128), name="B")
+        P = te.placeholder((1,), name="P")
+        C = te.extern(
+            (128, 128),
+            [A, B, P],
+            lambda ins, outs: tvm.tir.call_extern(
+                "", "myfunc", ins[0].data, ins[1].data, outs[0].data, ins[2][0]
+            ),
+            name="C",
+        )
+        return [A, B, P, C]
+
+    @T.prim_func
+    def tir_extern(var_A: T.handle, var_B: T.handle, var_P: T.handle, var_C: T.handle):
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        A = T.match_buffer(var_A, [128, 128], dtype="float32", offset_factor=1)
+        B = T.match_buffer(var_B, [128, 128], dtype="float32", offset_factor=1)
+        P = T.match_buffer(var_P, [1], dtype="float32", offset_factor=1)
+        C = T.match_buffer(var_C, [128, 128], dtype="float32", offset_factor=1)
+        with T.block("C"):
+            T.reads(A[0:128, 0:128], B[0:128, 0:128], P[0])
+            T.writes(C[0:128, 0:128])
+            T.call_extern("myfunc", A.data, B.data, C.data, P[0], dtype="")
+
+    _check_workload(te_extern, tir_extern)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
