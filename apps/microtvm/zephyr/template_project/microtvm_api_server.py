@@ -265,7 +265,7 @@ def _get_openocd_device_args(serial_number: str = None):
 def _get_nrf_device_args(serial_number: str = None) -> list:
     # iSerial has string type which could mistmatch with
     # the output of `nrfjprog --ids`. Example: 001050007848 vs 1050007848
-    serial_number = str(int(serial_number))
+    serial_number = serial_number.lstrip("0")
 
     nrfjprog_args = ["nrfjprog", "--ids"]
     nrfjprog_ids = subprocess.check_output(nrfjprog_args, encoding="utf-8")
