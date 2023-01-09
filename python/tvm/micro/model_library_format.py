@@ -26,7 +26,6 @@ import tarfile
 import typing
 
 import tvm
-from tvm.ir.type import TupleType
 from tvm.micro import get_standalone_crt_dir
 from .._ffi import get_global_func
 from ..contrib import utils
@@ -217,6 +216,29 @@ def _create_type_metadata(input_type):
     }
 
 
+def _flatten_tuple_outputs(ret_type, predefined_names, offset=0):
+    if isinstance(ret_type, tvm.ir.tensor_type.TensorType):
+        name = predefined_names[offset] if predefined_names else f"output{offset}"
+        return {name: ret_type}
+
+    added_fields = len(ret_type.fields)
+    outputs = {}
+    for output_index in range(added_fields):
+        next_output = offset + len(outputs)
+        outputs.update(
+            _flatten_tuple_outputs(ret_type.fields[output_index], predefined_names, next_output)
+        )
+
+    return outputs
+
+
+def _get_outputs_from_ret_type(ret_type, predefined_names):
+    if isinstance(ret_type, tvm.ir.tensor_type.TensorType):
+        name = predefined_names[0] if predefined_names else "output"
+        return {name: ret_type}
+    return _flatten_tuple_outputs(ret_type, predefined_names)
+
+
 def _build_function_memory_map(function_metadata):
     """Build a simple map that shows how much workspace is required to execute
     each primitive function. The main_func describes how much memory is required
@@ -297,59 +319,31 @@ def _build_function_memory_map(function_metadata):
             target_main_entries[int(target.get_target_device_type())] = _create_empty_entry(
                 int(target.get_target_device_type())
             )
-        target_main_entries[int(target.get_target_device_type())]["io_size_bytes"] = int(
-            main_func_metadata.io_sizes[target]
+        target_main_on_device = target_main_entries[int(target.get_target_device_type())]
+        target_main_on_device["io_size_bytes"] = int(main_func_metadata.io_sizes[target])
+
+        main_relay_func = main_func_metadata.relay_primfuncs[target]
+        target_main_on_device["inputs"] = {
+            input_param.name_hint: _create_type_metadata(input_param.checked_type)
+            for input_param in main_relay_func.params
+        }
+        predefined_names = (
+            main_relay_func.attrs["output_tensor_names"]
+            if "output_tensor_names" in main_relay_func.attrs
+            else None
         )
-
-        # Now, we also add the information about the size of each input and output of the main
-        # function (in bytes)
-        input_dict = {}
-        for input_param in main_func_metadata.relay_primfuncs[target].params:
-            input_dict[input_param.name_hint] = _create_type_metadata(input_param.checked_type)
-        target_main_entries[int(target.get_target_device_type())]["inputs"] = input_dict
-
-        output_dict = {}
-        # For output, we dont have the name of the output, so we enumerate them
-        if isinstance(main_func_metadata.relay_primfuncs[target].ret_type, tvm.ir.type.TupleType):
-            output_list = _convert_tuple_to_outputs(
-                main_func_metadata.relay_primfuncs[target].ret_type
-            )
-            for i, output_type in enumerate(output_list):
-                output_dict[f"output{i}"] = _create_type_metadata(output_type)
-        else:
-            output_type = main_func_metadata.relay_primfuncs[target].ret_type
-            output_dict["output"] = _create_type_metadata(output_type)
-        target_main_entries[int(target.get_target_device_type())]["outputs"] = output_dict
+        target_main_on_device["outputs"] = {
+            name: _create_type_metadata(output_type)
+            for name, output_type in _get_outputs_from_ret_type(
+                main_relay_func.ret_type, predefined_names
+            ).items()
+        }
 
     ret = {
         "operator_functions": func_entries,
         "main": list(target_main_entries.values()),
     }
     return ret
-
-
-def _get_main_relay_func(mod: executor_factory.ExecutorFactoryModule):
-    main_func = mod.function_metadata[MAIN_FUNC_NAME_STR]
-    target = list(main_func.relay_primfuncs.keys())[0]
-    return main_func.relay_primfuncs[target]
-
-
-def _convert_tuple_to_outputs(ret_type, offset=0):
-    outputs = []
-    added_fields = len(ret_type.fields)
-    for output_index in range(added_fields):
-        next_output = offset + len(outputs)
-        if isinstance(ret_type.fields[output_index], TupleType):
-            outputs.extend(_convert_tuple_to_outputs(ret_type.fields[output_index], next_output))
-        else:
-            outputs.append(ret_type.fields[output_index])
-    return outputs
-
-
-def _get_inputs_and_outputs_from_module(mod):
-    inputs = [str(input_var.name) for input_var in mod.executor_codegen_metadata.inputs]
-    outputs = list(mod.executor_codegen_metadata.outputs)
-    return inputs, outputs
 
 
 def _get_pools_from_module(mod):
@@ -462,28 +456,17 @@ def _export_graph_model_library_format(
             if not include_path.exists():
                 include_path.mkdir()
 
-            inputs, outputs = _get_inputs_and_outputs_from_module(mod)
             devices = mod.get_devices()
             pools = _get_pools_from_module(mod)
             io_pool_allocations = _get_io_pool_allocation_from_module(mod)
-            workspace_size = int(
-                metadata["modules"][mod.libmod_name]["memory"]["functions"]["main"][0][
-                    "workspace_size_bytes"
-                ]
-            )
-            inputs_sizes = metadata["modules"][mod.libmod_name]["memory"]["functions"]["main"][0][
-                "inputs"
-            ]
-            # Here, we merge the output sizes with the actual output names
-            output_sizes = {}
-            for i, key in enumerate(
-                metadata["modules"][mod.libmod_name]["memory"]["functions"]["main"][0][
-                    "outputs"
-                ].keys()
-            ):
-                output_sizes[outputs[i]] = metadata["modules"][mod.libmod_name]["memory"][
-                    "functions"
-                ]["main"][0]["outputs"][key]
+            main_func = metadata["modules"][mod.libmod_name]["memory"]["functions"]["main"][0]
+            workspace_size = int(main_func["workspace_size_bytes"])
+            inputs = main_func["inputs"]
+            outputs = main_func["outputs"]
+            inputs_sizes = {name: property_map["size"] for name, property_map in inputs.items()}
+            output_sizes = {name: property_map["size"] for name, property_map in outputs.items()}
+            input_names = list(inputs.keys())
+            output_names = list(outputs.keys())
 
             input_name_to_size_map = {
                 name: property_map["size"] for name, property_map in inputs_sizes.items()
@@ -493,8 +476,8 @@ def _export_graph_model_library_format(
             }
             generate_c_interface_header(
                 mod.libmod_name,
-                inputs,
-                outputs,
+                input_names,
+                output_names,
                 pools,
                 io_pool_allocations,
                 devices,
