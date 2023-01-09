@@ -135,6 +135,7 @@ TensorContentConstant = collections.namedtuple("TensorContentConstant", ["elem_v
 TensorContentSequentialCOrder = collections.namedtuple(
     "TensorContentSequentialCOrder", ["start_value", "increment"]
 )
+TensorContentFullRangeCOrder = collections.namedtuple("TensorContentFullRangeCOrder", [])
 TensorContentRandom = collections.namedtuple("TensorContentRandom", [])
 TensorContentDtypeMin = collections.namedtuple("TensorContentDtypeMin", [])
 TensorContentDtypeMax = collections.namedtuple("TensorContentDtypeMax", [])
@@ -171,6 +172,11 @@ def create_populated_numpy_ndarray(
                 elem[...] = next_elem_val
                 next_elem_val += itp.increment
         return a
+
+    elif isinstance(itp, TensorContentFullRangeCOrder):
+        num_elements = np.prod(input_shape)
+        info = get_numpy_dtype_info(dtype)
+        return np.linspace(info.min, info.max, num=num_elements, dtype=dtype).reshape(input_shape)
 
     else:
         raise ValueError(f"Unexpected input_tensor_populator type: {type(itp)}")
