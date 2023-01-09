@@ -29,3 +29,4 @@ from .nn import *
 from .qdepthwise_conv2d_slice import qdepthwise_conv2d_compute, qdepthwise_conv2d_schedule
 from .adaptive_avg_pool1d import *
 from .global_avg_pool2d import *
+from .conv2d_alter_op import *
