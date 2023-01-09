@@ -61,11 +61,8 @@ def create_relay_module():
 
 
 @tvm.testing.requires_micro
-@tvm.testing.requires_micro
 def test_ms_tuning_conv2d(workspace_dir, board, microtvm_debug, use_fvp, serial_number):
-    """Test AutoTune for microTVM Zephyr"""
-    if board != "qemu_x86":
-        pytest.xfail(f"Autotune fails on {board}.")
+    """Test meta-schedule tuning for microTVM Zephyr"""
 
     mod, params, model_info = create_relay_module()
     input_name = model_info["in_tensor"]
@@ -80,6 +77,8 @@ def test_ms_tuning_conv2d(workspace_dir, board, microtvm_debug, use_fvp, serial_
         "project_type": "host_driven",
         "use_fvp": bool(use_fvp),
         "serial_number": serial_number,
+        "config_main_stack_size": 8192,
+        "heap_size_bytes": 512 * 1024,
     }
 
     boards_file = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr")) / "boards.json"
