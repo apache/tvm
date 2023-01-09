@@ -262,7 +262,11 @@ def _get_openocd_device_args(serial_number: str = None):
     return ["--serial", generic_find_serial_port(serial_number)]
 
 
-def _get_nrf_device_args(serial_number: str = None):
+def _get_nrf_device_args(serial_number: str = None) -> list:
+    # iSerial has string type which could mistmatch with
+    # the output of `nrfjprog --ids`. Example: 001050007848 vs 1050007848
+    serial_number = serial_number.lstrip("0")
+
     nrfjprog_args = ["nrfjprog", "--ids"]
     nrfjprog_ids = subprocess.check_output(nrfjprog_args, encoding="utf-8")
     if not nrfjprog_ids.strip("\n"):
@@ -276,9 +280,7 @@ def _get_nrf_device_args(serial_number: str = None):
             )
 
         if serial_number not in boards:
-            raise BoardError(
-                f"serial number ({serial_number}) not found in {nrfjprog_args}: {boards}"
-            )
+            raise BoardError(f"serial number ({serial_number}) not found in {boards}")
 
         return ["--snr", serial_number]
 
@@ -721,23 +723,27 @@ class Handler(server.ProjectAPIHandler):
         if _find_platform_from_cmake_file(API_SERVER_DIR / CMAKELIST_FILENAME):
             return  # NOTE: qemu requires no flash step--it is launched from open_transport.
 
+        flash_runner = _get_flash_runner()
         # The nRF5340DK requires an additional `nrfjprog --recover` before each flash cycle.
         # This is because readback protection is enabled by default when this device is flashed.
         # Otherwise, flashing may fail with an error such as the following:
         #  ERROR: The operation attempted is unavailable due to readback protection in
         #  ERROR: your device. Please use --recover to unlock the device.
         zephyr_board = _find_board_from_cmake_file(API_SERVER_DIR / CMAKELIST_FILENAME)
-        if zephyr_board.startswith("nrf5340dk") and _get_flash_runner() == "nrfjprog":
+        if zephyr_board.startswith("nrf5340dk") and flash_runner == "nrfjprog":
             recover_args = ["nrfjprog", "--recover"]
             recover_args.extend(_get_nrf_device_args(serial_number))
             check_call(recover_args, cwd=API_SERVER_DIR / "build")
 
         flash_extra_args = []
-        if _get_flash_runner() == "openocd" and serial_number:
-            flash_extra_args = ["--cmd-pre-init", f"""hla_serial {serial_number}"""]
+        if flash_runner == "openocd" and serial_number:
+            flash_extra_args += ["--cmd-pre-init", f"""hla_serial {serial_number}"""]
+
+        if flash_runner == "nrfjprog":
+            flash_extra_args += _get_nrf_device_args(serial_number)
 
         check_call(
-            west_cmd_list + ["flash", "-r", _get_flash_runner()] + flash_extra_args,
+            west_cmd_list + ["flash", "-r", flash_runner] + flash_extra_args,
             cwd=API_SERVER_DIR / "build",
         )
 
