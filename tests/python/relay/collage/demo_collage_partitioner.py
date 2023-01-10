@@ -268,8 +268,8 @@ def collage(model):
                 "cutlass.NoFusion",
                 "cublas.NoFusion",
                 "cudnn.NoFusion",
-                "tensorrt.TVMFusion"
-            ]
+                "tensorrt.TVMFusion",
+            ],
         }
         logging.info(f"Using PassContext(config={config}")
         ctxt = tvm.transform.PassContext(config=config)
