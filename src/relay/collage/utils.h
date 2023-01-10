@@ -30,8 +30,8 @@
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/runtime/container/string.h>
 
-#include <vector>
 #include <string>
+#include <vector>
 
 namespace tvm {
 namespace relay {
