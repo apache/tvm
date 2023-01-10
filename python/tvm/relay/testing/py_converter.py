@@ -98,7 +98,11 @@ class PythonConverter(ExprFunctor):
         # unwrap tuple wrappers (some op calls produce them)
         unwrapped = prog.astuple() if isinstance(prog, relay.TupleWrapper) else prog
         assert relay.analysis.well_formed(unwrapped)
-        mod = self.mod.from_expr(unwrapped, self.mod.functions, self.mod.type_definitions)
+        # For a lone global var, there is nothing we need to do
+        if isinstance(unwrapped, relay.GlobalVar):
+            return unwrapped
+        else:
+            mod = self.mod.from_expr(unwrapped, self.mod.functions, self.mod.type_definitions)
 
         # necessary pass: SimplifyInference (otherwise we can't generate code for some operators)
         # and fusion (to get primitive functions)
