@@ -479,19 +479,6 @@ def dense_amx_int8_schedule(cfg, s, C, O, do_parallel=True):
     return s, fused
 
 
-@autotvm.register_topi_schedule("dense_amx_int8.x86")
-def schedule_dense_amx_int8(cfg, outs):
-    """Create a schedule for dense_amx_int8"""
-    s = te.create_schedule([x.op for x in outs])
-
-    def _callback(op):
-        if "dense_amx_int8" in op.tag:
-            dense_amx_int8_schedule(cfg, s, op.output(0), outs[0])
-
-    traverse_inline(s, outs[0].op, _callback)
-    return s
-
-
 def matmul_blas_common(cfg, tensor_a, tensor_b, bias, out_dtype, transpose_a, transpose_b, lib):
     """Compute matmul/dense using a BLAS library"""
     M, K = get_const_tuple(tensor_a.shape)
