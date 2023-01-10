@@ -25,7 +25,6 @@ from tvm.meta_schedule import is_meta_schedule_enabled
 from tvm.relay.ty import is_dynamic
 from tvm.target import Target
 from tvm.te import SpecializedCondition
-from tvm.topi.x86.utils import target_has_vnni
 
 from .. import op as _op
 from .generic import *
@@ -618,7 +617,6 @@ def dense_pack_strategy_cpu(attrs, inputs, out_type, target):
 def batch_matmul_strategy_cpu(attrs, inputs, out_type, target):
     """batch_matmul x86 strategy"""
     strategy = _op.OpStrategy()
-    mcpu = Target.current().mcpu
 
     need_auto_scheduler_layout = is_auto_scheduler_enabled()
     need_meta_schedule_layout = is_meta_schedule_enabled()

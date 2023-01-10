@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,too-many-locals,unused-variable
+# pylint: disable=unused-argument
 """x86 batch_matmul operators"""
 import tvm
 from tvm import autotvm, te
