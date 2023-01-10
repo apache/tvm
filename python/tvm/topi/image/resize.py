@@ -1160,7 +1160,7 @@ def _resize_3d(
         l = [[0 for i in range(4)] for j in range(4)]
         for j in range(4):
             for i in range(4):
-                l[j][i] = _sum_products(p[j][i], wx)
+                l[j][i] = _sum_products(wx, p[j][i])
         col0 = _sum_products(wy, l[0])
         col1 = _sum_products(wy, l[1])
         col2 = _sum_products(wy, l[2])
