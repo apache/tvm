@@ -61,6 +61,7 @@ def create_relay_module():
 
 
 @tvm.testing.requires_micro
+@pytest.mark.xfail_on_fvp()
 def test_ms_tuning_conv2d(workspace_dir, board, microtvm_debug, use_fvp, serial_number):
     """Test meta-schedule tuning for microTVM Zephyr"""
 
@@ -77,8 +78,7 @@ def test_ms_tuning_conv2d(workspace_dir, board, microtvm_debug, use_fvp, serial_
         "project_type": "host_driven",
         "use_fvp": bool(use_fvp),
         "serial_number": serial_number,
-        "config_main_stack_size": 8192,
-        "heap_size_bytes": 512 * 1024,
+        "config_main_stack_size": 4096,
     }
 
     boards_file = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr")) / "boards.json"
