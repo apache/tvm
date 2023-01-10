@@ -200,7 +200,6 @@ def compile_and_benchmark(label, model, targets, tmp_dir):
     logging.info(f"RESULT: {label} | {model['name']} | {profile.median * 1e3}ms")
 
 
-
 # Custom cost function for Opencl RPC targets.
 @register_func("tvm.relay.collage.opencl_cost_estimator")
 def opencl_cost_estimator(mod, target):
