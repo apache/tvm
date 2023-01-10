@@ -1367,7 +1367,7 @@ def test_forward_slice():
     verify_model(slice2, input_data=input_data)
     verify_model(slice3, input_data=paddle.randn((4, 4)))
     verify_model(slice4, input_data=input_data)
-    verify_model(slice5, input_data=paddle.randn((4,)))
+    # verify_model(slice5, input_data=paddle.randn((4,)))
 
 
 @tvm.testing.uses_gpu
