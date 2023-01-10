@@ -189,6 +189,7 @@ bool DetectClipBound(const PrimExpr& cond,
   PostOrderVisit(cond, fvisit);
   if (flag != 1) return false;
   // canonical form: exp >= 0
+  bool is_eq = false;
   PrimExpr canonical;
   if (const LTNode* op = cond.as<LTNode>()) {
     if (!op->a.dtype().is_int()) return false;
@@ -202,6 +203,9 @@ bool DetectClipBound(const PrimExpr& cond,
   } else if (const GENode* op = cond.as<GENode>()) {
     if (!op->a.dtype().is_int()) return false;
     canonical = op->a - op->b;
+  } else if (const EQNode* op = cond.as<EQNode>()) {
+    canonical = op->a - op->b;
+    is_eq = true;
   } else {
     return false;
   }
@@ -217,6 +221,9 @@ bool DetectClipBound(const PrimExpr& cond,
     } else {
       p.min_value = -ret.base;
     }
+    if (is_eq) {
+      p.max_value = p.min_value;
+    }
     return true;
   }
   if (is_const_int(ret.coeff, -1)) {
@@ -225,6 +232,9 @@ bool DetectClipBound(const PrimExpr& cond,
       p.max_value = min(p.max_value, ret.base);
     } else {
       p.max_value = ret.base;
+    }
+    if (is_eq) {
+      p.min_value = p.max_value;
     }
     return true;
   }
