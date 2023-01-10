@@ -60,6 +60,44 @@ class ProducerToBufferTransformer : public StmtExprMutator {
   const std::unordered_map<te::Tensor, Buffer>& tensor2buffers_;
 };
 
+/*! \brief The helper mutator to rewrite buffer and buffer var accessed by block body */
+class BufferSubstituter : public StmtExprMutator {
+ public:
+  explicit BufferSubstituter(const std::unordered_map<const VarNode*, PrimExpr>& var_map,
+                             const std::unordered_map<const BufferNode*, Buffer>& buffer_map)
+      : var_map_(var_map), buffer_map_(buffer_map) {}
+
+  PrimExpr VisitExpr_(const VarNode* op) final {
+    auto it = var_map_.find(op);
+    if (it != var_map_.end()) {
+      return it->second;
+    }
+    return StmtExprMutator::VisitExpr_(op);
+  }
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    auto load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    auto it = buffer_map_.find(load->buffer.get());
+    if (it != buffer_map_.end()) {
+      return BufferLoad(it->second, load->indices, load->span);
+    }
+    return load;
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    auto store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    auto it = buffer_map_.find(store->buffer.get());
+    if (it != buffer_map_.end()) {
+      return BufferStore(it->second, store->value, store->indices, store->span);
+    }
+    return store;
+  }
+
+ private:
+  const std::unordered_map<const VarNode*, PrimExpr>& var_map_;
+  const std::unordered_map<const BufferNode*, Buffer>& buffer_map_;
+};
+
 /*! \brief Helper data structure to store information. */
 struct CreateFuncInfo {
   /*! \brief The Tensor arg_list. */
@@ -364,6 +402,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
 Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* info) {
   // Step 1. Check all inputs are visited before and update var_map.
   std::unordered_map<const VarNode*, PrimExpr> var_map;
+  std::unordered_map<const BufferNode*, Buffer> input_buffer_map;
   ICHECK_EQ(extern_op->inputs.size(), extern_op->input_placeholders.size());
   for (size_t i = 0; i < extern_op->inputs.size(); ++i) {
     const Buffer& placeholder = extern_op->input_placeholders[i];
@@ -371,6 +410,7 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
     auto it = info->tensor2buffers.find(input_tensor);
     ICHECK(it != info->tensor2buffers.end());
     var_map[placeholder->data.get()] = it->second->data;
+    input_buffer_map[placeholder.get()] = it->second;
   }
 
   // Step 2. Update info with its output tensor and placeholder buffer.
@@ -394,7 +434,8 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
     writes.push_back(BufferRegion::FullRegion(buffer));
   }
 
-  Stmt body = Substitute(extern_op->body, var_map);
+  BufferSubstituter substituter(var_map, input_buffer_map);
+  Stmt body = substituter(extern_op->body);
 
   // Step 4. Generate opaque block as body.
   return BlockRealize(/*iter_values=*/{},
