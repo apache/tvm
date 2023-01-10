@@ -804,7 +804,7 @@ def default_project_options(**kw) -> typing.List[ProjectOption]:
             "cmsis_path",
             optional=["generate_project"],
             type="str",
-            default=os.environ.get("CMSIS_PATH", None),
+            default=None,
             help="Path to the CMSIS directory.",
         ),
         ProjectOption(
