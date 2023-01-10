@@ -110,15 +110,12 @@ BYOCStyle BYOCFusionStyleForCompiler(const String& compiler) {
   Optional<Array<String>> byoc_configs = ctxt->GetConfig(config_key, Optional<Array<String>>());
   BYOCStyle byoc_fusion_style = DefaultBYOCFusionStyleForCompiler(compiler);
   if (!byoc_configs) {
-    LOG(INFO)<<"default fusion style";
     return byoc_fusion_style;
   }
   for (auto config_ : byoc_configs.value()) {
     std::vector<std::string> byoc_cfg = SplitString(config_, ".");
-    LOG(INFO) <<"byoc cfg: "<<byoc_cfg[0]<<" : "<<byoc_cfg[1];
     if (byoc_cfg[0] == compiler) {
       if (byoc_cfg[1] == "NoFusion") {
-        LOG(INFO)<<"NoFusion detected";
         byoc_fusion_style = kNoFusionBYOCStyle;
       } else if (byoc_cfg[1] == "TVMFusion") {
         byoc_fusion_style = kTVMFusionBYOCStyle;
