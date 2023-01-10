@@ -320,9 +320,7 @@ def get_model(model_name, dtype):
     if "mobilenet" in model_name:
         mod, params = testing.mobilenet.get_workload(batch_size=1, dtype=dtype)
     elif "resnet" in model_name:
-        mod, params = testing.resnet.get_workload(
-            num_layers=50, batch_size=1, dtype=dtype
-        )
+        mod, params = testing.resnet.get_workload(num_layers=50, batch_size=1, dtype=dtype)
     if params:
         mod["main"] = bind_params_by_name(mod["main"], params)
         mod = tvm.relay.transform.FoldConstant()(mod)
