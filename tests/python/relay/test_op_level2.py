@@ -30,9 +30,6 @@ from tvm.relay import transform
 from tvm.relay.testing import run_infer_type
 from tvm.topi.cuda.conv3d_winograd import _infer_tile_size
 
-# from onnx import helper, mapping
-# import onnxruntime
-
 executor_kind = tvm.testing.parameter("graph", "vm")
 
 
@@ -2162,9 +2159,12 @@ def _test_conv2d_int8_alter_dtype(data_dtype, target, dot_product_instrs):
             out_dtype=out_dtype,
         )
 
-    # def verify_by_ort(x_data, w_data, b_data, out):
-    #     def get_onnx_model(x_shape, w_shape, out_shape):
-    #         x_dtype = "int8"
+    # def verify_by_ort(x_data, w_data, b_data, data_dtype, out):
+    #     from onnx import helper, mapping, TensorProto
+    #     from onnxruntime import backend as ort_bk
+
+    #     def get_onnx_model(data_dtype, x_shape, w_shape, b_shape, out_shape):
+    #         x_dtype = data_dtype
     #         w_dtype = "int8"
     #         b_dtype = "int32"
     #         x_proto_type = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(x_dtype)]
@@ -2177,31 +2177,46 @@ def _test_conv2d_int8_alter_dtype(data_dtype, target, dot_product_instrs):
     #         input_nodes = [
     #             helper.make_tensor_value_info("x", x_proto_type, list(x_shape)),
     #             helper.make_tensor_value_info("w", w_proto_type, list(w_shape)),
-    #             helper.make_tensor_value_info("b", b_proto_type, (w_shape[0],)),
+    #             helper.make_tensor_value_info("B", b_proto_type, list(b_shape)),
+    #         ]
+    #         initializer = [
+    #             helper.make_tensor("x_scale", TensorProto.FLOAT, [], [1.]),
+    #             helper.make_tensor("x_zero_point", x_proto_type, [], [0]),
+    #             helper.make_tensor("w_scale", TensorProto.FLOAT, [], [1.]),
+    #             helper.make_tensor("w_zero_point", w_proto_type, [], [0]),
+    #             helper.make_tensor("y_scale", TensorProto.FLOAT, [], [1.]),
+    #             helper.make_tensor("y_zero_point", y_proto_type, [], [0]),
     #         ]
     #         input_names = [
     #             "x",
+    #             "x_scale",
+    #             "x_zero_point",
     #             "w",
-    #             "b",
+    #             "w_scale",
+    #             "w_zero_point",
+    #             "y_scale",
+    #             "y_zero_point",
+    #             "B"
     #         ]
 
-    #         node = helper.make_node(
-    #             "Conv",
+    #         node_conv = helper.make_node(
+    #             "QLinearConv",
     #             inputs=input_names,
     #             outputs=["y"],
     #         )
 
     #         graph = helper.make_graph(
-    #             [node],
-    #             "ort_conv2d_test",
+    #             [node_conv],
+    #             "ort_conv2d_int8_test",
     #             inputs=input_nodes,
+    #             initializer=initializer,
     #             outputs=[helper.make_tensor_value_info("y", y_proto_type, list(out_shape))],
     #         )
-    #         model = helper.make_model(graph, producer_name="ort_conv2d_test")
+    #         model = helper.make_model(graph, producer_name="ort_conv2d_int8_test")
     #         return model
 
-    #     onnx_model = get_onnx_model(x_data.shape, w_data.shape, out.shape)
-    #     ort_exec = onnxruntime.backend.prepare(onnx_model.SerializeToString(), "CPU")
+    #     onnx_model = get_onnx_model(data_dtype, x_data.shape, w_data.shape, b_data.shape, out.shape)
+    #     ort_exec = ort_bk.prepare(onnx_model.SerializeToString(), "CPU")
     #     ort_out = ort_exec.run([x_data, w_data, b_data])
     #     # Unpack output if there's only a single value.
     #     if len(ort_out) == 1:
@@ -2256,8 +2271,10 @@ def _test_conv2d_int8_alter_dtype(data_dtype, target, dot_product_instrs):
 
     out = rt_mod.get_output(0).numpy()
 
-    # verify_by_ort(data_np, weight_np, bias_np, out)
-    # verify_by_ort(data_np, weight_np, bias_np, ref)
+    # print("COMPARE ORT and OUT")
+    # verify_by_ort(data_np, weight_np, bias_np, data_dtype, out)
+    # print("COMPARE ORT and REF")
+    # verify_by_ort(data_np, weight_np, bias_np, data_dtype, ref)
 
     np.testing.assert_equal(out, ref)
 
