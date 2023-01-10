@@ -17,11 +17,12 @@
  * under the License.
  */
 #include "../../../3rdparty/nvbench/l2_cache_flush.h"
-#include "cuda_common.h"
 
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
+
+#include "cuda_common.h"
 
 namespace tvm {
 
