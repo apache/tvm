@@ -242,7 +242,6 @@ def schedule_batch_matmul_int8(cfg, outs):
             elif target_has_vnni(mcpu):
                 batch_matmul_vnni_schedule(cfg, s, op.output(0), outs[0], layout_trans)
 
-
     traverse_inline(s, outs[0].op, _callback)
     return s
 

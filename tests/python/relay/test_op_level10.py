@@ -524,7 +524,7 @@ def test_batch_matmul_vnni(b, m, n, k):
 @pytest.mark.parametrize(
     "b,m,n,k",
     [
-        (16,32, 32, 128),
+        (16, 32, 32, 128),
         (16, 32, 32, 127),
         (16, 32, 31, 128),
     ],
