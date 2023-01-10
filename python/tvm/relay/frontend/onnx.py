@@ -4898,6 +4898,90 @@ class QLinearConv(OnnxOpConverter):
         return out
 
 
+class QGemm(OnnxOpConverter):
+    """Operator converter for QGemm."""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        # https://github.com/microsoft/onnxruntime/blob/main/docs/ContribOperators.md#com.microsoft.QGemm
+
+        a = inputs[0]
+        a_scale = get_scalar(inputs[1], params)
+        a_zp = get_scalar(inputs[2], params, "int32")
+
+        b = inputs[3]
+        # must be a scalar or 1D tensor which means a per-tensor or per-column quantization
+        # If 1-D tensor, number of elements should be equal to columns elements of input B
+        b_scale = get_scalar_or_1d_tensor(inputs[4], params)
+        b_zp = get_scalar_or_1d_tensor(inputs[5], params, "int32")
+
+        # note that if optional and not provided then value will be None.
+        C = inputs[6]
+        # must be null or a scalar or 1D tensor of size 1
+        y_scale = inputs[7]
+        # must be null or a scalar or 1D tensor of size 1
+        y_zp = get_scalar(inputs[8], params, "int32")
+
+        assert len(infer_shape(a)) == 2
+        assert len(infer_shape(b)) == 2
+        # zero point and scale of input b should have same shape size
+        assert infer_shape(b_scale) == infer_shape(b_zp)
+
+        alpha = float(attr.get("alpha", 1.0))
+        transA = int(attr.get("transA", 0))
+        transB = int(attr.get("transB", 0))
+
+        # get number of channels
+        channels = infer_channels(b, not transB)
+        a_dtype = infer_type(a).checked_type.dtype
+
+        if transA:
+            a = _op.transpose(a, axes=(1, 0))
+        if not transB:
+            b = _op.transpose(b, axes=(1, 0))
+
+        result = _qnn.op.dense(
+            a,
+            b,
+            a_zp,
+            b_zp,
+            a_scale,
+            b_scale,
+            channels,
+        )
+
+        if C:
+            result = _op.add(result, C)
+
+        requantize_scale = _op.multiply(a_scale, b_scale)
+        if alpha != 1.0:
+            requantize_scale *= _expr.const(alpha, dtype="float32")
+        requantize_zp = _op.const(0, dtype="int32")
+
+        if y_scale:
+            # requantize requires y_scale to be constant,
+            # if y_scale is not constant, doing dequantize -> quantize
+            if isinstance(y_scale, _expr.Constant):
+                y = _qnn.op.requantize(
+                    result,
+                    requantize_scale,
+                    requantize_zp,
+                    y_scale,
+                    y_zp,
+                    axis=-1,
+                    rounding="TONEAREST",
+                    out_dtype=a_dtype,
+                )
+            else:
+                result_deq = _qnn.op.dequantize(result, requantize_scale, requantize_zp, axis=0)
+
+                y = _qnn.op.quantize(result_deq, y_scale, y_zp, axis=0, out_dtype=a_dtype)
+        else:
+            y = _op.multiply(_op.cast(result, "float32"), requantize_scale)
+
+        return y
+
+
 class QLinearAdd(OnnxOpConverter):
     """Operator converter for QLinearAdd from Microsoft onnxruntime contrib opset."""
 
@@ -6144,6 +6228,7 @@ def _get_convert_map(opset):
         "DequantizeLinear": DequantizeLinear.get_converter(opset),
         "DynamicQuantizeLinear": DynamicQuantizeLinear.get_converter(opset),
         "ReverseSequence": ReverseSequence.get_converter(opset),
+        "QGemm": QGemm.get_converter(opset),
         "QLinearConv": QLinearConv.get_converter(opset),
         "QLinearConcat": QLinearConcat.get_converter(opset),
         "QLinearAdd": QLinearAdd.get_converter(opset),

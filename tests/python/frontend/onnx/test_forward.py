@@ -6155,6 +6155,174 @@ def test_skiplayernormalization(target, dev):
 
 @tvm.testing.known_failing_targets("cuda")
 @tvm.testing.parametrize_targets
+def test_qgemm(target, dev):
+    """test_qgemm"""
+
+    def verify_qgemm(
+        a_shape,
+        b_shape,
+        y_shape,
+        C=False,
+        y_zp=False,
+        b_per_tensor_quantization=False,
+        alpha=1.0,
+        transA=0,
+        transB=1,
+    ):
+        a_array = np.random.randint(low=0, high=255, size=a_shape).astype("uint8")
+        b_array = np.random.uniform(low=0, high=255, size=b_shape).astype("uint8")
+
+        input_nodes = [
+            helper.make_tensor_value_info("a", TensorProto.UINT8, list(a_shape)),
+            helper.make_tensor_value_info("b", TensorProto.UINT8, list(b_shape)),
+        ]
+
+        initializer = [
+            helper.make_tensor("a_scale", TensorProto.FLOAT, (), [np.random.rand()]),
+            helper.make_tensor("a_zero_point", TensorProto.UINT8, (), [np.random.randint(0, 255)]),
+        ]
+
+        input_names = [
+            "a",
+            "a_scale",
+            "a_zero_point",
+            "b",
+            "b_scale",
+            "b_zero_point",
+        ]
+        input_values = [a_array, b_array]
+
+        if b_per_tensor_quantization:
+            initializer.append(
+                helper.make_tensor("b_scale", TensorProto.FLOAT, (), [np.random.rand()])
+            )
+            initializer.append(
+                helper.make_tensor(
+                    "b_zero_point", TensorProto.UINT8, (), [np.random.randint(0, 255)]
+                )
+            )
+        else:  # per_colume_quantization
+            shape_value = b_shape[0] if transB else b_shape[1]
+            b_scale_array = np.random.random(shape_value).astype("float32")
+            w_zero_point_array = np.random.randint(0, 255, size=shape_value).astype("uint8")
+            initializer.append(
+                helper.make_tensor(
+                    "b_scale", TensorProto.FLOAT, list(b_scale_array.shape), b_scale_array
+                )
+            )
+            initializer.append(
+                helper.make_tensor(
+                    "b_zero_point",
+                    TensorProto.UINT8,
+                    list(w_zero_point_array.shape),
+                    w_zero_point_array,
+                )
+            )
+
+        output_tensor = helper.make_tensor_value_info("output", TensorProto.FLOAT, list(y_shape))
+
+        if C is True:
+            C_shape = (b_shape[0] if transB else b_shape[1],)
+            C_array = np.random.randint(low=0, high=65536, size=C_shape).astype("int32")
+            input_nodes.append(helper.make_tensor_value_info("C", TensorProto.INT32, list(C_shape)))
+            input_names.append("C")
+            input_values.append(C_array)
+
+        if y_zp is True:
+            input_names.append("y_scale")
+            initializer.append(
+                helper.make_tensor("y_scale", TensorProto.FLOAT, (), [np.random.rand()])
+            )
+
+            input_names.append("y_zero_point")
+            initializer.append(
+                helper.make_tensor(
+                    "y_zero_point", TensorProto.UINT8, (), [np.random.randint(0, 255)]
+                )
+            )
+
+            output_tensor = helper.make_tensor_value_info(
+                "output", TensorProto.UINT8, list(y_shape)
+            )
+
+        kwargs = {}
+        kwargs["alpha"] = alpha
+        kwargs["transA"] = transA
+        kwargs["transB"] = transB
+
+        node = helper.make_node(
+            "QGemm",
+            inputs=input_names,
+            outputs=["output"],
+            domain="com.microsoft",
+            # Default values for other attributes:
+            **kwargs,
+        )
+
+        graph = helper.make_graph(
+            [node],
+            "QGemm",
+            inputs=input_nodes,
+            outputs=[output_tensor],
+            initializer=initializer,
+        )
+        model = helper.make_model(
+            graph,
+            producer_name="QGemm",
+            opset_imports=[
+                onnx.helper.make_opsetid("com.microsoft", 1),
+            ],
+        )
+
+        verify_with_ort_with_inputs(model, input_values, target=target, dev=dev)
+
+    # B per tensor quantization
+    verify_qgemm(
+        (20, 30),
+        (50, 30),
+        (20, 50),
+        True,
+        True,
+        True,
+    )
+
+    # B per column  quantization
+    verify_qgemm(
+        (20, 30),
+        (50, 30),
+        (20, 50),
+        True,
+        True,
+        False,
+    )
+
+    # test alpha
+    verify_qgemm(
+        (20, 30),
+        (50, 30),
+        (20, 50),
+        True,
+        True,
+        True,
+        0.5,
+    )
+
+    # test transpose A
+    verify_qgemm(
+        (20, 50),
+        (20, 80),
+        (50, 80),
+        True,
+        True,
+        True,
+        0.5,
+        1,
+        0,
+    )
+
+
+@tvm.testing.known_failing_targets("cuda")
+@tvm.testing.parametrize_targets
 def test_qlinearconv(target, dev):
     """test_qlinearconv"""
 
