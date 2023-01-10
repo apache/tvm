@@ -120,7 +120,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       arith::ConstIntBound const_int_bound = analyzer_->const_int_bound(op->a);
       if (const_int_bound->min_value != arith::ConstIntBound::kNegInf &&
           const_int_bound->min_value < 0 &&
-          const_int_bound->min_value > -(1LL << (op->a->dtype.bits() - 1))) {
+          const_int_bound->min_value > Downcast<IntImm>(tvm::min_value(op->a->dtype))->value) {
         IntImm min(op->a->dtype, const_int_bound->min_value);
         PrimExpr ceildiv = truncdiv((op->b - 1) - min, op->b);
         PrimExpr offset_numerator = analyzer_->Simplify(op->a + op->b * ceildiv);
@@ -186,7 +186,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       arith::ConstIntBound const_int_bound = analyzer_->const_int_bound(op->a);
       if (const_int_bound->min_value != arith::ConstIntBound::kNegInf &&
           const_int_bound->min_value < 0 &&
-          const_int_bound->min_value > -(1LL << (op->a->dtype.bits() - 1))) {
+          const_int_bound->min_value > Downcast<IntImm>(tvm::min_value(op->a->dtype))->value) {
         IntImm min(op->a->dtype, const_int_bound->min_value);
         PrimExpr ceildiv = truncdiv(-min + (op->b - 1), op->b);
         PrimExpr offset_numerator = analyzer_->Simplify(op->a + op->b * ceildiv);
