@@ -136,10 +136,10 @@ bool MustBeLowered(const Expr& expr) {
 
 std::vector<std::string> SplitString(std::string stmt, const char* del) {
   std::vector<std::string> str_tokens;
-  int start=0;
+  int start = 0;
   int end = stmt.find(del, 0);
   str_tokens.emplace_back(stmt.substr(start, end));
-  while(end != -1) {
+  while (end != -1) {
     stmt = stmt.substr(end+1, stmt.size());
     end = stmt.find(del, 0);
     str_tokens.emplace_back(stmt.substr(start, end));
