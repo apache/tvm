@@ -626,16 +626,15 @@ def batch_matmul_strategy_cpu(attrs, inputs, out_type, target):
     if (
         not attrs.transpose_a
         and attrs.transpose_b
-        and target_has_vnni(mcpu)
         and inputs[0].dtype == "uint8"
         and inputs[1].dtype == "int8"
         and inputs[1].shape[-2] % 16 == 0
         and inputs[1].shape[-1] % 4 == 0
     ):
         strategy.add_implementation(
-            wrap_compute_batch_matmul(topi.x86.batch_matmul_vnni_compute, need_out_dtype=True),
-            wrap_topi_schedule(topi.x86.schedule_batch_matmul_vnni),
-            name="batch_matmul_vnni.x86",
+            wrap_compute_batch_matmul(topi.x86.batch_matmul_int8_compute, need_out_dtype=True),
+            wrap_topi_schedule(topi.x86.schedule_batch_matmul_int8),
+            name="batch_matmul_int8.x86",
             plevel=10,
         )
     elif is_dynamic(out_type) or need_auto_scheduler_layout or need_meta_schedule_layout:
