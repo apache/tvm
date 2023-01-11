@@ -1942,7 +1942,7 @@ class Pad(OnnxOpConverter):
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
         pads = inputs[1]
-        if len(inputs) == 3  and inputs[2] is not None:
+        if len(inputs) == 3 and inputs[2] is not None:
             value = fold_constant(_op.take(inputs[2], _op.const(0)))
         else:
             value = 0.0
