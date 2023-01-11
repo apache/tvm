@@ -28,20 +28,20 @@
  * intended to be a demonstration, since typically you will want to incorporate
  * this logic into your own application.
  */
-#include <drivers/gpio.h>
-#include <drivers/uart.h>
-#include <fatal.h>
-#include <kernel.h>
-#include <random/rand32.h>
 #include <stdio.h>
-#include <sys/printk.h>
-#include <sys/reboot.h>
-#include <sys/ring_buffer.h>
-#include <timing/timing.h>
+#include <string.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/microtvm_rpc_server.h>
 #include <unistd.h>
-#include <zephyr.h>
+#include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/uart.h>
+#include <zephyr/fatal.h>
+#include <zephyr/kernel.h>
+#include <zephyr/random/rand32.h>
+#include <zephyr/sys/printk.h>
+#include <zephyr/sys/reboot.h>
+#include <zephyr/sys/ring_buffer.h>
+#include <zephyr/timing/timing.h>
 
 #ifdef FVP
 #include "fvp/semihost.h"
@@ -253,7 +253,7 @@ void main(void) {
 #endif
 
   // Claim console device.
-  tvm_uart = device_get_binding(DT_LABEL(DT_CHOSEN(zephyr_console)));
+  tvm_uart = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
   uart_rx_init(&uart_rx_rbuf, tvm_uart);
 
   // Initialize system timing. We could stop and start it every time, but we'll

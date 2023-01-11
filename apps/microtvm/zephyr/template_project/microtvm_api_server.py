@@ -68,7 +68,7 @@ CMAKELIST_FILENAME = "CMakeLists.txt"
 
 # Used to check Zephyr version installed on the host.
 # We only check two levels of the version.
-ZEPHYR_VERSION = 2.7
+ZEPHYR_VERSION = 3.2
 
 WEST_CMD = default = sys.executable + " -m west" if sys.executable else None
 
