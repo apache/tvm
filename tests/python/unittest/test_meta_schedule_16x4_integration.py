@@ -110,10 +110,10 @@ def _relay_dense(m, n, k):
         out_dtype="int32",
     )
     relay_mod = tvm.IRModule.from_expr(out)
-    data = np.random.uniform(1, 10, size=(m, k)).astype("uint8")
+    data = np.random.randint(0, 5, size=(m, k), dtype="uint8")
     params = {
-        "weight": np.random.uniform(1, 10, size=(n, k)).astype("int8"),
-        "bias": np.random.uniform(1, 10, size=(n,)).astype("int32"),
+        "weight": np.random.randint(0, 5, size=(n, k), dtype="int8"),
+        "bias": np.random.randint(0, 5, size=(n,), dtype="int32"),
     }
 
     def f_check(lib, dev):
