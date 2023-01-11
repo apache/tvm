@@ -495,9 +495,9 @@ def conv2d_NCHWc_int8(
 
     n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
     in_channel = ic_chunk * ic_bn
-    oc_chunk, ic_chunk_group, kernel_height, kernel_width, _, oc_bn, _ = get_const_tuple(
+    oc_chunk, ic_chunk_group, kernel_height, kernel_width, _, oc_bn = get_const_tuple(
         kernel.shape
-    )
+    )[:6]
     groups = ic_chunk // ic_chunk_group
 
     dilated_kernel_h = (kernel_height - 1) * dilation_h + 1
