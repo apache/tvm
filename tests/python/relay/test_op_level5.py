@@ -238,12 +238,14 @@ class TestCropAndResize:
 
         if layout == "NHWC":
             img_shape = (10, 224, 224, 3)
-            boxes = np.array([[0.1, 0.2, 0.8, 0.7], [0.2, 0, 1, 0.6]]).astype("float32")
+            boxes = np.array([[0.125, 0.25, 0.8125, 0.71875], [0.25, 0, 1, 0.625]]).astype(
+                "float32"
+            )
             box_indices = np.array([1, 0]).astype("int32")
             crop_size = np.array([20, 30]).astype("int32")
         elif layout == "NCHW":
             img_shape = (5, 3, 255, 255)
-            boxes = np.array([[0, 0, 1, 1], [0.2, 0.1, 1, 0.9]]).astype("float32")
+            boxes = np.array([[0, 0, 1, 1], [0.25, 0.125, 1, 0.9375]]).astype("float32")
             box_indices = np.array([0, 1]).astype("int32")
             crop_size = np.array([30, 30]).astype("int32")
         else:
