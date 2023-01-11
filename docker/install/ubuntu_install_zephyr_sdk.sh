@@ -42,10 +42,10 @@ fi
 INSTALLATION_PATH=$1
 shift
 
-ZEPHYR_SDK_VERSION=0.13.2
-ZEPHYR_SDK_FILE=zephyr-sdk-linux-setup.run
-wget --no-verbose -O $ZEPHYR_SDK_FILE \
-    https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}/zephyr-sdk-${ZEPHYR_SDK_VERSION}-linux-x86_64-setup.run
-chmod +x $ZEPHYR_SDK_FILE
-"./$ZEPHYR_SDK_FILE" -- -d ${INSTALLATION_PATH}
-rm "$ZEPHYR_SDK_FILE"
+ZEPHYR_SDK_FILE_SHA=8e3572fbca9f9ba18a4436c00d680af34a85e239f7fe66c7988da85571a0d23d
+wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.15.2/zephyr-sdk-0.15.2_linux-x86_64.tar.gz
+echo "$ZEPHYR_SDK_FILE_SHA zephyr-sdk-0.15.2_linux-x86_64.tar.gz" | sha256sum --check
+
+tar xvf zephyr-sdk-0.15.2_linux-x86_64.tar.gz
+mv zephyr-sdk-0.15.2 zephyr-sdk
+rm zephyr-sdk-0.15.2_linux-x86_64.tar.gz

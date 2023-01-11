@@ -58,7 +58,6 @@ chmod -R o+w ${ZEPHYR_PROJECT_PATH}
 mkdir zephyr/.cache
 chmod o+rwx zephyr/.cache
 
-#/opt/west/bin/pip3 install -r /opt/zephyrproject/zephyr/scripts/requirements.txt
 pip3 install -r /opt/zephyrproject/zephyr/scripts/requirements.txt
 
 # the requirements above overwrite junintparser with an older version, but it is not
