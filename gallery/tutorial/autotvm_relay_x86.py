@@ -42,11 +42,6 @@ The goal of this section is to give you an overview of TVM's capabilites and
 how to use them through the Python API.
 """
 
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
 
 ################################################################################
 # TVM is a deep learning compiler framework, with a number of different modules

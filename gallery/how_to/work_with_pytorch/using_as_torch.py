@@ -32,12 +32,6 @@ To follow the tutorial, PyTorch should be installed:
 """
 
 
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
-
 # Import PyTorch, as well as necessary libraries
 import torch
 import torch.nn.functional as F

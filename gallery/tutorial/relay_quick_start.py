@@ -26,13 +26,7 @@ generates a runtime library for Nvidia GPU with TVM.
 Notice that you need to build TVM with cuda and llvm enabled.
 """
 
-# sphinx_gallery_start_ignore
 # sphinx_gallery_requires_cuda = True
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
-
 ######################################################################
 # Overview for Supported Hardware Backend of TVM
 # ----------------------------------------------
