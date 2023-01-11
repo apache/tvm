@@ -54,6 +54,7 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_d
   decl_stream << "#include \"tvm/runtime/c_runtime_api.h\"\n";
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
   decl_stream << "#include <math.h>\n";
+  decl_stream << "#include <stdbool.h>\n";
   if (devices.find("ethos-u") != devices.end()) {
     decl_stream << "#include <tvm_ethosu_runtime.h>\n";
   }
