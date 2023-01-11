@@ -17,10 +17,16 @@
 """Definition of Hexagon operator strategy."""
 # pylint: disable=unused-argument,wildcard-import,unused-wildcard-import
 
+import re
+
 from tvm import topi
 from .generic import *
 from ... import op as _op
 from ...op.strategy.generic import is_depthwise_conv2d
+
+
+NCHWC_MATCHER = re.compile("^NCHW[0-9]+c$")
+OIHWIOI_MATCHER = re.compile("^OIHW[0-9]+i[0-9]+o[0-9]+i$")
 
 
 @qnn_quantize_strategy.register("hexagon")
@@ -135,6 +141,13 @@ def qnn_conv2d_strategy_hexagon(attrs, inputs, out_type, target):
                 wrap_topi_schedule(topi.hexagon.schedule_qnn_conv2d),
                 name="qnn_conv2d.hexagon",
             )
+        elif NCHWC_MATCHER.match(data_layout) and OIHWIOI_MATCHER.match(kernel_layout):
+            if data.dtype == "uint8" and kernel.dtype == "int8":
+                strategy.add_implementation(
+                    wrap_topi_qnn_conv2d(topi.hexagon.qnn_conv2d_NCHWc_int8),
+                    wrap_topi_schedule(topi.hexagon.schedule_qnn_conv2d_NCHWc_int8),
+                    name="qnn_conv2d_NCHWc_int8.hexagon",
+                )
     elif is_depthwise_conv2d(data.shape, data_layout, kernel.shape, kernel_layout, groups):
         if data_layout == "NCHW" and kernel_layout == "OIHW":
             strategy.add_implementation(
