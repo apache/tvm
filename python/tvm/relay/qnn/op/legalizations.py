@@ -405,6 +405,11 @@ def is_fast_int8_on_intel():
     return target_has_sse42(target.mcpu)
 
 
+# Helper function to align up given value.
+def helper_align_up(value, aligner):
+    return ((value + aligner) // aligner) * aligner
+
+
 ########################
 # ARM CPU legalizations.
 ########################
@@ -482,4 +487,69 @@ def _qnn_dense_legalize_cuda(attrs, inputs, types):
     if is_target(["cuda", "rocm"]):
         # CUDA prefers both datatypes to be the int8.
         return helper_change_dtypes_to_int8(attrs, inputs, types, relay.qnn.op.dense)
+    return None
+
+
+########################
+# Hexagon legalizations.
+########################
+
+IN_CHANNEL_VECTOR_LENGTH = 4
+OUT_CHANNEL_VECTOR_LENGTH = 32
+
+
+@qnn_conv2d_legalize.register("hexagon")
+def _qnn_conv2d_legalize_hexagon(attrs, inputs, types):
+    """Legalize qnn.conv2d op for vrmpy tensorization.
+
+    If the inputs are signed or unsigned int8 and data/kernel layouts are NCHW/OIHW, then the input
+    and output channels are padded to be a multiple of 4 and 32 respectively.
+    """
+    data_layout = attrs["data_layout"]
+    kernel_layout = attrs["kernel_layout"]
+
+    if data_layout != "NCHW" or kernel_layout != "OIHW":
+        return None
+
+    data_tensor, kernel_tensor = types[0], types[1]
+
+    if "int8" in data_tensor.dtype and "int8" in kernel_tensor.dtype:
+        in_channel = data_tensor.shape[1].value
+        out_channel = kernel_tensor.shape[0].value
+        ic_modified = False
+        oc_modified = False
+        data, kernel, input_zp, output_zp, input_scale, output_scale = inputs
+
+        if in_channel % IN_CHANNEL_VECTOR_LENGTH != 0:
+            new_in_channel = helper_align_up(in_channel, IN_CHANNEL_VECTOR_LENGTH)
+            diff = new_in_channel - in_channel
+            pad_width = ((0, 0), (0, diff), (0, 0), (0, 0))
+            data = relay.nn.pad(data, pad_width=pad_width)
+            kernel = relay.nn.pad(kernel, pad_width=pad_width)
+            ic_modified = True
+
+        new_out_channel = out_channel
+        if out_channel % OUT_CHANNEL_VECTOR_LENGTH != 0:
+            new_out_channel = helper_align_up(out_channel, OUT_CHANNEL_VECTOR_LENGTH)
+            diff = new_out_channel - out_channel
+            kernel = relay.nn.pad(kernel, pad_width=((0, diff), (0, 0), (0, 0), (0, 0)))
+            oc_modified = True
+
+        if ic_modified is True or oc_modified is True:
+            new_attrs = dict(attrs)
+            if oc_modified:
+                new_attrs["channels"] = new_out_channel
+                out = relay.qnn.op.conv2d(
+                    data, kernel, input_zp, output_zp, input_scale, output_scale, **new_attrs
+                )
+                output_tensor = types[6]
+                original_out_shape = list(output_tensor.shape)
+                out = relay.strided_slice(out, begin=[0, 0, 0, 0], end=original_out_shape)
+            else:
+                out = relay.qnn.op.conv2d(
+                    data, kernel, input_zp, output_zp, input_scale, output_scale, **new_attrs
+                )
+
+            return out
+
     return None
