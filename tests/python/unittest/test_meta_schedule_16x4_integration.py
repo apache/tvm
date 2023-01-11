@@ -136,8 +136,7 @@ def _relay_dense(m, n, k):
     return relay_mod, params, f_check
 
 
-def schedule_16x4_dense_fn_database(target, intrin):
-    m, n, k = 1024, 1024, 1024
+def schedule_16x4_dense_fn_database(target, intrin, m=1024, n=1024, k=1024):
     dev = tvm.cpu(0)
     relay_mod, params, f_check = _relay_dense(m, n, k)
 
@@ -175,10 +174,10 @@ def test_vnni_schedule_fn_database():
 @tvm.testing.requires_skylake_avx512
 def test_avx512_schedule_fn_database():
     target = tvm.target.Target("llvm -keys=x86,cpu -mcpu=skylake-512 -num-cores=4")
-    schedule_16x4_dense_fn_database(target, AVX512_INTRIN)
+    schedule_16x4_dense_fn_database(target, AVX512_INTRIN, 16, 16, 16)
 
 
-def schedule_16x4_dense_fn_tune(target, intrin):
+def schedule_16x4_dense_fn_tune(target, intrin, m=1024, n=1024, k=1024):
     # pylint: disable=W0105
     """
     We can inject and apply a custom TIR scheduling to a TE compute of interest, using
@@ -208,7 +207,6 @@ def schedule_16x4_dense_fn_tune(target, intrin):
 
     register_func("meta_schedule.x86.dense_int8", schedule_rule_dense_16x4, override=True)
 
-    m, n, k = 1024, 1024, 1024
     dev = tvm.cpu(0)
     relay_mod, params, f_check = _relay_dense(m, n, k)
 
@@ -266,7 +264,7 @@ def test_vnni_schedule_fn_tune():
 @tvm.testing.requires_skylake_avx512
 def test_avx512_schedule_fn_tune():
     target = tvm.target.Target("llvm -keys=x86,cpu -mcpu=skylake-avx512 -num-cores=4")
-    schedule_16x4_dense_fn_tune(target, AVX512_INTRIN)
+    schedule_16x4_dense_fn_tune(target, AVX512_INTRIN, 16, 16, 16)
 
 
 if __name__ == """__main__""":
