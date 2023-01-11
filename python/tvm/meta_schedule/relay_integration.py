@@ -17,8 +17,7 @@
 """MetaSchedule-Relay integration"""
 from contextlib import contextmanager
 from types import MappingProxyType
-from typing import (TYPE_CHECKING, Any, Dict, List, Mapping, Optional,
-                    Sequence, Set, Tuple, Union)
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple, Union
 
 # isort: off
 from typing_extensions import Literal
