@@ -222,4 +222,4 @@ def tensors_from_extern_op(extern, func):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

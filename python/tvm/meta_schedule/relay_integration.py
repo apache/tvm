@@ -17,7 +17,7 @@
 """MetaSchedule-Relay integration"""
 from contextlib import contextmanager
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Tuple, Union, Set
 
 # isort: off
 from typing_extensions import Literal
@@ -73,12 +73,14 @@ def _normalize_params(
     params: Optional[Dict[str, NDArray]],
     pass_config: Mapping[str, Any],
     executor: Optional["relay.backend.Executor"],
+    runtime: Optional["relay.backend.Runtime"],
 ) -> Tuple[
     IRModule,
     Target,
     Dict[str, NDArray],
     Dict[str, Any],
     Optional["relay.backend.Executor"],
+    Optional["relay.backend.Runtime"],
 ]:
     from tvm import relay  # pylint: disable=import-outside-toplevel
 
@@ -97,13 +99,16 @@ def _normalize_params(
     if executor is None:
         executor = relay.backend.Executor("graph")
 
+    if runtime is None:
+        runtime = relay.backend.Runtime("cpp")
+
     if mod.get_attr("executor") is None:
         mod = mod.with_attr("executor", executor)
     else:
         executor = mod.get_attr("executor")
 
     pass_config = dict(pass_config)
-    return mod, target, relay_params, pass_config, executor
+    return mod, target, relay_params, pass_config, executor, runtime
 
 
 def extract_tasks(
@@ -119,7 +124,9 @@ def extract_tasks(
         }
     ),
     executor: Optional["relay.backend.Executor"] = None,
+    runtime: Optional["relay.backend.Runtime"] = None,
     module_equality: str = "structural",
+    disabled_pass: Optional[Union[List[str], Set[str], Tuple[str]]] = None,
 ) -> List[ExtractedTask]:
     """Extract tuning tasks from a relay program.
 
@@ -137,6 +144,8 @@ def extract_tasks(
         The pass configuration
     executor : Optional[relay.backend.Executor]
         The executor to use
+    runtime : Optional[relay.backend.Runtime]
+        The runtime to use
     module_equality : Optional[str]
         A string to specify the module equality testing and hashing method.
         It must be one of the followings:
@@ -147,6 +156,8 @@ def extract_tasks(
                             given module. The "ignore-ndarray" varint is used for the extracted
                             blocks or in case no anchor block is found.
                             For the definition of the anchor block, see tir/analysis/analysis.py.
+    disabled_pass : Optional[Union[List[str], Set[str], Tuple[str]]]
+        The list of disabled passes
 
     Returns
     -------
@@ -157,8 +168,13 @@ def extract_tasks(
     from tvm import autotvm
 
     # pylint: enable=import-outside-toplevel
-    mod, target, params, pass_config, _ = _normalize_params(
-        mod, target, params, pass_config, executor
+    mod, target, params, pass_config, _ex, _rt = _normalize_params(
+        mod,
+        target,
+        params,
+        pass_config,
+        executor,
+        runtime,
     )
     if target.kind.name != "cuda" and isinstance(
         autotvm.DispatchContext.current, autotvm.FallbackContext
@@ -171,6 +187,7 @@ def extract_tasks(
             with transform.PassContext(
                 opt_level=opt_level,
                 config=pass_config,
+                disabled_pass=disabled_pass,
             ):
                 return list(_extract_task(mod, target, params, module_equality))
 
@@ -180,7 +197,7 @@ def extracted_tasks_to_tune_contexts(
     work_dir: str,
     space: SpaceGenerator.SpaceGeneratorType = "post-order-apply",
     strategy: SearchStrategy.SearchStrategyType = "evolutionary",
-    num_threads: Union[Literal["physical", "logical"], int] = "physical",
+    num_tuning_cores: Union[Literal["physical", "logical"], int] = "physical",
     seed: Optional[int] = None,
 ) -> Tuple[List[TuneContext], List[float]]:
     """Convert ExtractedTask to TuneContext.
@@ -195,8 +212,8 @@ def extracted_tasks_to_tune_contexts(
         The space generator to use.
     strategy : SearchStrategy.SearchStrategyType
         The search strategy to use.
-    num_threads : Union[Literal["physical", "logical"], int]
-        The number of threads to use in multi-threaded search algorithm.
+    num_tuning_cores : Union[Literal["physical", "logical"], int]
+        The number of CPU cores to use during tuning.
     seed : Optional[int]
         The random seed to use.
 
@@ -223,7 +240,7 @@ def extracted_tasks_to_tune_contexts(
                 task_name=task.task_name,
                 logger=logger,
                 rand_state=rand_state,
-                num_threads=num_threads,
+                num_threads=num_tuning_cores,
             ).clone()
         )
         task_weights.append(task.weight)
@@ -249,6 +266,8 @@ def tune_relay(
     strategy: SearchStrategy.SearchStrategyType = "evolutionary",
     seed: Optional[int] = None,
     module_equality: str = "structural",
+    num_tuning_cores: Union[Literal["physical", "logical"], int] = "physical",
+    disabled_pass: Optional[Union[List[str], Set[str], Tuple[str]]] = None,
 ) -> Database:
     """Tune a Relay program.
 
@@ -296,6 +315,10 @@ def tune_relay(
                             given module. The "ignore-ndarray" varint is used for the extracted
                             blocks or in case no anchor block is found.
                             For the definition of the anchor block, see tir/analysis/analysis.py.
+    num_tuning_cores : Union[Literal["physical", "logical"], int]
+        The number of CPU cores to use during tuning.
+    disabled_pass : Optional[Union[List[str], Set[str], Tuple[str]]]
+        The list of disabled passes during tasks extraction
 
     Returns
     -------
@@ -303,11 +326,14 @@ def tune_relay(
         The database that contains the tuning records
     """
     tasks, task_weights = extracted_tasks_to_tune_contexts(
-        extracted_tasks=extract_tasks(mod, target, params, module_equality=module_equality),
+        extracted_tasks=extract_tasks(
+            mod, target, params, module_equality=module_equality, disabled_pass=disabled_pass
+        ),
         work_dir=work_dir,
         space=space,
         strategy=strategy,
         seed=seed,
+        num_tuning_cores=num_tuning_cores,
     )
     return tune_tasks(
         tasks=tasks,
@@ -341,6 +367,8 @@ def compile_relay(
         }
     ),
     executor: Optional["relay.backend.Executor"] = None,
+    disabled_pass: Optional[Union[List[str], Set[str], Tuple[str]]] = None,
+    runtime: Optional["relay.backend.Runtime"] = None,
 ):
     """Compile a relay program with a MetaSchedule database.
 
@@ -364,6 +392,10 @@ def compile_relay(
         The pass configuration
     executor : Optional[relay.backend.Executor]
         The executor to use in relay.build. It is not supported by RelayVM.
+    disabled_pass : Optional[Union[List[str], Set[str], Tuple[str]]]
+        The list of disabled passes
+    runtime : Optional[relay.backend.Runtime]
+        The runtime to use in relay.build. It is not supported by RelayVM.
 
     Returns
     -------
@@ -374,8 +406,8 @@ def compile_relay(
     from tvm import relay
 
     # pylint: enable=import-outside-toplevel
-    mod, target, params, pass_config, executor = _normalize_params(
-        mod, target, params, pass_config, executor
+    mod, target, params, pass_config, executor, runtime = _normalize_params(
+        mod, target, params, pass_config, executor, runtime
     )
     pass_config.setdefault("relay.backend.use_meta_schedule_dispatch", True)
     with Profiler.timeit("PostTuningCompilation"):
@@ -383,9 +415,12 @@ def compile_relay(
             with transform.PassContext(
                 opt_level=opt_level,
                 config=pass_config,
+                disabled_pass=disabled_pass,
             ):
                 if backend == "graph":
-                    return relay.build(mod, target=target, params=params, executor=executor)
+                    return relay.build(
+                        mod, target=target, params=params, executor=executor, runtime=runtime
+                    )
                 elif backend == "vm":
                     return relay.vm.compile(mod, target=target, params=params)
                 else:

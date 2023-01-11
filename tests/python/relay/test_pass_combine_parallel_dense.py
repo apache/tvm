@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
+import tvm.testing
 from tvm import relay
 from tvm.relay import transform
 
@@ -359,10 +359,47 @@ def test_combine_parallel_dense_flat_biasadd_scale_reshape():
     check(100, 200, 300, 0.5, 0.25, (1, 1, 20000), (1, 1, 40000))
 
 
+def test_combine_parallel_dense_expand_dims():
+    """Verify that the correct slice axis is selected after the combined dense."""
+
+    def before(x, w1, w2):
+        args = [x, w1, w2]
+        y1 = relay.nn.dense(x, w1)
+        y1 = relay.expand_dims(y1, axis=2)
+
+        y2 = relay.nn.dense(x, w2)
+        y2 = relay.expand_dims(y2, axis=2)
+
+        y = relay.Tuple((y1, y2))
+        return relay.Function(args, y)
+
+    def expected(x, w1, w2):
+        args = [x, w1, w2]
+        w_stacked = relay.concatenate((w1, w2), axis=0)
+        y = relay.nn.dense(x, w_stacked, units=24)
+        y = relay.expand_dims(y, axis=2)
+
+        strides = [1, 1, 1]
+        y1 = relay.strided_slice(
+            y, begin=[0, 0, 0], end=[-1, 16, -1], strides=strides, slice_mode="size"
+        )
+        y2 = relay.strided_slice(
+            y, begin=[0, 16, 0], end=[-1, 8, -1], strides=strides, slice_mode="size"
+        )
+        y = relay.Tuple((y1, y2))
+        return relay.Function(args, y)
+
+    x = relay.var("x", shape=(2, 32))
+    w1 = relay.var("w1", shape=(16, 32))
+    w2 = relay.var("w2", shape=(8, 32))
+
+    y_before = before(x, w1, w2)
+    combine_pass = transform.CombineParallelDense(min_num_branches=2, to_batch=False)
+    y = run_opt_pass(y_before, combine_pass)
+    y_expected = expected(x, w1, w2)
+    y_expected = run_opt_pass(y_expected, transform.InferType())
+    tvm.ir.assert_structural_equal(y, y_expected, map_free_vars=True)
+
+
 if __name__ == "__main__":
-    test_combine_parallel_dense()
-    test_combine_parallel_dense_biasadd()
-    test_combine_parallel_dense_biasadd_scale_reshape()
-    test_combine_parallel_dense_flat()
-    test_combine_parallel_dense_flat_biasadd()
-    test_combine_parallel_dense_flat_biasadd_scale_reshape()
+    tvm.testing.main()

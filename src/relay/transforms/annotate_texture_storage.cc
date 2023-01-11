@@ -41,6 +41,7 @@
 
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "../op/memory/device_copy.h"
 #include "../op/memory/memory.h"
@@ -90,22 +91,28 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
     for (const auto& a : storage_info.args_to_vars_) {
       if (storage_map.count(a.first)) {
         for (const auto& v : a.second) {
-          storage_map.Set(v, storage_map[a.first]);
-          if (storage_map[a.first][Expr()][0] == "global" &&
-              storage_info.accept_textures_.count(v)) {
+          if (storage_info.buffers_params.find(v) != storage_info.buffers_params.end()) {
             Map<Expr, Array<String>> ent;
-            ent.Set(Expr(), storage_info.accept_textures_[v][Expr()]);
+            ent.Set(Expr(), Array<String>{"global"});
             storage_map.Set(v, ent);
-            for (const auto& calls : storage_info.accept_textures_[v]) {
-              if (calls.first != Expr()) {
-                if (storage_map.count(a.first)) {
-                  Map<Expr, Array<String>> ent_call = storage_map[a.first];
-                  ent_call.Set(calls.first, calls.second);
-                  storage_map.Set(a.first, ent_call);
-                } else {
-                  Map<Expr, Array<String>> ent_call;
-                  ent_call.Set(calls.first, calls.second);
-                  storage_map.Set(a.first, ent_call);
+          } else {
+            storage_map.Set(v, storage_map[a.first]);
+            if (storage_map[a.first][Expr()][0] == "global" &&
+                storage_info.accept_textures_.count(v)) {
+              Map<Expr, Array<String>> ent;
+              ent.Set(Expr(), storage_info.accept_textures_[v][Expr()]);
+              storage_map.Set(v, ent);
+              for (const auto& calls : storage_info.accept_textures_[v]) {
+                if (calls.first != Expr()) {
+                  if (storage_map.count(a.first)) {
+                    Map<Expr, Array<String>> ent_call = storage_map[a.first];
+                    ent_call.Set(calls.first, calls.second);
+                    storage_map.Set(a.first, ent_call);
+                  } else {
+                    Map<Expr, Array<String>> ent_call;
+                    ent_call.Set(calls.first, calls.second);
+                    storage_map.Set(a.first, ent_call);
+                  }
                 }
               }
             }
@@ -160,11 +167,20 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
               storage_scope_[call].push_back("global.texture");
             }
           }
+          const int weights_pos = 1;
           for (size_t i = 0; i < fn->params.size(); i++) {
             args_to_vars_[call->args[i]].push_back(fn->params[i]);
             // adding info about arguments if they can be converted to texture
             for (const auto& ttype : FlattenTupleType(fn->params[i]->checked_type())) {
               std::string scope = Scope(ttype->shape, GetVirtualDevice(GetRef<Expr>(call)));
+              if (expr_attrib.as<Conv2DAttrs>() || expr_attrib.as<Conv2DWinogradAttrs>()) {
+                if ((i == weights_pos) && !ttype->dtype.is_float16() &&
+                    CanUseBuffers(call->args[i], ttype->shape, fn->attrs)) {
+                  buffers_params.insert(fn->params[i]);
+                  buffers_args.insert(call->args[i]);
+                  scope = "global";
+                }
+              }
               if (scope.find("global.texture") != std::string::npos) {
                 if (accept_textures_.count(fn->params[i])) {
                   Map<Expr, Array<String>> ent = accept_textures_[fn->params[i]];
@@ -193,13 +209,15 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
         }
       }
     }
-
     if (!primitive_supports_texture_) {
+      expr_attrib = call->attrs;
       primitive_supports_texture_ = SupportsTextureStorage(call);
     }
 
     for (auto& arg : call->args) {
-      Visit(arg);
+      if (buffers_args.find(arg) == buffers_args.end()) {
+        Visit(arg);
+      }
     }
     // We have all callees filled into storage_scope_ if they support textures
     // We need to verify if this call expects texture and if it does not, remove from
@@ -398,6 +416,28 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
     return supports_texture_storage;
   }
 
+  bool CanUseBuffers(const Expr param, const Array<PrimExpr> shape,
+                     const tvm::DictAttrs param_attrs) const {
+    bool use_buffer = false;
+    if (param.as<ConstantNode>() && shape.size() == 5) {
+      auto kernel_layout = param_attrs.GetAttr<String>("kernel_layout");
+      if (kernel_layout == "HWOI4o" || kernel_layout == "HWIO4o") {
+        int a0 = shape[0].as<IntImmNode>()->value;
+        int a1 = shape[1].as<IntImmNode>()->value;
+        if (a0 != 1 && a1 != 1) {
+          use_buffer = true;
+        }
+      } else if (kernel_layout == "OIHW4o") {
+        int a2 = shape[2].as<IntImmNode>()->value;
+        int a3 = shape[3].as<IntImmNode>()->value;
+        if (a2 != 1 && a3 != 1) {
+          use_buffer = true;
+        }
+      }
+    }
+    return use_buffer;
+  }
+
   /*! \brief Temporary state for marking whether a visited function
    *         primitive supports texture storage scope */
   bool primitive_supports_texture_ = false;
@@ -409,6 +449,12 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
   std::unordered_map<Expr, std::vector<Var>, ObjectPtrHash, ObjectPtrEqual> args_to_vars_;
   /*! \brief mapping of arguments that can be converted to texture*/
   Map<Expr, Map<Expr, Array<String>>> accept_textures_;
+  /*! \brief main attribute for expression*/
+  tvm::Attrs expr_attrib;
+  /*! \brief parameters that filter out from storage_map to use buffers*/
+  std::unordered_set<Expr, ObjectPtrHash> buffers_params;
+  /*! \brief arguments in expression that will use buffers*/
+  std::unordered_set<Expr, ObjectPtrHash> buffers_args;
 };
 
 }  // namespace

@@ -45,5 +45,37 @@ def test_multi_element_array_in_outmost_namespace():
     tvm.ir.assert_structural_equal(func, rt_func)
 
 
+def test_different_dtype_assignment_to_var():
+    @T.prim_func
+    def test_case():
+        a = T.alloc_buffer((10, 10), dtype="int8")
+
+    @T.prim_func
+    def func_ref():
+        a = T.alloc_buffer([10, 10], dtype="int8")
+        T.evaluate(0)
+
+    tvm.ir.assert_structural_equal(test_case, func_ref)
+
+
+def test_var_capturing_order():
+    b = 2
+
+    @T.prim_func
+    def test_case():
+        k: T.int32 = b
+
+    @T.prim_func
+    def func_ref():
+        k: T.int32 = 2
+        T.evaluate(0)
+
+    tvm.ir.assert_structural_equal(test_case, func_ref)
+
+
 if __name__ == "__main__":
+    a = numpy.zeros((10, 10), dtype="int8")
     test_multi_element_array_in_outmost_namespace()
+    test_different_dtype_assignment_to_var()
+    b = 1
+    test_var_capturing_order()

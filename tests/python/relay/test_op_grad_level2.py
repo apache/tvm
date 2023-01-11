@@ -364,4 +364,4 @@ def test_conv2d_backward_weight_infer_type():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

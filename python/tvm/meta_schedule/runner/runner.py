@@ -194,6 +194,8 @@ class Runner(Object):
         from . import LocalRunner, RPCRunner  # pylint: disable=import-outside-toplevel
 
         if kind == "local":
+            if "max_workers" in kwargs:
+                kwargs.pop("max_workers")
             return LocalRunner(*args, **kwargs)  # type: ignore
         elif kind == "rpc":
             return RPCRunner(*args, **kwargs)  # type: ignore

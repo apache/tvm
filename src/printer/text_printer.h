@@ -280,6 +280,9 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   explicit TIRTextPrinter(bool show_meta, TextMetaDataContext* meta)
       : show_meta_(show_meta), meta_(meta), meta_collector_(meta) {}
 
+  /*! \brief Output a newline */
+  virtual Doc NewLine();
+
   /*! \brief Print the node */
   Doc Print(const ObjectRef& node);
 
@@ -290,24 +293,7 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
    */
   bool GetVarName(::tvm::tir::Var v, std::string* s);
 
- private:
-  /*! \brief whether show meta data */
-  bool show_meta_;
-  /*! \brief meta data context */
-  TextMetaDataContext* meta_;
-  /*! \brief meta collector */
-  MetaCollector meta_collector_;
-  /*! \brief Map from Var to Doc */
-  std::unordered_map<Var, Doc, ObjectPtrHash, ObjectPtrEqual> memo_var_;
-  /*! \brief Map from Buffer to Doc */
-  std::unordered_map<Buffer, Doc, ObjectPtrHash, ObjectPtrEqual> memo_buf_;
-  /*! \brief Map from Buffer to Doc */
-  std::unordered_map<DataProducer, Doc, ObjectPtrHash, ObjectPtrEqual> memo_producer_;
-  /*! \brief name allocation map */
-  std::unordered_map<std::string, int> name_alloc_map_;
-
-  friend class tvm::TextPrinter;
-
+ protected:
   Doc VisitExpr_(const IntImmNode* op) override;
   Doc VisitExpr_(const FloatImmNode* op) override;
   Doc VisitExpr_(const StringImmNode* op) override;
@@ -362,6 +348,24 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitStmt_(const PrefetchNode* op) override;
   Doc VisitStmt_(const BlockRealizeNode* op) override;
   Doc VisitStmtDefault_(const Object* op) override;
+
+ private:
+  /*! \brief whether show meta data */
+  bool show_meta_;
+  /*! \brief meta data context */
+  TextMetaDataContext* meta_;
+  /*! \brief meta collector */
+  MetaCollector meta_collector_;
+  /*! \brief Map from Var to Doc */
+  std::unordered_map<Var, Doc, ObjectPtrHash, ObjectPtrEqual> memo_var_;
+  /*! \brief Map from Buffer to Doc */
+  std::unordered_map<Buffer, Doc, ObjectPtrHash, ObjectPtrEqual> memo_buf_;
+  /*! \brief Map from Buffer to Doc */
+  std::unordered_map<DataProducer, Doc, ObjectPtrHash, ObjectPtrEqual> memo_producer_;
+  /*! \brief name allocation map */
+  std::unordered_map<std::string, int> name_alloc_map_;
+
+  friend class tvm::TextPrinter;
 
   Doc VisitType_(const PrimTypeNode* node) override;
   Doc VisitType_(const PointerTypeNode* node) override;

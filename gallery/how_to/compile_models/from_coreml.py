@@ -23,13 +23,12 @@ Compile CoreML Models
 
 This article is an introductory tutorial to deploy CoreML models with Relay.
 
-For us to begin with, coremltools module is required to be installed.
-
-A quick solution is to install via pip
+To begin, we must install coremltools:
 
 .. code-block:: bash
 
-    pip install -U coremltools --user
+    %%shell
+    pip install coremltools
 
 or please refer to official site
 https://github.com/apple/coremltools

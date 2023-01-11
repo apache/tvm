@@ -3897,6 +3897,7 @@ def verify_rnn(
     atol=1e-5,
     target=None,
     dev=None,
+    use_sequence_lens=False,
 ):
     """verify_rnn"""
     if rnn_type == "RNN":
@@ -3954,10 +3955,16 @@ def verify_rnn(
             )
             register(b_np, "B")
 
+        if use_sequence_lens:
+            sequence_np = np.random.uniform(0, seq_length, size=(batch_size)).astype("int32")
+            register(sequence_np, "sequence_lens")
+
         if use_initial_state:
             assert use_bias is True, "Initial states must have bias specified."
-            sequence_np = np.repeat(seq_length, batch_size).astype("int32")
-            register(sequence_np, "sequence_lens")
+
+            if not use_sequence_lens:
+                sequence_np = np.repeat(seq_length, batch_size).astype("int32")
+                register(sequence_np, "sequence_lens")
 
             if layout == 1:
                 initial_h_np = np.random.uniform(size=(batch_size, directions, hidden_size)).astype(
@@ -4210,6 +4217,35 @@ def verify_rnn_helper(target, dev, rnn_type):
         #     target=target,
         #     dev=dev,
         # )
+
+        # Testing with initial state
+        if rnn_type == "GRU":
+            verify_rnn(
+                seq_length=2,
+                batch_size=1,
+                input_size=16,
+                hidden_size=32,
+                use_bias=True,
+                use_initial_state=True,
+                rnn_type=rnn_type,
+                directions=directions,
+                target=target,
+                dev=dev,
+                use_sequence_lens=True,
+            )
+            verify_rnn(
+                seq_length=8,
+                batch_size=8,
+                input_size=16,
+                hidden_size=32,
+                use_bias=True,
+                use_initial_state=True,
+                rnn_type=rnn_type,
+                directions=directions,
+                target=target,
+                dev=dev,
+                use_sequence_lens=True,
+            )
 
         # Testing with peepholes
         if rnn_type == "LSTM":
@@ -5886,6 +5922,190 @@ def test_attention(target, dev):
 
 
 @tvm.testing.parametrize_targets
+def test_qattention(target, dev):
+    """test_qattention"""
+
+    def verify_attention(
+        _unidirectional,
+        _input,
+        _weight,
+        _bias,
+        _input_scale,
+        _weight_scale,
+        _mask_index=None,
+        _input_zero_point=None,
+        _weight_zero_point=None,
+        _past=None,
+    ):
+        input_names = ["input", "weight", "bias", "input_scale", "weight_scale"]
+        if _mask_index is not None:
+            input_names.append("mask_index")
+        if _input_zero_point is not None:
+            input_names.append("input_zero_point")
+        if _weight_zero_point is not None:
+            input_names.append("weight_zero_point")
+        if _past is not None:
+            input_names.append("past")
+
+        node = onnx.helper.make_node(
+            "QAttention",
+            inputs=input_names,
+            outputs=["output", "present"],
+            domain="com.microsoft",
+            num_heads=num_heads,
+            unidirectional=_unidirectional,
+        )
+
+        past_shape = (2, batch_size, num_heads, past_sequence_length, head_size)
+        present_output_shape = (
+            2,
+            batch_size,
+            num_heads,
+            past_sequence_length + sequence_length,
+            head_size,
+        )
+
+        inputs_info = [
+            helper.make_tensor_value_info("input", TensorProto.UINT8, list(_input.shape)),
+            helper.make_tensor_value_info("weight", TensorProto.UINT8, list(_weight.shape)),
+            helper.make_tensor_value_info("bias", TensorProto.FLOAT, list(_bias.shape)),
+            helper.make_tensor_value_info("input_scale", TensorProto.FLOAT, ()),
+            helper.make_tensor_value_info("weight_scale", TensorProto.FLOAT, ()),
+        ]
+        if _mask_index is not None:
+            inputs_info.append(
+                helper.make_tensor_value_info(
+                    "mask_index", TensorProto.INT32, list(_mask_index.shape)
+                )
+            )
+        if _input_zero_point is not None:
+            inputs_info.append(
+                helper.make_tensor_value_info("input_zero_point", TensorProto.UINT8, ())
+            )
+        if _weight_zero_point is not None:
+            inputs_info.append(
+                helper.make_tensor_value_info("weight_zero_point", TensorProto.UINT8, ())
+            )
+        if _past is not None:
+            inputs_info.append(
+                helper.make_tensor_value_info("past", TensorProto.FLOAT, list(past_shape))
+            )
+
+        graph = helper.make_graph(
+            [node],
+            "qattention_test",
+            inputs=inputs_info,
+            outputs=[
+                helper.make_tensor_value_info("output", TensorProto.FLOAT, list(_input.shape)),
+                helper.make_tensor_value_info(
+                    "present", TensorProto.FLOAT, list(present_output_shape)
+                ),
+            ],
+        )
+
+        model = helper.make_model(graph, producer_name="qattention_test")
+
+        inputs = [_input, _weight, _bias, _input_scale, _weight_scale]
+        if _mask_index is not None:
+            inputs.append(_mask_index)
+        if _input_zero_point is not None:
+            inputs.append(_input_zero_point)
+        if _weight_zero_point is not None:
+            inputs.append(_weight_zero_point)
+        if _past is not None:
+            inputs.append(_past)
+
+        verify_with_ort_with_inputs(
+            model,
+            inputs,
+            [_input.shape, present_output_shape],
+            target=target,
+            dev=dev,
+            rtol=1e-3,
+            atol=1e-3,
+        )
+
+    batch_size = 11
+    num_heads = 13
+    head_size = 37
+    sequence_length = 7
+    input_hidden_size = 147
+    weight_hidden_size = num_heads * head_size
+    past_sequence_length = 17
+
+    total_sequence_length = past_sequence_length + sequence_length
+
+    # Required inputs
+    input_array = np.random.randint(
+        0, 255, (batch_size, sequence_length, input_hidden_size)
+    ).astype("uint8")
+    weight = np.random.randint(0, 255, (input_hidden_size, 3 * weight_hidden_size)).astype("uint8")
+    bias = np.random.randn(3 * weight_hidden_size).astype("float32")
+    input_scale = np.random.random(1).astype("float32")
+    weight_scale = np.random.random(1).astype("float32")
+
+    # Optional inputs
+    input_zero_point = np.random.randint(0, 255, 1).astype("uint8")
+    weight_zero_point = np.random.randint(0, 255, 1).astype("uint8")
+    past = np.random.random((2, batch_size, num_heads, past_sequence_length, head_size)).astype(
+        "float32"
+    )
+
+    for unidirectional in [0, 1]:
+        for have_past in [False, True]:
+            if not have_past:
+                mask_index = np.random.randint(0, 2, (batch_size, sequence_length)).astype("int32")
+
+                verify_attention(
+                    unidirectional,
+                    input_array,
+                    weight,
+                    bias,
+                    input_scale,
+                    weight_scale,
+                    mask_index,
+                )
+                verify_attention(
+                    unidirectional,
+                    input_array,
+                    weight,
+                    bias,
+                    input_scale,
+                    weight_scale,
+                    mask_index,
+                    input_zero_point,
+                )
+                verify_attention(
+                    unidirectional,
+                    input_array,
+                    weight,
+                    bias,
+                    input_scale,
+                    weight_scale,
+                    mask_index,
+                    input_zero_point,
+                    weight_zero_point,
+                )
+            else:
+                mask_index = np.random.randint(0, 2, (batch_size, total_sequence_length)).astype(
+                    "int32"
+                )
+
+                verify_attention(
+                    unidirectional,
+                    input_array,
+                    weight,
+                    bias,
+                    input_scale,
+                    weight_scale,
+                    mask_index,
+                    input_zero_point,
+                    weight_zero_point,
+                    past,
+                )
+
+
+@tvm.testing.parametrize_targets
 def test_skiplayernormalization(target, dev):
     """test_skiplayernormalization"""
 
@@ -7043,7 +7263,7 @@ def test_linear_regressor(target, dev):
 def test_sequence(target, dev):
     """test_sequence"""
 
-    def verify_sequence_ops(tensor_shape, num_tensors, axis=0, position=None, new_axis=None):
+    def verify_sequence_ops(tensor_shape, num_tensors, axis=0, position=0, new_axis=None):
         tensor_shape = list(tensor_shape)
         tensor_values = []
         for i in range(num_tensors):
@@ -7062,20 +7282,30 @@ def test_sequence(target, dev):
             outputs=["sequence"],
         )
 
-        insert_inputs = ["sequence", input_tensor_names[0]]
-        position_node = None
-        if position is not None:
-            insert_inputs.append("position")
-            position_node = make_constant_node("position", TensorProto.INT32, (), [position])
+        position_node = make_constant_node("position", TensorProto.INT32, (), [position])
 
         # Test sequence insertion.
         insert_node = helper.make_node(
-            "SequenceInsert", inputs=insert_inputs, outputs=["inserted_sequence"]
+            "SequenceInsert",
+            inputs=["sequence", input_tensor_names[0], "position"],
+            outputs=["inserted_sequence"],
         )
 
         # Test sequence concatenation.
         concat_node = helper.make_node(
-            "ConcatFromSequence", inputs=["inserted_sequence"], outputs=["output"], axis=axis
+            "ConcatFromSequence",
+            inputs=["inserted_sequence"],
+            outputs=["concat_sequence"],
+            axis=axis,
+        )
+
+        # Test splitting a tensor into a sequence.
+        split_node = helper.make_node(
+            "SplitToSequence", inputs=["concat_sequence"], outputs=["split_sequence"], axis=axis
+        )
+
+        at_node = helper.make_node(
+            "SequenceAt", inputs=["split_sequence", "position"], outputs=["output"]
         )
 
         if new_axis is not None:
@@ -7097,10 +7327,7 @@ def test_sequence(target, dev):
             output_shape[axis] = (num_tensors + 1) * output_shape[axis]
         graph_outputs = [helper.make_tensor_value_info("output", TensorProto.FLOAT, output_shape)]
 
-        graph_nodes = []
-        if position_node is not None:
-            graph_nodes.append(position_node)
-        graph_nodes += [construct_node, insert_node, concat_node]
+        graph_nodes = [position_node, construct_node, insert_node, concat_node, split_node, at_node]
 
         graph = helper.make_graph(
             graph_nodes,

@@ -382,21 +382,34 @@ class CacheLocDetector : public StmtVisitor {
    * writer block of the buffer being applied cache_read or cache_write \param scope_sref The sref
    * of the scope block of the cached block \param info The cache stage info.
    */
+  template <bool is_cache_read>
   static void Detect(const ScheduleState& self, const StmtSRef& block_sref,
                      const StmtSRef& scope_sref, CacheStageInfo* info) {
     std::vector<StmtSRef> related_blocks;
     // If consumer is specified, skip detecting the others
-    if (info->consumer_blocks.size() > 0) {
-      for (StmtSRef consumer : info->consumer_blocks) {
-        related_blocks.emplace_back(consumer);
+    if (is_cache_read) {
+      if (info->consumer_blocks.size() > 0) {
+        for (StmtSRef consumer : info->consumer_blocks) {
+          related_blocks.emplace_back(consumer);
+        }
+      } else {
+        for (const Dependency& def : self->GetBlockScope(scope_sref)->GetDepsBySrc(block_sref)) {
+          if (def->kind == DepKind::kRAW) {
+            related_blocks.push_back(def->dst);
+          }
+        }
       }
     } else {
       for (const Dependency& def : self->GetBlockScope(scope_sref)->GetDepsBySrc(block_sref)) {
         if (def->kind == DepKind::kRAW) {
+          if (info->consumer_blocks.count(def->dst)) {
+            continue;
+          }
           related_blocks.push_back(def->dst);
         }
       }
     }
+
     if (!related_blocks.empty()) {
       CacheLocDetector detector(self, block_sref, scope_sref, related_blocks);
       detector(GetRef<Stmt>(scope_sref->stmt));
@@ -739,6 +752,30 @@ class CacheWriteRewriter : public StmtExprMutator {
 
   Stmt VisitStmt_(const BlockNode* block) final {
     Block old_stmt = GetRef<Block>(block);
+
+    // Check if this block is one of the specified cache consumers.
+    // update the read buffer to the cache.
+    for (StmtSRef consumer_sref : info_->consumer_blocks) {
+      const BlockNode* consumer_node = TVM_SREF_TO_BLOCK(consumer_sref);
+      Block consumer_block = GetRef<Block>(consumer_node);
+      if (old_stmt.same_as(consumer_block)) {
+        Array<BufferRegion> reads =
+            ReplaceBuffer(block->reads, info_->write_buffer, info_->read_buffer);
+        Array<MatchBufferRegion> match_buffers =
+            ReplaceBuffer(block->match_buffers, info_->write_buffer, info_->read_buffer);
+        if (!reads.same_as(block->reads) || !match_buffers.same_as(block->match_buffers)) {
+          auto n = CopyOnWrite(block);
+          n->reads = std::move(reads);
+          n->match_buffers = std::move(match_buffers);
+          n->body = VisitStmt(block->body);
+          Block new_consumer = Block(n);
+          info_->block_reuse.Set(old_stmt, new_consumer);
+          return std::move(new_consumer);
+        }
+        return std::move(old_stmt);
+      }
+    }
+
     // We only mutate the block which generates info->write_buffer
     if (block != writer_block_sref_->stmt && block != scope_sref_->stmt && !under_writer_block_) {
       return std::move(old_stmt);
@@ -1160,7 +1197,7 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
     StmtSRef parent_sref = GetRef<StmtSRef>(write_block_sref->parent);
 
     // Detect insert position
-    CacheLocDetector::Detect(self, write_block_sref, scope_sref, &info);
+    CacheLocDetector::Detect</*is_cache_read=*/true>(self, write_block_sref, scope_sref, &info);
     cache_region = RelaxBufferRegion(self, region, write_block_sref, parent_sref, info.loc_sref);
   } else {
     // Case 2. The buffer is the input block for the scope.
@@ -1190,7 +1227,7 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
 }
 
 StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_buffer_index,
-                    const String& storage_scope) {
+                    const String& storage_scope, const Array<StmtSRef> consumer_blocks) {
   /*!
    * Check:
    *   - The index is in the array of block reading region
@@ -1219,6 +1256,14 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
   // Create the corresponding buffer allocation
   info.alloc = info.read_buffer;
 
+  // info.consumer_blocks indicates which buffers should consume the cache.
+  for (auto consumer : consumer_blocks) {
+    info.consumer_blocks.insert(consumer);
+    for (auto child : tir::GetChildBlocks(self, consumer)) {
+      info.consumer_blocks.insert(child);
+    }
+  }
+
   // Step 3. Check the only writer block.
   ICHECK_EQ(block_sref.get(), GetOnlyWriteBlock(self, scope_sref, write_buffer).get());
 
@@ -1226,7 +1271,7 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
   BufferRegion region = GetBufferRegionFromBuffer(block->writes, write_buffer).value();
   StmtSRef parent_sref = GetRef<StmtSRef>(block_sref->parent);
   // Detect insert position
-  CacheLocDetector::Detect(self, block_sref, scope_sref, &info);
+  CacheLocDetector::Detect</*is_cache_read=*/false>(self, block_sref, scope_sref, &info);
   BufferRegion cache_region =
       RelaxBufferRegion(self, region, block_sref, parent_sref, info.loc_sref);
 
@@ -1468,21 +1513,26 @@ struct CacheWriteTraits : public UnpackedInstTraits<CacheWriteTraits> {
   static constexpr bool kIsPure = false;
 
  private:
-  static constexpr size_t kNumInputs = 1;
+  static constexpr size_t kNumInputs = 2;
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
-  static BlockRV UnpackedApplyToSchedule(Schedule sch, BlockRV block, Integer write_buffer_index,
+  static BlockRV UnpackedApplyToSchedule(Schedule sch, BlockRV block,
+                                         Array<BlockRV> consumer_blocks, Integer write_buffer_index,
                                          String storage_scope) {
-    return sch->CacheWrite(block, write_buffer_index->value, storage_scope);
+    return sch->CacheWrite(block, write_buffer_index->value, storage_scope, consumer_blocks);
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String block, Integer write_buffer_index,
-                                 String storage_scope) {
+  static String UnpackedAsPython(Array<String> outputs, String block, Array<String> consumer_blocks,
+                                 Integer write_buffer_index, String storage_scope) {
     PythonAPICall py("cache_write");
     py.Input("block", block);
     py.Input("write_buffer_index", write_buffer_index->value);
     py.Input("storage_scope", storage_scope);
+    // Only write out consumer blocks if provided.
+    if (!consumer_blocks.empty()) {
+      py.Input("consumer_blocks", consumer_blocks);
+    }
     py.SingleOutput(outputs);
     return py.Str();
   }

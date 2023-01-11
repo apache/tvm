@@ -710,6 +710,10 @@ TVM_DLL Function UnCPS(const Function& f);
  */
 TVM_DLL Expr DeDup(const Expr& e);
 
+namespace legalize {
+TVM_DLL Expr Legalize(const Expr& expr, const std::string& legalize_map_attr_name);
+}  // namespace legalize
+
 }  // namespace relay
 }  // namespace tvm
 

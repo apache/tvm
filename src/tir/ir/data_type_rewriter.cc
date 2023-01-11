@@ -107,6 +107,35 @@ Stmt DataTypeLegalizer::VisitStmt_(const AttrStmtNode* op) {
   return StmtExprMutator::VisitStmt_(op);
 }
 
+Stmt DataTypeLegalizer::VisitStmt_(const LetStmtNode* op) {
+  PrimExpr value = this->VisitExpr(op->value);
+  auto new_var = op->var.copy_with_dtype(value.dtype());
+
+  if (value.dtype() != op->var->dtype) {
+    var_remap_[op->var.get()] = new_var;
+  }
+
+  Stmt new_body = this->VisitStmt(op->body);
+
+  if (value.same_as(op->value) && new_body.same_as(op->body)) {
+    return GetRef<Stmt>(op);
+  } else if (value.dtype() == op->var->dtype) {
+    auto n = CopyOnWrite(op);
+    n->value = std::move(value);
+    n->body = std::move(new_body);
+    return Stmt(n);
+  } else {
+    return LetStmt(new_var, value, new_body, op->span);
+  }
+}
+
+PrimExpr DataTypeLegalizer::VisitExpr_(const VarNode* op) {
+  if (auto it = var_remap_.find(op); it != var_remap_.end()) {
+    return it->second;
+  }
+  return GetRef<Var>(op);
+}
+
 PrimExpr DataTypeLegalizer::VisitExpr_(const SelectNode* op) {
   PrimExpr condition = this->VisitExpr(op->condition);
   PrimExpr true_value = this->VisitExpr(op->true_value);
@@ -273,12 +302,14 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BlockNode* op) {
   if (op->init.defined()) {
     new_init = this->VisitStmt(op->init.value());
   }
+  Map<String, ObjectRef> new_annotations = VisitBlockAnnotations(op->annotations);
   Stmt new_body = this->VisitStmt(op->body);
 
   if (!new_init.same_as(op->init) || !new_body.same_as(op->body) ||
       !new_alloc_buffers.same_as(op->alloc_buffers) ||
       !new_match_buffers.same_as(op->match_buffers) || !new_reads.same_as(op->reads) ||
-      !new_writes.same_as(op->writes) || new_iter_vars.same_as(op->iter_vars)) {
+      !new_writes.same_as(op->writes) || new_iter_vars.same_as(op->iter_vars) ||
+      !new_annotations.same_as(op->annotations)) {
     Block new_block = GetRef<Block>(op);
     BlockNode* n = new_block.CopyOnWrite();
     n->alloc_buffers = std::move(new_alloc_buffers);
@@ -287,6 +318,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BlockNode* op) {
     n->writes = std::move(new_writes);
     n->iter_vars = std::move(new_iter_vars);
     n->init = std::move(new_init);
+    n->annotations = std::move(new_annotations);
     n->body = std::move(new_body);
     return std::move(new_block);
   }
@@ -394,6 +426,9 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BufferStoreNode* op) {
 
   Buffer new_buffer = GetRemappedBuffer(op->buffer);
   auto value = this->VisitExpr(op->value);
+  if (new_buffer->dtype != value->dtype && value->dtype.lanes() == 1) {
+    value = cast(new_buffer->dtype, value);
+  }
   auto indices = VisitIndices(op->indices);
 
   if (!new_buffer.same_as(op->buffer) || !value.same_as(op->value) ||
@@ -532,15 +567,10 @@ PrimExpr IndexDataTypeNormalizer::VisitExpr_(const IntImmNode* op) {
 }
 
 PrimExpr IndexDataTypeNormalizer::VisitExpr_(const VarNode* op) {
-  if (auto it = var_remap_.find(GetRef<Var>(op)); it != var_remap_.end()) {
-    return (*it).second;
+  if (is_enabled_ && op->dtype != target_data_type_ && !var_remap_.count(op)) {
+    var_remap_[op] = GetRef<Var>(op).copy_with_dtype(target_data_type_);
   }
-  if (is_enabled_ && op->dtype != target_data_type_) {
-    Var new_var = GetRef<Var>(op).copy_with_dtype(target_data_type_);
-    var_remap_.Set(GetRef<Var>(op), new_var);
-    return std::move(new_var);
-  }
-  return GetRef<PrimExpr>(op);
+  return DataTypeLegalizer::VisitExpr_(op);
 }
 
 PrimExpr IndexDataTypeNormalizer::VisitExpr_(const CastNode* op) {

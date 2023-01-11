@@ -1056,16 +1056,16 @@ class TransformationIntroducesPaddingError : public ScheduleError {
 
 // Make the dtypes of indices in IndexMap be the same as the dtype of the buffer shape, to avoid
 // dtype-mismatch issues later.
-IndexMap LegalizeIndexMapDType(const IndexMap& index_map, const Buffer& buf) {
+IndexMap LegalizeIndexMapDType(const IndexMap& index_map, const Array<PrimExpr>& args) {
   const auto& initial_indices_orig = index_map->initial_indices;
-  ICHECK(buf->shape.size() == initial_indices_orig.size());
+  ICHECK(args.size() == initial_indices_orig.size());
 
   Array<Var> initial_indices;
   Map<Var, PrimExpr> var_map;
 
-  for (size_t i = 0; i < buf->shape.size(); ++i) {
-    if (buf->shape[i]->dtype != initial_indices_orig[i].dtype()) {
-      auto new_idx = Var(initial_indices_orig[i]->name_hint, buf->shape[i]->dtype);
+  for (size_t i = 0; i < args.size(); ++i) {
+    if (args[i]->dtype != initial_indices_orig[i].dtype()) {
+      auto new_idx = Var(initial_indices_orig[i]->name_hint, args[i]->dtype);
       initial_indices.push_back(new_idx);
       var_map.Set(initial_indices_orig[i], new_idx);
     } else {
@@ -1078,7 +1078,12 @@ IndexMap LegalizeIndexMapDType(const IndexMap& index_map, const Buffer& buf) {
       return SubstituteWithDataTypeLegalization(index,
                                                 [&](const Var& var) { return var_map.Get(var); });
     });
-    return IndexMap(initial_indices, final_indices);
+    Optional<IndexMap> opt_inverse_index_map =
+        Downcast<Optional<IndexMap>>(index_map->inverse_index_map);
+    if (opt_inverse_index_map.defined()) {
+      opt_inverse_index_map = LegalizeIndexMapDType(opt_inverse_index_map.value(), final_indices);
+    }
+    return IndexMap(initial_indices, final_indices, opt_inverse_index_map);
   }
   return index_map;
 }
@@ -1091,7 +1096,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
   Buffer old_buffer =
       GetNthAccessBuffer(self, GetRef<Block>(block_ptr), buffer_index, buffer_index_type);
 
-  auto index_map = LegalizeIndexMapDType(index_map_orig, old_buffer);
+  auto index_map = LegalizeIndexMapDType(index_map_orig, old_buffer->shape);
 
   auto [defining_site_sref, is_alloc] = GetBufferDefiningSite(block_sref, old_buffer);
   if (defining_site_sref.defined() && !is_alloc) {

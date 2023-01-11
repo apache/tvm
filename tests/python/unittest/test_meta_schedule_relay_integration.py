@@ -54,16 +54,6 @@ class MockModule:
 # pylint: enable=no-member,line-too-long,too-many-nested-blocks,unbalanced-tuple-unpacking,no-self-argument
 
 
-def _has_torch():
-    import importlib.util  # pylint: disable=unused-import,import-outside-toplevel
-
-    spec = importlib.util.find_spec("torch")
-    return spec is not None
-
-
-requires_torch = pytest.mark.skipif(not _has_torch(), reason="torch is not installed")
-
-
 def test_meta_schedule_dynamic_loop_extent():
     a = relay.var("a", shape=(1, 8, 8, 512), dtype="float32")
     b = relay.nn.adaptive_avg_pool2d(a, (7, 7), "NHWC")
@@ -72,7 +62,7 @@ def test_meta_schedule_dynamic_loop_extent():
     assert not extracted_tasks
 
 
-@requires_torch
+@tvm.testing.requires_package("torch")
 def test_meta_schedule_integration_extract_from_resnet():
     mod, params, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
     extracted_tasks = ms.relay_integration.extract_tasks(mod, target="llvm", params=params)
@@ -108,7 +98,25 @@ def test_meta_schedule_integration_extract_from_resnet():
         assert t.task_name in expected_task_names, t.task_name
 
 
-@requires_torch
+@tvm.testing.requires_package("torch")
+def test_task_extraction_winograd_tensorcore():
+    mod, params, _ = get_network(name="resnet_50", input_shape=[16, 3, 224, 224])
+    seq = tvm.transform.Sequential(
+        [
+            relay.transform.ToMixedPrecision("float16"),
+            relay.transform.ConvertLayout({"nn.conv2d": ["NHWC", "HWIO"]}),
+        ]
+    )
+    with tvm.transform.PassContext(opt_level=3):
+        mod = seq(mod)
+
+    target = tvm.target.Target("nvidia/geforce-rtx-3070")
+    extracted_tasks = ms.relay_integration.extract_tasks(mod, target=target, params=params)
+
+    assert len([t for t in extracted_tasks if "winograd" in t.task_name]) == 4
+
+
+@tvm.testing.requires_package("torch")
 def test_task_extraction_anchor_block():
     mod, params, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
     extracted_tasks = ms.relay_integration.extract_tasks(
@@ -143,7 +151,7 @@ def test_task_extraction_anchor_block():
         assert t.task_name in expected_task_names, t.task_name
 
 
-@requires_torch
+@tvm.testing.requires_package("torch")
 def test_meta_schedule_integration_extract_from_bert_base():
     pytest.importorskip(
         "transformers", reason="transformers package is required to import bert_base"
@@ -241,7 +249,7 @@ def test_meta_schedule_integration_extract_from_bert_base():
         assert expected_shape == shape, t.task_name
 
 
-@requires_torch
+@tvm.testing.requires_package("torch")
 def test_meta_schedule_integration_extract_from_resnet_with_filter_func():
     @register_func("relay.backend.tir_converter.remove_purely_spatial", override=True)
     def filter_func(args, _) -> bool:
@@ -742,6 +750,7 @@ def _test_anchor_tuning(target):
             max_trials_global=4,
             strategy="replay-trace",
             module_equality=module_equality,
+            num_tuning_cores=4,
         )
         lib = ms.relay_integration.compile_relay(database, mod, target, params)
 
@@ -815,6 +824,51 @@ def test_anchor_tuning_cpu_link_params():
     )
 
     np.testing.assert_allclose(ref, out, atol=1e-3)
+
+
+@pytest.mark.xfail(raises=tvm.error.TVMError)
+def test_disabled_pass_param():
+    """
+    Check 'disabled_pass' parameter in tune_relay. Should throw exception in
+    case of correct work.
+    """
+    data_shape = [1, 4, 16, 16]
+    weight_shape = [32, 4, 2, 2]
+
+    data = relay.var("data", shape=data_shape, dtype="uint8")
+    weight = relay.var("weight", shape=weight_shape, dtype="int8")
+
+    op = relay.qnn.op.conv2d(
+        data,
+        weight,
+        input_zero_point=relay.const(0),
+        kernel_zero_point=relay.const(0),
+        input_scale=relay.const(0.7),
+        kernel_scale=relay.const(0.3),
+        kernel_size=[2, 2],
+        channels=32,
+    )
+    mod = tvm.IRModule.from_expr(op)
+
+    weight_np = np.random.randint(-10, 10, size=weight_shape).astype("int8")
+    params = {"weight": weight_np}
+
+    executor = relay.backend.Executor("graph", {"link-params": True})
+    mod = mod.with_attr("executor", executor)
+
+    with tempfile.TemporaryDirectory() as work_dir:
+        database = ms.relay_integration.tune_relay(
+            mod=mod,
+            target="llvm --num-cores=4",
+            params=params,
+            work_dir=work_dir,
+            max_trials_global=4,
+            strategy="replay-trace",
+            disabled_pass=["qnn.Legalize"],
+        )
+
+    # Test failed, otherwise we can not reach this point.
+    pytest.fail("'disabled_pass' argument does not work")
 
 
 if __name__ == "__main__":

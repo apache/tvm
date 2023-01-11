@@ -36,7 +36,7 @@ namespace builtin {
     static const Op& op = Op::Get("tir." #OpName); \
     return op;                                     \
   }                                                \
-  TVM_REGISTER_OP("tir." #OpName)
+  TVM_TIR_REGISTER_OP(#OpName)
 
 TIR_DEFINE_BUILTIN_FUNC(reinterpret)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
@@ -181,10 +181,12 @@ TIR_DEFINE_BUILTIN_FUNC(tvm_stack_make_array)
 
 // When num_inputs are not set, the function is assumed to be variable length.
 TIR_DEFINE_BUILTIN_FUNC(tvm_call_packed)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque))
+    .set_attr<TScriptPrinterName>("TScriptPrinterName", String("call_packed"), /*plevel=*/20);
 
 TIR_DEFINE_BUILTIN_FUNC(tvm_call_cpacked)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque))
+    .set_attr<TScriptPrinterName>("TScriptPrinterName", String("call_cpacked"), /*plevel=*/20);
 
 TIR_DEFINE_BUILTIN_FUNC(tvm_call_trace_packed)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
@@ -198,10 +200,14 @@ TIR_DEFINE_BUILTIN_FUNC(tvm_thread_context)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
 TIR_DEFINE_BUILTIN_FUNC(tvm_call_packed_lowered)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque))
+    .set_attr<TScriptPrinterName>("TScriptPrinterName", String("call_packed_lowered"),
+                                  /*plevel=*/20);
 
 TIR_DEFINE_BUILTIN_FUNC(tvm_call_cpacked_lowered)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque))
+    .set_attr<TScriptPrinterName>("TScriptPrinterName", String("call_cpacked_lowered"),
+                                  /*plevel=*/20);
 
 TIR_DEFINE_BUILTIN_FUNC(tvm_call_trace_packed_lowered)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));

@@ -25,7 +25,7 @@ import pytest
 import tvm
 from tvm import relay
 from tvm.relay.op.contrib import cmsisnn
-from tvm.testing.aot import generate_ref_data, AOTTestModel, compile_and_run
+from tvm.testing.aot import get_dtype_range, generate_ref_data, AOTTestModel, compile_and_run
 from tvm.micro.testing.aot_test_utils import (
     AOT_USMP_CORSTONE300_RUNNER,
 )
@@ -34,7 +34,6 @@ from .utils import (
     skip_if_no_reference_system,
     make_module,
     make_qnn_relu,
-    get_range_for_dtype_str,
     assert_partitioned_function,
     assert_no_external_function,
     create_test_runner,
@@ -45,9 +44,8 @@ def generate_tensor_constant():
     rng = np.random.default_rng(12321)
     dtype = "int8"
     shape = (1, 16, 16, 3)
-    values = tvm.nd.array(
-        rng.integers(np.iinfo(dtype).min, high=np.iinfo(dtype).max, size=shape, dtype=dtype)
-    )
+    in_min, in_max = get_dtype_range(dtype)
+    values = tvm.nd.array(rng.integers(in_min, high=in_max, size=shape, dtype=dtype))
     return relay.const(values, dtype)
 
 
@@ -136,7 +134,7 @@ def test_op_int8(
     assert_partitioned_function(orig_mod, cmsisnn_mod)
 
     # validate the output
-    in_min, in_max = get_range_for_dtype_str(dtype)
+    in_min, in_max = get_dtype_range(dtype)
     inputs = {
         "input_0": np.random.randint(in_min, high=in_max, size=shape, dtype=dtype),
         "input_1": np.random.randint(in_min, high=in_max, size=shape, dtype=dtype),
@@ -196,7 +194,7 @@ def test_same_input_to_binary_op(op, relu_type):
     ), "Composite function for the binary op should have only 1 parameter."
 
     # validate the output
-    in_min, in_max = get_range_for_dtype_str(dtype)
+    in_min, in_max = get_dtype_range(dtype)
     inputs = {
         "input": np.random.randint(in_min, high=in_max, size=shape, dtype=dtype),
     }
@@ -275,7 +273,7 @@ def test_constant_input_int8(op, input_0, input_1):
     assert_partitioned_function(orig_mod, cmsisnn_mod)
 
     # validate the output
-    in_min, in_max = get_range_for_dtype_str(dtype)
+    in_min, in_max = get_dtype_range(dtype)
     inputs = {}
     if isinstance(input_0, tvm.relay.expr.Var):
         inputs.update({"input_0": np.random.randint(in_min, high=in_max, size=shape, dtype=dtype)})

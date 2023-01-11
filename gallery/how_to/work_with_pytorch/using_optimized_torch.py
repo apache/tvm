@@ -21,10 +21,18 @@ Compile PyTorch Models
 `Yaoda Zhou <https://github.com/juda>`_
 
 This article is a tutorial to optimize PyTorch models by using decorator `optimize_torch`.
-To follow this tutorial, PyTorch, as well as TorchVision, should be installed.
+To follow this tutorial, PyTorch, as well as TorchVision, should be installed:
+
+.. code-block:: bash
+
+    %%shell
+    pip install torch
+    pip install torchvision
+
 """
 
 # sphinx_gallery_start_ignore
+# sphinx_gallery_requires_cuda = True
 from tvm import testing
 
 testing.utils.install_request_hook(depth=3)

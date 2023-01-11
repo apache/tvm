@@ -128,7 +128,8 @@ class PrimFuncSpecializer : public StmtExprMutator {
     Array<BufferRegion> writes = op->writes.Map(
         std::bind(&PrimFuncSpecializer::MutateBufferRegion, this, std::placeholders::_1));
 
-    if (alloc_buffers.same_as(op->alloc_buffers) && reads.same_as(op->reads)) {
+    if (alloc_buffers.same_as(op->alloc_buffers) && reads.same_as(op->reads) &&
+        writes.same_as(op->writes)) {
       return GetRef<Block>(op);
     } else {
       ObjectPtr<BlockNode> n = CopyOnWrite(op);
@@ -238,12 +239,13 @@ class PrimFuncSpecializer : public StmtExprMutator {
 
   BufferRegion MutateBufferRegion(const BufferRegion& buffer_region) {
     auto it = buffer_map_.find(buffer_region->buffer);
+    const Buffer& buffer = it != buffer_map_.end() ? it->second : buffer_region->buffer;
     Array<Range> region = buffer_region->region.Map(
         std::bind(&PrimFuncSpecializer::MutateRange, this, std::placeholders::_1));
     if (it == buffer_map_.end() && region.same_as(buffer_region->region)) {
       return buffer_region;
     } else {
-      return BufferRegion(it->second, std::move(region));
+      return BufferRegion(buffer, std::move(region));
     }
   }
 

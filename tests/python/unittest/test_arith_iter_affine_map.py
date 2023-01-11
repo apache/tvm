@@ -670,6 +670,35 @@ def test_subspace_division():
     assert len(res) == 0
 
 
+def test_subspace_divide_trivial_iters():
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
+    z = tvm.tir.Var("z", "int32")
+
+    # trivial 1.1
+    res = tvm.arith.subspace_divide(
+        [x * 16 + y], var_dom([(x, 1), (y, 16)]), [y], simplify_trivial_iterators=False
+    )
+    res = convert_division(res)
+    assert len(res) == 2
+    tvm.ir.assert_structural_equal(res[0][0], x)
+    tvm.ir.assert_structural_equal(res[0][1], y)
+
+    # trivial 1.2
+    res = tvm.arith.subspace_divide(
+        [x, y],
+        var_dom([(x, 1), (y, 1)]),
+        [y],
+        simplify_trivial_iterators=False,
+    )
+    res = convert_division(res)
+    assert len(res) == 3
+    tvm.ir.assert_structural_equal(res[0][0], x)
+    tvm.ir.assert_structural_equal(res[0][1], 0)
+    tvm.ir.assert_structural_equal(res[1][0], 0)
+    tvm.ir.assert_structural_equal(res[1][1], y)
+
+
 def test_complex():
     n0 = create_iter("n0", 2)
     n1 = create_iter("n1", 4)

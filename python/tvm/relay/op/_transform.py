@@ -432,8 +432,6 @@ def _concatenate_shape_func(inputs, axis):
     for i in const_range(ndim):
         if i != axis:
             out[i] = inputs[0][i]
-            for j in const_range(1, len(inputs)):
-                assert out[i] == inputs[j][i], "Dims mismatch in the inputs of concatenate."
         else:
             out[i] = int64(0)
             for j in const_range(len(inputs)):

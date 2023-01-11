@@ -60,19 +60,21 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-12-05T14:48:42.065368
+// Generated at 2022-12-09T15:39:24.369191
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
-ci_lint = 'tlcpack/ci-lint:20221013-060115-61c9742ea'
-ci_gpu = 'tlcpack/ci-gpu:20221019-060125-0b4836739'
-ci_cpu = 'tlcpack/ci-cpu:20221013-060115-61c9742ea'
-ci_minimal = 'tlcpack/ci-minimal:20221013-060115-61c9742ea'
-ci_wasm = 'tlcpack/ci-wasm:20221013-060115-61c9742ea'
-ci_i386 = 'tlcpack/ci-i386:20221013-060115-61c9742ea'
-ci_cortexm = 'tlcpack/ci-cortexm:20221013-060115-61c9742ea'
-ci_arm = 'tlcpack/ci-arm:20221013-060115-61c9742ea'
-ci_hexagon = 'tlcpack/ci-hexagon:20221013-060115-61c9742ea'
-ci_riscv = 'tlcpack/ci-riscv:20221013-060115-61c9742ea'
+// These are set at runtime from data in ci/jenkins/docker-images.yml, update
+// image tags in that file
+ci_lint = ''
+ci_gpu = ''
+ci_cpu = ''
+ci_minimal = ''
+ci_wasm = ''
+ci_i386 = ''
+ci_cortexm = ''
+ci_arm = ''
+ci_hexagon = ''
+ci_riscv = ''
 
 // Parameters to allow overriding (in Jenkins UI), the images
 // to be used by a given build. When provided, they take precedence
@@ -203,8 +205,7 @@ def docker_init(image) {
   if (image.contains("amazonaws.com")) {
     // If this string is in the image name it's from ECR and needs to be pulled
     // with the right credentials
-    // ecr_pull(image)
-    sh "echo Pulling from AWS is not implemented && exit 1"
+    ecr_pull(image)
   } else {
     sh(
       script: """
@@ -214,6 +215,47 @@ def docker_init(image) {
       """,
       label: 'Pull docker image',
     )
+  }
+}
+
+def ecr_pull(full_name) {
+  aws_account_id = sh(
+    returnStdout: true,
+    script: 'aws sts get-caller-identity | grep Account | cut -f4 -d\\"',
+    label: 'Get AWS ID'
+  ).trim()
+
+  try {
+    withEnv([
+      "AWS_ACCOUNT_ID=${aws_account_id}",
+      'AWS_DEFAULT_REGION=us-west-2',
+      "AWS_ECR_REPO=${aws_account_id}.dkr.ecr.us-west-2.amazonaws.com"]) {
+      sh(
+        script: '''
+          set -eux
+          aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ECR_REPO
+        ''',
+        label: 'Log in to ECR'
+      )
+      sh(
+        script: """
+          set -eux
+          . ${jenkins_scripts_root}/retry.sh
+          retry 5 docker pull ${full_name}
+        """,
+        label: 'Pull image from ECR'
+      )
+    }
+  } finally {
+    withEnv([
+      "AWS_ACCOUNT_ID=${aws_account_id}",
+      'AWS_DEFAULT_REGION=us-west-2',
+      "AWS_ECR_REPO=${aws_account_id}.dkr.ecr.us-west-2.amazonaws.com"]) {
+      sh(
+        script: 'docker logout $AWS_ECR_REPO',
+        label: 'Clean up login credentials'
+      )
+    }
   }
 }
 
@@ -322,7 +364,7 @@ def prepare() {
 
         if (env.DETERMINE_DOCKER_IMAGES == 'yes') {
           sh(
-            script: "./${jenkins_scripts_root}/determine_docker_images.py ci_arm=${ci_arm} ci_cortexm=${ci_cortexm} ci_cpu=${ci_cpu} ci_gpu=${ci_gpu} ci_hexagon=${ci_hexagon} ci_i386=${ci_i386} ci_lint=${ci_lint} ci_minimal=${ci_minimal} ci_riscv=${ci_riscv} ci_wasm=${ci_wasm} ",
+            script: "./${jenkins_scripts_root}/determine_docker_images.py ci_arm ci_cortexm ci_cpu ci_gpu ci_hexagon ci_i386 ci_lint ci_minimal ci_riscv ci_wasm ",
             label: 'Decide whether to use tlcpack or tlcpackstaging for Docker images',
           )
           // Pull image names from the results of should_rebuild_docker.py

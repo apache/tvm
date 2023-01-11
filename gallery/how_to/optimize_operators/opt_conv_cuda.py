@@ -31,6 +31,7 @@ channel, batch.
 """
 
 # sphinx_gallery_start_ignore
+# sphinx_gallery_requires_cuda = True
 from tvm import testing
 
 testing.utils.install_request_hook(depth=3)

@@ -18,8 +18,9 @@
 import numpy as np
 import tvm
 import tvm.testing
-from tvm import te, tir, topi
+from tvm import te, tir, topi, relay
 from tvm.script import tir as T
+import pytest
 
 
 def test_unique_name_complete_block():
@@ -414,7 +415,36 @@ def expected_layout_attr(
             D[x, y] = C[x, y] + T.float32(1)
 
 
-def test_tensor_layout_attr():
+@T.prim_func
+def expected_layout_attr_int64(
+    A: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
+    B: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
+    D: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
+):
+    T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
+    C = T.alloc_buffer([T.int64(128), T.int64(128)], dtype="float32")
+    for x, y, k in T.grid(T.int64(128), T.int64(128), T.int64(128)):
+        with T.block("C"):
+            v_x, v_y, v_k = T.axis.remap("SSR", [x, y, k])
+            T.reads(A[v_x, v_k], B[v_y, v_k])
+            T.writes(C[v_x, v_y])
+            with T.init():
+                C[v_x, v_y] = T.float32(0)
+            C[v_x, v_y] = C[v_x, v_y] + A[v_x, v_k] * B[v_y, v_k]
+    for x, y in T.grid(T.int64(128), T.int64(128)):
+        with T.block("D"):
+            T.block_attr({"layout_free_placeholders": [C]})
+            v_x, v_y = T.axis.remap("SS", [x, y])
+            T.reads(C[v_x, v_y])
+            T.writes(D[v_x, v_y])
+            D[v_x, v_y] = C[v_x, v_y] + T.float32(1)
+
+
+@pytest.mark.parametrize(
+    "index_dtype_override, expected",
+    [(None, expected_layout_attr), ("int64", expected_layout_attr_int64)],
+)
+def test_tensor_layout_attr(index_dtype_override, expected):
     k = te.reduce_axis((0, 128), "k")
     A = te.placeholder((128, 128), name="A")
     B = te.placeholder((128, 128), name="B")
@@ -430,8 +460,8 @@ def test_tensor_layout_attr():
         name="D",
         attrs={"layout_free_placeholders": [C]},
     )
-    func = te.create_prim_func([A, B, D])
-    tvm.ir.assert_structural_equal(func, expected_layout_attr)
+    func = te.create_prim_func([A, B, D], index_dtype_override=index_dtype_override)
+    tvm.ir.assert_structural_equal(func, expected)
 
 
 def te_argmax_idx_val():
@@ -606,22 +636,88 @@ def test_reshape():
     _check_workload(te_reshape, tir_reshape, index_dtype_override="int64")
 
 
+@T.prim_func
+def argmax_expected(
+    p0: T.Buffer[(T.int64(1), T.int64(64), T.int64(56), T.int64(56)), "uint8"],
+    p0_red: T.Buffer[(T.int64(1), T.int64(56), T.int64(56)), "int32"],
+):
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    p0_red_temp_v0 = T.alloc_buffer([T.int64(1), T.int64(56), T.int64(56)], dtype="int32")
+    p0_red_temp_v1 = T.alloc_buffer([T.int64(1), T.int64(56), T.int64(56)], dtype="uint8")
+    for ax0, ax1, ax2, k1 in T.grid(T.int64(1), T.int64(56), T.int64(56), T.int64(64)):
+        with T.block("p0_red_temp"):
+            v_ax0, v_ax1, v_ax2, v_k1 = T.axis.remap("SSSR", [ax0, ax1, ax2, k1])
+            T.reads(p0[v_ax0, v_k1, v_ax1, v_ax2])
+            T.writes(p0_red_temp_v0[v_ax0, v_ax1, v_ax2], p0_red_temp_v1[v_ax0, v_ax1, v_ax2])
+            with T.init():
+                p0_red_temp_v0[v_ax0, v_ax1, v_ax2] = -1
+                p0_red_temp_v1[v_ax0, v_ax1, v_ax2] = T.uint8(0)
+            v_p0_red_temp_v0: T.int64 = T.Select(
+                p0_red_temp_v1[v_ax0, v_ax1, v_ax2] > p0[v_ax0, v_k1, v_ax1, v_ax2]
+                or (
+                    p0_red_temp_v1[v_ax0, v_ax1, v_ax2] == p0[v_ax0, v_k1, v_ax1, v_ax2]
+                    and T.Cast("int64", p0_red_temp_v0[v_ax0, v_ax1, v_ax2]) < v_k1
+                ),
+                T.Cast("int64", p0_red_temp_v0[v_ax0, v_ax1, v_ax2]),
+                v_k1,
+            )
+            v_p0_red_temp_v1: T.uint8 = T.Select(
+                p0_red_temp_v1[v_ax0, v_ax1, v_ax2] > p0[v_ax0, v_k1, v_ax1, v_ax2],
+                p0_red_temp_v1[v_ax0, v_ax1, v_ax2],
+                p0[v_ax0, v_k1, v_ax1, v_ax2],
+            )
+            p0_red_temp_v0[v_ax0, v_ax1, v_ax2] = T.Cast("int32", v_p0_red_temp_v0)
+            p0_red_temp_v1[v_ax0, v_ax1, v_ax2] = v_p0_red_temp_v1
+    for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(56), T.int64(56)):
+        with T.block("p0_red"):
+            v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+            T.reads(p0_red_temp_v0[v_ax0, v_ax1, v_ax2])
+            T.writes(p0_red[v_ax0, v_ax1, v_ax2])
+            p0_red[v_ax0, v_ax1, v_ax2] = p0_red_temp_v0[v_ax0, v_ax1, v_ax2]
+
+
+def test_argmax():
+    data = relay.var("data", shape=(1, 64, 56, 56), dtype="uint8")
+    mod = tvm.IRModule.from_expr(relay.argmax(data, axis=1))
+
+    target = tvm.target.Target("llvm")
+
+    opt_mod, _ = relay.optimize(mod, params={}, target=target)
+
+    prim_func = relay.backend.te_compiler.lower_to_primfunc(opt_mod["main"].body.op, target)
+
+    tvm.ir.assert_structural_equal(prim_func, argmax_expected)
+
+
+def test_extern_with_explicit_buffer_access():
+    def te_extern():
+        A = te.placeholder((128, 128), name="A")
+        B = te.placeholder((128, 128), name="B")
+        P = te.placeholder((1,), name="P")
+        C = te.extern(
+            (128, 128),
+            [A, B, P],
+            lambda ins, outs: tvm.tir.call_extern(
+                "", "myfunc", ins[0].data, ins[1].data, outs[0].data, ins[2][0]
+            ),
+            name="C",
+        )
+        return [A, B, P, C]
+
+    @T.prim_func
+    def tir_extern(var_A: T.handle, var_B: T.handle, var_P: T.handle, var_C: T.handle):
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        A = T.match_buffer(var_A, [128, 128], dtype="float32", offset_factor=1)
+        B = T.match_buffer(var_B, [128, 128], dtype="float32", offset_factor=1)
+        P = T.match_buffer(var_P, [1], dtype="float32", offset_factor=1)
+        C = T.match_buffer(var_C, [128, 128], dtype="float32", offset_factor=1)
+        with T.block("C"):
+            T.reads(A[0:128, 0:128], B[0:128, 0:128], P[0])
+            T.writes(C[0:128, 0:128])
+            T.call_extern("myfunc", A.data, B.data, C.data, P[0], dtype="")
+
+    _check_workload(te_extern, tir_extern)
+
+
 if __name__ == "__main__":
-    test_unique_name_complete_block()
-    test_unique_name_reduction_block()
-    test_matmul()
-    test_element_wise()
-    test_conv2d()
-    test_multi_output()
-    test_extern()
-    test_arg_order()
-    test_error_reporting()
-    test_constant()
-    test_select_simplify()
-    test_tensor_attr()
-    test_tensor_layout_attr()
-    test_argmax_idx_val()
-    test_argmax_val_idx()
-    test_int64_indices()
-    test_zero_dim_add()
-    test_reshape()
+    tvm.testing.main()

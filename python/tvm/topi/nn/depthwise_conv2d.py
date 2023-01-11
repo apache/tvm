@@ -19,6 +19,7 @@
 from __future__ import absolute_import as _abs
 from collections import namedtuple
 import tvm
+import numpy as np
 from tvm import te
 
 from .dilate import dilate
@@ -211,7 +212,9 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=No
     return Output
 
 
-def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype=None):
+def depthwise_conv2d_nhwc(
+    Input, Filter, stride, padding, dilation, kernel_layout="HWOI", out_dtype=None
+):
     """Depthwise convolution nhwc forward operator.
 
     Parameters
@@ -252,8 +255,14 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype=No
         dilation_h, dilation_w = dilation
 
     batch, in_height, in_width, in_channel = Input.shape
+
     # shape of dilated kernel
-    filter_height, filter_width, filter_channel, channel_multiplier = Filter.shape
+    if kernel_layout == "HWIO":
+        filter_height, filter_width, channel_multiplier, filter_channel = Filter.shape
+        kernel_permutation = [0, 1, 3, 2]
+    else:
+        filter_height, filter_width, filter_channel, channel_multiplier = Filter.shape
+        kernel_permutation = [0, 1, 2, 3]
 
     dilated_kernel_h = (filter_height - 1) * dilation_h + 1
     dilated_kernel_w = (filter_width - 1) * dilation_w + 1
@@ -285,7 +294,11 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype=No
                     idxdiv(c, channel_multiplier),
                 ].astype(out_dtype)
                 * Filter[
-                    di, dj, idxdiv(c, channel_multiplier), idxmod(c, channel_multiplier)
+                    tuple(
+                        np.array(
+                            [di, dj, idxdiv(c, channel_multiplier), idxmod(c, channel_multiplier)]
+                        )[kernel_permutation]
+                    )
                 ].astype(out_dtype)
             ),
             axis=[di, dj],
