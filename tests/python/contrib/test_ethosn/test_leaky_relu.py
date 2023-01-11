@@ -22,7 +22,6 @@ import numpy as np
 
 import tvm
 from tvm import relay
-from tvm.relay.op.contrib import ethosn_api_version
 from tvm.testing import requires_ethosn
 
 from . import infrastructure as tei
@@ -56,10 +55,7 @@ def test_leaky_relu(dtype, shape, alpha):
     iinfo = np.iinfo(dtype)
     zp_min = iinfo.min
     zp_max = iinfo.max
-    if ethosn_api_version() == "3.2.0":
-        input_zp = zp_min + 128
-    else:
-        input_zp = zp_min + 120
+    input_zp = zp_min + 128
     input_sc = 0.0068132
     output_zp = zp_min + 126  # values offset more than 126 can cause saturation
     output_sc = 0.0078125
