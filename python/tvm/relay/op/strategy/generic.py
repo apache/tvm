@@ -23,12 +23,8 @@ from tvm import _ffi, ir, te, topi
 from tvm.auto_scheduler import is_auto_scheduler_enabled
 from tvm.meta_schedule import is_meta_schedule_enabled
 from tvm.target import generic_func, override_native_generic_func
-from tvm.topi.utils import (
-    get_const_float,
-    get_const_int,
-    get_const_tuple,
-    get_float_tuple,
-)
+from tvm.topi.utils import (get_const_float, get_const_int, get_const_tuple,
+                            get_float_tuple)
 
 from .. import op as _op
 
@@ -956,7 +952,7 @@ def batch_matmul_strategy(attrs, inputs, out_type, target):
         wrap_compute_batch_matmul(
             topi.nn.batch_matmul,
             need_auto_scheduler_layout=is_auto_scheduler_enabled(),
-            need_meta_schedule_layout=is_meta_schedule_enabled,
+            need_meta_schedule_layout=is_meta_schedule_enabled(),
         ),
         wrap_topi_schedule(topi.generic.schedule_batch_matmul),
         name="batch_matmul.generic",
