@@ -27,17 +27,35 @@ if [ -z "${TVM_VENV+x}" ]; then
     exit 2
 fi
 
+if [ "$#" -lt 1 ]; then
+    echo "Usage: docker/install/ubuntu_install_python.sh <PYTHON_VERSION>"
+    exit -1
+fi
+PYTHON_VERSION=$1
+
+if [ "${PYTHON_VERSION}" != "3.7" ] && [ "${PYTHON_VERSION}" != "3.8" ]; then
+    echo "Only 3.7 and 3.8 versions are supported in this script."
+    exit -1
+fi
+
 apt-get update
 
 # Ensure lsb-release is installed.
 apt-install-and-clear -y \
     lsb-core
 
+apt-install-and-clear -y software-properties-common
+
 release=$(lsb_release -sc)
 if [ "${release}" == "bionic" ]; then
-    PYTHON_VERSION=3.7
+    if [ "${PYTHON_VERSION}" == "3.8" ]; then
+        echo "Only 3.7 is supported for bionic in this script."
+        exit -1
+    fi
 elif [ "${release}" == "focal" ]; then
-    PYTHON_VERSION=3.8
+    if [ "${PYTHON_VERSION}" == "3.7" ]; then
+        add-apt-repository -y ppa:deadsnakes/ppa
+    fi
 else
     echo "Don't know which version of python to install for lsb-release ${release}"
     exit 2
@@ -45,7 +63,6 @@ fi
 
 # Install python and pip. Don't modify this to add Python package dependencies,
 # instead modify install_python_package.sh
-apt-install-and-clear -y software-properties-common
 apt-install-and-clear -y \
     acl \
     python${PYTHON_VERSION} \

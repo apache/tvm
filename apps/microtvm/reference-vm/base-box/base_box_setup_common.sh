@@ -46,7 +46,7 @@ sudo apt-install-and-clear -y --no-install-recommends \
      cmake=3.22.2-0kitware1ubuntu18.04.1 cmake-data=3.22.2-0kitware1ubuntu18.04.1 \
 
 # Python
-sudo ~/ubuntu_install_python.sh
+sudo ~/ubuntu_install_python.sh 3.7
 rm -f ~/ubuntu_install_python.sh
 
 # Poetry deps
