@@ -1613,6 +1613,9 @@ constexpr const char* meta_schedule_auto_tensorize_init = "meta_schedule.auto_te
  */
 constexpr const char* warp_execution = "warp_execution";
 
+/*! \brief Mark that a block is disallowed in auto inline. */
+constexpr const char* meta_schedule_inline_rule = "meta_schedule.inline_rule";
+
 /*!
  * \brief Check if attr_key is a pragma key extension
  * \param attr_key The attr key to be compared
