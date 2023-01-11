@@ -436,7 +436,7 @@ def dense_amx_int8_schedule(cfg, s, C, O, do_parallel=True):
         cfg.define_split("tile_k", rd_axis, num_outputs=5, filter=lambda y: y.size[-1] == 128)
         return cfg["tile_k"].apply(s, out, rd_axis)
 
-    a_x, a_y = C.op.axis
+    a_x, a_y = C.op.axis[-2:]
     (a_k,) = C.op.reduce_axis
     CF = s.cache_write(C, "amx.tmm")
 
@@ -447,7 +447,7 @@ def dense_amx_int8_schedule(cfg, s, C, O, do_parallel=True):
     s[CF].compute_at(s[C], a_yo)
 
     (a_k_f,) = CF.op.reduce_axis
-    a_x_f, a_y_f = CF.op.axis
+    a_x_f, a_y_f = CF.op.axis[-2:]
 
     a_xo_f, a_xi_f = s[CF].split(a_x_f, factor=32)
 
@@ -455,8 +455,8 @@ def dense_amx_int8_schedule(cfg, s, C, O, do_parallel=True):
     a_k3_f, a_k2_f, a_k1_f, a_ko_f, a_ki_f = split_k(CF, a_k_f)
     s[CF].reorder(a_k3_f, a_k2_f, a_k1_f, a_ko_f, a_xo_f, a_yo_f, a_ki_f, a_xi_f, a_yi_f)
 
-    (m, k) = CF.op.input_tensors[0].shape
-    (n, c, n_i, c_i) = CF.op.input_tensors[1].shape
+    (m, k) = CF.op.input_tensors[0].shape[-2:]
+    (n, c, n_i, c_i) = CF.op.input_tensors[1].shape[-4:]
     n = n * n_i
 
     s[CF].tensorize(a_ki_f, dot_32x128x32_u8s8s32_sapphirerapids(LDA=int(k)))
@@ -477,19 +477,6 @@ def dense_amx_int8_schedule(cfg, s, C, O, do_parallel=True):
         s[O].parallel(fused)
 
     return s, fused
-
-
-@autotvm.register_topi_schedule("dense_amx_int8.x86")
-def schedule_dense_amx_int8(cfg, outs):
-    """Create a schedule for dense_amx_int8"""
-    s = te.create_schedule([x.op for x in outs])
-
-    def _callback(op):
-        if "dense_amx_int8" in op.tag:
-            dense_amx_int8_schedule(cfg, s, op.output(0), outs[0])
-
-    traverse_inline(s, outs[0].op, _callback)
-    return s
 
 
 def matmul_blas_common(cfg, tensor_a, tensor_b, bias, out_dtype, transpose_a, transpose_b, lib):
