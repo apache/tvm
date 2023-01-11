@@ -37,7 +37,9 @@ get it to run, you will need to wrap the body of this tutorial in a :code:`if
 __name__ == "__main__":` block.
 """
 
+# sphinx_gallery_start_ignore
 # sphinx_gallery_requires_cuda = True
+# sphinx_gallery_end_ignore
 import os
 
 import numpy as np

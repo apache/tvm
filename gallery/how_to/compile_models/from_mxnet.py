@@ -33,8 +33,10 @@ or please refer to official installation guide.
 https://mxnet.apache.org/versions/master/install/index.html
 """
 
-# sphinx_gallery_requires_cuda = True
 # some standard imports
+# sphinx_gallery_start_ignore
+# sphinx_gallery_requires_cuda = True
+# sphinx_gallery_end_ignore
 import mxnet as mx
 import tvm
 import tvm.relay as relay

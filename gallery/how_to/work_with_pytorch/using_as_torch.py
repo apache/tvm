@@ -16,7 +16,7 @@
 # under the License.
 """
 Wrap Your TVMScript as PyTorch Module
-======================
+=====================================
 **Author**:
 `Yaoda Zhou <https://github.com/juda>`_
 
@@ -43,7 +43,7 @@ from tvm.script import tir as T
 
 ######################################################################
 # Write your own PyTorch operator by TVMScript
-# -------------------------------
+# --------------------------------------------
 # PyTorch is a very popular machine learning framework which contains
 # optimized implementations of most commonly used operators.
 # Nevertheless, sometimes you might want to write your own operators in PyTorch.
@@ -124,7 +124,7 @@ testing.assert_allclose(ret_torch.cpu().numpy(), ret_tvm.cpu().numpy(), atol=1e-
 
 ######################################################################
 # Benchmark
-# -------------------------------
+# ---------
 
 results = []
 for i in range(5):

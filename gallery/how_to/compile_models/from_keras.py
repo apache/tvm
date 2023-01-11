@@ -35,7 +35,9 @@ or please refer to official site
 https://keras.io/#installation
 """
 
+# sphinx_gallery_start_ignore
 # sphinx_gallery_requires_cuda = True
+# sphinx_gallery_end_ignore
 import tvm
 from tvm import te
 import tvm.relay as relay

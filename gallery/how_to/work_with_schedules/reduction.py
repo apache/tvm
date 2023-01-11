@@ -28,7 +28,9 @@ In this tutorial, we will demonstrate how to do reduction in TVM.
 from __future__ import absolute_import, print_function
 
 
+# sphinx_gallery_start_ignore
 # sphinx_gallery_requires_cuda = True
+# sphinx_gallery_end_ignore
 import tvm
 import tvm.testing
 from tvm import te

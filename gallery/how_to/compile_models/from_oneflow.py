@@ -37,7 +37,9 @@ https://github.com/Oneflow-Inc/oneflow
 Currently, TVM supports OneFlow 0.7.0. Other versions may be unstable.
 """
 
+# sphinx_gallery_start_ignore
 # sphinx_gallery_requires_cuda = True
+# sphinx_gallery_end_ignore
 import os, math
 from matplotlib import pyplot as plt
 import numpy as np

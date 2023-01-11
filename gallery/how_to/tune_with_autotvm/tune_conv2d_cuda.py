@@ -48,7 +48,9 @@ __name__ == "__main__":` block.
 #
 # Now return to python code. Import packages.
 
+# sphinx_gallery_start_ignore
 # sphinx_gallery_requires_cuda = True
+# sphinx_gallery_end_ignore
 import logging
 import sys
 import numpy as np
