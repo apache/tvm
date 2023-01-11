@@ -768,7 +768,7 @@ def scatter_nd_strategy_cpu(attrs, inputs, out_type, target):
     """scatter_nd x86 strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_scatter_nd(topi.x86.scatter_nd),
+        wrap_compute_scatter_nd(topi.scatter_nd),
         wrap_topi_schedule(topi.generic.schedule_extern),
         name="scatter_nd.x86",
         plevel=10,
