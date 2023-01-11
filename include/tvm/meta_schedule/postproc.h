@@ -171,6 +171,8 @@ class Postproc : public runtime::ObjectRef {
   TVM_DLL static Array<Postproc, void> DefaultCUDATensorCore();
   /*! \brief Create default postprocessors for Hexagon */
   TVM_DLL static Array<Postproc, void> DefaultHexagon();
+  /*! \brief Create default postprocessors for Micro */
+  TVM_DLL static Array<Postproc, void> DefaultMicro();
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Postproc, ObjectRef, PostprocNode);
 };

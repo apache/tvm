@@ -57,6 +57,9 @@ String GetRuleKindFromTarget(const Target& target) {
     return "cuda";
   }
 
+  if (target->kind->name == "c") {
+    return "c";
+  }
   LOG(FATAL) << "Unsupported target: " << target;
   throw;
 }
@@ -90,6 +93,10 @@ void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
       default_sch_rules = ScheduleRule::DefaultVNNI();
       default_postprocs = Postproc::DefaultVNNI();
       default_mutator_probs = Mutator::DefaultVNNI();
+    } else if (kind == "c") {
+      default_sch_rules = ScheduleRule::DefaultMicro();
+      default_postprocs = Postproc::DefaultMicro();
+      default_mutator_probs = Mutator::DefaultMicro();
     } else {
       LOG(FATAL) << "Unsupported kind: " << kind;
       throw;
