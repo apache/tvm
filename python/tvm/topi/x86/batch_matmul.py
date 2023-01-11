@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,too-many-locals,unused-variable
+# pylint: disable=unused-argument
 """x86 batch_matmul operators"""
 import tvm
 from tvm import autotvm, te
@@ -24,18 +25,24 @@ from tvm.contrib import cblas, mkl
 from .. import generic, nn
 from ..transform import layout_transform
 from ..utils import get_const_tuple, get_max_power2_factor, traverse_inline
-from .dense import dense_vnni_schedule
+from .dense import dense_vnni_schedule, dense_amx_int8_schedule
 from .injective import schedule_injective_from_existing
+from .utils import target_has_vnni, target_has_amx
 
 
 @autotvm.register_topi_compute("batch_matmul_vnni.x86")
-def batch_matmul_vnni_compute(cfg, x, y, *_):
+def batch_matmul_int8_compute(cfg, x, y, *_):
     """Compute for uint8 x int8 -> int32 batch_matmul"""
     batch, m, k = x.shape
     packed_y_layout = "BNK16n4k"
     packed_y = layout_transform(y, "BNK", packed_y_layout)
     _, n_o, _, n_i, _ = packed_y.shape
     ak = te.reduce_axis((0, k), name="k")
+    mcpu = tvm.target.Target.current().mcpu
+    if target_has_vnni(mcpu):
+        attrs_info = {"schedule_rule": "batch_matmul_vnni"}
+    else:
+        attrs_info = None
 
     z = te.compute(
         (batch, m, n_o * n_i),
@@ -46,13 +53,9 @@ def batch_matmul_vnni_compute(cfg, x, y, *_):
             ),
             axis=ak,
         ),
-        tag="batch_matmul_vnni",
-        attrs={"schedule_rule": "batch_matmul_vnni"},
+        tag="batch_matmul_int8",
+        attrs=attrs_info,
     )
-
-    _, a_y, _ = z.op.axis
-    cfg.define_split("tile_y", a_y, num_outputs=2)
-    cfg.define_knob("layout_trans_compute_root", [0, 1])
 
     return z
 
@@ -67,12 +70,36 @@ def batch_matmul_vnni_schedule(cfg, s, C, O, layout_trans):
     # Parallelize over batch
     fused = s[O].fuse(O.op.axis[0], fused_inner)
     s[O].parallel(fused)
+    cfg.define_knob("layout_trans_compute_root", [0, 1])
 
     if cfg["layout_trans_compute_root"].val:
         s[layout_trans].compute_root()
         schedule_injective_from_existing(s, layout_trans)
     else:
         s[layout_trans].compute_at(s[O], fused)
+        _, _, _, ni, ki = s[layout_trans].op.axis
+        s[layout_trans].vectorize(ki)
+        s[layout_trans].unroll(ni)
+
+    return s
+
+
+def batch_matmul_amx_schedule(cfg, s, C, O, layout_trans):
+    """Schedule batch_matmul compute using AMX tdpbusd instruction"""
+    # C: The output of batched GEMM
+    # O: The output of the fused op
+
+    # Schedule the GEMM part
+    s, fused_inner = dense_amx_int8_schedule(cfg, s, C, O, do_parallel=False)
+    # Parallelize over ouuter loop
+    fused = s[O].fuse(O.op.axis[0], fused_inner)
+    s[O].parallel(fused)
+    cfg.define_knob("layout_trans_compute_root", [0, 1])
+
+    if cfg["layout_trans_compute_root"].val:
+        s[layout_trans].compute_root()
+        schedule_injective_from_existing(s, layout_trans)
+    else:
         _, _, _, ni, ki = s[layout_trans].op.axis
         s[layout_trans].vectorize(ki)
         s[layout_trans].unroll(ni)
@@ -202,14 +229,18 @@ def schedule_batch_matmul(cfg, outs):
 
 
 @autotvm.register_topi_schedule("batch_matmul_vnni.x86")
-def schedule_batch_matmul_vnni(cfg, outs):
+def schedule_batch_matmul_int8(cfg, outs):
     """Schedule for batch_matmul_vnni"""
     s = te.create_schedule([x.op for x in outs])
+    mcpu = tvm.target.Target.current().mcpu
 
     def _callback(op):
-        if "batch_matmul_vnni" in op.tag:
+        if "batch_matmul_int8" in op.tag:
             layout_trans = op.input_tensors[1]
-            batch_matmul_vnni_schedule(cfg, s, op.output(0), outs[0], layout_trans)
+            if target_has_amx(mcpu):
+                batch_matmul_amx_schedule(cfg, s, op.output(0), outs[0], layout_trans)
+            elif target_has_vnni(mcpu):
+                batch_matmul_vnni_schedule(cfg, s, op.output(0), outs[0], layout_trans)
 
     traverse_inline(s, outs[0].op, _callback)
     return s
