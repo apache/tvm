@@ -430,6 +430,26 @@ class CLMLRuntime : public JSONRuntimeBase {
           auto out = CreateBinaryLayer(&layer_, node);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
           this->layer_.func_outs.push_back(out);
+        } else if ("transpose" == op_name) {
+          auto out = CreatePermuteLayer(&layer_, node);
+          this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
+          this->layer_.func_outs.push_back(out);
+        } else if ("gather" == op_name) {
+          auto out = CreateGatherLayer(&layer_, node);
+          this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
+          this->layer_.func_outs.push_back(out);
+        } else if ("nn.depth_to_space" == op_name) {
+          auto out = CreateDepthToSpaceLayer(&layer_, node);
+          this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
+          this->layer_.func_outs.push_back(out);
+        } else if ("nn.space_to_depth" == op_name) {
+          auto out = CreateSpaceToDepthLayer(&layer_, node);
+          this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
+          this->layer_.func_outs.push_back(out);
+        } else if ("nn.upsampling" == op_name) {
+          auto out = CreateResizeLayer(&layer_, node);
+          this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
+          this->layer_.func_outs.push_back(out);
         } else {
           LOG(FATAL) << "Unsupported op: " << op_name;
         }
@@ -1193,7 +1213,6 @@ class CLMLRuntime : public JSONRuntimeBase {
 
     auto bias = std::make_shared<cl_ml_tensor_memory_desc_qcom>();
     if (has_bias) {
-      auto bias_dims = get_tensor_dims(nodes_[node.GetInputs()[2].id_]);
       bias = MakeCLMLTensorFromJSONEntry(node.GetInputs()[2], {}, CL_TENSOR_LAYOUT_OPTIMAL_QCOM,
                                          cl_dtype);
     } else {
@@ -1297,6 +1316,168 @@ class CLMLRuntime : public JSONRuntimeBase {
 
     layer_.func_ins.push_back(input_a);
     layer_.func_ins.push_back(input_b);
+    layer->function.push_back(op);
+    return output;
+  }
+
+  /*!
+   * \brief Create a Permute(X) layer.
+   *
+   * \param layer The CLML layer to build. Containing inputs, outputs and the CLML output.
+   * \param node The JSON representation of the operator.
+   */
+  std::shared_ptr<cl_ml_tensor_memory_desc_qcom> CreatePermuteLayer(CachedLayer* layer,
+                                                                 const JSONGraphNode& node) {
+    cl_int result = 0;
+    cl_ml_op_qcom op = NULL;
+    DLDataType tvm_dtype = node.GetOpDataType()[0];
+    cl_channel_type cl_dtype = MakeCLDataType(tvm_dtype);
+    cl_arithmetic_mode_qcom cl_arithmetic_mode = MakeCLArithMode(cl_dtype);
+    auto input = MakeCLMLTensorFromJSONEntry(node.GetInputs()[0], {}, CL_TENSOR_LAYOUT_OPTIMAL_QCOM,
+                                             cl_dtype);
+    auto output = MakeCLMLTensorFromJSONNode(node, CL_TENSOR_LAYOUT_OPTIMAL_QCOM, cl_dtype);
+    std::vector<std::string> attr_order = node.GetAttr<std::vector<std::string>>("axes");
+    std::vector<cl_uint> order = GetVectorValues(attr_order);
+    cl_uint len_order = order.size();
+    cl_ml_op_permute_desc_qcom perm_desc;
+    if (len_order == 4)
+      perm_desc = {len_order, {order[0], order[1], order[2], order[3]}, cl_arithmetic_mode};
+    else if (len_order == 5) {
+      perm_desc = {
+          len_order, {order[0], order[1], order[2], order[3], order[4]}, cl_arithmetic_mode
+      };
+    }
+    result = h_ClmlIntf->clCreateMLOpPermuteQCOM(
+        workspace->context, 0, &perm_desc, input->tensor, output->tensor, &op, tuning_cache
+    );
+    ICHECK(op && result == CL_SUCCESS) << "Permute Layer Error:" << result;
+
+    layer_.func_ins.push_back(input);
+    layer->function.push_back(op);
+    return output;
+  }
+
+  /*!
+   * \brief Create a DepthToSpace(X) layer.
+   *
+   * \param layer The CLML layer to build. Containing inputs, outputs and the CLML output.
+   * \param node The JSON representation of the operator.
+   */
+  std::shared_ptr<cl_ml_tensor_memory_desc_qcom> CreateDepthToSpaceLayer(CachedLayer* layer,
+                                                                 const JSONGraphNode& node) {
+    cl_int result = 0;
+    cl_ml_op_qcom op = NULL;
+    DLDataType tvm_dtype = node.GetOpDataType()[0];
+    cl_channel_type cl_dtype = MakeCLDataType(tvm_dtype);
+    cl_arithmetic_mode_qcom cl_arithmetic_mode = MakeCLArithMode(cl_dtype);
+    auto input = MakeCLMLTensorFromJSONEntry(node.GetInputs()[0], {}, CL_TENSOR_LAYOUT_OPTIMAL_QCOM,
+                                             cl_dtype);
+    auto output = MakeCLMLTensorFromJSONNode(node, CL_TENSOR_LAYOUT_OPTIMAL_QCOM, cl_dtype);
+    cl_uint block_size = std::stoi(node.GetAttr<std::vector<std::string>>("block_size")[0]);
+
+    cl_ml_op_depthtospace_desc_qcom dtos_desc = {block_size, cl_arithmetic_mode};
+    result = h_ClmlIntf->clCreateMLOpDepthToSpaceQCOM(
+        workspace->context, 0, &dtos_desc, input->tensor, output->tensor, &op, tuning_cache
+    );
+    ICHECK(op && result == CL_SUCCESS) << "DepthToSpace Layer Error:" << result;
+
+    layer_.func_ins.push_back(input);
+    layer->function.push_back(op);
+    return output;
+  }
+
+  /*!
+   * \brief Create a SpaceToDepth(X) layer.
+   *
+   * \param layer The CLML layer to build. Containing inputs, outputs and the CLML output.
+   * \param node The JSON representation of the operator.
+   */
+  std::shared_ptr<cl_ml_tensor_memory_desc_qcom> CreateSpaceToDepthLayer(CachedLayer* layer,
+                                                                 const JSONGraphNode& node) {
+    cl_int result = 0;
+    cl_ml_op_qcom op = NULL;
+    DLDataType tvm_dtype = node.GetOpDataType()[0];
+    cl_channel_type cl_dtype = MakeCLDataType(tvm_dtype);
+    cl_arithmetic_mode_qcom cl_arithmetic_mode = MakeCLArithMode(cl_dtype);
+    auto input = MakeCLMLTensorFromJSONEntry(node.GetInputs()[0], {}, CL_TENSOR_LAYOUT_OPTIMAL_QCOM,
+                                             cl_dtype);
+    auto output = MakeCLMLTensorFromJSONNode(node, CL_TENSOR_LAYOUT_OPTIMAL_QCOM, cl_dtype);
+    cl_uint block_size = std::stoi(node.GetAttr<std::vector<std::string>>("block_size")[0]);
+
+    cl_ml_op_spacetodepth_desc_qcom stod_desc = {block_size, cl_arithmetic_mode};
+    result = h_ClmlIntf->clCreateMLOpSpaceToDepthQCOM(
+        workspace->context, 0, &stod_desc, input->tensor, output->tensor, &op, tuning_cache
+    );
+    ICHECK(op && result == CL_SUCCESS) << "SpaceToDepth Layer Error:" << result;
+
+    layer_.func_ins.push_back(input);
+    layer->function.push_back(op);
+    return output;
+  }
+
+  /*!
+   * \brief Create a Resize(X) layer.
+   *
+   * \param layer The CLML layer to build. Containing inputs, outputs and the CLML output.
+   * \param node The JSON representation of the operator.
+   */
+  std::shared_ptr<cl_ml_tensor_memory_desc_qcom> CreateResizeLayer(CachedLayer* layer,
+                                                                 const JSONGraphNode& node) {
+    cl_int result = 0;
+    cl_ml_op_qcom op = NULL;
+    DLDataType tvm_dtype = node.GetOpDataType()[0];
+    cl_channel_type cl_dtype = MakeCLDataType(tvm_dtype);
+    cl_arithmetic_mode_qcom cl_arithmetic_mode = MakeCLArithMode(cl_dtype);
+    auto input = MakeCLMLTensorFromJSONEntry(node.GetInputs()[0], {}, CL_TENSOR_LAYOUT_OPTIMAL_QCOM,
+                                             cl_dtype);
+    auto output = MakeCLMLTensorFromJSONNode(node, CL_TENSOR_LAYOUT_OPTIMAL_QCOM, cl_dtype);
+    cl_bool align_corners = std::stoi(node.GetAttr<std::vector<std::string>>("align_corners")[0]);
+
+    cl_ml_op_resize_bilinear_desc_qcom resize_desc = {align_corners, false, cl_arithmetic_mode};
+    result = h_ClmlIntf->clCreateMLOpResizeBilinearQCOM(
+        workspace->context, 0, &resize_desc, input->tensor, output->tensor, &op, tuning_cache
+    );
+    ICHECK(op && result == CL_SUCCESS) << "Resize Layer Error:" << result;
+
+    layer_.func_ins.push_back(input);
+    layer->function.push_back(op);
+    return output;
+  }
+
+  /*!
+   * \brief Create a Gather(X) layer.
+   *
+   * \param layer The CLML layer to build. Containing inputs, outputs and the CLML output.
+   * \param node The JSON representation of the operator.
+   */
+  std::shared_ptr<cl_ml_tensor_memory_desc_qcom> CreateGatherLayer(CachedLayer* layer,
+                                                                 const JSONGraphNode& node) {
+    cl_int result = 0;
+    cl_ml_op_qcom op = NULL;
+    DLDataType tvm_dtype = node.GetOpDataType()[0];
+    cl_channel_type cl_dtype = MakeCLDataType(tvm_dtype);
+    cl_arithmetic_mode_qcom cl_arithmetic_mode = MakeCLArithMode(cl_dtype);
+    auto input = MakeCLMLTensorFromJSONEntry(node.GetInputs()[0], {}, CL_TENSOR_LAYOUT_OPTIMAL_QCOM,
+                                             cl_dtype);
+    auto index = MakeCLMLTensorFromJSONEntry(node.GetInputs()[1], {}, CL_TENSOR_LAYOUT_OPTIMAL_QCOM,
+                                             CL_SIGNED_INT32);
+    auto output = MakeCLMLTensorFromJSONNode(node, CL_TENSOR_LAYOUT_OPTIMAL_QCOM, cl_dtype);
+    cl_uint axis = std::stoi(node.GetAttr<std::vector<std::string>>("axis")[0]);
+
+    cl_ml_op_gather_desc_qcom gather_desc = {axis, cl_arithmetic_mode};
+    result = h_ClmlIntf->clCreateMLOpGatherQCOM(
+        workspace->context,
+        0,
+        &gather_desc,
+        input->tensor,
+        index->tensor,
+        output->tensor,
+        &op,
+        tuning_cache
+    );
+    ICHECK(op && result == CL_SUCCESS) << "Gather Layer Error:" << result;
+
+    layer_.func_ins.push_back(input);
     layer->function.push_back(op);
     return output;
   }
