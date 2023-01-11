@@ -688,13 +688,15 @@ class BinaryElementwiseParams:
         clip = None
         requantize = None
 
-        if str(current_call.op) == "clip":
-            clip = current_call
-            current_call = clip.args[0]
-        elif str(current_call.op) == "qnn.requantize":
-            requantize = current_call
-            clip = current_call.args[0]
-            current_call = clip.args[0]
+        if is_quantized_operation:
+            if str(current_call.op) == "clip":
+                clip = current_call
+                current_call = clip.args[0]
+        else:
+            if str(current_call.op) == "qnn.requantize":
+                requantize = current_call
+                clip = current_call.args[0]
+                current_call = clip.args[0]
         binary_op = current_call
 
         layout = "NHWC"
@@ -927,9 +929,6 @@ class MinParams(BinaryElementwiseParams):
             [self.ifm, self.ifm2, self.ofm], supported_dtypes=[np.uint8, np.int8]
         ):
             return False
-        # MIN with different scales is not supported on NPU.
-        if self.ifm.q_params.scale_f32 != self.ofm.q_params.scale_f32:
-            return False
         return True
 
 
@@ -939,19 +938,10 @@ def minimum_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     """
     minimum = is_op("minimum")(wildcard(), wildcard())
     optional_min_clip = is_op("clip")(minimum)
-    return minimum | optional_min_clip
-
-
-def minimum_clip_requantize_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
-    """
-    This function creates the pattern for minimum with fused RELU activation.
-    """
-    pattern = is_op("minimum")(wildcard(), wildcard())
-    pattern = is_op("clip")(pattern)
-    pattern = is_op("qnn.requantize")(
-        pattern, is_constant(), is_constant(), is_constant(), is_constant()
+    optional_min_clip = is_op("qnn.requantize")(
+        optional_min_clip, is_constant(), is_constant(), is_constant(), is_constant()
     )
-    return pattern
+    return minimum | optional_min_clip
 
 
 class MaxParams(BinaryElementwiseParams):
@@ -977,9 +967,6 @@ class MaxParams(BinaryElementwiseParams):
             [self.ifm, self.ifm2, self.ofm], supported_dtypes=[np.uint8, np.int8]
         ):
             return False
-        # MAX with different scales is not supported on NPU.
-        if self.ifm.q_params.scale_f32 != self.ofm.q_params.scale_f32:
-            return False
         return True
 
 
@@ -989,19 +976,10 @@ def maximum_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     """
     maximum = is_op("maximum")(wildcard(), wildcard())
     optional_max_clip = is_op("clip")(maximum)
-    return maximum | optional_max_clip
-
-
-def maximum_clip_requantize_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
-    """
-    This function creates the pattern for maximum with fused RELU activation.
-    """
-    pattern = is_op("maximum")(wildcard(), wildcard())
-    pattern = is_op("clip")(pattern)
-    pattern = is_op("qnn.requantize")(
-        pattern, is_constant(), is_constant(), is_constant(), is_constant()
+    optional_max_clip = is_op("qnn.requantize")(
+        optional_max_clip, is_constant(), is_constant(), is_constant(), is_constant()
     )
-    return pattern
+    return maximum | optional_max_clip
 
 
 class ShlParams(BinaryElementwiseParams):
@@ -1844,18 +1822,8 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
         ),
         (
             MinParams.composite_name,
-            minimum_clip_requantize_pattern(),
-            lambda pat: MinParams(pat).is_valid(),
-        ),
-        (
-            MinParams.composite_name,
             minimum_pattern(),
             lambda pat: MinParams(pat).is_valid(),
-        ),
-        (
-            MaxParams.composite_name,
-            maximum_clip_requantize_pattern(),
-            lambda pat: MaxParams(pat).is_valid(),
         ),
         (
             MaxParams.composite_name,
