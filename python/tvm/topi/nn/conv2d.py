@@ -388,9 +388,11 @@ def conv2d_NCHWc(data, kernel, stride, padding, dilation, layout, out_layout, ou
     n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
     in_channel = ic_chunk * ic_bn
     target = tvm.target.Target.current(allow_none=False)
-    oc_chunk, ic_chunk_group, kernel_height, kernel_width, _, oc_bn = get_const_tuple(kernel.shape)
+    oc_chunk, ic_chunk_group, kernel_height, kernel_width, kernel_ic_bn, oc_bn = get_const_tuple(
+        kernel.shape
+    )
     num_filter = oc_chunk * oc_bn
-    groups = ic_chunk // ic_chunk_group
+    groups = in_channel // (ic_chunk_group * kernel_ic_bn)
 
     dilated_kernel_h = (kernel_height - 1) * dilation_h + 1
     dilated_kernel_w = (kernel_width - 1) * dilation_w + 1
