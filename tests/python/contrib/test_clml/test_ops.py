@@ -574,5 +574,158 @@ def test_unary_ops(device, dtype):
     _verify(*(_get_model((1, 16), relay.nn.relu)))
 
 
+@pytest.mark.parametrize("dtype", ["float32"])
+@tvm.testing.requires_openclml
+def test_transpose(device, dtype):
+    def _get_model(a_shape, axes=None):
+        a = relay.var("a", shape=(a_shape), dtype=dtype)
+        out = relay.transpose(a, axes=axes)
+        inputs = {"a": tvm.nd.array(np.random.uniform(-1, 1, a_shape).astype(dtype))}
+        params = {}
+        return out, params, inputs
+
+    def _verify(out, params, inputs):
+        mod = IRModule.from_expr(out)
+        opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
+        clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        tvm.testing.assert_allclose(
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+        )
+
+        # Check to make sure these ops are offloaded to CLML instead of TVM.
+        with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
+            mod = clml.partition_for_clml(mod, params)
+            tvm_op_count = get_cpu_op_count(mod)
+            assert tvm_op_count == 0, "Got {} TVM Native Compute partitions, expected 0".format(
+                tvm_op_count
+            )
+
+    _verify(*(_get_model((1, 16, 8, 8), axes=[0, 2, 3, 1])))
+    #_verify(*(_get_model((16, 16, 8, 8), axes=[1, 2, 3,0])))
+
+@pytest.mark.parametrize("dtype", ["float32"])
+@tvm.testing.requires_openclml
+def test_depth_to_space(device, dtype):
+    def _get_model(a_shape, block_size):
+        a = relay.var("a", shape=(a_shape), dtype=dtype)
+        out = relay.nn.depth_to_space(a, block_size)
+        inputs = {"a": tvm.nd.array(np.random.uniform(-1, 1, a_shape).astype(dtype))}
+        params = {}
+        return out, params, inputs
+
+    def _verify(out, params, inputs):
+        mod = IRModule.from_expr(out)
+        opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
+        clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        tvm.testing.assert_allclose(
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+        )
+
+        # Check to make sure these ops are offloaded to CLML instead of TVM.
+        with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
+            mod = clml.partition_for_clml(mod, params)
+            tvm_op_count = get_cpu_op_count(mod)
+            assert tvm_op_count == 0, "Got {} TVM Native Compute partitions, expected 0".format(
+                tvm_op_count
+            )
+
+    _verify(*(_get_model((1, 64, 8, 8), 4)))
+    _verify(*(_get_model((1, 64, 8, 8), 8)))
+
+@pytest.mark.parametrize("dtype", ["float32"])
+@tvm.testing.requires_openclml
+def test_resize_bilinear(device, dtype):
+    def _get_model(a_shape, scale, align_corners):
+        a = relay.var("a", shape=(a_shape), dtype=dtype)
+        out = relay.nn.upsampling(
+            a, scale_h=scale[0], scale_w=scale[1], method="bilinear", align_corners=align_corners
+        )
+        inputs = {"a": tvm.nd.array(np.random.uniform(-1, 1, a_shape).astype(dtype))}
+        params = {}
+        return out, params, inputs
+
+    def _verify(out, params, inputs):
+        mod = IRModule.from_expr(out)
+        opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
+        clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        tvm.testing.assert_allclose(
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+        )
+
+        # Check to make sure these ops are offloaded to CLML instead of TVM.
+        with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
+            mod = clml.partition_for_clml(mod, params)
+            tvm_op_count = get_cpu_op_count(mod)
+            assert tvm_op_count == 0, "Got {} TVM Native Compute partitions, expected 0".format(
+                tvm_op_count
+            )
+
+    _verify(*(_get_model((1, 16, 8, 8), (2,2), False)))
+    _verify(*(_get_model((1, 16, 7, 7), (2,2), True)))
+
+@pytest.mark.parametrize("dtype", ["float32"])
+@tvm.testing.requires_openclml
+def test_space_to_depth(device, dtype):
+    def _get_model(a_shape, block_size):
+        a = relay.var("a", shape=(a_shape), dtype=dtype)
+        
+        out = relay.nn.space_to_depth(a, block_size)
+        inputs = {"a": tvm.nd.array(np.random.uniform(-1, 1, a_shape).astype(dtype))}
+        params = {}
+        return out, params, inputs
+
+    def _verify(out, params, inputs):
+        mod = IRModule.from_expr(out)
+        opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
+        clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        tvm.testing.assert_allclose(
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+        )
+
+        # Check to make sure these ops are offloaded to CLML instead of TVM.
+        with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
+            mod = clml.partition_for_clml(mod, params)
+            tvm_op_count = get_cpu_op_count(mod)
+            assert tvm_op_count == 0, "Got {} TVM Native Compute partitions, expected 0".format(
+                tvm_op_count
+            )
+
+    _verify(*(_get_model((1, 64, 8, 8), 2)))
+
+@pytest.mark.parametrize("dtype", ["float32"])
+@tvm.testing.requires_openclml
+def test_gather(device, dtype):
+    def _get_model(a_shape, axis):
+        a = relay.var("a", shape=(a_shape), dtype=dtype)
+        index = relay.var("index", shape=(a_shape), dtype="int32")
+        out = relay.gather(a, axis, index)
+        index_high = a_shape[axis]
+        inputs = {
+            "a": tvm.nd.array(np.random.uniform(-1, 1, a_shape).astype(dtype)),
+            "index": tvm.nd.array(np.random.randint(0, index_high, a_shape).astype("int32"))
+        }
+        params = {}
+        return out, params, inputs
+
+    def _verify(out, params, inputs):
+        mod = IRModule.from_expr(out)
+        opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
+        clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        tvm.testing.assert_allclose(
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+        )
+
+        # Check to make sure these ops are offloaded to CLML instead of TVM.
+        with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
+            mod = clml.partition_for_clml(mod, params)
+            tvm_op_count = get_cpu_op_count(mod)
+            assert tvm_op_count == 0, "Got {} TVM Native Compute partitions, expected 0".format(
+                tvm_op_count
+            )
+
+    _verify(*(_get_model((1, 64, 8, 8), 1)))
+
+
+
 if __name__ == "__main__":
     tvm.testing.main()

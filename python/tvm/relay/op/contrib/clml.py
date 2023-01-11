@@ -250,7 +250,7 @@ def clml_pattern_table():
         """Create a pad pattern."""
         pattern = is_op("nn.pad")(wildcard(), is_constant())
         return pattern
-
+    
     def check_conv(extract):
         """Check conv pattern is supported by CLML."""
         call = extract
@@ -315,6 +315,12 @@ def clml_pattern_table():
         if len(call.args[0].checked_type.shape) > 2:
             return False
         return True
+    
+    def check_upsampling_op(extract):
+        call = extract
+        if call.attrs["method"] != "bilinear":
+            return False
+        return True
 
     def check_default_op(extract):
         return True
@@ -341,6 +347,11 @@ def clml_pattern_table():
         ("clml.relu", is_op("nn.relu")(wildcard()), check_default_op),
         ("clml.clip", is_op("clip")(wildcard()), check_default_op),
         ("clml.batch_flatten", is_op("nn.batch_flatten")(wildcard()), check_default_op),
+        ("clml.transpose", is_op("transpose")(wildcard()), check_default_op),
+        ("clml.depth_to_space", is_op("nn.depth_to_space")(wildcard()), check_default_op),
+        ("clml.upsampling", is_op("nn.upsampling")(wildcard()), check_upsampling_op),
+        ("clml.space_to_depth", is_op("nn.space_to_depth")(wildcard()), check_default_op),
+        ("clml.space_to_depth", is_op("gather")(wildcard(), wildcard()), check_default_op),
     ]
 
 
