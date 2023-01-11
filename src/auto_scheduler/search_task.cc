@@ -102,6 +102,14 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
       int max_vthread_extent = 1;
       return HardwareParams(-1, 16, 64, max_shared_memory_per_block, max_local_memory_per_block,
                             max_threads_per_block, max_vthread_extent, warp_size);
+    } else if (target->GetAttr<String>("device", "") == "adreno") {
+      int max_shared_memory_per_block = 32768;
+      int max_local_memory_per_block = 32768;
+      int max_threads_per_block = 256;
+      int warp_size = 1;
+      int max_vthread_extent = 1;
+      return HardwareParams(-1, 16, 64, max_shared_memory_per_block, max_local_memory_per_block,
+                            max_threads_per_block, max_vthread_extent, warp_size);
     } else {
       // add other opencl target
       auto dev = Device{static_cast<DLDeviceType>(device_type), 0};
