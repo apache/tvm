@@ -224,7 +224,6 @@ if use_physical_hw:
         "board": BOARD,
         "serial_number": SERIAL,
         "config_main_stack_size": 4096,
-        "cmsis_path": os.getenv("CMSIS_PATH", default="/content/cmsis"),
         "zephyr_base": os.getenv("ZEPHYR_BASE", default="/content/zephyrproject/zephyr"),
     }
 
