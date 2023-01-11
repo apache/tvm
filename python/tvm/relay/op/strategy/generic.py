@@ -238,15 +238,10 @@ def wrap_compute_conv2d(
     need_kernel_layout=False,
     need_out_layout=False,
     has_groups=False,
-    need_auto_scheduler_layout=None,
-    need_meta_schedule_layout=None,
+    need_auto_scheduler_layout=False,
+    need_meta_schedule_layout=False,
 ):
     """Wrap conv2d topi compute"""
-    if need_auto_scheduler_layout is None:
-        need_auto_scheduler_layout = is_auto_scheduler_enabled()
-    if need_meta_schedule_layout is None:
-        need_meta_schedule_layout = is_meta_schedule_enabled()
-
     def _compute_conv2d(attrs, inputs, out_type):
         padding = get_const_tuple(attrs.padding)
         strides = get_const_tuple(attrs.strides)
@@ -568,15 +563,10 @@ def conv3d_transpose_strategy(attrs, inputs, out_type, target):
 def wrap_compute_conv3d(
     topi_compute,
     need_layout=False,
-    need_auto_scheduler_layout=None,
-    need_meta_schedule_layout=None,
+    need_auto_scheduler_layout=False,
+    need_meta_schedule_layout=False,
 ):
     """wrap conv3d topi compute"""
-
-    if need_auto_scheduler_layout is None:
-        need_auto_scheduler_layout = is_auto_scheduler_enabled()
-    if need_meta_schedule_layout is None:
-        need_meta_schedule_layout = is_meta_schedule_enabled()
 
     def _compute_conv3d(attrs, inputs, out_type):
         padding = get_const_tuple(attrs.padding)
@@ -832,15 +822,10 @@ def copy_if_identical(tensor_a, tensor_b):
 # matmul
 def wrap_compute_matmul(
     topi_compute,
-    need_auto_scheduler_layout=None,
-    need_meta_schedule_layout=None,
+    need_auto_scheduler_layout=False,
+    need_meta_schedule_layout=False,
 ):
     """wrap matmul topi compute"""
-
-    if need_auto_scheduler_layout is None:
-        need_auto_scheduler_layout = is_auto_scheduler_enabled()
-    if need_meta_schedule_layout is None:
-        need_meta_schedule_layout = is_meta_schedule_enabled()
 
     def _compute_matmul(attrs, inputs, out_type):
         """Compute definition of matmul"""
@@ -870,8 +855,13 @@ def matmul_strategy(attrs, inputs, out_type, target):
     """matmul generic strategy"""
     logger.warning("matmul is not optimized for this platform.")
     strategy = _op.OpStrategy()
+
     strategy.add_implementation(
-        wrap_compute_matmul(topi.nn.matmul),
+        wrap_compute_matmul(
+            topi.nn.matmul,
+            need_auto_scheduler_layout=is_auto_scheduler_enabled(),
+            need_meta_schedule_layout=is_meta_schedule_enabled(),
+        ),
         wrap_topi_schedule(topi.generic.schedule_matmul),
         name="matmul.generic",
     )
@@ -881,15 +871,10 @@ def matmul_strategy(attrs, inputs, out_type, target):
 # dense
 def wrap_compute_dense(
     topi_compute,
-    need_auto_scheduler_layout=None,
-    need_meta_schedule_layout=None,
+    need_auto_scheduler_layout=False,
+    need_meta_schedule_layout=False,
 ):
     """wrap dense topi compute"""
-    if need_auto_scheduler_layout is None:
-        need_auto_scheduler_layout = is_auto_scheduler_enabled()
-    if need_meta_schedule_layout is None:
-        need_meta_schedule_layout = is_meta_schedule_enabled()
-
     def _compute_dense(attrs, inputs, out_type):
         """Compute definition of dense"""
         out_dtype = attrs.out_dtype
@@ -912,7 +897,11 @@ def dense_strategy(attrs, inputs, out_type, target):
     logger.warning("dense is not optimized for this platform.")
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_dense(topi.nn.dense),
+        wrap_compute_dense(
+            topi.nn.dense,
+            need_auto_scheduler_layout=is_auto_scheduler_enabled(),
+            need_meta_schedule_layout=is_meta_schedule_enabled(),
+        ),
         wrap_topi_schedule(topi.generic.schedule_dense),
         name="dense.generic",
     )
@@ -936,15 +925,11 @@ def dense_pack_strategy(attrs, inputs, out_type, target):
 def wrap_compute_batch_matmul(
     topi_compute,
     *,
-    need_auto_scheduler_layout=None,
-    need_meta_schedule_layout=None,
+    need_auto_scheduler_layout=False,
+    need_meta_schedule_layout=False,
     need_out_dtype=False,
 ):
     """wrap batch_matmul topi compute"""
-    if need_auto_scheduler_layout is None:
-        need_auto_scheduler_layout = is_auto_scheduler_enabled()
-    if need_meta_schedule_layout is None:
-        need_meta_schedule_layout = is_meta_schedule_enabled()
 
     def _compute_batch_matmul(attrs, inputs, out_type):
         args = [inputs[0], inputs[1], out_type.shape]
@@ -968,7 +953,11 @@ def batch_matmul_strategy(attrs, inputs, out_type, target):
     logger.warning("batch_matmul is not optimized for this platform.")
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_batch_matmul(topi.nn.batch_matmul),
+        wrap_compute_batch_matmul(
+            topi.nn.batch_matmul,
+            need_auto_scheduler_layout=is_auto_scheduler_enabled(),
+            need_meta_schedule_layout=is_meta_schedule_enabled,
+        ),
         wrap_topi_schedule(topi.generic.schedule_batch_matmul),
         name="batch_matmul.generic",
     )
