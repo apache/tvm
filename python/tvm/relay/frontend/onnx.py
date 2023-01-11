@@ -1305,16 +1305,29 @@ class Attention(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        # ************************* Read attrs *************************
         num_heads = attr["num_heads"]
+        assert (
+            "past_present_share_buffer" not in attr
+        ), "share past and present buffers are not currently supported"
         assert (
             "qkv_hidden_sizes" not in attr
         ), "different hidden sizes for Q, K, V are not currently supported"
         assert "unidirectional" not in attr, "unidirectional attention not current supported"
 
+        # ************************* Read inputs *************************
         # (batch, seq, in_hidden)
         input_emb = inputs[0]
 
-        # (in_hidden, 3 * out_hidden), where out_hidden = num_heads * head_size
+        # TODO(agladyshev):
+        #   ORT documentation says:
+        #       The weights for input projection of Q, K and V are merged.
+        #       The data is stacked on the second dimension.
+        #       Its shape is (input_hidden_size, hidden_size + hidden_size + v_hidden_size).
+        #       Here hidden_size is the hidden dimension of Q and K, and v_hidden_size is that of V.
+        #   However, in our case, we consider that hidden_size == v_hidden_size.
+        #   Therefore, weight has the following shape:
+        #       (in_hidden, 3 * out_hidden), where out_hidden = num_heads * head_size
         weight = inputs[1]
 
         # (3 * out_hidden,)
@@ -1325,7 +1338,7 @@ class Attention(OnnxOpConverter):
         # 3. (    batch,            seq, past_seq + seq,)
         # 4. (    batch,)
         # 5. (2 * batch,)
-        # For now, we only support case 2.
+        # TODO: For now, we only support case 2.
         mask_index = inputs[3]
 
         # (2, batch, num_heads, past_seq, head_size)
@@ -1334,27 +1347,67 @@ class Attention(OnnxOpConverter):
         # (batch, num_heads, seq, seq)
         extra_add = inputs[5]
 
-        (batch_size, seq_len, _) = infer_shape(input_emb)
-        (out_hidden_x3,) = infer_shape(bias)
-        assert out_hidden_x3 % 3 == 0, "bias shape should be divisible by 3"
+        # When past_present_share_buffer is used,
+        # it is required to specify past_sequence_length (could be 0)
+        past_sequence_length = inputs[6]
+
+        # ************************* Parse inputs *************************
+        t = ["float32", "float16"]
+        m = ["int32"]
+
+        # input
+        assert infer_type(input_emb).checked_type.dtype in t
+        assert (
+            len(infer_shape(input_emb)) == 3
+        ), "Input should be 3D tensor with shape (batch_size, sequence_length, input_hidden_size)"
+        (batch_size, seq_len, input_hidden) = infer_shape(input_emb)
+        assert input_hidden > 0, (
+            "The weight tensor has (input_hidden_size, 3 * output_hidden_size) shape, so it doesn't"
+            f" make sense to have ({input_hidden}, 3 * output_hidden_size) weight tensor."
+        )
+        assert seq_len > 0, (
+            "The output tensor has (batch_size, sequence_length, hidden_size) shape,"
+            f" so it doesn't make sense to have (batch_size, {seq_len}, hidden_size) output."
+        )
+
+        # weights
+        assert infer_type(weight).checked_type.dtype in t
+        assert len(infer_shape(weight)) == 2, (
+            "Weight should be 2D input tensor with shape (input_hidden_size, 3 * hidden_size), "
+            "hidden_size = num_heads * head_size"
+        )
+        (input_hidden_weight, out_hidden_x3) = infer_shape(weight)
+        assert input_hidden == input_hidden_weight
+        assert out_hidden_x3 % 3 == 0, "output hidden shape should be divisible by 3: W_Q, W_K, W_V"
         out_hidden = out_hidden_x3 // 3
         assert (
             out_hidden % num_heads == 0
         ), "output hidden size should be divisible by number of attention heads"
         head_size = out_hidden // num_heads
 
+        # bias
+        assert infer_type(bias).checked_type.dtype in t
+        assert (
+            len(infer_shape(bias)) == 1
+        ), "Bias should be 1D input tensor with shape (3 * hidden_size)"
+        (out_hidden_x3_bias,) = infer_shape(bias)
+        assert out_hidden_x3 == out_hidden_x3_bias
+
+        # mask_index
         assert (
             mask_index is not None
         ), "Attention import currently only supports required mask_index"
+        assert infer_type(mask_index).checked_type.dtype in m
         mask_index_shape = infer_shape(mask_index)
         assert (
             len(mask_index_shape) == 2
             and mask_index_shape[0] == batch_size
-            and mask_index_shape[1] == seq_len
-        ), "currently only support (batch_size, sequence_length) mask index"
+            and mask_index_shape[1] >= seq_len
+        ), "currently only support (batch_size, past_sequence_len + sequence_length) mask index"
 
         assert past is None, "past K, V state is not currently supported"
         assert extra_add is None, "extra add to QxK not currently supported"
+        assert past_sequence_length is None, "past sequence length not currently supported"
 
         # split weight and biases and do the matmuls
         w_Q, w_K, w_V = _op.split(weight, 3, axis=1)
@@ -1533,7 +1586,7 @@ class QAttention(OnnxOpConverter):
             len(mask_index_shape) == 2
             and mask_index_shape[0] == batch_size
             and mask_index_shape[1] >= seq_len
-        ), "currently only support (batch_size, sequence_length) mask index"
+        ), "currently only support (batch_size, past_sequence_len + sequence_length) mask index"
 
         # TODO(agladyshev): int32 required for qnn.batch_matmul (QnnBatchMatmulRel)
         zero_point_zero = _expr.const(0, "int32")
