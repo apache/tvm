@@ -418,7 +418,6 @@ examples_dirs = [
     tvm_path.joinpath("gallery", "how_to", "tune_with_autoscheduler"),
     tvm_path.joinpath("gallery", "how_to", "work_with_microtvm"),
     tvm_path.joinpath("gallery", "how_to", "extend_tvm"),
-    tvm_path.joinpath("gallery", "how_to", "work_with_pytorch"),
     tvm_path.joinpath("vta", "tutorials"),
 ]
 
@@ -433,7 +432,6 @@ gallery_dirs = [
     "how_to/tune_with_autoscheduler",
     "how_to/work_with_microtvm",
     "how_to/extend_tvm",
-    "how_to/work_with_pytorch",
     "topic/vta/tutorials",
 ]
 
