@@ -1297,7 +1297,68 @@ class SkipLayerNormalization(OnnxOpConverter):
         return _expr.TupleWrapper(_expr.Tuple([output, placeholder, placeholder]), 3)
 
 
-class Attention(OnnxOpConverter):
+class OrtAttentionBase:
+    """
+    Base class for Attention and QAttention from Microsoft onnxruntime contrib opset.
+    """
+
+    @classmethod
+    def _check_input_embeddings(cls, input_emb, valid_types, **kwargs):
+        assert infer_type(input_emb).checked_type.dtype in valid_types
+        assert (
+            len(infer_shape(input_emb)) == 3
+        ), "Input should be 3D tensor with shape (batch_size, sequence_length, input_hidden_size)"
+        (batch_size, seq_len, input_hidden) = infer_shape(input_emb)
+        assert input_hidden > 0, (
+            "The weight tensor has (input_hidden_size, 3 * output_hidden_size) shape, so it doesn't"
+            f" make sense to have ({input_hidden}, 3 * output_hidden_size) weight tensor."
+        )
+        assert seq_len > 0, (
+            "The output tensor has (batch_size, sequence_length, hidden_size) shape,"
+            f" so it doesn't make sense to have (batch_size, {seq_len}, hidden_size) output."
+        )
+
+        return batch_size, seq_len, input_hidden
+
+    @classmethod
+    def _check_weights(cls, weight, valid_types, **kwargs):
+        assert infer_type(weight).checked_type.dtype in valid_types
+        assert len(infer_shape(weight)) == 2, (
+            "Weight should be 2D input tensor with shape (input_hidden_size, 3 * hidden_size), "
+            "hidden_size = num_heads * head_size"
+        )
+        (input_hidden_weight, out_hidden_x3) = infer_shape(weight)
+        assert kwargs["input_hidden"] == input_hidden_weight
+        assert out_hidden_x3 % 3 == 0, "output hidden shape should be divisible by 3: W_Q, W_K, W_V"
+        out_hidden = out_hidden_x3 // 3
+        assert (
+            out_hidden % kwargs["num_heads"] == 0
+        ), "output hidden size should be divisible by number of attention heads"
+        head_size = out_hidden // kwargs["num_heads"]
+
+        return out_hidden_x3, out_hidden, head_size
+
+    @classmethod
+    def _check_bias(cls, bias, valid_types, **kwargs):
+        assert infer_type(bias).checked_type.dtype in valid_types
+        assert (
+            len(infer_shape(bias)) == 1
+        ), "Bias should be 1D input tensor with shape (3 * hidden_size)"
+        (out_hidden_x3_bias,) = infer_shape(bias)
+        assert kwargs["out_hidden_x3"] == out_hidden_x3_bias
+
+    @classmethod
+    def _check_mask_index(cls, mask_index, valid_types, **kwargs):
+        assert infer_type(mask_index).checked_type.dtype in valid_types
+        mask_index_shape = infer_shape(mask_index)
+        assert (
+            len(mask_index_shape) == 2
+            and mask_index_shape[0] == kwargs["batch_size"]
+            and mask_index_shape[1] >= kwargs["seq_len"]
+        ), "currently only support (batch_size, past_sequence_len + sequence_length) mask index"
+
+
+class Attention(OrtAttentionBase, OnnxOpConverter):
     """Operator converter for Attention from Microsoft onnxruntime contrib opset.
 
     This is the self-attention mechanism used in transformer models.
@@ -1356,54 +1417,21 @@ class Attention(OnnxOpConverter):
         m = ["int32"]
 
         # input
-        assert infer_type(input_emb).checked_type.dtype in t
-        assert (
-            len(infer_shape(input_emb)) == 3
-        ), "Input should be 3D tensor with shape (batch_size, sequence_length, input_hidden_size)"
-        (batch_size, seq_len, input_hidden) = infer_shape(input_emb)
-        assert input_hidden > 0, (
-            "The weight tensor has (input_hidden_size, 3 * output_hidden_size) shape, so it doesn't"
-            f" make sense to have ({input_hidden}, 3 * output_hidden_size) weight tensor."
-        )
-        assert seq_len > 0, (
-            "The output tensor has (batch_size, sequence_length, hidden_size) shape,"
-            f" so it doesn't make sense to have (batch_size, {seq_len}, hidden_size) output."
-        )
+        batch_size, seq_len, input_hidden = cls._check_input_embeddings(input_emb, t)
 
-        # weights
-        assert infer_type(weight).checked_type.dtype in t
-        assert len(infer_shape(weight)) == 2, (
-            "Weight should be 2D input tensor with shape (input_hidden_size, 3 * hidden_size), "
-            "hidden_size = num_heads * head_size"
+        # weight
+        out_hidden_x3, out_hidden, head_size = cls._check_weights(
+            weight, t, num_heads=num_heads, input_hidden=input_hidden
         )
-        (input_hidden_weight, out_hidden_x3) = infer_shape(weight)
-        assert input_hidden == input_hidden_weight
-        assert out_hidden_x3 % 3 == 0, "output hidden shape should be divisible by 3: W_Q, W_K, W_V"
-        out_hidden = out_hidden_x3 // 3
-        assert (
-            out_hidden % num_heads == 0
-        ), "output hidden size should be divisible by number of attention heads"
-        head_size = out_hidden // num_heads
 
         # bias
-        assert infer_type(bias).checked_type.dtype in t
-        assert (
-            len(infer_shape(bias)) == 1
-        ), "Bias should be 1D input tensor with shape (3 * hidden_size)"
-        (out_hidden_x3_bias,) = infer_shape(bias)
-        assert out_hidden_x3 == out_hidden_x3_bias
+        cls._check_bias(bias, t, out_hidden_x3=out_hidden_x3)
 
         # mask_index
         assert (
             mask_index is not None
         ), "Attention import currently only supports required mask_index"
-        assert infer_type(mask_index).checked_type.dtype in m
-        mask_index_shape = infer_shape(mask_index)
-        assert (
-            len(mask_index_shape) == 2
-            and mask_index_shape[0] == batch_size
-            and mask_index_shape[1] >= seq_len
-        ), "currently only support (batch_size, past_sequence_len + sequence_length) mask index"
+        cls._check_mask_index(mask_index, m, batch_size=batch_size, seq_len=seq_len)
 
         assert past is None, "past K, V state is not currently supported"
         assert extra_add is None, "extra add to QxK not currently supported"
@@ -1464,7 +1492,7 @@ class Attention(OnnxOpConverter):
         return _expr.TupleWrapper(_expr.Tuple([output, present]), 2)
 
 
-class QAttention(OnnxOpConverter):
+class QAttention(OrtAttentionBase, OnnxOpConverter):
     """Operator converter for QAttention from Microsoft onnxruntime contrib opset.
 
     This is the self-attention mechanism used in transformer models.
@@ -1526,42 +1554,15 @@ class QAttention(OnnxOpConverter):
         t4 = ["int32"]
 
         # input
-        assert infer_type(input_emb).checked_type.dtype in t1
-        assert (
-            len(infer_shape(input_emb)) == 3
-        ), "Input should be 3D tensor with shape (batch_size, sequence_length, input_hidden_size)"
-        (batch_size, seq_len, input_hidden) = infer_shape(input_emb)
-        assert input_hidden > 0, (
-            "The weight tensor has (input_hidden_size, 3 * output_hidden_size) shape, so it doesn't"
-            f" make sense to have ({input_hidden}, 3 * output_hidden_size) weight tensor."
-        )
-        assert seq_len > 0, (
-            "The output tensor has (batch_size, sequence_length, hidden_size) shape,"
-            f" so it doesn't make sense to have (batch_size, {seq_len}, hidden_size) output."
-        )
+        batch_size, seq_len, input_hidden = cls._check_input_embeddings(input_emb, t1)
 
         # weight
-        assert infer_type(weight).checked_type.dtype in t2
-        assert len(infer_shape(weight)) == 2, (
-            "Weight should be 2D input tensor with shape (input_hidden_size, 3 * hidden_size), "
-            "hidden_size = num_heads * head_size"
+        out_hidden_x3, out_hidden, head_size = cls._check_weights(
+            weight, t2, num_heads=num_heads, input_hidden=input_hidden
         )
-        (input_hidden_weight, out_hidden_x3) = infer_shape(weight)
-        assert input_hidden == input_hidden_weight
-        assert out_hidden_x3 % 3 == 0, "output hidden shape should be divisible by 3: W_Q, W_K, W_V"
-        out_hidden = out_hidden_x3 // 3
-        assert (
-            out_hidden % num_heads == 0
-        ), "output hidden size should be divisible by number of attention heads"
-        head_size = out_hidden // num_heads
 
         # bias
-        assert infer_type(bias).checked_type.dtype in t3
-        assert (
-            len(infer_shape(bias)) == 1
-        ), "Bias should be 1D input tensor with shape (3 * hidden_size)"
-        (out_hidden_x3_bias,) = infer_shape(bias)
-        assert out_hidden_x3 == out_hidden_x3_bias
+        cls._check_bias(bias, t3, out_hidden_x3=out_hidden_x3)
 
         # input_scale
         assert infer_type(input_scale).checked_type.dtype in t3
@@ -1580,13 +1581,8 @@ class QAttention(OnnxOpConverter):
         assert (
             mask_index is not None
         ), "Attention import currently only supports required mask_index"
-        assert infer_type(mask_index).checked_type.dtype in t4
+        cls._check_mask_index(mask_index, t4, batch_size=batch_size, seq_len=seq_len)
         mask_index_shape = infer_shape(mask_index)
-        assert (
-            len(mask_index_shape) == 2
-            and mask_index_shape[0] == batch_size
-            and mask_index_shape[1] >= seq_len
-        ), "currently only support (batch_size, past_sequence_len + sequence_length) mask index"
 
         # TODO(agladyshev): int32 required for qnn.batch_matmul (QnnBatchMatmulRel)
         zero_point_zero = _expr.const(0, "int32")
