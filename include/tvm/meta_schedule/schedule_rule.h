@@ -298,6 +298,8 @@ class ScheduleRule : public runtime::ObjectRef {
   TVM_DLL static Array<ScheduleRule, void> DefaultCUDATensorCore();
   /*! \brief Create default schedule rules for Hexagon */
   TVM_DLL static Array<ScheduleRule, void> DefaultHexagon();
+  /*! \brief Create default schedule rules for Micro */
+  TVM_DLL static Array<ScheduleRule, void> DefaultMicro();
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ScheduleRule, ObjectRef, ScheduleRuleNode);
 };

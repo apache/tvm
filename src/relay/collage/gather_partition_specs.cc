@@ -89,11 +89,9 @@ PartitionRule MakeTVMPartitionRule() {
 }
 
 /*!
- * \brief Returns the fusion style for \p compiler.
- *
- * TODO(mbs): Defer to per-BYOC integration definition.
+ * \brief Returns the fusion style for default compiler.
  */
-BYOCStyle BYOCFusionStyleForCompiler(const String& compiler) {
+BYOCStyle DefaultBYOCFusionStyleForCompiler(const String& compiler) {
   if (compiler == "cutlass" || compiler == "cublas" || compiler == "cudnn") {
     return kNoFusionBYOCStyle;
   } else if (compiler == "tensorrt") {
@@ -101,6 +99,35 @@ BYOCStyle BYOCFusionStyleForCompiler(const String& compiler) {
   } else {
     return kArbitraryFusionBYOCStyle;
   }
+}
+
+/*!
+ * \brief Returns the fusion style for given compiler.
+ */
+BYOCStyle BYOCFusionStyleForCompiler(const String& compiler) {
+  tvm::transform::PassContext ctxt = tvm::transform::PassContext::Current();
+  std::string config_key = "relay.collage.byoc_fusion_style";
+  Optional<Array<String>> byoc_configs = ctxt->GetConfig(config_key, Optional<Array<String>>());
+  BYOCStyle byoc_fusion_style = DefaultBYOCFusionStyleForCompiler(compiler);
+  if (!byoc_configs) {
+    return byoc_fusion_style;
+  }
+  for (auto config_ : byoc_configs.value()) {
+    std::vector<std::string> byoc_cfg = SplitString(config_, ".");
+    if (byoc_cfg[0] == compiler) {
+      if (byoc_cfg[1] == "NoFusion") {
+        byoc_fusion_style = kNoFusionBYOCStyle;
+      } else if (byoc_cfg[1] == "TVMFusion") {
+        byoc_fusion_style = kTVMFusionBYOCStyle;
+      } else if (byoc_cfg[1] == "ArbitraryFusion") {
+        byoc_fusion_style = kArbitraryFusionBYOCStyle;
+      } else {
+        ICHECK(false) << "Invalid fusion name for compiler " << byoc_cfg[0] << " in pass context";
+      }
+      break;
+    }
+  }
+  return byoc_fusion_style;
 }
 
 /*!

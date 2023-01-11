@@ -51,22 +51,34 @@ set(DATA_FILES
     ${CMAKE_CURRENT_BINARY_DIR}/outputs.c
     ${CMAKE_CURRENT_BINARY_DIR}/labels.c
 )
+
+if (EXISTS ${CMSIS_PATH}/CMSIS-NN)
+    set(CMSIS_NN_PATH ${CMSIS_PATH}/CMSIS-NN)
+    set(CMSIS_NN_ADDITIONAL_SOURCES
+        ${CMSIS_NN_PATH}/Source/ConvolutionFunctions/arm_convolve_1x1_s8.c
+        ${CMSIS_NN_PATH}/Source/NNSupportFunctions/arm_nn_mat_mult_nt_t_s8.c
+    )
+else()
+    set(CMSIS_NN_PATH ${CMSIS_PATH}/CMSIS/NN)
+endif()
+
 set(CMSIS_SOURCES
-    ${CMSIS_PATH}/CMSIS/NN/Source/SoftmaxFunctions/arm_softmax_s8.c
-    ${CMSIS_PATH}/CMSIS/NN/Source/ConvolutionFunctions/arm_depthwise_conv_wrapper_s8.c
-    ${CMSIS_PATH}/CMSIS/NN/Source/ConvolutionFunctions/arm_depthwise_conv_s8.c
-    ${CMSIS_PATH}/CMSIS/NN/Source/ConvolutionFunctions/arm_depthwise_conv_s8_opt.c
-    ${CMSIS_PATH}/CMSIS/NN/Source/NNSupportFunctions/arm_nn_depthwise_conv_nt_t_s8.c
-    ${CMSIS_PATH}/CMSIS/NN/Source/NNSupportFunctions/arm_nn_depthwise_conv_nt_t_padded_s8.c
-    ${CMSIS_PATH}/CMSIS/NN/Source/ConvolutionFunctions/arm_convolve_wrapper_s8.c
-    ${CMSIS_PATH}/CMSIS/NN/Source/ConvolutionFunctions/arm_convolve_1_x_n_s8.c
-    ${CMSIS_PATH}/CMSIS/NN/Source/ConvolutionFunctions/arm_convolve_1x1_s8_fast.c
-    ${CMSIS_PATH}/CMSIS/NN/Source/ConvolutionFunctions/arm_convolve_s8.c
-    ${CMSIS_PATH}/CMSIS/NN/Source/ConvolutionFunctions/arm_nn_mat_mult_s8.c
-    ${CMSIS_PATH}/CMSIS/NN/Source/FullyConnectedFunctions/arm_fully_connected_s8.c
-    ${CMSIS_PATH}/CMSIS/NN/Source/NNSupportFunctions/arm_nn_mat_mul_core_4x_s8.c
-    ${CMSIS_PATH}/CMSIS/NN/Source/NNSupportFunctions/arm_nn_vec_mat_mult_t_s8.c
-    ${CMSIS_PATH}/CMSIS/NN/Source/NNSupportFunctions/arm_nn_mat_mul_core_1x_s8.c
+    ${CMSIS_NN_PATH}/Source/SoftmaxFunctions/arm_softmax_s8.c
+    ${CMSIS_NN_PATH}/Source/ConvolutionFunctions/arm_depthwise_conv_wrapper_s8.c
+    ${CMSIS_NN_PATH}/Source/ConvolutionFunctions/arm_depthwise_conv_s8.c
+    ${CMSIS_NN_PATH}/Source/ConvolutionFunctions/arm_depthwise_conv_s8_opt.c
+    ${CMSIS_NN_PATH}/Source/NNSupportFunctions/arm_nn_depthwise_conv_nt_t_s8.c
+    ${CMSIS_NN_PATH}/Source/NNSupportFunctions/arm_nn_depthwise_conv_nt_t_padded_s8.c
+    ${CMSIS_NN_PATH}/Source/ConvolutionFunctions/arm_convolve_wrapper_s8.c
+    ${CMSIS_NN_PATH}/Source/ConvolutionFunctions/arm_convolve_1_x_n_s8.c
+    ${CMSIS_NN_PATH}/Source/ConvolutionFunctions/arm_convolve_1x1_s8_fast.c
+    ${CMSIS_NN_PATH}/Source/ConvolutionFunctions/arm_convolve_s8.c
+    ${CMSIS_NN_PATH}/Source/ConvolutionFunctions/arm_nn_mat_mult_s8.c
+    ${CMSIS_NN_PATH}/Source/FullyConnectedFunctions/arm_fully_connected_s8.c
+    ${CMSIS_NN_PATH}/Source/NNSupportFunctions/arm_nn_mat_mul_core_4x_s8.c
+    ${CMSIS_NN_PATH}/Source/NNSupportFunctions/arm_nn_vec_mat_mult_t_s8.c
+    ${CMSIS_NN_PATH}/Source/NNSupportFunctions/arm_nn_mat_mul_core_1x_s8.c
+    ${CMSIS_NN_ADDITIONAL_SOURCES}
 )
 
 add_custom_command(
@@ -93,5 +105,5 @@ target_sources(app PRIVATE
 target_include_directories(app
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
     PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/runtime/include ${CMAKE_CURRENT_BINARY_DIR}/codegen/host/include
-    PUBLIC ${CMSIS_PATH}/CMSIS/NN/Include/ ${CMSIS_PATH}/CMSIS/DSP/Include
+    PUBLIC ${CMSIS_NN_PATH}/Include/ ${CMSIS_PATH}/CMSIS/DSP/Include
 )

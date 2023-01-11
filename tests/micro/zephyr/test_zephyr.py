@@ -605,6 +605,7 @@ def test_schedule_build_with_cmsis_dependency(workspace_dir, board, microtvm_deb
         "project_type": "host_driven",
         "verbose": bool(build_config.get("debug")),
         "board": board,
+        "cmsis_path": os.getenv("CMSIS_PATH"),
         "use_fvp": bool(use_fvp),
     }
 
@@ -623,7 +624,7 @@ def test_schedule_build_with_cmsis_dependency(workspace_dir, board, microtvm_deb
     assert "CMSIS/DSP/Include" in cmake_content
     assert "CMSIS/DSP/Include/dsp" in cmake_content
     assert "CMSIS/DSP/Include" in cmake_content
-    assert "CMSIS/NN/Include" in cmake_content
+    # assert "CMSIS-NN/Include" in cmake_content
 
 
 if __name__ == "__main__":

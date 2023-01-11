@@ -85,6 +85,9 @@ cmake -DCMAKE_TOOLCHAIN_FILE=${ethosu_dir}/core_platform/cmake/toolchain/arm-non
 make
 
 # Build NN Library
+mkdir ${CMSIS_PATH}/CMSIS-NN/build/ && cd ${CMSIS_PATH}/CMSIS-NN/build/
+cmake .. -DCMAKE_TOOLCHAIN_FILE=${ethosu_dir}/core_platform/cmake/toolchain/arm-none-eabi-gcc.cmake -DTARGET_CPU=cortex-m55 -DBUILD_CMSIS_NN_FUNCTIONS=YES -DCMSIS_PATH=${CMSIS_PATH}
+
 mkdir ${CMSIS_PATH}/CMSIS/NN/build/ && cd ${CMSIS_PATH}/CMSIS/NN/build/
 cmake .. -DCMAKE_TOOLCHAIN_FILE=${ethosu_dir}/core_platform/cmake/toolchain/arm-none-eabi-gcc.cmake -DTARGET_CPU=cortex-m55 -DBUILD_CMSIS_NN_FUNCTIONS=YES
 make
