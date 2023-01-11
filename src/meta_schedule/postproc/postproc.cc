@@ -100,6 +100,14 @@ Array<Postproc> Postproc::DefaultHexagon() {
   };
 }
 
+Array<Postproc> Postproc::DefaultMicro() {
+  return Array<Postproc>{
+      Postproc::DisallowDynamicLoop(),
+      Postproc::RewriteParallelVectorizeUnroll(),
+      Postproc::RewriteReductionBlock(),
+  };
+}
+
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<PyPostprocNode>([](const ObjectRef& n, ReprPrinter* p) {
       const auto* self = n.as<PyPostprocNode>();
