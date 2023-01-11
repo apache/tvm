@@ -20,15 +20,16 @@ Currently, the only ops with compute functions are fused regular and depthwise c
 Arm Cortex-M with DSP.
 """
 
-from typing import Callable, Tuple
+from typing import Callable, Dict, Tuple
 
 import tvm
 from tvm import te, TVMError
-from tvm.tir import const
 from tvm.script import tir as T
+from tvm.tir import const
+from tvm.topi.nn.pad import pad
+
 from ..utils import get_const_tuple
 from .mprofile.dsp.micro_kernel import tensordot
-from tvm.topi.nn.pad import pad
 
 
 def int_ceil_division(x, y):
@@ -121,6 +122,25 @@ def _pick_tensordot_impl(attrs, inputs, num_outputs=2, is_depthwise=False):
     return (aligned_func, offset_func)
 
 
+def _optionally_pad_data(data, layout, padding, pad_value=-128):
+    # rq_input_zero_point_const = inputs[8].op.body[0]
+
+    padding = get_const_tuple(padding)
+    if any(padding):
+        pad_before = [0, 0, 0, 0]
+        pad_after = [0, 0, 0, 0]
+
+        pad_up, pad_left, pad_down, pad_right = padding
+        pad_before[layout.index("H")] = pad_up
+        pad_after[layout.index("H")] = pad_down
+        pad_before[layout.index("W")] = pad_left
+        pad_after[layout.index("W")] = pad_right
+        return pad(data, pad_before, pad_after, pad_value)
+
+    else:
+        return data
+
+
 def _make_tscript_ptr(buffer, offset, length, dtype="int16"):
     return T.tvm_access_ptr(
         T.type_annotation(dtype=dtype),
@@ -130,6 +150,14 @@ def _make_tscript_ptr(buffer, offset, length, dtype="int16"):
         1,
         dtype="handle",
     )
+
+
+def _bias_ptr(bias, c):
+    return _make_tscript_ptr(bias, c, 1, dtype="int32")
+
+
+def _scale_ptr(scale, c):
+    return _make_tscript_ptr(scale, c, 1, dtype="int32")
 
 
 def _make_tscript_call(func_name, *args):
@@ -176,12 +204,6 @@ def _make_conv2d_primfunc(
         else:
             raise TVMError(f"Unsupported out_layout '{output_layout}'!")
 
-    def bias_ptr(bias, c):
-        return _make_tscript_ptr(bias, c, 1, dtype="int32")
-
-    def scale_ptr(scale, c):
-        return _make_tscript_ptr(scale, c, 1, dtype="int32")
-
     @T.prim_func
     def biased_quantized_conv2d(
         data_handle: T.handle,
@@ -217,14 +239,15 @@ def _make_conv2d_primfunc(
         ):
             with T.block("conv2d_aligned"):
                 T.block_attr({"pragma_import_c": aligned_func_code})
-                y, x, c = T.axis.remap("SSS", [y_ax, x_ax, c_ax])
+                y, x, c_interval = T.axis.remap("SSS", [y_ax, x_ax, c_ax])
+                c = c_interval * c_step
                 _make_tscript_call(
                     aligned_func_name,
-                    output_ptr(output, y, x, c * c_step),
-                    data_ptr(data, y, x, c * c_step),
-                    kernel_ptr(kernel, c * c_step),
-                    bias_ptr(bias, c * c_step),
-                    scale_ptr(scale, c * c_step),
+                    output_ptr(output, y, x, c),
+                    data_ptr(data, y, x, c),
+                    kernel_ptr(kernel, c),
+                    _bias_ptr(bias, c),
+                    _scale_ptr(scale, c),
                 )
 
         for c_ax, y_ax, x_ax in T.grid(
@@ -232,14 +255,15 @@ def _make_conv2d_primfunc(
         ):
             with T.block("conv2d_offset"):
                 T.block_attr({"pragma_import_c": offset_func_code})
-                y, x, c = T.axis.remap("SSS", [y_ax, x_ax, c_ax])
+                y, x, c_interval = T.axis.remap("SSS", [y_ax, x_ax, c_ax])
+                c = c_interval * c_step + 1
                 _make_tscript_call(
                     offset_func_name,
-                    output_ptr(output, y, x, c * c_step + 1),
-                    data_ptr(data, y, x, c * c_step + 1, offset=1),
-                    kernel_ptr(kernel, c * c_step + 1, offset=1),
-                    bias_ptr(bias, c * c_step + 1),
-                    scale_ptr(scale, c * c_step + 1),
+                    output_ptr(output, y, x, c),
+                    data_ptr(data, y, x, c, offset=1),
+                    kernel_ptr(kernel, c, offset=1),
+                    _bias_ptr(bias, c),
+                    _scale_ptr(scale, c),
                 )
 
     return biased_quantized_conv2d
@@ -257,29 +281,13 @@ def qnn_conv2d(attrs, inputs, out_type):
     # arguments. Note that unlike most schedules, qnn_conv2d does not use a wrapper.
     assert len(inputs) == 11
     assert attrs
-    import pdb
 
     data, kernel, _izp, _kzp, _iscale, _kscale, bias, scale = inputs[0:8]
-
-    out_channels, kernel_h, kernel_w, _ = get_const_tuple(kernel.shape)
-    y_stride, x_stride = get_const_tuple(attrs.strides)
-
-    # rq_input_zero_point_const = inputs[8].op.body[0]
-    rq_input_zero_point_const = -128
-
-    padding = get_const_tuple(attrs.padding)
-    if any(padding):
-        pad_up, pad_left, pad_down, pad_right = padding
-        padded_data = pad(
-            data,
-            [0, pad_up, pad_left, 0],
-            [0, pad_down, pad_right, 0],
-            rq_input_zero_point_const,
-        )
-    else:
-        padded_data = data
-
+    padded_data = _optionally_pad_data(data, attrs.data_layout, attrs.padding)
     _, height, width, in_channels = get_const_tuple(padded_data.shape)
+    out_channels, kernel_h, kernel_w, _ = get_const_tuple(kernel.shape)
+
+    y_stride, x_stride = get_const_tuple(attrs.strides)
     out_height = _compute_output_dim(height, kernel_h, y_stride)
     out_width = _compute_output_dim(width, kernel_w, x_stride)
 
@@ -351,25 +359,11 @@ def qnn_depthwise_conv2d(attrs, inputs, out_type):
 
     assert len(inputs) == 11
     data, kernel, _izp, _kzp, _iscale, _kscale, bias, scale = inputs[0:8]
-
-    _, out_channels, kernel_h, kernel_w = get_const_tuple(kernel.shape)
-    y_stride, x_stride = get_const_tuple(attrs.strides)
-
-    # rq_input_zero_point_const = inputs[8].op.body[0]
-    rq_input_zero_point_const = -128
-    padding = get_const_tuple(attrs.padding)
-    if any(padding):
-        pad_up, pad_left, pad_down, pad_right = padding
-        padded_data = pad(
-            data,
-            [0, 0, pad_up, pad_left],
-            [0, 0, pad_down, pad_right],
-            rq_input_zero_point_const,
-        )
-    else:
-        padded_data = data
-
+    padded_data = _optionally_pad_data(data, attrs.data_layout, attrs.padding)
     _, _, height, width = get_const_tuple(padded_data.shape)
+    _, out_channels, kernel_h, kernel_w = get_const_tuple(kernel.shape)
+
+    y_stride, x_stride = get_const_tuple(attrs.strides)
     out_height = _compute_output_dim(height, kernel_h, y_stride)
     out_width = _compute_output_dim(width, kernel_w, x_stride)
 
@@ -413,5 +407,138 @@ def qnn_depthwise_conv2d(attrs, inputs, out_type):
 
 
 def schedule_qnn_depthwise_conv2d(_attrs, _outs, _target):
+    """Schedule function for qnn.depthwise_conv2d."""
+    return None
+
+
+def _make_unrolled_conv2d_primfunc(
+    output_dimensions: Tuple[int, int, int],
+    buffer_shapes: Tuple[Tuple, Tuple, Tuple, Tuple, Tuple],
+    function_names: Dict[Tuple, str],
+    function_code: str,
+    ptr_gens: Tuple[Callable, Callable],
+    output_layout="NHWC",
+):
+    out_height, out_width, out_channels = output_dimensions
+    data_shape, kernel_shape, bias_shape, scale_shape, output_shape = buffer_shapes
+    data_ptr, kernel_ptr = ptr_gens
+
+    def output_ptr(output, y, c):
+        if output_layout == "NHWC":
+            return _make_tscript_ptr(output, y * const(out_width * out_channels) + c, 1)
+        elif output_layout == "NCHW":
+            return _make_tscript_ptr(
+                output, c * const(out_height * out_width) + y * const(out_width), 1
+            )
+        else:
+            raise TVMError(f"Unsupported out_layout '{output_layout}'!")
+
+    def _make_row_call(buffers, c_var, y, c):
+        output, data, kernel, bias, scale = buffers
+        return _make_tscript_call(
+            function_names[(y + c) % 2, c % 2, 0],
+            output_ptr(output, y, c_var + c),
+            data_ptr(data, y, c_var + c, offset=(y + c) % 2),
+            kernel_ptr(kernel, c_var + c, offset=c),
+            _bias_ptr(bias, c_var + c),
+            _scale_ptr(scale, c_var + c),
+        )
+
+    @T.prim_func
+    def biased_quantized_conv2d(
+        data_handle: T.handle,
+        kernel_handle: T.handle,
+        bias_handle: T.handle,
+        scale_handle: T.handle,
+        output_handle: T.handle,
+    ) -> None:
+        # Same setup is used as in _make_conv2d_primfunc
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        data = T.match_buffer(data_handle, data_shape, dtype="int16")
+        kernel = T.match_buffer(kernel_handle, kernel_shape, dtype="int16")
+        bias = T.match_buffer(bias_handle, bias_shape, dtype="int32")
+        scale = T.match_buffer(scale_handle, scale_shape)
+        output = T.match_buffer(output_handle, output_shape, dtype="int16")
+
+        # pylint: disable=unused-variable
+        output[0, 0, 0, 0] = 0
+        __1 = data[0, 0, 0, 0]
+        __2 = kernel[0, 0, 0, 0]
+        __3 = bias[0, 0, 0, 0]
+        __4 = scale[0]
+        # pylint: enable=unused-variable
+
+        for c_ax in T.grid(out_channels // 2):
+            with T.block("conv2ds"):
+                T.block_attr({"pragma_import_c": function_code})
+                c = T.axis.remap("S", [c_ax]) * 2
+                _make_row_call((output, data, kernel, bias, scale), c, 0, 0)
+                _make_row_call((output, data, kernel, bias, scale), c, 1, 0)
+                _make_row_call((output, data, kernel, bias, scale), c, 2, 0)
+                _make_row_call((output, data, kernel, bias, scale), c, 0, 1)
+                _make_row_call((output, data, kernel, bias, scale), c, 1, 1)
+                _make_row_call((output, data, kernel, bias, scale), c, 2, 1)
+
+    return biased_quantized_conv2d
+
+
+def qnn_unrolled_depthwise_conv2d(attrs, inputs, out_type):
+    """Compute for qnn.depthwise_conv2d with NCHW layout for convolutions with small width, height.
+
+    Behaves similarly to qnn_depthwise_conv2d, but does not iterate over the output width and height
+    and instead calls these functions explicitly. This gives a tiny performance boost in exchange
+    for larger code size, but more importantly does not require out_width * out_height
+    * y_stride % 2 == 0. This does, however, require y_stride == x_stride == 1.
+    """
+
+    assert len(inputs) == 11
+    y_stride, x_stride = get_const_tuple(attrs.strides)
+    assert y_stride == x_stride == 1
+
+    data, kernel, _izp, _kzp, _iscale, _kscale, bias, scale = inputs[0:8]
+    padded_data = _optionally_pad_data(data, attrs.data_layout, attrs.padding)
+    _, _, height, width = get_const_tuple(padded_data.shape)
+    _, out_channels, kernel_h, kernel_w = get_const_tuple(kernel.shape)
+
+    y_stride, x_stride = get_const_tuple(attrs.strides)
+    out_height = _compute_output_dim(height, kernel_h, y_stride)
+    out_width = _compute_output_dim(width, kernel_w, x_stride)
+
+    rq_output_zero_point_const = inputs[10]
+    assert len(rq_output_zero_point_const.op.body) == 1
+    output_zero_point = rq_output_zero_point_const.op.body[0]
+
+    dimensions = (width, kernel_h, kernel_w)
+    x_strides = (1, out_channels)
+
+    # data, kernel
+    func_names = {}
+    impls = []
+    for alignment in ((0, 0, 0), (0, 1, 0), (1, 0, 0), (1, 1, 0)):
+        func_name, impl = tensordot.tensordot_int16_impl(
+            out_width, dimensions, alignment, x_strides, output_zero_point=output_zero_point
+        )
+        func_names[alignment] = func_name
+        impls.append(impl)
+
+    def data_ptr(buffer, y, c, offset=0):
+        return _make_tscript_ptr(buffer, c * const(width * height) + y * const(width) - offset, 1)
+
+    def kernel_ptr(buffer, c, offset=0):
+        return _make_tscript_ptr(buffer, c * const(kernel_h * kernel_w) - offset, 1)
+
+    prim_func = _make_unrolled_conv2d_primfunc(
+        (out_height, out_width, out_channels),
+        (data.shape, kernel.shape, bias.shape, scale.shape, out_type.shape),
+        func_names,
+        "\n".join(impls),
+        (data_ptr, kernel_ptr),
+        output_layout=attrs.out_layout,
+    )
+    output = te.extern_primfunc([data, kernel, bias, scale], prim_func, name="tir", dtype="int16")
+    return [output]
+
+
+def schedule_qnn_unrolled_depthwise_conv2d(_attrs, _outs, _target):
     """Schedule function for qnn.depthwise_conv2d."""
     return None

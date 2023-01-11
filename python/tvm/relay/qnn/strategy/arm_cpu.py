@@ -24,6 +24,7 @@ from tvm import topi, TVMError
 from .generic import *
 from ... import op as _op
 from ...op.strategy.generic import is_depthwise_conv2d
+from tvm.topi.utils import get_const_tuple
 
 
 @qnn_quantize_strategy.register("arm_cpu")
@@ -89,7 +90,7 @@ def qnn_conv2d_strategy_arm_cpu(attrs, inputs, _out_type, target):
     strategy = _op.OpStrategy()
 
     if groups == 1:
-        if True or (data_layout == "NHWC" and kernel_layout == "OHWI"):
+        if data_layout == "NHWC" and kernel_layout == "OHWI":
             strategy.add_implementation(
                 topi.arm_cpu.qnn_conv2d,
                 topi.arm_cpu.schedule_qnn_conv2d,
@@ -98,12 +99,21 @@ def qnn_conv2d_strategy_arm_cpu(attrs, inputs, _out_type, target):
         else:
             raise TVMError("QNN regular Conv2D for Arm Cortex-M DSP got incorrect input layout!")
     elif is_depthwise_conv2d(data.shape, data_layout, kernel.shape, kernel_layout, groups):
-        if True or (data_layout == "NCHW" and kernel_layout == "IOHW"):
-            strategy.add_implementation(
-                topi.arm_cpu.qnn_depthwise_conv2d,
-                topi.arm_cpu.schedule_qnn_depthwise_conv2d,
-                name="qnn_depthwise_conv2d.arm_cpu",
-            )
+        if data_layout == "NCHW" and kernel_layout == "IOHW":
+            height, width = data.shape[2:]
+            y_stride, x_stride = get_const_tuple(attrs.strides)
+            if height * width * y_stride % 2 == 0:
+                strategy.add_implementation(
+                    topi.arm_cpu.qnn_depthwise_conv2d,
+                    topi.arm_cpu.schedule_qnn_depthwise_conv2d,
+                    name="qnn_depthwise_conv2d.arm_cpu",
+                )
+            else:
+                strategy.add_implementation(
+                    topi.arm_cpu.qnn_explicit_depthwise_conv2d,
+                    topi.arm_cpu.schedule_qnn_depthwise_conv2d,
+                    name="qnn_depthwise_conv2d.arm_cpu",
+                )
         else:
             raise TVMError("QNN depthwise Conv2D for Arm Cortex-M DSP got incorrect input layout!")
     else:

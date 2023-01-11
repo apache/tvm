@@ -142,14 +142,7 @@ def test_infinite_bias_detection(interpreter, layer):
     assert is_depthwise
 
     for i, value in fixed_channels.items():
-        print(i)
         assert np.all(output_data[:, :, :, i] == output_data[0, 0, 0, i])
-        print(output_data[0, 0, 0, i])
-
-    for i in range(out_channels):
-        print(kernel_data.shape)
-        # Skip over output channels with data
-        assert np.any(kernel_data[:, :, :, i])
 
 
 def _get_relu_activation_prefix(layer_num):
@@ -341,16 +334,8 @@ def _make_executor():
     )
 
 
-def _make_parameterization(layer_num):
-    if layer_num == 25:
-        mark = pytest.mark.xfail(reason="unaligned input data ptr", run=False)
-        return pytest.param(layer_num, marks=mark)
-    else:
-        return layer_num
-
-
 @pytest.mark.parametrize("output_layout", ["NHWC", "NCHW"])
-@pytest.mark.parametrize("layer", (_make_parameterization(n) for n in range(27)))
+@pytest.mark.parametrize("layer", range(27))
 @tvm.testing.requires_corstone300
 def test_qnn_conv2d_mobilenetv1_layer(interpreter, layer, output_layout):
     """Checks microTVM output against TFLite for one MobileNetV1 layer.
@@ -360,7 +345,7 @@ def test_qnn_conv2d_mobilenetv1_layer(interpreter, layer, output_layout):
     same structure. The Function is run using microTVM and AOTTestModel, and we verify microTVM's
     output is the same as the TFLite ground truth.
 
-    This function only cross-checks the first 23 layers in MobileNetV1, which are regular and
+    This function only cross-checks the first 27 layers in MobileNetV1, which are regular and
     depthwise 2D convolutions (this function only works for 2D convolutions). We do not test the
     average pool, dense, or softmax layers at the end of the model.
 
