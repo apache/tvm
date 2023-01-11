@@ -552,7 +552,10 @@ def test_batch_matmul_amx(b, m, n, k):
             lib = relay.build(mod, target=target)
 
         asm = lib.lib.get_source("asm")
-        assert "vpdpbusd" in asm
+        assert "tilezero" in asm
+        assert "tileloaddt1" in asm
+        assert "tdpbusd" in asm
+        assert "tilestored" in asm
 
         dev = tvm.device(target, 0)
         runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))

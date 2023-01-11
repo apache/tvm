@@ -237,7 +237,6 @@ def schedule_batch_matmul_int8(cfg, outs):
     def _callback(op):
         if "batch_matmul_int8" in op.tag:
             layout_trans = op.input_tensors[1]
-            print(layout_trans)
             if target_has_amx(mcpu):
                 batch_matmul_amx_schedule(cfg, s, op.output(0), outs[0], layout_trans)
             elif target_has_vnni(mcpu):
