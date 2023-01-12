@@ -1116,20 +1116,14 @@ def test_tflite_relu_n1_to_1():
     ifm_shape = (1, 55, 34, 3)
     kernel_shape = (3, 2)
     strides = (1, 1)
-    padding = (1, 0, 1, 1)
 
     @tf.function
     def conv2d_relu_n1_to_1(x):
         tf_strides = [1, strides[0], strides[1], 1]
-        op = tf.pad(
-            x,
-            [[0, 0], [padding[0], padding[2]], [padding[1], padding[3]], [0, 0]],
-            "CONSTANT",
-        )
         weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], 3]
         weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
         op = tf.nn.conv2d(
-            op,
+            x,
             weight,
             strides=tf_strides,
             padding="VALID",
@@ -1152,20 +1146,14 @@ def test_tflite_relu6():
     ifm_shape = (1, 55, 34, 3)
     kernel_shape = (3, 2)
     strides = (1, 1)
-    padding = (0, 0, 1, 1)
 
     @tf.function
     def conv2d_relu6(x):
         tf_strides = [1, strides[0], strides[1], 1]
-        op = tf.pad(
-            x,
-            [[0, 0], [padding[0], padding[2]], [padding[1], padding[3]], [0, 0]],
-            "CONSTANT",
-        )
         weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], 3]
         weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
         op = tf.nn.conv2d(
-            op,
+            x,
             weight,
             strides=tf_strides,
             padding="VALID",
