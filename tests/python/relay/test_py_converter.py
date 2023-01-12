@@ -70,7 +70,6 @@ def test_create_empty_tuple():
 def test_create_scalar():
     scalar = relay.const(1)
     tensor_val = run_as_python(scalar)
-    print(type(tensor_val))
     assert_tensor_value(tensor_val, 1)
 
 
@@ -669,9 +668,6 @@ def test_compiling_with_main():
     mod = tvm.IRModule()
     mod["unit"] = unit
     mod["main"] = identity
-
-    import astor
-    print(astor.to_source(to_python(mod.get_global_var("main")(mod.get_global_var("unit")()), mod=mod)))
 
     res = run_as_python(mod.get_global_var("main")(mod.get_global_var("unit")()), mod=mod)
     assert isinstance(res, ADT)
