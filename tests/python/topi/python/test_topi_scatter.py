@@ -33,10 +33,6 @@ def test_scatter_nd(dev, target):
                 lambda x, y, z: topi.cuda.scatter_nd(x, y, z, mode),
                 topi.generic.schedule_extern,
             ),
-            "cpu": (
-                lambda x, y, z: topi.x86.scatter_nd(x, y, z, mode),
-                topi.generic.schedule_extern,
-            ),
         }
         fcompute, fschedule = tvm.topi.testing.dispatch(target, implementations)
         tvm.topi.testing.compare_numpy_tvm(
