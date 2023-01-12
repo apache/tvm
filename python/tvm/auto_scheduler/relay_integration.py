@@ -84,6 +84,7 @@ def extract_tasks(
     include_simple_tasks=False,
     dump_workload_to_dag_log=None,
     opt_level=3,
+    other_targets=[],
 ):
     """Extract tuning tasks from a relay program.
 
@@ -125,12 +126,13 @@ def extract_tasks(
     old_verbose = dispatch_ctx.verbose
     dispatch_ctx.verbose = 0
 
+    targets = [target] + other_targets
     errors = []
     with env:
         # Wrap build call in a new thread to avoid the conflict
         # between python's multiprocessing and tvm's thread pool
         build_thread = threading.Thread(
-            target=call_all_topi_funcs, args=(mod, params, target, errors, opt_level)
+            target=call_all_topi_funcs, args=(mod, params, targets, errors, opt_level)
         )
         build_thread.start()
         build_thread.join()
