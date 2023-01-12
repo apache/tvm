@@ -34,7 +34,10 @@ import tvm
 import tvm.testing
 import tvm.topi.testing
 from tvm import relay
-from tvm.contrib import graph_executor
+from tvm.contrib import graph_executor, utils
+from tvm.relay.frontend.common import infer_type
+from tvm.relay.build_module import bind_params_by_name
+from relay.utils.tag_span import _create_span, _set_span, _verify_structural_equal_with_span
 
 import onnx
 import onnxruntime.backend
@@ -81,18 +84,31 @@ def get_tvm_output_with_vm(
     opset=None,
     freeze_params=False,
     convert_config=None,
+    validate_structural_equal=True,
 ):
     """Generic function to execute and get tvm output with vm executor"""
     if not isinstance(input_data, list):
         input_data = [input_data]
     _, shape_dict = get_input_data_shape_dict(graph_def, input_data)
-    mod, params = relay.frontend.from_onnx(
-        graph_def,
-        shape_dict,
-        opset=opset,
-        freeze_params=freeze_params,
-        convert_config=convert_config,
-    )
+
+    with tvm.testing.disable_span_filling():
+        mod, params = relay.frontend.from_onnx(
+            graph_def,
+            shape_dict,
+            opset=opset,
+            freeze_params=freeze_params,
+            convert_config=convert_config,
+        )
+    if validate_structural_equal:
+        with tvm.testing.enable_span_filling():
+            mod_with_span, _ = relay.frontend.from_onnx(
+                graph_def,
+                shape_dict,
+                opset=opset,
+                freeze_params=freeze_params,
+                convert_config=convert_config,
+            )
+        assert tvm.ir.structural_equal(mod, mod_with_span)
 
     result = relay.create_executor("vm", mod=mod, device=dev, target=target).evaluate()(
         *input_data, **params
@@ -6667,7 +6683,13 @@ def test_random_uniform(target, dev):
             outputs=[helper.make_tensor_value_info("out", ONNX_DTYPE, shape)],
         )
         model = helper.make_model(graph, producer_name="random_uniform_test")
-        return get_tvm_output_with_vm(model, [], target=target, dev=dev)
+        return get_tvm_output_with_vm(
+            model,
+            [],
+            target=target,
+            dev=dev,
+            validate_structural_equal=(seed is not None),
+        )
 
     # Check that function runs and produces proper shape.
     vals = get_random_uniform([10], dtype="float32")
@@ -6733,7 +6755,13 @@ def test_random_uniform_like(target, dev):
             outputs=[helper.make_tensor_value_info("out", ONNX_DTYPE, shape)],
         )
         model = helper.make_model(graph, producer_name="random_uniform_like_test")
-        return get_tvm_output_with_vm(model, [input_], target=target, dev=dev)
+        return get_tvm_output_with_vm(
+            model,
+            [input_],
+            target=target,
+            dev=dev,
+            validate_structural_equal=(seed is not None),
+        )
 
     # Check that function runs and produces proper shape and dtype.
     shape = [10]
@@ -6797,7 +6825,13 @@ def test_random_normal(target, dev):
             outputs=[helper.make_tensor_value_info("out", ONNX_DTYPE, shape)],
         )
         model = helper.make_model(graph, producer_name="random_normal_test")
-        return get_tvm_output_with_vm(model, [], target=target, dev=dev)
+        return get_tvm_output_with_vm(
+            model,
+            [],
+            target=target,
+            dev=dev,
+            validate_structural_equal=(seed is not None),
+        )
 
     # Test N-D tensor generation.
     vals = get_random_normal([1, 3, 100, 100], dtype="float32")
@@ -6837,7 +6871,13 @@ def test_random_normal_like(target, dev):
             outputs=[helper.make_tensor_value_info("out", ONNX_DTYPE, shape)],
         )
         model = helper.make_model(graph, producer_name="random_normal_like_test")
-        return get_tvm_output_with_vm(model, [input_], target=target, dev=dev)
+        return get_tvm_output_with_vm(
+            model,
+            [input_],
+            target=target,
+            dev=dev,
+            validate_structural_equal=(seed is not None),
+        )
 
     # Test N-D tensor generation.
     shape = [1, 3, 100, 100]
@@ -6875,7 +6915,13 @@ def test_multinomial(target, dev):
             outputs=[helper.make_tensor_value_info("out", OUT_DTYPE, shape)],
         )
         model = helper.make_model(graph, producer_name="multinomial_test")
-        return get_tvm_output_with_vm(model, [input], target=target, dev=dev)
+        return get_tvm_output_with_vm(
+            model,
+            [input],
+            target=target,
+            dev=dev,
+            validate_structural_equal=(seed is not None),
+        )
 
     # Test N-D tensor generation.
     shape = [3]
@@ -7346,6 +7392,310 @@ def test_sequence(target, dev):
     verify_sequence_ops((3, 3, 3, 3), 4, position=3)
     verify_sequence_ops((3, 3, 3, 3), 4, axis=2)
     verify_sequence_ops((3, 3, 3, 3), 4, axis=2, new_axis=1)
+
+
+def test_exporting_node_renamed_model():
+    """test exproting model when export_node_renamed_model is set"""
+
+    a_name, a_shape = "a", (4, 3)
+    b_name, b_shape = "b", (3, 4)
+    out_name, out_shape = "out", [a_shape[0], b_shape[1]]
+    temp_dir = utils.tempdir().path
+
+    # model definition
+    mul_node = helper.make_node("MatMul", [a_name, b_name], [out_name])
+    graph = helper.make_graph(
+        [mul_node],
+        "matmul_test",
+        inputs=[
+            helper.make_tensor_value_info(a_name, TensorProto.FLOAT, a_shape),
+            helper.make_tensor_value_info(b_name, TensorProto.FLOAT, b_shape),
+        ],
+        outputs=[helper.make_tensor_value_info(out_name, TensorProto.FLOAT, out_shape)],
+    )
+    model = helper.make_model(graph, producer_name="matmul_test")
+
+    # get frontend model
+    shape_dict = {a_name: a_shape, b_name: b_shape}
+    _, _ = relay.frontend.from_onnx(model, shape_dict, export_node_renamed_model_path=temp_dir)
+
+    exported_model_name = os.listdir(temp_dir)[0]
+    assert "tvm_exported_model_" in exported_model_name
+
+    exported_model = onnx.load(os.path.join(temp_dir, exported_model_name))
+    assert exported_model.graph.node[0].name == "MatMul_0"
+
+
+class TestSetSpan:
+    """test structural equal between translated / hand-crafted relay IR with span tagged."""
+
+    def _verify(self, res_fptr, golden_fptr):
+        with tvm.testing.enable_span_filling():
+            with_span = res_fptr()
+        with tvm.testing.disable_span_filling():
+            without_span = res_fptr()
+        assert tvm.ir.structural_equal(with_span, without_span)
+        _verify_structural_equal_with_span(with_span, golden_fptr())
+
+    def test_conv2d_bias_add_span(self):
+        padding = [0, 0, 0, 0]
+        k_shape = [7, 7]
+        y_shape, y_name = [1, 6, 10, 10], "y"
+        x_shape, x_name = [1, 3, 10, 10], "x"
+        b_shape, b_name = [6], "b"
+        b_val = np.random.random(b_shape).astype(np.float32)
+        w_shape, w_name = [6, 3, 7, 7], "w"
+        w_val = np.random.random(w_shape).astype(np.float32)
+        group, strides, dilations = 1, [1, 1], [1, 1]
+        conv_name = "conv2d"
+
+        def _res():
+            # model definition
+            node = helper.make_node(
+                "Conv",
+                inputs=[x_name, w_name, b_name],
+                outputs=[y_name],
+                kernel_shape=k_shape,
+                strides=strides,
+                dilations=dilations,
+                group=group,
+                pads=padding,
+                name=conv_name,
+            )
+            graph = helper.make_graph(
+                [node],
+                "conv_test",
+                inputs=[helper.make_tensor_value_info(x_name, TensorProto.FLOAT, x_shape)],
+                outputs=[helper.make_tensor_value_info(y_name, TensorProto.FLOAT, y_shape)],
+                initializer=[
+                    helper.make_tensor(
+                        w_name,
+                        TensorProto.FLOAT,
+                        dims=w_shape,
+                        vals=w_val.flatten(),
+                    ),
+                    helper.make_tensor(
+                        b_name,
+                        TensorProto.FLOAT,
+                        dims=b_shape,
+                        vals=b_val.flatten(),
+                    ),
+                ],
+            )
+            model = helper.make_model(graph, producer_name="conv_test")
+
+            # get frontend model
+            shape_dict = {x_name: x_shape}
+            mod, _ = relay.frontend.from_onnx(model, shape_dict)
+            return mod["main"]
+
+        def _golden():
+            conv_si = conv_name
+            x = relay.var(
+                x_name,
+                shape=tuple(x_shape),
+                span=_create_span(f"{conv_si}.{x_name}"),
+            )
+            conv_weight = relay.const(
+                w_val,
+                span=_create_span(f"{conv_si}.{w_name}"),
+            )
+            conv_bias = relay.const(
+                b_val,
+                span=_create_span(f"{conv_si}.{b_name}"),
+            )
+            conv_out = _set_span(
+                relay.nn.conv2d(
+                    x,
+                    conv_weight,
+                    padding=[0] * 4,
+                    channels=y_shape[1],
+                    kernel_size=k_shape,
+                ),
+                conv_si,
+            )
+            bias_out = _set_span(relay.nn.bias_add(conv_out, conv_bias), conv_si)
+            return infer_type(relay.Function([x], bias_out))
+
+        self._verify(_res, _golden)
+
+    def test_batchnorm_span(self):
+        input_name, in_shape = "x", [1, 16, 10, 10]
+        bn_name = "bn"
+        output_name = "y"
+        scale_name = "scale"
+        bias_name = "b"
+        mean_name = "mean"
+        var_name = "var"
+
+        def _res():
+            # model definition
+            batchnorm = onnx.helper.make_node(
+                "BatchNormalization",
+                inputs=[input_name, scale_name, bias_name, mean_name, var_name],
+                outputs=[output_name],
+                name=bn_name,
+            )
+            graph = helper.make_graph(
+                [batchnorm],
+                "batchnorm_test",
+                inputs=[
+                    helper.make_tensor_value_info(input_name, TensorProto.FLOAT, in_shape),
+                    helper.make_tensor_value_info(scale_name, TensorProto.FLOAT, [in_shape[1]]),
+                    helper.make_tensor_value_info(bias_name, TensorProto.FLOAT, [in_shape[1]]),
+                    helper.make_tensor_value_info(mean_name, TensorProto.FLOAT, [in_shape[1]]),
+                    helper.make_tensor_value_info(var_name, TensorProto.FLOAT, [in_shape[1]]),
+                ],
+                outputs=[helper.make_tensor_value_info(output_name, TensorProto.FLOAT, in_shape)],
+            )
+            model = helper.make_model(graph, producer_name="batchnorm_test")
+
+            # get frontend model
+            shape_dict = {input_name: in_shape}
+            mod, _ = relay.frontend.from_onnx(model, shape_dict)
+            return mod["main"]
+
+        def _golden():
+            bn_si = bn_name
+            x = relay.var(
+                input_name,
+                shape=tuple(in_shape),
+                span=_create_span(f"{bn_si}.{input_name}"),
+            )
+            bn_scale = relay.var(
+                scale_name,
+                shape=(in_shape[1],),
+                span=_create_span(f"{bn_si}.{scale_name}"),
+            )
+            bn_bias = relay.var(
+                bias_name,
+                shape=(in_shape[1],),
+                span=_create_span(f"{bn_si}.{bias_name}"),
+            )
+            bn_rm = relay.var(
+                mean_name,
+                shape=(in_shape[1],),
+                span=_create_span(f"{bn_si}.{mean_name}"),
+            )
+            bn_rv = relay.var(
+                var_name,
+                shape=(in_shape[1],),
+                span=_create_span(f"{bn_si}.{var_name}"),
+            )
+            bn_out = _set_span(
+                relay.nn.batch_norm(x, bn_scale, bn_bias, bn_rm, bn_rv),
+                bn_si,
+            )
+            bn_tuple_get_item = _set_span(relay.TupleGetItem(bn_out.tuple_value, 0), bn_si)
+            return infer_type(
+                relay.Function([x, bn_scale, bn_bias, bn_rm, bn_rv], bn_tuple_get_item)
+            )
+
+        self._verify(_res, _golden)
+
+    def test_reshape_span(self):
+        input_shape = [2, 1, 10, 1, 10]
+        new_shape = [2, 1, 10, 10]
+        input_name = "in"
+        output_name = "out"
+        ref_name = "ref_in"
+        const_name = "const"
+        reshape_name = "reshape"
+
+        def _res():
+            # model definition
+            ref_array = np.array(new_shape)
+            ref_node = helper.make_node(
+                "Constant",
+                inputs=[],
+                outputs=[ref_name],
+                value=helper.make_tensor(
+                    name="const_tensor",
+                    data_type=TensorProto.INT32,
+                    dims=ref_array.shape,
+                    vals=ref_array.flatten().astype(int),
+                ),
+                name=const_name,
+            )
+            reshape_node = helper.make_node(
+                "Reshape",
+                [input_name, ref_name],
+                [output_name],
+                name=reshape_name,
+            )
+            graph = helper.make_graph(
+                [ref_node, reshape_node],
+                "reshape_test",
+                inputs=[helper.make_tensor_value_info(input_name, TensorProto.FLOAT, input_shape)],
+                outputs=[helper.make_tensor_value_info(output_name, TensorProto.FLOAT, new_shape)],
+            )
+            model = helper.make_model(graph, producer_name="reshape_test")
+
+            # get frontend model
+            shape_dict = {input_name: input_shape}
+            mod, _ = relay.frontend.from_onnx(model, shape_dict)
+            return mod["main"]
+
+        def _golden():
+            reshape_si = reshape_name
+            x = relay.var(
+                input_name,
+                shape=tuple(input_shape),
+                span=_create_span(f"{reshape_si}.{input_name}"),
+            )
+            reshape_out = _set_span(
+                relay.reshape(x, newshape=new_shape),
+                reshape_si,
+            )
+            return infer_type(relay.Function([x], reshape_out))
+
+        self._verify(_res, _golden)
+
+    def test_matmul_span(self):
+        a_name, a_shape = "a", (4, 3)
+        b_name, b_shape = "b", (3, 4)
+        out_name, out_shape = "out", [a_shape[0], b_shape[1]]
+        matmul_name = "matmul"
+
+        def _res():
+            # model definition
+            mul_node = helper.make_node("MatMul", [a_name, b_name], [out_name], name=matmul_name)
+            graph = helper.make_graph(
+                [mul_node],
+                "matmul_test",
+                inputs=[
+                    helper.make_tensor_value_info(a_name, TensorProto.FLOAT, a_shape),
+                    helper.make_tensor_value_info(b_name, TensorProto.FLOAT, b_shape),
+                ],
+                outputs=[helper.make_tensor_value_info(out_name, TensorProto.FLOAT, out_shape)],
+            )
+            model = helper.make_model(graph, producer_name="matmul_test")
+
+            # get frontend model
+            shape_dict = {a_name: a_shape, b_name: b_shape}
+            mod, _ = relay.frontend.from_onnx(model, shape_dict)
+            return mod["main"]
+
+        def _golden():
+            matmul_si = matmul_name
+            a = relay.var(
+                a_name,
+                shape=tuple(a_shape),
+                span=_create_span(f"{matmul_si}.{a_name}"),
+            )
+            b = relay.var(
+                b_name,
+                shape=tuple(b_shape),
+                span=_create_span(f"{matmul_si}.{b_name}"),
+            )
+            b_t = _set_span(relay.transpose(b, axes=[1, 0]), matmul_si)
+            matmul_out = _set_span(
+                relay.nn.dense(a, b_t, out_dtype="float32"),
+                matmul_si,
+            )
+            return infer_type(relay.Function([a, b], matmul_out))
+
+        self._verify(_res, _golden)
 
 
 if __name__ == "__main__":
