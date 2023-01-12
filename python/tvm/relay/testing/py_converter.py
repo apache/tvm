@@ -60,7 +60,7 @@ class PythonConverter(ExprFunctor):
     def __init__(self, mod, target) -> None:
         super().__init__()
         self.mod = mod
-        self.tgt = target
+        self.tgt = target if isinstance(target, tvm.target.Target) else tvm.target.Target(target)
         self.tec = te_compiler.get()
         self.fun_no = 0
         self.var_no = 0
