@@ -254,6 +254,9 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
                 wrap_topi_schedule(topi.generic.schedule_group_conv2d_nhwc),
                 name="group_conv2d_nhwc.generic",
             )
+        elif _NCHWc_matcher.match(layout):  # check if layout is NCHWxc
+            assert _OIHWio_matcher.match(kernel_layout)  # check if kernel is OIHWio
+            return conv2d_NCHWc_strategy_cpu(attrs, inputs, out_type, target)
         else:
             raise RuntimeError("Unsupported group_conv2d layout {}".format(layout))
     return strategy
