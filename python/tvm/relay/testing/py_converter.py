@@ -101,16 +101,28 @@ class PythonConverter(ExprFunctor):
         # For a lone global var, there is nothing we need to do
         if isinstance(unwrapped, relay.GlobalVar):
             return unwrapped
-        else:
-            mod = self.mod.from_expr(unwrapped, self.mod.functions, self.mod.type_definitions)
+
+        # main might be in the mod already and from_expr will not override it if it's there,
+        # so we need a new name
+        target_name = self.generate_function_name("target")
+
+        wrapped = unwrapped
+        if not isinstance(unwrapped, relay.Function):
+            wrapped = relay.Function(relay.analysis.free_vars(unwrapped), unwrapped)
+
+        # easiest way to make a deep copy -- note that main will not be overridden if it's present
+        copy_mod = tvm.IRModule.from_expr(
+            relay.Tuple([]), self.mod.functions, self.mod.type_definitions
+        )
+        copy_mod[target_name] = wrapped
 
         # necessary pass: SimplifyInference (otherwise we can't generate code for some operators)
         # and fusion (to get primitive functions)
         opts = tvm.transform.Sequential(
             [relay.transform.SimplifyInference(), relay.transform.FuseOps(fuse_opt_level=0)]
         )
-        mod = opts(mod)
-        optimized = mod["main"]
+        copy_mod = opts(copy_mod)
+        optimized = copy_mod[target_name]
         return optimized if isinstance(unwrapped, Function) else optimized.body
 
     def sanitize(self, name: str) -> str:

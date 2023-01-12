@@ -657,3 +657,22 @@ def test_closure_in_ref():
     mod[gv] = identity
     res = run_as_python(seq, mod=mod)
     assert res.numpy() == np.array([0.0], dtype="float32")
+
+
+def test_compiling_with_main():
+    unit_type = relay.TupleType([])
+    unit = relay.Function([], relay.Tuple([]), ret_type=unit_type)
+
+    x = relay.Var("x", type_annotation=unit_type)
+    identity = relay.Function([x], x, ret_type=unit_type)
+
+    mod = tvm.IRModule()
+    mod["unit"] = unit
+    mod["main"] = identity
+
+    import astor
+    print(astor.to_source(to_python(mod.get_global_var("main")(mod.get_global_var("unit")()), mod=mod)))
+
+    res = run_as_python(mod.get_global_var("main")(mod.get_global_var("unit")()), mod=mod)
+    assert isinstance(res, ADT)
+    assert len(res) == 0
