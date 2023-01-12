@@ -356,7 +356,7 @@ def _resize_1d(
         if exclude_outside:
             for i in range(4):
                 wx[i] = te.if_then_else(
-                    te.any(xint - 1 + i < 0, xint + i > image_width), 0.0, wx[i]
+                    te.any(xint - 1 + i < 0, xint + i > image_width), 0.0, wx[i].as_type(out_dtype)
                 )
             sum_wx = sum(wx)
             wx = [w / sum_wx for w in wx]
@@ -700,10 +700,10 @@ def _resize_2d(
         if exclude_outside:
             for i in range(4):
                 wx[i] = te.if_then_else(
-                    te.any(xint - 1 + i < 0, xint + i > image_width), 0.0, wx[i]
+                    te.any(xint - 1 + i < 0, xint + i > image_width), 0.0, wx[i].astype(out_dtype)
                 )
                 wy[i] = te.if_then_else(
-                    te.any(yint - 1 + i < 0, yint + i > image_height), 0.0, wy[i]
+                    te.any(yint - 1 + i < 0, yint + i > image_height), 0.0, wy[i].astype(out_dtype)
                 )
             sum_wx = sum(wx)
             sum_wy = sum(wy)
@@ -1144,13 +1144,13 @@ def _resize_3d(
         if exclude_outside:
             for i in range(4):
                 wz[i] = te.if_then_else(
-                    te.any(xint - 1 + i < 0, xint + i > image_height), 0.0, wx[i]
+                    te.any(xint - 1 + i < 0, xint + i > image_height), 0.0, wx[i].as_type(out_dtype)
                 )
                 wy[i] = te.if_then_else(
-                    te.any(yint - 1 + i < 0, yint + i > image_height), 0.0, wy[i]
+                    te.any(yint - 1 + i < 0, yint + i > image_height), 0.0, wy[i].as_type(out_dtype)
                 )
                 wx[i] = te.if_then_else(
-                    te.any(xint - 1 + i < 0, xint + i > image_width), 0.0, wx[i]
+                    te.any(xint - 1 + i < 0, xint + i > image_width), 0.0, wx[i].as_type(out_dtype)
                 )
             sum_wz = sum(wz)
             sum_wy = sum(wy)
