@@ -120,12 +120,6 @@ Let's push them to the device and run TVM RPC Server.
 # -----------------
 # As an example we would use classical cat image from ImageNet
 
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
-
 from PIL import Image
 from tvm.contrib.download import download_testdata
 from matplotlib import pyplot as plt

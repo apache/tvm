@@ -32,11 +32,6 @@ This tutorial explains how to autotune a model using the C runtime.
 #     .. include:: ../../../../gallery/how_to/work_with_microtvm/install_dependencies.rst
 #
 
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
 
 # You can skip the following two sections (installing Zephyr and CMSIS-NN) if the following flag is False.
 # Installing Zephyr takes ~20 min.

@@ -31,11 +31,6 @@ For more details, refer to the official install instructions at:
 https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/pip/linux-pip.html
 """
 
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
 import tarfile
 import paddle
 import numpy as np

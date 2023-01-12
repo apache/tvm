@@ -35,11 +35,6 @@ or on Zephyr platform on a microcontroller/board supported by Zephyr.
 #     .. include:: ../../../../gallery/how_to/work_with_microtvm/install_dependencies.rst
 #
 
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
 
 import os
 

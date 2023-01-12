@@ -223,6 +223,10 @@ def rst2md(text, gallery_conf, target_dir, heading_levels, real_func):
     return text
 
 
+def install_request_hook(gallery_conf, fname):
+    testing.utils.install_request_hook(depth=3)
+
+
 INSTALL_TVM_DEV = f"""\
 %%shell
 # Installs the latest dev build of TVM from PyPI. If you wish to build
@@ -431,6 +435,7 @@ gallery_dirs = [
     "topic/vta/tutorials",
 ]
 
+
 subsection_order = ExplicitOrder(
     str(p)
     for p in [
@@ -563,6 +568,7 @@ sphinx_gallery_conf = {
     "expected_failing_examples": [],
     "reset_modules": ("matplotlib", "seaborn", force_gc),
     "promote_jupyter_magic": True,
+    "reset_modules": (install_request_hook),
 }
 
 autodoc_default_options = {
