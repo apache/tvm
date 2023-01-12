@@ -510,7 +510,7 @@ class PythonConverter(ExprFunctor):
 
         # need to get the value out of a NDArray to check the condition
         # equvialent to: val.numpy()
-        cond_check = ast.Call(ast.Attribute(cond_body, "asnumpy", Load()), [], [])
+        cond_check = ast.Call(ast.Attribute(cond_body, "numpy", Load()), [], [])
         ret = ast.IfExp(cond_check, true_body, false_body)
         return (ret, cond_defs + true_defs + false_defs)
 
