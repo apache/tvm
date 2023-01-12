@@ -34,7 +34,7 @@ Doc PrintVar(const tir::Var& var, const ObjectPath& p, const IRDocsifier& d) {
         ExprDoc rhs = d->AsDoc<ExprDoc>(type, p->Attr("type_annotation"));
         opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
       } else {
-        ExprDoc rhs = TIR(d)->Attr("var")->Call({LiteralDoc::DataType(var->dtype)});
+        ExprDoc rhs = TIR("var")->Call({LiteralDoc::DataType(var->dtype)});
         opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
       }
     }
@@ -57,8 +57,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::IterVar>("", [](tir::IterVar var, ObjectPath p, IRDocsifier d) -> Doc {
-      return TIR(d)
-          ->Attr("iter_var")
+      return TIR("iter_var")
           ->Call({
               d->AsDoc<ExprDoc>(var->var, p->Attr("var")),
               d->AsDoc<ExprDoc>(var->dom, p->Attr("dom")),
@@ -67,27 +66,11 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           });
     });
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
-    .set_dispatch<tir::Buffer>("", [](tir::Buffer buffer, ObjectPath p, IRDocsifier d) -> Doc {
-      if (!d->IsVarDefined(buffer)) {
-        if (Optional<Frame> opt_f = FindLowestVarDef(buffer, d)) {
-          ExprDoc lhs = DefineBuffer(buffer, opt_f.value(), d);
-          ExprDoc rhs = BufferDecl(buffer, "buffer_decl",  // TODO(@junrushao): name confusing
-                                   {}, p, opt_f.value(), d);
-          opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
-        }
-      }
-      if (Optional<ExprDoc> doc = d->GetVarDoc(buffer)) {
-        return doc.value();
-      }
-      LOG(FATAL) << "IndexError: Buffer is not defined in the environment: " << buffer;
-    });
-
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Not>("", [](tir::Not node, ObjectPath p, IRDocsifier d) -> Doc {
       ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));
       if (a->IsInstance<LiteralDocNode>()) {
-        return TIR(d)->Attr("Not")->Call({a});
+        return TIR("Not")->Call({a});
       }
       return OperationDoc(OperationDocNode::Kind::kNot, {a});
     });
@@ -101,12 +84,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Cast>("", [](tir::Cast cast, ObjectPath p, IRDocsifier d) -> Doc {
       ExprDoc dtype = LiteralDoc::DataType(cast->dtype);
       ExprDoc value = d->AsDoc<ExprDoc>(cast->value, p->Attr("value"));
-      return TIR(d)->Attr("Cast")->Call({dtype, value});
+      return TIR("Cast")->Call({dtype, value});
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Select>("", [](tir::Select select, ObjectPath p, IRDocsifier d) -> Doc {
-      return TIR(d)->Attr("Select")->Call({
+      return TIR("Select")->Call({
           d->AsDoc<ExprDoc>(select->condition, p->Attr("condition")),
           d->AsDoc<ExprDoc>(select->true_value, p->Attr("true_value")),
           d->AsDoc<ExprDoc>(select->false_value, p->Attr("false_value")),
@@ -115,7 +98,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Ramp>("", [](tir::Ramp ramp, ObjectPath p, IRDocsifier d) -> Doc {
-      return TIR(d)->Attr("Ramp")->Call({
+      return TIR("Ramp")->Call({
           d->AsDoc<ExprDoc>(ramp->base, p->Attr("base")),
           d->AsDoc<ExprDoc>(ramp->stride, p->Attr("stride")),
           LiteralDoc::Int(ramp->lanes),
@@ -124,8 +107,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Broadcast>("", [](tir::Broadcast bc, ObjectPath p, IRDocsifier d) -> Doc {
-      return TIR(d)
-          ->Attr("Broadcast")
+      return TIR("Broadcast")
           ->Call({
               d->AsDoc<ExprDoc>(bc->value, p->Attr("value")),
               LiteralDoc::Int(bc->lanes),
@@ -135,7 +117,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Shuffle>(  //
         "", [](tir::Shuffle shuffle, ObjectPath p, IRDocsifier d) -> Doc {
-          return TIR(d)->Attr("Shuffle")->Call({
+          return TIR("Shuffle")->Call({
               d->AsDoc<ExprDoc>(shuffle->vectors, p->Attr("vectors")),
               d->AsDoc<ExprDoc>(shuffle->indices, p->Attr("indices")),
           });
@@ -170,12 +152,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             }
           }
           ExprDoc id = d->AsDoc<ExprDoc>(r->identity_element, p->Attr("identity_element"));
-          return TIR(d)->Attr("comm_reducer")->Call({lambda, id});
+          return TIR("comm_reducer")->Call({lambda, id});
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Let>("", [](tir::Let let, ObjectPath p, IRDocsifier d) -> Doc {
-      return TIR(d)->Attr("let")->Call({
+      return TIR("let")->Call({
           d->AsDoc<ExprDoc>(let->var, p->Attr("var")),
           d->AsDoc<ExprDoc>(let->value, p->Attr("value")),
           d->AsDoc<ExprDoc>(let->body, p->Attr("body")),
@@ -209,7 +191,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       ExprDoc prefix{nullptr};
       if (const auto* op = call->op.as<OpNode>()) {
         String name = op_names[GetRef<Op>(op)];
-        prefix = TIR(d)->Attr(name);
+        prefix = TIR(name);
       } else if (const auto* gv = call->op.as<GlobalVarNode>()) {
         prefix = LiteralDoc::Str(gv->name_hint);
       } else {
@@ -232,19 +214,21 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Any>("", [](tir::Any any, ObjectPath p, IRDocsifier d) -> Doc {
-      return TIR(d)->Attr("Any")->Call({});
+      return TIR("Any")->Call({});
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Reduce>("", [](tir::Reduce r, ObjectPath p, IRDocsifier d) -> Doc {
+      ExprDoc combiner = d->AsDoc<ExprDoc>(r->combiner, p->Attr("combiner"));
+      ExprDoc source = d->AsDoc<ExprDoc>(r->source, p->Attr("source"));
+      ExprDoc init = d->AsDoc<ExprDoc>(r->init, p->Attr("init"));
+      ExprDoc axis = d->AsDoc<ExprDoc>(r->axis, p->Attr("axis"));
+      ExprDoc condition = d->AsDoc<ExprDoc>(r->condition, p->Attr("condition"));
+      ExprDoc value_index = LiteralDoc::Int(r->value_index);
+      return TIR("reduce")->Call({combiner}, {"source", "init", "axis", "condition", "value_index"},
+                                 {source, init, axis, condition, value_index});
       LOG(FATAL) << "ValueError: Reduce should never exist in TIR: " << r;
     });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::ProducerLoad>(
-        "", [](tir::ProducerLoad load, ObjectPath p, IRDocsifier d) -> Doc {
-          LOG(FATAL) << "ValueError: ProducerLoad should never exist in TIR: " << load;
-        });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Load>("", [](tir::Load load, ObjectPath p, IRDocsifier d) -> Doc {
@@ -257,7 +241,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
                                    [](tir::NodeType node, ObjectPath p, IRDocsifier d) -> Doc { \
                                      ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));      \
                                      ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));      \
-                                     return TIR(d)->Attr(OpString)->Call({a, b});               \
+                                     return TIR(OpString)->Call({a, b});                        \
                                    });
 
 #define TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(NodeType, OpString, OpKind)          \
@@ -267,7 +251,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));                     \
             ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));                     \
             if (a->IsInstance<LiteralDocNode>() && b->IsInstance<LiteralDocNode>()) { \
-              return TIR(d)->Attr(OpString)->Call({a, b});                            \
+              return TIR(OpString)->Call({a, b});                                     \
             }                                                                         \
             return OperationDoc(OperationDocNode::Kind::OpKind, {a, b});              \
           });
@@ -293,6 +277,40 @@ TVM_SCRIPT_PRINTER_DEF_BINARY(Max, "max");
 
 #undef TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR
 #undef TVM_SCRIPT_PRINTER_DEF_BINARY
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::VarNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::SizeVarNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::IterVarNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::StringImmNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::CastNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::AddNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::SubNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::MulNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::DivNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::ModNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::FloorDivNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::FloorModNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::MinNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::MaxNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::LTNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::LENode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::EQNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::NENode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::GTNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::GENode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::AndNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::OrNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::NotNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::SelectNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::RampNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::BroadcastNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::LetNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::CallNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::ShuffleNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::CommReducerNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::AnyNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::ReduceNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::LoadNode>(ReprPrint);
 
 }  // namespace printer
 }  // namespace script

@@ -27,7 +27,7 @@ namespace printer {
 
 String GenerateUniqueName(std::string name_hint, std::unordered_set<String>* defined_names) {
   for (char& c : name_hint) {
-    if (c != 'c' && !std::isalnum(c)) {
+    if (c != '_' && !std::isalnum(c)) {
       c = '_';
     }
   }
@@ -39,10 +39,10 @@ String GenerateUniqueName(std::string name_hint, std::unordered_set<String>* def
 }
 
 IdDoc IRDocsifierNode::Define(const ObjectRef& obj, const Frame& frame, const String& name_hint) {
+  ICHECK(obj2info.find(obj) == obj2info.end()) << "Duplicated object: " << obj;
   String name = GenerateUniqueName(name_hint, &this->defined_names);
   DocCreator doc_factory = [name]() { return IdDoc(name); };
-  auto result = obj2info.insert({obj, VariableInfo{std::move(doc_factory), name}});
-  ICHECK(result.second) << "Duplicated object: " << obj;
+  obj2info.insert({obj, VariableInfo{std::move(doc_factory), name}});
   IdDoc def_doc(name);
   frame->AddExitCallback([this, obj]() { this->RemoveVar(obj); });
   return def_doc;
@@ -50,8 +50,6 @@ IdDoc IRDocsifierNode::Define(const ObjectRef& obj, const Frame& frame, const St
 
 void IRDocsifierNode::Define(const ObjectRef& obj, const Frame& frame, DocCreator doc_factory) {
   ICHECK(obj2info.find(obj) == obj2info.end()) << "Duplicated object: " << obj;
-  ICHECK(!doc_factory()->IsInstance<IdDocNode>())
-      << "IRDocsifierNode::Define cannot be used for variable that's mapped to IdDoc.";
   obj2info.insert({obj, VariableInfo{std::move(doc_factory), NullOpt}});
   frame->AddExitCallback([this, obj]() { this->RemoveVar(obj); });
 }
@@ -146,9 +144,8 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
   this->common_prefix = std::move(visitor.common_prefix);
 }
 
-IRDocsifier::IRDocsifier(Map<String, String> ir_prefix) {
+IRDocsifier::IRDocsifier() {
   auto n = make_object<IRDocsifierNode>();
-  n->ir_prefix = std::move(ir_prefix);
   n->dispatch_tokens.push_back("");
   data_ = std::move(n);
 }

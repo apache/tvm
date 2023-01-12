@@ -127,10 +127,6 @@ class IRDocsifierNode : public Object {
     Optional<String> name;
   };
   /*!
-   * \brief This map connects IR dispatch token to the name of identifier.
-   */
-  Map<String, String> ir_prefix;
-  /*!
    * \brief The stack of frames.
    * \sa FrameNode
    */
@@ -152,7 +148,6 @@ class IRDocsifierNode : public Object {
   std::unordered_map<const Object*, std::vector<const Object*>> common_prefix;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("ir_prefix", &ir_prefix);
     v->Visit("frames", &frames);
     v->Visit("dispatch_tokens", &dispatch_tokens);
     v->Visit("mod", &mod);
@@ -236,11 +231,8 @@ class IRDocsifierNode : public Object {
 class IRDocsifier : public ObjectRef {
  public:
   using FType = IRDocsifierFunctor<printer::Doc, ObjectPath, IRDocsifier>;
-  /*!
-   * \brief Create a IRDocsifier.
-   * \param ir_prefix The ir_prefix to use for this IRDocsifier.
-   */
-  explicit IRDocsifier(Map<String, String> ir_prefix);
+  /*! \brief Create a IRDocsifier. */
+  IRDocsifier();
   /*! \brief The registration table for IRDocsifier. */
   TVM_DLL static FType& vtable();
 
