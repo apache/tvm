@@ -2159,7 +2159,7 @@ def _test_conv2d_int8_alter_dtype(data_dtype, target, dot_product_instrs):
             out_dtype=out_dtype,
         )
 
-    I, O, H, W = 1, 1, 56, 56
+    I, O, H, W = 64, 64, 56, 56
     kH = kW = 3
 
     data_shape = (1, I, H, W)
@@ -2168,16 +2168,16 @@ def _test_conv2d_int8_alter_dtype(data_dtype, target, dot_product_instrs):
 
     bias = relay.var("bias", shape=bias_shape, dtype="int32")
     bias_np = np.random.randint(low=-127, high=128, size=bias_shape).astype("int32")
-    weight_np = np.random.uniform(-128, 127, size=weight_shape).astype("int8")
+    weight_np = np.random.uniform(-32, 32, size=weight_shape).astype("int8")
 
     conv2d = get_conv2d_nchw(data_shape, weight_shape, data_dtype)
     bias_add = relay.add(conv2d, bias)
     mod = tvm.IRModule.from_expr(bias_add)
 
     if data_dtype == "uint8":
-        data_np = np.random.uniform(0, 255, size=data_shape).astype("uint8")
+        data_np = np.random.uniform(0, 64, size=data_shape).astype("uint8")
     else:
-        data_np = np.random.uniform(-128, 127, size=data_shape).astype("int8")
+        data_np = np.random.uniform(-32, 32, size=data_shape).astype("int8")
 
     params = {"weight": weight_np, "bias": bias_np}
 
