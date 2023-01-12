@@ -388,9 +388,11 @@ def conv2d_NCHWc(data, kernel, stride, padding, dilation, layout, out_layout, ou
     n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
     in_channel = ic_chunk * ic_bn
     target = tvm.target.Target.current(allow_none=False)
-    oc_chunk, ic_chunk_group, kernel_height, kernel_width, _, oc_bn = get_const_tuple(kernel.shape)
+    oc_chunk, ic_chunk_group, kernel_height, kernel_width, kernel_ic_bn, oc_bn = get_const_tuple(
+        kernel.shape
+    )
     num_filter = oc_chunk * oc_bn
-    groups = ic_chunk // ic_chunk_group
+    groups = in_channel // (ic_chunk_group * kernel_ic_bn)
 
     dilated_kernel_h = (kernel_height - 1) * dilation_h + 1
     dilated_kernel_w = (kernel_width - 1) * dilation_w + 1
@@ -415,26 +417,44 @@ def conv2d_NCHWc(data, kernel, stride, padding, dilation, layout, out_layout, ou
     else:
         data_pad = data
 
-    ic = te.reduce_axis((0, in_channel), name="ic")
     kh = te.reduce_axis((0, kernel_height), name="kh")
     kw = te.reduce_axis((0, kernel_width), name="kw")
 
     idxdiv = tvm.tir.indexdiv
     idxmod = tvm.tir.indexmod
 
+    if groups == 1:
+        ic = te.reduce_axis((0, in_channel), name="ic")
+        return te.compute(
+            oshape,
+            lambda n, oc_chunk, oh, ow, oc_block: te.sum(
+                data_pad[
+                    n,
+                    idxdiv(ic, ic_bn),
+                    oh * HSTR + kh * dilation_h,
+                    ow * WSTR + kw * dilation_w,
+                    idxmod(ic, ic_bn),
+                ].astype(out_dtype)
+                * kernel[oc_chunk, idxdiv(ic, ic_bn), kh, kw, idxmod(ic, ic_bn), oc_block].astype(
+                    out_dtype
+                ),
+                axis=[ic, kh, kw],
+            ),
+            name="conv2d_NCHWc",
+            tag="conv2d_NCHWc",
+        )
+    ic = te.reduce_axis((0, in_channel // groups), name="ic")
     return te.compute(
         oshape,
-        lambda n, oc_chunk, oh, ow, oc_block: te.sum(
+        lambda n, occ, oh, ow, oc_block: te.sum(
             data_pad[
                 n,
-                idxdiv(ic, ic_bn),
+                (occ // (oc_chunk // groups)) * (ic_chunk // groups) + idxdiv(ic, ic_bn),
                 oh * HSTR + kh * dilation_h,
                 ow * WSTR + kw * dilation_w,
                 idxmod(ic, ic_bn),
             ].astype(out_dtype)
-            * kernel[oc_chunk, idxdiv(ic, ic_bn), kh, kw, idxmod(ic, ic_bn), oc_block].astype(
-                out_dtype
-            ),
+            * kernel[occ, idxdiv(ic, ic_bn), kh, kw, idxmod(ic, ic_bn), oc_block].astype(out_dtype),
             axis=[ic, kh, kw],
         ),
         name="conv2d_NCHWc",
