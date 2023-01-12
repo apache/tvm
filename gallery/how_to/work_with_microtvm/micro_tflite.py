@@ -36,17 +36,12 @@ import os
 # By default, this tutorial runs on x86 CPU using TVM's C runtime. If you would like
 # to run on real Zephyr hardware, you must export the `TVM_MICRO_USE_HW` environment
 # variable. Otherwise (if you are using the C runtime), you can skip installing
-# Zephyr and CMSIS-NN. It takes ~20 minutes to install both of them.
+# Zephyr. It takes ~20 minutes to install Zephyr.
 use_physical_hw = bool(os.getenv("TVM_MICRO_USE_HW"))
 
 ######################################################################
 #
 #     .. include:: ../../../../gallery/how_to/work_with_microtvm/install_zephyr.rst
-#
-
-######################################################################
-#
-#     .. include:: ../../../../gallery/how_to/work_with_microtvm/install_cmsis.rst
 #
 
 ######################################################################
@@ -219,7 +214,6 @@ if use_physical_hw:
         "board": BOARD,
         "serial_number": SERIAL,
         "config_main_stack_size": 4096,
-        "cmsis_path": os.getenv("CMSIS_PATH", default="/content/cmsis"),
         "zephyr_base": os.getenv("ZEPHYR_BASE", default="/content/zephyrproject/zephyr"),
     }
 

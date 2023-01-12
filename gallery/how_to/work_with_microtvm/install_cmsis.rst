@@ -33,3 +33,7 @@ Install CMSIS-NN
         wget ${CMSIS_URL} -O "${DOWNLOAD_PATH}"
         tar -xf "${DOWNLOAD_PATH}" -C ${CMSIS_PATH} --strip-components=1
         rm ${DOWNLOAD_PATH}
+
+        CMSIS_NN_TAG="v4.0.0"
+        CMSIS_NN_URL="https://github.com/ARM-software/CMSIS-NN.git"
+        git clone ${CMSIS_NN_URL} --branch ${CMSIS_NN_TAG} --single-branch ${CMSIS_PATH}/CMSIS-NN
