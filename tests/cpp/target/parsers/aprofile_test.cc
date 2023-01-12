@@ -48,7 +48,6 @@ static TargetFeatures ParseTargetWithAttrs(String mcpu, String mtriple, Array<St
 TEST(AProfileParser, ParseTargetKeys) {
   TargetJSON target = ParseTarget({});
   Array<String> keys = Downcast<Array<String>>(target.at("keys"));
-  ASSERT_EQ(keys.size(), 1);
   ASSERT_EQ(keys.size(), 2);
   ASSERT_EQ(keys[0], "arm_cpu");
   ASSERT_EQ(keys[1], "cpu");
