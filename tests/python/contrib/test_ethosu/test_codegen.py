@@ -1191,6 +1191,29 @@ def test_tflite_relu6():
     )
 
 
+# Specific case when operation cannot be offloaded to NPU by single binary elementwise operation because
+# min and max operations cannot be fused with requantize if there are different scales as it's not supported on NPU.
+@pytest.mark.parametrize("operation", [tf.math.minimum, tf.math.maximum])
+def test_tflite_min_max_relu_n1_to_1(operation):
+    np.random.seed(0)
+    accel_type = "ethos-u55-128"
+    ifm_shape = (1, 12, 16, 8)
+
+    @tf.function
+    def min_max_relu_n1_to_1(lhs, rhs):
+        op = operation(lhs, rhs)
+        # The specific pattern will be replaced into RELU_N1_TO_1 by tflite.
+        return tf.math.maximum(-1.0, tf.math.minimum(op, 1.0))
+
+    infra.compare_tvm_with_tflite(
+        min_max_relu_n1_to_1,
+        [ifm_shape, ifm_shape],
+        accel_type,
+        enable_cascader=True,
+        ranges=[(-1, 1), (0, 2)],
+    )
+
+
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize("ifm_shape", [(1, 14), (1, 151)])
 @pytest.mark.parametrize("ofm_channels", [32, 64])
