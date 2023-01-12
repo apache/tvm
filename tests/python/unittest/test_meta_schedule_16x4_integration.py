@@ -173,7 +173,7 @@ def test_vnni_schedule_fn_database():
 
 @tvm.testing.requires_skylake_avx512
 def test_avx512_schedule_fn_database():
-    target = tvm.target.Target("llvm -keys=x86,cpu -mcpu=skylake-512 -num-cores=4")
+    target = tvm.target.Target("llvm -keys=x86,cpu -mcpu=skylake-avx512 -num-cores=4")
     schedule_16x4_dense_fn_database(target, AVX512_INTRIN, 16, 16, 16)
 
 
