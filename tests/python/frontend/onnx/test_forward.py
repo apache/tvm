@@ -7708,14 +7708,16 @@ def test_pad_constant_value(target, dev):
         graph_inputs = [helper.make_tensor_value_info("input", TensorProto.FLOAT, tensor_shape)]
         graph_outputs = [helper.make_tensor_value_info("output", TensorProto.FLOAT, None)]
         pads = helper.make_tensor("pads", TensorProto.INT64, [8], [0, 0, 0, 2, 0, 0, 0, 0])
-        pad_node = helper.make_node("Pad", ["input", "pads", constant_value], ["output"], mode="constant")
+        pad_node = helper.make_node(
+            "Pad", ["input", "pads", constant_value], ["output"], mode="constant"
+        )
         graph_nodes = [pad_node]
         graph = helper.make_graph(
             graph_nodes,
             "test_pad_constant_value",
             inputs=graph_inputs,
             outputs=graph_outputs,
-            initializer=[pads]
+            initializer=[pads],
         )
         model = helper.make_model(
             graph,
