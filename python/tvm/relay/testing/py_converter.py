@@ -38,7 +38,7 @@ OUTPUT_VAR_NAME = "_py_out"
 #     import tvm
 #     from tvm import relay
 #     from tvm import nd
-#     from tvm.runtime import import container as _container
+#     from tvm.runtime import container as _container
 #     from tvm.relay.backend.interpreter import RefValue, ConstructorValue
 PROLOGUE = [
     ast.Import([alias("numpy", None)]),
@@ -201,7 +201,7 @@ class PythonConverter(ExprFunctor):
 
         var_names = [self.get_var_name(var) for var in func.params]
         body, defs = self.visit(func.body)
-        ret = self.create_def(func_name, var_names, defs + [Return(body)])
+        ret = self.create_def(func_name, var_names, defs + [Return(body)], register_packed=True)
         return (ret, func_name)
 
     def convert_module(self):
@@ -223,9 +223,24 @@ class PythonConverter(ExprFunctor):
         """Creates a simple function call."""
         return ast.Call(self.parse_name(func_name), arguments, [])
 
-    def create_def(self, func_name: str, arguments: [str], body):
-        """Wrapper over function definition AST node, whose constructor is inconvenient."""
+    def create_def(self, func_name: str, arguments: [str], body, register_packed: bool = False):
+        """
+        Wrapper over function definition AST node, whose constructor is inconvenient.
+
+        register_packed includes a tvm.register_func decorator on the generated function if true.
+        This option should be used for Relay functions (warning: clobbers registry!)
+        """
         inner_args = [ast.arg(argument, None) for argument in arguments]
+
+        # add a decorator to register as a PackedFunc so the function will be an ObjectRef
+        # and will allow for putting functions into tuples or refs
+        decorator_list = [
+            ast.Call(
+                self.parse_name("tvm.register_func"),
+                [ast.Constant(value=func_name)],
+                [ast.keyword(arg="override", value=ast.Constant(value=True))],
+            )
+        ]
 
         global __MAJOR__, __MINOR__
         if __MAJOR__ == 3 and __MINOR__ >= 8:
@@ -237,7 +252,7 @@ class PythonConverter(ExprFunctor):
             func_name,
             arguments,
             body,
-            [],
+            decorator_list if register_packed else [],
             None,
         )
 
@@ -422,7 +437,15 @@ class PythonConverter(ExprFunctor):
     def visit_global_var(self, gvar: Expr):
         # we don't need to add numbers to global var names because
         # the *names* are checked for uniqueness in the mod
-        return (Name(str(gvar.name_hint), Load()), [])
+        func_name = str(gvar.name_hint)
+        # load in the packed func and cast to object so it can be put in containers
+        return (
+            self.create_call(
+                "_container._cast_packed_func",
+                [self.create_call("tvm.get_global_func", [ast.Constant(value=func_name)])],
+            ),
+            [],
+        )
 
     def visit_let(self, letexp: Expr):
         # To properly account for scoping and ensure that the entire node produces an expression,
@@ -494,7 +517,14 @@ class PythonConverter(ExprFunctor):
     def visit_function(self, func: Expr):
         # Python's lambdas are very restrictive, so we do "name" inline functions
         converted_func, func_name = self.convert_func_node(func)
-        return (Name(func_name, Load()), [converted_func])
+        # load in the PackedFunc and cast to object so it can be stored in other containers
+        return (
+            self.create_call(
+                "_container._cast_packed_func",
+                [self.create_call("tvm.get_global_func", [ast.Constant(value=func_name)])],
+            ),
+            [converted_func],
+        )
 
     def visit_call(self, call: Expr):
         """For calls, we must distinguish between ordinary functions,
@@ -524,7 +554,10 @@ class PythonConverter(ExprFunctor):
         # ordinary function
         converted_func, defs = self.visit(func)
         defs += field_defs
-        return (ast.Call(converted_func, fields, []), defs)
+        # have to convert func back from an object to be able to call it
+        recast_func = self.create_call("_container._uncast_packed_func", [converted_func])
+
+        return (ast.Call(recast_func, fields, []), defs)
 
     def visit_ref_create(self, ref: Expr):
         val, defs = self.visit(ref.value)
@@ -606,7 +639,11 @@ def to_python(expr: Expr, mod=None, target=tvm.target.Target("llvm")):
 
 def run_as_python(expr: Expr, mod=None, target=tvm.target.Target("llvm")):
     """Converts the given Relay expression into a Python script and
-    executes it."""
+    executes it.
+
+    Note that closures will be returned as PackedFuncs cast to Objects;
+    to execute them, they need to be cast back using runtime.container._uncast_packed_func
+    """
     mod = mod if mod is not None else tvm.IRModule()
     py_ast = to_python(expr, mod, target)
     code = compile(py_ast, "<string>", "exec")

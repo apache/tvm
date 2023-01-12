@@ -202,5 +202,18 @@ TVM_REGISTER_GLOBAL("runtime.GetShapeTupleElem").set_body_typed([](ShapeTuple sh
   ICHECK_LT(idx, shape.size());
   return shape[idx];
 });
+
+// Helper functions for testing: PackedFunc is an ObjectRef in C++ and
+// can be put inside runtime containers, but it isn't considered an Object type in Python,
+// so the Python counterparts of these containers do not accept it.
+// These functions cast the PackedFunc into a generic Object so it can be treated as one
+TVM_REGISTER_GLOBAL("runtime.CastPackedFuncToObject").set_body_typed([](const PackedFunc& pf) {
+  return Downcast<ObjectRef>(pf);
+});
+
+TVM_REGISTER_GLOBAL("runtime.CastToPackedFunc").set_body_typed([](const ObjectRef& obj) {
+  return Downcast<PackedFunc>(obj);
+});
+
 }  // namespace runtime
 }  // namespace tvm
