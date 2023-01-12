@@ -178,8 +178,10 @@ def get_closest_index(in_x, rounding_method, boxes):
 
         numerator = in_x.numerator
         denominator = in_x.denominator
-        if rounding_method in ("round", "round_prefer_floor") or boxes is not None:
+        if rounding_method == "round" or boxes is not None:
             return (numerator + denominator // 2) // denominator
+        if rounding_method == "round_prefer_floor":
+            return (numerator + (denominator - 1) // 2) // denominator
         elif rounding_method == "round_prefer_ceil":
             return (numerator + (denominator + 1) // 2) // denominator
         elif rounding_method == "floor":
