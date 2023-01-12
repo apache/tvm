@@ -31,11 +31,7 @@ TensorIR is a domain specific language for deep learning programs serving two br
 
 # sphinx_gallery_start_ignore
 # sphinx_gallery_requires_cuda = True
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
 # sphinx_gallery_end_ignore
-
 import tvm
 from tvm.ir.module import IRModule
 from tvm.script import tir as T
