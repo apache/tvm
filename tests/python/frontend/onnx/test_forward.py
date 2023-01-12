@@ -7698,5 +7698,35 @@ class TestSetSpan:
         self._verify(_res, _golden)
 
 
+@tvm.testing.parametrize_targets
+def test_pad_constant_value(target, dev):
+    """test_pad_constant_value"""
+
+    def verify_pad_constant_value(constant_value):
+        tensor_shape = [1, 2, 257, 126]
+        tensor_values = [np.random.uniform(size=tensor_shape).astype("float32")]
+        graph_inputs = [helper.make_tensor_value_info("input", TensorProto.FLOAT, tensor_shape)]
+        graph_outputs = [helper.make_tensor_value_info("output", TensorProto.FLOAT, None)]
+        pads = helper.make_tensor("pads", TensorProto.INT64, [8], [0, 0, 0, 2, 0, 0, 0, 0])
+        pad_node = helper.make_node(
+            "Pad", ["input", "pads", constant_value], ["output"], mode="constant"
+        )
+        graph_nodes = [pad_node]
+        graph = helper.make_graph(
+            graph_nodes,
+            "test_pad_constant_value",
+            inputs=graph_inputs,
+            outputs=graph_outputs,
+            initializer=[pads],
+        )
+        model = helper.make_model(
+            graph,
+            producer_name="test_pad_constant_value",
+        )
+        verify_with_ort_with_inputs(model, tensor_values, target=target, dev=dev)
+
+    verify_pad_constant_value("")
+
+
 if __name__ == "__main__":
     tvm.testing.main()
