@@ -108,12 +108,14 @@ def qnn_conv2d_strategy_arm_cpu(attrs, inputs, _out_type, target):
                     topi.arm_cpu.schedule_qnn_depthwise_conv2d,
                     name="qnn_depthwise_conv2d.arm_cpu",
                 )
-            else:
+            elif y_stride == x_stride == 1:
                 strategy.add_implementation(
-                    topi.arm_cpu.qnn_explicit_depthwise_conv2d,
-                    topi.arm_cpu.schedule_qnn_depthwise_conv2d,
-                    name="qnn_depthwise_conv2d.arm_cpu",
+                    topi.arm_cpu.qnn_unrolled_depthwise_conv2d,
+                    topi.arm_cpu.schedule_qnn_unrolled_depthwise_conv2d,
+                    name="qnn_unrolled_depthwise_conv2d.arm_cpu",
                 )
+            else:
+                raise TVMError("No QNN depthwise Conv2D Cortex-M schedule supports these params!")
         else:
             raise TVMError("QNN depthwise Conv2D for Arm Cortex-M DSP got incorrect input layout!")
     else:

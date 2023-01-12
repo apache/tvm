@@ -256,7 +256,7 @@ def _make_conv2d_op(kernel, data_quant, kernel_quant, hyperparams, is_depthwise=
         kernel_layout="IOHW" if is_depthwise else kernel_layout,
         dilation=(1, 1),
         strides=strides,
-        padding=(0, 0, 0, 0),
+        padding=padding,
         groups=groups,
         channels=channels,
         out_dtype="int32",
@@ -295,7 +295,7 @@ def _make_aot_model(params, hyperparams, layouts, is_depthwise=False):
     dtype, padding, _strides = hyperparams
     data_layout, _, output_layout = layouts
 
-    if any(padding):
+    if False: #any(padding):
         pad_const = int(data_quant["zero_points"][0])
         pad_before = (0, padding[0], padding[1], 0)
         pad_after = (0, padding[2], padding[3], 0)

@@ -20,6 +20,7 @@ import numpy as np
 
 from tvm import nd, relay, target
 from ..nn import *
+from ..utils import get_const_tuple
 
 
 def prev_ops_match(curr_op, pattern):
@@ -106,17 +107,34 @@ def alter_conv2d_layout(attrs, inputs, _tinfos, _out_type):
     data_expr, kernel_expr = inputs[:2]
     is_depthwise = attrs.groups > 1
     new_kernel_layout = "IOHW" if is_depthwise else "OHWI"
+    assert attrs.data_layout == "NHWC"
+    padding = get_const_tuple(attrs.padding)
+
+    # For cortex-m devices, it does not make sense to do bounds checking for conv2d at
+    # runtime, and it is more efficient to copy the tensor to a new buffer. If we did
+    # this inside our conv2d, it
+    # We should handle padding separately from convolution, so the original tensor can be
+    # de-allocated immediately. This may also help with fusing padding onto a previous
+    # operator.
+
+    if any(attrs.padding):
+        data_expr = relay.nn.pad(data_expr, ((0, 0), (0, 1), (0, 1), (0, 0)), -128)
 
     op = relay.qnn.op.conv2d(
         relay.cast(data_expr, dtype="int16"),
         relay.cast(kernel_expr, dtype="int16"),
         *inputs[2:],
-        **edit_attrs(attrs, kernel_layout=new_kernel_layout, out_layout="NHWC"),
+        **edit_attrs(
+            attrs,
+            padding=(0, 0, 0, 0),
+            kernel_layout=new_kernel_layout,
+            out_layout="NHWC"
+        ),
     )
 
     # If possible, modify depthwise ops to take as input NCHW instead.
-    if is_depthwise and prev_ops_match(op.args[0], ("cast", "qnn.requantize", "add", "qnn.conv2d")):
-        op = _alter_depthwise_conv2d_layout(op)
+    #if is_depthwise and prev_ops_match(op.args[0], ("cast", "qnn.requantize", "add", "qnn.conv2d")):
+    #    op = _alter_depthwise_conv2d_layout(op)
 
     return op
 
