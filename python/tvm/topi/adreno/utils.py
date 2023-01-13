@@ -555,8 +555,13 @@ def bind_data_copy(stage, axis_to_vectorize=None):
             stage.vectorize(axes[-1])
         else:
             ftc = numpy.prod(shape)
-            vthread = get_div(ftc, 8)
             fused = stage.fuse(*stage.op.axis)
+            if ftc % 4 == 0:
+                ftc = ftc / 4
+                fused, vec = stage.split(fused, factor=4)
+                stage.vectorize(vec)
+
+            vthread = get_div(ftc, 8)
             ftc = ftc / vthread
             # 1024 is a maximum work group size on the most Adreno GPU
             num_thread = get_div(ftc, 1024 // vthread)
