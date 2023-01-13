@@ -18,7 +18,6 @@
 import tvm._ffi
 from .object import Object, PyNativeObject
 from .object_generic import ObjectTypes
-from .packed_func import PackedFunc
 from . import _ffi_api
 
 
