@@ -268,6 +268,15 @@ class PythonConverter(ExprFunctor):
             None,
         )
 
+    def create_tuple(self, fields):
+        """
+        Given the ASTs for tuple fields, produce an AST that creates a
+        tuple value with those fields
+        """
+        # Use the FFI API directly so that PackedFuncs will be correctly converted to ObjectRef.
+        # Using tvm.runtime.container.tuple_object fails to convert PackedFuncs in Python
+        return self.create_call("_container._ffi_api.Tuple", fields)
+
     def create_op_call(self, op: Function, relay_args, py_args):
         """Lowers the passed primitive function, registers it in TVM's
         global compiler, and produces a call to the lowered function in
@@ -321,8 +330,7 @@ class PythonConverter(ExprFunctor):
                 assignments += inner_assignments
                 extra_args += inner_args
                 fields.append(inner_output)
-            fields = [ast.List(fields, Load())]
-            return (assignments, extra_args, self.create_call("_container.tuple_object", fields))
+            return (assignments, extra_args, self.create_tuple(fields))
 
         # create a function to wrap the call of the lowered op and return
         # a call to that function
@@ -450,14 +458,8 @@ class PythonConverter(ExprFunctor):
         # we don't need to add numbers to global var names because
         # the *names* are checked for uniqueness in the mod
         func_name = str(gvar.name_hint)
-        # load in the packed func and cast to object so it can be put in containers
-        return (
-            self.create_call(
-                "_container._cast_packed_func",
-                [self.create_call("tvm.get_global_func", [ast.Constant(value=func_name)])],
-            ),
-            [],
-        )
+        # load in the packed func
+        return (self.create_call("tvm.get_global_func", [ast.Constant(value=func_name)]), [])
 
     def visit_let(self, letexp: Expr):
         # To properly account for scoping and ensure that the entire node produces an expression,
@@ -495,8 +497,7 @@ class PythonConverter(ExprFunctor):
 
     def visit_tuple(self, tup: Expr):
         fields, ret_defs = self.convert_fields(tup.fields)
-        fields = [ast.List(fields, Load())]
-        return (self.create_call("_container.tuple_object", fields), ret_defs)
+        return (self.create_tuple(fields), ret_defs)
 
     def visit_tuple_getitem(self, tgi: Expr):
         tup, tup_defs = self.visit(tgi.tuple_value)
@@ -529,12 +530,9 @@ class PythonConverter(ExprFunctor):
     def visit_function(self, func: Expr):
         # Python's lambdas are very restrictive, so we do "name" inline functions
         converted_func, func_name = self.convert_func_node(func)
-        # load in the PackedFunc and cast to object so it can be stored in other containers
+        # load in the PackedFunc
         return (
-            self.create_call(
-                "_container._cast_packed_func",
-                [self.create_call("tvm.get_global_func", [ast.Constant(value=func_name)])],
-            ),
+            self.create_call("tvm.get_global_func", [ast.Constant(value=func_name)]),
             [converted_func],
         )
 
@@ -566,10 +564,7 @@ class PythonConverter(ExprFunctor):
         # ordinary function
         converted_func, defs = self.visit(func)
         defs += field_defs
-        # have to convert func back from an object to be able to call it
-        recast_func = self.create_call("_container._uncast_packed_func", [converted_func])
-
-        return (ast.Call(recast_func, fields, []), defs)
+        return (ast.Call(converted_func, fields, []), defs)
 
     def visit_ref_create(self, ref: Expr):
         val, defs = self.visit(ref.value)
@@ -595,7 +590,7 @@ class PythonConverter(ExprFunctor):
             + val_defs
             + [
                 Assign([ast.Attribute(ref, "value", Store())], val),
-                Return(self.create_call("_container.tuple_object", [])),
+                Return(self.create_tuple([])),
             ],
         )
         return (self.create_call(thunk_name, []), [thunk])
@@ -653,8 +648,7 @@ def run_as_python(expr: Expr, mod=None, target=tvm.target.Target("llvm")):
     """Converts the given Relay expression into a Python script and
     executes it.
 
-    Note that closures will be returned as PackedFuncs cast to Objects;
-    to execute them, they need to be cast back using runtime.container._uncast_packed_func
+    Note that closures will be returned as PackedFuncs
     """
     mod = mod if mod is not None else tvm.IRModule()
     py_ast = to_python(expr, mod, target)

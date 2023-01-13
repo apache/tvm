@@ -61,24 +61,6 @@ def getitem_helper(obj, elem_getter, length, idx):
     return elem_getter(obj, idx)
 
 
-# helper functions for putting PackedFuncs inside other containers
-def _cast_packed_func(pf: PackedFunc) -> Object:
-    """
-    Helper function for testing: Casts the given PackedFunc into a TVM object
-    so that it can be stored inside other runtime containers
-    """
-    return _ffi_api.CastPackedFuncToObject(pf)
-
-
-def _uncast_packed_func(obj: Object) -> PackedFunc:
-    """
-    Helper function for testing: Casts the passed Object to a PackedFunc
-    so that it can be called. This allows for a PackedFunc to be cast to an
-    object, stored inside a runtime container, and then cast back to be called
-    """
-    return _ffi_api.CastToPackedFunc(obj)
-
-
 @tvm._ffi.register_object("runtime.ADT")
 class ADT(Object):
     """Algebatic data type(ADT) object.

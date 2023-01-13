@@ -18,9 +18,9 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import relay
-from tvm.relay.testing import to_python, run_as_python
+from tvm.relay.testing import run_as_python
 from tvm.relay.prelude import Prelude
-from tvm.runtime.container import ADT, _uncast_packed_func
+from tvm.runtime.container import ADT
 from tvm.relay.backend.interpreter import RefValue, ConstructorValue
 
 # helper: uses a dummy let binding to sequence a list
@@ -619,7 +619,7 @@ def test_return_global_var():
     mod = tvm.IRModule()
     mod["main"] = identity
     main_var = mod.get_global_var("main")
-    main_func = _uncast_packed_func(run_as_python(main_var, mod=mod))
+    main_func = run_as_python(main_var, mod=mod)
 
     arg = tvm.nd.array(np.array([0.0], dtype="float32"))
     res = main_func(arg)
@@ -633,7 +633,7 @@ def test_closure_in_tuple():
     tup = relay.Tuple([identity, identity])
     index = relay.TupleGetItem(tup, 0)
 
-    func = _uncast_packed_func(run_as_python(index))
+    func = run_as_python(index)
     arg = tvm.nd.array(np.array([0.0], dtype="float32"))
     res = func(arg)
     assert arg.numpy() == res.numpy()
