@@ -939,7 +939,8 @@ class MinParams(BinaryElementwiseParams):
             [self.ifm, self.ifm2, self.ofm], supported_dtypes=[np.uint8, np.int8]
         ):
             return False
-        # MIN with different scales is not supported on NPU (please look at NPU_SET_OFM_SCALE register description
+        # MIN with different scales is not supported on NPU
+        # (please look at NPU_SET_OFM_SCALE register description
         # https://developer.arm.com/documentation/102420/0200/Programmers-model/Command-stream/cmd1-commands-).
         if self.ifm.q_params.scale_f32 != self.ofm.q_params.scale_f32:
             return False
@@ -947,11 +948,13 @@ class MinParams(BinaryElementwiseParams):
 
 
 # This pattern is for case when there are different scales for requantize and
-# minimum + clip + qnn.requantize can't be offloaded to NPU by one operation due to hardware constraints.
+# minimum + clip + qnn.requantize can't be offloaded to NPU by one operation
+# due to hardware constraints.
 # It's offloaded by two operations ethosu_binary_elementwise + ethosu_identity.
 def minimum_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     """
-    This function creates the pattern for minimum with optional fused RELU activation without requantize.
+    This function creates the pattern for minimum with optional fused RELU activation without
+    requantize.
     """
     minimum = is_op("minimum")(wildcard(), wildcard())
     optional_min_clip = is_op("clip")(minimum)
@@ -993,7 +996,8 @@ class MaxParams(BinaryElementwiseParams):
             [self.ifm, self.ifm2, self.ofm], supported_dtypes=[np.uint8, np.int8]
         ):
             return False
-        # MAX with different scales is not supported on NPU (please look at NPU_SET_OFM_SCALE register description
+        # MAX with different scales is not supported on NPU
+        # (please look at NPU_SET_OFM_SCALE register description
         # https://developer.arm.com/documentation/102420/0200/Programmers-model/Command-stream/cmd1-commands-).
         if self.ifm.q_params.scale_f32 != self.ofm.q_params.scale_f32:
             return False
@@ -1001,11 +1005,13 @@ class MaxParams(BinaryElementwiseParams):
 
 
 # This pattern is for case when there are different scales for requantize and
-# maximum + clip + qnn.requantize can't be offloaded to NPU by one operation due to hardware constraints.
+# maximum + clip + qnn.requantize can't be offloaded to NPU by one operation due to
+# hardware constraints.
 # It's offloaded by two operations ethosu_binary_elementwise + ethosu_identity.
 def maximum_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     """
-    This function creates the pattern for maximum with optional fused RELU activation without requantize.
+    This function creates the pattern for maximum with optional fused RELU activation without
+    requantize.
     """
     maximum = is_op("maximum")(wildcard(), wildcard())
     optional_max_clip = is_op("clip")(maximum)
