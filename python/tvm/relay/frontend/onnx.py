@@ -1357,6 +1357,45 @@ class OrtAttentionBase:
             and mask_index_shape[1] >= kwargs["seq_len"]
         ), "currently only support (batch_size, past_sequence_len + sequence_length) mask index"
 
+        return mask_index_shape[1]
+
+    @classmethod
+    def _check_past(cls, past, valid_types, **kwargs):
+        assert infer_type(past).checked_type.dtype in valid_types
+        past_shape = infer_shape(past)
+        assert len(past_shape) == 5, "past should be 5D tensor"
+        assert (
+            past_shape[0] == 2
+            and past_shape[1] == kwargs["batch_size"]
+            and past_shape[2] == kwargs["num_heads"]
+            and past_shape[3] + kwargs["seq_len"] == kwargs["total_seq_len"]
+            and past_shape[4] == kwargs["head_size"]
+        )
+        past_seq_len = past_shape[3]
+        return past_seq_len
+
+    @classmethod
+    def _split_into_heads(cls, tensor, batch_size, seq_len, num_heads, head_size):
+        """
+        In the implementation of Multi-head attention we just split queries, keys, and values
+        we compute for a single-head attention into several parts:
+        (batch_size, num_heads, seq_len, head_size)
+        """
+        tensor = _op.reshape(tensor, (batch_size, seq_len, num_heads, head_size))
+
+        # (batch_size, num_heads, seq_len, head_size)
+        tensor = _op.transpose(tensor, axes=[0, 2, 1, 3])
+
+        return tensor
+
+    @classmethod
+    def _merge_first_dimensions(cls, tensor):
+        """
+        nn.batch_matmul is expecting 3D tensor:
+        (batch_size * num_heads, past_seq_len + seq_len, head_size)
+        """
+        return _op.reverse_reshape(tensor, (-1, 0, 0))
+
 
 class Attention(OrtAttentionBase, OnnxOpConverter):
     """Operator converter for Attention from Microsoft onnxruntime contrib opset.
@@ -1407,10 +1446,12 @@ class Attention(OrtAttentionBase, OnnxOpConverter):
 
         # (batch, num_heads, seq, seq)
         extra_add = inputs[5]
+        assert extra_add is None, "extra add to QxK not currently supported"
 
         # When past_present_share_buffer is used,
         # it is required to specify past_sequence_length (could be 0)
-        past_sequence_length = inputs[6]
+        past_seq_len = inputs[6]
+        assert past_seq_len is None, "past sequence length not currently supported"
 
         # ************************* Parse inputs *************************
         t = ["float32", "float16"]
@@ -1431,11 +1472,21 @@ class Attention(OrtAttentionBase, OnnxOpConverter):
         assert (
             mask_index is not None
         ), "Attention import currently only supports required mask_index"
-        cls._check_mask_index(mask_index, m, batch_size=batch_size, seq_len=seq_len)
+        total_seq_len = cls._check_mask_index(mask_index, m, batch_size=batch_size, seq_len=seq_len)
 
-        assert past is None, "past K, V state is not currently supported"
-        assert extra_add is None, "extra add to QxK not currently supported"
-        assert past_sequence_length is None, "past sequence length not currently supported"
+        # past
+        if past_seq_len is None:
+            past_seq_len = 0
+        if past is not None:
+            past_seq_len = cls._check_past(
+                past,
+                t,
+                batch_size=batch_size,
+                num_heads=num_heads,
+                seq_len=seq_len,
+                total_seq_len=total_seq_len,
+                head_size=head_size,
+            )
 
         # split weight and biases and do the matmuls
         w_Q, w_K, w_V = _op.split(weight, 3, axis=1)
@@ -1446,23 +1497,24 @@ class Attention(OrtAttentionBase, OnnxOpConverter):
         K = _op.add(_op.nn.matmul(input_emb, w_K), b_K)
         V = _op.add(_op.nn.matmul(input_emb, w_V), b_V)
 
-        # massage tensors in preparation for batched matmul
-        def massage(tensor):
-            tensor = _op.reshape(tensor, (batch_size, seq_len, num_heads, head_size))
+        Q = cls._split_into_heads(Q, batch_size, seq_len, num_heads, head_size)
+        K = cls._split_into_heads(K, batch_size, seq_len, num_heads, head_size)
+        V = cls._split_into_heads(V, batch_size, seq_len, num_heads, head_size)
 
-            # (batch_size, num_heads, seq_len, head_size)
-            tensor = _op.transpose(tensor, axes=[0, 2, 1, 3])
+        # Concatenate (past_K, past_V) with (K, V) by sequence axis:
+        # (batch_size, num_heads, past_sequence_length + sequence_length, head_size)
+        if past is not None and past_seq_len > 0:
+            K_past, V_past = _op.split(past, 2, axis=0)
+            K = _op.concatenate([_op.squeeze(K_past, axis=[0]), K], axis=2)
+            V = _op.concatenate([_op.squeeze(V_past, axis=[0]), V], axis=2)
 
-            # (batch_size * num_heads, seq_len, head_size)
-            return _op.reverse_reshape(tensor, (-1, 0, 0))
+        # Prepare present state for Key and Value with shape
+        # (2, batch_size, num_heads, past_sequence_length + sequence_length, head_size)
+        present = _op.stack([K, V], axis=0)
 
-        Q = massage(Q)
-        K = massage(K)
-        V = massage(V)
-
-        K_present = _op.reshape(K, (batch_size, num_heads, seq_len, head_size))
-        V_present = _op.reshape(V, (batch_size, num_heads, seq_len, head_size))
-        present = _op.stack([K_present, V_present], axis=0)
+        Q = cls._merge_first_dimensions(Q)
+        K = cls._merge_first_dimensions(K)
+        V = cls._merge_first_dimensions(V)
 
         att_scores = _op.nn.batch_matmul(Q, K, transpose_a=False, transpose_b=True)
         score_dtype = infer_type(att_scores).checked_type.dtype
@@ -1470,7 +1522,9 @@ class Attention(OrtAttentionBase, OnnxOpConverter):
             att_scores,
             _op.const(np.sqrt(head_size), dtype=infer_type(att_scores).checked_type.dtype),
         )
-        att_scores = _op.reshape(att_scores, (batch_size, num_heads, seq_len, seq_len))
+        att_scores = _op.reshape(
+            att_scores, (batch_size, num_heads, seq_len, past_seq_len + seq_len)
+        )
 
         # build the attention mask
         att_mask = _op.cast(mask_index, score_dtype)
@@ -1480,7 +1534,9 @@ class Attention(OrtAttentionBase, OnnxOpConverter):
 
         # apply the mask
         att_scores = _op.add(att_scores, att_mask)
-        att_scores = _op.reshape(att_scores, (batch_size * num_heads, seq_len, seq_len))
+        att_scores = _op.reshape(
+            att_scores, (batch_size * num_heads, seq_len, past_seq_len + seq_len)
+        )
 
         att_probs = _op.nn.softmax(att_scores, axis=-1)
 
@@ -1581,8 +1637,9 @@ class QAttention(OrtAttentionBase, OnnxOpConverter):
         assert (
             mask_index is not None
         ), "Attention import currently only supports required mask_index"
-        cls._check_mask_index(mask_index, t4, batch_size=batch_size, seq_len=seq_len)
-        mask_index_shape = infer_shape(mask_index)
+        total_seq_len = cls._check_mask_index(
+            mask_index, t4, batch_size=batch_size, seq_len=seq_len
+        )
 
         # TODO(agladyshev): int32 required for qnn.batch_matmul (QnnBatchMatmulRel)
         zero_point_zero = _expr.const(0, "int32")
@@ -1606,17 +1663,15 @@ class QAttention(OrtAttentionBase, OnnxOpConverter):
         # past (2, batch_size, num_heads, past_sequence_length, head_size)
         past_seq_len = 0
         if past is not None:
-            assert infer_type(past).checked_type.dtype in t3
-            past_shape = infer_shape(past)
-            assert len(past_shape) == 5, "past should be 5D tensor"
-            assert (
-                past_shape[0] == 2
-                and past_shape[1] == batch_size
-                and past_shape[2] == num_heads
-                and past_shape[3] + seq_len == mask_index_shape[1]
-                and past_shape[4] == head_size
+            past_seq_len = cls._check_past(
+                past,
+                t3,
+                batch_size=batch_size,
+                num_heads=num_heads,
+                seq_len=seq_len,
+                total_seq_len=total_seq_len,
+                head_size=head_size,
             )
-            past_seq_len = past_shape[3]
 
         # ************************* Create Relay *************************
         # Add batch dimension for QNN Batch Matmul
@@ -1653,22 +1708,9 @@ class QAttention(OrtAttentionBase, OnnxOpConverter):
             input_emb, w_V, input_scale, weight_scale, input_zero_point, weight_zero_point, b_V
         )
 
-        def split_into_heads(tensor):
-            """
-            In the implementation of Multi-head attention we just split queries, keys, and values
-            we compute for a single-head attention into several parts:
-            (batch_size, num_heads, seq_len, head_size)
-            """
-            tensor = _op.reshape(tensor, (batch_size, seq_len, num_heads, head_size))
-
-            # (batch_size, num_heads, seq_len, head_size)
-            tensor = _op.transpose(tensor, axes=[0, 2, 1, 3])
-
-            return tensor
-
-        Q = split_into_heads(Q)
-        K = split_into_heads(K)
-        V = split_into_heads(V)
+        Q = cls._split_into_heads(Q, batch_size, seq_len, num_heads, head_size)
+        K = cls._split_into_heads(K, batch_size, seq_len, num_heads, head_size)
+        V = cls._split_into_heads(V, batch_size, seq_len, num_heads, head_size)
 
         # Concatenate (past_K, past_V) with (K, V) by sequence axis:
         # (batch_size, num_heads, past_sequence_length + sequence_length, head_size)
@@ -1681,16 +1723,9 @@ class QAttention(OrtAttentionBase, OnnxOpConverter):
         # (2, batch_size, num_heads, past_sequence_length + sequence_length, head_size)
         present = _op.stack([K, V], axis=0)
 
-        def merge_first_dimensions(tensor):
-            """
-            nn.batch_matmul is expecting 3D tensor:
-            (batch_size * num_heads, past_seq_len + seq_len, head_size)
-            """
-            return _op.reverse_reshape(tensor, (-1, 0, 0))
-
-        Q = merge_first_dimensions(Q)
-        K = merge_first_dimensions(K)
-        V = merge_first_dimensions(V)
+        Q = cls._merge_first_dimensions(Q)
+        K = cls._merge_first_dimensions(K)
+        V = cls._merge_first_dimensions(V)
 
         att_scores = _op.nn.batch_matmul(Q, K, transpose_a=False, transpose_b=True)
         score_dtype = infer_type(att_scores).checked_type.dtype
