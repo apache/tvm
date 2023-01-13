@@ -69,12 +69,13 @@ def test_layout_transform_to_block_nhwc(remote, target, dtype):
     """Verification of the case NHWC4c->NHWC"""
     input_shape = (1, 80, 80, 36, 4)
     A = relay.var("data", shape=input_shape, dtype=dtype)
-    mean = relay.mean(A, axis=[1,2], keepdims=True)
+    mean = relay.mean(A, axis=[1, 2], keepdims=True)
     cast = relay.cast(mean, "float16")
     lt = relay.layout_transform(cast, "NHWC4c", "NHWC")
     mod = relay.Function([A], lt)
 
     build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+
 
 if __name__ == "__main__":
     test_layout_transform_to_block_nhwc(None, "opencl -device=adreno", "float16")
