@@ -36,11 +36,7 @@ String FindFunctionName(const IRDocsifier& d, const tir::PrimFunc& f) {
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::PrimFunc>("", [](tir::PrimFunc func, ObjectPath p, IRDocsifier d) -> Doc {
-      d->SetCommonPrefix(func, [](const ObjectRef& obj) {
-        return obj->IsInstance<tir::VarNode>() || obj->IsInstance<tir::BufferNode>();
-      });
-      With<TIRFrame> frame(d, func);
-      (*frame)->AddDispatchToken(d, "tir");
+      With<TIRFrame> frame(MakeDispatchFrame(d, func, func));
       int n_args = func->params.size();
       // Step 1. Handle `func->params`
       Array<AssignDoc> args;
@@ -54,8 +50,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       // Step 2. Handle `func->attrs`
       if (func->attrs.defined() && !func->attrs->dict.empty()) {
         (*frame)->stmts.push_back(
-            ExprStmtDoc(TIR(d)
-                            ->Attr("func_attr")  //
+            ExprStmtDoc(TIR("func_attr")  //
                             ->Call({d->AsDoc<ExprDoc>(func->attrs, p->Attr("attrs"))})));
       }
       // Step 3. Handle `func->buffer_map`
@@ -76,9 +71,15 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       return FunctionDoc(
           /*name=*/IdDoc(FindFunctionName(d, func)),
           /*args=*/args,
-          /*decorators=*/{TIR(d)->Attr("prim_func")},
+          /*decorators=*/{TIR("prim_func")},
           /*return_type=*/d->AsDoc<ExprDoc>(func->ret_type, p->Attr("ret_type")),
           /*body=*/(*frame)->stmts);
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<tir::PrimFuncNode>([](const ObjectRef& obj, ReprPrinter* p) {
+      std::string res = DocToPythonScript(IRDocsifier()->AsDoc(obj, ObjectPath::Root()));
+      p->stream << res;
     });
 
 }  // namespace printer

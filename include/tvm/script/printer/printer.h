@@ -22,6 +22,7 @@
 #include <tvm/node/node.h>
 #include <tvm/script/printer/ir_docsifier.h>
 
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -31,6 +32,8 @@ namespace printer {
 
 /*! \brief Default values in the TVMScript printer */
 struct Default {
+  /*! \brief The prefix of IR nodes */
+  std::unordered_map<std::string, std::string> ir_prefix = {{"ir", "I"}, {"tir", "T"}};
   /*! \brief Default data type of TIR buffer */
   DataType buffer_dtype = DataType::Float(32);
   /*! \brief Default data type of integer literals */
@@ -41,28 +44,30 @@ struct Default {
    * T.float32/T.float64 wrapper.
    */
   DataType float_dtype = DataType::Void();
+  /*! \brief Whether or not to verbose print expressions. */
+  bool verbose_expr = false;
   /*! \brief Returns a singleton of the configuration */
   static Default* Instance();
+  static std::string& Prefix(const std::string& ir) { return Instance()->ir_prefix.at(ir); }
   static DataType& BufferDType() { return Instance()->buffer_dtype; }
   static DataType& IntDType() { return Instance()->int_dtype; }
   static DataType& FloatDType() { return Instance()->float_dtype; }
+  static bool& VerboseExpr() { return Instance()->verbose_expr; }
 };
 
 /*!
  * \brief The entry method for TVMScript printing
  * \param obj The object to be printed
- * \param ir_prefix The prefix of IR nodes
  * \param indent_spaces Number of spaces used for indentation
  * \param print_line_numbers Whether to print line numbers
  * \param num_context_lines Number of context lines to print around the underlined text
  * \param path_to_underline Object path to be underlined
  * \return The TVMScript text format
  */
-String Script(ObjectRef obj,                                                //
-              Map<String, String> ir_prefix = {{"ir", "I"}, {"tir", "T"}},  //
-              int indent_spaces = 4,                                        //
-              bool print_line_numbers = false,                              //
-              int num_context_lines = -1,                                   //
+String Script(ObjectRef obj,                    //
+              int indent_spaces = 4,            //
+              bool print_line_numbers = false,  //
+              int num_context_lines = -1,       //
               Optional<ObjectPath> path_to_underline = NullOpt);
 
 /*!

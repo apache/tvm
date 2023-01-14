@@ -109,21 +109,6 @@ Optional<TensorIntrin> TensorIntrin::Get(String name, bool allow_missing) {
 
 TVM_REGISTER_NODE_TYPE(TensorIntrinNode);
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<PrimFuncNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      // TODO(tvm-team) redirect to Text printer once we have a good text format.
-      auto* node = static_cast<const PrimFuncNode*>(ref.get());
-      p->stream << "PrimFunc(" << node->params << ") ";
-      if (node->attrs.defined()) {
-        p->stream << "attrs=" << node->attrs;
-      }
-      p->stream << " {\n";
-      p->indent += 2;
-      p->Print(node->body);
-      p->indent -= 2;
-      p->stream << "}\n";
-    });
-
 TVM_REGISTER_GLOBAL("tir.PrimFunc")
     .set_body_typed([](Array<tir::Var> params, Stmt body, Type ret_type,
                        Map<tir::Var, Buffer> buffer_map, DictAttrs attrs, Span span) {
