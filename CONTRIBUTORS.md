@@ -89,6 +89,7 @@ We do encourage everyone to work anything they are interested in.
 - [Lianmin Zheng](https://github.com/merrymercy) (PMC): @merrymercy - autotvm, auto_scheduler, topi, relay
 - [Xiyou Zhou](https://github.com/zxybazh): @zxybazh - relay
 - [wrongtest](https://github.com/wrongtest-intellif): @wrongtest-intellif - tir, tvm-script, arith
+- [Hongyi Jin](https://github.com/jinhongyii): @jinhongyii - tir, tvm-script, arith, relay, topi
 
 ## Reviewers
 
