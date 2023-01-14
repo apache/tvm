@@ -23,13 +23,10 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-String Script(ObjectRef obj, Map<String, String> ir_prefix, int indent_spaces,
-              bool print_line_numbers, int num_context_lines,
+String Script(ObjectRef obj, int indent_spaces, bool print_line_numbers, int num_context_lines,
               Optional<ObjectPath> path_to_underline) {
-  IRDocsifier d(ir_prefix);
-  Doc doc = d->AsDoc(obj, ObjectPath::Root());
-  return DocToPythonScript(doc, indent_spaces, print_line_numbers, num_context_lines,
-                           path_to_underline);
+  return DocToPythonScript(IRDocsifier()->AsDoc(obj, ObjectPath::Root()), indent_spaces,
+                           print_line_numbers, num_context_lines, path_to_underline);
 }
 
 Default* Default::Instance() {
@@ -38,6 +35,19 @@ Default* Default::Instance() {
 }
 
 TVM_REGISTER_GLOBAL("script.printer.Script").set_body_typed(Script);
+TVM_REGISTER_GLOBAL("script.printer.DefaultIRPrefix")
+    .set_body_typed([](std::string ir, std::string prefix) { Default::Prefix(ir) = prefix; });
+TVM_REGISTER_GLOBAL("script.printer.DefaultBufferDType")
+    .set_body_typed([](runtime::DataType dtype) { Default::BufferDType() = dtype; });
+TVM_REGISTER_GLOBAL("script.printer.DefaultIntDType").set_body_typed([](runtime::DataType dtype) {
+  Default::IntDType() = dtype;
+});
+TVM_REGISTER_GLOBAL("script.printer.DefaultFloatDType").set_body_typed([](runtime::DataType dtype) {
+  Default::FloatDType() = dtype;
+});
+TVM_REGISTER_GLOBAL("script.printer.VerboseExpr").set_body_typed([](bool verbose_expr) {
+  Default::VerboseExpr() = verbose_expr;
+});
 
 }  // namespace printer
 }  // namespace script

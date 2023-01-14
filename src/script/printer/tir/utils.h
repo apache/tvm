@@ -28,6 +28,7 @@
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
 
+#include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -70,9 +71,7 @@ class TIRFrame : public Frame {
 };
 
 /*! \brief Creates the TIR common prefix, which is by default `T` */
-inline IdDoc TIR(const IRDocsifier& d) {  //
-  return IdDoc(d->ir_prefix.Get("tir").value_or("T"));
-}
+inline ExprDoc TIR(const String& attr) { return IdDoc(Default::Prefix("tir"))->Attr(attr); }
 
 /*!
  * \brief Defines a variable in the IRDocsifier at the given frame,
@@ -141,10 +140,15 @@ inline Optional<Frame> FindLowestVarDef(const ObjectRef& var, const IRDocsifier&
   }
   int n_frames = d->frames.size();
   std::unordered_map<const Object*, const FrameNode*> tir_to_frame;
+  const FrameNode* fallback_frame = nullptr;
   tir_to_frame.reserve(n_frames);
   for (int i = n_frames - 1; i >= 0; --i) {
     if (const auto* f = d->frames[i].as<TIRFrameNode>()) {
-      tir_to_frame[f->tir.get()] = f;
+      if (f->tir.defined()) {
+        tir_to_frame[f->tir.get()] = f;
+      } else if (fallback_frame == nullptr) {
+        fallback_frame = f;
+      }
     }
   }
   const std::vector<const Object*>& path = d->common_prefix.at(var.get());
@@ -153,7 +157,50 @@ inline Optional<Frame> FindLowestVarDef(const ObjectRef& var, const IRDocsifier&
       return GetRef<Frame>(tir_to_frame.at(*it));
     }
   }
+  if (fallback_frame != nullptr) {
+    return GetRef<Frame>(fallback_frame);
+  }
   return NullOpt;
+}
+
+/*!
+ * \brief Create a frame and add dispatch token. Calculate LCA information for the frame.
+ * \param d The IRDocsifier
+ * \param root The root of the TIR AST
+ * \param tir The TIR to be saved in the new TIR frame
+ * \return The frame created
+ */
+inline TIRFrame MakeDispatchFrame(const IRDocsifier& d, const ObjectRef& root,
+                                  const ObjectRef& tir) {
+  d->SetCommonPrefix(root, [](const ObjectRef& obj) {
+    return obj->IsInstance<tir::VarNode>() || obj->IsInstance<tir::BufferNode>();
+  });
+  TIRFrame frame(d, tir);
+  frame->AddDispatchToken(d, "tir");
+  return frame;
+}
+
+/*! \brief Redirected method for the ReprPrinter */
+inline void ReprPrint(const ObjectRef& stmt, ReprPrinter* p) {
+  IRDocsifier d;
+  With<TIRFrame> f(MakeDispatchFrame(d, stmt, ObjectRef(nullptr)));
+  Doc doc = d->AsDoc(stmt, ObjectPath::Root());
+  if (const auto* expr_doc = doc.as<ExprDocNode>()) {
+    if (!Default::VerboseExpr()) {
+      (*f)->stmts.clear();
+    }
+    (*f)->stmts.push_back(ExprStmtDoc(GetRef<ExprDoc>(expr_doc)));
+  } else if (const auto* stmt_doc = doc.as<StmtDocNode>()) {
+    (*f)->stmts.push_back(GetRef<StmtDoc>(stmt_doc));
+  } else if (const auto* stmt_block = doc.as<StmtBlockDocNode>()) {
+    for (const StmtDoc& d : stmt_block->stmts) {
+      (*f)->stmts.push_back(d);
+    }
+  } else {
+    LOG(FATAL) << "TypeError: Unexpected doc type: " << doc->GetTypeKey();
+  }
+  std::string res = DocToPythonScript(StmtBlockDoc((*f)->stmts));
+  p->stream << res;
 }
 
 /*!
