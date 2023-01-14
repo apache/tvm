@@ -27,7 +27,7 @@ def generate_dma_load_intrin(
     """Generator of dma_load intrins"""
 
     @T.prim_func
-    def dma_load_desc(a: T.handle, c: T.handle) -> None:
+    def sync_dma_load_desc(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (size), dtype, offset_factor=1, scope="global")
         C = T.match_buffer(c, (size), dtype, offset_factor=1, scope="global.vtcm")
         with T.block("root"):
@@ -39,7 +39,7 @@ def generate_dma_load_intrin(
                     C[vii] = A[vii]
 
     @T.prim_func
-    def dma_load_impl(a: T.handle, c: T.handle) -> None:
+    def sync_dma_load_impl(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (size), dtype, offset_factor=1, scope="global")
         C = T.match_buffer(c, (size), dtype, offset_factor=1, scope="global.vtcm")
         with T.block("root"):
@@ -48,17 +48,24 @@ def generate_dma_load_intrin(
             T.evaluate(
                 T.tvm_call_packed(
                     "device_api.hexagon.dma_copy",
-                    0,
+                    -1, #Use QueueId of -1 to not interfere with async copies. 
                     T.address_of(C[0], dtype="handle"),
                     T.address_of(A[0], dtype="handle"),
                     size,
-                    0,
+                    0, #Do not use experimental bypass mode. 
                     dtype="int32",
                 )
             )
-            T.evaluate(T.tvm_call_packed("device_api.hexagon.dma_wait", 0, 0, dtype="int32"))
+            T.evaluate(
+                T.tvm_call_packed(
+                    "device_api.hexagon.dma_wait",
+                    -1, 
+                    0, #Wait for the sync queue (-1) to have 0 messages. 
+                    dtype="int32"
+                )
+            )
 
-    return dma_load_desc, dma_load_impl
+    return sync_dma_load_desc, sync_dma_load_impl
 
 
 def generate_dot_product_32x4_u8u8i32(mem_scope="global"):
@@ -205,26 +212,8 @@ TensorIntrin.register(VRMPY_u8u8i32_VTCM_INTRIN, *generate_dot_product_32x4_u8u8
 VRMPY_u8i8i32_VTCM_INTRIN = "dot_32x4_u8i8i32_vtcm_vrmpy"
 TensorIntrin.register(VRMPY_u8i8i32_VTCM_INTRIN, *generate_dot_product_32x4_u8i8i32("global.vtcm"))
 
-DMA_READ_1_u8 = "dma_read_1_u8"
-TensorIntrin.register(DMA_READ_1_u8, *generate_dma_load_intrin(1, "uint8"))
-
-DMA_READ_1_i8 = "dma_read_1_i8"
-TensorIntrin.register(DMA_READ_1_i8, *generate_dma_load_intrin(1, "int8"))
-
 DMA_READ_128_u8 = "dma_read_128_u8"
 TensorIntrin.register(DMA_READ_128_u8, *generate_dma_load_intrin(128, "uint8"))
 
 DMA_READ_128_i8 = "dma_read_128_i8"
 TensorIntrin.register(DMA_READ_128_i8, *generate_dma_load_intrin(128, "int8"))
-
-DMA_READ_1024_u8 = "dma_read_1024_u8"
-TensorIntrin.register(DMA_READ_1024_u8, *generate_dma_load_intrin(1024, "uint8"))
-
-DMA_READ_1024_i8 = "dma_read_1024_i8"
-TensorIntrin.register(DMA_READ_1024_i8, *generate_dma_load_intrin(1024, "int8"))
-
-DMA_READ_4096_u8 = "dma_read_4096_u8"
-TensorIntrin.register(DMA_READ_4096_u8, *generate_dma_load_intrin(4096, "uint8"))
-
-DMA_READ_4096_i8 = "dma_read_4096_i8"
-TensorIntrin.register(DMA_READ_4096_i8, *generate_dma_load_intrin(4096, "int8"))
