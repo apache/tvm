@@ -1191,6 +1191,9 @@ class Any : public PrimExpr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AnyNode);
 };
 
+/*! \brief Legacy ReprPrint format for TIR */
+std::string LegacyTIRPrint(const ObjectRef& obj);
+
 /*
  * \brief Template function to convert Map to unordered_map
  *  Sometimes useful for API gluing when internal uses unordered_map

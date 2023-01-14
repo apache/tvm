@@ -26,14 +26,15 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, ObjectPath block_p,  //
                Optional<tir::BlockRealize> opt_realize, Optional<ObjectPath> opt_realize_p) {
   With<TIRFrame> frame(d, block);
   ICHECK_EQ(opt_realize.defined(), opt_realize_p.defined());
-  const tir::BlockRealizeNode* realize = opt_realize.value().get();
-  const ObjectPathNode* realize_p = opt_realize_p.get();
+  const tir::BlockRealizeNode* realize =
+      opt_realize.defined() ? opt_realize.value().get() : nullptr;
+  const ObjectPathNode* realize_p = opt_realize_p.defined() ? opt_realize_p.get() : nullptr;
   // Step 1. Handle block var and block bindings
   int n_vars = block->iter_vars.size();
   for (int i = 0; i < n_vars; ++i) {
     tir::IterVar iter_var = block->iter_vars[i];
     ObjectPath iter_var_p = block_p->Attr("iter_var")->ArrayIndex(i);
-    ExprDoc rhs = TIR(d)->Attr("axis");
+    ExprDoc rhs = TIR("axis");
     if (iter_var->iter_type == tir::IterVarType::kDataPar) {
       rhs = rhs->Attr("spatial");
     } else if (iter_var->iter_type == tir::IterVarType::kCommReduce) {
@@ -70,7 +71,7 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, ObjectPath block_p,  //
   if (realize) {
     ICHECK(realize->predicate.defined() && realize->predicate->dtype.is_bool());
     if (!tir::is_one(realize->predicate)) {
-      (*frame)->stmts.push_back(ExprStmtDoc(TIR(d)->Attr("where")->Call(
+      (*frame)->stmts.push_back(ExprStmtDoc(TIR("where")->Call(
           {d->AsDoc<ExprDoc>(realize->predicate, realize_p->Attr("predicate"))})));
     }
   }
@@ -80,18 +81,17 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, ObjectPath block_p,  //
     for (int i = 0, n = block->reads.size(); i < n; ++i) {
       reads.push_back(d->AsDoc<ExprDoc>(block->reads[i], block_p->Attr("reads")->ArrayIndex(i)));
     }
-    (*frame)->stmts.push_back(ExprStmtDoc(TIR(d)->Attr("reads")->Call(reads)));
+    (*frame)->stmts.push_back(ExprStmtDoc(TIR("reads")->Call(reads)));
     Array<ExprDoc> writes;
     for (int i = 0, n = block->writes.size(); i < n; ++i) {
       writes.push_back(d->AsDoc<ExprDoc>(block->writes[i], block_p->Attr("writes")->ArrayIndex(i)));
     }
-    (*frame)->stmts.push_back(ExprStmtDoc(TIR(d)->Attr("writes")->Call(writes)));
+    (*frame)->stmts.push_back(ExprStmtDoc(TIR("writes")->Call(writes)));
   }
   // Step 4. Handle block attributes
   if (!block->annotations.empty()) {
     (*frame)->stmts.push_back(ExprStmtDoc(
-        TIR(d)
-            ->Attr("block_attr")
+        TIR("block_attr")
             ->Call({d->AsDoc<ExprDoc>(block->annotations, block_p->Attr("annotations"))})));
   }
   // Step 5. Handle `alloc_buffer`
@@ -114,13 +114,19 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, ObjectPath block_p,  //
     tir::Stmt init = block->init.value();
     With<TIRFrame> init_frame(d, init);
     AsDocBody(init, block_p->Attr("init"), init_frame->get(), d);
-    (*frame)->stmts.push_back(
-        ScopeDoc(NullOpt, TIR(d)->Attr("init")->Call({}), (*init_frame)->stmts));
+    (*frame)->stmts.push_back(ScopeDoc(NullOpt, TIR("init")->Call({}), (*init_frame)->stmts));
   }
   // Step 8. Handle block body
   AsDocBody(block->body, block_p->Attr("body"), frame->get(), d);
-  return ScopeDoc(NullOpt, TIR(d)->Attr("block")->Call({LiteralDoc::Str(block->name_hint)}),
-                  (*frame)->stmts);
+  Array<String> kwargs_keys;
+  Array<ExprDoc> kwargs_values;
+  if (!realize) {
+    kwargs_keys.push_back("no_realize");
+    kwargs_values.push_back(LiteralDoc::Boolean(true));
+  }
+  return ScopeDoc(
+      NullOpt, TIR("block")->Call({LiteralDoc::Str(block->name_hint)}, kwargs_keys, kwargs_values),
+      (*frame)->stmts);
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -134,16 +140,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       return PrintBlock(d, block, p, NullOpt, NullOpt);
     });
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::MatchBufferRegion>(
-        "", [](tir::MatchBufferRegion stmt, ObjectPath p, IRDocsifier d) -> Doc {
-          Frame frame = d->frames.back();
-          ExprDoc lhs = DefineBuffer(stmt->buffer, frame, d);
-          ExprDoc src_buffer = d->AsDoc<ExprDoc>(stmt->source, p->Attr("source"));
-          ExprDoc rhs = BufferDecl(stmt->buffer, "match_buffer", {src_buffer}, p->Attr("buffer"),
-                                   d->frames.back(), d);
-          return AssignDoc(lhs, rhs, NullOpt);
-        });
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::BlockNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::BlockRealizeNode>(ReprPrint);
 
 }  // namespace printer
 }  // namespace script

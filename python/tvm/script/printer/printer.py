@@ -15,8 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """The printer interface"""
-
-from typing import Mapping, Optional
+from typing import Optional
 
 from tvm.runtime.object_path import ObjectPath
 
@@ -25,7 +24,6 @@ from . import _ffi_api
 
 def script(
     obj,
-    ir_prefix: Optional[Mapping[str, str]] = None,
     indent_space: int = 4,
     print_line_number: bool = False,
     num_context_lines: int = -1,
@@ -37,9 +35,6 @@ def script(
     ----------
     obj : object
         An TVM object representing TVM IR
-    ir_prefix : Optional[Mapping[str, str]]
-        A mapping from IR type to the prefix of the script.
-        Default to {"ir": "I", "tir": T}
     indent_space : int = 4
         The number of spaces to indent
     print_line_number : bool = False
@@ -54,11 +49,6 @@ def script(
     script : str
         The TVMScript text format
     """
-    if ir_prefix is None:
-        ir_prefix = {
-            "ir": "I",
-            "tir": "T",
-        }
     return _ffi_api.Script(  # type: ignore # pylint: disable=no-member
-        obj, ir_prefix, indent_space, print_line_number, num_context_lines, path_to_underline
+        obj, indent_space, print_line_number, num_context_lines, path_to_underline
     )
