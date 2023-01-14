@@ -139,10 +139,10 @@ class TestMatMulVec:
     @tvm.testing.requires_hexagon
     def test_bandwidth(self, hexagon_session, size, outer_split, unroll_split, vector_split):
         """Test bandwidth."""
-        
+
         if tvm.testing.utils.IS_IN_CI and (size > 128):
             pytest.skip("Skipping test since it takes too long in CI.")
-        
+
         # Run the base memcopy operator.
         sch = tvm.tir.Schedule(memcopy_operator(size))
         base_gpbs = evaluate(hexagon_session, sch, size)

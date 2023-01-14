@@ -48,20 +48,20 @@ def generate_dma_load_intrin(
             T.evaluate(
                 T.tvm_call_packed(
                     "device_api.hexagon.dma_copy",
-                    -1, #Use QueueId of -1 to not interfere with async copies. 
+                    -1,  # Use QueueId of -1 to not interfere with async copies.
                     T.address_of(C[0], dtype="handle"),
                     T.address_of(A[0], dtype="handle"),
                     size,
-                    0, #Do not use experimental bypass mode. 
+                    0,  # Do not use experimental bypass mode.
                     dtype="int32",
                 )
             )
             T.evaluate(
                 T.tvm_call_packed(
                     "device_api.hexagon.dma_wait",
-                    -1, 
-                    0, #Wait for the sync queue (-1) to have 0 messages. 
-                    dtype="int32"
+                    -1,
+                    0,  # Wait for the sync queue (-1) to have 0 messages.
+                    dtype="int32",
                 )
             )
 
