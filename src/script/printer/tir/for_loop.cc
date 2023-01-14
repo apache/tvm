@@ -59,7 +59,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           p = p->Attr("body");
         }
         AsDocBody(grid.back()->body, p, (*f).get(), d);
-        return ForDoc(TupleDoc(lhs), TIR(d)->Attr("grid")->Call(rhs), (*f)->stmts);
+        return ForDoc(TupleDoc(lhs), TIR("grid")->Call(rhs), (*f)->stmts);
       }
       // Step 3. If not `T.grid`, print loop kind accordingly
       IdDoc lhs = DefineVar(loop->loop_var, *f, d);
@@ -76,21 +76,21 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       if (!loop->annotations.empty()) {
         annotations = d->AsDoc<ExprDoc>(loop->annotations, p->Attr("annotations"));
       }
-      ExprDoc prefix = TIR(d);
+      ExprDoc prefix{nullptr};
       if (loop->kind == tir::ForKind::kSerial) {
         if (loop->annotations.empty()) {
           prefix = IdDoc("range");
         } else {
-          prefix = prefix->Attr("serial");
+          prefix = TIR("serial");
         }
       } else if (loop->kind == tir::ForKind::kParallel) {
-        prefix = prefix->Attr("parallel");
+        prefix = TIR("parallel");
       } else if (loop->kind == tir::ForKind::kUnrolled) {
-        prefix = prefix->Attr("unroll");
+        prefix = TIR("unroll");
       } else if (loop->kind == tir::ForKind::kVectorized) {
-        prefix = prefix->Attr("vectorized");
+        prefix = TIR("vectorized");
       } else if (loop->kind == tir::ForKind::kThreadBinding) {
-        prefix = prefix->Attr("thread_binding");
+        prefix = TIR("thread_binding");
         thread = LiteralDoc::Str(loop->thread_binding.value()->thread_tag);
       } else {
         LOG(FATAL) << "ValueError: Unknown ForKind: " << tir::ForKind2String(loop->kind);
@@ -116,6 +116,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       AsDocBody(loop->body, p, (*f).get(), d);
       return ForDoc(lhs, rhs, (*f)->stmts);
     });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::ForNode>(ReprPrint);
 
 }  // namespace printer
 }  // namespace script

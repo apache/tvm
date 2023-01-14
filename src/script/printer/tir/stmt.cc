@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "../../../tir/transforms/ir_utils.h"
+#include "../../../tir/transforms/ir_utils.h"  // For `GetPtrStorageScope`
 #include "./utils.h"
 
 namespace tvm {
@@ -51,7 +51,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       if (eval->value->IsInstance<tir::CallNode>()) {
         return ExprStmtDoc(value);
       }
-      return ExprStmtDoc(TIR(d)->Attr("evaluate")->Call({value}));
+      return ExprStmtDoc(TIR("evaluate")->Call({value}));
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -75,7 +75,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         stmts->insert(stmts->begin(), AssignDoc(lhs, rhs, type_doc));
         return StmtBlockDoc(*stmts);
       } else {
-        rhs = TIR(d)->Attr("let")->Call({lhs, rhs});
+        rhs = TIR("let")->Call({lhs, rhs});
         return ScopeDoc(NullOpt, rhs, *stmts);
       }
     });
@@ -93,7 +93,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             stmts->insert(stmts->begin(), AssertDoc(cond, msg));
             return StmtBlockDoc(*stmts);
           }
-          return ScopeDoc(NullOpt, TIR(d)->Attr("Assert")->Call({cond, msg}), (*f)->stmts);
+          return ScopeDoc(NullOpt, TIR("Assert")->Call({cond, msg}), (*f)->stmts);
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -137,7 +137,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::SeqStmt>("", [](tir::SeqStmt stmt, ObjectPath p, IRDocsifier d) -> Doc {
-      // TODO(@junrushao): revisit for fragment printing
       With<TIRFrame> f(d, stmt);
       AsDocBody(stmt, p, f->get(), d);
       return StmtBlockDoc((*f)->stmts);
@@ -146,8 +145,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Prefetch>(  //
         "", [](tir::Prefetch stmt, ObjectPath p, IRDocsifier d) -> Doc {
-          return ExprStmtDoc(TIR(d)
-                                 ->Attr("prefetch")
+          return ExprStmtDoc(TIR("prefetch")
                                  ->Call({
                                      d->AsDoc<ExprDoc>(stmt->buffer, p->Attr("buffer")),
                                      d->AsDoc<ExprDoc>(stmt->bounds, p->Attr("bounds")),
@@ -174,7 +172,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           }
           ExprDoc lhs = DefineVar(stmt->buffer_var, d->frames.back(), d);
           With<TIRFrame> f(d, stmt);
-          ExprDoc rhs = TIR(d)->Attr("allocate")->Call(args, kwargs_keys, kwargs_values);
+          ExprDoc rhs = TIR("allocate")->Call(args, kwargs_keys, kwargs_values);
           AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
           return DoConciseScoping(lhs, rhs, &(*f)->stmts, concise);
         });
@@ -253,7 +251,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           args.push_back(data_doc);
           args.push_back(LiteralDoc::DataType(stmt->dtype));
           args.push_back(d->AsDoc<ExprDoc>(stmt->extents, p->Attr("extents")));
-          ExprDoc rhs = TIR(d)->Attr("allocate_const")->Call(args, kwargs_keys, kwargs_values);
+          ExprDoc rhs = TIR("allocate_const")->Call(args, kwargs_keys, kwargs_values);
           With<TIRFrame> f(d, stmt);
           ExprDoc lhs = DefineVar(stmt->buffer_var, *f, d);
           AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
@@ -286,7 +284,7 @@ ExprDoc DocsifyBufferRealize(const tir::BufferRealizeNode* stmt, Optional<ExprDo
     kwargs_keys.push_back("condition");
     kwargs_values.push_back(d->AsDoc<ExprDoc>(stmt->condition, p->Attr("condition")));
   }
-  return TIR(d)->Attr("realize")->Call(args, kwargs_keys, kwargs_values);
+  return TIR("realize")->Call(args, kwargs_keys, kwargs_values);
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -326,13 +324,10 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
                 DefineVar(iter_var->var, f, d);
                 f->stmts.push_back(
                     AssignDoc(d->AsDoc<ExprDoc>(iter_var->var, p->Attr("node")->Attr("var")),
-                              TIR(d)  //
-                                  ->Attr("env_thread")
-                                  ->Call({LiteralDoc::Str(iter_var->thread_tag)}),  //
+                              TIR("env_thread")->Call({LiteralDoc::Str(iter_var->thread_tag)}),  //
                               NullOpt));
               }
-              rhs = TIR(d)
-                        ->Attr("launch_thread")
+              rhs = TIR("launch_thread")
                         ->Call({
                             d->AsDoc<ExprDoc>(iter_var->var, p->Attr("node")),
                             d->AsDoc<ExprDoc>(stmt->value, p->Attr("value")),
@@ -340,7 +335,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             }
           }
           if (!rhs.defined()) {
-            rhs = TIR(d)->Attr("attr")->Call({
+            rhs = TIR("attr")->Call({
                 d->AsDoc<ExprDoc>(stmt->node, p->Attr("node")),
                 LiteralDoc::Str(stmt->attr_key),
                 d->AsDoc<ExprDoc>(stmt->value, p->Attr("value")),
@@ -352,22 +347,24 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::ProducerRealize>(  //
-        "", [](tir::ProducerRealize stmt, ObjectPath p, IRDocsifier d) -> Doc {
-          LOG(FATAL) << "ValueError: ProducerRealize should never exist in TIR: " << stmt;
-        });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::ProducerStore>(  //
-        "", [](tir::ProducerStore stmt, ObjectPath p, IRDocsifier d) -> Doc {
-          LOG(FATAL) << "ValueError: ProducerStore should never exist in TIR: " << stmt;
-        });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Store>(  //
         "", [](tir::Store stmt, ObjectPath p, IRDocsifier d) -> Doc {
           LOG(FATAL) << "ValueError: Store has been deprecated for BufferStore: " << stmt;
         });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::LetStmtNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::AttrStmtNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::AssertStmtNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::WhileNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::AllocateNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::AllocateConstNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::DeclBufferNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::PrefetchNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::SeqStmtNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::IfThenElseNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::EvaluateNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::BufferRealizeNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::StoreNode>(ReprPrint);
 
 }  // namespace printer
 }  // namespace script

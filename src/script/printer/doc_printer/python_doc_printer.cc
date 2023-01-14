@@ -549,7 +549,16 @@ void PythonDocPrinter::PrintTypedDoc(const WhileDoc& doc) {
 void PythonDocPrinter::PrintTypedDoc(const ForDoc& doc) {
   MaybePrintCommentWithNewLine(doc);
   output_ << "for ";
-  PrintDoc(doc->lhs);
+  if (const auto* tuple = doc->lhs.as<TupleDocNode>()) {
+    if (tuple->elements.size() == 1) {
+      PrintDoc(tuple->elements[0]);
+      output_ << ",";
+    } else {
+      PrintJoinedDocs(tuple->elements, ", ");
+    }
+  } else {
+    PrintDoc(doc->lhs);
+  }
   output_ << " in ";
   PrintDoc(doc->rhs);
   output_ << ":";
@@ -644,7 +653,12 @@ String DocToPythonScript(Doc doc, int indent_spaces, bool print_line_numbers, in
 
   PythonDocPrinter printer(options);
   printer.Append(doc, path_to_underline);
-  return printer.GetString();
+  std::string result = printer.GetString();
+  int last_space = result.size();
+  while (last_space > 0 && std::isspace(result[last_space - 1])) {
+    last_space--;
+  }
+  return result.substr(0, last_space);
 }
 
 TVM_REGISTER_GLOBAL("script.printer.DocToPythonScript").set_body_typed(DocToPythonScript);

@@ -1210,17 +1210,17 @@ def buffer_store(buffer: Buffer, value: PrimExpr, indices: List[Union[PrimExpr, 
     )
 
 
-def prefetch(buffer: Buffer, indices: List[PrimExpr]) -> None:
+def prefetch(buffer: Buffer, bounds: List[Range]) -> None:
     """The prefetch hint for a buffer.
 
     Parameters
     ----------
     buffer : Buffer
         The buffer to be prefetched.
-    indices : List[PrimExpr]
-        The indices of the buffer to extract.
+    bounds : List[Range]
+        The range to be prefetched.
     """
-    return _ffi_api.Prefetch(buffer, indices)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Prefetch(buffer, bounds)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def evaluate(value: PrimExpr) -> None:

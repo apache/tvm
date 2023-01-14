@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/runtime/device_api.h>
+#include <tvm/runtime/device_api.h>  // For `kAllocAlignment`
 
 #include "./utils.h"
 
@@ -121,72 +121,140 @@ ExprDoc BufferCall(const ExprDoc& prefix, const Map<String, ExprDoc>& attrs, Arr
 
 ExprDoc BufferDecl(const tir::Buffer& buffer, const String& method, const Array<ExprDoc>& args,
                    const ObjectPath& p, const Frame& frame, const IRDocsifier& d) {
-  return BufferCall(/*prefix=*/TIR(d)->Attr(method),
+  return BufferCall(/*prefix=*/TIR(method),
                     /*attrs=*/BufferAttrs(buffer, p, frame, d),
                     /*args=*/args);
 }
 
-Doc BufferIndex(const PrimExpr& index, const ObjectPath& p, const IRDocsifier& d) {
-  if (const auto* ramp = index.as<tir::RampNode>()) {
-    if (const auto* stride = ramp->stride.as<IntImmNode>()) {
-      ExprDoc start = d->AsDoc<ExprDoc>(ramp->base, p->Attr("base"));
-      ExprDoc stop = d->AsDoc<ExprDoc>(ramp->base + ramp->lanes * ramp->stride, p->Attr("lanes"));
-      Optional<ExprDoc> step = NullOpt;
-      if (stride->value != 1) {
-        step = d->AsDoc<ExprDoc>(ramp->stride, p->Attr("stride"));
-      }
-      return SliceDoc(start, stop, step);
-    }
-  }
-  return d->AsDoc<ExprDoc>(index, p);
-}
-
-ExprDoc BufferIndices(const tir::Buffer& buffer, const Array<PrimExpr>& indices,
-                      const ObjectPath& p, const IRDocsifier& d) {
+Array<Doc> BufferIndices(const Array<PrimExpr>& indices, const ObjectPath& p,
+                         const IRDocsifier& d) {
   int n = indices.size();
   Array<Doc> indices_doc;
   indices_doc.reserve(n);
   for (int i = 0; i < n; ++i) {
-    indices_doc.push_back(BufferIndex(indices[i], p->Attr("indices")->ArrayIndex(i), d));
+    if (const auto* ramp = indices[i].as<tir::RampNode>()) {
+      if (const auto* stride = ramp->stride.as<IntImmNode>()) {
+        ObjectPath ramp_p = p->Attr("indices")->ArrayIndex(i);
+        ObjectPath stride_p = ramp_p->Attr("stride");
+        ExprDoc start = d->AsDoc<ExprDoc>(ramp->base,  //
+                                          ramp_p->Attr("base"));
+        ExprDoc stop = d->AsDoc<ExprDoc>(ramp->base + ramp->lanes * ramp->stride,  //
+                                         ramp_p->Attr("lanes"));
+        Optional<ExprDoc> step = NullOpt;
+        if (stride->value != 1) {
+          step = d->AsDoc<ExprDoc>(ramp->stride, ramp_p->Attr("stride"));
+        }
+        indices_doc.push_back(SliceDoc(start, stop, step));
+        continue;
+      }
+    }
+    indices_doc.push_back(d->AsDoc<ExprDoc>(indices[i], p->Attr("indices")->ArrayIndex(i)));
   }
-  return d->AsDoc<ExprDoc>(buffer, p->Attr("buffer"))[indices_doc];
+  return indices_doc;
+}
+
+Array<Doc> BufferSlices(const Array<Range>& region, const ObjectPath& p, const IRDocsifier& d) {
+  int n = region.size();
+  Array<Doc> indices;
+  indices.reserve(n);
+  for (int i = 0; i < n; ++i) {
+    Range range = region[i];
+    ObjectPath range_p = p->ArrayIndex(i);
+    ExprDoc min = d->AsDoc<ExprDoc>(range->min, range_p->Attr("min"));
+    if (tir::is_one(range->extent)) {
+      indices.push_back(min);
+    } else {
+      ExprDoc max = d->AsDoc<ExprDoc>(range->min + range->extent, range_p->Attr("extent"));
+      indices.push_back(SliceDoc(min, max, NullOpt));
+    }
+  }
+  return indices;
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::BufferRegion>(
         "", [](tir::BufferRegion buffer_region, ObjectPath p, IRDocsifier d) -> Doc {
           ExprDoc prefix = d->AsDoc<ExprDoc>(buffer_region->buffer, p->Attr("buffer"));
-          p = p->Attr("region");
-          Array<Range> region = buffer_region->region;
-          int n = region.size();
-          Array<Doc> indices;
-          indices.reserve(n);
-          for (int i = 0; i < n; ++i) {
-            Range range = region[i];
-            ExprDoc min = d->AsDoc<ExprDoc>(range->min, p->ArrayIndex(i)->Attr("min"));
-            if (tir::is_one(range->extent)) {
-              indices.push_back(min);
-            } else {
-              ExprDoc max =
-                  d->AsDoc<ExprDoc>(range->min + range->extent, p->ArrayIndex(i)->Attr("extent"));
-              indices.push_back(SliceDoc(min, max, NullOpt));
-            }
-          }
-          return prefix[indices];
+          return prefix[BufferSlices(buffer_region->region, p->Attr("region"), d)];
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::BufferStore>(  //
         "", [](tir::BufferStore store, ObjectPath p, IRDocsifier d) -> Doc {
-          return AssignDoc(/*lhs=*/BufferIndices(store->buffer, store->indices, p, d),
+          ExprDoc buffer = d->AsDoc<ExprDoc>(store->buffer, p->Attr("buffer"));
+          return AssignDoc(/*lhs=*/buffer[BufferIndices(store->indices, p->Attr("indices"), d)],
                            /*rhs=*/d->AsDoc<ExprDoc>(store->value, p->Attr("value")), NullOpt);
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::BufferLoad>(  //
         "", [](tir::BufferLoad load, ObjectPath p, IRDocsifier d) -> Doc {
-          return BufferIndices(load->buffer, load->indices, p, d);
+          ExprDoc buffer = d->AsDoc<ExprDoc>(load->buffer, p->Attr("buffer"));
+          return buffer[BufferIndices(load->indices, p->Attr("indices"), d)];
         });
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
+    .set_dispatch<tir::Buffer>("", [](tir::Buffer buffer, ObjectPath p, IRDocsifier d) -> Doc {
+      if (!d->IsVarDefined(buffer)) {
+        if (Optional<Frame> opt_f = FindLowestVarDef(buffer, d)) {
+          ExprDoc lhs = DefineBuffer(buffer, opt_f.value(), d);
+          ExprDoc rhs = BufferDecl(buffer, "buffer_decl",  // TODO(@junrushao): name confusing
+                                   {}, p, opt_f.value(), d);
+          opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
+        }
+      }
+      if (Optional<ExprDoc> doc = d->GetVarDoc(buffer)) {
+        return doc.value();
+      }
+      LOG(FATAL) << "IndexError: Buffer is not defined in the environment: " << buffer;
+    });
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<tir::MatchBufferRegion>(
+        "", [](tir::MatchBufferRegion stmt, ObjectPath p, IRDocsifier d) -> Doc {
+          Frame frame = d->frames.back();
+          ExprDoc lhs = DefineBuffer(stmt->buffer, frame, d);
+          ExprDoc src_buffer = d->AsDoc<ExprDoc>(stmt->source, p->Attr("source"));
+          ExprDoc rhs = BufferDecl(stmt->buffer, "match_buffer", {src_buffer}, p->Attr("buffer"),
+                                   d->frames.back(), d);
+          return AssignDoc(lhs, rhs, NullOpt);
+        });
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<tir::ProducerLoad>(  //
+        "", [](tir::ProducerLoad load, ObjectPath p, IRDocsifier d) -> Doc {
+          ExprDoc prefix = IdDoc(load->producer->GetNameHint());
+          return prefix[BufferIndices(load->indices, p->Attr("indices"), d)];
+        });
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<tir::ProducerStore>(  //
+        "", [](tir::ProducerStore store, ObjectPath p, IRDocsifier d) -> Doc {
+          ExprDoc prefix = IdDoc(store->producer->GetNameHint());
+          prefix = prefix[BufferIndices(store->indices, p->Attr("indices"), d)];
+          return AssignDoc(prefix, d->AsDoc<ExprDoc>(store->value, p->Attr("value")), NullOpt);
+        });
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<tir::ProducerRealize>(  //
+        "", [](tir::ProducerRealize stmt, ObjectPath p, IRDocsifier d) -> Doc {
+          ExprDoc prefix = IdDoc(stmt->producer->GetNameHint());
+          prefix = prefix[BufferSlices(stmt->bounds, p->Attr("bounds"), d)];
+          prefix = TIR("ProducerRealize")
+                       ->Call({prefix, d->AsDoc<ExprDoc>(stmt->condition, p->Attr("condition"))});
+          With<TIRFrame> f(d, stmt);
+          AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
+          return ScopeDoc(NullOpt, prefix, (*f)->stmts);
+        });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::BufferRegionNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::BufferLoadNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::BufferStoreNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::BufferNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::MatchBufferRegionNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::ProducerLoadNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::ProducerStoreNode>(ReprPrint);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::ProducerRealizeNode>(ReprPrint);
 
 }  // namespace printer
 }  // namespace script
