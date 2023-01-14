@@ -24,7 +24,7 @@ Create Your MLPerfTiny Submission with microTVM
 
 This tutorial is showcasing building an MLPerTiny submission using microTVM. This
 tutorial shows the steps to import a TFLite model from MLPerfTiny benchmark models,
-compile it with TVM and generate a Zephyr project which can be flashed to a Zephyr 
+compile it with TVM and generate a Zephyr project which can be flashed to a Zephyr
 supported board to benchmark the model using EEMBC runner.
 
 Install CMSIS-NN only if you are interested to generate this submission
