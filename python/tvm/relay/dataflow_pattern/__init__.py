@@ -46,6 +46,11 @@ def register_df_node(type_key=None):
 class DFPattern(Node):
     """Base class of all Patterns."""
 
+    def __str__(self):
+        from tvm.ir import pretty_print  # pylint: disable=import-outside-toplevel
+
+        return pretty_print(self)
+
     def __call__(self, *args):
         args = list(args)
         if len(args) == 1 and args[0] is None:

@@ -83,19 +83,17 @@ def test_variable_passed_from_args():
 
     # Arguments unpacking
     assignment = _find_assignment(func.body, "arg.input_buffer")
-    assert str(assignment.value) == "@tir.tvm_struct_get(args: handle, 0, 12, dtype=handle)"
+    assert str(assignment.value) == 'T.tvm_struct_get(args, 0, 12, "handle")'
 
     assignment = _find_assignment(func.body, "arg.not_device_context")
-    assert str(assignment.value) == "@tir.tvm_struct_get(args: handle, 1, 12, dtype=handle)"
+    assert str(assignment.value) == 'T.tvm_struct_get(args, 1, 12, "handle")'
 
     assignment = _find_assignment(func.body, "input_buffer")
-    assert (
-        str(assignment.value) == "@tir.tvm_struct_get(arg.input_buffer: handle, 0, 1, dtype=handle)"
-    )
+    assert str(assignment.value) == 'T.tvm_struct_get(arg_input_buffer, 0, 1, "handle")'
     unpacked_input_buffer = assignment.var
 
     assignment = _find_assignment(func.body, "not_device_context")
-    assert str(assignment.value) == "arg.not_device_context: handle"
+    assert str(assignment.value) == "arg_not_device_context"
     unpacked_not_device_context = assignment.var
 
     seq_stmt = _find_next(assignment, tvm.tir.SeqStmt)
@@ -131,12 +129,10 @@ def test_device_api_context_implicit_resource_handle():
 
     # Arguments unpacking
     assignment = _find_assignment(func.body, "arg.input_buffer")
-    assert str(assignment.value) == "@tir.tvm_struct_get(args: handle, 0, 12, dtype=handle)"
+    assert str(assignment.value) == 'T.tvm_struct_get(args, 0, 12, "handle")'
 
     assignment = _find_assignment(func.body, "input_buffer")
-    assert (
-        str(assignment.value) == "@tir.tvm_struct_get(arg.input_buffer: handle, 0, 1, dtype=handle)"
-    )
+    assert str(assignment.value) == 'T.tvm_struct_get(arg_input_buffer, 0, 1, "handle")'
     unpacked_input_buffer = assignment.var
 
     seq_stmt = _find_next(assignment, tvm.tir.SeqStmt)

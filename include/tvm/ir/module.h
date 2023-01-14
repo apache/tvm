@@ -63,6 +63,26 @@ class IRModuleNode : public Object {
   parser::SourceMap source_map;
   /* \brief Additional attributes storing meta-data about the module. */
   DictAttrs attrs;
+  /*!
+   * \brief A map from string names to global variables that
+   * ensures global uniqueness.
+   */
+  Map<String, GlobalVar> global_var_map_;
+
+  /*! \brief A map from string names to global type variables (ADT names)
+   * that ensures global uniqueness.
+   */
+  Map<String, GlobalTypeVar> global_type_var_map_;
+
+  /*! \brief A map from constructor tags to constructor objects
+   * for convenient access
+   */
+  std::unordered_map<int32_t, Constructor> constructor_tag_map_;
+
+  /*! \brief The files previously imported, required to ensure
+      importing is idempotent for each module.
+   */
+  std::unordered_set<String> import_set_;
 
   /*!
    * \brief Get a module attribute.
@@ -304,15 +324,20 @@ class IRModuleNode : public Object {
   TVM_DLL void ImportFromStd(const String& path);
 
   /*!
-   * \brief Should Link Parameters into the module
-   * \return Whether the Executor is configured to execute with linked parameters (Default: false)
-   */
-  TVM_DLL Bool ShouldLinkParameters() const;
-
-  /*!
    * \brief The set of imported files.
    */
   TVM_DLL std::unordered_set<String> Imports() const;
+
+  /*!
+   * \brief Returns the TVMScript format
+   * \param indent_spaces Number of spaces used for indentation
+   * \param print_line_numbers Whether to print line numbers
+   * \param num_context_lines Number of context lines to print around the underlined text
+   * \param path_to_underline Object path to be underlined
+   */
+  TVM_DLL std::string Script(int indent_spaces = 4, bool print_line_numbers = false,
+                             int num_context_lines = -1,
+                             Optional<ObjectPath> path_to_underline = NullOpt) const;
 
   static constexpr const char* _type_key = "IRModule";
   static constexpr const bool _type_has_method_sequal_reduce = true;
@@ -322,26 +347,6 @@ class IRModuleNode : public Object {
  private:
   /*! \brief Helper function for registering a typedef's constructors */
   void RegisterConstructors(const GlobalTypeVar& var, const TypeData& type);
-
-  /*! \brief A map from string names to global variables that
-   * ensures global uniqueness.
-   */
-  Map<String, GlobalVar> global_var_map_;
-
-  /*! \brief A map from string names to global type variables (ADT names)
-   * that ensures global uniqueness.
-   */
-  Map<String, GlobalTypeVar> global_type_var_map_;
-
-  /*! \brief A map from constructor tags to constructor objects
-   * for convenient access
-   */
-  std::unordered_map<int32_t, Constructor> constructor_tag_map_;
-
-  /*! \brief The files previously imported, required to ensure
-      importing is idempotent for each module.
-   */
-  std::unordered_set<String> import_set_;
   friend class IRModule;
 };
 

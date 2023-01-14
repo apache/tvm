@@ -312,7 +312,7 @@ class DefuncMutator : public ExprMutator {
    */
   std::string TypeToString(const Type& t) {
     std::ostringstream s;
-    s << t;
+    s << t->GetTypeKey();
     return s.str();
   }
 

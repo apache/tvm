@@ -23,7 +23,7 @@
     the location to which the ops would be printed
  */
 
-#include "install_debug_spans.h"
+#include "./install_debug_spans.h"
 
 #include <tvm/tir/transform.h>
 

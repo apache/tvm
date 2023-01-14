@@ -36,21 +36,24 @@ import logging
 from functools import reduce
 
 import tvm.ir
-from tvm.ir import Op
 from tvm import relay
-from tvm.relay import transform
-from tvm.relay.expr import GlobalVar
-from tvm.relay.expr_functor import ExprMutator, ExprVisitor
-from tvm.relay.expr import const
-
-from tvm.relay.analysis import analysis as _analysis
+from tvm.ir import Op
 from tvm.relay import expr as _expr
+from tvm.relay import transform
+from tvm.relay.analysis import analysis as _analysis
+from tvm.relay.expr import Call, GlobalVar, TupleGetItem, const
+from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 
-from tvm.relay.expr import Call, TupleGetItem
 from ... import _ffi_api
-from ...dataflow_pattern import wildcard, is_op, is_constant, is_expr, rewrite, DFPatternCallback
+from ...dataflow_pattern import (
+    DFPatternCallback,
+    is_constant,
+    is_expr,
+    is_op,
+    rewrite,
+    wildcard,
+)
 from .register import register_pattern_table
-
 
 logger = logging.getLogger("DNNL")
 supported_post_elts = ["nn.relu", "tanh", "sigmoid", "clip", "gelu", "swish", "mish", None]
@@ -762,7 +765,7 @@ class IsComputeIntensiveGraph(ExprVisitor):
             ]
         )
         if isinstance(call.op, tvm.tir.op.Op):
-            if str(call.op) in compute_intensive_ops:
+            if str(call.op.name) in compute_intensive_ops:
                 self.is_compute_intensive = True
 
         return super().visit_call(call)

@@ -21,15 +21,8 @@
  * \file ir/error.cc
  * \brief Utilities for error tracking and reporting.
  */
-
 #include <tvm/ir/error.h>
 #include <tvm/ir/module.h>
-// NOTE: reverse dependency on relay.
-// These dependencies do not happen at the interface-level,
-// and are only used in minimum cases where they are clearly marked.
-//
-// Rationale: use relay's printer for astext.
-#include <tvm/relay/expr.h>
 
 // clang-format off
 #include <string>

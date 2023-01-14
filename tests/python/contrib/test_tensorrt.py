@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import numpy as np
-import pytest
 import itertools
 import logging
 from typing import Tuple
+
+import numpy as np
+import pytest
 
 try:
     # See issue #9362.
@@ -28,13 +29,12 @@ except:
     pass
 
 import tvm
-import tvm.testing
 import tvm.relay.testing
-
+import tvm.testing
 from tvm import relay
+from tvm.contrib.download import download
 from tvm.relay import Any, GlobalVar
 from tvm.relay.expr_functor import ExprVisitor
-from tvm.contrib.download import download
 from tvm.relay.op.contrib import tensorrt
 
 SUPPORTED_DTYPES = ["float16", "float32"]
@@ -615,7 +615,7 @@ class AreOpsOnGraph(ExprVisitor):
 
     def visit_call(self, call):
         if isinstance(call.op, tvm.tir.op.Op):
-            if str(call.op) in self.op_list:
+            if str(call.op.name) in self.op_list:
                 self.on_graph = True
 
         return super().visit_call(call)

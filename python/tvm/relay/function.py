@@ -19,11 +19,11 @@
 from __future__ import absolute_import
 
 import tvm._ffi
-from tvm.runtime import convert
 from tvm.ir import BaseFunc
+from tvm.runtime import convert
 
-from .expr import Call
 from . import _ffi_api
+from .expr import Call
 
 
 @tvm._ffi.register_object("relay.Function")
@@ -66,6 +66,11 @@ class Function(BaseFunc):
             Arguments.
         """
         return Call(self, args, None, None)
+
+    def __str__(self):
+        from tvm.ir import pretty_print  # pylint: disable=import-outside-toplevel
+
+        return pretty_print(self)
 
 
 @tvm._ffi.register_func("relay.FunctionWithFields")

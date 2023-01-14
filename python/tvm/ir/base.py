@@ -16,13 +16,16 @@
 # under the License.
 """Common base structures."""
 import tvm._ffi
-
 import tvm.error
 import tvm.runtime._ffi_node_api
 from tvm.runtime import Object
 
-from . import _ffi_api
-from . import json_compact
+from . import _ffi_api, json_compact
+
+
+def pretty_print(obj: Object) -> None:
+    """Pretty print the object."""
+    return _ffi_api.PrettyPrint(obj)  # type: ignore # pylint: disable=no-member
 
 
 class Node(Object):
@@ -53,9 +56,6 @@ class Node(Object):
         so it can be helpful to skip printing the meta data section.
         """
         return _ffi_api.AsText(self, show_meta_data, annotate)
-
-    def __str__(self):
-        return _ffi_api.PrettyPrint(self)
 
 
 @tvm._ffi.register_object("SourceName")
