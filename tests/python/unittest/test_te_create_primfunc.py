@@ -689,6 +689,72 @@ def test_argmax():
     tvm.ir.assert_structural_equal(prim_func, argmax_expected)
 
 
+def te_resize2d_symbolic():
+    oh = tir.Var("oh", "int64")
+    ow = tir.Var("ow", "int64")
+    roi = (0.0, 0.0, 0.0, 0.0)
+    A = te.placeholder((2, 3, 128, 128), "float32", name="A")
+    B = topi.image.resize2d(
+        A,
+        roi,
+        size=(oh, ow),
+        method="nearest_neighbor",
+        coordinate_transformation_mode="asymmetric",
+        rounding_method="round",
+    )
+    return [A, B]
+
+
+@T.prim_func
+def tir_resize2d_symbolic(
+    A: T.Buffer[(T.int64(2), T.int64(3), T.int64(128), T.int64(128)), "float32"],
+    var_resize: T.handle,
+):
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    oh = T.var("int64")
+    ow = T.var("int64")
+    resize = T.match_buffer(var_resize, [T.int64(2), T.int64(3), oh, ow], dtype="float32")
+    for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(3), oh, ow):
+        with T.block("resize"):
+            v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+            T.reads(A[v_i0, v_i1, T.int64(0) : T.int64(128), T.int64(0) : T.int64(128)])
+            T.writes(resize[v_i0, v_i1, v_i2, v_i3])
+            resize[v_i0, v_i1, v_i2, v_i3] = A[
+                v_i0,
+                v_i1,
+                T.max(
+                    T.min(
+                        T.Cast(
+                            "int64",
+                            T.round(
+                                T.float32(128) / T.Cast("float32", oh) * T.Cast("float32", v_i2),
+                                dtype="float32",
+                            ),
+                        ),
+                        T.int64(127),
+                    ),
+                    T.int64(0),
+                ),
+                T.max(
+                    T.min(
+                        T.Cast(
+                            "int64",
+                            T.round(
+                                T.float32(128) / T.Cast("float32", ow) * T.Cast("float32", v_i3),
+                                dtype="float32",
+                            ),
+                        ),
+                        T.int64(127),
+                    ),
+                    T.int64(0),
+                ),
+            ]
+
+
+def test_resize2d_symbolic():
+    _check_workload(te_resize2d_symbolic, tir_resize2d_symbolic, index_dtype_override="int64")
+
+
 def test_extern_with_explicit_buffer_access():
     def te_extern():
         A = te.placeholder((128, 128), name="A")
