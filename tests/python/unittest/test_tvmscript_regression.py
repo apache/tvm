@@ -17,6 +17,7 @@
 import numpy
 
 import tvm
+import tvm.testing
 from tvm.script import tir as T
 
 
@@ -73,9 +74,17 @@ def test_var_capturing_order():
     tvm.ir.assert_structural_equal(test_case, func_ref)
 
 
+def test_tir_buffer_region_extent_correct_dtype():
+    @T.prim_func
+    def func(A: T.Buffer[(T.int64(16), T.int64(1)), "float32"]):
+        for i in T.grid(T.int64(16)):
+            with T.block("block"):
+                vi = T.axis.remap("S", [i])
+                T.reads(A[vi, T.int64(0) : T.int64(1)])
+                T.evaluate(0)
+
+    assert func.body.block.body.body.block.reads[0].region[0].extent.dtype == "int64"
+
+
 if __name__ == "__main__":
-    a = numpy.zeros((10, 10), dtype="int8")
-    test_multi_element_array_in_outmost_namespace()
-    test_different_dtype_assignment_to_var()
-    b = 1
-    test_var_capturing_order()
+    tvm.testing.main()
