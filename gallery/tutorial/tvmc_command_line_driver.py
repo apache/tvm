@@ -52,7 +52,7 @@ capabilities, and set the stage for understanding how TVM works.
 # will vary depending on your platform and installation method.
 #
 # Alternatively, if you have TVM as a Python module on your
-# ``$PYTHONPATH``,you can access the command line driver functionality
+# ``$PYTHONPATH``, you can access the command line driver functionality
 # via the executable python module, ``python -m tvm.driver.tvmc``.
 #
 # For simplicity, this tutorial will mention TVMC command line using
