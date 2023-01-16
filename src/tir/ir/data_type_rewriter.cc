@@ -574,7 +574,10 @@ PrimExpr IndexDataTypeNormalizer::VisitExpr_(const VarNode* op) {
 }
 
 PrimExpr IndexDataTypeNormalizer::VisitExpr_(const CastNode* op) {
-  if (is_enabled_) {
+  // Unwrap the cast only when the dtype of this cast is integer dtype.
+  // When the dtype of this cast is not integer dtype, it means that this cast
+  // has some other purpose, and we should not unwrap the cast.
+  if (is_enabled_ && op->dtype.is_int()) {
     PrimExpr value = IndexDataTypeNormalizer::VisitExpr(op->value);
     return value->dtype == target_data_type_ ? value : Cast(target_data_type_, value);
   }
