@@ -200,6 +200,7 @@ def _emit_main_prologue(
     compiled_models,
     interface_api,
     use_stack_allocator=True,
+    debug_last_error=False,
 ):
     if use_stack_allocator:
         workspace_define = f"#define WORKSPACE_SIZE ({workspace_bytes}"
@@ -243,11 +244,28 @@ void TVMLogf(const char* msg, ...) {
   va_start(args, msg);
   vfprintf(stdout, msg, args);
   va_end(args);
-}\n
-TVM_DLL int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f, int override) {}
-int main(){\n
+}
     """
     )
+    if debug_last_error:
+        main_file.write(
+            """\n
+tvm_crt_error_t TVMPlatformTimerStart() {
+  return kTvmErrorFunctionCallNotImplemented;
+}
+tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
+  return kTvmErrorFunctionCallNotImplemented;
+}
+const TVMModule* TVMSystemLibEntryPoint(void) { return NULL; }
+"""
+        )
+    else:
+        main_file.write(
+            """\n
+TVM_DLL int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f, int override) {}
+"""
+        )
+    main_file.write("\nint main(){\n")
     main_file.write(custom_prologue)
 
 
@@ -332,10 +350,10 @@ def _emit_main_data_setup(main_file, input_map, output_map, mod_name):
 
 
 def _emit_main_c_interface_call(
-    main_file, devices, workspace_pool_names, mod_name, use_workspace_io
+    main_file, devices, workspace_pool_names, mod_name, use_workspace_io, debug_last_error
 ):
     sub_strings = list()
-    sub_strings.append(f'{_mangle_name(mod_name,"run")}(')
+    sub_strings.append(f'if ({_mangle_name(mod_name,"run")}(')
     if not use_workspace_io:
         sub_strings.append(f'&{_mangle_name(mod_name,"inputs")}, ')
         sub_strings.append(f'&{_mangle_name(mod_name,"outputs")}, ')
@@ -346,10 +364,14 @@ def _emit_main_c_interface_call(
     # Removing the last two characters that is a comma and a space
     sub_strings[-1] = sub_strings[-1][:-2]
     # Adding brackets and newline instead
-    sub_strings[-1] = sub_strings[-1] + ");\n"
-
+    sub_strings[-1] = sub_strings[-1] + ") == -1) {\n"
     main_file_string = "".join(sub_strings)
     main_file.write(main_file_string)
+    if debug_last_error:
+        main_file.write(f'\tprintf("ERROR: %s\\n", TVMGetLastError());\n')
+    main_file.write(f'\tprintf("{AOT_FAILURE_TOKEN}\\n");\n')
+    main_file.write(f"\treturn -1;\n")
+    main_file.write("}\n")
 
 
 def _emit_main_fake_packed_values(main_file):
@@ -447,13 +469,15 @@ def _emit_main_epilogue(main_file, custom_epilogue):
     main_file.write("}\n")
 
 
-def _emit_main_common_includes(main_file, custom_includes):
+def _emit_main_common_includes(main_file, custom_includes, debug_last_error):
     main_file.write("#include <stdio.h>\n")
     main_file.write("#include <stdarg.h>\n")
     main_file.write("#include <stdlib.h>\n")
     main_file.write("#include <math.h>\n")
     main_file.write('#include "tvm/runtime/c_runtime_api.h"\n')
     main_file.write('#include "tvm/runtime/crt/stack_allocator.h"\n')
+    if debug_last_error:
+        main_file.write('#include "tvm/runtime/crt/module.h"\n')
     for include in custom_includes:
         main_file.write(f'#include "{include}"\n')
 
@@ -474,12 +498,13 @@ def _create_main(
     workspace_bytes,
     use_stack_allocator=True,
     use_workspace_io=False,
+    debug_last_error=False,
 ):
     file_path = pathlib.Path(f"{output_path}/" + test_name).resolve()
     # create header file
     raw_path = file_path.with_suffix(".c").resolve()
     with open(raw_path, "w") as main_file:
-        _emit_main_common_includes(main_file, custom_includes)
+        _emit_main_common_includes(main_file, custom_includes, debug_last_error)
 
         if interface_api == "c":
             for compiled_model in compiled_models:
@@ -497,6 +522,7 @@ def _create_main(
             compiled_models,
             interface_api,
             use_stack_allocator,
+            debug_last_error,
         )
         if use_stack_allocator:
             _emit_main_init_memory_manager(main_file)
@@ -529,6 +555,7 @@ def _create_main(
                     list(workspace_pool_names.keys()),
                     model.name,
                     use_workspace_io,
+                    debug_last_error,
                 )
         else:
             _emit_main_fake_packed_values(main_file)
@@ -765,6 +792,8 @@ def run_and_check(
                 )
 
         use_usmp = runner.pass_config.get("tir.usmp.enable", False)
+        options = runner.pass_config.get("relay.ext.cmsisnn.options")
+        debug_last_error = options.get("debug_last_error", False) if options else False
         # We only need the stack allocator if USMP is not used
         use_stack_allocator = not use_usmp
 
@@ -780,6 +809,7 @@ def run_and_check(
             workspace_bytes,
             use_stack_allocator,
             use_workspace_io,
+            debug_last_error,
         )
 
         # Verify that compiles fine
