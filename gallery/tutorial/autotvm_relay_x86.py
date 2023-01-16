@@ -344,7 +344,7 @@ tuning_option = {
 # .. admonition:: Setting Tuning Parameters
 #
 #   In this example, in the interest of time, we set the number of trials and
-#   early stopping to 10. You will likely see more performance improvements if
+#   early stopping to 20 and 100. You will likely see more performance improvements if
 #   you set these values to be higher but this comes at the expense of time
 #   spent tuning. The number of trials required for convergence will vary
 #   depending on the specifics of the model and the target platform.

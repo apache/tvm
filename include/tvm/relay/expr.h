@@ -265,7 +265,7 @@ class Var : public Expr {
 };
 
 /*!
- * \brief Returns \p vor with the given properties. A null property denotes 'no change'.
+ * \brief Returns \p var with the given properties. A null property denotes 'no change'.
  * Returns \p var if all properties are unchanged. Otherwise, returns a copy with the new
  * fields.
  */
