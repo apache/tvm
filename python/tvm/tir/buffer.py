@@ -179,7 +179,7 @@ class Buffer(Object):
 
     def __getitem__(self, indices):
         from ..arith import Analyzer  # pylint: disable=import-outside-toplevel
-        from .expr import BufferLoad, Ramp  # pylint: disable=import-outside-toplevel
+        from .expr import BufferLoad, Ramp, const  # pylint: disable=import-outside-toplevel
         from .stmt import BufferRegion  # pylint: disable=import-outside-toplevel
 
         if not isinstance(indices, (tuple, list)):
@@ -195,7 +195,11 @@ class Buffer(Object):
                     stop = self.shape[i] if index.stop is None else index.stop
                     region.append(Range.from_min_extent(start, analyzer.simplify(stop - start)))
                 else:
-                    region.append(Range.from_min_extent(index, 1))
+                    region.append(
+                        Range.from_min_extent(
+                            index, const(1, index.dtype) if isinstance(index, PrimExpr) else 1
+                        )
+                    )
             return BufferRegion(self, region)
         else:
             expr_indices = []
