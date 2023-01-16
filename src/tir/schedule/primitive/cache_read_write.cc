@@ -417,7 +417,13 @@ class CacheLocDetector : public StmtVisitor {
       info->loc_pos = detector.loc_pos_;
     } else {
       info->loc_sref = scope_sref;
-      const auto* body = scope_sref->StmtAs<BlockNode>()->body.as<SeqStmtNode>();
+
+      auto block_body = scope_sref->StmtAs<BlockNode>()->body;
+      // Find the SeqStmtNode within (potentially nested) AllocateConstNodes
+      while (block_body->IsInstance<AllocateConstNode>()) {
+        block_body = block_body.as<AllocateConstNode>()->body;
+      }
+      const auto* body = block_body.as<SeqStmtNode>();
       info->loc_pos = body == nullptr ? 1 : body->size();
     }
   }
