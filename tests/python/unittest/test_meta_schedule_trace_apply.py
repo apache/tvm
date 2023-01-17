@@ -2799,7 +2799,7 @@ def test_conv2d_int8_vnni():
     )
 
 
-def test_conv2d_int8_vavx512():
+def test_conv2d_int8_avx512():
     def apply_trace(sch):
         return apply_trace_16x4(sch, AVX512_INTRIN)
 
