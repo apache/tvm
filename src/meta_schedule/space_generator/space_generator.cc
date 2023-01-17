@@ -99,11 +99,11 @@ void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
       default_postprocs = Postproc::DefaultHexagon();
       default_mutator_probs = Mutator::DefaultHexagon();
     } else if (kind == "vnni") {
-      default_sch_rules = ScheduleRule::DefaultVNNI();
+      default_sch_rules = ScheduleRule::DefaultX86("vnni");
       default_postprocs = Postproc::DefaultCPUTensorization();
       default_mutator_probs = Mutator::DefaultLLVM();
     } else if (kind == "avx512") {
-      default_sch_rules = ScheduleRule::DefaultAVX512();
+      default_sch_rules = ScheduleRule::DefaultX86("avx512");
       default_postprocs = Postproc::DefaultCPUTensorization();
       default_mutator_probs = Mutator::DefaultLLVM();
     } else if (kind == "c") {

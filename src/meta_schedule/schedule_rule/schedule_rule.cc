@@ -85,52 +85,11 @@ Array<ScheduleRule> ScheduleRule::DefaultLLVM() {
   };
 }
 
-Array<ScheduleRule> ScheduleRule::DefaultVNNI() {
-  return {
-      ScheduleRule::ApplyCustomRule(),
-      ScheduleRule::InlineConstantScalars(),
-      ScheduleRule::AutoInline(
-          /*into_producer=*/false,
-          /*into_consumer=*/true,
-          /*inline_const_tensor=*/true,
-          /*disallow_if_then_else=*/true,
-          /*require_injective=*/true,
-          /*require_ordered=*/true,
-          /*disallow_op=*/Array<String>{"tir.exp"}),
-      ScheduleRule::AddRFactor(
-          /*max_jobs_per_core=*/16,
-          /*max_innermost_factor=*/Integer(64)),
-      ScheduleRule::MultiLevelTilingWithIntrin(
-          /*intrin_name=*/"dot_16x4_vnni",
-          /*structure=*/"SSRSRS",
-          /*tile_binds=*/NullOpt,
-          /*max_innermost_factor=*/Integer(64),
-          /*vector_load_lens=*/NullOpt,
-          /*reuse_read=*/NullOpt,
-          /*reuse_write=*/
-          Map<String, ObjectRef>{{"req", String("may")},
-                                 {"levels", Array<Integer>{1, 2}},
-                                 {"scope", String("global")}}),
-      ScheduleRule::MultiLevelTiling(
-          /*structure=*/"SSRSRS",
-          /*tile_binds=*/NullOpt,
-          /*max_innermost_factor=*/Integer(64),
-          /*vector_load_lens=*/NullOpt,
-          /*reuse_read=*/NullOpt,
-          /*reuse_write=*/
-          Map<String, ObjectRef>{{"req", String("may")},
-                                 {"levels", Array<Integer>{1, 2}},
-                                 {"scope", String("global")}}),
-      ScheduleRule::ParallelizeVectorizeUnroll(
-          /*max_jobs_per_core=*/16,
-          /*max_vectorize_extent=*/64,
-          /*unroll_max_steps=*/Array<Integer>{0, 16, 64, 512},
-          /*unroll_explicit=*/true),
-      ScheduleRule::RandomComputeLocation(),
+Array<ScheduleRule> DefaultX86(const String& type) {
+  const static Map<String, String> intrins = {
+    {"vnni", "dot_16x4_vnni"},
+    {"avx512", "dot_16x4_avx512"}
   };
-}
-
-Array<ScheduleRule> ScheduleRule::DefaultAVX512() {
   return {
       ScheduleRule::ApplyCustomRule(),
       ScheduleRule::InlineConstantScalars(),
@@ -146,7 +105,7 @@ Array<ScheduleRule> ScheduleRule::DefaultAVX512() {
           /*max_jobs_per_core=*/16,
           /*max_innermost_factor=*/Integer(64)),
       ScheduleRule::MultiLevelTilingWithIntrin(
-          /*intrin_name=*/"dot_16x4_avx512",
+          /*intrin_name=*/intrins[type],
           /*structure=*/"SSRSRS",
           /*tile_binds=*/NullOpt,
           /*max_innermost_factor=*/Integer(64),
