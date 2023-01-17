@@ -85,7 +85,7 @@ Array<ScheduleRule> ScheduleRule::DefaultLLVM() {
   };
 }
 
-Array<ScheduleRule> DefaultX86(const String& type) {
+Array<ScheduleRule> ScheduleRule::DefaultX86(const String& type) {
   static const Map<String, String> intrins = {
     {"vnni", "dot_16x4_vnni"},
     {"avx512", "dot_16x4_avx512"}
