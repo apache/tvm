@@ -1819,7 +1819,10 @@ class QAttention(OrtAttentionBase, OnnxOpConverter):
             )
             att_scores = _op.add(
                 att_scores,
-                cls._create_unidirectional_mask(0, -10000, past_seq_len, seq_len, score_dtype),
+                _op.multiply(
+                    att_mask,
+                    cls._create_unidirectional_mask(0, 1, past_seq_len, seq_len, score_dtype),
+                ),
             )
 
         # Compute Softmax
