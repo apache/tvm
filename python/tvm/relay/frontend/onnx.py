@@ -1422,6 +1422,86 @@ class OrtAttentionBase:
 
         return unidirectional_mask
 
+    @classmethod
+    def _compute_attention(cls, Q, K, V, mask_index, **kwargs):
+        # Compute Attention scores
+        att_scores = _op.nn.batch_matmul(Q, K, transpose_a=False, transpose_b=True)
+        score_dtype = infer_type(att_scores).checked_type.dtype
+        att_scores = _op.divide(
+            att_scores,
+            _op.const(
+                np.sqrt(kwargs["head_size"]), dtype=infer_type(att_scores).checked_type.dtype
+            ),
+        )
+        att_scores = _op.reshape(
+            att_scores,
+            (
+                kwargs["batch_size"],
+                kwargs["num_heads"],
+                kwargs["seq_len"],
+                kwargs["past_seq_len"] + kwargs["seq_len"],
+            ),
+        )
+
+        # Build the attention mask
+        att_mask = _op.cast(mask_index, score_dtype)
+        # Attention mask has value 0 or 1. Here we convert 0 to -10000, and 1 to 0.
+        att_mask = _op.subtract(_op.const(1, dtype=score_dtype), att_mask)
+        att_mask = _op.multiply(att_mask, _op.const(-10000, dtype=score_dtype))
+        # Expand for att_scores broadcast
+        # (batch_size, past_seq_len + seq_len) -> (batch_size, 1, seq_len, past_seq_len + seq_len)
+        att_mask = _op.expand_dims(att_mask, 1, num_newaxis=2)
+        att_mask = _op.concatenate([att_mask] * kwargs["seq_len"], axis=2)
+
+        if kwargs["unidirectional"]:
+            att_mask = _op.add(
+                att_mask,
+                cls._create_unidirectional_mask(
+                    0, -10000, kwargs["past_seq_len"], kwargs["seq_len"], score_dtype
+                ),
+            )
+
+        # Apply the mask
+        att_scores = _op.add(att_scores, att_mask)
+        # TODO(agladyshev):
+        #   Comment from ORT source code (onnxruntime/contrib_ops/cpu/bert/attention_cpu_base.h):
+        #   "Fix unidirectional mask to be parity with huggingface implementation"
+        if kwargs["unidirectional"]:
+            att_scores = _op.multiply(
+                att_scores,
+                cls._create_unidirectional_mask(
+                    1, 0, kwargs["past_seq_len"], kwargs["seq_len"], score_dtype
+                ),
+            )
+            att_scores = _op.add(
+                att_scores,
+                _op.multiply(
+                    att_mask,
+                    cls._create_unidirectional_mask(
+                        0, 1, kwargs["past_seq_len"], kwargs["seq_len"], score_dtype
+                    ),
+                ),
+            )
+
+        # Compute Softmax
+        att_scores = _op.reshape(
+            att_scores,
+            (
+                kwargs["batch_size"] * kwargs["num_heads"],
+                kwargs["seq_len"],
+                kwargs["past_seq_len"] + kwargs["seq_len"],
+            ),
+        )
+        att_probs = _op.nn.softmax(att_scores, axis=-1)
+
+        # Compute output
+        output = _op.nn.batch_matmul(att_probs, V, transpose_a=False, transpose_b=False)
+        output = _op.reverse_reshape(output, (-1, kwargs["num_heads"], 0, 0))
+        output = _op.transpose(output, axes=[0, 2, 1, 3])
+        output = _op.reshape(output, (0, 0, kwargs["out_hidden"]))
+
+        return output
+
 
 class Attention(OrtAttentionBase, OnnxOpConverter):
     """Operator converter for Attention from Microsoft onnxruntime contrib opset.
@@ -1543,61 +1623,20 @@ class Attention(OrtAttentionBase, OnnxOpConverter):
         K = cls._merge_first_dimensions(K)
         V = cls._merge_first_dimensions(V)
 
-        att_scores = _op.nn.batch_matmul(Q, K, transpose_a=False, transpose_b=True)
-        score_dtype = infer_type(att_scores).checked_type.dtype
-        att_scores = _op.divide(
-            att_scores,
-            _op.const(np.sqrt(head_size), dtype=infer_type(att_scores).checked_type.dtype),
+        # Compute Attention output
+        output = cls._compute_attention(
+            Q,
+            K,
+            V,
+            mask_index,
+            unidirectional=unidirectional,
+            batch_size=batch_size,
+            out_hidden=out_hidden,
+            num_heads=num_heads,
+            head_size=head_size,
+            seq_len=seq_len,
+            past_seq_len=past_seq_len,
         )
-        att_scores = _op.reshape(
-            att_scores, (batch_size, num_heads, seq_len, past_seq_len + seq_len)
-        )
-
-        # Build the attention mask
-        att_mask = _op.cast(mask_index, score_dtype)
-        # Attention mask has value 0 or 1. Here we convert 0 to -10000, and 1 to 0.
-        att_mask = _op.subtract(_op.const(1, dtype=score_dtype), att_mask)
-        att_mask = _op.multiply(att_mask, _op.const(-10000, dtype=score_dtype))
-        # Expand for att_scores broadcast
-        # (batch_size, past_seq_len + seq_len) -> (batch_size, 1, seq_len, past_seq_len + seq_len)
-        att_mask = _op.expand_dims(att_mask, 1, num_newaxis=2)
-        att_mask = _op.concatenate([att_mask] * seq_len, axis=2)
-
-        if unidirectional:
-            att_mask = _op.add(
-                att_mask,
-                cls._create_unidirectional_mask(0, -10000, past_seq_len, seq_len, score_dtype),
-            )
-
-        # Apply the mask
-        att_scores = _op.add(att_scores, att_mask)
-        # TODO(agladyshev):
-        #   Comment from ORT source code (onnxruntime/contrib_ops/cpu/bert/attention_cpu_base.h):
-        #   "Fix unidirectional mask to be parity with huggingface implementation"
-        if unidirectional:
-            att_scores = _op.multiply(
-                att_scores,
-                cls._create_unidirectional_mask(1, 0, past_seq_len, seq_len, score_dtype),
-            )
-            att_scores = _op.add(
-                att_scores,
-                _op.multiply(
-                    att_mask,
-                    cls._create_unidirectional_mask(0, 1, past_seq_len, seq_len, score_dtype),
-                ),
-            )
-
-        # Compute Softmax
-        att_scores = _op.reshape(
-            att_scores, (batch_size * num_heads, seq_len, past_seq_len + seq_len)
-        )
-        att_probs = _op.nn.softmax(att_scores, axis=-1)
-
-        # Compute output
-        output = _op.nn.batch_matmul(att_probs, V, transpose_a=False, transpose_b=False)
-        output = _op.reverse_reshape(output, (-1, num_heads, 0, 0))
-        output = _op.transpose(output, axes=[0, 2, 1, 3])
-        output = _op.reshape(output, (0, 0, out_hidden))
 
         return _expr.TupleWrapper(_expr.Tuple([output, present]), 2)
 
@@ -1781,61 +1820,20 @@ class QAttention(OrtAttentionBase, OnnxOpConverter):
         K = cls._merge_first_dimensions(K)
         V = cls._merge_first_dimensions(V)
 
-        att_scores = _op.nn.batch_matmul(Q, K, transpose_a=False, transpose_b=True)
-        score_dtype = infer_type(att_scores).checked_type.dtype
-        att_scores = _op.divide(
-            att_scores,
-            _op.const(np.sqrt(head_size), dtype=infer_type(att_scores).checked_type.dtype),
+        # Compute Attention output
+        output = cls._compute_attention(
+            Q,
+            K,
+            V,
+            mask_index,
+            unidirectional=unidirectional,
+            batch_size=batch_size,
+            out_hidden=out_hidden,
+            num_heads=num_heads,
+            head_size=head_size,
+            seq_len=seq_len,
+            past_seq_len=past_seq_len,
         )
-        att_scores = _op.reshape(
-            att_scores, (batch_size, num_heads, seq_len, past_seq_len + seq_len)
-        )
-
-        # Build the attention mask
-        att_mask = _op.cast(mask_index, score_dtype)
-        # Attention mask has value 0 or 1. Here we convert 0 to -10000, and 1 to 0.
-        att_mask = _op.subtract(_op.const(1, dtype=score_dtype), att_mask)
-        att_mask = _op.multiply(att_mask, _op.const(-10000, dtype=score_dtype))
-        # Expand for att_scores broadcast
-        # (batch_size, past_seq_len + seq_len) -> (batch_size, 1, seq_len, past_seq_len + seq_len)
-        att_mask = _op.expand_dims(att_mask, 1, num_newaxis=2)
-        att_mask = _op.concatenate([att_mask] * seq_len, axis=2)
-
-        if unidirectional:
-            att_mask = _op.add(
-                att_mask,
-                cls._create_unidirectional_mask(0, -10000, past_seq_len, seq_len, score_dtype),
-            )
-
-        # Apply the mask
-        att_scores = _op.add(att_scores, att_mask)
-        # TODO(agladyshev):
-        #   Comment from ORT source code (onnxruntime/contrib_ops/cpu/bert/attention_cpu_base.h):
-        #   "Fix unidirectional mask to be parity with huggingface implementation"
-        if unidirectional:
-            att_scores = _op.multiply(
-                att_scores,
-                cls._create_unidirectional_mask(1, 0, past_seq_len, seq_len, score_dtype),
-            )
-            att_scores = _op.add(
-                att_scores,
-                _op.multiply(
-                    att_mask,
-                    cls._create_unidirectional_mask(0, 1, past_seq_len, seq_len, score_dtype),
-                ),
-            )
-
-        # Compute Softmax
-        att_scores = _op.reshape(
-            att_scores, (batch_size * num_heads, seq_len, past_seq_len + seq_len)
-        )
-        att_probs = _op.nn.softmax(att_scores, axis=-1)
-
-        # Compute output
-        output = _op.nn.batch_matmul(att_probs, V, transpose_a=False, transpose_b=False)
-        output = _op.reverse_reshape(output, (-1, num_heads, 0, 0))
-        output = _op.transpose(output, axes=[0, 2, 1, 3])
-        output = _op.reshape(output, (0, 0, out_hidden))
 
         return _expr.TupleWrapper(_expr.Tuple([output, present]), 2)
 
