@@ -92,7 +92,7 @@ def test_sync_else_branch():
     stmt = ir(A, B)
     func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, B], stmt, None)
     mod = run_passes(func)
-    assert "@tir.tvm_storage_sync" in str(mod)
+    assert "T.tvm_storage_sync" in str(mod)
 
 
 @tvm.testing.requires_cuda
@@ -115,7 +115,7 @@ def test_sync_read_thread_id_independent_location():
         result_local[0] = result_local[0] + temp_shared[0] * p1[1]
 
     mod = run_passes(func)
-    assert "@tir.tvm_storage_sync" in str(mod)
+    assert "T.tvm_storage_sync" in str(mod)
 
 
 if __name__ == "__main__":

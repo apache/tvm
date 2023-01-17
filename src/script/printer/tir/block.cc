@@ -140,8 +140,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       return PrintBlock(d, block, p, NullOpt, NullOpt);
     });
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::BlockNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::BlockRealizeNode>(ReprPrint);
+TVM_SCRIPT_REPR(tir::BlockNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::BlockRealizeNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script

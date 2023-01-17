@@ -68,19 +68,27 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       }
       // Step 4. Handle `func->body`
       AsDocBody(func->body, p->Attr("body"), frame->get(), d);
+      Optional<ExprDoc> ret_type = NullOpt;
+      if (func->ret_type.defined()) {
+        const auto* as_tuple = func->ret_type.as<TupleTypeNode>();
+        if (!as_tuple || as_tuple->fields.size()) {
+          ret_type = d->AsDoc<ExprDoc>(func->ret_type, p->Attr("ret_type"));
+        }
+      }
       return FunctionDoc(
           /*name=*/IdDoc(FindFunctionName(d, func)),
           /*args=*/args,
           /*decorators=*/{TIR("prim_func")},
-          /*return_type=*/d->AsDoc<ExprDoc>(func->ret_type, p->Attr("ret_type")),
+          /*return_type=*/ret_type,
           /*body=*/(*frame)->stmts);
     });
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<tir::PrimFuncNode>([](const ObjectRef& obj, ReprPrinter* p) {
-      std::string res = DocToPythonScript(IRDocsifier()->AsDoc(obj, ObjectPath::Root()));
-      p->stream << res;
-    });
+void ReprPrintPrimFunc(const ObjectRef& obj, ReprPrinter* p) {
+  std::string res = DocToPythonScript(IRDocsifier()->AsDoc(obj, ObjectPath::Root()));
+  p->stream << res;
+}
+
+TVM_SCRIPT_REPR(tir::PrimFuncNode, ReprPrintPrimFunc);
 
 }  // namespace printer
 }  // namespace script

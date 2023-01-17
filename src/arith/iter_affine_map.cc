@@ -1288,7 +1288,7 @@ PrimExpr IterMapRewriter::VisitExpr_(const MulNode* op) {
   if (a->IsInstance<IterMapExprNode>() && b->IsInstance<IterMapExprNode>()) {
     // cannot multiply two iterators, mark as unresolved.
     ErrorLogger(this) << "Product of two iterators cannot be represented as an IterMap, "
-                      << "occurs in " << tvm::PrettyPrint(GetRef<Mul>(op));
+                      << "occurs in " << GetRef<Mul>(op);
     return GetRef<PrimExpr>(op);
   }
 
@@ -1321,7 +1321,7 @@ IterSumExpr IterMapRewriter::PreprocessDividend(IterMapExpr dividend, PrimExpr o
     }
     auto opt_fused = TryFuseIters(sum, check_level_);
     if (!opt_fused) {
-      ErrorLogger(this) << "Dividend  " << tvm::PrettyPrint(original_dividend)
+      ErrorLogger(this) << "Dividend  " << original_dividend
                         << ", can't be written as a single fused IterSum";
       return IterSumExpr();
     }
@@ -1446,8 +1446,7 @@ std::pair<IterSplitExpr, PrimExpr> IterMapRewriter::PadDividendToDivisor(IterSpl
       // since the extent covers the full padding range.
       left_pad = floordiv(mark_left_pad, split->lower_factor);
     } else {
-      ErrorLogger(this) << "Detect incompatible left padding on "
-                        << tvm::PrettyPrint(NormalizeIterMapToExpr(split))
+      ErrorLogger(this) << "Detect incompatible left padding on " << NormalizeIterMapToExpr(split)
                         << ", the iter mark is left padded with " << mark_left_pad;
       return {IterSplitExpr(), PrimExpr()};
     }
@@ -1522,8 +1521,7 @@ PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr base, P
     } else {
       // mark as unresolved.
       ErrorLogger(this) << "Cannot represent as IterMap: the numerator's scaling factor, "
-                        << tvm::PrettyPrint(lhs->scale) << " and the divisor "
-                        << tvm::PrettyPrint(rhs)
+                        << lhs->scale << " and the divisor " << rhs
                         << " cannot be simplified to remove the scaling factor.";
       return PrimExpr();
     }
@@ -1621,7 +1619,7 @@ PrimExpr IterMapRewriter::SplitFloorModConst(IterSplitExpr lhs, PrimExpr base, P
       // mark as unresolved.
       ErrorLogger(this)
           << "Cannot represent as IterMap: the left-hand side of FloorMod has a scaling factor, "
-          << tvm::PrettyPrint(lhs->scale) << " and the right-hand " << tvm::PrettyPrint(rhs)
+          << lhs->scale << " and the right-hand " << rhs
           << " cannot be used to simplify out the scaling factor.";
       return PrimExpr();
     }

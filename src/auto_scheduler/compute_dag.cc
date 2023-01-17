@@ -1274,28 +1274,28 @@ String ComputeDAG::PrintDAG(bool simple_mode) const {
           ICHECK_LT(k, p_reduce->combiner->result.size());
           PrimExpr combiner = p_reduce->combiner->result[k];
           if (combiner->IsInstance<AddNode>()) {
-            ss << " += " << LegacyTIRPrint(p_reduce->source[0]) << "\n";
+            ss << " += " << AsLegacyRepr(p_reduce->source[0]) << "\n";
           } else if (combiner->IsInstance<MaxNode>()) {
-            ss << " max= " << LegacyTIRPrint(p_reduce->source[0]) << "\n";
+            ss << " max= " << AsLegacyRepr(p_reduce->source[0]) << "\n";
           } else if (combiner->IsInstance<MinNode>()) {
-            ss << " min= " << LegacyTIRPrint(p_reduce->source[0]) << "\n";
+            ss << " min= " << AsLegacyRepr(p_reduce->source[0]) << "\n";
           } else if (combiner->IsInstance<SelectNode>()) {
             const auto& select = combiner.as<SelectNode>();
-            ss << " select(" << LegacyTIRPrint(select->condition)  //
-               << ", " << LegacyTIRPrint(select->true_value)       //
-               << ", " << LegacyTIRPrint(select->false_value)      //
-               << ")= (" << LegacyTIRPrint(p_reduce->source[0])    //
-               << ',' << LegacyTIRPrint(p_reduce->source[1])       //
+            ss << " select(" << AsLegacyRepr(select->condition)  //
+               << ", " << AsLegacyRepr(select->true_value)       //
+               << ", " << AsLegacyRepr(select->false_value)      //
+               << ")= (" << AsLegacyRepr(p_reduce->source[0])    //
+               << ',' << AsLegacyRepr(p_reduce->source[1])       //
                << ")\n";
           } else {
-            ss << "reduce" << LegacyTIRPrint(combiner) << "\n";
+            ss << "reduce" << AsLegacyRepr(combiner) << "\n";
           }
         } else {
           auto call = pop->body[k].as<CallNode>();
           if (simple_mode && call) {
-            ss << " = " << LegacyTIRPrint(call->op) << "\n";
+            ss << " = " << AsLegacyRepr(call->op) << "\n";
           } else {
-            ss << " = " << LegacyTIRPrint(pop->body[k]) << "\n";
+            ss << " = " << AsLegacyRepr(pop->body[k]) << "\n";
           }
         }
       }

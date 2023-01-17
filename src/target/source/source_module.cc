@@ -329,8 +329,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       code_ << "};";
       code_ << "// of total size " << allocated_size << " bytes\n";
     } else {
-      LOG(FATAL) << "No constant data in constant pool found "
-                 << PrettyPrint(GetRef<ObjectRef>(pool_info));
+      LOG(FATAL) << "No constant data in constant pool found " << GetRef<ObjectRef>(pool_info);
     }
   }
 

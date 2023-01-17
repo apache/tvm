@@ -69,6 +69,9 @@ class IRDocsifierFunctor {
     if ((pf = LookupDispatchTable("", type_index)) != nullptr) {
       return (*pf)(obj, args...);
     }
+    LOG(WARNING) << "ObjectFunctor calls un-registered function on type: "
+                 << runtime::Object::TypeIndex2Key(type_index) << " (token: " << token << ")"
+                 << ". ObjectType: " << obj->GetTypeKey() << ". Object: " << obj;
     ICHECK(false) << "ObjectFunctor calls un-registered function on type: "
                   << runtime::Object::TypeIndex2Key(type_index) << " (token: " << token << ")"
                   << ". ObjectType: " << obj->GetTypeKey() << ". Object: " << obj;
