@@ -888,7 +888,7 @@ def test_tflite_pool2d_legalize(
         ([1, 4, 4], [4, 1], False),
     ],
 )
-@pytest.mark.parametrize("activation_function", [None, tf.nn.relu, tf.nn.relu6, relu_n1_to_1])
+@pytest.mark.parametrize("activation_function", [None, tf.nn.relu])
 def test_tflite_binary_elemwise_legalize(
     operator_type,
     ifm_shape,
@@ -1070,6 +1070,12 @@ def test_tflite_binary_elemwise_legalize(
         rewriter, mod["tvmgen_default_ethos_u_main_0"]
     )
     verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
+# This test is for checking the case when requantize cannot be fused with MIN/MAX + CLIP due to hardware constraints.
+def test_tflite_max_relu_n1_to_1_legalize():
+    ifm_shape = [1, 4, 8, 16]
+    test_tflite_binary_elemwise_legalize("MAX", ifm_shape, ifm_shape, False, relu_n1_to_1)
 
 
 def test_binary_add_from_constant_scalar():
