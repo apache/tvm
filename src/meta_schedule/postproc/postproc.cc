@@ -59,7 +59,7 @@ Array<Postproc> Postproc::DefaultLLVM() {
   };
 }
 
-Array<Postproc> Postproc::DefaultVNNI() {
+Array<Postproc> Postproc::DefaultCPUTensorization() {
   return Array<Postproc>{
       Postproc::DisallowDynamicLoop(),   Postproc::RewriteParallelVectorizeUnroll(),
       Postproc::RewriteReductionBlock(), Postproc::RewriteTensorize(/*vectorize_init_loop=*/true),

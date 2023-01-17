@@ -29,7 +29,7 @@ from tvm.tir.tensor_intrin.arm_cpu import (
     ARM_DOT_4x4_i8_SDOT_INTRIN,
 )
 from tvm.tir.tensor_intrin.rocm import AMDGPU_SDOT4_INTRIN
-from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN
+from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN, AVX512_DOT_16x4_INTRIN
 from tvm.tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN, VDMPY_i16i16i32_INTRIN
 
 # fmt: off
@@ -557,7 +557,7 @@ def get_matmul_packed(m, n, k, lhs_type, rhs_dtype="int8"):
     return te.create_prim_func([X, W, matmul])
 
 
-def test_tensorize_vnni():
+def tensorize_16x4_test(intrin=VNNI_DOT_16x4_INTRIN):
     m, n, k = 128, 128, 128
 
     func = get_matmul_packed(m, n, k, "uint8")
@@ -572,9 +572,17 @@ def test_tensorize_vnni():
     sch.reorder(ko, ji, ki)
 
     sch.decompose_reduction(block, ko)
-    sch.tensorize(ji, VNNI_DOT_16x4_INTRIN)
+    sch.tensorize(ji, intrin)
 
     verify_trace_roundtrip(sch=sch, mod=func)
+
+
+def test_tensorize_vnni():
+    tensorize_16x4_test()
+
+
+def test_tensorize_avx512():
+    tensorize_16x4_test(AVX512_DOT_16x4_INTRIN)
 
 
 def test_tensorize_arm_dot():
