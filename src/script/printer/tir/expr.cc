@@ -134,10 +134,10 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             Array<IdDoc> vars;
             vars.reserve(n_vars + n_vars);
             for (int i = 0; i < n_vars; ++i) {
-              vars.push_back(DefineVar(r->lhs[i], *f, d));
+              vars.push_back(Downcast<IdDoc>(DefineVar(r->lhs[i], *f, d)));
             }
             for (int i = 0; i < n_vars; ++i) {
-              vars.push_back(DefineVar(r->rhs[i], *f, d));
+              vars.push_back(Downcast<IdDoc>(DefineVar(r->rhs[i], *f, d)));
             }
             int n_results = r->result.size();
             Array<ExprDoc> results;
@@ -190,7 +190,10 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       };
       ExprDoc prefix{nullptr};
       if (const auto* op = call->op.as<OpNode>()) {
-        String name = op_names[GetRef<Op>(op)];
+        String name = op_names.get(GetRef<Op>(op), op->name);
+        if (op_names.count(GetRef<Op>(op)) == 0) {
+          LOG(WARNING) << "No TScriptPrinterName attribute for " << op->name;
+        }
         prefix = TIR(name);
       } else if (const auto* gv = call->op.as<GlobalVarNode>()) {
         prefix = LiteralDoc::Str(gv->name_hint);
@@ -278,39 +281,39 @@ TVM_SCRIPT_PRINTER_DEF_BINARY(Max, "max");
 #undef TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR
 #undef TVM_SCRIPT_PRINTER_DEF_BINARY
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::VarNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::SizeVarNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::IterVarNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::StringImmNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::CastNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::AddNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::SubNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::MulNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::DivNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::ModNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::FloorDivNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::FloorModNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::MinNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::MaxNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::LTNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::LENode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::EQNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::NENode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::GTNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::GENode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::AndNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::OrNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::NotNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::SelectNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::RampNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::BroadcastNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::LetNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::CallNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::ShuffleNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::CommReducerNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::AnyNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::ReduceNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::LoadNode>(ReprPrint);
+TVM_SCRIPT_REPR(tir::VarNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::SizeVarNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::IterVarNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::StringImmNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::CastNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::AddNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::SubNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::MulNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::DivNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::ModNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::FloorDivNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::FloorModNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::MinNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::MaxNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::LTNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::LENode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::EQNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::NENode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::GTNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::GENode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::AndNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::OrNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::NotNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::SelectNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::RampNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::BroadcastNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::LetNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::CallNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::ShuffleNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::CommReducerNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::AnyNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::ReduceNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::LoadNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script

@@ -16,11 +16,12 @@
 # under the License.
 """Unified type system in the project."""
 from enum import IntEnum
+
 import tvm
 import tvm._ffi
 
-from .base import Node
 from . import _ffi_api
+from .base import Node
 
 
 class Type(Node):

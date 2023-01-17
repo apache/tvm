@@ -207,6 +207,25 @@ enum TypeKind : int {
   kTypeData = 6
 };
 
+/*! \brief Converts a TypeKind to a string. */
+inline String TypeKind2String(TypeKind kind) {
+  switch (kind) {
+    case TypeKind::kType:
+      return "Type";
+    case TypeKind::kShapeVar:
+      return "ShapeVar";
+    case TypeKind::kBaseType:
+      return "BaseType";
+    case TypeKind::kConstraint:
+      return "Constraint";
+    case TypeKind::kAdtHandle:
+      return "AdtHandle";
+    case TypeKind::kTypeData:
+      return "TypeData";
+  }
+  LOG(FATAL) << "ValueError: Unknown TypeKind: " << static_cast<int>(kind);
+}
+
 /*!
  * \brief Type parameter in functions.
  *

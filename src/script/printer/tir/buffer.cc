@@ -247,14 +247,14 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return ScopeDoc(NullOpt, prefix, (*f)->stmts);
         });
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::BufferRegionNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::BufferLoadNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::BufferStoreNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::BufferNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::MatchBufferRegionNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::ProducerLoadNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::ProducerStoreNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::ProducerRealizeNode>(ReprPrint);
+TVM_SCRIPT_REPR(tir::BufferRegionNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::BufferLoadNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::BufferStoreNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::BufferNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::MatchBufferRegionNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::ProducerLoadNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::ProducerStoreNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::ProducerRealizeNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script
