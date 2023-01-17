@@ -224,14 +224,14 @@ class TensorIntrin : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(TensorIntrin, ObjectRef, TensorIntrinNode)
 };
 
-/*
+/*!
  * \brief Specialize parameters of PrimFunc.
  * \param func The PrimFunc to be specialized.
  * \param param_map The mapping from function params to the instance.
  * \return The new function with parameter specialized.
  * \note We can define a Meta TIR function with symbolic shape:
  *
- * \code
+ * \code{.py}
  *  @T.prim_func
  *  def mem_copy(a: T.handle, b: T.handle, m: T.int32, n: T.int32) -> None:
  *      A = T.match_buffer(a, (m, n), "float32")
@@ -244,14 +244,14 @@ class TensorIntrin : public ObjectRef {
  *
  * Then we can make it specialized with given shapes or buffers.
  *
- * \code
+ * \code{.py}
  *  a, _, m, n = mem_copy.params
  *  func = mem_copy.specialize({a: tir.decl_buffer((16, 16))})
  *  # or
  *  func = mem_copy.specialize({n: 16, m: 16})
  * \endcode
  *
- * \code {.language-id}
+ * \code{.py}
  *  @T.prim_func
  *  def mem_copy_16_16(a: T.handle, b: T.handle) -> None:
  *      A = T.match_buffer(a, (16, 16), "float32")
