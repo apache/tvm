@@ -18,7 +18,7 @@
 .. _tutorial-micro-MLPerfTiny:
 
 Creating Your MLPerfTiny Submission with microTVM
-===========================
+=================================================
 **Authors**:
 `Mehrdad Hessar <https://github.com/mehrdadh>`_
 
@@ -85,10 +85,10 @@ from tvm.micro.testing.utils import (
 #
 # We use indexing for various models to build the submission. The indices are defined as follows:
 # To build another model, you need to update the model URL, the short name and index number.
-#   - Keyword Spotting(KWS) 1
-#   - Visual Wake Word(VWW) 2
-#   - Anomaly Detection(AD) 3
-#   - Image Classification(IC) 4
+# - Keyword Spotting(KWS) 1
+# - Visual Wake Word(VWW) 2
+# - Anomaly Detection(AD) 3
+# - Image Classification(IC) 4
 #
 # If you would like to build the submission with CMSIS-NN, modify USE_CMSIS environment variable.
 #
