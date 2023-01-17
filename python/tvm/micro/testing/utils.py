@@ -25,8 +25,8 @@ from pathlib import Path
 import tarfile
 import time
 from typing import Union
-import numpy as np
 import pathlib
+import numpy as np
 
 import tvm
 from tvm import relay
@@ -138,6 +138,19 @@ def get_conv2d_relay_module():
     return mod
 
 
+def _npy_dtype_to_ctype(data: np.ndarray) -> str:
+    if data.dtype == "int8":
+        return "int8_t"
+    elif data.dtype == "int32":
+        return "int32_t"
+    elif data.dtype == "uint8":
+        return "uint8_t"
+    elif data.dtype == "float32":
+        return "float"
+    else:
+        raise ValueError(f"Data type {data.dtype} not expected.")
+
+
 def create_header_file(tensor_name: str, npy_data: np.array, output_path: str, tar_file: str):
     """
     This method generates a header file containing the data contained in the numpy array provided
@@ -149,17 +162,7 @@ def create_header_file(tensor_name: str, npy_data: np.array, output_path: str, t
     header_file.write("#include <stdint.h>\n")
     header_file.write("#include <dlpack/dlpack.h>\n")
     header_file.write(f"const size_t {tensor_name}_len = {npy_data.size};\n")
-
-    if npy_data.dtype == "int8":
-        header_file.write(f"int8_t {tensor_name}[] =")
-    elif npy_data.dtype == "int32":
-        header_file.write(f"int32_t {tensor_name}[] = ")
-    elif npy_data.dtype == "uint8":
-        header_file.write(f"uint8_t {tensor_name}[] = ")
-    elif npy_data.dtype == "float32":
-        header_file.write(f"float {tensor_name}[] = ")
-    else:
-        raise ValueError("Data type not expected.")
+    header_file.write(f"{_npy_dtype_to_ctype(npy_data)} {tensor_name}[] =")
 
     header_file.write("{")
     for i in np.ndindex(npy_data.shape):

@@ -17,18 +17,15 @@
 """
 .. _tutorial-micro-MLPerfTiny:
 
-Create Your MLPerfTiny Submission with microTVM
+Creating Your MLPerfTiny Submission with microTVM
 ===========================
 **Authors**:
 `Mehrdad Hessar <https://github.com/mehrdadh>`_
 
-This tutorial is showcasing building an MLPerTiny submission using microTVM. This
+This tutorial is showcasing building an MLPerfTiny submission using microTVM. This
 tutorial shows the steps to import a TFLite model from MLPerfTiny benchmark models,
 compile it with TVM and generate a Zephyr project which can be flashed to a Zephyr
 supported board to benchmark the model using EEMBC runner.
-
-Install CMSIS-NN only if you are interested to generate this submission
-using CMSIS-NN code generator.
 """
 
 ######################################################################
@@ -45,6 +42,13 @@ import shutil
 ######################################################################
 #
 #     .. include:: ../../../../gallery/how_to/work_with_microtvm/install_zephyr.rst
+#
+
+
+######################################################################
+#
+# **Note:** Install CMSIS-NN only if you are interested to generate this submission
+# using CMSIS-NN code generator.
 #
 
 ######################################################################
@@ -74,19 +78,23 @@ from tvm.micro.testing.utils import (
 # Import Visual Wake Word Model
 # --------------------------------------------------------------------
 #
-# To begin with, download and import Visual Wake Word (VWW) TFLite model from MLPerfTiny.
+# To begin with, download and import the Visual Wake Word (VWW) TFLite model from MLPerfTiny.
 # This model is originally from `MLPerf Tiny repository <https://github.com/mlcommons/tiny>`_.
 # We also capture metadata information from the TFLite model such as input/output name,
-# quantization parameters and etc which will be used in following steps.
+# quantization parameters, etc. which will be used in following steps.
 #
-# We use indexing for various models to build the submission. The indices are defined as bellow.
+# We use indexing for various models to build the submission. The indices are defined as follows:
 # To build another model, you need to update the model URL, the short name and index number.
-#   Keyword Spotting(KWS)       1
-#   Visual Wake Word(VWW)       2
-#   Anomaly Detection(AD)       3
-#   Image Classification(IC)    4
+#   - Keyword Spotting(KWS) 1
+#   - Visual Wake Word(VWW) 2
+#   - Anomaly Detection(AD) 3
+#   - Image Classification(IC) 4
 #
-# If you like to build the submission with CMSIS-NN, modify USE_CMSIS variable.
+# If you would like to build the submission with CMSIS-NN, modify USE_CMSIS environment variable.
+#
+#   .. code-block:: bash
+#
+#     export USE_CMSIS=1
 #
 
 MODEL_URL = "https://github.com/mlcommons/tiny/raw/bceb91c5ad2e2deb295547d81505721d3a87d578/benchmark/training/visual_wake_words/trained_models/vww_96_int8.tflite"
@@ -120,7 +128,10 @@ output_shape = tuple(output_details[0]["shape"])
 output_dtype = np.dtype(output_details[0]["dtype"]).name
 
 # We extract quantization information from TFLite model.
-# This is required for all models except Anomaly Detection.
+# This is required for all models except Anomaly Detection,
+# because for other models we send quantized data to interpreter
+# from host, however, for AD model we send floating data and quantization
+# happens on the microcontroller.
 if MODEL_SHORT_NAME != "AD":
     quant_output_scale = output_details[0]["quantization_parameters"]["scales"][0]
     quant_output_zero_point = output_details[0]["quantization_parameters"]["zero_points"][0]
@@ -134,7 +145,7 @@ relay_mod, params = relay.frontend.from_tflite(
 # --------------------------------------------------------------------
 #
 # Now we need to define the target, runtime and executor to compile this model. In this tutorial,
-# we use with Ahead-of-Time (AoT) compilation and we build a standalone project. This is different
+# we use Ahead-of-Time (AoT) compilation and we build a standalone project. This is different
 # than using AoT with host-driven mode where the target would communicate with host using host-driven
 # AoT executor to run inference.
 #
@@ -142,9 +153,10 @@ relay_mod, params = relay.frontend.from_tflite(
 # Use the C runtime (crt)
 RUNTIME = Runtime("crt")
 
-# Use the AoT executor with unpacked-api and interface-api="c" which
-# generates a simple API for standalone mode integration with a any
-# microcontroller project
+# Use the AoT executor with `unpacked-api=True` and `interface-api=c`. `interface-api=c` forces
+# the compiler to generate C type function APIs and `unpacked-api=True` forces the compiler
+# to generate minimal unpacked format inputs which reduces the stack memory usage on calling
+# inference layers of the model.
 EXECUTOR = Executor(
     "aot",
     {"unpacked-api": True, "interface-api": "c", "workspace-byte-alignment": 8},
@@ -178,10 +190,6 @@ with tvm.transform.PassContext(opt_level=3, config=config):
         relay_mod, target=TARGET, params=params, runtime=RUNTIME, executor=EXECUTOR
     )
 
-# if USE_CMSIS:
-#     from tvm.relay.op.contrib import cmsisnn
-#     module = cmsisnn.partition_for_cmsisnn(module, params, mcpu=TARGET.mcpu)
-
 temp_dir = tvm.contrib.utils.tempdir()
 model_tar_path = temp_dir / "model.tar"
 export_model_library_format(module, model_tar_path)
@@ -191,7 +199,7 @@ workspace_size = mlf_extract_workspace_size_bytes(model_tar_path)
 # Generate input/output header files
 # --------------------------------------------------------------------
 #
-# To create a miroTVM standalone project with AoT, we need to generate
+# To create a microTVM standalone project with AoT, we need to generate
 # input and output header files. These header files are used to connect
 # the input and output API from generated code to the rest of the
 # standalone project. For this specific submission, we only need to generate
@@ -242,10 +250,11 @@ project_options = {
     "project_type": "mlperftiny",
     "board": BOARD,
     "compile_definitions": [
-        f"-DWORKSPACE_SIZE={workspace_size + 512}",
-        f"-DTARGET_MODEL={MODEL_INDEX}",
-        f"-DTH_MODEL_VERSION=EE_MODEL_VERSION_{MODEL_SHORT_NAME}01",
-        f"-DMAX_DB_INPUT_SIZE={input_total_size}",
+        f"-DWORKSPACE_SIZE={workspace_size + 512}",  # Memory workspace size, 512 is a temporary offset
+        # since the memory calculation is not accurate.
+        f"-DTARGET_MODEL={MODEL_INDEX}",  # Sets the model index for project compilation.
+        f"-DTH_MODEL_VERSION=EE_MODEL_VERSION_{MODEL_SHORT_NAME}01",  # Sets model version. This is required by MLPerfTiny API.
+        f"-DMAX_DB_INPUT_SIZE={input_total_size}",  # Max size of the input data array.
     ],
 }
 
@@ -256,13 +265,8 @@ if MODEL_SHORT_NAME != "AD":
 if USE_CMSIS:
     project_options["compile_definitions"].append(f"-DCOMPILE_WITH_CMSISNN=1")
 
-if BOARD == "nrf5340dk_nrf5340_cpuapp":
-    config_main_stack_size = 4000
-elif BOARD == "nucleo_l4r5zi":
-    config_main_stack_size = 4000
-else:
-    raise RuntimeError("Please set the main stack size.")
-project_options["config_main_stack_size"] = config_main_stack_size
+# Note: You might need to adjust this based on the board that you are using.
+project_options["config_main_stack_size"] = 4000
 
 if USE_CMSIS:
     project_options["cmsis_path"] = os.environ.get("CMSIS_PATH", "/content/cmsis")
@@ -283,3 +287,25 @@ with tarfile.open(project_tar_path, "w:tar") as tar:
     tar.add(generated_project_dir, arcname=os.path.basename("project"))
 
 print(f"The generated project is located here: {project_tar_path}")
+
+######################################################################
+# Use this project with your board
+# --------------------------------------------------------------------
+#
+# Now that we have the generated project, you can use this project locally
+# to flash your board and prepare it for EEMBC runner software.
+# To do this follow these steps:
+#
+#   .. code-block:: bash
+#
+#     tar -xf project.tar
+#     cd project
+#     mkdir build
+#     cmake ..
+#     make -j2
+#     west flash
+#
+# Now you can connect your board to EEMBC runner using this
+# `instructions <https://github.com/eembc/energyrunner>`_
+# and benchmark this model on your board.
+#
