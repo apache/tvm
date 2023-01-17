@@ -41,71 +41,6 @@ from tvm.meta_schedule.testing import te_workload
 from tvm.te import create_prim_func
 
 
-@tvm.script.ir_module
-class DenseTIRModule:
-    @T.prim_func
-    def main(
-        placeholder: T.Buffer[(1024, 1024), "uint8"],
-        placeholder_1: T.Buffer[(64, 256, 16, 4), "int8"],
-        compute: T.Buffer[(1024, 1024), "int32"],
-    ) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        with T.block("root"):
-            T.reads()
-            T.writes()
-            for i0, i1, i2 in T.grid(1024, 1024, 1024):
-                with T.block("compute"):
-                    i, j, k = T.axis.remap("SSR", [i0, i1, i2])
-                    T.reads(placeholder[i, k], placeholder_1[j // 16, k // 4, j % 16, k % 4])
-                    T.writes(compute[i, j])
-                    with T.init():
-                        compute[i, j] = 0
-                    compute[i, j] = compute[i, j] + T.cast(placeholder[i, k], "int32") * T.cast(
-                        placeholder_1[j // 16, k // 4, j % 16, k % 4], "int32"
-                    )
-
-
-@tvm.script.ir_module
-class Conv2dNCHWcTIRModule:
-    @T.prim_func
-    def main(
-        placeholder: T.Buffer[(1, 4, 56, 56, 16), "uint8"],
-        placeholder_1: T.Buffer[(16, 4, 1, 1, 4, 16, 4), "int8"],
-        conv2d_NCHWc_int8: T.Buffer[(1, 16, 56, 56, 16), "int32"],
-    ) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        for i0, i1, i2, i3, i4, i5, i6, i7, i8, i9 in T.grid(1, 16, 56, 56, 16, 1, 1, 4, 4, 4):
-            with T.block("conv2d_NCHWc_int8"):
-                (
-                    n,
-                    oc_chunk,
-                    oh,
-                    ow,
-                    oc_block,
-                    kh,
-                    kw,
-                    ic_outer,
-                    ic_f_inner,
-                    ic_s_inner,
-                ) = T.axis.remap("SSSSSRRRRR", [i0, i1, i2, i3, i4, i5, i6, i7, i8, i9])
-                T.reads(
-                    placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner],
-                    placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner],
-                )
-                T.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block])
-                with T.init():
-                    conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] = 0
-                conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] = conv2d_NCHWc_int8[
-                    n, oc_chunk, oh, ow, oc_block
-                ] + T.cast(
-                    placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner],
-                    "int32",
-                ) * T.cast(
-                    placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner],
-                    "int32",
-                )
-
-
 def _make_vars(*args: str) -> List[Var]:
     return [Var(arg, dtype="int32") for arg in args]
 
@@ -208,6 +143,71 @@ def test_suggest_index_map_winograd():
         )
     )
     assert inverse_index_map.is_equivalent_to(expected_inverse_index_map)
+
+
+@tvm.script.ir_module
+class DenseTIRModule:
+    @T.prim_func
+    def main(
+        placeholder: T.Buffer[(1024, 1024), "uint8"],
+        placeholder_1: T.Buffer[(64, 256, 16, 4), "int8"],
+        compute: T.Buffer[(1024, 1024), "int32"],
+    ) -> None:
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            for i0, i1, i2 in T.grid(1024, 1024, 1024):
+                with T.block("compute"):
+                    i, j, k = T.axis.remap("SSR", [i0, i1, i2])
+                    T.reads(placeholder[i, k], placeholder_1[j // 16, k // 4, j % 16, k % 4])
+                    T.writes(compute[i, j])
+                    with T.init():
+                        compute[i, j] = 0
+                    compute[i, j] = compute[i, j] + T.cast(placeholder[i, k], "int32") * T.cast(
+                        placeholder_1[j // 16, k // 4, j % 16, k % 4], "int32"
+                    )
+
+
+@tvm.script.ir_module
+class Conv2dNCHWcTIRModule:
+    @T.prim_func
+    def main(
+        placeholder: T.Buffer[(1, 4, 56, 56, 16), "uint8"],
+        placeholder_1: T.Buffer[(16, 4, 1, 1, 4, 16, 4), "int8"],
+        conv2d_NCHWc_int8: T.Buffer[(1, 16, 56, 56, 16), "int32"],
+    ) -> None:
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        for i0, i1, i2, i3, i4, i5, i6, i7, i8, i9 in T.grid(1, 16, 56, 56, 16, 1, 1, 4, 4, 4):
+            with T.block("conv2d_NCHWc_int8"):
+                (
+                    n,
+                    oc_chunk,
+                    oh,
+                    ow,
+                    oc_block,
+                    kh,
+                    kw,
+                    ic_outer,
+                    ic_f_inner,
+                    ic_s_inner,
+                ) = T.axis.remap("SSSSSRRRRR", [i0, i1, i2, i3, i4, i5, i6, i7, i8, i9])
+                T.reads(
+                    placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner],
+                    placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner],
+                )
+                T.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block])
+                with T.init():
+                    conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] = 0
+                conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] = conv2d_NCHWc_int8[
+                    n, oc_chunk, oh, ow, oc_block
+                ] + T.cast(
+                    placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner],
+                    "int32",
+                ) * T.cast(
+                    placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner],
+                    "int32",
+                )
 
 
 def collect_loops(prim_func):
