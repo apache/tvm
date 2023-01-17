@@ -62,7 +62,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         return ForDoc(TupleDoc(lhs), TIR("grid")->Call(rhs), (*f)->stmts);
       }
       // Step 3. If not `T.grid`, print loop kind accordingly
-      IdDoc lhs = DefineVar(loop->loop_var, *f, d);
+      ExprDoc lhs = DefineVar(loop->loop_var, *f, d);
       Optional<ExprDoc> min = NullOpt;
       Optional<ExprDoc> max = NullOpt;
       Optional<ExprDoc> annotations = NullOpt;
@@ -117,7 +117,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       return ForDoc(lhs, rhs, (*f)->stmts);
     });
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::ForNode>(ReprPrint);
+TVM_SCRIPT_REPR(tir::ForNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script

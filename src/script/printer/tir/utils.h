@@ -33,6 +33,8 @@
 #include <utility>
 #include <vector>
 
+#include "../utils.h"
+
 namespace tvm {
 namespace script {
 namespace printer {
@@ -81,7 +83,10 @@ inline ExprDoc TIR(const String& attr) { return IdDoc(Default::Prefix("tir"))->A
  * \param frame The frame to define the variable in
  * \return The IdDoc corresponding to the variable
  */
-inline IdDoc DefineVar(const tir::Var& var, const Frame& frame, const IRDocsifier& d) {
+inline ExprDoc DefineVar(const tir::Var& var, const Frame& frame, const IRDocsifier& d) {
+  if (Optional<ExprDoc> doc = d->GetVarDoc(var)) {
+    return doc.value();
+  }
   return d->Define(var, frame, var->name_hint.empty() ? "v" : var->name_hint);
 }
 
@@ -181,26 +186,14 @@ inline TIRFrame MakeDispatchFrame(const IRDocsifier& d, const ObjectRef& root,
 }
 
 /*! \brief Redirected method for the ReprPrinter */
-inline void ReprPrint(const ObjectRef& stmt, ReprPrinter* p) {
+inline void ReprPrintTIR(const ObjectRef& obj, ReprPrinter* p) {
   IRDocsifier d;
-  With<TIRFrame> f(MakeDispatchFrame(d, stmt, ObjectRef(nullptr)));
-  Doc doc = d->AsDoc(stmt, ObjectPath::Root());
-  if (const auto* expr_doc = doc.as<ExprDocNode>()) {
-    if (!Default::VerboseExpr()) {
-      (*f)->stmts.clear();
-    }
-    (*f)->stmts.push_back(ExprStmtDoc(GetRef<ExprDoc>(expr_doc)));
-  } else if (const auto* stmt_doc = doc.as<StmtDocNode>()) {
-    (*f)->stmts.push_back(GetRef<StmtDoc>(stmt_doc));
-  } else if (const auto* stmt_block = doc.as<StmtBlockDocNode>()) {
-    for (const StmtDoc& d : stmt_block->stmts) {
-      (*f)->stmts.push_back(d);
-    }
-  } else {
-    LOG(FATAL) << "TypeError: Unexpected doc type: " << doc->GetTypeKey();
+  With<TIRFrame> f(MakeDispatchFrame(d, obj, ObjectRef(nullptr)));
+  try {
+    p->stream << DocToPythonScript(Docsify(obj, d, *f));
+  } catch (const tvm::Error& e) {
+    HandleUnsupportedFallback(e, obj, p);
   }
-  std::string res = DocToPythonScript(StmtBlockDoc((*f)->stmts));
-  p->stream << res;
 }
 
 /*!

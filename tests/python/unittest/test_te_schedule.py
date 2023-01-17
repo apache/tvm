@@ -14,10 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pickle as pkl
+
 import pytest
 import tvm
 from tvm import te
-import pickle as pkl
 
 
 def test_schedule_create():
@@ -297,8 +298,8 @@ def test_tensor_intrin_scalar_params():
     stmt = tvm.lower(s, [A, C])["main"].body
     assert isinstance(stmt.body.body, tvm.tir.Evaluate)
     assert len(stmt.body.body.value.args) == 5
-    assert str(stmt.body.body.value.args[3]) == "(i: int32*i)"
-    assert str(stmt.body.body.value.args[4]) == "(i: int32 + j: int32)"
+    assert str(stmt.body.body.value.args[3]) == "i * i"
+    assert str(stmt.body.body.value.args[4]) == "i + j"
 
 
 def test_legalize_invalid_attach():

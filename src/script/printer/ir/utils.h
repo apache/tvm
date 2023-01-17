@@ -28,11 +28,14 @@
 
 #include <utility>
 
+#include "../utils.h"
+
 namespace tvm {
 namespace script {
 namespace printer {
 
-inline ExprDoc IR(const IRDocsifier& d) { return IdDoc("tvm")->Attr("script"); }
+/*! \brief Creates the IR common prefix, which is by default `I` */
+inline ExprDoc IR(const String& attr) { return IdDoc(Default::Prefix("ir"))->Attr(attr); }
 
 class IRFrameNode : public FrameNode {
  public:
@@ -53,6 +56,17 @@ class IRFrame : public Frame {
 
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(IRFrame, Frame, IRFrameNode);
 };
+
+inline void ReprPrintIR(const ObjectRef& obj, ReprPrinter* p) {
+  IRDocsifier d;
+  With<IRFrame> f(d);
+  (*f)->AddDispatchToken(d, "ir");
+  try {
+    p->stream << DocToPythonScript(Docsify(obj, d, *f));
+  } catch (const Error& e) {
+    HandleUnsupportedFallback(e, obj, p);
+  }
+}
 
 }  // namespace printer
 }  // namespace script

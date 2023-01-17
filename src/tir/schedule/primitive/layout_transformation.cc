@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#include <tvm/node/node.h>
+
 #include <optional>
 #include <variant>
 
@@ -1266,7 +1268,7 @@ class OpaqueNewIterTypeError : public ScheduleError {
 
   String DetailRenderTemplate() const final {
     std::ostringstream os;
-    os << "Cannot detect the block iter type for new iter value " << PrettyPrint(iter_value_)
+    os << "Cannot detect the block iter type for new iter value " << iter_value_
        << " in {0} because it contains more than one type of original iter vars.";
     return os.str();
   }

@@ -2002,16 +2002,6 @@ Doc TVMScriptPrinterWithDiagnostic::PrintLoop(const For& loop) {
   return res;
 }
 
-String AsTVMScript(const ObjectRef& mod, const String& tir_prefix, bool show_meta) {
-  ICHECK(mod->IsInstance<PrimFuncNode>() || mod->IsInstance<IRModuleNode>());
-  Doc doc;
-  doc << TVMScriptPrinter::PrintHeader(tir_prefix)
-      << TVMScriptPrinter(tir_prefix, show_meta).Print(mod);
-  return doc.str() + "\n";
-}
-
-TVM_REGISTER_GLOBAL("script.AsTVMScript").set_body_typed(AsTVMScript);
-
 String AsTVMScriptWithDiagnostic(const ObjectRef& mod, const String& tir_prefix, bool show_meta,
                                  runtime::TypedPackedFunc<std::string(Stmt)> annotate) {
   ICHECK(mod->IsInstance<PrimFuncNode>() || mod->IsInstance<IRModuleNode>());

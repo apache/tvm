@@ -14,10 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
 import pytest
 import tvm
-from tvm import te, ir
-import numpy as np
+from tvm import ir, te
 
 
 def test_const():
@@ -142,7 +142,7 @@ def test_basic():
     a = te.var("a")
     b = te.var("b")
     c = a + b
-    assert str(c) == "(%s: int32 + %s: int32)" % (a.name, b.name)
+    assert str(c) == "%s + %s" % (a.name, b.name)
 
 
 def test_stmt():
@@ -176,8 +176,8 @@ def test_any():
         assert False
     except ValueError:
         pass
-    assert str(tvm.tir.any(x < y)) == "(%s: int32 < %s: int32)" % (x.name, y.name)
-    assert str(tvm.tir.any(x < y, x > z)) == "((%s: int32 < %s: int32) || (%s > %s: int32))" % (
+    assert str(tvm.tir.any(x < y)) == "%s < %s" % (x.name, y.name)
+    assert str(tvm.tir.any(x < y, x > z)) == "%s < %s or %s > %s" % (
         x.name,
         y.name,
         x.name,
@@ -185,7 +185,7 @@ def test_any():
     )
     assert str(
         tvm.tir.any(x < y, y > z + 1, x < z * 2)
-    ) == "(((%s: int32 < %s: int32) || (%s > (%s: int32 + 1))) || (%s < (%s*2)))" % (
+    ) == "%s < %s or %s > %s + 1 or %s < %s * 2" % (
         x.name,
         y.name,
         y.name,
@@ -209,8 +209,8 @@ def test_all():
         assert False
     except ValueError:
         pass
-    assert str(tvm.tir.all(x < y)) == "(%s: int32 < %s: int32)" % (x.name, y.name)
-    assert str(tvm.tir.all(x < y, x > z)) == "((%s: int32 < %s: int32) && (%s > %s: int32))" % (
+    assert str(tvm.tir.all(x < y)) == "%s < %s" % (x.name, y.name)
+    assert str(tvm.tir.all(x < y, x > z)) == "%s < %s and %s > %s" % (
         x.name,
         y.name,
         x.name,
@@ -218,7 +218,7 @@ def test_all():
     )
     assert str(
         tvm.tir.all(x < y, y > z + 1, x < z * 2)
-    ) == "(((%s: int32 < %s: int32) && (%s > (%s: int32 + 1))) && (%s < (%s*2)))" % (
+    ) == "%s < %s and %s > %s + 1 and %s < %s * 2" % (
         x.name,
         y.name,
         y.name,
@@ -231,19 +231,19 @@ def test_all():
 def test_bitwise():
     x = te.var("x")
     y = te.var("y")
-    assert str(x << y) == "@tir.shift_left(x: int32, y: int32, dtype=int32)"
-    assert str(x >> y) == "@tir.shift_right(x: int32, y: int32, dtype=int32)"
-    assert str(x & y) == "@tir.bitwise_and(x: int32, y: int32, dtype=int32)"
-    assert str(x | y) == "@tir.bitwise_or(x: int32, y: int32, dtype=int32)"
-    assert str(x ^ y) == "@tir.bitwise_xor(x: int32, y: int32, dtype=int32)"
-    assert str(10 & x) == "@tir.bitwise_and(10, x: int32, dtype=int32)"
-    assert str(10 | x) == "@tir.bitwise_or(10, x: int32, dtype=int32)"
-    assert str(10 ^ x) == "@tir.bitwise_xor(10, x: int32, dtype=int32)"
-    assert str(10 >> x) == "@tir.shift_right(10, x: int32, dtype=int32)"
-    assert str(10 << x) == "@tir.shift_left(10, x: int32, dtype=int32)"
-    assert str(10 % x) == "floormod(10, x: int32)"
+    assert str(x << y) == "T.shift_left(x, y)"
+    assert str(x >> y) == "T.shift_right(x, y)"
+    assert str(x & y) == "T.bitwise_and(x, y)"
+    assert str(x | y) == "T.bitwise_or(x, y)"
+    assert str(x ^ y) == "T.bitwise_xor(x, y)"
+    assert str(10 & x) == "T.bitwise_and(10, x)"
+    assert str(10 | x) == "T.bitwise_or(10, x)"
+    assert str(10 ^ x) == "T.bitwise_xor(10, x)"
+    assert str(10 >> x) == "T.shift_right(10, x)"
+    assert str(10 << x) == "T.shift_left(10, x)"
+    assert str(10 % x) == "10 % x"
 
-    assert str(~x) == "@tir.bitwise_not(x: int32, dtype=int32)"
+    assert str(~x) == "T.bitwise_not(x)"
     assert (tvm.tir.const(1, "int8x2") >> 1).dtype == "int8x2"
     assert (x >> tvm.tir.const(1, "int32x2")).dtype == "int32x2"
     assert (te.var("z", "int8x2") << tvm.tir.const(1, "int8x2")).dtype == "int8x2"
@@ -302,17 +302,17 @@ def test_divide_by_zero():
 
 
 def test_infinity():
-    assert str(tvm.tir.infinity("float16")) == "inff16"
-    assert str(tvm.tir.infinity("float32")) == "inff32"
-    assert str(tvm.tir.infinity("float64")) == "inff64"
+    assert str(tvm.tir.infinity("float16")) == 'T.float16("inf")'
+    assert str(tvm.tir.infinity("float32")) == 'T.float32("inf")'
+    assert str(tvm.tir.infinity("float64")) == 'T.float64("inf")'
 
 
 def test_isnan():
     x = te.var("x", "float32")
-    assert str(tvm.tir.isnan(x)) == "@tir.isnan(x: float32, dtype=bool)"
+    assert str(tvm.tir.isnan(x)) == "T.isnan(x)"
     assert str(tvm.tir.isnan(x).dtype) == "bool"
     y = te.var("y", "float16")
-    assert str(tvm.tir.isnan(y)) == "@tir.isnan(cast(float32, y: float16), dtype=bool)"
+    assert str(tvm.tir.isnan(y)) == 'T.isnan(T.Cast("float32", y))'
     z = te.var("z", "int32")
     assert str(tvm.tir.isnan(z)) == "False"
     k = te.var("k", "int8x2")

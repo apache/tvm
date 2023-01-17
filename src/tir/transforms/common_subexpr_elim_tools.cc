@@ -817,8 +817,8 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
        [](std::pair<PrimExpr, size_t> a, std::pair<PrimExpr, size_t> b) {
          std::stringstream a_stream;
          std::stringstream b_stream;
-         a_stream << LegacyTIRPrint(a.first);
-         b_stream << LegacyTIRPrint(b.first);
+         a_stream << AsLegacyRepr(a.first);
+         b_stream << AsLegacyRepr(b.first);
          return a_stream.str().compare(b_stream.str()) < 0;
        });
 

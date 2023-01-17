@@ -38,9 +38,9 @@ class ModelLibraryFormatPrinter : public ::tvm::runtime::ModuleNode {
   const char* type_key() const final { return "model_library_format_printer"; }
 
   std::string Print(const ObjectRef& node) {
-    Doc doc;
-    doc << text_printer_.PrintFinal(node);
-    return doc.str();
+    std::ostringstream oss;
+    oss << node;
+    return oss.str();
   }
 
   TVMRetValue GetVarName(tir::Var var) {

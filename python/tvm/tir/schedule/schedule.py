@@ -239,21 +239,26 @@ class Schedule(Object):
         """
         return _ffi_api.ScheduleForkSeed(self)  # type: ignore # pylint: disable=no-member
 
-    @type_checked
-    def show(self, rand_var: RAND_VAR_TYPE) -> str:
-        """Returns a string representation of the value that the random variable evaluates to
+    def show(self, style: Optional[str] = None, black_format: bool = True) -> None:
+        """A sugar for print highlighted TVM script.
 
         Parameters
         ----------
-        rand_var : Union[ExprRV, BlockRV, LoopRV]
-            The random variable to be evaluated
+        style : str, optional
 
-        Returns
-        -------
-        str_repr : str
-            The string representation
+            Pygmentize printing style, auto-detected if None.  See
+            `tvm.script.highlight.cprint` for more details.
+
+        black_format: bool
+
+            If true (default), use the formatter Black to format the TVMScript
         """
-        return str(self.get(rand_var))
+        mod = self.mod
+        if mod is not None:
+            mod.show(style=style, black_format=black_format)
+        trace = self.trace
+        if trace is not None:
+            trace.show(style=style, black_format=black_format)
 
     ########## Lookup ##########
 

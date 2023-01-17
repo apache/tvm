@@ -2591,7 +2591,7 @@ def test_module_define():
 
 def test_matmul_original():
     func = matmul_original()
-    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
     assert isinstance(rt_func.body.block, tir.stmt.Block)
@@ -2605,7 +2605,7 @@ def test_matmul_original():
 
 def test_element_wise():
     func = element_wise()
-    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
     assert isinstance(rt_func.body.block, tir.stmt.Block)
@@ -2621,7 +2621,7 @@ def test_element_wise():
 
 def test_predicate():
     func = predicate()
-    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
     assert isinstance(rt_func.body.block, tir.stmt.Block)
@@ -2648,7 +2648,7 @@ def for_thread_binding():
 
 def test_for_thread_binding():
     func = for_thread_binding()
-    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
     assert isinstance(rt_func.body, tir.stmt.For)
@@ -2682,7 +2682,7 @@ def match_buffer_region():
 
 def test_match_buffer_region():
     func = match_buffer_region()
-    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
     assert isinstance(rt_func.body, tir.stmt.BlockRealize)
@@ -2727,7 +2727,7 @@ def block_elements():
 
 def test_block_elements():
     func = block_elements()
-    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
     assert isinstance(rt_func.body.block, tir.stmt.Block)
@@ -2763,7 +2763,7 @@ def opaque_block():
 
 def test_opaque_block():
     func = opaque_block()
-    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
     root_block = rt_func.body.block
@@ -2945,14 +2945,9 @@ def var_with_same_name():
 
 def test_same_name_var():
     func = var_with_same_name()
-    out_str = func.script(tir_prefix="T", show_meta=True)
+    out_str = func.script()
     rt_func = tvm.script.from_source(out_str)
     tvm.ir.assert_structural_equal(func, rt_func)
-
-    assert out_str.count('vi, vj = T.axis.remap("SS", [i, j])') == 2
-    assert out_str.find("vi_") == -1
-    assert out_str.find("vj_") == -1
-
     assert out_str.count("for i, j in T.grid(16, 16)") == 2
     assert out_str.find("i_") == -1
     assert out_str.find("i_") == -1
@@ -3621,7 +3616,7 @@ ir_generator = tvm.testing.parameter(
 
 def test_roundtrip(ir_generator):
     original = ir_generator()
-    after_roundtrip = tvm.script.from_source(original.script(show_meta=True))
+    after_roundtrip = tvm.script.from_source(original.script())
     tvm.ir.assert_structural_equal(original, after_roundtrip, True)
 
 
