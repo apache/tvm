@@ -25,11 +25,6 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
 #include <tvm/runtime/registry.h>
-// NOTE: reverse dependency on top/tir.
-// These dependencies do not happen at the interface-level,
-// and are only used in minimum cases where they are clearly marked.
-//
-// Rationale: convert from IterVar and top::Tensor
 #include <tvm/te/tensor.h>
 #include <tvm/tir/expr.h>
 
@@ -167,12 +162,6 @@ TVM_REGISTER_NODE_TYPE(GlobalVarNode);
 TVM_REGISTER_GLOBAL("ir.GlobalVar").set_body_typed([](String name, Type type) {
   return GlobalVar(name, type);
 });
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<GlobalVarNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const GlobalVarNode*>(ref.get());
-      p->stream << "GlobalVar(" << node->name_hint << ")";
-    });
 
 TVM_REGISTER_GLOBAL("ir.DebugPrint").set_body_typed([](ObjectRef ref) {
   std::stringstream ss;

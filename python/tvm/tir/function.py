@@ -18,17 +18,18 @@
 
 import collections
 import inspect
-from typing import Callable, List, Mapping, Optional, Union, Tuple
+from typing import Callable, List, Mapping, Optional, Tuple, Union
 
 import tvm
 import tvm._ffi
 import tvm.runtime
-from tvm.runtime import Object
 from tvm.ir import BaseFunc, Range
-from .buffer import Buffer
-from .expr import Var, PrimExpr
-from . import _ffi_api
+from tvm.runtime import Object
+
 from ..runtime.ndarray import NDArray
+from . import _ffi_api
+from .buffer import Buffer
+from .expr import PrimExpr, Var
 
 
 @tvm._ffi.register_object("tir.PrimFunc")
@@ -169,44 +170,80 @@ class PrimFunc(BaseFunc):
         """
         return _ffi_api.Specialize(self, param_map)  # type: ignore
 
-    def script(self, tir_prefix: str = "T", show_meta: bool = False) -> str:
+    def script(
+        self,
+        *,
+        indent_spaces: int = 4,
+        print_line_numbers: bool = False,
+        num_context_lines: Optional[int] = None,
+        path_to_underline=None,
+    ) -> str:
         """Print IRModule into TVMScript
 
         Parameters
         ----------
-        tir_prefix : str
-            The tir namespace prefix
-
-        show_meta : bool
-            Whether to show meta information
+        indent_spaces : int
+            The number of indent spaces to use in the output
+        print_line_numbers: bool
+            Whether to print line numbers
+        num_context_lines : Optional[int]
+            Number of context lines to print around the underlined text
+        path_to_underline : Optional[ObjectPath]
+            Object path to be underlined
 
         Returns
         -------
         script : str
-            The TVM Script of the PrimFunc
+            The TVM Script of the IRModule
         """
-        return tvm._ffi.get_global_func("script.AsTVMScript")(
-            self, tir_prefix, show_meta
-        )  # type: ignore
+        if num_context_lines is None:
+            num_context_lines = -1
+        return _ffi_api.PrimFuncScript(  # type: ignore  # pylint: disable=no-member
+            self, indent_spaces, print_line_numbers, num_context_lines, path_to_underline
+        )
 
-    def show(self, style: Optional[str] = None, black_format: bool = True) -> None:
+    def show(
+        self,
+        *,
+        style: Optional[str] = None,
+        black_format: bool = True,
+        indent_spaces: int = 4,
+        print_line_numbers: bool = False,
+        num_context_lines: Optional[int] = None,
+        path_to_underline=None,
+    ) -> None:
         """A sugar for print highlighted TVM script.
 
         Parameters
         ----------
         style : str, optional
-
             Pygmentize printing style, auto-detected if None.  See
             `tvm.script.highlight.cprint` for more details.
-
         black_format: bool
-
             If true (default), use the formatter Black to format the TVMScript
+        indent_spaces : int
+            The number of indent spaces to use in the output
+        print_line_numbers: bool
+            Whether to print line numbers
+        num_context_lines : Optional[int]
+            Number of context lines to print around the underlined text
+        path_to_underline : Optional[ObjectPath]
+            Object path to be underlined
         """
-        from tvm.script.highlight import cprint  # pylint: disable=import-outside-toplevel
+        from tvm.script.highlight import (  # pylint: disable=import-outside-toplevel
+            cprint,
+        )
 
-        # Use deferred import to avoid circular import while keeping cprint under tvm/script
-        cprint(self, style=style, black_format=black_format)
+        cprint(
+            self.script(
+                indent_spaces=indent_spaces,
+                print_line_numbers=print_line_numbers,
+                num_context_lines=num_context_lines,
+                path_to_underline=path_to_underline,
+            ),
+            style=style,
+            black_format=black_format,
+        )
 
 
 @tvm._ffi.register_object("tir.TensorIntrin")

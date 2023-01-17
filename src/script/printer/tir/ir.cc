@@ -90,23 +90,17 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<IncompleteType>("", [](IncompleteType ty, ObjectPath p, IRDocsifier d) -> Doc {
-      return TIR("IncompleteType")->Call({});
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<Target>("", [](Target target, ObjectPath p, IRDocsifier d) -> Doc {
       Map<String, ObjectRef> config = target->Export();
       return TIR("target")->Call({d->AsDoc<ExprDoc>(config, p)});
     });
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<IntImmNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<FloatImmNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<RangeNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<PrimTypeNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<PointerTypeNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<TupleTypeNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<IncompleteTypeNode>(ReprPrint);
+TVM_SCRIPT_REPR(IntImmNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(FloatImmNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(RangeNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(PrimTypeNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(PointerTypeNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(TupleTypeNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script

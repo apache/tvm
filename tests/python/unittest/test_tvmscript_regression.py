@@ -15,11 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy
-
 import tvm
 import tvm.testing
 from tvm.script import tir as T
-
 
 # This numpy array is used to test the comparison between the global objects and the
 # `tvm.script.tir` submodule.
@@ -42,7 +40,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 def test_multi_element_array_in_outmost_namespace():
     func = matmul
-    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
 

@@ -377,7 +377,6 @@ IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) c
 
   VLOG_CONTEXT << pass_info->name;
   VLOG(0) << "Executing module pass with opt level: " << pass_info->opt_level;
-  VLOG(1) << "Input module:" << std::endl << PrettyPrint(mod);
 
   mod = pass_func(std::move(mod), pass_ctx);
 
@@ -388,8 +387,6 @@ IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) c
 
   pass_ctx->diag_ctx.value().Render();
   pass_ctx->diag_ctx = previous;
-
-  VLOG(1) << "Result module:" << std::endl << PrettyPrint(mod);
 
   return mod;
 }

@@ -352,19 +352,19 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           LOG(FATAL) << "ValueError: Store has been deprecated for BufferStore: " << stmt;
         });
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::LetStmtNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::AttrStmtNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::AssertStmtNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::WhileNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::AllocateNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::AllocateConstNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::DeclBufferNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::PrefetchNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::SeqStmtNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::IfThenElseNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::EvaluateNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::BufferRealizeNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::StoreNode>(ReprPrint);
+TVM_SCRIPT_REPR(tir::LetStmtNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::AttrStmtNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::AssertStmtNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::WhileNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::AllocateNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::AllocateConstNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::DeclBufferNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::PrefetchNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::SeqStmtNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::IfThenElseNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::EvaluateNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::BufferRealizeNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::StoreNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script

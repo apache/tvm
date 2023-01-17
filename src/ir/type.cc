@@ -65,12 +65,6 @@ TVM_REGISTER_GLOBAL("ir.TypeVar").set_body_typed([](String name, int kind) {
   return TypeVar(name, static_cast<TypeKind>(kind));
 });
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<TypeVarNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const TypeVarNode*>(ref.get());
-      p->stream << "TypeVar(" << node->name_hint << ", " << node->kind << ")";
-    });
-
 GlobalTypeVar::GlobalTypeVar(String name, TypeKind kind, Span span) {
   ObjectPtr<GlobalTypeVarNode> n = make_object<GlobalTypeVarNode>();
   n->name_hint = std::move(name);
@@ -84,12 +78,6 @@ TVM_REGISTER_NODE_TYPE(GlobalTypeVarNode);
 TVM_REGISTER_GLOBAL("ir.GlobalTypeVar").set_body_typed([](String name, int kind) {
   return GlobalTypeVar(name, static_cast<TypeKind>(kind));
 });
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<GlobalTypeVarNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const GlobalTypeVarNode*>(ref.get());
-      p->stream << "GlobalTypeVar(" << node->name_hint << ", " << node->kind << ")";
-    });
 
 FuncType::FuncType(tvm::Array<Type> arg_types, Type ret_type, tvm::Array<TypeVar> type_params,
                    tvm::Array<TypeConstraint> type_constraints, Span span) {
@@ -108,13 +96,6 @@ TVM_REGISTER_GLOBAL("ir.FuncType")
     .set_body_typed([](tvm::Array<Type> arg_types, Type ret_type, tvm::Array<TypeVar> type_params,
                        tvm::Array<TypeConstraint> type_constraints) {
       return FuncType(arg_types, ret_type, type_params, type_constraints);
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<FuncTypeNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const FuncTypeNode*>(ref.get());
-      p->stream << "FuncType(" << node->type_params << ", " << node->arg_types << ", "
-                << node->ret_type << ", " << node->type_constraints << ")";
     });
 
 TupleType::TupleType(Array<Type> fields, Span span) {
@@ -157,11 +138,5 @@ TVM_REGISTER_GLOBAL("ir.RelayRefType").set_body_typed([](Type value) {
 });
 
 TVM_REGISTER_NODE_TYPE(RelayRefTypeNode);
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<RelayRefTypeNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const RelayRefTypeNode*>(ref.get());
-      p->stream << "RelayRefTypeNode(" << node->value << ")";
-    });
 
 }  // namespace tvm

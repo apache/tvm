@@ -35,6 +35,9 @@ def verbose_expr():
 
 def _assert_print(obj, expected):
     with verbose_expr():
+        if isinstance(obj, (tir.PrimFunc, tir.PrimExpr, tir.Stmt)):
+            assert obj.script().strip() == expected.strip()
+        assert str(obj).strip() == expected.strip()
         assert repr(obj).strip() == expected.strip()
 
 
@@ -54,7 +57,7 @@ def test_prim_func():
         func,
         expected="""
 @T.prim_func
-def main(a: T.handle, b: T.handle) -> None:
+def main(a: T.handle, b: T.handle):
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (256, 256))
     T.evaluate(0)""",

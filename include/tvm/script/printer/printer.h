@@ -56,21 +56,6 @@ struct Default {
 };
 
 /*!
- * \brief The entry method for TVMScript printing
- * \param obj The object to be printed
- * \param indent_spaces Number of spaces used for indentation
- * \param print_line_numbers Whether to print line numbers
- * \param num_context_lines Number of context lines to print around the underlined text
- * \param path_to_underline Object path to be underlined
- * \return The TVMScript text format
- */
-String Script(ObjectRef obj,                    //
-              int indent_spaces = 4,            //
-              bool print_line_numbers = false,  //
-              int num_context_lines = -1,       //
-              Optional<ObjectPath> path_to_underline = NullOpt);
-
-/*!
  * \brief Convert Doc into Python script.
  * \param doc Doc to be converted
  * \param indent_spaces Number of spaces used for indentation
