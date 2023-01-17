@@ -48,7 +48,7 @@ def test_remap():
                 pass
 
     expected_output = """@T.prim_func
-def main() -> None:
+def main():
     with T.block("root"):
         T.reads()
         T.writes()
