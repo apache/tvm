@@ -68,6 +68,7 @@ github:
           - minimal/pr-head
           - riscv/pr-head
           - wasm/pr-head
+          - cross-isa-minimal/pr-head
 
       required_pull_request_reviews:
         required_approving_review_count: 1
