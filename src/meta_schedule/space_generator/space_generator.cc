@@ -102,11 +102,11 @@ void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
     } else if (kind == "vnni") {
       default_sch_rules = ScheduleRule::DefaultVNNI();
       default_postprocs = Postproc::DefaultVNNI();
-      default_mutator_probs = Mutator::DefaultVNNI();
+      default_mutator_probs = Mutator::DefaultLLVM();
     } else if (kind == "avx512") {
       default_sch_rules = ScheduleRule::DefaultAVX512();
       default_postprocs = Postproc::DefaultVNNI();
-      default_mutator_probs = Mutator::DefaultVNNI();
+      default_mutator_probs = Mutator::DefaultLLVM();
     } else if (kind == "c") {
       default_sch_rules = ScheduleRule::DefaultMicro();
       default_postprocs = Postproc::DefaultMicro();
