@@ -292,7 +292,8 @@ class BufferState {
   std::vector<BufferTouch> constraints_;
 };
 
-/*! \brief Represents the flow of control through a `tir::Stmt`
+/*!
+ * \brief Represents the flow of control through a `tir::Stmt`
  *
  * This class contains an internal representation of the possible
  * control flow that may occur during execution of a `tir::Stmt`.  It
@@ -312,7 +313,7 @@ class BufferState {
  *
  * For example, consider the following PrimFunc
  *
- * ```python
+ * \code{.py}
  * @T.prim_func
  * def func(T.Buffer[16, "float32"]):
  *     for i in T.serial(16):
@@ -320,7 +321,7 @@ class BufferState {
  *              B[i] = i
  *         else:
  *              B[i] = i-8
- * ```
+ * \endcode
  *
  * The control flow graph would have eight control blocks.
  *
