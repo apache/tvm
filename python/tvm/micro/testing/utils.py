@@ -25,7 +25,6 @@ from pathlib import Path
 import tarfile
 import time
 from typing import Union
-import pathlib
 import numpy as np
 
 import tvm
@@ -170,7 +169,7 @@ def create_header_file(tensor_name: str, npy_data: np.array, output_path: str, t
     header_file.write("};\n\n")
 
     header_file_bytes = bytes(header_file.getvalue(), "utf-8")
-    raw_path = pathlib.Path(output_path) / f"{tensor_name}.h"
+    raw_path = Path(output_path) / f"{tensor_name}.h"
     ti = tarfile.TarInfo(name=str(raw_path))
     ti.size = len(header_file_bytes)
     ti.mode = 0o644
