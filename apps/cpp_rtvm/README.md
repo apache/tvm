@@ -33,7 +33,7 @@ python3  scripts/download_models.py
 
 ### Auto Tuning
 Auto tuning process tunes various operatrors the given model for respective target. Auto tuning for remote devices use ```tvm_rpc``` and we need to setup the rpc environment before we invoke tuning.
-Please refer below section RPC setup for the same.
+Please refer below section [RPC setup](#rpc-setup) for the same.
 
 Auto tunng is necessary to obtain best performaning kernels. We can skip this step if we have tuning log already or the tuning cashe is available from tophub (inplicite by TVM compilation process).
 Below message indicate that there exists some kernels not optimized for the selected target. In this case we can proceed with tuning to best performance.
