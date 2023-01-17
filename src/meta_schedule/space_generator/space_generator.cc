@@ -81,7 +81,6 @@ void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
     Array<ScheduleRule> default_sch_rules;
     Array<Postproc> default_postprocs;
     Map<Mutator, FloatImm> default_mutator_probs;
-    // TODO(vvchernov): check if need separated ScheduleRule, Postproc, Mutator
     // for target with skylake-avx512
     if (kind == "llvm") {
       default_sch_rules = ScheduleRule::DefaultLLVM();
