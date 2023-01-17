@@ -104,7 +104,7 @@ def mlf_extract_workspace_size_bytes(mlf_tar_path: Union[Path, str]) -> int:
 
     workspace_size = 0
     with tarfile.open(mlf_tar_path, "r:*") as tar_file:
-        tar_members = [ti.name for ti in tar_file.getmembers()]
+        tar_members = [tar_info.name for tar_info in tar_file.getmembers()]
         assert "./metadata.json" in tar_members
         with tar_file.extractfile("./metadata.json") as f:
             metadata = json.load(f)
@@ -170,8 +170,8 @@ def create_header_file(tensor_name: str, npy_data: np.array, output_path: str, t
 
     header_file_bytes = bytes(header_file.getvalue(), "utf-8")
     raw_path = Path(output_path) / f"{tensor_name}.h"
-    ti = tarfile.TarInfo(name=str(raw_path))
-    ti.size = len(header_file_bytes)
-    ti.mode = 0o644
-    ti.type = tarfile.REGTYPE
-    tar_file.addfile(ti, io.BytesIO(header_file_bytes))
+    tar_info = tarfile.TarInfo(name=str(raw_path))
+    tar_info.size = len(header_file_bytes)
+    tar_info.mode = 0o644
+    tar_info.type = tarfile.REGTYPE
+    tar_file.addfile(tar_info, io.BytesIO(header_file_bytes))
