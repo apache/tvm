@@ -19,7 +19,7 @@
 # Native Inference application for CPP Native
 
 Native inference tool ```rtvm``` helps in deploying TVM compiled models from a standalone cpp environment.
-Overall process starts from getting a model from a framework all the way up to running on target device using ``rtvm` tool.
+Overall process starts from getting a model from a framework all the way up to running on target device using `rtvm` tool.
 
 ### Models
 
