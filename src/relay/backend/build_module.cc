@@ -52,6 +52,11 @@ namespace backend {
 using namespace tvm::relay::transform;
 
 /*!
+* \brief Collage tuning flag, used to perform specific transforms before compilation
+* during tuning process of IRModule by collage module.
+*/
+TVM_REGISTER_PASS_CONFIG_OPTION("relay.backend.collage_in_tuning", Bool);
+/*!
  * \brief Output of building module
  */
 struct BuildOutput {
@@ -158,6 +163,16 @@ std::unique_ptr<ExecutorCodegen> MakeExecutorCodegen(String executor_str) {
   return ret;
 }
 
+bool GetHybridTunerFlag() {
+  tvm::transform::PassContext ctxt = tvm::transform::PassContext::Current();
+  std::string config_key = "relay.backend.collage_in_tuning";
+  Optional<Bool> is_tuning = ctxt->GetConfig(config_key, Optional<Bool>());
+  if (!is_tuning.defined()) {
+    return false;
+  }
+  LOG(INFO) << "Hybrid tuner flag :" <<is_tuning.value();
+  return is_tuning.value();
+} 
 /*!
  * \brief Relay build module
  *
@@ -354,7 +369,13 @@ class RelayBuildModule : public runtime::ModuleNode {
     } else {
       relay_module = seq(relay_module);
     }
-
+    // Do layout rewrite for collage tuning
+    if (GetHybridTunerFlag()) {
+    static const runtime::PackedFunc* update_relay_module =
+      runtime::Registry::Get("tvm.relay.build_module.transform_graph_io_layout");
+    relay_module = (*update_relay_module)(relay_module);
+    relay_module = transform::PlanDevices(config_)(relay_module);
+    }
     // Do layout rewrite for auto-scheduler.
     if (backend::IsAutoSchedulerEnabled() && config_->optional_homogeneous_target.defined()) {
       Pass major_pass = transform::AutoSchedulerLayoutRewrite();

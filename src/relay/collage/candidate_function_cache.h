@@ -69,7 +69,7 @@ class CandidateFunctionCache : public transform::GlobalSymbolCache {
 
  private:
   std::shared_ptr<NameSupply> name_supply_;
-  std::unordered_map<Function, Entry, StructuralHash, StructuralEqual> cache_;
+  std::unordered_map<String, Entry, StructuralHash, StructuralEqual> cache_;
 };
 
 }  // namespace collage

@@ -30,12 +30,15 @@ namespace collage {
 
 CandidateFunctionCache::Entry& CandidateFunctionCache::GetEntry(const std::string& label,
                                                                 const Function& function) {
-  auto itr = cache_.find(function);
+  std::ostringstream os;
+  os <<PrettyPrint(function);
+  String func_str = os.str();
+  auto itr = cache_.find(func_str);
   if (itr == cache_.end()) {
     String compiler = function->GetAttr<String>(attr::kCompiler, String("tvm")).value();
     std::string global_symbol_name = name_supply_->Fresh({compiler, label});
     GlobalVar global_symbol(std::move(global_symbol_name), function->checked_type());
-    itr = cache_.emplace(function, Entry(std::move(global_symbol))).first;
+    itr = cache_.emplace(func_str, Entry(std::move(global_symbol))).first;
   }
   return itr->second;
 }

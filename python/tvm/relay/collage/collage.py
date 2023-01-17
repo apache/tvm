@@ -22,9 +22,11 @@ import logging
 import os
 import math
 import tempfile
-
+from tvm import relay
 import numpy as np
-
+from tvm.ir import IRModule
+from tvm.relay.expr_functor import ExprMutator
+from tvm.relay.expr import Call, Var, Constant, TupleGetItem
 import tvm
 from tvm._ffi.registry import register_func, register_object
 from tvm.runtime import Object
@@ -152,3 +154,100 @@ def make_byoc_partition_rule(compiler):
         for pattern_tuple in pattern_table
     ]
     return _ffi_api.MakePatternBYOCPartitionRule(compiler, sub_rules)
+
+
+@register_func("tvm.relay.build_module.transform_graph_io_layout")
+def transform_graph_io_layout(mod):
+    
+    class AlterInOutLayout(ExprMutator):
+
+        def __init__(self):
+            super().__init__()
+            self.hash_memo = []
+            
+
+        def visit_call(self, call):
+            new_fn = self.visit(call.op)
+            if (
+                hash(call) not in self.hash_memo
+                and isinstance(call.op, tvm.ir.expr.GlobalVar) == False
+                and call.op.name == "layout_transform"
+                and call.attrs["src_layout"] == "NCHW4c"
+            ):
+                call = call.args[0]
+            elif (
+                isinstance(call.op, tvm.ir.expr.GlobalVar) == False
+                and call.op.name == "layout_transform"
+                and call.attrs["dst_layout"] == "NCHW4c"
+                and isinstance(call.args[0], Var)
+            ):
+                return relay.var(call.args[0].name_hint, call.checked_type)
+            
+            args =[]
+            for arg in call.args:
+                self.hash_memo.append(hash(arg))
+                args.append(self.visit(arg))
+
+            return Call(call.op, args, call.attrs)
+
+        def __call__(self, mod):
+            func = self.visit(mod["main"].body)
+            mod = IRModule.from_expr(func)
+            return mod
+
+    new_mod = relay.transform.DefuseOps()(mod)
+    new_mod = AlterInOutLayout()(new_mod)
+    new_mod = relay.transform.FuseOps()(relay.transform.InferType()(new_mod))
+    mod["main"] = new_mod["main"]
+    return mod
+
+@register_func("tvm.relay.collage.optimize_batchnorm_ops")
+def optimize_batchnorm_ops(mod, params={}):
+
+    class OptimizeBatchnorm(ExprMutator):
+        def visit_call(self, call):
+    
+            new_args = list()
+            for arg in call.args:
+                if (
+                    (isinstance(arg, (Var, Constant)) == False)
+                    and isinstance(arg, tvm.relay.TupleGetItem)
+                    and (arg.tuple_value.op.name == "nn.batch_norm")
+                    and (arg.tuple_value.args[0].op.name == "nn.conv2d")
+                ):
+                    ep = arg.tuple_value.attrs["epsilon"]
+                    wt = arg.tuple_value.args[1].data.numpy()
+                    bs = arg.tuple_value.args[2].data.numpy()
+                    mn = arg.tuple_value.args[3].data.numpy()
+                    vr = arg.tuple_value.args[4].data.numpy() + ep
+                    dino = np.sqrt(vr)
+                    wt = wt / dino
+                    bs = bs - mn * wt
+                    conv_op = arg.tuple_value.args[0]
+                    conv_args = [p for p in conv_op.args]
+                    wt_conv = conv_args[1].data.numpy()
+                    if(conv_op.attrs["kernel_layout"] == "OIHW"):
+                        wt = wt.reshape(wt.shape[0],1,1,1)
+                    elif(conv_op.attrs["kernel_layout"] == "IOHW"):
+                        wt = wt.reshape(1,wt.shape[0],1,1)
+                    else:
+                        raise ValueError("Unsupported Conv2d kernel layout")
+                    wt_conv = wt_conv*wt
+                    conv_args[1] = relay.const(tvm.nd.array(wt_conv))
+                    bs_args = relay.const(tvm.nd.array(bs.reshape(-1, bs.shape[0], 1, 1)))
+                    conv_out = Call(arg.tuple_value.args[0].op, conv_args, arg.tuple_value.args[0].attrs)
+                    mod = tvm.relay.add(conv_out, bs_args)
+                    new_args.append(mod)
+                else:
+                    new_args.append(arg)
+    
+            call = Call(call.op, new_args, call.attrs)
+            args = [self.visit(arg) for arg in call.args]
+    
+            return Call(call.op, args, call.attrs)
+
+    func = OptimizeBatchnorm().visit(mod["main"].body)
+    mod = tvm.IRModule.from_expr(func)
+    mod = relay.quantize.prerequisite_optimize(mod, params)
+    print(mod)
+    return mod
