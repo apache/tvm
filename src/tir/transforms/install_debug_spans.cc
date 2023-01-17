@@ -30,7 +30,7 @@
 #include <string>
 #include <utility>
 
-#include "../../printer/tir_text_printer_debug.h"
+#include "../../relay/printer/tir_text_printer_debug.h"
 
 namespace tvm {
 namespace tir {
@@ -42,7 +42,7 @@ Stmt DebugInfoInstaller::InstallInfo(const std::string& name, const Stmt& stmt) 
 
 DebugInfoInstaller::DebugInfoInstaller(const Stmt& stmt, const std::string& filename) {
   // Determine the line that each stmt/expr will be printed on
-  tvm::tir::TIRTextPrinterDebug printer(false);
+  tvm::relay::TIRTextPrinterDebug printer(false);
 
   // Fill in the stmts and exprs' line info
   auto result = printer.Print(stmt).str();

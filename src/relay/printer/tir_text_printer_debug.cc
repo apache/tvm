@@ -29,7 +29,7 @@
 #include <string>
 
 namespace tvm {
-namespace tir {
+namespace relay {
 
 std::optional<std::string> span_text(const Span& span) {
   if (!span.defined()) {
@@ -93,5 +93,5 @@ Doc TIRTextPrinterDebug::VisitExpr(const PrimExpr& e) {
   return TIRTextPrinter::VisitExpr(e);
 }
 
-}  // namespace tir
+}  // namespace relay
 }  // namespace tvm

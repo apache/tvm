@@ -598,6 +598,47 @@ def test_tuple_type():
     _assert_print(obj, "T.Tuple(T.float32, T.int32)")
 
 
+def test_remap():
+    from tvm.script import tir as T
+
+    @T.prim_func
+    def block_with_remap_implicitly():
+        for i0, i1, i2, i3, i4, i5 in T.grid(128, 128, 128, 128, 128, 128):
+            with T.block("update"):
+                v0 = T.axis.spatial(128, i0 + 1)
+                v1 = T.axis.spatial(128, i1)
+                v2 = T.axis.reduce(128, i2)
+                v3 = T.axis.spatial(128, i3 - 1)
+                v4 = T.axis.reduce(128, i4)
+                v5 = T.axis.spatial(128, i5)
+
+    @T.prim_func
+    def block_with_remap_explicitly():
+        for i0, i1, i2, i3, i4, i5 in T.grid(128, 128, 128, 128, 128, 128):
+            with T.block("update"):
+                v0 = T.axis.spatial(128, i0 + 1)
+                v1, v2 = T.axis.remap("SR", [i1, i2])
+                v3 = T.axis.spatial(128, i3 - 1)
+                v4, v5 = T.axis.remap("RS", [i4, i5])
+
+    expected_output = """@T.prim_func
+def main():
+    with T.block("root"):
+        T.reads()
+        T.writes()
+        for i0, i1, i2, i3, i4, i5 in T.grid(128, 128, 128, 128, 128, 128):
+            with T.block("update"):
+                v0 = T.axis.spatial(128, i0 + 1)
+                v1, v2 = T.axis.remap("SR", [i1, i2])
+                v3 = T.axis.spatial(128, i3 - 1)
+                v4, v5 = T.axis.remap("RS", [i4, i5])
+                T.reads()
+                T.writes()
+                T.evaluate(0)"""
+    _assert_print(block_with_remap_explicitly, expected_output)
+    _assert_print(block_with_remap_implicitly, expected_output)
+
+
 if __name__ == "__main__":
     test_prim_func()
     test_block_realize()
@@ -639,3 +680,4 @@ if __name__ == "__main__":
     test_prim_type()
     test_pointer_type()
     test_tuple_type()
+    test_remap()

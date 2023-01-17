@@ -23,8 +23,8 @@
  *        that can be parsed by a parser.
  */
 
-#ifndef TVM_PRINTER_TIR_TEXT_PRINTER_DEBUG_H_
-#define TVM_PRINTER_TIR_TEXT_PRINTER_DEBUG_H_
+#ifndef TVM_RELAY_PRINTER_TIR_TEXT_PRINTER_DEBUG_H_
+#define TVM_RELAY_PRINTER_TIR_TEXT_PRINTER_DEBUG_H_
 
 #include <tuple>
 #include <vector>
@@ -32,7 +32,7 @@
 #include "text_printer.h"
 
 namespace tvm {
-namespace tir {
+namespace relay {
 
 class TIRTextPrinterDebug : public TIRTextPrinter {
  public:
@@ -64,7 +64,7 @@ class TIRTextPrinterDebug : public TIRTextPrinter {
   std::vector<std::tuple<const PrimExprNode*, size_t>> exprs_by_line_;
 };
 
-}  // namespace tir
+}  // namespace relay
 }  // namespace tvm
 
-#endif  // TVM_PRINTER_TIR_TEXT_PRINTER_DEBUG_H_
+#endif  // TVM_RELAY_PRINTER_TIR_TEXT_PRINTER_DEBUG_H_

@@ -23,8 +23,8 @@
  *        that can be parsed by a parser.
  */
 
-#ifndef TVM_PRINTER_TEXT_PRINTER_H_
-#define TVM_PRINTER_TEXT_PRINTER_H_
+#ifndef TVM_RELAY_PRINTER_TEXT_PRINTER_H_
+#define TVM_RELAY_PRINTER_TEXT_PRINTER_H_
 
 #include <tvm/ir/module.h>
 #include <tvm/ir/type_functor.h>
@@ -41,18 +41,15 @@
 #include <unordered_set>
 #include <vector>
 
-#include "../ir/attr_functor.h"
-#include "../relay/analysis/dependency_graph.h"
+#include "../../ir/attr_functor.h"
+#include "../analysis/dependency_graph.h"
 #include "doc.h"
 #include "meta_data.h"
-#include "text_printer.h"
-
-namespace tvm {
-class TextPrinter;
-}  // namespace tvm
 
 namespace tvm {
 namespace relay {
+
+class TextPrinter;
 
 class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
                          public PatternFunctor<Doc(const Pattern&)>,
@@ -227,14 +224,10 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
   DependencyGraph dg_;
   class AttrPrinter;
   friend class AttrPrinter;
-  friend class tvm::TextPrinter;
+  friend class tvm::relay::TextPrinter;
 };
 
-}  // namespace relay
-}  // namespace tvm
-
-namespace tvm {
-namespace tir {
+using namespace ::tvm::tir;
 
 /*!
  *  \brief Meta node collector
@@ -274,7 +267,7 @@ class MetaCollector : public StmtExprVisitor {
 };
 
 class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
-                       public ExprFunctor<Doc(const PrimExpr&)>,
+                       public tir::ExprFunctor<Doc(const PrimExpr&)>,
                        public TypeFunctor<Doc(const Type&)> {
  public:
   explicit TIRTextPrinter(bool show_meta, TextMetaDataContext* meta)
@@ -298,7 +291,7 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitExpr_(const FloatImmNode* op) override;
   Doc VisitExpr_(const StringImmNode* op) override;
   Doc VisitExpr_(const CastNode* op) override;
-  Doc VisitExpr_(const VarNode* op) override;
+  Doc VisitExpr_(const tir::VarNode* op) override;
   Doc VisitExpr_(const AddNode* op) override;
   Doc VisitExpr_(const SubNode* op) override;
   Doc VisitExpr_(const MulNode* op) override;
@@ -323,8 +316,8 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitExpr_(const LoadNode* op) override;
   Doc VisitExpr_(const RampNode* op) override;
   Doc VisitExpr_(const BroadcastNode* op) override;
-  Doc VisitExpr_(const LetNode* op) override;
-  Doc VisitExpr_(const CallNode* op) override;
+  Doc VisitExpr_(const tir::LetNode* op) override;
+  Doc VisitExpr_(const tir::CallNode* op) override;
   Doc VisitExpr_(const ShuffleNode* op) override;
   Doc VisitExpr_(const ReduceNode* op) override;
   Doc VisitExprDefault_(const Object* op) override;
@@ -357,7 +350,7 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   /*! \brief meta collector */
   MetaCollector meta_collector_;
   /*! \brief Map from Var to Doc */
-  std::unordered_map<Var, Doc, ObjectPtrHash, ObjectPtrEqual> memo_var_;
+  std::unordered_map<tir::Var, Doc, ObjectPtrHash, ObjectPtrEqual> memo_var_;
   /*! \brief Map from Buffer to Doc */
   std::unordered_map<Buffer, Doc, ObjectPtrHash, ObjectPtrEqual> memo_buf_;
   /*! \brief Map from Buffer to Doc */
@@ -365,7 +358,7 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   /*! \brief name allocation map */
   std::unordered_map<std::string, int> name_alloc_map_;
 
-  friend class tvm::TextPrinter;
+  friend class TextPrinter;
 
   Doc VisitType_(const PrimTypeNode* node) override;
   Doc VisitType_(const PointerTypeNode* node) override;
@@ -396,7 +389,7 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   template <typename T>
   static Doc PrintConstScalar(DataType dtype, const T& data);
   Doc GetUniqueName(std::string prefix);
-  Doc AllocVar(const Var& var);
+  Doc AllocVar(const tir::Var& var);
   Doc AllocConst(const AllocateConst& var);
   Doc AllocBuf(const Buffer& buffer);
   Doc AllocProducer(const DataProducer& buffer);
@@ -411,11 +404,6 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
 
 String AsTVMScriptWithDiagnostic(const ObjectRef& mod, const String& tir_prefix, bool show_meta,
                                  runtime::TypedPackedFunc<std::string(Stmt)> annotate);
-
-}  // namespace tir
-}  // namespace tvm
-
-namespace tvm {
 
 class TextPrinter {
  public:
@@ -441,7 +429,7 @@ class TextPrinter {
   /*! \brief Relay Text Printer */
   relay::RelayTextPrinter relay_text_printer_;
   /*! \brief TIR Text Printer */
-  tir::TIRTextPrinter tir_text_printer_;
+  TIRTextPrinter tir_text_printer_;
 
   bool GetVarName(::tvm::tir::Var v, std::string* s) { return tir_text_printer_.GetVarName(v, s); }
 
@@ -472,6 +460,7 @@ class TextPrinter {
 
   Doc PrintMod(const IRModule& mod);
 };
+}  // namespace relay
 }  // namespace tvm
 
-#endif  // TVM_PRINTER_TEXT_PRINTER_H_
+#endif  // TVM_RELAY_PRINTER_TEXT_PRINTER_H_

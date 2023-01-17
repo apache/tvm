@@ -90,7 +90,7 @@ impl GlobalVar {
 
 // TODO: figure out how to type the last argument runtime::TypedPackedFunc<String(ObjectRef)> annotate)
 external! {
-    #[name("ir.AsText")]
+    #[name("relay.ir.AsText")]
     fn _as_text(object: ObjectRef, show_meta_data: i32, annotate: runtime::Function) -> TString;
 }
 

@@ -885,5 +885,4 @@ def test_max_pool_blocked():
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_cache_read_specify_consumer()
+    tvm.testing.main()
