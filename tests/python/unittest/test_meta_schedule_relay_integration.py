@@ -316,9 +316,8 @@ def test_meta_schedule_integration_extract_from_resnet_with_filter_func():
         assert t.task_name in expected_task_names, t.task_name
 
 
-@pytest.mark.skip("Too slow on CI")
-def extract_task_qbert():
-    def _test(mod, params, target):
+def extract_task_qbert(target, sch_rule_tag):
+    def _test(mod, params, target, sch_rule_tag):
         extracted_tasks = ms.relay_integration.extract_tasks(mod, target, params)
         tune_tasks = list(
             filter(
@@ -341,10 +340,20 @@ def extract_task_qbert():
             annotations = sch.get(block).annotations
 
             assert "schedule_rule" in annotations
-            assert "vnni" in annotations["schedule_rule"]
+            assert sch_rule_tag in annotations["schedule_rule"]
 
     mod, params, _ = load_quantized_bert_base(batch_size=1, seq_len=128)
-    _test(mod, params, target="llvm -mcpu=cascadelake")
+    _test(mod, params, target=target, sch_rule_tag=sch_rule_tag)
+
+
+@pytest.mark.skip("Too slow on CI")
+def extract_task_qbert_vnni():
+    extract_task_qbert("llvm -mcpu=cascadelake", "vnni")
+
+
+@pytest.mark.skip("Too slow on CI")
+def extract_task_qbert_avx512():
+    extract_task_qbert("llvm -mcpu=skylake-avx512", "avx512")
 
 
 @tvm.testing.skip_if_32bit(reason="Apparently the LLVM version on i386 image is too old")
