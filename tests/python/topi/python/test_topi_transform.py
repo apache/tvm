@@ -858,6 +858,7 @@ def test_dynamic_strided_slice():
     verify_dynamic_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3])
     verify_dynamic_strided_slice((3, 4, 3), [0, 2, 0], [1, 2, 3])
 
+
 @tvm.testing.requires_gpu
 @tvm.testing.uses_gpu
 def test_strided_set():
