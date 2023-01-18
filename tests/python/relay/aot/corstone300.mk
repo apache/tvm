@@ -48,6 +48,11 @@ CC = arm-none-eabi-gcc
 AR = arm-none-eabi-ar
 RANLIB = arm-none-eabi-ranlib
 CC_OPTS = CC=$(CC) AR=$(AR) RANLIB=$(RANLIB)
+ifeq ($(shell [ -d ${CMSIS_PATH}/CMSIS-NN ]; echo $$?), 0)
+	CMSIS_NN_PATH = ${CMSIS_PATH}/CMSIS-NN
+else
+	CMSIS_NN_PATH = ${CMSIS_PATH}/CMSIS/NN
+endif
 PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
 	${CFLAGS} \
 	-I$(build_dir)/../include \
@@ -57,7 +62,7 @@ PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
 	-I${DRIVER_PATH}/include \
 	-I${CMSIS_PATH}/Device/ARM/${ARM_CPU}/Include/ \
 	-I${CMSIS_PATH}/CMSIS/Core/Include \
-	-I${CMSIS_PATH}/CMSIS/NN/Include \
+	-I${CMSIS_NN_PATH}/Include \
 	-I${CMSIS_PATH}/CMSIS/DSP/Include \
 	-isystem$(STANDALONE_CRT_DIR)/include
 DRIVER_CMAKE_FLAGS = -DCMAKE_TOOLCHAIN_FILE=$(ETHOSU_TEST_ROOT)/arm-none-eabi-gcc.cmake \
@@ -78,7 +83,7 @@ CC_CODEGEN_SRCS = $(shell find $(abspath $(CODEGEN_ROOT)/host/src/*.cc))
 C_CODEGEN_OBJS = $(subst .c,.o,$(C_CODEGEN_SRCS))
 CC_CODEGEN_OBJS = $(subst .cc,.o,$(CC_CODEGEN_SRCS))
 CMSIS_STARTUP_SRCS = $(shell find ${CMSIS_PATH}/Device/ARM/${ARM_CPU}/Source/*.c)
-CMSIS_NN_SRCS = $(shell find ${CMSIS_PATH}/CMSIS/NN/Source/*/*.c)
+CMSIS_NN_SRCS = $(shell find ${CMSIS_NN_PATH}/Source/*/*.c)
 UART_SRCS = $(shell find ${PLATFORM_PATH}/*.c)
 
 ifdef ETHOSU_TEST_ROOT

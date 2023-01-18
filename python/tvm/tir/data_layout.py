@@ -163,7 +163,7 @@ class BijectiveLayout(Object):
         return _ffi_api.BijectiveLayoutBackwardShape(self, shape)  # type: ignore
 
 
-def layout(layout_str: str) -> Layout:
+def layout(layout_str: str, dtype: str = "int32") -> Layout:
     """Create a layout node from a string.
 
     Parameters
@@ -177,12 +177,16 @@ def layout(layout_str: str) -> Layout:
         Here subordinate axis channel_block=16 is the factor size of
         the primal axis C (channel).
 
+    dtype : str
+        The dtype of generated axes vars in the returned layout.
+        It is required to be integer type.
+
     Returns
     -------
     layout : Layout
         The created layout
     """
-    return _ffi_api.Layout(layout_str)  # type: ignore
+    return _ffi_api.Layout(layout_str, dtype)  # type: ignore
 
 
 def bijective_layout(

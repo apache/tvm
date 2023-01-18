@@ -28,6 +28,7 @@ import tvm
 import tvm.testing
 from tvm import relay, te
 from tvm.topi.math import cast
+from tvm.script import tir as T
 
 
 dtype = tvm.testing.parameter("float32", "int32", "float16", "int8")
@@ -556,6 +557,47 @@ def test_shared_mem_alloc(target, dev):
     # target supports.
     with pytest.raises(tvm.TVMError):
         tvm.build(s, [Out], target)
+
+
+def test_negative_operand_divmod(target, dev):
+    """Test handling of negative offsets to floormod/floordiv
+
+    Even though the SPIR-V spec states that OpSRem and OpSMod can give
+    the signed modulo, the Vulkan spec states that any use of negative
+    operands is undefined behavior.  This test starts with negative
+    operands to floordiv, validating that they are simplified into the
+    corresponding positive operands, such that the final TIR can be
+    expressed using only positive operands.
+
+    SPIR-V: https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#OpSRem
+    Vulkan: https://registry.khronos.org/vulkan/specs/1.3/html/chap37.html#spirvenv-op-prec
+    """
+
+    N = 32
+    offset = 16
+    divisor = 5
+
+    @T.prim_func
+    def func(A: T.Buffer[(N, 2), "int32"]):
+        for i in T.serial(N):
+            with T.block("A"):
+                v_i = T.axis.spatial(N, i)
+                A[v_i, 0] = T.floordiv(v_i - offset, divisor)
+                A[v_i, 1] = T.floormod(v_i - offset, divisor)
+
+    if "gpu" in tvm.target.Target(target).keys:
+        sch = tvm.tir.Schedule(func)
+        sch.bind(sch.get_loops("A")[0], "threadIdx.x")
+        func = sch.mod["main"]
+
+    built = tvm.build(func, target=target)
+
+    a_dev = tvm.nd.empty([N, 2], "int32", dev)
+    built(a_dev)
+    a = a_dev.numpy()
+
+    np.testing.assert_array_equal(a[:, 0], (np.arange(N) - offset) // divisor)
+    np.testing.assert_array_equal(a[:, 1], (np.arange(N) - offset) % divisor)
 
 
 if __name__ == "__main__":

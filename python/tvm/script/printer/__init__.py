@@ -16,12 +16,8 @@
 # under the License.
 """
 TVMScript Unified Printer
-
 This package provides a set of APIs to print supported TVM IR into TVMScript
 in a roundtrippable way.
-
-https://github.com/apache/tvm-rfcs/blob/main/rfcs/0074-tvmscript-unified-printer.md
 """
-
-from . import _ffi_api
-from .entry import script
+from . import default
+from .printer import script

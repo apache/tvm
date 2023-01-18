@@ -690,6 +690,17 @@ def test_forward_dot():
 
     verify((1, 256), (256, 1))
     verify((1, 256), (1, 256), transpose_b=True)
+    verify((5,), (5,))
+    verify((3,), (3, 5))
+    verify((3,), (5, 3), transpose_b=True)
+    verify((3,), (3, 5, 3, 5))
+    verify((3,), (5, 5, 3, 3), transpose_b=True)
+    verify((10, 1), (1,))
+    verify((1, 1), (4, 3, 2, 1), transpose_b=True)
+    verify((4, 3, 2, 1), (1,))
+    verify((1, 2, 3, 4), (1, 4), transpose_b=True)
+    verify((4, 1, 1), (1, 2, 3))
+    verify((1, 1, 4), (2, 3, 4), transpose_b=True)
 
 
 @tvm.testing.uses_gpu
@@ -2352,4 +2363,4 @@ def test_forward_split_v2(
 
 
 if __name__ == "__main__":
-    pytest.main(["test_forward.py"])
+    tvm.testing.main()

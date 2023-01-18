@@ -19,6 +19,7 @@
 from collections import defaultdict
 from contextlib import contextmanager
 from typing import Any, Callable, Dict, List, Optional, Set, Union
+import numpy as np
 from tvm._ffi.base import TVMError
 
 from tvm.error import DiagnosticError
@@ -150,8 +151,11 @@ class VarTable:
             The options of whether variable shadowing allwed for this variable.
         """
         # Skip if the key and value are equal to those in the var_table
-        if self.name2value[var] and self.name2value[var][-1] == value:
-            return
+        if self.name2value[var] and isinstance(self.name2value[var][-1], type(value)):
+            if isinstance(value, np.ndarray) and (self.name2value[var][-1] == value).all():
+                return
+            elif self.name2value[var][-1] == value:
+                return
         if allow_shadowing and var in self.frames[-1].vars:
             # Shadowing
             self.name2value[var][-1] = value

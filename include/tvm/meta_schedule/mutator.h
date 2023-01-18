@@ -139,6 +139,8 @@ class Mutator : public runtime::ObjectRef {
   TVM_DLL static Map<Mutator, FloatImm, void> DefaultCUDATensorCore();
   /*! \brief Create default mutators for Hexagon */
   TVM_DLL static Map<Mutator, FloatImm, void> DefaultHexagon();
+  /*! \brief Create default mutators for Micro */
+  TVM_DLL static Map<Mutator, FloatImm, void> DefaultMicro();
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Mutator, ObjectRef, MutatorNode);
 };

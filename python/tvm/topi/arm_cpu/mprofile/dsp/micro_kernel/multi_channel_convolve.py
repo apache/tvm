@@ -23,7 +23,7 @@ repeated four times giving four int32 outputs - one per channel."""
 import textwrap
 
 from tvm import te, tir
-from .common import num_simd_lanes_per_word
+from .common import num_simd_lanes_per_word, common_includes
 
 
 def _get_func_name(in_dtype, tensor_w, channels, kernel_h, kernel_w, suffix):
@@ -107,10 +107,8 @@ def multi_channel_convolve_impl(in_dtype, *args) -> str:
 def _quad_int8_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, kernel_w, suffix):
     return textwrap.dedent(
         (
-            f"""
-        #include <stdint.h>
-        #include <arm_nnsupportfunctions.h>
-
+            common_includes
+            + f"""
         // __SXTB16(_ROR(X, Y)) is combined into one assembly instruction
 
         #define TVMGEN_QUAD_INT8_CHANNEL_REARRANGE_SUM_DSP( \
@@ -120,13 +118,13 @@ def _quad_int8_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, ke
           \
           uint32_t kernel_c3210 = *arranged_kernel++; \
           \
-          uint32_t tensor_c20 = __SXTB16(tensor_c3210); \
-          uint32_t kernel_c20 = __SXTB16(kernel_c3210); \
+          uint32_t tensor_c20 = __sxtb16(tensor_c3210); \
+          uint32_t kernel_c20 = __sxtb16(kernel_c3210); \
           sum_c0 = __builtin_arm_smlabb(tensor_c20, kernel_c20, sum_c0); \
           sum_c2 = __builtin_arm_smlatt(tensor_c20, kernel_c20, sum_c2); \
           \
-          uint32_t tensor_c31 = __SXTB16(__ROR(tensor_c3210, 8)); \
-          uint32_t kernel_c31 = __SXTB16(__ROR(kernel_c3210, 8)); \
+          uint32_t tensor_c31 = __sxtb16(__ror(tensor_c3210, 8)); \
+          uint32_t kernel_c31 = __sxtb16(__ror(kernel_c3210, 8)); \
           sum_c1 = __builtin_arm_smlabb(tensor_c31, kernel_c31, sum_c1); \
           sum_c3 = __builtin_arm_smlatt(tensor_c31, kernel_c31, sum_c3); \
         }}
@@ -172,7 +170,8 @@ def _quad_int8_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, ke
 def _dual_int16_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, kernel_w, suffix):
     return textwrap.dedent(
         (
-            f"""
+            common_includes
+            + f"""
         #include <stdint.h>
 
         /* We do four channels at once to get this speed boost. */

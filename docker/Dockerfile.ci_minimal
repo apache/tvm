@@ -28,6 +28,10 @@ RUN bash /install/ubuntu_setup_tz.sh
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
 RUN bash /install/ubuntu_install_core.sh
 
+# Install libraries for cross-compiling TVM to Aarch64
+COPY install/ubuntu1804_install_aarch64_cross_compile.sh /install/ubuntu1804_install_aarch64_cross_compile.sh
+RUN bash /install/ubuntu1804_install_aarch64_cross_compile.sh
+
 COPY install/ubuntu_install_cmake_source.sh /install/ubuntu_install_cmake_source.sh
 RUN bash /install/ubuntu_install_cmake_source.sh
 
@@ -37,7 +41,7 @@ RUN bash /install/ubuntu_install_googletest.sh
 ENV TVM_VENV /venv/apache-tvm-py3.7
 COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
 COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
-RUN bash /install/ubuntu_install_python.sh
+RUN bash /install/ubuntu_install_python.sh 3.7
 ENV PATH ${TVM_VENV}/bin:$PATH
 ENV PYTHONNOUSERSITE 1  # Disable .local directory from affecting CI.
 
@@ -46,6 +50,10 @@ RUN bash /install/ubuntu_install_python_package.sh
 
 COPY install/ubuntu1804_manual_install_llvm.sh /install/ubuntu1804_manual_install_llvm.sh
 RUN bash /install/ubuntu1804_manual_install_llvm.sh
+
+# Cross build LLVM to Aarch64
+COPY install/ubuntu1804_manual_install_llvm_cross_aarch64.sh /install/ubuntu1804_manual_install_llvm_cross_aarch64.sh
+RUN bash /install/ubuntu1804_manual_install_llvm_cross_aarch64.sh
 
 # Rust env (build early; takes a while)
 COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh

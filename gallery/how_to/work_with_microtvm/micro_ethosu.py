@@ -37,11 +37,6 @@ In this tutorial, we will be compiling a MobileNet v1 model and instructing
 TVM to offload operators to the Ethos(TM)-U55 where possible.
 """
 
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
 
 ################################################################################
 # Obtaining TVM
@@ -95,7 +90,6 @@ testing.utils.install_request_hook(depth=3)
 #     Pillow==8.3.2
 #     psutil==5.8.0
 #     scipy==1.5.4
-#     synr==0.6
 #     tflite==2.4.0
 #     tornado==6.1
 #

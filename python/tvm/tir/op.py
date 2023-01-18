@@ -2236,6 +2236,28 @@ def power(x, y, span=None):
     return _ffi_api._OpPow(convert(x), convert(y), span)  # type: ignore
 
 
+def pow(x, y, span=None):
+    """x power y
+
+    Parameters
+    ----------
+    x : PrimExpr
+        Input argument.
+
+    y : PrimExpr
+        The exponent
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    z : PrimExpr
+        The result.
+    """
+    return _ffi_api._OpPow(convert(x), convert(y), span)  # type: ignore
+
+
 def popcount(x):
     """Count the number of set bits in input x.
 

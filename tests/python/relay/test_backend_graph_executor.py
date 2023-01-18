@@ -527,4 +527,4 @@ def test_benchmark_end_to_end_rpc():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

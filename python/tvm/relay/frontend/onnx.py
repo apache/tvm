@@ -57,6 +57,7 @@ from .common import (
     shape_of,
     try_resolve_var_to_const,
     unbind,
+    set_span,
 )
 
 __all__ = ["from_onnx"]
@@ -554,6 +555,37 @@ def layer_norm(x, eps, gamma, beta):
         output = _op.add(output, beta)
 
     return output
+
+
+def get_source_name(node, type_dict):
+    """A helper function to get source information of onnx nodes."""
+    if node.name:
+        return node.name
+    else:
+        op_idx = 0
+        if node.op_type in type_dict:
+            op_idx = type_dict[node.op_type] + 1
+        type_dict[node.op_type] = op_idx
+        # rewrite name property in case any revisiting occurs to current node
+        node.name = "{}_{}".format(node.op_type, str(op_idx))
+        return node.name
+
+
+def get_source_name_from_parameter(expr, name_sep="."):
+    """A helper function to get source information of graph node from parameter."""
+    if expr.span:
+        source_name = expr.span.source_name.name
+        # discard variable/parameter name to get span of op node
+        # e.g. conv2d.w -> conv2d
+        if isinstance(expr, _expr.Var):
+            postfix = f"{name_sep}{expr.name_hint}"
+            source_name = source_name[: -len(postfix)]
+        return source_name
+    return None
+
+
+def make_parameter_span(source_name_list, name_sep="."):
+    return name_sep.join(source_name_list)
 
 
 class OnnxOpConverter(object):
@@ -1379,6 +1411,302 @@ class Attention(OnnxOpConverter):
         return _expr.TupleWrapper(_expr.Tuple([output, present]), 2)
 
 
+class QAttention(OnnxOpConverter):
+    """Operator converter for QAttention from Microsoft onnxruntime contrib opset.
+
+    This is the self-attention mechanism used in transformer models.
+    """
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        # ************************* Read attrs *************************
+        num_heads = attr["num_heads"]
+        unidirectional = attr["unidirectional"]
+
+        # ************************* Read inputs *************************
+        # (batch, seq, in_hidden)
+        input_emb = inputs[0]
+
+        # (in_hidden, 3 * out_hidden), where out_hidden = num_heads * head_size
+        weight = inputs[1]
+
+        # (3 * out_hidden,)
+        bias = inputs[2]
+
+        # Scale of quantized input tensor.
+        # Scalar, which means a per-tensor/layer quantization
+        input_scale = inputs[3]
+
+        # Scale of quantized weight tensor.
+        # Scalar or a 1D tensor, which means a per-tensor/per-column quantization.
+        # Its size should be 3 * out_hidden if it is per-column quantization
+        weight_scale = inputs[4]
+
+        # TODO(agladyshev):
+        #  ORT documentation says that shape is (batch,),
+        #  but in ORT source code we have following comment:
+        #       1. (batch_size)
+        #       2. (2 * batch_size)
+        #       3. (batch_size, 1)
+        #       4. (1, 1)
+        #       5. (batch_size, past_sequence_length + sequence_length)
+        #  In practice, for GPT-2 there shape is (batch, past_seq_length + seq_length).
+        #  Currently only (batch, past_seq_length + seq_length) shape is supported.
+        mask_index = inputs[5]
+
+        # Zero point of quantized input tensor.
+        # Scalar, which means a per-tensor/layer quantization
+        input_zero_point = inputs[6]
+
+        # Zero point of quantized weight tensor.
+        # Scalar or a 1D tensor, which means a per-tensor/per-column quantization.
+        # Its size should be 3 * out_hidden if it is per-column quantization
+        weight_zero_point = inputs[7]
+
+        # (2, batch, num_heads, past_seq, head_size)
+        past = inputs[8]
+
+        # ************************* Parse inputs *************************
+        t1 = ["int8", "uint8"]
+        t2 = ["int8", "uint8"]
+        t3 = ["float32", "float16"]
+        t4 = ["int32"]
+
+        # input
+        assert infer_type(input_emb).checked_type.dtype in t1
+        assert (
+            len(infer_shape(input_emb)) == 3
+        ), "Input should be 3D tensor with shape (batch_size, sequence_length, input_hidden_size)"
+        (batch_size, seq_len, input_hidden) = infer_shape(input_emb)
+        assert input_hidden > 0, (
+            "The weight tensor has (input_hidden_size, 3 * output_hidden_size) shape, so it doesn't"
+            f" make sense to have ({input_hidden}, 3 * output_hidden_size) weight tensor."
+        )
+        assert seq_len > 0, (
+            "The output tensor has (batch_size, sequence_length, hidden_size) shape,"
+            f" so it doesn't make sense to have (batch_size, {seq_len}, hidden_size) output."
+        )
+
+        # weight
+        assert infer_type(weight).checked_type.dtype in t2
+        assert len(infer_shape(weight)) == 2, (
+            "Weight should be 2D input tensor with shape (input_hidden_size, 3 * hidden_size), "
+            "hidden_size = num_heads * head_size"
+        )
+        (input_hidden_weight, out_hidden_x3) = infer_shape(weight)
+        assert input_hidden == input_hidden_weight
+        assert out_hidden_x3 % 3 == 0, "output hidden shape should be divisible by 3: W_Q, W_K, W_V"
+        out_hidden = out_hidden_x3 // 3
+        assert (
+            out_hidden % num_heads == 0
+        ), "output hidden size should be divisible by number of attention heads"
+        head_size = out_hidden // num_heads
+
+        # bias
+        assert infer_type(bias).checked_type.dtype in t3
+        assert (
+            len(infer_shape(bias)) == 1
+        ), "Bias should be 1D input tensor with shape (3 * hidden_size)"
+        (out_hidden_x3_bias,) = infer_shape(bias)
+        assert out_hidden_x3 == out_hidden_x3_bias
+
+        # input_scale
+        assert infer_type(input_scale).checked_type.dtype in t3
+        input_scale = get_scalar(
+            input_scale, params, dtype=infer_type(input_scale).checked_type.dtype
+        )
+
+        # weight_scale
+        assert infer_type(weight_scale).checked_type.dtype in t3
+        # TODO(agladyshev): now QNN Batch Matmul only supports scalar types for scale and zero_point
+        weight_scale = get_scalar(
+            weight_scale, params, dtype=infer_type(weight_scale).checked_type.dtype
+        )
+
+        # mask_index
+        assert (
+            mask_index is not None
+        ), "Attention import currently only supports required mask_index"
+        assert infer_type(mask_index).checked_type.dtype in t4
+        mask_index_shape = infer_shape(mask_index)
+        assert (
+            len(mask_index_shape) == 2
+            and mask_index_shape[0] == batch_size
+            and mask_index_shape[1] >= seq_len
+        ), "currently only support (batch_size, sequence_length) mask index"
+
+        # TODO(agladyshev): int32 required for qnn.batch_matmul (QnnBatchMatmulRel)
+        zero_point_zero = _expr.const(0, "int32")
+
+        # input_zero_point
+        if input_zero_point is None:
+            input_zero_point = zero_point_zero
+        else:
+            assert infer_type(input_zero_point).checked_type.dtype in t1
+            # TODO(agladyshev): int32 required for qnn.batch_matmul (QnnBatchMatmulRel)
+            input_zero_point = get_scalar(input_zero_point, params, dtype="int32")
+
+        # weight_zero_point
+        if weight_zero_point is None:
+            weight_zero_point = zero_point_zero
+        else:
+            assert infer_type(weight_zero_point).checked_type.dtype in t2
+            # TODO(agladyshev): int32 required for qnn.batch_matmul (QnnBatchMatmulRel)
+            weight_zero_point = get_scalar(weight_zero_point, params, dtype="int32")
+
+        # past (2, batch_size, num_heads, past_sequence_length, head_size)
+        past_seq_len = 0
+        if past is not None:
+            assert infer_type(past).checked_type.dtype in t3
+            past_shape = infer_shape(past)
+            assert len(past_shape) == 5, "past should be 5D tensor"
+            assert (
+                past_shape[0] == 2
+                and past_shape[1] == batch_size
+                and past_shape[2] == num_heads
+                and past_shape[3] + seq_len == mask_index_shape[1]
+                and past_shape[4] == head_size
+            )
+            past_seq_len = past_shape[3]
+
+        # ************************* Create Relay *************************
+        # Add batch dimension for QNN Batch Matmul
+        weight = _op.expand_dims(weight, 0, num_newaxis=1)
+        weight = _op.concatenate([weight] * batch_size, axis=0)
+
+        # Split weight and biases and do the Matmul
+        w_Q, w_K, w_V = _op.split(weight, 3, axis=-1)
+        b_Q, b_K, b_V = _op.split(bias, 3, axis=-1)
+
+        def qmatmul_dequantize_bias(
+            lhs, rhs, lhs_scale, rhs_scale, lhs_zero_point, rhs_zero_point, bias
+        ):
+            rhs_transposed = _op.transpose(rhs, axes=[0, 2, 1])  # QNN Batch Matmul do: X * Y^T
+            result = _qnn.op.batch_matmul(
+                lhs, rhs_transposed, lhs_zero_point, rhs_zero_point, lhs_scale, rhs_scale
+            )
+            # In our case zero point and scale are scalar, therefore 'axis' doesn't matter
+            result = _qnn.op.dequantize(
+                result,
+                _op.multiply(lhs_scale, rhs_scale),
+                zero_point_zero,
+            )
+            result = _op.add(result, bias)
+            return result
+
+        Q = qmatmul_dequantize_bias(
+            input_emb, w_Q, input_scale, weight_scale, input_zero_point, weight_zero_point, b_Q
+        )
+        K = qmatmul_dequantize_bias(
+            input_emb, w_K, input_scale, weight_scale, input_zero_point, weight_zero_point, b_K
+        )
+        V = qmatmul_dequantize_bias(
+            input_emb, w_V, input_scale, weight_scale, input_zero_point, weight_zero_point, b_V
+        )
+
+        def split_into_heads(tensor):
+            """
+            In the implementation of Multi-head attention we just split queries, keys, and values
+            we compute for a single-head attention into several parts:
+            (batch_size, num_heads, seq_len, head_size)
+            """
+            tensor = _op.reshape(tensor, (batch_size, seq_len, num_heads, head_size))
+
+            # (batch_size, num_heads, seq_len, head_size)
+            tensor = _op.transpose(tensor, axes=[0, 2, 1, 3])
+
+            return tensor
+
+        Q = split_into_heads(Q)
+        K = split_into_heads(K)
+        V = split_into_heads(V)
+
+        # Concatenate (past_K, past_V) with (K, V) by sequence axis:
+        # (batch_size, num_heads, past_sequence_length + sequence_length, head_size)
+        if past is not None and past_seq_len > 0:
+            K_past, V_past = _op.split(past, 2, axis=0)
+            K = _op.concatenate([_op.squeeze(K_past, axis=[0]), K], axis=2)
+            V = _op.concatenate([_op.squeeze(V_past, axis=[0]), V], axis=2)
+
+        # Prepare present state for Key and Value with shape
+        # (2, batch_size, num_heads, past_sequence_length + sequence_length, head_size)
+        present = _op.stack([K, V], axis=0)
+
+        def merge_first_dimensions(tensor):
+            """
+            nn.batch_matmul is expecting 3D tensor:
+            (batch_size * num_heads, past_seq_len + seq_len, head_size)
+            """
+            return _op.reverse_reshape(tensor, (-1, 0, 0))
+
+        Q = merge_first_dimensions(Q)
+        K = merge_first_dimensions(K)
+        V = merge_first_dimensions(V)
+
+        att_scores = _op.nn.batch_matmul(Q, K, transpose_a=False, transpose_b=True)
+        score_dtype = infer_type(att_scores).checked_type.dtype
+        att_scores = _op.divide(
+            att_scores,
+            _op.const(np.sqrt(head_size), dtype=infer_type(att_scores).checked_type.dtype),
+        )
+        att_scores = _op.reshape(
+            att_scores, (batch_size, num_heads, seq_len, past_seq_len + seq_len)
+        )
+
+        # Build the attention mask
+        att_mask = _op.cast(mask_index, score_dtype)
+        # Attention mask has value 0 or 1. Here we convert 0 to -10000, and 1 to 0.
+        att_mask = _op.subtract(_op.const(1, dtype=score_dtype), att_mask)
+        att_mask = _op.multiply(att_mask, _op.const(-10000, dtype=score_dtype))
+        # Expand for att_scores broadcast
+        # (batch_size, past_seq_len + seq_len) -> (batch_size, 1, seq_len, past_seq_len + seq_len)
+        att_mask = _op.expand_dims(att_mask, 1, num_newaxis=2)
+        att_mask = _op.concatenate([att_mask] * seq_len, axis=2)
+
+        def create_unidirectional_mask(left_value, right_value):
+            numpy_unidirectional_mask = np.array(
+                [
+                    np.concatenate(
+                        [
+                            np.full(past_seq_len + s_i + 1, left_value),
+                            np.full(seq_len - s_i - 1, right_value),
+                        ]
+                    )
+                    for s_i in range(seq_len)
+                ]
+            )
+            unidirectional_mask = _op.const(numpy_unidirectional_mask, dtype=score_dtype)
+            unidirectional_mask = _op.expand_dims(unidirectional_mask, 0, num_newaxis=2)
+
+            return unidirectional_mask
+
+        if unidirectional:
+            att_mask = _op.add(att_mask, create_unidirectional_mask(0, -10000))
+
+        # Apply the mask
+        att_scores = _op.add(att_scores, att_mask)
+        # TODO(agladyshev):
+        #   Comment from ORT source code (onnxruntime/contrib_ops/cpu/bert/attention_cpu_base.h):
+        #   "Fix unidirectional mask to be parity with huggingface implementation"
+        if unidirectional:
+            att_scores = _op.multiply(att_scores, create_unidirectional_mask(1, 0))
+            att_scores = _op.add(att_scores, create_unidirectional_mask(0, -10000))
+
+        # Compute Softmax
+        att_scores = _op.reshape(
+            att_scores, (batch_size * num_heads, seq_len, past_seq_len + seq_len)
+        )
+        att_probs = _op.nn.softmax(att_scores, axis=-1)
+
+        # Compute output
+        output = _op.nn.batch_matmul(att_probs, V, transpose_a=False, transpose_b=False)
+        output = _op.reverse_reshape(output, (-1, num_heads, 0, 0))
+        output = _op.transpose(output, axes=[0, 2, 1, 3])
+        output = _op.reshape(output, (0, 0, out_hidden))
+
+        return _expr.TupleWrapper(_expr.Tuple([output, present]), 2)
+
+
 class Gemm(OnnxOpConverter):
     """Operator converter for Gemm."""
 
@@ -1646,7 +1974,7 @@ class Pad(OnnxOpConverter):
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
         pads = inputs[1]
-        if len(inputs) == 3:
+        if len(inputs) == 3 and inputs[2] is not None:
             value = fold_constant(_op.take(inputs[2], _op.const(0)))
         else:
             value = 0.0
@@ -2416,10 +2744,13 @@ class EyeLike(OnnxOpConverter):
         else:
             dtype = get_type(dtype)
 
-        in_shape = _op.shape_of(inputs[0])
+        node_source_name = get_source_name_from_parameter(inputs[0])
+        # since there exists multi-comsumer for the same expression
+        # invoke set_span here to prevent expr-rewritten in span-filling stage
+        in_shape = set_span(_op.shape_of(inputs[0]), node_source_name)
         zeros = _op.zeros(in_shape, dtype)
 
-        dim = _op.take(in_shape, _op.const(0))
+        dim = set_span(_op.take(in_shape, _op.const(0)), node_source_name)
 
         indices = _op.arange(_op.const(0), dim, dtype="int32")
         ones = _op.full(_op.const(1), _op.reshape(dim, (1,)), dtype=dtype)
@@ -3126,8 +3457,7 @@ class RNN(OnnxOpConverter):
         Wp = inputs[1]
         Rp = inputs[2]
         Bp = inputs[3]
-        # Sequence length currently unused as it can be inferred from shapes.
-        # sequence_lens = inputs['sequence_lens']
+        sequence_lens = inputs[4]
         Hp_0 = inputs[5]
 
         num_directions = infer_shape(Wp)[0]
@@ -3158,11 +3488,11 @@ class RNN(OnnxOpConverter):
         Bs = None
         if Bp is not None:
             Bs = _op.split(Bp, num_directions)
-        return X_steps, H_ts, Ws, Rs, Bs, num_directions
+        return X_steps, H_ts, Ws, Rs, Bs, num_directions, sequence_lens
 
     @classmethod
     def _impl_common(cls, inputs, attr, layout):
-        X_steps, H_ts, Ws, Rs, Bs, num_directions = cls._inputs_helper(inputs, layout)
+        X_steps, H_ts, Ws, Rs, Bs, num_directions, _ = cls._inputs_helper(inputs, layout)
         acts = cls._get_activations(attr, 1, num_directions, "RNN")
 
         weights_dicts = []
@@ -3261,7 +3591,7 @@ class LSTM(RNN):
 
     @classmethod
     def _impl_common(cls, inputs, attr, layout):
-        X_steps, H_ts, Ws, Rs, Bs, num_directions = cls._inputs_helper(inputs, layout)
+        X_steps, H_ts, Ws, Rs, Bs, num_directions, _ = cls._inputs_helper(inputs, layout)
         acts = cls._get_activations(attr, 3, num_directions, "LSTM")
 
         # cell state
@@ -3346,6 +3676,7 @@ class GRU(RNN):
         input_seqs,
         weight_dicts,
         acts,
+        sequence_lens=None,
     ):
         """
         Bidirectional GRU cell
@@ -3356,6 +3687,7 @@ class GRU(RNN):
             **weight_dicts[0],
             rz_act=acts[0],
             n_act=acts[1],
+            sequence_lens=sequence_lens,
         )
 
         reverse_outputs, rev_H_t = gru_cell(
@@ -3364,6 +3696,7 @@ class GRU(RNN):
             rz_act=acts[2],
             n_act=acts[3],
             backwards=True,
+            sequence_lens=sequence_lens,
         )
 
         final_outputs = []
@@ -3383,7 +3716,9 @@ class GRU(RNN):
 
     @classmethod
     def _impl_common(cls, inputs, attr, layout):
-        X_steps, H_ts, Ws, Rs, Bs, num_directions = cls._inputs_helper(inputs, layout)
+        X_steps, H_ts, Ws, Rs, Bs, num_directions, sequence_lens = cls._inputs_helper(
+            inputs, layout
+        )
         acts = cls._get_activations(attr, 2, num_directions, "GRU")
         linear_before_reset = attr.get("linear_before_reset", 0)
 
@@ -3412,6 +3747,7 @@ class GRU(RNN):
                 input_seqs=X_steps,
                 weight_dicts=weights_dicts,
                 acts=acts,
+                sequence_lens=sequence_lens,
             )
         else:
             # outputs shape = [seqs_num, (batch_size, hidden_size)]
@@ -3420,6 +3756,7 @@ class GRU(RNN):
                 **weights_dicts[0],
                 rz_act=acts[0],
                 n_act=acts[1],
+                sequence_lens=sequence_lens,
             )
 
             # output shape = (seqs_num, num_directions, batch_size, hidden_size)
@@ -3826,7 +4163,10 @@ class Loop(OnnxOpConverter):
         # Get the current graph proto and create a clone for the subgraph
         graph_scope = GraphProto.current
         subgraph_scope = GraphProto(
-            graph_scope._shape, graph_scope._dtype, graph_scope._freeze_params
+            graph_scope._shape,
+            graph_scope._dtype,
+            graph_scope._freeze_params,
+            graph_scope._op_type_dict,
         )
         # Load nodes from outer graph into inner graph.
         subgraph_scope._nodes = graph_scope._nodes.copy()
@@ -3857,6 +4197,11 @@ class Loop(OnnxOpConverter):
         ]
         loop_vars += [get_var(body.input[i + 2].name, v) for i, v in enumerate(loop_deps)]
         loop_var_names = [v.name_hint for v in loop_vars]
+        # get span information of loop body
+        body_source_name = get_source_name(body, subgraph_scope._op_type_dict)
+        # set span to inputs of loop body
+        for i, v in enumerate(loop_vars):
+            loop_vars[i] = set_span(v, make_parameter_span([v.name_hint, body_source_name]))
 
         num_scan_outputs = len(body.output) - (1 + num_deps)
 
@@ -3985,9 +4330,19 @@ class If(OnnxOpConverter):
 
         # Create graph converters for both branches.
         graph_scope = GraphProto.current
-        then_graph = GraphProto(graph_scope._shape, graph_scope._dtype, graph_scope._freeze_params)
+        then_graph = GraphProto(
+            graph_scope._shape,
+            graph_scope._dtype,
+            graph_scope._freeze_params,
+            graph_scope._op_type_dict,
+        )
         then_graph._nodes = graph_scope._nodes.copy()
-        else_graph = GraphProto(graph_scope._shape, graph_scope._dtype, graph_scope._freeze_params)
+        else_graph = GraphProto(
+            graph_scope._shape,
+            graph_scope._dtype,
+            graph_scope._freeze_params,
+            graph_scope._op_type_dict,
+        )
         else_graph._nodes = graph_scope._nodes.copy()
 
         # Convert each branch to a relay expression.
@@ -4007,6 +4362,23 @@ class If(OnnxOpConverter):
         else_free_vars = analysis.free_vars(else_expr)
         for var in else_free_vars:
             graph_scope._nodes.update({var.name_hint: var})
+
+        # Sometimes pytorch to onnx will insert silly if statements that produce dynamic ranks.
+        # Often these dont contribute anything. If we see a dynamic rank output, try to unify
+        # them so we can continue without breaking.
+        if not isinstance(then_expr, _expr.Tuple) and not isinstance(else_expr, _expr.Tuple):
+            then_shape = infer_shape(then_expr)
+            else_shape = infer_shape(else_expr)
+            if len(then_shape) != len(else_shape):
+                warning_msg = (
+                    "If statement produced outputs with different rank. "
+                    "Attempting to unify ranks but this may produce incorrect results."
+                )
+                warnings.warn(warning_msg)
+                if len(then_shape) < len(else_shape):
+                    then_expr = _op.broadcast_to_like(then_expr, else_expr)
+                else:
+                    else_expr = _op.broadcast_to_like(else_expr, then_expr)
 
         # Now we can construct the relay if statement and return.
         ret = _expr.If(cond, then_expr, else_expr)
@@ -4067,7 +4439,10 @@ class Scan(OnnxOpConverter):
         # Get the current graph proto and create a clone for the subgraph
         graph_scope = GraphProto.current
         subgraph_scope = GraphProto(
-            graph_scope._shape, graph_scope._dtype, graph_scope._freeze_params
+            graph_scope._shape,
+            graph_scope._dtype,
+            graph_scope._freeze_params,
+            graph_scope._op_type_dict,
         )
         # Load nodes from outer graph into inner graph.
         subgraph_scope._nodes = graph_scope._nodes.copy()
@@ -4121,6 +4496,12 @@ class Scan(OnnxOpConverter):
         loop_vars += [
             get_var(body.input[i].name, v) for i, v in enumerate(inputs) if i < num_state_inputs
         ]
+        # get span information of scan body
+        body_source_name = get_source_name(body, subgraph_scope._op_type_dict)
+        # set span to inputs of scan body
+        for i, v in enumerate(loop_vars):
+            loop_vars[i] = set_span(v, make_parameter_span([v.name_hint, body_source_name]))
+
         loop_vars += scan_output_vars
         body_input_var_names = ["iter"] + [body.input[i].name for i in range(len(body.input))]
 
@@ -5565,6 +5946,66 @@ class ConcatFromSequence(OnnxOpConverter):
         return _op.concatenate(inputs[0], axis=axis)
 
 
+class SplitToSequence(OnnxOpConverter):
+    """Operator converter for split to sequence op."""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        axis = attr.get("axis", 0)
+        keepdims = attr.get("keepdims", 1)
+
+        input_tensor = inputs[0]
+        input_shape = infer_shape(input_tensor)
+        split = inputs[1]
+
+        # If split is not provided, we split all values along axis.
+        if split is None:
+            output = _op.split(input_tensor, input_shape[axis], axis=axis)
+            # If keepdims is 0, then we need to squeeze off the axis.
+            if not keepdims:
+                output = [_op.squeeze(tensor_slice, axis=[axis]) for tensor_slice in output]
+            return _expr.Tuple(list(output))
+
+        # Otherwise, split based on provided split value.
+        else:
+            # For now we only support constant valued split.
+            assert isinstance(
+                split, _expr.Constant
+            ), "Only constant split supported for SplitToSequence"
+            split = split.data.numpy()
+            if len(split.shape) == 1 and split.shape[0] > 1:
+                # If split is a 1D tensor, it must be converted to indices for relay compatibility.
+                split = np.cumsum(split)
+                # Remove final invalid index.
+                split = split[:-1]
+            else:
+                # Otherwise get split as an integer.
+                split = int(split)
+
+            output = _op.split(input_tensor, split, axis=axis)
+
+            # If keepdims is set to 0 remove split axis. Note that this is
+            # an inconsistency with the onnx spec but is needed for pytorch compatibility.
+            if not keepdims:
+                output = [_op.squeeze(tensor_slice, axis=[axis]) for tensor_slice in output]
+            return _expr.Tuple(list(output))
+
+
+class SequenceAt(OnnxOpConverter):
+    """Operator converter for sequence at op."""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        input_sequence = inputs[0]
+        position = inputs[1]
+        assert isinstance(
+            position, _expr.Constant
+        ), "Only constant position supported for SequenceAt"
+        # Convert position to integer.
+        position = int(position.data.numpy())
+        return input_sequence[position]
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -5633,6 +6074,7 @@ def _get_convert_map(opset):
         "EmbedLayerNormalization": EmbedLayerNormalization.get_converter(opset),
         "SkipLayerNormalization": SkipLayerNormalization.get_converter(opset),
         "Attention": Attention.get_converter(opset),
+        "QAttention": QAttention.get_converter(opset),
         "Exp": Renamer("exp"),
         "Greater": Renamer("greater"),
         "GreaterOrEqual": Renamer("greater_equal"),
@@ -5793,6 +6235,8 @@ def _get_convert_map(opset):
         "SequenceConstruct": SequenceConstruct.get_converter(opset),
         "SequenceInsert": SequenceInsert.get_converter(opset),
         "ConcatFromSequence": ConcatFromSequence.get_converter(opset),
+        "SplitToSequence": SplitToSequence.get_converter(opset),
+        "SequenceAt": SequenceAt.get_converter(opset),
     }
 
 
@@ -5815,11 +6259,16 @@ class GraphProto:
         at compile time and helps in making models static if certain inputs represent
         attributes relay would traditionally consider compile-time constants.
 
+    op_type_dict: Dict[str, int]
+        Dictionary for span filling usage. If the name property of op was not set
+        op_type_dict will provide an alternative by combining literal op type with
+        its presenting order
+
     """
 
     current = None
 
-    def __init__(self, shape, dtype, freeze_params=False):
+    def __init__(self, shape, dtype, freeze_params=False, op_type_dict=None):
         self._nodes = {}
         self._params = {}
         self._inputs = {}
@@ -5831,6 +6280,7 @@ class GraphProto:
         self._dtype = dtype
         self.opset = None
         self._freeze_params = freeze_params
+        self._op_type_dict = op_type_dict
 
     def __enter__(self):
         self._old_manager = GraphProto.current
@@ -5983,6 +6433,9 @@ class GraphProto:
         for node in graph.node:
             op_name = node.op_type
             attr = self._parse_attr(node.attribute)
+            # Fill in span of inputs
+            node_source_name = get_source_name(node, self._op_type_dict)
+            self._set_parameter_span(node, node_source_name)
             # Create and populate input list.
             inputs = onnx_input()
             for i in node.input:
@@ -6006,6 +6459,8 @@ class GraphProto:
                 op = fold_constant(op)
             else:
                 op = _expr.TupleWrapper(fold_constant(op.astuple()), len(op))
+
+            op = set_span(op, node_source_name)
 
             if outputs_num > 1:
                 # ONNX supports optional outputs for some nodes.
@@ -6044,6 +6499,19 @@ class GraphProto:
             else:
                 for k, i in zip(list(node_output), range(len(node_output))):
                     self._nodes[k] = op[i]
+
+    def _set_parameter_span(self, node, node_source_name):
+        for i in node.input:
+            if i != "":
+                name = self._renames.get(i, i)
+                expr = self._nodes.get(name)
+                # relay.Var -> inputs / params
+                # relay.Constant -> freezed params / built-in constants
+                if isinstance(expr, (relay.Var, relay.Constant)):
+                    expr_with_span = set_span(expr, make_parameter_span([node_source_name, name]))
+                    self._nodes[name] = expr_with_span
+                    if name in self._inputs:
+                        self._inputs[name] = expr_with_span
 
     def _parse_value_proto(self, value_proto):
         """Parse ValueProto or raw str."""
@@ -6124,8 +6592,28 @@ class GraphProto:
         return outputs
 
 
+def export_model(location, graph):
+    """Convert the graph to an onnx model and export it to the location."""
+    import datetime
+    import os
+
+    from onnx import save, helper
+
+    if not os.path.exists(location):
+        os.makedirs(location)
+    time_stamp = datetime.datetime.now().strftime("%m_%d_%Y_%H_%M_%S")
+    model = helper.make_model(graph)
+    save(model, os.path.join(location, "tvm_exported_model_{}.onnx".format(time_stamp)))
+
+
 def from_onnx(
-    model, shape=None, dtype="float32", opset=None, freeze_params=True, convert_config=None
+    model,
+    shape=None,
+    dtype="float32",
+    opset=None,
+    freeze_params=True,
+    convert_config=None,
+    export_node_renamed_model_path=None,
 ):
     """Convert a ONNX model into an equivalent Relay Function.
 
@@ -6171,6 +6659,12 @@ def from_onnx(
                 True to convert qualified onnx `matmul` to `nn.batch_matmul` strict to NT format
                 (transpose_a=False, transpose_b=True).
 
+    export_node_renamed_model_path : str, optional
+        Export the node renamed onnx model to the path.
+        Some models do not contain names in their nodes. During the conversion, if names of nodes
+        are empty, new names will be assigned based on their op types. The exported model can be the
+        reference to spans.
+
     Returns
     -------
     mod : tvm.IRModule
@@ -6195,7 +6689,7 @@ def from_onnx(
                 warnings.warn(str(e))
     except ImportError:
         pass
-    g = GraphProto(shape, dtype, freeze_params)
+    g = GraphProto(shape, dtype, freeze_params, op_type_dict={})
     graph = model.graph
 
     try:
@@ -6224,6 +6718,9 @@ def from_onnx(
     # Use the graph proto as a scope so that ops can access other nodes if needed.
     with g:
         mod, params = g.from_onnx(graph, opset)
+
+    if export_node_renamed_model_path:
+        export_model(export_node_renamed_model_path, graph)
 
     if freeze_params:
         mod = relay.transform.DynamicToStatic()(mod)

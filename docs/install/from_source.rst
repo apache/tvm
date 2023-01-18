@@ -331,6 +331,12 @@ like ``virtualenv``.
 
        pip3 install --user numpy decorator attrs
 
+   * If you want to use ``tvmc``: the TVM command line driver.
+
+   .. code:: bash
+
+       pip3 install --user typing-extensions
+
    * If you want to use RPC Tracker
 
    .. code:: bash

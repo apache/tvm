@@ -32,15 +32,17 @@ A default parser is provided. Users can implement their own renderers to render 
 Here we use a renderer rendering graph in the text-form.
 It is a lightweight, AST-like visualizer, inspired by `clang ast-dump <https://clang.llvm.org/docs/IntroductionToTheClangAST.html>`_.
 We will introduce how to implement customized parsers and renderers through interface classes.
+To install dependencies, run:
+
+.. code-block:: bash
+
+    %%shell
+    pip install graphviz
+
 
 For more details, please refer to :py:mod:`tvm.contrib.relay_viz`.
 """
 
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
 from typing import (
     Dict,
     Union,

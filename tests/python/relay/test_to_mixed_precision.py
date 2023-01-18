@@ -538,4 +538,4 @@ def test_convert_follow_node_with_integer_arguments(target_precision):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()
