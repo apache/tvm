@@ -49,7 +49,8 @@ using namespace tvm::support;
 static const string kUsage =
     "Command line usage\n"
     "--model        - The folder containing tvm artifacts(mod.so, mod.param, mod.json) \n"
-    "--device       - The target device to use {llvm, opencl, cpu, cuda, metal, rocm, vpi, oneapi}\n"
+    "--device       - The target device to use {llvm, opencl, cpu, cuda, metal, rocm, vpi, "
+    "oneapi}\n"
     "--input        - Numpy file for the model input (optional and we use random of not given)\n"
     "--output       - Numpy file name to dump the model output as numpy\n"
     "--dump-meta    - Dump model meta information\n"

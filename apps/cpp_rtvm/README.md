@@ -24,7 +24,7 @@ Overall process starts from getting a model from a framework all the way up to r
 ### Models
 
 Models can be downloaded from well known frameworks like Tensorflow, PyTorch, TFLite, Onnx ..etc.
-scripts/download_models.py has areference to prepare sample network ```resnet50``` from keras framework.
+scripts/download_models.py has a reference to prepare sample network ```resnet50``` from keras framework.
 
 ```bash
 python3  scripts/download_models.py
@@ -34,7 +34,7 @@ python3  scripts/download_models.py
 Auto tuning process tunes various operatrors the given model for respective target. Auto tuning for remote devices use ```tvm_rpc``` and we need to setup the rpc environment before we invoke tuning.
 Please refer below section [RPC setup](#rpc-setup) for the same.
 
-Auto tunng is necessary to obtain best performaning kernels. We can skip this step if we have tuning log already or the tuning cashe is available from tophub (inplicite by TVM compilation process).
+Auto tunng is necessary to obtain best performaning kernels. We can skip this step if we have tuning log already or the tuning cache is available from tophub (implicite by TVM compilation process).
 Below message indicate that there exists some kernels not optimized for the selected target. In this case we can proceed with tuning to best performance.
 ```One or more operators have not been tuned. Please tune your model for better performance. Use DEBUG logging level to see more details.```
 
@@ -59,13 +59,14 @@ where
 ```bash
 --target="opencl" refers to opencl device on Android device
 --target-host="llvm -mtriple=aarch64-linux-gnu" refers to target_host being an ARM64 CPU
-Options --early-stopping, --repeat, --trials, --tuner are Auto TVM specific options. Please refer to AutoTVM documentation for more details [here](https://tvm.apache.org/docs/how_to/tune_with_autotvm/index.html?highlight=autotvm).
+Options --early-stopping, --repeat, --trials, --tuner are Auto TVM specific options.
 ```
+Please refer to AutoTVM documentation for more details [here](https://tvm.apache.org/docs/how_to/tune_with_autotvm/index.html?highlight=autotvm).
 
 ### Compile the model
 
 Compilation step generates TVM compiler output artifacts which need to be taken to target device for deployment.
-These artifacts is a compressed archive with kernel shared lib, json with cgaph description and params binary.
+These artifacts is a compressed archive with kernel shared lib, json with graph description and params binary.
 
 Below command will generate the same
 
@@ -79,7 +80,6 @@ where
 ```
 --cross-compiler : Indicates the cross compiler path for kernel library generation
 --target="opencl, llvm" indicates target and host devices
---
 ```
 
 ### Test Run via RPC
@@ -102,7 +102,7 @@ python3 -m tvm.driver.tvmc run --device="opencl" keras-resnet50.tar --rpc-key ${
 
 This inputs random inputs and validates the execution correctness of the compiled model.
 
-```tvmc``` tool has various options to input custom data, profile, benchmark the execution.
+```tvmc``` tool has various options to input custom data, profile the model and benchmark the execution.
 
 
 ### Deployment Run
@@ -221,12 +221,12 @@ Building ```cpp_rtvm``` produces ```libtvm_runner.so```, a simplified interface 
 
 # RPC Setup
 
-for Android devices require cross compilation of tvm_rpc (also libtvm_runtime.so which is a dependency) for remote device.
-RPC setup involved running tracker on host device and running tvm_rpc on target device.
+For Android devices we require cross compilation of tvm_rpc (also libtvm_runtime.so which is a dependency) for remote device.
+RPC setup involves running tracker on host device and running tvm_rpc on target device.
 
 ### Tracker
 
-below command runs the tracker on host over port ```9100```
+Below command runs the tracker on host over port ```9100```
 
 ```bash
 python3 -m tvm.exec.rpc_tracker --host 127.0.0.1 --port 9100"
@@ -271,11 +271,18 @@ android   1      1     0
 
 # Target Specific Configuration
 
-Below sections describe device/target specific settings to be used with tvmc tool
+Below sections describe device/target specific settings to be used with ```tvmc``` and ```rtvm``` tools.
 
 ### Adreno GPU
 
-Adreno GPU has a docker defined that helps to ease the development environment.
+Adreno GPU has a docker definition that helps to ease the development environment.
+
+We can build the docker image by using below command from TVM repo.
+
+```bash
+./docker/build.sh ci_adreno
+docker tag tvm.ci_adreno ci_adreno
+```
 
 Below command builds host and target rpc components for Adreno and drops into an interactive shell.
 
