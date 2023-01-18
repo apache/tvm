@@ -182,7 +182,7 @@ std::vector<String> VerifyMemory_(const PrimFunc& func) {
 
   VLOG(1) << "verifying memory for target '" << target.value()->str()
           << "' for primitive:" << std::endl
-          << PrettyPrint(func);
+          << func;
 
   if (func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
       CallingConv::kDefault) {

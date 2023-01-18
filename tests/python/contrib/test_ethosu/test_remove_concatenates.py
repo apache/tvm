@@ -19,10 +19,11 @@ import pytest
 pytest.importorskip("ethosu.vela")
 import tvm
 import tvm.script
-from tvm.script import tir as T
 from tvm import relay
-from tvm.relay.testing import run_opt_pass
 from tvm.relay.backend.contrib.ethosu.tir.compiler import _lower_to_tir
+from tvm.relay.testing import run_opt_pass
+from tvm.script import tir as T
+
 from .infra import make_ethosu_conv2d
 
 
@@ -73,7 +74,7 @@ def test_concat():
 
     func = _get_func()
     mod, _ = _lower_to_tir(func)
-    script = mod.script(show_meta=True)
+    script = mod.script()
     test_mod = tvm.script.from_source(script)
 
     reference_mod = ReferenceModule

@@ -29,6 +29,7 @@ from . import adt
 from . import prelude
 from . import loops
 from . import scope_builder
+from .base import pretty_print, astext
 
 from . import transform
 from . import analysis

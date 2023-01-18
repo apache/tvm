@@ -16,13 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-/*!
- * \file tvm/ir/error.h
- * \brief Utilities for error tracking and reporting.
- */
-#ifndef TVM_IR_ERROR_H_
-#define TVM_IR_ERROR_H_
+#ifndef TVM_RELAY_ERROR_H_
+#define TVM_RELAY_ERROR_H_
 
 #include <tvm/ir/module.h>
 #include <tvm/ir/span.h>
@@ -33,6 +28,7 @@
 #include <vector>
 
 namespace tvm {
+namespace relay {
 /*!
  * \brief A wrapper around std::stringstream to build error.
  *
@@ -181,5 +177,6 @@ class ErrorReporter {
   std::unordered_map<ObjectRef, GlobalVar, ObjectPtrHash, ObjectPtrEqual> node_to_gv_;
 };
 
+}  // namespace relay
 }  // namespace tvm
-#endif  // TVM_IR_ERROR_H_
+#endif  // TVM_RELAY_ERROR_H_

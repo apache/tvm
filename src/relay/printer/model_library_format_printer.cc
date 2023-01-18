@@ -26,7 +26,7 @@
 #include "text_printer.h"
 
 namespace tvm {
-namespace printer {
+namespace relay {
 
 class ModelLibraryFormatPrinter : public ::tvm::runtime::ModuleNode {
  public:
@@ -38,9 +38,9 @@ class ModelLibraryFormatPrinter : public ::tvm::runtime::ModuleNode {
   const char* type_key() const final { return "model_library_format_printer"; }
 
   std::string Print(const ObjectRef& node) {
-    Doc doc;
-    doc << text_printer_.PrintFinal(node);
-    return doc.str();
+    std::ostringstream oss;
+    oss << node;
+    return oss.str();
   }
 
   TVMRetValue GetVarName(tir::Var var) {
@@ -69,7 +69,7 @@ class ModelLibraryFormatPrinter : public ::tvm::runtime::ModuleNode {
   TextPrinter text_printer_;
 };
 
-TVM_REGISTER_GLOBAL("tir.ModelLibraryFormatPrinter")
+TVM_REGISTER_GLOBAL("relay.ir.ModelLibraryFormatPrinter")
     .set_body_typed([](bool show_meta_data,
                        const runtime::TypedPackedFunc<std::string(ObjectRef)>& annotate,
                        bool show_warning) {
@@ -77,5 +77,5 @@ TVM_REGISTER_GLOBAL("tir.ModelLibraryFormatPrinter")
           make_object<ModelLibraryFormatPrinter>(show_meta_data, annotate, show_warning));
     });
 
-}  // namespace printer
+}  // namespace relay
 }  // namespace tvm

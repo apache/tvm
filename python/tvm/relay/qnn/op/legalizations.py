@@ -248,7 +248,7 @@ def helper_change_dtypes_to_uint8_int8(attrs, inputs, types, relay_op):
     Replacing QA + 128 with QA' and (zp_a + 128) with zp_a'
     We get our new quantized uint8 tensor - scale * (QA' - zp_a')
 
-    Similarly we can convert from int8 to uint8.
+    Similarly we can convert from uint8 to int8.
 
     Parameters
     ----------
@@ -449,6 +449,7 @@ def _qnn_dense_legalize_arm_cpu(attrs, inputs, types):
 
 @qnn_conv2d_legalize.register("cpu")
 def _qnn_conv2d_legalize_intel_cpu(attrs, inputs, types):
+    # TODO(vvchernov): not only VNNI
     # The VNNI transformations prefer uint8 x int8 datatypes.
     if is_fast_int8_on_intel():
         return helper_change_dtypes_to_uint8_int8(attrs, inputs, types, relay.qnn.op.conv2d)
@@ -457,6 +458,7 @@ def _qnn_conv2d_legalize_intel_cpu(attrs, inputs, types):
 
 @qnn_dense_legalize.register("cpu")
 def _qnn_dense_legalize_intel_cpu(attrs, inputs, types):
+    # TODO(vvchernov): not only VNNI
     # The VNNI transformations prefer uint8 x int8 datatypes.
     if is_fast_int8_on_intel():
         return helper_change_dtypes_to_uint8_int8(attrs, inputs, types, relay.qnn.op.dense)

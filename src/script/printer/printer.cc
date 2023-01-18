@@ -23,18 +23,11 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-String Script(ObjectRef obj, int indent_spaces, bool print_line_numbers, int num_context_lines,
-              Optional<ObjectPath> path_to_underline) {
-  return DocToPythonScript(IRDocsifier()->AsDoc(obj, ObjectPath::Root()), indent_spaces,
-                           print_line_numbers, num_context_lines, path_to_underline);
-}
-
 Default* Default::Instance() {
   static Default inst;
   return &inst;
 }
 
-TVM_REGISTER_GLOBAL("script.printer.Script").set_body_typed(Script);
 TVM_REGISTER_GLOBAL("script.printer.DefaultIRPrefix")
     .set_body_typed([](std::string ir, std::string prefix) { Default::Prefix(ir) = prefix; });
 TVM_REGISTER_GLOBAL("script.printer.DefaultBufferDType")

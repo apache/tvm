@@ -17,16 +17,22 @@
 # pylint: disable=ungrouped-imports, import-outside-toplevel
 """Arm(R) Ethos(TM)-U NPU supported operators."""
 import functools
-from typing import Dict, List, Tuple, Callable, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np  # type: ignore
 
 import tvm  # type: ignore
 from tvm import relay
-from tvm.relay.expr import Constant, Call  # type: ignore
-from tvm.relay.op.contrib.register import register_pattern_table  # type: ignore
-from tvm.relay.dataflow_pattern import wildcard, is_op, is_constant, is_tuple  # type: ignore
+from tvm.ir import Op
 from tvm.relay.build_module import bind_params_by_name  # type: ignore
+from tvm.relay.dataflow_pattern import (  # type: ignore
+    is_constant,
+    is_op,
+    is_tuple,
+    wildcard,
+)
+from tvm.relay.expr import Call, Constant  # type: ignore
+from tvm.relay.op.contrib.register import register_pattern_table  # type: ignore
 
 try:
     # As ethos-u-vela package is an optional TVM dependency, we want to lazy load it
@@ -197,20 +203,23 @@ class QnnConv2DParams:
     @requires_vela
     def __init__(self, func_body: tvm.relay.Function):
         from tvm.relay.backend.contrib.ethosu.util import QConv2DArgs  # type: ignore
-        from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs
-        from tvm.relay.backend.contrib.ethosu.util import RequantArgs
+        from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs, RequantArgs
 
         activation = None
         separate_padding = None
 
-        if str(func_body.op) in self.activation_map.keys():
+        if str(func_body.op.name) in self.activation_map.keys():
             activation = func_body
             requantize_op = activation.args[0]
         else:
             requantize_op = func_body
         bias_add = requantize_op.args[0]
         qnn_conv2d = bias_add.args[0]
-        if isinstance(qnn_conv2d.args[0], relay.Call) and str(qnn_conv2d.args[0].op) == "nn.pad":
+        if (
+            isinstance(qnn_conv2d.args[0], relay.Call)
+            and isinstance(qnn_conv2d.args[0].op, Op)
+            and str(qnn_conv2d.args[0].op.name) == "nn.pad"
+        ):
             separate_padding = qnn_conv2d.args[0]
         data_layout = qnn_conv2d.attrs.data_layout
         self.kernel_layout = qnn_conv2d.attrs.kernel_layout
@@ -330,13 +339,14 @@ class QnnConv2DTransposeParams:
 
     @requires_vela
     def __init__(self, func_body: tvm.relay.Function):
-        from tvm.relay.backend.contrib.ethosu.util import QConv2DTransposeArgs  # type: ignore
-        from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs
-        from tvm.relay.backend.contrib.ethosu.util import RequantArgs
+        from tvm.relay.backend.contrib.ethosu.util import (
+            QConv2DTransposeArgs,  # type: ignore
+        )
+        from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs, RequantArgs
 
         requantize = func_body
         call = func_body.args[0]
-        if str(call.op) == "nn.bias_add":
+        if str(call.op.name) == "nn.bias_add":
             bias_add = call
             call = call.args[0]
         else:
@@ -561,7 +571,7 @@ class MaxPool2DParams:
 
     def __init__(self, func_body: Call):
         clip = None
-        if str(func_body.op) == "clip":
+        if str(func_body.op.name) == "clip":
             clip = func_body
             pool_op = clip.args[0]
         else:
@@ -617,7 +627,7 @@ class AvgPool2DParams:
 
     def __init__(self, func_body: Call):
         clip = None
-        if str(func_body.op) == "clip":
+        if str(func_body.op.name) == "clip":
             clip = func_body
             cast2 = clip.args[0]
         else:
@@ -681,22 +691,22 @@ class BinaryElementwiseParams:
     """
 
     def __init__(self, func_body: Call, operator_type: str, is_quantized_operation: bool):
-        from tvm.relay.backend.contrib.ethosu.util import BinaryElementwiseArgs
-        from tvm.relay.backend.contrib.ethosu.util import RequantArgs
+        from tvm.relay.backend.contrib.ethosu.util import (
+            BinaryElementwiseArgs,
+            RequantArgs,
+        )
 
         current_call = func_body
         clip = None
         requantize = None
 
-        if is_quantized_operation:
-            if str(current_call.op) == "clip":
-                clip = current_call
-                current_call = clip.args[0]
-        else:
-            if str(current_call.op) == "qnn.requantize":
-                requantize = current_call
-                clip = current_call.args[0]
-                current_call = clip.args[0]
+        if str(current_call.op.name) == "clip":
+            clip = current_call
+            current_call = clip.args[0]
+        elif str(current_call.op.name) == "qnn.requantize":
+            requantize = current_call
+            clip = current_call.args[0]
+            current_call = clip.args[0]
         binary_op = current_call
 
         layout = "NHWC"
@@ -929,19 +939,38 @@ class MinParams(BinaryElementwiseParams):
             [self.ifm, self.ifm2, self.ofm], supported_dtypes=[np.uint8, np.int8]
         ):
             return False
+        # MIN with different scales is not supported on NPU
+        # (please look at NPU_SET_OFM_SCALE register description
+        # https://developer.arm.com/documentation/102420/0200/Programmers-model/Command-stream/cmd1-commands-).
+        if self.ifm.q_params.scale_f32 != self.ofm.q_params.scale_f32:
+            return False
         return True
 
 
+# This pattern is for case when there are different scales for requantize and
+# minimum + clip + qnn.requantize can't be offloaded to NPU by one operation
+# due to hardware constraints.
+# It's offloaded by two operations ethosu_binary_elementwise + ethosu_identity.
 def minimum_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     """
-    This function creates the pattern for minimum with optional fused RELU activation.
+    This function creates the pattern for minimum with optional fused RELU activation without
+    requantize.
     """
     minimum = is_op("minimum")(wildcard(), wildcard())
     optional_min_clip = is_op("clip")(minimum)
-    optional_min_clip = is_op("qnn.requantize")(
-        optional_min_clip, is_constant(), is_constant(), is_constant(), is_constant()
-    )
     return minimum | optional_min_clip
+
+
+def minimum_clip_requantize_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for minimum with fused RELU activation with requantize.
+    """
+    pattern = is_op("minimum")(wildcard(), wildcard())
+    pattern = is_op("clip")(pattern)
+    pattern = is_op("qnn.requantize")(
+        pattern, is_constant(), is_constant(), is_constant(), is_constant()
+    )
+    return pattern
 
 
 class MaxParams(BinaryElementwiseParams):
@@ -967,19 +996,38 @@ class MaxParams(BinaryElementwiseParams):
             [self.ifm, self.ifm2, self.ofm], supported_dtypes=[np.uint8, np.int8]
         ):
             return False
+        # MAX with different scales is not supported on NPU
+        # (please look at NPU_SET_OFM_SCALE register description
+        # https://developer.arm.com/documentation/102420/0200/Programmers-model/Command-stream/cmd1-commands-).
+        if self.ifm.q_params.scale_f32 != self.ofm.q_params.scale_f32:
+            return False
         return True
 
 
+# This pattern is for case when there are different scales for requantize and
+# maximum + clip + qnn.requantize can't be offloaded to NPU by one operation due to
+# hardware constraints.
+# It's offloaded by two operations ethosu_binary_elementwise + ethosu_identity.
 def maximum_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     """
-    This function creates the pattern for maximum with optional fused RELU activation.
+    This function creates the pattern for maximum with optional fused RELU activation without
+    requantize.
     """
     maximum = is_op("maximum")(wildcard(), wildcard())
     optional_max_clip = is_op("clip")(maximum)
-    optional_max_clip = is_op("qnn.requantize")(
-        optional_max_clip, is_constant(), is_constant(), is_constant(), is_constant()
-    )
     return maximum | optional_max_clip
+
+
+def maximum_clip_requantize_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for maximum with fused RELU activation with requantize.
+    """
+    pattern = is_op("maximum")(wildcard(), wildcard())
+    pattern = is_op("clip")(pattern)
+    pattern = is_op("qnn.requantize")(
+        pattern, is_constant(), is_constant(), is_constant(), is_constant()
+    )
+    return pattern
 
 
 class ShlParams(BinaryElementwiseParams):
@@ -1101,8 +1149,7 @@ class AbsParams:
     composite_name = "ethos-u.abs"
 
     def __init__(self, func_body: Call):
-        from tvm.relay.backend.contrib.ethosu.util import QuantizeArgs
-        from tvm.relay.backend.contrib.ethosu.util import DequantizeArgs
+        from tvm.relay.backend.contrib.ethosu.util import DequantizeArgs, QuantizeArgs
 
         quantize = func_body
         abs_op = quantize.args[0]
@@ -1157,8 +1204,7 @@ class LutActivationParams:
     """
 
     def __init__(self, func_body: Call):
-        from tvm.relay.backend.contrib.ethosu.util import QuantizeArgs
-        from tvm.relay.backend.contrib.ethosu.util import DequantizeArgs
+        from tvm.relay.backend.contrib.ethosu.util import DequantizeArgs, QuantizeArgs
 
         layout = "NHWC"
 
@@ -1631,18 +1677,17 @@ class FullyConnectedParams:
     @requires_vela
     def __init__(self, func_body):
         from tvm.relay.backend.contrib.ethosu.util import QDenseArgs  # type: ignore
-        from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs
-        from tvm.relay.backend.contrib.ethosu.util import RequantArgs
+        from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs, RequantArgs
 
         self.activation = None
-        if str(func_body.op) == "clip":
+        if str(func_body.op.name) == "clip":
             self.activation = func_body
             requantize_op = self.activation.args[0]
         else:
             requantize_op = func_body
 
         call = requantize_op.args[0]
-        if str(requantize_op.args[0].op) == "nn.bias_add":
+        if str(requantize_op.args[0].op.name) == "nn.bias_add":
             bias_add = call
             qnn_dense = call.args[0]
         else:
@@ -1733,8 +1778,7 @@ class HardSwishParams:
     composite_name = "ethos-u.hard_swish"
 
     def __init__(self, func_body):
-        from tvm.relay.backend.contrib.ethosu.util import QuantizeArgs
-        from tvm.relay.backend.contrib.ethosu.util import DequantizeArgs
+        from tvm.relay.backend.contrib.ethosu.util import DequantizeArgs, QuantizeArgs
 
         quantize = func_body
         divide = quantize.args[0]
@@ -1907,8 +1951,18 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
         ),
         (
             MinParams.composite_name,
+            minimum_clip_requantize_pattern(),
+            lambda pat: MinParams(pat).is_valid(),
+        ),
+        (
+            MinParams.composite_name,
             minimum_pattern(),
             lambda pat: MinParams(pat).is_valid(),
+        ),
+        (
+            MaxParams.composite_name,
+            maximum_clip_requantize_pattern(),
+            lambda pat: MaxParams(pat).is_valid(),
         ),
         (
             MaxParams.composite_name,

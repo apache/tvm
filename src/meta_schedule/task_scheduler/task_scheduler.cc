@@ -32,7 +32,7 @@ TaskRecord::TaskRecord(TuneContext ctx, double task_weight) {
       << "ValueError: Require `context.space_generator`, but it is not defined";
   CHECK(ctx->search_strategy.defined())
       << "ValueError: Require `context.search_strategy`, but it is not defined";
-  TVM_PY_LOG(INFO, ctx->logger) << "\n" << tir::AsTVMScript(ctx->mod);
+  TVM_PY_LOG(INFO, ctx->logger) << "\n" << ctx->mod;
   ctx->Initialize();
   n->flop = std::max(1.0, tir::EstimateTIRFlops(ctx->mod.value()));
   this->data_ = std::move(n);
@@ -124,7 +124,7 @@ void TaskCleanUp(TaskRecordNode* self, int task_id, const Array<RunnerResult>& r
                                << (builder_result->error_msg.defined() ? "building" : "running")
                                << ":\n"
                                << err << "\n"
-                               << tir::AsTVMScript(sch->mod()) << "\n"
+                               << sch->mod() << "\n"
                                << Concat(sch->trace().value()->AsPython(false), "\n");
     } else {
       double best_ms = *std::min_element(self->latency_ms.begin(), self->latency_ms.end());
@@ -168,7 +168,7 @@ void TaskSchedulerNode::Tune(Array<TuneContext> ctxs, Array<FloatImm> task_weigh
       tir::Trace trace = sch->trace().value();
       trace = trace->Simplified(true);
       TVM_PY_LOG(INFO, ctx->logger) << "Design space #" << i << ":\n"
-                                    << tir::AsTVMScript(sch->mod()) << "\n"
+                                    << sch->mod() << "\n"
                                     << Concat(trace->AsPython(false), "\n");
     }
     ctx->search_strategy.value()->PreTuning(max_trials_per_task, num_trials_per_iter, design_spaces,

@@ -624,7 +624,7 @@ def test_schedule_build_with_cmsis_dependency(workspace_dir, board, microtvm_deb
     assert "CMSIS/DSP/Include" in cmake_content
     assert "CMSIS/DSP/Include/dsp" in cmake_content
     assert "CMSIS/DSP/Include" in cmake_content
-    # assert "CMSIS-NN/Include" in cmake_content
+    assert "CMSIS-NN/Include" in cmake_content
 
 
 if __name__ == "__main__":

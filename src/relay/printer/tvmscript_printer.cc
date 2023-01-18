@@ -39,13 +39,15 @@
 #include <algorithm>
 #include <utility>
 
-#include "../tir/transforms/ir_utils.h"
+#include "../../tir/transforms/ir_utils.h"
 #include "doc.h"
 #include "meta_data.h"
 #include "text_printer.h"
 
 namespace tvm {
-namespace tir {
+namespace relay {
+
+using namespace tvm::tir;
 
 enum class ExprPrecedence : int {
   /*! \brief Identity(e.g., IntImm, Var) and function call(e.g., floordiv, min) */
@@ -77,14 +79,14 @@ enum class ExprPrecedence : int {
  */
 class BufferUsageFinder : public StmtExprVisitor {
  public:
-  static Map<Var, Array<Buffer>> FindUsage(Map<Var, Array<Buffer>> usage, Stmt body) {
+  static Map<tir::Var, Array<Buffer>> FindUsage(Map<tir::Var, Array<Buffer>> usage, Stmt body) {
     BufferUsageFinder visitor(std::move(usage));
     visitor.VisitStmt(body);
     return std::move(visitor.usage_);
   }
 
-  void VisitExpr_(const VarNode* op) final {
-    Var var = GetRef<Var>(op);
+  void VisitExpr_(const tir::VarNode* op) final {
+    tir::Var var = GetRef<tir::Var>(op);
     if (!usage_.count(var)) {
       usage_.Set(var, {});
     }
@@ -107,7 +109,7 @@ class BufferUsageFinder : public StmtExprVisitor {
   }
 
  private:
-  explicit BufferUsageFinder(Map<Var, Array<Buffer>> usage) : usage_(usage) {}
+  explicit BufferUsageFinder(Map<tir::Var, Array<Buffer>> usage) : usage_(usage) {}
 
   void VisitBuffer(const Buffer& buffer) {
     if (buffers_visited_.count(buffer.get())) {
@@ -124,7 +126,7 @@ class BufferUsageFinder : public StmtExprVisitor {
   }
 
   // The search result.
-  Map<Var, Array<Buffer>> usage_;
+  Map<tir::Var, Array<Buffer>> usage_;
   // The buffers that have been visited so far, to avoid duplicate
   // entries in the search result.
   std::unordered_set<const BufferNode*> buffers_visited_;
@@ -139,7 +141,7 @@ class BufferUsageFinder : public StmtExprVisitor {
  *          subexpression to decide whether or not parentheses is needed.
  */
 class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
-                         public ExprFunctor<Doc(const PrimExpr&, ExprPrecedence*)>,
+                         public tir::ExprFunctor<Doc(const PrimExpr&, ExprPrecedence*)>,
                          public TypeFunctor<Doc(const Type&)> {
  public:
   explicit TVMScriptPrinter(const String& tir_prefix, bool show_meta,
@@ -167,20 +169,20 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   /*! \brief meta data context */
   TextMetaDataContext meta_;
   /*! \brief meta collector */
-  MetaCollector meta_collector_;
+  relay::MetaCollector meta_collector_;
   /*! \brief map from Function to GlobalVar */
   std::unordered_map<const BaseFuncNode*, GlobalVar> func2var_;
   /*! \brief var collector (var defined by For/Loop/Block) */
-  std::unordered_set<const VarNode*> var_not_in_headers_;
+  std::unordered_set<const tir::VarNode*> var_not_in_headers_;
   /*!
    * \brief buffer collector
    *        (buffer defined in BufferMap, BufferAllocation and MatchBufferRegion)
    */
   std::unordered_set<const BufferNode*> buf_not_in_headers_;
   /*! \brief Map from Var to thread env name */
-  std::unordered_map<Var, String, ObjectPtrHash, ObjectPtrEqual> var_env_map_;
+  std::unordered_map<tir::Var, String, ObjectPtrHash, ObjectPtrEqual> var_env_map_;
   /*! \brief Map from Var to Doc */
-  std::unordered_map<Var, Doc, ObjectPtrHash, ObjectPtrEqual> memo_var_;
+  std::unordered_map<tir::Var, Doc, ObjectPtrHash, ObjectPtrEqual> memo_var_;
   /*! \brief Map from Buffer to Doc */
   std::unordered_map<Buffer, Doc, ObjectPtrHash, ObjectPtrEqual> memo_buf_;
   /*! \brief Map from Buffer to Declaration Doc */
@@ -194,7 +196,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   /*! \brief loop stack without annotations */
   std::vector<For> simple_loop_stack_;
   /*! \brief the maps from loop_vars to the loops */
-  std::unordered_map<const VarNode*, For> loop_var_map_;
+  std::unordered_map<const tir::VarNode*, For> loop_var_map_;
   /*!
    * \brief simple block vars remap from loop vars
    * simple_remap requires:
@@ -210,12 +212,12 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
    * LetStmt or Allocate that generates their data pointer, rather
    * than in the header.
    */
-  Map<Var, Array<Buffer>> buffer_var_usage_;
+  Map<tir::Var, Array<Buffer>> buffer_var_usage_;
   /*! \brief Analyzer to simplify some expressions. */
   arith::Analyzer ana_;
 
   Doc VisitExpr_(const CastNode* op, ExprPrecedence* out_precedence) override;
-  Doc VisitExpr_(const VarNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const tir::VarNode* op, ExprPrecedence* out_precedence) override;
   Doc VisitExpr_(const AddNode* op, ExprPrecedence* out_precedence) override;
   Doc VisitExpr_(const SubNode* op, ExprPrecedence* out_precedence) override;
   Doc VisitExpr_(const MulNode* op, ExprPrecedence* out_precedence) override;
@@ -243,8 +245,8 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitExpr_(const LoadNode* op, ExprPrecedence* out_precedence) override;
   Doc VisitExpr_(const RampNode* op, ExprPrecedence* out_precedence) override;
   Doc VisitExpr_(const BroadcastNode* op, ExprPrecedence* out_precedence) override;
-  Doc VisitExpr_(const LetNode* op, ExprPrecedence* out_precedence) override;
-  Doc VisitExpr_(const CallNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const tir::LetNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const tir::CallNode* op, ExprPrecedence* out_precedence) override;
   Doc VisitExpr_(const ShuffleNode* op, ExprPrecedence* out_precedence) override;
   Doc VisitExpr_(const ReduceNode* op, ExprPrecedence* out_precedence) override;
   Doc VisitExprDefault_(const Object* op, ExprPrecedence* out_precedence) override;
@@ -297,9 +299,9 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   static Doc PrintString(const StringObj* op) { return Doc::StrLiteral(op->data); }
 
   Doc GetUniqueName(std::string prefix);
-  Doc AllocVar(const Var& var);
+  Doc AllocVar(const tir::Var& var);
   Doc AllocBuf(const Buffer& buffer);
-  void TryDeallocVar(const Var& var);
+  void TryDeallocVar(const tir::Var& var);
   bool ContainsOptionalInfo(const Stmt& stmt);
   /*!
    * \brief Check if a buffer declaration satisfies:
@@ -338,7 +340,9 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
    * \return A boolean indicating whether the input loop depends on previous loops
    */
   bool DependOnPrevLoops(const ForNode* for_op) {
-    auto f_check = [&var_map = this->loop_var_map_](const VarNode* v) { return var_map.count(v); };
+    auto f_check = [&var_map = this->loop_var_map_](const tir::VarNode* v) {
+      return var_map.count(v);
+    };
     return UsesVar(for_op->min, f_check) || UsesVar(for_op->extent, f_check);
   }
 
@@ -494,7 +498,7 @@ Doc TVMScriptPrinter::GetUniqueName(std::string prefix) {
   return Doc::Text(unique_prefix);
 }
 
-Doc TVMScriptPrinter::AllocVar(const Var& var) {
+Doc TVMScriptPrinter::AllocVar(const tir::Var& var) {
   const auto& it = memo_var_.find(var);
   if (it != memo_var_.end()) {
     return it->second;
@@ -522,8 +526,8 @@ Doc TVMScriptPrinter::AllocBufferDeclaration(const Buffer& buf) {
   if (!buf->strides.empty()) {
     doc << ", strides=" << Print(buf->strides);
   }
-  if (buf->elem_offset->IsInstance<VarNode>()) {
-    Var elem_offset = Downcast<Var>(buf->elem_offset);
+  if (buf->elem_offset->IsInstance<tir::VarNode>()) {
+    tir::Var elem_offset = Downcast<tir::Var>(buf->elem_offset);
     if (memo_var_.find(elem_offset) != memo_var_.end()) {
       doc << ", elem_offset=" << Print(buf->elem_offset);
     } else {
@@ -585,7 +589,7 @@ bool TVMScriptPrinter::ContainsOptionalInfo(const Stmt& stmt) {
  * \brief Try to dealloc vars out of space and leave the index to coming vars.
  * \note It is not a necessary step.
  */
-void TVMScriptPrinter::TryDeallocVar(const Var& var) {
+void TVMScriptPrinter::TryDeallocVar(const tir::Var& var) {
   auto it = memo_var_.find(var);
   ICHECK(it != memo_var_.end());
   std::string print_name = it->second.str();
@@ -695,7 +699,7 @@ Doc TVMScriptPrinter::PrintCommReducer(const CommReducerNode* op) {
   int n_var = static_cast<int>(op->rhs.size());
 
   doc << tir_prefix_ << ".comm_reducer(lambda ";
-  for (const Var& v_lhs : op->lhs) {
+  for (const tir::Var& v_lhs : op->lhs) {
     doc << Print(v_lhs) << ", ";
   }
   for (int i = 0; i < n_var; ++i) {
@@ -789,10 +793,10 @@ Doc TVMScriptPrinter::VisitExpr_(const CastNode* op, ExprPrecedence* out_precede
   return doc;
 }
 
-Doc TVMScriptPrinter::VisitExpr_(const VarNode* op, ExprPrecedence* out_precedence) {
+Doc TVMScriptPrinter::VisitExpr_(const tir::VarNode* op, ExprPrecedence* out_precedence) {
   *out_precedence = ExprPrecedence::kIdentity;
-  const Var& var = GetRef<Var>(op);
-  return meta_.InMeta(var) ? meta_.GetMetaNode(var) : AllocVar(GetRef<Var>(op));
+  const tir::Var& var = GetRef<tir::Var>(op);
+  return meta_.InMeta(var) ? meta_.GetMetaNode(var) : AllocVar(GetRef<tir::Var>(op));
 }
 
 bool WillPrintConstScalar(const PrimExpr& expr) {
@@ -938,7 +942,7 @@ Doc TVMScriptPrinter::VisitExpr_(const BroadcastNode* op, ExprPrecedence* out_pr
   return doc;
 }
 
-Doc TVMScriptPrinter::VisitExpr_(const LetNode* op, ExprPrecedence* out_precedence) {
+Doc TVMScriptPrinter::VisitExpr_(const tir::LetNode* op, ExprPrecedence* out_precedence) {
   *out_precedence = ExprPrecedence::kIdentity;
   Doc doc;
   doc << tir_prefix_ << ".let(" << Print(op->var) << ", " << Print(op->value) << ", "
@@ -946,7 +950,7 @@ Doc TVMScriptPrinter::VisitExpr_(const LetNode* op, ExprPrecedence* out_preceden
   return doc;
 }
 
-Doc TVMScriptPrinter::VisitExpr_(const CallNode* op, ExprPrecedence* out_precedence) {
+Doc TVMScriptPrinter::VisitExpr_(const tir::CallNode* op, ExprPrecedence* out_precedence) {
   *out_precedence = ExprPrecedence::kIdentity;
   Doc doc;
   if (auto* ptr_op = op->op.as<OpNode>()) {
@@ -1090,7 +1094,7 @@ Doc TVMScriptPrinter::VisitStmt_(const BufferRealizeNode* op) {
 namespace {
 
 bool IsAllocateDeclBufferPattern(const AllocateNode* allocate) {
-  const Var& buffer_var = allocate->buffer_var;
+  const tir::Var& buffer_var = allocate->buffer_var;
   const DeclBufferNode* decl_buffer = allocate->body.as<DeclBufferNode>();
   if (!decl_buffer) {
     return false;
@@ -1468,8 +1472,8 @@ Doc TVMScriptPrinter::PrintBlockVars(const BlockRealizeNode* op) {
   auto is_simple_remap = [this, &expr_equal](const IterVar& iter_var,
                                              const PrimExpr& value) -> bool {
     if (iter_var->iter_type != kDataPar && iter_var->iter_type != kCommReduce) return false;
-    if (!value->IsInstance<VarNode>()) return false;
-    const Var& var = Downcast<Var>(value);
+    if (!value->IsInstance<tir::VarNode>()) return false;
+    const tir::Var& var = Downcast<tir::Var>(value);
     auto it = loop_var_map_.find(var.get());
     return it != loop_var_map_.end() && expr_equal(it->second->min, iter_var->dom->min) &&
            expr_equal(it->second->extent, iter_var->dom->extent);
@@ -1763,7 +1767,7 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
   }
   // print var declaration
   Doc header_var;
-  std::vector<const VarNode*> vars;
+  std::vector<const tir::VarNode*> vars;
   for (const auto& it : memo_var_) {
     if (var_not_in_headers_.find(it.first.get()) == var_not_in_headers_.end()) {
       vars.push_back(it.first.get());
@@ -1777,20 +1781,21 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
     }
   }
   if (!vars.empty()) {
-    std::sort(vars.begin(), vars.end(), [&](const VarNode* a, const VarNode* b) {
-      return memo_var_[GetRef<Var>(a)].str() < memo_var_[GetRef<Var>(b)].str();
+    std::sort(vars.begin(), vars.end(), [&](const tir::VarNode* a, const tir::VarNode* b) {
+      return memo_var_[GetRef<tir::Var>(a)].str() < memo_var_[GetRef<tir::Var>(b)].str();
     });
     for (const auto& var : vars) {
-      auto type = GetRef<Var>(var)->type_annotation;
+      auto type = GetRef<tir::Var>(var)->type_annotation;
       if (auto* ptr_type = type.as<PointerTypeNode>()) {
         auto* prim_type = ptr_type->element_type.as<PrimTypeNode>();
         ICHECK(prim_type);
-        header_var << Doc::NewLine() << Print(GetRef<Var>(var)) << " = " << tir_prefix_
+        header_var << Doc::NewLine() << Print(GetRef<tir::Var>(var)) << " = " << tir_prefix_
                    << ".buffer_var(";
         header_var << PrintDType(prim_type->dtype) << ", "
                    << Doc::StrLiteral(ptr_type->storage_scope) << ")";
       } else {
-        header_var << Doc::NewLine() << Print(GetRef<Var>(var)) << " = " << tir_prefix_ << ".var(";
+        header_var << Doc::NewLine() << Print(GetRef<tir::Var>(var)) << " = " << tir_prefix_
+                   << ".var(";
         header_var << PrintDType(var->dtype) << ")";
       }
     }
@@ -2002,16 +2007,6 @@ Doc TVMScriptPrinterWithDiagnostic::PrintLoop(const For& loop) {
   return res;
 }
 
-String AsTVMScript(const ObjectRef& mod, const String& tir_prefix, bool show_meta) {
-  ICHECK(mod->IsInstance<PrimFuncNode>() || mod->IsInstance<IRModuleNode>());
-  Doc doc;
-  doc << TVMScriptPrinter::PrintHeader(tir_prefix)
-      << TVMScriptPrinter(tir_prefix, show_meta).Print(mod);
-  return doc.str() + "\n";
-}
-
-TVM_REGISTER_GLOBAL("script.AsTVMScript").set_body_typed(AsTVMScript);
-
 String AsTVMScriptWithDiagnostic(const ObjectRef& mod, const String& tir_prefix, bool show_meta,
                                  runtime::TypedPackedFunc<std::string(Stmt)> annotate) {
   ICHECK(mod->IsInstance<PrimFuncNode>() || mod->IsInstance<IRModuleNode>());
@@ -2023,5 +2018,5 @@ String AsTVMScriptWithDiagnostic(const ObjectRef& mod, const String& tir_prefix,
 
 TVM_REGISTER_GLOBAL("script.AsTVMScriptWithDiagnostic").set_body_typed(AsTVMScriptWithDiagnostic);
 
-}  // namespace tir
+}  // namespace relay
 }  // namespace tvm

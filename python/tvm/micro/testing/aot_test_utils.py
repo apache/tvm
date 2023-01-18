@@ -41,9 +41,9 @@ AOT_DEFAULT_RUNNER = AOTTestRunner()
 AOT_CORSTONE300_RUNNER = AOTTestRunner(
     makefile="corstone300",
     prologue="""
-    uart_init();
+    UartStdOutInit();
     """,
-    includes=["uart.h"],
+    includes=["uart_stdout.h"],
     pass_config={
         "relay.ext.cmsisnn.options": {
             "mcpu": "cortex-m55",
@@ -54,9 +54,9 @@ AOT_CORSTONE300_RUNNER = AOTTestRunner(
 AOT_USMP_CORSTONE300_RUNNER = AOTTestRunner(
     makefile="corstone300",
     prologue="""
-    uart_init();
+    UartStdOutInit();
     """,
-    includes=["uart.h"],
+    includes=["uart_stdout.h"],
     pass_config={
         "relay.ext.cmsisnn.options": {
             "mcpu": "cortex-m55",

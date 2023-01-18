@@ -19,17 +19,20 @@ import pytest
 from types import MappingProxyType
 import pathlib
 import json
-from tests.micro.zephyr.test_ms_tuning import create_relay_module
 import tvm
+import tvm.testing
 from tvm import relay
 from tvm.relay.backend import Executor
 from tvm.contrib import graph_executor, utils
 from tvm import meta_schedule as ms
-from tvm.contrib.micro.meta_schedule.local_builder_micro import get_local_builder_micro
-from tvm.contrib.micro.meta_schedule.rpc_runner_micro import get_rpc_runner_micro
 
 
+@tvm.testing.requires_micro
 def test_micro_tuning_with_meta_schedule():
+    from tests.micro.zephyr.test_ms_tuning import create_relay_module
+    from tvm.contrib.micro.meta_schedule.local_builder_micro import get_local_builder_micro
+    from tvm.contrib.micro.meta_schedule.rpc_runner_micro import get_rpc_runner_micro
+
     platform = "crt"
     target = tvm.target.target.micro(model="host")
     options = {}

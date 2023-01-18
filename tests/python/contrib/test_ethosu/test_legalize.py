@@ -53,6 +53,13 @@ def partition_ethosu_by_table(mod, pattern_table):
     return mod
 
 
+def relu_n1_to_1(x):
+    """
+    The specific pattern will be replaced into RELU_N1_TO_1 by tflite.
+    """
+    return tf.math.maximum(-1.0, tf.math.minimum(x, 1.0))
+
+
 def test_split_indices_legalize():
     def create_graph(axis):
         x = relay.var("x", shape=(1, 50, 50, 3))
@@ -881,7 +888,7 @@ def test_tflite_pool2d_legalize(
         ([1, 4, 4], [4, 1], False),
     ],
 )
-@pytest.mark.parametrize("activation_function", ["NONE", "RELU"])
+@pytest.mark.parametrize("activation_function", [None, tf.nn.relu])
 def test_tflite_binary_elemwise_legalize(
     operator_type,
     ifm_shape,
@@ -906,8 +913,8 @@ def test_tflite_binary_elemwise_legalize(
                     op = tf.math.minimum(x, y)
                 elif operator_type == "MAX":
                     op = tf.math.maximum(x, y)
-                if activation_function == "RELU":
-                    op = tf.nn.relu(op)
+                if activation_function:
+                    op = activation_function(op)
                 return op
 
         model = Model()
@@ -938,9 +945,13 @@ def test_tflite_binary_elemwise_legalize(
         op = ext_func.body
 
         has_reshaped_output = False
+        has_separate_requantize = False
         shapes_padded = [[1] * (4 - len(s)) + s for s in shapes]
         out_padded = [1] * (4 - len(out_shape)) + out_shape
-        if op.op.name != "contrib.ethosu.binary_elementwise":
+        if op.op.name == "contrib.ethosu.identity":
+            op = op.args[0]
+            has_separate_requantize = True
+        if op.op.name == "reshape":
             has_reshaped_output = True
             op = op.args[0]
 
@@ -951,20 +962,30 @@ def test_tflite_binary_elemwise_legalize(
         assert op.checked_type.dtype == dtype
         assert op.attrs.operator_type == operator_type
         assert op.attrs.reversed_operands == reversed_operands
-        if activation_function == "RELU":
+        if activation_function != None:
             assert str(op.attrs.activation) == "CLIP"
 
             if operator_type in ["MIN", "MAX"]:
-                # MIN and MAX with an activation must have a requantize operation
-                # baked into the output. To check the extra requantize node was
-                # picked up by the pattern, we can make sure the quantization
-                # information is not default.
-                assert float(op.attrs.ifm_scale) != 1.0
-                assert int(op.attrs.ifm_zero_point) != 0
-                assert float(op.attrs.ifm2_scale) != 1.0
-                assert int(op.attrs.ifm2_zero_point) != 0
-                assert float(op.attrs.ofm_scale) != 1.0
-                assert int(op.attrs.ofm_zero_point) != 0
+                if has_separate_requantize:
+                    # In case when requantize cannot be fused with MIN/MAX + CLIP due to hardware constraints
+                    # there should be default quantization values since requantize is separate operation.
+                    assert float(op.attrs.ifm_scale) == 1.0
+                    assert int(op.attrs.ifm_zero_point) == 0
+                    assert float(op.attrs.ifm2_scale) == 1.0
+                    assert int(op.attrs.ifm2_zero_point) == 0
+                    assert float(op.attrs.ofm_scale) == 1.0
+                    assert int(op.attrs.ofm_zero_point) == 0
+                else:
+                    # MIN and MAX with an activation must have a requantize operation
+                    # baked into the output. To check the extra requantize node was
+                    # picked up by the pattern, we can make sure the quantization
+                    # information is not default.
+                    assert float(op.attrs.ifm_scale) != 1.0
+                    assert int(op.attrs.ifm_zero_point) != 0
+                    assert float(op.attrs.ifm2_scale) != 1.0
+                    assert int(op.attrs.ifm2_zero_point) != 0
+                    assert float(op.attrs.ofm_scale) != 1.0
+                    assert int(op.attrs.ofm_zero_point) != 0
 
         if has_reshaped_output:
             assert list(ext_func.body.checked_type.shape) == out_shape
@@ -997,21 +1018,41 @@ def test_tflite_binary_elemwise_legalize(
             ),
         ]
     elif operator_type == "MIN":
-        rewriter = legalize.MinRewriter()
+        rewriter = [legalize.MinRewriter(), legalize.RequantizeRewriter()]
         pattern_table = [
+            (
+                ethosu.MinParams.composite_name,
+                ethosu.minimum_clip_requantize_pattern(),
+                lambda pat: ethosu.MinParams(pat).is_valid(),
+            ),
             (
                 ethosu.MinParams.composite_name,
                 ethosu.minimum_pattern(),
                 lambda pat: ethosu.MinParams(pat).is_valid(),
             ),
+            (
+                ethosu.RequantizeParams.composite_name,
+                ethosu.requantize_pattern(),
+                lambda pat: ethosu.RequantizeParams(pat).is_valid(),
+            ),
         ]
     elif operator_type == "MAX":
-        rewriter = legalize.MaxRewriter()
+        rewriter = [legalize.MaxRewriter(), legalize.RequantizeRewriter()]
         pattern_table = [
+            (
+                ethosu.MaxParams.composite_name,
+                ethosu.maximum_clip_requantize_pattern(),
+                lambda pat: ethosu.MaxParams(pat).is_valid(),
+            ),
             (
                 ethosu.MaxParams.composite_name,
                 ethosu.maximum_pattern(),
                 lambda pat: ethosu.MaxParams(pat).is_valid(),
+            ),
+            (
+                ethosu.RequantizeParams.composite_name,
+                ethosu.requantize_pattern(),
+                lambda pat: ethosu.RequantizeParams(pat).is_valid(),
             ),
         ]
 
@@ -1029,6 +1070,12 @@ def test_tflite_binary_elemwise_legalize(
         rewriter, mod["tvmgen_default_ethos_u_main_0"]
     )
     verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
+# This test is for checking the case when requantize cannot be fused with MIN/MAX + CLIP due to hardware constraints.
+def test_tflite_max_relu_n1_to_1_legalize():
+    ifm_shape = [1, 4, 8, 16]
+    test_tflite_binary_elemwise_legalize("MAX", ifm_shape, ifm_shape, False, relu_n1_to_1)
 
 
 def test_binary_add_from_constant_scalar():
