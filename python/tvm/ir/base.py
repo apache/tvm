@@ -23,39 +23,8 @@ from tvm.runtime import Object
 from . import _ffi_api, json_compact
 
 
-def pretty_print(obj: Object) -> None:
-    """Pretty print the object."""
-    return _ffi_api.PrettyPrint(obj)  # type: ignore # pylint: disable=no-member
-
-
 class Node(Object):
     """Base class of all IR Nodes, implements astext function."""
-
-    def astext(self, show_meta_data=True, annotate=None):
-        """Get the text format of the expression.
-
-        Parameters
-        ----------
-        show_meta_data : bool
-            Whether to include meta data section in the text
-            if there is meta data.
-
-        annotate: Optional[Object->str]
-            Optionally annotate function to provide additional
-            information in the comment block.
-
-        Returns
-        -------
-        text : str
-            The text format of the expression.
-
-        Notes
-        -----
-        The meta data section is necessary to fully parse the text format.
-        However, it can contain dumps that are big (e.g constant weights),
-        so it can be helpful to skip printing the meta data section.
-        """
-        return _ffi_api.AsText(self, show_meta_data, annotate)
 
 
 @tvm._ffi.register_object("SourceName")

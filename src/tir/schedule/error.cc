@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "../../printer/text_printer.h"
 #include "./utils.h"
 
 namespace tvm {
@@ -52,10 +51,11 @@ String ScheduleError::RenderReport(const String& primitive) const {
             }
             return it->second;
           });
-
+  const auto* f = runtime::Registry::Get("script.AsTVMScriptWithDiagnostic");
+  ICHECK(f != nullptr);
   os << "ScheduleError: An error occurred in the schedule primitive '" << primitive
      << "'.\n\nThe IR with diagnostic is:\n"
-     << AsTVMScriptWithDiagnostic(mod, "T", false, annotate);
+     << ((*f)(mod, "T", false, annotate).operator String());
 
   // print error message
   os << "Error message: " << msg;

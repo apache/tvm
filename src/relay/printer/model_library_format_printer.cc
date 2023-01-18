@@ -26,7 +26,7 @@
 #include "text_printer.h"
 
 namespace tvm {
-namespace printer {
+namespace relay {
 
 class ModelLibraryFormatPrinter : public ::tvm::runtime::ModuleNode {
  public:
@@ -69,7 +69,7 @@ class ModelLibraryFormatPrinter : public ::tvm::runtime::ModuleNode {
   TextPrinter text_printer_;
 };
 
-TVM_REGISTER_GLOBAL("tir.ModelLibraryFormatPrinter")
+TVM_REGISTER_GLOBAL("relay.ir.ModelLibraryFormatPrinter")
     .set_body_typed([](bool show_meta_data,
                        const runtime::TypedPackedFunc<std::string(ObjectRef)>& annotate,
                        bool show_warning) {
@@ -77,5 +77,5 @@ TVM_REGISTER_GLOBAL("tir.ModelLibraryFormatPrinter")
           make_object<ModelLibraryFormatPrinter>(show_meta_data, annotate, show_warning));
     });
 
-}  // namespace printer
+}  // namespace relay
 }  // namespace tvm

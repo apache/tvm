@@ -23,6 +23,7 @@ from tvm.ir import BaseFunc
 from tvm.runtime import convert
 
 from . import _ffi_api
+from .base import astext, pretty_print
 from .expr import Call
 
 
@@ -68,9 +69,33 @@ class Function(BaseFunc):
         return Call(self, args, None, None)
 
     def __str__(self):
-        from tvm.ir import pretty_print  # pylint: disable=import-outside-toplevel
-
         return pretty_print(self)
+
+    def astext(self, show_meta_data=True, annotate=None):
+        """Get the text format of the expression.
+
+        Parameters
+        ----------
+        show_meta_data : bool
+            Whether to include meta data section in the text
+            if there is meta data.
+
+        annotate: Optional[Object->str]
+            Optionally annotate function to provide additional
+            information in the comment block.
+
+        Returns
+        -------
+        text : str
+            The text format of the expression.
+
+        Notes
+        -----
+        The meta data section is necessary to fully parse the text format.
+        However, it can contain dumps that are big (e.g constant weights),
+        so it can be helpful to skip printing the meta data section.
+        """
+        return astext(self, show_meta_data, annotate)
 
 
 @tvm._ffi.register_func("relay.FunctionWithFields")

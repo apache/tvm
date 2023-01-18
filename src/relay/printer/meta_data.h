@@ -16,13 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-/*!
- * \file tvm/printer/meta_data.h
- * \brief Meta data context for printers.
- */
-#ifndef TVM_PRINTER_META_DATA_H_
-#define TVM_PRINTER_META_DATA_H_
+#ifndef TVM_RELAY_PRINTER_META_DATA_H_
+#define TVM_RELAY_PRINTER_META_DATA_H_
 
 #include <tvm/node/serialization.h>
 
@@ -32,6 +27,7 @@
 #include "doc.h"
 
 namespace tvm {
+namespace relay {
 /*!
  * \brief Meta data context for Printers
  *
@@ -140,5 +136,6 @@ class TextMetaDataContext {
   /*! \brief map from meta data into its string representation */
   std::unordered_map<ObjectRef, Doc, ObjectPtrHash, ObjectPtrEqual> meta_repr_;
 };
+}  // namespace relay
 }  // namespace tvm
-#endif  // TVM_PRINTER_META_DATA_H_
+#endif  // TVM_RELAY_PRINTER_META_DATA_H_

@@ -27,12 +27,13 @@ import typing
 
 import tvm
 from tvm.micro import get_standalone_crt_dir
+
 from .._ffi import get_global_func
 from ..contrib import utils
 from ..driver import build_module
-from ..relay.backend import executor_factory
-from ..relay.backend.name_transforms import to_c_variable_style, prefix_generated_name
 from ..relay import param_dict
+from ..relay.backend import executor_factory
+from ..relay.backend.name_transforms import prefix_generated_name, to_c_variable_style
 from ..tir import expr
 
 # This should be kept identical to runtime::symbol::tvm_module_main
@@ -528,7 +529,7 @@ def _write_tir_and_build_operator_memory_map(src_dir, targets, ir_module_by_targ
         # TODO(mbs): The device type is not unique, better would be to use target.kind.name
         target_device_type = target.get_target_device_type()
         ir_mod = ir_module_by_target[target]
-        printer = get_global_func("tir.ModelLibraryFormatPrinter")(False, None, False)
+        printer = get_global_func("relay.ir.ModelLibraryFormatPrinter")(False, None, False)
         with open(src_dir / f"tir-{target_device_type}.txt", "w") as f:
             f.write(printer["print"](ir_mod))
 
