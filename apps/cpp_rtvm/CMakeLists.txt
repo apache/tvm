@@ -5,16 +5,23 @@ set(RTVM_SOURCES
   tvm_runner.cc
   ../../3rdparty/cnpy/cnpy.cpp
 )
+set(TVM_RUNNER_SOURCES
+  tvm_runner.cc
+  ../../3rdparty/cnpy/cnpy.cpp
+)
 
 set(RTVM_LINKER_LIBS "")
 
 if(WIN32)
   list(APPEND RTVM_SOURCES win32_process.cc)
+  list(APPEND TVM_RUNNER_SOURCES win32_process.cc)
 endif()
 
 # Set output to same directory as the other TVM libs
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 add_executable(rtvm ${RTVM_SOURCES})
+add_library(tvm_runner_objs OBJECT ${TVM_RUNNER_SOURCES})
+add_library(tvm_runner SHARED $<TARGET_OBJECTS:tvm_runner_objs>)
 
 include(CheckIPOSupported)
 check_ipo_supported(RESULT result OUTPUT output)
@@ -29,6 +36,7 @@ endif()
 if (OS)
    if (OS STREQUAL "Linux")
       set_property(TARGET rtvm PROPERTY LINK_FLAGS -lpthread)
+      set_property(TARGET tvm_runner PROPERTY LINK_FLAGS -lpthread)
    endif()
 endif()
 
@@ -37,6 +45,7 @@ if(USE_OPENCL)
      if(DEFINED ENV{ANDROID_NDK_MAJOR})
        if($ENV{ANDROID_NDK_MAJOR} VERSION_LESS "23")
          set_property(TARGET rtvm PROPERTY LINK_FLAGS -fuse-ld=gold)
+         set_property(TARGET tvm_runner PROPERTY LINK_FLAGS -fuse-ld=gold)
        endif()
      endif()
    endif()
@@ -77,3 +86,13 @@ else()
 endif()
 
 target_link_libraries(rtvm ${RTVM_LINKER_LIBS})
+
+# Build tvm_runner as a exportable lib
+target_include_directories(
+  tvm_runner_objs
+  PUBLIC "../../include"
+  PUBLIC "../../3rdparty/cnpy"
+  PUBLIC DLPACK_PATH
+  PUBLIC DMLC_PATH
+)
+target_link_libraries(tvm_runner ${RTVM_LINKER_LIBS})

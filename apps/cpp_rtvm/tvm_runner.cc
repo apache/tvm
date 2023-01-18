@@ -36,11 +36,27 @@ namespace runtime {
 /*!
  * \brief Get the TVM device id corresponding to device string.
  * \param device the target device in string format.
- * \return cl_device corresponding to the device string.
+ * \return dl_device corresponding to the device string.
  */
 int GetTVMDevice(std::string device) {
-  if (!device.compare("cl")) {
+  if (!device.compare("cpu")) {
+    return static_cast<int>(kDLCPU);
+  } else if (!device.compare("llvm")) {
+    return static_cast<int>(kDLCPU);
+  } else if (!device.compare("cuda")) {
+    return static_cast<int>(kDLCUDA);
+  } else if (!device.compare("opencl")) {
     return static_cast<int>(kDLOpenCL);
+  } else if (!device.compare("vulkan")) {
+    return static_cast<int>(kDLVulkan);
+  } else if (!device.compare("metal")) {
+    return static_cast<int>(kDLMetal);
+  } else if (!device.compare("vpi")) {
+    return static_cast<int>(kDLVPI);
+  } else if (!device.compare("rocm")) {
+    return static_cast<int>(kDLROCM);
+  } else if (!device.compare("oneapi")) {
+    return static_cast<int>(kDLOneAPI);
   } else {
     LOG(FATAL) << "TVMRunner : Unsupported device :" << device;
   }
@@ -124,14 +140,14 @@ size_t TVMRunner::GetInputMemSize(std::string input_id) {
 
 /*!
  * \brief Get the output alloc mem size.
- * \param input_id The output id to query the mem size.
+ * \param output_id The output id to query the mem size.
  * \return The memory size.
  */
-size_t TVMRunner::GetOutputMemSize(std::string input_id) {
-  LOG(INFO) << "TVMRunner::GetOutputMemSize:" << input_id;
+size_t TVMRunner::GetOutputMemSize(std::string output_id) {
+  LOG(INFO) << "TVMRunner::GetOutputMemSize:" << output_id;
 
-  NDArray in_arr = r_graph_handle.GetFunction("get_output")(input_id);
-  auto ssize = GetMemSize(in_arr);
+  NDArray out_arr = r_graph_handle.GetFunction("get_output")(output_id);
+  auto ssize = GetMemSize(out_arr);
 
   return ssize;
 }

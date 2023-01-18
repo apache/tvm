@@ -48,15 +48,15 @@ using namespace tvm::support;
 
 static const string kUsage =
     "Command line usage\n"
-    "--model        - The tvm artifact to load\n"
-    "--device       - The target device to use {llvm, cl, ...etc.}\n"
+    "--model        - The folder containing tvm artifacts(mod.so, mod.param, mod.json) \n"
+    "--device       - The target device to use {llvm, opencl, cpu, cuda, metal, rocm, vpi, oneapi}\n"
     "--input        - Numpy file for the model input (optional and we use random of not given)\n"
     "--output       - Numpy file name to dump the model output as numpy\n"
     "--dump-meta    - Dump model meta information\n"
     "\n"
     "  Example\n"
-    "  ./rtvm --model keras-resnet50 --device=\"cl --dump-mata\"\n"
-    "  ./rtvm --model keras-resnet50 --device=\"cl\" --input input.npz --output=output.npz\n"
+    "  ./rtvm --model=keras-resnet50 --device=\"opencl\" --dump-meta\n"
+    "  ./rtvm --model=keras-resnet50 --device=\"opencl\" --input input.npz --output=output.npz\n"
     "\n";
 
 /*!
@@ -144,11 +144,17 @@ void ParseCmdArgs(int argc, char* argv[], struct ToolArgs& args) {
   const string model = GetCmdOption(argc, argv, "--model=");
   if (!model.empty()) {
     args.model = model;
+  } else {
+    LOG(INFO) << kUsage;
+    exit(0);
   }
 
   const string device = GetCmdOption(argc, argv, "--device=");
   if (!device.empty()) {
     args.device = device;
+  } else {
+    LOG(INFO) << kUsage;
+    exit(0);
   }
 
   const string input = GetCmdOption(argc, argv, "--input=");
@@ -178,8 +184,6 @@ int ExecuteModel(ToolArgs& args) {
   HandleCtrlC();
 #endif
 
-  LOG(INFO) << "Welcome to executor";
-
   // Initialize TVM Runner
   TVMRunner runner = TVMRunner(args.model, args.device);
 
@@ -200,7 +204,6 @@ int ExecuteModel(ToolArgs& args) {
       auto shape = elem.second.first;
       size_t ssize = runner.GetInputMemSize(elem.first);
       char* data = (char*)malloc(ssize);
-      // TODO: Ramdom initilalization
       LOG(INFO) << "Random Input Size:" << ssize << "  bytes";
       runner.SetInput(elem.first, data);
       free(data);
