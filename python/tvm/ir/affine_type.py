@@ -32,7 +32,7 @@ class AffineType(Node):
         return not self.__eq__(other)
 
     def __str__(self):
-        from tvm.ir import pretty_print  # pylint: disable=import-outside-toplevel
+        from tvm.relay import pretty_print  # pylint: disable=import-outside-toplevel
 
         return pretty_print(self)
 

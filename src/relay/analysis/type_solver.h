@@ -24,8 +24,8 @@
 #ifndef TVM_RELAY_ANALYSIS_TYPE_SOLVER_H_
 #define TVM_RELAY_ANALYSIS_TYPE_SOLVER_H_
 
-#include <tvm/ir/error.h>
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/error.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
 

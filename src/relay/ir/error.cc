@@ -16,13 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-/*!
- * \file ir/error.cc
- * \brief Utilities for error tracking and reporting.
- */
-#include <tvm/ir/error.h>
 #include <tvm/ir/module.h>
+#include <tvm/relay/base.h>
+#include <tvm/relay/error.h>
 
 // clang-format off
 #include <string>
@@ -31,6 +27,7 @@
 // clang-format on
 
 namespace tvm {
+namespace relay {
 
 template <typename T, typename U>
 using NodeMap = std::unordered_map<T, U, ObjectPtrHash, ObjectPtrEqual>;
@@ -137,5 +134,5 @@ void ErrorReporter::ReportAt(const GlobalVar& global, const ObjectRef& node,
   }
   this->node_to_gv_.insert({node, global});
 }
-
+}  // namespace relay
 }  // namespace tvm

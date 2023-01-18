@@ -30,9 +30,10 @@
 #include <sstream>
 #include <vector>
 
-#include "../support/str_escape.h"
+#include "../../support/str_escape.h"
 
 namespace tvm {
+namespace relay {
 
 /*!
  * \brief Represent a piece of text in the doc.
@@ -157,4 +158,5 @@ Doc Doc::Concat(const std::vector<Doc>& vec, const Doc& sep) {
   }
   return seq;
 }
+}  // namespace relay
 }  // namespace tvm

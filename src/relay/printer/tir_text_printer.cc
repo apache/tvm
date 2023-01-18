@@ -36,13 +36,13 @@
 #include <algorithm>
 #include <string>
 
-#include "../tir/transforms/ir_utils.h"
+#include "../../tir/transforms/ir_utils.h"
 #include "doc.h"
 #include "meta_data.h"
 #include "text_printer.h"
 
 namespace tvm {
-namespace tir {
+namespace relay {
 
 Doc TIRTextPrinter::Print(const ObjectRef& node) {
   if (!node.defined()) return Doc::Text("(nullptr)");
@@ -93,9 +93,9 @@ Doc TIRTextPrinter::PrintPrimFunc(const PrimFunc& prim_func) {
   memo_buf_.clear();
 
   // ordered vars associated with buffers, for consistent printing
-  std::vector<Var> buffer_vars_ordered;
+  std::vector<tir::Var> buffer_vars_ordered;
 
-  for (Var v : op->params) {
+  for (tir::Var v : op->params) {
     auto buffer_map_find = op->buffer_map.find(v);
     if (buffer_map_find != op->buffer_map.end()) {
       auto map_data = *buffer_map_find;
@@ -132,7 +132,7 @@ Doc TIRTextPrinter::PrintPrimFunc(const PrimFunc& prim_func) {
   if (memo_buf_.size() != 0) {
     Doc buffer_doc;
     std::vector<Doc> buffer_docs;
-    for (const Var& v : buffer_vars_ordered) {
+    for (const tir::Var& v : buffer_vars_ordered) {
       const Buffer buf = op->buffer_map[v];
       buffer_docs.push_back(BufferNode2Doc(buf.get(), Print(buf)));
     }
@@ -144,7 +144,7 @@ Doc TIRTextPrinter::PrintPrimFunc(const PrimFunc& prim_func) {
   if (op->buffer_map.size() != 0) {
     // print buffer_map
     std::vector<Doc> buffer_map_doc;
-    for (const Var& v : buffer_vars_ordered) {
+    for (const tir::Var& v : buffer_vars_ordered) {
       const Buffer buf = op->buffer_map[v];
       buffer_map_doc.push_back(Print(v) << ": " << Print(buf));
     }
@@ -302,9 +302,9 @@ Doc TIRTextPrinter::VisitExpr_(const CastNode* op) {
   return doc;
 }
 
-Doc TIRTextPrinter::VisitExpr_(const VarNode* op) {
-  const Var& var = GetRef<Var>(op);
-  return meta_->InMeta(var) ? meta_->GetMetaNode(var) : AllocVar(GetRef<Var>(op));
+Doc TIRTextPrinter::VisitExpr_(const tir::VarNode* op) {
+  const tir::Var& var = GetRef<tir::Var>(op);
+  return meta_->InMeta(var) ? meta_->GetMetaNode(var) : AllocVar(GetRef<tir::Var>(op));
 }
 
 #define TVM_DECLARE_TIR_TEXT_PRINTER_BINOP(OpName, OpString) \
@@ -401,13 +401,13 @@ Doc TIRTextPrinter::VisitExpr_(const BroadcastNode* op) {
   return doc;
 }
 
-Doc TIRTextPrinter::VisitExpr_(const LetNode* op) {
+Doc TIRTextPrinter::VisitExpr_(const tir::LetNode* op) {
   Doc doc;
   doc << "let " << Print(op->var) << " = " << Print(op->value) << " in " << Print(op->body);
   return doc;
 }
 
-Doc TIRTextPrinter::VisitExpr_(const CallNode* op) {
+Doc TIRTextPrinter::VisitExpr_(const tir::CallNode* op) {
   Doc doc;
   std::vector<Doc> func_args;
   if (auto* ptr_op = op->op.as<OpNode>()) {
@@ -771,7 +771,7 @@ Doc TIRTextPrinter::GetUniqueName(std::string prefix) {
   return Doc::Text(unique_prefix);
 }
 
-Doc TIRTextPrinter::AllocVar(const Var& var) {
+Doc TIRTextPrinter::AllocVar(const tir::Var& var) {
   const auto& it = memo_var_.find(var);
   if (it != memo_var_.end()) {
     return it->second;
@@ -831,7 +831,7 @@ Doc TIRTextPrinter::PrintBody(const Stmt& body, bool indent) {
   return doc;
 }
 
-bool TIRTextPrinter::GetVarName(Var v, std::string* s) {
+bool TIRTextPrinter::GetVarName(tir::Var v, std::string* s) {
   auto it = memo_var_.find(v);
   if (it == memo_var_.end()) {
     return false;
@@ -841,5 +841,5 @@ bool TIRTextPrinter::GetVarName(Var v, std::string* s) {
   return true;
 }
 
-}  // namespace tir
+}  // namespace relay
 }  // namespace tvm

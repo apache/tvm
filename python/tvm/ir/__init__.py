@@ -27,7 +27,6 @@ from .base import (
     Span,
     assert_structural_equal,
     load_json,
-    pretty_print,
     save_json,
     structural_equal,
     structural_hash,
