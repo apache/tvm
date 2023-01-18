@@ -57,9 +57,7 @@ def test_prim_func():
         func,
         expected="""
 @T.prim_func
-def main(a: T.handle, b: T.handle):
-    A = T.match_buffer(a, (128, 128))
-    B = T.match_buffer(b, (256, 256))
+def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
     T.evaluate(0)""",
     )
 
