@@ -944,9 +944,14 @@ runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& mod
     }
   }
 
-  // add the run function (typically "tvmgen_default_run") to function registry
-  std::string run_func = runtime::get_name_mangled(metadata->mod_name, "run");
-  func_names.push_back(run_func); 
+  if (metadata.defined()) {
+    if (metadata->executor == "aot") {
+      // add the run function (typically "tvmgen_default_run") to function registry
+      // when using AOT executor
+      std::string run_func = runtime::get_name_mangled(metadata->mod_name, "run");
+      func_names.push_back(run_func);
+    }
+  }
 
   auto n = make_object<CSourceCrtMetadataModuleNode>(func_names, "c", target, runtime, metadata);
   auto csrc_metadata_module = runtime::Module(n);
