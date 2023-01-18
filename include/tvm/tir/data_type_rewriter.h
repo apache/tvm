@@ -108,7 +108,6 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
   Stmt VisitStmt_(const IfThenElseNode* op) override;
   Stmt VisitStmt_(const DeclBufferNode* op) override;
   Stmt VisitStmt_(const AllocateNode* op) override;
-  Stmt VisitStmt_(const AllocateConstNode* op) override;
   PrimExpr VisitExpr_(const EQNode* op) override;
   PrimExpr VisitExpr_(const NENode* op) override;
   PrimExpr VisitExpr_(const LTNode* op) override;

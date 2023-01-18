@@ -244,23 +244,6 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const AllocateNode* op) {
   }
 }
 
-Stmt IndexDataTypeRewriter::VisitStmt_(const AllocateConstNode* op) {
-  bool is_enabled = is_enabled_;
-  is_enabled_ = true;
-  auto new_extents = op->extents.Map([this](const PrimExpr& e) { return this->VisitExpr(e); });
-  is_enabled_ = is_enabled;
-  auto new_body = this->VisitStmt(op->body);
-  if (!new_extents.same_as(op->extents) || !new_body.same_as(op->body)) {
-    AllocateConst new_allocate = GetRef<AllocateConst>(op);
-    auto* n = new_allocate.CopyOnWrite();
-    n->extents = std::move(new_extents);
-    n->body = std::move(new_body);
-    return std::move(new_allocate);
-  } else {
-    return GetRef<Stmt>(op);
-  }
-}
-
 Stmt IndexDataTypeRewriter::VisitStmt_(const DeclBufferNode* op) {
   Buffer new_buffer = VisitBuffer(op->buffer);
   DeclBuffer decl_buffer = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
