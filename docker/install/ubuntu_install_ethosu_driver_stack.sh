@@ -23,7 +23,7 @@ set -o pipefail
 fvp_dir="/opt/arm/FVP_Corstone_SSE-300"
 cmake_dir="/opt/arm/cmake"
 ethosu_dir="/opt/arm/ethosu"
-ethosu_driver_ver="21.11"
+ethosu_driver_ver="22.08"
 
 mkdir -p /opt/arm
 
@@ -80,9 +80,13 @@ git clone --branch ${ethosu_driver_ver} "https://review.mlplatform.org/ml/ethos-
 git clone --branch ${ethosu_driver_ver} "https://review.mlplatform.org/ml/ethos-u/ethos-u-core-platform" core_platform
 
 # Build Driver
-mkdir ${ethosu_dir}/core_driver/build && cd ${ethosu_dir}/core_driver/build
-cmake -DCMAKE_TOOLCHAIN_FILE=${ethosu_dir}/core_platform/cmake/toolchain/arm-none-eabi-gcc.cmake -DETHOSU_LOG_SEVERITY=debug -DTARGET_CPU=cortex-m55 ..
-make
+NPU_VARIANTS=("u55" "u65")
+for i in ${NPU_VARIANTS[*]}
+do
+    mkdir ${ethosu_dir}/core_driver/build_${i} && cd ${ethosu_dir}/core_driver/build_${i}
+    cmake -DCMAKE_TOOLCHAIN_FILE=${ethosu_dir}/core_platform/cmake/toolchain/arm-none-eabi-gcc.cmake -DETHOSU_LOG_SEVERITY=debug -DTARGET_CPU=cortex-m55 -DETHOSU_TARGET_NPU_CONFIG=ethos-${i}-128 ..
+    make
+done
 
 # Build NN Library
 mkdir ${CMSIS_PATH}/CMSIS-NN/build/ && cd ${CMSIS_PATH}/CMSIS-NN/build/
