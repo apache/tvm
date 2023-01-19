@@ -62,6 +62,56 @@ def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32"))
     )
 
 
+def test_prim_func_no_sugar_inlined_buffer():
+    a = tir.Var("a", "handle")
+    b = tir.Var("b", "handle")
+    func = tir.PrimFunc(
+        params=[a, b],
+        ret_type=None,
+        buffer_map={
+            a: tir.decl_buffer(shape=[128, 128], dtype="float32", name="A"),
+            b: tir.decl_buffer(shape=[256, 256], dtype="float32", name="B"),
+        },
+        body=tir.Evaluate(a),
+    )
+    _assert_print(
+        func,
+        expected="""
+@T.prim_func
+def main(a: T.handle, B: T.Buffer((256, 256), "float32")):
+    A = T.match_buffer(a, (128, 128))
+    T.evaluate(a)
+""",
+    )
+
+
+def test_prim_func_no_sugar_shared_buffer_data():
+    a = tir.Var("a", "handle")
+    b = tir.Var("b", "handle")
+    buffer_data = tir.decl_buffer(shape=[128, 128], dtype="float32", name="A").data
+    func = tir.PrimFunc(
+        params=[a, b],
+        ret_type=None,
+        buffer_map={
+            a: tir.decl_buffer(shape=[128, 128], dtype="float32", name="A", data=buffer_data),
+            b: tir.decl_buffer(shape=[256, 256], dtype="float32", name="B", data=buffer_data),
+        },
+        body=tir.Evaluate(0),
+    )
+    print(func)
+
+
+#     _assert_print(
+#         func,
+#         expected="""
+# @T.prim_func
+# def main(a: T.handle, B: T.Buffer((256, 256), "float32")):
+#     A = T.match_buffer(a, (128, 128))
+#     T.evaluate(a)
+# """,
+#     )
+
+
 def test_block_realize():
     i = tir.Var("i", "int32")
     j = tir.Var("j", "int32")
@@ -639,6 +689,8 @@ def main():
 
 if __name__ == "__main__":
     test_prim_func()
+    test_prim_func_no_sugar_inlined_buffer()
+    test_prim_func_no_sugar_shared_buffer_data()
     test_block_realize()
     test_block()
     test_buffer()

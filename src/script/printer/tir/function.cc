@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/runtime/device_api.h>
+#include <tvm/tir/stmt_functor.h>
 
 #include "./utils.h"
 
@@ -63,6 +64,59 @@ bool IsSimpleBuffer(const tir::Buffer& buf) {
          !buf->axis_separators.size();
 }
 
+int CountVarOccurrence(const tir::PrimFunc& f, const tir::Var& v) {
+  class OccurrenceCounter : public tir::StmtExprVisitor {
+   public:
+    int count = 0;
+    const tir::VarNode* v = nullptr;
+
+    void VisitExpr_(const tir::VarNode* op) final {
+      if (op == v) {
+        ++count;
+      }
+      tir::StmtExprVisitor::VisitExpr_(op);
+    }
+
+    void VisitStmt_(const tir::BufferStoreNode* op) final {
+      VisitBuffer(op->buffer.get());
+      tir::StmtExprVisitor::VisitStmt_(op);
+    }
+
+    void VisitExpr_(const tir::BufferLoadNode* op) final {
+      VisitBuffer(op->buffer.get());
+      tir::StmtExprVisitor::VisitExpr_(op);
+    }
+
+    void VisitStmt_(const tir::DeclBufferNode* op) final {
+      VisitBuffer(op->buffer.get());
+      tir::StmtExprVisitor::VisitStmt_(op);
+    }
+
+    void VisitBuffer(const tir::BufferNode* buffer) {
+      VisitExpr(buffer->data);
+      for (const PrimExpr& shape_i : buffer->shape) {
+        VisitExpr(shape_i);
+      }
+      for (const PrimExpr& stride_i : buffer->strides) {
+        VisitExpr(stride_i);
+      }
+      VisitExpr(buffer->elem_offset);
+    }
+  };
+
+  OccurrenceCounter counter;
+  counter.v = v.get();
+  counter(f->body);
+  for (const tir::Var& v : f->params) {
+    counter(v);
+  }
+  for (const auto& pair : f->buffer_map) {
+    counter(pair.first);
+    counter.VisitBuffer(pair.second.get());
+  }
+  return counter.count;
+}
+
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::PrimFunc>("", [](tir::PrimFunc func, ObjectPath p, IRDocsifier d) -> Doc {
       With<TIRFrame> frame(MakeDispatchFrame(d, func, func));
@@ -74,10 +128,10 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       for (int i = 0; i < n_args; ++i) {
         tir::Var var = func->params[i];
         ObjectPath var_p = p->Attr("params")->ArrayIndex(i);
-        if (func->buffer_map.count(var)) {
+        if (CountVarOccurrence(func, var) == 2 && func->buffer_map.count(var)) {
           tir::Buffer buffer = func->buffer_map[var];
-          ObjectPath buffer_p = p->Attr("buffer_map")->MapValue(var);
           if (IsSimpleBuffer(buffer)) {
+            ObjectPath buffer_p = p->Attr("buffer_map")->MapValue(var);
             args.push_back(AssignDoc(DefineBuffer(buffer, *frame, d), NullOpt,
                                      BufferAttn(buffer, buffer_p, *frame, d)));
             buffer_inlined.insert(buffer.get());
