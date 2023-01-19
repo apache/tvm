@@ -77,8 +77,9 @@ void JSONDumps(ObjectRef json_obj, std::ostringstream& os) {
       JSONDumps(kv.second, os);
     }
     os << "}";
-  } else if (const auto* idx_map = json_obj.as<tir::IndexMapNode>()) {
-    os << "\n";
+  } else if (const auto* index_map = json_obj.as<tir::IndexMapNode>()) {
+    // Placeholder to avoid compilation error of unused index_map
+    os << index_map->final_indices;
   } else {
     LOG(FATAL) << "TypeError: Unsupported type in JSON object: " << json_obj->GetTypeKey();
   }
