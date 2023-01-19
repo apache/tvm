@@ -5878,30 +5878,47 @@ def test_embedlayernormalization(target, dev):
 def test_attention(target, dev):
     """test_attention"""
 
-    def verify_attention(input_, weight, bias, mask_index, num_heads):
+    def verify_attention(_unidirectional, _input, _weight, _bias, _mask_index=None, _past=None):
+        input_names = ["input", "weight", "bias"]
+        if _mask_index is not None:
+            input_names.append("mask_index")
+        if _past is not None:
+            input_names.append("past")
+
         node = onnx.helper.make_node(
             "Attention",
-            inputs=["input", "weight", "bias", "mask_index"],
+            inputs=input_names,
             outputs=["output", "present"],
             domain="com.microsoft",
             num_heads=num_heads,
+            unidirectional=_unidirectional,
         )
 
+        past_shape = (2, batch_size, num_heads, past_sequence_length, head_size)
         present_output_shape = (2, batch_size, num_heads, sequence_length, head_size)
+
+        inputs_info = [
+            helper.make_tensor_value_info("input", TensorProto.FLOAT, list(_input.shape)),
+            helper.make_tensor_value_info("weight", TensorProto.FLOAT, list(_weight.shape)),
+            helper.make_tensor_value_info("bias", TensorProto.FLOAT, list(_bias.shape)),
+        ]
+        if _mask_index is not None:
+            inputs_info.append(
+                helper.make_tensor_value_info(
+                    "mask_index", TensorProto.INT32, list(_mask_index.shape)
+                ),
+            )
+        if _past is not None:
+            inputs_info.append(
+                helper.make_tensor_value_info("past", TensorProto.FLOAT, list(past_shape))
+            )
 
         graph = helper.make_graph(
             [node],
             "attention_test",
-            inputs=[
-                helper.make_tensor_value_info("input", TensorProto.FLOAT, list(input_.shape)),
-                helper.make_tensor_value_info("weight", TensorProto.FLOAT, list(weight.shape)),
-                helper.make_tensor_value_info("bias", TensorProto.FLOAT, list(bias.shape)),
-                helper.make_tensor_value_info(
-                    "mask_index", TensorProto.INT32, list(mask_index.shape)
-                ),
-            ],
+            inputs=inputs_info,
             outputs=[
-                helper.make_tensor_value_info("output", TensorProto.FLOAT, list(input_.shape)),
+                helper.make_tensor_value_info("output", TensorProto.FLOAT, list(_input.shape)),
                 helper.make_tensor_value_info(
                     "present", TensorProto.FLOAT, list(present_output_shape)
                 ),
@@ -5910,31 +5927,58 @@ def test_attention(target, dev):
 
         model = helper.make_model(graph, producer_name="attention_test")
 
+        inputs = [_input, _weight, _bias]
+        if _mask_index is not None:
+            inputs.append(_mask_index)
+        if _past is not None:
+            inputs.append(_past)
+
         # "present" output should be nullptr when the "past" input isn't included,
         # but ort requires an output shape to be specified?
         verify_with_ort_with_inputs(
             model,
-            [input_, weight, bias, mask_index],
-            [input_.shape, present_output_shape],
+            inputs,
+            [_input.shape, present_output_shape],
             target=target,
             dev=dev,
             rtol=1e-4,
             atol=1e-4,
         )
 
-    hidden_size = 384
-    batch_size = 4
-    sequence_length = 4
-    num_heads = 12
-    head_size = 32
+    batch_size = 11
+    num_heads = 13
+    head_size = 37
+    sequence_length = 7
+    input_hidden_size = 147
+    weight_hidden_size = num_heads * head_size
+    past_sequence_length = 17
 
-    dtype = "float32"
-    input_array = np.random.random((batch_size, sequence_length, hidden_size)).astype(dtype)
-    weight = np.random.normal(size=(hidden_size, 3 * hidden_size)).astype(dtype) * 0.1
-    bias = np.random.randn(3 * hidden_size).astype(dtype)
-    mask_index = np.full((batch_size, sequence_length), 1).astype("int32")
+    total_sequence_length = past_sequence_length + sequence_length
 
-    verify_attention(input_array, weight, bias, mask_index, num_heads)
+    # Required inputs
+    input_array = np.random.normal(size=(batch_size, sequence_length, input_hidden_size)).astype(
+        "float32"
+    )
+    weight = (
+        np.random.normal(size=(input_hidden_size, 3 * weight_hidden_size)).astype("float32") * 0.1
+    )
+    bias = np.random.randn(3 * weight_hidden_size).astype("float32")
+
+    # Optional inputs
+    past = np.random.random((2, batch_size, num_heads, past_sequence_length, head_size)).astype(
+        "float32"
+    )
+
+    for unidirectional in [0, 1]:
+        for have_past in [False, True]:
+            if not have_past:
+                mask_index = np.random.randint(0, 2, (batch_size, sequence_length)).astype("int32")
+                verify_attention(unidirectional, input_array, weight, bias, mask_index)
+            else:
+                mask_index = np.random.randint(0, 2, (batch_size, total_sequence_length)).astype(
+                    "int32"
+                )
+                verify_attention(unidirectional, input_array, weight, bias, mask_index, past)
 
 
 @tvm.testing.parametrize_targets
