@@ -98,7 +98,7 @@ if hasattr(typing, "_GenericAlias"):
         @staticmethod
         def callable(type_: Any) -> Optional[List[type]]:
             if _Subtype._origin(type_) is collections.abc.Callable:
-                if hasattr(typing, "get_args"):
+                if hasattr(typing, "get_args") and not type_._special:
                     subtypes = typing.get_args(type_)  # type: ignore
                 else:
                     subtypes = type_.__args__

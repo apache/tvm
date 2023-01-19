@@ -20,6 +20,54 @@ from tvm.script import tir as T
 from .. import TensorIntrin
 
 
+def generate_dma_load_intrin(
+    size: int,
+    dtype: str,
+):
+    """Generator of dma_load intrins"""
+
+    @T.prim_func
+    def sync_dma_load_desc(a: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, (size), dtype, offset_factor=1, scope="global")
+        C = T.match_buffer(c, (size), dtype, offset_factor=1, scope="global.vtcm")
+        with T.block("root"):
+            T.reads(A[0:size])
+            T.writes(C[0:size])
+            for i in T.serial(size):
+                with T.block("load"):
+                    vii = T.axis.remap("S", [i])
+                    C[vii] = A[vii]
+
+    @T.prim_func
+    def sync_dma_load_impl(a: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, (size), dtype, offset_factor=1, scope="global")
+        C = T.match_buffer(c, (size), dtype, offset_factor=1, scope="global.vtcm")
+        with T.block("root"):
+            T.reads(A[0:size])
+            T.writes(C[0:size])
+            T.evaluate(
+                T.tvm_call_packed(
+                    "device_api.hexagon.dma_copy",
+                    -1,  # Use QueueId of -1 to not interfere with async copies.
+                    T.address_of(C[0], dtype="handle"),
+                    T.address_of(A[0], dtype="handle"),
+                    size,
+                    0,  # Do not use experimental bypass mode.
+                    dtype="int32",
+                )
+            )
+            T.evaluate(
+                T.tvm_call_packed(
+                    "device_api.hexagon.dma_wait",
+                    -1,
+                    0,  # Wait for the sync queue (-1) to have 0 messages.
+                    dtype="int32",
+                )
+            )
+
+    return sync_dma_load_desc, sync_dma_load_impl
+
+
 def generate_dot_product_32x4_u8u8i32(mem_scope="global"):
     @T.prim_func
     def dot_product_32x4_u8u8i32_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
@@ -163,3 +211,9 @@ TensorIntrin.register(VRMPY_u8u8i32_VTCM_INTRIN, *generate_dot_product_32x4_u8u8
 
 VRMPY_u8i8i32_VTCM_INTRIN = "dot_32x4_u8i8i32_vtcm_vrmpy"
 TensorIntrin.register(VRMPY_u8i8i32_VTCM_INTRIN, *generate_dot_product_32x4_u8i8i32("global.vtcm"))
+
+DMA_READ_128_u8 = "dma_read_128_u8"
+TensorIntrin.register(DMA_READ_128_u8, *generate_dma_load_intrin(128, "uint8"))
+
+DMA_READ_128_i8 = "dma_read_128_i8"
+TensorIntrin.register(DMA_READ_128_i8, *generate_dma_load_intrin(128, "int8"))

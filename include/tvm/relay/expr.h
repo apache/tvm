@@ -57,7 +57,6 @@ using BaseFunc = tvm::BaseFunc;
 using BaseFuncNode = tvm::BaseFuncNode;
 using GlobalVar = tvm::GlobalVar;
 using GlobalVarNode = tvm::GlobalVarNode;
-using tvm::PrettyPrint;
 
 /*!
  * \brief Constant tensor, backed by an NDArray on the cpu(0) device.

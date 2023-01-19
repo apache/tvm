@@ -51,5 +51,10 @@ TVM_REGISTER_GLOBAL("ir.NodeSetSpan").set_body_typed([](ObjectRef node_ref, Span
   }
 });
 
+TVM_REGISTER_GLOBAL("relay.PrintIR")
+    .set_body_typed([](ObjectRef mod, String header, bool show_metadata) {
+      LOG(INFO) << "PrintIR(" << header << "):\n" << AsText(mod, show_metadata);
+    });
+
 }  // namespace relay
 }  // namespace tvm

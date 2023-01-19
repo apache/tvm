@@ -30,8 +30,42 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, ObjectPath block_p,  //
       opt_realize.defined() ? opt_realize.value().get() : nullptr;
   const ObjectPathNode* realize_p = opt_realize_p.defined() ? opt_realize_p.get() : nullptr;
   // Step 1. Handle block var and block bindings
-  int n_vars = block->iter_vars.size();
-  for (int i = 0; i < n_vars; ++i) {
+  // Step 1.1. Obtain all loop var defined along path
+  std::unordered_map<const tir::VarNode*, tir::For> loop_vars;
+  for (Frame f : d->frames) {
+    if (const auto* tir_f = f.as<TIRFrameNode>()) {
+      if (const auto* for_loop = tir_f->tir.as<tir::ForNode>()) {
+        for (const tir::ForNode* l = for_loop; l != nullptr; l = l->body.as<tir::ForNode>()) {
+          loop_vars.insert(std::make_pair(l->loop_var.get(), GetRef<tir::For>(l)));
+        }
+      }
+    }
+  }
+
+  std::vector<int> remap_vars_indices;
+  auto add_remapped_iter_var = [&](int i) -> bool {
+    if (realize) {
+      tir::ExprDeepEqual expr_equal;
+      tir::IterVar iter_var = block->iter_vars[i];
+      PrimExpr value = realize->iter_values[i];
+      if (iter_var->iter_type == tir::IterVarType::kDataPar ||
+          iter_var->iter_type == tir::IterVarType::kCommReduce) {
+        if (const auto* var = value.as<tir::VarNode>()) {
+          if (loop_vars.count(var)) {
+            tir::For for_loop = loop_vars.at(var);
+            if (expr_equal(for_loop->min, iter_var->dom->min) &&
+                expr_equal(for_loop->extent, iter_var->dom->extent)) {
+              remap_vars_indices.push_back(i);
+              return true;
+            }
+          }
+        }
+      }
+    }
+    return false;
+  };
+
+  auto print_single_iter_var = [&](int i) {
     tir::IterVar iter_var = block->iter_vars[i];
     ObjectPath iter_var_p = block_p->Attr("iter_var")->ArrayIndex(i);
     ExprDoc rhs = TIR("axis");
@@ -66,7 +100,49 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, ObjectPath block_p,  //
       rhs = rhs->Call({dom});
     }
     (*frame)->stmts.push_back(AssignDoc(DefineVar(iter_var->var, *frame, d), rhs, NullOpt));
+  };
+
+  auto print_remapped_iter_var = [&]() {
+    if (remap_vars_indices.size()) {
+      int m = remap_vars_indices.size();
+      if (!m) {
+        return;
+      }
+      if (m == 1) {
+        print_single_iter_var(remap_vars_indices[0]);
+        remap_vars_indices.clear();
+        return;
+      }
+      Array<ExprDoc> lhs;
+      Array<ExprDoc> loop_var_doc;
+      lhs.reserve(m);
+      loop_var_doc.reserve(m);
+      std::string binding_type = "";
+      for (int i : remap_vars_indices) {
+        tir::IterVar iter_var = block->iter_vars[i];
+        ObjectPath iter_var_p = block_p->Attr("iter_var")->ArrayIndex(i);
+        lhs.push_back(DefineVar(iter_var->var, *frame, d));
+        loop_var_doc.push_back(d->AsDoc<ExprDoc>(realize->iter_values[i],
+                                                 realize_p->Attr("iter_values")->ArrayIndex(i)));
+        binding_type += iter_var->iter_type == tir::IterVarType::kDataPar ? "S" : "R";
+      }
+      ExprDoc rhs = TIR("axis")->Attr("remap");
+      rhs = rhs->Call({LiteralDoc::Str(binding_type), ListDoc(loop_var_doc)});
+      (*frame)->stmts.push_back(AssignDoc(TupleDoc(lhs), rhs, NullOpt));
+      remap_vars_indices.clear();
+    }
+  };
+
+  // Step 1.2. Construct all block var bindings
+  int n_vars = block->iter_vars.size();
+  for (int i = 0; i < n_vars; ++i) {
+    if (!add_remapped_iter_var(i)) {
+      print_remapped_iter_var();
+      print_single_iter_var(i);
+    }
   }
+  print_remapped_iter_var();
+
   // Step 2. Handle block predicate
   if (realize) {
     ICHECK(realize->predicate.defined() && realize->predicate->dtype.is_bool());
@@ -140,8 +216,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       return PrintBlock(d, block, p, NullOpt, NullOpt);
     });
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::BlockNode>(ReprPrint);
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<tir::BlockRealizeNode>(ReprPrint);
+TVM_SCRIPT_REPR(tir::BlockNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::BlockRealizeNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script

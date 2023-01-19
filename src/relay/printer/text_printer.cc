@@ -23,7 +23,7 @@
  *        that can be parsed by a parser.
  */
 
-#include "text_printer.h"
+#include "./text_printer.h"
 
 #include <tvm/tir/function.h>
 
@@ -31,6 +31,7 @@
 #include <string>
 
 namespace tvm {
+namespace relay {
 
 static const char* kSemVer = "0.0.5";
 
@@ -124,8 +125,8 @@ String AsText(const ObjectRef& node, bool show_meta_data,
   return doc.str();
 }
 
-TVM_REGISTER_GLOBAL("ir.PrettyPrint").set_body_typed(PrettyPrint);
+TVM_REGISTER_GLOBAL("relay.ir.PrettyPrint").set_body_typed(PrettyPrint);
+TVM_REGISTER_GLOBAL("relay.ir.AsText").set_body_typed(AsText);
 
-TVM_REGISTER_GLOBAL("ir.AsText").set_body_typed(AsText);
-
+}  // namespace relay
 }  // namespace tvm

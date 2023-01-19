@@ -14,17 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-from tvm.script import tir as T
 import numpy as np
+import tvm
 import tvm.testing
+from tvm.script import tir as T
 
 
 def count_cp_async(stmt):
     num_alloc = [0]
 
     def verify(n):
-        if isinstance(n, tvm.tir.Call) and str(n.op) == "tir.ptx_cp_async":
+        if isinstance(n, tvm.tir.Call) and n.op.name == "tir.ptx_cp_async":
             num_alloc[0] += 1
 
     tvm.tir.stmt_functor.post_order_visit(stmt, verify)

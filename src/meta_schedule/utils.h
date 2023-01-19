@@ -48,7 +48,6 @@
 #include <utility>
 #include <vector>
 
-#include "../printer/text_printer.h"
 #include "../support/array.h"
 #include "../support/base64.h"
 #include "../support/nd_int_set.h"

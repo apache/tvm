@@ -146,7 +146,7 @@ def test_suggest_index_map_winograd():
 
 
 @tvm.script.ir_module
-class DenseVNNIModule:
+class DenseTIRModule:
     @T.prim_func
     def main(
         placeholder: T.Buffer[(1024, 1024), "uint8"],
@@ -170,7 +170,7 @@ class DenseVNNIModule:
 
 
 @tvm.script.ir_module
-class Conv2dNCHWcVNNIModule:
+class Conv2dNCHWcTIRModule:
     @T.prim_func
     def main(
         placeholder: T.Buffer[(1, 4, 56, 56, 16), "uint8"],
@@ -202,7 +202,8 @@ class Conv2dNCHWcVNNIModule:
                 conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] = conv2d_NCHWc_int8[
                     n, oc_chunk, oh, ow, oc_block
                 ] + T.cast(
-                    placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner], "int32"
+                    placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner],
+                    "int32",
                 ) * T.cast(
                     placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner],
                     "int32",
@@ -222,8 +223,8 @@ def collect_loops(prim_func):
     return loops
 
 
-def test_get_tensorize_loop_mapping_dense_vnni():
-    s = Schedule(DenseVNNIModule)
+def test_get_tensorize_loop_mapping_dense_16x4():
+    s = Schedule(DenseTIRModule)
     block = s.get_block("compute")
 
     info = get_tensorize_loop_mapping(s, block, dot_product_16x4_u8i8i32_desc)
@@ -240,8 +241,8 @@ def test_get_tensorize_loop_mapping_dense_vnni():
     assert s.get(desc_loop_to_sref[desc_loops[1]]) == s.get(loop_k)
 
 
-def test_get_tensorize_loop_mapping_conv2d_nchwc_vnni():
-    s = Schedule(Conv2dNCHWcVNNIModule)
+def test_get_tensorize_loop_mapping_conv2d_nchwc_16x4():
+    s = Schedule(Conv2dNCHWcTIRModule)
     block = s.get_block("conv2d_NCHWc_int8")
 
     info = get_tensorize_loop_mapping(s, block, dot_product_16x4_u8i8i32_desc)

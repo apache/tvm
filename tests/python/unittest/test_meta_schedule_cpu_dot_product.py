@@ -28,6 +28,7 @@ from tvm._ffi import register_func
 from tvm.tir.schedule import BlockRV, Schedule
 from tvm.tir.schedule.analysis import has_block
 from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
+from tvm.tir.tensor_intrin.x86 import AVX512_DOT_16x4_INTRIN as AVX512_INTRIN
 
 logging.basicConfig(
     format="%(asctime)s.%(msecs)03d %(levelname)s %(message)s",
@@ -36,9 +37,9 @@ logging.basicConfig(
 logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
 
 
-def _schedule_dense(m: Optional[int], do_tune: bool):
+def _schedule_dense(m: Optional[int], do_tune: bool, intrin=VNNI_INTRIN):
     """Manually schedule a dense block, created from TE compute op via CreatePrimFunc,
-    using VNNI instruction.
+    using VNNI or AVX512 instructions.
     """
 
     def schedule_fn(sch, dense_block: Optional[BlockRV] = None) -> bool:
@@ -47,7 +48,7 @@ def _schedule_dense(m: Optional[int], do_tune: bool):
         if dense_block is None:
             assert has_block(sch, "compute")
             dense_block = sch.get_block("compute")
-            assert "dense_vnni" in sch.get(dense_block).annotations["schedule_rule"]
+            assert "dense_int8" in sch.get(dense_block).annotations["schedule_rule"]
 
         post_blocks = sch.get_consumers(dense_block)
         if len(post_blocks) > 0:
@@ -90,7 +91,7 @@ def _schedule_dense(m: Optional[int], do_tune: bool):
         dec = sch.decompose_reduction(dense_block, a_ko)
         init_loop = sch.get_loops(dec)[-1]
         sch.vectorize(init_loop)
-        sch.tensorize(a_xi, VNNI_INTRIN)
+        sch.tensorize(a_xi, intrin)
         return True
 
     return schedule_fn
@@ -109,10 +110,10 @@ def _relay_dense(m, n, k):
         out_dtype="int32",
     )
     relay_mod = tvm.IRModule.from_expr(out)
-    data = np.random.uniform(1, 10, size=(m, k)).astype("uint8")
+    data = np.random.randint(0, 5, size=(m, k), dtype="uint8")
     params = {
-        "weight": np.random.uniform(1, 10, size=(n, k)).astype("int8"),
-        "bias": np.random.uniform(1, 10, size=(n,)).astype("int32"),
+        "weight": np.random.randint(0, 5, size=(n, k), dtype="int8"),
+        "bias": np.random.randint(0, 5, size=(n,), dtype="int32"),
     }
 
     def f_check(lib, dev):
@@ -135,10 +136,7 @@ def _relay_dense(m, n, k):
     return relay_mod, params, f_check
 
 
-@tvm.testing.requires_cascadelake
-def test_vnni_schedule_fn_database():
-    m, n, k = 1024, 1024, 1024
-    target = tvm.target.Target("llvm -mcpu=cascadelake -num-cores 4")
+def schedule_16x4_dense_fn_database(target, intrin, m=1024, n=1024, k=1024):
     dev = tvm.cpu(0)
     relay_mod, params, f_check = _relay_dense(m, n, k)
 
@@ -146,6 +144,7 @@ def test_vnni_schedule_fn_database():
         _schedule_dense(
             m=m,
             do_tune=False,
+            intrin=intrin,
         )
     ), tvm.transform.PassContext(
         opt_level=3,
@@ -167,21 +166,32 @@ def test_vnni_schedule_fn_database():
 
 
 @tvm.testing.requires_cascadelake
-def test_vnni_schedule_fn_tune():
+def test_vnni_schedule_fn_database():
+    target = tvm.target.Target("llvm -keys=x86,cpu -mcpu=cascadelake -num-cores=4")
+    schedule_16x4_dense_fn_database(target, VNNI_INTRIN)
+
+
+@tvm.testing.requires_skylake_avx512
+def test_avx512_schedule_fn_database():
+    target = tvm.target.Target("llvm -keys=x86,cpu -mcpu=skylake-avx512 -num-cores=4")
+    schedule_16x4_dense_fn_database(target, AVX512_INTRIN, 16, 16, 16)
+
+
+def schedule_16x4_dense_fn_tune(target, intrin, m=1024, n=1024, k=1024):
     # pylint: disable=W0105
     """
     We can inject and apply a custom TIR scheduling to a TE compute of interest, using
     the "schedule_rule" annotation. For example, in topi/x86/dense.py we have the following
-    declaration for int8 dense targeting the VNNI instruction.
+    declaration for int8 dense targeting the VNNI or AVX512 instructions.
 
     C = te.compute(
         ...
-        attrs={"schedule_rule": "meta_schedule.x86.dense_vnni"},
+        attrs={"schedule_rule": "meta_schedule.x86.dense_int8"},
     )
 
     When the MetaSchedule encounters a TensorIR block with the "schedule_rule" annotation,
     it looks up the packed func registry for a function that is associated with the given schedule
-    rule key ("meta_schedule.x86.dense_vnni" in this example). The signature of such custom
+    rule key ("meta_schedule.x86.dense_int8" in this example). The signature of such custom
     schedule functions must be
 
        (tir.schedule.Schedule, tir.schedule.BlockRV) -> [tir.schedule.Schedule].
@@ -191,14 +201,12 @@ def test_vnni_schedule_fn_tune():
     The relevant code is in `src/meta_schedule/space_generator/apply_custom_rule.cc`.
     """
 
-    def schedule_rule_dense_vnni(sch: Schedule, dense_block: BlockRV):
-        _schedule_dense(m=None, do_tune=True)(sch, dense_block)
+    def schedule_rule_dense_16x4(sch: Schedule, dense_block: BlockRV):
+        _schedule_dense(m=None, do_tune=True, intrin=intrin)(sch, dense_block)
         return [sch]
 
-    register_func("meta_schedule.x86.dense_vnni", schedule_rule_dense_vnni)
+    register_func("meta_schedule.x86.dense_int8", schedule_rule_dense_16x4, override=True)
 
-    m, n, k = 1024, 1024, 1024
-    target = tvm.target.Target("llvm -keys=x86,cpu -mcpu=cascadelake -num-cores=4")
     dev = tvm.cpu(0)
     relay_mod, params, f_check = _relay_dense(m, n, k)
 
@@ -247,6 +255,20 @@ def test_vnni_schedule_fn_tune():
     f_check(lib, dev)
 
 
+@tvm.testing.requires_cascadelake
+def test_vnni_schedule_fn_tune():
+    target = tvm.target.Target("llvm -keys=x86,cpu -mcpu=cascadelake -num-cores=4")
+    schedule_16x4_dense_fn_tune(target, VNNI_INTRIN)
+
+
+@tvm.testing.requires_skylake_avx512
+def test_avx512_schedule_fn_tune():
+    target = tvm.target.Target("llvm -keys=x86,cpu -mcpu=skylake-avx512 -num-cores=4")
+    schedule_16x4_dense_fn_tune(target, AVX512_INTRIN, 16, 16, 16)
+
+
 if __name__ == """__main__""":
     test_vnni_schedule_fn_database()
+    test_avx512_schedule_fn_database()
     test_vnni_schedule_fn_tune()
+    test_avx512_schedule_fn_tune()

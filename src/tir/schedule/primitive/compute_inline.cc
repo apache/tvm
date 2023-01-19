@@ -225,11 +225,11 @@ class ProducerHasNonTrivialPredicateError : public ScheduleError {
   }
 
   String DetailRenderTemplate() const final {
-    return "ScheduleError: The producer block {0} has a non-trivial predicate " +
-           PrettyPrint(producer_->predicate) +
-           " that cannot be implied "
-           "by the synthesized predicate " +
-           PrettyPrint(new_predicate_) + " of the new inlined block.";
+    std::ostringstream os;
+    os << "ScheduleError: The producer block {0} has a non-trivial predicate "
+       << producer_->predicate << " that cannot be implied by the synthesized predicate "
+       << new_predicate_ << " of the new inlined block.";
+    return os.str();
   }
 
   IRModule mod() const final { return mod_; }

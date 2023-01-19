@@ -40,10 +40,10 @@
 #include <tvm/target/virtual_device.h>
 #include <tvm/tir/function.h>
 
-#include "../ir/attr_functor.h"
-#include "../parser/meta_ref.h"
-#include "../relay/analysis/dependency_graph.h"
-#include "../support/scalars.h"
+#include "../../ir/attr_functor.h"
+#include "../../parser/meta_ref.h"
+#include "../../support/scalars.h"
+#include "../analysis/dependency_graph.h"
 #include "doc.h"
 #include "meta_data.h"
 #include "text_printer.h"
@@ -969,11 +969,6 @@ Doc RelayTextPrinter::PrintSpan(const Span& span) {
   doc << span_node->source_name->name << ":" << span_node->line << ":" << span_node->column;
   return doc;
 }
-
-TVM_REGISTER_GLOBAL("ir.TextPrinter").set_body_typed([](ObjectRef node) {
-  auto text = AsText(node, false, nullptr);
-  return text;
-});
 
 }  // namespace relay
 }  // namespace tvm

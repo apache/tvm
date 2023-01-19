@@ -24,7 +24,6 @@
 #include <tvm/tir/transform.h>
 
 #include "../../arith/ir_visitor_with_analyzer.h"
-#include "../../printer/text_printer.h"
 #include "../schedule/error.h"
 
 namespace tvm {

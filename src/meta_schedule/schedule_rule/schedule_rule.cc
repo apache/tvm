@@ -85,7 +85,9 @@ Array<ScheduleRule> ScheduleRule::DefaultLLVM() {
   };
 }
 
-Array<ScheduleRule> ScheduleRule::DefaultVNNI() {
+Array<ScheduleRule> ScheduleRule::DefaultX86(const String& type) {
+  static const Map<String, String> intrins = {{"vnni", "dot_16x4_vnni"},
+                                              {"avx512", "dot_16x4_avx512"}};
   return {
       ScheduleRule::ApplyCustomRule(),
       ScheduleRule::InlineConstantScalars(),
@@ -101,7 +103,7 @@ Array<ScheduleRule> ScheduleRule::DefaultVNNI() {
           /*max_jobs_per_core=*/16,
           /*max_innermost_factor=*/Integer(64)),
       ScheduleRule::MultiLevelTilingWithIntrin(
-          /*intrin_name=*/"dot_16x4_vnni",
+          /*intrin_name=*/intrins[type],
           /*structure=*/"SSRSRS",
           /*tile_binds=*/NullOpt,
           /*max_innermost_factor=*/Integer(64),

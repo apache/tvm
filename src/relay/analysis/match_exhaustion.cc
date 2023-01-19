@@ -27,8 +27,8 @@
  * code correctness, since hitting an unmatched case results in a
  * dynamic error unless exhaustiveness is checked in advance.
  */
-#include <tvm/ir/error.h>
 #include <tvm/relay/adt.h>
+#include <tvm/relay/error.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 

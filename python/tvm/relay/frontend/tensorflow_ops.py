@@ -1847,7 +1847,7 @@ def _reshape():
                 shape_arg = tuple(params_new.numpy().astype("int32").flatten())
             except Exception:
                 # Deal with symbolic shape case.
-                if isinstance(pop_node, _expr.Call) and "shape_of" in str(pop_node.op):
+                if isinstance(pop_node, _expr.Call) and "shape_of" in str(pop_node.op.name):
                     # shape_of is the direct ancestor.
                     return _op.reshape_like(inputs[0], pop_node.args[0])
                 shape_arg = pop_node

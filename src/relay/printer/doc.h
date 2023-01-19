@@ -23,8 +23,8 @@
  *
  *  Reference: Philip Wadler. A Prettier Printer. Journal of Functional Programming'98
  */
-#ifndef TVM_PRINTER_DOC_H_
-#define TVM_PRINTER_DOC_H_
+#ifndef TVM_RELAY_PRINTER_DOC_H_
+#define TVM_RELAY_PRINTER_DOC_H_
 
 #include <tvm/node/node.h>
 #include <tvm/runtime/data_type.h>
@@ -35,6 +35,7 @@
 #include <vector>
 
 namespace tvm {
+namespace relay {
 
 /*!
  * \brief Doc atom node for the ADT.
@@ -162,6 +163,6 @@ class Doc {
   /*! \brief Internal doc stream. */
   std::vector<DocAtom> stream_;
 };
-
+}  // namespace relay
 }  // namespace tvm
-#endif  // TVM_PRINTER_DOC_H_
+#endif  // TVM_RELAY_PRINTER_DOC_H_
