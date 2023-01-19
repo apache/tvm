@@ -119,6 +119,11 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
   Stmt VisitStmt_(const IfThenElseNode* op) final {
     Stmt stmt = Parent::VisitStmt_(op);
     op = stmt.as<IfThenElseNode>();
+    // Sometimes the condition can be statically determined,
+    // in which the type of the `stmt` will not be IfThenElseNode.
+    if (!op) {
+      return stmt;
+    }
     if (op->else_case) {
       bool no_op_else = is_no_op(op->else_case.value());
       bool no_op_then = is_no_op(op->then_case);
