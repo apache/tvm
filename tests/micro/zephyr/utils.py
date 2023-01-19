@@ -32,6 +32,7 @@ import requests
 import tvm.micro
 from tvm.micro import export_model_library_format
 from tvm.micro.model_library_format import generate_c_interface_header
+from tvm.micro.testing.utils import create_header_file
 from tvm.micro.testing.utils import (
     mlf_extract_workspace_size_bytes,
     aot_transport_init_wait,
@@ -104,42 +105,6 @@ def build_project(
         )
         project.build()
     return project, project_dir
-
-
-def create_header_file(tensor_name, npy_data, output_path, tar_file):
-    """
-    This method generates a header file containing the data contained in the numpy array provided.
-    It is used to capture the tensor data (for both inputs and expected outputs).
-    """
-    header_file = io.StringIO()
-    header_file.write("#include <stddef.h>\n")
-    header_file.write("#include <stdint.h>\n")
-    header_file.write("#include <dlpack/dlpack.h>\n")
-    header_file.write(f"const size_t {tensor_name}_len = {npy_data.size};\n")
-
-    if npy_data.dtype == "int8":
-        header_file.write(f"int8_t {tensor_name}[] =")
-    elif npy_data.dtype == "int32":
-        header_file.write(f"int32_t {tensor_name}[] = ")
-    elif npy_data.dtype == "uint8":
-        header_file.write(f"uint8_t {tensor_name}[] = ")
-    elif npy_data.dtype == "float32":
-        header_file.write(f"float {tensor_name}[] = ")
-    else:
-        raise ValueError("Data type not expected.")
-
-    header_file.write("{")
-    for i in np.ndindex(npy_data.shape):
-        header_file.write(f"{npy_data[i]}, ")
-    header_file.write("};\n\n")
-
-    header_file_bytes = bytes(header_file.getvalue(), "utf-8")
-    raw_path = pathlib.Path(output_path) / f"{tensor_name}.h"
-    ti = tarfile.TarInfo(name=str(raw_path))
-    ti.size = len(header_file_bytes)
-    ti.mode = 0o644
-    ti.type = tarfile.REGTYPE
-    tar_file.addfile(ti, io.BytesIO(header_file_bytes))
 
 
 # TODO move CMSIS integration to microtvm_api_server.py
