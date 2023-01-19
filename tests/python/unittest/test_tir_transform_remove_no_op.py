@@ -603,5 +603,19 @@ class TestRemoveWriteIntoTemporary(BaseBeforeAfter):
             C[0] = C[0] + B[i]
 
 
+class TestCertainConditon(BaseBeforeAfter):
+    """The conditon of the If-Else node is certain.
+    This would cause `Segmentation fault` error before."""
+
+    def before():
+        if True:
+            T.evaluate(0)
+        else:
+            T.evaluate(0)
+
+    def expected():
+        T.evaluate(0)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
