@@ -98,18 +98,16 @@ def test_prim_func_no_sugar_shared_buffer_data():
         },
         body=tir.Evaluate(0),
     )
-    print(func)
-
-
-#     _assert_print(
-#         func,
-#         expected="""
-# @T.prim_func
-# def main(a: T.handle, B: T.Buffer((256, 256), "float32")):
-#     A = T.match_buffer(a, (128, 128))
-#     T.evaluate(a)
-# """,
-#     )
+    _assert_print(
+        func,
+        expected="""
+@T.prim_func
+def main(a: T.handle, b: T.handle):
+    A = T.match_buffer(a, (128, 128))
+    B = T.match_buffer(b, (256, 256), data=A.data)
+    T.evaluate(0)
+""",
+    )
 
 
 def test_block_realize():

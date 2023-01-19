@@ -121,6 +121,14 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::PrimFunc>("", [](tir::PrimFunc func, ObjectPath p, IRDocsifier d) -> Doc {
       With<TIRFrame> frame(MakeDispatchFrame(d, func, func));
       int n_args = func->params.size();
+      std::unordered_map<const tir::VarNode*, int> buffer_data_counter;
+      for (const auto& pair : func->buffer_map) {
+        const tir::VarNode* data_var = pair.second->data.get();
+        if (!buffer_data_counter.count(data_var)) {
+          buffer_data_counter.insert({data_var, 0});
+        }
+        ++buffer_data_counter.at(data_var);
+      }
       // Step 1. Handle `func->params`
       Array<AssignDoc> args;
       args.reserve(n_args);
@@ -130,7 +138,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         ObjectPath var_p = p->Attr("params")->ArrayIndex(i);
         if (CountVarOccurrence(func, var) == 2 && func->buffer_map.count(var)) {
           tir::Buffer buffer = func->buffer_map[var];
-          if (IsSimpleBuffer(buffer)) {
+          if (IsSimpleBuffer(buffer) && buffer_data_counter.at(buffer->data.get()) == 1) {
             ObjectPath buffer_p = p->Attr("buffer_map")->MapValue(var);
             args.push_back(AssignDoc(DefineBuffer(buffer, *frame, d), NullOpt,
                                      BufferAttn(buffer, buffer_p, *frame, d)));
