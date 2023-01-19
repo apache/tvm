@@ -150,6 +150,9 @@ class AutoTvmModuleLoader:
         with open(build_result.filename, "rb") as build_file:
             build_result_bin = build_file.read()
 
+        if "board" in self._project_options and "$local$device" not in remote_kw["device_key"]:
+            self._project_options["serial_number"] = remote_kw["device_key"]
+
         tracker = _rpc.connect_tracker(remote_kw["host"], remote_kw["port"])
         remote = tracker.request(
             remote_kw["device_key"],

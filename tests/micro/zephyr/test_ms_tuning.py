@@ -80,6 +80,14 @@ def test_ms_tuning_conv2d(workspace_dir, board, microtvm_debug, use_fvp, serial_
         "serial_number": serial_number,
         "config_main_stack_size": 4096,
     }
+    if isinstance(serial_number, list):
+        project_options["serial_number"] = serial_number[0]  # project_api expects an string.
+        serial_numbers = serial_number
+    else:
+        if serial_number is not None:  # use a single device in tuning
+            serial_numbers = [serial_number]
+        else:  # use two dummy serial numbers (for QEMU)
+            serial_numbers = [str(i) for i in range(2)]
 
     boards_file = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr")) / "boards.json"
     with open(boards_file) as f:
@@ -95,7 +103,10 @@ def test_ms_tuning_conv2d(workspace_dir, board, microtvm_debug, use_fvp, serial_
     builder = get_local_builder_micro()
     with ms.Profiler() as profiler:
         with get_rpc_runner_micro(
-            platform=platform, options=project_options, session_timeout_sec=120
+            platform=platform,
+            options=project_options,
+            session_timeout_sec=120,
+            serial_numbers=serial_numbers,
         ) as runner:
 
             db: ms.Database = ms.relay_integration.tune_relay(
