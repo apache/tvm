@@ -42,14 +42,14 @@ macro(__find_libbacktrace)
 endmacro()
 
 macro(__find_libbacktrace_from PATH)
-  find_path(LIBBACKTRACE_INCLUDE_DIR backtrace.h 
-    PATHS ${PATH} 
+  find_path(LIBBACKTRACE_INCLUDE_DIR backtrace.h
+    PATHS ${PATH}
     PATH_SUFFIXES include
     NO_CMAKE_SYSTEM_PATH
     NO_SYSTEM_ENVIRONMENT_PATH
   )
   find_library(LIBBACKTRACE_STATIC_LIBRARY libbacktrace.a
-    PATHS ${PATH} 
+    PATHS ${PATH}
     PATH_SUFFIXES lib
     NO_CMAKE_SYSTEM_PATH
     NO_SYSTEM_ENVIRONMENT_PATH
@@ -71,9 +71,9 @@ endmacro()
 # Available options for USE_LIBBACKTRACE:
 # - OFF: Don't use libbacktrace
 # - ON: Find libbacktrace from system paths. Fail the build generation if libbacktrace is not found.
-# - COMPILE: Build and link to libbacktrace from 3rdparty/libbacktrace. 
+# - COMPILE: Build and link to libbacktrace from 3rdparty/libbacktrace.
 # - <PATH>: Looking for the libbacktrace header and static lib from a user-provided path. Fail the build generation if libbacktrace is not found.
-# - AUTO: 
+# - AUTO:
 #   - Find libbacktrace from system paths.
 #   - If not found, fallback to COMPILE on Linux or MacOS, fallback to OFF on Windows or other platforms.
 if(USE_LIBBACKTRACE STREQUAL "AUTO")
@@ -110,7 +110,7 @@ function(configure_backtrace TARGET)
     target_include_directories(${TARGET} PRIVATE ${LIBBACKTRACE_INCLUDE_DIR})
     target_compile_definitions(${TARGET} PRIVATE TVM_USE_LIBBACKTRACE=1)
   else()
-    target_compile_definitions(${TARGET} PRIVATE TVM_USE_LIBBACKTRACE=0)        
+    target_compile_definitions(${TARGET} PRIVATE TVM_USE_LIBBACKTRACE=0)
   endif()
 
   if(BACKTRACE_ON_SEGFAULT)
@@ -122,4 +122,3 @@ configure_backtrace(tvm)
 configure_backtrace(tvm_runtime)
 configure_backtrace(tvm_objs)
 configure_backtrace(tvm_runtime_objs)
-
