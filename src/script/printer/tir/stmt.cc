@@ -152,10 +152,34 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
                                  }));
         });
 
+bool IsAllocateDeclBufferPattern(const tir::AllocateNode* allocate) {
+  const tir::Var& buffer_var = allocate->buffer_var;
+  if (const tir::DeclBufferNode* decl_buffer = allocate->body.as<tir::DeclBufferNode>()) {
+    const tir::Buffer& buffer = decl_buffer->buffer;
+    if (buffer_var.same_as(buffer->data) && allocate->dtype == buffer->dtype &&
+        tir::is_one(allocate->condition) && !allocate->annotations.size() &&
+        allocate->extents.size() == buffer->shape.size()) {
+      tir::ExprDeepEqual expr_equal;
+      for (size_t i = 0, n = allocate->extents.size(); i < n; ++i) {
+        if (!expr_equal(allocate->extents[i], buffer->shape[i])) {
+          return false;
+        }
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Allocate>(  //
         "", [](tir::Allocate stmt, ObjectPath p, IRDocsifier d) -> Doc {
           bool concise = AllowConciseScoping(d);
+          OccurrenceCounter counter(stmt->buffer_var.get());
+          counter(stmt->body);
+          if (counter.count == 1 && IsAllocateDeclBufferPattern(stmt.get())) {
+            return d->AsDoc(stmt->body, p->Attr("body"));
+          }
           String storage_scope = tir::GetPtrStorageScope(stmt->buffer_var);
           Array<ExprDoc> args;
           Array<String> kwargs_keys;
