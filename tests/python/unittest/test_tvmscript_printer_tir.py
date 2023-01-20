@@ -717,20 +717,48 @@ def test_remap():
 
     expected_output = """@T.prim_func
 def main():
-    with T.block("root"):
-        T.reads()
-        T.writes()
-        for i0, i1, i2, i3, i4, i5 in T.grid(128, 128, 128, 128, 128, 128):
-            with T.block("update"):
-                v0 = T.axis.spatial(128, i0 + 1)
-                v1, v2 = T.axis.remap("SR", [i1, i2])
-                v3 = T.axis.spatial(128, i3 - 1)
-                v4, v5 = T.axis.remap("RS", [i4, i5])
-                T.reads()
-                T.writes()
-                T.evaluate(0)"""
+    for i0, i1, i2, i3, i4, i5 in T.grid(128, 128, 128, 128, 128, 128):
+        with T.block("update"):
+            v0 = T.axis.spatial(128, i0 + 1)
+            v1, v2 = T.axis.remap("SR", [i1, i2])
+            v3 = T.axis.spatial(128, i3 - 1)
+            v4, v5 = T.axis.remap("RS", [i4, i5])
+            T.reads()
+            T.writes()
+            T.evaluate(0)"""
     _assert_print(block_with_remap_explicitly, expected_output)
     _assert_print(block_with_remap_implicitly, expected_output)
+
+
+def test_root_block():
+    from tvm.script import tir as T
+
+    @T.prim_func
+    def root_block_implicitly():
+        a = T.alloc_buffer([128, 128])
+        for i, j in T.grid(128, 128):
+            with T.block():
+                T.evaluate(0)
+
+    @T.prim_func
+    def root_block_explicitly():
+        with T.block("root"):
+            a = T.alloc_buffer([128, 128])
+            for i, j in T.grid(128, 128):
+                with T.block():
+                    T.evaluate(0)
+
+    expected_output = """@T.prim_func
+def main():
+    a = T.alloc_buffer((128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block(""):
+            T.reads()
+            T.writes()
+            T.evaluate(0)
+    """
+    _assert_print(root_block_implicitly, expected_output)
+    _assert_print(root_block_explicitly, expected_output)
 
 
 if __name__ == "__main__":
