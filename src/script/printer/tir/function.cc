@@ -17,7 +17,6 @@
  * under the License.
  */
 #include <tvm/runtime/device_api.h>
-#include <tvm/tir/stmt_functor.h>
 
 #include "./utils.h"
 
@@ -65,47 +64,7 @@ bool IsSimpleBuffer(const tir::Buffer& buf) {
 }
 
 int CountVarOccurrence(const tir::PrimFunc& f, const tir::Var& v) {
-  class OccurrenceCounter : public tir::StmtExprVisitor {
-   public:
-    int count = 0;
-    const tir::VarNode* v = nullptr;
-
-    void VisitExpr_(const tir::VarNode* op) final {
-      if (op == v) {
-        ++count;
-      }
-      tir::StmtExprVisitor::VisitExpr_(op);
-    }
-
-    void VisitStmt_(const tir::BufferStoreNode* op) final {
-      VisitBuffer(op->buffer.get());
-      tir::StmtExprVisitor::VisitStmt_(op);
-    }
-
-    void VisitExpr_(const tir::BufferLoadNode* op) final {
-      VisitBuffer(op->buffer.get());
-      tir::StmtExprVisitor::VisitExpr_(op);
-    }
-
-    void VisitStmt_(const tir::DeclBufferNode* op) final {
-      VisitBuffer(op->buffer.get());
-      tir::StmtExprVisitor::VisitStmt_(op);
-    }
-
-    void VisitBuffer(const tir::BufferNode* buffer) {
-      VisitExpr(buffer->data);
-      for (const PrimExpr& shape_i : buffer->shape) {
-        VisitExpr(shape_i);
-      }
-      for (const PrimExpr& stride_i : buffer->strides) {
-        VisitExpr(stride_i);
-      }
-      VisitExpr(buffer->elem_offset);
-    }
-  };
-
-  OccurrenceCounter counter;
-  counter.v = v.get();
+  OccurrenceCounter counter(v.get());
   counter(f->body);
   for (const tir::Var& v : f->params) {
     counter(v);

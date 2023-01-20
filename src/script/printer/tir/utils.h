@@ -27,6 +27,7 @@
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
+#include <tvm/tir/stmt_functor.h>
 
 #include <string>
 #include <unordered_map>
@@ -219,6 +220,50 @@ ExprDoc BufferDecl(const tir::Buffer& buffer, const String& method, const Array<
  */
 ExprDoc BufferAttn(const tir::Buffer& buffer, const ObjectPath& p, const Frame& frame,
                    const IRDocsifier& d);
+
+/*! \brief A Var occurrence counter visitor */
+class OccurrenceCounter : public tir::StmtExprVisitor {
+ public:
+  /*! \brief The occurrence counter */
+  int count = 0;
+  /*! \brief The Var to count occurrence */
+  const tir::VarNode* v = nullptr;
+
+  void VisitExpr_(const tir::VarNode* op) final {
+    if (op == v) {
+      ++count;
+    }
+    tir::StmtExprVisitor::VisitExpr_(op);
+  }
+
+  void VisitStmt_(const tir::BufferStoreNode* op) final {
+    VisitBuffer(op->buffer.get());
+    tir::StmtExprVisitor::VisitStmt_(op);
+  }
+
+  void VisitExpr_(const tir::BufferLoadNode* op) final {
+    VisitBuffer(op->buffer.get());
+    tir::StmtExprVisitor::VisitExpr_(op);
+  }
+
+  void VisitStmt_(const tir::DeclBufferNode* op) final {
+    VisitBuffer(op->buffer.get());
+    tir::StmtExprVisitor::VisitStmt_(op);
+  }
+
+  void VisitBuffer(const tir::BufferNode* buffer) {
+    VisitExpr(buffer->data);
+    for (const PrimExpr& shape_i : buffer->shape) {
+      VisitExpr(shape_i);
+    }
+    for (const PrimExpr& stride_i : buffer->strides) {
+      VisitExpr(stride_i);
+    }
+    VisitExpr(buffer->elem_offset);
+  }
+
+  explicit OccurrenceCounter(const tir::VarNode* var) { v = var; }
+};
 
 }  // namespace printer
 }  // namespace script
