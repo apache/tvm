@@ -22,6 +22,7 @@ from tvm.ir import Range
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tir as T
 from tvm.script.printer import default
+import tvm.testing
 
 
 @contextmanager
@@ -323,6 +324,53 @@ def test_allocate():
         """
 with T.allocate([128, 128], "float32", "global") as v:
     T.evaluate(0)
+""",
+    )
+
+
+def test_allocate_with_decl_buffer_sugar():
+    with IRBuilder() as ib:
+        with T.allocate([128, 128], "float32") as buffer_data:
+            with T.decl_buffer([128, 128], "float32", data=buffer_data) as buffer:
+                T.evaluate(0)
+    obj = ib.get()
+    _assert_print(
+        obj,
+        """
+with T.decl_buffer((128, 128)) as buffer:
+    T.evaluate(0)
+""",
+    )
+
+
+def test_allocate_with_decl_buffer_no_sugar_multi_usage():
+    with IRBuilder() as ib:
+        with T.allocate([128, 128], "float32") as buffer_data:
+            with T.decl_buffer([128, 128], "float32", data=buffer_data) as buffer:
+                T.evaluate(buffer_data)
+    obj = ib.get()
+    _assert_print(
+        obj,
+        """
+with T.allocate([128, 128], "float32", "global") as v:
+    buffer = T.decl_buffer((128, 128), data=v)
+    T.evaluate(v)
+""",
+    )
+
+
+def test_allocate_with_decl_buffer_no_sugar_mismatch():
+    with IRBuilder() as ib:
+        with T.allocate([128, 128], "float32") as buffer_data:
+            with T.decl_buffer([256, 256], "float32", data=buffer_data) as buffer:
+                T.evaluate(buffer_data)
+    obj = ib.get()
+    _assert_print(
+        obj,
+        """
+with T.allocate([128, 128], "float32", "global") as v:
+    buffer = T.decl_buffer((256, 256), data=v)
+    T.evaluate(v)
 """,
     )
 
@@ -686,46 +734,4 @@ def main():
 
 
 if __name__ == "__main__":
-    test_prim_func()
-    test_prim_func_no_sugar_inlined_buffer()
-    test_prim_func_no_sugar_shared_buffer_data()
-    test_block_realize()
-    test_block()
-    test_buffer()
-    test_buffer_region()
-    test_buffer_load()
-    test_buffer_store()
-    test_match_buffer_region()
-    test_for()
-    test_let_stmt()
-    test_attr_stmt()
-    test_assert_stmt()
-    test_while()
-    test_allocate()
-    test_decl_buffer()
-    test_prefetch()
-    test_seq_stmt()
-    test_if_then_else()
-    test_evaluate()
-    test_buffer_realize()
-    test_var()
-    test_size_var()
-    test_iter_var()
-    test_string_imm()
-    test_cast()
-    test_binary_arith()
-    test_logical()
-    test_select()
-    test_ramp()
-    test_broadcast()
-    test_let_expr()
-    test_call()
-    test_comm_reducer()
-    test_any()
-    test_int_imm()
-    test_float_imm()
-    test_range()
-    test_prim_type()
-    test_pointer_type()
-    test_tuple_type()
-    test_remap()
+    tvm.testing.main()
