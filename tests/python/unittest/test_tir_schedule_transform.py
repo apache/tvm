@@ -18,11 +18,11 @@ import tvm
 from tvm.script import tir as T
 from tvm.tir import Schedule
 from tvm.tir.schedule.transform import tile_with_tensor_intrin
-from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN
+from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN, AVX512_DOT_16x4_INTRIN
 
 
 @tvm.script.ir_module
-class DenseVNNIModule:
+class DenseTIRModule:
     @T.prim_func
     def main(
         placeholder: T.Buffer[(1024, 1024), "uint8"],
@@ -46,7 +46,7 @@ class DenseVNNIModule:
 
 
 @tvm.script.ir_module
-class DenseVNNIModuleTiled:
+class DenseTIRModuleTiled:
     @T.prim_func
     def main(
         placeholder: T.Buffer[(1024, 1024), "uint8"],
@@ -72,7 +72,7 @@ class DenseVNNIModuleTiled:
 
 
 @tvm.script.ir_module
-class Conv2dNCHWcVNNIModule:
+class Conv2dNCHWcTIRModule:
     @T.prim_func
     def main(
         placeholder: T.Buffer[(1, 4, 56, 56, 16), "uint8"],
@@ -104,7 +104,8 @@ class Conv2dNCHWcVNNIModule:
                 conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] = conv2d_NCHWc_int8[
                     n, oc_chunk, oh, ow, oc_block
                 ] + T.cast(
-                    placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner], "int32"
+                    placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner],
+                    "int32",
                 ) * T.cast(
                     placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner],
                     "int32",
@@ -112,7 +113,7 @@ class Conv2dNCHWcVNNIModule:
 
 
 @tvm.script.ir_module
-class Conv2dNCHWcVNNIModuleTiled:
+class Conv2dNCHWcTIRModuleTiled:
     @T.prim_func
     def main(
         placeholder: T.Buffer[(1, 4, 56, 56, 16), "uint8"],
@@ -141,35 +142,38 @@ class Conv2dNCHWcVNNIModuleTiled:
                 conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] = conv2d_NCHWc_int8[
                     n, oc_chunk, oh, ow, oc_block
                 ] + T.cast(
-                    placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner], "int32"
+                    placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner],
+                    "int32",
                 ) * T.cast(
                     placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner],
                     "int32",
                 )
 
 
-def test_tile_with_tensor_intrin_dense_vnni():
-    s = Schedule(DenseVNNIModule)
+def test_tile_with_tensor_intrin_dense(intrin=VNNI_DOT_16x4_INTRIN):
+    s = Schedule(DenseTIRModule)
     block = s.get_block("compute")
 
-    tiled_loop = tile_with_tensor_intrin(s, block, VNNI_DOT_16x4_INTRIN)
+    tiled_loop = tile_with_tensor_intrin(s, block, intrin)
 
     _, _, _, i1_1, _ = s.get_loops(block)
 
     assert s.get(tiled_loop) == s.get(i1_1)
-    tvm.ir.assert_structural_equal(s.mod, DenseVNNIModuleTiled)
+    tvm.ir.assert_structural_equal(s.mod, DenseTIRModuleTiled)
 
 
-def test_tile_with_tensor_intrin_conv2d_nchwc_vnni():
-    s = Schedule(Conv2dNCHWcVNNIModule)
+def test_tile_with_tensor_intrin_conv2d_nchwc(intrin=VNNI_DOT_16x4_INTRIN):
+    s = Schedule(Conv2dNCHWcTIRModule)
     block = s.get_block("conv2d_NCHWc_int8")
-    tiled_loop = tile_with_tensor_intrin(s, block, VNNI_DOT_16x4_INTRIN)
+    tiled_loop = tile_with_tensor_intrin(s, block, intrin)
     tiled_loops = s.get_loops(block)
     assert len(tiled_loops) == 12
     assert s.get(tiled_loop) == s.get(tiled_loops[-2])
-    tvm.ir.assert_structural_equal(s.mod, Conv2dNCHWcVNNIModuleTiled)
+    tvm.ir.assert_structural_equal(s.mod, Conv2dNCHWcTIRModuleTiled)
 
 
 if __name__ == "__main__":
-    test_tile_with_tensor_intrin_dense_vnni()
-    test_tile_with_tensor_intrin_conv2d_nchwc_vnni()
+    test_tile_with_tensor_intrin_dense()
+    test_tile_with_tensor_intrin_dense(AVX512_DOT_16x4_INTRIN)
+    test_tile_with_tensor_intrin_conv2d_nchwc()
+    test_tile_with_tensor_intrin_conv2d_nchwc(AVX512_DOT_16x4_INTRIN)

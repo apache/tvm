@@ -51,7 +51,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../printer/text_printer.h"
 #include "../../te/operation/create_primfunc.h"
 #include "../op/memory/memory.h"
 #include "../src/meta_schedule/module_equality.h"
@@ -646,7 +645,7 @@ class ScheduleBuilder : public ExprVisitor {
             // (dispatch & 4): controls whether to raise fatal errors for missing TIR
             if (dispatch & 2) {
               LOG(WARNING) << "Cannot find workload: " << prim_fn_var->name_hint << "\n"
-                           << tir::AsTVMScript(f.value());
+                           << f.value();
             } else {
               LOG(WARNING) << "Cannot find workload: " << prim_fn_var->name_hint;
             }

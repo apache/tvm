@@ -392,4 +392,4 @@ def test_mnist():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([os.path.dirname(__file__)] + sys.argv[1:]))
+    tvm.testing.main()

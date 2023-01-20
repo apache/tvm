@@ -277,4 +277,4 @@ def test_buffer_broadcast_expr():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

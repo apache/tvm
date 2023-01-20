@@ -679,4 +679,4 @@ def test_reordering_based_on_cycles_luts_present():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

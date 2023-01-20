@@ -14,20 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
 import numpy as np
+import pytest
 
 pytest.importorskip("ethosu.vela")
 import tvm
 from tvm import relay
-from tvm.script import tir as T
-from tvm.relay.testing import run_opt_pass
-from tvm.relay.backend.contrib.ethosu.tir.compiler import _lower_to_tir
-from tvm.relay.backend.contrib.ethosu.tir.scheduler import OperatorCompute
-from tvm.relay.backend.contrib.ethosu.tir.scheduler import copy_constants
 from tvm.relay.backend.contrib.ethosu import tir_to_cs_translator
+from tvm.relay.backend.contrib.ethosu.tir.compiler import _lower_to_tir
+from tvm.relay.backend.contrib.ethosu.tir.scheduler import (
+    OperatorCompute,
+    copy_constants,
+)
+from tvm.relay.testing import run_opt_pass
+from tvm.script import tir as T
 
-from .infra import make_ethosu_conv2d, make_ethosu_binary_elementwise
+from .infra import make_ethosu_binary_elementwise, make_ethosu_conv2d
 
 
 # fmt: off
@@ -140,7 +142,7 @@ def test_weight_stream_only(accelerator, reference_mod, reference_const_sizes):
     with tvm.transform.PassContext(config={"relay.ext.ethos-u.options": config}):
         func = _get_func()
         mod, consts = _lower_to_tir(func, cascader=_planner)
-        script = mod.script(show_meta=True)
+        script = mod.script()
         test_mod = tvm.script.from_source(script)
         tvm.ir.assert_structural_equal(test_mod["main"], reference_mod["main"], True)
 
@@ -242,7 +244,7 @@ def test_re_read_weights(accelerator, reference_mod, reference_const_sizes):
     with tvm.transform.PassContext(config={"relay.ext.ethos-u.options": config}):
         func = _get_func()
         mod, consts = _lower_to_tir(func, cascader=_cascader)
-        script = mod.script(show_meta=True)
+        script = mod.script()
         test_mod = tvm.script.from_source(script)
         tvm.ir.assert_structural_equal(test_mod["main"], reference_mod["main"], True)
 
@@ -340,7 +342,7 @@ def test_direct_read_only(accelerator, reference_mod, reference_const_sizes):
         func = _get_func()
         mod, consts = _lower_to_tir(func)
 
-        script = mod.script(show_meta=True)
+        script = mod.script()
         test_mod = tvm.script.from_source(script)
         tvm.ir.assert_structural_equal(test_mod["main"], reference_mod["main"], True)
 
@@ -474,7 +476,7 @@ def test_mixed_read(accelerator, reference_mod, reference_const_sizes):
         func = _get_func()
         mod, consts = _lower_to_tir(func, cascader=_planner)
 
-        script = mod.script(show_meta=True)
+        script = mod.script()
         test_mod = tvm.script.from_source(script)
         tvm.ir.assert_structural_equal(test_mod["main"], reference_mod["main"], True)
 
@@ -529,4 +531,4 @@ def test_constant_as_input():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

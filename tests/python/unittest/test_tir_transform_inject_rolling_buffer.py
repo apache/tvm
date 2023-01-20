@@ -14,15 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
+import pytest
 import tvm
 import tvm.script
-from tvm.script import tir as T
-from tvm import te
-from tvm import topi
+from tvm import te, topi
 from tvm.driver.build_module import get_binds
-import numpy as np
-
-import pytest
+from tvm.script import tir as T
 
 
 def _tile_nd(s, tensor, tile):
@@ -271,10 +269,10 @@ class PostRollingBuffer:
 def test_rolling_buffer_ir_transform():
     mod = PreRollingBuffer
     mod = tvm.tir.transform.InjectRollingBuffer()(mod)
-    script = mod.script(show_meta=True)
+    script = mod.script()
     mod = tvm.script.from_source(script)
     tvm.ir.assert_structural_equal(mod["main"], PostRollingBuffer["main"], True)
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

@@ -17,13 +17,13 @@
 """IRModule that holds the functions and type definitions."""
 from typing import Optional
 
-from tvm._ffi.base import string_types
 import tvm._ffi
+from tvm._ffi.base import string_types
 
-from .base import Node
+from . import _ffi_api
 from . import expr as _expr
 from . import type as _ty
-from . import _ffi_api
+from .base import Node
 
 
 @tvm._ffi.register_object("IRModule")
@@ -252,51 +252,6 @@ class IRModule(Node):
         _ffi_api.Module_ImportFromStd(self, file_to_import)
         return tvm.relay.transform.InferType()(self)
 
-    def __str__(self):
-        return _ffi_api.PrettyPrint(self)
-
-    def __repr__(self):
-        return self.astext()
-
-    def script(self, tir_prefix: str = "T", show_meta: bool = False) -> str:
-        """Print IRModule into TVMScript
-
-        Parameters
-        ----------
-        tir_prefix : str
-            The tir namespace prefix
-
-        show_meta : bool
-            Whether to show meta information
-
-        Returns
-        -------
-        script : str
-            The TVM Script of the IRModule
-        """
-        return tvm._ffi.get_global_func("script.AsTVMScript")(
-            self, tir_prefix, show_meta
-        )  # type: ignore
-
-    def show(self, style: Optional[str] = None, black_format: bool = True) -> None:
-        """A sugar for print highlighted TVM script.
-
-        Parameters
-        ----------
-        style : str, optional
-
-            Pygmentize printing style, auto-detected if None.  See
-            `tvm.script.highlight.cprint` for more details.
-
-        black_format: bool
-
-            If true (default), use the formatter Black to format the TVMScript
-        """
-        from tvm.script.highlight import cprint  # pylint: disable=import-outside-toplevel
-
-        # Use deferred import to avoid circular import while keeping cprint under tvm/script
-        cprint(self, style=style, black_format=black_format)
-
     def get_attr(self, attr_key):
         """Get the IRModule attribute.
 
@@ -331,3 +286,106 @@ class IRModule(Node):
         """
 
         return _ffi_api.Module_WithAttr(self, attr_key, attr_value)
+
+    def astext(self, show_meta_data=True, annotate=None):
+        """Get the text format of the expression.
+
+        Parameters
+        ----------
+        show_meta_data : bool
+            Whether to include meta data section in the text
+            if there is meta data.
+
+        annotate: Optional[Object->str]
+            Optionally annotate function to provide additional
+            information in the comment block.
+
+        Returns
+        -------
+        text : str
+            The text format of the expression.
+
+        Notes
+        -----
+        The meta data section is necessary to fully parse the text format.
+        However, it can contain dumps that are big (e.g constant weights),
+        so it can be helpful to skip printing the meta data section.
+        """
+        from tvm.relay import astext  # pylint: disable=import-outside-toplevel
+
+        return astext(self, show_meta_data, annotate)
+
+    def script(
+        self,
+        *,
+        indent_spaces: int = 4,
+        print_line_numbers: bool = False,
+        num_context_lines: Optional[int] = None,
+        path_to_underline=None,
+    ) -> str:
+        """Print IRModule into TVMScript
+
+        Parameters
+        ----------
+        indent_spaces : int
+            The number of indent spaces to use in the output
+        print_line_numbers: bool
+            Whether to print line numbers
+        num_context_lines : Optional[int]
+            Number of context lines to print around the underlined text
+        path_to_underline : Optional[ObjectPath]
+            Object path to be underlined
+
+        Returns
+        -------
+        script : str
+            The TVM Script of the IRModule
+        """
+        if num_context_lines is None:
+            num_context_lines = -1
+        return _ffi_api.Module_Script(  # type: ignore  # pylint: disable=no-member
+            self, indent_spaces, print_line_numbers, num_context_lines, path_to_underline
+        )
+
+    def show(
+        self,
+        *,
+        style: Optional[str] = None,
+        black_format: bool = True,
+        indent_spaces: int = 4,
+        print_line_numbers: bool = False,
+        num_context_lines: Optional[int] = None,
+        path_to_underline=None,
+    ) -> None:
+        """A sugar for print highlighted TVM script.
+
+        Parameters
+        ----------
+        style : str, optional
+            Pygmentize printing style, auto-detected if None.  See
+            `tvm.script.highlight.cprint` for more details.
+        black_format: bool
+            If true (default), use the formatter Black to format the TVMScript
+        indent_spaces : int
+            The number of indent spaces to use in the output
+        print_line_numbers: bool
+            Whether to print line numbers
+        num_context_lines : Optional[int]
+            Number of context lines to print around the underlined text
+        path_to_underline : Optional[ObjectPath]
+            Object path to be underlined
+        """
+        from tvm.script.highlight import (  # pylint: disable=import-outside-toplevel
+            cprint,
+        )
+
+        cprint(
+            self.script(
+                indent_spaces=indent_spaces,
+                print_line_numbers=print_line_numbers,
+                num_context_lines=num_context_lines,
+                path_to_underline=path_to_underline,
+            ),
+            style=style,
+            black_format=black_format,
+        )

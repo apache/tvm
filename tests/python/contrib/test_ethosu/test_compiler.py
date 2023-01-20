@@ -63,4 +63,4 @@ def test_lower_to_tir_arg_count(relay_function, arg_count):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

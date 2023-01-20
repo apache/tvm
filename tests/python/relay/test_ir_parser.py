@@ -14,15 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from typing import Union
+
 import numpy as np
 import pytest
-
 import tvm
-import tvm.testing
-from tvm import relay
 import tvm.relay.testing
+import tvm.testing
 from numpy import isclose
-from typing import Union
+from tvm import relay
 
 SEMVER = '#[version = "0.0.5"]\n'
 
@@ -74,7 +74,7 @@ def graph_equal(lhs, rhs):
 
 
 def roundtrip_expr(expr):
-    text = tvm.relay.Expr.astext(expr, show_meta_data=False)
+    text = expr.astext()
     x = tvm.parser.parse_expr(text)
     assert_graph_equal(x, expr)
 

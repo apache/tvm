@@ -274,9 +274,9 @@ def create_test_runner(compiler_cpu="cortex-m55", cpu_flags=""):
     return AOTTestRunner(
         makefile="corstone300",
         prologue="""
-        uart_init();
+        UartStdOutInit();
         """,
-        includes=["uart.h"],
+        includes=["uart_stdout.h"],
         pass_config={
             "relay.ext.cmsisnn.options": {
                 "mcpu": compiler_cpu + cpu_flags,

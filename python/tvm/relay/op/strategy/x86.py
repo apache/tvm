@@ -23,9 +23,7 @@ from tvm import tir, topi
 from tvm.auto_scheduler import is_auto_scheduler_enabled
 from tvm.meta_schedule import is_meta_schedule_enabled
 from tvm.relay.ty import is_dynamic
-from tvm.target import Target
 from tvm.te import SpecializedCondition
-from tvm.topi.x86.utils import target_has_vnni
 
 from .. import op as _op
 from .generic import *
@@ -256,6 +254,9 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
                 wrap_topi_schedule(topi.generic.schedule_group_conv2d_nhwc),
                 name="group_conv2d_nhwc.generic",
             )
+        elif _NCHWc_matcher.match(layout):  # check if layout is NCHWxc
+            assert _OIHWio_matcher.match(kernel_layout)  # check if kernel is OIHWio
+            return conv2d_NCHWc_strategy_cpu(attrs, inputs, out_type, target)
         else:
             raise RuntimeError("Unsupported group_conv2d layout {}".format(layout))
     return strategy
@@ -618,7 +619,6 @@ def dense_pack_strategy_cpu(attrs, inputs, out_type, target):
 def batch_matmul_strategy_cpu(attrs, inputs, out_type, target):
     """batch_matmul x86 strategy"""
     strategy = _op.OpStrategy()
-    mcpu = Target.current().mcpu
 
     need_auto_scheduler_layout = is_auto_scheduler_enabled()
     need_meta_schedule_layout = is_meta_schedule_enabled()
@@ -626,16 +626,15 @@ def batch_matmul_strategy_cpu(attrs, inputs, out_type, target):
     if (
         not attrs.transpose_a
         and attrs.transpose_b
-        and target_has_vnni(mcpu)
         and inputs[0].dtype == "uint8"
         and inputs[1].dtype == "int8"
         and inputs[1].shape[-2] % 16 == 0
         and inputs[1].shape[-1] % 4 == 0
     ):
         strategy.add_implementation(
-            wrap_compute_batch_matmul(topi.x86.batch_matmul_vnni_compute, need_out_dtype=True),
-            wrap_topi_schedule(topi.x86.schedule_batch_matmul_vnni),
-            name="batch_matmul_vnni.x86",
+            wrap_compute_batch_matmul(topi.x86.batch_matmul_int8_compute, need_out_dtype=True),
+            wrap_topi_schedule(topi.x86.schedule_batch_matmul_int8),
+            name="batch_matmul_int8.x86",
             plevel=10,
         )
     elif is_dynamic(out_type) or need_auto_scheduler_layout or need_meta_schedule_layout:
@@ -772,7 +771,7 @@ def scatter_nd_strategy_cpu(attrs, inputs, out_type, target):
     """scatter_nd x86 strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_scatter_nd(topi.x86.scatter_nd),
+        wrap_compute_scatter_nd(topi.scatter_nd),
         wrap_topi_schedule(topi.generic.schedule_extern),
         name="scatter_nd.x86",
         plevel=10,

@@ -107,11 +107,6 @@ subgraphs = graph_split(net["main"], split_config, params)
 
 """
 
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
 
 #########################################
 # Build the subgraph with cutlass target.
@@ -188,11 +183,6 @@ print(pipe_config)
   |mod0.output(0)-> mod1.data_n_0
 """
 
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-# testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
 ##############################
 # Build the pipeline executor.
 # ----------------------------

@@ -29,14 +29,13 @@ a PyTorch model. This tutorial can be executed on a x86 CPU using C runtime (CRT
 since the model would not fit on our current supported Zephyr boards.
 """
 
-# sphinx_gallery_start_ignore
-from tvm import testing
+######################################################################
+#
+#     .. include:: ../../../../gallery/how_to/work_with_microtvm/install_dependencies.rst
+#
 
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
 
 import pathlib
-
 import torch
 import torchvision
 from torchvision import transforms

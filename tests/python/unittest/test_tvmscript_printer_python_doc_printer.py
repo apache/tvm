@@ -17,7 +17,6 @@
 import itertools
 
 import pytest
-
 import tvm
 from tvm.script.printer.doc import (
     AssertDoc,
@@ -62,7 +61,7 @@ def format_script(s: str) -> str:
     cleaned_lines = "\n".join(line[spaces_to_remove:] for line in s.splitlines())
     if not cleaned_lines.endswith("\n"):
         cleaned_lines += "\n"
-    return cleaned_lines
+    return cleaned_lines.strip()
 
 
 @pytest.mark.parametrize(

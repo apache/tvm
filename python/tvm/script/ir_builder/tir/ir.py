@@ -27,6 +27,7 @@ from typing_extensions import Literal
 # isort: on
 
 import numpy as np  # type: ignore
+
 from tvm.ir import Range, Type
 from tvm.runtime import convert, ndarray
 from tvm.target import Target
@@ -508,7 +509,9 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def spatial(
-        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]], binding: PrimExpr, dtype: str = "int32"
+        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]],
+        binding: PrimExpr,
+        dtype: str = "int32",
     ) -> Var:
         """The spatial block axis defining function.
 
@@ -534,7 +537,9 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def reduce(
-        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]], binding: PrimExpr, dtype: str = "int32"
+        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]],
+        binding: PrimExpr,
+        dtype: str = "int32",
     ) -> Var:
         """The reduced block axis defining function.
 
@@ -560,7 +565,9 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def scan(
-        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]], binding: PrimExpr, dtype: str = "int32"
+        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]],
+        binding: PrimExpr,
+        dtype: str = "int32",
     ) -> Var:
         """The scanning block axis defining function.
 
@@ -586,7 +593,9 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def opaque(
-        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]], binding: PrimExpr, dtype: str = "int32"
+        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]],
+        binding: PrimExpr,
+        dtype: str = "int32",
     ) -> Var:
         """The opaque block axis defining function.
 
@@ -1201,17 +1210,17 @@ def buffer_store(buffer: Buffer, value: PrimExpr, indices: List[Union[PrimExpr, 
     )
 
 
-def prefetch(buffer: Buffer, indices: List[PrimExpr]) -> None:
+def prefetch(buffer: Buffer, bounds: List[Range]) -> None:
     """The prefetch hint for a buffer.
 
     Parameters
     ----------
     buffer : Buffer
         The buffer to be prefetched.
-    indices : List[PrimExpr]
-        The indices of the buffer to extract.
+    bounds : List[Range]
+        The range to be prefetched.
     """
-    return _ffi_api.Prefetch(buffer, indices)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Prefetch(buffer, bounds)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def evaluate(value: PrimExpr) -> None:
@@ -1229,36 +1238,107 @@ def evaluate(value: PrimExpr) -> None:
     return _ffi_api.Evaluate(value)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-__all__ = []
-for _dtype in ["Float", "UInt", "Int"]:
-    for _size in ["8", "16", "32", "64"]:
-        for _lanes in ["", "x4", "x8", "x16", "x32", "x64"]:
-            _name = _dtype + _size + _lanes  # pylint: disable=invalid-name
+def func_gen(name: str):
+    """Generate a function for each PrimExpr dtype.
 
-            def func_gen(name: str):
-                """Generate a function for each PrimExpr dtype.
+    Parameters
+    ----------
+    name: str
+        The ffi function name to call.
+    """
 
-                Parameters
-                ----------
-                name: str
-                    The ffi function name to call.
-                """
+    def func(
+        expr: Union[
+            None,
+            PrimExpr,
+            Literal["inf", "-inf", "nan"],
+            int,
+            float,
+        ] = None
+    ) -> PrimExpr:
+        if isinstance(expr, str):
+            expr = float(expr)
+        return getattr(_ffi_api, name)(expr)
 
-                def func(
-                    expr: Union[
-                        None,
-                        PrimExpr,
-                        Literal["inf", "-inf", "nan"],
-                    ] = None
-                ) -> PrimExpr:
-                    if isinstance(expr, str):
-                        expr = float(expr)
-                    return getattr(_ffi_api, name)(expr)
+    return func
 
-                return func
 
-            globals()[_name.lower()] = func_gen(_name)
-            __all__.append(_name.lower())
+# pylint: disable=invalid-name
+int8 = func_gen(("Int8"))
+int16 = func_gen(("Int16"))
+int32 = func_gen(("Int32"))
+int64 = func_gen(("Int64"))
+int8x4 = func_gen(("Int8x4"))
+int16x4 = func_gen(("Int16x4"))
+int32x4 = func_gen(("Int32x4"))
+int64x4 = func_gen(("Int64x4"))
+int8x8 = func_gen(("Int8x8"))
+int16x8 = func_gen(("Int16x8"))
+int32x8 = func_gen(("Int32x8"))
+int64x8 = func_gen(("Int64x8"))
+int8x16 = func_gen(("Int8x16"))
+int16x16 = func_gen(("Int16x16"))
+int32x16 = func_gen(("Int32x16"))
+int64x16 = func_gen(("Int64x16"))
+int8x32 = func_gen(("Int8x32"))
+int16x32 = func_gen(("Int16x32"))
+int32x32 = func_gen(("Int32x32"))
+int64x32 = func_gen(("Int64x32"))
+int8x64 = func_gen(("Int8x64"))
+int16x64 = func_gen(("Int16x64"))
+int32x64 = func_gen(("Int32x64"))
+int64x64 = func_gen(("Int64x64"))
+
+uint8 = func_gen(("UInt8"))
+uint16 = func_gen(("UInt16"))
+uint32 = func_gen(("UInt32"))
+uint64 = func_gen(("UInt64"))
+uint8x4 = func_gen(("UInt8x4"))
+uint16x4 = func_gen(("UInt16x4"))
+uint32x4 = func_gen(("UInt32x4"))
+uint64x4 = func_gen(("UInt64x4"))
+uint8x8 = func_gen(("UInt8x8"))
+uint16x8 = func_gen(("UInt16x8"))
+uint32x8 = func_gen(("UInt32x8"))
+uint64x8 = func_gen(("UInt64x8"))
+uint8x16 = func_gen(("UInt8x16"))
+uint16x16 = func_gen(("UInt16x16"))
+uint32x16 = func_gen(("UInt32x16"))
+uint64x16 = func_gen(("UInt64x16"))
+uint8x32 = func_gen(("UInt8x32"))
+uint16x32 = func_gen(("UInt16x32"))
+uint32x32 = func_gen(("UInt32x32"))
+uint64x32 = func_gen(("UInt64x32"))
+uint8x64 = func_gen(("UInt8x64"))
+uint16x64 = func_gen(("UInt16x64"))
+uint32x64 = func_gen(("UInt32x64"))
+uint64x64 = func_gen(("UInt64x64"))
+
+float8 = func_gen(("Float8"))
+float16 = func_gen(("Float16"))
+float32 = func_gen(("Float32"))
+float64 = func_gen(("Float64"))
+float8x4 = func_gen(("Float8x4"))
+float16x4 = func_gen(("Float16x4"))
+float32x4 = func_gen(("Float32x4"))
+float64x4 = func_gen(("Float64x4"))
+float8x8 = func_gen(("Float8x8"))
+float16x8 = func_gen(("Float16x8"))
+float32x8 = func_gen(("Float32x8"))
+float64x8 = func_gen(("Float64x8"))
+float8x16 = func_gen(("Float8x16"))
+float16x16 = func_gen(("Float16x16"))
+float32x16 = func_gen(("Float32x16"))
+float64x16 = func_gen(("Float64x16"))
+float8x32 = func_gen(("Float8x32"))
+float16x32 = func_gen(("Float16x32"))
+float32x32 = func_gen(("Float32x32"))
+float64x32 = func_gen(("Float64x32"))
+float8x64 = func_gen(("Float8x64"))
+float16x64 = func_gen(("Float16x64"))
+float32x64 = func_gen(("Float32x64"))
+float64x64 = func_gen(("Float64x64"))
+# pylint: enable=invalid-name
 
 
 def boolean(expr: Optional[PrimExpr] = None) -> PrimExpr:
@@ -1463,6 +1543,30 @@ def target(target_config: Union[Dict, str]) -> Target:
     return Target(target_config)
 
 
+class meta_var:  # pylint: disable=invalid-name
+    """A meta variable used in TVMScript metaprogramming. It means that the value of the variable
+    does not appear in the final TIR, but only stays in the parser.
+
+    Parameters
+    ----------
+    value: Any
+        The meta variable.
+    """
+
+    def __init__(self, value: Any) -> None:
+        self.value = value
+
+    def __iter__(self):
+        def f():
+            for i in self.value:
+                yield meta_var(i)
+
+        return f()
+
+
+# pylint: disable=invalid-name
+
+
 def _op_wrapper(func):
     @functools.wraps(func)
     def wrapped(*args, **kwargs):
@@ -1473,24 +1577,7 @@ def _op_wrapper(func):
     return wrapped
 
 
-def _dtype_forward(func):
-    @functools.wraps(func)
-    def wrapped(*args, **kwargs):
-        if "dtype" in kwargs:
-            args = (kwargs.pop("dtype"),) + args
-        return func(*args, **kwargs)
-
-    return wrapped
-
-
-# pylint: disable=invalid-name
-
-broadcast = Broadcast
-ramp = Ramp
-
-buffer_var = ptr
 abs = _op_wrapper(_tir_op.abs)  # pylint: disable=redefined-builtin
-fabs = abs
 acos = _op_wrapper(_tir_op.acos)
 acosh = _op_wrapper(_tir_op.acosh)
 address_of = _op_wrapper(_tir_op.address_of)
@@ -1532,11 +1619,10 @@ min_value = _op_wrapper(_tir_op.min_value)
 nearbyint = _op_wrapper(_tir_op.nearbyint)
 nextafter = _op_wrapper(_tir_op.nextafter)
 popcount = _op_wrapper(_tir_op.popcount)
-power = _op_wrapper(_tir_op.power)
+pow = _op_wrapper(_tir_op.pow)  # pylint: disable=redefined-builtin
 q_multiply_shift = _op_wrapper(_tir_op.q_multiply_shift)
 q_multiply_shift_per_axis = _op_wrapper(_tir_op.q_multiply_shift_per_axis)
 ret = _op_wrapper(_tir_op.ret)
-reinterpret = _dtype_forward(_tir_op.reinterpret)
 round = _op_wrapper(_tir_op.round)  # pylint: disable=redefined-builtin
 rsqrt = _op_wrapper(_tir_op.rsqrt)
 shift_left = _op_wrapper(_tir_op.shift_left)
@@ -1560,11 +1646,6 @@ call_packed = _op_wrapper(_tir_op.call_packed)
 call_cpacked = _op_wrapper(_tir_op.call_cpacked)
 call_packed_lowered = _op_wrapper(_tir_op.call_packed_lowered)
 call_cpacked_lowered = _op_wrapper(_tir_op.call_cpacked_lowered)
-call_extern = _dtype_forward(_tir_op.call_extern)
-call_intrin = _dtype_forward(_tir_op.call_intrin)
-call_llvm_intrin = _dtype_forward(_tir_op.call_llvm_intrin)
-call_llvm_pure_intrin = _dtype_forward(_tir_op.call_llvm_pure_intrin)
-call_pure_extern = _dtype_forward(_tir_op.call_pure_extern)
 tvm_tuple = _op_wrapper(_tir_op.tvm_tuple)
 tvm_struct_set = _op_wrapper(_tir_op.tvm_struct_set)
 tvm_struct_get = _tir_op.tvm_struct_get
@@ -1574,54 +1655,129 @@ tvm_mma_sync = _op_wrapper(_tir_op.tvm_mma_sync)
 tvm_bmma_sync = _op_wrapper(_tir_op.tvm_bmma_sync)
 tvm_fill_fragment = _op_wrapper(_tir_op.tvm_fill_fragment)
 tvm_store_matrix_sync = _op_wrapper(_tir_op.tvm_store_matrix_sync)
-ptx_mma = _dtype_forward(_tir_op.ptx_mma)
-ptx_mma_sp = _dtype_forward(_tir_op.ptx_mma_sp)
-ptx_ldmatrix = _dtype_forward(_tir_op.ptx_ldmatrix)
-ptx_cp_async = _dtype_forward(_tir_op.ptx_cp_async)
 ptx_wait_group = _op_wrapper(_tir_op.ptx_wait_group)
 ptx_commit_group = _op_wrapper(_tir_op.ptx_commit_group)
-mma_store = _dtype_forward(_tir_op.mma_store)
-mma_fill = _dtype_forward(_tir_op.mma_fill)
-vectorlow = _dtype_forward(_tir_op.vectorlow)
-vectorhigh = _dtype_forward(_tir_op.vectorhigh)
-vectorcombine = _dtype_forward(_tir_op.vectorcombine)
 assume = _op_wrapper(_tir_op.assume)
 undef = _op_wrapper(_tir_op.undef)
-tvm_call_packed = call_packed
-tvm_call_cpacked = call_cpacked
-tvm_call_packed_lowered = call_packed_lowered
-tvm_call_cpacked_lowered = call_cpacked_lowered
 TVMBackendAllocWorkspace = _op_wrapper(_tir_op.TVMBackendAllocWorkspace)
 TVMBackendFreeWorkspace = _op_wrapper(_tir_op.TVMBackendFreeWorkspace)
 start_profile_intrinsic = _op_wrapper(_tir_op.start_profile_intrinsic)
 end_profile_intrinsic = _op_wrapper(_tir_op.end_profile_intrinsic)
 
 
-class meta_var:
-    """A meta variable used in TVMScript metaprogramming. It means that the value of the variable
-    does not appear in the final TIR, but only stays in the parser.
+def _dtype_forward(func):
+    @functools.wraps(func)
+    def wrapped(*args, **kwargs):
+        if "dtype" in kwargs:
+            args = (kwargs.pop("dtype"),) + args
+        return func(*args, **kwargs)
 
-    Parameters
-    ----------
-    value: Any
-        The meta variable.
-    """
+    return wrapped
 
-    def __init__(self, value: Any) -> None:
-        self.value = value
 
-    def __iter__(self):
-        def f():
-            for i in self.value:
-                yield meta_var(i)
+reinterpret = _dtype_forward(_tir_op.reinterpret)
+call_extern = _dtype_forward(_tir_op.call_extern)
+call_intrin = _dtype_forward(_tir_op.call_intrin)
+call_llvm_intrin = _dtype_forward(_tir_op.call_llvm_intrin)
+call_llvm_pure_intrin = _dtype_forward(_tir_op.call_llvm_pure_intrin)
+call_pure_extern = _dtype_forward(_tir_op.call_pure_extern)
+ptx_mma = _dtype_forward(_tir_op.ptx_mma)
+ptx_mma_sp = _dtype_forward(_tir_op.ptx_mma_sp)
+ptx_ldmatrix = _dtype_forward(_tir_op.ptx_ldmatrix)
+ptx_cp_async = _dtype_forward(_tir_op.ptx_cp_async)
+mma_store = _dtype_forward(_tir_op.mma_store)
+mma_fill = _dtype_forward(_tir_op.mma_fill)
+vectorlow = _dtype_forward(_tir_op.vectorlow)
+vectorhigh = _dtype_forward(_tir_op.vectorhigh)
+vectorcombine = _dtype_forward(_tir_op.vectorcombine)
 
-        return f()
+
+broadcast = Broadcast
+ramp = Ramp
+buffer_var = ptr
+fabs = abs
+tvm_call_packed = call_packed
+tvm_call_cpacked = call_cpacked
+tvm_call_packed_lowered = call_packed_lowered
+tvm_call_cpacked_lowered = call_cpacked_lowered
 
 
 # pylint: enable=invalid-name
 
 
-__all__ += [
+__all__ = [
+    "int8",
+    "int16",
+    "int32",
+    "int64",
+    "int8x4",
+    "int16x4",
+    "int32x4",
+    "int64x4",
+    "int8x8",
+    "int16x8",
+    "int32x8",
+    "int64x8",
+    "int8x16",
+    "int16x16",
+    "int32x16",
+    "int64x16",
+    "int8x32",
+    "int16x32",
+    "int32x32",
+    "int64x32",
+    "int8x64",
+    "int16x64",
+    "int32x64",
+    "int64x64",
+    "uint8",
+    "uint16",
+    "uint32",
+    "uint64",
+    "uint8x4",
+    "uint16x4",
+    "uint32x4",
+    "uint64x4",
+    "uint8x8",
+    "uint16x8",
+    "uint32x8",
+    "uint64x8",
+    "uint8x16",
+    "uint16x16",
+    "uint32x16",
+    "uint64x16",
+    "uint8x32",
+    "uint16x32",
+    "uint32x32",
+    "uint64x32",
+    "uint8x64",
+    "uint16x64",
+    "uint32x64",
+    "uint64x64",
+    "float8",
+    "float16",
+    "float32",
+    "float64",
+    "float8x4",
+    "float16x4",
+    "float32x4",
+    "float64x4",
+    "float8x8",
+    "float16x8",
+    "float32x8",
+    "float64x8",
+    "float8x16",
+    "float16x16",
+    "float32x16",
+    "float64x16",
+    "float8x32",
+    "float16x32",
+    "float32x32",
+    "float64x32",
+    "float8x64",
+    "float16x64",
+    "float32x64",
+    "float64x64",
     "buffer_decl",
     "prim_func",
     "arg",
@@ -1713,7 +1869,7 @@ __all__ += [
     "nearbyint",
     "nextafter",
     "popcount",
-    "power",
+    "pow",
     "q_multiply_shift",
     "q_multiply_shift_per_axis",
     "ret",

@@ -127,4 +127,4 @@ def test_extract():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

@@ -48,4 +48,8 @@ wget ${CMSIS_URL} -O "${DOWNLOAD_PATH}"
 echo "$CMSIS_SHASUM" ${DOWNLOAD_PATH} | sha512sum -c
 tar -xf "${DOWNLOAD_PATH}" -C "${INSTALLATION_PATH}" --strip-components=1
 touch "${INSTALLATION_PATH}"/"${CMSIS_SHA}".sha
+
+CMSIS_NN_TAG="v4.0.0"
+CMSIS_NN_URL="https://github.com/ARM-software/CMSIS-NN.git"
+git clone ${CMSIS_NN_URL} --branch ${CMSIS_NN_TAG} --single-branch ${INSTALLATION_PATH}/CMSIS-NN
 echo "SUCCESS"

@@ -26,10 +26,10 @@ from tvm.contrib import cblas, dnnl, mkl
 
 from .. import generic, tag
 from ..utils import get_const_tuple, traverse_inline
-from .tensor_intrin import dot_16x1x16_uint8_int8_int32_cascadelake
+from .tensor_intrin import dot_16x1x16_uint8_int8_int32
 from .tensor_intrin import dot_32x128x32_u8s8s32_sapphirerapids
 from .tensor_intrin import acc_32x32_int32_sapphirerapids
-from .utils import get_simd_32bit_lanes, target_has_vnni, target_has_amx
+from .utils import get_simd_32bit_lanes, target_has_avx512, target_has_amx
 
 
 def _schedule_dense_pack_template(cfg, s, C, O):
@@ -302,8 +302,8 @@ def schedule_dense_int8(cfg, outs):
         if "dense_int8" in op.tag:
             if target_has_amx(mcpu):
                 dense_amx_int8_schedule(cfg, s, op.output(0), outs[0])
-            elif target_has_vnni(mcpu):
-                dense_vnni_schedule(cfg, s, op.output(0), outs[0])
+            elif target_has_avx512(mcpu):
+                dense_int8_schedule(cfg, s, op.output(0), outs[0])
 
     traverse_inline(s, outs[0].op, _callback)
     return s
@@ -315,8 +315,8 @@ def dense_int8_compute(cfg, X, packed_w, bias=None):
     n_o, _, n_i, _ = packed_w.shape
     ak = te.reduce_axis((0, k), name="k")
     mcpu = tvm.target.Target.current().mcpu
-    if target_has_vnni(mcpu):
-        target_attr = {"schedule_rule": "meta_schedule.x86.dense_vnni"}
+    if target_has_avx512(mcpu):
+        target_attr = {"schedule_rule": "meta_schedule.x86.dense_int8"}
     else:
         target_attr = None
 
@@ -339,8 +339,9 @@ def dense_int8_compute(cfg, X, packed_w, bias=None):
     return C
 
 
-def dense_vnni_schedule(cfg, s, C, O, do_parallel=True):
-    """Schedule dense compute using VNNI vpdpbusd instruction"""
+def dense_int8_schedule(cfg, s, C, O, do_parallel=True):
+    """Schedule dense compute using avx512 or lower instructions
+    including VNNI vpdpbusd instruction if possible"""
     # C: The output of GEMM
     # O: The output of the fused op
     def split_y(out):
@@ -361,7 +362,7 @@ def dense_vnni_schedule(cfg, s, C, O, do_parallel=True):
 
     s[C].reorder(a_yo, a_xo, a_yi, a_ko, a_xi, a_ki)
 
-    pc = dot_16x1x16_uint8_int8_int32_cascadelake()
+    pc = dot_16x1x16_uint8_int8_int32()
     s[C].tensorize(a_xi, pc)
 
     if C == O:
@@ -436,7 +437,7 @@ def dense_amx_int8_schedule(cfg, s, C, O, do_parallel=True):
         cfg.define_split("tile_k", rd_axis, num_outputs=5, filter=lambda y: y.size[-1] == 128)
         return cfg["tile_k"].apply(s, out, rd_axis)
 
-    a_x, a_y = C.op.axis
+    a_x, a_y = C.op.axis[-2:]
     (a_k,) = C.op.reduce_axis
     CF = s.cache_write(C, "amx.tmm")
 
@@ -447,7 +448,7 @@ def dense_amx_int8_schedule(cfg, s, C, O, do_parallel=True):
     s[CF].compute_at(s[C], a_yo)
 
     (a_k_f,) = CF.op.reduce_axis
-    a_x_f, a_y_f = CF.op.axis
+    a_x_f, a_y_f = CF.op.axis[-2:]
 
     a_xo_f, a_xi_f = s[CF].split(a_x_f, factor=32)
 
@@ -455,8 +456,8 @@ def dense_amx_int8_schedule(cfg, s, C, O, do_parallel=True):
     a_k3_f, a_k2_f, a_k1_f, a_ko_f, a_ki_f = split_k(CF, a_k_f)
     s[CF].reorder(a_k3_f, a_k2_f, a_k1_f, a_ko_f, a_xo_f, a_yo_f, a_ki_f, a_xi_f, a_yi_f)
 
-    (m, k) = CF.op.input_tensors[0].shape
-    (n, c, n_i, c_i) = CF.op.input_tensors[1].shape
+    (m, k) = CF.op.input_tensors[0].shape[-2:]
+    (n, c, n_i, c_i) = CF.op.input_tensors[1].shape[-4:]
     n = n * n_i
 
     s[CF].tensorize(a_ki_f, dot_32x128x32_u8s8s32_sapphirerapids(LDA=int(k)))
@@ -477,19 +478,6 @@ def dense_amx_int8_schedule(cfg, s, C, O, do_parallel=True):
         s[O].parallel(fused)
 
     return s, fused
-
-
-@autotvm.register_topi_schedule("dense_amx_int8.x86")
-def schedule_dense_amx_int8(cfg, outs):
-    """Create a schedule for dense_amx_int8"""
-    s = te.create_schedule([x.op for x in outs])
-
-    def _callback(op):
-        if "dense_amx_int8" in op.tag:
-            dense_amx_int8_schedule(cfg, s, op.output(0), outs[0])
-
-    traverse_inline(s, outs[0].op, _callback)
-    return s
 
 
 def matmul_blas_common(cfg, tensor_a, tensor_b, bias, out_dtype, transpose_a, transpose_b, lib):

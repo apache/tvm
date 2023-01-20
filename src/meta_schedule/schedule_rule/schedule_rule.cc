@@ -85,7 +85,9 @@ Array<ScheduleRule> ScheduleRule::DefaultLLVM() {
   };
 }
 
-Array<ScheduleRule> ScheduleRule::DefaultVNNI() {
+Array<ScheduleRule> ScheduleRule::DefaultX86(const String& type) {
+  static const Map<String, String> intrins = {{"vnni", "dot_16x4_vnni"},
+                                              {"avx512", "dot_16x4_avx512"}};
   return {
       ScheduleRule::ApplyCustomRule(),
       ScheduleRule::InlineConstantScalars(),
@@ -101,7 +103,7 @@ Array<ScheduleRule> ScheduleRule::DefaultVNNI() {
           /*max_jobs_per_core=*/16,
           /*max_innermost_factor=*/Integer(64)),
       ScheduleRule::MultiLevelTilingWithIntrin(
-          /*intrin_name=*/"dot_16x4_vnni",
+          /*intrin_name=*/intrins[type],
           /*structure=*/"SSRSRS",
           /*tile_binds=*/NullOpt,
           /*max_innermost_factor=*/Integer(64),
@@ -251,6 +253,31 @@ Array<ScheduleRule> ScheduleRule::DefaultHexagon() {
   };
 }
 
+Array<ScheduleRule> ScheduleRule::DefaultMicro() {
+  return {
+      ScheduleRule::ApplyCustomRule(),
+      ScheduleRule::InlineConstantScalars(),
+      ScheduleRule::AutoInline(
+          /*into_producer=*/false,
+          /*into_consumer=*/true,
+          /*inline_const_tensor=*/true,
+          /*disallow_if_then_else=*/true,
+          /*require_injective=*/true,
+          /*require_ordered=*/true,
+          /*disallow_op=*/Array<String>{"tir.exp"}),
+      ScheduleRule::MultiLevelTiling(
+          /*structure=*/"SSRSRS",
+          /*tile_binds=*/NullOpt,
+          /*max_innermost_factor=*/Integer(64),
+          /*vector_load_lens=*/NullOpt,
+          /*reuse_read=*/NullOpt,
+          /*reuse_write=*/
+          Map<String, ObjectRef>{{"req", String("may")},
+                                 {"levels", Array<Integer>{1, 2}},
+                                 {"scope", String("global")}}),
+  };
+}
+
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<PyScheduleRuleNode>([](const ObjectRef& n, ReprPrinter* p) {
       const auto* self = n.as<PyScheduleRuleNode>();
@@ -279,6 +306,8 @@ TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultCUDATensorCore")
     .set_body_typed(ScheduleRule::DefaultCUDATensorCore);
 TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultHexagon")
     .set_body_typed(ScheduleRule::DefaultHexagon);
+TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultMicro")
+    .set_body_typed(ScheduleRule::DefaultMicro);
 
 }  // namespace meta_schedule
 }  // namespace tvm

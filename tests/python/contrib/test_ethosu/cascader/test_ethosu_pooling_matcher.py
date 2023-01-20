@@ -79,4 +79,4 @@ def test_ethosu_pooling_matcher(pool_shape, stride, padding, ifm_layout, ofm_lay
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

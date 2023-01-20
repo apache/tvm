@@ -23,6 +23,7 @@ from tvm.ir import Op
 from tvm._ffi import register_func
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
+from tvm.relay import function as _function
 from tvm.relay.expr_functor import ExprMutator
 from tvm.relay.expr import Call, TupleGetItem
 
@@ -159,6 +160,25 @@ def preprocess_module(mod):
         with tvm.transform.PassContext(opt_level=3):
             preprocessed_mod = seq(mod)
     return preprocessed_mod
+
+
+def preprocess_for_clml(mod):
+    """Preprocessing pass to alter the layouts for CLML compiler target"""
+
+    for _var in mod.get_global_vars():
+        if _var.name_hint == "main":
+            continue
+        fn = mod[_var.name_hint]
+        if "Compiler" in fn.attrs.keys() and fn.attrs["Compiler"] == "clml":
+            new_fn = fn.body
+            clml_mod = tvm.IRModule.from_expr(new_fn)
+            with tvm.transform.PassContext(opt_level=3):
+                clml_mod = preprocess_module(clml_mod)
+            new_body = clml_mod["main"].body
+            mod[_var.name_hint] = _function.Function(
+                fn.params, new_body, fn.ret_type, fn.type_params, fn.attrs
+            )
+    return mod
 
 
 @register_pattern_table("clml")

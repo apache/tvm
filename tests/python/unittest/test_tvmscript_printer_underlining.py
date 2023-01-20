@@ -18,14 +18,13 @@
 from typing import Optional
 
 import pytest
-
 from tvm.runtime import ObjectPath
 from tvm.script.printer.doc import (
-    StmtBlockDoc,
     ExprStmtDoc,
     IdDoc,
     OperationDoc,
     OperationKind,
+    StmtBlockDoc,
 )
 from tvm.script.printer.doc_printer import to_python_script
 
@@ -59,7 +58,7 @@ def format_script(s: str) -> str:
     cleaned_lines = "\n".join(line[spaces_to_remove:] for line in s.splitlines())
     if not cleaned_lines.endswith("\n"):
         cleaned_lines += "\n"
-    return cleaned_lines
+    return cleaned_lines.strip()
 
 
 def test_underline_basic():
@@ -290,8 +289,10 @@ def test_print_two_context_lines(to_underline, expected_text):
 def test_underline_and_print_line_numbers():
     doc = StmtBlockDoc([ExprStmtDoc(make_id_doc(f"line{i + 1}")) for i in range(12)])
     result = to_python_script(doc, print_line_numbers=True, path_to_underline=make_path("line6"))
-    assert result == format_script(
-        """
+    assert (
+        result.strip()
+        == format_script(
+            """
             1 line1
             2 line2
             3 line3
@@ -306,6 +307,7 @@ def test_underline_and_print_line_numbers():
            11 line11
            12 line12
     """
+        ).strip()
     )
 
 

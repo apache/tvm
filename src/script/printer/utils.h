@@ -19,71 +19,51 @@
 #ifndef TVM_SCRIPT_PRINTER_UTILS_H_
 #define TVM_SCRIPT_PRINTER_UTILS_H_
 
-#include <tvm/script/printer/doc.h>
 #include <tvm/script/printer/ir_docsifier.h>
+#include <tvm/script/printer/printer.h>
+#include <tvm/tir/analysis.h>
+#include <tvm/tir/buffer.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/function.h>
+#include <tvm/tir/op.h>
+#include <tvm/tir/stmt.h>
 
+#include <string>
+#include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace tvm {
 namespace script {
 namespace printer {
 
-template <typename DocType, typename NodeType>
-Array<DocType> AsDocArray(const TracedArray<NodeType>& refs, const IRDocsifier& ir_docsifier) {
-  Array<DocType> result;
-  for (auto ref : refs) {
-    result.push_back(ir_docsifier->AsExprDoc(ref));
+#define TVM_SCRIPT_REPR(ObjectType, Method) \
+  TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<ObjectType>(Method);
+
+inline StmtBlockDoc Docsify(const ObjectRef& obj, const IRDocsifier& d, const Frame& f) {
+  Doc doc = d->AsDoc(obj, ObjectPath::Root());
+  if (const auto* expr_doc = doc.as<ExprDocNode>()) {
+    if (!Default::VerboseExpr()) {
+      f->stmts.clear();
+    }
+    f->stmts.push_back(ExprStmtDoc(GetRef<ExprDoc>(expr_doc)));
+  } else if (const auto* stmt_doc = doc.as<StmtDocNode>()) {
+    f->stmts.push_back(GetRef<StmtDoc>(stmt_doc));
+  } else if (const auto* stmt_block = doc.as<StmtBlockDocNode>()) {
+    for (const StmtDoc& d : stmt_block->stmts) {
+      f->stmts.push_back(d);
+    }
+  } else {
+    LOG(FATAL) << "TypeError: Unexpected doc type: " << doc->GetTypeKey();
   }
-  return result;
+  return StmtBlockDoc(f->stmts);
 }
 
-template <typename DocType, typename NodeType>
-Array<DocType> AsDocArray(std::initializer_list<NodeType>&& refs, const IRDocsifier& ir_docsifier) {
-  Array<DocType> result;
-  for (auto& ref : refs) {
-    result.push_back(ir_docsifier->AsExprDoc(ref));
-  }
-  return result;
-}
-
-template <typename RefType>
-Array<ExprDoc> AsExprDocArray(const TracedArray<RefType>& refs, const IRDocsifier& ir_docsifier) {
-  return AsDocArray<ExprDoc>(refs, ir_docsifier);
-}
-
-template <typename RefType>
-Array<ExprDoc> AsExprDocArray(std::initializer_list<RefType>&& refs,
-                              const IRDocsifier& ir_docsifier) {
-  return AsDocArray<ExprDoc>(std::move(refs), ir_docsifier);
-}
-
-inline DictDoc AsDictDoc(const TracedMap<String, ObjectRef>& dict,
-                         const IRDocsifier& ir_docsifier) {
-  Array<ExprDoc> keys;
-  Array<ExprDoc> values;
-
-  for (auto p : dict) {
-    keys.push_back(LiteralDoc::Str(p.first));
-    values.push_back(ir_docsifier->AsExprDoc(p.second));
-  }
-
-  auto doc = DictDoc(keys, values);
-  doc->source_paths.push_back(dict.GetPath());
-  return doc;
-}
-
-template <typename T>
-inline ListDoc AsListDoc(const TracedArray<T>& arr, const IRDocsifier& ir_docsifier) {
-  auto ret = ListDoc(AsExprDocArray(arr, ir_docsifier));
-  ret->source_paths.push_back(arr.GetPath());
-  return ret;
-}
-
-template <typename T>
-inline TupleDoc AsTupleDoc(const TracedArray<T>& arr, const IRDocsifier& ir_docsifier) {
-  auto ret = TupleDoc(AsExprDocArray(arr, ir_docsifier));
-  ret->source_paths.push_back(arr.GetPath());
-  return ret;
+inline void HandleUnsupportedFallback(const tvm::Error& error, const ObjectRef& obj,
+                                      ReprPrinter* p) {
+  LOG(WARNING) << "TVMScript printer falls back to the legacy ReprPrinter with the error:\n"
+               << error.what();
+  p->stream << AsLegacyRepr(obj);
 }
 
 }  // namespace printer

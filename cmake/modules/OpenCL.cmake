@@ -43,7 +43,7 @@ if(USE_OPENCL)
   tvm_file_glob(GLOB RUNTIME_OPENCL_SRCS src/runtime/opencl/*.cc)
 
   if(${USE_OPENCL} MATCHES ${IS_TRUE_PATTERN})
-    message(WARNING "Build with OpenCL wrapper")
+    message(STATUS "Enabled runtime search for OpenCL library location")
     file_glob_append(RUNTIME_OPENCL_SRCS
       "src/runtime/opencl/opencl_wrapper/opencl_wrapper.cc"
     )
