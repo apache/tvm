@@ -16,6 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/runtime/device_api.h>
+#include <tvm/tir/stmt_functor.h>
+
 #include "./utils.h"
 
 namespace tvm {
@@ -34,16 +37,115 @@ String FindFunctionName(const IRDocsifier& d, const tir::PrimFunc& f) {
   return "main";
 }
 
+bool IsSimpleBuffer(const tir::Buffer& buf) {
+  if (!buf->strides.empty()) {
+    return false;
+  }
+  for (const PrimExpr& shp_i : buf->shape) {
+    if (!tir::UndefinedVars(shp_i).empty()) {
+      return false;
+    }
+  }
+  for (const PrimExpr& stride_i : buf->strides) {
+    if (!tir::UndefinedVars(stride_i).empty()) {
+      return false;
+    }
+  }
+  if (!tir::UndefinedVars(buf->elem_offset).empty()) {
+    return false;
+  } else if (buf->elem_offset->IsInstance<IntImmNode>()) {
+    IntImm elem_offset = Downcast<IntImm>(buf->elem_offset);
+    if (elem_offset->value != 0) {
+      return false;
+    }
+  }
+  return buf.scope() == "global" && buf->data_alignment == runtime::kAllocAlignment &&
+         buf->offset_factor == 1 && buf->buffer_type == tir::BufferType::kDefault &&
+         !buf->axis_separators.size();
+}
+
+int CountVarOccurrence(const tir::PrimFunc& f, const tir::Var& v) {
+  class OccurrenceCounter : public tir::StmtExprVisitor {
+   public:
+    int count = 0;
+    const tir::VarNode* v = nullptr;
+
+    void VisitExpr_(const tir::VarNode* op) final {
+      if (op == v) {
+        ++count;
+      }
+      tir::StmtExprVisitor::VisitExpr_(op);
+    }
+
+    void VisitStmt_(const tir::BufferStoreNode* op) final {
+      VisitBuffer(op->buffer.get());
+      tir::StmtExprVisitor::VisitStmt_(op);
+    }
+
+    void VisitExpr_(const tir::BufferLoadNode* op) final {
+      VisitBuffer(op->buffer.get());
+      tir::StmtExprVisitor::VisitExpr_(op);
+    }
+
+    void VisitStmt_(const tir::DeclBufferNode* op) final {
+      VisitBuffer(op->buffer.get());
+      tir::StmtExprVisitor::VisitStmt_(op);
+    }
+
+    void VisitBuffer(const tir::BufferNode* buffer) {
+      VisitExpr(buffer->data);
+      for (const PrimExpr& shape_i : buffer->shape) {
+        VisitExpr(shape_i);
+      }
+      for (const PrimExpr& stride_i : buffer->strides) {
+        VisitExpr(stride_i);
+      }
+      VisitExpr(buffer->elem_offset);
+    }
+  };
+
+  OccurrenceCounter counter;
+  counter.v = v.get();
+  counter(f->body);
+  for (const tir::Var& v : f->params) {
+    counter(v);
+  }
+  for (const auto& pair : f->buffer_map) {
+    counter(pair.first);
+    counter.VisitBuffer(pair.second.get());
+  }
+  return counter.count;
+}
+
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::PrimFunc>("", [](tir::PrimFunc func, ObjectPath p, IRDocsifier d) -> Doc {
       With<TIRFrame> frame(MakeDispatchFrame(d, func, func));
       int n_args = func->params.size();
+      std::unordered_map<const tir::VarNode*, int> buffer_data_counter;
+      for (const auto& pair : func->buffer_map) {
+        const tir::VarNode* data_var = pair.second->data.get();
+        if (!buffer_data_counter.count(data_var)) {
+          buffer_data_counter.insert({data_var, 0});
+        }
+        ++buffer_data_counter.at(data_var);
+      }
       // Step 1. Handle `func->params`
       Array<AssignDoc> args;
       args.reserve(n_args);
+      std::unordered_set<const tir::BufferNode*> buffer_inlined;
       for (int i = 0; i < n_args; ++i) {
         tir::Var var = func->params[i];
         ObjectPath var_p = p->Attr("params")->ArrayIndex(i);
+        if (CountVarOccurrence(func, var) == 2 && func->buffer_map.count(var)) {
+          tir::Buffer buffer = func->buffer_map[var];
+          if (IsSimpleBuffer(buffer) && buffer_data_counter.at(buffer->data.get()) == 1) {
+            ObjectPath buffer_p = p->Attr("buffer_map")->MapValue(var);
+            args.push_back(AssignDoc(DefineBuffer(buffer, *frame, d), NullOpt,
+                                     BufferAttn(buffer, buffer_p, *frame, d)));
+            buffer_inlined.insert(buffer.get());
+            continue;
+          }
+        }
         ExprDoc a = d->AsDoc<ExprDoc>(var->type_annotation, var_p->Attr("type_annotation"));
         args.push_back(AssignDoc(DefineVar(var, *frame, d), NullOpt, a));
       }
@@ -58,6 +160,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         tir::Var param = func->params[i];
         if (func->buffer_map.count(param)) {
           tir::Buffer buffer = func->buffer_map[param];
+          if (buffer_inlined.count(buffer.get())) {
+            continue;
+          }
           ExprDoc param = args[i]->lhs;
           ObjectPath buffer_p = p->Attr("buffer_map")->MapValue(param);
           ExprDoc lhs =
