@@ -285,11 +285,12 @@ TVM_DLL Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_s
  * \brief Create a block to cache precomputed index for later use.
  * if there is no index computation, keep unchanged.
  * \param block_sref The target block
- * \param buffer_index The index of the target buffer in block's read region,
+ * \param storage_scope The storage scope of cached block
+ * \param cse_thresh The repeat threshold that determines a common sub expr
  * \return The cache stage block.
  */
 TVM_DLL Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
-                                   int buffer_index);
+                                   const String& storage_scope, int cse_thresh);
 /*!
  *!
  * \brief Create a block that read/write a buffer region into a read/write cache with reindexing.
