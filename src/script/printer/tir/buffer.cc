@@ -126,6 +126,14 @@ ExprDoc BufferDecl(const tir::Buffer& buffer, const String& method, const Array<
                     /*args=*/args);
 }
 
+ExprDoc BufferAttn(const tir::Buffer& buffer, const ObjectPath& p, const Frame& frame,
+                   const IRDocsifier& d) {
+  Map<String, ExprDoc> attrs = BufferAttrs(buffer, p, frame, d);
+  ExprDoc shape = attrs.Get("shape").value();
+  ExprDoc dtype = attrs.Get("dtype").value_or(LiteralDoc::DataType(buffer->dtype));
+  return TIR("Buffer")->Call({shape, dtype}, {}, {});
+}
+
 Array<Doc> BufferIndices(const Array<PrimExpr>& indices, const ObjectPath& p,
                          const IRDocsifier& d) {
   int n = indices.size();
