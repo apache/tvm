@@ -345,7 +345,7 @@ def test_crt_link_params(linkable_dtype):
         assert len(factory.get_params().keys()) == 0  # NOTE: params became tir.constants
 
         temp_dir = tvm.contrib.utils.tempdir()
-        template_project_dir = os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
+        template_project_dir = tvm.micro.get_microtvm_template_projects("crt")
         project = tvm.micro.generate_project(
             template_project_dir, factory, temp_dir / "project", {"verbose": 1}
         )
