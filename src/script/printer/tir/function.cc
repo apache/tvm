@@ -131,7 +131,40 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         }
       }
       // Step 4. Handle `func->body`
-      AsDocBody(func->body, p->Attr("body"), frame->get(), d);
+      Optional<tir::Block> implicit_root_block = [&]() -> Optional<tir::Block> {
+        const tir::BlockRealizeNode* root_block_realize = func->body.as<tir::BlockRealizeNode>();
+        if (root_block_realize && !root_block_realize->iter_values.size() &&
+            tir::is_one(root_block_realize->predicate)) {
+          tir::Block root_block = root_block_realize->block;
+          if (!root_block->annotations.size() && !root_block->match_buffers.size() &&
+              !root_block->reads.size() && !root_block->writes.size() &&
+              !root_block->init.defined()) {
+            const tir::BlockRealizeNode* block_realize =
+                root_block->body.as<tir::BlockRealizeNode>();
+            if (root_block->alloc_buffers.size() ||
+                (block_realize && block_realize->block->iter_vars.size()) ||
+                (!block_realize && tir::ContainsNode<tir::BlockRealizeNode>(root_block->body))) {
+              return root_block;
+            }
+          }
+        }
+        return NullOpt;
+      }();
+      if (implicit_root_block) {
+        tir::Block root_block = implicit_root_block.value();
+        ObjectPath root_block_p = p->Attr("body")->Attr("body");
+        // Handle root block `alloc_buffer`
+        for (int i = 0, n = root_block->alloc_buffers.size(); i < n; ++i) {
+          tir::Buffer buffer = root_block->alloc_buffers[i];
+          ObjectPath buffer_p = root_block_p->Attr("alloc_buffers")->ArrayIndex(i);
+          IdDoc lhs = DefineBuffer(buffer, *frame, d);
+          ExprDoc rhs = BufferDecl(buffer, "alloc_buffer", {}, buffer_p, *frame, d);
+          (*frame)->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
+        }
+        AsDocBody(root_block->body, root_block_p->Attr("body"), frame->get(), d);
+      } else {
+        AsDocBody(func->body, p->Attr("body"), frame->get(), d);
+      }
       Optional<ExprDoc> ret_type = NullOpt;
       if (func->ret_type.defined()) {
         const auto* as_tuple = func->ret_type.as<TupleTypeNode>();
