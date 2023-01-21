@@ -63,26 +63,26 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<GlobalVar>("", [](GlobalVar gv, ObjectPath p, IRDocsifier d) -> Doc {
-      return IR("GlobalVar")->Call({LiteralDoc::Str(gv->name_hint)});
+      return IR("GlobalVar")->Call({LiteralDoc::Str(gv->name_hint, p->Attr("name_hint"))});
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<Op>("", [](Op op, ObjectPath p, IRDocsifier d) -> Doc {
-      return IR("Op")->Call({LiteralDoc::Str(op->name)});
+      return IR("Op")->Call({LiteralDoc::Str(op->name, p->Attr("name"))});
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<TypeVar>("", [](TypeVar type_var, ObjectPath p, IRDocsifier d) -> Doc {
-      return IR("TypeVar")->Call({LiteralDoc::Str(type_var->name_hint),  //
-                                  LiteralDoc::Str(TypeKind2String(type_var->kind))});
+    .set_dispatch<TypeVar>("", [](TypeVar var, ObjectPath p, IRDocsifier d) -> Doc {
+      return IR("TypeVar")->Call({LiteralDoc::Str(var->name_hint, p->Attr("name_hint")),  //
+                                  LiteralDoc::Str(TypeKind2String(var->kind), p->Attr("kind"))});
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<GlobalTypeVar>(  //
-        "", [](GlobalTypeVar type_var, ObjectPath p, IRDocsifier d) -> Doc {
+        "", [](GlobalTypeVar var, ObjectPath p, IRDocsifier d) -> Doc {
           return IR("GlobalTypeVar")
-              ->Call({LiteralDoc::Str(type_var->name_hint),  //
-                      LiteralDoc::Str(TypeKind2String(type_var->kind))});
+              ->Call({LiteralDoc::Str(var->name_hint, p->Attr("name_hint")),
+                      LiteralDoc::Str(TypeKind2String(var->kind), p->Attr("kind"))});
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -94,7 +94,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<TensorType>("", [](TensorType type, ObjectPath p, IRDocsifier d) -> Doc {
       return IR("TensorType")
           ->Call({d->AsDoc<ExprDoc>(type->shape, p->Attr("shape")),
-                  LiteralDoc::DataType(type->dtype)});
+                  LiteralDoc::DataType(type->dtype, p->Attr("dtype"))});
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
