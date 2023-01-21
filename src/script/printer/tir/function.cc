@@ -133,9 +133,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       // Step 4. Handle `func->body`
       Optional<tir::Block> implicit_root_block = [&]() -> Optional<tir::Block> {
         const tir::BlockRealizeNode* root_block_realize = func->body.as<tir::BlockRealizeNode>();
-        if (root_block_realize && !root_block_realize->iter_values.size()) {
+        if (root_block_realize && !root_block_realize->iter_values.size() &&
+            tir::is_one(root_block_realize->predicate)) {
           tir::Block root_block = root_block_realize->block;
-          if (!root_block->annotations.size()) {
+          if (!root_block->annotations.size() && !root_block->match_buffers.size() &&
+              !root_block->reads.size() && !root_block->writes.size() &&
+              !root_block->init.defined()) {
             const tir::BlockRealizeNode* block_realize =
                 root_block->body.as<tir::BlockRealizeNode>();
             if (root_block->alloc_buffers.size() ||
@@ -157,20 +160,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           IdDoc lhs = DefineBuffer(buffer, *frame, d);
           ExprDoc rhs = BufferDecl(buffer, "alloc_buffer", {}, buffer_p, *frame, d);
           (*frame)->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
-        }
-        // Handle root block `match_buffer`
-        for (int i = 0, n = root_block->match_buffers.size(); i < n; ++i) {
-          tir::MatchBufferRegion buffer_region = root_block->match_buffers[i];
-          ObjectPath buffer_region_p = root_block_p->Attr("match_buffers")->ArrayIndex(i);
-          StmtDoc doc = d->AsDoc<StmtDoc>(buffer_region, buffer_region_p);
-          (*frame)->stmts.push_back(doc);
-        }
-        // Handle root block `init` block
-        if (root_block->init.defined()) {
-          tir::Stmt init = root_block->init.value();
-          With<TIRFrame> init_frame(d, init);
-          AsDocBody(init, root_block_p->Attr("init"), init_frame->get(), d);
-          (*frame)->stmts.push_back(ScopeDoc(NullOpt, TIR("init")->Call({}), (*init_frame)->stmts));
         }
         AsDocBody(root_block->body, root_block_p->Attr("body"), frame->get(), d);
       } else {
