@@ -1884,7 +1884,8 @@ def convert_slice(g, op, block):
         strides = _op.const([1] * dims, dtype="int64")
 
     out = _op.strided_slice(data, begin=starts, end=ends, strides=strides)
-    if decrease_axis:
+    out_shape = infer_shape(out)
+    if decrease_axis and len(out_shape) > 1:
         out = _op.squeeze(out, axis=decrease_axis)
     g.add_node(op.output("Out")[0], out)
 
@@ -1996,6 +1997,37 @@ def convert_swish(g, op, block):
     assert beta == 1.0, "Only support beta==1.0 for PaddlePaddle's swish"
     out = x * _op.tensor.sigmoid(x)
     g.add_node(op.output("Out")[0], out)
+
+
+def convert_topk(g, op, block):
+    """Operator converter for topk."""
+
+    data = g.get_node(op.input("X")[0])
+    if op.input("K"):
+        k = g.get_node(op.input("K")[0])
+    else:
+        k = op.attr("k")
+
+    largest = op.attr("largest")
+    is_ascend = not largest
+    axis = op.attr("axis")
+
+    value_names = op.output("Out")
+    indice_names = op.output("Indices")
+
+    out = None
+    indice = None
+    if value_names and indice_names:
+        out, indice = _op.topk(data=data, k=k, axis=axis, ret_type="both", is_ascend=is_ascend)
+    elif value_names:
+        out = _op.topk(data=data, k=k, axis=axis, ret_type="values", is_ascend=is_ascend)
+    elif indice_names:
+        indice = _op.topk(data=data, k=k, axis=axis, ret_type="indices", is_ascend=is_ascend)
+
+    if out is not None:
+        g.add_node(value_names[0], out)
+    if indice is not None:
+        g.add_node(indice_names[0], indice)
 
 
 def convert_transpose(g, op, block):
@@ -2148,6 +2180,7 @@ _convert_map = {
     "swish": convert_swish,
     "tan": convert_unary_op,
     "tanh": convert_unary_op,
+    "top_k_v2": convert_topk,
     "transpose2": convert_transpose,
     "unsqueeze2": convert_unsqueeze,
 }
