@@ -97,7 +97,7 @@ compilation out being keras-resnet50.tar
 ```
 
 ```bash
-python3 -m tvm.driver.tvmc run --device="opencl" keras-resnet50.tar --rpc-key ${TVM_RPC_KEY} --rpc-tracker ${TVM_TRACKER_HOST}:${TVM_TRACKER_PORT} --print-time
+python3 -m tvm.driver.tvmc run --device="cl" keras-resnet50.tar --rpc-key ${TVM_RPC_KEY} --rpc-tracker ${TVM_TRACKER_HOST}:${TVM_TRACKER_PORT} --print-time
 ```
 
 This inputs random inputs and validates the execution correctness of the compiled model.
@@ -147,7 +147,7 @@ Copy ```input.npz``` also to the target device as ```/data/local/tmp/input.npz``
 Now, on Android shell we can do a dry run as well as with specific input as shown below.
 ```bash
 # Query meta data information
-Android:/data/local/tmp/ $ LD_LIBRARY_PATH=./ ./rtvm --model keras-resnet50 --device "opencl" --dump-meta
+Android:/data/local/tmp/ $ LD_LIBRARY_PATH=./ ./rtvm --model=keras-resnet50 --device=opencl --dump-meta
 . . . . . .
 Meta Information:keras-resnet50
     Number of Inputs:183
@@ -163,7 +163,7 @@ Meta Information:keras-resnet50
 . . . . . .
 
 # Dry run with out any inputs
-Android:/data/local/tmp/ $ LD_LIBRARY_PATH=./ ./rtvm --model keras-resnet50 --device "opencl"
+Android:/data/local/tmp/ $ LD_LIBRARY_PATH=./ ./rtvm --model=keras-resnet50 --device=opencl
 Model         = keras-resnet50
 Device        = opencl
 Input         =
@@ -185,7 +185,7 @@ Output Size:4000  bytes
 
 
 # Run with input and dump output as npz file
-Android:/data/local/tmp/ $ LD_LIBRARY_PATH=./ ./rtvm --model keras-resnet50 --device "opencl"
+Android:/data/local/tmp/ $ LD_LIBRARY_PATH=./ ./rtvm --model=keras-resnet50 --device=opencl --input=input.npz --output=output.npz
 Model         = keras-resnet50
 Device        = opencl
 Input         = input.npz
@@ -271,7 +271,7 @@ android   1      1     0
 
 # Target Specific Configuration
 
-Below sections describe device/target specific settings to be used with ```tvmc``` and ```rtvm``` tools.
+Below sections describe device/target specific settings to be used with ```tvmc``` tool.
 
 ### Adreno GPU
 
@@ -306,27 +306,27 @@ Below options to be used for Adreno GPU while working with tvmc
 
 * Tuning
 
-```
---target="opencl -device=adreno"
---target-host="llvm -mtriple=aarch64-linux-gnu"
-```
+  ```
+  --target="opencl -device=adreno"
+  --target-host="llvm -mtriple=aarch64-linux-gnu"
+  ```
 
 * Compilation
 
-```
---cross-compiler ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang
---target="opencl, llvm"
---target-opencl-device adreno
---target-llvm-mtriple aarch64-linux-gnu
-```
+  ```
+  --cross-compiler ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang
+  --target="opencl, llvm"
+  --target-opencl-device adreno
+  --target-llvm-mtriple aarch64-linux-gnu
+  ```
 
-While enabling CLML just need to specify below target option for compilation.
-```--target="opencl, clml, llvm"```
+  While enabling CLML just need to specify below target option for compilation.
+  ```--target="opencl, clml, llvm"```
 
 
 * Running
 
-```--device="opencl"```
+  ```--device="cl"```
 
 
 For example with a model from keras ```./model_data/keras-resnet50/resnet50.h5```
@@ -349,6 +349,6 @@ python3 -m tvm.driver.tvmc compile --cross-compiler ${ANDROID_NDK_HOME}/toolchai
 # Compilation produces target artifacts keras-resnet50.tar
 
 # Run on adreno device via RPC
-python3 -m tvm.driver.tvmc run --device="opencl" keras-resnet50.tar --rpc-key ${TVM_RPC_KEY} --rpc-tracker {TVM_TRACKER_HOST}:{TVM_TRACKER_PORT} --print-time
+python3 -m tvm.driver.tvmc run --device="cl" keras-resnet50.tar --rpc-key ${TVM_RPC_KEY} --rpc-tracker {TVM_TRACKER_HOST}:{TVM_TRACKER_PORT} --print-time
 
 ```
