@@ -130,7 +130,7 @@ Command line usage
 
 ```rtvm``` can run the model using no inputs (just a dry run without any valid inputs) and also with specific input supplied as a numpy npz format file.
 
-We can create npz dump for all inputs by saving the dict object as hown below.
+We can create npz dump for all inputs by saving the dict object as shown below.
 
 With ```keras-resnet50``` having one  input ```input_1``` with shape ```[1, 224, 224, 3]``` and dtype ```float32```
 
