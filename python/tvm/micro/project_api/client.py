@@ -204,18 +204,18 @@ SERVER_PYTHON_FILENAME = "microtvm_api_server.py"
 def instantiate_from_dir(project_dir: typing.Union[pathlib.Path, str], debug: bool = False):
     """Launch server located in project_dir, and instantiate a Project API Client
     connected to it."""
-    args = None
+    proc_args = None
     project_dir = pathlib.Path(project_dir)
 
     python_script = project_dir / SERVER_PYTHON_FILENAME
     if python_script.is_file():
-        args = [sys.executable, str(python_script)]
+        proc_args = [sys.executable, str(python_script)]
 
     launch_script = project_dir / SERVER_LAUNCH_SCRIPT_FILENAME
     if launch_script.is_file():
-        args = [str(launch_script)]
+        proc_args = [str(launch_script), str(python_script)]
 
-    if args is None:
+    if proc_args is None:
         raise ProjectAPIServerNotFoundError(
             f"No Project API server found in project directory: {project_dir}"
             "\n"
@@ -225,12 +225,14 @@ def instantiate_from_dir(project_dir: typing.Union[pathlib.Path, str], debug: bo
     api_server_read_fd, tvm_write_fd = os.pipe()
     tvm_read_fd, api_server_write_fd = os.pipe()
 
-    args.extend(["--read-fd", str(api_server_read_fd), "--write-fd", str(api_server_write_fd)])
+    proc_args.extend(
+        ["--read-fd", str(api_server_read_fd), "--write-fd", str(api_server_write_fd)]
+    )
     if debug:
-        args.append("--debug")
+        proc_args.append("--debug")
 
     api_server_proc = subprocess.Popen(  # pylint: disable=unused-variable
-        args, bufsize=0, pass_fds=(api_server_read_fd, api_server_write_fd), cwd=project_dir
+        proc_args, bufsize=0, pass_fds=(api_server_read_fd, api_server_write_fd), cwd=project_dir
     )
     os.close(api_server_read_fd)
     os.close(api_server_write_fd)
