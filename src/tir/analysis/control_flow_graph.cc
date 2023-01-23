@@ -25,7 +25,6 @@
 #include "control_flow_graph.h"
 
 #include <tvm/runtime/registry.h>
-#include <tvm/script/printer/printer.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>

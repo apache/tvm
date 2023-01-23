@@ -56,7 +56,7 @@ Map<String, ExprDoc> BufferAttrs(const tir::Buffer& buffer, const ObjectPath& p,
   array_out_line_var_def(buffer->shape, p->Attr("shape"), "shape");
   // Step 2. Handle `buffer.dtype`
   if (buffer->dtype != Default::BufferDType()) {
-    kwargs.Set("dtype", LiteralDoc::DataType(buffer->dtype));
+    kwargs.Set("dtype", LiteralDoc::DataType(buffer->dtype, p->Attr("dtype")));
   }
   // Step 3. Handle `buffer.data`
   implicit_var_def(buffer->data, p->Attr("data"), "data");
@@ -78,20 +78,22 @@ Map<String, ExprDoc> BufferAttrs(const tir::Buffer& buffer, const ObjectPath& p,
   {
     String scope = buffer.scope();
     if (scope != "global") {
-      kwargs.Set("scope", LiteralDoc::Str(scope));
+      kwargs.Set(
+          "scope",
+          LiteralDoc::Str(scope, p->Attr("data")->Attr("type_annotation")->Attr("storage_scope")));
     }
   }
   // Step 7. Handle `buffer.data_alignment`
   if (buffer->data_alignment != runtime::kAllocAlignment) {
-    kwargs.Set("align", LiteralDoc::Int(buffer->data_alignment));
+    kwargs.Set("align", LiteralDoc::Int(buffer->data_alignment, p->Attr("data_alignment")));
   }
   // Step 8. Handle `buffer.offset_factor`
   if (needs_print_factor || buffer->offset_factor != 1) {
-    kwargs.Set("offset_factor", LiteralDoc::Int(buffer->offset_factor));
+    kwargs.Set("offset_factor", LiteralDoc::Int(buffer->offset_factor, p->Attr("offset_factor")));
   }
   // Step 9. Handle `buffer.buffer_type`
   if (buffer->buffer_type != tir::BufferType::kDefault) {
-    kwargs.Set("type", LiteralDoc::Str("auto"));
+    kwargs.Set("type", LiteralDoc::Str("auto", p->Attr("buffer_type")));
   }
   // Step 10. Handle `buffer.axis_separator`
   if (!buffer->axis_separators.empty()) {
@@ -130,7 +132,8 @@ ExprDoc BufferAttn(const tir::Buffer& buffer, const ObjectPath& p, const Frame& 
                    const IRDocsifier& d) {
   Map<String, ExprDoc> attrs = BufferAttrs(buffer, p, frame, d);
   ExprDoc shape = attrs.Get("shape").value();
-  ExprDoc dtype = attrs.Get("dtype").value_or(LiteralDoc::DataType(buffer->dtype));
+  ExprDoc dtype =
+      attrs.Get("dtype").value_or(LiteralDoc::DataType(buffer->dtype, p->Attr("dtype")));
   return TIR("Buffer")->Call({shape, dtype}, {}, {});
 }
 
