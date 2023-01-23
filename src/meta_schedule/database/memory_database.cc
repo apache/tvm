@@ -68,20 +68,20 @@ class MemoryDatabaseNode : public DatabaseNode {
     std::vector<std::pair<double, TuningRecord>> results;
     results.reserve(records.size());
     for (const TuningRecord& record : records) {
-      if (!record->run_secs.defined()) {
-        continue;
-      }
-      Array<FloatImm> run_secs = record->run_secs.value();
-      if (run_secs.empty()) {
+      auto run_secs = record->run_secs;
+      if (!run_secs.defined() || run_secs.value().empty() ||
+          std::all_of(run_secs.value().begin(), run_secs.value().end(),
+                      // 1e10 is used as a stub for undefined measurement times.
+                      [](tvm::FloatImm v) { return v.defined() && v->value == 1e10; })) {
         continue;
       }
       if (record->workload.same_as(workload) ||
           WorkloadEqual(GetModuleEquality())(record->workload, workload)) {
         double sum = 0.0;
-        for (const FloatImm& i : run_secs) {
+        for (const FloatImm& i : run_secs.value()) {
           sum += i->value;
         }
-        results.emplace_back(sum / run_secs.size(), record);
+        results.emplace_back(sum / run_secs.value().size(), record);
       }
     }
     std::sort(results.begin(), results.end());

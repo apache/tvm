@@ -554,10 +554,14 @@ def call_get_top_k(run_secs_list, database, k):
 
 @pytest.mark.parametrize(
     "k,expected",
-    [(0, []), (3, [[0.0, 2.0], [2.0], [1.5, 4.5]]), (5, [[0.0, 2.0], [2.0], [1.5, 4.5]])],
+    [
+        (0, []),
+        (4, [[0.0, 2.0], [2.0], [1.5, 4.5], [3.0, 1e10]]),
+        (5, [[0.0, 2.0], [2.0], [1.5, 4.5], [3.0, 1e10]]),
+    ],
 )
 def test_memory_database_get_top_k(k, expected):
-    run_secs_list = [[1.5, 4.5], [], [0.0, 2.0], None, [2.0]]
+    run_secs_list = [[1.5, 4.5], [], [0.0, 2.0], None, [2.0], [3.0, 1e10], [1e10]]
     database = ms.database.MemoryDatabase()
     result = call_get_top_k(run_secs_list, database, k)
     assert result == expected
@@ -565,10 +569,14 @@ def test_memory_database_get_top_k(k, expected):
 
 @pytest.mark.parametrize(
     "k,expected",
-    [(0, []), (3, [[0.0, 2.0], [2.0], [1.5, 4.5]]), (5, [[0.0, 2.0], [2.0], [1.5, 4.5]])],
+    [
+        (0, []),
+        (4, [[0.0, 2.0], [2.0], [1.5, 4.5], [3.0, 1e10]]),
+        (5, [[0.0, 2.0], [2.0], [1.5, 4.5], [3.0, 1e10]]),
+    ],
 )
 def test_json_database_get_top_k(k, expected):
-    run_secs_list = [[1.5, 4.5], [], [0.0, 2.0], None, [2.0]]
+    run_secs_list = [[1.5, 4.5], [], [0.0, 2.0], None, [2.0], [3.0, 1e10], [1e10]]
     with tempfile.TemporaryDirectory() as tmpdir:
         database = _create_tmp_database(tmpdir)
         result = call_get_top_k(run_secs_list, database, k)
