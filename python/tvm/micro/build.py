@@ -150,6 +150,10 @@ class AutoTvmModuleLoader:
         with open(build_result.filename, "rb") as build_file:
             build_result_bin = build_file.read()
 
+        # In case we are tuning on multiple physical boards (with Meta-schedule), the tracker
+        # device_key is the serial_number of the board that wil be used in generating micro session.
+        # For CRT projects, and in cases that the serial number is not provied
+        # (including tuning with AutoTVM), the serial number field doesn't change.
         if "board" in self._project_options and "$local$device" not in remote_kw["device_key"]:
             self._project_options["serial_number"] = remote_kw["device_key"]
 

@@ -86,7 +86,7 @@ def test_ms_tuning_conv2d(workspace_dir, board, microtvm_debug, use_fvp, serial_
     else:
         if serial_number is not None:  # use a single device in tuning
             serial_numbers = [serial_number]
-        else:  # use two dummy serial numbers (for QEMU)
+        else:  # use two dummy serial numbers (for testing with QEMU)
             serial_numbers = [str(i) for i in range(2)]
 
     boards_file = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr")) / "boards.json"
