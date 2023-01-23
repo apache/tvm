@@ -20,13 +20,6 @@
 #define TVM_SCRIPT_PRINTER_UTILS_H_
 
 #include <tvm/script/printer/ir_docsifier.h>
-#include <tvm/script/printer/printer.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/buffer.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/stmt.h>
 
 #include <string>
 #include <unordered_map>
@@ -37,13 +30,26 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-#define TVM_SCRIPT_REPR(ObjectType, Method) \
-  TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<ObjectType>(Method);
+#define TVM_SCRIPT_REPR(ObjectType, Method)                   \
+  TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)                  \
+      .set_dispatch<ObjectType>(RedirectedReprPrinterMethod); \
+  TVM_STATIC_IR_FUNCTOR(TVMScriptPrinter, vtable).set_dispatch<ObjectType>(Method);
 
-inline StmtBlockDoc Docsify(const ObjectRef& obj, const IRDocsifier& d, const Frame& f) {
+inline void RedirectedReprPrinterMethod(const ObjectRef& obj, ReprPrinter* p) {
+  try {
+    p->stream << TVMScriptPrinter::Script(obj, NullOpt);
+  } catch (const tvm::Error& e) {
+    LOG(WARNING) << "TVMScript printer falls back to the legacy ReprPrinter with the error:\n"
+                 << e.what();
+    p->stream << AsLegacyRepr(obj);
+  }
+}
+
+inline std::string Docsify(const ObjectRef& obj, const IRDocsifier& d, const Frame& f,
+                           const PrinterConfig& cfg) {
   Doc doc = d->AsDoc(obj, ObjectPath::Root());
   if (const auto* expr_doc = doc.as<ExprDocNode>()) {
-    if (!Default::VerboseExpr()) {
+    if (!cfg->verbose_expr) {
       f->stmts.clear();
     }
     f->stmts.push_back(ExprStmtDoc(GetRef<ExprDoc>(expr_doc)));
@@ -56,14 +62,7 @@ inline StmtBlockDoc Docsify(const ObjectRef& obj, const IRDocsifier& d, const Fr
   } else {
     LOG(FATAL) << "TypeError: Unexpected doc type: " << doc->GetTypeKey();
   }
-  return StmtBlockDoc(f->stmts);
-}
-
-inline void HandleUnsupportedFallback(const tvm::Error& error, const ObjectRef& obj,
-                                      ReprPrinter* p) {
-  LOG(WARNING) << "TVMScript printer falls back to the legacy ReprPrinter with the error:\n"
-               << error.what();
-  p->stream << AsLegacyRepr(obj);
+  return DocToPythonScript(StmtBlockDoc(f->stmts), cfg);
 }
 
 }  // namespace printer

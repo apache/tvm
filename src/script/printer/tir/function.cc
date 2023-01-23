@@ -111,7 +111,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       // Step 2. Handle `func->attrs`
       if (func->attrs.defined() && !func->attrs->dict.empty()) {
         (*frame)->stmts.push_back(
-            ExprStmtDoc(TIR("func_attr")  //
+            ExprStmtDoc(TIR(d, "func_attr")  //
                             ->Call({d->AsDoc<ExprDoc>(func->attrs, p->Attr("attrs"))})));
       }
       // Step 3. Handle `func->buffer_map`
@@ -175,14 +175,14 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       return FunctionDoc(
           /*name=*/IdDoc(FindFunctionName(d, func)),
           /*args=*/args,
-          /*decorators=*/{TIR("prim_func")},
+          /*decorators=*/{TIR(d, "prim_func")},
           /*return_type=*/ret_type,
           /*body=*/(*frame)->stmts);
     });
 
-void ReprPrintPrimFunc(const ObjectRef& obj, ReprPrinter* p) {
-  std::string res = DocToPythonScript(IRDocsifier()->AsDoc(obj, ObjectPath::Root()));
-  p->stream << res;
+std::string ReprPrintPrimFunc(const ObjectRef& obj, const PrinterConfig& cfg) {
+  Doc doc = IRDocsifier(cfg)->AsDoc(obj, ObjectPath::Root());
+  return DocToPythonScript(doc, cfg);
 }
 
 TVM_SCRIPT_REPR(tir::PrimFuncNode, ReprPrintPrimFunc);

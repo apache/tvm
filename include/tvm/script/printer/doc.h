@@ -29,7 +29,15 @@ namespace tvm {
 namespace script {
 namespace printer {
 
+// Forward declaration
 class Doc;
+
+/*!
+ * \brief Convert Doc into Python script.
+ * \param doc Doc to be converted
+ * \param cfg The configuration of the printer
+ */
+String DocToPythonScript(Doc doc, const PrinterConfig& cfg);
 
 /*!
  * \brief The base class of all Doc.

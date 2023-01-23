@@ -31,90 +31,15 @@ from typing import List, Mapping, Optional, Union
 
 import tvm._ffi
 from tvm.ir import PrimExpr, Range, Span
-from tvm.runtime import Object, const
+from tvm.runtime import Object, Scriptable, const
 
 from . import _ffi_api
 from .buffer import Buffer
 from .expr import IterVar
 
 
-class Stmt(Object):
+class Stmt(Object, Scriptable):
     """Base class of all the statements."""
-
-    def script(
-        self,
-        *,
-        indent_spaces: int = 4,
-        print_line_numbers: bool = False,
-        num_context_lines: Optional[int] = None,
-        path_to_underline=None,
-    ) -> str:
-        """Print IRModule into TVMScript
-
-        Parameters
-        ----------
-        indent_spaces : int
-            The number of indent spaces to use in the output
-        print_line_numbers: bool
-            Whether to print line numbers
-        num_context_lines : Optional[int]
-            Number of context lines to print around the underlined text
-        path_to_underline : Optional[ObjectPath]
-            Object path to be underlined
-
-        Returns
-        -------
-        script : str
-            The TVM Script of the IRModule
-        """
-        if num_context_lines is None:
-            num_context_lines = -1
-        return _ffi_api.StmtScript(  # type: ignore  # pylint: disable=no-member
-            self, indent_spaces, print_line_numbers, num_context_lines, path_to_underline
-        )
-
-    def show(
-        self,
-        *,
-        style: Optional[str] = None,
-        black_format: bool = True,
-        indent_spaces: int = 4,
-        print_line_numbers: bool = False,
-        num_context_lines: Optional[int] = None,
-        path_to_underline=None,
-    ) -> None:
-        """A sugar for print highlighted TVM script.
-
-        Parameters
-        ----------
-        style : str, optional
-            Pygmentize printing style, auto-detected if None.  See
-            `tvm.script.highlight.cprint` for more details.
-        black_format: bool
-            If true (default), use the formatter Black to format the TVMScript
-        indent_spaces : int
-            The number of indent spaces to use in the output
-        print_line_numbers: bool
-            Whether to print line numbers
-        num_context_lines : Optional[int]
-            Number of context lines to print around the underlined text
-        path_to_underline : Optional[ObjectPath]
-            Object path to be underlined
-        """
-        from tvm.script.highlight import (  # pylint: disable=import-outside-toplevel
-            cprint,
-        )
-
-        cprint(
-            self.script(
-                indent_spaces=indent_spaces,
-                print_line_numbers=print_line_numbers,
-                num_context_lines=num_context_lines,
-                path_to_underline=path_to_underline,
-            ),
-            style=style,
-            black_format=black_format,
-        )
 
 
 @tvm._ffi.register_object("tir.LetStmt")
@@ -623,7 +548,7 @@ class Prefetch(Stmt):
 
 
 @tvm._ffi.register_object("tir.BufferRegion")
-class BufferRegion(Object):
+class BufferRegion(Object, Scriptable):
     """BufferRegion node.
 
     Parameters
@@ -643,7 +568,7 @@ class BufferRegion(Object):
 
 
 @tvm._ffi.register_object("tir.MatchBufferRegion")
-class MatchBufferRegion(Object):
+class MatchBufferRegion(Object, Scriptable):
     """MatchBufferRegion node.
 
     Parameters
