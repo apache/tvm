@@ -118,16 +118,20 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, ObjectPath block_p,  //
       lhs.reserve(m);
       loop_var_doc.reserve(m);
       std::string binding_type = "";
+      Array<ObjectPath> binding_paths;
       for (int i : remap_vars_indices) {
         tir::IterVar iter_var = block->iter_vars[i];
-        ObjectPath iter_var_p = block_p->Attr("iter_var")->ArrayIndex(i);
+        ObjectPath iter_var_p = block_p->Attr("iter_vars")->ArrayIndex(i);
         lhs.push_back(DefineVar(iter_var->var, *frame, d));
         loop_var_doc.push_back(d->AsDoc<ExprDoc>(realize->iter_values[i],
                                                  realize_p->Attr("iter_values")->ArrayIndex(i)));
+        binding_paths.push_back(iter_var_p->Attr("iter_type"));
         binding_type += iter_var->iter_type == tir::IterVarType::kDataPar ? "S" : "R";
       }
       ExprDoc rhs = TIR("axis")->Attr("remap");
-      rhs = rhs->Call({LiteralDoc::Str(binding_type), ListDoc(loop_var_doc)});
+      ExprDoc binding_str = LiteralDoc::Str(binding_type, NullOpt);
+      binding_str->source_paths = std::move(binding_paths);
+      rhs = rhs->Call({binding_str, ListDoc(loop_var_doc)});
       (*frame)->stmts.push_back(AssignDoc(TupleDoc(lhs), rhs, NullOpt));
       remap_vars_indices.clear();
     }
@@ -198,11 +202,13 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, ObjectPath block_p,  //
   Array<ExprDoc> kwargs_values;
   if (!realize) {
     kwargs_keys.push_back("no_realize");
-    kwargs_values.push_back(LiteralDoc::Boolean(true));
+    kwargs_values.push_back(LiteralDoc::Boolean(true, NullOpt));
   }
-  return ScopeDoc(
-      NullOpt, TIR("block")->Call({LiteralDoc::Str(block->name_hint)}, kwargs_keys, kwargs_values),
-      (*frame)->stmts);
+  return ScopeDoc(NullOpt,
+                  TIR("block")  //
+                      ->Call({LiteralDoc::Str(block->name_hint, block_p->Attr("name_hint"))},
+                             kwargs_keys, kwargs_values),
+                  (*frame)->stmts);
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)

@@ -24,7 +24,7 @@ namespace printer {
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<String>("", [](String s, ObjectPath p, IRDocsifier d) -> Doc {
-      return LiteralDoc::Str(s);
+      return LiteralDoc::Str(s, p);
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
