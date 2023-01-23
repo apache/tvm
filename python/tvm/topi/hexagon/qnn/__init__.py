@@ -27,4 +27,3 @@ from .qadd_qsub_qmul import *
 from .qdense import *
 from .qdepthwise_conv2d_slice import qdepthwise_conv2d_compute, qdepthwise_conv2d_schedule
 from .quantize import quantize_compute, tir_quantize_schedule
-
