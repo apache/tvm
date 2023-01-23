@@ -250,7 +250,7 @@ def clml_pattern_table():
         """Create a pad pattern."""
         pattern = is_op("nn.pad")(wildcard(), is_constant())
         return pattern
- 
+
     def check_conv(extract):
         """Check conv pattern is supported by CLML."""
         call = extract
