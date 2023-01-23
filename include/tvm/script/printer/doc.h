@@ -23,6 +23,8 @@
 #include <tvm/node/node.h>
 #include <tvm/runtime/data_type.h>
 
+#include <string>
+
 namespace tvm {
 namespace script {
 namespace printer {
@@ -243,40 +245,54 @@ class LiteralDocNode : public ExprDocNode {
  */
 class LiteralDoc : public ExprDoc {
  protected:
-  explicit LiteralDoc(ObjectRef value);
-  LiteralDoc(ObjectRef value, ObjectPath object_path);
+  explicit LiteralDoc(ObjectRef value, const Optional<ObjectPath>& object_path);
 
  public:
   /*!
    * \brief Create a LiteralDoc to represent None/null/empty value.
+   * \param p The object path
    */
-  static LiteralDoc None() { return LiteralDoc(ObjectRef(nullptr)); }
+  static LiteralDoc None(const Optional<ObjectPath>& p) {
+    return LiteralDoc(ObjectRef(nullptr), p);
+  }
   /*!
    * \brief Create a LiteralDoc to represent integer.
    * \param v The integer value.
+   * \param p The object path
    */
-  static LiteralDoc Int(int64_t v) { return LiteralDoc(IntImm(DataType::Int(64), v)); }
+  static LiteralDoc Int(int64_t v, const Optional<ObjectPath>& p) {
+    return LiteralDoc(IntImm(DataType::Int(64), v), p);
+  }
   /*!
    * \brief Create a LiteralDoc to represent boolean.
    * \param v The boolean value.
+   * \param p The object path
    */
-  static LiteralDoc Boolean(bool v) { return LiteralDoc(IntImm(DataType::Bool(), v)); }
+  static LiteralDoc Boolean(bool v, const Optional<ObjectPath>& p) {
+    return LiteralDoc(IntImm(DataType::Bool(), v), p);
+  }
   /*!
    * \brief Create a LiteralDoc to represent float.
    * \param v The float value.
+   * \param p The object path
    */
-  static LiteralDoc Float(double v) { return LiteralDoc(FloatImm(DataType::Float(64), v)); }
+  static LiteralDoc Float(double v, const Optional<ObjectPath>& p) {
+    return LiteralDoc(FloatImm(DataType::Float(64), v), p);
+  }
   /*!
    * \brief Create a LiteralDoc to represent string.
    * \param v The string value.
+   * \param p The object path
    */
-  static LiteralDoc Str(const String& v) { return LiteralDoc(v); }
+  static LiteralDoc Str(const String& v, const Optional<ObjectPath>& p) { return LiteralDoc(v, p); }
   /*!
    * \brief Create a LiteralDoc to represent string.
    * \param v The string value.
+   * \param p The object path
    */
-  static LiteralDoc DataType(const DLDataType& v) {
-    return LiteralDoc::Str(runtime::DLDataType2String(v));
+  static LiteralDoc DataType(const runtime::DataType& v, const Optional<ObjectPath>& p) {
+    std::string dtype = v.is_void() ? "void" : runtime::DLDataType2String(v);
+    return LiteralDoc::Str(dtype, p);
   }
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(LiteralDoc, ExprDoc, LiteralDocNode);
