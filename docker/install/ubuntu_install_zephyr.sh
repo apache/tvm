@@ -38,7 +38,11 @@ sudo apt-get update
 
 sudo apt-install-and-clear -y cmake
 
-pip3 install west
+# Current Zephyr version is compatible with python3.8.
+# We use a different python env for Zephyr to test the
+# real world scenario where TVM and Zephyr could be in different
+# python environments.
+python3.8 -m pip install west
 
 # Init ZephyrProject
 ZEPHYR_PROJECT_PATH=/opt/zephyrproject
@@ -58,10 +62,4 @@ chmod -R o+w ${ZEPHYR_PROJECT_PATH}
 mkdir zephyr/.cache
 chmod o+rwx zephyr/.cache
 
-pip3 install -r /opt/zephyrproject/zephyr/scripts/requirements.txt
-
-# the requirements above overwrite junintparser with an older version, but it is not
-# used so overwrite it again with the correct version
-pip3 install junitparser==2.4.2
-
-bash /install/ubuntu_install_zephyr_sdk.sh /opt/zephyr-sdk
+python3.8 -m pip install -r /opt/zephyrproject/zephyr/scripts/requirements.txt
