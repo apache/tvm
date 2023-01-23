@@ -22,7 +22,7 @@ import numpy as np
 import tvm
 from tvm import te, topi
 from ..utils import saturate, get_fixed_point_value
-from ...utils import get_const_tuple
+from ...utils import get_const_tuple, get_const_int, get_const_float
 from ...nn.utils import get_pad_tuple
 from ...nn.pad import pad
 from ... import tag, nn
@@ -37,11 +37,25 @@ def clip_cast(val, dtype):
     return te.max(tvm.te.min(val, const_max), const_min).astype(dtype)
 
 
-# Return True if given Tensor is scalar constant value.
-def is_constant(tensor: te.Tensor):
-    return tensor.ndim == 0 and (
-        isinstance(tensor.op.body[0], (tvm.tir.expr.FloatImm, tvm.tir.expr.IntImm))
-    )
+# Return True if given expression is scalar constant value.
+def is_scalar(expr):
+    if isinstance(expr, te.Tensor):
+        return expr.ndim == 0 and (isinstance(expr.op.body[0], (tvm.tir.FloatImm, tvm.tir.IntImm)))
+    return isinstance(expr, (tvm.tir.FloatImm, tvm.tir.IntImm))
+
+
+def get_const_int_value(expr):
+    if isinstance(expr, te.Tensor):
+        assert isinstance(expr.op.body[0], tvm.tir.IntImm)
+        return expr.op.body[0].value
+    return get_const_int(expr)
+
+
+def get_const_float_value(expr):
+    if isinstance(expr, te.Tensor):
+        assert isinstance(expr.op.body[0], tvm.tir.FloatImm)
+        return expr.op.body[0].value
+    return get_const_float(expr)
 
 
 def get_qnn_param(param, indices, axis):
@@ -172,9 +186,9 @@ def qnn_requantize(
     TODO: support 'rounding' and 'compute_dtype' arguments.
     """
 
-    if is_constant(input_scale) and is_constant(output_scale):
-        iscale = input_scale.op.body[0].value
-        oscale = output_scale.op.body[0].value
+    if is_scalar(input_scale) and is_scalar(output_scale):
+        iscale = get_const_float_value(input_scale)
+        oscale = get_const_float_value(output_scale)
         scale = iscale / oscale
         scale_fixed_point, rsh = get_fixed_point_value(scale, "int16")
 
@@ -187,7 +201,7 @@ def qnn_requantize(
             # Add output zero point + clip + cast:
             return saturate(te.add(mul, output_zp), out_dtype).astype(out_dtype)
 
-        return te.compute(data.shape, _compute)
+        return te.compute(data.shape, _compute, name="requantize")
 
     else:
 
@@ -196,12 +210,14 @@ def qnn_requantize(
             iscale = get_qnn_param(input_scale, indices, axis)
             oscale = get_qnn_param(output_scale, indices, axis)
 
+            # Subtract input zero point:
             sub = te.subtract(value, input_zp)
             mul = te.div(iscale, oscale)
             val = te.add(te.round(te.multiply(mul, sub)), output_zp)
+            # clip + cast:
             return saturate(val, out_dtype).astype(out_dtype)
 
-        return te.compute(data.shape, _compute)
+        return te.compute(data.shape, _compute, name="requantize")
 
 
 def schedule_qnn_requantize(outs):
@@ -245,7 +261,7 @@ def compute_qnn_binary_op(
         )
 
     def _compute_tensor(x: te.Tensor, input_scale, input_zp):
-        if is_constant(input_scale) and is_constant(output_scale):
+        if is_scalar(input_scale) and is_scalar(output_scale):
             iscale = input_scale.op.body[0].value
             oscale = output_scale.op.body[0].value
             scale = iscale / oscale
@@ -263,12 +279,12 @@ def compute_qnn_binary_op(
                 ).astype("int32"),
             )
 
-    if is_constant(lhs):
+    if is_scalar(lhs):
         lhs_tensor = _compute_const(lhs, lhs_scale, lhs_zp)
     else:
         lhs_tensor = _compute_tensor(lhs, lhs_scale, lhs_zp)
 
-    if is_constant(rhs):
+    if is_scalar(rhs):
         rhs_tensor = _compute_const(rhs, rhs_scale, rhs_zp)
     else:
         rhs_tensor = _compute_tensor(rhs, rhs_scale, rhs_zp)
@@ -334,7 +350,16 @@ def schedule_qnn_subtract(outs):
     return default_schedule(outs)
 
 
-def qnn_mul(lhs, rhs, lhs_scale, lhs_zp, rhs_scale, rhs_zp, output_scale, output_zp):
+def qnn_mul(
+    lhs: te.Tensor,
+    rhs: te.Tensor,
+    lhs_scale: te.Tensor,
+    lhs_zp: te.Tensor,
+    rhs_scale: te.Tensor,
+    rhs_zp: te.Tensor,
+    output_scale: te.Tensor,
+    output_zp: te.Tensor,
+):
     """Compute for qnn.mul
 
     mul = (lhs_input - lhs_zp) * (rhs_input - rhs_zp)
@@ -343,20 +368,25 @@ def qnn_mul(lhs, rhs, lhs_scale, lhs_zp, rhs_scale, rhs_zp, output_scale, output
     assert lhs.dtype == rhs.dtype
     odtype = lhs.dtype
 
-    if is_constant(lhs):
-        lhs_tensor = lhs - lhs_zp
-    else:
-        lhs_tensor = te.compute(lhs.shape, lambda *i: te.subtract(lhs(*i), lhs_zp))
+    def _compute_tensor(tensor, zero_point):
+        if is_scalar(tensor):
+            return tensor - zero_point
+        else:
+            return te.compute(tensor.shape, lambda *i: te.subtract(tensor(*i), zero_point))
 
-    if is_constant(rhs):
-        rhs_tensor = rhs - rhs_zp
-    else:
-        rhs_tensor = te.compute(rhs.shape, lambda *i: te.subtract(rhs(*i), rhs_zp))
+    lhs_tensor = _compute_tensor(lhs, lhs_zp)
+    rhs_tensor = _compute_tensor(rhs, rhs_zp)
 
     # Multiply with broadcasting.
     mul = topi.multiply(lhs_tensor, rhs_tensor)
 
-    iscale = lhs_scale * rhs_scale
+    if is_scalar(lhs_scale) and is_scalar(rhs_scale):
+        assert isinstance(lhs_scale, te.Tensor)
+        assert isinstance(rhs_scale, te.Tensor)
+        iscale = lhs_scale.op.body[0] * rhs_scale.op.body[0]
+    else:
+        iscale = lhs_scale * rhs_scale
+
     return qnn_requantize(mul, iscale, tvm.tir.const(0), output_scale, output_zp, out_dtype=odtype)
 
 
@@ -618,21 +648,29 @@ def qnn_conv2d_NCHWc_int8(  # Conv2d inputs
     """Compute for qnn.conv2d with NCHWc layout."""
     # Subtract zero point from weights. Need to disable inline of this block
     # (meta_schedule.inline_rule = disable). Otherwise, inline prevents from tensorization.
-    weight = te.compute(
-        weight.shape,
-        lambda *i: te.subtract(weight(*i), kernel_zero_point).astype(weight.dtype),
-        name="weight_zp",
-        attrs={"meta_schedule.inline_rule": "disable"},
-    )
+    # Optimization: no need to subtract zero point if it is scalar constant and is equal to '0'.
+    if is_scalar(kernel_zero_point) and get_const_int_value(kernel_zero_point) == 0:
+        pass
+    else:
+        weight = te.compute(
+            weight.shape,
+            lambda *i: te.subtract(weight(*i), kernel_zero_point).astype(weight.dtype),
+            name="weight_zp",
+            attrs={"meta_schedule.inline_rule": "disable"},
+        )
 
     # Subtract zero point from input. Again need to disable inline of this block
     # (meta_schedule.inline_rule = disable). Otherwise, inline prevents from tensorization.
-    data = te.compute(
-        data.shape,
-        lambda *i: te.subtract(data(*i), input_zero_point).astype(data.dtype),
-        name="data_zp",
-        attrs={"meta_schedule.inline_rule": "disable"},
-    )
+    # Optimization: no need to subtract zero point if it is scalar constant and is equal to '0'.
+    if is_scalar(input_zero_point) and get_const_int_value(input_zero_point) == 0:
+        pass
+    else:
+        data = te.compute(
+            data.shape,
+            lambda *i: te.subtract(data(*i), input_zero_point).astype(data.dtype),
+            name="data_zp",
+            attrs={"meta_schedule.inline_rule": "disable"},
+        )
 
     strides = get_const_tuple(strides)
     padding = get_const_tuple(padding)
@@ -644,7 +682,9 @@ def qnn_conv2d_NCHWc_int8(  # Conv2d inputs
         assert len(out.shape) == len(bias.shape)
         assert bias.shape[2] == 1 and bias.shape[3] == 1
         out = te.compute(
-            out.shape, lambda n, c, h, w, ci: out[n, c, h, w, ci] + bias[n, c, 0, 0, ci]
+            out.shape,
+            lambda n, c, h, w, ci: out[n, c, h, w, ci] + bias[n, c, 0, 0, ci],
+            name="bias_add",
         )
 
     # Requantize output of convolution
