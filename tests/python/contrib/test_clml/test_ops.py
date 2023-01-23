@@ -632,8 +632,8 @@ def test_resize_bilinear(device, dtype):
                 tvm_op_count
             )
 
-    _verify(*(_get_model((1, 16, 8, 8), (2,2), False)))
-    _verify(*(_get_model((1, 16, 7, 7), (2,2), True)))
+    _verify(*(_get_model((1, 16, 8, 8), (2, 2), False)))
+    _verify(*(_get_model((1, 16, 7, 7), (2, 2), True)))
 
 
 if __name__ == "__main__":
