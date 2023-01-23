@@ -6750,7 +6750,11 @@ def test_random_bernoulli(target, dev):
             return helper.make_model(graph, producer_name="random_bernoulli_test")
 
         inputs = np.random.uniform(size=shape).astype(in_dtype)
-        model = get_bernoulli_model(shape, in_dtype, out_dtype, seed)
+        if seed is None:
+            ort_seed = None
+        else:
+            ort_seed = float(seed)
+        model = get_bernoulli_model(shape, in_dtype, out_dtype, ort_seed)
         if opset is not None:
             model.opset_import[0].version = opset
 
@@ -6787,19 +6791,19 @@ def test_random_bernoulli(target, dev):
             assert ort_val.dtype == tvm_val.dtype
 
     # Simple test
-    verify_bernoulli_with_ort([100])
+    verify_bernoulli_with_ort([1000])
 
     # Floating output type
-    verify_bernoulli_with_ort([100], out_dtype="float32")
+    verify_bernoulli_with_ort([1000], out_dtype="float32")
 
-    # FDouble input type
-    verify_bernoulli_with_ort([100], in_dtype="float64")
+    # Double input type
+    verify_bernoulli_with_ort([1000], in_dtype="float64")
 
     # Test N-D tensor generation
     verify_bernoulli_with_ort([2, 4, 100, 100])
 
     # Test with seed
-    verify_bernoulli_with_ort([100], seed=np.random.randint(1e6))
+    verify_bernoulli_with_ort([1000], seed=np.random.randint(1e6))
 
 
 @tvm.testing.parametrize_targets("llvm")

@@ -5607,7 +5607,8 @@ class Bernoulli(OnnxOpConverter):
             seed = int(seed)
 
         key = _random.threefry_key(seed)
-        _, uniform_nums = _op.random.uniform(key, infer_shape(inputs[0]), in_dtype)
+        inter_outputs = _op.random.uniform(key, infer_shape(inputs[0]), in_dtype)
+        _, uniform_nums = _expr.TupleWrapper(inter_outputs, 2)
         return _op.cast(_op.less(uniform_nums, inputs[0]), out_dtype)
 
 
