@@ -94,16 +94,12 @@ else()
         "src/runtime/crt/common *.c -> src/runtime/crt/common"
         "src/runtime/crt/graph_executor *.c -> src/runtime/crt/graph_executor"
         "src/runtime/crt/graph_executor_module *.c -> src/runtime/crt/graph_executor_module"
-        "src/runtime/crt/host *.cc -> template/host"
-        "src/runtime/crt/host *.py -> template/host"
-        "src/runtime/crt/host Makefile.template -> template/host"
         "src/runtime/crt/memory *.c -> src/runtime/crt/memory"
         "src/runtime/crt/microtvm_rpc_common *.cc -> src/runtime/crt/microtvm_rpc_common"
         "src/runtime/crt/microtvm_rpc_server *.cc -> src/runtime/crt/microtvm_rpc_server"
         "src/runtime/minrpc *.h -> src/runtime/minrpc"
         "src/support generic_arena.h -> src/support"
         "src/support ssize.h -> src/support"
-        "src/runtime/crt crt_config-template.h -> template"
         )
 
   set(STANDALONE_CRT_BASE ${CMAKE_CURRENT_BINARY_DIR}/standalone_crt)
