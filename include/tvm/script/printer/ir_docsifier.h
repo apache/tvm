@@ -259,11 +259,12 @@ inline void FrameNode::ExitWithScope() {
 
 template <class TDoc>
 inline TDoc IRDocsifierNode::AsDoc(const ObjectRef& obj, const ObjectPath& path) const {
-  if (!obj.defined()) {
-    return Downcast<TDoc>(LiteralDoc::None());
+  if (obj.defined()) {
+    Doc d = IRDocsifier::vtable()(dispatch_tokens.back(), obj, path, GetRef<IRDocsifier>(this));
+    d->source_paths.push_back(path);
+    return Downcast<TDoc>(d);
   }
-  return Downcast<TDoc>(
-      IRDocsifier::vtable()(dispatch_tokens.back(), obj, path, GetRef<IRDocsifier>(this)));
+  return Downcast<TDoc>(LiteralDoc::None(path));
 }
 
 inline void FrameNode::AddDispatchToken(const IRDocsifier& d, const String& token) {
