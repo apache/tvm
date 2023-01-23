@@ -315,7 +315,7 @@ def clml_pattern_table():
         if len(call.args[0].checked_type.shape) > 2:
             return False
         return True
-    
+
     def check_upsampling_op(extract):
         call = extract
         if call.attrs["method"] != "bilinear":
