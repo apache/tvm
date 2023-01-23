@@ -142,4 +142,7 @@ if __name__ == "__main__":
                 show_md5(file)
         elif action == Action.UPLOAD:
             show_md5(item)
+            if Path(item).is_dir():
+                if len(list(Path(item).glob("**/*"))) == 0:
+                    raise RuntimeError(f"Cannot upload empty folder with name: {item}")
             s3(item, s3_path + "/" + item, recursive=Path(item).is_dir())

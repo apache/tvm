@@ -95,9 +95,6 @@ def get_microtvm_template_projects(platform: str) -> str:
     if platform not in MicroTVMTemplateProject.list():
         raise ValueError(f"platform {platform} is not supported.")
 
-    if platform == MicroTVMTemplateProject.CRT.value:
-        return os.path.join(get_standalone_crt_dir(), "template", "host")
-
     microtvm_template_projects = None
     for path in libinfo.find_lib_path():
         template_path = os.path.join(os.path.dirname(path), "microtvm_template_projects")

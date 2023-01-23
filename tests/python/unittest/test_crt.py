@@ -47,7 +47,7 @@ def _make_sess_from_op(temp_dir, op_name, sched, arg_bufs):
 
 
 def _make_session(temp_dir, mod):
-    template_project_dir = os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
+    template_project_dir = pathlib.Path(tvm.micro.get_microtvm_template_projects("crt"))
     project = tvm.micro.generate_project(
         template_project_dir, mod, temp_dir / "project", {"verbose": 1}
     )

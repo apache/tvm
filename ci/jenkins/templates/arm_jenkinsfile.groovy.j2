@@ -31,7 +31,7 @@
   cmake_build(ci_arm, 'build', '-j4')
   make_standalone_crt(ci_arm, 'build')
   make_cpp_tests(ci_arm, 'build')
-  {{ m.upload_artifacts(tag='arm', filenames=tvm_multilib + cpptest + crttest + standalone_crt) }}
+  {{ m.upload_artifacts(tag='arm', filenames=tvm_multilib + cpptest + crttest + standalone_crt + microtvm_template_projects) }}
 {% endcall %}
 
 {% set test_method_names = [] %}
