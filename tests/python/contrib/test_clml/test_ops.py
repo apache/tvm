@@ -298,8 +298,8 @@ def test_batchnorm(device, dtype):
 @pytest.mark.parametrize("dtype", ["float16"])
 @tvm.testing.requires_openclml
 def test_concat(device, dtype):
-    in_shape_1 = (1, 2, 2, 2)
-    in_shape_2 = (1, 2, 2, 2)
+    in_shape_1 = (1, 16, 16, 16)
+    in_shape_2 = (1, 16, 16, 16)
     a = relay.var("input_1", shape=in_shape_1, dtype=dtype)
     b = relay.var("input_2", shape=in_shape_2, dtype=dtype)
     low, high = -1, 1
