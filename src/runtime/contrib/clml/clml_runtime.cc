@@ -1328,9 +1328,8 @@ class CLMLRuntime : public JSONRuntimeBase {
     cl_uint block_size = std::stoi(node.GetAttr<std::vector<std::string>>("block_size")[0]);
 
     cl_ml_op_depthtospace_desc_qcom dtos_desc = {block_size, cl_arithmetic_mode};
-    result = h_ClmlIntf->clCreateMLOpDepthToSpaceQCOM(
-        workspace->context, 0, &dtos_desc, input->tensor, output->tensor, &op, tuning_cache
-    );
+    result = h_ClmlIntf->clCreateMLOpDepthToSpaceQCOM(workspace->context, 0, &dtos_desc, input->tensor,
+                                                      output->tensor, &op, tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << "DepthToSpace Layer Error:" << result;
 
     layer_.func_ins.push_back(input);
@@ -1357,9 +1356,8 @@ class CLMLRuntime : public JSONRuntimeBase {
     cl_bool align_corners = std::stoi(node.GetAttr<std::vector<std::string>>("align_corners")[0]);
 
     cl_ml_op_resize_bilinear_desc_qcom resize_desc = {align_corners, false, cl_arithmetic_mode};
-    result = h_ClmlIntf->clCreateMLOpResizeBilinearQCOM(
-        workspace->context, 0, &resize_desc, input->tensor, output->tensor, &op, tuning_cache
-    );
+    result = h_ClmlIntf->clCreateMLOpResizeBilinearQCOM(workspace->context, 0, &resize_desc, input->tensor,
+                                                        output->tensor, &op, tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << "Resize Layer Error:" << result;
 
     layer_.func_ins.push_back(input);
