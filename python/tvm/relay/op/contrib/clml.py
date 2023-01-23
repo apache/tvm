@@ -16,6 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument
 """CLML Library supported operators."""
+import json
+from string import Template
 import tvm
 
 from tvm import relay
@@ -308,6 +310,10 @@ def clml_pattern_table():
         call = extract
         if len(call.attrs["pad_width"]) != 4:
             return False
+        # CLML can't process Tensor padding with out knowing layout.
+        # Pad layers before any convolution are not guarenteed to be NCHW.
+        if isinstance(call.args[0], tvm.relay.expr.Var):
+            return False
         return True
 
     def check_softmax_op(extract):
@@ -387,3 +393,769 @@ class OpAttrContext(object):
         self.op.reset_attr(self.attr_key)
         if self.older_attr:
             self.op.set_attr(self.attr_key, self.older_attr)
+
+
+class CLMLGetSubModuleSrc:
+    """Generates CLML API one CLML sub module out ot global TVM module"""
+
+    def __init__(self, cmod):
+        """Initialize
+        Parameters
+        ----------
+        cmod : Module
+            The CLML sub module from TVM module
+        """
+        self.cmod = cmod
+        self.codegen = None
+        self.nodes = None
+        self.node_map = {}
+        self.input_meta = []
+        self.output_meta = []
+        self.clml_code = []
+        self.sub_module_name = None
+
+        self.MakeCLMLTensor = Template(
+            """auto $name = runner.MakeCLMLTensor
+        (std::vector<size_t>({$shape}), "$dtype", $layout);"""
+        )
+        self.MapInsert = Template("""runner.storage_map.insert({"$nid", $tensor_desc});""")
+        self.MakeConv2D = Template(
+            """
+        // Convolution / Depthwise Convolution
+        runner.MakeConv2D($input_tensor,
+           $weight_tensor,
+           $bias_tensor,
+           $output_tensor,
+           std::vector<cl_uint>({$padding}),
+           std::vector<cl_uint>({$dilation}),
+           std::vector<cl_uint>({$strides}),
+           $groups,
+           $mode,
+           $activation,
+           $has_bias,
+           $has_act,
+           "$dtype");"""
+        )
+        self.MakeConv2DWithBN = Template(
+            """
+        // Batchnorm
+        runner.MakeConv2DWithBN($input_tensor,
+                 $weight_tensor,
+                 $bias_tensor,
+                 $output_tensor,
+                 $bn_scale_tensor,
+                 $bn_bias_tensor,
+                 $bn_mean_tensor,
+                 $bn_var_tensor,
+                 std::vector<float>  ({$bn_attrs}),
+                 std::vector<cl_uint> ({$padding}),
+                 std::vector<cl_uint> ({$dilation}),
+                 std::vector<cl_uint> ({$strides}),
+                 $groups,
+                 $mode,
+                 $activation,
+                 $has_bias,
+                 $has_act,
+                 "$dtype");"""
+        )
+        self.MakeRelu = Template(
+            """
+        // Relu / Relu6
+        runner.MakeRelu($input_tensor, $output_tensor, $relu_type, "$dtype");
+        """
+        )
+        self.MakeBN = Template(
+            """
+        // Batchnorm
+        runner.MakeBatchNorm($input_tensor,
+              $output_tensor,
+              $bn_scale_tensor,
+              $bn_bias_tensor,
+              $bn_mean_tensor,
+              $bn_var_tensor,
+              std::vector<float> ({$bn_attrs}), "$dtype");"""
+        )
+        self.MakePool2D = Template(
+            """
+        // Pool2D
+        runner.MakePool2D($input_tensor,
+           $output_tensor,
+           std::vector<cl_uint> ({$pool_size}),
+           std::vector<cl_uint> ({$strides}),
+           std::vector<cl_uint> ({$padding}),
+           "$pool_type", "$dtype");"""
+        )
+        self.MakeGlobalPool2D = Template(
+            """
+        // GlobalPool2D
+        runner.MakeGlobalPool2D($input_tensor,
+                 $output_tensor,
+                 std::vector<cl_uint> ({$in_shape}),
+                 "$pool_type", "$dtype");"""
+        )
+        self.MakeReshape = Template(
+            """
+        // Reshape
+        runner.MakeReshape($input_tensor,
+            $output_tensor, "$dtype");"""
+        )
+        self.MakeConcatenate = Template(
+            """
+        // Concatinate
+        runner.MakeConcatenate(
+                std::vector<std::shared_ptr<cl_ml_tensor_memory_desc_qcom>> ({$in_list}),
+                $output_tensor,
+                $axis, "$dtype");"""
+        )
+        self.MakeDense = Template(
+            """
+        // Dense
+        runner.MakeDense($input_tensor,
+          $weight_tensor,
+          $output_tensor,
+          $bias_tensor, "$dtype");"""
+        )
+        self.MakeSoftMax = Template(
+            """
+        // Softmax
+        runner.MakeSoftMax($input_tensor,
+            $output_tensor, "$dtype");"""
+        )
+        self.MakePad = Template(
+            """
+        // Pad
+        runner.MakePad($input_tensor,
+        $output_tensor,
+        "$pad_mode",
+        std::vector<cl_uint> ({$padding}), "$dtype");"""
+        )
+        self.MakeBatchFlatten = Template(
+            """
+        // BatchFlatten
+        runner.MakeBatchFlatten($input_tensor,
+                 $output_tensor, "$dtype");"""
+        )
+        self.MakeClip = Template(
+            """
+        // Clip
+        runner.MakeClip($input_tensor,
+         $output_tensor,
+         $a_max,
+         $a_min,
+         "$dtype");"""
+        )
+        self.MakeBinaryOp = Template(
+            """
+        // BinaryOp
+        runner.MakeBinaryOp($input_a,
+             $input_b,
+             $output_tensor,
+             "$op", "$dtype");"""
+        )
+
+        self.MakeHeader = Template(
+            """
+        CLMLRunner $module(std::string name,
+                   ToolArgs& args,
+                   cl_platform_id arg_platform_id,
+                   cl_context arg_context,
+                   cl_device_id arg_device_id,
+                   cl_command_queue arg_queue) {
+        CLMLRunner runner = CLMLRunner(name,
+                                 args,
+                                 arg_platform_id,
+                                 arg_context,
+                                 arg_device_id,
+                                 arg_queue);
+        runner.MakeUnusedTensor();
+        """
+        )
+
+        self.MakeFooter = Template(
+            """
+            return runner;
+        }
+        """
+        )
+
+        self.MakeMetaInfo = Template(
+            "runner.SetMetaInfo("
+            '"Subgraph Name: $name\\n    Input Count  : $input_count\\n'
+            "    Output Count : $output_count\\n"
+            '    Input MetaInfo\\n$input_meta\\n    Output MetaInfo\\n$output_meta");'
+        )
+
+        self.MakeInputMetaInfo = Template(
+            "        Input: $in_name\\n            Dtype : $dtype\\n            Shape : [$shape]"
+        )
+
+        self.MakeOutputMetaInfo = Template(
+            "        Output: $out_name\\n            Dtype : $dtype\\n            Shape : [$shape]"
+        )
+
+    def get_src(self):
+        """Returns pair of sub module name and the generated source"""
+
+        self.codegen = json.loads(self.cmod.get_source("json"))
+        self.sub_module_name = self.codegen["symbol"]
+        self.nodes = self.codegen["nodes"]
+        self.clml_code.append(self.MakeHeader.substitute(module=self.sub_module_name))
+
+        def get_tensor_from_map(
+            node_seq, shape=None, layout="CL_TENSOR_LAYOUT_OPTIMAL_QCOM", dtype="float32"
+        ):
+            if node_seq in self.node_map:
+                return self.node_map[node_seq]
+            else:
+                node = self.nodes[node_seq]
+                dtype = str(node["attrs"]["dtype"][0][0])
+                if shape is None:
+                    shape = str(tuple(node["attrs"]["shape"][0][0]))[1:-1]
+
+                self.clml_code.append(
+                    self.MakeCLMLTensor.substitute(
+                        name=node["name"], shape=shape, dtype=dtype, layout=layout
+                    )
+                )
+                self.clml_code.append(
+                    self.MapInsert.substitute(nid=node["name"], tensor_desc=node["name"])
+                )
+                if self.nodes[node_seq]["op"] == "const":
+                    self.clml_code.append(
+                        Template('runner.consts.push_back("$nid");').substitute(nid=node["name"])
+                    )
+                self.node_map[node_seq] = node["name"]
+                return node["name"]
+
+        def make_output_tensor(
+            node, node_seq, shape=None, layout="CL_TENSOR_LAYOUT_OPTIMAL_QCOM", dtype="float32"
+        ):
+            if dtype is None:
+                dtype = str(node["attrs"]["dtype"][0][0])
+            if shape is None:
+                shape = str(tuple(node["attrs"]["shape"][0][0]))[1:-1]
+            node_out_name = self.sub_module_name + "_" + "layer_out_" + str(node_seq)
+            self.clml_code.append(
+                self.MakeCLMLTensor.substitute(
+                    name=node_out_name,
+                    shape=shape,
+                    dtype=dtype,
+                    layout="CL_TENSOR_LAYOUT_OPTIMAL_QCOM",
+                )
+            )
+            return node_out_name
+
+        for node_seq, node in enumerate(self.nodes):
+            if node["op"] == "input":
+                self.clml_code.append("// Input Node")
+                dtype = str(node["attrs"]["dtype"][0][0])
+                shape = str(tuple(node["attrs"]["shape"][0][0]))[1:-1]
+                node_out_name = self.sub_module_name + "_" + "input_" + str(node_seq)
+                self.clml_code.append(
+                    self.MakeCLMLTensor.substitute(
+                        name=node_out_name,
+                        shape=shape,
+                        dtype=dtype,
+                        layout="CL_TENSOR_LAYOUT_OPTIMAL_QCOM",
+                    )
+                )
+                self.clml_code.append(
+                    self.MapInsert.substitute(nid=node_out_name, tensor_desc=node_out_name)
+                )
+                self.clml_code.append(
+                    Template("runner.inputs.push_back($clml_input);").substitute(
+                        clml_input=node_out_name
+                    )
+                )
+                self.node_map[node_seq] = node_out_name
+                self.input_meta.append(
+                    self.MakeInputMetaInfo.substitute(
+                        in_name=node_out_name, dtype=dtype, shape=shape
+                    )
+                )
+            elif node["op"] == "kernel":
+                self.clml_code.append("// Kernel Node : " + node["name"])
+                if node["name"] == "nn.conv2d" or node["name"] == "nn.depthwise_conv2d":
+                    if "padding" in node["attrs"]:
+                        padding = str(tuple(int(x) for x in node["attrs"]["padding"][0]))[1:-1]
+                    else:
+                        padding = "0, 0, 0, 0"
+                    dilation = str(tuple(int(x) for x in node["attrs"]["dilation"][0]))[1:-1]
+                    strides = str(tuple(int(x) for x in node["attrs"]["strides"][0]))[1:-1]
+                    groups = node["attrs"]["groups"][0][0]
+                    if node["name"] == "nn.conv2d":
+                        mode = "CL_CONVOLUTION_MODE_CONVOLUTION_QCOM"
+                    else:
+                        mode = "CL_CONVOLUTION_MODE_DEPTHWISE_QCOM"
+                    activation = "CL_ACTIVATION_RELU"
+                    has_act = False
+                    if "activation_type" in node["attrs"]:
+                        has_act = True
+                        activation = node["attrs"]["activation_type"][0][0]
+                        if activation == "relu":
+                            activation = "CL_ACTIVATION_RELU"
+                        elif activation == "relu6":
+                            activation = "CL_ACTIVATION_RELU6"
+                        else:
+                            RuntimeError("Unknown activation:" + activation)
+                    has_bias = bool((node["inputs"] == 3) or (node["inputs"] == 7))
+                    has_bn = bool((node["inputs"] == 6) or (node["inputs"] == 7))
+                    input_tensor = get_tensor_from_map(node["inputs"][0][0])
+                    weight_tensor = get_tensor_from_map(node["inputs"][1][0])
+                    if not has_bias:
+                        bias_tensor = "runner.unusedTensor"
+                    else:
+                        bias_tensor = get_tensor_from_map(node["inputs"][2][0])
+
+                    node_out_name = make_output_tensor(node, node_seq)
+
+                    if not has_bn:
+                        self.clml_code.append(
+                            self.MakeConv2D.substitute(
+                                input_tensor=input_tensor,
+                                weight_tensor=weight_tensor,
+                                bias_tensor=bias_tensor,
+                                output_tensor=node_out_name,
+                                padding=padding,
+                                dilation=dilation,
+                                strides=strides,
+                                groups=groups,
+                                mode=mode,
+                                activation=activation,
+                                has_bias="true" if has_bias else "false",
+                                has_act="true" if has_act else "false",
+                                dtype=node["attrs"]["dtype"][0][0],
+                            )
+                        )
+                    else:
+                        bn_index = 3 if has_bias else 2
+                        bn_attrs = tuple(node["attrs"]["batchnorm"][0][0])
+                        axis = bn_attrs[0]
+                        bn_shape = [1, 1, 1, 1]
+                        bn_node = self.nodes[node["inputs"][bn_index][0]]
+                        bn_shape[axis] = bn_node["attrs"]["shape"][0][0]
+
+                        bn_scale_tensor = get_tensor_from_map(
+                            node["inputs"][bn_index][0],
+                            shape=str(tuple(bn_shape))[1:-1],
+                            dtype=dtype,
+                        )
+
+                        bn_bias_tensor = get_tensor_from_map(
+                            node["inputs"][bn_index + 1][0],
+                            shape=str(tuple(bn_shape))[1:-1],
+                            dtype=dtype,
+                        )
+
+                        bn_mean_tensor = get_tensor_from_map(
+                            node["inputs"][bn_index + 2][0],
+                            shape=str(tuple(bn_shape))[1:-1],
+                            dtype=dtype,
+                        )
+
+                        bn_var_tensor = get_tensor_from_map(
+                            node["inputs"][bn_index + 3][0],
+                            shape=str(tuple(bn_shape))[1:-1],
+                            dtype=dtype,
+                        )
+
+                        self.clml_code.append(
+                            self.MakeConv2DWithBN.substitute(
+                                input_tensor=input_tensor,
+                                weight_tensor=weight_tensor,
+                                bias_tensor=bias_tensor,
+                                output_tensor=node_out_name,
+                                bn_scale_tensor=bn_scale_tensor,
+                                bn_bias_tensor=bn_bias_tensor,
+                                bn_mean_tensor=bn_mean_tensor,
+                                bn_var_tensor=bn_var_tensor,
+                                bn_attrs=str(bn_attrs)[1:-1],
+                                padding=padding,
+                                dilation=dilation,
+                                strides=strides,
+                                groups=groups,
+                                mode=mode,
+                                activation=activation,
+                                has_bias="true" if has_bias else "false",
+                                has_act="true" if has_act else "false",
+                                dtype=node["attrs"]["dtype"][0][0],
+                            )
+                        )
+                elif node["name"] == "nn.relu6" or node["name"] == "nn.relu":
+                    input_tensor = get_tensor_from_map(node["inputs"][0][0])
+                    node_out_name = make_output_tensor(node, node_seq)
+                    relu_type = (
+                        "CL_ACTIVATION_RELU" if node["name"] == "nn.relu" else "CL_ACTIVATION_RELU6"
+                    )
+                    self.clml_code.append(
+                        self.MakeRelu.substitute(
+                            input_tensor=input_tensor,
+                            output_tensor=node_out_name,
+                            relu_type=relu_type,
+                            dtype=node["attrs"]["dtype"][0][0],
+                        )
+                    )
+                elif node["name"] == "nn.batch_norm":
+                    bn_attrs = tuple(node["attrs"]["batchnorm"][0][0])
+                    axis = bn_attrs[0]
+                    bn_shape = [1, 1, 1, 1]
+                    bn_node = self.nodes[node["inputs"][0][0]]
+                    bn_shape[axis] = bn_node["attrs"]["shape"][0][0]
+                    bn_scale_tensor = get_tensor_from_map(
+                        node["inputs"][0][0], shape=str(tuple(bn_shape))[1:-1], dtype=dtype
+                    )
+                    bn_bias_tensor = get_tensor_from_map(
+                        node["inputs"][1][0], shape=str(tuple(bn_shape))[1:-1], dtype=dtype
+                    )
+                    bn_mean_tensor = get_tensor_from_map(
+                        node["inputs"][2][0], shape=str(tuple(bn_shape))[1:-1], dtype=dtype
+                    )
+                    bn_var_tensor = get_tensor_from_map(
+                        node["inputs"][3][0], shape=str(tuple(bn_shape))[1:-1], dtype=dtype
+                    )
+
+                    input_tensor = get_tensor_from_map(node["inputs"][0][0])
+                    node_out_name = make_output_tensor(node, node_seq)
+
+                    self.clml_code.append(
+                        self.MakeBN.substitute(
+                            input_tensor=input_tensor,
+                            output_tensor=node_out_name,
+                            bn_scale_tensor=bn_scale_tensor,
+                            bn_bias_tensor=bn_bias_tensor,
+                            bn_mean_tensor=bn_mean_tensor,
+                            bn_var_tensor=bn_var_tensor,
+                            bn_attrs=str(bn_attrs)[1:-1],
+                            dtype=node["attrs"]["dtype"][0][0],
+                        )
+                    )
+                elif node["name"] in ["nn.max_pool2d", "nn.avg_pool2d", "nn.l2_pool2d"]:
+                    input_tensor = get_tensor_from_map(node["inputs"][0][0])
+                    node_out_name = make_output_tensor(node, node_seq)
+                    pool_size = str(tuple(int(x) for x in node["attrs"]["pool_size"][0]))[1:-1]
+                    strides = str(tuple(int(x) for x in node["attrs"]["strides"][0]))[1:-1]
+                    padding = str(tuple(int(x) for x in node["attrs"]["padding"][0]))[1:-1]
+                    self.clml_code.append(
+                        self.MakePool2D.substitute(
+                            input_tensor=input_tensor,
+                            output_tensor=node_out_name,
+                            pool_size=pool_size,
+                            strides=strides,
+                            padding=padding,
+                            pool_type=node["name"],
+                            dtype=node["attrs"]["dtype"][0][0],
+                        )
+                    )
+                elif node["name"] in ["nn.global_max_pool2d", "nn.global_avg_pool2d"]:
+                    input_tensor = get_tensor_from_map(node["inputs"][0][0])
+                    node_out_name = make_output_tensor(node, node_seq)
+                    in_node = self.nodes[node["inputs"][0][0]]
+                    in_shape = str(tuple(in_node["attrs"]["shape"][0][0]))[1:-1]
+                    self.clml_code.append(
+                        self.MakeGlobalPool2D.substitute(
+                            input_tensor=input_tensor,
+                            output_tensor=node_out_name,
+                            in_shape=in_shape,
+                            pool_type=node["name"],
+                            dtype=node["attrs"]["dtype"][0][0],
+                        )
+                    )
+                elif node["name"] == "reshape":
+                    input_tensor = get_tensor_from_map(node["inputs"][0][0])
+                    node_out_name = make_output_tensor(node, node_seq)
+                    self.clml_code.append(
+                        self.MakeReshape.substitute(
+                            input_tensor=input_tensor,
+                            output_tensor=node_out_name,
+                            dtype=node["attrs"]["dtype"][0][0],
+                        )
+                    )
+                elif node["name"] == "concatenate":
+                    input_len = len(node["inputs"])
+                    in_list = str(
+                        [get_tensor_from_map(node["inputs"][x][0]) for x in range(input_len)]
+                    )[1:-1]
+                    node_out_name = make_output_tensor(node, node_seq)
+                    axis = node["attrs"]["axis"][0][0]
+                    self.clml_code.append(
+                        self.MakeConcatenate.substitute(
+                            in_list=in_list,
+                            output_tensor=node_out_name,
+                            axis=axis,
+                            dtype=node["attrs"]["dtype"][0][0],
+                        )
+                    )
+                elif node["name"] == "nn.dense":
+                    in_node = self.nodes[node["inputs"][0][0]]
+                    in_shape = tuple(in_node["attrs"]["shape"][0][0])
+                    wt_shape = tuple(in_node["attrs"]["shape"][0][0])
+                    input_tensor = get_tensor_from_map(
+                        node["inputs"][0][0], shape=str(tuple([1, in_shape[1], 1, 1]))[1:-1]
+                    )
+                    weight_tensor = get_tensor_from_map(
+                        node["inputs"][1][0],
+                        shape=str(tuple([wt_shape[0], wt_shape[1], 1, 1]))[1:-1],
+                    )
+                    if len(node["inputs"]) == 3:
+                        bias_tensor = "runner.unusedTensor"
+                    else:
+                        bias_tensor = get_tensor_from_map(node["inputs"][2][0])
+
+                    node_out_name = make_output_tensor(
+                        node, node_seq, shape=str(tuple([1, wt_shape[0], 1, 1]))[1:-1]
+                    )
+                    self.clml_code.append(
+                        self.MakeDense.substitute(
+                            input_tensor=input_tensor,
+                            weight_tensor=weight_tensor,
+                            output_tensor=node_out_name,
+                            bias_tensor=bias_tensor,
+                            dtype=node["attrs"]["dtype"][0][0],
+                        )
+                    )
+                elif node["name"] == "nn.softmax":
+                    input_tensor = get_tensor_from_map(node["inputs"][0][0])
+                    node_out_name = make_output_tensor(node, node_seq)
+                    self.clml_code.append(
+                        self.MakeSoftMax.substitute(
+                            input_tensor=input_tensor,
+                            output_tensor=node_out_name,
+                            dtype=node["attrs"]["dtype"][0][0],
+                        )
+                    )
+                elif node["name"] == "nn.pad":
+                    input_tensor = get_tensor_from_map(node["inputs"][0][0])
+                    node_out_name = make_output_tensor(node, node_seq)
+                    pad_mode = node["attrs"]["pad_mode"][0][0]
+                    padding = str(tuple(int(x) for x in node["attrs"]["pad_width"][0]))[1:-1]
+                    self.clml_code.append(
+                        self.MakePad.substitute(
+                            input_tensor=input_tensor,
+                            output_tensor=node_out_name,
+                            pad_mode=pad_mode,
+                            padding=padding,
+                            dtype=node["attrs"]["dtype"][0][0],
+                        )
+                    )
+                elif node["name"] == "nn.batch_flatten":
+                    input_tensor = get_tensor_from_map(node["inputs"][0][0])
+                    node_out_name = make_output_tensor(node, node_seq)
+                    self.clml_code.append(
+                        self.MakeBatchFlatten.substitute(
+                            input_tensor=input_tensor,
+                            output_tensor=node_out_name,
+                            dtype=node["attrs"]["dtype"][0][0],
+                        )
+                    )
+                elif node["name"] == "clip":
+                    input_tensor = get_tensor_from_map(node["inputs"][0][0])
+                    node_out_name = make_output_tensor(node, node_seq)
+                    a_max = node["attrs"]["a_max"][0][0]
+                    a_min = node["attrs"]["a_min"][0][0]
+                    self.clml_code.append(
+                        self.MakeClip.substitute(
+                            input_tensor=input_tensor,
+                            output_tensor=node_out_name,
+                            a_max=a_max,
+                            a_min=a_min,
+                            dtype=node["attrs"]["dtype"][0][0],
+                        )
+                    )
+                elif node["name"] in [
+                    "add",
+                    "subtract",
+                    "multiply",
+                    "minimum",
+                    "maximum",
+                    "divide",
+                ]:
+                    input_a = get_tensor_from_map(node["inputs"][0][0])
+                    input_b = get_tensor_from_map(node["inputs"][1][0])
+                    node_out_name = make_output_tensor(node, node_seq)
+                    self.clml_code.append(
+                        self.MakeBinaryOp.substitute(
+                            input_a=input_a,
+                            input_b=input_b,
+                            output_tensor=node_out_name,
+                            op=node["name"],
+                            dtype=node["attrs"]["dtype"][0][0],
+                        )
+                    )
+                else:
+                    RuntimeError("Unsupported Op:" + node["name"])
+                self.clml_code.append(
+                    self.MapInsert.substitute(nid=node_out_name, tensor_desc=node_out_name)
+                )
+                self.node_map[node_seq] = node_out_name
+
+            elif node["op"] != "const":
+                print("Unknown Node type:", node["op"])
+
+        # Populate outputs
+        out_nodes = self.codegen["heads"]
+        self.clml_code.append("// Populate outputs")
+        for nid_triple in out_nodes:
+            nid = nid_triple[0]
+            out_node = self.nodes[nid]
+            dtype = str(out_node["attrs"]["dtype"][0][0])
+            shape = str(tuple(out_node["attrs"]["shape"][0][0]))[1:-1]
+            out_name = self.sub_module_name + "_" + "layer_out_" + str(nid)
+            self.clml_code.append(
+                Template(
+                    'runner.outputs.insert({"$out_name", runner.storage_map["$out_name"]});'
+                ).substitute(out_name=out_name)
+            )
+            self.clml_code.append(
+                Template('runner.outputs_dtypes.insert({"$out_name", "$dtype"});').substitute(
+                    out_name=out_name, dtype=dtype
+                )
+            )
+            self.clml_code.append(
+                Template(
+                    "runner.outputs_shapes.insert" '({"$out_name", std::vector<size_t>({$shape})});'
+                ).substitute(out_name=out_name, shape=shape)
+            )
+            self.output_meta.append(
+                self.MakeOutputMetaInfo.substitute(out_name=out_name, dtype=dtype, shape=shape)
+            )
+
+        # Mem allocation & Param copy
+        self.clml_code.append("// Allocate Tensor Memory and copy params")
+        self.clml_code.append("runner.AllocateMemAndPopulateParams();")
+
+        # Meta data preparation
+        self.clml_code.append(
+            self.MakeMetaInfo.substitute(
+                name=self.sub_module_name,
+                input_count=len(self.input_meta),
+                output_count=len(self.output_meta),
+                input_meta="\n".join(self.input_meta),
+                output_meta="\n".join(self.output_meta),
+            )
+        )
+
+        self.clml_code.append(self.MakeFooter.substitute())
+        return (self.sub_module_name, self.clml_code)
+
+
+class CLMLGenSrc:
+    """Generates CLML API source given a TVM compiled mod"""
+
+    def __init__(self, libm):
+        """Initialize
+        Parameters
+        ----------
+        libm : Module
+            Compiled relay module
+        """
+        self.libm = libm
+        self.gen_src = []
+        self.clml_modules = None
+        self.clml_builds = {}
+        self.codegen = None
+        self.nodes = None
+
+        self.MakeFileHeader = Template(
+            """/*
+        * Licensed to the Apache Software Foundation (ASF) under one
+        * or more contributor license agreements.  See the NOTICE file
+        * distributed with this work for additional information
+        * regarding copyright ownership.  The ASF licenses this file
+        * to you under the Apache License, Version 2.0 (the
+        * "License"); you may not use this file except in compliance
+        * with the License.  You may obtain a copy of the License at
+        *
+        *   http://www.apache.org/licenses/LICENSE-2.0
+        *
+        * Unless required by applicable law or agreed to in writing,
+        * software distributed under the License is distributed on an
+        * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+        * KIND, either express or implied.  See the License for the
+        * specific language governing permissions and limitations
+        * under the License.
+        */
+
+        /*!
+         * \\file clml_models.cc
+         * \\brief CLML models for all subgraph in given TVM module.
+         */
+
+        // AUTO GENERATED BY TOOL (clml_codegen.py), PLEASE DO NOT CHANGE THIS FILE!
+        // =========================================================================
+
+        #include <iostream>
+        #include <fstream>
+
+        #include <vector>
+        #include <string>
+        #include <algorithm>
+        #include <math.h>
+        #include <list>
+
+        // Project includes
+        #include "CL/cl.h"
+        #include "CL/cl_qcom_ml_ops.h"
+
+        #include "clml_runner.h"
+
+        using namespace tvm::runtime;
+        """
+        )
+
+    def get_clml_params(self):
+        """Returns parameters from the TVM module"""
+
+        clml_params = {}
+        if self.libm.get_lib().type_key == "const_loader":
+            params = self.libm.get_lib().get_function("get_const_var_ndarray")()
+            clml_params.update(params)
+
+        for mod in self.libm.get_lib().imported_modules:
+            if mod.type_key == "const_loader":
+                params = mod.get_const_var_ndarray()
+                clml_params.update(params)
+
+        clml_params_save = {}
+        for key, val in clml_params.items():
+            clml_params_save[str(key)] = val.numpy()
+
+        return clml_params_save
+
+    def get_artifacts(self):
+        """Function that returns params as dict and source as list of cource code lines"""
+
+        self.clml_modules = list(
+            filter(lambda mod: mod.type_key == "clml", self.libm.get_lib().imported_modules)
+        )
+        self.clml_builds["file_header"] = [self.MakeFileHeader.substitute()]
+
+        for cmod in self.clml_modules:
+            (sub_module_name, clml_code) = CLMLGetSubModuleSrc(cmod).get_src()
+            self.clml_builds[sub_module_name] = clml_code
+
+        main_code = []
+        main_code.append(
+            """
+            std::vector<CLMLRunner> BuildModules(ToolArgs& args,
+                                                 cl_platform_id arg_platform,
+                                                 cl_context arg_context,
+                                                 cl_device_id arg_device_id,
+                                                 cl_command_queue arg_queue) {
+                  std::vector<CLMLRunner> runners;"""
+        )
+        for key, val in self.clml_builds.items():
+            if key != "file_header":
+                main_code.append(
+                    "runners.push_back("
+                    + key
+                    + '("'
+                    + key
+                    + '", args, arg_platform, arg_context, arg_device_id, arg_queue));'
+                )
+        main_code.append("return runners;}")
+        self.clml_builds["MainBuild"] = main_code
+
+        for key, val in self.clml_builds.items():
+            self.gen_src.extend(val)
+
+        return (self.get_clml_params(), self.gen_src)
