@@ -62,5 +62,22 @@ def test_custom_rule():
     assert "ValueError: Intended for meta_schedule.cpu.test_apply_custom_rule" in str(e_info.value)
 
 
+def test_custom_rule_not_present():
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            sch_rules = []
+            space_gen = ms.space_generator.PostOrderApply(sch_rules=sch_rules)
+            ms.tune_tir(
+                mod=Matmul,
+                target="llvm -num-cores=1",
+                work_dir=tmpdir,
+                max_trials_global=1,
+                space=space_gen,
+            )
+    except ValueError as e_info:
+        pytest.fail("custom schedule rule called without ApplyCustomRule()")
+
+
 if __name__ == "__main__":
     test_custom_rule()
+    test_custom_rule_not_present()
