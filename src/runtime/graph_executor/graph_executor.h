@@ -118,6 +118,12 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   std::tuple<ShapeInfo, DtypeInfo> GetInputInfo() const;
 
   /*!
+   * \brief Get the output info of Graph by parsing the output nodes.
+   * \return The shape and dtype tuple.
+   */
+  std::tuple<ShapeInfo, DtypeInfo> GetOutputInfo() const;
+
+  /*!
    * \brief Get the output index given the name of output.
    * \param name The name of the output.
    * \return The index of output.

@@ -593,6 +593,10 @@ if(USE_CPP_RPC)
   add_subdirectory("apps/cpp_rpc")
 endif()
 
+if(USE_CPP_RTVM)
+  add_subdirectory("apps/cpp_rtvm")
+endif()
+
 if(USE_IOS_RPC)
   add_subdirectory("apps/ios_rpc")
 endif()
