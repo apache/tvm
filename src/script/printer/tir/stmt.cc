@@ -175,9 +175,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Allocate>(  //
         "", [](tir::Allocate stmt, ObjectPath stmt_p, IRDocsifier d) -> Doc {
           bool concise = AllowConciseScoping(d);
-          OccurrenceCounter counter(stmt->buffer_var.get());
-          counter(stmt->body);
-          if (counter.count == 1 && IsAllocateDeclBufferPattern(stmt.get())) {
+          if (IsAllocateDeclBufferPattern(stmt.get())) {
             return d->AsDoc(stmt->body, stmt_p->Attr("body"));
           }
           Array<ExprDoc> args;
