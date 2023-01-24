@@ -4205,10 +4205,14 @@ bool UniqueRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   std::vector<Type> fields;
   fields.push_back(TensorType(data->shape, data->dtype));               // unique
-  fields.push_back(TensorType(data->shape, DataType::Int(32)));         // indices
-  fields.push_back(TensorType(data->shape, DataType::Int(32)));         // inverse_indices
   fields.push_back(TensorType(Array<PrimExpr>{1}, DataType::Int(32)));  // num_unique
   const auto* param = attrs.as<UniqueAttrs>();
+  if (param->return_indices) {
+    fields.push_back(TensorType(data->shape, DataType::Int(32)));  // indices
+  }
+  if (param->return_inverse_indices) {
+    fields.push_back(TensorType(data->shape, DataType::Int(32)));  // inverse_indices
+  }
   if (param->return_counts) {
     fields.push_back(TensorType(data->shape, DataType::Int(32)));  // counts
   }
@@ -4216,9 +4220,12 @@ bool UniqueRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return true;
 }
 
-Expr MakeUnique(Expr data, bool sorted, bool return_counts) {
+Expr MakeUnique(Expr data, bool sorted, bool return_indices, bool return_inverse_indices,
+                bool return_counts) {
   auto attrs = make_object<UniqueAttrs>();
   attrs->sorted = sorted;
+  attrs->return_indices = return_indices;
+  attrs->return_inverse_indices = return_inverse_indices;
   attrs->return_counts = return_counts;
   static const Op& op = Op::Get("unique");
   return Call(op, {data}, Attrs(attrs), {});

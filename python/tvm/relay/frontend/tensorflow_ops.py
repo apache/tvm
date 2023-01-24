@@ -2865,7 +2865,7 @@ def _unique(return_counts=True):
         assert len(inputs) == 1
         data = inputs[0]
         if return_counts:
-            [unique, _, inverse_indices, num_uniq, counts] = _op.unique(
+            [unique, num_uniq, _, inverse_indices, counts] = _op.unique(
                 data, is_sorted=False, return_counts=True
             )
             unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
@@ -2874,9 +2874,7 @@ def _unique(return_counts=True):
                 _expr.Tuple([unique_sliced, inverse_indices, counts_sliced]),
                 3,
             )
-        [unique, _, inverse_indices, num_uniq] = _op.unique(
-            data, is_sorted=False, return_counts=False
-        )
+        [unique, num_uniq, _, inverse_indices] = _op.unique(data, is_sorted=False)
         unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
         return _expr.TupleWrapper(
             _expr.Tuple([unique_sliced, inverse_indices]),

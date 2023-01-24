@@ -1940,7 +1940,13 @@ def wrap_compute_unique(topi_compute):
     """Wrap unique topi compute"""
 
     def _compute_unique(attrs, inputs, _):
-        return topi_compute(inputs[0], attrs.sorted, attrs.return_counts)
+        return topi_compute(
+            inputs[0],
+            attrs.sorted,
+            attrs.return_indices,
+            attrs.return_inverse_indices,
+            attrs.return_counts,
+        )
 
     return _compute_unique
 

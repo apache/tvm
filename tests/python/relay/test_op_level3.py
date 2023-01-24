@@ -2060,12 +2060,20 @@ def test_unique(target, dev):
             counts,
         ]
 
-    def verify_unique(n, dtype, is_dyn=False, is_sorted=False, return_counts=False):
+    def verify_unique(
+        n,
+        dtype,
+        is_dyn=False,
+        is_sorted=False,
+        return_indices=False,
+        return_inverse_indices=False,
+        return_counts=False,
+    ):
         if is_dyn:
             x = relay.var("x", relay.TensorType([relay.Any()], dtype))
         else:
             x = relay.var("x", relay.TensorType([n], dtype))
-        outs = relay.unique(x, is_sorted, return_counts)
+        outs = relay.unique(x, is_sorted, return_indices, return_inverse_indices, return_counts)
         outs = outs.astuple()
         func = relay.Function([x], outs)
         x_data = np.random.randint(50, size=n).astype(dtype)
@@ -2085,21 +2093,38 @@ def test_unique(target, dev):
         num_unique = np_res[3][0]
 
         # num_unique
-        assert num_unique == tvm_res[3].numpy()[0]
+        assert num_unique == tvm_res[1].numpy()[0]
         # unique
         tvm.testing.assert_allclose(tvm_res[0].numpy()[:num_unique], np_res[0], rtol=1e-5)
+        args_counter = 2
         # indices
-        tvm.testing.assert_allclose(tvm_res[1].numpy()[:num_unique], np_res[1], rtol=1e-5)
+        if return_indices:
+            tvm.testing.assert_allclose(
+                tvm_res[args_counter].numpy()[:num_unique], np_res[1], rtol=1e-5
+            )
+            args_counter += 1
         # inverse_indices
-        tvm.testing.assert_allclose(tvm_res[2].numpy(), np_res[2], rtol=1e-5)
+        if return_inverse_indices:
+            tvm.testing.assert_allclose(tvm_res[args_counter].numpy(), np_res[2], rtol=1e-5)
+            args_counter += 1
         # counts
         if return_counts:
-            tvm.testing.assert_allclose(tvm_res[4].numpy()[:num_unique], np_res[4], rtol=1e-5)
+            tvm.testing.assert_allclose(
+                tvm_res[args_counter].numpy()[:num_unique], np_res[4], rtol=1e-5
+            )
 
     for dtype in ["int32", "int64"]:
-        for i in range(8):
-            is_dyn, is_sorted, return_counts = bool(i & 1), bool(i & 2), bool(i & 4)
-            verify_unique(10, dtype, is_dyn, is_sorted, return_counts)
+        for i in range(32):
+            is_dyn, is_sorted, return_indices, return_inverse_indices, return_counts = [
+                bool(i & 1),
+                bool(i & 2),
+                bool(i & 4),
+                bool(i & 8),
+                bool(i & 16),
+            ]
+            verify_unique(
+                10, dtype, is_dyn, is_sorted, return_indices, return_inverse_indices, return_counts
+            )
 
 
 class TestSTFT:

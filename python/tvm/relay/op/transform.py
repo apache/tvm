@@ -1797,9 +1797,12 @@ def cumprod(data, axis=None, dtype=None, exclusive=None):
     return _make.cumprod(data, axis, dtype, exclusive)
 
 
-def unique(data, is_sorted=True, return_counts=False):
-    """Find the unique elements of a 1-D tensor. Please note `output` and `counts` are all padded to
-    have the same length of `data` and element with index >= num_unique[0] has undefined value.
+def unique(
+    data, is_sorted=True, return_indices=True, return_inverse_indices=True, return_counts=False
+):
+    """Find the unique elements of a 1-D tensor.
+    Please note `output`, `indices` and `counts` are all padded to have the same length of `data`
+    and element with index >= num_unique[0] has undefined value.
 
     Parameters
     ----------
@@ -1809,6 +1812,12 @@ def unique(data, is_sorted=True, return_counts=False):
     is_sorted : bool, optional
         Whether to sort the unique elements in ascending order before returning as output.
 
+    return_indices : bool, optional
+        Whether to return the indices of unique elements in input tensor.
+
+    return_inverse_indices : bool, optional
+        Whether to return the indices of unique elements in output tensor.
+
     return_counts : bool, optional
         Whether to return the count of each unique element.
 
@@ -1817,16 +1826,16 @@ def unique(data, is_sorted=True, return_counts=False):
     unique : relay.Expr
         A 1-D tensor containing the unique elements of the input data tensor.
 
-    indices : relay.Expr
+    num_unique : relay.Expr
+        A 1-D tensor with size=1 containing the number of unique elements in the input data tensor.
+
+    indices : relay.Expr, optional
         A 1-D tensor containing the indeces of the first occurence of each unique value
         in the input tensor.
 
-    inverse_indices : relay.Expr
+    inverse_indices : relay.Expr, optional
         A 1-D tensor. For each entry in data, it contains the index of that data element in the
         unique array.
-
-    num_unique : relay.Expr
-        A 1-D tensor with size=1 containing the number of unique elements in the input data tensor.
 
     counts : relay.Expr, optional
         A 1-D tensor containing the count of each unique element in the output.
@@ -1839,28 +1848,36 @@ def unique(data, is_sorted=True, return_counts=False):
                                                                 False,
                                                                 False)
         output          =  [4, 5, 1, 2, 3, _, _, _]
+        num_unique      =  [5]
         indices         =  [0, 1, 2, 3, 4, _, _, _]
         inverse_indices =  [0, 1, 2, 3, 4, 4, 0, 1]
-        num_unique      =  [5]
 
         [output, indices, inverse_indices, num_unique, counts] = unique([4, 5, 1, 2, 3, 3, 4, 5],
                                                                         False,
                                                                         True)
         output          =  [4, 5, 1, 2, 3, _, _, _]
+        num_unique      =  [5]
         indices         =  [0, 1, 2, 3, 4, _, _, _]
         inverse_indices =  [0, 1, 2, 3, 4, 4, 0, 1]
-        num_unique      =  [5]
         counts          =  [2, 2, 1, 1, 2, _, _, _]
 
         [output, indices, inverse_indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], True)
         output          =  [1, 2, 3, 4, 5, _, _, _]
+        num_unique      =  [5]
         indices         =  [2, 3, 4, 0, 1, _, _, _]
         inverse_indices =  [3, 4, 0, 1, 2, 2, 3, 4]
-        num_unique      =  [5]
     """
+    args_counter = 2
+    if return_indices:
+        args_counter += 1
+    if return_inverse_indices:
+        args_counter += 1
     if return_counts:
-        return TupleWrapper(_make.unique(data, is_sorted, return_counts), 5)
-    return TupleWrapper(_make.unique(data, is_sorted, return_counts), 4)
+        args_counter += 1
+    return TupleWrapper(
+        _make.unique(data, is_sorted, return_indices, return_inverse_indices, return_counts),
+        args_counter,
+    )
 
 
 def invert_permutation(data):

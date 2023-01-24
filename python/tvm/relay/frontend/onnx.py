@@ -5727,22 +5727,31 @@ class Unique(OnnxOpConverter):
             data = _op.reshape(data, _op.const([-1]))
         else:
             data_shape = infer_shape(data)
+            # TODO(vvchernov): extend to N-D input array
             if len(data_shape) != 1:
                 raise ValueError("TVM only supports 1D Unique operator.")
+            if axis >= len(data_shape):
+                raise ValueError("Specified axis is out of bounds")
         is_sorted = attr.get("sorted", 1)  # sorted is 0 or 1, 1 by default
 
-        # ONNX documentation lists return_counts as optional but there is no input to specify
-        # whether it is returned. Therefore we'll just always return it.
-        unique = _op.unique(data, is_sorted=(is_sorted == 1), return_counts=True)
-        num_unique = unique[3]
+        # ONNX documentation lists return indies, inverse_indices and counts as optional
+        # but there is no input to specify whether they are returned.
+        # Therefore we'll just always return all.
+        unique = _op.unique(
+            data,
+            is_sorted=(is_sorted == 1),
+            return_counts=True,
+        )
+        num_unique = unique[1]
 
         trim_unique_lambda = lambda input: _op.strided_slice(input, _op.const([0]), num_unique)
 
         unique_vals = trim_unique_lambda(unique[0])
-        indices = _op.cast(trim_unique_lambda(unique[1]), "int64")  # ONNX always returns int64
-        inverse_indices = _op.cast(unique[2], "int64")  # ONNX always returns int64
+        indices = _op.cast(trim_unique_lambda(unique[2]), "int64")  # ONNX always returns int64
+        inverse_indices = _op.cast(unique[3], "int64")  # ONNX always returns int64
         counts = _op.cast(trim_unique_lambda(unique[4]), "int64")  # ONNX always returns int64
-        # ONNX unique returns unique, indices, inverse_indices, (optional) counts
+        # ONNX unique returns unique elements, (optional) indices, (optional) inverse_indices,
+        # (optional) counts
         return _expr.TupleWrapper(_expr.Tuple([unique_vals, indices, inverse_indices, counts]), 4)
 
 
