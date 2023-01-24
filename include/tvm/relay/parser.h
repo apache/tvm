@@ -16,13 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#ifndef TVM_RELAY_PARSER_H_
+#define TVM_RELAY_PARSER_H_
 
-#ifndef TVM_PARSER_PARSER_H_
-#define TVM_PARSER_PARSER_H_
-/*!
- * \file include/tvm/parser/parser.h
- * \brief A parser for TVM IR.
- */
 #include <tvm/ir/module.h>
 #include <tvm/ir/transform.h>
 #include <tvm/runtime/packed_func.h>
@@ -32,7 +28,7 @@
 #include <string>
 
 namespace tvm {
-namespace parser {
+namespace relay {
 
 using MetaTable = Map<String, Array<ObjectRef>>;
 
@@ -45,9 +41,9 @@ IRModule ParseModule(const std::string& file_name, const std::string& file_conte
  * for all Relay sub-expressions. This improves error and debugging diagnostics downstream for
  * modules constructed programaticaly rather than textually.
  */
-transform::Pass AnnotateSpans();
+tvm::transform::Pass AnnotateSpans();
 
-}  // namespace parser
+}  // namespace relay
 }  // namespace tvm
 
-#endif  // TVM_PARSER_PARSER_H_
+#endif  // TVM_RELAY_PARSER_H_

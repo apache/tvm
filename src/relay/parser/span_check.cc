@@ -25,7 +25,7 @@
 #include <tvm/relay/transform.h>
 
 namespace tvm {
-namespace parser {
+namespace relay {
 
 using tvm::relay::transform::CreateFunctionPass;
 using tvm::transform::PassContext;
@@ -101,7 +101,7 @@ Pass SpanCheck() {
       0, "SpanCheck", {});
 }
 
-TVM_REGISTER_GLOBAL("parser.SpanCheck").set_body_typed([]() { return SpanCheck(); });
+TVM_REGISTER_GLOBAL("relay.parser.SpanCheck").set_body_typed([]() { return SpanCheck(); });
 
-}  // namespace parser
+}  // namespace relay
 }  // namespace tvm

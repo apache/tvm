@@ -27,8 +27,8 @@
 #include <tvm/ir/adt.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
+#include <tvm/ir/source_map.h>
 #include <tvm/ir/type.h>
-#include <tvm/parser/source_map.h>
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/map.h>
 #include <tvm/runtime/container/string.h>
@@ -60,7 +60,7 @@ class IRModuleNode : public Object {
   /*! \brief A map from global type vars to ADT type data. */
   Map<GlobalTypeVar, TypeData> type_definitions;
   /*! \brief The source map for the module. */
-  parser::SourceMap source_map;
+  SourceMap source_map;
   /* \brief Additional attributes storing meta-data about the module. */
   DictAttrs attrs;
   /*!
@@ -357,7 +357,7 @@ class IRModule : public ObjectRef {
    */
   TVM_DLL explicit IRModule(Map<GlobalVar, BaseFunc> functions,
                             Map<GlobalTypeVar, TypeData> type_definitions = {},
-                            std::unordered_set<String> import_set = {}, parser::SourceMap map = {},
+                            std::unordered_set<String> import_set = {}, SourceMap map = {},
                             DictAttrs attrs = {});
 
   /*! \brief default constructor */
