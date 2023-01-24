@@ -55,7 +55,7 @@ Map<String, ExprDoc> BufferAttrs(const tir::Buffer& buffer, const ObjectPath& p,
   // Step 1. Handle `buffer.shape`
   array_out_line_var_def(buffer->shape, p->Attr("shape"), "shape");
   // Step 2. Handle `buffer.dtype`
-  if (buffer->dtype != Default::BufferDType()) {
+  if (buffer->dtype != d->cfg->buffer_dtype) {
     kwargs.Set("dtype", LiteralDoc::DataType(buffer->dtype, p->Attr("dtype")));
   }
   // Step 3. Handle `buffer.data`
@@ -123,7 +123,7 @@ ExprDoc BufferCall(const ExprDoc& prefix, const Map<String, ExprDoc>& attrs, Arr
 
 ExprDoc BufferDecl(const tir::Buffer& buffer, const String& method, const Array<ExprDoc>& args,
                    const ObjectPath& p, const Frame& frame, const IRDocsifier& d) {
-  return BufferCall(/*prefix=*/TIR(method),
+  return BufferCall(/*prefix=*/TIR(d, method),
                     /*attrs=*/BufferAttrs(buffer, p, frame, d),
                     /*args=*/args);
 }
@@ -134,7 +134,7 @@ ExprDoc BufferAttn(const tir::Buffer& buffer, const ObjectPath& p, const Frame& 
   ExprDoc shape = attrs.Get("shape").value();
   ExprDoc dtype =
       attrs.Get("dtype").value_or(LiteralDoc::DataType(buffer->dtype, p->Attr("dtype")));
-  return TIR("Buffer")->Call({shape, dtype}, {}, {});
+  return TIR(d, "Buffer")->Call({shape, dtype}, {}, {});
 }
 
 Array<Doc> BufferIndices(const Array<PrimExpr>& indices, const ObjectPath& p,
@@ -251,7 +251,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         "", [](tir::ProducerRealize stmt, ObjectPath p, IRDocsifier d) -> Doc {
           ExprDoc prefix = IdDoc(stmt->producer->GetNameHint());
           prefix = prefix[BufferSlices(stmt->bounds, p->Attr("bounds"), d)];
-          prefix = TIR("ProducerRealize")
+          prefix = TIR(d, "ProducerRealize")
                        ->Call({prefix, d->AsDoc<ExprDoc>(stmt->condition, p->Attr("condition"))});
           With<TIRFrame> f(d, stmt);
           AsDocBody(stmt->body, p->Attr("body"), f->get(), d);

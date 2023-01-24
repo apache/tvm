@@ -59,7 +59,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           loop_p = loop_p->Attr("body");
         }
         AsDocBody(grid.back()->body, loop_p, (*f).get(), d);
-        return ForDoc(TupleDoc(lhs), TIR("grid")->Call(rhs), (*f)->stmts);
+        return ForDoc(TupleDoc(lhs), TIR(d, "grid")->Call(rhs), (*f)->stmts);
       }
       // Step 3. If not `T.grid`, print loop kind accordingly
       ExprDoc lhs = DefineVar(loop->loop_var, *f, d);
@@ -81,16 +81,16 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         if (loop->annotations.empty()) {
           prefix = IdDoc("range");
         } else {
-          prefix = TIR("serial");
+          prefix = TIR(d, "serial");
         }
       } else if (loop->kind == tir::ForKind::kParallel) {
-        prefix = TIR("parallel");
+        prefix = TIR(d, "parallel");
       } else if (loop->kind == tir::ForKind::kUnrolled) {
-        prefix = TIR("unroll");
+        prefix = TIR(d, "unroll");
       } else if (loop->kind == tir::ForKind::kVectorized) {
-        prefix = TIR("vectorized");
+        prefix = TIR(d, "vectorized");
       } else if (loop->kind == tir::ForKind::kThreadBinding) {
-        prefix = TIR("thread_binding");
+        prefix = TIR(d, "thread_binding");
         thread = LiteralDoc::Str(loop->thread_binding.value()->thread_tag,
                                  loop_p->Attr("thread_binding"));
       } else {

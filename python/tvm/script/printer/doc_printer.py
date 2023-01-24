@@ -17,7 +17,10 @@
 """Functions to print doc into text format"""
 
 from typing import Optional
-from tvm.runtime.object_path import ObjectPath
+
+from tvm.runtime import ObjectPath
+from tvm.runtime.script_printer import PrinterConfig
+
 from . import _ffi_api
 from .doc import Doc
 
@@ -49,8 +52,10 @@ def to_python_script(
     script : str
         The text representation of Doc in Python syntax
     """
-    if num_context_lines is None:
-        num_context_lines = -1
-    return _ffi_api.DocToPythonScript(  # type: ignore
-        doc, indent_spaces, print_line_numbers, num_context_lines, path_to_underline
+    cfg = PrinterConfig(
+        indent_spaces=indent_spaces,
+        print_line_numbers=print_line_numbers,
+        num_context_lines=num_context_lines,
+        path_to_underline=path_to_underline,
     )
+    return _ffi_api.DocToPythonScript(doc, cfg)  # type: ignore # pylint: disable=no-member
