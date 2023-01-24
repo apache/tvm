@@ -79,7 +79,7 @@ class RemoveDropoutPass:
         return RemoveDropout().visit(func)
 
 
-def partition_for_clml(mod, params=None):
+def partition_for_clml(mod, params=None, **opts):
     """Partition the graph greedily offloading supported
     operators to CLML Library.
 
