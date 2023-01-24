@@ -1315,8 +1315,8 @@ class CLMLRuntime : public JSONRuntimeBase {
    * \param layer The CLML layer to build. Containing inputs, outputs and the CLML output.
    * \param node The JSON representation of the operator.
    */
-  std::shared_ptr<cl_ml_tensor_memory_desc_qcom> CreateDepthToSpaceLayer(CachedLayer* layer,
-      const JSONGraphNode& node) {
+  std::shared_ptr<cl_ml_tensor_memory_desc_qcom> CreateDepthToSpaceLayer(
+      CachedLayer* layer, const JSONGraphNode& node) {
     cl_int result = 0;
     cl_ml_op_qcom op = NULL;
     DLDataType tvm_dtype = node.GetOpDataType()[0];
