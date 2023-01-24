@@ -234,6 +234,7 @@ MIT License
 3rdparty/libcrc
 3rdparty/cma
 3rdparty/compiler-rt/builtin_fp16.h
+3rdparty/cnpy
 
 The Unlicense
 -------------
