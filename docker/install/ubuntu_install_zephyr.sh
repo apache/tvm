@@ -38,11 +38,27 @@ sudo apt-get update
 
 sudo apt-install-and-clear -y cmake
 
+# Find release version
+apt-get update
+apt-install-and-clear -y \
+    lsb-core
+
+release=$(lsb_release -sc)
+if [ "${release}" == "bionic" ]; then
+     python_cmd="python3"
+elif [ "${release}" == "focal" ]; then
+     python_cmd="python3.8"
+else
+    echo "Don't know which version of python to use for Zephyr."
+    exit 2
+fi
+
 # Current Zephyr version is compatible with python3.8.
 # We use a different python env for Zephyr to test the
 # real world scenario where TVM and Zephyr could be in different
 # python environments.
-python3.8 -m pip install west
+# TODO: use virtual env for Zephyr.
+$python_cmd -m pip install west
 
 # Init ZephyrProject
 ZEPHYR_PROJECT_PATH=/opt/zephyrproject
@@ -62,4 +78,4 @@ chmod -R o+w ${ZEPHYR_PROJECT_PATH}
 mkdir zephyr/.cache
 chmod o+rwx zephyr/.cache
 
-python3.8 -m pip install -r /opt/zephyrproject/zephyr/scripts/requirements.txt
+$python_cmd -m pip install -r /opt/zephyrproject/zephyr/scripts/requirements.txt
