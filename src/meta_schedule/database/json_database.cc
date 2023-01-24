@@ -127,7 +127,14 @@ class JSONDatabaseNode : public DatabaseNode {
     Array<TuningRecord> results;
     results.reserve(top_k);
     for (const TuningRecord& record : this->tuning_records_) {
-      if (!record->run_secs.defined() || record->run_secs.value().empty()) {
+      auto run_secs = record->run_secs;
+      if (!run_secs.defined() || run_secs.value().empty() ||
+          std::all_of(run_secs.value().begin(), run_secs.value().end(),
+                      // kMaxMeanTime(1e10) is used as a stub for undefined measurement times.
+                      [](tvm::FloatImm v) {
+                        return v.defined() &&
+                               v->value == SortTuningRecordByMeanRunSecs::kMaxMeanTime;
+                      })) {
         continue;
       }
       if (record->workload.same_as(workload) ||
