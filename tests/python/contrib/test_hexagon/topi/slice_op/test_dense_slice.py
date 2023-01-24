@@ -98,12 +98,6 @@ def transformed_input_np(input_np, layout):
     return transform_numpy(input_np, "nc", layout)
 
 
-# TODO(joshherr-quic): transforming weight forces us to put it in vtcm. Crashes at runtime in vtcm
-# @tvm.testing.fixture
-# def transformed_weight_np(weight_np, layout):
-#     return transform_numpy(weight_np, "nc", layout)
-
-
 @tvm.testing.fixture
 def transformed_input_quant(input_quant, layout):
     if input_quant is None:
@@ -112,15 +106,6 @@ def transformed_input_quant(input_quant, layout):
     return input_quant
 
 
-# @tvm.testing.fixture
-# def transformed_weight_quant(weight_quant, layout):
-#     weight_quant["data"] = transform_numpy(weight_quant["data"], "nc", layout)
-#     return weight_quant
-
-# Test combinations of the following:
-# dtype in (float16, uint8)
-# num_croutons in (1, 2)
-# bias_enabled in (true, false)
 class TestDenseSlice:
     (input_shape, output_shape, layout, bias, dtype,) = tvm.testing.parameters(
         (  # Float 16
