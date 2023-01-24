@@ -179,20 +179,26 @@ def _dual_int16_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, k
         extern "C"
         #endif
         int32_t {_get_func_name("int16", tensor_w, channels, kernel_h, kernel_w, suffix)}(
-            uint32_t *out,
-            uint32_t *tensor,
-            uint32_t *kernel) {{
+            int32_t *out,
+            int16_t *tensor,
+            int16_t *kernel) {{
 
-          uint32_t sum_c0 = 0;
-          uint32_t sum_c1 = 0;
+          int32_t sum_c0 = 0;
+          int32_t sum_c1 = 0;
+
+          int32_t kernel_i32[{kernel_h} * {kernel_w}];
+          memcpy(kernel_i32, kernel, {kernel_h} * {kernel_w} * 4);
+
+          int32_t tensor_length = {((kernel_w - 1) * (channels // 2) + (kernel_h - 1) * tensor_w * (channels // 2)) + 1};
+          int32_t tensor_i32[tensor_length];
+          memcpy(tensor_i32, tensor, tensor_length * 4);
 
           #pragma GCC unroll 3
           for (int i = 0; i < {kernel_h}; i++) {{
             #pragma GCC unroll 3
             for (int j = 0; j < {kernel_w}; j++) {{
-              uint32_t tensor_c10 = *(tensor + j * {channels // 2}
-                + i * {tensor_w * (channels // 2)});
-              uint32_t kernel_c10 = *kernel++;
+              int32_t tensor_c10 = tensor_i32[j * {channels // 2} + i * {tensor_w * (channels // 2)}];
+              int32_t kernel_c10 = kernel_i32[{kernel_w} * i + j];
               sum_c0 = __builtin_arm_smlabb(tensor_c10, kernel_c10, sum_c0);
               sum_c1 = __builtin_arm_smlatt(tensor_c10, kernel_c10, sum_c1);
             }}
