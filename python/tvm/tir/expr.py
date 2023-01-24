@@ -34,7 +34,7 @@ import tvm.ir._ffi_api
 from tvm import ir
 from tvm.ir import Op, PrimExpr
 from tvm.ir.base import Span
-from tvm.runtime import DataType, DataTypeCode, Object, ObjectGeneric, const
+from tvm.runtime import DataType, DataTypeCode, Object, ObjectGeneric, Scriptable, const
 
 from . import _ffi_api
 from . import generic as _generic
@@ -318,87 +318,12 @@ class IntImmEnum(ObjectGeneric):
         return IntImm("int32", self.value, self.span)  # type: ignore
 
 
-class PrimExprWithOp(ExprOp, PrimExpr):
+class PrimExprWithOp(ExprOp, PrimExpr, Scriptable):
     """Helper base class to inherit from PrimExpr."""
 
     # In Python3, We have to explicitly tell interpreter to retain __hash__ if we overide __eq__
     # https://docs.python.org/3.1/reference/datamodel.html#object.__hash__
     __hash__ = PrimExpr.__hash__
-
-    def script(
-        self,
-        *,
-        indent_spaces: int = 4,
-        print_line_numbers: bool = False,
-        num_context_lines: Optional[int] = None,
-        path_to_underline=None,
-    ) -> str:
-        """Print IRModule into TVMScript
-
-        Parameters
-        ----------
-        indent_spaces : int
-            The number of indent spaces to use in the output
-        print_line_numbers: bool
-            Whether to print line numbers
-        num_context_lines : Optional[int]
-            Number of context lines to print around the underlined text
-        path_to_underline : Optional[ObjectPath]
-            Object path to be underlined
-
-        Returns
-        -------
-        script : str
-            The TVM Script of the IRModule
-        """
-        if num_context_lines is None:
-            num_context_lines = -1
-        return _ffi_api.PrimExprScript(  # type: ignore  # pylint: disable=no-member
-            self, indent_spaces, print_line_numbers, num_context_lines, path_to_underline
-        )
-
-    def show(
-        self,
-        *,
-        style: Optional[str] = None,
-        black_format: bool = True,
-        indent_spaces: int = 4,
-        print_line_numbers: bool = False,
-        num_context_lines: Optional[int] = None,
-        path_to_underline=None,
-    ) -> None:
-        """A sugar for print highlighted TVM script.
-
-        Parameters
-        ----------
-        style : str, optional
-            Pygmentize printing style, auto-detected if None.  See
-            `tvm.script.highlight.cprint` for more details.
-        black_format: bool
-            If true (default), use the formatter Black to format the TVMScript
-        indent_spaces : int
-            The number of indent spaces to use in the output
-        print_line_numbers: bool
-            Whether to print line numbers
-        num_context_lines : Optional[int]
-            Number of context lines to print around the underlined text
-        path_to_underline : Optional[ObjectPath]
-            Object path to be underlined
-        """
-        from tvm.script.highlight import (  # pylint: disable=import-outside-toplevel
-            cprint,
-        )
-
-        cprint(
-            self.script(
-                indent_spaces=indent_spaces,
-                print_line_numbers=print_line_numbers,
-                num_context_lines=num_context_lines,
-                path_to_underline=path_to_underline,
-            ),
-            style=style,
-            black_format=black_format,
-        )
 
 
 class ConstExpr(PrimExprWithOp):
@@ -460,7 +385,7 @@ class SizeVar(Var):
 
 
 @tvm._ffi.register_object("tir.IterVar")
-class IterVar(Object, ExprOp):
+class IterVar(Object, ExprOp, Scriptable):
     """Represent iteration variable.
 
     IterVar represents axis iterations in the computation.
@@ -521,7 +446,7 @@ class IterVar(Object, ExprOp):
 
 
 @tvm._ffi.register_object("tir.CommReducer")
-class CommReducer(Object):
+class CommReducer(Object, Scriptable):
     """Commutative reduce operator
 
     Parameters

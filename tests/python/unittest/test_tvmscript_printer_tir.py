@@ -15,31 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
-from contextlib import contextmanager
-
+import tvm.testing
 from tvm import ir, tir
 from tvm.ir import Range
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tir as T
-from tvm.script.printer import default
-import tvm.testing
-
-
-@contextmanager
-def verbose_expr():
-    try:
-        default.verbose_expr(True)
-        yield
-    finally:
-        default.verbose_expr(False)
 
 
 def _assert_print(obj, expected):
-    with verbose_expr():
-        if isinstance(obj, (tir.PrimFunc, tir.PrimExpr, tir.Stmt)):
-            assert obj.script().strip() == expected.strip()
-        assert str(obj).strip() == expected.strip()
-        assert repr(obj).strip() == expected.strip()
+    assert obj.script(verbose_expr=True).strip() == expected.strip()
 
 
 def test_prim_func():

@@ -20,13 +20,13 @@ from numbers import Integral
 import tvm._ffi
 from tvm._ffi.base import string_types
 from tvm.ir import PointerType, PrimExpr, PrimType, Range
-from tvm.runtime import Object, convert
+from tvm.runtime import Object, Scriptable, convert
 
 from . import _ffi_api
 
 
 @tvm._ffi.register_object("tir.Buffer")
-class Buffer(Object):
+class Buffer(Object, Scriptable):
     """Symbolic data buffer in TVM.
 
     Buffer provide a way to represent data layout
@@ -179,7 +179,11 @@ class Buffer(Object):
 
     def __getitem__(self, indices):
         from ..arith import Analyzer  # pylint: disable=import-outside-toplevel
-        from .expr import BufferLoad, Ramp, const  # pylint: disable=import-outside-toplevel
+        from .expr import (  # pylint: disable=import-outside-toplevel
+            BufferLoad,
+            Ramp,
+            const,
+        )
         from .stmt import BufferRegion  # pylint: disable=import-outside-toplevel
 
         if not isinstance(indices, (tuple, list)):

@@ -100,16 +100,7 @@ class PrimExprNode : public BaseExprNode {
    */
   DataType dtype;
 
-  /*!
-   * \brief Returns the TVMScript format
-   * \param indent_spaces Number of spaces used for indentation
-   * \param print_line_numbers Whether to print line numbers
-   * \param num_context_lines Number of context lines to print around the underlined text
-   * \param path_to_underline Object path to be underlined
-   */
-  TVM_DLL std::string Script(int indent_spaces = 4, bool print_line_numbers = false,
-                             int num_context_lines = -1,
-                             Optional<ObjectPath> path_to_underline = NullOpt) const;
+  TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
   static constexpr const char* _type_key = "PrimExpr";
   static constexpr const uint32_t _type_child_slots = 38;

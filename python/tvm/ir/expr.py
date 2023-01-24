@@ -17,7 +17,7 @@
 """Common expressions data structures in the IR."""
 import tvm._ffi
 
-from ..runtime import const, convert
+from ..runtime import Scriptable, const, convert
 from . import _ffi_api
 from .base import Node
 
@@ -121,7 +121,7 @@ class GlobalVar(RelayExpr):
 
 
 @tvm._ffi.register_object
-class Range(Node):
+class Range(Node, Scriptable):
     """Represent a range in TVM.
 
     You do not need to create a Range explicitly.
