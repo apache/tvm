@@ -24,6 +24,7 @@
 #define TVM_NODE_REPR_PRINTER_H_
 
 #include <tvm/node/functor.h>
+#include <tvm/node/script_printer.h>
 
 #include <iostream>
 #include <string>

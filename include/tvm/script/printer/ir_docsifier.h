@@ -126,6 +126,8 @@ class IRDocsifierNode : public Object {
     /*! \brief The name of the variable */
     Optional<String> name;
   };
+  /*! \brief The configuration of the printer */
+  PrinterConfig cfg{nullptr};
   /*!
    * \brief The stack of frames.
    * \sa FrameNode
@@ -232,7 +234,7 @@ class IRDocsifier : public ObjectRef {
  public:
   using FType = IRDocsifierFunctor<printer::Doc, ObjectPath, IRDocsifier>;
   /*! \brief Create a IRDocsifier. */
-  IRDocsifier();
+  explicit IRDocsifier(const PrinterConfig& cfg);
   /*! \brief The registration table for IRDocsifier. */
   TVM_DLL static FType& vtable();
 

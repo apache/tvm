@@ -144,8 +144,9 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
   this->common_prefix = std::move(visitor.common_prefix);
 }
 
-IRDocsifier::IRDocsifier() {
+IRDocsifier::IRDocsifier(const PrinterConfig& cfg) {
   auto n = make_object<IRDocsifierNode>();
+  n->cfg = cfg;
   n->dispatch_tokens.push_back("");
   data_ = std::move(n);
 }

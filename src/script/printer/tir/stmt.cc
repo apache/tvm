@@ -51,7 +51,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       if (eval->value->IsInstance<tir::CallNode>()) {
         return ExprStmtDoc(value);
       }
-      return ExprStmtDoc(TIR("evaluate")->Call({value}));
+      return ExprStmtDoc(TIR(d, "evaluate")->Call({value}));
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -75,7 +75,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         stmts->insert(stmts->begin(), AssignDoc(lhs, rhs, type_doc));
         return StmtBlockDoc(*stmts);
       } else {
-        rhs = TIR("let")->Call({lhs, rhs});
+        rhs = TIR(d, "let")->Call({lhs, rhs});
         return ScopeDoc(NullOpt, rhs, *stmts);
       }
     });
@@ -93,7 +93,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             stmts->insert(stmts->begin(), AssertDoc(cond, msg));
             return StmtBlockDoc(*stmts);
           }
-          return ScopeDoc(NullOpt, TIR("Assert")->Call({cond, msg}), (*f)->stmts);
+          return ScopeDoc(NullOpt, TIR(d, "Assert")->Call({cond, msg}), (*f)->stmts);
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -145,7 +145,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Prefetch>(  //
         "", [](tir::Prefetch stmt, ObjectPath p, IRDocsifier d) -> Doc {
-          return ExprStmtDoc(TIR("prefetch")
+          return ExprStmtDoc(TIR(d, "prefetch")
                                  ->Call({
                                      d->AsDoc<ExprDoc>(stmt->buffer, p->Attr("buffer")),
                                      d->AsDoc<ExprDoc>(stmt->bounds, p->Attr("bounds")),
@@ -198,7 +198,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           }
           ExprDoc lhs = DefineVar(stmt->buffer_var, d->frames.back(), d);
           With<TIRFrame> f(d, stmt);
-          ExprDoc rhs = TIR("allocate")->Call(args, kwargs_keys, kwargs_values);
+          ExprDoc rhs = TIR(d, "allocate")->Call(args, kwargs_keys, kwargs_values);
           AsDocBody(stmt->body, stmt_p->Attr("body"), f->get(), d);
           return DoConciseScoping(lhs, rhs, &(*f)->stmts, concise);
         });
@@ -277,7 +277,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           args.push_back(data_doc);
           args.push_back(LiteralDoc::DataType(stmt->dtype, stmt_p->Attr("dtype")));
           args.push_back(d->AsDoc<ExprDoc>(stmt->extents, stmt_p->Attr("extents")));
-          ExprDoc rhs = TIR("allocate_const")->Call(args, kwargs_keys, kwargs_values);
+          ExprDoc rhs = TIR(d, "allocate_const")->Call(args, kwargs_keys, kwargs_values);
           With<TIRFrame> f(d, stmt);
           ExprDoc lhs = DefineVar(stmt->buffer_var, *f, d);
           AsDocBody(stmt->body, stmt_p->Attr("body"), f->get(), d);
@@ -310,7 +310,7 @@ ExprDoc DocsifyBufferRealize(const tir::BufferRealizeNode* stmt, Optional<ExprDo
     kwargs_keys.push_back("condition");
     kwargs_values.push_back(d->AsDoc<ExprDoc>(stmt->condition, p->Attr("condition")));
   }
-  return TIR("realize")->Call(args, kwargs_keys, kwargs_values);
+  return TIR(d, "realize")->Call(args, kwargs_keys, kwargs_values);
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -351,12 +351,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
                 DefineVar(iter_var->var, f, d);
                 f->stmts.push_back(
                     AssignDoc(d->AsDoc<ExprDoc>(iter_var->var, iter_var_p->Attr("var")),
-                              TIR("env_thread")
+                              TIR(d, "env_thread")
                                   ->Call({LiteralDoc::Str(iter_var->thread_tag,
                                                           iter_var_p->Attr("thread_tag"))}),  //
                               NullOpt));
               }
-              rhs = TIR("launch_thread")
+              rhs = TIR(d, "launch_thread")
                         ->Call({
                             d->AsDoc<ExprDoc>(iter_var->var, stmt_p->Attr("node")),
                             d->AsDoc<ExprDoc>(stmt->value, stmt_p->Attr("value")),
@@ -364,7 +364,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             }
           }
           if (!rhs.defined()) {
-            rhs = TIR("attr")->Call({
+            rhs = TIR(d, "attr")->Call({
                 d->AsDoc<ExprDoc>(stmt->node, stmt_p->Attr("node")),
                 LiteralDoc::Str(stmt->attr_key, stmt_p->Attr("attr_key")),
                 d->AsDoc<ExprDoc>(stmt->value, stmt_p->Attr("value")),

@@ -15,10 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """IRModule that holds the functions and type definitions."""
-from typing import Optional
-
 import tvm._ffi
 from tvm._ffi.base import string_types
+from tvm.runtime import Scriptable
 
 from . import _ffi_api
 from . import expr as _expr
@@ -27,7 +26,7 @@ from .base import Node
 
 
 @tvm._ffi.register_object("IRModule")
-class IRModule(Node):
+class IRModule(Node, Scriptable):
     """IRModule that holds functions and type definitions.
 
     IRModule is the basic unit for all IR transformations across the stack.
@@ -314,78 +313,3 @@ class IRModule(Node):
         from tvm.relay import astext  # pylint: disable=import-outside-toplevel
 
         return astext(self, show_meta_data, annotate)
-
-    def script(
-        self,
-        *,
-        indent_spaces: int = 4,
-        print_line_numbers: bool = False,
-        num_context_lines: Optional[int] = None,
-        path_to_underline=None,
-    ) -> str:
-        """Print IRModule into TVMScript
-
-        Parameters
-        ----------
-        indent_spaces : int
-            The number of indent spaces to use in the output
-        print_line_numbers: bool
-            Whether to print line numbers
-        num_context_lines : Optional[int]
-            Number of context lines to print around the underlined text
-        path_to_underline : Optional[ObjectPath]
-            Object path to be underlined
-
-        Returns
-        -------
-        script : str
-            The TVM Script of the IRModule
-        """
-        if num_context_lines is None:
-            num_context_lines = -1
-        return _ffi_api.Module_Script(  # type: ignore  # pylint: disable=no-member
-            self, indent_spaces, print_line_numbers, num_context_lines, path_to_underline
-        )
-
-    def show(
-        self,
-        *,
-        style: Optional[str] = None,
-        black_format: bool = True,
-        indent_spaces: int = 4,
-        print_line_numbers: bool = False,
-        num_context_lines: Optional[int] = None,
-        path_to_underline=None,
-    ) -> None:
-        """A sugar for print highlighted TVM script.
-
-        Parameters
-        ----------
-        style : str, optional
-            Pygmentize printing style, auto-detected if None.  See
-            `tvm.script.highlight.cprint` for more details.
-        black_format: bool
-            If true (default), use the formatter Black to format the TVMScript
-        indent_spaces : int
-            The number of indent spaces to use in the output
-        print_line_numbers: bool
-            Whether to print line numbers
-        num_context_lines : Optional[int]
-            Number of context lines to print around the underlined text
-        path_to_underline : Optional[ObjectPath]
-            Object path to be underlined
-        """
-        from tvm.script.highlight import (  # pylint: disable=import-outside-toplevel
-            cprint,
-        )
-
-        cprint(
-            self.script(
-                indent_spaces=indent_spaces,
-                print_line_numbers=print_line_numbers,
-                num_context_lines=num_context_lines,
-                path_to_underline=path_to_underline,
-            ),
-            style=style,
-            black_format=black_format,
-        )
