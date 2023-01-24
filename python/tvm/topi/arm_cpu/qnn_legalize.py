@@ -29,11 +29,12 @@ It would eventually be nice to have a generalized, cross-target solution for rem
 as there is no downside. This may be possible with Relax, but I'm unsure.
 """
 
+import numpy as np
 from scipy.signal import convolve2d
 from tvm.topi.utils import get_const_tuple
-from tvm import nd
+from tvm import nd, relay
 from .qnn_alter_op import prev_ops_match, edit_attrs
-from ..nn import *
+from ..nn import qnn_bias_add_legalize
 
 
 def _compute_fixed_conv2d_outputs(requantize_op):
@@ -82,7 +83,6 @@ def _compute_fixed_depthwise_outputs(requantize_op, fixed_channel_inputs):
     bias_data = bias_add_op.args[1].data.numpy()
 
     kernel_size = get_const_tuple(depthwise_op.attrs.kernel_size)
-    pad_top, pad_left, pad_bottom, pad_right = get_const_tuple(depthwise_op.attrs.padding)
 
     # Make a kernel_size x kernel_size array of fixed_input
     # Pad it with zeros usint padding

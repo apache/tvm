@@ -233,6 +233,28 @@ def qnn_bias_add_legalize(_attrs, _inputs, _tinfos):
 
 
 @tvm.target.generic_func
+def qnn_clip_legalize(_attrs, inputs, _tinfos, _out_type):
+    """Change clip layout.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : tvm.relay.Expr
+        Grouped input symbols
+    tinfos : list
+        Input shape and dtype
+    out_type: type
+        The output type
+
+    Note
+    ----
+    Unlike other TOPI functions, this function operates on both graph level and operator level.
+    """
+    return inputs[0]
+
+
+@tvm.target.generic_func
 def qnn_add_alter_layout(_attrs, _inputs, _tinfos, _out_type):
     """Change add layout.
 

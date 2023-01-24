@@ -25,7 +25,6 @@ import tarfile
 import logging
 from typing import Any, NamedTuple, Union, Tuple, Optional, List, Dict, Callable
 import numpy as np
-import time
 
 import tvm
 from tvm import relay
@@ -838,8 +837,6 @@ def run_and_check(
             + f" FVP_DIR={fvp_dir}"
             + custom_params
         )
-        print(codegen_path)
-        time.sleep(3)
 
         compile_log_path = os.path.join(build_path, "test_compile.log")
         compile_command = f"{make_command} aot_test_runner"
@@ -863,9 +860,7 @@ def run_and_check(
             _subprocess_check_log_output(run_command, build_path, run_log_path)
 
         with open(run_log_path) as run_log:
-            log = run_log.read()
-            print(log)
-            assert AOT_SUCCESS_TOKEN in log
+            assert AOT_SUCCESS_TOKEN in run_log.read()
 
         return True
 

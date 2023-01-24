@@ -19,8 +19,8 @@
 import numpy as np
 
 from tvm import nd, relay, target
-from ..nn import *
 from ..utils import get_const_tuple
+from ..nn import qnn_conv2d_alter_layout, qnn_add_alter_layout, qnn_requantize_alter_layout
 
 
 def prev_ops_match(curr_op, pattern):
@@ -57,7 +57,7 @@ def _squash_transformations(expr):
         return prev_kernel.astype(attrs.dtype)
     elif kernel.op.name == "expand_dims":
         new_axes = range(attrs.axis, attrs.axis + attrs.num_newaxis)
-        return np.expand_dims(prev_kernel, tuple(axes))
+        return np.expand_dims(prev_kernel, tuple(new_axes))
     else:
         raise RuntimeError(f"Invalid kernel transformation '{expr}'!")
 
@@ -107,34 +107,17 @@ def alter_conv2d_layout(attrs, inputs, _tinfos, _out_type):
     data_expr, kernel_expr = inputs[:2]
     is_depthwise = attrs.groups > 1
     new_kernel_layout = "IOHW" if is_depthwise else "OHWI"
-    assert attrs.data_layout == "NHWC"
-    padding = get_const_tuple(attrs.padding)
-
-    # For cortex-m devices, it does not make sense to do bounds checking for conv2d at
-    # runtime, and it is more efficient to copy the tensor to a new buffer. If we did
-    # this inside our conv2d, it
-    # We should handle padding separately from convolution, so the original tensor can be
-    # de-allocated immediately. This may also help with fusing padding onto a previous
-    # operator.
-
-    if any(attrs.padding):
-        data_expr = relay.nn.pad(data_expr, ((0, 0), (0, 1), (0, 1), (0, 0)), -128)
 
     op = relay.qnn.op.conv2d(
         relay.cast(data_expr, dtype="int16"),
         relay.cast(kernel_expr, dtype="int16"),
         *inputs[2:],
-        **edit_attrs(
-            attrs,
-            padding=(0, 0, 0, 0),
-            kernel_layout=new_kernel_layout,
-            out_layout="NHWC"
-        ),
+        **edit_attrs(attrs, kernel_layout=new_kernel_layout, out_layout="NHWC"),
     )
 
     # If possible, modify depthwise ops to take as input NCHW instead.
-    #if is_depthwise and prev_ops_match(op.args[0], ("cast", "qnn.requantize", "add", "qnn.conv2d")):
-    #    op = _alter_depthwise_conv2d_layout(op)
+    if is_depthwise and prev_ops_match(op.args[0], ("cast", "qnn.requantize", "add", "qnn.conv2d")):
+        op = _alter_depthwise_conv2d_layout(op)
 
     return op
 
@@ -187,11 +170,29 @@ def alter_add_layout(_attrs, inputs, _tinfos, _out_type):
     if new_biases.min() < -(2**31) or new_biases.max() > 2**31 - 1:
         return None
 
+    current_target = target.Target.current(allow_none=False)
     new_input_zp = relay.Constant(nd.array(np.int32(0)))
-    new_conv_args = (*prev_op.args[:2], new_input_zp, *prev_op.args[3:])
-    new_conv_op = relay.qnn.op.conv2d(*new_conv_args, **prev_op.attrs)
+    new_conv_args = [*prev_op.args[:2], new_input_zp, *prev_op.args[3:]]
     bias_constant = relay.Constant(nd.array(new_biases.astype("int32")))
 
+    # We should handle padding separately from convolution, so the original tensor can be
+    # de-allocated immediately. This may also help with fusing padding onto a previous
+    # operator. However, only do this if we're working with Cortex-M devices.
+    padding = get_const_tuple(prev_op.attrs.padding)
+    if "cortex-m" in current_target.mcpu and any(padding):
+        data_layout = prev_op.attrs.data_layout
+        assert data_layout.isupper()
+
+        pad_up, pad_left, pad_down, pad_right = padding
+        pad_op_arg = [(0, 0)] * len(data_layout)
+        pad_op_arg[data_layout.index("H")] = (pad_up, pad_down)
+        pad_op_arg[data_layout.index("W")] = (pad_left, pad_right)
+        new_conv_args[0] = relay.nn.pad(new_conv_args[0], tuple(pad_op_arg), conv_input_zp)
+
+    new_conv_op = relay.qnn.op.conv2d(
+        *new_conv_args,
+        **edit_attrs(prev_op.attrs, padding=(0, 0, 0, 0)),
+    )
     # If biases was wrapped in an expand_dims op, we must re-wrap it
     if isinstance(biases_data_op, relay.expr.Call):
         new_biases_op = relay.expand_dims(bias_constant, **biases_data_op.attrs)

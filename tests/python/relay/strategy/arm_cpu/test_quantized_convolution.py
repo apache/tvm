@@ -292,14 +292,8 @@ def _make_aot_model(params, hyperparams, layouts, is_depthwise=False):
     data, kernel, bias, output = tensors
     data_quant, kernel_quant, bias_quant, output_quant = quantizations
 
-    dtype, padding, _strides = hyperparams
+    dtype, _padding, _strides = hyperparams
     data_layout, _, output_layout = layouts
-
-    if False: #any(padding):
-        pad_const = int(data_quant["zero_points"][0])
-        pad_before = (0, padding[0], padding[1], 0)
-        pad_after = (0, padding[2], padding[3], 0)
-        data = np.pad(data, tuple(zip(pad_before, pad_after)), constant_values=pad_const)
     data_ndarr = _change_layout(data, "NHWC", data_layout, dtype)
     output_ndarr = _change_layout(output, "NHWC", output_layout, dtype)
 

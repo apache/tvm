@@ -21,14 +21,23 @@ schedules only work for fused operators with bias, as this is the most common us
 regular/depthwise conv2d is supported, but qnn_dense will be added eventually."""
 
 from tvm import topi, TVMError
-from .generic import *
+from tvm.topi.utils import get_const_tuple
 from ... import op as _op
 from ...op.strategy.generic import is_depthwise_conv2d
-from tvm.topi.utils import get_const_tuple
+from .generic import (
+    qnn_conv2d_strategy,
+    qnn_dense_strategy,
+    qnn_dequantize_strategy,
+    qnn_quantize_strategy,
+    wrap_compute_dequantize,
+    wrap_compute_quantize,
+    wrap_topi_qnn_dense,
+    wrap_topi_schedule,
+)
 
 
 @qnn_quantize_strategy.register("arm_cpu")
-def qnn_quantize_strategy_arm_cpu(attrs, inputs, out_type, target):
+def qnn_quantize_strategy_arm_cpu(_attrs, _inputs, _out_type, _target):
     """qnn.quantize strategy for arm_cpu"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
@@ -40,7 +49,7 @@ def qnn_quantize_strategy_arm_cpu(attrs, inputs, out_type, target):
 
 
 @qnn_dequantize_strategy.register("arm_cpu")
-def qnn_dequantize_strategy_arm_cpu(attrs, inputs, out_type, target):
+def qnn_dequantize_strategy_arm_cpu(_attrs, _inputs, _out_type, _target):
     """qnn.dequantize strategy for arm_cpu"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
@@ -52,7 +61,7 @@ def qnn_dequantize_strategy_arm_cpu(attrs, inputs, out_type, target):
 
 
 @qnn_dense_strategy.register("arm_cpu")
-def qnn_dense_strategy_arm_cpu(attrs, inputs, out_type, target):
+def qnn_dense_strategy_arm_cpu(_attrs, _inputs, _out_type, _target):
     """qnn.dense strategy for arm_cpu"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(

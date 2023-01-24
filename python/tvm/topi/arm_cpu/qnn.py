@@ -17,7 +17,8 @@
 """Contains TVMScript implementations of some QNN operators for Arm.
 
 Currently, the only ops with compute functions are fused regular and depthwise convolutions for
-Arm Cortex-M with DSP.
+Arm Cortex-M with DSP. Additionally, these functions explicitly do not support padding - it
+must be done in a separate Relay op for memory reasons.
 """
 
 from typing import Callable, Dict, Tuple
@@ -26,7 +27,6 @@ import tvm
 from tvm import te, TVMError
 from tvm.script import tir as T
 from tvm.tir import const
-from tvm.topi.nn.pad import pad
 
 from ..utils import get_const_tuple
 from .mprofile.dsp.micro_kernel import tensordot
@@ -120,25 +120,6 @@ def _pick_tensordot_impl(attrs, inputs, num_outputs=2, is_depthwise=False):
     )
 
     return (aligned_func, offset_func)
-
-
-def _optionally_pad_data(data, layout, padding, pad_value=-128):
-    # rq_input_zero_point_const = inputs[8].op.body[0]
-
-    padding = get_const_tuple(padding)
-    if any(padding):
-        pad_before = [0, 0, 0, 0]
-        pad_after = [0, 0, 0, 0]
-
-        pad_up, pad_left, pad_down, pad_right = padding
-        pad_before[layout.index("H")] = pad_up
-        pad_after[layout.index("H")] = pad_down
-        pad_before[layout.index("W")] = pad_left
-        pad_after[layout.index("W")] = pad_right
-        return pad(data, pad_before, pad_after, pad_value)
-
-    else:
-        return data
 
 
 def _make_tscript_ptr(buffer, offset, length, dtype="int16"):
@@ -280,11 +261,10 @@ def qnn_conv2d(attrs, inputs, out_type):
     # Make a few checks to unpack the function arguments and ensure it was called with the right
     # arguments. Note that unlike most schedules, qnn_conv2d does not use a wrapper.
     assert len(inputs) == 11
-    assert attrs
+    assert not any(get_const_tuple(attrs.padding))
 
     data, kernel, _izp, _kzp, _iscale, _kscale, bias, scale = inputs[0:8]
-    padded_data = _optionally_pad_data(data, attrs.data_layout, attrs.padding)
-    _, height, width, in_channels = get_const_tuple(padded_data.shape)
+    _, height, width, in_channels = get_const_tuple(data.shape)
     out_channels, kernel_h, kernel_w, _ = get_const_tuple(kernel.shape)
 
     y_stride, x_stride = get_const_tuple(attrs.strides)
@@ -358,9 +338,9 @@ def qnn_depthwise_conv2d(attrs, inputs, out_type):
     """
 
     assert len(inputs) == 11
+    assert not any(get_const_tuple(attrs.padding))
     data, kernel, _izp, _kzp, _iscale, _kscale, bias, scale = inputs[0:8]
-    padded_data = _optionally_pad_data(data, attrs.data_layout, attrs.padding)
-    _, _, height, width = get_const_tuple(padded_data.shape)
+    _, _, height, width = get_const_tuple(data.shape)
     _, out_channels, kernel_h, kernel_w = get_const_tuple(kernel.shape)
 
     y_stride, x_stride = get_const_tuple(attrs.strides)
@@ -492,12 +472,12 @@ def qnn_unrolled_depthwise_conv2d(attrs, inputs, out_type):
     """
 
     assert len(inputs) == 11
+    assert not any(get_const_tuple(attrs.padding))
     y_stride, x_stride = get_const_tuple(attrs.strides)
     assert y_stride == x_stride == 1
 
     data, kernel, _izp, _kzp, _iscale, _kscale, bias, scale = inputs[0:8]
-    padded_data = _optionally_pad_data(data, attrs.data_layout, attrs.padding)
-    _, _, height, width = get_const_tuple(padded_data.shape)
+    _, _, height, width = get_const_tuple(data.shape)
     _, out_channels, kernel_h, kernel_w = get_const_tuple(kernel.shape)
 
     y_stride, x_stride = get_const_tuple(attrs.strides)

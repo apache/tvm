@@ -17,12 +17,18 @@
 # pylint: disable=invalid-name, unused-argument, len-as-condition
 """QNN operator feature registration"""
 
-from tvm import topi
+from tvm import topi, TVMError
 
 from .. import strategy
 from ...op.op import register_compute
 from ...op.op import register_injective_schedule
-from ...op.op import register_strategy, register_pattern, register_alter_op_layout, OpPattern
+from ...op.op import (
+    OpPattern,
+    register_alter_op_layout,
+    register_legalize,
+    register_pattern,
+    register_strategy,
+)
 
 
 @register_compute("qnn.simulated_quantize")
@@ -85,10 +91,70 @@ register_pattern("qnn.concatenate", OpPattern.INJECTIVE)
 register_strategy("qnn.conv2d", strategy.qnn_conv2d_strategy)
 
 
+def _get_clip_dtype_bounds(dtype):
+    """Returns the minimum and maximum values of a C integer data type."""
+    assert "int" in dtype
+    bits = int(dtype[dtype.find("int") + 3 :])
+
+    if dtype.startswith("int"):
+        return (-(2 ** (bits - 1)), 2 ** (bits - 1) - 1)
+    elif dtype.startswith("uint"):
+        return (0, 2**bits - 1)
+    else:
+        raise TVMError(f"Clip legalization is not supported for data type '{dtype}'!")
+
+
+@register_legalize("clip")
+def legalize_clip(attrs, inputs, tinfos):
+    """Removes clip operators with bounds matching the defaults for their dtype.
+
+    This is already done after alter_op by TVM's simplification passes, but certain QNN operator
+    implementations (like Cortex-M) need it to be done earlier in legalization.
+    """
+
+    if hasattr(inputs[0], "op") and inputs[0].op.name == "qnn.requantize":
+        if _get_clip_dtype_bounds(tinfos[0].dtype) == (attrs.a_min, attrs.a_max):
+            return inputs[0]
+
+    return None
+
+
+@register_legalize("nn.bias_add")
+def legalize_bias_add(attrs, inputs, tinfos):
+    """Legalize a bias add operator.
+
+    May be used to "fold in" unused channels from quantized convolution operators. This should
+    be done before layout rewrites occur to minimize the amount of "extra" overhead operators
+    like "cast" and "layout_transform".
+    """
+    return topi.nn.qnn_bias_add_legalize(attrs, inputs, tinfos)
+
+
 @register_alter_op_layout("qnn.conv2d")
 def alter_op_layout_qnn_conv2d(attrs, inputs, tinfos, out_type):
-    """Alternate the layout of qnn.conv2d"""
+    """Alter the layout of a qnn conv2d op.
+
+    May be used to alter the current QNN Conv2D op, but can also be used to alter previous ops to
+    better match the current op. For example, Arm Cortex-M uses this to set the out_layout of
+    previous ops to the input layout preferred by future layouts.
+    """
     return topi.nn.qnn_conv2d_alter_layout(attrs, inputs, tinfos, out_type)
+
+
+@register_alter_op_layout("add")
+def alter_op_layout_add(attrs, inputs, tinfos, out_type):
+    """Alter the layout of a add op.
+
+    Useful for fusing the bias constant with an input zero point constant in a previous quantized
+    op. Only used when previous op is a quantized op, which is why it lives in topi.nn.qnn.
+    """
+    return topi.nn.qnn_add_alter_layout(attrs, inputs, tinfos, out_type)
+
+
+@register_alter_op_layout("qnn.requantize")
+def alter_op_layout_qnn_requantize(attrs, inputs, tinfos, out_type):
+    """Alter the layout of a requantization op."""
+    return topi.nn.qnn_requantize_alter_layout(attrs, inputs, tinfos, out_type)
 
 
 # qnn.dense
