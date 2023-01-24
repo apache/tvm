@@ -343,7 +343,7 @@ with T.decl_buffer((128, 128)) as buffer:
     )
 
 
-def test_allocate_with_decl_buffer_no_sugar_multi_usage():
+def test_allocate_with_decl_buffer_sugar_multi_usage():
     with IRBuilder() as ib:
         with T.allocate([128, 128], "float32") as buffer_data:
             with T.decl_buffer([128, 128], "float32", data=buffer_data) as buffer:
@@ -352,9 +352,8 @@ def test_allocate_with_decl_buffer_no_sugar_multi_usage():
     _assert_print(
         obj,
         """
-with T.allocate([128, 128], "float32", "global") as v:
-    buffer = T.decl_buffer((128, 128), data=v)
-    T.evaluate(v)
+with T.decl_buffer((128, 128)) as buffer:
+    T.evaluate(buffer.data)
 """,
     )
 
