@@ -30,8 +30,8 @@ def _schedule_reduce_adreno(op, sch, is_idx_reduce=False):
     if not is_idx_reduce:
         rdomain = 1
         whole_rop_output = op.output(0)
-        for i in range(len(sch[whole_rop_output].op.reduce_axis)):
-            rdomain = rdomain * sch[whole_rop_output].op.reduce_axis[i].dom.extent
+        for axis in sch[whole_rop_output].op.reduce_axis:
+            rdomain = rdomain * axis.dom.extent
         if rdomain > 50:
             use_rfactor = True
             # shared goves better perf, but works only for rfactor flow
