@@ -22,13 +22,11 @@
  * \brief Implementation of DiagnosticContext and friends.
  */
 #include <tvm/ir/diagnostic.h>
-#include <tvm/parser/source_map.h>
+#include <tvm/ir/source_map.h>
 
 #include <rang.hpp>
 
 namespace tvm {
-
-using tvm::parser::Source;
 
 // failed to check to argument arg0.dims[0] != 0
 

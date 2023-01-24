@@ -20,10 +20,11 @@
  * \file source_map.h
  * \brief A map from source names to source code.
  */
-#ifndef TVM_PARSER_SOURCE_MAP_H_
-#define TVM_PARSER_SOURCE_MAP_H_
+#ifndef TVM_IR_SOURCE_MAP_H_
+#define TVM_IR_SOURCE_MAP_H_
 
-#include <tvm/ir/span.h>
+#include <tvm/node/node.h>
+#include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
@@ -33,7 +34,98 @@
 #include <vector>
 
 namespace tvm {
-namespace parser {
+
+/*!
+ * \brief The source name in the Span
+ * \sa SourceNameNode, Span
+ */
+class SourceName;
+/*!
+ * \brief The name of a source fragment.
+ */
+class SourceNameNode : public Object {
+ public:
+  /*! \brief The source name. */
+  String name;
+  // override attr visitor
+  void VisitAttrs(AttrVisitor* v) { v->Visit("name", &name); }
+
+  static constexpr bool _type_has_method_sequal_reduce = true;
+
+  bool SEqualReduce(const SourceNameNode* other, SEqualReducer equal) const {
+    return equal(name, other->name);
+  }
+
+  static constexpr const char* _type_key = "SourceName";
+  TVM_DECLARE_FINAL_OBJECT_INFO(SourceNameNode, Object);
+};
+
+/*!
+ * \brief The source name of a file span.
+ * \sa SourceNameNode, Span
+ */
+class SourceName : public ObjectRef {
+ public:
+  /*!
+   * \brief Get an SourceName for a given operator name.
+   *  Will raise an error if the source name has not been registered.
+   * \param name Name of the operator.
+   * \return SourceName valid throughout program lifetime.
+   */
+  TVM_DLL static SourceName Get(const String& name);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(SourceName, ObjectRef, SourceNameNode);
+};
+
+/*!
+ * \brief Span information for debugging purposes
+ */
+class Span;
+/*!
+ * \brief Stores locations in frontend source that generated a node.
+ */
+class SpanNode : public Object {
+ public:
+  /*! \brief The source name. */
+  SourceName source_name;
+  /*! \brief The line number. */
+  int line;
+  /*! \brief The column offset. */
+  int column;
+  /*! \brief The end line number. */
+  int end_line;
+  /*! \brief The end column number. */
+  int end_column;
+
+  // override attr visitor
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("source_name", &source_name);
+    v->Visit("line", &line);
+    v->Visit("column", &column);
+    v->Visit("end_line", &end_line);
+    v->Visit("end_column", &end_column);
+  }
+  static constexpr bool _type_has_method_sequal_reduce = true;
+
+  bool SEqualReduce(const SpanNode* other, SEqualReducer equal) const {
+    return equal(source_name, other->source_name) && equal(line, other->line) &&
+           equal(column, other->column) && equal(end_line, other->end_line) &&
+           equal(end_column, other->end_column);
+  }
+
+  static constexpr const char* _type_key = "Span";
+  TVM_DECLARE_FINAL_OBJECT_INFO(SpanNode, Object);
+};
+
+class Span : public ObjectRef {
+ public:
+  TVM_DLL Span(SourceName source_name, int line, int end_line, int column, int end_column);
+
+  /*! \brief Merge two spans into one which captures the combined regions. */
+  TVM_DLL Span Merge(const Span& other) const;
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Span, ObjectRef, SpanNode);
+};
 
 /*! \brief A program source in any language.
  *
@@ -113,7 +205,6 @@ class SourceMap : public ObjectRef {
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(SourceMap, ObjectRef, SourceMapNode);
 };
 
-}  // namespace parser
 }  // namespace tvm
 
-#endif  // TVM_PARSER_SOURCE_MAP_H_
+#endif  // TVM_IR_SOURCE_MAP_H_

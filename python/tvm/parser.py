@@ -14,8 +14,34 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""FFI APIs for tvm.ir"""
-import tvm._ffi
+# pylint: disable=invalid-name
+"""The legacy TVM parser """
+# pylint: disable=import-outside-toplevel
 
 
-tvm._ffi._init_api("parser", __name__)
+def parse(*args, **kwargs):
+    """Deprecated, use `tvm.relay.parse` instead"""
+    from tvm.relay import parse as _impl
+
+    return _impl(*args, **kwargs)
+
+
+def parse_expr(*args, **kwargs):
+    """Deprecated, use `tvm.relay.parse_expr` instead"""
+    from tvm.relay import parse_expr as _impl
+
+    return _impl(*args, **kwargs)
+
+
+def fromtext(*args, **kwargs):
+    """Deprecated, use `tvm.relay.fromtext` instead"""
+    from tvm.relay import fromtext as _impl
+
+    return _impl(*args, **kwargs)
+
+
+def SpanCheck(*args, **kwargs):
+    """Deprecated, use `tvm.relay.SpanCheck` instead"""
+    from tvm.relay import SpanCheck as _impl
+
+    return _impl(*args, **kwargs)
