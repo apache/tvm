@@ -20,7 +20,6 @@
 #define TVM_SCRIPT_PRINTER_TIR_UTILS_H_
 
 #include <tvm/script/printer/ir_docsifier.h>
-#include <tvm/script/printer/printer.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>
@@ -74,7 +73,9 @@ class TIRFrame : public Frame {
 };
 
 /*! \brief Creates the TIR common prefix, which is by default `T` */
-inline ExprDoc TIR(const String& attr) { return IdDoc(Default::Prefix("tir"))->Attr(attr); }
+inline ExprDoc TIR(const IRDocsifier& d, const String& attr) {
+  return IdDoc(d->cfg->tir_prefix)->Attr(attr);
+}
 
 /*!
  * \brief Defines a variable in the IRDocsifier at the given frame,
@@ -187,14 +188,12 @@ inline TIRFrame MakeDispatchFrame(const IRDocsifier& d, const ObjectRef& root,
 }
 
 /*! \brief Redirected method for the ReprPrinter */
-inline void ReprPrintTIR(const ObjectRef& obj, ReprPrinter* p) {
-  IRDocsifier d;
+inline std::string ReprPrintTIR(const ObjectRef& obj, const PrinterConfig& cfg) {
+  IRDocsifier d(cfg);
   With<TIRFrame> f(MakeDispatchFrame(d, obj, ObjectRef(nullptr)));
-  try {
-    p->stream << DocToPythonScript(Docsify(obj, d, *f));
-  } catch (const tvm::Error& e) {
-    HandleUnsupportedFallback(e, obj, p);
-  }
+  std::ostringstream oss;
+  oss << Docsify(obj, d, *f, cfg);
+  return oss.str();
 }
 
 /*!
