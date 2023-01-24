@@ -23,7 +23,7 @@ from tvm.relay.op.contrib import clml
 from tvm.relay import testing
 from tvm.ir import IRModule
 from tvm.contrib import utils
-from infrastructure import (
+from test_clml.infrastructure import (
     build_and_run,
     Device,
     skip_codegen_test,
@@ -593,12 +593,31 @@ def test_depth_to_space(device, dtype):
         )
 
         # Check to make sure these ops are offloaded to CLML instead of TVM.
-        with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
-            mod = clml.partition_for_clml(mod, params)
-            tvm_op_count = get_cpu_op_count(mod)
-            assert tvm_op_count == 0, "Got {} TVM Native Compute partitions, expected 0".format(
-                tvm_op_count
-            )
+        exp_codegen = [
+            {
+                "attrs": {
+                    "dtype": [[dtype]],
+                    "shape": [[list(inputs["a"].shape)]],
+                },
+                "name": "",
+                "op": "input",
+            },
+            {
+                "attrs": {
+                    "block_size": [[str(int(out.attrs.block_size))]],
+                    "layout": [["NCHW"]],
+                    "mode": [["DCR"]],
+                    "dtype": [[dtype]],
+                    "num_inputs": "1",
+                    "num_outputs": "1",
+                    "shape": [[list(clml_out[0].shape)]],
+                },
+                "inputs": [[0, 0, 0]],
+                "name": "nn.depth_to_space",
+                "op": "kernel",
+            },
+        ]
+        verify_codegen(out, exp_codegen, device, params)
 
     _verify(*(_get_model((1, 64, 8, 8), 4)))
     _verify(*(_get_model((1, 64, 8, 8), 8)))
@@ -625,12 +644,33 @@ def test_resize_bilinear(device, dtype):
         )
 
         # Check to make sure these ops are offloaded to CLML instead of TVM.
-        with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
-            mod = clml.partition_for_clml(mod, params)
-            tvm_op_count = get_cpu_op_count(mod)
-            assert tvm_op_count == 0, "Got {} TVM Native Compute partitions, expected 0".format(
-                tvm_op_count
-            )
+        exp_codegen = [
+            {
+                "attrs": {
+                    "dtype": [[dtype]],
+                    "shape": [[list(inputs["a"].shape)]],
+                },
+                "name": "",
+                "op": "input",
+            },
+            {
+                "attrs": {
+                    "scale_h": [[str(int(out.attrs.scale_h))]],
+                    "scale_w": [[str(int(out.attrs.scale_w))]],
+                    "layout": [["NCHW"]],
+                    "method": [[out.attrs.method]],
+                    "align_corners": [[str(out.attrs.align_corners)]],
+                    "dtype": [[dtype]],
+                    "num_inputs": "1",
+                    "num_outputs": "1",
+                    "shape": [[list(clml_out[0].shape)]],
+                },
+                "inputs": [[0, 0, 0]],
+                "name": "nn.upsampling",
+                "op": "kernel",
+            },
+        ]
+        verify_codegen(out, exp_codegen, device, params)
 
     _verify(*(_get_model((1, 16, 8, 8), (2, 2), False)))
     _verify(*(_get_model((1, 16, 7, 7), (2, 2), True)))
