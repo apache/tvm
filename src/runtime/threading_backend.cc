@@ -306,7 +306,11 @@ class ThreadGroup::Impl {
       int64_t cur_freq = 0;
 #if defined(__linux__) || defined(__ANDROID__)
       std::ostringstream filepath;
-      filepath << "/sys/devices/system/cpu/cpu" << i << "/cpufreq/scaling_max_freq";
+      // according to https://www.kernel.org/doc/Documentation/cpu-freq/user-guide.txt
+      // it's better to use cpuinfo_max_freq instead of scaling_max_freq for our
+      // purposes since scaling values can be changed dynamically according "policy limits"
+      // while we are looking for persistent definition of cores
+      filepath << "/sys/devices/system/cpu/cpu" << i << "/cpufreq/cpuinfo_max_freq";
       std::ifstream ifs(filepath.str());
       if (!ifs.fail()) {
         if (!(ifs >> cur_freq)) {
@@ -335,7 +339,8 @@ class ThreadGroup::Impl {
       }
     }
     if (big_count_ + little_count_ != static_cast<int>(sorted_order_.size())) {
-      LOG(WARNING) << "more than two frequencies detected!";
+      big_count_ = static_cast<int>(sorted_order_.size()) - little_count_;
+      LOG(WARNING) << "more than two frequencies detected! Forced big_count_ to " << big_count_;
     }
   }
 
