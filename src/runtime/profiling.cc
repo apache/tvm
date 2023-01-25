@@ -23,7 +23,6 @@
  */
 
 #include <dmlc/json.h>
-#include <tvm/ir/expr.h>
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/packed_func.h>

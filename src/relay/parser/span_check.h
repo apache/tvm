@@ -21,9 +21,8 @@
  * \file span_check.h
  * \brief Check that the Relay IR has correctly attached span information.
  */
-
-#ifndef TVM_PARSER_SPAN_CHECK_H_
-#define TVM_PARSER_SPAN_CHECK_H_
+#ifndef TVM_RELAY_PARSER_SPAN_CHECK_H_
+#define TVM_RELAY_PARSER_SPAN_CHECK_H_
 
 #include <tvm/ir/transform.h>
 #include <tvm/ir/type_functor.h>
@@ -38,7 +37,7 @@
 #include <vector>
 
 namespace tvm {
-namespace parser {
+namespace relay {
 
 using namespace tvm::relay;
 using tvm::transform::Pass;
@@ -74,6 +73,6 @@ struct SpanChecker : ExprVisitor {
 
 Pass SpanCheck();
 
-}  // namespace parser
+}  // namespace relay
 }  // namespace tvm
-#endif  // TVM_PARSER_SPAN_CHECK_H_
+#endif  // TVM_RELAY_PARSER_SPAN_CHECK_H_

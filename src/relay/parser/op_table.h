@@ -18,14 +18,13 @@
  */
 
 /*!
- * \file token.h
+ * \file op_table.h
  * \brief A operator table for parsing.
- *
  * Provides symbolic token sequences to map to TVM operators, with a given associativity and arity.
  */
 
-#ifndef TVM_PARSER_OP_TABLE_H_
-#define TVM_PARSER_OP_TABLE_H_
+#ifndef TVM_RELAY_PARSER_OP_TABLE_H_
+#define TVM_RELAY_PARSER_OP_TABLE_H_
 
 #include <tvm/ir/op.h>
 #include <tvm/runtime/object.h>
@@ -38,7 +37,7 @@
 #include "./tokenizer.h"
 
 namespace tvm {
-namespace parser {
+namespace relay {
 
 struct Rule {
   std::vector<TokenType> tokens;
@@ -77,7 +76,7 @@ struct OperatorTable {
   }
 };
 
-OperatorTable DefaultOpTable() {
+inline OperatorTable DefaultOpTable() {
   return OperatorTable(
       {Rule({TokenType::kStar}, Op::Get("multiply"), 12, 2, true),
        Rule({TokenType::kDivision}, Op::Get("divide"), 12, 2, true),
@@ -91,6 +90,6 @@ OperatorTable DefaultOpTable() {
        Rule({TokenType::kBang, TokenType::kEqual}, Op::Get("not_equal"), 7, 2, true)});
 }
 
-}  // namespace parser
+}  // namespace relay
 }  // namespace tvm
-#endif  // TVM_PARSER_OP_TABLE_H_
+#endif  // TVM_RELAY_PARSER_OP_TABLE_H_

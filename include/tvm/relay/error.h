@@ -20,7 +20,6 @@
 #define TVM_RELAY_ERROR_H_
 
 #include <tvm/ir/module.h>
-#include <tvm/ir/span.h>
 
 #include <sstream>
 #include <string>
@@ -31,7 +30,7 @@ namespace tvm {
 namespace relay {
 /*!
  * \brief A wrapper around std::stringstream to build error.
- *
+ *include/tvm/ir/type.h
  * Can be consumed by CompileError to construct an error.
  *
  * \code
