@@ -404,7 +404,7 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
     } else if (const OpNode* opnode = call->op.as<OpNode>()) {
       auto fpattern = Op::GetAttrMap<TOpPattern>("TOpPattern");
       auto pattern = fpattern[GetRef<Op>(opnode)];
-      if (pattern <= kInjective) {
+      if (pattern <= kCommReduce) {
         if (const auto* ttype = call->checked_type().as<TensorTypeNode>()) {
           if (ttype->shape.size() == 5) {
             supports_texture_storage = true;
