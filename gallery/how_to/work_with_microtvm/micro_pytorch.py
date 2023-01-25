@@ -17,7 +17,7 @@
 """
 .. _tutorial-micro-Pytorch:
 
-microTVM PyTorch Tutorial
+4. microTVM PyTorch Tutorial
 ===========================
 **Authors**:
 `Mehrdad Hessar <https://github.com/mehrdadh>`_
@@ -93,11 +93,11 @@ relay_mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
 # would run on a physical microcontroller.
 #
 
-
 # Simulate a microcontroller on the host machine. Uses the main() from `src/runtime/crt/host/main.cc`
-# To use physical hardware, replace "host" with another physical micro target, e.g. `nrf52840`
-# or `mps2_an521`. See more more target examples in micro_train.py and micro_tflite.py tutorials.
-target = tvm.target.target.micro("host")
+# To use physical hardware, replace `board` with another physical micro target, e.g. `nrf5340dk_nrf5340_cpuapp`
+# or `mps2_an521` and change the platform type to Zephyr.
+# See more more target examples in micro_train.py and micro_tflite.py tutorials.
+target = tvm.micro.testing.get_target(platform="crt", board=None)
 
 # Use the C runtime (crt) and enable static linking by setting system-lib to True
 runtime = tvm.relay.backend.Runtime("crt", {"system-lib": True})
