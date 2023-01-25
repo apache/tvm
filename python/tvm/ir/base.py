@@ -17,17 +17,23 @@
 """Common base structures."""
 import tvm._ffi
 import tvm.error
-import tvm.runtime._ffi_node_api
-from tvm.runtime import Object
+from tvm._ffi import get_global_func, register_object
+from tvm.runtime import Object, _ffi_node_api
 
 from . import _ffi_api, json_compact
 
 
 class Node(Object):
-    """Base class of all IR Nodes, implements astext function."""
+    """Base class of all IR Nodes."""
 
 
-@tvm._ffi.register_object("SourceName")
+@register_object("SourceMap")
+class SourceMap(Object):
+    def add(self, name, content):
+        return get_global_func("SourceMapAdd")(self, name, content)
+
+
+@register_object("SourceName")
 class SourceName(Object):
     """A identifier for a source location.
 
@@ -38,10 +44,10 @@ class SourceName(Object):
     """
 
     def __init__(self, name):
-        self.__init_handle_by_constructor__(_ffi_api.SourceName, name)
+        self.__init_handle_by_constructor__(_ffi_api.SourceName, name)  # type: ignore # pylint: disable=no-member
 
 
-@tvm._ffi.register_object("Span")
+@register_object("Span")
 class Span(Object):
     """Specifies a location in a source program.
 
@@ -59,11 +65,11 @@ class Span(Object):
 
     def __init__(self, source_name, line, end_line, column, end_column):
         self.__init_handle_by_constructor__(
-            _ffi_api.Span, source_name, line, end_line, column, end_column
+            _ffi_api.Span, source_name, line, end_line, column, end_column  # type: ignore # pylint: disable=no-member
         )
 
 
-@tvm._ffi.register_object
+@register_object
 class EnvFunc(Object):
     """Environment function.
 
@@ -71,11 +77,11 @@ class EnvFunc(Object):
     """
 
     def __call__(self, *args):
-        return _ffi_api.EnvFuncCall(self, *args)
+        return _ffi_api.EnvFuncCall(self, *args)  # type: ignore # pylint: disable=no-member
 
     @property
     def func(self):
-        return _ffi_api.EnvFuncGetPackedFunc(self)
+        return _ffi_api.EnvFuncGetPackedFunc(self)  # type: ignore # pylint: disable=no-member
 
     @staticmethod
     def get(name):
@@ -86,7 +92,7 @@ class EnvFunc(Object):
         name : str
             The name of the function.
         """
-        return _ffi_api.EnvFuncGet(name)
+        return _ffi_api.EnvFuncGet(name)  # type: ignore # pylint: disable=no-member
 
 
 def load_json(json_str) -> Object:
@@ -104,10 +110,10 @@ def load_json(json_str) -> Object:
     """
 
     try:
-        return tvm.runtime._ffi_node_api.LoadJSON(json_str)
+        return _ffi_node_api.LoadJSON(json_str)
     except tvm.error.TVMError:
         json_str = json_compact.upgrade_json(json_str)
-        return tvm.runtime._ffi_node_api.LoadJSON(json_str)
+        return _ffi_node_api.LoadJSON(json_str)
 
 
 def save_json(node) -> str:
@@ -123,7 +129,7 @@ def save_json(node) -> str:
     json_str : str
         Saved json string.
     """
-    return tvm.runtime._ffi_node_api.SaveJSON(node)
+    return _ffi_node_api.SaveJSON(node)
 
 
 def structural_equal(lhs, rhs, map_free_vars=False):
@@ -175,7 +181,7 @@ def structural_equal(lhs, rhs, map_free_vars=False):
     """
     lhs = tvm.runtime.convert(lhs)
     rhs = tvm.runtime.convert(rhs)
-    return bool(tvm.runtime._ffi_node_api.StructuralEqual(lhs, rhs, False, map_free_vars))
+    return bool(_ffi_node_api.StructuralEqual(lhs, rhs, False, map_free_vars))  # type: ignore # pylint: disable=no-member
 
 
 def get_first_structural_mismatch(lhs, rhs, map_free_vars=False):
@@ -201,7 +207,7 @@ def get_first_structural_mismatch(lhs, rhs, map_free_vars=False):
     """
     lhs = tvm.runtime.convert(lhs)
     rhs = tvm.runtime.convert(rhs)
-    mismatch = tvm.runtime._ffi_node_api.GetFirstStructuralMismatch(lhs, rhs, map_free_vars)
+    mismatch = _ffi_node_api.GetFirstStructuralMismatch(lhs, rhs, map_free_vars)  # type: ignore # pylint: disable=no-member
     if mismatch is None:
         return None
     else:
@@ -233,7 +239,7 @@ def assert_structural_equal(lhs, rhs, map_free_vars=False):
     """
     lhs = tvm.runtime.convert(lhs)
     rhs = tvm.runtime.convert(rhs)
-    tvm.runtime._ffi_node_api.StructuralEqual(lhs, rhs, True, map_free_vars)
+    _ffi_node_api.StructuralEqual(lhs, rhs, True, map_free_vars)  # type: ignore # pylint: disable=no-member
 
 
 def structural_hash(node, map_free_vars=False):
@@ -275,4 +281,4 @@ def structural_hash(node, map_free_vars=False):
     --------
     structrual_equal
     """
-    return tvm.runtime._ffi_node_api.StructuralHash(node, map_free_vars)
+    return _ffi_node_api.StructuralHash(node, map_free_vars)  # type: ignore # pylint: disable=no-member
