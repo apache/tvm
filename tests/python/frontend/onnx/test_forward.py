@@ -6752,7 +6752,7 @@ def test_random_bernoulli(target, dev):
             inputs = np.random.uniform(size=shape).astype(in_dtype)
         else:
             shape = inputs.shape
-            in_dtype=inputs.dtype
+            in_dtype = inputs.dtype
         model = get_bernoulli_model(shape, in_dtype, out_dtype, seed)
 
         if use_vm:
