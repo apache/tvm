@@ -166,7 +166,7 @@ def test_match_buffer_region():
     _assert_print(
         obj,
         """
-src = T.buffer_decl((128, 128))
+src = T.Buffer((128, 128))
 tgt = T.match_buffer(src[64:128, 64:128], (64, 64))
 """,
     )
@@ -176,7 +176,7 @@ def test_buffer():
     a = tir.decl_buffer((128, 128), "float16", name="A")
     _assert_print(
         a,
-        """A = T.buffer_decl((128, 128), "float16")
+        """A = T.Buffer((128, 128), "float16")
 A""",
     )
 
@@ -193,7 +193,7 @@ def test_buffer_region():
     _assert_print(
         obj,
         """
-src = T.buffer_decl((128, 128))
+src = T.Buffer((128, 128))
 src[64:128, 64:128]
 """,
     )
@@ -205,7 +205,7 @@ def test_buffer_load():
     _assert_print(
         obj,
         """
-A = T.buffer_decl((128, 128), "float16")
+A = T.Buffer((128, 128), "float16")
 A[128, 128]
 """,
     )
@@ -219,7 +219,7 @@ def test_buffer_store():
     _assert_print(
         obj,
         """
-A = T.buffer_decl((128, 128), "float16")
+A = T.Buffer((128, 128), "float16")
 A[128, 128] = A[128, 128] + T.float16(1)
 """,
     )
@@ -380,7 +380,7 @@ def test_prefetch():
     _assert_print(
         obj,
         """
-A = T.buffer_decl((128, 128), "float16")
+A = T.Buffer((128, 128), "float16")
 T.prefetch(A, [T.Range(0, 64), T.Range(0, 64)])
 """,
     )
@@ -439,7 +439,7 @@ def test_buffer_realize():
     _assert_print(
         obj,
         """
-A = T.buffer_decl((128, 128))
+A = T.Buffer((128, 128))
 with T.realize(A[0:128, 0:128], "test_storage_scope"):
     T.evaluate(0)
 """,

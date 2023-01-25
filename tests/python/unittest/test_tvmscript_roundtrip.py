@@ -34,8 +34,8 @@ def opt_gemm_normalize():
             # function attr dict
             T.func_attr({"global_symbol": "mmult", "tir.noalias": True})
             # buffer definition
-            C_global = T.buffer_decl([1024, 1024], elem_offset=0, align=64, offset_factor=1)
-            packedB = T.buffer_decl([32, 1024, 32], elem_offset=0, align=64, offset_factor=1)
+            C_global = T.Buffer([1024, 1024], elem_offset=0, align=64, offset_factor=1)
+            packedB = T.Buffer([32, 1024, 32], elem_offset=0, align=64, offset_factor=1)
             A_1 = T.match_buffer(A, [1024, 1024], elem_offset=0, align=64, offset_factor=1)
             B_1 = T.match_buffer(B, [1024, 1024], elem_offset=0, align=64, offset_factor=1)
             C_1 = T.match_buffer(C, [1024, 1024], elem_offset=0, align=64, offset_factor=1)
@@ -95,15 +95,13 @@ def opt_gemm_lower():
             C_1 = T.match_buffer(C, [16384], elem_offset=0, align=64, offset_factor=1)
             # body
             packedB_data = T.allocate([32768], "float32", "global")
-            packedB = T.buffer_decl(
-                shape=[32768], dtype="float32", scope="global", data=packedB_data
-            )
+            packedB = T.Buffer(shape=[32768], dtype="float32", scope="global", data=packedB_data)
             for x in T.parallel(0, 32):
                 for y in T.serial(0, 1024):
                     packedB[T.ramp(((x * 32768) + (y * 32)), 1, 32)] = B_1[y, T.ramp(x * 32, 1, 32)]
             for x_outer in T.parallel(0, 32):
                 C_global_data = T.allocate([1024], "float32", "global")
-                C_global = T.buffer_decl(
+                C_global = T.Buffer(
                     shape=[1024], dtype="float32", scope="global", data=C_global_data
                 )
                 for y_outer in T.serial(0, 32):
@@ -196,8 +194,8 @@ def opt_gemm_mod_host():
             # buffer definition
             buf_type_ids = T.match_buffer(arg_type_ids, [3], dtype="int32")
 
-            packedB = T.buffer_decl([32768], dtype="float32")
-            C_global = T.buffer_decl([1024], dtype="float32")
+            packedB = T.Buffer([32768], dtype="float32")
+            C_global = T.Buffer([1024], dtype="float32")
             # var definition
             # C_global = T.buffer_var("float32", "global")
             # packedB = T.buffer_var("float32", "global")
@@ -212,29 +210,29 @@ def opt_gemm_mod_host():
 
             A_data: T.Ptr[T.int32] = T.tvm_struct_get(arg0, 0, 1, dtype="handle")
             T.attr(A_data, "storage_alignment", 128)
-            A = T.buffer_decl([1024 * 1024], dtype="int32", data=A_data)
+            A = T.Buffer([1024 * 1024], dtype="int32", data=A_data)
             buf0_shape_data: T.Ptr[T.int32] = T.tvm_struct_get(arg0, 0, 2, dtype="handle")
-            buf0_shape = T.buffer_decl([2], dtype="int32", data=buf0_shape_data)
+            buf0_shape = T.Buffer([2], dtype="int32", data=buf0_shape_data)
             buf0_strides_data: T.Ptr[T.int32] = T.tvm_struct_get(arg0, 0, 3, dtype="handle")
-            buf0_strides = T.buffer_decl([2], dtype="int32", data=buf0_strides_data)
+            buf0_strides = T.Buffer([2], dtype="int32", data=buf0_strides_data)
 
             dev_id: T.int32 = T.tvm_struct_get(arg0, 0, 9, dtype="int32")
 
             B_data: T.Ptr[T.int32] = T.tvm_struct_get(arg1, 0, 1, dtype="handle")
             T.attr(B_data, "storage_alignment", 128)
-            B = T.buffer_decl([1024 * 1024], dtype="int32", data=B_data)
+            B = T.Buffer([1024 * 1024], dtype="int32", data=B_data)
             buf1_shape_data: T.Ptr[T.int32] = T.tvm_struct_get(arg1, 0, 2, dtype="handle")
-            buf1_shape = T.buffer_decl([2], dtype="int32", data=buf1_shape_data)
+            buf1_shape = T.Buffer([2], dtype="int32", data=buf1_shape_data)
             buf1_strides_data: T.Ptr[T.int32] = T.tvm_struct_get(arg1, 0, 3, dtype="handle")
-            buf1_strides = T.buffer_decl([2], dtype="int32", data=buf1_strides_data)
+            buf1_strides = T.Buffer([2], dtype="int32", data=buf1_strides_data)
 
             C_data: T.Ptr[T.int32] = T.tvm_struct_get(arg2, 0, 1, dtype="handle")
             T.attr(C_data, "storage_alignment", 128)
-            C = T.buffer_decl([1024 * 1024], dtype="int32", data=C_data)
+            C = T.Buffer([1024 * 1024], dtype="int32", data=C_data)
             buf2_shape_data: T.Ptr[T.int32] = T.tvm_struct_get(arg2, 0, 2, dtype="handle")
-            buf2_shape = T.buffer_decl([2], dtype="int32", data=buf2_shape_data)
+            buf2_shape = T.Buffer([2], dtype="int32", data=buf2_shape_data)
             buf2_strides_data: T.Ptr[T.int32] = T.tvm_struct_get(arg2, 0, 3, dtype="handle")
-            buf2_strides = T.buffer_decl([2], dtype="int32", data=buf2_strides_data)
+            buf2_strides = T.Buffer([2], dtype="int32", data=buf2_strides_data)
 
             assert (((arg0_code == 3) or (arg0_code == 13)) or (arg0_code == 7)) or (
                 arg0_code == 4
@@ -489,42 +487,34 @@ def opt_conv_tensorcore_normalize():
         ty = T.env_thread("threadIdx.y")
         tz = T.env_thread("threadIdx.z")
         # buffer definition
-        Apad_shared = T.buffer_decl(
+        Apad_shared = T.Buffer(
             [16, 16, 16, 16, 16, 16], dtype="float16", elem_offset=0, align=64, offset_factor=1
         )
-        Apad_shared_wmma_matrix_a = T.buffer_decl(
+        Apad_shared_wmma_matrix_a = T.Buffer(
             [16, 16, 16, 16, 16, 16], dtype="float16", elem_offset=0, align=64, offset_factor=1
         )
-        BA = T.buffer_decl(
-            [16, 16], dtype="float16", scope="wmma.matrix_a", align=32, offset_factor=256
-        )
-        BB = T.buffer_decl(
-            [16, 16], dtype="float16", scope="wmma.matrix_b", align=32, offset_factor=256
-        )
-        BC = T.buffer_decl([16, 16], scope="wmma.accumulator", align=32, offset_factor=256)
-        Conv_wmma_accumulator = T.buffer_decl(
+        BA = T.Buffer([16, 16], dtype="float16", scope="wmma.matrix_a", align=32, offset_factor=256)
+        BB = T.Buffer([16, 16], dtype="float16", scope="wmma.matrix_b", align=32, offset_factor=256)
+        BC = T.Buffer([16, 16], scope="wmma.accumulator", align=32, offset_factor=256)
+        Conv_wmma_accumulator = T.Buffer(
             [16, 14, 14, 32, 16, 16], elem_offset=0, align=64, offset_factor=1
         )
-        W_shared = T.buffer_decl(
+        W_shared = T.Buffer(
             [3, 3, 16, 32, 16, 16], dtype="float16", elem_offset=0, align=64, offset_factor=1
         )
-        W_shared_wmma_matrix_b = T.buffer_decl(
+        W_shared_wmma_matrix_b = T.Buffer(
             [3, 3, 16, 32, 16, 16], dtype="float16", elem_offset=0, align=64, offset_factor=1
         )
-        buffer = T.buffer_decl(
-            [16, 16], dtype="float16", scope="shared", align=32, offset_factor=256
-        )
-        buffer_1 = T.buffer_decl(
+        buffer = T.Buffer([16, 16], dtype="float16", scope="shared", align=32, offset_factor=256)
+        buffer_1 = T.Buffer(
             [16, 16], dtype="float16", scope="wmma.matrix_a", align=32, offset_factor=256
         )
-        buffer_2 = T.buffer_decl(
-            [16, 16], dtype="float16", scope="shared", align=32, offset_factor=256
-        )
-        buffer_3 = T.buffer_decl(
+        buffer_2 = T.Buffer([16, 16], dtype="float16", scope="shared", align=32, offset_factor=256)
+        buffer_3 = T.Buffer(
             [16, 16], dtype="float16", scope="wmma.matrix_b", align=32, offset_factor=256
         )
-        buffer_4 = T.buffer_decl([16, 16], scope="wmma.accumulator", align=32, offset_factor=256)
-        buffer_5 = T.buffer_decl([16, 16], align=32, offset_factor=256)
+        buffer_4 = T.Buffer([16, 16], scope="wmma.accumulator", align=32, offset_factor=256)
+        buffer_5 = T.Buffer([16, 16], align=32, offset_factor=256)
         A_1 = T.match_buffer(
             A, [16, 14, 14, 16, 16, 16], dtype="float16", elem_offset=0, align=64, offset_factor=1
         )
@@ -949,9 +939,9 @@ def opt_conv_tensorcore_lower():
         # function attr dict
         T.func_attr({"global_symbol": "default_function", "tir.noalias": True})
         # body
-        A_1 = T.buffer_decl([12845056], dtype="float16", data=A.data)
-        W_1 = T.buffer_decl([1179648], dtype="float16", data=W.data)
-        Conv_1 = T.buffer_decl([25690112], data=Conv.data)
+        A_1 = T.Buffer([12845056], dtype="float16", data=A.data)
+        W_1 = T.Buffer([1179648], dtype="float16", data=W.data)
+        Conv_1 = T.Buffer([25690112], data=Conv.data)
         bx = T.env_thread("blockIdx.x")
         by = T.env_thread("blockIdx.y")
         bz = T.env_thread("blockIdx.z")
@@ -960,21 +950,21 @@ def opt_conv_tensorcore_lower():
         tz = T.env_thread("threadIdx.z")
         T.launch_thread(bz, 196)
         Conv_wmma_accumulator_data = T.allocate([2048], "float32", "wmma.accumulator")
-        Conv_wmma_accumulator = T.buffer_decl(
+        Conv_wmma_accumulator = T.Buffer(
             shape=[2048], dtype="float32", scope="wmma.accumulator", data=Conv_wmma_accumulator_data
         )
         Apad_shared_data = T.allocate([12288], "float16", "shared")
-        Apad_shared = T.buffer_decl(
+        Apad_shared = T.Buffer(
             shape=[12288], dtype="float16", scope="shared", data=Apad_shared_data
         )
         W_shared_data = T.allocate([12288], "float16", "shared")
-        W_shared = T.buffer_decl(shape=[12288], dtype="float16", scope="shared", data=W_shared_data)
+        W_shared = T.Buffer(shape=[12288], dtype="float16", scope="shared", data=W_shared_data)
         Apad_shared_wmma_matrix_a_data = T.allocate([512], "float16", "wmma.matrix_a")
-        Apad_shared_wmma_matrix_a = T.buffer_decl(
+        Apad_shared_wmma_matrix_a = T.Buffer(
             shape=[512], dtype="float16", scope="wmma.matrix_a", data=Apad_shared_wmma_matrix_a_data
         )
         W_shared_wmma_matrix_b_data = T.allocate([1024], "float16", "wmma.matrix_b")
-        W_shared_wmma_matrix_b = T.buffer_decl(
+        W_shared_wmma_matrix_b = T.Buffer(
             shape=[1024], dtype="float16", scope="wmma.matrix_b", data=W_shared_wmma_matrix_b_data
         )
         T.launch_thread(bx, 2)
@@ -2253,7 +2243,7 @@ def opt_conv_tensorcore_mod_host():
         )
         # body
         stack_tcode_data: T.Ptr[T.int32] = T.tvm_stack_alloca("arg_tcode", 10, dtype="handle")
-        stack_tcode = T.buffer_decl([9], "int32", data=stack_tcode_data)
+        stack_tcode = T.Buffer([9], "int32", data=stack_tcode_data)
         stack_value: T.handle = T.tvm_stack_alloca("arg_value", 10, dtype="handle")
         assert num_args == 3, "default_function: num_args should be 3"
         arg0: T.handle = T.tvm_struct_get(args, 0, 12, dtype="handle")
@@ -2266,25 +2256,25 @@ def opt_conv_tensorcore_mod_host():
         A: T.handle = T.tvm_struct_get(arg0, 0, 1, dtype="handle")
         T.attr(A, "storage_alignment", 128)
         arg0_shape_data: T.Ptr[T.int64] = T.tvm_struct_get(arg0, 0, 2, dtype="handle")
-        arg0_shape = T.buffer_decl([6], "int64", data=arg0_shape_data)
+        arg0_shape = T.Buffer([6], "int64", data=arg0_shape_data)
         arg0_strides_data: T.Ptr[T.int64] = T.tvm_struct_get(arg0, 0, 3, dtype="handle")
-        arg0_strides = T.buffer_decl([6], "int64", data=arg0_strides_data)
+        arg0_strides = T.Buffer([6], "int64", data=arg0_strides_data)
 
         dev_id: T.int32 = T.tvm_struct_get(arg0, 0, 9, dtype="int32")
 
         W: T.handle = T.tvm_struct_get(arg1, 0, 1, dtype="handle")
         T.attr(W, "storage_alignment", 128)
         arg1_shape_data: T.Ptr[T.int64] = T.tvm_struct_get(arg1, 0, 2, dtype="handle")
-        arg1_shape = T.buffer_decl([6], "int64", data=arg1_shape_data)
+        arg1_shape = T.Buffer([6], "int64", data=arg1_shape_data)
         arg1_strides_data: T.Ptr[T.int64] = T.tvm_struct_get(arg1, 0, 3, dtype="handle")
-        arg1_strides = T.buffer_decl([6], "int64", data=arg1_strides_data)
+        arg1_strides = T.Buffer([6], "int64", data=arg1_strides_data)
 
         Conv: T.handle = T.tvm_struct_get(arg2, 0, 1, dtype="handle")
         T.attr(Conv, "storage_alignment", 128)
         arg2_shape_data: T.Ptr[T.int64] = T.tvm_struct_get(arg2, 0, 2, dtype="handle")
-        arg2_shape = T.buffer_decl([6], "int64", data=arg2_shape_data)
+        arg2_shape = T.Buffer([6], "int64", data=arg2_shape_data)
         arg2_strides_data: T.Ptr[T.int64] = T.tvm_struct_get(arg2, 0, 3, dtype="handle")
-        arg2_strides = T.buffer_decl([6], "int64", data=arg2_strides_data)
+        arg2_strides = T.Buffer([6], "int64", data=arg2_strides_data)
 
         assert (((arg0_code == 3) or (arg0_code == 13)) or (arg0_code == 7)) or (
             arg0_code == 4
@@ -2499,7 +2489,7 @@ def vthread_func():
         T.launch_thread(i1, 2)
         T.launch_thread(i2, 2)
         B_data = T.allocate([16], "float32", "local")
-        B = T.buffer_decl(shape=[16], dtype="float32", scope="local", data=B_data)
+        B = T.Buffer(shape=[16], dtype="float32", scope="local", data=B_data)
         for j in range(16):
             B[j] = A[i0 * 64 + i1 * 32 + i2 * 16 + j] + T.float32(1)
         for j in range(16):
@@ -2813,12 +2803,12 @@ def module_const():
             B = T.alloc_buffer((10), "int32")
 
             K1_data = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
-            K1 = T.buffer_decl(shape=[10], dtype="int32", data=K1_data)
+            K1 = T.Buffer(shape=[10], dtype="int32", data=K1_data)
             for x in T.serial(0, 10):
                 B[x] = A[x] + K1[x]
 
             K2_data = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
-            K2 = T.buffer_decl(shape=[10], dtype="int32", data=K2_data)
+            K2 = T.Buffer(shape=[10], dtype="int32", data=K2_data)
             for x in T.serial(0, 10):
                 B[x] = B[x] + K2[x]
 
@@ -2835,7 +2825,7 @@ def constant():
         C = T.match_buffer(c, (10), "int32")
         B = T.alloc_buffer((10), "int32")
         K_data = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
-        K = T.buffer_decl(shape=[10], dtype="int32", data=K_data)
+        K = T.Buffer(shape=[10], dtype="int32", data=K_data)
         for x in T.serial(0, 10):
             B[x] = A[x] + K[x]
 
@@ -2980,7 +2970,7 @@ def primfunc_with_allocate_annotations():
         T_cast_7 = T.match_buffer(T_cast_6, [200704], dtype="int16", elem_offset=0, align=64, offset_factor=1)
         # body
         tensor_2_data = T.allocate([200704], "uint8", "global", annotations={"attr1_key": "attr1_value"})
-        tensor_2 = T.buffer_decl(shape=[200704], dtype="uint8", scope="global", data=tensor_2_data)
+        tensor_2 = T.Buffer(shape=[200704], dtype="uint8", scope="global", data=tensor_2_data)
         for ax0_ax1_fused_4 in T.serial(0, 56):
             for ax2_4 in T.serial(0, 56):
                 for ax3_init in T.serial(0, 64):
@@ -3007,7 +2997,7 @@ def comm_reducer_single_reduce_group():
         for i in T.serial(0, 128):
             T.launch_thread(threadIdx_x, 128)
             reduce_temp0_data = T.allocate([1], "float32", "local")
-            reduce_temp0 = T.buffer_decl(shape=[1], dtype="float32", scope="local", data=reduce_temp0_data)
+            reduce_temp0 = T.Buffer(shape=[1], dtype="float32", scope="local", data=reduce_temp0_data)
             with T.attr(T.comm_reducer(lambda x, y: x + y, [T.float32(0)]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle")):
                 T.evaluate(T.tvm_thread_allreduce(T.uint32(1), A[i * 128 + threadIdx_x], True, reduce_temp0.data, threadIdx_x, dtype="handle"))
 
@@ -3023,7 +3013,7 @@ def comm_reducer_multiple_reduce_groups():
         for i in T.serial(0, 128):
             T.launch_thread(threadIdx_x, 128)
             reduce_temp0_data = T.allocate([1], "float32", "local")
-            reduce_temp0 = T.buffer_decl(shape=[1], dtype="float32", scope="local", data=reduce_temp0_data)
+            reduce_temp0 = T.Buffer(shape=[1], dtype="float32", scope="local", data=reduce_temp0_data)
             with T.attr(T.comm_reducer(lambda x0, x1, y0, y1: (T.Select((x1 >= y1), x0, y0), T.Select((x1 >= y1), x1, y1)), [T.int32(-1), T.min_value("float32")]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle")):
                 T.evaluate(T.tvm_thread_allreduce(T.uint32(1), A[i * 128 + threadIdx_x], True, reduce_temp0.data, threadIdx_x, dtype="handle"))
 
@@ -3033,10 +3023,10 @@ def comm_reducer_multiple_reduce_groups():
 def multiple_commreducer():
     @T.prim_func
     def multiple_commreducer() -> None:
-        normal_reduce_temp0 = T.buffer_decl([1], dtype="float32", strides=[1], scope="local")
-        normal_reduce_temp1 = T.buffer_decl([1], dtype="float32", strides=[1], scope="local")
-        reduce_temp0 = T.buffer_decl([1], dtype="float32", strides=[1], scope="local")
-        reduce_temp1 = T.buffer_decl([1], dtype="float32", strides=[1], scope="local")
+        normal_reduce_temp0 = T.Buffer([1], dtype="float32", strides=[1], scope="local")
+        normal_reduce_temp1 = T.Buffer([1], dtype="float32", strides=[1], scope="local")
+        reduce_temp0 = T.Buffer([1], dtype="float32", strides=[1], scope="local")
+        reduce_temp1 = T.Buffer([1], dtype="float32", strides=[1], scope="local")
         for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
             with T.block("T_softmax_maxelem_cross_thread_reduction"):
                 T.attr(T.comm_reducer(lambda x, y: T.max(x, y), [T.min_value("float32")]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle"))
@@ -3163,7 +3153,7 @@ def func_T_ptr_let_statement():
     ) -> None:
         # The T.Ptr declaration in the parameter list should parse
         # correctly, and should be usable as the data pointer in a buffer.
-        arg_type_ids = T.buffer_decl([2], dtype="int32", data=arg_type_ids_handle)
+        arg_type_ids = T.Buffer([2], dtype="int32", data=arg_type_ids_handle)
 
         arg0: T.handle = T.tvm_struct_get(args, 0, 12, dtype="handle")
         arg1: T.handle = T.tvm_struct_get(args, 1, 12, dtype="handle")
@@ -3177,9 +3167,9 @@ def func_T_ptr_let_statement():
         # this function.  It should only be defined after the data pointer
         # has been defined, and should not be hoisted into the header of
         # the function as other buffer_decl statements can be.
-        A = T.buffer_decl([1024], dtype="float32", data=A_data)
+        A = T.Buffer([1024], dtype="float32", data=A_data)
         B_data: T.Ptr[T.float32] = T.tvm_struct_get(arg1, 0, 1, dtype="handle")
-        B = T.buffer_decl([1024], dtype="float32", data=B_data)
+        B = T.Buffer([1024], dtype="float32", data=B_data)
 
         B[0] = A[0]
 
@@ -3190,7 +3180,7 @@ def func_T_ptr_allocate():
     @T.prim_func
     def func_T_ptr_allocate() -> None:
         A_data = T.allocate([1024], "float32", "global")
-        A = T.buffer_decl(shape=[1024], dtype="float32", scope="global", data=A_data)
+        A = T.Buffer(shape=[1024], dtype="float32", scope="global", data=A_data)
         A[0] = 0.0
 
     return func_T_ptr_allocate
@@ -3282,9 +3272,9 @@ def pointer_type():
     @T.prim_func
     def func_with_ptr_type_annotations(x: T.Ptr[T.int32], y: T.Ptr[T.int32, "shared"]):
         xx_data = T.allocate([16], "int32", "global")
-        xx = T.buffer_decl(shape=[16], dtype="int32", scope="global", data=xx_data)
+        xx = T.Buffer(shape=[16], dtype="int32", scope="global", data=xx_data)
         yy_data = T.allocate([16], "int32", "shared")
-        yy = T.buffer_decl(shape=[16], dtype="int32", scope="shared", data=yy_data)
+        yy = T.Buffer(shape=[16], dtype="int32", scope="shared", data=yy_data)
         a: T.Ptr[T.int32] = T.address_of(xx[0], dtype="handle")
         b: T.Ptr[T.int32, "shared"] = T.address_of(yy[0], dtype="handle")
         T.evaluate(T.call_extern("copy", a, b, dtype=""))

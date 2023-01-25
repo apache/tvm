@@ -152,18 +152,6 @@ def test_match_buffer_1d():
     assert_structural_equal(func_no_sugar, func_with_sugar)
 
 
-# match buffer failed case
-def test_match_buffer_no_kwargs_failed():
-    with pytest.raises(ValueError) as e:
-
-        @T.prim_func
-        def elementwise_buffer_no_kwargs_failed(
-            a: T.Buffer[(128, 128, 128, 128)],
-            b: T.Buffer[(128, 128, 128, 128)],
-        ) -> None:
-            pass
-
-
 # dynamic shape gemm
 @T.prim_func
 def gemm_dyn_shape(a: T.handle, b: T.handle, c: T.handle):
