@@ -187,11 +187,11 @@ def _dual_int16_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, k
           int32_t sum_c1 = 0;
 
           int32_t kernel_i32[{kernel_h} * {kernel_w}];
-          memcpy(kernel_i32, kernel, {kernel_h} * {kernel_w} * 4);
+          memcpy(kernel_i32, kernel, {kernel_h} * {kernel_w} * sizeof(int32_t));
 
           int32_t tensor_length = {((kernel_w - 1) * (channels // 2) + (kernel_h - 1) * tensor_w * (channels // 2)) + 1};
           int32_t tensor_i32[tensor_length];
-          memcpy(tensor_i32, tensor, tensor_length * 4);
+          memcpy(tensor_i32, tensor, tensor_length * sizeof(int32_t));
 
           #pragma GCC unroll 3
           for (int i = 0; i < {kernel_h}; i++) {{

@@ -64,6 +64,7 @@ PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
 CMAKE_FLAGS = -DCMAKE_TOOLCHAIN_FILE=${TVM_ROOT}/tests/python/contrib/test_ethosu/reference_system/arm-none-eabi-gcc.cmake \
 	-DCMAKE_SYSTEM_PROCESSOR=${MCPU}
 
+# -fdata-sections together with --gc-section may lead to smaller statically-linked executables
 PKG_LDFLAGS = -lm -specs=nosys.specs -static -Wl,--gc-sections -T ${AOT_TEST_ROOT}/corstone300.ld
 
 $(ifeq VERBOSE,1)
@@ -113,6 +114,7 @@ ${build_dir}/libcmsis_startup.a: $(CMSIS_STARTUP_SRCS)
 	$(QUIET)$(AR) -cr $(abspath $(build_dir)/libcmsis_startup.a) $(abspath $(build_dir))/libcmsis_startup/*.o
 	$(QUIET)$(RANLIB) $(abspath $(build_dir)/libcmsis_startup.a)
 
+# -fdata-sections together with --gc-section may lead to smaller statically-linked executables
 ${build_dir}/libcmsis_nn.a: $(CMSIS_NN_SRCS)
 	$(QUIET)mkdir -p $(abspath $(build_dir)/libcmsis_nn)
 	$(QUIET)cd $(abspath $(build_dir)/libcmsis_nn) && $(CC) -c $(PKG_CFLAGS) -ffunction-sections -fdata-sections -D${ARM_CPU} $^
