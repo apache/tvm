@@ -225,9 +225,7 @@ def instantiate_from_dir(project_dir: typing.Union[pathlib.Path, str], debug: bo
     api_server_read_fd, tvm_write_fd = os.pipe()
     tvm_read_fd, api_server_write_fd = os.pipe()
 
-    proc_args.extend(
-        ["--read-fd", str(api_server_read_fd), "--write-fd", str(api_server_write_fd)]
-    )
+    proc_args.extend(["--read-fd", str(api_server_read_fd), "--write-fd", str(api_server_write_fd)])
     if debug:
         proc_args.append("--debug")
 
