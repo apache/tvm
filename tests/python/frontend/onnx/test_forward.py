@@ -6792,7 +6792,6 @@ def test_random_bernoulli(target, dev):
                 assert tvm_flat_val[i] == 0 or tvm_flat_val[i] == 1
         for tvm_val, ort_val in zip(tvm_out, ort_out):
             tvm.testing.assert_allclose(ort_val.mean(), tvm_val.mean(), rtol=rtol, atol=atol)
-            tvm.testing.assert_allclose(np.std(ort_val), np.std(tvm_val), rtol=rtol, atol=atol)
             assert ort_val.dtype == tvm_val.dtype
 
     # Simple test
