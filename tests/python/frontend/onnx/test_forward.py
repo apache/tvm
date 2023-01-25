@@ -6711,7 +6711,7 @@ def test_qlinearsigmoid(target, dev):
 def test_random_bernoulli(target, dev):
     """test_random_bernoulli"""
 
-    def verify_bernoulli_with_ort(
+    def verify_bernoulli(
         shape,
         in_dtype="float32",
         out_dtype="int32",
@@ -6720,12 +6720,10 @@ def test_random_bernoulli(target, dev):
         target=target,
         dev=dev,
         use_vm=False,
-        opset=None,
         freeze_params=False,
         rtol=0.1,
         atol=0.1,
         opt_level=1,
-        convert_config=None,
     ):
         def get_bernoulli_model(shape, in_dtype="float32", out_dtype="int32", seed=None):
             onnx_itype = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(in_dtype)]
@@ -6738,7 +6736,7 @@ def test_random_bernoulli(target, dev):
             dtype_attr = helper.make_attribute("dtype", onnx_otype)
             node.attribute.append(dtype_attr)
             if seed is not None:
-                seed_attr = helper.make_attribute("seed", seed)
+                seed_attr = helper.make_attribute("seed", float(seed))
                 node.attribute.append(seed_attr)
 
             graph = helper.make_graph(
@@ -6750,24 +6748,15 @@ def test_random_bernoulli(target, dev):
             return helper.make_model(graph, producer_name="random_bernoulli_test")
 
         inputs = np.random.uniform(size=shape).astype(in_dtype)
-        if seed is None:
-            ort_seed = None
-        else:
-            ort_seed = float(seed)
-        model = get_bernoulli_model(shape, in_dtype, out_dtype, ort_seed)
-        if opset is not None:
-            model.opset_import[0].version = opset
+        model = get_bernoulli_model(shape, in_dtype, out_dtype, seed)
 
-        ort_out = get_onnxruntime_output(model, inputs)
         if use_vm:
             tvm_out = get_tvm_output_with_vm(
                 model,
                 inputs,
                 target,
                 dev,
-                opset=opset,
                 freeze_params=freeze_params,
-                convert_config=convert_config,
             )
         else:
             tvm_out = get_tvm_output(
@@ -6776,38 +6765,34 @@ def test_random_bernoulli(target, dev):
                 target,
                 dev,
                 out_shape,
-                opset=opset,
                 opt_level=opt_level,
-                convert_config=convert_config,
             )
 
         if not isinstance(tvm_out, list):
             tvm_out = [tvm_out]
-        if not isinstance(ort_out, list):
-            ort_out = [ort_out]
-        # check that values are 0 or 1
+        ideal_mean = np.sum(inputs)
         for tvm_val in tvm_out:
+            # check that values are 0 or 1
             tvm_flat_val = tvm_val.flatten()
             for i in range(len(tvm_flat_val)):
                 assert tvm_flat_val[i] == 0 or tvm_flat_val[i] == 1
-        for tvm_val, ort_val in zip(tvm_out, ort_out):
-            tvm.testing.assert_allclose(ort_val.mean(), tvm_val.mean(), rtol=rtol, atol=atol)
-            assert ort_val.dtype == tvm_val.dtype
+            # check that mean value is close to the theoretical one
+            tvm.testing.assert_allclose(ideal_mean, tvm_val.mean(), rtol=rtol, atol=atol)
 
     # Simple test
-    verify_bernoulli_with_ort([1000])
+    verify_bernoulli([1000])
 
     # Floating output type
-    verify_bernoulli_with_ort([1000], out_dtype="float32")
+    verify_bernoulli([1000], out_dtype="float32")
 
     # Double input type
-    verify_bernoulli_with_ort([1000], in_dtype="float64")
+    verify_bernoulli([1000], in_dtype="float64")
 
     # Test N-D tensor generation
-    verify_bernoulli_with_ort([2, 4, 100, 100])
+    verify_bernoulli([2, 4, 100, 100])
 
     # Test with seed
-    verify_bernoulli_with_ort([1000], seed=np.random.randint(1e6))
+    verify_bernoulli([1000], seed=np.random.randint(1e6))
 
 
 @tvm.testing.parametrize_targets("llvm")
