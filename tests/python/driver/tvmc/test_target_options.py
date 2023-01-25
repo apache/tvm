@@ -60,6 +60,7 @@ def test_mapping_target_args():
     assert reconstruct_target_args(parsed) == {"llvm": {"mcpu": "cortex-m3"}}
 
 
+@tvm.testing.requires_vitis_ai
 def test_composite_target_cmd_line_help():
     parser = argparse.ArgumentParser()
     generate_target_args(parser)
