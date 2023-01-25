@@ -33,6 +33,7 @@
 
 #include "../workspace_pool.h"
 #include "hexagon_common.h"
+#include "qurt_memory.h"
 
 namespace tvm {
 namespace runtime {
@@ -208,6 +209,14 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.dma_copy_dltensor")
 
       *rv = static_cast<int32_t>(0);
     });
+
+TVM_REGISTER_GLOBAL("device_api.hexagon.flush_cache").set_body([](TVMArgs args, TVMRetValue* rv) {
+  void* addr = args[0];
+  int size = args[1];
+  qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(addr), size, QURT_MEM_CACHE_FLUSH_INVALIDATE,
+                       QURT_MEM_DCACHE);
+  *rv = static_cast<int32_t>(0);
+});
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.dma_copy").set_body([](TVMArgs args, TVMRetValue* rv) {
   int queue_id = args[0];

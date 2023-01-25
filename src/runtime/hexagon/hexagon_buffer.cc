@@ -49,6 +49,16 @@ struct Allocation {
 struct DDRAllocation : public Allocation {
   DDRAllocation(size_t nbytes, size_t alignment) : Allocation(nbytes, alignment) {
     int ret = posix_memalign(&data_, alignment, nbytes);
+
+    // The heap used by malloc on Hexagon is always mapped as cacheable. The heap manager may
+    // not perform cache flush and invalidation on a prior memory free. So, a subsequent memory
+    // allocation request to the heap manager may allocate memory that resides in part or in full in
+    // the cache. Hence, we must flush and invalidate the allocation from the cache to ensure that
+    // DMA with cache bypass enabled will function properly. DMA with cache bypass enabled assumes
+    // that HexagonBuffer objects are not cached unless explicitly modified by the primfunc. We must
+    // flush and invalidate after malloc to uphold this assumption.
+    qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(data_), nbytes,
+                         QURT_MEM_CACHE_FLUSH_INVALIDATE, QURT_MEM_DCACHE);
     CHECK_EQ(ret, 0);
   }
   ~DDRAllocation() { free(data_); }
@@ -235,19 +245,20 @@ void hexagon_buffer_copy_across_regions(const BufferSet& dest, const BufferSet& 
 
   // Finally, do the memory copies.
   for (const auto& copy : macro_copies) {
-    // clean Hexagon cache before / after memcpy to ensure clean cache state to enable usage of DMA
-    // bypass mode for increased DMA bandwidth
     // TODO(HWE): Switch to ION Buffer to avoid need for memcpy and potentially lighten or alleviate
     // the burden of cache invalidation in this code
-    qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(copy.dest), copy.num_bytes,
-                         QURT_MEM_CACHE_INVALIDATE, QURT_MEM_DCACHE);
-    qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(copy.src), copy.num_bytes,
-                         QURT_MEM_CACHE_INVALIDATE, QURT_MEM_DCACHE);
     memcpy(copy.dest, copy.src, copy.num_bytes);
+
+    // We must flush and invalidate both the destination and source of the memcpy from the cache to
+    // ensure that DMA with cache bypass enabled will function properly. DMA with cache bypass
+    // enabled assumes that HexagonBuffer objects are not cached unless explicitly modified by the
+    // primfunc. We must flush and invalidate after the memcpy to uphold this assumption. Note that
+    // we need not flush and invalidate prior to the memcpy because it is coherent - issued through
+    // the cache.
     qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(copy.dest), copy.num_bytes,
-                         QURT_MEM_CACHE_INVALIDATE, QURT_MEM_DCACHE);
+                         QURT_MEM_CACHE_FLUSH_INVALIDATE, QURT_MEM_DCACHE);
     qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(copy.src), copy.num_bytes,
-                         QURT_MEM_CACHE_INVALIDATE, QURT_MEM_DCACHE);
+                         QURT_MEM_CACHE_FLUSH_INVALIDATE, QURT_MEM_DCACHE);
   }
 }
 

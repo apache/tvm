@@ -319,6 +319,8 @@ class BuiltinLower : public StmtExprMutator {
       return MakeDMACopy(op);
     } else if (op->op.same_as(builtin::dma_wait())) {
       return MakeDMAWait(op);
+    } else if (op->op.same_as(builtin::flush_cache())) {
+      return MakeFlushCache(op);
     } else {
       return StmtExprMutator::VisitExpr_(op);
     }
@@ -349,6 +351,18 @@ class BuiltinLower : public StmtExprMutator {
 
     Call call_packed = Call(DataType::Int(32), builtin::tvm_call_packed(),
                             {StringImm(fdevapi_prefix + ".dma_wait"), queue_id, inflight});
+    return VisitExpr(call_packed);
+  }
+
+  PrimExpr MakeFlushCache(const CallNode* op) {
+    PrimExpr addr = op->args[0];
+    PrimExpr size = op->args[1];
+
+    std::string fdevapi_prefix =
+        "device_api." + std::string(runtime::DeviceName(device_type_.as<IntImmNode>()->value));
+
+    Call call_packed = Call(DataType::Int(32), builtin::tvm_call_packed(),
+                            {StringImm(fdevapi_prefix + ".flush_cache"), addr, size});
     return VisitExpr(call_packed);
   }
 

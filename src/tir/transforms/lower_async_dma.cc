@@ -35,9 +35,15 @@ class AsyncDMALowerer : public StmtExprMutator {
  public:
   explicit AsyncDMALowerer(bool dma_bypass_cache) : dma_bypass_cache_(dma_bypass_cache) {}
 
-  // Create member statement to track a mapping from iter var to iter range
   Stmt VisitStmt_(const ForNode* op) final {
+    // track a mapping from iter var to iter range
     input_iters.Set(op->loop_var, Range(op->min, op->extent));
+
+    // track buffers that may be modified in cache requiring a cache flush prior to DMA copy
+    auto bufferstorenode = op->body.as<BufferStoreNode>();
+    if (bufferstorenode) {
+      dirty_buffs_.insert(bufferstorenode->buffer);
+    }
     return StmtExprMutator::VisitStmt_(op);
   }
 
@@ -192,19 +198,33 @@ class AsyncDMALowerer : public StmtExprMutator {
       // save queue ID for inspection in `wait` transform
       queue_ids_.insert(queue_id);
 
-      return Evaluate(Call(DataType::Int(32), builtin::dma_copy(),
-                           {queue_id,
-                            Call(DataType::Handle(), builtin::address_of(),
-                                 {BufferLoad(bufferstorenode->buffer, store_index)}),
-                            Call(DataType::Handle(), builtin::address_of(),
-                                 {BufferLoad(bufferloadnode->buffer, load_index)}),
-                            for_loop->extent * bufferloadnode->dtype.bytes(), dma_bypass_cache_}));
+      auto call_dma_copy =
+          Evaluate(Call(DataType::Int(32), builtin::dma_copy(),
+                        {queue_id,
+                         Call(DataType::Handle(), builtin::address_of(),
+                              {BufferLoad(bufferstorenode->buffer, store_index)}),
+                         Call(DataType::Handle(), builtin::address_of(),
+                              {BufferLoad(bufferloadnode->buffer, load_index)}),
+                         for_loop->extent * bufferloadnode->dtype.bytes(), dma_bypass_cache_}));
+
+      // if the buffer we are about to DMA was modified by the primfunc
+      // then we need to flush the buffer from the cache prior to the DMA
+      if (dirty_buffs_.find(bufferloadnode->buffer) != dirty_buffs_.end() && dma_bypass_cache_) {
+        auto call_cache_flush =
+            Evaluate(Call(DataType::Int(32), builtin::flush_cache(),
+                          {Call(DataType::Handle(), builtin::address_of(),
+                                {BufferLoad(bufferloadnode->buffer, load_index)}),
+                           for_loop->extent * bufferloadnode->dtype.bytes()}));
+        return SeqStmt({call_cache_flush, call_dma_copy});
+      }
+      return call_dma_copy;
     }
     return StmtExprMutator::VisitStmt_(op);
   }
 
  private:
   std::set<int> queue_ids_;
+  std::set<Buffer> dirty_buffs_;
   bool dma_bypass_cache_;
   Map<Var, Range> input_iters = Map<Var, Range>();
 };

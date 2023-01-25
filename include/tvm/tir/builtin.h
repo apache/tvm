@@ -724,6 +724,11 @@ TVM_DLL const Op& dma_copy();
 TVM_DLL const Op& dma_wait();
 
 /*!
+ * \brief Flush the cache for a given address and size
+ */
+TVM_DLL const Op& flush_cache();
+
+/*!
  * \brief Provide a true statement that can be used for simplifications
  *
  * Compile-time representation of known constraints about function
