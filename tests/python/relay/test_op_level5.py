@@ -251,6 +251,7 @@ class TestCropAndResize:
         else:
             raise ValueError(f"Unknown layout: {layout}")
 
+        np.random.seed(0)
         image_data = np.random.uniform(size=img_shape).astype("float32")
 
         ref_res = tvm.topi.testing.crop_and_resize_python(
