@@ -6723,6 +6723,7 @@ def test_random_bernoulli(target, dev):
         freeze_params=False,
         rtol=0.1,
         atol=0.1,
+        in_out_equal=False,
     ):
         def get_bernoulli_model(shape, in_dtype="float32", out_dtype="int32", seed=None):
             onnx_itype = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(in_dtype)]
@@ -6778,8 +6779,11 @@ def test_random_bernoulli(target, dev):
             tvm_flat_val = tvm_val.flatten()
             for i in range(len(tvm_flat_val)):
                 assert tvm_flat_val[i] == 0 or tvm_flat_val[i] == 1
-            # check that mean value is close to the theoretical one
-            tvm.testing.assert_allclose(ideal_mean, tvm_val.mean(), rtol=rtol, atol=atol)
+            if in_out_equal:
+                tvm.testing.assert_allclose(inputs, tvm_val)
+            else:
+                # check that mean value is close to the theoretical one
+                tvm.testing.assert_allclose(ideal_mean, tvm_val.mean(), rtol=rtol, atol=atol)
 
     # Simple test
     verify_bernoulli([1000])
@@ -6795,6 +6799,10 @@ def test_random_bernoulli(target, dev):
 
     # Test with seed
     verify_bernoulli([1000], seed=np.random.randint(1e6))
+
+    # Test input sequence of 0 and 1
+    inputs = np.random.randint(2, size=[2, 4, 100, 100])
+    verify_bernoulli(inputs, in_out_equal=True)
 
 
 @tvm.testing.parametrize_targets("llvm")
