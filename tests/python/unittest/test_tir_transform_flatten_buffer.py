@@ -41,11 +41,11 @@ class TestElementwise(BaseCompare):
                 C[i, j] = B_new[0, j] * 2.0
 
     def expected(input_A: T.Buffer[(16, 16), "float32"], input_C: T.Buffer[(16, 16), "float32"]):
-        A = T.buffer_decl(256, dtype="float32", data=input_A.data)
-        C = T.buffer_decl(256, dtype="float32", data=input_C.data)
+        A = T.Buffer(256, dtype="float32", data=input_A.data)
+        C = T.Buffer(256, dtype="float32", data=input_C.data)
         for i in T.serial(0, 16):
             B_new_data = T.allocate([16], "float32", scope="global")
-            B_new = T.buffer_decl([16], "float32", scope="global", data=B_new_data)
+            B_new = T.Buffer([16], "float32", scope="global", data=B_new_data)
             for j in T.serial(0, 16):
                 B_new[j] = A[((i * 16) + j)] + 1.0
             for j in T.serial(0, 16):
@@ -56,7 +56,7 @@ class TestElementwiseWithoutDeclBuffer(BaseCompare):
     """2-d buffers are flattened to 1-d
 
     Like TestElementwise, but the TIR doesn't have the DeclBuffer
-    node.  The T.buffer_decl declaration applies only during the
+    node.  The T.Buffer declaration applies only during the
     parsing the TVMScript, and doesn't occur in the TIR itself.  In
     this case, the allocation should be assumed to be targeting flat
     memory, and should be flattened to a 1-d allocation.
@@ -65,18 +65,18 @@ class TestElementwiseWithoutDeclBuffer(BaseCompare):
     def before(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]):
         for i in T.serial(0, 16):
             B_new_data = T.allocate([1, 16], "float32", "global")
-            B_new = T.buffer_decl([1, 16], "float32", data=B_new_data)
+            B_new = T.Buffer([1, 16], "float32", data=B_new_data)
             for j in T.serial(0, 16):
                 B_new[0, j] = A[i, j] + 1.0
             for j in T.serial(0, 16):
                 C[i, j] = B_new[0, j] * 2.0
 
     def expected(input_A: T.Buffer[(16, 16), "float32"], input_C: T.Buffer[(16, 16), "float32"]):
-        A = T.buffer_decl(256, dtype="float32", data=input_A.data)
-        C = T.buffer_decl(256, dtype="float32", data=input_C.data)
+        A = T.Buffer(256, dtype="float32", data=input_A.data)
+        C = T.Buffer(256, dtype="float32", data=input_C.data)
         for i in T.serial(0, 16):
             B_new_data = T.allocate([16], "float32", "global")
-            B_new = T.buffer_decl(16, "float32", data=B_new_data)
+            B_new = T.Buffer(16, "float32", data=B_new_data)
             for j in T.serial(0, 16):
                 B_new[j] = A[((i * 16) + j)] + 1.0
             for j in T.serial(0, 16):
@@ -101,8 +101,8 @@ class TestGPU(BaseCompare):
             C[i0 * 4 + i1 * 2 + i2, j] = B[0, j] * 2.0
 
     def expected(input_A: T.Buffer[(16, 16), "float32"], input_C: T.Buffer[(16, 16), "float32"]):
-        A = T.buffer_decl(256, dtype="float32", data=input_A.data)
-        C = T.buffer_decl(256, dtype="float32", data=input_C.data)
+        A = T.Buffer(256, dtype="float32", data=input_A.data)
+        C = T.Buffer(256, dtype="float32", data=input_C.data)
 
         i0 = T.env_thread("blockIdx.x")
         i1 = T.env_thread("threadIdx.x")
@@ -112,7 +112,7 @@ class TestGPU(BaseCompare):
         T.launch_thread(i1, 2)
         T.launch_thread(i2, 2)
         B_data = T.allocate([16], "float32", scope="local")
-        B = T.buffer_decl([16], "float32", scope="local", data=B_data)
+        B = T.Buffer([16], "float32", scope="local", data=B_data)
         for j in range(0, 16):
             B[j] = A[i0 * 64 + i1 * 32 + i2 * 16 + j] + 1.0
         for j in range(0, 16):
@@ -136,12 +136,12 @@ class TestSymbolic(BaseCompare):
     def expected(a: T.handle, c: T.handle, n: T.int32, m: T.int32) -> None:
         input_A = T.match_buffer(a, (n, m), "float32")
         input_C = T.match_buffer(c, (n, m), "float32")
-        A = T.buffer_decl(n * m, "float32", data=input_A.data)
-        C = T.buffer_decl(n * m, "float32", data=input_C.data)
+        A = T.Buffer(n * m, "float32", data=input_A.data)
+        C = T.Buffer(n * m, "float32", data=input_C.data)
 
         for i in range(0, n):
             B_data = T.allocate([m], "float32", scope="global")
-            B = T.buffer_decl([m], "float32", scope="global", data=B_data)
+            B = T.Buffer([m], "float32", scope="global", data=B_data)
             for j in range(0, m):
                 B[j] = A[i * m + j] + 1.0
             for j in range(0, m):
@@ -160,14 +160,14 @@ class TestMultiAlloc(BaseCompare):
             D[i, j] = C[i, j] * 2.0
 
     def expected(input_A: T.Buffer[(4, 32), "float32"], input_D: T.Buffer[(4, 32), "float32"]):
-        A = T.buffer_decl(128, "float32", data=input_A.data)
-        D = T.buffer_decl(128, "float32", data=input_D.data)
+        A = T.Buffer(128, "float32", data=input_A.data)
+        D = T.Buffer(128, "float32", data=input_D.data)
 
         for i, j in T.grid(4, 32):
             B_data = T.allocate([128], "float32", scope="global")
-            B = T.buffer_decl([128], "float32", scope="global", data=B_data)
+            B = T.Buffer([128], "float32", scope="global", data=B_data)
             C_data = T.allocate([128], "float32", scope="global")
-            C = T.buffer_decl([128], "float32", scope="global", data=C_data)
+            C = T.Buffer([128], "float32", scope="global", data=C_data)
             B[i * 32 + j] = A[i * 32 + j] + 1.0
             C[i * 32 + j] = A[i * 32 + j] + B[i * 32 + j]
             D[i * 32 + j] = C[i * 32 + j] * 2.0
@@ -179,18 +179,18 @@ class TestStrided(BaseCompare):
     def before(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]):
         for i0 in T.serial(4):
             B = T.decl_buffer([4, 17], "float32")
-            B_1 = T.buffer_decl([4, 16], dtype="float32", data=B.data, strides=[17, 1])
+            B_1 = T.Buffer([4, 16], dtype="float32", data=B.data, strides=[17, 1])
             for i1, j in T.grid(4, 16):
                 B_1[i1, j] = A[i0 * 4 + i1, j] + 1.0
             for i1, j in T.grid(4, 16):
                 C[i0 * 4 + i1, j] = B_1[i1, j] * 2.0
 
     def expected(input_A: T.Buffer[(16, 16), "float32"], input_C: T.Buffer[(16, 16), "float32"]):
-        A = T.buffer_decl(256, dtype="float32", data=input_A.data)
-        C = T.buffer_decl(256, dtype="float32", data=input_C.data)
+        A = T.Buffer(256, dtype="float32", data=input_A.data)
+        C = T.Buffer(256, dtype="float32", data=input_C.data)
         for i0 in T.serial(0, 4):
             B_new_data = T.allocate([68], "float32", scope="global")
-            B_new = T.buffer_decl([68], "float32", scope="global", data=B_new_data)
+            B_new = T.Buffer([68], "float32", scope="global", data=B_new_data)
             for i1 in T.serial(0, 4):
                 for j in T.serial(0, 16):
                     B_new[i1 * 17 + j] = A[i0 * 64 + i1 * 16 + j] + 1.0
@@ -207,8 +207,8 @@ class TestBoolean(BaseCompare):
             B[i0] = A[i0]
 
     def expected(input_A: T.Buffer[10, "bool"], input_B: T.Buffer[10, "bool"]) -> None:
-        A = T.buffer_decl(10, dtype="int8", data=input_A.data)
-        B = T.buffer_decl(10, dtype="int8", data=input_B.data)
+        A = T.Buffer(10, dtype="int8", data=input_A.data)
+        B = T.Buffer(10, dtype="int8", data=input_B.data)
         # body
         for i0 in T.serial(10):
             B[i0] = T.cast(T.cast(A[i0], "bool"), "int8")
@@ -285,9 +285,7 @@ class TestFlattenDeclBufferWithAxisSeparators(BaseCompare):
 
     def expected():
         A_data = T.allocate([30, 1001], dtype="float32", scope="global")
-        A = T.buffer_decl(
-            [30, 1001], dtype="float32", scope="global", axis_separators=[1], data=A_data
-        )
+        A = T.Buffer([30, 1001], dtype="float32", scope="global", axis_separators=[1], data=A_data)
         for i0, i1, i2, i3, i4, i5 in T.grid(2, 3, 5, 7, 11, 13):
             T.evaluate(A[i0 * 15 + i1 * 5 + i2, i3 * 143 + i4 * 13 + i5])
 

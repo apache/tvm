@@ -17,3 +17,4 @@
 """Package tvm.script.ir_builder.tir"""
 from .ir import *  # pylint: disable=wildcard-import,redefined-builtin
 from .ir import boolean as bool  # pylint: disable=redefined-builtin
+from .ir import buffer_decl as Buffer

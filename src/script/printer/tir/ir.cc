@@ -34,8 +34,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       } else if (dtype == DataType::Bool()) {
         return LiteralDoc::Boolean(imm->value, imm_p->Attr("value"));
       } else {
-        return TIR(d, runtime::DLDataType2String(dtype))  //
-            ->Call({LiteralDoc::Int(imm->value, imm_p->Attr("value"))});
+        return TIR(d, DType2Str(dtype))->Call({LiteralDoc::Int(imm->value, imm_p->Attr("value"))});
       }
     });
 
@@ -45,7 +44,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       if (dtype == d->cfg->float_dtype) {
         return LiteralDoc::Float(imm->value, imm_p->Attr("value"));
       } else {
-        return TIR(d, runtime::DLDataType2String(dtype))  //
+        return TIR(d, DType2Str(dtype))
             ->Call({LiteralDoc::Float(imm->value, imm_p->Attr("value"))});
       }
     });
@@ -61,8 +60,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<PrimType>("", [](PrimType ty, ObjectPath p, IRDocsifier d) -> Doc {
-      std::string dtype = ty->dtype.is_void() ? "void" : runtime::DLDataType2String(ty->dtype);
-      return TIR(d, dtype);
+      return TIR(d, DType2Str(ty->dtype));
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
