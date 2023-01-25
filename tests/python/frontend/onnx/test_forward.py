@@ -6785,6 +6785,11 @@ def test_random_bernoulli(target, dev):
             tvm_out = [tvm_out]
         if not isinstance(ort_out, list):
             ort_out = [ort_out]
+        # check that values are 0 or 1
+        for tvm_val in tvm_out:
+            tvm_flat_val = tvm_val.flatten()
+            for i in range(len(tvm_flat_val)):
+                assert tvm_flat_val[i] == 0 or tvm_flat_val[i] == 1
         for tvm_val, ort_val in zip(tvm_out, ort_out):
             tvm.testing.assert_allclose(ort_val.mean(), tvm_val.mean(), rtol=rtol, atol=atol)
             tvm.testing.assert_allclose(np.std(ort_val), np.std(tvm_val), rtol=rtol, atol=atol)
