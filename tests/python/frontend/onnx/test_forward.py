@@ -6783,7 +6783,7 @@ def test_random_bernoulli(target, dev):
         else:
             # check that mean value is close to the theoretical one by binomial test
             bnm_test_res = scipy.stats.binomtest(
-                int(k=np.sum(tvm_flat)), n=len(tvm_flat), p=ideal_mean
+                k=np.sum(tvm_flat, dtype="int32"), n=len(tvm_flat), p=ideal_mean
             )
             assert bnm_test_res.pvalue >= 1e-6
 
