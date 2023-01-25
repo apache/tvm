@@ -587,11 +587,12 @@ TVM_REGISTER_GLOBAL("transform.OverrideInstruments")
 
 Pass PrintIR(String header, bool show_meta_data) {
   auto pass_func = [header, show_meta_data](IRModule mod, const PassContext& ctx) {
-    if (const auto* f = runtime::Registry::Get("relay.PrintIR")) {
-      (*f)(mod, header, show_meta_data);
-    } else {
-      LOG(INFO) << "PrintIR(" << header << "):\n" << mod;
+    if (const auto* f = runtime::Registry::Get("relay.ir.PrintIR")) {
+      if ((*f)(mod, header, show_meta_data)) {
+        return mod;
+      }
     }
+    LOG(INFO) << "PrintIR(" << header << "):\n" << mod;
     return mod;
   };
   return CreateModulePass(pass_func, 0, "PrintIR", {});
