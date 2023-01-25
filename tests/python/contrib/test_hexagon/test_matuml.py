@@ -1,6 +1,28 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""Hexagon MatMul Test using async pipeline"""
+
+# pylint: disable=invalid-name
+# pylint: disable=missing-function-docstring
+# pylint: disable=missing-class-docstring
+# pylint: disable=redefined-outer-name
+
 import sys
 import numpy as np
-import pytest
 
 import tvm
 import tvm.testing
@@ -17,20 +39,6 @@ pytest_plugins = [
 
 
 np.set_printoptions(threshold=sys.maxsize, suppress=True)
-
-
-def layout_primfunc_impl(dim0, dim1, dtype, input_scope, output_scope):
-    @T.prim_func
-    def copy(input: T.handle, output: T.handle):
-        I = T.match_buffer(input, (dim0, dim1), dtype=dtype, scope=input_scope)
-        O = T.match_buffer(output, (dim0, dim1), dtype=dtype, scope=output_scope)
-
-        for i, j in T.grid(dim0, dim1):
-            with T.block("compute"):
-                vi, vj = T.axis.remap("SS", [i, j])
-                O[vi, vj] = I[vi, vj]
-
-    return copy
 
 
 @tvm.testing.fixture
@@ -69,11 +77,6 @@ class MatMulBase:
     global_memory_scope, layout_transform_scope = tvm.testing.parameters(
         # Slices of activation and weights are fetched to fast memory in matmul loopnest
         ("global", {k: "global" for k in arg_scopes}),
-        # Simulates weight prefetch when the layout transform occurs in its own primfunc (layout_primfunc != None)
-        # (
-        #     "global",
-        #     {k: v for k, v in zip(arg_scopes, ["global", "global.vtcm", "global"])},
-        # ),
         # All compute including layout transform performed in fast memory, no fetching
         # ("global.vtcm", {k: "global.vtcm" for k in arg_scopes}),
         ids=[
@@ -179,7 +182,7 @@ def tvm_target(target_str):
 
 def module_loader(mod, hexagon_session=None):
     if mod.type_key == "hexagon":
-        assert hexagon_session != None
+        assert hexagon_session is not None
         mod = hexagon_session.load_module(mod)
     return mod
 
@@ -190,7 +193,6 @@ def scheduled_matmul_primfunc(
     layout_primfunc,
     activation_index_map,
     weight_index_map,
-    global_memory_scope,
     layout_transform_scope,
     fast_memory_scope,
     dtype,
@@ -200,11 +202,11 @@ def scheduled_matmul_primfunc(
 
     compute_block = sch.get_block("compute")
 
-    if layout_primfunc == None:
+    if layout_primfunc is None:
         # Materialize layout transformations on inputs and outputs
-        At_block = sch.cache_read(compute_block, 0, layout_transform_scope["input"])
-        Wt_block = sch.cache_read(compute_block, 1, layout_transform_scope["weight"])
-        Bt_block = sch.cache_write(compute_block, 0, layout_transform_scope["output"])
+        sch.cache_read(compute_block, 0, layout_transform_scope["input"])
+        sch.cache_read(compute_block, 1, layout_transform_scope["weight"])
+        sch.cache_write(compute_block, 0, layout_transform_scope["output"])
 
     sch.transform_layout(compute_block, ("read", 0), index_map=activation_index_map)
     sch.transform_layout(compute_block, ("read", 1), index_map=weight_index_map)
@@ -219,14 +221,8 @@ def scheduled_matmul_primfunc(
     ko, ki = sch.split(k, factors=[None, 32])
     sch.reorder(mo, no, ko, ki, mi, ni)
 
-    def schedule_cache(loops, vectorize=False):
-        fused = sch.fuse(*loops)
-        # o, _, io, ii = sch.split(fused, factors=[4, None, 2, 128])
-        # sch.unroll(io)
-        # # sch.parallel(o)
-        # if vectorize:
-        #     sch.vectorize(ii)
-        return
+    def schedule_cache(loops):
+        sch.fuse(*loops)
 
     if layout_transform_scope["input"] == "global":
         # Use fast memory caches for input
@@ -250,13 +246,13 @@ def scheduled_matmul_primfunc(
         schedule_cache(sch.get_loops(Bvtcm_block)[2:])
 
     # Use local memory accumulator
-    Blocal_block = sch.cache_write(compute_block, 0, "local")
+    sch.cache_write(compute_block, 0, "local")
     # sch.reverse_compute_at(Blocal_block, no)
 
     # Split out initialization and update of accumulator and
     # place initialization as early as possible.
-    init_block = sch.decompose_reduction(compute_block, ko)
-    update_block = sch.get_block("compute_update")
+    sch.decompose_reduction(compute_block, ko)
+    sch.get_block("compute_update")
 
     # Nest the software pipeline for mo and no
     sch.annotate(mo, "software_pipeline_stage", [1, 2, 2, 2])
@@ -272,12 +268,11 @@ def scheduled_matmul_primfunc(
 
 @tvm.testing.fixture
 def activation_index_map(dtype):
-    if dtype == "int8" or dtype == "uint8":
-        return IndexMap.from_func(lambda m, k: [m // 64, k // 32, m % 64, k % 32])
+    if dtype in ("int8", "uint8"):
+        indexmap = IndexMap.from_func(lambda m, k: [m // 64, k // 32, m % 64, k % 32])
     elif dtype == "float16":
-        return IndexMap.from_func(lambda m, k: [m // 32, k // 32, (m % 32) // 2, k % 32, m % 2])
-    else:
-        raise "Unsupported data type"
+        indexmap = IndexMap.from_func(lambda m, k: [m // 32, k // 32, (m % 32) // 2, k % 32, m % 2])
+    return indexmap
 
 
 @tvm.testing.fixture
@@ -286,11 +281,12 @@ def output_index_map(activation_index_map):
 
 
 @tvm.testing.fixture
-def weight_index_map(dtype, activation_index_map):
-    if dtype == "int8" or dtype == "uint8":
-        return IndexMap.from_func(lambda k, n: [n // 32, k // 32, (k % 32) // 4, n % 32, k % 4])
+def weight_index_map(dtype):
+    if dtype in ("int8", "uint8"):
+        indexmap = IndexMap.from_func(lambda k, n: [n // 32, k // 32, (k % 32) // 4, n % 32, k % 4])
     elif dtype == "float16":
-        return IndexMap.from_func(lambda k, n: [n // 32, k // 32, (k % 32) // 2, n % 32, k % 2])
+        indexmap = IndexMap.from_func(lambda k, n: [n // 32, k // 32, (k % 32) // 2, n % 32, k % 2])
+    return indexmap
 
 
 @tvm.testing.fixture
@@ -444,8 +440,6 @@ class TestMatMul(MatMulBase):
         scheduled_runtime_modules,
         hexagon_session,
         ndarrays,
-        tvm_target,
-        dtype,
     ):
         # return
         mod = module_loader(scheduled_runtime_modules, hexagon_session)
