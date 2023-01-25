@@ -24,6 +24,7 @@
 #include <tvm/script/printer/doc.h>
 #include <tvm/script/printer/ir_docsifier_functor.h>
 
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
