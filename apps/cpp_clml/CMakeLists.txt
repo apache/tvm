@@ -14,18 +14,20 @@ if(NOT DEFINED CLML_SDK)
   message( FATAL_ERROR "CLML_SDK Not set, forcing exit." )
 endif(NOT DEFINED CLML_SDK)
 
+if (CMAKE_FIND_ROOT_PATH_MODE_LIBRARY STREQUAL "ONLY")
+  set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY BOTH)
+endif()
+
+find_library(CLML_LIBRARIES NAMES libOpenCL.so NO_DEFAULT_PATH PATHS ${CLML_SDK}/lib ${CLML_SDK}/lib64)
+
 # CMake/Android variables
 set( ANDROID_STL  c++_static CACHE STRING "Target Android STL") # default
 
 # Source variables
 set( OPENCL_INCLUDE_DIRS  ${CLML_SDK} CACHE PATH "filepath to OpenCL headers")
-set( ANDROID_SOURCE_TREE /path/to/android/au/ CACHE FILEPATH "optional filepath to the Android AU Tree, for building examples using ION Buffers") # tree required to build ION/DMA Buffer samples
 
-#c++ 11 is required
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
-# set(CMAKE_CXX_FLAGS "-Wall -Werror")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 #we do not want to pass -fno-exceptions
 if(${CMAKE_CXX_FLAGS} MATCHES "-fno-exceptions")
@@ -54,4 +56,4 @@ include_directories(
 
 add_executable(clml_run ${COMMON_SOURCE_FILES})
 target_link_options(clml_run PRIVATE -Wl,--unresolved-symbols=ignore-in-shared-libs)
-target_link_libraries(clml_run ${CLML_SDK}/lib64/libOpenCL.so z)
+target_link_libraries(clml_run ${CLML_LIBRARIES} z)

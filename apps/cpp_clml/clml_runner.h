@@ -51,6 +51,11 @@
     }                                                                                           \
   }
 
+#define CAT_I(a, b) a##b
+#define CAT(a, b) CAT_I(a, b)
+#define GET_ML_INTERFACE CAT(CAT(clGetMLInterfaceV, CL_QCOM_ML_OPS_H_MAJOR_VERSION), QCOM)
+#define GET_ML_API_INTERFACE CAT(CAT(CLMLInterfaceV, CL_QCOM_ML_OPS_H_MAJOR_VERSION), QCOM)
+
 namespace tvm {
 namespace runtime {
 
@@ -221,14 +226,8 @@ class CLMLRunner {
   /*! \brief Unused tensor used across various ops */
   std::shared_ptr<cl_ml_tensor_memory_desc_qcom> unusedTensor;
 
-#if CL_QCOM_ML_OPS_H_MAJOR_VERSION == 2
-  /*! \brief  V2 ML API interface */
-  CLMLInterfaceV2QCOM* h_ClmlIntf = NULL;
-#endif
-#if CL_QCOM_ML_OPS_H_MAJOR_VERSION == 3
-  /*! \brief  V3 ML API interface */
-  CLMLInterfaceV3QCOM* h_ClmlIntf = NULL;
-#endif
+  /*! \brief  ML API interface */
+  GET_ML_API_INTERFACE* h_ClmlIntf = NULL;
   /*! \brief  Tuning cache object */
   cl_ml_tuningcache_qcom tuning_cache = NULL;
   /*! \brief  Flag to inticate a tuning run */

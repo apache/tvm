@@ -190,7 +190,7 @@ int ExecuteModel(ToolArgs& args) {
   result = clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device_id, NULL);
   CLML_SDK_TEST_AND_EXIT(device_id && result == CL_SUCCESS);
 
-  ExtensionStringPresent(platform, device_id);
+  CLML_SDK_TEST_AND_EXIT(ExtensionStringPresent(platform, device_id) == true);
 
   context = clCreateContext(0, 1, &device_id, NULL, NULL, &result);
   CLML_SDK_TEST_AND_EXIT(result == CL_SUCCESS);

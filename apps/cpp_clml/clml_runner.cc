@@ -68,20 +68,11 @@ CLMLRunner::CLMLRunner(std::string name, ToolArgs& args, cl_platform_id arg_plat
   CLML_SDK_TEST_AND_EXIT(result == CL_SUCCESS);
 
   for (cl_uint i = 0; i < numVersions; ++i) {
-#if CL_QCOM_ML_OPS_H_MAJOR_VERSION == 2
-    if (majorVersions[i] == 2) {
-      this->h_ClmlIntf = clGetMLInterfaceV2QCOM(0);
+    if (majorVersions[i] == CL_QCOM_ML_OPS_H_MAJOR_VERSION) {
+      this->h_ClmlIntf = GET_ML_INTERFACE(0);
       LOG(INFO) << "CLML Target version:" << majorVersions[i];
       break;
     }
-#endif
-#if CL_QCOM_ML_OPS_H_MAJOR_VERSION == 3
-    if (majorVersions[i] == 3) {
-      this->h_ClmlIntf = clGetMLInterfaceV3QCOM(0);
-      LOG(INFO) << "CLML Target version:" << majorVersions[i];
-      break;
-    }
-#endif
   }
   CLML_SDK_TEST_AND_EXIT(this->h_ClmlIntf != NULL);
 
