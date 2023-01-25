@@ -61,7 +61,7 @@ def create_relay_module():
 
 
 @tvm.testing.requires_micro
-@pytest.mark.xfail_on_fvp()
+@pytest.mark.skip_boards(["mps2_an521", "mps3_an547"])
 def test_ms_tuning_conv2d(workspace_dir, board, microtvm_debug, use_fvp, serial_number):
     """Test meta-schedule tuning for microTVM Zephyr"""
 
