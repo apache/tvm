@@ -22,10 +22,11 @@
  * \brief The definition of tokens for the TVM parser.
  */
 
-#ifndef TVM_PARSER_TOKEN_H_
-#define TVM_PARSER_TOKEN_H_
+#ifndef TVM_RELAY_PARSER_TOKEN_H_
+#define TVM_RELAY_PARSER_TOKEN_H_
 
-#include <tvm/ir/span.h>
+#include <tvm/ir/expr.h>
+#include <tvm/ir/source_map.h>
 #include <tvm/runtime/object.h>
 
 #include <fstream>
@@ -33,7 +34,7 @@
 #include <utility>
 
 namespace tvm {
-namespace parser {
+namespace relay {
 
 using namespace runtime;
 
@@ -97,7 +98,7 @@ enum class TokenType {
   kNull,
 };
 
-std::string ToString(const TokenType& token_type) {
+inline std::string ToString(const TokenType& token_type) {
   switch (token_type) {
     case TokenType::kCommentStart:
       return "CommentStart";
@@ -219,7 +220,7 @@ std::string ToString(const TokenType& token_type) {
   }
 }
 
-std::string Pretty(const TokenType& token_type) {
+inline std::string Pretty(const TokenType& token_type) {
   switch (token_type) {
     case TokenType::kCommentStart:
       return "`/*`";
@@ -375,7 +376,7 @@ class Token : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(Token, ObjectRef, TokenNode);
 };
 
-Token::Token(Span span, TokenType token_type, ObjectRef data) {
+inline Token::Token(Span span, TokenType token_type, ObjectRef data) {
   ObjectPtr<TokenNode> n = make_object<TokenNode>();
   n->span = span;
   n->token_type = token_type;
@@ -383,15 +384,17 @@ Token::Token(Span span, TokenType token_type, ObjectRef data) {
   data_ = std::move(n);
 }
 
-Token Token::Null() { return Token(Span(SourceName(), 0, 0, 0, 0), TokenType::kNull); }
+inline Token Token::Null() { return Token(Span(SourceName(), 0, 0, 0, 0), TokenType::kNull); }
 
-int64_t Token::ToNumber() const {
+inline int64_t Token::ToNumber() const {
   return Downcast<tvm::Integer>(this->operator->()->data).IntValue();
 }
 
-std::string Token::ToString() const { return Downcast<tvm::String>(this->operator->()->data); }
+inline std::string Token::ToString() const {
+  return Downcast<tvm::String>(this->operator->()->data);
+}
 
-Map<String, Array<ObjectRef>> Token::ToMetadata() const {
+inline Map<String, Array<ObjectRef>> Token::ToMetadata() const {
   ObjectRef data = this->operator->()->data;
   if (data.defined()) {
     return Downcast<Map<String, Array<ObjectRef>>>(data);
@@ -400,6 +403,6 @@ Map<String, Array<ObjectRef>> Token::ToMetadata() const {
   }
 }
 
-}  // namespace parser
+}  // namespace relay
 }  // namespace tvm
-#endif  // TVM_PARSER_TOKEN_H_
+#endif  // TVM_RELAY_PARSER_TOKEN_H_

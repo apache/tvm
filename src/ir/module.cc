@@ -16,16 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 /*!
  * \file  module.cc
- * \brief The global module in Relay.
+ * \brief The global module in TVM.
  */
 #include <tvm/ir/global_var_supply.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/type_functor.h>
 #include <tvm/node/structural_equal.h>
-#include <tvm/parser/parser.h>
 #include <tvm/runtime/registry.h>
 
 #include <fstream>
@@ -36,8 +34,7 @@ namespace tvm {
 
 IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
                    tvm::Map<GlobalTypeVar, TypeData> type_definitions,
-                   std::unordered_set<String> import_set, parser::SourceMap source_map,
-                   DictAttrs attrs) {
+                   std::unordered_set<String> import_set, SourceMap source_map, DictAttrs attrs) {
   auto n = make_object<IRModuleNode>();
   n->functions = std::move(functions);
   n->type_definitions = std::move(type_definitions);
@@ -322,12 +319,14 @@ IRModule IRModule::FromExpr(const RelayExpr& expr, const Map<GlobalVar, BaseFunc
 }
 
 void IRModuleNode::Import(const String& path) {
+  static const auto* f = runtime::Registry::Get("relay.parser.ParseModule");
+  ICHECK(f != nullptr) << "ValueError: Relay parser is not available";
   if (this->import_set_.count(path) == 0) {
     this->import_set_.insert(path);
     std::fstream src_file(path, std::fstream::in);
     std::string file_contents{std::istreambuf_iterator<char>(src_file),
                               std::istreambuf_iterator<char>()};
-    auto mod_to_import = parser::ParseModule(path, file_contents, GetRef<IRModule>(this));
+    auto mod_to_import = (*f)(path, file_contents, GetRef<IRModule>(this));
     Update(mod_to_import);
   }
 }
@@ -342,7 +341,9 @@ void IRModuleNode::ImportFromStd(const String& path) {
 std::unordered_set<String> IRModuleNode::Imports() const { return this->import_set_; }
 
 IRModule IRModule::FromText(const String& text, const String& source_path) {
-  return tvm::parser::ParseModule(source_path, text);
+  static const auto* f = runtime::Registry::Get("relay.parser.ParseModule");
+  ICHECK(f != nullptr) << "ValueError: Relay parser is not available";
+  return (*f)(source_path, text, Optional<IRModule>());
 }
 
 TVM_REGISTER_NODE_TYPE(IRModuleNode);

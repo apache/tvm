@@ -30,7 +30,7 @@
 #include <tvm/relay/transform.h>
 
 namespace tvm {
-namespace parser {
+namespace relay {
 
 using tvm::relay::transform::CreateFunctionPass;
 using tvm::transform::PassContext;
@@ -95,5 +95,5 @@ IRModule ExpandMetaRefs(const MetaTable& meta_table, const IRModule& mod) {
   return pass(mod, PassContext::Create());
 }
 
-}  // namespace parser
+}  // namespace relay
 }  // namespace tvm

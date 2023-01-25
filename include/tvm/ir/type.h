@@ -49,7 +49,7 @@
 #ifndef TVM_IR_TYPE_H_
 #define TVM_IR_TYPE_H_
 
-#include <tvm/ir/span.h>
+#include <tvm/ir/source_map.h>
 #include <tvm/node/node.h>
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/data_type.h>

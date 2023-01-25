@@ -65,6 +65,9 @@ from .scope_builder import ScopeBuilder
 # Load Memory Passes
 from .transform import memory_plan
 
+# Parser
+from .parser import parse, parse_expr, fromtext, SpanCheck
+
 # Required to traverse large programs
 setrecursionlimit(10000)
 

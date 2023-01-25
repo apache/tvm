@@ -23,11 +23,12 @@
  */
 #include <tvm/ir/module.h>
 #include <tvm/node/reflection.h>
-#include <tvm/parser/parser.h>
 #include <tvm/relay/adt.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
+#include <tvm/relay/parser.h>
 #include <tvm/relay/transform.h>
+#include <tvm/runtime/builtin_fp16.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
@@ -35,18 +36,14 @@
 
 #include <fstream>
 
-#include "../support/scalars.h"
+#include "../../support/scalars.h"
 #include "./meta_ref.h"
 #include "./op_table.h"
 #include "./span_check.h"
 #include "./tokenizer.h"
-#include "tvm/runtime/builtin_fp16.h"
 
 namespace tvm {
-namespace parser {
-
-using namespace relay;
-using Expr = relay::Expr;
+namespace relay {
 
 /*! \brief The meta table maps from type key to a sequence of objects. */
 using MetaTable = Map<String, Array<ObjectRef>>;
@@ -1948,22 +1945,6 @@ Expr ParseExpr(const std::string& file_name, const std::string& file_content) {
   return expr;
 }
 
-TVM_REGISTER_GLOBAL("parser.ParseModuleInContext")
-    .set_body_typed([](const std::string& file_name, const std::string& file_content,
-                       const Optional<IRModule>& init_module, const MetaTable& init_meta_table) {
-      return ParseModule(file_name, file_content, init_module, init_meta_table);
-    });
-
-TVM_REGISTER_GLOBAL("parser.ParseModule")
-    .set_body_typed([](const std::string& file_name, const std::string& file_content) {
-      return ParseModule(file_name, file_content);
-    });
-
-TVM_REGISTER_GLOBAL("parser.ParseExpr")
-    .set_body_typed([](tvm::String file_name, tvm::String file_content) {
-      return ParseExpr(file_name, file_content);
-    });
-
 /*!
  * \brief This pass pretty-prints mod then parses it back so as to establish spans and sources
  * for all Relay sub-expressions. This improves error and debugging diagnostics downstream for
@@ -1978,7 +1959,29 @@ Pass AnnotateSpans() {
   return CreateModulePass(pass_func, 0, "AnnotateSpans", {});
 }
 
+TVM_REGISTER_GLOBAL("relay.parser.ParseModuleInContext")
+    .set_body_typed([](const std::string& file_name, const std::string& file_content,
+                       const Optional<IRModule>& init_module, const MetaTable& init_meta_table) {
+      return ParseModule(file_name, file_content, init_module, init_meta_table);
+    });
+
+TVM_REGISTER_GLOBAL("relay.parser.ParseModule").set_body([](TVMArgs args, TVMRetValue* ret) {
+  ICHECK(args.size() >= 2 && args.size() <= 4) << "Expected 2-4 arguments, but got " << args.size();
+  if (args.size() == 2) {
+    *ret = ParseModule(args[0], args[1]);
+  } else if (args.size() == 3) {
+    *ret = ParseModule(args[0], args[1], args[2]);
+  } else {
+    *ret = ParseModule(args[0], args[1], args[2], args[3]);
+  }
+});
+
+TVM_REGISTER_GLOBAL("relay.parser.ParseExpr")
+    .set_body_typed([](tvm::String file_name, tvm::String file_content) {
+      return ParseExpr(file_name, file_content);
+    });
+
 TVM_REGISTER_GLOBAL("relay._transform.AnnotateSpans").set_body_typed(AnnotateSpans);
 
-}  // namespace parser
+}  // namespace relay
 }  // namespace tvm
