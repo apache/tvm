@@ -370,15 +370,15 @@ class Conv2dDoubleCascade1:
     def main(input_placeholder_5: T.Buffer[(1, 8, 8, 3), "int8"], input_ethosu_write_1: T.Buffer[(1, 8, 8, 8), "int8"]) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.buffer_decl([304], "uint8")
-        buffer_1 = T.buffer_decl([80], "uint8")
-        buffer_2 = T.buffer_decl([320], "uint8")
-        buffer_3 = T.buffer_decl([160], "uint8")
-        placeholder_5 = T.buffer_decl([192], 'int8', data=input_placeholder_5.data)
-        ethosu_write_1 = T.buffer_decl([512], 'int8', data=input_ethosu_write_1.data)
+        buffer = T.Buffer([304], "uint8")
+        buffer_1 = T.Buffer([80], "uint8")
+        buffer_2 = T.Buffer([320], "uint8")
+        buffer_3 = T.Buffer([160], "uint8")
+        placeholder_5 = T.Buffer([192], 'int8', data=input_placeholder_5.data)
+        ethosu_write_1 = T.Buffer([512], 'int8', data=input_ethosu_write_1.data)
         # body
         ethosu_write_2_data = T.allocate([1024], "int8", "global", annotations={"disable_lower_builtin": True})
-        ethosu_write_2 = T.buffer_decl([1024], "int8", data=ethosu_write_2_data)
+        ethosu_write_2 = T.Buffer([1024], "int8", data=ethosu_write_2_data)
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 4, 3, 8, 0, 4, placeholder_5[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 3, 1, "int8", 8, 4, 32, 8, 0, 4, ethosu_write_2[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 32, 1, 1, 1, 1, 1, 1, 1, buffer_3[0], 160, T.int8(-1), T.int8(-1), 12, buffer_2[0], 320, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 4, 32, 8, 0, 4, ethosu_write_2[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 128, 32, 1, "int8", 8, 4, 8, 8, 0, 4, ethosu_write_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 64, 8, 1, 1, 1, 1, 1, 1, 1, buffer[0], 304, T.int8(-1), T.int8(-1), 12, buffer_1[0], 80, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 4, 3, 8, 0, 4, placeholder_5[12], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 3, 1, "int8", 8, 4, 32, 8, 0, 4, ethosu_write_2[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 32, 1, 1, 1, 1, 1, 1, 1, buffer_3[0], 160, T.int8(-1), T.int8(-1), 12, buffer_2[0], 320, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
@@ -392,15 +392,15 @@ class Conv2dDoubleCascade2:
     def main(input_placeholder_5: T.Buffer[(1, 8, 8, 3), "int8"], input_ethosu_write_1: T.Buffer[(1, 8, 8, 8), "int8"]) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.buffer_decl([80], "uint8")
-        buffer_1 = T.buffer_decl([320], "uint8")
-        buffer_2 = T.buffer_decl([1312], "uint8")
-        buffer_3 = T.buffer_decl([2608], "uint8")
-        placeholder_5 = T.buffer_decl([192], 'int8', data=input_placeholder_5.data)
-        ethosu_write_1 = T.buffer_decl([512], 'int8', data=input_ethosu_write_1.data)
+        buffer = T.Buffer([80], "uint8")
+        buffer_1 = T.Buffer([320], "uint8")
+        buffer_2 = T.Buffer([1312], "uint8")
+        buffer_3 = T.Buffer([2608], "uint8")
+        placeholder_5 = T.Buffer([192], 'int8', data=input_placeholder_5.data)
+        ethosu_write_1 = T.Buffer([512], 'int8', data=input_ethosu_write_1.data)
         # body
         ethosu_write_2_data = T.allocate([1536], "int8", "global", annotations={"disable_lower_builtin": True})
-        ethosu_write_2 = T.buffer_decl([1536], "int8", data=ethosu_write_2_data)
+        ethosu_write_2 = T.Buffer([1536], "int8", data=ethosu_write_2_data)
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 6, 8, 3, 6, 0, 8, placeholder_5[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 3, 1, "int8", 5, 8, 32, 5, 0, 8, ethosu_write_2[256], 0, 0, 0, T.float32(0.25), 14, "NHWC", 256, 32, 1, 3, 3, 1, 1, 1, 1, buffer_2[0], 1312, T.int8(-1), T.int8(-1), 12, buffer_1[0], 320, T.int8(-1), T.int8(-1), 1, 1, 0, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 5, 8, 32, 5, 0, 8, ethosu_write_2[256], 0, 0, 0, T.float32(0.5), 10, "NHWC", 256, 32, 1, "int8", 4, 8, 8, 4, 0, 8, ethosu_write_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 64, 8, 1, 3, 3, 1, 1, 1, 1, buffer_3[0], 2608, T.int8(-1), T.int8(-1), 12, buffer[0], 80, T.int8(-1), T.int8(-1), 1, 1, 0, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 6, 8, 3, 6, 0, 8, placeholder_5[48], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 3, 1, "int8", 5, 8, 32, 5, 0, 8, ethosu_write_2[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 256, 32, 1, 3, 3, 1, 1, 1, 1, buffer_2[0], 1312, T.int8(-1), T.int8(-1), 12, buffer_1[0], 320, T.int8(-1), T.int8(-1), 0, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
@@ -414,16 +414,16 @@ class Conv2dDoubleCascade3:
     def main(input_placeholder_5: T.Buffer[(1, 16, 16, 3), "int8"], input_ethosu_write_1: T.Buffer[(1, 20, 4, 8), "int8"]) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.buffer_decl([1744], "uint8")
-        buffer_1 = T.buffer_decl([80], "uint8")
-        buffer_2 = T.buffer_decl([320], "uint8")
-        buffer_3 = T.buffer_decl([880], "uint8")
-        placeholder_5 = T.buffer_decl([768], 'int8', data=input_placeholder_5.data)
-        ethosu_write_1 = T.buffer_decl([640], 'int8', data=input_ethosu_write_1.data)
+        buffer = T.Buffer([1744], "uint8")
+        buffer_1 = T.Buffer([80], "uint8")
+        buffer_2 = T.Buffer([320], "uint8")
+        buffer_3 = T.Buffer([880], "uint8")
+        placeholder_5 = T.Buffer([768], 'int8', data=input_placeholder_5.data)
+        ethosu_write_1 = T.Buffer([640], 'int8', data=input_ethosu_write_1.data)
 
         # body
         ethosu_write_2_data = T.allocate([2560], "int8", "global", annotations={"disable_lower_builtin": True})
-        ethosu_write_2 = T.buffer_decl([2560], "int8", data=ethosu_write_2_data)
+        ethosu_write_2 = T.Buffer([2560], "int8", data=ethosu_write_2_data)
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 16, 3, 8, 0, 16, placeholder_5[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 48, 3, 1, "int8", 8, 8, 32, 8, 0, 8, ethosu_write_2[512], 0, 0, 0, T.float32(0.25), 14, "NHWC", 256, 32, 1, 2, 3, 2, 1, 2, 1, buffer_3[0], 880, T.int8(-1), T.int8(-1), 12, buffer_2[0], 320, T.int8(-1), T.int8(-1), 2, 1, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 8, 32, 8, 0, 8, ethosu_write_2[512], 0, 0, 0, T.float32(0.5), 10, "NHWC", 256, 32, 1, "int8", 8, 4, 8, 8, 0, 4, ethosu_write_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 32, 8, 1, 2, 3, 2, 1, 2, 1, buffer[0], 1744, T.int8(-1), T.int8(-1), 12, buffer_1[0], 80, T.int8(-1), T.int8(-1), 2, 1, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 12, 16, 3, 12, 0, 16, placeholder_5[192], 0, 0, 0, T.float32(0.5), 10, "NHWC", 48, 3, 1, "int8", 10, 8, 32, 10, 0, 8, ethosu_write_2[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 256, 32, 1, 2, 3, 2, 1, 2, 1, buffer_3[0], 880, T.int8(-1), T.int8(-1), 12, buffer_2[0], 320, T.int8(-1), T.int8(-1), 0, 1, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
@@ -439,15 +439,15 @@ class Conv2dDoubleCascade4:
     def main(input_placeholder_5: T.Buffer[(1, 8, 1, 8, 16), "int8"], input_ethosu_write_1: T.Buffer[(1, 8, 2, 8, 16), "int8"]) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.buffer_decl([1456], "uint8")
-        buffer_1 = T.buffer_decl([352], "uint8")
-        buffer_2 = T.buffer_decl([272], "uint8")
-        buffer_3 = T.buffer_decl([11040], "uint8")
-        placeholder_5 = T.buffer_decl([1024], 'int8', data=input_placeholder_5.data)
-        ethosu_write_1 = T.buffer_decl([2048], 'int8', data=input_ethosu_write_1.data)
+        buffer = T.Buffer([1456], "uint8")
+        buffer_1 = T.Buffer([352], "uint8")
+        buffer_2 = T.Buffer([272], "uint8")
+        buffer_3 = T.Buffer([11040], "uint8")
+        placeholder_5 = T.Buffer([1024], 'int8', data=input_placeholder_5.data)
+        ethosu_write_1 = T.Buffer([2048], 'int8', data=input_ethosu_write_1.data)
         # body
         ethosu_write_2_data = T.allocate([2304], "int8", "global", annotations={"disable_lower_builtin": True})
-        ethosu_write_2 = T.buffer_decl((2304,), "int8", data=ethosu_write_2_data)
+        ethosu_write_2 = T.Buffer((2304,), "int8", data=ethosu_write_2_data)
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 6, 8, 3, 6, 0, 8, placeholder_5[0], 0, 0, 0, T.float32(0.5), 10, "NHCWB16", 128, 16, 1, "int8", 5, 8, 35, 5, 0, 8, ethosu_write_2[384], 0, 0, 0, T.float32(0.25), 14, "NHCWB16", 384, 16, 128, 3, 3, 1, 1, 1, 1, buffer[0], 1456, T.int8(-1), T.int8(-1), 12, buffer_1[0], 352, T.int8(-1), T.int8(-1), 1, 1, 0, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 5, 8, 35, 5, 0, 8, ethosu_write_2[384], 0, 0, 0, T.float32(0.5), 10, "NHCWB16", 384, 16, 128, "int8", 4, 8, 26, 4, 0, 8, ethosu_write_1[0], 0, 0, 0, T.float32(0.25), 14, "NHCWB16", 256, 16, 128, 3, 3, 1, 1, 1, 1, buffer_3[0], 11040, T.int8(-1), T.int8(-1), 12, buffer_2[0], 272, T.int8(-1), T.int8(-1), 1, 1, 0, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 6, 8, 3, 6, 0, 8, placeholder_5[256], 0, 0, 0, T.float32(0.5), 10, "NHCWB16", 128, 16, 1, "int8", 5, 8, 35, 5, 0, 8, ethosu_write_2[0], 0, 0, 0, T.float32(0.25), 14, "NHCWB16", 384, 16, 128, 3, 3, 1, 1, 1, 1, buffer[0], 1456, T.int8(-1), T.int8(-1), 12, buffer_1[0], 352, T.int8(-1), T.int8(-1), 0, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
@@ -461,15 +461,15 @@ class Conv2dDoubleCascade5:
     def main(input_placeholder: T.Buffer[(1, 8, 8, 3), "int8"], input_ethosu_write: T.Buffer[(1, 32, 32, 8), "int8"]) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.buffer_decl([160], "uint8")
-        buffer_1 = T.buffer_decl([320], "uint8")
-        buffer_2 = T.buffer_decl([304], "uint8")
-        buffer_3 = T.buffer_decl([80], "uint8")
-        placeholder = T.buffer_decl([192], 'int8', data=input_placeholder.data)
-        ethosu_write = T.buffer_decl([8192], 'int8', data=input_ethosu_write.data)
+        buffer = T.Buffer([160], "uint8")
+        buffer_1 = T.Buffer([320], "uint8")
+        buffer_2 = T.Buffer([304], "uint8")
+        buffer_3 = T.Buffer([80], "uint8")
+        placeholder = T.Buffer([192], 'int8', data=input_placeholder.data)
+        ethosu_write = T.Buffer([8192], 'int8', data=input_ethosu_write.data)
         # body
         ethosu_write_1_data = T.allocate([4096], "int8", "global", annotations={"disable_lower_builtin":True})
-        ethosu_write_1 = T.buffer_decl([4096], "int8", data=ethosu_write_1_data)
+        ethosu_write_1 = T.Buffer([4096], "int8", data=ethosu_write_1_data)
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 4, 8, 3, 4, 0, 8, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 3, 1, "int8", 8, 16, 32, 8, 0, 16, ethosu_write_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 512, 32, 1, 1, 1, 1, 1, 1, 1, buffer[0], 160, T.int8(-1), T.int8(-1), 12, buffer_1[0], 320, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "ZEROS", 0, 0, 0, dtype="handle"))
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 16, 32, 8, 0, 16, ethosu_write_1[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 32, 8, 16, 0, 32, ethosu_write[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 256, 8, 1, 1, 1, 1, 1, 1, 1, buffer_2[0], 304, T.int8(-1), T.int8(-1), 12, buffer_3[0], 80, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "ZEROS", 0, 0, 0, dtype="handle"))
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 4, 8, 3, 4, 0, 8, placeholder[96], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 3, 1, "int8", 8, 16, 32, 8, 0, 16, ethosu_write_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 512, 32, 1, 1, 1, 1, 1, 1, 1, buffer[0], 160, T.int8(-1), T.int8(-1), 12, buffer_1[0], 320, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "ZEROS", 0, 0, 0, dtype="handle"))
@@ -483,15 +483,15 @@ class Conv2dDoubleCascade6:
     def main(input_placeholder: T.Buffer[(1, 8, 1, 8, 16), "int8"], input_ethosu_write: T.Buffer[(1, 32, 2, 32, 16), "int8"]) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.buffer_decl([1456], "uint8")
-        buffer_1 = T.buffer_decl([352], "uint8")
-        buffer_2 = T.buffer_decl([11040], "uint8")
-        buffer_3 = T.buffer_decl([272], "uint8")
-        placeholder = T.buffer_decl([1024], 'int8', data=input_placeholder.data)
-        ethosu_write = T.buffer_decl([32768], 'int8', data=input_ethosu_write.data)
+        buffer = T.Buffer([1456], "uint8")
+        buffer_1 = T.Buffer([352], "uint8")
+        buffer_2 = T.Buffer([11040], "uint8")
+        buffer_3 = T.Buffer([272], "uint8")
+        placeholder = T.Buffer([1024], 'int8', data=input_placeholder.data)
+        ethosu_write = T.Buffer([32768], 'int8', data=input_ethosu_write.data)
         # body
         ethosu_write_1_data = T.allocate([12288], "int8", "global", annotations={"disable_lower_builtin":True})
-        ethosu_write_1 = T.buffer_decl([12288], "int8", data=ethosu_write_1_data)
+        ethosu_write_1 = T.Buffer([12288], "int8", data=ethosu_write_1_data)
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 8, 3, 8, 0, 8, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHCWB16", 128, 16, 1, "int8", 16, 16, 35, 16, 0, 16, ethosu_write_1[0], 0, 0, 0, T.float32(0.25), 14, "NHCWB16", 768, 16, 256, 3, 3, 1, 1, 1, 1, buffer[0], 1456, T.int8(-1), T.int8(-1), 12, buffer_1[0], 352, T.int8(-1), T.int8(-1), 1, 1, 1, 1, "NONE", 0, 0, "TFL", "NEAREST", 0, 0, 0, dtype="handle"))
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 35, 16, 0, 16, ethosu_write_1[0], 0, 0, 0, T.float32(0.5), 10, "NHCWB16", 768, 16, 256, "int8", 32, 32, 26, 32, 0, 32, ethosu_write[0], 0, 0, 0, T.float32(0.25), 14, "NHCWB16", 1024, 16, 512, 3, 3, 1, 1, 1, 1, buffer_2[0], 11040, T.int8(-1), T.int8(-1), 12, buffer_3[0], 272, T.int8(-1), T.int8(-1), 1, 1, 1, 1, "NONE", 0, 0, "TFL", "NEAREST", 0, 0, 0, dtype="handle"))
     __tvm_meta__ = None
@@ -647,10 +647,10 @@ class Conv2dInlineCopy1:
     def main(input_placeholder_3: T.Buffer[(1, 10, 12, 8), "int8"], input_ethosu_write_1: T.Buffer[(1, 8, 8, 16), "int8"]) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.buffer_decl([848], "uint8")
-        buffer_1 = T.buffer_decl([160], "uint8")
-        placeholder_3 = T.buffer_decl([960], 'int8', data=input_placeholder_3.data)
-        ethosu_write_1 = T.buffer_decl([1024], 'int8', data=input_ethosu_write_1.data)
+        buffer = T.Buffer([848], "uint8")
+        buffer_1 = T.Buffer([160], "uint8")
+        placeholder_3 = T.Buffer([960], 'int8', data=input_placeholder_3.data)
+        ethosu_write_1 = T.Buffer([1024], 'int8', data=input_ethosu_write_1.data)
         # body
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 8, 4, 8, 0, 8, placeholder_3[120], 0, 0, 0, T.float32(0.5), 10, "NHWC", 96, 8, 1, "int8", 8, 8, 16, 8, 0, 8, ethosu_write_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 16, 1, 3, 3, 1, 1, 1, 1, buffer[0], 848, T.int8(-1), T.int8(-1), 12, buffer_1[0], 160, T.int8(-1), T.int8(-1), 1, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
     __tvm_meta__ = None
@@ -662,10 +662,10 @@ class Conv2dInlineCopy2:
     def main(input_placeholder_3: T.Buffer[(1, 7, 9, 5), "int8"], input_ethosu_write_1: T.Buffer[(1, 3, 5, 16), "int8"]) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.buffer_decl([160], "uint8")
-        buffer_1 = T.buffer_decl([656], "uint8")
-        placeholder_3 = T.buffer_decl([315], 'int8', data=input_placeholder_3.data)
-        ethosu_write_1 = T.buffer_decl([240], 'int8', data=input_ethosu_write_1.data)
+        buffer = T.Buffer([160], "uint8")
+        buffer_1 = T.Buffer([656], "uint8")
+        placeholder_3 = T.Buffer([315], 'int8', data=input_placeholder_3.data)
+        ethosu_write_1 = T.Buffer([240], 'int8', data=input_ethosu_write_1.data)
         # body
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 3, 5, 3, 3, 0, 5, placeholder_3[146], 0, 0, 0, T.float32(0.5), 10, "NHWC", 45, 5, 1, "int8", 3, 5, 16, 3, 0, 5, ethosu_write_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 80, 16, 1, 3, 3, 1, 1, 1, 1, buffer_1[0], 656, T.int8(-1), T.int8(-1), 12, buffer[0], 160, T.int8(-1), T.int8(-1), 1, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
     __tvm_meta__ = None
@@ -706,10 +706,10 @@ class Conv2dInlineReshape1:
     def main(input_placeholder_3: T.Buffer[(4, 6, 8, 1), "int8"], input_ethosu_write_1: T.Buffer[(1, 8, 6, 16), "int8"]) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.buffer_decl([160], "uint8")
-        buffer_1 = T.buffer_decl([848], "uint8")
-        placeholder_3 = T.buffer_decl([192], 'int8', data=input_placeholder_3.data)
-        ethosu_write_1 = T.buffer_decl([768], 'int8', data=input_ethosu_write_1.data)
+        buffer = T.Buffer([160], "uint8")
+        buffer_1 = T.Buffer([848], "uint8")
+        placeholder_3 = T.Buffer([192], 'int8', data=input_placeholder_3.data)
+        ethosu_write_1 = T.Buffer([768], 'int8', data=input_ethosu_write_1.data)
         # body
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 5, 6, 4, 5, 0, 6, placeholder_3[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 4, 1, "int8", 4, 6, 16, 4, 0, 6, ethosu_write_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 96, 16, 1, 3, 3, 1, 1, 1, 1, buffer_1[0], 848, T.int8(-1), T.int8(-1), 12, buffer[0], 160, T.int8(-1), T.int8(-1), 1, 1, 0, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 5, 6, 4, 5, 0, 6, placeholder_3[72], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 4, 1, "int8", 4, 6, 16, 4, 0, 6, ethosu_write_1[384], 0, 0, 0, T.float32(0.25), 14, "NHWC", 96, 16, 1, 3, 3, 1, 1, 1, 1, buffer_1[0], 848, T.int8(-1), T.int8(-1), 12, buffer[0], 160, T.int8(-1), T.int8(-1), 0, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
@@ -722,10 +722,10 @@ class Conv2dInlineReshape2:
     def main(input_placeholder_3: T.Buffer[(1, 24, 8), "int8"], input_ethosu_write_1: T.Buffer[(1, 8, 6, 16), "int8"]) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.buffer_decl([160], "uint8")
-        buffer_1 = T.buffer_decl([848], "uint8")
-        placeholder_3 = T.buffer_decl([192], 'int8', data=input_placeholder_3.data)
-        ethosu_write_1 = T.buffer_decl([768], 'int8', data=input_ethosu_write_1.data)
+        buffer = T.Buffer([160], "uint8")
+        buffer_1 = T.Buffer([848], "uint8")
+        placeholder_3 = T.Buffer([192], 'int8', data=input_placeholder_3.data)
+        ethosu_write_1 = T.Buffer([768], 'int8', data=input_ethosu_write_1.data)
         # body
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 5, 6, 4, 5, 0, 6, placeholder_3[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 4, 1, "int8", 4, 6, 16, 4, 0, 6, ethosu_write_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 96, 16, 1, 3, 3, 1, 1, 1, 1, buffer_1[0], 848, T.int8(-1), T.int8(-1), 12, buffer[0], 160, T.int8(-1), T.int8(-1), 1, 1, 0, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 5, 6, 4, 5, 0, 6, placeholder_3[72], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 4, 1, "int8", 4, 6, 16, 4, 0, 6, ethosu_write_1[384], 0, 0, 0, T.float32(0.25), 14, "NHWC", 96, 16, 1, 3, 3, 1, 1, 1, 1, buffer_1[0], 848, T.int8(-1), T.int8(-1), 12, buffer[0], 160, T.int8(-1), T.int8(-1), 0, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
@@ -738,10 +738,10 @@ class Conv2dInlineReshape3:
     def main(input_placeholder_3: T.Buffer[(192, 1), "int8"], input_ethosu_write_1: T.Buffer[(1, 8, 6, 16), "int8"]) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.buffer_decl([160], "uint8")
-        buffer_1 = T.buffer_decl([848], "uint8")
-        placeholder_3 = T.buffer_decl([192], 'int8', data=input_placeholder_3.data)
-        ethosu_write_1 = T.buffer_decl([768], 'int8', data=input_ethosu_write_1.data)
+        buffer = T.Buffer([160], "uint8")
+        buffer_1 = T.Buffer([848], "uint8")
+        placeholder_3 = T.Buffer([192], 'int8', data=input_placeholder_3.data)
+        ethosu_write_1 = T.Buffer([768], 'int8', data=input_ethosu_write_1.data)
         # body
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 5, 6, 4, 5, 0, 6, placeholder_3[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 4, 1, "int8", 4, 6, 16, 4, 0, 6, ethosu_write_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 96, 16, 1, 3, 3, 1, 1, 1, 1, buffer_1[0], 848, T.int8(-1), T.int8(-1), 12, buffer[0], 160, T.int8(-1), T.int8(-1), 1, 1, 0, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 5, 6, 4, 5, 0, 6, placeholder_3[72], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 4, 1, "int8", 4, 6, 16, 4, 0, 6, ethosu_write_1[384], 0, 0, 0, T.float32(0.25), 14, "NHWC", 96, 16, 1, 3, 3, 1, 1, 1, 1, buffer_1[0], 848, T.int8(-1), T.int8(-1), 12, buffer[0], 160, T.int8(-1), T.int8(-1), 0, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
@@ -754,9 +754,9 @@ class Conv2dInlineReshape4:
     def main(placeholder_3: T.Buffer[(192,), "int8"], input_ethosu_write_1: T.Buffer[(1, 8, 6, 16), "int8"]) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.buffer_decl([160], "uint8")
-        buffer_1 = T.buffer_decl([848], "uint8")
-        ethosu_write_1 = T.buffer_decl([768], 'int8', data=input_ethosu_write_1.data)
+        buffer = T.Buffer([160], "uint8")
+        buffer_1 = T.Buffer([848], "uint8")
+        ethosu_write_1 = T.Buffer([768], 'int8', data=input_ethosu_write_1.data)
         # body
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 5, 6, 4, 5, 0, 6, placeholder_3[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 4, 1, "int8", 4, 6, 16, 4, 0, 6, ethosu_write_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 96, 16, 1, 3, 3, 1, 1, 1, 1, buffer_1[0], 848, T.int8(-1), T.int8(-1), 12, buffer[0], 160, T.int8(-1), T.int8(-1), 1, 1, 0, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 5, 6, 4, 5, 0, 6, placeholder_3[72], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 4, 1, "int8", 4, 6, 16, 4, 0, 6, ethosu_write_1[384], 0, 0, 0, T.float32(0.25), 14, "NHWC", 96, 16, 1, 3, 3, 1, 1, 1, 1, buffer_1[0], 848, T.int8(-1), T.int8(-1), 12, buffer[0], 160, T.int8(-1), T.int8(-1), 0, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))

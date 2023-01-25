@@ -60,9 +60,9 @@ class LoweredModule:
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "from_legacy_te_schedule": True, "tir.noalias": True})
-        A_flat = T.buffer_decl([16384], data=A.data)
-        B_flat = T.buffer_decl([16384], data=B.data)
-        C_flat = T.buffer_decl([16384], data=C.data)
+        A_flat = T.Buffer([16384], data=A.data)
+        B_flat = T.Buffer([16384], data=B.data)
+        C_flat = T.Buffer([16384], data=C.data)
         # body
         for x, y in T.grid(128, 128):
             C_flat[x * 128 + y] = 0.0
@@ -82,9 +82,9 @@ class LoweredTIRModule:
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A_flat = T.buffer_decl([16384], data=A.data)
-        B_flat = T.buffer_decl([16384], data=B.data)
-        C_flat = T.buffer_decl([16384], data=C.data)
+        A_flat = T.Buffer([16384], data=A.data)
+        B_flat = T.Buffer([16384], data=B.data)
+        C_flat = T.Buffer([16384], data=C.data)
         # body
         for x, y in T.grid(128, 128):
             C_flat[x * 128 + y] = 0.0
