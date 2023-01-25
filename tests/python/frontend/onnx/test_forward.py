@@ -6786,19 +6786,19 @@ def test_random_bernoulli(target, dev):
                 tvm.testing.assert_allclose(ideal_mean, tvm_val.mean(), rtol=rtol, atol=atol)
 
     # Simple test
-    verify_bernoulli([1000])
+    verify_bernoulli(shape=[1000])
 
     # Floating output type
-    verify_bernoulli([1000], out_dtype="float32")
+    verify_bernoulli(shape=[1000], out_dtype="float32")
 
     # Double input type
-    verify_bernoulli([1000], in_dtype="float64")
+    verify_bernoulli(shape=[1000], in_dtype="float64")
 
     # Test N-D tensor generation
-    verify_bernoulli([2, 4, 100, 100])
+    verify_bernoulli(shape=[2, 4, 100, 100])
 
     # Test with seed
-    verify_bernoulli([1000], seed=np.random.randint(1e6))
+    verify_bernoulli(shape=[1000], seed=np.random.randint(1e6))
 
     # Test input sequence of 0 and 1
     inputs = np.random.randint(2, size=[2, 4, 100, 100])
