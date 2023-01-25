@@ -6788,18 +6788,18 @@ def test_random_bernoulli(target, dev):
             assert bnm_test_res.pvalue >= 1e-6
 
     # Test input sequence of 0 and 1
-    inputs = np.random.randint(2, size=[10000])
+    inputs = np.random.randint(2, size=[10000]).astype("float32")
     verify_bernoulli(inputs, in_out_equal=True)
 
     # Binomial test input with 0.5 values
     val_num = 10000
     arr = [0.5] * val_num
-    inputs = np.array(arr)
+    inputs = np.array(arr).astype("float32")
     verify_bernoulli(inputs)
 
     # Binomial test input with 0.1 values
     arr = [0.1] * val_num
-    inputs = np.array(arr)
+    inputs = np.array(arr).astype("float32")
     verify_bernoulli(inputs)
 
     # Simple test
