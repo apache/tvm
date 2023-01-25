@@ -101,7 +101,7 @@ def test_sync_read_thread_id_independent_location():
     def func(p0_arg: T.Buffer[(1, 2, 1, 1), "float32"], p1: T.Buffer[2, "float32"]) -> None:
         threadIdx_x = T.env_thread("threadIdx.x")
         blockIdx_x = T.env_thread("blockIdx.x")
-        p0 = T.buffer_decl([2], dtype="float32", data=p0_arg.data)
+        p0 = T.Buffer([2], dtype="float32", data=p0_arg.data)
         result_local = T.alloc_buffer([1], dtype="float32", scope="local")
         temp_shared = T.alloc_buffer([1], dtype="float32", scope="shared")
         T.launch_thread(blockIdx_x, 8)

@@ -1011,9 +1011,9 @@ def cache_write_allocate_const(
 ):
     B = T.alloc_buffer([128, 128], dtype="float32")
     const = T.allocate_const([0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], "float32", [8])
-    const_1 = T.buffer_decl([8], dtype="float32", data=const)
+    const_1 = T.Buffer([8], dtype="float32", data=const)
     const2 = T.allocate_const([0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], "float32", [8])
-    const_2 = T.buffer_decl([8], dtype="float32", data=const)
+    const_2 = T.Buffer([8], dtype="float32", data=const)
     for i, j in T.grid(128, 128):
         for x in range(8):
             with T.block("B"):
@@ -1037,8 +1037,8 @@ def cache_write_allocate_const_output(
     A_global = T.alloc_buffer([128, 128], dtype="float32")
     C_global = T.alloc_buffer([128, 128], dtype="float16")
     const_2 = T.allocate_const([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], "float32", [8])
-    const_1 = T.buffer_decl([8], dtype="float32", data=const_2)
-    const_2_1 = T.buffer_decl([8], dtype="float32", data=const_2)
+    const_1 = T.Buffer([8], dtype="float32", data=const_2)
+    const_2_1 = T.Buffer([8], dtype="float32", data=const_2)
     const2 = T.allocate_const([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], "float32", [8])
     for ax0, ax1 in T.grid(128, 128):
         with T.block("A_global"):

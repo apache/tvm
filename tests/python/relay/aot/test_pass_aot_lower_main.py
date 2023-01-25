@@ -180,12 +180,12 @@ def @main(%a: Tensor[(5, 7), float32]) -> Tensor[(5, 7), float32] {
         T.func_attr({"global_symbol": "test_mod___tvm_main__", "runner_function": True, "target": T.target({"kind":"llvm", "tag":"", "keys":["cpu"]}), "input_vars": [a], "output_vars": [output], "devices": []})
         tmp_read = T.buffer_var("uint8", "")
         # buffer definition
-        tmp_read_1 = T.buffer_decl([T.uint64(140)], dtype="uint8", data=tmp_read)
+        tmp_read_1 = T.Buffer([T.uint64(140)], dtype="uint8", data=tmp_read)
         a_buffer = T.match_buffer(a, [5, 7], dtype="float32", align=16)
         output_buffer = T.match_buffer(output, [5, 7], dtype="float32", align=16)
         # body
         tmp_write: T.Ptr[T.uint8] = output_buffer.data
-        tmp_write_1 = T.buffer_decl([T.uint64(140)], dtype="uint8", data=tmp_write)
+        tmp_write_1 = T.Buffer([T.uint64(140)], dtype="uint8", data=tmp_write)
         for i in T.serial(140):
             tmp_write_1[i] = T.let(tmp_read, a_buffer.data, tmp_read_1[i])
     # fmt: on

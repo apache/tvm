@@ -207,7 +207,7 @@ class PreRollingBuffer:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         # buffer definition
-        tensor_2 = T.buffer_decl([1, 10, 12, 16], dtype="int8", elem_offset=0, align=64, offset_factor=1)
+        tensor_2 = T.Buffer([1, 10, 12, 16], dtype="int8", elem_offset=0, align=64, offset_factor=1)
         A_1 = T.match_buffer(A, [1, 12, 14, 16], dtype="int8", elem_offset=0, align=64, offset_factor=1)
         tensor_1 = T.match_buffer(tensor, [1, 8, 8, 16], dtype="int8", elem_offset=0, align=64, offset_factor=1)
         # body
@@ -239,7 +239,7 @@ class PostRollingBuffer:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         # buffer definition
-        tensor_2 = T.buffer_decl([1, 10, 12, 16], dtype="int8", elem_offset=0, align=64, offset_factor=1)
+        tensor_2 = T.Buffer([1, 10, 12, 16], dtype="int8", elem_offset=0, align=64, offset_factor=1)
         A_1 = T.match_buffer(A, [1, 12, 14, 16], dtype="int8", elem_offset=0, align=64, offset_factor=1)
         tensor_1 = T.match_buffer(tensor, [1, 8, 8, 16], dtype="int8", elem_offset=0, align=64, offset_factor=1)
         # body
