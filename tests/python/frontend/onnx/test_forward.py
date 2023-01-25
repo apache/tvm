@@ -6712,18 +6712,17 @@ def test_random_bernoulli(target, dev):
     """test_random_bernoulli"""
 
     def verify_bernoulli(
-        shape,
+        inputs=None,
+        shape=[],
         in_dtype="float32",
         out_dtype="int32",
         seed=None,
-        out_shape=None,
         target=target,
         dev=dev,
         use_vm=False,
         freeze_params=False,
         rtol=0.1,
         atol=0.1,
-        opt_level=1,
     ):
         def get_bernoulli_model(shape, in_dtype="float32", out_dtype="int32", seed=None):
             onnx_itype = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(in_dtype)]
@@ -6747,7 +6746,12 @@ def test_random_bernoulli(target, dev):
             )
             return helper.make_model(graph, producer_name="random_bernoulli_test")
 
-        inputs = np.random.uniform(size=shape).astype(in_dtype)
+        if inputs is None:
+            assert len(shape) != 0
+            inputs = np.random.uniform(size=shape).astype(in_dtype)
+        else:
+            shape = inputs.shape
+            in_dtype=inputs.dtype
         model = get_bernoulli_model(shape, in_dtype, out_dtype, seed)
 
         if use_vm:
@@ -6764,8 +6768,6 @@ def test_random_bernoulli(target, dev):
                 inputs,
                 target,
                 dev,
-                out_shape,
-                opt_level=opt_level,
             )
 
         if not isinstance(tvm_out, list):
