@@ -65,6 +65,10 @@ inline std::string Docsify(const ObjectRef& obj, const IRDocsifier& d, const Fra
   return DocToPythonScript(StmtBlockDoc(f->stmts), cfg);
 }
 
+inline std::string DType2Str(const runtime::DataType& dtype) {
+  return dtype.is_void() ? "void" : runtime::DLDataType2String(dtype);
+}
+
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm
