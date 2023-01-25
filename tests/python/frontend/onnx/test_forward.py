@@ -6771,19 +6771,36 @@ def test_random_bernoulli(target, dev):
                 dev,
             )
 
-        if not isinstance(tvm_out, list):
-            tvm_out = [tvm_out]
-        ideal_mean = np.sum(inputs)
-        for tvm_val in tvm_out:
-            # check that values are 0 or 1
-            tvm_flat_val = tvm_val.flatten()
-            for i in range(len(tvm_flat_val)):
-                assert tvm_flat_val[i] == 0 or tvm_flat_val[i] == 1
-            if in_out_equal:
-                tvm.testing.assert_allclose(inputs, tvm_val)
-            else:
-                # check that mean value is close to the theoretical one
-                tvm.testing.assert_allclose(ideal_mean, tvm_val.mean(), rtol=rtol, atol=atol)
+        if isinstance(tvm_out, list):
+            tvm_out = tvm_out[0]
+        ideal_mean = np.mean(inputs)
+        # check that values are 0 or 1
+        tvm_flat = tvm_out.flatten()
+        for i in range(len(tvm_flat)):
+            assert tvm_flat[i] == 0 or tvm_flat[i] == 1
+        if in_out_equal:
+            tvm.testing.assert_allclose(inputs, tvm_out)
+        else:
+            # check that mean value is close to the theoretical one by binomial test
+            bnm_test_res = scipy.stats.binomtest(
+                int(k=np.sum(tvm_flat)), n=len(tvm_flat), p=ideal_mean
+            )
+            assert bnm_test_res.pvalue >= 1e-6
+
+    # Test input sequence of 0 and 1
+    inputs = np.random.randint(2, size=[10000])
+    verify_bernoulli(inputs, in_out_equal=True)
+
+    # Binomial test input with 0.5 values
+    val_num = 10000
+    arr = [0.5] * val_num
+    inputs = np.array(arr)
+    verify_bernoulli(inputs)
+
+    # Binomial test input with 0.1 values
+    arr = [0.1] * val_num
+    inputs = np.array(arr)
+    verify_bernoulli(inputs)
 
     # Simple test
     verify_bernoulli(shape=[1000])
@@ -6799,10 +6816,6 @@ def test_random_bernoulli(target, dev):
 
     # Test with seed
     verify_bernoulli(shape=[1000], seed=np.random.randint(1e6))
-
-    # Test input sequence of 0 and 1
-    inputs = np.random.randint(2, size=[2, 4, 100, 100])
-    verify_bernoulli(inputs, in_out_equal=True)
 
 
 @tvm.testing.parametrize_targets("llvm")
