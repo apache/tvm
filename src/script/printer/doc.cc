@@ -221,6 +221,18 @@ ClassDoc::ClassDoc(IdDoc name, Array<ExprDoc> decorators, Array<StmtDoc> body) {
   this->data_ = std::move(n);
 }
 
+CommentDoc::CommentDoc(String comment) {
+  ObjectPtr<CommentDocNode> n = make_object<CommentDocNode>();
+  n->comment = comment;
+  this->data_ = std::move(n);
+}
+
+DocStringDoc::DocStringDoc(String docs) {
+  ObjectPtr<DocStringDocNode> n = make_object<DocStringDocNode>();
+  n->comment = docs;
+  this->data_ = std::move(n);
+}
+
 TVM_REGISTER_NODE_TYPE(DocNode);
 TVM_REGISTER_GLOBAL("script.printer.DocSetSourcePaths")
     .set_body_typed([](Doc doc, Array<ObjectPath> source_paths) {
@@ -364,6 +376,16 @@ TVM_REGISTER_GLOBAL("script.printer.ClassDoc")
     .set_body_typed([](IdDoc name, Array<ExprDoc> decorators, Array<StmtDoc> body) {
       return ClassDoc(name, decorators, body);
     });
+
+TVM_REGISTER_NODE_TYPE(CommentDocNode);
+TVM_REGISTER_GLOBAL("script.printer.CommentDoc").set_body_typed([](String comment) {
+  return CommentDoc(comment);
+});
+
+TVM_REGISTER_NODE_TYPE(DocStringDocNode);
+TVM_REGISTER_GLOBAL("script.printer.DocStringDoc").set_body_typed([](String docs) {
+  return DocStringDoc(docs);
+});
 
 }  // namespace printer
 }  // namespace script

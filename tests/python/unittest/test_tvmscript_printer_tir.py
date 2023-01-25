@@ -41,6 +41,8 @@ def test_prim_func():
     _assert_print(
         func,
         expected="""
+# from tvm.script import tir as T
+
 @T.prim_func
 def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
     T.evaluate(0)""",
@@ -62,6 +64,8 @@ def test_prim_func_no_sugar_inlined_buffer():
     _assert_print(
         func,
         expected="""
+# from tvm.script import tir as T
+
 @T.prim_func
 def main(a: T.handle, B: T.Buffer((256, 256), "float32")):
     A = T.match_buffer(a, (128, 128))
@@ -86,6 +90,8 @@ def test_prim_func_no_sugar_shared_buffer_data():
     _assert_print(
         func,
         expected="""
+# from tvm.script import tir as T
+
 @T.prim_func
 def main(a: T.handle, b: T.handle):
     A = T.match_buffer(a, (128, 128))
@@ -698,8 +704,12 @@ def test_remap():
                 v3 = T.axis.spatial(128, i3 - 1)
                 v4, v5 = T.axis.remap("RS", [i4, i5])
 
-    expected_output = """@T.prim_func
+    expected_output = """
+# from tvm.script import tir as T
+
+@T.prim_func
 def main():
+    # with T.block("root"):
     for i0, i1, i2, i3, i4, i5 in T.grid(128, 128, 128, 128, 128, 128):
         with T.block("update"):
             v0 = T.axis.spatial(128, i0 + 1)
@@ -731,8 +741,12 @@ def test_root_block():
                 with T.block():
                     T.evaluate(0)
 
-    expected_output = """@T.prim_func
+    expected_output = """
+# from tvm.script import tir as T
+
+@T.prim_func
 def main():
+    # with T.block("root"):
     a = T.alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
         with T.block(""):

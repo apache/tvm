@@ -74,6 +74,7 @@ class TIRFrame : public Frame {
 
 /*! \brief Creates the TIR common prefix, which is by default `T` */
 inline ExprDoc TIR(const IRDocsifier& d, const String& attr) {
+  d->ir_usage.insert("tir");
   return IdDoc(d->cfg->tir_prefix)->Attr(attr);
 }
 

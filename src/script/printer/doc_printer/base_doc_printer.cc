@@ -316,6 +316,10 @@ void DocPrinter::PrintDoc(const Doc& doc) {
     PrintTypedDoc(GetRef<FunctionDoc>(doc_node));
   } else if (const auto* doc_node = doc.as<ClassDocNode>()) {
     PrintTypedDoc(GetRef<ClassDoc>(doc_node));
+  } else if (const auto* doc_node = doc.as<CommentDocNode>()) {
+    PrintTypedDoc(GetRef<CommentDoc>(doc_node));
+  } else if (const auto* doc_node = doc.as<DocStringDocNode>()) {
+    PrintTypedDoc(GetRef<DocStringDoc>(doc_node));
   } else {
     LOG(FATAL) << "Do not know how to print " << doc->GetTypeKey();
     throw;
