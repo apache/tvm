@@ -24,6 +24,7 @@
 #include <tvm/script/printer/doc.h>
 #include <tvm/script/printer/ir_docsifier_functor.h>
 
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -148,6 +149,8 @@ class IRDocsifierNode : public Object {
   std::unordered_set<String> defined_names;
   /*! \brief Common prefixes of variable usages */
   std::unordered_map<const Object*, std::vector<const Object*>> common_prefix;
+  /*! \brief The IR usages for headers printing */
+  std::unordered_set<std::string> ir_usage;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("frames", &frames);
@@ -156,6 +159,7 @@ class IRDocsifierNode : public Object {
     // `obj2info` is not visited
     // `defined_names` is not visited
     // `common_prefix` is not visited
+    // `ir_usage` is not visited
   }
 
   static constexpr const char* _type_key = "script.printer.IRDocsifier";

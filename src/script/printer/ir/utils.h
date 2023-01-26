@@ -36,6 +36,7 @@ namespace printer {
 
 /*! \brief Creates the IR common prefix, which is by default `I` */
 inline ExprDoc IR(const IRDocsifier& d, const String& attr) {
+  d->ir_usage.insert("ir");
   return IdDoc(d->cfg->ir_prefix)->Attr(attr);
 }
 

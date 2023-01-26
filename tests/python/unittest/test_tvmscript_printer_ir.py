@@ -37,6 +37,9 @@ def test_ir_module():
     _assert_print(
         mod,
         """
+# from tvm.script import ir as I
+# from tvm.script import tir as T
+
 @I.ir_module
 class Module:
     @T.prim_func
