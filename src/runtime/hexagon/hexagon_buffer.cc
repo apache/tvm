@@ -49,6 +49,7 @@ struct Allocation {
 struct DDRAllocation : public Allocation {
   DDRAllocation(size_t nbytes, size_t alignment) : Allocation(nbytes, alignment) {
     int ret = posix_memalign(&data_, alignment, nbytes);
+    CHECK_EQ(ret, 0);
 
     // The heap used by malloc on Hexagon is always mapped as cacheable. The heap manager may
     // not perform cache flush and invalidation on a prior memory free. So, a subsequent memory
@@ -59,7 +60,6 @@ struct DDRAllocation : public Allocation {
     // flush and invalidate after malloc to uphold this assumption.
     qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(data_), nbytes,
                          QURT_MEM_CACHE_FLUSH_INVALIDATE, QURT_MEM_DCACHE);
-    CHECK_EQ(ret, 0);
   }
   ~DDRAllocation() { free(data_); }
 };
