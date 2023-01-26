@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-.. _microTVM-with-TFLite:
+.. _tutorial_micro_tflite:
 
 2. microTVM TFLite Tutorial
 ========================

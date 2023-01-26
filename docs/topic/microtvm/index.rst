@@ -54,8 +54,8 @@ tutorials to get started with microTVM. Tutorials are in the order that could he
 more as they follow through them. Here is a list of tutorials that you can start with:
 
 1. Try :ref:`microTVM CLI Tool <tutorial-micro-cli-tool>`.
-2. Try the :ref:`microTVM TFLite Tutorial <microTVM-with-TFLite>`.
-3. Try running a more complex tutorial: :ref:`Creating Your MLPerfTiny Submission with microTVM <tutorial-micro-MLPerfTiny>`.
+2. Try the :ref:`microTVM TFLite Tutorial <tutorial_micro_tflite>`.
+3. Try running a more complex tutorial: :ref:`Creating Your MLPerfTiny Submission with microTVM <tutorial-micro-mlperftiny>`.
 
 
 How microTVM Works

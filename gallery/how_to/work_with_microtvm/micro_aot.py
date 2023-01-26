@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-.. _tutorial-micro-AoT:
+.. _tutorial-micro-aot:
 
 3. microTVM Ahead-of-Time (AOT) Compilation
 ========================================

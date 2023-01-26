@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-.. _tutorial-micro-Pytorch:
+.. _tutorial-micro-pytorch:
 
 4. microTVM PyTorch Tutorial
 ===========================
@@ -91,12 +91,13 @@ relay_mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
 # and we use `host` micro target. Using this setup, TVM compiles the model
 # for C runtime which can run on a x86 CPU machine with the same flow that
 # would run on a physical microcontroller.
-#
-
-# Simulate a microcontroller on the host machine. Uses the main() from `src/runtime/crt/host/main.cc`
+# CRT Uses the main() from `src/runtime/crt/host/main.cc`
 # To use physical hardware, replace `board` with another physical micro target, e.g. `nrf5340dk_nrf5340_cpuapp`
 # or `mps2_an521` and change the platform type to Zephyr.
-# See more more target examples in micro_train.py and micro_tflite.py tutorials.
+# See more target examples in :ref:`Training Vision Models for microTVM on Arduino <tutorial-micro-train-arduino>`
+# and :ref:`microTVM TFLite Tutorial<tutorial_micro_tflite>`.
+#
+
 target = tvm.micro.testing.get_target(platform="crt", board=None)
 
 # Use the C runtime (crt) and enable static linking by setting system-lib to True

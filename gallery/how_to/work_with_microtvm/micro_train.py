@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-.. _microtvm-train-arduino:
+.. _tutorial-micro-train-arduino:
 
 5. Training Vision Models for microTVM on Arduino
 ==============================================

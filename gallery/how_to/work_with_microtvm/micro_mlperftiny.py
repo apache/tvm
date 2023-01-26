@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-.. _tutorial-micro-MLPerfTiny:
+.. _tutorial-micro-mlperftiny:
 
 8. Creating Your MLPerfTiny Submission with microTVM
 =================================================

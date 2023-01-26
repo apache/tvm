@@ -54,6 +54,9 @@ def get_target(platform: str, board: str = None) -> tvm.target.Target:
     if platform == "crt":
         return tvm.target.target.micro("host")
 
+    if not board:
+        raise ValueError(f"`board` type is required for {platform} platform.")
+
     model = get_supported_boards(platform)[board]["model"]
     return tvm.target.target.micro(model, options=["-device=arm_cpu"])
 

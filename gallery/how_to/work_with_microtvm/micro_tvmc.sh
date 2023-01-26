@@ -89,7 +89,7 @@ wget https://github.com/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/e
 #
 # Model Library Format (MLF) is an output format that TVM provides for micro targets. MLF is a tarball
 # containing a file for each piece of the TVM compiler output which can be used on micro targets outside
-# TVM environment. Read more about `Model Library Format <https://tvm.apache.org/docs//arch/model_library_format.html>`_.
+# TVM environment. Read more about :ref:`Model Library Format <model_library_format>`.
 #
 # Here, we generate a MLF file for ``qemu_x86`` Zephyr board. To generate MLF output for the ``magic_wand`` tflite model:
 #
@@ -181,7 +181,7 @@ tvmc run \
 # bash
 
 ############################################################
-# Specifically, this command sets the input of the model 
+# Specifically, this command sets the input of the model
 # to all ones and shows the four values of the output with their indices.
 #
 # .. code-block:: bash
