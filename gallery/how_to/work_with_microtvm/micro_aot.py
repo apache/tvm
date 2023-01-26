@@ -18,7 +18,7 @@
 .. _tutorial-micro-aot:
 
 3. microTVM Ahead-of-Time (AOT) Compilation
-========================================
+===========================================
 **Authors**:
 `Mehrdad Hessar <https://github.com/mehrdadh>`_,
 `Alan MacDonald <https://github.com/alanmacd>`_

@@ -18,7 +18,7 @@
 .. _tutorial_micro_tflite:
 
 2. microTVM TFLite Tutorial
-========================
+===========================
 **Author**: `Tom Gall <https://github.com/tom-gall>`_
 
 This tutorial is an introduction to working with microTVM and a TFLite

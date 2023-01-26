@@ -19,7 +19,7 @@
 .. _tutorial-micro-autotune:
 
 6. Model Tuning with microTVM
-==========================
+=============================
 **Authors**:
 `Andrew Reusch <https://github.com/areusch>`_,
 `Mehrdad Hessar <https://github.com/mehrdadh>`_

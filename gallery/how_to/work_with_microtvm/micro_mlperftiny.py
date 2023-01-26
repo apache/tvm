@@ -18,7 +18,7 @@
 .. _tutorial-micro-mlperftiny:
 
 8. Creating Your MLPerfTiny Submission with microTVM
-=================================================
+====================================================
 **Authors**:
 `Mehrdad Hessar <https://github.com/mehrdadh>`_
 

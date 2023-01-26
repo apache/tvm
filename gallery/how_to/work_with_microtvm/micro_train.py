@@ -18,7 +18,7 @@
 .. _tutorial-micro-train-arduino:
 
 5. Training Vision Models for microTVM on Arduino
-==============================================
+=================================================
 **Author**: `Gavin Uberti <https://github.com/guberti>`_
 
 This tutorial shows how MobileNetV1 models can be trained

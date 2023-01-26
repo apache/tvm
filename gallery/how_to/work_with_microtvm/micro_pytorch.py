@@ -18,7 +18,7 @@
 .. _tutorial-micro-pytorch:
 
 4. microTVM PyTorch Tutorial
-===========================
+============================
 **Authors**:
 `Mehrdad Hessar <https://github.com/mehrdadh>`_
 

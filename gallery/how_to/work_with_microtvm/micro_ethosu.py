@@ -18,7 +18,7 @@
 .. _tutorial-micro-ethosu:
 
 7. Running TVM on bare metal Arm(R) Cortex(R)-M55 CPU and Ethos(TM)-U55 NPU with CMSIS-NN
-======================================================================================
+=========================================================================================
 **Author**:
 `Grant Watson <https://github.com/grant-arm>`_
 
