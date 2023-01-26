@@ -83,7 +83,7 @@ int TVMAotExecutor_GetInputIndex(TVMAotExecutor* executor, const char* name) {
 }
 
 int TVMAotExecutor_Run(TVMAotExecutor* executor) {
-  const char* tvm_main_suffix = "___tvm_main__";
+  const char* tvm_main_suffix = "_run";
   char tvm_main_name[TVM_CRT_MAX_STRLEN_FUNCTION_NAME];
 
   {
@@ -203,17 +203,6 @@ int TVMAotExecutor_Init(TVMAotExecutor* executor, TVMModuleHandle module_handle,
     TVMNDArray_IncrementReference(array);
   }
 
-  for (i = 0; i < md->num_workspace_pools; ++i) {
-    LOG_DEBUG("pools allocate[%d]: %s\n", i, md->workspace_pools[i].name);
-
-    status = TVMNDArray_Empty(md->workspace_pools[i].num_shape, md->workspace_pools[i].shape,
-                              md->workspace_pools[i].dtype, executor->device,
-                              &executor->args[arg_idx++]);
-    if (status != 0) {
-      return status;
-    }
-  }
-  CHECK_EQ(0, md->num_constant_pools, "Constant pools not supported");
   return status;
 }
 
