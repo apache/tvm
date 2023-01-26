@@ -16,10 +16,10 @@
 # under the License.
 
 : '
-.. _tutorial-micro-tvmc:
+.. _tutorial-micro-cli-tool:
 
 1. microTVM CLI Tool
-=================
+====================
 **Author**: `Mehrdad Hessar <https://github.com/mehrdadh>`_
 
 This tutorial explains how to compile a tiny model for a micro device,
@@ -181,7 +181,8 @@ tvmc run \
 # bash
 
 ############################################################
-# Specifically, this command sets the input of the model to all ones and shows the four values of the output with their indices.
+# Specifically, this command sets the input of the model 
+# to all ones and shows the four values of the output with their indices.
 #
 # .. code-block:: bash
 #
