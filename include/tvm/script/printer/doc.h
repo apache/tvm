@@ -1194,6 +1194,50 @@ class ClassDoc : public StmtDoc {
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ClassDoc, StmtDoc, ClassDocNode);
 };
 
+/*!
+ * \brief Doc that represents comment.
+ *
+ * \sa CommentDoc
+ */
+class CommentDocNode : public StmtDocNode {
+ public:
+  static constexpr const char* _type_key = "script.printer.CommentDoc";
+  TVM_DECLARE_FINAL_OBJECT_INFO(CommentDocNode, StmtDocNode);
+};
+
+/*!
+ * \brief Reference type of CommentDocNode.
+ *
+ * \sa CommentDocNode
+ */
+class CommentDoc : public StmtDoc {
+ public:
+  explicit CommentDoc(String comment);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(CommentDoc, StmtDoc, CommentDocNode);
+};
+
+/*!
+ * \brief Doc that represents docstring.
+ *
+ * \sa DocStringDoc
+ */
+class DocStringDocNode : public StmtDocNode {
+ public:
+  static constexpr const char* _type_key = "script.printer.DocStringDoc";
+  TVM_DECLARE_FINAL_OBJECT_INFO(DocStringDocNode, StmtDocNode);
+};
+
+/*!
+ * \brief Reference type of DocStringDocNode.
+ *
+ * \sa DocStringDocNode
+ */
+class DocStringDoc : public StmtDoc {
+ public:
+  explicit DocStringDoc(String docs);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(DocStringDoc, StmtDoc, DocStringDocNode);
+};
+
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

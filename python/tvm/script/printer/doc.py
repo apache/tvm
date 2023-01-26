@@ -521,3 +521,23 @@ class ClassDoc(StmtDoc):
             decorators,
             body,
         )
+
+
+@register_object("script.printer.CommentDoc")
+class CommentDoc(StmtDoc):
+    """Doc that represents comment."""
+
+    def __init__(self, comment: str):
+        self.__init_handle_by_constructor__(
+            _ffi_api.CommentDoc, comment  # type: ignore # pylint: disable=no-member
+        )
+
+
+@register_object("script.printer.DocStringDoc")
+class DocStringDoc(StmtDoc):
+    """Doc that represents docstring."""
+
+    def __init__(self, docs: str):
+        self.__init_handle_by_constructor__(
+            _ffi_api.DocStringDoc, docs  # type: ignore # pylint: disable=no-member
+        )
