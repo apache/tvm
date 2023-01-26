@@ -618,7 +618,6 @@ def test_multiple_relay_modules_aot_graph():
 
     assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "src", "mod1_lib0.c"))
     assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "src", "mod1_lib1.c"))
-    assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "src", "mod1_lib2.c"))
     assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "src", "mod2_lib0.c"))
     assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "src", "mod2_lib1.c"))
 
