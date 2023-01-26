@@ -96,14 +96,14 @@ def _get_mobilenet_v1_layer_attributes(layer_num):
 
 
 @pytest.mark.parametrize("layer", range(2, 27, 2))
-def test_infinite_bias_detection(interpreter, layer):
+def test_empty_channel_detection(interpreter, layer):
     """Some models (mainly MobileNetV1) have kernels with many output channels full entirely of
-    zeroes. The VWW mdoel is one of these. This test confirms that the outputs of these channels,
+    zeroes. The VWW model is one of these. This test confirms that the outputs of these channels,
     as computed by TensorFlow, are indeed not dependent upon the input values.
     """
 
     _, kernel, bias, output = _load_tflite_layer(interpreter, layer)
-    kernel_data, kernel_quant = kernel
+    kernel_data, _ = kernel
     bias_data, bias_quant = bias
     output_data, output_quant = output
     is_depthwise = _get_mobilenet_v1_layer_attributes(layer)[2]
@@ -128,21 +128,17 @@ def test_infinite_bias_detection(interpreter, layer):
         out_channel_values = output_data[0, :, :, i].flatten()
         assert all(x == clipped for x in out_channel_values)
         fixed_channels[i] = clipped
-    print(f"Layer {layer} had {len(fixed_channels)}/{out_channels} empty!")
 
     # We now need to compute values for the following depthwise layer
     if layer == 26:
         return
 
-    _, kernel, bias, output = _load_tflite_layer(interpreter, layer + 1)
-    kernel_data, kernel_quant = kernel
-    bias_data, bias_quant = bias
-    output_data, output_quant = output
+    depthwise_output = _load_tflite_layer(interpreter, layer + 1)[3][0]
     is_depthwise = _get_mobilenet_v1_layer_attributes(layer + 1)[2]
     assert is_depthwise
 
-    for i, value in fixed_channels.items():
-        assert np.all(output_data[:, :, :, i] == output_data[0, 0, 0, i])
+    for i in fixed_channels:
+        assert np.all(depthwise_output[:, :, :, i] == depthwise_output[0, 0, 0, i])
 
 
 def _get_relu_activation_prefix(layer_num):

@@ -67,7 +67,14 @@ def _compute_fixed_conv2d_outputs(requantize_op):
 
 
 def _compute_fixed_depthwise_outputs(requantize_op, fixed_channel_inputs):
-    """Compute all depthwise conv2d output values that do not depend on the PREVIOUS layer input."""
+    """Compute all depthwise conv2d output values that do not depend on the PREVIOUS layer input.
+
+    We take as input a requantize operator, and a dictionary of which inputs to our depthwise
+    operator are fixed and what values they are fixed to. However, a fixed input to one channel
+    of our depthwise operator does NOT guarantee we can remove the output, because of padding.
+    This function checks if the padding makes a difference in the outputs, and if not, removes
+    the channels from the depthwise_conv2d.
+    """
     bias_add_op = requantize_op.args[0]
     depthwise_op = bias_add_op.args[0]
 
@@ -99,16 +106,18 @@ def _compute_fixed_depthwise_outputs(requantize_op, fixed_channel_inputs):
         rounded = np.around((convolved + bias_data[i]) * scale).astype("int32")
         clipped = np.clip(rounded + rq_output_zero_point, -128, 127)
 
-        # TODO - this is kinda paranoid and I think it removes too many. Make sure this is accurate.
-        # This bug likely causes a ~5% performance reduction
+        # We require the ENTIRE padded convolution to all have the same clipped value before we do
+        # a replacement. This is excessive - we only have to check for the padding that will
+        # actually be performed on the depthwise convolution, which is often less. If we felt even
+        # more ambitious, we could do the replacement for "close enough" looking convolution
+        # outputs, which in theory could reduce accuracy but in practice does not. Doing this would
+        # yield a ~0.5% speed gain on MobileNetV1, and nothing on other models.
+
         if np.all(clipped == clipped[0, 0]):
             fixed_outputs[i] = clipped[0, 0]
-        else:
-            # TODO remove
-            assert True
 
-    # TODO look for all-zero entries in the depthwise kernel. I don't think these
-    # really occur in practice, but it would be nice for theoretical completeness.
+    # TODO look for all-zero entries in the depthwise kernel. I don't think these really occur in
+    # practice, but it would be nice for theoretical completeness.
 
     return fixed_outputs
 

@@ -32,12 +32,12 @@ from ..utils import get_const_tuple
 from .mprofile.dsp.micro_kernel import tensordot
 
 
-def int_ceil_division(x, y):
+def _int_ceil_division(x, y):
     return -(x // -y)
 
 
 def _compute_output_dim(data_length, kernel_length, stride):
-    return int_ceil_division(data_length + 1 - kernel_length, stride)
+    return _int_ceil_division(data_length + 1 - kernel_length, stride)
 
 
 def _pick_num_outputs(out_width):
@@ -273,8 +273,8 @@ def qnn_conv2d(attrs, inputs, out_type):
 
     # Decide how many sums our function should have running at the same time. Doing
     # this lets us do "more work" for each memory load, but doing too many of them causes us to run
-    # out of registers. Currently this is set to either 1 or 2, but autotuning this value would
-    # improve performance a lot.
+    # out of registers. Currently this is set to the smallest value greater than one that divides
+    # the output width, but autotuning this value would improve performance a lot.
     num_outputs = _pick_num_outputs(out_width)
 
     # Next, decide whether whether we need "parity alternation". For example, if we have an
@@ -413,7 +413,7 @@ def _make_unrolled_conv2d_primfunc(
         else:
             raise TVMError(f"Unsupported out_layout '{output_layout}'!")
 
-    def _make_row_call(buffers, c_var, y, c):
+    def make_row_call(buffers, c_var, y, c):
         output, data, kernel, bias, scale = buffers
         return _make_tscript_call(
             function_names[(y + c) % 2, c % 2, 0],
@@ -452,12 +452,15 @@ def _make_unrolled_conv2d_primfunc(
             with T.block("conv2ds"):
                 T.block_attr({"pragma_import_c": function_code})
                 c = T.axis.remap("S", [c_ax]) * 2
-                _make_row_call((output, data, kernel, bias, scale), c, 0, 0)
-                _make_row_call((output, data, kernel, bias, scale), c, 1, 0)
-                _make_row_call((output, data, kernel, bias, scale), c, 2, 0)
-                _make_row_call((output, data, kernel, bias, scale), c, 0, 1)
-                _make_row_call((output, data, kernel, bias, scale), c, 1, 1)
-                _make_row_call((output, data, kernel, bias, scale), c, 2, 1)
+
+                # TODO how can I programatically make the right number of
+                # function calls?
+                make_row_call((output, data, kernel, bias, scale), c, 0, 0)
+                make_row_call((output, data, kernel, bias, scale), c, 1, 0)
+                make_row_call((output, data, kernel, bias, scale), c, 2, 0)
+                make_row_call((output, data, kernel, bias, scale), c, 0, 1)
+                make_row_call((output, data, kernel, bias, scale), c, 1, 1)
+                make_row_call((output, data, kernel, bias, scale), c, 2, 1)
 
     return biased_quantized_conv2d
 
