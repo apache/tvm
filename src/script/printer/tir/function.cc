@@ -153,6 +153,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       if (implicit_root_block) {
         tir::Block root_block = implicit_root_block.value();
         ObjectPath root_block_p = p->Attr("body")->Attr("body");
+        (*frame)->stmts.push_back(CommentDoc("with T.block(\"root\"):"));
         // Handle root block `alloc_buffer`
         for (int i = 0, n = root_block->alloc_buffers.size(); i < n; ++i) {
           tir::Buffer buffer = root_block->alloc_buffers[i];
@@ -181,7 +182,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 std::string ReprPrintPrimFunc(const ObjectRef& obj, const PrinterConfig& cfg) {
-  Doc doc = IRDocsifier(cfg)->AsDoc(obj, ObjectPath::Root());
+  IRDocsifier d(cfg);
+  Doc doc = HeaderWrapper(d, d->AsDoc(obj, ObjectPath::Root()));
   return DocToPythonScript(doc, cfg);
 }
 

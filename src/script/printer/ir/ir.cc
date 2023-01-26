@@ -119,7 +119,8 @@ std::string ReprPrintIRModule(const ObjectRef& mod, const PrinterConfig& cfg) {
       return s.value();
     }
   }
-  Doc doc = IRDocsifier(cfg)->AsDoc(mod, ObjectPath::Root());
+  IRDocsifier d(cfg);
+  Doc doc = HeaderWrapper(d, d->AsDoc(mod, ObjectPath::Root()));
   return DocToPythonScript(doc, cfg);
 }
 

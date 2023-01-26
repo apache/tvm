@@ -169,6 +169,8 @@ class PythonDocPrinter : public DocPrinter {
   void PrintTypedDoc(const ScopeDoc& doc) final;
   void PrintTypedDoc(const FunctionDoc& doc) final;
   void PrintTypedDoc(const ClassDoc& doc) final;
+  void PrintTypedDoc(const CommentDoc& doc) final;
+  void PrintTypedDoc(const DocStringDoc& doc) final;
 
  private:
   void NewLineWithoutIndent() { output_ << "\n"; }
@@ -253,11 +255,19 @@ class PythonDocPrinter : public DocPrinter {
     }
   }
 
-  void MaybePrintCommentWithNewLine(const StmtDoc& stmt) {
+  void MaybePrintCommenMultiLines(const StmtDoc& stmt, bool new_line = false) {
     if (stmt->comment.defined()) {
       std::vector<std::string> comment_lines = support::Split(stmt->comment.value(), '\n');
+      bool first_line = true;
       for (const std::string& line : comment_lines) {
-        output_ << "# " << line;
+        if (first_line) {
+          output_ << "# " << line;
+          first_line = false;
+        } else {
+          NewLine() << "# " << line;
+        }
+      }
+      if (new_line) {
         NewLine();
       }
     }
@@ -523,7 +533,7 @@ void PythonDocPrinter::PrintTypedDoc(const AssignDoc& doc) {
 }
 
 void PythonDocPrinter::PrintTypedDoc(const IfDoc& doc) {
-  MaybePrintCommentWithNewLine(doc);
+  MaybePrintCommenMultiLines(doc, true);
   output_ << "if ";
   PrintDoc(doc->predicate);
   output_ << ":";
@@ -538,7 +548,7 @@ void PythonDocPrinter::PrintTypedDoc(const IfDoc& doc) {
 }
 
 void PythonDocPrinter::PrintTypedDoc(const WhileDoc& doc) {
-  MaybePrintCommentWithNewLine(doc);
+  MaybePrintCommenMultiLines(doc, true);
   output_ << "while ";
   PrintDoc(doc->predicate);
   output_ << ":";
@@ -547,7 +557,7 @@ void PythonDocPrinter::PrintTypedDoc(const WhileDoc& doc) {
 }
 
 void PythonDocPrinter::PrintTypedDoc(const ForDoc& doc) {
-  MaybePrintCommentWithNewLine(doc);
+  MaybePrintCommenMultiLines(doc, true);
   output_ << "for ";
   if (const auto* tuple = doc->lhs.as<TupleDocNode>()) {
     if (tuple->elements.size() == 1) {
@@ -567,7 +577,7 @@ void PythonDocPrinter::PrintTypedDoc(const ForDoc& doc) {
 }
 
 void PythonDocPrinter::PrintTypedDoc(const ScopeDoc& doc) {
-  MaybePrintCommentWithNewLine(doc);
+  MaybePrintCommenMultiLines(doc, true);
   output_ << "with ";
   PrintDoc(doc->rhs);
   if (doc->lhs != nullptr) {
@@ -640,6 +650,18 @@ void PythonDocPrinter::PrintTypedDoc(const ClassDoc& doc) {
   }
   PrintIndentedBlock(doc->body);
   NewLineWithoutIndent();
+}
+
+void PythonDocPrinter::PrintTypedDoc(const CommentDoc& doc) {
+  if (doc->comment.defined()) {
+    MaybePrintCommenMultiLines(doc, false);
+  }
+}
+
+void PythonDocPrinter::PrintTypedDoc(const DocStringDoc& doc) {
+  if (doc->comment.defined() && !doc->comment.value().empty()) {
+    output_ << "\"\"\"" << doc->comment.value() << "\"\"\"";
+  }
 }
 
 String DocToPythonScript(Doc doc, const PrinterConfig& cfg) {
