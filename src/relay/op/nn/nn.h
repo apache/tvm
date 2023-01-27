@@ -220,6 +220,11 @@ bool BatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   return true;
 }
 
+InferCorrectLayoutOutput DenseInferCorrectLayout(const Attrs& attrs,
+                                                 const Array<Layout>& new_in_layouts,
+                                                 const Array<Layout>& old_in_layouts,
+                                                 const Array<tvm::relay::Type>& old_in_types);
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_OP_NN_NN_H_

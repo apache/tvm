@@ -255,3 +255,22 @@ def qnn_conv2d_alter_layout(_attrs, _inputs, _tinfos, _out_type):
         The output type
     """
     return None
+
+
+@tvm.target.generic_func
+def qnn_dense_alter_layout(_attrs, _inputs, _tinfos, _out_type):
+    """Change qnn.dense layout.
+    Not to change by default
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current dense op
+    inputs : tvm.relay.Expr
+        Grouped input symbols
+    tinfos : list
+        Input shape and dtype
+    out_type: type
+        The output type
+    """
+    return None

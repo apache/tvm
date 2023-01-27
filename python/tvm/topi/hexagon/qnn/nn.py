@@ -17,6 +17,7 @@
 """Hexagon QNN operators"""
 # pylint: disable=invalid-name
 
+from typing import Union
 import numpy as np
 
 import tvm
@@ -65,6 +66,28 @@ def get_qnn_param(param, indices, axis):
 
     param_idx = tvm.tir.indexmod(indices[axis], topi.shape(param)[0])
     return param[param_idx]
+
+
+def subtract_zero_point(
+    tensor: te.Tensor,
+    zero_point: Union[te.Tensor, tvm.tir.IntImm],
+    name: str,
+):
+    """
+    Subtract zero point from given tensor. If zero point is scalar constant and is equal to 0, then
+    it can be optimized and return tensor as it is.
+    This new block is marked with 'meta_schedule.inline_rule = disable' attribute to disable inline.
+    Otherwise, inline prevents from tensorization and leveraging vrmpy intrinsic
+    """
+    if is_scalar(zero_point) and get_const_int_value(zero_point) == 0:
+        return tensor
+    else:
+        return te.compute(
+            tensor.shape,
+            lambda *i: te.subtract(tensor(*i), zero_point).astype(tensor.dtype),
+            name=name,
+            attrs={"meta_schedule.inline_rule": "disable"},
+        )
 
 
 def default_schedule(outs):
@@ -646,31 +669,10 @@ def qnn_conv2d_NCHWc_int8(  # Conv2d inputs
     odtype,
 ):
     """Compute for qnn.conv2d with NCHWc layout."""
-    # Subtract zero point from weights. Need to disable inline of this block
-    # (meta_schedule.inline_rule = disable). Otherwise, inline prevents from tensorization.
-    # Optimization: no need to subtract zero point if it is scalar constant and is equal to '0'.
-    if is_scalar(kernel_zero_point) and get_const_int_value(kernel_zero_point) == 0:
-        pass
-    else:
-        weight = te.compute(
-            weight.shape,
-            lambda *i: te.subtract(weight(*i), kernel_zero_point).astype(weight.dtype),
-            name="weight_zp",
-            attrs={"meta_schedule.inline_rule": "disable"},
-        )
 
-    # Subtract zero point from input. Again need to disable inline of this block
-    # (meta_schedule.inline_rule = disable). Otherwise, inline prevents from tensorization.
-    # Optimization: no need to subtract zero point if it is scalar constant and is equal to '0'.
-    if is_scalar(input_zero_point) and get_const_int_value(input_zero_point) == 0:
-        pass
-    else:
-        data = te.compute(
-            data.shape,
-            lambda *i: te.subtract(data(*i), input_zero_point).astype(data.dtype),
-            name="data_zp",
-            attrs={"meta_schedule.inline_rule": "disable"},
-        )
+    # Subtract zero point from input and weights.
+    weight = subtract_zero_point(weight, kernel_zero_point, "weight_zp")
+    data = subtract_zero_point(data, input_zero_point, "data_zp")
 
     strides = get_const_tuple(strides)
     padding = get_const_tuple(padding)
@@ -899,6 +901,98 @@ def qnn_dense(
 
 def schedule_qnn_dense(outs):
     """Schedule for qnn.dense
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of qnn.dense
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return default_schedule(outs)
+
+
+def qnn_dense_pack_vrmpy(
+    data: te.Tensor,
+    weight: te.Tensor,
+    # Dense quantization params:
+    input_zero_point: te.Tensor,
+    kernel_zero_point: te.Tensor,
+    _input_scale: te.Tensor,
+    _kernel_scale: te.Tensor,
+    # bias
+    bias: te.Tensor,
+    # Requantization params:
+    rq_input_scale: te.Tensor,
+    rq_input_zero_point: te.Tensor,
+    rq_output_scale: te.Tensor,
+    rq_output_zero_point: te.Tensor,
+    out_dtype: str,
+):
+    """Compute for qnn.contrib_dense_pack
+
+    Output data type should be specified through the 'odtype' parameter. qnn.dense leverages int32
+    type to store intermediate results. If 'odtype' differs from int32, you need to specify
+    requantization parameters.
+    """
+    # Subtract zero point from input and weights.
+    weight = subtract_zero_point(weight, kernel_zero_point, "weight_zp")
+    data = subtract_zero_point(data, input_zero_point, "data_zp")
+
+    # Required for vrmpy intrinsic
+    assert "int8" in weight.dtype and "int8" in data.dtype
+
+    M, K = get_const_tuple(data.shape)
+    N_O, _, N_I, _ = get_const_tuple(weight.shape)
+    k = te.reduce_axis((0, K), "k")
+    out = te.compute(
+        (M, N_O * N_I),
+        lambda m, n: te.sum(
+            data[m, k].astype("int32")
+            * weight[
+                tvm.tir.indexdiv(n, 32),
+                tvm.tir.indexdiv(k, 4),
+                tvm.tir.indexmod(n, 32),
+                tvm.tir.indexmod(k, 4),
+            ].astype("int32"),
+            axis=k,
+        ),
+        name="qnn_dense_pack",
+    )
+
+    # Add bias
+    if bias is not None:
+        assert bias.ndim == 2
+        out = te.compute(out.shape, lambda n, c: out[n, c] + bias[0, c])
+
+    # Requantize output of qnn.contrib_dense_pack
+    if rq_input_scale is not None and rq_output_scale is not None:
+        # Now supported only scalar and 1D quantization parameters
+        assert rq_input_scale.ndim == 0 or rq_input_scale.ndim == 1
+        assert rq_output_scale.ndim == 0 or rq_output_scale.ndim == 1
+        axis = -1
+        if rq_input_scale.ndim == 1 or rq_output_scale.ndim == 1:
+            axis = 1  # Axis param should correspond to 'C' dimension.
+
+        return qnn_requantize(
+            out,
+            rq_input_scale,
+            rq_input_zero_point,
+            rq_output_scale,
+            rq_output_zero_point,
+            axis,
+            out_dtype,
+        )
+
+    return out
+
+
+def schedule_qnn_dense_pack_vrmpy(outs):
+    """Schedule for qnn.contrib_dense_pack
 
     Parameters
     ----------

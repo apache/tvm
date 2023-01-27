@@ -14,17 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""QNN Dense alter op functions for Hexagon"""
 
-""" Computes and schedules for Hexagon quantized ops """
+from tvm import relay
+from ..dense_alter_op import check_vrmpy_applicable
+from ...nn import qnn_dense_alter_layout
 
-from .adaptive_avg_pool1d import *
-from .avg_pool2d import qnn_avg_pool2d_compute, qnn_avg_pool2d_schedule
-from .conv2d_alter_op import *
-from .dense_alter_op import *
-from .dequantize import dequantize_compute, dequantize_schedule
-from .global_avg_pool2d import *
-from .nn import *
-from .qadd_qsub_qmul import *
-from .qdense import *
-from .qdepthwise_conv2d_slice import qdepthwise_conv2d_compute, qdepthwise_conv2d_schedule
-from .quantize import quantize_compute, tir_quantize_schedule
+
+@qnn_dense_alter_layout.register("hexagon")
+def _alter_qnn_dense_layout(_attrs, inputs, tinfos, out_type):
+    data_tensor = tinfos[0]
+    weight_tensor = tinfos[1]
+
+    if check_vrmpy_applicable(data_tensor, weight_tensor):
+        weight_layout = "NC32n4c"
+        return relay.qnn.op.contrib_dense_pack(*inputs, weight_layout, None, out_type.dtype)
+    else:
+        return None
