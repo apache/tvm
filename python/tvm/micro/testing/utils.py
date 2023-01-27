@@ -47,10 +47,16 @@ def get_supported_boards(platform: str):
         return json.load(f)
 
 
-def get_target(platform: str, board: str) -> tvm.target.Target:
+def get_target(platform: str, board: str = None) -> tvm.target.Target:
     """Intentionally simple function for making Targets for microcontrollers.
     If you need more complex arguments, one should call target.micro directly. Note
     that almost all, but not all, supported microcontrollers are Arm-based."""
+    if platform == "crt":
+        return tvm.target.target.micro("host")
+
+    if not board:
+        raise ValueError(f"`board` type is required for {platform} platform.")
+
     model = get_supported_boards(platform)[board]["model"]
     return tvm.target.target.micro(model, options=["-device=arm_cpu"])
 
