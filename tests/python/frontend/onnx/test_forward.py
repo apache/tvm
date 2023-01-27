@@ -6762,6 +6762,18 @@ def test_random_bernoulli(target, dev):
                 dev,
             )
 
+    def binom_test(input, ideal_mean, threshold=0.05):
+        # This test is strictly appropriate when input probabilities are all identical.
+        # In that case, it should lead to flaky failures in only one run in a million (p>=1e-6).
+        # The test should be over-conservative when input probabilities are not identical.
+        # (i.e., It should have a rate of flaky failures lower than one run in a million.)
+        # If this test starts repeatedly throwing flaky failures, consult a statistician
+        # in addition to your regular debugging.
+        bnm_test_res = scipy.stats.binomtest(
+            k=np.sum(input, dtype="int32"), n=len(input), p=ideal_mean
+        )
+        return bnm_test_res.pvalue > threshold
+
     def verify_bernoulli(
         inputs=None,
         shape=[],
@@ -6790,7 +6802,6 @@ def test_random_bernoulli(target, dev):
 
         if isinstance(tvm_out, list):
             tvm_out = tvm_out[0]
-        ideal_mean = np.mean(inputs)
         # check that values are 0 or 1
         tvm_flat = tvm_out.flatten()
         assert np.array_equal(tvm_flat, tvm_flat.astype("bool"))
@@ -6798,10 +6809,26 @@ def test_random_bernoulli(target, dev):
             tvm.testing.assert_allclose(inputs, tvm_out)
         else:
             # check that mean value is close to the theoretical one by binomial test
-            bnm_test_res = scipy.stats.binomtest(
-                k=np.sum(tvm_flat, dtype="int32"), n=len(tvm_flat), p=ideal_mean
-            )
-            assert bnm_test_res.pvalue >= 1e-6
+            ideal_mean = np.mean(inputs)
+            repeats = 3
+            check = False
+            for i in range(repeats):
+                if binom_test(tvm_flat, ideal_mean):
+                    check = True
+                    break
+                else:
+                    # repeat with new seed
+                    seed = np.random.randint(1e6)
+                    tvm_flat = _get_tvm_output(
+                                    inputs,
+                                    out_dtype,
+                                    seed,
+                                    target,
+                                    dev,
+                                    use_vm,
+                                    freeze_params,
+                                ).flatten()
+            assert check, "Binomial test failed"
 
     # Test input sequence of 0 and 1
     inputs = np.random.randint(2, size=[10000]).astype("float32")
