@@ -29,7 +29,7 @@ from . import utils
 
 def _make_session(workspace_dir, board, mod, build_config, use_fvp, serial_number):
     config_main_stack_size = None
-    if utils.boardS[board]["is_qemu"]:
+    if utils.ZEPHYR_BOARDS[board]["is_qemu"]:
         # fyi: qemu_riscv64 seems to be the greediest stack user
         config_main_stack_size = 4096
     else:

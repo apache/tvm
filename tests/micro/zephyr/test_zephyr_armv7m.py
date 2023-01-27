@@ -114,9 +114,9 @@ def test_armv7m_intrinsic(workspace_dir, board, microtvm_debug, serial_number):
     # kernel layout "HWIO" is not supported by arm_cpu SIMD extension (see tvm\python\relay\op\strategy\arm_cpu.py)
     relay_mod_no_simd = _apply_desired_layout_no_simd(relay_mod)
 
-    target = tvm.target.target.micro(utils.boardS[board]["model"], options=["-keys=cpu"])
+    target = tvm.target.target.micro(utils.ZEPHYR_BOARDS[board]["model"], options=["-keys=cpu"])
     target_simd = tvm.target.target.micro(
-        utils.boardS[board]["model"], options=["-keys=arm_cpu,cpu"]
+        utils.ZEPHYR_BOARDS[board]["model"], options=["-keys=arm_cpu,cpu"]
     )
 
     executor = Executor("aot", {"unpacked-api": True, "interface-api": "c"})
