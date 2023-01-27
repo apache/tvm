@@ -129,6 +129,7 @@ def partition_for_ethosn(mod, params=None, **opts):
 
     passes = [
         transform.InferType(),
+        transform.FoldConstant(fold_qnn=True),
         transform.MergeComposite(pattern_table()),
         transform.AnnotateTarget("ethos-n"),
         transform.MergeCompilerRegions(),
