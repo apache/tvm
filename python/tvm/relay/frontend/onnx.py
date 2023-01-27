@@ -2540,6 +2540,8 @@ class Unsqueeze(OnnxOpConverter):
     def run_calculation(cls, tensor, axes):
         axes = sorted(axes)
         for axis in axes:
+            if axis < 0 and isinstance(tensor, _expr.Var):
+                axis = len(tensor.type_annotation.concrete_shape) + len(axes) + axis
             tensor = _op.expand_dims(tensor, axis=axis, num_newaxis=1)
         return tensor
 
@@ -2558,6 +2560,7 @@ class Unsqueeze(OnnxOpConverter):
         num_new_axis = int(infer_type(inputs[1]).checked_type.shape[0])
         axes = relay.sort(inputs[1])
         axes = relay.split(axes, num_new_axis).astuple()
+        rank_output = rank_input + num_new_axis
         result = inputs[0]
 
         # TODO (AndrewZhaoLuo): investigate performance issues with consecutive
@@ -2567,7 +2570,7 @@ class Unsqueeze(OnnxOpConverter):
             # Unpack scalar
             axis = relay.reshape(axis, [])
             axis = relay.where(
-                axis >= relay.const(0, "int64"), axis, axis + relay.const(rank_input, "int64")
+                axis >= relay.const(0, "int64"), axis, axis + relay.const(rank_output, "int64")
             )
             result = _op.expand_dims(result, axis)
         return result

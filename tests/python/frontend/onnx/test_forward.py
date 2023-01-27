@@ -677,6 +677,45 @@ def test_unsqueeze(target, dev):
 
 
 @tvm.testing.parametrize_targets
+def test_unsqueeze_with_neg_axes(target, dev):
+    def verify_unsqueeze_with_neg_axes(opset=11):
+        in_shape = (2, 3, 4)
+        axis = (-2, -1)
+        out_shape = (2, 3, 4, 1, 1)
+        if opset < 13:
+            y = helper.make_node("Unsqueeze", ["in"], ["out"], axes=list(axis))
+            nodes = [y]
+        else:
+            axes = np.array(list(axis)).astype(np.int64)
+            axes = helper.make_node(
+                "Constant",
+                inputs=[],
+                outputs=["axes"],
+                value=onnx.helper.make_tensor(
+                    name="const_axes",
+                    data_type=onnx.TensorProto.INT64,
+                    dims=axes.shape,
+                    vals=axes.flatten().astype(int),
+                ),
+            )
+            y = helper.make_node("Unsqueeze", ["in", "axes"], ["out"])
+            nodes = [axes, y]
+
+        graph = helper.make_graph(
+            nodes,
+            "squeeze_test",
+            inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(in_shape))],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))],
+        )
+
+        model = helper.make_model(graph, producer_name="squeeze_test")
+        verify_with_ort(model, [in_shape], target=target, dev=dev, opset=opset)
+
+    verify_unsqueeze_with_neg_axes()
+    verify_unsqueeze_with_neg_axes(opset=13)
+
+
+@tvm.testing.parametrize_targets
 def test_gather(target, dev):
     """test_gather"""
 
