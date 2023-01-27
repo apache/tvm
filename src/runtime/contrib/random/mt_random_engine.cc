@@ -197,7 +197,7 @@ class RandomEngine {
       }
 
       void Run(int i, int num_threads) {
-        int64_t chunk_size = ceil(size / num_threads);
+        int64_t chunk_size = size / num_threads;
         int64_t st = i * chunk_size;
         int64_t ed = std::min(st + chunk_size, size);
         self->FillDataImpl(data, st, ed, dtype);
@@ -205,7 +205,6 @@ class RandomEngine {
 
       RandomEngine* self;
       void* data;
-      int num_threads;
       int64_t size;
       DLDataType dtype;
     };
