@@ -110,6 +110,9 @@ set(USE_RPC ON)
 # Whether to build the C++ RPC server binary
 set(USE_CPP_RPC OFF)
 
+# Whether to build the C++ native runtime tool binary
+set(USE_CPP_RTVM OFF)
+
 # Whether to build the iOS RPC server application
 set(USE_IOS_RPC OFF)
 

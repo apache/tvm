@@ -20,9 +20,9 @@
 #include "../../../src/relay/collage/partition_rule.h"
 
 #include <gtest/gtest.h>
-#include <tvm/parser/parser.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
+#include <tvm/relay/parser.h>
 #include <tvm/relay/transform.h>
 
 #include "../../../src/relay/collage/partition_spec.h"
@@ -46,7 +46,7 @@ Function MakeTestFunction(
   }
   Map<String, Array<ObjectRef>> metatable;
   metatable.Set("relay.Constant", constants);
-  IRModule mod = parser::ParseModule("string", mod_text, {}, metatable);
+  IRModule mod = ParseModule("string", mod_text, {}, metatable);
   mod = transform::CapturePostDfsIndexInSpans()(mod);
   auto func = Downcast<Function>(mod->Lookup("main"));
   LOG(INFO) << "------- input function -------";

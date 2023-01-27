@@ -144,6 +144,7 @@ We do encourage everyone to work anything they are interested in.
 - [Eric Lunderberg](https://github.com/Lunderberg): @Lunderberg
 - [Andrew Z. Luo](https://github.com/AndrewZhaoLuo): @AndrewZhaoLuo
 - [Steven Lyubomirsky](https://github.com/slyubomirsky): @slyubomirsky
+- [Alan MacDonald](https://github.com/alanmacd): @alanmacd
 - [Masahiro Masuda](https://github.com/masahi): @masahi
 - [Andrey Malyshev](https://github.com/elvin-n): @elvin-n
 - [Sergey Mironov](https://github.com/grwlf): @grwlf

@@ -15,30 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
-from contextlib import contextmanager
-
+import tvm.testing
 from tvm import ir, tir
 from tvm.ir import Range
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tir as T
-from tvm.script.printer import default
-
-
-@contextmanager
-def verbose_expr():
-    try:
-        default.verbose_expr(True)
-        yield
-    finally:
-        default.verbose_expr(False)
 
 
 def _assert_print(obj, expected):
-    with verbose_expr():
-        if isinstance(obj, (tir.PrimFunc, tir.PrimExpr, tir.Stmt)):
-            assert obj.script().strip() == expected.strip()
-        assert str(obj).strip() == expected.strip()
-        assert repr(obj).strip() == expected.strip()
+    assert obj.script(verbose_expr=True).strip() == expected.strip()
 
 
 def test_prim_func():
@@ -56,11 +41,63 @@ def test_prim_func():
     _assert_print(
         func,
         expected="""
+# from tvm.script import tir as T
+
+@T.prim_func
+def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+    T.evaluate(0)""",
+    )
+
+
+def test_prim_func_no_sugar_inlined_buffer():
+    a = tir.Var("a", "handle")
+    b = tir.Var("b", "handle")
+    func = tir.PrimFunc(
+        params=[a, b],
+        ret_type=None,
+        buffer_map={
+            a: tir.decl_buffer(shape=[128, 128], dtype="float32", name="A"),
+            b: tir.decl_buffer(shape=[256, 256], dtype="float32", name="B"),
+        },
+        body=tir.Evaluate(a),
+    )
+    _assert_print(
+        func,
+        expected="""
+# from tvm.script import tir as T
+
+@T.prim_func
+def main(a: T.handle, B: T.Buffer((256, 256), "float32")):
+    A = T.match_buffer(a, (128, 128))
+    T.evaluate(a)
+""",
+    )
+
+
+def test_prim_func_no_sugar_shared_buffer_data():
+    a = tir.Var("a", "handle")
+    b = tir.Var("b", "handle")
+    buffer_data = tir.decl_buffer(shape=[128, 128], dtype="float32", name="A").data
+    func = tir.PrimFunc(
+        params=[a, b],
+        ret_type=None,
+        buffer_map={
+            a: tir.decl_buffer(shape=[128, 128], dtype="float32", name="A", data=buffer_data),
+            b: tir.decl_buffer(shape=[256, 256], dtype="float32", name="B", data=buffer_data),
+        },
+        body=tir.Evaluate(0),
+    )
+    _assert_print(
+        func,
+        expected="""
+# from tvm.script import tir as T
+
 @T.prim_func
 def main(a: T.handle, b: T.handle):
     A = T.match_buffer(a, (128, 128))
-    B = T.match_buffer(b, (256, 256))
-    T.evaluate(0)""",
+    B = T.match_buffer(b, (256, 256), data=A.data)
+    T.evaluate(0)
+""",
     )
 
 
@@ -135,7 +172,7 @@ def test_match_buffer_region():
     _assert_print(
         obj,
         """
-src = T.buffer_decl((128, 128))
+src = T.Buffer((128, 128))
 tgt = T.match_buffer(src[64:128, 64:128], (64, 64))
 """,
     )
@@ -145,7 +182,7 @@ def test_buffer():
     a = tir.decl_buffer((128, 128), "float16", name="A")
     _assert_print(
         a,
-        """A = T.buffer_decl((128, 128), "float16")
+        """A = T.Buffer((128, 128), "float16")
 A""",
     )
 
@@ -162,7 +199,7 @@ def test_buffer_region():
     _assert_print(
         obj,
         """
-src = T.buffer_decl((128, 128))
+src = T.Buffer((128, 128))
 src[64:128, 64:128]
 """,
     )
@@ -174,7 +211,7 @@ def test_buffer_load():
     _assert_print(
         obj,
         """
-A = T.buffer_decl((128, 128), "float16")
+A = T.Buffer((128, 128), "float16")
 A[128, 128]
 """,
     )
@@ -188,7 +225,7 @@ def test_buffer_store():
     _assert_print(
         obj,
         """
-A = T.buffer_decl((128, 128), "float16")
+A = T.Buffer((128, 128), "float16")
 A[128, 128] = A[128, 128] + T.float16(1)
 """,
     )
@@ -281,6 +318,52 @@ with T.allocate([128, 128], "float32", "global") as v:
     )
 
 
+def test_allocate_with_decl_buffer_sugar():
+    with IRBuilder() as ib:
+        with T.allocate([128, 128], "float32") as buffer_data:
+            with T.decl_buffer([128, 128], "float32", data=buffer_data) as buffer:
+                T.evaluate(0)
+    obj = ib.get()
+    _assert_print(
+        obj,
+        """
+with T.decl_buffer((128, 128)) as buffer:
+    T.evaluate(0)
+""",
+    )
+
+
+def test_allocate_with_decl_buffer_sugar_multi_usage():
+    with IRBuilder() as ib:
+        with T.allocate([128, 128], "float32") as buffer_data:
+            with T.decl_buffer([128, 128], "float32", data=buffer_data) as buffer:
+                T.evaluate(buffer_data)
+    obj = ib.get()
+    _assert_print(
+        obj,
+        """
+with T.decl_buffer((128, 128)) as buffer:
+    T.evaluate(buffer.data)
+""",
+    )
+
+
+def test_allocate_with_decl_buffer_no_sugar_mismatch():
+    with IRBuilder() as ib:
+        with T.allocate([128, 128], "float32") as buffer_data:
+            with T.decl_buffer([256, 256], "float32", data=buffer_data) as buffer:
+                T.evaluate(buffer_data)
+    obj = ib.get()
+    _assert_print(
+        obj,
+        """
+with T.allocate([128, 128], "float32", "global") as v:
+    buffer = T.decl_buffer((256, 256), data=v)
+    T.evaluate(v)
+""",
+    )
+
+
 def test_decl_buffer():
     with IRBuilder() as ib:
         with T.decl_buffer((10, 10), data=T.ptr("float32")):
@@ -303,7 +386,7 @@ def test_prefetch():
     _assert_print(
         obj,
         """
-A = T.buffer_decl((128, 128), "float16")
+A = T.Buffer((128, 128), "float16")
 T.prefetch(A, [T.Range(0, 64), T.Range(0, 64)])
 """,
     )
@@ -362,7 +445,7 @@ def test_buffer_realize():
     _assert_print(
         obj,
         """
-A = T.buffer_decl((128, 128))
+A = T.Buffer((128, 128))
 with T.realize(A[0:128, 0:128], "test_storage_scope"):
     T.evaluate(0)
 """,
@@ -621,63 +704,59 @@ def test_remap():
                 v3 = T.axis.spatial(128, i3 - 1)
                 v4, v5 = T.axis.remap("RS", [i4, i5])
 
-    expected_output = """@T.prim_func
+    expected_output = """
+# from tvm.script import tir as T
+
+@T.prim_func
 def main():
-    with T.block("root"):
-        T.reads()
-        T.writes()
-        for i0, i1, i2, i3, i4, i5 in T.grid(128, 128, 128, 128, 128, 128):
-            with T.block("update"):
-                v0 = T.axis.spatial(128, i0 + 1)
-                v1, v2 = T.axis.remap("SR", [i1, i2])
-                v3 = T.axis.spatial(128, i3 - 1)
-                v4, v5 = T.axis.remap("RS", [i4, i5])
-                T.reads()
-                T.writes()
-                T.evaluate(0)"""
+    # with T.block("root"):
+    for i0, i1, i2, i3, i4, i5 in T.grid(128, 128, 128, 128, 128, 128):
+        with T.block("update"):
+            v0 = T.axis.spatial(128, i0 + 1)
+            v1, v2 = T.axis.remap("SR", [i1, i2])
+            v3 = T.axis.spatial(128, i3 - 1)
+            v4, v5 = T.axis.remap("RS", [i4, i5])
+            T.reads()
+            T.writes()
+            T.evaluate(0)"""
     _assert_print(block_with_remap_explicitly, expected_output)
     _assert_print(block_with_remap_implicitly, expected_output)
 
 
+def test_root_block():
+    from tvm.script import tir as T
+
+    @T.prim_func
+    def root_block_implicitly():
+        a = T.alloc_buffer([128, 128])
+        for i, j in T.grid(128, 128):
+            with T.block():
+                T.evaluate(0)
+
+    @T.prim_func
+    def root_block_explicitly():
+        with T.block("root"):
+            a = T.alloc_buffer([128, 128])
+            for i, j in T.grid(128, 128):
+                with T.block():
+                    T.evaluate(0)
+
+    expected_output = """
+# from tvm.script import tir as T
+
+@T.prim_func
+def main():
+    # with T.block("root"):
+    a = T.alloc_buffer((128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block(""):
+            T.reads()
+            T.writes()
+            T.evaluate(0)
+    """
+    _assert_print(root_block_implicitly, expected_output)
+    _assert_print(root_block_explicitly, expected_output)
+
+
 if __name__ == "__main__":
-    test_prim_func()
-    test_block_realize()
-    test_block()
-    test_buffer()
-    test_buffer_region()
-    test_buffer_load()
-    test_buffer_store()
-    test_match_buffer_region()
-    test_for()
-    test_let_stmt()
-    test_attr_stmt()
-    test_assert_stmt()
-    test_while()
-    test_allocate()
-    test_decl_buffer()
-    test_prefetch()
-    test_seq_stmt()
-    test_if_then_else()
-    test_evaluate()
-    test_buffer_realize()
-    test_var()
-    test_size_var()
-    test_iter_var()
-    test_string_imm()
-    test_cast()
-    test_binary_arith()
-    test_logical()
-    test_select()
-    test_ramp()
-    test_broadcast()
-    test_let_expr()
-    test_call()
-    test_comm_reducer()
-    test_any()
-    test_int_imm()
-    test_float_imm()
-    test_range()
-    test_prim_type()
-    test_pointer_type()
-    test_tuple_type()
-    test_remap()
+    tvm.testing.main()

@@ -52,7 +52,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           BaseFunc func = kv.second;
           (*f)->stmts.push_back(d->AsDoc<FunctionDoc>(func, p->Attr("functions")->MapValue(gv)));
         }
-        return ClassDoc(IdDoc("Module"), {IR("ir_module")}, (*f)->stmts);
+        return ClassDoc(IdDoc("Module"), {IR(d, "ir_module")}, (*f)->stmts);
       }
     });
 
@@ -63,43 +63,44 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<GlobalVar>("", [](GlobalVar gv, ObjectPath p, IRDocsifier d) -> Doc {
-      return IR("GlobalVar")->Call({LiteralDoc::Str(gv->name_hint)});
+      return IR(d, "GlobalVar")->Call({LiteralDoc::Str(gv->name_hint, p->Attr("name_hint"))});
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<Op>("", [](Op op, ObjectPath p, IRDocsifier d) -> Doc {
-      return IR("Op")->Call({LiteralDoc::Str(op->name)});
+      return IR(d, "Op")->Call({LiteralDoc::Str(op->name, p->Attr("name"))});
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<TypeVar>("", [](TypeVar type_var, ObjectPath p, IRDocsifier d) -> Doc {
-      return IR("TypeVar")->Call({LiteralDoc::Str(type_var->name_hint),  //
-                                  LiteralDoc::Str(TypeKind2String(type_var->kind))});
+    .set_dispatch<TypeVar>("", [](TypeVar var, ObjectPath p, IRDocsifier d) -> Doc {
+      return IR(d, "TypeVar")
+          ->Call({LiteralDoc::Str(var->name_hint, p->Attr("name_hint")),  //
+                  LiteralDoc::Str(TypeKind2String(var->kind), p->Attr("kind"))});
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<GlobalTypeVar>(  //
-        "", [](GlobalTypeVar type_var, ObjectPath p, IRDocsifier d) -> Doc {
-          return IR("GlobalTypeVar")
-              ->Call({LiteralDoc::Str(type_var->name_hint),  //
-                      LiteralDoc::Str(TypeKind2String(type_var->kind))});
+        "", [](GlobalTypeVar var, ObjectPath p, IRDocsifier d) -> Doc {
+          return IR(d, "GlobalTypeVar")
+              ->Call({LiteralDoc::Str(var->name_hint, p->Attr("name_hint")),
+                      LiteralDoc::Str(TypeKind2String(var->kind), p->Attr("kind"))});
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<RelayRefType>("", [](RelayRefType ref, ObjectPath p, IRDocsifier d) -> Doc {
-      return IR("RelayRef")->Call({d->AsDoc<ExprDoc>(ref->value, p->Attr("value"))});
+      return IR(d, "RelayRef")->Call({d->AsDoc<ExprDoc>(ref->value, p->Attr("value"))});
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<TensorType>("", [](TensorType type, ObjectPath p, IRDocsifier d) -> Doc {
-      return IR("TensorType")
+      return IR(d, "TensorType")
           ->Call({d->AsDoc<ExprDoc>(type->shape, p->Attr("shape")),
-                  LiteralDoc::DataType(type->dtype)});
+                  LiteralDoc::DataType(type->dtype, p->Attr("dtype"))});
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<FuncType>("", [](FuncType func_type, ObjectPath p, IRDocsifier d) -> Doc {
-      return IR("FuncType")
+      return IR(d, "FuncType")
           ->Call({
               d->AsDoc<ExprDoc>(func_type->type_params, p->Attr("type_params")),
               d->AsDoc<ExprDoc>(func_type->arg_types, p->Attr("arg_types")),
@@ -109,19 +110,18 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<IncompleteType>("", [](IncompleteType ty, ObjectPath p, IRDocsifier d) -> Doc {
-      return IR("IncompleteType")->Call({});
+      return IR(d, "IncompleteType")->Call({});
     });
 
-void ReprPrintIRModule(const ObjectRef& mod, ReprPrinter* p) {
+std::string ReprPrintIRModule(const ObjectRef& mod, const PrinterConfig& cfg) {
   if (const auto* f = runtime::Registry::Get("relay.ir.PrintRelayModule")) {
     if (Optional<String> s = (*f)(mod)) {
-      p->stream << s.value();
-      return;
+      return s.value();
     }
   }
-  std::string res =
-      DocToPythonScript(IRDocsifier()->AsDoc(Downcast<IRModule>(mod), ObjectPath::Root()));
-  p->stream << res;
+  IRDocsifier d(cfg);
+  Doc doc = HeaderWrapper(d, d->AsDoc(mod, ObjectPath::Root()));
+  return DocToPythonScript(doc, cfg);
 }
 
 TVM_SCRIPT_REPR(TypeVarNode, ReprPrintIR);

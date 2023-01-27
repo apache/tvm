@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/runtime/device_api.h>
+
 #include "./utils.h"
 
 namespace tvm {
@@ -34,23 +36,82 @@ String FindFunctionName(const IRDocsifier& d, const tir::PrimFunc& f) {
   return "main";
 }
 
+bool IsSimpleBuffer(const tir::Buffer& buf) {
+  if (!buf->strides.empty()) {
+    return false;
+  }
+  for (const PrimExpr& shp_i : buf->shape) {
+    if (!tir::UndefinedVars(shp_i).empty()) {
+      return false;
+    }
+  }
+  for (const PrimExpr& stride_i : buf->strides) {
+    if (!tir::UndefinedVars(stride_i).empty()) {
+      return false;
+    }
+  }
+  if (!tir::UndefinedVars(buf->elem_offset).empty()) {
+    return false;
+  } else if (buf->elem_offset->IsInstance<IntImmNode>()) {
+    IntImm elem_offset = Downcast<IntImm>(buf->elem_offset);
+    if (elem_offset->value != 0) {
+      return false;
+    }
+  }
+  return buf.scope() == "global" && buf->data_alignment == runtime::kAllocAlignment &&
+         buf->offset_factor == 1 && buf->buffer_type == tir::BufferType::kDefault &&
+         !buf->axis_separators.size();
+}
+
+int CountVarOccurrence(const tir::PrimFunc& f, const tir::Var& v) {
+  OccurrenceCounter counter(v.get());
+  counter(f->body);
+  for (const tir::Var& v : f->params) {
+    counter(v);
+  }
+  for (const auto& pair : f->buffer_map) {
+    counter(pair.first);
+    counter.VisitBuffer(pair.second.get());
+  }
+  return counter.count;
+}
+
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::PrimFunc>("", [](tir::PrimFunc func, ObjectPath p, IRDocsifier d) -> Doc {
       With<TIRFrame> frame(MakeDispatchFrame(d, func, func));
       int n_args = func->params.size();
+      std::unordered_map<const tir::VarNode*, int> buffer_data_counter;
+      for (const auto& pair : func->buffer_map) {
+        const tir::VarNode* data_var = pair.second->data.get();
+        if (!buffer_data_counter.count(data_var)) {
+          buffer_data_counter.insert({data_var, 0});
+        }
+        ++buffer_data_counter.at(data_var);
+      }
       // Step 1. Handle `func->params`
       Array<AssignDoc> args;
       args.reserve(n_args);
+      std::unordered_set<const tir::BufferNode*> buffer_inlined;
       for (int i = 0; i < n_args; ++i) {
         tir::Var var = func->params[i];
         ObjectPath var_p = p->Attr("params")->ArrayIndex(i);
+        if (CountVarOccurrence(func, var) == 2 && func->buffer_map.count(var)) {
+          tir::Buffer buffer = func->buffer_map[var];
+          if (IsSimpleBuffer(buffer) && buffer_data_counter.at(buffer->data.get()) == 1) {
+            ObjectPath buffer_p = p->Attr("buffer_map")->MapValue(var);
+            args.push_back(AssignDoc(DefineBuffer(buffer, *frame, d), NullOpt,
+                                     BufferAttn(buffer, buffer_p, *frame, d)));
+            buffer_inlined.insert(buffer.get());
+            continue;
+          }
+        }
         ExprDoc a = d->AsDoc<ExprDoc>(var->type_annotation, var_p->Attr("type_annotation"));
         args.push_back(AssignDoc(DefineVar(var, *frame, d), NullOpt, a));
       }
       // Step 2. Handle `func->attrs`
       if (func->attrs.defined() && !func->attrs->dict.empty()) {
         (*frame)->stmts.push_back(
-            ExprStmtDoc(TIR("func_attr")  //
+            ExprStmtDoc(TIR(d, "func_attr")  //
                             ->Call({d->AsDoc<ExprDoc>(func->attrs, p->Attr("attrs"))})));
       }
       // Step 3. Handle `func->buffer_map`
@@ -58,6 +119,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         tir::Var param = func->params[i];
         if (func->buffer_map.count(param)) {
           tir::Buffer buffer = func->buffer_map[param];
+          if (buffer_inlined.count(buffer.get())) {
+            continue;
+          }
           ExprDoc param = args[i]->lhs;
           ObjectPath buffer_p = p->Attr("buffer_map")->MapValue(param);
           ExprDoc lhs =
@@ -67,7 +131,41 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         }
       }
       // Step 4. Handle `func->body`
-      AsDocBody(func->body, p->Attr("body"), frame->get(), d);
+      Optional<tir::Block> implicit_root_block = [&]() -> Optional<tir::Block> {
+        const tir::BlockRealizeNode* root_block_realize = func->body.as<tir::BlockRealizeNode>();
+        if (root_block_realize && !root_block_realize->iter_values.size() &&
+            tir::is_one(root_block_realize->predicate)) {
+          tir::Block root_block = root_block_realize->block;
+          if (!root_block->annotations.size() && !root_block->match_buffers.size() &&
+              !root_block->reads.size() && !root_block->writes.size() &&
+              !root_block->init.defined()) {
+            const tir::BlockRealizeNode* block_realize =
+                root_block->body.as<tir::BlockRealizeNode>();
+            if (root_block->alloc_buffers.size() ||
+                (block_realize && block_realize->block->iter_vars.size()) ||
+                (!block_realize && tir::ContainsNode<tir::BlockRealizeNode>(root_block->body))) {
+              return root_block;
+            }
+          }
+        }
+        return NullOpt;
+      }();
+      if (implicit_root_block) {
+        tir::Block root_block = implicit_root_block.value();
+        ObjectPath root_block_p = p->Attr("body")->Attr("body");
+        (*frame)->stmts.push_back(CommentDoc("with T.block(\"root\"):"));
+        // Handle root block `alloc_buffer`
+        for (int i = 0, n = root_block->alloc_buffers.size(); i < n; ++i) {
+          tir::Buffer buffer = root_block->alloc_buffers[i];
+          ObjectPath buffer_p = root_block_p->Attr("alloc_buffers")->ArrayIndex(i);
+          IdDoc lhs = DefineBuffer(buffer, *frame, d);
+          ExprDoc rhs = BufferDecl(buffer, "alloc_buffer", {}, buffer_p, *frame, d);
+          (*frame)->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
+        }
+        AsDocBody(root_block->body, root_block_p->Attr("body"), frame->get(), d);
+      } else {
+        AsDocBody(func->body, p->Attr("body"), frame->get(), d);
+      }
       Optional<ExprDoc> ret_type = NullOpt;
       if (func->ret_type.defined()) {
         const auto* as_tuple = func->ret_type.as<TupleTypeNode>();
@@ -78,14 +176,15 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       return FunctionDoc(
           /*name=*/IdDoc(FindFunctionName(d, func)),
           /*args=*/args,
-          /*decorators=*/{TIR("prim_func")},
+          /*decorators=*/{TIR(d, "prim_func")},
           /*return_type=*/ret_type,
           /*body=*/(*frame)->stmts);
     });
 
-void ReprPrintPrimFunc(const ObjectRef& obj, ReprPrinter* p) {
-  std::string res = DocToPythonScript(IRDocsifier()->AsDoc(obj, ObjectPath::Root()));
-  p->stream << res;
+std::string ReprPrintPrimFunc(const ObjectRef& obj, const PrinterConfig& cfg) {
+  IRDocsifier d(cfg);
+  Doc doc = HeaderWrapper(d, d->AsDoc(obj, ObjectPath::Root()));
+  return DocToPythonScript(doc, cfg);
 }
 
 TVM_SCRIPT_REPR(tir::PrimFuncNode, ReprPrintPrimFunc);

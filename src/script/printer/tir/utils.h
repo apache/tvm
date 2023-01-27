@@ -20,13 +20,13 @@
 #define TVM_SCRIPT_PRINTER_TIR_UTILS_H_
 
 #include <tvm/script/printer/ir_docsifier.h>
-#include <tvm/script/printer/printer.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
+#include <tvm/tir/stmt_functor.h>
 
 #include <string>
 #include <unordered_map>
@@ -73,7 +73,10 @@ class TIRFrame : public Frame {
 };
 
 /*! \brief Creates the TIR common prefix, which is by default `T` */
-inline ExprDoc TIR(const String& attr) { return IdDoc(Default::Prefix("tir"))->Attr(attr); }
+inline ExprDoc TIR(const IRDocsifier& d, const String& attr) {
+  d->ir_usage.insert("tir");
+  return IdDoc(d->cfg->tir_prefix)->Attr(attr);
+}
 
 /*!
  * \brief Defines a variable in the IRDocsifier at the given frame,
@@ -186,14 +189,12 @@ inline TIRFrame MakeDispatchFrame(const IRDocsifier& d, const ObjectRef& root,
 }
 
 /*! \brief Redirected method for the ReprPrinter */
-inline void ReprPrintTIR(const ObjectRef& obj, ReprPrinter* p) {
-  IRDocsifier d;
+inline std::string ReprPrintTIR(const ObjectRef& obj, const PrinterConfig& cfg) {
+  IRDocsifier d(cfg);
   With<TIRFrame> f(MakeDispatchFrame(d, obj, ObjectRef(nullptr)));
-  try {
-    p->stream << DocToPythonScript(Docsify(obj, d, *f));
-  } catch (const tvm::Error& e) {
-    HandleUnsupportedFallback(e, obj, p);
-  }
+  std::ostringstream oss;
+  oss << Docsify(obj, d, *f, cfg);
+  return oss.str();
 }
 
 /*!
@@ -208,6 +209,61 @@ inline void ReprPrintTIR(const ObjectRef& obj, ReprPrinter* p) {
  */
 ExprDoc BufferDecl(const tir::Buffer& buffer, const String& method, const Array<ExprDoc>& args,
                    const ObjectPath& p, const Frame& frame, const IRDocsifier& d);
+
+/*!
+ * \brief Declare and define a buffer as annotation
+ * \param buffer The buffer to be defined
+ * \param p The object path
+ * \param f The frame
+ * \param d The IRDocsifier
+ * \return The ExprDoc corresponding to the buffer declaration
+ */
+ExprDoc BufferAttn(const tir::Buffer& buffer, const ObjectPath& p, const Frame& frame,
+                   const IRDocsifier& d);
+
+/*! \brief A Var occurrence counter visitor */
+class OccurrenceCounter : public tir::StmtExprVisitor {
+ public:
+  /*! \brief The occurrence counter */
+  int count = 0;
+  /*! \brief The Var to count occurrence */
+  const tir::VarNode* v = nullptr;
+
+  void VisitExpr_(const tir::VarNode* op) final {
+    if (op == v) {
+      ++count;
+    }
+    tir::StmtExprVisitor::VisitExpr_(op);
+  }
+
+  void VisitStmt_(const tir::BufferStoreNode* op) final {
+    VisitBuffer(op->buffer.get());
+    tir::StmtExprVisitor::VisitStmt_(op);
+  }
+
+  void VisitExpr_(const tir::BufferLoadNode* op) final {
+    VisitBuffer(op->buffer.get());
+    tir::StmtExprVisitor::VisitExpr_(op);
+  }
+
+  void VisitStmt_(const tir::DeclBufferNode* op) final {
+    VisitBuffer(op->buffer.get());
+    tir::StmtExprVisitor::VisitStmt_(op);
+  }
+
+  void VisitBuffer(const tir::BufferNode* buffer) {
+    VisitExpr(buffer->data);
+    for (const PrimExpr& shape_i : buffer->shape) {
+      VisitExpr(shape_i);
+    }
+    for (const PrimExpr& stride_i : buffer->strides) {
+      VisitExpr(stride_i);
+    }
+    VisitExpr(buffer->elem_offset);
+  }
+
+  explicit OccurrenceCounter(const tir::VarNode* var) { v = var; }
+};
 
 }  // namespace printer
 }  // namespace script

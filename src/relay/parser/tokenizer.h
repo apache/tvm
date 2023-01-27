@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file parser.h
+ * \file tokenizer.h
  * \brief A parser for TVM IR.
  */
-#ifndef TVM_PARSER_TOKENIZER_H_
-#define TVM_PARSER_TOKENIZER_H_
+#ifndef TVM_RELAY_PARSER_TOKENIZER_H_
+#define TVM_RELAY_PARSER_TOKENIZER_H_
 
 #include <tvm/node/serialization.h>
 #include <tvm/runtime/object.h>
@@ -34,12 +34,12 @@
 #include <utility>
 #include <vector>
 
-#include "../support/scalars.h"
+#include "../../support/scalars.h"
 #include "./meta_ref.h"
 #include "./token.h"
 
 namespace tvm {
-namespace parser {
+namespace relay {
 
 using namespace runtime;
 
@@ -54,20 +54,20 @@ static inline void rtrim(std::string& s) {  // NOLINT(*)
           s.end());
 }
 
-bool IsDigit(char c) { return '0' <= c && c <= '9'; }
+inline bool IsDigit(char c) { return '0' <= c && c <= '9'; }
 
-bool IsWhitespace(char c) { return ' ' == c || c == '\t' || c == '\n'; }
+inline bool IsWhitespace(char c) { return ' ' == c || c == '\t' || c == '\n'; }
 
-bool IsNumeric(char c) {
+inline bool IsNumeric(char c) {
   return (IsDigit(c) || c == '.' || c == 'e' || c == '-' || c == '+' || c == 'E') &&
          !IsWhitespace(c);
 }
 
-bool IsIdentLetter(char c) {
+inline bool IsIdentLetter(char c) {
   return '_' == c || c == '/' || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z');
 }
 
-bool IsIdent(char c) { return IsIdentLetter(c) || IsDigit(c); }
+inline bool IsIdent(char c) { return IsIdentLetter(c) || IsDigit(c); }
 
 static std::unordered_map<std::string, TokenType> KEYWORD_TABLE = {
     {"let", TokenType::kLet},          {"fn", TokenType::kFn},
@@ -371,7 +371,7 @@ struct Tokenizer {
     int line = this->line;
     int col = this->col;
     auto next = Peek();
-    VLOG(9) << "tvm::parser::TokenizeOnce: next=" << next;
+    VLOG(9) << "tvm::relay::TokenizeOnce: next=" << next;
     if (next == '\n') {
       auto token = NewToken(TokenType::kNewline);
       Next();
@@ -582,7 +582,7 @@ struct Tokenizer {
   }
 
   void Tokenize() {
-    VLOG(9) << "tvm::parser::Tokenize";
+    VLOG(9) << "tvm::relay::Tokenize";
     while (this->More()) {
       auto token = TokenizeOnce();
       ICHECK(token.defined());
@@ -601,7 +601,7 @@ struct Tokenizer {
         tokens() {}
 };
 
-std::vector<Token> Condense(const std::vector<Token>& tokens, Token* table) {
+inline std::vector<Token> Condense(const std::vector<Token>& tokens, Token* table) {
   std::vector<Token> out;
   bool found_metadata = false;
 
@@ -680,7 +680,8 @@ std::vector<Token> Condense(const std::vector<Token>& tokens, Token* table) {
   return out;
 }
 
-std::pair<std::vector<Token>, Token> Tokenize(const DiagnosticContext& ctx, const Source& source) {
+inline std::pair<std::vector<Token>, Token> Tokenize(const DiagnosticContext& ctx,
+                                                     const Source& source) {
   auto tokenizer = Tokenizer(ctx, source);
   tokenizer.Tokenize();
   Token meta_table(Span(), TokenType::kUnknown, ObjectRef());
@@ -691,7 +692,7 @@ std::pair<std::vector<Token>, Token> Tokenize(const DiagnosticContext& ctx, cons
   return {tokens, meta_table};
 }
 
-}  // namespace parser
+}  // namespace relay
 }  // namespace tvm
 
-#endif  // TVM_PARSER_TOKENIZER_H_
+#endif  // TVM_RELAY_PARSER_TOKENIZER_H_

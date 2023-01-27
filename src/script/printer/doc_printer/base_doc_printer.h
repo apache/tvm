@@ -35,23 +35,6 @@ namespace printer {
 /*! \brief Range of byte offsets in a string */
 using ByteSpan = std::pair<size_t, size_t>;
 
-/*! \brief Options to customize DocPrinter's output */
-struct DocPrinterOptions {
-  /*! \brief Number of spaces for one level of indentation */
-  int indent_spaces = 4;
-
-  /*! \brief Whether to print the line numbers */
-  bool print_line_numbers = false;
-
-  /*!
-   * \brief Number of context lines to print around the underlined text.
-   *
-   * If set to a non-default value `n`, only print `n` context lines before and after
-   * the underlined pieces of text.
-   */
-  size_t num_context_lines = std::numeric_limits<size_t>::max();
-};
-
 /*!
  * \brief DocPrinter is responsible for printing Doc tree into text format
  * \details This is the base class for translating Doc into string.
@@ -67,7 +50,8 @@ class DocPrinter {
    *
    * \param options the option for printer
    */
-  explicit DocPrinter(const DocPrinterOptions& options);
+  explicit DocPrinter(const PrinterConfig& options);
+
   virtual ~DocPrinter() = default;
 
   /*!
@@ -221,16 +205,26 @@ class DocPrinter {
   virtual void PrintTypedDoc(const ClassDoc& doc) = 0;
 
   /*!
+   * \brief Virtual method to print a CommentDoc
+   */
+  virtual void PrintTypedDoc(const CommentDoc& doc) = 0;
+
+  /*!
+   * \brief Virtual method to print a DocStringDoc
+   */
+  virtual void PrintTypedDoc(const DocStringDoc& doc) = 0;
+
+  /*!
    * \brief Increase the indent level of any content to be
    *        printed after this call
    */
-  void IncreaseIndent() { indent_ += options_.indent_spaces; }
+  void IncreaseIndent() { indent_ += options_->indent_spaces; }
 
   /*!
    * \brief Decrease the indent level of any content to be
    *        printed after this call
    */
-  void DecreaseIndent() { indent_ -= options_.indent_spaces; }
+  void DecreaseIndent() { indent_ -= options_->indent_spaces; }
 
   /*!
    * \brief Add a new line into the output stream
@@ -258,7 +252,7 @@ class DocPrinter {
   void MarkSpan(const ByteSpan& span, const ObjectPath& path);
 
   /*! \brief Options to customize certain aspects of the output */
-  DocPrinterOptions options_;
+  PrinterConfig options_;
 
   /*! \brief the current level of indent */
   int indent_ = 0;

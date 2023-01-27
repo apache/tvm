@@ -677,6 +677,45 @@ def test_unsqueeze(target, dev):
 
 
 @tvm.testing.parametrize_targets
+def test_unsqueeze_with_neg_axes(target, dev):
+    def verify_unsqueeze_with_neg_axes(opset=11):
+        in_shape = (2, 3, 4)
+        axis = (-2, -1)
+        out_shape = (2, 3, 4, 1, 1)
+        if opset < 13:
+            y = helper.make_node("Unsqueeze", ["in"], ["out"], axes=list(axis))
+            nodes = [y]
+        else:
+            axes = np.array(list(axis)).astype(np.int64)
+            axes = helper.make_node(
+                "Constant",
+                inputs=[],
+                outputs=["axes"],
+                value=onnx.helper.make_tensor(
+                    name="const_axes",
+                    data_type=onnx.TensorProto.INT64,
+                    dims=axes.shape,
+                    vals=axes.flatten().astype(int),
+                ),
+            )
+            y = helper.make_node("Unsqueeze", ["in", "axes"], ["out"])
+            nodes = [axes, y]
+
+        graph = helper.make_graph(
+            nodes,
+            "squeeze_test",
+            inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(in_shape))],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))],
+        )
+
+        model = helper.make_model(graph, producer_name="squeeze_test")
+        verify_with_ort(model, [in_shape], target=target, dev=dev, opset=opset)
+
+    verify_unsqueeze_with_neg_axes()
+    verify_unsqueeze_with_neg_axes(opset=13)
+
+
+@tvm.testing.parametrize_targets
 def test_gather(target, dev):
     """test_gather"""
 
@@ -5878,30 +5917,47 @@ def test_embedlayernormalization(target, dev):
 def test_attention(target, dev):
     """test_attention"""
 
-    def verify_attention(input_, weight, bias, mask_index, num_heads):
+    def verify_attention(_unidirectional, _input, _weight, _bias, _mask_index=None, _past=None):
+        input_names = ["input", "weight", "bias"]
+        if _mask_index is not None:
+            input_names.append("mask_index")
+        if _past is not None:
+            input_names.append("past")
+
         node = onnx.helper.make_node(
             "Attention",
-            inputs=["input", "weight", "bias", "mask_index"],
+            inputs=input_names,
             outputs=["output", "present"],
             domain="com.microsoft",
             num_heads=num_heads,
+            unidirectional=_unidirectional,
         )
 
+        past_shape = (2, batch_size, num_heads, past_sequence_length, head_size)
         present_output_shape = (2, batch_size, num_heads, sequence_length, head_size)
+
+        inputs_info = [
+            helper.make_tensor_value_info("input", TensorProto.FLOAT, list(_input.shape)),
+            helper.make_tensor_value_info("weight", TensorProto.FLOAT, list(_weight.shape)),
+            helper.make_tensor_value_info("bias", TensorProto.FLOAT, list(_bias.shape)),
+        ]
+        if _mask_index is not None:
+            inputs_info.append(
+                helper.make_tensor_value_info(
+                    "mask_index", TensorProto.INT32, list(_mask_index.shape)
+                ),
+            )
+        if _past is not None:
+            inputs_info.append(
+                helper.make_tensor_value_info("past", TensorProto.FLOAT, list(past_shape))
+            )
 
         graph = helper.make_graph(
             [node],
             "attention_test",
-            inputs=[
-                helper.make_tensor_value_info("input", TensorProto.FLOAT, list(input_.shape)),
-                helper.make_tensor_value_info("weight", TensorProto.FLOAT, list(weight.shape)),
-                helper.make_tensor_value_info("bias", TensorProto.FLOAT, list(bias.shape)),
-                helper.make_tensor_value_info(
-                    "mask_index", TensorProto.INT32, list(mask_index.shape)
-                ),
-            ],
+            inputs=inputs_info,
             outputs=[
-                helper.make_tensor_value_info("output", TensorProto.FLOAT, list(input_.shape)),
+                helper.make_tensor_value_info("output", TensorProto.FLOAT, list(_input.shape)),
                 helper.make_tensor_value_info(
                     "present", TensorProto.FLOAT, list(present_output_shape)
                 ),
@@ -5910,31 +5966,58 @@ def test_attention(target, dev):
 
         model = helper.make_model(graph, producer_name="attention_test")
 
+        inputs = [_input, _weight, _bias]
+        if _mask_index is not None:
+            inputs.append(_mask_index)
+        if _past is not None:
+            inputs.append(_past)
+
         # "present" output should be nullptr when the "past" input isn't included,
         # but ort requires an output shape to be specified?
         verify_with_ort_with_inputs(
             model,
-            [input_, weight, bias, mask_index],
-            [input_.shape, present_output_shape],
+            inputs,
+            [_input.shape, present_output_shape],
             target=target,
             dev=dev,
             rtol=1e-4,
             atol=1e-4,
         )
 
-    hidden_size = 384
-    batch_size = 4
-    sequence_length = 4
-    num_heads = 12
-    head_size = 32
+    batch_size = 11
+    num_heads = 13
+    head_size = 37
+    sequence_length = 7
+    input_hidden_size = 147
+    weight_hidden_size = num_heads * head_size
+    past_sequence_length = 17
 
-    dtype = "float32"
-    input_array = np.random.random((batch_size, sequence_length, hidden_size)).astype(dtype)
-    weight = np.random.normal(size=(hidden_size, 3 * hidden_size)).astype(dtype) * 0.1
-    bias = np.random.randn(3 * hidden_size).astype(dtype)
-    mask_index = np.full((batch_size, sequence_length), 1).astype("int32")
+    total_sequence_length = past_sequence_length + sequence_length
 
-    verify_attention(input_array, weight, bias, mask_index, num_heads)
+    # Required inputs
+    input_array = np.random.normal(size=(batch_size, sequence_length, input_hidden_size)).astype(
+        "float32"
+    )
+    weight = (
+        np.random.normal(size=(input_hidden_size, 3 * weight_hidden_size)).astype("float32") * 0.1
+    )
+    bias = np.random.randn(3 * weight_hidden_size).astype("float32")
+
+    # Optional inputs
+    past = np.random.random((2, batch_size, num_heads, past_sequence_length, head_size)).astype(
+        "float32"
+    )
+
+    for unidirectional in [0, 1]:
+        for have_past in [False, True]:
+            if not have_past:
+                mask_index = np.random.randint(0, 2, (batch_size, sequence_length)).astype("int32")
+                verify_attention(unidirectional, input_array, weight, bias, mask_index)
+            else:
+                mask_index = np.random.randint(0, 2, (batch_size, total_sequence_length)).astype(
+                    "int32"
+                )
+                verify_attention(unidirectional, input_array, weight, bias, mask_index, past)
 
 
 @tvm.testing.parametrize_targets
@@ -6167,6 +6250,174 @@ def test_skiplayernormalization(target, dev):
     bias = np.random.randn(hidden_size).astype(dtype)
 
     verify_skiplayernormalization(input_array, skip, gamma, beta, bias)
+
+
+@tvm.testing.known_failing_targets("cuda")
+@tvm.testing.parametrize_targets
+def test_qgemm(target, dev):
+    """test_qgemm"""
+
+    def verify_qgemm(
+        a_shape,
+        b_shape,
+        y_shape,
+        C=False,
+        y_zp=False,
+        b_per_tensor_quantization=False,
+        alpha=1.0,
+        transA=0,
+        transB=1,
+    ):
+        a_array = np.random.randint(low=0, high=255, size=a_shape).astype("uint8")
+        b_array = np.random.uniform(low=0, high=255, size=b_shape).astype("uint8")
+
+        input_nodes = [
+            helper.make_tensor_value_info("a", TensorProto.UINT8, list(a_shape)),
+            helper.make_tensor_value_info("b", TensorProto.UINT8, list(b_shape)),
+        ]
+
+        initializer = [
+            helper.make_tensor("a_scale", TensorProto.FLOAT, (), [np.random.rand()]),
+            helper.make_tensor("a_zero_point", TensorProto.UINT8, (), [np.random.randint(0, 255)]),
+        ]
+
+        input_names = [
+            "a",
+            "a_scale",
+            "a_zero_point",
+            "b",
+            "b_scale",
+            "b_zero_point",
+        ]
+        input_values = [a_array, b_array]
+
+        if b_per_tensor_quantization:
+            initializer.append(
+                helper.make_tensor("b_scale", TensorProto.FLOAT, (), [np.random.rand()])
+            )
+            initializer.append(
+                helper.make_tensor(
+                    "b_zero_point", TensorProto.UINT8, (), [np.random.randint(0, 255)]
+                )
+            )
+        else:  # per_colume_quantization
+            shape_value = b_shape[0] if transB else b_shape[1]
+            b_scale_array = np.random.random(shape_value).astype("float32")
+            w_zero_point_array = np.random.randint(0, 255, size=shape_value).astype("uint8")
+            initializer.append(
+                helper.make_tensor(
+                    "b_scale", TensorProto.FLOAT, list(b_scale_array.shape), b_scale_array
+                )
+            )
+            initializer.append(
+                helper.make_tensor(
+                    "b_zero_point",
+                    TensorProto.UINT8,
+                    list(w_zero_point_array.shape),
+                    w_zero_point_array,
+                )
+            )
+
+        output_tensor = helper.make_tensor_value_info("output", TensorProto.FLOAT, list(y_shape))
+
+        if C is True:
+            C_shape = (b_shape[0] if transB else b_shape[1],)
+            C_array = np.random.randint(low=0, high=65536, size=C_shape).astype("int32")
+            input_nodes.append(helper.make_tensor_value_info("C", TensorProto.INT32, list(C_shape)))
+            input_names.append("C")
+            input_values.append(C_array)
+
+        if y_zp is True:
+            input_names.append("y_scale")
+            initializer.append(
+                helper.make_tensor("y_scale", TensorProto.FLOAT, (), [np.random.rand()])
+            )
+
+            input_names.append("y_zero_point")
+            initializer.append(
+                helper.make_tensor(
+                    "y_zero_point", TensorProto.UINT8, (), [np.random.randint(0, 255)]
+                )
+            )
+
+            output_tensor = helper.make_tensor_value_info(
+                "output", TensorProto.UINT8, list(y_shape)
+            )
+
+        kwargs = {}
+        kwargs["alpha"] = alpha
+        kwargs["transA"] = transA
+        kwargs["transB"] = transB
+
+        node = helper.make_node(
+            "QGemm",
+            inputs=input_names,
+            outputs=["output"],
+            domain="com.microsoft",
+            # Default values for other attributes:
+            **kwargs,
+        )
+
+        graph = helper.make_graph(
+            [node],
+            "QGemm",
+            inputs=input_nodes,
+            outputs=[output_tensor],
+            initializer=initializer,
+        )
+        model = helper.make_model(
+            graph,
+            producer_name="QGemm",
+            opset_imports=[
+                onnx.helper.make_opsetid("com.microsoft", 1),
+            ],
+        )
+
+        verify_with_ort_with_inputs(model, input_values, target=target, dev=dev)
+
+    # B per tensor quantization
+    verify_qgemm(
+        (20, 30),
+        (50, 30),
+        (20, 50),
+        True,
+        True,
+        True,
+    )
+
+    # B per column  quantization
+    verify_qgemm(
+        (20, 30),
+        (50, 30),
+        (20, 50),
+        True,
+        True,
+        False,
+    )
+
+    # test alpha
+    verify_qgemm(
+        (20, 30),
+        (50, 30),
+        (20, 50),
+        True,
+        True,
+        True,
+        0.5,
+    )
+
+    # test transpose A
+    verify_qgemm(
+        (20, 50),
+        (20, 80),
+        (50, 80),
+        True,
+        True,
+        True,
+        0.5,
+        1,
+        0,
+    )
 
 
 @tvm.testing.known_failing_targets("cuda")

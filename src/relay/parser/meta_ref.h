@@ -22,20 +22,18 @@
  * \brief A reference into the metadata section of the Relay text format.
  */
 
-#ifndef TVM_PARSER_META_REF_H_
-#define TVM_PARSER_META_REF_H_
+#ifndef TVM_RELAY_PARSER_META_REF_H_
+#define TVM_RELAY_PARSER_META_REF_H_
 
 #include <tvm/ir/attrs.h>
-#include <tvm/parser/parser.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
+#include <tvm/relay/parser.h>
 
 #include <string>
 
 namespace tvm {
-namespace parser {
-
-using namespace relay;
+namespace relay {
 
 /*!
  * \brief Options for allocating storage.
@@ -78,7 +76,7 @@ Expr MetaRef(std::string type_key, uint64_t node_index);
 relay::Function ExpandMetaRefs(const MetaTable& meta_table, const relay::Function& func);
 IRModule ExpandMetaRefs(const MetaTable& meta_table, const IRModule& mod);
 
-}  // namespace parser
+}  // namespace relay
 }  // namespace tvm
 
-#endif  // TVM_PARSER_META_REF_H_
+#endif  // TVM_RELAY_PARSER_META_REF_H_

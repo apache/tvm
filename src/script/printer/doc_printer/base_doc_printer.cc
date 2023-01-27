@@ -77,13 +77,13 @@ ByteSpan PopNextUnderline(UnderlineIter* next_underline, UnderlineIter end_under
 
 void PrintChunk(const std::pair<size_t, size_t>& lines_range,
                 const std::pair<UnderlineIter, UnderlineIter>& underlines, const std::string& text,
-                const std::vector<size_t>& line_starts, const DocPrinterOptions& options,
+                const std::vector<size_t>& line_starts, const PrinterConfig& options,
                 size_t line_number_width, std::string* out) {
   UnderlineIter next_underline = underlines.first;
   ByteSpan current_underline = PopNextUnderline(&next_underline, underlines.second);
 
   for (size_t line_idx = lines_range.first; line_idx < lines_range.second; ++line_idx) {
-    if (options.print_line_numbers) {
+    if (options->print_line_numbers) {
       std::string line_num_str = std::to_string(line_idx + 1);
       line_num_str.push_back(' ');
       for (size_t i = line_num_str.size(); i < line_number_width; ++i) {
@@ -148,12 +148,12 @@ void PrintCut(size_t num_lines_skipped, std::string* out) {
 
 std::pair<size_t, size_t> GetLinesForUnderline(const ByteSpan& underline,
                                                const std::vector<size_t>& line_starts,
-                                               size_t num_lines, const DocPrinterOptions& options) {
+                                               size_t num_lines, const PrinterConfig& options) {
   size_t first_line_of_underline = GetLineIndex(underline.first, line_starts);
-  size_t first_line_of_chunk = MoveBack(first_line_of_underline, options.num_context_lines);
+  size_t first_line_of_chunk = MoveBack(first_line_of_underline, options->num_context_lines);
   size_t end_line_of_underline = GetLineIndex(underline.second - 1, line_starts) + 1;
   size_t end_line_of_chunk =
-      MoveForward(end_line_of_underline, options.num_context_lines, num_lines);
+      MoveForward(end_line_of_underline, options->num_context_lines, num_lines);
 
   return {first_line_of_chunk, end_line_of_chunk};
 }
@@ -181,8 +181,8 @@ size_t GetNumLines(const std::string& text, const std::vector<size_t>& line_star
   }
 }
 
-size_t GetLineNumberWidth(size_t num_lines, const DocPrinterOptions& options) {
-  if (options.print_line_numbers) {
+size_t GetLineNumberWidth(size_t num_lines, const PrinterConfig& options) {
+  if (options->print_line_numbers) {
     return std::to_string(num_lines).size() + 1;
   } else {
     return 0;
@@ -190,8 +190,7 @@ size_t GetLineNumberWidth(size_t num_lines, const DocPrinterOptions& options) {
 }
 
 std::string DecorateText(const std::string& text, const std::vector<size_t>& line_starts,
-                         const DocPrinterOptions& options,
-                         const std::vector<ByteSpan>& underlines) {
+                         const PrinterConfig& options, const std::vector<ByteSpan>& underlines) {
   size_t num_lines = GetNumLines(text, line_starts);
   size_t line_number_width = GetLineNumberWidth(num_lines, options);
 
@@ -237,7 +236,7 @@ std::string DecorateText(const std::string& text, const std::vector<size_t>& lin
 
 }  // anonymous namespace
 
-DocPrinter::DocPrinter(const DocPrinterOptions& options) : options_(options) {
+DocPrinter::DocPrinter(const PrinterConfig& options) : options_(options) {
   line_starts_.push_back(0);
 }
 
@@ -317,6 +316,10 @@ void DocPrinter::PrintDoc(const Doc& doc) {
     PrintTypedDoc(GetRef<FunctionDoc>(doc_node));
   } else if (const auto* doc_node = doc.as<ClassDocNode>()) {
     PrintTypedDoc(GetRef<ClassDoc>(doc_node));
+  } else if (const auto* doc_node = doc.as<CommentDocNode>()) {
+    PrintTypedDoc(GetRef<CommentDoc>(doc_node));
+  } else if (const auto* doc_node = doc.as<DocStringDocNode>()) {
+    PrintTypedDoc(GetRef<DocStringDoc>(doc_node));
   } else {
     LOG(FATAL) << "Do not know how to print " << doc->GetTypeKey();
     throw;

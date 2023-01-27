@@ -287,7 +287,6 @@ tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
     src/tir/*.cc
     src/topi/*.cc
     src/driver/*.cc
-    src/parser/*.cc
     src/support/*.cc
     src/script/*.cc
     )
@@ -317,6 +316,7 @@ tvm_file_glob(GLOB RELAY_BACKEND_SRCS
 tvm_file_glob(GLOB_RECURSE RELAY_IR_SRCS
     src/relay/ir/*.cc
     src/relay/printer/*.cc
+    src/relay/parser/*.cc
     )
 tvm_file_glob(GLOB_RECURSE RELAY_QNN_SRCS
     src/relay/qnn/*.cc
@@ -481,6 +481,7 @@ include(cmake/utils/CCache.cmake)
 # Module rules
 include(cmake/modules/VTA.cmake)
 include(cmake/modules/StandaloneCrt.cmake)
+include(cmake/modules/CRT.cmake)
 include(cmake/modules/Zephyr.cmake)
 include(cmake/modules/Arduino.cmake)
 include(cmake/modules/CUDA.cmake)
@@ -576,6 +577,7 @@ include(cmake/modules/contrib/PAPI.cmake)
 if(USE_MICRO)
   # NOTE: cmake doesn't track dependencies at the file level across subdirectories. For the
   # Unix Makefiles generator, need to add these explicit target-level dependency)
+  add_dependencies(tvm_runtime crt)
   add_dependencies(tvm_runtime zephyr)
   add_dependencies(tvm_runtime arduino)
   if(MSVC)
@@ -589,6 +591,10 @@ endif()
 
 if(USE_CPP_RPC)
   add_subdirectory("apps/cpp_rpc")
+endif()
+
+if(USE_CPP_RTVM)
+  add_subdirectory("apps/cpp_rtvm")
 endif()
 
 if(USE_IOS_RPC)

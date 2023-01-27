@@ -27,72 +27,71 @@ namespace printer {
 TVM_REGISTER_NODE_TYPE(TIRFrameNode);
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<IntImm>("", [](IntImm imm, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<IntImm>("", [](IntImm imm, ObjectPath imm_p, IRDocsifier d) -> Doc {
       DataType dtype = imm->dtype;
-      if (dtype == Default::IntDType()) {
-        return LiteralDoc::Int(imm->value);
+      if (dtype == d->cfg->int_dtype) {
+        return LiteralDoc::Int(imm->value, imm_p->Attr("value"));
       } else if (dtype == DataType::Bool()) {
-        return LiteralDoc::Boolean(imm->value);
+        return LiteralDoc::Boolean(imm->value, imm_p->Attr("value"));
       } else {
-        return TIR(runtime::DLDataType2String(dtype))  //
-            ->Call({LiteralDoc::Int(imm->value)});
+        return TIR(d, DType2Str(dtype))->Call({LiteralDoc::Int(imm->value, imm_p->Attr("value"))});
       }
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<FloatImm>("", [](FloatImm imm, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<FloatImm>("", [](FloatImm imm, ObjectPath imm_p, IRDocsifier d) -> Doc {
       DataType dtype = imm->dtype;
-      if (dtype == Default::FloatDType()) {
-        return LiteralDoc::Float(imm->value);
+      if (dtype == d->cfg->float_dtype) {
+        return LiteralDoc::Float(imm->value, imm_p->Attr("value"));
       } else {
-        return TIR(runtime::DLDataType2String(dtype))  //
-            ->Call({LiteralDoc::Float(imm->value)});
+        return TIR(d, DType2Str(dtype))
+            ->Call({LiteralDoc::Float(imm->value, imm_p->Attr("value"))});
       }
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<Range>("", [](Range range, ObjectPath p, IRDocsifier d) -> Doc {
-      return TIR("Range")->Call({
-          d->AsDoc<ExprDoc>(range->min, p->Attr("min")),
-          d->AsDoc<ExprDoc>(range->extent, p->Attr("extent")),
-      });
+      return TIR(d, "Range")
+          ->Call({
+              d->AsDoc<ExprDoc>(range->min, p->Attr("min")),
+              d->AsDoc<ExprDoc>(range->extent, p->Attr("extent")),
+          });
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<PrimType>("", [](PrimType ty, ObjectPath p, IRDocsifier d) -> Doc {
-      std::string dtype = ty->dtype.is_void() ? "void" : runtime::DLDataType2String(ty->dtype);
-      return TIR(dtype);
+      return TIR(d, DType2Str(ty->dtype));
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<PointerType>("", [](PointerType ty, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<PointerType>("", [](PointerType ty, ObjectPath ty_p, IRDocsifier d) -> Doc {
       ExprDoc element_type{nullptr};
       if (const auto* prim_type = ty->element_type.as<PrimTypeNode>()) {
-        std::string dtype =
-            prim_type->dtype.is_void() ? "void" : runtime::DLDataType2String(prim_type->dtype);
-        element_type = LiteralDoc::Str(dtype);
+        element_type = LiteralDoc::DataType(prim_type->dtype,  //
+                                            ty_p->Attr("element_type")->Attr("dtype"));
       } else {
-        element_type = d->AsDoc<ExprDoc>(ty->element_type, p->Attr("element_type"));
+        element_type = d->AsDoc<ExprDoc>(ty->element_type, ty_p->Attr("element_type"));
       }
       if (ty->storage_scope == "") {
-        return TIR("Ptr")->Call({element_type});
+        return TIR(d, "Ptr")->Call({element_type});
       } else {
-        return TIR("Ptr")->Call({element_type, LiteralDoc::Str(ty->storage_scope)});
+        return TIR(d, "Ptr")->Call(
+            {element_type, LiteralDoc::Str(ty->storage_scope, ty_p->Attr("storage_scope"))});
       }
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<TupleType>("", [](TupleType ty, ObjectPath p, IRDocsifier d) -> Doc {
       if (ty->fields.empty()) {
-        return LiteralDoc::None();
+        return LiteralDoc::None(p);
       }
-      return TIR("Tuple")->Call(d->AsDoc<ListDoc>(ty->fields, p->Attr("fields"))->elements);
+      return TIR(d, "Tuple")->Call(d->AsDoc<ListDoc>(ty->fields, p->Attr("fields"))->elements);
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<Target>("", [](Target target, ObjectPath p, IRDocsifier d) -> Doc {
       Map<String, ObjectRef> config = target->Export();
-      return TIR("target")->Call({d->AsDoc<ExprDoc>(config, p)});
+      return TIR(d, "target")->Call({d->AsDoc<ExprDoc>(config, p)});
     });
 
 TVM_SCRIPT_REPR(IntImmNode, ReprPrintTIR);

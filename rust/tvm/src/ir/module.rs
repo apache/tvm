@@ -57,9 +57,9 @@ pub struct IRModuleNode {
 
 external! {
     // Parser functions
-    #[name("parser.ParseModule")]
+    #[name("relay.parser.ParseModule")]
     fn parse_module(file_name: TVMString, source: TVMString) -> IRModule;
-    #[name("parser.ParseExpr")]
+    #[name("relay.parser.ParseExpr")]
     fn parse_expression(file_name: TVMString, source: TVMString) -> IRModule;
     #[name("ir.IRModule")]
     fn module_new(funcs: Map<GlobalVar, BaseFunc>, types: Map<GlobalTypeVar, TypeData>) -> IRModule;

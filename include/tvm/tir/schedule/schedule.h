@@ -419,10 +419,12 @@ class ScheduleNode : public runtime::Object {
    * \brief Create a block to cache precomputed index for later use.
    * if there is no index computation, keep unchanged.
    * \param block_rv The target block
-   * \param buffer_index The index of the target buffer in block's read region
+   * \param storage_scope The storage scope of cached block
+   * \param cse_thresh The repeat threshold that determines a common sub expr
    * \return The cache stage blocks.
    */
-  virtual Array<BlockRV> CacheIndex(const BlockRV& block_rv, int buffer_index) = 0;
+  virtual Array<BlockRV> CacheIndex(const BlockRV& block_rv, const String& storage_scope,
+                                    int cse_thresh) = 0;
   /*!
    * \brief Create a block that read/write a buffer region into a read/write cache with reindexing.
    * The layout of the cache will be the same as by the iterators of the block that reads/writes the

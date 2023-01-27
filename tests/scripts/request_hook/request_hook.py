@@ -208,6 +208,7 @@ URL_MAP = {
     "https://storage.googleapis.com/tensorflow/keras-applications/vgg16/vgg16_weights_tf_dim_ordering_tf_kernels.h5": f"{BASE}/tensorflow/keras-applications/vgg16/vgg16_weights_tf_dim_ordering_tf_kernels.h5",
     "https://storage.googleapis.com/tensorflow/keras-applications/xception/xception_weights_tf_dim_ordering_tf_kernels.h5": f"{BASE}/tensorflow/keras-applications/xception/xception_weights_tf_dim_ordering_tf_kernels.h5",
     "https://storage.googleapis.com/tensorflow/tf-keras-datasets/mnist.npz": f"{BASE}/tensorflow/tf-keras-datasets/mnist.npz",
+    "https://github.com/mlcommons/tiny/raw/bceb91c5ad2e2deb295547d81505721d3a87d578/benchmark/training/visual_wake_words/trained_models/vww_96_int8.tflite": f"{BASE}/mlcommons/tiny/benchmark/training/visual_wake_words/trained_models/vww_96_int8.tflite",
 }
 
 

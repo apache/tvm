@@ -55,8 +55,8 @@ Map<String, ExprDoc> BufferAttrs(const tir::Buffer& buffer, const ObjectPath& p,
   // Step 1. Handle `buffer.shape`
   array_out_line_var_def(buffer->shape, p->Attr("shape"), "shape");
   // Step 2. Handle `buffer.dtype`
-  if (buffer->dtype != Default::BufferDType()) {
-    kwargs.Set("dtype", LiteralDoc::DataType(buffer->dtype));
+  if (buffer->dtype != d->cfg->buffer_dtype) {
+    kwargs.Set("dtype", LiteralDoc::DataType(buffer->dtype, p->Attr("dtype")));
   }
   // Step 3. Handle `buffer.data`
   implicit_var_def(buffer->data, p->Attr("data"), "data");
@@ -78,20 +78,22 @@ Map<String, ExprDoc> BufferAttrs(const tir::Buffer& buffer, const ObjectPath& p,
   {
     String scope = buffer.scope();
     if (scope != "global") {
-      kwargs.Set("scope", LiteralDoc::Str(scope));
+      kwargs.Set(
+          "scope",
+          LiteralDoc::Str(scope, p->Attr("data")->Attr("type_annotation")->Attr("storage_scope")));
     }
   }
   // Step 7. Handle `buffer.data_alignment`
   if (buffer->data_alignment != runtime::kAllocAlignment) {
-    kwargs.Set("align", LiteralDoc::Int(buffer->data_alignment));
+    kwargs.Set("align", LiteralDoc::Int(buffer->data_alignment, p->Attr("data_alignment")));
   }
   // Step 8. Handle `buffer.offset_factor`
   if (needs_print_factor || buffer->offset_factor != 1) {
-    kwargs.Set("offset_factor", LiteralDoc::Int(buffer->offset_factor));
+    kwargs.Set("offset_factor", LiteralDoc::Int(buffer->offset_factor, p->Attr("offset_factor")));
   }
   // Step 9. Handle `buffer.buffer_type`
   if (buffer->buffer_type != tir::BufferType::kDefault) {
-    kwargs.Set("type", LiteralDoc::Str("auto"));
+    kwargs.Set("type", LiteralDoc::Str("auto", p->Attr("buffer_type")));
   }
   // Step 10. Handle `buffer.axis_separator`
   if (!buffer->axis_separators.empty()) {
@@ -121,9 +123,18 @@ ExprDoc BufferCall(const ExprDoc& prefix, const Map<String, ExprDoc>& attrs, Arr
 
 ExprDoc BufferDecl(const tir::Buffer& buffer, const String& method, const Array<ExprDoc>& args,
                    const ObjectPath& p, const Frame& frame, const IRDocsifier& d) {
-  return BufferCall(/*prefix=*/TIR(method),
+  return BufferCall(/*prefix=*/TIR(d, method),
                     /*attrs=*/BufferAttrs(buffer, p, frame, d),
                     /*args=*/args);
+}
+
+ExprDoc BufferAttn(const tir::Buffer& buffer, const ObjectPath& p, const Frame& frame,
+                   const IRDocsifier& d) {
+  Map<String, ExprDoc> attrs = BufferAttrs(buffer, p, frame, d);
+  ExprDoc shape = attrs.Get("shape").value();
+  ExprDoc dtype =
+      attrs.Get("dtype").value_or(LiteralDoc::DataType(buffer->dtype, p->Attr("dtype")));
+  return TIR(d, "Buffer")->Call({shape, dtype}, {}, {});
 }
 
 Array<Doc> BufferIndices(const Array<PrimExpr>& indices, const ObjectPath& p,
@@ -198,8 +209,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
       if (!d->IsVarDefined(buffer)) {
         if (Optional<Frame> opt_f = FindLowestVarDef(buffer, d)) {
           ExprDoc lhs = DefineBuffer(buffer, opt_f.value(), d);
-          ExprDoc rhs = BufferDecl(buffer, "buffer_decl",  // TODO(@junrushao): name confusing
-                                   {}, p, opt_f.value(), d);
+          ExprDoc rhs = BufferDecl(buffer, "Buffer", {}, p, opt_f.value(), d);
           opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
         }
       }
@@ -240,7 +250,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         "", [](tir::ProducerRealize stmt, ObjectPath p, IRDocsifier d) -> Doc {
           ExprDoc prefix = IdDoc(stmt->producer->GetNameHint());
           prefix = prefix[BufferSlices(stmt->bounds, p->Attr("bounds"), d)];
-          prefix = TIR("ProducerRealize")
+          prefix = TIR(d, "ProducerRealize")
                        ->Call({prefix, d->AsDoc<ExprDoc>(stmt->condition, p->Attr("condition"))});
           With<TIRFrame> f(d, stmt);
           AsDocBody(stmt->body, p->Attr("body"), f->get(), d);

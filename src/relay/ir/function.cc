@@ -123,6 +123,7 @@ const FunctionNode* AsOptimizableFunctionNode(const BaseFunc& base_func) {
   }
   return nullptr;
 }
+
 TVM_REGISTER_GLOBAL("relay.ir.PrintRelayModule")
     .set_body_typed([](IRModule mod) -> Optional<String> {
       for (const auto& it : mod->functions) {
@@ -131,6 +132,17 @@ TVM_REGISTER_GLOBAL("relay.ir.PrintRelayModule")
         }
       }
       return NullOpt;
+    });
+
+TVM_REGISTER_GLOBAL("relay.ir.PrintIR")
+    .set_body_typed([](IRModule mod, String header, bool show_metadata) -> bool {
+      for (const auto& it : mod->functions) {
+        if (it.second->IsInstance<FunctionNode>()) {
+          LOG(INFO) << "PrintIR(" << header << "):\n" << AsText(mod, show_metadata);
+          return true;
+        }
+      }
+      return false;
     });
 
 TVM_REGISTER_GLOBAL("relay.ir.WarnIfMalformed")

@@ -27,7 +27,7 @@
 #include "../../../../src/relay/transforms/device_domains.h"
 
 #include <gtest/gtest.h>
-#include <tvm/parser/parser.h>
+#include <tvm/relay/parser.h>
 #include <tvm/relay/transform.h>
 
 namespace tvm {
@@ -36,7 +36,7 @@ namespace transform {
 namespace {
 
 IRModule TestModule() {
-  return InferType()(tvm::parser::ParseModule("test", R"(
+  return InferType()(ParseModule("test", R"(
     #[version = "0.0.5"]
     def @f(%x : Tensor[(3, 7), float32], %y : Tensor[(3, 7), float32]) {
       add(%x, %y)

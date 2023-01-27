@@ -24,7 +24,7 @@
 #ifndef TVM_RELAY_BASE_H_
 #define TVM_RELAY_BASE_H_
 
-#include <tvm/ir/span.h>
+#include <tvm/ir/source_map.h>
 #include <tvm/node/node.h>
 #include <tvm/tir/expr.h>
 
