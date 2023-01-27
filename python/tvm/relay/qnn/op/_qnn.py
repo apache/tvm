@@ -93,7 +93,16 @@ def alter_op_layout_qnn_conv2d(attrs, inputs, tinfos, out_type):
 
 # qnn.dense
 register_strategy("qnn.dense", strategy.qnn_dense_strategy)
-register_pattern("qnn.dense", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+@register_alter_op_layout("qnn.dense")
+def alter_op_layout_qnn_dense(attrs, inputs, tinfos, out_type):
+    """Alternate the layout of qnn.dense"""
+    return topi.nn.qnn_dense_alter_layout(attrs, inputs, tinfos, out_type)
+
+
+# qnn.dense_pack
+register_strategy("qnn.dense_pack", strategy.qnn_dense_pack_strategy)
 
 # qnn.batch_matmul
 register_strategy("qnn.batch_matmul", strategy.qnn_batch_matmul_strategy)

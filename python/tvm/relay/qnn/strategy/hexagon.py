@@ -173,6 +173,24 @@ def qnn_dense_strategy_hexagon(attrs, inputs, out_type, target):
     return strategy
 
 
+@qnn_dense_pack_strategy.register("hexagon")
+def qnn_dense_pack_strategy_hexagon(attrs, inputs, out_type, target):
+    """qnn.dense_pack strategy for Hexagon"""
+    strategy = _op.OpStrategy()
+    if (
+        "uint8" in inputs[0].dtype
+        and "int8" in inputs[1].dtype
+        and attrs["weight_layout"] == "NC32n4c"
+    ):
+        # uint8 + uint8|int8 case
+        strategy.add_implementation(
+            wrap_topi_qnn_dense(topi.hexagon.qnn_dense_pack_vrmpy),
+            wrap_topi_schedule(topi.hexagon.schedule_qnn_dense_pack_vrmpy),
+            name="qnn_dense_pack_vrmpy.hexagon",
+        )
+    return strategy
+
+
 @qnn_batch_matmul_strategy.register("hexagon")
 def qnn_batch_matmul_strategy_hexagon(attrs, inputs, out_type, target):
     """qnn.batch_matmul strategy for Hexagon"""
