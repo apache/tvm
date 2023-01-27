@@ -6711,7 +6711,7 @@ def test_qlinearsigmoid(target, dev):
 def test_random_bernoulli(target, dev):
     """test_random_bernoulli"""
 
-    def verify_bernoulli(
+    def _get_tvm_output(
         inputs=None,
         shape=[],
         in_dtype="float32",
@@ -6721,9 +6721,6 @@ def test_random_bernoulli(target, dev):
         dev=dev,
         use_vm=False,
         freeze_params=False,
-        rtol=0.1,
-        atol=0.1,
-        in_out_equal=False,
     ):
         def get_bernoulli_model(shape, in_dtype="float32", out_dtype="int32", seed=None):
             onnx_itype = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(in_dtype)]
@@ -6756,7 +6753,7 @@ def test_random_bernoulli(target, dev):
         model = get_bernoulli_model(shape, in_dtype, out_dtype, seed)
 
         if use_vm:
-            tvm_out = get_tvm_output_with_vm(
+            return get_tvm_output_with_vm(
                 model,
                 inputs,
                 target,
@@ -6764,12 +6761,36 @@ def test_random_bernoulli(target, dev):
                 freeze_params=freeze_params,
             )
         else:
-            tvm_out = get_tvm_output(
+            return get_tvm_output(
                 model,
                 inputs,
                 target,
                 dev,
             )
+
+    def verify_bernoulli(
+        inputs=None,
+        shape=[],
+        in_dtype="float32",
+        out_dtype="int32",
+        seed=None,
+        target=target,
+        dev=dev,
+        use_vm=False,
+        freeze_params=False,
+        in_out_equal=False,
+    ):
+        tvm_out = _get_tvm_output(
+            inputs,
+            shape,
+            in_dtype,
+            out_dtype,
+            seed,
+            target,
+            dev,
+            use_vm,
+            freeze_params,
+        )
 
         if isinstance(tvm_out, list):
             tvm_out = tvm_out[0]
@@ -6800,19 +6821,26 @@ def test_random_bernoulli(target, dev):
     verify_bernoulli(inputs)
 
     # Simple test
-    verify_bernoulli(shape=[1000])
+    verify_bernoulli(shape=[val_num])
 
     # Floating output type
-    verify_bernoulli(shape=[1000], out_dtype="float32")
+    verify_bernoulli(shape=[val_num], out_dtype="float32")
 
     # Double input type
-    verify_bernoulli(shape=[1000], in_dtype="float64")
+    verify_bernoulli(shape=[val_num], in_dtype="float64")
 
     # Test N-D tensor generation
     verify_bernoulli(shape=[2, 4, 100, 100])
 
     # Test with seed
-    verify_bernoulli(shape=[1000], seed=np.random.randint(1e6))
+    verify_bernoulli(shape=[val_num], seed=np.random.randint(1e6))
+
+    # Test result determinism with the same seeds
+    inputs = np.random.uniform(size=[val_num])
+    fixed_seed=np.random.randint(1e6)
+    tvm_out_1 = _get_tvm_output(inputs, seed=fixed_seed)
+    tvm_out_2 = _get_tvm_output(inputs, seed=fixed_seed)
+    tvm.testing.assert_allclose(tvm_out_1, tvm_out_2)
 
 
 @tvm.testing.parametrize_targets("llvm")
