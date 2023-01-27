@@ -1,9 +1,62 @@
 import networkx as nx
 import math
+import os, pandas
 
 from tvm_layer import *
 from tvm_parse import *
 from tvm_config import *
+
+# FIXME
+POWERMODEL = True
+
+class PLUT():
+    def __init__(self, slots, op2kid, debug):
+        self.power = {'base': {}, 'inter': {}}
+        self.op2kid = op2kid
+        self.debug = debug
+        for s in slots.keys():
+            self.power['base'][s] = {99: 0.0} # NOP base power = 0 W
+            self.power['inter'][s] = {}
+            
+    def import_csv(self, model):
+        if self.debug: print(">> Import PLUT")
+        for label in self.power.keys():
+            if self.debug: print(">>> %5s Power Table" % label)
+            PATH = os.path.join("./PLUT", model, label)
+            for s in self.power[label].keys():
+                df = pandas.read_csv(PATH+s+".csv", dtype={"ID": str, "power": float})
+                lines = df.values.tolist()
+                for line in lines:
+                    if label == 'base':
+                        sid, nid, power = line[0][0], int(line[0][1:3]), line[1]
+                        self.set_base_power(s, nid, power)
+                    elif label == 'inter':
+                        sid, nid, power = line[0][0], (int(line[0][1:3]), int(line[0][3:5])), line[1]
+                        self.set_inter_power(s, nid, power)
+                    if sid != s[0]: raise TypeError("Wrong sid: %s for slot %s"%(sid, s))
+                Dprint("in %s slot: total %3d values imported" % (s, len(lines)), self.debug)
+    
+    def get_base_power(self, slot, op: str):
+        return self.power['base'][slot][self.op2kid[slot][op]]
+    
+    def set_base_power(self, slot, id: int, power: float):
+        self.power['base'][slot][id] = power
+        
+    def get_inter_power(self, slot, op: tuple):
+        assert len(op)==2
+        assert isinstance(op[0], str) and isinstance(op[1], str)
+        id = (self.op2kid[slot][op[0]], self.op2kid[slot][op[1]])
+        if id[0] == id[1]:
+            return 0.0
+        else:
+            id_ = id if id[0] < id[1] else (id[1], id[0])   # inter-power lookup id should always be sorted in numerical order
+            return self.power['inter'][slot][id_]
+    
+    def set_inter_power(self, slot, id: tuple, power: float):
+        assert len(id)==2
+        assert isinstance(id[0], int) and isinstance(id[1], int)
+        id_ = id if id[0] < id[1] else (id[1], id[0])       # inter-power lookup id should always be sorted in numerical order
+        self.power['inter'][slot][id_] = power
 
 class VectorProcessor():
     def __init__(self, model, debug):
@@ -15,6 +68,8 @@ class VectorProcessor():
         self.type = self.import_type(model)
         self.debug = debug
         self.bias = 56
+        self.PLUT = PLUT(self.slot, self.import_op2kid(model), debug)
+        self.PLUT.import_csv(model)
 
     def import_slot(self, model):
         return Config[model]['Slot']
@@ -24,6 +79,9 @@ class VectorProcessor():
 
     def import_type(self, model):
         return Config[model]['Type']
+
+    def import_op2kid(self, model):
+        return Config[model]['Op2kid']
 
     ### Primary Functions
     def generate_graph(self, layer, data, layout, kernel, stride, cluster):
@@ -67,10 +125,13 @@ class VectorProcessor():
         Run
           1. analyze_graph(): analyze graph to geneate time_stamp
           2. estimate_cycles(): cycle = sum(duration*extent)
+          3. estimate_power(): power = sum(slot_power)
         """
         if self.debug: print('> Run')
         self.analyze_graph()
         self.estimate_cycles(swp)
+        if POWERMODEL:
+            self.estimate_power(swp)
         return self.run_time
 
     ### Secondary Functions
@@ -229,11 +290,67 @@ class VectorProcessor():
         # self.single_iteration = clk+1
         self.print_time_stamp()
 
+    def generate_lbgraph(self, name, duration, base_extent, extent, time_stamp_keys):
+        """
+        Generate Loop Block Graph
+          [lbgraph]
+            node: loop block
+            edge: block transition path. at most 2 in/out edges(sequential, loop)
+        """
+        g = nx.DiGraph()
+        
+        # 1. build loop block graph and set node attributes
+        for i in range(0, len(name)):
+            g.add_node(i, name=name[i], duration=duration[i], base_extent=base_extent[i], extent=extent[i], times=time_stamp_keys[i])
+            if i > 0:
+                # add sequential edge: (prev_node -> cur_node)
+                g.add_edge(i-1, i)
+        for n in g.nodes:
+            # add loop backedge: (loop_last_node -> loop_first_node)
+            if g.nodes[n]['name'] == 'NO LOOP': continue
+            sameloop_blks = [n_ for n_ in g.nodes if g.nodes[n_]['name'] == g.nodes[n]['name']]
+            assert len(sameloop_blks) > 0
+            if len(sameloop_blks) == 1:             # innermost loop: add self loop edge
+                g.add_edge(n, n)
+            elif n == sameloop_blks[-1]:            # loop_last_node: add outgoing edge to loop_first_node
+                g.add_edge(n, sameloop_blks[0])
+            else:                                   # loop_first/intermediate_node: do nothing
+                pass
+        
+        # 2. set edge attributes
+        for n in g.nodes:
+            # 2-1. parse incoming edges, and set extent_times
+            incoming_edges = g.in_edges(n)
+            if len(incoming_edges) == 0:    ## graph entry
+                extent_times = 1
+            elif len(incoming_edges) in [1, 2]:
+                extent_times = int(int(extent[n]) / g.nodes[n]['base_extent'])
+            else:
+                raise NotImplementedError("Currently Not Supported: loop graph node with %d incoming edges" % len(incoming_edges))
+            
+            # 2-2. parse outgoing edges, and set edge extent
+            outgoing_edges = list(g.out_edges(n))
+            if len(outgoing_edges) == 0:
+                pass                                                                                    # grpah exit: do nothing
+            elif len(outgoing_edges) == 1:
+                g.edges[outgoing_edges[0]]['extent'] = extent_times * g.nodes[n]['base_extent']         # taken times of sequential edge
+            elif len(outgoing_edges) == 2:
+                assert outgoing_edges[0] == (n, n+1)
+                g.edges[outgoing_edges[0]]['extent'] = extent_times * 1                                 # taken times of sequential edge
+                g.edges[outgoing_edges[1]]['extent'] = extent_times * (g.nodes[n]['base_extent'] - 1)   # taken times of loop backedge
+            else:
+                raise NotImplementedError("Currently Not Supported: loop graph node with %d outgoing edges" % len(outgoing_edges))
+            
+        # 3. save loop block graph
+        self.lbgraph = g
+
     def estimate_cycles(self, SWP=True):
         if self.debug: print('>> Estimate Cycles w/ SWP %s'%('ON' if SWP==True else 'OFF'))
         name = ['NO LOOP']
         nodes = ['']
         extent = [1]
+        base_extent = [1]
+        time_stamp_keys = [[-1]]
         scalar_time = [0]
         duration = [0]
         depth = [0]
@@ -248,7 +365,9 @@ class VectorProcessor():
                     if node_num != nodes[-1]:
                         duration.append(0)
                         name.append(node['name'])
+                        time_stamp_keys.append([time])
                         nodes.append(node_num)
+                        base_extent.append(node['extent'].value)
                         if node['depth']==depth[-1]+1:
                             extent_stack.append(node['extent'])
                             extent.append(cumprod(extent_stack[:]))
@@ -262,6 +381,8 @@ class VectorProcessor():
                         else: raise NotImplementedError("Currently Not Supported case!")
                         scalar_time.append(node['scalar_time'])
                         depth.append(node['depth']) # update depth
+                    else:
+                        time_stamp_keys[-1].append(time)
                     duration[-1] += 1
                 else:
                     raise RuntimeError("Currently Not Supported control node type: %s"%(node['type']))
@@ -269,6 +390,8 @@ class VectorProcessor():
         name.append('NO LOOP')
         nodes.append('')
         extent.append(1)
+        base_extent.append(1)
+        time_stamp_keys.append([-1])
         scalar_time.append(0)
         duration.append(0)
         depth.append(0)
@@ -296,16 +419,19 @@ class VectorProcessor():
                 kernel = II
                 duration[lm] = (prologue, kernel, epilogue)
                 extent[lm] = (extent[lm-1], innermost_iter, extent[lm-1])
+                #### TODO: base extent, time_stamp_keys?
 
         if self.debug:
             print("name:        %s"%(name))
             print("nodes:       %s"%(nodes))
             print("depth:       %s"%(depth))
             print("extent:      %s"%(extent))
+            print("base extent: %s"%(base_extent))
+            print("ts keys:     %s"%(time_stamp_keys))
             print("scalar_time: %s"%(scalar_time))
             print("duration:    %s"%(duration))
-        if not all(len(name) == len(l) for l in [name, depth, extent, scalar_time, duration]):
-            raise RuntimeError("Error!!: 'name', 'depth', 'extent', 'scalar_time', 'duration' must have same length!!")
+        if not all(len(name) == len(l) for l in [name, depth, extent, base_extent, time_stamp_keys, scalar_time, duration]):
+            raise RuntimeError("Error!!: 'name', 'depth', 'extent', 'base_extent', 'time_stamp_keys', 'scalar_time', 'duration' must have same length!!")
 
         cycles = []
         self.run_time = self.bias # bias_cycle=56
@@ -316,8 +442,59 @@ class VectorProcessor():
                     self.run_time += extent[i][j]*max(scalar_time[i], duration[i][j])
             else:
                 self.run_time += extent[i]*max(scalar_time[i], duration[i])
+            
+        # generate loop block graph for power estimation
+        if POWERMODEL:
+            self.generate_lbgraph(name, duration, base_extent, extent, time_stamp_keys)
+        
         if self.debug:
             print(">> Total Cycles: %s <- %s"%(self.run_time, cycles))
+
+    def estimate_power(self, SWP=True):
+        if self.debug: print('>> Estimate Power w/ SWP %s'%('ON' if SWP==True else 'OFF'))
+        
+        g = self.lbgraph
+        
+        Dprint(">>> Node Internal Ops ", self.debug, end="")
+        
+        # parse lbgraph nodes, and make each node's internal operation list for all slots
+        for n in g.nodes:
+            Dprint("\n>>>> At node(%2d)"%(n), self.debug, end="")
+            node_ops = {}
+            for s in self.slot.keys(): node_ops[s] = []
+            for time in g.nodes[n]['times']: # for all timestamps in current loop block
+                if time==-1: continue
+                Dprint('\n#(%3d) |'%(time), self.debug, end='')
+                for s in self.slot.keys():
+                    if s in self.time_stamp[time].keys():
+                        node_ops[s].append(self.graph.nodes[self.time_stamp[time][s]]['type'])
+                    else:
+                        node_ops[s].append("NOP")
+                    Dprint(' %s:%10s |'%(s[0], node_ops[s][-1]), self.debug, end="")
+            g.nodes[n]['ops'] = node_ops
+        Dprint("", self.debug)
+        
+        self.set_lb_base_power()    # set node power
+        self.set_lb_inter_power()   # set edge power
+            
+        ## parse graph to calculate power
+        self.avg_power = {}
+        for s in self.slot.keys():
+            weighted_sum = 0.0
+            power_cyc = 0            
+            # 1. addup node power
+            for n in g.nodes:
+                weighted_sum += int(g.nodes[n]['extent']) * g.nodes[n]['power'][s] 
+                power_cyc += int(g.nodes[n]['extent']) * len(g.nodes[n]['ops'][s])
+            # 2. addup edge power
+            for e in g.edges:
+                weighted_sum += g.edges[e]['extent'] * g.edges[e]['power'][s]
+            self.avg_power[s] = weighted_sum / power_cyc
+        
+        self.avg_power_allslot = 0.0
+        for s in self.slot.keys():
+            self.avg_power_allslot += self.avg_power[s]
+        Dprint("\n>> Total Power [W]: %f = %s"%(self.avg_power_allslot, self.avg_power), self.debug)
 
     ### Tertiary Functions
     def get_nodes(self, attr, str):
@@ -741,6 +918,61 @@ class VectorProcessor():
             print("    Max Reaching Definition [#%s]: %s"%(max_node, max_RD))
         initiation_interval = max(min_length, max_RD)
         return initiation_interval
+    
+    def set_lb_base_power(self):
+        # Parse loop block graph nodes, and set block base power:Pb(blk)
+        # by summing up intra-block op base power:Pb(op) and op inter power:Pt(op)
+        Dprint("\n>>> Set LBgraph Node Base Power", self.debug)
+        g = self.lbgraph
+        
+        # just for debugging
+        ops = {}; op_pairs = {}
+        for s in self.slot.keys(): ops[s], op_pairs[s] = set(), set()
+        
+        for n in g.nodes:
+            node = g.nodes[n]
+            Dprint("\n>>>> at node #%3d"%(n), self.debug)
+            node['power'] = {}
+            for s in self.slot.keys():
+                node['power'][s] = 0
+                for step in range(len(node['ops'][s])):
+                    curr_op = node['ops'][s][step]
+                    if curr_op != "NOP":
+                        Pb = self.PLUT.get_base_power(s, curr_op)
+                        node['power'][s] += Pb                    # add Pb(op) to Pb(blk)
+                        ops[s].add(curr_op)
+                        Dprint("add Pb(%s:%22s): %2.6f"%(s[0], curr_op, Pb), self.debug)
+                    if step > 0:
+                        prev_op = node['ops'][s][step-1]
+                        if prev_op != curr_op: 
+                            Pt = self.PLUT.get_inter_power(s, (curr_op, prev_op))
+                            node['power'][s] += Pt    # add Pt(op) to Pb(blk)
+                            op_pairs[s].add((prev_op, curr_op) if prev_op < curr_op else (curr_op, prev_op))
+                            Dprint("add Pt(%s:%10s, %10s): %2.6f"%(s[0], prev_op, curr_op, Pt), self.debug)
+    
+    def set_lb_inter_power(self):
+        # Parse loop blcok graph edges, and set block inter power:Pt(blk)
+        # by looking up src/dst node op inter power:Pt(op)
+        Dprint("\n>>> Set LBgraph Edge Inter Power", self.debug)
+        g = self.lbgraph
+        
+        # just for debugging
+        op_pairs = {}
+        for s in self.slot.keys():  op_pairs[s] = set()
+            
+        for e in g.edges:
+            edge = g.edges[e]
+            Dprint("\n>>>> at edge #%3d-->%3d"%(e[0], e[1]), self.debug)
+            edge['power'] = {}
+            for s in self.slot.keys():
+                edge['power'][s] = 0
+                src_node, dst_node = g.nodes[e[0]], g.nodes[e[1]]
+                if len(src_node['ops'][s])==0 or len(dst_node['ops'][s])==0: continue   # edge connected to graph head/tail node
+                op1, op2 = src_node['ops'][s][-1], dst_node['ops'][s][0]
+                if op1 != op2:
+                    if op1 > op2: temp = op1; op1 = op2; op2 = temp
+                    edge['power'][s] = self.PLUT.get_inter_power(s, (op1, op2))
+                    op_pairs[s].add((op1, op2))
 
 def cumprod(list):
     prod = 1

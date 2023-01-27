@@ -13,8 +13,8 @@ from tvm_visualize import *
 # FIXME: remove SEQ_DEBUG
 SEQ_DEBUG=0
 
-def Dprint(message, DEBUG=False):
-    if DEBUG: print(message)
+def Dprint(message, DEBUG=False, end='\n'):
+    if DEBUG: print(message, end=end)
 
 def visit_stmts(primfn, DEBUG):
     g = nx.DiGraph()

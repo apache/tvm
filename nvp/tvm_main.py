@@ -20,6 +20,9 @@ def main():
     args.data = tuple(args.data)
     args.kernel = tuple(args.kernel)
     args.stride = tuple(args.stride)
+    
+    if POWERMODEL:
+         if args.swp: raise NotImplementedError('power estimation w/ swp not implemented')
 
     for png in glob.glob('./graph*.png'):
         try:
@@ -32,6 +35,8 @@ def main():
     Model.optimize_graph()
     if args.viz: save_graph_viz(Model.graph, args.viz)
     Model.run(args.swp)
+    if POWERMODEL:
+        if args.viz: save_graph_viz(Model.lbgraph, args.viz, dir='graph_loop.png', is_cfg=True)
 
     print("#"*40)
     print('{message: <39}'.format(message='# Model:   %s'%(args.model)), end=''), print("#")
@@ -43,6 +48,8 @@ def main():
     print('{message: <39}'.format(message='# Cluster: %s'%(str(args.cluster))), end=''), print("#")
     print('{message: <39}'.format(message='# SWP:     %s'%('ON' if args.swp==True else 'OFF')), end=''), print("#")
     print('{message: <39}'.format(message='# >> Cycle:  %s'%(str(Model.run_time))), end=''), print("#")
+    if POWERMODEL:
+        print('{message: <39}'.format(message='# >> Power:  %.6f [W]'%(Model.avg_power_allslot)), end=''), print("#")
     print("#"*40)
 
 if __name__ == '__main__':

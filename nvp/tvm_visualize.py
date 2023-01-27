@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 #            'random':nx.random_layout(G)
 #           }
 
-def save_graph_viz(g, viz, dir='graph.png'):
+def save_graph_viz(g, viz, dir='graph.png', is_cfg=False):
     print('>> Plotting (%s)'%(dir))
     empty_idxes = [idx for idx in g.nodes if not g.nodes[idx]] # remove empty node
     g.remove_nodes_from(empty_idxes)
@@ -45,6 +45,10 @@ def save_graph_viz(g, viz, dir='graph.png'):
     # layout = nx.shell_layout(g)
     nx.draw(g, pos=layout, node_color=color_map, labels=labels, with_labels=True, node_size=100, font_size=15)
     plt.figure(1, figsize=(12, 12))
-    edge_labels = nx.get_edge_attributes(g, 'weight')
-    nx.draw_networkx_edge_labels(g, pos=layout, edge_labels=edge_labels)
+    if is_cfg:
+        edge_labels = nx.get_edge_attributes(g, 'extent')
+        nx.draw_networkx_edge_labels(g, pos=layout, edge_labels=edge_labels, font_size=30)
+    else:
+        edge_labels = nx.get_edge_attributes(g, 'weight')
+        nx.draw_networkx_edge_labels(g, pos=layout, edge_labels=edge_labels)
     f.savefig(dir)

@@ -44,6 +44,27 @@ Config = {
             'Memory' : ['Store', 'Load'],
             'Vector' : ['Float Var', 'Float Imm', 'Bit Shift'],
             'Control': ['For Start', 'For End', 'Seq'],
+        },
+        'Op2kid':   # operation to power measurement kernel ID mapping
+        {
+            'Scalar':
+            {
+                # ignore scalar slot power
+            },
+            'Memory':
+            {
+                'NOP': 99,
+                'Store': 9, 'Load': 12,
+            },
+            'Vector':
+            {
+                'NOP': 99,
+                ## GAP
+                'Float Imm': 99, 'Float Var': 99, 'Add': 12, 'Max': 5, 'Mul': -1, 'Div': -1, 'LT': -1, 'Bit Shift': 36, 'Ch Concat': 33, 'Mac': 25,
+                ## DWCV
+                # 'Float Imm': 99, 'Float Var': 99, 'Add': -1, 'Max': 5, 'Mul': -1, 'Div': -1, 'LT': -1, 'Bit Shift': 37, 'Ch Concat': 33, 'Mac': 25,
+                'LUT': -1, 'LUT0': -1, 'LUT1': -1, 'LUT2': -1, 'LUT3': -1,
+            }
         }
     }
 }
