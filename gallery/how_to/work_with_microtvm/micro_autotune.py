@@ -55,6 +55,7 @@ import pathlib
 
 import tvm
 from tvm.relay.backend import Runtime
+import tvm.micro.testing
 
 ####################
 # Defining the model

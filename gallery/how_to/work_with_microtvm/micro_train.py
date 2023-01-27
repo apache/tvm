@@ -441,6 +441,7 @@ with open(QUANTIZED_MODEL_PATH, "wb") as f:
 import shutil
 import tflite
 import tvm
+import tvm.micro.testing
 
 # Method to load model is different in TFLite 1 vs 2
 try:  # TFLite 2.1 and above

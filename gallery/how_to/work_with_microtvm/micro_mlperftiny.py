@@ -69,6 +69,7 @@ from tvm.relay.backend import Executor, Runtime
 from tvm.contrib.download import download_testdata
 from tvm.micro import export_model_library_format
 from tvm.micro.model_library_format import generate_c_interface_header
+import tvm.micro.testing
 from tvm.micro.testing.utils import (
     create_header_file,
     mlf_extract_workspace_size_bytes,

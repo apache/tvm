@@ -46,6 +46,7 @@ import tvm
 from tvm import relay
 from tvm.contrib.download import download_testdata
 from tvm.relay.backend import Executor
+import tvm.micro.testing
 
 ##################################
 # Load a pre-trained PyTorch model

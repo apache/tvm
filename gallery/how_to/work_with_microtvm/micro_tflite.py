@@ -56,6 +56,7 @@ import numpy as np
 
 import tvm
 import tvm.micro
+import tvm.micro.testing
 from tvm import relay
 import tvm.contrib.utils
 from tvm.micro import export_model_library_format

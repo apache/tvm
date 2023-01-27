@@ -59,6 +59,7 @@ import json
 
 import tvm
 from tvm import relay
+import tvm.micro.testing
 from tvm.relay.backend import Executor, Runtime
 from tvm.contrib.download import download_testdata
 
