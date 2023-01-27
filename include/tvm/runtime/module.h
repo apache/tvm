@@ -193,6 +193,27 @@ class TVM_DLL ModuleNode : public Object {
   const std::vector<Module>& imports() const { return imports_; }
 
   /*!
+   * \brief Returns true if this module supports building from pre-compiled programs.
+   *
+   * The default implementation returns false.
+   */
+  virtual bool SupportPreCompiledPrograms() const { return false; }
+
+  /*!
+   * \brief Pass pre-compiled programs which module will use to speed up compilation time.
+   * \param bytes string with bytes of pre-compiled programs.
+   */
+  virtual void SetPreCompiledPrograms(const std::string& bytes);
+
+  /*!
+   * \brief Get a pre-compiled programs for a module.
+   *  If there are no compiled programs then first the programs will be compiled.
+   *
+   * \return The string with bytes of pre-compiled programs.
+   */
+  virtual std::string GetPreCompiledPrograms();
+
+  /*!
    * \brief Returns true if this module is 'DSO exportable'.
    *
    * A DSO exportable module (eg a CSourceModuleNode of type_key 'c') can be incorporated into the

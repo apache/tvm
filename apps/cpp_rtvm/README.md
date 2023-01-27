@@ -352,3 +352,15 @@ python3 -m tvm.driver.tvmc compile --cross-compiler ${ANDROID_NDK_HOME}/toolchai
 python3 -m tvm.driver.tvmc run --device="cl" keras-resnet50.tar --rpc-key ${TVM_RPC_KEY} --rpc-tracker {TVM_TRACKER_HOST}:{TVM_TRACKER_PORT} --print-time
 
 ```
+
+# Use pre-compiled OpenCL kernels
+Using pre-compiled programs might significantly improve inference time of the
+first run. E.g. for topology with ~300 kernels compilation time on Adreno was
+about 26 seconds. But after dumping compiled programs to binary files and reuse
+them on the next runs, the compilation time was significantly decreased (more
+than 1000 times) and starts to be around 25 ms.
+
+To use such functionality, the developer have to set directory where the
+pre-compiled programs will be stored. To the `rtvm` application such example was
+added.  After method `Load`, method `UsePreCompiledProgram` is called. This
+method passes directory where the pre-compiled kernels should be stored.

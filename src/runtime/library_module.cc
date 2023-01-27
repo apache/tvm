@@ -195,6 +195,12 @@ void ProcessModuleBlob(const char* mblob, ObjectPtr<Library> lib,
     // The module order is collected via DFS
     *root_module = modules[0];
   }
+  // Add all other modules to the import of the root_module
+  for (size_t i = 1; i < modules.size(); ++i) {
+    std::string tkey = modules[i]->type_key();
+    if (tkey != "_lib" && tkey != "_import_tree")
+        root_module->Import(modules[i]);
+  }
 }
 
 Module CreateModuleFromLibrary(ObjectPtr<Library> lib, PackedFuncWrapper packed_func_wrapper) {

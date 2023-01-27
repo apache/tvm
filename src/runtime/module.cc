@@ -128,6 +128,14 @@ const PackedFunc* ModuleNode::GetFuncFromEnv(const std::string& name) {
   }
 }
 
+void ModuleNode::SetPreCompiledPrograms(const std::string& bytes) {
+  LOG(FATAL) << "Module[" << type_key() << "] does not support using pre-compiled programs";
+}
+
+std::string ModuleNode::GetPreCompiledPrograms() {
+  LOG(FATAL) << "Module[" << type_key() << "] does not support using pre-compiled programs";
+}
+
 std::string ModuleNode::GetFormat() {
   LOG(FATAL) << "Module[" << type_key() << "] does not support GetFormat";
 }

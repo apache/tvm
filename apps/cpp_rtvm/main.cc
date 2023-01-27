@@ -190,6 +190,7 @@ int ExecuteModel(ToolArgs& args) {
 
   // Load the model
   runner.Load();
+  runner.UsePreCompiledPrograms("pre_compiled");
 
   // Query Model meta Information
   TVMMetaInfo mInfo = runner.GetMetaInfo();

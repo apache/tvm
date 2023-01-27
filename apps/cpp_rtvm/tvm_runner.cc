@@ -26,7 +26,9 @@
 
 #include <cnpy.h>
 
+#include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <streambuf>
 #include <string>
 
@@ -67,7 +69,8 @@ int GetTVMDevice(std::string device) {
  * \param path where the tfm compiler artifacts present.
  * \param device the target device where we need to load the compiled model.
  */
-TVMRunner::TVMRunner(std::string path, std::string device) : r_model_path(path), r_device(device) {
+TVMRunner::TVMRunner(std::string path, std::string device)
+    : r_model_path(path), r_device(device), r_run_was_called(false) {
   LOG(INFO) << "TVMRunner Constructor:" << r_model_path << " Devices:" << r_device;
 }
 
@@ -108,6 +111,37 @@ int TVMRunner::Load(void) {
   r_graph_handle.GetFunction("load_params")(params_arr);
 
   return 0;
+}
+
+/*!
+ * \brief Specify if the run programs should be dumped to binary and reused in the next runs.
+ * \param pathToDir Path to the existed directory where pre-compiled programs should be stored.
+ */
+void TVMRunner::UsePreCompiledPrograms(std::string pathToDir) {
+  if (r_run_was_called) {
+    LOG(INFO) << "TVMRunner UsePreCompiledPrograms: should be called before first run";
+    return;
+  }
+  if (!std::filesystem::exists(pathToDir))
+    ICHECK(std::filesystem::create_directories(pathToDir) == true);
+  std::filesystem::path binary_path = pathToDir;
+  for (tvm::runtime::Module mod : r_mod_handle->imports()) {
+    if (mod->SupportPreCompiledPrograms()) {
+      std::string file_name = "pre_compiled_";
+      file_name += mod->type_key();
+      file_name += ".bin";
+      auto file_path = binary_path / file_name;
+      if (!std::filesystem::exists(file_path)) {
+        auto bytes = mod->GetPreCompiledPrograms();
+        std::ofstream fs(file_path.string(), std::ofstream::binary);
+        fs.write(bytes.c_str(), bytes.size());
+      } else {
+        std::ifstream ifs(file_path.string(), std::ios::in | std::ios::binary);
+        std::string bytes((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+        mod->SetPreCompiledPrograms(bytes);
+      }
+    }
+  }
 }
 
 /*!
@@ -242,6 +276,7 @@ int TVMRunner::GetOutput(std::string output_id, char* raw_output) {
  */
 int TVMRunner::Run(void) {
   LOG(INFO) << "TVMRunner::Run";
+  r_run_was_called = true;
 
   r_graph_handle.GetFunction("run")();
   return 0;
