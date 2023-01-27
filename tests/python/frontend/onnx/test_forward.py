@@ -6776,8 +6776,7 @@ def test_random_bernoulli(target, dev):
         ideal_mean = np.mean(inputs)
         # check that values are 0 or 1
         tvm_flat = tvm_out.flatten()
-        for i in range(len(tvm_flat)):
-            assert tvm_flat[i] == 0 or tvm_flat[i] == 1
+        assert np.array_equal(tvm_flat, tvm_flat.astype("bool"))
         if in_out_equal:
             tvm.testing.assert_allclose(inputs, tvm_out)
         else:
