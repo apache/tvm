@@ -15,9 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-.. _microTVM-with-TFLite:
+.. _tutorial_micro_tflite:
 
-microTVM with TFLite Models
+2. microTVM TFLite Tutorial
 ===========================
 **Author**: `Tom Gall <https://github.com/tom-gall>`_
 
@@ -55,11 +55,16 @@ import tempfile
 import numpy as np
 
 import tvm
+import tvm.micro
+import tvm.micro.testing
 from tvm import relay
 import tvm.contrib.utils
+from tvm.micro import export_model_library_format
 from tvm.contrib.download import download_testdata
 
-model_url = "https://people.linaro.org/~tom.gall/sine_model.tflite"
+model_url = (
+    "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/model/sine_model.tflite"
+)
 model_file = "sine_model.tflite"
 model_path = download_testdata(model_url, model_file, module="data")
 
@@ -105,55 +110,44 @@ mod, params = relay.frontend.from_tflite(
 #
 # Now we create a build config for relay, turning off two options and then calling relay.build which
 # will result in a C source file for the selected TARGET. When running on a simulated target of the
-# same architecture as the host (where this Python script is executed) choose "host" below for the
+# same architecture as the host (where this Python script is executed) choose "crt" below for the
 # TARGET, the C Runtime as the RUNTIME and a proper board/VM to run it (Zephyr will create the right
 # QEMU VM based on BOARD. In the example below the x86 arch is selected and a x86 VM is picked up accordingly:
 #
 RUNTIME = tvm.relay.backend.Runtime("crt", {"system-lib": True})
-TARGET = tvm.target.target.micro("host")
+TARGET = tvm.micro.testing.get_target("crt")
 
-#
-# Compiling for physical hardware
-#  When running on physical hardware, choose a TARGET and a BOARD that describe the hardware. The
-#  STM32F746 Nucleo target and board is chosen in the example below. Another option would be to
-#  choose the STM32F746 Discovery board instead. Since that board has the same MCU as the Nucleo
-#  board but a couple of wirings and configs differ, it's necessary to select the "stm32f746g_disco"
-#  board to generated the right firmware image.
-#
+# When running on physical hardware, choose a TARGET and a BOARD that describe the hardware. The
+# STM32L4R5ZI Nucleo target and board is chosen in the example below. You could change the testing
+# board by simply exporting `TVM_MICRO_BOARD` variable with a different Zephyr supported board.
 
 if use_physical_hw:
-    boards_file = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr")) / "boards.json"
-    with open(boards_file) as f:
-        boards = json.load(f)
     BOARD = os.getenv("TVM_MICRO_BOARD", default="nucleo_l4r5zi")
     SERIAL = os.getenv("TVM_MICRO_SERIAL", default=None)
-    TARGET = tvm.target.target.micro(boards[BOARD]["model"])
+    TARGET = tvm.micro.testing.get_target("zephyr", BOARD)
 
+# For some boards, Zephyr runs them emulated by default, using QEMU. For example, below is the
+# TARGET and BOARD used to build a microTVM firmware for the mps2-an521 board.
 #
-#  For some boards, Zephyr runs them emulated by default, using QEMU. For example, below is the
-#  TARGET and BOARD used to build a microTVM firmware for the mps2-an521 board. Since that board
-#  runs emulated by default on Zephyr the suffix "-qemu" is added to the board name to inform
-#  microTVM that the QEMU transporter must be used to communicate with the board. If the board name
-#  already has the prefix "qemu_", like "qemu_x86", then it's not necessary to add that suffix.
-#
-#  TARGET = tvm.target.target.micro("mps2_an521")
-#  BOARD = "mps2_an521-qemu"
+# `mps2_an521 = "mps2_an521"`
+# `TARGET = tvm.micro.testing.get_target("zephyr", BOARD)`
 
 ######################################################################
-# Now, compile the model for the target:
+# Now, compile the model for the target. If you do not specify Executor,
+# by default it uses GraphExecutor.
 
-with tvm.transform.PassContext(
-    opt_level=3, config={"tir.disable_vectorize": True}, disabled_pass=["AlterOpLayout"]
-):
+with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
     module = relay.build(mod, target=TARGET, runtime=RUNTIME, params=params)
 
 
+######################################################################
 # Inspecting the compilation output
 # ---------------------------------
 #
 # The compilation process has produced some C code implementing the operators in this graph. We
 # can inspect it by printing the CSourceModule contents (for the purposes of this tutorial, let's
 # just print the first 10 lines):
+#
 
 c_source_module = module.get_lib().imported_modules[0]
 assert c_source_module.type_key == "c", "tutorial is broken"
@@ -166,26 +160,22 @@ assert any(
 print("\n".join(first_few_lines))
 
 
+######################################################################
 # Compiling the generated code
 # ----------------------------
 #
 # Now we need to incorporate the generated C code into a project that allows us to run inference on the
 # device. The simplest way to do this is to integrate it yourself, using microTVM's standard output format
-# (:doc:`Model Library Format` </dev/model_library_format>`). This is a tarball with a standard layout:
+# model library format. This is a tarball with a standard layout.
 
 # Get a temporary path where we can store the tarball (since this is running as a tutorial).
 
-fd, model_library_format_tar_path = tempfile.mkstemp()
-os.close(fd)
-os.unlink(model_library_format_tar_path)
-tvm.micro.export_model_library_format(module, model_library_format_tar_path)
+temp_dir = tvm.contrib.utils.tempdir()
+model_tar_path = temp_dir / "model.tar"
+export_model_library_format(module, model_tar_path)
 
-with tarfile.open(model_library_format_tar_path, "r:*") as tar_f:
+with tarfile.open(model_tar_path, "r:*") as tar_f:
     print("\n".join(f" - {m.name}" for m in tar_f.getmembers()))
-
-# Cleanup for tutorial:
-os.unlink(model_library_format_tar_path)
-
 
 # TVM also provides a standard way for embedded platforms to automatically generate a standalone
 # project, compile and flash it to a target, and communicate with it using the standard TVM RPC
@@ -201,11 +191,8 @@ os.unlink(model_library_format_tar_path)
 template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("crt"))
 project_options = {}  # You can use options to provide platform-specific options through TVM.
 
-# Compiling for physical hardware (or an emulated board, like the mps_an521)
-# --------------------------------------------------------------------------
 #  For physical hardware, you can try out the Zephyr platform by using a different template project
 #  and options:
-#
 
 if use_physical_hw:
     template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr"))
@@ -218,7 +205,6 @@ if use_physical_hw:
     }
 
 # Create a temporary directory
-
 temp_dir = tvm.contrib.utils.tempdir()
 generated_project_dir = temp_dir / "generated-project"
 generated_project = tvm.micro.generate_project(
