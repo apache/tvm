@@ -526,11 +526,8 @@ class OpenCLTimerNode : public TimerNode {
   Device dev_;
 
   void recreateCommandQueue() {
-    if (!cl::OpenCLWorkspace::Global()->IsProfiling(dev_)) {
-      cl::OpenCLWorkspace::Global()->EnableQueueProfiling(dev_, true);
-    } else {
-      cl::OpenCLWorkspace::Global()->EnableQueueProfiling(dev_, false);
-    }
+    cl::OpenCLWorkspace::Global()->EnableQueueProfiling(
+        dev_, !cl::OpenCLWorkspace::Global()->IsProfiling(dev_));
   }
 };
 }  // namespace runtime

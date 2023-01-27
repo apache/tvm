@@ -314,7 +314,6 @@ class CLMLRuntime : public JSONRuntimeBase {
     for (size_t i = 0; i < this->layer_.function.size(); ++i) {
       // Make CLML subgraphs accounted by OpenCLTimerNode.
 
-      // if (workspace->IsProfiling(tentry->device)) {
       if (getenv("CLML_PROFILING")) {
         Timer t;
         auto f = Registry::Get(std::string("profiling.timer.opencl"));
