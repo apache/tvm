@@ -6820,14 +6820,14 @@ def test_random_bernoulli(target, dev):
                     # repeat with new seed
                     seed = np.random.randint(1e6)
                     tvm_flat = _get_tvm_output(
-                                    inputs,
-                                    out_dtype,
-                                    seed,
-                                    target,
-                                    dev,
-                                    use_vm,
-                                    freeze_params,
-                                ).flatten()
+                        inputs,
+                        out_dtype,
+                        seed,
+                        target,
+                        dev,
+                        use_vm,
+                        freeze_params,
+                    ).flatten()
             assert check, "Binomial test failed"
 
     # Test input sequence of 0 and 1
