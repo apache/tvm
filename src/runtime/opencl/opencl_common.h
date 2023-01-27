@@ -290,12 +290,7 @@ class OpenCLWorkspace : public DeviceAPI {
     if (is_enabled == enable) {
       return;
     }
-    cl_command_queue_properties prop = 0;
-    if (enable) {
-      prop = CL_QUEUE_PROFILING_ENABLE;
-    } else {
-      prop = 0;
-    }
+    cl_command_queue_properties prop = (enable) ? CL_QUEUE_PROFILING_ENABLE : 0;
     auto queue = cl::OpenCLWorkspace::Global()->GetQueue(dev);
     OPENCL_CALL(clFlush(queue));
     OPENCL_CALL(clFinish(queue));
