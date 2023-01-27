@@ -6712,9 +6712,7 @@ def test_random_bernoulli(target, dev):
     """test_random_bernoulli"""
 
     def _get_tvm_output(
-        inputs=None,
-        shape=[],
-        in_dtype="float32",
+        inputs,
         out_dtype="int32",
         seed=None,
         target=target,
@@ -6744,12 +6742,8 @@ def test_random_bernoulli(target, dev):
             )
             return helper.make_model(graph, producer_name="random_bernoulli_test")
 
-        if inputs is None:
-            assert len(shape) != 0
-            inputs = np.random.uniform(size=shape).astype(in_dtype)
-        else:
-            shape = inputs.shape
-            in_dtype = inputs.dtype
+        shape = inputs.shape
+        in_dtype = inputs.dtype
         model = get_bernoulli_model(shape, in_dtype, out_dtype, seed)
 
         if use_vm:
@@ -6780,10 +6774,12 @@ def test_random_bernoulli(target, dev):
         freeze_params=False,
         in_out_equal=False,
     ):
+        if inputs is None:
+            assert len(shape) != 0
+            inputs = np.random.uniform(size=shape).astype(in_dtype)
+
         tvm_out = _get_tvm_output(
             inputs,
-            shape,
-            in_dtype,
             out_dtype,
             seed,
             target,
@@ -6837,7 +6833,7 @@ def test_random_bernoulli(target, dev):
 
     # Test result determinism with the same seeds
     inputs = np.random.uniform(size=[val_num])
-    fixed_seed=np.random.randint(1e6)
+    fixed_seed = np.random.randint(1e6)
     tvm_out_1 = _get_tvm_output(inputs, seed=fixed_seed)
     tvm_out_2 = _get_tvm_output(inputs, seed=fixed_seed)
     tvm.testing.assert_allclose(tvm_out_1, tvm_out_2)
