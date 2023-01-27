@@ -209,6 +209,9 @@ class RandomEngine {
       DLDataType dtype;
     };
 
+    int num_workers = tvm::runtime::threading::MaxConcurrency();
+    LOG(FATAL) << "MaxConcurrency = " << num_workers;
+
     ParallelTask task;
     task.self = this;
     task.data = tensor->data;
