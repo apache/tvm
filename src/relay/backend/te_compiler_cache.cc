@@ -576,7 +576,26 @@ class ScheduleBuilder : public ExprVisitor {
                       << "Only one layout-free constant is supported by RewriteLayout for now";
                   auto constant = const_collector.constants[0];
 
-                  if (constant.Shape().size() == index_map->initial_indices.size()) {
+                  auto is_constant_transformed = [index_map](runtime::NDArray c) {
+                    if (c.Shape().size() != index_map->initial_indices.size()) {
+                      return true;
+                    }
+                    size_t src_size_1d = 1;
+                    Array<PrimExpr> orig_shape;
+                    for (size_t i = 0; i < c.Shape().size(); ++i) {
+                      src_size_1d *= c->shape[i];
+                      orig_shape.push_back(PrimExpr(static_cast<int>((c->shape[i]))));
+                    }
+                    auto dst_shape = index_map->MapShape(orig_shape);
+                    std::vector<int64_t> dst_shape_int;
+                    size_t dst_size_1d = 1;
+                    for (size_t i = 0; i < dst_shape.size(); ++i) {
+                      dst_size_1d *= dst_shape[i].as<IntImmNode>()->value;
+                    }
+                    return src_size_1d != dst_size_1d;
+                  };
+
+                  if (!is_constant_transformed(constant)) {
                     // This is the first case, reached during the MetaScheduleLayoutRewrite pass.
                     //
                     // A layout-free constant having the same rank as an input to the index map
