@@ -6792,13 +6792,11 @@ def test_random_bernoulli(target, dev):
 
     # Binomial test input with 0.5 values
     val_num = 10000
-    arr = [0.5] * val_num
-    inputs = np.array(arr).astype("float32")
+    inputs = np.ones([val_num], dtype="float32") * 0.5
     verify_bernoulli(inputs)
 
     # Binomial test input with 0.1 values
-    arr = [0.1] * val_num
-    inputs = np.array(arr).astype("float32")
+    inputs = np.ones([val_num], dtype="float32") * 0.1
     verify_bernoulli(inputs)
 
     # Simple test
