@@ -703,8 +703,9 @@ class Handler(server.ProjectAPIHandler):
         if extra_files_tar:
             with tarfile.open(extra_files_tar, mode="r:*") as tf:
 
-                def is_within_directory(directory, target):
+                def is_within_directory(directory, member, path="."):
 
+                    target = os.path.join(path, member.name)
                     abs_directory = os.path.abspath(directory)
                     abs_target = os.path.abspath(target)
 
@@ -715,9 +716,8 @@ class Handler(server.ProjectAPIHandler):
                 def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
 
                     for member in tar.getmembers():
-                        member_path = os.path.join(path, member.name)
-                        if not is_within_directory(path, member_path):
-                            raise Exception("Attempted Path Traversal in Tar File")
+                        if not is_within_directory(path, member):
+                            raise Exception("Attempted Path Traversal in Tar File attack. See CVE-2007-4559.")
 
                     tar.extractall(path, members, numeric_owner)
 

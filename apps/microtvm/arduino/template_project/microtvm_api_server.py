@@ -178,8 +178,9 @@ class Handler(server.ProjectAPIHandler):
             shutil.rmtree(source_dir / "standalone_crt" / component)
 
     def _safe_extract(tar, path=".", members=None, *, numeric_owner=False):
-        def is_within_directory(directory, target):
+        def is_within_directory(directory, member):
 
+            target = os.path.join(path, member.name)
             abs_directory = os.path.abspath(directory)
             abs_target = os.path.abspath(target)
 
@@ -188,9 +189,8 @@ class Handler(server.ProjectAPIHandler):
             return prefix == abs_directory
 
         for member in tar.getmembers():
-            member_path = os.path.join(path, member.name)
-            if not is_within_directory(path, member_path):
-                raise Exception("Attempted Path Traversal in Tar File")
+            if not is_within_directory(path, member):
+                raise Exception("Attempted Path Traversal in Tar File attack. See CVE-2007-4559.")
 
         tar.extractall(path, members, numeric_owner)
 
