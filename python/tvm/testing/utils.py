@@ -1027,11 +1027,40 @@ def _has_vnni():
     return False
 
 
+# check avx512 intrinsic groups for SkyLake X
+def _has_slavx512():
+    # Check LLVM support
+    llvm_version = tvm.target.codegen.llvm_version_major()
+    is_llvm_support = llvm_version >= 8
+    arch = platform.machine()
+    # Only linux is supported for now.
+    if arch == "x86_64" and sys.platform.startswith("linux"):
+        with open("/proc/cpuinfo", "r") as content:
+            ctx = content.read()
+            check = (
+                "avx512f" in ctx
+                and "avx512cd" in ctx
+                and "avx512bw" in ctx
+                and "avx512dq" in ctx
+                and "avx512vl" in ctx
+            )
+            return check and is_llvm_support
+
+    return False
+
+
 requires_arm_dot = Feature("arm_dot", "ARM dot product", run_time_check=_arm_dot_supported)
 
 
 requires_cascadelake = Feature(
     "cascadelake", "x86 CascadeLake", run_time_check=lambda: _has_vnni() and _is_intel()
+)
+
+
+requires_skylake_avx512 = Feature(
+    "skylake_avx512",
+    "x86 SkyLake AVX512",
+    run_time_check=lambda: _has_slavx512() and _is_intel(),
 )
 
 

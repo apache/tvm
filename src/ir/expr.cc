@@ -25,11 +25,6 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
 #include <tvm/runtime/registry.h>
-// NOTE: reverse dependency on top/tir.
-// These dependencies do not happen at the interface-level,
-// and are only used in minimum cases where they are clearly marked.
-//
-// Rationale: convert from IterVar and top::Tensor
 #include <tvm/te/tensor.h>
 #include <tvm/tir/expr.h>
 
@@ -106,16 +101,6 @@ TVM_REGISTER_GLOBAL("ir.IntImm").set_body_typed([](DataType dtype, int64_t value
 
 TVM_REGISTER_NODE_TYPE(IntImmNode);
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<IntImmNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const IntImmNode*>(node.get());
-      if (op->dtype == DataType::Int(32)) {
-        p->stream << op->value;
-      } else {
-        p->stream << "(" << op->dtype << ")" << op->value;
-      }
-    });
-
 FloatImm::FloatImm(DataType dtype, double value, Span span) {
   ICHECK_EQ(dtype.lanes(), 1) << "ValueError: FloatImm can only take scalar.";
 
@@ -149,25 +134,6 @@ TVM_REGISTER_GLOBAL("ir.FloatImm").set_body_typed([](DataType dtype, double valu
 
 TVM_REGISTER_NODE_TYPE(FloatImmNode);
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<FloatImmNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const FloatImmNode*>(node.get());
-      auto& stream = p->stream;
-      switch (op->dtype.bits()) {
-        case 64:
-          stream << op->value;
-          break;
-        case 32:
-          stream << op->value << 'f';
-          break;
-        case 16:
-          stream << op->value << 'h';
-          break;
-        default:
-          LOG(FATAL) << "Unknown float type bits=" << op->dtype.bits();
-      }
-    });
-
 Range::Range(PrimExpr begin, PrimExpr end, Span span)
     : Range(make_object<RangeNode>(begin, tir::is_zero(begin) ? end : (end - begin), span)) {}
 
@@ -183,12 +149,6 @@ TVM_REGISTER_GLOBAL("ir.Range").set_body([](TVMArgs args, TVMRetValue* ret) {
 
 TVM_REGISTER_NODE_TYPE(RangeNode);
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<RangeNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const RangeNode*>(node.get());
-      p->stream << "range(min=" << op->min << ", ext=" << op->extent << ')';
-    });
-
 GlobalVar::GlobalVar(String name_hint, Type type, Span span) {
   ObjectPtr<GlobalVarNode> n = make_object<GlobalVarNode>();
   n->name_hint = std::move(name_hint);
@@ -202,12 +162,6 @@ TVM_REGISTER_NODE_TYPE(GlobalVarNode);
 TVM_REGISTER_GLOBAL("ir.GlobalVar").set_body_typed([](String name, Type type) {
   return GlobalVar(name, type);
 });
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<GlobalVarNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const GlobalVarNode*>(ref.get());
-      p->stream << "GlobalVar(" << node->name_hint << ")";
-    });
 
 TVM_REGISTER_GLOBAL("ir.DebugPrint").set_body_typed([](ObjectRef ref) {
   std::stringstream ss;

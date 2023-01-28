@@ -18,8 +18,8 @@
 """
 .. _tutorial-micro-autotune:
 
-Autotuning with microTVM
-=========================
+6. Model Tuning with microTVM
+=============================
 **Authors**:
 `Andrew Reusch <https://github.com/areusch>`_,
 `Mehrdad Hessar <https://github.com/mehrdadh>`_
@@ -32,13 +32,8 @@ This tutorial explains how to autotune a model using the C runtime.
 #     .. include:: ../../../../gallery/how_to/work_with_microtvm/install_dependencies.rst
 #
 
-# sphinx_gallery_start_ignore
-from tvm import testing
 
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
-
-# You can skip the following two sections (installing Zephyr and CMSIS-NN) if the following flag is False.
+# You can skip the following section (installing Zephyr) if the following flag is False.
 # Installing Zephyr takes ~20 min.
 import os
 
@@ -49,10 +44,6 @@ use_physical_hw = bool(os.getenv("TVM_MICRO_USE_HW"))
 #     .. include:: ../../../../gallery/how_to/work_with_microtvm/install_zephyr.rst
 #
 
-######################################################################
-#
-#     .. include:: ../../../../gallery/how_to/work_with_microtvm/install_cmsis.rst
-#
 
 ######################################################################
 # Import Python dependencies
@@ -64,6 +55,7 @@ import pathlib
 
 import tvm
 from tvm.relay.backend import Runtime
+import tvm.micro.testing
 
 ####################
 # Defining the model
@@ -111,20 +103,16 @@ params = {"weight": weight_sample}
 #
 
 RUNTIME = Runtime("crt", {"system-lib": True})
-TARGET = tvm.target.target.micro("host")
+TARGET = tvm.micro.testing.get_target("crt")
 
 # Compiling for physical hardware
 # --------------------------------------------------------------------------
 #  When running on physical hardware, choose a TARGET and a BOARD that describe the hardware. The
 #  STM32L4R5ZI Nucleo target and board is chosen in the example below.
 if use_physical_hw:
-    boards_file = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr")) / "boards.json"
-    with open(boards_file) as f:
-        boards = json.load(f)
-
     BOARD = os.getenv("TVM_MICRO_BOARD", default="nucleo_l4r5zi")
     SERIAL = os.getenv("TVM_MICRO_SERIAL", default=None)
-    TARGET = tvm.target.target.micro(boards[BOARD]["model"])
+    TARGET = tvm.micro.testing.get_target("zephyr", BOARD)
 
 
 #########################

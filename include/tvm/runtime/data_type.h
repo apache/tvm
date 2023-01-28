@@ -348,7 +348,7 @@ inline std::string DLDataType2String(DLDataType t) {
 inline DLDataType String2DLDataType(std::string s) {
   DLDataType t;
   // handle void type
-  if (s.length() == 0) {
+  if (s.length() == 0 || s == "void") {
     t = DataType::Void();
     return t;
   }

@@ -80,12 +80,16 @@ COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
 RUN bash /install/ubuntu_install_sccache.sh
 ENV PATH /opt/sccache:$PATH
 
-# Zephyr SDK deps
+# Zephyr Project
 COPY install/ubuntu_install_zephyr.sh /install/ubuntu_install_zephyr.sh
 COPY install/ubuntu_init_zephyr_project.sh /install/ubuntu_init_zephyr_project.sh
-COPY install/ubuntu_install_zephyr_sdk.sh /install/ubuntu_install_zephyr_sdk.sh
 RUN bash /install/ubuntu_install_zephyr.sh
 ENV ZEPHYR_BASE=/opt/zephyrproject/zephyr
+
+#Zephyr SDK
+COPY install/ubuntu_install_zephyr_sdk.sh /install/ubuntu_install_zephyr_sdk.sh
+RUN bash /install/ubuntu_install_zephyr_sdk.sh /opt/zephyr-sdk
+ENV PATH /opt/zephyr-sdk/sysroots/x86_64-pokysdk-linux/usr/bin:$PATH
 
 # Download RISC-V gcc toolchain (linux)
 COPY install/ubuntu_download_xuantie_gcc_linux.sh /install/ubuntu_download_xuantie_gcc_linux.sh

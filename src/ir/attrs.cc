@@ -53,12 +53,6 @@ DictAttrs::DictAttrs(Map<String, ObjectRef> dict) {
   data_ = std::move(n);
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<DictAttrsNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const DictAttrsNode*>(node.get());
-      p->stream << op->dict;
-    });
-
 TVM_REGISTER_NODE_TYPE(DictAttrsNode);
 
 TVM_REGISTER_NODE_TYPE(AttrFieldInfoNode);

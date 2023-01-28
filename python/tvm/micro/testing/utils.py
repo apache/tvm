@@ -17,6 +17,7 @@
 
 """Defines the test methods used with microTVM."""
 
+import io
 from functools import lru_cache
 import json
 import logging
@@ -24,6 +25,7 @@ from pathlib import Path
 import tarfile
 import time
 from typing import Union
+import numpy as np
 
 import tvm
 from tvm import relay
@@ -45,10 +47,16 @@ def get_supported_boards(platform: str):
         return json.load(f)
 
 
-def get_target(platform: str, board: str) -> tvm.target.Target:
+def get_target(platform: str, board: str = None) -> tvm.target.Target:
     """Intentionally simple function for making Targets for microcontrollers.
     If you need more complex arguments, one should call target.micro directly. Note
     that almost all, but not all, supported microcontrollers are Arm-based."""
+    if platform == "crt":
+        return tvm.target.target.micro("host")
+
+    if not board:
+        raise ValueError(f"`board` type is required for {platform} platform.")
+
     model = get_supported_boards(platform)[board]["model"]
     return tvm.target.target.micro(model, options=["-device=arm_cpu"])
 
@@ -102,7 +110,7 @@ def mlf_extract_workspace_size_bytes(mlf_tar_path: Union[Path, str]) -> int:
 
     workspace_size = 0
     with tarfile.open(mlf_tar_path, "r:*") as tar_file:
-        tar_members = [ti.name for ti in tar_file.getmembers()]
+        tar_members = [tar_info.name for tar_info in tar_file.getmembers()]
         assert "./metadata.json" in tar_members
         with tar_file.extractfile("./metadata.json") as f:
             metadata = json.load(f)
@@ -133,3 +141,43 @@ def get_conv2d_relay_module():
     mod = tvm.IRModule.from_expr(f)
     mod = relay.transform.InferType()(mod)
     return mod
+
+
+def _npy_dtype_to_ctype(data: np.ndarray) -> str:
+    if data.dtype == "int8":
+        return "int8_t"
+    elif data.dtype == "int32":
+        return "int32_t"
+    elif data.dtype == "uint8":
+        return "uint8_t"
+    elif data.dtype == "float32":
+        return "float"
+    else:
+        raise ValueError(f"Data type {data.dtype} not expected.")
+
+
+def create_header_file(tensor_name: str, npy_data: np.array, output_path: str, tar_file: str):
+    """
+    This method generates a header file containing the data contained in the numpy array provided
+    and adds the header file to a tar file.
+    It is used to capture the tensor data (for both inputs and output).
+    """
+    header_file = io.StringIO()
+    header_file.write("#include <stddef.h>\n")
+    header_file.write("#include <stdint.h>\n")
+    header_file.write("#include <dlpack/dlpack.h>\n")
+    header_file.write(f"const size_t {tensor_name}_len = {npy_data.size};\n")
+    header_file.write(f"{_npy_dtype_to_ctype(npy_data)} {tensor_name}[] =")
+
+    header_file.write("{")
+    for i in np.ndindex(npy_data.shape):
+        header_file.write(f"{npy_data[i]}, ")
+    header_file.write("};\n\n")
+
+    header_file_bytes = bytes(header_file.getvalue(), "utf-8")
+    raw_path = Path(output_path) / f"{tensor_name}.h"
+    tar_info = tarfile.TarInfo(name=str(raw_path))
+    tar_info.size = len(header_file_bytes)
+    tar_info.mode = 0o644
+    tar_info.type = tarfile.REGTYPE
+    tar_file.addfile(tar_info, io.BytesIO(header_file_bytes))

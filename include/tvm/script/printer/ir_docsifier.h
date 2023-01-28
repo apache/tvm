@@ -24,6 +24,7 @@
 #include <tvm/script/printer/doc.h>
 #include <tvm/script/printer/ir_docsifier_functor.h>
 
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -126,10 +127,8 @@ class IRDocsifierNode : public Object {
     /*! \brief The name of the variable */
     Optional<String> name;
   };
-  /*!
-   * \brief This map connects IR dispatch token to the name of identifier.
-   */
-  Map<String, String> ir_prefix;
+  /*! \brief The configuration of the printer */
+  PrinterConfig cfg{nullptr};
   /*!
    * \brief The stack of frames.
    * \sa FrameNode
@@ -150,15 +149,17 @@ class IRDocsifierNode : public Object {
   std::unordered_set<String> defined_names;
   /*! \brief Common prefixes of variable usages */
   std::unordered_map<const Object*, std::vector<const Object*>> common_prefix;
+  /*! \brief The IR usages for headers printing */
+  std::unordered_set<std::string> ir_usage;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("ir_prefix", &ir_prefix);
     v->Visit("frames", &frames);
     v->Visit("dispatch_tokens", &dispatch_tokens);
     v->Visit("mod", &mod);
     // `obj2info` is not visited
     // `defined_names` is not visited
     // `common_prefix` is not visited
+    // `ir_usage` is not visited
   }
 
   static constexpr const char* _type_key = "script.printer.IRDocsifier";
@@ -236,11 +237,8 @@ class IRDocsifierNode : public Object {
 class IRDocsifier : public ObjectRef {
  public:
   using FType = IRDocsifierFunctor<printer::Doc, ObjectPath, IRDocsifier>;
-  /*!
-   * \brief Create a IRDocsifier.
-   * \param ir_prefix The ir_prefix to use for this IRDocsifier.
-   */
-  explicit IRDocsifier(Map<String, String> ir_prefix);
+  /*! \brief Create a IRDocsifier. */
+  explicit IRDocsifier(const PrinterConfig& cfg);
   /*! \brief The registration table for IRDocsifier. */
   TVM_DLL static FType& vtable();
 
@@ -267,11 +265,12 @@ inline void FrameNode::ExitWithScope() {
 
 template <class TDoc>
 inline TDoc IRDocsifierNode::AsDoc(const ObjectRef& obj, const ObjectPath& path) const {
-  if (!obj.defined()) {
-    return Downcast<TDoc>(LiteralDoc::None());
+  if (obj.defined()) {
+    Doc d = IRDocsifier::vtable()(dispatch_tokens.back(), obj, path, GetRef<IRDocsifier>(this));
+    d->source_paths.push_back(path);
+    return Downcast<TDoc>(d);
   }
-  return Downcast<TDoc>(
-      IRDocsifier::vtable()(dispatch_tokens.back(), obj, path, GetRef<IRDocsifier>(this)));
+  return Downcast<TDoc>(LiteralDoc::None(path));
 }
 
 inline void FrameNode::AddDispatchToken(const IRDocsifier& d, const String& token) {

@@ -473,16 +473,7 @@ def test_batch_matmul(executor_kind):
     verify_batch_matmul_with_inputs(executor_kind, x, x, x_np, x_np, (10, 27, 27))
 
 
-@tvm.testing.requires_cascadelake
-@pytest.mark.parametrize(
-    "b,m,n,k",
-    [
-        (16, 32, 128, 96),
-        (16, 32, 128, 97),
-        (16, 32, 129, 96),
-    ],
-)
-def test_batch_matmul_vnni(b, m, n, k):
+def batch_matmul_x86_test(b, m, n, k, target="llvm -mcpu=cascadelake", intrins=["vpdpbusd"]):
     x_shape = (b, m, k)
     y_shape = (b, n, k)
     z_shape = (b, m, n)
@@ -495,12 +486,14 @@ def test_batch_matmul_vnni(b, m, n, k):
         out = bmm + z
         mod = tvm.IRModule.from_expr(out)
 
-        target = "llvm -mcpu=cascadelake"
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build(mod, target=target)
 
-        asm = lib.lib.get_source("asm")
-        assert "vpdpbusd" in asm
+        # TODO(vvchernov): needs for avx512 arch, can be extended
+        if n % 16 == 0 and k % 4 == 0:
+            asm = lib.lib.get_source("asm")
+            for intrin in intrins:
+                assert intrin in asm
 
         dev = tvm.device(target, 0)
         runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
@@ -573,6 +566,32 @@ def test_batch_matmul_amx(b, m, n, k):
         ref = tvm.topi.testing.batch_matmul(x_np, y_np, out_dtype="int32") + z_np
 
         np.testing.assert_equal(out, ref)
+
+
+@tvm.testing.requires_cascadelake
+@pytest.mark.parametrize(
+    "b,m,n,k",
+    [
+        (16, 32, 128, 96),
+        (16, 32, 128, 97),
+        (16, 32, 129, 96),
+    ],
+)
+def test_batch_matmul_vnni(b, m, n, k):
+    batch_matmul_x86_test(b, m, n, k)
+
+
+@tvm.testing.requires_skylake_avx512
+@pytest.mark.parametrize(
+    "b,m,n,k",
+    [
+        (16, 32, 128, 96),
+        (16, 32, 128, 97),
+        (16, 32, 129, 96),
+    ],
+)
+def test_batch_matmul_skylake_avx512(b, m, n, k):
+    batch_matmul_x86_test(b, m, n, k, "llvm -mcpu=skylake-avx512", ["pmaddubs", "pmaddw", "vpaddd"])
 
 
 @pytest.mark.skip("Requires GFX10 AMDGPU")

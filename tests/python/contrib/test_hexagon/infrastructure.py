@@ -253,7 +253,13 @@ def transform_numpy(arr_np, current_layout: str, new_layout: str):
 
     if current_layout == "nc":
         n, c = arr_np.shape
+        if new_layout in ["nc-2048c-1d"]:
+            return arr_np.reshape([n, c // 2048, 2048])
+        if new_layout in ["nc-2048c-2d"]:
+            return arr_np.reshape([n, c // 2048, 2048])
         if new_layout in ["nc-1024c-2d"]:
+            return arr_np.reshape([n, c // 1024, 1024])
+        if new_layout in ["nc-1024c-1d"]:
             return arr_np.reshape([n, c // 1024, 1024])
         if new_layout in ["nc-512c-2d"]:
             return arr_np.reshape([n, c // 512, 512])

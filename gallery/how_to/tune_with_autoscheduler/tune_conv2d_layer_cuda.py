@@ -39,11 +39,7 @@ __name__ == "__main__":` block.
 
 # sphinx_gallery_start_ignore
 # sphinx_gallery_requires_cuda = True
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
 # sphinx_gallery_end_ignore
-
 import os
 
 import numpy as np

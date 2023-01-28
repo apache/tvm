@@ -410,7 +410,7 @@ def test_packed_8x8x32_resnet50(hexagon_launcher):
 
     if do_tune:
         hexagon_lowered = tune_conv2d_template(
-            mod, _schedule_packed_8x8x32_conv2d, "packed_8x8x32", params, hexagon_launcher
+            mod, _schedule_packed_8x8x32_conv2d, "packed_8x8x32", params, hexagon_launcher, {}
         )
     else:
         with tvm.transform.PassContext(opt_level=3):

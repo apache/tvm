@@ -22,7 +22,6 @@ import pytest
 
 import tvm
 from tvm import relay
-from tvm.relay.op.contrib import ethosn_api_version
 from tvm.testing import requires_ethosn
 
 from . import infrastructure as tei
@@ -228,10 +227,7 @@ def test_conv2d_depthwise(
             )
         ),
     }
-    if ethosn_api_version() == "3.2.0":
-        input_zp = np.random.randint(0, np.iinfo(dtype).max)
-    else:
-        input_zp = np.random.randint(np.iinfo(dtype).min, np.iinfo(dtype).max)
+    input_zp = np.random.randint(0, np.iinfo(dtype).max)
     input_sc = np.random.random() * 2
     if qnn_per_channel:
         kernel_sc = tvm.nd.array(

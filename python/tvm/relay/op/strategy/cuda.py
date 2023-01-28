@@ -918,13 +918,16 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
             name="dense_int8.cuda",
         )
     else:
-        strategy.add_implementation(
-            wrap_compute_dense(topi.gpu.dense_small_batch),
-            wrap_topi_schedule(topi.gpu.schedule_dense_small_batch),
-            name="dense_small_batch.gpu",
-        )
+        # Some AMDGPU cards have accuracy issues with this schedule
+        # See https://github.com/apache/tvm/issues/13666
+        if target.kind.name != "rocm":
+            strategy.add_implementation(
+                wrap_compute_dense(topi.gpu.dense_small_batch),
+                wrap_topi_schedule(topi.gpu.schedule_dense_small_batch),
+                name="dense_small_batch.gpu",
+            )
 
-        with SpecializedCondition(b >= 32):
+        with SpecializedCondition(target.kind.name == "rocm" or b >= 32):
             strategy.add_implementation(
                 wrap_compute_dense(topi.gpu.dense_large_batch),
                 wrap_topi_schedule(topi.gpu.schedule_dense_large_batch),

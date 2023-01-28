@@ -23,7 +23,7 @@ namespace script {
 namespace printer {
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::For>("", [](tir::For loop, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<tir::For>("", [](tir::For loop, ObjectPath loop_p, IRDocsifier d) -> Doc {
       // Step 1. Check syntactic sugar: `T.grid`
       std::vector<const tir::ForNode*> grid;
       std::unordered_set<const tir::VarNode*> grid_loop_vars;
@@ -55,43 +55,44 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         for (int i = 0; i < n; ++i) {
           const tir::ForNode* loop = grid[i];
           lhs.push_back(DefineVar(loop->loop_var, *f, d));
-          rhs.push_back(d->AsDoc<ExprDoc>(loop->extent, p->Attr("extent")));
-          p = p->Attr("body");
+          rhs.push_back(d->AsDoc<ExprDoc>(loop->extent, loop_p->Attr("extent")));
+          loop_p = loop_p->Attr("body");
         }
-        AsDocBody(grid.back()->body, p, (*f).get(), d);
-        return ForDoc(TupleDoc(lhs), TIR(d)->Attr("grid")->Call(rhs), (*f)->stmts);
+        AsDocBody(grid.back()->body, loop_p, (*f).get(), d);
+        return ForDoc(TupleDoc(lhs), TIR(d, "grid")->Call(rhs), (*f)->stmts);
       }
       // Step 3. If not `T.grid`, print loop kind accordingly
-      IdDoc lhs = DefineVar(loop->loop_var, *f, d);
+      ExprDoc lhs = DefineVar(loop->loop_var, *f, d);
       Optional<ExprDoc> min = NullOpt;
       Optional<ExprDoc> max = NullOpt;
       Optional<ExprDoc> annotations = NullOpt;
       Optional<ExprDoc> thread = NullOpt;
       if (tir::is_zero(loop->min)) {
-        max = d->AsDoc<ExprDoc>(loop->extent, p->Attr("extent"));
+        max = d->AsDoc<ExprDoc>(loop->extent, loop_p->Attr("extent"));
       } else {
-        min = d->AsDoc<ExprDoc>(loop->min, p->Attr("min"));
-        max = d->AsDoc<ExprDoc>(loop->min + loop->extent, p->Attr("extent"));
+        min = d->AsDoc<ExprDoc>(loop->min, loop_p->Attr("min"));
+        max = d->AsDoc<ExprDoc>(loop->min + loop->extent, loop_p->Attr("extent"));
       }
       if (!loop->annotations.empty()) {
-        annotations = d->AsDoc<ExprDoc>(loop->annotations, p->Attr("annotations"));
+        annotations = d->AsDoc<ExprDoc>(loop->annotations, loop_p->Attr("annotations"));
       }
-      ExprDoc prefix = TIR(d);
+      ExprDoc prefix{nullptr};
       if (loop->kind == tir::ForKind::kSerial) {
         if (loop->annotations.empty()) {
           prefix = IdDoc("range");
         } else {
-          prefix = prefix->Attr("serial");
+          prefix = TIR(d, "serial");
         }
       } else if (loop->kind == tir::ForKind::kParallel) {
-        prefix = prefix->Attr("parallel");
+        prefix = TIR(d, "parallel");
       } else if (loop->kind == tir::ForKind::kUnrolled) {
-        prefix = prefix->Attr("unroll");
+        prefix = TIR(d, "unroll");
       } else if (loop->kind == tir::ForKind::kVectorized) {
-        prefix = prefix->Attr("vectorized");
+        prefix = TIR(d, "vectorized");
       } else if (loop->kind == tir::ForKind::kThreadBinding) {
-        prefix = prefix->Attr("thread_binding");
-        thread = LiteralDoc::Str(loop->thread_binding.value()->thread_tag);
+        prefix = TIR(d, "thread_binding");
+        thread = LiteralDoc::Str(loop->thread_binding.value()->thread_tag,
+                                 loop_p->Attr("thread_binding"));
       } else {
         LOG(FATAL) << "ValueError: Unknown ForKind: " << tir::ForKind2String(loop->kind);
       }
@@ -113,9 +114,11 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         kwargs_values.push_back(annotations.value());
       }
       ExprDoc rhs = prefix->Call(args, kwargs_keys, kwargs_values);
-      AsDocBody(loop->body, p, (*f).get(), d);
+      AsDocBody(loop->body, loop_p, (*f).get(), d);
       return ForDoc(lhs, rhs, (*f)->stmts);
     });
+
+TVM_SCRIPT_REPR(tir::ForNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script

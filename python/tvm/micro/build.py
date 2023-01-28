@@ -94,9 +94,6 @@ def get_microtvm_template_projects(platform: str) -> str:
     if platform not in MicroTVMTemplateProject.list():
         raise ValueError(f"platform {platform} is not supported.")
 
-    if platform == MicroTVMTemplateProject.CRT.value:
-        return os.path.join(get_standalone_crt_dir(), "template", "host")
-
     microtvm_template_projects = None
     for path in libinfo.find_lib_path():
         template_path = os.path.join(os.path.dirname(path), "microtvm_template_projects")
@@ -152,6 +149,13 @@ class AutoTvmModuleLoader:
     def __call__(self, remote_kw, build_result):
         with open(build_result.filename, "rb") as build_file:
             build_result_bin = build_file.read()
+
+        # In case we are tuning on multiple physical boards (with Meta-schedule), the tracker
+        # device_key is the serial_number of the board that wil be used in generating micro session.
+        # For CRT projects, and in cases that the serial number is not provided
+        # (including tuning with AutoTVM), the serial number field doesn't change.
+        if "board" in self._project_options and "$local$device" not in remote_kw["device_key"]:
+            self._project_options["serial_number"] = remote_kw["device_key"]
 
         tracker = _rpc.connect_tracker(remote_kw["host"], remote_kw["port"])
         remote = tracker.request(

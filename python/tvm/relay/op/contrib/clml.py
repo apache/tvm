@@ -79,7 +79,7 @@ class RemoveDropoutPass:
         return RemoveDropout().visit(func)
 
 
-def partition_for_clml(mod, params=None):
+def partition_for_clml(mod, params=None, **opts):
     """Partition the graph greedily offloading supported
     operators to CLML Library.
 
@@ -316,6 +316,18 @@ def clml_pattern_table():
             return False
         return True
 
+    def check_upsampling_op(extract):
+        call = extract
+        if call.attrs["method"] != "bilinear":
+            return False
+        return True
+
+    def check_concat_op(extract):
+        call = extract
+        if call.attrs["axis"] != 1:
+            return False
+        return True
+
     def check_default_op(extract):
         return True
 
@@ -324,7 +336,7 @@ def clml_pattern_table():
         ("clml.conv2d", conv_pattern(), check_conv),
         ("clml.dense", dense_pattern(), check_default_op),
         ("clml.pad", pad_pattern(), check_pad_op),
-        ("clml.concat", concat_pattern(), check_default_op),
+        ("clml.concat", concat_pattern(), check_concat_op),
         ("clml.batch_norm", batch_norm_pattern(), check_default_op),
         ("clml.add", is_op("add")(wildcard(), wildcard()), check_binary_op),
         ("clml.subtract", is_op("subtract")(wildcard(), wildcard()), check_binary_op),
@@ -341,6 +353,8 @@ def clml_pattern_table():
         ("clml.relu", is_op("nn.relu")(wildcard()), check_default_op),
         ("clml.clip", is_op("clip")(wildcard()), check_default_op),
         ("clml.batch_flatten", is_op("nn.batch_flatten")(wildcard()), check_default_op),
+        ("clml.depth_to_space", is_op("nn.depth_to_space")(wildcard()), check_default_op),
+        ("clml.upsampling", is_op("nn.upsampling")(wildcard()), check_upsampling_op),
     ]
 
 

@@ -46,6 +46,8 @@ class StmtNode : public Object {
   StmtNode() = default;
   explicit StmtNode(Span span) : span(span) {}
 
+  TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
+
   static constexpr const char* _type_key = "tir.Stmt";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;

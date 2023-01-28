@@ -85,7 +85,9 @@ Array<ScheduleRule> ScheduleRule::DefaultLLVM() {
   };
 }
 
-Array<ScheduleRule> ScheduleRule::DefaultVNNI() {
+Array<ScheduleRule> ScheduleRule::DefaultX86(const String& type) {
+  static const Map<String, String> intrins = {{"vnni", "dot_16x4_vnni"},
+                                              {"avx512", "dot_16x4_avx512"}};
   return {
       ScheduleRule::ApplyCustomRule(),
       ScheduleRule::InlineConstantScalars(),
@@ -101,7 +103,7 @@ Array<ScheduleRule> ScheduleRule::DefaultVNNI() {
           /*max_jobs_per_core=*/16,
           /*max_innermost_factor=*/Integer(64)),
       ScheduleRule::MultiLevelTilingWithIntrin(
-          /*intrin_name=*/"dot_16x4_vnni",
+          /*intrin_name=*/intrins[type],
           /*structure=*/"SSRSRS",
           /*tile_binds=*/NullOpt,
           /*max_innermost_factor=*/Integer(64),
@@ -170,6 +172,22 @@ Array<ScheduleRule> ScheduleRule::DefaultCUDA() {
 
 Array<ScheduleRule> ScheduleRule::DefaultCUDATensorCore() {
   Array<Map<String, String>> intrin_groups = {
+      // Tensor Cores f32 += f16 * f16
+      {
+          {"init", "wmma_fill_16x16x16_f32"},
+          {"load_a", "wmma_load_16x16x16_f16_a"},
+          {"load_b", "wmma_load_16x16x16_f16_b"},
+          {"compute", "wmma_sync_16x16x16_f16f16f32"},
+          {"store", "wmma_store_16x16x16_f32_shared"},
+      },
+      {
+          {"init", "wmma_fill_16x16x16_f32"},
+          {"load_a", "wmma_load_16x16x16_f16_a"},
+          {"load_b", "wmma_load_16x16x16_f16_b_trans"},
+          {"compute", "wmma_sync_16x16x16_f16f16f32_trans"},
+          {"store", "wmma_store_16x16x16_f32_shared"},
+      },
+      // Tensor Cores f16 += f16 * f16
       {
           {"init", "wmma_fill_16x16x16_f16"},
           {"load_a", "wmma_load_16x16x16_f16_a"},
@@ -184,6 +202,7 @@ Array<ScheduleRule> ScheduleRule::DefaultCUDATensorCore() {
           {"compute", "wmma_sync_16x16x16_f16f16f16_trans"},
           {"store", "wmma_store_16x16x16_f16_shared"},
       },
+      // Tensor Cores s32 += s8 * s8
       {
           {"init", "wmma_fill_16x16x16_s32"},
           {"load_a", "wmma_load_16x16x16_s8_a"},

@@ -19,7 +19,7 @@
 
 #include "annotated_region_set.h"
 
-#include <tvm/ir/error.h>
+#include <tvm/relay/error.h>
 #include <tvm/relay/expr.h>
 
 #include <unordered_map>

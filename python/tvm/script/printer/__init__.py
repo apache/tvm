@@ -19,4 +19,3 @@ TVMScript Unified Printer
 This package provides a set of APIs to print supported TVM IR into TVMScript
 in a roundtrippable way.
 """
-from .printer import script

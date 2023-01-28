@@ -31,6 +31,7 @@ We do encourage everyone to work anything they are interested in.
 - [Aditya Atluri](https://github.com/adityaatluri): @adityaatluri - rocm
 - [Matthew Barrett](https://github.com/mbaret): @mbaret - byoc, arm
 - [Matthew Brookhart](https://github.com/mbrookhart): @mbrookhart - relay, frontends
+- [Yaxing Cai](https://github.com/cyx-6): @cyx-6 - tvm-script, runtime
 - [Liangfu Chen](https://github.com/liangfu): @liangfu - vta, chisel, intel FPGA, c runtime
 - [Tianqi Chen](https://github.com/tqchen) (PMC): @tqchen - topi, compiler, relay, docs
 - [Wei Chen](https://github.com/wweic): @wweic - runtime, relay, vm
@@ -46,6 +47,7 @@ We do encourage everyone to work anything they are interested in.
 - [Animesh Jain](https://github.com/anijain2305): @anijain2305 - quantization, relay
 - [Chenfan Jia](https://github.com/jcf94): @jcf94 - auto_scheduler
 - [Ziheng Jiang](https://github.com/ZihengJiang) (PMC): @ZihengJiang - relay, compiler
+- [Hongyi Jin](https://github.com/jinhongyii): @jinhongyii - tir, tvm-script, arith, relay, topi
 - [Manupa Karunaratne](https://github.com/manupak): @manupak - ethos-u, memory planner
 - [Elen Kalda](https://github.com/ekalda): @ekalda - ethos-u, arm
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame - relay
@@ -142,6 +144,7 @@ We do encourage everyone to work anything they are interested in.
 - [Eric Lunderberg](https://github.com/Lunderberg): @Lunderberg
 - [Andrew Z. Luo](https://github.com/AndrewZhaoLuo): @AndrewZhaoLuo
 - [Steven Lyubomirsky](https://github.com/slyubomirsky): @slyubomirsky
+- [Alan MacDonald](https://github.com/alanmacd): @alanmacd
 - [Masahiro Masuda](https://github.com/masahi): @masahi
 - [Andrey Malyshev](https://github.com/elvin-n): @elvin-n
 - [Sergey Mironov](https://github.com/grwlf): @grwlf
