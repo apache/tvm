@@ -6148,6 +6148,15 @@ class SequenceConstruct(OnnxOpConverter):
         return _expr.Tuple(inputs)
 
 
+class SequenceLength(OnnxOpConverter):
+    """Operator converter for sequence length op."""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        # Get length of input sequence
+        return _expr.const(len(inputs[0]), dtype="int64")
+
+
 class SequenceInsert(OnnxOpConverter):
     """Operator converter for sequence insert op."""
 
@@ -6483,6 +6492,7 @@ def _get_convert_map(opset):
         "LinearRegressor": LinearRegressor.get_converter(opset),
         # Sequence operators
         "SequenceConstruct": SequenceConstruct.get_converter(opset),
+        "SequenceLength": SequenceLength.get_converter(opset),
         "SequenceInsert": SequenceInsert.get_converter(opset),
         "ConcatFromSequence": ConcatFromSequence.get_converter(opset),
         "SplitToSequence": SplitToSequence.get_converter(opset),
