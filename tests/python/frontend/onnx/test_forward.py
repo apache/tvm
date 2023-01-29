@@ -7766,8 +7766,8 @@ def test_sequence(target, dev):
         )
 
         # Test sequence length
-        split_node = helper.make_node(
-            "SequenceLength", inputs=["concat_sequence"], outputs=["output_2"]
+        length_node = helper.make_node(
+            "SequenceLength", inputs=["split_sequence"], outputs=["output_2"]
         )
 
         if new_axis is not None:
@@ -7787,10 +7787,20 @@ def test_sequence(target, dev):
             output_shape[axis] = num_tensors + 1
         else:
             output_shape[axis] = (num_tensors + 1) * output_shape[axis]
-        graph_outputs = [helper.make_tensor_value_info("output", TensorProto.FLOAT, output_shape),
-                         helper.make_tensor_value_info("output_2", TensorProto.INT, ())]
+        graph_outputs = [
+            helper.make_tensor_value_info("output", TensorProto.FLOAT, output_shape),
+            helper.make_tensor_value_info("output_2", TensorProto.INT64, []),
+        ]
 
-        graph_nodes = [position_node, construct_node, insert_node, concat_node, split_node, at_node]
+        graph_nodes = [
+            position_node,
+            construct_node,
+            insert_node,
+            concat_node,
+            split_node,
+            at_node,
+            length_node,
+        ]
 
         graph = helper.make_graph(
             graph_nodes,
