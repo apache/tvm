@@ -31,11 +31,12 @@ echo set\(USE_LLVM "${CLANG_LLVM_HOME}/bin/llvm-config"\) >> config.cmake
 
 if [[ ${CI:-false} == "true" ]]; then
     # sccache needs to be used in CI to speed up builds
-    echo set\(CMAKE_CXX_COMPILER "/opt/sccache/clang++"\) >> config.cmake
+    echo set\(CMAKE_C_COMPILER "/opt/sccache/cc"\) >> config.cmake
+    echo set\(CMAKE_CXX_COMPILER "/opt/sccache/c++"\) >> config.cmake
 else
     echo 'Skipping sccache setup for local build'
-    echo set\(CMAKE_CXX_COMPILER \"/usr/bin/c++\"\) >> config.cmake
     echo set\(CMAKE_C_COMPILER \"/usr/bin/cc\"\) >> config.cmake
+    echo set\(CMAKE_CXX_COMPILER \"/usr/bin/c++\"\) >> config.cmake
 fi
 
 echo set\(USE_HEXAGON "ON"\) >> config.cmake
