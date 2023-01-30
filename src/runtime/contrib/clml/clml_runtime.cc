@@ -29,15 +29,25 @@
 #endif
 #include <stdlib.h>
 #include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
 
 #include <fstream>
 #include <map>
 #include <utility>
 
+#include "../../file_utils.h"
 #include "../../opencl/opencl_common.h"
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
+
+#define CAT_I(a, b) a##b
+#define CAT(a, b) CAT_I(a, b)
+#define GET_ML_INTERFACE CAT(CAT(clGetMLInterfaceV, CL_QCOM_ML_OPS_H_MAJOR_VERSION), QCOM)
+#define GET_ML_API_INTERFACE CAT(CAT(CLMLInterfaceV, CL_QCOM_ML_OPS_H_MAJOR_VERSION), QCOM)
+
+/*! \brief Magic number for CLML Tuning cache entry */
+static const uint64_t kTVMCLMLTuningCacheMagic = 0x434C4D4C54554E45;
 
 namespace tvm {
 namespace runtime {
@@ -58,7 +68,7 @@ class CLMLRuntime : public JSONRuntimeBase {
    */
   explicit CLMLRuntime(const std::string& symbol_name, const std::string& graph_json,
                        const Array<String>& const_names)
-      : JSONRuntimeBase(symbol_name, graph_json, const_names) {}
+      : JSONRuntimeBase(symbol_name, graph_json, const_names), clml_symbol(symbol_name) {}
 
   ~CLMLRuntime() {
 #ifdef TVM_GRAPH_EXECUTOR_CLML
@@ -153,40 +163,59 @@ class CLMLRuntime : public JSONRuntimeBase {
     ICHECK(result == CL_SUCCESS) << "clQueryMLInterfaceVersionsQCOM:" << result;
 
     for (cl_uint i = 0; i < numVersions; ++i) {
-#if CL_QCOM_ML_OPS_H_MAJOR_VERSION == 2
-      if (majorVersions[i] == 2) {
-        h_ClmlIntf = clGetMLInterfaceV2QCOM(0);
+      if (majorVersions[i] == CL_QCOM_ML_OPS_H_MAJOR_VERSION) {
+        h_ClmlIntf = GET_ML_INTERFACE(0);
         LOG(WARNING) << "CLML Target version:" << majorVersions[i];
         break;
       }
-#endif
-#if CL_QCOM_ML_OPS_H_MAJOR_VERSION == 3
-      if (majorVersions[i] == 3) {
-        h_ClmlIntf = clGetMLInterfaceV3QCOM(0);
-        LOG(WARNING) << "CLML Target version:" << majorVersions[i];
-        break;
-      }
-#endif
     }
     ICHECK(h_ClmlIntf != NULL)
         << "clGetMLInterfaceVxQCOM:" << result
         << " Perhaps there is mispatch between CLML SDK version to target supported version:"
         << majorVersions[numVersions - 1];
     char* tune_flag;
-    if ((tune_flag = getenv("CLML_IS_TUNNING_RUN")))
+    if ((tune_flag = getenv("CLML_IS_TUNING_RUN")))
       this->is_tuning_run = std::stoi(tune_flag);
     else
       this->is_tuning_run = 0;
 
-    if (!(tuning_file = getenv("CLML_TUNNING_CACHE"))) this->is_tuning_run = 0;
+    if (!(tuning_file = getenv("CLML_TUNING_CACHE"))) this->is_tuning_run = 0;
     // A Tuning run, so create the cache from scratch
     result = h_ClmlIntf->clCreateMLTuningCacheQCOM(&tuning_cache);
     ICHECK(result == CL_SUCCESS) << "clCreateMLTuningCacheQCOM:" << result;
     if (!this->is_tuning_run && this->tuning_file) {
-      std::vector<unsigned char> buffer;
-      buffer = readBinFile(this->tuning_file);
-      result = h_ClmlIntf->clLoadMLTuningCacheQCOM(tuning_cache, buffer.size(), buffer.data());
-      ICHECK(result == CL_SUCCESS) << "clLoadMLTuningCacheQCOM:" << result;
+      std::vector<unsigned char> tune_buffer;
+      std::string tune_blob;
+      LoadBinaryFromFile(this->tuning_file, &tune_blob);
+      dmlc::MemoryStringStream mstrm(const_cast<std::string*>(&tune_blob));
+      dmlc::Stream* strm = &mstrm;
+
+      uint64_t header, reserve;
+      std::string tune_symbol;
+      while (strm->Read(&header)) {
+        if (header != kTVMCLMLTuningCacheMagic) break;
+        if (!strm->Read(&reserve)) break;
+        if (!strm->Read(&tune_symbol)) break;
+        LOG(INFO) << "Tuning Cache Symbol:" << tune_symbol;
+        if (tune_symbol == clml_symbol) {
+          strm->Read(&tune_buffer);
+          break;
+        } else {
+          std::vector<unsigned char> tmp_buf;
+          if (!strm->Read(&tmp_buf)) break;
+        }
+      }
+
+      if (tune_buffer.size()) {
+        LOG(INFO) << "Loading tuning cache for symbol:" << clml_symbol
+                  << " size:" << tune_buffer.size();
+        result = h_ClmlIntf->clLoadMLTuningCacheQCOM(tuning_cache, tune_buffer.size(),
+                                                     tune_buffer.data());
+        ICHECK(result == CL_SUCCESS) << "clLoadMLTuningCacheQCOM:" << result;
+      } else {
+        LOG(WARNING) << "Tuning cache not cound for symbol :" << clml_symbol << " in file "
+                     << this->tuning_file;
+      }
     }
   }
 
@@ -281,32 +310,33 @@ class CLMLRuntime : public JSONRuntimeBase {
       }
     }
 
+    int64_t duration = 0;
     for (size_t i = 0; i < this->layer_.function.size(); ++i) {
       // Make CLML subgraphs accounted by OpenCLTimerNode.
-      if (getenv("CLML_PROFILING") || workspace->IsProfiling(tentry->device)) {
+
+      if (getenv("CLML_PROFILING")) {
+        Timer t;
+        auto f = Registry::Get(std::string("profiling.timer.opencl"));
+        t = f->operator()(tentry->device);
+        t->Start();
+        queue = workspace->GetQueue(tentry->device);
         evts.resize(evts.size() + 1);
         cl_event* evt = &(evts.back());
+
         result = h_ClmlIntf->clEnqueueMLOpQCOM(queue, this->layer_.function[i],
                                                this->layer_.descriptorSet, 0, NULL, evt);
+        t->Stop();
+        duration += t->SyncAndGetElapsedNanos();
+        LOG(WARNING) << "Layer:" << this->layer_.layer_names[i]
+                     << " Duration:" << t->SyncAndGetElapsedNanos();
       } else {
         result = h_ClmlIntf->clEnqueueMLOpQCOM(queue, this->layer_.function[i],
                                                this->layer_.descriptorSet, 0, NULL, NULL);
       }
       ICHECK(result == CL_SUCCESS) << "clEnqueueMLOpQCOM:" << result;
     }
-
     if (getenv("CLML_PROFILING")) {
-      cl_ulong start, end;
-      cl_ulong duration = 0;
-      clWaitForEvents(1, &(evts.back()));
-      for (size_t i = 0; i < this->layer_.layer_names.size(); ++i) {
-        clGetEventProfilingInfo(evts[i], CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &start,
-                                nullptr);
-        clGetEventProfilingInfo(evts[i], CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &end, nullptr);
-        duration += (end - start);
-        LOG(WARNING) << "Layer:" << this->layer_.layer_names[i] << " Duration:" << (end - start);
-      }
-      LOG(WARNING) << "Total Duration:" << duration;
+      LOG(WARNING) << "Total Duration for " << clml_symbol << " is:" << duration;
     }
 
     for (size_t i = 0; i < outputs_.size(); ++i) {
@@ -484,30 +514,42 @@ class CLMLRuntime : public JSONRuntimeBase {
 
     if (this->is_tuning_run) {
       LOG(WARNING) << "CLML Tunning In Progress:";
+      // Let the command queue recreated in profiling mode.
+      cl::OpenCLWorkspace::Global()->EnableQueueProfiling(tentry->device, true);
       for (size_t i = 0; i < this->layer_.function.size(); ++i) {
-        LOG(WARNING) << "CLML Tunning:" << i;
+        LOG(WARNING) << "CLML Tunning:" << this->layer_.layer_names[i];
         result = h_ClmlIntf->clTuneMLOpQCOM(workspace->GetQueue(tentry->device),
                                             this->layer_.function[i], this->layer_.descriptorSet,
                                             this->tuning_cache, NULL);
         ICHECK(result == CL_SUCCESS) << "clTuneMLOpQCOM:" << result;
       }
+      cl::OpenCLWorkspace::Global()->EnableQueueProfiling(tentry->device, false);
 
-      size_t cacheLenBytes = 0;
-      size_t lenRet = 0;
-      result = h_ClmlIntf->clSaveMLTuningCacheQCOM(tuning_cache, 0, NULL, &cacheLenBytes);
+      size_t cache_len_bytes = 0;
+      size_t len_ret = 0;
+      result = h_ClmlIntf->clSaveMLTuningCacheQCOM(tuning_cache, 0, NULL, &cache_len_bytes);
       ICHECK(result == CL_SUCCESS) << "clSaveMLTuningCacheQCOM:" << result;
 
-      std::vector<unsigned char> savedCache(cacheLenBytes, 0);
-      result = h_ClmlIntf->clSaveMLTuningCacheQCOM(tuning_cache, savedCache.size(),
-                                                   savedCache.data(), &lenRet);
-      assert(result == CL_SUCCESS);
+      std::vector<unsigned char> saved_cache(cache_len_bytes, 0);
+      result = h_ClmlIntf->clSaveMLTuningCacheQCOM(tuning_cache, saved_cache.size(),
+                                                   saved_cache.data(), &len_ret);
+      ICHECK(result == CL_SUCCESS) << "clSaveMLTuningCacheQCOM" << result;
 
-      std::ofstream cache_out(tuning_file, std::ios_base::binary);
-      if (cache_out) {
-        cache_out.write(reinterpret_cast<char*>(savedCache.data()), savedCache.size());
-        cache_out.close();
-      }
-      LOG(WARNING) << "CLML: Tuning cache dumped to:" << tuning_file;
+      std::string tune_str;
+      dmlc::MemoryStringStream mstrm(&tune_str);
+      dmlc::Stream* strm = &mstrm;
+      uint64_t header = kTVMCLMLTuningCacheMagic;
+      uint64_t reserved = 0x0;
+      strm->Write(header);
+      strm->Write(reserved);
+      strm->Write(clml_symbol);
+      strm->Write(saved_cache);
+
+      std::ofstream fs(tuning_file, std::ios::app | std::ios::binary);
+      ICHECK(!fs.fail()) << "Cannot open " << tuning_file;
+      fs.write(&tune_str[0], tune_str.length());
+      LOG(WARNING) << "CLML: Tuning cache dumped to:" << tuning_file << " size" << tune_str.length()
+                   << " with tuning blob len " << saved_cache.size();
     }
   }
 
@@ -1373,12 +1415,7 @@ class CLMLRuntime : public JSONRuntimeBase {
 
   CachedLayer layer_;
   // CLML Context
-#if CL_QCOM_ML_OPS_H_MAJOR_VERSION == 2
-  CLMLInterfaceV2QCOM* h_ClmlIntf = NULL;
-#endif
-#if CL_QCOM_ML_OPS_H_MAJOR_VERSION == 3
-  CLMLInterfaceV3QCOM* h_ClmlIntf = NULL;
-#endif
+  GET_ML_API_INTERFACE* h_ClmlIntf = NULL;
   cl::OpenCLWorkspace* workspace = NULL;
   cl::OpenCLThreadEntry* tentry = NULL;
   cl_ml_tuningcache_qcom tuning_cache = NULL;
@@ -1395,6 +1432,8 @@ class CLMLRuntime : public JSONRuntimeBase {
                  << "Please build with USE_CLML_GRAPH_EXECUTOR.";
   }
 #endif
+  /*! CLML sub graph symbol in TVM main module */
+  std::string clml_symbol;
 };
 
 runtime::Module CLMLRuntimeCreate(const String& symbol_name, const String& graph_json,
