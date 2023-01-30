@@ -7934,6 +7934,83 @@ def test_linear_regressor(target, dev):
 
 
 @tvm.testing.parametrize_targets
+def test_dft(target, dev):
+    """test_dft"""
+    def verify_dft(
+            _axis,
+            _inverse,
+            _onesided,
+            _input,
+            _dft_length=None,
+    ):
+        input_names = ["input"]
+        if _dft_length is not None:
+            input_names.append("_dft_length")
+
+        node = onnx.helper.make_node(
+            "DFT",
+            inputs=input_names,
+            outputs=["output"],
+            # domain="com.microsoft",
+            axis=_axis,
+            inverse=_inverse,
+            onesided=_onesided,
+        )
+
+        inputs_info = [
+            helper.make_tensor_value_info("input", TensorProto.FLOAT, input_shape),
+        ]
+        if _dft_length is not None:
+            inputs_info.append(
+                helper.make_tensor_value_info(
+                    "dft_length", TensorProto.INT32, []
+                )
+            )
+
+        graph = helper.make_graph(
+            [node],
+            "dft_test",
+            inputs=inputs_info,
+            outputs=[
+                helper.make_tensor_value_info("output", TensorProto.FLOAT, output_shape),
+            ],
+        )
+
+        model = helper.make_model(graph, producer_name="dft_test")
+
+        inputs = [_input]
+        if _dft_length is not None:
+            inputs.append(_dft_length)
+
+        verify_with_ort_with_inputs(
+            model,
+            inputs,
+            [input_shape],
+            target=target,
+            dev=dev,
+            rtol=1e-4,
+            atol=1e-4,
+        )
+
+    axis = 1
+    inverse = 0
+    onesided = 0
+
+    batch_size = 1
+    n = 3
+    D = 7
+
+    input_shape = [batch_size] + n * [D] + [1]
+    output_shape = [batch_size] + n * [D] + [2]
+    if onesided == 1:
+        output_shape[axis] = output_shape[axis] // 2 + 1
+
+    input_tensor = np.random.normal(size=input_shape).astype("float32")
+
+    verify_dft(axis, inverse, onesided, input_tensor)
+
+
+@tvm.testing.parametrize_targets
 def test_sequence(target, dev):
     """test_sequence"""
 
