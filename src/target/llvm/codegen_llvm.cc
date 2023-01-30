@@ -557,7 +557,6 @@ llvm::Type* CodeGenLLVM::GetLLVMType(const PrimExpr& expr) const {
 //
 void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer_var, PrimExpr index,
                                DataType access_dtype) {
-  EmitDebugLocation(index->span);
   if (alias_var_set_.count(buffer_var) != 0) {
     // Mark all possibly aliased pointer as same type.
     llvm::MDNode* meta = md_tbaa_alias_set_;
