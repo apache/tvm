@@ -4877,6 +4877,37 @@ class LinearRegressor(OnnxOpConverter):
         return mm_out
 
 
+class DFT(OnnxOpConverter):
+    """Operator converter for discrete Fourier transform (DFT)."""
+
+    @classmethod
+    def _impl_v17(cls, inputs, attr, params):
+        # ************************* Read attrs *************************
+        axis = attr.get("axis")
+        inverse = attr.get("inverse")
+        onesided = attr.get("onesided")
+
+        # ************************* Read inputs ************************
+        input_tensor = inputs[0]
+        dft_length = inputs[1]
+
+        # ************************* Parse inputs ***********************
+        t1 = ["float16", "float32", "float64"]
+        t2 = ["int32", "int64"]
+
+        # input
+        assert infer_type(input_tensor).checked_type.dtype in t1
+        input_shape = infer_shape(input_tensor)
+        assert len(input_shape) >= 3
+        n = len(input_shape) - 2
+
+        # dft_length
+        if dft_length is not None:
+            raise NotImplementedError("dft_length")
+
+        raise NotImplementedError("DFT")
+
+
 class NonMaxSuppression(OnnxOpConverter):
     """Operator converter for NonMaxSuppression."""
 
@@ -6696,6 +6727,7 @@ def _get_convert_map(opset):
         "Scan": Scan.get_converter(opset),
         # ML
         "LinearRegressor": LinearRegressor.get_converter(opset),
+        "DFT": DFT.get_converter(opset),
         # Sequence operators
         "SequenceConstruct": SequenceConstruct.get_converter(opset),
         "SequenceEmpty": SequenceEmpty.get_converter(opset),
