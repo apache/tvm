@@ -7760,8 +7760,14 @@ def test_sequence(target, dev):
             "SplitToSequence", inputs=["concat_sequence"], outputs=["split_sequence"], axis=axis
         )
 
+        # Test tensor extraction from sequence
         at_node = helper.make_node(
             "SequenceAt", inputs=["split_sequence", "position"], outputs=["output"]
+        )
+
+        # Test sequence length
+        length_node = helper.make_node(
+            "SequenceLength", inputs=["split_sequence"], outputs=["output_2"]
         )
 
         if new_axis is not None:
@@ -7781,9 +7787,20 @@ def test_sequence(target, dev):
             output_shape[axis] = num_tensors + 1
         else:
             output_shape[axis] = (num_tensors + 1) * output_shape[axis]
-        graph_outputs = [helper.make_tensor_value_info("output", TensorProto.FLOAT, output_shape)]
+        graph_outputs = [
+            helper.make_tensor_value_info("output", TensorProto.FLOAT, output_shape),
+            helper.make_tensor_value_info("output_2", TensorProto.INT64, []),
+        ]
 
-        graph_nodes = [position_node, construct_node, insert_node, concat_node, split_node, at_node]
+        graph_nodes = [
+            position_node,
+            construct_node,
+            insert_node,
+            concat_node,
+            split_node,
+            at_node,
+            length_node,
+        ]
 
         graph = helper.make_graph(
             graph_nodes,
