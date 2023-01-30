@@ -6169,12 +6169,9 @@ class SequenceErase(OnnxOpConverter):
             position = -1
 
         if position < 0:
-            position = len(input_sequence) + position + 1
+            position = len(input_sequence) + position
         # Convert sequence to a list, insert tensors before erased, and repackage as Tuple.
-        tensor_list = [input_sequence[i] for i in range(position)]
-        # Insert tensors tail after erased one.
-        for i in range(position + 1, len(input_sequence)):
-            tensor_list.append(input_sequence[i])
+        tensor_list = [input_sequence[i] for i in range(len(input_sequence)) if i != position]
         # Create new tuple and return.
         return _expr.Tuple(tensor_list)
 
@@ -6217,6 +6214,7 @@ class SequenceLength(OnnxOpConverter):
     def _impl_v11(cls, inputs, attr, params):
         # Get length of input sequence
         return _expr.const(len(inputs[0]), dtype="int64")
+
 
 class ConcatFromSequence(OnnxOpConverter):
     """Operator converter for sequence concatenation op."""
