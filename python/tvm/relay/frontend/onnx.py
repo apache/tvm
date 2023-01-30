@@ -6168,10 +6168,13 @@ class SequenceErase(OnnxOpConverter):
         else:
             position = -1
 
+        seq_len = len(input_sequence)
+        assert -seq_len <= position < seq_len, "Position is out of bounds"
+
         if position < 0:
-            position = len(input_sequence) + position
+            position = seq_len + position
         # Convert sequence to a list, insert tensors before erased, and repackage as Tuple.
-        tensor_list = [input_sequence[i] for i in range(len(input_sequence)) if i != position]
+        tensor_list = [input_sequence[i] for i in range(seq_len) if i != position]
         # Create new tuple and return.
         return _expr.Tuple(tensor_list)
 
