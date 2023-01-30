@@ -28,8 +28,16 @@ if [ "$#" -lt 5 -o "$1" == "--help" ]; then
     exit -1
 fi
 
-# TODO(mehrdadh): move this to an virtual ENV
-PYTHON_CMD=$(which python3.8)
+ARDUINO_VENV_PATH=${HOME}/.tvm/micro_arduino
+
+# Create virtual env
+mkdir -p ${HOME}/.tvm
+PYTHON_CMD=$(which python3)
+$PYTHON_CMD -m venv ${ARDUINO_VENV_PATH}
+ARDUINO_PYTHON_CMD="${ARDUINO_VENV_PATH}/bin/python3"
+
+# Install dependencies
+$ARDUINO_PYTHON_CMD -m pip install pyusb packaging
 
 # Run server
-$PYTHON_CMD $1 $2 $3 $4 $5
+$ARDUINO_PYTHON_CMD $1 $2 $3 $4 $5
