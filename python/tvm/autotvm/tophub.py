@@ -110,6 +110,8 @@ def context(target, extra_files=None):
         device = tgt.attrs.get("device", "")
         if device != "":
             possible_names.append(_alias(device))
+        for k in tgt.keys:
+            possible_names.append(k)
         possible_names.append(tgt.kind.name)
 
         all_packages = list(PACKAGE_VERSION.keys())
