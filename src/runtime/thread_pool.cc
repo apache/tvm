@@ -338,7 +338,6 @@ class ThreadPool {
       // The SpscTaskQueue only hosts ONE item at a time
       queues_.emplace_back(std::make_unique<SpscTaskQueue>());
     }
-    ICHECK_EQ(tvm::runtime::threading::MaxConcurrency(), 1) << "MaxConcurrency is not equal to 1";
     threads_ = std::make_unique<tvm::runtime::threading::ThreadGroup>(
         num_workers_, [this](int worker_id) { this->RunWorker(worker_id); },
         exclude_worker0_ /* include_main_thread */);
