@@ -7747,10 +7747,17 @@ def test_sequence(target, dev):
             outputs=["inserted_sequence"],
         )
 
+        # Test sequence erase.
+        erase_node = helper.make_node(
+            "SequenceErase",
+            inputs=["inserted_sequence", "position"],
+            outputs=["erased_sequence"],
+        )
+
         # Test sequence concatenation.
         concat_node = helper.make_node(
             "ConcatFromSequence",
-            inputs=["inserted_sequence"],
+            inputs=["erased_sequence"],
             outputs=["concat_sequence"],
             axis=axis,
         )
@@ -7796,6 +7803,7 @@ def test_sequence(target, dev):
             position_node,
             construct_node,
             insert_node,
+            erase_node,
             concat_node,
             split_node,
             at_node,
