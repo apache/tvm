@@ -414,6 +414,21 @@ def test_preserve_trivial_let_binding():
     assert_structural_equal(implicit, explicit)
 
 
+def test_preserve_trivial_let_binding_of_value():
+    @T.prim_func
+    def explicit(i: T.int32):
+        j = T.int32()
+        T.LetStmt(42, var=j)
+        T.evaluate(j)
+
+    @T.prim_func
+    def implicit(i: T.int32):
+        j = 42
+        T.evaluate(j)
+
+    assert_structural_equal(implicit, explicit)
+
+
 def test_preserve_parameter_name():
     @T.prim_func
     def func(i: T.int32):
