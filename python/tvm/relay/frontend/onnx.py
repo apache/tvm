@@ -6154,7 +6154,7 @@ class SequenceEmpty(OnnxOpConverter):
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
         # Construct an empty tuple.
-        return _expr.Tuple(None)
+        return _expr.Tuple([])
 
 
 class SequenceErase(OnnxOpConverter):

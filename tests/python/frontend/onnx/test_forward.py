@@ -7835,12 +7835,12 @@ def test_empty_sequence(target, dev):
 
     # Test creating an empty tensor sequence.
     empty_node = helper.make_node(
-        "SequenceEmpty", inputs=[], outputs=["empty_sequence"],
+        "SequenceEmpty",
+        inputs=[],
+        outputs=["empty_sequence"],
     )
 
-    length_node = helper.make_node(
-        "SequenceLength", inputs=["empty_sequence"], outputs=["output"]
-    )
+    length_node = helper.make_node("SequenceLength", inputs=["empty_sequence"], outputs=["output"])
 
     graph_outputs = [helper.make_tensor_value_info("output", TensorProto.INT64, [])]
 
@@ -7848,7 +7848,7 @@ def test_empty_sequence(target, dev):
 
     graph = helper.make_graph(
         graph_nodes,
-        "Sequence_test",
+        "Sequence_empty_test",
         inputs=[],
         outputs=graph_outputs,
     )
