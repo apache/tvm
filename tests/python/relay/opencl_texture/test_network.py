@@ -22,21 +22,10 @@ import pytest
 import tvm
 from tvm import relay
 from tvm.contrib import utils
+from tvm.relay.op.contrib import adreno
 from tvm.relay import testing
 from tvm.relay.op import register_mixed_precision_conversion
 from utils.adreno_utils import build_run_compare, get_model, gpu_preprocess
-
-
-def convert_to_fp16(mod, dtype):
-    from tvm.ir import IRModule
-
-    mod = IRModule.from_expr(mod)
-    seq = tvm.transform.Sequential(
-        [relay.transform.InferType(), relay.transform.ToMixedPrecision()]
-    )
-    with tvm.transform.PassContext(opt_level=3):
-        mod = seq(mod)
-        return mod
 
 
 def _test_mobilenet_v1(remote, target, dtype):
@@ -45,8 +34,8 @@ def _test_mobilenet_v1(remote, target, dtype):
         "mobilenet_edgetpu_224_1.0_float.tflite",
         "tflite",
     )
-    if dtype == "float16":
-        mod = convert_to_fp16(mod["main"], dtype)
+    if dtype == "float16" or dtype == "float16_acc32":
+        mod = adreno.convert_to_dtype(mod["main"], dtype)
     build_run_compare(remote, mod, params, inputs, dtypes, target, [])
 
 
@@ -63,6 +52,13 @@ def test_mobilenet_v1_fp16(remote, target):
 @tvm.testing.parametrize_targets("opencl -device=adreno")
 def test_mobilenet_v1_fp32(remote, target):
     _test_mobilenet_v1(remote, target, "float32")
+
+
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/13443")
+@tvm.testing.requires_opencl
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_mobilenet_v1_fp16_acc32(remote, target):
+    _test_mobilenet_v1(remote, target, "float16_acc32")
 
 
 if __name__ == "__main__":
