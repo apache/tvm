@@ -6148,6 +6148,15 @@ class SequenceConstruct(OnnxOpConverter):
         return _expr.Tuple(inputs)
 
 
+class SequenceEmpty(OnnxOpConverter):
+    """Operator converter for sequence empty op."""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        # Construct an empty tuple.
+        return _expr.Tuple(None)
+
+
 class SequenceErase(OnnxOpConverter):
     """Operator converter for sequence erase op."""
 
@@ -6523,6 +6532,7 @@ def _get_convert_map(opset):
         "LinearRegressor": LinearRegressor.get_converter(opset),
         # Sequence operators
         "SequenceConstruct": SequenceConstruct.get_converter(opset),
+        "SequenceEmpty": SequenceEmpty.get_converter(opset),
         "SequenceErase": SequenceErase.get_converter(opset),
         "SequenceInsert": SequenceInsert.get_converter(opset),
         "SequenceLength": SequenceLength.get_converter(opset),
