@@ -50,6 +50,16 @@ struct DDRAllocation : public Allocation {
   DDRAllocation(size_t nbytes, size_t alignment) : Allocation(nbytes, alignment) {
     int ret = posix_memalign(&data_, alignment, nbytes);
     CHECK_EQ(ret, 0);
+
+    // The heap used by malloc on Hexagon is always mapped as cacheable. The heap manager may not
+    // perform cache invalidation on a prior memory free. So, a subsequent memory allocation request
+    // to the heap manager may allocate memory that resides in part or in full in the cache. Hence,
+    // we must invalidate the allocation from the cache to ensure that DMA with cache bypass enabled
+    // will function properly. DMA with cache bypass enabled assumes that HexagonBuffer objects are
+    // not cached unless explicitly modified by the primfunc. We must invalidate after malloc to
+    // uphold this assumption.
+    qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(data_), nbytes, QURT_MEM_CACHE_INVALIDATE,
+                         QURT_MEM_DCACHE);
   }
   ~DDRAllocation() { free(data_); }
 };
