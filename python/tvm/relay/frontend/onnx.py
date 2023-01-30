@@ -6148,13 +6148,35 @@ class SequenceConstruct(OnnxOpConverter):
         return _expr.Tuple(inputs)
 
 
-class SequenceLength(OnnxOpConverter):
-    """Operator converter for sequence length op."""
+class SequenceErase(OnnxOpConverter):
+    """Operator converter for sequence erase op."""
 
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
-        # Get length of input sequence
-        return _expr.const(len(inputs[0]), dtype="int64")
+        # Erase tensor from sequence on specified position
+        input_sequence = inputs[0]
+
+        if len(inputs) == 2:
+            position = inputs[1]
+            # Non constant position is not supported.
+            if isinstance(position, _expr.Constant):
+                position = position.data.numpy()
+            elif position.name_hint in params:
+                position = params[position.name_hint].numpy()
+            else:
+                raise NotImplementedError("Position must be a constant.")
+        else:
+            position = -1
+
+        if position < 0:
+            position = len(input_sequence) + position + 1
+        # Convert sequence to a list, insert tensors before erased, and repackage as Tuple.
+        tensor_list = [input_sequence[i] for i in range(position)]
+        # Insert tensors tail after erased one.
+        for i in range(position + 1, len(input_sequence)):
+            tensor_list.append(input_sequence[i])
+        # Create new tuple and return.
+        return _expr.Tuple(tensor_list)
 
 
 class SequenceInsert(OnnxOpConverter):
@@ -6187,6 +6209,14 @@ class SequenceInsert(OnnxOpConverter):
         # Create new tuple and return.
         return _expr.Tuple(tensor_list)
 
+
+class SequenceLength(OnnxOpConverter):
+    """Operator converter for sequence length op."""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        # Get length of input sequence
+        return _expr.const(len(inputs[0]), dtype="int64")
 
 class ConcatFromSequence(OnnxOpConverter):
     """Operator converter for sequence concatenation op."""
@@ -6492,8 +6522,9 @@ def _get_convert_map(opset):
         "LinearRegressor": LinearRegressor.get_converter(opset),
         # Sequence operators
         "SequenceConstruct": SequenceConstruct.get_converter(opset),
-        "SequenceLength": SequenceLength.get_converter(opset),
+        "SequenceErase": SequenceErase.get_converter(opset),
         "SequenceInsert": SequenceInsert.get_converter(opset),
+        "SequenceLength": SequenceLength.get_converter(opset),
         "ConcatFromSequence": ConcatFromSequence.get_converter(opset),
         "SplitToSequence": SplitToSequence.get_converter(opset),
         "SequenceAt": SequenceAt.get_converter(opset),
