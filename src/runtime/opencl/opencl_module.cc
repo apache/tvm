@@ -283,9 +283,8 @@ void OpenCLModuleNode::SetPreCompiledPrograms(const std::string& bytes) {
       const unsigned char* programBinary = bin_vector.data();
 
       cl_device_id dev = workspace_->devices[device_id];
-      programs_[name][device_id] =
-          clCreateProgramWithBinary(workspace_->context, 1, &dev, &binarySize,
-                                    &programBinary, &binaryStatus, &err);
+      programs_[name][device_id] = clCreateProgramWithBinary(
+          workspace_->context, 1, &dev, &binarySize, &programBinary, &binaryStatus, &err);
       OPENCL_CHECK_ERROR(err);
       OPENCL_CHECK_ERROR(binaryStatus);
 

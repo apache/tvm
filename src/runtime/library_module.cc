@@ -198,8 +198,7 @@ void ProcessModuleBlob(const char* mblob, ObjectPtr<Library> lib,
   // Add all other modules to the import of the root_module
   for (size_t i = 1; i < modules.size(); ++i) {
     std::string tkey = modules[i]->type_key();
-    if (tkey != "_lib" && tkey != "_import_tree")
-        root_module->Import(modules[i]);
+    if (tkey != "_lib" && tkey != "_import_tree") root_module->Import(modules[i]);
   }
 }
 

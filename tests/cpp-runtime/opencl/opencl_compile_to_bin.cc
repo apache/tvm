@@ -17,12 +17,11 @@
  * under the License.
  */
 
-#include <chrono>
-#include <filesystem>
-#include <regex>
-
 #include <gtest/gtest.h>
 #include <tvm/runtime/profiling.h>
+
+#include <chrono>
+#include <regex>
 
 #include "../src/runtime/opencl/opencl_common.h"
 
@@ -133,73 +132,76 @@ __kernel void kernel_name_placeholder1(__read_only image2d_t pad_temp_texture, _
 }
 
     )";
-}
+}  // namespace
 
 using Timestamp = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
 class OpenCLCompileBin : public ::testing::Test {
-protected:
-    virtual void SetUp() override {
-        m_workspace = OpenCLWorkspace::Global();
-        OpenCLThreadEntry* t = m_workspace->GetThreadEntry();
-        t->kernel_table.resize(m_kernelsNum * 2);
-        m_kernelNames.resize(m_kernelsNum * 2);
-        m_dataSrc = "";
-        m_fmap.clear();
-        for (size_t i = 0; i < m_kernelsNum; ++i) {
-            std::string kernel_name = "generated_kernel_" + std::to_string(i) + "_";
-            std::string kernelSource = std::regex_replace(kernelTemplate, std::regex("kernel_name_placeholder"), kernel_name);
-            FunctionInfo fi1 = {kernel_name + "0"};
-            FunctionInfo fi2 = {kernel_name + "1"};
-            m_fmap[fi1.name] = fi1;
-            m_fmap[fi2.name] = fi2;
-            m_kernelNames[i * 2] = fi1.name;
-            m_kernelNames[i * 2 + 1] = fi2.name;
-            m_dataSrc += kernelSource;
-        }
+ protected:
+  virtual void SetUp() override {
+    m_workspace = OpenCLWorkspace::Global();
+    OpenCLThreadEntry* t = m_workspace->GetThreadEntry();
+    t->kernel_table.resize(m_kernelsNum * 2);
+    m_kernelNames.resize(m_kernelsNum * 2);
+    m_dataSrc = "";
+    m_fmap.clear();
+    for (size_t i = 0; i < m_kernelsNum; ++i) {
+      std::string kernel_name = "generated_kernel_" + std::to_string(i) + "_";
+      std::string kernelSource =
+          std::regex_replace(kernelTemplate, std::regex("kernel_name_placeholder"), kernel_name);
+      FunctionInfo fi1 = {kernel_name + "0"};
+      FunctionInfo fi2 = {kernel_name + "1"};
+      m_fmap[fi1.name] = fi1;
+      m_fmap[fi2.name] = fi2;
+      m_kernelNames[i * 2] = fi1.name;
+      m_kernelNames[i * 2 + 1] = fi2.name;
+      m_dataSrc += kernelSource;
     }
+  }
 
-protected:
-    const size_t m_kernelsNum = 100;
-    const std::string m_tmpDirName = "OpenCLCompileBin_dir";
-    OpenCLWorkspace* m_workspace;
-    std::string m_dataSrc;
-    std::unordered_map<std::string, FunctionInfo> m_fmap;
-    std::vector<std::string> m_kernelNames;
+ protected:
+  const size_t m_kernelsNum = 100;
+  const std::string m_tmpDirName = "OpenCLCompileBin_dir";
+  OpenCLWorkspace* m_workspace;
+  std::string m_dataSrc;
+  std::unordered_map<std::string, FunctionInfo> m_fmap;
+  std::vector<std::string> m_kernelNames;
 };
 
 TEST_F(OpenCLCompileBin, SourceVsBinaryCompilationPerf) {
-    double compileFromSourceTimeMS, compileFromBinTimeMS;
-    std::string bytes;
-    {
-        OpenCLModuleNode module(m_dataSrc, "cl", m_fmap, std::string());
-        module.Init();
-        EXPECT_TRUE(module.SupportPreCompiledPrograms());
-        Timestamp comp_start = std::chrono::high_resolution_clock::now();
-        for (size_t i = 0; i < m_kernelNames.size(); ++i) {
-            OpenCLModuleNode::KTRefEntry e = {i, 1};
-            module.InstallKernel(m_workspace, m_workspace->GetThreadEntry(), m_kernelNames[i], e);
-        }
-        Timestamp comp_end = std::chrono::high_resolution_clock::now();
-        bytes = module.GetPreCompiledPrograms();
-        std::chrono::duration duration = std::chrono::duration_cast<std::chrono::nanoseconds>(comp_end - comp_start);
-        compileFromSourceTimeMS =  duration.count() * 1e-6;
-        std::cout << "Compile time from source:  " << compileFromSourceTimeMS << " ms." << std::endl;
+  double compileFromSourceTimeMS, compileFromBinTimeMS;
+  std::string bytes;
+  {
+    OpenCLModuleNode module(m_dataSrc, "cl", m_fmap, std::string());
+    module.Init();
+    EXPECT_TRUE(module.SupportPreCompiledPrograms());
+    Timestamp comp_start = std::chrono::high_resolution_clock::now();
+    for (size_t i = 0; i < m_kernelNames.size(); ++i) {
+      OpenCLModuleNode::KTRefEntry e = {i, 1};
+      module.InstallKernel(m_workspace, m_workspace->GetThreadEntry(), m_kernelNames[i], e);
     }
-    {
-        OpenCLModuleNode module(m_dataSrc, "cl", m_fmap, std::string());
-        module.Init();
-        EXPECT_TRUE(module.SupportPreCompiledPrograms());
-        module.SetPreCompiledPrograms(bytes);
-        Timestamp comp_start = std::chrono::high_resolution_clock::now();
-        for (size_t i = 0; i < m_kernelNames.size(); ++i) {
-            OpenCLModuleNode::KTRefEntry e = {i, 1};
-            module.InstallKernel(m_workspace, m_workspace->GetThreadEntry(), m_kernelNames[i], e);
-        }
-        Timestamp comp_end = std::chrono::high_resolution_clock::now();
-        std::chrono::duration duration = std::chrono::duration_cast<std::chrono::nanoseconds>(comp_end - comp_start);
-        compileFromBinTimeMS  =  duration.count() * 1e-6;
-        std::cout << "Compile time from bin:  " << compileFromBinTimeMS << " ms." << std::endl;
+    Timestamp comp_end = std::chrono::high_resolution_clock::now();
+    bytes = module.GetPreCompiledPrograms();
+    std::chrono::duration duration =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(comp_end - comp_start);
+    compileFromSourceTimeMS = duration.count() * 1e-6;
+    std::cout << "Compile time from source:  " << compileFromSourceTimeMS << " ms." << std::endl;
+  }
+  {
+    OpenCLModuleNode module(m_dataSrc, "cl", m_fmap, std::string());
+    module.Init();
+    EXPECT_TRUE(module.SupportPreCompiledPrograms());
+    module.SetPreCompiledPrograms(bytes);
+    Timestamp comp_start = std::chrono::high_resolution_clock::now();
+    for (size_t i = 0; i < m_kernelNames.size(); ++i) {
+      OpenCLModuleNode::KTRefEntry e = {i, 1};
+      module.InstallKernel(m_workspace, m_workspace->GetThreadEntry(), m_kernelNames[i], e);
     }
-    ASSERT_LT(compileFromBinTimeMS, compileFromSourceTimeMS);
+    Timestamp comp_end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration duration =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(comp_end - comp_start);
+    compileFromBinTimeMS = duration.count() * 1e-6;
+    std::cout << "Compile time from bin:  " << compileFromBinTimeMS << " ms." << std::endl;
+  }
+  ASSERT_LT(compileFromBinTimeMS, compileFromSourceTimeMS);
 }
