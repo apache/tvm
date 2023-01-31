@@ -583,6 +583,4 @@ def test_argreduce_infer_return_type():
 
 
 if __name__ == "__main__":
-    import sys
-
-    pytest.main(sys.argv)
+    tvm.testing.main()

@@ -65,13 +65,13 @@ export class WebGPUContext {
    * Wait for all pending GPU tasks to complete
    */
   async sync(): Promise<void> {
-    const fence = this.device.defaultQueue.createFence();
-    this.device.defaultQueue.signal(fence, 1);
     if (this.numPendingReads != 0) {
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
-      await Promise.all([fence.onCompletion(1), this.pendingRead]);
+      await Promise.all([
+        this.device.queue.onSubmittedWorkDone(),
+        this.pendingRead
+      ])
     } else {
-      await fence.onCompletion(1);
+      await this.device.queue.onSubmittedWorkDone()
     }
   }
 
@@ -89,8 +89,7 @@ export class WebGPUContext {
       if (dtype == "handle") {
         layoutEntries.push({
           binding: i,
-          visibility: GPUShaderStage.COMPUTE,
-          type: "storage-buffer"
+          visibility: GPUShaderStage.COMPUTE
         });
       } else {
         throw new Error("Cannot handle argument type " + dtype + " in WebGPU shader");
@@ -100,13 +99,16 @@ export class WebGPUContext {
       entries: layoutEntries
     });
 
+    const textDecoder = new TextDecoder('utf-8')
+    const codeString = textDecoder.decode(data.buffer)
+
     const pipeline = this.device.createComputePipeline({
       layout: this.device.createPipelineLayout({
         bindGroupLayouts: [ bindGroupLayout ]
       }),
-      computeStage: {
+      compute: {
         module: this.device.createShaderModule({
-          code: new Uint32Array(data.buffer)
+          code: codeString
         }),
         entryPoint: "main"
       }
@@ -153,10 +155,10 @@ export class WebGPUContext {
       for (let i = 0; i < dispatchToDim.length; ++i) {
         wl[dispatchToDim[i]] = args[layoutEntries.length + i];
       }
-      compute.dispatch(wl[0], wl[1], wl[2]);
-      compute.endPass();
+      compute.dispatchWorkgroups(wl[0], wl[1], wl[2])
+      compute.end()
       const command = commandEncoder.finish();
-      this.device.defaultQueue.submit([command]);
+      this.device.queue.submit([command]);
     };
 
     return submitShader;
@@ -256,7 +258,7 @@ export class WebGPUContext {
       nbytes
     );
     const copyCommands = copyEncoder.finish();
-    this.device.defaultQueue.submit([copyCommands]);
+    this.device.queue.submit([copyCommands]);
     gpuTemp.destroy();
   }
 
@@ -281,7 +283,7 @@ export class WebGPUContext {
       nbytes
     );
     const copyCommands = copyEncoder.finish();
-    this.device.defaultQueue.submit([copyCommands]);
+    this.device.queue.submit([copyCommands]);
 
     this.numPendingReads += 1;
 
@@ -318,7 +320,7 @@ export class WebGPUContext {
       nbytes
     );
     const copyCommands = copyEncoder.finish();
-    this.device.defaultQueue.submit([copyCommands]);
+    this.device.queue.submit([copyCommands]);
   }
 
   private gpuBufferFromPtr(ptr: GPUPointer): GPUBuffer {

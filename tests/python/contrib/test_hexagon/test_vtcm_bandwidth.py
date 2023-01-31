@@ -20,7 +20,9 @@
 import numpy as np
 
 import tvm
+import pytest
 from tvm.script import tir as T
+from tvm.tir.tensor_intrin.hexagon import DMA_READ_128_i8
 
 from .infrastructure import get_hexagon_target
 
@@ -30,6 +32,7 @@ TEST_OUTPUT_TEMPLATE = (
     "Test bandwidth with buffer size {}MB... \n"
     "    -Base: {} GBps \n    -Vectorized: {} GBps\n"
     "    -Vectorized and Parallelized: {} GBps\n"
+    "    -Sync DMA: {} GBps\n"
     "    -Single DMA Copy: {} GBps\n"
 )
 
@@ -103,13 +106,12 @@ def evaluate(hexagon_session, sch, size):
         a_vtcm, device=hexagon_session.device, mem_scope="global.vtcm"
     )
 
-    # These are reduced for CI but number=100 and repeat=10 does a good job of removing noise.
-    number = 1
-    repeat = 1
+    if tvm.testing.utils.IS_IN_CI:
+        # Run with reduced number and repeat for CI
+        timer = module.time_evaluator("__tvm_main__", hexagon_session.device, number=1, repeat=1)
+    else:
+        timer = module.time_evaluator("__tvm_main__", hexagon_session.device, number=10, repeat=10)
 
-    timer = module.time_evaluator(
-        "__tvm_main__", hexagon_session.device, number=number, repeat=repeat
-    )
     runtime = timer(a_hexagon, a_vtcm_hexagon)
 
     gbps = round((size / 2**30) / runtime.mean, 4)
@@ -123,18 +125,11 @@ class TestMatMulVec:
 
     # Removed most of these to speedup CI.
     size = tvm.testing.parameter(
-        # 10 * KB,
-        # 20 * KB,
-        # 40 * KB,
-        # 80 * KB,
-        # 160 * KB,
-        # 320 * KB,
-        640 * KB,
-        # MB,
-        # 2 * MB,
-        # 3 * MB,
-        # 4 * MB,
-        # 8 * MB,  # Only works on 8gen1 HDKs
+        128,
+        KB,
+        10 * KB,
+        100 * KB,
+        MB,
     )
 
     outer_split = tvm.testing.parameter(4)
@@ -144,6 +139,10 @@ class TestMatMulVec:
     @tvm.testing.requires_hexagon
     def test_bandwidth(self, hexagon_session, size, outer_split, unroll_split, vector_split):
         """Test bandwidth."""
+
+        if tvm.testing.utils.IS_IN_CI and (size > 128):
+            pytest.skip("Skipping test since it takes too long in CI.")
+
         # Run the base memcopy operator.
         sch = tvm.tir.Schedule(memcopy_operator(size))
         base_gpbs = evaluate(hexagon_session, sch, size)
@@ -169,6 +168,15 @@ class TestMatMulVec:
         sch.parallel(vbo_a)
         parallel_gbps = evaluate(hexagon_session, sch, size)
 
+        # Run with some basic unroll and vectorize scheduling and parallelization.
+        sch = tvm.tir.Schedule(memcopy_operator(size))
+        block = sch.get_block("A_global.vtcm")
+        loops = sch.get_loops(block)
+        _, inner = sch.split(loops[0], [None, 128])
+        sch.tensorize(inner, DMA_READ_128_i8)
+        # print(sch.mod.script())
+        sync_dma_gbps = evaluate(hexagon_session, sch, size)
+
         # Run using a single dma copy to transfer the data.
         sch = tvm.tir.Schedule(single_dma_operator(size))
         single_dma_gbps = evaluate(hexagon_session, sch, size)
@@ -176,7 +184,7 @@ class TestMatMulVec:
         mbs = round(size / MB, 2)
         print(
             TEST_OUTPUT_TEMPLATE.format(
-                mbs, base_gpbs, vectorize_gbps, parallel_gbps, single_dma_gbps
+                mbs, base_gpbs, vectorize_gbps, parallel_gbps, sync_dma_gbps, single_dma_gbps
             )
         )
 

@@ -273,6 +273,32 @@ def test_negative_extent():
     assert features["B0.unique_bytes"] == 0
 
 
+@T.prim_func
+def zero_dim(
+    p2: T.Buffer[(), "float32"],
+    T_cast: T.Buffer[(T.int64(1), T.int64(768)), "int8"],
+):
+    # function attr dict
+    T.func_attr(
+        {
+            "tir.noalias": True,
+            "Primitive": 1,
+        }
+    )
+    # buffer definition
+    T_cast_1 = T.buffer_decl([T.int64(768)], dtype="int8", data=T_cast.data)
+    p2_1 = T.buffer_decl([1], dtype="float32", data=p2.data)
+    # body
+    for i0_i1_fused in T.serial(768):
+        T_cast_1[i0_i1_fused] = p2_1[0]
+
+
+def test_zero_dim():
+    features = auto_scheduler.feature.named_features_from_primfunc(zero_dim)
+    assert features["B1.stride"] == 1
+    assert features["B0.stride"] == 1
+
+
 if __name__ == "__main__":
     test_cpu_matmul()
     test_cpu_fusion()

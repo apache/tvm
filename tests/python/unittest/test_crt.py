@@ -47,7 +47,7 @@ def _make_sess_from_op(temp_dir, op_name, sched, arg_bufs):
 
 
 def _make_session(temp_dir, mod):
-    template_project_dir = os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
+    template_project_dir = pathlib.Path(tvm.micro.get_microtvm_template_projects("crt"))
     project = tvm.micro.generate_project(
         template_project_dir, mod, temp_dir / "project", {"verbose": 1}
     )
@@ -229,15 +229,10 @@ def test_aot_executor():
         do_test()
 
 
-enable_usmp, expect_exception = tvm.testing.parameters((True, True), (False, False))
-
-
 @tvm.testing.requires_micro
-def test_aot_executor_usmp_const_pool(enable_usmp, expect_exception):
-    """Test the AOT executor with microTVM using usmp.
-    Test should fail if const pool is supplied to executor
-    as these are currently not supported
-    """
+def test_aot_executor_usmp_const_pool():
+    """Test the AOT executor with microTVM using USMP to generate a constant data pool."""
+
     ws_root = pathlib.Path(os.path.dirname(__file__) + "/micro-workspace-usmp")
     if ws_root.exists():
         shutil.rmtree(ws_root)
@@ -260,7 +255,7 @@ def test_aot_executor_usmp_const_pool(enable_usmp, expect_exception):
     C_np = np.array([[8, 9]], dtype="uint8").astype(type_dict["c"])
     params = {"c": C_np}
     with tvm.transform.PassContext(
-        opt_level=3, config={"tir.disable_vectorize": True, "tir.usmp.enable": enable_usmp}
+        opt_level=3, config={"tir.disable_vectorize": True, "tir.usmp.enable": True}
     ):
         factory = tvm.relay.build(
             relay_mod,
@@ -278,10 +273,7 @@ def test_aot_executor_usmp_const_pool(enable_usmp, expect_exception):
                 )
             )
         except tvm._ffi.base.TVMError as e:
-            if expect_exception:
-                return
-            else:
-                raise e
+            raise e
 
         assert aot_executor.get_input_index("a") == 0
         assert aot_executor.get_input_index("b") == 1

@@ -127,7 +127,14 @@ class JSONDatabaseNode : public DatabaseNode {
     Array<TuningRecord> results;
     results.reserve(top_k);
     for (const TuningRecord& record : this->tuning_records_) {
-      if (!record->run_secs.defined() || record->run_secs.value().empty()) {
+      auto run_secs = record->run_secs;
+      if (!run_secs.defined() || run_secs.value().empty() ||
+          std::all_of(run_secs.value().begin(), run_secs.value().end(),
+                      // kMaxMeanTime(1e10) is used as a stub for undefined measurement times.
+                      [](tvm::FloatImm v) {
+                        return v.defined() &&
+                               v->value == SortTuningRecordByMeanRunSecs::kMaxMeanTime;
+                      })) {
         continue;
       }
       if (record->workload.same_as(workload) ||
@@ -196,7 +203,7 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
           } catch (std::runtime_error& e) {
             LOG(FATAL) << "ValueError: Unable to parse TuningRecord, on line " << (task_id + 1)
                        << " of file " << path_tuning_record << ". The workload is:\n"
-                       << (workload.defined() ? tir::AsTVMScript(workload->mod) : "(null)")
+                       << (workload.defined() ? workload->mod->Script() : "(null)")
                        << "\nThe JSONObject of TuningRecord is:\n"
                        << json_obj << "\nThe error message is:\n"
                        << e.what();

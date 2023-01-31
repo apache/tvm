@@ -133,4 +133,4 @@ def test_propagate(propagator, input_stripe_config, output_stripe_config):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

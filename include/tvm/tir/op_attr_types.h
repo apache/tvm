@@ -57,6 +57,11 @@ using FLowerIntrinsic = runtime::TypedPackedFunc<PrimExpr(PrimExpr)>;
 using FLegalize = runtime::TypedPackedFunc<PrimExpr(PrimExpr)>;
 
 /*!
+ * \brief The operator's name in TVMScript printer
+ */
+using TScriptPrinterName = String;
+
+/*!
  * \brief The effect type of the call.
  */
 enum class CallEffectKind : int {

@@ -64,14 +64,14 @@ def test_deduce():
 
     e2 = tvm.te.max(5, a * 4) < 0
     res2 = tvm.arith.deduce_bound(a, e2, {b: b_s, c: c_s, d: d_s}, {})
-    assert str(res2.max_value) == "neg_inf: handle"
-    assert str(res2.min_value) == "pos_inf: handle"
+    assert str(res2.max_value) == "neg_inf"
+    assert str(res2.min_value) == "pos_inf"
 
     # expression containing variable a is on rhs
     e2 = zero < tvm.te.max(5, a * 4)
     res2 = tvm.arith.deduce_bound(a, e2, {b: b_s, c: c_s, d: d_s}, {})
-    assert str(res2.max_value) == "neg_inf: handle"
-    assert str(res2.min_value) == "pos_inf: handle"
+    assert str(res2.max_value) == "neg_inf"
+    assert str(res2.min_value) == "pos_inf"
 
     e3 = (-b) + a * c - d
     res3 = tvm.arith.deduce_bound(a, e3 >= 0, {b: b_s, c: c_s, d: d_s}, {b: b_s, d: d_s})
@@ -88,8 +88,8 @@ def test_deduce():
 
     # Unsatisfiable `EQ`, variable as one of the Operand
     res5 = tvm.arith.deduce_bound(a, (a == b), {b: b_s}, {b: b_s})
-    assert str(res5.max_value) == "neg_inf: handle"
-    assert str(res5.min_value) == "pos_inf: handle"
+    assert str(res5.max_value) == "neg_inf"
+    assert str(res5.min_value) == "pos_inf"
 
     # variable `a` on the RHS side
     res6 = tvm.arith.deduce_bound(a, 10 == a, {}, {})
@@ -111,15 +111,15 @@ def test_deduce():
     # Unsatisfiable Mul in `EQ`
     e5 = 4 * a == b
     res9 = tvm.arith.deduce_bound(a, e5, {b: b_s}, {})
-    assert str(res9.max_value) == "neg_inf: handle"
-    assert str(res9.min_value) == "pos_inf: handle"
+    assert str(res9.max_value) == "neg_inf"
+    assert str(res9.min_value) == "pos_inf"
 
     # Unsatisfiable Mul in `EQ`
     res10 = tvm.arith.deduce_bound(
         a, (b * a == b), {b: b_s}, {}
     )  # simplifier is not able to prove that (b % b == 0)
-    assert str(res10.max_value) == "neg_inf: handle"
-    assert str(res10.min_value) == "pos_inf: handle"
+    assert str(res10.max_value) == "neg_inf"
+    assert str(res10.min_value) == "pos_inf"
 
 
 def test_check():
@@ -234,4 +234,4 @@ def test_deduce_non_support():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

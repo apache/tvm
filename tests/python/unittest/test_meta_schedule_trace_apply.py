@@ -25,6 +25,8 @@ from tvm.tir.tensor_intrin.cuda import *
 from tvm.target import Target
 from tvm.target.codegen import llvm_lookup_intrinsic_id
 
+from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
+
 
 # fmt: off
 @tvm.script.ir_module
@@ -2553,9 +2555,7 @@ def test_conv2d_int8_vnni():
         l36, l37, l38, l39, l40, l41, l42, l43, l44, l45, l46, l47 = sch.get_loops(block=b1)
         sch.reorder(l42, l43, l44, l45, l46, l35, l33)
         b48 = sch.blockize(loop=l35)
-        sch.annotate(
-            block_or_loop=b48, ann_key="meta_schedule.auto_tensorize", ann_val="dot_16x4_vnni"
-        )
+        sch.annotate(block_or_loop=b48, ann_key="meta_schedule.auto_tensorize", ann_val=VNNI_INTRIN)
         l49, l50, l51, l52, l53, l54, l55, l56, l57, l58 = sch.get_loops(block=b48)
         v59, v60, v61, v62 = sch.sample_perfect_tile(
             loop=l49, n=4, max_innermost_factor=64, decision=[1, 1, 1, 1]
@@ -2729,7 +2729,7 @@ def test_conv2d_int8_vnni():
         sch.vectorize(loop=l193)
         b194 = sch.get_block(name="conv2d_NCHWc_int8_o_update", func_name="main")
         sch.unannotate(block_or_loop=b194, ann_key="meta_schedule.auto_tensorize")
-        sch.tensorize(block_or_loop=b194, tensor_intrin="dot_16x4_vnni")
+        sch.tensorize(block_or_loop=b194, tensor_intrin=VNNI_INTRIN)
 
     vnni_id = llvm_lookup_intrinsic_id("llvm.x86.avx512.vpdpbusd.512")
     verify(

@@ -1696,7 +1696,7 @@ class TestConv2DInt8Intrinsics:
         elif "cascadelake" in target:
             return "vpdpbusd"
         else:
-            assert False, "Target should be Skylake or Cascadelake"
+            assert False, "Target should be Nehalem or core-avx2 or Skylake or Cascadelake"
 
     @tvm.testing.fixture
     def assembly(
@@ -2137,7 +2137,7 @@ def test_conv2d_nhwc_dnnl():
             np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
 
-def _test_conv2d_int8_alter_dtype(data_dtype, target, dot_product_instr):
+def _test_conv2d_int8_alter_dtype(data_dtype, target, dot_product_instrs):
     def get_conv2d_nchw(
         d_shape,
         w_shape,
@@ -2168,16 +2168,16 @@ def _test_conv2d_int8_alter_dtype(data_dtype, target, dot_product_instr):
 
     bias = relay.var("bias", shape=bias_shape, dtype="int32")
     bias_np = np.random.randint(low=-127, high=128, size=bias_shape).astype("int32")
-    weight_np = np.random.uniform(-128, 127, size=weight_shape).astype("int8")
+    weight_np = np.random.uniform(-32, 32, size=weight_shape).astype("int8")
 
     conv2d = get_conv2d_nchw(data_shape, weight_shape, data_dtype)
     bias_add = relay.add(conv2d, bias)
     mod = tvm.IRModule.from_expr(bias_add)
 
     if data_dtype == "uint8":
-        data_np = np.random.uniform(0, 255, size=data_shape).astype("uint8")
+        data_np = np.random.uniform(0, 64, size=data_shape).astype("uint8")
     else:
-        data_np = np.random.uniform(-128, 127, size=data_shape).astype("int8")
+        data_np = np.random.uniform(-32, 32, size=data_shape).astype("int8")
 
     params = {"weight": weight_np, "bias": bias_np}
 
@@ -2194,7 +2194,8 @@ def _test_conv2d_int8_alter_dtype(data_dtype, target, dot_product_instr):
     ):
         lib = relay.build(mod, target=target, params=params)
 
-    assert dot_product_instr in lib.lib.get_source("asm")
+    for dot_product_instr in dot_product_instrs:
+        assert dot_product_instr in lib.lib.get_source("asm")
 
     rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
 
@@ -2210,13 +2211,20 @@ def _test_conv2d_int8_alter_dtype(data_dtype, target, dot_product_instr):
 @tvm.testing.requires_arm_dot
 def test_conv2d_int8_alter_dtype_arm():
     _test_conv2d_int8_alter_dtype(
-        "uint8", "llvm -mtriple=aarch64-linux-gnu -mattr=+v8.2a,+dotprod", "sdot"
+        "uint8", "llvm -mtriple=aarch64-linux-gnu -mattr=+v8.2a,+dotprod", ["sdot"]
     )
 
 
 @tvm.testing.requires_cascadelake
 def test_conv2d_int8_alter_dtype_vnni():
-    _test_conv2d_int8_alter_dtype("int8", "llvm -mcpu=cascadelake", "vpdpbusd")
+    _test_conv2d_int8_alter_dtype("int8", "llvm -mcpu=cascadelake", ["vpdpbusd"])
+
+
+@tvm.testing.requires_skylake_avx512
+def test_conv2d_int8_alter_dtype_avx512():
+    _test_conv2d_int8_alter_dtype(
+        "int8", "llvm -mcpu=skylake-avx512", ["pmaddubs", "pmaddw", "vpaddd"]
+    )
 
 
 if __name__ == "__main__":

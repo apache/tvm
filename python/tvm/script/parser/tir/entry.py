@@ -55,7 +55,7 @@ class BufferProxy:
     def __call__(
         self,
         shape,
-        dtype=None,
+        dtype="float32",
         data=None,
         strides=None,
         elem_offset=None,
@@ -65,8 +65,6 @@ class BufferProxy:
         buffer_type="",
         axis_separators=None,
     ) -> Buffer:
-        if dtype is None:
-            raise ValueError("Data type must be specified when constructing buffer")
         return buffer_decl(
             shape,
             dtype=dtype,

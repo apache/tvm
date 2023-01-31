@@ -239,21 +239,26 @@ class Schedule(Object):
         """
         return _ffi_api.ScheduleForkSeed(self)  # type: ignore # pylint: disable=no-member
 
-    @type_checked
-    def show(self, rand_var: RAND_VAR_TYPE) -> str:
-        """Returns a string representation of the value that the random variable evaluates to
+    def show(self, style: Optional[str] = None, black_format: bool = True) -> None:
+        """A sugar for print highlighted TVM script.
 
         Parameters
         ----------
-        rand_var : Union[ExprRV, BlockRV, LoopRV]
-            The random variable to be evaluated
+        style : str, optional
 
-        Returns
-        -------
-        str_repr : str
-            The string representation
+            Pygmentize printing style, auto-detected if None.  See
+            `tvm.script.highlight.cprint` for more details.
+
+        black_format: bool
+
+            If true (default), use the formatter Black to format the TVMScript
         """
-        return str(self.get(rand_var))
+        mod = self.mod
+        if mod is not None:
+            mod.show(style=style, black_format=black_format)
+        trace = self.trace
+        if trace is not None:
+            trace.show(style=style, black_format=black_format)
 
     ########## Lookup ##########
 
@@ -1289,7 +1294,10 @@ class Schedule(Object):
 
     @type_checked
     def cache_index(
-        self, block: Union[BlockRV, str], buffer_index: Union[int, str, Buffer]
+        self,
+        block: Union[BlockRV, str],
+        storage_scope: str,
+        cse_thresh: int = 0,
     ) -> List[BlockRV]:
         """Create a block to cache precomputed index for later use.
         if there is no index computation, keep unchanged.
@@ -1299,8 +1307,12 @@ class Schedule(Object):
         block : Union[BlockRV, str]
             The target block operates on the target buffer.
 
-        buffer_index: int
-            The index of the target buffer in block's read region
+        storage_scope: str
+            The storage scope of cached block.
+
+        cse_thresh: int
+            The repeat threshold that determines a common sub expr,
+            default 0 means cache all index computation.
 
 
         Returns
@@ -1329,7 +1341,7 @@ class Schedule(Object):
 
             sch = tir.Schedule(resize)
             block_a = sch.get_block("A")
-            sch.cache_index(block_a, 0)
+            sch.cache_index(block_a, "global", 1)
             print(sch.mod["main"].script())
 
         After applying cache_index, the IR becomes:
@@ -1365,12 +1377,8 @@ class Schedule(Object):
         """
         block = self._normalize_block_arg(block)
 
-        if not isinstance(buffer_index, int):
-            _, buffer_index, _ = self._normalize_buffer_arg(
-                block, buffer_index, required_buffer_type="read"
-            )
         return _ffi_api.ScheduleCacheIndex(  # type: ignore # pylint: disable=no-member
-            self, block, buffer_index
+            self, block, storage_scope, cse_thresh
         )
 
     @type_checked

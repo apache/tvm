@@ -39,17 +39,5 @@ Id::Id(String name_hint) {
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("ir.NodeSetSpan").set_body_typed([](ObjectRef node_ref, Span sp) {
-  if (auto* rn = node_ref.as<RelayNode>()) {
-    rn->span = sp;
-  } else if (auto* rn = node_ref.as<RelayExprNode>()) {
-    rn->span = sp;
-  } else if (auto* rn = node_ref.as<TypeNode>()) {
-    rn->span = sp;
-  } else {
-    LOG(FATAL) << "Expect Type or RelayNode ";
-  }
-});
-
 }  // namespace relay
 }  // namespace tvm

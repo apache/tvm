@@ -80,4 +80,4 @@ def test_compute_cycles_annotation(SRAM, FLASH, TwoConv2DTE):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

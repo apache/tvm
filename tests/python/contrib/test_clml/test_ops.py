@@ -574,5 +574,107 @@ def test_unary_ops(device, dtype):
     _verify(*(_get_model((1, 16), relay.nn.relu)))
 
 
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@tvm.testing.requires_openclml
+def test_depth_to_space(device, dtype):
+    def _get_model(a_shape, block_size):
+        a = relay.var("a", shape=(a_shape), dtype=dtype)
+        out = relay.nn.depth_to_space(a, block_size)
+        inputs = {"a": tvm.nd.array(np.random.uniform(-1, 1, a_shape).astype(dtype))}
+        params = {}
+        return out, params, inputs
+
+    def _verify(out, params, inputs):
+        mod = IRModule.from_expr(out)
+        opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
+        clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        tvm.testing.assert_allclose(
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+        )
+
+        # Check to make sure these ops are offloaded to CLML instead of TVM.
+        exp_codegen = [
+            {
+                "attrs": {
+                    "dtype": [[dtype]],
+                    "shape": [[list(inputs["a"].shape)]],
+                },
+                "name": "",
+                "op": "input",
+            },
+            {
+                "attrs": {
+                    "block_size": [[str(int(out.attrs.block_size))]],
+                    "layout": [["NCHW"]],
+                    "mode": [["DCR"]],
+                    "dtype": [[dtype]],
+                    "num_inputs": "1",
+                    "num_outputs": "1",
+                    "shape": [[list(clml_out[0].shape)]],
+                },
+                "inputs": [[0, 0, 0]],
+                "name": "nn.depth_to_space",
+                "op": "kernel",
+            },
+        ]
+        verify_codegen(out, exp_codegen, device, params)
+
+    _verify(*(_get_model((1, 64, 8, 8), 4)))
+    _verify(*(_get_model((1, 64, 8, 8), 8)))
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@tvm.testing.requires_openclml
+def test_resize_bilinear(device, dtype):
+    def _get_model(a_shape, scale, align_corners):
+        a = relay.var("a", shape=(a_shape), dtype=dtype)
+        out = relay.nn.upsampling(
+            a, scale_h=scale[0], scale_w=scale[1], method="bilinear", align_corners=align_corners
+        )
+        inputs = {"a": tvm.nd.array(np.random.uniform(-1, 1, a_shape).astype(dtype))}
+        params = {}
+        return out, params, inputs
+
+    def _verify(out, params, inputs):
+        mod = IRModule.from_expr(out)
+        opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
+        clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        tvm.testing.assert_allclose(
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+        )
+
+        # Check to make sure these ops are offloaded to CLML instead of TVM.
+        exp_codegen = [
+            {
+                "attrs": {
+                    "dtype": [[dtype]],
+                    "shape": [[list(inputs["a"].shape)]],
+                },
+                "name": "",
+                "op": "input",
+            },
+            {
+                "attrs": {
+                    "scale_h": [[str(int(out.attrs.scale_h))]],
+                    "scale_w": [[str(int(out.attrs.scale_w))]],
+                    "layout": [["NCHW"]],
+                    "method": [[out.attrs.method]],
+                    "align_corners": [[str(out.attrs.align_corners)]],
+                    "dtype": [[dtype]],
+                    "num_inputs": "1",
+                    "num_outputs": "1",
+                    "shape": [[list(clml_out[0].shape)]],
+                },
+                "inputs": [[0, 0, 0]],
+                "name": "nn.upsampling",
+                "op": "kernel",
+            },
+        ]
+        verify_codegen(out, exp_codegen, device, params)
+
+    _verify(*(_get_model((1, 16, 8, 8), (2, 2), False)))
+    _verify(*(_get_model((1, 16, 7, 7), (2, 2), True)))
+
+
 if __name__ == "__main__":
     tvm.testing.main()

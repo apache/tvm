@@ -1623,8 +1623,8 @@ bool ControlFlowGraph::IsOverwrittenWithoutEffect(const tir::BufferStore& store,
   }
 
   auto it = control_flow_lookup_.find(context.get());
-  ICHECK(it != control_flow_lookup_.end())
-      << "Context " << PrettyPrint(context) << " did not occur within analyzed statement";
+  ICHECK(it != control_flow_lookup_.end()) << "Context did not occur within analyzed statement:\n"
+                                           << context;
   const auto& context_block = control_flow_[it->second];
 
   auto [store_touch, free_params] = context_block.MakeBufferTouch(

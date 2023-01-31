@@ -156,6 +156,18 @@ TEST(PackedFunc, Type) {
   ICHECK(get_type2("float32x2").operator DataType() == DataType::Float(32, 2));
 }
 
+TEST(PackedFunc, AsTVMRetValue) {
+  using namespace tvm;
+  using namespace tvm::runtime;
+  ObjectRef obj = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
+    PrimExpr x = args[0];
+    *rv = x.as<tvm::tir::IntImmNode>()->value + 1;
+  });
+  TVMRetValue value;
+  value = obj;
+  ICHECK_EQ(value.operator PackedFunc()(1).operator int(), 2);
+}
+
 TEST(TypedPackedFunc, HighOrder) {
   using namespace tvm;
   using namespace tvm::runtime;

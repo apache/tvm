@@ -45,6 +45,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tir.instrument_bound_checkers", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_assert", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_vectorize", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_cse_tir", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.enable_debug", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.enable_equiv_terms_in_cse_tir", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_storage_rewrite", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.is_entry_func", Bool);
@@ -53,8 +54,14 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tir.debug_keep_trivial_loop", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.use_async_copy", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.merge_async_commit_queue_scope", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.instrument_lwp", Bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tir.dma_bypass_cache", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.vtcm_capacity", Integer);
+
+// WARNING: May cause coherency issues resulting data miscompares
+// Experimental feature that, when enabled by the runtime, bypasses the cache when using DMA. When
+// bypassing the cache TVM must manage cache coherency in software. Software managed cache coherency
+// can be tricky e.g. it is yet to be proven out in the Hexagon runtime. Hence the warning above and
+// the "experimental" notation for this feature.
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.experimental_dma_bypass_cache", Bool);
 
 using tvm::Array;
 using tvm::transform::Pass;
@@ -597,6 +604,9 @@ TVM_REGISTER_GLOBAL("driver.mixed_mod_passes")
     });
 
 transform::Sequential HostModulePassManager(IRModule mixed_mod, Target target_host) {
+  transform::PassContext pass_ctx = transform::PassContext::Current();
+  bool enable_debug = pass_ctx->GetConfig<Bool>("tir.enable_debug", Bool(false)).value();
+
   Array<tvm::transform::Pass> host_pass_list;
 
   runtime::TypedPackedFunc<bool(tir::PrimFunc)> fcond = [](const tir::PrimFunc& f) {
@@ -614,6 +624,10 @@ transform::Sequential HostModulePassManager(IRModule mixed_mod, Target target_ho
   host_pass_list.push_back(tir::transform::LowerIntrin());
   host_pass_list.push_back(tir::transform::LowerDeviceStorageAccessInfo());
   host_pass_list.push_back(tir::transform::CombineContextCall());
+
+  if (enable_debug) {
+    host_pass_list.push_back(tir::transform::InstallDebugSpans());
+  }
 
   return transform::Sequential(host_pass_list);
 }

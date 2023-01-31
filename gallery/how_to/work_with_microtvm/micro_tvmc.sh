@@ -16,30 +16,26 @@
 # under the License.
 
 : '
-.. _tutorial-micro-tvmc:
+.. _tutorial-micro-cli-tool:
 
-Executing a Tiny Model with TVMC Micro
-======================================
+1. microTVM CLI Tool
+====================
 **Author**: `Mehrdad Hessar <https://github.com/mehrdadh>`_
 
 This tutorial explains how to compile a tiny model for a micro device,
 build a program on Zephyr platform to execute this model, flash the program
 and run the model all using `tvmc micro` command.
+You need to install python and Zephyr dependencies before processing with this tutorial.
 '
 
 ######################################################################
-# .. note::
-#     This tutorial is explaining using TVMC Mirco on Zephyr platform. You need
-#     to install Zephyr dependencies before processing with this tutorial. Alternatively,
-#     you can run this tutorial in one of the following ways which has Zephyr depencencies already installed.
 #
-#     * Use `microTVM Reference Virtual Machines <https://tvm.apache.org/docs/how_to/work_with_microtvm/micro_reference_vm.html#sphx-glr-how-to-work-with-microtvm-micro-reference-vm-py>`_.
-#     * Use QEMU docker image provided by TVM. Following these you will download and login to the docker image:
+#     .. include:: ../../../../gallery/how_to/work_with_microtvm/install_dependencies.rst
 #
-#     .. code-block:: bash
+
+######################################################################
 #
-#       cd tvm
-#       ./docker/bash.sh tlcpack/ci-qemu
+#     .. include:: ../../../../gallery/how_to/work_with_microtvm/install_zephyr.rst
 #
 
 # bash-ignore
@@ -93,7 +89,7 @@ wget https://github.com/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/e
 #
 # Model Library Format (MLF) is an output format that TVM provides for micro targets. MLF is a tarball
 # containing a file for each piece of the TVM compiler output which can be used on micro targets outside
-# TVM environment. Read more about `Model Library Format <https://tvm.apache.org/docs//arch/model_library_format.html>`_.
+# TVM environment. Read more about :ref:`Model Library Format <model_library_format>`.
 #
 # Here, we generate a MLF file for ``qemu_x86`` Zephyr board. To generate MLF output for the ``magic_wand`` tflite model:
 #
@@ -183,12 +179,17 @@ tvmc run \
     --fill-mode ones \
     --print-top 4
 # bash
-#     # Output:
-#     #
-#     # INFO:__main__:b'[100%] [QEMU] CPU: qemu32,+nx,+pae\n'
-#     # remote: microTVM Zephyr runtime - running
-#     # INFO:__main__:b'[100%] Built target run\n'
-#     # [[3.         1.         2.         0.        ]
-#     # [0.47213247 0.41364592 0.07525456 0.03896701]]
+
+############################################################
+# Specifically, this command sets the input of the model
+# to all ones and shows the four values of the output with their indices.
 #
-# Specifically, this command sets the input of the model to all ones and shows the four values of the output with their indices.
+# .. code-block:: bash
+#
+#      # Output:
+#      # INFO:__main__:b'[100%] [QEMU] CPU: qemu32,+nx,+pae\n'
+#      # remote: microTVM Zephyr runtime - running
+#      # INFO:__main__:b'[100%] Built target run\n'
+#      # [[3.         1.         2.         0.        ]
+#      # [0.47213247 0.41364592 0.07525456 0.03896701]]
+#

@@ -143,6 +143,16 @@ class QDenseArgs(Enum):
     WEIGHTS_SCALE = 5
 
 
+class QPad2DArgs(Enum):
+    """
+    This is a helper enum to obtain the correct index
+    of nn.pad arguments.
+    """
+
+    IFM = 0
+    IFM_ZERO_POINT = 1
+
+
 def is_npu_func(func: relay.Function) -> bool:
     """Check if the given function is an NPU function."""
     return func.attrs and "Compiler" in func.attrs and func.attrs["Compiler"] == "ethos-u"

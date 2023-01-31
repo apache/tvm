@@ -24,14 +24,16 @@ from tvm import autotvm
 from .dense import _default_dense_pack_config
 from ..utils import get_const_tuple
 from ..nn import dense_alter_layout
-from .utils import target_has_vnni
+from .utils import target_has_avx512, target_has_amx
 from .. import nn
 
 
-def check_vnni_applicable(x, y, allow_padding=False):
+def check_int8_applicable(x, y, allow_padding=False):
     mcpu = tvm.target.Target.current().mcpu
+    # TODO(vvchernov): may be also target_has_avx2 or lower?
+    simd_avai = target_has_avx512(mcpu) or target_has_amx(mcpu)
     return (
-        target_has_vnni(mcpu)
+        simd_avai
         and "int8" in x.dtype
         and "int8" in y.dtype
         and (allow_padding or (y.shape[-2] % 16 == 0 and y.shape[-1] % 4 == 0))
@@ -47,7 +49,7 @@ def _alter_dense_layout(attrs, inputs, tinfos, out_type):
     M, K = get_const_tuple(data_tensor.shape)
     N, _ = get_const_tuple(weight_tensor.shape)
 
-    if check_vnni_applicable(data_tensor, weight_tensor) and data_tensor.dtype == "uint8":
+    if check_int8_applicable(data_tensor, weight_tensor) and data_tensor.dtype == "uint8":
         weight_layout = "NC16n4c"
         return relay.nn.contrib_dense_pack(inputs[0], inputs[1], weight_layout, None, out_dtype)
 
@@ -84,10 +86,10 @@ def _alter_dense_layout(attrs, inputs, tinfos, out_type):
     return None
 
 
-def vnni_legalize(inputs, arg_types, op, attrs, need_expand=False):
+def int8_int8_legalize(inputs, arg_types, op, attrs, need_expand=False):
     """Legalizes s8, s8 -> s32 GEMM op for VNNI."""
     if (
-        check_vnni_applicable(arg_types[0], arg_types[1], allow_padding=True)
+        check_int8_applicable(arg_types[0], arg_types[1], allow_padding=True)
         and arg_types[0].dtype == "int8"
     ):
         x, y = inputs
@@ -133,7 +135,7 @@ def vnni_legalize(inputs, arg_types, op, attrs, need_expand=False):
 @nn.dense_legalize.register("cpu")
 def _dense_legalize(attrs, inputs, arg_types):
     """Legalizes s8, s8 -> s32 dense for VNNI."""
-    return vnni_legalize(inputs, arg_types, relay.nn.dense, attrs)
+    return int8_int8_legalize(inputs, arg_types, relay.nn.dense, attrs)
 
 
 @nn.batch_matmul_legalize.register("cpu")
@@ -141,4 +143,4 @@ def _batch_matmul_legalize(attrs, inputs, arg_types):
     """Legalizes s8, s8 -> s32 batch_matmul for VNNI."""
     if attrs["transpose_a"] or not attrs["transpose_b"]:
         return None
-    return vnni_legalize(inputs, arg_types, relay.nn.batch_matmul, attrs, need_expand=True)
+    return int8_int8_legalize(inputs, arg_types, relay.nn.batch_matmul, attrs, need_expand=True)

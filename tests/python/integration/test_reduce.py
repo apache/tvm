@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test scheduling of reduction operations."""
-import pytest
 import numpy as np
 
 import tvm
@@ -675,4 +674,4 @@ def test_reduce_storage_reuse():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

@@ -37,6 +37,7 @@ from .common import get_relay_op
 from .common import infer_type as _infer_type
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
+from .common import set_span
 
 from .tensorflow_ops import _convert_map
 from .tensorflow_ops import _need_prelude_for_shape_inference
@@ -328,7 +329,7 @@ class Loop:
         `while_loop` construct.
         """
         bind_map = {}
-        wl = tvm.relay.var("while_loop")
+        wl = set_span(tvm.relay.var("while_loop"), self._loop_name)
         sb = tvm.relay.scope_builder.ScopeBuilder()
 
         lv_list = []
@@ -345,7 +346,7 @@ class Loop:
             if lv not in self._lvar2expr[self._loop_name]:
                 var_name = "{}_loop_var_{}".format(self._loop_name, i)
                 var_type = _infer_type(lv, self._mod).checked_type
-                loop_var = tvm.relay.var(var_name, type_annotation=var_type)
+                loop_var = set_span(tvm.relay.var(var_name, type_annotation=var_type), var_name)
                 self._lvar2expr[self._loop_name][loop_var] = lv
                 bind_map[lv] = loop_var
                 self.loop_vars[i] = loop_var
@@ -358,7 +359,7 @@ class Loop:
             self.cond = rewrite_subgraph(self.cond, bind_map)
             self.body = [rewrite_subgraph(b, bind_map) for b in self.body]
 
-        cond = tvm.relay.op.min(self.cond)
+        cond = set_span(tvm.relay.op.min(self.cond), self.cond.span)
 
         for lv, exp in self._lvar2expr[self._loop_name].items():
             if lv not in self.loop_vars:
@@ -517,8 +518,11 @@ class GraphProto(object):
                 self._output_shapes[node.name] = [self._input_shapes[node.name]]
                 attr = self._parse_attr(node.attr)
                 self._nodes[node.name] = [
-                    _expr.var(
-                        node.name, shape=self._input_shapes[node.name], dtype=attr["dtype"].name
+                    set_span(
+                        _expr.var(
+                            node.name, shape=self._input_shapes[node.name], dtype=attr["dtype"].name
+                        ),
+                        node.name,
                     )
                 ]
 
@@ -708,16 +712,23 @@ class GraphProto(object):
                     var_shape = shape[name]
                 else:
                     var_shape = tensor_util.TensorShapeProtoToList(value.tensor.tensor_shape)
-                self._nodes[name] = [_expr.var(name, shape=var_shape, dtype="uint8")]
+                self._nodes[name] = [
+                    set_span(_expr.var(name, shape=var_shape, dtype="uint8"), span=name)
+                ]
                 return
 
             array_ndim = len(np_array.shape)
             if array_ndim == 0:
-                self._nodes[name] = [tvm.relay.const(np_array, np_array.dtype)]
+                self._nodes[name] = [set_span(tvm.relay.const(np_array, np_array.dtype), name)]
             else:
                 self._params[name] = tvm.nd.array(np_array)
                 self._nodes[name] = [
-                    _expr.var(name, shape=self._params[name].shape, dtype=self._params[name].dtype)
+                    set_span(
+                        _expr.var(
+                            name, shape=self._params[name].shape, dtype=self._params[name].dtype
+                        ),
+                        name,
+                    )
                 ]
         else:
             if key not in ("dtype", "_output_shapes", "_class"):
@@ -998,6 +1009,8 @@ class GraphProto(object):
         ----------
         op_name : str
             Operator name, such as Conv2D, AvgPool
+        node_name : str
+            Node name, predefined by user or default setting of TF
         inputs : list of relay.op
             List of input symbols.
         attrs : dict
@@ -1028,22 +1041,8 @@ class GraphProto(object):
         else:
             raise NotImplementedError("Operator {} not implemented.".format(op_name))
 
-        sym = self._set_span(sym, node_name)
+        sym = set_span(sym, node_name)
 
-        return sym
-
-    @staticmethod
-    def _set_span(sym, node_name):
-        span = tvm.relay.Span(tvm.relay.SourceName(node_name), 0, 0, 0, 0)
-        if isinstance(sym, _expr.Call) and sym.span is None:
-            sym = _expr.Call(sym.op, sym.args, sym.attrs, sym.type_args, span)
-        elif isinstance(sym, _expr.TupleWrapper):
-            tuple_value = sym.tuple_value
-            if isinstance(tuple_value, _expr.Call) and tuple_value.span is None:
-                tuple_value = _expr.Call(
-                    tuple_value.op, tuple_value.args, tuple_value.attrs, tuple_value.type_args, span
-                )
-                sym = _expr.TupleWrapper(tuple_value, sym.size)
         return sym
 
     def _licm_construct(self, loop_name, node_name):
@@ -1079,7 +1078,7 @@ class GraphProto(object):
             if node_name not in self._lname_map[loop_name]:
                 var_name = "{}_loop_var".format(node_name)
                 var_type = _infer_type(actual_expr, self._mod).checked_type
-                loop_var = tvm.relay.var(var_name, type_annotation=var_type)
+                loop_var = set_span(tvm.relay.var(var_name, type_annotation=var_type), var_name)
                 try:
                     extra_param = _infer_value(actual_expr, self._params, self._mod)
                     self._params[var_name] = extra_param
@@ -1183,10 +1182,13 @@ class GraphProto(object):
             if isinstance(op, np.ndarray):
                 self._params[node.name] = tvm.nd.array(op)
                 op = [
-                    _expr.var(
+                    set_span(
+                        _expr.var(
+                            node.name,
+                            shape=self._params[node.name].shape,
+                            dtype=self._params[node.name].dtype,
+                        ),
                         node.name,
-                        shape=self._params[node.name].shape,
-                        dtype=self._params[node.name].dtype,
                     )
                 ]
 

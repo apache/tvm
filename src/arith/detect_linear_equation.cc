@@ -189,6 +189,7 @@ bool DetectClipBound(const PrimExpr& cond,
   PostOrderVisit(cond, fvisit);
   if (flag != 1) return false;
   // canonical form: exp >= 0
+  bool is_eq = false;
   PrimExpr canonical;
   if (const LTNode* op = cond.as<LTNode>()) {
     if (!op->a.dtype().is_int()) return false;
@@ -202,6 +203,10 @@ bool DetectClipBound(const PrimExpr& cond,
   } else if (const GENode* op = cond.as<GENode>()) {
     if (!op->a.dtype().is_int()) return false;
     canonical = op->a - op->b;
+  } else if (const EQNode* op = cond.as<EQNode>()) {
+    if (!op->a.dtype().is_int()) return false;
+    canonical = op->a - op->b;
+    is_eq = true;
   } else {
     return false;
   }
@@ -210,25 +215,40 @@ bool DetectClipBound(const PrimExpr& cond,
   if (!LinearEqDetector(var).Detect(canonical, &ret)) return false;
   ret.coeff = analyzer.Simplify(ret.coeff);
   IntervalEntry& p = (*bmap)[var.get()];
+
+  Optional<PrimExpr> min_value;
+  Optional<PrimExpr> max_value;
   if (is_const_int(ret.coeff, 1)) {
     // var + shift >=0 -> var >= -shift
-    if (p.min_value.defined()) {
-      p.min_value = max(p.min_value, -ret.base);
-    } else {
-      p.min_value = -ret.base;
+    min_value = -ret.base;
+    if (is_eq) {
+      max_value = min_value;
     }
-    return true;
-  }
-  if (is_const_int(ret.coeff, -1)) {
+  } else if (is_const_int(ret.coeff, -1)) {
     // -var + shift >=0 -> var <= shift
-    if (p.max_value.defined()) {
-      p.max_value = min(p.max_value, ret.base);
-    } else {
-      p.max_value = ret.base;
+    max_value = ret.base;
+    if (is_eq) {
+      min_value = max_value;
     }
-    return true;
   }
-  return false;
+  if (!min_value.defined() && !max_value.defined()) {
+    return false;
+  }
+  if (min_value.defined()) {
+    if (p.min_value.defined()) {
+      p.min_value = max(p.min_value, min_value.value());
+    } else {
+      p.min_value = min_value.value();
+    }
+  }
+  if (max_value.defined()) {
+    if (p.max_value.defined()) {
+      p.max_value = min(p.max_value, max_value.value());
+    } else {
+      p.max_value = max_value.value();
+    }
+  }
+  return true;
 }
 
 template <typename OP>
