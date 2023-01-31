@@ -110,8 +110,10 @@ def context(target, extra_files=None):
         device = tgt.attrs.get("device", "")
         if device != "":
             possible_names.append(_alias(device))
-        for k in tgt.keys:
-            possible_names.append(k)
+        # for cases when we do have explicitly defined -device in the target,
+        # we still might have information about it stored in keys container
+        # in other case we will load statistics for definitely irrelative stat
+        possible_names.extend(tgt.keys)
         possible_names.append(tgt.kind.name)
 
         all_packages = list(PACKAGE_VERSION.keys())
