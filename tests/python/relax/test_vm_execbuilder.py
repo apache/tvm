@@ -260,4 +260,3 @@ def test_vm_invoke_closure():
 
 if __name__ == "__main__":
     tvm.testing.main()
-

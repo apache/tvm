@@ -607,4 +607,3 @@ def _filter_tir(mod: tvm.IRModule) -> tvm.IRModule:
         if isinstance(mod[gv], PrimFunc):
             tir_mod[gv] = mod[gv]
     return tir_mod
-

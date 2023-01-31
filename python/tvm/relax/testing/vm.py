@@ -83,4 +83,3 @@ def check_saved_func(vm: relax.VirtualMachine, func_name: str, *inputs: List[Any
     res2 = vm[saved_name]()
     tvm.testing.assert_allclose(res1.numpy(), res2.numpy(), rtol=1e-7, atol=1e-7)
     return res1
-
