@@ -488,7 +488,7 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       return false;
     }
   }
-  const auto in_dtype = data->dtype;
+  //const auto in_dtype = data->dtype;
   //ICHECK(in_dtype == DataType::Int(8) || in_dtype == DataType::UInt(8) ||
   //       in_dtype == DataType::Int(32) || in_dtype == DataType::Int(64))
   //    << "Input type should be one of [int8, uint8, int32, int64] but was " << in_dtype;
