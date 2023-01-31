@@ -20,14 +20,11 @@
 import os
 import sys
 import warnings
-from typing import Optional, Union
-
-from tvm.ir import IRModule
-from tvm.tir import PrimFunc
+from typing import Any, Optional, Union
 
 
 def cprint(
-    printable: Union[IRModule, PrimFunc, str],
+    printable: Union[Any, str],
     style: Optional[str] = None,
     black_format: bool = True,
 ) -> None:
@@ -61,8 +58,12 @@ def cprint(
     The default pygmentize style can also be set with the environment
     variable "TVM_PYGMENTIZE_STYLE".
     """
-    if isinstance(printable, (IRModule, PrimFunc)):
+    if hasattr(printable, "script") and callable(getattr(printable, "script")):
         printable = printable.script()
+    elif not isinstance(printable, str):
+        raise TypeError(
+            f"Only can print strings or objects with `script` method, but got: {type(printable)}"
+        )
 
     if black_format:
         printable = _format(printable)
