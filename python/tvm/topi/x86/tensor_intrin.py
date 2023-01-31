@@ -120,14 +120,14 @@ def dot_16x1x16_uint8_int8_int32_skylake():
             pair_reduction = tvm.tir.call_llvm_pure_intrin(
                 int_lx32,
                 pmaddubs,
-                tvm.tir.const(0, "uint32"),
+                tvm.tir.const(2, "uint32"),
                 vec_a,
                 vec_b,
             )
             quad_reduction = tvm.tir.call_llvm_pure_intrin(
                 int_32xl,
                 pmaddw,
-                tvm.tir.const(0, "uint32"),
+                tvm.tir.const(2, "uint32"),
                 pair_reduction,
                 vec_one,
             )
@@ -215,7 +215,7 @@ def dot_16x1x16_uint8_int8_int16():
                 pair_reduction = tvm.tir.call_llvm_pure_intrin(
                     "int16x32",
                     "llvm.x86.avx512.pmaddubs.w.512",
-                    tvm.tir.const(0, "uint32"),
+                    tvm.tir.const(2, "uint32"),
                     vec_a,
                     vec_b,
                 )
@@ -309,7 +309,7 @@ def dot_16x1x16_uint8_int8_int32_cascadelake():
                 quad_reduction = tvm.tir.call_llvm_pure_intrin(
                     "int32x16",
                     "llvm.x86.avx512.vpdpbusd.512",
-                    tvm.tir.const(0, "uint32"),
+                    tvm.tir.const(3, "uint32"),
                     vec_c,
                     vec_ai32,
                     vec_bi32,
@@ -321,14 +321,14 @@ def dot_16x1x16_uint8_int8_int32_cascadelake():
                 pair_reduction = tvm.tir.call_llvm_pure_intrin(
                     "int16x32",
                     "llvm.x86.avx512.pmaddubs.w.512",
-                    tvm.tir.const(0, "uint32"),
+                    tvm.tir.const(2, "uint32"),
                     vec_a,
                     vec_b,
                 )
                 quad_reduction = tvm.tir.call_llvm_pure_intrin(
                     "int32x16",
                     "llvm.x86.avx512.pmaddw.d.512",
-                    tvm.tir.const(0, "uint32"),
+                    tvm.tir.const(2, "uint32"),
                     pair_reduction,
                     vec_one,
                 )
