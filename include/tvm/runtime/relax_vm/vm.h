@@ -1,0 +1,148 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*!
+ * \file tvm/runtime/relax_vm/vm.h
+ */
+#ifndef TVM_RUNTIME_RELAX_VM_VM_H_
+#define TVM_RUNTIME_RELAX_VM_VM_H_
+
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "./bytecode.h"
+#include "./executable.h"
+#include "./memory_manager.h"
+
+namespace tvm {
+namespace runtime {
+namespace relax_vm {
+
+/*!
+ * \brief An object representing a vm closure.
+ */
+class VMClosureObj : public ClosureObj {
+ public:
+  /*!
+   * \brief The function name. The function could be any
+   * function object that is compatible to the VM runtime.
+   */
+  String func_name;
+
+  /*!
+   * \brief The implementation of the Closure.
+   * \note This function takes context pointer(VirtualMachine*)
+   *       as the first argument. The rest of arguments follows
+   *       the same arguments as the normal function call.
+   */
+  PackedFunc impl;
+
+  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
+  static constexpr const char* _type_key = "relax.vm.Closure";
+  TVM_DECLARE_FINAL_OBJECT_INFO(VMClosureObj, ClosureObj);
+};
+
+/*! \brief reference to closure. */
+class VMClosure : public Closure {
+ public:
+  VMClosure(String func_name, PackedFunc impl);
+  TVM_DEFINE_OBJECT_REF_METHODS(VMClosure, Closure, VMClosureObj);
+
+  /*!
+   * \brief Create another PackedFunc with last arguments already bound to last_args.
+   *
+   * This is a helper function to create captured closures.
+   * \param func The input func, can be a VMClosure or PackedFunc.
+   * \param last_args The arguments to bound to in the end of the function.
+   * \note The new function takes in arguments and append the last_args in the end.
+   */
+  static PackedFunc BindLastArgs(PackedFunc func, std::vector<TVMRetValue> last_args);
+};
+
+/*!
+ * \brief The virtual machine.
+ *
+ * The virtual machine contains all the current execution state,
+ * as well as the executable.
+ *
+ * The goal is to have a single self-contained object,
+ * enabling one to easily pass around VMs, execute them on
+ * multiple threads, or serialize them to disk or over the
+ * wire.
+ */
+class VirtualMachine : public runtime::ModuleNode {
+ public:
+  /*!
+   * \brief Initialize the virtual machine for a set of devices.
+   * \param devices The set of TVM devices.
+   * \param alloc_types The allocator types for each device.
+   */
+  virtual void Init(const std::vector<Device>& devices,
+                    const std::vector<AllocatorType>& alloc_types) = 0;
+  /*!
+   * \brief Load the executable for the virtual machine.
+   * \param exec The executable.
+   */
+  virtual void LoadExecutable(ObjectPtr<Executable> exec) = 0;
+  /*!
+   * \brief Get global function in the VM.
+   * \param func_name The name of the function.
+   * \return The closure
+   */
+  virtual VMClosure GetClosure(const String& func_name) = 0;
+  /*!
+   * \brief Invoke closure or packed function using PackedFunc convention.
+   * \param closure_or_packedfunc A VM closure or a packed_func.
+   * \param args The input arguments.
+   * \param rv The return value.
+   */
+  virtual void InvokeClosurePacked(const ObjectRef& closure_or_packedfunc, TVMArgs args,
+                                   TVMRetValue* rv) = 0;
+  /*!
+   * \brief Create a specific instance of VM.
+   * \return Created VM
+   */
+  static ObjectPtr<VirtualMachine> Create();
+  /*!
+   * \brief Helper function for vm closure functions to get the context ptr
+   * \param arg The argument value.
+   */
+  static VirtualMachine* GetContextPtr(TVMArgValue arg) {
+    return static_cast<VirtualMachine*>(arg.operator void*());
+  }
+
+  ~VirtualMachine() {}
+
+  const char* type_key() const final { return "relax.VirtualMachine"; }
+
+  //--------------------------------------------------------------------------
+  // The following section contains states that other builtin can depend on
+  //--------------------------------------------------------------------------
+  /*! \brief The memory allocators. */
+  std::vector<Allocator*> allocators;
+  /*! \brief Runtime physical device list. */
+  std::vector<Device> devices;
+};
+
+}  // namespace relax_vm
+}  // namespace runtime
+}  // namespace tvm
+
+#endif  // TVM_RUNTIME_RELAX_VM_VM_H_
