@@ -41,39 +41,17 @@ from tvm.micro.testing.utils import (
 
 TEMPLATE_PROJECT_DIR = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr"))
 
-BOARDS = TEMPLATE_PROJECT_DIR / "boards.json"
-
 _LOG = logging.getLogger(__name__)
 
 
 def zephyr_boards() -> dict:
-    """Returns a dict mapping board to target model"""
-    with open(BOARDS) as f:
+    """Returns Zephyr board properties"""
+    with open(TEMPLATE_PROJECT_DIR / "boards.json") as f:
         board_properties = json.load(f)
-
-    boards_model = {board: info["model"] for board, info in board_properties.items()}
-    return boards_model
+    return board_properties
 
 
 ZEPHYR_BOARDS = zephyr_boards()
-
-
-def qemu_boards(board: str):
-    """Returns True if board is QEMU."""
-    with open(BOARDS) as f:
-        board_properties = json.load(f)
-
-    qemu_boards = [name for name, board in board_properties.items() if board["is_qemu"]]
-    return board in qemu_boards
-
-
-def has_fpu(board: str):
-    """Returns True if board has FPU."""
-    with open(BOARDS) as f:
-        board_properties = json.load(f)
-
-    fpu_boards = [name for name, board in board_properties.items() if board["fpu"]]
-    return board in fpu_boards
 
 
 def build_project(
