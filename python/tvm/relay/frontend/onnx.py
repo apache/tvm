@@ -5578,13 +5578,31 @@ class ConvInteger(OnnxOpConverter):
         )
 
 
-class BitShift(OnnxOpConverter):
-    """Operator converter for NonZero"""
+class BitwiseBase(OnnxOpConverter):
+    """Base class of operator converter for Bitwise operations"""
+
+    name = ""
+
+    @classmethod
+    def check_inputs(cls, inputs, num=2, use_int=True):
+        assert len(inputs) == num, "{} takes {} inputs, {} given".format(cls.name, num, len(inputs))
+
+        valid_types = ["uint8", "uint16","uint32", "uint64"]
+        if use_int:
+            valid_types += ["int8", "int16","int32", "int64"]
+        for i in range(num):
+            in_dtype = infer_type(inputs[i]).checked_type.dtype
+            assert in_dtype in valid_types, "Wrong dtype of the {}-th input: {}".format(i, in_dtype)
+
+
+class BitShift(BitwiseBase):
+    """Operator converter for BitShift"""
+
+    name = "BitShift"
 
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
-        if len(inputs) != 2:
-            raise ValueError("Bitshift expects 2 inputs")
+        cls.check_inputs(inputs, use_int=False)
 
         direction = attr.get("direction", "LEFT").decode("ascii")
         if direction == "LEFT":
@@ -5594,6 +5612,54 @@ class BitShift(OnnxOpConverter):
         else:
             raise ValueError("Unsupported Shift Direction: " + direction)
         return out
+
+
+class BitwiseAnd(BitwiseBase):
+    """Operator converter for BitwiseAnd"""
+
+    name = "BitwiseAnd"
+
+    @classmethod
+    def _impl_v18(cls, inputs, attr, params):
+        cls.check_inputs(inputs)
+
+        return _op.bitwise_and(*inputs)
+
+
+class BitwiseNot(BitwiseBase):
+    """Operator converter for BitwiseNot"""
+
+    name = "BitwiseNot"
+
+    @classmethod
+    def _impl_v18(cls, inputs, attr, params):
+        cls.check_inputs(inputs, num=1)
+
+        return _op.bitwise_not(*inputs)
+
+
+class BitwiseOr(BitwiseBase):
+    """Operator converter for BitwiseOr"""
+
+    name = "BitwiseOr"
+
+    @classmethod
+    def _impl_v18(cls, inputs, attr, params):
+        cls.check_inputs(inputs)
+
+        return _op.bitwise_or(*inputs)
+
+
+class BitwiseXor(BitwiseBase):
+    """Operator converter for BitwiseXor"""
+
+    name = "BitwiseXor"
+
+    @classmethod
+    def _impl_v18(cls, inputs, attr, params):
+        cls.check_inputs(inputs)
+
+        return _op.bitwise_xor(*inputs)
 
 
 class Unique(OnnxOpConverter):
@@ -6319,7 +6385,12 @@ def _get_convert_map(opset):
         "OptionalHasElement": OptionalHasElement.get_converter(opset),
         "OptionalGetElement": OptionalGetElement.get_converter(opset),
         "Affine": Affine.get_converter(opset),
+        # Bitwise operators
         "BitShift": BitShift.get_converter(opset),
+        "BitwiseAnd": BitwiseAnd.get_converter(opset),
+        "BitwiseNot": BitwiseNot.get_converter(opset),
+        "BitwiseOr": BitwiseOr.get_converter(opset),
+        "BitwiseXor": BitwiseXor.get_converter(opset),
         "ThresholdedRelu": ThresholdedRelu.get_converter(opset),
         "ScaledTanh": ScaledTanh.get_converter(opset),
         "ParametricSoftplus": ParametricSoftPlus.get_converter(opset),
@@ -6337,10 +6408,6 @@ def _get_convert_map(opset):
         "Upsample": Upsample.get_converter(opset),
         "SpatialBN": BatchNorm.get_converter(opset),
         # defs/generator
-        # 'RandomUniform'
-        # 'RandomNormal'
-        # 'RandomUniformLike'
-        # 'RandomNormalLike'
         # defs/logical
         # defs/math
         "Add": Add.get_converter(opset),
