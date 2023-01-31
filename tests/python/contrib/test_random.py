@@ -155,18 +155,30 @@ def test_random_fill():
         test_rpc(dtype)
 
 
-def test_random_fill_mt():
+def test_random_fill_for_measure_mt():
     """Check random filler applicability in case of nontrivial thread pool configuration.
     Particularly when MaxConcurrency != num_workers_used_ which is actual for big-little systems.
     """
-    num_threads_used = 1
+    no_exception_happened = True
+    
+    def test_body():
+        try:
+            num_thread_used = 1
+            configure_threads = tvm.get_global_func("runtime.config_threadpool")
+            configure_threads(1, num_thread_used)
 
-    configure_threads = tvm.get_global_func("runtime.config_threadpool")
-    configure_threads(1, num_threads_used)
+            test_input = tvm.runtime.ndarray.empty((10, 10))
+            random_fill = tvm.get_global_func("tvm.contrib.random.random_fill_for_measure")
+            random_fill(test_input)
+        except:
+            nonlocal no_exception_happened
+            no_exception_happened = False
 
-    test_input = tvm.runtime.ndarray.empty((64, 64))
-    random_fill = tvm.get_global_func("tvm.contrib.random.random_fill_for_measure")
-    random_fill(test_input)
+    # ThreadPool object is thread local. To eliminate effect on other test cases put it into thread
+    x = threading.Thread(target=test_body)
+    x.start()
+    x.join()
+    assert no_exception_happened 
 
 
 if __name__ == "__main__":
