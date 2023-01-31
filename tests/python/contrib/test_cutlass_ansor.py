@@ -77,9 +77,6 @@ def get_dense_transpose_dense(M, N, K, dtype="float16"):
     w0 = relay.var("weight0", shape=w0_shape, dtype=dtype)
     w1 = relay.var("weight1", shape=w1_shape, dtype=dtype)
 
-    one = _op.const(1, dtype=dtype)
-    two = _op.const(2, dtype=dtype)
-    
     out0 = relay.nn.dense(input, w0, out_dtype=dtype)
     input1 = _op.transpose(out0, axes=(1, 0))
     out1 = relay.nn.dense(input1, w1, out_dtype=dtype)
@@ -159,16 +156,15 @@ def build_by_cutlass_ansor(
     # extract tasks
     with tvm.transform.PassContext(opt_level=3, config={"relay.backend.use_auto_scheduler": True}):
         tasks, task_weights = auto_scheduler.extract_tasks(
-                mod, params, cuda, include_simple_tasks=True, opt_level=3, other_targets=[cutlass])
+            mod, params, cuda, include_simple_tasks=True, opt_level=3, other_targets=[cutlass]
+        )
     for idx, (task, task_weight) in enumerate(zip(tasks, task_weights)):
         print(f"==== Task {idx}: {task.desc} (weight {task_weight} key: {task.workload_key}) =====")
         print(task.compute_dag)
 
     # auto-tuning
     log_file = "cutlass_ansor.log"
-    measure_ctx = auto_scheduler.LocalRPCMeasureContext(
-        repeat=3, min_repeat_ms=200, timeout=10
-    )
+    measure_ctx = auto_scheduler.LocalRPCMeasureContext(repeat=3, min_repeat_ms=200, timeout=10)
     tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
     tuner.tune(
         auto_scheduler.TuningOptions(
@@ -224,7 +220,9 @@ def verify_dense_transpose_dense(
 
     rt_mod_ref, dev = get_ref_rt_mod(mod, params, target=ref_target)
     cutlass_rt_mod, dev, num_partition = build_by_cutlass(mod, params, sm, use_3xtf32=use_3xtf32)
-    cutlass_ansor_rt_mod, dev, num_partition = build_by_cutlass_ansor(mod, params, sm, use_3xtf32=use_3xtf32)
+    cutlass_ansor_rt_mod, dev, num_partition = build_by_cutlass_ansor(
+        mod, params, sm, use_3xtf32=use_3xtf32
+    )
     x = tvm.nd.array(np_data, device=dev)
     cutlass_out = get_output(cutlass_rt_mod, ["input"], [x])
     cutlass_ansor_out = get_output(cutlass_ansor_rt_mod, ["input"], [x])
@@ -256,4 +254,4 @@ def test_dense_transpose_dense():
 
 
 if __name__ == "__main__":
-     tvm.testing.main()
+    tvm.testing.main()
