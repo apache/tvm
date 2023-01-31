@@ -28,14 +28,7 @@ if [ "$#" -lt 5 -o "$1" == "--help" ]; then
     exit -1
 fi
 
-west_file_path=$(which west)
-
-# Remove space and extra characters
-line=$(head -n 1 ${west_file_path})
-line=$(echo ${line} | sed 's/ //')
-line=$(echo ${line} | sed 's/!//')
-line=$(echo ${line} | sed 's/#//')
-PYTHON_CMD=$line
+PYTHON_CMD=$(sed 's/#!//; q' $(which west))
 
 # Run server
 $PYTHON_CMD $1 $2 $3 $4 $5
