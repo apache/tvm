@@ -7829,6 +7829,38 @@ def test_sequence(target, dev):
     verify_sequence_ops((3, 3, 3, 3), 4, axis=2, new_axis=1)
 
 
+@tvm.testing.parametrize_targets
+def test_empty_sequence(target, dev):
+    """test_empty_sequence"""
+
+    # Test creating an empty tensor sequence.
+    empty_node = helper.make_node(
+        "SequenceEmpty",
+        inputs=[],
+        outputs=["empty_sequence"],
+    )
+
+    length_node = helper.make_node("SequenceLength", inputs=["empty_sequence"], outputs=["output"])
+
+    graph_outputs = [helper.make_tensor_value_info("output", TensorProto.INT64, [])]
+
+    graph_nodes = [empty_node, length_node]
+
+    graph = helper.make_graph(
+        graph_nodes,
+        "Sequence_empty_test",
+        inputs=[],
+        outputs=graph_outputs,
+    )
+
+    model = helper.make_model(
+        graph,
+        producer_name="Sequence_empty_test",
+    )
+
+    verify_with_ort_with_inputs(model, [], target=target, dev=dev)
+
+
 def test_exporting_node_renamed_model():
     """test exproting model when export_node_renamed_model is set"""
 
