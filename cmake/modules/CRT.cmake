@@ -22,8 +22,10 @@ if(USE_MICRO)
       CRT_TEMPLATE_FILE_COPY_JOBS
       "src/runtime/crt/host microtvm_api_server.py -> crt"
       "src/runtime/crt/host Makefile.template -> crt"
-      "src/runtime/crt crt_config-template.h -> crt"
       "src/runtime/crt/host main.cc -> crt/src"
+      "src/runtime/crt/host platform-template.c -> crt/src"
+      "src/runtime/crt crt_config-template.h -> crt/include"
+      "src/runtime/crt/host platform-template.h -> crt/include"
     )
 
     foreach(job_spec IN LISTS CRT_TEMPLATE_FILE_COPY_JOBS)

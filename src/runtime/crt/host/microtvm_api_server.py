@@ -144,16 +144,28 @@ class Handler(server.ProjectAPIHandler):
         crt_config_dir = project_dir / "crt_config"
         crt_config_dir.mkdir()
         shutil.copy2(
-            os.path.join(os.path.dirname(__file__), "crt_config-template.h"),
-            os.path.join(crt_config_dir, "crt_config.h"),
+            pathlib.Path(os.path.dirname(__file__)) / "include" / "crt_config-template.h",
+            crt_config_dir / "crt_config.h",
         )
 
         # Populate src/
-        src_dir = os.path.join(project_dir, "src")
-        os.mkdir(src_dir)
+        src_dir = project_dir / "src"
+        src_dir.mkdir()
         shutil.copy2(
-            os.path.join(os.path.dirname(__file__), "src", "main.cc"),
-            os.path.join(src_dir, "main.cc"),
+            pathlib.Path(os.path.dirname(__file__)) / "src" / "main.cc",
+            src_dir / "main.cc",
+        )
+        shutil.copy2(
+            pathlib.Path(os.path.dirname(__file__)) / "src" / "platform-template.c",
+            src_dir / "platform.c",
+        )
+
+        # Populate header files
+        include_dir = project_dir / "include" / "tvm"
+        include_dir.mkdir(parents=True)
+        shutil.copy2(
+            pathlib.Path(os.path.dirname(__file__)) / "include" / "platform-template.h",
+            include_dir / "platform.h",
         )
 
     def build(self, options):

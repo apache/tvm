@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-INCLUDES ?= -isystem crt/include -Icrt_config
+INCLUDES ?= -isystem crt/include -Iinclude -Icrt_config
 MEMORY_SIZE_BYTES := <MEMORY_SIZE_BYTES>
 CFLAGS ?= -Werror -Wall
 CXXFLAGS ?= -Werror -Wall -std=c++11 -DTVM_HOST_USE_GRAPH_EXECUTOR_MODULE -DMEMORY_SIZE_BYTES=$(MEMORY_SIZE_BYTES)
@@ -74,10 +74,14 @@ build/%.o: src/%.cc
 	${QUIET}mkdir -p $(dir $@)
 	${QUIET}$(CXX) $(INCLUDES) $(CXXFLAGS) -c -o "$@" "$<"
 
+build/platform.o: src/platform.c
+	${QUIET}mkdir -p $(dir $@)
+	${QUIET}$(CC) $(INCLUDES) $(CFLAGS) -L${CRT_LIBS} -c -o "$@" "$<"
+
 SRCS = $(wildcard src/*.cc)
 OBJS = $(patsubst src/%.cc,build/%.o,$(SRCS))
 
-build/main: ${OBJS} ${MODEL_LIBS} ${CRT_LIBS}
+build/main: ${OBJS} ${MODEL_LIBS} ${CRT_LIBS} ${BUILD_DIR}/platform.o
 	${QUIET}mkdir -p $(dir $@)
 	${QUIET}$(CXX) $(LDFLAGS) -o "$@" $^
 
