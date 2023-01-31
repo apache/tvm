@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-.. _microtvm-train-arduino:
+.. _tutorial-micro-train-arduino:
 
-Training Vision Models for microTVM on Arduino
-==============================================
+5. Training Vision Models for microTVM on Arduino
+=================================================
 **Author**: `Gavin Uberti <https://github.com/guberti>`_
 
 This tutorial shows how MobileNetV1 models can be trained
@@ -441,6 +441,7 @@ with open(QUANTIZED_MODEL_PATH, "wb") as f:
 import shutil
 import tflite
 import tvm
+import tvm.micro.testing
 
 # Method to load model is different in TFLite 1 vs 2
 try:  # TFLite 2.1 and above
@@ -452,7 +453,7 @@ except AttributeError:  # Fall back to TFLite 1.14 method
 mod, params = tvm.relay.frontend.from_tflite(tflite_model)
 
 # Set configuration flags to improve performance
-target = tvm.target.target.micro("nrf52840")
+target = tvm.micro.testing.get_target("zephyr", "nrf5340dk_nrf5340_cpuapp")
 runtime = tvm.relay.backend.Runtime("crt")
 executor = tvm.relay.backend.Executor("aot", {"unpacked-api": True})
 

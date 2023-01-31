@@ -6915,6 +6915,165 @@ def test_qlinearsigmoid(target, dev):
 
 
 @tvm.testing.parametrize_targets("llvm")
+def test_random_bernoulli(target, dev):
+    """test_random_bernoulli"""
+
+    def _get_tvm_output(
+        inputs,
+        out_dtype="int32",
+        seed=None,
+        target=target,
+        dev=dev,
+        use_vm=False,
+        freeze_params=False,
+    ):
+        def get_bernoulli_model(shape, in_dtype="float32", out_dtype="int32", seed=None):
+            onnx_itype = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(in_dtype)]
+            onnx_otype = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(out_dtype)]
+            node = helper.make_node(
+                "Bernoulli",
+                ["input"],
+                ["output"],
+            )
+            dtype_attr = helper.make_attribute("dtype", onnx_otype)
+            node.attribute.append(dtype_attr)
+            if seed is not None:
+                seed_attr = helper.make_attribute("seed", float(seed))
+                node.attribute.append(seed_attr)
+
+            graph = helper.make_graph(
+                [node],
+                "random_bernoulli_test",
+                inputs=[helper.make_tensor_value_info("input", onnx_itype, list(shape))],
+                outputs=[helper.make_tensor_value_info("output", onnx_otype, list(shape))],
+            )
+            return helper.make_model(graph, producer_name="random_bernoulli_test")
+
+        shape = inputs.shape
+        in_dtype = inputs.dtype
+        model = get_bernoulli_model(shape, in_dtype, out_dtype, seed)
+
+        if use_vm:
+            return get_tvm_output_with_vm(
+                model,
+                inputs,
+                target,
+                dev,
+                freeze_params=freeze_params,
+            )
+        else:
+            return get_tvm_output(
+                model,
+                inputs,
+                target,
+                dev,
+            )
+
+    def binom_test(input, ideal_mean, threshold=0.05):
+        # This test is strictly appropriate when input probabilities are all identical.
+        # In that case, it should lead to flaky failures in only one run in a million (p>=1e-6).
+        # The test should be over-conservative when input probabilities are not identical.
+        # (i.e., It should have a rate of flaky failures lower than one run in a million.)
+        # If this test starts repeatedly throwing flaky failures, consult a statistician
+        # in addition to your regular debugging.
+        bnm_test_res = scipy.stats.binomtest(
+            k=np.sum(input, dtype="int32"), n=len(input), p=ideal_mean
+        )
+        return bnm_test_res.pvalue > threshold
+
+    def verify_bernoulli(
+        inputs=None,
+        shape=[],
+        in_dtype="float32",
+        out_dtype="int32",
+        seed=None,
+        target=target,
+        dev=dev,
+        use_vm=False,
+        freeze_params=False,
+        in_out_equal=False,
+    ):
+        if inputs is None:
+            assert len(shape) != 0
+            inputs = np.random.uniform(size=shape).astype(in_dtype)
+
+        tvm_out = _get_tvm_output(
+            inputs,
+            out_dtype,
+            seed,
+            target,
+            dev,
+            use_vm,
+            freeze_params,
+        )
+
+        if isinstance(tvm_out, list):
+            tvm_out = tvm_out[0]
+        # check that values are 0 or 1
+        tvm_flat = tvm_out.flatten()
+        assert np.array_equal(tvm_flat, tvm_flat.astype("bool"))
+        if in_out_equal:
+            tvm.testing.assert_allclose(inputs, tvm_out)
+        else:
+            # check that mean value is close to the theoretical one by binomial test
+            ideal_mean = np.mean(inputs)
+            repeats = 3
+            check = False
+            for i in range(repeats):
+                if binom_test(tvm_flat, ideal_mean):
+                    check = True
+                    break
+                else:
+                    # repeat with new seed
+                    seed = np.random.randint(1e6)
+                    tvm_flat = _get_tvm_output(
+                        inputs,
+                        out_dtype,
+                        seed,
+                        target,
+                        dev,
+                        use_vm,
+                        freeze_params,
+                    ).flatten()
+            assert check, "Binomial test failed"
+
+    # Test input sequence of 0 and 1
+    inputs = np.random.randint(2, size=[10000]).astype("float32")
+    verify_bernoulli(inputs, in_out_equal=True)
+
+    # Binomial test input with 0.5 values
+    val_num = 10000
+    inputs = np.ones([val_num], dtype="float32") * 0.5
+    verify_bernoulli(inputs)
+
+    # Binomial test input with 0.1 values
+    inputs = np.ones([val_num], dtype="float32") * 0.1
+    verify_bernoulli(inputs)
+
+    # Simple test
+    verify_bernoulli(shape=[val_num])
+
+    # Floating output type
+    verify_bernoulli(shape=[val_num], out_dtype="float32")
+
+    # Double input type
+    verify_bernoulli(shape=[val_num], in_dtype="float64")
+
+    # Test N-D tensor generation
+    verify_bernoulli(shape=[2, 4, 100, 100])
+
+    # Test with seed
+    verify_bernoulli(shape=[val_num], seed=np.random.randint(1e6))
+
+    # Test result determinism with the same seeds
+    inputs = np.random.uniform(size=[val_num])
+    fixed_seed = np.random.randint(1e6)
+    tvm_out_1 = _get_tvm_output(inputs, seed=fixed_seed)
+    tvm_out_2 = _get_tvm_output(inputs, seed=fixed_seed)
+    tvm.testing.assert_allclose(tvm_out_1, tvm_out_2)
+
+
+@tvm.testing.parametrize_targets("llvm")
 def test_random_uniform(target, dev):
     """test_random_uniform"""
 
@@ -7588,10 +7747,17 @@ def test_sequence(target, dev):
             outputs=["inserted_sequence"],
         )
 
+        # Test sequence erase.
+        erase_node = helper.make_node(
+            "SequenceErase",
+            inputs=["inserted_sequence", "position"],
+            outputs=["erased_sequence"],
+        )
+
         # Test sequence concatenation.
         concat_node = helper.make_node(
             "ConcatFromSequence",
-            inputs=["inserted_sequence"],
+            inputs=["erased_sequence"],
             outputs=["concat_sequence"],
             axis=axis,
         )
@@ -7601,8 +7767,14 @@ def test_sequence(target, dev):
             "SplitToSequence", inputs=["concat_sequence"], outputs=["split_sequence"], axis=axis
         )
 
+        # Test tensor extraction from sequence
         at_node = helper.make_node(
             "SequenceAt", inputs=["split_sequence", "position"], outputs=["output"]
+        )
+
+        # Test sequence length
+        length_node = helper.make_node(
+            "SequenceLength", inputs=["split_sequence"], outputs=["output_2"]
         )
 
         if new_axis is not None:
@@ -7622,9 +7794,21 @@ def test_sequence(target, dev):
             output_shape[axis] = num_tensors + 1
         else:
             output_shape[axis] = (num_tensors + 1) * output_shape[axis]
-        graph_outputs = [helper.make_tensor_value_info("output", TensorProto.FLOAT, output_shape)]
+        graph_outputs = [
+            helper.make_tensor_value_info("output", TensorProto.FLOAT, output_shape),
+            helper.make_tensor_value_info("output_2", TensorProto.INT64, []),
+        ]
 
-        graph_nodes = [position_node, construct_node, insert_node, concat_node, split_node, at_node]
+        graph_nodes = [
+            position_node,
+            construct_node,
+            insert_node,
+            erase_node,
+            concat_node,
+            split_node,
+            at_node,
+            length_node,
+        ]
 
         graph = helper.make_graph(
             graph_nodes,
