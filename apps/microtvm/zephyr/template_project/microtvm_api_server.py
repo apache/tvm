@@ -70,9 +70,7 @@ CMAKELIST_FILENAME = "CMakeLists.txt"
 # We only check two levels of the version.
 ZEPHYR_VERSION = 3.2
 
-PYTHON_CMD = shutil.which("python3.8")
-
-WEST_CMD = default = PYTHON_CMD + " -m west" if PYTHON_CMD else None
+WEST_CMD = default = sys.executable + " -m west" if sys.executable else None
 
 ZEPHYR_BASE = os.getenv("ZEPHYR_BASE")
 
