@@ -18,7 +18,7 @@
 
 function show_usage() {
     cat <<EOF
-This script is for running microtvm_api_server.
+This script is for running microtvm_api_server with Arduino.
 Usage: launch_microtvm_api_server.sh <microtvm_api_server.py> --read-fd <READ_FD_PATH> --write-fd <WRITE_FD_PATH>
 EOF
 }

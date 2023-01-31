@@ -70,10 +70,7 @@ CMAKELIST_FILENAME = "CMakeLists.txt"
 # We only check two levels of the version.
 ZEPHYR_VERSION = 3.2
 
-try:
-    PYTHON_CMD = subprocess.check_output(["which", "python3.8"], encoding="utf-8").strip("\n")
-except subprocess.CalledProcessError:
-    PYTHON_CMD = None
+PYTHON_CMD = shutil.which("python3.8")
 
 WEST_CMD = default = PYTHON_CMD + " -m west" if PYTHON_CMD else None
 

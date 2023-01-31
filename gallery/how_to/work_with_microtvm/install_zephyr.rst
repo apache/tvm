@@ -42,10 +42,11 @@ Install Zephyr
 
         # Install Zephyr SDK
         cd /content
-        wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.15.2/zephyr-sdk-0.15.2_linux-x86_64.tar.gz
-        tar xvf zephyr-sdk-0.15.2_linux-x86_64.tar.gz
-        mv zephyr-sdk-0.15.2 zephyr-sdk
-        rm zephyr-sdk-0.15.2_linux-x86_64.tar.gz
+        ZEPHYR_SDK_VERSION="0.15.2"
+        wget "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}/zephyr-sdk-${ZEPHYR_SDK_VERSION}_linux-x86_64.tar.gz"
+        tar xvf "zephyr-sdk-${ZEPHYR_SDK_VERSION}_linux-x86_64.tar.gz"
+        mv "zephyr-sdk-${ZEPHYR_SDK_VERSION}" zephyr-sdk
+        rm "zephyr-sdk-${ZEPHYR_SDK_VERSION}_linux-x86_64.tar.gz"
 
         # Install python dependencies
         python3 -m pip install -r "${ZEPHYR_BASE}/scripts/requirements.txt"
