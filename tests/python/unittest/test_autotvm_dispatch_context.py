@@ -35,16 +35,17 @@ def test_fallback():
 def test_tophub_kinds_match():
     def verify_arm_cpu(target):
         best_by_targetkey = autotvm.tophub.context(target).best_by_targetkey
-        assert(len(best_by_targetkey))
+        assert len(best_by_targetkey)
         found_arm_cpu = False
         for a, _ in best_by_targetkey:
             if "arm_cpu" in a:
                 found_arm_cpu = True
                 break
-        assert(found_arm_cpu)
+        assert found_arm_cpu
 
     verify_arm_cpu("llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon,+v8.2a,+dotprod")
     verify_arm_cpu("llvm -model=snapdragon835 -mtriple=arm64-linux-android -mattr=+neon")
+
 
 if __name__ == "__main__":
     test_fallback()
