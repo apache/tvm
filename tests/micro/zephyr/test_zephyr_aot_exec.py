@@ -19,6 +19,7 @@ import numpy as np
 
 import tvm
 import tvm.testing
+import tvm.micro.testing
 import tvm.relay as relay
 from tvm.relay.backend import Executor, Runtime
 from tvm.contrib import utils
@@ -26,9 +27,9 @@ from tvm.contrib import utils
 from . import utils
 
 
-def _make_session(workspace_dir, zephyr_board, mod, build_config, use_fvp, serial_number):
+def _make_session(workspace_dir, board, mod, build_config, use_fvp, serial_number):
     config_main_stack_size = None
-    if utils.qemu_boards(zephyr_board):
+    if utils.ZEPHYR_BOARDS[board]["is_qemu"]:
         # fyi: qemu_riscv64 seems to be the greediest stack user
         config_main_stack_size = 4096
     else:
@@ -38,7 +39,7 @@ def _make_session(workspace_dir, zephyr_board, mod, build_config, use_fvp, seria
     project_options = {
         "project_type": "host_driven",
         "verbose": bool(build_config.get("debug")),
-        "board": zephyr_board,
+        "board": board,
         "arm_fvp_path": "/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4/FVP_Corstone_SSE-300_Ethos-U55",
         "use_fvp": bool(use_fvp),
         "serial_number": serial_number,
@@ -63,7 +64,6 @@ def _make_session(workspace_dir, zephyr_board, mod, build_config, use_fvp, seria
 def test_relay(workspace_dir, board, microtvm_debug, use_fvp, serial_number):
     """Testing a simple relay graph"""
 
-    model = utils.ZEPHYR_BOARDS[board]
     build_config = {"debug": microtvm_debug}
     shape = (10,)
     dtype = "int8"
@@ -77,7 +77,7 @@ def test_relay(workspace_dir, board, microtvm_debug, use_fvp, serial_number):
 
     runtime = Runtime("crt", {"system-lib": True})
     executor = Executor("aot")
-    target = tvm.target.target.micro(model)
+    target = tvm.micro.testing.get_target("zephyr", board)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.relay.build(ir_mod, target=target, runtime=runtime, executor=executor)
 
@@ -98,7 +98,6 @@ def test_relay(workspace_dir, board, microtvm_debug, use_fvp, serial_number):
 def test_aot_executor(workspace_dir, board, microtvm_debug, use_fvp, serial_number):
     """Test use of the AOT executor with microTVM."""
 
-    model = utils.ZEPHYR_BOARDS[board]
     build_config = {"debug": microtvm_debug}
     shape = (10,)
     dtype = "int8"
@@ -117,7 +116,7 @@ def test_aot_executor(workspace_dir, board, microtvm_debug, use_fvp, serial_numb
 
     runtime = Runtime("crt", {"system-lib": True})
     executor = Executor("aot")
-    target = tvm.target.target.micro(model)
+    target = tvm.micro.testing.get_target("zephyr", board)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.relay.build(relay_mod, target=target, runtime=runtime, executor=executor)
 
