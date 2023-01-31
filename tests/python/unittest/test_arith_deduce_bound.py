@@ -254,7 +254,10 @@ def test_deduce_floordiv():
     do_test(lambda a: a // 8 == 3, {}, "pos_inf", "neg_inf")
     do_test(lambda a: a // 8 > -3, {}, -16, "pos_inf")
     do_test(lambda a: a // 8 >= -3, {}, -24, "pos_inf")
-    do_test(lambda a: a // -8 > 3, {}, "pos_inf", "neg_inf")
+    do_test(lambda a: a // -8 > 3, {}, "neg_inf", -32)
+    do_test(lambda a: a // -8 >= 3, {}, "neg_inf", -24)
+    do_test(lambda a: a // -8 < 3, {}, -23, "pos_inf")
+    do_test(lambda a: a // -8 <= 3, {}, -31, "pos_inf")
     do_test(lambda a: 8 // a >= 2, {}, "pos_inf", "neg_inf")
 
     # test nested cases
