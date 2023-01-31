@@ -252,7 +252,7 @@ K = 128
 
 @tvm.testing.requires_cutlass
 def test_dense_transpose_dense():
-    verify_dense_transpose_dense(get_dense_transpose_dense(M, N, K), M, N, K, sm=75, run_benchmark=True)
+    verify_dense_transpose_dense(get_dense_transpose_dense(M, N, K), M, N, K)
 
 
 if __name__ == "__main__":
