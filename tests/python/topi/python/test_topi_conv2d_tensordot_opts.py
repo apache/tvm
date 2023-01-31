@@ -309,9 +309,9 @@ def test_1x1x8_convolution_code():
       requant_3 = __ssat(requant_3 + -128, 8);
 
       int packed_res_0;
-      asm inline ("pkhbt %0, %1, %2, lsl #16" : "=r" (packed_res_0) : "r" (requant_0), "r" (requant_1));
+      __asm__ ("pkhbt %0, %1, %2, lsl #16" : "=r" (packed_res_0) : "r" (requant_0), "r" (requant_1));
       int packed_res_1;
-      asm inline ("pkhbt %0, %1, %2, lsl #16" : "=r" (packed_res_1) : "r" (requant_2), "r" (requant_3));
+      __asm__ ("pkhbt %0, %1, %2, lsl #16" : "=r" (packed_res_1) : "r" (requant_2), "r" (requant_3));
       output[0] = packed_res_0;
       output[1] = packed_res_1;
       return 0;

@@ -274,10 +274,10 @@ Array<Pass> GetPassPrefix(bool is_homogeneous, bool is_vm) {
       pass_seqs.push_back(transform::InferType());
     }
     pass_seqs.push_back(transform::AlterOpLayout());
+    pass_seqs.push_back(transform::SimplifyExprPostAlterOp());
   }
 
   // Fast math optimizations.
-  pass_seqs.push_back(transform::SimplifyExpr());
   pass_seqs.push_back(transform::FastMath());
   pass_seqs.push_back(transform::FoldConstant());
 
@@ -417,7 +417,7 @@ Optional<tir::PrimFunc> DefaultTIRConverterImpl(const Array<te::Tensor>& args,
       return NullOpt;
     }
   }
-  PrimFunc func = te::CreatePrimFuncWithConstants(args, constants, DataType::Int(32));
+  PrimFunc func = te::CreatePrimFuncWithConstants(args, constants, DataType::Int(64));
   bool dynamic_loop_extent = false;
   tir::PostOrderVisit(func->body, [&dynamic_loop_extent](const ObjectRef& obj) -> void {
     if (const auto* loop = obj.as<tir::ForNode>()) {
