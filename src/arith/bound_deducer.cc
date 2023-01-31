@@ -162,6 +162,34 @@ class BoundDeducer : public ExprFunctor<void(const PrimExpr&)> {
     this->VisitExpr(left ? op->a : op->b);
   }
 
+  void VisitExpr_(const FloorDivNode* op) final {
+    if (op->b.get() == path_[iter_]) {
+      // Skip cases where the var is divisor.
+      success_ = false;
+      return;
+    }
+    PrimExpr divisor = op->b;
+    if (!analyzer_.CanProveGreaterEqual(divisor, 1)) {
+      // Skip non-positive divisor
+      success_ = false;
+      return;
+    }
+    if (comp_op == kGreater) {
+      // (x // 6 >= 4 --> x >= 4 * 6)
+      result_ = result_ * divisor;
+    } else if (comp_op == kEqual) {
+      // The bound is not single directional
+      // (x // 6 == 4 --> 30 > x >= 24)
+      success_ = false;
+      return;
+    } else {
+      // (x // 6 <= 4 --> x <= 4 * 6 + 5)
+      result_ = result_ * divisor + divisor - 1;
+    }
+
+    this->VisitExpr(op->a);
+  }
+
   PrimExpr result_;
   CompareOp comp_op{kGreater};
   bool success_{true};
