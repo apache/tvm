@@ -574,6 +574,7 @@ TVM_REGISTER_GLOBAL("te.CreatePrimFunc").set_body([](TVMArgs args, TVMRetValue* 
   Array<te::Tensor> arg_list = args[0];
   std::optional<DataType> index_dtype_override{std::nullopt};
   // Add conversion to make std::optional compatible with FFI.
+  ICHECK_EQ(args.size(), 2);
   if (args[1].type_code() != kTVMNullptr) {
     index_dtype_override = args[1].operator DataType();
   }
