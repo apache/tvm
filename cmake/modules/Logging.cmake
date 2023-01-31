@@ -68,14 +68,6 @@ macro(__compile_libbacktrace)
   set(LIBBACKTRACE_FOUND YES)
 endmacro()
 
-# Available options for USE_LIBBACKTRACE:
-# - OFF: Don't use libbacktrace
-# - ON: Find libbacktrace from system paths. Fail the build generation if libbacktrace is not found.
-# - COMPILE: Build and link to libbacktrace from 3rdparty/libbacktrace.
-# - <PATH>: Looking for the libbacktrace header and static lib from a user-provided path. Fail the build generation if libbacktrace is not found.
-# - AUTO:
-#   - Find libbacktrace from system paths.
-#   - If not found, fallback to COMPILE on Linux or MacOS, fallback to OFF on Windows or other platforms.
 if(USE_LIBBACKTRACE STREQUAL "AUTO")
   __find_libbacktrace()
   if(NOT LIBBACKTRACE_FOUND AND (CMAKE_SYSTEM_NAME MATCHES "Linux" OR CMAKE_SYSTEM_NAME MATCHES "Darwin"))
