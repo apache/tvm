@@ -26,7 +26,7 @@ git clone https://github.com/Maratyszcza/NNPACK NNPACK
 git clone https://github.com/Maratyszcza/pthreadpool  NNPACK/pthreadpool
 
 # Use specific versioning tag.
-(cd NNPACK && git checkout 1e005b0c2)
+(cd NNPACK && sed -i 's/GIT_TAG master/GIT_TAG main/g' ./cmake/DownloadCpuinfo.cmake && git checkout 1e005b0c2)
 (cd NNPACK/pthreadpool && git checkout 13da0b4c)
 
 mkdir -p NNPACK/build
