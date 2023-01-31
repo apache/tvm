@@ -28,6 +28,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/vm/executable.h>
 #include <tvm/runtime/vm/vm.h>
+#include <tvm/support/file_io.h>
 
 #include <algorithm>
 #include <iomanip>
@@ -381,9 +382,7 @@ void Executable::LoadLateBoundConstantsFromMap(Map<String, NDArray> map) {
 }
 
 void Executable::LoadLateBoundConstantsFromFile(const std::string& path) {
-  std::string bytes;
-  LoadBinaryFromFile(path, &bytes);
-  dmlc::MemoryStringStream stream(&bytes);
+  tvm::support::SimpleBinaryFileStream stream(path, true);
   LoadLateBoundConstantsFromStream(&stream);
 }
 
