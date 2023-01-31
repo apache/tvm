@@ -84,7 +84,7 @@ def extract_tasks(
     include_simple_tasks=False,
     dump_workload_to_dag_log=None,
     opt_level=3,
-    other_targets=[],
+    other_targets=None,
 ):
     """Extract tuning tasks from a relay program.
 
@@ -106,6 +106,8 @@ def extract_tasks(
         A file to dump an association between the workload keys and the actual DAG
     opt_level : Optional[int]
         The optimization level of the task extractions.
+    other_targets: Optional[List[tvm.target.Target]]
+        Other targets for call_all_topi_funcs, e.g., cutlass target.
 
     Returns
     -------
@@ -126,7 +128,9 @@ def extract_tasks(
     old_verbose = dispatch_ctx.verbose
     dispatch_ctx.verbose = 0
 
-    targets = [target] + other_targets
+    targets = [target]
+    if other_targets is not None:
+        targets += other_targets
     errors = []
     with env:
         # Wrap build call in a new thread to avoid the conflict

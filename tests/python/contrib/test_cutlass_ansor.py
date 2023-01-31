@@ -15,21 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 import logging
-import math
+import tempfile
 import tvm
 from tvm import relay
-from tvm.contrib.cudnn import conv_output_shape
 import numpy as np
-from tvm.runtime.vm import VirtualMachine
 from tvm.relay import op as _op
 from tvm.relay.op.contrib.cutlass import partition_for_cutlass
-from tvm.relay.transform import FirstOrderGradient, ToMixedPrecision, InferType
 from tvm import auto_scheduler
 from tvm.contrib.cutlass import (
     has_cutlass,
     num_cutlass_partitions,
     finalize_modules,
-    finalize_modules_vm,
 )
 import tvm.testing
 
@@ -163,30 +159,31 @@ def build_by_cutlass_ansor(
         print(task.compute_dag)
 
     # auto-tuning
-    log_file = "cutlass_ansor.log"
-    measure_ctx = auto_scheduler.LocalRPCMeasureContext(repeat=3, min_repeat_ms=200, timeout=10)
-    tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
-    tuner.tune(
-        auto_scheduler.TuningOptions(
-            num_measure_trials=num_trials,
-            runner=measure_ctx.runner,
-            measure_callbacks=[
-                auto_scheduler.RecordToFile(log_file),
-            ],
-        )
-    )
-
-    with auto_scheduler.ApplyHistoryBest(log_file):
-        with tvm.transform.PassContext(
-            opt_level=3,
-            config={"relay.backend.use_auto_scheduler": True},
-        ):
-            lib = relay.build(
-                mod,
-                target=cuda,
-                target_host=host,
-                params=params,
+    with tempfile.NamedTemporaryFile() as fp:
+        log_file = fp.name
+        measure_ctx = auto_scheduler.LocalRPCMeasureContext(repeat=3, min_repeat_ms=200, timeout=10)
+        tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
+        tuner.tune(
+            auto_scheduler.TuningOptions(
+                num_measure_trials=num_trials,
+                runner=measure_ctx.runner,
+                measure_callbacks=[
+                    auto_scheduler.RecordToFile(log_file),
+                ],
             )
+        )
+
+        with auto_scheduler.ApplyHistoryBest(log_file):
+            with tvm.transform.PassContext(
+                opt_level=3,
+                config={"relay.backend.use_auto_scheduler": True},
+            ):
+                lib = relay.build(
+                    mod,
+                    target=cuda,
+                    target_host=host,
+                    params=params,
+                )
     lib = finalize_modules(lib, "compile.so", tmp_dir)
     dev = tvm.device("cuda", 0)
     rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
