@@ -39,7 +39,7 @@ struct SimpleBinaryFileStream : public dmlc::Stream {
 
  private:
   std::FILE* fp_ = nullptr;
-  bool read_;  // if false, then in read mode.
+  bool read_;  // if false, then in write mode.
 };             // class SimpleBinaryFileStream
 }  // namespace support
 }  // namespace tvm
