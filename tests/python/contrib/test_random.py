@@ -154,9 +154,22 @@ def test_random_fill():
             test_local(dev, dtype)
         test_rpc(dtype)
 
+def test_random_fill_mt():
+    """ Check random filler applicability in case of nontrivial thread pool configuration.
+    Particularly when MaxConcurrency != num_workers_used_ which is actual for big-little systems.
+    """
+    num_threads_used = 1
+
+    configure_threads = tvm.get_global_func("runtime.config_threadpool")
+    configure_threads(1, num_threads_used)
+
+    test_input = tvm.runtime.ndarray.empty((64, 64))
+    random_fill = tvm.get_global_func("tvm.contrib.random.random_fill_for_measure")
+    random_fill(test_input)
 
 if __name__ == "__main__":
     test_randint()
     test_uniform()
     test_normal()
     test_random_fill()
+    test_random_fill_mt()
