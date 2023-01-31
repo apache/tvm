@@ -58,9 +58,14 @@ def test_cprint():
     # Print nodes with `script` method, e.g. PrimExpr
     cprint(tvm.tir.Var("v", "int32") + 1)
 
-    # Cannot print non-Python-style codes
-    with pytest.raises(ValueError):
-        cprint("if (a == 1) { a +=1; }")
+    # Cannot print non-Python-style codes if black installed
+    try:
+        import black
+
+        with pytest.raises(ValueError):
+            cprint("if (a == 1) { a +=1; }")
+    except ImportError:
+        pass
 
     # Cannot print unsupported nodes (nodes without `script` method)
     with pytest.raises(TypeError):
