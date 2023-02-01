@@ -418,7 +418,7 @@ class Handler(server.ProjectAPIHandler):
                 "CONFIG_UART_INTERRUPT_DRIVEN=y\n"
                 "\n"
             )
-            if config_led and not self._is_qemu(board, False)
+            if config_led and not self._is_qemu(board, False):
                 f.write("# For debugging.\n" "CONFIG_LED=y\n" "\n")
 
             f.write("# For TVMPlatformAbort().\n" "CONFIG_REBOOT=y\n" "\n")
