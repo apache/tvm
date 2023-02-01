@@ -116,7 +116,7 @@ struct Instruction {
     static Arg ConstIdx(Index index) { return Arg(ArgKind::kConstIdx, index); }
     /*!
      * \brief construct a immediate arg.
-     * \param index The constant index.
+     * \param imm_value The immediate value.
      * \return The constructed arg.
      */
     static Arg Immediate(int64_t imm_value) { return Arg(ArgKind::kImmediate, imm_value); }
