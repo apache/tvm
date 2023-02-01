@@ -14,13 +14,12 @@ Though this document will use the TVMScript front end for some examples, specify
 4. [Variable Scoping](#variable-scoping)
 5. [Normal Form](#normal-form)
 6. [Well-Formedness Criteria](#well-formedness-criteria)
-7. [Types in Relax](#types-in-relax)
-8. [Structural Information in Relax](#structural-information-in-relax)
-9. [Semantics](#detailed-semantics)
+7. [Structural Information in Relax](#structural-information-in-relax)
+8. [Semantics](#detailed-semantics)
 
 # Overview
 
-This section will outline the grammar of Relax and give very brief descriptions of the different components, including the semantics, type system, and shape system. The rest of this document will provide more detailed descriptions of these facets of the language, including the validity conditions that the type system and shape system uphold.
+This section will outline the grammar of Relax and give very brief descriptions of the different components, including the semantics and structural information (`StructInfo`) system. The rest of this document will provide more detailed descriptions of these facets of the language, including the validity conditions that the `StructInfo` system upholds.
 
 ## Differences from Relay
 
@@ -52,13 +51,6 @@ PrimExpr ::=
          | Select(condition: PrimExpr, true_value: PrimExpr, false_value: PrimExpr)
          # (others may be added later, as deemed necessary)
 
-Type ::=   DynTensorType(ndim: int, dtype: DataType)
-         | ShapeType(ndim: int)
-         | ObjectType()
-         | TupleType(fields: [Type])
-         | FuncType(arg_types: [Type], ret_type: Type, «pure: bool»)
-         | PackedFuncType()
-
 DataType ::= Int(bitwidth: int)
            | Float(bitwidth: int)
            | Bool()
@@ -82,7 +74,7 @@ Expr ::=   Constant(data: NDArray)
          | Function(params: [Var], body: Expr, ret_struct_info: StructInfo?, attrs: Attrs?)
          | If(cond: Expr, true_branch: Expr, false_branch: Expr)
          | ExternFunc(global_symbol: string)
-         | Call(op: Expr, args: [Expr], type_args: [Type], attrs: Attrs?)
+         | Call(op: Expr, args: [Expr], sinfo_args: [StructInfo], attrs: Attrs?)
          | ShapeExpr(values: [PrimExpr])
          | TupleGetItem(tuple_value: Expr, index: int)
          | Op(op_name: string)
@@ -107,7 +99,7 @@ Program ::= IRModule(funcs: {GlobalVar: Function|PrimFunc})
 
 ## Expression Survey
 
-This specification provides a more detailed description of what each expression and type represents and what conditions make them valid. To motivate and provide more context for the full specification later in this document, this section will briefly summarize the purpose of each node.
+This specification provides a more detailed description of what each expression and `StructInfo` represents and what conditions make them valid. To motivate and provide more context for the full specification later in this document, this section will briefly summarize the purpose of each node.
 
 1. `Constant` nodes construct tensor constants (n-dimensional arrays of scalars).
 2. `Tuple` nodes construct a tuple (fixed-size ordered grouping) of Relax values.
@@ -115,17 +107,17 @@ This specification provides a more detailed description of what each expression 
 4. `PrimExpr`s are used to represent dimensions of shapes in `ShapeExpr` and `MatchCast` nodes. These represent operations on integers with their own `Var` nodes (`tir::Var`), which we will refer to as "shape variables". Shape variables can only be used in other `PrimExpr`s and are scoped like `Var` nodes (`relax::Var`), which we will call "Relax variables."
 5. `ExternFunc` nodes evaluate into `PackedFunc`s; the implementation will look up the registered `PackedFunc` by its global symbol.
 6. `Call` nodes represent function calls. The callee argument (the `op`) can be an `ExternFunc` node (representing a call to a `PackedFunc`), an `Op` node (representing a call to a Relax operator), or an arbitrary expression. 
-    1. `Op` nodes refer to built-in Relax operators, which the compiler is free to implement as is deemed appropriate. Certain operators implement important operations, like `call_tir` (allows for calling TIR `PrimFunc`s) «and `cast` (performs dynamic type conversions).»
+    1. `Op` nodes refer to built-in Relax operators, which the compiler is free to implement as is deemed appropriate. Certain operators implement important operations, like `call_tir` (allows for calling TIR `PrimFunc`s).
     2. Any other expression must evaluate to a `PackedFunc` or a closure; the result of evaluating `op` will then be called with the given arguments. 
     
-    Calls to `ExternFunc`s and operators may perform side effects, hence it is important to reason about whether a function call is permitted inside a `DataflowBlock`. «The attribute "pure" can be specified on a call to an `ExternFunc` to indicate that it performs no side effects (for use inside `DataflowBlock`s).»
+    Calls to `ExternFunc`s and operators may perform side effects, hence it is important to reason about whether a function call is permitted inside a `DataflowBlock`.
     
 7. `If` nodes represent branching control flow. First the condition expression is evaluated, and it must evaluate to a Boolean scalar. If the condition is true, the true branch is evaluated and its result is used; otherwise, the false branch is evaluated and its result is used.
 8. `TupleGetItem` nodes represent tuple indexing. The `tuple_value` expression must evaluate to a tuple with at least `index + 1` items and the item with the given index will be returned.
 9. `SeqExpr` describes a sequence of binding blocks followed by a return expression. The `SeqExpr` opens a new scope. Its binding blocks are evaluated in order and add new variables to the scope. Binding blocks are either ordinary `BindingBlock`s or `DataflowBlock`s and both consist of a series of bindings. `DataflowBlock`s are the only kind allowed to introduce bindings with `DataflowVar`s and it does not permit any constructs featuring control flow (`If` nodes or recursive calls) or calls to (possibly) impure functions. There are two different kinds of bindings:
     1. `VarBinding`s: The `value` expression (the right-hand side of the binding) of the binding is evaluated first and is bound to the `var` expression, which must be a new `Var` or `DataflowVar` (in a dataflow block). The newly bound variable will have that value for the remainder of the scope (`DataflowVar`s are scoped only to the `DataflowBlock` in which they appear; `Var`s are scoped to the entire `SeqExpr`).
     2. `MatchCast`s: The `value` expression is evaluated and the result is dynamically checked against the structural information given in the `struct_info` field.
-        1. The types must match: All `StructInfo` variants correspond to a type (`TensorStructInfo` to `DynTensorType`, `ShapeStructInfo` to `ShapeType`, etc.) and each type corresponds to a value (`DynTensorType` to a tensor value, `ShapeType` to shape values, etc.), so if the structure of `value` does not correspond to `struct_info`, an error is triggered. The structure of `value` is compared recursively with `struct_info`, so all components of `value` must match up with any nested structural information. Special comparison rules:
+        1. The types must match: All `StructInfo` variants correspond to a category of value value (`TensorStructInfo` to a tensor value, `ShapeStructInfo` to shape values, etc.), so if the structure of `value` does not correspond to `struct_info`, an error is triggered. The structure of `value` is compared recursively with `struct_info`, so all components of `value` must match up with any nested structural information. Special comparison rules:
             1. For comparing tensor values to `TensorStructInfo`, `ndim` must match the number of dimensions in the tensor value (unless `ndim` is -1) and `dtype` must match the datatype used (unless `dtype` is `Void`). If `shape` has been specified, the shape of the value must match that encoded by `shape`; if specified, `shape` must be either a `Var` already bound in the current scope or a `ShapeExpr`.
             2. For comparing shape values to `ShapeStructInfo`, `ndim` must match the number of dimensions in the shape value (unless `ndim` is -1). If `values` has been specified, the shape value must match that encoded by `values`.
             3. «For comparing closures (function values) to `FuncStructInfo`, it is necessary for the compiled program to track run-time structural information for closures, since it is not possible to introspect the closure; this subject will be discussed in further detail later in the document.»
@@ -143,7 +135,7 @@ This specification provides a more detailed description of what each expression 
     
 ## Purity and Dataflow Blocks
 
-A function or operator is called "pure" if it does not have side effects, which refers to any change in program state besides returning a result. Side effects include mutating values other than those they create, aborting the program, or file I/O (including writing to the console). Purity is a useful property for compiler optimizations, since calls to pure functions can be reordered or duplicated or (if the result is unused) eliminated without changing any other program behavior. Most deep learning operators are pure, as they perform arithmetic on tensors and return a new tensor containing the result. «In Relax, we conservatively assume that any function that calls an impure function is itself impure, though the attribute `force_pure` on a function can be used as an override (e.g., if a function creates a new tensor, mutates it, and returns it, that is still pure but does not satisfy the conservative rule).»
+A function or operator is called "pure" if it does not have side effects, which refers to any change in program state besides returning a result. Side effects include mutating values other than those they create, aborting the program, or file I/O (including writing to the console). Purity is a useful property for compiler optimizations, since calls to pure functions can be reordered or duplicated or (if the result is unused) eliminated without changing any other program behavior. Most deep learning operators are pure, as they perform arithmetic on tensors and return a new tensor containing the result.
 
 Above, it is mentioned that `DataflowBlock`s are not allowed to contain constructs featuring control flow (`If` nodes or recursive calls to the current function) or calls to impure functions. This ensures that `DataflowBlock`s represent a directed acyclic graph of pure operations, which is similar to the graph-like abstractions of traditional deep learning frameworks. This allows many common optimizations from past frameworks to be directly adapted to `DataflowBlock`s without having to accommodate additional reasoning about more expressive features like control flow and side effects.
 
@@ -154,28 +146,22 @@ There is one visible side effect that Relax permits inside otherwise "pure" func
 
 Even though an abnormal program exit is a visible side effect and removing or reordering it changes the observable semantics, it would be too great a restriction to prohibit error checking inside `DataflowBlock`s. Relax does not have any notion of exception handling, so the only consequence of a failed safety check can be exiting the program. It is permissible for the compiler to reorder, duplicate, or eliminate `MatchCast`, or otherwise pure operations that have the potential of failing, provided that doing so does not change the value returned by the program or any other visible behavior.
 
-To indicate that an operator or `PackedFunc` that can abort with an error should *never* be reordered or removed by the compiler, it should *not* be marked as pure. However, this means that it cannot be used inside a `DataflowBlock`.
-
 Note that in some programming languages like Koka, non-termination is also considered a side effect, since it can in some sense be "observed" by a user and affects the visible behavior of a program (e.g., if there is an infinite loop before a print statement, the print will never happen). However, since non-termination cannot be automatically detected in general and is unlikely to arise in deep learning models, we do not attempt to systematically track non-termination in Relax. In general, the Relax compiler is allowed to reorder or remove otherwise pure function calls even if they may not terminate. For example, if a pure function `f` that returns an integer scalar does not terminate, it is permissible in principle to rewrite `f() - f()` to 0.
 
 Exiting with an error and infinitely looping are traditionally considered "[divergence](https://en.wikipedia.org/wiki/Divergence_(computer_science))" in the programming languages literature. As a general principle, Relax's compiler is permitted to turn a program that diverges into a program that does not diverge (provided that no other visible effects change) so long as it never transforms a program that does not diverge into one that diverges.
 
-## Type System Survey
+## Structural Information (`StructInfo`) System Survey
 
-The types in Relax correspond to the broad categories of the values given above:
+Analogously to a type system in most languages, Relax tracks structural information (referred to as `StructInfo` in the implementation) related to the categories of values in Relax:
+1. `TensorStructInfo` corresponds to tensor values, giving the scalar data type, the number of dimensions (rank), and an expression that computes the tensor's shape (either a `ShapeExpr` or a `Var`), all of which are optional.
+2. `TupleStructInfo` corresponds to tuple values, giving the `StructInfo` for each member of the tuple.
+3. `ShapeStructInfo` corresponds to shape values, optionally giving the number of dimensions in the shape and an expression that computes the shape's dimensions (either a `ShapeExpr` or a `Var`).
+4. `FunctionStructInfo` corresponds to function values (closures) and `PackedFunc`s (external functions), giving the types of the parameters, the return type, «and whether the function is pure.»
+5. `ObjectStructInfo` is a parent to all Relax `StructInfo` and corresponds to all the values above as well as any values returned by `PackedFunc` calls that do not fit in the above categories.
 
-1. `DynTensorType` corresponds to tensor values, giving the scalar data type and the number of dimensions (rank), both of which are optional.
-2. `TupleType` corresponds to tuple values, giving the type of each member of the tuple.
-3. `ShapeType` corresponds to shape values, optionally giving the number of dimensions in the shape.
-4. `FunctionType` corresponds to function values (closures), giving the types of the parameters, the return type, «and whether the function is pure.»
-5. `PackedFuncType` is the type given to arbitrary packed functions (external functions).
-6. `ObjectType` is the parent type of all Relax types and corresponds to all the values above as well as any values returned by `PackedFunc` calls that do not fit in the above categories.
+`StructInfo` is assigned to every variable in scope and every type of expression based on the values it returns via a set of inference rules defined later in the specification, making use of subtyping to assign more general `StructInfo` when a more specific one cannot be determined. «Relax is strongly typed, meaning that if the `StructInfo` inferred is less specific than the one expected, an error will be issued and an explicit check via `MatchCast` will be required.»
 
-The type checking rules assign types to every variable in scope and every type of expression based on the values it returns, making use of subtyping to assign more general types when a more specific one cannot be determined. «Relax is strongly typed, meaning that if a type encountered is less specific than the one expected, an error will be issued and an explicit cast (via the `cast` operator) will be required.»
-
-## Structural Information System Survey
-
-In Relax, tensor shapes are not handled in the type system, even though it would be greatly beneficial for the compiler to make use of shape information for static optimizations. Instead, shape information is tracked using Relax's structural information system, in which every expression has structural information associated with it (like tensor shapes) that is more expressive than its type. Structural information can convey richer properties about expressions, like tensor shapes, and can facilitate a greater degree of static reasoning. However, when it is not feasible for the compiler to draw conclusions about structural information, this information can be checked dynamically via `MatchCast`. The structural information is essentially an extended type system, so `MatchCast` also serves to handle type casting.
+In Relax, tensor shapes are not statically handled in the type system, even though it would be greatly beneficial for the compiler to make use of shape information for static optimizations. Instead, shape information is tracked using Relax's structural information system, in which every expression has structural information associated with it (like tensor shapes) that is more expressive than its type. `StructInfo` can convey richer properties about expressions, like tensor shapes, and can facilitate a greater degree of static reasoning. However, when it is not feasible for the compiler to draw conclusions about structural information, this information can be checked dynamically via `MatchCast`. The structural information is essentially an extended type system, so `MatchCast` also serves to handle type casting.
 
 ---
 
@@ -194,11 +180,11 @@ Here are the classes of values that Relax operates over, meaning that they can b
 - *Closures* are the values resulting from evaluating Relax function expressions; closures can be passed around like other values, ensuring that functions are first-class in Relax. Functions defined in Relax can capture variables from outer scopes. A [closure](https://en.wikipedia.org/wiki/Closure_(computer_programming)) consists of a function and a mapping of any variables "captured" (those are *free variables* in the function body, variables from an outer scope that are neither arguments nor defined within the function but are used in the function) to their values. Closures capture both Relax-level local variables and shape variables from outer scopes. A closure also stores a name for itself when the body contains recursive calls. «Closures additionally carry some *run-time structural information* (RTSI) indicating their argument and result structures, in order to facilitate dynamic structural checks (since it is not otherwise possible to introspect the function contained within a closure); the precise form of the RTSI is left up to the compiler implementation to determine so long as `MatchCast` can verify the structure of a closure. Closures can be evaluated in a call node, which results in calling the function with the call's arguments and the captured values.»
 - *Tensor shapes* (shape values) are tuples of integers describing a tensor shape, obtained by evaluating `ShapeExpr`s.
 - *Packed functions* (`PackedFunc`s or external functions) represent arbitrary opaque functions implemented in TVM. That is, packed functions are routines that are defined outside of Relax and cannot be inspected by the compiler. They can perform side effects and return arbitrary values.
-- Additionally, there are further  *arbitrary objects* that do not belong in the above categories. These can be returned by `PackedFunc`s and operators; additionally, we treat TIR `PrimFunc`s as opaque objects. Though Relax expressions other than `PackedFunc` and operator calls cannot use those objects, Relax should pass around these values faithfully. In the future we may add more value types in order to distinguish between different objects, but at present we treat these all as arbitrary values of type `ObjectType`.
+- Additionally, there are further  *arbitrary objects* that do not belong in the above categories. These can be returned by `PackedFunc`s and operators; additionally, we treat TIR `PrimFunc`s as opaque objects. Though Relax expressions other than `PackedFunc` and operator calls cannot use those objects, Relax should pass around these values faithfully. In the future we may add more value types in order to distinguish between different objects, but at present we treat these all as arbitrary values with `ObjectStructInfo`.
 
 ## Representation of Values at Run Time
 
-Because Relax supports calls to arbitrary `PackedFunc`s that can operate on a low level, it is necessary to define a convention for how values will be represented at run time. At this time, the specification does not require any specific representation and permits compiler implementations to choose their own representations, provided that each value type listed above can be recognized at run time (for dynamic type checks). This means that Relax programs that call `PackedFunc`s directly are not portable across compiler implementations: The `PackedFunc`s used must be able to operate on the run-time representations of values.
+Because Relax supports calls to arbitrary `PackedFunc`s that can operate on a low level, it is necessary to define a convention for how values will be represented at run time. At this time, the specification does not require any specific representation and permits compiler implementations to choose their own representations, provided that each value type listed above can be recognized at run time (for dynamic `StructInfo` checks). This means that Relax programs that call `PackedFunc`s directly are not portable across compiler implementations: The `PackedFunc`s used must be able to operate on the run-time representations of values.
 
 Possible specification in terms of the TVM object system:
 
@@ -240,7 +226,7 @@ def func(x: Tensor) -> Tensor:
 
 # Normal Form
 
-To simplify the writing of Relax passes, we define a normal form for Relax programs, based on the [administrative normal form](https://en.wikipedia.org/wiki/A-normal_form) (A-normal form, or ANF). See [this post](https://matt.might.net/articles/a-normalization/) by Matt Might for a discussion of some of the advantages of ANF in traditional compilation; in particular, ANF results in programs without nesting, which is very convenient for writing program transformations. Because the type- and structure-checking rules for operators rely on macros (`FInferShapeInfo`), _this means that the structure of the program can affect type and structure inference_. Putting programs into normal form (and lacking nesting) not only simplifies the writing of these macros but it also ensures that these type- and structure-checking rules will be predictable, hence _it is required to transform programs into normal form_ before applying type or structure checking.
+To simplify the writing of Relax passes, we define a normal form for Relax programs, based on the [administrative normal form](https://en.wikipedia.org/wiki/A-normal_form) (A-normal form, or ANF). See [this post](https://matt.might.net/articles/a-normalization/) by Matt Might for a discussion of some of the advantages of ANF in traditional compilation; in particular, ANF results in programs without nesting, which is very convenient for writing program transformations. Because the `StructInfo`-checking rules for operators rely on macros (`FInferShapeInfo`), _this means that the structure of the program can affect `StructInfo` inference_. Putting programs into normal form (and lacking nesting) not only simplifies the writing of these macros but it also ensures that these `StructInfo`-checking rules will be predictable, hence _it is required to transform programs into normal form_ before applying `StructInfo` checking.
 
 The normal form for Relax is very similar to ANF; differences will be noted. Here are the criteria required for a program to be in normal form:
 1. Within a `SeqExpr`, the right-hand side of any binding (the `value` field in the AST) must either be a "leaf expression" or a non-leaf expression where all subexpressions are leaf expressions. Leaf expressions are the following: Variables (`Var`, `DataflowVar`, or `GlobalVar`), `Constant`, `ShapeExpr`, or (_unlike_ ANF) `Tuple`. `Tuple` nodes are considered "leaf" expressions even though they contain nesting purely for convenience in writing passes; many operators rely on grouping arguments using tuples, so that is a form of nesting permitted and expected. Otherwise, non-leaf expressions used as subexpressions must be bound to variables; this includes any non-leaf expressions nested inside a `Tuple`.
@@ -250,7 +236,7 @@ The normal form for Relax is very similar to ANF; differences will be noted. Her
 3. In fact, the `body` field of a `Function` node and the `true_branch` and `false_branch` fields of `If` nodes _must_ be `SeqExpr`s. If these fields are not `SeqExpr`s, they must be "wrapped" in a `SeqExpr`.
 4. Within a `SeqExpr`, `BindingBlock`s must be consolidated. For example, if there is a `BindingBlock` that comes after another `BindingBlock`, the two blocks should be combined to form a single `BindingBlock` with all the bindings in the same order. Consecutive `DataflowBlock`s should be consolidated as well. Empty `BindingBlock`s should be dropped. However, a `DataflowBlock` cannot be consolidated with an ordinary `BindingBlock`. If all the `BindingBlock`s are empty, then the `blocks` field of the `SeqExpr` should be set to an empty list.
 
-Programs that are parsed should be "normalized" before performing type checking or structure checking or before doing any further optimizations. Note that the process of "flattening" `SeqExpr`s and consolidating `BindingBlock`s does increase the visibility of the variables in those `SeqExpr`s and `BindingBlock`s, but this is safe, since it will not cause any variable to be referenced outside of its original scope. The specification does not require any particular method of normalizing a program so long as the final program conforms to the above-listed criteria. Here is a general approach:
+Programs that are parsed should be "normalized" before performing `StructInfo` checking or before doing any further optimizations. Note that the process of "flattening" `SeqExpr`s and consolidating `BindingBlock`s does increase the visibility of the variables in those `SeqExpr`s and `BindingBlock`s, but this is safe, since it will not cause any variable to be referenced outside of its original scope. The specification does not require any particular method of normalizing a program so long as the final program conforms to the above-listed criteria. Here is a general approach:
 1. For each function in the `IRModule`, ensure that the body is a `SeqExpr`. If the body is not a `SeqExpr`, wrap the function body in a `SeqExpr`, creating a new `BindingBlock` to hold `VarBinding`s for any non-leaf expressions that need to be bound to variables.
 2. If the function body is already a `SeqExpr`, consolidate all `BindingBlock`s, then check if the `body` field of the `SeqExpr` is a leaf expression. If not, bind it to a new var in the final `BindingBlock` and replace the `SeqExpr` body with the new var.
 3. If the function body is not a `SeqExpr`, then recurse down the body's AST, binding any nested non-leaf expressions to a var in the current scope (doing this process in breadth-first order from left to right will respect the evaluation order in the semantics). If the body itself is a non-leaf expression, finally bind it to a var and have the final `SeqExpr` return the new var.
@@ -260,7 +246,7 @@ Programs that are parsed should be "normalized" before performing type checking 
 
 # Well-Formedness Criteria
 
-Prior to type-checking and shape inference, Relax programs must conform to certain syntactic criteria to be valid, which includes conforming to the expectations of the above-described normal form.
+Prior to `StructInfo` checking, Relax programs must conform to certain syntactic criteria to be valid, which includes conforming to the expectations of the above-described normal form.
 
 The following criteria apply to all programs (including before normalization):
 1. `DataflowVar`s can be bound only inside `DataflowBlock`s. Additionally, a `DataflowVar` may not be used outside of the `DataflowBlock` in which it is defined.
@@ -273,11 +259,11 @@ The following criteria apply to all programs (including before normalization):
     2. Calls to a global function that is mutually recursive with the current function
     3. `If` nodes
     
-    «Calls to Relax functions, `ExternFuncs`, or `Op`s that are not pure are also not permitted, but this must be detected during type checking.»
+    «Calls to Relax functions, `ExternFuncs`, or `Op`s that are not pure are also not permitted, but this must be detected during `StructInfo` checking.»
     
 7. «For functions that contain recursive calls to themselves or mutually recursive global functions (i.e., those where function `a` calls function `b` and function `b` calls function `a`), a return structural annotation is *required*.»
 8. `Op` nodes may appear only as the `op` argument to `Call` nodes. 
-9. If a variable has both a type annotation and a shape annotation, the `ndim` of any `DynTensorType`s must match the number of dimensions in the corresponding shape annotation.
+9. If a variable has a `StructInfo` annotation, the `ndim` of any `TensorStructInfo` and `ShapeStructInfo`s must match the number of dimensions in their `shape` and `values` fields, respectively.
 10. A function definition inside a `DataflowBlock` may not use `DataflowVar`s from the outer scope in its body. We do not define closure capturing for `DataflowVar`s.
 11. «At least one global function in the `IRModule` must be externally linked (have a `global_symbol` attribute) in order to serve as a program entry point.»
 12. «If a global function has a defined `global_symbol` attribute, the `global_symbol` name must be the same as the `GlobalVar`'s name hint.»
@@ -287,237 +273,22 @@ The following criteria apply to all programs (including before normalization):
 
 Additionally, the criteria for normal form listed in the previous section must apply to any program that has been normalized.
 
-# Types in Relax
+# Structural Information (`StructInfo`) in Relax
 
-Relax's type system is intended to enforce strong guarantees that values are passed correctly between expressions. The design emphasis is on simplicity, aiming to leave more complex analysis to the structural information.
+Structural information in Relax is intended to enforce basic guarantees that values are passed correctly between expressions, while also analyzing more complex properties like tensor shapes in a _"best-effort"_ fashion. Namely, anything that cannot be proved statically can instead be checked at run time. Each Relax expression has structural information associated with it. The best-effort nature of the structural system in Relax means that the analysis may detect _some_ errors at compile time and report them, but it may give warnings when it _cannot_ draw conclusions, perhaps suggesting that dynamic checks via `MatchCast` should be inserted. Note that the precision of the static analysis can potentially be improved by some compile-time optimizations like constant propagation, function inlining, and other partial evaluation–like transformations.
 
-Relax presently has six types, corresponding to the values in the language:
-
-1. `DynTensorType`, referring to tensor values (referred to in the front-end as `Tensor`). In Relax, tensor types keep track of the rank (number of dimensions) in the `ndim` field and the data type of the tensor data in the `dtype` field. Both the rank and data type are optional: Using -1 for `ndim` indicates that the tensor is of unknown rank and using `DataType::Void()` for  `dtype` indicates that it's of unknown data type.
-2. `ShapeType`, referring to shape values. The number of dimensions in the shape as given as `ndim` and is optional (using -1 for `ndim` indicates an unknown number of dimensions).
-3. `FuncType`, referring to functions (closures). `FuncType`s specify the types of their parameters, a return type, and whether the function is pure.
-4. `TupleType`, referring to tuple values, giving the types of their fields.
-5. `PackedFuncType`, referring to the type of PackedFunctions.
-6. `ObjectType`, referring to any Relax value, including values used and returned by `PackedFunc` or operator calls that do not belong in any of the above categories.
-
-## Erasing Structural Information into Types
-
-Several type-checking rules rely on structural annotations or rules for defining the structural information for a call to an `Op` or `PackedFunc`. In general, types are simpler than structural information (to facilitate more precise reasoning). Structural information can be convereted into a type as follows (in pseudocode):
-
-```python
-def erase_struct_info(si: StructInfo) -> Type:
-    if si is TensorStructInfo:
-        return DynTensorType(ndim=si.ndim, dtype=si.dtype)
-    if si is ShapeStructInfo:
-        return ShapeType(ndim=si.ndim)
-    if si is TupleStructInfo:
-        return TupleType(fields=[erase_struct_info(field) for field in si.fields])
-    if si is FuncStructInfo:
-        # this should be the case only for packed funcs
-        if si.params is not specified:
-            return PackedFuncType()
-        return FuncType(
-            arg_types=[erase_struct_info(arg_type) for arg_type in si.params],
-            ret_type=erase_struct_info(si.ret)
-            pure=False) # TODO: This suggests we should either handle purity 
-            # in StructInfo entirely (and not make it part of the type) 
-            # or include it in both StructInfo and the type system
-    # only remaining case is ObjectStructInfo
-    return ObjectType()
-```
-
-## Subtyping
-
-Relax implements subtyping, which means that members of types can be accepted where members of their supertypes are accepted. We will denote the subtyping relationship as `T1 <: T2`, indicating that `T1` is a subtype of `T2`. For example. if `T1 <: T2` and some function expects an argument of type `T2`, then passing a member of type `T1` to that function is permitted; passing a member of type `T2` as an argument to a function that expects type `T1` for that argument is *not* permitted—the value would have to be dynamically cast to `T1` using the `cast` operator.
-
-### Rules for Subtyping
-
-1. Reflexivity: For all types `T`, `T <: T`.
-2. Transitivity: For all types `T1`, `T2`, and `T3`, if `T1 <: T2` and `T2 <: T3`, then `T1 <: T3`.
-3. For all types `T`, `T <: ObjectType`. Hence, `ObjectType` is a supertype to all Relax types (all values in Relax are members of `ObjectType`).
-4. Rules for `DynTensorType`:
-    1. For all fixed  `ndim`  values  `m`, where `m` ≥ 0, and `dtype`s  `d`, `DynTensorType(ndim=m, dtype=d) <: DynTensorType(ndim=m, dtype=Void)`.
-    2. For all fixed `ndim`  values `m` and `dtype`s `d` that are not `Void`, `DynTensorType(ndim=m, dtype=d) <: DynTensorType(ndim=-1, dtype=d)`.
-    3. Corollary: `DynTensorType(ndim=-1, dtype=Void)` is a supertype to all tensor types, since it refers to any possible tensor value.
-5. Suppose we have types `T1 <: T1'`, `T2 <: T2'`, …, `Tn <: Tn'`. Then `TupleType(fields=[T1, T2, ..., Tn]) <: TupleType(fields=[T1', T2', ..., Tn'])`.
-6. Rules for `FuncType`:
-    1. Impure functions are supertypes to pure functions. Namely, if we have types `T1`, `T2`, …, `Tn` and `Tr`, then `FuncType(arg_types=[T1, T2, ..., Tn], ret_type=Tr, pure=True) <: FuncType(arg_types=[T1, T2, ..., Tn], ret_type=Tr, pure=False)`.
-    2. Suppose we have types `T1' <: T1`, `T2' <: T2`, …, `Tn' <: Tn` and `Tr <: Tr'`. Then `FuncType(arg_types=[T1, T2, ... Tn], ret_type=Tr, pure=p) <: FuncType(arg_types=[T1', T2', ..., Tn'], ret_type=Tr', pure=p)`. Note the direction of the subtyping relationships for the argument and return types: We must be able to *call* this function with the *same* arguments and *use the returned value* wherever it is accepted—hence a function that takes more general arguments and returns a more specific return value can be used in place of the original.
-
-These rules allow us to define the least upper bound (LUB) for any two types `T1` and `T2`, meaning that it is the most specific type `T` for which `T1 <: T` and `T2 <: T` ("most specific" meaning that if there exists some other `T'` for which `T1 <: T'` and `T2 <: T'`, then `T <: T'`). The LUB is guaranteed to exist for any two types because `Object` is a supertype to all types.
-
-Note that the rule for obtaining the LUB of function types relies on the counterpart to the LUB, the greatest lower bound (GLB). The GLB is not guaranteed to exist for any two types in Relax, as there is no single type that is a subtype of all others.
-
-We can give an algorithm for determining the LUB and GLB for two types, in pseudocode:
-
-```python
-def find_glb(T1 : Type, T2 : Type) -> Type?:
-    if T1 == T2: # syntactic equality
-        return T2
-    if T1 is ObjectType:
-        return T2
-    if T2 is ObjectType:
-        return T1
-    if T1 and T2 are not both DynTensorType, not both TupleType, not both FuncType, or not both ShapeType, or not both PackedFuncType:
-        return None
-    if T1 and T2 are both ShapeType:
-        ret_ndim = T1.ndim
-        if ret_ndim == -1:
-            ret_ndim == T2.ndim
-        if ret_ndim != -1 and T2.ndim != ret_ndim:
-            return None
-        return ShapeType(ret_ndim)
-    if T1 and T2 are both DynTensorType:
-        ret_ndim = T1.ndim
-        ret_dtype = T1.dtype
-        if ret_ndim == -1:
-            ret_ndim == T2.ndim
-        if ret_dtype == Void:
-            ret_dtype = T2.dtype
-        if ret_ndim != -1 and T2.ndim != ret_ndim:
-            # mismatch, so there's no common lower bound
-            return None
-        if ret_dtype != Void and T2.dtype != ret_dtype:
-            return None
-        return DynTensorType(ret_ndim, ret_dtype)
-    if T1 and T2 are both TupleType:
-       if they do not have the same length:
-           return None
-       fields = []
-       for field1, field2 in zip(T1.fields, T2.fields):
-           glb = find_glb(field1, field2)
-           if glb is None:
-              return None
-           fields.append(glb)
-       return TupleType(fields)
-   if T1 and T2 are both FuncType:
-      «if they are not both pure or both impure:»
-         «return None»
-      purity = T1.purity
-      if they do not have the same arity:
-         return None
-      # mutual recursion with finding the LUB
-      arg_types = [
-          find_lub(arg_type1, arg_type2) 
-          for arg_type1, arg_type2 in zip(T1.arg_types, T2.arg_types)
-      ]
-      ret_type = find_glb(T1.ret_type, T2.ret_type)
-      if ret_type is None:
-         return None
-      return FuncType(arg_types, ret_type, purity)
-
-def find_lub(T1 : Type, T2 : Type) -> Type:
-    if T1 == T2: # syntactic equality
-        return T1
-    if T1 or T2 is ObjectType:
-        return Object
-    if T1 or T2 are not both DynTensorType, or both TupleType, or both FuncType, or both ShapeType, or both PackedFuncType:
-        return ObjectType
-    if T1 and T2 are both ShapeType:
-        res_ndim = T1.ndim
-        if T1.ndim != T2.ndim:
-            res_ndim = -1
-        return ShapeType(res_ndim)
-    if T1 and T2 are both DynTensorType:
-        res_ndim = T1.ndim
-        res_dtype = T1.dtype
-        if T1.ndim != T2.ndim:
-            res_ndim = -1
-        if T1.dtype != T2.dtype:
-            res_dtype = Void
-        return DynTensorType(res_ndim, res_dtype)
-    if T1 and T2 are both TupleType:
-        if they do not have the same length:
-            return ObjectType
-        return TupleType([
-            find_lub(field1, field2) 
-            for field1, field2 in zip(T1.fields, T2.fields)
-        ])
-    if T1 and T2 are both FuncType:
-        «purity = (True iff they're both pure)»
-        if they do not have the same arity:
-            return ObjectType
-        arg_types = []
-        for arg_type1, arg_type2 in zip(T1.arg_types, T2.arg_types):
-            # potential mutual recursion
-            glb = find_glb(arg_type1, arg_type2)
-            if glb is None:
-                return ObjectType
-            arg_types.append(glb)
-        return FuncType(arg_types, find_lub(T1.ret_type, T2.ret_type), «purity»)
-```
-
-### When Type Conversions are Necessary
-
-For two types `T1` and `T2`, if `T1 <: T2`, then a value of type `T1` can be passed anywhere a value of type `T2` is expected without any need for type conversions or dynamic checks.
-
-*However*, if `T1 <: T2`, then passing a value of type `T2` where `T1` is expected can only be done if there has been some kind of dynamic check or conversion of that value. «Relax is *strongly typed*, meaning that the compiler will give an error in this situation and require an explicit conversion via a `MatchCast` node, which inspects the value's run-time representation.»
-
-If `T1` is not a subtype of `T2` and `T2` is not a subtype of `T1`, then it is always a type error to pass a value of either type where a value of the other is expected (no member of either type can be a member of the other).
-
-## Type Checking Rules
-
-The type checking rules for Relax are relatively simple and allow in some cases for types to be inferred without user annotations. Below, we describe how the types for each expression can be derived and when type checking should return an error.
-
-Let us consider a typing context `Γ`, which is a map of variables to types.
-
-1. «We type check the entire `IRModule` one function definition at a time. To handle mutual recursion, we prepopulate `Γ` with the annotated types of all global functions that are called mutually recursively. We then proceed to check the types of the global functions one at a time.»
-2. Given a variable `v`, if `v` is in `Γ`, then we return `Γ[v]`. Otherwise, it is an error.
-3. Given a constant expression `Constant(data)`, the type is `DynTensorType(ndim=n, dtype=d)` where `n` is the number of dimensions in `data` and `d` is its data type (recall that `data` is an `NDArray` literal).
-4. Given a shape expression `ShapeExpr(dims)`, its type is `ShapeType(n)`, where `n` is the length of `dims`.
-5. Given a tuple literal `Tuple([e1, e2, ..., en])`, suppose that `e1` has the type `T1`, `e2` has the type `T2`, …, and `en` has the type `Tn`. Then the type is `TupleType([T1, T2, .., Tn])`.
-6. Given an `ExternFunc` expression, assign it the type `PackedFuncType()`.
-7. Given a call node `Call(op=op, args=[a1, a2, ..., an], type_args=[aT1, aT2, ..., aTn])`:
-    1. If `op` is a Relax `Op` node, then we look up its registered `FInferStructInfo` property. `FInferStructInfo` is a macro that takes in the `Call` node and produces structural information. Invoke `op.FInferStructInfo(Call(op, [a1, ..., an], type_args=[aT1, aT2, ..., aTn]))` and convert the result to a type using the `erase_struct_info` procedure defined above. The implementation of `FInferStructInfo` is free to throw errors.
-    2. If `op` has `PackedFuncType`, note that packed functions may be passed any combination of values and return any value; it is the responsibility of the packed function's implementation to do any validation at run time. (TODO: `derive_func` should be used here, propagated from the structural information.) However, the type system uses the `type_args` field to determine the result type as follows:
-        1. If there are no `type_args`, the resulting type is `ObjectType()`.
-        2. If there is exactly one member of `type_args`, use that as the return type.
-        3. If there are multiple members of `type_args`, then the type is `TupleType(fields=[aT1, aT2, ..., aTn])`.
-    3. Otherwise, check the types of the subexpressions, left to right. Suppose `op` has the type `Tf`, `a1` has type `T1`, …, and `an` has type `Tn`. If `Tf` is not a function type with exactly `n` arguments, we consider it a type error and require an explicit cast. Suppose `Tf` has argument types `T1'`, `T2'`, …, `Tn'`. Consider it a type error if any of the following does not hold: `T1 <: T1'`, `T2 <: T2'`, …, or `Tn <: Tn'`. Then the return type is `Tf.ret_type`.
-8. Given a conditional expression `If(cond, true_branch, false_branch)`, we first assert that the type of `cond` is `DynTensorType(ndim=0, dtype=bool)`, giving an error otherwise. Next, we recursively check the types of `true_branch` and `false_branch`; suppose they yield types `Tt` and `Tf`, respectively. The return type will be `T = LUB(Tt, Tf)`.
-9. For a `TupleGetItem(t, i)` expression, suppose that the type of `t` is `T`. If `T` is a tuple type with at least `i` members, then return the `i`th type in `T`. «Give a type-checking error and require an explicit cast if `T` is not a tuple type with at least `i` members.»
-10. Let us consider a sequence expression `SeqExpr(blocks = [b0, b1, ..., bn], body)`.
-    1. We type check the binding blocks `b0`, `b1`, …, `bn` in order. For each block, we go through the bindings in order.
-        1. «If the current block is a `DataflowBlock`, consider it an error if any binding contains a call to an expression with a function type that is not pure, a call to an `ExternFunc` that does not have the `pure` attribute, or a call to an `Op` that does not have a `pure` attribute.»
-        2. For each binding `VarBinding(v, e)` in the current block, check the type of `e` and suppose it is `T'`. If `v` has a structural annotation, then let `T` be the corresponding type (via the `erase_struct_info` procedure above). If there is no annotation, then add `v` to `Γ` with type `T'`. If `T` has been defined, then emit an error if `T'` is not a subtype of `T` and otherwise add `v` to `Γ` with type `T`. «If `T'` is a supertype of `T`, emit an error and require a cast.» Note that this means that annotated types can be *less specific* than the inferred type and that a user annotation forces the type system to consider the variable as having a less specific type than it does. (Note: In the case where `e` is a `Function` literal, we require `v` to have a structural annotation add `v` to `Γ` with its annotated type before type-checking the function body; see the rule for `Function` nodes.)
-        3. For each `MatchCast(v, e, struct_info)`:
-            1. Check the type of `e` and let it be `T'`. 
-            2. Let `T''` be the type corresponding to `struct_info` (via the `erase_struct_info` procedure).
-            3. Emit a warning if `T'` is not a supertype of `T''` and `T''` is also not a supertype of `T'`; this indicates that the cast is _guaranteed_ to fail at run time.
-            4. If `v` has been defined and it has a structural annotation, then let `T` be its corresponding type (via `erase_struct_info`).
-            5. If `T` has been defined, then emit an error if `T` is not a supertype of `T''`.
-            6. If `v` has been defined and does not have a structural annotation, then add `v` to `Γ` with type `T''`. If `T` has also been defined, then add `v` to `Γ` with type `T`.
-    2. If the current block is a `DataflowBlock`, remove any `DataflowVar`s from `Γ` after we have finished processing the bindings in that block.
-    3. Finally, the type of the `SeqExpr` is the type of `body` checked under the current `Γ`. Afterwards, remove all bindings added from the `b0`, `b1`, …, `bn` from `Γ`.
-11. Let us consider a function `Function(params=[v1, v2, ..., vn], body, ret_struct_info)`. All of the vars are required to have structural annotations; let `T1` be the type corresponding to `v1`'s annotation (via `erase_struct_info`), `T2` be the type corresponding to `v2`'s annotation, etc..
-    1. For handling recursive calls: If the function has been bound to a name `fv` (which may be a `Var` or a `GlobalVar`), then add `fv` to `Γ` with the type `FuncType([T1, T2, ..., Tn], Tr, pure=p)` and proceed as below, «where `p` is `True` if a `pure` attribute is included and `False` otherwise». Remove `fv` from `Γ` before returning.
-    2. Add `v1` to `Γ` with type `T1`, `v2` with type `T2`, …, and `tn` with type `Tn`. Recursively type check `body` in this new context:
-        1. «Determining purity: If `body` contains any call to a function whose return type does not specify that it is pure, a call to an `ExternFunc` that does not have the `pure` attribute, or a call to an `Op` that does not specify the `pure` attribute, then we consider the function to be (potentially) impure. If all calls are to functions whose return type specifies purity or that include the `pure` attribute on the call or `Op`, then the function is treated as pure.»
-        2. «Suppose the purity defined in the previous step is `p'`. Suppose the annotated function purity (in the attributes) is `p`. If `p'` is false while `p` is true, then it is a type error; if `p` was omitted, use `p'` for `p`.»
-        3. «If the function has the attribute "`force_pure`," then consider `p` to be true, even if the check above judged the function not to be pure. The compiler may emit a warning in this situation.»
-        4. Suppose the result of type-checking `body` is `Tr'`. If the current function is not recursive or a mutually recursive global function and `ret_struct_info` is undefined, consider the function to have type `FuncType([T1, T2, ..., Tn], Tr', pure=p)`. If `ret_struct_info` is defined, then let `Tr` be `erase_struct_info(ret_struct_info)`. If `Tr' <: Tr`, then we consider the function to have type `FuncType([T1, T2, ..., Tn], Tr, pure=p)`. «If `Tr <: Tr'`, return an error and require an explicit cast in the function body.» If `Tr'` is not a subtype of `Tr` and `Tr` is also not a subtype of `Tr'` (meaning a dynamic cast cannot succeed), this is an error. 
-        5. Remove `v1`, `v2`, …, and `vn` from `Γ` before returning.
-
-# Structural Information in Relax
-
-In Relay, shapes are part of tensor types and there is much analysis of tensor shapes done at compile time. While this allows Relay's type system to make strong guarantees about tensor shapes, it results in greater complexity in type checking and makes it difficult to implement new operators or handle cases like tensors with symbolic shapes.
-
-Relax instead aims to facilitate analysis of more complex properties like shapes by tracking _structural information_ pertaining, encoding as much analysis as is feasible at compile-time in a _"best-effort"_ fashion. Anything that cannot be proved statically can instead be checked at run time. Each Relax expression has structural information associated with it just as it has a type. Indeed, the structural information for each expression can be simplified into a type (recall [the procedure for doing so](#erasing-structural-information-into-types)), so the structural information for an expression can be thought of as an extended type that is checked in a less precise manner. The best-effort nature of the structural system in Relax means that the analysis may detect _some_ errors at compile time and report them, but it may give warnings when it _cannot_ draw conclusions, perhaps suggesting that dynamic checks via `MatchCast` should be inserted. Note that the precision of the static analysis can potentially be improved by some compile-time optimizations like constant propagation, function inlining, and other partial evaluation–like transformations.
-
-Tensor shapes are the primary motivation for including structural information in Relax, as shape information is particularly important for memory planning. Relax's structural information system uses expressions to encode tensor shapes, which allows for using shape variables and arithmetic expressions to encode a rich variety of shape constraints. Note, however, that the structural system could potentially be extended to encode and analyze further information, like tensor sparsity or density.
+Tensor shapes are the primary motivation for including structural information in Relax, as shape information is particularly important for memory planning. In Relay, shapes are part of tensor types and there is much analysis of tensor shapes done at compile time. While this allows Relay's type system to make strong guarantees about tensor shapes, it results in greater complexity in type checking and makes it difficult to implement new operators or handle cases like tensors with symbolic shapes. By contrast, Relax's `StructInfo` system uses expressions to encode tensor shapes, which allows for using shape variables and arithmetic expressions to encode a rich variety of shape constraints. Note, however, that the structural system could potentially be extended to encode and analyze further information, like tensor sparsity or density.
 
 ## Defining Structural Information
 
-As with types, the structural information in Relax corresponds to the values in the language:
-* `TensorStructInfo` describes tensor values. Like in `DynTensorType`, the `dtype` field gives the datatype (with `Void` indicating a statically unknown datatype), the `ndim` field gives the rank (with -1 indicating a statically unknown rank). Unlike `DynTensorType`, there is an optional `shape` field which, if defined, describes the shape of the tensor using either a `ShapeExpr` or a `Var` whose type is `ShapeType`. If `shape` is a `ShapeExpr`, the `PrimExpr`s in the `ShapeExpr`'s dimensions describe how to compute each dimension of the shape (or are constants). If `shape` is a `Var`, the `Var` can assign the result of an arbitrary computation (that returns a shape). which can be useful for memory planning.
-* `ShapeStructInfo` describes shape values. Like `ShapeType`, it has an `ndim` field that gives the number of dimensions in the shape (with -1 indicating that it is statically unknown). It additionally has an optional `values` field. If defined, `values` gives a list of `PrimExpr`s that indicate how to compute the dimensions of the shape, potentially providing further information for static analyses.
-* `TupleStructInfo` describes tuple values, namely by giving the structural information for each of the tuple's members via `fields`.
+The structural information in Relax corresponds to the values in the language:
+* `TensorStructInfo` describes tensor values. The `dtype` field gives the datatype (with `Void` indicating a statically unknown datatype), the `ndim` field gives the rank (with -1 indicating a statically unknown rank). Unlike `DynTensorType`, there is an optional `shape` field which, if defined, describes the shape of the tensor using either a `ShapeExpr` or a `Var` (with `ShapeStructInfo`). If `shape` is a `ShapeExpr`, the `PrimExpr`s in the `ShapeExpr`'s dimensions describe how to compute each dimension of the shape (or are constants). If `shape` is a `Var`, the `Var` can assign the result of an arbitrary computation that returns a shape value, which can be useful for memory planning.
+* `ShapeStructInfo` describes shape values. It has an `ndim` field that gives the number of dimensions in the shape (with -1 indicating that it is statically unknown). It additionally has an optional `values` field. If defined, `values` gives a list of `PrimExpr`s that indicate how to compute the dimensions of the shape, potentially providing further information for static analyses.
+* `TupleStructInfo` describes tuple values, namely by giving the `StructInfo` for each of the tuple's members via `fields`.
 * `FuncStructInfo` describes closure values or `PackedFunc`s. There are two ways in which to specify `FuncStructInfo`:
-    1. By specifying `params` and `ret` (for closures). `params` gives the structural information corresponding to each of the function's parameters and `ret` gives the structural information corresponding to the result of calling the function. In this case, the `derive_func` field is left undefined.
+    1. By specifying `params` and `ret` (for closures). `params` gives the `StructInfo` corresponding to each of the function's parameters and `ret` gives the `StructInfo` corresponding to the result of calling the function. In this case, the `derive_func` field is left undefined.
     2. By giving a `derive_func` macro (for `PackedFunc`s). The `derive_func` macro is takes a call to the corresponding `PackedFunc` and the variable mapping context and returns the `StructInfo` of the result. In this case, the `params` field is left undefined and the `ret` field is ignored.
 * `ObjectStructInfo` describes arbitrary object values.
-
-While these categories correspond closely to types, they serve as a mechanism for propagating further information (especially as given in shape annotations in variable bindings) throughout the program and facilitating more static analysis.
 
 ### Expressing Shape Dimensions
 
@@ -544,7 +315,7 @@ This section describes the run-time checking performed by `MatchCast(var, value,
 2. If `struct_info` is `TensorStructInfo(ndim, dtype, shape)`, then check that `value` is a tensor value, that it has a rank of `ndim` (if `ndim` is not -1), a datatype of `dtype` (if `dtype` is not `Void`). If `shape` is defined, consider the following cases:
     1. If `shape` is a `Var`, then check that the concrete shape of `value` matches the value bound to the `Var`.
     2. If `shape` is a `ShapeExpr`, then compare the fields of the `ShapeExpr` to the concrete shape of `value`, dimension by dimension (comparing the `i`th field of the `ShapeExpr` to the `i`th dimension of the shape of `value`). Give an error if the number of the dimensions does not match the number of fields in the `ShapeExpr`.
-        1. If a field of the `ShapeExpr` consists of only an unbound shape variable, then bind that variable to the value of the dimension. 
+        1. If a field of the `ShapeExpr` consists of only an unbound shape variable, then bind that variable to the value of the dimension.
         2. Otherwise, evaluate the field of the `ShapeExpr` and ensure that it matches the concrete value of the dimension.
 3. If `struct_info` is `ShapeStructInfo(ndim, values)`, then check that `value` is a shape value, that it has `ndim` dimensions (if `ndim` is not -1). If `values` is defined, then compare it to the concrete shape value (comparing the `i`th member of `values` to the `i`th field of the shape value):
     1. If the `i`th member of `values` consists of only an unbound shape variable, then bind that variable to the `i`th field of the the concrete shape value.
@@ -575,9 +346,110 @@ def f(arg1, arg2, ..., argn):
 ```
 »
 
+## Subtyping for `StructInfo`
+
+Relax implements subtyping for `StructInfo`, which means that values with some `StructInfo` can be accepted where values with more general `StructInfo` are accepted We will denote the subtyping relationship as `S1 <: S2`, indicating that `S1` is a subtype of `S2`. For example. if `S1 <: S2` and some function expects an argument with `StructInfo` `S2`, then passing a value with `StructInfo` `S1` to that function is permitted; passing a value with `StructInfo` `S2` as an argument to a function that expects `S1` for that argument is *not* permitted—the value would have to be dynamically cast to `S1` using `MatchCast`.
+
+Note that judging subtyping requires potentially reasoning about arbitrary `ShapeExpr`s. We assume that the compiler is able to draw the following three conclusions about two shape expressions, acting conservatively (it will consider values to be _definitely_ equal or _definitely not_ equal only if it is certain):
+* They are _definitely_ statically equal in all cases.
+* They are _possibly_ statically equal.
+* They are _definitely not_ statically equal in at least one case.
+
+1. Reflexivity: `S1 <: S1` for all `S1`.
+2. Transitivity: For all `S1`, `S2`, and `S3`, if `S1 <: S2` and `S2 <: S3`, then `S1 <<: S3`.
+3. For all `S1`, `S1 <: ObjectStructInfo()`.
+4. For `TensorStructInfo`:
+    1. Given any datatype `d`, an arbitrary `ndim` `n`, and an arbitrary expression `s` (possibly undefined), `TensorStructInfo(ndim=n, dtype=d, shape=s) <: TensorStructInfo(ndim=-1, dtype=d)`.
+    2. Given any datatype `d`, an arbitrary `ndim` `n`, and an arbitrary expression `s` (possibly undefined), `TensorStructInfo(ndim=n, dtype=d, shape=s) <: TensorStructInfo(ndim=n, dtype=Void, shape=s)`.
+    3. Given any datatype `d`, an arbitrary `ndim` `n`, and an arbitrary expression `s`, `TensorStructInfo(ndim=n, dtype=d, shape=s) <: TensorStructInfo(ndim=n, dtype=d, shape=undefined)`.
+    4. Given any datatype `d`, an arbitrary `ndim` `n`, and arbitrary expressions `s1` and `s2` (both defined), then `TensorStructInfo(ndim=n, dtype=d, shape=s1) <: TensorStructInfo(ndim=n, dtype=d, shape=s2)` if `s1` and `s2` are _definitely_ statically equal. We say that `TensorStructInfo(ndim=n, dtype=d, shape=s1) <: TensorStructInfo(ndim=n, dtype=d, shape=s2)` _possibly_ holds if `s1` and `s2` are _possibly_ statically equal.
+5. For `ShapeStructInfo`:
+    1. Given an arbitrary `ndim` `n` and an arbitrary set of values `v` (possibly undefined), `ShapeStructInfo(ndim=n, values=v) <: ShapeStructInfo(ndim=-1)`.
+    2. Given an arbitrary `ndim` `n` and an arbitrary set of values `v` (not undefined), `ShapeStructInfo(ndim=n, values=v) <: ShapeStructInfo(ndim=n, values=undefined)`.
+    3. Given an arbitrary `ndim` `n` and two arbitrary sets of values `v1` and `v2` (both defined), `ShapeStructInfo(ndim=n, values=v1) <: ShapeStructInfo(ndim=n, values=v2)` if, for all valid `i`, `v1[i]` and `v2[i]` can be proven to be _definitely_ statically equal. We say that `ShapeStructInfo(ndim=n, values=v1) <: ShapeStructInfo(ndim=n, values=v2)` _possibly_ holds if `v1` and `v2` are _possibly_ statically equal.
+6. Given two lists of `StructInfo` `fields1` and `fields2`, `TupleStructInfo(fields=fields1) <: TupleStructInfo(fields=fields2)` if `fields1` and `fields2` are the same length and for all `i`, `fields1[i] <: fields2[i]`. We consider the subtyping relationship to _possibly_ hold if any of the subtyping relationships for the fields only possibly holds.
+7. For `FuncStructInfo`:
+    1. Given an arbitrary derivation function `derive_func`, `FuncStructInfo(ret=ObjectStructInfo(), derive_func=derive_func) <: FuncStructInfo(ret=ObjectStructInfo(), derive_func=empty_derive)`.
+    2. Corollary, following from reflexivity: For two `FuncStructInfo` `F1` and `F2` with undefined `params`, `F1 <: F2` only if `F1.derive_func` and `F2.derive_func` are identical.
+    3. Given two lists of `StructInfo` parameters `P1` and `P2` and two `StructInfo` annotations `R1` and `R2`, `FuncStructInfo(params=P1, ret=R1) <: FuncStructInfo(params=P2, ret=R2)` if `P1` and `P2` are the same length and for all `i`, `P2[i] <: P1[i]` and `R1 <: R2`. We consider the subtyping relationship to _possibly_ hold if any of the subtyping relationships given only possibly holds.
+
+These rules allow us to define the least upper bound (LUB) for any two `StructInfo` `S1` and `S2`, meaning that it is the most specific `StructInfo` `S` for which `S1 <: S` and `S2 <: S` ("most specific" meaning that if there exists some other `S'` for which `S1 <: S'` and `S2 <: S'`, then `S <: S'`), modulo reasoning about arithmetic (for example, the compiler may judge that two shape expressions are _possibly_ equivalent rather than _definitely_ equivalent). The LUB is guaranteed to exist for any two `StructInfo` because all `StructInfo` are subtypes of `ObjectStructInfo`.
+
+We can define how to find the LUB of two structural information annotations (modulo arithmetic reasoning) as follows, in pseudocode:
+
+```python
+def unify_struct_info(S1: StructInfo, S2: StructInfo) -> StructInfo:
+    if S2 is ObjectStructInfo:
+        return S1
+    if S1 is ObjectStructInfo:
+        return S2
+    if S1 and S2 do not match types (e.g., not both TensorStructInfo, etc):
+        return ObjectStructInfo()
+    if S1 and S2 are both ShapeStructInfo:
+        if S1.ndim == -1:
+            return S1
+        if S2.ndim == -1:
+            return S2
+        if S1.ndim != S2.ndim:
+            return ShapeStructInfo(ndim=-1)
+        if S1.ndim == S2.ndim:
+            if S1.values is undefined:
+                return S1
+            if S2.values is defined:
+                return S2
+            if S1.values can be statically proven to match S2.values:
+                return S1
+            # values either proven not to match or unknown
+            return ShapeStructInfo(ndim=S1.ndim) # leave values undefined
+    if S1 and S2 are both TensorStructInfo:
+        ndim = S1.ndim if S1.ndim == S2.ndim else -1
+        dtype = S1.dtype if S1.dtype == S2.dtype else Void
+        if (
+                S1.ndim == -1 or S2.ndim == -1 or S1.ndim != S2.ndim 
+                or S1.shape is undefined or S2.shape is undefined
+            ):
+            return TensorStructInfo(ndim=ndim, dtype=dtype) # leave shape undefined
+        # both shapes are defined
+        if S1.shape can be proven to equal S2.shape:
+            return S1
+        # either proven to be unequal or cannot be concluded whether they are equal
+        return TensorStructInfo(ndim=ndim, dtype=dtype) # leave shape undefined
+    if S1 and S2 are both TupleStructInfo:
+        if S1.fields and S2.fields are of different lengths:
+            return ObjectStructInfo()
+        return TupleStructInfo(
+            unify_struct_info(S1.fields[i], S2.fields[i]) 
+            for 0 <= i < length of S1.fields
+        ])
+    if S1 and S2 are both FuncStructInfo:
+        if S1.params and S2.params are not both defined or both undefined:
+            return ObjectStructInfo()
+        if S1.params and S2.params are both undefined:
+            # they must be the same function, not bothering to check eta-equivalence
+            if S1.derive_func == S2.derive_func:
+                return S1
+            return FuncStructInfo(ret=ObjectStructInfo(), derive_func=empty_derive)
+        if S1.params and S2.params are both defined:
+            if S1.params and S2.params do not have the same length:
+                return ObjectStructInfo()
+            unified_params = []
+            for 0 <= i < length of S1.params:
+                unified_param = unify_struct_info(S1.params[i], S2.params[i])
+                # That is, if the params judged to be equal, use them. 
+                # If there is some pair that is not equal, 
+                #   we can't unify these types except with ObjectStructInfo.
+                # This rule should suffice in practice; otherwise we would 
+                # need to give a full definition of the GLB
+                if unified_param <: S1.params[i] and unified_param <: S2.params[i]:
+                    unified_params[i] = unified_param
+                else:
+                    return ObjectStructInfo()
+            return FuncStructInfo(params=unified_params, ret=unify_struct_info(S1.ret, S2.ret))
+```
+
 ## Deriving the Structural Information for Each Expression
 
-For each expression type, we can recursively build up the structural information associated with the expression.
+For each kind of expression, we can recursively build up the structural information associated with the expression.
 
 ### Auxiliary Procedures
 
@@ -585,40 +457,13 @@ For each expression type, we can recursively build up the structural information
 
 There are two special `derive_func` values built into the compiler that are used for checking the structural information of `PackedFunc`s.
 
-The first is `default_derive`, giving a simple way to determine the resulting structural information of a `PackedFunc` from its type arguments. `default_derive` takes one argument that is a `Call` node and is defined as follows: 
-1. Suppose its call node argument is `Call(op, [arg1, arg2, ..., argn], type_args=[aT1, aT2, ..., aTn])`.
-2. If `type_args` is of length 0, then return `ObjectStructInfo()`.
-3. If `type_args` is of length 1, then return `wrap_type(aT1)`.
-4. If `type_args` is of a greater length than 1, then return `TupleStructInfo(fields=[wrap_type(aT1), wrap_type(aT2), ..., wrap_type(aTn)])`.
+The first is `default_derive`, giving a simple way to determine the resulting structural information of a `PackedFunc` from its `StructInfo` arguments. `default_derive` takes one argument that is a `Call` node and is defined as follows: 
+1. Suppose its call node argument is `Call(op, [arg1, arg2, ..., argn], sinfo_args=[aS1, aS2, ..., aSn])`.
+2. If `sinfo_args` is of length 0, then return `ObjectStructInfo()`.
+3. If `sinfo_args` is of length 1, then return `aS1`.
+4. If `sinfo_args` is of a greater length than 1, then return `TupleStructInfo(fields=[aS1, aS2, ..., aSn])`.
 
 The second is `empty_derive`, which is the weakest possible derivation. It simply returns `ObjectStructInfo` regardless of its argument. This is used for worst-case deducation of `StructInfo` for a `PackedFunc`.
-
-**Wrapping Types**
-
-For deriving the structural information for a `PackedFunc` call, the type arguments are converted into structural information. This is a straightforward procedure, given here in pseudocode:
-
-```python
-def wrap_type(t: Type) -> StructInfo:
-    if t is ObjectType:
-        return ObjectStructInfo()
-    if t is PackedFuncType:
-        # leave params undefined; see default_derive below
-        return FuncStructInfo(ret=ObjectStructInfo(), derive_func=default_derive)
-    if t is FuncType:
-        # leave derive_func undefined
-        return FuncStructInfo(
-            params=[wrap_type(arg_type) for arg_type in t.arg_types], 
-            ret=wrap_type(t.ret_type)
-        )
-    if t is TupleType:
-        return TupleStructInfo(fields=[wrap_type(field) for field in t.fields])
-    if t is ShapeType:
-        # leave values undefined
-        return ShapeStructInfo(ndim=t.ndim)
-    if t is DynTensorType:
-        # leave shape undefined
-        return TensorStructInfo(ndim=t.ndim, dtype=t.dtype)
-```
 
 **Erasing Out-of-Scope Information**
 
@@ -725,180 +570,59 @@ def get_shape_var_mapping(S1: StructInfo, S2: StructInfo) -> {tir::Var, PrimExpr
             return {}
 ```
 
-**Checking Compatibility**
-
-In many cases during the derivation of structural information, it is important to judge when two distinct structural information encodings are compatible with each other or when they are too different from each other to be reconciled, which can indicate an error. In the case of shape information, this could mean having two symbolic shapes that can be proven not to be equal to each other. Because shape expressions can contain arithmetic and it can be very difficult to statically prove whether two arithmetic expressions are equal, we permit the compiler implementation to make a best-effort attempt to prove equality for arithmetic expressions. (The user can insert a `MatchCast` to check definitively.) Since the checks are best-effort, the compatibility check will only report incompatibility if two values are _definitely_ different from each other.
-
-We can check if some structural information `S1` is accepted where structural information `S2` is expected by the process given below, which we refer to as `check_compability(S1, S2)` for convenience. `check_compatibility` can find that `S1` and `S2` are compatible, possibly compatible, or incompatible. "Incompatible" indicates a definite mismatch that should result in a compiler error; "possibly compatible" indicates that the structures may or may not match and should likely result in a compiler warning (indicating that a user may want to insert a dynamic check). An invariant that should should is that if `check_compatibility(S1, S2)` returns "compatible" or "possible compatible", `erase_struct_info(S1) <: erase_struct_info(S2)` should hold; that is, compatibility of structural information should be consistent with typing rules.
-
-1. If `S2` is `ObjectStructInfo`, then they are compatible.
-2. Otherwise, if `S1` and `S2` are not both `TensorStructInfo` or both `TupleStructInfo`, etc. (besides `ObjectStructInfo`), then report an incompatibility.
-3. If `S1` and `S2` are both `TupleStructInfo`:
-    1. If `S1.fields` is not the same length as `S2.fields`, they are incompatible
-    2. Call `check_compability(S1.fields[i], S2.fields[i])` for all `i`. If any pair of fields is incompatible, then `S1` and `S2` are incompatible. If no pair of fields is incompatible but at least one is possibly compatible, then `S1` and `S2` are possibly compatible. If all pairs of fields are compatible, then `S1` and `S2` are compatible.
-4. If `S1` and `S2` are both `ShapeStructInfo`:
-    1. `S2.ndim` is -1, then they are compatible.
-    2. Otherwise, give an error if `S1.ndim` does not match `S2.ndim`. 
-    3. If `values` is not defined for `S2`, then they are compatible.
-    4. If `values` is defined for `S2` but not defined for `S1`, then they are possibly compatible.
-    5. If `values` is defined for both `S1` and `S2`, then the two are incompatible if `S1.values[i]` can be proven to be _not_ equal to `S2.values[i]` for some `i`. If all members can be proven to be equal, then they are compatible. Otherwise, if at least one pair of values cannot be proven to be either equal or unequal, then they are possibly compatible.
-5. If `S1` and `S2` are both `TensorStructInfo`:
-    1. If `S2.dtype` is not `Void` and does not match `S1.dtype`, then they are incompatible.
-    2. If  `S2.ndim` is not -1 and does not match `S1.ndim`, then they are incompatible.
-    3. If `S2.shape` is not defined, then they are compatible.
-    4. If `S2.shape` is defined and `S1.shape` is not defined, then they are possibly compatible.
-    5. Otherwise, if both `shape` fields are given and either is a `Var`, then consider `S1` and `S2` compatible if the compiler can statically prove that the `Var` holds the same value as the other `shape` field, consider them possibly compatible if the compiler cannot draw a conclusion one way or the other, and consider them incompatible if the `Var` definitely has a different value from the other `shape`.
-    6. If both `shape` fields are given and they are both `ShapeExpr` nodes, then `S1` and `S2` are incompatible if the compiler can prove that some dimension of `S1.shape` is _not_ equal to the corresponding dimension of `S2.shape`. Otherwise, if the all dimensions can be proven to be equal, then consider them compatible. If at least one pair of dimensions cannot be proven to be equal or unequal, consider them possibly compatible.
-6. If `S1` and `S2` are both `FuncStructInfo`:
-    1. If `S1` and `S2` don't both have defined `params` or both have undefined `params`, consider them incompatible.
-    2. If both `S1` and `S2` have undefined `params`, consider them compatible if they have an identical `derive_func` and consider them possibly compatible if they have different `derive_func`s (as they is no further way to introspect the `derive_func` and draw static conslusions about `PackedFunc`s).
-    3. If `params` is defined for both `S1` and `S2`:
-        1. Consider them incompatible if the `params` have different lengths. 
-        2. Next, map unbound shape variables as follows: Get a variable mapping `m` by applying `get_shape_var_mapping(S1.params[i], S2.params[i])` for all values of `i`, taking the union of all resulting mappings. Next, substitute all occurrences of the shape variables in `S1` with their values in `m`.
-        3. If `check_compatible(S2.params[i], S1.params[i])` (note the direction of the check: see the subtyping rule for `FuncType`) is incompatible for any `i` or if `check_compatible(S1.ret, S2.ret)` is incompatible, then they are incompatible. Otherwise, if `check_compatible(S2.params[i], S1.params[i])` is possibly compatible for any `i` or if `check_compatible(S1.ret, S2.ret)` is possibly compatible, consider `S1` and `S2` possibly compatible. Consider `S1` and `S2` compatible only if all checks are compatible.
-
-**Unification**
-
-Analogously to subtyping, we can also consider a hierarchy of structural information, considering some structural information to more or less specific than other structural information. Accordingly, we can also define a least upper bound for structural information, as with types.
-
-We can define an analogue to subtyping for structural information, as below. We say that `S1` is more specific than `S2` and denote it as `S1 <<: S2` (to distinguish from the notation on subtyping) based on the conditions given here. As an invariant, if `S1 <<: S2` holds, then `erase_struct_info(S1) <: erase_struct_info(S2)`, though the converse may not be true.
-1. Reflexivity: `S1 <<: S1` for all `S1`.
-2. Transitivity: For all `S1`, `S2`, and `S3`, if `S1 <<: S2` and `S2 <<: S3`, then `S1 <<: S3`.
-3. For all `S1`, `S1 <<: ObjectStructInfo()`.
-4. For `TensorStructInfo`:
-    1. Given any datatype `d`, an arbitrary `ndim` `n`, and an arbitrary expression `s` (possibly undefined), `TensorStructInfo(ndim=n, dtype=d, shape=s) <<: TensorStructInfo(ndim=-1, dtype=d)`.
-    2. Given any datatype `d`, an arbitrary `ndim` `n`, and an arbitrary expression `s` (possibly undefined), `TensorStructInfo(ndim=n, dtype=d, shape=s) <<: TensorStructInfo(ndim=n, dtype=Void, shape=s)`.
-    3. Given any datatype `d`, an arbitrary `ndim` `n`, and an arbitrary expression `s` (not undefined), `TensorStructInfo(ndim=n, dtype=d, shape=s) <<: TensorStructInfo(ndim=n, dtype=d, shape=undefined)`.
-    4. Given any datatype `d`, an arbitrary `ndim` `n`, and arbitrary expressions `s1` and `s2` (both defined), then `TensorStructInfo(ndim=n, dtype=d, shape=s1) <<: TensorStructInfo(ndim=n, dtype=d, shape=s2)` if `s1` and `s2` are _definitely_ or _possibly_ statically equal.
-5. For `ShapeStructInfo`:
-    1. Given an arbitrary `ndim` `n` and an arbitrary set of values `v` (possibly undefined), `ShapeStructInfo(ndim=n, values=v) <<: ShapeStructInfo(ndim=-1)`.
-    2. Given an arbitrary `ndim` `n` and an arbitrary set of values `v` (not undefined), `ShapeStructInfo(ndim=n, values=v) <<: ShapeStructInfo(ndim=n, values=undefined)`.
-    3. Given an arbitrary `ndim` `n` and two arbitrary sets of values `v1` and `v2` (both defined), `ShapeStructInfo(ndim=n, values=v1) <<: ShapeStructInfo(ndim=n, values=v2)` if, for all valid `i`, `v1[i]` and `v2[i]` can be proven to be _definitely_ or _possibly_ statically equal.
-6. Given two lists of structural information `fields1` and `fields2`, `TupleStructInfo(fields=fields1) <<: TupleStructInfo(fields=fields2)` if `fields1` and `fields2` are the same length and for all `i`, `fields1[i] <<: fields2[i]`.
-7. For `FuncStructInfo`:
-    1. Given an arbitrary derivation function `derive_func`, `FuncStructInfo(ret=ObjectStructInfo(), derive_func=derive_func) <<: FuncStructInfo(ret=ObjectStructInfo(), derive_func=empty_derive)`.
-    2. Corollary, following from reflexivity: For two `FuncStructInfo` `F1` and `F2` with undefined `params`, `F1 <<: F2` only if `F1.derive_func` and `F2.derive_func` are identical.
-    3. Given two lists of structural information parameters `P1` and `P2` and two structural information annotations `R1` and `R2`, `FuncStructInfo(params=P1, ret=R1) <<: FuncStructInfo(params=P2, ret=R2)` if `P1` and `P2` are the same length and for all `i`, `P2[i] <<: P1[i]` and `R1 <<: R2`.
-
-Given these rules, we can define how to unify (get the LUB) of two structural information annotations as follows (in pseudocode):
-```python
-def unify_struct_info(S1: StructInfo, S2: StructInfo) -> StructInfo:
-    if S2 is ObjectStructInfo:
-        return S1
-    if S1 is ObjectStructInfo:
-        return S2
-    if S1 and S2 do not match types (e.g., not both TensorStructInfo, etc):
-        return ObjectStructInfo()
-    if S1 and S2 are both ShapeStructInfo:
-        if S1.ndim == -1:
-            return S1
-        if S2.ndim == -1:
-            return S2
-        if S1.ndim != S2.ndim:
-            return ShapeStructInfo(ndim=-1)
-        if S1.ndim == S2.ndim:
-            if S1.values is undefined:
-                return S1
-            if S2.values is defined:
-                return S2
-            if S1.values can be statically proven to match S2.values:
-                return S1
-            # values either proven not to match or unknown
-            return ShapeStructInfo(ndim=S1.ndim) # leave values undefined
-    if S1 and S2 are both TensorStructInfo:
-        ndim = S1.ndim if S1.ndim == S2.ndim else -1
-        dtype = S1.dtype if S1.dtype == S2.dtype else Void
-        if (
-                S1.ndim == -1 or S2.ndim == -1 or S1.ndim != S2.ndim 
-                or S1.shape is undefined or S2.shape is undefined
-            ):
-            return TensorStructInfo(ndim=ndim, dtype=dtype) # leave shape undefined
-        # both shapes are defined
-        if S1.shape can be proven to equal S2.shape:
-            return S1
-        # either proven to be unequal or cannot be concluded whether they are equal
-        return TensorStructInfo(ndim=ndim, dtype=dtype) # leave shape undefined
-    if S1 and S2 are both TupleStructInfo:
-        if S1.fields and S2.fields are of different lengths:
-            return ObjectStructInfo()
-        return TupleStructInfo(
-            unify_struct_info(S1.fields[i], S2.fields[i]) 
-            for 0 <= i < length of S1.fields
-        ])
-    if S1 and S2 are both FuncStructInfo:
-        if S1.params and S2.params are not both defined or both undefined:
-            return ObjectStructInfo()
-        if S1.params and S2.params are both undefined:
-            # they must be the same function, not bothering to check eta-equivalence
-            if S1.derive_func == S2.derive_func:
-                return S1
-            return FuncStructInfo(ret=ObjectStructInfo(), derive_func=empty_derive)
-        if S1.params and S2.params are both defined:
-            if S1.params and S2.params do not have the same length:
-                return ObjectStructInfo()
-            unified_params = []
-            for 0 <= i < length of S1.params:
-                unified_param = unify_struct_info(S1.params[i], S2.params[i])
-                # That is, if the params judged to be equal, use them. 
-                # If there is some pair that is not equal, 
-                #   we can't unify these types except with ObjectStructInfo
-                # See the use of GLB with FuncTypes
-                if unified_param <<: S1.params[i] and unified_param <<: S2.params[i]:
-                    unified_params[i] = unified_param
-                else:
-                    return ObjectStructInfo()
-            return FuncStructInfo(params=unified_params, ret=unify_struct_info(S1.ret, S2.ret))
-```
-
 ### Derivation Rules
 
-Let `Δ` be the structural information context for Relax variables (to distinguish from `Γ` for types) and let `Σ` track which shape variables are in scope.
+Let `Γ` be the `StructInfo` context for Relax variables and let `Σ` track which shape variables are in scope.
 
-1. «Prepopulate `Δ` with the annotated types of all global functions (see the rule for `Function` nodes) that are called mutually recursively. Afterwards check the structural information of the global functions one at a time and populate the entry of `Δ` corresponding to that `GlobalVar`.»
-2. For a variable (`Var`, `DataflowVar`, or `GlobalVar`) `v`, look up `Δ[v]` for the structural information.
+1. «Prepopulate `Γ` with the annotated types of all global functions (see the rule for `Function` nodes) that are called mutually recursively. Afterwards check the structural information of the global functions one at a time and populate the entry of `Γ` corresponding to that `GlobalVar`.»
+2. For a variable (`Var`, `DataflowVar`, or `GlobalVar`) `v`, look up `Γ[v]` for the structural information.
 3. For `Constant(value)`, the resulting structural information is `TensorStructInfo(ndim, dtype, shape)` where `ndim` is the concrete rank of `value`, `dtype` is the concrete datatype used in `value`, and `shape` is a `ShapeExpr` giving the concrete shape of `value. For example, for `Constant(1)`, `shape` is `ShapeExpr([])` and for `Constant([1, 2])`, `shape` is `ShapeExpr([IntImm(2, "int64")])`.
-4. For `Tuple(fields)`, the resulting structural information is `TupleStructInfo([f.struct_info for f in fields])`, after deriving the structural information for the fields recursively.
+4. For `Tuple(fields)`, suppose that `fields` is comprised of expressions `E1`, `E2`, ..., `En`. Let the `StructInfo` for these expressions be `S1`, `S2`, ..., `Sn`, respectively. Then the resulting `StructInfo` is `TupleStructInfo(fields=[S1, S2, ..., Sn])`.
 5. For `ShapeExpr(values)`, the resulting structural information is `ShapeStructInfo(ndim, values)`, where `ndim` is the length of `values`.
 6. For `If(cond, true_branch, false_branch)`, we compare the structural information of `true_branch` and `false_branch` (call these `S_t` and `S_f`, respectively). The resulting structural information is `unify_struct_info(S_t, S_f)`.
 7. For `SeqExpr(blocks, body)`:
     1. For each binding block in `blocks` (call the current one `block`):
-        1. Process each binding in the block, updating `Δ` and `Σ` accordingly (this is discussed in detail below).
-        2. If `block` is a `DataflowBlock`, then remove all `DataflowVar`s introduced in `block` from `Δ` before proceeding to the next block.
+        1. Process each binding in the block, updating `Γ` and `Σ` accordingly (this is discussed in detail below).
+        2. If `block` is a `DataflowBlock`, then remove all `DataflowVar`s introduced in `block` from `Γ` before proceeding to the next block.
     2. Next derive the structural information for `body`. Let us call this `S`.
-    3. Remove all Relax variables introduced in `blocks` from `Δ` and all shape variables introduced in `blocks` from `Σ`.
-    4. The structural information of the entire `SeqExpr` is `erase_to_well_defined(S, Δ, Σ)`.
+    3. Remove all Relax variables introduced in `blocks` from `Γ` and all shape variables introduced in `blocks` from `Σ`.
+    4. The structural information of the entire `SeqExpr` is `erase_to_well_defined(S, Γ, Σ)`.
 8. For handling variable bindings:
-    1. If `v` is the argument to a function, then if `v` has a structural annotation `S`, set `Δ[v]` to `S`. Add any unbound shape variables in `S` to `Σ`. If `v` does not have a structural annotation, set `Δ[v]` to `ObjectStructInfo()`.
+    1. If `v` is the argument to a function, then if `v` has a structural annotation `S`, set `Γ[v]` to `S`. Add any unbound shape variables in `S` to `Σ`. If `v` does not have a structural annotation, set `Γ[v]` to `ObjectStructInfo()`.
     2. In the general `VarBinding(v, e)`:
-        1. If `e` is a function literal, then recursion is permitted. In this case, `v` must have a structural annotation `Sv`. Derive the structural information for `e` as follows: Set `Δ[v]` to `Sv`, apply the normal rule for function literals (given below) to `e` to derive structural information `Se`, and finally remove `v` from `Δ`. Raise an error if `Se` and `Sv` are not compatible (via `check_compatibility`).
+        1. If `e` is a function literal, then recursion is permitted. In this case, `v` must have a structural annotation `Sv`. Derive the structural information for `e` as follows: Set `Γ[v]` to `Sv`, apply the normal rule for function literals (given below) to `e` to derive structural information `Se`, and finally remove `v` from `Γ`. Raise an error if `Se` and `Sv` are not compatible (via `check_compatibility`).
         2. Otherwise, derive the structural information of `e` and call it `Se`.
-        3. If `v` has a structural annotation `Sv`, then apply `check_compatibility` to `Sv` and `Se`. If they are compatible, then set `Δ[v]` to `Sv` (respecting the user's intent in giving an annotation). Give a warning if `Sv` is more specific than `Se`. If are not compatible, then raise an error.
-        4. If `v` does not have a structural annotation, then set `Δ[v]` to `Se`.
+        3. If `v` has a structural annotation `Sv`, then apply `check_compatibility` to `Sv` and `Se`. If they are compatible, then set `Γ[v]` to `Sv` (respecting the user's intent in giving an annotation). Give a warning if `Sv` is more specific than `Se`. If are not compatible, then raise an error.
+        4. If `v` does not have a structural annotation, then set `Γ[v]` to `Se`.
     3. For `MatchCast(v, value, S)`:
         1. Derive the structural information of `value` and call it `Sv`.
         2. Add any new shape variables in `S` to `Σ`.
-        3. If `S <<: Sv` and `Sv <<: S` do not both hold, give a warning, as this indicates a cast that will always fail at run time.
-        4. If `v` is given and it has a structural annotation `S'`, then give an error if `S` and `S'` are not compatible via `check_compatibility`. If they are compatible, then set `Δ[v]` to `S'` (respecting the user's intent in giving an annotation). (TODO: It doesn't seem very sensible to have a dynamic cast and give a different annotation, perhaps we should simply not permit doing that.)
-        5. If `v` is given and it does not have a structural annotation, then set `Δ[v]` to `S`.
-9. For `TupleGetItem(tuple_value, i)`, derive the structural information for `tuple_value` and call it `St`. Raise an error if `St` is not `TupleStructInfo`. If `St` is `TupleStructInfo(fields)`, then raise an error if `fields` value has less than `i + 1` members (this should not happen if type checking has passed) and use `fields[i]` (zero-based) as the structural information for the `TupleGetItem`.
+        3. If `S <: Sv` and `Sv <: S` both do not hold, give a warning, as this indicates a cast that will _always_ fail at run time. (Conversely, if `Sv <: S`, then the cast will always succeed.)
+        4. If `v` is given and it has a structural annotation `S'`, then give an error if `S <: S'` does not hold. If they are compatible, then set `Γ[v]` to `S'` (respecting the user's intent in giving an annotation). (TODO: It doesn't seem very sensible to have a dynamic cast and give a different annotation, perhaps we should simply not permit doing that.)
+        5. If `v` is given and it does not have a structural annotation, then set `Γ[v]` to `S`.
+9. For `TupleGetItem(tuple_value, i)`:
+    1. Derive the structural information for `tuple_value` and call it `St`. 
+    2. Raise an error if `St` is not `TupleStructInfo`. 
+    3. If `St` is `TupleStructInfo(fields)`, then raise an error if `fields` value has less than `i + 1` members.
+    4. Use `fields[i]` (zero-based) as the structural information for the `TupleGetItem`.
 10. For an `ExternFunc` node, the resulting structural information is `FuncStructInfo(params=None, ret=ObjectStructInfo(), derive_func=default_derive)`.
 11. For `Call(op, [arg1, arg2, ..., argn], type_args=[aT1, aT2, ..., aTn])`:
     1. For a call to an `Op`, we use the manually defined `FInferStructInfo` macro if it has been defined and `ObjectStructInfo()` if it has not. `FInferStructInfo` is a function that takes in the call node and returns the structural information of the result.
     2. Otherwise, derive the structural information for `op` and call it `Sf`. Next derive the structural information for the args and call it `S1`, `S2`, ..., and `Sn`. 
         1. Give an error if `Sf` is not `FuncStructInfo`.
         2. If the `derive_func` field of `Sf` is defined, then apply the `derive_func` macro to the call node to derive the structural information for the call node, ignoring the `ret` field of `Sf`.
-        3. Otherwise, `params` must be defined. Give an error if the length of `params` does not match the number of call arguments.
+        3. Otherwise, `params` must be defined. Give an error if the length of `params` does not match the number of call arguments. Let the members of params be `P1`, `P2`, ..., `Pn`.
         4. Next, attempt to perform [beta-reduction](https://en.wikipedia.org/wiki/Lambda_calculus#%CE%B2-reduction) by matching unbound shape variables in `params` with the `Si`. Namely, get a shape var mapping `m` by applying `get_shape_var_mapping(params[i], Si)` for all `i` and taking the union of all resulting mappings. Replace all variables in `m` with their mapping in `Sf`.
-        5. After the substitutions, give an error if `check_compatibility` indicates that the `i`th member of `params` and `Si` are incompatible for some `i` (warn if they are only possibly compatible).
-        6. Use `erase_to_well_defined(Sf.ret, Δ, Σ)` as the resulting structural information.
+        5. After the substitutions, give an error if `Pi <: Si` does not hold for some `i` (give a warning if it _possibly_ holds).
+        6. Use `erase_to_well_defined(Sf.ret, Γ, Σ)` as the resulting structural information.
 12. For `Function(params=[v1, v2, ..., vn], body, ret_struct_info)`:
     1. Let `S1`, `S2`, ..., `Sn` be the structural information of the parameters. If `vi` has a structural annotation, then use that annotation for `Si`; if not, use `ObjectStructInfo()`. Let `Sr` be `ret_struct_info` if it is defined and `ObjectStructInfo()` if not.
-    2. If the function is bound to a `GlobalVar` `gv`, set `Δ[gv]` to `FuncStructInfo(params=[S1, S2, ..., Sn], ret=Sr)`. Still check the structural information in `body`, however.
-    3. For each of the `vi`, set `Δ[vi]` to `Si`. Additionally, add all new shape variables introduced in the `Si` to `Σ`.
+    2. If the function is bound to a `GlobalVar` `gv`, set `Γ[gv]` to `FuncStructInfo(params=[S1, S2, ..., Sn], ret=Sr)`. Still check the structural information in `body`, however.
+    3. For each of the `vi`, set `Γ[vi]` to `Si`. Additionally, add all new shape variables introduced in the `Si` to `Σ`.
     4. Derive the structural information for `body`, calling it `Sb`.
     5. Give an error if `Sb` is incompatible with `Sr` via `check_compatibility` (warn if only possibly compatible).
-    6. If `ret_struct_info` is defined, use `FuncStructInfo(params=[S1, S2, ..., Sn], ret_struct_info)` as the structural information for the function. If `ret_struct_info` is not defined, use `FuncStructInfo(params=[S1, S2, ..., Sn], erase_to_well_defined(Sb, Δ, Σ))`.
-    7. Remove all variables added to `Δ` and `Σ` during the derivation.
+    6. If `ret_struct_info` is defined, use `FuncStructInfo(params=[S1, S2, ..., Sn], ret_struct_info)` as the structural information for the function. If `ret_struct_info` is not defined, use `FuncStructInfo(params=[S1, S2, ..., Sn], erase_to_well_defined(Sb, Γ, Σ))`.
+    7. Remove all variables added to `Γ` and `Σ` during the above steps of the derivation.
 
 ### Note on Proving Shapes Equivalent and Eliminating Dynamic Checks
 
@@ -914,7 +638,41 @@ Since most dynamic structure checks are done for safety, it may be feasible to i
 
 A further case that may be of interest might be using an explicit wildcard dimension (e.g., using `tir::Any`) to allow for dimensions to be specified as "unknown" in function return shapes. As described at present, the only way for a function to specify a partly unknown return shape is to make the entire return shape unknown (`RuntimeDepShape`), which loses partial shape information.
 
-This addition would entail some, as `FInferStructInfo` and `derive_func` macros would have to deal with potential `tir::Any` nodes. However, the advantage of implementing it would be increasing the amount of shape information present at compile time and hence that could be used by lower levels of the compiler stack. The present defaults of using undefined `shape` fields means that either of these changes could be pursued in the future without breaking existing code, since these would generally have to be paired with explicit `MatchCast` dynamic checks, which will still work even if we add rules to automatically infer the shapes in those cases.
+This addition would entail some, as `FInferStructInfo` and `derive_func` macros would have to deal with potential `tir::Any` nodes. However, the advantage of implementing it would be increasing the amount of shape information present at compile time and hence that could be used by lower levels of the compiler stack. The present defaults of using more general `StructInfo` means that either of these changes could be pursued in the future without breaking existing code, since these would generally have to be paired with explicit `MatchCast` dynamic checks, which will still work even if we add rules to automatically infer the shapes in those cases.
+
+## Traditional Types
+
+For comparison with Relay, it may be useful to simplify `StructInfo` into more traditional types that do not contain any expressions (such as in `TensorStructInfo` and `ShapeStructInfo`). We can define Relax types as follows:
+
+```
+Type ::=
+    DynTensorType(ndim: int, dtype: DataType)
+  | ShapeType(ndim: int)
+  | TupleType(fields: [Type])
+  | PackedFuncType()
+  | FuncType(arg_types: [Type], ret_type: Type)
+  | ObjectType()
+```
+
+We can "erase" `StructInfo` into types by the following procedure (in psuedocode):
+```python
+def erase_struct_info(si: StructInfo) -> Type:
+    if si is TensorStructInfo:
+        return DynTensorType(ndim=si.ndim, dtype=si.dtype)
+    if si is ShapeStructInfo:
+        return ShapeType(ndim=si.ndim)
+    if si is TupleStructInfo:
+        return TupleType(fields=[erase_struct_info(field) for field in si.fields])
+    if si is FuncStructInfo:
+        # this should be the case only for packed funcs
+        if si.params is not specified:
+            return PackedFuncType()
+        return FuncType(
+            arg_types=[erase_struct_info(arg_type) for arg_type in si.params],
+            ret_type=erase_struct_info(si.ret))
+    # only remaining case is ObjectStructInfo
+    return ObjectType()
+```
 
 # Detailed Semantics
 
@@ -922,7 +680,7 @@ This addition would entail some, as `FInferStructInfo` and `derive_func` macros 
 
 In the `IRModule`, every mapping of a `GlobalVar` to a `Function` node or a TIR `PrimFunc` should be processed first and added to the global scope. «Global functions that have a `global_symbol` attribute should be externally linked, meaning that they can be invoked as program entry points; those that do not have a `global_symbol` attribute can be called only from within the global functions in the `IRModule`.»
 
-The rules for evaluating `Function` nodes into closures are given below. TIR `PrimFunc`s evaluate into objects that are opaque to Relax; these objects have type `Object` and can be used only by the `call_tir` operator. None of the values in global scope is mutable. Execution of a Relax function in an IR module thus begins by evaluating all globally visible functions into a form in which they can be accessed.
+The rules for evaluating `Function` nodes into closures are given below. TIR `PrimFunc`s evaluate into objects that are opaque to Relax; these objects are of `ObjectStructInfo` and can be used only by the `call_tir` operator. None of the values in global scope is mutable. Execution of a Relax function in an IR module thus begins by evaluating all globally visible functions into a form in which they can be accessed.
 
 ## Evaluating Expressions
 
@@ -931,11 +689,11 @@ For each expression, we define how it affects the program's visible state and th
 1. The node `Constant(value)` creates a new tensor whose contents are `value`.
 2. A variable (whether `Var`, `DataflowVar` , or `GlobalVar`) evaluates to the stored value for that variable in the current scope.
 3. The node `Tuple([e1, e2, ..., en])` evaluates `e1` (yielding value `v1`), then `e2` (yielding value `v2`), …, and finally `en` (yielding value `vn`) in that order and creates a new tuple value containing `v1`, `v2`, …, and `vn` in that order.
-4. The node `TupleGetItem(t, i)` is evaluated by first evaluating `t` (which, per type checking, must evaluate to a tuple) and then returning the `i`th field of the result.
+4. The node `TupleGetItem(t, i)` is evaluated by first evaluating `t` (which, per `StructInfo` checking, must evaluate to a tuple) and then returning the `i`th field of the result.
 5. The node `ShapeExpr([p1, p2, ..., pn])` evaluates the `PrimExpr`s `p1` (yielding dimension value `v1`), `p2` (yielding dimension value `v2`), …, and finally `pn` (yielding dimension value `vn`) in that order, using the current shape context, and creates a new shape value whose dimensions are `v1`, `v2`, …, `vn`, in that order.
 6. The node `Function([v1, v2, ..., vn], body)` returns a new closure containing the function definition itself and a mapping of any free Relax variables or shape variables in `body` to the values they hold in the current scope when the `Function` node is encountered. If the function is the RHS of a local binding, the bound variable should also be included in the closure's binding map and should be mapped to the closure itself (to allow for recursive calls). Closure capturing is done *by reference*; no values will be copied and references to captured values will alias their values in the outer scope. `DataflowVar`s are not captured by closures.
 7. The node `If(cond, true_branch, false_branch)` is evaluated as follows:
-    1. First `cond` is evaluated. Let the result be `r` (per type checking, it must be a bool scalar).
+    1. First `cond` is evaluated. Let the result be `r` (per `StructInfo` checking, it must be a bool scalar).
     2. If `r` is true, evaluate the `true_branch` and return its result.
     3. If `r` is false, evaluate the `false_branch` and return its result.
 8. The node `ExternFunc(global_symbol)` is evaluated by looking up the global symbol name and returning the `PackedFunc` if it exists (it is an error if it does not.) Note that if a TIR `PrimFunc` in the `IRModule` has a global symbol attribute registered, it can be called as an `ExternFunc` using that global symbol as well.
@@ -971,9 +729,6 @@ These semantic rules assume a single thread of evaluation on a single host machi
 
 The above evaluation rules are general, but leave much room for implementations of operators to specify custom semantics. Certain operators are used to perform common operations and will be discussed here as well.
 
-- `call_tir(prim_func, arg1, arg2, ..., argn, shape, type_args=[aT])`: `prim_func` must be a `PrimFunc` object in the current `IRModule` (we will call it `f`). The `shape` argument gives the shapes of the result of calling the TIR `PrimFunc`: It must be either of `ShapeType` (corresponding to returning a single tensor) or `TupleType` whose members are `ShapeType` (corresponding to returning a tuples of tensors). The type arg `aT` gives the type of the result of calling the `PrimFunc` and it must correspond to `shape` (namely, if `shape` is of `ShapeType`, `aT` must be a `DynTensorType`; if `shape` is of `TupleType`, `aT` must be a `TupleType` whose fields are `ShapeType`). `aT` is used especially to provide the `dtype` of returned tensors.
-    
-    Based on `shape`, the resulting tensor or tuple `r` will be allocated according to the sizes given in `shape`. `f` will be called in destination-passing style, like so: `f(arg1, ..., argn, *r)`. The asterisk denotes that if `r` is a tuple, it will be "unrolled," so the call will be `f(arg1, ..., argn, r1, ..., rn)`, where the `ri` are the fields of `r`. `f` is expected to mutate *only* `r` to give the output of the function, hence `call_tir` is considered pure. If the shape or data type of the actual result do not correspond to `shape` or `aT`, an error is issued.» After the call, `r` is returned.
-    
-- «`call_dps_packed(global_symbol, arg1, arg2, ..., argn, shape, type_args=[aT])`: Proceeds similarly to `call_tir`, except it calls a `PackedFunc` registered under the name `global_symbol`. The `PackedFunc` may modify `arg1`, `arg2`, …, or `argn` in addition to the result tensor, so purity is not assumed. A type argument `aT` must be given to specify the return type.»
+- `call_tir(prim_func, arg1, arg2, ..., argn, sinfo_args=[aS])`: `prim_func` must be a `PrimFunc` object in the current `IRModule` (we will call it `f`). The `StructInfo` arg `aS` gives the `StructInfo` of the result of calling the `PrimFunc`; it must be a `TensorStructInfo` with a `shape` field corresponding to a constant shape expression and a non-`Void` `dtype`, denoting the shape of the resulting tensor, or a a `TupleStringInfo` where all the `fields` are `TensorStructInfo`. Based on `aS`, the resulting tensor or tuple `r` will be allocated according to the sizes given in their `shape` fields. `f` will be called in destination-passing style, like so: `f(arg1, ..., argn, *r)`. The asterisk denotes that if `r` is a tuple, it will be "unrolled," so the call will be `f(arg1, ..., argn, r1, ..., rn)`, where the `ri` are the fields of `r`. `f` is expected to mutate *only* `r` to give the output of the function, hence `call_tir` is considered pure. «If the shape or data type of the actual result do not correspond to `shape` or `aT`, an error is issued.» After the call, `r` is returned.  
+- «`call_dps_packed(global_symbol, arg1, arg2, ..., argn, sinfo_args=[aS])`: Proceeds similarly to `call_tir`, except it calls a `PackedFunc` registered under the name `global_symbol`. The `PackedFunc` may modify `arg1`, `arg2`, …, or `argn` in addition to the results, so purity is not assumed. `aS` denotes the `StructInfo` for the result.»
 - `shape_of(t)`: Given a tensor argument `t`, it returns its shape. The return value is a new shape object.
