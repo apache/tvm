@@ -2853,6 +2853,63 @@ class Scatter(OnnxOpConverter):
         return _op.scatter(inputs[0], inputs[1], inputs[2], axis)
 
 
+class ScatterElements(OnnxOpConverter):
+    """Operator converter for ScatterElements."""
+
+    @classmethod
+    def _args_check(cls, inputs, attr, red_valids=None):
+        ret = []
+        assert (
+            len(inputs) == 3
+        ), "ScatterElements takes 3 inputs (data, indices, updates), {} given".format(len(inputs))
+        assert infer_type(inputs[1]).checked_type.dtype in ["int32", "int64"]
+
+        axis = attr.get("axis", 0)
+        rank = len(infer_shape(inputs[0]))
+        assert rank > 0, "Data rank higher than 0 is expected"
+        assert -rank <= axis < rank, "Axis is out of bounds"
+        ret.append(axis)
+
+        if red_valids:
+            reduction = attr.get("reduction", None)
+            assert reduction in red_valids
+            ret.append(reduction)
+
+        return ret
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        axis = cls._args_check(inputs, attr)
+
+        return _op.scatter(inputs[0], inputs[1], inputs[2], axis)
+
+    @classmethod
+    def _impl_v16(cls, inputs, attr, params):
+        axis, reduction = cls._args_check(inputs, attr, [None, "add", "mul"])
+
+        if not reduction:
+            return _op.scatter(inputs[0], inputs[1], inputs[2], axis)
+        elif reduction == "add":
+            return _op.scatter_add(inputs[0], inputs[1], inputs[2], axis)
+        # else: # There is no other choices due to it was checked earlier
+        #     return _op.scatter_mul(inputs[0], inputs[1], inputs[2], axis)
+
+    @classmethod
+    def _impl_v18(cls, inputs, attr, params):
+        axis, reduction = cls._args_check(inputs, attr, [None, "add", "mul", "min", "max"])
+
+        if not reduction:
+            return _op.scatter(inputs[0], inputs[1], inputs[2], axis)
+        elif reduction == "add":
+            return _op.scatter_add(inputs[0], inputs[1], inputs[2], axis)
+        # elif reduction == "mul":
+        #     return _op.scatter_mul(inputs[0], inputs[1], inputs[2], axis)
+        # elif reduction == "min":
+        #     return _op.scatter_min(inputs[0], inputs[1], inputs[2], axis)
+        # else: # There is no other choices due to it was checked earlier
+        #     return _op.scatter_max(inputs[0], inputs[1], inputs[2], axis)
+
+
 class ScatterND(OnnxOpConverter):
     """Operator converter for ScatterND."""
 
@@ -6588,7 +6645,7 @@ def _get_convert_map(opset):
         "Compress": Compress.get_converter(opset),
         "Size": AttrCvt("ndarray_size", extras={"dtype": "int64"}),
         "Scatter": Scatter.get_converter(opset),
-        "ScatterElements": Scatter.get_converter(opset),
+        "ScatterElements": ScatterElements.get_converter(opset),
         "ScatterND": ScatterND.get_converter(opset),
         "EyeLike": EyeLike.get_converter(opset),
         "Squeeze": Squeeze.get_converter(opset),
