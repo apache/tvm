@@ -138,6 +138,13 @@ cl::OpenCLWorkspace* OpenCLModuleNode::GetGlobalWorkspace() {
 PackedFunc OpenCLModuleNode::GetFunction(const std::string& name,
                                          const ObjectPtr<Object>& sptr_to_self) {
   ICHECK_EQ(sptr_to_self.get(), this);
+  if (name == "__GetPreCompiledPrograms") {
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetPreCompiledPrograms(); });
+  } else if (name == "__SetPreCompiledPrograms") {
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->SetPreCompiledPrograms(args[0]); });
+  }
   ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
   auto it = fmap_.find(name);
   if (it == fmap_.end()) return PackedFunc();
