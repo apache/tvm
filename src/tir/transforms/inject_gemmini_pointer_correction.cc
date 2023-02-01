@@ -82,7 +82,6 @@ class CorrectGemminisScratchpadAndAccumulatorPointersInjector : public StmtExprM
         auto scope = ptr_type->storage_scope;
         auto info = GetMemoryInfo(scope);
         ICHECK(info.defined()) << "Cannot find memory info of " << scope;
-        DataType dtype = Downcast<PrimType>(ptr_type->element_type)->dtype;
 
         int div = dim_;
 
