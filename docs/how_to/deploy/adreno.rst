@@ -94,7 +94,7 @@ These operators are exposed as an extension "cl_qcom_ml_ops" to standard OpenCL 
 Please refer `Accelerate your models with our OpenCL ML SDK <https://developer.qualcomm.com/blog/accelerate-your-models-our-opencl-ml-sdk>`_ for more details.
 
 OpenCLML is integrated into TVM as a `BYOC <https://tvm.apache.org/docs/dev/how_to/relay_bring_your_own_codegen.html?highlight=bring%20your%20own>`_ solution.
-OpenCLML operators can use same context and the operatrors can be enqueued on same command queue if native OpenCL.
+OpenCLML operators can use same context and can be enqueued on same command queue as used in native OpenCL.
 We took advantage of this to avoid any context switching over heads while fallback to native OpenCL.
 
 
