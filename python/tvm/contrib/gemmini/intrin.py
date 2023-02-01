@@ -399,13 +399,13 @@ def conv2d_cisc(
     inp = te.placeholder(inp_shape, dtype=env.inp_dtype, name=env.scr_scope)
     bias = te.placeholder(bias_shape, dtype=env.acc_dtype, name=env.scr_scope)
 
-    OC = wgt.shape[3]
+    wgt.shape[3]
     KH = wgt.shape[0]
     KW = wgt.shape[1]
 
-    N = inp.shape[0]
-    IH = inp.shape[1]
-    IW = inp.shape[2]
+    inp.shape[0]
+    inp.shape[1]
+    inp.shape[2]
     IC = inp.shape[3]
 
     ric = te.reduce_axis((0, IC), name="ric")
@@ -571,14 +571,14 @@ def dw_conv2d_cisc(
     inp = te.placeholder(inp_shape, dtype=env.inp_dtype, name=env.scr_scope)
     bias = te.placeholder(bias_shape, dtype=env.acc_dtype, name=env.scr_scope)
 
-    OC = wgt.shape[0]
+    wgt.shape[0]
     KH = wgt.shape[1]
     KW = wgt.shape[2]
 
-    N = inp.shape[0]
-    IH = inp.shape[1]
-    IW = inp.shape[2]
-    IC = inp.shape[3]
+    inp.shape[0]
+    inp.shape[1]
+    inp.shape[2]
+    inp.shape[3]
 
     rkh = te.reduce_axis((0, KH), name="rkh")
     rkw = te.reduce_axis((0, KW), name="rkw")
@@ -751,7 +751,7 @@ def add_tensorize(env, oshape: Tuple[int, ...]):
     def intrin_func(ins, outs):
         """Add intrinsic function"""
         difm1, difm2 = ins
-        dout = outs[0]
+        outs[0]
 
         def _body():
             irb = tvm.tir.ir_builder.create()

@@ -190,7 +190,7 @@ def mem_info_acc_buffer():
     Returns:
         node: The corresponding MemoryInfo node
     """
-    spec = Environment.instance()
+    Environment.instance()
     return tvm.ir.make_node(
         "MemoryInfo",
         unit_bits=env.inp_bits,

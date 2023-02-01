@@ -21,13 +21,7 @@ Transformation passes for Gemmini
 **Author**: `Federico Peccia <https://fPecc.github.io/>`_
 """
 
-from numpy import isin
 import tvm
-from tvm import te
-from tvm.topi import utils
-import numpy as np
-from copy import deepcopy
-import itertools
 import ast
 from tvm.tir.ir_builder import IRBuilder
 from typing import Dict
@@ -273,8 +267,6 @@ def InsertGemminiHeaderOperators():
 def InsertGemminiFenceOperator():
     """Pass to generate the call to the fence instruction at the end of the operator"""
 
-    func_name = ""
-
     def _do_fold(stmt):
         if _match_pragma(stmt, "gemm_end"):
             irb = tvm.tir.ir_builder.create()
@@ -285,7 +277,7 @@ def InsertGemminiFenceOperator():
         return None
 
     def _ftransform(f, mod, ctx):
-        func_name = f.attrs["global_symbol"]
+        f.attrs["global_symbol"]
         return f.with_body(
             tvm.tir.stmt_functor.ir_transform(f.body, _do_fold, None, ["tir.AttrStmt"])
         )
@@ -303,8 +295,8 @@ def InjectAMVINIntrin():
     fpass : tvm.transform.Pass
         The pass
     """
-    idxd = tvm.tir.indexdiv
-    idxm = tvm.tir.indexmod
+    tvm.tir.indexdiv
+    tvm.tir.indexmod
 
     def _inject_copy(src, dst, pad_before, pad_after, pad_value):
         # TODO (FP): add padding support...
@@ -347,8 +339,8 @@ def InjectAMVINIntrinTransposed():
     fpass : tvm.transform.Pass
         The pass
     """
-    idxd = tvm.tir.indexdiv
-    idxm = tvm.tir.indexmod
+    tvm.tir.indexdiv
+    tvm.tir.indexmod
 
     def _inject_copy(src, dst, pad_before, pad_after, pad_value):
         # TODO (FP): add padding support...
@@ -390,8 +382,8 @@ def InjectBMVINIntrin():
     fpass : tvm.transform.Pass
         The pass
     """
-    idxd = tvm.tir.indexdiv
-    idxm = tvm.tir.indexmod
+    tvm.tir.indexdiv
+    tvm.tir.indexmod
 
     def _inject_copy(src, dst, pad_before, pad_after, pad_value):
         # TODO (FP): add padding support...
@@ -433,8 +425,8 @@ def InjectBMVINIntrinTransposed():
     fpass : tvm.transform.Pass
         The pass
     """
-    idxd = tvm.tir.indexdiv
-    idxm = tvm.tir.indexmod
+    tvm.tir.indexdiv
+    tvm.tir.indexmod
 
     def _inject_copy(src, dst, pad_before, pad_after, pad_value):
         # TODO (FP): add padding support...
@@ -475,8 +467,8 @@ def InjectDMVINIntrin():
     fpass : tvm.transform.Pass
         The pass
     """
-    idxd = tvm.tir.indexdiv
-    idxm = tvm.tir.indexmod
+    tvm.tir.indexdiv
+    tvm.tir.indexmod
 
     def _inject_copy(src, dst, pad_before, pad_after, pad_value):
         # TODO (FP): add padding support...
@@ -518,8 +510,8 @@ def InjectDMVINIntrinTransposed():
     fpass : tvm.transform.Pass
         The pass
     """
-    idxd = tvm.tir.indexdiv
-    idxm = tvm.tir.indexmod
+    tvm.tir.indexdiv
+    tvm.tir.indexmod
 
     def _inject_copy(src, dst, pad_before, pad_after, pad_value):
         # TODO (FP): add padding support...
@@ -561,8 +553,8 @@ def InjectCMVOUTIntrin():
     fpass : tvm.transform.Pass
         The pass
     """
-    idxd = tvm.tir.indexdiv
-    idxm = tvm.tir.indexmod
+    tvm.tir.indexdiv
+    tvm.tir.indexmod
 
     def _inject_copy(src, dst, pad_before, pad_after, pad_value):
         # TODO (FP): add padding support...
@@ -607,8 +599,8 @@ def InjectCMVOUTIntrinTransposed():
     fpass : tvm.transform.Pass
         The pass
     """
-    idxd = tvm.tir.indexdiv
-    idxm = tvm.tir.indexmod
+    tvm.tir.indexdiv
+    tvm.tir.indexmod
 
     def _inject_copy(src, dst, pad_before, pad_after, pad_value):
         # TODO (FP): add padding support...
@@ -654,8 +646,8 @@ def InjectCMVINIntrin():
     fpass : tvm.transform.Pass
         The pass
     """
-    idxd = tvm.tir.indexdiv
-    idxm = tvm.tir.indexmod
+    tvm.tir.indexdiv
+    tvm.tir.indexmod
 
     def _inject_copy(src, dst, pad_before, pad_after, pad_value):
         # TODO (FP): add padding support...
@@ -697,8 +689,8 @@ def InjectCMVINIntrinTransposed():
     fpass : tvm.transform.Pass
         The pass
     """
-    idxd = tvm.tir.indexdiv
-    idxm = tvm.tir.indexmod
+    tvm.tir.indexdiv
+    tvm.tir.indexmod
 
     def _inject_copy(src, dst, pad_before, pad_after, pad_value):
         # TODO (FP): add padding support...
@@ -740,8 +732,8 @@ def InjectCMVINAccumIntrin():
     fpass : tvm.transform.Pass
         The pass
     """
-    idxd = tvm.tir.indexdiv
-    idxm = tvm.tir.indexmod
+    tvm.tir.indexdiv
+    tvm.tir.indexmod
 
     def _inject_copy(src, dst, pad_before, pad_after, pad_value):
         # TODO (FP): add padding support...
@@ -782,8 +774,8 @@ def InjectCMVINAccumIntrinTransposed():
     fpass : tvm.transform.Pass
         The pass
     """
-    idxd = tvm.tir.indexdiv
-    idxm = tvm.tir.indexmod
+    tvm.tir.indexdiv
+    tvm.tir.indexmod
 
     def _inject_copy(src, dst, pad_before, pad_after, pad_value):
         # TODO (FP): add padding support...
