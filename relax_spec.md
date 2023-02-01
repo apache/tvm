@@ -112,7 +112,7 @@ This specification provides a more detailed description of what each expression 
 5. `ExternFunc` nodes evaluate into `PackedFunc`s; the implementation will look up the registered `PackedFunc` by its global symbol.
 5. `PrimValue` nodes construct immutable scalar values from `PrimExpr`s, primarily for interacting with `ExternFunc`s or operators. These scalars are boxed within TVM objects, allowing them to be nested inside TVM's containers. (By contrast, zero-dimensional tensors defined via `Constant` are mutable.)
 6. `StringImm` nodes construct strings, intended primarily for interacting with `ExternFunc`s or operators.
-7. `DataTypeImm` nodes construct representations of TIR datatypes, intended primarily for interacting with `ExternFunc`s or operators.
+7. `DataTypeImm` nodes construct representations of TIR datatypes, intended primarily for interacting with `ExternFunc`s or operators (e.g., for TIR intrinsics that take a datatype as an input).
 8. `Call` nodes represent function calls. The callee argument (the `op`) can be an `ExternFunc` node (representing a call to a `PackedFunc`), an `Op` node (representing a call to a Relax operator), or an arbitrary expression. 
     1. `Op` nodes refer to built-in Relax operators, which the compiler is free to implement as is deemed appropriate. Certain operators implement important operations, like `call_tir` (allows for calling TIR `PrimFunc`s).
     2. Any other expression must evaluate to a `PackedFunc` or a closure; the result of evaluating `op` will then be called with the given arguments. 
