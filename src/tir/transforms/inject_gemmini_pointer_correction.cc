@@ -83,10 +83,8 @@ class CorrectGemminisScratchpadAndAccumulatorPointersInjector : public StmtExprM
         auto info = GetMemoryInfo(scope);
         ICHECK(info.defined()) << "Cannot find memory info of " << scope;
         DataType dtype = Downcast<PrimType>(ptr_type->element_type)->dtype;
-        int dtype_bits = dtype.bits() * dtype.lanes();
 
         int div = dim_;
-        const IntImmNode* extent_int = extent.as<IntImmNode>();
 
         PrimExpr inner_offset = indexmod(offset, extent);
         PrimExpr outer_offset = offset - inner_offset;

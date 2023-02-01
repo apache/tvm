@@ -35,11 +35,11 @@ namespace tir {
 LetStmt::LetStmt(Var var, PrimExpr value, Stmt body, Span span) {
   ICHECK(value.defined());
   ICHECK(body.defined());
-  auto vdtype = value.dtype();
   // It is still valid to bind a pointer type
   // var to a value that is of type handle.
   if (var->type_annotation.as<PointerTypeNode>()) {
     // TODO (FP): Is this check really necessary?
+    // auto vdtype = value.dtype();
     // ICHECK(vdtype.is_handle());
   } else {
     ICHECK_EQ(value.dtype(), var.dtype());
