@@ -16,7 +16,7 @@
     under the License.
 
 Deploy to Adreno™ GPU
-====================
+=====================
 
 **Authors**: Daniil Barinov, Egor Churaev, Andrey Malyshev, Siva Rama Krishna
 
