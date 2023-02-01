@@ -110,7 +110,7 @@ class Handler(server.ProjectAPIHandler):
             else:
                 shutil.copy2(item, dest)
 
-        shutil.copy2(project_dir / "src" / "Makefile.template", project_dir / "src" / "Makefile")
+        shutil.copy2(project_dir / "src" / "Makefrag.mk", project_dir / "src" / "Makefrag")
 
         test_name = project_type.replace("_example", "")
         new_line = f"tests = {test_name}\n"
