@@ -47,6 +47,9 @@ def binary_elementwise_compute(
     ifm2_layout: str,
     ofm_layout: str,
     ofm_dtype: str,
+    use_rescale: bool,
+    rescale_scale: int,
+    rescale_shift: int,
 ) -> te.Tensor:
     """A compute operator representing the capabilities of binary_elementwise for the NPU.
 
@@ -121,6 +124,12 @@ def binary_elementwise_compute(
           {int32}->{int8, uint8, int32}, any pairing"
         SHL:
           {int32}->{int32} only
+    use_rescale : bool
+        True if use explicit scaling.
+    rescale_scale : int
+        Scale value for rescale. For 32-bit operations scale is not applied but shift is.
+    rescale_shift : int
+        Shift value for rescale.
 
     Returns
     -------
@@ -153,6 +162,9 @@ def binary_elementwise_compute(
         "clip_min": clip_min,
         "clip_max": clip_max,
         "rounding_mode": rounding_mode,
+        "use_rescale": use_rescale,
+        "rescale_scale": rescale_scale,
+        "rescale_shift": rescale_shift,
     }
 
     operators = {

@@ -53,6 +53,9 @@ struct EthosuBinaryElementwiseAttrs : public tvm::AttrsNode<EthosuBinaryElementw
   String ifm2_layout;
   String ofm_layout;
   String ofm_dtype;
+  bool use_rescale;
+  int rescale_scale;
+  int rescale_shift;
 
   TVM_DECLARE_ATTRS(EthosuBinaryElementwiseAttrs, "relay.attrs.EthosuBinaryElementwiseAttrs") {
     TVM_ATTR_FIELD(operator_type)
@@ -125,6 +128,13 @@ struct EthosuBinaryElementwiseAttrs : public tvm::AttrsNode<EthosuBinaryElementw
         "  {int32}->{int8, uint8, int32}, any pairing"
         "SHL:"
         "  {int32}->{int32} only");
+    TVM_ATTR_FIELD(use_rescale).describe("True if use explicit scaling.").set_default(false);
+    TVM_ATTR_FIELD(rescale_scale)
+        .describe(
+            "Scale value for rescale. "
+            "For 32-bit operations scale is not applied but shift is.")
+        .set_default(0);
+    TVM_ATTR_FIELD(rescale_shift).describe("Shift value for rescale.").set_default(0);
   }
 };
 
