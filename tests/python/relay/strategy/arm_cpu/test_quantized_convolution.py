@@ -96,6 +96,7 @@ def _get_mobilenet_v1_layer_attributes(layer_num):
 
 
 @pytest.mark.parametrize("layer", range(2, 27, 2))
+@tvm.testing.requires_package("tensorflow")
 def test_empty_channel_detection(interpreter, layer):
     """Some models (mainly MobileNetV1) have kernels with many output channels full entirely of
     zeroes. The VWW model is one of these. This test confirms that the outputs of these channels,
