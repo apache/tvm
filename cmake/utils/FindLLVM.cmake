@@ -73,42 +73,42 @@ macro(find_llvm use_llvm)
       OUTPUT_VARIABLE __llvm_libfiles_space
       OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(NOT "${__llvm_exit_code}" STREQUAL "0")
-      message(FATAL_ERROR "Fatal error executing: ${use_llvm} --libfiles")
+      message(FATAL_ERROR "Fatal error executing: ${LLVM_CONFIG} --libfiles")
     endif()
     execute_process(COMMAND ${LLVM_CONFIG} --system-libs
       RESULT_VARIABLE __llvm_exit_code
       OUTPUT_VARIABLE __llvm_system_libs
       OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(NOT "${__llvm_exit_code}" STREQUAL "0")
-      message(FATAL_ERROR "Fatal error executing: ${use_llvm} --system-libs")
+      message(FATAL_ERROR "Fatal error executing: ${LLVM_CONFIG} --system-libs")
     endif()
     execute_process(COMMAND ${LLVM_CONFIG} --cxxflags
       RESULT_VARIABLE __llvm_exit_code
       OUTPUT_VARIABLE __llvm_cxxflags_space
       OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(NOT "${__llvm_exit_code}" STREQUAL "0")
-      message(FATAL_ERROR "Fatal error executing: ${use_llvm} --cxxflags")
+      message(FATAL_ERROR "Fatal error executing: ${LLVM_CONFIG} --cxxflags")
     endif()
     execute_process(COMMAND ${LLVM_CONFIG} --version
       RESULT_VARIABLE __llvm_exit_code
       OUTPUT_VARIABLE __llvm_version
       OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(NOT "${__llvm_exit_code}" STREQUAL "0")
-      message(FATAL_ERROR "Fatal error executing: ${use_llvm} --version")
+      message(FATAL_ERROR "Fatal error executing: ${LLVM_CONFIG} --version")
     endif()
     execute_process(COMMAND ${LLVM_CONFIG} --prefix
       RESULT_VARIABLE __llvm_exit_code
       OUTPUT_VARIABLE __llvm_prefix
       OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(NOT "${__llvm_exit_code}" STREQUAL "0")
-      message(FATAL_ERROR "Fatal error executing: ${use_llvm} --prefix")
+      message(FATAL_ERROR "Fatal error executing: ${LLVM_CONFIG} --prefix")
     endif()
     execute_process(COMMAND ${LLVM_CONFIG} --libdir
       RESULT_VARIABLE __llvm_exit_code
       OUTPUT_VARIABLE __llvm_libdir
       OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(NOT "${__llvm_exit_code}" STREQUAL "0")
-      message(FATAL_ERROR "Fatal error executing: ${use_llvm} --libdir")
+      message(FATAL_ERROR "Fatal error executing: ${LLVM_CONFIG} --libdir")
     endif()
     # map prefix => $
     # to handle the case when the prefix contains space.
