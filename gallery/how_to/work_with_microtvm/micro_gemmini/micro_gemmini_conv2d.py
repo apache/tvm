@@ -38,7 +38,7 @@ import tvm
 # --------------------------------
 #
 # After the installation of the Chipyard development tools, you should have an env.sh file in your Chipyard home directory. This file needs to be sourced before running this tutorial:
-# 
+#
 # .. code-block:: bash
 #
 #   source <your chipyard home path>/env.sh
@@ -58,14 +58,14 @@ input_channels = 16
 output_channels = 16
 kernel_size = 3
 stride = 1
-padding = 'valid'
+padding = "valid"
 activation = None
 bias = True
 
 # We can add a max pooling layer after the convolution. This can be merged by the integration and can be executed together with the convolution on the Gemmini accelerator.
 pool_size = 1
 pool_stride = 1
-pool_padding = 'valid'
+pool_padding = "valid"
 use_pool = False
 
 # We will generate a prequantized TFLite model, because for now the Gemmini integration only supports models that were quantized with specific flags as input.
@@ -92,9 +92,13 @@ model = keras.Sequential(layer_sequence)
 # Convert the concrete functions using TFLiteConverter
 converter = tf.lite.TFLiteConverter.from_keras_model(model)
 
+
 def representative_data_gen():
     dataset = [
-        np.array(np.random.randint(0, 10, size=(100, input_height, input_width, input_channels)), dtype=np.float32)
+        np.array(
+            np.random.randint(0, 10, size=(100, input_height, input_width, input_channels)),
+            dtype=np.float32,
+        )
         for s in range(10)
     ]
     for input_value in dataset:
@@ -140,7 +144,9 @@ interpreter = tf.lite.Interpreter(model_path="./conv.tflite")
 interpreter.allocate_tensors()
 input_details = interpreter.get_input_details()
 output_details = interpreter.get_output_details()
-input_matrix = np.random.randint(0, 127, (1, input_height, input_width, input_channels), dtype=np.uint8)
+input_matrix = np.random.randint(
+    0, 127, (1, input_height, input_width, input_channels), dtype=np.uint8
+)
 interpreter.set_tensor(input_details[0]["index"], input_matrix)
 interpreter.invoke()
 expected_output = interpreter.get_tensor(output_details[0]["index"])
@@ -160,7 +166,9 @@ gemmini.Environment.init_overwrite(dim=16, acc_rows=1024, bank_rows=4096)
 
 # The TFLite model generated in the previous steps is now imported into TVM.
 mod, params = relay.frontend.from_tflite(
-    tflite_model, shape_dict={input_tensor: (input_height, input_width, input_channels)}, dtype_dict={input_tensor: input_dtype}
+    tflite_model,
+    shape_dict={input_tensor: (input_height, input_width, input_channels)},
+    dtype_dict={input_tensor: input_dtype},
 )
 mod["main"]
 
@@ -174,7 +182,7 @@ RUNTIME = tvm.relay.backend.Runtime("crt", {"system-lib": False})
 TARGET = tvm.target.target.Target({"kind": "c", "device": "gemmini"})
 EXECUTOR = tvm.relay.backend.Executor("aot", options={"interface-api": "c", "unpacked-api": 1})
 
-with gemmini.build_config(usmp_alg="hill_climb",opt_level=3, disabled_pass=["AlterOpLayout"]):
+with gemmini.build_config(usmp_alg="hill_climb", opt_level=3, disabled_pass=["AlterOpLayout"]):
     module = relay.build(mod, executor=EXECUTOR, runtime=RUNTIME, target=TARGET, params=params)
 
 ##################################
@@ -198,9 +206,7 @@ with tarfile.open(model_library_format_tar_path, "r:*") as tar_f:
 # Here, we create the test project, using the example project provided for this tutorial in the Gemmini microTVM template projects.
 
 template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("gemmini"))
-project_options = {
-    "project_type": "conv2d_example"
-}  
+project_options = {"project_type": "conv2d_example"}
 
 generated_project_dir = pathlib.Path(pathlib.Path.cwd(), "generated-project")
 generated_project = tvm.micro.generate_project(

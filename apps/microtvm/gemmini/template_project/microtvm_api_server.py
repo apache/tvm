@@ -109,14 +109,15 @@ class Handler(server.ProjectAPIHandler):
                 shutil.copytree(item, dest)
             else:
                 shutil.copy2(item, dest)
-        
+
         shutil.copy2(project_dir / "src" / "Makefile.template", project_dir / "src" / "Makefile")
 
-        test_name = project_type.replace("_example","")
+        test_name = project_type.replace("_example", "")
         new_line = f"tests = {test_name}\n"
-        with open(project_dir / "src" / "Makefile", 'r') as original: data = original.read()
-        with open(project_dir / "src" / "Makefile", 'w') as modified: modified.write(new_line + data)
-
+        with open(project_dir / "src" / "Makefile", "r") as original:
+            data = original.read()
+        with open(project_dir / "src" / "Makefile", "w") as modified:
+            modified.write(new_line + data)
 
     CRT_COPY_ITEMS = ("include", "src")
 
@@ -264,8 +265,7 @@ class Handler(server.ProjectAPIHandler):
     def flash(self, options):
         test_name = options["project_type"].split("_")[0]
         subprocess.call(
-            "cd src/build && spike --extension=gemmini %s"
-            % (test_name + "-baremetal",),
+            "cd src/build && spike --extension=gemmini %s" % (test_name + "-baremetal",),
             shell=True,
         )
 

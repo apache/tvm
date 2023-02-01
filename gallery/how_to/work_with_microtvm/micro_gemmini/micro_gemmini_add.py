@@ -38,7 +38,7 @@ import tvm
 # --------------------------------
 #
 # After the installation of the Chipyard development tools, you should have an env.sh file in your Chipyard home directory. This file needs to be sourced before running this tutorial:
-# 
+#
 # .. code-block:: bash
 #
 #   source <your chipyard home path>/env.sh
@@ -80,24 +80,22 @@ class Model(tf.Module):
         else:
             return layers.Activation("relu")(x + y)
 
+
 model = Model()
 
 # Convert the concrete functions using TFLiteConverter
 converter = tf.lite.TFLiteConverter.from_keras_model(model)
 
+
 def representative_data_gen():
     dataset = [
         (
             np.array(
-                np.random.randint(
-                    -127, 128, size=(1, input_height, input_width, input_channels)
-                ),
+                np.random.randint(-127, 128, size=(1, input_height, input_width, input_channels)),
                 dtype=np.float32,
             ),
             np.array(
-                np.random.randint(
-                    0, 128, size=(1, input_height, input_width, input_channels)
-                ),
+                np.random.randint(0, 128, size=(1, input_height, input_width, input_channels)),
                 dtype=np.float32,
             ),
         )
@@ -147,8 +145,12 @@ input_details = interpreter.get_input_details()
 output_details = interpreter.get_output_details()
 tensor_details = interpreter.get_tensor_details()
 
-input_matrix_1 = np.random.randint(0, 255, (1, input_height, input_width, input_channels), dtype=np.uint8)
-input_matrix_2 = np.random.randint(0, 255, (1, input_height, input_width, input_channels), dtype=np.uint8)
+input_matrix_1 = np.random.randint(
+    0, 255, (1, input_height, input_width, input_channels), dtype=np.uint8
+)
+input_matrix_2 = np.random.randint(
+    0, 255, (1, input_height, input_width, input_channels), dtype=np.uint8
+)
 
 interpreter.set_tensor(input_details[0]["index"], input_matrix_1)
 interpreter.set_tensor(input_details[1]["index"], input_matrix_2)
@@ -168,13 +170,18 @@ gemmini.create_header_file("outputs", "data", "output", expected_output, "./incl
 # In this section, we will compile the model using TVM and the Gemmini integration.
 
 # The Gemmini environment class needs to be initialized with the parameters of the Gemmini accelerator where we want to execute our operation. We use here the default parameters.
-gemmini.Environment.init_overwrite(dim=16, acc_rows=1024, bank_rows=4096, use_experimental_qnn_add=True)
+gemmini.Environment.init_overwrite(
+    dim=16, acc_rows=1024, bank_rows=4096, use_experimental_qnn_add=True
+)
 
 # The TFLite model generated in the previous steps is now imported into TVM.
 
 mod, params = relay.frontend.from_tflite(
     tflite_model,
-    shape_dict={"serving_default_x": (1, input_height, input_width, input_channels), "serving_default_y": (1, input_height, input_width, input_channels)},
+    shape_dict={
+        "serving_default_x": (1, input_height, input_width, input_channels),
+        "serving_default_y": (1, input_height, input_width, input_channels),
+    },
     dtype_dict={"serving_default_x": input_dtype, "serving_default_y": input_dtype},
 )
 mod = relay.transform.InferType()(mod)
@@ -192,7 +199,7 @@ RUNTIME = tvm.relay.backend.Runtime("crt", {"system-lib": False})
 TARGET = tvm.target.target.Target({"kind": "c", "device": "gemmini"})
 EXECUTOR = tvm.relay.backend.Executor("aot", options={"interface-api": "c", "unpacked-api": 1})
 
-with gemmini.build_config(usmp_alg="hill_climb",opt_level=3, disabled_pass=["AlterOpLayout"]):
+with gemmini.build_config(usmp_alg="hill_climb", opt_level=3, disabled_pass=["AlterOpLayout"]):
     module = relay.build(mod, executor=EXECUTOR, runtime=RUNTIME, target=TARGET, params=params)
 
 ##################################
@@ -217,9 +224,7 @@ with tarfile.open(model_library_format_tar_path, "r:*") as tar_f:
 # Here, we create the test project, using the example project provided for this tutorial in the Gemmini microTVM template projects.
 
 template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("gemmini"))
-project_options = {
-    "project_type": "add_example"
-}  
+project_options = {"project_type": "add_example"}
 
 generated_project_dir = pathlib.Path(pathlib.Path.cwd(), "generated-project")
 generated_project = tvm.micro.generate_project(
@@ -231,4 +236,4 @@ generated_project.build()
 
 # Finally, we execute the compiled baremetal project on the Spike simulator.
 # Note: if there are errors, these can be related to rounding errors.
-#generated_project.flash()
+# generated_project.flash()

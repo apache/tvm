@@ -37,7 +37,7 @@ from tvm.contrib.download import download_testdata
 # --------------------------------
 #
 # After the installation of the Chipyard development tools, you should have an env.sh file in your Chipyard home directory. This file needs to be sourced before running this tutorial:
-# 
+#
 # .. code-block:: bash
 #
 #   source <your chipyard home path>/env.sh
@@ -50,6 +50,7 @@ from tvm.contrib.download import download_testdata
 #
 # This functions will help us generate the MobileNet model
 
+
 def get_real_image(im_height, im_width):
     from PIL import Image
 
@@ -61,6 +62,7 @@ def get_real_image(im_height, im_width):
     x = np.array(image).astype("uint8")
     data = np.reshape(x, (1, im_height, im_width, 3))
     return data
+
 
 def run_tflite_model(tflite_model_buf, input_data):
     """Generic function to execute TFLite"""
@@ -91,6 +93,7 @@ def run_tflite_model(tflite_model_buf, input_data):
         tflite_output.append(interpreter.get_tensor(output_details[i]["index"]))
 
     return tflite_output
+
 
 def download_model():
     model_url = (
@@ -159,6 +162,7 @@ def generate_mobilenet_tflite_model():
     extract(model_path)
     return create_tflite_model(model_dir)
 
+
 ##################################
 # Baseline generation
 # --------------------------------
@@ -223,7 +227,7 @@ RUNTIME = tvm.relay.backend.Runtime("crt", {"system-lib": False})
 TARGET = tvm.target.target.Target({"kind": "c", "device": "gemmini"})
 EXECUTOR = tvm.relay.backend.Executor("aot", options={"interface-api": "c", "unpacked-api": 1})
 
-with gemmini.build_config(usmp_alg="hill_climb",opt_level=3, disabled_pass=["AlterOpLayout"]):
+with gemmini.build_config(usmp_alg="hill_climb", opt_level=3, disabled_pass=["AlterOpLayout"]):
     module = relay.build(mod, executor=EXECUTOR, runtime=RUNTIME, target=TARGET, params=params)
 
 ##################################
@@ -246,9 +250,7 @@ with tarfile.open(model_library_format_tar_path, "r:*") as tar_f:
 
 # Here, we create the test project, using the example project provided for this tutorial in the Gemmini microTVM template projects.
 template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("gemmini"))
-project_options = {
-    "project_type": "mobilenet_example"
-}  
+project_options = {"project_type": "mobilenet_example"}
 
 generated_project_dir = pathlib.Path(pathlib.Path.cwd(), "generated-project")
 generated_project = tvm.micro.generate_project(

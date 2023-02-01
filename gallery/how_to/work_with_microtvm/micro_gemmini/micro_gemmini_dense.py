@@ -36,7 +36,7 @@ import tvm
 # --------------------------------
 #
 # After the installation of the Chipyard development tools, you should have an env.sh file in your Chipyard home directory. This file needs to be sourced before running this tutorial:
-# 
+#
 # .. code-block:: bash
 #
 #   source <your chipyard home path>/env.sh
@@ -68,6 +68,7 @@ class Model(tf.Module):
     )
     def matmul(self, x):
         return tf.linalg.matmul(x, self.w, transpose_b=False) + self.b
+
 
 model = Model()
 
@@ -172,7 +173,7 @@ RUNTIME = tvm.relay.backend.Runtime("crt", {"system-lib": False})
 TARGET = tvm.target.target.Target({"kind": "c", "device": "gemmini"})
 EXECUTOR = tvm.relay.backend.Executor("aot", options={"interface-api": "c", "unpacked-api": 1})
 
-with gemmini.build_config(usmp_alg="hill_climb",opt_level=3, disabled_pass=["AlterOpLayout"]):
+with gemmini.build_config(usmp_alg="hill_climb", opt_level=3, disabled_pass=["AlterOpLayout"]):
     module = relay.build(mod, executor=EXECUTOR, runtime=RUNTIME, target=TARGET, params=params)
 
 ##################################
@@ -195,9 +196,7 @@ with tarfile.open(model_library_format_tar_path, "r:*") as tar_f:
 
 # Here, we create the test project, using the example project provided for this tutorial in the Gemmini microTVM template projects.
 template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("gemmini"))
-project_options = {
-    "project_type": "dense_example"
-}  
+project_options = {"project_type": "dense_example"}
 
 generated_project_dir = pathlib.Path(pathlib.Path.cwd(), "generated-project")
 generated_project = tvm.micro.generate_project(
@@ -210,5 +209,3 @@ generated_project.build()
 # Finally, we execute the compiled baremetal project on the Spike simulator.
 # Note: if there are errors, these can be related to rounding errors.
 generated_project.flash()
-
-
