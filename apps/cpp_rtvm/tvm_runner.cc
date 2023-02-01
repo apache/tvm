@@ -125,23 +125,19 @@ void TVMRunner::UsePreCompiledPrograms(std::string pathToDir) {
   if (!std::filesystem::exists(pathToDir))
     ICHECK(std::filesystem::create_directories(pathToDir) == true);
   std::filesystem::path binary_path = pathToDir;
-  for (tvm::runtime::Module mod : r_mod_handle->imports()) {
-    auto f_get = mod->GetFunction("__GetPreCompiledPrograms");
-    auto f_set = mod->GetFunction("__SetPreCompiledPrograms");
-    if (f_get != nullptr && f_set != nullptr) {
-      std::string file_name = "pre_compiled_";
-      file_name += mod->type_key();
-      file_name += ".bin";
-      auto file_path = binary_path / file_name;
-      if (!std::filesystem::exists(file_path)) {
-        auto bytes = String(f_get());
-        std::ofstream fs(file_path.string(), std::ofstream::binary);
-        fs.write(bytes.c_str(), bytes.size());
-      } else {
-        std::ifstream ifs(file_path.string(), std::ios::in | std::ios::binary);
-        std::string bytes((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
-        f_set(String(bytes));
-      }
+  auto f_get = r_mod_handle->GetFunction("opencl.GetPreCompiledPrograms", true);
+  auto f_set = r_mod_handle->GetFunction("opencl.SetPreCompiledPrograms", true);
+  if (f_get != nullptr && f_set != nullptr) {
+    std::string file_name = "pre_compiled.bin";
+    auto file_path = binary_path / file_name;
+    if (!std::filesystem::exists(file_path)) {
+      auto bytes = String(f_get());
+      std::ofstream fs(file_path.string(), std::ofstream::binary);
+      fs.write(bytes.c_str(), bytes.size());
+    } else {
+      std::ifstream ifs(file_path.string(), std::ios::in | std::ios::binary);
+      std::string bytes((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+      f_set(String(bytes));
     }
   }
 }
