@@ -103,7 +103,6 @@ size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const 
   return vsnprintk(out_buf, out_buf_size_bytes, fmt, args);
 }
 
-
 // Called by TVM to generate random data.
 tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
   uint32_t random;  // one unit of random data.

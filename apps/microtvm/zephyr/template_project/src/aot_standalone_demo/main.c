@@ -52,14 +52,17 @@ const unsigned char CMD_INFER[] = "infer";
 #define CMD_SIZE 80u
 #define CMD_TERMINATOR '%'
 
-
-void timer_expiry_function(struct k_timer* timer_id) { return; }
-
 #define MILLIS_TIL_EXPIRY 200
 #define TIME_TIL_EXPIRY (K_MSEC(MILLIS_TIL_EXPIRY))
 struct k_timer g_microtvm_timer;
 uint32_t g_microtvm_start_time;
 int g_microtvm_timer_running = 0;
+
+static uint8_t main_rx_buf[128];
+static uint8_t g_cmd_buf[128];
+static size_t g_cmd_buf_ind;
+
+void timer_expiry_function(struct k_timer* timer_id) { return; }
 
 // Called to start system timer.
 tvm_crt_error_t TVMPlatformTimerStart() {
@@ -117,11 +120,6 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
   g_microtvm_timer_running = 0;
   return kTvmErrorNoError;
 }
-
-
-static uint8_t main_rx_buf[128];
-static uint8_t g_cmd_buf[128];
-static size_t g_cmd_buf_ind;
 
 void TVMInfer() {
   struct tvmgen_default_inputs inputs = {
