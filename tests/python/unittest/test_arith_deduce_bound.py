@@ -219,7 +219,6 @@ def test_deduce_non_support():
         res = tvm.arith.deduce_bound(a, lhs < 10, {}, {})
         assert res.is_nothing()
 
-    test_non_support(tvm.tir.floordiv(a, 16))
     test_non_support(tvm.tir.floormod(a, 16))
     test_non_support(tvm.tir.Min(a, 16))
     test_non_support(tvm.tir.Max(a, 16))
@@ -231,6 +230,43 @@ def test_deduce_non_support():
     test_non_support(tvm.tir.NE(a, 16))
     test_non_support(tvm.tir.log(a))
     test_non_support(tvm.tir.BufferLoad(decl_buffer([16], "int32"), [a]))
+
+
+def test_deduce_floordiv():
+    def do_test(gen_expr, dom_map, expect_min, expect_max):
+        a = te.var("a")
+        expr = gen_expr(a)
+        res = tvm.arith.deduce_bound(a, expr, dom_map, dom_map)
+        if isinstance(expect_min, str):
+            assert str(res.min_value) == expect_min
+        else:
+            tvm.testing.assert_prim_expr_equal(res.min_value, expect_min)
+        if isinstance(expect_max, str):
+            assert str(res.max_value) == expect_max
+        else:
+            tvm.testing.assert_prim_expr_equal(res.max_value, expect_max)
+
+    # test basic cases
+    do_test(lambda a: a // 8 > 3, {}, 32, "pos_inf")
+    do_test(lambda a: a // 8 >= 3, {}, 24, "pos_inf")
+    do_test(lambda a: a // 8 < 3, {}, "neg_inf", 23)
+    do_test(lambda a: a // 8 <= 3, {}, "neg_inf", 31)
+    do_test(lambda a: a // 8 == 3, {}, "pos_inf", "neg_inf")
+    do_test(lambda a: a // 8 > -3, {}, -16, "pos_inf")
+    do_test(lambda a: a // 8 >= -3, {}, -24, "pos_inf")
+    do_test(lambda a: a // -8 > 3, {}, "neg_inf", -32)
+    do_test(lambda a: a // -8 >= 3, {}, "neg_inf", -24)
+    do_test(lambda a: a // -8 < 3, {}, -23, "pos_inf")
+    do_test(lambda a: a // -8 <= 3, {}, -31, "pos_inf")
+    do_test(lambda a: 8 // a >= 2, {}, "pos_inf", "neg_inf")
+
+    # test nested cases
+    b = te.var("b")
+    bs = {b: tvm.arith.IntervalSet(2, 6)}
+    do_test(lambda a: b * 3 + a // 8 < 63, bs, "neg_inf", 359)
+    do_test(lambda a: b * 3 + a // 8 <= 63, bs, "neg_inf", 367)
+    do_test(lambda a: b * 3 + a // 8 > 63, bs, 464, "pos_inf")
+    do_test(lambda a: b * 3 + a // 8 >= 63, bs, 456, "pos_inf")
 
 
 if __name__ == "__main__":
