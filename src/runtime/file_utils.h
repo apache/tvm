@@ -130,7 +130,6 @@ std::string SaveParams(const Map<String, NDArray>& params);
  */
 void SaveParams(dmlc::Stream* strm, const Map<String, NDArray>& params);
 
-
 /*!
  * \brief A dmlc stream which wraps standard file operations.
  */
