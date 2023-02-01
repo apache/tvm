@@ -23,7 +23,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/reboot.h>
+#include <zephyr/kernel.h>
+#include <zephyr/sys/reboot.h>
 
 #include "dlpack/dlpack.h"
 #include "tvm/runtime/crt/error_codes.h"
@@ -42,7 +43,7 @@ __attribute__((weak)) void TVMPlatformAbort(tvm_crt_error_t error) {
   TVMLogf("TVMError: 0x%x", error);
   sys_reboot(SYS_REBOOT_COLD);
 #ifdef CONFIG_LED
-  gpio_pin_set(led0_pin, LED0_PIN, 1);
+  gpio_pin_set_dt(&led0, 1);
 #endif
   for (;;)
     ;

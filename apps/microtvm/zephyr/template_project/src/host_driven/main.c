@@ -63,7 +63,7 @@ static size_t g_num_bytes_in_rx_buffer = 0;
 // Called by TVM to write serial data to the UART.
 ssize_t uart_write(void* unused_context, const uint8_t* data, size_t size) {
 #ifdef CONFIG_LED
-  gpio_pin_set(led0_pin, LED0_PIN, 1);
+  gpio_pin_set_dt(&led0, 1);
 #endif
   g_num_bytes_requested += size;
 
@@ -73,7 +73,7 @@ ssize_t uart_write(void* unused_context, const uint8_t* data, size_t size) {
   }
 
 #ifdef CONFIG_LED
-  gpio_pin_set(led0_pin, LED0_PIN, 0);
+  gpio_pin_set_dt(&led0, 0);
 #endif
 
   return size;
@@ -91,7 +91,7 @@ ssize_t serial_write(void* unused_context, const uint8_t* data, size_t size) {
 // if the device crashes. Here, we turn on the LED and spin.
 void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t* esf) {
 #ifdef CONFIG_LED
-  gpio_pin_set(led0_pin, LED0_PIN, 1);
+  gpio_pin_set_dt(&led0, 1);
 #endif
   for (;;)
     ;
@@ -134,7 +134,7 @@ tvm_crt_error_t TVMPlatformTimerStart() {
   }
 
 #ifdef CONFIG_LED
-  gpio_pin_set(led0_pin, LED0_PIN, 1);
+  gpio_pin_set_dt(&led0, 1);
 #endif
   g_microtvm_start_time = timing_counter_get();
   g_microtvm_timer_running = 1;
@@ -149,7 +149,7 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
   }
 
 #ifdef CONFIG_LED
-  gpio_pin_set(led0_pin, LED0_PIN, 0);
+  gpio_pin_set_dt(&led0, 0);
 #endif
 
   g_microtvm_end_time = timing_counter_get();
@@ -206,17 +206,15 @@ void uart_rx_init(struct ring_buf* rbuf, const struct device* dev) {
 extern void __stdout_hook_install(int (*hook)(int));
 void main(void) {
 #ifdef CONFIG_LED
-  int ret;
-  led0_pin = device_get_binding(LED0);
-  if (led0_pin == NULL) {
+  if (!device_is_ready(led0.port)) {
     for (;;)
       ;
   }
-  ret = gpio_pin_configure(led0_pin, LED0_PIN, GPIO_OUTPUT_ACTIVE | LED0_FLAGS);
+  int ret = gpio_pin_configure_dt(&led0, GPIO_OUTPUT_ACTIVE);
   if (ret < 0) {
     TVMPlatformAbort((tvm_crt_error_t)0xbeef4);
   }
-  gpio_pin_set(led0_pin, LED0_PIN, 1);
+  gpio_pin_set_dt(&led0, 1);
 #endif
 
   // Claim console device.
@@ -242,7 +240,7 @@ void main(void) {
   TVMLogf("microTVM Zephyr runtime - running");
 
 #ifdef CONFIG_LED
-  gpio_pin_set(led0_pin, LED0_PIN, 0);
+  gpio_pin_set_dt(&led0, 0);
 #endif
 
   // The main application loop. We continuously read commands from the UART

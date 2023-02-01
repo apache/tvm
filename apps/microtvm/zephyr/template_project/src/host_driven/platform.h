@@ -20,14 +20,15 @@
 #ifndef TVM_APPS_MICROTVM_ZEPHYR_HOST_DRIVEN_PLATFORM_H_
 #define TVM_APPS_MICROTVM_ZEPHYR_HOST_DRIVEN_PLATFORM_H_
 
-#include <zephyr.h>
+#include <zephyr/drivers/gpio.h>
 
 #ifdef CONFIG_LED
 #define LED0_NODE DT_ALIAS(led0)
-#define LED0 DT_GPIO_LABEL(LED0_NODE, gpios)
-#define LED0_PIN DT_GPIO_PIN(LED0_NODE, gpios)
-#define LED0_FLAGS DT_GPIO_FLAGS(LED0_NODE, gpios)
-static const struct device* led0_pin;
+// #define LED0 DT_GPIO_LABEL(LED0_NODE, gpios)
+// #define LED0_PIN DT_GPIO_PIN(LED0_NODE, gpios)
+// #define LED0_FLAGS DT_GPIO_FLAGS(LED0_NODE, gpios)
+// static const struct device* led0_pin;
+static const struct gpio_dt_spec led0 = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
 #endif  // CONFIG_LED
 
 #endif /* TVM_APPS_MICROTVM_ZEPHYR_HOST_DRIVEN_PLATFORM_H_ */

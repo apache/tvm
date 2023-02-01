@@ -403,7 +403,12 @@ class Handler(server.ProjectAPIHandler):
     }
 
     def _create_prj_conf(
-        self, project_dir: pathlib.Path, board: str, project_type: str, config_main_stack_size
+        self,
+        project_dir: pathlib.Path,
+        board: str,
+        project_type: str,
+        config_main_stack_size: int,
+        config_led: bool,
     ):
         with open(project_dir / "prj.conf", "w") as f:
             f.write(
@@ -413,6 +418,9 @@ class Handler(server.ProjectAPIHandler):
                 "CONFIG_UART_INTERRUPT_DRIVEN=y\n"
                 "\n"
             )
+            if config_led and not self._is_qemu(board, False)
+                f.write("# For debugging.\n" "CONFIG_LED=y\n" "\n")
+
             f.write("# For TVMPlatformAbort().\n" "CONFIG_REBOOT=y\n" "\n")
 
             if project_type == "host_driven":
@@ -649,7 +657,9 @@ class Handler(server.ProjectAPIHandler):
                 if self._is_fvp(zephyr_board, use_fvp):
                     cmake_f.write(f"target_compile_definitions(app PUBLIC -DFVP=1)\n")
 
-        self._create_prj_conf(project_dir, zephyr_board, project_type, config_main_stack_size)
+        self._create_prj_conf(
+            project_dir, zephyr_board, project_type, config_main_stack_size, verbose
+        )
 
         # Populate crt-config.h
         crt_config_dir = project_dir / "crt_config"
