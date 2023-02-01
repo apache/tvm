@@ -27,8 +27,8 @@
 #include <tvm/ir/adt.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
+#include <tvm/ir/source_map.h>
 #include <tvm/ir/type.h>
-#include <tvm/parser/source_map.h>
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/map.h>
 #include <tvm/runtime/container/string.h>
@@ -60,9 +60,29 @@ class IRModuleNode : public Object {
   /*! \brief A map from global type vars to ADT type data. */
   Map<GlobalTypeVar, TypeData> type_definitions;
   /*! \brief The source map for the module. */
-  parser::SourceMap source_map;
+  SourceMap source_map;
   /* \brief Additional attributes storing meta-data about the module. */
   DictAttrs attrs;
+  /*!
+   * \brief A map from string names to global variables that
+   * ensures global uniqueness.
+   */
+  Map<String, GlobalVar> global_var_map_;
+
+  /*! \brief A map from string names to global type variables (ADT names)
+   * that ensures global uniqueness.
+   */
+  Map<String, GlobalTypeVar> global_type_var_map_;
+
+  /*! \brief A map from constructor tags to constructor objects
+   * for convenient access
+   */
+  std::unordered_map<int32_t, Constructor> constructor_tag_map_;
+
+  /*! \brief The files previously imported, required to ensure
+      importing is idempotent for each module.
+   */
+  std::unordered_set<String> import_set_;
 
   /*!
    * \brief Get a module attribute.
@@ -304,15 +324,11 @@ class IRModuleNode : public Object {
   TVM_DLL void ImportFromStd(const String& path);
 
   /*!
-   * \brief Should Link Parameters into the module
-   * \return Whether the Executor is configured to execute with linked parameters (Default: false)
-   */
-  TVM_DLL Bool ShouldLinkParameters() const;
-
-  /*!
    * \brief The set of imported files.
    */
   TVM_DLL std::unordered_set<String> Imports() const;
+
+  TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
   static constexpr const char* _type_key = "IRModule";
   static constexpr const bool _type_has_method_sequal_reduce = true;
@@ -322,26 +338,6 @@ class IRModuleNode : public Object {
  private:
   /*! \brief Helper function for registering a typedef's constructors */
   void RegisterConstructors(const GlobalTypeVar& var, const TypeData& type);
-
-  /*! \brief A map from string names to global variables that
-   * ensures global uniqueness.
-   */
-  Map<String, GlobalVar> global_var_map_;
-
-  /*! \brief A map from string names to global type variables (ADT names)
-   * that ensures global uniqueness.
-   */
-  Map<String, GlobalTypeVar> global_type_var_map_;
-
-  /*! \brief A map from constructor tags to constructor objects
-   * for convenient access
-   */
-  std::unordered_map<int32_t, Constructor> constructor_tag_map_;
-
-  /*! \brief The files previously imported, required to ensure
-      importing is idempotent for each module.
-   */
-  std::unordered_set<String> import_set_;
   friend class IRModule;
 };
 
@@ -361,7 +357,7 @@ class IRModule : public ObjectRef {
    */
   TVM_DLL explicit IRModule(Map<GlobalVar, BaseFunc> functions,
                             Map<GlobalTypeVar, TypeData> type_definitions = {},
-                            std::unordered_set<String> import_set = {}, parser::SourceMap map = {},
+                            std::unordered_set<String> import_set = {}, SourceMap map = {},
                             DictAttrs attrs = {});
 
   /*! \brief default constructor */
@@ -440,34 +436,6 @@ class IRModule : public ObjectRef {
   // allow copy on write.
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IRModuleNode);
 };
-
-/*!
- * \brief Pretty print a node for debug purposes.
- *
- * \param node The node to be printed.
- * \return The text reperesentation.
- * \note This function does not show version or meta-data.
- *       Use AsText if you want to store the text.
- * \sa AsText.
- */
-TVM_DLL String PrettyPrint(const ObjectRef& node);
-
-/*!
- * \brief Render the node as a string in the text format.
- *
- * \param node The node to be rendered.
- * \param show_meta_data Whether to print meta data section.
- * \param annotate An optional callback function for attaching
- *        additional comment block to an expr.
- *
- * \note We support a limited set of IR nodes that are part of
- *       relay IR and
- *
- * \sa PrettyPrint.
- * \return The text representation.
- */
-TVM_DLL String AsText(const ObjectRef& node, bool show_meta_data = true,
-                      runtime::TypedPackedFunc<String(ObjectRef)> annotate = nullptr);
 
 namespace attr {
 

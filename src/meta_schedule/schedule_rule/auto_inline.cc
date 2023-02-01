@@ -139,6 +139,11 @@ inline InlineType AutoInlineNode::CheckInline(const tir::Schedule& sch,
       }
     }
   }
+  // Cond 6. The block is disallowed for auto inline
+  if (Optional<String> ann =
+          tir::GetAnn<String>(block_sref, tir::attr::meta_schedule_inline_rule)) {
+    if (ann.value() == "disable") return InlineType::kNoInline;
+  }
   // Last cond: Check inline into the consumers or the spatial producer
   tir::StmtSRef scope_block = tir::GetScopeRoot(sch->state(), block_sref,
                                                 /*require_stage_pipeline=*/false);

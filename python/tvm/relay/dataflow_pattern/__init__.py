@@ -26,6 +26,7 @@ from ... import ir as _ir
 from ...ir import make_node
 from ...ir.base import Node
 from ...runtime import Object
+from ..base import astext, pretty_print
 from ..op import get
 from . import _ffi as ffi
 
@@ -45,6 +46,35 @@ def register_df_node(type_key=None):
 
 class DFPattern(Node):
     """Base class of all Patterns."""
+
+    def __str__(self):
+        return pretty_print(self)
+
+    def astext(self, show_meta_data=True, annotate=None):
+        """Get the text format of the expression.
+
+        Parameters
+        ----------
+        show_meta_data : bool
+            Whether to include meta data section in the text
+            if there is meta data.
+
+        annotate: Optional[Object->str]
+            Optionally annotate function to provide additional
+            information in the comment block.
+
+        Returns
+        -------
+        text : str
+            The text format of the expression.
+
+        Notes
+        -----
+        The meta data section is necessary to fully parse the text format.
+        However, it can contain dumps that are big (e.g constant weights),
+        so it can be helpful to skip printing the meta data section.
+        """
+        return astext(self, show_meta_data, annotate)
 
     def __call__(self, *args):
         args = list(args)

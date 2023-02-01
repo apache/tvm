@@ -59,7 +59,7 @@ def execute(mod_executor, inputs: dict):
 
 
 def build_hexagon_module(mod):
-    with tvm.transform.PassContext(opt_level=3, disabled_pass=["qnn.Legalize"]):
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["QnnCanonicalize"]):
         hexagon_lowered = tvm.relay.build(
             mod,
             tvm.target.Target(HEXAGON_AOT_LLVM_TARGET, host=HEXAGON_AOT_LLVM_TARGET),
@@ -87,7 +87,7 @@ def test_qnn_conv2d_rq(hexagon_session: Session):
     weight_shape = [16, 8, 3, 3]
     data = relay.var("data", shape=data_shape, dtype="float32")
     weight = relay.var("weight", shape=weight_shape, dtype="float32")
-    op0 = relay.qnn.op.quantize(data, relay.const(0.078), relay.const(0), out_dtype="int8")
+    op0 = relay.qnn.op.quantize(data, relay.const(0.078), relay.const(0), out_dtype="uint8")
     op1 = relay.qnn.op.quantize(weight, relay.const(0.07), relay.const(0), out_dtype="int8")
     op2 = relay.qnn.op.conv2d(
         op0,
@@ -116,7 +116,7 @@ def test_qnn_conv2d_rq(hexagon_session: Session):
     # Reference compilation
     llvm_lowered = build_ref_module(relay_mod)
 
-    data_np = np.random.rand(*data_shape) - 0.5
+    data_np = np.random.rand(*data_shape)
     weight_np = np.random.rand(*weight_shape) - 0.5
     inputs = {"data": data_np, "weight": weight_np}
 
@@ -181,7 +181,8 @@ def test_qnn_dense_bias_rq(hexagon_session: Session):
     llvm_m = tvm.runtime.executor.AotModule(llvm_lowered["default"](dev))
     llvm_out = execute(llvm_m, inputs)
 
-    np.testing.assert_equal(hexagon_output, llvm_out)
+    # Diff by 1 is Ok.
+    tvm.testing.assert_allclose(hexagon_output, llvm_out, atol=1)
 
 
 class TestQnnBinaryOp:
@@ -276,6 +277,118 @@ class TestQnnBinaryOp:
 
         # Diff by 1 is Ok.
         tvm.testing.assert_allclose(hexagon_output, llvm_output, atol=1)
+
+
+class TestQnnOp:
+    """QNN op test class"""
+
+    @tvm.testing.requires_hexagon
+    def test_qnn_requantize(self, hexagon_session: Session):
+        """qnn.requantize test without QNN canonicalization."""
+        data_shape = [256]
+        data = relay.var("data", shape=data_shape, dtype="int32")
+
+        op = relay.qnn.op.requantize(
+            data,
+            input_scale=relay.const(0.156),
+            input_zero_point=relay.const(2),
+            output_scale=relay.const(0.212),
+            output_zero_point=relay.const(1),
+            out_dtype="int8",
+        )
+        mod = tvm.IRModule.from_expr(op)
+
+        # Compile for Hexagon
+        hexagon_lowered = build_hexagon_module(mod)
+
+        # Reference compilation
+        llvm_lowered = build_ref_module(mod)
+
+        data_np = np.arange(-256, 256, 2, dtype="int32")
+        inputs = {"data": data_np}
+
+        hx_m = hexagon_session.get_executor_from_factory(hexagon_lowered)
+        hexagon_output = execute(hx_m, inputs)
+
+        dev = tvm.cpu(0)
+        llvm_m = tvm.runtime.executor.AotModule(llvm_lowered["default"](dev))
+        llvm_output = execute(llvm_m, inputs)
+
+        np.testing.assert_equal(hexagon_output, llvm_output)
+
+    @tvm.testing.requires_hexagon
+    def test_qnn_concatenate(self, hexagon_session: Session):
+        """qnn.concatenate op test without QNN canonicalization."""
+        x_shape = [1, 64]
+        y_shape = [2, 64]
+        z_shape = [3, 64]
+        input_x = relay.var("x", shape=x_shape, dtype="uint8")
+        input_y = relay.var("y", shape=y_shape, dtype="uint8")
+        input_z = relay.var("z", shape=z_shape, dtype="uint8")
+
+        op = relay.qnn.op.concatenate(
+            (input_x, input_y, input_z),
+            input_scales=(relay.const(0.3), relay.const(0.7), relay.const(1.3)),
+            input_zero_points=(relay.const(0), relay.const(1), relay.const(2)),
+            output_scale=relay.const(0.8),
+            output_zero_point=relay.const(5),
+            axis=0,
+        )
+        mod = tvm.IRModule.from_expr(op)
+
+        # Compile for Hexagon
+        hexagon_lowered = build_hexagon_module(mod)
+
+        # Reference compilation
+        llvm_lowered = build_ref_module(mod)
+
+        x_np = np.arange(0, 64, 1, dtype="uint8").reshape(x_shape)
+        y_np = np.arange(0, 128, 1, dtype="uint8").reshape(y_shape)
+        z_np = np.arange(0, 192, 1, dtype="uint8").reshape(z_shape)
+        inputs = {"x": x_np, "y": y_np, "z": z_np}
+
+        hx_m = hexagon_session.get_executor_from_factory(hexagon_lowered)
+        hexagon_output = execute(hx_m, inputs)
+
+        dev = tvm.cpu(0)
+        llvm_m = tvm.runtime.executor.AotModule(llvm_lowered["default"](dev))
+        llvm_output = execute(llvm_m, inputs)
+
+        # Diff by 1 is Ok.
+        tvm.testing.assert_allclose(hexagon_output, llvm_output, atol=1)
+
+    @tvm.testing.requires_hexagon
+    def test_qnn_tanh(self, hexagon_session: Session):
+        """qnn.tanh op test without QNN canonicalization."""
+        data_shape = [256]
+        data = relay.var("data", shape=data_shape, dtype="uint8")
+
+        op = relay.qnn.op.tanh(
+            data,
+            scale=relay.const(0.518),
+            zero_point=relay.const(137),
+            output_scale=relay.const(0.207),
+            output_zero_point=relay.const(128),
+        )
+        mod = tvm.IRModule.from_expr(op)
+
+        # Compile for Hexagon
+        hexagon_lowered = build_hexagon_module(mod)
+
+        # Reference compilation
+        llvm_lowered = build_ref_module(mod)
+
+        data_np = np.arange(0, 256, 1, dtype="uint8")
+        inputs = {"data": data_np}
+
+        hx_m = hexagon_session.get_executor_from_factory(hexagon_lowered)
+        hexagon_output = execute(hx_m, inputs)
+
+        dev = tvm.cpu(0)
+        llvm_m = tvm.runtime.executor.AotModule(llvm_lowered["default"](dev))
+        llvm_output = execute(llvm_m, inputs)
+
+        np.testing.assert_equal(hexagon_output, llvm_output)
 
 
 if __name__ == "__main__":

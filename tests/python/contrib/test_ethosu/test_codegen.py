@@ -258,6 +258,29 @@ def test_tflite_depthwise_conv2d_with_separate_pad():
     infra.compare_tvm_with_tflite(depthwise_conv2d, [ifm_shape], "ethos-u55-256")
 
 
+@pytest.mark.parametrize("ifm_shape", [(1, 55, 55, 3), (1, 23, 32, 7)])
+@pytest.mark.parametrize("padding", [(0, 1, 0, 0), (1, 1, 1, 1), (1, 1, 5, 5)])
+@pytest.mark.parametrize("const_value", [0, 5, 125, -5])
+def test_tflite_separate_pad(
+    ifm_shape,
+    padding,
+    const_value,
+):
+
+    np.random.seed(0)
+
+    @tf.function
+    def pad2d(x):
+        return tf.pad(
+            x,
+            [[0, 0], [padding[0], padding[2]], [padding[1], padding[3]], [0, 0]],
+            "CONSTANT",
+            const_value,
+        )
+
+    infra.compare_tvm_with_tflite(pad2d, [ifm_shape], "ethos-u55-256")
+
+
 @pytest.mark.parametrize(
     "accel_type",
     ACCEL_TYPES,
@@ -1109,6 +1132,88 @@ def test_tflite_leaky_relu(accel_type, ifm_shape, alpha):
     )
 
 
+# conv2d + relu_n1_to_1 is used because separate activation is not offloaded to NPU.
+def test_tflite_relu_n1_to_1():
+    np.random.seed(0)
+    accel_type = "ethos-u55-256"
+    ifm_shape = (1, 55, 34, 3)
+    kernel_shape = (3, 2)
+    strides = (1, 1)
+
+    @tf.function
+    def conv2d_relu_n1_to_1(x):
+        tf_strides = [1, strides[0], strides[1], 1]
+        weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], 3]
+        weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
+        op = tf.nn.conv2d(
+            x,
+            weight,
+            strides=tf_strides,
+            padding="VALID",
+        )
+        # The specific pattern will be replaced into RELU_N1_TO_1 by tflite.
+        return tf.math.maximum(-1.0, tf.math.minimum(op, 1.0))
+
+    infra.compare_tvm_with_tflite(
+        conv2d_relu_n1_to_1,
+        [ifm_shape],
+        accel_type,
+        enable_cascader=True,
+    )
+
+
+# conv2d + relu6 is used because separate activation is not offloaded to NPU.
+def test_tflite_relu6():
+    np.random.seed(0)
+    accel_type = "ethos-u55-256"
+    ifm_shape = (1, 55, 34, 3)
+    kernel_shape = (3, 2)
+    strides = (1, 1)
+
+    @tf.function
+    def conv2d_relu6(x):
+        tf_strides = [1, strides[0], strides[1], 1]
+        weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], 3]
+        weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
+        op = tf.nn.conv2d(
+            x,
+            weight,
+            strides=tf_strides,
+            padding="VALID",
+        )
+        return tf.nn.relu6(op)
+
+    infra.compare_tvm_with_tflite(
+        conv2d_relu6,
+        [ifm_shape],
+        accel_type,
+        enable_cascader=True,
+    )
+
+
+# Specific case when operation cannot be offloaded to NPU by single binary elementwise operation because
+# min and max operations cannot be fused with requantize if there are different scales as it's not supported on NPU.
+@pytest.mark.parametrize("operation", [tf.math.minimum, tf.math.maximum])
+def test_tflite_min_max_relu_n1_to_1(operation):
+    np.random.seed(0)
+    accel_type = "ethos-u55-128"
+    ifm_shape = (1, 12, 16, 8)
+
+    @tf.function
+    def min_max_relu_n1_to_1(lhs, rhs):
+        op = operation(lhs, rhs)
+        # The specific pattern will be replaced into RELU_N1_TO_1 by tflite.
+        return tf.math.maximum(-1.0, tf.math.minimum(op, 1.0))
+
+    infra.compare_tvm_with_tflite(
+        min_max_relu_n1_to_1,
+        [ifm_shape, ifm_shape],
+        accel_type,
+        enable_cascader=True,
+        ranges=[(-1, 1), (0, 2)],
+    )
+
+
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize("ifm_shape", [(1, 14), (1, 151)])
 @pytest.mark.parametrize("ofm_channels", [32, 64])
@@ -1144,7 +1249,4 @@ def test_tflite_fully_connected(
 
 
 if __name__ == "__main__":
-    import sys
-    import pytest
-
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

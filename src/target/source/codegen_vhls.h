@@ -40,7 +40,7 @@ class CodeGenVivadoHLS final : public CodeGenC {
   void Init(bool output_ssa);
   void PrintType(DataType t, std::ostream& os);
 
-  void PrintFuncPrefix() final;
+  void PrintFuncPrefix(std::ostream& os) final;
   void PreFunctionBody(const PrimFunc& f) final;
   void VisitExpr_(const MinNode* op, std::ostream& os) final;
   void VisitExpr_(const MaxNode* op, std::ostream& os) final;

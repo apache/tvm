@@ -264,6 +264,12 @@ def collage(model):
         config = {
             "relay.collage.tvm_max_depth": TVM_MAX_DEPTH,
             "relay.collage.byoc_max_depth": BYOC_MAX_DEPTH,
+            "relay.collage.byoc_fusion_style": [
+                "cutlass.NoFusion",
+                "cublas.NoFusion",
+                "cudnn.NoFusion",
+                "tensorrt.TVMFusion",
+            ],
         }
         logging.info(f"Using PassContext(config={config}")
         ctxt = tvm.transform.PassContext(config=config)

@@ -341,4 +341,4 @@ def test_shift_binary_elementwise_single(
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

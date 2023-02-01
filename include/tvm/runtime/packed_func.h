@@ -1903,6 +1903,11 @@ inline TVMRetValue& TVMRetValue::operator=(TObjectRef other) {
          ptr->IsInstance<Module::ContainerType>())) {
       return operator=(Module(std::move(other.data_)));
     }
+    if (std::is_base_of<PackedFunc::ContainerType, ContainerType>::value ||
+        (std::is_base_of<ContainerType, PackedFunc::ContainerType>::value &&
+         ptr->IsInstance<PackedFunc::ContainerType>())) {
+      return operator=(PackedFunc(std::move(other.data_)));
+    }
     SwitchToObject(kTVMObjectHandle, std::move(other.data_));
   } else {
     SwitchToPOD(kTVMNullptr);

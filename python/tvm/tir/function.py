@@ -18,21 +18,22 @@
 
 import collections
 import inspect
-from typing import Callable, List, Mapping, Optional, Union, Tuple
+from typing import Callable, List, Mapping, Optional, Tuple, Union
 
 import tvm
 import tvm._ffi
 import tvm.runtime
-from tvm.runtime import Object
 from tvm.ir import BaseFunc, Range
-from .buffer import Buffer
-from .expr import Var, PrimExpr
-from . import _ffi_api
+from tvm.runtime import Object, Scriptable
+
 from ..runtime.ndarray import NDArray
+from . import _ffi_api
+from .buffer import Buffer
+from .expr import PrimExpr, Var
 
 
 @tvm._ffi.register_object("tir.PrimFunc")
-class PrimFunc(BaseFunc):
+class PrimFunc(BaseFunc, Scriptable):
     """A function declaration expression.
 
     Parameters
@@ -168,45 +169,6 @@ class PrimFunc(BaseFunc):
             The new function with parameter specialized
         """
         return _ffi_api.Specialize(self, param_map)  # type: ignore
-
-    def script(self, tir_prefix: str = "T", show_meta: bool = False) -> str:
-        """Print IRModule into TVMScript
-
-        Parameters
-        ----------
-        tir_prefix : str
-            The tir namespace prefix
-
-        show_meta : bool
-            Whether to show meta information
-
-        Returns
-        -------
-        script : str
-            The TVM Script of the PrimFunc
-        """
-        return tvm._ffi.get_global_func("script.AsTVMScript")(
-            self, tir_prefix, show_meta
-        )  # type: ignore
-
-    def show(self, style: Optional[str] = None, black_format: bool = True) -> None:
-        """A sugar for print highlighted TVM script.
-
-        Parameters
-        ----------
-        style : str, optional
-
-            Pygmentize printing style, auto-detected if None.  See
-            `tvm.script.highlight.cprint` for more details.
-
-        black_format: bool
-
-            If true (default), use the formatter Black to format the TVMScript
-        """
-        from tvm.script.highlight import cprint  # pylint: disable=import-outside-toplevel
-
-        # Use deferred import to avoid circular import while keeping cprint under tvm/script
-        cprint(self, style=style, black_format=black_format)
 
 
 @tvm._ffi.register_object("tir.TensorIntrin")

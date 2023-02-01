@@ -16,35 +16,34 @@
 # under the License.
 """AOT with C Runtime Tests"""
 
-from collections import OrderedDict
-import re
 import os
-import tarfile
 import pathlib
+import re
+import tarfile
+from collections import OrderedDict
 
 import numpy as np
 import pytest
-
 import tvm
-from tvm import relay, TVMError
+from tvm import TVMError, relay
 from tvm.contrib import utils
-from tvm.ir.module import IRModule
-from tvm.relay import testing, transform
-from tvm.relay.testing import byoc
-from tvm.relay.op.annotation import compiler_begin, compiler_end
-from tvm.relay.backend import Executor, Runtime
-from tvm.micro import model_library_format as mlf
-from tvm.micro import export_model_library_format
 from tvm.ir.instrument import pass_instrument
+from tvm.ir.module import IRModule
+from tvm.micro import export_model_library_format
+from tvm.micro import model_library_format as mlf
+from tvm.micro.testing.aot_test_utils import AOT_DEFAULT_RUNNER, parametrize_aot_options
+from tvm.micro.testing.utils import get_conv2d_relay_module
+from tvm.relay import testing, transform
+from tvm.relay.backend import Executor, Runtime
+from tvm.relay.op.annotation import compiler_begin, compiler_end
+from tvm.relay.testing import byoc
 from tvm.testing.aot import (
     AOTTestModel,
-    generate_ref_data,
     compile_and_run,
     compile_models,
     create_relay_module_and_inputs_from_tflite_file,
+    generate_ref_data,
 )
-from tvm.micro.testing.aot_test_utils import AOT_DEFAULT_RUNNER, parametrize_aot_options
-from tvm.micro.testing.utils import get_conv2d_relay_module
 
 
 def test_error_c_interface_with_packed_api():
@@ -223,6 +222,63 @@ def test_packed_global_variables():
         # items that start with tvmgen_default
         for func in tvmgen_funcs:
             assert f"{func}_packed" not in tvmgen_names
+
+
+def test_io_size_definition():
+    """Check network IO size definitions in the codegen output."""
+    dtype = "float32"
+    ishape = (1, 32, 14, 14)
+    wshape = (32, 32, 3, 3)
+    interface_api = "c"
+    use_unpacked_api = True
+
+    data0 = relay.var("data", shape=ishape, dtype=dtype)
+    weight0 = relay.var("weight", shape=wshape, dtype=dtype)
+    out = relay.nn.conv2d(data0, weight0, kernel_size=(3, 3), padding=(1, 1), groups=1)
+    main_f = relay.Function([data0, weight0], out)
+    mod = tvm.IRModule()
+    mod["main"] = main_f
+    mod = transform.InferType()(mod)
+
+    i_data = np.random.uniform(0, 1, ishape).astype(dtype)
+    w_data = np.random.uniform(0, 1, wshape).astype(dtype)
+
+    inputs = OrderedDict([("data", i_data), ("weight", w_data)])
+
+    output_list = generate_ref_data(mod, inputs)
+    compiled_models_list = compile_models(
+        models=AOTTestModel(module=mod, inputs=inputs, outputs=output_list),
+        interface_api=interface_api,
+        use_unpacked_api=use_unpacked_api,
+        workspace_byte_alignment=8,
+        enable_op_fusion=True,
+        pass_config=AOT_DEFAULT_RUNNER.pass_config,
+        use_runtime_executor=True,
+        target=tvm.target.Target("c"),
+    )
+    dtype_itemsize = np.dtype(dtype).itemsize
+    ref_input_size = i_data.size * dtype_itemsize
+    ref_weight_size = w_data.size * dtype_itemsize
+    ref_output_size = output_list["output"].size * dtype_itemsize
+    compiled_model = compiled_models_list[0]
+
+    tmp_path = utils.tempdir()
+    base_path = tmp_path.temp_dir
+
+    model = compiled_model.model
+    tar_file = os.path.join(base_path, f"{model.name}.tar")
+    export_model_library_format(compiled_model.executor_factory, tar_file)
+    t = tarfile.open(tar_file)
+    t.extractall(base_path)
+
+    header_path = f"{base_path}/codegen/host/include/tvmgen_{model.name}.h"
+    with open(header_path, "r") as header:
+        contents = header.readlines()
+        contents = "".join(map(str, contents))
+        assert contents.count("_SIZE") == 4
+        assert f"TVMGEN_DEFAULT_DATA_SIZE {ref_input_size}" in contents
+        assert f"TVMGEN_DEFAULT_WEIGHT_SIZE {ref_weight_size}" in contents
+        assert f"TVMGEN_DEFAULT_OUTPUT_SIZE {ref_output_size}" in contents
 
 
 @parametrize_aot_options
@@ -928,8 +984,8 @@ def test_workspace_calculation_cmsis_nn():
     pytest.importorskip("tflite")
 
     # pylint: disable=import-outside-toplevel
-    from tvm.relay.op.contrib import cmsisnn
     from tvm.contrib.download import download_testdata
+    from tvm.relay.op.contrib import cmsisnn
 
     # pylint: enable=import-outside-toplevel
 
@@ -983,11 +1039,11 @@ def test_aot_codegen_checks_returns():
     main_func = main_ir_module["__tvm_main__"]
 
     # Check operator call is wrapped properly
+    body = main_func.body[1].seq[0].seq[0].value
     assert (
-        str(main_func.body[1])
-        == "tir.tvm_check_return(0, -1, tir.call_extern("
-        + '"tvmgen_default_fused_add",'
-        + " x_buffer_var, y_buffer_var, output_buffer_var))\n"
+        repr(body)
+        == 'T.tvm_check_return(0, -1, T.call_extern("int32", "tvmgen_default_fused_add",'
+        + " x_buffer_var, y_buffer_var, output_buffer_var))"
     )
     # TODO(Mousius) - Create a better place for C codegen tests
     assert (

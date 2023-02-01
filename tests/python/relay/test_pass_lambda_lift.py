@@ -83,4 +83,4 @@ def test_recursive():
 
 
 if __name__ == "__main__":
-    pytest.main()
+    tvm.testing.main()

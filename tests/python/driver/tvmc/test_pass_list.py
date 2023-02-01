@@ -33,4 +33,4 @@ def test_parse_pass_list_str():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

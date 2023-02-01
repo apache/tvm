@@ -146,13 +146,13 @@ def test_vthread_simplified():
         vthread = T.env_thread("vthread")
         T.launch_thread(vthread, 4)
         B_data = T.allocate([4], "int32", scope="shared")
-        B = T.buffer_decl([4], "int32", data=B_data, scope="shared")
+        B = T.Buffer([4], "int32", data=B_data, scope="shared")
         B[0:4] = T.broadcast(vthread, 4)
 
     @T.prim_func
     def expected_func():
         B_data = T.allocate([16], "int32", scope="shared")
-        B = T.buffer_decl([16], "int32", data=B_data, scope="shared")
+        B = T.Buffer([16], "int32", data=B_data, scope="shared")
         # The indices for B should each be a single Ramp node, and
         # should not be the sum of a Ramp and Broadcast node.
         B[T.Mul(0, 4) : T.Mul(0, 4) + 4] = T.broadcast(0, 4)
@@ -175,13 +175,13 @@ def test_vthread_vectorized():
         vthread = T.env_thread("vthread")
         T.launch_thread(vthread, 4)
         B_data = T.allocate([4], "int32", "shared")
-        B = T.buffer_decl([4], "int32", data=B_data, scope="shared")
+        B = T.Buffer([4], "int32", data=B_data, scope="shared")
         B[0:4] = T.broadcast(vthread, 4)
 
     @T.prim_func
     def expected_func():
         B_data = T.allocate([4], "int32x4", "shared")
-        B = T.buffer_decl([4], "int32x4", data=B_data, scope="shared")
+        B = T.Buffer([4], "int32x4", data=B_data, scope="shared")
         B[T.Mul(0, 4) / 4] = T.broadcast(0, 4)
         B[T.Mul(1, 4) / 4] = T.broadcast(1, 4)
         B[T.Mul(2, 4) / 4] = T.broadcast(2, 4)

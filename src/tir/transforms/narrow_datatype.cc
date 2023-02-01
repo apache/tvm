@@ -30,7 +30,6 @@
 
 #include "../../arith/ir_mutator_with_analyzer.h"
 #include "../../arith/ir_visitor_with_analyzer.h"
-#include "../../printer/text_printer.h"
 
 namespace tvm {
 namespace tir {
@@ -233,12 +232,8 @@ class NarrowDataTypeRewriter : public IndexDataTypeRewriter {
   }
 
   PrimExpr VisitExpr_(const VarNode* op) final {
-    if (auto it = var_remap_.find(GetRef<Var>(op)); it != var_remap_.end()) {
-      return (*it).second;
-    } else if (visitor_.vmap.find(op) != visitor_.vmap.end()) {
-      Var v = Var(op->name_hint, visitor_.vmap[op]);
-      var_remap_.Set(GetRef<Var>(op), v);
-      return v;
+    if (auto it = visitor_.vmap.find(op); !var_remap_.count(op) && it != visitor_.vmap.end()) {
+      var_remap_[op] = Var(op->name_hint, it->second);
     }
     return Parent::VisitExpr_(op);
   }
@@ -266,9 +261,6 @@ class NarrowDataTypeRewriter : public IndexDataTypeRewriter {
  private:
   // the internal visitor to deduce the narrowed dtype
   DataTypeVisitor visitor_;
-  // a map from Var before rewrite to that after rewrite,
-  // ensures one old Var maps to exactly one new Var
-  std::unordered_map<const VarNode*, Var> vmap_;
 };
 
 Stmt NarrowDataType(Stmt stmt, int target_bits) {

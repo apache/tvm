@@ -14,10 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
+
 import tvm
 import tvm.testing
 from tvm import te
 from tvm.script import tir as T
+from tvm import relay, tir
+from tvm.relay.backend.te_compiler import lower_to_primfunc
+from tvm.tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
 
 
 def _check(original, transformed):
@@ -245,11 +250,13 @@ def test_lower_te():
 
 def test_loop_carried_dependency():
     """The buffer allocation should be above opaque iter var's loop scopes
-    such that buffer accesses with loop carried dependencies are covered."""
+    such that buffer accesses with loop carried dependencies are covered,
+    and the allocate buffer should keep the order."""
 
     @T.prim_func
     def before(A: T.Buffer[(8, 8, 8), "int32"], B: T.Buffer[(8, 8, 8), "int32"]):
         C = T.alloc_buffer([8, 8, 8], dtype="int32")
+        D = T.alloc_buffer([8, 8, 8], dtype="int32")
         for i in T.serial(8):
             for j in T.serial(8):
                 for k in T.serial(8):
@@ -258,10 +265,16 @@ def test_loop_carried_dependency():
                         C[vi, vj, vk] = A[vi, vj, vk] + 1
                 for k in T.serial(8):
                     with T.block("b1"):
+                        vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                        D[vi, vj, vk] = A[vi, vj, vk] + 2
+                for k in T.serial(8):
+                    with T.block("b2"):
                         vi, vk = T.axis.remap("SS", [i, k])
                         vj = T.axis.opaque(8, j)
-                        B[vi, vj, vk] = C[vi, vj, vk] + T.if_then_else(
-                            0 < vj, C[vi, vj - 1, vk], 0, dtype="int32"
+                        B[vi, vj, vk] = (
+                            C[vi, vj, vk]
+                            + T.if_then_else(0 < vj, C[vi, vj - 1, vk], 0, dtype="int32")
+                            + D[vi, vj, vk]
                         )
 
     @T.prim_func
@@ -271,6 +284,7 @@ def test_loop_carried_dependency():
                 T.reads(A[i, 0:8, 0:8])
                 T.writes(B[i, 0:8, 0:8])
                 C = T.alloc_buffer([8, 8, 8], dtype="int32")
+                D = T.alloc_buffer([8, 8, 8], dtype="int32")
                 for j in T.serial(8):
                     for k in T.serial(8):
                         with T.block("b0"):
@@ -278,10 +292,16 @@ def test_loop_carried_dependency():
                             C[vi, vj, vk] = A[vi, vj, vk] + 1
                     for k in T.serial(8):
                         with T.block("b1"):
+                            vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                            D[vi, vj, vk] = A[vi, vj, vk] + 2
+                    for k in T.serial(8):
+                        with T.block("b2"):
                             vi, vk = T.axis.remap("SS", [i, k])
                             vj = T.axis.opaque(8, j)
-                            B[vi, vj, vk] = C[vi, vj, vk] + T.if_then_else(
-                                0 < vj, C[vi, vj - 1, vk], 0, dtype="int32"
+                            B[vi, vj, vk] = (
+                                C[vi, vj, vk]
+                                + T.if_then_else(0 < vj, C[vi, vj - 1, vk], 0, dtype="int32")
+                                + D[vi, vj, vk]
                             )
 
     _check(before, after)
@@ -343,6 +363,57 @@ def test_1D_cascade_op_rolling_buffer():
                             C[cc, vi * 4 + vj] = C[cc, vi * 4 + vj] + B[cc, (vi * 4 + vj + vk) % 6]
 
     _check(before, after)
+
+
+def test_allocate_const_after_tensorize():
+    i_size, o_size, h_size, w_size = 64, 64, 56, 56
+    k_height_size = k_width_size = 3
+    w_shape = (o_size, i_size, k_height_size, k_width_size)
+
+    data = relay.var("data", shape=(1, i_size, h_size, w_size), dtype="uint8")
+    weight = relay.var("weight", shape=w_shape, dtype="uint8")
+    conv2d = relay.nn.conv2d(
+        data=data,
+        weight=weight,
+        kernel_size=(k_height_size, k_width_size),
+        channels=o_size,
+        padding=(0, 0),
+        strides=(1, 1),
+        out_dtype="int32",
+    )
+    mod = tvm.IRModule.from_expr(conv2d)
+
+    executor = relay.backend.Executor("graph", {"link-params": True})
+    mod = mod.with_attr("executor", executor)
+
+    weight_np = np.random.uniform(1, 10, size=w_shape).astype("uint8")
+
+    target = tvm.target.Target("hexagon")
+
+    with tvm.transform.PassContext(opt_level=3):
+        opt_mod, _ = relay.optimize(mod, params={"weight": weight_np}, target=target)
+
+    conv2d_func = opt_mod["main"].body.args[0].op
+    prim_func = lower_to_primfunc(conv2d_func, target)
+
+    sch = tir.Schedule(prim_func)
+    block = sch.get_block("conv2d_NCHWc_int8")
+    loops = sch.get_loops(block)
+
+    sch.reorder(loops[8], loops[4], loops[-1])
+    sch.decompose_reduction(block, loops[1])
+    sch.tensorize(loops[4], VRMPY_u8u8i32_INTRIN)
+
+    seq = tvm.transform.Sequential(
+        [
+            tvm.tir.transform.LowerInitBlock(),
+            tvm.tir.transform.PlanAndUpdateBufferAllocationLocation(),
+        ]
+    )
+
+    # The following error is emitted if AllocateConst nodes are not correctly handled:
+    #  Check failed: (buffer_data_to_buffer_.count(source_var)) is false:
+    _ = seq(sch.mod)
 
 
 if __name__ == "__main__":

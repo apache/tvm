@@ -59,8 +59,6 @@ Map<Mutator, FloatImm> Mutator::DefaultLLVM() {
       {Mutator::MutateParallel(/*max_jobs_per_core=*/16), FloatImm(DataType::Float(64), 0.02)}};
 }
 
-Map<Mutator, FloatImm> Mutator::DefaultVNNI() { return Mutator::DefaultLLVM(); }
-
 Map<Mutator, FloatImm> Mutator::DefaultCUDA() {
   return Map<Mutator, FloatImm>{
       {Mutator::MutateTileSize(), FloatImm(DataType::Float(64), 0.9)},
@@ -76,6 +74,13 @@ Map<Mutator, FloatImm> Mutator::DefaultHexagon() {
       {Mutator::MutateComputeLocation(), FloatImm(DataType::Float(64), 0.05)},
       {Mutator::MutateUnroll(), FloatImm(DataType::Float(64), 0.03)},
       {Mutator::MutateParallel(/*max_jobs_per_core=*/16), FloatImm(DataType::Float(64), 0.02)}};
+}
+
+Map<Mutator, FloatImm> Mutator::DefaultMicro() {
+  return Map<Mutator, FloatImm>{
+      {Mutator::MutateTileSize(), FloatImm(DataType::Float(64), 0.9)},
+      {Mutator::MutateComputeLocation(), FloatImm(DataType::Float(64), 0.05)},
+      {Mutator::MutateUnroll(), FloatImm(DataType::Float(64), 0.03)}};
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -104,6 +109,7 @@ TVM_REGISTER_GLOBAL("meta_schedule.MutatorDefaultCUDA").set_body_typed(Mutator::
 TVM_REGISTER_GLOBAL("meta_schedule.MutatorDefaultCUDATensorCore")
     .set_body_typed(Mutator::DefaultCUDATensorCore);
 TVM_REGISTER_GLOBAL("meta_schedule.MutatorDefaultHexagon").set_body_typed(Mutator::DefaultHexagon);
+TVM_REGISTER_GLOBAL("meta_schedule.MutatorDefaultMicro").set_body_typed(Mutator::DefaultMicro);
 
 }  // namespace meta_schedule
 }  // namespace tvm

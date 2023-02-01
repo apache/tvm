@@ -27,15 +27,10 @@ Please install CFFI and CV2 before executing this script
 
 .. code-block:: bash
 
-  pip install cffi
-  pip install opencv-python
+  %%shell
+  pip install cffi opencv-python
+
 """
-
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
 
 # numpy and matplotlib
 import numpy as np

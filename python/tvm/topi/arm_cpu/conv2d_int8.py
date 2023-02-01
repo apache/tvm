@@ -57,7 +57,7 @@ def conv2d_NCHWc_int8(cfg, data, kernel, strides, padding, dilation, layout, out
         n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
         in_channel = ic_chunk * ic_bn
 
-        oc_chunk, ic_chunk, kh, kw, ic_bn, oc_bn, _ = get_const_tuple(kernel.shape)
+        oc_chunk, ic_chunk, kh, kw, ic_bn, oc_bn = get_const_tuple(kernel.shape)[:6]
         num_filter = oc_chunk * oc_bn
     else:
         # data is nchw, implicitly treat it as nchw1c

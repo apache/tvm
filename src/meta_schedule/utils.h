@@ -48,7 +48,6 @@
 #include <utility>
 #include <vector>
 
-#include "../printer/text_printer.h"
 #include "../support/array.h"
 #include "../support/base64.h"
 #include "../support/nd_int_set.h"
@@ -525,6 +524,8 @@ inline ScheduleRule GetDefaultAutoInline(const std::string& target_name) {
     rules = ScheduleRule::DefaultLLVM();
   } else if (target_name == "hexagon") {
     rules = ScheduleRule::DefaultHexagon();
+  } else if (target_name == "c") {
+    rules = ScheduleRule::DefaultMicro();
   } else if (IsGPUTarget(target_name)) {
     rules = ScheduleRule::DefaultCUDA();
   } else {

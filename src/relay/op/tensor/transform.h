@@ -24,8 +24,8 @@
 #ifndef TVM_RELAY_OP_TENSOR_TRANSFORM_H_
 #define TVM_RELAY_OP_TENSOR_TRANSFORM_H_
 
-#include <tvm/ir/error.h>
 #include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/error.h>
 #include <tvm/relay/op_attr_types.h>
 
 #include <algorithm>

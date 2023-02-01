@@ -41,12 +41,6 @@ Making your Hardware Accelerator TVM-ready with UMA
 # integrated into TVM using UMA.
 #
 
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
-
 
 ######################################################################
 # Vanilla
@@ -57,7 +51,7 @@ testing.utils.install_request_hook(depth=3)
 #
 
 ######################################################################
-# .. image:: https://raw.githubusercontent.com/apache/tvm-site/main/images/tutorial/uma_vanilla_block_diagram.png
+# .. image:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/tutorial/uma_vanilla_block_diagram.png
 #   :width: 100%
 #   :alt: A block diagram of Vanilla
 #

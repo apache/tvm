@@ -227,7 +227,7 @@ def test_conv2d_depthwise(
             )
         ),
     }
-    input_zp = np.random.randint(np.iinfo(dtype).min, np.iinfo(dtype).max)
+    input_zp = np.random.randint(0, np.iinfo(dtype).max)
     input_sc = np.random.random() * 2
     if qnn_per_channel:
         kernel_sc = tvm.nd.array(

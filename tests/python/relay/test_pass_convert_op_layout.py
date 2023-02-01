@@ -2786,4 +2786,4 @@ def test_conv_l2n_convert_layout():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

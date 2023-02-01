@@ -72,7 +72,7 @@ def _generate_codegen_args(parser, codegen_name):
                     target_group.add_argument(
                         f"--target-{codegen_name}-{target_option}",
                         type=python_type,
-                        help=f"target {codegen_name} {target_option}{python_type}",
+                        help=field.description,
                     )
 
 

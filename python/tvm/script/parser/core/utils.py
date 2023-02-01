@@ -37,8 +37,8 @@ def inspect_function_capture(func: Callable) -> Dict[str, Any]:
         The function variables map with non-local or global variables.
     """
     captured = {
-        **inspect.getclosurevars(func).nonlocals,
         **func.__globals__,  # type: ignore
+        **inspect.getclosurevars(func).nonlocals,
     }
     return captured
 

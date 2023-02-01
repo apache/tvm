@@ -36,8 +36,8 @@ class SingleEthosUConv2D:
     def main(placeholder_3: T.Buffer[(8192,), "int8"], ethosu_conv2d_1: T.Buffer[(1024,), "int8"]) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        placeholder_4 = T.buffer_decl([1], "uint8")
-        placeholder_5 = T.buffer_decl([1], "uint8")
+        placeholder_4 = T.Buffer([1], "uint8")
+        placeholder_5 = T.Buffer([1], "uint8")
         # body
         T.evaluate(T.call_extern("ethosu_conv2d", "uint8", 8, 8, 3, 8, 0, 8, placeholder_3[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 3, 1, "uint8", 8, 8, 16, 8, 0, 8, ethosu_conv2d_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 16, 1, 1, 1, 1, 1, 1, 1, placeholder_4[0], 0, T.int8(-1), T.int8(-1), 12, placeholder_5[0], 0, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "CLIP", 0, 255, "TFL", "NONE", 0, 0, 0, dtype="uint8"))
 # fmt: on
@@ -51,10 +51,10 @@ class MultiEthosUConv2D:
     def main(placeholder_6: T.Buffer[(192,), "int8"], ethosu_conv2d_1: T.Buffer[(512,), "int8"]) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        placeholder_9 = T.buffer_decl([1], "uint8")
-        placeholder_7 = T.buffer_decl([1], "uint8")
-        placeholder_8 = T.buffer_decl([1], "uint8")
-        placeholder_5 = T.buffer_decl([1], "uint8")
+        placeholder_9 = T.Buffer([1], "uint8")
+        placeholder_7 = T.Buffer([1], "uint8")
+        placeholder_8 = T.Buffer([1], "uint8")
+        placeholder_5 = T.Buffer([1], "uint8")
         # body
         ethosu_conv2d_2 = T.decl_buffer([1024], "uint8")
         ethosu_conv2d_3 = T.decl_buffer([2048], "uint8")
@@ -73,8 +73,8 @@ class MultiEthosUCopy:
     def main(placeholder_3: T.Buffer[(8192,), "int8"], ethosu_conv2d_1: T.Buffer[(2048,), "int8"]) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        placeholder_5 = T.buffer_decl([1], "int32")
-        placeholder_4 = T.buffer_decl([1], "uint8")
+        placeholder_5 = T.Buffer([1], "int32")
+        placeholder_4 = T.Buffer([1], "uint8")
         # body
         placeholder_global = T.decl_buffer([256], "uint8")
         placeholder_d_global = T.decl_buffer([8], "int32")
@@ -90,14 +90,14 @@ class MultiEthosUCopy:
 class WeightStreamOnly:
     @T.prim_func
     def main(placeholder: T.Buffer[(8192,), "int8"], ethosu_write: T.Buffer[(2048,), "int8"]) -> None:
-        buffer = T.buffer_decl([1], "uint8")
-        buffer_1 = T.buffer_decl([1], "uint8")
-        buffer_2 = T.buffer_decl([1], "uint8")
-        buffer_3 = T.buffer_decl([1], "uint8")
-        buffer_4 = T.buffer_decl([1], "uint8")
-        buffer_5 = T.buffer_decl([1], "uint8")
-        buffer_6 = T.buffer_decl([1], "uint8")
-        buffer_7 = T.buffer_decl([1], "uint8")
+        buffer = T.Buffer([1], "uint8")
+        buffer_1 = T.Buffer([1], "uint8")
+        buffer_2 = T.Buffer([1], "uint8")
+        buffer_3 = T.Buffer([1], "uint8")
+        buffer_4 = T.Buffer([1], "uint8")
+        buffer_5 = T.Buffer([1], "uint8")
+        buffer_6 = T.Buffer([1], "uint8")
+        buffer_7 = T.Buffer([1], "uint8")
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True,
                      "global_symbol": "main", "tir.noalias": True,
@@ -136,16 +136,16 @@ class WeightStreamOnly:
 class MixedRead:
     @T.prim_func
     def main(placeholder: T.Buffer[(8192,), "int8"], ethosu_write: T.Buffer[(2048,), "int8"]) -> None:
-        buffer = T.buffer_decl([1], "uint8")
-        buffer_1 = T.buffer_decl([1], "uint8")
-        buffer_2 = T.buffer_decl([1], "uint8")
-        buffer_3 = T.buffer_decl([1], "uint8")
-        buffer_4 = T.buffer_decl([1], "uint8")
-        buffer_5 = T.buffer_decl([1], "uint8")
-        buffer_6 = T.buffer_decl([1], "uint8")
-        buffer_7 = T.buffer_decl([1], "uint8")
-        buffer_8 = T.buffer_decl([1], "uint8")
-        buffer_9 = T.buffer_decl([1], "uint8")
+        buffer = T.Buffer([1], "uint8")
+        buffer_1 = T.Buffer([1], "uint8")
+        buffer_2 = T.Buffer([1], "uint8")
+        buffer_3 = T.Buffer([1], "uint8")
+        buffer_4 = T.Buffer([1], "uint8")
+        buffer_5 = T.Buffer([1], "uint8")
+        buffer_6 = T.Buffer([1], "uint8")
+        buffer_7 = T.Buffer([1], "uint8")
+        buffer_8 = T.Buffer([1], "uint8")
+        buffer_9 = T.Buffer([1], "uint8")
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True,
                      "global_symbol": "main", "tir.noalias": True,
@@ -161,11 +161,11 @@ class MixedRead:
                                    buffer_9.name: buffer_9}})
         # body
         ethosu_write_1_data = T.allocate([4096], "int8", "global", annotations={"disable_lower_builtin":True})
-        ethosu_write_1 = T.buffer_decl([4096], "int8", data=ethosu_write_1_data)
+        ethosu_write_1 = T.Buffer([4096], "int8", data=ethosu_write_1_data)
         placeholder_global_data = T.allocate([80], "uint8", "global", annotations={"disable_lower_builtin":True})
-        placeholder_global = T.buffer_decl([80], "uint8", data=placeholder_global_data)
+        placeholder_global = T.Buffer([80], "uint8", data=placeholder_global_data)
         placeholder_d_global_data = T.allocate([32], "uint8", "global", annotations={"disable_lower_builtin":True})
-        placeholder_d_global = T.buffer_decl([32], "uint8", data=placeholder_d_global_data)
+        placeholder_d_global = T.Buffer([32], "uint8", data=placeholder_d_global_data)
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 32, 16, 0, 16, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 16, 16, 16, 0, 16, ethosu_write_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 256, 16, 1, 1, 1, 1, 1, 1, 1, buffer[0], 592, T.int8(-1), T.int8(-1), 12, buffer_1[0], 160, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
         T.evaluate(T.call_extern("ethosu_copy", buffer_2[0], 80, placeholder_global[0], dtype="handle"))
         T.evaluate(T.call_extern("ethosu_copy", buffer_3[0], 32, placeholder_d_global[0], dtype="handle"))
@@ -673,9 +673,9 @@ def test_translate_ethosu_copy():
 class MixedConstantDatatypes:
     @T.prim_func
     def main(placeholder_4: T.Buffer[(2048,), "int8"], ethosu_write_1: T.Buffer[(16,), "int8"]) -> None:
-        buffer = T.buffer_decl([1], "uint8")
-        buffer_1 = T.buffer_decl([1], "uint8")
-        buffer_2 = T.buffer_decl([1], "int16")
+        buffer = T.Buffer([1], "uint8")
+        buffer_1 = T.Buffer([1], "uint8")
+        buffer_2 = T.Buffer([1], "int16")
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True,
                      "global_symbol": "main", "tir.noalias": True,
@@ -1499,4 +1499,4 @@ def test_translate_ethosu_binary_elementwise_broadcasting(operator_type):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

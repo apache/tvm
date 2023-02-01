@@ -115,4 +115,4 @@ def test_aot_packed_call():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

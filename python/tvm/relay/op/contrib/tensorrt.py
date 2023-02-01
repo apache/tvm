@@ -17,15 +17,22 @@
 # pylint: disable=invalid-name, unused-argument, logging-format-interpolation
 """TensorRT supported operators."""
 import logging
-from typing import Tuple, List, Dict, Union, Optional, Any, Callable
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np  # type: ignore
+
 import tvm
 from tvm import relay
 from tvm.ir import Op
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
-from tvm.relay.dataflow_pattern import is_op, wildcard, is_constant, is_tuple, is_tuple_get_item
+from tvm.relay.dataflow_pattern import (
+    is_constant,
+    is_op,
+    is_tuple,
+    is_tuple_get_item,
+    wildcard,
+)
 from tvm.relay.expr import Call, Constant, TupleGetItem
 from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 from tvm.relay.op.contrib.register import register_pattern_table
@@ -1050,7 +1057,7 @@ class IsComputeIntensiveGraph(ExprVisitor):
             "mean",
         }
         if isinstance(call.op, tvm.tir.op.Op):
-            if str(call.op) in compute_intensive_ops:
+            if str(call.op.name) in compute_intensive_ops:
                 self.is_compute_intensive = True
 
         return super().visit_call(call)

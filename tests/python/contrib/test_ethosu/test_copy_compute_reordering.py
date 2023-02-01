@@ -29,16 +29,16 @@ class AllOperatorsWithWeights:
     def main() -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer1 = T.buffer_decl([8192], "int8")
-        buffer2 = T.buffer_decl([128], "uint8")
-        buffer3 = T.buffer_decl([32], "uint8")
-        buffer4 = T.buffer_decl([112], "uint8")
-        buffer5 = T.buffer_decl([32], "uint8")
-        buffer6 = T.buffer_decl([112], "uint8")
-        buffer7 = T.buffer_decl([32], "uint8")
-        buffer8 = T.buffer_decl([112], "uint8")
-        buffer9 = T.buffer_decl([32], "uint8")
-        buffer10 = T.buffer_decl([2048], "int8")
+        buffer1 = T.Buffer([8192], "int8")
+        buffer2 = T.Buffer([128], "uint8")
+        buffer3 = T.Buffer([32], "uint8")
+        buffer4 = T.Buffer([112], "uint8")
+        buffer5 = T.Buffer([32], "uint8")
+        buffer6 = T.Buffer([112], "uint8")
+        buffer7 = T.Buffer([32], "uint8")
+        buffer8 = T.Buffer([112], "uint8")
+        buffer9 = T.Buffer([32], "uint8")
+        buffer10 = T.Buffer([2048], "int8")
         # body
         p1 = T.decl_buffer([128], "uint8")
         p2 = T.decl_buffer([112], "uint8")
@@ -77,16 +77,16 @@ def test_all_operators_with_weights_max_copy_movements_1():
         def main() -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-            buffer1 = T.buffer_decl([8192], "int8")
-            buffer2 = T.buffer_decl([128], "uint8")
-            buffer3 = T.buffer_decl([32], "uint8")
-            buffer4 = T.buffer_decl([112], "uint8")
-            buffer5 = T.buffer_decl([32], "uint8")
-            buffer6 = T.buffer_decl([112], "uint8")
-            buffer7 = T.buffer_decl([32], "uint8")
-            buffer8 = T.buffer_decl([112], "uint8")
-            buffer9 = T.buffer_decl([32], "uint8")
-            buffer10 = T.buffer_decl([2048], "int8")
+            buffer1 = T.Buffer([8192], "int8")
+            buffer2 = T.Buffer([128], "uint8")
+            buffer3 = T.Buffer([32], "uint8")
+            buffer4 = T.Buffer([112], "uint8")
+            buffer5 = T.Buffer([32], "uint8")
+            buffer6 = T.Buffer([112], "uint8")
+            buffer7 = T.Buffer([32], "uint8")
+            buffer8 = T.Buffer([112], "uint8")
+            buffer9 = T.Buffer([32], "uint8")
+            buffer10 = T.Buffer([2048], "int8")
             # body
             p1 = T.decl_buffer([128], "uint8")
             p2 = T.decl_buffer([112], "uint8")
@@ -123,16 +123,16 @@ def test_all_operators_with_weights_max_copy_movements_2():
         def main() -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-            buffer1 = T.buffer_decl([8192], "int8")
-            buffer2 = T.buffer_decl([128], "uint8")
-            buffer3 = T.buffer_decl([32], "uint8")
-            buffer4 = T.buffer_decl([112], "uint8")
-            buffer5 = T.buffer_decl([32], "uint8")
-            buffer6 = T.buffer_decl([112], "uint8")
-            buffer7 = T.buffer_decl([32], "uint8")
-            buffer8 = T.buffer_decl([112], "uint8")
-            buffer9 = T.buffer_decl([32], "uint8")
-            buffer10 = T.buffer_decl([2048], "int8")
+            buffer1 = T.Buffer([8192], "int8")
+            buffer2 = T.Buffer([128], "uint8")
+            buffer3 = T.Buffer([32], "uint8")
+            buffer4 = T.Buffer([112], "uint8")
+            buffer5 = T.Buffer([32], "uint8")
+            buffer6 = T.Buffer([112], "uint8")
+            buffer7 = T.Buffer([32], "uint8")
+            buffer8 = T.Buffer([112], "uint8")
+            buffer9 = T.Buffer([32], "uint8")
+            buffer10 = T.Buffer([2048], "int8")
             # body
             p1 = T.decl_buffer([128], "uint8")
             p2 = T.decl_buffer([112], "uint8")
@@ -167,8 +167,8 @@ class AllOperatorsWithoutWeights:
     @T.prim_func
     def main() -> None:
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer1 = T.buffer_decl([36], "int8")
-        buffer2 = T.buffer_decl([9], "int8")
+        buffer1 = T.Buffer([36], "int8")
+        buffer2 = T.Buffer([9], "int8")
         # body
         p1 = T.decl_buffer([96], "int8")
         T.evaluate(T.call_extern("ethosu_pooling", "int8", 3, 4, 3, 3, 0, 4, buffer1[0], 0, 0, 0, T.float32(1), 0, "NHWC", 12, 3, 1, "int8", 3, 2, 3, 3, 0, 2, p1[0], 0, 0, 0, T.float32(1), 0, "NHCWB16", 32, 16, 1, "MAX", 2, 1, 2, 1, 1, 1, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
@@ -189,11 +189,11 @@ class OperatorsWithAndWithoutWeights:
     @T.prim_func
     def main() -> None:
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer1 = T.buffer_decl([97156], "int8")
-        buffer2 = T.buffer_decl([80], "uint8")
-        buffer3 = T.buffer_decl([64], "uint8")
-        buffer4 = T.buffer_decl([96], "uint8")
-        buffer5 = T.buffer_decl([32], "uint8")
+        buffer1 = T.Buffer([97156], "int8")
+        buffer2 = T.Buffer([80], "uint8")
+        buffer3 = T.Buffer([64], "uint8")
+        buffer4 = T.Buffer([96], "uint8")
+        buffer5 = T.Buffer([32], "uint8")
         # body
         p1 = T.decl_buffer([390336], "int8")
         p2 = T.decl_buffer([80], "uint8")
@@ -224,11 +224,11 @@ def test_operators_with_and_without_weights_max_copy_movements_1():
         @T.prim_func
         def main() -> None:
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-            buffer1 = T.buffer_decl([97156], "int8")
-            buffer2 = T.buffer_decl([80], "uint8")
-            buffer3 = T.buffer_decl([64], "uint8")
-            buffer4 = T.buffer_decl([96], "uint8")
-            buffer5 = T.buffer_decl([32], "uint8")
+            buffer1 = T.Buffer([97156], "int8")
+            buffer2 = T.Buffer([80], "uint8")
+            buffer3 = T.Buffer([64], "uint8")
+            buffer4 = T.Buffer([96], "uint8")
+            buffer5 = T.Buffer([32], "uint8")
             # body
             p1 = T.decl_buffer([390336], "int8")
             p2 = T.decl_buffer([80], "uint8")
@@ -257,11 +257,11 @@ def test_operators_with_and_without_weights_max_copy_movements_2():
         @T.prim_func
         def main() -> None:
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-            buffer1 = T.buffer_decl([97156], "int8")
-            buffer2 = T.buffer_decl([80], "uint8")
-            buffer3 = T.buffer_decl([64], "uint8")
-            buffer4 = T.buffer_decl([96], "uint8")
-            buffer5 = T.buffer_decl([32], "uint8")
+            buffer1 = T.Buffer([97156], "int8")
+            buffer2 = T.Buffer([80], "uint8")
+            buffer3 = T.Buffer([64], "uint8")
+            buffer4 = T.Buffer([96], "uint8")
+            buffer5 = T.Buffer([32], "uint8")
             # body
             p1 = T.decl_buffer([390336], "int8")
             p2 = T.decl_buffer([80], "uint8")
@@ -289,14 +289,14 @@ class CopyToBufferWithLocalScope:
     @T.prim_func
     def main() -> None:
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer1 = T.buffer_decl([64], "uint8")
-        buffer2 = T.buffer_decl([48], "uint8")
-        buffer3 = T.buffer_decl([48], "uint8")
-        buffer4 = T.buffer_decl([256], "uint8")
-        buffer5 = T.buffer_decl([16], "uint8")
-        buffer6 = T.buffer_decl([48], "uint8")
-        buffer7 = T.buffer_decl([256], "uint8")
-        buffer8 = T.buffer_decl([64], "uint8")
+        buffer1 = T.Buffer([64], "uint8")
+        buffer2 = T.Buffer([48], "uint8")
+        buffer3 = T.Buffer([48], "uint8")
+        buffer4 = T.Buffer([256], "uint8")
+        buffer5 = T.Buffer([16], "uint8")
+        buffer6 = T.Buffer([48], "uint8")
+        buffer7 = T.Buffer([256], "uint8")
+        buffer8 = T.Buffer([64], "uint8")
         # body
         p1 = T.decl_buffer([48], "uint8")
         p2 = T.decl_buffer([48], "uint8")
@@ -330,14 +330,14 @@ def test_copy_to_buffer_with_local_scope_max_copy_movements_n(max_copy_movements
         @T.prim_func
         def main() -> None:
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-            buffer1 = T.buffer_decl([64], "uint8")
-            buffer2 = T.buffer_decl([48], "uint8")
-            buffer3 = T.buffer_decl([48], "uint8")
-            buffer4 = T.buffer_decl([256], "uint8")
-            buffer5 = T.buffer_decl([16], "uint8")
-            buffer6 = T.buffer_decl([48], "uint8")
-            buffer7 = T.buffer_decl([256], "uint8")
-            buffer8 = T.buffer_decl([64], "uint8")
+            buffer1 = T.Buffer([64], "uint8")
+            buffer2 = T.Buffer([48], "uint8")
+            buffer3 = T.Buffer([48], "uint8")
+            buffer4 = T.Buffer([256], "uint8")
+            buffer5 = T.Buffer([16], "uint8")
+            buffer6 = T.Buffer([48], "uint8")
+            buffer7 = T.Buffer([256], "uint8")
+            buffer8 = T.Buffer([64], "uint8")
             # body
             p1 = T.decl_buffer([48], "uint8")
             p2 = T.decl_buffer([48], "uint8")
@@ -406,11 +406,11 @@ def test_default_max_copy_movements():
         @T.prim_func
         def main() -> None:
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-            buffer1 = T.buffer_decl([97156], "int8")
-            buffer2 = T.buffer_decl([80], "uint8")
-            buffer3 = T.buffer_decl([64], "uint8")
-            buffer4 = T.buffer_decl([96], "uint8")
-            buffer5 = T.buffer_decl([32], "uint8")
+            buffer1 = T.Buffer([97156], "int8")
+            buffer2 = T.Buffer([80], "uint8")
+            buffer3 = T.Buffer([64], "uint8")
+            buffer4 = T.Buffer([96], "uint8")
+            buffer5 = T.Buffer([32], "uint8")
             # body
             p1 = T.decl_buffer([390336], "int8")
             p2 = T.decl_buffer([80], "uint8")
@@ -439,11 +439,11 @@ def test_pass_context_option_max_copy_movements():
         @T.prim_func
         def main() -> None:
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-            buffer1 = T.buffer_decl([97156], "int8")
-            buffer2 = T.buffer_decl([80], "uint8")
-            buffer3 = T.buffer_decl([64], "uint8")
-            buffer4 = T.buffer_decl([96], "uint8")
-            buffer5 = T.buffer_decl([32], "uint8")
+            buffer1 = T.Buffer([97156], "int8")
+            buffer2 = T.Buffer([80], "uint8")
+            buffer3 = T.Buffer([64], "uint8")
+            buffer4 = T.Buffer([96], "uint8")
+            buffer5 = T.Buffer([32], "uint8")
             # body
             p1 = T.decl_buffer([390336], "int8")
             p2 = T.decl_buffer([80], "uint8")
@@ -679,4 +679,4 @@ def test_reordering_based_on_cycles_luts_present():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

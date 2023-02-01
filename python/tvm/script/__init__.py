@@ -15,4 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """TVM Script APIs of TVM Python Package"""
-from .parser import ir, ir_module, parse as from_source, tir
+from .parser import ir, ir_module
+from .parser import parse as from_source
+from .parser import tir

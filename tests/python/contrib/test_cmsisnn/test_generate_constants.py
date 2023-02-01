@@ -20,7 +20,7 @@ import math
 import numpy as np
 import pytest
 import tvm
-import tvm.testing
+from tvm.testing.aot import get_dtype_range
 from tvm import relay
 from tvm.relay.op.contrib import cmsisnn
 
@@ -107,10 +107,11 @@ def make_model(
 
     weight_shape = (kernel_h, kernel_w, shape[3] // groups, out_channels)
     rng = np.random.default_rng(12321)
+    kmin, kmax = get_dtype_range(kernel_dtype)
     weight = tvm.nd.array(
         rng.integers(
-            np.iinfo(kernel_dtype).min,
-            high=np.iinfo(kernel_dtype).max,
+            kmin,
+            high=kmax,
             size=weight_shape,
             dtype=kernel_dtype,
         )

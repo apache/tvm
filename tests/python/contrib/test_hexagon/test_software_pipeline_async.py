@@ -180,7 +180,7 @@ class TestAsyncSoftwarePipeline:
         with tvm.transform.PassContext(
             config={
                 "tir.use_async_copy": 1,
-                "tir.dma_bypass_cache": 1,
+                "tir.experimental_dma_bypass_cache": 1,
                 "tir.merge_async_commit_queue_scope": False,
             }
         ):

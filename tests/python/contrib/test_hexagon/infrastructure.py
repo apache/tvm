@@ -253,7 +253,13 @@ def transform_numpy(arr_np, current_layout: str, new_layout: str):
 
     if current_layout == "nc":
         n, c = arr_np.shape
+        if new_layout in ["nc-2048c-1d"]:
+            return arr_np.reshape([n, c // 2048, 2048])
+        if new_layout in ["nc-2048c-2d"]:
+            return arr_np.reshape([n, c // 2048, 2048])
         if new_layout in ["nc-1024c-2d"]:
+            return arr_np.reshape([n, c // 1024, 1024])
+        if new_layout in ["nc-1024c-1d"]:
             return arr_np.reshape([n, c // 1024, 1024])
         if new_layout in ["nc-512c-2d"]:
             return arr_np.reshape([n, c // 512, 512])
@@ -275,6 +281,19 @@ def transform_numpy(arr_np, current_layout: str, new_layout: str):
             n, c, w = arr_np.shape
             return arr_np.reshape([n, c // 32, 32, w // 64, 64]).transpose(0, 1, 3, 2, 4)
 
+        raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
+
+    if current_layout == "nchw":
+        if new_layout in ["nchw-32c8h8w-2d", "nchw-32c8h8w-1d"]:
+            n, c, h, w = arr_np.shape
+            return arr_np.reshape([n, c // 32, 32, h // 8, 8, w // 8, 8]).transpose(
+                0, 1, 3, 5, 2, 4, 6
+            )
+        if new_layout in ["nchw-32c8h4w-2d", "nchw-32c8h4w-1d"]:
+            n, c, h, w = arr_np.shape
+            return arr_np.reshape([n, c // 32, 32, h // 8, 8, w // 4, 4]).transpose(
+                0, 1, 3, 5, 2, 4, 6
+            )
         raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
 
     raise RuntimeError(f"Unexpected current_layout '{current_layout}'")

@@ -655,7 +655,7 @@ def test_access_in_let_value():
     def func(A: T.Buffer[(8,), "float32"]):
         for i in range(8):
             B_data = T.allocate((1,), "float32", "global")
-            B = T.buffer_decl(shape=[1], dtype="float32", data=B_data)
+            B = T.Buffer(shape=[1], dtype="float32", data=B_data)
             B[0] = 3.14
             x: T.float32 = T.exp(B[0], dtype="float32")
             A[i] = (x + 1.0) / (x - 1.0)
@@ -663,7 +663,7 @@ def test_access_in_let_value():
     @T.prim_func
     def func_rewritten(A: T.Buffer[(8,), "float32"]) -> None:
         B_data = T.allocate((1,), "float32", "global")
-        B = T.buffer_decl(shape=[1], dtype="float32", data=B_data)
+        B = T.Buffer(shape=[1], dtype="float32", data=B_data)
         for i in range(8):
             B[0] = 3.14
             x: T.float32 = T.exp(B[0], dtype="float32")
@@ -690,12 +690,12 @@ class TestLetBufferRewrite(BaseCompare):
 
     def before() -> None:
         A_data: T.Ptr[T.int32] = T.call_extern("dummy_func", dtype="handle")
-        A = T.buffer_decl([8], "int32", data=A_data)
+        A = T.Buffer([8], "int32", data=A_data)
         A[0:8] = T.broadcast(42, 8)
 
     def expected() -> None:
         A_data: T.Ptr[T.int32x8] = T.call_extern("dummy_func", dtype="handle")
-        A = T.buffer_decl([1], "int32x8", data=A_data)
+        A = T.Buffer([1], "int32x8", data=A_data)
         A[0] = T.broadcast(42, 8)
 
 
@@ -708,7 +708,7 @@ class TestRewriteInPlaceUseOfNonFlatBuffer(BaseCompare):
             dtype="float32",
             scope="global",
         )
-        B = T.buffer_decl(
+        B = T.Buffer(
             [16, 16],
             dtype="float32",
             axis_separators=[1],
@@ -719,7 +719,7 @@ class TestRewriteInPlaceUseOfNonFlatBuffer(BaseCompare):
             dtype="float32",
             scope="global",
         )
-        C = T.buffer_decl(
+        C = T.Buffer(
             [16, 16],
             dtype="float32",
             axis_separators=[1],
@@ -741,8 +741,8 @@ class TestRewriteInPlaceUseOfNonFlatBuffer(BaseCompare):
             dtype="float32",
             scope="global",
         )
-        B = T.buffer_decl([16, 16], dtype="float32", axis_separators=[1], data=B_data)
-        C = T.buffer_decl(
+        B = T.Buffer([16, 16], dtype="float32", axis_separators=[1], data=B_data)
+        C = T.Buffer(
             [16, 16],
             dtype="float32",
             axis_separators=[1],
@@ -777,7 +777,7 @@ class TestNoRewriteOfSharedNonFlatBuffer(BaseCompare):
             dtype="float32",
             scope="global",
         )
-        B = T.buffer_decl(
+        B = T.Buffer(
             [16, 16],
             dtype="float32",
             axis_separators=[1],
@@ -788,7 +788,7 @@ class TestNoRewriteOfSharedNonFlatBuffer(BaseCompare):
             dtype="float32",
             scope="global",
         )
-        C = T.buffer_decl(
+        C = T.Buffer(
             [20, 20],
             dtype="float32",
             axis_separators=[1],

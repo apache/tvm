@@ -43,18 +43,6 @@ TEST(WaitForInference, InferenceScheduled) {
   ICHECK_EQ(result.GetErrorDescription(), "Timed out while waiting for the inference to complete.");
 }
 
-TEST(WaitForInference, InferenceRunning) {
-  const int inference_result = 1 /* Running */;
-  const int timeout = 0;
-
-  dl::Inference inference = dl::Inference(inference_result);
-  InferenceWaitStatus result = WaitForInference(&inference, timeout);
-
-  ASSERT_EQ(result.GetErrorCode(), InferenceWaitErrorCode::kTimeout);
-  std::cout << result.GetErrorDescription() << std::endl;
-  ICHECK_EQ(result.GetErrorDescription(), "Timed out while waiting for the inference to complete.");
-}
-
 TEST(WaitForInference, InferenceError) {
   const int inference_result = 3 /* Error */;
   const int timeout = 0;

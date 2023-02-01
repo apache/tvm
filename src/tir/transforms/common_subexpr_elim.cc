@@ -151,8 +151,8 @@ bool CommonSubexpressionEliminator::OrderOnExprAndFrequency(std::pair<PrimExpr, 
   // as we need a deterministic order
   std::stringstream a_stream;
   std::stringstream b_stream;
-  a_stream << a.first;
-  b_stream << b.first;
+  a_stream << AsLegacyRepr(a.first);
+  b_stream << AsLegacyRepr(b.first);
   return (a_stream.str().compare(b_stream.str()) < 0);
 }
 

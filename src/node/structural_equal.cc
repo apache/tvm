@@ -314,9 +314,9 @@ class SEqualHandlerDefault::Impl {
     }
     if (assert_mode_ && !result) {
       LOG(FATAL) << "ValueError: StructuralEqual check failed, caused by lhs:" << std::endl
-                 << PrettyPrint(lhs) << std::endl
+                 << lhs << std::endl
                  << "and rhs:" << std::endl
-                 << PrettyPrint(rhs);
+                 << rhs;
     }
     return result;
   }

@@ -443,6 +443,11 @@ class CoefficientExtractor : public StmtExprVisitor {
 // Compute stride for the accesses to a buffer
 int64_t ComputeStride(const std::vector<std::vector<PrimExpr>>& indices,
                       const std::vector<int>& shape, const VarNode* stride_var) {
+  // Use stride of 1 for 0-dimensional buffers. 0-dim buffers has a single
+  // index access, so we have to check here.
+  if (shape.size() == 0) {
+    return 1;
+  }
   int64_t min_stride = std::numeric_limits<int64_t>::max();
   bool find = false;
   CoefficientExtractor extractor;

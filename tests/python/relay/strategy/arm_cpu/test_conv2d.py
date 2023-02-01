@@ -93,28 +93,6 @@ class TestConv2d_NHWC_Spatial_Pack(Conv2dTests):
     schedule_name = parameter("conv2d_nhwc_spatial_pack.arm_cpu")
 
 
-class TestConv2d_Tensordot(Conv2dTests):
-    """This test is for the regular conv2d schedule tensorized using tensordot."""
-
-    data_shape, kernel_size, num_filter, strides, padding = parameters(
-        # Disabled because these kernels are not an integral number of words
-        # ((1, 32, 32, 1), (3, 3), 12, 1, 0),
-        # ((1, 32, 10, 3), (3, 3), 16, 1, 0),
-        # ((1, 96, 96, 3), (3, 3), 8, (2, 2), (0, 0, 1, 1)),
-        ((1, 32, 32, 16), (3, 3), 16, 1, (0, 2, 2, 0)),
-        ((1, 16, 16, 32), (1, 1), 64, (2, 2), 0),
-        ((1, 49, 10, 1), (10, 4), 64, (2, 1), (4, 1, 5, 1)),
-        ((4, 16, 16, 16), (5, 5), 8, 2, 0),
-    )
-    dilation = parameter(1)
-    in_dtype = parameter("int8", "int16", "int32")
-
-    data_layout = parameter("NHWC")
-    kernel_layout = parameter("OHWI")
-    out_layout = parameter("NHWC", "NCHW")
-    schedule_name = parameter("conv2d_nhwc_ohwi_dsp.arm_cpu")
-
-
 class TestConv2d_NCHW_Spatial_Pack(Conv2dTests):
     """This test is for conv2d_nchw_spatial_pack.arm_cpu schedule."""
 

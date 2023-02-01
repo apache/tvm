@@ -23,7 +23,7 @@ import numpy as np
 
 import tvm
 from tvm import relay
-from tvm.testing.aot import AOTTestRunner
+from tvm.testing.aot import AOTTestRunner, get_dtype_range
 
 
 def skip_if_no_reference_system(func):
@@ -84,30 +84,6 @@ def assert_partitioned_function(orig_mod, cmsisnn_mod, expected_ops_unchanged=Tr
 def assert_no_external_function(mod):
     attrs = [mod[var.name_hint].attrs for var in mod.get_global_vars() if mod[var.name_hint].attrs]
     assert not any(attrs), "No function should have an external attribute."
-
-
-def get_range_for_dtype_str(dtype):
-    """
-    Produces the min,max for a give data type.
-
-    Parameters
-    ----------
-    dtype : str
-        a type string (e.g., int8)
-
-    Returns
-    -------
-    type_info.min : int
-        the minimum of the range
-    type_info.max : int
-        the maximum of the range
-    """
-
-    try:
-        type_info = np.iinfo(dtype)
-    except ValueError:
-        type_info = np.finfo(dtype)
-    return type_info.min, type_info.max
 
 
 def make_module(func):
@@ -193,11 +169,11 @@ def get_conv2d_qnn_params(
     output_zp : int
         zero point of the output tensor
     """
-    input_dtype_min, input_dtype_max = get_range_for_dtype_str(input_dtype)
+    input_dtype_min, input_dtype_max = get_dtype_range(input_dtype)
     input_max = input_scale * (input_dtype_max - input_zp)
     input_min = input_scale * (input_dtype_min - input_zp)
 
-    kernel_dtype_min, kernel_dtype_max = get_range_for_dtype_str(kernel_dtype)
+    kernel_dtype_min, kernel_dtype_max = get_dtype_range(kernel_dtype)
     kernel_sc_max = np.max(kernel_scale)
     kernel_max = kernel_sc_max * (kernel_dtype_max - kernel_zp)
 
@@ -222,7 +198,7 @@ def get_conv2d_qnn_params(
 
     output_max = max(output_limits)
     output_min = min(output_limits)
-    output_dtype_min, output_dtype_max = get_range_for_dtype_str(output_dtype)
+    output_dtype_min, output_dtype_max = get_dtype_range(output_dtype)
 
     output_scale = (output_max - output_min) / (output_dtype_max - output_dtype_min)
     output_zp = int(output_dtype_min - (output_min / output_scale))
@@ -236,7 +212,7 @@ def make_qnn_relu(expr, fused_activation_fn, scale, zero_point, dtype):
 
     # Get min/max of the output dtype. This will be used to ensure that clip a_min/a_max are not
     # beyond the dtype range.
-    qmin, qmax = get_range_for_dtype_str(dtype)
+    qmin, qmax = get_dtype_range(dtype)
 
     # The input expr is a quantized tensor with its scale and zero point. We calculate the
     # suitable clip off points based on these scale and zero point.
@@ -298,9 +274,9 @@ def create_test_runner(compiler_cpu="cortex-m55", cpu_flags=""):
     return AOTTestRunner(
         makefile="corstone300",
         prologue="""
-        uart_init();
+        UartStdOutInit();
         """,
-        includes=["uart.h"],
+        includes=["uart_stdout.h"],
         pass_config={
             "relay.ext.cmsisnn.options": {
                 "mcpu": compiler_cpu + cpu_flags,

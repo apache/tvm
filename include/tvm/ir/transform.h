@@ -57,7 +57,6 @@
 #define TVM_IR_TRANSFORM_H_
 
 #include <tvm/ir/diagnostic.h>
-#include <tvm/ir/error.h>
 #include <tvm/ir/instrument.h>
 #include <tvm/ir/module.h>
 #include <tvm/runtime/container/array.h>

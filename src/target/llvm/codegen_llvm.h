@@ -37,6 +37,7 @@
 #else
 #include <llvm/IR/Operator.h>
 #endif
+#include <llvm/IR/DebugInfoMetadata.h>
 #include <llvm/IR/GlobalValue.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
@@ -70,6 +71,7 @@
 #include "../../runtime/thread_storage_scope.h"
 #include "../../tir/transforms/ir_utils.h"
 #include "codegen_params.h"
+#include "llvm_instance.h"
 
 namespace llvm {
 class Argument;
@@ -91,8 +93,6 @@ class MDBuilder;
 
 namespace tvm {
 namespace codegen {
-
-class LLVMTarget;
 
 using namespace tir;
 
@@ -523,6 +523,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   ExprDeepEqual deep_equal_;
   // binding of let variables. Enables duplicate var defs that map to same value
   std::unordered_map<Var, const LetNode*, ObjectPtrHash, ObjectPtrEqual> let_binding_;
+  // debug info for function being compiled
+  llvm::DISubprogram* di_subprogram_;
   // Cache potential common path ops to slightly improve lookup time.
   // global symbol table.
   OpAttrMap<TGlobalSymbol> op_attr_global_symbol_ = Op::GetAttrMap<TGlobalSymbol>("TGlobalSymbol");
@@ -532,6 +534,10 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   const Op& builtin_call_llvm_pure_intrin_ = builtin::call_llvm_pure_intrin();
   const Op& builtin_lookup_param_ = builtin::lookup_param();
   const Op& builtin_tvm_call_cpacked_lowered_ = builtin::tvm_call_cpacked_lowered();
+
+  void EmitDebugLocation();
+  void EmitDebugLocation(const Span& span);
+  void EmitDebugLocation(const StmtNode* op);
 
   /*! \brief Helper struct for debug infos. */
   struct DebugInfo {
