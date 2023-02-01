@@ -289,6 +289,7 @@ tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
     src/driver/*.cc
     src/support/*.cc
     src/script/*.cc
+    src/relax/backend/vm/*.cc
     )
 
 tvm_file_glob(GLOB CODEGEN_SRCS
@@ -335,6 +336,7 @@ tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/*.cc
   src/runtime/vm/*.cc
   src/runtime/minrpc/*.cc
+  src/runtime/relax_vm/*.cc
 )
 
 if(BUILD_FOR_HEXAGON)
