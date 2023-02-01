@@ -1,8 +1,5 @@
 include $(abs_top_srcdir)/Makefrag
 
-tests = \
-	dense \
-
 tests_baremetal = $(tests:=-baremetal)
 
 ifeq ($(findstring spike,$(RUNNER)),spike)
@@ -53,11 +50,6 @@ vpath %.c $(src_dir)
 %-baremetal: %.c $(GEMMINI_HEADERS)
 	$(CC_BAREMETAL) $(CFLAGS_BAREMETAL) $< $(LFLAGS) -o $@ \
 		$(wildcard $(BENCH_COMMON)/*.c) $(wildcard $(abs_top_srcdir)/model/*.c) $(wildcard $(BENCH_COMMON)/*.S) $(LIBS)
-#		$(wildcard $(abs_top_srcdir)/standalone_crt/src/runtime/crt/aot_executor/*.c) \
-		$(wildcard $(abs_top_srcdir)/standalone_crt/src/runtime/crt/aot_executor_module/*.c) \
-		$(wildcard $(abs_top_srcdir)/standalone_crt/src/runtime/crt/common/*.c) \
-		$(wildcard $(abs_top_srcdir)/standalone_crt/src/runtime/crt/memory/*.c) \
-		$(LIBS)
 
 run-baremetal: $(runs_baremetal)
 

@@ -285,6 +285,9 @@ set(USE_ANTLR OFF)
 # Whether use Relay debug mode
 set(USE_RELAY_DEBUG OFF)
 
+# Wheter to build the microTVM Gemmini integration
+set(USE_GEMMINI OFF)
+
 # Whether to build fast VTA simulator driver
 set(USE_VTA_FSIM OFF)
 
