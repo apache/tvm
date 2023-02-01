@@ -44,7 +44,7 @@ import serial
 import serial.tools.list_ports
 import yaml
 
-from tvm.micro.project_api import server
+import server
 
 
 _LOG = logging.getLogger(__name__)
@@ -68,7 +68,7 @@ CMAKELIST_FILENAME = "CMakeLists.txt"
 
 # Used to check Zephyr version installed on the host.
 # We only check two levels of the version.
-ZEPHYR_VERSION = 2.7
+ZEPHYR_VERSION = 3.2
 
 WEST_CMD = default = sys.executable + " -m west" if sys.executable else None
 
@@ -317,7 +317,10 @@ PROJECT_OPTIONS = server.default_project_options(
     ),
     server.ProjectOption(
         "west_cmd",
-        optional=["generate_project"],
+        required=(
+            ["generate_project", "build", "flash", "open_transport"] if not WEST_CMD else None
+        ),
+        optional=(["generate_project", "build", "flash", "open_transport"] if WEST_CMD else None),
         type="str",
         default=WEST_CMD,
         help=(
@@ -551,9 +554,18 @@ class Handler(server.ProjectAPIHandler):
         # Make project directory.
         project_dir.mkdir()
 
-        # Copy ourselves to the generated project. TVM may perform further build steps on the generated project
+        # Copy ourselves and other python scripts to the generated project. TVM may perform further build steps on the generated project
         # by launching the copy.
-        shutil.copy2(__file__, project_dir / os.path.basename(__file__))
+        current_dir = pathlib.Path(__file__).parent.absolute()
+        for file in os.listdir(current_dir):
+            if file.endswith(".py"):
+                shutil.copy2(current_dir / file, project_dir / file)
+
+        # Copy launch script
+        shutil.copy2(
+            current_dir / "launch_microtvm_api_server.sh",
+            project_dir / "launch_microtvm_api_server.sh",
+        )
 
         # Copy boards.json file to generated project.
         shutil.copy2(BOARDS, project_dir / BOARDS.name)
@@ -660,8 +672,6 @@ class Handler(server.ProjectAPIHandler):
                 tf.extractall(project_dir)
 
     def build(self, options):
-        verbose = options.get("verbose")
-
         if BUILD_DIR.exists():
             shutil.rmtree(BUILD_DIR)
         BUILD_DIR.mkdir()
@@ -680,12 +690,7 @@ class Handler(server.ProjectAPIHandler):
                 st.st_mode | stat.S_IEXEC,
             )
 
-        check_call(["cmake", "-GNinja", ".."], cwd=BUILD_DIR, env=env)
-
-        args = ["ninja"]
-        if verbose:
-            args.append("-v")
-        check_call(args, cwd=BUILD_DIR, env=env)
+        check_call(options["west_cmd"].split(" ") + ["build"], cwd=API_SERVER_DIR, env=env)
 
     # A list of all zephyr_board values which are known to launch using QEMU. Many platforms which
     # launch through QEMU by default include "qemu" in their name. However, not all do. This list
@@ -748,15 +753,16 @@ class Handler(server.ProjectAPIHandler):
         )
 
     def open_transport(self, options):
+        west_cmd = options["west_cmd"]
         zephyr_board = _find_board_from_cmake_file(API_SERVER_DIR / CMAKELIST_FILENAME)
         emu_platform = _find_platform_from_cmake_file(API_SERVER_DIR / CMAKELIST_FILENAME)
         if self._is_fvp(zephyr_board, emu_platform == "armfvp"):
             arm_fvp_path = options["arm_fvp_path"]
             verbose = options.get("verbose")
-            transport = ZephyrFvpTransport(arm_fvp_path, verbose)
+            transport = ZephyrFvpTransport(west_cmd, arm_fvp_path, verbose)
         elif self._is_qemu(zephyr_board):
             gdbserver_port = options.get("gdbserver_port")
-            transport = ZephyrQemuTransport(gdbserver_port)
+            transport = ZephyrQemuTransport(west_cmd, gdbserver_port)
         else:
             zephyr_base = options["zephyr_base"]
             serial_number = options.get("serial_number")
@@ -921,13 +927,14 @@ class ZephyrQemuMakeResult(enum.Enum):
 class ZephyrQemuTransport:
     """The user-facing Zephyr QEMU transport class."""
 
-    def __init__(self, gdbserver_port: int = None):
+    def __init__(self, west_cmd: str, gdbserver_port: int = None):
         self._gdbserver_port = gdbserver_port
         self.proc = None
         self.pipe_dir = None
         self.read_fd = None
         self.write_fd = None
         self._queue = queue.Queue()
+        self._west_cmd = west_cmd
 
     def open(self):
         with open(BUILD_DIR / "CMakeCache.txt", "r") as cmake_cache_f:
@@ -947,7 +954,7 @@ class ZephyrQemuTransport:
             env["TVM_QEMU_GDBSERVER_PORT"] = self._gdbserver_port
 
         self.proc = subprocess.Popen(
-            ["ninja", "run"],
+            self._west_cmd.split(" ") + ["build", "-t", "run"],
             cwd=BUILD_DIR,
             env=env,
             stdout=subprocess.PIPE,

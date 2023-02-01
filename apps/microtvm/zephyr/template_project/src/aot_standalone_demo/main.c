@@ -19,15 +19,14 @@
 
 #include <assert.h>
 #include <float.h>
-#include <kernel.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/reboot.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/stack_allocator.h>
 #include <unistd.h>
-#include <zephyr.h>
+#include <zephyr/kernel.h>
+#include <zephyr/sys/reboot.h>
 
 #include "input_data.h"
 #include "output_data.h"

@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,24 +16,28 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -euxo pipefail
+function show_usage() {
+    cat <<EOF
+This script is for running microtvm_api_server with Arduino.
+Usage: launch_microtvm_api_server.sh <microtvm_api_server.py> --read-fd <READ_FD_PATH> --write-fd <WRITE_FD_PATH>
+EOF
+}
 
-source tests/scripts/setup-pytest-env.sh
+if [ "$#" -lt 5 -o "$1" == "--help" ]; then
+    show_usage
+    exit -1
+fi
 
-pushd apps/microtvm/cmsisnn
- timeout 5m ./run_demo.sh
-popd
+ARDUINO_VENV_PATH=${HOME}/.tvm/micro_arduino
 
-# TODO(mehrdadh): disabled due to https://github.com/apache/tvm/issues/13856
-# pushd apps/microtvm/zephyr_cmsisnn
-#  timeout 5m ./run_demo.sh
-# popd
+# Create virtual env
+mkdir -p ${HOME}/.tvm
+PYTHON_CMD=$(which python3)
+$PYTHON_CMD -m venv ${ARDUINO_VENV_PATH}
+ARDUINO_PYTHON_CMD="${ARDUINO_VENV_PATH}/bin/python3"
 
-pushd apps/microtvm/ethosu
-FVP_PATH="/opt/arm/FVP_Corstone_SSE-300_Ethos-U55"
-CMAKE_PATH="/opt/arm/cmake/bin/cmake"
-FREERTOS_PATH="/opt/freertos/FreeRTOSv202112.00"
+# Install dependencies
+$ARDUINO_PYTHON_CMD -m pip install pyusb packaging
 
- timeout 5m ./run_demo.sh --fvp_path $FVP_PATH --cmake_path $CMAKE_PATH
- timeout 5m ./run_demo.sh --fvp_path $FVP_PATH --cmake_path $CMAKE_PATH --freertos_path $FREERTOS_PATH
-popd
+# Run server
+$ARDUINO_PYTHON_CMD $1 $2 $3 $4 $5

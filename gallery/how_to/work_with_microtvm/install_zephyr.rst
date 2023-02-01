@@ -34,19 +34,19 @@ Install Zephyr
         export ZEPHYR_BASE=${ZEPHYR_PROJECT_PATH}/zephyr
         west init ${ZEPHYR_PROJECT_PATH}
         cd ${ZEPHYR_BASE}
-        git checkout v2.7-branch
+        git checkout v3.2-branch
         cd ..
         west update
         west zephyr-export
         chmod -R o+w ${ZEPHYR_PROJECT_PATH}
 
         # Install Zephyr SDK
-        ZEPHYR_SDK_VERSION=0.13.2
-        ZEPHYR_SDK_FILE="/content/zephyr-sdk-linux-setup.run"
-        wget --no-verbose -O $ZEPHYR_SDK_FILE \
-            https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}/zephyr-sdk-${ZEPHYR_SDK_VERSION}-linux-x86_64-setup.run
-        chmod +x $ZEPHYR_SDK_FILE
-        "$ZEPHYR_SDK_FILE" -- -d /content/zephyr-sdk --quiet
+        cd /content
+        ZEPHYR_SDK_VERSION="0.15.2"
+        wget "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}/zephyr-sdk-${ZEPHYR_SDK_VERSION}_linux-x86_64.tar.gz"
+        tar xvf "zephyr-sdk-${ZEPHYR_SDK_VERSION}_linux-x86_64.tar.gz"
+        mv "zephyr-sdk-${ZEPHYR_SDK_VERSION}" zephyr-sdk
+        rm "zephyr-sdk-${ZEPHYR_SDK_VERSION}_linux-x86_64.tar.gz"
 
         # Install python dependencies
         python3 -m pip install -r "${ZEPHYR_BASE}/scripts/requirements.txt"

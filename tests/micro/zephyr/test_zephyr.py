@@ -547,6 +547,7 @@ def test_autotune_conv2d(workspace_dir, board, microtvm_debug, use_fvp, serial_n
 
 
 @tvm.testing.requires_micro
+@pytest.mark.skip(reason="due to https://github.com/apache/tvm/issues/13856")
 def test_schedule_build_with_cmsis_dependency(workspace_dir, board, microtvm_debug, use_fvp):
     """Test Relay schedule with CMSIS dependency. This test shows if microTVM Auto tuning
     with Zephyr breaks if CMSIS dependency was required for a schedule.
