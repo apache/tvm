@@ -109,6 +109,14 @@ class Handler(server.ProjectAPIHandler):
                 shutil.copytree(item, dest)
             else:
                 shutil.copy2(item, dest)
+        
+        shutil.copy2(project_dir / "src" / "Makefile.template", project_dir / "src" / "Makefile")
+
+        test_name = project_type.replace("_example","")
+        new_line = f"tests = {test_name}\n"
+        with open(project_dir / "src" / "Makefile", 'r') as original: data = original.read()
+        with open(project_dir / "src" / "Makefile", 'w') as modified: modified.write(new_line + data)
+
 
     CRT_COPY_ITEMS = ("include", "src")
 
@@ -121,18 +129,6 @@ class Handler(server.ProjectAPIHandler):
                 shutil.copytree(src_path, dst_path)
             else:
                 shutil.copy2(src_path, dst_path)
-
-    # Example project is the "minimum viable project",
-    # and doesn't need a fancy RPC server
-    EXAMPLE_PROJECT_UNUSED_COMPONENTS = []
-
-    def _remove_unused_components(self, source_dir, project_type):
-        unused_components = []
-        if project_type == "example_project":
-            unused_components = self.EXAMPLE_PROJECT_UNUSED_COMPONENTS
-
-        for component in unused_components:
-            shutil.rmtree(source_dir / "standalone_crt" / component)
 
     def _disassemble_mlf(self, mlf_tar_path, source_dir):
         with tempfile.TemporaryDirectory() as mlf_unpacking_dir_str:
@@ -158,47 +154,11 @@ class Handler(server.ProjectAPIHandler):
                 metadata = json.load(f)
         return metadata
 
-    def _template_model_header(self, source_dir, metadata):
-        with open(source_dir / "model.h", "r") as f:
-            model_h_template = Template(f.read())
-
-        assert (
-            metadata["style"] == "full-model"
-        ), "when generating AOT, expect only full-model Model Library Format"
-
-        template_values = {
-            "workspace_size_bytes": metadata["memory"]["functions"]["main"][0][
-                "workspace_size_bytes"
-            ],
-        }
-
-        with open(source_dir / "model.h", "w") as f:
-            f.write(model_h_template.substitute(template_values))
-
-    # Arduino ONLY recognizes .ino, .ccp, .c, .h
-
     CPP_FILE_EXTENSION_SYNONYMS = ("cc", "cxx")
-
-    def _change_cpp_file_extensions(self, source_dir):
-        for ext in self.CPP_FILE_EXTENSION_SYNONYMS:
-            for filename in source_dir.rglob(f"*.{ext}"):
-                filename.rename(filename.with_suffix(".cpp"))
-
-        for filename in source_dir.rglob(f"*.inc"):
-            filename.rename(filename.with_suffix(".h"))
 
     def _convert_includes(self, project_dir, source_dir):
         """Changes all #include statements in project_dir to be relevant to their
         containing file's location.
-
-        Arduino only supports includes relative to a file's location, so this
-        function finds each time we #include a file and changes the path to
-        be relative to the file location. Does not do this for standard C
-        libraries. Also changes angle brackets syntax to double quotes syntax.
-
-        See Also
-        -----
-        https://www.arduino.cc/reference/en/language/structure/further-syntax/include/
 
         """
         for ext in ("c", "h", "cpp"):
@@ -260,45 +220,6 @@ class Handler(server.ProjectAPIHandler):
         # It's probably a standard C/C++ header
         return include_path
 
-    def _copy_standalone_crt_makefiles(self, api_server_dir, source_dir):
-        print(source_dir)
-        shutil.copy2(
-            api_server_dir / "src/example_project/Makefile",
-            source_dir,
-        )
-        shutil.copy2(
-            api_server_dir / "src/example_project/Makefile.in",
-            source_dir,
-        )
-        shutil.copy2(
-            api_server_dir / "src/example_project/Makefrag",
-            source_dir,
-        )
-        shutil.copy2(
-            api_server_dir / "src/example_project/build.sh",
-            source_dir,
-        )
-        shutil.copy2(
-            api_server_dir / "src/example_project/configure.ac",
-            source_dir,
-        )
-        shutil.copy2(
-            api_server_dir / "src/example_project/include/gemmini_nn.h",
-            source_dir / "include/gemmini_nn.h",
-        )
-        shutil.copy2(
-            api_server_dir / "src/example_project/include/gemmini_testutils.h",
-            source_dir / "include/gemmini_testutils.h",
-        )
-        shutil.copy2(
-            api_server_dir / "src/example_project/include/gemmini.h",
-            source_dir / "include/gemmini.h",
-        )
-        shutil.copy2(
-            api_server_dir / "src/example_project/rocc-software/src/xcustom.h",
-            source_dir / "rocc-software/src/xcustom.h",
-        )
-
     def _copy_debug_data_files(self, project_dir):
         if os.path.isdir(str(project_dir / ".." / "include")):
             copy_tree(str(project_dir / ".." / "include"), str(project_dir / "src" / "model"))
@@ -317,7 +238,6 @@ class Handler(server.ProjectAPIHandler):
 
         # Copy standalone_crt into src folder
         self._copy_standalone_crt(source_dir, standalone_crt_dir)
-        self._remove_unused_components(source_dir, options["project_type"])
 
         # Populate crt-config.h
         crt_config_dir = project_dir / "src" / "standalone_crt" / "crt_config"
@@ -327,47 +247,27 @@ class Handler(server.ProjectAPIHandler):
         )
 
         # Unpack the MLF and copy the relevant files
-        # extract_path = os.path.splitext(model_library_format_path)[0]
-        # with tarfile.TarFile(model_library_format_path) as tf:
-        #    os.makedirs(project_dir / MODEL_LIBRARY_FORMAT_RELPATH)
-        #    tf.extractall(path=project_dir / MODEL_LIBRARY_FORMAT_RELPATH)
         metadata = self._disassemble_mlf(model_library_format_path, source_dir)
         shutil.copy2(model_library_format_path, project_dir / MODEL_LIBRARY_FORMAT_RELPATH)
 
         self._copy_debug_data_files(project_dir)
-        # For AOT, template model.h with metadata to minimize space usage
-        # if options["project_type"] == "example_project":
-        #    self._template_model_header(source_dir, metadata)
-
-        # Copy makefiles to treat standalone crt code as RIOT modules
-        # self._copy_standalone_crt_makefiles(API_SERVER_DIR, source_dir)
-
-        self._change_cpp_file_extensions(source_dir)
 
         # Recursively change includes
         self._convert_includes(project_dir, source_dir)
 
     def build(self, options):
         subprocess.call(
-            "source %s && cd src && ./build.sh" % (os.environ["CHIPYARD_HOME"] + "/env.sh",),
+            "cd src && ./build.sh",
             shell=True,
-            executable="/bin/bash",
         )
-        # os.system("source %s && cd src && ./build.sh" % (os.environ["CHIPYARD_HOME"] + "/env.sh",))
 
     def flash(self, options):
         test_name = options["project_type"].split("_")[0]
         subprocess.call(
-            "source %s && cd src/build && spike --extension=gemmini %s"
-            % (os.environ["CHIPYARD_HOME"] + "/env.sh", test_name + "-baremetal"),
+            "cd src/build && spike --extension=gemmini %s"
+            % (test_name + "-baremetal",),
             shell=True,
-            executable="/bin/bash",
         )
-        # os.system("source %s && cd src/build && spike --extension=gemmini %s" % (os.environ["CHIPYARD_HOME"] + "/env.sh",test_name + "-baremetal",))
-        # if logging.root.level == logging.DEBUG:
-        #    os.system("cd src/build && spike --extension=gemmini ")
-        # else:
-        #    os.system("cd src && make flash -s > /dev/null")
 
     def open_transport(self, options):
         pass

@@ -1,4 +1,4 @@
-if(USE_MICRO)
+if(USE_GEMMINI)
   message(STATUS "Add Gemmini for microTVM")
 
   function(microtvm_add_gemmini)
@@ -10,7 +10,7 @@ if(USE_MICRO)
 
       # Dense example project generation
       "apps/microtvm/gemmini/template_project/src dense.c -> gemmini/src/dense_example"
-      "apps/microtvm/gemmini/template_project/src/makefiles/dense Makefile -> gemmini/src/dense_example"
+      "apps/microtvm/gemmini/template_project/src Makefile.template -> gemmini/src/dense_example"
       "apps/microtvm/gemmini/template_project/src Makefile.in -> gemmini/src/dense_example"
       "apps/microtvm/gemmini/template_project/src Makefrag -> gemmini/src/dense_example"
       "3rdparty/gemmini/software/gemmini-rocc-tests build.sh -> gemmini/src/dense_example"
@@ -20,7 +20,7 @@ if(USE_MICRO)
 
       # CONV2D example project generation
       "apps/microtvm/gemmini/template_project/src conv2d.c -> gemmini/src/conv2d_example"
-      "apps/microtvm/gemmini/template_project/src/makefiles/conv2d Makefile -> gemmini/src/conv2d_example"
+      "apps/microtvm/gemmini/template_project/src Makefile.template -> gemmini/src/conv2d_example"
       "apps/microtvm/gemmini/template_project/src Makefile.in -> gemmini/src/conv2d_example"
       "apps/microtvm/gemmini/template_project/src Makefrag -> gemmini/src/conv2d_example"
       "3rdparty/gemmini/software/gemmini-rocc-tests build.sh -> gemmini/src/conv2d_example"
@@ -30,7 +30,7 @@ if(USE_MICRO)
 
       # DW CONV2D example project generation
       "apps/microtvm/gemmini/template_project/src dwconv2d.c -> gemmini/src/dwconv2d_example"
-      "apps/microtvm/gemmini/template_project/src/makefiles/dwconv2d Makefile -> gemmini/src/dwconv2d_example"
+      "apps/microtvm/gemmini/template_project/src Makefile.template -> gemmini/src/dwconv2d_example"
       "apps/microtvm/gemmini/template_project/src Makefile.in -> gemmini/src/dwconv2d_example"
       "apps/microtvm/gemmini/template_project/src Makefrag -> gemmini/src/dwconv2d_example"
       "3rdparty/gemmini/software/gemmini-rocc-tests build.sh -> gemmini/src/dwconv2d_example"
@@ -40,7 +40,7 @@ if(USE_MICRO)
 
       # ADD example project generation
       "apps/microtvm/gemmini/template_project/src add.c -> gemmini/src/add_example"
-      "apps/microtvm/gemmini/template_project/src/makefiles/add Makefile -> gemmini/src/add_example"
+      "apps/microtvm/gemmini/template_project/src Makefile.template -> gemmini/src/add_example"
       "apps/microtvm/gemmini/template_project/src Makefile.in -> gemmini/src/add_example"
       "apps/microtvm/gemmini/template_project/src Makefrag -> gemmini/src/add_example"
       "3rdparty/gemmini/software/gemmini-rocc-tests build.sh -> gemmini/src/add_example"
@@ -50,7 +50,7 @@ if(USE_MICRO)
 
       # Max pooling 2d example project generation
       "apps/microtvm/gemmini/template_project/src maxpool2d.c -> gemmini/src/maxpool2d_example"
-      "apps/microtvm/gemmini/template_project/src/makefiles/maxpool2d Makefile -> gemmini/src/maxpool2d_example"
+      "apps/microtvm/gemmini/template_project/src Makefile.template -> gemmini/src/maxpool2d_example"
       "apps/microtvm/gemmini/template_project/src Makefile.in -> gemmini/src/maxpool2d_example"
       "apps/microtvm/gemmini/template_project/src Makefrag -> gemmini/src/maxpool2d_example"
       "3rdparty/gemmini/software/gemmini-rocc-tests build.sh -> gemmini/src/maxpool2d_example"
@@ -60,7 +60,7 @@ if(USE_MICRO)
 
       # Mobilenet example project generation
       "apps/microtvm/gemmini/template_project/src mobilenet.c -> gemmini/src/mobilenet_example"
-      "apps/microtvm/gemmini/template_project/src/makefiles/mobilenet Makefile -> gemmini/src/mobilenet_example"
+      "apps/microtvm/gemmini/template_project/src Makefile.template -> gemmini/src/mobilenet_example"
       "apps/microtvm/gemmini/template_project/src Makefile.in -> gemmini/src/mobilenet_example"
       "apps/microtvm/gemmini/template_project/src Makefrag -> gemmini/src/mobilenet_example"
       "3rdparty/gemmini/software/gemmini-rocc-tests build.sh -> gemmini/src/mobilenet_example"
