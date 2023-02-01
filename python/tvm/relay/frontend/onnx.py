@@ -5587,9 +5587,9 @@ class BitwiseBase(OnnxOpConverter):
     def check_inputs(cls, inputs, num=2, use_int=True):
         assert len(inputs) == num, "{} takes {} inputs, {} given".format(cls.name, num, len(inputs))
 
-        valid_types = ["uint8", "uint16","uint32", "uint64"]
+        valid_types = ["uint8", "uint16", "uint32", "uint64"]
         if use_int:
-            valid_types += ["int8", "int16","int32", "int64"]
+            valid_types += ["int8", "int16", "int32", "int64"]
         for i in range(num):
             in_dtype = infer_type(inputs[i]).checked_type.dtype
             assert in_dtype in valid_types, "Wrong dtype of the {}-th input: {}".format(i, in_dtype)
