@@ -193,6 +193,7 @@ class BoundDeducer : public ExprFunctor<void(const PrimExpr&)> {
     } else if (comp_op == kEqual) {
       // The bound is not single directional
       // (x // 6 == 4 --> 30 > x >= 24)
+      // TODO(@wrongtest): support bidirectional bound
       success_ = false;
       return;
     } else {
