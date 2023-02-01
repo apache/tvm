@@ -51,10 +51,11 @@ PrimExpr ::=
          | Select(condition: PrimExpr, true_value: PrimExpr, false_value: PrimExpr)
          # (others may be added later, as deemed necessary)
 
-DataType ::= Int(bitwidth: int)
-           | Float(bitwidth: int)
-           | Bool()
-           | Void()
+# Also from TIR
+DataType ::= Int(bits: int, lanes: int)
+           | UInt(bits: int, lanes: int)
+           | Float(bits: int, lanes: int)
+           | Handle(bits: int, lanes: int)
 
 StructInfo ::= TensorStructInfo(shape: Expr?, dtype: DataType, ndim: int)
              | ShapeStructInfo(values: [PrimExpr]?, ndim: int)
@@ -99,7 +100,19 @@ Binding ::=
 Program ::= IRModule(funcs: {GlobalVar: Function|PrimFunc})
 ```
 
-*The `derive_func` field of `FuncStructInfo` is a macro in the meta-language: Given a function call and the variable mapping context, return the `StructInfo` of the result. This field is used only at compile time for reasoning about the `StructInfo` of calls to `ExternFunc`s.
+### Notes on `derive_func`
+
+The `derive_func` field of `FuncStructInfo` is a macro in the meta-language: Given a function call and the variable mapping context, return the `StructInfo` of the result. This field is used only at compile time for reasoning about the `StructInfo` of calls to `ExternFunc`s.
+
+### Notes on `DataType` and Related Terminology
+
+The representation of datatypes, `DataType`, in the above AST is taken directly from TIR. However, the usage of datatypes in Relax is more restricted than in TIR.
+1. The `lanes` field for the `Int`, `UInt`, and `Float` datatypes must always be 1; we do not directly consider vectorized values in Relax.
+2. The `lanes` field for the `Handle` datatype must always be 0, indicating that it is `Void` (see below). The `bits` field for `Handle` should always be set to 64 (it will not be used by Relax).
+
+We also define the following special notation for datatypes, to be used in the rest of the specification:
+1. `Bool()`: This is shorthand for `UInt(bits=1, lanes=1)`, since TIR does not have a separate Boolean type. "True" refers to a value of 1 in this datatype and "false" refers to a value of 0. For convenience, we will refer to Boolean values as a separate datatype in the specification, due to their significance in `If` nodes.
+2. `Void()`: This is shorthand for `Handle(bits=64, lanes=0)`. TIR uses this datatype to refer to opaque objects; in Relax, it is used to denote an unknown datatype.
 
 ## Expression Survey
 
@@ -183,7 +196,7 @@ Oftentimes, compiler passes operate only on particular functions or add new func
 
 Here are the classes of values that Relax operates over, meaning that they can be assigned to variables or be the result of evaluating expressions.
 
-- *Tensors* are n-dimensional arrays of scalar values (which can be integers of fixed bitwidths, floats of fixed bitwidths, or bools). A tensor's *shape* is a tuple of the size of each dimension; the number of dimensions is a tensor's *rank*. For example, a vector (1, 2, 3) is a rank-1 tensor of shape `(3,)`. Note that scalars are tensor values with a rank of 0, meaning that their shape is `()`.
+- *Tensors* are n-dimensional arrays of scalar values (which can be signed or unsigned integers of fixed bitwidths, floats of fixed bitwidths, or Boolean values). A tensor's *shape* is a tuple of the size of each dimension; the number of dimensions is a tensor's *rank*. For example, a vector (1, 2, 3) is a rank-1 tensor of shape `(3,)`. Note that scalars are tensor values with a rank of 0, meaning that their shape is `()`.
 - *Tuples* represent a fixed-size grouping of other Relax values (tensors, closures, shapes, objects, or other tuples, to an arbitrary degree of nesting). Note that an empty tuple, i.e., `()`, also called "unit" in functional programming, is commonly used as the return value for operations not intended to return a value (as may be the case in some `PackedFunc` or operator calls that have side effects).
 - *Closures* are the values resulting from evaluating Relax function expressions; closures can be passed around like other values, ensuring that functions are first-class in Relax. Functions defined in Relax can capture variables from outer scopes. A [closure](https://en.wikipedia.org/wiki/Closure_(computer_programming)) consists of a function and a mapping of any variables "captured" (those are *free variables* in the function body, variables from an outer scope that are neither arguments nor defined within the function but are used in the function) to their values. Closures capture both Relax-level local variables and shape variables from outer scopes. A closure also stores a name for itself when the body contains recursive calls. «Closures additionally carry some *run-time structural information* (RTSI) indicating their argument and result structures, in order to facilitate dynamic structural checks (since it is not otherwise possible to introspect the function contained within a closure); the precise form of the RTSI is left up to the compiler implementation to determine so long as `MatchCast` can verify the structure of a closure. Closures can be evaluated in a call node, which results in calling the function with the call's arguments and the captured values.»
 - *Tensor shapes* (shape values) are tuples of integers describing a tensor shape, obtained by evaluating `ShapeExpr`s.
@@ -280,10 +293,11 @@ The following criteria apply to all programs (including before normalization):
 13. If the `shape` field of a `TensorStructInfo` in any structural annotation is given, the only permissible expressions are `Var` (the variable must be in scope at the location of the annotation) or `ShapeExpr` (in which any shape variables used must already be in scope, unless the `TensorStructInfo` is the `struct_info` field of a `MatchCast`, in which case a new shape variable is allowed to appear in a dimension by itself). Additionally, if the `shape` field is a `ShapeExpr`, the number of dimensions must match the `ndim` field.
 14. If the `values` field of a `ShapeStructInfo` in any structural annotation is given, any shape variables used in it must already be in scope, unless the `ShapeStructInfo` is the `struct_info` field of a `MatchCast`, in which case a new shape variable is allowed to appear by itself as a member of `values`. Additionally, the `ndim` field must match the length of `values`.
 15. The `params` and `derive_func` field may not be simultaneously defined in a `FuncStructInfo` annotation; that is, if one is defined, the other must not be defined. Additionally, at least one of `params` and `derive_func` _must_ be defined for each `FuncStructInfo` in an annotation.
-16. `PrimValue` nodes are intended only to be used with `value`s consisting of TIR `IntImm`s and `FloatImm`s.
-17. `PrimStructInfo` annotations should use only the `Int` and `Float` datatypes for their `dtype` fields.
+16. `PrimValue` nodes are intended only to be used with `value`s consisting of TIR `IntImm`s and `FloatImm`s (with `lanes` set to 1).
+17. `PrimStructInfo` annotations should use only the `Int`, `UInt`, or `Float` datatypes for their `dtype` fields.
+18. Per [the notes on `DataType`](#notes-on-datatype-and-related-terminology), any `DataType` annotation must have a `lanes` value of 1 for the `Int`, `UInt`, or `Float` datatypes and a `lanes` value of 0 for the `Handle` (`Void`) datatype. Additionally, `bits` must be 64 for `Void`. The supported bitwidths for `Int` and `UInt` are 1, 8, 16, 32, and 64; the supported bitwidths for `Float` are 16, 32, and 64.
 
-Additionally, the criteria for normal form listed in the previous section must apply to any program that has been normalized.
+Additionally, the criteria for normal form listed in [the previous section](#normal-form) must apply to any program that has been normalized.
 
 # Structural Information (`StructInfo`) in Relax
 
@@ -374,7 +388,7 @@ Note that judging subtyping requires potentially reasoning about arbitrary `Shap
 3. For all `S1`, `S1 <: ObjectStructInfo()`.
 4. For `TensorStructInfo`:
     1. Given any datatype `d`, an arbitrary `ndim` `n`, and an arbitrary expression `s` (possibly undefined), `TensorStructInfo(ndim=n, dtype=d, shape=s) <: TensorStructInfo(ndim=-1, dtype=d)`.
-    2. Given any datatype `d`, an arbitrary `ndim` `n`, and an arbitrary expression `s` (possibly undefined), `TensorStructInfo(ndim=n, dtype=d, shape=s) <: TensorStructInfo(ndim=n, dtype=Void, shape=s)`.
+    2. Given any datatype `d`, an arbitrary `ndim` `n`, and an arbitrary expression `s` (possibly undefined), `TensorStructInfo(ndim=n, dtype=d, shape=s) <: TensorStructInfo(ndim=n, dtype=Void(), shape=s)`.
     3. Given any datatype `d`, an arbitrary `ndim` `n`, and an arbitrary expression `s`, `TensorStructInfo(ndim=n, dtype=d, shape=s) <: TensorStructInfo(ndim=n, dtype=d, shape=undefined)`.
     4. Given any datatype `d`, an arbitrary `ndim` `n`, and arbitrary expressions `s1` and `s2` (both defined), then `TensorStructInfo(ndim=n, dtype=d, shape=s1) <: TensorStructInfo(ndim=n, dtype=d, shape=s2)` if `s1` and `s2` are _definitely_ statically equal. We say that `TensorStructInfo(ndim=n, dtype=d, shape=s1) <: TensorStructInfo(ndim=n, dtype=d, shape=s2)` _possibly_ holds if `s1` and `s2` are _possibly_ statically equal.
 5. For `ShapeStructInfo`:
@@ -725,7 +739,7 @@ For each expression, we define how it affects the program's visible state and th
 8. The node `ShapeExpr([p1, p2, ..., pn])` evaluates the `PrimExpr`s `p1` (yielding dimension value `v1`), `p2` (yielding dimension value `v2`), …, and finally `pn` (yielding dimension value `vn`) in that order, using the current shape context, and creates a new shape value whose dimensions are `v1`, `v2`, …, `vn`, in that order.
 9. The node `Function([v1, v2, ..., vn], body)` returns a new closure containing the function definition itself and a mapping of any free Relax variables or shape variables in `body` to the values they hold in the current scope when the `Function` node is encountered. If the function is the RHS of a local binding, the bound variable should also be included in the closure's binding map and should be mapped to the closure itself (to allow for recursive calls). Closure capturing is done *by reference*; no values will be copied and references to captured values will alias their values in the outer scope. `DataflowVar`s are not captured by closures.
 10. The node `If(cond, true_branch, false_branch)` is evaluated as follows:
-    1. First `cond` is evaluated. Let the result be `r` (per `StructInfo` checking, it must be a bool scalar).
+    1. First `cond` is evaluated. Let the result be `r` (per `StructInfo` checking, it must be a `Bool` scalar).
     2. If `r` is true, evaluate the `true_branch` and return its result.
     3. If `r` is false, evaluate the `false_branch` and return its result.
 11. The node `ExternFunc(global_symbol)` is evaluated by looking up the global symbol name and returning the `PackedFunc` if it exists (it is an error if it does not.) Note that if a TIR `PrimFunc` in the `IRModule` has a global symbol attribute registered, it can be called as an `ExternFunc` using that global symbol as well.
