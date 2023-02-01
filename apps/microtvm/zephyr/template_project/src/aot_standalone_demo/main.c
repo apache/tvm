@@ -28,17 +28,16 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys/reboot.h>
 
-#include "input_data.h"
-#include "output_data.h"
+#include "tvm/input_data.h"
+#include "tvm/output_data.h"
+#include "tvm/platform.h"
 #include "tvmgen_default.h"
-#include "zephyr_uart.h"
 
 #ifdef CONFIG_ARCH_POSIX
 #include "posix_board_if.h"
 #endif
 
 // WORKSPACE_SIZE defined in Project API Makefile
-
 static uint8_t g_aot_memory[WORKSPACE_SIZE];
 tvm_workspace_t app_workspace;
 
@@ -53,35 +52,6 @@ const unsigned char CMD_INFER[] = "infer";
 #define CMD_SIZE 80u
 #define CMD_TERMINATOR '%'
 
-size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const char* fmt,
-                                va_list args) {
-  return vsnprintk(out_buf, out_buf_size_bytes, fmt, args);
-}
-
-void TVMLogf(const char* msg, ...) {
-  char buffer[256];
-  int size;
-  va_list args;
-  va_start(args, msg);
-  size = vsprintf(buffer, msg, args);
-  va_end(args);
-  TVMPlatformWriteSerial(buffer, (uint32_t)size);
-}
-
-void TVMPlatformAbort(tvm_crt_error_t error) {
-  TVMLogf("TVMPlatformAbort: %08x\n", error);
-  sys_reboot(SYS_REBOOT_COLD);
-  for (;;)
-    ;
-}
-
-tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
-  return StackMemoryManager_Allocate(&app_workspace, num_bytes, out_ptr);
-}
-
-tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
-  return StackMemoryManager_Free(&app_workspace, ptr);
-}
 
 void timer_expiry_function(struct k_timer* timer_id) { return; }
 
@@ -148,25 +118,6 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
   return kTvmErrorNoError;
 }
 
-void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t nbytes, int dtype_code_hint,
-                               int dtype_bits_hint) {
-  tvm_crt_error_t err = kTvmErrorNoError;
-  void* ptr = 0;
-  DLDevice dev = {device_type, device_id};
-  assert(nbytes > 0);
-  err = TVMPlatformMemoryAllocate(nbytes, dev, &ptr);
-  CHECK_EQ(err, kTvmErrorNoError,
-           "TVMBackendAllocWorkspace(%d, %d, %" PRIu64 ", %d, %d) -> %" PRId32, device_type,
-           device_id, nbytes, dtype_code_hint, dtype_bits_hint, err);
-  return ptr;
-}
-
-int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
-  tvm_crt_error_t err = kTvmErrorNoError;
-  DLDevice dev = {device_type, device_id};
-  err = TVMPlatformMemoryFree(ptr, dev);
-  return err;
-}
 
 static uint8_t main_rx_buf[128];
 static uint8_t g_cmd_buf[128];

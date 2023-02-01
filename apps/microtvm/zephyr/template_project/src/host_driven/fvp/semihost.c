@@ -22,7 +22,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "semihost.h"
+#include "tvm/semihost.h"
 
 int32_t stdout_fd;
 int32_t stdin_fd;

@@ -25,8 +25,7 @@
 #include <zephyr/kernel.h>
 
 #include "api/internally_implemented.h"
-#include "tvmruntime.h"
-#include "zephyr_uart.h"
+#include "tvm/platform.h"
 
 static void* g_input_data;
 #if TARGET_MODEL == 3  // AD

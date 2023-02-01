@@ -16,18 +16,63 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "zephyr_uart.h"
 
+#include "tvm/platform.h"
+
+#include <assert.h>
+#include <stdarg.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <zephyr/drivers/uart.h>
+#include <zephyr/sys/reboot.h>
 #include <zephyr/sys/ring_buffer.h>
 
 #include "crt_config.h"
+#include "dlpack/dlpack.h"
+#include "tvm/runtime/crt/error_codes.h"
+#include "tvmgen_default.h"
 
 static const struct device* g_microtvm_uart;
 #define RING_BUF_SIZE_BYTES (TVM_CRT_MAX_PACKET_SIZE_BYTES + 100)
 
 // Ring buffer used to store data read from the UART on rx interrupt.
 RING_BUF_DECLARE(uart_rx_rbuf, RING_BUF_SIZE_BYTES);
+
+void TVMLogf(const char* msg, ...) {
+  char buffer[256];
+  int size;
+  va_list args;
+  va_start(args, msg);
+  size = vsprintf(buffer, msg, args);
+  va_end(args);
+  TVMPlatformWriteSerial(buffer, (uint32_t)size);
+}
+
+// Called by TVM when a message needs to be formatted.
+__attribute__((weak)) size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes,
+                                                      const char* fmt, va_list args) {
+  return vsnprintk(out_buf, out_buf_size_bytes, fmt, args);
+}
+
+// Called by TVM when an internal invariant is violated, and execution cannot continue.
+__attribute__((weak)) void TVMPlatformAbort(tvm_crt_error_t error) {
+  TVMLogf("TVMPlatformAbort: %08x\n", error);
+  sys_reboot(SYS_REBOOT_COLD);
+  for (;;)
+    ;
+}
+
+// Called by TVM when memory allocation is required.
+__attribute__((weak)) tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev,
+                                                                void** out_ptr) {
+  return StackMemoryManager_Allocate(&app_workspace, num_bytes, out_ptr);
+}
+
+// Called by TVM to free an allocated memory.
+__attribute__((weak)) tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
+  return StackMemoryManager_Free(&app_workspace, ptr);
+}
 
 static uint8_t uart_data[8];
 // UART interrupt callback.

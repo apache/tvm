@@ -43,25 +43,18 @@
 #include <zephyr/sys/ring_buffer.h>
 #include <zephyr/timing/timing.h>
 
-#ifdef FVP
-#include "fvp/semihost.h"
-#endif
-
 #ifdef CONFIG_ARCH_POSIX
 #include "posix_board_if.h"
 #endif
 
 #include "crt_config.h"
+#include "tvm/platform.h"
+
+#ifdef FVP
+#include "tvm/semihost.h"
+#endif
 
 static const struct device* tvm_uart;
-
-#ifdef CONFIG_LED
-#define LED0_NODE DT_ALIAS(led0)
-#define LED0 DT_GPIO_LABEL(LED0_NODE, gpios)
-#define LED0_PIN DT_GPIO_PIN(LED0_NODE, gpios)
-#define LED0_FLAGS DT_GPIO_FLAGS(LED0_NODE, gpios)
-static const struct device* led0_pin;
-#endif  // CONFIG_LED
 
 static size_t g_num_bytes_requested = 0;
 static size_t g_num_bytes_written = 0;
@@ -110,16 +103,6 @@ size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const 
   return vsnprintk(out_buf, out_buf_size_bytes, fmt, args);
 }
 
-// Called by TVM when an internal invariant is violated, and execution cannot continue.
-void TVMPlatformAbort(tvm_crt_error_t error) {
-  TVMLogf("TVMError: 0x%x", error);
-  sys_reboot(SYS_REBOOT_COLD);
-#ifdef CONFIG_LED
-  gpio_pin_set(led0_pin, LED0_PIN, 1);
-#endif
-  for (;;)
-    ;
-}
 
 // Called by TVM to generate random data.
 tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
@@ -138,21 +121,6 @@ tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
     random = sys_rand32_get();
     memcpy(&buffer[num_bytes - num_tail_bytes], &random, num_tail_bytes);
   }
-  return kTvmErrorNoError;
-}
-
-// Heap for use by TVMPlatformMemoryAllocate.
-K_HEAP_DEFINE(tvm_heap, HEAP_SIZE_BYTES);
-
-// Called by TVM to allocate memory.
-tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
-  *out_ptr = k_heap_alloc(&tvm_heap, num_bytes, K_NO_WAIT);
-  return (*out_ptr == NULL) ? kTvmErrorPlatformNoMemory : kTvmErrorNoError;
-}
-
-// Called by TVM to deallocate memory.
-tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
-  k_heap_free(&tvm_heap, ptr);
   return kTvmErrorNoError;
 }
 

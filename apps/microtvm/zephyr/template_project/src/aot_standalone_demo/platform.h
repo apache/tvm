@@ -17,12 +17,13 @@
  * under the License.
  */
 
-#ifndef APPS_MICROTVM_ZEPHYR_TEMPLATE_PROJECT_SRC_MLPERFTINY_ZEPHYR_UART_H_
-#define APPS_MICROTVM_ZEPHYR_TEMPLATE_PROJECT_SRC_MLPERFTINY_ZEPHYR_UART_H_
+#ifndef TVM_APPS_MICROTVM_ZEPHYR_AOT_STANDALONE_DEMO_PLATFORM_H_
+#define TVM_APPS_MICROTVM_ZEPHYR_AOT_STANDALONE_DEMO_PLATFORM_H_
 
 #include <stdint.h>
+#include <tvm/runtime/crt/stack_allocator.h>
 
-#define TVM_UART_DEFAULT_BAUDRATE 115200
+extern tvm_workspace_t app_workspace;
 
 /*!
  * \brief Read Uart Rx buffer.
@@ -31,7 +32,7 @@
  *
  * \return Number of data read in bytes.
  */
-char TVMPlatformUartRxRead();
+uint32_t TVMPlatformUartRxRead(uint8_t* data, uint32_t data_size_bytes);
 
 /*!
  * \brief Write data in serial.
@@ -44,8 +45,7 @@ uint32_t TVMPlatformWriteSerial(const char* data, uint32_t size);
 
 /*!
  * \brief Initialize Uart.
- * \param baudrate Desired UART baudrate.
  */
-void TVMPlatformUARTInit(uint32_t baudrate = TVM_UART_DEFAULT_BAUDRATE);
+void TVMPlatformUARTInit();
 
-#endif /* APPS_MICROTVM_ZEPHYR_TEMPLATE_PROJECT_SRC_MLPERFTINY_ZEPHYR_UART_H_ */
+#endif /* TVM_APPS_MICROTVM_ZEPHYR_AOT_STANDALONE_DEMO_PLATFORM_H_ */

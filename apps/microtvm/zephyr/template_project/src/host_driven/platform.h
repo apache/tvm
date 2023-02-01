@@ -17,34 +17,17 @@
  * under the License.
  */
 
-#ifndef TVM_APPS_MICROTVM_ZEPHYR_AOT_STANDALONE_DEMO_ZEPHYR_UART_H_
-#define TVM_APPS_MICROTVM_ZEPHYR_AOT_STANDALONE_DEMO_ZEPHYR_UART_H_
+#ifndef TVM_APPS_MICROTVM_ZEPHYR_HOST_DRIVEN_PLATFORM_H_
+#define TVM_APPS_MICROTVM_ZEPHYR_HOST_DRIVEN_PLATFORM_H_
 
-#include <stdint.h>
+#include <zephyr.h>
 
-// Used to read data from the UART.
+#ifdef CONFIG_LED
+#define LED0_NODE DT_ALIAS(led0)
+#define LED0 DT_GPIO_LABEL(LED0_NODE, gpios)
+#define LED0_PIN DT_GPIO_PIN(LED0_NODE, gpios)
+#define LED0_FLAGS DT_GPIO_FLAGS(LED0_NODE, gpios)
+static const struct device* led0_pin;
+#endif  // CONFIG_LED
 
-/*!
- * \brief Read Uart Rx buffer.
- * \param data Pointer to read data.
- * \param data_size_bytes Read request size in bytes.
- *
- * \return Number of data read in bytes.
- */
-uint32_t TVMPlatformUartRxRead(uint8_t* data, uint32_t data_size_bytes);
-
-/*!
- * \brief Write data in serial.
- * \param data Pointer to data to write.
- * \param size Size of data in bytes.
- *
- * \return Number of write in bytes.
- */
-uint32_t TVMPlatformWriteSerial(const char* data, uint32_t size);
-
-/*!
- * \brief Initialize Uart.
- */
-void TVMPlatformUARTInit();
-
-#endif /* TVM_APPS_MICROTVM_ZEPHYR_AOT_STANDALONE_DEMO_ZEPHYR_UART_H_ */
+#endif /* TVM_APPS_MICROTVM_ZEPHYR_HOST_DRIVEN_PLATFORM_H_ */

@@ -658,13 +658,30 @@ class Handler(server.ProjectAPIHandler):
             API_SERVER_DIR / "crt_config" / "crt_config.h", crt_config_dir / "crt_config.h"
         )
 
-        # Populate src/
+        # Populate src and include
         src_dir = project_dir / "src"
-        if project_type != "host_driven" or self._is_fvp(zephyr_board, use_fvp):
-            shutil.copytree(API_SERVER_DIR / "src" / project_type, src_dir)
-        else:
-            src_dir.mkdir()
-            shutil.copy2(API_SERVER_DIR / "src" / project_type / "main.c", src_dir)
+        src_dir.mkdir()
+        include_dir = project_dir / "include" / "tvm"
+        include_dir.mkdir(parents=True)
+        for file in os.listdir(API_SERVER_DIR / "src" / project_type):
+            file = pathlib.Path(API_SERVER_DIR / "src" / project_type / file)
+            if file.is_file():
+                if file.suffix in [".cc", ".c"]:
+                    shutil.copy2(file, src_dir)
+                elif file.suffix in [".h"]:
+                    shutil.copy2(file, include_dir)
+
+        if self._is_fvp(zephyr_board, use_fvp):
+            for file in os.listdir(API_SERVER_DIR / "src" / project_type / "fvp"):
+                file = pathlib.Path(API_SERVER_DIR / "src" / project_type / "fvp" / file)
+                if file.is_file():
+                    if file.suffix in [".cc", ".c"]:
+                        shutil.copy2(file, src_dir)
+                    elif file.suffix in [".h"]:
+                        shutil.copy2(file, include_dir)
+
+        if project_type == "mlperftiny":
+            shutil.copytree(API_SERVER_DIR / "src" / project_type / "api", src_dir / "api")
 
         # Populate extra_files
         if extra_files_tar:

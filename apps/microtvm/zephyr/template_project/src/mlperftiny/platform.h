@@ -17,10 +17,11 @@
  * under the License.
  */
 
-#ifndef APPS_MICROTVM_ZEPHYR_TEMPLATE_PROJECT_SRC_MLPERFTINY_TVMRUNTIME_H_
-#define APPS_MICROTVM_ZEPHYR_TEMPLATE_PROJECT_SRC_MLPERFTINY_TVMRUNTIME_H_
+#ifndef APPS_MICROTVM_ZEPHYR_MLPERFTINY_PLATFORM_H_
+#define APPS_MICROTVM_ZEPHYR_MLPERFTINY_PLATFORM_H_
 
 #include <stdarg.h>
+#include <stdint.h>
 #include <tvm/runtime/crt/error_codes.h>
 #include <unistd.h>
 
@@ -41,6 +42,8 @@ extern int8_t* g_output_data;
 extern float g_quant_scale;
 extern int8_t g_quant_zero;
 
+#define TVM_UART_DEFAULT_BAUDRATE 115200
+
 /*!
  * \brief Initialize TVM runtime.
  */
@@ -59,4 +62,28 @@ void TVMInfer(void* input_ptr);
  */
 int8_t QuantizeFloatToInt8(float value, float scale, int zero_point);
 
-#endif /* APPS_MICROTVM_ZEPHYR_TEMPLATE_PROJECT_SRC_MLPERFTINY_TVMRUNTIME_H_ */
+/*!
+ * \brief Read Uart Rx buffer.
+ * \param data Pointer to read data.
+ * \param data_size_bytes Read request size in bytes.
+ *
+ * \return Number of data read in bytes.
+ */
+char TVMPlatformUartRxRead();
+
+/*!
+ * \brief Write data in serial.
+ * \param data Pointer to data to write.
+ * \param size Size of data in bytes.
+ *
+ * \return Number of write in bytes.
+ */
+uint32_t TVMPlatformWriteSerial(const char* data, uint32_t size);
+
+/*!
+ * \brief Initialize Uart.
+ * \param baudrate Desired UART baudrate.
+ */
+void TVMPlatformUARTInit(uint32_t baudrate = TVM_UART_DEFAULT_BAUDRATE);
+
+#endif /* APPS_MICROTVM_ZEPHYR_MLPERFTINY_PLATFORM_H_ */
