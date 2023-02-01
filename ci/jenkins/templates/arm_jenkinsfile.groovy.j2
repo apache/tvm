@@ -1,0 +1,99 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+{% include "utils/base.groovy.j2" with context %}
+{% import 'utils/macros.j2' as m with context -%}
+
+{% call m.invoke_build(
+  name='BUILD: arm',
+  node='ARM-SMALL',
+  condition='!skip_ci && is_docs_only_build != 1',
+  ws='tvm/build-arm',
+  docker_image='ci_arm',
+) %}
+  sh (
+    script: "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh build",
+    label: 'Create ARM cmake config',
+  )
+  cmake_build(ci_arm, 'build', '-j4')
+  make_standalone_crt(ci_arm, 'build')
+  make_cpp_tests(ci_arm, 'build')
+  {{ m.upload_artifacts(tag='arm', filenames=tvm_multilib + cpptest + crttest + standalone_crt + microtvm_template_projects) }}
+{% endcall %}
+
+{% set test_method_names = [] %}
+
+{% call(shard_index, num_shards) m.sharded_test_step(
+  name="integration: aarch64",
+  num_shards=4,
+  node="ARM-SMALL",
+  ws="tvm/ut-python-arm",
+  platform="arm",
+  docker_image="ci_arm",
+  test_method_names=test_method_names,
+) %}
+  {{ m.download_artifacts(tag='arm') }}
+  ci_setup(ci_arm)
+  python_unittest(ci_arm)
+  sh (
+    script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh",
+    label: 'Run CPU integration tests',
+  )
+{% endcall %}
+
+{% call(shard_index, num_shards) m.sharded_test_step(
+  name="topi: aarch64",
+  node="ARM-SMALL",
+  ws="tvm/ut-python-arm",
+  platform="arm",
+  docker_image="ci_arm",
+  num_shards=2,
+  test_method_names=test_method_names,
+) %}
+  {{ m.download_artifacts(tag='arm') }}
+  ci_setup(ci_arm)
+  {% if shard_index == 1 %}
+  cpp_unittest(ci_arm)
+  micro_cpp_unittest(ci_arm)
+  {% endif %}
+  sh (
+    script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh",
+    label: 'Run test_arm_compute_lib test',
+  )
+  sh (
+    script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_topi.sh",
+    label: 'Run TOPI tests',
+  )
+{% endcall %}
+
+{% call(shard_index, num_shards) m.sharded_test_step(
+  name="frontend: aarch64",
+  node="ARM-SMALL",
+  ws="tvm/frontend-python-arm",
+  platform="arm",
+  docker_image="ci_arm",
+  num_shards=2,
+  test_method_names=test_method_names,
+) %}
+  {{ m.download_artifacts(tag='arm') }}
+  ci_setup(ci_arm)
+  sh (
+    script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_frontend_cpu.sh",
+    label: 'Run Python frontend tests',
+  )
+{% endcall %}
+
+{{ m.invoke_tests(test_method_names) -}}

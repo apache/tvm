@@ -17,8 +17,8 @@
 """Type relation and function for type checking."""
 import tvm._ffi
 
-from .type import Type
 from . import _ffi_api
+from .type import Type
 
 
 @tvm._ffi.register_object("relay.TensorType")
@@ -54,3 +54,8 @@ class TensorType(Type):
         TypeError : If the shape is symbolic
         """
         return tuple(int(x) for x in self.shape)
+
+    def __str__(self):
+        from tvm.relay import pretty_print  # pylint: disable=import-outside-toplevel
+
+        return pretty_print(self)

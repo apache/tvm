@@ -26,12 +26,6 @@ generates a runtime library for Nvidia GPU with TVM.
 Notice that you need to build TVM with cuda and llvm enabled.
 """
 
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
-
 ######################################################################
 # Overview for Supported Hardware Backend of TVM
 # ----------------------------------------------
@@ -43,6 +37,9 @@ testing.utils.install_request_hook(depth=3)
 # In this tutorial, we'll choose cuda and llvm as target backends.
 # To begin with, let's import Relay and TVM.
 
+# sphinx_gallery_start_ignore
+# sphinx_gallery_requires_cuda = True
+# sphinx_gallery_end_ignore
 import numpy as np
 
 from tvm import relay

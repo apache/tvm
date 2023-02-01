@@ -25,6 +25,7 @@ from tvm.relay.testing import run_infer_type
 import tvm.topi.testing
 from tvm.contrib.nvcc import have_fp16
 import tvm.testing
+from tvm.topi.utils import get_const_tuple
 
 executor_kind = tvm.testing.parameter("graph", "vm")
 
@@ -695,6 +696,8 @@ def test_dense(executor_kind):
         w = relay.var("w", relay.TensorType((k, n), dtype))
         y = relay.nn.dense(x, w)
         yy = run_infer_type(y)
+        # Confirm that input shape has not been rewritten to become dynamic.
+        assert get_const_tuple(yy.type_args[0].shape) == (4, 2)
 
         n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), 2
         x = relay.var("x", relay.TensorType((n, c, h, w), dtype))
@@ -757,9 +760,7 @@ def test_bitserial_dense():
     assert yy.checked_type == relay.TensorType((m, 32), "int16")
 
 
-@tvm.testing.requires_cascadelake
-@pytest.mark.parametrize("m,n,k", [(32, 128, 96), (32, 128, 97)])
-def test_dense_vnni(m, n, k):
+def dense_x86_test(m, n, k, target="llvm -mcpu=cascadelake", intrins=["vpdpbusd"]):
     data_shape = (m, k)
     weight_shape = (n, k)
 
@@ -771,12 +772,14 @@ def test_dense_vnni(m, n, k):
         out = relay.nn.bias_add(dense, bias)
         mod = tvm.IRModule.from_expr(out)
 
-        target = "llvm -mcpu=cascadelake"
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build(mod, target=target)
 
-        asm = lib.lib.get_source("asm")
-        assert "vpdpbusd" in asm
+        # TODO(vvchernov): needs for avx512 arch, can be extended
+        if n % 16 == 0 and k % 4 == 0:
+            asm = lib.lib.get_source("asm")
+            for intrin in intrins:
+                assert intrin in asm
 
         dev = tvm.device(target, 0)
         runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
@@ -794,6 +797,65 @@ def test_dense_vnni(m, n, k):
         ref = np.dot(a.astype("int32"), b.transpose().astype("int32")) + c
 
         np.testing.assert_equal(out, ref)
+
+
+@tvm.testing.requires_llvm
+@pytest.mark.skip("skip due to AMX feature not avaliable yet")
+def test_dense_amx_int8():
+    data_shape = (32, 128)
+    weight_shape = (32, 128)
+
+    amx_init = tvm.get_global_func("runtime.amx_init")
+    amx_tileconfig = tvm.get_global_func("runtime.amx_tileconfig")
+    assert amx_init()
+    assert amx_tileconfig(16, 64)  # config tile size to 16 rows by 64 columns.
+
+    for data_dtype in ["uint8", "int8"]:
+        data = relay.var("data", shape=data_shape, dtype=data_dtype)
+        weight = relay.var("weight", shape=weight_shape, dtype="int8")
+        bias = relay.var("bias", shape=(weight_shape[0],), dtype="int32")
+        dense = relay.nn.dense(data, weight, out_dtype="int32")
+        out = relay.nn.bias_add(dense, bias)
+        mod = tvm.IRModule.from_expr(out)
+
+        target = "llvm -mcpu=sapphirerapids"
+        with tvm.transform.PassContext(opt_level=3):
+            lib = relay.build(mod, target=target)
+
+        asm = lib.lib.get_source("asm")
+        assert "tilezero" in asm
+        assert "tileloaddt1" in asm
+        assert "tdpbusd" in asm
+        assert "tilestored" in asm
+
+        dev = tvm.device(target, 0)
+        runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+        a = np.random.uniform(1, 10, size=data_shape).astype(data_dtype)
+        b = np.random.uniform(1, 10, size=weight_shape).astype("int8")
+        c = np.random.uniform(1, 10, size=(weight_shape[0],)).astype("int32")
+
+        runtime.set_input("data", a)
+        runtime.set_input("weight", b)
+        runtime.set_input("bias", c)
+        runtime.run()
+
+        out = runtime.get_output(0).numpy()
+        ref = np.dot(a.astype("int32"), b.transpose().astype("int32")) + c
+
+        np.testing.assert_equal(out, ref)
+
+
+@tvm.testing.requires_cascadelake
+@pytest.mark.parametrize("m,n,k", [(32, 128, 96), (32, 128, 97)])
+def test_dense_vnni(m, n, k):
+    dense_x86_test(m, n, k)
+
+
+@tvm.testing.requires_skylake_avx512
+@pytest.mark.parametrize("m,n,k", [(32, 128, 96), (32, 128, 97)])
+def test_dense_skylake_avx512(m, n, k):
+    dense_x86_test(m, n, k, "llvm -mcpu=skylake-avx512", ["pmaddubs", "pmaddw", "vpaddd"])
 
 
 @pytest.mark.skip("Requires GFX10 AMDGPU")
@@ -861,4 +923,4 @@ def test_extern_concat_injective_fuse():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

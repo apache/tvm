@@ -34,6 +34,7 @@
 #include <vector>
 
 #include "ethosn_driver_library/Network.hpp"
+#include "ethosn_driver_library/ProcMemAllocator.hpp"
 #include "ethosn_support_library/Support.hpp"
 
 namespace tvm {
@@ -46,6 +47,7 @@ namespace dl = ::ethosn::driver_library;
 struct OrderedCompiledNetwork {
   std::unique_ptr<sl::CompiledNetwork> compiled_cmm;
   std::unique_ptr<dl::Network> runtime_cmm;
+  std::unique_ptr<dl::ProcMemAllocator> proc_mem_alloc;
   std::string name;
   std::vector<uint32_t> inputs;
   std::vector<uint32_t> outputs;

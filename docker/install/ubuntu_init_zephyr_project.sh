@@ -51,7 +51,7 @@ if [ "$1" == "--branch" ]; then
     BRANCH=$1
     shift
 else
-    BRANCH="v2.7-branch"
+    BRANCH="v3.2-branch"
 fi
 
 COMMIT=

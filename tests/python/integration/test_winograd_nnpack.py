@@ -183,6 +183,4 @@ def test_conv2d_nchw():
 
 
 if __name__ == "__main__":
-    import pytest
-
-    pytest.main([__file__])
+    tvm.testing.main()

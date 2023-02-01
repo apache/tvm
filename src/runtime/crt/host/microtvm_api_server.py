@@ -144,7 +144,7 @@ class Handler(server.ProjectAPIHandler):
         crt_config_dir = project_dir / "crt_config"
         crt_config_dir.mkdir()
         shutil.copy2(
-            os.path.join(os.path.dirname(__file__), "..", "crt_config-template.h"),
+            os.path.join(os.path.dirname(__file__), "crt_config-template.h"),
             os.path.join(crt_config_dir, "crt_config.h"),
         )
 
@@ -152,7 +152,8 @@ class Handler(server.ProjectAPIHandler):
         src_dir = os.path.join(project_dir, "src")
         os.mkdir(src_dir)
         shutil.copy2(
-            os.path.join(os.path.dirname(__file__), "main.cc"), os.path.join(src_dir, "main.cc")
+            os.path.join(os.path.dirname(__file__), "src", "main.cc"),
+            os.path.join(src_dir, "main.cc"),
         )
 
     def build(self, options):

@@ -19,45 +19,116 @@
 #ifndef TVM_SCRIPT_PRINTER_IR_DOCSIFIER_H_
 #define TVM_SCRIPT_PRINTER_IR_DOCSIFIER_H_
 
+#include <tvm/ir/module.h>
 #include <tvm/node/node.h>
-#include <tvm/runtime/logging.h>
 #include <tvm/script/printer/doc.h>
-#include <tvm/script/printer/frame.h>
-#include <tvm/script/printer/traced_object.h>
-#include <tvm/script/printer/traced_object_functor.h>
-#include <tvm/script/printer/var_table.h>
-#include <tvm/support/with.h>
+#include <tvm/script/printer/ir_docsifier_functor.h>
+
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
+#include <vector>
 
 namespace tvm {
 namespace script {
 namespace printer {
 
-using WithCtx = With<ContextManager>;
+//////////////////////// Frame ////////////////////////
+
+class IRDocsifier;
+class IRDocsifierNode;
+
+/*!
+ * Frame is the core data structure for semantic information
+ * when printing IR graph into TVMScript code.
+ */
+class FrameNode : public Object {
+ public:
+  /*! The docs generated in the frame */
+  Array<StmtDoc> stmts;
+  /*! The corresponding IRDocsifier */
+  IRDocsifierNode* d;
+  /*! The callbacks that are going to be invoked when the frame exits */
+  std::vector<std::function<void()>> callbacks;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("stmts", &stmts);
+    // `d` is not visited
+    // `callbacks` is not visited
+  }
+
+  static constexpr const char* _type_key = "script.printer.Frame";
+  TVM_DECLARE_BASE_OBJECT_INFO(FrameNode, Object);
+
+ public:
+  virtual ~FrameNode() = default;
+
+  /*!
+   * \brief Add a callback function to be called when this frame exits.
+   * \param cb The callback function. It should have signature void().
+   */
+  template <typename TCallback>
+  void AddExitCallback(TCallback&& cb) {
+    callbacks.emplace_back(std::forward<TCallback>(cb));
+  }
+  /*!
+   * \brief Add a dispatch token to the docsifier, and a callback that pops the token when this
+   * frame exits.
+   * \param d The docsifier.
+   * \param token The token to be added.
+   */
+  void AddDispatchToken(const IRDocsifier& d, const String& token);
+  /*!
+   * \brief Method that's called when Frame enters the scope.
+   */
+  virtual void EnterWithScope();
+  /*!
+   * \brief Method that's called when Frame exits the scope.
+   */
+  virtual void ExitWithScope();
+};
+
+/*!
+ * \brief Reference type of FrameNode
+ */
+class Frame : public ObjectRef {
+ protected:
+  Frame() = default;
+
+ public:
+  virtual ~Frame() = default;
+
+  /*! \brief Method that's called when Frame enters the scope. */
+  void EnterWithScope() { get()->EnterWithScope(); }
+
+  /*! \brief Method that's called when Frame exits the scope. */
+  void ExitWithScope() { get()->ExitWithScope(); }
+
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Frame, ObjectRef, FrameNode);
+};
+
+//////////////////////// IRDocsifier ////////////////////////
 
 /*!
  * \brief IRDocsifier is the top-level interface in the IR->Doc process.
  *
  * It provides methods to convert IR node object to Doc, operate on Frame
  * objects and change dispatch tokens.
- *
- * Example usage:
- * \code
- * TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
- *    .set_dispatch([](TracedObject<tir::Var> obj, IRDocsifier p) { return IdDoc("x"); });
- *
- * TracedObject<tir::Var> var = ...;
- * IRDocsifier p;
- * p->AsDoc(var); // returns an IdDoc("x")
- * \endcode
- *
  */
 class IRDocsifierNode : public Object {
  public:
-  /*!
-   * \brief The var table to use during the printing process.
-   * \sa VarTableNode
-   */
-  VarTable vars;
+  /*! \brief A function that creates the doc for a variable */
+  using DocCreator = std::function<ExprDoc()>;
+  /*! \brief Information about a variable, including its optional name and its doc creator */
+  struct VariableInfo {
+    /*! \brief The creator */
+    DocCreator creator;
+    /*! \brief The name of the variable */
+    Optional<String> name;
+  };
+  /*! \brief The configuration of the printer */
+  PrinterConfig cfg{nullptr};
   /*!
    * \brief The stack of frames.
    * \sa FrameNode
@@ -70,16 +141,25 @@ class IRDocsifierNode : public Object {
    * when converting IR node object to Doc.
    */
   Array<String> dispatch_tokens;
-  /*!
-   * \brief This map connects IR dipatch token to the name of identifier.
-   */
-  Map<String, String> ir_prefix;
+  /*! \brief The IRModule to be docsifier is handling */
+  Optional<IRModule> mod;
+  /*! \brief Mapping from a var to its info */
+  std::unordered_map<ObjectRef, VariableInfo, ObjectPtrHash, ObjectPtrEqual> obj2info;
+  /*! \brief The variable names used already */
+  std::unordered_set<String> defined_names;
+  /*! \brief Common prefixes of variable usages */
+  std::unordered_map<const Object*, std::vector<const Object*>> common_prefix;
+  /*! \brief The IR usages for headers printing */
+  std::unordered_set<std::string> ir_usage;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("vars", &vars);
     v->Visit("frames", &frames);
     v->Visit("dispatch_tokens", &dispatch_tokens);
-    v->Visit("ir_prefix", &ir_prefix);
+    v->Visit("mod", &mod);
+    // `obj2info` is not visited
+    // `defined_names` is not visited
+    // `common_prefix` is not visited
+    // `ir_usage` is not visited
   }
 
   static constexpr const char* _type_key = "script.printer.IRDocsifier";
@@ -87,79 +167,68 @@ class IRDocsifierNode : public Object {
 
  public:
   /*!
+   * \brief Define variable by name.
+   * \param obj The variable object.
+   * \param frame The frame that this variable is defined in.
+   * \param name_hint The hint for variable name.
+   *
+   * \return The id doc for this variable.
+   *
+   * This function will rename the variable to avoid name conflict with other variables
+   * in the table.
+   */
+  IdDoc Define(const ObjectRef& obj, const Frame& frame, const String& name_hint);
+
+  /*!
+   * \brief Define variable by doc factory.
+   * \param obj The variable object.
+   * \param frame The frame that this variable is defined in.
+   * \param doc_factory The function to return an ExprDoc object for this variable.
+   *
+   * This function is a special form of `Define`. Variable is mapped to ExprDoc rather
+   * than IdDoc. It's useful when a variable is implicitly defined without a name, like
+   * the buf->data in TIR, which should be mapped to `AttrDoc(IdDoc("<buffer_name>"), "data")`.
+   *
+   * This function takes a DocFactory instead of Doc. It's because GetVarDoc needs to
+   * return a new Doc object every time it's called, as the returned doc will have
+   * different `source_path`. Currently there isn't a good way to deep copy a TVMObject
+   * so VarTable needs to call a factory function to get a freshly-constructed Doc object
+   * every time GetVarDoc is called.
+   */
+  void Define(const ObjectRef& obj, const Frame& frame, DocCreator doc_factory);
+
+  /*!
+   * \brief Get the doc for variable.
+   * \param obj The variable object.
+   *
+   * \return The doc for variable, if it exists in the table. Otherwise it returns NullOpt.
+   */
+  Optional<ExprDoc> GetVarDoc(const ObjectRef& obj) const;
+
+  /*!
+   * \brief Check if a variable exists in the table.
+   * \param obj The variable object.
+   *
+   * \return a boolean for whether variable exists.
+   */
+  bool IsVarDefined(const ObjectRef& obj) const;
+  /*! \brief Remove the variable defined */
+  void RemoveVar(const ObjectRef& obj);
+  /*!
+   * \brief Set the common prefix information of variable usage.
+   * \param root The root of the AST.
+   * \param is_var A function that returns true if the given object is considered a variable.
+   */
+  void SetCommonPrefix(const ObjectRef& root, runtime::TypedPackedFunc<bool(ObjectRef)> is_var);
+  /*!
    * \brief Transform the input object into TDoc.
    * \param obj The object to be transformed.
+   * \param path The path to this object.
    *
    * \return The Doc object.
    */
-  template <class TDoc>
-  TDoc AsDoc(const TracedObject<ObjectRef>& obj) const {
-    auto result = Downcast<TDoc>(AsDocImpl(obj));
-    result->source_paths.push_back(obj.GetPath());
-    return result;
-  }
-
-  /*!
-   * \brief Helper method to transform object into ExprDoc.
-   * \param obj The object to be transformed.
-   *
-   * \return The ExprDoc object.
-   */
-  ExprDoc AsExprDoc(const TracedObject<ObjectRef>& obj) { return AsDoc<ExprDoc>(obj); }
-
-  /*!
-   * \brief Push a new dispatch token into the stack
-   * \details The top dispatch token decides which dispatch table to use
-   *          when printing Object. This method returns a RAII guard which
-   *          pops the token when going out of the scope.
-   *
-   * \param token The dispatch token to push.
-   *
-   * \return A RAII guard to pop dispatch token when going out of scope.
-   */
-  WithCtx WithDispatchToken(const String& token) {
-    this->dispatch_tokens.push_back(token);
-    return WithCtx(nullptr, [this]() { this->dispatch_tokens.pop_back(); });
-  }
-
-  /*!
-   * \brief Push a new frame the stack
-   * \details Frame contains the contextual information that's needed during printing,
-   *          for example, variables in the scope. This method returns a RAII guard which
-   *          pops the frame and call the cleanup method of frame when going out of the scope.
-   *
-   * \param frame The frame to push.
-   *
-   * \return A RAII guard to pop frame and call the exit method of frame
-   *          when going out of scope
-   */
-  WithCtx WithFrame(const Frame& frame) {
-    frame->EnterWithScope();
-    this->frames.push_back(frame);
-    return WithCtx(nullptr, [this, pushed_frame = frame]() {
-      Frame last_frame = this->frames.back();
-      ICHECK_EQ(last_frame, pushed_frame);
-      this->frames.pop_back();
-      last_frame->ExitWithScope();
-    });
-  }
-
-  /*!
-   * \brief Get the top frame with type FrameType
-   * \tparam FrameType The type of frame to get.
-   */
-  template <typename FrameType>
-  Optional<FrameType> GetFrame() const {
-    for (auto it = frames.rbegin(); it != frames.rend(); ++it) {
-      if (const auto* f = (*it).as<typename FrameType::ContainerType>()) {
-        return GetRef<FrameType>(f);
-      }
-    }
-    return NullOpt;
-  }
-
- private:
-  Doc AsDocImpl(const TracedObject<ObjectRef>& obj) const;
+  template <class TDoc = Doc>
+  inline TDoc AsDoc(const ObjectRef& obj, const ObjectPath& path) const;
 };
 
 /*!
@@ -167,61 +236,47 @@ class IRDocsifierNode : public Object {
  */
 class IRDocsifier : public ObjectRef {
  public:
-  /*!
-   * \brief Create a IRDocsifier.
-   * \param ir_prefix The ir_prefix to use for this IRDocsifier.
-   */
-  explicit IRDocsifier(Map<String, String> ir_prefix);
-
-  using FType = TracedObjectFunctor<printer::Doc, IRDocsifier>;
-  /*!
-   * \brief The registration table for IRDocsifier.
-   */
+  using FType = IRDocsifierFunctor<printer::Doc, ObjectPath, IRDocsifier>;
+  /*! \brief Create a IRDocsifier. */
+  explicit IRDocsifier(const PrinterConfig& cfg);
+  /*! \brief The registration table for IRDocsifier. */
   TVM_DLL static FType& vtable();
 
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(IRDocsifier, ObjectRef, IRDocsifierNode);
 };
 
-/*!
- * \brief A wrapper object to provide injection point for printer of each IR.
- *
- * For any IR node to be transformed by IRDocsifier, it will be wrapped by RootNodeContainer
- * and be dispatched to the corresponding function first. This provides an injection point for
- * each IR's printer implemention to add specialized logic, for example, pushing a special
- * Frame to the IRDocsifier before doing any IR->Doc transformation.
- *
- * \code
- * TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
- *     .set_dispatch("relax", [](TracedObject<RootNodeContainer> obj, IRDocsifier p) {
- *       const ObjectRef& root_node = obj.Get()->root_node;
- *       // For example, relax printer can create a Frame specialized to Relax here
- *       RelaxGeneralFrame frame;
- *       auto ctx = p->WithFrame(frame);
- *       // More specialized logic for your IR.
- *       return p->AsDoc<Doc>(MakeTraced(root_node));
- *     });
- * \endcode
- */
-class RootNodeContainerNode : public Object {
- public:
-  /*! \brief The root node to print. */
-  ObjectRef root_node;
+//////////////////////// Implementation ////////////////////////
 
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("root_node", &root_node); }
+inline void FrameNode::EnterWithScope() {
+  if (d != nullptr) {
+    d->frames.push_back(GetRef<Frame>(this));
+  }
+}
 
-  static constexpr const char* _type_key = "script.printer.RootNodeContainer";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RootNodeContainerNode, Object);
-};
+inline void FrameNode::ExitWithScope() {
+  for (const std::function<void()>& callback : callbacks) {
+    callback();
+  }
+  callbacks.clear();
+  if (d != nullptr) {
+    d->frames.pop_back();
+  }
+}
 
-class RootNodeContainer : public ObjectRef {
- public:
-  /*!
-   * \brief Constructor of RootNodeContainer.
-   * \param root_node The root node to print.
-   * */
-  explicit RootNodeContainer(ObjectRef root_node);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(RootNodeContainer, ObjectRef, RootNodeContainerNode);
-};
+template <class TDoc>
+inline TDoc IRDocsifierNode::AsDoc(const ObjectRef& obj, const ObjectPath& path) const {
+  if (obj.defined()) {
+    Doc d = IRDocsifier::vtable()(dispatch_tokens.back(), obj, path, GetRef<IRDocsifier>(this));
+    d->source_paths.push_back(path);
+    return Downcast<TDoc>(d);
+  }
+  return Downcast<TDoc>(LiteralDoc::None(path));
+}
+
+inline void FrameNode::AddDispatchToken(const IRDocsifier& d, const String& token) {
+  d->dispatch_tokens.push_back(token);
+  this->AddExitCallback([doc = d.get()]() { doc->dispatch_tokens.pop_back(); });
+}
 
 }  // namespace printer
 }  // namespace script

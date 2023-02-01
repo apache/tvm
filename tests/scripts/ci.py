@@ -232,6 +232,7 @@ def docker(
 
 def docs(
     tutorial_pattern: Optional[str] = None,
+    cpu: bool = False,
     full: bool = False,
     interactive: bool = False,
     skip_build: bool = False,
@@ -242,8 +243,9 @@ def docs(
     the Python docs without any tutorials.
 
     arguments:
-    full -- Build all language docs, not just Python (this will use the 'ci_gpu' Docker image)
-    tutorial-pattern -- Regex for which tutorials to execute when building docs (this will use the 'ci_gpu' Docker image)
+    full -- Build all language docs, not just Python (cannot be used with --cpu)
+    cpu -- Use the 'ci_cpu' Docker image (useful for building docs on a machine without a GPU)
+    tutorial-pattern -- Regex for which tutorials to execute when building docs (cannot be used with --cpu)
     skip_build -- skip build and setup scripts
     interactive -- start a shell after running build / test scripts
     docker-image -- manually specify the docker image to use
@@ -252,7 +254,7 @@ def docs(
 
     extra_setup = []
     image = "ci_gpu" if docker_image is None else docker_image
-    if not full and tutorial_pattern is None:
+    if cpu:
         # TODO: Change this to tlcpack/docs once that is uploaded
         image = "ci_cpu" if docker_image is None else docker_image
         build_dir = get_build_dir("cpu")
@@ -272,7 +274,6 @@ def docs(
         requirements = [
             "Sphinx==4.2.0",
             "tlcpack-sphinx-addon==0.2.1",
-            "synr==0.5.0",
             "image==1.5.33",
             # Temporary git link until a release is published
             "git+https://github.com/sphinx-gallery/sphinx-gallery.git@6142f1791151849b5bec4bf3959f75697ba226cd",
@@ -285,7 +286,7 @@ def docs(
         ]
 
         extra_setup = [
-            "python3 -m pip install --user " + " ".join(requirements),
+            "python3 -m pip install " + " ".join(requirements),
         ]
     else:
         check_gpu()
@@ -311,6 +312,13 @@ def docs(
         "TVM_LIBRARY_PATH": str(REPO_ROOT / build_dir),
     }
     docker(name=gen_name("docs"), image=image, scripts=scripts, env=env, interactive=interactive)
+    print_color(
+        col.GREEN,
+        "Done building the docs. You can view them by running "
+        "'python3 tests/scripts/ci.py serve-docs' and visiting:"
+        " http://localhost:8000 in your browser.",
+        bold=True,
+    )
 
 
 def serve_docs(directory: str = "_docs") -> None:
@@ -584,6 +592,7 @@ generated = [
                 "run unit tests",
                 [
                     "./tests/scripts/task_java_unittest.sh",
+                    "./tests/scripts/task_opencl_cpp_unittest.sh",
                     "./tests/scripts/task_python_unittest_gpuonly.sh",
                     "./tests/scripts/task_python_integration_gpuonly.sh",
                 ],
@@ -716,6 +725,27 @@ generated = [
                 "run Adreno API/Python tests",
                 [
                     "./tests/scripts/task_python_adreno.sh " + os.environ.get("ANDROID_SERIAL", ""),
+                ],
+            ),
+            "benchmarks": (
+                "run Adreno Benchmarks (Native OpenCL, CLML SDK)",
+                [
+                    "./apps/benchmark/adreno/bench.sh texture "
+                    + os.environ.get("ANDROID_SERIAL", ""),
+                    "./apps/benchmark/adreno/bench.sh clml " + os.environ.get("ANDROID_SERIAL", ""),
+                ],
+            ),
+            "nativebenchmarks": (
+                "run Adreno Texture Benchmarks",
+                [
+                    "./apps/benchmark/adreno/bench.sh texture "
+                    + os.environ.get("ANDROID_SERIAL", ""),
+                ],
+            ),
+            "clmlbenchmarks": (
+                "run Adreno CLML SDK Benchmarks",
+                [
+                    "./apps/benchmark/adreno/bench.sh clml " + os.environ.get("ANDROID_SERIAL", ""),
                 ],
             ),
         },

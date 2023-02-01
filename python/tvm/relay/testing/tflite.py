@@ -61,6 +61,16 @@ class TFLiteModel:
 
         return conv2d_single_function
 
+    def load_from_file(self, model_file, shapes):
+        """Load tflite model from a tflite file"""
+        for i, shape in enumerate(shapes):
+            input_name = "input_" + str(i)
+            self.shape_dict.update({input_name: shape})
+            self.dtype_dict.update({input_name: self.dtype})
+
+        with open(model_file, "rb") as f:
+            self.serial_model = f.read()
+
     def create_tflite_model(self, tfl_function, shapes, ranges=None):
         """Creates TFLite serial graph"""
         tensor_specs = []

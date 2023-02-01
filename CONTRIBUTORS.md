@@ -31,6 +31,7 @@ We do encourage everyone to work anything they are interested in.
 - [Aditya Atluri](https://github.com/adityaatluri): @adityaatluri - rocm
 - [Matthew Barrett](https://github.com/mbaret): @mbaret - byoc, arm
 - [Matthew Brookhart](https://github.com/mbrookhart): @mbrookhart - relay, frontends
+- [Yaxing Cai](https://github.com/cyx-6): @cyx-6 - tvm-script, runtime
 - [Liangfu Chen](https://github.com/liangfu): @liangfu - vta, chisel, intel FPGA, c runtime
 - [Tianqi Chen](https://github.com/tqchen) (PMC): @tqchen - topi, compiler, relay, docs
 - [Wei Chen](https://github.com/wweic): @wweic - runtime, relay, vm
@@ -46,6 +47,7 @@ We do encourage everyone to work anything they are interested in.
 - [Animesh Jain](https://github.com/anijain2305): @anijain2305 - quantization, relay
 - [Chenfan Jia](https://github.com/jcf94): @jcf94 - auto_scheduler
 - [Ziheng Jiang](https://github.com/ZihengJiang) (PMC): @ZihengJiang - relay, compiler
+- [Hongyi Jin](https://github.com/jinhongyii): @jinhongyii - tir, tvm-script, arith, relay, topi
 - [Manupa Karunaratne](https://github.com/manupak): @manupak - ethos-u, memory planner
 - [Elen Kalda](https://github.com/ekalda): @ekalda - ethos-u, arm
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame - relay
@@ -78,6 +80,7 @@ We do encourage everyone to work anything they are interested in.
 - [Siva Rama Krishna Reddy](https://github.com/srkreddy1238): @srkreddy1238 - frontends, golang
 - [Zhixun Tan](https://github.com/phisiart): @phisiart - opengl, web
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch - topi, compiler, runtime
+- [Gavin Uberti](https://github.com/guberti): @guberti - microtvm, arm
 - [Luis Vega](https://github.com/vegaluisjose): @vegaluisjose - vta, chisel
 - [Leyuan Wang](https://github.com/Laurawly) (PMC): @Laurawly: - topi
 - [Yao Wang](https://github.com/kevinthesun): @kevinthesun (PMC): - topi, vision
@@ -141,6 +144,7 @@ We do encourage everyone to work anything they are interested in.
 - [Eric Lunderberg](https://github.com/Lunderberg): @Lunderberg
 - [Andrew Z. Luo](https://github.com/AndrewZhaoLuo): @AndrewZhaoLuo
 - [Steven Lyubomirsky](https://github.com/slyubomirsky): @slyubomirsky
+- [Alan MacDonald](https://github.com/alanmacd): @alanmacd
 - [Masahiro Masuda](https://github.com/masahi): @masahi
 - [Andrey Malyshev](https://github.com/elvin-n): @elvin-n
 - [Sergey Mironov](https://github.com/grwlf): @grwlf
@@ -201,7 +205,9 @@ We do encourage everyone to work anything they are interested in.
 - [Hao Yu](https://github.com/comaniac): @comaniac
 - [Joshua Z. Zhang](https://github.com/zhreshold): @zhreshold
 - [Lianmin Zheng](https://github.com/merrymercy): @merrymercy
+- [Min Chen](https://github.com/multiverstack-intellif): @multiverstack-intellif
 - [Xiyou Zhou](https://github.com/zxybazh): @zxybazh
+- [@blackkker](https://github.com/blackkker): @blackkker
 
 ## List of Contributors
 - [Full List of Contributors](https://github.com/apache/tvm/graphs/contributors)

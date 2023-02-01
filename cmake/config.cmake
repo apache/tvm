@@ -71,6 +71,11 @@ set(USE_AOCL OFF)
 # - /path/to/opencl-sdk: use specific path to opencl-sdk
 set(USE_OPENCL OFF)
 
+# Wheather to allow OPENCL cl_mem access to host
+# cl_mem will be allocated with CL_MEM_ALLOC_HOST_PTR
+# OpenCLWorkspace->GetHostPtr API returns the host accessible pointer
+set(USE_OPENCL_ENABLE_HOST_PTR OFF)
+
 # Whether enable Metal runtime
 set(USE_METAL OFF)
 
@@ -104,6 +109,9 @@ set(USE_RPC ON)
 
 # Whether to build the C++ RPC server binary
 set(USE_CPP_RPC OFF)
+
+# Whether to build the C++ native runtime tool binary
+set(USE_CPP_RTVM OFF)
 
 # Whether to build the iOS RPC server application
 set(USE_IOS_RPC OFF)
@@ -173,6 +181,9 @@ set(USE_MKL OFF)
 # - path/to/oneDNN：oneDNN root path
 # - OFF: Disable DNNL
 set(USE_DNNL OFF)
+
+# Whether use Intel AMX instructions.
+set(USE_AMX OFF)
 
 # Whether use OpenMP thread pool, choices: gnu, intel
 # Note: "gnu" uses gomp library, "intel" uses iomp5 library

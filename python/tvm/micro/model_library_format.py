@@ -26,14 +26,14 @@ import tarfile
 import typing
 
 import tvm
-from tvm.ir.type import TupleType
 from tvm.micro import get_standalone_crt_dir
+
 from .._ffi import get_global_func
 from ..contrib import utils
 from ..driver import build_module
-from ..relay.backend import executor_factory
-from ..relay.backend.name_transforms import to_c_variable_style, prefix_generated_name
 from ..relay import param_dict
+from ..relay.backend import executor_factory
+from ..relay.backend.name_transforms import prefix_generated_name, to_c_variable_style
 from ..tir import expr
 
 # This should be kept identical to runtime::symbol::tvm_module_main
@@ -47,7 +47,16 @@ class UnsupportedInModelLibraryFormatError(Exception):
 
 
 def generate_c_interface_header(
-    module_name, inputs, outputs, pools, io_pool_allocations, devices, workspace_size, include_path
+    module_name,
+    inputs,
+    outputs,
+    pools,
+    io_pool_allocations,
+    devices,
+    workspace_size,
+    include_path,
+    input_sizes,
+    output_sizes,
 ):
     """Generate C Interface header to be included in MLF"""
     mangled_name = to_c_variable_style(prefix_generated_name(module_name))
@@ -55,7 +64,15 @@ def generate_c_interface_header(
 
     interface_c_create = tvm._ffi.get_global_func("runtime.InterfaceCCreate")
     interface_c_module = interface_c_create(
-        module_name, inputs, outputs, pools, io_pool_allocations, devices, workspace_size
+        module_name,
+        inputs,
+        outputs,
+        pools,
+        io_pool_allocations,
+        devices,
+        workspace_size,
+        input_sizes,
+        output_sizes,
     )
 
     with open(metadata_header, "w") as header_file:
@@ -193,6 +210,36 @@ def _build_sid_map(graph_json):
     return memory_map
 
 
+def _create_type_metadata(input_type):
+    return {
+        "size": int(_shape_to_size(input_type.shape, input_type.dtype)),
+        "dtype": str(input_type.dtype),
+    }
+
+
+def _flatten_tuple_outputs(ret_type, predefined_names, offset=0):
+    if isinstance(ret_type, tvm.ir.tensor_type.TensorType):
+        name = predefined_names[offset] if predefined_names else f"output{offset}"
+        return {name: ret_type}
+
+    added_fields = len(ret_type.fields)
+    outputs = {}
+    for output_index in range(added_fields):
+        next_output = offset + len(outputs)
+        outputs.update(
+            _flatten_tuple_outputs(ret_type.fields[output_index], predefined_names, next_output)
+        )
+
+    return outputs
+
+
+def _get_outputs_from_ret_type(ret_type, predefined_names):
+    if isinstance(ret_type, tvm.ir.tensor_type.TensorType):
+        name = predefined_names[0] if predefined_names else "output"
+        return {name: ret_type}
+    return _flatten_tuple_outputs(ret_type, predefined_names)
+
+
 def _build_function_memory_map(function_metadata):
     """Build a simple map that shows how much workspace is required to execute
     each primitive function. The main_func describes how much memory is required
@@ -273,39 +320,31 @@ def _build_function_memory_map(function_metadata):
             target_main_entries[int(target.get_target_device_type())] = _create_empty_entry(
                 int(target.get_target_device_type())
             )
-        target_main_entries[int(target.get_target_device_type())]["io_size_bytes"] = int(
-            main_func_metadata.io_sizes[target]
+        target_main_on_device = target_main_entries[int(target.get_target_device_type())]
+        target_main_on_device["io_size_bytes"] = int(main_func_metadata.io_sizes[target])
+
+        main_relay_func = main_func_metadata.relay_primfuncs[target]
+        target_main_on_device["inputs"] = {
+            input_param.name_hint: _create_type_metadata(input_param.checked_type)
+            for input_param in main_relay_func.params
+        }
+        predefined_names = (
+            main_relay_func.attrs["output_tensor_names"]
+            if "output_tensor_names" in main_relay_func.attrs
+            else None
         )
+        target_main_on_device["outputs"] = {
+            name: _create_type_metadata(output_type)
+            for name, output_type in _get_outputs_from_ret_type(
+                main_relay_func.ret_type, predefined_names
+            ).items()
+        }
 
     ret = {
         "operator_functions": func_entries,
         "main": list(target_main_entries.values()),
     }
     return ret
-
-
-def _get_main_relay_func(mod: executor_factory.ExecutorFactoryModule):
-    main_func = mod.function_metadata[MAIN_FUNC_NAME_STR]
-    target = list(main_func.relay_primfuncs.keys())[0]
-    return main_func.relay_primfuncs[target]
-
-
-def _convert_tuple_to_outputs(ret_type, offset=0):
-    outputs = []
-    added_fields = len(ret_type.fields)
-    for output_index in range(added_fields):
-        next_output = offset + len(outputs)
-        if isinstance(ret_type.fields[output_index], TupleType):
-            outputs.extend(_convert_tuple_to_outputs(ret_type.fields[output_index], next_output))
-        else:
-            outputs.append(f"output{next_output}")
-    return outputs
-
-
-def _get_inputs_and_outputs_from_module(mod):
-    inputs = [str(input_var.name) for input_var in mod.executor_codegen_metadata.inputs]
-    outputs = list(mod.executor_codegen_metadata.outputs)
-    return inputs, outputs
 
 
 def _get_pools_from_module(mod):
@@ -418,24 +457,29 @@ def _export_graph_model_library_format(
             if not include_path.exists():
                 include_path.mkdir()
 
-            inputs, outputs = _get_inputs_and_outputs_from_module(mod)
             devices = mod.get_devices()
             pools = _get_pools_from_module(mod)
             io_pool_allocations = _get_io_pool_allocation_from_module(mod)
-            workspace_size = int(
-                metadata["modules"][mod.libmod_name]["memory"]["functions"]["main"][0][
-                    "workspace_size_bytes"
-                ]
-            )
+            main_func = metadata["modules"][mod.libmod_name]["memory"]["functions"]["main"][0]
+            workspace_size = int(main_func["workspace_size_bytes"])
+            inputs = main_func["inputs"]
+            outputs = main_func["outputs"]
+            inputs_sizes = {name: property_map["size"] for name, property_map in inputs.items()}
+            output_sizes = {name: property_map["size"] for name, property_map in outputs.items()}
+            input_names = list(inputs.keys())
+            output_names = list(outputs.keys())
+
             generate_c_interface_header(
                 mod.libmod_name,
-                inputs,
-                outputs,
+                input_names,
+                output_names,
                 pools,
                 io_pool_allocations,
                 devices,
                 workspace_size,
                 include_path,
+                inputs_sizes,
+                output_sizes,
             )
 
         is_aot = isinstance(mod, executor_factory.AOTExecutorFactoryModule)
@@ -459,7 +503,7 @@ class NonStaticShapeError(Exception):
 
 def _shape_to_size(shape, dtype):
     bits_per_item = int(
-        re.match(r"((float)|(int))(?P<width_bits>[0-9]+)", dtype).group("width_bits")
+        re.match(r"((float)|(int)|(uint))(?P<width_bits>[0-9]+)", dtype).group("width_bits")
     )
     assert bits_per_item is not None, f"don't know how to compute size of type {dtype}"
     total_bits = bits_per_item
@@ -485,7 +529,7 @@ def _write_tir_and_build_operator_memory_map(src_dir, targets, ir_module_by_targ
         # TODO(mbs): The device type is not unique, better would be to use target.kind.name
         target_device_type = target.get_target_device_type()
         ir_mod = ir_module_by_target[target]
-        printer = get_global_func("tir.ModelLibraryFormatPrinter")(False, None, False)
+        printer = get_global_func("relay.ir.ModelLibraryFormatPrinter")(False, None, False)
         with open(src_dir / f"tir-{target_device_type}.txt", "w") as f:
             f.write(printer["print"](ir_mod))
 

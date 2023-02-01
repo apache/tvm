@@ -22,6 +22,7 @@ from typing import Dict, List, Tuple, Union, Callable
 import pytest
 import _pytest
 
+import tvm
 from tvm.tir.schedule._type_checker import type_checked
 
 
@@ -187,4 +188,4 @@ def test_not_matches(type_annotation, case):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

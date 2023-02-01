@@ -44,6 +44,26 @@ def _run_tvmc(cmd_args: list, *args, **kwargs):
     return subprocess.check_call(cmd_args_list, *args, **kwargs)
 
 
+def create_project_command(project_path: str, mlf_path: str, platform: str, board: str) -> list:
+    """Returns create project command with tvmc micro."""
+    cmd = [
+        "micro",
+        "create-project",
+        project_path,
+        mlf_path,
+        platform,
+        "--project-option",
+        "project_type=host_driven",
+        f"board={board}",
+    ]
+
+    if platform == "zephyr":
+        # TODO: 4096 is driven by experiment on nucleo_l4r5zi. We should cleanup this after we have
+        # better memory management.
+        cmd.append("config_main_stack_size=4096")
+    return cmd
+
+
 @tvm.testing.requires_micro
 def test_tvmc_exist(platform, board):
     cmd_result = _run_tvmc(["micro", "-h"])
@@ -93,18 +113,7 @@ def test_tvmc_model_build_only(platform, board, output_dir):
     )
     assert cmd_result == 0, "tvmc failed in step: compile"
 
-    create_project_cmd = [
-        "micro",
-        "create-project",
-        project_dir,
-        tar_path,
-        platform,
-        "--project-option",
-        "project_type=host_driven",
-        f"board={board}",
-    ]
-
-    cmd_result = _run_tvmc(create_project_cmd)
+    cmd_result = _run_tvmc(create_project_command(project_dir, tar_path, platform, board))
     assert cmd_result == 0, "tvmc micro failed in step: create-project"
 
     build_cmd = ["micro", "build", project_dir, platform]
@@ -118,6 +127,9 @@ def test_tvmc_model_build_only(platform, board, output_dir):
 @pytest.mark.parametrize(
     "output_dir,",
     [pathlib.Path("./tvmc_relative_path_test"), pathlib.Path(tempfile.mkdtemp())],
+)
+@pytest.mark.skip_boards(
+    ["nucleo_l4r5zi", "", "nucleo_f746zg", "stm32f746g_disco", "nrf5340dk_nrf5340_cpuapp"]
 )
 def test_tvmc_model_run(platform, board, output_dir):
     target = tvm.micro.testing.get_target(platform, board)
@@ -157,18 +169,7 @@ def test_tvmc_model_run(platform, board, output_dir):
     )
     assert cmd_result == 0, "tvmc failed in step: compile"
 
-    create_project_cmd = [
-        "micro",
-        "create-project",
-        project_dir,
-        tar_path,
-        platform,
-        "--project-option",
-        "project_type=host_driven",
-        f"board={board}",
-    ]
-
-    cmd_result = _run_tvmc(create_project_cmd)
+    cmd_result = _run_tvmc(create_project_command(project_dir, tar_path, platform, board))
     assert cmd_result == 0, "tvmc micro failed in step: create-project"
 
     build_cmd = ["micro", "build", project_dir, platform]

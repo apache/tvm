@@ -809,4 +809,4 @@ def test_hoisting_op_conv():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

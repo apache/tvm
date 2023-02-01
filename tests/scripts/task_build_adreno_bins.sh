@@ -29,10 +29,15 @@ cd ${output_directory}
 cp ../cmake/config.cmake .
 
 echo set\(USE_MICRO OFF\) >> config.cmake
-echo set\(USE_CLML ON\) >> config.cmake
+if [ -f "${ADRENO_OPENCL}/CL/cl_qcom_ml_ops.h" ] ; then
+echo set\(USE_CLML "${ADRENO_OPENCL}"\) >> config.cmake
 echo set\(USE_CLML_GRAPH_EXECUTOR "${ADRENO_OPENCL}"\) >> config.cmake
+else
+echo set\(USE_OPENCL ON\) >> config.cmake
+fi
 echo set\(USE_RPC ON\) >> config.cmake
 echo set\(USE_CPP_RPC ON\) >> config.cmake
+echo set\(USE_CPP_RTVM ON\) >> config.cmake
 echo set\(USE_GRAPH_EXECUTOR ON\) >> config.cmake
 echo set\(USE_LIBBACKTRACE AUTO\) >> config.cmake
 echo set\(USE_KALLOC_ALIGNMENT 32\) >> config.cmake
@@ -52,4 +57,4 @@ cmake -DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK_HOME}/build/cmake/android.toolchain.
       -DCMAKE_C_COMPILER="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang" \
       -DMACHINE_NAME="aarch64-linux-gnu" ..
 
-make -j$(nproc) tvm_rpc
+make -j$(nproc) tvm_rpc rtvm

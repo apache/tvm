@@ -142,8 +142,6 @@ inline Optional<PrimExpr> TryConstFold<tir::Add>(PrimExpr a, PrimExpr b) {
                                                        static_cast<float>(fb->value)));
       } else if (rtype.bits() == 64) {
         return FloatImm(rtype, fa->value + fb->value);
-      } else {
-        return NullOpt;
       }
     }
     if (fa && fa->value == 0) return b;
@@ -171,8 +169,6 @@ inline Optional<PrimExpr> TryConstFold<tir::Sub>(PrimExpr a, PrimExpr b) {
                                                        static_cast<float>(fb->value)));
       } else if (rtype.bits() == 64) {
         return FloatImm(rtype, fa->value - fb->value);
-      } else {
-        return NullOpt;
       }
     }
     if (fb && fb->value == 0) return a;
@@ -202,8 +198,6 @@ inline Optional<PrimExpr> TryConstFold<tir::Mul>(PrimExpr a, PrimExpr b) {
                                                        static_cast<float>(fb->value)));
       } else if (rtype.bits() == 64) {
         return FloatImm(rtype, fa->value * fb->value);
-      } else {
-        return NullOpt;
       }
     }
     if (fa) {
@@ -243,8 +237,6 @@ inline Optional<PrimExpr> TryConstFold<tir::Div>(PrimExpr a, PrimExpr b) {
                                                        static_cast<float>(fb->value)));
       } else if (rtype.bits() == 64) {
         return FloatImm(rtype, fa->value / fb->value);
-      } else {
-        return NullOpt;
       }
     }
     if (fa && fa->value == 0) return a;

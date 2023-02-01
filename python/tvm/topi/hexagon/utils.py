@@ -75,6 +75,21 @@ def nc_1024c_2d(n, c):
     return [n, c // 1024, te.AXIS_SEPARATOR, c % 1024]
 
 
+def nc_2048c_1d(n, c):
+    """Return index map for nc_2024c 1d layout"""
+    return [n, c // 2048, c % 2048]
+
+
+def nc_2048c_2d(n, c):
+    """Return index map for nc_2024c 2d layout"""
+    return [n, c // 2048, te.AXIS_SEPARATOR, c % 2048]
+
+
+def nc_1024c_1d(n, c):
+    """Return index map for nc_1024c 1d layout"""
+    return [n, c // 1024, c % 1024]
+
+
 def nhwc_4h2w32c2w_2d(n, h, w, c):
     """Return index map for nhwc_4h2w32c2w 2d layout"""
     return [n, h // 4, w // 4, c // 32, te.AXIS_SEPARATOR, h % 4, (w % 4) // 2, c % 32, w % 2]
@@ -96,11 +111,6 @@ def nhwc_2048c_2d(n, h, w, c):
 
 
 def nc_2048_2d(n, c):
-    """Return index map for nc_2048 2d layout"""
-    return [n, c // 2048, te.AXIS_SEPARATOR, c % 2048]
-
-
-def nc_2048c_2d(n, c):
     """Return index map for nc_2048 2d layout"""
     return [n, c // 2048, te.AXIS_SEPARATOR, c % 2048]
 
@@ -136,6 +146,14 @@ def ncw_32c64w_2d(n, c, w):
     return [n, c // 32, w // 64, te.AXIS_SEPARATOR, c % 32, w % 64]
 
 
+def nchw_32c8h8w_2d(n, c, h, w):
+    return [n, c // 32, h // 8, w // 8, te.AXIS_SEPARATOR, c % 32, h % 8, w % 8]
+
+
+def nchw_32c8h4w_2d(n, c, h, w):
+    return [n, c // 32, h // 8, w // 4, te.AXIS_SEPARATOR, c % 32, h % 8, w % 4]
+
+
 def get_layout_transform_fn(layout):
     """Return index map function as per the layout string"""
     if layout == "nhwc-8h2w32c2w-2d":
@@ -162,8 +180,14 @@ def get_layout_transform_fn(layout):
         return nc_512c_1d
     if layout == "nhwc-4h2w32c2w-2d":
         return nhwc_4h2w32c2w_2d
+    if layout == "nc-2048c-1d":
+        return nc_2048c_1d
+    if layout == "nc-2048c-2d":
+        return nc_2048c_2d
     if layout == "nc-1024c-2d":
         return nc_1024c_2d
+    if layout == "nc-1024c-1d":
+        return nc_1024c_1d
     if layout == "iohw-16i32o2i-1d":
         return iohw_16i32o2i_1d
     if layout == "nhwc-2048c-2d":
@@ -180,6 +204,10 @@ def get_layout_transform_fn(layout):
         return ohwi32o_1d
     if layout == "ncw-32c64w-2d":
         return ncw_32c64w_2d
+    if layout == "nchw-32c8h8w-2d":
+        return nchw_32c8h8w_2d
+    if layout == "nchw-32c8h4w-2d":
+        return nchw_32c8h4w_2d
     raise RuntimeError(f"Unexpected layout '{layout}'")
 
 

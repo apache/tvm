@@ -42,6 +42,7 @@
 
 #include "ethosn_driver_library/Inference.hpp"
 #include "ethosn_driver_library/Network.hpp"
+#include "ethosn_driver_library/ProcMemAllocator.hpp"
 
 namespace tvm {
 namespace runtime {
@@ -87,20 +88,23 @@ InferenceWaitStatus WaitForInference(dl::Inference* inference, int timeout) {
   return InferenceWaitStatus(InferenceWaitErrorCode::kSuccess);
 }
 
-void CreateBuffers(std::vector<std::shared_ptr<dl::Buffer>>* fm,
+void CreateBuffers(dl::ProcMemAllocator* proc_mem_alloc,
+                   std::vector<std::shared_ptr<dl::Buffer>>* fm,
                    const std::vector<DLTensor*>& tensors, const std::vector<uint32_t>& tensor_sizes,
                    bool input) {
   for (size_t i = 0; i < tensors.size(); i++) {
     auto* data = static_cast<uint8_t*>(tensors[i]->data);
     if (input) {
-      (*fm)[i] = std::make_shared<dl::Buffer>(data, tensor_sizes[i], dl::DataFormat::NHWC);
+      (*fm)[i] = std::make_shared<dl::Buffer>(
+          proc_mem_alloc->CreateBuffer(data, tensor_sizes[i], dl::DataFormat::NHWC));
     } else {
-      (*fm)[i] = std::make_shared<dl::Buffer>(tensor_sizes[i], dl::DataFormat::NHWC);
+      (*fm)[i] = std::make_shared<dl::Buffer>(
+          proc_mem_alloc->CreateBuffer(tensor_sizes[i], dl::DataFormat::NHWC));
     }
   }
 }
 
-bool Inference(tvm::runtime::TVMArgs args, dl::Network* npu,
+bool Inference(tvm::runtime::TVMArgs args, dl::ProcMemAllocator* proc_mem_alloc, dl::Network* npu,
                const std::vector<uint32_t>& input_order, const std::vector<uint32_t>& output_order,
                const std::vector<uint32_t>& input_sizes,
                const std::vector<uint32_t>& output_sizes) {
@@ -119,11 +123,11 @@ bool Inference(tvm::runtime::TVMArgs args, dl::Network* npu,
 
   // Set up input buffers
   std::vector<std::shared_ptr<dl::Buffer>> ifm(n_inputs);
-  CreateBuffers(&ifm, inputs, input_sizes, true);
+  CreateBuffers(proc_mem_alloc, &ifm, inputs, input_sizes, true);
 
   // Set up output buffers
   std::vector<std::shared_ptr<dl::Buffer>> ofm(n_outputs);
-  CreateBuffers(&ofm, outputs, output_sizes, false);
+  CreateBuffers(proc_mem_alloc, &ofm, outputs, output_sizes, false);
 
   // Raw pointers for the inference
   dl::Buffer* ifm_raw[n_inputs];
@@ -157,7 +161,6 @@ bool Inference(tvm::runtime::TVMArgs args, dl::Network* npu,
 
   return true;
 }
-
 }  // namespace ethosn
 }  // namespace runtime
 }  // namespace tvm
@@ -192,9 +195,9 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.test.infra.inference_result")
     });
 
 // Allow the ethos-n support code to be tested without a device
-bool Inference(tvm::runtime::TVMArgs args, dl::Network* /* npu */,
-               const std::vector<uint32_t>& input_order, const std::vector<uint32_t>& output_order,
-               const std::vector<uint32_t>& input_sizes,
+bool Inference(tvm::runtime::TVMArgs args, dl::ProcMemAllocator* /*proc_mem_alloc*/,
+               dl::Network* /* npu */, const std::vector<uint32_t>& input_order,
+               const std::vector<uint32_t>& output_order, const std::vector<uint32_t>& input_sizes,
                const std::vector<uint32_t>& output_sizes) {
   std::vector<DLTensor*> outputs;
   for (int argc = input_order.size(); argc < args.size(); argc++) {

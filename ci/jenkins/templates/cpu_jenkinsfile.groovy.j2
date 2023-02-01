@@ -1,0 +1,97 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+{% include "utils/base.groovy.j2" with context %}
+{% import 'utils/macros.j2' as m with context -%}
+
+{% call m.invoke_build(
+  name='BUILD: CPU',
+  node='CPU-SMALL',
+  condition='!skip_ci && is_docs_only_build != 1',
+  ws='tvm/build-cpu',
+  docker_image='ci_cpu',
+) %}
+  sh (
+    script: "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build",
+    label: 'Create CPU cmake config',
+  )
+  cmake_build(ci_cpu, 'build', '-j2')
+  make_standalone_crt(ci_cpu, 'build')
+  make_cpp_tests(ci_cpu, 'build')
+  {{ m.upload_artifacts(tag='cpu', filenames=tvm_multilib_tsim + tvm_allvisible + crttest + cpptest + standalone_crt + microtvm_template_projects) }}
+  ci_setup(ci_cpu)
+  // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
+  // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
+  sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh", label: 'Rust build and test')
+{% endcall %}
+
+{% set test_method_names = [] %}
+
+{% call(shard_index, num_shards) m.sharded_test_step(
+  name="integration: CPU",
+  node="CPU-SMALL",
+  num_shards=4,
+  ws="tvm/integration-python-cpu",
+  platform="cpu",
+  docker_image="ci_cpu",
+  test_method_names=test_method_names,
+) %}
+  {{ m.download_artifacts(tag='cpu') }}
+  ci_setup(ci_cpu)
+  sh (
+    script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
+    label: 'Run CPU integration tests',
+  )
+{% endcall %}
+
+{% call(shard_index, num_shards) m.sharded_test_step(
+  name="unittest: CPU",
+  node="CPU-SMALL",
+  ws="tvm/ut-python-cpu",
+  platform="cpu",
+  num_shards=1,
+  docker_image="ci_cpu",
+  test_method_names=test_method_names,
+) %}
+  {{ m.download_artifacts(tag='cpu') }}
+  ci_setup(ci_cpu)
+  cpp_unittest(ci_cpu)
+  micro_cpp_unittest(ci_cpu)
+  python_unittest(ci_cpu)
+  fsim_test(ci_cpu)
+  sh (
+    script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh",
+    label: 'Run VTA tests in TSIM',
+  )
+{% endcall %}
+{% call(shard_index, num_shards) m.sharded_test_step(
+  name="frontend: CPU",
+  node="CPU-SMALL",
+  ws="tvm/frontend-python-cpu",
+  platform="cpu",
+  num_shards=1,
+  docker_image="ci_cpu",
+  test_method_names=test_method_names,
+) %}
+  {{ m.download_artifacts(tag='cpu') }}
+  ci_setup(ci_cpu)
+  sh (
+    script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_frontend_cpu.sh",
+    label: 'Run Python frontend tests',
+  )
+{% endcall %}
+
+{{ m.invoke_tests(test_method_names) -}}

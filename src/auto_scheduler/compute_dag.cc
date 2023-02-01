@@ -1270,29 +1270,32 @@ String ComputeDAG::PrintDAG(bool simple_mode) const {
         if (pop->body.size() > 1) {
           ss << ".v" << k;
         }
-        if (auto preduce = pop->body[k].as<ReduceNode>()) {
-          ICHECK_LT(k, preduce->combiner->result.size());
-          PrimExpr combiner = preduce->combiner->result[k];
+        if (auto p_reduce = pop->body[k].as<ReduceNode>()) {
+          ICHECK_LT(k, p_reduce->combiner->result.size());
+          PrimExpr combiner = p_reduce->combiner->result[k];
           if (combiner->IsInstance<AddNode>()) {
-            ss << " += " << preduce->source[0] << "\n";
+            ss << " += " << AsLegacyRepr(p_reduce->source[0]) << "\n";
           } else if (combiner->IsInstance<MaxNode>()) {
-            ss << " max= " << preduce->source[0] << "\n";
+            ss << " max= " << AsLegacyRepr(p_reduce->source[0]) << "\n";
           } else if (combiner->IsInstance<MinNode>()) {
-            ss << " min= " << preduce->source[0] << "\n";
+            ss << " min= " << AsLegacyRepr(p_reduce->source[0]) << "\n";
           } else if (combiner->IsInstance<SelectNode>()) {
             const auto& select = combiner.as<SelectNode>();
-            ss << " select(" << select->condition << ", " << select->true_value << ", "
-               << select->false_value << ")= " << '(' << preduce->source[0] << ','
-               << preduce->source[1] << ")\n";
+            ss << " select(" << AsLegacyRepr(select->condition)  //
+               << ", " << AsLegacyRepr(select->true_value)       //
+               << ", " << AsLegacyRepr(select->false_value)      //
+               << ")= (" << AsLegacyRepr(p_reduce->source[0])    //
+               << ',' << AsLegacyRepr(p_reduce->source[1])       //
+               << ")\n";
           } else {
-            ss << "reduce" << combiner << "\n";
+            ss << "reduce" << AsLegacyRepr(combiner) << "\n";
           }
         } else {
           auto call = pop->body[k].as<CallNode>();
           if (simple_mode && call) {
-            ss << " = " << call->op << "\n";
+            ss << " = " << AsLegacyRepr(call->op) << "\n";
           } else {
-            ss << " = " << pop->body[k] << "\n";
+            ss << " = " << AsLegacyRepr(pop->body[k]) << "\n";
           }
         }
       }

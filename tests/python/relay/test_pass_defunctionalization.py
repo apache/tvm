@@ -227,4 +227,4 @@ def @main(%l: List[int32]) -> int32 {
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

@@ -73,8 +73,11 @@ def test_builder_runner(hexagon_launcher):
 
     mod = MatmulModule
 
-    builder = get_hexagon_local_builder()
-    runner = get_hexagon_rpc_runner(hexagon_launcher, number=1, repeat=1, min_repeat_ms=0)
+    max_workers = 4
+    builder = get_hexagon_local_builder(max_workers=max_workers)
+    runner = get_hexagon_rpc_runner(
+        hexagon_launcher, number=1, repeat=1, min_repeat_ms=0, max_workers=max_workers
+    )
 
     (builder_result,) = builder.build([BuilderInput(mod, get_hexagon_target("v68"))])
     assert builder_result.artifact_path is not None

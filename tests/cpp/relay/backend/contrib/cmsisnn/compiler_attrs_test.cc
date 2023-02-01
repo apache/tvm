@@ -53,14 +53,26 @@ TEST(CMSISNNTarget, CreateFromUndefined) {
   ASSERT_EQ(target->GetFeature<Bool>("has_dsp").value_or(Bool(false)), Bool(false));
 }
 
-TEST(CMSISNNTarget, CreateFromContext) {
+TEST(CMSISNNTarget, CreateFromContextCortexM55) {
   Target target = GetTargetWithCompilerAttrs("cortex-m55", "");
   ASSERT_EQ(target->GetFeature<Bool>("has_mve").value_or(Bool(false)), Bool(true));
   ASSERT_EQ(target->GetFeature<Bool>("has_dsp").value_or(Bool(false)), Bool(true));
 }
 
-TEST(CMSISNNTarget, CreateFromContextWithAttrs) {
+TEST(CMSISNNTarget, CreateFromContextWithAttrsCortexM55) {
   Target target = GetTargetWithCompilerAttrs("cortex-m55", "+nomve");
+  ASSERT_EQ(target->GetFeature<Bool>("has_mve").value_or(Bool(false)), Bool(false));
+  ASSERT_EQ(target->GetFeature<Bool>("has_dsp").value_or(Bool(false)), Bool(true));
+}
+
+TEST(CMSISNNTarget, CreateFromContextCortexM85) {
+  Target target = GetTargetWithCompilerAttrs("cortex-m85", "");
+  ASSERT_EQ(target->GetFeature<Bool>("has_mve").value_or(Bool(false)), Bool(true));
+  ASSERT_EQ(target->GetFeature<Bool>("has_dsp").value_or(Bool(false)), Bool(true));
+}
+
+TEST(CMSISNNTarget, CreateFromContextWithAttrsCortexM85) {
+  Target target = GetTargetWithCompilerAttrs("cortex-m85", "+nomve");
   ASSERT_EQ(target->GetFeature<Bool>("has_mve").value_or(Bool(false)), Bool(false));
   ASSERT_EQ(target->GetFeature<Bool>("has_dsp").value_or(Bool(false)), Bool(true));
 }

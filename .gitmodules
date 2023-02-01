@@ -22,3 +22,6 @@
 [submodule "3rdparty/gemmini"]
 	path = 3rdparty/gemmini
 	url = https://github.com/ucb-bar/gemmini
+[submodule "3rdparty/cnpy"]
+	path = 3rdparty/cnpy
+	url = https://github.com/rogersce/cnpy.git

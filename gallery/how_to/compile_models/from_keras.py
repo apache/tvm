@@ -19,7 +19,7 @@ Compile Keras Models
 =====================
 **Author**: `Yuwei Hu <https://Huyuwei.github.io/>`_
 
-This article is an introductory tutorial to deploy keras models with Relay.
+This article is an introductory tutorial to deploy Keras models with Relay.
 
 For us to begin with, keras should be installed.
 Tensorflow is also required since it's used as the default backend of keras.
@@ -28,17 +28,15 @@ A quick solution is to install via pip
 
 .. code-block:: bash
 
-    pip install -U keras --user
-    pip install -U tensorflow --user
+    %%shell
+    pip install keras tensorflow
 
 or please refer to official site
 https://keras.io/#installation
 """
 
 # sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_requires_cuda = True
 # sphinx_gallery_end_ignore
 import tvm
 from tvm import te

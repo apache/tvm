@@ -296,12 +296,14 @@ BlockRV TracedScheduleNode::CacheRead(const BlockRV& block_rv, int read_buffer_i
 }
 
 BlockRV TracedScheduleNode::CacheWrite(const BlockRV& block_rv, int write_buffer_index,
-                                       const String& storage_scope) {
-  BlockRV result = ConcreteScheduleNode::CacheWrite(block_rv, write_buffer_index, storage_scope);
+                                       const String& storage_scope,
+                                       const Array<BlockRV> consumer_blocks) {
+  BlockRV result = ConcreteScheduleNode::CacheWrite(block_rv, write_buffer_index, storage_scope,
+                                                    consumer_blocks);
 
   static const InstructionKind& kind = InstructionKind::Get("CacheWrite");
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
-                                      /*inputs=*/{block_rv},
+                                      /*inputs=*/{block_rv, consumer_blocks},
                                       /*attrs=*/{Integer(write_buffer_index), storage_scope},
                                       /*outputs=*/{result}));
   return result;
@@ -323,8 +325,9 @@ Array<BlockRV> TracedScheduleNode::CacheInplace(const BlockRV& block_rv, int rea
   return result;
 }
 
-Array<BlockRV> TracedScheduleNode::CacheIndex(const BlockRV& block_rv, int buffer_index) {
-  Array<BlockRV> result = ConcreteScheduleNode::CacheIndex(block_rv, buffer_index);
+Array<BlockRV> TracedScheduleNode::CacheIndex(const BlockRV& block_rv, const String& storage_scope,
+                                              int cse_thresh) {
+  Array<BlockRV> result = ConcreteScheduleNode::CacheIndex(block_rv, storage_scope, cse_thresh);
   Array<ObjectRef> outputs;
   for (const BlockRV& r : result) {
     outputs.push_back(r);
@@ -332,7 +335,7 @@ Array<BlockRV> TracedScheduleNode::CacheIndex(const BlockRV& block_rv, int buffe
   static const InstructionKind& kind = InstructionKind::Get("CacheIndex");
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
                                       /*inputs=*/{block_rv},
-                                      /*attrs=*/{Integer(buffer_index)},
+                                      /*attrs=*/{storage_scope, Integer(cse_thresh)},
                                       /*outputs=*/outputs));
   return result;
 }
@@ -442,34 +445,36 @@ void TracedScheduleNode::SetScope(const BlockRV& block_rv, int buffer_index,
 
 /******** Schedule: Blockize & Tensorize ********/
 
-BlockRV TracedScheduleNode::Blockize(const LoopRV& loop_rv) {
-  BlockRV new_block = ConcreteScheduleNode::Blockize(loop_rv);
+BlockRV TracedScheduleNode::Blockize(const LoopRV& loop_rv, bool preserve_unit_iters) {
+  BlockRV new_block = ConcreteScheduleNode::Blockize(loop_rv, preserve_unit_iters);
   static const InstructionKind& kind = InstructionKind::Get("Blockize");
   trace_->Append(/*inst=*/Instruction(
       /*kind=*/kind,
       /*inputs=*/{loop_rv},
-      /*attrs=*/{},
+      /*attrs=*/{Bool(preserve_unit_iters)},
       /*outputs=*/{new_block}));
   return new_block;
 }
 
-void TracedScheduleNode::Tensorize(const LoopRV& loop_rv, const String& intrin) {
-  ConcreteScheduleNode::Tensorize(loop_rv, intrin);
+void TracedScheduleNode::Tensorize(const LoopRV& loop_rv, const String& intrin,
+                                   bool preserve_unit_iters) {
+  ConcreteScheduleNode::Tensorize(loop_rv, intrin, preserve_unit_iters);
   static const InstructionKind& kind = InstructionKind::Get("Tensorize");
   trace_->Append(/*inst=*/Instruction(
       /*kind=*/kind,
       /*inputs=*/{loop_rv},
-      /*attrs=*/{intrin},
+      /*attrs=*/{intrin, Bool(preserve_unit_iters)},
       /*outputs=*/{}));
 }
 
-void TracedScheduleNode::Tensorize(const BlockRV& block_rv, const String& intrin) {
-  ConcreteScheduleNode::Tensorize(block_rv, intrin);
+void TracedScheduleNode::Tensorize(const BlockRV& block_rv, const String& intrin,
+                                   bool preserve_unit_iters) {
+  ConcreteScheduleNode::Tensorize(block_rv, intrin, preserve_unit_iters);
   static const InstructionKind& kind = InstructionKind::Get("Tensorize");
   trace_->Append(/*inst=*/Instruction(
       /*kind=*/kind,
       /*inputs=*/{block_rv},
-      /*attrs=*/{intrin},
+      /*attrs=*/{intrin, Bool(preserve_unit_iters)},
       /*outputs=*/{}));
 }
 

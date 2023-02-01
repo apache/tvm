@@ -28,9 +28,9 @@ class Before:
     def main(inputs: T.Buffer[(1, 4, 4, 512), "float32"], weight: T.Buffer[(4, 4, 512, 256), "float32"], conv2d_transpose_nhwc: T.Buffer[(1, 8, 8, 256), "float32"]) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        inputs_flat = T.buffer_decl([8192], dtype="float32", data=inputs.data)
-        weight_flat = T.buffer_decl([2097152], dtype="float32", data=weight.data)
-        conv2d_transpose_nhwc_flat = T.buffer_decl([16384], dtype="float32", data=conv2d_transpose_nhwc.data)
+        inputs_flat = T.Buffer([8192], dtype="float32", data=inputs.data)
+        weight_flat = T.Buffer([2097152], dtype="float32", data=weight.data)
+        conv2d_transpose_nhwc_flat = T.Buffer([16384], dtype="float32", data=conv2d_transpose_nhwc.data)
         # var definition
         threadIdx_x = T.env_thread("threadIdx.x")
         blockIdx_x = T.env_thread("blockIdx.x")
@@ -59,9 +59,9 @@ class After:
     def main(inputs: T.Buffer[(1, 4, 4, 512), "float32"], weight: T.Buffer[(4, 4, 512, 256), "float32"], conv2d_transpose_nhwc: T.Buffer[(1, 8, 8, 256), "float32"]) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        inputs_flat = T.buffer_decl([8192], dtype="float32", data=inputs.data)
-        weight_flat = T.buffer_decl([2097152], dtype="float32", data=weight.data)
-        conv2d_transpose_nhwc_flat = T.buffer_decl([16384], dtype="float32", data=conv2d_transpose_nhwc.data)
+        inputs_flat = T.Buffer([8192], dtype="float32", data=inputs.data)
+        weight_flat = T.Buffer([2097152], dtype="float32", data=weight.data)
+        conv2d_transpose_nhwc_flat = T.Buffer([16384], dtype="float32", data=conv2d_transpose_nhwc.data)
         # var definition
         threadIdx_x = T.env_thread("threadIdx.x")
         blockIdx_x = T.env_thread("blockIdx.x")
@@ -93,9 +93,9 @@ class After_simplified:
         # var definition
         threadIdx_x = T.env_thread("threadIdx.x")
         blockIdx_x = T.env_thread("blockIdx.x")
-        inputs_flat = T.buffer_decl([8192], dtype="float32", data=inputs.data)
-        weight_flat = T.buffer_decl([2097152], dtype="float32", data=weight.data)
-        conv2d_transpose_nhwc_flat = T.buffer_decl([16384], dtype="float32", data=conv2d_transpose_nhwc.data)
+        inputs_flat = T.Buffer([8192], dtype="float32", data=inputs.data)
+        weight_flat = T.Buffer([2097152], dtype="float32", data=weight.data)
+        conv2d_transpose_nhwc_flat = T.Buffer([16384], dtype="float32", data=conv2d_transpose_nhwc.data)
         # body
         T.launch_thread(blockIdx_x, 64)
         conv2d_transpose_nhwc_local = T.decl_buffer([8], "float32", scope="local")

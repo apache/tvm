@@ -27,14 +27,12 @@
 #define TVM_IR_DIAGNOSTIC_H_
 
 #include <tvm/ir/module.h>
-#include <tvm/parser/source_map.h>
 
 #include <sstream>
 #include <string>
 
 namespace tvm {
 
-using tvm::parser::SourceMap;
 using tvm::runtime::TypedPackedFunc;
 
 /*! \brief The diagnostic level, controls the printing of the message. */

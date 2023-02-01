@@ -17,14 +17,15 @@
 import itertools
 
 import pytest
-
 import tvm
 from tvm.script.printer.doc import (
     AssertDoc,
     AssignDoc,
     CallDoc,
     ClassDoc,
+    CommentDoc,
     DictDoc,
+    DocStringDoc,
     ExprStmtDoc,
     ForDoc,
     FunctionDoc,
@@ -54,7 +55,7 @@ def format_script(s: str) -> str:
     non_empty_lines = [line for line in s.splitlines() if line and not line.isspace()]
     if not non_empty_lines:
         # no actual content
-        return "\n"
+        return ""
 
     line_indents = [len(line) - len(line.lstrip(" ")) for line in non_empty_lines]
     spaces_to_remove = min(line_indents)
@@ -62,7 +63,7 @@ def format_script(s: str) -> str:
     cleaned_lines = "\n".join(line[spaces_to_remove:] for line in s.splitlines())
     if not cleaned_lines.endswith("\n"):
         cleaned_lines += "\n"
-    return cleaned_lines
+    return cleaned_lines.strip()
 
 
 @pytest.mark.parametrize(
@@ -885,6 +886,58 @@ def get_func_doc_for_class(name):
 )
 def test_print_class_doc(decorators, body, expected):
     doc = ClassDoc(IdDoc("TestClass"), decorators, body)
+    assert to_python_script(doc) == format_script(expected)
+
+
+@pytest.mark.parametrize(
+    "comment, expected",
+    [
+        (
+            "",
+            "",
+        ),
+        (
+            "test comment 1",
+            "# test comment 1",
+        ),
+        (
+            "test comment 1\ntest comment 2",
+            """
+            # test comment 1
+            # test comment 2
+            """,
+        ),
+    ],
+    ids=itertools.count(),
+)
+def test_print_comment_doc(comment, expected):
+    doc = CommentDoc(comment)
+    assert to_python_script(doc) == format_script(expected)
+
+
+@pytest.mark.parametrize(
+    "comment, expected",
+    [
+        (
+            "",
+            "",
+        ),
+        (
+            "test comment 1",
+            '"""test comment 1"""',
+        ),
+        (
+            "test comment 1\ntest comment 2",
+            '''
+            """test comment 1
+            test comment 2"""
+            ''',
+        ),
+    ],
+    ids=itertools.count(),
+)
+def test_print_doc_string_doc(comment, expected):
+    doc = DocStringDoc(comment)
     assert to_python_script(doc) == format_script(expected)
 
 

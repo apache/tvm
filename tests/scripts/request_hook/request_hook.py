@@ -25,7 +25,8 @@ from urllib.parse import quote
 LOGGER = None
 
 
-# To update this list, run the workflow <HERE> with the URL to download and the SHA512 of the file
+# To update this list, run https://github.com/apache/tvm/actions/workflows/upload_ci_resource.yml
+# with the URL to download and the SHA-256 hash of the file.
 BASE = "https://tvm-ci-resources.s3.us-west-2.amazonaws.com"
 URL_MAP = {
     "http://data.mxnet.io.s3-website-us-west-1.amazonaws.com/data/val_256_q90.rec": f"{BASE}/mxnet-val_256_q90.rec",
@@ -145,12 +146,13 @@ URL_MAP = {
     "https://github.com/tlc-pack/web-data/raw/967fc387dadb272c5a7f8c3461d34c060100dbf1/testdata/microTVM/data/keyword_spotting_int8_6.pyc.npy": f"{BASE}/tlc-pack/web-data/raw/967fc387dadb272c5a7f8c3461d34c060100dbf1/testdata/microTVM/data/keyword_spotting_int8_6.pyc.npy",
     "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/keyword_spotting_int8_6.pyc.npy": f"{BASE}/tlc-pack/web-data/raw/main/testdata/microTVM/data/keyword_spotting_int8_6.pyc.npy",
     "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/model/keyword_spotting_quant.tflite": f"{BASE}/tlc-pack/web-data/raw/main/testdata/microTVM/model/keyword_spotting_quant.tflite",
+    "https://github.com/mlcommons/tiny/raw/v0.7/benchmark/training/visual_wake_words/trained_models/vww_96_int8.tflite": f"{BASE}/mlcommons/tiny/raw/v0.7/benchmark/training/visual_wake_words/trained_models/vww_96_int8.tflite",
     "https://github.com/uwsampl/web-data/raw/main/vta/models/synset.txt": f"{BASE}/2022-10-05/synset.txt",
     "https://homes.cs.washington.edu/~cyulin/media/gnn_model/gcn_cora.torch": f"{BASE}/gcn_cora.torch",
     "https://homes.cs.washington.edu/~moreau/media/vta/cat.jpg": f"{BASE}/vta_cat.jpg",
     "https://objects.githubusercontent.com/github-production-release-asset-2e65be/130932608/4b196a8a-4e2d-11e8-9a11-be3c41846711?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIWNJYAX4CSVEH53A%2F20221004%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20221004T170456Z&X-Amz-Expires=300&X-Amz-Signature=0602b68e8864b9b01c9142eee22aed3543fe98a5482686eec33d98e2617a2295&X-Amz-SignedHeaders=host&actor_id=0&key_id=0&repo_id=130932608&response-content-disposition=attachment%3B%20filename%3Dmobilenet_v2_weights_tf_dim_ordering_tf_kernels_0.5_224.h5&response-content-type=application%2Foctet-stream": f"{BASE}/2022-10-05/aws-mobilenet_v2_weights_tf_dim_ordering_tf_kernels_0.5_224.h5",
     "https://oneflow-public.oss-cn-beijing.aliyuncs.com/model_zoo/flowvision/classification/ResNet/resnet18.zip": f"{BASE}/oneflow/resnet18.zip",
-    "https://people.linaro.org/~tom.gall/sine_model.tflite": f"{BASE}/sine_model.tflite",
+    "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/model/sine_model.tflite": f"{BASE}/tlc-pack/web-data/testdata/microTVM/model/sine_model.tflite",
     "https://pjreddie.com/media/files/yolov3-tiny.weights?raw=true": f"{BASE}/yolov3-tiny.weights",
     "https://pjreddie.com/media/files/yolov3.weights": f"{BASE}/yolov3.weights",
     "https://raw.githubusercontent.com/Cadene/pretrained-models.pytorch/master/data/imagenet_classes.txt": f"{BASE}/2022-10-05/imagenet_classes.txt",
@@ -206,6 +208,7 @@ URL_MAP = {
     "https://storage.googleapis.com/tensorflow/keras-applications/vgg16/vgg16_weights_tf_dim_ordering_tf_kernels.h5": f"{BASE}/tensorflow/keras-applications/vgg16/vgg16_weights_tf_dim_ordering_tf_kernels.h5",
     "https://storage.googleapis.com/tensorflow/keras-applications/xception/xception_weights_tf_dim_ordering_tf_kernels.h5": f"{BASE}/tensorflow/keras-applications/xception/xception_weights_tf_dim_ordering_tf_kernels.h5",
     "https://storage.googleapis.com/tensorflow/tf-keras-datasets/mnist.npz": f"{BASE}/tensorflow/tf-keras-datasets/mnist.npz",
+    "https://github.com/mlcommons/tiny/raw/bceb91c5ad2e2deb295547d81505721d3a87d578/benchmark/training/visual_wake_words/trained_models/vww_96_int8.tflite": f"{BASE}/mlcommons/tiny/benchmark/training/visual_wake_words/trained_models/vww_96_int8.tflite",
 }
 
 
@@ -217,8 +220,8 @@ class TvmRequestHook(urllib.request.Request):
             # Dis-allow any accesses that aren't going through S3
             msg = (
                 f"Uncaught URL found in CI: {url}. "
-                "A committer must upload the relevant file to S3 via"
-                "https://github.com/apache/tvm/actions/workflows/upload_ci_resource.yml"
+                "A committer must upload the relevant file to S3 via "
+                "https://github.com/apache/tvm/actions/workflows/upload_ci_resource.yml "
                 "and add it to the mapping in tests/scripts/request_hook/request_hook.py"
             )
             raise RuntimeError(msg)

@@ -19,11 +19,16 @@
 """FFI for tvm.node"""
 import tvm._ffi
 
+
 # The implementations below are default ones when the corresponding
 # functions are not available in the runtime only mode.
 # They will be overriden via _init_api to the ones registered
 # via TVM_REGISTER_GLOBAL in the compiler mode.
 def AsRepr(obj):
+    return obj.type_key() + "(" + obj.handle.value + ")"
+
+
+def AsLegacyRepr(obj):
     return obj.type_key() + "(" + obj.handle.value + ")"
 
 

@@ -51,7 +51,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../printer/text_printer.h"
 #include "../../te/operation/create_primfunc.h"
 #include "../op/memory/memory.h"
 #include "../src/meta_schedule/module_equality.h"
@@ -577,7 +576,26 @@ class ScheduleBuilder : public ExprVisitor {
                       << "Only one layout-free constant is supported by RewriteLayout for now";
                   auto constant = const_collector.constants[0];
 
-                  if (constant.Shape().size() == index_map->initial_indices.size()) {
+                  auto is_constant_transformed = [index_map](runtime::NDArray c) {
+                    if (c.Shape().size() != index_map->initial_indices.size()) {
+                      return true;
+                    }
+                    size_t src_size_1d = 1;
+                    Array<PrimExpr> orig_shape;
+                    for (size_t i = 0; i < c.Shape().size(); ++i) {
+                      src_size_1d *= c->shape[i];
+                      orig_shape.push_back(PrimExpr(static_cast<int>((c->shape[i]))));
+                    }
+                    auto dst_shape = index_map->MapShape(orig_shape);
+                    std::vector<int64_t> dst_shape_int;
+                    size_t dst_size_1d = 1;
+                    for (size_t i = 0; i < dst_shape.size(); ++i) {
+                      dst_size_1d *= dst_shape[i].as<IntImmNode>()->value;
+                    }
+                    return src_size_1d != dst_size_1d;
+                  };
+
+                  if (!is_constant_transformed(constant)) {
                     // This is the first case, reached during the MetaScheduleLayoutRewrite pass.
                     //
                     // A layout-free constant having the same rank as an input to the index map
@@ -646,7 +664,7 @@ class ScheduleBuilder : public ExprVisitor {
             // (dispatch & 4): controls whether to raise fatal errors for missing TIR
             if (dispatch & 2) {
               LOG(WARNING) << "Cannot find workload: " << prim_fn_var->name_hint << "\n"
-                           << tir::AsTVMScript(f.value());
+                           << f.value();
             } else {
               LOG(WARNING) << "Cannot find workload: " << prim_fn_var->name_hint;
             }
@@ -1087,6 +1105,33 @@ std::tuple<Array<te::Tensor>, Array<runtime::NDArray>, std::string> LowerTECompu
   }
   return std::make_tuple(tensor_outs, constants, lower_te_compute.candidate_name_);
 }
+
+std::pair<Optional<tir::PrimFunc>, std::string> LowerToPrimFunc(const Function& relay_func,
+                                                                Target target,
+                                                                NameSupply constant_name_supply) {
+  ICHECK(relay_func->HasNonzeroAttr(attr::kPrimitive))
+      << "The input must be a Relay primitive function.";
+
+  auto [inputs_outputs, constants, fused_name] =
+      tec::LowerTECompute(relay_func, target, constant_name_supply, /*return_inputs=*/true);
+  auto tir_converter = backend::GetTIRConverter();
+  return std::make_pair(tir_converter(inputs_outputs, constants), fused_name);
+}
+
+tir::PrimFunc LowerToPrimFunc(const Function& relay_func, Target target) {
+  auto [f_opt, _] = LowerToPrimFunc(relay_func, target, NameSupply(""));
+  (void)_;  // to suppress -Werror=unused-variable warning
+  if (f_opt) {
+    return f_opt.value();
+  }
+  LOG(FATAL) << "Failed to convert the Relay function: " << AsText(relay_func, false);
+  return PrimFunc();
+}
+
+TVM_REGISTER_GLOBAL("relay.backend.LowerToPrimFunc")
+    .set_body_typed([](Function relay_func, Target target) {
+      return LowerToPrimFunc(relay_func, target);
+    });
 
 TVM_REGISTER_GLOBAL("relay.backend.LowerToTE").set_body_typed([](Function prim_func) {
   auto tgt = tvm::Target("ext_dev");

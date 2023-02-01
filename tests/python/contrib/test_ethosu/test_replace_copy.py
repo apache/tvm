@@ -18,11 +18,14 @@ import pytest
 
 pytest.importorskip("ethosu.vela")
 import tvm
-from tvm.script import tir as T
 from tvm import relay
-from tvm.relay.testing import run_opt_pass
 from tvm.relay.backend.contrib.ethosu.tir.compiler import _lower_to_tir
-from tvm.relay.backend.contrib.ethosu.tir.scheduler import copy_constants, OperatorCompute
+from tvm.relay.backend.contrib.ethosu.tir.scheduler import (
+    OperatorCompute,
+    copy_constants,
+)
+from tvm.relay.testing import run_opt_pass
+from tvm.script import tir as T
 
 from .infra import make_ethosu_conv2d
 
@@ -34,12 +37,12 @@ class ReferenceModule:
     def main(input_placeholder_3: T.Buffer[(1, 16, 16, 32), "int8"], input_ethosu_write_1: T.Buffer[(1, 16, 16, 8), "int8"]) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer_1 = T.buffer_decl([384], "uint8")
-        placeholder_3 = T.buffer_decl([8192], dtype="int8", data=input_placeholder_3.data)
-        ethosu_write_1 = T.buffer_decl([2048], dtype="int8", data=input_ethosu_write_1.data)
+        buffer_1 = T.Buffer([384], "uint8")
+        placeholder_3 = T.Buffer([8192], dtype="int8", data=input_placeholder_3.data)
+        ethosu_write_1 = T.Buffer([2048], dtype="int8", data=input_ethosu_write_1.data)
         # body
         placeholder_global_data = T.allocate([384], "uint8", "global", annotations={"disable_lower_builtin": True})
-        placeholder_global = T.buffer_decl([384], "uint8", data=placeholder_global_data)
+        placeholder_global = T.Buffer([384], "uint8", data=placeholder_global_data)
         T.evaluate(T.call_extern("ethosu_copy", buffer_1[0], 384, placeholder_global[0], dtype="handle"))
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 32, 16, 0, 16, placeholder_3[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 16, 8, 16, 0, 16, ethosu_write_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, placeholder_global[0], 304, T.int8(-1), T.int8(-1), 12, placeholder_global[304], 80, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
     __tvm_meta__ = None
@@ -65,7 +68,7 @@ def test_copy():
     func = _get_func()
     mod, _ = _lower_to_tir(func, cascader=copy_constants())
 
-    script = mod.script(show_meta=True)
+    script = mod.script()
     test_mod = tvm.script.from_source(script)
     reference_mod = ReferenceModule
     tvm.ir.assert_structural_equal(test_mod["main"], reference_mod["main"], True)
@@ -78,15 +81,15 @@ class WeightStream:
     def main(input_placeholder_5: T.Buffer[(1, 16, 16, 32), "int8"], input_ethosu_write_1: T.Buffer[(1, 16, 16, 16), "int8"]) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.buffer_decl([528], "uint8")
-        buffer_2 = T.buffer_decl([336], "uint8")
-        placeholder_5 = T.buffer_decl([8192], dtype="int8", data=input_placeholder_5.data)
-        ethosu_write_1 = T.buffer_decl([4096], dtype="int8", data=input_ethosu_write_1.data)
+        buffer = T.Buffer([528], "uint8")
+        buffer_2 = T.Buffer([336], "uint8")
+        placeholder_5 = T.Buffer([8192], dtype="int8", data=input_placeholder_5.data)
+        ethosu_write_1 = T.Buffer([4096], dtype="int8", data=input_ethosu_write_1.data)
         # body
         placeholder_d_global_data = T.allocate([528], "uint8", "global", annotations={"disable_lower_builtin": True})
-        placeholder_d_global = T.buffer_decl([528], "uint8", data=placeholder_d_global_data)
+        placeholder_d_global = T.Buffer([528], "uint8", data=placeholder_d_global_data)
         placeholder_d_global_1_data = T.allocate([336], "uint8", "global", annotations={"disable_lower_builtin": True})
-        placeholder_d_global_1 = T.buffer_decl([336], "uint8", data=placeholder_d_global_1_data)
+        placeholder_d_global_1 = T.Buffer([336], "uint8", data=placeholder_d_global_1_data)
         T.evaluate(T.call_extern("ethosu_copy", buffer[0], 528, placeholder_d_global[0], dtype="handle"))
         T.evaluate(T.call_extern("ethosu_copy", buffer_2[0], 336, placeholder_d_global_1[0], dtype="handle"))
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 32, 16, 0, 16, placeholder_5[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 16, 10, 16, 0, 16, ethosu_write_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 256, 16, 1, 1, 1, 1, 1, 1, 1, placeholder_d_global[0], 416, T.int8(-1), T.int8(-1), 12, placeholder_d_global[416], 112, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
@@ -125,11 +128,11 @@ def test_weight_stream():
     func = _get_func()
     mod, _ = _lower_to_tir(func, cascader=_cascader)
 
-    script = mod.script(show_meta=True)
+    script = mod.script()
     test_mod = tvm.script.from_source(script)
     reference_mod = WeightStream
     tvm.ir.assert_structural_equal(test_mod["main"], reference_mod["main"], True)
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

@@ -53,6 +53,13 @@ def partition_ethosu_by_table(mod, pattern_table):
     return mod
 
 
+def relu_n1_to_1(x):
+    """
+    The specific pattern will be replaced into RELU_N1_TO_1 by tflite.
+    """
+    return tf.math.maximum(-1.0, tf.math.minimum(x, 1.0))
+
+
 def test_split_indices_legalize():
     def create_graph(axis):
         x = relay.var("x", shape=(1, 50, 50, 3))
@@ -674,6 +681,106 @@ def test_tflite_depthwise_conv2d_with_separate_padding_legalize():
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
+@pytest.mark.parametrize("ifm_shape", [(1, 55, 55, 3), (1, 23, 32, 7)])
+@pytest.mark.parametrize("padding", [(0, 1, 0, 0), (1, 1, 1, 1), (1, 1, 5, 5)])
+@pytest.mark.parametrize("const_value", [0, 5, 125, -5])
+def test_tflite_separate_padding_legalize(ifm_shape, padding, const_value):
+    dtype = "int8"
+    kernel_shape = (1, 1)
+    strides = (1, 1)
+    dilation = (1, 1)
+
+    def create_tflite_graph():
+        class Model(tf.Module):
+            @tf.function
+            def tf_function(self, x):
+                return tf.pad(
+                    x,
+                    [[0, 0], [padding[0], padding[2]], [padding[1], padding[3]], [0, 0]],
+                    "CONSTANT",
+                    const_value,
+                )
+
+        model = Model()
+        concrete_func = model.tf_function.get_concrete_function(
+            tf.TensorSpec(ifm_shape, dtype=tf.float32)
+        )
+        # Convert the model
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        return tflite_model
+
+    def verify(ext_func):
+        op = ext_func.body
+        ofm_channels = op.attrs.ofm_channels
+
+        # check IFM
+        ifm = op.args[0].checked_type
+        assert list(ifm.shape) == list(ifm_shape)
+        assert str(ifm.dtype) == dtype
+        assert ifm.shape[3] == ofm_channels
+
+        # check OFM
+        ofm = op.checked_type
+        expected_ofm_shape = infra.compute_ofm_shape(
+            ifm_shape, padding, kernel_shape, strides, dilation
+        )
+        assert list(ofm.shape) == list(expected_ofm_shape)
+        assert str(ofm.dtype) == dtype
+        assert ofm.shape[3] == ofm_channels
+
+        # check weights
+        weights_ohwi = op.args[1].data.asnumpy()
+        assert str(weights_ohwi.dtype) == dtype
+        assert weights_ohwi.shape[0] == ofm_channels
+        assert weights_ohwi.shape[1] == kernel_shape[0]
+        assert weights_ohwi.shape[2] == kernel_shape[1]
+        assert weights_ohwi.shape[3] == 1  # only depth multiplier 1 is supported
+
+        # Check that scale_bias matches weight tensor
+        assert list(op.args[2].checked_type.shape)[0] == ofm_channels
+
+        assert list(op.attrs.padding) == list(padding)
+        assert op.attrs.ofm_channels == ofm_channels
+        assert list(op.attrs.strides) == list(strides)
+        assert list(op.attrs.dilation) == list(dilation)
+
+    pad_pattern_table = [
+        (
+            ethosu.PadParams.composite_name,
+            ethosu.pad_pattern(),
+            lambda pat: ethosu.PadParams(pat).is_valid(),
+        )
+    ]
+
+    tflite_graph = create_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+
+    mod, params = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"input": ifm_shape},
+        dtype_dict={"input": dtype},
+    )
+
+    mod["main"] = bind_params_by_name(mod["main"], params)
+    mod = partition_ethosu_by_table(mod, pad_pattern_table)
+
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        legalize.PadRewriter(), mod["tvmgen_default_ethos_u_main_0"]
+    )
+    verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
 @pytest.mark.parametrize("pooling_type", ["MAX", "AVG"])
 @pytest.mark.parametrize("ifm_shape", [[1, 3, 4, 3], [1, 4, 5, 2]])
 @pytest.mark.parametrize(
@@ -781,7 +888,7 @@ def test_tflite_pool2d_legalize(
         ([1, 4, 4], [4, 1], False),
     ],
 )
-@pytest.mark.parametrize("activation_function", ["NONE", "RELU"])
+@pytest.mark.parametrize("activation_function", [None, tf.nn.relu])
 def test_tflite_binary_elemwise_legalize(
     operator_type,
     ifm_shape,
@@ -806,8 +913,8 @@ def test_tflite_binary_elemwise_legalize(
                     op = tf.math.minimum(x, y)
                 elif operator_type == "MAX":
                     op = tf.math.maximum(x, y)
-                if activation_function == "RELU":
-                    op = tf.nn.relu(op)
+                if activation_function:
+                    op = activation_function(op)
                 return op
 
         model = Model()
@@ -838,9 +945,13 @@ def test_tflite_binary_elemwise_legalize(
         op = ext_func.body
 
         has_reshaped_output = False
+        has_separate_requantize = False
         shapes_padded = [[1] * (4 - len(s)) + s for s in shapes]
         out_padded = [1] * (4 - len(out_shape)) + out_shape
-        if op.op.name != "contrib.ethosu.binary_elementwise":
+        if op.op.name == "contrib.ethosu.identity":
+            op = op.args[0]
+            has_separate_requantize = True
+        if op.op.name == "reshape":
             has_reshaped_output = True
             op = op.args[0]
 
@@ -851,20 +962,30 @@ def test_tflite_binary_elemwise_legalize(
         assert op.checked_type.dtype == dtype
         assert op.attrs.operator_type == operator_type
         assert op.attrs.reversed_operands == reversed_operands
-        if activation_function == "RELU":
+        if activation_function != None:
             assert str(op.attrs.activation) == "CLIP"
 
             if operator_type in ["MIN", "MAX"]:
-                # MIN and MAX with an activation must have a requantize operation
-                # baked into the output. To check the extra requantize node was
-                # picked up by the pattern, we can make sure the quantization
-                # information is not default.
-                assert float(op.attrs.ifm_scale) != 1.0
-                assert int(op.attrs.ifm_zero_point) != 0
-                assert float(op.attrs.ifm2_scale) != 1.0
-                assert int(op.attrs.ifm2_zero_point) != 0
-                assert float(op.attrs.ofm_scale) != 1.0
-                assert int(op.attrs.ofm_zero_point) != 0
+                if has_separate_requantize:
+                    # In case when requantize cannot be fused with MIN/MAX + CLIP due to hardware constraints
+                    # there should be default quantization values since requantize is separate operation.
+                    assert float(op.attrs.ifm_scale) == 1.0
+                    assert int(op.attrs.ifm_zero_point) == 0
+                    assert float(op.attrs.ifm2_scale) == 1.0
+                    assert int(op.attrs.ifm2_zero_point) == 0
+                    assert float(op.attrs.ofm_scale) == 1.0
+                    assert int(op.attrs.ofm_zero_point) == 0
+                else:
+                    # MIN and MAX with an activation must have a requantize operation
+                    # baked into the output. To check the extra requantize node was
+                    # picked up by the pattern, we can make sure the quantization
+                    # information is not default.
+                    assert float(op.attrs.ifm_scale) != 1.0
+                    assert int(op.attrs.ifm_zero_point) != 0
+                    assert float(op.attrs.ifm2_scale) != 1.0
+                    assert int(op.attrs.ifm2_zero_point) != 0
+                    assert float(op.attrs.ofm_scale) != 1.0
+                    assert int(op.attrs.ofm_zero_point) != 0
 
         if has_reshaped_output:
             assert list(ext_func.body.checked_type.shape) == out_shape
@@ -897,21 +1018,41 @@ def test_tflite_binary_elemwise_legalize(
             ),
         ]
     elif operator_type == "MIN":
-        rewriter = legalize.MinRewriter()
+        rewriter = [legalize.MinRewriter(), legalize.RequantizeRewriter()]
         pattern_table = [
+            (
+                ethosu.MinParams.composite_name,
+                ethosu.minimum_clip_requantize_pattern(),
+                lambda pat: ethosu.MinParams(pat).is_valid(),
+            ),
             (
                 ethosu.MinParams.composite_name,
                 ethosu.minimum_pattern(),
                 lambda pat: ethosu.MinParams(pat).is_valid(),
             ),
+            (
+                ethosu.RequantizeParams.composite_name,
+                ethosu.requantize_pattern(),
+                lambda pat: ethosu.RequantizeParams(pat).is_valid(),
+            ),
         ]
     elif operator_type == "MAX":
-        rewriter = legalize.MaxRewriter()
+        rewriter = [legalize.MaxRewriter(), legalize.RequantizeRewriter()]
         pattern_table = [
+            (
+                ethosu.MaxParams.composite_name,
+                ethosu.maximum_clip_requantize_pattern(),
+                lambda pat: ethosu.MaxParams(pat).is_valid(),
+            ),
             (
                 ethosu.MaxParams.composite_name,
                 ethosu.maximum_pattern(),
                 lambda pat: ethosu.MaxParams(pat).is_valid(),
+            ),
+            (
+                ethosu.RequantizeParams.composite_name,
+                ethosu.requantize_pattern(),
+                lambda pat: ethosu.RequantizeParams(pat).is_valid(),
             ),
         ]
 
@@ -929,6 +1070,12 @@ def test_tflite_binary_elemwise_legalize(
         rewriter, mod["tvmgen_default_ethos_u_main_0"]
     )
     verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
+# This test is for checking the case when requantize cannot be fused with MIN/MAX + CLIP due to hardware constraints.
+def test_tflite_max_relu_n1_to_1_legalize():
+    ifm_shape = [1, 4, 8, 16]
+    test_tflite_binary_elemwise_legalize("MAX", ifm_shape, ifm_shape, False, relu_n1_to_1)
 
 
 def test_binary_add_from_constant_scalar():
@@ -2807,4 +2954,4 @@ def test_tflite_hard_swish(ifm_shape):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()
