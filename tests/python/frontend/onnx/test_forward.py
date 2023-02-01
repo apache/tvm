@@ -7510,7 +7510,7 @@ def test_convinteger(target, dev):
 def test_bitshift(target, dev):
     """test_bitshift"""
 
-    def verify_bitshift(in_shape, shift_shape, high=1000000000, in_dtype="int64"):
+    def verify_bitshift(in_shape, shift_shape, high=1000000000, in_dtype="uint64"):
         in_shape = list(in_shape)
         shift_shape = list(shift_shape)
 
