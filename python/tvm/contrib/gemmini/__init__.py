@@ -20,7 +20,6 @@ Gemmini package is a TVM backend extension to support the Gemmini hardware accel
 **Author**: `Federico Peccia <https://fPecc.github.io/>`_
 """
 
-import sys
 import tvm._ffi.base
 
 from .environment import Environment

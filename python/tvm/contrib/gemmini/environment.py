@@ -31,10 +31,6 @@ from .intrin import (
     add_mvout_tensorize,
 )
 import re
-from pydevicetree import Devicetree
-import os
-import tvm
-import sys
 from typing import List, Tuple, Dict, Callable
 from .utils import counters
 

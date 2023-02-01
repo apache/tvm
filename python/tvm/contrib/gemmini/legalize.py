@@ -20,23 +20,12 @@ A set of passes to legalize the Gemmini operators
 **Author**: `Federico Peccia <https://fPecc.github.io/>`_
 """
 
-from typing import List, Type, Callable
-import math
-
-import numpy as np  # type: ignore
-
 import tvm  # type: ignore
-from tvm import te
 from tvm import relay
 from tvm import ir
 from tvm.relay.dataflow_pattern import DFPatternCallback  # type: ignore
 from tvm.relay.dataflow_pattern import wildcard
-from tvm.relay.dataflow_pattern import is_op
 from tvm.relay.dataflow_pattern import rewrite
-from tvm.relay.dataflow_pattern import CallPattern
-from tvm.relay.frontend.common import infer_shape as _infer_shape
-from tvm.relay.frontend.common import infer_type as _infer_type
-from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 
 from tvm.relay.op import _make  # type: ignore
 

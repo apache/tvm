@@ -20,19 +20,15 @@ Pattern table declaring the supported Gemmini operators
 **Author**: `Federico Peccia <https://fPecc.github.io/>`_
 """
 
-from typing import Dict, List, Tuple, Callable, Optional
+from typing import Callable, List, Tuple
 
 import tvm  # type: ignore
 from tvm import relay
-from tvm.target import Target
-from tvm.relay.build_module import bind_params_by_name  # type: ignore
 from tvm.relay.op.contrib.register import register_pattern_table  # type: ignore
 from tvm.relay.dataflow_pattern import is_constant, wildcard, is_op
 from .utils import *
 
-from tvm.topi.utils import const_vector, get_const_int, get_const_float
 from tvm.relay.frontend.common import infer_shape as _infer_shape
-from tvm.relay.frontend.common import infer_type as _infer_type
 
 from .environment import Environment
 
@@ -89,7 +85,6 @@ class AddParams:
 
     def __init__(self, func_body: tvm.relay.Function):
         if str(func_body.op) in self.activation_map.keys():
-            activation = func_body
             add_op = func_body.args[0]
         else:
             add_op = func_body

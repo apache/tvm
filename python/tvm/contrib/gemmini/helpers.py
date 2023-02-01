@@ -23,20 +23,8 @@ Miscellaneous helpers
 import numpy as np
 import pathlib
 from .environment import Environment
-
-import abc
-import collections
-import matplotlib
-import matplotlib.pyplot as plt  # pylint: disable=g-import-not-at-top
-import PIL.Image as Image
-import PIL.ImageColor as ImageColor
-import PIL.ImageDraw as ImageDraw
-import PIL.ImageFont as ImageFont
-import six
 from six.moves import range
-from six.moves import zip
-import tensorflow.compat.v1 as tf
-from typing import List, Tuple
+from typing import List
 
 
 env = Environment.instance()
