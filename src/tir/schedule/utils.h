@@ -456,10 +456,12 @@ inline std::unordered_set<std::string> GetBlockNames(const IRModule& mod) {
     std::unordered_set<std::string> block_names;
   };
 
-  auto prim_func = tir::FindEntryFunc(mod, nullptr);
-  BlockNameCollector collector;
-  collector(prim_func->body);
-  return collector.block_names;
+  if (auto prim_func = tir::FindEntryFunc(mod, nullptr)) {
+    BlockNameCollector collector;
+    collector(prim_func->body);
+    return collector.block_names;
+  }
+  return {};
 }
 
 /*! \brief Query if the given block name exists in the module associated with the schedule */

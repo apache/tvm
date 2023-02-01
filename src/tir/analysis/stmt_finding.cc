@@ -111,30 +111,31 @@ const BlockNode* FindAnchorBlock(const IRModule& mod) {
     std::vector<const BlockNode*> blocks;
   };
 
-  auto prim_func = FindEntryFunc(mod, nullptr);
+  if (auto prim_func = FindEntryFunc(mod, nullptr)) {
+    ReductionBlockCollector collector;
+    collector(prim_func->body);
 
-  ReductionBlockCollector collector;
-  collector(prim_func->body);
+    const auto& candidates = collector.blocks;
 
-  const auto& candidates = collector.blocks;
-
-  if (candidates.empty()) {
-    return nullptr;
-  } else if (candidates.size() == 1) {
-    return candidates[0];
-  }
-
-  double best_flops = -1;
-  int best_idx = 0;
-  for (size_t i = 0; i < candidates.size(); ++i) {
-    auto loop = GetEnclosingLoop(candidates[i], prim_func->body);
-    auto flops = EstimateTIRFlops(loop);
-    if (flops > best_flops) {
-      best_flops = flops;
-      best_idx = i;
+    if (candidates.empty()) {
+      return nullptr;
+    } else if (candidates.size() == 1) {
+      return candidates[0];
     }
+
+    double best_flops = -1;
+    int best_idx = 0;
+    for (size_t i = 0; i < candidates.size(); ++i) {
+      auto loop = GetEnclosingLoop(candidates[i], prim_func->body);
+      auto flops = EstimateTIRFlops(loop);
+      if (flops > best_flops) {
+        best_flops = flops;
+        best_idx = i;
+      }
+    }
+    return candidates[best_idx];
   }
-  return candidates[best_idx];
+  return nullptr;
 }
 
 TVM_REGISTER_GLOBAL("tir.analysis.find_anchor_block").set_body_typed([](const IRModule& mod) {
