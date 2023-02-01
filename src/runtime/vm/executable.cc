@@ -25,7 +25,6 @@
 #include <dmlc/memory_io.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/debug.h>
-#include <tvm/runtime/dmlc_file_stream.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/vm/executable.h>
 #include <tvm/runtime/vm/vm.h>
