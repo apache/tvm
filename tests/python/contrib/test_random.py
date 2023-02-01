@@ -20,6 +20,7 @@ import numpy as np
 from tvm.contrib import random
 from tvm import rpc
 import tvm.testing
+import threading
 
 
 def test_randint():
@@ -160,7 +161,7 @@ def test_random_fill_mt():
     Particularly when MaxConcurrency != num_workers_used_ which is actual for big-little systems.
     """
     no_exception_happened = True
-    
+
     def test_body():
         try:
             num_thread_used = 1
@@ -178,7 +179,7 @@ def test_random_fill_mt():
     x = threading.Thread(target=test_body)
     x.start()
     x.join()
-    assert no_exception_happened 
+    assert no_exception_happened
 
 
 if __name__ == "__main__":
