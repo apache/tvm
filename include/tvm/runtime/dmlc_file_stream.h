@@ -23,6 +23,8 @@
  */
 #include <dmlc/io.h>
 
+#include <string>
+
 #ifndef TVM_RUNTIME_DMLC_FILE_STREAM_H_
 #define TVM_RUNTIME_DMLC_FILE_STREAM_H_
 
