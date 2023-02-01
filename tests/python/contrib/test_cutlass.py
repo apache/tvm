@@ -312,12 +312,16 @@ def profile_and_build(
     )
 
     if use_ansor:
-        with tvm.transform.PassContext(opt_level=3, config={"relay.backend.use_auto_scheduler": True}):
+        with tvm.transform.PassContext(
+            opt_level=3, config={"relay.backend.use_auto_scheduler": True}
+        ):
             tasks, task_weights = auto_scheduler.extract_tasks(
                 mod, params, cuda, include_simple_tasks=True, opt_level=3, other_targets=[cutlass]
             )
         for idx, (task, task_weight) in enumerate(zip(tasks, task_weights)):
-            logging.info(f"==== Task {idx}: {task.desc} (weight {task_weight} key: {task.workload_key}) =====")
+            logging.info(
+                f"==== Task {idx}: {task.desc} (weight {task_weight} key: {task.workload_key}) ====="
+            )
             logging.info(task.compute_dag)
 
         with tempfile.NamedTemporaryFile() as fp:
@@ -325,7 +329,9 @@ def profile_and_build(
 
             # auto-tuning is disabled by default
             if ansor_tuning:
-                measure_ctx = auto_scheduler.LocalRPCMeasureContext(repeat=3, min_repeat_ms=200, timeout=10)
+                measure_ctx = auto_scheduler.LocalRPCMeasureContext(
+                    repeat=3, min_repeat_ms=200, timeout=10
+                )
                 tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
                 tuner.tune(
                     auto_scheduler.TuningOptions(
@@ -1056,10 +1062,18 @@ def verify_dense_transpose_dense(
 
     rt_mod_ref, dev = get_ref_rt_mod(mod, params, target=ref_target)
     cutlass_rt_mod, dev, num_partition = profile_and_build(
-        mod, params, sm, use_3xtf32=use_3xtf32, use_ansor=False,
+        mod,
+        params,
+        sm,
+        use_3xtf32=use_3xtf32,
+        use_ansor=False,
     )
     cutlass_ansor_rt_mod, dev, num_partition = profile_and_build(
-        mod, params, sm, use_3xtf32=use_3xtf32, use_ansor=True,
+        mod,
+        params,
+        sm,
+        use_3xtf32=use_3xtf32,
+        use_ansor=True,
     )
     x = tvm.nd.array(np_data, device=dev)
     cutlass_out = get_output(cutlass_rt_mod, ["input"], [x])
