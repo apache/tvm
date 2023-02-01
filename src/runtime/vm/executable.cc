@@ -25,10 +25,10 @@
 #include <dmlc/memory_io.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/debug.h>
+#include <tvm/runtime/dmlc_file_stream.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/vm/executable.h>
 #include <tvm/runtime/vm/vm.h>
-#include <tvm/support/file_io.h>
 
 #include <algorithm>
 #include <iomanip>
@@ -345,7 +345,7 @@ void Executable::MoveLateBoundConstantsToStream(dmlc::Stream* stream, size_t byt
 }
 
 void Executable::MoveLateBoundConstantsToFile(const std::string& path, size_t byte_limit) {
-  tvm::support::SimpleBinaryFileStream stream(path, false);
+  tvm::runtime::SimpleBinaryFileStream stream(path, "wb");
   MoveLateBoundConstantsToStream(&stream, byte_limit);
 }
 
@@ -380,7 +380,7 @@ void Executable::LoadLateBoundConstantsFromMap(Map<String, NDArray> map) {
 }
 
 void Executable::LoadLateBoundConstantsFromFile(const std::string& path) {
-  tvm::support::SimpleBinaryFileStream stream(path, true);
+  tvm::runtime::SimpleBinaryFileStream stream(path, "rb");
   LoadLateBoundConstantsFromStream(&stream);
 }
 
@@ -1060,7 +1060,7 @@ Module ExecutableLoadBinary(void* strm) {
 }
 
 void Executable::SaveToFile(const std::string& path, const std::string& format) {
-  tvm::support::SimpleBinaryFileStream stream(path, false);
+  tvm::runtime::SimpleBinaryFileStream stream(path, "wb");
   SaveToBinary(&stream);
 }
 
@@ -1068,7 +1068,7 @@ TVM_REGISTER_GLOBAL("runtime.module.loadbinary_VMExecutable").set_body_typed(Exe
 
 // Load module from module.
 Module ExecutableLoadFile(const std::string& file_name, const std::string& format) {
-  tvm::support::SimpleBinaryFileStream stream(file_name, true);
+  tvm::runtime::SimpleBinaryFileStream stream(file_name, "rb");
   auto exec = ExecutableLoadBinary(reinterpret_cast<void*>(&stream));
   return exec;
 }

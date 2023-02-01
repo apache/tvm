@@ -18,52 +18,53 @@
  */
 
 /*!
- * \file file_io.h
+ * \file dmlc_file_stream.h
  * \brief Defines a simple DMLC stream for file io.
  */
 #include <dmlc/io.h>
 
-#ifndef SUPPORT_FILE_IO_H_
-#define SUPPORT_FILE_IO_H_
+#ifndef TVM_RUNTIME_DMLC_FILE_STREAM_H_
+#define TVM_RUNTIME_DMLC_FILE_STREAM_H_
 
 namespace tvm {
-namespace support {
+namespace runtime {
 
 /*!
  * \brief A dmlc stream which wraps standard file operations.
  */
 struct SimpleBinaryFileStream : public dmlc::Stream {
  public:
-  SimpleBinaryFileStream(const std::string& path, bool read) {
+  SimpleBinaryFileStream(const std::string& path, std::string mode) {
     const char* fname = path.c_str();
-    if (read) {
-      fp_ = std::fopen(fname, "rb");
-    } else {
-      fp_ = std::fopen(fname, "wb");
-    }
-    CHECK(fp_) << "Unable to open file " << path;
-    read_ = read;
+
+    CHECK(mode == "wb" || mode == "rb") << "Only allowed modes are 'wb' and 'rb'";
+    read_ = mode == "rb";
+    fp_ = std::fopen(fname, mode.c_str());
+    CHECK(fp_ != nullptr) << "Unable to open file " << path;
   }
   virtual ~SimpleBinaryFileStream(void) { this->Close(); }
   virtual size_t Read(void* ptr, size_t size) {
     CHECK(read_) << "File opened in write-mode, cannot read.";
+    CHECK(fp_ != nullptr) << "File is closed";
     return std::fread(ptr, 1, size, fp_);
   }
   virtual void Write(const void* ptr, size_t size) {
     CHECK(!read_) << "File opened in read-mode, cannot write.";
+    CHECK(fp_ != nullptr) << "File is closed";
     CHECK(std::fwrite(ptr, 1, size, fp_) == size) << "SimpleBinaryFileStream.Write incomplete";
   }
   inline void Close(void) {
-    if (fp_ != NULL) {
+    if (fp_ != nullptr) {
       std::fclose(fp_);
-      fp_ = NULL;
+      fp_ = nullptr;
     }
   }
 
  private:
   std::FILE* fp_ = nullptr;
-  bool read_;  // if false, then in write mode.
-};             // class SimpleBinaryFileStream
-}  // namespace support
+  bool read_;
+};  // class SimpleBinaryFileStream
+
+}  // namespace runtime
 }  // namespace tvm
-#endif  // SUPPORT_FILE_IO_H_
+#endif  // TVM_RUNTIME_DMLC_FILE_STREAM_H_
