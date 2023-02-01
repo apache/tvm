@@ -57,4 +57,3 @@ run-baremetal: $(runs_baremetal)
 	$(RUNNER)$(abs_top_srcdir)/build/$^
 
 junk += $(tests_baremetal)
-
