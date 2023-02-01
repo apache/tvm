@@ -25,7 +25,6 @@
 #include <dmlc/memory_io.h>
 #include <tvm/runtime/registry.h>
 
-#include <fstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -139,11 +138,13 @@ PackedFunc OpenCLModuleNode::GetFunction(const std::string& name,
                                          const ObjectPtr<Object>& sptr_to_self) {
   ICHECK_EQ(sptr_to_self.get(), this);
   if (name == "__GetPreCompiledPrograms") {
-    return PackedFunc(
-        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetPreCompiledPrograms(); });
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      *rv = this->GetPreCompiledPrograms();
+    });
   } else if (name == "__SetPreCompiledPrograms") {
-    return PackedFunc(
-        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->SetPreCompiledPrograms(args[0]); });
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      this->SetPreCompiledPrograms(args[0]);
+    });
   }
   ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
   auto it = fmap_.find(name);
@@ -315,7 +316,8 @@ std::string OpenCLModuleNode::GetPreCompiledPrograms() {
   dmlc::MemoryStringStream writer(&data);
   dmlc::Stream* strm = &writer;
   strm->Write(static_cast<uint64_t>(parsed_kernels_.size()));
-  for (auto& [name, source] : parsed_kernels_) {
+  for (auto& it : parsed_kernels_) {
+    std::string name = it.first;
     cl::OpenCLThreadEntry* t = workspace_->GetThreadEntry();
     int device_id = t->device.device_id;
     t->kernel_table.resize(workspace_->num_registered_kernels);

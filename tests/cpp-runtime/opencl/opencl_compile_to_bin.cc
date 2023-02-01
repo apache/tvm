@@ -180,7 +180,8 @@ TEST_F(OpenCLCompileBin, SourceVsBinaryCompilationPerf) {
       module.InstallKernel(m_workspace, m_workspace->GetThreadEntry(), m_kernelNames[i], e);
     }
     Timestamp comp_end = std::chrono::high_resolution_clock::now();
-    auto get_pre_compiled_f = module.GetFunction("__GetPreCompiledPrograms", GetObjectPtr<Object>(&module));
+    auto get_pre_compiled_f =
+        module.GetFunction("__GetPreCompiledPrograms", GetObjectPtr<Object>(&module));
     bytes = String(get_pre_compiled_f());
     std::chrono::duration duration =
         std::chrono::duration_cast<std::chrono::nanoseconds>(comp_end - comp_start);
