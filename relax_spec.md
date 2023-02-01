@@ -58,6 +58,7 @@ DataType ::= Int(bitwidth: int)
 
 StructInfo ::= TensorStructInfo(shape: Expr?, dtype: DataType, ndim: int)
              | ShapeStructInfo(values: [PrimExpr]?, ndim: int)
+             | PrimStructInfo(dtype: DataType)
              | ObjectStructInfo()
              | TupleStructInfo(fields: [StructInfo])
              | FuncStructInfo(params: [StructInfo]?, ret: StructInfo, derive_func: EnvFunc?*)
@@ -71,6 +72,9 @@ Expr ::=   Constant(data: NDArray)
          | GlobalVar(name_hint: string)
          | Tuple(fields: [Expr])
          | SeqExpr(blocks: [BindingBlock], body: Expr)
+         | PrimValue(value: PrimExpr)
+         | StringImm(value: string)
+         | DataTypeImm(value: DataType)
          | Function(params: [Var], body: Expr, ret_struct_info: StructInfo?, attrs: Attrs?)
          | If(cond: Expr, true_branch: Expr, false_branch: Expr)
          | ExternFunc(global_symbol: string)
@@ -106,15 +110,18 @@ This specification provides a more detailed description of what each expression 
 3. `Var`, `DataflowVar`, and `GlobalVar` nodes are all variables, referring to named stored values of different kinds. Variables in Relax must be bound exactly once. `GlobalVar`s are bound in the `IRModule` itself and refer to Relax functions or TIR `PrimFunc`s. `Var` nodes are bound either within functions, where they represent function parameters, or in `VarBinding` or `MatchCast` nodes in `BindingBlock`s, as we will discuss below. `DataflowVar`s are similar to `Var`s and can be bound only within `DataflowBlock`s.
 4. `PrimExpr`s are used to represent dimensions of shapes in `ShapeExpr` and `MatchCast` nodes. These represent operations on integers with their own `Var` nodes (`tir::Var`), which we will refer to as "shape variables". Shape variables can only be used in other `PrimExpr`s and are scoped like `Var` nodes (`relax::Var`), which we will call "Relax variables."
 5. `ExternFunc` nodes evaluate into `PackedFunc`s; the implementation will look up the registered `PackedFunc` by its global symbol.
-6. `Call` nodes represent function calls. The callee argument (the `op`) can be an `ExternFunc` node (representing a call to a `PackedFunc`), an `Op` node (representing a call to a Relax operator), or an arbitrary expression. 
+5. `PrimValue` nodes construct immutable scalar values from `PrimExpr`s, primarily for interacting with `ExternFunc`s or operators. These scalars are boxed within TVM objects, allowing them to be nested inside TVM's containers. (By contrast, zero-dimensional tensors defined via `Constant` are mutable.)
+6. `StringImm` nodes construct strings, intended primarily for interacting with `ExternFunc`s or operators.
+7. `DataTypeImm` nodes construct representations of TIR datatypes, intended primarily for interacting with `ExternFunc`s or operators.
+8. `Call` nodes represent function calls. The callee argument (the `op`) can be an `ExternFunc` node (representing a call to a `PackedFunc`), an `Op` node (representing a call to a Relax operator), or an arbitrary expression. 
     1. `Op` nodes refer to built-in Relax operators, which the compiler is free to implement as is deemed appropriate. Certain operators implement important operations, like `call_tir` (allows for calling TIR `PrimFunc`s).
     2. Any other expression must evaluate to a `PackedFunc` or a closure; the result of evaluating `op` will then be called with the given arguments. 
     
     Calls to `ExternFunc`s and operators may perform side effects, hence it is important to reason about whether a function call is permitted inside a `DataflowBlock`.
     
-7. `If` nodes represent branching control flow. First the condition expression is evaluated, and it must evaluate to a Boolean scalar. If the condition is true, the true branch is evaluated and its result is used; otherwise, the false branch is evaluated and its result is used.
-8. `TupleGetItem` nodes represent tuple indexing. The `tuple_value` expression must evaluate to a tuple with at least `index + 1` items and the item with the given index will be returned.
-9. `SeqExpr` describes a sequence of binding blocks followed by a return expression. The `SeqExpr` opens a new scope. Its binding blocks are evaluated in order and add new variables to the scope. Binding blocks are either ordinary `BindingBlock`s or `DataflowBlock`s and both consist of a series of bindings. `DataflowBlock`s are the only kind allowed to introduce bindings with `DataflowVar`s and it does not permit any constructs featuring control flow (`If` nodes or recursive calls) or calls to (possibly) impure functions. There are two different kinds of bindings:
+9. `If` nodes represent branching control flow. First the condition expression is evaluated, and it must evaluate to a Boolean scalar. If the condition is true, the true branch is evaluated and its result is used; otherwise, the false branch is evaluated and its result is used.
+10. `TupleGetItem` nodes represent tuple indexing. The `tuple_value` expression must evaluate to a tuple with at least `index + 1` items and the item with the given index will be returned.
+11. `SeqExpr` describes a sequence of binding blocks followed by a return expression. The `SeqExpr` opens a new scope. Its binding blocks are evaluated in order and add new variables to the scope. Binding blocks are either ordinary `BindingBlock`s or `DataflowBlock`s and both consist of a series of bindings. `DataflowBlock`s are the only kind allowed to introduce bindings with `DataflowVar`s and it does not permit any constructs featuring control flow (`If` nodes or recursive calls) or calls to (possibly) impure functions. There are two different kinds of bindings:
     1. `VarBinding`s: The `value` expression (the right-hand side of the binding) of the binding is evaluated first and is bound to the `var` expression, which must be a new `Var` or `DataflowVar` (in a dataflow block). The newly bound variable will have that value for the remainder of the scope (`DataflowVar`s are scoped only to the `DataflowBlock` in which they appear; `Var`s are scoped to the entire `SeqExpr`).
     2. `MatchCast`s: The `value` expression is evaluated and the result is dynamically checked against the structural information given in the `struct_info` field.
         1. The types must match: All `StructInfo` variants correspond to a category of value value (`TensorStructInfo` to a tensor value, `ShapeStructInfo` to shape values, etc.), so if the structure of `value` does not correspond to `struct_info`, an error is triggered. The structure of `value` is compared recursively with `struct_info`, so all components of `value` must match up with any nested structural information. Special comparison rules:
@@ -126,8 +133,8 @@ This specification provides a more detailed description of what each expression 
     
     The `SeqExpr`'s `body` expression is allowed to reference any `Var`s introduced within the `SeqExpr`'s binding blocks in addition to those that were in the outer scope; the `body` expression is evaluated after the binding blocks and its value is what is returned. Any Relax variables and shape variables introduced in the `SeqExpr` are removed from scope after the expression finishes evaluating.
     
-10. `ShapeExpr` nodes construct shape literals. The `PrimExpr`s within it describe how to compute each dimension; they are free to use any shape variables that are in scope.
-11. `Function` nodes represent function definitions, taking in the listed parameters and evaluating the body expression in a new scope (meaning any variables defined from within the function cannot be referenced outside it). Function definitions may be nested in any other expression and they evaluate into closure values, ensuring that functions are first-class. Closures capture any variables from the outer scope that are used in their body, both Relax variables and shape variables. Note that function definitions themselves are anonymous—a function must be registered in the `IRModule` (bound to a `GlobalVar`) or appear on the right-hand side of a binding to have a name in order to be called recursively. 
+12. `ShapeExpr` nodes construct shape literals. The `PrimExpr`s within it describe how to compute each dimension; they are free to use any shape variables that are in scope.
+13. `Function` nodes represent function definitions, taking in the listed parameters and evaluating the body expression in a new scope (meaning any variables defined from within the function cannot be referenced outside it). Function definitions may be nested in any other expression and they evaluate into closure values, ensuring that functions are first-class. Closures capture any variables from the outer scope that are used in their body, both Relax variables and shape variables. Note that function definitions themselves are anonymous—a function must be registered in the `IRModule` (bound to a `GlobalVar`) or appear on the right-hand side of a binding to have a name in order to be called recursively. 
     
     The function can have structural annotations on the parameters and a structural annotation for the return value. When the function is called, the annotations on parameters are checked against the argument values in similar fashion to `MatchCast` and can introduce new shape variables that are scoped to the function. Additionally, the structural information of the return value is checked against the annotation before the call returns.
     
@@ -155,9 +162,10 @@ Exiting with an error and infinitely looping are traditionally considered "[dive
 Analogously to a type system in most languages, Relax tracks structural information (referred to as `StructInfo` in the implementation) related to the categories of values in Relax:
 1. `TensorStructInfo` corresponds to tensor values, giving the scalar data type, the number of dimensions (rank), and an expression that computes the tensor's shape (either a `ShapeExpr` or a `Var`), all of which are optional.
 2. `TupleStructInfo` corresponds to tuple values, giving the `StructInfo` for each member of the tuple.
-3. `ShapeStructInfo` corresponds to shape values, optionally giving the number of dimensions in the shape and an expression that computes the shape's dimensions (either a `ShapeExpr` or a `Var`).
-4. `FunctionStructInfo` corresponds to function values (closures) and `PackedFunc`s (external functions), giving the types of the parameters, the return type, «and whether the function is pure.»
-5. `ObjectStructInfo` is a parent to all Relax `StructInfo` and corresponds to all the values above as well as any values returned by `PackedFunc` calls that do not fit in the above categories.
+3. `PrimStructInfo` corresponds to `PrimValue`s (immutable scalar values), giving their TIR datatype.
+4. `ShapeStructInfo` corresponds to shape values, optionally giving the number of dimensions in the shape and an expression that computes the shape's dimensions (either a `ShapeExpr` or a `Var`).
+5. `FunctionStructInfo` corresponds to function values (closures) and `PackedFunc`s (external functions), giving the types of the parameters, the return type, «and whether the function is pure.»
+6. `ObjectStructInfo` is a parent to all Relax `StructInfo` and corresponds to all the values above as well as any values returned by `PackedFunc` calls that do not fit in the above categories.
 
 `StructInfo` is assigned to every variable in scope and every type of expression based on the values it returns via a set of inference rules defined later in the specification, making use of subtyping to assign more general `StructInfo` when a more specific one cannot be determined. «Relax is strongly typed, meaning that if the `StructInfo` inferred is less specific than the one expected, an error will be issued and an explicit check via `MatchCast` will be required.»
 
@@ -180,7 +188,8 @@ Here are the classes of values that Relax operates over, meaning that they can b
 - *Closures* are the values resulting from evaluating Relax function expressions; closures can be passed around like other values, ensuring that functions are first-class in Relax. Functions defined in Relax can capture variables from outer scopes. A [closure](https://en.wikipedia.org/wiki/Closure_(computer_programming)) consists of a function and a mapping of any variables "captured" (those are *free variables* in the function body, variables from an outer scope that are neither arguments nor defined within the function but are used in the function) to their values. Closures capture both Relax-level local variables and shape variables from outer scopes. A closure also stores a name for itself when the body contains recursive calls. «Closures additionally carry some *run-time structural information* (RTSI) indicating their argument and result structures, in order to facilitate dynamic structural checks (since it is not otherwise possible to introspect the function contained within a closure); the precise form of the RTSI is left up to the compiler implementation to determine so long as `MatchCast` can verify the structure of a closure. Closures can be evaluated in a call node, which results in calling the function with the call's arguments and the captured values.»
 - *Tensor shapes* (shape values) are tuples of integers describing a tensor shape, obtained by evaluating `ShapeExpr`s.
 - *Packed functions* (`PackedFunc`s or external functions) represent arbitrary opaque functions implemented in TVM. That is, packed functions are routines that are defined outside of Relax and cannot be inspected by the compiler. They can perform side effects and return arbitrary values.
-- Additionally, there are further  *arbitrary objects* that do not belong in the above categories. These can be returned by `PackedFunc`s and operators; additionally, we treat TIR `PrimFunc`s as opaque objects. Though Relax expressions other than `PackedFunc` and operator calls cannot use those objects, Relax should pass around these values faithfully. In the future we may add more value types in order to distinguish between different objects, but at present we treat these all as arbitrary values with `ObjectStructInfo`.
+- *Primitive values* (`PrimValue`s) represent immutable scalar values that are primarily intended for being passed to external procedures, like calls to `PackedFunc`s. As a rule of thumb, scalar values intended for arithmetical computations should be 0-rank tensors while scalar values meant to serve as metadata should be `PrimValue`s.
+- Additionally, there are further  *arbitrary objects* that do not belong in the above categories. These can be returned by `PackedFunc`s and operators; additionally, we treat TIR `PrimFunc`s as opaque objects. Though Relax expressions other than `PackedFunc` and operator calls cannot use those objects, Relax should pass around these values faithfully. In the future we may add more value types in order to distinguish between different objects, but at present we treat these all as arbitrary values with `ObjectStructInfo`. Note that, for now, strings and TIR datatypes are also treated as opaque objects.
 
 ## Representation of Values at Run Time
 
@@ -192,6 +201,7 @@ Possible specification in terms of the TVM object system:
 - Tuples are represented using TVM ADTs (algebraic data types), which are arrays of TVM objects with a tag (see `include/tvm/runtime/container/adt.h`). Tuples use a tag of 0.
 - At run time, closures are represented as a `ClosureObj` (see `include/tvm/runtime/container/closure.h`); in the Relax VM these more specifically use the `VMClosureObj` (see [`https://github.com/tlc-pack/relax/blob/relax/include/tvm/runtime/relax_vm/executable.h`](https://github.com/tlc-pack/relax/blob/relax/include/tvm/runtime/relax_vm/executable.h)).
 - Shape values are represented at run time as a `ShapeTuple` (see `include/tvm/runtime/container/shape_tuple.h`).
+- Strings are represented using TVM's `String` container (see `include/tvm/runtime/container/string.h`).
 - We require objects other than the above values used by and returned by `PackedFunc` to inherit from TVM's `Object` class (defined in `include/tvm/runtime/Object.h`). Note that `PackedFunc`s are capable of using and returning all TVM POD (plain-old data) values (see `include/tvm/runtimes/packed_func.h`), which includes some representations that do not inherit from `Object`. In the future, we may define semantics for other values, but at present, these are *unsupported* in Relax and we make no guarantees about the semantics of calling `PackedFunc`s that use or return anything that does not inherit from `Object`.
 
 # Variable Scoping
@@ -284,6 +294,7 @@ Tensor shapes are the primary motivation for including structural information in
 The structural information in Relax corresponds to the values in the language:
 * `TensorStructInfo` describes tensor values. The `dtype` field gives the datatype (with `Void` indicating a statically unknown datatype), the `ndim` field gives the rank (with -1 indicating a statically unknown rank). Unlike `DynTensorType`, there is an optional `shape` field which, if defined, describes the shape of the tensor using either a `ShapeExpr` or a `Var` (with `ShapeStructInfo`). If `shape` is a `ShapeExpr`, the `PrimExpr`s in the `ShapeExpr`'s dimensions describe how to compute each dimension of the shape (or are constants). If `shape` is a `Var`, the `Var` can assign the result of an arbitrary computation that returns a shape value, which can be useful for memory planning.
 * `ShapeStructInfo` describes shape values. It has an `ndim` field that gives the number of dimensions in the shape (with -1 indicating that it is statically unknown). It additionally has an optional `values` field. If defined, `values` gives a list of `PrimExpr`s that indicate how to compute the dimensions of the shape, potentially providing further information for static analyses.
+* `PrimStructInfo` describes `PrimValue`s, giving their TIR datatype.
 * `TupleStructInfo` describes tuple values, namely by giving the `StructInfo` for each of the tuple's members via `fields`.
 * `FuncStructInfo` describes closure values or `PackedFunc`s. There are two ways in which to specify `FuncStructInfo`:
     1. By specifying `params` and `ret` (for closures). `params` gives the `StructInfo` corresponding to each of the function's parameters and `ret` gives the `StructInfo` corresponding to the result of calling the function. In this case, the `derive_func` field is left undefined.
@@ -317,11 +328,12 @@ This section describes the run-time checking performed by `MatchCast(var, value,
     2. If `shape` is a `ShapeExpr`, then compare the fields of the `ShapeExpr` to the concrete shape of `value`, dimension by dimension (comparing the `i`th field of the `ShapeExpr` to the `i`th dimension of the shape of `value`). Give an error if the number of the dimensions does not match the number of fields in the `ShapeExpr`.
         1. If a field of the `ShapeExpr` consists of only an unbound shape variable, then bind that variable to the value of the dimension.
         2. Otherwise, evaluate the field of the `ShapeExpr` and ensure that it matches the concrete value of the dimension.
-3. If `struct_info` is `ShapeStructInfo(ndim, values)`, then check that `value` is a shape value, that it has `ndim` dimensions (if `ndim` is not -1). If `values` is defined, then compare it to the concrete shape value (comparing the `i`th member of `values` to the `i`th field of the shape value):
+3. If `struct_info` is `PrimStructInfo(dtype)`, then check that `value` is a `PrimValue` and that the underlying scalar has datatype `dtype` in TIR (according to TIR's type-checking rules).
+4. If `struct_info` is `ShapeStructInfo(ndim, values)`, then check that `value` is a shape value, that it has `ndim` dimensions (if `ndim` is not -1). If `values` is defined, then compare it to the concrete shape value (comparing the `i`th member of `values` to the `i`th field of the shape value):
     1. If the `i`th member of `values` consists of only an unbound shape variable, then bind that variable to the `i`th field of the the concrete shape value.
     2. Otherwise, evaluate the `i`th member of `values` and check that it is equal to teh `i`th field of the concrete shape value.
-4. If `struct_info` is `TupleStructInfo(fields)`, then check that `value` is a tuple value with `n` fields, where `n` is the length of `fields`. Also recursively check the `i`th field of the tuple value against the `i`th member of `fields`.
-5. If `struct_info` is `FuncStructInfo(params, ret, derive_func)`, then if `params` is defined, check that `value` is a closure value; if `derive_func` is defined, check that `value` is a `PackedFunc`. No further validation may be done on a `PackedFunc`. «If `value` is a closure value, then it can contain run-time structural information indicating the structural information of its intended arguments and return value that can be compared against `params` and `ret`.»
+5. If `struct_info` is `TupleStructInfo(fields)`, then check that `value` is a tuple value with `n` fields, where `n` is the length of `fields`. Also recursively check the `i`th field of the tuple value against the `i`th member of `fields`.
+6. If `struct_info` is `FuncStructInfo(params, ret, derive_func)`, then if `params` is defined, check that `value` is a closure value; if `derive_func` is defined, check that `value` is a `PackedFunc`. No further validation may be done on a `PackedFunc`. «If `value` is a closure value, then it can contain run-time structural information indicating the structural information of its intended arguments and return value that can be compared against `params` and `ret`.»
 
 ### Checking Structural Information at the Start and End of a Function
 
@@ -368,7 +380,8 @@ Note that judging subtyping requires potentially reasoning about arbitrary `Shap
     2. Given an arbitrary `ndim` `n` and an arbitrary set of values `v` (not undefined), `ShapeStructInfo(ndim=n, values=v) <: ShapeStructInfo(ndim=n, values=undefined)`.
     3. Given an arbitrary `ndim` `n` and two arbitrary sets of values `v1` and `v2` (both defined), `ShapeStructInfo(ndim=n, values=v1) <: ShapeStructInfo(ndim=n, values=v2)` if, for all valid `i`, `v1[i]` and `v2[i]` can be proven to be _definitely_ statically equal. We say that `ShapeStructInfo(ndim=n, values=v1) <: ShapeStructInfo(ndim=n, values=v2)` _possibly_ holds if `v1` and `v2` are _possibly_ statically equal.
 6. Given two lists of `StructInfo` `fields1` and `fields2`, `TupleStructInfo(fields=fields1) <: TupleStructInfo(fields=fields2)` if `fields1` and `fields2` are the same length and for all `i`, `fields1[i] <: fields2[i]`. We consider the subtyping relationship to _possibly_ hold if any of the subtyping relationships for the fields only possibly holds.
-7. For `FuncStructInfo`:
+7. For `PrimStructInfo`, `PrimStructInfo(dt1) <: PrimStructInfo(dt2)` holds if `dt1` and `dt2` are the same. That is, we do not have subtyping for TIR datatypes or `PrimStructInfo`.
+8. For `FuncStructInfo`:
     1. Given an arbitrary derivation function `derive_func`, `FuncStructInfo(ret=ObjectStructInfo(), derive_func=derive_func) <: FuncStructInfo(ret=ObjectStructInfo(), derive_func=empty_derive)`.
     2. Corollary, following from reflexivity: For two `FuncStructInfo` `F1` and `F2` with undefined `params`, `F1 <: F2` only if `F1.derive_func` and `F2.derive_func` are identical.
     3. Given two lists of `StructInfo` parameters `P1` and `P2` and two `StructInfo` annotations `R1` and `R2`, `FuncStructInfo(params=P1, ret=R1) <: FuncStructInfo(params=P2, ret=R2)` if `P1` and `P2` are the same length and for all `i`, `P2[i] <: P1[i]` and `R1 <: R2`. We consider the subtyping relationship to _possibly_ hold if any of the subtyping relationships given only possibly holds.
@@ -384,6 +397,10 @@ def unify_struct_info(S1: StructInfo, S2: StructInfo) -> StructInfo:
     if S1 is ObjectStructInfo:
         return S2
     if S1 and S2 do not match types (e.g., not both TensorStructInfo, etc):
+        return ObjectStructInfo()
+    if S1 and S2 are both PrimStructInfo:
+        if S1.dtype == S2.dtype:
+            return S1
         return ObjectStructInfo()
     if S1 and S2 are both ShapeStructInfo:
         if S1.ndim == -1:
@@ -478,6 +495,8 @@ def erase_to_well_defined(
 
     if s is ObjectStructInfo:
         return s
+    if s is PrimStructInfo:
+        return s
     if s is TensorStructInfo:
         if s.shape is defined:
             if (s.shape is a Relax var that is not in var_scope
@@ -530,6 +549,8 @@ For clarity, additional detail on how the mapping should be constructed is given
 def get_shape_var_mapping(S1: StructInfo, S2: StructInfo) -> {tir::Var, PrimExpr}:
     if S1 and S2 are not the same type:
         return {}
+    if S1 and S2 are both PrimStructInfo:
+        return {}
     if S1 and S2 are both TupleStructInfo:
         if S1.fields and S2.fields don't have the same length:
             return {}
@@ -577,17 +598,20 @@ Let `Γ` be the `StructInfo` context for Relax variables and let `Σ` track whic
 1. «Prepopulate `Γ` with the annotated types of all global functions (see the rule for `Function` nodes) that are called mutually recursively. Afterwards check the structural information of the global functions one at a time and populate the entry of `Γ` corresponding to that `GlobalVar`.»
 2. For a variable (`Var`, `DataflowVar`, or `GlobalVar`) `v`, look up `Γ[v]` for the structural information.
 3. For `Constant(value)`, the resulting structural information is `TensorStructInfo(ndim, dtype, shape)` where `ndim` is the concrete rank of `value`, `dtype` is the concrete datatype used in `value`, and `shape` is a `ShapeExpr` giving the concrete shape of `value. For example, for `Constant(1)`, `shape` is `ShapeExpr([])` and for `Constant([1, 2])`, `shape` is `ShapeExpr([IntImm(2, "int64")])`.
-4. For `Tuple(fields)`, suppose that `fields` is comprised of expressions `E1`, `E2`, ..., `En`. Let the `StructInfo` for these expressions be `S1`, `S2`, ..., `Sn`, respectively. Then the resulting `StructInfo` is `TupleStructInfo(fields=[S1, S2, ..., Sn])`.
-5. For `ShapeExpr(values)`, the resulting structural information is `ShapeStructInfo(ndim, values)`, where `ndim` is the length of `values`.
-6. For `If(cond, true_branch, false_branch)`, we compare the structural information of `true_branch` and `false_branch` (call these `S_t` and `S_f`, respectively). The resulting structural information is `unify_struct_info(S_t, S_f)`.
-7. For `SeqExpr(blocks, body)`:
+4. For `PrimValue(prim_expr)`, the resulting `StructInfo` is `PrimStructInfo(dt)`, where `dt` is the datatype of `prim_expr`, derived according to the type-checking rules for TIR.
+5. For `StringImm(s)`, the resulting `StructInfo` is `ObjectStructInfo()`.
+6. For `DataTypeImm(dt)`, the resulting `StructInfo` is `ObjectStructInfo()`.
+7. For `Tuple(fields)`, suppose that `fields` is comprised of expressions `E1`, `E2`, ..., `En`. Let the `StructInfo` for these expressions be `S1`, `S2`, ..., `Sn`, respectively. Then the resulting `StructInfo` is `TupleStructInfo(fields=[S1, S2, ..., Sn])`.
+8. For `ShapeExpr(values)`, the resulting structural information is `ShapeStructInfo(ndim, values)`, where `ndim` is the length of `values`.
+9. For `If(cond, true_branch, false_branch)`, we compare the structural information of `true_branch` and `false_branch` (call these `S_t` and `S_f`, respectively). The resulting structural information is `unify_struct_info(S_t, S_f)`.
+10. For `SeqExpr(blocks, body)`:
     1. For each binding block in `blocks` (call the current one `block`):
         1. Process each binding in the block, updating `Γ` and `Σ` accordingly (this is discussed in detail below).
         2. If `block` is a `DataflowBlock`, then remove all `DataflowVar`s introduced in `block` from `Γ` before proceeding to the next block.
     2. Next derive the structural information for `body`. Let us call this `S`.
     3. Remove all Relax variables introduced in `blocks` from `Γ` and all shape variables introduced in `blocks` from `Σ`.
     4. The structural information of the entire `SeqExpr` is `erase_to_well_defined(S, Γ, Σ)`.
-8. For handling variable bindings:
+11. For handling variable bindings:
     1. If `v` is the argument to a function, then if `v` has a structural annotation `S`, set `Γ[v]` to `S`. Add any unbound shape variables in `S` to `Σ`. If `v` does not have a structural annotation, set `Γ[v]` to `ObjectStructInfo()`.
     2. In the general `VarBinding(v, e)`:
         1. If `e` is a function literal, then recursion is permitted. In this case, `v` must have a structural annotation `Sv`. Derive the structural information for `e` as follows: Set `Γ[v]` to `Sv`, apply the normal rule for function literals (given below) to `e` to derive structural information `Se`, and finally remove `v` from `Γ`. Raise an error if `Se` and `Sv` are not compatible (via `check_compatibility`).
@@ -600,13 +624,13 @@ Let `Γ` be the `StructInfo` context for Relax variables and let `Σ` track whic
         3. If `S <: Sv` and `Sv <: S` both do not hold, give a warning, as this indicates a cast that will _always_ fail at run time. (Conversely, if `Sv <: S`, then the cast will always succeed.)
         4. If `v` is given and it has a structural annotation `S'`, then give an error if `S <: S'` does not hold. If they are compatible, then set `Γ[v]` to `S'` (respecting the user's intent in giving an annotation). (TODO: It doesn't seem very sensible to have a dynamic cast and give a different annotation, perhaps we should simply not permit doing that.)
         5. If `v` is given and it does not have a structural annotation, then set `Γ[v]` to `S`.
-9. For `TupleGetItem(tuple_value, i)`:
+12. For `TupleGetItem(tuple_value, i)`:
     1. Derive the structural information for `tuple_value` and call it `St`. 
     2. Raise an error if `St` is not `TupleStructInfo`. 
     3. If `St` is `TupleStructInfo(fields)`, then raise an error if `fields` value has less than `i + 1` members.
     4. Use `fields[i]` (zero-based) as the structural information for the `TupleGetItem`.
-10. For an `ExternFunc` node, the resulting structural information is `FuncStructInfo(params=None, ret=ObjectStructInfo(), derive_func=default_derive)`.
-11. For `Call(op, [arg1, arg2, ..., argn], type_args=[aT1, aT2, ..., aTn])`:
+13. For an `ExternFunc` node, the resulting structural information is `FuncStructInfo(params=None, ret=ObjectStructInfo(), derive_func=default_derive)`.
+14. For `Call(op, [arg1, arg2, ..., argn], type_args=[aT1, aT2, ..., aTn])`:
     1. For a call to an `Op`, we use the manually defined `FInferStructInfo` macro if it has been defined and `ObjectStructInfo()` if it has not. `FInferStructInfo` is a function that takes in the call node and returns the structural information of the result.
     2. Otherwise, derive the structural information for `op` and call it `Sf`. Next derive the structural information for the args and call it `S1`, `S2`, ..., and `Sn`. 
         1. Give an error if `Sf` is not `FuncStructInfo`.
@@ -615,7 +639,7 @@ Let `Γ` be the `StructInfo` context for Relax variables and let `Σ` track whic
         4. Next, attempt to perform [beta-reduction](https://en.wikipedia.org/wiki/Lambda_calculus#%CE%B2-reduction) by matching unbound shape variables in `params` with the `Si`. Namely, get a shape var mapping `m` by applying `get_shape_var_mapping(params[i], Si)` for all `i` and taking the union of all resulting mappings. Replace all variables in `m` with their mapping in `Sf`.
         5. After the substitutions, give an error if `Pi <: Si` does not hold for some `i` (give a warning if it _possibly_ holds).
         6. Use `erase_to_well_defined(Sf.ret, Γ, Σ)` as the resulting structural information.
-12. For `Function(params=[v1, v2, ..., vn], body, ret_struct_info)`:
+15. For `Function(params=[v1, v2, ..., vn], body, ret_struct_info)`:
     1. Let `S1`, `S2`, ..., `Sn` be the structural information of the parameters. If `vi` has a structural annotation, then use that annotation for `Si`; if not, use `ObjectStructInfo()`. Let `Sr` be `ret_struct_info` if it is defined and `ObjectStructInfo()` if not.
     2. If the function is bound to a `GlobalVar` `gv`, set `Γ[gv]` to `FuncStructInfo(params=[S1, S2, ..., Sn], ret=Sr)`. Still check the structural information in `body`, however.
     3. For each of the `vi`, set `Γ[vi]` to `Si`. Additionally, add all new shape variables introduced in the `Si` to `Σ`.
@@ -648,6 +672,7 @@ For comparison with Relay, it may be useful to simplify `StructInfo` into more t
 Type ::=
     DynTensorType(ndim: int, dtype: DataType)
   | ShapeType(ndim: int)
+  | PrimType(dtype: DataType)
   | TupleType(fields: [Type])
   | PackedFuncType()
   | FuncType(arg_types: [Type], ret_type: Type)
@@ -661,6 +686,8 @@ def erase_struct_info(si: StructInfo) -> Type:
         return DynTensorType(ndim=si.ndim, dtype=si.dtype)
     if si is ShapeStructInfo:
         return ShapeType(ndim=si.ndim)
+    if si is PrimStructInfo:
+        return PrimType(dtype=si.dtype)
     if si is TupleStructInfo:
         return TupleType(fields=[erase_struct_info(field) for field in si.fields])
     if si is FuncStructInfo:
@@ -689,20 +716,23 @@ For each expression, we define how it affects the program's visible state and th
 1. The node `Constant(value)` creates a new tensor whose contents are `value`.
 2. A variable (whether `Var`, `DataflowVar` , or `GlobalVar`) evaluates to the stored value for that variable in the current scope.
 3. The node `Tuple([e1, e2, ..., en])` evaluates `e1` (yielding value `v1`), then `e2` (yielding value `v2`), …, and finally `en` (yielding value `vn`) in that order and creates a new tuple value containing `v1`, `v2`, …, and `vn` in that order.
-4. The node `TupleGetItem(t, i)` is evaluated by first evaluating `t` (which, per `StructInfo` checking, must evaluate to a tuple) and then returning the `i`th field of the result.
-5. The node `ShapeExpr([p1, p2, ..., pn])` evaluates the `PrimExpr`s `p1` (yielding dimension value `v1`), `p2` (yielding dimension value `v2`), …, and finally `pn` (yielding dimension value `vn`) in that order, using the current shape context, and creates a new shape value whose dimensions are `v1`, `v2`, …, `vn`, in that order.
-6. The node `Function([v1, v2, ..., vn], body)` returns a new closure containing the function definition itself and a mapping of any free Relax variables or shape variables in `body` to the values they hold in the current scope when the `Function` node is encountered. If the function is the RHS of a local binding, the bound variable should also be included in the closure's binding map and should be mapped to the closure itself (to allow for recursive calls). Closure capturing is done *by reference*; no values will be copied and references to captured values will alias their values in the outer scope. `DataflowVar`s are not captured by closures.
-7. The node `If(cond, true_branch, false_branch)` is evaluated as follows:
+4. The node `PrimType(prim_expr)` evaluates the `PrimExpr` `prim_expr` first, obtaining a resulting `pv`. It then creates an immutable `PrimValue` containing `pv`.
+5. The node `StringImm(s)` creates an immutable string container whose contents is `s`. It does not necessarily have to be a _new_ string container if, for example, string interning is implemented.
+6. The node `DataTypeImm(dt)` creates a new immutable datatype representation.
+7. The node `TupleGetItem(t, i)` is evaluated by first evaluating `t` (which, per `StructInfo` checking, must evaluate to a tuple) and then returning the `i`th field of the result.
+8. The node `ShapeExpr([p1, p2, ..., pn])` evaluates the `PrimExpr`s `p1` (yielding dimension value `v1`), `p2` (yielding dimension value `v2`), …, and finally `pn` (yielding dimension value `vn`) in that order, using the current shape context, and creates a new shape value whose dimensions are `v1`, `v2`, …, `vn`, in that order.
+9. The node `Function([v1, v2, ..., vn], body)` returns a new closure containing the function definition itself and a mapping of any free Relax variables or shape variables in `body` to the values they hold in the current scope when the `Function` node is encountered. If the function is the RHS of a local binding, the bound variable should also be included in the closure's binding map and should be mapped to the closure itself (to allow for recursive calls). Closure capturing is done *by reference*; no values will be copied and references to captured values will alias their values in the outer scope. `DataflowVar`s are not captured by closures.
+10. The node `If(cond, true_branch, false_branch)` is evaluated as follows:
     1. First `cond` is evaluated. Let the result be `r` (per `StructInfo` checking, it must be a bool scalar).
     2. If `r` is true, evaluate the `true_branch` and return its result.
     3. If `r` is false, evaluate the `false_branch` and return its result.
-8. The node `ExternFunc(global_symbol)` is evaluated by looking up the global symbol name and returning the `PackedFunc` if it exists (it is an error if it does not.) Note that if a TIR `PrimFunc` in the `IRModule` has a global symbol attribute registered, it can be called as an `ExternFunc` using that global symbol as well.
-9. The node `Call(op, [arg1, arg2, ..., argn])` is evaluated as follows:
+11. The node `ExternFunc(global_symbol)` is evaluated by looking up the global symbol name and returning the `PackedFunc` if it exists (it is an error if it does not.) Note that if a TIR `PrimFunc` in the `IRModule` has a global symbol attribute registered, it can be called as an `ExternFunc` using that global symbol as well.
+12. The node `Call(op, [arg1, arg2, ..., argn])` is evaluated as follows:
     1. If `op` is an `Op` node, then evaluate `arg1`, `arg2`, …, `argn` in that order and call the results `a1`, `a2`, …, `an`. It is up to the compiler implementation to decide how operators should be implemented (some may have an associated `PackedFunc` and others may be built into the executor implementation). The operator may mutate its arguments. It is also up to the operator implementation as to whether the result is newly allocated or aliases another value. «(TODO: Once we have operators for logical and AND and OR, we should also define short-circuiting semantics for those.)»
     2. Otherwise, first evaluate `op` (it must evaluate to a closure or `PackedFunc`). Next, we evaluate  `arg1`, `arg2`, …, `argn` in that order and call the results `a1`, `a2`, …, `an`. 
         1. If `op` evaluated to a closure, push a new scope onto the stack where arguments `v1`, `v2`, …, `vn` in the closure are bound to `a1`, `a2`, …, and `an`, respectively, and all variables saved in the closure are added to the scope. Evaluate the closure body in this new scope; this will be the return value of the call. Pop the scope before returning the value. (Note that the checking of the structural information of the argument result values and the body values should be done as described in the previous section.)
         2. If `op` evaluated to a `PackedFunc`, simply invoke it. `PackedFunc`s may have arbitrary side effect and are responsible for whether the result is a newly allocated value or aliases another value.
-9. For the node `SeqExpr(blocks, body)`, we evaluate as follows:
+13. For the node `SeqExpr(blocks, body)`, we evaluate as follows:
     1. Push a new scope onto the stack.
     2. Iterate through the `BindingBlock`s in `blocks` in order. We will call the current one `block`. For each binding in `Block`:
         1. If the binding is `MatchCast(var, value, struct_info)`, perform the structure matching and shape variable updates as described in the structural information section. If `var` is provided, `var` will be bound to `value` in the current scope; this assignment is aliasing and no new value is allocated. If `var` is not provided, then the structural check is performed and shape variables are updated, but no new binding is introduced.
@@ -716,6 +746,8 @@ For each expression, we define how it affects the program's visible state and th
 Optimizations are allowed to reorder and modify the operations of a program in any way so long as they do not change the value returned by evaluating the program or any visible behavior of the program. For the purposes of compilation, visible behaviors consist of side effects like mutating values in the program or external effects like I/O (printing to the console, creating files, etc.) and the order and number of times in which they happen.
 
 «Within `DataflowBlock`s, it is permitted for the compiler to remove or reorder `MatchCast` operations even though this can affect the "visible behavior" of the program (since they can exit with an error). It is also permitted for the compiler to optimize away potential non-termination within `DataflowBlock`s: For example, if some pure function `f` has an integer return type and does not terminate, it is permissible to optimize `f() - f()` to 0 within a `DataflowBlock`. In general, the compiler is permitted to make programs "more defined" (terminating when the original did not terminate, not raising an error when the original raised an error) within a `DataflowBlock`, but never "less defined" (giving an error when the original did not give an error, not terminating when the original did not terminate). Outside of `DataflowBlock`s, error messages and potential non-termination must be preserved faithfully.»
+
+For immutable containers like those for the results of `PrimValue`, `StringImm`, and `DataTypeImm`, it is not required for the results of evaluating these expressions to be _new_ containers—it is permitted for the compiler to reuse existing objects provided that the values contained within are identical. This optimization is called [interning](https://en.wikipedia.org/wiki/String_interning). However, for operations that return new mutable values (in particular, operations that return tensor values), those _must_ be newly allocated, since reusing values can affect the behavior under aliasing.
 
 The specification makes no guarantees about certain memory-related properties and hence also does not consider them to be "visible behaviors":
 
