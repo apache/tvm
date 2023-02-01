@@ -44,12 +44,6 @@ This guide is organized to demonstrate various design aspects of
 - :ref:`Build and Deploy<build_deploy>`
 
 
-
-.. how to :ref:`build TVM with OpenCL<building_tvm_for_adreno>` (needed by Adreno™ devices) and TVM RPC
-.. enabled. It will also provide :ref:`example code<build_and_deploy_model_for_adreno>` to better understand the differences in compiling and deploying models
-.. for Adreno™ devices.
-
-
 .. _opencl_enhancements:
 
 OpenCL Backend Enhancements
@@ -83,6 +77,29 @@ Reasons of using textures:
 
 Overall, with textures, it is possible to achieve a significant performance boost
 compared to OpenCL buffer based solutions.
+
+In general we specify target as ``target="opencl"`` for a regular OpenCL based target which generates the kernels as shown below.
+
+.. code:: c
+
+   __kernel void tvmgen_default_fused_nn_conv2d_kernel0(__global float* restrict p0, __global double* restrict p1, __global float* restrict conv2d_nhwc) {
+   // body..
+
+Above OpenCL kernel definition has ``__global float*`` poniters which are essestially OpenCL ``buffer``  objects.
+
+When enabled texture based enhancements by modifying target definition as ``target="opencl -device=adreno"`` we can see the generated
+kernels using texture backed OpenCL image objects as shown below.
+
+.. code:: c
+
+   __kernel void tvmgen_default_fused_nn_conv2d_kernel0(__write_only image2d_t pad_temp_global_texture, __read_only image2d_t p0) {
+   // body..
+
+*image2d_t* is a built-in OpenCL types that represents two-dimensional image object and provides several additional functions.
+When we use *image2d_t* we read *4 elements at one time*, and it helps to utilize hardware in a more efficient way.
+
+Please refer to :ref:`Advanced Usage<advanced_usage>` for more details about generation and inspection of kernel sources.
+
 
 .. _about_openclml:
 
@@ -454,7 +471,7 @@ We can use below tvmc command to deploy on remore target via RPC based setup.
 tvmc based run has more option to initialize the input in various modes line fill, random ..etc.
 
 
-TVM also supports "rtvm" tool to run the model narivelu on ADB shell. The build process produced this tool under build-adreno-target.
+TVM also supports "rtvm" tool to run the model narively on ADB shell. The build process produced this tool under build-adreno-target.
 Please refer to `rtvm <https://github.com/apache/tvm/tree/main/apps/cpp_rtvm>`_ for more details about this tool.
 
 
@@ -468,233 +485,26 @@ to a relay module. Relay module will be used across the auto tuning, compilation
 
 **TVMC Interface:**
 
-TVMC interface can be accessed as shown below to import, compile and run a model.
-
-.. code:: python
-
-   from tvm.driver import tvmc
-   from tvm.driver.tvmc.model import TVMCPackage
-
-   # Convert a model from any framework to a tvm relay module.
-   # tvmc.load supports models from any framework (like tensorflow saves_model, onnx, tflite ..etc) and auto detects the filetype.
-   tvmc_model = tvmc.load("resnet50.h5")
-
-   # tvmc_model consists of tvmc_mode.mod which is relay module and tvmc_model.params which parms of the module.
-
-   # Now, the below api can be used for autotuning the model for any target. Tuning required RPC setup and please refer to
-   # :ref:`RPC Setup<rpc_setup>` for the same.
-
-   tvmc.tune(
-     tvmc_model,
-     target="opencl -device=adreno",
-     output="keras-resnet50.log",
-     tuning_records="keras-resnet50-records.log",
-     target_host="llvm -mtriple=aarch64-linux-gnu"
-     rpc_tracker="127.0.0.1:9120",
-     rpc_key=android,
-     repeat=30,
-     trials=1024,
-     early_stopping=0,
-   )
-
-   # Compilation to produce tvm artifacts
-
-   tvmc_package = tvmc.compile(
-      tvmc_model,
-      target="opencl -device=adreno",
-      target_host="llvm -mtriple=aarch64-linux-gnu",
-      cross="/android_ndk}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang",
-      tuning_records="keras-resnet50.log",
-   )
-
-   # tvmc_package consists of tvmc_package.lib_path, tvmc_package.graph, tvmc_package.params
-
-   # Altrernatively, we can ave the cmpilation output and save it as a TVMCPackage.
-   # This way avoids loading of compiled module without compiling again.
-
-   tvmc.compile(
-      tvmc_model,
-      target="opencl -device=adreno",
-      target_host="llvm -mtriple=aarch64-linux-gnu",
-      cross="/android_ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang",
-      tuning_records="keras-resnet50.log",
-      package_path="keras-resnet50.tar"
-   )
-   # Load the compiled package
-   tvmc_package = TVMCPackage(package_path=module_file)
-
-   # Saved TVMPackage is nothing but tar archive with mod.so, mod.json and mod.params.
-
-   # Deploy and run the compiled model on RPC
-   # Prepare input data dict
-   input_data = tvm.nd.array((np.random.uniform(size=(1, 229, 229, 3))).astype("float32"))
-   input_dict = {"input": input_data}
-
-   # Run on RPC setup
-   result = tvmc.run(
-      tvmc_package,
-      device="cl",
-      rpc_key="android",
-      hostname="127.0.0.1",
-      port=9120,
-      inputs=input_dict
-   )
-
-   # result is a dictionary of outputs.
-
+TVMC interface can be accessed as shown below to import, compile and run a model. Please refer to the tutorial for the same
+`How To Deploy model on Adreno using TVMC <https://tvm.apache.org/docs/how_to/deploy_models/deploy_model_on_adreno_tvmc.html>`_
 
 tvmc compiled package can be used for native deploy also using "rtvm" utility.
-Please refer to `rtvm <https://github.com/apache/tvm/tree/main/apps/cpp_rtvm#readme>`_ for more details about this tool.
 
 Also, please refer to tvmc documentation for more details about the api interface.
 
 **Relay Interface:**
 
 Relay api interface gives lower level api access to the tvm compiler interface.
-Relay interface follows tvmc kind os a flow where we produce TVM module first followed by auto tuning, compilation and deployment.
+Relay interface follows tvmc kind of a flow where we produce TVM module first followed by auto tuning, compilation and deployment.
 
-Below example explains about relay interface usage
-
-.. code:: python
-
-   import tvm
-   from tvm import relay
-   from tvm.relay.op.contrib import clml
-   import numpy as np
-
-   from tensorflow.keras.applications import InceptionV3
-   import tensorflow as tf
-
-   target = "opencl -device=adreno"
-   target_host = "llvm -mtriple=arm64-linux-android"
-
-   # We first need to get a handle for a model from any framework.
-   # In this example we will prepare a keras InceptionV3 model
-   tf.keras.backend.clear_session()
-   keras_net = InceptionV3(
-       include_top=True, weights=None, input_shape=(299, 299, 3), classes=1000
-   )
-   input_info = {inceptionV3.input_names[0]: (1, 3, 299, 299)}
-   input_data = {inceptionV3.input_names[0], np.random.uniform(-1, -1, (1, 3, 299, 299)).astype("float32")}
-   from tensorflow.keras.layers import Input
-   from tensorflow.keras.models import Model
-   def get_bottom_top_model(model, layer_name):
-       layer = model.get_layer(layer_name)
-       bottom_input = model.layers[0].input
-       bottom_output = layer.output
-       bottom_model = Model(bottom_input, bottom_output)
-       return bottom_model
-   keras_model = get_bottom_top_model(keras_net, "predictions")
-   ref_output = keras_model.predict(data["input_1"].transpose(0, 2, 3, 1))
-
-   # Now we have a keras_model with input "input_1" with shape (1, 3, 299,299), output "predictions" and a reference output ref_output.
-
-   # Lets import the model and get a relay module. TVM has frontend api for various frameworks under relay.frontend and now for keras
-   # model import we have relay.frontend.from_keras api.
-   mod, params = relay.frontend.from_keras(keras_model, input_info, layout="NCHW")
-
-   # With relay module mod and parameters params we can not fo for tuning followed by compilation.
-   # The below few instructions can auto tune the relay module with xgboost being the tuner algorithm.
-
-   # Auto Tuning process involces stages of extracting the tasks, defining tuning congiguration and
-   # tuning each task for best performing kernel configuration.
-
-   # Auto Tuning Stage 1: Extract tunable tasks
-   tasks = autotvm.task.extract_from_program(
-       net, target=target, target_host=target_host, params=params
-   )
-
-   # Auto Tuning Stage 2: Define tuning configuration
-   tune_log = "adreno-resnet50.log"
-   tmp_log_file = tune_log + ".tmp"
-   measure_option = autotvm.measure_option(
-       builder=autotvm.LocalBuilder(build_func=ndk.create_shared, timeout=15), # Build the test kernel locally
-       runner=autotvm.RPCRunner( # The runner would be on a remote device.
-           "android",            # RPC Key
-           host="127.0.0.1",     # Tracker host
-           port=9120,            # Tracker port
-           number=3,             # Number of runs before averaging
-           timeout=600,          # RPC Timeout
-       ),
-   ),
-   n_trail = 1024                # Number of iteration of training before choosing the best kernel config
-   early_stopping=False,         # Do we apply early stopping when the loss is not minimizing
-
-   # Iterate through each task and call the tuner
-   from tvm.autotvm.tuner import XGBTuner
-   for i, tsk in enumerate(reversed(tasks)):
-       tuner_obj = XGBTuner(tsk, loss_type="rank")
-
-       tsk_trial = min(n_trial, len(tsk.config_space))
-       tuner_obj.tune(
-           n_trial=tsk_trial,
-           early_stopping=early_stopping,
-           measure_option=measure_option,
-           callbacks=[
-               autotvm.callback.progress_bar(tsk_trial, prefix=prefix),
-               autotvm.callback.log_to_file(tmp_log_file),
-           ],
-       )
-   # Pick the best performing kerl configurations from the overall log.
-   autotvm.record.pick_best(tmp_log_file, log_filename)
-
-
-   # Given we have relay module and it's best performing kernel configurations
-   # We can now go for compilation with tuned log or without tuning log if auto tuning is not enabled.
-
-   if os.path.exists(tune_log):
-       with autotvm.apply_history_best(tune_log):
-           with tvm.transform.PassContext(opt_level=3):
-               # Enable CLML partitioning if required.
-               net = clml.partition_for_clml(net, params)
-
-               lib = relay.build(
-                   net, target=tvm.target.Target(target, host=target_host), params=params
-               )
-   else:
-       with tvm.transform.PassContext(opt_level=3):
-           # Enable CLML partitioning if required.
-           net = clml.partition_for_clml(net, params)
-           lib = relay.build(
-               net, target=tvm.target.Target(target, host=target_host), params=params
-           )
-
-   # Compilation results a lib module and it has everything required to deploy on target.
-   # We can save the compiler artifacts as shoun below and reload them later without entire compilation.
-   lib.export_library("mod.so", ndk.create_shared)
-   with open("mod.json", "w") as fo:
-       fo.write(graph.json())
-   with open("mod.params", "wb") as fo:
-       fo.write(runtime.save_param_dict(params))
-
-   # We can prepare TVMPackage from above files by art archiveing the same.
-   # The tar archive can be used with tvmc tool or tvmc api interfae to deploy and run.
-   # The tar archive can be used with "rtvm" tool also for native deploy on target device.
-
-   # Now, lets look at deploying the compiled tvm artifact on remote target and run
-   tmp = tempdir()
-   filename = "%s.so" % network
-   lib.export_library(tmp.relpath(filename), ndk.create_shared)
-
-   # connect to remote device
-   tracker = tvm.rpc.connect_tracker("127.0.0.1", 9120)
-   remote = tracker.request("android")
-   dev = remote.device(str(target), 0)
-   remote.upload(tmp.relpath(filename))
-   rlib = remote.load_module(filename)
-
-   # Create Graph runtime module on remote device
-   module = runtime.GraphModule(rlib["default"](dev))
-   # Set input
-   module.set_input("input_1", input_data["input_1"])
-   # Get output
-   output = module.get_output(0)
+Please refer to the tutorial `How To Deploy model on Adreno <https://tvm.apache.org/docs/how_to/deploy_models/deploy_model_on_adreno.html>`_
+for a step by step explanation of the same.
 
 
 .. _application_integration:
 
 Aplication Integration:
-----------------------
+-----------------------
 
 TVM compilation output is represented as module shared lib (mod.so), graph json(mod.json) and params (mod.params).
 Archived representation of TVMPackage is also contains the same.
@@ -713,7 +523,7 @@ tvm_runner interface too for further simplified version of the same.
 Advanced Usage:
 ---------------
 
-This section details some of the advanced usage and additional information whihc using Adreno™ target on TVM.
+This section details some of the advanced usage and additional information while using Adreno™ target on TVM.
 
 Generated Source Inspection
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
