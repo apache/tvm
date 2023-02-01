@@ -222,7 +222,7 @@ def CorrectGemminisScratchpadAndAccumulatorPointers():
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.CorrectGemminisScratchpadAndAccumulatorPointers()
+    return _ffi_api.CorrectGemminisScratchpadAndAccumulatorPointers()  # type: ignore
 
 
 def StorageRewrite():
