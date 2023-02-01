@@ -21,16 +21,11 @@ MaxPool2D operator declaration and schedule registration for Gemmini's CISC inst
 **Author**: `Federico Peccia <https://fPecc.github.io/>`_
 """
 
-import numpy as np
 import tvm
 from tvm import te
 from tvm import autotvm
-from tvm import topi
 
 from tvm.contrib.gemmini.environment import Environment
-from tvm.contrib.gemmini.build_module import lower
-from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity, ReorderEntity
-from tvm.contrib.gemmini.helpers import get_greater_div
 
 env = Environment.instance()
 

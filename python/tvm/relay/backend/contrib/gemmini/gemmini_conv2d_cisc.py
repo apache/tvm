@@ -28,9 +28,6 @@ from tvm import autotvm
 from tvm import topi
 
 from tvm.contrib.gemmini.environment import Environment
-from tvm.contrib.gemmini.build_module import lower
-from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity, ReorderEntity
-from tvm.contrib.gemmini.helpers import get_greater_div
 
 env = Environment.instance()
 
@@ -104,7 +101,8 @@ def conv2d_cisc(
     oshape = (N, OH, OW, OC)
 
     if len(set(padding)) == 1 and (env.supports_non_zero_padding or ifm_offset == 0):
-        # If the padding is the same for all borders, there is no need to use topi.nn.pad, because Gemminis CISC instructions support equal padding
+        # If the padding is the same for all borders, there is no need to use topi.nn.pad,
+        # because Gemminis CISC instructions support equal padding
         data = orig_data
     else:
         # If not, then pad before calling Gemminis functions
@@ -203,8 +201,6 @@ def schedule_conv2d_cisc(
         data = temp
     else:
         pad_data = data
-
-    orig_kernel = kernel
 
     x_bo, x_i, x_j, x_co = sch[conv2d_stage].op.axis
     rkh, rkw, ric = sch[conv2d_stage].op.reduce_axis

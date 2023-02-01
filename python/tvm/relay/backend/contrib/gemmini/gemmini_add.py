@@ -26,13 +26,10 @@ import tvm
 from tvm import te
 from tvm import autotvm
 from tvm import topi
-from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity, ReorderEntity
 
 from tvm.contrib.gemmini.environment import Environment
-from tvm.contrib.gemmini.build_module import lower
 from tvm.contrib.gemmini.helpers import get_greater_div
 
-import json
 
 env = Environment.instance()
 
@@ -131,7 +128,7 @@ def schedule_add(
 
     ifm1, ifm2_op = add_stage.op.input_tensors
     ifm2, ofm_offset_op = ifm2_op.op.input_tensors
-    ofm_offset = ofm_offset_op.op.input_tensors[0]
+    ofm_offset_op.op.input_tensors[0]
 
     b, x, y, c = sch[add_stage].op.axis
 
