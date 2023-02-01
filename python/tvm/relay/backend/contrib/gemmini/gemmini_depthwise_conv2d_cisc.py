@@ -28,9 +28,6 @@ from tvm import autotvm
 from tvm import topi
 
 from tvm.contrib.gemmini.environment import Environment
-from tvm.contrib.gemmini.build_module import lower
-from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
-from tvm.contrib.gemmini.helpers import get_greater_div
 
 env = Environment.instance()
 
@@ -80,7 +77,7 @@ def depthwise_conv2d_cisc(
     N = orig_data.shape[0]
     IH = orig_data.shape[1]
     IW = orig_data.shape[2]
-    IC = orig_data.shape[3]
+    orig_data.shape[3]
 
     HSTR = strides[0]
     WSTR = strides[1]
@@ -190,8 +187,6 @@ def schedule_depthwise_conv2d_cisc(
         data = temp
     else:
         pad_data = data
-
-    orig_kernel = kernel
 
     x_bo, x_i, x_j, x_co = sch[conv2d_stage].op.axis
     rkh, rkw = sch[conv2d_stage].op.reduce_axis

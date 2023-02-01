@@ -21,18 +21,14 @@ Dense (GEMM) operator declaration and schedule registration for Gemmini's CISC i
 **Author**: `Federico Peccia <https://fPecc.github.io/>`_
 """
 
-import math
-import sys
 import numpy as np
 import tvm
 from tvm import te
 from tvm import autotvm
 from tvm import topi
-from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
+from tvm.autotvm.task.space import OtherOptionEntity
 
 from tvm.contrib.gemmini.environment import Environment
-from tvm.contrib.gemmini.build_module import lower
-from tvm.contrib.gemmini.intrin import gemm_cisc
 
 env = Environment.instance()
 

@@ -26,10 +26,9 @@ import tvm
 from tvm import te
 from tvm import autotvm
 from tvm import topi
-from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity, ReorderEntity
+from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 
 from tvm.contrib.gemmini.environment import Environment
-from tvm.contrib.gemmini.build_module import lower
 from tvm.contrib.gemmini.helpers import get_greater_div
 
 env = Environment.instance()
@@ -114,7 +113,7 @@ def schedule_gemm(
     sch = te.create_schedule([x.op for x in outs])
 
     data, weight, bias_op = dense_stage.op.input_tensors
-    bias = bias_op.op.input_tensors[0]
+    bias_op.op.input_tensors[0]
 
     ##### space definition begin #####
     x, y = sch[dense_stage].op.axis
