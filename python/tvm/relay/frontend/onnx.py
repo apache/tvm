@@ -4905,7 +4905,10 @@ class DFT(OnnxOpConverter):
         if dft_length is not None:
             raise NotImplementedError("dft_length")
 
-        raise NotImplementedError("DFT")
+        assert inverse == 0, "inverse not supported"
+        assert onesided == 0, "onesided not supported"
+
+        return _op.dft(input_tensor, axis, inverse, onesided)
 
 
 class NonMaxSuppression(OnnxOpConverter):

@@ -1468,6 +1468,36 @@ def wrap_compute_stft(topi_compute):
     return _compute_stft
 
 
+# dft
+@override_native_generic_func("dft_strategy")
+def dft_strategy(attrs, outs, out_type, target):
+    """DFT generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_dft(topi.dft),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="dft.generic",
+    )
+    return strategy
+
+
+def wrap_compute_dft(topi_compute):
+    """Wrap DFT compute"""
+
+    # TODO(agladyshev): output_type not used
+    def _compute_dft(attrs, inputs, output_type):
+        return [
+            topi_compute(
+                inputs[0],
+                attrs.axis,
+                attrs.inverse,
+                attrs.onesided,
+            )
+        ]
+
+    return _compute_dft
+
+
 # trilu
 @override_native_generic_func("trilu_strategy")
 def trilu_strategy(attrs, outs, out_type, target):

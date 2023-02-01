@@ -1922,6 +1922,53 @@ RELAY_REGISTER_OP("stft")
     .set_support_level(3)
     .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
+// DFT
+TVM_REGISTER_NODE_TYPE(DFTAttrs);
+bool DFTRel(const Array<Type>& types, int num_inputs, const Attrs& attrs, const TypeReporter& reporter) {
+  // types: [data, output]
+  // TODO(agladyshev): add support for dft_length input?
+  ICHECK_EQ(types.size(), 2) << "Expects two types, one for the input and another for the output";
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    ICHECK(types[0].as<IncompleteTypeNode>())
+        << "DFT: expect input type to be TensorType but get " << types[0];
+    return false;
+  }
+
+  const auto* param = attrs.as<DFTAttrs>();
+
+  std::vector<PrimExpr> output_shape(data->shape.begin(), data->shape.end());
+  output_shape[data->shape.size() - 1] = 2;
+
+  if (param->onesided) {
+    output_shape[param->axis.IntValue()] = floordiv(output_shape[param->axis.IntValue()], 2) + 1;
+  }
+
+  reporter->Assign(types[1], TensorType({output_shape}, data->dtype));
+
+  return true;
+}
+
+Expr MakeDFT(Expr data, int axis, bool inverse, bool onesided) {
+  auto attrs = make_object<DFTAttrs>();
+  attrs->axis = axis;
+  attrs->inverse = Bool(inverse);
+  attrs->onesided = Bool(onesided);
+  static const Op& op = Op::Get("dft");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.dft").set_body_typed(MakeDFT);
+
+RELAY_REGISTER_OP("dft")
+    .describe(
+        R"doc(Computes the discrete Fourier transform of input.)doc" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .add_argument("input", "Tensor", "The input tensor.")
+    .set_support_level(3)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque)
+    .add_type_rel("DFT", DFTRel);
+
 // meshgrid operator
 TVM_REGISTER_NODE_TYPE(MeshgridAttrs);
 

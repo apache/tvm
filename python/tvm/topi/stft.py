@@ -123,3 +123,12 @@ def stft(
         name="stft_cpu",
         tag="stft_cpu",
     )
+
+
+def dft(
+    data: te.Tensor,
+    axis: int,
+    inverse: bool,
+    onesided: bool,
+):
+    raise NotImplementedError(data)
