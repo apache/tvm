@@ -673,8 +673,9 @@ class Handler(server.ProjectAPIHandler):
         src_dir.mkdir()
         include_dir = project_dir / "include" / "tvm"
         include_dir.mkdir(parents=True)
-        for file in os.listdir(API_SERVER_DIR / "src" / project_type):
-            file = pathlib.Path(API_SERVER_DIR / "src" / project_type / file)
+        src_project_tyoe_dir = API_SERVER_DIR / "src" / project_type
+        for file in os.listdir(src_project_tyoe_dir):
+            file = pathlib.Path(src_project_tyoe_dir / file)
             if file.is_file():
                 if file.suffix in [".cc", ".c"]:
                     shutil.copy2(file, src_dir)
@@ -682,8 +683,8 @@ class Handler(server.ProjectAPIHandler):
                     shutil.copy2(file, include_dir)
 
         if self._is_fvp(zephyr_board, use_fvp):
-            for file in os.listdir(API_SERVER_DIR / "src" / project_type / "fvp"):
-                file = pathlib.Path(API_SERVER_DIR / "src" / project_type / "fvp" / file)
+            for file in os.listdir(src_project_tyoe_dir / "fvp"):
+                file = pathlib.Path(src_project_tyoe_dir / "fvp" / file)
                 if file.is_file():
                     if file.suffix in [".cc", ".c"]:
                         shutil.copy2(file, src_dir)
@@ -691,7 +692,7 @@ class Handler(server.ProjectAPIHandler):
                         shutil.copy2(file, include_dir)
 
         if project_type == "mlperftiny":
-            shutil.copytree(API_SERVER_DIR / "src" / project_type / "api", src_dir / "api")
+            shutil.copytree(src_project_tyoe_dir / "api", src_dir / "api")
 
         # Populate extra_files
         if extra_files_tar:

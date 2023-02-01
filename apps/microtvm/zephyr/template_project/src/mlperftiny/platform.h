@@ -64,10 +64,6 @@ int8_t QuantizeFloatToInt8(float value, float scale, int zero_point);
 
 /*!
  * \brief Read Uart Rx buffer.
- * \param data Pointer to read data.
- * \param data_size_bytes Read request size in bytes.
- *
- * \return Number of data read in bytes.
  */
 char TVMPlatformUartRxRead();
 

@@ -610,9 +610,9 @@ def test_schedule_build_with_cmsis_dependency(workspace_dir, board, microtvm_deb
 
 @tvm.testing.requires_micro
 def test_debugging_enabled(workspace_dir):
-    """Test debugging enabled for LED.
-    We used a physical board(nucleo_l4r5zi) instead of QEMU since
-    LED config is not available on QEMU.
+    """Test debugging enabled for LED. `verbose=True` in project option enables
+    debugging. For this test a physical board(nucleo_l4r5zi) is used instead of
+    QEMU since LED config is not available on QEMU.
     """
     board = "nucleo_l4r5zi"
     project_options = {

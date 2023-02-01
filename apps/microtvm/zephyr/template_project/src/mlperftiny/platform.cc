@@ -56,7 +56,6 @@ int8_t g_quant_zero = OUT_QUANT_ZERO;
 size_t g_output_data_len = output_data_len;
 
 static const struct device* g_microtvm_uart;
-static uint8_t uart_data[8];
 
 void TVMLogf(const char* msg, ...) {
   char buffer[128];
@@ -172,35 +171,6 @@ int8_t QuantizeFloatToInt8(float value, float scale, int zero_point) {
     result = INT8_MAX;
   }
   return (int8_t)(result);
-}
-
-// UART interrupt callback.
-void uart_irq_cb(const struct device* dev, void* user_data) {
-  while (uart_irq_update(dev) && uart_irq_is_pending(dev)) {
-    struct ring_buf* rbuf = (struct ring_buf*)user_data;
-    if (uart_irq_rx_ready(dev) != 0) {
-      for (;;) {
-        // Read a small chunk of data from the UART.
-        int bytes_read = uart_fifo_read(dev, uart_data, sizeof(uart_data));
-        if (bytes_read < 0) {
-          TVMPlatformAbort((tvm_crt_error_t)(0xbeef1));
-        } else if (bytes_read == 0) {
-          break;
-        }
-        // Write it into the ring buffer.
-        int bytes_written = ring_buf_put(rbuf, uart_data, bytes_read);
-        if (bytes_read != bytes_written) {
-          TVMPlatformAbort((tvm_crt_error_t)(0xbeef2));
-        }
-      }
-    }
-  }
-}
-
-// Initialize the UART receiver.
-void uart_rx_init(struct ring_buf* rbuf, const struct device* dev) {
-  uart_irq_callback_user_data_set(dev, uart_irq_cb, (void*)rbuf);
-  uart_irq_rx_enable(dev);
 }
 
 // UART read.
