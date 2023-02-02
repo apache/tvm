@@ -227,7 +227,7 @@ class CLMLRunner {
   std::shared_ptr<cl_ml_tensor_memory_desc_qcom> unusedTensor;
 
   /*! \brief  ML API interface */
-  GET_ML_API_INTERFACE* h_ClmlIntf = NULL;
+  GET_ML_API_INTERFACE* h_ClmlIntf = nullptr;
   /*! \brief  Tuning cache object */
   cl_ml_tuningcache_qcom tuning_cache = NULL;
   /*! \brief  Flag to inticate a tuning run */

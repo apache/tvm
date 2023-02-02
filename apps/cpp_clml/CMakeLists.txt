@@ -31,11 +31,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 #we do not want to pass -fno-exceptions
 if(${CMAKE_CXX_FLAGS} MATCHES "-fno-exceptions")
+  message ( WARNING "Disabling -fno-exceptions")
   string(REGEX REPLACE "-fno-exceptions" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
 endif()
 
 #we do not want to pass -fno-rtti
 if(${CMAKE_CXX_FLAGS} MATCHES "-fno-rtti")
+  message ( WARNING "Disabling -fno-rtti")
   string(REGEX REPLACE "-fno-rtti" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
 endif()
 

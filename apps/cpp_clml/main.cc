@@ -173,7 +173,7 @@ int ExecuteModel(ToolArgs& args) {
 
   // Init OpenCL Environment
   cl_int result;
-  cl_event readEvent = NULL;
+  cl_event readEvent = nullptr;
   cl_platform_id platform = NULL;
   cl_context context = NULL;
   cl_device_id device_id = NULL;

@@ -54,7 +54,7 @@ if(USE_CLML_GRAPH_EXECUTOR)
     include_directories(${CLML_INCLUDE_DIRS})
     find_library(EXTERN_CLML_COMPUTE_LIB
           NAMES OpenCL libOpenCL
-          HINTS "${CLML_PATH}" "${CLML_PATH}/lib" "${CLML_PATH}/lib64"
+          HINTS "${CLML_PATH}" "${CLML_PATH}/lib64" "${CLML_PATH}/lib"
           )
     list(APPEND TVM_RUNTIME_LINKER_LIBS ${EXTERN_CLML_COMPUTE_LIB})
     list(APPEND RUNTIME_SRCS ${CLML_CONTRIB_SRC})
