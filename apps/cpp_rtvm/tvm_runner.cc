@@ -26,7 +26,6 @@
 
 #include <cnpy.h>
 
-#include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <streambuf>
@@ -115,27 +114,22 @@ int TVMRunner::Load(void) {
 
 /*!
  * \brief Specify if the run programs should be dumped to binary and reused in the next runs.
- * \param pathToDir Path to the existed directory where pre-compiled programs should be stored.
+ * \param file_name File name where pre-compiled programs should be stored.
  */
-void TVMRunner::UsePreCompiledPrograms(std::string pathToDir) {
+void TVMRunner::UsePreCompiledPrograms(std::string file_name) {
   if (r_run_was_called) {
     LOG(INFO) << "TVMRunner UsePreCompiledPrograms: should be called before first run";
     return;
   }
-  if (!std::filesystem::exists(pathToDir))
-    ICHECK(std::filesystem::create_directories(pathToDir) == true);
-  std::filesystem::path binary_path = pathToDir;
   auto f_get = r_mod_handle->GetFunction("opencl.GetPreCompiledPrograms", true);
   auto f_set = r_mod_handle->GetFunction("opencl.SetPreCompiledPrograms", true);
   if (f_get != nullptr && f_set != nullptr) {
-    std::string file_name = "pre_compiled.bin";
-    auto file_path = binary_path / file_name;
-    if (!std::filesystem::exists(file_path)) {
+    std::ifstream ifs(file_name, std::ios::in | std::ios::binary);
+    if (ifs.fail()) {
       auto bytes = String(f_get());
-      std::ofstream fs(file_path.string(), std::ofstream::binary);
+      std::ofstream fs(file_name, std::ofstream::binary);
       fs.write(bytes.c_str(), bytes.size());
     } else {
-      std::ifstream ifs(file_path.string(), std::ios::in | std::ios::binary);
       std::string bytes((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
       f_set(String(bytes));
     }

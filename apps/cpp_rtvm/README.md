@@ -360,7 +360,9 @@ about 26 seconds. But after dumping compiled programs to binary files and reuse
 them on the next runs, the compilation time was significantly decreased (more
 than 1000 times) and starts to be around 25 ms.
 
-To use such functionality, the developer have to set directory where the
-pre-compiled programs will be stored. To the `rtvm` application such example was
-added.  After method `Load`, method `UsePreCompiledProgram` is called. This
-method passes directory where the pre-compiled kernels should be stored.
+To use such functionality, the developer have to pass parameter `--pre-compiled`
+to the `rtvm` and specify the file name where pre-compiled programs will be
+stored. If the pre-compiled file name was passed to the `rtvm` then After method
+`Load`, method `UsePreCompiledProgram` is called. This method loads pre-compiled
+programs if the file exists. In opposite case the file will be created and
+pre-compiled programs will be saved to this file.
