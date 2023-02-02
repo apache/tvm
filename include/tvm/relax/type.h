@@ -128,8 +128,9 @@ class DynTensorType : public Type {
  public:
   /*!
    * \brief Constructor.
-   * \param shape The shape of the tensor.
+   * \param ndim The number of dimensions of the tensor.
    * \param dtype The runtime dtype of the tensor's elements.
+   * \param span The span.
    */
   TVM_DLL DynTensorType(int ndim, DataType dtype, Span span = Span());
 
