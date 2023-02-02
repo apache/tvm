@@ -165,13 +165,11 @@ else:
 # Deploy & Run
 # ------------
 # Deploy and run the compiled model on RPC
-# Prepare input data dict
-input_data = tvm.nd.array((np.random.uniform(size=(1, 224, 224, 3))).astype("float32"))
-input_dict = {"input_1": input_data}
+# Let tvmc fill inputs using random
 
 # Run on RPC setup
 if local_demo:
-    result = tvmc.run(tvmc_package, device="cpu", inputs=input_dict)
+    result = tvmc.run(tvmc_package, device="cpu", fill_mode="random")
 else:
     result = tvmc.run(
         tvmc_package,
@@ -179,7 +177,7 @@ else:
         rpc_key=rpc_key,
         hostname=rpc_tracker_host,
         port=rpc_tracker_port,
-        inputs=input_dict,
+        fill_mode="random",
     )
 
 # result is a dictionary of outputs.
