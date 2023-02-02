@@ -164,6 +164,18 @@ struct ScatterAddAttrs : public tvm::AttrsNode<ScatterAddAttrs> {
   }
 };
 
+struct ScatterElementsAttrs : public tvm::AttrsNode<ScatterElementsAttrs> {
+  Integer axis;
+  String reduction;
+
+  TVM_DECLARE_ATTRS(ScatterElementsAttrs, "relay.attrs.ScatterElementsAttrs") {
+    TVM_ATTR_FIELD(axis).set_default(0).describe("The axis over which to select values.");
+    TVM_ATTR_FIELD(reduction).set_default("update").describe(
+        "Reduction mode of the scatter elements, "
+        "either \"update\" or \"add\" or \"mul\" or \"min\" or \"max\".");
+  }
+};
+
 struct ScatterNDAttrs : public tvm::AttrsNode<ScatterNDAttrs> {
   String mode;
 

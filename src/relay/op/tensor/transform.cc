@@ -1191,6 +1191,62 @@ RELAY_REGISTER_OP("scatter_add")
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_support_level(10);
 
+// scatter_elements operator
+TVM_REGISTER_NODE_TYPE(ScatterElementsAttrs);
+
+bool ScatterElementsRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                        const TypeReporter& reporter) {
+  // `types` contains: [data, indices, updates, output]
+  ICHECK_EQ(types.size(), 4);
+  const auto* data = types[0].as<TensorTypeNode>();
+  const auto* indices = types[1].as<TensorTypeNode>();
+  const auto* updates = types[2].as<TensorTypeNode>();
+  if (data == nullptr) {
+    ICHECK(types[0].as<IncompleteTypeNode>())
+        << "ScatterElements: expect input data type to be TensorType but got " << types[0];
+    return false;
+  }
+  if (indices == nullptr) {
+    ICHECK(types[1].as<IncompleteTypeNode>())
+        << "ScatterElements: expect indices type to be TensorType but got " << types[1];
+    return false;
+  }
+  if (updates == nullptr) {
+    ICHECK(types[2].as<IncompleteTypeNode>())
+        << "ScatterElements: expect updates type to be TensorType but got " << types[2];
+    return false;
+  }
+  // TODO(vvchernov): ONNX requires int32 and int64
+  ICHECK(indices->dtype.is_int() || indices->dtype.is_uint())
+      << "ScatterElements: indices must be a tensor of integers.";
+
+  // Assign output
+  reporter->Assign(types[3], TensorType(data->shape, data->dtype));
+  return true;
+}
+
+Expr MakeScatterElements(Expr data, Expr indices, Expr updates, int axis, String reduction) {
+  auto attrs = make_object<ScatterElementsAttrs>();
+  attrs->axis = std::move(axis);
+  attrs->reduction = std::move(reduction);
+  static const Op& op = Op::Get("scatter_elements");
+  return Call(op, {data, indices, updates}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.scatter_elements").set_body_typed(MakeScatterElements);
+
+// scatter_elements op has extern schedules: convert to Opaque to prevent compilation failures
+RELAY_REGISTER_OP("scatter_elements")
+    .describe(R"code(Scatter elements with updating data by reduction values in updates
+at positions defined by indices.)code" TVM_ADD_FILELINE)
+    .set_num_inputs(3)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("indices", "Tensor", "The indices tensor.")
+    .add_argument("updates", "Tensor", "The input tensor of updates.")
+    .set_support_level(3)
+    .add_type_rel("ScatterElements", ScatterElementsRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
+
 // scatter_nd operator
 TVM_REGISTER_NODE_TYPE(ScatterNDAttrs);
 

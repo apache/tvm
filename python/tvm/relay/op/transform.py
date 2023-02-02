@@ -403,6 +403,34 @@ def scatter_add(data, indices, updates, axis):
     return _make.scatter_add(data, indices, updates, axis)
 
 
+def scatter_elements(data, indices, updates, axis, reduction):
+    """Update data by adding values in updates at positions defined by indices.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    indices : relay.Expr
+        The index locations to update.
+
+    updates : relay.Expr
+        The values to add.
+
+    axis : int
+        The axis to scatter_add on.
+
+    reduction : string, optional
+        The reduction mode for scatter. Choise is from ["update", "add", "mul", "min", max"]
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+    """
+    return _make.scatter_elements(data, indices, updates, axis, reduction)
+
+
 def scatter_nd(data, indices, updates, mode="update"):
     """Scatter values from an array and update.
 
