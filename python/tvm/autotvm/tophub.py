@@ -106,13 +106,19 @@ def context(target, extra_files=None):
         if isinstance(tgt, str):
             tgt = Target(tgt)
 
+        # The TOPHUB file names rely on Target's device or kind. Both these types of
+        # information exist in Target.keys, but rules of filling this filed is not explicitly
+        # defined, we are afraid to rely only on Target.keys. At the same time Target.device
+        # is filled only if device was pointed explicitly in target string, that is not mandatory
+        # and in some cases we need to get information about device from Target.keys
+        # In priority order we verify:
+        # 1) Target.device
+        # 2) Target.keys
+        # 3) Target.kind
         possible_names = []
         device = tgt.attrs.get("device", "")
         if device != "":
             possible_names.append(_alias(device))
-        # for cases when we do have explicitly defined -device in the target,
-        # we still might have information about it stored in keys container
-        # in other case we will load statistics for definitely irrelative stat
         possible_names.extend(tgt.keys)
         possible_names.append(tgt.kind.name)
 
