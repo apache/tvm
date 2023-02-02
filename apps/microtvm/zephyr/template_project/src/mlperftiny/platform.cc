@@ -92,35 +92,6 @@ __attribute__((weak)) tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice 
   return StackMemoryManager_Free(&app_workspace, ptr);
 }
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t nbytes, int dtype_code_hint,
-                               int dtype_bits_hint) {
-  tvm_crt_error_t err = kTvmErrorNoError;
-  void* ptr = 0;
-  DLDevice dev = {(DLDeviceType)device_type, device_id};
-  assert(nbytes > 0);
-  err = TVMPlatformMemoryAllocate(nbytes, dev, &ptr);
-  CHECK_EQ(err, kTvmErrorNoError,
-           "TVMBackendAllocWorkspace(%d, %d, %" PRIu64 ", %d, %d) -> %" PRId32, device_type,
-           device_id, nbytes, dtype_code_hint, dtype_bits_hint, err);
-  return ptr;
-}
-
-int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
-  tvm_crt_error_t err = kTvmErrorNoError;
-  DLDevice dev = {(DLDeviceType)device_type, device_id};
-  err = TVMPlatformMemoryFree(ptr, dev);
-  CHECK_EQ(err, kTvmErrorNoError, "TVMBackendFreeWorkspace(%d, %d)", device_type, device_id);
-  return err;
-}
-
-#ifdef __cplusplus
-}  // extern "C"
-#endif
-
-// TODO
 void timer_expiry_function(struct k_timer* timer_id) { return; }
 
 void TVMRuntimeInit() { StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE); }
@@ -194,7 +165,7 @@ uint32_t TVMPlatformWriteSerial(const char* data, uint32_t size) {
 // Initialize UART.
 void TVMPlatformUARTInit(uint32_t baudrate /* = TVM_UART_DEFAULT_BAUDRATE */) {
   // Claim console device.
-  g_microtvm_uart = device_get_binding(DT_LABEL(DT_CHOSEN(zephyr_console)));
+  g_microtvm_uart = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
   const struct uart_config config = {.baudrate = baudrate,
                                      .parity = UART_CFG_PARITY_NONE,
                                      .stop_bits = UART_CFG_STOP_BITS_1,
