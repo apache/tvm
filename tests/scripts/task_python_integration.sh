@@ -38,6 +38,7 @@ find . -type f -path "*.pyc" | xargs rm -f
 make cython3
 
 # Test Relax and skip other tests (DO NOT UPSTREAM TO MAIN)
+chmod +x tests/scripts/unity/task_relax.sh
 TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm}" tests/scripts/unity/task_relax.sh
 exit 0
 
