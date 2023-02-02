@@ -38,7 +38,7 @@ class ModuleEqualityStructural : public ModuleEquality {
 
 class SEqualHandlerIgnoreNDArray : public SEqualHandlerDefault {
  public:
-  SEqualHandlerIgnoreNDArray() : SEqualHandlerDefault(false, nullptr) {}
+  SEqualHandlerIgnoreNDArray() : SEqualHandlerDefault(false, nullptr, false) {}
 
  protected:
   bool DispatchSEqualReduce(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars,
