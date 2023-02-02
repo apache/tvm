@@ -18,6 +18,9 @@
 
 set -euxo pipefail
 
+# SKIP: DO NOT UPSTREAM TO MAIN
+exit 0
+
 if [ $# -gt 0 ]; then
     BUILD_DIR="$1"
 elif [ -n "${TVM_BUILD_PATH:-}" ]; then

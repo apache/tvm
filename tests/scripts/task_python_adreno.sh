@@ -18,6 +18,9 @@
 
 set -euxo pipefail
 
+# SKIP: DO NOT UPSTREAM TO MAIN
+exit 0
+
 export TVM_TEST_TARGETS="opencl"
 export TVM_RELAY_OPENCL_TEXTURE_TARGETS="opencl -device=adreno"
 

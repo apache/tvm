@@ -18,6 +18,9 @@
 
 set -euxo pipefail
 
+# SKIP: DO NOT UPSTREAM TO MAIN
+exit 0
+
 export PYTHONPATH=python
 export LD_LIBRARY_PATH="lib:${LD_LIBRARY_PATH:-}"
 

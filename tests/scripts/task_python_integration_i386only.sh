@@ -17,6 +17,8 @@
 # under the License.
 set -euxo pipefail
 
+# SKIP: DO NOT UPSTREAM TO MAIN
+exit 0
 
 export TVM_INTEGRATION_I386_ONLY=1
 

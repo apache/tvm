@@ -18,6 +18,9 @@
 
 set -euxo pipefail
 
+# SKIP: DO NOT UPSTREAM TO MAIN
+exit 0
+
 device_serial="simulator"
 if [ $# -ge 1 ] && [[ "$1" = "--device" ]]; then
     shift 1

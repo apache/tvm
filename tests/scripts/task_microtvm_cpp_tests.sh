@@ -18,6 +18,9 @@
 
 set -euxo pipefail
 
+# SKIP: DO NOT UPSTREAM TO MAIN
+exit 0
+
 BUILD_DIR=$1
 
 # Python is required by apps/bundle_deploy

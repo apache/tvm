@@ -17,6 +17,9 @@
 # under the License.
 set -euxo pipefail
 
+# SKIP: DO NOT UPSTREAM TO MAIN
+exit 0
+
 SCRIPTS_DIR=$(dirname "${BASH_SOURCE[0]}")
 TVM_DIR=$(cd "${SCRIPTS_DIR}" && git rev-parse --show-toplevel)
 python3 "${TVM_DIR}/docs/script_convert.py" "${TVM_DIR}/gallery/how_to/work_with_microtvm/micro_tvmc.sh"

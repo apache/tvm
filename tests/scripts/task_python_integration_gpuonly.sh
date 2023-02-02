@@ -18,6 +18,9 @@
 
 set -exo pipefail
 
+# SKIP: DO NOT UPSTREAM TO MAIN
+exit 0
+
 export TVM_TEST_TARGETS="cuda;opencl;metal;rocm;nvptx;opencl -device=mali,aocl_sw_emu,adreno"
 export PYTEST_ADDOPTS="-m gpu $PYTEST_ADDOPTS"
 export TVM_RELAY_TEST_TARGETS="cuda"

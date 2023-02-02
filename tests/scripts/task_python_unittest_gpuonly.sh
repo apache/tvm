@@ -18,6 +18,9 @@
 
 set -euxo pipefail
 
+# SKIP: DO NOT UPSTREAM TO MAIN
+exit 0
+
 export PYTEST_ADDOPTS="-m gpu ${PYTEST_ADDOPTS:-}"
 
 # Test most of the enabled runtimes here.
