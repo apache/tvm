@@ -229,20 +229,20 @@ class CLMLRunner {
   /*! \brief  ML API interface */
   GET_ML_API_INTERFACE* h_ClmlIntf = nullptr;
   /*! \brief  Tuning cache object */
-  cl_ml_tuningcache_qcom tuning_cache = NULL;
+  cl_ml_tuningcache_qcom tuning_cache = nullptr;
   /*! \brief  Flag to inticate a tuning run */
   bool is_tuning_run;
   /*! \brief  The tuning file for loading or storing cache */
   char* tuning_file;
 
   /*! \brief  OpenCL platform */
-  cl_platform_id platform{NULL};
+  cl_platform_id platform{nullptr};
   /*! \brief  OpenCL context */
-  cl_context context{NULL};
+  cl_context context{nullptr};
   /*! \brief  OpenCL device */
-  cl_device_id device_id{NULL};
+  cl_device_id device_id{nullptr};
   /*! \brief  OpenCL Queue */
-  cl_command_queue queue{NULL};
+  cl_command_queue queue{nullptr};
   /*! \brief  Numpy object for params */
   cnpy::npz_t npz_params;
   /*! \brief  Numpy object for inputs */

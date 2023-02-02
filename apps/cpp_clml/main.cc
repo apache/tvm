@@ -148,11 +148,11 @@ void ParseCmdArgs(int argc, char* argv[], struct ToolArgs& args) {
 bool ExtensionStringPresent(cl_platform_id platform_id, cl_device_id device_id) {
   cl_int result = 0;
   size_t reqd_size = 0;
-  result = clGetDeviceInfo(device_id, CL_DEVICE_EXTENSIONS, 0, NULL, &reqd_size);
+  result = clGetDeviceInfo(device_id, CL_DEVICE_EXTENSIONS, 0, nullptr, &reqd_size);
   CLML_SDK_TEST_AND_EXIT(reqd_size > 0u && result == CL_SUCCESS);
 
   std::vector<char> buf(reqd_size);
-  result = clGetDeviceInfo(device_id, CL_DEVICE_EXTENSIONS, reqd_size, buf.data(), NULL);
+  result = clGetDeviceInfo(device_id, CL_DEVICE_EXTENSIONS, reqd_size, buf.data(), nullptr);
   CLML_SDK_TEST_AND_EXIT(result == CL_SUCCESS);
 
   std::string extensions(buf.data());
@@ -174,25 +174,25 @@ int ExecuteModel(ToolArgs& args) {
   // Init OpenCL Environment
   cl_int result;
   cl_event readEvent = nullptr;
-  cl_platform_id platform = NULL;
-  cl_context context = NULL;
-  cl_device_id device_id = NULL;
-  cl_command_queue queue = NULL;
+  cl_platform_id platform = nullptr;
+  cl_context context = nullptr;
+  cl_device_id device_id = nullptr;
+  cl_command_queue queue = nullptr;
 
   // Initialize Context and Command Queue
-  result = clGetPlatformIDs(1, &platform, NULL);
+  result = clGetPlatformIDs(1, &platform, nullptr);
   CLML_SDK_TEST_AND_EXIT(result == CL_SUCCESS);
 
   uint32_t num_devices = 0;
-  result = clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 0, NULL, &num_devices);
+  result = clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 0, nullptr, &num_devices);
   CLML_SDK_TEST_AND_EXIT(result == CL_SUCCESS && num_devices == 1);
 
-  result = clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device_id, NULL);
+  result = clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device_id, nullptr);
   CLML_SDK_TEST_AND_EXIT(device_id && result == CL_SUCCESS);
 
   CLML_SDK_TEST_AND_EXIT(ExtensionStringPresent(platform, device_id) == true);
 
-  context = clCreateContext(0, 1, &device_id, NULL, NULL, &result);
+  context = clCreateContext(0, 1, &device_id, nullptr, nullptr, &result);
   CLML_SDK_TEST_AND_EXIT(result == CL_SUCCESS);
 
   cl_command_queue_properties queue_props = 0;

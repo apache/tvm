@@ -59,12 +59,12 @@ CLMLRunner::CLMLRunner(std::string name, ToolArgs& args, cl_platform_id arg_plat
   cl_int majorVersions[MAX_VERSIONS];
   cl_int minorVersions[MAX_VERSIONS];
   cl_uint numVersions = 0;
-  result = clQueryMLInterfaceVersionsQCOM(NULL, NULL, 0, &numVersions);
+  result = clQueryMLInterfaceVersionsQCOM(nullptr, nullptr, 0, &numVersions);
   CLML_SDK_TEST_AND_EXIT(result == CL_SUCCESS);
   CLML_SDK_TEST_AND_EXIT(numVersions > 0u);
   CLML_SDK_TEST_AND_EXIT(numVersions <= MAX_VERSIONS);
 
-  result = clQueryMLInterfaceVersionsQCOM(majorVersions, minorVersions, numVersions, NULL);
+  result = clQueryMLInterfaceVersionsQCOM(majorVersions, minorVersions, numVersions, nullptr);
   CLML_SDK_TEST_AND_EXIT(result == CL_SUCCESS);
 
   for (cl_uint i = 0; i < numVersions; ++i) {
@@ -74,7 +74,7 @@ CLMLRunner::CLMLRunner(std::string name, ToolArgs& args, cl_platform_id arg_plat
       break;
     }
   }
-  CLML_SDK_TEST_AND_EXIT(this->h_ClmlIntf != NULL);
+  CLML_SDK_TEST_AND_EXIT(this->h_ClmlIntf != nullptr);
 
   result = h_ClmlIntf->clCreateMLTuningCacheQCOM(&tuning_cache);
   CLML_SDK_TEST_AND_EXIT(result == CL_SUCCESS);
@@ -103,8 +103,8 @@ int CLMLRunner::Run(void) {
   cl_int result;
 
   for (size_t i = 0; i < this->function.size(); ++i) {
-    result =
-        h_ClmlIntf->clEnqueueMLOpQCOM(queue, this->function[i], this->descriptorSet, 0, NULL, NULL);
+    result = h_ClmlIntf->clEnqueueMLOpQCOM(queue, this->function[i], this->descriptorSet, 0,
+                                           nullptr, nullptr);
     CLML_SDK_TEST_AND_EXIT(result == CL_SUCCESS);
   }
   if (!r_args.output.empty()) {
@@ -155,13 +155,13 @@ void CLMLRunner::PrintMetaInfo(void) { LOG(INFO) << "\n" << this->meta_info; }
 void CLMLRunner::CopyDataToCLMLTensor(std::shared_ptr<cl_ml_tensor_memory_desc_qcom> tensor,
                                       void* data, cl_ml_tensor_layout_qcom layout) {
   cl_int result = 0;
-  cl_event evt = NULL;
+  cl_event evt = nullptr;
   result = h_ClmlIntf->clEnqueueWriteMLTensorDataQCOM(this->queue, data, layout, tensor->tensor,
                                                       tensor->memory,
-                                                      0,      // n waitlist
-                                                      NULL,   // waitlist
-                                                      &evt);  // event
-  CLML_SDK_TEST_AND_EXIT((evt != NULL) && result == CL_SUCCESS);
+                                                      0,        // n waitlist
+                                                      nullptr,  // waitlist
+                                                      &evt);    // event
+  CLML_SDK_TEST_AND_EXIT((evt != nullptr) && result == CL_SUCCESS);
 }
 
 /*!
@@ -173,12 +173,12 @@ void CLMLRunner::CopyDataToCLMLTensor(std::shared_ptr<cl_ml_tensor_memory_desc_q
 void CLMLRunner::CopyDataFromCLMLTensor(std::shared_ptr<cl_ml_tensor_memory_desc_qcom> tensor,
                                         void* data, cl_ml_tensor_layout_qcom layout) {
   cl_int result = 0;
-  cl_event readEvent = NULL;
+  cl_event readEvent = nullptr;
   // Read the output tensor
   result = h_ClmlIntf->clEnqueueReadMLTensorDataQCOM(this->queue, tensor->tensor, tensor->memory,
                                                      data, layout,
                                                      0,            // n waitlist
-                                                     NULL,         // waitlist
+                                                     nullptr,      // waitlist
                                                      &readEvent);  // event
   CLML_SDK_TEST_AND_EXIT(result == CL_SUCCESS);
   result = clWaitForEvents(1, &readEvent);
@@ -194,12 +194,12 @@ cl_int CLMLRunner::AllocateTensorMemory(
     std::shared_ptr<cl_ml_tensor_memory_desc_qcom> pTensorMemDesc) {
   uint32_t size = 0;
   cl_int result = CL_OUT_OF_HOST_MEMORY;
-  cl_mem buffer = NULL;
+  cl_mem buffer = nullptr;
 
   result = h_ClmlIntf->clGetMLTensorMemorySizeQCOM(context, pTensorMemDesc->tensor, &size);
   CLML_SDK_TEST_AND_EXIT(result == CL_SUCCESS);
 
-  buffer = clCreateBuffer(context, CL_MEM_READ_WRITE, size, NULL, &result);
+  buffer = clCreateBuffer(context, CL_MEM_READ_WRITE, size, nullptr, &result);
   CLML_SDK_TEST_AND_EXIT(result == CL_SUCCESS);
 
   pTensorMemDesc->memory = buffer;
@@ -257,7 +257,7 @@ void CLMLRunner::MakeUnusedTensor(void) {
   cl_ml_tensor_desc_qcom desc = {};
   desc.num_dimensions = CL_TENSOR_UNUSED_QCOM;
   this->unusedTensor = std::make_shared<cl_ml_tensor_memory_desc_qcom>();
-  result = this->h_ClmlIntf->clCreateMLTensorQCOM(this->context, NULL, &desc,
+  result = this->h_ClmlIntf->clCreateMLTensorQCOM(this->context, nullptr, &desc,
                                                   &(this->unusedTensor->tensor));
   CLML_SDK_TEST_AND_EXIT(this->unusedTensor && result == CL_SUCCESS);
 }
@@ -321,7 +321,8 @@ std::shared_ptr<cl_ml_tensor_memory_desc_qcom> CLMLRunner::MakeCLMLTensor(
   auto tensor_dsc = std::make_shared<cl_ml_tensor_memory_desc_qcom>();
   cl_ml_tensor_desc_qcom desc = {
       cl_dtype, layout, dims.n, dims.c, dims.h, dims.w, 0, CL_TENSOR_DIMENSIONS_4D_QCOM, {0}};
-  result = this->h_ClmlIntf->clCreateMLTensorQCOM(this->context, NULL, &desc, &tensor_dsc->tensor);
+  result =
+      this->h_ClmlIntf->clCreateMLTensorQCOM(this->context, nullptr, &desc, &tensor_dsc->tensor);
   CLML_SDK_TEST_AND_EXIT(tensor_dsc->tensor && result == CL_SUCCESS);
   return tensor_dsc;
 }
@@ -372,7 +373,7 @@ void CLMLRunner::MakeConv2D(std::shared_ptr<cl_ml_tensor_memory_desc_qcom> input
                                            {clml_dilation[0], clml_dilation[1]},
                                            0,
                                            cl_arithmetic_mode};
-  cl_ml_op_qcom op = NULL;
+  cl_ml_op_qcom op = nullptr;
   if (!has_act) {
     result = h_ClmlIntf->clCreateMLOpConvolutionForwardQCOM(
         this->context, 0, &conv_desc, input_desc->tensor, weight_desc->tensor, bias_desc->tensor,
@@ -381,7 +382,7 @@ void CLMLRunner::MakeConv2D(std::shared_ptr<cl_ml_tensor_memory_desc_qcom> input
   } else {
     result = h_ClmlIntf->clCreateMLOpFusedConvolutionActivationForwardQCOM(
         this->context, 0, &conv_desc, &act_desc, input_desc->tensor, weight_desc->tensor,
-        bias_desc->tensor, NULL, output_desc->tensor, &op, tuning_cache);
+        bias_desc->tensor, nullptr, output_desc->tensor, &op, tuning_cache);
     CLML_SDK_TEST_AND_EXIT(op && result == CL_SUCCESS);
   }
   this->function.push_back(op);
@@ -443,7 +444,7 @@ void CLMLRunner::MakeConv2DWithBN(std::shared_ptr<cl_ml_tensor_memory_desc_qcom>
                                            {clml_dilation[0], clml_dilation[1]},
                                            0,
                                            cl_arithmetic_mode};
-  cl_ml_op_qcom op = NULL;
+  cl_ml_op_qcom op = nullptr;
   cl_ml_op_batchnorm_desc_qcom bn_desc = {CL_BATCHNORM_MODE_SPATIAL_QCOM, cl_arithmetic_mode};
   if (!has_act) {
     result = h_ClmlIntf->clCreateMLOpFusedConvolutionBatchNormForwardQCOM(
@@ -454,7 +455,7 @@ void CLMLRunner::MakeConv2DWithBN(std::shared_ptr<cl_ml_tensor_memory_desc_qcom>
   } else {
     result = h_ClmlIntf->clCreateMLOpFusedConvolutionBatchNormActivationForwardQCOM(
         this->context, 0, &conv_desc, &bn_desc, &act_desc, input_desc->tensor, weight_desc->tensor,
-        bias_desc->tensor, output_desc->tensor, NULL, bn_mean->tensor, bn_var->tensor,
+        bias_desc->tensor, output_desc->tensor, nullptr, bn_mean->tensor, bn_var->tensor,
         bn_scale->tensor, bn_bias->tensor, &op, tuning_cache);
     CLML_SDK_TEST_AND_EXIT(op && result == CL_SUCCESS);
   }
@@ -472,7 +473,7 @@ void CLMLRunner::MakeRelu(std::shared_ptr<cl_ml_tensor_memory_desc_qcom> input_d
                           std::shared_ptr<cl_ml_tensor_memory_desc_qcom> output_desc,
                           cl_activation_function_qcom relu_type, std::string dtype) {
   cl_arithmetic_mode_qcom cl_arithmetic_mode = MakeCLArithMode(MakeCLDataType(dtype));
-  cl_ml_op_qcom op = NULL;
+  cl_ml_op_qcom op = nullptr;
   cl_int result;
   cl_ml_op_activation_desc_qcom act_desc = {relu_type, CL_PROPAGATE_NAN_QCOM, cl_arithmetic_mode};
 
@@ -502,7 +503,7 @@ void CLMLRunner::MakeBatchNorm(std::shared_ptr<cl_ml_tensor_memory_desc_qcom> in
                                std::shared_ptr<cl_ml_tensor_memory_desc_qcom> bn_var,
                                std::vector<float> bn_attrs, std::string dtype) {
   cl_arithmetic_mode_qcom cl_arithmetic_mode = MakeCLArithMode(MakeCLDataType(dtype));
-  cl_ml_op_qcom op = NULL;
+  cl_ml_op_qcom op = nullptr;
   cl_int result;
 
   cl_ml_op_batchnorm_desc_qcom bn_desc = {CL_BATCHNORM_MODE_SPATIAL_QCOM, cl_arithmetic_mode};
@@ -531,7 +532,7 @@ void CLMLRunner::MakePool2D(std::shared_ptr<cl_ml_tensor_memory_desc_qcom> input
                             std::vector<cl_uint> padding, std::string pool_type,
                             std::string dtype) {
   cl_arithmetic_mode_qcom cl_arithmetic_mode = MakeCLArithMode(MakeCLDataType(dtype));
-  cl_ml_op_qcom op = NULL;
+  cl_ml_op_qcom op = nullptr;
   cl_int result;
 
   cl_ml_op_pooling_desc_qcom pool_desc = {
@@ -567,7 +568,7 @@ void CLMLRunner::MakeGlobalPool2D(std::shared_ptr<cl_ml_tensor_memory_desc_qcom>
                                   std::vector<cl_uint> in_shape, std::string pool_type,
                                   std::string dtype) {
   cl_arithmetic_mode_qcom cl_arithmetic_mode = MakeCLArithMode(MakeCLDataType(dtype));
-  cl_ml_op_qcom op = NULL;
+  cl_ml_op_qcom op = nullptr;
   cl_int result;
   cl_ml_op_pooling_desc_qcom pool_desc = {
       pool_type == "nn.global_max_pool2d" ? CL_POOLING_MODE_MAX_QCOM
@@ -599,7 +600,7 @@ void CLMLRunner::MakeReshape(std::shared_ptr<cl_ml_tensor_memory_desc_qcom> inpu
                              std::shared_ptr<cl_ml_tensor_memory_desc_qcom> output_desc,
                              std::string dtype) {
   cl_arithmetic_mode_qcom cl_arithmetic_mode = MakeCLArithMode(MakeCLDataType(dtype));
-  cl_ml_op_qcom op = NULL;
+  cl_ml_op_qcom op = nullptr;
   cl_int result;
 
   result = h_ClmlIntf->clCreateMLOpReshapeQCOM(this->context, 0, input_desc->tensor,
@@ -620,7 +621,7 @@ void CLMLRunner::MakeConcatenate(
     std::vector<std::shared_ptr<cl_ml_tensor_memory_desc_qcom>> in_list,
     std::shared_ptr<cl_ml_tensor_memory_desc_qcom> output_desc, int axis, std::string dtype) {
   cl_arithmetic_mode_qcom cl_arithmetic_mode = MakeCLArithMode(MakeCLDataType(dtype));
-  cl_ml_op_qcom op = NULL;
+  cl_ml_op_qcom op = nullptr;
   cl_int result;
 
   cl_ml_tensor_qcom* concatInputs = new cl_ml_tensor_qcom[in_list.size()];
@@ -650,7 +651,7 @@ void CLMLRunner::MakeDense(std::shared_ptr<cl_ml_tensor_memory_desc_qcom> input_
                            std::shared_ptr<cl_ml_tensor_memory_desc_qcom> bias_desc,
                            std::string dtype) {
   cl_arithmetic_mode_qcom cl_arithmetic_mode = MakeCLArithMode(MakeCLDataType(dtype));
-  cl_ml_op_qcom op = NULL;
+  cl_ml_op_qcom op = nullptr;
   cl_int result;
 
   cl_ml_op_convolution_desc_qcom conv_desc = {CL_CONVOLUTION_MODE_CONVOLUTION_QCOM,
@@ -681,7 +682,7 @@ void CLMLRunner::MakeSoftMax(std::shared_ptr<cl_ml_tensor_memory_desc_qcom> inpu
                              std::shared_ptr<cl_ml_tensor_memory_desc_qcom> output_desc,
                              std::string dtype) {
   cl_arithmetic_mode_qcom cl_arithmetic_mode = MakeCLArithMode(MakeCLDataType(dtype));
-  cl_ml_op_qcom op = NULL;
+  cl_ml_op_qcom op = nullptr;
   cl_int result;
 
   cl_ml_op_softmax_desc_qcom softmax_desc = {CL_SOFTMAX_ALGORITHM_ACCURATE_QCOM,
@@ -706,7 +707,7 @@ void CLMLRunner::MakePad(std::shared_ptr<cl_ml_tensor_memory_desc_qcom> input_de
                          std::shared_ptr<cl_ml_tensor_memory_desc_qcom> output_desc,
                          std::string pad_mode, std::vector<cl_uint> padding, std::string dtype) {
   cl_arithmetic_mode_qcom cl_arithmetic_mode = MakeCLArithMode(MakeCLDataType(dtype));
-  cl_ml_op_qcom op = NULL;
+  cl_ml_op_qcom op = nullptr;
   cl_int result;
 
   cl_pad_mode_qcom clml_pad_mode = CL_PAD_MODE_CONSTANT_QCOM;
@@ -741,7 +742,7 @@ void CLMLRunner::MakeBatchFlatten(std::shared_ptr<cl_ml_tensor_memory_desc_qcom>
                                   std::shared_ptr<cl_ml_tensor_memory_desc_qcom> output_desc,
                                   std::string dtype) {
   cl_arithmetic_mode_qcom cl_arithmetic_mode = MakeCLArithMode(MakeCLDataType(dtype));
-  cl_ml_op_qcom op = NULL;
+  cl_ml_op_qcom op = nullptr;
   cl_int result;
 
   result = h_ClmlIntf->clCreateMLOpReshapeQCOM(this->context, 0, input_desc->tensor,
@@ -763,7 +764,7 @@ void CLMLRunner::MakeClip(std::shared_ptr<cl_ml_tensor_memory_desc_qcom> input_d
                           float a_min, std::string dtype) {
   LOG(INFO) << "MakeClip called";
   cl_arithmetic_mode_qcom cl_arithmetic_mode = MakeCLArithMode(MakeCLDataType(dtype));
-  cl_ml_op_qcom op = NULL;
+  cl_ml_op_qcom op = nullptr;
   cl_int result;
 
   cl_ml_op_clip_desc_qcom clip_desc = {
@@ -788,7 +789,7 @@ void CLMLRunner::MakeBinaryOp(std::shared_ptr<cl_ml_tensor_memory_desc_qcom> inp
                               std::shared_ptr<cl_ml_tensor_memory_desc_qcom> output_desc,
                               std::string op_name, std::string dtype) {
   cl_arithmetic_mode_qcom cl_arithmetic_mode = MakeCLArithMode(MakeCLDataType(dtype));
-  cl_ml_op_qcom op = NULL;
+  cl_ml_op_qcom op = nullptr;
   cl_int result;
 
   cl_binary_op_qcom binary_op = CL_TENSOR_OP_ADD_QCOM;
