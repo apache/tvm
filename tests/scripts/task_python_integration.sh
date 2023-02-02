@@ -37,6 +37,10 @@ find . -type f -path "*.pyc" | xargs rm -f
 # Test TVM
 make cython3
 
+# Test Relax and skip other tests (DO NOT UPSTREAM TO MAIN)
+TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm}" tests/scripts/unity/task_relax.sh
+exit 0
+
 # Test extern package
 cd apps/extension
 rm -rf lib
