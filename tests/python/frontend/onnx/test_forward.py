@@ -7568,6 +7568,8 @@ def test_bitshift(target, dev):
     verify_bitshift(shape, broadcast_shape)
 
 
+# TODO(vvchernov): return test back than ONNX Runtime in CI will support domain version of 18
+@pytest.mark.skip("Currently ONNX Runtime in CI does not support domain version of 18")
 @tvm.testing.parametrize_targets
 def test_bitwise(target, dev):
     """test_bitwise"""
