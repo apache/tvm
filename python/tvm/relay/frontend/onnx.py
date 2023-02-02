@@ -2872,6 +2872,8 @@ class ScatterElements(OnnxOpConverter):
 
         if red_valids:
             reduction = attr.get("reduction", None)
+            if reduction is None:
+                reduction = "update"
             assert reduction in red_valids
             ret.append(reduction)
 
@@ -2885,29 +2887,15 @@ class ScatterElements(OnnxOpConverter):
 
     @classmethod
     def _impl_v16(cls, inputs, attr, params):
-        axis, reduction = cls._args_check(inputs, attr, [None, "add", "mul"])
+        axis, reduction = cls._args_check(inputs, attr, ["update", "add", "mul"])
 
-        if not reduction:
-            return _op.scatter(inputs[0], inputs[1], inputs[2], axis)
-        elif reduction == "add":
-            return _op.scatter_add(inputs[0], inputs[1], inputs[2], axis)
-        # else: # There is no other choices due to it was checked earlier
-        #     return _op.scatter_mul(inputs[0], inputs[1], inputs[2], axis)
+        return _op.scatter_elements(inputs[0], inputs[1], inputs[2], axis, reduction)
 
     @classmethod
     def _impl_v18(cls, inputs, attr, params):
-        axis, reduction = cls._args_check(inputs, attr, [None, "add", "mul", "min", "max"])
+        axis, reduction = cls._args_check(inputs, attr, ["update", "add", "mul", "min", "max"])
 
-        if not reduction:
-            return _op.scatter(inputs[0], inputs[1], inputs[2], axis)
-        elif reduction == "add":
-            return _op.scatter_add(inputs[0], inputs[1], inputs[2], axis)
-        # elif reduction == "mul":
-        #     return _op.scatter_mul(inputs[0], inputs[1], inputs[2], axis)
-        # elif reduction == "min":
-        #     return _op.scatter_min(inputs[0], inputs[1], inputs[2], axis)
-        # else: # There is no other choices due to it was checked earlier
-        #     return _op.scatter_max(inputs[0], inputs[1], inputs[2], axis)
+        return _op.scatter_elements(inputs[0], inputs[1], inputs[2], axis, reduction)
 
 
 class ScatterND(OnnxOpConverter):
