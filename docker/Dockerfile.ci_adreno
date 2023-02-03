@@ -27,3 +27,6 @@ ENV ANDROID_HOME=/opt/android-sdk-linux
 ENV ANDROID_NDK_HOME=/opt/android-sdk-linux/ndk/21.3.6528147
 ENV ANDROID_NDK_MAJOR=21
 ENV PATH /opt/android-sdk-linux/platform-tools:$PATH
+
+# Clang tool for CLML source codegen
+RUN apt-get update && apt-install-and-clear -y clang-format-10
