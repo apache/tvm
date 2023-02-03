@@ -610,7 +610,7 @@ class Handler(server.ProjectAPIHandler):
             else:
                 shutil.copy2(src_path, dst_path)
 
-        # Populate Makefile.
+        # Populate CMakeLists.
         with open(project_dir / CMAKELIST_FILENAME, "w") as cmake_f:
             with open(API_SERVER_DIR / f"{CMAKELIST_FILENAME}.template", "r") as cmake_template_f:
                 for line in cmake_template_f:

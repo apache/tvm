@@ -139,6 +139,8 @@ tvm_crt_error_t TVMPlatformAfterMeasurement();
  */
 tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes);
 
+tvm_crt_error_t TVMPlatformInitialize();
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif

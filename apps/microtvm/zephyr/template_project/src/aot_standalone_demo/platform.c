@@ -17,45 +17,39 @@
  * under the License.
  */
 
-#include "tvm/platform.h"
+/*!
+ * \brief Implementation of TVMPlatform functions in tvm/runtime/crt/platform.h
+ */
 
 #include <assert.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <zephyr/drivers/uart.h>
+#include <tvm/runtime/crt/error_codes.h>
+#include <tvm/runtime/crt/stack_allocator.h>
+#include <zephyr/kernel.h>
 #include <zephyr/sys/reboot.h>
-#include <zephyr/sys/ring_buffer.h>
 
 #include "crt_config.h"
 #include "dlpack/dlpack.h"
-#include "tvm/runtime/crt/error_codes.h"
 #include "tvmgen_default.h"
 
-static const struct device* g_microtvm_uart;
-#define RING_BUF_SIZE_BYTES (TVM_CRT_MAX_PACKET_SIZE_BYTES + 100)
+// WORKSPACE_SIZE defined in Project API Makefile
+static uint8_t g_aot_memory[WORKSPACE_SIZE];
+tvm_workspace_t app_workspace;
 
-// Ring buffer used to store data read from the UART on rx interrupt.
-RING_BUF_DECLARE(uart_rx_rbuf, RING_BUF_SIZE_BYTES);
+#define MILLIS_TIL_EXPIRY 200
+#define TIME_TIL_EXPIRY (K_MSEC(MILLIS_TIL_EXPIRY))
+struct k_timer g_microtvm_timer;
+uint32_t g_microtvm_start_time;
+int g_microtvm_timer_running = 0;
 
-void TVMLogf(const char* msg, ...) {
-  char buffer[256];
-  int size;
-  va_list args;
-  va_start(args, msg);
-  size = vsprintf(buffer, msg, args);
-  va_end(args);
-  TVMPlatformWriteSerial(buffer, (uint32_t)size);
-}
-
-// Called by TVM when a message needs to be formatted.
 __attribute__((weak)) size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes,
                                                       const char* fmt, va_list args) {
   return vsnprintk(out_buf, out_buf_size_bytes, fmt, args);
 }
 
-// Called by TVM when an internal invariant is violated, and execution cannot continue.
 __attribute__((weak)) void TVMPlatformAbort(tvm_crt_error_t error) {
   TVMLogf("TVMPlatformAbort: %08x\n", error);
   sys_reboot(SYS_REBOOT_COLD);
@@ -63,70 +57,72 @@ __attribute__((weak)) void TVMPlatformAbort(tvm_crt_error_t error) {
     ;
 }
 
-// Called by TVM when memory allocation is required.
 __attribute__((weak)) tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev,
                                                                 void** out_ptr) {
   return StackMemoryManager_Allocate(&app_workspace, num_bytes, out_ptr);
 }
 
-// Called by TVM to free an allocated memory.
 __attribute__((weak)) tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
   return StackMemoryManager_Free(&app_workspace, ptr);
 }
 
-static uint8_t uart_data[8];
-// UART interrupt callback.
-void uart_irq_cb(const struct device* dev, void* user_data) {
-  while (uart_irq_update(dev) && uart_irq_is_pending(dev)) {
-    struct ring_buf* rbuf = (struct ring_buf*)user_data;
-    if (uart_irq_rx_ready(dev) != 0) {
-      for (;;) {
-        // Read a small chunk of data from the UART.
-        int bytes_read = uart_fifo_read(dev, uart_data, sizeof(uart_data));
-        if (bytes_read < 0) {
-          TVMPlatformAbort((tvm_crt_error_t)(0xbeef1));
-        } else if (bytes_read == 0) {
-          break;
-        }
-        // Write it into the ring buffer.
-        int bytes_written = ring_buf_put(rbuf, uart_data, bytes_read);
-        if (bytes_read != bytes_written) {
-          TVMPlatformAbort((tvm_crt_error_t)(0xbeef2));
-        }
-      }
-    }
+__attribute__((weak)) tvm_crt_error_t TVMPlatformInitialize() {
+  k_timer_init(&g_microtvm_timer, NULL, NULL);
+  StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE);
+  return kTvmErrorNoError;
+}
+
+__attribute__((weak)) tvm_crt_error_t TVMPlatformTimerStart() {
+  if (g_microtvm_timer_running) {
+    TVMLogf("timer already running");
+    return kTvmErrorPlatformTimerBadState;
   }
+
+  k_timer_start(&g_microtvm_timer, TIME_TIL_EXPIRY, TIME_TIL_EXPIRY);
+  g_microtvm_start_time = k_cycle_get_32();
+  g_microtvm_timer_running = 1;
+  return kTvmErrorNoError;
 }
 
-// Used to initialize the UART receiver.
-void uart_rx_init(struct ring_buf* rbuf, const struct device* dev) {
-  uart_irq_callback_user_data_set(dev, uart_irq_cb, (void*)rbuf);
-  uart_irq_rx_enable(dev);
-}
-
-uint32_t TVMPlatformUartRxRead(uint8_t* data, uint32_t data_size_bytes) {
-  unsigned int key = irq_lock();
-  uint32_t bytes_read = ring_buf_get(&uart_rx_rbuf, data, data_size_bytes);
-  irq_unlock(key);
-  return bytes_read;
-}
-
-uint32_t TVMPlatformWriteSerial(const char* data, uint32_t size) {
-  for (uint32_t i = 0; i < size; i++) {
-    uart_poll_out(g_microtvm_uart, data[i]);
+__attribute__((weak)) tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
+  if (!g_microtvm_timer_running) {
+    TVMLogf("timer not running");
+    return kTvmErrorSystemErrorMask | 2;
   }
-  return size;
-}
 
-// Initialize UART
-void TVMPlatformUARTInit() {
-  // Claim console device.
-  g_microtvm_uart = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
-  const struct uart_config config = {.baudrate = 115200,
-                                     .parity = UART_CFG_PARITY_NONE,
-                                     .stop_bits = UART_CFG_STOP_BITS_1,
-                                     .data_bits = UART_CFG_DATA_BITS_8,
-                                     .flow_ctrl = UART_CFG_FLOW_CTRL_NONE};
-  uart_configure(g_microtvm_uart, &config);
-  uart_rx_init(&uart_rx_rbuf, g_microtvm_uart);
+  uint32_t stop_time = k_cycle_get_32();
+
+  // compute how long the work took
+  uint32_t cycles_spent = stop_time - g_microtvm_start_time;
+  if (stop_time < g_microtvm_start_time) {
+    // we rolled over *at least* once, so correct the rollover it was *only*
+    // once, because we might still use this result
+    cycles_spent = ~((uint32_t)0) - (g_microtvm_start_time - stop_time);
+  }
+
+  uint32_t ns_spent = (uint32_t)k_cyc_to_ns_floor64(cycles_spent);
+  double hw_clock_res_us = ns_spent / 1000.0;
+
+  // need to grab time remaining *before* stopping. when stopped, this function
+  // always returns 0.
+  int32_t time_remaining_ms = k_timer_remaining_get(&g_microtvm_timer);
+  k_timer_stop(&g_microtvm_timer);
+  // check *after* stopping to prevent extra expiries on the happy path
+  if (time_remaining_ms < 0) {
+    return kTvmErrorSystemErrorMask | 3;
+  }
+  uint32_t num_expiries = k_timer_status_get(&g_microtvm_timer);
+  uint32_t timer_res_ms = ((num_expiries * MILLIS_TIL_EXPIRY) + time_remaining_ms);
+  double approx_num_cycles =
+      (double)k_ticks_to_cyc_floor32(1) * (double)k_ms_to_ticks_ceil32(timer_res_ms);
+  // if we approach the limits of the HW clock datatype (uint32_t), use the
+  // coarse-grained timer result instead
+  if (approx_num_cycles > (0.5 * (~((uint32_t)0)))) {
+    *elapsed_time_seconds = timer_res_ms / 1000.0;
+  } else {
+    *elapsed_time_seconds = hw_clock_res_us / 1e6;
+  }
+
+  g_microtvm_timer_running = 0;
+  return kTvmErrorNoError;
 }

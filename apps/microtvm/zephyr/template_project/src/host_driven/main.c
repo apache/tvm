@@ -37,18 +37,14 @@
 #include <zephyr/drivers/uart.h>
 #include <zephyr/fatal.h>
 #include <zephyr/kernel.h>
-#include <zephyr/random/rand32.h>
-#include <zephyr/sys/printk.h>
-#include <zephyr/sys/reboot.h>
 #include <zephyr/sys/ring_buffer.h>
-#include <zephyr/timing/timing.h>
+
 
 #ifdef CONFIG_ARCH_POSIX
 #include "posix_board_if.h"
 #endif
 
 #include "crt_config.h"
-#include "tvm/platform.h"
 
 #ifdef FVP
 #include "tvm/semihost.h"
@@ -62,20 +58,11 @@ static size_t g_num_bytes_in_rx_buffer = 0;
 
 // Called by TVM to write serial data to the UART.
 ssize_t uart_write(void* unused_context, const uint8_t* data, size_t size) {
-#ifdef CONFIG_LED
-  gpio_pin_set_dt(&led0, 1);
-#endif
   g_num_bytes_requested += size;
-
   for (size_t i = 0; i < size; i++) {
     uart_poll_out(tvm_uart, data[i]);
     g_num_bytes_written++;
   }
-
-#ifdef CONFIG_LED
-  gpio_pin_set_dt(&led0, 0);
-#endif
-
   return size;
 }
 
@@ -85,79 +72,6 @@ ssize_t serial_write(void* unused_context, const uint8_t* data, size_t size) {
 #else
   return uart_write(unused_context, data, size);
 #endif
-}
-
-// This is invoked by Zephyr from an exception handler, which will be invoked
-// if the device crashes. Here, we turn on the LED and spin.
-void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t* esf) {
-#ifdef CONFIG_LED
-  gpio_pin_set_dt(&led0, 1);
-#endif
-  for (;;)
-    ;
-}
-
-// Called by TVM when a message needs to be formatted.
-size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const char* fmt,
-                                va_list args) {
-  return vsnprintk(out_buf, out_buf_size_bytes, fmt, args);
-}
-
-// Called by TVM to generate random data.
-tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
-  uint32_t random;  // one unit of random data.
-
-  // Fill parts of `buffer` which are as large as `random`.
-  size_t num_full_blocks = num_bytes / sizeof(random);
-  for (int i = 0; i < num_full_blocks; ++i) {
-    random = sys_rand32_get();
-    memcpy(&buffer[i * sizeof(random)], &random, sizeof(random));
-  }
-
-  // Fill any leftover tail which is smaller than `random`.
-  size_t num_tail_bytes = num_bytes % sizeof(random);
-  if (num_tail_bytes > 0) {
-    random = sys_rand32_get();
-    memcpy(&buffer[num_bytes - num_tail_bytes], &random, num_tail_bytes);
-  }
-  return kTvmErrorNoError;
-}
-
-volatile timing_t g_microtvm_start_time, g_microtvm_end_time;
-int g_microtvm_timer_running = 0;
-
-// Called to start system timer.
-tvm_crt_error_t TVMPlatformTimerStart() {
-  if (g_microtvm_timer_running) {
-    TVMLogf("timer already running");
-    return kTvmErrorPlatformTimerBadState;
-  }
-
-#ifdef CONFIG_LED
-  gpio_pin_set_dt(&led0, 1);
-#endif
-  g_microtvm_start_time = timing_counter_get();
-  g_microtvm_timer_running = 1;
-  return kTvmErrorNoError;
-}
-
-// Called to stop system timer.
-tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
-  if (!g_microtvm_timer_running) {
-    TVMLogf("timer not running");
-    return kTvmErrorSystemErrorMask | 2;
-  }
-
-#ifdef CONFIG_LED
-  gpio_pin_set_dt(&led0, 0);
-#endif
-
-  g_microtvm_end_time = timing_counter_get();
-  uint64_t cycles = timing_cycles_get(&g_microtvm_start_time, &g_microtvm_end_time);
-  uint64_t ns_spent = timing_cycles_to_ns(cycles);
-  *elapsed_time_seconds = ns_spent / (double)1e9;
-  g_microtvm_timer_running = 0;
-  return kTvmErrorNoError;
 }
 
 // Ring buffer used to store data read from the UART on rx interrupt.
@@ -190,8 +104,6 @@ void uart_irq_cb(const struct device* dev, void* user_data) {
       if (err != 0) {
         TVMPlatformAbort((tvm_crt_error_t)0xbeef2);
       }
-      // CHECK_EQ(bytes_read, bytes_written, "bytes_read: %d; bytes_written: %d", bytes_read,
-      // bytes_written);
     }
   }
 }
@@ -205,17 +117,7 @@ void uart_rx_init(struct ring_buf* rbuf, const struct device* dev) {
 // The main function of this application.
 extern void __stdout_hook_install(int (*hook)(int));
 void main(void) {
-#ifdef CONFIG_LED
-  if (!device_is_ready(led0.port)) {
-    for (;;)
-      ;
-  }
-  int ret = gpio_pin_configure_dt(&led0, GPIO_OUTPUT_ACTIVE);
-  if (ret < 0) {
-    TVMPlatformAbort((tvm_crt_error_t)0xbeef4);
-  }
-  gpio_pin_set_dt(&led0, 1);
-#endif
+  TVMPlatformInitialize();
 
   // Claim console device.
   tvm_uart = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
@@ -238,10 +140,6 @@ void main(void) {
   // Initialize microTVM RPC server, which will receive commands from the UART and execute them.
   microtvm_rpc_server_t server = MicroTVMRpcServerInit(serial_write, NULL);
   TVMLogf("microTVM Zephyr runtime - running");
-
-#ifdef CONFIG_LED
-  gpio_pin_set_dt(&led0, 0);
-#endif
 
   // The main application loop. We continuously read commands from the UART
   // and dispatch them to MicroTVMRpcServerLoop().
