@@ -17,23 +17,29 @@
  * under the License.
  */
 
+/*!
+ * \brief Implementation of TVMPlatform functions in tvm/runtime/crt/platform.h
+ */
+
+#include <dlpack/dlpack.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <tvm/runtime/crt/error_codes.h>
+#include <tvm/runtime/crt/page_allocator.h>
 
-#include "dlpack/dlpack.h"
-#include "tvm/platform.h"
-#include "tvm/runtime/crt/error_codes.h"
+uint8_t memory[MEMORY_SIZE_BYTES];
+MemoryManagerInterface* memory_manager;
+
+// Called by TVM when an internal invariant is violated, and execution cannot continue.
+__attribute__((weak)) void TVMPlatformAbort(tvm_crt_error_t error_code) { exit(1); }
 
 // Called by TVM when a message needs to be formatted.
 __attribute__((weak)) size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes,
                                                       const char* fmt, va_list args) {
   return vsprintf(out_buf, fmt, args);
 }
-
-// Called by TVM when an internal invariant is violated, and execution cannot continue.
-__attribute__((weak)) void TVMPlatformAbort(tvm_crt_error_t error_code) { exit(1); }
 
 // Called by TVM when memory allocation is required.
 __attribute__((weak)) tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev,
@@ -44,4 +50,27 @@ __attribute__((weak)) tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes
 // Called by TVM to free an allocated memory.
 __attribute__((weak)) tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
   return memory_manager->Free(memory_manager, ptr, dev);
+}
+
+__attribute__((weak)) tvm_crt_error_t TVMPlatformTimerStart() { return kTvmErrorNoError; }
+
+__attribute__((weak)) tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
+  return kTvmErrorNoError;
+}
+__attribute__((weak)) tvm_crt_error_t TVMPlatformBeforeMeasurement() { return kTvmErrorNoError; }
+
+__attribute__((weak)) tvm_crt_error_t TVMPlatformAfterMeasurement() { return kTvmErrorNoError; }
+
+__attribute__((weak)) tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
+  return kTvmErrorNoError;
+}
+
+__attribute__((weak)) tvm_crt_error_t TVMPlatformInitialize() {
+  int status =
+      PageMemoryManagerCreate(&memory_manager, memory, sizeof(memory), 8 /* page_size_log2 */);
+  if (status != 0) {
+    fprintf(stderr, "error initiailizing memory manager\n");
+    return kTvmErrorPlatformMemoryManagerInitialized;
+  }
+  return kTvmErrorNoError;
 }

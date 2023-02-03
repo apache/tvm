@@ -24,8 +24,7 @@ if(USE_MICRO)
       "src/runtime/crt/host Makefile.template -> crt"
       "src/runtime/crt/host main.cc -> crt/src"
       "src/runtime/crt/host platform-template.c -> crt/src"
-      "src/runtime/crt crt_config-template.h -> crt/include"
-      "src/runtime/crt/host platform-template.h -> crt/include"
+      "src/runtime/crt crt_config-template.h -> crt/crt_config"
     )
 
     foreach(job_spec IN LISTS CRT_TEMPLATE_FILE_COPY_JOBS)

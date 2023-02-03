@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-INCLUDES ?= -isystem crt/include -Iinclude -Icrt_config
+INCLUDES ?= -isystem crt/include -Icrt_config
 MEMORY_SIZE_BYTES := <MEMORY_SIZE_BYTES>
-CFLAGS ?= -Werror -Wall
-CXXFLAGS ?= -Werror -Wall -std=c++11 -DTVM_HOST_USE_GRAPH_EXECUTOR_MODULE -DMEMORY_SIZE_BYTES=$(MEMORY_SIZE_BYTES)
+CFLAGS ?= -Werror -Wall -DMEMORY_SIZE_BYTES=$(MEMORY_SIZE_BYTES)
+CXXFLAGS ?= -Werror -Wall -std=c++11 -DTVM_HOST_USE_GRAPH_EXECUTOR_MODULE
 LDFLAGS ?= -Werror -Wall
 
 # Codegen produces spurious lines like: int32_t arg2_code = ((int32_t*)arg_type_ids)[(2)];
@@ -74,14 +74,14 @@ build/%.o: src/%.cc
 	${QUIET}mkdir -p $(dir $@)
 	${QUIET}$(CXX) $(INCLUDES) $(CXXFLAGS) -c -o "$@" "$<"
 
-build/platform.o: src/platform.c
+build/%.o: src/%.c
 	${QUIET}mkdir -p $(dir $@)
-	${QUIET}$(CC) $(INCLUDES) $(CFLAGS) -L${CRT_LIBS} -c -o "$@" "$<"
+	${QUIET}$(CC) $(INCLUDES) $(CFLAGS) -c -o "$@" "$<"
 
 SRCS = $(wildcard src/*.cc)
 OBJS = $(patsubst src/%.cc,build/%.o,$(SRCS))
 
-build/main: ${OBJS} ${MODEL_LIBS} ${CRT_LIBS} ${BUILD_DIR}/platform.o
+build/main: ${OBJS} ${BUILD_DIR}/platform.o ${MODEL_LIBS} ${CRT_LIBS}
 	${QUIET}mkdir -p $(dir $@)
 	${QUIET}$(CXX) $(LDFLAGS) -o "$@" $^
 

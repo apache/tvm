@@ -26,14 +26,12 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/microtvm_rpc_server.h>
-#include <tvm/runtime/crt/page_allocator.h>
 #include <unistd.h>
 
 #include <chrono>
 #include <iostream>
 
 #include "crt_config.h"
-#include "tvm/platform.h"
 
 #ifdef TVM_HOST_USE_GRAPH_EXECUTOR_MODULE
 #include <tvm/runtime/crt/graph_executor_module.h>
@@ -98,8 +96,6 @@ tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
 }
 }
 
-uint8_t memory[MEMORY_SIZE_BYTES];
-
 static char** g_argv = NULL;
 
 int testonly_reset_server(TVMValue* args, int* type_codes, int num_args, TVMValue* out_ret_value,
@@ -111,13 +107,7 @@ int testonly_reset_server(TVMValue* args, int* type_codes, int num_args, TVMValu
 
 int main(int argc, char** argv) {
   g_argv = argv;
-  int status =
-      PageMemoryManagerCreate(&memory_manager, memory, sizeof(memory), 8 /* page_size_log2 */);
-  if (status != 0) {
-    fprintf(stderr, "error initiailizing memory manager\n");
-    return 2;
-  }
-
+  TVMPlatformInitialize();
   microtvm_rpc_server_t rpc_server = MicroTVMRpcServerInit(&MicroTVMWriteFunc, nullptr);
 
 #ifdef TVM_HOST_USE_GRAPH_EXECUTOR_MODULE
