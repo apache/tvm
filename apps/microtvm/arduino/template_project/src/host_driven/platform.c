@@ -25,21 +25,20 @@
 #include "standalone_crt/include/tvm/runtime/crt/error_codes.h"
 #include "stdarg.h"
 
-// Called by TVM when a message needs to be formatted.
-__attribute__((weak)) size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes,
-                                                      const char* fmt, va_list args) {
-  return vsnprintf(out_buf, out_buf_size_bytes, fmt, args);
-}
-
-// Called by TVM when an internal invariant is violated, and execution cannot continue.
-// Blink code for debugging purposes
+// Called when an internal error occurs and execution cannot continue.
 __attribute__((weak)) void TVMPlatformAbort(tvm_crt_error_t error) {
   TVMLogf("TVMPlatformAbort: 0x%08x\n", error);
   for (;;)
     ;
 }
 
-// Called by TVM when memory allocation is required.
+// Called by the microTVM RPC server to implement TVMLogf.
+__attribute__((weak)) size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes,
+                                                      const char* fmt, va_list args) {
+  return vsnprintf(out_buf, out_buf_size_bytes, fmt, args);
+}
+
+// Allocate memory for use by TVM.
 __attribute__((weak)) tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev,
                                                                 void** out_ptr) {
   if (num_bytes == 0) {
@@ -49,7 +48,7 @@ __attribute__((weak)) tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes
   return (*out_ptr == NULL) ? kTvmErrorPlatformNoMemory : kTvmErrorNoError;
 }
 
-// Called by TVM to free an allocated memory.
+// Free memory used by TVM.
 __attribute__((weak)) tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
   free(ptr);
   return kTvmErrorNoError;
@@ -58,7 +57,8 @@ __attribute__((weak)) tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice 
 unsigned long g_utvm_start_time_micros;
 int g_utvm_timer_running = 0;
 
-tvm_crt_error_t TVMPlatformTimerStart() {
+// Start a device timer.
+__attribute__((weak)) tvm_crt_error_t TVMPlatformTimerStart() {
   if (g_utvm_timer_running) {
     return kTvmErrorPlatformTimerBadState;
   }
@@ -67,7 +67,8 @@ tvm_crt_error_t TVMPlatformTimerStart() {
   return kTvmErrorNoError;
 }
 
-tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
+// Stop the running device timer and get the elapsed time (in microseconds).
+__attribute__((weak)) tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
   if (!g_utvm_timer_running) {
     return kTvmErrorPlatformTimerBadState;
   }
@@ -77,7 +78,8 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
   return kTvmErrorNoError;
 }
 
-tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
+// Fill a buffer with random data.
+__attribute__((weak)) tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
   for (size_t i = 0; i < num_bytes; i++) {
     buffer[i] = rand();
   }

@@ -21,7 +21,6 @@
  * \brief Implementation of TVMPlatform functions in tvm/runtime/crt/platform.h
  */
 
-#include <assert.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
