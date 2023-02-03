@@ -1237,7 +1237,7 @@ TVM_REGISTER_GLOBAL("relay.op._make.scatter_elements").set_body_typed(MakeScatte
 
 // scatter_elements op has extern schedules: convert to Opaque to prevent compilation failures
 RELAY_REGISTER_OP("scatter_elements")
-    .describe(R"code(Scatter elements with updating data by reduction values in updates
+    .describe(R"code(Scatter elements with updating data by reduction of values in updates
 at positions defined by indices.)code" TVM_ADD_FILELINE)
     .set_num_inputs(3)
     .add_argument("data", "Tensor", "The input tensor.")

@@ -403,8 +403,9 @@ def scatter_add(data, indices, updates, axis):
     return _make.scatter_add(data, indices, updates, axis)
 
 
-def scatter_elements(data, indices, updates, axis, reduction):
-    """Update data by adding values in updates at positions defined by indices.
+def scatter_elements(data, indices, updates, axis, reduction="update"):
+    """Scatter elements with updating data by reduction of values in updates
+    at positions defined by indices.
 
     Parameters
     ----------
@@ -421,7 +422,8 @@ def scatter_elements(data, indices, updates, axis, reduction):
         The axis to scatter_add on.
 
     reduction : string, optional
-        The reduction mode for scatter. Choise is from ["update", "add", "mul", "min", max"]
+        The reduction mode for scatter. Choise is from ["update", "add", "mul", "min", max"].
+        It is "update" by default.
 
     Returns
     -------
