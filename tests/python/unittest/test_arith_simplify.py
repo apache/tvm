@@ -14,19 +14,25 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import tvm
+import tvm.testing
+from tvm import tir
 
-# CI docker GPU env
-FROM tlcpack/ci-gpu:20220908-060034-62bdc91b1
 
-COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
+def test_simplify_reshape_flattened_index():
+    ana = tvm.arith.Analyzer()
 
-# Android SDK
-COPY install/ubuntu_install_androidsdk.sh /install/ubuntu_install_androidsdk.sh
-RUN bash /install/ubuntu_install_androidsdk.sh
-ENV ANDROID_HOME=/opt/android-sdk-linux
-ENV ANDROID_NDK_HOME=/opt/android-sdk-linux/ndk/21.3.6528147
-ENV ANDROID_NDK_MAJOR=21
-ENV PATH /opt/android-sdk-linux/platform-tools:$PATH
+    i0 = tir.Var("i0", "int64")
+    i1 = tir.Var("i1", "int64")
+    ana.bind(i0, tvm.ir.Range(0, 8))
+    ana.bind(i1, tvm.ir.Range(0, 3))
 
-# Clang tool for CLML source codegen
-RUN apt-get update && apt-install-and-clear -y clang-format-10
+    i_flattened = i0 * 3 + i1
+    assert tvm.ir.structural_equal(
+        ana.simplify((i_flattened) // 12 * 12 + (i_flattened) % 12 // 4 * 4 + (i_flattened) % 4),
+        i_flattened,
+    )
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

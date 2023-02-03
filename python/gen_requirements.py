@@ -252,7 +252,7 @@ CONSTRAINTS = [
     ("image", None),
     ("matplotlib", None),
     # Workaround, see https://github.com/apache/tvm/issues/13647
-    ("numpy", "<=1.23.*"),
+    ("numpy", "<=1.23"),
     ("onnx", None),
     ("onnxoptimizer", None),
     ("onnxruntime", None),

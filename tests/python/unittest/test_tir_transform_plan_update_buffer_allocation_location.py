@@ -416,5 +416,23 @@ def test_allocate_const_after_tensorize():
     _ = seq(sch.mod)
 
 
+def test_buffer_conditional_lowering():
+    """
+    Confirm that the `tir.PlanAndUpdateBufferAllocationLocation` pass
+    leaves (Buffer nodes corresponding to pointer-typed PrimFunc arguments)
+    unchanged, rather than lowering them to `reads`, `writes`, and `alloc_buffer` nodes.
+    """
+
+    @T.prim_func
+    def before(A: T.Ptr("float32")):
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        for i in range(1):
+            A_1 = T.Buffer((1,), data=A)
+            A_1[i] = 0
+
+    after = before
+    _check(before, after)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

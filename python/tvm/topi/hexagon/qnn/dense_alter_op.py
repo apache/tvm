@@ -14,19 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""QNN Dense alter op functions for Hexagon"""
 
-# CI docker GPU env
-FROM tlcpack/ci-gpu:20220908-060034-62bdc91b1
+from tvm import relay
+from ..dense_alter_op import check_vrmpy_applicable
+from ...nn import qnn_dense_alter_layout
 
-COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
 
-# Android SDK
-COPY install/ubuntu_install_androidsdk.sh /install/ubuntu_install_androidsdk.sh
-RUN bash /install/ubuntu_install_androidsdk.sh
-ENV ANDROID_HOME=/opt/android-sdk-linux
-ENV ANDROID_NDK_HOME=/opt/android-sdk-linux/ndk/21.3.6528147
-ENV ANDROID_NDK_MAJOR=21
-ENV PATH /opt/android-sdk-linux/platform-tools:$PATH
+@qnn_dense_alter_layout.register("hexagon")
+def _alter_qnn_dense_layout(_attrs, inputs, tinfos, out_type):
+    data_tensor = tinfos[0]
+    weight_tensor = tinfos[1]
 
-# Clang tool for CLML source codegen
-RUN apt-get update && apt-install-and-clear -y clang-format-10
+    if check_vrmpy_applicable(data_tensor, weight_tensor):
+        weight_layout = "NC32n4c"
+        return relay.qnn.op.contrib_dense_pack(*inputs, weight_layout, None, out_type.dtype)
+    else:
+        return None
