@@ -126,7 +126,7 @@ def test_suggest_index_map_winograd():
             floordiv(i0, 2),
             floordiv(i1, 2),
             floormod(i0, 2),
-            floormod(((i1 * 4) + floordiv(i2, 32)), 8),
+            floormod(i1, 2) * 4 + floordiv(i2, 32),
             floormod(i2, 32),
             floordiv(i3, 32),
             floormod(i3, 32),
@@ -137,8 +137,8 @@ def test_suggest_index_map_winograd():
     expected_inverse_index_map = IndexMap.from_func(
         lambda i0, i1, i2, i3, i4, i5, i6: (
             ((i0 * 2) + i2),
-            ((i1 * 2) + floordiv(((i3 * 32) + i4), 128)),
-            floormod(((i3 * 32) + i4), 128),
+            i1 * 2 + floordiv(i3, 4),
+            floormod(i3, 4) * 32 + i4,
             ((i5 * 32) + i6),
         )
     )
