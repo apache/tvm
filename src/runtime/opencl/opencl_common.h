@@ -438,6 +438,8 @@ class OpenCLModuleNode : public ModuleNode {
   // install a new kernel to thread local entry
   cl_kernel InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThreadEntry* t,
                           const std::string& func_name, const KTRefEntry& e);
+  void SetPreCompiledPrograms(const std::string& bytes);
+  std::string GetPreCompiledPrograms();
 
  private:
   // The workspace, need to keep reference to use it in destructor.

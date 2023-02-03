@@ -137,6 +137,7 @@ using f_clCreateProgramWithBinary = cl_program (*)(cl_context, cl_uint, const cl
 using f_clReleaseProgram = cl_int (*)(cl_program);
 using f_clBuildProgram = cl_int (*)(cl_program, cl_uint, const cl_device_id*, const char*,
                                     void (*pfn_notify)(cl_program program, void* user_data), void*);
+using f_clGetProgramInfo = cl_int (*)(cl_program, cl_program_info, size_t, void*, size_t*);
 using f_clGetProgramBuildInfo = cl_int (*)(cl_program, cl_device_id, cl_program_build_info, size_t,
                                            void*, size_t*);
 using f_clCreateKernel = cl_kernel (*)(cl_program, const char*, cl_int*);
@@ -342,6 +343,17 @@ cl_int clBuildProgram(cl_program program, cl_uint num_devices, const cl_device_i
   auto func = (f_clBuildProgram)lib.getOpenCLFunction("clBuildProgram");
   if (func) {
     return func(program, num_devices, device_list, options, pfn_notify, user_data);
+  } else {
+    return CL_INVALID_PLATFORM;
+  }
+}
+
+cl_int clGetProgramInfo(cl_program program, cl_program_info param_name, size_t param_value_size,
+                        void* param_value, size_t* param_value_size_ret) {
+  auto& lib = LibOpenCLWrapper::getInstance();
+  auto func = (f_clGetProgramInfo)lib.getOpenCLFunction("clGetProgramInfo");
+  if (func) {
+    return func(program, param_name, param_value_size, param_value, param_value_size_ret);
   } else {
     return CL_INVALID_PLATFORM;
   }
