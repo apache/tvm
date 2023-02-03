@@ -27,6 +27,7 @@
 #include <cnpy.h>
 
 #include <fstream>
+#include <iterator>
 #include <streambuf>
 #include <string>
 
@@ -67,7 +68,8 @@ int GetTVMDevice(std::string device) {
  * \param path where the tfm compiler artifacts present.
  * \param device the target device where we need to load the compiled model.
  */
-TVMRunner::TVMRunner(std::string path, std::string device) : r_model_path(path), r_device(device) {
+TVMRunner::TVMRunner(std::string path, std::string device)
+    : r_model_path(path), r_device(device), r_run_was_called(false) {
   LOG(INFO) << "TVMRunner Constructor:" << r_model_path << " Devices:" << r_device;
 }
 
@@ -108,6 +110,30 @@ int TVMRunner::Load(void) {
   r_graph_handle.GetFunction("load_params")(params_arr);
 
   return 0;
+}
+
+/*!
+ * \brief Specify if the run programs should be dumped to binary and reused in the next runs.
+ * \param file_name File name where pre-compiled programs should be stored.
+ */
+void TVMRunner::UsePreCompiledPrograms(std::string file_name) {
+  if (r_run_was_called) {
+    LOG(INFO) << "TVMRunner UsePreCompiledPrograms: should be called before first run";
+    return;
+  }
+  auto f_get = r_mod_handle->GetFunction("opencl.GetPreCompiledPrograms", true);
+  auto f_set = r_mod_handle->GetFunction("opencl.SetPreCompiledPrograms", true);
+  if (f_get != nullptr && f_set != nullptr) {
+    std::ifstream ifs(file_name, std::ios::in | std::ios::binary);
+    if (ifs.fail()) {
+      auto bytes = String(f_get());
+      std::ofstream fs(file_name, std::ofstream::binary);
+      fs.write(bytes.c_str(), bytes.size());
+    } else {
+      std::string bytes((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+      f_set(String(bytes));
+    }
+  }
 }
 
 /*!
@@ -242,6 +268,7 @@ int TVMRunner::GetOutput(std::string output_id, char* raw_output) {
  */
 int TVMRunner::Run(void) {
   LOG(INFO) << "TVMRunner::Run";
+  r_run_was_called = true;
 
   r_graph_handle.GetFunction("run")();
   return 0;
