@@ -372,5 +372,19 @@ def test_simplify_cast():
     ck.verify(res, 2)
 
 
+def test_simplify_normalize_min_value_expr():
+    ck = CanonicalChecker()
+    x = te.var("x", "int32")
+
+    ck.verify(te.min_value("int32") - x == 0, x == te.min_value("int32"))
+    ck.verify(te.min_value("int32") + x == 0, False)
+    ck.verify(0 == te.min_value("int32") - x, x == te.min_value("int32"))
+    ck.verify(0 == te.min_value("int32") + x, False)
+    ck.verify(-x + te.min_value("int32") == 0, x == te.min_value("int32"))
+    ck.verify(x + te.min_value("int32") == 0, False)
+    ck.verify(0 == -x + te.min_value("int32"), x == te.min_value("int32"))
+    ck.verify(0 == x + te.min_value("int32"), False)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
