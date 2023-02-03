@@ -254,6 +254,7 @@ def test_let_stmt():
     _assert_print(
         obj,
         """
+v = T.var("float32")
 with T.let(v, T.float32(10)):
     T.evaluate(0)
 """,
