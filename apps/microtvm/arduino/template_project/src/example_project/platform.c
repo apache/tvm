@@ -17,11 +17,15 @@
  * under the License.
  */
 
-#include "platform.h"
+/*!
+ * \brief Implementation of TVMPlatform functions in tvm/runtime/crt/platform.h
+ */
 
 #include "Arduino.h"
 #include "standalone_crt/include/dlpack/dlpack.h"
 #include "standalone_crt/include/tvm/runtime/crt/stack_allocator.h"
+
+#define WORKSPACE_SIZE $workspace_size_bytes
 
 // AOT memory array, stack allocator wants it aligned
 static uint8_t g_aot_memory[WORKSPACE_SIZE]
@@ -87,7 +91,10 @@ tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
   return kTvmErrorNoError;
 }
 
-void TVMInitialize() { StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE); }
+tvm_crt_error_t TVMPlatformInitialize() {
+  StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE);
+  return kTvmErrorNoError;
+}
 
 void TVMExecute(void* input_data, void* output_data) {
   int ret_val = tvmgen_default___tvm_main__(input_data, output_data);

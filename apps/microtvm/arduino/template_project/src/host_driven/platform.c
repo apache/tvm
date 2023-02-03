@@ -17,6 +17,10 @@
  * under the License.
  */
 
+/*!
+ * \brief Implementation of TVMPlatform functions in tvm/runtime/crt/platform.h
+ */
+
 #include "standalone_crt/include/dlpack/dlpack.h"
 #include "standalone_crt/include/tvm/runtime/crt/error_codes.h"
 #include "stdarg.h"
