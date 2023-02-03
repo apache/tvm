@@ -126,7 +126,7 @@ void TVMLogf(const char* msg, ...) {
   UartTxWrite(buffer, (uint32_t)size);
 }
 
-void TVMInfer() {
+void Infer() {
   struct tvmgen_default_inputs inputs = {
       .input_1 = input_data,
   };
@@ -160,7 +160,7 @@ void command_ready(char* command) {
   if (strncmp(command, CMD_INIT, CMD_SIZE) == 0) {
     UartTxWrite(CMD_WAKEUP, sizeof(CMD_WAKEUP));
   } else if (strncmp(command, CMD_INFER, CMD_SIZE) == 0) {
-    TVMInfer();
+    Infer();
   } else {
     UartTxWrite(CMD_READY, sizeof(CMD_READY));
   }
