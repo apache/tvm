@@ -202,7 +202,7 @@ void* OpenCLWorkspace::CreateHostPtrIfEnabled(cl::BufferDescriptor* desc, Device
   cl_int err_code;
   desc->host_ptr = reinterpret_cast<cl_uchar*>(
       clEnqueueMapBuffer(this->GetQueue(dev), desc->buffer, CL_TRUE, CL_MAP_WRITE, 0,
-                         sizeof(cl_uchar) * size, 0, NULL, NULL, &err_code));
+                         sizeof(cl_uchar) * size, 0, nullptr, nullptr, &err_code));
   OPENCL_CHECK_ERROR(err_code);
 #endif  // OPENCL_ENABLE_HOST_PTR
   return desc;
@@ -256,7 +256,7 @@ void OpenCLWorkspace::FreeDataSpace(Device dev, void* ptr) {
   cl::BufferDescriptor* desc = static_cast<cl::BufferDescriptor*>(ptr);
   if (desc->host_ptr) {
     clEnqueueUnmapMemObject(this->GetQueue(dev), desc->buffer,
-                            reinterpret_cast<void*>(desc->host_ptr), 0, NULL, NULL);
+                            reinterpret_cast<void*>(desc->host_ptr), 0, nullptr, nullptr);
   }
   OPENCL_CALL(clReleaseMemObject(desc->buffer));
   delete desc;
