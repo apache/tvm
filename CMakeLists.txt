@@ -289,6 +289,7 @@ tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
     src/driver/*.cc
     src/support/*.cc
     src/script/*.cc
+    src/relax/ir/*.cc
     src/relax/backend/vm/*.cc
     )
 
