@@ -18,31 +18,6 @@
 
 if(USE_MICRO)
 
-if(MSVC)
-
-  # When building for Windows, use standard CMake for compatibility with
-  # Visual Studio build tools and not require Make to be on the system.
-
-  # TODO: test building with this MSVC conditional code removed
-  # when USE_MICRO is enabled
-
-  set(CRT_CONFIG, "src/runtime/micro/crt_config.h")
-
-  add_library(host_standalone_crt
-              STATIC
-              3rdparty/libcrc/src/crcccitt.c
-              src/runtime/crt/microtvm_rpc_common/frame_buffer.cc
-              src/runtime/crt/microtvm_rpc_common/framing.cc
-              src/runtime/crt/microtvm_rpc_common/session.cc
-              src/runtime/crt/microtvm_rpc_common/write_stream.cc)
-
-  target_include_directories(host_standalone_crt
-                             PRIVATE
-                             3rdparty/libcrc/include
-                             src/runtime/micro)
-
-else()
-
   function(create_crt_library CRT_LIBRARY)
 
     set(CRT_LIBRARY_NAME host_standalone_crt_${CRT_LIBRARY})
@@ -167,12 +142,15 @@ else()
   create_crt_library(microtvm_rpc_server
                      ${RUNTIME_CRT_SOURCE_DIR}/microtvm_rpc_server/rpc_server.cc)
 
-  create_crt_library(common
-                     ${RUNTIME_CRT_SOURCE_DIR}/common/crt_backend_api.c
-                     ${RUNTIME_CRT_SOURCE_DIR}/common/crt_runtime_api.c
-                     ${RUNTIME_CRT_SOURCE_DIR}/common/func_registry.c
-                     ${RUNTIME_CRT_SOURCE_DIR}/common/ndarray.c
-                     ${RUNTIME_CRT_SOURCE_DIR}/common/packed_func.c)
+  if(NOT MSVC)
+    # TODO: fix remaining windows build issues
+    create_crt_library(common
+                      ${RUNTIME_CRT_SOURCE_DIR}/common/crt_backend_api.c
+                      ${RUNTIME_CRT_SOURCE_DIR}/common/crt_runtime_api.c
+                      ${RUNTIME_CRT_SOURCE_DIR}/common/func_registry.c
+                      ${RUNTIME_CRT_SOURCE_DIR}/common/ndarray.c
+                      ${RUNTIME_CRT_SOURCE_DIR}/common/packed_func.c)
+  endif()
 
   add_custom_target(host_standalone_crt DEPENDS ${CRT_LIBRARIES} standalone_crt)
 
@@ -196,7 +174,5 @@ else()
   else()
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${TVM_CRT_LINKER_LIB})
   endif()
-
-endif()
 
 endif()
