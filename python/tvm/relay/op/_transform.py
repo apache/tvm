@@ -204,6 +204,15 @@ def compute_scatter_add(attrs, inputs, output_type):
 
 _reg.register_strategy("scatter_add", strategy.scatter_add_strategy)
 
+# scatter_elements
+@_reg.register_compute("scatter_elements")
+def compute_scatter_elements(attrs, inputs, output_type):
+    """Compute definition of scatter_elements"""
+    return [topi.scatter_elements(inputs[0], inputs[1], inputs[2], attrs.axis, attrs.reduction)]
+
+
+_reg.register_strategy("scatter_elements", strategy.scatter_elements_strategy)
+
 # scatter_nd
 @_reg.register_compute("scatter_nd")
 def compute_scatter_nd(attrs, inputs, output_type):
@@ -679,6 +688,7 @@ def argwhere_shape_func(attrs, inputs, out_ndims):
 
 _reg.register_shape_func("scatter", False, elemwise_shape_func)
 _reg.register_shape_func("scatter_add", False, elemwise_shape_func)
+_reg.register_shape_func("scatter_elements", False, elemwise_shape_func)
 _reg.register_shape_func("scatter_nd", False, elemwise_shape_func)
 
 
