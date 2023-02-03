@@ -23,9 +23,9 @@
 #include "codegen_c.h"
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ir/name_supply.h>
 
 #include <cctype>
-#include <cstdlib>
 #include <iomanip>
 
 #include "../../arith/pattern_match.h"
@@ -632,11 +632,10 @@ void CodeGenC::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs,
   }
 }
 
-unsigned int random_seed = 0;
+NameSupply global_name_supply = NameSupply("");
 void CodeGenC::VisitStmt_(const AllocateConstNode* op) {
-  // Add a random suffix to eliminate duplicate global variables.
-  int suffix = rand_r(&random_seed) % (2 << 24);
-  std::string symbol_name = op->buffer_var->name_hint + "_" + std::to_string(suffix);
+  std::string symbol_name = global_name_supply->FreshName(op->buffer_var->name_hint);
+
   int64_t num_elements = 1;
   const auto& data = op->data.value();
 
