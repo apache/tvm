@@ -95,9 +95,10 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
         with ib.for_range(0, full_range, "i", kind="parallel") as i:
             out[i] = data[i]
 
+        # TODO(vvchernov): find optimal parallel approach
         with ib.for_range(0, before_axis_range, "i", kind="parallel") as i:
-            with ib.for_range(0, after_axis_range, "j", kind="parallel") as j:
-                with ib.for_range(0, axis_range, "k", kind="parallel") as k:
+            with ib.for_range(0, after_axis_range, "j") as j:
+                with ib.for_range(0, axis_range, "k") as k:
                     pre_index = i * before_axis_stride + j
                     index1 = pre_index + k * after_axis_range
                     index2 = pre_index + indices[index1] * after_axis_range
