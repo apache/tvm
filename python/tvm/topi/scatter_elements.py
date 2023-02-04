@@ -14,10 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-builtin, invalid-name, too-many-arguments, too-many-nested-blocks
 """ScatterElements operator"""
-from ..te import extern
-from ..tir import min, max, decl_buffer, ir_builder
+from tvm import te
+from tvm import tir
 
 
 def scatter_elements(data, indices, updates, axis=0, reduction="update"):
@@ -65,7 +64,7 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
 
     def gen_ir(data_ptr, indices_ptr, updates_ptr, out_ptr):
         # pylint: disable=invalid-name
-        ib = ir_builder.create()
+        ib = tir.ir_builder.create()
 
         data = ib.buffer_ptr(data_ptr)
         indices = ib.buffer_ptr(indices_ptr)
@@ -103,9 +102,9 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
                     elif reduction == "mul":
                         out[index2] *= updates[index1]
                     elif reduction == "min":
-                        min(out[index2], updates[index1])
+                        tir.min(out[index2], updates[index1])
                     elif reduction == "max":
-                        max(out[index2], updates[index1])
+                        tir.max(out[index2], updates[index1])
                     else:
                         raise NotImplementedError(
                             "scatter_elements reduction not in [update, add, mul, min, max]:",
@@ -114,8 +113,8 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
 
         return ib.get()
 
-    out_buf = decl_buffer(data.shape, data.dtype, "out_buf")
-    return extern(
+    out_buf = tir.decl_buffer(data.shape, data.dtype, "out_buf")
+    return te.extern(
         [data.shape],
         [data, indices, updates],
         lambda ins, outs: gen_ir(ins[0], ins[1], ins[2], outs[0]),
