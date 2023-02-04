@@ -17,6 +17,7 @@
 """ScatterElements operator"""
 from tvm import te
 from tvm import tir
+from . import utils
 
 
 def scatter_elements(data, indices, updates, axis=0, reduction="update"):
@@ -61,6 +62,25 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
     -------
     ret : tvm.te.Tensor
     """
+    if not isinstance(axis, int):
+        axis = utils.get_const_int(axis)
+
+    shape = data.shape
+    axis_range = shape[axis]
+
+    if axis < 0:
+        axis = len(shape) + axis
+
+    # Prepare ranges and strides
+    before_axis_range = 1
+    after_axis_range = 1
+    for i, value in enumerate(shape, 0):
+        if i < axis:
+            before_axis_range *= value
+        elif i > axis:
+            after_axis_range *= value
+    before_axis_stride = axis_range * after_axis_range
+    full_range = before_axis_range * before_axis_stride
 
     def gen_ir(data_ptr, indices_ptr, updates_ptr, out_ptr):
         # pylint: disable=invalid-name
@@ -71,30 +91,16 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
         updates = ib.buffer_ptr(updates_ptr)
         out = ib.buffer_ptr(out_ptr)
 
-        # Prepare ranges and strides
-        before_axis_range = 1
-        for i in data_ptr.shape[:axis]:
-            before_axis_range *= i
-
-        axis_range = data_ptr.shape[axis]
-
-        after_axis_range = 1
-        for i in data_ptr.shape[axis + 1 :]:
-            after_axis_range *= i
-        before_axis_stride = axis_range * after_axis_range
-
         # Copy initial input data to output
-        fused_shape = before_axis_range * before_axis_stride
-
-        with ib.for_range(0, fused_shape) as i:
+        with ib.for_range(0, full_range, "i", kind="parallel") as i:
             out[i] = data[i]
 
-        with ib.for_range(0, before_axis_range, kind="parallel") as i:
-            with ib.for_range(0, after_axis_range, kind="parallel") as j:
-                with ib.for_range(0, axis_range, kind="parallel") as k:
+        with ib.for_range(0, before_axis_range, "i", kind="parallel") as i:
+            with ib.for_range(0, after_axis_range, "j", kind="parallel") as j:
+                with ib.for_range(0, axis_range, "k", kind="parallel") as k:
                     pre_index = i * before_axis_stride + j
                     index1 = pre_index + k * after_axis_range
-                    index2 = pre_index + indices[index1]
+                    index2 = pre_index + indices[index1] * after_axis_range
                     if reduction == "update":
                         out[index2] = updates[index1]
                     elif reduction == "add":
