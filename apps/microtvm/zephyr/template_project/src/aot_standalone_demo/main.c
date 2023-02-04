@@ -37,7 +37,6 @@
 #include "posix_board_if.h"
 #endif
 
-
 // Transport Commands.
 // Commands on host end with `\n`
 // Commands on microTVM device end with `%`

@@ -19,6 +19,7 @@
 
 #include "api/submitter_implemented.h"
 
+#include <string.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/platform.h>
 #include <unistd.h>

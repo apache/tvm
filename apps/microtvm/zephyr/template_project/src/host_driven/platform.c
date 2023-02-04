@@ -26,6 +26,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <tvm/runtime/crt/error_codes.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/kernel.h>
@@ -54,11 +55,6 @@ void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t* esf) {
     ;
 }
 
-__attribute__((weak)) size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes,
-                                                      const char* fmt, va_list args) {
-  return vsnprintk(out_buf, out_buf_size_bytes, fmt, args);
-}
-
 __attribute__((weak)) void TVMPlatformAbort(tvm_crt_error_t error) {
   TVMLogf("TVMError: 0x%x", error);
   sys_reboot(SYS_REBOOT_COLD);
@@ -67,6 +63,11 @@ __attribute__((weak)) void TVMPlatformAbort(tvm_crt_error_t error) {
 #endif
   for (;;)
     ;
+}
+
+__attribute__((weak)) size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes,
+                                                      const char* fmt, va_list args) {
+  return vsnprintk(out_buf, out_buf_size_bytes, fmt, args);
 }
 
 __attribute__((weak)) tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev,
@@ -145,5 +146,11 @@ __attribute__((weak)) tvm_crt_error_t TVMPlatformInitialize() {
   }
   gpio_pin_set_dt(&led0, 0);
 #endif
+
+  // Initialize system timing. We could stop and start it every time, but we'll
+  // be using it enough we should just keep it enabled.
+  timing_init();
+  timing_start();
+
   return kTvmErrorNoError;
 }

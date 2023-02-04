@@ -29,7 +29,6 @@
  * this logic into your own application.
  */
 #include <stdio.h>
-#include <string.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/microtvm_rpc_server.h>
 #include <unistd.h>
@@ -38,7 +37,6 @@
 #include <zephyr/fatal.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/ring_buffer.h>
-
 
 #ifdef CONFIG_ARCH_POSIX
 #include "posix_board_if.h"
@@ -122,11 +120,6 @@ void main(void) {
   // Claim console device.
   tvm_uart = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
   uart_rx_init(&uart_rx_rbuf, tvm_uart);
-
-  // Initialize system timing. We could stop and start it every time, but we'll
-  // be using it enough we should just keep it enabled.
-  timing_init();
-  timing_start();
 
 #ifdef FVP
   init_semihosting();
