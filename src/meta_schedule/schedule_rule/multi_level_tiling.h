@@ -98,6 +98,7 @@ class StateNode : public Object {
   std::unordered_map<int, tir::BlockRV> read_reuse;
   /*! \brief The mapping from buffer index to write cache block. */
   std::unordered_map<int, tir::BlockRV> write_reuse;
+  Array<Array<tir::ExprRV>> tile_factors;
 
   /*!
    * \brief Create a copy of the state. The underlying schedule is copied. Schedule rules that
@@ -163,7 +164,7 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
  protected:
   virtual std::vector<State> ApplySubRules(std::vector<State> states);
 
-  virtual Array<tir::LoopRV> SplitLoop(const tir::Schedule& sch, tir::BlockRV block,
+  virtual std::pair<Array<tir::ExprRV>, Array<tir::LoopRV>> SplitLoop(const tir::Schedule& sch, tir::BlockRV block,
                                        tir::LoopRV loop, int n_tiles) const;
 
   // Annotate a block to use cooperative fetching

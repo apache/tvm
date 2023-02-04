@@ -162,6 +162,7 @@ class VerifyGPUCodeNode : public PostprocNode {
           pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());
           pass_list.push_back(tir::transform::ConvertBlocksToOpaque());
           pass_list.push_back(tir::transform::UnifyThreadBinding());
+          pass_list.push_back(tir::transform::ManifestSharedMemoryLocalStage());
           pass_list.push_back(tir::transform::CompactBufferAllocation());
           pass_list.push_back(tir::transform::LowerMatchBuffer());
           pass_list.push_back(tir::transform::InjectSoftwarePipeline());
@@ -189,6 +190,7 @@ class VerifyGPUCodeNode : public PostprocNode {
           IRModule mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(g_var->name_hint), f}}));
           lowered = tvm::transform::Sequential(pass_list)(std::move(mod));
         } catch (const dmlc::Error& e) {
+          LOG(INFO) << e.what();
           return false;
         }
         if (!Verify(lowered)) {

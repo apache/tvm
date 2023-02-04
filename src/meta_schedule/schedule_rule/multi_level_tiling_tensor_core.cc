@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/meta_schedule/schedule_rule.h>
+#include <tvm/tir/op.h>
 
 #include <algorithm>
 #include <utility>
@@ -124,6 +125,9 @@ class MultiLevelTilingTensorCoreNode : public MultiLevelTilingNode {
  private:
   // SubRule: Add tensorization-related transformations
   inline std::vector<State> TransformForTensorization(TensorCoreState state) const;
+  // Subrule: Transform the layout of the output. This is necessary for efficient cache write the
+  // output in the shared memory.
+  std::vector<State> TransformIntermediateOutputLayout(TensorCoreState state);
   // Subrule: Add tensorized load
   inline std::vector<State> AddReadReuseTensorCore(TensorCoreState state) const;
   // Subrule: Add tensorized store
@@ -225,6 +229,9 @@ std::vector<State> MultiLevelTilingTensorCoreNode::ApplySubRules(std::vector<Sta
     return TransformForTensorization(Downcast<TensorCoreState>(state));
   });
   states = SubRule(std::move(states), [&](State state) { return TileLoopNest(state); });
+  states = SubRule(std::move(states), [&](State state) {
+    return TransformIntermediateOutputLayout(Downcast<TensorCoreState>(state));
+  });
   states = SubRule(std::move(states), [&](State state) { return AddWriteReuse(state); });
   states = SubRule(std::move(states), [&](State state) {
     return AddWriteReuseTensorCore(Downcast<TensorCoreState>(state));
@@ -248,6 +255,88 @@ void MultiLevelTilingTensorCoreNode::TileAndAnnotateTensorize(Schedule* sch,
   (*sch)->Annotate(blockized_outer, tir::attr::meta_schedule_auto_tensorize, intrin_name);
 }
 
+std::vector<State> MultiLevelTilingTensorCoreNode::TransformIntermediateOutputLayout(
+    TensorCoreState state) {
+  // Get the shape of the wmma accumulator
+  tir::Block intrin_block =
+      Downcast<tir::BlockRealize>(
+          tir::TensorIntrin::Get(state->intrin_group.init_intrin).value()->desc->body)
+          ->block;
+  tir::For loop_m = Downcast<tir::For>(intrin_block->body);
+  tir::For loop_n = Downcast<tir::For>(loop_m->body);
+  PrimExpr accumulator_m = loop_m->extent;
+  PrimExpr accumulator_n = loop_n->extent;
+  Schedule& sch = state->sch;
+
+  auto buffer_ndim = sch->Get(state->block_rv)->writes[0]->buffer->shape.size();
+
+  // The dimension of the buffer should be larger or same as that of the tensor intrin.
+  ICHECK_GE(buffer_ndim, 2);
+
+  auto index_map_pack_accumulator_tile =
+      tir::IndexMap::FromFunc(buffer_ndim, [&](const Array<tir::Var>& indices) -> Array<PrimExpr> {
+        const auto& i = indices[buffer_ndim - 2];
+        const auto& j = indices[buffer_ndim - 1];
+        Array<PrimExpr> result;
+        for (int i = 0; i < buffer_ndim - 2; ++i) {
+          result.push_back(indices[i]);
+        }
+        result.push_back(floordiv(i, accumulator_m));
+        result.push_back(floordiv(j, accumulator_n));
+        result.push_back(floormod(i, accumulator_m));
+        result.push_back(floormod(j, accumulator_n));
+        return result;
+      });
+  sch->TransformLayout(state->block_rv, 0, tir::BufferIndexType::kWrite,
+                       index_map_pack_accumulator_tile);
+  auto it = std::find(tile_binds.begin(), tile_binds.end(), "threadIdx.y");
+  ICHECK(it != tile_binds.end());
+  auto idx = std::distance(tile_binds.begin(), it);
+  auto f_get_tile_product = [&](int loop_idx) {
+    Array<tir::ExprRV> factors;
+    for (int i = idx + 1; i < s_indices_.size(); ++i) {
+      auto s_factors = state->tile_factors[s_indices_[i]];
+      if (loop_idx < 0) {
+        loop_idx += s_factors.size();
+      }
+      factors.push_back(s_factors[loop_idx]);
+    }
+    ICHECK(!factors.empty());
+    if (factors.size() == 1) {
+      return factors[0];
+    }
+    auto result = factors[0];
+    for (int i = 1; i < factors.size(); ++i) {
+      result = result * factors[i];
+    }
+    return result;
+  };
+  auto warp_factor_m = f_get_tile_product(-2);
+  auto warp_factor_n = f_get_tile_product(-1);
+  auto index_map_pack_warp_tile =
+      tir::IndexMap::FromFunc(buffer_ndim + 2, [&](const Array<tir::Var>& indices) -> Array<PrimExpr> {
+        const auto& i = indices[indices.size() - 4];
+        const auto& j = indices[indices.size() - 3];
+        const auto& m = indices[indices.size() - 2];
+        const auto& n = indices[indices.size() - 1];
+        Array<PrimExpr> result;
+        for (int i = 0; i < indices.size() - 4; ++i) {
+          result.push_back(indices[i]);
+        }
+        result.push_back(floordiv(i, warp_factor_m));
+        result.push_back(floordiv(j, warp_factor_n));
+        result.push_back(floormod(i, warp_factor_m));
+        result.push_back(floormod(j, warp_factor_n));
+        result.push_back(m);
+        result.push_back(n);
+        return result;
+      });
+  sch->TransformLayout(state->block_rv, 0, tir::BufferIndexType::kWrite, index_map_pack_warp_tile);
+  sch->GetLoops(state->block_rv);
+
+  return {state};
+}
+
 std::vector<State> MultiLevelTilingTensorCoreNode::AddWriteReuseTensorCore(
     TensorCoreState state) const {
   // Add the cache write stage for Tensor Core
@@ -255,18 +344,51 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddWriteReuseTensorCore(
   const LoopRV& loop = state->tiles[level].back();
   Schedule& sch = state->sch;
   auto cache_write = sch->CacheWrite(state->block_rv, 0, "wmma.accumulator");
-  sch->ReverseComputeAt(cache_write, loop, true);
 
   if (state->write_reuse.count(0)) {
-    // Fuse the iterators of the cache_write
-    Array<LoopRV> buffer_loops = sch->GetLoops(state->write_reuse[0]);
-    ICHECK_GT(buffer_loops.size(), 2);
-    sch->Fuse(Array<LoopRV>{buffer_loops.end() - 2,  // The src shmem is always 2D
-                            buffer_loops.end()});
-    AnnotateCooperativeFetching(&sch, state->write_reuse[0]);
+    auto f_get_loops = [&](const BlockRV& block_rv) -> std::tuple<LoopRV, LoopRV, LoopRV, LoopRV> {
+      Array<LoopRV> buffer_loops = sch->GetLoops(block_rv);
+      ICHECK_GT(buffer_loops.size(), 6);
+      return {buffer_loops[buffer_loops.size() - 6], buffer_loops[buffer_loops.size() - 5],
+              buffer_loops[buffer_loops.size() - 4], buffer_loops[buffer_loops.size() - 3]};
+    };
+
+    {
+      const auto& [i0, j0, i1, j1] = f_get_loops(state->write_reuse[0]);
+      sch->Reorder({i1, i0, j0, j1});
+      sch->ComputeAt(cache_write, i1, true);
+    }
+    {
+      const auto& [i0, j0, i1, j1] = f_get_loops(cache_write);
+      auto fused = sch->Fuse({i0, j0});
+      sch->Bind(fused, "threadIdx.y");
+    }
   }
+  // sch->ReverseComputeAt(cache_write, loop, true);
+
+  // if (state->write_reuse.count(0)) {
+  //   // Fuse the iterators of the cache_write
+  //   Array<LoopRV> buffer_loops = sch->GetLoops(state->write_reuse[0]);
+  //   ICHECK_GT(buffer_loops.size(), 2);
+  //   sch->Fuse(Array<LoopRV>{buffer_loops.end() - 2,  // The src shmem is always 2D
+  //                           buffer_loops.end()});
+  //   AnnotateCooperativeFetching(&sch, state->write_reuse[0]);
+  // }
   sch->ReverseComputeInline(state->tensor_core_reindex_store);
-  TileAndAnnotateTensorize(&sch, cache_write, state->intrin_group.store_intrin);
+  auto loops = sch->GetLoops(cache_write);
+  auto blockized_store = sch->Blockize(loops[loops.size() - 2]);
+  sch->Annotate(blockized_store, tir::attr::meta_schedule_auto_tensorize,
+                state->intrin_group.store_intrin);
+
+  Array<LoopRV> buffer_loops = sch->GetLoops(state->write_reuse[0]);
+  ICHECK_GT(buffer_loops.size(), 5);
+  sch->Fuse(Array<LoopRV>{buffer_loops.end() - 5,  // The src shmem is always 2D
+                          buffer_loops.end()});
+  AnnotateCooperativeFetching(&sch, state->write_reuse[0]);
+
+  //
+  //
+  // TileAndAnnotateTensorize(&sch, cache_write, state->intrin_group.store_intrin);
   return {state};
 }
 
