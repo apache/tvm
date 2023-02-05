@@ -844,7 +844,7 @@ def test_scatter(target, dev):
         updates = np.random.uniform(size=indices.shape).astype("float32")
 
         y = helper.make_node(
-            "ScatterElements", ["data", "indices", "updates"], ["output"], axis=axis
+            "Scatter", ["data", "indices", "updates"], ["output"], axis=axis
         )
 
         graph = helper.make_graph(
@@ -866,6 +866,76 @@ def test_scatter(target, dev):
     verify_scatter((2, 2), [[1, 0], [0, 1]], 1)
     verify_scatter((3, 3, 3), [[[-1, -3]]], -1)
     verify_scatter((4, 3, 5, 6), [[[[2, 1, 0, 0]]]], 0)
+
+
+@tvm.testing.parametrize_targets
+def test_scatter_elements(target, dev):
+    """test_scatter_elements"""
+
+    def verify_scatter_elements(in_shape, indices, axis=0, reduction="update"):
+        x = np.random.uniform(size=in_shape).astype("float32")
+        indices = np.array(indices, dtype="int32")
+        updates = np.random.uniform(size=indices.shape).astype("float32")
+
+        scatter_elements_node = helper.make_node(
+            "ScatterElements",
+            ["data", "indices", "updates"],
+            ["output"],
+            axis=axis,
+            reduction=reduction,
+        )
+
+        graph = helper.make_graph(
+            [scatter_elements_node],
+            "scatter_elements_test",
+            inputs=[
+                helper.make_tensor_value_info("data", TensorProto.FLOAT, list(in_shape)),
+                helper.make_tensor_value_info("indices", TensorProto.INT32, list(indices.shape)),
+                helper.make_tensor_value_info("updates", TensorProto.FLOAT, list(indices.shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, list(in_shape))],
+        )
+        model = helper.make_model(graph, producer_name="scatter_elements_test")
+        verify_with_ort_with_inputs(model, [x, indices, updates], target=target, dev=dev)
+
+    # Usual scatter for 1d input
+    verify_scatter_elements((4,), [2, 3])
+    # Usual scatter with specified positive axis
+    verify_scatter_elements((2, 2), [[1, 0], [0, 1]], 1)
+    # Usual scatter for 3d input with spicified negative indices and axis
+    verify_scatter_elements((3, 3, 3), [[[-1, -3]]], -1)
+    # Usual scatter for 4d input
+    verify_scatter_elements((4, 3, 5, 6), [[[[2, 1, 0, 0]]]])
+    # Scatter elements with addition reduction of duplicates
+    verify_scatter_elements(
+        (3, 3, 3),
+        [[[0, 2, 1], [1, 1, 1], [2, 1, 0]], [[0, 2, 1], [1, 1, 1], [2, 1, 0]]],
+        0,
+        "add",
+    )
+    # Scatter elements with reduction and specified axis
+    verify_scatter_elements((3, 3, 3), [[[2, 2, 2], [1, 1, 1], [0, 0, 0]]], 2, "add")
+    # Scatter elements with multiplication reduction of duplicates
+    verify_scatter_elements(
+        (3, 3, 3),
+        [[[0, 2, 1], [1, 1, 1], [2, 1, 0]], [[0, 2, 1], [1, 1, 1], [2, 1, 0]]],
+        0,
+        "mul",
+    )
+    # Scatter elements with min reduction of duplicates
+    verify_scatter_elements(
+        (3, 3, 3),
+        [[[0, 2, 1], [1, 1, 1], [2, 1, 0]], [[0, 2, 1], [1, 1, 1], [2, 1, 0]]],
+        0,
+        "min",
+    )
+    # Scatter elements with max reduction of duplicates
+    verify_scatter_elements(
+        (3, 3, 3),
+        [[[0, 2, 1], [1, 1, 1], [2, 1, 0]], [[0, 2, 1], [1, 1, 1], [2, 1, 0]]],
+        0,
+        "max",
+    )
 
 
 @tvm.testing.parametrize_targets
