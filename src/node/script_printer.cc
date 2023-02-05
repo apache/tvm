@@ -29,6 +29,9 @@ TVMScriptPrinter::FType& TVMScriptPrinter::vtable() {
 }
 
 std::string TVMScriptPrinter::Script(const ObjectRef& node, const Optional<PrinterConfig>& cfg) {
+  if (!TVMScriptPrinter::vtable().can_dispatch(node)) {
+    return AsLegacyRepr(node);
+  }
   return TVMScriptPrinter::vtable()(node, cfg.value_or(PrinterConfig()));
 }
 
@@ -66,6 +69,9 @@ PrinterConfig::PrinterConfig(Map<String, ObjectRef> config_dict) {
   }
   if (auto v = config_dict.Get("path_to_underline")) {
     n->path_to_underline = Downcast<ObjectPath>(v);
+  }
+  if (auto v = config_dict.Get("syntax_sugar")) {
+    n->syntax_sugar = Downcast<IntImm>(v)->value;
   }
   this->data_ = std::move(n);
 }
