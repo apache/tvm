@@ -1,0 +1,135 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+# pylint: disable=no-else-return
+# pylint: disable=unidiomatic-typecheck
+"""
+This file contains the set of passes for Relax, which exposes an interface for
+configuring the passes and scripting them in Python.
+"""
+
+from typing import Dict
+from enum import IntEnum
+
+from tvm import tir
+from tvm.relax.ty import Type
+from tvm.relax.struct_info import StructInfo
+from tvm.relax.expr import Var, Expr
+from . import _ffi_api
+
+
+def get_static_type(sinfo: StructInfo) -> Type:
+    """Get the corresponding static type from a StructInfo.
+
+    Parameters
+    ----------
+    sinfo : StructInfo
+        The input struct info.
+
+    Returns
+    -------
+    ret : Type
+        The corresponding static type.
+    """
+    return _ffi_api.GetStaticType(sinfo)  # type: ignore
+
+
+def erase_to_well_defined(
+    sinfo: StructInfo,
+    shape_var_map: Dict[tir.Var, tir.PrimExpr] = None,
+    var_map: Dict[Var, Expr] = None,
+) -> StructInfo:
+    """Erase sinfo into a well defined form.
+
+    This function removes the StructInfo's dependencies on shape and vars that
+    are not defined in given maps.
+
+    Parameters
+    ----------
+    sinfo : StructInfo
+        The input struct info.
+
+    shape_var_map : Dict[tir.Var, tir.PrimExpr]
+        Specifies the defined shape vars and the values they should map to.
+
+    var_map : Dict[Var, Expr]
+        Specifies the defined vars and the values they should map to.
+
+    Returns
+    -------
+    ret : StructInfo
+        The corresponding erased struct info.
+    """
+    shape_var_map = {} if shape_var_map is None else shape_var_map
+    var_map = {} if var_map is None else var_map
+
+    return _ffi_api.EraseToWellDefined(sinfo, shape_var_map, var_map)  # type: ignore
+
+
+class BaseCheckResult(IntEnum):
+    """Return result of fine-grained base check.
+
+    Note
+    ----
+    Base check comes with fine-grained fail levels.
+
+    - FAIL_L0: The lhs and rhs have no intersection at all.
+    - FAIL_L1: We get the failure by looking at static information.
+    - FAIL_L2: We get the failure due to unknown symbolic variable relations.
+    """
+
+    FAIL_L0 = 0
+    FAIL_L1 = 1
+    FAIL_L2 = 2
+    PASS = 3
+
+
+def struct_info_base_check(base: StructInfo, derived: StructInfo) -> BaseCheckResult:
+    """Run a base check to see if base subsumes derived.
+
+    Parameters
+    ----------
+    base: StructInfo
+        The base struct info.
+
+    derived: StructInfo
+        The derived struct info.
+
+    Returns
+    -------
+    ret : StructInfo
+        The derived return value struct info.
+    """
+    return _ffi_api.StructInfoBaseCheck(base, derived)  # type: ignore
+
+
+def struct_info_lca(lhs: StructInfo, rhs: StructInfo) -> StructInfo:
+    """Unify the two struct info to their least common ancestor.
+
+    Parameters
+    ----------
+    lhs: StructInfo
+        The left operand.
+
+    rhs: StructInfo
+        The right operand.
+
+    Returns
+    -------
+    ret : StructInfo
+        The corresponding lca result.
+    """
+    return _ffi_api.StructInfoLCA(lhs, rhs)  # type: ignore

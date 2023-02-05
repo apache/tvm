@@ -21,7 +21,9 @@
  * \file src/relax/ir/struct_info.cc
  * \brief Relax struct info.
  */
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/struct_info.h>
+#include <tvm/relax/struct_info_functor.h>
 #include <tvm/runtime/registry.h>
 
 namespace tvm {
@@ -228,7 +230,17 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 // Helper functions
-// TODO(unity-team): add UpdateStructInfo once analysis.cc is upstreamed
+void UpdateStructInfo(Expr expr, StructInfo struct_info) {
+  ICHECK(!expr->struct_info_.defined())
+      << "the struct_info_ of the Expr to be updated must be nullptr for idempotency";
+  expr->struct_info_ = struct_info;
+  // also set checked type
+  expr->checked_type_ = GetStaticType(struct_info);
+}
+
+TVM_REGISTER_GLOBAL("relax.UpdateStructInfo").set_body_typed([](Expr expr, StructInfo struct_info) {
+  UpdateStructInfo(expr, struct_info);
+});
 
 TVM_REGISTER_GLOBAL("ir.ExprStructInfo").set_body_typed([](Expr expr) {
   return GetStructInfo(expr);
