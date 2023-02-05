@@ -51,6 +51,17 @@ class RelayExpr(BaseExpr):
             raise ValueError("The type checker has not populated" " the checked_type for this node")
         return ret
 
+    @property
+    def struct_info(self) -> "tvm.relax.StructInfo":
+        """Get the struct info field
+
+        Returns
+        -------
+        struct_info : tvm.relax.StructInfo
+            The struct info if available.
+        """
+        return _ffi_api.ExprStructInfo(self)
+
 
 @tvm._ffi.register_object("GlobalVar")
 class GlobalVar(RelayExpr):
