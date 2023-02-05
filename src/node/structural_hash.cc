@@ -467,16 +467,18 @@ struct ArrayNodeTrait {
     //    (2)     a b c d e g h i j k l m
     //                      ^
     //                  error here
-    if (lhs->size() > min_size) {
-      equal->DeferFail({array_paths->lhs_path->ArrayIndex(min_size),
-                        array_paths->rhs_path->MissingArrayElement(min_size)});
-    } else {
-      equal->DeferFail({array_paths->lhs_path->MissingArrayElement(min_size),
-                        array_paths->rhs_path->ArrayIndex(min_size)});
+    if (equal->IsFailDeferralEnabled()) {
+      if (lhs->size() > min_size) {
+        equal->DeferFail({array_paths->lhs_path->ArrayIndex(min_size),
+                          array_paths->rhs_path->MissingArrayElement(min_size)});
+      } else {
+        equal->DeferFail({array_paths->lhs_path->MissingArrayElement(min_size),
+                          array_paths->rhs_path->ArrayIndex(min_size)});
+      }
+      // Can return `true` pretending that everything is good since we have deferred the failure.
+      return true;
     }
-
-    // Can return `true` pretending that everything is good since we have deferred the failure.
-    return true;
+    return false;
   }
 };
 TVM_REGISTER_REFLECTION_VTABLE(ArrayNode, ArrayNodeTrait)

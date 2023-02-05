@@ -39,6 +39,7 @@ class PrinterConfig(Object):
     print_line_numbers: bool
     num_context_lines: int
     path_to_underline: Optional[ObjectPath]
+    syntax_sugar: bool
 
     def __init__(
         self,
@@ -54,6 +55,7 @@ class PrinterConfig(Object):
         print_line_numbers: bool = False,
         num_context_lines: Optional[int] = None,
         path_to_underline: Optional[ObjectPath] = None,
+        syntax_sugar: bool = True,
     ) -> None:
         if num_context_lines is None:
             num_context_lines = -1
@@ -71,6 +73,7 @@ class PrinterConfig(Object):
                 "print_line_numbers": print_line_numbers,
                 "num_context_lines": num_context_lines,
                 "path_to_underline": path_to_underline,
+                "syntax_sugar": syntax_sugar,
             },
         )
 
@@ -96,6 +99,7 @@ class Scriptable:
         print_line_numbers: bool = False,
         num_context_lines: int = -1,
         path_to_underline: Optional[ObjectPath] = None,
+        syntax_sugar: bool = True,
     ) -> str:
         """Print TVM IR into TVMScript text format
 
@@ -123,6 +127,8 @@ class Scriptable:
             The number of lines of context to print before and after the line to underline.
         path_to_underline : Optional[ObjectPath] = None
             Object path to be underlined
+        syntax_sugar: bool = True
+             Whether to output with syntax sugar, set false for complete printing.
 
         Returns
         -------
@@ -143,6 +149,7 @@ class Scriptable:
                 print_line_numbers=print_line_numbers,
                 num_context_lines=num_context_lines,
                 path_to_underline=path_to_underline,
+                syntax_sugar=syntax_sugar,
             ),
         )
 
@@ -162,6 +169,7 @@ class Scriptable:
         print_line_numbers: bool = False,
         num_context_lines: int = -1,
         path_to_underline: Optional[ObjectPath] = None,
+        syntax_sugar: bool = True,
     ) -> None:
         """A sugar for print highlighted TVM script.
 
@@ -194,6 +202,8 @@ class Scriptable:
             The number of lines of context to print before and after the line to underline.
         path_to_underline : Optional[ObjectPath] = None
             Object path to be underlined
+        syntax_sugar: bool = True
+             Whether to output with syntax sugar, set false for complete printing.
         """
         from tvm.script.highlight import (  # pylint: disable=import-outside-toplevel
             cprint,
@@ -212,6 +222,7 @@ class Scriptable:
                 print_line_numbers=print_line_numbers,
                 num_context_lines=num_context_lines,
                 path_to_underline=path_to_underline,
+                syntax_sugar=syntax_sugar,
             ),
             style=style,
             black_format=black_format,
