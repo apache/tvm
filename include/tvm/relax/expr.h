@@ -23,7 +23,6 @@
 #include <tvm/ir/source_map.h>
 #include <tvm/node/node.h>
 #include <tvm/relax/type.h>
-#include <tvm/relay/expr.h>
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/map.h>
 #include <tvm/runtime/object.h>
@@ -35,7 +34,47 @@ namespace relax {
 
 using Expr = RelayExpr;
 using ExprNode = RelayExprNode;
-using relay::Id;
+/*!
+ * \brief The unique identifier of variables.
+ *
+ * Id is like name to the variables,
+ * except that id is unique for each Var.
+ *
+ * \note Do not create Id directly, they are created in Var.
+ */
+class IdNode : public Object {
+ public:
+  /*!
+   * \brief The name of the variable,
+   *  this only acts as a hint to the user,
+   *  and is not used for equality.
+   */
+  String name_hint;
+
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("name_hint", &name_hint); }
+
+  bool SEqualReduce(const IdNode* other, SEqualReducer equal) const {
+    return equal.FreeVarEqualImpl(this, other);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce.FreeVarHashImpl(this); }
+
+  static constexpr const char* _type_key = "relax.Id";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  TVM_DECLARE_FINAL_OBJECT_INFO(IdNode, Object);
+};
+
+class Id : public ObjectRef {
+ public:
+  /*!
+   * \brief The constructor
+   * \param name_hint The name of the variable.
+   */
+  TVM_DLL explicit Id(String name_hint);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Id, ObjectRef, IdNode);
+};
 
 /*!
  * \brief Base type of all structure information.
