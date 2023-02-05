@@ -510,7 +510,9 @@ void PythonDocPrinter::PrintTypedDoc(const SliceDoc& doc) {
 void PythonDocPrinter::PrintTypedDoc(const StmtBlockDoc& doc) {
   for (const StmtDoc& stmt : doc->stmts) {
     PrintDoc(stmt);
-    NewLine();
+    if (stmt != doc->stmts.back()) {
+      NewLine();
+    }
   }
 }
 

@@ -95,7 +95,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       for (int i = 0; i < n_args; ++i) {
         tir::Var var = func->params[i];
         ObjectPath var_p = p->Attr("params")->ArrayIndex(i);
-        if (CountVarOccurrence(func, var) == 2 && func->buffer_map.count(var)) {
+        if (d->cfg->syntax_sugar && CountVarOccurrence(func, var) == 2 &&
+            func->buffer_map.count(var)) {
           tir::Buffer buffer = func->buffer_map[var];
           if (IsSimpleBuffer(buffer) && buffer_data_counter.at(buffer->data.get()) == 1) {
             ObjectPath buffer_p = p->Attr("buffer_map")->MapValue(var);
@@ -122,11 +123,11 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           if (buffer_inlined.count(buffer.get())) {
             continue;
           }
-          ExprDoc param = args[i]->lhs;
+          ExprDoc param_doc = args[i]->lhs;
           ObjectPath buffer_p = p->Attr("buffer_map")->MapValue(param);
           ExprDoc lhs =
               DefineBuffer(buffer, *frame, d);  // TODO(@junrushao): switch `lhs` and `rhs`
-          ExprDoc rhs = BufferDecl(buffer, "match_buffer", {param}, buffer_p, *frame, d);
+          ExprDoc rhs = BufferDecl(buffer, "match_buffer", {param_doc}, buffer_p, *frame, d);
           (*frame)->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
         }
       }
@@ -150,9 +151,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         }
         return NullOpt;
       }();
-      if (implicit_root_block) {
+      if (d->cfg->syntax_sugar && implicit_root_block) {
         tir::Block root_block = implicit_root_block.value();
-        ObjectPath root_block_p = p->Attr("body")->Attr("body");
+        ObjectPath root_block_p = p->Attr("body")->Attr("block");
         (*frame)->stmts.push_back(CommentDoc("with T.block(\"root\"):"));
         // Handle root block `alloc_buffer`
         for (int i = 0, n = root_block->alloc_buffers.size(); i < n; ++i) {
