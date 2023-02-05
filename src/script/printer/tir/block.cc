@@ -215,7 +215,11 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, ObjectPath block_p,  //
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::BlockRealize>(
         "", [](tir::BlockRealize realize, ObjectPath p, IRDocsifier d) -> Doc {
-          return PrintBlock(d, realize->block, p->Attr("block"), realize, p);
+          Doc doc = PrintBlock(d, realize->block, p->Attr("block"), realize, p);
+          // since we do not have d->AsDoc for realize->block,
+          // we should add possible doc decoration manually.
+          AddDocDecoration<ScopeDoc>(doc, realize->block, p->Attr("block"), d->cfg);
+          return doc;
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)

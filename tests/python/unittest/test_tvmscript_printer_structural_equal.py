@@ -31,9 +31,9 @@ def _error_message(exception):
 
 def _expected_result(func1, func2, objpath1, objpath2):
     return f"""ValueError: StructuralEqual check failed, caused by lhs at {objpath1}:
-{func1.script(path_to_underline=objpath1, syntax_sugar=False)}
+{func1.script(path_to_underline=[objpath1], syntax_sugar=False)}
 and rhs at {objpath2}:
-{func2.script(path_to_underline=objpath2, syntax_sugar=False)}"""
+{func2.script(path_to_underline=[objpath2], syntax_sugar=False)}"""
 
 
 def test_prim_func_buffer_map():
