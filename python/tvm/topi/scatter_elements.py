@@ -29,11 +29,11 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
 
     .. code-block::
 
-        output[indices[i][j]][j] = f(output[indices[i][j]][j], updates[i][j]) if axis = 0,
-        output[i][indices[i][j]] = f(output[i][indices[i][j]], updates[i][j]) if axis = 1,
+        output[indices[i][j]][j] = f(output[indices[i][j]][j], updates[i][j]) if axis = 0
+        output[i][indices[i][j]] = f(output[i][indices[i][j]], updates[i][j]) if axis = 1
 
     where the update function f is determinted by the reduction.
-    Five types of the function are supported: replace, +, *, min or max
+    Five types of the function are supported: replace, +, \*, min or max
 
     Parameters
     ----------
