@@ -22,12 +22,15 @@
 #include <tvm/ir/env_func.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/node/node.h>
-// #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
 
 namespace tvm {
 namespace relax {
+
+// TODO(relax-team) replace with real BlockBuilder
+// once it is ready.
+using BlockBuilder = ObjectRef;
 
 /*!
  * \brief Opaque object.
@@ -256,8 +259,6 @@ class TupleStructInfo : public StructInfo {
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TupleStructInfo, StructInfo, TupleStructInfoNode);
 };
-
-class BlockBuilder;
 
 /*!
  * \brief custom-defined StructInfo derivation function.
