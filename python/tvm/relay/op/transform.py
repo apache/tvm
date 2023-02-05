@@ -403,7 +403,7 @@ def scatter_add(data, indices, updates, axis):
     return _make.scatter_add(data, indices, updates, axis)
 
 
-def scatter_elements(data, indices, updates, axis, reduction="update"):
+def scatter_elements(data, indices, updates, axis=0, reduction="update"):
     """Scatter elements with updating data by reduction of values in updates
     at positions defined by indices.
 
@@ -416,14 +416,19 @@ def scatter_elements(data, indices, updates, axis, reduction="update"):
         The index locations to update.
 
     updates : relay.Expr
-        The values to add.
+        The values to update.
 
     axis : int
-        The axis to scatter_add on.
+        The axis to scatter elements on. It is zero by default.
 
     reduction : string, optional
-        The reduction mode for scatter. Choise is from ["update", "add", "mul", "min", max"].
-        It is "update" by default.
+        The reduction mode for scatter. Choise is from ["update", "add", "mul", "min", max"]
+        If update, the update values will replace the input data
+        If add, the update values will be added to the input data
+        If mul, the update values will be multiply to the input data
+        If min, there is choice of minimal between the update values and the input data
+        If max, there is choice of maximal between the update values and the input data
+        It is "update" by default
 
     Returns
     -------

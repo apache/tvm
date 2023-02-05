@@ -843,9 +843,7 @@ def test_scatter(target, dev):
         indices = np.array(indices, dtype="int32")
         updates = np.random.uniform(size=indices.shape).astype("float32")
 
-        y = helper.make_node(
-            "Scatter", ["data", "indices", "updates"], ["output"], axis=axis
-        )
+        y = helper.make_node("Scatter", ["data", "indices", "updates"], ["output"], axis=axis)
 
         graph = helper.make_graph(
             [y],
