@@ -17,8 +17,56 @@
 # pylint: disable=invalid-name, wrong-import-position
 """The Relax IR namespace containing the IR, type, operator, builder, vm, etc."""
 from . import exec_builder
+from . import expr
+from . import ty
+from . import analysis
 from . import vm
+from . import struct_info
+
+# Expr
+from .expr import (
+    Expr,
+    Span,
+    SourceName,
+    Id,
+    GlobalVar,
+    Var,
+    DataflowVar,
+    Binding,
+    MatchCast,
+    VarBinding,
+    BindingBlock,
+    DataflowBlock,
+    SeqExpr,
+    ShapeExpr,
+    Tuple,
+    TupleGetItem,
+    Function,
+    ExternFunc,
+    Call,
+    If,
+    Constant,
+    PrimValue,
+    DataTypeImm,
+    StringImm,
+)
+
+from .expr import const, extern, get_shape_of
+
+# Type
+from .ty import Type, ObjectType, ShapeType, DynTensorType, TupleType, FuncType, PackedFuncType
 
 # VM
 from .exec_builder import ExecBuilder
 from .vm import VirtualMachine
+
+# StructInfo
+from .struct_info import (
+    StructInfo,
+    ObjectStructInfo,
+    PrimStructInfo,
+    ShapeStructInfo,
+    TensorStructInfo,
+    TupleStructInfo,
+    FuncStructInfo,
+)
