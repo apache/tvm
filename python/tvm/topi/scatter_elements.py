@@ -101,7 +101,11 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
                 with ib.for_range(0, axis_range, "k") as k:
                     pre_index = i * before_axis_stride + j
                     index1 = pre_index + k * after_axis_range
-                    index2 = pre_index + indices[index1] * after_axis_range
+                    # TODO(vvchernov): assert for out of bounds
+                    k_new = indices[index1]
+                    if k_new < 0:
+                        k_new += axis_range
+                    index2 = pre_index + k_new * after_axis_range
                     if reduction == "update":
                         out[index2] = updates[index1]
                     elif reduction == "add":
