@@ -92,7 +92,8 @@ Expr MakeEthosuBinaryElementwise(Expr ifm, Expr ifm2, Expr lut, String operator_
                                  IndexExpr ifm_channels, IndexExpr ifm2_channels,
                                  bool reversed_operands, String activation, int clip_min,
                                  int clip_max, String rounding_mode, String ifm_layout,
-                                 String ifm2_layout, String ofm_layout, String ofm_dtype) {
+                                 String ifm2_layout, String ofm_layout, String ofm_dtype,
+                                 bool use_rescale, int rescale_scale, int rescale_shift) {
   auto attrs = make_object<EthosuBinaryElementwiseAttrs>();
 
   attrs->operator_type = std::move(operator_type);
@@ -113,6 +114,9 @@ Expr MakeEthosuBinaryElementwise(Expr ifm, Expr ifm2, Expr lut, String operator_
   attrs->ifm2_layout = std::move(ifm2_layout);
   attrs->ofm_layout = std::move(ofm_layout);
   attrs->ofm_dtype = std::move(ofm_dtype);
+  attrs->use_rescale = use_rescale;
+  attrs->rescale_scale = rescale_scale;
+  attrs->rescale_shift = rescale_shift;
 
   static const Op& op = Op::Get("contrib.ethosu.binary_elementwise");
   return Call(op, {ifm, ifm2, lut}, Attrs(attrs), {});
