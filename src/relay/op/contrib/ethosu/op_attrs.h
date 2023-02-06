@@ -128,7 +128,7 @@ struct EthosuBinaryElementwiseAttrs : public tvm::AttrsNode<EthosuBinaryElementw
         "  {int32}->{int8, uint8, int32}, any pairing"
         "SHL:"
         "  {int32}->{int32} only");
-    TVM_ATTR_FIELD(use_rescale).describe("True if use explicit scaling.").set_default(false);
+    TVM_ATTR_FIELD(use_rescale).describe("Use explicit scaling if True.").set_default(false);
     TVM_ATTR_FIELD(rescale_scale)
         .describe(
             "Scale value for rescale. "

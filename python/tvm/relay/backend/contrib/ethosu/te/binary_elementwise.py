@@ -125,7 +125,7 @@ def binary_elementwise_compute(
         SHL:
           {int32}->{int32} only
     use_rescale : bool
-        True if use explicit scaling.
+        Use explicit scaling if True.
     rescale_scale : int
         Scale value for rescale. For 32-bit operations scale is not applied but shift is.
     rescale_shift : int
