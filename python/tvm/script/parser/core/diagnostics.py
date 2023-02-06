@@ -163,9 +163,10 @@ def findsource(obj):
                 name = tokens[1].split(":")[0].split("(")[0] + "<locals>"
             elif tokens[0] == "class":
                 name = tokens[1].split(":")[0].split("(")[0]
+            # pop scope if we are less indented
+            while scope_stack and indent_info[scope_stack[-1]] >= indent:
+                scope_stack.pop()
             if name:
-                while scope_stack and indent_info[scope_stack[-1]] >= indent:
-                    scope_stack.pop()
                 scope_stack.append(name)
                 indent_info[name] = indent
                 if scope_stack == qual_names:
