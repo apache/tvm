@@ -2848,7 +2848,7 @@ class Scatter(OnnxOpConverter):
     """Operator converter for Scatter."""
 
     @classmethod
-    def _impl_v1(cls, inputs, attr, params):
+    def _impl_v9(cls, inputs, attr, params):
         axis = attr.get("axis", 0)
         return _op.scatter(inputs[0], inputs[1], inputs[2], axis)
 

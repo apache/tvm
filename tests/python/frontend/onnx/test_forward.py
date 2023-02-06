@@ -856,7 +856,9 @@ def test_scatter(target, dev):
             outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, list(in_shape))],
         )
         model = helper.make_model(graph, producer_name="scatter_test")
-        verify_with_ort_with_inputs(model, [x, indices, updates], target=target, dev=dev, opset=16)
+        # Scatter operator has been supported from version 9 and
+        # deprecated since version 11 of the default ONNX operator set
+        verify_with_ort_with_inputs(model, [x, indices, updates], target=target, dev=dev, opset=9)
 
     verify_scatter((4,), [1], 0)
     verify_scatter((1, 4), [[0]], 0)
