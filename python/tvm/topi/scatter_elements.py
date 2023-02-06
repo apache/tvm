@@ -66,7 +66,7 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
         axis = utils.get_const_int(axis)
 
     shape = data.shape
-    axis_range = shape[axis]
+    axis_range = int(shape[axis])
 
     if axis < 0:
         axis = len(shape) + axis

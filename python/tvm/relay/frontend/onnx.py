@@ -2873,7 +2873,8 @@ class ScatterElements(OnnxOpConverter):
         if red_valids:
             reduction = attr.get("reduction", None)
             if reduction is None:
-                reduction = "update"
+                reduction = b"update"
+            reduction.decode("utf-8")
             assert reduction in red_valids, "Only {} modes are supported, but {} is gotten".format(
                 red_valids, reduction
             )
