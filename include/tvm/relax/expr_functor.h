@@ -26,15 +26,18 @@
 #define TVM_RELAX_EXPR_FUNCTOR_H_
 
 #include <tvm/node/functor.h>
+#include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/struct_info_functor.h>
 #include <tvm/relay/op.h>
 #include <tvm/tir/function.h>
 
+#include <deque>
 #include <string>
+#include <unordered_map>
 #include <utility>
-
+#include <vector>
 namespace tvm {
 namespace relax {
 
@@ -408,6 +411,139 @@ class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
   // This visitor is not visible to child classes and only
   // used to supportd default visiting behavior.
   DefaultStructInfoFieldMutator default_struct_info_field_mutator_{this};
+};
+
+/*!
+ * \brief A mutator works in normal form.
+ *
+ * ExprMutator expects input AST to be in the normal form, i.e., the expressions are normalized(no
+ * nesting and hence the AST is in ANF), and all checked_type_ and shape_ of expressions are
+ * available.
+ */
+class ExprMutator : public ExprMutatorBase {
+ public:
+  using ExprMutatorBase::VisitExpr_;
+
+  ExprMutator(Optional<IRModule> mod = NullOpt) { builder_ = BlockBuilder::Create(mod); }
+  Expr VisitExpr(const Expr& expr) override;
+  Expr VisitExpr_(const VarNode* op) override;
+  Expr VisitExpr_(const DataflowVarNode* op) override;
+  Expr VisitExpr_(const FunctionNode* op) override;
+  Expr VisitExpr_(const SeqExprNode* op) override;
+  Expr VisitExpr_(const IfNode* op) override;
+
+  /*!
+   * \brief Generic dispatcher for bindings.
+   * \param binding The binding to be visited.
+   */
+  virtual void VisitBinding(const Binding& binding);
+  // specific leaf level visitor functions
+  virtual void VisitBinding_(const VarBindingNode* binding);
+  virtual void VisitBinding_(const MatchCastNode* binding);
+  // second level dispatching based on binding value type.
+  // these dispatching functions get called from first-level dispatch on VarBinding
+  virtual void VisitBinding_(const VarBindingNode* binding, const ConstantNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const TupleNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const VarNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const DataflowVarNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const ShapeExprNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const ExternFuncNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const GlobalVarNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const FunctionNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const CallNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const SeqExprNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const IfNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const OpNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const PrimValueNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const StringImmNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const DataTypeImmNode* val);
+  /*!
+   * \brief Generic dispatcher for binding blocks.
+   * \param block The binding block to be visited.
+   * \return The binding block after transformation.
+   */
+  virtual BindingBlock VisitBindingBlock(const BindingBlock& block) override;  // NOLINT(*)
+  // specific leaf level visitor functions
+  virtual BindingBlock VisitBindingBlock_(const BindingBlockNode* block);
+  virtual BindingBlock VisitBindingBlock_(const DataflowBlockNode* block);
+
+  /*!
+   * \brief Generic dispatcher for rewriting the var definition site.
+   * \param var The var to be visited.
+   * \return The var after post-order rewritten.
+   * \note VisitExpr_(const VarNode*) will only visit the usage site of an Var
+   */
+  virtual Var VisitVarDef(const Var& var);
+  // specific leaf level visitor functions
+  virtual Var VisitVarDef_(const VarNode* var);
+  virtual Var VisitVarDef_(const DataflowVarNode* var);
+
+ protected:
+  /*!
+   * \brief Try to remit binding and bind it to a new_value
+   *
+   * This function is called after VisitExpr(binding->value) in
+   * VisitBinding_(const VarBinding*).
+   * It will try to reuse the current binding when the new value's shape/type
+   * matches the original binding and no changes in var is needed.
+   *
+   * Otherwise, a new binding will be emitted to replace the var specified in
+   * the current binding.
+   */
+  void ReEmitBinding(const VarBindingNode* binding, Expr new_value);
+
+  /*!
+   * \brief Rewrite the expr with a new scope, used in a Function's body and the branches of If.
+   *
+   * \param body_expr The body to be visited.
+   * \param params Optional parameters that are visible within the scope.
+   * \return The expr after visiting.
+   *
+   * \note The body_expr must be an SeqExpr in the normal form.
+   */
+  Expr VisitWithNewScope(const Expr& body_expr, Optional<Array<Var>> params = NullOpt);
+
+  /*!
+   * \brief Look up the value bound to a variable.
+   * \param var The var to be looked up.
+   * \return The value bound to the input \p var.
+   * \note For function parameters, this function returns NullOpt.
+   */
+  Optional<Expr> LookupBinding(const Var& var);
+
+  /*!
+   * \brief Post-order rewrite a node and normalize.
+   * \param T The node type to be rewritten.
+   * \param op The node to be rewritten.
+   * \return The node after post rewritten.
+   */
+  template <typename T>
+  Expr VisitExprPostOrder_(const T* op) {
+    return builder_->Normalize(ExprMutator::VisitExpr_(op));
+  }
+
+  /*!
+   * \brief Create a new var with specified struct_info if the original var's shape or type does
+   * not match with the specified ones.
+   * \param var The var to be updated.
+   * \param struct_info The struct info to be updated.
+   * \return The var filled with struct_info
+   */
+  Var WithStructInfo(Var var, StructInfo struct_info);
+
+  /*! \brief Internal block builder to emit bindings during rewriting. */
+  BlockBuilder builder_;
+
+  /*! \brief Remap a var to a new var in use-site. */
+  std::unordered_map<Id, Var, ObjectPtrHash, ObjectPtrEqual> var_remap_;
+
+ private:
+  using TSelf = ExprMutator;
+  using VisitBindingVTable =
+      tvm::NodeFunctor<void(const ObjectRef& n, ExprMutator* self, const VarBindingNode* binding)>;
+  // initialize the vtable.
+  static VisitBindingVTable InitVisitBindingVTable();
 };
 
 }  // namespace relax

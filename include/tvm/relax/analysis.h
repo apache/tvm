@@ -86,6 +86,19 @@ TVM_DLL Type GetStaticType(const StructInfo& info);
 TVM_DLL StructInfo StructInfoFromType(const Type& type);
 
 /*!
+ * \return Derive the call's ret value struct info from inputs.
+ * \param func_info The function struct info.
+ * \param call The call expression to be derived.
+ * \param ctx The builder context.
+ * \param ana Optional context analyzer to prove symbolic expression equality.
+ * \return The derived struct info of the call.
+ * \note  call->op field is ignored during derivation and we only rely on information
+ *        presented by func_sinfo.
+ */
+TVM_DLL StructInfo DeriveCallRetStructInfo(const FuncStructInfo& finfo, const Call& call,
+                                           const BlockBuilder& ctx, arith::Analyzer* ana = nullptr);
+
+/*!
  * \brief Erase the info to a corresponding more coarse grained
  *        struct info that is still well-defined(with all the vars in scope).
  *

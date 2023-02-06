@@ -21,6 +21,8 @@ from . import expr
 from . import ty
 from . import analysis
 from . import vm
+from . import block_builder
+from . import op
 from . import struct_info
 
 # Expr
@@ -59,6 +61,15 @@ from .ty import Type, ObjectType, ShapeType, DynTensorType, TupleType, FuncType,
 # VM
 from .exec_builder import ExecBuilder
 from .vm import VirtualMachine
+
+# Operator
+from .op.base import call_tir
+
+# BlockBuilder
+from .block_builder import BlockBuilder
+
+# ExprFunctor
+from .expr_functor import ExprFunctor, PyExprVisitor, PyExprMutator
 
 # StructInfo
 from .struct_info import (
