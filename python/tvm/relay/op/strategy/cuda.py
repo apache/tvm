@@ -1099,6 +1099,20 @@ def scatter_add_cuda(attrs, inputs, out_type, target):
     return strategy
 
 
+@scatter_elements_strategy.register(["cuda", "gpu"])
+def scatter_elements_cuda(attrs, inputs, out_type, target):
+    """scatter elements cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_scatter_elements(topi.cuda.scatter_elements),
+        wrap_topi_schedule(topi.cuda.schedule_extern),
+        name="scatter_elements.cuda",
+        plevel=10,
+    )
+    # TODO(vvchernov): There is possible specification for rank=1 as for scatter
+    return strategy
+
+
 @scatter_nd_strategy.register(["cuda", "gpu"])
 def scatter_nd_cuda(attrs, inputs, out_type, target):
     """scatter_nd cuda strategy"""
