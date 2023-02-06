@@ -374,6 +374,16 @@ def f(arg1, arg2, ..., argn):
 ```
 »
 
+### Invariants for `TensorStructInfo`
+
+Because the `shape` field of `TensorStructInfo` is an expression (either a `Var` or `ShapeExpr`), that expression may have its own `StructInfo`. In any `TensorStructInfo` derived by the below inference rules for `StructInfo` or in any `StructInfo` annotation, the following properties must hold of the `shape` field in `TensorStructInfo`:
+1. If the `shape` field is a `Var`, the `Var` must have `ShapeStructInfo`. The `ndim` for the `Var`'s `ShapeStructInfo` must match that of the `TensorStructInfo`.
+2. If the `shape` field is a literal `ShapeExpr`, then the `ndim` for the `TensorStructInfo` must match the number of fields in the `shape`'s `values` field (this is noted in the [well-formedness rules](#well-formedness-criteria)).
+
+Any shape variables that appear in the `ShapeStructInfo` must be in scope where the annotation appears.
+
+In particular, it is not permitted for the `TensorStructInfo` to have an unknown rank (`ndim` of -1) when the `shape` field has a non-negative `ndim`.
+
 ## Subtyping for `StructInfo`
 
 Relax implements subtyping for `StructInfo`, which means that values with some `StructInfo` can be accepted where values with more general `StructInfo` are accepted We will denote the subtyping relationship as `S1 <: S2`, indicating that `S1` is a subtype of `S2`. For example. if `S1 <: S2` and some function expects an argument with `StructInfo` `S2`, then passing a value with `StructInfo` `S1` to that function is permitted; passing a value with `StructInfo` `S2` as an argument to a function that expects `S1` for that argument is *not* permitted—the value would have to be dynamically cast to `S1` using `MatchCast`.
