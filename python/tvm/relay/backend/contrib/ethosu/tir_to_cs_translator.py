@@ -1032,6 +1032,11 @@ def _create_npu_op_binary_elementwise(serial_binary_elementwise: spec.SerialBina
     npu_binary_elementwise_op.ifm2 = _create_npu_feature_map(serial_binary_elementwise.ifm2)
     npu_binary_elementwise_op.ofm = _create_npu_feature_map(serial_binary_elementwise.ofm)
     npu_binary_elementwise_op.reversed_operands = serial_binary_elementwise.reversed_operands
+    if serial_binary_elementwise.rescale_config.use_rescale:
+        npu_binary_elementwise_op.rescale = (
+            serial_binary_elementwise.rescale_config.scale.value,
+            serial_binary_elementwise.rescale_config.shift.value,
+        )
 
     npu_binary_elementwise_op.activation = _create_npu_activation(
         serial_binary_elementwise.activation
