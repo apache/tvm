@@ -2874,7 +2874,9 @@ class ScatterElements(OnnxOpConverter):
             reduction = attr.get("reduction", None)
             if reduction is None:
                 reduction = "update"
-            assert reduction in red_valids
+            assert reduction in red_valids, "Only {} modes are supported, but {} is gotten".format(
+                red_valids, reduction
+            )
             ret.append(reduction)
 
         return ret

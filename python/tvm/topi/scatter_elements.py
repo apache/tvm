@@ -101,10 +101,10 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
                 with ib.for_range(0, axis_range, "k") as k:
                     pre_index = i * before_axis_stride + j
                     index1 = pre_index + k * after_axis_range
-                    # TODO(vvchernov): assert for out of bounds
+                    # TODO(vvchernov): assert for out of bounds, separated check for indices
                     k_new = indices[index1]
-                    if k_new < 0:
-                        k_new += axis_range
+                    index_check = tir.LT(k_new, tir.const(0, indices.dtype))
+                    k_new += tir.Select(index_check, axis_range, tir.const(0, indices.dtype))
                     index2 = pre_index + k_new * after_axis_range
                     if reduction == "update":
                         out[index2] = updates[index1]
