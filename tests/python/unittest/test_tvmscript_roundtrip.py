@@ -3543,6 +3543,32 @@ def intrinsic_pow():
     return func
 
 
+def let_stmt_var():
+    @T.prim_func
+    def func():
+        x = T.var("int32")
+        y = T.var("int32")
+        with T.let(x, 0):
+            with T.let(y, 0):
+                T.evaluate(0)
+        T.evaluate(0)
+
+    return func
+
+
+def let_stmt_value():
+    @T.prim_func
+    def func():
+        x = T.var("int32")
+        y = T.var("int32")
+        with T.let(x, y):
+            with T.let(y, 0):
+                T.evaluate(0)
+        T.evaluate(0)
+
+    return func
+
+
 ir_generator = tvm.testing.parameter(
     opt_gemm_normalize,
     opt_gemm_lower,
@@ -3601,6 +3627,8 @@ ir_generator = tvm.testing.parameter(
     *nested_boolean_expressions(),
     multi_env_threads,
     intrinsic_pow,
+    let_stmt_var,
+    let_stmt_value,
 )
 
 

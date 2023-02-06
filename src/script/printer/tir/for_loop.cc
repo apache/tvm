@@ -32,17 +32,19 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return grid_loop_vars.count(v);
         });
       };
-      for (const tir::ForNode* l = loop.get(); l != nullptr; l = l->body.as<tir::ForNode>()) {
-        ICHECK(l->loop_var->dtype == l->min->dtype);
-        ICHECK(l->loop_var->dtype == l->extent->dtype);
-        if (l->kind != tir::ForKind::kSerial ||  //
-            !tir::is_zero(l->min) ||             //
-            !l->annotations.empty() ||           //
-            f_var_dep(l->extent)) {
-          break;
+      if (d->cfg->syntax_sugar) {
+        for (const tir::ForNode* l = loop.get(); l != nullptr; l = l->body.as<tir::ForNode>()) {
+          ICHECK(l->loop_var->dtype == l->min->dtype);
+          ICHECK(l->loop_var->dtype == l->extent->dtype);
+          if (l->kind != tir::ForKind::kSerial ||  //
+              !tir::is_zero(l->min) ||             //
+              !l->annotations.empty() ||           //
+              f_var_dep(l->extent)) {
+            break;
+          }
+          grid.push_back(l);
+          grid_loop_vars.insert(l->loop_var.get());
         }
-        grid.push_back(l);
-        grid_loop_vars.insert(l->loop_var.get());
       }
       With<TIRFrame> f(d, loop);
       // Step 2. Construct `T.grid`
@@ -114,7 +116,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         kwargs_values.push_back(annotations.value());
       }
       ExprDoc rhs = prefix->Call(args, kwargs_keys, kwargs_values);
-      AsDocBody(loop->body, loop_p, (*f).get(), d);
+      AsDocBody(loop->body, loop_p->Attr("body"), (*f).get(), d);
       return ForDoc(lhs, rhs, (*f)->stmts);
     });
 

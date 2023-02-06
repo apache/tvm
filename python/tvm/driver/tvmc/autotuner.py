@@ -112,8 +112,7 @@ def add_tune_parser(subparsers, _, json_params):
     generate_target_args(parser)
     parser.add_argument(
         "--target-host",
-        help="the host compilation target, defaults to 'llvm'",
-        default="llvm",
+        help="the host compilation target.",
     )
 
     parser.add_argument("--timeout", type=int, default=10, help="compilation timeout, in seconds")

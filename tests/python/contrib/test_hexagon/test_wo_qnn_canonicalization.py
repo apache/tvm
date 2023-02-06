@@ -23,6 +23,7 @@ from tvm import relay
 from tvm.contrib.hexagon.session import Session
 from tvm.contrib.hexagon.pytest_plugin import HEXAGON_AOT_LLVM_TARGET
 from tvm.relay.backend import Executor
+from tvm.relay.testing import run_opt_pass, run_infer_type
 
 
 @tvm.testing.requires_hexagon
@@ -49,6 +50,28 @@ def test_no_qnn_pass():
     # Check that QNN ops are present without "qnn.Legalize" passes.
     assert "qnn.quantize" in opt_mod_2.astext(show_meta_data=False)
     assert "qnn.dequantize" in opt_mod_2.astext(show_meta_data=False)
+
+
+def test_alter_layout_qnn_dense():
+    """Test weights layout transformation of qnn.dense with int8 weights"""
+    data = relay.var("data", shape=(128, 16), dtype="uint8")
+    weight = relay.var("weight", shape=(64, 16), dtype="int8")
+    zero = relay.const(0)
+    iscale = relay.const(0.15)
+    wscale = relay.const(0.37)
+
+    def before():
+        return relay.qnn.op.dense(data, weight, zero, zero, iscale, wscale, units=None)
+
+    def expected():
+        op0 = relay.layout_transform(weight, src_layout="NC", dst_layout="NC32n4c")
+        return relay.qnn.op.contrib_dense_pack(data, op0, zero, zero, iscale, wscale, "NC32n4c")
+
+    target = tvm.target.hexagon("v68")
+    with tvm.target.Target(target):
+        a = run_opt_pass(before(), tvm.relay.transform.AlterOpLayout())
+        b = run_infer_type(expected())
+        tvm.ir.assert_structural_equal(a, b)
 
 
 def execute(mod_executor, inputs: dict):
@@ -130,59 +153,116 @@ def test_qnn_conv2d_rq(hexagon_session: Session):
     np.testing.assert_equal(hexagon_output, llvm_out)
 
 
-@tvm.testing.requires_hexagon
-def test_qnn_dense_bias_rq(hexagon_session: Session):
-    """QNN dense with bias test."""
-    data_shape = [8, 8]
-    weight_shape = [16, 8]
-    bias_shape = [16]
-    data = relay.var("data", shape=data_shape, dtype="float32")
-    weight = relay.var("weight", shape=weight_shape, dtype="float32")
-    bias = relay.var("bias", shape=bias_shape, dtype="float32")
+class TestQnnDense:
+    """QNN dense op test class."""
 
-    op0 = relay.qnn.op.quantize(data, relay.const(0.08), relay.const(0), out_dtype="int8")
-    op1 = relay.qnn.op.quantize(weight, relay.const(0.07), relay.const(0), out_dtype="int8")
-    op2 = relay.qnn.op.dense(
-        op0,
-        op1,
-        input_zero_point=relay.const(0),
-        kernel_zero_point=relay.const(0),
-        input_scale=relay.const(0.08),
-        kernel_scale=relay.const(0.07),
-        units=None,
-    )
-    op3 = relay.qnn.op.quantize(bias, relay.const(0.5), relay.const(0), out_dtype="int32")
-    op4 = relay.nn.bias_add(op2, op3)
-    op5 = relay.qnn.op.requantize(
-        op4,
-        input_scale=relay.const(0.05),
-        input_zero_point=relay.const(0),
-        output_scale=relay.const(0.212),
-        output_zero_point=relay.const(10),
-        out_dtype="int8",
-    )
-    relay_mod = tvm.IRModule.from_expr(op5)
+    dtype = tvm.testing.parameter("uint8", "int8")
+    n_dim = tvm.testing.parameter(64, 60)
 
-    # Compile for Hexagon
-    hexagon_lowered = build_hexagon_module(relay_mod)
+    @tvm.testing.requires_hexagon
+    def test_qnn_dense_add_requantize(self, hexagon_session: Session, dtype, n_dim):
+        """Check lowering of qnn.dense + bias_add + qnn.requantize
+        dtype: type of weights
+        n_dim: N dimension of weights, need to check cases when it is multiple of 32 and not.
+        """
+        data_shape = [128, 32]
+        weight_shape = [n_dim, 32]
+        bias_shape = [n_dim]
+        data = relay.var("data", shape=data_shape, dtype="uint8")
+        weight = relay.var("weight", shape=weight_shape, dtype=dtype)
+        bias = relay.var("bias", shape=bias_shape, dtype="int32")
 
-    # Reference compilation
-    llvm_lowered = build_ref_module(relay_mod)
+        op0 = relay.qnn.op.dense(
+            data,
+            weight,
+            input_zero_point=relay.const(2),
+            kernel_zero_point=relay.const(0),
+            input_scale=relay.const(0.08),
+            kernel_scale=relay.const(0.07),
+            units=None,
+        )
+        op1 = relay.nn.bias_add(op0, bias)
+        op2 = relay.qnn.op.requantize(
+            op1,
+            input_scale=relay.const(1.3),
+            input_zero_point=relay.const(4),
+            output_scale=relay.const(3.7),
+            output_zero_point=relay.const(1),
+            out_dtype="uint8",
+        )
+        relay_mod = tvm.IRModule.from_expr(op2)
 
-    data_np = np.random.rand(*data_shape) - 0.5
-    weight_np = np.random.rand(*weight_shape) - 0.5
-    bias_np = np.random.rand(*bias_shape)
-    inputs = {"data": data_np, "weight": weight_np, "bias": bias_np}
+        # Compile for Hexagon
+        hexagon_lowered = build_hexagon_module(relay_mod)
 
-    hx_m = hexagon_session.get_executor_from_factory(hexagon_lowered)
-    hexagon_output = execute(hx_m, inputs)
+        # Reference compilation
+        llvm_lowered = build_ref_module(relay_mod)
 
-    dev = tvm.cpu(0)
-    llvm_m = tvm.runtime.executor.AotModule(llvm_lowered["default"](dev))
-    llvm_out = execute(llvm_m, inputs)
+        np.random.seed(0)
 
-    # Diff by 1 is Ok.
-    tvm.testing.assert_allclose(hexagon_output, llvm_out, atol=1)
+        data_np = np.random.randint(2, 8, size=data_shape, dtype="uint8")
+        weight_np = np.random.randint(0, 8, size=weight_shape, dtype=dtype)
+        bias_np = np.random.randint(-10, 10, size=bias_shape, dtype="int32")
+        inputs = {"data": data_np, "weight": weight_np, "bias": bias_np}
+
+        hx_m = hexagon_session.get_executor_from_factory(hexagon_lowered)
+        hexagon_output = execute(hx_m, inputs)
+
+        llvm_m = tvm.runtime.executor.AotModule(llvm_lowered["default"](tvm.cpu(0)))
+        llvm_out = execute(llvm_m, inputs)
+
+        # Diff by 1 is Ok.
+        tvm.testing.assert_allclose(hexagon_output, llvm_out, atol=1)
+
+    @tvm.testing.requires_hexagon
+    def test_qnn_dense_requantize(self, hexagon_session: Session):
+        """Check lowering of qnn.dense + qnn.requantize
+        Checkint the case: data type = "uint8", weight type = "int8", input zp = 0 and kernel zp = 0
+        """
+        data_shape = [128, 32]
+        weight_shape = [64, 32]
+        data = relay.var("data", shape=data_shape, dtype="uint8")
+        weight = relay.var("weight", shape=weight_shape, dtype="int8")
+
+        op0 = relay.qnn.op.dense(
+            data,
+            weight,
+            input_zero_point=relay.const(0),
+            kernel_zero_point=relay.const(0),
+            input_scale=relay.const(0.06),
+            kernel_scale=relay.const(0.19),
+            units=64,
+        )
+        op1 = relay.qnn.op.requantize(
+            op0,
+            input_scale=relay.const(0.1),
+            input_zero_point=relay.const(0),
+            output_scale=relay.const(0.24),
+            output_zero_point=relay.const(64),
+            out_dtype="uint8",
+        )
+        relay_mod = tvm.IRModule.from_expr(op1)
+
+        # Compile for Hexagon
+        hexagon_lowered = build_hexagon_module(relay_mod)
+
+        # Reference compilation
+        llvm_lowered = build_ref_module(relay_mod)
+
+        np.random.seed(0)
+
+        data_np = np.random.randint(0, 8, size=data_shape, dtype="uint8")
+        weight_np = np.random.randint(-4, 4, size=weight_shape, dtype="int8")
+        inputs = {"data": data_np, "weight": weight_np}
+
+        hx_m = hexagon_session.get_executor_from_factory(hexagon_lowered)
+        hexagon_output = execute(hx_m, inputs)
+
+        llvm_m = tvm.runtime.executor.AotModule(llvm_lowered["default"](tvm.cpu(0)))
+        llvm_out = execute(llvm_m, inputs)
+
+        # Diff by 1 is Ok.
+        tvm.testing.assert_allclose(hexagon_output, llvm_out, atol=1)
 
 
 class TestQnnBinaryOp:

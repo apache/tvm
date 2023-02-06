@@ -56,6 +56,8 @@ class TVMRunner {
 
   /*! \brief Initiates graph runtime and with the compiled model */
   int Load(void);
+  /*! \brief Specify if the run programs should be dumped to binary and reused in the next runs */
+  void UsePreCompiledPrograms(std::string);
   /*! \brief Executes one inference cycle */
   int Run(void);
   /*! \brief To set the inputs from given npz file */
@@ -86,6 +88,8 @@ class TVMRunner {
   std::string r_device;
   /*! \brief Holds meta information queried from graph runtime */
   TVMMetaInfo mInfo;
+  /*! \brief Mark if the run method was called */
+  bool r_run_was_called;
 };
 
 }  // namespace runtime
