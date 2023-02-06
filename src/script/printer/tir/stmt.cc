@@ -57,13 +57,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::LetStmt>("", [](tir::LetStmt stmt, ObjectPath p, IRDocsifier d) -> Doc {
       bool concise = AllowConciseScoping(d);
-      ExprDoc rhs = d->AsDoc<ExprDoc>(stmt->value, p->Attr("value"));
-      With<TIRFrame> f(d, stmt);
-      ExprDoc lhs = d->IsVarDefined(stmt->var) ? d->GetVarDoc(stmt->var).value()
-                                               : DefineVar(stmt->var, *f, d);
-      AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
-      Array<StmtDoc>* stmts = &(*f)->stmts;
-      if (concise) {
+      if (concise && !d->IsVarDefined(stmt->var)) {
+        ExprDoc rhs = d->AsDoc<ExprDoc>(stmt->value, p->Attr("value"));
+        With<TIRFrame> f(d, stmt);
+        ExprDoc lhs = DefineVar(stmt->var, *f, d);
+        AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
+        Array<StmtDoc>* stmts = &(*f)->stmts;
         Type type = stmt->var->type_annotation;
         Optional<ExprDoc> type_doc =
             d->AsDoc<ExprDoc>(type, p->Attr("var")->Attr("type_annotation"));
@@ -75,6 +74,11 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         stmts->insert(stmts->begin(), AssignDoc(lhs, rhs, type_doc));
         return StmtBlockDoc(*stmts);
       } else {
+        ExprDoc lhs = d->AsDoc<ExprDoc>(stmt->var, p->Attr("var"));
+        ExprDoc rhs = d->AsDoc<ExprDoc>(stmt->value, p->Attr("value"));
+        With<TIRFrame> f(d, stmt);
+        AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
+        Array<StmtDoc>* stmts = &(*f)->stmts;
         rhs = TIR(d, "let")->Call({lhs, rhs});
         return ScopeDoc(NullOpt, rhs, *stmts);
       }
@@ -175,7 +179,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Allocate>(  //
         "", [](tir::Allocate stmt, ObjectPath stmt_p, IRDocsifier d) -> Doc {
           bool concise = AllowConciseScoping(d);
-          if (IsAllocateDeclBufferPattern(stmt.get())) {
+          if (d->cfg->syntax_sugar && IsAllocateDeclBufferPattern(stmt.get())) {
             return d->AsDoc(stmt->body, stmt_p->Attr("body"));
           }
           Array<ExprDoc> args;

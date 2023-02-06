@@ -439,14 +439,17 @@ with open(QUANTIZED_MODEL_PATH, "wb") as f:
 # ``tvm.micro.generate_project`` and pass in the Arduino template project to finish compilation.
 
 import shutil
-import tflite
 import tvm
 import tvm.micro.testing
 
 # Method to load model is different in TFLite 1 vs 2
 try:  # TFLite 2.1 and above
+    import tflite
+
     tflite_model = tflite.Model.GetRootAsModel(quantized_model, 0)
 except AttributeError:  # Fall back to TFLite 1.14 method
+    import tflite.Model
+
     tflite_model = tflite.Model.Model.GetRootAsModel(quantized_model, 0)
 
 # Convert to the Relay intermediate representation

@@ -21,6 +21,8 @@ if(USE_MICRO)
       APPEND
       ARDUINO_FILE_COPY_JOBS
       "apps/microtvm/arduino/template_project microtvm_api_server.py -> arduino"
+      "python/tvm/micro/project_api server.py -> arduino"
+      "apps/microtvm/arduino/template_project launch_microtvm_api_server.sh -> arduino"
       "apps/microtvm/arduino/template_project boards.json -> arduino"
       "apps/microtvm/arduino/template_project/src/example_project *.c -> arduino/src/example_project"
       "apps/microtvm/arduino/template_project/src/example_project *.h -> arduino/src/example_project"

@@ -53,14 +53,16 @@ class PrinterConfigNode : public Object {
   DataType float_dtype = DataType::Void();
   /*! \brief Whether or not to verbose print expressions. */
   bool verbose_expr = false;
-  /* \brief Number of spaces used for indentation*/
+  /*! \brief Number of spaces used for indentation*/
   int indent_spaces = 4;
-  /* \brief Whether to print line numbers */
+  /*! \brief Whether to print line numbers */
   bool print_line_numbers = false;
-  /* \brief Number of context lines to print around the underlined text */
+  /*! \brief Number of context lines to print around the underlined text */
   int num_context_lines = -1;
-  /* \brief Object path to be underlined */
+  /*! \brief Object path to be underlined */
   Optional<ObjectPath> path_to_underline = NullOpt;
+  /*! \brief Whether to output with syntax sugar, set false for complete printing. */
+  bool syntax_sugar = true;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("ir_prefix", &ir_prefix);
@@ -72,6 +74,7 @@ class PrinterConfigNode : public Object {
     v->Visit("print_line_numbers", &print_line_numbers);
     v->Visit("num_context_lines", &num_context_lines);
     v->Visit("path_to_underline", &path_to_underline);
+    v->Visit("syntax_sugar", &syntax_sugar);
   }
 
   static constexpr const char* _type_key = "node.PrinterConfig";

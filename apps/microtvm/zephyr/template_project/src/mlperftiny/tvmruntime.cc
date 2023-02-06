@@ -21,15 +21,15 @@
 
 #include <assert.h>
 #include <float.h>
-#include <kernel.h>
 #include <math.h>
-#include <power/reboot.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/platform.h>
 #include <tvm/runtime/crt/stack_allocator.h>
+#include <zephyr/kernel.h>
+#include <zephyr/sys/reboot.h>
 
 #include "output_data.h"
 #include "tvmgen_default.h"

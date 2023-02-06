@@ -7507,6 +7507,156 @@ def test_convinteger(target, dev):
 
 
 @tvm.testing.parametrize_targets
+def test_bitshift(target, dev):
+    """test_bitshift"""
+
+    def verify_bitshift(in_shape, shift_shape, high=1000000000, in_dtype="uint64"):
+        in_shape = list(in_shape)
+        shift_shape = list(shift_shape)
+
+        # Create an input for each tensor.
+        tensor_values = [
+            np.random.randint(high, size=in_shape).astype(in_dtype),
+            np.random.randint(16, size=shift_shape).astype(in_dtype),
+            np.random.randint(16, size=shift_shape).astype(in_dtype),
+        ]
+
+        bitshift_left_node = helper.make_node(
+            "BitShift",
+            inputs=["input", "shift_left"],
+            outputs=["shifted"],
+            direction="LEFT",
+        )
+
+        bitshift_right_node = helper.make_node(
+            "BitShift",
+            inputs=["shifted", "shift_right"],
+            outputs=["output"],
+            direction="RIGHT",
+        )
+
+        # Create input and output tensors.
+        proto_type = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(in_dtype)]
+        graph_inputs = [
+            helper.make_tensor_value_info("input", proto_type, in_shape),
+            helper.make_tensor_value_info("shift_left", proto_type, shift_shape),
+            helper.make_tensor_value_info("shift_right", proto_type, shift_shape),
+        ]
+
+        graph_outputs = [helper.make_tensor_value_info("output", proto_type, in_shape)]
+
+        graph_nodes = [bitshift_left_node, bitshift_right_node]
+
+        graph = helper.make_graph(
+            graph_nodes,
+            "BitShift_test",
+            inputs=graph_inputs,
+            outputs=graph_outputs,
+        )
+        model = helper.make_model(
+            graph,
+            producer_name="BitShift_test",
+        )
+
+        verify_with_ort_with_inputs(model, tensor_values, target=target, dev=dev)
+
+    shape = (100, 4, 2)
+    broadcast_shape = (100, 1, 1)
+    # Common bitwise test
+    verify_bitshift(shape, shape)
+    # Bitwise test with broadcasting
+    verify_bitshift(shape, broadcast_shape)
+
+
+# TODO(vvchernov): return test back than ONNX Runtime in CI will support domain version of 18
+@pytest.mark.skip("Currently ONNX Runtime in CI does not support domain version of 18")
+@tvm.testing.parametrize_targets
+def test_bitwise(target, dev):
+    """test_bitwise"""
+
+    def verify_bitwise_ops(A_shape, B_shape, C_shape, D_shape, high=128, in_dtype="int32"):
+        A_shape = list(A_shape)
+        B_shape = list(B_shape)
+        C_shape = list(C_shape)
+        D_shape = list(D_shape)
+
+        # Create an input for each tensor.
+        tensor_values = [
+            np.random.randint(high, size=A_shape).astype(in_dtype),
+            np.random.randint(high, size=B_shape).astype(in_dtype),
+            np.random.randint(high, size=C_shape).astype(in_dtype),
+            np.random.randint(high, size=D_shape).astype(in_dtype),
+        ]
+
+        or_node = helper.make_node(
+            "BitwiseOr",
+            inputs=["A", "B"],
+            outputs=["OR"],
+        )
+
+        and_node = helper.make_node(
+            "BitwiseAnd",
+            inputs=["OR", "C"],
+            outputs=["AND"],
+        )
+
+        xor_node = helper.make_node(
+            "BitwiseXor",
+            inputs=["AND", "D"],
+            outputs=["XOR"],
+        )
+
+        not_node = helper.make_node(
+            "BitwiseNot",
+            inputs=["XOR"],
+            outputs=["output"],
+        )
+
+        # Create input and output tensors.
+        proto_type = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(in_dtype)]
+        graph_inputs = [
+            helper.make_tensor_value_info("A", proto_type, A_shape),
+            helper.make_tensor_value_info("B", proto_type, B_shape),
+            helper.make_tensor_value_info("C", proto_type, C_shape),
+            helper.make_tensor_value_info("D", proto_type, D_shape),
+        ]
+
+        graph_outputs = [
+            helper.make_tensor_value_info("output", proto_type, A_shape),
+        ]
+
+        graph_nodes = [
+            or_node,
+            and_node,
+            xor_node,
+            not_node,
+        ]
+
+        graph = helper.make_graph(
+            graph_nodes,
+            "Bitwise_test",
+            inputs=graph_inputs,
+            outputs=graph_outputs,
+        )
+        model = helper.make_model(
+            graph,
+            producer_name="Bitwise_test",
+        )
+
+        verify_with_ort_with_inputs(model, tensor_values, target=target, dev=dev)
+
+    shape = (100, 4, 2)
+    broadcast_shape = (100, 1, 1)
+    dtypes = ["int8", "uint8", "int32", "uint32"]
+    high_vals = [128, 128, 2147483648, 2147483648]
+    for high, dtype in zip(high_vals, dtypes):
+        # Common bitwise test
+        verify_bitwise_ops(shape, shape, shape, shape, high, dtype)
+        # Bitwise test with broadcasting
+        verify_bitwise_ops(shape, broadcast_shape, broadcast_shape, broadcast_shape, high, dtype)
+
+
+@tvm.testing.parametrize_targets
 def test_scan(target, dev):
     """test_scan"""
 

@@ -154,6 +154,13 @@ class SEqualReducer {
     virtual void DeferFail(const ObjectPathPair& mismatch_paths) = 0;
 
     /*!
+     * \brief Check if fail defferal is enabled.
+     *
+     * \return false if the fail deferral is not enabled, true otherwise.
+     */
+    virtual bool IsFailDeferralEnabled() = 0;
+
+    /*!
      * \brief Lookup the graph node equal map for vars that are already mapped.
      *
      *  This is an auxiliary method to check the Map<Var, Value> equality.
@@ -331,12 +338,14 @@ class SEqualReducer {
  */
 class SEqualHandlerDefault : public SEqualReducer::Handler {
  public:
-  SEqualHandlerDefault(bool assert_mode, Optional<ObjectPathPair>* first_mismatch);
+  SEqualHandlerDefault(bool assert_mode, Optional<ObjectPathPair>* first_mismatch,
+                       bool defer_fails);
   virtual ~SEqualHandlerDefault();
 
   bool SEqualReduce(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars,
                     const Optional<ObjectPathPair>& current_paths) override;
   void DeferFail(const ObjectPathPair& mismatch_paths) override;
+  bool IsFailDeferralEnabled() override;
   ObjectRef MapLhsToRhs(const ObjectRef& lhs) override;
   void MarkGraphNode() override;
 

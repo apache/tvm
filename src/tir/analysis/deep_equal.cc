@@ -44,6 +44,7 @@ class DeepCmpSEqualHandler : public SEqualReducer::Handler {
   }
 
   void DeferFail(const ObjectPathPair&) final { fail_ = true; }
+  bool IsFailDeferralEnabled() final { return false; }
 
   ObjectRef MapLhsToRhs(const ObjectRef& lhs) final { return ObjectRef(nullptr); }
   void MarkGraphNode() final {}

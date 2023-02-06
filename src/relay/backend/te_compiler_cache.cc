@@ -134,6 +134,7 @@ class QnnPatternMatcher {
   QnnPatternMatcher()
       : qnn_conv2d_op_(Op::Get("qnn.conv2d")),
         qnn_dense_op_(Op::Get("qnn.dense")),
+        qnn_dense_pack_op_(Op::Get("qnn.contrib_dense_pack")),
         qnn_requantize_op_(Op::Get("qnn.requantize")),
         bias_add_op_(Op::Get("add")) {}
 
@@ -153,6 +154,10 @@ class QnnPatternMatcher {
       registered_ops_.push_front(P_QDense);
       ICHECK(anchor_op_ == nullptr);
       anchor_op_ = call_node;
+    } else if (op == qnn_dense_pack_op_) {
+      registered_ops_.push_front(P_QDensePack);
+      ICHECK(anchor_op_ == nullptr);
+      anchor_op_ = call_node;
     } else {
       registered_ops_.push_front(P_Opaque);
     }
@@ -163,7 +168,7 @@ class QnnPatternMatcher {
     if (registered_ops_.empty()) return false;
 
     if (op == qnn_conv2d_op_ || op == qnn_requantize_op_ || op == bias_add_op_ ||
-        op == qnn_dense_op_) {
+        op == qnn_dense_op_ || op == qnn_dense_pack_op_) {
       for (const auto& pat : supported_patterns_) {
         auto it =
             std::search(registered_ops_.begin(), registered_ops_.end(), pat.begin(), pat.end());
@@ -183,21 +188,24 @@ class QnnPatternMatcher {
  private:
   const Op& qnn_conv2d_op_;
   const Op& qnn_dense_op_;
+  const Op& qnn_dense_pack_op_;
   const Op& qnn_requantize_op_;
   const Op& bias_add_op_;
 
   // Main (complicated) operation in the primitive (for example qnn.conv2d, qnn.dense etc.).
   const CallNode* anchor_op_ = nullptr;
 
-  enum POper { P_QConv2d, P_QDense, P_BiasAdd, P_QRequantize, P_Opaque };
+  enum POper { P_QConv2d, P_QDense, P_QDensePack, P_BiasAdd, P_QRequantize, P_Opaque };
 
   std::deque<POper> registered_ops_;
 
   const std::vector<std::deque<POper>> supported_patterns_ = {
-      {P_QDense, P_BiasAdd, P_QRequantize},   // Pattern qnn.dense -> bias_add -> qnn.requantize
-      {P_QDense, P_QRequantize},              // Patter qnn.dense -> qnn.requantize
-      {P_QConv2d, P_BiasAdd, P_QRequantize},  // Pattern qnn.conv2d -> bias_add -> qnn.requantize
-      {P_QConv2d, P_QRequantize}              // Patter qnn.conv2d -> qnn.requantize
+      {P_QDense, P_BiasAdd, P_QRequantize},      // qnn.dense -> bias_add -> qnn.requantize
+      {P_QDense, P_QRequantize},                 // qnn.dense -> qnn.requantize
+      {P_QDensePack, P_BiasAdd, P_QRequantize},  // qnn.contrib_dense_pack -> bias -> qnn.requantize
+      {P_QDensePack, P_QRequantize},             // qnn.contrib_dense_pack -> qnn.requantize
+      {P_QConv2d, P_BiasAdd, P_QRequantize},     // qnn.conv2d -> bias_add -> qnn.requantize
+      {P_QConv2d, P_QRequantize}                 // qnn.conv2d -> qnn.requantize
   };
 };
 

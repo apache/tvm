@@ -192,12 +192,12 @@ class RandomEngine {
     struct ParallelTask {
       static int RunTask(int task_id, TVMParallelGroupEnv* penv, void* cdata) {
         ParallelTask* task = static_cast<ParallelTask*>(cdata);
-        task->Run(task_id);
+        task->Run(task_id, penv->num_task);
         return 0;
       }
 
-      void Run(int i) {
-        int64_t chunk_size = size / num_threads;
+      void Run(int i, int num_tasks) {
+        int64_t chunk_size = size / num_tasks;
         int64_t st = i * chunk_size;
         int64_t ed = std::min(st + chunk_size, size);
         self->FillDataImpl(data, st, ed, dtype);
@@ -205,7 +205,6 @@ class RandomEngine {
 
       RandomEngine* self;
       void* data;
-      int num_threads;
       int64_t size;
       DLDataType dtype;
     };
@@ -220,8 +219,7 @@ class RandomEngine {
     }
     if (dtype.bits == 1 || dtype.bits == 4 || dtype.bits == 8 || dtype.bits == 16 ||
         dtype.bits == 32 || dtype.bits == 64) {
-      int num_threads = task.num_threads = runtime::threading::MaxConcurrency();
-      int res = TVMBackendParallelLaunch(ParallelTask::RunTask, &task, num_threads);
+      int res = TVMBackendParallelLaunch(ParallelTask::RunTask, &task, 0);
       ICHECK_EQ(res, 0) << "RandomFillForMeasure: TVMBackendParallelLaunch failed";
     } else {
       LOG(FATAL) << "Doesn't support dtype code " << dtype.code << " dtype bits " << dtype.bits;
