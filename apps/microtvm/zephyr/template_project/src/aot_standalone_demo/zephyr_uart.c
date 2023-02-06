@@ -18,8 +18,8 @@
  */
 #include "zephyr_uart.h"
 
-#include <drivers/uart.h>
-#include <sys/ring_buffer.h>
+#include <zephyr/drivers/uart.h>
+#include <zephyr/sys/ring_buffer.h>
 
 #include "crt_config.h"
 
@@ -76,7 +76,7 @@ uint32_t TVMPlatformWriteSerial(const char* data, uint32_t size) {
 // Initialize UART
 void TVMPlatformUARTInit() {
   // Claim console device.
-  g_microtvm_uart = device_get_binding(DT_LABEL(DT_CHOSEN(zephyr_console)));
+  g_microtvm_uart = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
   const struct uart_config config = {.baudrate = 115200,
                                      .parity = UART_CFG_PARITY_NONE,
                                      .stop_bits = UART_CFG_STOP_BITS_1,

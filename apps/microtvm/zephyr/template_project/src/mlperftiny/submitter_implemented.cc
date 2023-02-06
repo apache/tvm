@@ -19,10 +19,10 @@
 
 #include "api/submitter_implemented.h"
 
-#include <drivers/gpio.h>
-#include <kernel.h>
 #include <tvm/runtime/crt/platform.h>
 #include <unistd.h>
+#include <zephyr/drivers/gpio.h>
+#include <zephyr/kernel.h>
 
 #include "api/internally_implemented.h"
 #include "tvmruntime.h"

@@ -4034,6 +4034,41 @@ def test_forward_index():
     input_data = torch.rand(input_shape).float()
     verify_model(Index1().eval(), input_data=input_data)
 
+    class Index2(Module):
+        def forward(self, x):
+            return x[None, [2, 2]]
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Index2().eval(), input_data=input_data)
+
+    class Index3(Module):
+        def forward(self, x):
+            return x[None, [0, 1, 2], 1, [2, 3, 4]]
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Index3().eval(), input_data=input_data)
+
+    class Index4(Module):
+        def forward(self, x):
+            return x[None, [0, 0], None, np.array([[0], [1], [2]]), None]
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Index4().eval(), input_data=input_data)
+
+    class Index5(Module):
+        def forward(self, x):
+            return x[None, None, [0, 0], np.array([[0], [1], [2]]), None]
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Index5().eval(), input_data=input_data)
+
+    class Index6(Module):
+        def forward(self, x):
+            return x[None, 1, None, [1, 2, 3]]
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Index6().eval(), input_data=input_data)
+
     def test_fn_bool_mask():
         return lambda data, mask: data[0, mask]
 

@@ -90,7 +90,7 @@ We do encourage everyone to work anything they are interested in.
 - [Hao Yu](https://github.com/comaniac): @comaniac (PMC) - relay, byoc, auto_scheduler
 - [Lianmin Zheng](https://github.com/merrymercy) (PMC): @merrymercy - autotvm, auto_scheduler, topi, relay
 - [Xiyou Zhou](https://github.com/zxybazh): @zxybazh - relay
-- [wrongtest](https://github.com/wrongtest-intellif): @wrongtest-intellif - tir, tvm-script, arith
+- [wrongtest](https://github.com/wrongtest-intellif) (PMC): @wrongtest-intellif - tir, tvm-script, arith
 
 ## Reviewers
 

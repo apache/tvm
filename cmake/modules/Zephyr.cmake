@@ -21,6 +21,8 @@ if(USE_MICRO)
       APPEND
       ZEPHYR_FILE_COPY_JOBS
       "apps/microtvm/zephyr/template_project microtvm_api_server.py -> zephyr"
+      "python/tvm/micro/project_api server.py -> zephyr"
+      "apps/microtvm/zephyr/template_project launch_microtvm_api_server.sh -> zephyr"
       "apps/microtvm/zephyr/template_project boards.json -> zephyr"
       "apps/microtvm/zephyr/template_project CMakeLists.txt.template -> zephyr"
       "apps/microtvm/zephyr/template_project/src/aot_standalone_demo *.c -> zephyr/src/aot_standalone_demo"

@@ -28,7 +28,7 @@ import time
 from string import Template
 from packaging import version
 
-from tvm.micro.project_api import server
+import server
 
 _LOG = logging.getLogger(__name__)
 
@@ -387,7 +387,16 @@ class Handler(server.ProjectAPIHandler):
         source_dir.mkdir()
 
         # Copies files from the template folder to project_dir
-        shutil.copy2(API_SERVER_DIR / "microtvm_api_server.py", project_dir)
+        for file in os.listdir(API_SERVER_DIR):
+            if file.endswith(".py"):
+                shutil.copy2(API_SERVER_DIR / file, project_dir / file)
+
+        # Copy launch script
+        shutil.copy2(
+            API_SERVER_DIR / "launch_microtvm_api_server.sh",
+            project_dir / "launch_microtvm_api_server.sh",
+        )
+
         shutil.copy2(BOARDS, project_dir / BOARDS.name)
         self._copy_project_files(API_SERVER_DIR, project_dir, project_type)
 

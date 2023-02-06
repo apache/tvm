@@ -22,6 +22,7 @@ import numpy as np
 
 import tvm
 import tvm.testing
+import tvm.micro.testing
 from tvm.micro.project_api import server
 import tvm.relay as relay
 from tvm.relay.backend import Executor, Runtime
@@ -34,7 +35,6 @@ from . import utils
 @pytest.mark.skip_boards(["mps2_an521", "mps3_an547"])
 def test_tflite(workspace_dir, board, microtvm_debug, serial_number):
     """Testing a TFLite model."""
-    model = utils.ZEPHYR_BOARDS[board]
     input_shape = (1, 49, 10, 1)
     output_shape = (1, 12)
     build_config = {"debug": microtvm_debug}
@@ -58,7 +58,7 @@ def test_tflite(workspace_dir, board, microtvm_debug, serial_number):
         tflite_model, shape_dict={"input_1": input_shape}, dtype_dict={"input_1 ": "int8"}
     )
 
-    target = tvm.target.target.micro(model)
+    target = tvm.micro.testing.get_target("zephyr", board)
     executor = Executor(
         "aot", {"unpacked-api": True, "interface-api": "c", "workspace-byte-alignment": 4}
     )
@@ -90,10 +90,9 @@ def test_tflite(workspace_dir, board, microtvm_debug, serial_number):
 @pytest.mark.skip_boards(["mps2_an521", "mps3_an547"])
 def test_qemu_make_fail(workspace_dir, board, microtvm_debug, serial_number):
     """Testing QEMU make fail."""
-    if board not in ["qemu_x86", "mps2_an521", "mps3_an547"]:
+    if not utils.ZEPHYR_BOARDS[board]["is_qemu"]:
         pytest.skip(msg="Only for QEMU targets.")
 
-    model = utils.ZEPHYR_BOARDS[board]
     build_config = {"debug": microtvm_debug}
     shape = (10,)
     dtype = "float32"
@@ -105,7 +104,7 @@ def test_qemu_make_fail(workspace_dir, board, microtvm_debug, serial_number):
     func = relay.Function([x], z)
     ir_mod = tvm.IRModule.from_expr(func)
 
-    target = tvm.target.target.micro(model)
+    target = tvm.micro.testing.get_target("zephyr", board)
     executor = Executor("aot")
     runtime = Runtime("crt")
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):

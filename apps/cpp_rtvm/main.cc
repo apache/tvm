@@ -54,6 +54,7 @@ static const string kUsage =
     "--input        - Numpy file for the model input (optional and we use random of not given)\n"
     "--output       - Numpy file name to dump the model output as numpy\n"
     "--dump-meta    - Dump model meta information\n"
+    "--pre-compiled - The file name of a file where pre-compiled programs should be stored"
     "\n"
     "  Example\n"
     "  ./rtvm --model=keras-resnet50 --device=\"opencl\" --dump-meta\n"
@@ -66,12 +67,14 @@ static const string kUsage =
  * \arg device The target device to use {llvm, cl, ...etc.}
  * \arg input Numpy file for the model input
  * \arg output Numpy file name to dump the model output as numpy
+ * \arg pre_compiled File name where pre-compiled programs should be stored
  */
 struct ToolArgs {
   string model;
   string device;
   string input;
   string output;
+  string pre_compiled;
   bool dump_meta = false;
 };
 
@@ -84,6 +87,7 @@ void PrintArgs(const ToolArgs& args) {
   LOG(INFO) << "Device        = " << args.device;
   LOG(INFO) << "Input         = " << args.input;
   LOG(INFO) << "Output        = " << args.output;
+  LOG(INFO) << "Pre-compiled  = " << args.pre_compiled;
   LOG(INFO) << "Dump Metadata = " << ((args.dump_meta) ? ("True") : ("False"));
 }
 
@@ -172,6 +176,8 @@ void ParseCmdArgs(int argc, char* argv[], struct ToolArgs& args) {
   if (!pmeta.empty()) {
     args.dump_meta = true;
   }
+
+  args.pre_compiled = GetCmdOption(argc, argv, "--pre-compiled=");
 }
 
 /*!
@@ -190,6 +196,9 @@ int ExecuteModel(ToolArgs& args) {
 
   // Load the model
   runner.Load();
+  if (!args.pre_compiled.empty()) {
+    runner.UsePreCompiledPrograms(args.pre_compiled);
+  }
 
   // Query Model meta Information
   TVMMetaInfo mInfo = runner.GetMetaInfo();

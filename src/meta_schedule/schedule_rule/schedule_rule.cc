@@ -175,47 +175,47 @@ Array<ScheduleRule> ScheduleRule::DefaultCUDATensorCore() {
       // Tensor Cores f32 += f16 * f16
       {
           {"init", "wmma_fill_16x16x16_f32"},
-          {"load_a", "wmma_load_16x16x16_f16_a"},
-          {"load_b", "wmma_load_16x16x16_f16_b"},
+          {"load_a", "wmma_load_16x16x16_f16_a_shared_dyn"},
+          {"load_b", "wmma_load_16x16x16_f16_b_shared_dyn"},
           {"compute", "wmma_sync_16x16x16_f16f16f32"},
-          {"store", "wmma_store_16x16x16_f32_shared"},
+          {"store", "wmma_store_16x16x16_f32_shared_dyn"},
       },
       {
           {"init", "wmma_fill_16x16x16_f32"},
-          {"load_a", "wmma_load_16x16x16_f16_a"},
-          {"load_b", "wmma_load_16x16x16_f16_b_trans"},
+          {"load_a", "wmma_load_16x16x16_f16_a_shared_dyn"},
+          {"load_b", "wmma_load_16x16x16_f16_b_trans_shared_dyn"},
           {"compute", "wmma_sync_16x16x16_f16f16f32_trans"},
-          {"store", "wmma_store_16x16x16_f32_shared"},
+          {"store", "wmma_store_16x16x16_f32_shared_dyn"},
       },
       // Tensor Cores f16 += f16 * f16
       {
           {"init", "wmma_fill_16x16x16_f16"},
-          {"load_a", "wmma_load_16x16x16_f16_a"},
-          {"load_b", "wmma_load_16x16x16_f16_b"},
+          {"load_a", "wmma_load_16x16x16_f16_a_shared_dyn"},
+          {"load_b", "wmma_load_16x16x16_f16_b_shared_dyn"},
           {"compute", "wmma_sync_16x16x16_f16f16f16"},
-          {"store", "wmma_store_16x16x16_f16_shared"},
+          {"store", "wmma_store_16x16x16_f16_shared_dyn"},
       },
       {
           {"init", "wmma_fill_16x16x16_f16"},
-          {"load_a", "wmma_load_16x16x16_f16_a"},
-          {"load_b", "wmma_load_16x16x16_f16_b_trans"},
+          {"load_a", "wmma_load_16x16x16_f16_a_shared_dyn"},
+          {"load_b", "wmma_load_16x16x16_f16_b_trans_shared_dyn"},
           {"compute", "wmma_sync_16x16x16_f16f16f16_trans"},
-          {"store", "wmma_store_16x16x16_f16_shared"},
+          {"store", "wmma_store_16x16x16_f16_shared_dyn"},
       },
       // Tensor Cores s32 += s8 * s8
       {
           {"init", "wmma_fill_16x16x16_s32"},
-          {"load_a", "wmma_load_16x16x16_s8_a"},
-          {"load_b", "wmma_load_16x16x16_s8_b"},
+          {"load_a", "wmma_load_16x16x16_s8_a_shared_dyn"},
+          {"load_b", "wmma_load_16x16x16_s8_b_shared_dyn"},
           {"compute", "wmma_sync_16x16x16_s8s8s32"},
-          {"store", "wmma_store_16x16x16_s32_shared"},
+          {"store", "wmma_store_16x16x16_s32_shared_dyn"},
       },
       {
           {"init", "wmma_fill_16x16x16_s32"},
-          {"load_a", "wmma_load_16x16x16_s8_a"},
-          {"load_b", "wmma_load_16x16x16_s8_b_trans"},
+          {"load_a", "wmma_load_16x16x16_s8_a_shared_dyn"},
+          {"load_b", "wmma_load_16x16x16_s8_b_trans_shared_dyn"},
           {"compute", "wmma_sync_16x16x16_s8s8s32_trans"},
-          {"store", "wmma_store_16x16x16_s32_shared"},
+          {"store", "wmma_store_16x16x16_s32_shared_dyn"},
       },
   };
   Array<ScheduleRule> results{
@@ -229,11 +229,11 @@ Array<ScheduleRule> ScheduleRule::DefaultCUDATensorCore() {
           /*reuse_read=*/
           Map<String, ObjectRef>{{"req", String("must")},
                                  {"levels", Array<Integer>{4}},  //
-                                 {"scope", String("shared")}},
+                                 {"scope", String("shared.dyn")}},
           /*reuse_write=*/
           Map<String, ObjectRef>{{"req", String("must")},
                                  {"levels", Array<Integer>{2}},  //
-                                 {"scope", String("shared")}},
+                                 {"scope", String("shared.dyn")}},
           /*use_software_pipeline=*/false)  //
   };
   Array<ScheduleRule> append = ScheduleRule::DefaultCUDA();

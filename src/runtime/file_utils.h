@@ -129,6 +129,43 @@ std::string SaveParams(const Map<String, NDArray>& params);
  * \param params Parameters to save.
  */
 void SaveParams(dmlc::Stream* strm, const Map<String, NDArray>& params);
+
+/*!
+ * \brief A dmlc stream which wraps standard file operations.
+ */
+struct SimpleBinaryFileStream : public dmlc::Stream {
+ public:
+  SimpleBinaryFileStream(const std::string& path, std::string mode) {
+    const char* fname = path.c_str();
+
+    CHECK(mode == "wb" || mode == "rb") << "Only allowed modes are 'wb' and 'rb'";
+    read_ = mode == "rb";
+    fp_ = std::fopen(fname, mode.c_str());
+    CHECK(fp_ != nullptr) << "Unable to open file " << path;
+  }
+  virtual ~SimpleBinaryFileStream(void) { this->Close(); }
+  virtual size_t Read(void* ptr, size_t size) {
+    CHECK(read_) << "File opened in write-mode, cannot read.";
+    CHECK(fp_ != nullptr) << "File is closed";
+    return std::fread(ptr, 1, size, fp_);
+  }
+  virtual void Write(const void* ptr, size_t size) {
+    CHECK(!read_) << "File opened in read-mode, cannot write.";
+    CHECK(fp_ != nullptr) << "File is closed";
+    CHECK(std::fwrite(ptr, 1, size, fp_) == size) << "SimpleBinaryFileStream.Write incomplete";
+  }
+  inline void Close(void) {
+    if (fp_ != nullptr) {
+      std::fclose(fp_);
+      fp_ = nullptr;
+    }
+  }
+
+ private:
+  std::FILE* fp_ = nullptr;
+  bool read_;
+};  // class SimpleBinaryFileStream
+
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_FILE_UTILS_H_

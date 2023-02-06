@@ -31,6 +31,9 @@ TUNING_RUNS_PER_OPERATOR = 2
 
 @pytest.mark.requires_hardware
 @tvm.testing.requires_micro
+@pytest.mark.skip_boards(
+    ["nucleo_l4r5zi", "", "nucleo_f746zg", "stm32f746g_disco", "nrf5340dk_nrf5340_cpuapp"]
+)
 def test_kws_autotune_workflow(platform, board, tmp_path):
     mod, params = fetch_model_from_url(
         url="https://github.com/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/examples/micro_speech/micro_speech.tflite",
