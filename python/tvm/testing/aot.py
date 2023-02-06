@@ -725,7 +725,7 @@ def run_and_check(
         os.mkdir(include_path)
         crt_root = tvm.micro.get_microtvm_template_projects("crt")
         shutil.copy2(
-            pathlib.Path(crt_root) / "include" / "crt_config-template.h",
+            pathlib.Path(crt_root) / "crt_config" / "crt_config-template.h",
             pathlib.Path(include_path) / "crt_config.h",
         )
 
