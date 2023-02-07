@@ -393,7 +393,8 @@ Select::Select(PrimExpr condition, PrimExpr true_value, PrimExpr false_value, Sp
   ICHECK(false_value.defined()) << "ValueError: true_value is undefined";
   ICHECK(condition.dtype().is_bool());
   ICHECK(condition.dtype().lanes() == true_value.dtype().lanes() || condition.dtype().lanes() == 1);
-  ICHECK(false_value.dtype() == true_value.dtype()) << "TypeError: mismatched types";
+  ICHECK(false_value.dtype() == true_value.dtype()) << "TypeError: mismatched types. " <<
+    "False type: " << false_value.dtype() << "; True type: " << true_value.dtype();
 
   ObjectPtr<SelectNode> node = make_object<SelectNode>();
   node->dtype = true_value.dtype();
