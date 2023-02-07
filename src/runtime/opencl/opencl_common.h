@@ -221,16 +221,14 @@ class OpenCLWorkspace : public DeviceAPI {
  public:
   // type key
   std::string type_key;
-  // global platform id
-  cl_platform_id platform_id;
-  // global platform name
-  std::string platform_name;
-  // global context of this process
-  cl_context context{nullptr};
+  // available platforms
+  std::vector<cl_platform_id> platform_ids;
+  // map platform to its context
+  std::unordered_map<cl_platform_id, cl_context> contexts;
   // whether the workspace it initialized.
   bool initialized_{false};
-  // the device type
-  std::string device_type;
+  // map device to platform
+  std::unordered_map<cl_device_id, cl_platform_id> device_to_platform;
   // the devices
   std::vector<cl_device_id> devices;
   // the queues
@@ -248,11 +246,11 @@ class OpenCLWorkspace : public DeviceAPI {
   std::mutex mu;
   // destructor
   ~OpenCLWorkspace() {
-    if (context != nullptr) {
-      OPENCL_CALL(clReleaseContext(context));
+    for (auto& it : contexts) {
+      OPENCL_CALL(clReleaseContext(it.second));
     }
   }
-  // Initialzie the device.
+  // Initialize the device.
   void Init(const std::string& type_key, const std::string& device_type,
             const std::string& platform_name = "");
   virtual void Init() { Init("opencl", "gpu"); }
@@ -296,13 +294,15 @@ class OpenCLWorkspace : public DeviceAPI {
     OPENCL_CALL(clFinish(queue));
     OPENCL_CALL(clReleaseCommandQueue(queue));
     cl_int err_code;
-    cl_device_id did = cl::OpenCLWorkspace::Global()->devices[dev.device_id];
-    auto profiling_queue =
-        clCreateCommandQueue(cl::OpenCLWorkspace::Global()->context, did, prop, &err_code);
+    cl_device_id did = cl::OpenCLWorkspace::Global()->GetCLDeviceID(dev.device_id);
+    cl_platform_id platform = cl::OpenCLWorkspace::Global()->device_to_platform[did];
+    auto profiling_queue = clCreateCommandQueue(cl::OpenCLWorkspace::Global()->contexts[platform],
+                                                did, prop, &err_code);
     OPENCL_CHECK_ERROR(err_code);
     cl::OpenCLWorkspace::Global()->queues[dev.device_id] = profiling_queue;
   }
 
+  cl_device_id GetCLDeviceID(int device_id);
   // override device API
   void SetDevice(Device dev) final;
   void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final;
