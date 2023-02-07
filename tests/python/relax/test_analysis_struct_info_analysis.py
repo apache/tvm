@@ -319,6 +319,149 @@ def test_base_check():
     assert fopaque.is_base_of(fn_info_shape(1))
 
 
+def _check_derive(ctx, finfo, args_sinfo, ret):
+    gv = rx.GlobalVar("test")
+    rx.expr._update_struct_info(gv, finfo)
+    args = []
+    for i, sinfo in enumerate(args_sinfo):
+        arg = rx.Var("arg%i" % i, sinfo)
+        args.append(arg)
+    call = rx.Call(gv, args)
+    derived_ret = rx.analysis.derive_call_ret_struct_info(finfo, call, ctx)
+    tvm.ir.assert_structural_equal(ret, derived_ret)
+
+
+def test_derive_call_ret_struct_info():
+    obj0 = rx.ObjectStructInfo()
+    prim0 = rx.PrimStructInfo("float32")
+
+    n, m = tir.Var("n0", "int64"), tir.Var("m0", "int64")
+    bb = rx.BlockBuilder()
+    # derivation cases
+    with bb.testing_scope(def_vars=[n, m]):
+
+        def func0(c):
+            n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+            x = rx.TensorStructInfo([n, m], "float32")
+            z = rx.TensorStructInfo([m + c, n], "float32")
+            return rx.FuncStructInfo([x], z)
+
+        # Tensor => Tensor
+        _check_derive(
+            bb,
+            func0(1),
+            [rx.TensorStructInfo([10, 11], "float32")],
+            rx.TensorStructInfo([12, 10], "float32"),
+        )
+
+        _check_derive(
+            bb,
+            func0(2),
+            [rx.TensorStructInfo([n, m], "float32")],
+            rx.TensorStructInfo([m + 2, n], "float32"),
+        )
+
+        # passing in information that cannot deduce n, m
+        # it is still OK as type still matches, return an
+        # eriased output
+        _check_derive(
+            bb,
+            func0(2),
+            [rx.TensorStructInfo(ndim=2, dtype="float32")],
+            rx.TensorStructInfo(ndim=2, dtype="float32"),
+        )
+
+        # Error: wrong number of arguments
+        with pytest.raises(TVMError):
+            _check_derive(
+                bb,
+                func0(2),
+                [rx.TensorStructInfo(ndim=2, dtype="float32"), obj0],
+                rx.TensorStructInfo(ndim=2, dtype="float32"),
+            )
+
+        # Error:type mismatch
+        with pytest.raises(TVMError):
+            _check_derive(bb, func0(2), [obj0], obj0)
+
+        # opaque derivation
+        fopaque0 = lambda: rx.FuncStructInfo.opaque_func()
+        fopaque1 = lambda: rx.FuncStructInfo.opaque_func(ret=prim0)
+        _check_derive(bb, fopaque0(), [obj0, prim0], obj0)
+        _check_derive(bb, fopaque1(), [obj0, prim0], prim0)
+
+        # recursive tuple derivation
+        def func_tuple0(c):
+            n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+            x0 = rx.TensorStructInfo([n, c], "float32")
+            x1 = rx.TensorStructInfo([n + c, m], "float32")
+            z = rx.TupleStructInfo([rx.TensorStructInfo([m, n], "float32")])
+            return rx.FuncStructInfo([rx.TupleStructInfo([x0, x1])], z)
+
+        _check_derive(
+            bb,
+            func_tuple0(2),
+            [
+                rx.TupleStructInfo(
+                    [
+                        rx.TensorStructInfo([n, 2], "float32"),
+                        rx.TensorStructInfo([n + 2, 10], "float32"),
+                    ]
+                )
+            ],
+            rx.TupleStructInfo([rx.TensorStructInfo([10, n], "float32")]),
+        )
+
+        def func_tuple1(c):
+            n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+            x0 = rx.TensorStructInfo([n, m], "float32")
+            x1 = rx.TensorStructInfo([n + c, c], "float32")
+            z = rx.TupleStructInfo([rx.TensorStructInfo([m, n], "float32")])
+            return rx.FuncStructInfo([rx.TupleStructInfo([x0, x1])], z)
+
+        # Still OK, to pass erased tensor into n+2, n is captured by other argument.
+        _check_derive(
+            bb,
+            func_tuple1(4),
+            [
+                rx.TupleStructInfo(
+                    [
+                        rx.TensorStructInfo([n, 4], "float32"),
+                        rx.TensorStructInfo(ndim=2, dtype="float32"),
+                    ]
+                )
+            ],
+            rx.TupleStructInfo([rx.TensorStructInfo([4, n], "float32")]),
+        )
+
+        # tuple length mismatch is not causes an error
+        with pytest.raises(TVMError):
+            _check_derive(
+                bb,
+                func_tuple0(4),
+                [rx.TupleStructInfo([rx.TensorStructInfo([n, 4], "float32")])],
+                rx.TupleStructInfo([rx.TensorStructInfo([10, n], "float32")]),
+            )
+
+        # mixed shape types
+        def func_shape_mixed(c):
+            n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+            x0 = rx.ShapeStructInfo([n, m])
+            f0 = func_tuple0(c)
+            z = rx.ShapeStructInfo([m + n, c])
+            return rx.FuncStructInfo([x0, f0], z)
+
+        _check_derive(
+            bb,
+            func_shape_mixed(3),
+            [
+                rx.ShapeStructInfo([10, 20]),
+                rx.FuncStructInfo.opaque_func(ret=rx.ShapeStructInfo(ndim=2)),
+            ],
+            rx.ShapeStructInfo([30, 3]),
+        )
+
+
 def _check_lca(lhs, rhs, target):
     tvm.ir.assert_structural_equal(rx.analysis.struct_info_lca(lhs, rhs), target)
     tvm.ir.assert_structural_equal(rx.analysis.struct_info_lca(rhs, lhs), target)

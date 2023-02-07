@@ -26,8 +26,8 @@ from enum import IntEnum
 
 from tvm import tir
 from tvm.relax.ty import Type
-from tvm.relax.struct_info import StructInfo
-from tvm.relax.expr import Var, Expr
+from tvm.relax.struct_info import StructInfo, FuncStructInfo
+from tvm.relax.expr import Var, Expr, Call
 from . import _ffi_api
 
 
@@ -114,6 +114,35 @@ def struct_info_base_check(base: StructInfo, derived: StructInfo) -> BaseCheckRe
         The derived return value struct info.
     """
     return _ffi_api.StructInfoBaseCheck(base, derived)  # type: ignore
+
+
+def derive_call_ret_struct_info(
+    func_sinfo: FuncStructInfo, call: Call, ctx: "tvm.relax.BlockBuilder"
+) -> StructInfo:
+    """Derive the call's ret value struct info from inputs.
+
+    Parameters
+    ----------
+    func_sinfo: FuncStructInfo
+        The call's function signature.
+
+    call: Call
+        The call expression
+
+    ctx: tvm.relax.BlockBuilder
+        The context block builder.
+
+    Returns
+    -------
+    ret : StructInfo
+        The derived return value struct info.
+
+    Note
+    ----
+    This is an internal derivation function, call.op field is
+    ignored in this case and the derivation only depends on func_sinfo.
+    """
+    return _ffi_api.DeriveCallRetStructInfo(func_sinfo, call, ctx)  # type: ignore
 
 
 def struct_info_lca(lhs: StructInfo, rhs: StructInfo) -> StructInfo:
