@@ -419,7 +419,11 @@ class Handler(server.ProjectAPIHandler):
                 "CONFIG_UART_INTERRUPT_DRIVEN=y\n"
                 "\n"
             )
-            if config_led and not self._is_qemu(board, use_fvp):
+            if (
+                config_led
+                and not self._is_qemu(board, use_fvp)
+                and not self._is_fvp(board, use_fvp)
+            ):
                 f.write("# For debugging.\n" "CONFIG_LED=y\n" "\n")
 
             f.write("# For TVMPlatformAbort().\n" "CONFIG_REBOOT=y\n" "\n")
@@ -674,9 +678,9 @@ class Handler(server.ProjectAPIHandler):
         src_dir.mkdir()
         include_dir = project_dir / "include" / "tvm"
         include_dir.mkdir(parents=True)
-        src_project_tyoe_dir = API_SERVER_DIR / "src" / project_type
-        for file in os.listdir(src_project_tyoe_dir):
-            file = pathlib.Path(src_project_tyoe_dir / file)
+        src_project_type_dir = API_SERVER_DIR / "src" / project_type
+        for file in os.listdir(src_project_type_dir):
+            file = pathlib.Path(src_project_type_dir / file)
             if file.is_file():
                 if file.suffix in [".cc", ".c"]:
                     shutil.copy2(file, src_dir)
@@ -684,8 +688,8 @@ class Handler(server.ProjectAPIHandler):
                     shutil.copy2(file, include_dir)
 
         if self._is_fvp(zephyr_board, use_fvp):
-            for file in os.listdir(src_project_tyoe_dir / "fvp"):
-                file = pathlib.Path(src_project_tyoe_dir / "fvp" / file)
+            for file in os.listdir(src_project_type_dir / "fvp"):
+                file = pathlib.Path(src_project_type_dir / "fvp" / file)
                 if file.is_file():
                     if file.suffix in [".cc", ".c"]:
                         shutil.copy2(file, src_dir)
@@ -693,7 +697,7 @@ class Handler(server.ProjectAPIHandler):
                         shutil.copy2(file, include_dir)
 
         if project_type == "mlperftiny":
-            shutil.copytree(src_project_tyoe_dir / "api", src_dir / "api")
+            shutil.copytree(src_project_type_dir / "api", src_dir / "api")
 
         # Populate extra_files
         if extra_files_tar:

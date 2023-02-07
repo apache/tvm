@@ -73,7 +73,7 @@ uint32_t UartRxRead(uint8_t* data, uint32_t data_size_bytes) {
 }
 
 // Initialize UART
-void UARTInit() {
+void UartInit() {
   // Claim console device.
   g_microtvm_uart = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
   const struct uart_config config = {.baudrate = 115200,
@@ -180,7 +180,7 @@ void serial_callback(char* message, int len_bytes) {
 }
 
 void main(void) {
-  UARTInit();
+  UartInit();
   TVMPlatformInitialize();
   g_cmd_buf_ind = 0;
   memset((char*)g_cmd_buf, 0, sizeof(g_cmd_buf));
