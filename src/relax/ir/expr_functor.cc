@@ -542,5 +542,249 @@ BindingBlock ExprMutatorBase::VisitBindingBlock(const BindingBlock& block) {
 
 PrimExpr ExprMutatorBase::VisitPrimExpr(const PrimExpr& expr) { return expr; }
 
+// ==================
+// ExprMutator
+
+Expr ExprMutator::VisitExpr(const Expr& expr) {
+  return builder_->Normalize(ExprFunctor::VisitExpr(expr));
+}
+
+// Visit the use-site of a defined Var
+Expr ExprMutator::VisitExpr_(const VarNode* op) {
+  auto it = var_remap_.find(op->vid);
+  if (it != var_remap_.end()) {
+    return it->second;
+  }
+
+  // default case return self.
+  return GetRef<Expr>(op);
+}
+
+// Visit the use-site of a defined DataflowVar
+Expr ExprMutator::VisitExpr_(const DataflowVarNode* op) {
+  auto it = var_remap_.find(op->vid);
+  if (it != var_remap_.end()) {
+    return it->second;
+  }
+
+  // default case return self.
+  return GetRef<Expr>(op);
+}
+
+Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
+  tvm::Array<Var> params;
+  bool all_params_unchanged = true;
+  for (Var param : op->params) {
+    Var new_param = this->VisitVarDef(param);
+    params.push_back(new_param);
+    all_params_unchanged &= param.same_as(new_param);
+  }
+
+  Expr body = this->VisitWithNewScope(op->body, params);
+
+  // FuncStructInfo does not depend on Expr
+  if (all_params_unchanged && body.same_as(op->body)) {
+    return GetRef<Expr>(op);
+  } else {
+    return Function(params, body, op->ret_struct_info, op->attrs);
+  }
+}
+
+Expr ExprMutator::VisitExpr_(const IfNode* op) {
+  Expr guard = this->VisitExpr(op->cond);
+  Expr true_b = this->VisitWithNewScope(op->true_branch);
+  Expr false_b = this->VisitWithNewScope(op->false_branch);
+  if (op->cond.same_as(guard) && op->true_branch.same_as(true_b) &&
+      op->false_branch.same_as(false_b) &&
+      VisitAndCheckStructInfoFieldUnchanged(op->struct_info_)) {
+    return GetRef<Expr>(op);
+  } else {
+    return If(guard, true_b, false_b, op->span);
+  }
+}
+
+Expr ExprMutator::VisitExpr_(const SeqExprNode* op) {
+  bool all_blocks_unchanged = true;
+  Array<BindingBlock> blocks;
+  for (auto block : op->blocks) {
+    BindingBlock new_block = this->VisitBindingBlock(block);
+    if (!new_block->bindings.empty()) {
+      blocks.push_back(new_block);
+    }
+    all_blocks_unchanged &= block.same_as(new_block);
+  }
+
+  builder_->BeginBindingBlock();
+  Expr body = this->VisitExpr(op->body);
+  BindingBlock prologue = builder_->EndBlock();
+  if (!prologue->bindings.empty()) {
+    blocks.push_back(prologue);
+    all_blocks_unchanged = false;
+  }
+
+  if (all_blocks_unchanged && body.same_as(op->body) &&
+      VisitAndCheckStructInfoFieldUnchanged(op->struct_info_)) {
+    return GetRef<Expr>(op);
+  } else {
+    return SeqExpr(blocks, body);
+  }
+}
+
+RELAX_VAR_BINDING_DISPATCH_IMPL(ExprMutator);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(ConstantNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(TupleNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(VarNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(DataflowVarNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(ShapeExprNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(ExternFuncNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(GlobalVarNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(FunctionNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(CallNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(SeqExprNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(IfNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(OpNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(TupleGetItemNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(PrimValueNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(StringImmNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(DataTypeImmNode);
+
+void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
+  Var new_var = this->VisitVarDef(binding->var);
+
+  // fast path: reemit binding if nothing changes
+  if (new_var.same_as(binding->var) && new_value.same_as(binding->value)) {
+    builder_->EmitNormalized(GetRef<VarBinding>(binding));
+    return;
+  }
+
+  Var temp = WithStructInfo(new_var, GetStructInfo(new_value));
+  if (!temp.same_as(new_var)) {
+    new_var = temp;
+    this->var_remap_[binding->var->vid] = new_var;
+  }
+
+  builder_->EmitNormalized(VarBinding(new_var, new_value));
+}
+
+void ExprMutator::VisitBinding_(const MatchCastNode* binding) {
+  Var new_var = this->VisitVarDef(binding->var);
+  Expr new_value = this->VisitExpr(binding->value);
+
+  // re-emit old binding if nothing changes
+  if (new_var.same_as(binding->var) && new_value.same_as(binding->value)) {
+    builder_->EmitNormalized(GetRef<MatchCast>(binding));
+  } else {
+    new_value = builder_->NormalizeArgument(new_value);
+    builder_->EmitNormalized(MatchCast(new_var, new_value, binding->struct_info, binding->span));
+  }
+}
+
+BindingBlock ExprMutator::VisitBindingBlock_(const BindingBlockNode* block) {
+  builder_->BeginBindingBlock();
+  for (Binding binding : block->bindings) {
+    this->VisitBinding(binding);
+  }
+  return builder_->EndBlock();
+}
+
+BindingBlock ExprMutator::VisitBindingBlock_(const DataflowBlockNode* block) {
+  builder_->BeginDataflowBlock();
+  for (auto binding : block->bindings) {
+    this->VisitBinding(binding);
+  }
+  return builder_->EndBlock();
+}
+
+Var ExprMutator::VisitVarDef_(const DataflowVarNode* var) {
+  if (auto* sinfo = var->struct_info_.as<StructInfoNode>()) {
+    StructInfo struct_info = this->VisitExprDepStructInfoField(GetRef<StructInfo>(sinfo));
+    if (struct_info.same_as(var->struct_info_)) {
+      return GetRef<DataflowVar>(var);
+    } else {
+      return DataflowVar(var->vid, struct_info, var->span);
+    }
+  } else {
+    return GetRef<DataflowVar>(var);
+  }
+}
+
+Var ExprMutator::VisitVarDef_(const VarNode* var) {
+  if (auto* sinfo = var->struct_info_.as<StructInfoNode>()) {
+    StructInfo struct_info = this->VisitExprDepStructInfoField(GetRef<StructInfo>(sinfo));
+    if (struct_info.same_as(var->struct_info_)) {
+      return GetRef<Var>(var);
+    } else {
+      return Var(var->vid, struct_info, var->span);
+    }
+  } else {
+    return GetRef<Var>(var);
+  }
+}
+
+void ExprMutator::VisitBinding(const Binding& binding) {
+  if (const auto* node = binding.as<VarBindingNode>()) {
+    VisitBinding_(node);
+  } else if (const auto* node = binding.as<MatchCastNode>()) {
+    VisitBinding_(node);
+  } else {
+    LOG(FATAL) << "TypeError: Invalid type: " << binding->GetTypeKey();
+  }
+}
+
+BindingBlock ExprMutator::VisitBindingBlock(const BindingBlock& block) {
+  BindingBlock ret;
+  if (const auto* node = block.as<DataflowBlockNode>()) {
+    ret = VisitBindingBlock_(node);
+  } else if (const auto* node = block.as<BindingBlockNode>()) {
+    ret = VisitBindingBlock_(node);
+  } else {
+    LOG(FATAL) << "TypeError: Invalid type: " << block->GetTypeKey();
+  }
+  return ret;
+}
+
+Var ExprMutator::VisitVarDef(const Var& var) {
+  Var ret;
+  if (const auto* node = var.as<DataflowVarNode>()) {
+    ret = VisitVarDef_(node);
+  } else if (const auto* node = var.as<VarNode>()) {
+    ret = VisitVarDef_(node);
+  } else {
+    LOG(FATAL) << "TypeError: Invalid type: " << var->GetTypeKey();
+  }
+  return ret;
+}
+
+Expr ExprMutator::VisitWithNewScope(const Expr& expr, Optional<Array<Var>> params) {
+  ICHECK(expr->IsInstance<SeqExprNode>())
+      << "Normal form requires all new scope is stored as SeqExpr";
+  builder_->BeginScope(params);
+  Expr ret = this->VisitExpr(expr);
+  builder_->EndScope();
+  return ret;
+}
+
+Optional<Expr> ExprMutator::LookupBinding(const Var& var) { return builder_->LookupBinding(var); }
+
+Var ExprMutator::WithStructInfo(Var var, StructInfo struct_info) {
+  ICHECK(struct_info.defined());
+
+  // TODO(relax-team) add StructInfoEqual check
+  if (var->struct_info_.defined()) {
+    // use same-as as a quick path
+    if (var->struct_info_.same_as(struct_info) ||
+        StructuralEqual()(var->struct_info_, struct_info)) {
+      return var;
+    } else {
+      Var new_var = var.as<DataflowVarNode>() ? DataflowVar(var->vid, struct_info, var->span)
+                                              : Var(var->vid, struct_info, var->span);
+      return new_var;
+    }
+  } else {
+    UpdateStructInfo(var, struct_info);
+    return var;
+  }
+}
+
 }  // namespace relax
 }  // namespace tvm
