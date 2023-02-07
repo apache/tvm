@@ -38,6 +38,7 @@ CURRENT_DIR = os.path.dirname(__file__)
 FFI_MODE = os.environ.get("TVM_FFI", "auto")
 CONDA_BUILD = os.getenv("CONDA_BUILD") is not None
 
+from shutil import SameFileError
 
 def get_lib_path():
     """Get library path, name and version"""
@@ -172,8 +173,12 @@ if not CONDA_BUILD:
     with open("MANIFEST.in", "w") as fo:
         for path in LIB_LIST:
             if os.path.isfile(path):
-                shutil.copy(path, os.path.join(CURRENT_DIR, "tvm"))
-                _, libname = os.path.split(path)
+                try:
+                    shutil.copy(path, os.path.join(CURRENT_DIR, "tvm"))
+                    _, libname = os.path.split(path)
+                except SameFileError:
+                    break
+                
                 fo.write(f"include tvm/{libname}\n")
 
             if os.path.isdir(path):
