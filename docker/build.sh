@@ -25,10 +25,14 @@
 #                [--net=host] [--cache-from <IMAGE_NAME>] [--cache]
 #                [--name CONTAINER_NAME] [--context-path <CONTEXT_PATH>]
 #                [--spec DOCKER_IMAGE_SPEC]
+#                [--platform <BUILD_PLATFORM>]
 #                [<COMMAND>]
 #
 # CONTAINER_TYPE: Type of the docker container used the run the build,
 #                 e.g. "ci_cpu", "ci_gpu"
+#
+# BUILD_PLATFORM: (Optional) Type of build platform used for the build,
+#                 e.g. "arm", "cpu", "gpu". Defaults to "cpu".
 #
 # DOCKER_IMAGE_TAG: (Optional) Docker image tag to be built and used.
 #                   Defaults to 'latest', as it is the default Docker tag.
@@ -116,6 +120,14 @@ fi
 if [[ "$1" == "--name" ]]; then
     CI_DOCKER_EXTRA_PARAMS+=("--name ${2} --hostname ${2}")
     echo "Using container name ${2}"
+    shift 2
+fi
+
+PLATFORM="cpu"
+
+if [[ "$1" == "--platform" ]]; then
+    PLATFORM="$2"
+    echo "Using build platform: ${PLATFORM}"
     shift 2
 fi
 
@@ -227,6 +239,7 @@ if [[ -n ${COMMAND} ]]; then
         -e "CI_BUILD_GID=$(id -g)" \
         -e "CI_PYTEST_ADD_OPTIONS=$CI_PYTEST_ADD_OPTIONS" \
         -e "CI_IMAGE_NAME=${DOCKER_IMAGE_NAME}" \
+        -e "PLATFORM=${PLATFORM}" \
         ${CUDA_ENV}\
         ${CI_DOCKER_EXTRA_PARAMS[@]} \
         ${DOCKER_IMG_SPEC} \
