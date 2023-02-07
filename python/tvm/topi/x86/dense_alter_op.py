@@ -24,7 +24,7 @@ from tvm import autotvm
 from .dense import _default_dense_pack_config
 from ..utils import get_const_tuple
 from ..nn import dense_alter_layout
-from .utils import target_has_avx512, target_has_amx
+from tvm.target.x86 import target_has_avx512, target_has_amx
 from .. import nn
 
 

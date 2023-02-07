@@ -29,7 +29,7 @@ from ..utils import get_const_tuple, traverse_inline
 from .tensor_intrin import dot_16x1x16_uint8_int8_int32
 from .tensor_intrin import dot_32x128x32_u8s8s32_sapphirerapids
 from .tensor_intrin import acc_32x32_int32_sapphirerapids
-from .utils import get_simd_32bit_lanes, target_has_avx512, target_has_amx
+from tvm.target.x86 import get_simd_32bit_lanes, target_has_avx512, target_has_amx
 
 
 def _schedule_dense_pack_template(cfg, s, C, O):
