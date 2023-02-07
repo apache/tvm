@@ -115,10 +115,10 @@ inline IdDoc DefineBuffer(const tir::Buffer& buffer, const Frame& frame, const I
 inline void AsDocBody(const tir::Stmt& stmt, ObjectPath p, TIRFrameNode* f, const IRDocsifier& d) {
   if (const auto* seq_stmt = stmt.as<tir::SeqStmtNode>()) {
     Array<tir::Stmt> body = seq_stmt->seq;
-    p = p->Attr("seq");
     for (int i = 0, n = body.size(); i < n; ++i) {
       f->allow_concise_scoping = (i == n - 1);
-      Doc doc = d->AsDoc(body[i], p->ArrayIndex(i));
+      Doc doc = d->AsDoc(body[i], p->Attr("seq")->ArrayIndex(i));
+      doc->source_paths.push_back(p);
       if (const auto* block = doc.as<StmtBlockDocNode>()) {
         f->stmts.insert(f->stmts.end(), block->stmts.begin(), block->stmts.end());
       } else {

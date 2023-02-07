@@ -20,7 +20,7 @@ from typing import Tuple
 import tvm
 from .utils import get_outer_loops, get_op_attrs
 from .dma import get_ifm_params, get_ofm_params
-from .spec import SerialActivation, SerialBinaryElementwise
+from .spec import SerialActivation, SerialBinaryElementwise, SerialRescaleConfig
 from .producers_consumers import ProducersConsumers
 
 
@@ -89,6 +89,9 @@ def get_binary_elementwise_params(
     serial_activation = SerialActivation(
         op=attrs["activation"], clip_min=attrs["clip_min"], clip_max=attrs["clip_max"]
     )
+    rescale_config = SerialRescaleConfig(
+        use_rescale=attrs["use_rescale"], scale=attrs["rescale_scale"], shift=attrs["rescale_shift"]
+    )
     return (
         SerialBinaryElementwise(
             ifm=serial_ifm,
@@ -99,6 +102,7 @@ def get_binary_elementwise_params(
             activation=serial_activation,
             rounding_mode=attrs["rounding_mode"],
             block_config=serial_block_config,
+            rescale_config=rescale_config,
         ),
         output_pointer,
         replace_pointer,

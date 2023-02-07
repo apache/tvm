@@ -51,7 +51,7 @@ class OpenCLWrappedFunc {
   }
   // invoke the function with void arguments
   void operator()(TVMArgs args, TVMRetValue* rv, void** void_args) const {
-    ICHECK(w_->context != nullptr) << "No OpenCL device";
+    ICHECK(w_->devices.size() > 0) << "No OpenCL device";
     cl::OpenCLThreadEntry* t = w_->GetThreadEntry();
     // get the kernel from thread local kernel table.
     if (entry_.kernel_id >= t->kernel_table.size()) {
@@ -227,13 +227,16 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
                                           const std::string& func_name, const KTRefEntry& e) {
   std::lock_guard<std::mutex> lock(build_lock_);
   int device_id = t->device.device_id;
+  auto did = w->GetCLDeviceID(device_id);
+  auto platform = w->device_to_platform[did];
   if (programs_[func_name][device_id] == nullptr) {
     // create program
     if (fmt_ == "cl") {
       const char* s = parsed_kernels_[func_name].c_str();
       size_t len = parsed_kernels_[func_name].length();
       cl_int err;
-      programs_[func_name][device_id] = clCreateProgramWithSource(w->context, 1, &s, &len, &err);
+      programs_[func_name][device_id] =
+          clCreateProgramWithSource(w->contexts[platform], 1, &s, &len, &err);
       OPENCL_CHECK_ERROR(err);
     } else if (fmt_ == "xclbin" || fmt_ == "awsxclbin" || fmt_ == "aocx") {
       const unsigned char* s = (const unsigned char*)data_.c_str();
@@ -241,7 +244,7 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
       cl_int err;
       cl_device_id dev = w->devices[device_id];
       programs_[func_name][device_id] =
-          clCreateProgramWithBinary(w->context, 1, &dev, &len, &s, nullptr, &err);
+          clCreateProgramWithBinary(w->contexts[platform], 1, &dev, &len, &s, nullptr, &err);
       OPENCL_CHECK_ERROR(err);
     } else {
       LOG(FATAL) << "Unknown OpenCL format " << fmt_;
@@ -290,9 +293,11 @@ void OpenCLModuleNode::SetPreCompiledPrograms(const std::string& bytes) {
       size_t binarySize = bin_vector.size();
       const unsigned char* programBinary = bin_vector.data();
 
-      cl_device_id dev = workspace_->devices[device_id];
-      programs_[name][device_id] = clCreateProgramWithBinary(
-          workspace_->context, 1, &dev, &binarySize, &programBinary, &binaryStatus, &err);
+      cl_device_id dev = workspace_->GetCLDeviceID(device_id);
+      auto platform = workspace_->device_to_platform[dev];
+      programs_[name][device_id] =
+          clCreateProgramWithBinary(workspace_->contexts[platform], 1, &dev, &binarySize,
+                                    &programBinary, &binaryStatus, &err);
       OPENCL_CHECK_ERROR(err);
       OPENCL_CHECK_ERROR(binaryStatus);
 
