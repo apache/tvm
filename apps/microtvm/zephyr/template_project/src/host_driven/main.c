@@ -73,8 +73,7 @@ ssize_t serial_write(void* unused_context, const uint8_t* data, size_t size) {
 }
 
 // Ring buffer used to store data read from the UART on rx interrupt.
-// This ring buffer size is only required for testing with QEMU and not for physical hardware.
-#define RING_BUF_SIZE_BYTES (TVM_CRT_MAX_PACKET_SIZE_BYTES + 100)
+#define RING_BUF_SIZE_BYTES TVM_CRT_MAX_PACKET_SIZE_BYTES
 RING_BUF_ITEM_DECLARE_SIZE(uart_rx_rbuf, RING_BUF_SIZE_BYTES);
 
 // UART interrupt callback.
@@ -90,9 +89,9 @@ void uart_irq_cb(const struct device* dev, void* user_data) {
       // Write it into the ring buffer.
       g_num_bytes_in_rx_buffer += rx_size;
 
-      if (g_num_bytes_in_rx_buffer > RING_BUF_SIZE_BYTES) {
-        TVMPlatformAbort((tvm_crt_error_t)0xbeef3);
-      }
+      // if (g_num_bytes_in_rx_buffer > RING_BUF_SIZE_BYTES) {
+      //   TVMPlatformAbort((tvm_crt_error_t)0xbeef3);
+      // }
 
       if (rx_size < 0) {
         TVMPlatformAbort((tvm_crt_error_t)0xbeef1);

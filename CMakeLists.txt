@@ -492,9 +492,6 @@ endif()
 # Module rules
 include(cmake/modules/VTA.cmake)
 include(cmake/modules/StandaloneCrt.cmake)
-include(cmake/modules/CRT.cmake)
-include(cmake/modules/Zephyr.cmake)
-include(cmake/modules/Arduino.cmake)
 include(cmake/modules/CUDA.cmake)
 include(cmake/modules/Hexagon.cmake) # This must come before logging.cmake
 include(cmake/modules/OpenCL.cmake)

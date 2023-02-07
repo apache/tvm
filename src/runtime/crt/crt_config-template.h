@@ -17,47 +17,53 @@
  * under the License.
  */
 
-/*!
- * \file tvm/runtime/crt_config.h.template
- * \brief Template for CRT configuration, to be modified on each target.
+ /*!
+ * \\file tvm/runtime/crt_config.h
+ * \\brief Template for CRT configuration, to be modified on each target.
  */
-#ifndef TVM_RUNTIME_CRT_CRT_CONFIG_TEMPLATE_H_
-#define TVM_RUNTIME_CRT_CRT_CONFIG_TEMPLATE_H_
+#ifndef TVM_RUNTIME_CRT_CRT_CONFIG_H_
+#define TVM_RUNTIME_CRT_CRT_CONFIG_H_
 
 /*! Log level of the CRT runtime */
 #define TVM_CRT_LOG_LEVEL TVM_CRT_LOG_LEVEL_DEBUG
 
 /*! Support low-level debugging in MISRA-C runtime */
-#define TVM_CRT_DEBUG 0
+/* #undef TVM_CRT_DEBUG */
 
 /*! Maximum supported dimension in NDArray */
-#define TVM_CRT_MAX_NDIM 6
+#define TVM_CRT_MAX_NDIM ${TVM_CRT_MAX_NDIM}
 
 /*! Maximum supported arguments in generated functions */
-#define TVM_CRT_MAX_ARGS 10
+#define TVM_CRT_MAX_ARGS ${TVM_CRT_MAX_ARGS}
 
 /*! Size of the global function registry, in bytes. */
-#define TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES 512
+#define TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES ${TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES}
 
 /*! Maximum number of registered modules. */
-#define TVM_CRT_MAX_REGISTERED_MODULES 2
+#define TVM_CRT_MAX_REGISTERED_MODULES ${TVM_CRT_MAX_REGISTERED_MODULES}
 
 /*! Maximum packet size, in bytes, including the length header. */
-#define TVM_CRT_MAX_PACKET_SIZE_BYTES 2048
+#define TVM_CRT_MAX_PACKET_SIZE_BYTES ${TVM_CRT_MAX_PACKET_SIZE_BYTES}
 
 /*! Maximum supported string length in dltype, e.g. "int8", "int16", "float32" */
-#define TVM_CRT_MAX_STRLEN_DLTYPE 10
+#define TVM_CRT_MAX_STRLEN_DLTYPE ${TVM_CRT_MAX_STRLEN_DLTYPE}
 
 /*! Maximum supported string length in function names */
-#define TVM_CRT_MAX_STRLEN_FUNCTION_NAME 120
+#define TVM_CRT_MAX_STRLEN_FUNCTION_NAME ${TVM_CRT_MAX_STRLEN_FUNCTION_NAME}
 
 /*! Maximum supported string length in parameter names */
-#define TVM_CRT_MAX_STRLEN_PARAM_NAME 80
+#define TVM_CRT_MAX_STRLEN_PARAM_NAME ${TVM_CRT_MAX_STRLEN_PARAM_NAME}
 
-/*! \brief Maximum length of a PackedFunc function name. */
-#define TVM_CRT_MAX_FUNCTION_NAME_LENGTH_BYTES 30
+/*! Maximum length of a PackedFunc function name. */
+#define TVM_CRT_MAX_FUNCTION_NAME_LENGTH_BYTES ${TVM_CRT_MAX_FUNCTION_NAME_LENGTH_BYTES}
 
-/*! \brief Enable checks to enforce the stack allocator with a FIFO ordering. Off by default */
+/*! Enable checks to enforce the stack allocator with a FIFO ordering. Off by default */
 // #define TVM_CRT_STACK_ALLOCATOR_ENABLE_FIFO_CHECK
 
-#endif  // TVM_RUNTIME_CRT_CRT_CONFIG_TEMPLATE_H_
+/*! Log2 of the page size (bytes) for a virtual memory page. */
+#define TVM_CRT_PAGE_BITS ${TVM_CRT_PAGE_BITS}
+
+/*! Number of pages on device. */
+#define TVM_CRT_MAX_PAGES ${TVM_CRT_MAX_PAGES}
+
+#endif  // TVM_RUNTIME_CRT_CRT_CONFIG_H_

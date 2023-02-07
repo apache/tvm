@@ -22,6 +22,8 @@ import logging
 import os
 import contextlib
 import enum
+from pathlib import Path
+import shutil
 
 from typing import Union
 from .._ffi import libinfo
@@ -105,6 +107,10 @@ def get_microtvm_template_projects(platform: str) -> str:
 
     return os.path.join(microtvm_template_projects, platform)
 
+
+def copy_crt_config_header(platform: str, output_path):
+    crt_config_path = Path(get_microtvm_template_projects(platform)) / "crt_config" / "crt_config.h"
+    shutil.copy(crt_config_path, output_path)
 
 class AutoTvmModuleLoader:
     """MicroTVM AutoTVM Module Loader

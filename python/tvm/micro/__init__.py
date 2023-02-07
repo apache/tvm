@@ -19,6 +19,7 @@ from .build import autotvm_build_func
 from .build import AutoTvmModuleLoader
 from .build import get_standalone_crt_dir
 from .build import get_microtvm_template_projects
+from .build import copy_crt_config_header
 
 from .model_library_format import (
     export_model_library_format,
