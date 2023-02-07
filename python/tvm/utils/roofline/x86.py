@@ -21,7 +21,7 @@ from typing import Dict, Optional, Tuple
 
 import numpy as np
 
-from ... import build, get_global_func, nd, topi, transform
+from ... import build, get_global_func, nd, transform
 from ...contrib import utils
 from ...rpc.base import RPC_SESS_MASK
 from ...rpc.client import RPCSession

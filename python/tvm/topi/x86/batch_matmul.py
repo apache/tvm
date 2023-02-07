@@ -21,13 +21,13 @@ import tvm
 from tvm import autotvm, te
 from tvm.autotvm.task.space import SplitEntity
 from tvm.contrib import cblas, mkl
+from tvm.target.x86 import target_has_amx, target_has_avx512
 
 from .. import generic, nn
 from ..transform import layout_transform
 from ..utils import get_const_tuple, get_max_power2_factor, traverse_inline
-from .dense import dense_int8_schedule, dense_amx_int8_schedule
+from .dense import dense_amx_int8_schedule, dense_int8_schedule
 from .injective import schedule_injective_from_existing
-from tvm.target.x86 import target_has_avx512, target_has_amx
 
 
 @autotvm.register_topi_compute("batch_matmul_int8.x86")

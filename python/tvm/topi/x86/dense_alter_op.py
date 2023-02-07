@@ -18,14 +18,13 @@
 """Dense alter op functions for x86"""
 
 import tvm
-from tvm import te
-from tvm import relay
-from tvm import autotvm
-from .dense import _default_dense_pack_config
-from ..utils import get_const_tuple
-from ..nn import dense_alter_layout
-from tvm.target.x86 import target_has_avx512, target_has_amx
+from tvm import autotvm, relay, te
+from tvm.target.x86 import target_has_amx, target_has_avx512
+
 from .. import nn
+from ..nn import dense_alter_layout
+from ..utils import get_const_tuple
+from .dense import _default_dense_pack_config
 
 
 def check_int8_applicable(x, y, allow_padding=False):
