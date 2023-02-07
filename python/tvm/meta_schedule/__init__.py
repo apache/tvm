@@ -52,3 +52,7 @@ from .tir_integration import tune_tir
 from .tune import tune_tasks
 from .tune_context import TuneContext
 from .utils import derived_object
+
+# Space generator requires that vnni, avx detection is available. These
+# functions are registered in the topi module.
+from .. import topi
