@@ -182,7 +182,7 @@ class PlaceholderOpNode : public OperationNode {
   }
 
   static constexpr const char* _type_key = "PlaceholderOp";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PlaceholderOpNode, OperationNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(PlaceholderOpNode, OperationNode);
 };
 
 /*!
