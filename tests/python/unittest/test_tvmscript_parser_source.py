@@ -82,5 +82,20 @@ def test_source_ast():
     assert isinstance(for_block, doc.With) and len(for_block.body) == 2
 
 
+def test_nesting_parsing():
+    class dummy:
+        pass
+
+    for i in range(1):
+
+        @tvm.script.ir_module
+        class Module:
+            @T.prim_func
+            def impl(
+                A: T.Buffer[(12, 196, 64), "float32"],
+            ) -> None:
+                T.evaluate(0)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
