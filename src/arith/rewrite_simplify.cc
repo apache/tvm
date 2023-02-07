@@ -1096,24 +1096,26 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MinNode* op) {
                        c2.Eval()->value > 0 && c1.Eval()->value + 1 == c2.Eval()->value);
     TVM_TRY_REWRITE_IF(min(truncdiv(x + c1, c2) * c2, max(x, c2)), max(x, c2),
                        c2.Eval()->value > 0 && c1.Eval()->value + 1 == c2.Eval()->value &&
-                           CanProveGreaterEqual(x.Eval(), 0));
+                           CanProveGreaterEqual(x.Eval(), 1));
 
     TVM_TRY_REWRITE_IF(min(x, truncdiv(x + c1, c2) * c2), x,
                        c2.Eval()->value > 0 && c1.Eval()->value + 1 == c2.Eval()->value);
     TVM_TRY_REWRITE_IF(min(max(x, c2), truncdiv(x + c1, c2) * c2), max(x, c2),
                        c2.Eval()->value > 0 && c1.Eval()->value + 1 == c2.Eval()->value &&
-                           CanProveGreaterEqual(x.Eval(), 0));
+                           CanProveGreaterEqual(x.Eval(), 1));
 
     // Divide up rounding: floor div
     TVM_TRY_REWRITE_IF(min(floordiv(x + c1, c2) * c2, x), x,
                        c2.Eval()->value > 0 && c1.Eval()->value + 1 == c2.Eval()->value);
     TVM_TRY_REWRITE_IF(min(floordiv(x + c1, c2) * c2, max(x, c2)), max(x, c2),
-                       c2.Eval()->value > 0 && c1.Eval()->value + 1 == c2.Eval()->value);
+                       c2.Eval()->value > 0 && c1.Eval()->value + 1 == c2.Eval()->value &&
+                           CanProveGreaterEqual(x.Eval(), 1));
 
     TVM_TRY_REWRITE_IF(min(x, floordiv(x + c1, c2) * c2), x,
                        c2.Eval()->value > 0 && c1.Eval()->value + 1 == c2.Eval()->value);
     TVM_TRY_REWRITE_IF(min(max(x, c2), floordiv(x + c1, c2) * c2), max(x, c2),
-                       c2.Eval()->value > 0 && c1.Eval()->value + 1 == c2.Eval()->value);
+                       c2.Eval()->value > 0 && c1.Eval()->value + 1 == c2.Eval()->value &&
+                           CanProveGreaterEqual(x.Eval(), 1));
 
     TVM_TRY_REWRITE_IF(min(x, floordiv(x, c2) * c2), floordiv(x, c2) * c2, c2.Eval()->value > 0);
     TVM_TRY_REWRITE_IF(min(floordiv(x, c2) * c2, x), floordiv(x, c2) * c2, c2.Eval()->value > 0);
