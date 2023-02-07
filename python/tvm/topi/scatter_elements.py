@@ -18,6 +18,7 @@
 from tvm import te
 from tvm import tir
 from . import utils
+from .math import cast
 
 
 def scatter_elements(data, indices, updates, axis=0, reduction="update"):
@@ -66,7 +67,7 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
         axis = utils.get_const_int(axis)
 
     shape = data.shape
-    axis_range = int(shape[axis])
+    axis_range = cast(shape[axis], indices.dtype)
 
     if axis < 0:
         axis = len(shape) + axis
