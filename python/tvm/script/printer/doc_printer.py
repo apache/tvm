@@ -16,7 +16,7 @@
 # under the License.
 """Functions to print doc into text format"""
 
-from typing import Optional
+from typing import List, Optional
 
 from tvm.runtime import ObjectPath
 from tvm.runtime.script_printer import PrinterConfig
@@ -30,7 +30,7 @@ def to_python_script(
     indent_spaces: int = 4,
     print_line_numbers: bool = False,
     num_context_lines: Optional[int] = None,
-    path_to_underline: Optional[ObjectPath] = None,
+    path_to_underline: Optional[List[ObjectPath]] = None,
 ) -> str:
     """Convert Doc into Python script.
 

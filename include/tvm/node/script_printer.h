@@ -59,10 +59,16 @@ class PrinterConfigNode : public Object {
   bool print_line_numbers = false;
   /*! \brief Number of context lines to print around the underlined text */
   int num_context_lines = -1;
-  /*! \brief Object path to be underlined */
-  Optional<ObjectPath> path_to_underline = NullOpt;
   /*! \brief Whether to output with syntax sugar, set false for complete printing. */
   bool syntax_sugar = true;
+  /* \brief Object path to be underlined */
+  Array<ObjectPath> path_to_underline = Array<ObjectPath>();
+  /*! \brief Object path to be annotated. */
+  Map<ObjectPath, String> path_to_annotate = Map<ObjectPath, String>();
+  /*! \brief Object to be underlined. */
+  Array<ObjectRef> obj_to_underline = Array<ObjectRef>();
+  /*! \brief Object to be annotated. */
+  Map<ObjectRef, String> obj_to_annotate = Map<ObjectRef, String>();
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("ir_prefix", &ir_prefix);
@@ -73,8 +79,11 @@ class PrinterConfigNode : public Object {
     v->Visit("indent_spaces", &indent_spaces);
     v->Visit("print_line_numbers", &print_line_numbers);
     v->Visit("num_context_lines", &num_context_lines);
-    v->Visit("path_to_underline", &path_to_underline);
     v->Visit("syntax_sugar", &syntax_sugar);
+    v->Visit("path_to_underline", &path_to_underline);
+    v->Visit("path_to_annotate", &path_to_annotate);
+    v->Visit("obj_to_underline", &obj_to_underline);
+    v->Visit("obj_to_annotate", &obj_to_annotate);
   }
 
   static constexpr const char* _type_key = "node.PrinterConfig";
