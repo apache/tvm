@@ -139,6 +139,16 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                     R.func_ret_struct_info(ann_sinfo)
 
                 self.visit(node.args)
+
+                for stmt in node.body:
+                    if isinstance(stmt, doc.FunctionDef):
+                        if not stmt.decorator_list:
+                            self.report_error(stmt, "Function must be decorated")
+                        dec = self.eval_expr(stmt.decorator_list[-1])
+                        # inline prim_func was found
+                        if dec.dispatch_token == "tir":
+                            self.report_error(stmt, "inline prim_func is disallowed in Relax IR")
+
                 self.visit_body(node.body)
 
 
