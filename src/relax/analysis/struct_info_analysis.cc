@@ -534,6 +534,155 @@ TVM_REGISTER_GLOBAL("relax.StructInfoIsBaseOf")
     });
 
 //--------------------------
+// DeriveStructInfo
+//--------------------------
+
+// NOTE: we are reusing StructInfoBaseChecker here to populate a mapping
+// from the expressions in arg(rhs) to var in param.
+class CallRetStructInfoDeriver : public StructInfoBaseChecker {
+ public:
+  explicit CallRetStructInfoDeriver(arith::Analyzer* ana) : StructInfoBaseChecker(ana) {}
+
+  // No short cut, so we can recursively populate all pairs.
+  BaseCheckResult VisitStructInfo(const StructInfo& lhs, const StructInfo& other) final {
+    return StructInfoFunctor::VisitStructInfo(lhs, other);
+  }
+
+  StructInfo Derive(const FuncStructInfo& finfo, const Call& call, const BlockBuilder& ctx) {
+    // opaque derivation
+    if (finfo->IsOpaque()) {
+      if (finfo->derive_func.defined()) {
+        // derive using custom derivation function.
+        return finfo->derive_func.value()(call, ctx);
+      } else {
+        // directly return the normal value.
+        return finfo->ret;
+      }
+    }
+
+    // Normal function signature derivation.
+    auto params = finfo->params.value();
+    if (params.size() != call->args.size()) {
+      ctx->ReportFatal(Diagnostic::Error(call->span)
+                       << "number of arguments and parameters mismatch:"
+                       << " expected " << params.size() << ", given " << call->args.size());
+    }
+    // Visit each param arg pair, check and populate the var map
+    for (size_t i = 0; i < params.size(); ++i) {
+      auto arg_sinfo = GetStructInfo(call->args[i]);
+      BaseCheckResult res = this->VisitStructInfo(params[i], arg_sinfo);
+      // Report error if we find L1 level failure
+      // L2 level is best effort so we don't report.
+      // The behavior of L2 can be customized later.
+      if (res == BaseCheckResult::kFailL0 || res == BaseCheckResult::kFailL1) {
+        ctx->ReportFatal(Diagnostic::Error(call->span)
+                         << "Argument " << i << " type mismatch:"
+                         << " expected " << params[i] << ", given " << arg_sinfo);
+      }
+    }
+    // map the ret using the populated var map.
+    return EraseToWellDefined(finfo->ret, shape_var_map_, var_map_);
+  }
+
+ protected:
+  // Whether to populate map in params.
+  bool populate_mapping_{true};
+  // for simplicity, we make these fields public so the user can access them.
+  Map<tir::Var, PrimExpr> shape_var_map_;
+  Map<Var, Expr> var_map_;
+
+  using StructInfoBaseChecker::ShapeMatchCheck;
+
+  // Match shape values in between param(lhs) and arg(rhs)
+  BaseCheckResult PrimValueMatchCheck(const PrimExpr& param, const PrimExpr& arg) final {
+    if (!populate_mapping_) {
+      return StructInfoBaseChecker::PrimValueMatchCheck(param, arg);
+    }
+
+    if (auto* ptr = param.as<tir::VarNode>()) {
+      auto var = GetRef<tir::Var>(ptr);
+      auto it = shape_var_map_.find(var);
+      // not populated
+      if (it == shape_var_map_.end()) {
+        shape_var_map_.Set(var, arg);
+        return BaseCheckResult::kPass;
+      } else {
+        // Best effort prove.
+        PrimExpr mapped_value = (*it).second;
+        if (analyzer_->CanProveEqual(mapped_value, arg)) return BaseCheckResult::kPass;
+        return BaseCheckResult::kFailL2;
+      }
+    } else {
+      // Best effort
+      // Do not attempt to do prove when param contains a symbolic expr.
+      // such expression might depends on a later defined var in params created by dyn fusion.
+      // example: f(a: Tensor[(n+1)], s: Shape[(n,)]), the (n+1) case here.
+      return StructInfoBaseChecker::PrimValueMatchCheck(param, arg);
+    }
+  }
+
+  BaseCheckResult ShapeMatchCheck(const Expr& lhs, const Expr& rhs) final {
+    if (!populate_mapping_) {
+      return StructInfoBaseChecker::ShapeMatchCheck(lhs, rhs);
+    }
+
+    if (auto* ptr = lhs.as<VarNode>()) {
+      auto var = GetRef<Var>(ptr);
+      auto it = var_map_.find(var);
+      // not populated
+      if (it == var_map_.end()) {
+        var_map_.Set(var, rhs);
+        return BaseCheckResult::kPass;
+      } else {
+        // Best effort prove.
+        Expr mapped_value = (*it).second;
+        if (CanProveShapeEqual(mapped_value, rhs, analyzer_)) return BaseCheckResult::kPass;
+        return BaseCheckResult::kFailL2;
+      }
+    }
+    auto lhs_shape = lhs.as<ShapeExprNode>();
+    auto rhs_shape = rhs.as<ShapeExprNode>();
+    ICHECK(lhs_shape) << "lhs must have a shape";
+    if (!rhs_shape) return BaseCheckResult::kFailL2;
+    return ShapeMatchCheck(lhs_shape->values, rhs_shape->values);
+  }
+
+  BaseCheckResult FuncParamsCheck(const Array<StructInfo>& lhs,
+                                  const Array<StructInfo>& rhs) final {
+    // Set populate mapping to false
+    // so we do not pick up symbolic vars in params with function type.
+    //
+    // @R.function
+    // def f(g: R.Func([R.Tensor[(n,)]], R.Tensor[(n+1,)]),
+    //       x: R.Tensor[(m,)]) -> R.Tensor[(m,)]:
+    //     ...
+    //
+    // For example, in the above function f, we should avoid
+    // pick up n in g's signature.
+    bool populate_mapping = false;
+    std::swap(populate_mapping_, populate_mapping);
+    auto ret = StructInfoBaseChecker::FuncParamsCheck(lhs, rhs);
+    std::swap(populate_mapping_, populate_mapping);
+    return ret;
+  }
+};
+
+StructInfo DeriveCallRetStructInfo(const FuncStructInfo& finfo, const Call& call,
+                                   const BlockBuilder& ctx, arith::Analyzer* ana) {
+  if (ana == nullptr) {
+    arith::Analyzer inst;
+    return CallRetStructInfoDeriver(&inst).Derive(finfo, call, ctx);
+  } else {
+    return CallRetStructInfoDeriver(ana).Derive(finfo, call, ctx);
+  }
+}
+
+TVM_REGISTER_GLOBAL("relax.analysis.DeriveCallRetStructInfo")
+    .set_body_typed([](const FuncStructInfo& finfo, const Call& call, const BlockBuilder& ctx) {
+      return DeriveCallRetStructInfo(finfo, call, ctx);
+    });
+
+//--------------------------
 // UnifyToLCA
 //--------------------------
 class StructInfoLCAFinder

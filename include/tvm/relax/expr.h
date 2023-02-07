@@ -171,8 +171,7 @@ class CallNode : public ExprNode {
     // skip sinfo_args check for primitive ops.
     equal->MarkGraphNode();
     return equal(op, other->op) && equal(args, other->args) && equal(attrs, other->attrs) &&
-           (IsPrimitiveOp(op) || equal(sinfo_args, other->sinfo_args)) &&
-           equal(struct_info_, other->struct_info_);
+           equal(sinfo_args, other->sinfo_args) && equal(struct_info_, other->struct_info_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -180,9 +179,7 @@ class CallNode : public ExprNode {
     hash_reduce(op);
     hash_reduce(args);
     hash_reduce(attrs);
-    if (!IsPrimitiveOp(op)) {
-      hash_reduce(sinfo_args);
-    }
+    hash_reduce(sinfo_args);
     hash_reduce(struct_info_);
   }
 
