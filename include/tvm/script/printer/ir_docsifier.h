@@ -264,10 +264,49 @@ inline void FrameNode::ExitWithScope() {
 }
 
 template <class TDoc>
+inline static void AddDocDecoration(const Doc& d, const ObjectRef& obj, const ObjectPath& path,
+                                    const PrinterConfig& cfg) {
+  if (cfg->obj_to_annotate.count(obj)) {
+    if (const auto* stmt = d.as<StmtDocNode>()) {
+      if (stmt->comment.defined()) {
+        stmt->comment = stmt->comment.value() + "\n" + cfg->obj_to_annotate.at(obj);
+      } else {
+        stmt->comment = cfg->obj_to_annotate.at(obj);
+      }
+    } else {
+      LOG(WARNING) << "Expect StmtDoc to be annotated for object " << obj << ", but got "
+                   << Downcast<TDoc>(d)->_type_key;
+    }
+  }
+  for (const ObjectRef& o : cfg->obj_to_underline) {
+    if (o.same_as(obj)) {
+      cfg->path_to_underline.push_back(path);
+    }
+  }
+  for (const auto& pair : cfg->path_to_annotate) {
+    ObjectPath p = pair.first;
+    String attn = pair.second;
+    if (p->IsPrefixOf(path) && path->IsPrefixOf(p)) {
+      if (const auto* stmt = d.as<StmtDocNode>()) {
+        if (stmt->comment.defined()) {
+          stmt->comment = stmt->comment.value() + "\n" + attn;
+        } else {
+          stmt->comment = attn;
+        }
+      } else {
+        LOG(WARNING) << "Expect StmtDoc to be annotated at object path " << p << ", but got "
+                     << Downcast<TDoc>(d)->_type_key;
+      }
+    }
+  }
+}
+
+template <class TDoc>
 inline TDoc IRDocsifierNode::AsDoc(const ObjectRef& obj, const ObjectPath& path) const {
   if (obj.defined()) {
     Doc d = IRDocsifier::vtable()(dispatch_tokens.back(), obj, path, GetRef<IRDocsifier>(this));
     d->source_paths.push_back(path);
+    AddDocDecoration<TDoc>(d, obj, path, cfg);
     return Downcast<TDoc>(d);
   }
   return Downcast<TDoc>(LiteralDoc::None(path));

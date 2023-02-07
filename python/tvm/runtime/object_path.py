@@ -89,6 +89,8 @@ class ObjectPath(Object):
     def missing_map_entry(self) -> "ObjectPath":
         return _ffi_node_api.ObjectPathMissingMapEntry(self)
 
+    __hash__ = Object.__hash__
+
 
 @tvm._ffi.register_object("RootPath")
 class RootPath(ObjectPath):

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Configuration of TVMScript printer"""
-from typing import Optional
+from typing import List, Dict, Optional
 
 from tvm._ffi import register_object
 from tvm.runtime import Object
@@ -38,8 +38,11 @@ class PrinterConfig(Object):
     indent_spaces: int
     print_line_numbers: bool
     num_context_lines: int
-    path_to_underline: Optional[ObjectPath]
     syntax_sugar: bool
+    path_to_underline: Optional[List[ObjectPath]]
+    path_to_annotate: Optional[Dict[ObjectPath, str]]
+    obj_to_underline: Optional[List[Object]]
+    obj_to_annotate: Optional[Dict[Object, str]]
 
     def __init__(
         self,
@@ -54,8 +57,11 @@ class PrinterConfig(Object):
         indent_spaces: int = 4,
         print_line_numbers: bool = False,
         num_context_lines: Optional[int] = None,
-        path_to_underline: Optional[ObjectPath] = None,
         syntax_sugar: bool = True,
+        path_to_underline: Optional[List[ObjectPath]] = None,
+        path_to_annotate: Optional[Dict[ObjectPath, str]] = None,
+        obj_to_underline: Optional[List[Object]] = None,
+        obj_to_annotate: Optional[Dict[Object, str]] = None,
     ) -> None:
         if num_context_lines is None:
             num_context_lines = -1
@@ -72,8 +78,11 @@ class PrinterConfig(Object):
                 "indent_spaces": indent_spaces,
                 "print_line_numbers": print_line_numbers,
                 "num_context_lines": num_context_lines,
-                "path_to_underline": path_to_underline,
                 "syntax_sugar": syntax_sugar,
+                "path_to_underline": path_to_underline,
+                "path_to_annotate": path_to_annotate,
+                "obj_to_underline": obj_to_underline,
+                "obj_to_annotate": obj_to_annotate,
             },
         )
 
@@ -98,8 +107,11 @@ class Scriptable:
         indent_spaces: int = 4,
         print_line_numbers: bool = False,
         num_context_lines: int = -1,
-        path_to_underline: Optional[ObjectPath] = None,
         syntax_sugar: bool = True,
+        path_to_underline: Optional[List[ObjectPath]] = None,
+        path_to_annotate: Optional[Dict[ObjectPath, str]] = None,
+        obj_to_underline: Optional[List[Object]] = None,
+        obj_to_annotate: Optional[Dict[Object, str]] = None,
     ) -> str:
         """Print TVM IR into TVMScript text format
 
@@ -125,10 +137,16 @@ class Scriptable:
             Whether to print line numbers
         num_context_lines : int = -1
             The number of lines of context to print before and after the line to underline.
-        path_to_underline : Optional[ObjectPath] = None
-            Object path to be underlined
         syntax_sugar: bool = True
              Whether to output with syntax sugar, set false for complete printing.
+        path_to_underline : Optional[List[ObjectPath]] = None
+            Object path to be underlined
+        path_to_annotate : Optional[Dict[ObjectPath, str]] = None
+            Object path to be annotated
+        obj_to_underline : Optional[List[Object]] = None
+            Object to be underlined
+        obj_to_annotate : Optional[Dict[Object, str]] = None
+            Object to be annotated
 
         Returns
         -------
@@ -148,8 +166,11 @@ class Scriptable:
                 indent_spaces=indent_spaces,
                 print_line_numbers=print_line_numbers,
                 num_context_lines=num_context_lines,
-                path_to_underline=path_to_underline,
                 syntax_sugar=syntax_sugar,
+                path_to_underline=path_to_underline,
+                path_to_annotate=path_to_annotate,
+                obj_to_underline=obj_to_underline,
+                obj_to_annotate=obj_to_annotate,
             ),
         )
 
@@ -168,8 +189,11 @@ class Scriptable:
         indent_spaces: int = 4,
         print_line_numbers: bool = False,
         num_context_lines: int = -1,
-        path_to_underline: Optional[ObjectPath] = None,
         syntax_sugar: bool = True,
+        path_to_underline: Optional[List[ObjectPath]] = None,
+        path_to_annotate: Optional[Dict[ObjectPath, str]] = None,
+        obj_to_underline: Optional[List[Object]] = None,
+        obj_to_annotate: Optional[Dict[Object, str]] = None,
     ) -> None:
         """A sugar for print highlighted TVM script.
 
@@ -200,10 +224,16 @@ class Scriptable:
             Whether to print line numbers
         num_context_lines : int = -1
             The number of lines of context to print before and after the line to underline.
-        path_to_underline : Optional[ObjectPath] = None
-            Object path to be underlined
         syntax_sugar: bool = True
              Whether to output with syntax sugar, set false for complete printing.
+        path_to_underline : Optional[List[ObjectPath]] = None
+            Object path to be underlined
+        path_to_annotate : Optional[Dict[ObjectPath, str]] = None
+            Object path to be annotated
+        obj_to_underline : Optional[List[Object]] = None
+            Object to be underlined
+        obj_to_annotate : Optional[Dict[Object, str]] = None
+            Object to be annotated
         """
         from tvm.script.highlight import (  # pylint: disable=import-outside-toplevel
             cprint,
@@ -221,8 +251,11 @@ class Scriptable:
                 indent_spaces=indent_spaces,
                 print_line_numbers=print_line_numbers,
                 num_context_lines=num_context_lines,
-                path_to_underline=path_to_underline,
                 syntax_sugar=syntax_sugar,
+                path_to_underline=path_to_underline,
+                path_to_annotate=path_to_annotate,
+                obj_to_underline=obj_to_underline,
+                obj_to_annotate=obj_to_annotate,
             ),
             style=style,
             black_format=black_format,

@@ -924,13 +924,19 @@ def test_print_comment_doc(comment, expected):
         ),
         (
             "test comment 1",
-            '"""test comment 1"""',
+            '''
+            """
+            test comment 1
+            """
+            ''',
         ),
         (
             "test comment 1\ntest comment 2",
             '''
-            """test comment 1
-            test comment 2"""
+            """
+            test comment 1
+            test comment 2
+            """
             ''',
         ),
     ],
