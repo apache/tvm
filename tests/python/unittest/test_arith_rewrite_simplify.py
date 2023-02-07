@@ -649,20 +649,23 @@ def test_min_index_simplify():
     # truc div
     ck.analyzer.update(x, tvm.arith.ConstIntBound(0, 1000))
     ck.verify(tvm.te.min(tdiv(x + 3, 4) * 4, x), x)
-    ck.verify(tvm.te.min(tdiv(x + 3, 4) * 4, tvm.te.max(x, 4)), tvm.te.max(x, 4))
     ck.verify(tvm.te.min(x, tdiv(x + 3, 4) * 4), x)
-    ck.verify(tvm.te.min(tvm.te.max(x, 4), tdiv(x + 3, 4) * 4), tvm.te.max(x, 4))
     ck.analyzer.update(x, tvm.arith.ConstIntBound(-1000, 1000), True)
     ck.verify(tvm.te.min(tdiv(x, 10), tdiv(y, 10)), tdiv(tvm.te.min(x, y), 10))
     ck.verify(tvm.te.min(tdiv(x, (-10)), tdiv(y, (-10))), tdiv(tvm.te.max(x, y), (-10)))
+    ck.analyzer.update(x, tvm.arith.ConstIntBound(1, 1000), True)
+    ck.verify(tvm.te.min(tdiv(x + 3, 4) * 4, tvm.te.max(x, 4)), tvm.te.max(x, 4))
+    ck.verify(tvm.te.min(tvm.te.max(x, 4), tdiv(x + 3, 4) * 4), tvm.te.max(x, 4))
 
     # floor div
     ck.analyzer.update(x, tvm.arith.ConstIntBound(-1000, 1000), True)
     ck.verify(tvm.te.min(fld(x + 3, 4) * 4, x), x)
-    ck.verify(tvm.te.min(fld(x + 3, 4) * 4, tvm.te.max(x, 4)), tvm.te.max(x, 4))
     ck.verify(tvm.te.min(x, fld(x + 3, 4) * 4), x)
     ck.verify(tvm.te.min(x, fld(x, 4) * 4), fld(x, 4) * 4)
+    ck.analyzer.update(x, tvm.arith.ConstIntBound(1, 1000), True)
+    ck.verify(tvm.te.min(fld(x + 3, 4) * 4, tvm.te.max(x, 4)), tvm.te.max(x, 4))
     ck.verify(tvm.te.min(tvm.te.max(x, 4), fld(x + 3, 4) * 4), tvm.te.max(x, 4))
+    ck.analyzer.update(x, tvm.arith.ConstIntBound(-1000, 1000), True)
     ck.verify(tvm.te.min(fld(x, 10), fld(y, 10)), fld(tvm.te.min(x, y), 10))
     ck.verify(tvm.te.min(fld(x, (-10)), fld(y, (-10))), fld(tvm.te.max(x, y), (-10)))
 
