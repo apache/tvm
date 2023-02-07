@@ -87,7 +87,7 @@ TVM_DLL StructInfo StructInfoFromType(const Type& type);
 
 /*!
  * \return Derive the call's ret value struct info from inputs.
- * \param func_info The function struct info.
+ * \param finfo The function struct info.
  * \param call The call expression to be derived.
  * \param ctx The builder context.
  * \param ana Optional context analyzer to prove symbolic expression equality.

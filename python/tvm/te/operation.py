@@ -19,7 +19,7 @@ import inspect
 
 # pylint: disable=invalid-name
 from numbers import Integral as _Integral
-from typing import List, Optional, Union
+from typing import List, Optional
 
 import tvm._ffi
 import tvm.arith._ffi_api

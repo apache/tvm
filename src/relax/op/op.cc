@@ -18,9 +18,9 @@
  */
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
+#include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/utils.h>
 #include <tvm/relay/op.h>
-#include <tvm/relax/op_attr_types.h>
 
 namespace tvm {
 namespace relax {

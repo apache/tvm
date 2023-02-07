@@ -514,7 +514,7 @@ class ExprMutator : public ExprMutatorBase {
 
   /*!
    * \brief Post-order rewrite a node and normalize.
-   * \param T The node type to be rewritten.
+   * \tparam T The node type to be rewritten.
    * \param op The node to be rewritten.
    * \return The node after post rewritten.
    */

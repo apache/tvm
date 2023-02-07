@@ -180,7 +180,7 @@ class BlockBuilderNode : public Object {
   /*!
    * \brief Emit a binding that is already normalized.
    *
-   * \param binding A binding whose value is already normalized.
+   * \param normalized_binding A binding whose value is already normalized.
    *
    * \note This function requires binding to be pre-normalized.
    */

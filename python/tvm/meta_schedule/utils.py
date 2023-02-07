@@ -89,7 +89,7 @@ def derived_object(cls: type) -> type:
         return None
 
     assert isinstance(cls.__base__, type)
-    if hasattr(cls, "_type") and cls._type == "TVMDerivedObject":
+    if hasattr(cls, "_type") and cls._type == "TVMDerivedObject":  # type: ignore
         raise TypeError(
             (
                 f"Inheritance from a decorated object `{cls.__name__}` is not allowed. "

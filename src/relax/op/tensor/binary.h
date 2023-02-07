@@ -64,7 +64,6 @@ Expr add(Expr x1, Expr x2);
 /*! \brief Multiplication with numpy-style broadcasting. */
 Expr multiply(Expr x1, Expr x2);
 
-
 }  // namespace relax
 }  // namespace tvm
 
