@@ -264,6 +264,10 @@ else(MSVC)
   endif()
 endif(MSVC)
 
+if(USE_HEXAGON)
+  set(USE_MICRO OFF)
+endif()
+
 # Hexagon has dlopen built into QuRT (no need for static library).
 if(NOT BUILD_FOR_HEXAGON)
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${CMAKE_DL_LIBS})
@@ -576,11 +580,13 @@ include(cmake/modules/contrib/PAPI.cmake)
 
 # NOTE: cmake doesn't track dependencies at the file level across subdirectories. For the
 # Unix Makefiles generator, need to add these explicit target-level dependency)
-add_dependencies(tvm_runtime crt)
-add_dependencies(tvm_runtime zephyr)
-add_dependencies(tvm_runtime arduino)
-add_dependencies(tvm host_standalone_crt)
-add_dependencies(tvm_runtime host_standalone_crt)
+if(USE_MICRO)
+  add_dependencies(tvm_runtime crt)
+  add_dependencies(tvm_runtime zephyr)
+  add_dependencies(tvm_runtime arduino)
+  add_dependencies(tvm host_standalone_crt)
+  add_dependencies(tvm_runtime host_standalone_crt)
+endif()
 
 if(USE_CPP_RPC)
   add_subdirectory("apps/cpp_rpc")

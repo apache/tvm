@@ -143,7 +143,8 @@ if(USE_MICRO)
                      ${RUNTIME_CRT_SOURCE_DIR}/microtvm_rpc_server/rpc_server.cc)
 
   if(NOT MSVC)
-    # TODO: fix remaining windows build issues
+    # TODO: if we want to eventually build standalone_crt for windows
+    # these files would be needed, but for now don't build them
     create_crt_library(common
                       ${RUNTIME_CRT_SOURCE_DIR}/common/crt_backend_api.c
                       ${RUNTIME_CRT_SOURCE_DIR}/common/crt_runtime_api.c
