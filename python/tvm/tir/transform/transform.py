@@ -217,7 +217,7 @@ def InjectRollingBuffer():
 def CorrectGemminisScratchpadAndAccumulatorPointers():
     """Corrects the pointer addresses of buffers inside Gemmini's scratchpad and accumulator
 
-    Returns:
+    Returns
     -------
     fpass : tvm.transform.Pass
         The result pass
