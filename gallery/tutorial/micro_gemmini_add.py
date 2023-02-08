@@ -202,9 +202,9 @@ EXECUTOR = tvm.relay.backend.Executor("aot", options={"interface-api": "c", "unp
 with gemmini.build_config(usmp_alg="hill_climb", opt_level=3, disabled_pass=["AlterOpLayout"]):
     module = relay.build(mod, executor=EXECUTOR, runtime=RUNTIME, target=TARGET, params=params)
 
-##################################
+#################################################
 # Exporting and testing the model using microTVM
-# --------------------------------
+# -----------------------------------------------
 #
 # In this section, we will export the model using one of the provided example microTVM projects, we will compile it using the Chipyard tool, and then test the generated baremetal code on the Spike simulator.
 
