@@ -34,7 +34,7 @@ from tvm.target import Target
 
 # pylint: disable=unused-import
 from tvm.target.codegen import llvm_lookup_intrinsic_id
-from tvm.tir import Buffer, BufferRegion, PrimExpr
+from tvm.tir import Buffer, BufferRegion, IndexMap, PrimExpr
 from tvm.tir import op as _tir_op
 from tvm.tir import type_annotation
 
@@ -1522,6 +1522,15 @@ def comm_reducer(combiner: Callable, identity: List[PrimExpr]) -> CommReducer:
     return CommReducer(args[: num_args // 2], args[num_args // 2 :], res, identity)
 
 
+def index_map(
+    mapping: Callable,
+    *,
+    inverse_index_map: Optional[Callable] = None,
+) -> IndexMap:
+    """Create a TIR Index mapping"""
+    return IndexMap.from_func(mapping, inverse_index_map=inverse_index_map)
+
+
 def target(target_config: Union[Dict, str]) -> Target:
     """
     Create a target
@@ -1824,6 +1833,7 @@ __all__ = [
     "max",
     "iter_var",
     "comm_reducer",
+    "index_map",
     "target",
     "buffer_var",
     "abs",

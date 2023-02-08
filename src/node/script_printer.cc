@@ -37,6 +37,12 @@ std::string TVMScriptPrinter::Script(const ObjectRef& node, const Optional<Print
 
 PrinterConfig::PrinterConfig(Map<String, ObjectRef> config_dict) {
   runtime::ObjectPtr<PrinterConfigNode> n = make_object<PrinterConfigNode>();
+  if (auto v = config_dict.Get("name")) {
+    n->binding_names.push_back(Downcast<String>(v));
+  }
+  if (auto v = config_dict.Get("show_meta")) {
+    n->show_meta = Downcast<IntImm>(v)->value;
+  }
   if (auto v = config_dict.Get("ir_prefix")) {
     n->ir_prefix = Downcast<String>(v);
   }
