@@ -32,8 +32,12 @@ def _visit_class_def(self: Parser, node: doc.ClassDef) -> None:
     node : doc.ClassDef
         The doc AST class definition node.
     """
+
     with self.var_table.with_frame():
         with I.ir_module():
+            for stmt in node.body:
+                if isinstance(stmt, doc.FunctionDef):
+                    self.visit_tvm_declare_function(stmt)
             with self.with_dispatch_token("ir"):
                 self.visit_body(node.body)
 
