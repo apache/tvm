@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common x86 related utilities"""
-import tvm
+from .._ffi import register_func
+from .target import Target
 
 
-@tvm._ffi.register_func("tvm.topi.x86.utils.target_has_sse41")
+@register_func("tvm.target.x86.target_has_sse41")
 def target_has_sse41(target):
     return (
         target_has_sse42(target)
@@ -34,7 +35,7 @@ def target_has_sse41(target):
     )
 
 
-@tvm._ffi.register_func("tvm.topi.x86.utils.target_has_sse42")
+@register_func("tvm.target.x86.target_has_sse42")
 def target_has_sse42(target):
     return (
         target_has_avx(target)
@@ -59,7 +60,7 @@ def target_has_sse42(target):
     )
 
 
-@tvm._ffi.register_func("tvm.topi.x86.utils.target_has_avx")
+@register_func("tvm.target.x86.target_has_avx")
 def target_has_avx(target):
     return (
         target_has_avx2(target)
@@ -69,7 +70,7 @@ def target_has_avx(target):
     )
 
 
-@tvm._ffi.register_func("tvm.topi.x86.utils.target_has_avx2")
+@register_func("tvm.target.x86.target_has_avx2")
 def target_has_avx2(target):
     return (
         target_has_avx512(target)
@@ -89,7 +90,7 @@ def target_has_avx2(target):
     )
 
 
-@tvm._ffi.register_func("tvm.topi.x86.utils.target_has_avx512")
+@register_func("tvm.target.x86.target_has_avx512")
 def target_has_avx512(target):
     return target in {
         "skylake-avx512",
@@ -109,7 +110,7 @@ def target_has_avx512(target):
     }
 
 
-@tvm._ffi.register_func("tvm.topi.x86.utils.target_has_vnni")
+@register_func("tvm.target.x86.target_has_vnni")
 def target_has_vnni(target):
     return target in {
         "cascadelake",
@@ -123,16 +124,16 @@ def target_has_vnni(target):
     }
 
 
-@tvm._ffi.register_func("tvm.topi.x86.utils.target_has_amx")
+@register_func("tvm.target.x86.target_has_amx")
 def target_has_amx(target):
     return target in {
         "sapphirerapids",
     }
 
 
-@tvm._ffi.register_func("tvm.topi.x86.utils.get_simd_32bit_lanes")
+@register_func("tvm.topi.x86.utils.get_simd_32bit_lanes")
 def get_simd_32bit_lanes():
-    mcpu = tvm.target.Target.current().mcpu
+    mcpu = Target.current().mcpu
     fp32_vec_len = 4
     if target_has_avx512(mcpu):
         fp32_vec_len = 16

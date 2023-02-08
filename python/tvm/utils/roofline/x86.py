@@ -21,13 +21,13 @@ from typing import Dict, Optional, Tuple
 
 import numpy as np
 
-from ... import build, get_global_func, nd, topi, transform
+from ... import build, get_global_func, nd, transform
 from ...contrib import utils
 from ...rpc.base import RPC_SESS_MASK
 from ...rpc.client import RPCSession
 from ...runtime import DataType, Device, num_threads
 from ...script import tir as T
-from ...target import Target
+from ...target import Target, x86
 from ...tir import PrimFunc
 from . import registry
 
@@ -62,7 +62,7 @@ def _detect_vec_width_registers(
             and target.keys[0] == "cpu"
         ):
             with target:
-                vec_width = topi.x86.utils.get_simd_32bit_lanes() * 4  # in number of bytes
+                vec_width = x86.get_simd_32bit_lanes() * 4  # in number of bytes
         else:
             raise RuntimeError(f"Cannot determine vector width for target {target}")
     if num_vector_registers is None:

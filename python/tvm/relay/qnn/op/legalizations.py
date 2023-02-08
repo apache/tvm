@@ -23,7 +23,7 @@ from tvm import relay
 from tvm._ffi.base import TVMError
 from tvm.relay.qnn.op.canonicalizations import create_integer_lookup_op
 
-from ....topi.x86.utils import target_has_sse42
+from ....target.x86 import target_has_sse42
 from ....topi.utils import is_target
 from .. import op as reg
 
