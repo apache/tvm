@@ -22,7 +22,7 @@ Useful enumerations and others
 
 from enum import Enum
 
-counters = {
+COUNTERS = {
     1: "MAIN_LD_CYCLES",
     2: "MAIN_ST_CYCLES",
     3: "MAIN_EX_CYCLES",
