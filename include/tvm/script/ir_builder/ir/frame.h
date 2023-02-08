@@ -38,12 +38,17 @@ namespace ir {
  */
 class IRModuleFrameNode : public IRBuilderFrameNode {
  public:
-  Array<GlobalVar> global_vars;
-  Array<BaseFunc> functions;
+  /*! \brief A map from string names to global variables that ensures global uniqueness. */
+  Map<String, GlobalVar> global_var_map;
+  /*!
+   * \brief A map from GlobalVar to all global functions.
+   * \note Only defined functions are in the map, while declared functions are not included.
+   */
+  Map<GlobalVar, BaseFunc> functions;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     IRBuilderFrameNode::VisitAttrs(v);
-    v->Visit("global_vars", &global_vars);
+    v->Visit("global_vars", &global_var_map);
     v->Visit("functions", &functions);
   }
 

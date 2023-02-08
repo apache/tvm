@@ -26,11 +26,15 @@ namespace ir_builder {
 namespace ir {
 
 void IRModuleFrameNode::ExitWithScope() {
-  ICHECK_EQ(functions.size(), global_vars.size());
-  int n = functions.size();
   Map<GlobalVar, BaseFunc> func_map;
-  for (int i = 0; i < n; ++i) {
-    func_map.Set(global_vars[i], functions[i]);
+  CHECK_EQ(functions.size(), global_var_map.size())
+      << "All functions must be defined in the IRModule. Got " << global_var_map.size()
+      << "declared function(s), but only " << functions.size() << "defined function(s).";
+  for (const auto& kv : functions) {
+    const GlobalVar& gv = kv.first;
+    const BaseFunc& func = kv.second;
+    CHECK(func.defined()) << "ValueError: function " << gv->name_hint << " is not defined";
+    func_map.Set(gv, func);
   }
   IRBuilder builder = IRBuilder::Current();
   ICHECK(!builder->result.defined()) << "ValueError: Builder.result has already been set";
