@@ -24,24 +24,16 @@ Namespace for the supported Relay operators on Gemmini
 from __future__ import absolute_import as _abs
 
 import tvm
-from tvm import te
-from tvm import autotvm
-from tvm import topi
 
-from tvm.relay.op import op as reg
 from tvm.relay.op import strategy as _strategy
-from tvm.relay.op.op import OpPattern, OpStrategy
-
+from tvm.relay.op.op import OpStrategy
+from tvm.contrib.gemmini.environment import Environment
 from .gemmini_dense import gemm, schedule_gemm
 from .gemmini_dense_cisc import gemm_cisc, schedule_gemm_cisc
 from .gemmini_conv2d_cisc import conv2d_cisc, schedule_conv2d_cisc
 from .gemmini_depthwise_conv2d_cisc import depthwise_conv2d_cisc, schedule_depthwise_conv2d_cisc
 from .gemmini_add import add, schedule_add
 from .gemmini_max_pool2d import max_pool2d, schedule_max_pool2d
-from tvm.contrib.gemmini.environment import Environment
-
-from tvm.topi.utils import const_vector, get_const_int, get_const_float
-import numpy as np
 
 ENV = Environment.instance()
 

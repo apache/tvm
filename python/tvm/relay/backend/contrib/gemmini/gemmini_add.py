@@ -31,7 +31,7 @@ from tvm.contrib.gemmini.environment import Environment
 from tvm.contrib.gemmini.helpers import get_greater_div
 
 
-env = Environment.instance()
+ENV = Environment.instance()
 
 
 @autotvm.register_topi_compute("contrib.gemmini.add")
@@ -67,7 +67,7 @@ def add(
     # Derive shapes
     oshape = topi.utils.get_const_tuple(ifm1.shape)
 
-    tensor_type = env.inp_dtype
+    tensor_type = ENV.inp_dtype
 
     ofm_offset_stage = te.compute(
         oshape,
@@ -130,12 +130,10 @@ def schedule_add(
     ifm2, ofm_offset_op = ifm2_op.op.input_tensors
     ofm_offset_op.op.input_tensors[0]
 
-    b, x, y, c = sch[add_stage].op.axis
-
     # Prepare the scope of each buffer
-    cifm1 = sch.cache_read(ifm1, env.acc_scope, [add_stage])
-    sch[ifm2_op].set_scope(env.acc_scope)
-    sch[ofm_offset_op].set_scope(env.acc_scope)
+    cifm1 = sch.cache_read(ifm1, ENV.acc_scope, [add_stage])
+    sch[ifm2_op].set_scope(ENV.acc_scope)
+    sch[ofm_offset_op].set_scope(ENV.acc_scope)
 
     # Split axis, taking into account the maximum value of rows and columns that can be moved into Gemminis accumulator (DIM)
     y_factor = get_greater_div(int(sch[add_stage].op.axis[3].dom.extent))
@@ -150,23 +148,23 @@ def schedule_add(
     sch[ofm_offset_op].compute_at(sch[add_stage], y_o)
 
     # Split axis, taking into account the maximum value of rows and columns that can be moved into Gemminis accumulator (DIM)
-    cifm1_ax_0_1, cifm1_ax_0_2 = sch[cifm1].split(sch[cifm1].op.axis[2], factor=env.DIM)
+    cifm1_ax_0_1, cifm1_ax_0_2 = sch[cifm1].split(sch[cifm1].op.axis[2], factor=ENV.DIM)
     cifm1_ax_1_1, cifm1_ax_1_2 = sch[cifm1].split(
-        sch[cifm1].op.axis[3], factor=env.MAX_BLOCK_LEN_ACC * env.DIM
+        sch[cifm1].op.axis[3], factor=ENV.MAX_BLOCK_LEN_ACC * ENV.DIM
     )
     sch[cifm1].reorder(cifm1_ax_0_1, cifm1_ax_1_1, cifm1_ax_0_2, cifm1_ax_1_2)
 
-    cifm2_ax_0_1, cifm2_ax_0_2 = sch[ifm2_op].split(sch[ifm2_op].op.axis[2], factor=env.DIM)
+    cifm2_ax_0_1, cifm2_ax_0_2 = sch[ifm2_op].split(sch[ifm2_op].op.axis[2], factor=ENV.DIM)
     cifm2_ax_1_1, cifm2_ax_1_2 = sch[ifm2_op].split(
-        sch[ifm2_op].op.axis[3], factor=env.MAX_BLOCK_LEN_ACC * env.DIM
+        sch[ifm2_op].op.axis[3], factor=ENV.MAX_BLOCK_LEN_ACC * ENV.DIM
     )
     sch[ifm2_op].reorder(cifm2_ax_0_1, cifm2_ax_1_1, cifm2_ax_0_2, cifm2_ax_1_2)
 
     cofm_offset_ax_0_1, cofm_offset_ax_0_2 = sch[ofm_offset_op].split(
-        sch[ofm_offset_op].op.axis[2], factor=env.DIM
+        sch[ofm_offset_op].op.axis[2], factor=ENV.DIM
     )
     cofm_offset_ax_1_1, cofm_offset_ax_1_2 = sch[ofm_offset_op].split(
-        sch[ofm_offset_op].op.axis[3], factor=env.MAX_BLOCK_LEN_ACC * env.DIM
+        sch[ofm_offset_op].op.axis[3], factor=ENV.MAX_BLOCK_LEN_ACC * ENV.DIM
     )
     sch[ofm_offset_op].reorder(
         cofm_offset_ax_0_1, cofm_offset_ax_1_1, cofm_offset_ax_0_2, cofm_offset_ax_1_2
@@ -175,26 +173,26 @@ def schedule_add(
     # Set pragmas to insert mvin instructions
     oshape = (x_factor, y_factor)
     if x_factor == 1:
-        sch[cifm1].pragma(cifm1_ax_0_2, env.C_mvin + "_t")
-        sch[ofm_offset_op].pragma(cofm_offset_ax_0_2, env.C_mvin_accum + "_t")
+        sch[cifm1].pragma(cifm1_ax_0_2, ENV.C_mvin + "_t")
+        sch[ofm_offset_op].pragma(cofm_offset_ax_0_2, ENV.C_mvin_accum + "_t")
     else:
-        sch[cifm1].pragma(cifm1_ax_0_2, env.C_mvin)
-        sch[ofm_offset_op].pragma(cofm_offset_ax_0_2, env.C_mvin_accum)
+        sch[cifm1].pragma(cifm1_ax_0_2, ENV.C_mvin)
+        sch[ofm_offset_op].pragma(cofm_offset_ax_0_2, ENV.C_mvin_accum)
 
     # Tensorize
-    sch[ifm2_op].tensorize(cifm2_ax_0_2, env.add_tensorize(oshape))
-    sch[add_stage].tensorize(x_i, env.add_mvout_tensorize(oshape))
+    sch[ifm2_op].tensorize(cifm2_ax_0_2, ENV.add_tensorize(oshape))
+    sch[add_stage].tensorize(x_i, ENV.add_mvout_tensorize(oshape))
 
     # Create configuration dictionary
     config_dict = {}
     config_dict["A_size"] = int(ifm1.shape[3])
     config_dict["B_size"] = int(ifm2.shape[3])
     config_dict["C_size"] = int(output.shape[3])
-    config_dict["A_private_stride"] = env.DIM
-    config_dict["B_private_stride"] = env.DIM
+    config_dict["A_private_stride"] = ENV.DIM
+    config_dict["B_private_stride"] = ENV.DIM
     config_dict["execution_stride"] = 1
     config_dict["activation"] = 0
-    config_dict["mode"] = env.WEIGHT_STATIONARY
+    config_dict["mode"] = ENV.WEIGHT_STATIONARY
     config_dict["max_pixels_per_row"] = 1
     config_dict["ifm1_scale"] = float(add_stage.op.attrs["ifm1_scale"])
     config_dict["ifm2_scale"] = float(add_stage.op.attrs["ifm2_scale"])

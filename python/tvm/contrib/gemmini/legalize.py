@@ -20,6 +20,7 @@ A set of passes to legalize the Gemmini operators
 **Author**: `Federico Peccia <https://fPecc.github.io/>`_
 """
 
+from typing import Tuple
 import tvm  # type: ignore
 from tvm import relay
 from tvm import ir
@@ -29,11 +30,7 @@ from tvm.relay.dataflow_pattern import rewrite
 
 from tvm.relay.op import _make  # type: ignore
 
-from .pattern_table import *  # type: ignore
-
-from .environment import Environment
-
-env = Environment.instance()
+from .pattern_table import AddParams, CONV2DParams, GEMMParams, MaxPoolParams  # type: ignore
 
 
 def gemmini_gemm(
@@ -464,9 +461,7 @@ class MAXPOOL2DRewriter(DFPatternCallback):
 class LegalizeAdd:
     """This is the pass that wraps the AddRewriter"""
 
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
+    def transform_module(self, mod: tvm.ir.IRModule, _) -> tvm.ir.IRModule:
         for global_var, func in mod.functions.items():
             func = rewrite(AddRewriter(), func)
             mod.update_func(global_var, func)
@@ -480,9 +475,7 @@ class LegalizeAdd:
 class LegalizeMaxPool2D:
     """This is the pass that wraps the MAXPOOL2DRewriter"""
 
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
+    def transform_module(self, mod: tvm.ir.IRModule, _) -> tvm.ir.IRModule:
         for global_var, func in mod.functions.items():
             func = rewrite(MAXPOOL2DRewriter(), func)
             mod.update_func(global_var, func)
@@ -496,9 +489,7 @@ class LegalizeMaxPool2D:
 class LegalizeGEMM:
     """This is the pass that wraps the GEMMRewriter"""
 
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
+    def transform_module(self, mod: tvm.ir.IRModule, _) -> tvm.ir.IRModule:
         for global_var, func in mod.functions.items():
             func = rewrite(GEMMRewriter(), func)
             mod.update_func(global_var, func)
@@ -512,9 +503,7 @@ class LegalizeGEMM:
 class LegalizeCONV2D:
     """This is the pass that wraps the CONV2DRewriter"""
 
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
+    def transform_module(self, mod: tvm.ir.IRModule, _) -> tvm.ir.IRModule:
         for global_var, func in mod.functions.items():
             func = rewrite(CONV2DRewriter(), func)
             mod.update_func(global_var, func)
@@ -528,9 +517,7 @@ class LegalizeCONV2D:
 class LegalizeCONV2DExternalPad:
     """This is the pass that wraps the CONV2DExternalPadRewriter"""
 
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
+    def transform_module(self, mod: tvm.ir.IRModule, _) -> tvm.ir.IRModule:
         for global_var, func in mod.functions.items():
             func = rewrite(CONV2DExternalPadRewriter(), func)
             mod.update_func(global_var, func)
@@ -544,9 +531,7 @@ class LegalizeCONV2DExternalPad:
 class LegalizeCONV2DExternalPadAndRelu6:
     """This is the pass that wraps the CONV2DExternalPadAndRelu6Rewriter"""
 
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
+    def transform_module(self, mod: tvm.ir.IRModule, _) -> tvm.ir.IRModule:
         for global_var, func in mod.functions.items():
             func = rewrite(CONV2DExternalPadAndRelu6Rewriter(), func)
             mod.update_func(global_var, func)
@@ -563,9 +548,7 @@ class LegalizeGemmini:
     operations.
     """
 
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
+    def transform_module(self, mod: tvm.ir.IRModule, _) -> tvm.ir.IRModule:
         """This is the method that replaces the operations with hardware/codegen supported
         operations.
         """

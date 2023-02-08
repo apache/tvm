@@ -30,7 +30,7 @@ from tvm.autotvm.task.space import OtherOptionEntity
 
 from tvm.contrib.gemmini.environment import Environment
 
-env = Environment.instance()
+ENV = Environment.instance()
 
 
 @autotvm.register_topi_compute("contrib.gemmini.gemm_cisc")
@@ -66,8 +66,8 @@ def gemm_cisc(
     res = te.compute(
         oshape,
         lambda x_o, y_o: te.sum(
-            data[x_o, k_o].astype(env.inp_dtype) * weight[k_o, y_o].astype(env.inp_dtype)
-            + bias[y_o].astype(env.inp_dtype),
+            data[x_o, k_o].astype(ENV.inp_dtype) * weight[k_o, y_o].astype(ENV.inp_dtype)
+            + bias[y_o].astype(ENV.inp_dtype),
             axis=[k_o],
         ),
         name="res",
@@ -108,11 +108,11 @@ def schedule_gemm_cisc(
     # WS/OS
     #   0: Gemmini will be configured as output stationary
     #   1: Gemmini will be configured as weight stationary
-    cfg.define_knob("WS/OS", [env.WEIGHT_STATIONARY, env.OUTPUT_STATIONARY])
+    cfg.define_knob("WS/OS", [ENV.WEIGHT_STATIONARY, ENV.OUTPUT_STATIONARY])
     if cfg.is_fallback:
-        cfg["WS/OS"] = OtherOptionEntity(env.WEIGHT_STATIONARY)
+        cfg["WS/OS"] = OtherOptionEntity(ENV.WEIGHT_STATIONARY)
 
-    x_, y_ = sch[dense_stage].op.axis
+    x_, _ = sch[dense_stage].op.axis
 
     x_o, x_i = sch[dense_stage].split(x_, factor=data.shape[0])
 
@@ -121,7 +121,7 @@ def schedule_gemm_cisc(
     # Apply tensorization
     sch[dense_stage].tensorize(
         x_i,
-        env.gemm_cisc(
+        ENV.gemm_cisc(
             data.shape, weight.shape, bias.shape, dense_stage.op.attrs["scale"], cfg["WS/OS"].val
         ),
     )

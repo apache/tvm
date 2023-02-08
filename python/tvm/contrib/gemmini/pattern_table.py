@@ -26,13 +26,12 @@ import tvm  # type: ignore
 from tvm import relay
 from tvm.relay.op.contrib.register import register_pattern_table  # type: ignore
 from tvm.relay.dataflow_pattern import is_constant, wildcard, is_op
-from .utils import *
-
 from tvm.relay.frontend.common import infer_shape as _infer_shape
+from .utils import QDenseArgs, RequantArgs, BinaryElementwiseArgs, QConv2DArgs
 
 from .environment import Environment
 
-env = Environment.instance()
+ENV = Environment.instance()
 
 
 class GEMMParams:
@@ -84,7 +83,7 @@ class AddParams:
     activation_map = {"clip": "CLIP"}
 
     def __init__(self, func_body: tvm.relay.Function):
-        if str(func_body.op) in self.activation_map.keys():
+        if str(func_body.op) in self.activation_map:
             add_op = func_body.args[0]
         else:
             add_op = func_body
@@ -421,6 +420,11 @@ def make_maxpool_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
 
 @register_pattern_table("gemmini")
 def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]:
+    """Declares Gemminis pattern table
+
+    Returns:
+        List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]: List of pattern, callable tuples
+    """
 
     pattern_table_filters = []
     pattern_table_filters.append(
@@ -452,7 +456,7 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
         )
     )
 
-    if env.use_experimental_qnn_add:
+    if ENV.use_experimental_qnn_add:
         pattern_table_filters.append(
             (
                 AddParams.composite_name,

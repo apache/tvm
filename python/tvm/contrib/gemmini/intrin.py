@@ -22,16 +22,16 @@ Gemmini related intrinsics
 
 from __future__ import absolute_import as _abs
 
+from typing import List, Tuple
 import tvm
 from tvm import te
-from typing import List, Tuple
 
 
 def gemm(
     env,
-    I: int,
-    K: int,
-    J: int,
+    dim_i: int,
+    dim_k: int,
+    dim_j: int,
     stride: int = 1,
     is_depthwise_conv2d: bool = True,
     mode: int = 1,
@@ -41,9 +41,9 @@ def gemm(
 
     Args:
         env (Environment): Environment with configurations
-        I (int): output first axis dimension
-        K (int): reduction axis dimension
-        J (int): output second axis dimension
+        dim_i (int): output first axis dimension
+        dim_k (int): reduction axis dimension
+        dim_j (int): output second axis dimension
         stride (int, optional): Stride, useful for convolutions. Defaults to 1.
         is_depthwise_conv2d (bool, optional): Flag to explain if this is a GEMM for a depthwise convolution. Defaults to False.
         mode (int, optional): Systolic array mode (WS=1,OS=0). Defaults to 1.
@@ -53,13 +53,13 @@ def gemm(
         TensorIntrin: gemm tensor intrinsic
     """
 
-    # TODO (FP): add assertions here for I, K and J?
+    # TODO (FP): add assertions here for dim_i, dim_k and dim_j?
 
-    wgt_shape = (K, J)
+    wgt_shape = (dim_k, dim_j)
 
-    inp_shape = (I, K)
+    inp_shape = (dim_i, dim_k)
 
-    out_shape = (I, J)
+    out_shape = (dim_i, dim_j)
 
     wgt = te.placeholder(wgt_shape, dtype=env.wgt_dtype, name=env.scr_wgt_scope)
     inp = te.placeholder(inp_shape, dtype=env.inp_dtype, name=env.scr_scope)
@@ -125,7 +125,7 @@ def gemm(
 
     def intrin_func(ins, outs):
         """Matrix-matrix multiply intrinsic function"""
-        dinp, dwgt, dbias = ins
+        dinp, dwgt, _ = ins
         dout = outs[0]
 
         inp_base_address = tvm.runtime.const(env.INP_SCR_BASE_ADDRESS, "uint32")
@@ -142,47 +142,47 @@ def gemm(
 
             inp_access_ptr = dinp.access_ptr("r", "uint32")
 
-            A_access_ptr = inp_base_address + inp_access_ptr
-            BD_access_ptr = (
+            a_access_ptr = inp_base_address + inp_access_ptr
+            bd_access_ptr = (
                 wgt_base_address + wgt_access_ptr if mode == env.WEIGHT_STATIONARY else garbage
             )
-            C_access_ptr = out_base_address + out_access_ptr
-            DB_access_ptr = (
+            c_access_ptr = out_base_address + out_access_ptr
+            db_access_ptr = (
                 garbage if mode == env.WEIGHT_STATIONARY else wgt_base_address + wgt_access_ptr
             )
 
-            A_cols = dinp.shape[1]
-            A_rows = dinp.shape[0]
-            BD_cols = dwgt.shape[1] if mode == env.WEIGHT_STATIONARY else dout.shape[1]
-            BD_rows = dwgt.shape[0] if mode == env.WEIGHT_STATIONARY else dout.shape[0]
-            C_cols = dout.shape[1]
-            C_rows = dout.shape[0]
-            DB_cols = C_cols if mode == env.WEIGHT_STATIONARY else dwgt.shape[1]
-            DB_rows = C_rows if mode == env.WEIGHT_STATIONARY else dwgt.shape[0]
+            a_cols = dinp.shape[1]
+            a_rows = dinp.shape[0]
+            bd_cols = dwgt.shape[1] if mode == env.WEIGHT_STATIONARY else dout.shape[1]
+            bd_rows = dwgt.shape[0] if mode == env.WEIGHT_STATIONARY else dout.shape[0]
+            c_cols = dout.shape[1]
+            c_rows = dout.shape[0]
+            db_cols = c_cols if mode == env.WEIGHT_STATIONARY else dwgt.shape[1]
+            db_rows = c_rows if mode == env.WEIGHT_STATIONARY else dwgt.shape[0]
 
             with irb.if_scope(accum_patch == 0):
                 irb.emit(
                     tvm.tir.call_extern(
                         "",
                         "gemmini_extended_preload",
-                        BD_access_ptr,
-                        C_access_ptr,
-                        BD_cols,
-                        BD_rows,
-                        C_cols,
-                        C_rows,
+                        bd_access_ptr,
+                        c_access_ptr,
+                        bd_cols,
+                        bd_rows,
+                        c_cols,
+                        c_rows,
                     )
                 )
                 irb.emit(
                     tvm.tir.call_extern(
                         "",
                         "gemmini_extended_compute_preloaded",
-                        A_access_ptr,
-                        DB_access_ptr,
-                        A_cols,
-                        A_rows,
-                        DB_cols,
-                        DB_rows,
+                        a_access_ptr,
+                        db_access_ptr,
+                        a_cols,
+                        a_rows,
+                        db_cols,
+                        db_rows,
                     )
                 )
             with irb.else_scope():
@@ -191,23 +191,23 @@ def gemm(
                         "",
                         "gemmini_extended_preload",
                         garbage,
-                        C_access_ptr,
-                        BD_cols,
-                        BD_rows,
-                        C_cols,
-                        C_rows,
+                        c_access_ptr,
+                        bd_cols,
+                        bd_rows,
+                        c_cols,
+                        c_rows,
                     )
                 )
                 irb.emit(
                     tvm.tir.call_extern(
                         "",
                         "gemmini_extended_compute_accumulated",
-                        A_access_ptr,
-                        DB_access_ptr,
-                        A_cols,
-                        A_rows,
-                        DB_cols,
-                        DB_rows,
+                        a_access_ptr,
+                        db_access_ptr,
+                        a_cols,
+                        a_rows,
+                        db_cols,
+                        db_rows,
                     )
                 )
             return irb.get()
@@ -258,20 +258,20 @@ def gemm_cisc(
     inp = te.placeholder(inp_shape, dtype=env.inp_dtype, name=env.scr_scope)
     bias = te.placeholder(bias_shape, dtype=env.acc_dtype, name=env.scr_scope)
 
-    K = wgt.shape[0]
-    J = wgt.shape[1]
-    I = inp.shape[0]
+    dim_k = wgt.shape[0]
+    dim_j = wgt.shape[1]
+    dim_i = inp.shape[0]
 
-    k_ = te.reduce_axis((0, K), name="K")
+    k_reduce = te.reduce_axis((0, dim_k), name="dim_k")
 
-    output_shape = (I, J)
+    output_shape = (dim_i, dim_j)
 
     out = te.compute(
         output_shape,
         lambda x_, y_: te.sum(
-            inp[x_, k_].astype(env.inp_dtype) * wgt[k_, y_].astype(env.inp_dtype)
+            inp[x_, k_reduce].astype(env.inp_dtype) * wgt[k_reduce, y_].astype(env.inp_dtype)
             + bias[y_].astype(env.inp_dtype),
-            axis=[k_],
+            axis=[k_reduce],
         ),
     )
 
@@ -400,25 +400,25 @@ def conv2d_cisc(
     bias = te.placeholder(bias_shape, dtype=env.acc_dtype, name=env.scr_scope)
 
     wgt.shape[3]
-    KH = wgt.shape[0]
-    KW = wgt.shape[1]
+    k_h = wgt.shape[0]
+    k_w = wgt.shape[1]
 
     inp.shape[0]
     inp.shape[1]
     inp.shape[2]
-    IC = inp.shape[3]
+    i_c = inp.shape[3]
 
-    ric = te.reduce_axis((0, IC), name="ric")
-    rkh = te.reduce_axis((0, KH), name="rkh")
-    rkw = te.reduce_axis((0, KW), name="rkw")
+    ric = te.reduce_axis((0, i_c), name="ric")
+    rkh = te.reduce_axis((0, k_h), name="rkh")
+    rkw = te.reduce_axis((0, k_w), name="rkw")
 
-    HSTR = strides[0]
-    WSTR = strides[1]
+    hstr = strides[0]
+    wstr = strides[1]
 
     out = te.compute(
         out_shape,
         lambda b_o, i, j, c_o: te.sum(
-            inp[b_o, i * HSTR + rkh, j * WSTR + rkw, ric].astype(env.inp_dtype)
+            inp[b_o, i * hstr + rkh, j * wstr + rkw, ric].astype(env.inp_dtype)
             * wgt[rkh, rkw, ric, c_o].astype(env.inp_dtype)
             + bias[c_o].astype(env.inp_dtype),
             axis=[rkh, rkw, ric],
@@ -572,24 +572,24 @@ def dw_conv2d_cisc(
     bias = te.placeholder(bias_shape, dtype=env.acc_dtype, name=env.scr_scope)
 
     wgt.shape[0]
-    KH = wgt.shape[1]
-    KW = wgt.shape[2]
+    k_h = wgt.shape[1]
+    k_w = wgt.shape[2]
 
     inp.shape[0]
     inp.shape[1]
     inp.shape[2]
     inp.shape[3]
 
-    rkh = te.reduce_axis((0, KH), name="rkh")
-    rkw = te.reduce_axis((0, KW), name="rkw")
+    rkh = te.reduce_axis((0, k_h), name="rkh")
+    rkw = te.reduce_axis((0, k_w), name="rkw")
 
-    HSTR = strides[0]
-    WSTR = strides[1]
+    hstr = strides[0]
+    wstr = strides[1]
 
     out = te.compute(
         out_shape,
         lambda b_o, i, j, c_o: te.sum(
-            inp[b_o, i * HSTR + rkh, j * WSTR + rkw, c_o].astype(env.inp_dtype)
+            inp[b_o, i * hstr + rkh, j * wstr + rkw, c_o].astype(env.inp_dtype)
             * wgt[c_o, rkh, rkw].astype(env.inp_dtype)
             + bias[c_o].astype(env.inp_dtype),
             axis=[rkh, rkw],

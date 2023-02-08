@@ -29,7 +29,7 @@ from tvm import topi
 
 from tvm.contrib.gemmini.environment import Environment
 
-env = Environment.instance()
+ENV = Environment.instance()
 
 
 @autotvm.register_topi_compute("contrib.gemmini.conv2d_cisc")
@@ -75,32 +75,32 @@ def conv2d_cisc(
         orig_data.shape[1] == orig_data.shape[2]
     ), "GEMMINIs Conv2d CISC schedule only supports square inputs!"
 
-    OC = kernel.shape[3]
-    KH = kernel.shape[0]
-    KW = kernel.shape[1]
+    o_c = kernel.shape[3]
+    k_h = kernel.shape[0]
+    k_w = kernel.shape[1]
 
-    N = orig_data.shape[0]
-    IH = orig_data.shape[1]
-    IW = orig_data.shape[2]
-    IC = orig_data.shape[3]
+    n = orig_data.shape[0]
+    i_h = orig_data.shape[1]
+    i_w = orig_data.shape[2]
+    i_c = orig_data.shape[3]
 
-    HSTR = strides[0]
-    WSTR = strides[1]
-    TOP_PAD = padding[0]
-    LEFT_PAD = padding[1]
-    BOTTOM_PAD = padding[2]
-    RIGHT_PAD = padding[3]
+    hstr = strides[0]
+    wstr = strides[1]
+    top_pad = padding[0]
+    left_pad = padding[1]
+    bottom_pad = padding[2]
+    right_pad = padding[3]
 
-    OH = topi.utils.get_const_int(tvm.tir.div((IH + (TOP_PAD + BOTTOM_PAD) - KH), HSTR) + 1)
-    OW = topi.utils.get_const_int(tvm.tir.div((IW + (LEFT_PAD + RIGHT_PAD) - KW), WSTR) + 1)
+    o_h = topi.utils.get_const_int(tvm.tir.div((i_h + (top_pad + bottom_pad) - k_h), hstr) + 1)
+    o_w = topi.utils.get_const_int(tvm.tir.div((i_w + (left_pad + right_pad) - k_w), wstr) + 1)
 
-    ric = te.reduce_axis((0, IC), name="ric")
-    rkh = te.reduce_axis((0, KH), name="rkh")
-    rkw = te.reduce_axis((0, KW), name="rkw")
+    ric = te.reduce_axis((0, i_c), name="ric")
+    rkh = te.reduce_axis((0, k_h), name="rkh")
+    rkw = te.reduce_axis((0, k_w), name="rkw")
 
-    oshape = (N, OH, OW, OC)
+    oshape = (n, o_h, o_w, o_c)
 
-    if len(set(padding)) == 1 and (env.supports_non_zero_padding or ifm_offset == 0):
+    if len(set(padding)) == 1 and (ENV.supports_non_zero_padding or ifm_offset == 0):
         # If the padding is the same for all borders, there is no need to use topi.nn.pad,
         # because Gemminis CISC instructions support equal padding
         data = orig_data
@@ -108,8 +108,8 @@ def conv2d_cisc(
         # If not, then pad before calling Gemminis functions
         data = topi.nn.pad(
             orig_data,
-            [0, TOP_PAD, LEFT_PAD, 0],
-            [0, BOTTOM_PAD, RIGHT_PAD, 0],
+            [0, top_pad, left_pad, 0],
+            [0, bottom_pad, right_pad, 0],
             pad_value=ifm_offset,
             name="pad_data",
         )
@@ -117,16 +117,16 @@ def conv2d_cisc(
     res = te.compute(
         oshape,
         lambda b_o, i, j, c_o: te.sum(
-            data[b_o, i * HSTR + rkh, j * WSTR + rkw, ric].astype(env.inp_dtype)
-            * kernel[rkh, rkw, ric, c_o].astype(env.inp_dtype)
-            + bias[c_o].astype(env.inp_dtype),
+            data[b_o, i * hstr + rkh, j * wstr + rkw, ric].astype(ENV.inp_dtype)
+            * kernel[rkh, rkw, ric, c_o].astype(ENV.inp_dtype)
+            + bias[c_o].astype(ENV.inp_dtype),
             axis=[rkh, rkw, ric],
         ),
         name="res",
         tag="conv2d",
         attrs={
             "activation": activation,
-            "strides": [HSTR, WSTR],
+            "strides": [hstr, wstr],
             "padding": padding,
             "padding_value": ifm_offset,
             "scale": gemmini_scale,
@@ -138,9 +138,9 @@ def conv2d_cisc(
     )
 
     cfg.add_flop(
-        np.prod(topi.utils.get_const_tuple(oshape)) * KH * KW * IC
+        np.prod(topi.utils.get_const_tuple(oshape)) * k_h * k_w * i_c
         + np.prod(topi.utils.get_const_tuple(oshape))
-        * (KH * KW * IC - 1)  # Multiplications and additions needed
+        * (k_h * k_w * i_c - 1)  # Multiplications and additions needed
         + np.prod(  # Additions needed
             topi.utils.get_const_tuple(oshape)
         )  # Output scaling multiplications
@@ -202,28 +202,27 @@ def schedule_conv2d_cisc(
     else:
         pad_data = data
 
-    x_bo, x_i, x_j, x_co = sch[conv2d_stage].op.axis
-    rkh, rkw, ric = sch[conv2d_stage].op.reduce_axis
+    x_bo, _, _, _ = sch[conv2d_stage].op.axis
 
     x_bo_o, x_bo_i = sch[conv2d_stage].split(x_bo, factor=pad_data.shape[0])
 
     axis_for_start = x_bo_o
 
     # If topi.nn.pad was added, its because the padding was not equal in all dimensions.
-    padding_for_C_code = conv2d_stage.op.attrs["padding"] if pad_data == data else [0, 0, 0, 0]
-    padding_value_for_C_code = conv2d_stage.op.attrs["padding_value"] if pad_data == data else 0
+    padding = conv2d_stage.op.attrs["padding"] if pad_data == data else [0, 0, 0, 0]
+    padding_value = conv2d_stage.op.attrs["padding_value"] if pad_data == data else 0
 
     # Apply tensorization
     sch[conv2d_stage].tensorize(
         x_bo_i,
-        env.conv2d_cisc(
+        ENV.conv2d_cisc(
             pad_data.shape,
             kernel.shape,
             bias.shape,
             conv2d_stage.shape,
             conv2d_stage.op.attrs["strides"],
-            padding_for_C_code,
-            padding_value_for_C_code,
+            padding,
+            padding_value,
             conv2d_stage.op.attrs["activation"],
             conv2d_stage.op.attrs["scale"],
             conv2d_stage.op.attrs["pool_size"],
