@@ -17,8 +17,7 @@
 # pylint: disable=invalid-name
 """Scatter operator """
 import tvm
-from tvm import te
-from tvm import tir
+from tvm import te, tir
 from ..utils import ceil_div, get_const_int
 from ..math import cast
 
@@ -97,13 +96,13 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
     ind_before_axis_stride = ind_axis_range * ind_after_axis_range
     ind_full_range_excl_axis = ind_before_axis_range * ind_after_axis_range
 
-    def gen_ir(data_ptr, indices_ptr, updates_ptr, out_ptr):
+    def gen_ir(data, indices, updates, out):
         ib = tir.ir_builder.create()
 
-        data = ib.buffer_ptr(data_ptr)
-        indices = ib.buffer_ptr(indices_ptr)
-        updates = ib.buffer_ptr(updates_ptr)
-        out = ib.buffer_ptr(out_ptr)
+        data_ptr = ib.buffer_ptr(data)
+        indices_ptr = ib.buffer_ptr(indices)
+        updates_ptr = ib.buffer_ptr(updates)
+        out_ptr = ib.buffer_ptr(out)
 
         max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
         # Copy initial input data to output
@@ -116,7 +115,7 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
 
             index = bx * max_threads + tx
             with ib.if_scope(index < full_range):
-                out[index] = data[index]
+                out_ptr[index] = data_ptr[index]
 
         # TODO (vvchernov): use atomic function for special conditions (see cuda.scatter_nd)
         with ib.new_scope():
@@ -134,21 +133,21 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
                     # Offset along indices or updates
                     index1 = i * ind_before_axis_stride + k * ind_after_axis_range + j
                     # TODO(vvchernov): assert for out of bounds, separated check for indices
-                    k_new = indices[index1]
+                    k_new = indices_ptr[index1]
                     index_check = tir.LT(k_new, tir.const(0, indices.dtype))
                     k_new += tir.Select(index_check, axis_range, tir.const(0, indices.dtype))
                     # Offset along data
                     index2 = i * before_axis_stride + k_new * after_axis_range + j
                     if reduction == "update":
-                        out[index2] = updates[index1]
+                        out_ptr[index2] = updates_ptr[index1]
                     elif reduction == "add":
-                        out[index2] += updates[index1]
+                        out_ptr[index2] += updates_ptr[index1]
                     elif reduction == "mul":
-                        out[index2] *= updates[index1]
+                        out_ptr[index2] *= updates_ptr[index1]
                     elif reduction == "min":
-                        tir.min(out[index2], updates[index1])
+                        out_ptr[index2] = tir.min(out_ptr[index2], updates_ptr[index1])
                     elif reduction == "max":
-                        tir.max(out[index2], updates[index1])
+                        out_ptr[index2] = tir.max(out_ptr[index2], updates_ptr[index1])
                     else:
                         raise NotImplementedError(
                             "scatter_elements reduction not in [update, add, mul, min, max]:",
