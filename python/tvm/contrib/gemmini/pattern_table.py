@@ -420,7 +420,8 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
     """Declares Gemminis pattern table
 
     Returns:
-        List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]: List of pattern, callable tuples
+        List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]:
+            List of pattern, callable tuples
     """
 
     pattern_table_filters = []

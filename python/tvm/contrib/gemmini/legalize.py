@@ -156,10 +156,14 @@ def gemmini_conv2d(
         pool_padding (tvm.relay.Expr): Pooling padding in each direction
         input_req_offset_out (tvm.relay.Expr): Requantize layer output offset
         has_activation (bool): Has activation?
-        activation_scale_in (tvm.relay.Expr): TODO (FP): check if this can be deleted and made more simple. Activation layer input scaling factor
-        activation_offset_in (tvm.relay.Expr): TODO (FP): check if this can be deleted and made more simple. Activation layer input offset
-        activation_scale_out (tvm.relay.Expr): TODO (FP): check if this can be deleted and made more simple. Activation layer output scaling factor
-        activation_offset_out (tvm.relay.Expr): TODO (FP): check if this can be deleted and made more simple. Activation layer output offset
+        activation_scale_in (tvm.relay.Expr): TODO (FP): check if this can be deleted
+            and made more simple. Activation layer input scaling factor
+        activation_offset_in (tvm.relay.Expr): TODO (FP): check if this can be deleted
+            and made more simple. Activation layer input offset
+        activation_scale_out (tvm.relay.Expr): TODO (FP): check if this can be deleted
+            and made more simple. Activation layer output scaling factor
+        activation_offset_out (tvm.relay.Expr): TODO (FP): check if this can be deleted
+            and made more simple. Activation layer output offset
 
     Returns:
         tvm.relay.Call: Call to the contrib.gemmini.conv2d operator

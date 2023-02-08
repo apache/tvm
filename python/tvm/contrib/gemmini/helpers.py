@@ -51,7 +51,9 @@ def create_header_file(
         weights (bool, optional): For debug purposes. Defaults to None.
     """
     if debug:
-        assert weights is not None, "When passing the debug flag as True, the weights parameter must be given!"
+        assert (
+            weights is not None
+        ), "When passing the debug flag as True, the weights parameter must be given!"
 
     file_path = pathlib.Path(f"{output_path}/" + name).resolve()
     # Create header file with npy_data as a C array
@@ -85,7 +87,8 @@ def create_header_file(
     with open(raw_source_path, "a+", encoding="utf8") as source_file:
 
         source_file.write(
-            f'{datatype} {tensor_name}[] __attribute__((section("{section}"), aligned({align}))) = {{'
+            f'{datatype} {tensor_name}[] __attribute__((section("{section}"), \
+                aligned({align}))) = {{'
             if section
             else f"{datatype} {tensor_name}[] __attribute__((aligned({align}))) = {{"
         )

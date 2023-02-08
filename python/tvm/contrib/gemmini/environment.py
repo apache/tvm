@@ -75,9 +75,12 @@ class Environment(object):
             bank_rows (int, optional): Rows of each bank in the scratchpad. Defaults to 8192.
             bank_num (int, optional): Banks for the scratchpad. Defaults to 4.
             debug (bool, optional): Adds debug of Gemmini counters. Defaults to False.
-            enabled_counters (dict, optional): Enabled Gemmini counters for debug purposes. Defaults to None.
-            supports_non_zero_padding (bool, optional): Gemmini supports instructions with non-zero padding. Defaults to False.
-            use_experimental_qnn_add (bool, optional): Pattern matching for qnn.add. Defaults to False.
+            enabled_counters (dict, optional): Enabled Gemmini counters for debug purposes.
+                Defaults to None.
+            supports_non_zero_padding (bool, optional): Gemmini supports instructions
+                with non-zero padding. Defaults to False.
+            use_experimental_qnn_add (bool, optional): Pattern matching for qnn.add.
+                Defaults to False.
         """
         inst = Environment.instance()
         inst.init(
@@ -131,15 +134,20 @@ class Environment(object):
             dim (int, optional): Gemminis systolic array dimensions (DIM). Defaults to 32.
             max_bytes (int, optional): Limits maximum amount of mvin columns. Defaults to 64.
             inp_dtype (str, optional): Type of the Gemmini scratchpad. Defaults to "int8".
-            wgt_dtype (str, optional): Type of the Gemmini "logical" weight scratchpad. Defaults to "int8".
+            wgt_dtype (str, optional): Type of the Gemmini "logical" weight scratchpad.
+                Defaults to "int8".
             acc_dtype (str, optional): Type of the Gemmini accumulator. Defaults to "int32".
             acc_rows (int, optional): Amount of rows of the accumulator. Defaults to 4096.
-            bank_rows (int, optional): Amount of rows of each bank in the scratchpad. Defaults to 8192.
+            bank_rows (int, optional): Amount of rows of each bank in the scratchpad.
+                Defaults to 8192.
             bank_num (int, optional): Amount of banks for the scratchpad. Defaults to 4.
             debug (bool, optional): Adds debug of Gemmini counters. Defaults to False.
-            enabled_counters (dict, optional): Enabled Gemmini counters for debug purposes. Defaults to None.
-            supports_non_zero_padding (bool, optional): Gemmini supports instructions with non-zero padding. Defaults to False.
-            use_experimental_qnn_add (bool, optional): Pattern matching for qnn.add. Defaults to False.
+            enabled_counters (dict, optional): Enabled Gemmini counters for debug purposes.
+                Defaults to None.
+            supports_non_zero_padding (bool, optional): Gemmini supports instructions
+                with non-zero padding. Defaults to False.
+            use_experimental_qnn_add (bool, optional): Pattern matching for qnn.add.
+                Defaults to False.
         """
 
         assert batch == 1, "Only batch size of 1 is currently supported"
@@ -191,7 +199,8 @@ class Environment(object):
         self.scr_scope = "local.scratchpad"
         self.acc_scope = "local.accumulator"
         # Actually, only one scratchpad should exist.
-        # But we do this logical partition to correctly manage the pointers to the buffers stored in this memories.
+        # But we do this logical partition to correctly manage the pointers
+        # to the buffers stored in this memories.
         # Should see how we can fix this in the future.
         self.scr_wgt_scope = "local.scratchpad_weight"
 
@@ -217,7 +226,8 @@ class Environment(object):
         for key, value in self.enabled_counters.items():
             assert (
                 value == counters[key]
-            ), f"Enabled counter with key {key} does not exist or has a different name in the actual counters dict!"
+            ), f"Enabled counter with key {key} does not exist \
+            or has a different name in the actual counters dict!"
 
     def gemm(
         self,
@@ -236,7 +246,8 @@ class Environment(object):
             K (int): reduction axis dimension
             J (int): output second axis dimension
             stride (int, optional): Stride, useful for convolutions. Defaults to 1.
-            is_depthwise_conv2d (bool, optional): Flag to explain if this is a GEMM for a depthwise convolution. Defaults to False.
+            is_depthwise_conv2d (bool, optional): Flag to explain if this is a
+                GEMM for a depthwise convolution. Defaults to False.
             mode (int, optional): Systolic array mode (WS=1,OS=0). Defaults to 1.
             accum_patch (_type_, optional): Var of the reduction axis loop. Defaults to None.
 

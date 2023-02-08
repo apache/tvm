@@ -89,7 +89,8 @@ def depthwise_conv2d_cisc(
     o_w = topi.utils.get_const_int(tvm.tir.div((i_w + (left_pad + right_pad) - k_w), wstr) + 1)
 
     if len(set(padding)) == 1 and ENV.supports_non_zero_padding:
-        # If the padding is the same for all borders, there is no need to use topi.nn.pad, because Gemminis CISC instructions support equal padding
+        # If the padding is the same for all borders, there is no need to use topi.nn.pad,
+        # because Gemminis CISC instructions support equal padding
         data = orig_data
     else:
         # If not, then pad before calling Gemminis functions

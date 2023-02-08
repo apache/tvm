@@ -237,7 +237,8 @@ def schedule_gemm(
     # Compute the move of the bias in the correct loop
     sch[bias_op].compute_at(sch[output], axis_for_output)
 
-    # We assert here that the mvin of data does not use more space than the available one in the scratchpad
+    # We assert here that the mvin of data does not use more space
+    # than the available one in the scratchpad
     if cfg["axis_for_cdata"].val == 0:
         assert (
             cfg["tile_xo"].size[1] * cfg["tile_xo"].size[2] * data.shape[1]
@@ -272,7 +273,8 @@ def schedule_gemm(
             <= ENV.ACC_ROWS * ENV.DIM
         ), "Result matrix will not fit in accumulator!"
 
-    # Move the data and weight move instructions into the correct loops selected by the axis_for_cdata and axis_for_cweight knobs
+    # Move the data and weight move instructions into the correct loops selected
+    # by the axis_for_cdata and axis_for_cweight knobs
     axis_for_cdata = axis_to_input_data[cfg["axis_for_cdata"].val]
     axis_for_cweight = axis_to_input_weights[cfg["axis_for_cweight"].val]
     sch[cdata].compute_at(sch[stages_to_input_data[cfg["axis_for_cdata"].val]], axis_for_cdata)
@@ -280,7 +282,8 @@ def schedule_gemm(
         sch[stages_to_input_data[cfg["axis_for_cweight"].val]], axis_for_cweight
     )
 
-    # Split input moves because Gemmini's mvin only supports mvins with rows <= DIM and cols <= MAX_BLOCK_LEN
+    # Split input moves because Gemmini's mvin only supports mvins with
+    # rows <= DIM and cols <= MAX_BLOCK_LEN
     cdata_ax_0_1, cdata_ax_0_2 = sch[cdata].split(sch[cdata].op.axis[0], factor=ENV.DIM)
     cdata_ax_1_1, cdata_ax_1_2 = sch[cdata].split(
         sch[cdata].op.axis[1], factor=ENV.MAX_BLOCK_LEN * ENV.DIM
@@ -353,7 +356,8 @@ def schedule_gemm(
         ),
     )
 
-    # Generate configuration dictionary, in order to correctly generate the calls to the configuration instructions
+    # Generate configuration dictionary, in order to correctly generate
+    # the calls to the configuration instructions
     config_dict = {}
     config_dict["A_size"] = int(data.shape[1])
     config_dict["B_size"] = int(weight.shape[1])
