@@ -25,7 +25,6 @@ CFLAGS := $(CFLAGS) \
 	-fno-common \
 	-fno-builtin-printf \
 	-march=rv64gc -Wa,-march=rv64gcxhwacha \
-	-lm \
 	-lgcc \
 	-I${RISCV_TESTS} \
 	-I${RISCV_TESTS}/env \
@@ -37,7 +36,6 @@ CFLAGS := $(CFLAGS) \
 
 CFLAGS_BAREMETAL := \
 	$(CFLAGS) \
-	-nostdlib \
 	-nostartfiles \
 	-static \
 	-T $(BENCH_COMMON)/test.ld \
@@ -49,7 +47,7 @@ vpath %.c $(src_dir)
 
 %-baremetal: %.c $(GEMMINI_HEADERS)
 	$(CC_BAREMETAL) $(CFLAGS_BAREMETAL) $< $(LFLAGS) -o $@ \
-		$(wildcard $(BENCH_COMMON)/*.c) $(wildcard $(abs_top_srcdir)/model/*.c) $(wildcard $(BENCH_COMMON)/*.S) $(LIBS)
+		$(wildcard $(BENCH_COMMON)/*.c) $(wildcard $(abs_top_srcdir)/model/*.c) $(wildcard $(BENCH_COMMON)/*.S) $(LIBS) -lm
 
 run-baremetal: $(runs_baremetal)
 
