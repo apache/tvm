@@ -340,20 +340,37 @@ def pattern_table():
 
         arg0 = binary_op.args[0]
         arg1 = binary_op.args[1]
-        both_args_scalar = False
+
+        # Check arguments are not scalar.
         if (
             isinstance(arg0, tvm.relay.expr.Constant)
             and len(arg0.checked_type.shape) == 0
             and isinstance(arg1, tvm.relay.expr.Constant)
             and len(arg1.checked_type.shape) == 0
         ):
-            both_args_scalar = True
+            return False
 
-        return (
-            arg0.checked_type.dtype == "int8"
-            and arg1.checked_type.dtype == "int8"
-            and not both_args_scalar
-        )
+        arg0_type = arg0.checked_type.dtype
+        arg1_type = arg1.checked_type.dtype
+
+        # Check arguments are of valid type.
+        if arg0_type not in ["int8", "int16"]:
+            return False
+
+        # Check arguments are the same type.
+        if arg0_type != arg1_type:
+            return False
+
+        # Check zero points are non-zero (arm_elementwise_(add|mul)_s16 does not
+        # handle non-zero zero points).
+        if arg0_type == "int16" and str(binary_op.op.name) in ["qnn.add", "qnn.mul"]:
+            arg_0_zero_point = binary_op.args[3].data.numpy()
+            arg_1_zero_point = binary_op.args[5].data.numpy()
+            output_zero_point = binary_op.args[7].data.numpy()
+            if any([arg_0_zero_point, arg_1_zero_point, output_zero_point]):
+                return False
+
+        return True
 
     return [
         ("cmsis-nn.qnn_conv2d", qnn_conv2d_pattern(with_pad=True), check_qnn_conv2d_pad),
