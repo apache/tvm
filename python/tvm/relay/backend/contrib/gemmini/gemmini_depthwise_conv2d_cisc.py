@@ -77,7 +77,6 @@ def depthwise_conv2d_cisc(
     n = orig_data.shape[0]
     i_h = orig_data.shape[1]
     i_w = orig_data.shape[2]
-    orig_data.shape[3]
 
     hstr = strides[0]
     wstr = strides[1]

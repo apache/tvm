@@ -248,9 +248,6 @@ class DepthwiseCONV2DParams(CONV2DParams):
     composite_name = "gemmini.depthwiseconv2d"
     activation_map = {"clip": "CLIP"}
 
-    def __init__(self, func_body: tvm.relay.Function):
-        super().__init__(func_body)
-
 
 class MaxPoolParams:
     """

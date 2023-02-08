@@ -50,6 +50,9 @@ def create_header_file(
         debug (bool, optional): enable debug. Defaults to False.
         weights (bool, optional): For debug purposes. Defaults to None.
     """
+    if debug:
+        assert weights is not None, "When passing the debug flag as True, the weights parameter must be given!"
+
     file_path = pathlib.Path(f"{output_path}/" + name).resolve()
     # Create header file with npy_data as a C array
     raw_header_path = file_path.with_suffix(".h").resolve()
@@ -70,16 +73,16 @@ def create_header_file(
     else:
         assert False, f"Type {tensor_data.dtype} is not supported!"
 
-    with open(raw_header_path, "a+") as header_file:
+    with open(raw_header_path, "a+", encoding="utf8") as header_file:
         header_file.write(
             f"#define {tensor_name}_len {tensor_data.size}\n"
             + f"extern {datatype} {tensor_name}[{tensor_name}_len];\n"
         )
 
     if not raw_source_path.is_file():
-        with open(raw_source_path, "a+") as source_file:
+        with open(raw_source_path, "a+", encoding="utf8") as source_file:
             source_file.write("#include <stdint.h>\n")
-    with open(raw_source_path, "a+") as source_file:
+    with open(raw_source_path, "a+", encoding="utf8") as source_file:
 
         source_file.write(
             f'{datatype} {tensor_name}[] __attribute__((section("{section}"), aligned({align}))) = {{'
@@ -118,17 +121,16 @@ def create_header_file(
                         source_file.write("\n")
             source_file.write("*/\n")
 
-            if weights is not None:
-                source_file.write("/*\n")
-                for o_ch in range(weights.shape[3]):
-                    source_file.write(f"Output channel {o_ch}:\n")
-                    for i_ch in range(weights.shape[2]):
-                        source_file.write(f"Input channel {i_ch}:\n")
-                        for row in range(weights.shape[0]):
-                            for col in range(weights.shape[1]):
-                                source_file.write(f"{weights[row][col][i_ch][o_ch]}\t")
-                            source_file.write("\n")
-                source_file.write("*/\n")
+            source_file.write("/*\n")
+            for o_ch in range(weights.shape[3]):
+                source_file.write(f"Output channel {o_ch}:\n")
+                for i_ch in range(weights.shape[2]):
+                    source_file.write(f"Input channel {i_ch}:\n")
+                    for row in range(weights.shape[0]):
+                        for col in range(weights.shape[1]):
+                            source_file.write(f"{weights[row][col][i_ch][o_ch]}\t")
+                        source_file.write("\n")
+            source_file.write("*/\n")
 
 
 def get_divisors(x: int) -> List[int]:

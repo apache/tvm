@@ -76,7 +76,6 @@ def internal_build_configs(usmp_alg=""):
     Returns:
         dict: configurations
     """
-    enable_usmp = False if usmp_alg == "" else True
     pass_list = [
         (0, tvm.tir.transform.StorageFlatten(16)),
         (1, InjectAMVINIntrin()),
@@ -101,7 +100,7 @@ def internal_build_configs(usmp_alg=""):
         "tir.add_lower_pass": pass_list,
         "tir.disable_vectorize": True,
         # "tir.CorrectGemminisScratchpadAndAccumulatorPointers": {"dim": env.DIM}
-        "tir.usmp.enable": enable_usmp,
+        "tir.usmp.enable": bool(usmp_alg),
         "tir.usmp.algorithm": usmp_alg,
     }
 

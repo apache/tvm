@@ -392,20 +392,16 @@ def conv2d_cisc(
     Returns:
         TensorIntrin: CONV2D CISC tensor intrinsic
     """
-
+    _ = pool_dilation
     # TODO (FP): add assertions here for the supported parameters?
 
     wgt = te.placeholder(wgt_shape, dtype=env.inp_dtype, name=env.scr_wgt_scope)
     inp = te.placeholder(inp_shape, dtype=env.inp_dtype, name=env.scr_scope)
     bias = te.placeholder(bias_shape, dtype=env.acc_dtype, name=env.scr_scope)
 
-    wgt.shape[3]
     k_h = wgt.shape[0]
     k_w = wgt.shape[1]
 
-    inp.shape[0]
-    inp.shape[1]
-    inp.shape[2]
     i_c = inp.shape[3]
 
     ric = te.reduce_axis((0, i_c), name="ric")
@@ -571,14 +567,8 @@ def dw_conv2d_cisc(
     inp = te.placeholder(inp_shape, dtype=env.inp_dtype, name=env.scr_scope)
     bias = te.placeholder(bias_shape, dtype=env.acc_dtype, name=env.scr_scope)
 
-    wgt.shape[0]
     k_h = wgt.shape[1]
     k_w = wgt.shape[2]
-
-    inp.shape[0]
-    inp.shape[1]
-    inp.shape[2]
-    inp.shape[3]
 
     rkh = te.reduce_axis((0, k_h), name="rkh")
     rkw = te.reduce_axis((0, k_w), name="rkw")
@@ -751,7 +741,7 @@ def add_tensorize(env, oshape: Tuple[int, ...]):
     def intrin_func(ins, outs):
         """Add intrinsic function"""
         difm1, difm2 = ins
-        outs[0]
+        _ = outs
 
         def _body():
             irb = tvm.tir.ir_builder.create()

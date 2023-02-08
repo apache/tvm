@@ -115,7 +115,7 @@ def max_pool2d(
         return irb.get()
 
     res = te.extern(
-        (1,), [data, weights], lambda ins, outs: irb_builder_func(ins, outs), dtype="int8"
+        (1,), [data, weights], lambda ins, outs: irb_builder_func(ins, outs), dtype="int8" # pylint: disable=W0108
     )
 
     # TODO (FP): add correct FLOPS
