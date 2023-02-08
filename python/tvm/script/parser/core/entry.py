@@ -51,6 +51,7 @@ def parse(program: Union[doc.AST, Any, str], extra_vars: Dict[str, Any] = None) 
             "ir": ir,
             "T": tir,
             "tir": tir,
+            "tvm": tvm,
         }
 
     source = Source(program)
