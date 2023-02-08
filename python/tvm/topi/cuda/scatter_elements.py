@@ -94,6 +94,7 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
         elif i > axis:
             ind_after_axis_range *= value
     ind_before_axis_stride = ind_axis_range * ind_after_axis_range
+    ind_full_range = ind_before_axis_range * ind_before_axis_stride
     ind_full_range_excl_axis = ind_before_axis_range * ind_after_axis_range
 
     def gen_ir(data, indices, updates, out):
@@ -117,6 +118,20 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
             with ib.if_scope(index < full_range):
                 out_ptr[index] = data_ptr[index]
 
+        # Check indices and shift to positive side if need
+        with ib.new_scope():
+            num_blocks_1 = ceil_div(ind_full_range, max_threads)
+            bx1 = te.thread_axis("blockIdx.x")
+            tx1 = te.thread_axis("threadIdx.x")
+            ib.scope_attr(bx1, "thread_extent", num_blocks_1)
+            ib.scope_attr(tx1, "thread_extent", max_threads)
+
+            ind_fused = bx2 * max_threads + tx2
+            with ib.if_scope(ind_fused < ind_full_range):
+                index_check = tir.LT(indices_ptr[ind_fused], tir.const(0, indices.dtype))
+                indices_ptr[ind_fused] += tir.Select(index_check, axis_range, tir.const(0, indices.dtype))
+                # TODO(vvchernov): assert for index out of bounds
+
         # TODO (vvchernov): use atomic function for special conditions (see cuda.scatter_nd)
         with ib.new_scope():
             num_blocks_2 = ceil_div(ind_full_range_excl_axis, max_threads)
@@ -132,12 +147,8 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
                 with ib.for_range(0, ind_axis_range, "k") as k:
                     # Offset along indices or updates
                     index1 = i * ind_before_axis_stride + k * ind_after_axis_range + j
-                    # TODO(vvchernov): assert for out of bounds, separated check for indices
-                    k_new = indices_ptr[index1]
-                    index_check = tir.LT(k_new, tir.const(0, indices.dtype))
-                    k_new += tir.Select(index_check, axis_range, tir.const(0, indices.dtype))
                     # Offset along data
-                    index2 = i * before_axis_stride + k_new * after_axis_range + j
+                    index2 = i * before_axis_stride + indices_ptr[index1] * after_axis_range + j
                     if reduction == "update":
                         out_ptr[index2] = updates_ptr[index1]
                     elif reduction == "add":
