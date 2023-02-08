@@ -17,16 +17,17 @@
 # pylint: disable=invalid-name,unused-variable,unused-argument,invalid-name
 """1x1 Conv2D schedule on for Intel CPU"""
 from __future__ import absolute_import as _abs
+
 import tvm
 from tvm import te
-from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
+from tvm.autotvm.task.space import OtherOptionEntity, SplitEntity
+from tvm.target.x86 import get_simd_32bit_lanes
 
+from ..generic import conv2d as conv2d_generic
 from ..nn.pad import pad
 from ..nn.utils import get_pad_tuple
-from ..generic import conv2d as conv2d_generic
 from ..utils import get_const_tuple, simplify
 from .tensor_intrin import dot_16x1x16_uint8_int8_int32
-from .utils import get_simd_32bit_lanes
 
 
 def _fallback_schedule(cfg, wkl):

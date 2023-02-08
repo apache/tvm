@@ -34,12 +34,6 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-/*! \brief Creates the IR common prefix, which is by default `I` */
-inline ExprDoc IR(const IRDocsifier& d, const String& attr) {
-  d->ir_usage.insert("ir");
-  return IdDoc(d->cfg->ir_prefix)->Attr(attr);
-}
-
 class IRFrameNode : public FrameNode {
  public:
   void VisitAttrs(AttrVisitor* v) { FrameNode::VisitAttrs(v); }
@@ -65,9 +59,7 @@ inline std::string ReprPrintIR(const ObjectRef& obj, const PrinterConfig& cfg) {
   IRDocsifier d(cfg);
   With<IRFrame> f(d);
   (*f)->AddDispatchToken(d, "ir");
-  std::ostringstream oss;
-  oss << Docsify(obj, d, *f, cfg);
-  return oss.str();
+  return Docsify(obj, d, *f, cfg);
 }
 
 }  // namespace printer

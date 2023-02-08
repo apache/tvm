@@ -112,6 +112,21 @@ class RelayToTIRVisitor : public MixedModeMutator {
     ir_module_->Add(global_var, replacement_func);
   }
 
+  auto GetIntMinMax(int bit_width) {
+    const int32_t min =
+        (bit_width == 8) ? std::numeric_limits<int8_t>::min() : std::numeric_limits<int16_t>::min();
+    const int32_t max =
+        (bit_width == 8) ? std::numeric_limits<int8_t>::max() : std::numeric_limits<int16_t>::max();
+    return std::pair(min, max);
+  }
+
+  auto GetClipMinMax(const ClipAttrs* clip_attrs) {
+    return std::pair(static_cast<int32_t>(clip_attrs->a_min),
+                     static_cast<int32_t>(clip_attrs->a_max));
+  }
+
+  auto GetClipMinMax(const Call& clip_op) { return GetClipMinMax(clip_op->attrs.as<ClipAttrs>()); }
+
   void EmitConv2D(const GlobalVar& global_var, const Expr& expr) {
     const CallNode* clip_call = nullptr;
     const CallNode* requantize_call = nullptr;
@@ -190,18 +205,8 @@ class RelayToTIRVisitor : public MixedModeMutator {
     int32_t dilation_h = qnn::get_const_int(conv2d_attrs->dilation[0]);
     int32_t out_channels = qnn::get_const_int(conv2d_attrs->channels);
     std::string kernel_layout = conv2d_attrs->kernel_layout.c_str();
-    int32_t clip_min = std::numeric_limits<int8_t>::min();
-    int32_t clip_max = std::numeric_limits<int8_t>::max();
-
-    if (dtype_bits == 16) {
-      clip_min = std::numeric_limits<int16_t>::min();
-      clip_max = std::numeric_limits<int16_t>::max();
-    }
-    if (clip_call) {
-      const ClipAttrs* clip_attrs = clip_call->attrs.as<ClipAttrs>();
-      clip_min = clip_attrs->a_min;
-      clip_max = clip_attrs->a_max;
-    }
+    const auto [clip_min, clip_max] =
+        clip_call ? GetClipMinMax(GetRef<Call>(clip_call)) : GetIntMinMax(dtype_bits);
 
     tvm::Array<PrimExpr> scalar_args = {ToArg(input_offset), ToArg(output_offset), ToArg(stride_w),
                                         ToArg(stride_h),     ToArg(padding_w),     ToArg(padding_h),
@@ -348,20 +353,8 @@ class RelayToTIRVisitor : public MixedModeMutator {
     float input_scale = GetScalarFromConstant<float>(requantize_call->args[1]);
     float output_scale = GetScalarFromConstant<float>(requantize_call->args[3]);
     int32_t out_channels = qnn::get_const_int(dense_attrs->units);
-    int32_t clip_min, clip_max;
-    if (clip_call) {
-      const ClipAttrs* clip_attrs = clip_call->attrs.as<ClipAttrs>();
-      clip_min = clip_attrs->a_min;
-      clip_max = clip_attrs->a_max;
-    } else {
-      if (dtype_bits == 8) {
-        clip_min = std::numeric_limits<int8_t>::min();
-        clip_max = std::numeric_limits<int8_t>::max();
-      } else {
-        clip_min = std::numeric_limits<int16_t>::min();
-        clip_max = std::numeric_limits<int16_t>::max();
-      }
-    }
+    const auto [clip_min, clip_max] =
+        clip_call ? GetClipMinMax(GetRef<Call>(clip_call)) : GetIntMinMax(dtype_bits);
 
     double quantized_multiplier =
         static_cast<double>(input_scale) / static_cast<double>(output_scale);
@@ -432,7 +425,6 @@ class RelayToTIRVisitor : public MixedModeMutator {
 
     // prepare cmsis_nn_pool_params
     int32_t stride_h, stride_w, padding_h, padding_w, pool_size_h, pool_size_w;
-    int32_t clip_min, clip_max;
     std::string cmsisnn_api;
     if (pool_name == "cmsis-nn.qnn_avg_pool2d") {
       if (dtype_bits == 8) {
@@ -463,19 +455,9 @@ class RelayToTIRVisitor : public MixedModeMutator {
       pool_size_h = qnn::get_const_int(attrs->pool_size[0]);
       pool_size_w = qnn::get_const_int(attrs->pool_size[1]);
     }
-    if (clip.defined()) {
-      const ClipAttrs* clip_attrs = clip->attrs.as<ClipAttrs>();
-      clip_min = clip_attrs->a_min;
-      clip_max = clip_attrs->a_max;
-    } else {
-      if (dtype_bits == 8) {
-        clip_min = std::numeric_limits<int8_t>::min();
-        clip_max = std::numeric_limits<int8_t>::max();
-      } else {
-        clip_min = std::numeric_limits<int16_t>::min();
-        clip_max = std::numeric_limits<int16_t>::max();
-      }
-    }
+
+    const auto [clip_min, clip_max] =
+        clip.defined() ? GetClipMinMax(clip) : GetIntMinMax(dtype_bits);
 
     tvm::Array<PrimExpr> scalar_args = {ToArg(stride_h),  ToArg(stride_w), ToArg(padding_h),
                                         ToArg(padding_w), ToArg(clip_min), ToArg(clip_max)};
@@ -587,15 +569,11 @@ class RelayToTIRVisitor : public MixedModeMutator {
   }
 
   void EmitMul(const GlobalVar& global_var, const Expr& expr) {
-    int32_t output_min = std::numeric_limits<int8_t>::min();
-    int32_t output_max = std::numeric_limits<int8_t>::max();
     const auto& pattern = ParseBinaryElementwiseOpClipPattern(expr);
     Call mul_call = pattern.binary_op;
-    if (pattern.clip_op) {
-      const ClipAttrs* clip_attrs = pattern.clip_op.value()->attrs.as<ClipAttrs>();
-      output_min = clip_attrs->a_min;
-      output_max = clip_attrs->a_max;
-    }
+    const auto bit_width = mul_call->type_as<TensorTypeNode>()->dtype.bits();
+    const auto [output_min, output_max] =
+        pattern.clip_op ? GetClipMinMax(pattern.clip_op.value()) : GetIntMinMax(bit_width);
 
     const float input_0_scale = GetScalarFromConstant<float>(mul_call->args[2]);
     const int32_t input_0_zero_point = GetScalarFromConstant<int32_t>(mul_call->args[3]);
@@ -614,17 +592,17 @@ class RelayToTIRVisitor : public MixedModeMutator {
     PrimExpr tensor_size = mul_call->type_as<TensorTypeNode>()->Size();
 
     BufferCreator buffer_creator;
-    tir::Var input_0 = buffer_creator.CreateBufferVar("input_0", DataType::Handle(8));
+    tir::Var input_0 = buffer_creator.CreateBufferVar("input_0", DataType::Handle(bit_width));
     tir::Var input_1;
     if (mul_call->args[0].same_as(mul_call->args[1])) {
       input_1 = input_0;
     } else {
-      input_1 = buffer_creator.CreateBufferVar("input_1", DataType::Handle(8));
+      input_1 = buffer_creator.CreateBufferVar("input_1", DataType::Handle(bit_width));
     }
-    tir::Var output = buffer_creator.CreateBufferVar("output", DataType::Handle(8));
+    tir::Var output = buffer_creator.CreateBufferVar("output", DataType::Handle(bit_width));
 
     tvm::Array<PrimExpr> args = {
-        tir::StringImm("arm_elementwise_mul_s8"),
+        tir::StringImm("arm_elementwise_mul_s" + std::to_string(bit_width)),
         input_0,
         input_1,
         ToArg(-input_0_zero_point),
@@ -643,15 +621,12 @@ class RelayToTIRVisitor : public MixedModeMutator {
   }
 
   void EmitAdd(const GlobalVar& global_var, const Expr& expr) {
-    int32_t output_min = std::numeric_limits<int8_t>::min();
-    int32_t output_max = std::numeric_limits<int8_t>::max();
     const auto& pattern = ParseBinaryElementwiseOpClipPattern(expr);
     Call add_call = pattern.binary_op;
-    if (pattern.clip_op) {
-      const ClipAttrs* clip_attrs = pattern.clip_op.value()->attrs.as<ClipAttrs>();
-      output_min = clip_attrs->a_min;
-      output_max = clip_attrs->a_max;
-    }
+    const auto bit_width = add_call->type_as<TensorTypeNode>()->dtype.bits();
+
+    const auto [output_min, output_max] =
+        pattern.clip_op ? GetClipMinMax(pattern.clip_op.value()) : GetIntMinMax(bit_width);
 
     const float input_0_scale = GetScalarFromConstant<float>(add_call->args[2]);
     const int32_t input_0_zero_point = GetScalarFromConstant<int32_t>(add_call->args[3]);
@@ -660,9 +635,10 @@ class RelayToTIRVisitor : public MixedModeMutator {
     const float output_scale = GetScalarFromConstant<float>(add_call->args[6]);
     const int32_t output_zero_point = GetScalarFromConstant<int32_t>(add_call->args[7]);
 
-    const int32_t left_shift = 20;
+    const int32_t left_shift = (bit_width == 16) ? 15 : 20;
     const int32_t input_0_offset = -input_0_zero_point;
     const int32_t input_1_offset = -input_1_zero_point;
+    const int32_t output_offset = output_zero_point;
 
     const float max_input_scale = std::max(input_0_scale, input_1_scale);
     const double twice_max_input_scale = 2 * static_cast<double>(max_input_scale);
@@ -689,17 +665,17 @@ class RelayToTIRVisitor : public MixedModeMutator {
     PrimExpr tensor_size = add_call->type_as<TensorTypeNode>()->Size();
 
     BufferCreator buffer_creator;
-    tir::Var input_0 = buffer_creator.CreateBufferVar("input_0", DataType::Handle(8));
+    tir::Var input_0 = buffer_creator.CreateBufferVar("input_0", DataType::Handle(bit_width));
     tir::Var input_1;
     if (add_call->args[0].same_as(add_call->args[1])) {
       input_1 = input_0;
     } else {
-      input_1 = buffer_creator.CreateBufferVar("input_1", DataType::Handle(8));
+      input_1 = buffer_creator.CreateBufferVar("input_1", DataType::Handle(bit_width));
     }
-    tir::Var output = buffer_creator.CreateBufferVar("output", DataType::Handle(8));
+    tir::Var output = buffer_creator.CreateBufferVar("output", DataType::Handle(bit_width));
 
     tvm::Array<PrimExpr> args = {
-        tir::StringImm("arm_elementwise_add_s8"),
+        tir::StringImm("arm_elementwise_add_s" + std::to_string(bit_width)),
         input_0,
         input_1,
         ToArg(input_0_offset),
@@ -710,7 +686,7 @@ class RelayToTIRVisitor : public MixedModeMutator {
         ToArg(input_1_shift),
         ToArg(left_shift),
         output,
-        ToArg(output_zero_point),
+        ToArg(output_offset),
         ToArg(output_multiplier),
         ToArg(output_shift),
         ToArg(output_min),

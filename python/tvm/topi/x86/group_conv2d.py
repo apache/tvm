@@ -19,16 +19,14 @@
 """Grouped Spatial Pack Convolution (Group Conv2D) schedule on x86"""
 
 import tvm
-from tvm import autotvm
-from tvm import te
-from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
+from tvm import autotvm, te
+from tvm.autotvm.task.space import OtherOptionEntity, SplitEntity
+from tvm.target.x86 import get_simd_32bit_lanes
 
-from .utils import get_simd_32bit_lanes
-from ..utils import get_const_tuple
-from ..nn.pad import pad
 from .. import tag
-
 from ..nn.conv2d import _get_workload as _get_conv2d_workload
+from ..nn.pad import pad
+from ..utils import get_const_tuple
 
 
 def group_conv2d_nchw(data, kernel, strides, padding, dilation, groups, out_dtype):

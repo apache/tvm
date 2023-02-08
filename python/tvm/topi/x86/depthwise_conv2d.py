@@ -18,16 +18,15 @@
 # pylint: disable=no-value-for-parameter
 """Depthwise Conv2D schedule on x86"""
 import tvm
-from tvm import te
-from tvm import autotvm
-from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
-from ..nn.pad import pad
-from ..utils import get_const_tuple
-from ..nn.utils import get_pad_tuple
-from ..nn.depthwise_conv2d import _get_workload, depthwise_conv2d_infer_layout
+from tvm import autotvm, te
+from tvm.autotvm.task.space import OtherOptionEntity, SplitEntity
+from tvm.target.x86 import get_simd_32bit_lanes
+
 from ..nn.conv2d import unpack_NCHWc_to_nchw
-from ..utils import traverse_inline
-from .utils import get_simd_32bit_lanes
+from ..nn.depthwise_conv2d import _get_workload, depthwise_conv2d_infer_layout
+from ..nn.pad import pad
+from ..nn.utils import get_pad_tuple
+from ..utils import get_const_tuple, traverse_inline
 
 
 def _fallback_schedule(cfg, wkl):

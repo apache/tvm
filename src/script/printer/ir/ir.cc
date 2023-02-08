@@ -42,18 +42,24 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         }
         return lhs_name < rhs_name;
       });
-      ICHECK(!d->mod.defined());
-      d->mod = mod;
-      {
-        With<IRFrame> f(d);
-        (*f)->AddDispatchToken(d, "ir");
-        for (const auto& kv : functions) {
-          GlobalVar gv = kv.first;
-          BaseFunc func = kv.second;
-          (*f)->stmts.push_back(d->AsDoc<FunctionDoc>(func, p->Attr("functions")->MapValue(gv)));
+      With<IRFrame> f(d);
+      (*f)->AddDispatchToken(d, "ir");
+      for (const auto& kv : functions) {
+        GlobalVar gv = kv.first;
+        BaseFunc func = kv.second;
+        d->cfg->binding_names.push_back(gv->name_hint);
+        Doc doc = d->AsDoc(func, p->Attr("functions")->MapValue(gv));
+        d->cfg->binding_names.pop_back();
+        if (const auto* stmt_block = doc.as<StmtBlockDocNode>()) {
+          (*f)->stmts.push_back(stmt_block->stmts.back());
+        } else if (const auto* stmt = doc.as<StmtDocNode>()) {
+          (*f)->stmts.push_back(GetRef<StmtDoc>(stmt));
+        } else {
+          (*f)->stmts.push_back(Downcast<FunctionDoc>(doc));
         }
-        return ClassDoc(IdDoc("Module"), {IR(d, "ir_module")}, (*f)->stmts);
       }
+      return HeaderWrapper(d, ClassDoc(IdDoc(GetBindingName(d).value_or("Module")),
+                                       {IR(d, "ir_module")}, (*f)->stmts));
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -119,9 +125,7 @@ std::string ReprPrintIRModule(const ObjectRef& mod, const PrinterConfig& cfg) {
       return s.value();
     }
   }
-  IRDocsifier d(cfg);
-  Doc doc = HeaderWrapper(d, d->AsDoc(mod, ObjectPath::Root()));
-  return DocToPythonScript(doc, cfg);
+  return ReprPrintIR(mod, cfg);
 }
 
 TVM_SCRIPT_REPR(TypeVarNode, ReprPrintIR);
