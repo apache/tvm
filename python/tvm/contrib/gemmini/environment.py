@@ -32,7 +32,7 @@ from .intrin import (
     add_tensorize,
     add_mvout_tensorize,
 )
-from .utils import counters
+from .utils import COUNTERS
 
 
 class Environment(object):
@@ -221,11 +221,11 @@ class Environment(object):
         self.supports_non_zero_padding = supports_non_zero_padding
         self.use_experimental_qnn_add = use_experimental_qnn_add
 
-        self.enabled_counters = enabled_counters if enabled_counters is not None else counters
+        self.enabled_counters = enabled_counters if enabled_counters is not None else COUNTERS
         # Check that all enabled counters exist in the actual counters from Gemmini
         for key, value in self.enabled_counters.items():
             assert (
-                value == counters[key]
+                value == COUNTERS[key]
             ), f"Enabled counter with key {key} does not exist \
             or has a different name in the actual counters dict!"
 
