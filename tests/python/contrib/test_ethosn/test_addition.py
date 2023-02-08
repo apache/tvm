@@ -183,7 +183,7 @@ def test_addition_both_inputs_constants(
     ],
 )
 def test_addition_with_one_constant(dtype, lhs_shape, lhs_is_constant, rhs_shape, rhs_is_constant):
-    """Compare addition to depthwise with TVM."""
+    """Validate addition with one input as a constant."""
     np.random.seed(0)
 
     iinfo = np.iinfo(dtype)
