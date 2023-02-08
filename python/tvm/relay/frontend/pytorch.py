@@ -1871,70 +1871,77 @@ class PyTorchOpConverter:
         return beta * input + alpha * _op.nn.batch_matmul(batch1, batch2, transpose_b=False)
 
     def matmul(self, inputs, input_types):
+        assert len(inputs) == 2, "Two tensors to be multiplied are expected."
 
-        inputs_0 = inputs[0]
-        inputs_1 = inputs[1]
+        a = inputs[0]
+        b = inputs[1]
 
         # Need to check input shape as batch matmul must be supported.
-        a_shape = self.infer_shape_with_prelude(inputs_0)
-        b_shape = self.infer_shape_with_prelude(inputs_1)
+        a_shape = self.infer_shape_with_prelude(a)
+        b_shape = self.infer_shape_with_prelude(b)
 
-        # When performing a batch matmul, we need to properly handle N-dim shapes.
-        if len(a_shape) > 2 and len(b_shape) > 2:
-            # Convert a into a 3 dimensional tensors.
-            need_reshape_output = False
-            if len(a_shape) != 3:
-                a = _op.reshape(inputs_0, [-1, a_shape[-2], a_shape[-1]])
-                need_reshape_output = True
-            else:
-                a = inputs_0
+        a_ndims = len(a_shape)
+        b_ndims = len(b_shape)
 
-            # Transpose matrix dimensions of b.
-            trans_axes = list(range(len(b_shape)))
-            trans_axes[-2], trans_axes[-1] = trans_axes[-1], trans_axes[-2]
-            b = _op.transpose(inputs_1, trans_axes)
+        # Check if both tensors are at least 1D.
+        if a_ndims == 0 or b_ndims == 0:
+            msg = "Both arguments to matmul must be at least 1D."
+            raise AssertionError(msg)
 
-            # Convert b into a 3 dimensional tensor. Note that the last two dimensions
-            # are transposed.
-            if len(b_shape) != 3:
-                b = _op.reshape(b, [-1, b_shape[-1], b_shape[-2]])
+        # Check if tensors can be multiplied.
+        b_mulaxis = b_shape[-2] if b_ndims > 1 else b_shape[0]
+        if a_shape[-1] != b_mulaxis:
+            msg = "Tensors being multiplied do not have compatible shapes."
+            raise AssertionError(msg)
 
-            # Perform a batch matmul.
-            output = _op.nn.batch_matmul(a, b)
+        # If 1D, remember axis that should be deleted at the end
+        squeeze_dims = []
+        if a_ndims == 1:
+            a = _op.expand_dims(a, axis=0)
+            squeeze_dims += [-2]
+            a_ndims = 2
+            a_shape = (1,) + a_shape
 
-            # Reshape output to original dimensions.
-            if need_reshape_output:
-                return _op.reshape(output, [*a_shape[:-2], a_shape[-2], b_shape[-1]])
-            return output
-        elif len(a_shape) > 2:
-            inputs_0 = _op.reshape(inputs_0, [-1, a_shape[-1]])
-        elif len(a_shape) == 1:
-            return _op.squeeze(_op.nn.matmul(_op.expand_dims(inputs_0, axis=0), inputs_1), axis=[0])
+        if b_ndims == 1:
+            b = _op.expand_dims(b, axis=1)
+            squeeze_dims += [-1]
+            b_ndims = 2
+            b_shape = b_shape + (1,)
 
-        if len(b_shape) > 2:
-            trans_axes = list(range(len(b_shape)))
-            trans_axes[-2], trans_axes[-1] = trans_axes[-1], trans_axes[-2]
-            input_1 = _op.reshape(_op.transpose(inputs_1, trans_axes), [-1, b_shape[-2]])
-        elif len(b_shape) == 2:
-            input_1 = _op.transpose(inputs_1, axes=(1, 0))
-        elif len(b_shape) == 1:
-            input_1 = _op.expand_dims(inputs_1, 0, 1)
+        # Compute result
+        if a_ndims == 2 and b_ndims == 2:
+            # Result is obtained using matmul
+            out = _op.nn.dense(a, _op.transpose(b))
+        else:
+            # Result is obtained using batch_matmul
+            batch_shape = [1] * (max(a_ndims, b_ndims) - 2)
 
-        out = _op.nn.dense(inputs_0, input_1)
+            for i, j in enumerate(reversed(a_shape[:-2])):
+                batch_shape[i] = j
 
-        if len(b_shape) == 1:
-            out = _op.squeeze(out, axis=[-1])
+            for i, j in enumerate(reversed(b_shape[:-2])):
+                # Need to check if axis can be broadcasted
+                if batch_shape[i] == 1 or j == 1 or batch_shape[i] == j:
+                    batch_shape[i] = max(batch_shape[i], j)
+                else:
+                    msg = "Batch dimensions are not broadcastable."
+                    raise AssertionError(msg)
 
-        # Reshape output into a N dimensional tensor when a or b dim > 2
-        if len(a_shape) > 2:
-            out = _op.reshape(out, [*a_shape[:-1], b_shape[-1]])
-        elif len(b_shape) > 2:
-            out = _op.reshape(out, [a_shape[-2], -1, b_shape[-1]])
-            out = _op.reshape(
-                _op.transpose(out, [1, 0, 2]), [*b_shape[:-2], a_shape[-2], b_shape[-1]]
+            batch_shape = batch_shape[::-1]
+
+            a = _op.broadcast_to(a, batch_shape + list(a_shape[-2:]))
+            b = _op.broadcast_to(b, batch_shape + list(b_shape[-2:]))
+
+            out = _op.nn.batch_matmul(
+                _op.reshape(a, [-1, *a_shape[-2:]]),
+                _op.reshape(b, [-1, *b_shape[-2:]]),
+                transpose_b=False,
             )
 
-        return out
+            out_shape = batch_shape + [a_shape[-2]] + [b_shape[-1]]
+            out = _op.reshape(out, out_shape)
+
+        return _op.squeeze(out, axis=squeeze_dims)
 
     def expand(self, inputs, input_types):
         data_in = inputs[0]
