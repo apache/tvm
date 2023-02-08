@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/ir/module.h>
-#include <tvm/runtime/registry.h>
+#ifndef TVM_SCRIPT_IR_BUILDER_IR_UTILS_H_
+#define TVM_SCRIPT_IR_BUILDER_IR_UTILS_H_
+
 #include <tvm/script/ir_builder/ir/frame.h>
 
 namespace tvm {
@@ -25,25 +26,24 @@ namespace script {
 namespace ir_builder {
 namespace ir {
 
-void IRModuleFrameNode::ExitWithScope() {
-  Map<GlobalVar, BaseFunc> func_map;
-  CHECK_EQ(functions.size(), global_var_map.size())
-      << "All functions must be defined in the IRModule. Got " << global_var_map.size()
-      << "declared function(s), but only " << functions.size() << "defined function(s).";
-  for (const auto& kv : functions) {
-    const GlobalVar& gv = kv.first;
-    const BaseFunc& func = kv.second;
-    CHECK(func.defined()) << "ValueError: function " << gv->name_hint << " is not defined";
-    func_map.Set(gv, func);
-  }
+inline IRModuleFrame FindModuleFrame(const String& method) {
   IRBuilder builder = IRBuilder::Current();
-  ICHECK(!builder->result.defined()) << "ValueError: Builder.result has already been set";
-  builder->result = tvm::IRModule(func_map);
+  if (Optional<IRModuleFrame> frame = builder->FindFrame<IRModuleFrame>()) {
+    const Optional<IRModuleFrame>& last_module_frame = builder->GetLastFrame<IRModuleFrame>();
+    if (last_module_frame.defined() && last_module_frame.value() == frame) {
+      return frame.value();
+    }
+  } else {
+    LOG(FATAL) << "ValueError: IRModule frame not find. Please ensure '" << method
+               << "' is called under I.ir_module()";
+  }
+  LOG(FATAL) << "ValueError: '" << method << "' must be called immediately under I.ir_module()";
+  throw;
 }
-
-TVM_REGISTER_NODE_TYPE(IRModuleFrameNode);
 
 }  // namespace ir
 }  // namespace ir_builder
 }  // namespace script
 }  // namespace tvm
+
+#endif  // TVM_SCRIPT_IR_BUILDER_IR_UTILS_H_
