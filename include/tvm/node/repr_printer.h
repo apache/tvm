@@ -63,6 +63,8 @@ class ReprLegacyPrinter {
   TVM_DLL void Print(const ObjectRef& node);
   /*! \brief Print indent to the stream */
   TVM_DLL void PrintIndent();
+  /*! \brief Could the LegacyPrinter dispatch the node */
+  TVM_DLL static bool CanDispatch(const ObjectRef& node);
   /*! \brief Return the ostream it maintains */
   TVM_DLL std::ostream& Stream() const;
   // Allow registration to be printer.

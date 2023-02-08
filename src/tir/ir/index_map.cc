@@ -369,12 +369,6 @@ String IndexMapNode::ToPythonString() const {
   return String(oss.str());
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<IndexMapNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const IndexMapNode*>(node.get());
-      p->stream << "index_map(" << op->ToPythonString() << ")";
-    });
-
 TVM_REGISTER_NODE_TYPE(IndexMapNode);
 
 TVM_REGISTER_GLOBAL("tir.IndexMap")
