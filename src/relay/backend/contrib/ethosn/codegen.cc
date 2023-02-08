@@ -192,9 +192,7 @@ void InferTensorsVisitor::VisitExpr_(const CallNode* cn) {
 
 void ConstructNetworkVisitor::VisitExpr_(const ConstantNode* cn) {
   Constant constant = GetRef<Constant>(cn);
-  std::cout << "Traversing constant..." << std::endl;
   if (tensor_table_.count(constant)) {
-    std::cout << "Found constant...." << std::endl;
     sl::TensorInfo tensor_info = tensor_table_[constant][0];
     sl::TensorAndId<sl::Constant> tensor_and_id =
         sl::AddConstant(network_, tensor_info, constant->data->data);

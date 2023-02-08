@@ -375,3 +375,43 @@ def test_addition_failure(dtype, shape, err_msg):
     model = tei.make_ethosn_composite(model, "ethos-n.qnn_add")
     mod = tei.make_ethosn_partition(model)
     tei.test_error(mod, {}, err_msg)
+
+
+@requires_ethosn
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+@pytest.mark.parametrize(
+    "lhs_shape,lhs_is_constant,rhs_shape,rhs_is_constant",
+    [
+        ((1, 4, 4, 8), True, (1, 1, 4, 8), False),
+        ((1, 4, 4, 8), False, (1, 1, 4, 8), False),
+        ((1, 16, 1, 4), True, (1, 1, 12, 4), False),
+    ],
+)
+def test_unsupported_broadcast_addition(
+    dtype, lhs_shape, lhs_is_constant, rhs_shape, rhs_is_constant
+):
+    """Test broadcast compatible addition falls back to TVM."""
+    np.random.seed(0)
+
+    lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc = _get_addition_qnn_params(dtype)
+
+    model = _get_model(
+        lhs_shape,
+        rhs_shape,
+        lhs_zp,
+        lhs_sc,
+        rhs_zp,
+        rhs_sc,
+        out_zp,
+        out_sc,
+        dtype,
+        lhs_is_constant=lhs_is_constant,
+        rhs_is_constant=rhs_is_constant,
+    )
+    from tvm.relay.op.contrib import partition_for_ethosn  # pylint: disable=import-outside-toplevel
+
+    mod = tei.make_module(model, {})
+    assert "qnn.add" in mod.astext(False)
+    mod = partition_for_ethosn(mod, {})
+    assert "qnn.add" in mod.astext(False)
+    assert "ethos-n.qnn_add" not in mod.astext(False)
