@@ -45,7 +45,8 @@ def gemm(
         dim_k (int): reduction axis dimension
         dim_j (int): output second axis dimension
         stride (int, optional): Stride, useful for convolutions. Defaults to 1.
-        is_depthwise_conv2d (bool, optional): Flag to explain if this is a GEMM for a depthwise convolution. Defaults to False.
+        is_depthwise_conv2d (bool, optional): Flag to explain if this is a GEMM for
+            a depthwise convolution. Defaults to False.
         mode (int, optional): Systolic array mode (WS=1,OS=0). Defaults to 1.
         accum_patch (tvm.tir.Var, optional): Var of the reduction axis loop. Defaults to None.
 
@@ -137,7 +138,8 @@ def gemm(
         garbage = tvm.runtime.const(0xFFFFFFFF, "uint32")
 
         def _body():
-            """Generate matrix-matrix multiply Gemmini instruction, without accumulate (garbage address in compute_preloaded)"""
+            """Generate matrix-matrix multiply Gemmini instruction,
+            without accumulate (garbage address in compute_preloaded)"""
             irb = tvm.tir.ir_builder.create()
 
             inp_access_ptr = dinp.access_ptr("r", "uint32")
@@ -238,7 +240,8 @@ def gemm_cisc(
     scale: float,
     matmul_type: int,
 ):
-    """Matrix-matrix multiply intrinsic, inserts the calls to the function provided by the Gemmini developers to run matrix multiplication using the loop instructions
+    """Matrix-matrix multiply intrinsic, inserts the calls to the function
+    provided by the Gemmini developers to run matrix multiplication using the loop instructions
 
     Args:
         env (Environment): Environment with configurations
@@ -371,7 +374,8 @@ def conv2d_cisc(
     pool_dilation: List[int],
     pool_padding: List[int],
 ):
-    """2D convolution intrinsic, inserts the calls to the function provided by the Gemmini developers to run a 2D convolution using the loop instructions
+    """2D convolution intrinsic, inserts the calls to the function provided
+    by the Gemmini developers to run a 2D convolution using the loop instructions
 
     Args:
         env (Environment): Environment with configurations
@@ -543,7 +547,8 @@ def dw_conv2d_cisc(
     activation: int,
     scale: float,
 ):
-    """2D depthwise convolution intrinsic, inserts the calls to the function provided by the Gemmini developers to run a 2D depthwise convolution using the loop instructions
+    """2D depthwise convolution intrinsic, inserts the calls to the function
+    provided by the Gemmini developers to run a 2D depthwise convolution using the loop instructions
 
     Args:
         env (Environment): Environment with configurations

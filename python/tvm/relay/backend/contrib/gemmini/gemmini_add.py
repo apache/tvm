@@ -134,7 +134,8 @@ def schedule_add(
     sch[ifm2_op].set_scope(ENV.acc_scope)
     sch[ofm_offset_op].set_scope(ENV.acc_scope)
 
-    # Split axis, taking into account the maximum value of rows and columns that can be moved into Gemminis accumulator (DIM)
+    # Split axis, taking into account the maximum value of rows and columns
+    # that can be moved into Gemminis accumulator (DIM)
     y_factor = get_greater_div(int(sch[add_stage].op.axis[3].dom.extent))
     x_factor = get_greater_div(int(sch[add_stage].op.axis[2].dom.extent))
     y_o, y_i = sch[add_stage].split(sch[add_stage].op.axis[3], factor=y_factor)
@@ -146,7 +147,8 @@ def schedule_add(
     sch[ifm2_op].compute_at(sch[add_stage], y_o)
     sch[ofm_offset_op].compute_at(sch[add_stage], y_o)
 
-    # Split axis, taking into account the maximum value of rows and columns that can be moved into Gemminis accumulator (DIM)
+    # Split axis, taking into account the maximum value of rows and columns
+    # that can be moved into Gemminis accumulator (DIM)
     cifm1_ax_0_1, cifm1_ax_0_2 = sch[cifm1].split(sch[cifm1].op.axis[2], factor=ENV.DIM)
     cifm1_ax_1_1, cifm1_ax_1_2 = sch[cifm1].split(
         sch[cifm1].op.axis[3], factor=ENV.MAX_BLOCK_LEN_ACC * ENV.DIM

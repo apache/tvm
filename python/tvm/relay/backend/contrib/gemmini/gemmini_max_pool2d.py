@@ -41,7 +41,10 @@ def max_pool2d(
     pool_dilation: tvm.ir.container.Array,
     pool_padding: tvm.ir.container.Array,
 ) -> tvm.te.tensor.Tensor:
-    """Computation definition to run a max pooling layer on Gemmini. Uses a trick: we call a dw convolution + max pooling, but all weights are 1. So the depthwise convolution does nothing, and the Gemmini accelerator takes care internally of applying the max pooling.
+    """Computation definition to run a max pooling layer on Gemmini.
+    Uses a trick: we call a dw convolution + max pooling, but all weights are 1.
+    So the depthwise convolution does nothing, and the Gemmini accelerator takes care
+    internally of applying the max pooling.
 
     Args:
         cfg (tvm.autotvm.task.space.FallbackConfigEntity): AutoTVM configuration entity
@@ -115,7 +118,10 @@ def max_pool2d(
         return irb.get()
 
     res = te.extern(
-        (1,), [data, weights], lambda ins, outs: irb_builder_func(ins, outs), dtype="int8" # pylint: disable=W0108
+        (1,),
+        [data, weights],
+        lambda ins, outs: irb_builder_func(ins, outs),  # pylint: disable=W0108
+        dtype="int8",
     )
 
     # TODO (FP): add correct FLOPS
