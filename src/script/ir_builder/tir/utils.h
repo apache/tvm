@@ -80,7 +80,7 @@ inline PrimFuncFrame FindPrimFuncFrame(const String& method) {
  * \return The top frame of BlockFrame.
  */
 inline BlockFrame FindBlockFrame(const String& method) {
-  if (Optional<BlockFrame> frame = IRBuilder::Current()->GetLastFrame<BlockFrame>()) {
+  if (Optional<BlockFrame> frame = IRBuilder::Current()->FindFrame<BlockFrame>()) {
     return frame.value();
   }
   LOG(FATAL) << "ValueError: Block frame not find. Please ensure '" << method
