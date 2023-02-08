@@ -141,10 +141,10 @@ class IRDocsifierNode : public Object {
    * when converting IR node object to Doc.
    */
   Array<String> dispatch_tokens;
-  /*! \brief The IRModule to be docsifier is handling */
-  Optional<IRModule> mod;
   /*! \brief Mapping from a var to its info */
   std::unordered_map<ObjectRef, VariableInfo, ObjectPtrHash, ObjectPtrEqual> obj2info;
+  /*! \brief Metadata printing */
+  std::unordered_map<String, Array<ObjectRef>> metadata;
   /*! \brief The variable names used already */
   std::unordered_set<String> defined_names;
   /*! \brief Common prefixes of variable usages */
@@ -155,8 +155,8 @@ class IRDocsifierNode : public Object {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("frames", &frames);
     v->Visit("dispatch_tokens", &dispatch_tokens);
-    v->Visit("mod", &mod);
     // `obj2info` is not visited
+    // `metadata` is not visited
     // `defined_names` is not visited
     // `common_prefix` is not visited
     // `ir_usage` is not visited
@@ -204,7 +204,8 @@ class IRDocsifierNode : public Object {
    * \return The doc for variable, if it exists in the table. Otherwise it returns NullOpt.
    */
   Optional<ExprDoc> GetVarDoc(const ObjectRef& obj) const;
-
+  /*! \brief Add a TVM object to the metadata section*/
+  ExprDoc AddMetadata(const ObjectRef& obj);
   /*!
    * \brief Check if a variable exists in the table.
    * \param obj The variable object.
