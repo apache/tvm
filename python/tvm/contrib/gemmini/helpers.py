@@ -22,8 +22,8 @@ Miscellaneous helpers
 
 import pathlib
 from typing import List
-import numpy as np
 from six.moves import range
+import numpy as np
 from .environment import Environment
 
 
