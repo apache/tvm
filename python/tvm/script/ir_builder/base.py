@@ -64,8 +64,10 @@ class IRBuilderFrame(_Object):
         _ffi_api.IRBuilderFrameEnter(self)  # type: ignore[attr-defined] # pylint: disable=no-member
         return self
 
-    def __exit__(self, ptype, value, trace) -> None:  # pylint: disable=unused-argument
-        _ffi_api.IRBuilderFrameExit(self)  # type: ignore[attr-defined] # pylint: disable=no-member
+    def __exit__(self, exc_type, exc_value, trace) -> None:  # pylint: disable=unused-argument
+        if exc_type is None and exc_value is None:
+            # Do not execute `FrameExit` if the with scope exits because of exceptions
+            _ffi_api.IRBuilderFrameExit(self)  # type: ignore[attr-defined] # pylint: disable=no-member
 
     def add_callback(self, callback: Callable[[], None]) -> None:
         """Add a callback method invoked when exiting the with-scope.
