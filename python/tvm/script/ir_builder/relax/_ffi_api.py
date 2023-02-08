@@ -14,19 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Initial impl of relax parser for sugars"""
-from ...ir_builder.relax import *  # pylint: disable=redefined-builtin
-from ...ir_builder.relax import ir as _relax
-from . import parser as _parser
-from .entry import Callable, Object, Prim, Shape, Tensor, Tuple, function, match_cast
+"""FFI APIs for tvm.script.ir_builder.relax"""
+import tvm._ffi
 
-__all__ = _relax.__all__ + [
-    "Callable",
-    "Object",
-    "Prim",
-    "Shape",
-    "Tensor",
-    "Tuple",
-    "function",
-    "match_cast",
-]
+tvm._ffi._init_api("script.ir_builder.relax", __name__)  # pylint: disable=protected-access

@@ -60,6 +60,10 @@ def _deferred(exit_f: Callable[[], None]):
     return context()
 
 
+def _do_nothing(*args, **kwargs):  # pylint: disable=unused-argument
+    pass
+
+
 class VarTableFrame:
     """The variable table frame.
     A frame of variable table stores the variables created in one block or scope.
@@ -259,6 +263,17 @@ class Parser(doc.NodeVisitor):
             node = self.diag.source.as_ast()
             self.visit(node)
 
+    def get_dispatch_token(self, node: doc.FunctionDef) -> str:
+        if not isinstance(node, doc.FunctionDef):
+            self.report_error(node, "Only can get dispatch token for function.")
+        if not node.decorator_list:
+            self.report_error(node, "Function must be decorated")
+        # TODO: only the last decorator is parsed
+        decorator = self.eval_expr(node.decorator_list[-1])
+        if not hasattr(decorator, "dispatch_token"):
+            self.report_error(node, "The parser does not understand the decorator")
+        return decorator.dispatch_token
+
     def with_dispatch_token(self, token: str):
         """Add a new dispatching token as with statement.
 
@@ -388,6 +403,8 @@ class Parser(doc.NodeVisitor):
         # Only take the last line of the error message
         if isinstance(err, TVMError):
             msg = list(filter(None, str(err).split("\n")))[-1]
+        elif isinstance(err, KeyError):
+            msg = "KeyError: " + str(err)
         else:
             msg = str(err)
         self.diag.error(node, msg)
@@ -457,30 +474,33 @@ class Parser(doc.NodeVisitor):
         """
         return _dispatch(self, "tvm_annotation")(self, node)
 
-    def visit_FunctionDef(self, node: doc.FunctionDef) -> Any:  # pylint: disable=invalid-name
-        """The general function definition visiting method.
+    def visit_FunctionDef(self, node: doc.FunctionDef) -> None:  # pylint: disable=invalid-name
+        """The general function definition visit method.
 
         Parameters
         ----------
         node : doc.FunctionDef
-            The doc AST function definition node.
-
-        Returns
-        -------
-        res : Any
-            The visiting result.
+            The doc FunctionDef node.
         """
-        if not node.decorator_list:
-            self.report_error(node, "Function must be decorated")
-        # TODO: only the last decorator is parsed
-        decorator = self.eval_expr(node.decorator_list[-1])
-        if not hasattr(decorator, "dispatch_token"):
-            self.report_error(node, "The parser does not understand the decorator")
-        token = decorator.dispatch_token
+        token = self.get_dispatch_token(node)
+        current_token = self.dispatch_tokens[-1]
         func = dispatch.get(token=token, type_name="FunctionDef", default=None)
         if func is None:
             self.report_error(node, "The parser does not understand the decorator")
+        pre_func = dispatch.get(
+            token=current_token, type_name="pre_token_switch", default=_do_nothing
+        )
+        post_func = dispatch.get(
+            token=current_token, type_name="post_token_switch", default=_do_nothing
+        )
+        pre_func(self, node)
         _dispatch_wrapper(func)(self, node)
+        post_func(self, node)
+
+    def visit_tvm_declare_function(self, node: doc.FunctionDef) -> None:
+        token = self.get_dispatch_token(node)
+        with self.with_dispatch_token(token):
+            _dispatch(self, "tvm_declare_function")(self, node)
 
     def visit_ClassDef(self, node: doc.ClassDef) -> Any:  # pylint: disable=invalid-name
         """The general class definition visiting method.

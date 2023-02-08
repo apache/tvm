@@ -37,6 +37,23 @@ namespace ir {
  */
 TVM_DLL IRModuleFrame IRModule();
 
+/*!
+ * \brief Declare a Function without given the specific function implementation.
+ * \note It is usually used in cross-function call. And we can specify the function by `DefFunction`
+ * \param func_name The function unique name.
+ * \param func_signature A Function w/o body, which used to specify the function signature
+ *                       (i.e. func params and func return type/shape).
+ * \return The corresponding GlobalVar.
+ */
+TVM_DLL GlobalVar DeclFunction(const String& func_name, const BaseFunc& func_signature);
+
+/*!
+ * \brief Define the function which is declared before.
+ * \param func_name The function unique name.
+ * \param func The given function implementation
+ */
+TVM_DLL void DefFunction(const String& func_name, const BaseFunc& func);
+
 }  // namespace ir
 }  // namespace ir_builder
 }  // namespace script
