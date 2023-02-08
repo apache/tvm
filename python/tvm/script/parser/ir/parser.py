@@ -32,8 +32,12 @@ def _visit_class_def(self: Parser, node: doc.ClassDef) -> None:
     node : doc.ClassDef
         The doc AST class definition node.
     """
+
     with self.var_table.with_frame():
         with I.ir_module():
+            for stmt in node.body:
+                if isinstance(stmt, doc.FunctionDef):
+                    self.visit_tvm_declare_function(stmt)
             with self.with_dispatch_token("ir"):
                 self.visit_body(node.body)
 
@@ -64,3 +68,14 @@ def _visit_expr(_self: Parser, _node: doc.Expr) -> None:
     node : doc.ClassDef
         The doc AST expression node.
     """
+
+
+@dispatch.register(token="default", type_name="Assign")
+def visit_assign(self: Parser, node: doc.Assign) -> None:
+    if len(node.targets) != 1:
+        self.report_error(node, "Consequential assignments like 'a = b = c' are not supported.")
+    lhs = node.targets[0]
+    rhs = self.eval_expr(node.value)
+    self.eval_assign(
+        target=lhs, source=rhs, bind_value=lambda _a, _b, _c, value: value, allow_shadowing=True
+    )
