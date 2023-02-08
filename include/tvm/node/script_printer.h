@@ -35,6 +35,10 @@ namespace tvm {
 
 class PrinterConfigNode : public Object {
  public:
+  /*! \brief A stack that tracks the names of the binding hierarchy */
+  Array<String> binding_names = {};
+  /*! \brief Whether or not to show metadata. */
+  bool show_meta = false;
   /*! \brief The prefix of IR nodes */
   std::string ir_prefix = "I";
   /*! \brief The prefix of TIR nodes */
@@ -71,6 +75,8 @@ class PrinterConfigNode : public Object {
   Map<ObjectRef, String> obj_to_annotate = Map<ObjectRef, String>();
 
   void VisitAttrs(AttrVisitor* v) {
+    v->Visit("binding_names", &binding_names);
+    v->Visit("show_meta", &show_meta);
     v->Visit("ir_prefix", &ir_prefix);
     v->Visit("buffer_dtype", &buffer_dtype);
     v->Visit("int_dtype", &int_dtype);
