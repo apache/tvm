@@ -112,9 +112,9 @@ def schedule_gemm_cisc(
     if cfg.is_fallback:
         cfg["WS/OS"] = OtherOptionEntity(ENV.WEIGHT_STATIONARY)
 
-    x_, _ = sch[dense_stage].op.axis
+    x_axis, _ = sch[dense_stage].op.axis
 
-    x_o, x_i = sch[dense_stage].split(x_, factor=data.shape[0])
+    x_o, x_i = sch[dense_stage].split(x_axis, factor=data.shape[0])
 
     axis_for_start = x_o
 

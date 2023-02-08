@@ -128,7 +128,6 @@ def schedule_add(
 
     ifm1, ifm2_op = add_stage.op.input_tensors
     ifm2, ofm_offset_op = ifm2_op.op.input_tensors
-    ofm_offset_op.op.input_tensors[0]
 
     # Prepare the scope of each buffer
     cifm1 = sch.cache_read(ifm1, ENV.acc_scope, [add_stage])

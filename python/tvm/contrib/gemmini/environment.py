@@ -58,7 +58,7 @@ class Environment(object):
         bank_rows=8192,
         bank_num=4,
         debug=False,
-        enabled_counters: Dict = {},
+        enabled_counters: Dict = None,
         supports_non_zero_padding: bool = False,
         use_experimental_qnn_add: bool = False,
     ):
@@ -75,7 +75,7 @@ class Environment(object):
             bank_rows (int, optional): Rows of each bank in the scratchpad. Defaults to 8192.
             bank_num (int, optional): Banks for the scratchpad. Defaults to 4.
             debug (bool, optional): Adds debug of Gemmini counters. Defaults to False.
-            enabled_counters (dict, optional): Enabled Gemmini counters for debug purposes. Defaults to empty.
+            enabled_counters (dict, optional): Enabled Gemmini counters for debug purposes. Defaults to None.
             supports_non_zero_padding (bool, optional): Gemmini supports instructions with non-zero padding. Defaults to False.
             use_experimental_qnn_add (bool, optional): Pattern matching for qnn.add. Defaults to False.
         """
@@ -120,7 +120,7 @@ class Environment(object):
         bank_rows=4096,
         bank_num=4,
         debug=False,
-        enabled_counters: Dict = {},
+        enabled_counters: Dict = None,
         supports_non_zero_padding: bool = False,
         use_experimental_qnn_add: bool = False,
     ):
@@ -137,7 +137,7 @@ class Environment(object):
             bank_rows (int, optional): Amount of rows of each bank in the scratchpad. Defaults to 8192.
             bank_num (int, optional): Amount of banks for the scratchpad. Defaults to 4.
             debug (bool, optional): Adds debug of Gemmini counters. Defaults to False.
-            enabled_counters (dict, optional): Enabled Gemmini counters for debug purposes. Defaults to empty.
+            enabled_counters (dict, optional): Enabled Gemmini counters for debug purposes. Defaults to None.
             supports_non_zero_padding (bool, optional): Gemmini supports instructions with non-zero padding. Defaults to False.
             use_experimental_qnn_add (bool, optional): Pattern matching for qnn.add. Defaults to False.
         """
@@ -212,11 +212,11 @@ class Environment(object):
         self.supports_non_zero_padding = supports_non_zero_padding
         self.use_experimental_qnn_add = use_experimental_qnn_add
 
-        self.enabled_counters = enabled_counters if bool(enabled_counters) else counters
+        self.enabled_counters = enabled_counters if enabled_counters is not None else counters
         # Check that all enabled counters exist in the actual counters from Gemmini
         for key, value in self.enabled_counters.items():
             assert (
-                self.enabled_counters[key] == counters[key]
+                value == counters[key]
             ), f"Enabled counter with key {key} does not exist or has a different name in the actual counters dict!"
 
     def gemm(

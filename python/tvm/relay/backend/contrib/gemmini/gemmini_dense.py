@@ -113,11 +113,10 @@ def schedule_gemm(
     sch = te.create_schedule([x.op for x in outs])
 
     data, weight, bias_op = dense_stage.op.input_tensors
-    bias_op.op.input_tensors[0]
 
     ##### space definition begin #####
     x, y = sch[dense_stage].op.axis
-    (z,) = sch[dense_stage].op.reduce_axis
+    (z_axis,) = sch[dense_stage].op.reduce_axis
 
     # TODO (FP): add limits for scratchpad and accumulator sizes perhaps?
     cfg.define_split(
@@ -146,7 +145,7 @@ def schedule_gemm(
 
     cfg.define_split(
         "tile_zo",
-        z,
+        z_axis,
         num_outputs=3,
         policy="power2",
         filter=lambda ax: (
@@ -188,26 +187,26 @@ def schedule_gemm(
     cweight = sch.cache_read(weight, ENV.scr_wgt_scope, [dense_stage])
     dense_stage_acc = sch.cache_write(output, ENV.acc_scope)
     sch[bias_op].set_scope(ENV.acc_scope)
-    (x_, y_) = sch[dense_stage_acc].op.axis
-    (z_,) = sch[dense_stage_acc].op.reduce_axis
+    (x_axis, y_axis) = sch[dense_stage_acc].op.axis
+    (z_axis_int,) = sch[dense_stage_acc].op.reduce_axis
 
     # Split loops to generate the inner dimensions specified by knobs tile_xo and tile_yo
-    b_y, yo, yi = cfg["tile_yo"].apply(sch, output, sch[output].op.axis[1])
-    b_x, xo, xi = cfg["tile_xo"].apply(sch, output, sch[output].op.axis[0])
+    b_y, yo_axis, yi_axis = cfg["tile_yo"].apply(sch, output, sch[output].op.axis[1])
+    b_x, xo_axis, xi_axis = cfg["tile_xo"].apply(sch, output, sch[output].op.axis[0])
 
     # Apply the exchange_axis knob
     if cfg["exchange_axis"].val:
-        sch[output].reorder(b_y, b_x, yo, xo, yi, xi)
+        sch[output].reorder(b_y, b_x, yo_axis, xo_axis, yi_axis, xi_axis)
     else:
-        sch[output].reorder(b_x, b_y, xo, yo, xi, yi)
+        sch[output].reorder(b_x, b_y, xo_axis, yo_axis, xi_axis, yi_axis)
 
     # Apply the accumulate_multiple_patches knob
     if cfg["accumulate_multiple_patches"].val == 0:
         axis_for_output = b_x if cfg["exchange_axis"].val else b_y
     elif cfg["accumulate_multiple_patches"].val == 1:
-        axis_for_output = yo if cfg["exchange_axis"].val else xo
+        axis_for_output = yo_axis if cfg["exchange_axis"].val else xo_axis
     else:
-        axis_for_output = xo if cfg["exchange_axis"].val else yo
+        axis_for_output = xo_axis if cfg["exchange_axis"].val else yo_axis
 
     axis_gemm_start = b_y if cfg["exchange_axis"].val else b_x
 
@@ -215,9 +214,9 @@ def schedule_gemm(
     sch[dense_stage_acc].compute_at(sch[output], axis_for_output)
 
     # # Split loops to generate the inner dimensions specified by knob tile_zo
-    xo_o, xi_o = sch[dense_stage_acc].split(x_, factor=ENV.DIM)
-    yo_o, yi_o = sch[dense_stage_acc].split(y_, factor=ENV.DIM)
-    b_z, zo_o, zi_o = cfg["tile_zo"].apply(sch, dense_stage_acc, z_)
+    xo_o, xi_o = sch[dense_stage_acc].split(x_axis, factor=ENV.DIM)
+    yo_o, yi_o = sch[dense_stage_acc].split(y_axis, factor=ENV.DIM)
+    b_z, zo_o, zi_o = cfg["tile_zo"].apply(sch, dense_stage_acc, z_axis_int)
 
     # Apply the exchange_axis knob
     if cfg["exchange_axis"].val:
@@ -302,22 +301,22 @@ def schedule_gemm(
 
     # Mvout preparation
     if cfg["exchange_axis"].val:
-        sch[output].reorder(yo, yi, xo, xi)
+        sch[output].reorder(yo_axis, yi_axis, xo_axis, xi_axis)
     else:
-        sch[output].reorder(xo, xi, yo, yi)
+        sch[output].reorder(xo_axis, xi_axis, yo_axis, yi_axis)
     if cfg["accumulate_multiple_patches"].val == 0:
-        fused_x = sch[output].fuse(xo, xi)
-        fused_y = sch[output].fuse(yo, yi)
+        fused_x = sch[output].fuse(xo_axis, xi_axis)
+        fused_y = sch[output].fuse(yo_axis, yi_axis)
     elif cfg["accumulate_multiple_patches"].val == 1:
         if cfg["exchange_axis"].val:
-            fused_x = sch[output].fuse(xo, xi)
-            fused_y = yi
+            fused_x = sch[output].fuse(xo_axis, xi_axis)
+            fused_y = yi_axis
         else:
-            fused_x = xi
-            fused_y = sch[output].fuse(yo, yi)
+            fused_x = xi_axis
+            fused_y = sch[output].fuse(yo_axis, yi_axis)
     else:
-        fused_x = xi
-        fused_y = yi
+        fused_x = xi_axis
+        fused_y = yi_axis
 
     fused_x_1, fused_x_2 = sch[output].split(fused_x, factor=ENV.DIM)
     fused_y_1, fused_y_2 = sch[output].split(
