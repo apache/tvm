@@ -68,11 +68,10 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
     if not isinstance(axis, int):
         axis = get_const_int(axis)
 
-    if axis < 0:
-        axis = len(shape) + axis
-
     # Prepare ranges and strides
     shape = data.shape
+    if axis < 0:
+        axis = len(shape) + axis
     axis_range = cast(shape[axis], indices.dtype)
 
     before_axis_range = 1
