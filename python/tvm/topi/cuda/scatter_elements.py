@@ -68,13 +68,13 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
     if not isinstance(axis, int):
         axis = get_const_int(axis)
 
-    shape = data.shape
-    axis_range = cast(shape[axis], indices.dtype)
-
     if axis < 0:
         axis = len(shape) + axis
 
     # Prepare ranges and strides
+    shape = data.shape
+    axis_range = cast(shape[axis], indices.dtype)
+
     before_axis_range = 1
     after_axis_range = 1
     for i, value in enumerate(shape, 0):
@@ -84,7 +84,19 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
             after_axis_range *= value
     before_axis_stride = axis_range * after_axis_range
     full_range = before_axis_range * before_axis_stride
-    full_range_excl_axis = before_axis_range * after_axis_range
+
+    ind_shape = indices.shape
+    ind_axis_range = shape[axis]
+
+    ind_before_axis_range = 1
+    ind_after_axis_range = 1
+    for i, value in enumerate(ind_shape, 0):
+        if i < axis:
+            ind_before_axis_range *= value
+        elif i > axis:
+            ind_after_axis_range *= value
+    ind_before_axis_stride = ind_axis_range * ind_after_axis_range
+    ind_full_range_excl_axis = ind_before_axis_range * ind_after_axis_range
 
     def gen_ir(data_ptr, indices_ptr, updates_ptr, out_ptr):
         ib = tir.ir_builder.create()
@@ -109,24 +121,25 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
 
         # TODO (vvchernov): use atomic function for special conditions (see cuda.scatter_nd)
         with ib.new_scope():
-            num_blocks_2 = ceil_div(full_range_excl_axis, max_threads)
+            num_blocks_2 = ceil_div(ind_full_range_excl_axis, max_threads)
             bx2 = te.thread_axis("blockIdx.x")
             tx2 = te.thread_axis("threadIdx.x")
             ib.scope_attr(bx2, "thread_extent", num_blocks_2)
             ib.scope_attr(tx2, "thread_extent", max_threads)
 
-            fused = bx2 * max_threads + tx2
-            with ib.if_scope(fused < full_range_excl_axis):
-                i = fused // after_axis_range
-                j = fused % after_axis_range
-                pre_index = i * before_axis_stride + j
-                with ib.for_range(0, axis_range, "k") as k:
-                    index1 = pre_index + k * after_axis_range
+            ind_fused = bx2 * max_threads + tx2
+            with ib.if_scope(ind_fused < ind_full_range_excl_axis):
+                i = ind_fused // ind_after_axis_range
+                j = ind_fused % ind_after_axis_range
+                with ib.for_range(0, ind_axis_range, "k") as k:
+                    # Offset along indices or updates
+                    index1 = i * ind_before_axis_stride + k * ind_after_axis_range + j
                     # TODO(vvchernov): assert for out of bounds, separated check for indices
                     k_new = indices[index1]
                     index_check = tir.LT(k_new, tir.const(0, indices.dtype))
                     k_new += tir.Select(index_check, axis_range, tir.const(0, indices.dtype))
-                    index2 = pre_index + k_new * after_axis_range
+                    # Offset along data
+                    index2 = i * before_axis_stride + k_new * after_axis_range + j
                     if reduction == "update":
                         out[index2] = updates[index1]
                     elif reduction == "add":

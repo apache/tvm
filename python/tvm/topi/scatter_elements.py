@@ -113,13 +113,13 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
             i = fused // ind_after_axis_range
             j = fused % ind_after_axis_range
             with ib.for_range(0, ind_axis_range, "k") as k:
-                # Offset allong indices or updates
+                # Offset along indices or updates
                 index1 = i * ind_before_axis_stride + k * ind_after_axis_range + j
                 # TODO(vvchernov): assert for out of bounds, separated check for indices
                 k_new = indices[index1]
                 index_check = tir.LT(k_new, tir.const(0, indices.dtype))
                 k_new += tir.Select(index_check, axis_range, tir.const(0, indices.dtype))
-                # Offset allong data
+                # Offset along data
                 index2 = i * before_axis_stride + k_new * after_axis_range + j
                 if reduction == "update":
                     out[index2] = updates[index1]
