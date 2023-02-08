@@ -21,10 +21,24 @@ Helpers and functions related to the build process to generate code for the Gemm
 """
 
 import tvm
-
-from .environment import Environment
-from .transform import *
 from tvm import relay
+from .environment import Environment
+from .transform import (
+    InjectAMVINIntrin,
+    InjectAMVINIntrinTransposed,
+    InjectBMVINIntrin,
+    InjectBMVINIntrinTransposed,
+    InjectCMVOUTIntrin,
+    InjectCMVOUTIntrinTransposed,
+    InjectDMVINIntrin,
+    InjectDMVINIntrinTransposed,
+    InjectCMVINIntrin,
+    InjectCMVINIntrinTransposed,
+    InjectCMVINAccumIntrin,
+    InjectCMVINAccumIntrinTransposed,
+    InsertGemminiHeaderOperators,
+    InsertGemminiFenceOperator,
+)
 from .legalize import LegalizeGemmini
 
 
@@ -145,7 +159,7 @@ def build(*args, **kwargs):
 
 
 # The memory information for the compiler
-@tvm.register_func("tvm.info.mem.%s" % Environment.instance().scr_scope)
+@tvm.register_func(f"tvm.info.mem.{Environment.instance().scr_scope}")
 def mem_info_inp_buffer():
     """Creates the information about the local.scratchpad memory node
 
@@ -164,7 +178,7 @@ def mem_info_inp_buffer():
 
 
 # The memory information for the compiler
-@tvm.register_func("tvm.info.mem.%s" % Environment.instance().scr_wgt_scope)
+@tvm.register_func(f"tvm.info.mem.{Environment.instance().scr_wgt_scope}")
 def mem_info_wgt_buffer():
     """Creates the information about the local.scratchpad_weight memory node
 
@@ -183,7 +197,7 @@ def mem_info_wgt_buffer():
 
 
 # The memory information for the compiler
-@tvm.register_func("tvm.info.mem.%s" % Environment.instance().acc_scope)
+@tvm.register_func(f"tvm.info.mem.{Environment.instance().acc_scope}")
 def mem_info_acc_buffer():
     """Creates the information about the local.accumulator memory node
 
@@ -193,9 +207,13 @@ def mem_info_acc_buffer():
     Environment.instance()
     return tvm.ir.make_node(
         "MemoryInfo",
-        unit_bits=env.inp_bits,
-        max_simd_bits=env.DIM,
-        max_num_bits=int(env.ACC_ROWS * env.DIM * env.inp_bits),
+        unit_bits=Environment.instance().inp_bits,
+        max_simd_bits=Environment.instance().DIM,
+        max_num_bits=int(
+            Environment.instance().ACC_ROWS
+            * Environment.instance().DIM
+            * Environment.instance().inp_bits
+        ),
         # head_address=tvm.runtime.const(env.OUT_ACC_BASE_ADDRESS, "uint32"),
         head_address=None,
     )

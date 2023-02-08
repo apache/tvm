@@ -31,7 +31,7 @@ from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 from tvm.contrib.gemmini.environment import Environment
 from tvm.contrib.gemmini.helpers import get_greater_div
 
-env = Environment.instance()
+ENV = Environment.instance()
 
 
 @autotvm.register_topi_compute("contrib.gemmini.gemm")
@@ -66,7 +66,7 @@ def gemm(
 
     bias_stage = te.compute(
         oshape,
-        lambda x_o, y_o: bias[y_o].astype(env.inp_dtype),
+        lambda x_o, y_o: bias[y_o].astype(ENV.inp_dtype),
         name="bias.local.accumulator",
         tag="bias_add",
     )
@@ -74,8 +74,8 @@ def gemm(
     res = te.compute(
         oshape,
         lambda x_o, y_o: te.sum(
-            data[x_o, k_o].astype(env.inp_dtype) * weight[k_o, y_o].astype(env.inp_dtype)
-            + bias_stage[x_o, y_o].astype(env.inp_dtype),
+            data[x_o, k_o].astype(ENV.inp_dtype) * weight[k_o, y_o].astype(ENV.inp_dtype)
+            + bias_stage[x_o, y_o].astype(ENV.inp_dtype),
             axis=[k_o],
         ),
         name="res",
@@ -127,8 +127,8 @@ def schedule_gemm(
         policy="power2",
         filter=lambda ax: (
             ax.size[-1] == get_greater_div(int(data.shape[0]))
-            if (data.shape[0] >= env.DIM)
-            else ax.size[-1] <= env.DIM
+            if (data.shape[0] >= ENV.DIM)
+            else ax.size[-1] <= ENV.DIM
         ),
     )
 
@@ -139,8 +139,8 @@ def schedule_gemm(
         policy="power2",
         filter=lambda ax: (
             ax.size[-1] == get_greater_div(int(weight.shape[1]))
-            if (weight.shape[1] >= env.DIM)
-            else ax.size[-1] <= env.DIM
+            if (weight.shape[1] >= ENV.DIM)
+            else ax.size[-1] <= ENV.DIM
         ),
     )
 
@@ -151,8 +151,8 @@ def schedule_gemm(
         policy="power2",
         filter=lambda ax: (
             ax.size[-1] == get_greater_div(int(weight.shape[0]))
-            if (weight.shape[0] >= env.DIM)
-            else ax.size[-1] <= env.DIM
+            if (weight.shape[0] >= ENV.DIM)
+            else ax.size[-1] <= ENV.DIM
         ),
     )
 
@@ -167,7 +167,7 @@ def schedule_gemm(
     # WS/OS
     #   0: Gemmini will be configured as output stationary
     #   1: Gemmini will be configured as weight stationary
-    cfg.define_knob("WS/OS", [env.WEIGHT_STATIONARY, env.OUTPUT_STATIONARY])
+    cfg.define_knob("WS/OS", [ENV.WEIGHT_STATIONARY, ENV.OUTPUT_STATIONARY])
     # mvout_big_block
     #   False: generate mvout instructions moving as maximum DIM columns
     #   True: generate mvout instructions moving more than DIM columns
@@ -180,14 +180,14 @@ def schedule_gemm(
         cfg["accumulate_multiple_patches"] = OtherOptionEntity(0)
         cfg["exchange_axis"] = OtherOptionEntity(False)
         cfg["mvout_big_block"] = OtherOptionEntity(True)
-        cfg["WS/OS"] = OtherOptionEntity(env.WEIGHT_STATIONARY)
+        cfg["WS/OS"] = OtherOptionEntity(ENV.WEIGHT_STATIONARY)
 
     ###### space definition end ######
 
-    cdata = sch.cache_read(data, env.scr_scope, [dense_stage])
-    cweight = sch.cache_read(weight, env.scr_wgt_scope, [dense_stage])
-    dense_stage_acc = sch.cache_write(output, env.acc_scope)
-    sch[bias_op].set_scope(env.acc_scope)
+    cdata = sch.cache_read(data, ENV.scr_scope, [dense_stage])
+    cweight = sch.cache_read(weight, ENV.scr_wgt_scope, [dense_stage])
+    dense_stage_acc = sch.cache_write(output, ENV.acc_scope)
+    sch[bias_op].set_scope(ENV.acc_scope)
     (x_, y_) = sch[dense_stage_acc].op.axis
     (z_,) = sch[dense_stage_acc].op.reduce_axis
 
@@ -215,8 +215,8 @@ def schedule_gemm(
     sch[dense_stage_acc].compute_at(sch[output], axis_for_output)
 
     # # Split loops to generate the inner dimensions specified by knob tile_zo
-    xo_o, xi_o = sch[dense_stage_acc].split(x_, factor=env.DIM)
-    yo_o, yi_o = sch[dense_stage_acc].split(y_, factor=env.DIM)
+    xo_o, xi_o = sch[dense_stage_acc].split(x_, factor=ENV.DIM)
+    yo_o, yi_o = sch[dense_stage_acc].split(y_, factor=ENV.DIM)
     b_z, zo_o, zi_o = cfg["tile_zo"].apply(sch, dense_stage_acc, z_)
 
     # Apply the exchange_axis knob
@@ -242,20 +242,20 @@ def schedule_gemm(
     if cfg["axis_for_cdata"].val == 0:
         assert (
             cfg["tile_xo"].size[1] * cfg["tile_xo"].size[2] * data.shape[1]
-            <= env.INP_SCR_ROWS * env.DIM
+            <= ENV.INP_SCR_ROWS * ENV.DIM
         ), "Data matrix will not fit in scratchpad!"
     elif cfg["axis_for_cdata"].val == 1:
         assert (
-            cfg["tile_xo"].size[2] * data.shape[1] <= env.INP_SCR_ROWS * env.DIM
+            cfg["tile_xo"].size[2] * data.shape[1] <= ENV.INP_SCR_ROWS * ENV.DIM
         ), "Data matrix will not fit in scratchpad!"
     if cfg["axis_for_cweight"].val == 0:
         assert (
             cfg["tile_yo"].size[1] * cfg["tile_yo"].size[2] * weight.shape[0]
-            <= env.WGT_SCR_ROWS * env.DIM
+            <= ENV.WGT_SCR_ROWS * ENV.DIM
         ), "Weight matrix will not fit in scratchpad!"
     elif cfg["axis_for_cweight"].val == 1:
         assert (
-            cfg["tile_yo"].size[2] * weight.shape[0] <= env.WGT_SCR_ROWS * env.DIM
+            cfg["tile_yo"].size[2] * weight.shape[0] <= ENV.WGT_SCR_ROWS * ENV.DIM
         ), "Weight matrix will not fit in scratchpad!"
 
     # And here we assert that there is enough place available in the accumulator
@@ -265,12 +265,12 @@ def schedule_gemm(
             * cfg["tile_xo"].size[2]
             * cfg["tile_yo"].size[1]
             * cfg["tile_yo"].size[2]
-            <= env.ACC_ROWS * env.DIM
+            <= ENV.ACC_ROWS * ENV.DIM
         ), "Result matrix will not fit in accumulator!"
     elif cfg["accumulate_multiple_patches"].val == 1:
         assert (
             cfg["tile_xo"].size[2] * cfg["tile_yo"].size[1] * cfg["tile_yo"].size[2]
-            <= env.ACC_ROWS * env.DIM
+            <= ENV.ACC_ROWS * ENV.DIM
         ), "Result matrix will not fit in accumulator!"
 
     # Move the data and weight move instructions into the correct loops selected by the axis_for_cdata and axis_for_cweight knobs
@@ -282,21 +282,21 @@ def schedule_gemm(
     )
 
     # Split input moves because Gemmini's mvin only supports mvins with rows <= DIM and cols <= MAX_BLOCK_LEN
-    cdata_ax_0_1, cdata_ax_0_2 = sch[cdata].split(sch[cdata].op.axis[0], factor=env.DIM)
+    cdata_ax_0_1, cdata_ax_0_2 = sch[cdata].split(sch[cdata].op.axis[0], factor=ENV.DIM)
     cdata_ax_1_1, cdata_ax_1_2 = sch[cdata].split(
-        sch[cdata].op.axis[1], factor=env.MAX_BLOCK_LEN * env.DIM
+        sch[cdata].op.axis[1], factor=ENV.MAX_BLOCK_LEN * ENV.DIM
     )
     sch[cdata].reorder(cdata_ax_0_1, cdata_ax_1_1, cdata_ax_0_2, cdata_ax_1_2)
 
-    cweight_ax_0_1, cweight_ax_0_2 = sch[cweight].split(sch[cweight].op.axis[0], factor=env.DIM)
+    cweight_ax_0_1, cweight_ax_0_2 = sch[cweight].split(sch[cweight].op.axis[0], factor=ENV.DIM)
     cweight_ax_1_1, cweight_ax_1_2 = sch[cweight].split(
-        sch[cweight].op.axis[1], factor=env.MAX_BLOCK_LEN * env.DIM
+        sch[cweight].op.axis[1], factor=ENV.MAX_BLOCK_LEN * ENV.DIM
     )
     sch[cweight].reorder(cweight_ax_0_1, cweight_ax_1_1, cweight_ax_0_2, cweight_ax_1_2)
 
-    cbias_ax_0_1, cbias_ax_0_2 = sch[bias_op].split(sch[bias_op].op.axis[0], factor=env.DIM)
+    cbias_ax_0_1, cbias_ax_0_2 = sch[bias_op].split(sch[bias_op].op.axis[0], factor=ENV.DIM)
     cbias_ax_1_1, cbias_ax_1_2 = sch[bias_op].split(
-        sch[bias_op].op.axis[1], factor=env.MAX_BLOCK_LEN_ACC * env.DIM
+        sch[bias_op].op.axis[1], factor=ENV.MAX_BLOCK_LEN_ACC * ENV.DIM
     )
     sch[bias_op].reorder(cbias_ax_0_1, cbias_ax_1_1, cbias_ax_0_2, cbias_ax_1_2)
 
@@ -319,34 +319,34 @@ def schedule_gemm(
         fused_x = xi
         fused_y = yi
 
-    fused_x_1, fused_x_2 = sch[output].split(fused_x, factor=env.DIM)
+    fused_x_1, fused_x_2 = sch[output].split(fused_x, factor=ENV.DIM)
     fused_y_1, fused_y_2 = sch[output].split(
-        fused_y, factor=env.MAX_BLOCK_LEN * env.DIM if cfg["mvout_big_block"].val else env.DIM
+        fused_y, factor=ENV.MAX_BLOCK_LEN * ENV.DIM if cfg["mvout_big_block"].val else ENV.DIM
     )
     sch[output].reorder(fused_x_1, fused_y_1, fused_x_2, fused_y_2)
 
     # Tag loops with pragmas, in order to insert the move in and move out instructions
-    sch[cweight].pragma(cweight_ax_0_2, env.B_mvin)
+    sch[cweight].pragma(cweight_ax_0_2, ENV.B_mvin)
     if data.shape[0] == 1 and weight.shape[1] > 1:
-        sch[cdata].pragma(cdata_ax_0_2, env.A_mvin + "_t")
-        sch[bias_op].pragma(cbias_ax_0_2, env.D_mvin + "_t")
-        sch[output].pragma(fused_x_2, env.C_mvout + "_t")
+        sch[cdata].pragma(cdata_ax_0_2, ENV.A_mvin + "_t")
+        sch[bias_op].pragma(cbias_ax_0_2, ENV.D_mvin + "_t")
+        sch[output].pragma(fused_x_2, ENV.C_mvout + "_t")
     else:
-        sch[cdata].pragma(cdata_ax_0_2, env.A_mvin)
-        sch[bias_op].pragma(cbias_ax_0_2, env.D_mvin)
-        sch[output].pragma(fused_x_2, env.C_mvout)
+        sch[cdata].pragma(cdata_ax_0_2, ENV.A_mvin)
+        sch[bias_op].pragma(cbias_ax_0_2, ENV.D_mvin)
+        sch[output].pragma(fused_x_2, ENV.C_mvout)
 
     # Apply tensorize
-    I = data.shape[0] if data.shape[0] < env.DIM else cfg["tile_xo"].size[-1]
-    K = weight.shape[0] if weight.shape[0] < env.DIM else cfg["tile_zo"].size[-1]
-    J = weight.shape[1] if weight.shape[1] < env.DIM else cfg["tile_yo"].size[-1]
+    dim_i = data.shape[0] if data.shape[0] < ENV.DIM else cfg["tile_xo"].size[-1]
+    dim_k = weight.shape[0] if weight.shape[0] < ENV.DIM else cfg["tile_zo"].size[-1]
+    dim_j = weight.shape[1] if weight.shape[1] < ENV.DIM else cfg["tile_yo"].size[-1]
 
     sch[dense_stage_acc].tensorize(
         xi_o if cfg["exchange_axis"].val else yi_o,
-        env.gemm(
-            I,
-            K,
-            J,
+        ENV.gemm(
+            dim_i,
+            dim_k,
+            dim_j,
             mode=cfg["WS/OS"].val,
             accum_patch=tvm.tir.IntImm("uint8", 0)
             if cfg["exchange_axis"].val or cfg["tile_zo"].size[1] != 1
@@ -359,8 +359,8 @@ def schedule_gemm(
     config_dict["A_size"] = int(data.shape[1])
     config_dict["B_size"] = int(weight.shape[1])
     config_dict["C_size"] = int(output.shape[1])
-    config_dict["A_private_stride"] = env.DIM
-    config_dict["B_private_stride"] = env.DIM
+    config_dict["A_private_stride"] = ENV.DIM
+    config_dict["B_private_stride"] = ENV.DIM
     config_dict["execution_stride"] = 1
     config_dict["activation"] = 0
     config_dict["mode"] = cfg["WS/OS"].val

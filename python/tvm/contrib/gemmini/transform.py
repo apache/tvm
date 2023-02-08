@@ -21,10 +21,10 @@ Transformation passes for Gemmini
 **Author**: `Federico Peccia <https://fPecc.github.io/>`_
 """
 
-import tvm
 import ast
-from tvm.tir.ir_builder import IRBuilder
 from typing import Dict
+import tvm
+from tvm.tir.ir_builder import IRBuilder
 
 from .environment import Environment
 
@@ -40,12 +40,12 @@ def _get_counters(irb: IRBuilder):
     irb.emit(tvm.tir.call_extern("", "counter_snapshot_take"))
     irb.emit(tvm.tir.call_extern("", "printf", "Counter values:\\r\\n"))
     counter_vars = []
-    for i, (key, value) in enumerate(env.enabled_counters.items()):
+    for i, (_, value) in enumerate(env.enabled_counters.items()):
         counter_var = irb.let(
             value.lower() + "_var", tvm.tir.call_extern("uint32", "counter_read", i)
         )
         counter_vars.append(counter_var)
-        irb.emit(tvm.tir.call_extern("", "printf", tvm.tir.StringImm("%s," % value)))
+        irb.emit(tvm.tir.call_extern("", "printf", tvm.tir.StringImm(f"{value},")))
     irb.emit(tvm.tir.call_extern("", "printf", "\\r\\n"))
     for c in counter_vars:
         irb.emit(tvm.tir.call_extern("", "printf", tvm.tir.StringImm("%lu,"), c))
@@ -58,7 +58,7 @@ def _configure_timers(irb: IRBuilder):
     Args:
         irb (IRBuilder): IRBuilder
     """
-    for i, (key, value) in enumerate(env.enabled_counters.items()):
+    for i, (key, _) in enumerate(env.enabled_counters.items()):
         irb.emit(tvm.tir.call_extern("", "counter_configure", i, key))
 
 
@@ -303,7 +303,7 @@ def InjectAMVINIntrin():
         _ = pad_value
         if dst.scope() == "global":
             raise RuntimeError("A mvin should have a local destination")
-        elif src.scope() == "global":
+        if src.scope() == "global":
             # Load
             irb = tvm.tir.ir_builder.create()
             if len(src.shape) == 1:
@@ -326,7 +326,7 @@ def InjectAMVINIntrin():
 
             return irb.get()
         else:
-            raise RuntimeError("Do not support copy %s->%s" % (src.scope(), dst.scope()))
+            raise RuntimeError(f"Do not support copy {src.scope()}->{dst.scope()}")
 
     return tvm.tir.transform.InjectCopyIntrin(env.A_mvin, _inject_copy)
 
@@ -347,7 +347,7 @@ def InjectAMVINIntrinTransposed():
         _ = pad_value
         if dst.scope() == "global":
             raise RuntimeError("A mvin should have a local destination")
-        elif src.scope() == "global":
+        if src.scope() == "global":
             # Load
             irb = tvm.tir.ir_builder.create()
             # TODO (FP): check this pointers types again!
@@ -369,7 +369,7 @@ def InjectAMVINIntrinTransposed():
             )
             return irb.get()
         else:
-            raise RuntimeError("Do not support copy %s->%s" % (src.scope(), dst.scope()))
+            raise RuntimeError(f"Do not support copy {src.scope()}->{dst.scope()}")
 
     return tvm.tir.transform.InjectCopyIntrin(env.A_mvin + "_t", _inject_copy)
 
@@ -391,7 +391,7 @@ def InjectBMVINIntrin():
         wgt_base_address = tvm.runtime.const(env.WGT_SCR_BASE_ADDRESS, "int32")
         if dst.scope() == "global":
             raise RuntimeError("B mvin should have a local destination")
-        elif src.scope() == "global":
+        if src.scope() == "global":
             # Load
             irb = tvm.tir.ir_builder.create()
             if len(src.shape) == 1:
@@ -412,7 +412,7 @@ def InjectBMVINIntrin():
             )
             return irb.get()
         else:
-            raise RuntimeError("Do not support copy %s->%s" % (src.scope(), dst.scope()))
+            raise RuntimeError(f"Do not support copy {src.scope()}->{dst.scope()}")
 
     return tvm.tir.transform.InjectCopyIntrin(env.B_mvin, _inject_copy)
 
@@ -433,7 +433,7 @@ def InjectBMVINIntrinTransposed():
         _ = pad_value
         if dst.scope() == "global":
             raise RuntimeError("B mvin should have a local destination")
-        elif src.scope() == "global":
+        if src.scope() == "global":
             # Load
             irb = tvm.tir.ir_builder.create()
             if len(src.shape) == 1:
@@ -454,7 +454,7 @@ def InjectBMVINIntrinTransposed():
             )
             return irb.get()
         else:
-            raise RuntimeError("Do not support copy %s->%s" % (src.scope(), dst.scope()))
+            raise RuntimeError(f"Do not support copy {src.scope()}->{dst.scope()}")
 
     return tvm.tir.transform.InjectCopyIntrin(env.B_mvin + "_t", _inject_copy)
 
@@ -475,7 +475,7 @@ def InjectDMVINIntrin():
         _ = pad_value
         if dst.scope() == "global":
             raise RuntimeError("D mvin should have a local destination")
-        elif src.scope() == "global":
+        if src.scope() == "global":
             # Load
             irb = tvm.tir.ir_builder.create()
             if len(src.shape) == 1:
@@ -497,7 +497,7 @@ def InjectDMVINIntrin():
             )
             return irb.get()
         else:
-            raise RuntimeError("Do not support copy %s->%s" % (src.scope(), dst.scope()))
+            raise RuntimeError(f"Do not support copy {src.scope()}->{dst.scope()}")
 
     return tvm.tir.transform.InjectCopyIntrin(env.D_mvin, _inject_copy)
 
@@ -518,7 +518,7 @@ def InjectDMVINIntrinTransposed():
         _ = pad_value
         if dst.scope() == "global":
             raise RuntimeError("D mvin should have a local destination")
-        elif src.scope() == "global":
+        if src.scope() == "global":
             # Load
             irb = tvm.tir.ir_builder.create()
             if len(src.shape) == 1:
@@ -540,7 +540,7 @@ def InjectDMVINIntrinTransposed():
             )
             return irb.get()
         else:
-            raise RuntimeError("Do not support copy %s->%s" % (src.scope(), dst.scope()))
+            raise RuntimeError(f"Do not support copy {src.scope()}->{dst.scope()}")
 
     return tvm.tir.transform.InjectCopyIntrin(env.D_mvin + "_t", _inject_copy)
 
@@ -561,7 +561,7 @@ def InjectCMVOUTIntrin():
         _ = pad_value
         if src.scope() == "global":
             raise RuntimeError("C mvout should have a local source")
-        elif dst.scope() == "global":
+        if dst.scope() == "global":
             # Store
             irb = tvm.tir.ir_builder.create()
             if len(dst.shape) == 1:
@@ -586,7 +586,7 @@ def InjectCMVOUTIntrin():
             )
             return irb.get()
         else:
-            raise RuntimeError("Do not support copy %s->%s" % (src.scope(), dst.scope()))
+            raise RuntimeError(f"Do not support copy {src.scope()}->{dst.scope()}")
 
     return tvm.tir.transform.InjectCopyIntrin(env.C_mvout, _inject_copy)
 
@@ -607,7 +607,7 @@ def InjectCMVOUTIntrinTransposed():
         _ = pad_value
         if src.scope() == "global":
             raise RuntimeError("C mvout should have a local source")
-        elif dst.scope() == "global":
+        if dst.scope() == "global":
             # Store
             irb = tvm.tir.ir_builder.create()
             # TODO (FP): check this pointers types again!
@@ -633,7 +633,7 @@ def InjectCMVOUTIntrinTransposed():
             )
             return irb.get()
         else:
-            raise RuntimeError("Do not support copy %s->%s" % (src.scope(), dst.scope()))
+            raise RuntimeError(f"Do not support copy {src.scope()}->{dst.scope()}")
 
     return tvm.tir.transform.InjectCopyIntrin(env.C_mvout + "_t", _inject_copy)
 
@@ -654,7 +654,7 @@ def InjectCMVINIntrin():
         _ = pad_value
         if dst.scope() == "global":
             raise RuntimeError("C mvin should have a local destination")
-        elif src.scope() == "global":
+        if src.scope() == "global":
             # Load
             irb = tvm.tir.ir_builder.create()
             if len(src.shape) == 1:
@@ -676,7 +676,7 @@ def InjectCMVINIntrin():
             )
             return irb.get()
         else:
-            raise RuntimeError("Do not support copy %s->%s" % (src.scope(), dst.scope()))
+            raise RuntimeError(f"Do not support copy {src.scope()}->{dst.scope()}")
 
     return tvm.tir.transform.InjectCopyIntrin(env.C_mvin, _inject_copy)
 
@@ -697,7 +697,7 @@ def InjectCMVINIntrinTransposed():
         _ = pad_value
         if dst.scope() == "global":
             raise RuntimeError("C mvin should have a local destination")
-        elif src.scope() == "global":
+        if src.scope() == "global":
             # Load
             irb = tvm.tir.ir_builder.create()
             if len(src.shape) == 1:
@@ -719,7 +719,7 @@ def InjectCMVINIntrinTransposed():
             )
             return irb.get()
         else:
-            raise RuntimeError("Do not support copy %s->%s" % (src.scope(), dst.scope()))
+            raise RuntimeError(f"Do not support copy {src.scope()}->{dst.scope()}")
 
     return tvm.tir.transform.InjectCopyIntrin(env.C_mvin + "_t", _inject_copy)
 
@@ -740,7 +740,7 @@ def InjectCMVINAccumIntrin():
         _ = pad_value
         if dst.scope() == "global":
             raise RuntimeError("C mvin should have a local destination")
-        elif src.scope() == "global":
+        if src.scope() == "global":
             # Load
             irb = tvm.tir.ir_builder.create()
             if len(src.shape) == 1:
@@ -761,7 +761,7 @@ def InjectCMVINAccumIntrin():
             )
             return irb.get()
         else:
-            raise RuntimeError("Do not support copy %s->%s" % (src.scope(), dst.scope()))
+            raise RuntimeError(f"Do not support copy {src.scope()}->{dst.scope()}")
 
     return tvm.tir.transform.InjectCopyIntrin(env.C_mvin_accum, _inject_copy)
 
@@ -782,7 +782,7 @@ def InjectCMVINAccumIntrinTransposed():
         _ = pad_value
         if dst.scope() == "global":
             raise RuntimeError("C mvin should have a local destination")
-        elif src.scope() == "global":
+        if src.scope() == "global":
             # Load
             irb = tvm.tir.ir_builder.create()
             if len(src.shape) == 1:
@@ -803,6 +803,6 @@ def InjectCMVINAccumIntrinTransposed():
             )
             return irb.get()
         else:
-            raise RuntimeError("Do not support copy %s->%s" % (src.scope(), dst.scope()))
+            raise RuntimeError(f"Do not support copy {src.scope()}->{dst.scope()}")
 
     return tvm.tir.transform.InjectCopyIntrin(env.C_mvin_accum + "_t", _inject_copy)

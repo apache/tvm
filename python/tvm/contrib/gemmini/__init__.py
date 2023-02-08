@@ -22,9 +22,9 @@ Gemmini package is a TVM backend extension to support the Gemmini hardware accel
 
 import tvm._ffi.base
 
+from tvm.relay.backend.contrib.gemmini import *
 from .environment import Environment
 from .build_module import build_config, lower, build, preprocess_pass
-from tvm.relay.backend.contrib.gemmini import *
 from .helpers import create_header_file
 from .utils import *
 

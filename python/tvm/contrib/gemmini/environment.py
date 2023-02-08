@@ -22,6 +22,8 @@ Environment declaration. Contains Gemminis hardware parameters.
 """
 
 from __future__ import absolute_import as _abs
+import re
+from typing import List, Tuple, Dict, Callable
 from .intrin import (
     gemm,
     gemm_cisc,
@@ -30,8 +32,6 @@ from .intrin import (
     add_tensorize,
     add_mvout_tensorize,
 )
-import re
-from typing import List, Tuple, Dict, Callable
 from .utils import counters
 
 
@@ -67,17 +67,17 @@ class Environment(object):
         Args:
             batch (int, optional): Batch size. Defaults to 1.
             dim (int, optional): Gemminis systolic array dimensions (DIM). Defaults to 32.
-            max_bytes (int, optional): Used to calculate the maximum amount of columns one mvin instruction can generate. Defaults to 64.
-            inp_dtype (str, optional): Type supported by the Gemmini scratchpad. Defaults to "int8".
-            wgt_dtype (str, optional): Type supported by the Gemmini "logical" weight scratchpad. Defaults to "int8".
-            acc_dtype (str, optional): Type supported by the Gemmini accumulator. Defaults to "int32".
-            acc_rows (int, optional): Amount of rows of the accumulator. Defaults to 4096.
-            bank_rows (int, optional): Amount of rows of each bank in the scratchpad. Defaults to 8192.
-            bank_num (int, optional): Amount of banks for the scratchpad. Defaults to 4.
-            debug (bool, optional): Adds debug of Gemmini counters to generated code. Defaults to False.
-            enabled_counters (dict, optional): Dictionary of enabled Gemmini counters for debug purposes. Defaults to empty.
-            supports_non_zero_padding (bool, optional): If Gemmini supports instructions with non-zero padding. Defaults to False.
-            use_experimental_qnn_add (bool, optional): Activate pattern matching for qnn.add. Defaults to False.
+            max_bytes (int, optional): Limits maximum amount of mvin columns. Defaults to 64.
+            inp_dtype (str, optional): Type of the Gemmini scratchpad. Defaults to "int8".
+            wgt_dtype (str, optional): Type of the Gemmini weight scratchpad. Defaults to "int8".
+            acc_dtype (str, optional): Type of the Gemmini accumulator. Defaults to "int32".
+            acc_rows (int, optional): Rows of the accumulator. Defaults to 4096.
+            bank_rows (int, optional): Rows of each bank in the scratchpad. Defaults to 8192.
+            bank_num (int, optional): Banks for the scratchpad. Defaults to 4.
+            debug (bool, optional): Adds debug of Gemmini counters. Defaults to False.
+            enabled_counters (dict, optional): Enabled Gemmini counters for debug purposes. Defaults to empty.
+            supports_non_zero_padding (bool, optional): Gemmini supports instructions with non-zero padding. Defaults to False.
+            use_experimental_qnn_add (bool, optional): Pattern matching for qnn.add. Defaults to False.
         """
         inst = Environment.instance()
         inst.init(
@@ -129,17 +129,17 @@ class Environment(object):
         Args:
             batch (int, optional): Batch size. Defaults to 1.
             dim (int, optional): Gemminis systolic array dimensions (DIM). Defaults to 32.
-            max_bytes (int, optional): Used to calculate the maximum amount of columns one mvin instruction can generate. Defaults to 64.
-            inp_dtype (str, optional): Type supported by the Gemmini scratchpad. Defaults to "int8".
-            wgt_dtype (str, optional): Type supported by the Gemmini "logical" weight scratchpad. Defaults to "int8".
-            acc_dtype (str, optional): Type supported by the Gemmini accumulator. Defaults to "int32".
+            max_bytes (int, optional): Limits maximum amount of mvin columns. Defaults to 64.
+            inp_dtype (str, optional): Type of the Gemmini scratchpad. Defaults to "int8".
+            wgt_dtype (str, optional): Type of the Gemmini "logical" weight scratchpad. Defaults to "int8".
+            acc_dtype (str, optional): Type of the Gemmini accumulator. Defaults to "int32".
             acc_rows (int, optional): Amount of rows of the accumulator. Defaults to 4096.
             bank_rows (int, optional): Amount of rows of each bank in the scratchpad. Defaults to 8192.
             bank_num (int, optional): Amount of banks for the scratchpad. Defaults to 4.
-            debug (bool, optional): Adds debug of Gemmini counters to generated code. Defaults to False.
-            enabled_counters (dict, optional): Dictionary of enabled Gemmini counters for debug purposes. Defaults to empty.
-            supports_non_zero_padding (bool, optional): If Gemmini supports instructions with non-zero padding. Defaults to False.
-            use_experimental_qnn_add (bool, optional): Activate pattern matching for qnn.add. Defaults to False.
+            debug (bool, optional): Adds debug of Gemmini counters. Defaults to False.
+            enabled_counters (dict, optional): Enabled Gemmini counters for debug purposes. Defaults to empty.
+            supports_non_zero_padding (bool, optional): Gemmini supports instructions with non-zero padding. Defaults to False.
+            use_experimental_qnn_add (bool, optional): Pattern matching for qnn.add. Defaults to False.
         """
 
         assert batch == 1, "Only batch size of 1 is currently supported"
@@ -190,7 +190,9 @@ class Environment(object):
 
         self.scr_scope = "local.scratchpad"
         self.acc_scope = "local.accumulator"
-        # TODO (FP): check this scratchpad_weight. Actually, only one scratchpad should exist, but we do this logical partition to correctly manage the pointers to the buffers stored in this memories. Should see how we can fix this in the future.
+        # Actually, only one scratchpad should exist.
+        # But we do this logical partition to correctly manage the pointers to the buffers stored in this memories.
+        # Should see how we can fix this in the future.
         self.scr_wgt_scope = "local.scratchpad_weight"
 
         self.A_mvin = "A_mvin"

@@ -27,7 +27,7 @@ from tvm import autotvm
 
 from tvm.contrib.gemmini.environment import Environment
 
-env = Environment.instance()
+ENV = Environment.instance()
 
 
 @autotvm.register_topi_compute("contrib.gemmini.max_pool2d")
@@ -61,7 +61,7 @@ def max_pool2d(
     def irb_builder_func(ins, outs):
         irb = tvm.tir.ir_builder.create()
 
-        if env.supports_non_zero_padding:
+        if ENV.supports_non_zero_padding:
             irb.emit(
                 tvm.tir.call_extern(
                     "",

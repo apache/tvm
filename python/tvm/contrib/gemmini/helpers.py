@@ -20,14 +20,14 @@ Miscellaneous helpers
 **Author**: `Federico Peccia <https://fPecc.github.io/>`_
 """
 
-import numpy as np
 import pathlib
-from .environment import Environment
-from six.moves import range
 from typing import List
+import numpy as np
+from six.moves import range
+from .environment import Environment
 
 
-env = Environment.instance()
+ENV = Environment.instance()
 
 
 def create_header_file(
@@ -56,42 +56,42 @@ def create_header_file(
     raw_source_path = file_path.with_suffix(".c").resolve()
 
     if tensor_data.dtype == np.float32:
-        type = "float"
+        datatype = "float"
         align = 32
     elif tensor_data.dtype == np.int8:
-        type = "int8_t"
+        datatype = "int8_t"
         align = 16
     elif tensor_data.dtype == np.uint8:
-        type = "uint8_t"
+        datatype = "uint8_t"
         align = 16
     elif tensor_data.dtype == np.uint32:
-        type = "uint32_t"
+        datatype = "uint32_t"
         align = 16
     else:
-        assert False, "Type %s is not supported!" % tensor_data.dtype
+        assert False, f"Type {tensor_data.dtype} is not supported!"
 
     with open(raw_header_path, "a+") as header_file:
         header_file.write(
             f"#define {tensor_name}_len {tensor_data.size}\n"
-            + f"extern {type} {tensor_name}[{tensor_name}_len];\n"
+            + f"extern {datatype} {tensor_name}[{tensor_name}_len];\n"
         )
 
     if not raw_source_path.is_file():
         with open(raw_source_path, "a+") as source_file:
-            source_file.write(f"#include <stdint.h>\n")
+            source_file.write("#include <stdint.h>\n")
     with open(raw_source_path, "a+") as source_file:
 
         source_file.write(
-            f'{type} {tensor_name}[] __attribute__((section("{section}"), aligned({align}))) = {{'
+            f'{datatype} {tensor_name}[] __attribute__((section("{section}"), aligned({align}))) = {{'
             if section
-            else f"{type} {tensor_name}[] __attribute__((aligned({align}))) = {{"
+            else f"{datatype} {tensor_name}[] __attribute__((aligned({align}))) = {{"
         )
         data_hexstr = tensor_data.tobytes().hex()
         flatten = tensor_data.flatten()
 
-        if tensor_data.dtype == np.float32 or tensor_data.dtype == np.uint32:
-            for i in range(0, len(flatten)):
-                source_file.write(f"{flatten[i]},")
+        if tensor_data.dtype in (np.float32, np.uint32):
+            for element in flatten:
+                source_file.write(f"{element},")
             source_file.write("};\n\n")
         else:
             for i in range(0, len(data_hexstr), 2):
@@ -110,20 +110,20 @@ def create_header_file(
         if debug:
             source_file.write("/*\n")
             for n in range(tensor_data.shape[0]):
-                for ch in range(tensor_data.shape[3]):
-                    source_file.write("Channel %i:\n" % ch)
+                for i_ch in range(tensor_data.shape[3]):
+                    source_file.write(f"Channel {i_ch}:\n")
                     for row in range(tensor_data.shape[1]):
                         for col in range(tensor_data.shape[2]):
-                            source_file.write(f"{tensor_data[n][row][col][ch]}\t")
+                            source_file.write(f"{tensor_data[n][row][col][i_ch]}\t")
                         source_file.write("\n")
             source_file.write("*/\n")
 
             if weights is not None:
                 source_file.write("/*\n")
                 for o_ch in range(weights.shape[3]):
-                    source_file.write("Output channel %i:\n" % o_ch)
+                    source_file.write(f"Output channel {o_ch}:\n")
                     for i_ch in range(weights.shape[2]):
-                        source_file.write("Input channel %i:\n" % i_ch)
+                        source_file.write(f"Input channel {i_ch}:\n")
                         for row in range(weights.shape[0]):
                             for col in range(weights.shape[1]):
                                 source_file.write(f"{weights[row][col][i_ch][o_ch]}\t")
@@ -158,14 +158,14 @@ def get_greater_div(x, limit: int = None):
         int: Greater divisor
     """
 
-    limit = env.DIM if limit == None else limit
+    limit = ENV.DIM if limit is None else limit
 
     if isinstance(x, int):
         elements = [x]
     elif isinstance(x, list):
         elements = x
     else:
-        assert False, "type of x not supported!"
+        assert False, "datatype of x not supported!"
 
     divisors = []
     for element in elements:
