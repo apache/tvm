@@ -462,6 +462,7 @@ class GlobalVarNode : public RelayExprNode {
     v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
+    v->Visit("struct_info_", &struct_info_);
   }
 
   bool SEqualReduce(const GlobalVarNode* other, SEqualReducer equal) const {
