@@ -27,9 +27,11 @@ git clone https://github.com/Maratyszcza/pthreadpool  NNPACK/pthreadpool
 
 # Use specific versioning tag.
 (cd NNPACK && git checkout 70a77f485)
-(cd NNPACK/pthreadpool && git checkout 13da0b4c)
+(cd NNPACK/pthreadpool && git checkout 43edadc)
 
 mkdir -p NNPACK/build
 cd NNPACK/build
-cmake -DCMAKE_INSTALL_PREFIX:PATH=. -DNNPACK_INFERENCE_ONLY=OFF -DNNPACK_CONVOLUTION_ONLY=OFF -DNNPACK_BUILD_TESTS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DPTHREADPOOL_SOURCE_DIR=pthreadpool .. && make -j2 && make install
+cmake -DCMAKE_INSTALL_PREFIX:PATH=. -DNNPACK_INFERENCE_ONLY=OFF -DNNPACK_CONVOLUTION_ONLY=OFF -DNNPACK_BUILD_TESTS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DPTHREADPOOL_SOURCE_DIR=pthreadpool ..
+make -j2
+make install
 cd -
