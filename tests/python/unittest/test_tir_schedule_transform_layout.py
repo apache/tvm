@@ -196,6 +196,15 @@ def test_two_elementwise_transform_intermediate_buffer(use_block_name):
     verify_trace_roundtrip(sch=sch, mod=two_elementwise)
 
 
+def test_transform_layout_with_sampling():
+    sch = tir.Schedule(two_elementwise, debug_mask="all")
+    block_b = sch.get_block("B")
+    loop = sch.get_loops(block_b)[-1]
+    j0, j1, j2 = sch.sample_perfect_tile(loop, 3, decision=[4, 8, 4])
+    sch.transform_layout(block_b, ("write", 0), lambda i, j: (i, j // (j1 * j2), j % (j1 * j2)))
+    verify_trace_roundtrip(sch=sch, mod=two_elementwise, text_format="json")
+
+
 def test_two_elementwise_transform_input_buffer(use_block_name):
     sch = tir.Schedule(two_elementwise, debug_mask="all")
 

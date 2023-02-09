@@ -146,9 +146,11 @@ class IndexMapNode : public Object {
 
   /*!
    * \brief Convert to string representation in Python.
+   * \param f_name_map Optional function to specify the stringified name of the variables.
    * \return The stringified lambda expression in Python.
    */
-  String ToPythonString() const;
+  String ToPythonString(
+      const std::function<Optional<String>(const Var& var)>& f_name_map = nullptr) const;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("initial_indices", &initial_indices);
@@ -203,6 +205,17 @@ class IndexMap : public ObjectRef {
    */
   IndexMap Inverse(Array<Range> initial_ranges) const;
 
+  /*! \brief Rename the variables in the index map and ensure the names are unique.
+   *
+   * Construct a new index map with the same transformation, but with name_hint of variables to be
+   * guaranteed unique. The optional f_name_map can be provided to rename the variables.
+   *
+   * \param f_name_map The optional name map to rename the variables.
+   * \return The renamed index map.
+   */
+  IndexMap RenameVariables(
+      const std::function<Optional<String>(const Var& var)>& f_name_map = nullptr) const;
+
   /*! \brief Generate the inverse mapping.
    *
    * Determine the inverse, where the output range may contain
@@ -216,6 +229,14 @@ class IndexMap : public ObjectRef {
 
   TVM_DEFINE_OBJECT_REF_METHODS(IndexMap, ObjectRef, IndexMapNode);
 };
+
+/*! \brief Substitute variables in an index map.
+ *
+ * \param index_map The index_map
+ * \param f_subst The substitution function
+ */
+IndexMap Substitute(const IndexMap& index_map,
+                    std::function<Optional<PrimExpr>(const Var& var)> f_subst);
 
 }  // namespace tir
 }  // namespace tvm
