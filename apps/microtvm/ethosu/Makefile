@@ -33,6 +33,7 @@ CC = arm-none-eabi-gcc
 AR = arm-none-eabi-ar
 RANLIB = arm-none-eabi-ranlib
 PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
+	-I${STANDALONE_CRT_PATH}/crt_config \
 	-I${STANDALONE_CRT_PATH}/include \
 	-I${STANDALONE_CRT_PATH}/src/runtime/crt/include \
 	-I${PWD}/include \
@@ -60,6 +61,7 @@ ifdef FREERTOS_PATH
 DEMO_MAIN = src/demo_freertos.c
 FREERTOS_KERNEL = $(FREERTOS_PATH)/FreeRTOS/Source
 FREERTOS_FLAGS = -I$(FREERTOS_KERNEL)/include/ \
+	-I$(FREERTOS_KERNEL)/crt_config/ \
 	-I$(FREERTOS_KERNEL)/portable/GCC/ARM_CM33_NTZ/non_secure/
 FREERTOS_SOURCES = $(FREERTOS_KERNEL)/portable/GCC/ARM_CM33_NTZ/non_secure/port.c \
 	$(FREERTOS_KERNEL)/portable/GCC/ARM_CM33_NTZ/non_secure/portasm.c \
