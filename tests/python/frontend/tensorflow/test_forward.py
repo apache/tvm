@@ -1234,6 +1234,29 @@ def test_forward_argwhere():
     _test_forward_where((5, 5, 5, 5, 5))
 
 
+def _test_forward_where_with_broadcast(in_shape, cond_shape):
+    choice_list = list(np.arange(10).astype("float32"))
+    t1 = np.random.choice(choice_list, size=cond_shape)
+    t2 = np.random.choice(choice_list, size=cond_shape)
+    x = np.random.choice(choice_list, size=in_shape)
+    y = np.random.choice(choice_list, size=in_shape)
+
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=cond_shape, dtype="float32", name="in1")
+        in2 = tf.placeholder(shape=cond_shape, dtype="float32", name="in2")
+        condition = math_ops.less(in1, in2, name="less")
+        lhs = tf.placeholder(shape=in_shape, dtype="float32", name="x")
+        rhs = tf.placeholder(shape=in_shape, dtype="float32", name="y")
+        out = tf.where(condition, lhs, rhs)
+        compare_tf_with_tvm([t1, t2, x, y], ["in1:0", "in2:0", "x:0", "y:0"], out.name)
+
+
+def test_forward_where_with_broadcast():
+    _test_forward_where_with_broadcast((5, 2), (5,))
+    _test_forward_where_with_broadcast((5, 7), (5,))
+    _test_forward_where_with_broadcast((3, 2, 5), (3,))
+
+
 #######################################################################
 # SpaceToBatchND
 # --------------
