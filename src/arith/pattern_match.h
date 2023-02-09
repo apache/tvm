@@ -838,8 +838,7 @@ inline PCallExpr<PIfThenElseOp, TCond, TA, TB> if_then_else(const Pattern<TCond>
 template <typename... TPattern>
 class PMatchesOneOf {
  public:
-  PMatchesOneOf(std::tuple<const TPattern&...> patterns) : patterns_(patterns) {}
-  PMatchesOneOf(const TPattern&... patterns) : patterns_{patterns...} {}
+  explicit PMatchesOneOf(const TPattern&... patterns) : patterns_{patterns...} {}
 
   /*! \brief Check if value matches one of the patterns.
    *
