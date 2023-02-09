@@ -1313,5 +1313,24 @@ def test_tflite_fully_connected(
     )
 
 
+@pytest.mark.parametrize("accel_type", ["ethos-u55-256", "ethos-u65-256"])
+def test_tflite_subtract_sigmoid(accel_type):
+    np.random.seed(0)
+    ifm_shape = [1, 6, 8, 4]
+
+    @tf.function
+    def subtract_sigmoid_function(lhs, rhs):
+        op = tf.math.subtract(lhs, rhs)
+        op = tf.nn.sigmoid(op)
+        return op
+
+    infra.compare_tvm_with_tflite(
+        subtract_sigmoid_function,
+        [ifm_shape, ifm_shape],
+        accel_type,
+        enable_cascader=is_u55_accel_type(accel_type),
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()
