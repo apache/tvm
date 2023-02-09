@@ -32,6 +32,7 @@ CC = arm-none-eabi-gcc
 AR = arm-none-eabi-ar
 RANLIB = arm-none-eabi-ranlib
 PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
+	-I${STANDALONE_CRT_PATH}/crt_config \
 	-I${STANDALONE_CRT_PATH}/include \
 	-I${STANDALONE_CRT_PATH}/src/runtime/crt/include \
 	-I${PWD}/include \
