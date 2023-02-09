@@ -67,36 +67,6 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
     if not isinstance(axis, int):
         axis = get_const_int(axis)
 
-    # Prepare ranges and strides
-    shape = data.shape
-    if axis < 0:
-        axis = len(shape) + axis
-    axis_range = cast(shape[axis], indices.dtype)
-
-    before_axis_range = 1
-    after_axis_range = 1
-    for i, value in enumerate(shape, 0):
-        if i < axis:
-            before_axis_range *= value
-        elif i > axis:
-            after_axis_range *= value
-    before_axis_stride = axis_range * after_axis_range
-    full_range = before_axis_range * before_axis_stride
-
-    ind_shape = indices.shape
-    ind_axis_range = shape[axis]
-
-    ind_before_axis_range = 1
-    ind_after_axis_range = 1
-    for i, value in enumerate(ind_shape, 0):
-        if i < axis:
-            ind_before_axis_range *= value
-        elif i > axis:
-            ind_after_axis_range *= value
-    ind_before_axis_stride = ind_axis_range * ind_after_axis_range
-    ind_full_range = ind_before_axis_range * ind_before_axis_stride
-    ind_full_range_excl_axis = ind_before_axis_range * ind_after_axis_range
-
     def gen_ir(data, indices, updates, out):
         ib = tir.ir_builder.create()
 
@@ -104,6 +74,36 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
         indices_ptr = ib.buffer_ptr(indices)
         updates_ptr = ib.buffer_ptr(updates)
         out_ptr = ib.buffer_ptr(out)
+
+        # Prepare ranges and strides
+        shape = data.shape
+        if axis < 0:
+            axis = len(shape) + axis
+        axis_range = cast(shape[axis], indices.dtype)
+
+        before_axis_range = 1
+        after_axis_range = 1
+        for i, value in enumerate(shape, 0):
+            if i < axis:
+                before_axis_range *= value
+            elif i > axis:
+                after_axis_range *= value
+        before_axis_stride = axis_range * after_axis_range
+        full_range = before_axis_range * before_axis_stride
+
+        ind_shape = indices.shape
+        ind_axis_range = shape[axis]
+
+        ind_before_axis_range = 1
+        ind_after_axis_range = 1
+        for i, value in enumerate(ind_shape, 0):
+            if i < axis:
+                ind_before_axis_range *= value
+            elif i > axis:
+                ind_after_axis_range *= value
+        ind_before_axis_stride = ind_axis_range * ind_after_axis_range
+        ind_full_range = ind_before_axis_range * ind_before_axis_stride
+        ind_full_range_excl_axis = ind_before_axis_range * ind_after_axis_range
 
         max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
         # Copy initial input data to output
