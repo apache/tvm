@@ -217,6 +217,9 @@ Array<Range> IndexMapNode::MapRanges(const Array<Range>& ranges, arith::Analyzer
       dom_map[initial_indices[i].get()] = set;
       total_sz *= (set.max() - set.min() + 1);
     }
+    // Array size check added to avoid buffer creation with higher size
+    // in comparison with original one.  Otherwise it may lead to incorrect
+    // weights mapping on RewriteLayout() pass.
     auto total_size = analyzer->Simplify(total_sz);
     for (const auto& final_index : final_indices) {
       auto int_set = arith::EvalSet(final_index, dom_map);
@@ -225,7 +228,7 @@ Array<Range> IndexMapNode::MapRanges(const Array<Range>& ranges, arith::Analyzer
 
       output.push_back(Range::FromMinExtent(analyzer->Simplify(int_set.min()),
                                             mx));
-      total_size = analyzer->Simplify(div(total_size, mx));
+      total_size = analyzer->Simplify(max(div(total_size, mx), PrimExpr(1)));
     }
   }
   auto output_dtype = [&]() {
