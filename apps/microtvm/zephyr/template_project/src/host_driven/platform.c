@@ -55,7 +55,7 @@ void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t* esf) {
     ;
 }
 
-__attribute__((weak)) void TVMPlatformAbort(tvm_crt_error_t error) {
+void TVMPlatformAbort(tvm_crt_error_t error) {
   TVMLogf("TVMError: 0x%x", error);
   sys_reboot(SYS_REBOOT_COLD);
 #ifdef CONFIG_LED
@@ -65,24 +65,23 @@ __attribute__((weak)) void TVMPlatformAbort(tvm_crt_error_t error) {
     ;
 }
 
-__attribute__((weak)) size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes,
-                                                      const char* fmt, va_list args) {
+size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const char* fmt,
+                                va_list args) {
   return vsnprintk(out_buf, out_buf_size_bytes, fmt, args);
 }
 
-__attribute__((weak)) tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev,
-                                                                void** out_ptr) {
+tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
   *out_ptr = k_heap_alloc(&tvm_heap, num_bytes, K_NO_WAIT);
   return (*out_ptr == NULL) ? kTvmErrorPlatformNoMemory : kTvmErrorNoError;
 }
 
-__attribute__((weak)) tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
+tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
   k_heap_free(&tvm_heap, ptr);
   return kTvmErrorNoError;
 }
 
 // Called to start system timer.
-__attribute__((weak)) tvm_crt_error_t TVMPlatformTimerStart() {
+tvm_crt_error_t TVMPlatformTimerStart() {
   if (g_microtvm_timer_running) {
     TVMLogf("timer already running");
     return kTvmErrorPlatformTimerBadState;
@@ -97,7 +96,7 @@ __attribute__((weak)) tvm_crt_error_t TVMPlatformTimerStart() {
 }
 
 // Called to stop system timer.
-__attribute__((weak)) tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
+tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
   if (!g_microtvm_timer_running) {
     TVMLogf("timer not running");
     return kTvmErrorSystemErrorMask | 2;
@@ -115,7 +114,7 @@ __attribute__((weak)) tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_
   return kTvmErrorNoError;
 }
 
-__attribute__((weak)) tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
+tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
   uint32_t random;  // one unit of random data.
 
   // Fill parts of `buffer` which are as large as `random`.
@@ -134,7 +133,7 @@ __attribute__((weak)) tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer,
   return kTvmErrorNoError;
 }
 
-__attribute__((weak)) tvm_crt_error_t TVMPlatformInitialize() {
+tvm_crt_error_t TVMPlatformInitialize() {
 #ifdef CONFIG_LED
   if (!device_is_ready(led0.port)) {
     for (;;)

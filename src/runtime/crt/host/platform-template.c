@@ -33,46 +33,43 @@ uint8_t memory[MEMORY_SIZE_BYTES];
 MemoryManagerInterface* memory_manager;
 
 // Called when an internal error occurs and execution cannot continue.
-__attribute__((weak)) void TVMPlatformAbort(tvm_crt_error_t error_code) { exit(1); }
+void TVMPlatformAbort(tvm_crt_error_t error_code) { exit(1); }
 
 // Called by the microTVM RPC server to implement TVMLogf.
-__attribute__((weak)) size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes,
-                                                      const char* fmt, va_list args) {
+size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const char* fmt,
+                                va_list args) {
   return vsprintf(out_buf, fmt, args);
 }
 
 // Allocate memory for use by TVM.
-__attribute__((weak)) tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev,
-                                                                void** out_ptr) {
+tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
   return memory_manager->Allocate(memory_manager, num_bytes, dev, out_ptr);
 }
 
 // Free memory used by TVM.
-__attribute__((weak)) tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
+tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
   return memory_manager->Free(memory_manager, ptr, dev);
 }
 
 // Start a device timer.
-__attribute__((weak)) tvm_crt_error_t TVMPlatformTimerStart() { return kTvmErrorNoError; }
+tvm_crt_error_t TVMPlatformTimerStart() { return kTvmErrorNoError; }
 
 // Stop the running device timer and get the elapsed time (in microseconds).
-__attribute__((weak)) tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
-  return kTvmErrorNoError;
-}
+tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) { return kTvmErrorNoError; }
 
 // Platform-specific before measurement call.
-__attribute__((weak)) tvm_crt_error_t TVMPlatformBeforeMeasurement() { return kTvmErrorNoError; }
+tvm_crt_error_t TVMPlatformBeforeMeasurement() { return kTvmErrorNoError; }
 
 // Platform-specific after measurement call.
-__attribute__((weak)) tvm_crt_error_t TVMPlatformAfterMeasurement() { return kTvmErrorNoError; }
+tvm_crt_error_t TVMPlatformAfterMeasurement() { return kTvmErrorNoError; }
 
 // Fill a buffer with random data.
-__attribute__((weak)) tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
+tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
   return kTvmErrorNoError;
 }
 
 // Initialize TVM inference.
-__attribute__((weak)) tvm_crt_error_t TVMPlatformInitialize() {
+tvm_crt_error_t TVMPlatformInitialize() {
   int status =
       PageMemoryManagerCreate(&memory_manager, memory, sizeof(memory), 8 /* page_size_log2 */);
   if (status != 0) {

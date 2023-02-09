@@ -42,28 +42,27 @@
 static uint8_t g_aot_memory[WORKSPACE_SIZE];
 tvm_workspace_t app_workspace;
 
-__attribute__((weak)) size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes,
-                                                      const char* fmt, va_list args) {
+size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const char* fmt,
+                                va_list args) {
   return vsnprintk(out_buf, out_buf_size_bytes, fmt, args);
 }
 
-__attribute__((weak)) void TVMPlatformAbort(tvm_crt_error_t error) {
+void TVMPlatformAbort(tvm_crt_error_t error) {
   TVMLogf("TVMPlatformAbort: %08x\n", error);
   sys_reboot(SYS_REBOOT_COLD);
   for (;;)
     ;
 }
 
-__attribute__((weak)) tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev,
-                                                                void** out_ptr) {
+tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
   return StackMemoryManager_Allocate(&app_workspace, num_bytes, out_ptr);
 }
 
-__attribute__((weak)) tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
+tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
   return StackMemoryManager_Free(&app_workspace, ptr);
 }
 
-__attribute__((weak)) tvm_crt_error_t TVMPlatformInitialize() {
+tvm_crt_error_t TVMPlatformInitialize() {
   StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE);
   return kTvmErrorNoError;
 }
