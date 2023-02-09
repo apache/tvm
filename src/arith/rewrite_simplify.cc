@@ -278,10 +278,16 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
     TVM_TRY_REWRITE_IF(floordiv(floormod(x, c2) + c1, c2) + floordiv(x, c2), floordiv(x + c1, c2),
                        c2.Eval()->value > 0);
 
+    TVM_TRY_REWRITE(floormod(x + 1, 2) + floormod(x, 2), OneWithTypeLike(x));
+    TVM_TRY_REWRITE(floormod(x, 2) + floormod(x + 1, 2), OneWithTypeLike(x));
+    TVM_TRY_RECURSIVE_REWRITE(floordiv(x, 2) + floormod(x, 2), floordiv(x + 1, 2));
+
     // canonicalization rule
     // will try rewrite again after canonicalization.
+
     TVM_TRY_RECURSIVE_REWRITE(matches_one_of(x + (c1 - y), (c1 - y) + x), (x - y) + c1);
-    TVM_TRY_RECURSIVE_REWRITE(matches_one_of(x + c1 + y, x + (c1 + y)), (x + y) + c1);
+    TVM_TRY_RECURSIVE_REWRITE(matches_one_of((x + c1) + y, x + (c1 + y), x + (y + c1)),
+                              (x + y) + c1);
     TVM_TRY_RECURSIVE_REWRITE(x + max(y, z), max(y, z) + x);
     TVM_TRY_RECURSIVE_REWRITE(x + min(y, z), min(y, z) + x);
 
@@ -454,6 +460,14 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
     TVM_TRY_REWRITE_IF(floordiv(x - y, c1) * c1 - x, 0 - floormod(x - y, c1) - y,
                        c1.Eval()->value != 0);
 
+    TVM_TRY_RECURSIVE_REWRITE(
+        floordiv(x + c1, 2) - floordiv(x + c2, 2),
+        floormod(x, 2) * (floormod(c1, 2) - floormod(c2, 2)) + floordiv(c1, 2) - floordiv(c2, 2));
+    TVM_TRY_RECURSIVE_REWRITE(floordiv(x, 2) - floordiv(x + c2, 2),
+                              floormod(x, 2) * (0 - floormod(c2, 2)) - floordiv(c2, 2));
+    TVM_TRY_RECURSIVE_REWRITE(floordiv(x + c1, 2) - floordiv(x, 2),
+                              floormod(x, 2) * floormod(c1, 2) + floordiv(c1, 2));
+
     TVM_TRY_REWRITE_IF(
         x * c2 - floordiv(x, c1) * c3, floormod(x, c1) * c2,
         c1.Eval()->value != 0 && c3.Eval()->value == c1.Eval()->value * c2.Eval()->value);
@@ -473,6 +487,9 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
         floordiv(x - y, c1) * c3 - x * c2, (0 - floormod(x - y, c1) - y) * c2,
         c1.Eval()->value != 0 && c3.Eval()->value == c1.Eval()->value * c2.Eval()->value);
 
+    TVM_TRY_RECURSIVE_REWRITE(floordiv(x + 1, 2) - floormod(x, 2), floordiv(x, 2));
+    TVM_TRY_RECURSIVE_REWRITE(floordiv(x, 2) - floormod(x - 1, 2), floordiv(x - 1, 2));
+
     TVM_TRY_REWRITE_IF(floordiv(x + c1, c3) - floordiv(x + c2, c3),
                        floordiv(floormod(x + floormod(c2, c3), c3) + (c1 - c2), c3),
                        c3.Eval()->value > 0);
@@ -483,6 +500,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
     // will try rewrite again after canonicalization.
     TVM_TRY_REWRITE(x - c1, x + (0 - c1));
     TVM_TRY_RECURSIVE_REWRITE((x + c1) - y, (x - y) + c1);
+    TVM_TRY_RECURSIVE_REWRITE(x - (y + c1), (x - y) + (0 - c1));
     TVM_TRY_RECURSIVE_REWRITE(x - (y - z), (x + z) - y);
     TVM_TRY_RECURSIVE_REWRITE(x - y * c1, x + y * (0 - c1));
   } else if (op->dtype.is_float()) {
@@ -973,6 +991,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
     TVM_TRY_REWRITE_IF(floormod(x * c1 + y, c2), floormod(x * floormod(c1, c2) + y, c2),
                        c2.Eval()->value > 0);
 
+    TVM_TRY_RECURSIVE_REWRITE_IF(floormod(x + c1, 2), floormod(x, 2) * (-1) + 1,
+                                 floormod(c1.Eval()->value, 2) == 1);
     TVM_TRY_REWRITE_IF(floormod(x + c1, c2), floormod(x, c2),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
 
@@ -983,12 +1003,21 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
 
     TVM_TRY_REWRITE(matches_one_of(floormod(x * y, y), floormod(y * x, y)), ZeroWithTypeLike(y));
 
-    // try modular analysis
     if (floormod(x, c1).Match(ret)) {
-      ModularSet mod = analyzer_->modular_set(x.Eval());
       int64_t c1val = c1.Eval()->value;
-      if (mod->coeff % c1val == 0 && c1val > 0) {
-        return floormod(mod->base, c1).Eval();
+      if (c1val > 0) {
+        // try modular analysis
+        ModularSet mod = analyzer_->modular_set(x.Eval());
+        if (mod->coeff % c1val == 0) {
+          return floormod(mod->base, c1).Eval();
+        }
+
+        // floormod(x,c1) is a no-op when x is already in the
+        // appropriate range.
+        ConstIntBound bound = analyzer_->const_int_bound(x.Eval());
+        if (bound->min_value >= 0 && bound->max_value < c1val) {
+          return x.Eval();
+        }
       }
     }
   }

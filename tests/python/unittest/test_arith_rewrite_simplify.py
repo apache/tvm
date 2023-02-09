@@ -560,6 +560,38 @@ class TestFloormodIndex(BaseCompare):
     )
 
 
+class TestFloorModTwo(BaseCompare):
+    """Special-case simplifications for FloorMod(expr,2)
+
+    Because FloorMod(expr,2) has only two possible values, it can be
+    simplified more aggressively than most FloorMod expressions.  Some
+    of these have analogues for other denominators (e.g. x%3 + (x+1)%3
+    + (x+2)%3 == 0 + 1 + 2), but they don't appear as often and
+    require identifying more related terms in order to apply.
+
+    (x + c1)//2 - (x+c2)//2 => (x%2)*( c1%2 - c1%2 ) + (c1//2 - c2//2)
+    """
+
+    x, y, z = te.var("x"), te.var("y"), te.var("z")
+    test_case = tvm.testing.parameter(
+        # Removing offsets from floormod
+        TestCase(flm(x + 1, 2), flm(x, 2) * (-1) + 1),
+        TestCase(flm(x + 5, 2), flm(x, 2) * (-1) + 1),
+        TestCase(flm(x, 2) + flm(x + 1, 2), 1),
+        TestCase(flm(x + 1, 2) + flm(x, 2), 1),
+        # Difference of floordiv yields floormod
+        TestCase(fld(x + 1, 2) - fld(x, 2), flm(x, 2)),
+        TestCase(fld(x, 2) - fld(x - 1, 2), flm(x, 2) * -1 + 1),
+        TestCase(fld(x + 5, 2) - fld(x - 2, 2), flm(x, 2) + 3),
+        TestCase(fld(x + 5, 2) - fld(x - 3, 2), 4),
+        # Sum of floordiv and floormod to yield floordiv
+        TestCase(fld(x + 1, 2) - flm(x, 2), fld(x, 2)),
+        TestCase(fld(x, 2) + flm(x, 2), fld(x + 1, 2)),
+        # Removal of floormod where possible
+        TestCase(flm(x + 1, 2) * 8192, x * (-8192) + 8192, [x >= 0, x < 2]),
+    )
+
+
 class TestMinIndex(BaseCompare):
     x, y, z = te.var("x"), te.var("y"), te.var("z")
     test_case = tvm.testing.parameter(
