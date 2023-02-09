@@ -42,7 +42,6 @@
 #define MODEL_IC 4
 
 static void* g_input_data;
-// TODO: use name instead of number directly
 #if TARGET_MODEL == MODEL_AD
 static uint8_t __aligned(4) g_input_data_buffer_aligned[MAX_DB_INPUT_SIZE];
 #endif

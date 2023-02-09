@@ -535,6 +535,18 @@ class Handler(server.ProjectAPIHandler):
 
         return cmake_args
 
+    def _copy_src_and_header_files(self, src_dir: pathlib.Path, dst_dir: pathlib.Path):
+        """Copy content of src_dir from template project to dst_dir in separate
+        source and header sub-directories.
+        """
+        for file in os.listdir(src_dir):
+            file = src_dir / file
+            if file.is_file():
+                if file.suffix in [".cc", ".c"]:
+                    shutil.copy2(file, dst_dir / "src")
+                elif file.suffix in [".h"]:
+                    shutil.copy2(file, dst_dir / "include" / "tvm")
+
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
         zephyr_board = options["board"]
         project_type = options["project_type"]
@@ -673,28 +685,16 @@ class Handler(server.ProjectAPIHandler):
             API_SERVER_DIR / "crt_config" / "crt_config.h", crt_config_dir / "crt_config.h"
         )
 
-        # Populate src and include
+        # Populate `src` and `include`
         src_dir = project_dir / "src"
         src_dir.mkdir()
         include_dir = project_dir / "include" / "tvm"
         include_dir.mkdir(parents=True)
         src_project_type_dir = API_SERVER_DIR / "src" / project_type
-        for file in os.listdir(src_project_type_dir):
-            file = pathlib.Path(src_project_type_dir / file)
-            if file.is_file():
-                if file.suffix in [".cc", ".c"]:
-                    shutil.copy2(file, src_dir)
-                elif file.suffix in [".h"]:
-                    shutil.copy2(file, include_dir)
+        self._copy_src_and_header_files(src_project_type_dir, project_dir)
 
         if self._is_fvp(zephyr_board, use_fvp):
-            for file in os.listdir(src_project_type_dir / "fvp"):
-                file = pathlib.Path(src_project_type_dir / "fvp" / file)
-                if file.is_file():
-                    if file.suffix in [".cc", ".c"]:
-                        shutil.copy2(file, src_dir)
-                    elif file.suffix in [".h"]:
-                        shutil.copy2(file, include_dir)
+            self._copy_src_and_header_files(src_project_type_dir / "fvp", project_dir)
 
         if project_type == "mlperftiny":
             shutil.copytree(src_project_type_dir / "api", src_dir / "api")
