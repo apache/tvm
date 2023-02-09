@@ -67,7 +67,7 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
     if not isinstance(axis, int):
         axis = get_const_int(axis)
 
-    def gen_ir(data, indices, updates, out):
+    def gen_ir(data, indices, updates, out, axis):
         ib = tir.ir_builder.create()
 
         data_ptr = ib.buffer_ptr(data)
@@ -92,7 +92,7 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
         full_range = before_axis_range * before_axis_stride
 
         ind_shape = indices.shape
-        ind_axis_range = shape[axis]
+        ind_axis_range = ind_shape[axis]
 
         ind_before_axis_range = 1
         ind_after_axis_range = 1
@@ -173,7 +173,7 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
     return te.extern(
         [data.shape],
         [data, indices, updates],
-        lambda ins, outs: gen_ir(ins[0], ins[1], ins[2], outs[0]),
+        lambda ins, outs: gen_ir(ins[0], ins[1], ins[2], outs[0], axis),
         dtype=data.dtype,
         out_buffers=[out_buf],
         name="scatter_elements_cuda",
