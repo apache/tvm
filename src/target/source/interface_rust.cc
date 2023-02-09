@@ -23,6 +23,7 @@
  * which works on top of the C interface API
  */
 
+#include <tvm/relay/base.h>
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/module.h>
@@ -153,7 +154,7 @@ class InterfaceRustNode : public runtime::ModuleNode {
       code_ << "}\n";
     } else {
       LOG(FATAL) << "No constant data in constant pool found "
-                 << PrettyPrint(GetRef<ObjectRef>(pool_info));
+                 << tvm::relay::PrettyPrint(GetRef<ObjectRef>(pool_info));
     }
   }
 
