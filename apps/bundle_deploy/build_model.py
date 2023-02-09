@@ -18,12 +18,15 @@
 
 import argparse
 import os
+import pathlib
+
 from tvm import relay
 import tvm
 from tvm import runtime as tvm_runtime
 import logging
 from tvm.relay.backend import Runtime
 from tvm.contrib import cc as _cc
+from tvm.micro import copy_crt_config_header
 
 RUNTIMES = [
     (Runtime("crt", {"system-lib": True}), "{name}_c.{ext}"),
@@ -163,3 +166,8 @@ if __name__ == "__main__":
     else:
         build_module(opts)
         build_inputs(opts)
+    
+    crt_config_output_path = pathlib.Path(__file__).parent.resolve() / "crt_config"
+    if not crt_config_output_path.exists():
+        crt_config_output_path.mkdir()
+    copy_crt_config_header("crt", crt_config_output_path)
