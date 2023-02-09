@@ -546,8 +546,8 @@ class ScheduleBuilder : public ExprVisitor {
             TuningRecord record = opt_record.value();
             for (const Instruction& inst : record->trace->insts) {
               if (inst->kind.same_as(kind_transform_layout)) {
-                ICHECK_EQ(inst->attrs.size(), 4);
-                auto index_map = Downcast<IndexMap>(inst->attrs[2]);
+                ICHECK_EQ(inst->inputs.size(), 2);
+                auto index_map = Downcast<IndexMap>(inst->inputs[1]);
 
                 if (!const_collector.constants.empty()) {
                   // In this case, RewriteLayout is acting on an AllocateConst node.

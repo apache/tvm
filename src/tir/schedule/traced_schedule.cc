@@ -530,8 +530,8 @@ void TracedScheduleNode::TransformLayout(const BlockRV& block_rv, int buffer_ind
   trace_->Append(
       /*inst=*/Instruction(
           /*kind=*/kind,
-          /*inputs=*/{block_rv},
-          /*attrs=*/{Integer(buffer_index), Integer(buffer_index_type), index_map, pad_value},
+          /*inputs=*/{block_rv, index_map},
+          /*attrs=*/{Integer(buffer_index), Integer(buffer_index_type), pad_value},
           /*outputs=*/{}));
 }
 
