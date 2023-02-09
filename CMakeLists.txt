@@ -264,7 +264,9 @@ else(MSVC)
   endif()
 endif(MSVC)
 
-if(USE_HEXAGON)
+# USE_MICRO is on by default, but it is not needed for Hexagon builds nor will
+# it function properly with USE_RPC disabled.
+if(USE_HEXAGON OR NOT USE_RPC)
   set(USE_MICRO OFF)
 endif()
 
@@ -578,14 +580,13 @@ include(cmake/modules/Logging.cmake)
 
 include(cmake/modules/contrib/PAPI.cmake)
 
-# NOTE: cmake doesn't track dependencies at the file level across subdirectories. For the
-# Unix Makefiles generator, need to add these explicit target-level dependency)
 if(USE_MICRO)
-  add_dependencies(tvm_runtime crt)
-  add_dependencies(tvm_runtime zephyr)
+  # NOTE: cmake doesn't track dependencies at the file level across subdirectories. For the
+  # Unix Makefiles generator, need to add these explicit target-level dependency)
   add_dependencies(tvm_runtime arduino)
-  add_dependencies(tvm host_standalone_crt)
+  add_dependencies(tvm_runtime crt)
   add_dependencies(tvm_runtime host_standalone_crt)
+  add_dependencies(tvm_runtime zephyr)
 endif()
 
 if(USE_CPP_RPC)
