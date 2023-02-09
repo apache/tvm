@@ -16,7 +16,7 @@
 # under the License.
 """
 Running TVM on the Gemmini accelerator - A single 2d depthwise convolutional layer example
-======================================================================================
+===========================================================================================
 **Author**:
 `Federico Peccia <https://fPecc.github.io/>`_
 
