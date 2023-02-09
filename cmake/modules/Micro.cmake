@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+include(cmake/utils/CRTConfig.cmake)
+
 if(USE_MICRO)
   message(STATUS "Build with Micro support")
   tvm_file_glob(GLOB RUNTIME_MICRO_SRCS src/runtime/micro/*.cc)
@@ -112,28 +114,6 @@ function(microtvm_add_platform_project_api platform)
   add_custom_target(${platform} DEPENDS ${platform_template_deps})
 endfunction()
 
-function(generate_crt_config platform output_path)
-  set(TVM_CRT_DEBUG 0)
-  set(TVM_CRT_MAX_NDIM 6)
-  set(TVM_CRT_MAX_ARGS 10)
-  set(TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES 512)
-  set(TVM_CRT_MAX_REGISTERED_MODULES 2)
-  set(TVM_CRT_MAX_PACKET_SIZE_BYTES 2048)
-  set(TVM_CRT_MAX_STRLEN_DLTYPE 10)
-  set(TVM_CRT_MAX_STRLEN_FUNCTION_NAME 120)
-  set(TVM_CRT_MAX_STRLEN_PARAM_NAME 80)
-  set(TVM_CRT_MAX_FUNCTION_NAME_LENGTH_BYTES 30)
-  set(TVM_CRT_PAGE_BITS 10)
-  set(TVM_CRT_MAX_PAGES 300)
-  
-  if("${platform}" STREQUAL "zephyr")
-    set(TVM_CRT_MAX_PACKET_SIZE_BYTES 512)
-  elseif("${platform}" STREQUAL "arduino")
-    set(TVM_CRT_MAX_PACKET_SIZE_BYTES 8*1024)
-  endif()
-  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/crt/crt_config-template.h" "${output_path}/crt_config.h")
-endfunction()
-
 if(USE_MICRO)
   set(PLATFORMS crt;zephyr;arduino)
   foreach(platform IN LISTS PLATFORMS)
@@ -142,6 +122,3 @@ if(USE_MICRO)
     generate_crt_config(${platform}, "${CMAKE_CURRENT_BINARY_DIR}/microtvm_template_projects/${platform}/crt_config")
   endforeach()
 endif(USE_MICRO)
-
-
-
