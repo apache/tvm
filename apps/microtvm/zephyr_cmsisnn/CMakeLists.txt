@@ -93,6 +93,7 @@ target_sources(app PRIVATE
     ${CMSIS_SOURCES}
 )
 target_include_directories(app
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/crt_config
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
     PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/runtime/include ${CMAKE_CURRENT_BINARY_DIR}/codegen/host/include
     PUBLIC ${CMSIS_PATH}/CMSIS-NN/Include/ ${CMSIS_PATH}/CMSIS/DSP/Include
