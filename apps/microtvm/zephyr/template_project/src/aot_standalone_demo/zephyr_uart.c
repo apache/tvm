@@ -20,6 +20,7 @@
 
 #include <zephyr/drivers/uart.h>
 #include <zephyr/sys/ring_buffer.h>
+#include <tvm/runtime/crt/logging.h>
 
 #include "crt_config.h"
 
