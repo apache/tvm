@@ -26,7 +26,6 @@
 
 #include "../../../qnn/utils.h"
 #include "../../op_common.h"
-//#include "common.h"
 
 namespace tvm {
 namespace relay {
