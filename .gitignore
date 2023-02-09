@@ -277,3 +277,9 @@ gallery/how_to/work_with_microtvm/micro_tvmc.py
 
 # GDB history file
 .gdb_history
+
+# crt_config files
+src/runtime/micro/crt_config.h
+apps/microtvm/zephyr_cmsisnn/crt_config
+apps/microtvm/ethosu/crt_config
+apps/microtvm/cmsisnn/crt_config
