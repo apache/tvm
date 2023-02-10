@@ -2893,6 +2893,28 @@ class ScatterND(OnnxOpConverter):
             inputs[0], _op.transpose(inputs[1], axes[-1:] + axes[:-1]), inputs[2], "update"
         )
 
+    @classmethod
+    def _impl_v16(cls, inputs, attr, params):
+        cls._inputs_check(inputs)
+        reduction = cls._reduction_check(attr, ["update", "add", "mul"])
+
+        indices_dim = len(infer_shape(inputs[1]))
+        axes = list(range(indices_dim))
+        return _op.scatter_nd(
+            inputs[0], _op.transpose(inputs[1], axes[-1:] + axes[:-1]), inputs[2], reduction
+        )
+
+    @classmethod
+    def _impl_v18(cls, inputs, attr, params):
+        cls._inputs_check(inputs)
+        reduction = cls._reduction_check(attr, ["update", "add", "mul", "min", "max"])
+
+        indices_dim = len(infer_shape(inputs[1]))
+        axes = list(range(indices_dim))
+        return _op.scatter_nd(
+            inputs[0], _op.transpose(inputs[1], axes[-1:] + axes[:-1]), inputs[2], reduction
+        )
+
 
 class EyeLike(OnnxOpConverter):
     """Operator converter for EyeLike."""
