@@ -963,8 +963,9 @@ class BiasAddOpConverter : public TensorRTOpConverter {
       // Make sure there are 2 dimensions after channel dimension,
       if (input_nbDims + 2 > required_rank) required_rank = input_nbDims + 2;
       axis = input_nbDims - 1;
-    } else if (TRT_HAS_IMPLICIT_BATCH(params))
+    } else if (TRT_HAS_IMPLICIT_BATCH(params)) {
       axis -= 1;
+    }
     ICHECK(input_dims.size() > 0 && input_dims.size() <= required_rank);
     const bool need_reshape_on_input = input_dims.size() != required_rank;
     if (need_reshape_on_input) {
