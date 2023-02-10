@@ -5795,7 +5795,7 @@ def test_moments():
         divide(%528, %533) /* truediv */
     }
     """
-    mod_golden = tvm.parser.parse('#[version = "0.0.5"]\n' + program)
+    mod_golden = tvm.relay.parse('#[version = "0.0.5"]\n' + program)
     tvm.ir.assert_structural_equal(mod["main"].body, mod_golden["main"].body, map_free_vars=True)
 
 

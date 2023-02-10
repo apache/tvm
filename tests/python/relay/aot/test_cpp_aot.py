@@ -81,7 +81,7 @@ def test_conv2d(enable_usmp, target_kind):
         }
     """
     )
-    ir_mod = tvm.parser.fromtext(relay_model)
+    ir_mod = tvm.relay.fromtext(relay_model)
 
     main_func = ir_mod["main"]
     shape_dict = {p.name_hint: p.checked_type.concrete_shape for p in main_func.params}

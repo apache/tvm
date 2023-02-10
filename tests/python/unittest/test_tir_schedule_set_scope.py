@@ -26,7 +26,7 @@ from tvm.tir.schedule.testing import verify_trace_roundtrip
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 @T.prim_func
-def element_wise(A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(128, 128), "float32"]) -> None:
+def element_wise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
     B = T.alloc_buffer((128, 128), dtype="float32")
 
     for i, j in T.grid(128, 128):
@@ -40,7 +40,7 @@ def element_wise(A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(128, 128), "fl
 
 
 @T.prim_func
-def element_wise_set_scope(A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(128, 128), "float32"]) -> None:
+def element_wise_set_scope(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
     B_shared = T.alloc_buffer([128, 128], dtype="float32", scope="shared")
 
     for i, j in T.grid(128, 128):
@@ -54,7 +54,7 @@ def element_wise_set_scope(A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(128,
 
 
 @T.prim_func
-def element_wise_subregion_match(A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(128, 128), "float32"]) -> None:
+def element_wise_subregion_match(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
     B = T.alloc_buffer((128, 128), dtype="float32")
 
     for i, j in T.grid(128, 128):
@@ -70,7 +70,7 @@ def element_wise_subregion_match(A: T.Buffer[(128, 128), "float32"], C: T.Buffer
 
 
 @T.prim_func
-def element_wise_subregion_match_set_scope(A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(128, 128), "float32"]) -> None:
+def element_wise_subregion_match_set_scope(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
     B_shared = T.alloc_buffer([128, 128], dtype="float32", scope="shared")
 
     for i, j in T.grid(128, 128):

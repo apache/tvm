@@ -118,7 +118,7 @@ def test_graph_executor():
     """Test use of the graph executor with microTVM."""
 
     temp_dir = tvm.contrib.utils.tempdir()
-    relay_mod = tvm.parser.fromtext(
+    relay_mod = tvm.relay.fromtext(
         """
       #[version = "0.0.5"]
       def @main(%a : Tensor[(1, 2), uint8], %b : Tensor[(1, 2), uint8]) {
@@ -166,7 +166,7 @@ def test_aot_executor():
     """Test use of the AOT executor with microTVM."""
 
     temp_dir = tvm.contrib.utils.tempdir()
-    relay_mod = tvm.parser.fromtext(
+    relay_mod = tvm.relay.fromtext(
         """
       #[version = "0.0.5"]
       def @main(%a : Tensor[(1, 2), uint8], %b : Tensor[(1, 2), uint8]) {
@@ -217,7 +217,7 @@ def test_aot_executor_usmp_const_pool():
     """Test the AOT executor with microTVM using USMP to generate a constant data pool."""
 
     temp_dir = tvm.contrib.utils.tempdir()
-    relay_mod = tvm.parser.fromtext(
+    relay_mod = tvm.relay.fromtext(
         """
       #[version = "0.0.5"]
       def @main(%a : Tensor[(1, 2), uint8], %b : Tensor[(1, 2), uint8], %c : Tensor[(1,2), uint8]) {

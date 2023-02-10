@@ -26,10 +26,10 @@ from tvm.script import tir as T
 class Module:
     @T.prim_func
     def tvm_test_cpacked(
-        A: T.Buffer[(1,), "float32"],
-        B: T.Buffer[(1,), "float32"],
-        C: T.Buffer[(1,), "float32"],
-        device_context: T.Buffer[(1,), "float32"],
+        A: T.Buffer((1,), "float32"),
+        B: T.Buffer((1,), "float32"),
+        C: T.Buffer((1,), "float32"),
+        device_context: T.Buffer((1,), "float32"),
     ) -> T.handle:
         T.evaluate(C.data)
 
@@ -56,10 +56,10 @@ class Module:
 class Expected:
     @T.prim_func
     def tvm_test_cpacked(
-        A: T.Buffer[(1,), "float32"],
-        B: T.Buffer[(1,), "float32"],
-        C: T.Buffer[(1,), "float32"],
-        device_context: T.Buffer[(1,), "float32"],
+        A: T.Buffer((1,), "float32"),
+        B: T.Buffer((1,), "float32"),
+        C: T.Buffer((1,), "float32"),
+        device_context: T.Buffer((1,), "float32"),
     ) -> T.handle:
         T.evaluate(C.data)
 

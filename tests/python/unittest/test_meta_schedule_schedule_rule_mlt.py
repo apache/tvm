@@ -31,9 +31,9 @@ from tvm.target import Target
 def test_cpu_matmul():
     @T.prim_func
     def cpu_matmul_0(
-        A: T.Buffer[(512, 512), "float32"],
-        B: T.Buffer[(512, 512), "float32"],
-        C: T.Buffer[(512, 512), "float32"],
+        A: T.Buffer((512, 512), "float32"),
+        B: T.Buffer((512, 512), "float32"),
+        C: T.Buffer((512, 512), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -62,9 +62,9 @@ def test_cpu_matmul():
 
     @T.prim_func
     def cpu_matmul_1(
-        A: T.Buffer[(512, 512), "float32"],
-        B: T.Buffer[(512, 512), "float32"],
-        C: T.Buffer[(512, 512), "float32"],
+        A: T.Buffer((512, 512), "float32"),
+        B: T.Buffer((512, 512), "float32"),
+        C: T.Buffer((512, 512), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -93,9 +93,9 @@ def test_cpu_matmul():
 
     @T.prim_func
     def cpu_matmul_2(
-        A: T.Buffer[(512, 512), "float32"],
-        B: T.Buffer[(512, 512), "float32"],
-        C: T.Buffer[(512, 512), "float32"],
+        A: T.Buffer((512, 512), "float32"),
+        B: T.Buffer((512, 512), "float32"),
+        C: T.Buffer((512, 512), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -149,9 +149,9 @@ def test_cpu_matmul():
 def test_cpu_matmul_relu():
     @T.prim_func
     def cpu_matmul_relu_0(
-        A: T.Buffer[(512, 512), "float32"],
-        B: T.Buffer[(512, 512), "float32"],
-        compute: T.Buffer[(512, 512), "float32"],
+        A: T.Buffer((512, 512), "float32"),
+        B: T.Buffer((512, 512), "float32"),
+        compute: T.Buffer((512, 512), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -180,9 +180,9 @@ def test_cpu_matmul_relu():
 
     @T.prim_func
     def cpu_matmul_relu_1(
-        A: T.Buffer[(512, 512), "float32"],
-        B: T.Buffer[(512, 512), "float32"],
-        compute: T.Buffer[(512, 512), "float32"],
+        A: T.Buffer((512, 512), "float32"),
+        B: T.Buffer((512, 512), "float32"),
+        compute: T.Buffer((512, 512), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -211,9 +211,9 @@ def test_cpu_matmul_relu():
 
     @T.prim_func
     def cpu_matmul_relu_2(
-        A: T.Buffer[(512, 512), "float32"],
-        B: T.Buffer[(512, 512), "float32"],
-        compute: T.Buffer[(512, 512), "float32"],
+        A: T.Buffer((512, 512), "float32"),
+        B: T.Buffer((512, 512), "float32"),
+        compute: T.Buffer((512, 512), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -273,9 +273,9 @@ def test_cpu_matmul_relu():
 def test_cuda_matmul():
     @T.prim_func
     def cuda_matmul_0(
-        A: T.Buffer[(512, 512), "float32"],
-        B: T.Buffer[(512, 512), "float32"],
-        C: T.Buffer[(512, 512), "float32"],
+        A: T.Buffer((512, 512), "float32"),
+        B: T.Buffer((512, 512), "float32"),
+        C: T.Buffer((512, 512), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -379,9 +379,9 @@ def test_cuda_matmul():
 def test_cuda_matmul_relu():
     @T.prim_func
     def cuda_matmul_relu_0(
-        A: T.Buffer[(512, 512), "float32"],
-        B: T.Buffer[(512, 512), "float32"],
-        compute: T.Buffer[(512, 512), "float32"],
+        A: T.Buffer((512, 512), "float32"),
+        B: T.Buffer((512, 512), "float32"),
+        compute: T.Buffer((512, 512), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -497,8 +497,8 @@ def test_cuda_matmul_relu():
 def test_cuda_sum_with_trivial_block_iter():
     @T.prim_func
     def sum_with_trivial_block_iter(
-        A: T.Buffer[(1, 64, 768), "float32"],
-        B: T.Buffer[(1, 64, 1), "float32"],
+        A: T.Buffer((1, 64, 768), "float32"),
+        B: T.Buffer((1, 64, 1), "float32"),
     ) -> None:
         for i0, i1, i2, i3 in T.grid(1, 64, 1, 768):
             with T.block("sum"):
@@ -523,9 +523,9 @@ def test_cuda_sum_with_trivial_block_iter():
 def test_multi_level_tiling_hexagon():
     @T.prim_func
     def cpu_conv2d_nhwc(
-        inputs: T.Buffer[(1, 56, 56, 64), "float16"],
-        weight: T.Buffer[(3, 3, 64, 64), "float16"],
-        conv2d_nhwc: T.Buffer[(1, 56, 56, 64), "float16"],
+        inputs: T.Buffer((1, 56, 56, 64), "float16"),
+        weight: T.Buffer((3, 3, 64, 64), "float16"),
+        conv2d_nhwc: T.Buffer((1, 56, 56, 64), "float16"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -738,8 +738,8 @@ def test_max_pool_blocked():
     # fmt off
     @T.prim_func
     def pool_blocked_cache_read_write(
-        X: T.Buffer[(1, 2, 8, 8, 8, 8, 32), "uint8"],
-        pool: T.Buffer[(1, 2, 4, 4, 8, 8, 32), "uint8"],
+        X: T.Buffer((1, 2, 8, 8, 8, 8, 32), "uint8"),
+        pool: T.Buffer((1, 2, 4, 4, 8, 8, 32), "uint8"),
     ):
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         pool_global = T.alloc_buffer([1, 2, 4, 4, 8, 8, 32], dtype="uint8")

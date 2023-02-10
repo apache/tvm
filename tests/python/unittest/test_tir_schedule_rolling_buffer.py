@@ -61,7 +61,7 @@ def _tile_nd(s, tile, block_name):
 
 def test_1d_rolling_buffer():
     @T.prim_func
-    def before(A: T.Buffer[(4, 12), "int32"], C: T.Buffer[(4, 8), "int32"]):
+    def before(A: T.Buffer((4, 12), "int32"), C: T.Buffer((4, 8), "int32")):
         B = T.alloc_buffer((4, 10), "int32")
         for c in T.serial(4):
             for i in T.serial(0, 10):
@@ -80,7 +80,7 @@ def test_1d_rolling_buffer():
                         C[cc, vi] = C[cc, vi] + B[cc, vi + vk]
 
     @T.prim_func
-    def expected(A: T.Buffer[(4, 12), "int32"], C: T.Buffer[(4, 8), "int32"]):
+    def expected(A: T.Buffer((4, 12), "int32"), C: T.Buffer((4, 8), "int32")):
         B = T.alloc_buffer([4, 6], dtype="int32")
         for c, i_0 in T.grid(4, 2):
             for ax0, ax1 in T.grid(6, 3):
@@ -114,7 +114,7 @@ def test_1d_rolling_buffer():
 
 
 @T.prim_func
-def cascade_2_max_pool2d(A: T.Buffer[(1, 12, 12, 16), "int8"], C: T.Buffer[(1, 8, 8, 16), "int8"]):
+def cascade_2_max_pool2d(A: T.Buffer((1, 12, 12, 16), "int8"), C: T.Buffer((1, 8, 8, 16), "int8")):
     B = T.alloc_buffer([1, 10, 10, 16], dtype="int8")
     for i0, i1, i2, i3, i4, i5 in T.grid(1, 10, 10, 16, 3, 3):
         with T.block("B"):
@@ -132,7 +132,7 @@ def cascade_2_max_pool2d(A: T.Buffer[(1, 12, 12, 16), "int8"], C: T.Buffer[(1, 8
 
 @T.prim_func
 def cascade_3_max_pool2d_with_stride(
-    A: T.Buffer[(1, 24, 24, 16), "int8"], C: T.Buffer[(1, 8, 8, 16), "int8"]
+    A: T.Buffer((1, 24, 24, 16), "int8"), C: T.Buffer((1, 8, 8, 16), "int8")
 ):
     B_0 = T.alloc_buffer([1, 22, 22, 16], dtype="int8")
     B_1 = T.alloc_buffer([1, 10, 10, 16], dtype="int8")
@@ -164,7 +164,7 @@ def cascade_3_max_pool2d_with_stride(
 
 def test_cascade_max_pool2d_w_tiled():
     @T.prim_func
-    def expected(A: T.Buffer[(1, 12, 12, 16), "int8"], C: T.Buffer[(1, 8, 8, 16), "int8"]):
+    def expected(A: T.Buffer((1, 12, 12, 16), "int8"), C: T.Buffer((1, 8, 8, 16), "int8")):
         B = T.alloc_buffer([1, 10, 6, 16], dtype="int8")
         for i0_0, i1_0, i2_0, i3_0 in T.grid(1, 1, 2, 1):
             for ax0, ax1, ax2, ax3, ax4 in T.grid(10, 6, 16, 3, 3):
@@ -205,7 +205,7 @@ def test_cascade_max_pool2d_w_tiled():
 
 def test_cascade_max_pool2d_h_tiled():
     @T.prim_func
-    def expected(A: T.Buffer[(1, 12, 12, 16), "int8"], C: T.Buffer[(1, 8, 8, 16), "int8"]):
+    def expected(A: T.Buffer((1, 12, 12, 16), "int8"), C: T.Buffer((1, 8, 8, 16), "int8")):
         B = T.alloc_buffer([1, 6, 10, 16], dtype="int8")
         for i0_0, i1_0, i2_0, i3_0 in T.grid(1, 2, 1, 1):
             for ax0, ax1, ax2, ax3, ax4 in T.grid(6, 10, 16, 3, 3):
@@ -246,7 +246,7 @@ def test_cascade_max_pool2d_h_tiled():
 
 def test_cascade_max_pool2d_h_w_c_tiled():
     @T.prim_func
-    def expected(A: T.Buffer[(1, 12, 12, 16), "int8"], C: T.Buffer[(1, 8, 8, 16), "int8"]):
+    def expected(A: T.Buffer((1, 12, 12, 16), "int8"), C: T.Buffer((1, 8, 8, 16), "int8")):
         B = T.alloc_buffer([1, 6, 10, 16], dtype="int8")
         for i0_0, i1_0, i2_0, i3_0 in T.grid(1, 2, 2, 2):
             for ax0, ax1, ax2, ax3, ax4 in T.grid(6, 6, 8, 3, 3):
@@ -288,7 +288,7 @@ def test_cascade_max_pool2d_h_w_c_tiled():
 
 def test_cascade_max_pool2d_non_perfect_tiled():
     @T.prim_func
-    def expected(A: T.Buffer[(1, 12, 12, 16), "int8"], C: T.Buffer[(1, 8, 8, 16), "int8"]) -> None:
+    def expected(A: T.Buffer((1, 12, 12, 16), "int8"), C: T.Buffer((1, 8, 8, 16), "int8")) -> None:
         B = T.alloc_buffer([1, 8, 10, 16], dtype="int8")
         for i0_0, i1_0, i2_0, i3_0 in T.grid(1, 2, 2, 1):
             for ax0, ax1, ax2, ax3, ax4 in T.grid(8, 8, 16, 3, 3):
@@ -335,7 +335,7 @@ def test_cascade_max_pool2d_non_perfect_tiled():
 
 def test_cascade_3_max_pool2d_with_stride():
     @T.prim_func
-    def expected(A: T.Buffer[(1, 24, 24, 16), "int8"], C: T.Buffer[(1, 8, 8, 16), "int8"]) -> None:
+    def expected(A: T.Buffer((1, 24, 24, 16), "int8"), C: T.Buffer((1, 8, 8, 16), "int8")) -> None:
         B_0 = T.alloc_buffer([1, 13, 22, 16], dtype="int8")
         B_1 = T.alloc_buffer([1, 6, 10, 16], dtype="int8")
         for i0_0, i1_0, i2_0, i3_0 in T.grid(1, 2, 2, 1):
@@ -396,7 +396,7 @@ def test_cascade_3_max_pool2d_with_stride():
 
 def test_upscale():
     @T.prim_func
-    def before(A: T.Buffer[(1, 16, 16, 16), "int8"], C: T.Buffer[(1, 24, 24, 16), "int8"]) -> None:
+    def before(A: T.Buffer((1, 16, 16, 16), "int8"), C: T.Buffer((1, 24, 24, 16), "int8")) -> None:
         B = T.alloc_buffer([1, 14, 14, 16], dtype="int8")
         for i0_0, i1_0, i2_0, i3_0 in T.grid(1, 5, 5, 1):
             for ax0, ax1, ax2, ax3, ax4 in T.grid(5, 5, 16, 3, 3):
@@ -432,7 +432,7 @@ def test_upscale():
 
     @T.prim_func
     def expected(
-        A: T.Buffer[(1, 16, 16, 16), "int8"], C: T.Buffer[(1, 24, 24, 16), "int8"]
+        A: T.Buffer((1, 16, 16, 16), "int8"), C: T.Buffer((1, 24, 24, 16), "int8")
     ) -> None:
         B = T.alloc_buffer([1, 5, 14, 16], dtype="int8")
         for i0_0, i1_0, i2_0, i3_0 in T.grid(1, 5, 5, 1):
@@ -480,7 +480,7 @@ def test_upscale():
 def test_fail_rolling_buffer_multi_writers():
     @T.prim_func
     def func_multi_writers(
-        A: T.Buffer[(1, 12, 12, 16), "int8"], C: T.Buffer[(1, 12, 12, 16), "int8"]
+        A: T.Buffer((1, 12, 12, 16), "int8"), C: T.Buffer((1, 12, 12, 16), "int8")
     ):
         B = T.alloc_buffer([1, 12, 12, 16], dtype="int8")
         for i0, i1, i2, i3 in T.grid(1, 3, 3, 1):
@@ -525,7 +525,7 @@ def test_fail_rolling_buffer_multi_writers():
 def test_fail_rolling_buffer_not_match():
     @T.prim_func
     def func_non_overlap(
-        A: T.Buffer[(1, 12, 12, 16), "int8"], C: T.Buffer[(1, 12, 12, 16), "int8"]
+        A: T.Buffer((1, 12, 12, 16), "int8"), C: T.Buffer((1, 12, 12, 16), "int8")
     ):
         B = T.alloc_buffer([1, 12, 12, 16], dtype="int8")
         for i0_0, i1_0, i2_0, i3_0 in T.grid(1, 3, 3, 1):

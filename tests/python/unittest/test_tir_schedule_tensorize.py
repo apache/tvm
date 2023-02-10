@@ -160,9 +160,9 @@ def outer_product_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def matmul(
-    A: T.Buffer[(128, 128), "float32"],
-    B: T.Buffer[(128, 128), "float32"],
-    C: T.Buffer[(128, 128), "float32"],
+    A: T.Buffer((128, 128), "float32"),
+    B: T.Buffer((128, 128), "float32"),
+    C: T.Buffer((128, 128), "float32"),
 ) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with T.block("update"):
@@ -230,9 +230,9 @@ def tensorized_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def batch_matmul(
-    A: T.Buffer[(16, 128, 128), "float32"],
-    B: T.Buffer[(16, 128, 128), "float32"],
-    C: T.Buffer[(16, 128, 128), "float32"],
+    A: T.Buffer((16, 128, 128), "float32"),
+    B: T.Buffer((16, 128, 128), "float32"),
+    C: T.Buffer((16, 128, 128), "float32"),
 ) -> None:
     for n, i, j in T.grid(16, 128, 128):
         with T.block("init"):
@@ -247,9 +247,9 @@ def batch_matmul(
 
 @T.prim_func
 def tensorized_batch_matmul_mma(
-    A: T.Buffer[(16, 128, 128), "float32"],
-    B: T.Buffer[(16, 128, 128), "float32"],
-    C: T.Buffer[(16, 128, 128), "float32"],
+    A: T.Buffer((16, 128, 128), "float32"),
+    B: T.Buffer((16, 128, 128), "float32"),
+    C: T.Buffer((16, 128, 128), "float32"),
 ) -> None:
     for n, i, j in T.grid(16, 128, 128):
         with T.block("init"):
@@ -302,9 +302,9 @@ def tensorized_batch_matmul_mma(
 
 @T.prim_func
 def tensorized_batch_matmul_dot_product(
-    A: T.Buffer[(16, 128, 128), "float32"],
-    B: T.Buffer[(16, 128, 128), "float32"],
-    C: T.Buffer[(16, 128, 128), "float32"],
+    A: T.Buffer((16, 128, 128), "float32"),
+    B: T.Buffer((16, 128, 128), "float32"),
+    C: T.Buffer((16, 128, 128), "float32"),
 ) -> None:
     for n, i, j in T.grid(16, 128, 128):
         with T.block("init"):
@@ -342,9 +342,9 @@ def tensorized_batch_matmul_dot_product(
 
 @T.prim_func
 def tensorized_batch_matmul_outer_product(
-    A: T.Buffer[(16, 128, 128), "float32"],
-    B: T.Buffer[(16, 128, 128), "float32"],
-    C: T.Buffer[(16, 128, 128), "float32"],
+    A: T.Buffer((16, 128, 128), "float32"),
+    B: T.Buffer((16, 128, 128), "float32"),
+    C: T.Buffer((16, 128, 128), "float32"),
 ) -> None:
     for n, i, j in T.grid(16, 128, 128):
         with T.block("init"):
@@ -392,9 +392,9 @@ def annotated_mma_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def annotated_matmul(
-    A: T.Buffer[(128, 128), "float32"],
-    B: T.Buffer[(128, 128), "float32"],
-    C: T.Buffer[(128, 128), "float32"],
+    A: T.Buffer((128, 128), "float32"),
+    B: T.Buffer((128, 128), "float32"),
+    C: T.Buffer((128, 128), "float32"),
 ) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with T.block("update"):
@@ -705,9 +705,9 @@ def test_tensorize_matmul_mixed_dtype():
     # fmt: off
     @T.prim_func
     def matmul_int64_shape(
-        A: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
-        B: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
-        C: T.Buffer[(T.int64(128), T.int64(128)), "float32"]
+        A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+        B: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+        C: T.Buffer((T.int64(128), T.int64(128)), "float32")
     ) -> None:
         for i_0, j_0 in T.grid(T.int64(8), T.int64(8)):
             for i_1_init, j_1_init in T.grid(T.int64(16), T.int64(16)):
@@ -724,9 +724,9 @@ def test_tensorize_matmul_mixed_dtype():
 
     @T.prim_func
     def tensorized_matmul_int64_shape(
-        A: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
-        B: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
-        C: T.Buffer[(T.int64(128), T.int64(128)), "float32"]
+        A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+        B: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+        C: T.Buffer((T.int64(128), T.int64(128)), "float32")
     ) -> None:
         for i_outer, j_outer in T.grid(T.int64(8), T.int64(8)):
             for i_inner_init, j_inner_init in T.grid(T.int64(16), T.int64(16)):

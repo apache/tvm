@@ -51,7 +51,7 @@ def test_te_workload(workload, flops):
 
 
 @T.prim_func
-def flops_with_let(a: T.Buffer[16, "float32"]):
+def flops_with_let(a: T.Buffer(16, "float32")):
     for i in range(8):
         j = i + 8
         a[j] = a[i]
@@ -63,7 +63,7 @@ def test_flops_with_let():
 
 
 @T.prim_func
-def flops_with_if(a: T.Buffer[16, "float32"], b: T.Buffer[16, "float32"]):
+def flops_with_if(a: T.Buffer(16, "float32"), b: T.Buffer(16, "float32")):
     for i in range(16):
         if i % 2 == 0:
             a[i] = b[i]

@@ -29,6 +29,7 @@ from typing_extensions import Literal
 import numpy as np  # type: ignore
 
 from tvm.ir import Range, Type
+from tvm.ir.base import deprecated
 from tvm.runtime import convert, ndarray
 from tvm.target import Target
 
@@ -1427,6 +1428,26 @@ def ptr(dtype: str, storage_scope: str = "global") -> Var:
     return _ffi_api.Ptr(dtype, storage_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
+@deprecated("T.buffer_var", "T.Ptr")
+def buffer_var(dtype: str, storage_scope: str = "global") -> Var:
+    """The pointer declaration function.
+
+    Parameters
+    ----------
+    dtype : str
+        The data type of the pointer.
+
+    storage_scope : str
+        The storage scope of the pointer.
+
+    Returns
+    -------
+    res : Var
+        The pointer.
+    """
+    return _ffi_api.Ptr(dtype, storage_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
 def min(a: PrimExpr, b: PrimExpr) -> PrimExpr:  # pylint: disable=redefined-builtin
     """Compute the minimum value of two expressions.
 
@@ -1703,7 +1724,6 @@ vectorcombine = _dtype_forward(_tir_op.vectorcombine)
 
 broadcast = Broadcast
 ramp = Ramp
-buffer_var = ptr
 fabs = abs
 tvm_call_packed = call_packed
 tvm_call_cpacked = call_cpacked

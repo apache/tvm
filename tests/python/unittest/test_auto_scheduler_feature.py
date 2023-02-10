@@ -203,9 +203,9 @@ def test_gpu_feature():
 
 @T.prim_func
 def tir_matmul(
-    A: T.Buffer[(256, 256), "float32"],
-    B: T.Buffer[(256, 256), "float32"],
-    C: T.Buffer[(256, 256), "float32"],
+    A: T.Buffer((256, 256), "float32"),
+    B: T.Buffer((256, 256), "float32"),
+    C: T.Buffer((256, 256), "float32"),
 ) -> None:
     # function attr dict
     T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
@@ -263,7 +263,7 @@ def test_dense_lowered():
 
 
 @T.prim_func
-def negative_extent(A: T.Buffer[(1,), "float32"]):
+def negative_extent(A: T.Buffer((1,), "float32")):
     for j in range(0, -1):
         A[j] = A[j] + 1.0
 
@@ -275,8 +275,8 @@ def test_negative_extent():
 
 @T.prim_func
 def zero_dim(
-    p2: T.Buffer[(), "float32"],
-    T_cast: T.Buffer[(T.int64(1), T.int64(768)), "int8"],
+    p2: T.Buffer((), "float32"),
+    T_cast: T.Buffer((T.int64(1), T.int64(768)), "int8"),
 ):
     # function attr dict
     T.func_attr(
