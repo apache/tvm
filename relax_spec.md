@@ -211,7 +211,7 @@ Because Relax supports calls to arbitrary `PackedFunc`s that can operate on a lo
 Possible specification in terms of the TVM object system:
 
 - Tensors are represented at run time as `NDArray`s (see `include/tvm/NDArray.h`).
-- Tuples are represented using TVM ADTs (algebraic data types), which are arrays of TVM objects with a tag (see `include/tvm/runtime/container/adt.h`). Tuples use a tag of 0.
+- Tuples are represented using TVM `Array`s (in contrast to `NDArray`s), which are immutable (see `include/tvm/runtime/container/array.h`).
 - At run time, closures are represented as a `ClosureObj` (see `include/tvm/runtime/container/closure.h`); in the Relax VM these more specifically use the `VMClosureObj` (see [`https://github.com/tlc-pack/relax/blob/relax/include/tvm/runtime/relax_vm/executable.h`](https://github.com/tlc-pack/relax/blob/relax/include/tvm/runtime/relax_vm/executable.h)).
 - Shape values are represented at run time as a `ShapeTuple` (see `include/tvm/runtime/container/shape_tuple.h`).
 - Strings are represented using TVM's `String` container (see `include/tvm/runtime/container/string.h`).
