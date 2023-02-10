@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
+import tvm
 import pytest
 from tvm import IRModule, relax, tir
 from tvm.script import relax as R
@@ -448,42 +449,4 @@ else:
 
 
 if __name__ == "__main__":
-    test_function()
-    test_extern_func()
-
-    test_object_struct_info()
-    test_prim_struct_info()
-    test_shape_struct_info_0()
-    test_shape_struct_info_1()
-    test_shape_struct_info_2()
-    test_tensor_struct_info()
-    test_tuple_struct_info_empty()
-    test_tuple_struct_info()
-    test_func_struct_info()
-
-    test_shape_type()
-    test_object_type()
-    test_dyn_tensor_type()
-    test_packed_func_type()
-    test_tuple_type()
-    test_func_type()
-
-    test_prim_value()
-    test_string_imm()
-    test_data_type_imm()
-
-    test_var()
-    test_dataflow_var()
-    #
-    test_tuple()
-    test_tuple_get_item()
-    test_shape_expr()
-    test_call()
-
-    test_seq_expr()
-    test_binding_block()
-    test_dataflow_block()
-
-    test_match_cast()
-    test_var_binding()
-    test_if()
+    tvm.testing.main()
