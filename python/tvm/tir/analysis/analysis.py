@@ -18,6 +18,7 @@
 # pylint: disable=invalid-name
 from typing import Dict, List, Union
 
+import tvm
 from tvm import Object
 from tvm.ir import IRModule
 from tvm.tir.expr import Var
