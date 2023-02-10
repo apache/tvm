@@ -31,7 +31,7 @@ def test_tir_buffer_proxy():
         and buffer_0.dtype == "float32"
     )
 
-    buffer_1 = T.Buffer[(64, 64, 64), "int32"]
+    buffer_1 = T.Buffer((64, 64, 64), "int32")
     assert (
         isinstance(buffer_1, tir.Buffer)
         and list(buffer_1.shape) == [64, 64, 64]
@@ -49,7 +49,7 @@ def test_tir_ptr_proxy():
         and ptr_0.type_annotation.storage_scope == "global"
     )
 
-    ptr_1 = T.Ptr["float32", "shared"]
+    ptr_1 = T.Ptr("float32", "shared")
     assert (
         isinstance(ptr_1, tir.Var)
         and ptr_1.dtype == "handle"

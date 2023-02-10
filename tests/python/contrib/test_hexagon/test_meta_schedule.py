@@ -241,9 +241,9 @@ class ModuleVRMPYAutoTensorize:
     # pylint: disable=no-self-argument
     @T.prim_func
     def main(  # type: ignore
-        X: T.Buffer[(128, 768), "uint8"],  # type: ignore
-        packed_width: T.Buffer[(24, 192, 32, 4), "uint8"],  # type: ignore
-        compute: T.Buffer[(128, 768), "int32"],  # type: ignore
+        X: T.Buffer((128, 768), "uint8"),  # type: ignore
+        packed_width: T.Buffer((24, 192, 32, 4), "uint8"),  # type: ignore
+        compute: T.Buffer((128, 768), "int32"),  # type: ignore
     ) -> None:
         # pylint: disable=missing-function-docstring
         T.func_attr({"global_symbol": "main", "tir.noalias": True})

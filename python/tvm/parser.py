@@ -16,9 +16,12 @@
 # under the License.
 # pylint: disable=invalid-name
 """The legacy TVM parser """
+from .ir.base import deprecated
+
 # pylint: disable=import-outside-toplevel
 
 
+@deprecated("tvm.parser.parse", "tvm.relay.parse")
 def parse(*args, **kwargs):
     """Deprecated, use `tvm.relay.parse` instead"""
     from tvm.relay import parse as _impl
@@ -26,6 +29,7 @@ def parse(*args, **kwargs):
     return _impl(*args, **kwargs)
 
 
+@deprecated("tvm.parser.parse_expr", "tvm.relay.parse_expr")
 def parse_expr(*args, **kwargs):
     """Deprecated, use `tvm.relay.parse_expr` instead"""
     from tvm.relay import parse_expr as _impl
@@ -33,6 +37,7 @@ def parse_expr(*args, **kwargs):
     return _impl(*args, **kwargs)
 
 
+@deprecated("tvm.parser.fromtext", "tvm.relay.fromtext")
 def fromtext(*args, **kwargs):
     """Deprecated, use `tvm.relay.fromtext` instead"""
     from tvm.relay import fromtext as _impl
@@ -40,6 +45,7 @@ def fromtext(*args, **kwargs):
     return _impl(*args, **kwargs)
 
 
+@deprecated("tvm.parser.SpanCheck", "tvm.relay.SpanCheck")
 def SpanCheck(*args, **kwargs):
     """Deprecated, use `tvm.relay.SpanCheck` instead"""
     from tvm.relay import SpanCheck as _impl

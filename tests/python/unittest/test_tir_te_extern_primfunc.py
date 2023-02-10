@@ -31,7 +31,7 @@ from tvm.script import tir as T
 
 
 @T.prim_func
-def func_1(A: T.Buffer[(16,), "float32"], C: T.Buffer[(1,), "float32"]):
+def func_1(A: T.Buffer((16,), "float32"), C: T.Buffer((1,), "float32")):
     for i in T.serial(
         0,
         16,
@@ -59,7 +59,7 @@ def verify_func_1(module):
 
 @T.prim_func
 def func_2(
-    C: T.Buffer[(1,), "float32"], A: T.Buffer[(16,), "float32"], D: T.Buffer[(2,), "float32"]
+    C: T.Buffer((1,), "float32"), A: T.Buffer((16,), "float32"), D: T.Buffer((2,), "float32")
 ):
     for i in T.serial(
         0,
@@ -89,11 +89,11 @@ def verify_func_2(module):
 
 @T.prim_func
 def func_3(
-    C: T.Buffer[(1,), "float32"],
-    A: T.Buffer[(16,), "float32"],
-    D: T.Buffer[(2,), "float32"],
-    E: T.Buffer[(16,), "float32"],
-    F: T.Buffer[(16,), "float32"],
+    C: T.Buffer((1,), "float32"),
+    A: T.Buffer((16,), "float32"),
+    D: T.Buffer((2,), "float32"),
+    E: T.Buffer((16,), "float32"),
+    F: T.Buffer((16,), "float32"),
 ):
     for i in T.serial(
         0,
@@ -131,11 +131,11 @@ def verify_func_3(module):
 
 @T.prim_func
 def func_4(
-    C: T.Buffer[(1,), "float32"],
-    A: T.Buffer[(16,), "float32"],
-    F: T.Buffer[(16,), "float32"],
-    D: T.Buffer[(2,), "float32"],
-    E: T.Buffer[(16,), "float32"],
+    C: T.Buffer((1,), "float32"),
+    A: T.Buffer((16,), "float32"),
+    F: T.Buffer((16,), "float32"),
+    D: T.Buffer((2,), "float32"),
+    E: T.Buffer((16,), "float32"),
 ):
     for i in T.serial(
         0,

@@ -428,7 +428,7 @@ def test_sparse_fill_empty_rows(
 def test_dyn_copy():
     target = tvm.target.Target("llvm")
     dev = tvm.cpu()
-    mod = tvm.parser.fromtext(
+    mod = tvm.relay.fromtext(
         """
         #[version = "0.0.5"]
         def @main(%x: Tensor[(?, 3), int64]) -> Tensor[(?, 3), int64] {
@@ -444,7 +444,7 @@ def test_dyn_copy():
 def test_dyn_copy_scalar():
     target = tvm.target.Target("llvm")
     dev = tvm.cpu()
-    mod = tvm.parser.fromtext(
+    mod = tvm.relay.fromtext(
         """
         #[version = "0.0.5"]
         def @main(%x: int32, %y: Tensor[(?), int32]) -> Tensor[(?), int32] {
@@ -464,7 +464,7 @@ def test_dyn_copy_scalar():
 def test_dyn_cast():
     target = tvm.target.Target("llvm")
     dev = tvm.cpu()
-    mod = tvm.parser.fromtext(
+    mod = tvm.relay.fromtext(
         """
         #[version = "0.0.5"]
         def @main(%x: Tensor[(?, 3), int64]) -> Tensor[(?, 3), int32] {

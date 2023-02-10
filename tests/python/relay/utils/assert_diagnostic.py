@@ -15,14 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-
-from tvm import register_func, get_global_func, IRModule
-from tvm import relay
-from tvm.parser import SpanCheck
+from tvm import IRModule, get_global_func, register_func, relay
+from tvm.error import DiagnosticError
+from tvm.ir.diagnostics import get_renderer, override_renderer
+from tvm.relay import SpanCheck
 from tvm.relay.transform import AnnotateSpans
 from tvm.runtime import Object
-from tvm.ir.diagnostics import get_renderer, override_renderer
-from tvm.error import DiagnosticError
 
 DEFAULT_RENDERER = get_renderer()
 

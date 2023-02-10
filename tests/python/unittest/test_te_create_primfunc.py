@@ -78,9 +78,9 @@ def tir_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def tir_matmul_int64(
-    A: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
-    B: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
-    C: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
+    A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+    B: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+    C: T.Buffer((T.int64(128), T.int64(128)), "float32"),
 ) -> None:
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
     for i0, j0, k0 in T.grid(T.int64(128), T.int64(128), T.int64(128)):
@@ -396,9 +396,9 @@ def test_tensor_attr():
 
 @T.prim_func
 def expected_layout_attr(
-    A: T.Buffer[(128, 128), "float32"],
-    B: T.Buffer[(128, 128), "float32"],
-    D: T.Buffer[(128, 128), "float32"],
+    A: T.Buffer((128, 128), "float32"),
+    B: T.Buffer((128, 128), "float32"),
+    D: T.Buffer((128, 128), "float32"),
 ) -> None:
     T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
     C = T.alloc_buffer([128, 128], dtype="float32")
@@ -417,9 +417,9 @@ def expected_layout_attr(
 
 @T.prim_func
 def expected_layout_attr_int64(
-    A: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
-    B: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
-    D: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
+    A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+    B: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+    D: T.Buffer((T.int64(128), T.int64(128)), "float32"),
 ):
     T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
     C = T.alloc_buffer([T.int64(128), T.int64(128)], dtype="float32")
@@ -586,9 +586,9 @@ def test_zero_dim_add():
 
     @T.prim_func
     def expected(
-        a: T.Buffer[(), "int32"],
-        b: T.Buffer[(), "int32"],
-        c: T.Buffer[(), "int32"],
+        a: T.Buffer((), "int32"),
+        b: T.Buffer((), "int32"),
+        c: T.Buffer((), "int32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         with T.block("root"):
@@ -612,8 +612,8 @@ def te_reshape():
 
 @T.prim_func
 def tir_reshape(
-    A: T.Buffer[(T.int64(2), T.int64(4)), "float32"],
-    T_reshape: T.Buffer[(T.int64(4), T.int64(2)), "float32"],
+    A: T.Buffer((T.int64(2), T.int64(4)), "float32"),
+    T_reshape: T.Buffer((T.int64(4), T.int64(2)), "float32"),
 ):
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
     for i0, i1 in T.grid(T.int64(4), T.int64(2)):
@@ -638,8 +638,8 @@ def test_reshape():
 
 @T.prim_func
 def argmax_expected(
-    p0: T.Buffer[(T.int64(1), T.int64(64), T.int64(56), T.int64(56)), "uint8"],
-    p0_red: T.Buffer[(T.int64(1), T.int64(56), T.int64(56)), "int32"],
+    p0: T.Buffer((T.int64(1), T.int64(64), T.int64(56), T.int64(56)), "uint8"),
+    p0_red: T.Buffer((T.int64(1), T.int64(56), T.int64(56)), "int32"),
 ):
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
     p0_red_temp_v0 = T.alloc_buffer([T.int64(1), T.int64(56), T.int64(56)], dtype="int32")
@@ -707,7 +707,7 @@ def te_resize2d_symbolic():
 
 @T.prim_func
 def tir_resize2d_symbolic(
-    A: T.Buffer[(T.int64(2), T.int64(3), T.int64(128), T.int64(128)), "float32"],
+    A: T.Buffer((T.int64(2), T.int64(3), T.int64(128), T.int64(128)), "float32"),
     var_resize: T.handle,
 ):
     T.func_attr({"global_symbol": "main", "tir.noalias": True})

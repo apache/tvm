@@ -25,7 +25,7 @@ from tvm.script import tir as T
 @tvm.script.ir_module
 class Before:
     @T.prim_func
-    def main(inputs: T.Buffer[(1, 4, 4, 512), "float32"], weight: T.Buffer[(4, 4, 512, 256), "float32"], conv2d_transpose_nhwc: T.Buffer[(1, 8, 8, 256), "float32"]) -> None:
+    def main(inputs: T.Buffer((1, 4, 4, 512), "float32"), weight: T.Buffer((4, 4, 512, 256), "float32"), conv2d_transpose_nhwc: T.Buffer((1, 8, 8, 256), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         inputs_flat = T.Buffer([8192], dtype="float32", data=inputs.data)
@@ -56,7 +56,7 @@ class Before:
 @tvm.script.ir_module
 class After:
     @T.prim_func
-    def main(inputs: T.Buffer[(1, 4, 4, 512), "float32"], weight: T.Buffer[(4, 4, 512, 256), "float32"], conv2d_transpose_nhwc: T.Buffer[(1, 8, 8, 256), "float32"]) -> None:
+    def main(inputs: T.Buffer((1, 4, 4, 512), "float32"), weight: T.Buffer((4, 4, 512, 256), "float32"), conv2d_transpose_nhwc: T.Buffer((1, 8, 8, 256), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         inputs_flat = T.Buffer([8192], dtype="float32", data=inputs.data)
@@ -87,7 +87,7 @@ class After:
 @tvm.script.ir_module
 class After_simplified:
     @T.prim_func
-    def main(inputs: T.Buffer[(1, 4, 4, 512), "float32"], weight: T.Buffer[(4, 4, 512, 256), "float32"], conv2d_transpose_nhwc: T.Buffer[(1, 8, 8, 256), "float32"]) -> None:
+    def main(inputs: T.Buffer((1, 4, 4, 512), "float32"), weight: T.Buffer((4, 4, 512, 256), "float32"), conv2d_transpose_nhwc: T.Buffer((1, 8, 8, 256), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # var definition

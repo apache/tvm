@@ -408,8 +408,8 @@ def test_meta_schedule_te2primfunc_argument_order_and_lowering():
     class _fused_layout_transform:
         @T.prim_func
         def main( # type: ignore
-            placeholder: T.Buffer[(T.int64(1), T.int64(3), T.int64(16), T.int64(16)), "float32"], # type: ignore
-            T_layout_trans: T.Buffer[(T.int64(1), T.int64(1), T.int64(16), T.int64(16), T.int64(3)), "float32"], # type: ignore
+            placeholder: T.Buffer((T.int64(1), T.int64(3), T.int64(16), T.int64(16)), "float32"), # type: ignore
+            T_layout_trans: T.Buffer((T.int64(1), T.int64(1), T.int64(16), T.int64(16), T.int64(3)), "float32"), # type: ignore
         ) -> None: # type: ignore
             # function attr dict
             T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -430,7 +430,7 @@ def test_meta_schedule_te2primfunc_argument_order_and_lowering():
     @tvm.script.ir_module
     class _fused_layout_transform_1:
         @T.prim_func
-        def main(placeholder: T.Buffer[(T.int64(1), T.int64(2), T.int64(16), T.int64(16), T.int64(4)), "float32"], T_layout_trans: T.Buffer[(T.int64(1), T.int64(8), T.int64(16), T.int64(16)), "float32"]) -> None: # type: ignore
+        def main(placeholder: T.Buffer((T.int64(1), T.int64(2), T.int64(16), T.int64(16), T.int64(4)), "float32"), T_layout_trans: T.Buffer((T.int64(1), T.int64(8), T.int64(16), T.int64(16)), "float32")) -> None: # type: ignore
             # function attr dict
             T.func_attr({"global_symbol": "main", "tir.noalias": True})
             # body
@@ -445,7 +445,7 @@ def test_meta_schedule_te2primfunc_argument_order_and_lowering():
     @tvm.script.ir_module
     class _fused_nn_contrib_conv2d_NCHWc:
         @T.prim_func
-        def main(placeholder: T.Buffer[(T.int64(1), T.int64(1), T.int64(16), T.int64(16), T.int64(3)), "float32"], placeholder_1: T.Buffer[(T.int64(2), T.int64(1), T.int64(5), T.int64(5), T.int64(3), T.int64(4)), "float32"], conv2d_NCHWc: T.Buffer[(T.int64(1), T.int64(2), T.int64(16), T.int64(16), T.int64(4)), "float32"]) -> None: # type: ignore
+        def main(placeholder: T.Buffer((T.int64(1), T.int64(1), T.int64(16), T.int64(16), T.int64(3)), "float32"), placeholder_1: T.Buffer((T.int64(2), T.int64(1), T.int64(5), T.int64(5), T.int64(3), T.int64(4)), "float32"), conv2d_NCHWc: T.Buffer((T.int64(1), T.int64(2), T.int64(16), T.int64(16), T.int64(4)), "float32")) -> None: # type: ignore
             # function attr dict
             T.func_attr({"global_symbol": "main", "tir.noalias": True})
             # body

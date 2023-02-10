@@ -180,7 +180,7 @@ def test_schedule_cache_reads():
 @tvm.script.ir_module
 class DiamondGraphTir:
     @T.prim_func
-    def main(input_placeholder: T.Buffer[(1, 56, 56, 96), "int8"], input_ethosu_write: T.Buffer[(1, 56, 56, 24), "int8"]) -> None:
+    def main(input_placeholder: T.Buffer((1, 56, 56, 96), "int8"), input_ethosu_write: T.Buffer((1, 56, 56, 24), "int8")) -> None:
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         placeholder = T.Buffer([301056], dtype='int8', data=input_placeholder.data)
         ethosu_write = T.Buffer([75264], dtype='int8', data=input_ethosu_write.data)

@@ -160,7 +160,7 @@ def test_export_model_library_format_c(
     target = tvm.target.target.micro("host")
     with utils.TempDirectory.set_keep_for_debug(True):
         with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-            relay_mod = tvm.parser.fromtext(
+            relay_mod = tvm.relay.fromtext(
                 """
             #[version = "0.0.5"]
             def @main(%a : Tensor[(1, 2), uint8], %b : Tensor[(1, 2), float32], %c : Tensor[(1, 2), float32]) {
@@ -254,7 +254,7 @@ def test_export_model_library_format_llvm():
         assert str(target)[:2] == "c "
         target = tvm.target.Target("llvm " + str(target)[2:])
         with tvm.transform.PassContext(opt_level=3):
-            relay_mod = tvm.parser.fromtext(
+            relay_mod = tvm.relay.fromtext(
                 """
             #[version = "0.0.5"]
             def @main(%a : Tensor[(1, 2), uint8], %b : Tensor[(1, 2), float32], %c : Tensor[(1, 2), float32]) {
@@ -339,7 +339,7 @@ def test_export_model_library_format_llvm():
 def test_export_model_library_format_workspace(executor, runtime):
     target = tvm.target.target.micro("host")
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        relay_mod = tvm.parser.fromtext(
+        relay_mod = tvm.relay.fromtext(
             """
             #[version = "0.0.5"]
             def @main(%p0: Tensor[(1, 56, 56, 128), int16], %p1: Tensor[(3, 3, 128, 1), int16], %p2: Tensor[(1, 1, 1, 128), int32]){

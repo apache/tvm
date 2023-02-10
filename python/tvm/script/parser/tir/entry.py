@@ -18,6 +18,7 @@
 import inspect
 from typing import Callable, Union
 
+from tvm.ir.base import deprecated
 from tvm.tir import Buffer, PrimFunc
 
 from ...ir_builder.tir import buffer_decl, ptr
@@ -49,7 +50,7 @@ setattr(prim_func, "dispatch_token", "tir")
 
 class BufferProxy:
     """Buffer proxy class for constructing tir buffer.
-    Overload __call__ and __getitem__ to support syntax as T.Buffer() and T.Buffer[].
+    Overload __call__ and __getitem__ to support syntax as T.Buffer() and T.Buffer().
     """
 
     def __call__(
@@ -78,6 +79,7 @@ class BufferProxy:
             axis_separators=axis_separators,
         )
 
+    @deprecated("T.Buffer(...)", "T.Buffer(...)")
     def __getitem__(self, keys) -> Buffer:
         if not isinstance(keys, tuple):
             return self(keys)
@@ -88,7 +90,7 @@ class BufferProxy:
 
 class PtrProxy:
     """Ptr proxy class for constructing tir pointer.
-    Overload __call__ and __getitem__ to support syntax as T.Ptr() and T.Ptr[].
+    Overload __call__ and __getitem__ to support syntax as T.Ptr() and T.Ptr().
     """
 
     def __call__(self, dtype, storage_scope="global"):
@@ -96,6 +98,7 @@ class PtrProxy:
             dtype = dtype().dtype
         return ptr(dtype, storage_scope)  # pylint: disable=no-member # type: ignore
 
+    @deprecated("T.Ptr(...)", "T.Ptr(...)")
     def __getitem__(self, keys):
         if not isinstance(keys, tuple):
             return self(keys)

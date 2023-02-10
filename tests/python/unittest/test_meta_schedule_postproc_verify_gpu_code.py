@@ -220,7 +220,7 @@ class Conv2dCuda3:
             B[blockIdx_z * 131072 + blockIdx_y * 16384 + threadIdx_y * 2048 + ff_inner_inner_inner * 256 + blockIdx_x * 64 + threadIdx_x * 8 + nn_inner_inner_inner] = B_local[ff_inner_inner_inner * 8 + nn_inner_inner_inner]# fmt: on
 
 @T.prim_func
-def GmmCuda0(X: T.Buffer[(1, 128, 128), "float32"], Y: T.Buffer[(1, 128, 128), "float32"], Z: T.Buffer[(1, 128, 128), "float32"]) -> None:
+def GmmCuda0(X: T.Buffer((1, 128, 128), "float32"), Y: T.Buffer((1, 128, 128), "float32"), Z: T.Buffer((1, 128, 128), "float32")) -> None:
     Z_local = T.alloc_buffer([1, 128, 128], dtype="float32", scope="local")
     X_shared = T.alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
     Y_shared = T.alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
@@ -274,7 +274,7 @@ def GmmCuda0(X: T.Buffer[(1, 128, 128), "float32"], Y: T.Buffer[(1, 128, 128), "
                         Z[v0, v1, v2] = Z_local[v0, v1, v2]
 
 @T.prim_func
-def GmmCuda1(X: T.Buffer[(1, 128, 128), "float32"], Y: T.Buffer[(1, 128, 128), "float32"], Z: T.Buffer[(1, 128, 128), "float32"]) -> None:
+def GmmCuda1(X: T.Buffer((1, 128, 128), "float32"), Y: T.Buffer((1, 128, 128), "float32"), Z: T.Buffer((1, 128, 128), "float32")) -> None:
     Z_local = T.alloc_buffer([1, 128, 128], dtype="float32", scope="local")
     X_shared = T.alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
     Y_shared = T.alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
@@ -333,7 +333,7 @@ def GmmCuda1(X: T.Buffer[(1, 128, 128), "float32"], Y: T.Buffer[(1, 128, 128), "
 
 
 @T.prim_func
-def GmmCuda2(X: T.Buffer[(1, 128, 128), "float32"], Y: T.Buffer[(1, 128, 128), "float32"], Z: T.Buffer[(1, 128, 128), "float32"]) -> None:
+def GmmCuda2(X: T.Buffer((1, 128, 128), "float32"), Y: T.Buffer((1, 128, 128), "float32"), Z: T.Buffer((1, 128, 128), "float32")) -> None:
     Z_local = T.alloc_buffer([1, 128, 128], dtype="float32", scope="local")
     X_shared = T.alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
     Y_shared = T.alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
@@ -393,9 +393,9 @@ def GmmCuda2(X: T.Buffer[(1, 128, 128), "float32"], Y: T.Buffer[(1, 128, 128), "
 
 @T.prim_func
 def GMMCUDATensorCore(
-    X: T.Buffer[(1024, 1024), "float16"],
-    Y: T.Buffer[(1024, 1024), "float16"],
-    Z: T.Buffer[(1024, 1024), "float32"],
+    X: T.Buffer((1024, 1024), "float16"),
+    Y: T.Buffer((1024, 1024), "float16"),
+    Z: T.Buffer((1024, 1024), "float32"),
 ) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "main", "tir.noalias": True})

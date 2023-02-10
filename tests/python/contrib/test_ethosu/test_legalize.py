@@ -86,7 +86,7 @@ def test_split_indices_legalize():
           (%1, %2, %3, %4)
         }
         """
-        return tvm.parser.fromtext(expected_ir_string)
+        return tvm.relay.fromtext(expected_ir_string)
 
     def expected_mod_axis2():
         expected_ir_string = """
@@ -107,7 +107,7 @@ def test_split_indices_legalize():
           (%1, %2, %3, %4)
         }
         """
-        return tvm.parser.fromtext(expected_ir_string)
+        return tvm.relay.fromtext(expected_ir_string)
 
     rewrite_split = [legalize.PartitionedSplitRewriter(), legalize.SplitRewriter()]
 
@@ -174,7 +174,7 @@ def test_split_sections_legalize():
           (%8, %10, %12, %14, %16)
         }
         """
-        return tvm.parser.fromtext(expected_ir_string)
+        return tvm.relay.fromtext(expected_ir_string)
 
     def expected_mod_axis2():
         expected_ir_string = """
@@ -209,7 +209,7 @@ def test_split_sections_legalize():
           (%8, %10, %12, %14, %16)
         }
         """
-        return tvm.parser.fromtext(expected_ir_string)
+        return tvm.relay.fromtext(expected_ir_string)
 
     rewrite_split = [legalize.PartitionedSplitRewriter(), legalize.SplitRewriter()]
 

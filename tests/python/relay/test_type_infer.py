@@ -399,7 +399,7 @@ def @main(%f: float32) -> float32 {
   @id(%f)
 }
 """
-    mod = tvm.parser.fromtext(code)
+    mod = tvm.relay.fromtext(code)
     mod = transform.InferType()(mod)
     tvm.ir.assert_structural_equal(mod["main"].body.type_args, [relay.TensorType((), "float32")])
 
