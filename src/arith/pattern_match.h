@@ -889,6 +889,15 @@ class PMatchesOneOf {
            MatchImpl(value, cond, std::index_sequence<RemainingIndices...>());
   }
 
+  // Hold the patterns by const&.  This follows the same usage as both
+  // the `PVar`, which occurs as `const PVar<T>&` when it appears
+  // inside other patterns.  Because the `PVar<T>::value_` field is
+  // mutable, it can still be updated through these const references.
+  // So long as the call to `Match()` occurs within the same
+  // expression as created the patterns, this avoids accidental copies
+  // without creating dangling references.  This may be improved in
+  // the future by use of `constexpr` constructors/operators, allowing
+  // more typical value semantics.
   std::tuple<const TPattern&...> patterns_;
 };
 
