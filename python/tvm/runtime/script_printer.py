@@ -32,6 +32,7 @@ class PrinterConfig(Object):
     show_meta: bool
     ir_prefix: str
     tir_prefix: str
+    relax_prefix: str
     buffer_dtype: str
     int_dtype: str
     float_dtype: str
@@ -52,6 +53,7 @@ class PrinterConfig(Object):
         show_meta: bool = False,
         ir_prefix: str = "I",
         tir_prefix: str = "T",
+        relax_prefix: str = "R",
         buffer_dtype: str = "float32",
         int_dtype: str = "int32",
         float_dtype: str = "void",
@@ -71,6 +73,7 @@ class PrinterConfig(Object):
             "show_meta": show_meta,
             "ir_prefix": ir_prefix,
             "tir_prefix": tir_prefix,
+            "relax_prefix": relax_prefix,
             "buffer_dtype": buffer_dtype,
             "int_dtype": int_dtype,
             "float_dtype": float_dtype,
@@ -111,6 +114,7 @@ class Scriptable:
         show_meta: bool = False,
         ir_prefix: str = "I",
         tir_prefix: str = "T",
+        relax_prefix: str = "R",
         buffer_dtype: str = "float32",
         int_dtype: str = "int32",
         float_dtype: str = "void",
@@ -136,7 +140,8 @@ class Scriptable:
             The prefix of AST nodes from tvm.ir
         tir_prefix : str = "T"
             The prefix of AST nodes from tvm.tir
-
+        relax_prefix : str = "R"
+            The prefix of AST nodes from tvm.relax
         buffer_dtype : str = "float32"
             The default data type of buffer
         int_dtype : str = "int32"
@@ -174,6 +179,51 @@ class Scriptable:
                 show_meta=show_meta,
                 ir_prefix=ir_prefix,
                 tir_prefix=tir_prefix,
+                relax_prefix=relax_prefix,
+                buffer_dtype=buffer_dtype,
+                int_dtype=int_dtype,
+                float_dtype=float_dtype,
+                verbose_expr=verbose_expr,
+                indent_spaces=indent_spaces,
+                print_line_numbers=print_line_numbers,
+                num_context_lines=num_context_lines,
+                syntax_sugar=syntax_sugar,
+                path_to_underline=path_to_underline,
+                path_to_annotate=path_to_annotate,
+                obj_to_underline=obj_to_underline,
+                obj_to_annotate=obj_to_annotate,
+            ),
+        )
+
+    def _relax_script(
+        self,
+        *,
+        name: Optional[str] = None,
+        show_meta: bool = False,
+        ir_prefix: str = "I",
+        tir_prefix: str = "T",
+        relax_prefix: str = "R",
+        buffer_dtype: str = "float32",
+        int_dtype: str = "int32",
+        float_dtype: str = "void",
+        verbose_expr: bool = False,
+        indent_spaces: int = 4,
+        print_line_numbers: bool = False,
+        num_context_lines: int = -1,
+        syntax_sugar: bool = True,
+        path_to_underline: Optional[List[ObjectPath]] = None,
+        path_to_annotate: Optional[Dict[ObjectPath, str]] = None,
+        obj_to_underline: Optional[List[Object]] = None,
+        obj_to_annotate: Optional[Dict[Object, str]] = None,
+    ) -> str:
+        return _relax_script(
+            self,
+            PrinterConfig(
+                name=name,
+                show_meta=show_meta,
+                ir_prefix=ir_prefix,
+                tir_prefix=tir_prefix,
+                relax_prefix=relax_prefix,
                 buffer_dtype=buffer_dtype,
                 int_dtype=int_dtype,
                 float_dtype=float_dtype,
@@ -198,6 +248,7 @@ class Scriptable:
         show_meta: bool = False,
         ir_prefix: str = "I",
         tir_prefix: str = "T",
+        relax_prefix: str = "R",
         buffer_dtype: str = "float32",
         int_dtype: str = "int32",
         float_dtype: str = "void",
@@ -228,7 +279,8 @@ class Scriptable:
             The prefix of AST nodes from tvm.ir
         tir_prefix : str = "T"
             The prefix of AST nodes from tvm.tir
-
+        relax_prefix : str = "R"
+            The prefix of AST nodes from tvm.relax
         buffer_dtype : str = "float32"
             The default data type of buffer
         int_dtype : str = "int32"
@@ -264,6 +316,7 @@ class Scriptable:
                 show_meta=show_meta,
                 ir_prefix=ir_prefix,
                 tir_prefix=tir_prefix,
+                relax_prefix=relax_prefix,
                 buffer_dtype=buffer_dtype,
                 int_dtype=int_dtype,
                 float_dtype=float_dtype,
