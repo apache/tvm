@@ -42,6 +42,19 @@ namespace arith {
 
 using namespace tir;
 
+// Note: When using matches_one_of or PMatchesOneOf alongside these
+// macros, be careful which patterns are used in the ResExpr.  While
+// the different source expressions may be in terms of different PVar,
+// the ResExpr should only contain patterns that are defined in
+// *every* SrcExpr given.
+//
+// Allowed (replacement does not use either c1 or y):
+//     TVM_TRY_REWRITE(matches_one_of(x + c1 - c1, x + y - y), x)
+//
+// Forbidden (c3 undefined if the first pattern matches):
+//     TVM_TRY_REWRITE(matches_one_of(floormod(x*c1,c2), floormod(x*c1 + c3, c2)),
+//                     floormod(x*floormod(c1,c2) + floormod(c3,c2), c2))
+
 // macro for doing simple rewrite
 #define TVM_TRY_REWRITE(SrcExpr, ResExpr) \
   if ((SrcExpr).Match(ret)) {             \
