@@ -180,8 +180,8 @@ void serial_callback(char* message, int len_bytes) {
 }
 
 void main(void) {
-  UartInit();
   TVMPlatformInitialize();
+  UartInit();
   g_cmd_buf_ind = 0;
   memset((char*)g_cmd_buf, 0, sizeof(g_cmd_buf));
 
