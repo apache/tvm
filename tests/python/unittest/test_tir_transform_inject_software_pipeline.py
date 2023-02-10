@@ -139,8 +139,8 @@ def transformed_simple_compute(
                 for i in T.serial(0, 15):
                     with T.block():
                         T.reads([A[tx, i + 1]])
-                        T.writes([B[(i + 1) % 2, tx, 0]])
-                        B[(i + 1) % 2, tx, 0] = A[tx, i + 1] * T.float32(2)
+                        T.writes([B[1 - i % 2, tx, 0]])
+                        B[1 - i % 2, tx, 0] = A[tx, i + 1] * T.float32(2)
                     with T.block():
                         T.reads([B[i % 2, tx, 0]])
                         T.writes([C[tx, i]])
@@ -202,8 +202,8 @@ def transformed_simple_compute_with_other_annotation(
                 ):
                     with T.block():
                         T.reads([A[tx, i + 1]])
-                        T.writes([B[(i + 1) % 2, tx, 0]])
-                        B[(i + 1) % 2, tx, 0] = A[tx, i + 1] * T.float32(2)
+                        T.writes([B[1 - i % 2, tx, 0]])
+                        B[1 - i % 2, tx, 0] = A[tx, i + 1] * T.float32(2)
                     with T.block():
                         T.reads([B[i % 2, tx, 0]])
                         T.writes([C[tx, i]])
@@ -266,7 +266,7 @@ def transformed_three_stage_compute(
                         T.where(i == 1)
                         T.reads(B[0:2, tx, 0])
                         T.writes(C[0:2, tx, 0])
-                        C[(i + 1) % 2, tx, 0] = B[(i + 1) % 2, tx, 0] + T.float32(2)
+                        C[1 - i, tx, 0] = B[1 - i, tx, 0] + T.float32(2)
             with T.block():
                 T.reads(A[tx, 2:16], B[0:2, tx, 0], C[0:2, tx, 0])
                 T.writes(B[0:2, tx, 0], C[0:2, tx, 0], D[tx, 0:14])
@@ -278,7 +278,7 @@ def transformed_three_stage_compute(
                     with T.block():
                         T.reads(B[0:2, tx, 0])
                         T.writes(C[0:2, tx, 0])
-                        C[(i + 1) % 2, tx, 0] = B[(i + 1) % 2, tx, 0] + T.float32(2)
+                        C[1 - i % 2, tx, 0] = B[1 - i % 2, tx, 0] + T.float32(2)
                     with T.block():
                         T.reads(C[0:2, tx, 0])
                         T.writes(D[tx, i])
@@ -291,7 +291,7 @@ def transformed_three_stage_compute(
                         T.where(i < 1)
                         T.reads(B[0:2, tx, 0])
                         T.writes(C[0:2, tx, 0])
-                        C[(i + 1) % 2, tx, 0] = B[(i + 1) % 2, tx, 0] + T.float32(2)
+                        C[1 - i, tx, 0] = B[1 - i, tx, 0] + T.float32(2)
                     with T.block():
                         T.reads(C[0:2, tx, 0])
                         T.writes(D[tx, i + 14])
@@ -391,12 +391,12 @@ def transformed_dag_interleaving(
                         BS[tx, 0] = B[tx, i + 1] + T.float32(2)
                     with T.block():
                         T.reads(AS[tx, 0])
-                        T.writes(AL[(i + 1) % 2, 0, 0])
-                        AL[(i + 1) % 2, 0, 0] = AS[tx, 0]
+                        T.writes(AL[1 - i % 2, 0, 0])
+                        AL[1 - i % 2, 0, 0] = AS[tx, 0]
                     with T.block():
                         T.reads(BS[tx, 0])
-                        T.writes(BL[(i + 1) % 2, 0, 0])
-                        BL[(i + 1) % 2, 0, 0] = BS[tx, 0]
+                        T.writes(BL[1 - i % 2, 0, 0])
+                        BL[1 - i % 2, 0, 0] = BS[tx, 0]
                     with T.block():
                         T.reads(AL[i % 2, 0, 0], BL[i % 2, 0, 0])
                         T.writes(C[tx, i])
@@ -475,12 +475,12 @@ def transformed_nested_pipeline_simple(
                 for i in T.serial(0, 15):
                     with T.block():
                         T.reads([A[tx, i + 1, 0:16]])
-                        T.writes([A_shared[(i + 1) % 2, tx, 0, 0:16]])
+                        T.writes([A_shared[1 - i % 2, tx, 0, 0:16]])
                         for j in T.serial(0, 16):
                             with T.block():
                                 T.reads([A[tx, i + 1, j]])
-                                T.writes([A_shared[(i + 1) % 2, tx, 0, j]])
-                                A_shared[(i + 1) % 2, tx, 0, j] = A[tx, i + 1, j]
+                                T.writes([A_shared[1 - i % 2, tx, 0, j]])
+                                A_shared[1 - i % 2, tx, 0, j] = A[tx, i + 1, j]
                     with T.block():
                         T.reads([A_shared[i % 2, tx, i, 0]])
                         T.writes([B[0, tx, i, 0]])
@@ -491,10 +491,10 @@ def transformed_nested_pipeline_simple(
                         for j in T.serial(0, 15):
                             with T.block():
                                 T.reads([A_shared[i % 2, tx, i, j + 1]])
-                                T.writes([B[(j + 1) % 2, tx, i, 0]])
-                                B[(j + 1) % 2, tx, i, 0] = A_shared[
-                                    i % 2, tx, 0, j + 1
-                                ] * T.float32(2)
+                                T.writes([B[1 - j % 2, tx, i, 0]])
+                                B[1 - j % 2, tx, i, 0] = A_shared[i % 2, tx, 0, j + 1] * T.float32(
+                                    2
+                                )
                             with T.block():
                                 T.reads([B[j % 2, tx, i, 0]])
                                 T.writes([C[tx, i, j]])
@@ -516,8 +516,8 @@ def transformed_nested_pipeline_simple(
                     for j in T.serial(0, 15):
                         with T.block():
                             T.reads([A_shared[1, tx, 15, j + 1]])
-                            T.writes([B[(j + 1) % 2, tx, 15, 0]])
-                            B[(j + 1) % 2, tx, 15, 0] = A_shared[1, tx, 0, j + 1] * T.float32(2)
+                            T.writes([B[1 - j % 2, tx, 15, 0]])
+                            B[1 - j % 2, tx, 15, 0] = A_shared[1, tx, 0, j + 1] * T.float32(2)
                         with T.block():
                             T.reads([B[j % 2, tx, 15, 0]])
                             T.writes([C[tx, 15, j]])
@@ -603,30 +603,30 @@ def transformed_nested_pipeline_prefetch_inner(
                 for i in T.serial(0, 15):
                     with T.block():
                         T.reads([A[tx, i + 1, 0:16]])
-                        T.writes([A_shared[(i + 1) % 2, tx, 0, 0:16]])
+                        T.writes([A_shared[1 - i % 2, tx, 0, 0:16]])
                         for j in T.serial(0, 16):
                             with T.block():
                                 T.reads([A[tx, i + 1, j]])
-                                T.writes([A_shared[(i + 1) % 2, tx, 0, j]])
-                                A_shared[(i + 1) % 2, tx, 0, j] = A[tx, i + 1, j]
+                                T.writes([A_shared[1 - i % 2, tx, 0, j]])
+                                A_shared[1 - i % 2, tx, 0, j] = A[tx, i + 1, j]
                     with T.block():
                         T.reads([A_shared[i % 2, tx, i, 1:16], B[0:2, tx, i, 0]])
                         T.writes([B[0:2, tx, i, 0], C[tx, i, 0:15]])
                         for j in T.serial(0, 15):
                             with T.block():
                                 T.reads([A_shared[i % 2, tx, i, j + 1]])
-                                T.writes([B[(j + 1) % 2, tx, i, 0]])
-                                B[(j + 1) % 2, tx, i, 0] = A_shared[
-                                    i % 2, tx, 0, j + 1
-                                ] * T.float32(2)
+                                T.writes([B[1 - j % 2, tx, i, 0]])
+                                B[1 - j % 2, tx, i, 0] = A_shared[i % 2, tx, 0, j + 1] * T.float32(
+                                    2
+                                )
                             with T.block():
                                 T.reads([B[j % 2, tx, i, 0]])
                                 T.writes([C[tx, i, j]])
                                 C[tx, i, j] = B[j % 2, tx, i, 0] + T.float32(1)
                     with T.block():
-                        T.reads([A_shared[(i + 1) % 2, tx, i + 1, 0]])
+                        T.reads([A_shared[1 - i % 2, tx, i + 1, 0]])
                         T.writes([B[0, tx, i + 1, 0]])
-                        B[0, tx, i + 1, 0] = A_shared[(i + 1) % 2, tx, 0, 0] * T.float32(2)
+                        B[0, tx, i + 1, 0] = A_shared[1 - i % 2, tx, 0, 0] * T.float32(2)
                     with T.block():
                         T.reads([B[1, tx, i, 0]])
                         T.writes([C[tx, i, 15]])
@@ -640,8 +640,8 @@ def transformed_nested_pipeline_prefetch_inner(
                     for j in T.serial(0, 15):
                         with T.block():
                             T.reads([A_shared[1, tx, 15, j + 1]])
-                            T.writes([B[(j + 1) % 2, tx, 15, 0]])
-                            B[(j + 1) % 2, tx, 15, 0] = A_shared[1, tx, 0, j + 1] * T.float32(2)
+                            T.writes([B[1 - j % 2, tx, 15, 0]])
+                            B[1 - j % 2, tx, 15, 0] = A_shared[1, tx, 0, j + 1] * T.float32(2)
                         with T.block():
                             T.reads([B[j % 2, tx, 15, 0]])
                             T.writes([C[tx, 15, j]])
@@ -768,8 +768,8 @@ def transformed_nested_pipeline_interleaving(
                         for j in T.serial(0, 15):
                             with T.block():
                                 T.reads([A_local[tx, i, j + 1]])
-                                T.writes([B[(j + 1) % 2, tx, i, 0]])
-                                B[(j + 1) % 2, tx, i, 0] = A_local[0, 0, j + 1] * T.float32(2)
+                                T.writes([B[1 - j % 2, tx, i, 0]])
+                                B[1 - j % 2, tx, i, 0] = A_local[0, 0, j + 1] * T.float32(2)
                             with T.block():
                                 T.reads([B[j % 2, tx, i, 0]])
                                 T.writes([C[tx, i, j]])
@@ -799,8 +799,8 @@ def transformed_nested_pipeline_interleaving(
                     for j in T.serial(0, 15):
                         with T.block():
                             T.reads([A_local[tx, 15, j + 1]])
-                            T.writes([B[(j + 1) % 2, tx, 15, 0]])
-                            B[(j + 1) % 2, tx, 15, 0] = A_local[0, 0, j + 1] * T.float32(2)
+                            T.writes([B[1 - j % 2, tx, 15, 0]])
+                            B[1 - j % 2, tx, 15, 0] = A_local[0, 0, j + 1] * T.float32(2)
                         with T.block():
                             T.reads([B[j % 2, tx, 15, 0]])
                             T.writes([C[tx, 15, j]])
@@ -929,27 +929,25 @@ def transformed_nested_pipeline_double_buffer(
                         for j in T.serial(0, 15):
                             with T.block():
                                 T.reads([A_local[i % 2, tx, i, j + 1]])
-                                T.writes([B[(j + 1) % 2, tx, i, 0]])
-                                B[(j + 1) % 2, tx, i, 0] = A_local[i % 2, 0, 0, j + 1] * T.float32(
-                                    2
-                                )
+                                T.writes([B[1 - j % 2, tx, i, 0]])
+                                B[1 - j % 2, tx, i, 0] = A_local[i % 2, 0, 0, j + 1] * T.float32(2)
                             with T.block():
                                 T.reads([B[j % 2, tx, i, 0]])
                                 T.writes([C[tx, i, j]])
                                 C[tx, i, j] = B[j % 2, tx, i, 0] + T.float32(1)
                     with T.block():
                         T.reads([A_shared[tx, 0, 0:16]])
-                        T.writes([A_local[(i + 1) % 2, 0, 0, 0:16]])
+                        T.writes([A_local[1 - i % 2, 0, 0, 0:16]])
                         for j in T.serial(0, 16):
                             with T.block():
                                 T.reads([A_shared[tx, 0, j]])
-                                T.writes([A_local[(i + 1) % 2, 0, 0, j]])
+                                T.writes([A_local[1 - i % 2, 0, 0, j]])
                                 T.block_attr({"double_buffer_scope": 0})
-                                A_local[(i + 1) % 2, 0, 0, j] = A_shared[tx, i + 1, j]
+                                A_local[1 - i % 2, 0, 0, j] = A_shared[tx, i + 1, j]
                     with T.block():
-                        T.reads([A_local[(i + 1) % 2, tx, i + 1, 0]])
+                        T.reads([A_local[1 - i % 2, tx, i + 1, 0]])
                         T.writes([B[0, tx, i + 1, 0]])
-                        B[0, tx, i + 1, 0] = A_local[(i + 1) % 2, 0, 0, 0] * T.float32(2)
+                        B[0, tx, i + 1, 0] = A_local[1 - i % 2, 0, 0, 0] * T.float32(2)
                     with T.block():
                         T.reads([B[1, tx, i, 0]])
                         T.writes([C[tx, i, 15]])
@@ -963,8 +961,8 @@ def transformed_nested_pipeline_double_buffer(
                     for j in T.serial(0, 15):
                         with T.block():
                             T.reads([A_local[1, tx, 15, j + 1]])
-                            T.writes([B[(j + 1) % 2, tx, 15, 0]])
-                            B[(j + 1) % 2, tx, 15, 0] = A_local[1, 0, 0, j + 1] * T.float32(2)
+                            T.writes([B[1 - j % 2, tx, 15, 0]])
+                            B[1 - j % 2, tx, 15, 0] = A_local[1, 0, 0, j + 1] * T.float32(2)
                         with T.block():
                             T.reads([B[j % 2, tx, 15, 0]])
                             T.writes([C[tx, 15, j]])
@@ -1135,7 +1133,7 @@ def test_simple_compute_async():
                         with T.block():
                             T.where(i + 1 < 16)
                             T.reads(A[tx, i + 1])
-                            T.writes(B[(i + 1) % 2, tx, 0])
+                            T.writes(B[1 - i % 2, tx, 0])
                             with T.attr(0, "async_commit_queue_scope", 0):
                                 with T.attr(0, "async_scope", 1):
                                     B[(i + 1) % 2, tx, 0] = A[tx, i + 1] * T.float32(2)
@@ -1350,8 +1348,8 @@ def test_three_stage_compute_two_stage_async():
                                     B[i % 2, tx, 0] = A[tx, i] * T.float32(2)
                         with T.block():
                             T.where(i == 1 and i - 1 < 16)
-                            T.reads(B[(i + 1) % 2, tx, 0])
-                            T.writes(C[(i + 1) % 2, tx, 0])
+                            T.reads(B[1 - i % 2, tx, 0])
+                            T.writes(C[1 - i % 2, tx, 0])
                             with T.attr(0, "async_commit_queue_scope", 1):
                                 with T.attr(0, "async_wait_queue_scope", 0):
                                     with T.attr(0, "async_wait_inflight_count", 1):
@@ -1372,8 +1370,8 @@ def test_three_stage_compute_two_stage_async():
                                     B[(i + 2) % 2, tx, 0] = A[tx, i + 2] * T.float32(2)
                         with T.block():
                             T.where(i + 2 - 1 < 16)
-                            T.reads(B[(i + 1) % 2, tx, 0])
-                            T.writes(C[(i + 1) % 2, tx, 0])
+                            T.reads(B[1 - i % 2, tx, 0])
+                            T.writes(C[1 - i % 2, tx, 0])
                             with T.attr(0, "async_commit_queue_scope", 1):
                                 with T.attr(0, "async_wait_queue_scope", 0):
                                     with T.attr(0, "async_wait_inflight_count", 1):
@@ -1394,8 +1392,8 @@ def test_three_stage_compute_two_stage_async():
                     for i in T.unroll(2):
                         with T.block():
                             T.where(i + 16 - 1 < 16)
-                            T.reads(B[(i + 1) % 2, tx, 0])
-                            T.writes(C[(i + 1) % 2, tx, 0])
+                            T.reads(B[1 - i % 2, tx, 0])
+                            T.writes(C[1 - i % 2, tx, 0])
                             with T.attr(0, "async_commit_queue_scope", 1):
                                 with T.attr(0, "async_wait_queue_scope", 0):
                                     with T.attr(0, "async_wait_inflight_count", 0 - i):
