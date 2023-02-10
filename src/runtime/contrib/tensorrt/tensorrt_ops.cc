@@ -961,11 +961,9 @@ class BiasAddOpConverter : public TensorRTOpConverter {
     int axis = std::stoi(params->node.GetAttr<std::vector<std::string>>("axis")[0]);
     if (axis == -1) {
       // Make sure there are 2 dimensions after channel dimension,
-      if (input_nbDims + 2 > required_rank)
-        required_rank = input_nbDims + 2;
+      if (input_nbDims + 2 > required_rank) required_rank = input_nbDims + 2;
       axis = input_nbDims - 1;
-    }
-    else if (TRT_HAS_IMPLICIT_BATCH(params))
+    } else if (TRT_HAS_IMPLICIT_BATCH(params))
       axis -= 1;
     ICHECK(input_dims.size() > 0 && input_dims.size() <= required_rank);
     const bool need_reshape_on_input = input_dims.size() != required_rank;
@@ -980,8 +978,9 @@ class BiasAddOpConverter : public TensorRTOpConverter {
 
     nvinfer1::Weights scale{weight_type, nullptr, 0};
     nvinfer1::Weights power{weight_type, nullptr, 0};
-    nvinfer1::IScaleLayer* scale_layer = params->network->addScaleNd(
-        *input_tensor, nvinfer1::ScaleMode::kCHANNEL, params->inputs.at(1).weight, scale, power, axis);
+    nvinfer1::IScaleLayer* scale_layer =
+        params->network->addScaleNd(*input_tensor, nvinfer1::ScaleMode::kCHANNEL,
+                                    params->inputs.at(1).weight, scale, power, axis);
     ICHECK(scale_layer != nullptr);
     auto output_tensor = scale_layer->getOutput(0);
     if (need_reshape_on_input) {
