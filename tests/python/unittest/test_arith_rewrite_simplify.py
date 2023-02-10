@@ -584,6 +584,7 @@ class TestFloorModTwo(BaseCompare):
         TestCase(fld(x, 2) - fld(x - 1, 2), flm(x, 2) * -1 + 1),
         TestCase(fld(x + 5, 2) - fld(x - 2, 2), flm(x, 2) + 3),
         TestCase(fld(x + 5, 2) - fld(x - 3, 2), 4),
+        TestCase(fld(flm(x, 2) + 1, 2), flm(x, 2)),
         # Sum of floordiv and floormod to yield floordiv
         TestCase(fld(x + 1, 2) - flm(x, 2), fld(x, 2)),
         TestCase(fld(x, 2) + flm(x, 2), fld(x + 1, 2)),

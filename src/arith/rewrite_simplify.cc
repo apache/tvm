@@ -880,6 +880,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
     TVM_TRY_REWRITE(floordiv(x, x), OneWithTypeLike(x));
     TVM_TRY_REWRITE(matches_one_of(floordiv(x * c1, x), floordiv(c1 * x, x)), c1);
 
+    TVM_TRY_REWRITE(floordiv(floormod(x, 2) + 1, 2), floormod(x, 2));
+
     // Rules involving 2-operands.
     TVM_TRY_REWRITE_IF(floordiv(min(x * c1, y), c2), min(x * floordiv(c1, c2), floordiv(y, c2)),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
