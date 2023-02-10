@@ -16,6 +16,8 @@
 # under the License.
 """Arm Cortex-M specific optimizations for quantized operators."""
 
+from typing import Iterable
+
 import numpy as np
 
 from tvm import nd, relay, target
@@ -23,7 +25,13 @@ from ..utils import get_const_tuple
 from ..nn import qnn_conv2d_alter_layout, qnn_add_alter_layout, qnn_requantize_alter_layout
 
 
-def prev_ops_match(curr_op, pattern):
+def prev_ops_match(curr_op: relay.expr.Call, pattern: Iterable[str]):
+    """Checks if the names of nested Relay operators match a pattern.
+
+    Note this function considers `curr_op` as a linear stack of operators, only considering args[0]
+    when traversing backwards. `pattern` should be an Iterable of operator names, written backwards
+    from last to first.
+    """
     prev_op = curr_op
     for op_name in pattern:
         if (not hasattr(prev_op, "op")) or prev_op.op.name != op_name:

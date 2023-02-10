@@ -24,7 +24,7 @@ must be done in a separate Relay op for memory reasons.
 from typing import Callable, Dict, Tuple
 
 import tvm
-from tvm import te, TVMError
+from tvm import te, tir, TVMError
 from tvm.script import tir as T
 from tvm.tir import const
 
@@ -147,12 +147,44 @@ def _make_tscript_call(func_name, *args):
 
 def _make_conv2d_primfunc(
     output_dimensions: Tuple[int, int, int, int],
-    buffer_shapes: Tuple[Tuple, Tuple, Tuple, Tuple, Tuple],
+    buffer_shapes: Tuple,
     aligned_func: Tuple[str, str],
     offset_func: Tuple[str, str],
     ptr_gens: Tuple[Callable, Callable],
-    output_layout="NHWC",
-):
+    output_layout: str = "NHWC",
+) -> tir.function.PrimFunc:
+    """Makes a TIR PrimFunc computing Conv2D using a call to tensordot.
+
+    Can be used to generate regular, depthwise, and grouped Conv2D operators by passing different
+    arguments and ptr_gen functions. However, it only works for Conv2D operators where the height
+    stride of the tensor is divisible by two.
+
+    Parameters
+    ----------
+    output_dimensions : Tuple[int, int, int, int]
+        A tuple containing the out_height, out_width, out_channels, and desired num_outputs values
+        in that order.
+
+    buffer_shapes: Tuple[tvm.ir.container.Array]
+        The shapes of the data, kernel, bias, scale, and output tensors, in that order. Each shape
+        should be a TVM Array.
+
+    aligned_func: Tuple[str, str]
+        A tuple containing the (name, C implementation) of a word-aligned tensordot operator.
+
+    offset_func: Tuple[str, str]
+        A tuple containing the (name, C implementation) of a word-unaligned tensordot operator. Can
+        be a tuple of empty strings if the Conv2D in question does not need an unaligned operator.
+
+    ptr_gens: Tuple[Callable, Callable]
+        A tuple of two functions to generate data and kernel access pointers. They should take as
+        inputs the buffer, (y, x, c) indices, and an alignment offset. They should return a
+        T.tvm_access_ptr object which can be used in T.call_extern.
+
+    output_layout: str
+        The tensor layout that will be prosued by the generated PrimFunc. Should be NHWC or NCHW.
+    """
+
     out_height, out_width, out_channels, num_outputs = output_dimensions
     data_shape, kernel_shape, bias_shape, scale_shape, output_shape = buffer_shapes
     aligned_func_name, aligned_func_code = aligned_func
@@ -397,8 +429,46 @@ def _make_unrolled_conv2d_primfunc(
     function_names: Dict[Tuple, str],
     function_code: str,
     ptr_gens: Tuple[Callable, Callable],
-    output_layout="NHWC",
-):
+    output_layout: str = "NHWC",
+) -> tir.function.PrimFunc:
+    """Makes a TIR PrimFunc computing Conv2D using a call to tensordot.
+
+    Can be used to generate regular, depthwise, and grouped Conv2D operators by passing different
+    arguments and ptr_gen functions. Takes some of the same arguments as _make_conv2d_primfunc, but
+    requires the tensordot function variations to be passed differently. The generated PrimFunc is
+    simlar to the one produced by _make_conv2d_primfunc, but unrolls the height and width loops
+    over the input tensor. This results in longer code, but unlike _make_conv2d_primfunc this
+    function does not require the height stride be an even number of words.
+
+    This is required to compute layer 25 in MobileNetV1 models, among other things.
+
+    Parameters
+    ----------
+    output_dimensions : Tuple[int, int, int, int]
+        A tuple containing the out_height, out_width, out_channels, and desired num_outputs values
+        in that order.
+
+    buffer_shapes: Tuple[tvm.ir.container.Array]
+        The shapes of the data, kernel, bias, scale, and output tensors, in that order. Each shape
+        should be a TVM Array.
+
+    function_names: Dict[Tuple, str]
+        A dictionary mapping a tuple of (data, kernel, output) alignments to the name of the
+        appropriate tensordot function.
+
+    function_code: str
+        A string containing all verions of tensordot function our PrimFunc needs. This will usually
+        be a string of 4+ function variations concatenated together.
+
+    ptr_gens: Tuple[Callable, Callable]
+        A tuple of two functions to generate data and kernel access pointers. They should take as
+        inputs the buffer, (y, x, c) indices, and an alignment offset. They should return a
+        T.tvm_access_ptr object which can be used in T.call_extern.
+
+    output_layout: str
+        The tensor layout that will be prosued by the generated PrimFunc. Should be NHWC or NCHW.
+    """
+
     out_height, out_width, out_channels = output_dimensions
     data_shape, kernel_shape, bias_shape, scale_shape, output_shape = buffer_shapes
     data_ptr, kernel_ptr = ptr_gens
@@ -413,16 +483,18 @@ def _make_unrolled_conv2d_primfunc(
         else:
             raise TVMError(f"Unsupported out_layout '{output_layout}'!")
 
-    def make_row_call(buffers, c_var, y, c):
+    def make_row_calls(buffers, c_var, out_height):
         output, data, kernel, bias, scale = buffers
-        return _make_tscript_call(
-            function_names[(y + c) % 2, c % 2, 0],
-            output_ptr(output, y, c_var + c),
-            data_ptr(data, y, c_var + c, offset=(y + c) % 2),
-            kernel_ptr(kernel, c_var + c, offset=c),
-            _bias_ptr(bias, c_var + c),
-            _scale_ptr(scale, c_var + c),
-        )
+        for y in range(out_height):
+            for c in range(2):
+                _make_tscript_call(
+                    function_names[(y + c) % 2, c % 2, 0],
+                    output_ptr(output, y, c_var + c),
+                    data_ptr(data, y, c_var + c, offset=(y + c) % 2),
+                    kernel_ptr(kernel, c_var + c, offset=c),
+                    _bias_ptr(bias, c_var + c),
+                    _scale_ptr(scale, c_var + c),
+                )
 
     @T.prim_func
     def biased_quantized_conv2d(
@@ -452,15 +524,7 @@ def _make_unrolled_conv2d_primfunc(
             with T.block("conv2ds"):
                 T.block_attr({"pragma_import_c": function_code})
                 c = T.axis.remap("S", [c_ax]) * 2
-
-                # TODO how can I programatically make the right number of
-                # function calls?
-                make_row_call((output, data, kernel, bias, scale), c, 0, 0)
-                make_row_call((output, data, kernel, bias, scale), c, 1, 0)
-                make_row_call((output, data, kernel, bias, scale), c, 2, 0)
-                make_row_call((output, data, kernel, bias, scale), c, 0, 1)
-                make_row_call((output, data, kernel, bias, scale), c, 1, 1)
-                make_row_call((output, data, kernel, bias, scale), c, 2, 1)
+                make_row_calls((output, data, kernel, bias, scale), c, out_height)
 
     return biased_quantized_conv2d
 
@@ -494,7 +558,6 @@ def qnn_unrolled_depthwise_conv2d(attrs, inputs, out_type):
     dimensions = (width, kernel_h, kernel_w)
     x_strides = (1, out_channels)
 
-    # data, kernel
     func_names = {}
     impls = []
     for alignment in ((0, 0, 0), (0, 1, 0), (1, 0, 0), (1, 1, 0)):

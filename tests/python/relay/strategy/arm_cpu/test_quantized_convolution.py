@@ -43,6 +43,7 @@ MODEL_URL = "https://github.com/mlcommons/tiny/raw/v0.7/benchmark/training/visua
 SAMPLE_URL = (
     "https://github.com/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/elephant-299.jpg"
 )
+MODEL_NUM_CONVS = 27
 
 
 @pytest.fixture(scope="module")
@@ -130,10 +131,11 @@ def test_empty_channel_detection(interpreter, layer):
         assert all(x == clipped for x in out_channel_values)
         fixed_channels[i] = clipped
 
-    # We now need to compute values for the following depthwise layer
-    if layer == 26:
+    # Check if we are on the final convolution and skip the next test if so
+    if layer + 1 >= MODEL_NUM_CONVS:
         return
 
+    # We now need to compute values for the following depthwise layer
     depthwise_output = _load_tflite_layer(interpreter, layer + 1)[3][0]
     is_depthwise = _get_mobilenet_v1_layer_attributes(layer + 1)[2]
     assert is_depthwise

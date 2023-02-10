@@ -90,11 +90,6 @@ def _compute_fixed_depthwise_outputs(requantize_op, fixed_channel_inputs):
     bias_data = bias_add_op.args[1].data.numpy()
 
     kernel_size = get_const_tuple(depthwise_op.attrs.kernel_size)
-
-    # Make a kernel_size x kernel_size array of fixed_input
-    # Pad it with zeros usint padding
-    # Do a convolution and make sure
-
     fixed_outputs = {}
 
     for i, fixed_input in fixed_channel_inputs.items():
@@ -116,8 +111,8 @@ def _compute_fixed_depthwise_outputs(requantize_op, fixed_channel_inputs):
         if np.all(clipped == clipped[0, 0]):
             fixed_outputs[i] = clipped[0, 0]
 
-    # TODO look for all-zero entries in the depthwise kernel. I don't think these really occur in
-    # practice, but it would be nice for theoretical completeness.
+    # TODO @guberti look for all-zero entries in the depthwise kernel. I don't think these really
+    # occur in practice, but it would be nice for theoretical completeness.
 
     return fixed_outputs
 
@@ -299,8 +294,8 @@ def _densify_conv_pool_dense_pattern(attrs, inputs):
 def legalize_bias_add(attrs, inputs, _tinfos):
     """Remove empty convolution channels when possible, and "fold" them into the bias add.
 
-    TODO these rewrites are always beneficial and will improve performance cross-platform - should
-    we enable them for all platforms, not just arm_cpu?
+    TODO @guberti: these rewrites are always beneficial and will improve performance cross-platform,
+    should we enable them for all platforms, not just arm_cpu?
     """
 
     if prev_ops_match(

@@ -1001,7 +1001,8 @@ Pass SimplifyExprPostAlterOp() {
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.SimplifyExpr").set_body_typed(SimplifyExpr);
-// Don't globally register SimplifyExprPostAlterOp
+TVM_REGISTER_GLOBAL("relay._transform.SimplifyExprPostAlterOp")
+    .set_body_typed(SimplifyExprPostAlterOp);
 
 }  // namespace transform
 
