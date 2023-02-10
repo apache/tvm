@@ -2857,7 +2857,36 @@ class ScatterND(OnnxOpConverter):
     """Operator converter for ScatterND."""
 
     @classmethod
+    def _inputs_check(cls, inputs):
+        assert (
+            len(inputs) == 3
+        ), "ScatterND takes 3 inputs (data, indices, updates), {} given".format(len(inputs))
+        assert infer_type(inputs[1]).checked_type.dtype == "int64"
+
+        data_rank = len(infer_shape(inputs[0]))
+        assert data_rank > 0, "Data rank higher than 0 is expected"
+        indices_rank = len(infer_shape(inputs[1]))
+        assert indices_rank > 0, "Indices rank higher than 0 is expected"
+        updates_rank = len(infer_shape(inputs[2]))
+        assert (
+            updates_rank == data_rank + indices_rank - infer_shape(inputs[1])[-1] - 1
+        ), "Updates rank should be equal to data_rank + indices_rank - indices_shape[-1] - 1"
+
+    @classmethod
+    def _reduction_check(cls, attr, red_valids=["update"]):
+        reduction = attr.get("reduction", None)
+        if reduction is None:
+            reduction = b"update"
+        reduction = reduction.decode("utf-8")
+        assert reduction in red_valids, "Only {} reductions are supported, but {} is gotten".format(
+            red_valids, reduction
+        )
+
+        return reduction
+
+    @classmethod
     def _impl_v11(cls, inputs, attr, params):
+        cls._inputs_check(inputs)
         indices_dim = len(infer_shape(inputs[1]))
         axes = list(range(indices_dim))
         return _op.scatter_nd(
