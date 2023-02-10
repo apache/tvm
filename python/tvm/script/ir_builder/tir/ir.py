@@ -1616,6 +1616,10 @@ asinh = _op_wrapper(_tir_op.asinh)
 atan = _op_wrapper(_tir_op.atan)
 atan2 = _op_wrapper(_tir_op.atan2)
 atanh = _op_wrapper(_tir_op.atanh)
+bitwise_and = _op_wrapper(_tir_op.bitwise_and)
+bitwise_not = _op_wrapper(_tir_op.bitwise_not)
+bitwise_or = _op_wrapper(_tir_op.bitwise_or)
+bitwise_xor = _op_wrapper(_tir_op.bitwise_xor)
 ceil = _op_wrapper(_tir_op.ceil)
 clz = _op_wrapper(_tir_op.clz)
 copysign = _op_wrapper(_tir_op.copysign)
@@ -1866,6 +1870,10 @@ __all__ = [
     "atan",
     "atan2",
     "atanh",
+    "bitwise_and",
+    "bitwise_not",
+    "bitwise_or",
+    "bitwise_xor",
     "ceil",
     "clz",
     "copysign",
