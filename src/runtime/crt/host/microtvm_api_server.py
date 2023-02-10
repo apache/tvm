@@ -106,6 +106,7 @@ class Handler(server.ProjectAPIHandler):
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
         # Make project directory.
         project_dir.mkdir(parents=True)
+        current_dir = pathlib.Path(__file__).parent.absolute()
 
         # Copy ourselves to the generated project. TVM may perform further build steps on the generated project
         # by launching the copy.
@@ -135,7 +136,7 @@ class Handler(server.ProjectAPIHandler):
 
         # Populate Makefile
         self._populate_makefile(
-            pathlib.Path(__file__).parent / f"{MAKEFILE_FILENAME}.template",
+            current_dir / f"{MAKEFILE_FILENAME}.template",
             project_dir / MAKEFILE_FILENAME,
             options.get("memory_size_bytes", MEMORY_SIZE_BYTES),
         )
@@ -144,7 +145,7 @@ class Handler(server.ProjectAPIHandler):
         crt_config_dir = project_dir / "crt_config"
         crt_config_dir.mkdir()
         shutil.copy2(
-            pathlib.Path(os.path.dirname(__file__)) / "crt_config" / "crt_config-template.h",
+            current_dir / "crt_config" / "crt_config-template.h",
             crt_config_dir / "crt_config.h",
         )
 
@@ -152,13 +153,25 @@ class Handler(server.ProjectAPIHandler):
         src_dir = project_dir / "src"
         src_dir.mkdir()
         shutil.copy2(
-            pathlib.Path(os.path.dirname(__file__)) / "src" / "main.cc",
+            current_dir / "src" / "main.cc",
             src_dir / "main.cc",
         )
-        shutil.copy2(
-            pathlib.Path(os.path.dirname(__file__)) / "src" / "platform-template.c",
-            src_dir / "platform.c",
-        )
+
+        # Remove redefined functions in main.cc from platform.c
+        with open(current_dir / "src" / "platform-template.c", "r") as src_f:
+            with open(src_dir / "platform.c", "w") as dst_f:
+                for line in src_f:
+                    if any(
+                        redefined_func in line
+                        for redefined_func in [
+                            "void TVMPlatformAbort",
+                            "tvm_crt_error_t TVMPlatformTimerStart",
+                            "tvm_crt_error_t TVMPlatformTimerStop",
+                            "tvm_crt_error_t TVMPlatformGenerateRandom",
+                        ]
+                    ):
+                        line = "TVM_WEAK " + line
+                    dst_f.write(line)
 
     def build(self, options):
         args = ["make"]
