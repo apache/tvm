@@ -106,6 +106,8 @@ jobs:
           submodules: 'recursive'
       - name: Set up environment
         uses: ./.github/actions/setup
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
       - name: Build static TVM runtime
         shell: bash -l {0}
         run: |
