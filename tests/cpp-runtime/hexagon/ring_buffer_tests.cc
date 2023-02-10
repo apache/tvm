@@ -160,11 +160,11 @@ TEST_F(RingBufferTest, half_in_flight) {
 
   // mark it inflight and check
   *ptr = inflight;
-  ASSERT_EQ(ring_buff->InFlight(), 3);
+  ASSERT_EQ(ring_buff->InFlight(), half + 1);
 
   // mark it finished and check also blocked
   *ptr = finished;
-  ASSERT_EQ(ring_buff->InFlight(), 3);
+  ASSERT_EQ(ring_buff->InFlight(), half + 1);
 }
 
 TEST_F(RingBufferTest, half_in_flight_blocked) {
