@@ -226,8 +226,7 @@ Array<Range> IndexMapNode::MapRanges(const Array<Range>& ranges, arith::Analyzer
       auto mx = analyzer->Simplify(int_set.max() - int_set.min() + 1);
       mx = analyzer->Simplify(min(total_size, mx));
 
-      output.push_back(Range::FromMinExtent(analyzer->Simplify(int_set.min()),
-                                            mx));
+      output.push_back(Range::FromMinExtent(analyzer->Simplify(int_set.min()), mx));
       total_size = analyzer->Simplify(max(div(total_size, mx), PrimExpr(1)));
     }
   }
