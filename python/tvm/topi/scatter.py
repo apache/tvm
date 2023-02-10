@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name, too-many-arguments, too-many-nested-blocks
 """Scatter operator"""
 from ..te import extern, hybrid
-from ..tir import decl_buffer, expr, ir_builder
+from ..tir import decl_buffer, expr, ir_builder, min, max
 
 
 @hybrid.script
@@ -308,8 +308,16 @@ def scatter_nd(data, indices, updates, mode):
                     out[index] = updates[i * fused_updates_dimension + j]
                 elif mode == "add":
                     out[index] += updates[i * fused_updates_dimension + j]
+                elif mode == "mul":
+                    out[index] *= updates[i * fused_updates_dimension + j]
+                elif mode == "min":
+                    out[index] = min(out[index], updates[i * fused_updates_dimension + j])
+                elif mode == "max":
+                    out[index] = max(out[index], updates[i * fused_updates_dimension + j])
                 else:
-                    raise NotImplementedError("scatter_nd mode not in [update, add]:", mode)
+                    raise NotImplementedError(
+                        "scatter_nd mode not in [update, add, mul, min, max]:", mode
+                    )
 
         return ib.get()
 
