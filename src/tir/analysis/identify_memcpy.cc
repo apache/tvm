@@ -85,9 +85,10 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   Array<PrimExpr> flattened_src = load->buffer.OffsetOf(load->indices);
 
   if (flattened_dst.size() != 1 || flattened_src.size() != 1) {
-    return (std::stringstream() << "Expected flattened dimension of src/dest to be 1, but found"
-                                << flattened_src.size() << "-d src and " << flattened_dst.size()
-                                << "-d dst")
+    return static_cast<const std::stringstream&>(
+               std::stringstream()
+               << "Expected flattened dimension of src/dest to be 1, but found"
+               << flattened_src.size() << "-d src and " << flattened_dst.size() << "-d dst")
         .str();
   }
   PrimExpr src_index = flattened_src[0];
@@ -104,19 +105,21 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   auto src_iter_map = arith::DetectIterMap({src_index}, loop_ranges, Bool(true),
                                            arith::IterMapLevel::Bijective, analyzer);
   if (src_iter_map->errors.size()) {
-    return (std::stringstream() << "arith::DetectIterMap(src) returned "
-                                << src_iter_map->errors.size() << " errors: ["
-                                << src_iter_map->errors << "]"
-                                << " for src_index = " << src_index)
+    return static_cast<const std::stringstream&>(std::stringstream()
+                                                 << "arith::DetectIterMap(src) returned "
+                                                 << src_iter_map->errors.size() << " errors: ["
+                                                 << src_iter_map->errors << "]"
+                                                 << " for src_index = " << src_index)
         .str();
   }
   auto dst_iter_map = arith::DetectIterMap({dst_index}, loop_ranges, Bool(true),
                                            arith::IterMapLevel::Bijective, analyzer);
   if (dst_iter_map->errors.size()) {
-    return (std::stringstream() << "arith::DetectIterMap(dst) returned "
-                                << dst_iter_map->errors.size() << " errors: ["
-                                << dst_iter_map->errors << "]"
-                                << " for dst_index = " << dst_index)
+    return static_cast<const std::stringstream&>(std::stringstream()
+                                                 << "arith::DetectIterMap(dst) returned "
+                                                 << dst_iter_map->errors.size() << " errors: ["
+                                                 << dst_iter_map->errors << "]"
+                                                 << " for dst_index = " << dst_index)
         .str();
   }
 
@@ -142,13 +145,15 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   auto dst_interval = analyzer->int_set(dst_index, loop_intervals);
 
   if (!src_interval.HasLowerBound() || !src_interval.HasUpperBound()) {
-    return (std::stringstream() << "Expected known bounds for src, but found " << src_interval
-                                << " for expression " << src_index)
+    return static_cast<const std::stringstream&>(std::stringstream()
+                                                 << "Expected known bounds for src, but found "
+                                                 << src_interval << " for expression " << src_index)
         .str();
   }
   if (!dst_interval.HasLowerBound() || !dst_interval.HasUpperBound()) {
-    return (std::stringstream() << "Expected known bounds for dst, but found " << dst_interval
-                                << " for expression " << dst_index)
+    return static_cast<const std::stringstream&>(std::stringstream()
+                                                 << "Expected known bounds for dst, but found "
+                                                 << dst_interval << " for expression " << dst_index)
         .str();
   }
 
@@ -156,9 +161,11 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
     PrimExpr must_prove = total_loop_iterations == src_interval.max() - src_interval.min() + 1;
     PrimExpr simplified = analyzer->Simplify(must_prove);
     if (!analyzer->CanProve(simplified)) {
-      return (std::stringstream() << "Mismatch between loop iterations (" << total_loop_iterations
-                                  << ") and number of src indices touched (" << src_interval
-                                  << ".  Equality to prove simplified to " << simplified)
+      return static_cast<const std::stringstream&>(
+                 std::stringstream()
+                 << "Mismatch between loop iterations (" << total_loop_iterations
+                 << ") and number of src indices touched (" << src_interval
+                 << ".  Equality to prove simplified to " << simplified)
           .str();
     }
   }
@@ -166,9 +173,11 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
     PrimExpr must_prove = total_loop_iterations == dst_interval.max() - dst_interval.min() + 1;
     PrimExpr simplified = analyzer->Simplify(must_prove);
     if (!analyzer->CanProve(simplified)) {
-      return (std::stringstream() << "Mismatch between loop iterations (" << total_loop_iterations
-                                  << ") and number of dst indices touched (" << dst_interval
-                                  << ".  Equality to prove simplified to " << simplified)
+      return static_cast<const std::stringstream&>(
+                 std::stringstream()
+                 << "Mismatch between loop iterations (" << total_loop_iterations
+                 << ") and number of dst indices touched (" << dst_interval
+                 << ".  Equality to prove simplified to " << simplified)
           .str();
     }
   }
@@ -227,27 +236,32 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
 
     if (!analyzer->CanProve(
             arith::NormalizeIterMapToExpr(src_term->source->source == dst_term->source->source))) {
-      return (std::stringstream() << "Term " << i << " had different source, src_term->source = "
-                                  << src_term->source
-                                  << ", dst_term->source = " << dst_term->source)
+      return static_cast<const std::stringstream&>(
+                 std::stringstream()
+                 << "Term " << i << " had different source, src_term->source = " << src_term->source
+                 << ", dst_term->source = " << dst_term->source)
           .str();
     }
     if (!analyzer->CanProve(src_term->lower_factor == dst_term->lower_factor)) {
-      return (std::stringstream() << "Term " << i
-                                  << " had different lower_factor, src_term->lower_factor = "
-                                  << src_term->lower_factor
-                                  << ", dst_term->lower_factor = " << dst_term->lower_factor)
+      return static_cast<const std::stringstream&>(
+                 std::stringstream()
+                 << "Term " << i << " had different lower_factor, src_term->lower_factor = "
+                 << src_term->lower_factor
+                 << ", dst_term->lower_factor = " << dst_term->lower_factor)
           .str();
     }
     if (!analyzer->CanProve(src_term->extent == dst_term->extent)) {
-      return (std::stringstream() << "Term " << i << " had different extent, src_term->extent = "
-                                  << src_term->extent
-                                  << ", dst_term->extent = " << dst_term->extent)
+      return static_cast<const std::stringstream&>(
+                 std::stringstream()
+                 << "Term " << i << " had different extent, src_term->extent = " << src_term->extent
+                 << ", dst_term->extent = " << dst_term->extent)
           .str();
     }
     if (!analyzer->CanProve(src_term->scale == dst_term->scale)) {
-      return (std::stringstream() << "Term " << i << " had different scale, src_term->scale = "
-                                  << src_term->scale << ", dst_term->scale = " << dst_term->scale)
+      return static_cast<const std::stringstream&>(
+                 std::stringstream()
+                 << "Term " << i << " had different scale, src_term->scale = " << src_term->scale
+                 << ", dst_term->scale = " << dst_term->scale)
           .str();
     }
   }
