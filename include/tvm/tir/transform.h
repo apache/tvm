@@ -576,7 +576,7 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  *
  * \code{.py}
  * @T.prim_func
- * def before_transform(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]) -> None:
+ * def before_transform(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")) -> None:
  *     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
  *         for i in T.serial(0, 16,
  *                           annotations={"software_pipeline_stage": [0, 1],
@@ -601,7 +601,7 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  *
  * \code{.py}
  * @T.prim_func
- * def after_transform(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]) -> None:
+ * def after_transform(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")) -> None:
  *     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
  *         with T.block():
  *             T.reads([A[tx, 0:16]])

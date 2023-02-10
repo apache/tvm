@@ -164,10 +164,10 @@ class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
 class TestLoadStoreNoop(BaseBeforeAfter):
     """Store of a value that was just read from the same location is a no-op."""
 
-    def before(A: T.Buffer[(1,), "float32"]):
+    def before(A: T.Buffer((1,), "float32")):
         A[0] = A[0]
 
-    def expected(A: T.Buffer[(1,), "float32"]):
+    def expected(A: T.Buffer((1,), "float32")):
         T.evaluate(0)
 
 
@@ -180,10 +180,10 @@ class TestLoadStoreNoopAfterSimplify(BaseBeforeAfter):
     regression.
     """
 
-    def before(A: T.Buffer[(1,), "float32"]):
+    def before(A: T.Buffer((1,), "float32")):
         A[0] = A[0] + (5.0 - 5.0)
 
-    def expected(A: T.Buffer[(1,), "float32"]):
+    def expected(A: T.Buffer((1,), "float32")):
         T.evaluate(0)
 
 
@@ -195,13 +195,13 @@ class TestNestedCondition(BaseBeforeAfter):
     constraint.
     """
 
-    def before(A: T.Buffer[(16,), "float32"]):
+    def before(A: T.Buffer((16,), "float32")):
         for i in T.serial(16):
             if i == 5:
                 if i == 5:
                     A[i] = 0.0
 
-    def expected(A: T.Buffer[(16,), "float32"]):
+    def expected(A: T.Buffer((16,), "float32")):
         for i in T.serial(16):
             if i == 5:
                 A[i] = 0.0
@@ -214,13 +214,13 @@ class TestNestedProvableCondition(BaseBeforeAfter):
     conditional.
     """
 
-    def before(A: T.Buffer[(16,), "float32"]):
+    def before(A: T.Buffer((16,), "float32")):
         for i in T.serial(16):
             if i == 5:
                 if i < 7:
                     A[i] = 0.0
 
-    def expected(A: T.Buffer[(16,), "float32"]):
+    def expected(A: T.Buffer((16,), "float32")):
         for i in T.serial(16):
             if i == 5:
                 A[i] = 0.0
@@ -233,13 +233,13 @@ class TestNestedVarCondition(BaseBeforeAfter):
     constraint.
     """
 
-    def before(A: T.Buffer[(16,), "float32"], n: T.int32):
+    def before(A: T.Buffer((16,), "float32"), n: T.int32):
         for i in T.serial(16):
             if i == n:
                 if i == n:
                     A[i] = 0.0
 
-    def expected(A: T.Buffer[(16,), "float32"], n: T.int32):
+    def expected(A: T.Buffer((16,), "float32"), n: T.int32):
         for i in T.serial(16):
             if i == n:
                 A[i] = 0.0
@@ -254,7 +254,7 @@ class TestAlteredBufferContents(BaseBeforeAfter):
     may not.
     """
 
-    def before(A: T.Buffer[(1,), "int32"], n: T.int32):
+    def before(A: T.Buffer((1,), "int32"), n: T.int32):
         if A[0] == n:
             A[0] = A[0] + 1
             if A[0] == n:
@@ -270,7 +270,7 @@ class TestNegationOfCondition(BaseBeforeAfter):
     condition is known to be false.
     """
 
-    def before(A: T.Buffer[(16,), "int32"]):
+    def before(A: T.Buffer((16,), "int32")):
         for i in T.serial(16):
             if i == 5:
                 if i != 5:
@@ -278,7 +278,7 @@ class TestNegationOfCondition(BaseBeforeAfter):
                 else:
                     A[i] = 1
 
-    def expected(A: T.Buffer[(16,), "int32"]):
+    def expected(A: T.Buffer((16,), "int32")):
         for i in T.serial(16):
             if i == 5:
                 A[i] = 1
@@ -293,7 +293,7 @@ class TestNegationOfNotEqual(BaseBeforeAfter):
     ``i==5`` as the negation of a literal constraint.
     """
 
-    def before(A: T.Buffer[(16,), "int32"]):
+    def before(A: T.Buffer((16,), "int32")):
         for i in T.serial(16):
             if i != 5:
                 if i == 5:
@@ -301,7 +301,7 @@ class TestNegationOfNotEqual(BaseBeforeAfter):
                 else:
                     A[i] = 1
 
-    def expected(A: T.Buffer[(16,), "int32"]):
+    def expected(A: T.Buffer((16,), "int32")):
         for i in T.serial(16):
             if i != 5:
                 A[i] = 1
@@ -314,7 +314,7 @@ class TestNegationOfVarCondition(BaseBeforeAfter):
     must rely on RewriteSimplifier recognizing the repeated literal.
     """
 
-    def before(A: T.Buffer[(16,), "int32"], n: T.int32):
+    def before(A: T.Buffer((16,), "int32"), n: T.int32):
         for i in T.serial(16):
             if i == n:
                 if i != n:
@@ -322,7 +322,7 @@ class TestNegationOfVarCondition(BaseBeforeAfter):
                 else:
                     A[i] = 1
 
-    def expected(A: T.Buffer[(16,), "int32"], n: T.int32):
+    def expected(A: T.Buffer((16,), "int32"), n: T.int32):
         for i in T.serial(16):
             if i == n:
                 A[i] = 1
@@ -337,13 +337,13 @@ class TestLiteralConstraintSplitBooleanAnd(BaseBeforeAfter):
     the condition is to ensure we exercise RewriteSimplifier.
     """
 
-    def before(A: T.Buffer[(16, 16), "int32"], n: T.int32):
+    def before(A: T.Buffer((16, 16), "int32"), n: T.int32):
         for i, j in T.grid(16, 16):
             if i == n and j == n:
                 if i == n:
                     A[i, j] = 0
 
-    def expected(A: T.Buffer[(16, 16), "int32"], n: T.int32):
+    def expected(A: T.Buffer((16, 16), "int32"), n: T.int32):
         for i, j in T.grid(16, 16):
             if i == n and j == n:
                 A[i, j] = 0
@@ -360,7 +360,7 @@ class TestLiteralConstraintSplitBooleanOr(BaseBeforeAfter):
     RewriteSimplifier.
     """
 
-    def before(A: T.Buffer[(16, 16), "int32"], n: T.int32):
+    def before(A: T.Buffer((16, 16), "int32"), n: T.int32):
         for i, j in T.grid(16, 16):
             if i == n or j == n:
                 A[i, j] = 0
@@ -370,7 +370,7 @@ class TestLiteralConstraintSplitBooleanOr(BaseBeforeAfter):
                 else:
                     A[i, j] = 2
 
-    def expected(A: T.Buffer[(16, 16), "int32"], n: T.int32):
+    def expected(A: T.Buffer((16, 16), "int32"), n: T.int32):
         for i, j in T.grid(16, 16):
             if i == n or j == n:
                 A[i, j] = 0
@@ -387,14 +387,14 @@ class TestProveConditionUsingLet(BaseBeforeAfter):
     """
 
     @T.prim_func
-    def before(A: T.Buffer[4, "bool"]):
+    def before(A: T.Buffer(4, "bool")):
         for i in T.serial(4):
             condition = i < 3
             if condition or i >= 3:
                 A[i] = condition
 
     @T.prim_func
-    def expected(A: T.Buffer[4, "bool"]):
+    def expected(A: T.Buffer(4, "bool")):
         for i in T.serial(4):
             condition = i < 3
             A[i] = condition
@@ -409,7 +409,7 @@ class TestProveLetCondition(BaseBeforeAfter):
     """
 
     @T.prim_func
-    def before(A: T.Buffer[4, "bool"]):
+    def before(A: T.Buffer(4, "bool")):
         for i in T.serial(4):
             condition = i < 3
             if i < 3:
@@ -417,7 +417,7 @@ class TestProveLetCondition(BaseBeforeAfter):
                     A[i] = condition
 
     @T.prim_func
-    def expected(A: T.Buffer[4, "bool"]):
+    def expected(A: T.Buffer(4, "bool")):
         for i in T.serial(4):
             condition = i < 3
             if i < 3:
@@ -432,7 +432,7 @@ class TestProveRepeatedLetCondition(BaseBeforeAfter):
     """
 
     @T.prim_func
-    def before(A: T.Buffer[4, "bool"]):
+    def before(A: T.Buffer(4, "bool")):
         for i in T.serial(4):
             condition = i < 3
             if condition:
@@ -440,7 +440,7 @@ class TestProveRepeatedLetCondition(BaseBeforeAfter):
                     A[i] = condition
 
     @T.prim_func
-    def expected(A: T.Buffer[4, "bool"]):
+    def expected(A: T.Buffer(4, "bool")):
         for i in T.serial(4):
             condition = i < 3
             if condition:
@@ -449,13 +449,13 @@ class TestProveRepeatedLetCondition(BaseBeforeAfter):
 
 class TestIfThenElseExpr(BaseBeforeAfter):
     @T.prim_func
-    def before(A: T.Buffer[16, "float32"]):
+    def before(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
             if i < 12:
                 A[i] = T.if_then_else(i < 12, 1.0, 2.0, dtype="float32")
 
     @T.prim_func
-    def expected(A: T.Buffer[16, "float32"]):
+    def expected(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
             if i < 12:
                 A[i] = 1.0
@@ -465,13 +465,13 @@ class TestCeilLog2Int(BaseBeforeAfter):
     """Simplify expressions resulting from topi.math.ceil_log2"""
 
     @T.prim_func
-    def before(A: T.Buffer[1, "int32"]):
+    def before(A: T.Buffer(1, "int32")):
         A[0] = T.cast(
             T.ceil(T.log2(T.cast(14, "float64"), dtype="float64"), dtype="float64"), dtype="int32"
         )
 
     @T.prim_func
-    def expected(A: T.Buffer[1, "int32"]):
+    def expected(A: T.Buffer(1, "int32")):
         A[0] = 4
 
 
@@ -479,7 +479,7 @@ class TestLeftCeilLog2LowerBound(BaseBeforeAfter):
     """Integer bounds are propagated through topi.math.ceil_log2"""
 
     @T.prim_func
-    def before(A: T.Buffer[16, "float32"]):
+    def before(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
             x = T.cast(
                 T.ceil(T.log2(T.cast(i + 1024 + 1, "float64"), dtype="float64"), dtype="float64"),
@@ -489,7 +489,7 @@ class TestLeftCeilLog2LowerBound(BaseBeforeAfter):
                 A[i] = 0.0
 
     @T.prim_func
-    def expected(A: T.Buffer[16, "float32"]):
+    def expected(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
             A[i] = 0.0
 
@@ -503,13 +503,13 @@ class TestLeftShiftLowerBound(BaseBeforeAfter):
     """
 
     @T.prim_func
-    def before(A: T.Buffer[16, "float32"]):
+    def before(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
             if T.shift_left(1, i, dtype="int32") >= 1:
                 A[i] = 0.0
 
     @T.prim_func
-    def expected(A: T.Buffer[16, "float32"]):
+    def expected(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
             A[i] = 0.0
 
@@ -523,13 +523,13 @@ class TestLeftShiftUpperBound(BaseBeforeAfter):
     """
 
     @T.prim_func
-    def before(A: T.Buffer[16, "float32"]):
+    def before(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
             if T.shift_left(31, i, dtype="int32") <= 1015808:
                 A[i] = 0.0
 
     @T.prim_func
-    def expected(A: T.Buffer[16, "float32"]):
+    def expected(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
             A[i] = 0.0
 
@@ -543,7 +543,7 @@ class TestLeftShiftOfNegativeValue(BaseBeforeAfter):
     """
 
     @T.prim_func
-    def before(A: T.Buffer[16, "float32"]):
+    def before(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
             if -64 <= T.shift_left(-i, 4, dtype="int32"):
                 A[i] = 0.0
@@ -560,7 +560,7 @@ class TestLeftShiftByNegativeValue(BaseBeforeAfter):
     """
 
     @T.prim_func
-    def before(A: T.Buffer[16, "float32"]):
+    def before(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
             if T.shift_left(16, -i, dtype="int32") <= 16:
                 A[i] = 0.0
@@ -651,7 +651,7 @@ class TestRemoveTransitivelyProvableCondition(BaseBeforeAfter):
         priors, postulate, _ = test_case
 
         @T.prim_func
-        def func(A: T.Buffer[1, "bool"]):
+        def func(A: T.Buffer(1, "bool")):
             if priors:
                 A[0] = postulate
 
@@ -667,7 +667,7 @@ class TestRemoveTransitivelyProvableCondition(BaseBeforeAfter):
         if provable:
 
             @T.prim_func
-            def func(A: T.Buffer[1, "bool"]):
+            def func(A: T.Buffer(1, "bool")):
                 if priors:
                     A[0] = True
 
@@ -677,7 +677,7 @@ class TestRemoveTransitivelyProvableCondition(BaseBeforeAfter):
             postulate = analyzer.canonical_simplify(postulate)
 
             @T.prim_func
-            def func(A: T.Buffer[1, "bool"]):
+            def func(A: T.Buffer(1, "bool")):
                 if priors:
                     A[0] = postulate
 
@@ -687,7 +687,7 @@ class TestRemoveTransitivelyProvableCondition(BaseBeforeAfter):
 class TestSuppressTransitivelyProvableCondition(BaseBeforeAfter):
     transitively_prove_inequalities = False
 
-    def before(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+    def before(A: T.Buffer(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
         if i < j and j < k:
             A[0] = i < k
 
@@ -699,10 +699,10 @@ class TestRewriteAsAndOfOrs(BaseBeforeAfter):
 
     convert_boolean_to_and_of_ors = True
 
-    def before(A: T.Buffer[3, "bool"]):
+    def before(A: T.Buffer(3, "bool")):
         T.evaluate(A[0] or (A[1] and A[2]))
 
-    def expected(A: T.Buffer[3, "bool"]):
+    def expected(A: T.Buffer(3, "bool")):
         T.evaluate((A[0] or A[1]) and (A[0] or A[2]))
 
 
@@ -711,7 +711,7 @@ class TestSuppressRewriteAsAndOfOrs(BaseBeforeAfter):
 
     convert_boolean_to_and_of_ors = False
 
-    def before(A: T.Buffer[3, "bool"]):
+    def before(A: T.Buffer(3, "bool")):
         T.evaluate(A[0] or (A[1] and A[2]))
 
     expected = before
@@ -729,10 +729,10 @@ class TestRewriteAsAndOfOrsWithTopLevelAnd(BaseBeforeAfter):
 
     convert_boolean_to_and_of_ors = True
 
-    def before(A: T.Buffer[4, "bool"]):
+    def before(A: T.Buffer(4, "bool")):
         T.evaluate((A[0] or A[1]) and (A[1] or (A[0] and A[2] and A[3])))
 
-    def expected(A: T.Buffer[4, "bool"]):
+    def expected(A: T.Buffer(4, "bool")):
         # If the simplification is applied to the OrNode, then a
         # redundant `(A[1] or A[0])` would't be canceled out.  When
         # applying SimplifyAsAndOfOrs to the top-level AndNode, the
@@ -760,10 +760,10 @@ class TestRewriteAsAndOfOrsWithSimplificationBetweenGroups(BaseBeforeAfter):
 
     convert_boolean_to_and_of_ors = True
 
-    def before(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+    def before(A: T.Buffer(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
         A[0] = (i == 0 or j == 10 or k == 20) and (i == 0 or j == 10 or k != 30)
 
-    def expected(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+    def expected(A: T.Buffer(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
         A[0] = i == 0 or j == 10 or k == 20
 
 
@@ -777,10 +777,10 @@ class TestRewriteAsAndOfOrsWithSimplificationBetweenReorderedGroups(BaseBeforeAf
 
     convert_boolean_to_and_of_ors = True
 
-    def before(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+    def before(A: T.Buffer(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
         A[0] = (i == 0 or j == 10 or k == 20) and (j == 10 or k != 30 or i == 0)
 
-    def expected(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+    def expected(A: T.Buffer(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
         A[0] = j == 10 or k == 20 or i == 0
 
 
@@ -794,10 +794,10 @@ class TestRewriteAsAndOfOrUsingSimplificationAcrossAnd(BaseBeforeAfter):
 
     convert_boolean_to_and_of_ors = True
 
-    def before(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+    def before(A: T.Buffer(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
         A[0] = (k == 20) and ((i == 0 or j == 10) and (k != 30))
 
-    def expected(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+    def expected(A: T.Buffer(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
         A[0] = (i == 0 or j == 10) and (k == 20)
 
 
@@ -815,10 +815,10 @@ class TestRewriteAsAndOfOrUsingSimplificationWithinOr(BaseBeforeAfter):
 
     convert_boolean_to_and_of_ors = True
 
-    def before(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+    def before(A: T.Buffer(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
         A[0] = (i == 20) or (j == 0) or (i != 30)
 
-    def expected(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+    def expected(A: T.Buffer(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
         A[0] = (j == 0) or (i != 30)
 
 
@@ -842,11 +842,11 @@ class TestConditionalFloorMod(BaseBeforeAfter):
     `canonical_simplify`.
     """
 
-    def before(A: T.Buffer[1, "bool"], i: T.int32):
+    def before(A: T.Buffer(1, "bool"), i: T.int32):
         if T.floormod(0 - i, 2) == 0:
             A[0] = T.floormod(i, 2) == 0
 
-    def expected(A: T.Buffer[1, "bool"], i: T.int32):
+    def expected(A: T.Buffer(1, "bool"), i: T.int32):
         if T.floormod(i, -2) == 0:
             A[0] = True
 
@@ -861,10 +861,10 @@ class TestSimplifyRHSOfBooleanAndUsingLHS(BaseBeforeAfter):
 
     apply_constraints_to_boolean_branches = True
 
-    def before(A: T.Buffer[1, "bool"], n: T.int32):
+    def before(A: T.Buffer(1, "bool"), n: T.int32):
         A[0] = n < 5 and n < 10
 
-    def expected(A: T.Buffer[1, "bool"], n: T.int32):
+    def expected(A: T.Buffer(1, "bool"), n: T.int32):
         A[0] = n < 5
 
 
@@ -877,10 +877,10 @@ class TestSimplifyLHSOfBooleanAndUsingRHS(BaseBeforeAfter):
 
     apply_constraints_to_boolean_branches = True
 
-    def before(A: T.Buffer[1, "bool"], n: T.int32):
+    def before(A: T.Buffer(1, "bool"), n: T.int32):
         A[0] = n < 10 and n < 5
 
-    def expected(A: T.Buffer[1, "bool"], n: T.int32):
+    def expected(A: T.Buffer(1, "bool"), n: T.int32):
         A[0] = n < 5
 
 
@@ -894,10 +894,10 @@ class TestSimplifyRHSOfBooleanOrUsingLHS(BaseBeforeAfter):
 
     apply_constraints_to_boolean_branches = True
 
-    def before(A: T.Buffer[1, "bool"], n: T.int32):
+    def before(A: T.Buffer(1, "bool"), n: T.int32):
         A[0] = n < 10 or n < 5
 
-    def expected(A: T.Buffer[1, "bool"], n: T.int32):
+    def expected(A: T.Buffer(1, "bool"), n: T.int32):
         A[0] = n < 10
 
 
@@ -910,10 +910,10 @@ class TestSimplifyLHSOfBooleanOrUsingRHS(BaseBeforeAfter):
 
     apply_constraints_to_boolean_branches = True
 
-    def before(A: T.Buffer[1, "bool"], n: T.int32):
+    def before(A: T.Buffer(1, "bool"), n: T.int32):
         A[0] = n < 5 or n < 10
 
-    def expected(A: T.Buffer[1, "bool"], n: T.int32):
+    def expected(A: T.Buffer(1, "bool"), n: T.int32):
         A[0] = n < 10
 
 
@@ -929,10 +929,10 @@ class TestSimplifyRHSOfBooleanAndUsingLHSWithoutConst(BaseBeforeAfter):
     apply_constraints_to_boolean_branches = True
     transitively_prove_inequalities = True
 
-    def before(A: T.Buffer[1, "bool"], n: T.int32, m: T.int32):
+    def before(A: T.Buffer(1, "bool"), n: T.int32, m: T.int32):
         A[0] = n < m + 5 and n < m + 10
 
-    def expected(A: T.Buffer[1, "bool"], n: T.int32, m: T.int32):
+    def expected(A: T.Buffer(1, "bool"), n: T.int32, m: T.int32):
         A[0] = n < m + 5
 
 
@@ -948,10 +948,10 @@ class TestSimplifyLHSOfBooleanAndUsingRHSWithoutConst(BaseBeforeAfter):
     apply_constraints_to_boolean_branches = True
     transitively_prove_inequalities = True
 
-    def before(A: T.Buffer[1, "bool"], n: T.int32, m: T.int32):
+    def before(A: T.Buffer(1, "bool"), n: T.int32, m: T.int32):
         A[0] = n < m + 10 and n < m + 5
 
-    def expected(A: T.Buffer[1, "bool"], n: T.int32, m: T.int32):
+    def expected(A: T.Buffer(1, "bool"), n: T.int32, m: T.int32):
         A[0] = n < m + 5
 
 
@@ -967,10 +967,10 @@ class TestSimplifyRHSOfBooleanOrUsingLHSWithoutConst(BaseBeforeAfter):
     apply_constraints_to_boolean_branches = True
     transitively_prove_inequalities = True
 
-    def before(A: T.Buffer[1, "bool"], n: T.int32, m: T.int32):
+    def before(A: T.Buffer(1, "bool"), n: T.int32, m: T.int32):
         A[0] = n < m + 10 or n < m + 5
 
-    def expected(A: T.Buffer[1, "bool"], n: T.int32, m: T.int32):
+    def expected(A: T.Buffer(1, "bool"), n: T.int32, m: T.int32):
         A[0] = n < m + 10
 
 
@@ -986,10 +986,10 @@ class TestSimplifyLHSOfBooleanOrUsingRHSWithoutConst(BaseBeforeAfter):
     apply_constraints_to_boolean_branches = True
     transitively_prove_inequalities = True
 
-    def before(A: T.Buffer[1, "bool"], n: T.int32, m: T.int32):
+    def before(A: T.Buffer(1, "bool"), n: T.int32, m: T.int32):
         A[0] = n < m + 5 or n < m + 10
 
-    def expected(A: T.Buffer[1, "bool"], n: T.int32, m: T.int32):
+    def expected(A: T.Buffer(1, "bool"), n: T.int32, m: T.int32):
         A[0] = n < m + 10
 
 
@@ -998,11 +998,11 @@ class TestProvableConditionWithOffset(BaseBeforeAfter):
 
     transitively_prove_inequalities = False
 
-    def before(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32):
+    def before(A: T.Buffer(1, "bool"), i: T.int32, j: T.int32):
         if i < j:
             A[0] = i < j + 1
 
-    def expected(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32):
+    def expected(A: T.Buffer(1, "bool"), i: T.int32, j: T.int32):
         if i < j:
             A[0] = True
 
@@ -1035,7 +1035,7 @@ class TestMostRestrictiveConditional(BaseBeforeAfter):
         priors, expr_before, _ = test_case
 
         @T.prim_func
-        def func(A: T.Buffer[1, "bool"]):
+        def func(A: T.Buffer(1, "bool")):
             if priors:
                 A[0] = expr_before
 
@@ -1046,7 +1046,7 @@ class TestMostRestrictiveConditional(BaseBeforeAfter):
         priors, _, expr_after = test_case
 
         @T.prim_func
-        def func(A: T.Buffer[1, "bool"]):
+        def func(A: T.Buffer(1, "bool")):
             if priors:
                 A[0] = expr_after
 
@@ -1058,11 +1058,11 @@ class TestProvableConditionWithOffset(BaseBeforeAfter):
 
     transitively_prove_inequalities = False
 
-    def before(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32):
+    def before(A: T.Buffer(1, "bool"), i: T.int32, j: T.int32):
         if i < j:
             A[0] = i < j + 1
 
-    def expected(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32):
+    def expected(A: T.Buffer(1, "bool"), i: T.int32, j: T.int32):
         if i < j:
             A[0] = True
 
@@ -1078,7 +1078,7 @@ class TestAlteredBufferContents(BaseBeforeAfter):
 
     propagate_knowns_to_prove_conditional = True
 
-    def before(A: T.Buffer[(1,), "int32"], n: T.int32):
+    def before(A: T.Buffer((1,), "int32"), n: T.int32):
         if A[0] == n:
             A[0] = A[0] + 1
             # If the simplifier incorrectly uses the invalidated
@@ -1091,7 +1091,7 @@ class TestAlteredBufferContents(BaseBeforeAfter):
             else:
                 A[0] = 10
 
-    def expected(A: T.Buffer[(1,), "int32"], n: T.int32):
+    def expected(A: T.Buffer((1,), "int32"), n: T.int32):
         if A[0] == n:
             A[0] = A[0] + 1
             A[0] = 10
@@ -1108,7 +1108,7 @@ class TestPossiblyAlteredBufferContents(BaseBeforeAfter):
 
     propagate_knowns_to_prove_conditional = True
 
-    def before(A: T.Buffer[(1,), "int32"], n: T.int32, m: T.int32):
+    def before(A: T.Buffer((1,), "int32"), n: T.int32, m: T.int32):
         if A[0] == n:
             if m == 0:
                 A[0] = A[0] + 1
@@ -1126,12 +1126,12 @@ class TestSimplifyInputAssumption(BaseBeforeAfter):
 
     propagate_knowns_to_prove_conditional = True
 
-    def before(A: T.Buffer[1, "int32"], n: T.int32):
+    def before(A: T.Buffer(1, "int32"), n: T.int32):
         T.evaluate(T.assume(n == 0))
         if n == 0:
             A[0] = 42
 
-    def expected(A: T.Buffer[1, "int32"], n: T.int32):
+    def expected(A: T.Buffer(1, "int32"), n: T.int32):
         T.evaluate(T.assume(n == 0))
         A[0] = 42
 
@@ -1141,12 +1141,12 @@ class TestSimplifyInputAssumption(BaseBeforeAfter):
 
     propagate_knowns_to_prove_conditional = True
 
-    def before(A: T.Buffer[1, "int32"], n: T.int32):
+    def before(A: T.Buffer(1, "int32"), n: T.int32):
         T.evaluate(T.assume(n == 0))
         if n == 0:
             A[0] = 42
 
-    def expected(A: T.Buffer[1, "int32"], n: T.int32):
+    def expected(A: T.Buffer(1, "int32"), n: T.int32):
         T.evaluate(T.assume(n == 0))
         A[0] = 42
 
@@ -1156,7 +1156,7 @@ class TestNoSimplifyFromScopedInputAssumption(BaseBeforeAfter):
 
     propagate_knowns_to_prove_conditional = True
 
-    def before(A: T.Buffer[1, "int32"], n: T.int32, m: T.int32):
+    def before(A: T.Buffer(1, "int32"), n: T.int32, m: T.int32):
         if m == 0:
             T.evaluate(T.assume(n == 0))
 
@@ -1171,13 +1171,13 @@ class TestSimplifyConditionalUsingBufferValue(BaseBeforeAfter):
 
     propagate_knowns_to_prove_conditional = True
 
-    def before(A: T.Buffer[1, "int32"]):
+    def before(A: T.Buffer(1, "int32")):
         A[0] = 0
 
         if A[0] == 0:
             A[0] = 42
 
-    def expected(A: T.Buffer[1, "int32"]):
+    def expected(A: T.Buffer(1, "int32")):
         A[0] = 0
         A[0] = 42
 
@@ -1192,7 +1192,7 @@ class TestKeepExpressionSimplifyUsingBufferValue(BaseBeforeAfter):
 
     propagate_knowns_to_prove_conditional = True
 
-    def before(A: T.Buffer[1, "int32"], B: T.Buffer[1, "int32"]):
+    def before(A: T.Buffer(1, "int32"), B: T.Buffer(1, "int32")):
         A[0] = 0
         B[0] = A[0]
 
@@ -1208,7 +1208,7 @@ class TestSimplifyConditionalInLoopUsingBufferValue(BaseBeforeAfter):
 
     propagate_knowns_to_prove_conditional = True
 
-    def before(A: T.Buffer[16, "int32"], B: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32"), B: T.Buffer(16, "int32")):
         for i in T.serial(16):
             A[i] = i
 
@@ -1218,7 +1218,7 @@ class TestSimplifyConditionalInLoopUsingBufferValue(BaseBeforeAfter):
             else:
                 B[j] = 100
 
-    def expected(A: T.Buffer[16, "int32"], B: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32"), B: T.Buffer(16, "int32")):
         for i in T.serial(16):
             A[i] = i
 
@@ -1231,13 +1231,13 @@ class TestSimplifyUsingBufferAssumption(BaseBeforeAfter):
 
     propagate_knowns_to_prove_conditional = True
 
-    def before(A: T.Buffer[1, "int32"]):
+    def before(A: T.Buffer(1, "int32")):
         T.evaluate(T.assume(A[0] == 0))
 
         if A[0] == 0:
             A[0] = 42
 
-    def expected(A: T.Buffer[1, "int32"]):
+    def expected(A: T.Buffer(1, "int32")):
         T.evaluate(T.assume(A[0] == 0))
         A[0] = 42
 
@@ -1247,7 +1247,7 @@ class TestSimplifyUsingBufferAssumptionInLoop(BaseBeforeAfter):
 
     propagate_knowns_to_prove_conditional = True
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             T.evaluate(T.assume(A[i] == i))
 
@@ -1255,7 +1255,7 @@ class TestSimplifyUsingBufferAssumptionInLoop(BaseBeforeAfter):
             if A[i] < 100:
                 A[i] = 0
 
-    def expected(A: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             T.evaluate(T.assume(A[i] == i))
 
@@ -1269,7 +1269,7 @@ class TestSimplifyUsingPartiallyKnownBufferConditional(BaseBeforeAfter):
     propagate_knowns_to_prove_conditional = True
     apply_constraints_to_boolean_branches = True
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             if 14 <= i:
                 T.evaluate(T.assume(A[i] == 0))
@@ -1283,7 +1283,7 @@ class TestSimplifyUsingPartiallyKnownBufferConditional(BaseBeforeAfter):
                 if A[i] == 0:
                     A[i] = 100
 
-    def expected(A: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             if 14 <= i:
                 T.evaluate(T.assume(A[i] == 0))
@@ -1307,7 +1307,7 @@ class TestSimplifyUsingPartiallyKnownBufferExpression(BaseBeforeAfter):
 
     propagate_knowns_to_prove_conditional = True
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             T.evaluate(T.assume(i < 14 or A[i] == 0))
 
@@ -1316,7 +1316,7 @@ class TestSimplifyUsingPartiallyKnownBufferExpression(BaseBeforeAfter):
                 if A[i] == 0:
                     A[i] = 42
 
-    def expected(A: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             T.evaluate(T.assume(i < 14 or A[i] == 0))
 
@@ -1336,7 +1336,7 @@ class TestNoSimplificationIfPredicateNotMet(BaseBeforeAfter):
 
     propagate_knowns_to_prove_conditional = True
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             if 14 <= i:
                 T.evaluate(T.assume(A[i] == 0))
@@ -1354,7 +1354,7 @@ class TestNoSimplifyUsingInvalidatedScopedConstraint(BaseBeforeAfter):
 
     propagate_knowns_to_prove_conditional = True
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             if i == 0:
                 A[i] = 0
@@ -1374,7 +1374,7 @@ class TestNoSimplifyUsingOverwrittenValue(BaseBeforeAfter):
 
     propagate_knowns_to_prove_conditional = True
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             T.evaluate(T.assume(A[i] == 0))
 
@@ -1398,7 +1398,7 @@ class TestNoSimplifyUsingLoopDependentBufferValue(BaseBeforeAfter):
 
     propagate_knowns_to_prove_conditional = True
 
-    def before(A: T.Buffer[16, "int32"], B: T.Buffer[1, "int32"]):
+    def before(A: T.Buffer(16, "int32"), B: T.Buffer(1, "int32")):
         B[0] = 0
         for i in T.serial(16):
             if B[0] < 10:
@@ -1421,7 +1421,7 @@ class TestSimplifyPriorToOverwrittenValue(BaseBeforeAfter):
 
     propagate_knowns_to_prove_conditional = True
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             T.evaluate(T.assume(A[i] == 0))
 
@@ -1435,7 +1435,7 @@ class TestSimplifyPriorToOverwrittenValue(BaseBeforeAfter):
             if A[i] == 0:
                 A[i] = 42
 
-    def expected(A: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             T.evaluate(T.assume(A[i] == 0))
 
@@ -1459,7 +1459,7 @@ class TestSimplifyElementWiseUsingPreLoopBufferValue(BaseBeforeAfter):
 
     propagate_knowns_to_prove_conditional = True
 
-    def before(A: T.Buffer[16, "int32"], B: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32"), B: T.Buffer(16, "int32")):
         for i in T.serial(16):
             B[i] = 0
 
@@ -1469,7 +1469,7 @@ class TestSimplifyElementWiseUsingPreLoopBufferValue(BaseBeforeAfter):
             else:
                 B[i] = A[i] + B[i]
 
-    def expected(A: T.Buffer[16, "int32"], B: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32"), B: T.Buffer(16, "int32")):
         for i in T.serial(16):
             B[i] = 0
 
@@ -1482,11 +1482,11 @@ class TestSimplifyNonConditional(BaseBeforeAfter):
 
     propagate_knowns_to_simplify_expressions = True
 
-    def before(A: T.Buffer[1, "int32"]):
+    def before(A: T.Buffer(1, "int32")):
         A[0] = 0
         A[0] = A[0] + 1
 
-    def expected(A: T.Buffer[1, "int32"]):
+    def expected(A: T.Buffer(1, "int32")):
         A[0] = 0
         A[0] = 1
 
@@ -1499,7 +1499,7 @@ class TestSuppressSimplifyNonConditional(BaseBeforeAfter):
 
     propagate_knowns_to_simplify_expressions = False
 
-    def before(A: T.Buffer[1, "int32"]):
+    def before(A: T.Buffer(1, "int32")):
         A[0] = 0
         A[0] = A[0] + 1
 
@@ -1515,7 +1515,7 @@ class TestSimplifyUsingTransitiveKnownBufferValue(BaseBeforeAfter):
 
     propagate_knowns_to_prove_conditional = True
 
-    def before(A: T.Buffer[1, "int32"]):
+    def before(A: T.Buffer(1, "int32")):
         T.evaluate(T.assume(A[0] == 0))
 
         A[0] = A[0] + 1
@@ -1525,7 +1525,7 @@ class TestSimplifyUsingTransitiveKnownBufferValue(BaseBeforeAfter):
         if A[0] == 3:
             A[0] = 42
 
-    def expected(A: T.Buffer[1, "int32"]):
+    def expected(A: T.Buffer(1, "int32")):
         T.evaluate(T.assume(A[0] == 0))
 
         A[0] = A[0] + 1
@@ -1540,7 +1540,7 @@ class TestSimplifyRampIndexBroadcastValue(BaseBeforeAfter):
 
     propagate_knowns_to_prove_conditional = True
 
-    def before(A: T.Buffer[4, "int32"]):
+    def before(A: T.Buffer(4, "int32")):
         A[T.ramp(0, 1, 4)] = T.broadcast(0, 4)
 
         if A[0] == 0:
@@ -1549,7 +1549,7 @@ class TestSimplifyRampIndexBroadcastValue(BaseBeforeAfter):
         if A[1] == 0:
             A[1] = 60
 
-    def expected(A: T.Buffer[4, "int32"]):
+    def expected(A: T.Buffer(4, "int32")):
         A[T.ramp(0, 1, 4)] = T.broadcast(0, 4)
 
         A[0] = 42
@@ -1561,7 +1561,7 @@ class TestSimplifyRampIndexRampValue(BaseBeforeAfter):
 
     propagate_knowns_to_prove_conditional = True
 
-    def before(A: T.Buffer[4, "int32"]):
+    def before(A: T.Buffer(4, "int32")):
         A[T.ramp(0, 1, 4)] = T.ramp(11, 1, 4)
 
         if A[0] == 11:
@@ -1570,7 +1570,7 @@ class TestSimplifyRampIndexRampValue(BaseBeforeAfter):
         if A[1] == 12:
             A[1] = 60
 
-    def expected(A: T.Buffer[4, "int32"]):
+    def expected(A: T.Buffer(4, "int32")):
         A[T.ramp(0, 1, 4)] = T.ramp(11, 1, 4)
 
         A[0] = 42
@@ -1589,7 +1589,7 @@ class TestSimplifyUsingPartiallyProvenBufferValueGather(BaseBeforeAfter):
     transitively_prove_inequalities = True
     propagate_knowns_to_prove_conditional = True
 
-    def before(A: T.Buffer[24, "int32"], B: T.Buffer[24, "int32"], F: T.Buffer[3, "int32"]):
+    def before(A: T.Buffer(24, "int32"), B: T.Buffer(24, "int32"), F: T.Buffer(3, "int32")):
         # A has non-zero values only in the range 3 <= i < 17
         for i in T.serial(24):
             T.evaluate(T.assume(((3 <= i) and (i < 17)) or A[i] == 0))
@@ -1610,7 +1610,7 @@ class TestSimplifyUsingPartiallyProvenBufferValueGather(BaseBeforeAfter):
                 if B[i] != 0:
                     B[i] = 0
 
-    def expected(A: T.Buffer[24, "int32"], B: T.Buffer[24, "int32"], F: T.Buffer[3, "int32"]):
+    def expected(A: T.Buffer(24, "int32"), B: T.Buffer(24, "int32"), F: T.Buffer(3, "int32")):
         for i in T.serial(24):
             T.evaluate(T.assume(((3 <= i) and (i < 17)) or A[i] == 0))
 
@@ -1635,7 +1635,7 @@ class TestSimplifyUsingPartiallyProvenBufferValueScatter(BaseBeforeAfter):
 
     propagate_knowns_to_prove_conditional = True
 
-    def before(A: T.Buffer[24, "int32"], B: T.Buffer[24, "int32"], F: T.Buffer[3, "int32"]):
+    def before(A: T.Buffer(24, "int32"), B: T.Buffer(24, "int32"), F: T.Buffer(3, "int32")):
         # A has non-zero values only in the range 3 <= i < 17
         for i in T.serial(24):
             T.evaluate(T.assume(((3 <= i) and (i < 17)) or A[i] == 0))
@@ -1658,7 +1658,7 @@ class TestSimplifyUsingPartiallyProvenBufferValueScatter(BaseBeforeAfter):
                 if B[i] != 0:
                     B[i] = 0
 
-    def expected(A: T.Buffer[24, "int32"], B: T.Buffer[24, "int32"], F: T.Buffer[3, "int32"]):
+    def expected(A: T.Buffer(24, "int32"), B: T.Buffer(24, "int32"), F: T.Buffer(3, "int32")):
         for i in T.serial(24):
             T.evaluate(T.assume(((3 <= i) and (i < 17)) or A[i] == 0))
 
@@ -1680,11 +1680,11 @@ class TestSimplifyBufferStore(BaseBeforeAfter):
 
     propagate_knowns_to_simplify_expressions = True
 
-    def before(A: T.Buffer[1, "int32"]):
+    def before(A: T.Buffer(1, "int32")):
         A[0] = 5
         A[0] = A[0] + 7
 
-    def expected(A: T.Buffer[1, "int32"]):
+    def expected(A: T.Buffer(1, "int32")):
         A[0] = 5
         A[0] = 12
 

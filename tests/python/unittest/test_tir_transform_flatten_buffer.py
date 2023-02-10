@@ -32,7 +32,7 @@ class BaseCompare(tvm.testing.CompareBeforeAfter):
 class TestElementwise(BaseCompare):
     """2-d buffers are flattened to 1-d"""
 
-    def before(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]):
+    def before(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
         for i in T.serial(0, 16):
             B_new = T.decl_buffer([1, 16], "float32")
             for j in T.serial(0, 16):
@@ -40,7 +40,7 @@ class TestElementwise(BaseCompare):
             for j in T.serial(0, 16):
                 C[i, j] = B_new[0, j] * 2.0
 
-    def expected(input_A: T.Buffer[(16, 16), "float32"], input_C: T.Buffer[(16, 16), "float32"]):
+    def expected(input_A: T.Buffer((16, 16), "float32"), input_C: T.Buffer((16, 16), "float32")):
         A = T.Buffer(256, dtype="float32", data=input_A.data)
         C = T.Buffer(256, dtype="float32", data=input_C.data)
         for i in T.serial(0, 16):
@@ -62,7 +62,7 @@ class TestElementwiseWithoutDeclBuffer(BaseCompare):
     memory, and should be flattened to a 1-d allocation.
     """
 
-    def before(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]):
+    def before(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
         for i in T.serial(0, 16):
             B_new_data = T.allocate([1, 16], "float32", "global")
             B_new = T.Buffer([1, 16], "float32", data=B_new_data)
@@ -71,7 +71,7 @@ class TestElementwiseWithoutDeclBuffer(BaseCompare):
             for j in T.serial(0, 16):
                 C[i, j] = B_new[0, j] * 2.0
 
-    def expected(input_A: T.Buffer[(16, 16), "float32"], input_C: T.Buffer[(16, 16), "float32"]):
+    def expected(input_A: T.Buffer((16, 16), "float32"), input_C: T.Buffer((16, 16), "float32")):
         A = T.Buffer(256, dtype="float32", data=input_A.data)
         C = T.Buffer(256, dtype="float32", data=input_C.data)
         for i in T.serial(0, 16):
@@ -86,7 +86,7 @@ class TestElementwiseWithoutDeclBuffer(BaseCompare):
 class TestGPU(BaseCompare):
     """Buffer flattening may have indices based on GPU thread vars"""
 
-    def before(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]):
+    def before(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
         i0 = T.env_thread("blockIdx.x")
         i1 = T.env_thread("threadIdx.x")
         i2 = T.env_thread("vthread")
@@ -100,7 +100,7 @@ class TestGPU(BaseCompare):
         for j in range(0, 16):
             C[i0 * 4 + i1 * 2 + i2, j] = B[0, j] * 2.0
 
-    def expected(input_A: T.Buffer[(16, 16), "float32"], input_C: T.Buffer[(16, 16), "float32"]):
+    def expected(input_A: T.Buffer((16, 16), "float32"), input_C: T.Buffer((16, 16), "float32")):
         A = T.Buffer(256, dtype="float32", data=input_A.data)
         C = T.Buffer(256, dtype="float32", data=input_C.data)
 
@@ -151,7 +151,7 @@ class TestSymbolic(BaseCompare):
 class TestMultiAlloc(BaseCompare):
     """If multiple allocations occur, all are flattened."""
 
-    def before(A: T.Buffer[(4, 32), "float32"], D: T.Buffer[(4, 32), "float32"]):
+    def before(A: T.Buffer((4, 32), "float32"), D: T.Buffer((4, 32), "float32")):
         for i, j in T.grid(4, 32):
             B = T.decl_buffer((4, 32), "float32", scope="global")
             C = T.decl_buffer((4, 32), "float32", scope="global")
@@ -159,7 +159,7 @@ class TestMultiAlloc(BaseCompare):
             C[i, j] = A[i, j] + B[i, j]
             D[i, j] = C[i, j] * 2.0
 
-    def expected(input_A: T.Buffer[(4, 32), "float32"], input_D: T.Buffer[(4, 32), "float32"]):
+    def expected(input_A: T.Buffer((4, 32), "float32"), input_D: T.Buffer((4, 32), "float32")):
         A = T.Buffer(128, "float32", data=input_A.data)
         D = T.Buffer(128, "float32", data=input_D.data)
 
@@ -176,7 +176,7 @@ class TestMultiAlloc(BaseCompare):
 class TestStrided(BaseCompare):
     """Indices for flattened buffers use the specified striding."""
 
-    def before(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]):
+    def before(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
         for i0 in T.serial(4):
             B = T.decl_buffer([4, 17], "float32")
             B_1 = T.Buffer([4, 16], dtype="float32", data=B.data, strides=[17, 1])
@@ -185,7 +185,7 @@ class TestStrided(BaseCompare):
             for i1, j in T.grid(4, 16):
                 C[i0 * 4 + i1, j] = B_1[i1, j] * 2.0
 
-    def expected(input_A: T.Buffer[(16, 16), "float32"], input_C: T.Buffer[(16, 16), "float32"]):
+    def expected(input_A: T.Buffer((16, 16), "float32"), input_C: T.Buffer((16, 16), "float32")):
         A = T.Buffer(256, dtype="float32", data=input_A.data)
         C = T.Buffer(256, dtype="float32", data=input_C.data)
         for i0 in T.serial(0, 4):
@@ -202,11 +202,11 @@ class TestStrided(BaseCompare):
 class TestBoolean(BaseCompare):
     """Boolean buffers should be replaced by a backing int8 array"""
 
-    def before(A: T.Buffer[10, "bool"], B: T.Buffer[10, "bool"]) -> None:
+    def before(A: T.Buffer(10, "bool"), B: T.Buffer(10, "bool")) -> None:
         for i0 in T.serial(10):
             B[i0] = A[i0]
 
-    def expected(input_A: T.Buffer[10, "bool"], input_B: T.Buffer[10, "bool"]) -> None:
+    def expected(input_A: T.Buffer(10, "bool"), input_B: T.Buffer(10, "bool")) -> None:
         A = T.Buffer(10, dtype="int8", data=input_A.data)
         B = T.Buffer(10, dtype="int8", data=input_B.data)
         # body

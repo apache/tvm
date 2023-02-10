@@ -81,7 +81,7 @@ def test_fp16_fp32_conversions(feature_string):
         """
     )
 
-    ir_mod = tvm.parser.fromtext(relay_model)
+    ir_mod = tvm.relay.fromtext(relay_model)
 
     arch = "i386" if machine == "i386" else "x86_64"
     aot_factory = tvm.relay.build(

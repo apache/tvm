@@ -1932,13 +1932,13 @@ class CompareBeforeAfter:
         class TestRemoveIf(tvm.testing.CompareBeforeAfter):
             transform = tvm.tir.transform.Simplify()
 
-            def before(A: T.Buffer[1, "int32"]):
+            def before(A: T.Buffer(1, "int32")):
                 if True:
                     A[0] = 42
                 else:
                     A[0] = 5
 
-            def expected(A: T.Buffer[1, "int32"]):
+            def expected(A: T.Buffer(1, "int32")):
                 A[0] = 42
 
     """
