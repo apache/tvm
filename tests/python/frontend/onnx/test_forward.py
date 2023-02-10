@@ -922,7 +922,7 @@ def test_scatter_elements(target, dev):
         0,
         "mul",
     )
-    # TODO(vvchernov): min and mul options are supported from 18 version, but CI supports 17 only
+    # TODO(vvchernov): min and max options are supported from 18 version, but CI supports 17 only
     # # Scatter elements with min reduction of duplicates
     # verify_scatter_elements(
     #     (3, 3, 3),
@@ -5468,7 +5468,6 @@ unsupported_onnx_tests = [
     "test_reduce_sum_negative_axes_keepdims_example",
     "test_reduce_sum_negative_axes_keepdims_random",
     "test_roialign_aligned_true",
-    "test_scatter_elements_with_duplicate_indices",
     "test_sequence_insert_at_back",
     "test_sequence_insert_at_front",
     "test_sequence_map_add_1_sequence_1_tensor",

@@ -2886,7 +2886,7 @@ class ScatterElements(OnnxOpConverter):
     def _impl_v11(cls, inputs, attr, params):
         axis = cls._args_check(inputs, attr)
 
-        return _op.scatter(inputs[0], inputs[1], inputs[2], axis)
+        return _op.scatter_elements(inputs[0], inputs[1], inputs[2], axis, "update")
 
     @classmethod
     def _impl_v16(cls, inputs, attr, params):
