@@ -2760,6 +2760,7 @@ class Schedule(Object):
 
         """
         block = self._normalize_block_arg(block)
+        block_name = self.get(block).name_hint
         buffer_index_type, buffer_index, buffer_obj = self._normalize_buffer_arg(block, buffer)
 
         ndim = len(buffer_obj.shape)
@@ -2789,6 +2790,7 @@ class Schedule(Object):
         _ffi_api.ScheduleTransformLayout(  # type: ignore # pylint: disable=no-member
             self, block, buffer_index, buffer_index_type_enum, index_map, pad_value
         )
+        block = self.get_block(block_name)
         if axis_separators:
             _ffi_api.ScheduleSetAxisSeparator(  # type: ignore # pylint: disable=no-member
                 self, block, buffer_index, buffer_index_type_enum, axis_separators
