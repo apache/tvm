@@ -94,13 +94,6 @@ TVM_REGISTER_GLOBAL("relax.Call")
     .set_body_typed([](Expr op, Array<Expr> args, Attrs attrs, Array<StructInfo> sinfo_args,
                        Span span) { return Call(op, args, attrs, sinfo_args, span); });
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<CallNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const CallNode*>(ref.get());
-      p->stream << "CallNode(" << node->op << ", " << node->args << ", " << node->attrs << ", "
-                << node->sinfo_args << ")";
-    });
-
 If::If(Expr cond, Expr true_branch, Expr false_branch, Span span) {
   ObjectPtr<IfNode> n = make_object<IfNode>();
   n->cond = std::move(cond);
@@ -135,13 +128,6 @@ TVM_REGISTER_NODE_TYPE(IfNode);
 TVM_REGISTER_GLOBAL("relax.If")
     .set_body_typed([](Expr cond, Expr true_branch, Expr false_branch, Span span) {
       return If(cond, true_branch, false_branch, span);
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<IfNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const IfNode*>(ref.get());
-      p->stream << "IfNode(" << node->cond << ", " << node->true_branch << ", "
-                << node->false_branch << ")";
     });
 
 Tuple::Tuple(tvm::Array<relay::Expr> fields, Span span) {
@@ -179,12 +165,6 @@ Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields, Optional<Span> o
   return tuple;
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<TupleNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const TupleNode*>(ref.get());
-      p->stream << "Tuple(" << node->fields << ")";
-    });
-
 TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
   ObjectPtr<TupleGetItemNode> n = make_object<TupleGetItemNode>();
   n->tuple = std::move(tuple);
@@ -216,12 +196,6 @@ TVM_REGISTER_GLOBAL("relax.TupleGetItem").set_body_typed([](Expr tuple, int inde
   return TupleGetItem(tuple, index);
 });
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<TupleGetItemNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const TupleGetItemNode*>(ref.get());
-      p->stream << "TupleGetItemNode(" << node->tuple << ", " << node->index << ")";
-    });
-
 TVM_REGISTER_NODE_TYPE(ShapeExprNode);
 
 ShapeExpr::ShapeExpr(Array<PrimExpr> values, Span span) {
@@ -244,19 +218,6 @@ ShapeExpr::ShapeExpr(Array<PrimExpr> values, Span span) {
 TVM_REGISTER_GLOBAL("relax.ShapeExpr").set_body_typed([](Array<PrimExpr> values, Span span) {
   return ShapeExpr(values, span);
 });
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<ShapeExprNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      const ShapeExprNode* node = static_cast<const ShapeExprNode*>(ref.get());
-      p->stream << "ShapeExpr(";
-      for (auto it = node->values.begin(); it != node->values.end(); it++) {
-        if (it != node->values.begin()) {
-          p->stream << ", ";
-        }
-        p->stream << *it;
-      }
-      p->stream << ")";
-    });
 
 TVM_REGISTER_NODE_TYPE(VarNode);
 
@@ -571,12 +532,6 @@ ExternFunc::ExternFunc(String global_symbol, Span span) {
 TVM_REGISTER_GLOBAL("relax.ExternFunc").set_body_typed([](String global_symbol, Span span) {
   return ExternFunc(global_symbol, span);
 });
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<ExternFuncNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      const auto* node = static_cast<const ExternFuncNode*>(ref.get());
-      p->stream << "ExternFunc(\"" << node->global_symbol << "\")";
-    });
 
 Expr GetShapeOf(const Expr& expr) {
   // default case, to be normalized.

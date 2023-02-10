@@ -22,16 +22,18 @@ from numbers import Number
 from typing import Any, Callable, Dict, List, Optional, Union
 
 import numpy as _np  # type: ignore
+
 import tvm
 import tvm._ffi
-import tvm.relax
 import tvm.ir
+import tvm.relax
 from tvm import DataType
 from tvm._ffi import base as _base
-from tvm.runtime import ndarray as _nd, Object
+from tvm.runtime import Object
+from tvm.runtime import ndarray as _nd
 
 from ..ir import BaseFunc, Node, SourceName, Span
-from ..runtime import String
+from ..runtime import Scriptable, String
 from ..tir import PrimExpr
 from . import _ffi_api
 
@@ -55,7 +57,7 @@ class Id(Object):
 
 # NOTE: place base struct info in expr to avoid cyclic dep
 # from expr to struct info.
-class StructInfo(Node):
+class StructInfo(Node, Scriptable):
     """The base class of all StructInfo.
 
     StructInfo contains both the static type
@@ -110,7 +112,7 @@ def _binary_rhs_helper(rhs: "ExprWithOp") -> "ExprWithOp":
     raise TypeError(f"type {type(rhs)} not supported")
 
 
-class ExprWithOp(Expr):
+class ExprWithOp(Expr, Scriptable):
     """Basetype of all relax expressions that defines op overloading."""
 
     def astype(self, dtype: Union[str, DataType]) -> "ExprWithOp":
@@ -436,7 +438,7 @@ class DataflowVar(Var):
 
 
 @tvm._ffi.register_object("relax.expr.PrimValue")
-class PrimValue(Expr):
+class PrimValue(Expr, Scriptable):
     """The prim expr representing the value."""
 
     value: PrimExpr
@@ -448,7 +450,7 @@ class PrimValue(Expr):
 
 
 @tvm._ffi.register_object("relax.expr.StringImm")
-class StringImm(Expr):
+class StringImm(Expr, Scriptable):
     """Represent a string literal constant."""
 
     value: str
@@ -458,7 +460,7 @@ class StringImm(Expr):
 
 
 @tvm._ffi.register_object("relax.expr.DataTypeImm")
-class DataTypeImm(Expr):
+class DataTypeImm(Expr, Scriptable):
     """Represent a data type constant."""
 
     value: DataType
@@ -468,10 +470,8 @@ class DataTypeImm(Expr):
 
 
 @tvm._ffi.register_object("relax.expr.Binding")
-class Binding(Node):
+class Binding(Node, Scriptable):
     """The base class of a binding in Relax."""
-
-    ...
 
 
 @tvm._ffi.register_object("relax.expr.MatchCast")
@@ -548,7 +548,7 @@ class SeqExpr(ExprWithOp):
 
 
 @tvm._ffi.register_object("relax.expr.Function")
-class Function(BaseFunc):
+class Function(BaseFunc, Scriptable):
     """A Relax function."""
 
     params: List[Var]
@@ -587,35 +587,6 @@ class Function(BaseFunc):
             Arguments.
         """
         return Call(self, args, None, None)
-
-    def script(self, show_meta: bool = False) -> str:
-        """Print relax.Function into TVMScript
-
-        Parameters
-        ----------
-        show_meta : bool
-            Whether to show meta information
-
-        Returns
-        -------
-        script : str
-            The TVM Script of the relax.Function
-        """
-        return tvm._ffi.get_global_func("script.AsRelaxScript")(self, show_meta)  # type: ignore
-
-    def show(self, style: str = "light") -> None:
-        """
-        A sugar for print highlighted TVM script.
-
-        Parameters
-        ----------
-        style : str, optional
-            Pygments styles extended by "light" (default) and "dark", by default "light"
-        """
-        from tvm.script.highlight import cprint  # pylint: disable=import-outside-toplevel
-
-        # Use deferred import to avoid circular import while keeping cprint under tvm/script
-        cprint(self, style=style)
 
 
 @tvm._ffi.register_object("relax.expr.ExternFunc")
