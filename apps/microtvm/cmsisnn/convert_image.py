@@ -24,6 +24,7 @@ import numpy as np
 
 from tvm.micro import copy_crt_config_header
 
+
 def create_header_file(name, tensor_name, tensor_data, output_path):
     """
     This function generates a header file containing the data from the numpy array provided.
@@ -73,7 +74,7 @@ def create_headers(image_name):
 
 if __name__ == "__main__":
     create_headers(sys.argv[1])
-    
+
     # Generate crt_config.h
     crt_config_output_path = pathlib.Path(__file__).parent.resolve() / "crt_config"
     if not crt_config_output_path.exists():

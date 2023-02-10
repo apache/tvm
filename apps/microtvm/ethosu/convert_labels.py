@@ -21,6 +21,7 @@ import sys
 
 from tvm.micro import copy_crt_config_header
 
+
 def create_labels_header(labels_file, section, output_path):
     """
     This function generates a header file containing the ImageNet labels as an array of strings
