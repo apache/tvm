@@ -578,7 +578,7 @@ def test_negative_operand_divmod(target, dev):
     divisor = 5
 
     @T.prim_func
-    def func(A: T.Buffer[(N, 2), "int32"]):
+    def func(A: T.Buffer((N, 2), "int32")):
         for i in T.serial(N):
             with T.block("A"):
                 v_i = T.axis.spatial(N, i)

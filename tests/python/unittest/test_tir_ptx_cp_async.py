@@ -21,7 +21,7 @@ import tvm.testing
 
 
 @T.prim_func
-def ptx_cp_async(A: T.Buffer[(32, 128), "float16"], B: T.Buffer[(32, 128), "float16"]) -> None:
+def ptx_cp_async(A: T.Buffer((32, 128), "float16"), B: T.Buffer((32, 128), "float16")) -> None:
     T.func_attr({"global_symbol": "default_function", "tir.noalias": True})
     bx = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")

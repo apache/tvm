@@ -74,7 +74,7 @@ def test_var_capturing_order():
 
 def test_tir_buffer_region_extent_correct_dtype():
     @T.prim_func
-    def func(A: T.Buffer[(T.int64(16), T.int64(1)), "float32"]):
+    def func(A: T.Buffer((T.int64(16), T.int64(1)), "float32")):
         for i in T.grid(T.int64(16)):
             with T.block("block"):
                 vi = T.axis.remap("S", [i])

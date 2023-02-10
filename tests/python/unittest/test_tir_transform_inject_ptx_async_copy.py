@@ -37,7 +37,7 @@ def generate_global_to_shared_vectorized_copy(dtype, vector_size):
 
     @T.prim_func
     def ptx_global_to_shared_copy(
-        A: T.Buffer[(32, 128), dtype], B: T.Buffer[(32, 128), dtype]
+        A: T.Buffer((32, 128), dtype), B: T.Buffer((32, 128), dtype)
     ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         bx = T.env_thread("blockIdx.x")
@@ -65,7 +65,7 @@ def generate_global_to_shared_vectorized_copy(dtype, vector_size):
 
 @T.prim_func
 def ptx_global_to_shared_copy_fp32x1(
-    A: T.Buffer[(32, 128), "float32"], B: T.Buffer[(32, 128), "float32"]
+    A: T.Buffer((32, 128), "float32"), B: T.Buffer((32, 128), "float32")
 ) -> None:
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
     bx = T.env_thread("blockIdx.x")
@@ -90,9 +90,9 @@ def ptx_global_to_shared_copy_fp32x1(
 
 @T.prim_func
 def ptx_global_to_shared_dyn_copy_fp16x8(
-    A: T.Buffer[(32, 128), "float16"],
-    B: T.Buffer[(32, 128), "float16"],
-    C: T.Buffer[(32, 128), "float16"],
+    A: T.Buffer((32, 128), "float16"),
+    B: T.Buffer((32, 128), "float16"),
+    C: T.Buffer((32, 128), "float16"),
 ) -> None:
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
     bx = T.env_thread("blockIdx.x")

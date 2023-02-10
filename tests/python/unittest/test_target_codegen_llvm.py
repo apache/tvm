@@ -920,7 +920,7 @@ def test_llvm_scalar_concat():
 def test_raise_exception_during_codegen():
     @T.prim_func
     def threadpool_nested_parallel_loop(
-        A: T.Buffer[(4, 4), "float32"], B: T.Buffer[(4, 4), "float32"]
+        A: T.Buffer((4, 4), "float32"), B: T.Buffer((4, 4), "float32")
     ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         for i in T.parallel(4):
