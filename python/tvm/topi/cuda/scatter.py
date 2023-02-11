@@ -874,9 +874,13 @@ def scatter_nd(data, indices, updates, mode):
                         elif mode == "mul":
                             out[index] *= updates[i * fused_updates_dimension + j]
                         elif mode == "min":
-                            out[index] = tir.min(out[index], updates[i * fused_updates_dimension + j])
+                            out[index] = tir.min(
+                                out[index], updates[i * fused_updates_dimension + j]
+                            )
                         elif mode == "max":
-                            out[index] = tir.max(out[index], updates[i * fused_updates_dimension + j])
+                            out[index] = tir.max(
+                                out[index], updates[i * fused_updates_dimension + j]
+                            )
                         else:
                             raise NotImplementedError(
                                 "scatter_nd mode not in [update, add, mul, min, max]:", mode

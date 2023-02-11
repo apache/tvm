@@ -2873,11 +2873,13 @@ class ScatterND(OnnxOpConverter):
         ), "Updates rank should be equal to data_rank + indices_rank - indices_shape[-1] - 1"
 
     @classmethod
-    def _reduction_check(cls, attr, red_valids=["update"]):
+    def _reduction_check(cls, attr, red_valids=None):
         reduction = attr.get("reduction", None)
         if reduction is None:
             reduction = b"update"
         reduction = reduction.decode("utf-8")
+        if red_valids is None:
+            red_valids = ["update"]
         assert reduction in red_valids, "Only {} reductions are supported, but {} is gotten".format(
             red_valids, reduction
         )
@@ -2889,9 +2891,7 @@ class ScatterND(OnnxOpConverter):
         cls._inputs_check(inputs)
         indices_dim = len(infer_shape(inputs[1]))
         axes = list(range(indices_dim))
-        return _op.scatter_nd(
-            inputs[0], _op.transpose(inputs[1], axes[-1:] + axes[:-1]), inputs[2]
-        )
+        return _op.scatter_nd(inputs[0], _op.transpose(inputs[1], axes[-1:] + axes[:-1]), inputs[2])
 
     @classmethod
     def _impl_v16(cls, inputs, attr, params):
