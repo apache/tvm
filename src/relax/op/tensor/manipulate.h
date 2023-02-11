@@ -18,34 +18,28 @@
  */
 
 /*!
- * \file tvm/relax/backend.h
- * \brief Relax backend specific transformation passes.
+ * \file manipulate.h
+ * \brief The functions to make Relax tensor manipulation operator calls.
  */
-#ifndef TVM_RELAX_BACKEND_H_
-#define TVM_RELAX_BACKEND_H_
+#ifndef TVM_RELAX_OP_TENSOR_MANIPULATE_H_
+#define TVM_RELAX_OP_TENSOR_MANIPULATE_H_
 
-#include <tvm/relax/transform.h>
+#include "../op_common.h"
 
 namespace tvm {
 namespace relax {
-namespace transform {
 
 /*!
- * \brief Perform builtin lowering to map most of the op to VM builtin functions.
- *
- * \return The Pass.
+ * \brief Reshape the input array, supporting `-1` inference in the new
+ * shape when the new shape is given as an Array of PrimExpr.
+ * \param x The input data to the operator.
+ * \param shape The new shape. Should be compatible with the original shape.
+ * It is required to be either an Array of PrimExpr, or a Shape in Relax
+ * \return The reshaped result.
  */
-TVM_DLL Pass VMBuiltinLower();
+Expr reshape(Expr x, ObjectRef shape);
 
-/*!
- * \brief Lower the shape expression in relax to VM shape heap and TIR functions.
- *
- * \return The Pass.
- */
-TVM_DLL Pass VMShapeLower();
-
-}  // namespace transform
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_BACKEND_H_
+#endif  // TVM_RELAX_OP_TENSOR_MANIPULATE_H_
