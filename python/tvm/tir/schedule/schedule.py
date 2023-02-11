@@ -2760,7 +2760,8 @@ class Schedule(Object):
 
         """
         block = self._normalize_block_arg(block)
-        block_name = self.get(block).name_hint
+        block_obj: Block = self.get(block)
+        block_name = block_obj.name_hint
         buffer_index_type, buffer_index, buffer_obj = self._normalize_buffer_arg(block, buffer)
 
         ndim = len(buffer_obj.shape)
