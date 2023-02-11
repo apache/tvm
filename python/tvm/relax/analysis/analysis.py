@@ -162,3 +162,48 @@ def struct_info_lca(lhs: StructInfo, rhs: StructInfo) -> StructInfo:
         The corresponding lca result.
     """
     return _ffi_api.StructInfoLCA(lhs, rhs)  # type: ignore
+
+
+def post_order_visit(expr, fvisit):
+    """Recursively visit the ir in post DFS order node,
+    apply fvisit. Each node is guaranteed to be visited
+    only once.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+
+    fvisit : function
+        The visitor function to be applied.
+    """
+    return _ffi_api.post_order_visit(expr, fvisit)  # type: ignore
+
+
+def has_reshape_pattern(func: tir.PrimFunc) -> bool:
+    """Check if the given PrimFunc is essentially doing a reshape operation.
+    The reshape operation also includes expand_dims, squeeze, flatten, etc.
+
+    Here the allowed reshape pattern is: for example, assume the operation is
+    `B[l_0, l_1, ..., l_b] = A[r_0, r_1, ..., r_a]`, we check if we can prove
+    that the flattened index of l_0, ..., l_b under buffer B equals to the
+    flattened index of r_0, ..., r_a under buffer A.
+
+    Parameters
+    ----------
+    func : tir.PrimFunc
+        The function to be examined.
+
+    Returns
+    -------
+    ret : bool
+        A boolean indicating if the given PrimFunc is doing a reshape.
+
+    Notes
+    -----
+    According to the description above, the returned result can only be
+    false-negative and cannot be false-positive, since whenever we cannot
+    prove the equality, we return false. This property guarantees the safety
+    of this function.
+    """
+    return _ffi_api.has_reshape_pattern(func)  # type: ignore
