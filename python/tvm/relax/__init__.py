@@ -20,6 +20,7 @@ from . import exec_builder
 from . import expr
 from . import ty
 from . import analysis
+from . import transform
 from . import vm
 from . import block_builder
 from . import op
