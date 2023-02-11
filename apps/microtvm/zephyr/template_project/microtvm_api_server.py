@@ -210,14 +210,14 @@ def _get_board_mem_size_bytes(zephyr_base: str, board: str):
     return None
 
 
-DEFAULT_HEAP_SIZE_BYTES = 216 * 1024
+DEFAULT_WORKSPACE_SIZE_BYTES = 216 * 1024
 
 
 def _get_recommended_heap_size_bytes(board: str):
     prop = BOARD_PROPERTIES[board]
     if "recommended_heap_size_bytes" in prop:
         return prop["recommended_heap_size_bytes"]
-    return DEFAULT_HEAP_SIZE_BYTES
+    return DEFAULT_WORKSPACE_SIZE_BYTES
 
 
 def generic_find_serial_port(serial_number: str = None):
@@ -358,11 +358,11 @@ PROJECT_OPTIONS = server.default_project_options(
         help="Run on the FVP emulator instead of hardware.",
     ),
     server.ProjectOption(
-        "heap_size_bytes",
+        "workspace_size_bytes",
         optional=["generate_project"],
         type="int",
         default=None,
-        help="Sets the value for HEAP_SIZE_BYTES passed to K_HEAP_DEFINE() to service TVM memory allocation requests.",
+        help="Sets the value for TVM_WORKSPACE_SIZE_BYTES passed to K_HEAP_DEFINE() to service TVM memory allocation requests.",
     ),
 ]
 
@@ -558,7 +558,7 @@ class Handler(server.ProjectAPIHandler):
         verbose = options.get("verbose")
 
         recommended_heap_size = _get_recommended_heap_size_bytes(zephyr_board)
-        heap_size_bytes = options.get("heap_size_bytes") or recommended_heap_size
+        workspace_size_bytes = options.get("workspace_size_bytes") or recommended_heap_size
         board_mem_size = _get_board_mem_size_bytes(zephyr_base, zephyr_board)
 
         compile_definitions = options.get("compile_definitions")
@@ -654,10 +654,10 @@ class Handler(server.ProjectAPIHandler):
 
                 if board_mem_size is not None:
                     assert (
-                        heap_size_bytes < board_mem_size
-                    ), f"Heap size {heap_size_bytes} is larger than memory size {board_mem_size} on this board."
+                        workspace_size_bytes < board_mem_size
+                    ), f"Workspace size {workspace_size_bytes} is larger than memory size {board_mem_size} on this board."
                 cmake_f.write(
-                    f"target_compile_definitions(app PUBLIC -DHEAP_SIZE_BYTES={heap_size_bytes})\n"
+                    f"target_compile_definitions(app PUBLIC -DTVM_WORKSPACE_SIZE_BYTES={workspace_size_bytes})\n"
                 )
 
                 if compile_definitions:

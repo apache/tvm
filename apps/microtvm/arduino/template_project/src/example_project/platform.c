@@ -25,10 +25,10 @@
 #include "standalone_crt/include/dlpack/dlpack.h"
 #include "standalone_crt/include/tvm/runtime/crt/stack_allocator.h"
 
-#define WORKSPACE_SIZE $workspace_size_bytes
+#define TVM_WORKSPACE_SIZE_BYTES $workspace_size_bytes
 
 // AOT memory array, stack allocator wants it aligned
-static uint8_t g_aot_memory[WORKSPACE_SIZE]
+static uint8_t g_aot_memory[TVM_WORKSPACE_SIZE_BYTES]
     __attribute__((aligned(TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES)));
 tvm_workspace_t app_workspace;
 
@@ -97,7 +97,7 @@ tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
 
 // Initialize TVM inference.
 tvm_crt_error_t TVMPlatformInitialize() {
-  StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE);
+  StackMemoryManager_Init(&app_workspace, g_aot_memory, TVM_WORKSPACE_SIZE_BYTES);
   return kTvmErrorNoError;
 }
 

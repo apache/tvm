@@ -38,8 +38,8 @@
 
 #include "crt_config.h"
 
-// WORKSPACE_SIZE is defined in python
-static uint8_t g_aot_memory[WORKSPACE_SIZE];
+// TVM_WORKSPACE_SIZE_BYTES is defined in python
+static uint8_t g_aot_memory[TVM_WORKSPACE_SIZE_BYTES];
 tvm_workspace_t app_workspace;
 
 size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const char* fmt,
@@ -63,6 +63,6 @@ tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
 }
 
 tvm_crt_error_t TVMPlatformInitialize() {
-  StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE);
+  StackMemoryManager_Init(&app_workspace, g_aot_memory, TVM_WORKSPACE_SIZE_BYTES);
   return kTvmErrorNoError;
 }

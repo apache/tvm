@@ -34,8 +34,8 @@
 #include "dlpack/dlpack.h"
 #include "tvmgen_default.h"
 
-// WORKSPACE_SIZE defined in Project API Makefile
-static uint8_t g_aot_memory[WORKSPACE_SIZE];
+// TVM_WORKSPACE_SIZE_BYTES defined in Project API Makefile
+static uint8_t g_aot_memory[TVM_WORKSPACE_SIZE_BYTES];
 tvm_workspace_t app_workspace;
 
 #define MILLIS_TIL_EXPIRY 200
@@ -66,7 +66,7 @@ tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
 
 tvm_crt_error_t TVMPlatformInitialize() {
   k_timer_init(&g_microtvm_timer, NULL, NULL);
-  StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE);
+  StackMemoryManager_Init(&app_workspace, g_aot_memory, TVM_WORKSPACE_SIZE_BYTES);
   return kTvmErrorNoError;
 }
 

@@ -35,7 +35,7 @@
 #include <zephyr/sys/reboot.h>
 #include <zephyr/timing/timing.h>
 
-K_HEAP_DEFINE(tvm_heap, HEAP_SIZE_BYTES);
+K_HEAP_DEFINE(tvm_heap, TVM_WORKSPACE_SIZE_BYTES);
 
 volatile timing_t g_microtvm_start_time, g_microtvm_end_time;
 int g_microtvm_timer_running = 0;
