@@ -24,7 +24,6 @@
 #ifndef TVM_RELAX_OP_TENSOR_MANIPULATE_H_
 #define TVM_RELAX_OP_TENSOR_MANIPULATE_H_
 
-
 #include "../op_common.h"
 
 namespace tvm {
