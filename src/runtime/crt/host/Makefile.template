@@ -77,7 +77,7 @@ build/%.o: src/%.cc
 SRCS = $(wildcard src/*.cc)
 OBJS = $(patsubst src/%.cc,build/%.o,$(SRCS))
 
-build/main: ${OBJS} ${BUILD_DIR}/platform.o ${MODEL_LIBS} ${CRT_LIBS}
+build/main: ${OBJS} ${MODEL_LIBS} ${CRT_LIBS}
 	${QUIET}mkdir -p $(dir $@)
 	${QUIET}$(CXX) $(LDFLAGS) -o "$@" $^
 

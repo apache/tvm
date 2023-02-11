@@ -97,7 +97,7 @@ tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
 
 // Initialize TVM inference.
 tvm_crt_error_t TVMPlatformInitialize() {
-  StackMemoryManager_Init(&app_workspace, g_aot_memory, TVM_WORKSPACE_SIZE_BYTES);
+  StackMemoryManager_Init(&app_workspace, g_aot_memory, sizeof(g_aot_memory));
   return kTvmErrorNoError;
 }
 

@@ -63,6 +63,6 @@ tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
 }
 
 tvm_crt_error_t TVMPlatformInitialize() {
-  StackMemoryManager_Init(&app_workspace, g_aot_memory, TVM_WORKSPACE_SIZE_BYTES);
+  StackMemoryManager_Init(&app_workspace, g_aot_memory, sizeof(g_aot_memory));
   return kTvmErrorNoError;
 }
