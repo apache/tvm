@@ -173,7 +173,7 @@ bool FunctionPassNode::SkipFunction(const Function& func) const {
 
 Pass CreateFunctionPass(
     const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
-    int opt_level, String name, tvm::Array<String> required, bool traceable) {
+    int opt_level, String name, tvm::Array<String> required) {
   PassInfo pass_info = PassInfo(opt_level, name, required);
   return FunctionPass(pass_func, pass_info);
 }
@@ -389,7 +389,7 @@ IRModule DataflowBlockPassNode::operator()(IRModule mod, const PassContext& pass
 
 Pass CreateDataflowBlockPass(
     const runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)>& pass_func,
-    int opt_level, String name, tvm::Array<String> required, bool traceable) {
+    int opt_level, String name, tvm::Array<String> required) {
   PassInfo pass_info = PassInfo(opt_level, name, required);
   return DataflowBlockPass(pass_func, pass_info);
 }
