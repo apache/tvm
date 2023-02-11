@@ -65,6 +65,41 @@ TVM_DLL Pass CreateDataflowBlockPass(
     const runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)>& pass_func,
     int opt_level, String name, tvm::Array<String> required);
 
+/*!
+ * \brief Transform all dataflow structure to non-dataflow version.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass ToNonDataflow();
+
+/*!
+ * \brief Perform explicit tensor allocation for call_tir.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass CallTIRRewrite();
+
+/*!
+ * \brief Convert all reshape-like call_tir whose corresponding binding
+ * vars are DataflowVars to relax.reshape operator calls. The relax.reshape
+ * calls will be lowered an external builtin function call in a subsequent
+ * pass, where the external builtin function does a CreateView operation
+ * at runtime, instead of doing real data copy.
+ * Here "reshape-like" includes reshape, expand_dims, flatten, etc.
+ *
+ * \return The Pass.
+ * \note The pass is applied at the first stage of Relax VM build, before
+ * rewriting call_tir, as this pass requires dataflow information.
+ */
+TVM_DLL Pass RewriteDataflowReshape();
+
+/*!
+ * \brief Attach global_symbol to Relax functions and TIR Primfuncs for codegen.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass AttachGlobalSymbol();
+
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm
