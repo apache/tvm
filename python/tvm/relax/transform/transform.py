@@ -37,6 +37,49 @@ class DataflowBlockPass(tvm.ir.transform.Pass):
     """A pass that works on each tvm.relax.DataflowBlock in a module."""
 
 
+def ToNonDataflow() -> tvm.ir.transform.Pass:
+    """Transform all dataflow structure to non-dataflow version.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.ToNonDataflow()  # type: ignore
+
+
+def CallTIRRewrite() -> tvm.ir.transform.Pass:
+    """Perform explicit tensor allocation for call_tir.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.CallTIRRewrite()  # type: ignore
+
+
+def RewriteDataflowReshape() -> tvm.ir.transform.Pass:
+    """Convert all reshape-like call_tir to VM reshape operator call.
+    The VM reshape operator calls will be further lowered to a CreateView
+    operation at runtime, instead of doing real data copy.
+    Here "reshape-like" includes reshape, expand_dims, flatten, etc.
+
+    Returns
+    -------
+    ret : tvm.ir.transform.Pass
+    """
+    return _ffi_api.RewriteDataflowReshape()  # type: ignore
+
+
+def VMBuiltinLower() -> tvm.ir.transform.Pass:
+    """Lowering generic intrinsic to VM intrinsics.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.VMBuiltinLower()  # type: ignore
+
+
 def VMShapeLower(*, emit_err_ctx: bool = True) -> tvm.ir.transform.Pass:
     """Lower the symbolic shape and argument and match-cast structinfo matching.
 
@@ -50,6 +93,16 @@ def VMShapeLower(*, emit_err_ctx: bool = True) -> tvm.ir.transform.Pass:
     ret: tvm.ir.transform.Pass
     """
     return _ffi_api.VMShapeLower(emit_err_ctx)  # type: ignore
+
+
+def AttachGlobalSymbol() -> tvm.ir.transform.Pass:
+    """Attach global_symbol to Relax functions and TIR Primfuncs for codegen.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.AttachGlobalSymbol()  # type: ignore
 
 
 def _wrap_class_function_pass(pass_cls, pass_info):

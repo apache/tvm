@@ -259,6 +259,22 @@ TVM_DLL bool IsBaseOf(const StructInfo& base, const StructInfo& derived,
  */
 TVM_DLL StructInfo StructInfoLCA(const StructInfo& lhs, const StructInfo& rhs,
                                  arith::Analyzer* ana = nullptr);
+
+/*!
+ * \brief Check if the given PrimFunc is essentially doing a reshape operation.
+ * The reshape operation also includes expand_dims, squeeze, flatten, etc.
+ * \details Here the allowed reshape pattern is: for example, assume the operation is
+ *  `B[l_0, l_1, ..., l_b] = A[r_0, r_1, ..., r_a]`, we check if we can prove that the flattened
+ * index of l_0, ..., l_b under buffer B equals to the flattened index of r_0, ..., r_a under
+ * buffer A.
+ * \param func The function to be examined.
+ * \return A boolean indicating if the given PrimFunc is doing a reshape.
+ * \note According to the description above, the returned result can only be false-negative and
+ * cannot be false-positive, since whenever we cannot prove the equality, we return false. This
+ * property guarantees the safety of this function.
+ */
+TVM_DLL bool HasReshapePattern(const tir::PrimFunc& func);
+
 }  // namespace relax
 }  // namespace tvm
 
