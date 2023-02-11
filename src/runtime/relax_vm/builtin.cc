@@ -19,7 +19,6 @@
 /*!
  * \file src/runtime/relax_vm/builtin.cc
  */
-#include <tvm/runtime/container/adt.h>
 #include <tvm/runtime/container/shape_tuple.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
@@ -214,14 +213,13 @@ TVM_REGISTER_GLOBAL("vm.builtin.check_shape_info").set_body_typed(CheckShapeInfo
  * \param err_ctx Additional context if error occurs.
  */
 void CheckTupleInfo(ObjectRef arg, int64_t size, Optional<String> err_ctx) {
-  using Tuple = runtime::ADT;
   // a function that lazily get context for error reporting
-  auto* ptr = arg.as<Tuple::ContainerType>();
+  auto* ptr = arg.as<runtime::ArrayNode>();
   CHECK(ptr != nullptr) << "TypeError: " << err_ctx.value_or("") << " expect a Tuple but get "
                         << arg->GetTypeKey();
-  CHECK(static_cast<int64_t>(ptr->size) == size)
+  CHECK(static_cast<int64_t>(ptr->size()) == size)
       << "ValueError: " << err_ctx.value_or("") << " expect a Tuple with " << size << " elements, "
-      << " but get a Tuple with " << ptr->size << " elements.";
+      << " but get a Tuple with " << ptr->size() << " elements.";
 }
 
 TVM_REGISTER_GLOBAL("vm.builtin.check_tuple_info").set_body_typed(CheckTupleInfo);
@@ -321,6 +319,10 @@ TVM_REGISTER_GLOBAL("vm.builtin.copy").set_body([](TVMArgs args, TVMRetValue* rv
   *rv = args[0];
 });
 
+TVM_REGISTER_GLOBAL("vm.builtin.reshape").set_body_typed([](NDArray data, ShapeTuple new_shape) {
+  return data.CreateView(new_shape, data->dtype);
+});
+
 /*!
  * \brief Load the scalar value in cond and return the result value.
  * \param cond The condition
@@ -367,8 +369,15 @@ TVM_REGISTER_GLOBAL("vm.builtin.read_if_cond").set_body_typed(ReadIfCond);
 //-------------------------------------
 //  Data structure API
 //-------------------------------------
-TVM_REGISTER_GLOBAL("vm.builtin.tuple_getitem").set_body_typed([](runtime::ADT arr, int64_t index) {
-  return arr[index];
+TVM_REGISTER_GLOBAL("vm.builtin.tuple_getitem")
+    .set_body_typed([](runtime::Array<ObjectRef> arr, int64_t index) { return arr[index]; });
+
+TVM_REGISTER_GLOBAL("vm.builtin.make_tuple").set_body([](TVMArgs args, TVMRetValue* rv) {
+  runtime::Array<ObjectRef> arr;
+  for (int i = 0; i < args.num_args; ++i) {
+    arr.push_back(args[i].operator ObjectRef());
+  }
+  *rv = arr;
 });
 
 }  // namespace relax_vm
