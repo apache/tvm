@@ -115,7 +115,30 @@ inline StructInfo InferStructInfoUnary(const Call& call, const BlockBuilder& ctx
 }
 
 /*!
- * \brief Infer  the struct info for unary arithmetic elementwise ops. It's also
+ * \brief Infer the struct info by returning the struct info of the input argument.
+ * \param call The context Call to the operator.
+ * \param ctx The error reporting context.
+ * \tparam arg_index The index of the argument to infer the output dtype from.
+ * \return The inferred struct info.
+ */
+template <int arg_index>
+StructInfo ReturnStructInfoFromArg(const Call& call, const BlockBuilder& ctx) {
+  Op op = Downcast<Op>(call->op);
+  int n_input = op->arguments.size();
+  if (static_cast<int>(call->args.size()) != n_input) {
+    ctx->ReportFatal(Diagnostic::Error(call->span)
+                     << op << " op should have " << n_input << " arguments");
+  }
+  if (arg_index >= n_input) {
+    ctx->ReportFatal(Diagnostic::Error(call->span)
+                     << op << " op has only " << n_input
+                     << "arguments, but try to get the arg with index " << arg_index);
+  }
+  return GetStructInfo(call->args[arg_index]);
+}
+
+/*!
+ * \brief Infer the struct info for unary arithmetic elementwise ops. It's also
  * used in some NN operators.
  * \param call The context Call to the operator.
  * \param ctx The error reporting context.
