@@ -379,8 +379,8 @@ def _make_tar(source_dir, tar_file_path, modules):
 
                 # Add template files from CRT template project
                 for file in [
-                    "crt_config/crt_config-template.h",
-                    "src/platform-template.c",
+                    "templates/crt_config.h.template",
+                    "templates/platform.c.template",
                 ]:
                     tar_f.add(
                         crt_template_path / pathlib.Path(file),

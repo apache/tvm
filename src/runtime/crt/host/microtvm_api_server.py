@@ -38,7 +38,7 @@ MODEL_LIBRARY_FORMAT_RELPATH = "model.tar"
 IS_TEMPLATE = not os.path.exists(os.path.join(PROJECT_DIR, MODEL_LIBRARY_FORMAT_RELPATH))
 
 # Used this size to pass most CRT tests in TVM.
-MEMORY_SIZE_BYTES = 2 * 1024 * 1024
+WORKSPACE_SIZE_BYTES = 2 * 1024 * 1024
 
 MAKEFILE_FILENAME = "Makefile"
 
@@ -67,11 +67,11 @@ class Handler(server.ProjectAPIHandler):
                     help="Run make with verbose output",
                 ),
                 server.ProjectOption(
-                    "memory_size_bytes",
+                    "workspace_size_bytes",
                     optional=["generate_project"],
                     type="int",
-                    default=MEMORY_SIZE_BYTES,
-                    help="Sets the value of MEMORY_SIZE_BYTES.",
+                    default=WORKSPACE_SIZE_BYTES,
+                    help="Sets the value of TVM_WORKSPACE_SIZE_BYTES.",
                 ),
             ],
         )
@@ -90,7 +90,7 @@ class Handler(server.ProjectAPIHandler):
     ):
         """Generate Makefile from template."""
         flags = {
-            "MEMORY_SIZE_BYTES": str(memory_size),
+            "TVM_WORKSPACE_SIZE_BYTES": str(memory_size),
         }
 
         regex = re.compile(r"([A-Z_]+) := (<[A-Z_]+>)")
@@ -138,7 +138,7 @@ class Handler(server.ProjectAPIHandler):
         self._populate_makefile(
             current_dir / f"{MAKEFILE_FILENAME}.template",
             project_dir / MAKEFILE_FILENAME,
-            options.get("memory_size_bytes", MEMORY_SIZE_BYTES),
+            options.get("workspace_size_bytes", WORKSPACE_SIZE_BYTES),
         )
 
         # Populate crt-config.h
@@ -156,22 +156,10 @@ class Handler(server.ProjectAPIHandler):
             current_dir / "src" / "main.cc",
             src_dir / "main.cc",
         )
-
-        # Remove redefined functions in main.cc from platform.c
-        with open(current_dir / "src" / "platform-template.c", "r") as src_f:
-            with open(src_dir / "platform.c", "w") as dst_f:
-                for line in src_f:
-                    if any(
-                        redefined_func in line
-                        for redefined_func in [
-                            "void TVMPlatformAbort",
-                            "tvm_crt_error_t TVMPlatformTimerStart",
-                            "tvm_crt_error_t TVMPlatformTimerStop",
-                            "tvm_crt_error_t TVMPlatformGenerateRandom",
-                        ]
-                    ):
-                        line = "TVM_WEAK " + line
-                    dst_f.write(line)
+        shutil.copy2(
+            current_dir / "src" / "platform.cc",
+            src_dir / "platform.cc",
+        )
 
     def build(self, options):
         args = ["make"]

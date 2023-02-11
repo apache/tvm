@@ -29,7 +29,7 @@
 #include <tvm/runtime/crt/error_codes.h>
 #include <tvm/runtime/crt/page_allocator.h>
 
-uint8_t memory[MEMORY_SIZE_BYTES];
+uint8_t memory[TVM_WORKSPACE_SIZE_BYTES];
 MemoryManagerInterface* memory_manager;
 
 // Called when an internal error occurs and execution cannot continue.

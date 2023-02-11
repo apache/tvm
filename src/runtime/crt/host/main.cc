@@ -22,13 +22,12 @@
  * \brief main entry point for host subprocess-based CRT
  */
 #include <inttypes.h>
-#include <time.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/crt/aot_executor_module.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/microtvm_rpc_server.h>
 #include <unistd.h>
 
-#include <chrono>
 #include <iostream>
 
 #include "crt_config.h"
@@ -36,10 +35,6 @@
 #ifdef TVM_HOST_USE_GRAPH_EXECUTOR_MODULE
 #include <tvm/runtime/crt/graph_executor_module.h>
 #endif
-
-#include <tvm/runtime/crt/aot_executor_module.h>
-
-using namespace std::chrono;
 
 extern "C" {
 
@@ -50,50 +45,6 @@ ssize_t MicroTVMWriteFunc(void* context, const uint8_t* data, size_t num_bytes) 
   return to_return;
 }
 
-void TVMPlatformAbort(tvm_crt_error_t error_code) {
-  std::cerr << "TVMPlatformAbort: " << error_code << std::endl;
-  throw "Aborted";
-}
-
-steady_clock::time_point g_microtvm_start_time;
-int g_microtvm_timer_running = 0;
-
-tvm_crt_error_t TVMPlatformTimerStart() {
-  if (g_microtvm_timer_running) {
-    std::cerr << "timer already running" << std::endl;
-    return kTvmErrorPlatformTimerBadState;
-  }
-  g_microtvm_start_time = std::chrono::steady_clock::now();
-  g_microtvm_timer_running = 1;
-  return kTvmErrorNoError;
-}
-
-tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
-  if (!g_microtvm_timer_running) {
-    std::cerr << "timer not running" << std::endl;
-    return kTvmErrorPlatformTimerBadState;
-  }
-  auto microtvm_stop_time = std::chrono::steady_clock::now();
-  std::chrono::microseconds time_span = std::chrono::duration_cast<std::chrono::microseconds>(
-      microtvm_stop_time - g_microtvm_start_time);
-  *elapsed_time_seconds = static_cast<double>(time_span.count()) / 1e6;
-  g_microtvm_timer_running = 0;
-  return kTvmErrorNoError;
-}
-
-static_assert(RAND_MAX >= (1 << 8), "RAND_MAX is smaller than acceptable");
-unsigned int random_seed = 0;
-tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
-  if (random_seed == 0) {
-    random_seed = (unsigned int)time(NULL);
-  }
-  for (size_t i = 0; i < num_bytes; ++i) {
-    int random = rand_r(&random_seed);
-    buffer[i] = (uint8_t)random;
-  }
-
-  return kTvmErrorNoError;
-}
 }
 
 static char** g_argv = NULL;

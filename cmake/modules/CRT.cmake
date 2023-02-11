@@ -23,7 +23,7 @@ if(USE_MICRO)
       "src/runtime/crt/host microtvm_api_server.py -> crt"
       "src/runtime/crt/host Makefile.template -> crt"
       "src/runtime/crt/host main.cc -> crt/src"
-      "src/runtime/crt/host platform-template.c -> crt/src"
+      "src/runtime/crt/host platform.cc -> crt/src"
       "src/runtime/crt crt_config-template.h -> crt/crt_config"
     )
 
@@ -66,6 +66,10 @@ if(USE_MICRO)
         endforeach()
       endforeach()
     endforeach()
+
+    # Add template files for Model Library Format
+    configure_file("src/runtime/crt/crt_config-template.h" "${MICROTVM_TEMPLATE_PROJECTS}/crt/templates/crt_config.h.template" COPYONLY)
+    configure_file("src/runtime/crt/platform-template.c" "${MICROTVM_TEMPLATE_PROJECTS}/crt/templates/platform.c.template" COPYONLY)
 
     add_custom_target(crt DEPENDS ${crt_template_deps})
   endfunction()
