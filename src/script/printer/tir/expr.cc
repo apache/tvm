@@ -79,7 +79,11 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::StringImm>("", [](tir::StringImm s, ObjectPath p, IRDocsifier d) -> Doc {
-      return d->AsDoc<ExprDoc>(s->value, p->Attr("value"));
+      if (HasMultipleLines(s->value)) {
+        return d->AddMetadata(s);
+      } else {
+        return d->AsDoc<ExprDoc>(s->value, p->Attr("value"));
+      }
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
