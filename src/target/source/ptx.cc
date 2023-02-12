@@ -659,5 +659,40 @@ std::string PrintCpAsyncAssembly(const std::string& shared_ptr,
   return asm_code;
 }
 
+std::string PrintPredicatedCpAsyncAssembly(const std::string& shared_ptr,
+                                           const std::string& shared_elem_offset,
+                                           const std::string& global_ptr,
+                                           const std::string& global_elem_offset,
+                                           const std::string& bytes,
+                                           const std::string& predicate_value) {
+  std::string predicated_asm_code = R"(
+  {
+    unsigned int addr;
+    __asm__ __volatile__(
+      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
+      : "=r"(addr)
+      : "l"((void *)({smem_addr}))
+    );
+    __asm__ __volatile__(
+      "{\n"
+      "\t.reg .pred p;\n"
+      "\tsetp.ne.b32 p, %0, 0;\n"
+      "\t@p cp.async.{cg_or_ca}.shared.global [%1], [%2], %3;\n"
+      "}\n"
+       :: "r"((int){pred_guard}),
+          "r"(addr), "l"((void*)({global_ptr})), "n"({bytes})
+    );
+  }
+)";
+  Replacer replacer;
+  replacer.register_rule("{smem_addr}", shared_ptr + " + " + shared_elem_offset);
+  replacer.register_rule("{global_ptr}", global_ptr + " + " + global_elem_offset);
+  replacer.register_rule("{bytes}", bytes);
+  replacer.register_rule("{cg_or_ca}", bytes == "16" ? "cg" : "ca");
+  replacer.register_rule("{pred_guard}", predicate_value);
+  predicated_asm_code = replacer.rewrite(predicated_asm_code);
+  return predicated_asm_code;
+}
+
 }  // namespace codegen
 }  // namespace tvm
