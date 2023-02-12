@@ -81,6 +81,7 @@ class PTXAsyncCopyInjector : public StmtMutator {
           auto dst_offset = store->indices[0];
           Array<PrimExpr> args = {store->buffer->data, tir::Mul(dst_offset, PrimExpr(index_factor)),
                                   load->buffer->data, src_offset, PrimExpr(bytes)};
+          // use arguments size to indicate whether or not to use predicated cp.async
           if (predicated) args.push_back(predicate_value);
           return Evaluate(Call(store->buffer->dtype, tvm::tir::builtin::ptx_cp_async(), args));
         }
@@ -113,7 +114,6 @@ class PTXAsyncCopyInjector : public StmtMutator {
           if (src_offset.defined() && dst_offset.defined()) {
             Array<PrimExpr> args = {store->buffer->data, tir::Mul(dst_offset, PrimExpr(index_factor)),
                                     load->buffer->data, src_offset, PrimExpr(bytes)};
-            if (predicated) args.push_back(predicate_value);
             return Evaluate(Call(store->buffer->dtype, tvm::tir::builtin::ptx_cp_async(), args));
           }
         }
