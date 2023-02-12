@@ -85,7 +85,7 @@ class MemoryDatabaseNode : public DatabaseNode {
     }
     std::stable_sort(results.begin(), results.end(), SortTuningRecordByMeanRunSecs());
     if (results.size() > static_cast<size_t>(top_k)) {
-      return {results.begin(), results.end() + top_k};
+      return {results.begin(), results.begin() + top_k};
     } else {
       if (results.size() < static_cast<size_t>(top_k)) {
         LOG(WARNING) << "The size of the GetTopK result is smaller than requested. There are not "

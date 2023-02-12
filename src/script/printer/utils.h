@@ -27,6 +27,8 @@
 #include <utility>
 #include <vector>
 
+#include "../../support/str_escape.h"
+
 namespace tvm {
 namespace script {
 namespace printer {
@@ -76,9 +78,10 @@ inline std::string Docsify(const ObjectRef& obj, const IRDocsifier& d, const Fra
   std::ostringstream os;
   if (!d->metadata.empty()) {
     if (d->cfg->show_meta) {
-      os << "metadata = tvm.ir.load_json("
-         << SaveJSON(Map<String, ObjectRef>(d->metadata.begin(), d->metadata.end())) << ")"
-         << "\n";
+      os << "metadata = tvm.ir.load_json(\""
+         << support::StrEscape(
+                SaveJSON(Map<String, ObjectRef>(d->metadata.begin(), d->metadata.end())))
+         << "\")\n";
     } else {
       f->stmts.push_back(
           CommentDoc("Metadata omitted. Use show_meta=True in script() method to show it."));
@@ -128,6 +131,11 @@ inline Doc HeaderWrapper(const IRDocsifier& d, const Doc& doc) {
     return StmtBlockDoc(stmts);
   }
   return doc;
+}
+
+/*! \brief Check if a string has multiple lines. */
+inline bool HasMultipleLines(const std::string& str) {
+  return str.find_first_of('\n') != std::string::npos;
 }
 
 inline Optional<String> GetBindingName(const IRDocsifier& d) {
