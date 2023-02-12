@@ -79,7 +79,7 @@ class BufferProxy:
             axis_separators=axis_separators,
         )
 
-    @deprecated("T.Buffer(...)", "T.Buffer(...)")
+    @deprecated("T.Buffer[...]", "T.Buffer(...)")
     def __getitem__(self, keys) -> Buffer:
         if not isinstance(keys, tuple):
             return self(keys)
@@ -93,12 +93,13 @@ class PtrProxy:
     Overload __call__ and __getitem__ to support syntax as T.Ptr() and T.Ptr().
     """
 
+    @deprecated("T.Ptr(...)", "T.handle(...)")
     def __call__(self, dtype, storage_scope="global"):
         if callable(dtype):
             dtype = dtype().dtype
         return ptr(dtype, storage_scope)  # pylint: disable=no-member # type: ignore
 
-    @deprecated("T.Ptr(...)", "T.Ptr(...)")
+    @deprecated("T.Ptr[...]", "T.handle(...)")
     def __getitem__(self, keys):
         if not isinstance(keys, tuple):
             return self(keys)

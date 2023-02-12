@@ -424,7 +424,7 @@ def test_buffer_conditional_lowering():
     """
 
     @T.prim_func
-    def before(A: T.Ptr("float32")):
+    def before(A: T.handle("float32")):
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         for i in range(1):
             A_1 = T.Buffer((1,), data=A)
