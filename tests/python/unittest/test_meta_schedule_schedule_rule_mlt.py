@@ -365,7 +365,7 @@ def test_cuda_matmul():
     actual = generate_design_space(
         kind="cuda",
         mod=mod,
-        target=Target("nvidia/geforce-rtx-3080"),
+        target=Target("nvidia/geforce-rtx-2080"),  # disable async trace using sm75
         types=ms.schedule_rule.MultiLevelTiling,
     )
     check_sketches(
@@ -483,7 +483,7 @@ def test_cuda_matmul_relu():
     actual = generate_design_space(
         kind="cuda",
         mod=mod,
-        target=Target("nvidia/geforce-rtx-3080"),
+        target=Target("nvidia/geforce-rtx-2080"),  # disable async trace using sm75
         types=ms.schedule_rule.MultiLevelTiling,
     )
     check_sketches(
@@ -723,7 +723,7 @@ def test_cache_read_specify_consumer():
     space = generate_design_space(
         kind="cuda",
         mod=mod,
-        target=Target("nvidia/geforce-rtx-3080"),
+        target=Target("nvidia/geforce-rtx-2080"),  # disable async trace using sm75
         types=ms.schedule_rule.MultiLevelTiling,
     )
     check_sketches(

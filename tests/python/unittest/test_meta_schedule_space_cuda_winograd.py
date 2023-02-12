@@ -27,7 +27,7 @@ from tvm.target import Target
 
 
 def _target():
-    return Target("nvidia/geforce-rtx-3070")
+    return Target("nvidia/geforce-rtx-2080")  # disable async trace using sm75
 
 
 def _design_space(mod):
