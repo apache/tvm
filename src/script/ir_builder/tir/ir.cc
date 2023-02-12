@@ -492,6 +492,34 @@ Var EnvThread(String thread_tag) {
 }
 
 void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices) {
+  runtime::DataType buffer_dtype = buffer->dtype;
+  int index_lanes = indices.size() ? indices.back().dtype().lanes() : 1;
+  runtime::DataType lhs_dtype = buffer_dtype.with_lanes(buffer_dtype.lanes() * index_lanes);
+  runtime::DataType rhs_dtype = value->dtype;
+  if (lhs_dtype != rhs_dtype) {
+    if (lhs_dtype.lanes() != rhs_dtype.lanes()) {
+      LOG(FATAL) << "TypeError: Incompatible types in BufferStore"
+                 << ": LHS is `" << lhs_dtype << "`, RHS is `" << rhs_dtype
+                 << "`, indexing lanes: " << index_lanes;
+    }
+    if (lhs_dtype.code() != rhs_dtype.code()) {
+      if (
+          // Case 1. lhs is handle, and rhs needs to be casted to handle.
+          (lhs_dtype.code() == runtime::DataType::kHandle) ||
+          // Case 2. rhs is handle, and it needs to be casted to non-handle.
+          (rhs_dtype.code() == runtime::DataType::kHandle) ||
+          // Case 3. rhs is float or bfloat, and casting to non-float can lose precision.
+          ((lhs_dtype.code() == runtime::DataType::kInt ||
+            lhs_dtype.code() == runtime::DataType::kUInt) &&
+           (rhs_dtype.code() == runtime::DataType::kFloat ||
+            rhs_dtype.code() == runtime::DataType::kBFloat))) {
+        LOG(WARNING) << "Casting in BufferStore may lose precision"
+                     << ": LHS is `" << lhs_dtype << "`, RHS is `" << rhs_dtype
+                     << "`, indexing lanes: " << index_lanes;
+      }
+    }
+    value = tvm::cast(lhs_dtype, value);
+  }
   AddToParent(tvm::tir::BufferStore(buffer, value, indices));
 }
 
