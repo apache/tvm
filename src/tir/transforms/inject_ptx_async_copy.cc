@@ -47,10 +47,10 @@ class PTXAsyncCopyInjector : public StmtMutator {
     return StmtMutator::VisitStmt_(attr);
   }
 
-  Stmt injectPTX(const BufferLoadNode* load, const BufferStoreNode* store, bool predicated = false, PrimExpr predicate_value = PrimExpr()) {
+  Stmt injectPTX(const BufferLoadNode* load, const BufferStoreNode* store,
+                 bool predicated = false, PrimExpr predicate_value = PrimExpr()) {
     if (load->buffer.scope() == "global") {
       ICHECK(load->indices.size() == 1 && store->indices.size() == 1);
-      // std::cout << "[BufferLoadNode]: " << load->indices << " " << store->indices << std::endl;
       ICHECK(load->indices[0]->dtype.lanes() == store->indices[0]->dtype.lanes());
 
       const int indices_lanes = load->indices[0]->dtype.lanes();
@@ -79,7 +79,8 @@ class PTXAsyncCopyInjector : public StmtMutator {
         if (indices_lanes == 1) {
           auto src_offset = load->indices[0];
           auto dst_offset = store->indices[0];
-          Array<PrimExpr> args = {store->buffer->data, tir::Mul(dst_offset, PrimExpr(index_factor)),
+          Array<PrimExpr> args = {store->buffer->data,
+                                  tir::Mul(dst_offset, PrimExpr(index_factor)),
                                   load->buffer->data, src_offset, PrimExpr(bytes)};
           // use arguments size to indicate whether or not to use predicated cp.async
           if (predicated) args.push_back(predicate_value);
@@ -112,9 +113,10 @@ class PTXAsyncCopyInjector : public StmtMutator {
           }();
 
           if (src_offset.defined() && dst_offset.defined()) {
-            Array<PrimExpr> args = {store->buffer->data, tir::Mul(dst_offset, PrimExpr(index_factor)),
-                                    load->buffer->data, src_offset, PrimExpr(bytes)};
-            return Evaluate(Call(store->buffer->dtype, tvm::tir::builtin::ptx_cp_async(), args));
+            return Evaluate(
+                Call(store->buffer->dtype, tvm::tir::builtin::ptx_cp_async(),
+                     {store->buffer->data, tir::Mul(dst_offset, PrimExpr(index_factor)),
+                      load->buffer->data, src_offset, PrimExpr(bytes)}));
           }
         }
       }
@@ -127,7 +129,7 @@ class PTXAsyncCopyInjector : public StmtMutator {
       if (auto* load = store->value.as<BufferLoadNode>()) {
         return injectPTX(load, store);
       } else if (auto* call = store->value.as<CallNode>()) {
-        // tir.if_then_else is a call to tir::builtin::if_then_else(
+        // tir.if_then_else is a call to tir::builtin::if_then_else()
         if (call->op.same_as(builtin::if_then_else()) && call->args.size() == 3) {
           if (auto* load = call->args[1].as<BufferLoadNode>()) {
             bool else_value_is_zero = false;
