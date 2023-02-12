@@ -399,12 +399,12 @@ def GMMCUDATensorCore(
 ) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
-    s0 = T.var("int32")
-    s0_1 = T.var("int32")
-    s0_2 = T.var("int32")
-    s1 = T.var("int32")
-    s1_1 = T.var("int32")
-    s1_2 = T.var("int32")
+    s0 = T.int32()
+    s0_1 = T.int32()
+    s0_2 = T.int32()
+    s1 = T.int32()
+    s1_1 = T.int32()
+    s1_2 = T.int32()
     # body
     # with T.block("root")
     Z_wmma_accumulator = T.alloc_buffer([1024, 1024], dtype="float32", scope="wmma.accumulator")

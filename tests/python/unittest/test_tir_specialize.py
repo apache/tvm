@@ -22,7 +22,7 @@ from tvm.script import tir as T
 
 @T.prim_func
 def matmul(a: T.handle, b: T.handle, c: T.handle, n: T.int32) -> None:
-    m = T.var("int32")
+    m = T.int32()
     A = T.match_buffer(a, [m, n])
     B = T.match_buffer(b, [m, n])
     C = T.match_buffer(c, [m, m])
@@ -51,7 +51,7 @@ def matmul_128(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def matmul_m_128(a: T.handle, b: T.handle, c: T.handle) -> None:
-    m = T.var("int32")
+    m = T.int32()
     A = T.match_buffer(a, [m, 128])
     B = T.match_buffer(b, [m, 128])
     C = T.match_buffer(c, [m, m])
@@ -66,8 +66,8 @@ def matmul_m_128(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def matmul_m_8x(a: T.handle, b: T.handle, c: T.handle) -> None:
-    x = T.var("int32")
-    m = T.var("int32")
+    x = T.int32()
+    m = T.int32()
     A = T.match_buffer(a, [m, x * 8])
     B = T.match_buffer(b, [m, x * 8])
     C = T.match_buffer(c, [m, m])
@@ -82,8 +82,8 @@ def matmul_m_8x(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def element_wise(a: T.handle, c: T.handle) -> None:
-    m = T.var("int32")
-    n = T.var("int32")
+    m = T.int32()
+    n = T.int32()
     A = T.match_buffer(a, (m, n), "float32")
     C = T.match_buffer(c, (m, n), "float32")
 
@@ -119,7 +119,7 @@ def element_wise_128_64(a: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def element_wise_128_n(a: T.handle, c: T.handle) -> None:
-    n = T.var("int32")
+    n = T.int32()
     A = T.match_buffer(a, (128, n), "float32")
     C = T.match_buffer(c, (128, n), "float32")
     B = T.alloc_buffer((128, n), "float32")
@@ -170,7 +170,7 @@ def mem_copy_m_n_p_n(a: T.handle, b: T.handle, m: T.int32, n: T.int32, p: T.int3
 
 @T.prim_func
 def param_in_arith_exprs(a: T.handle, b: T.handle) -> None:
-    n = T.var("int32")
+    n = T.int32()
     A = T.match_buffer(a, [n // 8, 8], "int32")
     B = T.match_buffer(b, [n], "int32")
     for i in range(n - 1):
@@ -181,7 +181,7 @@ def param_in_arith_exprs(a: T.handle, b: T.handle) -> None:
 
 @T.prim_func
 def param_in_arith_exprs_n_16(a: T.handle, b: T.handle) -> None:
-    n = T.var("int32")
+    n = T.int32()
     A = T.match_buffer(a, [2, 8], "int32")
     B = T.match_buffer(b, [16], "int32")
     for i in range(15):

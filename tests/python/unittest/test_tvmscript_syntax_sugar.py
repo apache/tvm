@@ -155,9 +155,9 @@ def test_match_buffer_1d():
 # dynamic shape gemm
 @T.prim_func
 def gemm_dyn_shape(a: T.handle, b: T.handle, c: T.handle):
-    N = T.var("int32")
-    M = T.var("int32")
-    K = T.var("int32")
+    N = T.int32()
+    M = T.int32()
+    K = T.int32()
     A = T.match_buffer(a, (N, K), "float32")
     B = T.match_buffer(b, (K, M), "float32")
     C = T.match_buffer(c, (N, M), "float32")
