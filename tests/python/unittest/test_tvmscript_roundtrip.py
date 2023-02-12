@@ -3630,7 +3630,7 @@ ir_generator = tvm.testing.parameter(
 
 def test_roundtrip(ir_generator):
     original = ir_generator()
-    after_roundtrip = tvm.script.from_source(original.script())
+    after_roundtrip = tvm.script.from_source(original.script(show_meta=True))
     tvm.ir.assert_structural_equal(original, after_roundtrip, True)
 
 
