@@ -42,14 +42,6 @@ namespace tvm {
 // alias DLDevice
 using Device = DLDevice;
 
-// A 'null' device type, does not correspond to any DLDeviceType enum.
-// TODO(mbs): This is to help us as we transition away from representing the 'homogenous' case
-// as a singleton target map indexed by the invalid DLDeviceType '0'.
-constexpr DLDeviceType kNullDeviceType = static_cast<DLDeviceType>(0);
-
-// An 'invalid' device type, does not correspond to any DLDeviceType enum.
-constexpr DLDeviceType kInvalidDeviceType = static_cast<DLDeviceType>(-1);
-
 namespace runtime {
 
 /*!
