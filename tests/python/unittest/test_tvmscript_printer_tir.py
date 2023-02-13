@@ -674,7 +674,7 @@ def test_prim_type():
 
 def test_pointer_type():
     obj = ir.PointerType(ir.PrimType("int32"), "global")
-    _assert_print(obj, 'T.Ptr("int32", "global")')
+    _assert_print(obj, 'T.handle("int32", "global")')
 
 
 def test_tuple_type():
