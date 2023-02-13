@@ -678,6 +678,12 @@ TVM_DLL Pass Filter(runtime::TypedPackedFunc<bool(PrimFunc)> fcond);
 TVM_DLL Pass InjectPTXAsyncCopy();
 
 /*!
+ * \brief Pass to rewrite global to local memory copy on CUDA with ldg32 instruction.
+ * \return The pass.
+ */
+TVM_DLL Pass InjectPTXLDG32(bool enable_inject_ptx_ldg32 = true);
+
+/*!
  * \brief Remove the weight layout rewrite block
  * \param skip_ndarray_rewrite If True, exact rewrite of NDArray, according to the given index map,
  *  will be skipped. Only the shape of the NDArray is transformed correctly, and the content of
