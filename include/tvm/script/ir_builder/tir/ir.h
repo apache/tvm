@@ -415,12 +415,12 @@ void Prefetch(Buffer buffer, Array<Range> bounds);
 void Evaluate(PrimExpr value);
 
 /*!
- * \brief The pointer declaration function.
+ * \brief Create a TIR var that represents a pointer
  * \param dtype The data type of the pointer.
  * \param storage_scope The storage scope of the pointer.
  * \return The pointer.
  */
-PrimExpr Ptr(runtime::DataType dtype, String storage_scope = "global");
+Var Handle(runtime::DataType dtype = runtime::DataType::Void(), String storage_scope = "global");
 
 #define TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                             \
   inline PrimExpr FuncName(Optional<PrimExpr> expr = NullOpt) {                        \
@@ -455,7 +455,6 @@ TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(Float, DataType::Float);
 TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(UInt, DataType::UInt);
 TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(Int, DataType::Int);
 TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(Boolean, DataType::Bool());
-TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(Handle, DataType::Handle());
 TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(Void, DataType::Void());
 
 #undef TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST

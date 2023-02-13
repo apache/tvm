@@ -689,12 +689,12 @@ class TestLetBufferRewrite(BaseCompare):
     """
 
     def before() -> None:
-        A_data: T.Ptr("int32") = T.call_extern("dummy_func", dtype="handle")
+        A_data: T.handle("int32") = T.call_extern("dummy_func", dtype="handle")
         A = T.Buffer([8], "int32", data=A_data)
         A[0:8] = T.broadcast(42, 8)
 
     def expected() -> None:
-        A_data: T.Ptr("int32x8") = T.call_extern("dummy_func", dtype="handle")
+        A_data: T.handle("int32x8") = T.call_extern("dummy_func", dtype="handle")
         A = T.Buffer([1], "int32x8", data=A_data)
         A[0] = T.broadcast(42, 8)
 

@@ -1358,20 +1358,23 @@ def boolean(expr: Optional[PrimExpr] = None) -> PrimExpr:
     return _ffi_api.Boolean(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def handle(expr: Optional[PrimExpr] = None) -> PrimExpr:
-    """Construct a new tir.Var with type handle or cast expression to type handle.
+def handle(dtype: str = "void", storage_scope: str = "global") -> Var:
+    """Create a TIR var that represents a pointer.
 
     Parameters
     ----------
-    expr: PrimExpr
-        The expression to be cast.
+    dtype: str
+        The data type of the pointer.
+
+    storage_scope: str
+        The storage scope of the pointer.
 
     Returns
     -------
     res : PrimExpr
         The new tir.Var with type handle or casted expression with type handle.
     """
-    return _ffi_api.Handle(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Handle(dtype, storage_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def void(expr: Optional[PrimExpr] = None) -> PrimExpr:
