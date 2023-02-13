@@ -34,11 +34,9 @@ function(microtvm_add_platform_project_api platform)
       "apps/microtvm/zephyr/template_project boards.json -> zephyr"
       "apps/microtvm/zephyr/template_project CMakeLists.txt.template -> zephyr"
       "apps/microtvm/zephyr/template_project/src/aot_standalone_demo *.c -> zephyr/src/aot_standalone_demo"
-      "apps/microtvm/zephyr/template_project/src/aot_standalone_demo *.h -> zephyr/src/aot_standalone_demo"
       "apps/microtvm/zephyr/template_project/src/host_driven *.c -> zephyr/src/host_driven"
       "apps/microtvm/zephyr/template_project/src/host_driven *.h -> zephyr/src/host_driven"
       "apps/microtvm/zephyr/template_project/src/mlperftiny *.cc -> zephyr/src/mlperftiny"
-      "apps/microtvm/zephyr/template_project/src/mlperftiny *.h -> zephyr/src/mlperftiny"
       "3rdparty/mlperftiny/api * -> zephyr/src/mlperftiny/api"
       "apps/microtvm/zephyr/template_project/fvp-hack * -> zephyr/fvp-hack"
       "apps/microtvm/zephyr/template_project/qemu-hack * -> zephyr/qemu-hack"
@@ -65,7 +63,7 @@ function(microtvm_add_platform_project_api platform)
       PLATFORM_FILE_COPY_JOBS
       "src/runtime/crt/host microtvm_api_server.py -> crt"
       "src/runtime/crt/host Makefile.template -> crt"
-      "src/runtime/crt/host main.cc -> crt/src"
+      "src/runtime/crt/host **.cc -> crt/src"
     )
   else()
     message(FATAL_ERROR "${platform} not supported.")
@@ -119,6 +117,10 @@ if(USE_MICRO)
   foreach(platform IN LISTS PLATFORMS)
     message(STATUS "Add ${platform} template project.")
     microtvm_add_platform_project_api(${platform})
-    generate_crt_config(${platform}, "${CMAKE_CURRENT_BINARY_DIR}/microtvm_template_projects/${platform}/crt_config")
+    generate_crt_config(${platform} "${CMAKE_CURRENT_BINARY_DIR}/microtvm_template_projects/${platform}/crt_config/crt_config.h")
   endforeach()
+
+  # Add template files for Model Library Format
+  generate_crt_config("crt" "${MICROTVM_TEMPLATE_PROJECTS}/crt/templates/crt_config.h.template")
+  configure_file("src/runtime/crt/platform-template.c" "${MICROTVM_TEMPLATE_PROJECTS}/crt/templates/platform.c.template" COPYONLY)
 endif(USE_MICRO)

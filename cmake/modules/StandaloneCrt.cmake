@@ -20,7 +20,7 @@ if(USE_MICRO)
   message(STATUS "Build microTVM RPC common")
 
   include(cmake/utils/CRTConfig.cmake)
-  generate_crt_config("crt" "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/micro")
+  generate_crt_config("crt" "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/micro/crt_config.h")
 
   # add microTVM RPC common files to TVM runtime build
   list(APPEND TVM_CRT_SOURCES

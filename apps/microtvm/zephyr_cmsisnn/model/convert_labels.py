@@ -51,5 +51,5 @@ def prepare_crt_config():
 
 
 if __name__ == "__main__":
-    # create_labels_header(sys.argv[1], sys.argv[2])
+    create_labels_header(sys.argv[1], sys.argv[2])
     prepare_crt_config()
