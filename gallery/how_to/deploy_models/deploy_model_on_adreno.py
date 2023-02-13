@@ -53,11 +53,17 @@ Let's push them to the device and run TVM RPC Server.
 #
 #   adb devices
 #
+# Set the android device to use
+#
+# .. code-block:: bash
+#
+#   export ANDROID_SERIAL=<device-hash>
+#
 # Then to upload these two files to the device you should use:
 #
 # .. code-block:: bash
 #
-#   adb -s <device_hash> push {libtvm_runtime.so,tvm_rpc} /data/local/tmp
+#   adb push {libtvm_runtime.so,tvm_rpc} /data/local/tmp
 #
 # At this moment you will have «libtvm_runtime.so» and «tvm_rpc» on path /data/local/tmp on your device.
 # Sometimes cmake can’t find «libc++_shared.so». Use:
@@ -70,7 +76,7 @@ Let's push them to the device and run TVM RPC Server.
 #
 # .. code-block:: bash
 #
-#   adb -s <device_hash> push libc++_shared.so /data/local/tmp
+#   adb push libc++_shared.so /data/local/tmp
 #
 # We are now ready to run the TVM RPC Server.
 # Launch rpc_tracker with following line in 1st console:
@@ -83,12 +89,12 @@ Let's push them to the device and run TVM RPC Server.
 #
 # .. code-block:: bash
 #
-#   adb -s <device_hash> reverse tcp:9190 tcp:9190
-#   adb -s <device_hash> forward tcp:9090 tcp:9090
-#   adb -s <device_hash> forward tcp:9091 tcp:9091
-#   adb -s <device_hash> forward tcp:9092 tcp:9092
-#   adb -s <device_hash> forward tcp:9093 tcp:9093
-#   adb -s <device_hash> shell LD_LIBRARY_PATH=/data/local/tmp /data/local/tmp/tvm_rpc server --host=0.0.0.0 --port=9090 --tracker=127.0.0.1:9190 --key=android --port-end=9190
+#   adb reverse tcp:9190 tcp:9190
+#   adb forward tcp:5000 tcp:5000
+#   adb forward tcp:5002 tcp:5001
+#   adb forward tcp:5003 tcp:5002
+#   adb forward tcp:5004 tcp:5003
+#   adb shell LD_LIBRARY_PATH=/data/local/tmp /data/local/tmp/tvm_rpc server --host=0.0.0.0 --port=5000 --tracker=127.0.0.1:9190 --key=android --port-end=5100
 #
 # Before proceeding to compile and infer model, specify TVM_TRACKER_HOST and TVM_TRACKER_PORT
 #
@@ -130,6 +136,10 @@ from tvm.contrib import graph_executor
 from tvm.relay.op.contrib import clml
 from tvm import autotvm
 
+# Below are set of configuration that controls the behaviour of this script like
+# local run or device run, target definitions,  dtype setting and auto tuning enablement.
+# Change these settings as needed if required.
+
 # Adreno devices are efficient with float16 compared to float32
 # Given the expected output doesn't effect by lowering precision
 # it's advisable to use lower precision.
@@ -156,7 +166,8 @@ test_target = "cpu"
 arch = "arm64"
 target = tvm.target.Target("llvm -mtriple=%s-linux-android" % arch)
 
-# Auto tuning is compute and time taking task, hence disabling for default run. Please enable it if required.
+# Auto tuning is compute intensive and time taking task,
+# hence disabling for default run. Please enable it if required.
 is_tuning = False
 tune_log = "adreno-resnet18.log"
 
@@ -220,6 +231,19 @@ mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
 #################################################################
 # Precisions
 # ----------
+
+# Adreno devices are efficient with float16 compared to float32
+# Given the expected output doesn't effect by lowering precision
+# it's advisable to use lower precision.
+
+# TVM support Mixed Precision through ToMixedPrecision transformation pass.
+# We may need to register precision rules like precision type, accumultation
+# datatype ...etc. for the required operators to override the default settings.
+# The below helper api simplifies the precision conversions across the module.
+# Now it supports dtypes "float16" and "float16_acc32".
+
+# dtype is set to "float16_acc32" in configuration section above.
+
 from tvm.relay.op.contrib import adreno
 
 adreno.convert_to_dtype(mod["main"], dtype)
@@ -235,6 +259,12 @@ print(mod)
 #################################################################
 # Prepare TVM Target
 # ------------------
+
+# This generated example running on our x86 server for demonstration.
+
+# To deply and tun on real target over RPC please set :code:`local_demo` to False in above configuration sestion.
+# Also, :code:`test_target` is set to :code:`llvm` as this example to make compatible for x86 demonstration.
+# Please change it to :code:`opencl` or :code:`opencl -device=adreno` for RPC target in configuration above.
 
 if local_demo:
     target = tvm.target.Target("llvm")
@@ -253,6 +283,10 @@ elif test_target.find("opencl"):
 rpc_tracker_host = os.environ.get("TVM_TRACKER_HOST", "127.0.0.1")
 rpc_tracker_port = int(os.environ.get("TVM_TRACKER_PORT", 9190))
 key = "android"
+
+# Auto tuning is compute intensive and time taking task.
+# It is set to False in above configuration as this script runs in x86 for demonstration.
+# Please to set :code:`is_tuning` to True to enable auto tuning.
 
 if is_tuning:
     # Auto Tuning Stage 1: Extract tunable tasks
@@ -275,9 +309,9 @@ if is_tuning:
         ),
     )
     n_trial = 1024  # Number of iteration of training before choosing the best kernel config
-    early_stopping = False  # Do we apply early stopping when the loss is not minimizing
+    early_stopping = False  # Can be enabled to stop tuning while the loss is not minimizing.
 
-    # Iterate through each task and call the tuner
+    # Auto Tuning Stage 3: Iterate through the tasks and tune.
     from tvm.autotvm.tuner import XGBTuner
 
     for i, tsk in enumerate(reversed(tasks[:3])):
@@ -295,7 +329,7 @@ if is_tuning:
                 autotvm.callback.log_to_file(tmp_log_file),
             ],
         )
-    # Pick the best performing kerl configurations from the overall log.
+    # Auto Tuning Stage 4: Pick the best performing configurations from the overall log.
     autotvm.record.pick_best(tmp_log_file, tune_log)
 
 #################################################################
@@ -303,6 +337,9 @@ if is_tuning:
 # --------------------------
 # OpenCLML offloading will try to accelerate supported operators
 # by using OpenCLML proprietory operator library.
+
+# By default :code:`enable_clml` is set to False in above configuration section.
+
 if not local_demo and enable_clml:
     mod = clml.partition_for_clml(mod, params)
 

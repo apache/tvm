@@ -127,7 +127,12 @@ Deploying the compiled model here require use some tools on host as well as on t
 TVM has simplified user friendly command line based tools as well as
 developer centric python API interface for various steps like auto tuning, building and deploying.
 
-TVM compilation process for remote devices has multiple stages listed below.
+
+|Adreno deployment pipeline|
+
+*Fig.2 Build and Deployment pipeline on Adreno devices*
+
+The figure above demonstrates a generalized pipeline for various stages listed below.
 
 **Model import:**
 At this stage we import a model from well known frameworks like Tensorflow, PyTorch, ONNX ...etc.
@@ -150,7 +155,7 @@ At this stage we run the TVM compilation output on the target. Deployment is pos
 environment using RPC Setup and also using TVM's native tool which is native binary cross compiled for Android.
 At this stage we can run the compiled model on Android target and unit test output correctness and performance aspects.
 
-**Aplication Integration:**
+**Application Integration:**
 This stage is all about integrating TVM compiled model in applications. Here we discuss about
 interfacing tvm runtime from Android (cpp native environment or from JNI) for setting input and getting output.
 
@@ -234,7 +239,6 @@ Below command will configure the build the host compiler
    cd build
    cp ../cmake/config.cmake .
 
-   echo set\(USE_OPENCL ON\) >> config.cmake
    echo set\(USE_RPC ON\) >> config.cmake
    echo set\(USE_GRAPH_EXECUTOR ON\) >> config.cmake
    echo set\(USE_LIBBACKTRACE AUTO\) >> config.cmake
@@ -258,7 +262,7 @@ Finally we can export python path as
 
 ::
 
-   export PYTHONPATH=$PWD:/python
+   export PYTHONPATH=$TVM_HOME/python:${PYTHONPATH}
    python3 -c "import tvm" # Verify tvm python package
 
 
@@ -274,7 +278,6 @@ Target build require Android NDK to be installed.
    mkdir -p build-adreno
    cd build-adreno
    cp ../cmake/config.cmake .
-   echo set\(USE_MICRO OFF\) >> config.cmake
    echo set\(USE_OPENCL ON\) >> config.cmake
    echo set\(USE_RPC ON\) >> config.cmake
    echo set\(USE_CPP_RPC ON\) >> config.cmake
@@ -342,12 +345,12 @@ manually and also inside docker using automated tools.
 **Automated RPC Setup:**
 Here we will explain how to setup RPC in docker environment.
 
-Below command launches tracker in docker environment, where docker listens on port 9120.
+Below command launches tracker in docker environment, where tracker listens on port 9190.
 
 ::
 
    ./tests/scripts/ci.py adreno -i # Launch a new shell on the anreno docker
-   source  tests/scripts/setup-adreno-env.sh -e tracker -p 9120
+   source  tests/scripts/setup-adreno-env.sh -e tracker -p 9190
 
 Now, the below comand can run TVM RPC on remote android device with id "abcdefgh".
 
@@ -355,60 +358,16 @@ Now, the below comand can run TVM RPC on remote android device with id "abcdefgh
 ::
 
    ./tests/scripts/ci.py adreno -i # Launch a new shell on adreno docker.
-   source  tests/scripts/setup-adreno-env.sh -e device -p 9120 -d abcdefgh
+   source  tests/scripts/setup-adreno-env.sh -e device -p 9190 -d abcdefgh
 
 
 **Manual RPC Setup:**
 
-Below command in manual setup starts the tracker on port 9120
+Please refer to the tutorial
+`How To Deploy model on Adreno <https://tvm.apache.org/docs/how_to/deploy_models/deploy_model_on_adreno.html>`_
+for manual RPC environment setup.
 
-::
-
-   python3 -m tvm.exec.rpc_tracker --host "0.0.0.0" --port "9120"
-
-TVM RPC launch on Android device require some environment setup due to Android device is connected via ADB interface and we need to re-route
-TCP/IP communication over ADB interface. Below commands will do necessary setup and run tvm_rpc on remote device.
-
-::
-
-    # Set android device to use
-    export ANDROID_SERIAL=abcdefgh
-    # Create a temporary folder on remote device.
-    adb shell "mkdir -p /data/local/tmp/tvm_ci"
-    # Copy tvm_rpc and it's dependency to remote device
-    adb push build-adreno-target/tvm_rpc /data/local/tmp/tvm_test/tvm_rpc
-    adb push build-adreno-target/libtvm_runtime.so /data/local/tmp/tvm_test
-    # Forward port 9120 from target to host
-    adb reverse tcp:9210 tcp:9120
-    # tvm_rpc by default listens on ports starting from 5000 for incoming connections.
-    # Hence, reroute connections to these ports on host to remore device.
-    adb forward tcp:5000 tcp:5000
-    adb forward tcp:5001 tcp:5001
-    adb forward tcp:5002 tcp:5002
-    # Finally launch rpc_daemon on remote device with identity key as "android"
-    adb shell "cd /data/local/tmp/tvm_test; killall -9 tvm_rpc; sleep 2; LD_LIBRARY_PATH=/data/local/tmp/tvm_test/ ./tvm_rpc server --host=0.0.0.0 --port=5000 --port-end=5010 --tracker=127.0.0.1:9120 --key=android"
-
-Upon successfull running this remote device will be available on tracker which can be queried as below.
-
-::
-
-   python3 -m tvm.exec.query_rpc_tracker --port 9120
-   Tracker address 127.0.0.1:9120
-   Server List
-   ------------------------------
-   server-address           key
-   ------------------------------
-       127.0.0.1:5000    server:android
-   ------------------------------
-
-   Queue Status
-   -------------------------------
-   key       total  free  pending
-   -------------------------------
-   android   1      1     0
-   -------------------------------
-
-This concludes RPC Setup and we have rpc-tracker available on host 127.0.0.1 (rpc-tracker) and port 9120 (rpc-port).
+This concludes RPC Setup and we have rpc-tracker available on host 127.0.0.1 (rpc-tracker) and port 9190 (rpc-port).
 
 
 .. _commandline_interface:
@@ -431,7 +390,7 @@ Here we use a model from Keras and it uses RPC setup for tuning and finally gene
    resnet50.h5 -o \
    keras-resnet50.log \
    --early-stopping 0 --repeat 30 --rpc-key android \
-   --rpc-tracker 127.0.0.1:9120 --trials 1024 \
+   --rpc-tracker 127.0.0.1:9190 --trials 1024 \
    --tuning-records keras-resnet50-records.log --tuner xgb
 
 **Model Compilation:**
@@ -466,7 +425,7 @@ We can use below tvmc command to deploy on remore target via RPC based setup.
 ::
 
    python3 -m tvm.driver.tvmc run --device="cl" keras-resnet50.tar \
-   --rpc-key android --rpc-tracker 127.0.0.1:9120 --print-time
+   --rpc-key android --rpc-tracker 127.0.0.1:9190 --print-time
 
 tvmc based run has more option to initialize the input in various modes line fill, random ..etc.
 
@@ -628,4 +587,4 @@ We then can compile our model in any convinient way
        )
 
 .. |High-level overview of the Adreno™ A5x architecture for OpenCL| image:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/how-to/adreno_architecture.png
-.. |Android deployment pipeline| image:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/how-to/android_deployment_pipeline.jpg
+.. |Adreno deployment pipeline| image:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/how-to/Adreno-Deployment-Pipeline.jpg

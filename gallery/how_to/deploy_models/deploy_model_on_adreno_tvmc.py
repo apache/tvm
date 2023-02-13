@@ -65,7 +65,10 @@ tune_log = "adreno-resnet50.log"
 
 # To enable OpenCLML accelerated operator library.
 enable_clml = False
-cross_compiler = "/opt/android-sdk-linux/ndk/21.3.6528147/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang"
+cross_compiler = (
+    os.environ["ANDROID_NDK_HOME"]
+    + "/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang"
+)
 
 #######################################################################
 # Make a Keras Resnet50 Model
@@ -104,6 +107,12 @@ rpc_tracker_port = int(os.environ.get("TVM_TRACKER_PORT", 9190))
 rpc_key = "android"
 rpc_tracker = rpc_tracker_host + ":" + str(rpc_tracker_port)
 
+# Auto tuning is compute intensive and time taking task.
+# It is set to False in above configuration as this script runs in x86 for demonstration.
+# Please to set :code:`is_tuning` to True to enable auto tuning.
+
+# Also, :code:`test_target` is set to :code:`llvm` as this example to make compatible for x86 demonstration.
+# Please change it to :code:`opencl` or :code:`opencl -device=adreno` for RPC target in configuration above.
 
 if is_tuning:
     tvmc.tune(
@@ -125,6 +134,11 @@ if is_tuning:
 # -----------
 # Compilation to produce tvm artifacts
 
+# This generated example running on our x86 server for demonstration.
+# To deply and tun on real target over RPC please set :code:`local_demo` to False in above configuration sestion.
+
+# OpenCLML offloading will try to accelerate supported operators by using OpenCLML proprietory operator library.
+# By default :code:`enable_clml` is set to False in above configuration section.
 
 if not enable_clml:
     if local_demo:
