@@ -61,7 +61,7 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   if (auto* ptr = stmt.as<BufferStoreNode>()) {
     store = GetRef<BufferStore>(ptr);
   } else {
-    return (
+    return static_cast<const std::stringstream&>(
                std::stringstream()
                << "Expected innermost loop to have BufferStore body, but instead found " << stmt)
         .str();
@@ -71,7 +71,7 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   if (auto* ptr = store->value.as<BufferLoadNode>()) {
     load = GetRef<BufferLoad>(ptr);
   } else {
-    return (
+    return static_cast<const std::stringstream&>(
                std::stringstream()
                << "Expected BufferStore's value to be BufferLoad, but instead found "
                << store->value)
@@ -196,7 +196,7 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   auto dst_iter_sum = dst_iter_map->indices[0];
 
   if (src_iter_sum->args.size() != dst_iter_sum->args.size()) {
-    return (
+    return static_cast<const std::stringstream&>(
                std::stringstream()
                << "IterMap for src/dst unpacked to different number of IterSplitExpr: "
                << src_iter_sum->args.size() << " for src, " << dst_iter_sum->args.size()
