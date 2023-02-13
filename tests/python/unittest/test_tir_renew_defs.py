@@ -88,8 +88,8 @@ def test_match_buffer():
     # A and B should be remapped
     def func_match_buffer(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")):
         with T.block("root"):
-            s = T.var("int32")
-            e = T.var("int32")
+            s = T.int32()
+            e = T.int32()
             # A0 should be remapped
             A0 = T.match_buffer(
                 A[0:128, 0:128],
@@ -157,7 +157,7 @@ def test_undefined_buffer():
 def test_symbolic_func():
     @T.prim_func
     def symbolic_func(a: T.handle, b: T.handle, n: T.int32):
-        m = T.var("int32")
+        m = T.int32()
         A = T.match_buffer(a, (n, m))
         B = T.match_buffer(b, (n, m * 2))
         for i, j in T.grid(n, m):

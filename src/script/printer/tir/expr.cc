@@ -29,14 +29,29 @@ Doc PrintVar(const tir::Var& var, const ObjectPath& var_p, const IRDocsifier& d)
     if (Optional<Frame> opt_f = FindLowestVarDef(var, d)) {
       ExprDoc lhs = DefineVar(var, opt_f.value(), d);
       Type type = var->type_annotation;
+      ObjectPath type_p = var_p->Attr("type_annotation");
+      ExprDoc rhs{nullptr};
       if (const auto* ptr_type = type.as<PointerTypeNode>()) {
-        ICHECK(ptr_type->element_type->IsInstance<PrimTypeNode>());
-        ExprDoc rhs = d->AsDoc<ExprDoc>(type, var_p->Attr("type_annotation"));
-        opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
+        const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>();
+        ICHECK(prim_type);
+        ExprDoc element_type =
+            LiteralDoc::DataType(prim_type->dtype, type_p->Attr("element_type")->Attr("dtype"));
+        rhs = TIR(d, "handle");
+        rhs->source_paths.push_back(var_p->Attr("dtype"));
+        if (ptr_type->storage_scope == "") {
+          rhs = rhs->Call({element_type});
+        } else {
+          rhs = rhs->Call({element_type,
+                           LiteralDoc::Str(ptr_type->storage_scope,  //
+                                           type_p->Attr("storage_scope"))});
+        }
       } else {
-        ExprDoc rhs = TIR(d, "var")->Call({LiteralDoc::DataType(var->dtype, var_p->Attr("dtype"))});
-        opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
+        rhs = TIR(d, DType2Str(var->dtype));
+        rhs->source_paths.push_back(var_p->Attr("dtype"));
+        rhs = rhs->Call({});
       }
+      rhs->source_paths.push_back(type_p);
+      opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
     } else {
       LOG(WARNING) << "Didn't find variable definition for: " << var->name_hint;
     }

@@ -511,7 +511,7 @@ def test_report_error_root_block():
 
 def test_load_var():
     def load_var_multiple() -> None:
-        d = T.var("float32")
+        d = T.float32()
         d[2] = d[2, 1]  # error cannot provide two indices to load
 
     check_error(load_var_multiple, 3)
@@ -519,7 +519,7 @@ def test_load_var():
 
 def test_store_var():
     def store_var_multiple() -> None:
-        d = T.var("float32")
+        d = T.float32()
         d[2, 1] = d[1]  # error cannot provide two indices to store
 
     check_error(store_var_multiple, 3)

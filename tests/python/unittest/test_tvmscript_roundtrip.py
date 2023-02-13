@@ -2904,10 +2904,10 @@ def constant_folding():
 def simplify_bracket():
     @T.prim_func
     def simplify_bracket() -> None:
-        a = T.var("int32")
-        b = T.var("int32")
-        c = T.var("int32")
-        d = T.var("int32")
+        a = T.int32()
+        b = T.int32()
+        c = T.int32()
+        d = T.int32()
         T.evaluate(a + b * (c + d))
 
     return simplify_bracket
@@ -3039,8 +3039,8 @@ def multiple_commreducer():
 def func_div_mod():
     @T.prim_func
     def func_div_mod():
-        a = T.var("int32")
-        b = T.var("int32")
+        a = T.int32()
+        b = T.int32()
         T.evaluate(a // b)
         T.evaluate(a % b)
         T.evaluate(T.truncmod(a, b))
@@ -3316,7 +3316,7 @@ def buffer_ramp_access_as_slice_index():
 def let_expression():
     @T.prim_func
     def func():
-        x = T.var("int32")
+        x = T.int32()
         T.evaluate(T.let(x, 1, x + 1))
 
     return func
@@ -3542,8 +3542,8 @@ def intrinsic_pow():
 def let_stmt_var():
     @T.prim_func
     def func():
-        x = T.var("int32")
-        y = T.var("int32")
+        x = T.int32()
+        y = T.int32()
         with T.let(x, 0):
             with T.let(y, 0):
                 T.evaluate(0)
@@ -3555,8 +3555,8 @@ def let_stmt_var():
 def let_stmt_value():
     @T.prim_func
     def func():
-        x = T.var("int32")
-        y = T.var("int32")
+        x = T.int32()
+        y = T.int32()
         with T.let(x, y):
             with T.let(y, 0):
                 T.evaluate(0)
