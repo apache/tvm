@@ -44,6 +44,7 @@
 #include <string>
 #include <vector>
 
+#include "../../target/parsers/mprofile.h"
 #include "../../target/source/codegen_source_base.h"
 #include "../op/annotation/annotation.h"
 #include "../op/call/call.h"
@@ -1047,7 +1048,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     std::string interface_api =
         executor_config->GetAttr<String>("interface-api").value_or("packed");
     bool unpacked_api = executor_config->GetAttr<Bool>("unpacked-api").value_or(Bool(false));
-
+    
     // Validate choice of unpacked_api and use_call_cpacked_
     if (runtime_config->name == kTvmRuntimeCrt) {
       if (unpacked_api == true) {
@@ -1209,7 +1210,15 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     // Parallel for loops are not supported in AoT codegen.
     lowered_mod = tir::transform::ConvertForLoopsToSerial()(lowered_mod);
 
-    bool enable_usmp = pass_ctx->GetConfig<Bool>(kUSMPEnableOption, Bool(false)).value();
+    // Check USMP option
+    bool enable_usmp = false;
+    if (runtime_config->name == kTvmRuntimeCrt) {
+      enable_usmp = true;
+    }
+    if (pass_ctx->GetConfig<Bool>(kUSMPEnableOption) != nullptr) {
+      enable_usmp = pass_ctx->GetConfig<Bool>(kUSMPEnableOption, Bool(false)).value();
+    }
+
     if (enable_usmp) {
       lowered_mod = PlanMemoryWithUSMP(lowered_mod);
     } else {
