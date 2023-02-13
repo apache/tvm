@@ -44,7 +44,6 @@ ssize_t MicroTVMWriteFunc(void* context, const uint8_t* data, size_t num_bytes) 
   fsync(STDOUT_FILENO);
   return to_return;
 }
-
 }
 
 static char** g_argv = NULL;
