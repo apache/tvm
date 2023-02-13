@@ -14,35 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import, redefined-builtin
-"""Relax core operators."""
-
-# Operators
-from .base import *
-from .binary import *
-from .create import *
-from .datatype import *
-from .index import *
-from .linear_algebra import *
-from .manipulate import *
-from .op_attrs import *
-from .search import *
-from .set import *
-from .statistical import *
-from .ternary import *
-from .unary import *
-from . import builtin
-from . import image
-from . import memory
-from . import nn
-
-
-def _register_op_make():
-    # pylint: disable=import-outside-toplevel
-    from . import _ffi_api
-    from .. import expr
-
-    expr._op_ffi_api = _ffi_api  # type: ignore
-
-
-_register_op_make()
+# pylint: disable=wildcard-import
+"""Image operators."""
+from .image import *

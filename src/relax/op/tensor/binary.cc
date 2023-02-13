@@ -81,7 +81,19 @@ StructInfo InferStructInfoBroadcastCMP(const Call& call, const BlockBuilder& ctx
 /***************** Arithmetic operators *****************/
 
 RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(add);
+RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(divide);
+RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(floor_divide);
 RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(multiply);
+RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(subtract);
+
+/***************** Comparison operators *****************/
+
+RELAX_REGISTER_CMP_OP_AND_IMPL(equal);
+RELAX_REGISTER_CMP_OP_AND_IMPL(greater);
+RELAX_REGISTER_CMP_OP_AND_IMPL(greater_equal);
+RELAX_REGISTER_CMP_OP_AND_IMPL(less);
+RELAX_REGISTER_CMP_OP_AND_IMPL(less_equal);
+RELAX_REGISTER_CMP_OP_AND_IMPL(not_equal);
 
 }  // namespace relax
 }  // namespace tvm

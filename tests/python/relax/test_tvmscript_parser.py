@@ -22,19 +22,18 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import IRModule, relax, tir, topi
-from tvm.script.parser import ir as I
-from tvm.script.parser import relax as R
-from tvm.script.parser import tir as T
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def _check(
     parsed: Union[relax.Function, IRModule],
     expect: Optional[Union[relax.Function, IRModule]] = None,
 ):
-    # TODO(relax-team): enable roundtrip testing when printer is ready
-    # test = parsed.script(show_meta=True)
-    # roundtrip_mod = tvm.script.parse(test)
-    # tvm.ir.assert_structural_equal(parsed, roundtrip_mod)
+    test = parsed.script(show_meta=True)
+    roundtrip_mod = tvm.script.from_source(test)
+    tvm.ir.assert_structural_equal(parsed, roundtrip_mod)
     if expect:
         tvm.ir.assert_structural_equal(parsed, expect)
 
