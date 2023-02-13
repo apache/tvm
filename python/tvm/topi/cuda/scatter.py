@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, too-many-statements, singleton-comparison, unused-argument
 """Scatter operator """
 import tvm
-from tvm import te, autotvm
+from tvm import te, tir, autotvm
 from ..scatter import _verify_scatter_nd_inputs
 from ..generic import schedule_extern
 from .nms import atomic_add
@@ -871,8 +871,20 @@ def scatter_nd(data, indices, updates, mode):
                             out[index] = updates[i * fused_updates_dimension + j]
                         elif mode == "add":
                             out[index] += updates[i * fused_updates_dimension + j]
+                        elif mode == "mul":
+                            out[index] *= updates[i * fused_updates_dimension + j]
+                        elif mode == "min":
+                            out[index] = tir.min(
+                                out[index], updates[i * fused_updates_dimension + j]
+                            )
+                        elif mode == "max":
+                            out[index] = tir.max(
+                                out[index], updates[i * fused_updates_dimension + j]
+                            )
                         else:
-                            raise NotImplementedError("scatter_nd mode not in [update, add]:", mode)
+                            raise NotImplementedError(
+                                "scatter_nd mode not in [update, add, mul, min, max]:", mode
+                            )
 
         return ib.get()
 
