@@ -2671,18 +2671,19 @@ class PyTorchOpConverter:
             updates = _op.ones_like(data)
 
         counts = _op.zeros(_op.reshape(dim, [1]), out_dtype)
-        out = _op.scatter_add(counts, data, updates, axis=0)
+        out = _op.scatter_elements(counts, data, updates, axis=0, reduction="add")
         if input_type == "int32":
             # Torch always outputs int64 results for bincount
             return _op.cast(out, "int64")
         return out
 
     def scatter_add(self, inputs, input_types):
+        # TODO(vvchernov): need some check?
         data = inputs[0]
         axis = inputs[1]
         index = inputs[2]
         src = inputs[3]
-        return _op.scatter_add(data, index, src, axis=axis)
+        return _op.scatter_elements(data, index, src, axis=axis, reduction="add")
 
     def scatter_reduce(self, inputs, input_types):
         assert len(inputs) == 5 or len(inputs) == 6, (
