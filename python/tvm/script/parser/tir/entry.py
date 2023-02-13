@@ -21,7 +21,7 @@ from typing import Callable, Union
 from tvm.ir.base import deprecated
 from tvm.tir import Buffer, PrimFunc
 
-from ...ir_builder.tir import buffer_decl, ptr
+from ...ir_builder.tir import buffer, ptr
 from .._core import parse, utils
 
 
@@ -49,9 +49,7 @@ setattr(prim_func, "dispatch_token", "tir")
 
 
 class BufferProxy:
-    """Buffer proxy class for constructing tir buffer.
-    Overload __call__ and __getitem__ to support syntax as T.Buffer() and T.Buffer().
-    """
+    """Buffer proxy class for constructing tir buffer."""
 
     def __call__(
         self,
@@ -66,7 +64,7 @@ class BufferProxy:
         buffer_type="",
         axis_separators=None,
     ) -> Buffer:
-        return buffer_decl(
+        return buffer(
             shape,
             dtype=dtype,
             data=data,
@@ -89,9 +87,7 @@ class BufferProxy:
 
 
 class PtrProxy:
-    """Ptr proxy class for constructing tir pointer.
-    Overload __call__ and __getitem__ to support syntax as T.Ptr() and T.Ptr().
-    """
+    """Ptr proxy class for constructing tir pointer."""
 
     @deprecated("T.Ptr(...)", "T.handle(...)")
     def __call__(self, dtype, storage_scope="global"):

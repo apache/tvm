@@ -593,8 +593,7 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
       Namer::Name(var->var, name);
     });
 
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.BufferDecl").set_body_typed(BufferDecl);
-
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.Buffer").set_body_typed(BufferDecl);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.PrimFunc").set_body_typed(PrimFunc);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Arg")
     .set_body_typed([](String name, ObjectRef obj) -> ObjectRef {
