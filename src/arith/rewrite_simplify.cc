@@ -363,6 +363,11 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
     TVM_TRY_REWRITE(matches_one_of(max(x, y) - y, x - min(y, x)), max(x - y, 0));
     TVM_TRY_REWRITE(matches_one_of(x - min(x, y), max(y, x) - y), max(0, x - y));
 
+    TVM_TRY_REWRITE(x - max(x + y, 0), min(x, 0 - y));
+    TVM_TRY_REWRITE(x - max(0, x + y), min(x, 0 - y));
+    TVM_TRY_REWRITE(x - min(x + y, 0), max(x, 0 - y));
+    TVM_TRY_REWRITE(x - min(0, x + y), max(x, 0 - y));
+
     // mul co-efficient folding
     TVM_TRY_REWRITE(x - x, ZeroWithTypeLike(x));
     TVM_TRY_REWRITE(matches_one_of(x * y - x, y * x - x), x * (y - 1));
