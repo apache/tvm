@@ -67,6 +67,9 @@ class HexagonUserDMA {
    */
   uint32_t Poll(int queue_id);
 
+  void StartGroup(int queue_id) { descriptors_->StartGroup(queue_id); }
+  void EndGroup(int queue_id) { descriptors_->EndGroup(queue_id); }
+
  private:
   //! \brief Initializes the Hexagon User DMA engine
   unsigned int Init();

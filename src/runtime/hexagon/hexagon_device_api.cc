@@ -233,6 +233,19 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.dma_wait").set_body([](TVMArgs args, TVM
   *rv = static_cast<int32_t>(0);
 });
 
+TVM_REGISTER_GLOBAL("device_api.hexagon.dma_start_group")
+    .set_body([](TVMArgs args, TVMRetValue* rv) {
+      int queue_id = args[0];
+      HexagonDeviceAPI::Global()->UserDMA()->StartGroup(queue_id);
+      *rv = static_cast<int32_t>(0);
+    });
+
+TVM_REGISTER_GLOBAL("device_api.hexagon.dma_end_group").set_body([](TVMArgs args, TVMRetValue* rv) {
+  int queue_id = args[0];
+  HexagonDeviceAPI::Global()->UserDMA()->EndGroup(queue_id);
+  *rv = static_cast<int32_t>(0);
+});
+
 TVM_REGISTER_GLOBAL("device_api.hexagon.alloc_nd").set_body([](TVMArgs args, TVMRetValue* rv) {
   int32_t device_type = args[0];
   int32_t device_id = args[1];

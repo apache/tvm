@@ -319,6 +319,10 @@ class BuiltinLower : public StmtExprMutator {
       return MakeDMACopy(op);
     } else if (op->op.same_as(builtin::dma_wait())) {
       return MakeDMAWait(op);
+    } else if (op->op.same_as(builtin::dma_start_group())) {
+      return MakeDMAStartGroup(op);
+    } else if (op->op.same_as(builtin::dma_end_group())) {
+      return MakeDMAEndGroup(op);
     } else {
       return StmtExprMutator::VisitExpr_(op);
     }
@@ -349,6 +353,28 @@ class BuiltinLower : public StmtExprMutator {
 
     Call call_packed = Call(DataType::Int(32), builtin::tvm_call_packed(),
                             {StringImm(fdevapi_prefix + ".dma_wait"), queue_id, inflight});
+    return VisitExpr(call_packed);
+  }
+
+  PrimExpr MakeDMAStartGroup(const CallNode* op) {
+    PrimExpr queue_id = op->args[0];
+
+    std::string fdevapi_prefix =
+        "device_api." + std::string(runtime::DeviceName(device_type_.as<IntImmNode>()->value));
+
+    Call call_packed = Call(DataType::Int(32), builtin::tvm_call_packed(),
+                            {StringImm(fdevapi_prefix + ".dma_start_group"), queue_id});
+    return VisitExpr(call_packed);
+  }
+
+  PrimExpr MakeDMAEndGroup(const CallNode* op) {
+    PrimExpr queue_id = op->args[0];
+
+    std::string fdevapi_prefix =
+        "device_api." + std::string(runtime::DeviceName(device_type_.as<IntImmNode>()->value));
+
+    Call call_packed = Call(DataType::Int(32), builtin::tvm_call_packed(),
+                            {StringImm(fdevapi_prefix + ".dma_end_group"), queue_id});
     return VisitExpr(call_packed);
   }
 

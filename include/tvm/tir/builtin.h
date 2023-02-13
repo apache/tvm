@@ -735,6 +735,9 @@ TVM_DLL const Op& dma_copy();
  */
 TVM_DLL const Op& dma_wait();
 
+TVM_DLL const Op& dma_start_group();
+TVM_DLL const Op& dma_end_group();
+
 /*!
  * \brief Provide a true statement that can be used for simplifications
  *
