@@ -132,6 +132,9 @@ class PTXAsyncCopyInjector : public StmtMutator {
         // tir.if_then_else is a call to tir::builtin::if_then_else()
         if (call->op.same_as(builtin::if_then_else()) && call->args.size() == 3) {
           if (auto* load = call->args[1].as<BufferLoadNode>()) {
+            // Only default value of 0 is supported since 0 is the default value used by cp.async ptx.
+            // @see https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#asynchronous-memory-operations
+            // section 9.7.8.22.3.
             bool else_value_is_zero = false;
             if (auto* b = call->args[2].as<BroadcastNode>()) {
               if (auto* f = b->value.as<FloatImmNode>()) {

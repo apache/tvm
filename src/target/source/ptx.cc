@@ -673,14 +673,10 @@ std::string PrintPredicatedCpAsyncAssembly(const std::string& shared_ptr,
       : "=r"(addr)
       : "l"((void *)({smem_addr}))
     );
+    int src_bytes = {pred_guard} ? {bytes} : 0;
     __asm__ __volatile__(
-      "{\n"
-      "\t.reg .pred p;\n"
-      "\tsetp.ne.b32 p, %0, 0;\n"
-      "\t@p cp.async.{cg_or_ca}.shared.global [%1], [%2], %3;\n"
-      "}\n"
-       :: "r"((int){pred_guard}),
-          "r"(addr), "l"((void*)({global_ptr})), "n"({bytes})
+      "cp.async.{cg_or_ca}.shared.global [%0], [%1], %2, %3;"
+       :: "r"(addr), "l"((void*)({global_ptr})), "n"({bytes}), "r"(src_bytes)
     );
   }
 )";
