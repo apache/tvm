@@ -226,7 +226,7 @@ with tarfile.open(extra_tar_file, "w:gz") as tf:
             shape=output_shape,
             dtype=output_dtype,
         ),
-        "include",
+        "include/tvm",
         tf,
     )
 

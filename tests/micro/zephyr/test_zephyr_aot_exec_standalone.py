@@ -63,7 +63,9 @@ def test_tflite(workspace_dir, board, microtvm_debug, serial_number):
         "aot", {"unpacked-api": True, "interface-api": "c", "workspace-byte-alignment": 4}
     )
     runtime = Runtime("crt")
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+    with tvm.transform.PassContext(
+        opt_level=3, config={"tir.disable_vectorize": True, "tir.usmp.enable": True}
+    ):
         lowered = relay.build(relay_mod, target, params=params, runtime=runtime, executor=executor)
 
     sample_url = "https://github.com/tlc-pack/web-data/raw/967fc387dadb272c5a7f8c3461d34c060100dbf1/testdata/microTVM/data/keyword_spotting_int8_6.pyc.npy"

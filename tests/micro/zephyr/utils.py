@@ -153,8 +153,8 @@ def generate_project(
     with tempfile.NamedTemporaryFile() as tar_temp_file:
         with tarfile.open(tar_temp_file.name, "w:gz") as tf:
             with tempfile.TemporaryDirectory() as tar_temp_dir:
-                model_files_path = os.path.join(tar_temp_dir, "include")
-                os.mkdir(model_files_path)
+                model_files_path = pathlib.Path(tar_temp_dir) / "include"
+                model_files_path.mkdir(parents=True)
                 if load_cmsis:
                     loadCMSIS(model_files_path)
                     tf.add(
@@ -174,9 +174,9 @@ def generate_project(
                 )
                 tf.add(header_path, arcname=os.path.relpath(header_path, tar_temp_dir))
 
-            create_header_file("input_data", sample, "include", tf)
+            create_header_file("input_data", sample, "include/tvm", tf)
             create_header_file(
-                "output_data", np.zeros(shape=output_shape, dtype=output_type), "include", tf
+                "output_data", np.zeros(shape=output_shape, dtype=output_type), "include/tvm", tf
             )
 
         project, project_dir = build_project(
