@@ -2918,7 +2918,7 @@ def _bincount():
 
         counts_shape = _op.reshape(size, [1])
         counts = _op.zeros(counts_shape, out_dtype)
-        out = _op.scatter_add(counts, input, updates, axis=0)
+        out = _op.scatter_elements(counts, input, updates, axis=0, reduction="add")
         return out
 
     return _impl
@@ -2965,11 +2965,11 @@ def _dense_bincount():
             size_arr = _op.reshape(size, [1])
             counts_shape = _op.concatenate([batch_arr, size_arr], axis=0)
             counts = _op.zeros(counts_shape, out_dtype)
-            out = _op.scatter_add(counts, input, updates, axis=1)
+            out = _op.scatter_elements(counts, input, updates, axis=1, reduction="add")
         else:
             counts_shape = _op.reshape(size, [1])
             counts = _op.zeros(counts_shape, out_dtype)
-            out = _op.scatter_add(counts, input, updates, axis=0)
+            out = _op.scatter_elements(counts, input, updates, axis=0, reduction="add")
 
         if attr["binary_output"]:
             out = _op.cast(_op.cast(out, "bool"), out_dtype)
