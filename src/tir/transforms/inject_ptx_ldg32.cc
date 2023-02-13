@@ -54,6 +54,11 @@ public:
         result = Allocate(addr_buffer->data, addr_buffer->dtype, addr_buffer->shape, Bool(true), result);
         result = Allocate(predicate_buffer->data, predicate_buffer->dtype, predicate_buffer->shape, Bool(true), result);
       }
+    
+
+      
+
+
       return result;
     }
 
@@ -61,9 +66,12 @@ public:
     Stmt VisitStmt_(const BufferStoreNode* store) final{
 
       Stmt result = StmtMutator::VisitStmt_(store);
+
+    
       Buffer load_buffer = store->buffer;
       PrimExpr load_value = store->value;
       
+      // const BufferLoadNode* gload = load_value.as<BufferLoadNode>(); // take the place of instance of
 
       const CallNode* call = load_value.as<CallNode>();
 
@@ -77,20 +85,22 @@ public:
 
           PrimExpr global_addr, local_addr;
           const BufferLoadNode* load = lhs.as<BufferLoadNode>();
+          PrimExpr imm_value = rhs;
 
 
           if (load == nullptr){
             load = rhs.as<BufferLoadNode>();
+            imm_value = lhs;
+            if (load == nullptr){
+              return result;
+            }
           }
 
-          for ( auto each : load->indices){
-
-          }
           global_addr = load->indices[0];
+
           const RampNode* ramp = global_addr.as<RampNode>();
           if (ramp != nullptr){
             return result;
-            
           }
 
           local_addr = store->indices[0];
@@ -99,6 +109,7 @@ public:
           BufferStore addr_store(addr_buffer, global_addr, {IntImm(DataType::Int(32), 0)});
           BufferStore local_addr_store(addr_buffer,local_addr,{IntImm(DataType::Int(32), 1)});
           BufferStore predicate_store(predicate_buffer, predicate, {IntImm(DataType::Int(32), 0)});
+          
 
           PrimExpr new_lhs, new_rhs, new_predicate, new_indice;
 
@@ -108,14 +119,17 @@ public:
           new_indice = BufferLoad(addr_buffer, {IntImm(DataType::Int(32), 1)});
 
 
+          BufferStore value_store(store->buffer, imm_value, {new_indice});
+
+
           Evaluate ptx_load(Call(store->buffer->dtype, tvm::tir::builtin::ptx_pred_ldg32(),{store->buffer->data, new_predicate , new_lhs,new_indice}));
           
-          Array<Stmt> tmp_seq = {addr_store, local_addr_store, predicate_store, ptx_load};
+          Array<Stmt> tmp_seq = {addr_store, local_addr_store, predicate_store, value_store , ptx_load};
 
           SeqStmt seq_stmt = SeqStmt(tmp_seq);
 
           return seq_stmt;
-          
+
         }
       }
 
