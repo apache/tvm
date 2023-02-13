@@ -86,7 +86,7 @@ from . import _ffi_api, frame
 # pylint: enable=unused-import
 
 
-def buffer_decl(
+def buffer(
     shape: Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral],
     dtype: str = "float32",
     data: Var = None,
@@ -138,7 +138,7 @@ def buffer_decl(
         The declared buffer.
     """
     shape = (shape,) if isinstance(shape, (PrimExpr, Integral)) else shape
-    return _ffi_api.BufferDecl(  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Buffer(  # type: ignore[attr-defined] # pylint: disable=no-member
         shape,
         dtype,
         "",
@@ -151,6 +151,11 @@ def buffer_decl(
         buffer_type,
         axis_separators,
     )
+
+
+@deprecated("T.buffer_decl(...)", "T.Buffer(...)")
+def buffer_decl(*args, **kwargs):
+    return buffer(*args, **kwargs)
 
 
 def prim_func() -> frame.PrimFuncFrame:
@@ -1177,7 +1182,11 @@ def env_thread(thread_tag: str) -> IterVar:
     return _ffi_api.EnvThread(thread_tag)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def buffer_store(buffer: Buffer, value: PrimExpr, indices: List[Union[PrimExpr, slice]]) -> None:
+def buffer_store(
+    buffer: Buffer,  # pylint: disable=redefined-outer-name
+    value: PrimExpr,
+    indices: List[Union[PrimExpr, slice]],
+) -> None:
     """Buffer store node.
 
     Parameters
@@ -1211,7 +1220,10 @@ def buffer_store(buffer: Buffer, value: PrimExpr, indices: List[Union[PrimExpr, 
     )
 
 
-def prefetch(buffer: Buffer, bounds: List[Range]) -> None:
+def prefetch(
+    buffer: Buffer,  # pylint: disable=redefined-outer-name
+    bounds: List[Range],
+) -> None:
     """The prefetch hint for a buffer.
 
     Parameters
@@ -1432,7 +1444,7 @@ def ptr(dtype: str, storage_scope: str = "global") -> Var:
     return _ffi_api.Ptr(dtype, storage_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-@deprecated("T.buffer_var", "T.Ptr")
+@deprecated("T.buffer_var", "T.handle")
 def buffer_var(dtype: str, storage_scope: str = "global") -> Var:
     """The pointer declaration function.
 
@@ -1815,6 +1827,7 @@ __all__ = [
     "float16x64",
     "float32x64",
     "float64x64",
+    "buffer",
     "buffer_decl",
     "prim_func",
     "arg",
