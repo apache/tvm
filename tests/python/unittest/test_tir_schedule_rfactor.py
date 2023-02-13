@@ -954,7 +954,7 @@ def argmax_split_body_bufferstore_value_unbound_var(
     argmax_v0: T.Buffer((128,), "int32"),
     argmax_v1: T.Buffer((128,), "float32"),
 ) -> None:
-    v_unbound = T.var("int32")
+    v_unbound = T.int32()
     for i0, i1_0, i1_1 in T.grid(128, 4, 32):
         with T.block("argmax"):
             i = T.axis.spatial(128, i0)

@@ -299,7 +299,7 @@ def estimate_peak_flops(
 @T.prim_func
 def peak_bandwidth_tir(a: T.handle, b: T.handle, blocks: T.int32, warp_size: T.int32) -> None:
     # pylint: disable=invalid-name, missing-function-docstring
-    N = T.var("int32")
+    N = T.int32()
     A = T.match_buffer(a, [blocks, N, 4, warp_size], "float32")
     B = T.match_buffer(b, [blocks, 4, warp_size], "float32")
     for i in T.thread_binding(blocks, "blockIdx.x"):

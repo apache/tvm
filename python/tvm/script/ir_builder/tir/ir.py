@@ -1393,6 +1393,7 @@ def void(expr: Optional[PrimExpr] = None) -> PrimExpr:
     return _ffi_api.Void(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
+@deprecated("T.var", "T.{dtype}")
 def var(dtype: str, name: str = "") -> Var:
     """Construct a new tir.Var.
 

@@ -35,10 +35,10 @@ class Module:
 
     @T.prim_func
     def tir_packed_call() -> None:
-        A = T.var("handle")
-        B = T.var("handle")
-        C = T.var("handle")
-        device_context = T.var("handle")
+        A = T.handle()
+        B = T.handle()
+        C = T.handle()
+        device_context = T.handle()
         # body
         T.evaluate(
             T.tvm_call_cpacked(
@@ -65,10 +65,10 @@ class Expected:
 
     @T.prim_func
     def tir_packed_call() -> None:
-        A = T.var("handle")
-        B = T.var("handle")
-        C = T.var("handle")
-        device_context = T.var("handle")
+        A = T.handle()
+        B = T.handle()
+        C = T.handle()
+        device_context = T.handle()
 
         # body
         T.evaluate(
