@@ -42,13 +42,13 @@ MLPERF_TINY_MODELS = {
     "kws": {
         "name": "Keyword Spotting",
         "index": 1,
-        "url": "https://github.com/mlcommons/tiny/raw/master/benchmark/training/keyword_spotting/trained_models/kws_ref_model.tflite",
+        "url": "https://github.com/mlcommons/tiny/raw/bceb91c5ad2e2deb295547d81505721d3a87d578/benchmark/training/keyword_spotting/trained_models/kws_ref_model.tflite",
         "sample": "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/keyword_spotting_int8_6.pyc.npy",
     },
     "vww": {
         "name": "Visual Wake Words",
         "index": 2,
-        "url": "https://github.com/mlcommons/tiny/raw/master/benchmark/training/visual_wake_words/trained_models/vww_96_int8.tflite",
+        "url": "https://github.com/mlcommons/tiny/raw/bceb91c5ad2e2deb295547d81505721d3a87d578/benchmark/training/visual_wake_words/trained_models/vww_96_int8.tflite",
         "sample": "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/visual_wake_word_int8_1.npy",
     },
     # Note: The reason we use quantized model with float32 I/O is
@@ -57,15 +57,15 @@ MLPERF_TINY_MODELS = {
     "ad": {
         "name": "Anomaly Detection",
         "index": 3,
-        "url": "https://github.com/mlcommons/tiny/raw/master/benchmark/training/anomaly_detection/trained_models/ToyCar/baseline_tf23/model/model_ToyCar_quant_fullint_micro.tflite",
-        "sample": "https://github.com/mehrdadh/web-data/raw/micro/add_mlperftiny/testdata/microTVM/data/anomaly_detection_normal_id_01.npy",
+        "url": "https://github.com/mlcommons/tiny/raw/bceb91c5ad2e2deb295547d81505721d3a87d578/benchmark/training/anomaly_detection/trained_models/ToyCar/baseline_tf23/model/model_ToyCar_quant_fullint_micro.tflite",
+        "sample": "https://github.com/tlc-pack/web-data/raw/micro/add_mlperftiny/testdata/microTVM/data/anomaly_detection_normal_id_01.npy",
         # This model takes in a (1, 640) vector, so it must be called 40 times -
         # once for each time slice.
     },
     "ic": {
         "name": "Image Classification",
         "index": 4,
-        "url": "https://github.com/mlcommons/tiny/raw/master/benchmark/training/image_classification/trained_models/pretrainedResnet_quant.tflite",
+        "url": "https://github.com/mlcommons/tiny/raw/bceb91c5ad2e2deb295547d81505721d3a87d578/benchmark/training/image_classification/trained_models/pretrainedResnet_quant.tflite",
         "sample": "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/image_classification_int8_0.npy",
     },
 }

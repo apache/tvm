@@ -39,8 +39,8 @@ def test_tflite(workspace_dir, board, microtvm_debug, serial_number):
     output_shape = (1, 12)
     build_config = {"debug": microtvm_debug}
 
-    model_url = "https://github.com/tlc-pack/web-data/raw/25fe99fb00329a26bd37d3dca723da94316fd34c/testdata/microTVM/model/keyword_spotting_quant.tflite"
-    model_path = download_testdata(model_url, "keyword_spotting_quant.tflite", module="model")
+    model_url = "https://github.com/mlcommons/tiny/raw/bceb91c5ad2e2deb295547d81505721d3a87d578/benchmark/training/keyword_spotting/trained_models/kws_ref_model.tflite"
+    model_path = download_testdata(model_url, "kws_ref_model.tflite", module="model")
 
     # Import TFLite model
     tflite_model_buf = open(model_path, "rb").read()
@@ -68,7 +68,7 @@ def test_tflite(workspace_dir, board, microtvm_debug, serial_number):
     ):
         lowered = relay.build(relay_mod, target, params=params, runtime=runtime, executor=executor)
 
-    sample_url = "https://github.com/tlc-pack/web-data/raw/967fc387dadb272c5a7f8c3461d34c060100dbf1/testdata/microTVM/data/keyword_spotting_int8_6.pyc.npy"
+    sample_url = "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/keyword_spotting_int8_6.pyc.npy"
     sample_path = download_testdata(sample_url, "keyword_spotting_int8_6.pyc.npy", module="data")
     sample = np.load(sample_path)
 
