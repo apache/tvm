@@ -199,8 +199,8 @@ def te_multi_output():
 @T.prim_func
 def tir_multi_output(a0: T.handle, a1: T.handle, b0: T.handle, b1: T.handle) -> None:
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
-    m = T.var("int32")
-    n = T.var("int32")
+    m = T.int32()
+    n = T.int32()
     A0 = T.match_buffer(a0, (m, n))
     A1 = T.match_buffer(a1, (m, n))
     B0 = T.match_buffer(b0, (m, n))
@@ -491,8 +491,8 @@ def tir_argmax_idx_val(
     var_idx: T.handle, var_val: T.handle, var_argmax_v0: T.handle, var_argmax_v1: T.handle
 ) -> None:
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
-    m = T.var("int32")
-    n = T.var("int32")
+    m = T.int32()
+    n = T.int32()
     idx = T.match_buffer(var_idx, [m, n], dtype="int32")
     val = T.match_buffer(var_val, [m, n], dtype="float32")
     argmax_v0 = T.match_buffer(var_argmax_v0, [m], dtype="int32")
@@ -538,8 +538,8 @@ def tir_argmax_val_idx(
     var_val: T.handle, var_idx: T.handle, var_argmax_v0: T.handle, var_argmax_v1: T.handle
 ) -> None:
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
-    m = T.var("int32")
-    n = T.var("int32")
+    m = T.int32()
+    n = T.int32()
     val = T.match_buffer(var_val, [m, n], dtype="float32")
     idx = T.match_buffer(var_idx, [m, n], dtype="int32")
     argmax_v0 = T.match_buffer(var_argmax_v0, [m], dtype="float32")
@@ -711,8 +711,8 @@ def tir_resize2d_symbolic(
     var_resize: T.handle,
 ):
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
-    oh = T.var("int64")
-    ow = T.var("int64")
+    oh = T.int64()
+    ow = T.int64()
     resize = T.match_buffer(var_resize, [T.int64(2), T.int64(3), oh, ow], dtype="float32")
     for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(3), oh, ow):
         with T.block("resize"):

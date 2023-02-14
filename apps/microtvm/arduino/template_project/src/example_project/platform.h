@@ -17,13 +17,9 @@
  * under the License.
  */
 
-#define WORKSPACE_SIZE $workspace_size_bytes
-
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-void TVMInitialize();
 
 /* TODO template this function signature with the input and output
  * data types and sizes. For example:

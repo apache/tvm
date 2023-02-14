@@ -545,6 +545,16 @@ PrimExpr Ptr(runtime::DataType dtype, String storage_scope) {
   return tvm::tir::Var("", tvm::PointerType(PrimType(dtype), storage_scope));
 }
 
+Var Handle(runtime::DataType dtype, String storage_scope) {
+  Type type_annotation{nullptr};
+  if (dtype.is_void() && storage_scope == "global") {
+    type_annotation = PrimType(runtime::DataType::Handle());
+  } else {
+    type_annotation = PointerType(PrimType(dtype), storage_scope);
+  }
+  return tvm::tir::Var("", type_annotation);
+}
+
 using tvm::script::ir_builder::details::Namer;
 
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)
@@ -583,8 +593,7 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
       Namer::Name(var->var, name);
     });
 
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.BufferDecl").set_body_typed(BufferDecl);
-
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.Buffer").set_body_typed(BufferDecl);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.PrimFunc").set_body_typed(PrimFunc);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Arg")
     .set_body_typed([](String name, ObjectRef obj) -> ObjectRef {

@@ -608,5 +608,41 @@ def test_schedule_build_with_cmsis_dependency(workspace_dir, board, microtvm_deb
     assert "CMSIS-NN/Include" in cmake_content
 
 
+@tvm.testing.requires_micro
+def test_debugging_enabled(workspace_dir):
+    """Test debugging enabled for LED. `verbose=True` in project option enables
+    debugging. For this test a physical board(nucleo_l4r5zi) is used instead of
+    QEMU since LED config is not available on QEMU.
+    """
+    board = "nucleo_l4r5zi"
+    project_options = {
+        "project_type": "host_driven",
+        "board": board,
+        "verbose": True,
+    }
+    shape = (10,)
+    dtype = "int8"
+    x = relay.var("x", relay.TensorType(shape=shape, dtype=dtype))
+    xx = relay.multiply(x, x)
+    z = relay.add(xx, relay.const(np.ones(shape=shape, dtype=dtype)))
+    func = relay.Function([x], z)
+    ir_mod = tvm.IRModule.from_expr(func)
+
+    runtime = Runtime("crt", {"system-lib": True})
+    executor = Executor("aot")
+    target = tvm.micro.testing.get_target("zephyr", board)
+
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        mod = tvm.relay.build(ir_mod, target=target, runtime=runtime, executor=executor)
+
+    project = tvm.micro.generate_project(
+        str(utils.TEMPLATE_PROJECT_DIR),
+        mod,
+        workspace_dir / "project",
+        project_options,
+    )
+    project.build()
+
+
 if __name__ == "__main__":
     tvm.testing.main()

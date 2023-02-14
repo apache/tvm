@@ -195,9 +195,9 @@ def tensorized_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
                     ]
                 )
                 T.writes(C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-                A_elem_offset = T.var("int32")
-                B_elem_offset = T.var("int32")
-                C_elem_offset = T.var("int32")
+                A_elem_offset = T.int32()
+                B_elem_offset = T.int32()
+                C_elem_offset = T.int32()
                 A_sub = T.match_buffer(
                     A[vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16],
                     [16, 16],
@@ -267,9 +267,9 @@ def tensorized_batch_matmul_mma(
                     B[vn : vn + 1, vj * 16 : vj * 16 + 16, vk * 16 : vk * 16 + 16],
                 )
                 T.writes(C[vn : vn + 1, vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-                A_elem_offset = T.var("int32")
-                B_elem_offset = T.var("int32")
-                C_elem_offset = T.var("int32")
+                A_elem_offset = T.int32()
+                B_elem_offset = T.int32()
+                C_elem_offset = T.int32()
                 A_sub = T.match_buffer(
                     A[vn : vn + 1, vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16],
                     (16, 16),
@@ -429,9 +429,9 @@ def annotated_tensorized_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
                     ]
                 )
                 T.writes(C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-                A_elem_offset = T.var("int32")
-                B_elem_offset = T.var("int32")
-                C_elem_offset = T.var("int32")
+                A_elem_offset = T.int32()
+                B_elem_offset = T.int32()
+                C_elem_offset = T.int32()
                 A_sub = T.match_buffer(
                     A[vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16],
                     [16, 16],
@@ -745,9 +745,9 @@ def test_tensorize_matmul_mixed_dtype():
                         ]
                     )
                     T.writes(C[vi * T.int64(16) : vi * T.int64(16) + T.int64(16), vj * T.int64(16) : vj * T.int64(16) + T.int64(16)])
-                    A_elem_offset = T.var("int64")
-                    B_elem_offset = T.var("int64")
-                    C_elem_offset = T.var("int64")
+                    A_elem_offset = T.int64()
+                    B_elem_offset = T.int64()
+                    C_elem_offset = T.int64()
                     A_sub = T.match_buffer(
                         A[vi * T.int64(16) : vi * T.int64(16) + T.int64(16), vk * T.int64(16) : vk * T.int64(16) + T.int64(16)],
                         [T.int64(16), T.int64(16)],

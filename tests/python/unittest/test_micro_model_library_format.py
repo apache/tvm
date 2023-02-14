@@ -715,5 +715,30 @@ def test_output_names_many():
     }
 
 
+@tvm.testing.requires_micro
+def test_template_files():
+    """Check template files in generated model library format."""
+    mod = get_conv2d_relay_module()
+
+    executor = Executor("aot", {"unpacked-api": True, "interface-api": "c"})
+    runtime = Runtime("crt")
+    target = tvm.target.target.micro("host")
+
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        factory = tvm.relay.build(mod, target, runtime=runtime, executor=executor, mod_name="mod")
+
+    temp_dir = utils.tempdir()
+    mlf_tar_path = temp_dir / "lib.tar"
+    micro.export_model_library_format(factory, mlf_tar_path)
+
+    tf = tarfile.open(mlf_tar_path)
+    extract_dir = temp_dir / "extract"
+    os.mkdir(extract_dir)
+    tf.extractall(extract_dir)
+
+    assert (extract_dir / "templates" / "crt_config.h.template").is_file()
+    assert (extract_dir / "templates" / "platform.c.template").is_file()
+
+
 if __name__ == "__main__":
     tvm.testing.main()

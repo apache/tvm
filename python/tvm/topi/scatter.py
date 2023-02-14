@@ -16,11 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name, too-many-arguments, too-many-nested-blocks
 """Scatter operator"""
-from ..te import extern, hybrid
-from ..tir import decl_buffer, expr, ir_builder
+from tvm import te, tir  # hide redefinition of min and max
+from tvm.tir import expr
 
 
-@hybrid.script
+@te.hybrid.script
 def _scatter_1d(data, indices, updates):
     out = output_tensor(data.shape, data.dtype)
     for i in range(data.shape[0]):
@@ -30,7 +30,7 @@ def _scatter_1d(data, indices, updates):
     return out
 
 
-@hybrid.script
+@te.hybrid.script
 def _scatter_2d(data, indices, updates, axis):
     out = output_tensor(data.shape, data.dtype)
     for i in range(data.shape[0]):
@@ -52,7 +52,7 @@ def _scatter_2d(data, indices, updates, axis):
     return out
 
 
-@hybrid.script
+@te.hybrid.script
 def _scatter_3d(data, indices, updates, axis):
     out = output_tensor(data.shape, data.dtype)
     for i in range(data.shape[0]):
@@ -96,7 +96,7 @@ def _scatter_3d(data, indices, updates, axis):
     return out
 
 
-@hybrid.script
+@te.hybrid.script
 def _scatter_4d(data, indices, updates, axis):
     out = output_tensor(data.shape, data.dtype)
     for i in range(data.shape[0]):
@@ -269,7 +269,7 @@ def scatter_nd(data, indices, updates, mode):
 
     def gen_ir(data_ptr, indices_ptr, updates_ptr, out_ptr):
         # pylint: disable=invalid-name
-        ib = ir_builder.create()
+        ib = tir.ir_builder.create()
 
         data = ib.buffer_ptr(data_ptr)
         indices = ib.buffer_ptr(indices_ptr)
@@ -308,13 +308,21 @@ def scatter_nd(data, indices, updates, mode):
                     out[index] = updates[i * fused_updates_dimension + j]
                 elif mode == "add":
                     out[index] += updates[i * fused_updates_dimension + j]
+                elif mode == "mul":
+                    out[index] *= updates[i * fused_updates_dimension + j]
+                elif mode == "min":
+                    out[index] = tir.min(out[index], updates[i * fused_updates_dimension + j])
+                elif mode == "max":
+                    out[index] = tir.max(out[index], updates[i * fused_updates_dimension + j])
                 else:
-                    raise NotImplementedError("scatter_nd mode not in [update, add]:", mode)
+                    raise NotImplementedError(
+                        "scatter_nd mode not in [update, add, mul, min, max]:", mode
+                    )
 
         return ib.get()
 
-    out_buf = decl_buffer(data.shape, data.dtype, "out_buf")
-    return extern(
+    out_buf = tir.decl_buffer(data.shape, data.dtype, "out_buf")
+    return te.extern(
         [data.shape],
         [data, indices, updates],
         lambda ins, outs: gen_ir(ins[0], ins[1], ins[2], outs[0]),

@@ -204,30 +204,30 @@ def opt_gemm_mod_host():
             arg2: T.handle = T.tvm_struct_get(args, 2, 12, dtype="handle")
             arg2_code: T.int32 = buf_type_ids[2]
 
-            A_data: T.Ptr("int32") = T.tvm_struct_get(arg0, 0, 1, dtype="handle")
+            A_data: T.handle("int32") = T.tvm_struct_get(arg0, 0, 1, dtype="handle")
             T.attr(A_data, "storage_alignment", 128)
             A = T.Buffer([1024 * 1024], dtype="int32", data=A_data)
-            buf0_shape_data: T.Ptr("int32") = T.tvm_struct_get(arg0, 0, 2, dtype="handle")
+            buf0_shape_data: T.handle("int32") = T.tvm_struct_get(arg0, 0, 2, dtype="handle")
             buf0_shape = T.Buffer([2], dtype="int32", data=buf0_shape_data)
-            buf0_strides_data: T.Ptr("int32") = T.tvm_struct_get(arg0, 0, 3, dtype="handle")
+            buf0_strides_data: T.handle("int32") = T.tvm_struct_get(arg0, 0, 3, dtype="handle")
             buf0_strides = T.Buffer([2], dtype="int32", data=buf0_strides_data)
 
             dev_id: T.int32 = T.tvm_struct_get(arg0, 0, 9, dtype="int32")
 
-            B_data: T.Ptr("int32") = T.tvm_struct_get(arg1, 0, 1, dtype="handle")
+            B_data: T.handle("int32") = T.tvm_struct_get(arg1, 0, 1, dtype="handle")
             T.attr(B_data, "storage_alignment", 128)
             B = T.Buffer([1024 * 1024], dtype="int32", data=B_data)
-            buf1_shape_data: T.Ptr("int32") = T.tvm_struct_get(arg1, 0, 2, dtype="handle")
+            buf1_shape_data: T.handle("int32") = T.tvm_struct_get(arg1, 0, 2, dtype="handle")
             buf1_shape = T.Buffer([2], dtype="int32", data=buf1_shape_data)
-            buf1_strides_data: T.Ptr("int32") = T.tvm_struct_get(arg1, 0, 3, dtype="handle")
+            buf1_strides_data: T.handle("int32") = T.tvm_struct_get(arg1, 0, 3, dtype="handle")
             buf1_strides = T.Buffer([2], dtype="int32", data=buf1_strides_data)
 
-            C_data: T.Ptr("int32") = T.tvm_struct_get(arg2, 0, 1, dtype="handle")
+            C_data: T.handle("int32") = T.tvm_struct_get(arg2, 0, 1, dtype="handle")
             T.attr(C_data, "storage_alignment", 128)
             C = T.Buffer([1024 * 1024], dtype="int32", data=C_data)
-            buf2_shape_data: T.Ptr("int32") = T.tvm_struct_get(arg2, 0, 2, dtype="handle")
+            buf2_shape_data: T.handle("int32") = T.tvm_struct_get(arg2, 0, 2, dtype="handle")
             buf2_shape = T.Buffer([2], dtype="int32", data=buf2_shape_data)
-            buf2_strides_data: T.Ptr("int32") = T.tvm_struct_get(arg2, 0, 3, dtype="handle")
+            buf2_strides_data: T.handle("int32") = T.tvm_struct_get(arg2, 0, 3, dtype="handle")
             buf2_strides = T.Buffer([2], dtype="int32", data=buf2_strides_data)
 
             assert (((arg0_code == 3) or (arg0_code == 13)) or (arg0_code == 7)) or (
@@ -2238,7 +2238,7 @@ def opt_conv_tensorcore_mod_host():
             }
         )
         # body
-        stack_tcode_data: T.Ptr("int32") = T.tvm_stack_alloca("arg_tcode", 10, dtype="handle")
+        stack_tcode_data: T.handle("int32") = T.tvm_stack_alloca("arg_tcode", 10, dtype="handle")
         stack_tcode = T.Buffer([9], "int32", data=stack_tcode_data)
         stack_value: T.handle = T.tvm_stack_alloca("arg_value", 10, dtype="handle")
         assert num_args == 3, "default_function: num_args should be 3"
@@ -2251,25 +2251,25 @@ def opt_conv_tensorcore_mod_host():
 
         A: T.handle = T.tvm_struct_get(arg0, 0, 1, dtype="handle")
         T.attr(A, "storage_alignment", 128)
-        arg0_shape_data: T.Ptr("int64") = T.tvm_struct_get(arg0, 0, 2, dtype="handle")
+        arg0_shape_data: T.handle("int64") = T.tvm_struct_get(arg0, 0, 2, dtype="handle")
         arg0_shape = T.Buffer([6], "int64", data=arg0_shape_data)
-        arg0_strides_data: T.Ptr("int64") = T.tvm_struct_get(arg0, 0, 3, dtype="handle")
+        arg0_strides_data: T.handle("int64") = T.tvm_struct_get(arg0, 0, 3, dtype="handle")
         arg0_strides = T.Buffer([6], "int64", data=arg0_strides_data)
 
         dev_id: T.int32 = T.tvm_struct_get(arg0, 0, 9, dtype="int32")
 
         W: T.handle = T.tvm_struct_get(arg1, 0, 1, dtype="handle")
         T.attr(W, "storage_alignment", 128)
-        arg1_shape_data: T.Ptr("int64") = T.tvm_struct_get(arg1, 0, 2, dtype="handle")
+        arg1_shape_data: T.handle("int64") = T.tvm_struct_get(arg1, 0, 2, dtype="handle")
         arg1_shape = T.Buffer([6], "int64", data=arg1_shape_data)
-        arg1_strides_data: T.Ptr("int64") = T.tvm_struct_get(arg1, 0, 3, dtype="handle")
+        arg1_strides_data: T.handle("int64") = T.tvm_struct_get(arg1, 0, 3, dtype="handle")
         arg1_strides = T.Buffer([6], "int64", data=arg1_strides_data)
 
         Conv: T.handle = T.tvm_struct_get(arg2, 0, 1, dtype="handle")
         T.attr(Conv, "storage_alignment", 128)
-        arg2_shape_data: T.Ptr("int64") = T.tvm_struct_get(arg2, 0, 2, dtype="handle")
+        arg2_shape_data: T.handle("int64") = T.tvm_struct_get(arg2, 0, 2, dtype="handle")
         arg2_shape = T.Buffer([6], "int64", data=arg2_shape_data)
-        arg2_strides_data: T.Ptr("int64") = T.tvm_struct_get(arg2, 0, 3, dtype="handle")
+        arg2_strides_data: T.handle("int64") = T.tvm_struct_get(arg2, 0, 3, dtype="handle")
         arg2_strides = T.Buffer([6], "int64", data=arg2_strides_data)
 
         assert (((arg0_code == 3) or (arg0_code == 13)) or (arg0_code == 7)) or (
@@ -2904,10 +2904,10 @@ def constant_folding():
 def simplify_bracket():
     @T.prim_func
     def simplify_bracket() -> None:
-        a = T.var("int32")
-        b = T.var("int32")
-        c = T.var("int32")
-        d = T.var("int32")
+        a = T.int32()
+        b = T.int32()
+        c = T.int32()
+        d = T.int32()
         T.evaluate(a + b * (c + d))
 
     return simplify_bracket
@@ -3039,8 +3039,8 @@ def multiple_commreducer():
 def func_div_mod():
     @T.prim_func
     def func_div_mod():
-        a = T.var("int32")
-        b = T.var("int32")
+        a = T.int32()
+        b = T.int32()
         T.evaluate(a // b)
         T.evaluate(a % b)
         T.evaluate(T.truncmod(a, b))
@@ -3145,7 +3145,7 @@ def func_nested_root_block():
 def func_T_ptr_let_statement():
     @T.prim_func
     def func_T_ptr_let_statement(
-        args: T.handle, arg_type_ids_handle: T.Ptr("int32"), num_args: T.int32
+        args: T.handle, arg_type_ids_handle: T.handle("int32"), num_args: T.int32
     ) -> None:
         # The T.Ptr declaration in the parameter list should parse
         # correctly, and should be usable as the data pointer in a buffer.
@@ -3157,14 +3157,14 @@ def func_T_ptr_let_statement():
         # Functions that return a "handle" can be assigned to a T.Ptr
         # variable.  A variable annotated with T.Ptr still has dtype of
         # T.handle, but has type annotation as a pointer type.
-        A_data: T.Ptr("float32") = T.tvm_struct_get(arg0, 0, 1, dtype="handle")
+        A_data: T.handle("float32") = T.tvm_struct_get(arg0, 0, 1, dtype="handle")
 
         # The buffer declaration has a data pointer defined earlier in
         # this function.  It should only be defined after the data pointer
         # has been defined, and should not be hoisted into the header of
         # the function as other buffer_decl statements can be.
         A = T.Buffer([1024], dtype="float32", data=A_data)
-        B_data: T.Ptr("float32") = T.tvm_struct_get(arg1, 0, 1, dtype="handle")
+        B_data: T.handle("float32") = T.tvm_struct_get(arg1, 0, 1, dtype="handle")
         B = T.Buffer([1024], dtype="float32", data=B_data)
 
         B[0] = A[0]
@@ -3266,13 +3266,13 @@ def string_annotation_escaping():
 
 def pointer_type():
     @T.prim_func
-    def func_with_ptr_type_annotations(x: T.Ptr("int32"), y: T.Ptr("int32", "shared")):
+    def func_with_ptr_type_annotations(x: T.handle("int32"), y: T.handle("int32", "shared")):
         xx_data = T.allocate([16], "int32", "global")
         xx = T.Buffer(shape=[16], dtype="int32", scope="global", data=xx_data)
         yy_data = T.allocate([16], "int32", "shared")
         yy = T.Buffer(shape=[16], dtype="int32", scope="shared", data=yy_data)
-        a: T.Ptr("int32") = T.address_of(xx[0], dtype="handle")
-        b: T.Ptr("int32", "shared") = T.address_of(yy[0], dtype="handle")
+        a: T.handle("int32") = T.address_of(xx[0], dtype="handle")
+        b: T.handle("int32", "shared") = T.address_of(yy[0], dtype="handle")
         T.evaluate(T.call_extern("copy", a, b, dtype=""))
 
     return func_with_ptr_type_annotations
@@ -3316,7 +3316,7 @@ def buffer_ramp_access_as_slice_index():
 def let_expression():
     @T.prim_func
     def func():
-        x = T.var("int32")
+        x = T.int32()
         T.evaluate(T.let(x, 1, x + 1))
 
     return func
@@ -3324,7 +3324,7 @@ def let_expression():
 
 def void_ptr():
     @T.prim_func
-    def func(out_ret_value: T.Ptr("void")):
+    def func(out_ret_value: T.handle("void")):
         T.evaluate(out_ret_value)
 
     return func
@@ -3542,8 +3542,8 @@ def intrinsic_pow():
 def let_stmt_var():
     @T.prim_func
     def func():
-        x = T.var("int32")
-        y = T.var("int32")
+        x = T.int32()
+        y = T.int32()
         with T.let(x, 0):
             with T.let(y, 0):
                 T.evaluate(0)
@@ -3555,8 +3555,8 @@ def let_stmt_var():
 def let_stmt_value():
     @T.prim_func
     def func():
-        x = T.var("int32")
-        y = T.var("int32")
+        x = T.int32()
+        y = T.int32()
         with T.let(x, y):
             with T.let(y, 0):
                 T.evaluate(0)

@@ -83,4 +83,4 @@ endif()
 
 file(GLOB_RECURSE app_srcs src/**.c src/**.cc)
 target_sources(app PRIVATE ${app_srcs} ${cmsis_lib_srcs})
-target_include_directories(app PRIVATE crt_config ${CMAKE_SOURCE_DIR}/include crt/include ${cmsis_includes})
+target_include_directories(app PRIVATE crt_config include ${CMAKE_SOURCE_DIR}/include crt/include ${cmsis_includes})

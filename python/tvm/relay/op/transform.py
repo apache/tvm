@@ -420,7 +420,13 @@ def scatter_nd(data, indices, updates, mode="update"):
         The values to update.
 
     mode : string, optional
-        The accumulation mode for scatter. "update" or "add"
+        The accumulation mode for scatter. "update", "add", "mul", "min" or "max"
+        If update, the update values will replace the input data
+        If add, the update values will be added to the input data
+        If mul, the update values will be multiply to the input data
+        If min, there is choice of minimal between the update values and the input data
+        If max, there is choice of maximal between the update values and the input data
+        It is "update" by default
 
     Returns
     -------

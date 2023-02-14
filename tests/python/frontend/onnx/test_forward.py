@@ -5398,8 +5398,6 @@ unsupported_onnx_tests = [
     "test_reduce_sum_negative_axes_keepdims_random",
     "test_roialign_aligned_true",
     "test_scatter_elements_with_duplicate_indices",
-    "test_scatternd_add",
-    "test_scatternd_multiply",
     "test_sequence_insert_at_back",
     "test_sequence_insert_at_front",
     "test_sequence_map_add_1_sequence_1_tensor",
