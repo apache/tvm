@@ -47,7 +47,7 @@ class PTXAsyncCopyInjector : public StmtMutator {
     return StmtMutator::VisitStmt_(attr);
   }
 
-  Stmt injectPTX(const BufferLoadNode* load, const BufferStoreNode* store,
+  Stmt InjectPTX(const BufferLoadNode* load, const BufferStoreNode* store,
                  bool predicated = false, PrimExpr predicate_value = PrimExpr()) {
     if (load->buffer.scope() == "global") {
       ICHECK(load->indices.size() == 1 && store->indices.size() == 1);
