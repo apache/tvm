@@ -76,7 +76,7 @@ if __name__ == "__main__":
     create_headers(sys.argv[1])
 
     # Generate crt_config.h
-    crt_config_output_path = pathlib.Path(__file__).parent.resolve() / "crt_config"
+    crt_config_output_path = pathlib.Path(__file__).parent.resolve() / "build" / "crt_config"
     if not crt_config_output_path.exists():
         crt_config_output_path.mkdir()
     copy_crt_config_header("crt", crt_config_output_path)
