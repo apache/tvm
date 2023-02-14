@@ -23,6 +23,7 @@ from .binary import *
 from .create import *
 from .datatype import *
 from .index import *
+from .linear_algebra import *
 from .manipulate import *
 from .op_attrs import *
 from .statistical import *
