@@ -462,7 +462,7 @@ for a step by step explanation of the same.
 
 .. _application_integration:
 
-Aplication Integration:
+Application Integration:
 -----------------------
 
 TVM compilation output is represented as module shared lib (mod.so), graph json(mod.json) and params (mod.params).
