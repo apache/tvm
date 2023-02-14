@@ -34,6 +34,11 @@ class StridedSliceAttrs(Attrs):
     """Attributes used in strided_slice operator"""
 
 
+@tvm._ffi.register_object("relax.attrs.MatmulAttrs")
+class MatmulAttrs(Attrs):
+    """Attributes for matmul operator"""
+
+
 @tvm._ffi.register_object("relax.attrs.Resize2DAttrs")
 class Resize2DAttrs(Attrs):
     """Attributes used in image resize2d operator"""
