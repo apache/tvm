@@ -14,21 +14,29 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""The attributes node used for Relax operators"""
-from tvm.ir import Attrs
-import tvm._ffi
+"""Datatype operators."""
+from typing import Union
+
+from tvm import DataType
+
+from . import _ffi_api
+from ..expr import Expr
 
 
-@tvm._ffi.register_object("relax.attrs.AstypeAttrs")
-class AstypeAttrs(Attrs):
-    """Attributes used in astype operator"""
+def astype(x: Expr, dtype: Union[str, DataType]) -> Expr:
+    """Cast input tensor to the given data type.
 
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data to the operator.
 
-@tvm._ffi.register_object("relax.attrs.TakeAttrs")
-class TakeAttrs(Attrs):
-    """Attributes used in take operator"""
+    dtype: Union[str, DataType]
+        The target data type
 
-
-@tvm._ffi.register_object("relax.attrs.StridedSliceAttrs")
-class StridedSliceAttrs(Attrs):
-    """Attributes used in strided_slice operator"""
+    Returns
+    -------
+    result : relax.Expr
+        The casted result.
+    """
+    return _ffi_api.astype(x, dtype)  # type: ignore
