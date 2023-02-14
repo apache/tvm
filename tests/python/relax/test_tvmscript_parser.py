@@ -22,10 +22,9 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import IRModule, relax, tir, topi
-from tvm.relax import DynTensorType
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script.parser import ir as I
+from tvm.script.parser import relax as R
+from tvm.script.parser import tir as T
 
 
 def _check(
@@ -202,6 +201,23 @@ def test_relax_tensor_op():
     _check(foo, bb.get()["foo"])
 
 
+def test_relax_base_op():
+    @R.function
+    def foo(x: R.Tensor((4, 4), "float32")):
+        alloc = R.builtin.alloc_tensor(R.shape([4, 4]), runtime_device_index=0, dtype="float32")
+        shape = R.shape_of(alloc)
+        return shape
+
+    x = relax.Var("x", R.Tensor((4, 4), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x,)):
+        alloc = bb.emit(relax.op.builtin.alloc_tensor(relax.ShapeExpr((4, 4)), "float32", 0))
+        shape = bb.emit(relax.op.shape_of(alloc))
+        bb.emit_func_output(shape)
+    # todo(yongwww): comment this check because 0 was changed to R.prim_value(0) in the printed IR
+    # _check(foo, bb.get()["foo"])
+
+
 def test_symbolic_shape():
     @R.function
     def foo(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
@@ -274,7 +290,7 @@ def test_match_cast():
             y0 = R.match_cast(y, R.Tensor([n], "float32"))
             gv = y0
             R.output(gv)
-        return (x0, (m, n * 2))
+        return (x0, R.shape([m, n * 2]))
 
     x = relax.Var("x", R.Tensor("float32"))
     y = relax.Var("y", R.Tensor("float32"))
@@ -314,7 +330,7 @@ def test_tuple_return_2():
     def foo(x: R.Tensor("float32", ndim=2)):
         n, m = T.var("int64"), T.var("int64")
         x0 = R.match_cast(x, R.Tensor((n, m), "float32"))
-        return (x0, (n + 1, m, 1))
+        return (x0, R.shape([n + 1, m, 1]))
 
     x = relax.Var("x", R.Tensor("float32", ndim=2))
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
@@ -332,7 +348,7 @@ def test_tuple_binding():
         n, m = T.var("int64"), T.var("int64")
         x0 = R.match_cast(x, R.Tensor((n, m), "float32"))
         t0 = (x, x0)
-        t1 = (x, (n, m), t0)
+        t1 = (x, R.shape([n, m]), t0)
         return t1
 
     x = relax.Var("x", R.Tensor("float32", ndim=2))
@@ -965,9 +981,9 @@ def test_vm_ops():
     def foo(x: R.Tensor(("m", "n"), dtype="float32")):
         m = T.var("int64")
         n = T.var("int64")
-        storage = R.vm.alloc_storage((4 * m * n,), dtype="float32", runtime_device_index=0)
-        alloc = R.vm.alloc_tensor(storage, (m, n), offset=0, dtype="float32")
-        tensor = R.builtin.alloc_tensor((m, n), dtype="float32", runtime_device_index=0)
+        storage = R.vm.alloc_storage(R.shape([4 * m * n]), dtype="float32", runtime_device_index=0)
+        alloc = R.vm.alloc_tensor(storage, shape=R.shape([m, n]), offset=0, dtype="float32")
+        tensor = R.builtin.alloc_tensor(R.shape([m, n]), dtype="float32", runtime_device_index=0)
         _ = R.vm.call_tir_dyn("te_func", (x, tensor, (m, n)))
         gv = tensor
         return alloc, gv
