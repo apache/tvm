@@ -297,10 +297,14 @@ def test_matmul():
         rt_mod = tvm.build(Module, target="cuda")
 
     M, N, K = 1012, 1017, 1014
-    a_tvm = tvm.nd.array(np.random.rand(M, K).astype("float32"), device=tvm.cuda(0))
-    b_tvm = tvm.nd.array(np.random.rand(K, N).astype("float32"), device=tvm.cuda(0))
+    a_np = np.random.rand(M, K).astype("float32")
+    b_np = np.random.rand(K, N).astype("float32")
+    c_np = a_np @ b_np
+    a_tvm = tvm.nd.array(a_np, device=tvm.cuda(0))
+    b_tvm = tvm.nd.array(b_np, device=tvm.cuda(0))
     c_tvm = tvm.nd.array(np.empty((M, N)).astype("float32"), device=tvm.cuda(0))
     rt_mod(a_tvm, b_tvm, c_tvm)
+    assert np.allclose(c_tvm.numpy(), c_np)
 
     time_f = rt_mod.time_evaluator(rt_mod.entry_name, dev=tvm.cuda(0), number=10)
     time = time_f(a_tvm, b_tvm, c_tvm).mean
