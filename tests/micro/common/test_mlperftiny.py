@@ -58,7 +58,7 @@ MLPERF_TINY_MODELS = {
         "name": "Anomaly Detection",
         "index": 3,
         "url": "https://github.com/mlcommons/tiny/raw/bceb91c5ad2e2deb295547d81505721d3a87d578/benchmark/training/anomaly_detection/trained_models/ToyCar/baseline_tf23/model/model_ToyCar_quant_fullint_micro.tflite",
-        "sample": "https://github.com/tlc-pack/web-data/raw/micro/add_mlperftiny/testdata/microTVM/data/anomaly_detection_normal_id_01.npy",
+        "sample": "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/anomaly_detection_normal_id_01.npy",
         # This model takes in a (1, 640) vector, so it must be called 40 times -
         # once for each time slice.
     },
