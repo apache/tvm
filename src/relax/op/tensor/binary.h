@@ -61,8 +61,37 @@ namespace relax {
 /*! \brief Addition with numpy-style broadcasting. */
 Expr add(Expr x1, Expr x2);
 
+/*! \brief Division with numpy-style broadcasting. */
+Expr divide(Expr x1, Expr x2);
+
+/*! \brief Floor division with numpy-style broadcasting. */
+Expr floor_divide(Expr x1, Expr x2);
+
 /*! \brief Multiplication with numpy-style broadcasting. */
 Expr multiply(Expr x1, Expr x2);
+
+/*! \brief Subtraction with numpy-style broadcasting. */
+Expr subtract(Expr x1, Expr x2);
+
+/***************** Comparison operators *****************/
+
+/*! \brief Broadcasted element-wise test for (lhs == rhs). */
+Expr equal(Expr x1, Expr x2);
+
+/*! \brief Broadcasted element-wise test for (lhs > rhs). */
+Expr greater(Expr x1, Expr x2);
+
+/*! \brief Broadcasted element-wise test for (lhs >= rhs). */
+Expr greter_equal(Expr x1, Expr x2);
+
+/*! \brief Broadcasted element-wise test for (lhs < rhs). */
+Expr less(Expr x1, Expr x2);
+
+/*! \brief Broadcasted element-wise test for (lhs <= rhs). */
+Expr less_equal(Expr x1, Expr x2);
+
+/*! \brief Broadcasted element-wise test for (lhs != rhs). */
+Expr not_equal(Expr x1, Expr x2);
 
 }  // namespace relax
 }  // namespace tvm

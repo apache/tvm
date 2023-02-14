@@ -28,7 +28,7 @@ Array<TensorStructInfo> GetInputTensorStructInfo(const Call& call, const BlockBu
   Op op = Downcast<Op>(call->op);
   int n_input = op->arguments.size();
   if (static_cast<int>(call->args.size()) != n_input) {
-    ctx->ReportFatal(Diagnostic::Error(call->span)
+    ctx->ReportFatal(Diagnostic::Error(call)
                      << op << " op should have " << n_input << " arguments");
   }
   Array<TensorStructInfo> input_tensor_sinfo;
@@ -36,7 +36,7 @@ Array<TensorStructInfo> GetInputTensorStructInfo(const Call& call, const BlockBu
   for (int i = 0; i < n_input; ++i) {
     const auto* sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[i]);
     if (sinfo == nullptr) {
-      ctx->ReportFatal(Diagnostic::Error(call->span)
+      ctx->ReportFatal(Diagnostic::Error(call)
                        << op << " requires the input " << op->arguments[i]->name
                        << " to be Tensor. However, the given one is "
                        << call->args[i]->struct_info_->GetTypeKey());
@@ -70,7 +70,7 @@ Optional<Array<PrimExpr>> InferBinaryBroadcastShape(const Call& call, const Bloc
     } else if (analyzer->CanProveEqual(dim0, dim1)) {
       output_shape.push_back(dim0);
     } else if (int_dim0 && int_dim1 && int_dim0->value != int_dim1->value) {
-      ctx->ReportFatal(Diagnostic::Error(call->span)
+      ctx->ReportFatal(Diagnostic::Error(call)
                        << "In " << call->op << ", the first input shape at dim " << x1_ndim - i
                        << " is " << dim0 << " and the second input shape at dim " << x2_ndim - i
                        << " is " << dim1 << ", which are not broadcastable.");
@@ -96,17 +96,16 @@ std::vector<int> NormalizeAxes(const Call& call, const BlockBuilder& ctx, int nd
   for (const Integer& axis : axes) {
     int _axis = axis->value;
     if (_axis < -ndim || _axis >= ndim) {
-      ctx->ReportFatal(Diagnostic::Error(call->span)
-                       << "In " << call->op << ", the input axis " << _axis
-                       << " is out of range. The input tensor has " << ndim
-                       << " dimensions, so axis should be in range [" << -ndim << ", " << ndim
-                       << ").");
+      ctx->ReportFatal(Diagnostic::Error(call) << "In " << call->op << ", the input axis " << _axis
+                                               << " is out of range. The input tensor has " << ndim
+                                               << " dimensions, so axis should be in range ["
+                                               << -ndim << ", " << ndim << ").");
     } else if (_axis < 0) {
       _axis = ndim + _axis;
     }
 
     if (appeared_dims_set[_axis]) {
-      ctx->ReportFatal(Diagnostic::Error(call->span)
+      ctx->ReportFatal(Diagnostic::Error(call)
                        << "In " << call->op
                        << ", the input axes is required to be non-repetitive. However, there are "
                           "multiple given axes referring to axis "
