@@ -31,10 +31,9 @@ def _check(
     parsed: Union[relax.Function, IRModule],
     expect: Optional[Union[relax.Function, IRModule]] = None,
 ):
-    # TODO(relax-team): enable roundtrip testing when printer is ready
-    # test = parsed.script(show_meta=True)
-    # roundtrip_mod = tvm.script.parse(test)
-    # tvm.ir.assert_structural_equal(parsed, roundtrip_mod)
+    test = parsed.script(show_meta=True)
+    roundtrip_mod = tvm.script.from_source(test)
+    tvm.ir.assert_structural_equal(parsed, roundtrip_mod)
     if expect:
         tvm.ir.assert_structural_equal(parsed, expect)
 
