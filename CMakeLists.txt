@@ -59,7 +59,7 @@ tvm_option(USE_OPENMP "Build with OpenMP thread pool implementation" OFF)
 tvm_option(USE_RELAY_DEBUG "Building Relay in debug mode..." OFF)
 tvm_option(USE_RTTI "Build with RTTI" ON)
 tvm_option(USE_MSVC_MT "Build with MT" OFF)
-tvm_option(USE_MICRO "Build with Micro TVM support" ON)
+tvm_option(USE_MICRO "Build with Micro TVM support" OFF)
 tvm_option(INSTALL_DEV "Install compiler infrastructure" OFF)
 tvm_option(HIDE_PRIVATE_SYMBOLS "Compile with -fvisibility=hidden." OFF)
 tvm_option(USE_TF_TVMDSOOP "Build with TensorFlow TVMDSOOp" OFF)
@@ -263,12 +263,6 @@ else(MSVC)
     message(STATUS "Building for Android")
   endif()
 endif(MSVC)
-
-# USE_MICRO is on by default, but it is not needed for Hexagon builds nor will
-# it function properly with USE_RPC disabled.
-if(USE_HEXAGON OR NOT USE_RPC)
-  set(USE_MICRO OFF)
-endif()
 
 # Hexagon has dlopen built into QuRT (no need for static library).
 if(NOT BUILD_FOR_HEXAGON)
