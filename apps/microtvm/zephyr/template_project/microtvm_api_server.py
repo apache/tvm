@@ -705,8 +705,8 @@ class Handler(server.ProjectAPIHandler):
 
                 def is_within_directory(directory, member, path="."):
 
-                    target = os.path.join(path, member.name)
                     abs_directory = os.path.abspath(directory)
+                    target = os.path.join(path, member.name)
                     abs_target = os.path.abspath(target)
 
                     prefix = os.path.commonprefix([abs_directory, abs_target])
@@ -717,7 +717,9 @@ class Handler(server.ProjectAPIHandler):
 
                     for member in tar.getmembers():
                         if not is_within_directory(path, member):
-                            raise Exception("Attempted Path Traversal in Tar File attack. See CVE-2007-4559.")
+                            raise Exception(
+                                "Attempted Path Traversal in Tar File attack. See CVE-2007-4559."
+                            )
 
                     tar.extractall(path, members, numeric_owner)
 

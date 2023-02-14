@@ -180,8 +180,8 @@ class Handler(server.ProjectAPIHandler):
     def _safe_extract(tar, path=".", members=None, *, numeric_owner=False):
         def is_within_directory(directory, member):
 
-            target = os.path.join(path, member.name)
             abs_directory = os.path.abspath(directory)
+            target = os.path.join(directory, member.name)
             abs_target = os.path.abspath(target)
 
             prefix = os.path.commonprefix([abs_directory, abs_target])
