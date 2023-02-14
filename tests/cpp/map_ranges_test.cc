@@ -64,13 +64,19 @@ TEST(MapRanges, CalcRanges) {
   PrimExpr total_sz(1);
 
   for (size_t i = 0; i < ranges.size(); ++i) {
-    orig_sz *= ranges[i].as<RangeNode>()->extent;
-    total_sz *= result[i].as<RangeNode>()->extent;
+    auto pRange = ranges[i].as<RangeNode>();
+    EXPECT_NE(pRange, nullptr);
+    orig_sz *= pRange->extent;
+
+    auto pResult = result[i].as<RangeNode>();
+    EXPECT_NE(pResult, nullptr);
+    total_sz *= pResult->extent;
   }
   auto sz1 = local_analyzer.Simplify(total_sz);
   auto sz2 = local_analyzer.Simplify(orig_sz);
-
-  std::ostringstream os;
-  os << (sz2 == sz1);
-  EXPECT_EQ(os.str(), "True");
+  auto pTotal = total_sz.as<IntImmNode>();
+  auto pOrig = orig_sz.as<IntImmNode>();
+  EXPECT_NE(pTotal, nullptr);
+  EXPECT_NE(pOrig, nullptr);
+  EXPECT_EQ(pOrig->value, pTotal->value);
 }
