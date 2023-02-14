@@ -62,7 +62,7 @@ StructInfo ReturnShapeStructInfo(const Call& call, const BlockBuilder& ctx) {
 
 StructInfo InferStructInfoCallTIR(const Call& call, const BlockBuilder& ctx) {
   if (call->sinfo_args.size() != 1) {
-    ctx->ReportFatal(Diagnostic::Error(call->span)
+    ctx->ReportFatal(Diagnostic::Error(call)
                      << "sinfo_args should have exact 1 output struct info.");
   }
   return call->sinfo_args[0];

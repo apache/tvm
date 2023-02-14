@@ -104,7 +104,7 @@ inline StructInfo InferStructInfoUnary(const Call& call, const BlockBuilder& ctx
   TensorStructInfo input_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
   if (require_float_dtype && !input_sinfo->IsUnknownDtype() && !input_sinfo->dtype.is_float()) {
     ctx->ReportFatal(
-        Diagnostic::Error(call->span)
+        Diagnostic::Error(call)
         << call->op
         << " requires the input tensor to have float dtype. However, the given input dtype is "
         << input_sinfo->dtype);
@@ -126,11 +126,11 @@ StructInfo ReturnStructInfoFromArg(const Call& call, const BlockBuilder& ctx) {
   Op op = Downcast<Op>(call->op);
   int n_input = op->arguments.size();
   if (static_cast<int>(call->args.size()) != n_input) {
-    ctx->ReportFatal(Diagnostic::Error(call->span)
+    ctx->ReportFatal(Diagnostic::Error(call)
                      << op << " op should have " << n_input << " arguments");
   }
   if (arg_index >= n_input) {
-    ctx->ReportFatal(Diagnostic::Error(call->span)
+    ctx->ReportFatal(Diagnostic::Error(call)
                      << op << " op has only " << n_input
                      << "arguments, but try to get the arg with index " << arg_index);
   }
@@ -151,8 +151,6 @@ StructInfo InferStructInfoUnaryArith(const Call& call, const BlockBuilder& ctx) 
       call, ctx, [](const TensorStructInfo& input_sinfo) { return input_sinfo->dtype; });
 }
 
-/************ Utilities ************/
-
 /*!
  * \brief Infer the output datatype for binary arithmetic operators.
  * \param call The context Call to the operator.
@@ -168,7 +166,7 @@ inline DataType InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder&
   if (x1_sinfo->IsUnknownDtype() || x2_sinfo->IsUnknownDtype()) {
     return DataType::Void();
   } else if (x1_sinfo->dtype != x2_sinfo->dtype) {
-    ctx->ReportFatal(Diagnostic::Error(call->span)
+    ctx->ReportFatal(Diagnostic::Error(call)
                      << "Data types " << x1_sinfo->dtype << " and " << x2_sinfo->dtype
                      << " must be equal for binary operators");
   }
@@ -269,11 +267,10 @@ inline std::pair<tir::Layout, tir::BijectiveLayout> CheckTensorLayout(const Call
   tir::Layout _tensor_layout(tensor_layout, DataType::Int(64));
   tir::BijectiveLayout tensor2tgt(_tensor_layout, tir::Layout(tgt_layout, DataType::Int(64)));
   if (!tensor2tgt.defined()) {
-    ctx->ReportFatal(Diagnostic::Error(call->span)
-                     << call->op << " requires the given " << tensor_name
-                     << " layout to be convertible from " << tgt_layout
-                     << " layout. However, the given layout " << tensor_layout
-                     << " is not convertible.");
+    ctx->ReportFatal(Diagnostic::Error(call) << call->op << " requires the given " << tensor_name
+                                             << " layout to be convertible from " << tgt_layout
+                                             << " layout. However, the given layout "
+                                             << tensor_layout << " is not convertible.");
   }
   return {_tensor_layout, tensor2tgt};
 }
@@ -291,7 +288,7 @@ inline Optional<ShapeExpr> CheckNdimPerLayoutAndGetShape(const Call& call, const
                                                          const TensorStructInfo& sinfo,
                                                          const tir::Layout& layout) {
   if (!sinfo->IsUnknownNdim() && sinfo->ndim != static_cast<int>(layout.ndim())) {
-    ctx->ReportFatal(Diagnostic::Error(call->span)
+    ctx->ReportFatal(Diagnostic::Error(call)
                      << "In " << call->op << ", layout " << layout << " requires the input to be "
                      << layout.ndim() << "-dim tensor. However, the given input has ndim "
                      << sinfo->ndim);

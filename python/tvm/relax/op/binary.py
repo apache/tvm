@@ -49,6 +49,42 @@ def add(x1: Expr, x2: Expr) -> Expr:
     return _ffi_api.add(x1, x2)  # type: ignore
 
 
+def divide(x1: Expr, x2: Expr) -> Expr:
+    """Division with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.divide(x1, x2)  # type: ignore
+
+
+def floor_divide(x1: Expr, x2: Expr) -> Expr:
+    """Floor division with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.floor_divide(x1, x2)  # type: ignore
+
+
 def multiply(x1: Expr, x2: Expr) -> Expr:
     """Multiplication with numpy-style broadcasting.
 
@@ -65,3 +101,132 @@ def multiply(x1: Expr, x2: Expr) -> Expr:
         The computed result.
     """
     return _ffi_api.multiply(x1, x2)  # type: ignore
+
+
+def subtract(x1: Expr, x2: Expr) -> Expr:
+    """Subtraction with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.subtract(x1, x2)  # type: ignore
+
+
+###################### Comparison operators ######################
+
+
+def equal(x1: Expr, x2: Expr) -> Expr:
+    """Broadcasted element-wise test for (lhs == rhs).
+
+    Parameters
+    ----------
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.equal(x1, x2)  # type: ignore
+
+
+def greater(x1: Expr, x2: Expr) -> Expr:
+    """Broadcasted element-wise test for (lhs > rhs).
+
+    Parameters
+    ----------
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.greater(x1, x2)  # type: ignore
+
+
+def greater_equal(x1: Expr, x2: Expr) -> Expr:
+    """Broadcasted element-wise test for (lhs >= rhs).
+
+    Parameters
+    ----------
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.greater_equal(x1, x2)  # type: ignore
+
+
+def less(x1: Expr, x2: Expr) -> Expr:
+    """Broadcasted element-wise test for (lhs < rhs).
+
+    Parameters
+    ----------
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.less(x1, x2)  # type: ignore
+
+
+def less_equal(x1: Expr, x2: Expr) -> Expr:
+    """Broadcasted element-wise test for (lhs <= rhs).
+
+    Parameters
+    ----------
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.less_equal(x1, x2)  # type: ignore
+
+
+def not_equal(x1: Expr, x2: Expr) -> Expr:
+    """Broadcasted element-wise test for (lhs != rhs).
+
+    Parameters
+    ----------
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.not_equal(x1, x2)  # type: ignore
