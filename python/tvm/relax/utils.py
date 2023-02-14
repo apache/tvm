@@ -23,7 +23,7 @@ from .. import tir
 from ..runtime import String, convert_to_object
 from ..tir import PrimExpr
 from . import _ffi_api
-from .expr import Expr, Function, PrimValue, ShapeExpr, StringImm
+from .expr import Expr, Function, PrimValue, StringImm
 from .expr import Tuple as rx_Tuple
 
 
@@ -74,14 +74,12 @@ def convert_to_expr(value: Any) -> Expr:
     1. Return the input itself if it's already a `relax.Expr`;
     2. Return `relax.PrimValue` if the input is a `PrimExpr`;
     3. Return `relax.StringImm` if the input is `tvm.String` or `str`;
-    4. Return `relax.ShapeExpr` if the input is a tuple/list of `PrimExpr` w/ int dtype;
-    5. Return `relax.Tuple` if the input is a tuple/list of `Expr`.
+    4. Return `relax.Tuple` if the input is a tuple/list of `Expr`.
 
     Notes
     -----
     1. `tvm.tir.StringImm` is not allowed because of ambiguity,
        which can be either `relax.StringImm` or `relax.PrimValue`.
-    2. We regard empty tuple/list as `relax.Tuple` instead of `relax.ShapeExpr`
     """
     if isinstance(value, int):
         return PrimValue(tir.IntImm("int64", value))
@@ -102,16 +100,8 @@ def convert_to_expr(value: Any) -> Expr:
     # Case 3
     if isinstance(tvm_value, String):
         return StringImm(value)
-    # Case 4 & 5
+    # Case 4
     if isinstance(value, (tuple, list)):
-        # Note 2
-        if len(value) == 0:
-            return rx_Tuple([])
-        # Case 4
-        opt_prim_value = [convert_to_object(v) for v in value]
-        if all([isinstance(v, PrimExpr) and v.dtype.startswith("int") for v in opt_prim_value]):
-            return ShapeExpr(value)
-        # Case 5
         # `convert_to_expr` ensures that all elements are `Expr` if no exception raises
         return rx_Tuple([convert_to_expr(v) for v in value])
     raise TypeError(f"Cannot convert {value} with type {type(value)} to `relax.Expr`")

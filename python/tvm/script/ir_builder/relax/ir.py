@@ -329,6 +329,23 @@ def tuple(*fields: Expr) -> Expr:
     return relax.Tuple(fields)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
+############################### R.shape ################################
+
+
+def shape(value: List[PrimExpr]) -> Expr:
+    """Create a ShapeExpr.
+    Parameters
+    ----------
+    value : List[PrimExpr]
+        The fields of the tuple.
+    Returns
+    -------
+    res : Expr
+        The result tuple.
+    """
+    return relax.ShapeExpr(value)  # pylint: disable=no-member # type: ignore
+
+
 ############################### PrimValue ##############################
 
 
@@ -407,6 +424,7 @@ __all__ = [
     "prim_value",
     "print",
     "reshape",
+    "shape",
     "shape_of",
     "str",
     "tuple",
