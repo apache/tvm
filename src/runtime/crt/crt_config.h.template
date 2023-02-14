@@ -17,10 +17,10 @@
  * under the License.
  */
 
- /*!
- * \\file tvm/runtime/crt_config.h
- * \\brief Template for CRT configuration, to be modified on each target.
- */
+/*!
+* \\file tvm/runtime/crt_config.h
+* \\brief Template for CRT configuration, to be modified on each target.
+*/
 #ifndef TVM_RUNTIME_CRT_CRT_CONFIG_H_
 #define TVM_RUNTIME_CRT_CRT_CONFIG_H_
 
