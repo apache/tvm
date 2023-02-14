@@ -89,6 +89,36 @@ class StatisticalAttrs(Attrs):
     """Attributes used in statistical operator"""
 
 
+@tvm._ffi.register_object("relax.attrs.ConcatAttrs")
+class ConcatAttrs(Attrs):
+    """Attributes for concat operator"""
+
+
+@tvm._ffi.register_object("relax.attrs.ExpandDimsAttrs")
+class ExpandDimsAttrs(Attrs):
+    """Attributes for expand_dims operator"""
+
+
+@tvm._ffi.register_object("relax.attrs.PermuteDimsAttrs")
+class PermuteDimsAttrs(Attrs):
+    """Attributes for permute_dims operator"""
+
+
+@tvm._ffi.register_object("relax.attrs.SplitAttrs")
+class SplitAttrs(Attrs):
+    """Attributes used in split operator"""
+
+
+@tvm._ffi.register_object("relax.attrs.SqueezeAttrs")
+class SqueezeAttrs(Attrs):
+    """Attributes for squeeze operator"""
+
+
+@tvm._ffi.register_object("relax.attrs.LayoutTransformAttrs")
+class LayoutTransformAttrs(Attrs):
+    """Attributes used in layout_transform operator"""
+
+
 @tvm._ffi.register_object("relax.attrs.Resize2DAttrs")
 class Resize2DAttrs(Attrs):
     """Attributes used in image resize2d operator"""
