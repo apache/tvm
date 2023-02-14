@@ -283,7 +283,13 @@ class Module:
                             Y[v0, v1] = Y_reindex_local[v0, v1]
 
 
+@tvm.testing.requires_cuda
 def test_matmul():
+    arch = tvm.contrib.nvcc.get_target_compute_version()
+    major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
+    if major < 8:
+        # At least sm80 is required
+        return
     with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
         rt_mod = tvm.build(Module, target="cuda")
 

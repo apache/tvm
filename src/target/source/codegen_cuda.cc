@@ -917,8 +917,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     // use size of argument list to indicate whether or not to use predicated cp.async
     if (op->args.size() == 5) {
       this->stream << PrintCpAsyncAssembly(dst, dst_offset, src, src_offset, size);
-    }
-    else {
+    } else {
       this->stream << PrintPredicatedCpAsyncAssembly(dst, dst_offset, src, src_offset,
                                                      size, this->PrintExpr(op->args[5]));
     }
