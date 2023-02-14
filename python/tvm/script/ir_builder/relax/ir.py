@@ -31,6 +31,7 @@ from tvm.relax import Call, Expr, ExternFunc, TupleGetItem, Var, const
 from tvm.relax.op import (
     add,
     assert_op,
+    astype,
     builtin,
     call_builtin_with_ctx,
     call_tir,
@@ -45,6 +46,7 @@ from tvm.relax.op import (
     shape_of,
     strided_slice,
     take,
+    unique,
 )
 from tvm.relax.struct_info import StructInfo
 from tvm.relax.utils import args_converter
@@ -404,6 +406,7 @@ __all__ = [
     "add",
     "arg",
     "assert_op",
+    "astype",
     "builtin",
     "call_packed",
     "call_tir",
@@ -434,4 +437,5 @@ __all__ = [
     "strided_slice",
     "take",
     "tuple",
+    "unique",
 ]

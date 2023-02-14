@@ -19,6 +19,11 @@ from tvm.ir import Attrs
 import tvm._ffi
 
 
+@tvm._ffi.register_object("relax.attrs.AstypeAttrs")
+class AstypeAttrs(Attrs):
+    """Attributes used in astype operator"""
+
+
 @tvm._ffi.register_object("relax.attrs.TakeAttrs")
 class TakeAttrs(Attrs):
     """Attributes used in take operator"""
@@ -32,3 +37,8 @@ class StridedSliceAttrs(Attrs):
 @tvm._ffi.register_object("relax.attrs.Resize2DAttrs")
 class Resize2DAttrs(Attrs):
     """Attributes used in image resize2d operator"""
+
+
+@tvm._ffi.register_object("relax.attrs.UniqueAttrs")
+class UniqueAttrs(Attrs):
+    """Attributes used for the unique operator"""

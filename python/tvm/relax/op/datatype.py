@@ -14,17 +14,29 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import, redefined-builtin
-"""Relax core operators."""
+"""Datatype operators."""
+from typing import Union
 
-# Operators
-from .base import *
-from .binary import *
-from .datatype import *
-from .index import *
-from .manipulate import *
-from .op_attrs import *
-from .set import *
-from . import builtin
-from . import image
-from . import memory
+from tvm import DataType
+
+from . import _ffi_api
+from ..expr import Expr
+
+
+def astype(x: Expr, dtype: Union[str, DataType]) -> Expr:
+    """Cast input tensor to the given data type.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data to the operator.
+
+    dtype: Union[str, DataType]
+        The target data type
+
+    Returns
+    -------
+    result : relax.Expr
+        The casted result.
+    """
+    return _ffi_api.astype(x, dtype)  # type: ignore
