@@ -167,7 +167,7 @@ if __name__ == "__main__":
         build_module(opts)
         build_inputs(opts)
 
-    crt_config_output_path = pathlib.Path(__file__).parent.resolve() / "crt_config"
+    crt_config_output_path = pathlib.Path(__file__).parent.resolve() / "build" / "crt_config"
     if not crt_config_output_path.exists():
         crt_config_output_path.mkdir()
     copy_crt_config_header("crt", crt_config_output_path)
