@@ -167,7 +167,7 @@ def test_symbolic_compute():
             n = T.Var("n", "int64")
             k = T.Var("k", "int64")
             z = R.match_cast(y, R.Tensor([k, m, k + 1], dtype=None))
-            return (k + 1, m, 2)
+            return R.shape([k + 1, m, 2])
 
     # slot assignment:
     # 0: n, 1: m, 2:k, 3: k+1
