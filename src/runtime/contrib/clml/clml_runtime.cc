@@ -140,17 +140,17 @@ class CLMLRuntime : public JSONRuntimeBase {
   void InitCLML() {
     // Setup CLML Context
     cl_int result = 0;
-
     workspace = cl::OpenCLWorkspace::Global();
     workspace->Init();
     tentry = workspace->GetThreadEntry();
+
+    if (!ExtensionStringPresent()) {
+      LOG(FATAL) << "CLML Runtime Init: Qualcomm extn not present.\n";
+      return;
+    }
     device_id = workspace->GetCLDeviceID(tentry->device.device_id);
     platform_id = workspace->device_to_platform[device_id];
 
-    if (!ExtensionStringPresent()) {
-      LOG(WARNING) << "CLML Runtime Init: Qualcomm extn not present.\n";
-      return;
-    }
     // Query and Get CLML Interface
     static const cl_uint MAX_VERSIONS = 256;
     cl_int majorVersions[MAX_VERSIONS];
@@ -584,7 +584,11 @@ class CLMLRuntime : public JSONRuntimeBase {
   bool ExtensionStringPresent(void) {
     cl_int result = 0;
     size_t reqd_size = 0;
-    cl_device_id device_id = workspace->devices[workspace->GetThreadEntry()->device.device_id];
+    if (!workspace->IsDeviceExists(workspace->GetThreadEntry()->device.device_id)) {
+      LOG(FATAL) << "OpenCL device not found";
+    }
+    cl_device_id device_id =
+        workspace->GetCLDeviceID(workspace->GetThreadEntry()->device.device_id);
     result = clGetDeviceInfo(device_id, CL_DEVICE_EXTENSIONS, 0, NULL, &reqd_size);
     ICHECK(reqd_size > 0u && result == CL_SUCCESS) << "clGetDeviceInfo:" << result;
 
