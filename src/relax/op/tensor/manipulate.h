@@ -24,10 +24,58 @@
 #ifndef TVM_RELAX_OP_TENSOR_MANIPULATE_H_
 #define TVM_RELAX_OP_TENSOR_MANIPULATE_H_
 
+#include <tvm/relax/attrs/manipulate.h>
+
 #include "../op_common.h"
 
 namespace tvm {
 namespace relax {
+
+/*! \brief Broadcasts a tensor to a specified shape. */
+Expr broadcast_to(Expr x, Expr shape);
+
+/*!
+ * \brief Concatenate the input tensors along the given axis.
+ * \param tensors An Expr in Tuple type, containing the tensors to be concatenated,
+ * or a list of tensors
+ * \param axis The axis along which the tensors are concatenated.
+ * If it is `NullOpt`, the input tensor is required to be flattened before concatenation.
+ * \return The concatenated tensor.
+ */
+Expr concat(Expr tensors, Optional<Integer> axis);
+
+/*!
+ * \brief Insert new axes at the positions given by `axis`.
+ * \param x The input data to the operator.
+ * \param axis The axes at which the input array are expanded.
+ * \return The transformed result.
+ */
+Expr expand_dims(Expr x, Array<Integer> axis);
+
+/*!
+ * \brief Flatten all the tensor dimensions into one.
+ * \param x The input data to the operator.
+ * \return The flattened result.
+ */
+Expr flatten(Expr x);
+
+/*!
+ * \brief Transform layout of a tensor.
+ * \param x The input data to the operator.
+ * \param index_map The transformation to apply.
+ * \param pad_value The value used for padding if the transformation results in implicit padding. If
+ * not specified, any value can be used.
+ * \return The transformed result.
+ */
+Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_value);
+
+/*!
+ * \brief Permutes the dimensions of an array.
+ * \param x The input data to the operator.
+ * \param axes The target axes order, reverse order if not specified.
+ * \return The transposed result.
+ */
+Expr permute_dims(Expr x, Optional<Array<Integer>> axes);
 
 /*!
  * \brief Reshape the input array, supporting `-1` inference in the new
@@ -38,6 +86,31 @@ namespace relax {
  * \return The reshaped result.
  */
 Expr reshape(Expr x, ObjectRef shape);
+
+/*!
+ * \brief Split input tensor along axis by sections or indices.
+ * - If indices_or_sections is an integer, the input will be divided equally
+ * along given axis (if possible). Last section will be smaller if the tensor
+ * size along the given dimension is not divisible by the integer.
+ * - If indices_or_sections is a tuple of mixture of int or PrimExpr,
+ * the entries indicate the indices where along axis the array is split.
+ * \param x The tensor to be split.
+ * \param indices_or_sections Indices or sections to split into.
+ * It is required to be an Array of PrimExpr or an integer.
+ * \param axis The axis over which to split.
+ * \return The computed result.
+ */
+Expr split(Expr x, ObjectRef indices_or_sections, int axis);
+
+/*!
+ * \brief Squeeze axes in the array.
+ * \param x The input data to the operator.
+ * \param axis The set of axes to remove.
+ * If it is `NullOpt`, remove all axis of dimensions 1.
+ * If any specified axis has dimension that does not equal 1, it is an error.
+ * \return The squeezed result.
+ */
+Expr squeeze(Expr x, Optional<Array<Integer>> axis);
 
 }  // namespace relax
 }  // namespace tvm
