@@ -89,9 +89,9 @@ void uart_irq_cb(const struct device* dev, void* user_data) {
       // Write it into the ring buffer.
       g_num_bytes_in_rx_buffer += rx_size;
 
-      // if (g_num_bytes_in_rx_buffer > RING_BUF_SIZE_BYTES) {
-      //   TVMPlatformAbort((tvm_crt_error_t)0xbeef3);
-      // }
+      if (g_num_bytes_in_rx_buffer > RING_BUF_SIZE_BYTES) {
+        TVMPlatformAbort((tvm_crt_error_t)0xbeef3);
+      }
 
       if (rx_size < 0) {
         TVMPlatformAbort((tvm_crt_error_t)0xbeef1);
