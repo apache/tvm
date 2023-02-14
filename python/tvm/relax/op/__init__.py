@@ -24,6 +24,7 @@ from .datatype import *
 from .index import *
 from .manipulate import *
 from .op_attrs import *
+from .statistical import *
 from .set import *
 from .ternary import *
 from .unary import *
