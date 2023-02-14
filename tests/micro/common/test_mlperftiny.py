@@ -53,7 +53,7 @@ MLPERF_TINY_MODELS = {
     },
     # Note: The reason we use quantized model with float32 I/O is
     # that TVM does not handle the int8 I/O correctly and accuracy
-    # would drop signigicantly.
+    # would drop significantly.
     "ad": {
         "name": "Anomaly Detection",
         "index": 3,
@@ -155,6 +155,15 @@ def predict_ad_labels_aot(session, aot_executor, input_data, runs_per_sample=1):
     ["mps2_an521", "mps3_an547", "stm32f746g_disco", "nucleo_f746zg", "nrf5340dk_nrf5340_cpuapp"]
 )
 def test_mlperftiny_models(platform, board, workspace_dir, serial_number, model_name, project_type):
+    """MLPerfTiny models test.
+    Testing MLPerfTiny models using host_driven project. In this case one input sample is used
+    to verify the end to end execution. Accuracy is not checked in this test.
+
+    Also, this test builds each model in standalone mode that can be used with EEMBC runner.
+    """
+    if platform != "zephyr":
+        pytest.skip(reason="Other platforms are not supported yet.")
+
     use_cmsis_nn = False
     relay_mod, params, model_info = mlperftiny_get_module(model_name)
     target = tvm.micro.testing.get_target(platform, board)
@@ -201,9 +210,6 @@ def test_mlperftiny_models(platform, board, workspace_dir, serial_number, model_
         print(f"Model {model_name} average runtime: {avg_runtime}")
 
     elif project_type == "mlperftiny":
-        if platform != "zephyr":
-            pytest.skip(reason="MLPerTiny package is not supported.")
-
         runtime = Runtime("crt")
         executor = Executor(
             "aot", {"unpacked-api": True, "interface-api": "c", "workspace-byte-alignment": 8}
