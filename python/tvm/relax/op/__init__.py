@@ -23,5 +23,6 @@ from .binary import *
 from .index import *
 from .manipulate import *
 from .op_attrs import *
+from .set import *
 from . import builtin
 from . import memory

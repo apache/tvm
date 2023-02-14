@@ -27,3 +27,8 @@ class TakeAttrs(Attrs):
 @tvm._ffi.register_object("relax.attrs.StridedSliceAttrs")
 class StridedSliceAttrs(Attrs):
     """Attributes used in strided_slice operator"""
+
+
+@tvm._ffi.register_object("relax.attrs.UniqueAttrs")
+class UniqueAttrs(Attrs):
+    """Attributes used for the unique operator"""
