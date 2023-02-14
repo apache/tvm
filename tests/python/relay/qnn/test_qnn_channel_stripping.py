@@ -50,7 +50,7 @@ def make_test_conv_depthwise_conv():
     """Generates a convolution -> depthwise_convolution -> convolution pattern that can have
     channels stripped. The structure here mirrors MobileNetV1's layers 8-10."""
 
-    input_var = relay.var("x", shape=(1, 12, 12, 4), dtype="int8")
+    input_var = relay.var("input", shape=(1, 12, 12, 4), dtype="int8")
 
     kernel_1 = np.array(
         [[0, 1, 0, -2], [0, 3, 0, 5], [0, 5, 0, -9], [0, 2, 0, 21]], dtype="int8"
@@ -173,7 +173,7 @@ def make_test_conv_pool_dense():
     """Generates a convolution -> pool -> dense pattern that can have channels stripped. The
     structure here mirrors MobileNetV1's final few layers."""
 
-    input_var = relay.var("x", shape=(1, 3, 3, 4), dtype="int8")
+    input_var = relay.var("input", shape=(1, 3, 3, 4), dtype="int8")
 
     kernel = np.array(
         [[0, 1, 0, -2], [0, 3, 0, 5], [0, 5, 0, -9], [0, 2, 0, 21]], dtype="int8"

@@ -56,8 +56,6 @@ def _compute_fixed_conv2d_outputs(requantize_op):
         will have. If the block has no fixed output channels, this dictionary will be empty.
     """
 
-    import pdb
-    pdb.set_trace()
     bias_add_op = requantize_op.args[0]
     conv2d_op = bias_add_op.args[0]
 

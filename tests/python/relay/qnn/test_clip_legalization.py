@@ -51,7 +51,7 @@ def test_removes_redundant_requantize_clip_ops(dtype, min_val, max_val, is_redun
     """Test that qnn.requantize -> clip sequences are removed during legalization if the bounds of
     the clip operator match the min and max values of the data type."""
 
-    input_var = relay.var("x", shape=(1, 3, 3, 4), dtype="int32")
+    input_var = relay.var("input", shape=(1, 3, 3, 4), dtype="int32")
     out = relay.qnn.op.requantize(
         input_var,
         tvm_const(np.float32(1.0)),
