@@ -18,13 +18,15 @@
 
 Restrictions: all shape lowered, explicit allocation.
 """
-import tvm
-import pytest
 import numpy as np
-from tvm import relax, TVMError
-from tvm.script import relax as R, tir as T
+import pytest
+import tvm
+import tvm.testing
+from tvm import relax
+from tvm.relax.testing.runtime_builtin import MakeShapeCode, MatchShapeCode
 from tvm.relax.testing.vm import check_saved_func
-from tvm.relax.testing.runtime_builtin import MatchShapeCode, MakeShapeCode
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 EXEC_MODE = ["bytecode"]
 
@@ -312,7 +314,7 @@ def test_vm_builtin_reshape(exec_mode):
         def main(x: R.Tensor((3, 4), "float32")):
             R.func_attr({"global_symbol": "main"})
             y = R.call_packed(
-                "vm.builtin.reshape", x, (6, 2), sinfo_args=R.Tensor((6, 2), "float32")
+                "vm.builtin.reshape", x, R.shape([6, 2]), sinfo_args=R.Tensor((6, 2), "float32")
             )
             return y
 

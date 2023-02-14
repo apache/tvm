@@ -71,7 +71,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           for (int i = 0, l = n->values.size(); i < l; ++i) {
             values_doc.push_back(PrintShapeVar(n->values[i], values_p->ArrayIndex(i), d));
           }
-          return TupleDoc(values_doc);
+          return Relax(d, "shape")->Call({ListDoc(values_doc)});
         });
 
 Optional<ExprDoc> SpecialScalar(const runtime::NDArray& n, const ObjectPath& p) {
