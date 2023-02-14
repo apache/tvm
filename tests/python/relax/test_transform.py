@@ -109,7 +109,7 @@ def test_vm_builtin_lower():
         @R.function
         def foo(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor:
             m, n = T.var("int64"), T.var("int64")
-            alloc = R.builtin.alloc_tensor((m, n), runtime_device_index=0, dtype="float32")
+            alloc = R.builtin.alloc_tensor(R.shape([m, n]), runtime_device_index=0, dtype="float32")
             _ = R.call_packed(
                 "test.op.identity", x, alloc, sinfo_args=(R.Tensor(ndim=2, dtype="float32"))
             )

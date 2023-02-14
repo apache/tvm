@@ -292,7 +292,7 @@ c: R.Tensor((1, z, 3), dtype="float32")
 
 def test_shape_expr():
     obj = relax.ShapeExpr([1, 2, 3])
-    _assert_print(obj, "(1, 2, 3)")
+    _assert_print(obj, "R.shape([1, 2, 3])")
 
 
 def test_call():
@@ -304,7 +304,7 @@ def test_call():
         """
 x = T.Var("x", "int64")
 a: R.Tensor((1, x, 3), dtype="float32")
-R.call_tir("my_func", (a,), out_sinfo=R.Tensor((1, x, 3), dtype="float32"), tir_vars=(x,))
+R.call_tir("my_func", (a,), out_sinfo=R.Tensor((1, x, 3), dtype="float32"), tir_vars=R.shape([x]))
 """,
     )
 
