@@ -584,11 +584,16 @@ std::pair<std::function<void()>, std::shared_ptr<GraphExecutor::OpArgs>> GraphEx
   tvm::runtime::PackedFunc pf = module_.GetFunction(param.func_name, true);
   ICHECK(pf != nullptr) << "no such function in module: " << param.func_name;
 
-  auto fexec = [arg_ptr, pf]() {
+  uint32_t wid = reinterpret_cast<uint64_t>(pf.get());
+  profiling::TraceLogger::RegisterWidName(wid, param.func_name.c_str());
+
+  auto fexec = [arg_ptr, pf, wid]() {
+    RT_TRACE_PUT_REC(wid, KERNEL_EXECUTION_BEGIN);
     TVMRetValue rv;
     TVMArgs targs(arg_ptr->arg_values.data(), arg_ptr->arg_tcodes.data(),
                   static_cast<int>(arg_ptr->arg_values.size()));
     pf.CallPacked(targs, &rv);
+    RT_TRACE_PUT_REC(wid, KERNEL_EXECUTION_END);
   };
   return {fexec, arg_ptr};
 }

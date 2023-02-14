@@ -27,6 +27,7 @@
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
 #if TVM_THREADPOOL_USE_OPENMP
@@ -299,21 +300,28 @@ class ThreadPool {
     launcher->Init(flambda, cdata, num_task, need_sync != 0);
     SpscTaskQueue::Task tsk;
     tsk.launcher = launcher;
+    auto wid = reinterpret_cast<uint64_t>(tsk.launcher->flambda);
+    RT_TRACE_PUT_REC(wid, SUBMISSION_BEGIN);
     // if worker0 is taken by the main, queues_[0] is abandoned
     for (int i = exclude_worker0_; i < num_task; ++i) {
       tsk.task_id = i;
       queues_[i]->Push(tsk);
     }
+    RT_TRACE_PUT_REC(wid, SUBMISSION_END);
     // use the main thread to run task 0
     if (exclude_worker0_) {
+      RT_TRACE_PUT_REC(wid, EXECUTION_BEGIN);
       TVMParallelGroupEnv* penv = &(tsk.launcher->env);
       if ((*tsk.launcher->flambda)(0, penv, cdata) == 0) {
         tsk.launcher->SignalJobFinish();
       } else {
         tsk.launcher->SignalJobError(tsk.task_id);
       }
+      RT_TRACE_PUT_REC(wid, EXECUTION_END);
     }
+    RT_TRACE_PUT_REC(wid, FINISH_WAIT_BEGIN);
     int res = launcher->WaitForJobs();
+    RT_TRACE_PUT_REC(wid, FINISH_WAIT_END);
     return res;
   }
 
@@ -334,6 +342,7 @@ class ThreadPool {
  private:
   // Shared initialization code
   void Init() {
+    master_trace_logger_ = profiling::TraceLogger::ThreadLocal();
     for (int i = 0; i < num_workers_; ++i) {
       // The SpscTaskQueue only hosts ONE item at a time
       queues_.emplace_back(std::make_unique<SpscTaskQueue>());
@@ -346,6 +355,7 @@ class ThreadPool {
 
   // Internal worker function.
   void RunWorker(int worker_id) {
+    profiling::TraceLogger::BindWithMaster(master_trace_logger_, worker_id);
     SpscTaskQueue* queue = queues_[worker_id].get();
     SpscTaskQueue::Task task;
     ParallelLauncher::ThreadLocal()->is_worker = true;
@@ -357,11 +367,14 @@ class ThreadPool {
       ICHECK(task.launcher != nullptr);
       TVMParallelGroupEnv* penv = &(task.launcher->env);
       void* cdata = task.launcher->cdata;
+      auto wid = reinterpret_cast<int64_t>(task.launcher->flambda);
+      RT_TRACE_PUT_REC(wid, EXECUTION_BEGIN);
       if ((*task.launcher->flambda)(task.task_id, penv, cdata) == 0) {
         task.launcher->SignalJobFinish();
       } else {
         task.launcher->SignalJobError(task.task_id);
       }
+      RT_TRACE_PUT_REC(wid, EXECUTION_END);
     }
   }
   int num_workers_;
@@ -371,6 +384,7 @@ class ThreadPool {
   bool exclude_worker0_{true};
   std::vector<std::unique_ptr<SpscTaskQueue>> queues_;
   std::unique_ptr<tvm::runtime::threading::ThreadGroup> threads_;
+  profiling::TraceLogger *master_trace_logger_;
 };
 
 /*!

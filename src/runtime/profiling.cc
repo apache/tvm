@@ -29,6 +29,10 @@
 #include <tvm/runtime/profiling.h>
 #include <tvm/runtime/threading_backend.h>
 
+#if defined(__hexagon__)
+#include "HAP_perf.h"
+#endif
+
 #include <algorithm>
 #include <chrono>
 #include <iomanip>
@@ -944,6 +948,93 @@ TVM_REGISTER_GLOBAL("runtime.profiling.Duration").set_body_typed([](double durat
 TVM_REGISTER_GLOBAL("runtime.profiling.Ratio").set_body_typed([](double ratio) {
   return ObjectRef(make_object<RatioNode>(ratio));
 });
+
+TraceLogger::TraceLogger() {
+  counts_.resize(max_slave_logger_);
+  start_ts_ = std::chrono::high_resolution_clock::now();
+  // TBR
+  for (auto &cc : counts_)
+    cc.reserve(chunk_rec_size_);
+}
+
+void TraceLogger::BindWithMaster(TraceLogger* master, uint64_t tid) {
+  CHECK_LT(tid, max_slave_logger_);
+  TraceLogger *tl_logger = ThreadLocal();
+  tl_logger->master_node_ = master;
+  tl_logger->tid_ = tid;
+}
+
+void TraceLogger::RegisterWidName(uint32_t wid, const char* name) {
+  TraceLogger *tl_logger = ThreadLocal();
+  TraceLogger* master = tl_logger->master_node_ ? tl_logger->master_node_ : tl_logger;
+
+  master->wid_names_.push_back({wid, name});
+}
+
+void TraceLogger::PutRecord(uint32_t wid, uint32_t type) {
+  TraceLogger *tl_logger = ThreadLocal();
+  tl_logger->PutRecordImpl(wid, type);
+}
+
+void TraceLogger::PutRecordImpl(uint32_t wid, uint32_t type) {
+  TraceLogger* master = master_node_ ? master_node_ : this;
+  auto tid = master_node_ ? tid_ : 0;
+
+  if (master->is_enabled_) {
+    TraceRecord rec;
+    rec.type = type;
+    rec.wid = wid;
+    rec.ts = master->GetTS();
+
+    master->counts_[tid].push_back(rec);
+  }
+}
+
+uint64_t TraceLogger::GetTS() {
+#if defined(__hexagon__)
+  //    return HAP_perf_get_time_us();  // Low resolution
+  auto count = HAP_perf_get_qtimer_count();  // 19.2MHz count
+  return count * 10000 / 192;
+#else
+  auto cur = std::chrono::high_resolution_clock::now();
+  return std::chrono::duration_cast<std::chrono::microseconds>(cur - start_ts_).count();
+#endif
+}
+
+std::string TraceLogger::Serialize() {
+  auto m = master_node_ ? master_node_ : this;
+  std::stringstream ss;
+  ss << "WID_NAMES\n";
+  for (const auto &wid_name : m->wid_names_)
+    ss << wid_name.first << " " << wid_name.second << "\n";
+  ss << "EVENTS\n";
+  uint32_t tid = 0;
+  for (const auto &worker_records : m->counts_) {
+    for (const auto& rec : worker_records)
+      ss << rec.type << " " << tid << " " << rec.wid << " " << rec.ts << "\n";
+    tid++;
+  }
+  return ss.str();
+}
+
+void TraceLogger::Enable(bool val) {
+  auto m = master_node_ ? master_node_ : this;
+  m->is_enabled_ = val;
+}
+
+TVM_REGISTER_GLOBAL("runtime.rt_trace_logger.get_log").set_body_typed([]() {
+  auto logger = TraceLogger::ThreadLocal();
+  return logger->Serialize();
+});
+
+TVM_REGISTER_GLOBAL("runtime.rt_trace_logger.enable").set_body_typed([](bool val) {
+  auto logger = TraceLogger::ThreadLocal();
+  logger->Enable(val);
+});
+
+extern "C" void TVMRtTracePutRecord(uint32_t type) {
+  TraceLogger::PutRecord(0, type + 100);
+}
 
 }  // namespace profiling
 }  // namespace runtime
