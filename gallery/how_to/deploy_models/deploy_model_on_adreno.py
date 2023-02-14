@@ -53,7 +53,7 @@ Let's push them to the device and run TVM RPC Server.
 #
 #   adb devices
 #
-# Set the android device to use
+# Set the android device to use, if you have several devices connected to your computer.
 #
 # .. code-block:: bash
 #
