@@ -20,6 +20,7 @@
 # Operators
 from .base import *
 from .binary import *
+from .datatype import *
 from .index import *
 from .manipulate import *
 from .op_attrs import *

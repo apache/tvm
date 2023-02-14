@@ -31,6 +31,7 @@ from tvm.relax import Call, Expr, ExternFunc, TupleGetItem, Var, const
 from tvm.relax.op import (
     add,
     assert_op,
+    astype,
     builtin,
     call_builtin_with_ctx,
     call_tir,
@@ -403,6 +404,7 @@ __all__ = [
     "add",
     "arg",
     "assert_op",
+    "astype",
     "builtin",
     "call_packed",
     "call_tir",
