@@ -89,7 +89,19 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           Array<String> kwargs_keys;
           Array<ExprDoc> kwargs_values;
           if (n->shape.defined()) {
-            args.push_back(d->AsDoc<ExprDoc>(n->shape.value(), n_p->Attr("shape")));
+            // Need to dig into ShapeExpr to preserve the `R.shape` prefix
+            if (const auto* shape = n->shape.value().as<relax::ShapeExprNode>()) {
+              auto shape_expr = GetRef<relax::ShapeExpr>(shape);
+              ObjectPath shape_p = n_p->Attr("shape")->Attr("values");
+              Array<ExprDoc> shape_docs;
+              for (int i = 0, ndim = shape_expr->values.size(); i < ndim; ++i) {
+                shape_docs.push_back(
+                    PrintShapeVar(shape_expr->values[i], shape_p->ArrayIndex(i), d));
+              }
+              args.push_back(TupleDoc(shape_docs));
+            } else {
+              args.push_back(d->AsDoc<ExprDoc>(n->shape.value(), n_p->Attr("shape")));
+            }
           }
           if (!n->IsUnknownDtype()) {
             kwargs_keys.push_back("dtype");
