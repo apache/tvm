@@ -107,7 +107,7 @@ About OpenCLML
 --------------
 
 OpenCLML is a SDK released by Qualcomm that provides accelerated deep learning operators.
-These operators are exposed as an extension "cl_qcom_ml_ops" to standard OpenCL specification.
+These operators are exposed as an extension ``cl_qcom_ml_ops`` to standard OpenCL specification.
 Please refer `Accelerate your models with our OpenCL ML SDK <https://developer.qualcomm.com/blog/accelerate-your-models-our-opencl-ml-sdk>`_ for more details.
 
 OpenCLML is integrated into TVM as a `BYOC <https://tvm.apache.org/docs/dev/how_to/relay_bring_your_own_codegen.html?highlight=bring%20your%20own>`_ solution.
@@ -213,7 +213,7 @@ On successful compilation this leaves us into a docker shell. The build leaves t
     * rtvm : A native stand alone tool
 
 While using docker environment the android device is shared with host. Hence, it is required
-to have adb version "1.0.41" on the host as the docker used the same version.
+to have adb version ``1.0.41`` on the host as the docker used the same version.
 
 We can check adb devices availability inside docker environment too.
 
@@ -239,9 +239,13 @@ Below command will configure the build the host compiler
    cd build
    cp ../cmake/config.cmake .
 
+   # Enable RPC capability to communicate to remote device.
    echo set\(USE_RPC ON\) >> config.cmake
+   # We use graph executor for any host(x86) side verification of the model.
    echo set\(USE_GRAPH_EXECUTOR ON\) >> config.cmake
+   # Enable backtrace if possible for more ebug information on any crash.
    echo set\(USE_LIBBACKTRACE AUTO\) >> config.cmake
+   # The target_host will be llvm.
    echo set\(USE_LLVM ON\) >> config.cmake
 
 Additionally we can push below config entry to compile with OpenCLML support.
@@ -278,14 +282,22 @@ Target build require Android NDK to be installed.
    mkdir -p build-adreno
    cd build-adreno
    cp ../cmake/config.cmake .
+   # Enable OpenCL backend.
    echo set\(USE_OPENCL ON\) >> config.cmake
+   # Enable RPC functionality.
    echo set\(USE_RPC ON\) >> config.cmake
+   # Build tvm_rpc tool that runs on target device.
    echo set\(USE_CPP_RPC ON\) >> config.cmake
+   # Build native rtvm deploy tool.
    echo set\(USE_CPP_RTVM ON\) >> config.cmake
+   # We use graph executor for deploying on devices like Android.
    echo set\(USE_GRAPH_EXECUTOR ON\) >> config.cmake
+   # Backtrace enablement if possible.
    echo set\(USE_LIBBACKTRACE AUTO\) >> config.cmake
+   # Adreno supports 32bit alignment for OpenCL allocations rather 64bit.
    echo set\(USE_KALLOC_ALIGNMENT 32\) >> config.cmake
 
+   # Android build related defines.
    echo set\(ANDROID_ABI arm64-v8a\) >> config.cmake
    echo set\(ANDROID_PLATFORM android-28\) >> config.cmake
    echo set\(MACHINE_NAME aarch64-linux-gnu\) >> config.cmake
@@ -298,7 +310,7 @@ Additionally we can push below config to compile with OpenCLML support.
    echo set\(USE_CLML "${ADRENO_OPENCL}"\) >> config.cmake
    echo set\(USE_CLML_GRAPH_EXECUTOR "${ADRENO_OPENCL}"\) >> config.cmake
 
-For Android target build ANDROID_NDK_HOME is a dependency and we should have the same in the enviromnet variable.
+For Android target build ``ANDROID_NDK_HOME`` is a dependency and we should have the same in the enviromnet variable.
 Below commands will build Adreno™ target components
 
 ::
@@ -326,7 +338,7 @@ RPC Setup allows remote target access over TCP/IP networking interface. RPC Setu
 involves running of auto generated kernels on real device and optimize the same by using machine learning approach. Please refer
 `Auto-Tune with Templates and AutoTVM <https://tvm.apache.org/docs/how_to/tune_with_autotvm/index.html>`_ got more details about AutoTVM.
 
-RPC Setup is also useful to deply the compiled model to a remote device from python interface or ```tvmc``` tool from host device.
+RPC Setup is also useful to deply the compiled model to a remote device from python interface or ``tvmc`` tool from host device.
 
 RPC Setup has multiple components as listed below.
 
@@ -352,7 +364,7 @@ Below command launches tracker in docker environment, where tracker listens on p
    ./tests/scripts/ci.py adreno -i # Launch a new shell on the anreno docker
    source  tests/scripts/setup-adreno-env.sh -e tracker -p 9190
 
-Now, the below comand can run TVM RPC on remote android device with id "abcdefgh".
+Now, the below comand can run TVM RPC on remote android device with id ``abcdefgh``.
 
 
 ::
@@ -367,7 +379,7 @@ Please refer to the tutorial
 `How To Deploy model on Adreno <https://tvm.apache.org/docs/how_to/deploy_models/deploy_model_on_adreno.html>`_
 for manual RPC environment setup.
 
-This concludes RPC Setup and we have rpc-tracker available on host 127.0.0.1 (rpc-tracker) and port 9190 (rpc-port).
+This concludes RPC Setup and we have rpc-tracker available on host ``127.0.0.1`` (rpc-tracker) and port ``9190`` (rpc-port).
 
 
 .. _commandline_interface:
@@ -375,13 +387,15 @@ This concludes RPC Setup and we have rpc-tracker available on host 127.0.0.1 (rp
 Commandline Tools
 -----------------
 
-Here we describe entire compilation process using command line tools. TVM has command line utility "tvmc" to perform
-model import, auto tuning, compilation and deply over rpc. "tvmc" has many options to explore and try.
+Here we describe entire compilation process using command line tools. TVM has command line utility
+`tvmc <https://tvm.apache.org/docs/tutorial/tvmc_command_line_driver.html?highlight=tvmc>`_ to perform
+model import, auto tuning, compilation and deply over rpc.
+`tvmc <https://tvm.apache.org/docs/tutorial/tvmc_command_line_driver.html?highlight=tvmc>`_  has many options to explore and try.
 
 **Model Import & Tuning:**
 Use the below command to import a model from any framework and auto tune the same.
 Here we use a model from Keras and it uses RPC setup for tuning and finally generates tuning log file
-"keras-resnet50.log".
+``keras-resnet50.log``.
 
 ::
 
@@ -404,7 +418,7 @@ Use below command for compiling the model and produce TVM compiler outputs.
    --target="opencl, llvm" --target-llvm-mtriple aarch64-linux-gnu --target-opencl-device adreno \
    --tuning-records keras-resnet50.log -o keras-resnet50.tar resnet50.h5
 
-While enabled OpenCLML offloading we nee dto add target "clml" as shown below. Tuning log is valid for OpenCLML offloading also
+While enabled OpenCLML offloading we need to add target ``clml`` as shown below. Tuning log is valid for OpenCLML offloading also
 as the OpenCL path is fallback option for any operator didn't go through OpenCLML path. The tuning log will be used for such operators.
 
 ::
@@ -414,7 +428,8 @@ as the OpenCL path is fallback option for any operator didn't go through OpenCLM
    --target="opencl, clml, llvm" --target-llvm-mtriple aarch64-linux-gnu --target-opencl-device adreno \
    --tuning-records keras-resnet50.log -o keras-resnet50.tar resnet50.h5
 
-On success ful compilation above commands produce "keras-resnet50.tar". It is a compressed archive with kernel shared lib, graph json and params binary.
+On successful compilation, above command produce ``keras-resnet50.tar``.
+It is a compressed archive with kernel shared lib(mod.so), graph json(mod.json) and params binary(mod.params).
 
 **Deploy & Run on Target:**
 
@@ -427,10 +442,11 @@ We can use below tvmc command to deploy on remore target via RPC based setup.
    python3 -m tvm.driver.tvmc run --device="cl" keras-resnet50.tar \
    --rpc-key android --rpc-tracker 127.0.0.1:9190 --print-time
 
-tvmc based run has more option to initialize the input in various modes line fill, random ..etc.
+`tvmc <https://tvm.apache.org/docs/tutorial/tvmc_command_line_driver.html?highlight=tvmc>`_ based run has more option
+to initialize the input in various modes like fill, random ..etc.
 
 
-TVM also supports "rtvm" tool to run the model narively on ADB shell. The build process produced this tool under build-adreno-target.
+TVM also supports ``rtvm`` tool to run the model narively on ADB shell. The build process produced this tool under build-adreno-target.
 Please refer to `rtvm <https://github.com/apache/tvm/tree/main/apps/cpp_rtvm>`_ for more details about this tool.
 
 
@@ -447,9 +463,10 @@ to a relay module. Relay module will be used across the auto tuning, compilation
 TVMC interface can be accessed as shown below to import, compile and run a model. Please refer to the tutorial for the same
 `How To Deploy model on Adreno using TVMC <https://tvm.apache.org/docs/how_to/deploy_models/deploy_model_on_adreno_tvmc.html>`_
 
-tvmc compiled package can be used for native deploy also using "rtvm" utility.
+tvmc compiled package can be used for native deploy also using ``rtvm`` utility.
 
-Also, please refer to tvmc documentation for more details about the api interface.
+Also, please refer to `tvmc <https://tvm.apache.org/docs/tutorial/tvmc_command_line_driver.html?highlight=tvmc>`_
+ documentation for more details about the api interface.
 
 **Relay Interface:**
 
@@ -459,10 +476,9 @@ Relay interface follows tvmc kind of a flow where we produce TVM module first fo
 Please refer to the tutorial `How To Deploy model on Adreno <https://tvm.apache.org/docs/how_to/deploy_models/deploy_model_on_adreno.html>`_
 for a step by step explanation of the same.
 
-
 .. _application_integration:
 
-Application Integration:
+Application Integration
 -----------------------
 
 TVM compilation output is represented as module shared lib (mod.so), graph json(mod.json) and params (mod.params).
@@ -470,17 +486,17 @@ Archived representation of TVMPackage is also contains the same.
 
 In general a CPP/C based interface will be sufficient for any Android application integration.
 
-TVM natively expose c_runtime_api for loading a TVM compiled module and run the same.
+TVM natively expose ``c_runtime_api`` for loading a TVM compiled module and run the same.
 
 Alternatively one may refer to `cpp_rtvm <https://github.com/apache/tvm/blob/main/apps/cpp_rtvm/tvm_runner.h>`_
-tvm_runner interface too for further simplified version of the same.
+``TVMRunner`` interface too for further simplified version of the same.
 
 
 
 .. _advanced_usage:
 
-Advanced Usage:
----------------
+Advanced Usage
+--------------
 
 This section details some of the advanced usage and additional information while using Adreno™ target on TVM.
 
@@ -494,9 +510,9 @@ Below snippet can dump CLML sub graphs in json format.
 
 .. code:: python
 
-   # Look for "clml" typed module impoted.
+   # Look for "clml" typed module imported.
    clml_modules = list(filter(lambda mod: mod.type_key == "clml", lib.get_lib().imported_modules))
-   # Loop throught all clml sub graphs and dump the json formatted CLML sub graphs.
+   # Loop through all clml sub graphs and dump the json formatted CLML sub graphs.
    for cmod in clml_modules:
        print("CLML Src:", cmod.get_source())
 
@@ -506,22 +522,12 @@ Similarly, below snippet can extract opencl kernel source from the compiled TVM 
 .. code:: python
 
    # Similarly we can dump open kernel source too as shown below
-   # Look for "opencl" typed module impoted.
+   # Look for "opencl" typed module imported.
    opencl_modules = list(filter(lambda mod: mod.type_key == "opencl", lib.get_lib().imported_modules))
-   # Now dump open cource for each opencl targetted sub graph.
+   # Now dump kernel source for each OpenCL targetted sub graph.
    for omod in opencl_modules:
        print("OpenCL Src:", omod.get_source())
 
-
-Inspecting above code for target device "opencl --device=adreno" shows texture usage (image2d_t) as shown below.
-
-.. code:: c
-
-   __kernel void tvmgen_default_fused_nn_conv2d_kernel0(__write_only image2d_t pad_temp_global_texture, __read_only image2d_t p0) {
-   // body..
-
-*image2d_t* is a built-in OpenCL types that represents two-dimensional image object and provides several additional functions.
-When we use *image2d_t* we read *4 elements at one time*, and it helps to utilize hardware in a more efficient way.
 
 Precisions
 ~~~~~~~~~~
@@ -536,13 +542,14 @@ To leverage the GPU hardware capabilities and utilize the benefits of half preci
 we can convert an original model having floating points operation to a model operating with half precision.
 Choosing lower precision will positively affect the performance of the model, but it may also have a decrease in the accuracy of the model.
 
-To do the conversion you need to call adreno specific transformation API as soon relay module is generated through any frontend:
+To do the conversion you need to call adreno specific transformation API as soon as relay module is generated through any frontend.
 
 .. code:: python
 
    from tvm.relay.op.contrib import adreno
    adreno.convert_to_dtype(mod["main"], "float16")
 
+``tvm.relay.op.contrib.adreno.convert_to_dtype`` is simplified API over ``ToMixedPrecision`` pass to get desired precision.
 
 We then can compile our model in any convinient way
 
@@ -556,10 +563,10 @@ We then can compile our model in any convinient way
 
 **float16_acc32 (Mixed Precision)**
 
-ToMixedPrecision pass traverse over the network and split network to clusters of ops dealing with float or float16 data types.
+``ToMixedPrecision`` pass traverse over the network and split network to clusters of ops dealing with float or float16 data types.
 The clusters are defined by three types of operations:
 - Operations always be converted into float16 data type
-- Operations which can be converted if they follow by converted cluster
+- Operations which can be converted if they followed by converted cluster
 - Operations never be converted to the float16 data type
 This list is defined in the ToMixedPrecision implementation here
 `relay/transform/mixed_precision.py <https://github.com/apache/tvm/blob/main/python/tvm/relay/transform/mixed_precision.py#L34>`_
@@ -569,7 +576,7 @@ The ``ToMixedPrecision`` method is a pass to convert an FP32 relay graph into an
 FP16 or FP32 accumulation dtypes). Doing this transformation is useful for reducing model size
 as it halves the expected size of the weights (FP16_acc16 case).
 
-ToMixedPrecision pass usage is simplified into a simple call as shown below for usage.
+``ToMixedPrecision`` pass usage is simplified into a simple call as shown below for usage.
 
 .. code:: python
 
