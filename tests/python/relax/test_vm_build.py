@@ -88,7 +88,7 @@ def test_vm_compile_stage2(exec_mode):
         def foo(x: R.Tensor(dtype="float32")) -> R.Shape:
             n, m = T.var("int64"), T.var("int64")
             _ = R.match_cast(x, R.Tensor((n, m), "float32"))
-            return (n * 2, m * 3)
+            return R.shape([n * 2, m * 3])
 
     mod = TestVMCompileStage2
     target = tvm.target.Target("llvm", host="llvm")
@@ -511,9 +511,9 @@ def test_lower_memory_alloc_storage_tensor(exec_mode):
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32")):
             storage = R.memory.alloc_storage(
-                (24,), virtual_device_index=0, storage_scope="global", dtype="float32"
+                R.shape([24]), virtual_device_index=0, storage_scope="global", dtype="float32"
             )
-            y = R.memory.alloc_tensor(storage, 0, (2, 3), dtype="float32")
+            y = R.memory.alloc_tensor(storage, 0, R.shape([2, 3]), dtype="float32")
             _ = copy(x, y)
             return y
 
