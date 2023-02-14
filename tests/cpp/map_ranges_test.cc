@@ -42,7 +42,7 @@ TEST(Tensor, CalcRanges) {
   node.initial_indices.push_back(i3);
 
   Array<Range> ranges;
-  // The values were collected form the first layer of DeeplabV3.
+  // The values were taken from the first layer of DeeplabV3.
   ranges.push_back(Range(PrimExpr(0), PrimExpr(1)));
   ranges.push_back(Range(PrimExpr(0), PrimExpr(1)));
   ranges.push_back(Range(PrimExpr(0), PrimExpr(144)));
@@ -56,7 +56,7 @@ TEST(Tensor, CalcRanges) {
   node.final_indices.push_back((floordiv(floormod(i2_48_i3, PrimExpr(64)), PrimExpr(32))));
   node.final_indices.push_back((floordiv(floormod(i2_48_i3, PrimExpr(3072)), PrimExpr(32))));
 
-  auto i2_16_i3 = add(mul(i2,PrimExpr(16)),i3);  // (i2 * 48 + i3)
+  auto i2_16_i3 = add(mul(i2, PrimExpr(16)), i3);  // (i2 * 48 + i3)
   node.final_indices.push_back(floormod(i2_16_i3, PrimExpr(32)));
 
   auto result = node.MapRanges(ranges, &local_analyzer);
