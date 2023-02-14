@@ -93,6 +93,7 @@ from tvm.relax.op import (
     tan,
     tanh,
     unique,
+    where,
 )
 from tvm.relax.struct_info import StructInfo
 from tvm.relax.utils import args_converter
@@ -528,6 +529,7 @@ __all__ = [
     "tan",
     "tanh",
     "tuple",
-    "variance",
     "unique",
+    "variance",
+    "where",
 ]
