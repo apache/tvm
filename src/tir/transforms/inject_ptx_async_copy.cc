@@ -83,7 +83,9 @@ class PTXAsyncCopyInjector : public StmtMutator {
                                   tir::Mul(dst_offset, PrimExpr(index_factor)),
                                   load->buffer->data, src_offset, PrimExpr(bytes)};
           // use arguments size to indicate whether or not to use predicated cp.async
-          if (predicated) args.push_back(predicate_value);
+          if (predicated) {
+            args.push_back(predicate_value);
+          }
           return Evaluate(Call(store->buffer->dtype, tvm::tir::builtin::ptx_cp_async(), args));
         }
 
@@ -127,7 +129,7 @@ class PTXAsyncCopyInjector : public StmtMutator {
   Stmt VisitStmt_(const BufferStoreNode* store) {
     if (in_async && (store->buffer.scope() == "shared" || store->buffer.scope() == "shared.dyn")) {
       if (auto* load = store->value.as<BufferLoadNode>()) {
-        return injectPTX(load, store);
+        return InjectPTX(load, store);
       } else if (auto* call = store->value.as<CallNode>()) {
         // tir.if_then_else is a call to tir::builtin::if_then_else()
         if (call->op.same_as(builtin::if_then_else()) && call->args.size() == 3) {
@@ -144,7 +146,9 @@ class PTXAsyncCopyInjector : public StmtMutator {
             if (auto* f = call->args[2].as<FloatImmNode>()) {
               else_value_is_zero = f->value == 0.0f;
             }
-            if (else_value_is_zero) return injectPTX(load, store, true, call->args[0]);
+            if (else_value_is_zero) {
+              return InjectPTX(load, store, true, call->args[0]);
+            }
           }
         }
       }
