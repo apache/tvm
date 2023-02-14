@@ -44,7 +44,9 @@ def create_labels_header(labels_file, output_path):
 
 
 def prepare_crt_config():
-    crt_config_output_path = pathlib.Path(__file__).parent.resolve().parent() / "build" / "crt_config"
+    crt_config_output_path = (
+        pathlib.Path(__file__).parent.resolve().parent() / "build" / "crt_config"
+    )
     if not crt_config_output_path.exists():
         crt_config_output_path.mkdir()
     copy_crt_config_header("zephyr", crt_config_output_path)
