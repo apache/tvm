@@ -2678,11 +2678,34 @@ class PyTorchOpConverter:
         return out
 
     def scatter_add(self, inputs, input_types):
-        # TODO(vvchernov): need some check?
+        assert (
+            len(inputs) == 4
+        ), "scatter_add takes 4 inputs (data, dim, index, src), but {} given".format(
+            len(inputs)
+        )
         data = inputs[0]
         axis = inputs[1]
         index = inputs[2]
         src = inputs[3]
+
+        data_shape = self.infer_shape(inputs[0])
+        data_rank = len(data_shape)
+        index_shape = self.infer_shape(inputs[2])
+        index_rank = len(index_shape)
+        src_shape = self.infer_shape(inputs[3])
+        src_rank = len(src_shape)
+        assert data_rank == index_rank, "Index rank is not the same as data rank"
+        assert data_rank == src_rank, "Src rank is not the same as data rank"
+
+        assert 0 <= axis < data_rank, "Dim is out of bounds"
+
+        for i in range(data_rank):
+            assert index_shape[i] <= src_shape[i], "Index dim size should be less than src one"
+            if i != axis:
+                assert (
+                    index_shape[i] <= data_shape[i]
+                ), "Index dim size should be less than data one"
+
         return _op.scatter_elements(data, index, src, axis=axis, reduction="add")
 
     def scatter_reduce(self, inputs, input_types):
