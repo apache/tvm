@@ -128,7 +128,7 @@ def test_armv7m_intrinsic(workspace_dir, board, microtvm_debug, serial_number):
     os.makedirs(workspace_dir_simd, exist_ok=True)
     os.makedirs(workspace_dir_no_simd, exist_ok=True)
 
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+    with tvm.transform.PassContext(opt_level=3, config=utils.PASS_CONFIG):
         lowered_simd = relay.build(
             relay_mod_simd, target_simd, params=params, runtime=runtime, executor=executor
         )

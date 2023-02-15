@@ -29,6 +29,7 @@ from tvm import meta_schedule as ms
 from tvm.contrib.micro.meta_schedule.local_builder_micro import get_local_builder_micro
 from tvm.contrib.micro.meta_schedule.rpc_runner_micro import get_rpc_runner_micro
 
+from . import utils
 
 def create_relay_module():
     data_shape = (1, 3, 16, 16)
@@ -161,7 +162,7 @@ def test_ms_tuning_conv2d(workspace_dir, board, microtvm_debug, use_fvp, serial_
     dev = tvm.cpu()
     target = tvm.micro.testing.get_target("crt")
     with tvm.transform.PassContext(
-        opt_level=3, config={"tir.disable_vectorize": True}, disabled_pass=["AlterOpLayout"]
+        opt_level=3, config=utils.PASS_CONFIG, disabled_pass=["AlterOpLayout"]
     ):
         ref_mod = relay.build(
             mod,
