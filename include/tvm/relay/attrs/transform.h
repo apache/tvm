@@ -607,27 +607,12 @@ struct StftAttrs : public tvm::AttrsNode<StftAttrs> {
 
 /*! \brief Attributes used in DFT operator */
 struct DFTAttrs : public tvm::AttrsNode<DFTAttrs> {
-//  Integer n_fft;
-//  Integer axis;
   Bool inverse = Bool(false);
-//  Bool onesided = Bool(false);
 
   TVM_DECLARE_ATTRS(DFTAttrs, "relay.attrs.DFTAttrs") {
-//    TVM_ATTR_FIELD(n_fft)
-//        .describe("The size of Fourier transform")
-//        .set_default(-1);
-//    TVM_ATTR_FIELD(axis)
-//        .describe("The axis on which to perform the DFT")
-//        .set_default(1);
     TVM_ATTR_FIELD(inverse)
-        .describe("Whether to perform the inverse discrete fourier transform")
+        .describe("Whether to perform the inverse discrete Fourier transform")
         .set_default(Bool(false));
-//    TVM_ATTR_FIELD(onesided)
-//        .describe(
-//            "If onesided is True, only values for w in [0, 1, 2, ..., floor(n_fft/2) + 1] "
-//            "are returned because the real-to-complex Fourier transform satisfies the conjugate "
-//            "symmetry, i.e., X[m, w] = X[m,w]=X[m,n_fft-w]*")
-//        .set_default(Bool(false));
   }
 };  // struct DFTAttrs
 
