@@ -145,7 +145,7 @@ class Handler(server.ProjectAPIHandler):
         crt_config_dir = project_dir / "crt_config"
         crt_config_dir.mkdir()
         shutil.copy2(
-            current_dir / "crt_config" / "crt_config-template.h",
+            current_dir / "crt_config" / "crt_config.h",
             crt_config_dir / "crt_config.h",
         )
 
