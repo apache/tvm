@@ -1987,9 +1987,9 @@ def stft(
     return _make.stft(data, n_fft, hop_length, win_length, window, normalized, onesided)
 
 
-# TODO(agladyshev): add description, dft_length?
-def dft(data, axis=1, inverse=False, onesided=False):
-    return _make.dft(data, axis, inverse, onesided)
+# TODO(agladyshev): add description
+def dft(re_data, im_data, inverse=False):
+    return TupleWrapper(_make.dft(re_data, im_data, inverse), 2)
 
 
 def trilu(data, k, upper=True):

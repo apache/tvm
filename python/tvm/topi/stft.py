@@ -126,9 +126,55 @@ def stft(
 
 
 def dft(
-    data: te.Tensor,
-    axis: int,
-    inverse: bool,
-    onesided: bool,
+    re_data: te.Tensor,
+    im_data: te.Tensor,
+    inverse: tir.IntImm,
 ):
-    raise NotImplementedError(data)
+    def gen_ir(
+            re_data_buf,
+            im_data_buf,
+            re_output_buf,
+            im_output_buf,
+    ):
+        ib = tir.ir_builder.create()
+        re_data_ptr = ib.buffer_ptr(re_data_buf)
+        im_data_ptr = ib.buffer_ptr(im_data_buf)
+        re_output_ptr = ib.buffer_ptr(re_output_buf)
+        im_output_ptr = ib.buffer_ptr(im_output_buf)
+
+        shape = re_data.shape
+        n_fft = shape[len(shape) - 1]
+        base_range = 1
+        for i in range(len(shape) - 1):
+            base_range *= shape[i]
+
+        with ib.for_range(
+                0, base_range, kind="parallel"
+        ) as i:
+            base_idx = i * n_fft
+            with ib.for_range(0, n_fft) as n:
+                n_idx = base_idx + n
+                re_output_ptr[n_idx] = tir.Cast(re_output_ptr.dtype, 0)
+                im_output_ptr[n_idx] = tir.Cast(im_output_ptr.dtype, 0)
+                with ib.for_range(0, n_fft) as k:
+                    k_idx = base_idx + k
+                    w = -2 * pi * k * n / n_fft
+                    cos_w = tir.cos(w)
+                    sin_w = tir.sin(w)
+                    re_output_ptr[n_idx] += re_data_ptr[k_idx] * cos_w - im_data_ptr[k_idx] * sin_w
+                    im_output_ptr[n_idx] += re_data_ptr[k_idx] * sin_w + im_data_ptr[k_idx] * cos_w
+
+        return ib.get()
+
+    output_shape = [re_data.shape] * 2
+
+    return te.extern(
+        shape=output_shape,
+        inputs=[re_data, im_data],
+        fcompute=lambda ins, outs: gen_ir(
+            ins[0], ins[1], outs[0], outs[1]
+        ),
+        dtype=[re_data.dtype, im_data.dtype],
+        name="dft_cpu",
+        tag="dft_cpu",
+    )
