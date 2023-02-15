@@ -105,6 +105,49 @@ def AttachGlobalSymbol() -> tvm.ir.transform.Pass:
     return _ffi_api.AttachGlobalSymbol()  # type: ignore
 
 
+def AnnotateTIROpPattern() -> tvm.ir.transform.Pass:
+    """Annotate Op Pattern Kind for TIR functions
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.AnnotateTIROpPattern()  # type: ignore
+
+
+def FuseOps(fuse_opt_level=-1) -> tvm.ir.transform.Pass:
+    """This pass groups bindings in a dataflow block of Relax functions and generate a new grouped
+    Relax function for each group, according to the fusion algorithm described in the pass
+    implementation. By grouping bindings into new Relax functions, we substitute the bindings in
+    the function being manipulated into function calls to the new grouped function.
+
+    A follow-up pass named "FuseTIR" will generate a TIR PrimFunc for each grouped function.
+
+    Parameters
+    ----------
+    fuse_opt_level : int
+        The level of fuse optimization. -1 indicates that the level will be
+        inferred from pass context.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass for operator fusion.
+    """
+    return _ffi_api.FuseOps(fuse_opt_level)  # type: ignore
+
+
+def FuseTIR() -> tvm.ir.transform.Pass:
+    """Fuse primitive relax function into a larger TIR function if possible
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass for tir fusion.
+    """
+    return _ffi_api.FuseTIR()  # type: ignore
+
+
 def _wrap_class_function_pass(pass_cls, pass_info):
     """Wrap a python class as function pass."""
 
