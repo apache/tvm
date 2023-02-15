@@ -20,7 +20,8 @@ if(USE_MICRO)
   message(STATUS "Build microTVM RPC common")
 
   include(cmake/utils/CRTConfig.cmake)
-  generate_crt_config("crt" "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/micro/crt_config.h")
+  set(CRT_CONFIG_INCLUDE_PATH ${CMAKE_CURRENT_BINARY_DIR}/crt_config)
+  generate_crt_config("crt" "${CRT_CONFIG_INCLUDE_PATH}/crt_config.h")
 
   # add microTVM RPC common files to TVM runtime build
   list(APPEND TVM_CRT_SOURCES
@@ -31,7 +32,7 @@ if(USE_MICRO)
       src/runtime/crt/microtvm_rpc_common/write_stream.cc)
 
   list(APPEND RUNTIME_SRCS ${TVM_CRT_SOURCES})
-  include_directories(SYSTEM src/runtime/micro)
+  include_directories(SYSTEM ${CRT_CONFIG_INCLUDE_PATH})
 
 
   function(create_crt_library CRT_LIBRARY)
@@ -52,7 +53,7 @@ if(USE_MICRO)
 
     target_include_directories(${CRT_LIBRARY_NAME}
                               PUBLIC
-                              ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/micro/
+                              ${CRT_CONFIG_INCLUDE_PATH}
                               ${STANDALONE_CRT_BASE}/include)
 
     set_target_properties(${CRT_LIBRARY_NAME}
@@ -176,7 +177,7 @@ if(USE_MICRO)
   if(GTEST_FOUND)
     tvm_file_glob(GLOB TEST_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/tests/crt/*.cc)
     add_executable(crttest ${TEST_SRCS})
-    target_include_directories(crttest SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/micro)
+    target_include_directories(crttest SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include ${CMAKE_CURRENT_BINARY_DIR}/crt_config)
     target_link_libraries(crttest PRIVATE ${CRT_LIBRARIES} GTest::GTest GTest::Main pthread dl)
     set_target_properties(crttest PROPERTIES EXCLUDE_FROM_ALL 1)
     set_target_properties(crttest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
