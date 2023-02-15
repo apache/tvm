@@ -290,8 +290,8 @@ class TestKeras:
             keras_model = keras_mod.models.Model(data, x)
             verify_keras_frontend(keras_model)
 
-    def test_forward_conv2d_transpose_nhwc(self, keras_mod):
-        """test_forward_conv"""
+    def test_forward_conv_transpose(self, keras_mod):
+        """test_forward_conv_transpose"""
         data = keras_mod.layers.Input(shape=(32, 32, 128))
         conv_funcs = [
             keras_mod.layers.Conv2DTranspose(filters=64, kernel_size=(2, 2), padding="valid"),
