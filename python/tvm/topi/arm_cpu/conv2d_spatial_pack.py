@@ -23,6 +23,7 @@ from tvm import autotvm
 from .. import nn
 from ..utils import get_const_tuple
 from ..nn.utils import get_const_int, get_pad_tuple
+from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity, AnnotateEntity, ReorderEntity
 
 
 def conv2d_spatial_pack_nchw(cfg, data, kernel, strides, padding, dilation, out_dtype, num_tile):
@@ -302,15 +303,25 @@ def conv2d_spatial_pack_nhwc(cfg, data, kernel, strides, padding, dilation, out_
     )
 
     cfg.define_annotate("ann_reduce", [kh, kw], policy="try_unroll")
-    cfg.define_annotate("ann_spatial", [ohi, owi, oci], policy="try_unroll_vec")
+    cfg.define_annotate("ann_spatial", [owi, oci], policy="try_unroll_vec")
     # ====================================================================
 
-    OCI = cfg["tile_co"].size[-1]
+    # If there are no tuning records, use this config
+    if cfg.is_fallback:
+        cfg["tile_oh"] = SplitEntity([-1, 1])
+        cfg["tile_ow"] = SplitEntity([-1, 8])
+        cfg["tile_oc"] = SplitEntity([-1, 8])
+        cfg["ann_spatial"] = AnnotateEntity(["none", "vec"])
+        cfg["ann_reduce"] = AnnotateEntity(["none", "none"])
+        cfg["reorder_conv"] = ReorderEntity([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+        cfg["compat"] = OtherOptionEntity(0)
+
+    OCI = cfg["tile_oc"].size[-1]
     OHI = cfg["tile_oh"].size[-1]
     OWI = cfg["tile_ow"].size[-1]
-    OCO = OC // OCI
+    OCO = max(1, OC // OCI)
     OHO = OH // OHI
-    OWO = OW // OWI
+    OWO = max(1, OW // OWI)
 
     kvshape = (OCO, KH, KW, IC, OCI)
     ovshape = (N, OHO, OWO, OCO, OHI, OWI, OCI)
@@ -390,32 +401,30 @@ def schedule_conv2d_spatial_pack_nhwc(cfg, s, op, output):
     data_vec = conv.op.input_tensors[0]
     kernel_vec = conv.op.input_tensors[1]
     data_pad = data_vec.op.input_tensors[0]
-    OHI = cfg["tile_oh"].size[-1]
+
     OWI = cfg["tile_ow"].size[-1]
-    OCI = cfg["tile_co"].size[-1]
+    OCI = cfg["tile_oc"].size[-1]
 
     # schedule unpack/output
     if output != unpack:
         s[unpack].compute_inline()
     n, oh, ow, oc = s[output].op.axis
-    oco, oci = cfg["tile_co"].apply(s, output, oc)
+    oco, oci = cfg["tile_oc"].apply(s, output, oc)
     oho, ohi = cfg["tile_oh"].apply(s, output, oh)
     owo, owi = cfg["tile_ow"].apply(s, output, ow)
     s[output].reorder(n, oho, owo, oco, ohi, owi, oci)
-    cfg["ann_spatial"].apply(
-        s, output, [ohi, owi, oci], axis_lens=[OHI, OWI, OCI], max_unroll=16, cfg=cfg
-    )
-    cfg.define_knob("compat", [0, 1, 2])
-    if cfg["compat"].val < 2:
-        compat_axis = [owo, oco][cfg["compat"].val]  # pylint: disable=R1706
-        s[conv].compute_at(s[output], compat_axis)
+    cfg["ann_spatial"].apply(s, output, [owi, oci], axis_lens=[OWI, OCI], max_unroll=16, cfg=cfg)
+
+    cfg.define_knob("compat", [0, 1])
+    compat_axis = [owo, oco][cfg["compat"].val]  # pylint: disable=R1706
+    s[conv].compute_at(s[output], compat_axis)
     paxis = s[output].fuse(n, oho)
     s[output].parallel(paxis)
 
     # schedule conv
     n, oho, owo, oco, ohi, owi, oci = s[conv].op.axis
     ic, kh, kw = s[conv].op.reduce_axis
-    cfg["reorder_conv"].apply(s, conv, [n, oho, owo, oco, kh, kw, ohi, owi, ic, oci])
+    cfg["reorder_conv"].apply(s, conv, [n, oho, owo, oco, kh, kw, ic, ohi, owi, oci])
     cfg["ann_reduce"].apply(
         s,
         conv,
@@ -424,33 +433,22 @@ def schedule_conv2d_spatial_pack_nhwc(cfg, s, op, output):
         max_unroll=16,
         cfg=cfg,
     )
-    cfg["ann_spatial"].apply(
-        s, conv, [ohi, owi, oci], axis_lens=[OHI, OWI, OCI], max_unroll=16, cfg=cfg
-    )
-    if cfg["compat"].val < 2:
-        compat_axis = [owo, oco][cfg["compat"].val]  # pylint: disable=R1706
-        s[kernel_vec].compute_at(s[conv], compat_axis)
-        s[data_vec].compute_at(s[conv], compat_axis)
+    cfg["ann_spatial"].apply(s, conv, [owi, oci], axis_lens=[OWI, OCI], max_unroll=16, cfg=cfg)
 
-    if not autotvm.GLOBAL_SCOPE.in_tuning:
-        # schedule kernel pack
-        oco, kh, kw, ic, oci = kernel_vec.op.axis
-        s[kernel_vec].vectorize(oci)
-        s[kernel_vec].unroll(ic)
-        if cfg["compat"].val == 2:
-            s[kernel_vec].parallel(oco)
+    # schedule data_vec, data_pad and kernel_vec
+    compat_axis = [owo, oco][cfg["compat"].val]  # pylint: disable=R1706
+    s[kernel_vec].compute_at(s[conv], compat_axis)
+    s[data_vec].compute_at(s[conv], compat_axis)
 
-    # schedule data pack
+    # Inlining kernel vec brings a performance improvement, but the tuner seems to not
+    # like it, so inline only when we are using the fallback config
+    if cfg.is_fallback:
+        s[kernel_vec].compute_inline()
+
     if data_vec.op.name == "data_vec_undilated":
         n, oho, owo, kh, kw, ic, ohi, owi = s[data_vec].op.axis
-        s[data_vec].vectorize(owi)
-        s[data_vec].unroll(ohi)
     else:
         n, oho, owo, ohi, owi, ic = s[data_vec].op.axis
-        s[data_vec].vectorize(ic)
-        s[data_vec].unroll(owi)
-    if cfg["compat"].val == 2:
-        paxis = s[data_vec].fuse(n, oho)
-        s[data_vec].parallel(paxis)
+    s[data_pad].compute_at(s[data_vec], n)
 
     return s
