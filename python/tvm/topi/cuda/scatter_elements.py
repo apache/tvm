@@ -20,6 +20,84 @@ import tvm
 from tvm import te, tir
 from ..utils import ceil_div, get_const_int
 from ..math import cast
+from .nms import atomic_add
+
+
+def gen_scatter_add_1d_atomic(data, indices, updates, axis, out, _):
+    """Generate scatter add ir for 1d inputs, using atomic_add instruction
+
+    Parameters
+    ----------
+    data : tir.Tensor
+        The input data to the operator.
+
+    indices : tir.Tensor
+        The index locations to update.
+
+    updates : tir.Tensor
+        The values to update.
+
+    axis : int
+        The axis to scatter on
+
+    out : tir.Tensor
+        The output tensor.
+
+    Returns
+    -------
+    ret : tir
+        The computational ir.
+    """
+    assert axis == 0
+    n = data.shape[0]
+
+    ib = tvm.tir.ir_builder.create()
+
+    out_ptr = ib.buffer_ptr(out)
+    data_ptr = ib.buffer_ptr(data)
+
+    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
+    nthread_tx = max_threads
+
+    with ib.new_scope():
+        nthread_bx = ceil_div(n, nthread_tx)
+        tx = te.thread_axis("threadIdx.x")
+        bx = te.thread_axis("blockIdx.x")
+        ib.scope_attr(tx, "thread_extent", nthread_tx)
+        ib.scope_attr(bx, "thread_extent", nthread_bx)
+        tid = bx * nthread_tx + tx
+        with ib.if_scope(tid < n):
+            out_ptr[tid] = data_ptr[tid]
+
+    indices_ptr = ib.buffer_ptr(indices)
+    updates_ptr = ib.buffer_ptr(updates)
+
+    ni = indices.shape[0]
+
+    atomic_add_return = ib.allocate(updates.dtype, (1,), name="atomic_add_return", scope="local")
+
+    with ib.new_scope():
+        nthread_bx = ceil_div(ni, nthread_tx)
+        tx = te.thread_axis("threadIdx.x")
+        bx = te.thread_axis("blockIdx.x")
+        ib.scope_attr(tx, "thread_extent", nthread_tx)
+        ib.scope_attr(bx, "thread_extent", nthread_bx)
+        tid = bx * nthread_tx + tx
+
+        with ib.if_scope(tid < ni):
+            index = indices_ptr[tid]
+            with ib.if_scope(index < 0):
+                atomic_add_return[0] = atomic_add(
+                    tvm.tir.call_intrin("handle", "tir.address_of", out_ptr[index + n]),
+                    updates_ptr[tid],
+                )
+            with ib.else_scope():
+                atomic_add_return[0] = atomic_add(
+                    tvm.tir.call_intrin("handle", "tir.address_of", out_ptr[index]),
+                    updates_ptr[tid],
+                )
+
+    return ib.get()
 
 
 def gen_ir(data, indices, updates, out, axis, reduce_func):
@@ -72,7 +150,6 @@ def gen_ir(data, indices, updates, out, axis, reduce_func):
         with ib.if_scope(index < full_range):
             out_ptr[index] = data_ptr[index]
 
-    # TODO (vvchernov): use atomic function for special conditions (see cuda.scatter_nd)
     with ib.new_scope():
         num_blocks_2 = ceil_div(ind_full_range_excl_axis, max_threads)
         bx2 = te.thread_axis("blockIdx.x")
@@ -173,11 +250,22 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
             "scatter_elements reduction not in [update, add, mul, min, max]:", reduction
         )
 
+    cur_target_kind = str(tvm.target.Target.current(allow_none=False).kind)
+    gen_scatter_elements_ir = None
+    if (
+        reduction == "add"
+        and cur_target_kind not in ["vulkan", "metal"]
+        and updates.dtype in ["int32", "float32"]
+    ):
+        gen_scatter_elements_ir = gen_scatter_add_1d_atomic
+    else:
+        gen_scatter_elements_ir = gen_ir
+
     out_buf = tir.decl_buffer(data.shape, data.dtype, "out_buf")
     return te.extern(
         [data.shape],
         [data, indices, updates],
-        lambda ins, outs: gen_ir(ins[0], ins[1], ins[2], outs[0], axis, reduce_func),
+        lambda ins, outs: gen_scatter_elements_ir(ins[0], ins[1], ins[2], outs[0], axis, reduce_func),
         dtype=data.dtype,
         out_buffers=[out_buf],
         name="scatter_elements_cuda",
