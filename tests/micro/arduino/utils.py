@@ -31,6 +31,7 @@ TEMPLATE_PROJECT_DIR = pathlib.Path(tvm.micro.get_microtvm_template_projects("ar
 
 BOARDS = TEMPLATE_PROJECT_DIR / "boards.json"
 
+PASS_CONFIG = {"tir.disable_vectorize": True}
 
 def arduino_boards() -> dict:
     """Returns a dict mapping board to target model"""
@@ -76,7 +77,7 @@ def make_kws_project(board, microtvm_debug, workspace_dir, serial_number: str):
     runtime = Runtime("crt")
     executor = Executor("aot", {"unpacked-api": True})
 
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+    with tvm.transform.PassContext(opt_level=3, config=PASS_CONFIG):
         mod = relay.build(mod, target, runtime=runtime, executor=executor, params=params)
 
     return tvm.micro.generate_project(

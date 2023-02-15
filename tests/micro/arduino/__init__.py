@@ -15,30 +15,4 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pytest
-
-from tvm.micro.project_api.server import ServerError
-
-from . import utils
-import tvm.testing
-
-
-@pytest.fixture
-def project(board, microtvm_debug, workspace_dir, serial_number):
-    return utils.make_kws_project(board, microtvm_debug, workspace_dir, serial_number)
-
-
-def test_blank_project_compiles(workspace_dir, project):
-    project.build()
-
-
-# Add a bug (an extra curly brace) and make sure the project doesn't compile
-def test_bugged_project_compile_fails(workspace_dir, project):
-    with open(workspace_dir / "project" / "project.ino", "a") as main_file:
-        main_file.write("}\n")
-    with pytest.raises(ServerError):
-        project.build()
-
-
-if __name__ == "__main__":
-    tvm.testing.main()
+""" Testing infrastructure for microTVM Arduino """
