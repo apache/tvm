@@ -2698,13 +2698,23 @@ class PyTorchOpConverter:
             include_self = inputs[5]
             assert include_self, "include_self=False has not been suppoted for scatter_reduce yet"
 
-        data_rank = len(self.infer_shape(inputs[0]))
-        index_rank = len(self.infer_shape(inputs[2]))
-        src_rank = len(self.infer_shape(inputs[3]))
+        data_shape = self.infer_shape(inputs[0])
+        data_rank = len(data_shape)
+        index_shape = self.infer_shape(inputs[2])
+        index_rank = len(index_shape)
+        src_shape = self.infer_shape(inputs[3])
+        src_rank = len(src_shape)
         assert data_rank == index_rank, "Index rank is not the same as data rank"
         assert data_rank == src_rank, "Src rank is not the same as data rank"
 
         assert 0 <= dim < data_rank, "Dim is out of bounds"
+
+        for i in range(data_rank):
+            assert index_shape[i] <= src_shape[i], "Index dim size should be less than src one"
+            if i != dim:
+                assert (
+                    index_shape[i] <= data_shape[i]
+                ), "Index dim size should be less than data one"
 
         red_valids = ["sum", "prod", "mean", "amax", "amin"]
         assert reduce in red_valids, "Only {} modes are supported, but {} is gotten".format(
