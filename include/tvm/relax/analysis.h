@@ -261,6 +261,17 @@ TVM_DLL StructInfo StructInfoLCA(const StructInfo& lhs, const StructInfo& rhs,
                                  arith::Analyzer* ana = nullptr);
 
 /*!
+ * \brief Annotate Op Pattern Kind for PrimFunc, which is used in relax FuseOps.
+ *
+ * \param func The PrimFunc to be analyzed.
+ * \return The Op Pattern Kind.
+ *
+ * \note This analysis applies on TIR function but is primarily used by relax passes.
+ *       As a result we place it under the relax namespace.
+ */
+TVM_DLL relay::OpPatternKind AnalyzeOpPatternKind(const tir::PrimFunc& func);
+
+/*!
  * \brief Check if the given PrimFunc is essentially doing a reshape operation.
  * The reshape operation also includes expand_dims, squeeze, flatten, etc.
  * \details Here the allowed reshape pattern is: for example, assume the operation is
