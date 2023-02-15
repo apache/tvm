@@ -1073,5 +1073,4 @@ def test_class_normalize():
 
 
 if __name__ == "__main__":
-    test_cross_function_call()
     tvm.testing.main()
