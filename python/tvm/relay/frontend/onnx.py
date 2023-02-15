@@ -4900,6 +4900,7 @@ class DFT(OnnxOpConverter):
         input_shape = infer_shape(input_tensor)
         assert len(input_shape) >= 3
         n = len(input_shape) - 2
+        assert 1 <= axis <= len(input_shape) - 1
 
         # dft_length
         if dft_length is not None:
@@ -4908,7 +4909,66 @@ class DFT(OnnxOpConverter):
         assert inverse == 0, "inverse not supported"
         assert onesided == 0, "onesided not supported"
 
-        return _op.dft(input_tensor, axis, inverse, onesided)
+        # ************************
+        swap_axis = -1
+        re_input_tensor, im_input_tensor = cls._split_real_and_imag_parts(input_tensor)
+
+        re_input_tensor = cls._swap_axes(re_input_tensor, axis, swap_axis)
+        im_input_tensor = cls._swap_axes(im_input_tensor, axis, swap_axis)
+
+        re_input_tensor, im_input_tensor = _op.dft(re_input_tensor, im_input_tensor, inverse)
+
+        re_input_tensor = cls._swap_axes(re_input_tensor, axis, swap_axis)
+        im_input_tensor = cls._swap_axes(im_input_tensor, axis, swap_axis)
+
+        output = cls._merge_real_and_imag_parts(re_input_tensor, im_input_tensor)
+
+        return output
+
+    @classmethod
+    def _maybe_crop_or_pad(cls, input_tensor, axis, n_fft):
+        if input_tensor.shape[axis] != n_fft:
+            s = list(input_tensor.shape)
+            index = [slice(None)] * len(s)
+            if s[axis] > n_fft:
+                index[axis] = slice(0, n_fft)
+                _input_tensor = input_tensor[tuple(index)]
+            else:
+                index[axis] = slice(0, s[axis])
+                s[axis] = n_fft
+                z = np.zeros(s, input_tensor.dtype.char)
+                z[tuple(index)] = input_tensor
+                _input_tensor = z
+        return input_tensor
+
+    @classmethod
+    def _swap_axes(cls, tensor, axis1, axis2):
+        permutation = list(range(len(infer_shape(tensor))))
+        permutation[axis1] = axis2
+        permutation[axis2] = axis1
+        return _op.transpose(tensor, permutation)
+
+    @classmethod
+    def _split_real_and_imag_parts(cls, tensor):
+        shape = infer_shape(tensor)
+        dtype = infer_type(tensor).checked_type.dtype
+        if shape[-1] == 1:
+            re = tensor
+            im = _op.const(np.zeros(shape), dtype=dtype)
+        else:
+            re, im = _op.split(tensor, 2, -1)
+
+        re = _op.squeeze(re, -1)
+        im = _op.squeeze(im, -1)
+
+        return re, im
+
+    @classmethod
+    def _merge_real_and_imag_parts(cls, re, im):
+        re = _op.expand_dims(re, axis=-1)
+        im = _op.expand_dims(im, axis=-1)
+        output = _op.concatenate([re, im], axis=-1)
+        return output
 
 
 class NonMaxSuppression(OnnxOpConverter):
