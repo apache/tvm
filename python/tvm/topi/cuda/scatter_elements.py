@@ -22,6 +22,81 @@ from ..utils import ceil_div, get_const_int
 from ..math import cast
 
 
+def gen_ir(data, indices, updates, out, axis, reduce_func):
+    ib = tir.ir_builder.create()
+
+    data_ptr = ib.buffer_ptr(data)
+    indices_ptr = ib.buffer_ptr(indices)
+    updates_ptr = ib.buffer_ptr(updates)
+    out_ptr = ib.buffer_ptr(out)
+
+    # Prepare ranges and strides
+    shape = data.shape
+    if axis < 0:
+        axis = len(shape) + axis
+    axis_range = cast(shape[axis], indices.dtype)
+
+    before_axis_range = 1
+    after_axis_range = 1
+    for i, value in enumerate(shape, 0):
+        if i < axis:
+            before_axis_range *= value
+        elif i > axis:
+            after_axis_range *= value
+    before_axis_stride = axis_range * after_axis_range
+    full_range = before_axis_range * before_axis_stride
+
+    ind_shape = indices.shape
+    ind_axis_range = ind_shape[axis]
+
+    ind_before_axis_range = 1
+    ind_after_axis_range = 1
+    for i, value in enumerate(ind_shape, 0):
+        if i < axis:
+            ind_before_axis_range *= value
+        elif i > axis:
+            ind_after_axis_range *= value
+    ind_before_axis_stride = ind_axis_range * ind_after_axis_range
+    ind_full_range_excl_axis = ind_before_axis_range * ind_after_axis_range
+
+    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
+    # Copy initial input data to output
+    with ib.new_scope():
+        num_blocks = ceil_div(full_range, max_threads)
+        bx = te.thread_axis("blockIdx.x")
+        tx = te.thread_axis("threadIdx.x")
+        ib.scope_attr(bx, "thread_extent", num_blocks)
+        ib.scope_attr(tx, "thread_extent", max_threads)
+
+        index = bx * max_threads + tx
+        with ib.if_scope(index < full_range):
+            out_ptr[index] = data_ptr[index]
+
+    # TODO (vvchernov): use atomic function for special conditions (see cuda.scatter_nd)
+    with ib.new_scope():
+        num_blocks_2 = ceil_div(ind_full_range_excl_axis, max_threads)
+        bx2 = te.thread_axis("blockIdx.x")
+        tx2 = te.thread_axis("threadIdx.x")
+        ib.scope_attr(bx2, "thread_extent", num_blocks_2)
+        ib.scope_attr(tx2, "thread_extent", max_threads)
+
+        ind_fused = bx2 * max_threads + tx2
+        with ib.if_scope(ind_fused < ind_full_range_excl_axis):
+            i = ind_fused // ind_after_axis_range
+            j = ind_fused % ind_after_axis_range
+            with ib.for_range(0, ind_axis_range, "k") as k:
+                # Offset along indices or updates
+                index1 = i * ind_before_axis_stride + k * ind_after_axis_range + j
+                # Get index and shift to positive side if need
+                new_index = indices_ptr[index1]
+                shifted_index = new_index + (new_index < 0) * axis_range
+                # Offset along data
+                index2 = i * before_axis_stride + shifted_index * after_axis_range + j
+                reduce_func(out_ptr, index2, updates_ptr[index1])
+
+    return ib.get()
+
+
 def scatter_elements(data, indices, updates, axis=0, reduction="update"):
     """Scatter elements from updates to corresponding indices of copied data.
 
@@ -67,99 +142,42 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
     if not isinstance(axis, int):
         axis = get_const_int(axis)
 
-    def gen_ir(data, indices, updates, out, axis):
-        ib = tir.ir_builder.create()
+    def update_func(dst_ptr, dst_index, update):
+        dst_ptr[dst_index] = update
 
-        data_ptr = ib.buffer_ptr(data)
-        indices_ptr = ib.buffer_ptr(indices)
-        updates_ptr = ib.buffer_ptr(updates)
-        out_ptr = ib.buffer_ptr(out)
+    def add_func(dst_ptr, dst_index, update):
+        dst_ptr[dst_index] += update
 
-        # Prepare ranges and strides
-        shape = data.shape
-        if axis < 0:
-            axis = len(shape) + axis
-        axis_range = cast(shape[axis], indices.dtype)
+    def mul_func(dst_ptr, dst_index, update):
+        dst_ptr[dst_index] *= update
 
-        before_axis_range = 1
-        after_axis_range = 1
-        for i, value in enumerate(shape, 0):
-            if i < axis:
-                before_axis_range *= value
-            elif i > axis:
-                after_axis_range *= value
-        before_axis_stride = axis_range * after_axis_range
-        full_range = before_axis_range * before_axis_stride
+    def min_func(dst_ptr, dst_index, update):
+        dst_ptr[dst_index] = tir.min(dst_ptr[dst_index], update)
 
-        ind_shape = indices.shape
-        ind_axis_range = ind_shape[axis]
+    def max_func(dst_ptr, dst_index, update):
+        dst_ptr[dst_index] = tir.max(dst_ptr[dst_index], update)
 
-        ind_before_axis_range = 1
-        ind_after_axis_range = 1
-        for i, value in enumerate(ind_shape, 0):
-            if i < axis:
-                ind_before_axis_range *= value
-            elif i > axis:
-                ind_after_axis_range *= value
-        ind_before_axis_stride = ind_axis_range * ind_after_axis_range
-        ind_full_range_excl_axis = ind_before_axis_range * ind_after_axis_range
-
-        max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
-        # Copy initial input data to output
-        with ib.new_scope():
-            num_blocks = ceil_div(full_range, max_threads)
-            bx = te.thread_axis("blockIdx.x")
-            tx = te.thread_axis("threadIdx.x")
-            ib.scope_attr(bx, "thread_extent", num_blocks)
-            ib.scope_attr(tx, "thread_extent", max_threads)
-
-            index = bx * max_threads + tx
-            with ib.if_scope(index < full_range):
-                out_ptr[index] = data_ptr[index]
-
-        # TODO (vvchernov): use atomic function for special conditions (see cuda.scatter_nd)
-        with ib.new_scope():
-            num_blocks_2 = ceil_div(ind_full_range_excl_axis, max_threads)
-            bx2 = te.thread_axis("blockIdx.x")
-            tx2 = te.thread_axis("threadIdx.x")
-            ib.scope_attr(bx2, "thread_extent", num_blocks_2)
-            ib.scope_attr(tx2, "thread_extent", max_threads)
-
-            ind_fused = bx2 * max_threads + tx2
-            with ib.if_scope(ind_fused < ind_full_range_excl_axis):
-                i = ind_fused // ind_after_axis_range
-                j = ind_fused % ind_after_axis_range
-                with ib.for_range(0, ind_axis_range, "k") as k:
-                    # Offset along indices or updates
-                    index1 = i * ind_before_axis_stride + k * ind_after_axis_range + j
-                    # Get index and shift to positive side if need
-                    new_index = indices_ptr[index1]
-                    shifted_index = new_index + (new_index < 0) * axis_range
-                    # Offset along data
-                    index2 = i * before_axis_stride + shifted_index * after_axis_range + j
-                    if reduction == "update":
-                        out_ptr[index2] = updates_ptr[index1]
-                    elif reduction == "add":
-                        out_ptr[index2] += updates_ptr[index1]
-                    elif reduction == "mul":
-                        out_ptr[index2] *= updates_ptr[index1]
-                    elif reduction == "min":
-                        out_ptr[index2] = tir.min(out_ptr[index2], updates_ptr[index1])
-                    elif reduction == "max":
-                        out_ptr[index2] = tir.max(out_ptr[index2], updates_ptr[index1])
-                    else:
-                        raise NotImplementedError(
-                            "scatter_elements reduction not in [update, add, mul, min, max]:",
-                            reduction,
-                        )
-
-        return ib.get()
+    reduce_func = None
+    if reduction == "update":
+        reduce_func = update_func
+    elif reduction == "add":
+        reduce_func = add_func
+    elif reduction == "mul":
+        reduce_func = mul_func
+    elif reduction == "min":
+        reduce_func = min_func
+    elif reduction == "max":
+        reduce_func = max_func
+    else:
+        raise NotImplementedError(
+            "scatter_elements reduction not in [update, add, mul, min, max]:", reduction
+        )
 
     out_buf = tir.decl_buffer(data.shape, data.dtype, "out_buf")
     return te.extern(
         [data.shape],
         [data, indices, updates],
-        lambda ins, outs: gen_ir(ins[0], ins[1], ins[2], outs[0], axis),
+        lambda ins, outs: gen_ir(ins[0], ins[1], ins[2], outs[0], axis, reduce_func),
         dtype=data.dtype,
         out_buffers=[out_buf],
         name="scatter_elements_cuda",
