@@ -66,7 +66,7 @@ tune_log = "adreno-resnet50.log"
 # To enable OpenCLML accelerated operator library.
 enable_clml = False
 cross_compiler = (
-    os.environ["ANDROID_NDK_HOME"]
+    os.getenv("ANDROID_NDK_HOME", "")
     + "/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang"
 )
 
