@@ -148,6 +148,9 @@ def dft(
         for i in range(len(shape) - 1):
             base_range *= shape[i]
 
+        sign = -1 if inverse else 1
+        factor = 1. / n_fft if inverse else 1.
+
         with ib.for_range(
                 0, base_range, kind="parallel"
         ) as i:
@@ -158,11 +161,14 @@ def dft(
                 im_output_ptr[n_idx] = tir.Cast(im_output_ptr.dtype, 0)
                 with ib.for_range(0, n_fft) as k:
                     k_idx = base_idx + k
-                    w = -2 * pi * k * n / n_fft
+                    w = sign * -2 * pi * k * n / n_fft
                     cos_w = tir.cos(w)
                     sin_w = tir.sin(w)
                     re_output_ptr[n_idx] += re_data_ptr[k_idx] * cos_w - im_data_ptr[k_idx] * sin_w
                     im_output_ptr[n_idx] += re_data_ptr[k_idx] * sin_w + im_data_ptr[k_idx] * cos_w
+
+                re_output_ptr[n_idx] *= tir.Cast(re_output_ptr.dtype, factor)
+                im_output_ptr[n_idx] *= tir.Cast(im_output_ptr.dtype, factor)
 
         return ib.get()
 
