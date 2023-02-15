@@ -4246,6 +4246,7 @@ def test_forward_scatter_reduce():
     in_src = torch.rand(2, 5)
 
     targets = ["llvm", "cuda"]
+    # TODO(vvchernov): support test of mean reduction
     for reduce in ["sum", "prod", "amin", "amax"]:
         verify_trace_model(test_fn_scatter_reduce(0, reduce), [in_data, in_index, in_src], targets)
 
@@ -4253,6 +4254,7 @@ def test_forward_scatter_reduce():
     in_index = torch.tensor([[2], [3]])
     in_src = torch.rand(2, 1)
 
+    # TODO(vvchernov): support test of mean reduction
     for reduce in ["sum", "prod", "amin", "amax"]:
         verify_trace_model(test_fn_scatter_reduce(1, reduce), [in_data, in_index, in_src], targets)
 

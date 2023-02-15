@@ -2721,6 +2721,7 @@ class PyTorchOpConverter:
             red_valids, reduce
         )
         if reduce == "mean":
+            # TODO(vvchernov): support mean reduction
             raise NotImplementedError("Mean reduction has not been supported yet!")
         elif reduce == "sum":
             reduce = "add"
