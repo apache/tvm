@@ -1621,10 +1621,6 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(LT ret) {
     TVM_TRY_RECURSIVE_REWRITE(z < min(x, y), z < x && z < y);
     TVM_TRY_RECURSIVE_REWRITE(z < max(x, y), z < x || z < y);
 
-
-    // TVM_TRY_REWRITE(c1 < x + c2, c1 - c2 < x);
-    // TVM_TRY_REWRITE(c1 < c2 - x, x < c2 - c1);
-
     // clang-format on
 
     TVM_TRY_RECURSIVE_REWRITE(matches_one_of(c1 < x + c2, c1 - x < c2), c1 - c2 < x);
