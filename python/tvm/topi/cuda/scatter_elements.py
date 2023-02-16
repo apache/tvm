@@ -102,7 +102,6 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
             elif i > axis:
                 ind_after_axis_range *= value
         ind_before_axis_stride = ind_axis_range * ind_after_axis_range
-        ind_full_range = ind_before_axis_range * ind_before_axis_stride
         ind_full_range_excl_axis = ind_before_axis_range * ind_after_axis_range
 
         max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
