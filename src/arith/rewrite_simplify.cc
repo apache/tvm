@@ -1631,6 +1631,9 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(LT ret) {
     TVM_TRY_RECURSIVE_REWRITE(x < c1 - y, x + y < c1);
     TVM_TRY_RECURSIVE_REWRITE(c1 - y < x, c1 < x + y);
 
+    TVM_TRY_RECURSIVE_REWRITE(x < c1 + y, x - y < c1);
+    TVM_TRY_RECURSIVE_REWRITE(c1 + y < x, c1 < x - y);
+
     if ((x + c1 < y + c2).Match(ret)) {
       int64_t diff = c2.Eval()->value - c1.Eval()->value;
       PrimExpr out = [&]() {
