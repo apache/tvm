@@ -282,6 +282,8 @@ class OpenCLWorkspace : public DeviceAPI {
 
     return prop & CL_QUEUE_PROFILING_ENABLE;
   }
+  // Check if the device is present or not
+  bool IsDeviceExists(unsigned int device_id) { return device_id < devices.size(); }
   // Enable queue profiling, recreate if required
   void EnableQueueProfiling(Device dev, bool enable) {
     bool is_enabled = cl::OpenCLWorkspace::Global()->IsProfiling(dev);
