@@ -1484,15 +1484,12 @@ def dft_strategy(attrs, outs, out_type, target):
 def wrap_compute_dft(topi_compute):
     """Wrap DFT compute"""
 
-    # TODO(agladyshev): output_type not used
     def _compute_dft(attrs, inputs, _):
-        return [
-            topi_compute(
-                inputs[0],
-                inputs[1],
-                attrs.inverse,
-            )
-        ]
+        return topi_compute(
+            inputs[0],
+            inputs[1],
+            attrs.inverse,
+        )
 
     return _compute_dft
 
