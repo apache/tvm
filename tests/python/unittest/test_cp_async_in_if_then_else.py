@@ -220,6 +220,10 @@ def test_cp_async_in_if_then_else():
         time = time_f(a_tvm, b_tvm, c_tvm).mean
 
         print(time)
+    else:
+      global support_async
+      # avoid return dummy code to other tests
+      support_async = True
 
 
 if __name__ == "__main__":
