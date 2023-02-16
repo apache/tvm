@@ -540,7 +540,7 @@ def gen_scatter_1d_thrust(data, indices_sorted, updates_sorted, out):
 
 
 @autotvm.register_topi_compute("scatter_via_sort.cuda")
-def scatter_via_sort(cfg, data, indices, updates, axis=0):
+def scatter_via_sort(cfg, data, indices, updates, axis=0, _):
     """Update data at positions defined by indices with values in updates
 
     Parameters
