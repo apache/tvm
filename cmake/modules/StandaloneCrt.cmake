@@ -15,33 +15,25 @@
 # specific language governing permissions and limitations
 # under the License.
 
-
 if(USE_MICRO)
 
-if(MSVC)
+  message(STATUS "Build microTVM RPC common")
 
-  # When building for Windows, use standard CMake for compatibility with
-  # Visual Studio build tools and not require Make to be on the system.
+  include(cmake/utils/CRTConfig.cmake)
+  set(CRT_CONFIG_INCLUDE_PATH ${CMAKE_CURRENT_BINARY_DIR}/crt_config)
+  generate_crt_config("crt" "${CRT_CONFIG_INCLUDE_PATH}/crt_config.h")
 
-  # TODO: test building with this MSVC conditional code removed
-  # when USE_MICRO is enabled
+  # add microTVM RPC common files to TVM runtime build
+  list(APPEND TVM_CRT_SOURCES
+      3rdparty/libcrc/src/crcccitt.c
+      src/runtime/crt/microtvm_rpc_common/frame_buffer.cc
+      src/runtime/crt/microtvm_rpc_common/framing.cc
+      src/runtime/crt/microtvm_rpc_common/session.cc
+      src/runtime/crt/microtvm_rpc_common/write_stream.cc)
 
-  set(CRT_CONFIG, "src/runtime/micro/crt_config.h")
+  list(APPEND RUNTIME_SRCS ${TVM_CRT_SOURCES})
+  include_directories(SYSTEM ${CRT_CONFIG_INCLUDE_PATH})
 
-  add_library(host_standalone_crt
-              STATIC
-              3rdparty/libcrc/src/crcccitt.c
-              src/runtime/crt/microtvm_rpc_common/frame_buffer.cc
-              src/runtime/crt/microtvm_rpc_common/framing.cc
-              src/runtime/crt/microtvm_rpc_common/session.cc
-              src/runtime/crt/microtvm_rpc_common/write_stream.cc)
-
-  target_include_directories(host_standalone_crt
-                             PRIVATE
-                             3rdparty/libcrc/include
-                             src/runtime/micro)
-
-else()
 
   function(create_crt_library CRT_LIBRARY)
 
@@ -49,7 +41,7 @@ else()
     set(CRT_LIBRARY_SOURCES "")
 
     foreach(FILE_NAME IN LISTS ARGN)
-       list(APPEND CRT_LIBRARY_SOURCES ${FILE_NAME})
+      list(APPEND CRT_LIBRARY_SOURCES ${FILE_NAME})
     endforeach()
 
     add_library(${CRT_LIBRARY_NAME}
@@ -60,9 +52,9 @@ else()
     set(CRT_LIBRARIES ${CRT_LIBRARIES} ${CRT_LIBRARY_NAME} PARENT_SCOPE)
 
     target_include_directories(${CRT_LIBRARY_NAME}
-                               PUBLIC
-                               ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/micro/
-                               ${STANDALONE_CRT_BASE}/include)
+                              PUBLIC
+                              ${CRT_CONFIG_INCLUDE_PATH}
+                              ${STANDALONE_CRT_BASE}/include)
 
     set_target_properties(${CRT_LIBRARY_NAME}
                           PROPERTIES
@@ -75,7 +67,7 @@ else()
 
   endfunction()
 
-  message(STATUS "Build standalone CRT for microTVM")
+  message(STATUS "Build microTVM standalone CRT")
 
   # Build an isolated build directory, separate from the TVM tree.
   list(APPEND CRT_FILE_COPY_JOBS
@@ -147,32 +139,36 @@ else()
                     ${RUNTIME_CRT_SOURCE_DIR}/aot_executor_module/aot_executor_module.c)
 
   create_crt_library(graph_executor
-                     ${RUNTIME_CRT_SOURCE_DIR}/graph_executor/graph_executor.c
-                     ${RUNTIME_CRT_SOURCE_DIR}/graph_executor/load_json.c)
+                    ${RUNTIME_CRT_SOURCE_DIR}/graph_executor/graph_executor.c
+                    ${RUNTIME_CRT_SOURCE_DIR}/graph_executor/load_json.c)
 
   create_crt_library(graph_executor_module
-                     ${RUNTIME_CRT_SOURCE_DIR}/graph_executor_module/graph_executor_module.c)
+                    ${RUNTIME_CRT_SOURCE_DIR}/graph_executor_module/graph_executor_module.c)
 
   create_crt_library(memory
-                     ${RUNTIME_CRT_SOURCE_DIR}/memory/page_allocator.c
-                     ${RUNTIME_CRT_SOURCE_DIR}/memory/stack_allocator.c)
+                    ${RUNTIME_CRT_SOURCE_DIR}/memory/page_allocator.c
+                    ${RUNTIME_CRT_SOURCE_DIR}/memory/stack_allocator.c)
 
   create_crt_library(microtvm_rpc_common
-                     ${RUNTIME_CRT_SOURCE_DIR}/microtvm_rpc_common/crcccitt.c
-                     ${RUNTIME_CRT_SOURCE_DIR}/microtvm_rpc_common/frame_buffer.cc
-                     ${RUNTIME_CRT_SOURCE_DIR}/microtvm_rpc_common/framing.cc
-                     ${RUNTIME_CRT_SOURCE_DIR}/microtvm_rpc_common/session.cc
-                     ${RUNTIME_CRT_SOURCE_DIR}/microtvm_rpc_common/write_stream.cc)
+                    ${RUNTIME_CRT_SOURCE_DIR}/microtvm_rpc_common/crcccitt.c
+                    ${RUNTIME_CRT_SOURCE_DIR}/microtvm_rpc_common/frame_buffer.cc
+                    ${RUNTIME_CRT_SOURCE_DIR}/microtvm_rpc_common/framing.cc
+                    ${RUNTIME_CRT_SOURCE_DIR}/microtvm_rpc_common/session.cc
+                    ${RUNTIME_CRT_SOURCE_DIR}/microtvm_rpc_common/write_stream.cc)
 
   create_crt_library(microtvm_rpc_server
-                     ${RUNTIME_CRT_SOURCE_DIR}/microtvm_rpc_server/rpc_server.cc)
+                    ${RUNTIME_CRT_SOURCE_DIR}/microtvm_rpc_server/rpc_server.cc)
 
-  create_crt_library(common
-                     ${RUNTIME_CRT_SOURCE_DIR}/common/crt_backend_api.c
-                     ${RUNTIME_CRT_SOURCE_DIR}/common/crt_runtime_api.c
-                     ${RUNTIME_CRT_SOURCE_DIR}/common/func_registry.c
-                     ${RUNTIME_CRT_SOURCE_DIR}/common/ndarray.c
-                     ${RUNTIME_CRT_SOURCE_DIR}/common/packed_func.c)
+  if(NOT MSVC)
+    # TODO: if we want to eventually build standalone_crt for windows
+    # these files would be needed, but for now don't build them
+    create_crt_library(common
+                      ${RUNTIME_CRT_SOURCE_DIR}/common/crt_backend_api.c
+                      ${RUNTIME_CRT_SOURCE_DIR}/common/crt_runtime_api.c
+                      ${RUNTIME_CRT_SOURCE_DIR}/common/func_registry.c
+                      ${RUNTIME_CRT_SOURCE_DIR}/common/ndarray.c
+                      ${RUNTIME_CRT_SOURCE_DIR}/common/packed_func.c)
+  endif()
 
   add_custom_target(host_standalone_crt DEPENDS ${CRT_LIBRARIES} standalone_crt)
 
@@ -181,22 +177,11 @@ else()
   if(GTEST_FOUND)
     tvm_file_glob(GLOB TEST_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/tests/crt/*.cc)
     add_executable(crttest ${TEST_SRCS})
-    target_include_directories(crttest SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/micro)
+    target_include_directories(crttest SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include ${CMAKE_CURRENT_BINARY_DIR}/crt_config)
     target_link_libraries(crttest PRIVATE ${CRT_LIBRARIES} GTest::GTest GTest::Main pthread dl)
     set_target_properties(crttest PROPERTIES EXCLUDE_FROM_ALL 1)
     set_target_properties(crttest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
     gtest_discover_tests(crttest)
   endif()
-
-  set(TVM_CRT_LINKER_LIB host_standalone_crt_microtvm_rpc_common)
-  if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-  list(APPEND TVM_RUNTIME_LINKER_LIBS -Wl,--whole-archive ${TVM_CRT_LINKER_LIB} -Wl,--no-whole-archive)
-  elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES ".*Clang")
-  list(APPEND TVM_RUNTIME_LINKER_LIBS -Wl,-force_load ${TVM_CRT_LINKER_LIB})
-  else()
-  list(APPEND TVM_RUNTIME_LINKER_LIBS ${TVM_CRT_LINKER_LIB})
-  endif()
-
-endif()
 
 endif()

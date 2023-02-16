@@ -19,7 +19,7 @@
 import tvm
 from tvm import te
 import tvm.target.codegen
-from .utils import target_has_sse42, target_has_vnni, get_simd_32bit_lanes
+from tvm.target.x86 import target_has_sse42, target_has_vnni, get_simd_32bit_lanes
 
 
 def dot_16x1x16_uint8_int8_int32():

@@ -46,7 +46,7 @@ class TestIntroduceNoOp(BaseBeforeAfter):
     to the then_case, then the conditional can be removed.
     """
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             if i < 14:
                 A[i] = 1
@@ -54,7 +54,7 @@ class TestIntroduceNoOp(BaseBeforeAfter):
             else:
                 A[i] = 1
 
-    def expected(A: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             A[i] = 1
             T.evaluate(0)
@@ -70,12 +70,12 @@ class TestIntroduceAdditionOfZero(BaseBeforeAfter):
 
     use_dataflow_analysis = True
 
-    def before(A: T.Buffer[1, "int32"]):
+    def before(A: T.Buffer(1, "int32")):
         for i in T.serial(16):
             if i > 0:
                 A[0] = A[0] + i * i
 
-    def expected(A: T.Buffer[1, "int32"]):
+    def expected(A: T.Buffer(1, "int32")):
         for i in T.serial(16):
             A[0] = A[0] + i * i
 
@@ -89,7 +89,7 @@ class TestIntroduceAdditionOfKnownZeroInBuffer(BaseBeforeAfter):
 
     use_dataflow_analysis = True
 
-    def before(A: T.Buffer[16, "int32"], B: T.Buffer[1, "int32"]):
+    def before(A: T.Buffer(16, "int32"), B: T.Buffer(1, "int32")):
         for i in T.serial(16):
             T.evaluate(T.assume(i < 14 or A[i] == 0))
 
@@ -98,7 +98,7 @@ class TestIntroduceAdditionOfKnownZeroInBuffer(BaseBeforeAfter):
             if i < 14:
                 B[0] = B[0] + A[i]
 
-    def expected(A: T.Buffer[16, "int32"], B: T.Buffer[1, "int32"]):
+    def expected(A: T.Buffer(16, "int32"), B: T.Buffer(1, "int32")):
         for i in T.serial(16):
             T.evaluate(T.assume(i < 14 or A[i] == 0))
 
@@ -118,7 +118,7 @@ class TestIntroduceOverwrittenWrite(BaseBeforeAfter):
 
     use_dataflow_analysis = True
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             if i < 14:
                 A[i] = 1
@@ -127,7 +127,7 @@ class TestIntroduceOverwrittenWrite(BaseBeforeAfter):
             if i >= 14:
                 A[i] = 2
 
-    def expected(A: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             A[i] = 1
 
@@ -145,7 +145,7 @@ class TestMaintainValuesUsedLater(BaseBeforeAfter):
     not be valid.
     """
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             if i < 14:
                 A[i] = 1
@@ -167,7 +167,7 @@ class TestIdentifyOverwrittenWriteFromEquivalentExpressions(BaseBeforeAfter):
 
     use_dataflow_analysis = True
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             if i < 14:
                 A[i] = 1
@@ -176,7 +176,7 @@ class TestIdentifyOverwrittenWriteFromEquivalentExpressions(BaseBeforeAfter):
             if io == 3 and ii >= 2:
                 A[4 * io + ii] = 2
 
-    def expected(A: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             A[i] = 1
 
@@ -197,7 +197,7 @@ class TestIntroduceSupersetOverwrittenWrite(BaseBeforeAfter):
 
     use_dataflow_analysis = True
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             if i < 14:
                 A[i] = 1
@@ -206,7 +206,7 @@ class TestIntroduceSupersetOverwrittenWrite(BaseBeforeAfter):
             if i >= 14:
                 A[i] = 2
 
-    def expected(A: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             A[i] = 1
 

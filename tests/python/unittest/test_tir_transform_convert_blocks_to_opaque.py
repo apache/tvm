@@ -85,7 +85,7 @@ def test_lower_te():
 class TestErrorIfPredicateUsesBlockVariables(tvm.testing.CompareBeforeAfter):
     transform = tvm.tir.transform.ConvertBlocksToOpaque()
 
-    def before(A: T.Buffer[8, "int32"]):
+    def before(A: T.Buffer(8, "int32")):
         for i in T.serial(8):
             with T.block():
                 vi = T.axis.remap("S", [i])

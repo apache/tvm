@@ -773,7 +773,7 @@ def test_aot_codegen_backend_alloc_workspace_calls():
     # small tensors that would get lowered to stack allocations in the CPU PrimFuncs.
     # However, the AoT executor codegen should retain them as TVMBAW calls
     # pylint: disable=line-too-long
-    relay_mod = tvm.parser.fromtext(
+    relay_mod = tvm.relay.fromtext(
         """
         #[version = "0.0.5"]
         def @main(%data: Tensor[(1, 4, 4, 4), float32], %weight: Tensor[(4, 4, 3, 3), float32], src_layout="OIHW", dst_layout="OIHW4i4o") -> Tensor[(1, 4, 4, 4), float32] {

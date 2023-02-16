@@ -168,8 +168,9 @@ struct ScatterNDAttrs : public tvm::AttrsNode<ScatterNDAttrs> {
   String mode;
 
   TVM_DECLARE_ATTRS(ScatterNDAttrs, "relay.attrs.ScatterNDAttrs") {
-    TVM_ATTR_FIELD(mode).describe(
-        "Accumulation mode of the scatter, either \"update\" or \"add\".");
+    TVM_ATTR_FIELD(mode).set_default("update").describe(
+        "Accumulation mode of the ScatterND, "
+        "either \"update\", \"add\", \"mul\", \"min\" or \"max\".");
   }
 };
 

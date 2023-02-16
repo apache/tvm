@@ -24,6 +24,7 @@
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
+#include <tvm/tir/index_map.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
@@ -71,12 +72,6 @@ class TIRFrame : public Frame {
 
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(TIRFrame, Frame, TIRFrameNode);
 };
-
-/*! \brief Creates the TIR common prefix, which is by default `T` */
-inline ExprDoc TIR(const IRDocsifier& d, const String& attr) {
-  d->ir_usage.insert("tir");
-  return IdDoc(d->cfg->tir_prefix)->Attr(attr);
-}
 
 /*!
  * \brief Defines a variable in the IRDocsifier at the given frame,
@@ -171,30 +166,15 @@ inline Optional<Frame> FindLowestVarDef(const ObjectRef& var, const IRDocsifier&
   return NullOpt;
 }
 
-/*!
- * \brief Create a frame and add dispatch token. Calculate LCA information for the frame.
- * \param d The IRDocsifier
- * \param root The root of the TIR AST
- * \param tir The TIR to be saved in the new TIR frame
- * \return The frame created
- */
-inline TIRFrame MakeDispatchFrame(const IRDocsifier& d, const ObjectRef& root,
-                                  const ObjectRef& tir) {
-  d->SetCommonPrefix(root, [](const ObjectRef& obj) {
-    return obj->IsInstance<tir::VarNode>() || obj->IsInstance<tir::BufferNode>();
-  });
-  TIRFrame frame(d, tir);
-  frame->AddDispatchToken(d, "tir");
-  return frame;
-}
-
 /*! \brief Redirected method for the ReprPrinter */
 inline std::string ReprPrintTIR(const ObjectRef& obj, const PrinterConfig& cfg) {
   IRDocsifier d(cfg);
-  With<TIRFrame> f(MakeDispatchFrame(d, obj, ObjectRef(nullptr)));
-  std::ostringstream oss;
-  oss << Docsify(obj, d, *f, cfg);
-  return oss.str();
+  d->SetCommonPrefix(obj, [](const ObjectRef& obj) {
+    return obj->IsInstance<tir::VarNode>() || obj->IsInstance<tir::BufferNode>();
+  });
+  With<TIRFrame> f(d, ObjectRef{nullptr});
+  (*f)->AddDispatchToken(d, "tir");
+  return Docsify(obj, d, *f, cfg);
 }
 
 /*!

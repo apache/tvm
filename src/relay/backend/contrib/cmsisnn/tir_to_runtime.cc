@@ -108,7 +108,9 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     }
     std::string cmsis_func_name = op->args[0].as<StringImmNode>()->value;
     if (cmsis_func_name == "arm_softmax_s8" || cmsis_func_name == "arm_elementwise_mul_s8" ||
-        cmsis_func_name == "arm_elementwise_add_s8") {
+        cmsis_func_name == "arm_elementwise_add_s8" ||
+        cmsis_func_name == "arm_elementwise_mul_s16" ||
+        cmsis_func_name == "arm_elementwise_add_s16") {
       CodeGenC::VisitExpr_(op, os);
     } else if (cmsis_func_name == "arm_convolve_wrapper_s8" ||
                cmsis_func_name == "arm_convolve_wrapper_s16" ||

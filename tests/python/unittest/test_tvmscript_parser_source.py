@@ -92,7 +92,7 @@ def test_nesting_parsing():
         class Module:
             @T.prim_func
             def impl(
-                A: T.Buffer[(12, 196, 64), "float32"],
+                A: T.Buffer((12, 196, 64), "float32"),
             ) -> None:
                 T.evaluate(0)
 

@@ -333,7 +333,7 @@ def lowered_with_block_predicate(a: T.handle, b: T.handle) -> None:
 
 @T.prim_func
 def single_reduction_loop_with_block_predicate(
-    A: T.Buffer[(256, 256), "float32"], T_softmax_norm: T.Buffer[(256, 256), "float32"]
+    A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")
 ) -> None:
     T_softmax_maxelem_shared = T.alloc_buffer([256], dtype="float32", scope="shared")
     T_softmax_expsum_shared = T.alloc_buffer([256], dtype="float32", scope="shared")
@@ -383,7 +383,7 @@ def single_reduction_loop_with_block_predicate(
 
 @T.prim_func
 def lowered_single_reduction_loop_with_block_predicate(
-    A: T.Buffer[(256, 256), "float32"], T_softmax_norm: T.Buffer[(256, 256), "float32"]
+    A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")
 ) -> None:
     T_softmax_maxelem_shared = T.alloc_buffer([256], dtype="float32", scope="shared")
     T_softmax_expsum_shared = T.alloc_buffer([256], dtype="float32", scope="shared")
@@ -489,9 +489,9 @@ def lowered_single_reduction_loop_with_block_predicate(
 
 @T.prim_func
 def single_reduction_loop_with_tensorize(
-    input_A: T.Buffer[(1, 64, 7, 7, 32), "uint8"],
-    input_B: T.Buffer[(16, 64, 1, 1, 8, 32, 4), "int8"],
-    output: T.Buffer[(1, 16, 7, 7, 32), "int32"],
+    input_A: T.Buffer((1, 64, 7, 7, 32), "uint8"),
+    input_B: T.Buffer((16, 64, 1, 1, 8, 32, 4), "int8"),
+    output: T.Buffer((1, 16, 7, 7, 32), "int32"),
 ) -> None:
     # body
     # with T.block("root")
@@ -550,9 +550,9 @@ def single_reduction_loop_with_tensorize(
 
 @T.prim_func
 def nested_reduction_loop_with_inner_match_buffers(
-    in0: T.Buffer[(4, 16), "int8"],
-    in1: T.Buffer[(4, 16), "int8"],
-    out: T.Buffer[(4, 4), "int32"],
+    in0: T.Buffer((4, 16), "int8"),
+    in1: T.Buffer((4, 16), "int8"),
+    out: T.Buffer((4, 4), "int32"),
 ) -> None:
     # body
     # with T.block("root")
@@ -935,10 +935,10 @@ def lowered_softmax(var_A: T.handle, var_T_softmax_norm: T.handle) -> None:
 
 @T.prim_func
 def argmax_split(
-    idx: T.Buffer[(128, 128), "int32"],
-    val: T.Buffer[(128, 128), "float32"],
-    argmax_v0: T.Buffer[(128,), "int32"],
-    argmax_v1: T.Buffer[(128,), "float32"],
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
 ) -> None:
     for i0, i1_0 in T.grid(128, 4):
         for i1_1 in T.thread_binding(32, thread="threadIdx.x"):
@@ -960,10 +960,10 @@ def argmax_split(
 
 @T.prim_func
 def lowered_argmax_split(
-    idx: T.Buffer[(128, 128), "int32"],
-    val: T.Buffer[(128, 128), "float32"],
-    argmax_v0: T.Buffer[(128,), "int32"],
-    argmax_v1: T.Buffer[(128,), "float32"],
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
 ) -> None:
     cross_thread_argmax_v0 = T.alloc_buffer([1], dtype="int32", strides=[1], scope="local")
     cross_thread_argmax_v1 = T.alloc_buffer([1], dtype="float32", strides=[1], scope="local")
@@ -1026,10 +1026,10 @@ def lowered_argmax_split(
 
 @T.prim_func
 def argmin_split_init_update_reordered(
-    idx: T.Buffer[(128, 128), "int32"],
-    val: T.Buffer[(128, 128), "float32"],
-    argmin_v0: T.Buffer[(128,), "int32"],
-    argmin_v1: T.Buffer[(128,), "float32"],
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmin_v0: T.Buffer((128,), "int32"),
+    argmin_v1: T.Buffer((128,), "float32"),
 ) -> None:
     for i0, i1_0 in T.grid(128, 4):
         for i1_1 in T.thread_binding(32, thread="threadIdx.x"):
@@ -1051,10 +1051,10 @@ def argmin_split_init_update_reordered(
 
 @T.prim_func
 def lowered_argmin_split_init_update_reordered(
-    idx: T.Buffer[(128, 128), "int32"],
-    val: T.Buffer[(128, 128), "float32"],
-    argmin_v0: T.Buffer[(128,), "int32"],
-    argmin_v1: T.Buffer[(128,), "float32"],
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmin_v0: T.Buffer((128,), "int32"),
+    argmin_v1: T.Buffer((128,), "float32"),
 ) -> None:
     cross_thread_argmin_v0 = T.alloc_buffer([1], dtype="int32", strides=[1], scope="local")
     cross_thread_argmin_v1 = T.alloc_buffer([1], dtype="float32", strides=[1], scope="local")
@@ -1117,10 +1117,10 @@ def lowered_argmin_split_init_update_reordered(
 
 @T.prim_func
 def layer_norm_tuple_sum(
-    data: T.Buffer[(128, 768), "float32"],
-    gamma: T.Buffer[768, "float32"],
-    bias: T.Buffer[768, "float32"],
-    T_layer_norm: T.Buffer[(128, 768), "float32"],
+    data: T.Buffer((128, 768), "float32"),
+    gamma: T.Buffer(768, "float32"),
+    bias: T.Buffer(768, "float32"),
+    T_layer_norm: T.Buffer((128, 768), "float32"),
 ) -> None:
     data_red_temp_v0 = T.alloc_buffer([128], dtype="float32")
     data_red_temp_v1 = T.alloc_buffer([128], dtype="float32")
@@ -1172,10 +1172,10 @@ def layer_norm_tuple_sum(
 
 @T.prim_func
 def lowered_layer_norm_tuple_sum(
-    data: T.Buffer[(128, 768), "float32"],
-    gamma: T.Buffer[768, "float32"],
-    bias: T.Buffer[768, "float32"],
-    T_layer_norm: T.Buffer[(128, 768), "float32"],
+    data: T.Buffer((128, 768), "float32"),
+    gamma: T.Buffer(768, "float32"),
+    bias: T.Buffer(768, "float32"),
+    T_layer_norm: T.Buffer((128, 768), "float32"),
 ) -> None:
     # with T.block("root")
     data_red_temp_v0 = T.alloc_buffer([128], dtype="float32")

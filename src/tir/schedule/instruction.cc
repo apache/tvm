@@ -79,6 +79,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
           std::ostringstream os;
           os << new_expr;
           inputs.push_back(String(os.str()));
+        } else if (obj.as<IndexMapNode>()) {
+          inputs.push_back(obj);
         } else {
           LOG(FATAL) << "TypeError: Stringifying is not supported for type: " << obj->GetTypeKey();
           throw;

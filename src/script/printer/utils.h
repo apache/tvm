@@ -19,12 +19,15 @@
 #ifndef TVM_SCRIPT_PRINTER_UTILS_H_
 #define TVM_SCRIPT_PRINTER_UTILS_H_
 
+#include <tvm/node/serialization.h>
 #include <tvm/script/printer/ir_docsifier.h>
 
 #include <string>
-#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
+
+#include "../../support/str_escape.h"
 
 namespace tvm {
 namespace script {
@@ -39,9 +42,19 @@ inline void RedirectedReprPrinterMethod(const ObjectRef& obj, ReprPrinter* p) {
   try {
     p->stream << TVMScriptPrinter::Script(obj, NullOpt);
   } catch (const tvm::Error& e) {
-    LOG(WARNING) << "TVMScript printer falls back to the legacy ReprPrinter with the error:\n"
-                 << e.what();
-    p->stream << AsLegacyRepr(obj);
+    if (ReprLegacyPrinter::CanDispatch(obj)) {
+      LOG(WARNING) << "TVMScript printer falls back to the legacy ReprPrinter with the error:\n"
+                   << e.what();
+      try {
+        p->stream << AsLegacyRepr(obj);
+      } catch (const tvm::Error& e) {
+        LOG(WARNING) << "AsLegacyRepr fails. Falling back to the basic address printer";
+      }
+    } else {
+      LOG(WARNING) << "TVMScript printer falls back to the basic address printer with the error:\n"
+                   << e.what();
+    }
+    p->stream << obj->GetTypeKey() << '(' << obj.get() << ')';
   }
 }
 
@@ -62,7 +75,38 @@ inline std::string Docsify(const ObjectRef& obj, const IRDocsifier& d, const Fra
   } else {
     LOG(FATAL) << "TypeError: Unexpected doc type: " << doc->GetTypeKey();
   }
-  return DocToPythonScript(StmtBlockDoc(f->stmts), cfg);
+  std::ostringstream os;
+  if (!d->metadata.empty()) {
+    if (d->cfg->show_meta) {
+      os << "metadata = tvm.ir.load_json(\""
+         << support::StrEscape(
+                SaveJSON(Map<String, ObjectRef>(d->metadata.begin(), d->metadata.end())))
+         << "\")\n";
+    } else {
+      f->stmts.push_back(
+          CommentDoc("Metadata omitted. Use show_meta=True in script() method to show it."));
+    }
+  }
+  os << DocToPythonScript(StmtBlockDoc(f->stmts), cfg);
+  return os.str();
+}
+
+/*! \brief Creates the IR common prefix, which is by default `I` */
+inline ExprDoc IR(const IRDocsifier& d, const String& attr) {
+  d->ir_usage.insert("ir");
+  return IdDoc(d->cfg->ir_prefix)->Attr(attr);
+}
+
+/*! \brief Creates the TIR common prefix, which is by default `T` */
+inline ExprDoc TIR(const IRDocsifier& d, const String& attr) {
+  d->ir_usage.insert("tir");
+  return IdDoc(d->cfg->tir_prefix)->Attr(attr);
+}
+
+/*! \brief Creates the TIR common prefix, which is by default `T` */
+inline ExprDoc Relax(const IRDocsifier& d, const String& attr) {
+  d->ir_usage.insert("relax");
+  return IdDoc(d->cfg->relax_prefix)->Attr(attr);
 }
 
 inline std::string DType2Str(const runtime::DataType& dtype) {
@@ -87,6 +131,39 @@ inline Doc HeaderWrapper(const IRDocsifier& d, const Doc& doc) {
     return StmtBlockDoc(stmts);
   }
   return doc;
+}
+
+/*! \brief Check if a string has multiple lines. */
+inline bool HasMultipleLines(const std::string& str) {
+  return str.find_first_of('\n') != std::string::npos;
+}
+
+inline Optional<String> GetBindingName(const IRDocsifier& d) {
+  return d->cfg->binding_names.empty() ? Optional<String>(NullOpt) : d->cfg->binding_names.back();
+}
+
+inline Optional<String> FindFunctionName(const IRDocsifier& d, const BaseFunc& f) {
+  if (Optional<String> name = GetBindingName(d)) {
+    return name.value();
+  }
+  if (Optional<String> sym = f->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+    return sym.value();
+  }
+  return NullOpt;
+}
+
+inline String GenerateUniqueName(std::string name_hint,
+                                 const std::unordered_set<String>& defined_names) {
+  for (char& c : name_hint) {
+    if (c != '_' && !std::isalnum(c)) {
+      c = '_';
+    }
+  }
+  std::string name = name_hint;
+  for (int i = 1; defined_names.count(name) > 0; ++i) {
+    name = name_hint + "_" + std::to_string(i);
+  }
+  return name;
 }
 
 }  // namespace printer

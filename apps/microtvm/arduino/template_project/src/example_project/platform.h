@@ -17,10 +17,20 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_CRT_CONFIG_H_
-#define TVM_RUNTIME_CRT_CONFIG_H_
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-/*! Log level of the CRT runtime */
-#define TVM_CRT_LOG_LEVEL TVM_CRT_LOG_LEVEL_DEBUG
+/* TODO template this function signature with the input and output
+ * data types and sizes. For example:
+ *
+ * void TVMExecute(uint8_t input_data[9216], uint8_t output_data[3]);
+ *
+ * Note this can only be done once MLF has JSON metadata describing
+ * inputs and outputs.
+ */
+void TVMExecute(void* input_data, void* output_data);
 
-#endif  // TVM_RUNTIME_CRT_CONFIG_H_
+#ifdef __cplusplus
+}  // extern "C"
+#endif

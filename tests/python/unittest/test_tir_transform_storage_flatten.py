@@ -139,7 +139,7 @@ def test_flatten_let_buffer():
             T.func_attr({"from_legacy_te_schedule": True})
 
             # If a pointer defined using a LetStmt,
-            A_data: T.Ptr[T.int32] = T.call_extern("dummy_extern_function", dtype="handle")
+            A_data: T.handle("int32") = T.call_extern("dummy_extern_function", dtype="handle")
 
             # and a buffer is backed by that pointer,
             A = T.decl_buffer([1], dtype="float32", data=A_data)

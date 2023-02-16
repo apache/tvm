@@ -216,7 +216,7 @@ def test_reorder_with_opaque_access():
 
 def test_reorder_overlapped_access():
     @T.prim_func
-    def overlapped_access(A: T.Buffer[(14, 4), "float32"], B: T.Buffer[(14, 4), "float32"]):
+    def overlapped_access(A: T.Buffer((14, 4), "float32"), B: T.Buffer((14, 4), "float32")):
         # example to write first axis multiple times
         for v0, v1, v2 in T.grid(6, 4, 4):
             with T.block("block"):
@@ -225,7 +225,7 @@ def test_reorder_overlapped_access():
                 B[i, j] = A[i, j] + 1.0
 
     @T.prim_func
-    def overlapped_access_reorder(A: T.Buffer[(14, 4), "float32"], B: T.Buffer[(14, 4), "float32"]):
+    def overlapped_access_reorder(A: T.Buffer((14, 4), "float32"), B: T.Buffer((14, 4), "float32")):
         # example to write first axis multiple times
         for v0, v2, v1 in T.grid(6, 4, 4):
             with T.block("block"):
@@ -242,7 +242,7 @@ def test_reorder_overlapped_access():
 
 def test_reorder_with_partial_affineness():
     @T.prim_func
-    def non_affine_func(A: T.Buffer[(14, 4), "float32"], B: T.Buffer[(14, 4), "float32"]):
+    def non_affine_func(A: T.Buffer((14, 4), "float32"), B: T.Buffer((14, 4), "float32")):
         for v0, v1, v2 in T.grid(6, 4, 4):
             with T.block("block"):
                 i = T.axis.spatial(14, v0 * v0 + v1)
@@ -250,7 +250,7 @@ def test_reorder_with_partial_affineness():
                 B[i, j] = A[i, j] + 1.0
 
     @T.prim_func
-    def non_affine_func_reorder(A: T.Buffer[(14, 4), "float32"], B: T.Buffer[(14, 4), "float32"]):
+    def non_affine_func_reorder(A: T.Buffer((14, 4), "float32"), B: T.Buffer((14, 4), "float32")):
         for v0, v2, v1 in T.grid(6, 4, 4):
             with T.block("block"):
                 i = T.axis.spatial(14, v0 * v0 + v1)
@@ -270,7 +270,7 @@ def test_reorder_with_partial_affineness():
 def test_reorder_with_cascade_tiled_ops():
     @T.prim_func
     def cascade_pool_ops(
-        x: T.Buffer[(1, 16, 112, 112), "float32"], y2: T.Buffer[(1, 16, 108, 108), "float32"]
+        x: T.Buffer((1, 16, 112, 112), "float32"), y2: T.Buffer((1, 16, 108, 108), "float32")
     ) -> None:
         y1 = T.alloc_buffer([1, 16, 110, 110], dtype="float32")
         for n, c, h, w, kh, kw in T.grid(1, 16, 110, 110, 3, 3):
@@ -288,7 +288,7 @@ def test_reorder_with_cascade_tiled_ops():
 
     @T.prim_func
     def cascade_pool_ops_tile_reordered(
-        x: T.Buffer[(1, 16, 112, 112), "float32"], y2: T.Buffer[(1, 16, 108, 108), "float32"]
+        x: T.Buffer((1, 16, 112, 112), "float32"), y2: T.Buffer((1, 16, 108, 108), "float32")
     ) -> None:
         y1 = T.alloc_buffer([1, 16, 110, 110], dtype="float32")
         for n, c, h_o in T.grid(1, 16, 27):

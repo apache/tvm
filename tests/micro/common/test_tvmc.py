@@ -122,6 +122,7 @@ def test_tvmc_model_build_only(platform, board, output_dir):
     shutil.rmtree(output_dir)
 
 
+@pytest.mark.skip("Flaky, https://github.com/apache/tvm/issues/14004")
 @pytest.mark.requires_hardware
 @tvm.testing.requires_micro
 @pytest.mark.parametrize(

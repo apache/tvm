@@ -33,7 +33,7 @@ import ethosu.vela.api as vapi
 @tvm.script.ir_module
 class SingleEthosUConv2D:
     @T.prim_func
-    def main(placeholder_3: T.Buffer[(8192,), "int8"], ethosu_conv2d_1: T.Buffer[(1024,), "int8"]) -> None:
+    def main(placeholder_3: T.Buffer((8192,), "int8"), ethosu_conv2d_1: T.Buffer((1024,), "int8")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         placeholder_4 = T.Buffer([1], "uint8")
@@ -48,7 +48,7 @@ class SingleEthosUConv2D:
 @tvm.script.ir_module
 class MultiEthosUConv2D:
     @T.prim_func
-    def main(placeholder_6: T.Buffer[(192,), "int8"], ethosu_conv2d_1: T.Buffer[(512,), "int8"]) -> None:
+    def main(placeholder_6: T.Buffer((192,), "int8"), ethosu_conv2d_1: T.Buffer((512,), "int8")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         placeholder_9 = T.Buffer([1], "uint8")
@@ -70,7 +70,7 @@ class MultiEthosUConv2D:
 @tvm.script.ir_module
 class MultiEthosUCopy:
     @T.prim_func
-    def main(placeholder_3: T.Buffer[(8192,), "int8"], ethosu_conv2d_1: T.Buffer[(2048,), "int8"]) -> None:
+    def main(placeholder_3: T.Buffer((8192,), "int8"), ethosu_conv2d_1: T.Buffer((2048,), "int8")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         placeholder_5 = T.Buffer([1], "int32")
@@ -89,7 +89,7 @@ class MultiEthosUCopy:
 @tvm.script.ir_module
 class WeightStreamOnly:
     @T.prim_func
-    def main(placeholder: T.Buffer[(8192,), "int8"], ethosu_write: T.Buffer[(2048,), "int8"]) -> None:
+    def main(placeholder: T.Buffer((8192,), "int8"), ethosu_write: T.Buffer((2048,), "int8")) -> None:
         buffer = T.Buffer([1], "uint8")
         buffer_1 = T.Buffer([1], "uint8")
         buffer_2 = T.Buffer([1], "uint8")
@@ -135,7 +135,7 @@ class WeightStreamOnly:
 @tvm.script.ir_module
 class MixedRead:
     @T.prim_func
-    def main(placeholder: T.Buffer[(8192,), "int8"], ethosu_write: T.Buffer[(2048,), "int8"]) -> None:
+    def main(placeholder: T.Buffer((8192,), "int8"), ethosu_write: T.Buffer((2048,), "int8")) -> None:
         buffer = T.Buffer([1], "uint8")
         buffer_1 = T.Buffer([1], "uint8")
         buffer_2 = T.Buffer([1], "uint8")
@@ -672,7 +672,7 @@ def test_translate_ethosu_copy():
 @tvm.script.ir_module
 class MixedConstantDatatypes:
     @T.prim_func
-    def main(placeholder_4: T.Buffer[(2048,), "int8"], ethosu_write_1: T.Buffer[(16,), "int8"]) -> None:
+    def main(placeholder_4: T.Buffer((2048,), "int8"), ethosu_write_1: T.Buffer((16,), "int8")) -> None:
         buffer = T.Buffer([1], "uint8")
         buffer_1 = T.Buffer([1], "uint8")
         buffer_2 = T.Buffer([1], "int16")

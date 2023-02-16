@@ -1830,15 +1830,17 @@ def test_forward_linear():
         def forward(self, inputs, weight):
             return F.linear(inputs, weight)
 
-    class LinearNested(torch.nn.Module):
+    class LinearNested(Module):
         def forward(self, x, y, z):
             return F.linear(x, F.linear(y, z))
 
+    input1d = torch.rand([2]).float()
     input2d = torch.rand([2, 2]).float()
     input3d = torch.rand([4, 3, 2]).float()
     weight1d = torch.rand([2]).float()
     weight2d = torch.rand([2, 2]).float()
     weight3x2 = torch.rand([3, 2]).float()
+    bias0d = torch.rand([]).float()
     bias1d = torch.rand([2]).float()
     bias2d = torch.rand([2, 2]).float()
     # 2D input, 2D weight, 1D bias
@@ -1858,11 +1860,14 @@ def test_forward_linear():
 
     verify_model(LinearNested(), input_data=[torch.randn(10, 10) for _ in range(3)])
 
-    # TODO: Add the following cases when matmul(1D, _) is supported by TVM
     # 1D input, 2D weight, 1D bias
+    verify_model(Linear(), input_data=[input1d, weight2d, bias1d])
     # 1D input, 2D weight, no bias
+    verify_model(LinearNoBias(), input_data=[input1d, weight2d])
     # 1D input, 1D weight, scalar bias
+    verify_model(Linear(), input_data=[input1d, weight1d, bias0d])
     # 1D input, 1D weight, no bias
+    verify_model(LinearNoBias(), input_data=[input1d, weight1d])
 
 
 @tvm.testing.uses_gpu
@@ -3977,42 +3982,81 @@ def test_forward_matmul():
         def forward(self, *args):
             return torch.matmul(args[0], args[1])
 
-    # matrix x vector
-    tensor1 = torch.randn(3, 4)
-    tensor2 = torch.randn(4)
-    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
-
-    # vector x matrix
+    # vector x vector - 1D x 1D
     tensor1 = torch.randn(4)
-    tensor2 = torch.randn(4, 3)
-    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
-
-    # matrix x matrix
-    tensor1 = torch.randn(10, 4)
-    tensor2 = torch.randn(4, 10)
+    tensor2 = torch.randn(4)
     verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
 
-    # batched matrix x batched matrix
-    tensor1 = torch.randn(10, 3, 4)
-    tensor2 = torch.randn(10, 4, 5)
+    # vector x matrix - 1D x 2D
+    tensor1 = torch.randn(4)
+    tensor2 = torch.randn(4, 3)
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
+
+    # vector x batched_matrix - 1D x ND
+    tensor1 = torch.randn(5)
+    tensor2 = torch.randn(2, 3, 5, 4)
     verify_model(
         MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
     )
 
-    # batched matrix x broadcasted matrix
+    # matrix x vector - 2D - 1D
+    tensor1 = torch.randn(3, 4)
+    tensor2 = torch.randn(4)
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
+
+    # matrix x matrix - 2D x 2D
+    tensor1 = torch.randn(10, 4)
+    tensor2 = torch.randn(4, 10)
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
+
+    # broadcasted matrix x batched matrix - 2D x ND
+    tensor1 = torch.randn(10, 4)
+    tensor2 = torch.randn(2, 3, 4, 5)
+    verify_model(
+        MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
+    )
+
+    # batched matrix x vector - ND x 1D
+    tensor1 = torch.randn(2, 3, 4, 5)
+    tensor2 = torch.randn(5)
+    verify_model(
+        MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
+    )
+
+    # batched matrix x broadcasted matrix - ND x 2D
     tensor1 = torch.randn(10, 3, 4)
     tensor2 = torch.randn(4, 5)
-    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
+    verify_model(
+        MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
+    )
 
-    # broadcasted matrix x batched matrix
-    tensor1 = torch.randn(10, 4)
-    tensor2 = torch.randn(3, 4, 5)
-    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
+    # batched matrix x batched matrix - ND x ND
+    tensor1 = torch.randn(2, 10, 3, 4)
+    tensor2 = torch.randn(2, 10, 4, 5)
+    verify_model(
+        MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
+    )
 
-    # batched matrix x batched matrix
-    tensor1 = torch.randn(1, 12, 14, 64)
-    tensor2 = torch.randn(1, 12, 64, 14)
-    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
+    # batched matrix x broadcasted matrix - ND x ND
+    tensor1 = torch.randn(2, 5, 3, 4)
+    tensor2 = torch.randn(2, 1, 4, 5)
+    verify_model(
+        MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
+    )
+
+    # broadcasted matrix x batched matrix - ND x ND
+    tensor1 = torch.randn(2, 1, 5, 4)
+    tensor2 = torch.randn(2, 5, 4, 3)
+    verify_model(
+        MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
+    )
+
+    # broadcasted matrix x broadcasted matrix - ND x ND
+    tensor1 = torch.randn(3, 2, 3, 1, 5, 4)
+    tensor2 = torch.randn(2, 1, 5, 4, 3)
+    verify_model(
+        MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
+    )
 
 
 def test_forward_index():

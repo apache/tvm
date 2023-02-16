@@ -71,7 +71,7 @@ def test_project_folder_structure(project_dir, project):
 
     source_dir = project_dir / "src"
     assert _get_directory_elements(source_dir) == set(
-        ["model", "standalone_crt", "model.c", "model.h"]
+        ["model", "standalone_crt", "platform.c", "platform.h"]
     )
 
 
@@ -82,15 +82,15 @@ def test_project_model_integrity(project_dir, project):
     )
 
 
-def test_model_header_templating(project_dir, project):
-    # Ensure model.h was templated with correct WORKSPACE_SIZE
-    with (project_dir / "src" / "model.h").open() as f:
-        model_h = f.read()
-        workspace_size_defs = re.findall(r"\#define WORKSPACE_SIZE ([0-9]*)", model_h)
+def test_model_platform_templating(project_dir, project):
+    # Ensure platform.c was templated with correct TVM_WORKSPACE_SIZE_BYTES
+    with (project_dir / "src" / "platform.c").open() as f:
+        platform_c = f.read()
+        workspace_size_defs = re.findall(r"\#define TVM_WORKSPACE_SIZE_BYTES ([0-9]*)", platform_c)
         assert workspace_size_defs
         assert len(workspace_size_defs) == 1
 
-        # Make sure the WORKSPACE_SIZE we define is a reasonable size. We don't want
+        # Make sure the TVM_WORKSPACE_SIZE_BYTES we define is a reasonable size. We don't want
         # to set an exact value, as this test shouldn't break if an improvement to
         # TVM causes the amount of memory needed to decrease.
         workspace_size = int(workspace_size_defs[0])

@@ -20,9 +20,10 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 from tvm._ffi import register_object as _register_object
 from tvm.runtime import Object
 
-from ...ir import Array, Map
+from ...ir import Array, Map, save_json
 from ...runtime import String
 from ..expr import FloatImm, IntImm
+from ..function import IndexMap
 from . import _ffi_api
 from .instruction import ATTR_TYPE, INPUT_RV_TYPE, Instruction
 
@@ -45,6 +46,8 @@ def _json_from_tvm(obj):
         return str(obj)
     if isinstance(obj, (IntImm, FloatImm)):
         return obj.value
+    if isinstance(obj, IndexMap):
+        return save_json(obj)
     raise TypeError("Not supported type: " + str(type(obj)))
 
 

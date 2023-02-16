@@ -802,8 +802,12 @@ void ConcreteScheduleNode::TransformLayout(const BlockRV& block_rv, int buffer_i
                                            const IndexMap& index_map,
                                            const Optional<IndexMap>& pad_value) {
   TVM_TIR_SCHEDULE_BEGIN();
-  tir::TransformLayout(state_, this->GetSRef(block_rv), buffer_index, buffer_index_type, index_map,
-                       pad_value);
+  auto f_subst = [&](const Var& var) -> Optional<PrimExpr> {
+    return Downcast<Optional<PrimExpr>>(symbol_table_.Get(var));
+  };
+  auto new_index_map = Substitute(index_map, f_subst);
+  tir::TransformLayout(state_, this->GetSRef(block_rv), buffer_index, buffer_index_type,
+                       new_index_map, pad_value);
   this->state_->DebugVerify();
   TVM_TIR_SCHEDULE_END("transform_layout", this->error_render_level_);
 }

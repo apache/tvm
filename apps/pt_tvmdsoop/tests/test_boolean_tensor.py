@@ -81,10 +81,10 @@ def test_tensor_boolean_operation():
 @as_torch
 @T.prim_func
 def negate_tvmscript(
-    X: T.Buffer[(8, 8), "bool"],
-    Y: T.Buffer[(8, 8), "float32"],
-    Z: T.Buffer[(8, 8), "bool"],
-    U: T.Buffer[(8, 8), "float32"],
+    X: T.Buffer((8, 8), "bool"),
+    Y: T.Buffer((8, 8), "float32"),
+    Z: T.Buffer((8, 8), "bool"),
+    U: T.Buffer((8, 8), "float32"),
 ) -> None:
     for i, j in T.grid(8, 8):
         with T.block():

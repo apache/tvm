@@ -18,6 +18,10 @@
 import os
 import pathlib
 import sys
+import shutil
+import pathlib
+
+from tvm.micro import copy_crt_config_header
 
 
 def create_labels_header(labels_file, output_path):
@@ -39,5 +43,15 @@ def create_labels_header(labels_file, output_path):
         header_file.write("};\n")
 
 
+def prepare_crt_config():
+    crt_config_output_path = (
+        pathlib.Path(__file__).parent.resolve().parent() / "build" / "crt_config"
+    )
+    if not crt_config_output_path.exists():
+        crt_config_output_path.mkdir()
+    copy_crt_config_header("zephyr", crt_config_output_path)
+
+
 if __name__ == "__main__":
     create_labels_header(sys.argv[1], sys.argv[2])
+    prepare_crt_config()

@@ -74,9 +74,9 @@ def unified_element_wise_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None
 
 @T.prim_func
 def element_wise_thread_x_different_dtype(
-    A: T.Buffer[(128, 128), "float32"],
-    B: T.Buffer[(128, 128), "float32"],
-    C: T.Buffer[(128, 128), "float32"],
+    A: T.Buffer((128, 128), "float32"),
+    B: T.Buffer((128, 128), "float32"),
+    C: T.Buffer((128, 128), "float32"),
 ) -> None:
     for i in T.thread_binding(128, "blockIdx.x"):
         for j0_0 in T.thread_binding(4, "threadIdx.x"):
@@ -91,9 +91,9 @@ def element_wise_thread_x_different_dtype(
 
 @T.prim_func
 def unified_element_wise_thread_x_different_dtype(
-    A: T.Buffer[(128, 128), "float32"],
-    B: T.Buffer[(128, 128), "float32"],
-    C: T.Buffer[(128, 128), "float32"],
+    A: T.Buffer((128, 128), "float32"),
+    B: T.Buffer((128, 128), "float32"),
+    C: T.Buffer((128, 128), "float32"),
 ) -> None:
     for blockIdx_x in T.thread_binding(128, "blockIdx.x"):
         for threadIdx_x in T.thread_binding(4, "threadIdx.x"):

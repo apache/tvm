@@ -652,7 +652,7 @@ def test_large_input():
 
 def test_access_in_let_value():
     @T.prim_func
-    def func(A: T.Buffer[(8,), "float32"]):
+    def func(A: T.Buffer((8,), "float32")):
         for i in range(8):
             B_data = T.allocate((1,), "float32", "global")
             B = T.Buffer(shape=[1], dtype="float32", data=B_data)
@@ -661,7 +661,7 @@ def test_access_in_let_value():
             A[i] = (x + 1.0) / (x - 1.0)
 
     @T.prim_func
-    def func_rewritten(A: T.Buffer[(8,), "float32"]) -> None:
+    def func_rewritten(A: T.Buffer((8,), "float32")) -> None:
         B_data = T.allocate((1,), "float32", "global")
         B = T.Buffer(shape=[1], dtype="float32", data=B_data)
         for i in range(8):
@@ -689,12 +689,12 @@ class TestLetBufferRewrite(BaseCompare):
     """
 
     def before() -> None:
-        A_data: T.Ptr[T.int32] = T.call_extern("dummy_func", dtype="handle")
+        A_data: T.handle("int32") = T.call_extern("dummy_func", dtype="handle")
         A = T.Buffer([8], "int32", data=A_data)
         A[0:8] = T.broadcast(42, 8)
 
     def expected() -> None:
-        A_data: T.Ptr[T.int32x8] = T.call_extern("dummy_func", dtype="handle")
+        A_data: T.handle("int32x8") = T.call_extern("dummy_func", dtype="handle")
         A = T.Buffer([1], "int32x8", data=A_data)
         A[0] = T.broadcast(42, 8)
 
@@ -702,7 +702,7 @@ class TestLetBufferRewrite(BaseCompare):
 class TestRewriteInPlaceUseOfNonFlatBuffer(BaseCompare):
     """A non-flat buffer may be re-used for in-place operations"""
 
-    def before(A: T.Buffer[(16, 16), "float32"], D: T.Buffer[(16, 16), "float32"]):
+    def before(A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")):
         B_data = T.allocate(
             [16, 16],
             dtype="float32",
@@ -735,7 +735,7 @@ class TestRewriteInPlaceUseOfNonFlatBuffer(BaseCompare):
         for i, j in T.grid(16, 16):
             D[i, j] = C[i, j]
 
-    def expected(A: T.Buffer[(16, 16), "float32"], D: T.Buffer[(16, 16), "float32"]):
+    def expected(A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")):
         B_data = T.allocate(
             [16, 16],
             dtype="float32",
@@ -771,7 +771,7 @@ class TestNoRewriteOfSharedNonFlatBuffer(BaseCompare):
     not have matching shapes.
     """
 
-    def before(A: T.Buffer[(16, 16), "float32"], D: T.Buffer[(16, 16), "float32"]):
+    def before(A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")):
         B_data = T.allocate(
             [16, 16],
             dtype="float32",
