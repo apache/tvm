@@ -496,7 +496,7 @@ class PyTorchOpConverter:
                     end[dim] = target_end
                 else:
                     target_end = _expr.const(target_end)
-                    end = _op.scatter(
+                    end = _op.scatter_elements(
                         end,
                         _op.expand_dims(_expr.const(dim), axis=0),
                         _op.expand_dims(target_end, axis=0),
@@ -508,7 +508,7 @@ class PyTorchOpConverter:
                 ttype = self.infer_type(target_end).dtype
                 if str(ttype) != axis_dtype:
                     target_end = _op.cast(target_end, axis_dtype)
-                end = _op.scatter(
+                end = _op.scatter_elements(
                     end,
                     _op.expand_dims(_expr.const(dim), axis=0),
                     _op.expand_dims(target_end, axis=0),
@@ -2556,7 +2556,7 @@ class PyTorchOpConverter:
         axis = int(inputs[1])
         index = inputs[2]
         src = inputs[3]
-        return _op.transform.scatter(data, index, src, axis)
+        return _op.scatter_elements(data, index, src, axis)
 
     def index_put(self, inputs, input_types):
         in_tensor = inputs[0]
@@ -2569,7 +2569,7 @@ class PyTorchOpConverter:
             mode = "add"
         # Combine array of index tensors into one index tensor with shape (N,_)
         index_tensor = _op.stack(indices, axis=0)
-        return _op.transform.scatter_nd(in_tensor, index_tensor, values, mode)
+        return _op.scatter_nd(in_tensor, index_tensor, values, mode)
 
     def scalar_tensor(self, inputs, input_types):
         data = inputs[0]
