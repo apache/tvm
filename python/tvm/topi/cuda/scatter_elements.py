@@ -118,22 +118,6 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
             with ib.if_scope(index < full_range):
                 out_ptr[index] = data_ptr[index]
 
-        # Check indices and shift to positive side if need
-        with ib.new_scope():
-            num_blocks_1 = ceil_div(ind_full_range, max_threads)
-            bx1 = te.thread_axis("blockIdx.x")
-            tx1 = te.thread_axis("threadIdx.x")
-            ib.scope_attr(bx1, "thread_extent", num_blocks_1)
-            ib.scope_attr(tx1, "thread_extent", max_threads)
-
-            ind_fused = bx1 * max_threads + tx1
-            with ib.if_scope(ind_fused < ind_full_range):
-                index_check = tir.LT(indices_ptr[ind_fused], tir.const(0, indices.dtype))
-                indices_ptr[ind_fused] += tir.Select(
-                    index_check, axis_range, tir.const(0, indices.dtype)
-                )
-                # TODO(vvchernov): assert for index out of bounds
-
         # TODO (vvchernov): use atomic function for special conditions (see cuda.scatter_nd)
         with ib.new_scope():
             num_blocks_2 = ceil_div(ind_full_range_excl_axis, max_threads)
@@ -149,8 +133,11 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
                 with ib.for_range(0, ind_axis_range, "k") as k:
                     # Offset along indices or updates
                     index1 = i * ind_before_axis_stride + k * ind_after_axis_range + j
+                    # Get index and shift to positive side if need
+                    new_index = indices_ptr[index1]
+                    shifted_index = new_index + (new_index < 0) * axis_range
                     # Offset along data
-                    index2 = i * before_axis_stride + indices_ptr[index1] * after_axis_range + j
+                    index2 = i * before_axis_stride + shifted_index * after_axis_range + j
                     if reduction == "update":
                         out_ptr[index2] = updates_ptr[index1]
                     elif reduction == "add":
