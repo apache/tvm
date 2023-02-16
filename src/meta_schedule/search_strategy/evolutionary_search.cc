@@ -283,7 +283,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
           ed(num_trials_per_iter),
           num_empty_iters(0),
           measured_workloads_(database->GetModuleEquality()) {
-      design_spaces.reserve(design_spaces.size());
+      design_spaces.reserve(design_space_schedules.size());
       for (const Schedule& space : design_space_schedules) {
         design_spaces.push_back(space->trace().value()->Simplified(true));
       }
