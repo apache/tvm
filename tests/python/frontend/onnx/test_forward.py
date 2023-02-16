@@ -5429,9 +5429,6 @@ unsupported_onnx_tests = [
     "test_cumsum_2d_negative_axis",
     "test_det_2d",
     "test_det_nd",
-    "test_dft",
-    "test_dft_axis",
-    "test_dft_inverse",
     "test_dropout_default",
     "test_dropout_default_mask",
     "test_dropout_default_mask_ratio",
@@ -5590,6 +5587,9 @@ def test_onnx_nodes(target, dev, onnx_test):
     if "bicubic" in test_dir:
         # satisfies onnx precision for bicubic interpolation
         atol = 1e-4
+
+    if "dft" in test_dir:
+        atol = 1e-3
 
     model = onnx.load(os.path.join(test_dir, "model.onnx"))
     for test_data_dir in glob.glob(os.path.join(test_dir, "test_data_set*")):
@@ -7945,32 +7945,30 @@ def test_dft(target, dev):
     ):
         input_names = ["input"]
         if _dft_length is not None:
-            input_names.append("_dft_length")
+            input_names.append("dft_length")
 
         node = onnx.helper.make_node(
             "DFT",
             inputs=input_names,
             outputs=["output"],
-            # domain="com.microsoft",
             axis=_axis,
             inverse=_inverse,
             onesided=_onesided,
         )
 
-        inputs_info = [
-            helper.make_tensor_value_info("input", TensorProto.FLOAT, input_shape),
-        ]
+        nodes = []
         if _dft_length is not None:
-            inputs_info.append(
-                helper.make_tensor_value_info(
-                    "dft_length", TensorProto.INT32, []
-                )
+            nodes.append(
+                make_constant_node("dft_length", TensorProto.INT32, [], [_dft_length]),
             )
+        nodes.append(node)
 
         graph = helper.make_graph(
-            [node],
+            nodes,
             "dft_test",
-            inputs=inputs_info,
+            inputs=[
+                helper.make_tensor_value_info("input", TensorProto.FLOAT, input_shape),
+            ],
             outputs=[
                 helper.make_tensor_value_info("output", TensorProto.FLOAT, output_shape),
             ],
@@ -7978,36 +7976,32 @@ def test_dft(target, dev):
 
         model = helper.make_model(graph, producer_name="dft_test")
 
-        inputs = [_input]
-        if _dft_length is not None:
-            inputs.append(_dft_length)
-
         verify_with_ort_with_inputs(
             model,
-            inputs,
+            [_input],
             [input_shape],
             target=target,
             dev=dev,
-            rtol=1e-4,
-            atol=1e-4,
+            rtol=1e-5,
+            atol=1e-5,
+            use_vm=False,
         )
 
-    axis = 1
-    inverse = 0
-    onesided = 0
-
-    batch_size = 1
-    n = 3
+    batch_size = 5
+    n = 2
     D = 7
 
-    input_shape = [batch_size] + n * [D] + [1]
-    output_shape = [batch_size] + n * [D] + [2]
-    if onesided == 1:
-        output_shape[axis] = output_shape[axis] // 2 + 1
-
-    input_tensor = np.random.normal(size=input_shape).astype("float32")
-
-    verify_dft(axis, inverse, onesided, input_tensor)
+    for axis in range(1, n):
+        for inverse, onesided in [(0, 0), (0, 1), (1, 0)]:
+            for n_fft in [D, D - 1, D + 1]:
+                for c in [1, 2]:
+                    input_shape = [batch_size] + n * [D] + [c]
+                    output_shape = [batch_size] + n * [D] + [2]
+                    if onesided == 1:
+                        output_shape[axis] = output_shape[axis] // 2 + 1
+                    input_tensor = np.random.normal(size=input_shape).astype("float32")
+                    verify_dft(axis, inverse, onesided, input_tensor, n_fft)
+                    print("Local success!")
 
 
 @tvm.testing.parametrize_targets
