@@ -4899,17 +4899,21 @@ class DFT(OnnxOpConverter):
         assert infer_type(input_tensor).checked_type.dtype in t1
         input_shape = infer_shape(input_tensor)
         assert len(input_shape) >= 3
-        n = len(input_shape) - 2
+        if axis < 0:
+            axis = len(input_shape) - axis
         assert 1 <= axis <= len(input_shape) - 1
 
         # dft_length
-        if dft_length is not None:
-            raise NotImplementedError("dft_length")
-
-        assert inverse == 0, "inverse not supported"
-        assert onesided == 0, "onesided not supported"
+        if dft_length is None:
+            dft_length = input_shape[axis]
+        else:
+            dft_length_dtype = infer_type(dft_length).checked_type.dtype
+            assert dft_length_dtype in t2
+            dft_length = int(infer_value(dft_length, params).numpy())
 
         # ************************
+        input_tensor = cls._maybe_crop_or_pad(input_tensor, axis, dft_length)
+
         swap_axis = -1
         re_input_tensor, im_input_tensor = cls._split_real_and_imag_parts(input_tensor)
 
@@ -4921,24 +4925,37 @@ class DFT(OnnxOpConverter):
         re_input_tensor = cls._swap_axes(re_input_tensor, axis, swap_axis)
         im_input_tensor = cls._swap_axes(im_input_tensor, axis, swap_axis)
 
+        if onesided:
+            re_input_tensor = cls._crop_onesided(re_input_tensor, axis)
+            im_input_tensor = cls._crop_onesided(im_input_tensor, axis)
+
         output = cls._merge_real_and_imag_parts(re_input_tensor, im_input_tensor)
 
         return output
 
     @classmethod
+    def _crop_axis(cls, tensor, axis, new_dim):
+        shape = infer_shape(tensor)
+        slices = [slice(0, a, 1) for a in shape]
+        slices[axis] = slice(0, new_dim, 1)
+        return _op.strided_slice(
+            tensor,
+            begin=[s.start for s in slices],
+            end=[s.stop for s in slices],
+            strides=[s.step for s in slices],
+            axes=list(range(len(shape))),
+        )
+
+    @classmethod
     def _maybe_crop_or_pad(cls, input_tensor, axis, n_fft):
-        if input_tensor.shape[axis] != n_fft:
-            s = list(input_tensor.shape)
-            index = [slice(None)] * len(s)
-            if s[axis] > n_fft:
-                index[axis] = slice(0, n_fft)
-                _input_tensor = input_tensor[tuple(index)]
+        shape = infer_shape(input_tensor)
+        if shape[axis] != n_fft:
+            if shape[axis] > n_fft:
+                return cls._crop_axis(input_tensor, axis, n_fft)
             else:
-                index[axis] = slice(0, s[axis])
-                s[axis] = n_fft
-                z = np.zeros(s, input_tensor.dtype.char)
-                z[tuple(index)] = input_tensor
-                _input_tensor = z
+                pad_width = [(0, 0)] * len(shape)
+                pad_width[axis] = (0, n_fft - shape[axis])
+                return _op.nn.pad(input_tensor, pad_width)
         return input_tensor
 
     @classmethod
@@ -4969,6 +4986,11 @@ class DFT(OnnxOpConverter):
         im = _op.expand_dims(im, axis=-1)
         output = _op.concatenate([re, im], axis=-1)
         return output
+
+    @classmethod
+    def _crop_onesided(cls, tensor, axis):
+        shape = infer_shape(tensor)
+        return cls._crop_axis(tensor, axis, shape[axis] // 2 + 1)
 
 
 class NonMaxSuppression(OnnxOpConverter):
