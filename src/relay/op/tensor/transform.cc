@@ -1963,8 +1963,7 @@ Expr MakeDFT(Expr re_data, Expr im_data, Bool inverse) {
 TVM_REGISTER_GLOBAL("relay.op._make.dft").set_body_typed(MakeDFT);
 
 RELAY_REGISTER_OP("dft")
-    .describe(
-        R"doc(Computes the discrete Fourier transform of input.)doc" TVM_ADD_FILELINE)
+    .describe(R"doc(Computes the discrete Fourier transform of input.)doc" TVM_ADD_FILELINE)
     .set_num_inputs(2)
     .add_argument("re_data", "Tensor", "Real part of input tensor.")
     .add_argument("im_data", "Tensor", "Imaginary part of input tensor.")
