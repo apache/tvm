@@ -920,7 +920,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
   } else if (op->op.same_as(builtin::ptx_wait_group())) {
     std::string N = this->PrintExpr(op->args[0]);
     this->stream << "__asm__ __volatile__(\"cp.async.wait_group " + N + ";\");\n\n";
-  } else if (op->op.same_as(builtin::ptx_pred_ldg32())){
+  } else if (op->op.same_as(builtin::inject_ptx_ldg32())){
     /*
     asm volatile (
         "{.reg .pred p;\n"

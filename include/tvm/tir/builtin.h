@@ -615,7 +615,7 @@ TVM_DLL const Op& ptx_mma();
  * \brief tvm intrinsic for ptx predicate load with 32-bit data type.
  *
  */
-TVM_DLL const Op& ptx_pred_ldg32();
+TVM_DLL const Op& inject_ptx_ldg32();
 
 /*!
  * \brief tvm intrinsic for sparse tensor core ptx instructions.
