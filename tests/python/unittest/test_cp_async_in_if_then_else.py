@@ -148,11 +148,13 @@ def tvm_callback_cuda_postproc(code):
     generated_code = code
     # return a dummy code so that device < sm80 could build correctly
     if not support_async:
-        return (
-            'extern "C" __global__ void __launch_bounds__(32) '
-            "main_kernel0(float* __restrict__ inputs, "
-            "float* __restrict__ weight, float* __restrict__ conv2d_nhwc) {}"
-        )
+        ret = ''
+        for line in code.split('\n'):
+            ret += line + '\n'
+            if line.startswith('extern "C" __global__'):
+                break
+        ret += '}'
+        return ret
     return code
 
 
@@ -205,25 +207,14 @@ def test_cp_async_in_if_then_else():
 
     mod = tvm.IRModule.from_expr(simple_compute)
     with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
-        rt_mod = tvm.build(mod, target="cuda")
+        tvm.build(mod, target="cuda")
 
     assert generated_code == expected_cuda_script
-    print(generated_code)
 
-    if support_async:
-        a_tvm = tvm.nd.array(np.random.rand(16, 14).astype("float32"), device=tvm.cuda(0))
-        b_tvm = tvm.nd.array(np.random.rand(16, 14).astype("float32"), device=tvm.cuda(0))
-        c_tvm = tvm.nd.array(np.empty((16, 16)).astype("float32"), device=tvm.cuda(0))
-        rt_mod(a_tvm, b_tvm, c_tvm)
-
-        time_f = rt_mod.time_evaluator(rt_mod.entry_name, dev=tvm.cuda(0), number=100)
-        time = time_f(a_tvm, b_tvm, c_tvm).mean
-
-        print(time)
-    else:
-      global support_async
-      # avoid return dummy code to other tests
-      support_async = True
+    if not support_async:
+        global support_async
+        # avoid return dummy code to other tests
+        support_async = True
 
 
 if __name__ == "__main__":
