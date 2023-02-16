@@ -584,9 +584,6 @@ class CLMLRuntime : public JSONRuntimeBase {
   bool ExtensionStringPresent(void) {
     cl_int result = 0;
     size_t reqd_size = 0;
-    if (!workspace->IsDeviceExists(workspace->GetThreadEntry()->device.device_id)) {
-      LOG(FATAL) << "OpenCL device not found";
-    }
     cl_device_id device_id =
         workspace->GetCLDeviceID(workspace->GetThreadEntry()->device.device_id);
     result = clGetDeviceInfo(device_id, CL_DEVICE_EXTENSIONS, 0, NULL, &reqd_size);
