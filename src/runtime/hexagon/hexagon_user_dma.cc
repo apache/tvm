@@ -89,6 +89,17 @@ int HexagonUserDMA::Copy(int queue_id, void* dst, void* src, uint32_t length, bo
   dma_desc_set_src(dma_desc, src32);
   dma_desc_set_dst(dma_desc, dst32);
 
+  // store to the dst to make sure we have ownership before we DMA
+  int crouton = 8 * 8 * 32;
+  for (int i = 0; i < length; i += crouton) {
+    *(static_cast<char*>(dst) + i) = 0;
+  }
+
+  // Write the destination pointer using memw_rl aka StoreRelease to ensure that all stores in
+  // flight prior to issuing this DMA copy have completed the DMA is issued
+  //uint32_t* dstptr = reinterpret_cast<uint32_t*>(dma_desc) + 3;
+  //asm volatile("memw_rl(%0):at=%1" : : "r"(dstptr), "r"(dst32));
+
   if (first_dma_) {
     // `dmstart` first descriptor
     dmstart(dma_desc);
