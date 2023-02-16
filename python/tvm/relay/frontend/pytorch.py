@@ -2680,9 +2680,7 @@ class PyTorchOpConverter:
     def scatter_add(self, inputs, input_types):
         assert (
             len(inputs) == 4
-        ), "scatter_add takes 4 inputs (data, dim, index, src), but {} given".format(
-            len(inputs)
-        )
+        ), "scatter_add takes 4 inputs (data, dim, index, src), but {} given".format(len(inputs))
         data = inputs[0]
         axis = inputs[1]
         index = inputs[2]

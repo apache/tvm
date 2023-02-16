@@ -23,8 +23,9 @@ from ..math import cast
 from .nms import atomic_add
 
 
-def gen_scatter_add_1d_atomic(data, indices, updates, axis, out, _):
-    """Generate scatter add ir for 1d inputs, using atomic_add instruction
+def gen_scatter_add_1d_atomic(data, indices, updates, out, axis, _):
+    """Generate ir for scatter elements for reduction sum for 1d inputs,
+    using atomic_add instruction
 
     Parameters
     ----------
@@ -37,11 +38,11 @@ def gen_scatter_add_1d_atomic(data, indices, updates, axis, out, _):
     updates : tir.Tensor
         The values to update.
 
-    axis : int
-        The axis to scatter on
-
     out : tir.Tensor
         The output tensor.
+
+    axis : int
+        The axis to scatter on
 
     Returns
     -------
@@ -101,6 +102,33 @@ def gen_scatter_add_1d_atomic(data, indices, updates, axis, out, _):
 
 
 def gen_ir(data, indices, updates, out, axis, reduce_func):
+    """Generate ir for scatter elements
+
+    Parameters
+    ----------
+    data : tir.Tensor
+        The input data to the operator.
+
+    indices : tir.Tensor
+        The index locations to update.
+
+    updates : tir.Tensor
+        The values to update.
+
+    out : tir.Tensor
+        The output tensor.
+
+    axis : int
+        The axis to scatter on
+
+    reduce_func : Any
+        The function reduced update and output to output
+
+    Returns
+    -------
+    ret : tir
+        The computational ir.
+    """
     ib = tir.ir_builder.create()
 
     data_ptr = ib.buffer_ptr(data)
@@ -265,7 +293,9 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
     return te.extern(
         [data.shape],
         [data, indices, updates],
-        lambda ins, outs: gen_scatter_elements_ir(ins[0], ins[1], ins[2], outs[0], axis, reduce_func),
+        lambda ins, outs: gen_scatter_elements_ir(
+            ins[0], ins[1], ins[2], outs[0], axis, reduce_func
+        ),
         dtype=data.dtype,
         out_buffers=[out_buf],
         name="scatter_elements_cuda",
