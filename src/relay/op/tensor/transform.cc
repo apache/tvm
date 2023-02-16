@@ -1924,9 +1924,11 @@ RELAY_REGISTER_OP("stft")
 
 // DFT
 TVM_REGISTER_NODE_TYPE(DFTAttrs);
-bool DFTRel(const Array<Type>& types, int num_inputs, const Attrs& attrs, const TypeReporter& reporter) {
+bool DFTRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+            const TypeReporter& reporter) {
   // types: [re_data, im_data, output]
-  ICHECK_EQ(types.size(), 3) << "DFT: expects three types, two for the input and one for the output";
+  ICHECK_EQ(types.size(), 3)
+      << "DFT: expects three types, two for the input and one for the output";
   ICHECK_EQ(num_inputs, 2) << "DFT: expect 2 inputs but " << num_inputs << " provided";
   const auto* re_data = types[0].as<TensorTypeNode>();
   const auto* im_data = types[1].as<TensorTypeNode>();
