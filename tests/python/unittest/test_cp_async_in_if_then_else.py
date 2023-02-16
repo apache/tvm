@@ -148,12 +148,12 @@ def tvm_callback_cuda_postproc(code):
     generated_code = code
     # return a dummy code so that device < sm80 could build correctly
     if not support_async:
-        ret = ''
-        for line in code.split('\n'):
-            ret += line + '\n'
+        ret = ""
+        for line in code.split("\n"):
+            ret += line + "\n"
             if line.startswith('extern "C" __global__'):
                 break
-        ret += '}'
+        ret += "}"
         return ret
     return code
 
