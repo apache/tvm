@@ -918,8 +918,8 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     if (op->args.size() == 5) {
       this->stream << PrintCpAsyncAssembly(dst, dst_offset, src, src_offset, size);
     } else {
-      this->stream << PrintPredicatedCpAsyncAssembly(dst, dst_offset, src, src_offset,
-                                                     size, this->PrintExpr(op->args[5]));
+      this->stream << PrintPredicatedCpAsyncAssembly(dst, dst_offset, src, src_offset, size,
+                                                     this->PrintExpr(op->args[5]));
     }
   } else if (op->op.same_as(builtin::ptx_commit_group())) {
     this->stream << "__asm__ __volatile__(\"cp.async.commit_group;\");\n\n";
