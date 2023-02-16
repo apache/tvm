@@ -453,17 +453,18 @@ Please refer to `rtvm <https://github.com/apache/tvm/tree/main/apps/cpp_rtvm>`_ 
 .. _python_interface:
 
 This section explains importing, auto tuning, compiling and running a model using python interface.\
-TVM has a high level interface through tvmc abstraction as well as relay api. We will discuss about both of these in details.
-
-Unlike command line interface python interface starts with model importing. Model importing converts the models from any framework
-to a relay module. Relay module will be used across the auto tuning, compilation stages.
+TVM has a high level interface through ``tvmc`` abstraction as well as low level relay api. We will discuss about both of these in details.
 
 **TVMC Interface:**
 
-TVMC interface can be accessed as shown below to import, compile and run a model. Please refer to the tutorial for the same
+While using ``tvmc`` python interface we first load a model that produces ``TVMCModel``. ``TVMCModel`` will be used for Auto Tuning to produce tuning cache.
+Compilation process uses ``TVMCModel`` and tuning cache (optional) to produce ``TVMCPackage``. Now, ``TVMCPackage`` will be saved to file system or
+can be used to deploy and run on target device.
+
+Please refer to the tutorial for the same
 `How To Deploy model on Adreno using TVMC <https://tvm.apache.org/docs/how_to/deploy_models/deploy_model_on_adreno_tvmc.html>`_
 
-tvmc compiled package can be used for native deploy also using ``rtvm`` utility.
+Saved ``TVMCPackage`` can be used for native deployment using ``rtvm`` utility too.
 
 Also, please refer to `tvmc <https://tvm.apache.org/docs/tutorial/tvmc_command_line_driver.html?highlight=tvmc>`_
  documentation for more details about the api interface.
@@ -471,7 +472,11 @@ Also, please refer to `tvmc <https://tvm.apache.org/docs/tutorial/tvmc_command_l
 **Relay Interface:**
 
 Relay api interface gives lower level api access to the tvm compiler interface.
-Relay interface follows tvmc kind of a flow where we produce TVM module first followed by auto tuning, compilation and deployment.
+Similar to ``tvmc`` interface relay api interface provides various frontend API to convert models to a relay ``Module``.
+Relay ``Module`` will be used for all kinds transforms like precision conversions, CLML offloading and other custom transforms if any.
+The resulting Module will be used for Auto Tuning too. Finally, we use ``relay.build`` API to generate library module.
+From this library module, we can export compilation artifacts like module shared library (mod.so), params(mod.params) and json graph(mod.json).
+This library module will be used to create graph runtime to deploy and run on target device.
 
 Please refer to the tutorial `How To Deploy model on Adreno <https://tvm.apache.org/docs/how_to/deploy_models/deploy_model_on_adreno.html>`_
 for a step by step explanation of the same.
