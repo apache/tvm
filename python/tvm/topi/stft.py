@@ -162,8 +162,8 @@ def dft(
                 with ib.for_range(0, n_fft) as k:
                     k_idx = base_idx + k
                     w = sign * -2 * pi * k * n / n_fft
-                    cos_w = tir.cos(w)
-                    sin_w = tir.sin(w)
+                    cos_w = tir.Cast(re_output_ptr.dtype, tir.cos(w))
+                    sin_w = tir.Cast(re_output_ptr.dtype, tir.sin(w))
                     re_output_ptr[n_idx] += re_data_ptr[k_idx] * cos_w - im_data_ptr[k_idx] * sin_w
                     im_output_ptr[n_idx] += re_data_ptr[k_idx] * sin_w + im_data_ptr[k_idx] * cos_w
 

@@ -21,6 +21,11 @@ from tvm import topi
 import tvm.topi.testing
 
 
+inverse = tvm.testing.parameter(False, True)
+shape = tvm.testing.parameter((7,), (3, 7), (3, 4, 5))
+dtype = tvm.testing.parameter("float16", "float32", "float64")
+
+
 def numpy_reference(inverse, re: np.ndarray, im: np.ndarray):
     if inverse:
         reference = np.fft.ifft(re + 1j * im)
@@ -29,18 +34,17 @@ def numpy_reference(inverse, re: np.ndarray, im: np.ndarray):
     return np.real(reference), np.imag(reference)
 
 
-def dft(inverse, shape, dtype, dev, target):
+def test_dft(target, dev, inverse, shape, dtype):
     Re = tvm.te.placeholder(shape, dtype=dtype, name="Re")
     Im = tvm.te.placeholder(shape, dtype=dtype, name="Im")
 
     with tvm.target.Target(target):
-        fcompute = lambda re_x, im_x: topi.dft(re_x, im_x, inverse=inverse)
-        fschedule = lambda outs: tvm.te.create_schedule([x.op for x in outs])
+        fcompute = topi.dft
+        fschedule = topi.generic.schedule_extern
 
-        outs = fcompute(Re, Im)
+        outs = fcompute(Re, Im, inverse)
         s = fschedule(outs)
 
-        print(tvm.lower(s, [Re, Im, *outs], simple_mode=False))
         f = tvm.build(s, [Re, Im, *outs], target)
 
     re_np = np.random.normal(size=shape).astype(dtype)
@@ -54,10 +58,9 @@ def dft(inverse, shape, dtype, dev, target):
     f(re, im, re_out, im_out)
 
     re_reference, im_reference = numpy_reference(inverse, re_np, im_np)
-    tvm.testing.assert_allclose(re_out.numpy(), re_reference, rtol=1e-3)
-    tvm.testing.assert_allclose(im_out.numpy(), im_reference, rtol=1e-3)
+    tvm.testing.assert_allclose(re_out.numpy(), re_reference, rtol=1e-3, atol=1e-3)
+    tvm.testing.assert_allclose(im_out.numpy(), im_reference, rtol=1e-3, atol=1e-3)
 
 
 if __name__ == '__main__':
-    dft(False, (3, 7, 7), "float32", tvm.runtime.Device(tvm.runtime.Device.kDLCPU, 0), "llvm")
-    dft(True, (3, 7, 7), "float32", tvm.runtime.Device(tvm.runtime.Device.kDLCPU, 0), "llvm")
+    tvm.testing.main()
