@@ -193,9 +193,8 @@ def stft_shape_func(attrs, inputs, _):
 
 # DFT
 @_reg.register_compute("dft")
-def compute_dft(attrs, inputs, output_type):
+def compute_dft(attrs, inputs, _):
     """Compute definition of DFT"""
-    # TODO(agladyshev): output_type not used
     return topi.dft(
         inputs[0],
         inputs[1],
@@ -204,24 +203,6 @@ def compute_dft(attrs, inputs, output_type):
 
 
 _reg.register_strategy("dft", strategy.dft_strategy)
-
-
-# TODO(agladyshev): remove?
-# @script
-# def _dft_shape_func(re_data, im_data):
-#     return (re_data.shape, im_data.shape)
-#
-#
-# @_reg.register_shape_func("dft", True)
-# def dft_shape_func(attrs, inputs, _):
-#     """
-#     Shape func for DFT.
-#     """
-#     return [
-#         _dft_shape_func(
-#             inputs[0], inputs[1],
-#         )
-#     ]
 
 
 # trilu

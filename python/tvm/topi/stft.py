@@ -130,6 +130,26 @@ def dft(
     im_data: te.Tensor,
     inverse: tir.IntImm,
 ):
+    """
+    Computes the discrete Fourier transform of input (calculation along the last axis).
+    This gives frequency components of the signal as they change over time.
+    Parameters
+    ----------
+    re_data : relay.Expr
+        N-D tensor, real part of the input signal.
+    im_data : relay.Expr
+        N-D tensor, imaginary part of the input signal.
+        If the signal is real, then the values of this tensor are zeros.
+    inverse : bool
+        Whether to perform the inverse discrete fourier transform.
+    Returns
+    -------
+    re_output : relay.Expr
+        The Fourier Transform of the input (Real part).
+    im_output : relay.Expr
+        The Fourier Transform of the input (Imaginary part).
+    """
+
     def gen_ir(
             re_data_buf,
             im_data_buf,
