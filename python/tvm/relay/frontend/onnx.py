@@ -1967,7 +1967,7 @@ class MaxUnpool(OnnxOpConverter):
         # Create a tensor of zeros then scatter our data through it.
         zeros_tensor = _op.zeros(total_output_shape, data_type)
         # We need to flatten all our tensors before scattering.
-        flat_tensor = _op.scatter(
+        flat_tensor = _op.scatter_elements(
             _op.reshape(zeros_tensor, [-1]),
             _op.reshape(indices, [-1]),
             _op.reshape(data, [-1]),
@@ -2734,15 +2734,15 @@ class Slice(OnnxOpConverter):
         # Update the starts and ends according to axes if required.
         if axes is not None:
             data_shape = shape_of(inputs[0], dtype=infer_type(ends).checked_type.dtype)
-            starts = _op.scatter(
+            starts = _op.scatter_elements(
                 _op.const([0] * data_rank, dtype=infer_type(starts).checked_type.dtype),
                 axes,
                 starts,
                 axis=0,
             )
-            ends = _op.scatter(data_shape, axes, ends, axis=0)
+            ends = _op.scatter_elements(data_shape, axes, ends, axis=0)
             if steps is not None:
-                steps = _op.scatter(
+                steps = _op.scatter_elements(
                     _op.const([1] * data_rank, dtype=infer_type(steps).checked_type.dtype),
                     axes,
                     steps,
@@ -2848,9 +2848,35 @@ class Scatter(OnnxOpConverter):
     """Operator converter for Scatter."""
 
     @classmethod
-    def _impl_v9(cls, inputs, attr, params):
+    def _args_check(cls, inputs, attr):
+        assert (
+            len(inputs) == 3
+        ), "Scatter takes 3 inputs (data, indices, updates), {} given".format(len(inputs))
+        assert infer_type(inputs[1]).checked_type.dtype in ["int32", "int64"]
+
+        data_rank = len(infer_shape(inputs[0]))
+        assert data_rank > 0, "Data rank higher than 0 is expected"
+        indices_shape = infer_shape(inputs[1])
+        indices_rank = len(indices_shape)
+        assert indices_rank == data_rank, "Indices rank is not the same as data one"
+        updates_shape = infer_shape(inputs[2])
+        updates_rank = len(updates_shape)
+        assert updates_rank == data_rank, "Updates rank is not the same as data one"
+
+        for i in range(data_rank):
+            assert (
+                indices_shape[i] == updates_shape[i]
+            ), "Indices dimension size should be the same as updates one"
+
         axis = attr.get("axis", 0)
-        return _op.scatter(inputs[0], inputs[1], inputs[2], axis)
+        assert -data_rank <= axis < data_rank, "Axis is out of bounds"
+
+        return axis
+
+    @classmethod
+    def _impl_v9(cls, inputs, attr, params):
+        axis = cls._args_check(inputs, attr)
+        return _op.scatter_elements(inputs[0], inputs[1], inputs[2], axis)
 
 
 class ScatterElements(OnnxOpConverter):
@@ -4991,7 +5017,7 @@ class ATen(OnnxOpConverter):
         else:
             mode = "add"
         index_tensor = _op.stack(indices, axis=0)
-        return _op.transform.scatter_nd(in_tensor, index_tensor, values, mode)
+        return _op.scatter_nd(in_tensor, index_tensor, values, mode)
 
     @classmethod
     def _reshape(cls, inputs, attr, params):
