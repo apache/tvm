@@ -20,10 +20,10 @@ from __future__ import absolute_import as _abs
 import tvm
 from tvm import te
 from tvm import autotvm
+from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity, AnnotateEntity, ReorderEntity
 from .. import nn
 from ..utils import get_const_tuple
 from ..nn.utils import get_const_int, get_pad_tuple
-from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity, AnnotateEntity, ReorderEntity
 
 
 def conv2d_spatial_pack_nchw(cfg, data, kernel, strides, padding, dilation, out_dtype, num_tile):
@@ -308,9 +308,17 @@ def conv2d_spatial_pack_nhwc(cfg, data, kernel, strides, padding, dilation, out_
 
     # If there are no tuning records, use this config
     if cfg.is_fallback:
+
+        def _tile_size(axis, candidates):
+            for candidate in candidates:
+                tiles_divisible_by_candidate = axis % candidate == 0
+                if tiles_divisible_by_candidate:
+                    return candidate
+            return 1
+
         cfg["tile_oh"] = SplitEntity([-1, 1])
-        cfg["tile_ow"] = SplitEntity([-1, 8])
-        cfg["tile_oc"] = SplitEntity([-1, 8])
+        cfg["tile_ow"] = SplitEntity([-1, _tile_size(OW, [8, 4])])
+        cfg["tile_oc"] = SplitEntity([-1, _tile_size(OC, [8, 4])])
         cfg["ann_spatial"] = AnnotateEntity(["none", "vec"])
         cfg["ann_reduce"] = AnnotateEntity(["none", "none"])
         cfg["reorder_conv"] = ReorderEntity([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
@@ -319,9 +327,9 @@ def conv2d_spatial_pack_nhwc(cfg, data, kernel, strides, padding, dilation, out_
     OCI = cfg["tile_oc"].size[-1]
     OHI = cfg["tile_oh"].size[-1]
     OWI = cfg["tile_ow"].size[-1]
-    OCO = max(1, OC // OCI)
+    OCO = OC // OCI
     OHO = OH // OHI
-    OWO = max(1, OW // OWI)
+    OWO = OW // OWI
 
     kvshape = (OCO, KH, KW, IC, OCI)
     ovshape = (N, OHO, OWO, OCO, OHI, OWI, OCI)
