@@ -162,6 +162,7 @@ support_async = True
 @tvm.register_func
 def tvm_callback_cuda_postproc(code):
     global generated_code
+    global support_async
     generated_code = code
     # return a dummy code so that device < sm80 could build correctly
     if not support_async:
@@ -177,11 +178,11 @@ def tvm_callback_cuda_postproc(code):
 
 @tvm.testing.requires_cuda
 def test_cp_async_in_if_then_else():
+    global support_async
     arch = tvm.contrib.nvcc.get_target_compute_version()
     major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
     if major < 8:
         # At least sm80 is required
-        global support_async
         support_async = False
 
     @T.prim_func
@@ -229,7 +230,6 @@ def test_cp_async_in_if_then_else():
     assert generated_code == expected_cuda_script
 
     if not support_async:
-        global support_async
         # avoid return dummy code to other tests
         support_async = True
 
