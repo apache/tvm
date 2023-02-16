@@ -151,10 +151,10 @@ def dft(
     """
 
     def gen_ir(
-            re_data_buf,
-            im_data_buf,
-            re_output_buf,
-            im_output_buf,
+        re_data_buf,
+        im_data_buf,
+        re_output_buf,
+        im_output_buf,
     ):
         ib = tir.ir_builder.create()
         re_data_ptr = ib.buffer_ptr(re_data_buf)
@@ -169,11 +169,9 @@ def dft(
             base_range *= shape[i]
 
         sign = -1 if inverse else 1
-        factor = 1. / n_fft if inverse else 1.
+        factor = 1.0 / n_fft if inverse else 1.0
 
-        with ib.for_range(
-                0, base_range, kind="parallel"
-        ) as i:
+        with ib.for_range(0, base_range, kind="parallel") as i:
             base_idx = i * n_fft
             with ib.for_range(0, n_fft) as n:
                 n_idx = base_idx + n
@@ -197,9 +195,7 @@ def dft(
     return te.extern(
         shape=output_shape,
         inputs=[re_data, im_data],
-        fcompute=lambda ins, outs: gen_ir(
-            ins[0], ins[1], outs[0], outs[1]
-        ),
+        fcompute=lambda ins, outs: gen_ir(ins[0], ins[1], outs[0], outs[1]),
         dtype=[re_data.dtype, im_data.dtype],
         name="dft_cpu",
         tag="dft_cpu",

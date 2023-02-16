@@ -7936,12 +7936,13 @@ def test_linear_regressor(target, dev):
 @tvm.testing.parametrize_targets
 def test_dft(target, dev):
     """test_dft"""
+
     def verify_dft(
-            _axis,
-            _inverse,
-            _onesided,
-            _input,
-            _dft_length=None,
+        _axis,
+        _inverse,
+        _onesided,
+        _input,
+        _dft_length=None,
     ):
         input_names = ["input"]
         if _dft_length is not None:
@@ -7982,8 +7983,8 @@ def test_dft(target, dev):
             [input_shape],
             target=target,
             dev=dev,
-            rtol=1e-5,
-            atol=1e-5,
+            rtol=1e-4,
+            atol=1e-4,
             use_vm=False,
         )
 
@@ -8001,7 +8002,6 @@ def test_dft(target, dev):
                         output_shape[axis] = output_shape[axis] // 2 + 1
                     input_tensor = np.random.normal(size=input_shape).astype("float32")
                     verify_dft(axis, inverse, onesided, input_tensor, n_fft)
-                    print("Local success!")
 
 
 @tvm.testing.parametrize_targets

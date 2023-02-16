@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Test code for discrete Fourier transform."""
 import numpy as np
 import tvm
 import tvm.testing
@@ -26,6 +27,7 @@ shape = tvm.testing.parameter((7,), (3, 7), (3, 4, 5))
 dtype = tvm.testing.parameter("float16", "float32", "float64")
 
 
+# pylint: disable=redefined-outer-name, invalid-name
 def numpy_reference(inverse, re: np.ndarray, im: np.ndarray):
     if inverse:
         reference = np.fft.ifft(re + 1j * im)
@@ -35,6 +37,8 @@ def numpy_reference(inverse, re: np.ndarray, im: np.ndarray):
 
 
 def test_dft(target, dev, inverse, shape, dtype):
+    """Test for discrete Fourier transform."""
+
     Re = tvm.te.placeholder(shape, dtype=dtype, name="Re")
     Im = tvm.te.placeholder(shape, dtype=dtype, name="Im")
 
@@ -62,5 +66,5 @@ def test_dft(target, dev, inverse, shape, dtype):
     tvm.testing.assert_allclose(im_out.numpy(), im_reference, rtol=1e-3, atol=1e-3)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     tvm.testing.main()
