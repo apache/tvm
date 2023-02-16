@@ -353,31 +353,6 @@ def argwhere(condition):
     return _make.argwhere(condition)
 
 
-def scatter(data, indices, updates, axis):
-    """Update data at positions defined by indices with values in updates.
-
-    Parameters
-    ----------
-    data : relay.Expr
-        The input data to the operator.
-
-    indices : relay.Expr
-        The index locations to update.
-
-    updates : relay.Expr
-        The values to update.
-
-    axis : int
-        The axis to scatter on.
-
-    Returns
-    -------
-    ret : relay.Expr
-        The computed result.
-    """
-    return _make.scatter(data, indices, updates, axis)
-
-
 def scatter_elements(data, indices, updates, axis=0, reduction="update"):
     """Scatter elements with updating data by reduction of values in updates
     at positions defined by indices.
