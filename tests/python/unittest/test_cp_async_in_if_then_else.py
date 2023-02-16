@@ -138,13 +138,32 @@ __asm__ __volatile__("cp.async.wait_group 0;");
 """
 
 
+generated_code = ""
+support_async = True
+
+
+@tvm.register_func
+def tvm_callback_cuda_postproc(code):
+    global generated_code
+    generated_code = code
+    # return a dummy code so that device < sm80 could build correctly
+    if not support_async:
+        return (
+            'extern "C" __global__ void __launch_bounds__(32) '
+            "main_kernel0(float* __restrict__ inputs, "
+            "float* __restrict__ weight, float* __restrict__ conv2d_nhwc) {}"
+        )
+    return code
+
+
 @tvm.testing.requires_cuda
 def test_cp_async_in_if_then_else():
     arch = tvm.contrib.nvcc.get_target_compute_version()
     major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
     if major < 8:
         # At least sm80 is required
-        return
+        global support_async
+        support_async = False
 
     @T.prim_func
     def simple_compute(
@@ -188,17 +207,19 @@ def test_cp_async_in_if_then_else():
     with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
         rt_mod = tvm.build(mod, target="cuda")
 
-    assert rt_mod.imported_modules[0].get_source() == expected_cuda_script
+    assert generated_code == expected_cuda_script
+    print(generated_code)
 
-    a_tvm = tvm.nd.array(np.random.rand(16, 14).astype("float32"), device=tvm.cuda(0))
-    b_tvm = tvm.nd.array(np.random.rand(16, 14).astype("float32"), device=tvm.cuda(0))
-    c_tvm = tvm.nd.array(np.empty((16, 16)).astype("float32"), device=tvm.cuda(0))
-    rt_mod(a_tvm, b_tvm, c_tvm)
+    if support_async:
+        a_tvm = tvm.nd.array(np.random.rand(16, 14).astype("float32"), device=tvm.cuda(0))
+        b_tvm = tvm.nd.array(np.random.rand(16, 14).astype("float32"), device=tvm.cuda(0))
+        c_tvm = tvm.nd.array(np.empty((16, 16)).astype("float32"), device=tvm.cuda(0))
+        rt_mod(a_tvm, b_tvm, c_tvm)
 
-    time_f = rt_mod.time_evaluator(rt_mod.entry_name, dev=tvm.cuda(0), number=100)
-    time = time_f(a_tvm, b_tvm, c_tvm).mean
+        time_f = rt_mod.time_evaluator(rt_mod.entry_name, dev=tvm.cuda(0), number=100)
+        time = time_f(a_tvm, b_tvm, c_tvm).mean
 
-    print(time)
+        print(time)
 
 
 if __name__ == "__main__":
