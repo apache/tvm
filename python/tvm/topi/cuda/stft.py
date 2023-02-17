@@ -133,3 +133,90 @@ def stft(
         name="stft_cuda",
         tag="stft_cuda",
     )
+
+
+def dft(
+        re_data: te.Tensor,
+        im_data: te.Tensor,
+        inverse: tir.IntImm,
+):
+    """
+    Computes the discrete Fourier transform of input (calculation along the last axis).
+    This gives frequency components of the signal as they change over time.
+    Parameters
+    ----------
+    re_data : relay.Expr
+        N-D tensor, real part of the input signal.
+    im_data : relay.Expr
+        N-D tensor, imaginary part of the input signal.
+        If the signal is real, then the values of this tensor are zeros.
+    inverse : bool
+        Whether to perform the inverse discrete fourier transform.
+    Returns
+    -------
+    re_output : relay.Expr
+        The Fourier Transform of the input (Real part).
+    im_output : relay.Expr
+        The Fourier Transform of the input (Imaginary part).
+    """
+
+    def gen_ir(
+            re_data_buf,
+            im_data_buf,
+            re_output_buf,
+            im_output_buf,
+    ):
+        ib = tir.ir_builder.create()
+        re_data_ptr = ib.buffer_ptr(re_data_buf)
+        im_data_ptr = ib.buffer_ptr(im_data_buf)
+        re_output_ptr = ib.buffer_ptr(re_output_buf)
+        im_output_ptr = ib.buffer_ptr(im_output_buf)
+
+        shape = re_data.shape
+        n_fft = shape[len(shape) - 1]
+        base_range = 1
+        for i in range(len(shape) - 1):
+            base_range *= shape[i]
+
+        sign = -1 if inverse else 1
+        factor = 1.0 / n_fft if inverse else 1.0
+
+        max_threads = _get_max_threads(base_range)
+        with ib.new_scope():
+            nthread_tx = max_threads
+            nthread_bx = ceil_div(base_range, max_threads)
+            tx = te.thread_axis("threadIdx.x")
+            bx = te.thread_axis("blockIdx.x")
+            ib.scope_attr(tx, "thread_extent", nthread_tx)
+            ib.scope_attr(bx, "thread_extent", nthread_bx)
+
+            tid = bx * max_threads + tx
+            with ib.if_scope(tid < base_range):
+                base_idx = tid * n_fft
+                with ib.for_range(0, n_fft) as n:
+                    n_idx = base_idx + n
+                    re_output_ptr[n_idx] = tir.Cast(re_output_ptr.dtype, 0)
+                    im_output_ptr[n_idx] = tir.Cast(im_output_ptr.dtype, 0)
+                    with ib.for_range(0, n_fft) as k:
+                        k_idx = base_idx + k
+                        w = sign * -2 * pi * k * n / n_fft
+                        cos_w = tir.Cast(re_output_ptr.dtype, tir.cos(w))
+                        sin_w = tir.Cast(re_output_ptr.dtype, tir.sin(w))
+                        re_output_ptr[n_idx] += re_data_ptr[k_idx] * cos_w - im_data_ptr[k_idx] * sin_w
+                        im_output_ptr[n_idx] += re_data_ptr[k_idx] * sin_w + im_data_ptr[k_idx] * cos_w
+
+                    re_output_ptr[n_idx] *= tir.Cast(re_output_ptr.dtype, factor)
+                    im_output_ptr[n_idx] *= tir.Cast(im_output_ptr.dtype, factor)
+
+        return ib.get()
+
+    output_shape = [re_data.shape] * 2
+
+    return te.extern(
+        shape=output_shape,
+        inputs=[re_data, im_data],
+        fcompute=lambda ins, outs: gen_ir(ins[0], ins[1], outs[0], outs[1]),
+        dtype=[re_data.dtype, im_data.dtype],
+        name="dft_cuda",
+        tag="dft_cuda",
+    )

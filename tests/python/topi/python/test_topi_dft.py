@@ -38,13 +38,26 @@ def numpy_reference(inverse, re: np.ndarray, im: np.ndarray):
 
 def test_dft(target, dev, inverse, shape, dtype):
     """Test for discrete Fourier transform."""
+    implementations = {
+        "generic": (
+            topi.dft,
+            topi.generic.schedule_extern,
+        ),
+        "gpu": (
+            topi.cuda.dft,
+            topi.cuda.schedule_scan,
+        ),
+        "nvptx": (
+            topi.cuda.dft,
+            topi.cuda.schedule_scan,
+        ),
+    }
 
     Re = tvm.te.placeholder(shape, dtype=dtype, name="Re")
     Im = tvm.te.placeholder(shape, dtype=dtype, name="Im")
 
     with tvm.target.Target(target):
-        fcompute = topi.dft
-        fschedule = topi.generic.schedule_extern
+        fcompute, fschedule = tvm.topi.testing.dispatch(target, implementations)
 
         outs = fcompute(Re, Im, inverse)
         s = fschedule(outs)

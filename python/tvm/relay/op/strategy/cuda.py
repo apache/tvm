@@ -1412,3 +1412,14 @@ def stft_strategy_cuda(attrs, inputs, out_type, target):
         name="stft.cuda",
     )
     return strategy
+
+
+@stft_strategy.register(["cuda", "gpu"])
+def stft_strategy_cuda(attrs, inputs, out_type, target):
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_dft(topi.cuda.dft),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="dft.cuda",
+    )
+    return strategy
