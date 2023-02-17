@@ -2552,11 +2552,54 @@ class PyTorchOpConverter:
         return self.nonzero(inputs, input_types, is_numpy_style=False)
 
     def scatter(self, inputs, input_types):
+        assert len(inputs) == 5, (
+            "scatter takes 5 inputs (data, dim, index, src, reduce), "
+            + "but {} given".format(len(inputs))
+        )
         data = inputs[0]
         axis = int(inputs[1])
         index = inputs[2]
         src = inputs[3]
-        return _op.scatter_elements(data, index, src, axis)
+        reduce = inputs[4]
+
+        data_shape = self.infer_shape(data)
+        data_rank = len(data_shape)
+        index_shape = self.infer_shape(index)
+        index_rank = len(index_shape)
+        # When index is empty, the operation returns data unchanged
+        if index_rank == 0:
+            return data
+        assert self.infer_type(src).dtype == self.infer_type(data).dtype, (
+            "The same data types for data and src are expected"
+        )
+        if np.isscalar(src):
+            assert self.infer_type(src).dtype == "float", "Scalar source can be float only"
+            src = _op.broadcast_to_like(src, data_shape)
+            src_shape = data_shape
+        else:
+            src_shape = self.infer_shape(inputs[3])
+        src_rank = len(src_shape)
+        assert data_rank == index_rank, "Index rank is not the same as data rank"
+        assert data_rank == src_rank, "Src rank is not the same as data rank"
+
+        assert 0 <= axis < data_rank, "Dim is out of bounds"
+
+        for i in range(data_rank):
+            assert index_shape[i] <= src_shape[i], "Index dim size should be less than src one"
+            if i != axis:
+                assert (
+                    index_shape[i] <= data_shape[i]
+                ), "Index dim size should be less than data one"
+
+        if reduce is None:
+            reduce = "update"
+        elif reduce == "multiply":
+            reduce = "mul"
+        assert reduce in ["update", "add", "mul"], (
+            "reduce arg is expected from \"add\", \"multiply\" or None"
+        )
+
+        return _op.scatter_elements(data, index, src, axis, reduce)
 
     def index_put(self, inputs, input_types):
         in_tensor = inputs[0]
