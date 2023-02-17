@@ -85,19 +85,17 @@ def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher):
     executor = relay.backend.Executor("graph", {"link-params": True})
     mod = mod.with_attr("executor", executor)
 
-    use_async = True
 
-    if use_async:
-        config = {
-            "tir.use_async_copy": True,
-            "tir.merge_async_commit_queue_scope": False,
-        }
+    config = {
+        "tir.use_async_copy": True,
+        "tir.merge_async_commit_queue_scope": False,
+    }
 
-        ctx = tvm.transform.PassContext(
-            opt_level=3,
-            config=config,
-        )
-        sch_rules = sch_rules_async
+    ctx = tvm.transform.PassContext(
+        opt_level=3,
+        config=config,
+    )
+    sch_rules = sch_rules_async
 
     with tempfile.TemporaryDirectory() as work_dir:
         database = ms.relay_integration.tune_relay(
