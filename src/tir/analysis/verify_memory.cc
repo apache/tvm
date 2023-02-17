@@ -177,10 +177,6 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
 
 /// Interface of VerifyMemory pass
 std::vector<String> VerifyMemory_(const PrimFunc& func) {
-  // skip the check if the function is host function.
-  if (func->GetAttr<Integer>(tvm::tir::attr::kIsHostFunc) == 1)
-    return {};
-
   auto target = func->GetAttr<Target>(tvm::attr::kTarget);
   ICHECK(target.defined()) << "VerifyMemory: Require the target attribute";
 
