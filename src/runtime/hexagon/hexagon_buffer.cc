@@ -50,6 +50,16 @@ struct DDRAllocation : public Allocation {
   DDRAllocation(size_t nbytes, size_t alignment) : Allocation(nbytes, alignment) {
     int ret = posix_memalign(&data_, alignment, nbytes);
     CHECK_EQ(ret, 0);
+
+    // The heap used by malloc on Hexagon is always mapped as cacheable. The heap manager may not
+    // perform cache invalidation on a prior memory free. So, a subsequent memory allocation request
+    // to the heap manager may allocate memory that resides in part or in full in the cache. Hence,
+    // we must invalidate the allocation from the cache to ensure that DMA with cache bypass enabled
+    // will function properly. DMA with cache bypass enabled assumes that HexagonBuffer objects are
+    // not cached unless explicitly modified by the primfunc. We must invalidate after malloc to
+    // uphold this assumption.
+    qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(data_), nbytes, QURT_MEM_CACHE_INVALIDATE,
+                         QURT_MEM_DCACHE);
   }
   ~DDRAllocation() { free(data_); }
 };
@@ -224,7 +234,8 @@ std::vector<MemoryCopy> MemoryCopy::MergeAdjacent(std::vector<MemoryCopy> micro_
 }
 
 void hexagon_buffer_copy_across_regions(const BufferSet& dest, const BufferSet& src,
-                                        size_t bytes_to_copy) {
+                                        size_t bytes_to_copy, bool src_is_hexbuff,
+                                        bool dest_is_hexbuff) {
   // First, determine all copies that do not cross boundaries in
   // either source or destination region.
   auto micro_copies = BufferSet::MemoryCopies(dest, src, bytes_to_copy);
@@ -235,19 +246,21 @@ void hexagon_buffer_copy_across_regions(const BufferSet& dest, const BufferSet& 
 
   // Finally, do the memory copies.
   for (const auto& copy : macro_copies) {
-    // clean Hexagon cache before / after memcpy to ensure clean cache state to enable usage of DMA
-    // bypass mode for increased DMA bandwidth
+    // if src is a HexagonBuffer, invalidate it before the memcpy
+    if (src_is_hexbuff) {
+      qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(copy.src), copy.num_bytes,
+                           QURT_MEM_CACHE_INVALIDATE, QURT_MEM_DCACHE);
+    }
+
     // TODO(HWE): Switch to ION Buffer to avoid need for memcpy and potentially lighten or alleviate
     // the burden of cache invalidation in this code
-    qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(copy.dest), copy.num_bytes,
-                         QURT_MEM_CACHE_INVALIDATE, QURT_MEM_DCACHE);
-    qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(copy.src), copy.num_bytes,
-                         QURT_MEM_CACHE_INVALIDATE, QURT_MEM_DCACHE);
     memcpy(copy.dest, copy.src, copy.num_bytes);
-    qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(copy.dest), copy.num_bytes,
-                         QURT_MEM_CACHE_INVALIDATE, QURT_MEM_DCACHE);
-    qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(copy.src), copy.num_bytes,
-                         QURT_MEM_CACHE_INVALIDATE, QURT_MEM_DCACHE);
+
+    // if dest is a HexagonBuffer, flush it after the memcpy
+    if (dest_is_hexbuff) {
+      qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(copy.dest), copy.num_bytes,
+                           QURT_MEM_CACHE_FLUSH, QURT_MEM_DCACHE);
+    }
   }
 }
 
@@ -255,21 +268,24 @@ void HexagonBuffer::CopyTo(void* data, size_t nbytes) const {
   BufferSet src(allocations_.data(), allocations_.size(), nbytes_per_allocation_);
   BufferSet dest(&data, 1, nbytes);
 
-  hexagon_buffer_copy_across_regions(dest, src, nbytes);
+  hexagon_buffer_copy_across_regions(dest, src, nbytes, true /* src_is_hexbuff */,
+                                     false /* dest_is_hexbuff */);
 }
 
 void HexagonBuffer::CopyFrom(void* data, size_t nbytes) {
   BufferSet src(&data, 1, nbytes);
   BufferSet dest(allocations_.data(), allocations_.size(), nbytes_per_allocation_);
 
-  hexagon_buffer_copy_across_regions(dest, src, nbytes);
+  hexagon_buffer_copy_across_regions(dest, src, nbytes, false /* src_is_hexbuff */,
+                                     true /* dest_is_hexbuff */);
 }
 
 void HexagonBuffer::CopyFrom(const HexagonBuffer& other, size_t nbytes) {
   BufferSet src(other.allocations_.data(), other.allocations_.size(), other.nbytes_per_allocation_);
   BufferSet dest(allocations_.data(), allocations_.size(), nbytes_per_allocation_);
 
-  hexagon_buffer_copy_across_regions(dest, src, nbytes);
+  hexagon_buffer_copy_across_regions(dest, src, nbytes, true /* src_is_hexbuff */,
+                                     true /* dest_is_hexbuff */);
 }
 
 }  // namespace hexagon

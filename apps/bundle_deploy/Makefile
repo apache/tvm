@@ -26,24 +26,26 @@ endif
 
 ENABLE_TVM_PLATFORM_ABORT_BACKTRACE ?= 1
 
+build_dir := build
+
 DMLC_CORE=${TVM_ROOT}/3rdparty/dmlc-core
 PKG_COMPILE_OPTS = -g -Wall -O2 -fPIC
 PKG_CXXFLAGS = ${PKG_COMPILE_OPTS} -std=c++17 \
 	-I${TVM_ROOT}/include \
 	-I${DMLC_CORE}/include \
 	-I${TVM_ROOT}/3rdparty/dlpack/include \
-	-Icrt_config \
+	-I${build_dir}/crt_config \
 	-DDMLC_USE_LOGGING_LIBRARY=\<tvm/runtime/logging.h\>
 PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
 	-I${TVM_ROOT}/include \
 	-I${DMLC_CORE}/include \
 	-I${TVM_ROOT}/3rdparty/dlpack/include \
-	-Icrt_config \
+	-I${build_dir}/crt_config \
 	-DDMLC_USE_LOGGING_LIBRARY=\<tvm/runtime/logging.h\>
 
 PKG_LDFLAGS = -pthread -lm
 
-build_dir := build
+
 
 BACKTRACE_SRCS =
 BACKTRACE_LDFLAGS =
@@ -82,13 +84,13 @@ test_static: $(build_dir)/test_static $(build_dir)/test_data_c.bin $(build_dir)/
 	$(QUIET)TVM_NUM_THREADS=1 $(build_dir)/test_static $(build_dir)/test_data_c.bin $(build_dir)/test_output_c.bin $(build_dir)/test_graph_c.json $(build_dir)/test_params_c.bin
 
 $(build_dir)/crt/libcommon.a: $(CRT_SRCS)
-	$(QUIET)cd $(CRT_ROOT) && make QUIET= BUILD_DIR=$(abspath $(build_dir))/crt CRT_CONFIG=$(abspath crt_config/crt_config.h) "EXTRA_CFLAGS=$(PKG_COMPILE_OPTS)" common
+	$(QUIET)cd $(CRT_ROOT) && make QUIET= BUILD_DIR=$(abspath $(build_dir))/crt CRT_CONFIG=$(abspath $(build_dir)/crt_config/crt_config.h) "EXTRA_CFLAGS=$(PKG_COMPILE_OPTS)" common
 
 $(build_dir)/crt/libgraph_executor.a: $(CRT_SRCS)
-	$(QUIET)cd $(CRT_ROOT) && make QUIET= BUILD_DIR=$(abspath $(build_dir))/crt CRT_CONFIG=$(abspath crt_config/crt_config.h) "EXTRA_CFLAGS=$(PKG_COMPILE_OPTS)" graph_executor
+	$(QUIET)cd $(CRT_ROOT) && make QUIET= BUILD_DIR=$(abspath $(build_dir))/crt CRT_CONFIG=$(abspath $(build_dir)/crt_config/crt_config.h) "EXTRA_CFLAGS=$(PKG_COMPILE_OPTS)" graph_executor
 
 $(build_dir)/crt/libmemory.a: $(CRT_SRCS)
-	$(QUIET)cd $(CRT_ROOT) && make QUIET= BUILD_DIR=$(abspath $(build_dir))/crt CRT_CONFIG=$(abspath crt_config/crt_config.h) "EXTRA_CFLAGS=$(PKG_COMPILE_OPTS)" memory
+	$(QUIET)cd $(CRT_ROOT) && make QUIET= BUILD_DIR=$(abspath $(build_dir))/crt CRT_CONFIG=$(abspath $(build_dir)/crt_config/crt_config.h) "EXTRA_CFLAGS=$(PKG_COMPILE_OPTS)" memory
 
 $(build_dir)/demo_dynamic: demo.cc
 	$(QUIET)mkdir -p $(@D)

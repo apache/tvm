@@ -14,22 +14,25 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""MicroTVM module for bare-metal backends"""
-from .build import autotvm_build_func
-from .build import AutoTvmModuleLoader
-from .build import get_standalone_crt_dir
-from .build import get_microtvm_template_projects
-from .build import copy_crt_config_header
 
-from .model_library_format import (
-    export_model_library_format,
-    UnsupportedInModelLibraryFormatError,
-)
-from .project import generate_project, GeneratedProject, TemplateProject
-from .session import (
-    create_local_graph_executor,
-    create_local_debug_executor,
-    Session,
-    SessionTerminatedError,
-)
-from .transport import TransportLogger
+function(generate_crt_config platform output_path)
+  set(TVM_CRT_DEBUG 0)
+  set(TVM_CRT_MAX_NDIM 6)
+  set(TVM_CRT_MAX_ARGS 10)
+  set(TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES 512)
+  set(TVM_CRT_MAX_REGISTERED_MODULES 2)
+  set(TVM_CRT_MAX_PACKET_SIZE_BYTES 2048)
+  set(TVM_CRT_MAX_STRLEN_DLTYPE 10)
+  set(TVM_CRT_MAX_STRLEN_FUNCTION_NAME 120)
+  set(TVM_CRT_MAX_STRLEN_PARAM_NAME 80)
+  set(TVM_CRT_MAX_FUNCTION_NAME_LENGTH_BYTES 30)
+  set(TVM_CRT_PAGE_BITS 10)
+  set(TVM_CRT_MAX_PAGES 300)
+
+  if("${platform}" STREQUAL "zephyr")
+    set(TVM_CRT_MAX_PACKET_SIZE_BYTES 512)
+  elseif("${platform}" STREQUAL "arduino")
+    set(TVM_CRT_MAX_PACKET_SIZE_BYTES 8*1024)
+  endif()
+  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/crt/crt_config.h.template" "${output_path}")
+endfunction()

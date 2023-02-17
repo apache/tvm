@@ -18,7 +18,7 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import relay
-from tvm.relay.testing import to_python, run_as_python
+from tvm.relay.testing import run_as_python
 from tvm.relay.prelude import Prelude
 from tvm.runtime.container import ADT
 from tvm.relay.backend.interpreter import RefValue, ConstructorValue
@@ -70,7 +70,6 @@ def test_create_empty_tuple():
 def test_create_scalar():
     scalar = relay.const(1)
     tensor_val = run_as_python(scalar)
-    print(type(tensor_val))
     assert_tensor_value(tensor_val, 1)
 
 
@@ -611,3 +610,65 @@ def test_batch_norm():
     verify_batch_norm([(20, 10), (10,), (10,), (10,), (10,)])
     verify_batch_norm([(10, 50), (50,), (50,), (50,), (50,)])
     verify_batch_norm([(30, 40), (40,), (40,), (40,), (40,)])
+
+
+def test_return_global_var():
+    tt = relay.TensorType([1], "float32")
+    x = relay.Var("x", type_annotation=tt)
+    identity = relay.Function([x], x, ret_type=tt)
+    mod = tvm.IRModule()
+    mod["main"] = identity
+    main_var = mod.get_global_var("main")
+    main_func = run_as_python(main_var, mod=mod)
+
+    arg = tvm.nd.array(np.array([0.0], dtype="float32"))
+    res = main_func(arg)
+    assert arg.numpy() == res.numpy()
+
+
+def test_closure_in_tuple():
+    tt = relay.TensorType([1], "float32")
+    x = relay.Var("x", type_annotation=tt)
+    identity = relay.Function([x], x, ret_type=tt)
+    tup = relay.Tuple([identity, identity])
+    index = relay.TupleGetItem(tup, 0)
+
+    func = run_as_python(index)
+    arg = tvm.nd.array(np.array([0.0], dtype="float32"))
+    res = func(arg)
+    assert arg.numpy() == res.numpy()
+
+
+def test_closure_in_ref():
+    tt = relay.TensorType([1], "float32")
+    x = relay.Var("x", type_annotation=tt)
+    identity = relay.Function([x], x, ret_type=tt)
+    gv = relay.GlobalVar("id")
+
+    r = relay.Var("r")
+    seq = relay.Let(
+        r,
+        relay.RefCreate(gv),
+        relay.Call(relay.RefRead(r), [relay.const(np.array([0.0], dtype="float32"))]),
+    )
+
+    mod = tvm.IRModule()
+    mod[gv] = identity
+    res = run_as_python(seq, mod=mod)
+    assert res.numpy() == np.array([0.0], dtype="float32")
+
+
+def test_compiling_with_main():
+    unit_type = relay.TupleType([])
+    unit = relay.Function([], relay.Tuple([]), ret_type=unit_type)
+
+    x = relay.Var("x", type_annotation=unit_type)
+    identity = relay.Function([x], x, ret_type=unit_type)
+
+    mod = tvm.IRModule()
+    mod["unit"] = unit
+    mod["main"] = identity
+
+    res = run_as_python(mod.get_global_var("main")(mod.get_global_var("unit")()), mod=mod)
+    assert isinstance(res, ADT)
+    assert len(res) == 0

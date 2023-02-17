@@ -639,6 +639,11 @@ class ScatterAddAttrs(Attrs):
     """Attributes used in scatter_add operators"""
 
 
+@tvm._ffi.register_object("relay.attrs.ScatterElementsAttrs")
+class ScatterElementsAttrs(Attrs):
+    """Attributes used in scatter_elements operators"""
+
+
 @tvm._ffi.register_object("relay.attrs.ScatterNDAttrs")
 class ScatterNDAttrs(Attrs):
     """Attributes used in scatter_nd operators"""

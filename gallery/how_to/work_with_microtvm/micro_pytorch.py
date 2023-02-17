@@ -131,7 +131,7 @@ with tvm.transform.PassContext(
 #
 
 template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("crt"))
-project_options = {"verbose": False, "memory_size_bytes": 6 * 1024 * 1024}
+project_options = {"verbose": False, "workspace_size_bytes": 6 * 1024 * 1024}
 
 temp_dir = tvm.contrib.utils.tempdir() / "project"
 project = tvm.micro.generate_project(

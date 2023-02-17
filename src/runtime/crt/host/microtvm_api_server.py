@@ -38,7 +38,7 @@ MODEL_LIBRARY_FORMAT_RELPATH = "model.tar"
 IS_TEMPLATE = not os.path.exists(os.path.join(PROJECT_DIR, MODEL_LIBRARY_FORMAT_RELPATH))
 
 # Used this size to pass most CRT tests in TVM.
-MEMORY_SIZE_BYTES = 2 * 1024 * 1024
+WORKSPACE_SIZE_BYTES = 2 * 1024 * 1024
 
 MAKEFILE_FILENAME = "Makefile"
 
@@ -67,11 +67,11 @@ class Handler(server.ProjectAPIHandler):
                     help="Run make with verbose output",
                 ),
                 server.ProjectOption(
-                    "memory_size_bytes",
+                    "workspace_size_bytes",
                     optional=["generate_project"],
                     type="int",
-                    default=MEMORY_SIZE_BYTES,
-                    help="Sets the value of MEMORY_SIZE_BYTES.",
+                    default=WORKSPACE_SIZE_BYTES,
+                    help="Sets the value of TVM_WORKSPACE_SIZE_BYTES.",
                 ),
             ],
         )
@@ -90,7 +90,7 @@ class Handler(server.ProjectAPIHandler):
     ):
         """Generate Makefile from template."""
         flags = {
-            "MEMORY_SIZE_BYTES": str(memory_size),
+            "TVM_WORKSPACE_SIZE_BYTES": str(memory_size),
         }
 
         regex = re.compile(r"([A-Z_]+) := (<[A-Z_]+>)")
@@ -106,6 +106,7 @@ class Handler(server.ProjectAPIHandler):
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
         # Make project directory.
         project_dir.mkdir(parents=True)
+        current_dir = pathlib.Path(__file__).parent.absolute()
 
         # Copy ourselves to the generated project. TVM may perform further build steps on the generated project
         # by launching the copy.
@@ -135,25 +136,29 @@ class Handler(server.ProjectAPIHandler):
 
         # Populate Makefile
         self._populate_makefile(
-            pathlib.Path(__file__).parent / f"{MAKEFILE_FILENAME}.template",
+            current_dir / f"{MAKEFILE_FILENAME}.template",
             project_dir / MAKEFILE_FILENAME,
-            options.get("memory_size_bytes", MEMORY_SIZE_BYTES),
+            options.get("workspace_size_bytes", WORKSPACE_SIZE_BYTES),
         )
 
         # Populate crt-config.h
         crt_config_dir = project_dir / "crt_config"
         crt_config_dir.mkdir()
         shutil.copy2(
-            os.path.join(os.path.dirname(__file__), "crt_config-template.h"),
-            os.path.join(crt_config_dir, "crt_config.h"),
+            current_dir / "crt_config" / "crt_config.h",
+            crt_config_dir / "crt_config.h",
         )
 
         # Populate src/
-        src_dir = os.path.join(project_dir, "src")
-        os.mkdir(src_dir)
+        src_dir = project_dir / "src"
+        src_dir.mkdir()
         shutil.copy2(
-            os.path.join(os.path.dirname(__file__), "src", "main.cc"),
-            os.path.join(src_dir, "main.cc"),
+            current_dir / "src" / "main.cc",
+            src_dir / "main.cc",
+        )
+        shutil.copy2(
+            current_dir / "src" / "platform.cc",
+            src_dir / "platform.cc",
         )
 
     def build(self, options):

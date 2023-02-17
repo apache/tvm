@@ -28,15 +28,13 @@ def vector_add(A: T.Buffer[(16), "float32"], B: T.Buffer[(32), "float32"]) -> No
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
     A_local = T.alloc_buffer([32], "float32", scope="local")
-    
+
     with T.block():
         T.reads(A[0:16])
         T.writes(A_local[0:32])
-        A_local[tx] = T.if_then_else(tx%2==0, A[tx/2], T.float32(0), dtype="float32")
+        A_local[tx] = T.if_then_else(tx % 2 == 0, A[tx / 2], T.float32(0), dtype="float32")
         B[tx] = A_local[tx] + 1.0
 
-            
-            
 
 @tvm.testing.requires_cuda
 def test_inject_ptx_intrin():
@@ -46,7 +44,7 @@ def test_inject_ptx_intrin():
     if major < 8:
         # Require at least SM80
         return
-    with tvm.transform.PassContext(config={"tir.ptx_ldg32": True}): 
+    with tvm.transform.PassContext(config={"tir.ptx_ldg32": True}):
         mod = tvm.build(f, target="cuda")
     A_np = np.random.rand(16).astype("float32")
     B_np = np.zeros((32)).astype("float32")
@@ -54,15 +52,14 @@ def test_inject_ptx_intrin():
     A_nd = tvm.nd.array(A_np, device=dev)
     B_nd = tvm.nd.array(B_np, device=dev)
     mod(A_nd, B_nd)
-    
+
     C_np = np.zeros((32)).astype("float32")
-    
-    
+
     for i in range(32):
         if i % 2 == 0:
-            C_np[i] = A_np[i//2]
+            C_np[i] = A_np[i // 2]
         C_np[i] += 1.0
-            
+
     tvm.testing.assert_allclose(B_nd.numpy(), C_np)
 
 

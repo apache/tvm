@@ -19,6 +19,8 @@ import os
 import pathlib
 import sys
 
+from tvm.micro import copy_crt_config_header
+
 
 def create_labels_header(labels_file, section, output_path):
     """
@@ -41,3 +43,8 @@ def create_labels_header(labels_file, section, output_path):
 
 if __name__ == "__main__":
     create_labels_header(sys.argv[1], "ethosu_scratch", "./include")
+
+    crt_config_output_path = pathlib.Path(__file__).parent.resolve() / "build" / "crt_config"
+    if not crt_config_output_path.exists():
+        crt_config_output_path.mkdir()
+    copy_crt_config_header("crt", crt_config_output_path)

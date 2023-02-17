@@ -17,47 +17,46 @@
  * under the License.
  */
 
-#include "model.h"
+/*!
+ * \brief Implementation of TVMPlatform functions in tvm/runtime/crt/platform.h
+ */
 
-#include "Arduino.h"
 #include "standalone_crt/include/dlpack/dlpack.h"
-#include "standalone_crt/include/tvm/runtime/crt/stack_allocator.h"
+#include "standalone_crt/include/tvm/runtime/crt/error_codes.h"
+#include "stdarg.h"
 
-// AOT memory array, stack allocator wants it aligned
-static uint8_t g_aot_memory[WORKSPACE_SIZE]
-    __attribute__((aligned(TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES)));
-tvm_workspace_t app_workspace;
-
-// Blink code for debugging purposes
+// Called when an internal error occurs and execution cannot continue.
 void TVMPlatformAbort(tvm_crt_error_t error) {
   TVMLogf("TVMPlatformAbort: 0x%08x\n", error);
-  for (;;) {
-#ifdef LED_BUILTIN
-    digitalWrite(LED_BUILTIN, HIGH);
-    delay(250);
-    digitalWrite(LED_BUILTIN, LOW);
-    delay(250);
-    digitalWrite(LED_BUILTIN, HIGH);
-    delay(250);
-    digitalWrite(LED_BUILTIN, LOW);
-    delay(750);
-#endif
-  }
+  for (;;)
+    ;
 }
 
-void TVMLogf(const char* msg, ...) {}
+// Called by the microTVM RPC server to implement TVMLogf.
+size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const char* fmt,
+                                va_list args) {
+  return vsnprintf(out_buf, out_buf_size_bytes, fmt, args);
+}
 
+// Allocate memory for use by TVM.
 tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
-  return StackMemoryManager_Allocate(&app_workspace, num_bytes, out_ptr);
+  if (num_bytes == 0) {
+    num_bytes = sizeof(int);
+  }
+  *out_ptr = malloc(num_bytes);
+  return (*out_ptr == NULL) ? kTvmErrorPlatformNoMemory : kTvmErrorNoError;
 }
 
+// Free memory used by TVM.
 tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
-  return StackMemoryManager_Free(&app_workspace, ptr);
+  free(ptr);
+  return kTvmErrorNoError;
 }
 
 unsigned long g_utvm_start_time_micros;
 int g_utvm_timer_running = 0;
 
+// Start a device timer.
 tvm_crt_error_t TVMPlatformTimerStart() {
   if (g_utvm_timer_running) {
     return kTvmErrorPlatformTimerBadState;
@@ -67,6 +66,7 @@ tvm_crt_error_t TVMPlatformTimerStart() {
   return kTvmErrorNoError;
 }
 
+// Stop the running device timer and get the elapsed time (in microseconds).
 tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
   if (!g_utvm_timer_running) {
     return kTvmErrorPlatformTimerBadState;
@@ -77,18 +77,10 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
   return kTvmErrorNoError;
 }
 
+// Fill a buffer with random data.
 tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
   for (size_t i = 0; i < num_bytes; i++) {
     buffer[i] = rand();
   }
   return kTvmErrorNoError;
-}
-
-void TVMInitialize() { StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE); }
-
-void TVMExecute(void* input_data, void* output_data) {
-  int ret_val = tvmgen_default___tvm_main__(input_data, output_data);
-  if (ret_val != 0) {
-    TVMPlatformAbort(kTvmErrorPlatformCheckFailure);
-  }
 }

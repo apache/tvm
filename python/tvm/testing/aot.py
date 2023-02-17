@@ -20,7 +20,6 @@ import datetime
 import os
 import pathlib
 import re
-import shutil
 import subprocess
 import tarfile
 import logging
@@ -723,11 +722,7 @@ def run_and_check(
 
         include_path = os.path.join(base_path, "include")
         os.mkdir(include_path)
-        crt_root = tvm.micro.get_microtvm_template_projects("crt")
-        shutil.copy2(
-            os.path.join(crt_root, "crt_config-template.h"),
-            os.path.join(include_path, "crt_config.h"),
-        )
+        tvm.micro.copy_crt_config_header("crt", include_path)
 
         workspace_bytes = 0
         for compiled_model in models:
