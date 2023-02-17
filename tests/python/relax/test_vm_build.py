@@ -30,7 +30,7 @@ from tvm.relax.testing import nn
 from tvm.script import relax as R, tir as T
 from tvm.relax.testing.vm import check_saved_func
 
-EXEC_MODE = ["bytecode"]
+EXEC_MODE = ["bytecode", "compiled"]
 
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
