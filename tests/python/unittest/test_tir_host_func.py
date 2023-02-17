@@ -34,7 +34,7 @@ class Module:
             {
                 "global_symbol": "test",
                 "target": T.target({"keys": ["cpu"], "kind": "llvm", "tag": ""}),
-                "tir.is_host_func": True,
+                "tir.is_host_func": 0,
                 "tir.noalias": True,
             }
         )
@@ -60,19 +60,21 @@ def test_host_func():
         te_workload.matmul(729, 729, 729, in_dtype="float32", out_dtype="float32")
     )
     mod = tvm.ir.IRModule({"main": func})
-    mod.show()
     target = tvm.target.Target("cuda")
     mod = tvm.tir.transform.Apply(
         lambda f: f.with_attr(
             {
                 "global_symbol": "test",
                 "target": target,
-                "tir.is_host_func": True,
+                "tir.is_host_func": 1,
             }
         )
     )(mod)
     mod = tvm.tir.transform.BindTarget(target)(mod)
     tvm.ir.assert_structural_equal(mod, Module)
+    assert (
+        mod["main"].attrs["tir.is_host_func"] == 0
+    ), """Target and is_host_func attributes should be mutually exclusive"""
 
 
 if __name__ == "__main__":
