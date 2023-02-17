@@ -21,8 +21,8 @@ import inspect
 import types
 from typing import Callable, Dict, Union, Optional, List
 import numpy as np  # type: ignore
-
 import tvm.ir
+from tvm.runtime import NDArray
 from . import _ffi_api
 
 
@@ -218,6 +218,60 @@ def FuseTIR() -> tvm.ir.transform.Pass:
     return _ffi_api.FuseTIR()  # type: ignore
 
 
+def MetaScheduleApplyDatabase(
+    work_dir: Optional[str] = None,
+) -> tvm.ir.transform.Pass:
+    """Apply the best schedule from tuning database.
+    work_dir : Optional[str]
+       work directory to deduce default database if database is not provided
+       (it will be ignored when an user passes database)
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass
+    """
+    return _ffi_api.MetaScheduleApplyDatabase(work_dir)  # type: ignore
+
+
+def MetaScheduleTuneTIR(
+    work_dir: str,
+    max_trials_global: int,
+) -> tvm.ir.transform.Pass:
+    """Tune TIR with MetaSchedule.
+    Parameters
+    ----------
+    work_dir: str
+       work directory
+    max_trials_gloabl: int
+       maximum number of total trials allowed for tuning
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.MetaScheduleTuneTIR(work_dir, max_trials_global)  # type: ignore
+
+
+def MetaScheduleTuneIRMod(
+    params: Dict[str, NDArray],
+    work_dir: str,
+    max_trials_global: int,
+) -> tvm.ir.transform.Pass:
+    """Tune Relax IRModule with MetaSchedule.
+    Parameters
+    ----------
+    params: Dict[str, NDArray]
+       model params
+    work_dir: str
+       work directory
+    max_trials_gloabl: int
+       maximum number of total trials allowed for tuning
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.MetaScheduleTuneIRMod(params, work_dir, max_trials_global)  # type: ignore
+
+
 def _wrap_class_function_pass(pass_cls, pass_info):
     """Wrap a python class as function pass."""
 
@@ -255,6 +309,7 @@ def function_pass(
     opt_level=None,
     name=None,
     required=None,
+    traceable=False,
 ) -> Union[Callable, FunctionPass]:
     """Decorate a function pass.
 
@@ -276,6 +331,9 @@ def function_pass(
 
     required : Optional[List[str]]
         The list of passes that the function pass is dependent on.
+
+    traceable: Boolean
+        Boolean variable whether the function pass is traceable
 
     Returns
     -------
@@ -350,7 +408,7 @@ def function_pass(
     def create_function_pass(pass_arg):
         """Internal function that creates a function pass"""
         fname = name if name else pass_arg.__name__
-        info = tvm.transform.PassInfo(opt_level, fname, required)
+        info = tvm.transform.PassInfo(opt_level, fname, required, traceable)
         if inspect.isclass(pass_arg):
             return _wrap_class_function_pass(pass_arg, info)
         if not isinstance(pass_arg, (types.FunctionType, types.LambdaType)):
@@ -395,7 +453,7 @@ def _wrap_class_dataflowblock_pass(pass_cls, pass_info):
 
 
 def dataflowblock_pass(
-    pass_func=None, opt_level=None, name=None, required=None
+    pass_func=None, opt_level=None, name=None, required=None, traceable=False
 ) -> Union[Callable, DataflowBlockPass]:
     """Decorate a dataflowblock pass.
 
@@ -417,6 +475,9 @@ def dataflowblock_pass(
 
     required : Optional[List[str]]
         The list of passes that the dataflowblock pass is dependent on.
+
+    traceable: Boolean
+        Boolean variable whether the dataflowblock pass is traceable
 
     Returns
     -------
@@ -499,7 +560,7 @@ def dataflowblock_pass(
     def create_dataflowblock_pass(pass_arg):
         """Internal function that creates a dataflowblock pass"""
         fname = name if name else pass_arg.__name__
-        info = tvm.transform.PassInfo(opt_level, fname, required)
+        info = tvm.transform.PassInfo(opt_level, fname, required, traceable)
         if inspect.isclass(pass_arg):
             return _wrap_class_dataflowblock_pass(pass_arg, info)
         if not isinstance(pass_arg, (types.FunctionType, types.LambdaType)):
