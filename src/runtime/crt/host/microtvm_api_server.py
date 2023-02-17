@@ -164,7 +164,7 @@ class Handler(server.ProjectAPIHandler):
         build_dir = PROJECT_DIR / "build"
         build_dir.mkdir()
         subprocess.check_call(["cmake", ".."], cwd=build_dir)
-        subprocess.check_call(["make", "-j12"], cwd=build_dir)
+        subprocess.check_call(["make"], cwd=build_dir)
 
     def flash(self, options):
         pass  # Flashing does nothing on host.
