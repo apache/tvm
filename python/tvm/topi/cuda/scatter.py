@@ -540,7 +540,7 @@ def gen_scatter_1d_thrust(data, indices_sorted, updates_sorted, out):
 
 
 @autotvm.register_topi_compute("scatter_via_sort.cuda")
-def scatter_via_sort(cfg, data, indices, updates, axis=0, _):
+def scatter_via_sort(cfg, data, indices, updates, axis=0, reduction="add"):
     """Update data at positions defined by indices with values in updates
 
     Parameters
@@ -562,6 +562,7 @@ def scatter_via_sort(cfg, data, indices, updates, axis=0, _):
     ret : relay.Expr
         The computed result.
     """
+    assert reduction == "add"
     if axis < 0:
         axis += len(data.shape)
     assert axis == 0 and len(data.shape) == 1, "sorting based scatter only supported for 1d input"

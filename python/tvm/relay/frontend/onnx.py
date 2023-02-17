@@ -2849,9 +2849,9 @@ class Scatter(OnnxOpConverter):
 
     @classmethod
     def _args_check(cls, inputs, attr):
-        assert (
-            len(inputs) == 3
-        ), "Scatter takes 3 inputs (data, indices, updates), {} given".format(len(inputs))
+        assert len(inputs) == 3, "Scatter takes 3 inputs (data, indices, updates), {} given".format(
+            len(inputs)
+        )
         assert infer_type(inputs[1]).checked_type.dtype in ["int32", "int64"]
 
         data_rank = len(infer_shape(inputs[0]))
