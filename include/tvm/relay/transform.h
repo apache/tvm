@@ -60,7 +60,7 @@ using Sequential = tvm::transform::Sequential;
  */
 TVM_DLL Pass CreateFunctionPass(
     const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
-    int opt_level, String name, tvm::Array<String> required);
+    int opt_level, String name, tvm::Array<String> required, bool traceable = false);
 
 /*! \brief Remove let-bound expressions which do not effect the program result.
  *
