@@ -325,6 +325,13 @@ constexpr const char* kIsEntryFunc = "tir.is_entry_func";
  */
 constexpr const char* kIsGlobalFunc = "tir.is_global_func";
 
+/*!
+ * \brief Mark the function as run on the host.
+ *
+ * Type: Integer
+ */
+constexpr const char* kIsHostFunc = "tir.is_host_func";
+
 }  // namespace attr
 }  // namespace tir
 }  // namespace tvm
