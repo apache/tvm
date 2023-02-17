@@ -704,8 +704,8 @@ class TransformLayoutPlanner : private StmtExprVisitor {
   Buffer old_buffer_;
 };
 
-/**
- * @brief Collect blocks that are part of root block to be passed to ScheduleState::Replace for SRef
+/*!
+ * \brief Collect blocks that are part of root block to be passed to ScheduleState::Replace for SRef
  * reuse
  */
 class ReuseBlocksCollector : public tir::StmtVisitor {
