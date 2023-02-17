@@ -1723,5 +1723,16 @@ def test_forward_topk():
     verify_model(topk6, input_data=input_data)
 
 
+@tvm.testing.uses_gpu
+def test_forward_one_hot_v2():
+    @paddle.jit.to_static
+    def one_hot_v2_1(inputs):
+        return nn.functional.one_hot(inputs, num_classes=4)
+
+
+    input_data = paddle.to_tensor([1, 1, 3, 0], dtype=paddle.int32)
+    verify_model(one_hot_v2_1, input_data=input_data)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

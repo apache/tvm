@@ -1141,6 +1141,21 @@ def convert_mv(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_one_hot_v2(g, op, block):
+    """Operator converter for one_hot_v2."""
+    
+    x = g.get_node(op.input("X")[0])
+    depth = op.attr("depth")
+    dtype = op.attr("dtype")
+    dtype = _convert_dtype_value(dtype)
+    ndim = len(infer_shape(x))
+    on_value = _op.const(1)
+    off_value = _op.const(0)
+    axis = ndim
+    out = _op.one_hot(x, on_value, off_value, depth, axis,dtype)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_padding(g, op, block):
     """Operator converter for padding."""
 
@@ -2136,6 +2151,7 @@ _convert_map = {
     "mv": convert_mv,
     "nearest_interp_v2": convert_interpolate,
     "not_equal": convert_elementwise_op,
+    "one_hot_v2":  convert_one_hot_v2,
     "pad1d": convert_padding,
     "pad2d": convert_padding,
     "pad3d": convert_padding,
