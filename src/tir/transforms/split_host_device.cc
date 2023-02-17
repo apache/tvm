@@ -353,7 +353,7 @@ PrimFunc SplitHostDevice(PrimFunc&& func, IRModule* device_mod) {
     func = WithAttr(std::move(func), tvm::attr::kTarget, Target(nullptr));
     return std::move(func);
   }
-  
+
   auto target = func->GetAttr<Target>(tvm::attr::kTarget);
   ICHECK(target.defined()) << "SplitHostDevice: Require the target attribute";
   auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
