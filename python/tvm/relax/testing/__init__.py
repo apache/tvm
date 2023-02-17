@@ -18,3 +18,4 @@
 """The Relax testing namespace containing nn and translator."""
 
 from .nn import *
+from .relay_translator import *
