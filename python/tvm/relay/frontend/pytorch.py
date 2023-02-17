@@ -2728,7 +2728,7 @@ class PyTorchOpConverter:
             reduce = "min"
         elif reduce == "amax":
             reduce = "max"
-        else: # reduce == "mean"
+        else:  # reduce == "mean"
             # TODO(vvchernov): support mean reduction
             raise NotImplementedError("Mean reduction has not been supported yet!")
 

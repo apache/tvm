@@ -127,9 +127,9 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
                 elif reduction == "mul":
                     out[index2] *= updates[index1]
                 elif reduction == "min":
-                    tir.min(out[index2], updates[index1])
+                    out[index2] = tir.min(out[index2], updates[index1])
                 elif reduction == "max":
-                    tir.max(out[index2], updates[index1])
+                    out[index2] = tir.max(out[index2], updates[index1])
                 else:
                     raise NotImplementedError(
                         "scatter_elements reduction not in [update, add, mul, min, max]:",
