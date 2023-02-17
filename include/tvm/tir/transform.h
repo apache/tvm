@@ -56,7 +56,7 @@ using tvm::transform::Sequential;
  */
 TVM_DLL Pass CreatePrimFuncPass(
     const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
-    int opt_level, String name, tvm::Array<String> required);
+    int opt_level, String name, tvm::Array<String> required, bool traceable = false);
 
 /*!
  * \brief Inject prefetch instructions into stmt.
