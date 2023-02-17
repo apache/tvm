@@ -99,7 +99,22 @@ TVM_DLL Pass RewriteDataflowReshape();
  * \return The Pass.
  */
 TVM_DLL Pass AttachGlobalSymbol();
+/*!
+ * \brief Bind params of function of the module to constant tensors.
+ *
+ * \param func_name The name of the function to bind parameters.
+ * \param params The parameters to bind.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass BindParams(String func_name, Map<String, runtime::NDArray> params);
 
+/*!
+ * \brief Fold constant expressions.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass FoldConstant();
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm

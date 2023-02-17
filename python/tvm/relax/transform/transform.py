@@ -19,7 +19,8 @@
 import functools
 import inspect
 import types
-from typing import Callable, Union
+from typing import Callable, Dict, Union, Optional, List
+import numpy as np  # type: ignore
 
 import tvm.ir
 from . import _ffi_api
@@ -113,6 +114,65 @@ def AttachGlobalSymbol() -> tvm.ir.transform.Pass:
     ret: tvm.ir.transform.Pass
     """
     return _ffi_api.AttachGlobalSymbol()  # type: ignore
+
+
+def BindParams(
+    func_name: str,
+    params: Dict[str, Union[tvm.runtime.NDArray, np.ndarray]],
+) -> tvm.ir.transform.Pass:
+    """Bind params of function of the module to constant tensors.
+
+    Parameters
+    ----------
+
+    func_name: str
+        The function name to be bound
+
+    params : Dict[str, Union[tvm.runtime.NDArray, np.ndarray]]
+        The map from param name to constant tensors.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    tvm_params = {}
+    for k, v in params.items():
+        if isinstance(v, np.ndarray):
+            v = tvm.nd.array(v)
+        assert isinstance(
+            v, tvm.runtime.NDArray
+        ), f"param values are expected to be TVM.NDArray or numpy.ndarray, but got {type(v)}"
+        tvm_params[k] = v
+
+    return _ffi_api.BindParams(func_name, tvm_params)  # type: ignore
+
+
+def RemoveUnusedFunctions(entry_functions: Optional[List[str]] = None) -> tvm.ir.transform.Pass:
+    """Remove unused relax/prim functions without external linkage in a IRModule.
+
+    Parameters
+    ----------
+    entry_functions: Optional[List[str]]
+        The set of entry functions to start from.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass to remove unused functions.
+    """
+    if entry_functions is None:
+        entry_functions = ["main"]
+    return _ffi_api.RemoveUnusedFunctions(entry_functions)  # type: ignore
+
+
+def FoldConstant() -> tvm.ir.transform.Pass:
+    """Fold constant expressions.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.FoldConstant()  # type: ignore
 
 
 def AnnotateTIROpPattern() -> tvm.ir.transform.Pass:
