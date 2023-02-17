@@ -442,13 +442,21 @@ We can use below tvmc command to deploy on remore target via RPC based setup.
    python3 -m tvm.driver.tvmc run --device="cl" keras-resnet50.tar \
    --rpc-key android --rpc-tracker 127.0.0.1:9190 --print-time
 
-`tvmc <https://tvm.apache.org/docs/tutorial/tvmc_command_line_driver.html?highlight=tvmc>`_ based run has more option
+`tvmc <https://tvm.apache.org/docs/tutorial/tvmc_command_line_driver.html?highlight=tvmc>`_ based run has more options
 to initialize the input in various modes like fill, random ..etc.
 
+``tvmc`` based deployment generally a quick verification of compiled model on target from remote host via RPC setup.
 
-TVM also supports ``rtvm`` tool to run the model narively on ADB shell. The build process produced this tool under build-adreno-target.
+Production generally uses native deploymenmt environment like Android JNI or CPP native environments.
+Here we need to use cross compiled ``tvm_runtime`` interface to deploy the tvm compilation output, i.e. ``TVMPackage``.
+
+TVM has a standalone tool ``rtvm`` to deploy and run the model natively on ADB shell. The build process produces this tool under build-adreno-target.
 Please refer to `rtvm <https://github.com/apache/tvm/tree/main/apps/cpp_rtvm>`_ for more details about this tool.
 
+While integrating inside existing Android application TVM has multiple options. For JNI or CPP native we may use `C Runtime API <https://github.com/apache/tvm/blob/main/include/tvm/runtime/c_runtime_api.h>`_
+You may refer to ``rtvm``'s simplified interface `TVMRunner <https://github.com/apache/tvm/blob/main/apps/cpp_rtvm/tvm_runner.h>`_ also.
+
+Additionally, TVM also supports Java interface through `TVM4J <https://github.com/apache/tvm/tree/main/jvm>`_
 
 .. _python_interface:
 
