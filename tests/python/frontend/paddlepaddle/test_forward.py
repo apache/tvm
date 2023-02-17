@@ -1729,7 +1729,6 @@ def test_forward_one_hot_v2():
     def one_hot_v2_1(inputs):
         return nn.functional.one_hot(inputs, num_classes=4)
 
-
     input_data = paddle.to_tensor([1, 1, 3, 0], dtype=paddle.int32)
     verify_model(one_hot_v2_1, input_data=input_data)
 
