@@ -681,7 +681,7 @@ TVM_DLL Pass InjectPTXAsyncCopy();
  * \brief Pass to rewrite global to local memory copy on CUDA with ldg32 instruction.
  * \return The pass.
  */
-TVM_DLL Pass InjectPTXLDG32(bool enable_inject_ptx_ldg32 = true);
+TVM_DLL Pass InjectPTXLDG32(bool enable_ptx_ldg32 = true);
 
 /*!
  * \brief Remove the weight layout rewrite block

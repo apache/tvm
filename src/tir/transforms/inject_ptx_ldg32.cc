@@ -99,7 +99,7 @@ class PTXRewriter : public StmtMutator {
         new_indice = BufferLoad(addr_buffer, {IntImm(DataType::Int(32), 1)});
         BufferStore value_store(store->buffer, imm_value, {new_indice});
         Evaluate ptx_load(
-            Call(store->buffer->dtype, tvm::tir::builtin::inject_ptx_ldg32(),
+            Call(store->buffer->dtype, tvm::tir::builtin::ptx_ldg32(),
                  {store->buffer->data, new_predicate, new_lhs, new_indice}));
         Array<Stmt> tmp_seq = {addr_store, local_addr_store, predicate_store,
                                value_store, ptx_load};

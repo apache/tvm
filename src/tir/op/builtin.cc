@@ -251,7 +251,7 @@ TIR_DEFINE_BUILTIN_FUNC(tvm_store_matrix_sync)
 
 TIR_DEFINE_BUILTIN_FUNC(ptx_mma).set_attr<TCallEffectKind>("TCallEffectKind",
                                                            Integer(CallEffectKind::kOpaque));
-TIR_DEFINE_BUILTIN_FUNC(inject_ptx_ldg32)
+TIR_DEFINE_BUILTIN_FUNC(ptx_ldg32)
     .set_num_inputs(4)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
 
