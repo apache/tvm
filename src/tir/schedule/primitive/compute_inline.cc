@@ -651,6 +651,7 @@ class ReverseComputeInliner : public BaseInliner {
     // Substitute the producer block iters with the its bindings since the predicate in BlockRealize
     // should not contain the block iters
     predicate = Substitute(predicate, subst_map);
+    predicate = analyzer_.Simplify(predicate);
     return predicate;
   }
 
@@ -865,6 +866,13 @@ void ReverseComputeInlineImpl(ScheduleState self, const StmtSRef& consumer_block
     return;
   }
   self->Replace(scope_root_sref, tgt_stmt, inliner.block_reuse);
+  // Step 8. Update the cached flags
+  arith::Analyzer analyzer;
+  BlockInfo& block_info = self->block_info[producer_block_sref];
+  block_info.affine_binding = IsAffineBinding(
+      /*realize=*/GetBlockRealize(self, producer_block_sref),
+      /*loop_var_ranges=*/LoopDomainOfSRefTreePath(GetRef<StmtSRef>(producer_block_sref->parent)),
+      /*analyzer=*/&analyzer);
 }
 
 bool CanReverseComputeInline(const ScheduleState& self, const StmtSRef& block_sref) {

@@ -612,6 +612,34 @@ def elementwise_overcomputed_producer_reverse_inlined(
 
 
 @T.prim_func
+def elementwise_overcomputed_producer_simplify_predicate(
+    A: T.Buffer((128, 128), "float32"), C: T.Buffer((127, 127), "float32")
+) -> None:
+    B = T.alloc_buffer((128, 128))
+    for i in T.grid(16384):
+        with T.block("B"):
+            vi = T.axis.spatial(128, i // 128)
+            vj = T.axis.spatial(128, i % 128)
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(127, 127):
+        with T.block("C"):
+            cvi, cvj = T.axis.remap("SS", [i, j])
+            C[cvi, cvj] = B[cvi, cvj] + 1.0
+
+
+@T.prim_func
+def elementwise_overcomputed_producer_simplify_predicate_reverse_inlined(
+    A: T.Buffer((128, 128), "float32"), C: T.Buffer((127, 127), "float32")
+) -> None:
+    for i in T.grid(16384):
+        with T.block("B"):
+            vi = T.axis.spatial(128, i // 128)
+            vj = T.axis.spatial(128, i % 128)
+            T.where(i < 16255 and i % 128 < 127)
+            C[vi, vj] = A[vi, vj] * 2.0 + 1.0
+
+
+@T.prim_func
 def elementwise_producer_not_cover_consumer(
     A: T.Buffer((128, 128), "float32"), D: T.Buffer((256, 128), "float32")
 ) -> None:
@@ -1022,6 +1050,16 @@ def test_reverse_compute_inline_overcomputed_producer(use_block_name):
     sch.reverse_compute_inline(compute)
     tvm.ir.assert_structural_equal(
         elementwise_overcomputed_producer_reverse_inlined, sch.mod["main"]
+    )
+
+
+def test_reverse_compute_inline_overcomputed_producer_simplify_predicate(use_block_name):
+    """Test reverse compute inline overcomputed producer where the predicate should be simplified"""
+    sch = tir.Schedule(elementwise_overcomputed_producer_simplify_predicate, debug_mask="all")
+    compute = "C" if use_block_name else sch.get_block("C")
+    sch.reverse_compute_inline(compute)
+    tvm.ir.assert_structural_equal(
+        elementwise_overcomputed_producer_simplify_predicate_reverse_inlined, sch.mod["main"]
     )
 
 
