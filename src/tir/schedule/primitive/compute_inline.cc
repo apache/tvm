@@ -608,7 +608,7 @@ class ReverseComputeInliner : public BaseInliner {
         /*indices=*/buffer_load_indices_,
         /*input_iters=*/consumer_iter_doms,
         /*predicate=*/true,
-        /*check_level=*/arith::IterMapLevel::Bijective,
+        /*check_level=*/arith::IterMapLevel::NoCheck,
         /*analyzer=*/&analyzer_,
         /*simplify_trivial_iterators=*/false);
     buffer_load_iter_map_ = res->indices;

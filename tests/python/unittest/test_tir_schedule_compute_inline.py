@@ -640,6 +640,32 @@ def elementwise_overcomputed_producer_simplify_predicate_reverse_inlined(
 
 
 @T.prim_func
+def elementwise_overcomputed_producer_injective_load(
+    A: T.Buffer((128, 128), "float32"), C: T.Buffer((127, 127), "float32")
+) -> None:
+    B = T.alloc_buffer((8, 8, 16, 16))
+    for i0, j0, i1, j1 in T.grid(8, 8, 16, 16):
+        with T.block("B"):
+            vi, vj, vm, vn = T.axis.remap("SSSS", [i0, j0, i1, j1])
+            B[vi, vj, vm, vn] = A[vi * 16 + vm, vj * 16 + vn] * 2.0
+    for i, j in T.grid(127, 127):
+        with T.block("C"):
+            cvi, cvj = T.axis.remap("SS", [i, j])
+            C[cvi, cvj] = B[cvi // 16, cvj // 16, cvi % 16, cvj % 16] + 1.0
+
+
+@T.prim_func
+def elementwise_overcomputed_producer_injective_load_reverse_inlined(
+    A: T.Buffer((128, 128), "float32"), C: T.Buffer((127, 127), "float32")
+) -> None:
+    for i0, j0, i1, j1 in T.grid(8, 8, 16, 16):
+        with T.block("B"):
+            vi, vj, vm, vn = T.axis.remap("SSSS", [i0, j0, i1, j1])
+            T.where(i0 * 16 + i1 < 127 and j0 * 16 + j1 < 127)
+            C[vm + vi * 16, vn + vj * 16] = A[vi * 16 + vm, vj * 16 + vn] * 2.0 + 1.0
+
+
+@T.prim_func
 def elementwise_producer_not_cover_consumer(
     A: T.Buffer((128, 128), "float32"), D: T.Buffer((256, 128), "float32")
 ) -> None:
@@ -1060,6 +1086,16 @@ def test_reverse_compute_inline_overcomputed_producer_simplify_predicate(use_blo
     sch.reverse_compute_inline(compute)
     tvm.ir.assert_structural_equal(
         elementwise_overcomputed_producer_simplify_predicate_reverse_inlined, sch.mod["main"]
+    )
+
+
+def test_reverse_compute_inline_overcomputed_producer_injective_load(use_block_name):
+    """Test reverse compute inline overcomputed producer with injective buffer load"""
+    sch = tir.Schedule(elementwise_overcomputed_producer_injective_load, debug_mask="all")
+    compute = "C" if use_block_name else sch.get_block("C")
+    sch.reverse_compute_inline(compute)
+    tvm.ir.assert_structural_equal(
+        elementwise_overcomputed_producer_injective_load_reverse_inlined, sch.mod["main"]
     )
 
 
