@@ -25,6 +25,7 @@ from . import (
     mutator,
     postproc,
     relay_integration,
+    relax_integration,
     runner,
     schedule,
     schedule_rule,
