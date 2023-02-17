@@ -69,6 +69,7 @@ def prim_func_pass(
     opt_level: int = None,
     name: Optional[str] = None,
     required: Optional[List[str]] = None,
+    traceable=False,
 ) -> Union[Callable, PrimFuncPass]:
     """Decorate a function pass.
 
@@ -147,7 +148,7 @@ def prim_func_pass(
     def create_function_pass(pass_arg):
         """Internal function that creates a function pass"""
         fname = name if name else pass_arg.__name__
-        info = PassInfo(opt_level, fname, required)
+        info = PassInfo(opt_level, fname, required, traceable)
         if inspect.isclass(pass_arg):
             return _wrap_class_function_pass(pass_arg, info)
         if not callable(pass_arg):
