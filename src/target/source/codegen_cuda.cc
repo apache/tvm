@@ -926,7 +926,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
   } else if (op->op.same_as(builtin::ptx_wait_group())) {
     std::string N = this->PrintExpr(op->args[0]);
     this->stream << "__asm__ __volatile__(\"cp.async.wait_group " + N + ";\");\n\n";
-  } else if (op->op.same_as(builtin::ptx_ldg32())){
+  } else if (op->op.same_as(builtin::ptx_ldg32())) {
     /*
     asm volatile (
         "{.reg .pred p;\n"
@@ -946,15 +946,17 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string global_addr = this->PrintExpr(addr_buffer->indices[0]);
     std::string global_buffer = this->PrintExpr(addr_buffer->buffer->data);
     std::string local_addr = this->PrintExpr(op->args[3]);
-    this->stream << "asm volatile (\n" ;
-    this->stream << "\"{.reg .pred p;\\n\"\n" ;
-    this->stream << "\" setp.ne.b32 p, %2, 0;\\n\"\n" ;
+    this->stream << "asm volatile (\n";
+    this->stream << "\"{.reg .pred p;\\n\"\n";
+    this->stream << "\" setp.ne.b32 p, %2, 0;\\n\"\n";
     this->stream << "\" @!p mov.b32 %0, 0;\\n\"\n";
-    this->stream << "\" @p ld.global.nc.f32 %0, [%1];}\\n\"\n" ;
+    this->stream << "\" @p ld.global.nc.f32 %0, [%1];}\\n\"\n";
     // stream << "\" @p ld.global.nc.L2::128B.f32 %0, [%1];}\\n\"\n" ;
-    stream << ": \"=f\"(" << reg << "[" << local_addr << "]" << ")\n" ; 
-    stream << ": \"l\"((void*)(" << global_buffer << "+" << global_addr << ")), \"r\"((int)" << guard << ")\n" ;
-    stream << ");\n" ;
+    stream << ": \"=f\"(" << reg << "[" << local_addr << "]"
+           << ")\n";
+    stream << ": \"l\"((void*)(" << global_buffer << "+" << global_addr << ")), \"r\"((int)"
+           << guard << ")\n";
+    stream << ");\n";
   } else {
     CodeGenC::VisitExpr_(op, os);
   }
