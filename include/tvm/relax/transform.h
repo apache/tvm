@@ -107,7 +107,7 @@ TVM_DLL Pass AttachGlobalSymbol();
  *
  * \return The Pass.
  */
-TVM_DLL Pass BindParams(String name, Map<String, runtime::NDArray> params);
+TVM_DLL Pass BindParams(String func_name, Map<String, runtime::NDArray> params);
 
 /*!
  * \brief Fold constant expressions.
