@@ -28,7 +28,7 @@ from tvm.relax.testing.vm import check_saved_func
 from tvm.script import relax as R
 from tvm.script import tir as T
 
-EXEC_MODE = ["bytecode"]
+EXEC_MODE = ["bytecode", "compiled"]
 
 
 def codegen(mod, target, exec_mode="bytecode"):
