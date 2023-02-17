@@ -704,6 +704,42 @@ class TransformLayoutPlanner : private StmtExprVisitor {
   Buffer old_buffer_;
 };
 
+/**
+ * @brief Collect blocks that are part of root block to be passed to ScheduleState::Replace for SRef
+ * reuse
+ */
+class ReuseBlocksCollector : public tir::StmtVisitor {
+ public:
+  static Map<Block, Block> Collect(Block result, Map<Block, Block> new_block_to_old) {
+    return ReuseBlocksCollector(new_block_to_old).Run(result);
+  }
+
+ private:
+  /*! \brief Entry point */
+  Map<Block, Block> Run(const Block result) {
+    VisitStmt(result);
+    return block_sref_reuse_;
+  }
+  /*! \brief Constructor */
+  explicit ReuseBlocksCollector(Map<Block, Block> new_block_to_old)
+      : new_block_to_old_(new_block_to_old) {}
+
+  /*! \brief Override the Stmt visiting behaviour */
+  void VisitStmt_(const tir::BlockNode* block) override {
+    Block block_ref = GetRef<Block>(block);
+    auto it = new_block_to_old_.find(block_ref);
+    if (it != new_block_to_old_.end()) {
+      block_sref_reuse_.Set((*it).second, (*it).first);
+    }
+    StmtVisitor::VisitStmt_(block);
+  }
+
+  /*! \brief New map to be filled with just blocks from scope block */
+  Map<Block, Block> block_sref_reuse_;
+  /*! \brief All block replacements collected so far */
+  Map<Block, Block> new_block_to_old_;
+};
+
 class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
  public:
   /*!
@@ -730,17 +766,8 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
       write_ptr->body = SeqStmt({plan_ptr->prologue, write_ptr->body});
     }
 
-    Map<Block, Block> block_sref_reuse;
-    for (auto [after, before] : rewriter.new_block_to_old_) {
-      while (auto opt = rewriter.new_block_to_old_.Get(before)) {
-        before = opt.value();
-      }
-      while (auto opt = block_sref_reuse.Get(after)) {
-        after = opt.value();
-      }
-
-      block_sref_reuse.Set(before, after);
-    }
+    Map<Block, Block> block_sref_reuse =
+        ReuseBlocksCollector::Collect(result, rewriter.new_block_to_old_);
 
     return {result, block_sref_reuse};
   }
