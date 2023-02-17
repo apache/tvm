@@ -38,7 +38,6 @@ class AdrenoMixedPrecision(object):
 
     def __init__(self):
         """Saves the required info for RAII pattern usage.
-
         Parameters
         ----------
         acc_dtype : atr
@@ -83,3 +82,17 @@ def convert_to_dtype(mod, dtype):
     else:
         print("Warn: Invald dtype conversion to ", dtype)
     return mod
+
+
+@tvm.register_func("adreno.mixed_precision_fp16")
+def mixed_precision_hook_fp16(mod, params):
+    """TVMC hook api"""
+
+    return convert_to_dtype(mod["main"], "float16")
+
+
+@tvm.register_func("adreno.mixed_precision_fp16_acc32")
+def mixed_precision_hook_fp16_acc32(mod, params):
+    """TVMC hook api"""
+
+    return convert_to_dtype(mod["main"], "float16_acc32")

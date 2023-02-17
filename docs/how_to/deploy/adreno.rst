@@ -565,6 +565,9 @@ We then can compile our model in any convinient way
            mod, target_host=target_host, target=target, params=params
        )
 
+While using ``tvmc`` python interface, argument ``pre_build_hooks=[adreno.mixed_precision_fp16]`` enables precision conversion to float16.
+Similarly, ``tvmc`` command line interface option ``--pre-build-hooks "adreno.mixed_precision_fp16]"`` does the same.
+
 
 **float16_acc32 (Mixed Precision)**
 
@@ -597,6 +600,10 @@ We then can compile our model in any convinient way
        lib = relay.build(
            mod, target_host=target_host, target=target, params=params
        )
+
+While using ``tvmc`` python interface, argument ``pre_build_hooks=[adreno.mixed_precision_fp16_acc32]`` enables precision conversion to float16.
+Similarly, ``tvmc`` command line interface option ``--pre-build-hooks "adreno.mixed_precision_fp16_acc32]"`` does the same.
+
 
 .. |High-level overview of the Adreno™ A5x architecture for OpenCL| image:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/how-to/adreno_architecture.png
 .. |Adreno deployment pipeline| image:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/how-to/Adreno-Deployment-Pipeline.jpg
