@@ -85,7 +85,6 @@ def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher):
     executor = relay.backend.Executor("graph", {"link-params": True})
     mod = mod.with_attr("executor", executor)
 
-
     config = {
         "tir.use_async_copy": True,
         "tir.merge_async_commit_queue_scope": False,

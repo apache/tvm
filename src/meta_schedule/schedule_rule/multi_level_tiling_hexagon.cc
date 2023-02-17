@@ -60,7 +60,8 @@ std::vector<State> MultiLevelTilingHexagonNode::AddSoftwarePipeline(State state)
   if (!use_software_pipeline) {
     return {state};
   }
-  // The current config is not suitable for software pipelining if the r_indices_ (reduction indicies) are less than 2.
+  // The current config is not suitable for software pipelining if the r_indices_ (reduction
+  // indicies) are less than 2.
   if (r_indices_.size() < 2) {
     return {state};
   }
@@ -91,9 +92,10 @@ std::vector<State> MultiLevelTilingHexagonNode::AddSoftwarePipeline(State state)
   Array<Integer> software_pipeline_order;
   Array<Integer> software_pipeline_async_stages;
   if (cache_read_count == 2) {
-    software_pipeline_stage = Array<Integer>{0, 0, 1}; // The pipeline merges the first 2 stages into one.
+    software_pipeline_stage =
+        Array<Integer>{0, 0, 1};  // The pipeline merges the first 2 stages into one.
     software_pipeline_order = Array<Integer>{0, 1, 2};
-    software_pipeline_async_stages = Array<Integer>{0}; // The 0th stage is set as async.
+    software_pipeline_async_stages = Array<Integer>{0};  // The 0th stage is set as async.
   } else {
     software_pipeline_stage = Array<Integer>{0, 1};
     software_pipeline_order = Array<Integer>{0, 1};
