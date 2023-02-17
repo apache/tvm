@@ -914,7 +914,13 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string src = this->PrintExpr(op->args[2]);
     std::string src_offset = this->PrintExpr(op->args[3]);
     std::string size = this->PrintExpr(op->args[4]);
-    this->stream << PrintCpAsyncAssembly(dst, dst_offset, src, src_offset, size);
+    // use size of argument list to indicate whether or not to use predicated cp.async
+    if (op->args.size() == 5) {
+      this->stream << PrintCpAsyncAssembly(dst, dst_offset, src, src_offset, size);
+    } else {
+      this->stream << PrintPredicatedCpAsyncAssembly(dst, dst_offset, src, src_offset, size,
+                                                     this->PrintExpr(op->args[5]));
+    }
   } else if (op->op.same_as(builtin::ptx_commit_group())) {
     this->stream << "__asm__ __volatile__(\"cp.async.commit_group;\");\n\n";
   } else if (op->op.same_as(builtin::ptx_wait_group())) {
