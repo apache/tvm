@@ -1414,8 +1414,8 @@ def stft_strategy_cuda(attrs, inputs, out_type, target):
     return strategy
 
 
-@stft_strategy.register(["cuda", "gpu"])
-def stft_strategy_cuda(attrs, inputs, out_type, target):
+@dft_strategy.register(["cuda", "gpu"])
+def dft_strategy_cuda(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     strategy.add_implementation(
         wrap_compute_dft(topi.cuda.dft),

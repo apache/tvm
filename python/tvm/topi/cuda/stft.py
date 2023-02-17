@@ -136,9 +136,9 @@ def stft(
 
 
 def dft(
-        re_data: te.Tensor,
-        im_data: te.Tensor,
-        inverse: tir.IntImm,
+    re_data: te.Tensor,
+    im_data: te.Tensor,
+    inverse: tir.IntImm,
 ):
     """
     Computes the discrete Fourier transform of input (calculation along the last axis).
@@ -161,10 +161,10 @@ def dft(
     """
 
     def gen_ir(
-            re_data_buf,
-            im_data_buf,
-            re_output_buf,
-            im_output_buf,
+        re_data_buf,
+        im_data_buf,
+        re_output_buf,
+        im_output_buf,
     ):
         ib = tir.ir_builder.create()
         re_data_ptr = ib.buffer_ptr(re_data_buf)
@@ -202,8 +202,12 @@ def dft(
                         w = sign * -2 * pi * k * n / n_fft
                         cos_w = tir.Cast(re_output_ptr.dtype, tir.cos(w))
                         sin_w = tir.Cast(re_output_ptr.dtype, tir.sin(w))
-                        re_output_ptr[n_idx] += re_data_ptr[k_idx] * cos_w - im_data_ptr[k_idx] * sin_w
-                        im_output_ptr[n_idx] += re_data_ptr[k_idx] * sin_w + im_data_ptr[k_idx] * cos_w
+                        re_output_ptr[n_idx] += (
+                            re_data_ptr[k_idx] * cos_w - im_data_ptr[k_idx] * sin_w
+                        )
+                        im_output_ptr[n_idx] += (
+                            re_data_ptr[k_idx] * sin_w + im_data_ptr[k_idx] * cos_w
+                        )
 
                     re_output_ptr[n_idx] *= tir.Cast(re_output_ptr.dtype, factor)
                     im_output_ptr[n_idx] *= tir.Cast(im_output_ptr.dtype, factor)

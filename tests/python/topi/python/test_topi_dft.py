@@ -45,11 +45,11 @@ def test_dft(target, dev, inverse, shape, dtype):
         ),
         "gpu": (
             topi.cuda.dft,
-            topi.cuda.schedule_scan,
+            topi.cuda.schedule_extern,
         ),
         "nvptx": (
             topi.cuda.dft,
-            topi.cuda.schedule_scan,
+            topi.cuda.schedule_extern,
         ),
     }
 
