@@ -62,8 +62,13 @@ def test_dft(target, dev, inverse, shape, dtype):
     f(re, im, re_out, im_out)
 
     re_reference, im_reference = numpy_reference(inverse, re_np, im_np)
-    tvm.testing.assert_allclose(re_out.numpy(), re_reference, rtol=1e-3, atol=1e-3)
-    tvm.testing.assert_allclose(im_out.numpy(), im_reference, rtol=1e-3, atol=1e-3)
+
+    atol = rtol = 1e-3
+    if dtype == "float16":
+        atol = rtol = 1e-1
+
+    tvm.testing.assert_allclose(re_out.numpy(), re_reference, rtol=rtol, atol=atol)
+    tvm.testing.assert_allclose(im_out.numpy(), im_reference, rtol=rtol, atol=atol)
 
 
 if __name__ == "__main__":
