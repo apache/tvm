@@ -31,8 +31,10 @@ namespace transform {
 transform::Pass BindTarget(Target target) {
   auto fpass = [target](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
     if (f->GetAttr<Integer>(tvm::tir::attr::kIsHostFunc) == 1) {
-      ICHECK(target->host.defined());
-      return WithAttr(std::move(f), tvm::attr::kTarget, target->host.value());
+      return WithAttrs(std::move(f), Map<String, ObjectRef>{
+                       {tvm::attr::kTarget, target->host.value_or(Target("llvm"))},
+                       {tvm::tir::attr::kIsHostFunc, Integer(0)},
+                   });
     }
     return WithAttr(std::move(f), tvm::attr::kTarget, target);
   };

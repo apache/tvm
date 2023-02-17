@@ -347,13 +347,6 @@ class HostDeviceSplitter : public StmtMutator {
 };
 
 PrimFunc SplitHostDevice(PrimFunc&& func, IRModule* device_mod) {
-  // skip the check if the function is host function.
-  if (func->GetAttr<Integer>(tvm::tir::attr::kIsHostFunc) == 1) {
-    // set the host target to None.
-    func = WithAttr(std::move(func), tvm::attr::kTarget, Target(nullptr));
-    return std::move(func);
-  }
-
   auto target = func->GetAttr<Target>(tvm::attr::kTarget);
   ICHECK(target.defined()) << "SplitHostDevice: Require the target attribute";
   auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);

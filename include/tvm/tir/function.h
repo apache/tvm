@@ -326,7 +326,7 @@ constexpr const char* kIsEntryFunc = "tir.is_entry_func";
 constexpr const char* kIsGlobalFunc = "tir.is_global_func";
 
 /*!
- * \brief Mark the function as run on the host.
+ * \brief Mark the function as run on the host, mutually exclusive with kTarget.
  *
  * Type: Integer
  */
