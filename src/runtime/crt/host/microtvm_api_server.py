@@ -132,7 +132,7 @@ class Handler(server.ProjectAPIHandler):
             else:
                 shutil.copy2(src_path, dst_path)
 
-        # Populate Makefile
+        # Populate CMake file
         self._populate_cmake(
             current_dir / f"{CMAKEFILE_FILENAME}.template",
             project_dir / CMAKEFILE_FILENAME,
