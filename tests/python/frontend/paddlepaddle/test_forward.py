@@ -1733,5 +1733,21 @@ def test_forward_one_hot_v2():
     verify_model(one_hot_v2_1, input_data=input_data)
 
 
+@tvm.testing.uses_gpu
+def test_forward_norm():
+    @paddle.jit.to_static
+    def norm_1(inputs):
+        return paddle.fluid.layers.l2_normalize(inputs, -1, 1e-12)
+
+    def norm_2(inputs):
+        return paddle.fluid.layers.l2_normalize(inputs, 1, 1e-12)
+
+    input_data = paddle.to_tensor(
+        [[[1, 2], [3, 1], [4, 5]], [[3, 1], [3, 5], [2, 4]]], dtype=paddle.float32
+    )
+    verify_model(norm_1, input_data=input_data)
+    verify_model(norm_2, input_data=input_data)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
