@@ -44,12 +44,13 @@ using DataflowBlock = tvm::relax::DataflowBlock;
  * \param opt_level The optimization level of the function pass.
  * \param name The name of the function pass.
  * \param required The list of the passes that the function pass is dependent on.
+ * \param traceable Boolean variable whether the dataflowblock pass is traceable.
  *
  * \return The created function pass.
  */
 TVM_DLL Pass CreateFunctionPass(
     const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
-    int opt_level, String name, tvm::Array<String> required);
+    int opt_level, String name, tvm::Array<String> required, bool traceable = false);
 
 /*!
  * \brief Create a dataflowblock pass.
@@ -58,12 +59,13 @@ TVM_DLL Pass CreateFunctionPass(
  * \param opt_level The optimization level of the dataflowblock pass.
  * \param name The name of the dataflowblock pass.
  * \param required The list of the passes that the dataflowblock pass is dependent on.
+ * \param traceable Boolean variable whether the dataflowblock pass is traceable.
  *
  * \return The created dataflowblock pass.
  */
 TVM_DLL Pass CreateDataflowBlockPass(
     const runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)>& pass_func,
-    int opt_level, String name, tvm::Array<String> required);
+    int opt_level, String name, tvm::Array<String> required, bool traceable = false);
 
 /*!
  * \brief Transform all dataflow structure to non-dataflow version.
@@ -93,6 +95,22 @@ TVM_DLL Pass CallTIRRewrite();
  */
 TVM_DLL Pass RewriteDataflowReshape();
 
+/*!
+ * \brief Bind params of function of the module to constant tensors.
+ *
+ * \param func_name The name of the function to bind parameters.
+ * \param params The parameters to bind.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass BindParams(String func_name, Map<String, runtime::NDArray> params);
+
+/*!
+ * \brief Fold constant expressions.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass FoldConstant();
 /*!
  * \brief Attach global_symbol to Relax functions and TIR Primfuncs for codegen.
  *
