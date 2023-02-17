@@ -181,14 +181,17 @@ def test_aot_executor():
         factory = tvm.relay.build(relay_mod, target=TARGET, runtime=runtime, executor=executor)
 
     def do_test():
-        aot_executor = tvm.runtime.executor.aot_executor.AotModule(
-            sess._rpc.get_function("tvm.aot_executor.create")(
-                sess.get_system_lib(), sess.device, "default"
-            )
-        )
+        aot_executor = tvm.micro.create_local_aot_executor(sess)
 
         assert aot_executor.get_input_index("a") == 0
         assert aot_executor.get_input_index("b") == 1
+
+        assert aot_executor.get_input_name(0) == "a"
+        assert aot_executor.get_input_name(1) == "b"
+
+        shape_dict, dtype_dict = aot_executor.get_input_info()
+        assert shape_dict == {"a": (1, 2), "b": (1, 2)}
+        assert dtype_dict == {"a": "uint8", "b": "uint8"}
 
         assert aot_executor.get_num_inputs() == 2
         assert aot_executor.get_num_outputs() == 1
@@ -246,11 +249,7 @@ def test_aot_executor_usmp_const_pool():
 
     def do_test():
         try:
-            aot_executor = tvm.runtime.executor.aot_executor.AotModule(
-                sess._rpc.get_function("tvm.aot_executor.create")(
-                    sess.get_system_lib(), sess.device, "default"
-                )
-            )
+            aot_executor = tvm.micro.create_local_aot_executor(sess)
         except tvm._ffi.base.TVMError as excpt:
             raise excpt
 
@@ -408,11 +407,9 @@ def test_autotune():
         lowered = tvm.relay.build(mod, target=TARGET, runtime=runtime, params=params)
 
     temp_dir = tvm.contrib.utils.tempdir()
-    project = tvm.micro.generate_project(template_project_dir, lowered, temp_dir / "project")
-    project.build()
-    with tvm.micro.Session(project.transport()) as session:
+    with _make_session(temp_dir, lowered) as sess:
         graph_mod = tvm.micro.create_local_graph_executor(
-            lowered.get_graph_json(), session.get_system_lib(), session.device
+            lowered.get_graph_json(), sess.get_system_lib(), sess.device
         )
         graph_mod.set_input(**lowered.get_params())
         graph_mod.run(**inputs)
@@ -425,11 +422,9 @@ def test_autotune():
             lowered_tuned = tvm.relay.build(mod, target=target, runtime=runtime, params=params)
 
     temp_dir = tvm.contrib.utils.tempdir()
-    project = tvm.micro.generate_project(template_project_dir, lowered_tuned, temp_dir / "project")
-    project.build()
-    with tvm.micro.Session(project.transport()) as session:
+    with _make_session(temp_dir, lowered_tuned) as sess:
         graph_mod = tvm.micro.create_local_graph_executor(
-            lowered_tuned.get_graph_json(), session.get_system_lib(), session.device
+            lowered_tuned.get_graph_json(), sess.get_system_lib(), sess.device
         )
         graph_mod.set_input(**lowered_tuned.get_params())
         graph_mod.run(**inputs)
