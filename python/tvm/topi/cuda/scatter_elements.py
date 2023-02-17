@@ -278,10 +278,13 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
             "scatter_elements reduction not in [update, add, mul, min, max]:", reduction
         )
 
+    shape = data.shape
+    rank = len(shape)
     cur_target_kind = str(tvm.target.Target.current(allow_none=False).kind)
     gen_scatter_elements_ir = None
     if (
         reduction == "add"
+        and rank == 1
         and cur_target_kind not in ["vulkan", "metal"]
         and updates.dtype in ["int32", "float32"]
     ):
@@ -289,9 +292,9 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
     else:
         gen_scatter_elements_ir = gen_ir
 
-    out_buf = tir.decl_buffer(data.shape, data.dtype, "out_buf")
+    out_buf = tir.decl_buffer(shape, data.dtype, "out_buf")
     return te.extern(
-        [data.shape],
+        [shape],
         [data, indices, updates],
         lambda ins, outs: gen_scatter_elements_ir(
             ins[0], ins[1], ins[2], outs[0], axis, reduce_func
