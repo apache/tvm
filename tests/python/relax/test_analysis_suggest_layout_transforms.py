@@ -26,9 +26,13 @@ from tvm.script import relax as R, tir as T, ir as I
 
 def apply_transformations(func, suggested_transfoms):
     sch = tir.Schedule(func)
+    visited = set()
     for block, per_block_transformations in suggested_transfoms.items():
         blockrv = sch.get_block(block.name_hint)
         for obj, index_map in per_block_transformations.items():
+            if obj in visited:
+                continue
+            visited.add(obj)
             if isinstance(obj, tir.Block):
                 block_name = obj.name_hint
                 print("Block transformation: ", block_name, " :: ", index_map)
@@ -482,28 +486,127 @@ def test_op_split():
     @T.prim_func
     def before(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
-        T_split_sections: T.Buffer((32, 32, 224, 224), "float32"),
-        T_split_sections_1: T.Buffer((32, 32, 224, 224), "float32"),
+        split0: T.Buffer((32, 32, 224, 224), "float32"),
+        split1: T.Buffer((32, 32, 224, 224), "float32"),
     ):
         for ax0, ax1, ax2, ax3 in T.grid(32, 32, 224, 224):
             with T.block("T_split_sections"):
                 v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 T.reads(arg[v_ax0, v_ax1, v_ax2, v_ax3])
-                T.writes(T_split_sections[v_ax0, v_ax1, v_ax2, v_ax3])
-                T_split_sections[v_ax0, v_ax1, v_ax2, v_ax3] = arg[v_ax0, v_ax1, v_ax2, v_ax3]
+                T.writes(split0[v_ax0, v_ax1, v_ax2, v_ax3])
+                split0[v_ax0, v_ax1, v_ax2, v_ax3] = arg[v_ax0, v_ax1, v_ax2, v_ax3]
         for ax0, ax1, ax2, ax3 in T.grid(32, 32, 224, 224):
             with T.block("T_split_sections_1"):
                 v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 T.reads(arg[v_ax0, v_ax1 + 32, v_ax2, v_ax3])
-                T.writes(T_split_sections_1[v_ax0, v_ax1, v_ax2, v_ax3])
-                T_split_sections_1[v_ax0, v_ax1, v_ax2, v_ax3] = arg[
-                    v_ax0, v_ax1 + 32, v_ax2, v_ax3
-                ]
+                T.writes(split1[v_ax0, v_ax1, v_ax2, v_ax3])
+                split1[v_ax0, v_ax1, v_ax2, v_ax3] = arg[v_ax0, v_ax1 + 32, v_ax2, v_ax3]
+
+    @T.prim_func
+    def expected(
+        arg: T.Buffer((32, 224, 224, 64), "float32"),
+        split0: T.Buffer((32, 224, 224, 32), "float32"),
+        split1: T.Buffer((32, 224, 224, 32), "float32"),
+    ):
+        for ax0, ax1, ax2, ax3 in T.grid(32, 224, 224, 32):
+            with T.block("T_split_sections"):
+                v0, v1, v2, v3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                T.reads(arg[v0, v1, v2, v3])
+                T.writes(split0[v0, v1, v2, v3])
+                split0[v0, v1, v2, v3] = arg[v0, v1, v2, v3]
+        for ax0, ax1, ax2, ax3 in T.grid(32, 224, 224, 32):
+            with T.block("T_split_sections_1"):
+                v0, v1, v2, v3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                T.reads(arg[v0, v1, v2, v3 + 32])
+                T.writes(split1[v0, v1, v2, v3])
+                split1[v0, v1, v2, v3] = arg[v0, v1, v2, v3 + 32]
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
         func=before,
         write_buffer_transforms=[lambda n, c, h, w: (n, h, w, c), lambda n, c, h, w: (n, h, w, c)],
     )
     after = apply_transformations(before, suggested_transforms)
-    # no transformation for split as multiple write transformations are not handled yet.
+    tvm.ir.assert_structural_equal(after, expected)
+
+
+def test_op_split_tiling_split_dim():
+    @T.prim_func
+    def before(
+        arg: T.Buffer((32, 64, 224, 224), "float32"),
+        split0: T.Buffer((32, 32, 224, 224), "float32"),
+        split1: T.Buffer((32, 32, 224, 224), "float32"),
+    ):
+        for ax0, ax1, ax2, ax3 in T.grid(32, 32, 224, 224):
+            with T.block("T_split_sections"):
+                v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                T.reads(arg[v_ax0, v_ax1, v_ax2, v_ax3])
+                T.writes(split0[v_ax0, v_ax1, v_ax2, v_ax3])
+                split0[v_ax0, v_ax1, v_ax2, v_ax3] = arg[v_ax0, v_ax1, v_ax2, v_ax3]
+        for ax0, ax1, ax2, ax3 in T.grid(32, 32, 224, 224):
+            with T.block("T_split_sections_1"):
+                v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                T.reads(arg[v_ax0, v_ax1 + 32, v_ax2, v_ax3])
+                T.writes(split1[v_ax0, v_ax1, v_ax2, v_ax3])
+                split1[v_ax0, v_ax1, v_ax2, v_ax3] = arg[v_ax0, v_ax1 + 32, v_ax2, v_ax3]
+
+    @T.prim_func
+    def expected(
+        arg: T.Buffer((32, 224, 224, 16, 4), "float32"),
+        split0: T.Buffer((32, 224, 224, 8, 4), "float32"),
+        split1: T.Buffer((32, 224, 224, 8, 4), "float32"),
+    ):
+        # with T.block("root"):
+        for ax0, ax1, ax2, ax3, ax4 in T.grid(32, 224, 224, 8, 4):
+            with T.block("T_split_sections"):
+                v0, v1, v2, v3, v4 = T.axis.remap("SSSSS", [ax0, ax1, ax2, ax3, ax4])
+                T.reads(arg[v0, v1, v2, v3, v4])
+                T.writes(split0[v0, v1, v2, v3, v4])
+                split0[v0, v1, v2, v3, v4] = arg[v0, v1, v2, v3, v4]
+        for ax0, ax1, ax2, ax3, ax4 in T.grid(32, 224, 224, 8, 4):
+            with T.block("T_split_sections_1"):
+                v0, v1, v2, v3, v4 = T.axis.remap("SSSSS", [ax0, ax1, ax2, ax3, ax4])
+                T.reads(arg[v0, v1, v2, v3 + 8, v4])
+                T.writes(split1[v0, v1, v2, v3, v4])
+                split1[v0, v1, v2, v3, v4] = arg[v0, v1, v2, v3 + 8, v4]
+
+    suggested_transforms = relax.analysis.suggest_layout_transforms(
+        func=before,
+        write_buffer_transforms=[
+            lambda n, c, h, w: (n, h, w, c // 4, c % 4),
+            lambda n, c, h, w: (n, h, w, c // 4, c % 4),
+        ],
+    )
+    after = apply_transformations(before, suggested_transforms)
+    tvm.ir.assert_structural_equal(after, expected)
+
+
+def test_invalid_non_bijective():
+    @T.prim_func
+    def before(
+        arg: T.Buffer((32, 64, 224, 224), "float32"),
+        split0: T.Buffer((32, 32, 224, 224), "float32"),
+        split1: T.Buffer((32, 32, 224, 224), "float32"),
+    ):
+        for ax0, ax1, ax2, ax3 in T.grid(32, 32, 224, 224):
+            with T.block("T_split_sections"):
+                v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                T.reads(arg[v_ax0, v_ax1, v_ax2, v_ax3])
+                T.writes(split0[v_ax0, v_ax1, v_ax2, v_ax3])
+                split0[v_ax0, v_ax1, v_ax2, v_ax3] = arg[v_ax0, v_ax1, v_ax2, v_ax3]
+        for ax0, ax1, ax2, ax3 in T.grid(32, 32, 224, 224):
+            with T.block("T_split_sections_1"):
+                v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                T.reads(arg[v_ax0, v_ax1 + 32, v_ax2, v_ax3])
+                T.writes(split1[v_ax0, v_ax1, v_ax2, v_ax3])
+                split1[v_ax0, v_ax1, v_ax2, v_ax3] = arg[v_ax0, v_ax1 + 32, v_ax2, v_ax3]
+
+    suggested_transforms = relax.analysis.suggest_layout_transforms(
+        func=before,
+        write_buffer_transforms=[
+            lambda n, c, h, w: (n, h, w, c // 5, c % 5),
+            lambda n, c, h, w: (n, h, w, c // 5, c % 5),
+        ],
+    )
+    after = apply_transformations(before, suggested_transforms)
+    # no transformations suggested
     tvm.ir.assert_structural_equal(after, before)
