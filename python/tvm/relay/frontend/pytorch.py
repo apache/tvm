@@ -2685,10 +2685,10 @@ class PyTorchOpConverter:
         return _op.scatter_add(data, index, src, axis=axis)
 
     def scatter_reduce(self, inputs, input_types):
-        assert (
-            len(inputs) == 5 or len(inputs) == 6
-        ), "scatter_reduce takes 5 or 6 inputs (data, dim, index, src, reduce, include_self), " + \
-            "but {} given".format(len(inputs))
+        assert len(inputs) == 5 or len(inputs) == 6, (
+            "scatter_reduce takes 5 or 6 inputs (data, dim, index, src, reduce, include_self), "
+            + "but {} given".format(len(inputs))
+        )
         data = inputs[0]
         dim = inputs[1]
         index = inputs[2]
@@ -2720,10 +2720,7 @@ class PyTorchOpConverter:
         assert reduce in red_valids, "Only {} modes are supported, but {} is gotten".format(
             red_valids, reduce
         )
-        if reduce == "mean":
-            # TODO(vvchernov): support mean reduction
-            raise NotImplementedError("Mean reduction has not been supported yet!")
-        elif reduce == "sum":
+        if reduce == "sum":
             reduce = "add"
         elif reduce == "prod":
             reduce = "mul"
@@ -2731,6 +2728,9 @@ class PyTorchOpConverter:
             reduce = "min"
         elif reduce == "amax":
             reduce = "max"
+        else: # reduce == "mean"
+            # TODO(vvchernov): support mean reduction
+            raise NotImplementedError("Mean reduction has not been supported yet!")
 
         return _op.scatter_elements(data, index, src, axis=dim, reduction=reduce)
 
