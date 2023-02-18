@@ -21,14 +21,14 @@ This file contains the set of passes for Relax, which exposes an interface for
 configuring the passes and scripting them in Python.
 """
 
-from typing import Dict
+from typing import Dict, List
 from enum import IntEnum
 
 from tvm import tir
 from tvm import IRModule
 from tvm.relax.ty import Type
 from tvm.relax.struct_info import StructInfo, FuncStructInfo
-from tvm.relax.expr import Var, Expr, Call
+from tvm.relax.expr import DataflowBlock, Var, Expr, Function, Call
 from . import _ffi_api
 
 
@@ -208,6 +208,40 @@ def has_reshape_pattern(func: tir.PrimFunc) -> bool:
     of this function.
     """
     return _ffi_api.has_reshape_pattern(func)  # type: ignore
+
+
+def get_var2val(func: Function) -> Dict[Var, Expr]:
+    """
+    Get a mapping from Var to Expr for each variable in the function.
+
+    Parameters
+    ----------
+    func : Function
+        The input function to be analyzed.
+
+    Returns
+    -------
+    Dict[Var, Expr]
+        A mapping from Var to Expr.
+    """
+    return _ffi_api.get_var2val(func)  # type: ignore
+
+
+def udchain(dfb: DataflowBlock) -> Dict[Var, List[Var]]:
+    """
+    Analyze the variable use-def chain in a dataflow block.
+
+    Parameters
+    ----------
+    dfb : DataflowBlock
+        The dataflow block to analyze
+
+    Returns
+    -------
+    Dict[Var, List[Var]]
+        A mapping from variable definition to its uses.
+    """
+    return _ffi_api.udchain(dfb)  # type: ignore
 
 
 def well_formed(mod: IRModule, check_struct_info: bool = True) -> bool:
