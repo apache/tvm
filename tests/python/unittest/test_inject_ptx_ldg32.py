@@ -21,13 +21,13 @@ import tvm.testing
 
 
 @T.prim_func
-def vector_add(A: T.Buffer[(16), "float32"], B: T.Buffer[(32), "float32"]) -> None:
+def vector_add(A: T.Buffer((16), "float32"), B: T.Buffer((32), "float32")) -> None:
     T.func_attr({"global_symbol": "default_function", "tir.noalias": True})
     bx = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
-    A_local = T.alloc_buffer([32], "float32", scope="local")
+    A_local = T.Buffer((32), "float32", scope="local")
 
     with T.block():
         T.reads(A[0:16])
