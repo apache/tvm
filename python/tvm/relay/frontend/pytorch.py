@@ -2696,6 +2696,7 @@ class PyTorchOpConverter:
         reduce = inputs[4]
         if len(inputs) == 6:
             include_self = inputs[5]
+            # TODO(vvchernov): support include_self == False
             assert include_self, "include_self=False has not been suppoted for scatter_reduce yet"
 
         data_shape = self.infer_shape(inputs[0])
