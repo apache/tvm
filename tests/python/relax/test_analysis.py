@@ -21,8 +21,29 @@ import tvm
 import tvm.testing
 from tvm import tir
 from tvm import relax as rx
-from tvm.relax.analysis import has_reshape_pattern
+from tvm.relax.analysis import has_reshape_pattern, udchain
 from tvm.script import relax as R, tir as T
+
+
+def test_use_def():
+    m = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
+    x = rx.Var("x", R.Tensor([m, n], "float16"))
+    y = rx.Var("y", R.Tensor([n], "float16"))
+    ib = rx.BlockBuilder()
+    with ib.function("func", [x, y]):
+        with ib.dataflow():
+            lv0 = ib.emit(rx.op.add(x, y))
+            lv1 = ib.emit(rx.op.multiply(lv0, y))
+            gv0 = ib.emit_output(lv1)
+        ib.emit_func_output(gv0)
+    dfb = ib.get()["func"].body.blocks[0]
+    udc = udchain(dfb)
+    assert set(udc[x]) == {lv0}
+    assert set(udc[y]) == {lv0, lv1}
+    assert set(udc[lv0]) == {lv1}
+    assert set(udc[lv1]) == {gv0}
+    assert set(udc[gv0]) == set()
 
 
 def test_reshape_pattern_reshape():
