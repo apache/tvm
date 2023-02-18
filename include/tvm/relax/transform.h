@@ -133,6 +133,15 @@ TVM_DLL Pass BindParams(String func_name, Map<String, runtime::NDArray> params);
  * \return The Pass.
  */
 TVM_DLL Pass FoldConstant();
+
+/*!
+ * \brief Transform Relax IR to normal form: transform AST to A-normal form, and fill the
+ * checked_type_ and shape_ of expressions.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass Normalize();
+
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm

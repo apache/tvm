@@ -68,6 +68,17 @@ def CallTIRRewrite() -> tvm.ir.transform.Pass:
     return _ffi_api.CallTIRRewrite()  # type: ignore
 
 
+def Normalize() -> tvm.ir.transform.Pass:
+    """Transforming Relax IR to normal form, i.e., the expressions are normalized(no nesting
+    and hence the AST is in ANF), and all checked_type_ and shape_ of expressions are available.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.Normalize()  # type: ignore
+
+
 def RewriteDataflowReshape() -> tvm.ir.transform.Pass:
     """Convert all reshape-like call_tir to VM reshape operator call.
     The VM reshape operator calls will be further lowered to a CreateView
