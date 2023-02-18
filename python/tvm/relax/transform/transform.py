@@ -93,6 +93,17 @@ def RewriteDataflowReshape() -> tvm.ir.transform.Pass:
     return _ffi_api.RewriteDataflowReshape()  # type: ignore
 
 
+def StaticPlanBlockMemory() -> tvm.ir.transform.Pass:
+    """The static memory planning pass on BindingBlock level.
+    The pass will reuse allocated memory to its best effort, in order to
+    reduce the total amount of allocated memory size.
+    Returns
+    -------
+    ret : tvm.ir.transform.Pass
+    """
+    return _ffi_api.StaticPlanBlockMemory()  # type: ignore
+
+
 def VMBuiltinLower() -> tvm.ir.transform.Pass:
     """Lowering generic intrinsic to VM intrinsics.
 
