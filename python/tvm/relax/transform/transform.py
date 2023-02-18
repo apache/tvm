@@ -24,6 +24,7 @@ import numpy as np  # type: ignore
 import tvm.ir
 from tvm.runtime import NDArray
 from . import _ffi_api
+from .legalize_ops.common import LegalizeFunc
 
 
 @tvm._ffi.register_object("relax.FunctionPass")
@@ -227,6 +228,108 @@ def FuseTIR() -> tvm.ir.transform.Pass:
         The registered pass for tir fusion.
     """
     return _ffi_api.FuseTIR()  # type: ignore
+
+
+def LegalizeOps(customize_legalize_map: Optional[Dict[str, LegalizeFunc]] = None):
+    """Legalize high-level operator calls in Relax functions to call_tir
+    with corresponding low-level TIR PrimFuncs.
+
+    For each high-level operator, we register the way of legalizing it as a
+    function, which takes a context BlockBuilder and the Call being legalized
+    as input, and returns the legalized call. Here the input BlockBuilder is
+    mainly used for adding the PrimFunc created by call_te into the context
+    IRModule.
+
+    The legalization function for each operator is registered as an attribute (with
+    attribute key `FLegalize`) of the operator.
+
+    This pass provides customizability for users to use their own legalization
+    function for operators. The pass takes an optional customized map,
+    with the key to be the operator name (`str`) and value to be the function
+    (`LegalizeFunc`). The default legalization function will be overridden by the customized
+    one.
+
+    Parameters
+    ----------
+    customize_legalize_map : Optional[Dict[str, LegalizeFunc]]
+        The customized operator legalization function map. The customized function will override
+        the default one.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass
+
+    Examples
+    --------
+    The following code shows how to use this pass:
+
+    .. code-block:: python
+
+        # Define the pass input IRModule
+        @tvm.script.ir_module
+        class Module:
+            @R.function
+            def main(
+                x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")
+            ) -> R.Tensor((2, 3), "float32"):
+                z: R.Tensor((2, 3), "float32") = R.add(x, y)
+                r: R.Tensor((2, 3), "float32") = R.multiply(y, z)
+                return r
+
+        # Define the customized legalization function for "relax.add"
+        def customize_legalize_add(bb: relax.BlockBuilder, call: relax.Call) -> relax.Expr:
+            from tvm import topi
+            return bb.call_te(topi.add, call.args[1], call.args[0])
+
+        # Apply the pass with the customized function to the module.
+        mod = LegalizeOps({"relax.add": customize_legalize_add})(Module)
+
+    Print out the result by `mod.show()`, we can see the IRModule after
+    legalization becomes
+
+    .. code-block:: python
+
+        @tvm.script.ir_module
+        class Module:
+            @R.function
+            def main(
+                x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")
+            ) -> R.Tensor((2, 3), "float32"):
+                z = R.call_tir(add, (y, x), (2, 3), dtype="float32")
+                r = R.call_tir(multiply, (y, z), (2, 3), dtype="float32")
+                return r
+
+            @T.prim_func
+            def add(
+                A: T.Buffer[(2, 3), "float32"],
+                B: T.Buffer[(2, 3), "float32"],
+                T_add: T.Buffer[(2, 3), "float32"],
+            ):
+                T.func_attr({"tir.noalias": True})
+                for ax0, ax1 in T.grid(2, 3):
+                    with T.block("T_add"):
+                        v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                        T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
+                        T.writes(T_add[v_ax0, v_ax1])
+                        T_add[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[v_ax0, v_ax1]
+
+            @T.prim_func
+            def multiply(
+                A: T.Buffer[(2, 3), "float32"],
+                B: T.Buffer[(2, 3), "float32"],
+                T_multiply: T.Buffer[(2, 3), "float32"],
+            ):
+                T.func_attr({"tir.noalias": True})
+                for ax0, ax1 in T.grid(2, 3):
+                    with T.block("T_multiply"):
+                        v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                        T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
+                        T.writes(T_multiply[v_ax0, v_ax1])
+                        T_multiply[v_ax0, v_ax1] = A[v_ax0, v_ax1] * B[v_ax0, v_ax1]
+    """
+
+    return _ffi_api.LegalizeOps(customize_legalize_map)  # type: ignore
 
 
 def MetaScheduleApplyDatabase(
