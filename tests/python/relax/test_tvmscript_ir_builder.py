@@ -61,8 +61,8 @@ def test_match_cast():
     """
     @R.function
     def foo(x: R.Tensor(None, "float32"), y: R.Tensor(None, "float32")):
-        m = T.var("int64")
-        n = T.var("int64")
+        m = T.int64()
+        n = T.int64()
         _ = R.match_cast(x, R.Tensor((m,), "float32"))
         y1 = R.match_cast(x, R.Tensor((n,), "float32"))
         return (m, n * 2)

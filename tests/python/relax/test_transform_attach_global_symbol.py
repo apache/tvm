@@ -28,9 +28,9 @@ from tvm.script import tir as T, relax as R
 class Before:
     @T.prim_func
     def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
-        m = T.var("int64")
-        n = T.var("int64")
-        k = T.var("int64")
+        m = T.int64()
+        n = T.int64()
+        k = T.int64()
         A = T.match_buffer(x, (m, n))
         B = T.match_buffer(y, (n, k))
         C = T.match_buffer(z, (m, k))
@@ -44,7 +44,7 @@ class Before:
 
     @R.function
     def main(x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")) -> R.Tensor:
-        m, n, k = T.var("int64"), T.var("int64"), T.var("int64")
+        m, n, k = T.int64(), T.int64(), T.int64()
         gv0 = R.call_tir("tir_matmul", (x, w), R.Tensor((m, k), dtype="float32"))
         return gv0
 
@@ -55,9 +55,9 @@ def test_basic():
         @T.prim_func
         def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
-            m = T.var("int64")
-            n = T.var("int64")
-            k = T.var("int64")
+            m = T.int64()
+            n = T.int64()
+            k = T.int64()
             A = T.match_buffer(x, (m, n))
             B = T.match_buffer(y, (n, k))
             C = T.match_buffer(z, (m, k))
@@ -74,7 +74,7 @@ def test_basic():
             x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")
         ) -> R.Tensor:
             R.func_attr({"global_symbol": "main"})
-            m, n, k = T.var("int64"), T.var("int64"), T.var("int64")
+            m, n, k = T.int64(), T.int64(), T.int64()
             gv0 = R.call_tir("tir_matmul", (x, w), R.Tensor((m, k), dtype="float32"))
             return gv0
 
