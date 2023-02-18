@@ -61,9 +61,9 @@ def test_where_symbolic():
     class Where:
         @R.function
         def main(condition: R.Tensor(("a", "b", 1), "bool"), x: R.Tensor(("b", "c"), "float32"), y: R.Tensor(("b", 1), "float32")) -> R.Tensor(("a", "b", "c"), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
             gv: R.Tensor((a, b, c), "float32") = R.where(condition, x, y)
             return gv
 
@@ -71,18 +71,18 @@ def test_where_symbolic():
     class Expected:
         @R.function
         def main(condition: R.Tensor(("a", "b", 1), "bool"), x: R.Tensor(("b", "c"), "float32"), y: R.Tensor(("b", 1), "float32")) -> R.Tensor(("a", "b", "c"), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
             gv = R.call_tir(where, (condition, x, y), R.Tensor((a, b, c), dtype="float32"))
             return gv
 
         @T.prim_func
         def where(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_rxplaceholder_2: T.handle, var_T_where: T.handle):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [a, b, T.int64(1)], dtype="bool")
             rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [b, c], dtype="float32")
             rxplaceholder_2 = T.match_buffer(var_rxplaceholder_2, [b, T.int64(1)], dtype="float32")
@@ -141,8 +141,8 @@ def test_max_symbolic():
     class Max:
         @R.function
         def main(x: R.Tensor(("a", "b", "c", "d"), "float32")) -> R.Tensor(("a", "d"), "float32"):
-            a = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            d = T.int64()
             gv: R.Tensor((a, d), "float32") = R.max(x, axis=[1, 2])
             return gv
 
@@ -150,18 +150,18 @@ def test_max_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("a", "b", "c", "d"), "float32")) -> R.Tensor(("a", "d"), "float32"):
-            a = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            d = T.int64()
             gv = R.call_tir(max, (x,), R.Tensor((a, d), dtype="float32"))
             return gv
 
         @T.prim_func
         def max(var_rxplaceholder: T.handle, var_rxplaceholder_red: T.handle):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [a, b, c, d], dtype="float32")
             rxplaceholder_red = T.match_buffer(var_rxplaceholder_red, [a, d], dtype="float32")
             for i0, i1, i2, i3 in T.grid(a, d, b, c):
@@ -217,8 +217,8 @@ def test_min_symbolic():
     class Min:
         @R.function
         def main(x: R.Tensor(("a", "b", "c", "d"), "float32")) -> R.Tensor(("a", 1, 1, "d"), "float32"):
-            a = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            d = T.int64()
             gv: R.Tensor((a, 1, 1, d), "float32") = R.min(x, axis=[1, 2], keepdims=True)
             return gv
 
@@ -226,18 +226,18 @@ def test_min_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("a", "b", "c", "d"), "float32")) -> R.Tensor(("a", 1, 1, "d"), "float32"):
-            a = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            d = T.int64()
             gv = R.call_tir(min, (x,), R.Tensor((a, 1, 1, d), dtype="float32"))
             return gv
 
         @T.prim_func
         def min(var_rxplaceholder: T.handle, var_rxplaceholder_red: T.handle):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [a, b, c, d], dtype="float32")
             rxplaceholder_red = T.match_buffer(var_rxplaceholder_red, [a, T.int64(1), T.int64(1), d], dtype="float32")
             for i0, i1, i2, i3, i4, i5 in T.grid(a, T.int64(1), T.int64(1), d, b, c):
@@ -306,10 +306,10 @@ def test_sum_symbolic():
         @T.prim_func
         def sum(var_rxplaceholder: T.handle, rxplaceholder_red: T.Buffer((), "float32")):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [a, b, c, d], dtype="float32")
             for i0, i1, i2, i3 in T.grid(a, b, c, d):
                 with T.block("rxplaceholder_red"):
@@ -377,10 +377,10 @@ def test_prod_symbolic():
         @T.prim_func
         def prod(var_rxplaceholder: T.handle, rxplaceholder_red: T.Buffer((T.int64(1), T.int64(1), T.int64(1), T.int64(1)), "float32")):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [a, b, c, d], dtype="float32")
             for i0, i1, i2, i3, i4, i5, i6, i7 in T.grid(T.int64(1), T.int64(1), T.int64(1), T.int64(1), a, b, c, d):
                 with T.block("rxplaceholder_red"):
@@ -442,8 +442,8 @@ def test_mean_symbolic():
     class Mean:
         @R.function
         def main(x: R.Tensor(("a", "b", "c", "d"), "float32")) -> R.Tensor(("b", "c"), "float32"):
-            b = T.var("int64")
-            c = T.var("int64")
+            b = T.int64()
+            c = T.int64()
             gv: R.Tensor((b, c), "float32") = R.mean(x, [0, 3])
             return gv
 
@@ -451,18 +451,18 @@ def test_mean_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("a", "b", "c", "d"), dtype="float32")) -> R.Tensor(("b", "c"), dtype="float32"):
-            b = T.var("int64")
-            c = T.var("int64")
+            b = T.int64()
+            c = T.int64()
             gv = R.call_tir(mean, (x,), R.Tensor((b, c), dtype="float32"))
             return gv
 
         @T.prim_func
         def mean(var_rxplaceholder: T.handle, var_T_divide: T.handle):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [a, b, c, d], dtype="float32")
             T_divide = T.match_buffer(var_T_divide, [b, c], dtype="float32")
             rxplaceholder_red = T.alloc_buffer([b, c], dtype="float32")
@@ -579,10 +579,10 @@ def test_std_symbolic():
         @T.prim_func
         def std(var_rxplaceholder: T.handle, compute: T.Buffer((), "float32")):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [a, b, c, d], dtype="float32")
             rxplaceholder_red = T.alloc_buffer([], dtype="float32")
             T_divide = T.alloc_buffer([], dtype="float32")
@@ -715,8 +715,8 @@ def test_variance_symbolic():
     class Variance:
         @R.function
         def main(x: R.Tensor(("a", "b", "c", "d"), "float32")) -> R.Tensor((1, "b", "c", 1), "float32"):
-            b = T.var("int64")
-            c = T.var("int64")
+            b = T.int64()
+            c = T.int64()
             gv: R.Tensor((1, b, c, 1), "float32") = R.variance(x, [0, 3], keepdims=True)
             return gv
 
@@ -724,18 +724,18 @@ def test_variance_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("a", "b", "c", "d"), "float32")) -> R.Tensor((1, "b", "c", 1), "float32"):
-            b = T.var("int64")
-            c = T.var("int64")
+            b = T.int64()
+            c = T.int64()
             gv = R.call_tir(variance, (x,), R.Tensor((1, b, c, 1), dtype="float32"))
             return gv
 
         @T.prim_func
         def variance(var_rxplaceholder: T.handle, var_T_divide: T.handle):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [a, b, c, d], dtype="float32")
             T_divide = T.match_buffer(var_T_divide, [T.int64(1), b, c, T.int64(1)], dtype="float32")
             rxplaceholder_red = T.alloc_buffer([T.int64(1), b, c, T.int64(1)], dtype="float32")

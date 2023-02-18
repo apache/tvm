@@ -530,16 +530,16 @@ def test_symbolic_shape():
     class Module:
         @T.prim_func
         def exp(var_A: T.handle, var_B: T.handle):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             A = T.match_buffer(var_A, (m, n), "float32")
             B = T.match_buffer(var_B, (m, n), "float32")
             T.evaluate(0)
 
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             alloc: R.Tensor((m, n), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([m, n]), dtype="float32", runtime_device_index=0
             )
