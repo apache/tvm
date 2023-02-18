@@ -173,6 +173,57 @@ def two_elementwise_unit_dim(A: T.Buffer((1, 128), "float32"), C: T.Buffer((1, 1
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
+class TestTransformLayoutWithCacheWriteAndAxisSeparators(tvm.testing.CompareBeforeAfter):
+    """
+    transform_layout with axis_separator on a buffer from cache_write should work as expected
+    """
+
+    @pytest.fixture
+    def transform(self):
+        def transform(mod):
+
+            def transform_fn(x, y):
+                return [x // 32, y, tvm.te.AXIS_SEPARATOR, x % 32]
+
+            sch = tvm.tir.Schedule(mod, debug_mask="all")
+            block_rv = sch.get_block("T_add")
+            sch.cache_write(block_rv, 0, "global")
+            sch.transform_layout(block_rv, ("write", 0), transform_fn, pad_value=0.0)
+            return sch.mod
+
+        return transform
+
+    def before(
+        p0: T.Buffer((T.int64(33), T.int64(128)), "float32"),
+        p1: T.Buffer((T.int64(33), T.int64(128)), "float32"),
+        T_add: T.Buffer((T.int64(33), T.int64(128)), "float32"),
+    ):
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # with T.block("root"):
+        for ax0, ax1 in T.grid(T.int64(33), T.int64(128)):
+            with T.block("T_add"):
+                v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                T.reads(p0[v_ax0, v_ax1], p1[v_ax0, v_ax1])
+                T.writes(T_add[v_ax0, v_ax1])
+                T_add[v_ax0, v_ax1] = p0[v_ax0, v_ax1] + p1[v_ax0, v_ax1]
+
+    def expected(p0: T.Buffer((T.int64(33), T.int64(128)), "float32"), p1: T.Buffer((T.int64(33), T.int64(128)), "float32"), T_add: T.Buffer((T.int64(33), T.int64(128)), "float32")):
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # with T.block("root"):
+        T_add_global = T.alloc_buffer((T.int64(2), T.int64(128), T.int64(32)), axis_separators=[2])
+        for axis0, axis1, axis2 in T.grid(T.int64(2), T.int64(128), T.int64(32)):
+            with T.block("T_add"):
+                v_axis0, v_axis1, v_axis2 = T.axis.remap("SSS", [axis0, axis1, axis2])
+                T.reads(p0[v_axis0 * T.int64(32) + v_axis2, v_axis1], p1[v_axis0 * T.int64(32) + v_axis2, v_axis1])
+                T.writes(T_add_global[v_axis0, v_axis1, v_axis2])
+                T_add_global[v_axis0, v_axis1, v_axis2] = T.if_then_else(v_axis0 == T.int64(1) and T.int64(1) <= v_axis2, T.float32(0), p0[v_axis0 * T.int64(32) + v_axis2, v_axis1] + p1[v_axis0 * T.int64(32) + v_axis2, v_axis1])
+        for ax0, ax1 in T.grid(T.int64(33), T.int64(128)):
+            with T.block("T_add_global"):
+                v0, v1 = T.axis.remap("SS", [ax0, ax1])
+                T.reads(T_add_global[v0 // T.int64(32), v1, v0 % T.int64(32)])
+                T.writes(T_add[v0, v1])
+                T_add[v0, v1] = T_add_global[v0 // T.int64(32), v1, v0 % T.int64(32)]
+
 # pylint: enable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 # fmt: on
 
