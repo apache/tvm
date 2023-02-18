@@ -76,7 +76,6 @@ class TorchFXImporter:
     @staticmethod
     def _convert_torch_tensor_to_relax(tensor: torch.Tensor) -> relax.Var:
         tensor = tensor.detach().cpu()
-        shape = tensor.data.shape
         dtype = TorchFXImporter._convert_data_type(str(tensor.data.dtype))
         return relax.const(tensor.data.numpy(), dtype)
 
