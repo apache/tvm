@@ -218,7 +218,7 @@ class WellFormedChecker : public relax::ExprVisitor,
       this->VisitVarDef(param);
 
       if (param_var_func_map_.count(param) == 1) {
-        // TODO: Complete this error info after we integrate printer
+        // TODO(relax-team): Complete this error info after we integrate printer
         Malformed(Diagnostic::Error(param->span)
                   << "Relax variable " << param->name_hint()
                   << " is repeatedly used as parameters in function.");

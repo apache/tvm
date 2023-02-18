@@ -209,6 +209,7 @@ def has_reshape_pattern(func: tir.PrimFunc) -> bool:
     """
     return _ffi_api.has_reshape_pattern(func)  # type: ignore
 
+
 def well_formed(mod: IRModule, check_struct_info: bool = True) -> bool:
     """Check if the IRModule is well formed.
 
