@@ -610,7 +610,6 @@ TVM_DLL const Op& tvm_store_matrix_sync();
  */
 TVM_DLL const Op& ptx_mma();
 
-
 /*!
  * \brief tvm intrinsic for ptx predicate load with 32-bit data type.
  *
