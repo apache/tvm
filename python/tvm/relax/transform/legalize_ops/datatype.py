@@ -14,10 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import, redefined-builtin
-"""Relax transformations. """
+# pylint: disable=invalid-name
+"""Default legalization function for datatype operators."""
+from tvm import topi, relax
+from ...block_builder import BlockBuilder
+from ...expr import Call, Expr
+from .common import _try_convert_to_scalar_const, register_legalize
 
-from .transform import *
 
-# Import to register the legalization functions.
-from . import legalize_ops
+@register_legalize("relax.astype")
+def _astype(bb: BlockBuilder, call: Call) -> Expr:
+    arg = _try_convert_to_scalar_const(call.args[0])
+    if isinstance(arg, Expr):  # type: ignore
+        return bb.call_te(topi.cast, arg, call.attrs.dtype)
+    else:
+        return relax.const(arg, call.attrs.dtype)
