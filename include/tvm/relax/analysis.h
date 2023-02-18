@@ -318,6 +318,38 @@ TVM_DLL tvm::Array<GlobalVar> CalledGlobalVars(const Expr& expr);
 TVM_DLL tvm::Array<GlobalVar> AllGlobalVars(const Expr& expr);
 
 /*!
+ * \brief Analyze var -> value mapping from VarBindings.
+ *
+ * \param m The IRModule to check.
+ * \return Var -> Value (Expr)
+ */
+TVM_DLL Map<Var, Expr> AnalyzeVar2Value(const IRModule& m);
+
+/*!
+ * \brief Analyze var -> value mapping from VarBindings.
+ *
+ * \param expr The expression to check.
+ * \return Var -> Value (Expr)
+ */
+TVM_DLL Map<Var, Expr> AnalyzeVar2Value(const Expr& expr);
+
+/*!
+ * \brief Analyze var -> value mapping from VarBindings.
+ *
+ * \param dfb The dataflow block to check.
+ * \return Var -> Value (Expr)
+ */
+TVM_DLL Map<Var, Expr> AnalyzeVar2Value(const DataflowBlock& dfb);
+
+/*!
+ * \brief Get the use-def chain of variables inside a dataflow block.
+ *
+ * \param dfb The dataflow block to be analyzed.
+ * \return A map mapping variable definitions to a set of uses.
+ */
+TVM_DLL Map<Var, Array<Var>> DataflowBlockUseDef(const DataflowBlock& dfb);
+
+/*!
  * \brief Annotate Op Pattern Kind for PrimFunc, which is used in relax FuseOps.
  *
  * \param func The PrimFunc to be analyzed.
