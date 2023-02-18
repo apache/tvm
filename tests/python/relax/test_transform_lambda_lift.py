@@ -190,7 +190,7 @@ def test_recursive():
 
     before = Before
     expected = Expected
-    # Perform Lamda Lifting
+    # Perform Lambda Lifting
     after = transform.LambdaLift()(before)
     assert len(after.functions) == 2
 
@@ -266,7 +266,7 @@ def test_multi_func():
 
     before = Before
     expected = Expected
-    # Perform Lamda Lifting
+    # Perform Lambda Lifting
     after = transform.LambdaLift()(before)
     assert len(after.functions) == 4
     assert_structural_equal(after, expected, map_free_vars=True)
@@ -278,9 +278,9 @@ def test_no_local_func():
     class Before:
         @T.prim_func
         def sub(
-            A: T.Buffer[(16, 16), "float32"],
-            B: T.Buffer[(16, 16), "float32"],
-            C: T.Buffer[(16, 16), "float32"],
+            A: T.Buffer((16, 16), "float32"),
+            B: T.Buffer((16, 16), "float32"),
+            C: T.Buffer((16, 16), "float32"),
         ) -> None:
             for i, j in T.grid(16, 16):
                 with T.block("sub"):

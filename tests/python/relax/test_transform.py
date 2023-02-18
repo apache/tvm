@@ -30,7 +30,7 @@ def test_to_non_dataflow():
     class TestToNonDataflow:
         @R.function
         def foo(x: R.Tensor(("m", "n"), "float32")):
-            m, n = T.var("int64"), T.var("int64")
+            m, n = T.int64(), T.int64()
             with R.dataflow():
                 lv0 = R.call_tir("test.op.identity", (x,), R.Tensor((m, n), dtype="float32"))
                 gv0 = R.call_tir("test.op.identity", (lv0,), R.Tensor((m, n), dtype="float32"))
@@ -75,7 +75,7 @@ def test_call_tir_rewrite():
     class TestCallTIRRewrite:
         @R.function
         def foo(x: R.Tensor(("m", "n"), "float32")):
-            m, n = T.var("int64"), T.var("int64")
+            m, n = T.int64(), T.int64()
             gv0 = R.call_tir("test.op.identity", (x,), R.Tensor((m, n), dtype="float32"))
             return gv0
 
@@ -108,7 +108,7 @@ def test_vm_builtin_lower():
     class TestVMBuiltinLower:
         @R.function
         def foo(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor:
-            m, n = T.var("int64"), T.var("int64")
+            m, n = T.int64(), T.int64()
             alloc = R.builtin.alloc_tensor(R.shape([m, n]), runtime_device_index=0, dtype="float32")
             _ = R.call_packed(
                 "test.op.identity", x, alloc, sinfo_args=(R.Tensor(ndim=2, dtype="float32"))

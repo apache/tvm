@@ -59,8 +59,8 @@ def test_abs_symbolic():
     class Abs:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv: R.Tensor((m, n), "float32") = R.abs(x)
             return gv
 
@@ -68,16 +68,16 @@ def test_abs_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("m", "n"), dtype="float32")) -> R.Tensor(("m", "n"), dtype="float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv = R.call_tir(tir_abs, (x,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
         def tir_abs(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.func_attr({"tir.noalias": True})
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n], dtype="float32")
             compute = T.match_buffer(var_compute, [m, n], dtype="float32")
             for i0, i1 in T.grid(m, n):
@@ -129,8 +129,8 @@ def test_cos_symbolic():
     class Cos:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv: R.Tensor((m, n), "float32") = R.cos(x)
             return gv
 
@@ -138,16 +138,16 @@ def test_cos_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv = R.call_tir(tir_cos, (x,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
         def tir_cos(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.func_attr({"tir.noalias": True})
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n], dtype="float32")
             compute = T.match_buffer(var_compute, [m, n], dtype="float32")
             for i0, i1 in T.grid(m, n):
@@ -199,8 +199,8 @@ def test_exp_symbolic():
     class Exp:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv: R.Tensor((m, n), "float32") = R.exp(x)
             return gv
 
@@ -208,16 +208,16 @@ def test_exp_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("m", "n"), dtype="float32")) -> R.Tensor(("m", "n"), dtype="float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv = R.call_tir(tir_exp, (x,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
         def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.func_attr({"tir.noalias": True})
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n], dtype="float32")
             compute = T.match_buffer(var_compute, [m, n], dtype="float32")
             for i0, i1 in T.grid(m, n):
@@ -269,8 +269,8 @@ def test_log_symbolic():
     class Log:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv: R.Tensor((m, n), "float32") = R.log(x)
             return gv
 
@@ -278,16 +278,16 @@ def test_log_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv = R.call_tir(tir_log, (x,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
         def tir_log(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.func_attr({"tir.noalias": True})
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n], dtype="float32")
             compute = T.match_buffer(var_compute, [m, n], dtype="float32")
             for i0, i1 in T.grid(m, n):
@@ -339,8 +339,8 @@ def test_negative_symbolic():
     class Negative:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv: R.Tensor((m, n), "float32") = R.negative(x)
             return gv
 
@@ -348,16 +348,16 @@ def test_negative_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv = R.call_tir(tir_negative, (x,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
         def tir_negative(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.func_attr({"tir.noalias": True})
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n], dtype="float32")
             compute = T.match_buffer(var_compute, [m, n], dtype="float32")
             for i0, i1 in T.grid(m, n):
@@ -409,8 +409,8 @@ def test_sigmoid_symbolic():
     class Sigmoid:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv: R.Tensor((m, n), "float32") = R.sigmoid(x)
             return gv
 
@@ -418,16 +418,16 @@ def test_sigmoid_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv = R.call_tir(tir_sigmoid, (x,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
         def tir_sigmoid(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.func_attr({"tir.noalias": True})
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n], dtype="float32")
             compute = T.match_buffer(var_compute, [m, n], dtype="float32")
             for i0, i1 in T.grid(m, n):
@@ -479,8 +479,8 @@ def test_sin_symbolic():
     class Sin:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv: R.Tensor((m, n), "float32") = R.sin(x)
             return gv
 
@@ -488,16 +488,16 @@ def test_sin_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv = R.call_tir(tir_sin, (x,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
         def tir_sin(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.func_attr({"tir.noalias": True})
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n], dtype="float32")
             compute = T.match_buffer(var_compute, [m, n], dtype="float32")
             for i0, i1 in T.grid(m, n):
@@ -549,8 +549,8 @@ def test_sqrt_symbolic():
     class Sqrt:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv: R.Tensor((m, n), "float32") = R.sqrt(x)
             return gv
 
@@ -558,16 +558,16 @@ def test_sqrt_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv = R.call_tir(tir_sqrt, (x,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
         def tir_sqrt(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.func_attr({"tir.noalias": True})
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n], dtype="float32")
             compute = T.match_buffer(var_compute, [m, n], dtype="float32")
             for i0, i1 in T.grid(m, n):
@@ -619,8 +619,8 @@ def test_tanh_symbolic():
     class Tanh:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv: R.Tensor((m, n), "float32") = R.tanh(x)
             return gv
 
@@ -628,16 +628,16 @@ def test_tanh_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv = R.call_tir(tir_tanh, (x,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
         def tir_tanh(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.func_attr({"tir.noalias": True})
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n], dtype="float32")
             compute = T.match_buffer(var_compute, [m, n], dtype="float32")
             for i0, i1 in T.grid(m, n):
@@ -657,8 +657,8 @@ def test_clip_symbolic():
     class Clip:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv: R.Tensor((m, n), "float32") = R.clip(x, 5, 8)
             return gv
 
@@ -666,16 +666,16 @@ def test_clip_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("m", "n"), dtype="float32")) -> R.Tensor(("m", "n"), dtype="float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv = R.call_tir(tir_clip, (x,), out_sinfo=R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
         def tir_clip(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.func_attr({"tir.noalias": True})
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n], dtype="float32")
             compute = T.match_buffer(var_compute, [m, n], dtype="float32")
             for i0, i1 in T.grid(m, n):
