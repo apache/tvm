@@ -30,7 +30,7 @@ class Module:
     @T.prim_func
     def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
         T.func_attr({"global_symbol": "tir_matmul"})
-        k = T.var("int32")
+        k = T.int32()
         A = T.match_buffer(x, (32, 32))
         B = T.match_buffer(y, (32, 32))
         C = T.match_buffer(z, (32, 32))
@@ -709,7 +709,7 @@ def test_self_attention():
             wk: R.Tensor(("h", "h"), "float32"),
             wv: R.Tensor(("h", "h"), "float32"),
         ) -> R.Tensor:
-            b, s, n, h = T.var("int64"), T.var("int64"), T.var("int64"), T.var("int64")
+            b, s, n, h = T.int64(), T.int64(), T.int64(), T.int64()
             with R.dataflow():
                 fcq = R.call_tir("my_fc", (x, wq), R.Tensor((b, s, n, h), dtype="float32"))
                 tpq = R.call_tir("my_transpose", (fcq,), R.Tensor((b, s, h, n), dtype="float32"))
