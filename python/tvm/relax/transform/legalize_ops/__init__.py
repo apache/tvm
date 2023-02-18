@@ -14,10 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import, redefined-builtin
-"""Relax transformations. """
-
-from .transform import *
-
-# Import to register the legalization functions.
-from . import legalize_ops
+"""Legalize high-level operator calls in Relax functions to call_tir."""
+from . import binary
+from . import creation
+from . import datatype
+from . import image
+from . import index
+from . import linear_algebra
+from . import manipulate
+from . import nn
+from . import search
+from . import statistical
+from . import unary
