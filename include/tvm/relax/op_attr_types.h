@@ -49,6 +49,15 @@ using FInferStructInfo =
  */
 using FCallPacked = String;
 
+/*!
+ * \brief The function type of a legalization function, which takes a
+ * BlockBuilder and the Call to be legalized, and outputs the legalization
+ * result Expr.
+ * \param bb The BlockBuilder context.
+ * \param call The call to be legalized.
+ */
+using FLegalize = runtime::TypedPackedFunc<Expr(const BlockBuilder& bb, const Call& call)>;
+
 struct PrintAttrs : public tvm::AttrsNode<PrintAttrs> {
   std::string format;
   TVM_DECLARE_ATTRS(PrintAttrs, "relax.attrs.PrintAttrs") {

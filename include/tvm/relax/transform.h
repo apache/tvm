@@ -142,6 +142,29 @@ TVM_DLL Pass FoldConstant();
  */
 TVM_DLL Pass Normalize();
 
+/*!
+ * \brief Legalize high-level operator calls in Relax functions to call_tir
+ * with corresponding low-level TIR PrimFuncs.
+ *
+ * For each high-level operator, we register the way of legalizing it as a
+ * function, which takes a context BlockBuilder and the Call being legalized
+ * as input, and returns the legalized call. Here the input BlockBuilder is
+ * mainly used for adding the PrimFunc created by call_te into the context
+ * IRModule.
+ *
+ * The legalization function for each operator is registered as an attribute (with
+ * attribute key `FLegalize`) of the operator.
+ *
+ * For customizability, the user can pass their own legalization by an optional customized map,
+ * with the key to be the operator name and value to be the legalization function.
+ * The default legalization function will be overridden by the customized one.
+ *
+ * \param cmap The customized operator legalization function map. The customized function
+ * will override the default one.
+ * \return The Pass.
+ */
+TVM_DLL Pass LegalizeOps(Optional<Map<String, PackedFunc>> cmap);
+
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm
