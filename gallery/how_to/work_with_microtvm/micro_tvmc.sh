@@ -105,12 +105,10 @@ tvmc compile magic_wand.tflite \
     --target='c -keys=cpu -model=host' \
     --runtime=crt \
     --runtime-crt-system-lib 1 \
-    --executor='graph' \
-    --executor-graph-link-params 0 \
+    --executor='aot' \
     --output model.tar \
     --output-format mlf \
-    --pass-config tir.disable_vectorize=1 \
-    --disabled-pass=AlterOpLayout
+    --pass-config tir.disable_vectorize=1
 # bash
 # This will generate a ``model.tar`` file which contains TVM compiler output files. To run this command for
 # a different Zephyr device, you need to update ``target``. For instance, for ``nrf5340dk_nrf5340_cpuapp`` board
