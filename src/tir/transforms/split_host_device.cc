@@ -313,7 +313,6 @@ class HostDeviceSplitter : public StmtMutator {
     device_func = WithAttr(std::move(device_func), tir::attr::kNoAlias, Integer(1));
     device_func = WithAttr(std::move(device_func), tvm::attr::kTarget, device_target_);
     device_func = WithAttr(std::move(device_func), tir::attr::kIsGlobalFunc, Integer(1));
-    device_func = WithAttr(std::move(device_func), tir::attr::kIsHostFunc, Integer(0));
     if (m.use_dyn_shmem_) {
       device_func =
           WithAttr(std::move(device_func), tir::attr::kDeviceUseDynSharedMemory, Integer(1));
