@@ -32,4 +32,4 @@ if TYPE_CHECKING:
 else:
     from .entry import prim_func
 
-__all__ = _tir.__all__ + ["Buffer", "Ptr", "prim_func"]
+__all__ = _tir.__all__ + ["Buffer", "Ptr", "bool", "prim_func"]
