@@ -316,7 +316,11 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   void VisitBinding_(const VarBindingNode* binding) final {
-    this->VisitExpr(binding->value);
+    if (binding->value->IsInstance<tir::PrimFuncNode>()) {
+      Malformed(Diagnostic::Error(binding->value) << "Inline PrimFunc is disallowed in Relax IR.");
+    } else {
+      this->VisitExpr(binding->value);
+    }
     this->VisitVarDef(binding->var);
   }
 
