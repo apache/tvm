@@ -105,7 +105,7 @@ def test_unexpected_tir_cast_args():
 
         @R.function
         def f(x: R.Tensor(("m",), "float32")):
-            m = T.var("int64")
+            m = T.int64()
             # tir.cast expects 2 arguments, but got 3
             return R.call_tir("foo", (x,), R.Tensor((T.cast("int32", m, 1),), dtype="float32"))
 
@@ -116,7 +116,7 @@ def test_unexpected_tir_max_args():
 
         @R.function
         def f(x: R.Tensor(("m", "n"), "float32")):
-            m = T.var("int64")
+            m = T.int64()
             # tir.max expects 2 arguments, but got 1
             return relax.call_tir("foo", (x,), R.Tensor((T.max(m),), dtype="float32"))
 
@@ -220,15 +220,15 @@ def test_relax_base_op():
 def test_symbolic_shape():
     @R.function
     def foo(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-        m = T.var("int64", "m")
-        n = T.var("int64", "n")
+        m = T.int64()
+        n = T.int64()
         gv0 = R.call_tir("extern_func", x, R.Tensor((m, n), dtype="float32"))
         return gv0
 
     @R.function
     def bar(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-        m = T.var("int64")
-        n = T.var("int64")
+        m = T.int64()
+        n = T.int64()
         gv0 = R.call_tir("extern_func", x, R.Tensor((m, n), dtype="float32"))
         return gv0
 
@@ -236,8 +236,8 @@ def test_symbolic_shape():
 
         @R.function
         def mismatch_dtype(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(None, "float32", ndim=2):
-            m = T.var("int64")
-            n = T.var("int32")  # The shape dtype should be int64
+            m = T.int64()
+            n = T.int32()  # The shape dtype should be int64
             gv0 = R.call_tir("extern_func", x, R.Tensor((m, n), dtype="float32"))
             return gv0
 
@@ -282,8 +282,8 @@ def test_shadowing():
 def test_match_cast():
     @R.function
     def foo(x: R.Tensor("float32"), y: R.Tensor("float32")):
-        m = T.var("int64")
-        n = T.var("int64")
+        m = T.int64()
+        n = T.int64()
         x0 = R.match_cast(x, R.Tensor([m], "float32"))
         with R.dataflow():
             y0 = R.match_cast(y, R.Tensor([n], "float32"))
@@ -327,7 +327,7 @@ def test_tuple_return():
 def test_tuple_return_2():
     @R.function
     def foo(x: R.Tensor("float32", ndim=2)):
-        n, m = T.var("int64"), T.var("int64")
+        n, m = T.int64(), T.int64()
         x0 = R.match_cast(x, R.Tensor((n, m), "float32"))
         return (x0, R.shape([n + 1, m, 1]))
 
@@ -344,7 +344,7 @@ def test_tuple_return_2():
 def test_tuple_binding():
     @R.function
     def foo(x: R.Tensor("float32", ndim=2)):
-        n, m = T.var("int64"), T.var("int64")
+        n, m = T.int64(), T.int64()
         x0 = R.match_cast(x, R.Tensor((n, m), "float32"))
         t0 = (x, x0)
         t1 = (x, R.shape([n, m]), t0)
@@ -414,8 +414,8 @@ def test_dataflow_block_advanced():
         gv0 = R.call_tir("extern_func", x, R.Tensor((128, 128), dtype="float32"))
         gv1 = R.call_tir("extern_func", gv0, R.Tensor((128, 128), dtype="float32"))
         with R.dataflow():
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             lv0 = R.call_tir("extern_func", gv1, R.Tensor((128, 128), dtype="float32"))
             lv1 = R.match_cast(lv0, R.Tensor((m, n), "float32"))
             gv2 = R.call_tir("extern_func", lv0, R.Tensor((128, 128), dtype="float32"))
@@ -601,7 +601,7 @@ def test_annotation():
         y: R.Tensor(("m",), "float32"),
         r: R.Tensor(dtype="int64"),
     ) -> R.Object:
-        m = T.var("int64", "m")
+        m = T.int64()
         z: R.Tensor((32, m), "float32") = R.multiply(x, y)
         w: R.Tensor = R.multiply(z, z)
         q: R.Tensor(ndim=2) = R.add(w, w)
@@ -690,7 +690,7 @@ def test_call_tir_with_tir_var():
         def main(
             dumb_param: R.Tensor(("n",), "float32"), x: R.Tensor(("n * 2", "float32"))
         ) -> R.Tensor(("n * 2",), "float32"):
-            n = T.var("int64")
+            n = T.int64()
             y = R.call_tir(copy, (x,), R.Tensor(((n * 2,)), dtype="float32"), tir_vars=(n,))
             return y
 
@@ -884,7 +884,7 @@ def test_erase_to_well_defined():
     @R.function
     def foo(x: R.Tensor):
         q = x
-        m, n = T.var("int64"), T.var("int64")
+        m, n = T.int64(), T.int64()
         z = R.match_cast(q, R.Tensor((m, n)))
         w = z
         return w
@@ -930,7 +930,7 @@ def test_symbolic_shape_computing():
     def bar(
         x: R.Tensor(("m",), "float32"), y: R.Tensor(("T.max(m, 20)",), "float32")
     ) -> R.Tensor(("T.max(m, 20) + 1",), "float32"):
-        m = T.var("int64")
+        m = T.int64()
         z = R.call_tir("test_intrin", (x, y), R.Tensor((T.max(m, 20) + 1,), dtype="float32"))
         return z
 
@@ -949,7 +949,7 @@ def test_symbolic_shape_computing():
     # Shape Case
     @R.function
     def baz(x: R.Shape(("m",)), y: R.Tensor(("m * 2",), "float32")):
-        m = T.var("int64")
+        m = T.int64()
         z = R.call_tir("test_intrin", y, R.Tensor((m * 2,), dtype="float32"))
         return z
 
@@ -977,8 +977,8 @@ def test_symbolic_shape_computing():
 def test_vm_ops():
     @R.function
     def foo(x: R.Tensor(("m", "n"), dtype="float32")):
-        m = T.var("int64")
-        n = T.var("int64")
+        m = T.int64()
+        n = T.int64()
         storage = R.vm.alloc_storage(R.shape([4 * m * n]), dtype="float32", runtime_device_index=0)
         alloc = R.vm.alloc_tensor(storage, shape=R.shape([m, n]), offset=0, dtype="float32")
         tensor = R.builtin.alloc_tensor(R.shape([m, n]), dtype="float32", runtime_device_index=0)
