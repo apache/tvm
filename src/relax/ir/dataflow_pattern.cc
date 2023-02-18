@@ -26,8 +26,8 @@
 #include <tvm/relax/dataflow_pattern_functor.h>
 
 #include <memory>
-#include <string>
 #include <stack>
+#include <string>
 
 #define RELAX_PATTERN_PRINTER_DEF(NODE_TYPE, REPR_LAMBDA)                 \
   TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)                              \
