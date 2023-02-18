@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common functionality for legalization."""
-from typing import Callable, Union
+from typing import Callable, Optional, Union
 
 import tvm
 from tvm import te
@@ -62,11 +62,27 @@ def _try_convert_to_scalar_const(expr: Expr) -> Union[Expr, bool, float, int]:
         return expr
 
 
-def _call_topi_without_attr(te_func: TEFunc) -> LegalizeFunc:
+def _call_topi_without_attr(te_func: TEFunc, primfunc_name: Optional[str] = None) -> LegalizeFunc:
     """A common wrapper util for the ops who has no attributes and whose
     legalization is simply passing its arguments to some TE function.
+
+    Parameters
+    ----------
+    te_func : TEFunc
+        The input TE function which is to be converted to PrimFunc.
+
+    primfunc_name : Optional[str]
+        The name of the generated PrimFunc.
+        If it is not specified, the name of `te_func` will be used by default.
+
+    Returns
+    -------
+    func : LegalizeFunc
+        The legalization wrapper function, which wraps the input TE function.
     """
-    return lambda bb, call: bb.call_te(te_func, *call.args)
+    if primfunc_name is None:
+        primfunc_name = te_func.__name__
+    return lambda bb, call: bb.call_te(te_func, *call.args, primfunc_name_hint=primfunc_name)
 
 
 ##################### Decorators #####################
