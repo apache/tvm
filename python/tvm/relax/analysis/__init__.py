@@ -18,3 +18,4 @@
 """Relax IR analysis. """
 
 from .analysis import *
+from .estimate_memory_usage import estimate_memory_usage
