@@ -34,7 +34,6 @@ class Module:
             {
                 "global_symbol": "test",
                 "target": T.target({"keys": ["cpu"], "kind": "llvm", "tag": ""}),
-                "tir.is_host_func": 0,
                 "tir.noalias": True,
             }
         )
@@ -72,7 +71,7 @@ def test_host_func():
     mod = tvm.tir.transform.BindTarget(target)(mod)
     tvm.ir.assert_structural_equal(mod, Module)
     assert (
-        mod["main"].attrs["tir.is_host_func"] == 0
+        "tir.is_host_func" not in mod["main"].attrs
     ), """Target and is_host_func attributes should be mutually exclusive"""
 
 
