@@ -374,11 +374,11 @@ class CallPatternNode : public DFPatternNode {
   tvm::Array<DFPattern> args; /*!< The arguments of the function call */
   /*!
    * \note If varg_default_wildcard is true. Given args of [pA, pB], when matching a call whose
-   * arguments are [A, B, ...], the pattern will still match despite N(args) < N(call.args). That said,
-   * with varg_default_wildcard set to true, we match the args in the order we have, and regard the
-   * rest of the arguments as wildcards.
+   * arguments are [A, B, ...], the pattern will still match despite N(args) < N(call.args). That
+   * said, with varg_default_wildcard set to true, we match the args in the order we have, and
+   * regard the rest of the arguments as wildcards.
    */
-  bool varg_default_wildcard; /*!< N(args) can be < N(real) args with the rest padded by Wildcard() */
+  bool varg_default_wildcard; /*!< N(args) can be < N(real args) by the padding of Wildcard */
 
   // Todo(relax-team): Dataflow pattern for StructInfo, and match sinfo_args
 
