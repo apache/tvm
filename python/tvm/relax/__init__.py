@@ -16,16 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name, wrong-import-position
 """The Relax IR namespace containing the IR, type, operator, builder, vm, etc."""
-from . import exec_builder
-from . import expr
-from . import ty
-from . import analysis
-from . import transform
-from . import vm
-from . import block_builder
-from . import op
-from . import struct_info
-
 # Expr
 from .expr import (
     Expr,
@@ -82,3 +72,14 @@ from .struct_info import (
     TupleStructInfo,
     FuncStructInfo,
 )
+
+# Import submodules in the last to avoid dependency
+from . import exec_builder
+from . import expr
+from . import ty
+from . import analysis
+from . import transform
+from . import vm
+from . import block_builder
+from . import op
+from . import struct_info
