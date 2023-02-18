@@ -210,6 +210,18 @@ class PyTorchOpConverter:
     def infer_shape_with_prelude(self, inputs):
         return self.infer_shape(inputs, mod=self.prelude.mod)
 
+    def is_empty_shape(self, shape):
+        rank = len(shape)
+        if rank:
+            is_empty = False
+            for i in range(rank):
+                if shape[i] == 0:
+                    is_empty = True
+                    break
+            return is_empty
+        else:
+            return True
+
     def record_output_type(self, output):
         if isinstance(output, tuple):
             cleaned_output = [o for o in output if o is not None]
@@ -2690,6 +2702,9 @@ class PyTorchOpConverter:
         data_rank = len(data_shape)
         index_shape = self.infer_shape(inputs[2])
         index_rank = len(index_shape)
+        # When index is empty, the operation returns data unchanged
+        if self.is_empty_shape(index_shape):
+            return data
         src_shape = self.infer_shape(inputs[3])
         src_rank = len(src_shape)
         assert data_rank == index_rank, "Index rank is not the same as data rank"

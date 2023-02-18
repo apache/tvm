@@ -4232,6 +4232,12 @@ def test_forward_scatter():
     verify_trace_model(test_fn_scatter(1), [in_data, in_index, in_src], targets)
     verify_trace_model(test_fn_scatter_add(1), [in_data, in_index, in_src], targets)
 
+    # Check empty indices for scatter_add
+    in_data = torch.zeros(2, 4)
+    in_index = torch.empty((0,))
+    in_src = torch.rand(2, 1)
+    verify_trace_model(test_fn_scatter_add(0), [in_data, in_index, in_src], targets)
+
 
 def test_forward_scatter_reduce():
     """test_forward_scatter_reduce"""
