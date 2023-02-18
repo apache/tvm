@@ -34,7 +34,7 @@ from .expr import (
     BaseFunc,
     Binding,
 )
-from .struct_info import ShapeStructInfo, StructInfo, TensorStructInfo
+from .struct_info import PrimStructInfo, ShapeStructInfo, StructInfo, TensorStructInfo
 from .op.base import call_tir
 from . import _ffi_api
 
@@ -256,6 +256,8 @@ class BlockBuilder(Object):
                         arg, ShapeExpr
                     ), "For Expr having ShapeStructInfo, emit_te now only supports ShapeExpr"
                     return [_convert_te_arg_helper(val) for val in arg.values]
+                elif isinstance(arg.struct_info, PrimStructInfo):
+                    return arg.value
             elif isinstance(arg, (list, tvm.ir.Array)):
                 return [_convert_te_arg_helper(x) for x in arg]
             elif isinstance(arg, tuple):
