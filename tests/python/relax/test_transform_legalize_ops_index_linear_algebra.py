@@ -61,8 +61,8 @@ def test_take_symbolic():
     class Take:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32"), indices: R.Tensor(("i",), "int64")) -> R.Tensor(("m", "i"), "float32"):
-            m = T.var("int64")
-            i = T.var("int64")
+            m = T.int64()
+            i = T.int64()
             gv: R.Tensor((m, i), "float32") = R.take(x, indices, axis=1)
             return gv
 
@@ -70,17 +70,17 @@ def test_take_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32"), indices: R.Tensor(("i",), "int64")) -> R.Tensor(("m", "i"), "float32"):
-            m = T.var("int64")
-            i = T.var("int64")
+            m = T.int64()
+            i = T.int64()
             gv = R.call_tir(take, (x, indices), R.Tensor((m, i), dtype="float32"))
             return gv
 
         @T.prim_func
         def take(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_take: T.handle):
             T.func_attr({"tir.noalias": True})
-            i = T.var("int64")
-            m = T.var("int64")
-            n = T.var("int64")
+            i = T.int64()
+            m = T.int64()
+            n = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n], dtype="float32")
             rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [i], dtype="int64")
             T_take = T.match_buffer(var_T_take, [m, i], dtype="float32")
@@ -165,7 +165,7 @@ def test_strided_slice_symbolic_sliced_axis():
     class StridedSlice:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor((2, "n"), "float32"):
-            n = T.var("int64")
+            n = T.int64()
             gv: R.Tensor((2, n), "float32") = R.strided_slice(x, axes=[0], begin=[1], end=[8], strides=[3])
             return gv
     # fmt: on
@@ -180,7 +180,7 @@ def test_strided_slice_symbolic():
     class StridedSlice:
         @R.function
         def main(x: R.Tensor((10, "n"), "float32")) -> R.Tensor((3, "n"), "float32"):
-            n = T.var("int64")
+            n = T.int64()
             gv: R.Tensor((3, n), "float32") = R.strided_slice(x, axes=[0], begin=[1], end=[8], strides=[3])
             return gv
 
@@ -188,14 +188,14 @@ def test_strided_slice_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((10, "n"), dtype="float32")) -> R.Tensor((3, "n"), dtype="float32"):
-            n = T.var("int64")
+            n = T.int64()
             gv = R.call_tir(strided_slice, (x,), R.Tensor((3, n), dtype="float32"))
             return gv
 
         @T.prim_func
         def strided_slice(var_rxplaceholder: T.handle, var_T_strided_slice_with_axes: T.handle):
             T.func_attr({"tir.noalias": True})
-            n = T.var("int64")
+            n = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(10), n], dtype="float32")
             T_strided_slice_with_axes = T.match_buffer(var_T_strided_slice_with_axes, [T.int64(3), n], dtype="float32")
             for i0, i1 in T.grid(T.int64(3), n):
@@ -351,11 +351,11 @@ def test_matmul_4_5_symbolic():
     class Matmul:
         @R.function
         def main(x: R.Tensor(("b", 1, "m", "k"), "float32"), y: R.Tensor(("a", 1, "c", "k", "n"), "float32")) -> R.Tensor(("a", "b", "c", "m", "n"), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            m = T.var("int64")
-            n = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            m = T.int64()
+            n = T.int64()
             gv: R.Tensor((a, b, c, m, n), "float32") = R.matmul(x, y)
             return gv
 
@@ -363,23 +363,23 @@ def test_matmul_4_5_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("b", 1, "m", "k"), "float32"), y: R.Tensor(("a", 1, "c", "k", "n"), "float32")) -> R.Tensor(("a", "b", "c", "m", "n"), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            m = T.var("int64")
-            n = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            m = T.int64()
+            n = T.int64()
             gv = R.call_tir(matmul, (x, y), R.Tensor((a, b, c, m, n), dtype="float32"))
             return gv
 
         @T.prim_func
         def matmul(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_matmul: T.handle):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            k = T.var("int64")
-            m = T.var("int64")
-            n = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            k = T.int64()
+            m = T.int64()
+            n = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [b, T.int64(1), m, k], dtype="float32")
             rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, T.int64(1), c, k, n], dtype="float32")
             matmul = T.match_buffer(var_matmul, [a, b, c, m, n], dtype="float32")

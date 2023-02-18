@@ -123,8 +123,8 @@ def test_full_symbolic():
     class Full:
         @R.function
         def main(dumb_param: R.Tensor(("m", "n")), v: R.Tensor((), "int32")) -> R.Tensor(("m", "n"), "int32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv: R.Tensor((m, n), "int32") = R.full((m, n), v, dtype="int32")
             return gv
 
@@ -132,16 +132,16 @@ def test_full_symbolic():
     class Expected:
         @R.function
         def main(dumb_param: R.Tensor(("m", "n")), v: R.Tensor((), "int32")) -> R.Tensor(("m", "n"), "int32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv = R.call_tir(full, (v,), R.Tensor((m, n), dtype="int32"))
             return gv
 
         @T.prim_func
         def full(rxplaceholder: T.Buffer((), "int32"), var_T_full: T.handle):
             T.func_attr({"tir.noalias": True})
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             T_full = T.match_buffer(var_T_full, [m, n], dtype="int32")
             for i0, i1 in T.grid(m, n):
                 with T.block("T_full"):
@@ -254,8 +254,8 @@ def test_full_like_symbolic():
     class FullLike:
         @R.function
         def main(x: R.Tensor(("m", "n"), "int32"), v: R.Tensor((), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv: R.Tensor((m, n), "float32") = R.full_like(x, v)
             return gv
 
@@ -263,16 +263,16 @@ def test_full_like_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("m", "n"), "int32"), v: R.Tensor((), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv = R.call_tir(full, (v,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
         def full(rxplaceholder: T.Buffer((), "float32"), var_T_full: T.handle):
             T.func_attr({"tir.noalias": True})
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             T_full = T.match_buffer(var_T_full, [m, n], dtype="float32")
             for i0, i1 in T.grid(m, n):
                 with T.block("T_full"):
@@ -323,8 +323,8 @@ def test_ones_symbolic():
     class Ones:
         @R.function
         def main(dumb_param: R.Tensor(("m", "n"))) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv: R.Tensor((m, n), "float32") = R.ones((m, n), "float32")
             return gv
 
@@ -332,16 +332,16 @@ def test_ones_symbolic():
     class Expected:
         @R.function
         def main(dumb_param: R.Tensor(("m", "n"))) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv = R.call_tir(ones, R.tuple(), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
         def ones(var_T_full: T.handle):
             T.func_attr({"tir.noalias": True})
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             T_full = T.match_buffer(var_T_full, [m, n], dtype="float32")
             for i0, i1 in T.grid(m, n):
                 with T.block("T_full"):
@@ -392,8 +392,8 @@ def test_ones_like_symbolic():
     class OnesLike:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv: R.Tensor((m, n), "float32") = R.ones_like(x)
             return gv
 
@@ -401,16 +401,16 @@ def test_ones_like_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv = R.call_tir(ones, R.tuple(), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
         def ones(var_T_full: T.handle):
             T.func_attr({"tir.noalias": True})
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             T_full = T.match_buffer(var_T_full, [m, n], dtype="float32")
             for i0, i1 in T.grid(m, n):
                 with T.block("T_full"):
@@ -461,8 +461,8 @@ def test_zeros_symbolic():
     class Zeros:
         @R.function
         def main(dumb_param: R.Tensor(("m", "n"))) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv: R.Tensor((m, n), "float32") = R.zeros((m, n), "float32")
             return gv
 
@@ -470,16 +470,16 @@ def test_zeros_symbolic():
     class Expected:
         @R.function
         def main(dumb_param: R.Tensor(("m", "n"))) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv = R.call_tir(zeros, R.tuple(), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
         def zeros(var_T_full: T.handle):
             T.func_attr({"tir.noalias": True})
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             T_full = T.match_buffer(var_T_full, [m, n], dtype="float32")
             for i0, i1 in T.grid(m, n):
                 with T.block("T_full"):
@@ -530,8 +530,8 @@ def test_zeros_like_symbolic():
     class ZerosLike:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv: R.Tensor((m, n), "float32") = R.zeros_like(x)
             return gv
 
@@ -539,16 +539,16 @@ def test_zeros_like_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv = R.call_tir(zeros, R.tuple(), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
         def zeros(var_T_full: T.handle):
             T.func_attr({"tir.noalias": True})
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             T_full = T.match_buffer(var_T_full, [m, n], dtype="float32")
             for i0, i1 in T.grid(m, n):
                 with T.block("T_full"):
@@ -599,9 +599,9 @@ def test_tril_symbolic():
     class Tril:
         @R.function
         def main(x: R.Tensor(("m", "n", "k"), "int8")) -> R.Tensor(("m", "n", "k"), "int8"):
-            m = T.var("int64")
-            n = T.var("int64")
-            k = T.var("int64")
+            m = T.int64()
+            n = T.int64()
+            k = T.int64()
             gv: R.Tensor((m, n, k), "int8") = R.tril(x, k=-2)
             return gv
 
@@ -609,18 +609,18 @@ def test_tril_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("m", "n", "k"), "int8")) -> R.Tensor(("m", "n", "k"), "int8"):
-            m = T.var("int64")
-            n = T.var("int64")
-            k = T.var("int64")
+            m = T.int64()
+            n = T.int64()
+            k = T.int64()
             gv = R.call_tir(tril, (x,), R.Tensor((m, n, k), dtype="int8"))
             return gv
 
         @T.prim_func
         def tril(var_rxplaceholder: T.handle, var_trilu: T.handle):
             T.func_attr({"tir.noalias": True})
-            k = T.var("int64")
-            m = T.var("int64")
-            n = T.var("int64")
+            k = T.int64()
+            m = T.int64()
+            n = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n, k], dtype="int8")
             trilu = T.match_buffer(var_trilu, [m, n, k], dtype="int8")
             for i0, i1, i2 in T.grid(m, n, k):
@@ -672,9 +672,9 @@ def test_triu_symbolic():
     class Triu:
         @R.function
         def main(x: R.Tensor(("m", "n", "k"), "int8")) -> R.Tensor(("m", "n", "k"), "int8"):
-            m = T.var("int64")
-            n = T.var("int64")
-            k = T.var("int64")
+            m = T.int64()
+            n = T.int64()
+            k = T.int64()
             gv: R.Tensor((m, n, k), "int8") = R.triu(x, k=-2)
             return gv
 
@@ -682,18 +682,18 @@ def test_triu_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("m", "n", "k"), "int8")) -> R.Tensor(("m", "n", "k"), "int8"):
-            m = T.var("int64")
-            n = T.var("int64")
-            k = T.var("int64")
+            m = T.int64()
+            n = T.int64()
+            k = T.int64()
             gv = R.call_tir(triu, (x,), R.Tensor((m, n, k), dtype="int8"))
             return gv
 
         @T.prim_func
         def triu(var_rxplaceholder: T.handle, var_trilu: T.handle):
             T.func_attr({"tir.noalias": True})
-            k = T.var("int64")
-            m = T.var("int64")
-            n = T.var("int64")
+            k = T.int64()
+            m = T.int64()
+            n = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n, k], dtype="int8")
             trilu = T.match_buffer(var_trilu, [m, n, k], dtype="int8")
             for i0, i1, i2 in T.grid(m, n, k):
@@ -769,8 +769,8 @@ def test_astype_symbolic():
     class Astype:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "int32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv: R.Tensor((m, n), "int32") = R.astype(x, "int32")
             return gv
 
@@ -778,16 +778,16 @@ def test_astype_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "int32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv = R.call_tir(cast, (x,), R.Tensor((m, n), dtype="int32"))
             return gv
 
         @T.prim_func
         def cast(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.func_attr({"tir.noalias": True})
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n], dtype="float32")
             compute = T.match_buffer(var_compute, [m, n], dtype="int32")
             for i0, i1 in T.grid(m, n):

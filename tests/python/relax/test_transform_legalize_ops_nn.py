@@ -151,12 +151,12 @@ def test_conv2d_symbolic():
     class Conv2d:
         @R.function
         def main(x: R.Tensor(("n", "c", "h", "w"), "float32"), kernel: R.Tensor(("f", "c", "kh", "kw"), "float32")) -> R.Tensor(("n", "f", "h - kh + 1", "w - kw + 1"), "float32"):
-            n = T.var("int64")
-            h = T.var("int64")
-            w = T.var("int64")
-            f = T.var("int64")
-            kh = T.var("int64")
-            kw = T.var("int64")
+            n = T.int64()
+            h = T.int64()
+            w = T.int64()
+            f = T.int64()
+            kh = T.int64()
+            kw = T.int64()
             gv: R.Tensor((n, f, h - kh + 1, w - kw + 1), "float32") = R.nn.conv2d(x, kernel)
             return gv
 
@@ -164,25 +164,25 @@ def test_conv2d_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("n", "c", "h", "w"), "float32"), kernel: R.Tensor(("f", "c", "kh", "kw"), "float32")) -> R.Tensor(("n", "f", "h - kh + 1", "w - kw + 1"), "float32"):
-            n = T.var("int64")
-            f = T.var("int64")
-            h = T.var("int64")
-            kh = T.var("int64")
-            w = T.var("int64")
-            kw = T.var("int64")
+            n = T.int64()
+            f = T.int64()
+            h = T.int64()
+            kh = T.int64()
+            w = T.int64()
+            kw = T.int64()
             gv = R.call_tir(conv2d, (x, kernel), R.Tensor((n, f, ((h - kh) + 1), ((w - kw) + 1)), dtype="float32"))
             return gv
 
         @T.prim_func
         def conv2d(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_conv2d_nchw: T.handle):
             T.func_attr({"tir.noalias": True})
-            c = T.var("int64")
-            f = T.var("int64")
-            h = T.var("int64")
-            kh = T.var("int64")
-            kw = T.var("int64")
-            n = T.var("int64")
-            w = T.var("int64")
+            c = T.int64()
+            f = T.int64()
+            h = T.int64()
+            kh = T.int64()
+            kw = T.int64()
+            n = T.int64()
+            w = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [n, c, h, w], dtype="float32")
             rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [f, c, kh, kw], dtype="float32")
             conv2d_nchw = T.match_buffer(var_conv2d_nchw, [n, f, h - kh + T.int64(1), w - kw + T.int64(1)], dtype="float32")
@@ -330,12 +330,12 @@ def test_max_pool2d_symbolic():
     class MaxPool2D:
         @R.function
         def main(dumb_param: R.Tensor(("kh", "kw")), x: R.Tensor(("n", "c", "h", "w"), "float32")) -> R.Tensor(("n", "c", "h - kh + 1", "w - kw + 1"), "float32"):
-            n = T.var("int64")
-            c = T.var("int64")
-            h = T.var("int64")
-            w = T.var("int64")
-            kh = T.var("int64")
-            kw = T.var("int64")
+            n = T.int64()
+            c = T.int64()
+            h = T.int64()
+            w = T.int64()
+            kh = T.int64()
+            kw = T.int64()
             gv: R.Tensor((n, c, h - kh + 1, w - kw + 1), "float32") = R.nn.max_pool2d(x, pool_size=[kh, kw])
             return gv
 
@@ -434,10 +434,10 @@ def test_adaptive_avg_pool2d_symbolic():
     class AdaptiveAvgPool2D:
         @R.function
         def main(dumb_param: R.Tensor(("oh", "ow")), x: R.Tensor(("n", "c", "h", "w"), "float32")) -> R.Tensor(("n", "c", "oh", "ow"), "float32"):
-            n = T.var("int64")
-            c = T.var("int64")
-            oh = T.var("int64")
-            ow = T.var("int64")
+            n = T.int64()
+            c = T.int64()
+            oh = T.int64()
+            ow = T.int64()
             gv: R.Tensor((n, c, oh, ow), "float32") = R.nn.adaptive_avg_pool2d(x, (oh, ow))
             return gv
     # fmt: on
@@ -483,8 +483,8 @@ def test_relu_symbolic():
     class Relu:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv: R.Tensor((m, n), "float32") = R.nn.relu(x)
             return gv
 
@@ -492,16 +492,16 @@ def test_relu_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv = R.call_tir(relu, (x,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
         def relu(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.func_attr({"tir.noalias": True})
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n], dtype="float32")
             compute = T.match_buffer(var_compute, [m, n], dtype="float32")
             for i0, i1 in T.grid(m, n):
@@ -581,8 +581,8 @@ def test_gelu_symbolic():
     class Gelu:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv: R.Tensor((m, n), "float32") = R.nn.gelu(x)
             return gv
 
@@ -590,16 +590,16 @@ def test_gelu_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv = R.call_tir(gelu, (x,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
         def gelu(var_rxplaceholder: T.handle, var_T_multiply: T.handle):
             T.func_attr({"tir.noalias": True})
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n], dtype="float32")
             T_multiply = T.match_buffer(var_T_multiply, [m, n], dtype="float32")
             T_multiply_1 = T.alloc_buffer([m, n], dtype="float32")
@@ -686,8 +686,8 @@ def test_silu_symbolic():
     class Silu:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv: R.Tensor((m, n), "float32") = R.nn.silu(x)
             return gv
 
@@ -695,16 +695,16 @@ def test_silu_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv = R.call_tir(silu, (x,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
         def silu(var_rxplaceholder: T.handle, var_T_multiply: T.handle):
             T.func_attr({"tir.noalias": True})
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n], dtype="float32")
             T_multiply = T.match_buffer(var_T_multiply, [m, n], dtype="float32")
             compute = T.alloc_buffer([m, n], dtype="float32")
@@ -789,9 +789,9 @@ def test_softmax_symbolic():
     class Softmax:
         @R.function
         def main(x: R.Tensor(("a", "b", "c"), "float32")) -> R.Tensor(("a", "b", "c"), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
             gv: R.Tensor((a, b, c), "float32") = R.nn.softmax(x)
             return gv
 
@@ -799,18 +799,18 @@ def test_softmax_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("a", "b", "c"), "float32")) -> R.Tensor(("a", "b", "c"), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
             gv = R.call_tir(softmax, (x,), R.Tensor((a, b, c), dtype="float32"))
             return gv
 
         @T.prim_func
         def softmax(var_rxplaceholder: T.handle, var_T_softmax_norm: T.handle):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [a, b, c], dtype="float32")
             T_softmax_norm = T.match_buffer(var_T_softmax_norm, [a, b, c], dtype="float32")
             T_softmax_maxelem = T.alloc_buffer([a, b], dtype="float32")
@@ -963,10 +963,10 @@ def test_batch_norm_symbolic():
     class BatchNorm:
         @R.function
         def main(x: R.Tensor(("n", "h", "w", "c"), "float32"), gamma: R.Tensor(("c",), "float32"), beta: R.Tensor(("c",), "float32"), moving_mean: R.Tensor(("c",), "float32"), moving_var: R.Tensor(("c",), "float32")) -> R.Tuple(R.Tensor(("n", "h", "w", "c"), "float32"), R.Tensor(("c",), "float32"), R.Tensor(("c",), "float32")):
-            n = T.var("int64")
-            h = T.var("int64")
-            w = T.var("int64")
-            c = T.var("int64")
+            n = T.int64()
+            h = T.int64()
+            w = T.int64()
+            c = T.int64()
             gv: R.Tuple(R.Tensor((n, h, w, c), "float32"), R.Tensor((c,), "float32"), R.Tensor((c,), "float32")) = R.nn.batch_norm(x, gamma, beta, moving_mean, moving_var, axis=-1)
             return gv
 
@@ -974,20 +974,20 @@ def test_batch_norm_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("n", "h", "w", "c"), "float32"), gamma: R.Tensor(("c",), "float32"), beta: R.Tensor(("c",), "float32"), moving_mean: R.Tensor(("c",), "float32"), moving_var: R.Tensor(("c",), "float32")) -> R.Tuple(R.Tensor(("n", "h", "w", "c"), "float32"), R.Tensor(("c",), "float32"), R.Tensor(("c",), "float32")):
-            n = T.var("int64")
-            h = T.var("int64")
-            w = T.var("int64")
-            c = T.var("int64")
+            n = T.int64()
+            h = T.int64()
+            w = T.int64()
+            c = T.int64()
             gv = R.call_tir(batch_norm, (x, gamma, beta, moving_mean, moving_var), [R.Tensor((n, h, w, c), "float32"), R.Tensor((c,), "float32"), R.Tensor((c,), "float32")])
             return gv
 
         @T.prim_func
         def batch_norm(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_rxplaceholder_2: T.handle, var_rxplaceholder_3: T.handle, var_rxplaceholder_4: T.handle, var_T_add: T.handle, var_T_multiply: T.handle, var_T_multiply_1: T.handle):
             T.func_attr({"tir.noalias": True})
-            c = T.var("int64")
-            h = T.var("int64")
-            n = T.var("int64")
-            w = T.var("int64")
+            c = T.int64()
+            h = T.int64()
+            n = T.int64()
+            w = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [n, h, w, c], dtype="float32")
             rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [c], dtype="float32")
             rxplaceholder_2 = T.match_buffer(var_rxplaceholder_2, [c], dtype="float32")
@@ -1133,9 +1133,9 @@ def test_layer_norm_symbolic():
     class LayerNorm:
         @R.function
         def main(x: R.Tensor(("n", "s", "f"), "float32"), gamma: R.Tensor(("s", "f"), "float32"), beta: R.Tensor(("s", "f"), "float32")) -> R.Tensor(("n", "s", "f"), "float32"):
-            n = T.var("int64")
-            s = T.var("int64")
-            f = T.var("int64")
+            n = T.int64()
+            s = T.int64()
+            f = T.int64()
             gv: R.Tensor((n, s, f), "float32") = R.nn.layer_norm(x, gamma, beta, axes=[1, 2])
             return gv
 
@@ -1143,18 +1143,18 @@ def test_layer_norm_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("n", "s", "f"), "float32"), gamma: R.Tensor(("s", "f"), "float32"), beta: R.Tensor(("s", "f"), "float32")) -> R.Tensor(("n", "s", "f"), "float32"):
-            n = T.var("int64")
-            s = T.var("int64")
-            f = T.var("int64")
+            n = T.int64()
+            s = T.int64()
+            f = T.int64()
             gv = R.call_tir(layer_norm, (x, gamma, beta), R.Tensor((n, s, f), dtype="float32"))
             return gv
 
         @T.prim_func
         def layer_norm(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_rxplaceholder_2: T.handle, var_T_layer_norm: T.handle):
             T.func_attr({"tir.noalias": True})
-            f = T.var("int64")
-            n = T.var("int64")
-            s = T.var("int64")
+            f = T.int64()
+            n = T.int64()
+            s = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [n, s, f], dtype="float32")
             rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [s, f], dtype="float32")
             rxplaceholder_2 = T.match_buffer(var_rxplaceholder_2, [s, f], dtype="float32")
