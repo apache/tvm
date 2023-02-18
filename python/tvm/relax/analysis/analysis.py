@@ -25,6 +25,7 @@ from typing import Dict
 from enum import IntEnum
 
 from tvm import tir
+from tvm import IRModule
 from tvm.relax.ty import Type
 from tvm.relax.struct_info import StructInfo, FuncStructInfo
 from tvm.relax.expr import Var, Expr, Call
@@ -207,3 +208,29 @@ def has_reshape_pattern(func: tir.PrimFunc) -> bool:
     of this function.
     """
     return _ffi_api.has_reshape_pattern(func)  # type: ignore
+
+
+def well_formed(mod: IRModule, check_struct_info: bool = True) -> bool:
+    """Check if the IRModule is well formed.
+
+    Parameters
+    ----------
+    mod : tvm.IRModule
+        The input IRModule.
+
+    check_struct_info : bool
+        A boolean flag indicating if the property "every Expr must
+        have defined structure info" will be checked.
+
+    Returns
+    -------
+    ret: bool
+        True if the IRModule is well formed, False if not.
+
+    Note
+    ----
+    By default the structure info is always checked. It is only in test cases
+    where `check_struct_info` might be false, so that other well-formed requirements
+    will be well tested and will not be blocked by not having structure info.
+    """
+    return _ffi_api.well_formed(mod, check_struct_info)  # type: ignore
