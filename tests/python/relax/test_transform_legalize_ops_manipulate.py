@@ -62,10 +62,10 @@ def test_broadcast_to_symbolic():
     class BroadcastTo:
         @R.function
         def main(dumb_param: R.Tensor(("a", "c")), x: R.Tensor(("b", 1, "d"), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             gv: R.Tensor((a, b, c, d), "float32") = R.broadcast_to(x, (a, b, c, d))
             return gv
 
@@ -73,20 +73,20 @@ def test_broadcast_to_symbolic():
     class Expected:
         @R.function
         def main(dumb_param: R.Tensor(("a", "c")), x: R.Tensor(("b", 1, "d"), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             gv = R.call_tir(broadcast_to, (x,), R.Tensor((a, b, c, d), dtype="float32"))
             return gv
 
         @T.prim_func
         def broadcast_to(var_rxplaceholder: T.handle, var_T_broadcast_to: T.handle):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [b, T.int64(1), d], dtype="float32")
             T_broadcast_to = T.match_buffer(var_T_broadcast_to, [a, b, c, d], dtype="float32")
             for i0, i1, i2, i3 in T.grid(a, b, c, d):
@@ -171,10 +171,10 @@ def test_concat_input_tuple_var_symbolic():
     class Concat:
         @R.function
         def main(t: R.Tuple(R.Tensor(("a", "b0"), "float32"), R.Tensor(("a", "b1"), "float32"), R.Tensor(("a", "b2"), "float32"))) -> R.Tensor(("a", "b0 + b1 + b2"), "float32"):
-            a = T.var("int64")
-            b0 = T.var("int64")
-            b1 = T.var("int64")
-            b2 = T.var("int64")
+            a = T.int64()
+            b0 = T.int64()
+            b1 = T.int64()
+            b2 = T.int64()
             gv: R.Tensor((a, b0 + b1 + b2), "float32") = R.concat(t, axis=1)
             return gv
 
@@ -182,10 +182,10 @@ def test_concat_input_tuple_var_symbolic():
     class Expected:
         @R.function
         def main(t: R.Tuple(R.Tensor(("a", "b0"), "float32"), R.Tensor(("a", "b1"), "float32"), R.Tensor(("a", "b2"), "float32"))) -> R.Tensor(("a", "b0 + b1 + b2"), "float32"):
-            a = T.var("int64")
-            b0 = T.var("int64")
-            b1 = T.var("int64")
-            b2 = T.var("int64")
+            a = T.int64()
+            b0 = T.int64()
+            b1 = T.int64()
+            b2 = T.int64()
             gv: R.Tensor((a, b0), dtype="float32") = t[0]
             gv1: R.Tensor((a, b1), dtype="float32") = t[1]
             gv2: R.Tensor((a, b2), dtype="float32") = t[2]
@@ -195,10 +195,10 @@ def test_concat_input_tuple_var_symbolic():
         @T.prim_func
         def concatenate(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_rxplaceholder_2: T.handle, var_T_concat: T.handle):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b0 = T.var("int64")
-            b1 = T.var("int64")
-            b2 = T.var("int64")
+            a = T.int64()
+            b0 = T.int64()
+            b1 = T.int64()
+            b2 = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [a, b0], dtype="float32")
             rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b1], dtype="float32")
             rxplaceholder_2 = T.match_buffer(var_rxplaceholder_2, [a, b2], dtype="float32")
@@ -252,9 +252,9 @@ def test_expand_dims_symbolic():
     class ExpandDims:
         @R.function
         def main(x: R.Tensor(("a", "b", "c"), "float32")) -> R.Tensor(("a", 1, "b", 1, "c", 1), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
             gv: R.Tensor((a, 1, b, 1, c, 1), "float32") = R.expand_dims(x, axis=[1, 3, 5])
             return gv
 
@@ -262,18 +262,18 @@ def test_expand_dims_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("a", "b", "c"), "float32")) -> R.Tensor(("a", 1, "b", 1, "c", 1), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
             gv = R.call_tir(expand_dims, (x,), R.Tensor((a, 1, b, 1, c, 1), dtype="float32"))
             return gv
 
         @T.prim_func
         def expand_dims(var_rxplaceholder: T.handle, var_expand_dims: T.handle):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [a, b, c], dtype="float32")
             expand_dims = T.match_buffer(var_expand_dims, [a, T.int64(1), b, T.int64(1), c, T.int64(1)], dtype="float32")
             for i0, i1, i2, i3, i4, i5 in T.grid(a, T.int64(1), b, T.int64(1), c, T.int64(1)):
@@ -356,9 +356,9 @@ def test_flatten_symbolic():
     class Flatten:
         @R.function
         def main(x: R.Tensor(("a", "b", "c"), "float32")) -> R.Tensor(("a * b * c",), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
             gv: R.Tensor((a * b * c,), "float32") = R.flatten(x)
             return gv
 
@@ -366,18 +366,18 @@ def test_flatten_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("a", "b", "c"), "float32")) -> R.Tensor(("a * b * c",), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
             gv = R.call_tir(reshape, (x,), R.Tensor((((a * b) * c),), dtype="float32"))
             return gv
 
         @T.prim_func
         def reshape(var_rxplaceholder: T.handle, var_T_reshape: T.handle):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [a, b, c], dtype="float32")
             T_reshape = T.match_buffer(var_T_reshape, [a * b * c], dtype="float32")
             for i0 in T.serial(a * b * c):
@@ -429,10 +429,10 @@ def test_permute_dims_symbolic():
     class PermuteDims:
         @R.function
         def main(x: R.Tensor(("a", "b", "c", "d"), "float32")) -> R.Tensor(("b", "d", "c", "a"), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             gv: R.Tensor((b, d, c, a), "float32") = R.permute_dims(x, axes=[1, -1, 2, -4])
             return gv
 
@@ -440,20 +440,20 @@ def test_permute_dims_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("a", "b", "c", "d"), dtype="float32")) -> R.Tensor(("b", "d", "c", "a"), dtype="float32"):
-            b = T.var("int64")
-            d = T.var("int64")
-            c = T.var("int64")
-            a = T.var("int64")
+            b = T.int64()
+            d = T.int64()
+            c = T.int64()
+            a = T.int64()
             gv = R.call_tir(transpose, (x,), R.Tensor((b, d, c, a), dtype="float32"))
             return gv
 
         @T.prim_func
         def transpose(var_rxplaceholder: T.handle, var_T_transpose: T.handle):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [a, b, c, d], dtype="float32")
             T_transpose = T.match_buffer(var_T_transpose, [b, d, c, a], dtype="float32")
             for i0, i1, i2, i3 in T.grid(b, d, c, a):
@@ -505,8 +505,8 @@ def test_reshape_symbolic():
     class Reshape:
         @R.function
         def main(x: R.Tensor(("a", "b"), "float32")) -> R.Tensor(("a // 2", "b * 2"), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
+            a = T.int64()
+            b = T.int64()
             gv: R.Tensor((a // 2, b * 2), "float32") = R.reshape(x, (a // 2, b * 2))
             return gv
 
@@ -514,16 +514,16 @@ def test_reshape_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("a", "b"), "float32")) -> R.Tensor(("a // 2", "b * 2"), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
+            a = T.int64()
+            b = T.int64()
             gv = R.call_tir(reshape, (x,), R.Tensor(((a // 2), (b * 2)), dtype="float32"))
             return gv
 
         @T.prim_func
         def reshape(var_rxplaceholder: T.handle, var_T_reshape: T.handle):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
+            a = T.int64()
+            b = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [a, b], dtype="float32")
             T_reshape = T.match_buffer(var_T_reshape, [a // T.int64(2), b * T.int64(2)], dtype="float32")
             for i0, i1 in T.grid(a // T.int64(2), b * T.int64(2)):
@@ -638,8 +638,8 @@ def test_split_by_indices_n_section_divisible_symbolic():
     class Split:
         @R.function
         def main(dumb_param: R.Tensor(("n",)), x: R.Tensor(("m", "n * 3"), "float32")) -> R.Tuple([R.Tensor(("m", "n"), "float32"), R.Tensor(("m", "n"), "float32"), R.Tensor(("m", "n"), "float32")]):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv: R.Tuple([R.Tensor((m, n), "float32"), R.Tensor((m, n), "float32"), R.Tensor((m, n), "float32")]) = R.split(x, 3, axis=1)
             return gv
 
@@ -647,15 +647,15 @@ def test_split_by_indices_n_section_divisible_symbolic():
     class Expected:
         @R.function
         def main(dumb_param: R.Tensor(("n",)), x: R.Tensor(("m", "(n * 3)"), "float32")) -> R.Tuple(R.Tensor(("m", "((n * 3) // 3)"), "float32"), R.Tensor(("m", "((((n * 3) // 3) * 2) - ((n * 3) // 3))"), "float32"), R.Tensor(("m", "((n * 3) - (((n * 3) // 3) * 2))"), "float32")):
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             gv = R.call_tir(split, (x,), [R.Tensor((m, ((n * 3) // 3)), "float32"), R.Tensor((m, ((((n * 3) // 3) * 2) - ((n * 3) // 3))), "float32"), R.Tensor((m, ((n * 3) - (((n * 3) // 3) * 2))), "float32")], tir_vars=(n,))
             return gv
 
         @T.prim_func
         def split(var_rxplaceholder: T.handle, var_T_split_sections: T.handle, var_T_split_sections_1: T.handle, var_T_split_sections_2: T.handle, n: T.int64):
             T.func_attr({"tir.noalias": True})
-            m = T.var("int64")
+            m = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n * T.int64(3)], dtype="float32")
             T_split_sections = T.match_buffer(var_T_split_sections, [m, n * T.int64(3) // T.int64(3)], dtype="float32")
             T_split_sections_1 = T.match_buffer(var_T_split_sections_1, [m, n * T.int64(3) // T.int64(3) * T.int64(2) - n * T.int64(3) // T.int64(3)], dtype="float32")
@@ -752,8 +752,8 @@ def test_squeeze_symbolic():
     class Squeeze:
         @R.function
         def main(x: R.Tensor(("a", 1, "b", 1), "float32")) -> R.Tensor(("a", "b", 1), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
+            a = T.int64()
+            b = T.int64()
             gv: R.Tensor((a, b, 1), "float32") = R.squeeze(x, [1])
             return gv
 
@@ -761,16 +761,16 @@ def test_squeeze_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("a", 1, "b", 1), "float32")) -> R.Tensor(("a", "b", 1), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
+            a = T.int64()
+            b = T.int64()
             gv = R.call_tir(squeeze, (x,), R.Tensor((a, b, 1), dtype="float32"))
             return gv
 
         @T.prim_func
         def squeeze(var_rxplaceholder: T.handle, var_T_squeeze: T.handle):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
+            a = T.int64()
+            b = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [a, T.int64(1), b, T.int64(1)], dtype="float32")
             T_squeeze = T.match_buffer(var_T_squeeze, [a, b, T.int64(1)], dtype="float32")
             for i0, i1, i2 in T.grid(a, b, T.int64(1)):
