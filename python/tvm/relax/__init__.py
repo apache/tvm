@@ -73,6 +73,9 @@ from .struct_info import (
     FuncStructInfo,
 )
 
+# pipeline
+from .pipeline import get_pipeline
+
 # Import submodules in the last to avoid dependency
 from . import exec_builder
 from . import expr
