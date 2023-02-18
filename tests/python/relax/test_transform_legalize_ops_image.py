@@ -58,10 +58,10 @@ def test_image_resize2d_symbolic():
     class Resize2D:
         @R.function
         def main(dumb_param: R.Tensor(("oh", "ow")), x: R.Tensor(("n", "c", "h", "w", 16), "float32")) -> R.Tensor(("n", "c", "oh", "ow", 16), "float32"):
-            n = T.var("int64")
-            c = T.var("int64")
-            oh = T.var("int64")
-            ow = T.var("int64")
+            n = T.int64()
+            c = T.int64()
+            oh = T.int64()
+            ow = T.int64()
             gv: R.Tensor((n, c, oh, ow, 16), "float32") = R.image.resize2d(x, size=(oh, ow), layout="NCHW16c", method="nearest_neighbor", coordinate_transformation_mode="asymmetric")
             return gv
 
@@ -69,22 +69,22 @@ def test_image_resize2d_symbolic():
     class Expected:
         @R.function
         def main(dumb_param: R.Tensor(("oh", "ow")), x: R.Tensor(("n", "c", "h", "w", 16), "float32")) -> R.Tensor(("n", "c", "oh", "ow", 16), "float32"):
-            n = T.var("int64")
-            c = T.var("int64")
-            oh = T.var("int64")
-            ow = T.var("int64")
+            n = T.int64()
+            c = T.int64()
+            oh = T.int64()
+            ow = T.int64()
             gv = R.call_tir(resize2d, (x,), R.Tensor((n, c, oh, ow, 16), dtype="float32"))
             return gv
 
         @T.prim_func
         def resize2d(var_rxplaceholder: T.handle, var_resize: T.handle):
             T.func_attr({"tir.noalias": True})
-            c = T.var("int64")
-            h = T.var("int64")
-            n = T.var("int64")
-            oh = T.var("int64")
-            ow = T.var("int64")
-            w = T.var("int64")
+            c = T.int64()
+            h = T.int64()
+            n = T.int64()
+            oh = T.int64()
+            ow = T.int64()
+            w = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [n, c, h, w, T.int64(16)], dtype="float32")
             resize = T.match_buffer(var_resize, [n, c, oh, ow, T.int64(16)], dtype="float32")
             for i0, i1, i2, i3, i4 in T.grid(n, c, oh, ow, T.int64(16)):
