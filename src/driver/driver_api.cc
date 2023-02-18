@@ -260,7 +260,7 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
     pass_list.push_back(tir::transform::InstrumentBoundCheckers());
   }
 
-  if(ptx_ldg32){
+  if (ptx_ldg32) {
     pass_list.push_back(tir::transform::InjectPTXLDG32(true));
   }
 

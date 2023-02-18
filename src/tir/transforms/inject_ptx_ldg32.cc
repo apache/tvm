@@ -38,18 +38,17 @@ class PTXRewriter : public StmtMutator {
     if (!has_buffer_1) {
       has_buffer_1 = true;
       // addr[0] -> global_addr /  addr[1] -> local_addr
-      addr_buffer = decl_buffer({IntImm(DataType::Int(32), 2)},
-                                DataType::Int(32), "addr", "local");
-      predicate_buffer = decl_buffer({IntImm(DataType::Int(32), 1)},
-                                     DataType::Bool(1), "predicate", "local");
+      addr_buffer = decl_buffer({IntImm(DataType::Int(32), 2)}, DataType::Int(32), "addr", "local");
+      predicate_buffer =
+          decl_buffer({IntImm(DataType::Int(32), 1)}, DataType::Bool(1), "predicate", "local");
     }
     Stmt result = StmtMutator::VisitStmt_(allocate);
     if (!has_buffer_2) {
       has_buffer_2 = true;
-      result = Allocate(addr_buffer->data, addr_buffer->dtype,
-                        addr_buffer->shape, Bool(true), result);
-      result = Allocate(predicate_buffer->data, predicate_buffer->dtype,
-                        predicate_buffer->shape, Bool(true), result);
+      result =
+          Allocate(addr_buffer->data, addr_buffer->dtype, addr_buffer->shape, Bool(true), result);
+      result = Allocate(predicate_buffer->data, predicate_buffer->dtype, predicate_buffer->shape,
+                        Bool(true), result);
     }
     return result;
   }
@@ -83,26 +82,20 @@ class PTXRewriter : public StmtMutator {
           return result;
         }
         local_addr = store->indices[0];
-        BufferStore addr_store(addr_buffer, global_addr,
-                               {IntImm(DataType::Int(32), 0)});
-        BufferStore local_addr_store(addr_buffer, local_addr,
-                                     {IntImm(DataType::Int(32), 1)});
-        BufferStore predicate_store(predicate_buffer, predicate,
-                                    {IntImm(DataType::Int(32), 0)});
+        BufferStore addr_store(addr_buffer, global_addr, {IntImm(DataType::Int(32), 0)});
+        BufferStore local_addr_store(addr_buffer, local_addr, {IntImm(DataType::Int(32), 1)});
+        BufferStore predicate_store(predicate_buffer, predicate, {IntImm(DataType::Int(32), 0)});
         PrimExpr new_lhs, new_rhs, new_predicate, new_indice;
-        new_lhs = BufferLoad(
-            load->buffer,
-            {BufferLoad(addr_buffer, {IntImm(DataType::Int(32), 0)})});
+        new_lhs =
+            BufferLoad(load->buffer, {BufferLoad(addr_buffer, {IntImm(DataType::Int(32), 0)})});
         new_rhs = IntImm(DataType::Int(32), 0);
-        new_predicate =
-            BufferLoad(predicate_buffer, {IntImm(DataType::Int(32), 0)});
+        new_predicate = BufferLoad(predicate_buffer, {IntImm(DataType::Int(32), 0)});
         new_indice = BufferLoad(addr_buffer, {IntImm(DataType::Int(32), 1)});
         BufferStore value_store(store->buffer, imm_value, {new_indice});
-        Evaluate ptx_load(
-            Call(store->buffer->dtype, tvm::tir::builtin::ptx_ldg32(),
-                 {store->buffer->data, new_predicate, new_lhs, new_indice}));
-        Array<Stmt> tmp_seq = {addr_store, local_addr_store, predicate_store,
-                               value_store, ptx_load};
+        Evaluate ptx_load(Call(store->buffer->dtype, tvm::tir::builtin::ptx_ldg32(),
+                               {store->buffer->data, new_predicate, new_lhs, new_indice}));
+        Array<Stmt> tmp_seq = {addr_store, local_addr_store, predicate_store, value_store,
+                               ptx_load};
         SeqStmt seq_stmt = SeqStmt(tmp_seq);
         return seq_stmt;
       }
@@ -117,8 +110,7 @@ class PTXRewriter : public StmtMutator {
 namespace transform {
 
 Pass InjectPTXLDG32(bool enable_inject_ptx_intrin) {
-  auto pass_func = [enable_inject_ptx_intrin](PrimFunc f, IRModule m,
-                                              PassContext ctx) {
+  auto pass_func = [enable_inject_ptx_intrin](PrimFunc f, IRModule m, PassContext ctx) {
     if (enable_inject_ptx_intrin) {
       auto* n = f.CopyOnWrite();
       n->body = PTXRewriter()(n->body);
@@ -131,8 +123,7 @@ Pass InjectPTXLDG32(bool enable_inject_ptx_intrin) {
 
 // The pass can now be invoked via the pass infrastructure, but we also add a
 // Python binding for it
-TVM_REGISTER_GLOBAL("tir.transform.InjectPTXLDG32")
-    .set_body_typed(InjectPTXLDG32);
+TVM_REGISTER_GLOBAL("tir.transform.InjectPTXLDG32").set_body_typed(InjectPTXLDG32);
 
 }  // namespace transform
 }  // namespace tir
