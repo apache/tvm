@@ -47,7 +47,7 @@ from tvm.relax.transform.tuning_api import (
 @tvm.script.ir_module
 class TestModule:
     @T.prim_func
-    def addone(A: T.Buffer[(16, 16), "int32"], B: T.Buffer[(16, 16), "int32"]) -> None:
+    def addone(A: T.Buffer((16, 16), "int32"), B: T.Buffer((16, 16), "int32")) -> None:
         T.func_attr(({"global_symbol": "addone"}))
         for i, j in T.grid(16, 16):
             with T.block("addone"):

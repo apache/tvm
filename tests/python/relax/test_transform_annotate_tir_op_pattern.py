@@ -39,9 +39,9 @@ def test_annotate_opkind_outewisefusable():
         @T.prim_func
         def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
-            m = T.var("int32")
-            n = T.var("int32")
-            k = T.var("int32")
+            m = T.int32()
+            n = T.int32()
+            k = T.int32()
             A = T.match_buffer(x, (m, n))
             B = T.match_buffer(y, (n, k))
             C = T.match_buffer(z, (m, k))

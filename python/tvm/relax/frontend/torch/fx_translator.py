@@ -76,9 +76,8 @@ class TorchFXImporter:
     @staticmethod
     def _convert_torch_tensor_to_relax(tensor: torch.Tensor) -> relax.Var:
         tensor = tensor.detach().cpu()
-        shape = tensor.data.shape
         dtype = TorchFXImporter._convert_data_type(str(tensor.data.dtype))
-        return relax.const(tensor.data.numpy(), relax.TensorStructInfo(shape, dtype))
+        return relax.const(tensor.data.numpy(), dtype)
 
     @staticmethod
     def shape_of(tensor):
@@ -444,8 +443,8 @@ class TorchFXImporter:
             gamma = self.params[module.weight]
             beta = self.params[module.bias]
         else:
-            gamma = relax.const(torch.ones_like(module.normalized_shape), x.checked_type)
-            beta = relax.const(torch.zeros_like(module.normalized_shape), x.checked_type)
+            gamma = relax.const(torch.ones_like(module.normalized_shape), x.struct_info.dtype)
+            beta = relax.const(torch.zeros_like(module.normalized_shape), x.struct_info.dtype)
         dim_num = len(module.normalized_shape)
         axes = list(range(-dim_num, 0))
 
@@ -702,9 +701,7 @@ class TorchFXImporter:
                     shape = param.data.shape
                     dtype = self._convert_data_type(str(param.data.dtype))
                     if dtype in ("float32", "float16"):
-                        self.params[param] = relax.const(
-                            param.data.cpu().numpy(), relax.TensorStructInfo(shape, dtype)
-                        )
+                        self.params[param] = relax.const(param.data.cpu().numpy(), dtype)
                     else:
                         raise ValueError("Unsupported data type for model parameters: %s" % dtype)
                 # Translate the model.
