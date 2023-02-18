@@ -469,12 +469,6 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
    * \note This function create a new binding for non-leaf expressions except for tuple.
    */
   Expr NormalizeArgument(const Expr& arg) final {
-    // Temp patch to ensure we handle inline PrimFunc case.
-    // TODO(relax-team) remove such cases from parser and testcases.
-    if (auto* prim_func = arg.as<tir::PrimFuncNode>()) {
-      return NormalizePrimFunc(GetRef<tir::PrimFunc>(prim_func));
-    }
-
     if (!block_stack_.empty()) {
       // cache lookup
       BlockFrame* cur_frame = CurrentBlockFrame();
@@ -520,23 +514,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 
   Expr VisitExpr_(const DataflowVarNode* var) final { return VisitVar_<DataflowVar>(var); }
 
-  // Temp patch to ensure we handle inline PrimFunc case.
-  // TODO(relax-team) remove such cases from parser and testcases.
-  Expr NormalizePrimFunc(tir::PrimFunc prim_func) {
-    if (!prim_func->struct_info_.defined()) {
-      auto finfo = FuncStructInfo::OpaqueFunc(StructInfoFromType(prim_func->ret_type));
-      UpdateStructInfo(prim_func, finfo);
-    }
-    return prim_func;
-  }
-
   Expr VisitExpr(const Expr& expr) final {
-    // Temp patch to ensure we handle inline PrimFunc case.
-    // TODO(relax-team) remove such cases from parser and testcases.
-    if (auto* prim_func = expr.as<tir::PrimFuncNode>()) {
-      return NormalizePrimFunc(GetRef<tir::PrimFunc>(prim_func));
-    }
-
     // lookup normalize map
     if (!block_stack_.empty()) {
       BlockFrame* cur_frame = CurrentBlockFrame();
