@@ -14,10 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import, redefined-builtin
-"""Relax transformations. """
+"""Default legalization function for search operators."""
+from tvm import topi
+from .common import _call_topi_without_attr, register_legalize
 
-from .transform import *
-
-# Import to register the legalization functions.
-from . import legalize_ops
+register_legalize("relax.where", _call_topi_without_attr(topi.where))
