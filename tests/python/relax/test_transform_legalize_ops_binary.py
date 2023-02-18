@@ -124,10 +124,10 @@ def test_add_symbolic():
     class Add:
         @R.function
         def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             gv: R.Tensor((a, b, c, d), "float32") = R.add(x, y)
             return gv
 
@@ -135,20 +135,20 @@ def test_add_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             gv = R.call_tir(add, (x, y), R.Tensor((a, b, c, d), dtype="float32"))
             return gv
 
         @T.prim_func
         def add(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_add: T.handle):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c, d], dtype="float32")
             rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b, c, T.int64(1)], dtype="float32")
             T_add = T.match_buffer(var_T_add, [a, b, c, d], dtype="float32")
@@ -263,10 +263,10 @@ def test_divide_symbolic():
     class Divide:
         @R.function
         def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             gv: R.Tensor((a, b, c, d), "float32") = R.divide(x, y)
             return gv
 
@@ -274,20 +274,20 @@ def test_divide_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             gv = R.call_tir(divide, (x, y), R.Tensor((a, b, c, d), dtype="float32"))
             return gv
 
         @T.prim_func
         def divide(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_divide: T.handle):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c, d], dtype="float32")
             rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b, c, T.int64(1)], dtype="float32")
             T_divide = T.match_buffer(var_T_divide, [a, b, c, d], dtype="float32")
@@ -402,10 +402,10 @@ def test_floor_divide_symbolic():
     class FloorDivide:
         @R.function
         def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             gv: R.Tensor((a, b, c, d), "float32") = R.floor_divide(x, y)
             return gv
 
@@ -413,20 +413,20 @@ def test_floor_divide_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             gv = R.call_tir(floor_divide, (x, y), R.Tensor((a, b, c, d), dtype="float32"))
             return gv
 
         @T.prim_func
         def floor_divide(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_floor_divide: T.handle):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c, d], dtype="float32")
             rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b, c, T.int64(1)], dtype="float32")
             T_floor_divide = T.match_buffer(var_T_floor_divide, [a, b, c, d], dtype="float32")
@@ -479,10 +479,10 @@ def test_multiply_symbolic():
     class Multiply:
         @R.function
         def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             gv: R.Tensor((a, b, c, d), "float32") = R.multiply(x, y)
             return gv
 
@@ -490,20 +490,20 @@ def test_multiply_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             gv = R.call_tir(multiply, (x, y), R.Tensor((a, b, c, d), dtype="float32"))
             return gv
 
         @T.prim_func
         def multiply(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_multiply: T.handle):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c, d], dtype="float32")
             rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b, c, T.int64(1)], dtype="float32")
             T_multiply = T.match_buffer(var_T_multiply, [a, b, c, d], dtype="float32")
@@ -556,10 +556,10 @@ def test_subtract_symbolic():
     class Subtract:
         @R.function
         def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             gv: R.Tensor((a, b, c, d), "float32") = R.subtract(x, y)
             return gv
 
@@ -567,20 +567,20 @@ def test_subtract_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             gv = R.call_tir(subtract, (x, y), R.Tensor((a, b, c, d), dtype="float32"))
             return gv
 
         @T.prim_func
         def subtract(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_subtract: T.handle):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c, d], dtype="float32")
             rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b, c, T.int64(1)], dtype="float32")
             T_subtract = T.match_buffer(var_T_subtract, [a, b, c, d], dtype="float32")
@@ -698,10 +698,10 @@ def test_equal_symbolic():
     class Equal:
         @R.function
         def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "bool"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             gv: R.Tensor((a, b, c, d), "bool") = R.equal(x, y)
             return gv
 
@@ -709,20 +709,20 @@ def test_equal_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "bool"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             gv = R.call_tir(equal, (x, y), R.Tensor((a, b, c, d), dtype="bool"))
             return gv
 
         @T.prim_func
         def equal(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_equal: T.handle):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c, d], dtype="float32")
             rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b, c, T.int64(1)], dtype="float32")
             T_equal = T.match_buffer(var_T_equal, [a, b, c, d], dtype="bool")
@@ -837,10 +837,10 @@ def test_greater_symbolic():
     class Greater:
         @R.function
         def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "bool"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             gv: R.Tensor((a, b, c, d), "bool") = R.greater(x, y)
             return gv
 
@@ -848,20 +848,20 @@ def test_greater_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "bool"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             gv = R.call_tir(greater, (x, y), R.Tensor((a, b, c, d), dtype="bool"))
             return gv
 
         @T.prim_func
         def greater(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_greater: T.handle):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c, d], dtype="float32")
             rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b, c, T.int64(1)], dtype="float32")
             T_greater = T.match_buffer(var_T_greater, [a, b, c, d], dtype="bool")
@@ -914,10 +914,10 @@ def test_greater_equal_symbolic():
     class GreaterEqual:
         @R.function
         def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "bool"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             gv: R.Tensor((a, b, c, d), "bool") = R.greater_equal(x, y)
             return gv
 
@@ -925,20 +925,20 @@ def test_greater_equal_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "bool"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             gv = R.call_tir(greater_equal, (x, y), R.Tensor((a, b, c, d), dtype="bool"))
             return gv
 
         @T.prim_func
         def greater_equal(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_greater_equal: T.handle):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c, d], dtype="float32")
             rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b, c, T.int64(1)], dtype="float32")
             T_greater_equal = T.match_buffer(var_T_greater_equal, [a, b, c, d], dtype="bool")
@@ -991,10 +991,10 @@ def test_less_symbolic():
     class Less:
         @R.function
         def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "bool"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             gv: R.Tensor((a, b, c, d), "bool") = R.less(x, y)
             return gv
 
@@ -1002,20 +1002,20 @@ def test_less_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "bool"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             gv = R.call_tir(less, (x, y), R.Tensor((a, b, c, d), dtype="bool"))
             return gv
 
         @T.prim_func
         def less(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_less: T.handle):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c, d], dtype="float32")
             rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b, c, T.int64(1)], dtype="float32")
             T_less = T.match_buffer(var_T_less, [a, b, c, d], dtype="bool")
@@ -1130,10 +1130,10 @@ def test_less_equal_symbolic():
     class LessEqual:
         @R.function
         def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "bool"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             gv: R.Tensor((a, b, c, d), "bool") = R.less_equal(x, y)
             return gv
 
@@ -1141,20 +1141,20 @@ def test_less_equal_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "bool"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             gv = R.call_tir(less_equal, (x, y), R.Tensor((a, b, c, d), dtype="bool"))
             return gv
 
         @T.prim_func
         def less_equal(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_less_equal: T.handle):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c, d], dtype="float32")
             rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b, c, T.int64(1)], dtype="float32")
             T_less_equal = T.match_buffer(var_T_less_equal, [a, b, c, d], dtype="bool")
@@ -1207,10 +1207,10 @@ def test_not_equal_symbolic():
     class NotEqual:
         @R.function
         def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "bool"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             gv: R.Tensor((a, b, c, d), "bool") = R.not_equal(x, y)
             return gv
 
@@ -1218,20 +1218,20 @@ def test_not_equal_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "bool"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             gv = R.call_tir(not_equal, (x, y), R.Tensor((a, b, c, d), dtype="bool"))
             return gv
 
         @T.prim_func
         def not_equal(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_not_equal: T.handle):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
-            d = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c, d], dtype="float32")
             rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b, c, T.int64(1)], dtype="float32")
             T_not_equal = T.match_buffer(var_T_not_equal, [a, b, c, d], dtype="bool")

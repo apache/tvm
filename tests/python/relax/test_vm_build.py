@@ -86,7 +86,7 @@ def test_vm_compile_stage2(exec_mode):
     class TestVMCompileStage2:
         @R.function
         def foo(x: R.Tensor(dtype="float32")) -> R.Shape:
-            n, m = T.var("int64"), T.var("int64")
+            n, m = T.int64(), T.int64()
             _ = R.match_cast(x, R.Tensor((n, m), "float32"))
             return R.shape([n * 2, m * 3])
 
@@ -143,7 +143,7 @@ def test_vm_compile_e2e(exec_mode):
         @R.function
         def foo(x: R.Tensor(dtype="float32")) -> R.Tensor:
             with R.dataflow():
-                n, m = T.var("int64"), T.var("int64")
+                n, m = T.int64(), T.int64()
                 _ = R.match_cast(x, R.Tensor((n, m), "float32"))
                 y = R.call_tir("test.vm.tile", (x), R.Tensor((n, m * 2), dtype="float32"))
                 R.output(y)
@@ -168,9 +168,9 @@ def test_vm_compile_e2e_func_param_with_shape(exec_mode):
         @T.prim_func
         def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
-            m = T.var("int32")
-            n = T.var("int32")
-            k = T.var("int32")
+            m = T.int32()
+            n = T.int32()
+            k = T.int32()
             A = T.match_buffer(x, (m, n))
             B = T.match_buffer(y, (n, k))
             C = T.match_buffer(z, (m, k))
@@ -186,7 +186,7 @@ def test_vm_compile_e2e_func_param_with_shape(exec_mode):
         def func(
             x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")
         ) -> R.Tensor:
-            m, k = T.var("int64"), T.var("int64")
+            m, k = T.int64(), T.int64()
             gv0 = R.call_tir(tir_matmul, (x, w), R.Tensor((m, k), dtype="float32"))
             return gv0
 
@@ -540,9 +540,9 @@ def test_sub_func_call(exec_mode):
         @T.prim_func
         def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
-            m = T.var("int32")
-            n = T.var("int32")
-            k = T.var("int32")
+            m = T.int32()
+            n = T.int32()
+            k = T.int32()
             A = T.match_buffer(x, (m, n))
             B = T.match_buffer(y, (n, k))
             C = T.match_buffer(z, (m, k))
@@ -680,8 +680,8 @@ class TestVMSetInput:
     @T.prim_func
     def test_vm_mul(x: T.handle, y: T.handle, z: T.handle):
         T.func_attr({"global_symbol": "test_vm_mul"})
-        m = T.var("int32")
-        n = T.var("int32")
+        m = T.int32()
+        n = T.int32()
         A = T.match_buffer(x, (m, n))
         B = T.match_buffer(y, (m, n))
         C = T.match_buffer(z, (m, n))
