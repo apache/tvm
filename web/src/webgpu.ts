@@ -89,7 +89,10 @@ export class WebGPUContext {
       if (dtype == "handle") {
         layoutEntries.push({
           binding: i,
-          visibility: GPUShaderStage.COMPUTE
+          visibility: GPUShaderStage.COMPUTE,
+          buffer :  {
+            type: "storage"
+          }
         });
       } else {
         throw new Error("Cannot handle argument type " + dtype + " in WebGPU shader");
@@ -99,7 +102,7 @@ export class WebGPUContext {
       entries: layoutEntries
     });
 
-    const textDecoder = new TextDecoder('utf-8')
+    const textDecoder = new TextDecoder("utf-8")
     const codeString = textDecoder.decode(data.buffer)
 
     const pipeline = this.device.createComputePipeline({
@@ -287,8 +290,9 @@ export class WebGPUContext {
 
     this.numPendingReads += 1;
 
-    const readEvent = gpuTemp.mapAsync(GPUMapMode.READ).then((data: unknown) => {
-      this.memory.storeRawBytes(to, new Uint8Array(data as ArrayBuffer));
+    const readEvent = gpuTemp.mapAsync(GPUMapMode.READ).then(() => {
+      const data = gpuTemp.getMappedRange();
+      this.memory.storeRawBytes(to, new Uint8Array(data));
       this.numPendingReads -= 1;
       gpuTemp.destroy();
     });
