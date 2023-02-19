@@ -972,6 +972,55 @@ def test_symbolic_shape_computing():
             return z
 
 
+def test_arith_operators():
+    @R.function
+    def foo(x: R.Tensor(("m", "n"), "float32"), y: R.Tensor(("m", "n"), "float32")):
+        a0 = -x
+        a1 = x + y
+        a2 = x - y
+        a3 = x * y
+        a4 = x / y
+        a5 = x // y
+
+        c0 = x > y
+        c1 = x < y
+        c2 = x >= y
+        c3 = x <= y
+
+        tuple_expr = ((x, x), y)
+        t0 = tuple_expr[0]
+        t1 = tuple_expr[1]
+        t2 = tuple_expr[0][0]  # <= Will normalize to two bindings
+        return a0, a1, a2, a3, a4, a5, c0, c1, c2, c3, t0, t1, t2
+
+    m = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
+    x = relax.Var("x", relax.TensorStructInfo([m, n], "float32"))
+    y = relax.Var("y", relax.TensorStructInfo([m, n], "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x, y)):
+        a0 = bb.emit(relax.op.negative(x))
+        a1 = bb.emit(relax.op.add(x, y))
+        a2 = bb.emit(relax.op.subtract(x, y))
+        a3 = bb.emit(relax.op.multiply(x, y))
+        a4 = bb.emit(relax.op.divide(x, y))
+        a5 = bb.emit(relax.op.floor_divide(x, y))
+
+        c0 = bb.emit(relax.op.greater(x, y))
+        c1 = bb.emit(relax.op.less(x, y))
+        c2 = bb.emit(relax.op.greater_equal(x, y))
+        c3 = bb.emit(relax.op.less_equal(x, y))
+
+        tuple_expr = bb.emit(relax.Tuple((relax.Tuple((x, x)), y)))
+        t0 = bb.emit(relax.TupleGetItem(tuple_expr, 0))
+        t1 = bb.emit(relax.TupleGetItem(tuple_expr, 1))
+        tmp = bb.emit(relax.TupleGetItem(tuple_expr, 0))
+        t2 = bb.emit(relax.TupleGetItem(tmp, 0))
+        bb.emit_func_output(relax.Tuple((a0, a1, a2, a3, a4, a5, c0, c1, c2, c3, t0, t1, t2)))
+
+    _check(foo, bb.get()["foo"])
+
+
 # TODO(relax-team): enable this when vm ops are ready
 @pytest.mark.xfail
 def test_vm_ops():
