@@ -28,7 +28,7 @@ from tvm import tir
 from tvm import IRModule
 from tvm.relax.ty import Type
 from tvm.relax.struct_info import StructInfo, FuncStructInfo
-from tvm.relax.expr import DataflowBlock, Var, Expr, Function, Call
+from tvm.relax.expr import DataflowBlock, Var, Expr, Function, Call, Binding
 from . import _ffi_api
 
 
@@ -242,6 +242,27 @@ def udchain(dfb: DataflowBlock) -> Dict[Var, List[Var]]:
         A mapping from variable definition to its uses.
     """
     return _ffi_api.udchain(dfb)  # type: ignore
+
+
+def name_to_binding(func: Function) -> Dict[str, List[Binding]]:
+    """Return a map from variable name to its bindings."""
+    return _ffi_api.name_to_binding(func)  # type: ignore
+
+
+def remove_all_unused(func: Function) -> Function:
+    """Remove all unused variables from the function.
+
+    Parameters
+    ----------
+    func : Function
+        The input function to be analyzed.
+
+    Returns
+    -------
+    Function
+        The function with unused variables removed.
+    """
+    return _ffi_api.remove_all_unused(func)  # type: ignore
 
 
 def well_formed(mod: IRModule, check_struct_info: bool = True) -> bool:
