@@ -144,6 +144,11 @@ class TuningRecordNode : public runtime::Object {
    * argument information.
    */
   ObjectRef AsJSON() const;
+  /*!
+   * \brief Check if this tuning record has valid trace instructions and successful run results.
+   * \return The check result.
+   */
+  bool IsValid() const;
 };
 
 /*!
@@ -210,7 +215,7 @@ class DatabaseNode : public runtime::Object {
    */
   virtual void CommitTuningRecord(const TuningRecord& record) = 0;
   /*!
-   * \brief Get the top K tuning records of given workload from the database.
+   * \brief Get the top K valid tuning records of given workload from the database.
    * \param workload The workload to be searched for.
    * \param top_k The number of top records to be returned.
    * \return An array of top K tuning records for the given workload.
