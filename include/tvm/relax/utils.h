@@ -25,6 +25,7 @@
 #define TVM_RELAX_UTILS_H_
 
 #include <tvm/ir/module.h>
+#include <tvm/relax/expr.h>
 #include <tvm/runtime/logging.h>
 
 #include <algorithm>

@@ -342,12 +342,36 @@ TVM_DLL Map<Var, Expr> AnalyzeVar2Value(const Expr& expr);
 TVM_DLL Map<Var, Expr> AnalyzeVar2Value(const DataflowBlock& dfb);
 
 /*!
+ * \brief Return a mapping from variable name to its Bindings.
+ *
+ * \param fn The function to be analyzed.
+ * \return A mapping from variable name to its Bindings.
+ */
+TVM_DLL Map<String, Array<Binding>> NameToBinding(const Function& fn);
+
+/*!
  * \brief Get the use-def chain of variables inside a dataflow block.
  *
  * \param dfb The dataflow block to be analyzed.
  * \return A map mapping variable definitions to a set of uses.
  */
 TVM_DLL Map<Var, Array<Var>> DataflowBlockUseDef(const DataflowBlock& dfb);
+
+/*!
+ * \brief Get the use-def chain of variables inside a function.
+ *
+ * \param fn The function to be analyzed.
+ * \return A map from variable definitions to a set of uses and variables needed by return value.
+ */
+std::pair<Map<Var, Array<Var>>, Array<Var>> FunctionUseDef(const Function& fn);
+
+/*!
+ * \brief Remove unused statements inside DataflowBlocks.
+ *
+ * \param fn The function to remove unused statements.
+ * \return The function that contains no unused statements in DataflowBlock.
+ */
+TVM_DLL Function RemoveAllUnused(const Function fn);
 
 /*!
  * \brief Annotate Op Pattern Kind for PrimFunc, which is used in relax FuseOps.
