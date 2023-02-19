@@ -670,14 +670,15 @@ class TIRFuseMutator : public ExprMutator {
       }
     } else if (call->op == call_tir_op_) {
       // Case 2. It is a call_tir, re-emit the PrimFunc.
-      GlobalVar gv = Downcast<GlobalVar>(call->args[0]);
-      tir::PrimFunc func = Downcast<tir::PrimFunc>(mod_->Lookup(gv));
-      GlobalVar new_gv = this->builder_->AddFunction(func, gv->name_hint);
-      return Call(call->op, {new_gv, call->args[1]}, call->attrs, call->sinfo_args, call->span);
-    } else {
-      // Case 3. CallNode in other types. Leave it as it is.
-      return call;
+      if (const auto* gv = call->args[0].as<GlobalVarNode>()) {
+        tir::PrimFunc func = Downcast<tir::PrimFunc>(mod_->Lookup(GetRef<GlobalVar>(gv)));
+        GlobalVar new_gv = this->builder_->AddFunction(func, gv->name_hint);
+        return Call(call->op, {new_gv, call->args[1]}, call->attrs, call->sinfo_args, call->span);
+      }
     }
+
+    // Case 3. CallNode in other types. Leave it as it is.
+    return call;
   }
 
   /********** Helper Functions **********/
