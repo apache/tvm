@@ -2552,32 +2552,33 @@ class PyTorchOpConverter:
         return self.nonzero(inputs, input_types, is_numpy_style=False)
 
     def scatter(self, inputs, input_types):
-        assert len(inputs) == 5, (
-            "scatter takes 5 inputs (data, dim, index, src, reduce), "
+        assert len(inputs) == 4 or len(inputs) == 5, (
+            "scatter takes 4 or 5 inputs: data, dim, index, src, reduce (optional), "
             + "but {} given".format(len(inputs))
         )
         data = inputs[0]
         axis = int(inputs[1])
         index = inputs[2]
         src = inputs[3]
-        reduce = inputs[4]
+        if len(inputs) == 5:
+            reduce = inputs[4]
+        else:
+            reduce = "update"
 
         data_shape = self.infer_shape(data)
         data_rank = len(data_shape)
         index_shape = self.infer_shape(index)
         index_rank = len(index_shape)
         # When index is empty, the operation returns data unchanged
-        if index_rank == 0:
+        if self.is_empty_shape(index_shape):
             return data
-        assert self.infer_type(src).dtype == self.infer_type(data).dtype, (
-            "The same data types for data and src are expected"
-        )
+
         if np.isscalar(src):
             assert self.infer_type(src).dtype == "float", "Scalar source can be float only"
             src = _op.broadcast_to_like(src, data_shape)
             src_shape = data_shape
         else:
-            src_shape = self.infer_shape(inputs[3])
+            src_shape = self.infer_shape(src)
         src_rank = len(src_shape)
         assert data_rank == index_rank, "Index rank is not the same as data rank"
         assert data_rank == src_rank, "Src rank is not the same as data rank"
@@ -2595,9 +2596,11 @@ class PyTorchOpConverter:
             reduce = "update"
         elif reduce == "multiply":
             reduce = "mul"
-        assert reduce in ["update", "add", "mul"], (
-            "reduce arg is expected from \"add\", \"multiply\" or None"
-        )
+        assert reduce in [
+            "update",
+            "add",
+            "mul",
+        ], 'reduce arg is expected from "add", "multiply" or None'
 
         return _op.scatter_elements(data, index, src, axis, reduce)
 
