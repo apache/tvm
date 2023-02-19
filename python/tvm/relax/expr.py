@@ -135,7 +135,7 @@ class ExprWithOp(Expr, Scriptable):
         return _op_ffi_api.astype(self, dtype)  # type: ignore
 
     def __neg__(self) -> "ExprWithOp":
-        raise ValueError("relax.negative is not supported yet.")
+        return _op_ffi_api.negative(self)  # type: ignore
 
     def __lt__(self, other: Expr) -> "ExprWithOp":
         return _binary_op_helper(self, other, _op_ffi_api.less)  # type: ignore
