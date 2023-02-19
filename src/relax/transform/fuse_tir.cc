@@ -81,30 +81,6 @@ class FuseTIRBufferSubstitor : private StmtExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const LoadNode* _op) final {
-    Load load = Downcast<Load>(StmtExprMutator::VisitExpr_(_op));
-    auto it = buffer_var_map_.find(load->buffer_var.get());
-    if (it != buffer_var_map_.end()) {
-      auto n = make_object<LoadNode>(*load.get());
-      n->buffer_var = it->second->data;
-      return Load(n);
-    } else {
-      return std::move(load);
-    }
-  }
-
-  Stmt VisitStmt_(const StoreNode* _op) final {
-    Store store = Downcast<Store>(StmtExprMutator::VisitStmt_(_op));
-    auto it = buffer_var_map_.find(store->buffer_var.get());
-    if (it != buffer_var_map_.end()) {
-      auto n = CopyOnWrite(store.get());
-      n->buffer_var = it->second->data;
-      return Store(n);
-    } else {
-      return std::move(store);
-    }
-  }
-
   Stmt VisitStmt_(const BlockNode* _op) final {
     Block block = Downcast<Block>(StmtMutator::VisitStmt_(_op));
 
@@ -670,14 +646,15 @@ class TIRFuseMutator : public ExprMutator {
       }
     } else if (call->op == call_tir_op_) {
       // Case 2. It is a call_tir, re-emit the PrimFunc.
-      GlobalVar gv = Downcast<GlobalVar>(call->args[0]);
-      tir::PrimFunc func = Downcast<tir::PrimFunc>(mod_->Lookup(gv));
-      GlobalVar new_gv = this->builder_->AddFunction(func, gv->name_hint);
-      return Call(call->op, {new_gv, call->args[1]}, call->attrs, call->sinfo_args, call->span);
-    } else {
-      // Case 3. CallNode in other types. Leave it as it is.
-      return call;
+      if (const auto* gv = call->args[0].as<GlobalVarNode>()) {
+        tir::PrimFunc func = Downcast<tir::PrimFunc>(mod_->Lookup(GetRef<GlobalVar>(gv)));
+        GlobalVar new_gv = this->builder_->AddFunction(func, gv->name_hint);
+        return Call(call->op, {new_gv, call->args[1]}, call->attrs, call->sinfo_args, call->span);
+      }
     }
+
+    // Case 3. CallNode in other types. Leave it as it is.
+    return call;
   }
 
   /********** Helper Functions **********/

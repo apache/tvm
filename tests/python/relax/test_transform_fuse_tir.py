@@ -18,7 +18,7 @@
 import tvm
 import tvm.testing
 from tvm import relax, topi
-from tvm.script import relax as R
+from tvm.script import ir as I, relax as R, tir as T
 
 
 def _check(mod_before, mod_expected):
@@ -557,6 +557,145 @@ def test_fuse_return_partial_result():
         return bb.get()
 
     _check(before(), expected())
+
+
+def test_multiple_relax_functions():
+    def before():
+        bb = relax.BlockBuilder()
+
+        x = relax.Var("x", R.Tensor([10, 20], "float32"))
+        p0 = relax.Var("p0", R.Tensor((), "float32"))
+        with bb.function("fused_add_exp_squeeze", [x, p0], attrs={"Primitive": 1}):
+            with bb.dataflow():
+                lv0 = bb.emit_te(topi.add, x, p0)
+                lv1 = bb.emit_te(topi.exp, lv0)
+                gv = bb.emit_output(bb.call_te(topi.squeeze, lv1))
+            bb.emit_func_output(gv)
+        fused_add_exp_squeeze = bb.get().get_global_var("fused_add_exp_squeeze")
+
+        x = relax.Var("x", R.Tensor([20, 10], "float32"))
+        p0 = relax.Var("p0", R.Tensor((), "float32"))
+        with bb.function("fused_add1_exp1_squeeze1", [x, p0], attrs={"Primitive": 1}):
+            with bb.dataflow():
+                lv0 = bb.emit_te(topi.add, x, p0)
+                lv1 = bb.emit_te(topi.exp, lv0)
+                gv = bb.emit_output(bb.call_te(topi.squeeze, lv1))
+            bb.emit_func_output(gv)
+        fused_add1_exp1_squeeze1 = bb.get().get_global_var("fused_add1_exp1_squeeze1")
+
+        x = relax.Var("x", R.Tensor([10, 20], "float32"))
+        with bb.function("func1", [x]):
+            with bb.dataflow():
+                gv = bb.emit_output(
+                    relax.Call(fused_add_exp_squeeze, [x, relax.const(1, "float32")])
+                )
+            bb.emit_func_output(gv)
+
+        x = relax.Var("x", R.Tensor([20, 10], "float32"))
+        with bb.function("func2", [x]):
+            with bb.dataflow():
+                gv = bb.emit_output(
+                    relax.Call(fused_add1_exp1_squeeze1, [x, relax.const(1, "float32")])
+                )
+            bb.emit_func_output(gv)
+
+        return bb.get()
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def func1(x: R.Tensor((10, 20), dtype="float32")) -> R.Tensor((10, 20), dtype="float32"):
+            with R.dataflow():
+                gv2 = R.call_tir(
+                    fused_add_exp_squeeze,
+                    (x, R.const(1, "float32")),
+                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
+                )
+                R.output(gv2)
+            return gv2
+
+        @R.function
+        def func2(x: R.Tensor((20, 10), dtype="float32")) -> R.Tensor((20, 10), dtype="float32"):
+            with R.dataflow():
+                gv3 = R.call_tir(
+                    fused_add1_exp1_squeeze1,
+                    (x, R.const(1, "float32")),
+                    out_sinfo=R.Tensor((20, 10), dtype="float32"),
+                )
+                R.output(gv3)
+            return gv3
+
+        @T.prim_func
+        def fused_add1_exp1_squeeze1(
+            x: T.Buffer((T.int64(20), T.int64(10)), "float32"),
+            p0: T.Buffer((), "float32"),
+            T_squeeze: T.Buffer((T.int64(20), T.int64(10)), "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            T_add = T.alloc_buffer((T.int64(20), T.int64(10)))
+            compute = T.alloc_buffer((T.int64(20), T.int64(10)))
+            for ax0, ax1 in T.grid(T.int64(20), T.int64(10)):
+                with T.block("T_add"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(x[v_ax0, v_ax1], p0[()])
+                    T.writes(T_add[v_ax0, v_ax1])
+                    T_add[v_ax0, v_ax1] = x[v_ax0, v_ax1] + p0[()]
+            for i0, i1 in T.grid(T.int64(20), T.int64(10)):
+                with T.block("compute"):
+                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(T_add[v_i0, v_i1])
+                    T.writes(compute[v_i0, v_i1])
+                    compute[v_i0, v_i1] = T.exp(T_add[v_i0, v_i1])
+            for ax0, ax1 in T.grid(T.int64(20), T.int64(10)):
+                with T.block("T_squeeze"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(compute[v_ax0, v_ax1])
+                    T.writes(T_squeeze[v_ax0, v_ax1])
+                    T_squeeze[v_ax0, v_ax1] = compute[v_ax0, v_ax1]
+
+        @T.prim_func
+        def fused_add_exp_squeeze(
+            x: T.Buffer((T.int64(10), T.int64(20)), "float32"),
+            p0: T.Buffer((), "float32"),
+            T_squeeze: T.Buffer((T.int64(10), T.int64(20)), "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            T_add = T.alloc_buffer((T.int64(10), T.int64(20)))
+            compute = T.alloc_buffer((T.int64(10), T.int64(20)))
+            for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
+                with T.block("T_add"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(x[v_ax0, v_ax1], p0[()])
+                    T.writes(T_add[v_ax0, v_ax1])
+                    T_add[v_ax0, v_ax1] = x[v_ax0, v_ax1] + p0[()]
+            for i0, i1 in T.grid(T.int64(10), T.int64(20)):
+                with T.block("compute"):
+                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(T_add[v_i0, v_i1])
+                    T.writes(compute[v_i0, v_i1])
+                    compute[v_i0, v_i1] = T.exp(T_add[v_i0, v_i1])
+            for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
+                with T.block("T_squeeze"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(compute[v_ax0, v_ax1])
+                    T.writes(T_squeeze[v_ax0, v_ax1])
+                    T_squeeze[v_ax0, v_ax1] = compute[v_ax0, v_ax1]
+
+    _check(before(), Expected)
+
+
+def test_skip_call_dps_packed():
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32")):
+            with R.dataflow():
+                y = R.call_tir("func_packed_dps", x, R.Tensor((2, 3), "float32"))
+                R.output(y)
+            return y
+
+    # FuseTIR should does no change to it.
+    _check(Module, Module)
 
 
 if __name__ == "__main__":
