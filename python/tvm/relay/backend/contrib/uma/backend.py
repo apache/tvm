@@ -278,11 +278,12 @@ class UMABackend(ABC):
         """
         registration_func = tvm.get_global_func("relay.backend.contrib.uma.RegisterTarget")
 
-        for name, attr in self._target_attrs:
+        for name, attr in self._target_attrs.items():
             if attr is None:
                 raise ValueError("Target attribute None is not supported.")
-
-        if registration_func(self.target_name, self._target_attrs):
+        # skip if target is already registered
+        if self.target_name not in tvm.target.Target.list_kinds():
+            registration_func(self.target_name, self._target_attrs)
             self._relay_to_relay.register()
             self._relay_to_tir.register()
             self._tir_to_runtime.register()
