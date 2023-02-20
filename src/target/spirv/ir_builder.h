@@ -215,7 +215,7 @@ class InstrBuilder {
    * \brief add sequence of values to instruction
    * \param args The instruction sequence
    * \return reference to self.
-   * \tparams Args The positional arguments
+   * \tparam Args The positional arguments
    */
   template <typename... Args>
   InstrBuilder& AddSeq(Args&&... args) {
@@ -328,7 +328,7 @@ class IRBuilder {
    * \brief Add code to debug segment.
    * \param op The operator
    * \param args The instruction sequence
-   * \tparams Args The positional arguments
+   * \tparam Args The positional arguments
    */
   template <typename... Args>
   void Debug(spv::Op op, Args&&... args) {
@@ -339,7 +339,7 @@ class IRBuilder {
    * \brief Set the name of a value or label
    * \param obj The object to be named
    * \param name The name of the object
-   * \tparams Obj The type of the object being named.  Typically a Label or Value.
+   * \tparam Obj The type of the object being named.  Typically a Label or Value.
    */
   template <typename Obj>
   void SetName(Obj&& obj, const std::string& name) {
@@ -350,7 +350,7 @@ class IRBuilder {
    * \brief Add Execution mode to a function.
    * \param func The function value
    * \param args The instruction sequence
-   * \tparams Args The positional arguments
+   * \tparam Args The positional arguments
    */
   template <typename... Args>
   void ExecutionMode(Value func, Args&&... args) {
@@ -360,7 +360,7 @@ class IRBuilder {
    * \brief Add code to decorate segment.
    * \param op The operator
    * \param args The instruction sequence
-   * \tparams Args The positional arguments
+   * \tparam Args The positional arguments
    */
   template <typename... Args>
   void Decorate(spv::Op op, Args&&... args) {
@@ -370,7 +370,7 @@ class IRBuilder {
    * \brief Add code to global segment.
    * \param op The operator
    * \param args The instruction sequence
-   * \tparams Args The positional arguments
+   * \tparam Args The positional arguments
    */
   template <typename... Args>
   void DeclareGlobal(spv::Op op, Args&&... args) {
@@ -382,7 +382,7 @@ class IRBuilder {
    * \param op The operator
    * \param args The instruction sequence
    * \return The result SSA value.
-   * \tparams Args The positional arguments
+   * \tparam Args The positional arguments
    */
   template <typename... Args>
   Instr MakeInst(spv::Op op, Args&&... args) {
@@ -395,7 +395,7 @@ class IRBuilder {
    * \param out_type The result type.
    * \param args The instruction sequence
    * \return The result SSA value.
-   * \tparams Args The positional arguments
+   * \tparam Args The positional arguments
    */
   template <typename... Args>
   Value MakeValue(spv::Op op, const SType& out_type, Args&&... args) {
@@ -435,7 +435,7 @@ class IRBuilder {
    * \brief Build vector by concatenating components
    *
    * \param vec The vector component
-   * \tparams Args The positional arguments
+   * \tparam Args The positional arguments
    */
   Value Concat(const std::vector<Value>& vec);
   /*!

@@ -97,7 +97,7 @@ class SPIRVTools {
   spv_context ctx_;
 };
 
-runtime::Module BuildSPIRV(IRModule mod, Target target, bool webgpu_restriction) {
+runtime::Module BuildSPIRV(IRModule mod, Target target) {
   using tvm::runtime::Registry;
   using tvm::runtime::VulkanShader;
 
@@ -122,7 +122,7 @@ runtime::Module BuildSPIRV(IRModule mod, Target target, bool webgpu_restriction)
         << "CodeGenSPIRV: Expect PrimFunc to have the global_symbol attribute";
 
     std::string f_name = global_symbol.value();
-    std::string entry = webgpu_restriction ? "main" : f_name;
+    std::string entry = f_name;
 
     VulkanShader shader = cg.BuildFunction(f, entry);
 
@@ -144,12 +144,6 @@ runtime::Module BuildSPIRV(IRModule mod, Target target, bool webgpu_restriction)
       spirv_tools.ValidateShader(shader.data);
     }
 
-    if (webgpu_restriction) {
-      for (auto param : f->params) {
-        ICHECK(param.dtype().is_handle()) << "WebGPU does not yet support non-buffer arguments";
-      }
-    }
-
     if (postproc != nullptr) {
       TVMByteArray arr;
       arr.data = reinterpret_cast<const char*>(dmlc::BeginPtr(shader.data));
@@ -168,11 +162,7 @@ runtime::Module BuildSPIRV(IRModule mod, Target target, bool webgpu_restriction)
 }
 
 TVM_REGISTER_GLOBAL("target.build.vulkan").set_body_typed([](IRModule mod, Target target) {
-  return BuildSPIRV(mod, target, false);
-});
-
-TVM_REGISTER_GLOBAL("target.build.webgpu").set_body_typed([](IRModule mod, Target target) {
-  return BuildSPIRV(mod, target, true);
+  return BuildSPIRV(mod, target);
 });
 
 }  // namespace codegen
