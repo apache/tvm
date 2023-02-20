@@ -1,15 +1,24 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import numpy as np
 import pytest
 import tvm
 from tvm import te
-import scipy
-from tvm import relay
-import pytest
-from tvm.relay.testing import run_infer_type
-import tvm.topi.testing
-from tvm.contrib.nvcc import have_fp16
 import tvm.testing
-from tvm.topi.utils import get_const_tuple
 from tvm.script import tir
 
 executor_kind = tvm.testing.parameter("graph", "vm")
@@ -98,15 +107,16 @@ def test_floor_div_op(target, dev):
         b = b_dev.numpy()
         c = c_dev.numpy()
 
-        #python modulo behaves a bit different to tvm floormod for negative numbers
-        for i in range(N+100):
+        # python modulo behaves a bit different to tvm floormod for negative numbers
+        for i in range(N + 100):
             if a[i, 1] < 0:
-                a[i, 1] = divisor+a[i, 1]
+                a[i, 1] = divisor + a[i, 1]
 
-        np.testing.assert_array_equal(a[:100, 0], (c-te.max_value(type)) // divisor)
-        np.testing.assert_array_equal(a[:100, 1], (c-te.max_value(type)) % divisor)
-        np.testing.assert_array_equal(a[100:N+100, 0], b // divisor)
-        np.testing.assert_array_equal(a[100:N+100, 1], b % divisor)
-    
+        np.testing.assert_array_equal(a[:100, 0], (c - te.max_value(type)) // divisor)
+        np.testing.assert_array_equal(a[:100, 1], (c - te.max_value(type)) % divisor)
+        np.testing.assert_array_equal(a[100 : N + 100, 0], b // divisor)
+        np.testing.assert_array_equal(a[100 : N + 100, 1], b % divisor)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
