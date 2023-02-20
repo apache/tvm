@@ -2551,6 +2551,53 @@ class PyTorchOpConverter:
     def nonzero_numpy(self, inputs, input_types):
         return self.nonzero(inputs, input_types, is_numpy_style=False)
 
+    def diagonal_scatter(self, inputs, input_types):
+        args_num = len(inputs)
+        assert 1 < args_num < 6, (
+            "diagonal_scatter takes from 2 to 5 inputs (input, src, offset, dim1, dim2), "
+            + "but {} given".format(len(inputs))
+        )
+        data = inputs[0]
+        src = inputs[1]
+        if args_num > 2:
+            offset = int(inputs[2])
+        else:
+            offset = 0
+        if args_num > 3:
+            dim1 = int(inputs[3])
+        else:
+            dim1 = 0
+        if args_num > 4:
+            dim2 = int(inputs[4])
+        else:
+            dim2 = 1
+
+        data_shape = self.infer_shape(data)
+        data_rank = len(data_shape)
+        assert dim1 < data_rank, "dim1 is outof bounds"
+        assert dim2 < data_rank, "dim2 is outof bounds"
+
+        dim1_size = data_shape[dim1]
+        dim2_size = data_shape[dim2]
+        # Skip check for dynamic dimension
+        if not any([isinstance(dim1_size, tvm.tir.Any), isinstance(dim2_size, tvm.tir.Any)]):
+            assert dim1_size == dim2_size
+
+        abs_offset = abs(offset)
+        if not any([isinstance(dim1_size, tvm.tir.Any)]):
+            assert abs_offset < dim1_size, "Diagonal offset must be smaller than diagonal size"
+
+        src_shape = self.infer_shape(src)
+        src_rank = len(src_shape)
+        assert src_rank == 1, "1D source tensor is assumed"
+        src_len = src_shape[0]
+        if not any([isinstance(dim1_size, tvm.tir.Any), isinstance(src_len, tvm.tir.Any)]):
+            assert (
+                dim1_size == src_len + abs_offset
+            ), "Src must be of the proper size in order to be embedded into input"
+
+        return _op.diagonal_scatter(data, src, offset, dim1, dim2)
+
     def scatter(self, inputs, input_types):
         data = inputs[0]
         axis = int(inputs[1])
@@ -3872,6 +3919,7 @@ class PyTorchOpConverter:
             "aten::_shape_as_tensor": self.shape_as_tensor,
             "aten::nonzero": self.nonzero,
             "aten::nonzero_numpy": self.nonzero_numpy,
+            "aten::diagonal_scatter": self.diagonal_scatter,
             "aten::scatter": self.scatter,
             "aten::scatter_add": self.scatter_add,
             "aten::scatter_reduce": self.scatter_reduce,
