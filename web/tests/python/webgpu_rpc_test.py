@@ -37,12 +37,10 @@ def test_rpc():
     # generate the wasm library
     target = tvm.target.Target("webgpu", host="llvm -mtriple=wasm32-unknown-unknown-wasm")
     runtime = Runtime("cpp", {"system-lib": True})
-    if not tvm.runtime.enabled(target_host):
-        raise RuntimeError("Target %s is not enbaled" % target_host)
 
     n = 2048
     A = te.placeholder((n,), name="A")
-    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
+    B = te.compute(A.shape, lambda *i: te.log(te.abs(A(*i)) + 1.0), name="B")
     s = te.create_schedule(B.op)
 
     num_thread = 2
@@ -75,7 +73,7 @@ def test_rpc():
         f1 = remote.system_lib()
         addone = f1.get_function("addone")
         addone(a, b)
-        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
+        np.testing.assert_allclose(b.numpy(), np.log(np.abs(a.numpy()) + 1), atol=1e-5, rtol=1e-5)
         print("Test pass..")
 
     check(remote)

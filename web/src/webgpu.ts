@@ -79,9 +79,9 @@ export class WebGPUContext {
    * Create a PackedFunc that runs the given shader
    *
    * @param info The function information in json.
-   * @param data The shader data(in SPIRV)
+   * @param code The shader data(in WGSL)
    */
-  createShader(info: string, data: Uint8Array): Function {
+  createShader(info: string, code: string): Function {
     const finfo = JSON.parse(info);
     const layoutEntries: Array<GPUBindGroupLayoutEntry> = [];
     for (let i = 0; i < finfo.arg_types.length; ++i) {
@@ -102,16 +102,13 @@ export class WebGPUContext {
       entries: layoutEntries
     });
 
-    const textDecoder = new TextDecoder("utf-8")
-    const codeString = textDecoder.decode(data.buffer)
-
     const pipeline = this.device.createComputePipeline({
       layout: this.device.createPipelineLayout({
         bindGroupLayouts: [ bindGroupLayout ]
       }),
       compute: {
         module: this.device.createShaderModule({
-          code: codeString
+          code: code
         }),
         entryPoint: "main"
       }

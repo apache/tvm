@@ -1037,8 +1037,8 @@ export class Instance implements Disposable {
     this.registerFunc("wasm.WebGPUDeviceAPI", (name: string) => {
       return webGPUContext.getDeviceAPI(name);
     });
-    this.registerFunc("wasm.WebGPUCreateShader", (info: string, data: Uint8Array) => {
-      return webGPUContext.createShader(info, data);
+    this.registerFunc("wasm.WebGPUCreateShader", (info: string, code: string) => {
+      return webGPUContext.createShader(info, code);
     });
     this.registerAsyncServerFunc("wasm.WebGPUWaitForTasks", async () => {
       await webGPUContext.sync();
