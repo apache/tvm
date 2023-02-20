@@ -353,6 +353,38 @@ def argwhere(condition):
     return _make.argwhere(condition)
 
 
+def diagonal_scatter(data, src, offset=0, dim1=0, dim2=1):
+    """Embeds the values of the src tensor into data along its diagonal
+    with respect to dim1 and dim2. It can be lateral diagonal instead of main one.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    src : relay.Expr
+        The  tensor to embed into data.
+
+    offset : int, optional
+        Which diagonal to consider.
+        If offset > 0, it is above the main diagonal.
+        If offset < 0, it is below the main diagonal.
+        Default: 0 (main diagonal).
+
+    dim1 : int, optional
+        First dimension with respect to which to take diagonal. Default: 0.
+
+    dim2 : int, optional
+        Second dimension with respect to which to take diagonal. Default: 1.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+    """
+    return _make.diagonal_scatter(data, src, offset, dim1, dim2)
+
+
 def scatter(data, indices, updates, axis):
     """Update data at positions defined by indices with values in updates.
 
