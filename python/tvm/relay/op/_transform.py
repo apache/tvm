@@ -104,6 +104,15 @@ _reg.register_pattern("meta_schedule_layout_transform", OpPattern.INJECTIVE)
 # argwhere
 _reg.register_strategy("argwhere", strategy.argwhere_strategy)
 
+# diagonal_scatter
+@_reg.register_compute("diagonal_scatter")
+def compute_diagonal_scatter(attrs, inputs, output_type):
+    """Compute definition of diagonal_scatter"""
+    return [topi.diagonal_scatter(inputs[0], inputs[1], attrs.offset, attrs.dim1, attrs.dim2)]
+
+
+_reg.register_strategy("diagonal_scatter", strategy.diagonal_scatter_strategy)
+
 # scatter
 @_reg.register_compute("scatter")
 def compute_scatter(attrs, inputs, output_type):
@@ -677,6 +686,7 @@ def argwhere_shape_func(attrs, inputs, out_ndims):
     return ValueError("Does not support rank higher than 5 in argwhere")
 
 
+_reg.register_shape_func("diagonal_scatter", False, elemwise_shape_func)
 _reg.register_shape_func("scatter", False, elemwise_shape_func)
 _reg.register_shape_func("scatter_elements", False, elemwise_shape_func)
 _reg.register_shape_func("scatter_nd", False, elemwise_shape_func)

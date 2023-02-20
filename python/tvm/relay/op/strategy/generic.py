@@ -1548,6 +1548,27 @@ def proposal_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
+# diagonal_scatter
+@override_native_generic_func("diagonal_scatter_strategy")
+def diagonal_scatter_strategy(attrs, outs, out_type, target):
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_diagonal_scatter(topi.diagonal_scatter),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="diagonal_scatter.generic",
+    )
+    return strategy
+
+
+def wrap_compute_diagonal_scatter(topi_compute):
+    """Wrap diagonal_scatter topi compute"""
+
+    def _compute_diagonal_scatter(attrs, inputs, _):
+        return [topi_compute(inputs[0], inputs[1], attrs.offset, attrs.dim1, attrs.dim2)]
+
+    return _compute_diagonal_scatter
+
+
 # scatter
 @override_native_generic_func("scatter_strategy")
 def scatter_strategy(attrs, outs, out_type, target):
