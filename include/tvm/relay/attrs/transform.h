@@ -148,6 +148,22 @@ struct ReshapeLikeAttrs : public tvm::AttrsNode<ReshapeLikeAttrs> {
   }
 };  // struct ReshapeLikeAttrs
 
+struct DiagonalScatterAttrs : public tvm::AttrsNode<DiagonalScatterAttrs> {
+  Integer offset;
+  Integer dim1;
+  Integer dim2;
+
+  TVM_DECLARE_ATTRS(DiagonalScatterAttrs, "relay.attrs.DiagonalScatterAttrs") {
+    TVM_ATTR_FIELD(offset).set_default(0).describe("Offset for which diagonal to consider.");
+    TVM_ATTR_FIELD(dim1)
+        .set_default(0)
+        .describe("The first dimension with respect to which to take diagonal.");
+    TVM_ATTR_FIELD(dim2)
+        .set_default(1)
+        .describe("The second dimension with respect to which to take diagonal.");
+  }
+};
+
 struct ScatterAttrs : public tvm::AttrsNode<ScatterAttrs> {
   Integer axis;
 
