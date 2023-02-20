@@ -318,13 +318,13 @@ def conv2d_spatial_pack_nhwc(cfg, data, kernel, strides, padding, dilation, out_
 
         cfg["tile_oh"] = SplitEntity([-1, 1])
         cfg["tile_ow"] = SplitEntity([-1, _tile_size(OW, [8, 4])])
-        cfg["tile_oc"] = SplitEntity([-1, _tile_size(OC, [8, 4])])
+        cfg["tile_co"] = SplitEntity([-1, _tile_size(OC, [8, 4])])
         cfg["ann_spatial"] = AnnotateEntity(["none", "vec"])
         cfg["ann_reduce"] = AnnotateEntity(["none", "none"])
         cfg["reorder_conv"] = ReorderEntity([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
         cfg["compat"] = OtherOptionEntity(0)
 
-    OCI = cfg["tile_oc"].size[-1]
+    OCI = cfg["tile_co"].size[-1]
     OHI = cfg["tile_oh"].size[-1]
     OWI = cfg["tile_ow"].size[-1]
     OCO = OC // OCI
@@ -411,13 +411,13 @@ def schedule_conv2d_spatial_pack_nhwc(cfg, s, op, output):
     data_pad = data_vec.op.input_tensors[0]
 
     OWI = cfg["tile_ow"].size[-1]
-    OCI = cfg["tile_oc"].size[-1]
+    OCI = cfg["tile_co"].size[-1]
 
     # schedule unpack/output
     if output != unpack:
         s[unpack].compute_inline()
     n, oh, ow, oc = s[output].op.axis
-    oco, oci = cfg["tile_oc"].apply(s, output, oc)
+    oco, oci = cfg["tile_co"].apply(s, output, oc)
     oho, ohi = cfg["tile_oh"].apply(s, output, oh)
     owo, owi = cfg["tile_ow"].apply(s, output, ow)
     s[output].reorder(n, oho, owo, oco, ohi, owi, oci)
