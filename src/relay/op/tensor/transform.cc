@@ -1120,7 +1120,6 @@ bool ScatterElementsRel(const Array<Type>& types, int num_inputs, const Attrs& a
         << "ScatterElements: expect updates type to be TensorType but got " << types[2];
     return false;
   }
-  // TODO(vvchernov): ONNX requires int32 and int64
   ICHECK(indices->dtype.is_int() || indices->dtype.is_uint())
       << "ScatterElements: indices must be a tensor of integers.";
 

@@ -2586,11 +2586,16 @@ class PyTorchOpConverter:
         assert 0 <= axis < data_rank, "Dim is out of bounds"
 
         for i in range(data_rank):
-            assert index_shape[i] <= src_shape[i], "Index dim size should be less than src one"
-            if i != axis:
-                assert (
-                    index_shape[i] <= data_shape[i]
-                ), "Index dim size should be less than data one"
+            index_dim = index_shape[i]
+            src_dim = src_shape[i]
+            data_dim = data_shape[i]
+            # Skip check for dynamic dimensions
+            if not any([isinstance(index_dim, tvm.tir.Any), isinstance(src_dim, tvm.tir.Any)]):
+                assert index_dim <= src_dim, "Index dim size should be less than src one"
+            if i != axis and not any(
+                [isinstance(index_dim, tvm.tir.Any), isinstance(data_dim, tvm.tir.Any)]
+            ):
+                assert index_dim <= data_dim, "Index dim size should be less than data one"
 
         if reduce is None:
             reduce = "update"

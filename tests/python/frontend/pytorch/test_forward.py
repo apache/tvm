@@ -4242,7 +4242,7 @@ def test_forward_scatter():
     # Check scalar source
     in_data = torch.zeros(2, 4)
     in_index = torch.tensor([[2], [3]])
-    in_src = torch.rand(size=[])
+    in_src = np.random.random()  # scalar
     verify_trace_model(test_fn_scatter(0), [in_data, in_index, in_src], targets)
 
 
