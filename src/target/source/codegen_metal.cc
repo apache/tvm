@@ -55,7 +55,7 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
   // clear previous generated state.
   this->InitFuncState(f);
   // skip the first underscore, so SSA variable starts from _1
-  name_supply_->FreshName("_");
+  name_supply_->FreshName("v_");
 
   // add to alloc buffer type.
   auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);

@@ -118,6 +118,22 @@ TVM_REGISTER_OP("tir.nearbyint")
 TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
                                                      DispatchPureExtern<FloatSuffix>);
 
+PrimExpr DispatchFastErf(const PrimExpr& e) {
+  LOG(WARNING) << "fast_erf will be used instead of erf";
+  const CallNode* call = e.as<CallNode>();
+  ICHECK(call != nullptr);
+  ICHECK_EQ(call->args.size(), 1);
+  PrimExpr arg = call->args[0];
+  int bits = arg.dtype().bits();
+  PrimExpr res;
+  if (arg.dtype().is_float() && (bits == 16 || bits == 32)) {
+    res = fast_erf_float_expr(arg, bits);
+  } else {
+    LOG(FATAL) << "Unsupported type in Metal fast_erf";
+  }
+  return res;
+}
+
 }  // namespace intrin
 
 namespace legalize {
