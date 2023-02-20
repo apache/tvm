@@ -4240,10 +4240,8 @@ def test_forward_scatter():
     verify_trace_model(test_fn_scatter_add(0), [in_data, in_index, in_src], targets)
 
     # Check scalar source
-    in_data = torch.zeros(2, 4)
-    in_index = torch.tensor([[2], [3]])
-    in_src = np.random.random()  # scalar
-    verify_trace_model(test_fn_scatter(0), [in_data, in_index, in_src], targets)
+    # TODO(vvchernov): Scalar source is supported on TVM side, but torch failes with
+    # input Tuple(Tensor, Tensor, float). What does scalar mean for torch in this case?
 
 
 def test_forward_scatter_reduce():
