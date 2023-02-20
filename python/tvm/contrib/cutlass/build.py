@@ -26,7 +26,7 @@ from tvm.contrib.nvcc import get_cuda_version
 
 from .gen_conv2d import CutlassConv2DProfiler
 from .gen_gemm import CutlassGemmProfiler
-from .library import ConvKind, LayoutType
+from .library import ConvKind
 
 logger = logging.getLogger("cutlass")
 

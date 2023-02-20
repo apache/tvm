@@ -276,6 +276,7 @@ def generate_sm80_tensor_op_16816(
         alignment_constraints = [4, 2, 1]
 
         if use_3xtf32:
+            # tf32
             tile_descriptions = [
                 ([128, 128, 16], 4, [4, 2, 1], min_cc, max_cc),
                 ([128, 128, 16], 3, [4, 2, 1], min_cc, max_cc),
@@ -292,7 +293,6 @@ def generate_sm80_tensor_op_16816(
                 ([64, 64, 32], 3, [2, 2, 1], min_cc, max_cc),
             ]
         else:
-            # tf32
             tile_descriptions = get_default_tile_descriptions(0.5)
     else:
         assert out_dtype == "int32"
