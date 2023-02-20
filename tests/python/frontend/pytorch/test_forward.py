@@ -4208,6 +4208,29 @@ def test_forward_nonzero():
     verify_trace_model(Nonzero(), [inp], ["llvm"])
 
 
+def test_forward_diagonal_scatter():
+    """test_forward_diagonal_scatter"""
+    # integer cannot be traced
+    def test_fn_diagonal_scatter(offset, dim1, dim2):
+        return lambda data, src: torch.diagonal_scatter(data, src, offset=offset, dim1=dim1, dim2=dim2)
+
+    in_data = torch.rand(5, 5) - 1
+    in_src1 = torch.rand(5) - 1
+    in_src2 = torch.rand(3) - 1
+
+    targets = ["llvm", "cuda"]
+    # Usual case
+    verify_trace_model(test_fn_diagonal_scatter(0, 0, 1), [in_data, in_src1], targets)
+    # Lateral diagonal
+    verify_trace_model(test_fn_diagonal_scatter(2, 0, 1), [in_data, in_src2], targets)
+
+    in_data = torch.rand(5, 5, 5, 5) - 1
+    in_src = torch.rand(5) - 1
+
+    # Diagonal in multidimensional input
+    verify_trace_model(test_fn_diagonal_scatter(0, 1, 3), [in_data, in_src], targets)
+
+
 def test_forward_scatter():
     """test_forward_scatter"""
     # integer cannot be traced
