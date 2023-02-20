@@ -23,7 +23,10 @@
 
 #include <tvm/runtime/container/adt.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/relax_vm/vm.h>
+
+#include <optional>
 
 namespace tvm {
 namespace runtime {
@@ -177,7 +180,7 @@ class VirtualMachineImpl : public VirtualMachine {
   void Init(const std::vector<Device>& devices,
             const std::vector<AllocatorType>& alloc_types) final;
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override;
 
   VMClosure GetClosure(const String& func_name) final;
 
@@ -315,10 +318,28 @@ class VirtualMachineImpl : public VirtualMachine {
    * \param curr_frame The current frame.
    * \param inst The call instruction.
    */
-  inline void RunInstrCall(VMFrame* curr_frame, Instruction inst);
+  virtual void RunInstrCall(VMFrame* curr_frame, Instruction inst);
 
   /*! \brief Run VM dispatch loop. */
   void RunLoop();
+
+  /*!
+   * \brief Retrieve the name of the function identified by the given index.
+   * \param idx The index into the VM executable function table.
+   * \return The name of the function.
+   */
+  const std::string& GetFuncName(int idx) { return exec_->func_table[idx].name; }
+
+  /*!
+   * \brief Retrieve the inputs for a function.
+   * \param func_name The name of the function.
+   * \return The function inputs.
+   */
+  const std::vector<RegType>& GetInputsFor(const std::string& func_name) {
+    return inputs_[func_name];
+  }
+
+  void ClearInputsFor(const std::string& func_name) { inputs_.erase(func_name); }
 
  private:
   //--------------------------------------------------------
@@ -519,7 +540,7 @@ void VirtualMachineImpl::SetInput(std::string func_name, TVMArgs args, int offse
       int index = i - offset;
       func_args[index] = ConvertArgToDevice(args[i], devices[0]);
     }
-    inputs_.emplace(func_name, func_args);
+    inputs_[func_name] = func_args;
   } else {
     LOG(FATAL) << "ValueError: Unknown function: " << func_name;
   }
@@ -706,7 +727,7 @@ void VirtualMachineImpl::InitFuncPool() {
 }
 
 void VirtualMachineImpl::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
-  DLOG(INFO) << "\n  pc = " << pc_ << ", execute: " << exec_->func_table[instr.func_idx].name;
+  DLOG(INFO) << "\n  pc = " << pc_ << ", execute: " << GetFuncName(instr.func_idx);
 
   // Use the call arg stack from the current frame to increase reuse
   // and avoid re-allocation
@@ -805,6 +826,106 @@ void VirtualMachineImpl::RunLoop() {
 }
 
 ObjectPtr<VirtualMachine> VirtualMachine::Create() { return make_object<VirtualMachineImpl>(); }
+
+/*!
+ * \brief An extension of VirtualMachineImpl to support per-op profiling
+ * It overrides RunInstrCall to add instrumentations around it.
+ */
+class VirtualMachineProfiler : public VirtualMachineImpl {
+ public:
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override {
+    if (name == "profile") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        std::string f_name = args[0];
+        VMClosure clo = this->GetClosure(f_name);
+
+        std::vector<Device> devices;
+        for (auto dev : this->devices) {
+          if (dev.device_type > 0) {
+            devices.push_back(dev);
+          }
+        }
+
+        prof_ = profiling::Profiler(devices, {}, {{String("Executor"), String("VM")}});
+
+        auto inputs = GetInputsFor(f_name);
+
+        bool clear_inputs = false;
+        if (inputs.size() == 0) {
+          ICHECK(args.num_args > 1) << "No input is provided";
+          TVMArgs f_args(args.values + 1, args.type_codes + 1, args.num_args - 1);
+          SetInput(f_name, args, 1);
+          inputs = GetInputsFor(f_name);
+          clear_inputs = true;
+        } else {
+          ICHECK_EQ(args.num_args, 1) << "Inputs are already provided by set_input.";
+        }
+
+        // warmup
+        this->InvokeClosureInternal(clo, inputs);
+
+        prof_->Start();
+        this->InvokeClosureInternal(clo, inputs);
+        prof_->Stop();
+
+        // Return the report as json, since profiling::Report object is not supported by RPC
+        std::string report_json = prof_->Report()->AsJSON();
+        *rv = report_json;
+
+        prof_ = std::nullopt;  // releases hardware counters
+        if (clear_inputs) {
+          // SetInput modifies the internal states of VM. Undo the change after profiling.
+          ClearInputsFor(f_name);
+        }
+      });
+    } else {
+      return VirtualMachineImpl::GetFunction(name, sptr_to_self);
+    }
+  }
+
+ protected:
+  void RunInstrCall(VMFrame* curr_frame, Instruction inst) override {
+    bool profiling = false;
+    if (prof_ && prof_->IsRunning()) {
+      auto f_name = GetFuncName(inst.func_idx);
+      std::optional<Device> dev;
+      std::vector<NDArray> arrs;
+      for (Index i = 0; i < inst.num_args; ++i) {
+        Instruction::Arg arg = inst.args[i];
+        if (arg.kind() == Instruction::ArgKind::kRegister) {
+          auto reg = ReadRegister(curr_frame, arg.value());
+          if (reg.type_code() == kTVMNDArrayHandle) {
+            NDArray arr = reg;
+            dev = arr->device;
+            arrs.push_back(arr);
+          }
+        }
+      }
+
+      std::unordered_map<std::string, ObjectRef> metrics;
+      metrics["Argument Shapes"] = profiling::ShapeString(arrs);
+
+      // If a sutiable device is found, enable profiling.
+      if (dev) {
+        profiling = true;
+        prof_->StartCall(f_name, *dev, metrics);
+      }
+    }
+
+    VirtualMachineImpl::RunInstrCall(curr_frame, inst);
+
+    if (profiling) {
+      prof_->StopCall();
+    }
+  }
+
+ private:
+  std::optional<profiling::Profiler> prof_;
+};
+
+ObjectPtr<VirtualMachine> VirtualMachine::CreateProfiler() {
+  return make_object<VirtualMachineProfiler>();
+}
 
 }  // namespace relax_vm
 }  // namespace runtime
