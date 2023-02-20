@@ -1095,6 +1095,50 @@ non-zero)doc" TVM_ADD_FILELINE)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_support_level(10);
 
+// DiagonalScatter
+TVM_REGISTER_NODE_TYPE(DiagonalScatterAttrs);
+
+bool DiagonalScatterRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                const TypeReporter& reporter) {
+  ICHECK_EQ(num_inputs, 2);
+  ICHECK_EQ(types.size(), 3);
+  auto data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    return false;
+  }
+  auto srcs = types[1].as<TensorTypeNode>();
+  if (srcs == nullptr) {
+    return false;
+  }
+  const auto param = attrs.as<DiagonalScatterAttrs>();
+  ICHECK(param != nullptr);
+  reporter->Assign(types[2], TensorType(data->shape, data->dtype));
+  return true;
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.diagonal_scatter")
+    .set_body_typed([](Expr data, Expr src, int offset, int dim1, int dim2) {
+      auto attrs = make_object<DiagonalScatterAttrs>();
+      attrs->offset = std::move(offset);
+      attrs->dim1 = std::move(dim1);
+      attrs->dim2 = std::move(dim2);
+      static const Op& op = Op::Get("diagonal_scatter");
+      return Call(op, {data, src}, Attrs(attrs), {});
+    });
+
+RELAY_REGISTER_OP("diagonal_scatter")
+    .describe(
+        R"doc(Embeds the values of the src tensor into data along its diagonal
+with respect to dim1 and dim2. It can be lateral diagonal instead of main one)doc" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input data tensor.")
+    .add_argument("src", "Tensor", "The tensor to embed into data tensor.")
+    .add_type_rel("DiagonalScatter", DiagonalScatterRel)
+    .set_attr<TOpIsStateful>("TOpIsStateful", false)
+    // TODO(vvchernov): looks like it is not opaque op, need time to chose the best pattern
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable)
+    .set_support_level(10);
+
 // Scatter
 TVM_REGISTER_NODE_TYPE(ScatterAttrs);
 
