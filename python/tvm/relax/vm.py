@@ -25,6 +25,7 @@ from tvm import relax
 from tvm.ir.module import IRModule
 from tvm.runtime import Device, Module, PackedFunc, container
 from tvm.runtime.object import Object
+from tvm.runtime.profiling import Report
 from tvm.tir.function import PrimFunc
 from . import _ffi_api
 from ..rpc.base import RPC_SESS_MASK
@@ -63,6 +64,7 @@ class VirtualMachine(object):
         exec: Union[Executable, Module],
         device: Union[Device, List[Device]],
         memory_cfg: Optional[Union[str, Dict[Device, str]]] = None,
+        profile: bool = False,
     ) -> None:
         """
         Construct a VirtualMachine wrapper object.
@@ -82,12 +84,12 @@ class VirtualMachine(object):
             allocator type. If memory_cfg is a dict, each device uses the allocator
             type specified in the dict, or pooled allocator if not specified in the
             dict.
+
+        profile : Optional[bool]
+            Whether or not to enable profiling.
         """
-        self.module = (
-            exec.mod["vm_load_executable"]()
-            if isinstance(exec, Executable)
-            else exec["vm_load_executable"]()
-        )
+        load_exec = "vm_profiler_load_executable" if profile else "vm_load_executable"
+        self.module = exec.mod[load_exec]() if isinstance(exec, Executable) else exec[load_exec]()
         self._invoke_closure = self.module["invoke_closure"]
         self._save_function = self.module["save_function"]
         self._set_input = self.module["set_input"]
@@ -448,6 +450,27 @@ class VirtualMachine(object):
             repeats_to_cooldown=repeats_to_cooldown,
             f_preproc=f_preproc,
         )
+
+    def profile(self, func_name: str, *args):
+        """Profile a function call.
+        Parameters
+        ----------
+        func_name : str
+            The name of the function.
+        args: List of NDArray or other objects supported by PackedFunc.
+            The arguments to the function.
+        Returns
+        -------
+        report: tvm.runtime.profiling.Report
+            The formatted profiling result, showing per-op timing measurements.
+        """
+        cargs: List[Any] = []
+
+        for arg in args:
+            self._convert(arg, cargs)
+
+        report_json = self.module["profile"](func_name, *cargs)
+        return Report.from_json(report_json)
 
 
 def _vmcodegen(
