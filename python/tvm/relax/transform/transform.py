@@ -19,7 +19,7 @@
 import functools
 import inspect
 import types
-from typing import Callable, Dict, Union, Optional, List
+from typing import Callable, Dict, Union, Optional, List, Tuple
 import numpy as np  # type: ignore
 import tvm.ir
 from tvm.runtime import NDArray
@@ -239,6 +239,41 @@ def FuseTIR() -> tvm.ir.transform.Pass:
         The registered pass for tir fusion.
     """
     return _ffi_api.FuseTIR()  # type: ignore
+
+
+def FuseOpsByPattern(
+    patterns: List[Tuple], annotate_codegen: bool = False
+) -> tvm.ir.transform.Pass:
+    """Apply pattern matching to each function in the given module, and group matched expressions
+    into a new function.
+
+    The end result is similar to FuseOps, but fusion is driven completely by the provided patterns.
+
+    Parameters
+    ----------
+    patterns : List[Tuple[str, DFPattern]]
+        The patterns to detect. The order of the patterns determines the order of priority in which
+        they are matched. Higher-priority patterns should come earlier in the list.
+        The string is the name of the corresponding pattern. It becomes the value of the kComposite
+        attribute of a fused function after a successful matching.
+
+    annotate_codegen : bool
+        If True, wrap each created composite function with another function, whose body consists
+        only of a call to the composite function, and annotate the outer function with "Codegen"
+        and "global_symbol" attributes. The "Codegen" attribute is set as the prefix of the
+        corresponding pattern name. For example, "dnnl" if the pattern name is "dnnl.conv2d_relu".
+
+        This must be True if the created composite functions are intended to be offloaded to
+        an external backend without using the MergeCompositeFunctions pass.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass for pattern-based fusion.
+
+    """
+    pattern_names, df_patterns = zip(*patterns)
+    return _ffi_api.FuseOpsByPattern(pattern_names, df_patterns, annotate_codegen)  # type: ignore
 
 
 def LegalizeOps(customize_legalize_map: Optional[Dict[str, LegalizeFunc]] = None):
