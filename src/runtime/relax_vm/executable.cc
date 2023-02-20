@@ -67,6 +67,13 @@ PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Obje
       vm->LoadExecutable(GetObjectPtr<Executable>(this));
       *rv = Module(vm);
     });
+  } else if (name == "vm_profiler_load_executable") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      ObjectPtr<VirtualMachine> vm = VirtualMachine::CreateProfiler();
+      ICHECK(sptr_to_self.get() == this);
+      vm->LoadExecutable(GetObjectPtr<Executable>(this));
+      *rv = Module(vm);
+    });
   }
   return nullptr;
 }
