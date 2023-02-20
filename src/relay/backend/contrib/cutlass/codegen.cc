@@ -33,6 +33,9 @@
 
 #include <numeric>
 #include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "../../../transforms/compiler_function_utils.h"
 #include "../../utils.h"
