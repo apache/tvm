@@ -257,3 +257,92 @@ class EmitGemmInstance:
             },
         )
         return substitute_template(gemm_template, values)
+
+
+def instantiate_gemm_template(attrs, func_args):
+    """Return CUTLASS host code for GEMM based on a template and the provided attribute map."""
+
+    template = """
+  using ElementInputA = ${ElementInputA};
+  using ElementInputB = ${ElementInputB};
+  using ElementOutput = ${ElementOutput};
+  using ElementComputeEpilogue = ${ElementOutput};
+
+  ${cutlass_op_def}
+
+  using ${kernel} = Operation_${cutlass_op_name};
+  int M = ${M};
+  int N = ${N};
+  int K = ${K};
+  cutlass::gemm::GemmCoord problem_size(M, N, K);
+  ElementComputeEpilogue alpha = ElementComputeEpilogue(1);
+  ElementComputeEpilogue beta = ElementComputeEpilogue(${beta});
+  void* ptr_a = (void*)(${arg0}->data);
+  void* ptr_b = (void*)(${arg1}->data);
+  ${bias_decl}
+  void* ptr_out = (void*)(out0->data);
+
+  typename ${kernel}::Arguments arguments{
+   problem_size,
+   {static_cast<ElementInputA*>(ptr_a), ${lda}}, ${batch_stride_A}
+   {static_cast<ElementInputB*>(ptr_b), ${ldb}}, ${batch_stride_B}
+   {static_cast<ElementOutput*>(${ptr_c}), ${c_stride}}, ${batch_stride_C}
+   {static_cast<ElementOutput*>(ptr_out), ${ldc}}, ${batch_stride_C}
+   {${alpha_beta}},
+   ${split_k_slices_or_batch}
+  };
+  size_t workspace_size = ${kernel}::get_workspace_size(arguments);
+  cutlass::device_memory::allocation<uint8_t> workspace(workspace_size);
+  ${kernel} gemm_op;
+  cutlass::Status status = gemm_op.can_implement(arguments);
+  CHECK(status == cutlass::Status::kSuccess);
+  status = gemm_op.initialize(arguments, workspace.get());
+  CHECK(status == cutlass::Status::kSuccess);
+  status = gemm_op();
+  CHECK(status == cutlass::Status::kSuccess);
+"""
+    has_bias = "bias" in attrs["op_type"]
+    is_gelu = "gelu" in attrs["op_type"]
+    batched = "batch_matmul" in attrs["op_type"]
+
+    aux_map = {"kernel": "Gemm"}
+
+    if has_bias:
+        aux_map.update(
+            {
+                "bias_decl": "void* ptr_c_bias = (void*)(${arg2}->data);\n",
+                "ptr_c": "ptr_c_bias",
+                "c_stride": "0",
+            }
+        )
+    else:
+        aux_map.update({"bias_decl": "", "ptr_c": "ptr_out", "c_stride": attrs["ldc"]})
+
+    if is_gelu:
+        # GeLU epilogue does not compile with NoBetaScaling, so we explicitly specify the scale.
+        aux_map["beta"] = "1"
+    else:
+        aux_map["beta"] = "0"
+
+    if has_bias and not is_gelu:
+        aux_map["alpha_beta"] = "alpha"
+    else:
+        aux_map["alpha_beta"] = "alpha, beta"
+
+    for key in ["batch_stride_A", "batch_stride_B", "batch_stride_C"]:
+        if not batched:
+            aux_map[key] = ""
+        else:
+            aux_map[key] = attrs[key] + ","
+
+    if batched:
+        attrs["split_k_slices_or_batch"] = attrs["batch"]
+    else:
+        attrs["split_k_slices_or_batch"] = "1"
+
+    template = substitute_template(template, aux_map)
+
+    for i, arg in enumerate(func_args):
+        attrs["arg{}".format(i)] = arg
+
+    return substitute_template(template, attrs)

@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""FFI API for CUTLASS BYOC."""
+import tvm._ffi
 
-set -e
-
-python3 -m flake8 . --count --select=E9,F63,F7 --show-source --statistics --exclude 3rdparty
+tvm._ffi._init_api("contrib.cutlass", __name__)
