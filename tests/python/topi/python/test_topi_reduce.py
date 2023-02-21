@@ -26,6 +26,7 @@ import tvm.testing
 import tvm.topi.testing
 
 from tvm import te, topi
+from tvm.topi.utils import get_const_tuple
 
 in_shape, axis, keepdims, reduce_type, dtype = tvm.testing.parameters(
     ((32,), 0, False, "argmax", "float32"),
@@ -181,6 +182,44 @@ def test_complex_reduce(target, dev):
     out_tvm = tvm.nd.empty(shape=out_npy.shape, device=dev, dtype=dtype)
     foo(data_tvm, out_tvm)
     tvm.testing.assert_allclose(out_tvm.numpy(), out_npy, 1e-3, 1e-3)
+
+
+data_shape, target_shape = tvm.testing.parameters(
+    ((2, 3), (3,)),
+    ((2, 3, 4), (2, 1, 4)),
+    ((2, 3, 4, 5), (3, 1, 5)),
+)
+
+
+def _my_npy_collapse_sum(data, target_shape):
+    reduce_axes = []
+    i = data.ndim - 1
+    j = len(target_shape) - 1
+    while i >= 0:
+        if j < 0:
+            reduce_axes.append(i)
+        elif target_shape[j] == 1 and data.shape[i] > 1:
+            reduce_axes.append(i)
+        i -= 1
+        j -= 1
+    return np.sum(data, tuple(reduce_axes)).reshape(target_shape)
+
+
+def test_collapse_sum(data_shape, target_shape):
+    A = te.placeholder(data_shape, name="A")
+    B = topi.collapse_sum(A, target_shape)
+    s = te.create_schedule([B.op])
+
+    a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
+    b_np = _my_npy_collapse_sum(a_np, target_shape)
+    dev = tvm.cpu(0)
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
+    # Building with the CSE pass disabled
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
+        foo = tvm.build(s, [A, B], "llvm", name="collapse_sum")
+    foo(a, b)
+    tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
 
 if __name__ == "__main__":

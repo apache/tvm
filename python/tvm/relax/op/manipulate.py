@@ -261,3 +261,56 @@ def squeeze(x: Expr, axis: Optional[Union[int, List[int]]] = None) -> Expr:
     if isinstance(axis, int):
         axis = [axis]
     return _ffi_api.squeeze(x, axis)  # type: ignore
+
+
+def collapse_sum_like(data: Expr, collapse_target: Expr) -> Expr:
+    """Return a summation of data to the shape of collapse_target.
+
+    For details, please see relax.op.collapse_sum_to.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input tensor.
+
+    collapse_target : relax.Expr
+        The tensor whose shape is the shape to collapse to.
+
+    Returns
+    -------
+    result : relax.Expr
+        The result tensor after summation.
+    """
+    return _ffi_api.collapse_sum_like(data, collapse_target)  # type: ignore
+
+
+def collapse_sum_to(data: Expr, shape: Union[Tuple[PrimExprLike], Expr]) -> Expr:
+    """Return a summation of data to the given shape.
+
+    collapse_sum_to is intended as the backward operator of tvm.relax.op.broadcast_to and
+    other broadcast operators in the automatic differentiation process.
+
+    We expect that data is the result of broadcasting some tensor of the given shape in some
+    broadcast operation. Thus the given `shape` and `data.shape` must follow broadcast rules.
+
+    During computation, all axes of `data.shape` and `shape` are checked from right to left.
+    For an axis, if it follows these rules, `data` will be summed over this axis:
+    - the axis exists in `data.shape` but not in `shape`, or
+    - the axis exists in `data.shape` and equals to 1 in `shape`.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input tensor.
+
+    shape : Union[Tuple[PrimExprLike], relax.Expr]
+        The shape to collapse to.
+
+    Returns
+    -------
+    result : relax.Expr
+        The result tensor of the given shape after summation.
+    """
+    if isinstance(shape, (tuple, list)):
+        shape = ShapeExpr(shape)
+    return _ffi_api.collapse_sum_to(data, shape)  # type: ignore
