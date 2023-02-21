@@ -157,7 +157,7 @@ static inline SpatialLayout GetSpatialLayout(const arith::IterMapResult& iter_ma
     IndexAnalyzer index_analyzer;
     Array<tir::Var> iter_vars = index_analyzer.Analyze(index);
     if (iter_vars.size() >= 2) {
-      LOG(WARNING) << "Unable to get spatial layout of access: "
+      LOG(WARNING) << "[LayoutInference] Unable to get spatial layout of access: "
                    << arith::NormalizeIterMapToExpr(index);
       return {};
     }
@@ -348,7 +348,7 @@ class BlockAnalyzer : public StmtExprVisitor {
     // nested block or write access to multiple buffers. In such a case, we can return early as we
     // would not be making any layout suggesstions.
     if (!can_transform_block_) {
-      LOG(WARNING) << "Unable to transform block " << block->name_hint;
+      LOG(WARNING) << "[LayoutInference] Unable to transform block " << block->name_hint;
       return;
     }
 
@@ -397,7 +397,8 @@ class BlockAnalyzer : public StmtExprVisitor {
     Array<Range> block_ranges = block_->iter_vars.Map([](const IterVar& i) { return i->dom; });
     if (!IsBijectiveAffine(block_transformation_, block_ranges)) {
       can_transform_block_ = false;
-      LOG(WARNING) << "Inferred block transformation is not bijective affine, transformation: ("
+      LOG(WARNING) << "[LayoutInference] Inferred block transformation is not bijective affine, "
+                      "transformation: ("
                    << block_transformation_ << ") over range (" << block_ranges << ")";
       return;
     }
@@ -414,7 +415,7 @@ class BlockAnalyzer : public StmtExprVisitor {
       IndexMap read_transformation = maybe_read_transformation.value();
       if (buffer_transformation_cache_.count(r->buffer) != 0) {
         if (!AreIdenticalTransforms(read_transformation, buffer_transformation_cache_[r->buffer]))
-          LOG(WARNING) << "Buffer: " << r->buffer
+          LOG(WARNING) << "[LayoutInference] Buffer: " << r->buffer
                        << " has conflicting transform proposals -- (preferred) "
                        << buffer_transformation_cache_[r->buffer] << " vs. " << read_transformation;
         continue;
@@ -455,7 +456,8 @@ class BlockAnalyzer : public StmtExprVisitor {
         /*indices=*/indices, /*input_iters*/ spatial_dom_,
         /*predicate*/ 1, /*check_level*/ arith::IterMapLevel::NoCheck, &arith_analyzer_);
     if (result->indices.empty()) {
-      LOG(WARNING) << "Failed to analyze indices " << indices << ", error: " << result->errors;
+      LOG(WARNING) << "[LayoutInference] Failed to analyze indices " << indices
+                   << ", error: " << result->errors;
       return {};
     }
     return GetSpatialLayout(result);
@@ -469,9 +471,9 @@ class BlockAnalyzer : public StmtExprVisitor {
         continue;
       }
       if (v->iter_type == kCommReduce) continue;
-      LOG(WARNING)
-          << "Cannot compute block spatial domain in presence of unknown block iter_type : "
-          << v->iter_type;
+      LOG(WARNING) << "[LayoutInference] Cannot compute block spatial domain in presence of "
+                      "unknown block iter_type : "
+                   << v->iter_type;
       can_transform_block_ = false;
       return;
     }
@@ -479,7 +481,7 @@ class BlockAnalyzer : public StmtExprVisitor {
 
   void VisitStmt_(const BlockNode* op) final {
     // Blocks with nested blocks cannot be handled yet.
-    LOG(WARNING) << "Found nested block";
+    LOG(WARNING) << "[LayoutInference] Nested blocks are not supported for layout inference yet";
     can_transform_block_ = false;
   }
   void VisitStmt_(const BufferStoreNode* op) final {
@@ -493,7 +495,9 @@ class BlockAnalyzer : public StmtExprVisitor {
     // Only single write buffer is supported for each block.
     if (!op->buffer.same_as(block_->writes[0]->buffer)) {
       access_info.Invalidate();
-      LOG(WARNING) << "unexpected write access to a different buffer";
+      LOG(WARNING) << "[LayoutInference] Exactly one write buffer is supported for layout "
+                      "inference, found two: "
+                   << op->buffer << " and " << block_->writes[0]->buffer;
       can_transform_block_ = false;
       return;
     }
