@@ -37,6 +37,11 @@ def _reshape(
 
 register_legalize("relax.broadcast_to", _reshape(topi.broadcast_to, "broadcast_to"))
 register_legalize("relax.reshape", _reshape(topi.reshape, "reshape"))
+register_legalize(
+    "relax.collapse_sum_like",
+    _reshape(topi.collapse_sum, "collapse_sum", is_collapse_sum_like=True),
+)
+register_legalize("relax.collapse_sum_to", _reshape(topi.collapse_sum, "collapse_sum"))
 
 
 @register_legalize("relax.concat")

@@ -785,5 +785,108 @@ def test_squeeze_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_collapse_sum_like():
+    # fmt: off
+    @tvm.script.ir_module
+    class CollapseSumLike:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32"), y: R.Tensor((1, 3), "float32")) -> R.Tensor((1, 3), "float32"):
+            gv: R.Tensor((1, 3), "float32") = R.collapse_sum_like(x, y)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32"), y: R.Tensor((1, 3), "float32")) -> R.Tensor((1, 3), "float32"):
+            gv = R.call_tir(collapse_sum, (x,), R.Tensor((1, 3), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def collapse_sum(rxplaceholder: T.Buffer[(T.int64(2), T.int64(3)), "float32"], rxplaceholder_red: T.Buffer[(T.int64(1), T.int64(3)), "float32"]):
+            T.func_attr({"tir.noalias": True})
+            for i0, i1, i2 in T.grid(T.int64(1), T.int64(3), T.int64(2)):
+                with T.block("rxplaceholder_red"):
+                    ax0, ax1, k0 = T.axis.remap("SSR", [i0, i1, i2])
+                    T.reads(rxplaceholder[k0, ax1])
+                    T.writes(rxplaceholder_red[ax0, ax1])
+                    with T.init():
+                        rxplaceholder_red[ax0, ax1] = T.float32(0)
+                    rxplaceholder_red[ax0, ax1] = rxplaceholder_red[ax0, ax1] + rxplaceholder[k0, ax1]
+    # fmt: on
+
+    mod = LegalizeOps()(CollapseSumLike)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+@pytest.mark.skip("TOPI collapse_sum not support symbolic now")
+def test_collapse_sum_like_symbolic():
+    # fmt: off
+    @tvm.script.ir_module
+    class CollapseSumLike:
+        @R.function
+        def main(x: R.Tensor(("a", "b", "a"), "float32"), y: R.Tensor(("b", 1), "float32")) -> R.Tensor(("b", 1), "float32"):
+            b = T.var("int64")
+            gv: R.Tensor((b, 1), "float32") = R.collapse_sum_like(x, y)
+            return gv
+
+    # fmt: on
+
+    mod = LegalizeOps()(CollapseSumLike)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_collapse_sum_to():
+    # fmt: off
+    @tvm.script.ir_module
+    class CollapseSumTo:
+        @R.function
+        def main(x: R.Tensor((3, 2, 3), "float32")) -> R.Tensor((2, 1), "float32"):
+            gv: R.Tensor((2, 1), "float32") = R.collapse_sum_to(x, (2, 1))
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 3), dtype="float32")
+        ) -> R.Tensor((2, 1), dtype="float32"):
+            # block 0
+            gv = R.call_tir(collapse_sum, (x,), R.Tensor((2, 1), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def collapse_sum(rxplaceholder: T.Buffer[(T.int64(3), T.int64(2), T.int64(3)), "float32"], rxplaceholder_red: T.Buffer[(T.int64(2), T.int64(1)), "float32"]):
+            T.func_attr({"tir.noalias": True})
+            for ax0, ax1, k0, k2 in T.grid(T.int64(2), T.int64(1), T.int64(3), T.int64(3)):
+                with T.block("rxplaceholder_red"):
+                    v_ax0, v_ax1, v_k0, v_k2 = T.axis.remap("SSRR", [ax0, ax1, k0, k2])
+                    T.reads(rxplaceholder[v_k0, v_ax0, v_k2])
+                    T.writes(rxplaceholder_red[v_ax0, v_ax1])
+                    with T.init():
+                        rxplaceholder_red[v_ax0, v_ax1] = T.float32(0)
+                    rxplaceholder_red[v_ax0, v_ax1] = (rxplaceholder_red[v_ax0, v_ax1] + rxplaceholder[v_k0, v_ax0, v_k2])
+    # fmt: on
+
+    mod = LegalizeOps()(CollapseSumTo)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+@pytest.mark.skip("TOPI collapse_sum not support symbolic now")
+def test_collapse_sum_to_symbolic():
+    # fmt: off
+    @tvm.script.ir_module
+    class CollapseSumTo:
+        @R.function
+        def main(x: R.Tensor(("a", "b", "c"), "float32")) -> R.Tensor(("b", 1), "float32"):
+            b = T.var("int64")
+            gv: R.Tensor((b, 1), "float32") = R.collapse_sum_to(x, (b, 1))
+            return gv
+
+    # fmt: on
+
+    mod = LegalizeOps()(CollapseSumTo)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
