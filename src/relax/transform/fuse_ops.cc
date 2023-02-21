@@ -234,16 +234,17 @@ class GraphCreator : public ExprVisitor {
   void VisitLeaf(const Expr& leaf_expr, IndexedForwardGraph::Node* binding_var_node,
                  const OpPatternKind& pattern) {
     ICHECK_NOTNULL(binding_var_node);
-    if (!leaf_expr->IsInstance<LeafExprNode>()) {
-      // Skip GlobalVar, ExternFunc, OpNode.
-      return;
-    }
 
     // Recursive visit if it's Tuple
     if (const auto* tuple = leaf_expr.as<TupleNode>()) {
       for (const Expr& expr : tuple->fields) {
         VisitLeaf(expr, binding_var_node, pattern);
       }
+      return;
+    }
+
+    if (!leaf_expr->IsInstance<LeafExprNode>()) {
+      // Skip GlobalVar, ExternFunc, OpNode.
       return;
     }
 
