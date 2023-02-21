@@ -316,5 +316,6 @@ def suggest_layout_transforms(
     for transform in write_buffer_transforms:
         if callable(transform):
             transform = IndexMap.from_func(transform)
+        assert isinstance(transform, IndexMap)
         write_buffer_index_maps.append(transform)
     return _ffi_api.suggest_layout_transforms(func, write_buffer_index_maps)  # type: ignore
