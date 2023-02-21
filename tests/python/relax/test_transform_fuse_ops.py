@@ -18,7 +18,7 @@
 import tvm
 import tvm.testing
 from tvm import relax, topi
-from tvm.script import ir as I, relax as R
+from tvm.script import ir as I, relax as R, tir as T
 
 
 def _check(mod_actual, mod_expected):
@@ -829,6 +829,26 @@ def test_skip_call_dps_packed():
                 y = R.call_tir("func_packed_dps", x, R.Tensor((2, 3), "float32"))
                 R.output(y)
             return y
+
+    # FuseOps should does no change to it.
+    _check(Module, Module)
+
+
+def test_edge_with_call_dps_packed():
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32")):
+            with R.dataflow():
+                a = R.call_tir(exp, (x,), out_sinfo=R.Tensor((2, 3), "float32"))
+                b = R.call_tir(exp, (a,), out_sinfo=R.Tensor((2, 3), "float32"))
+                c = R.call_tir("packed_dps", (a,), out_sinfo=R.Tensor((2, 3), "float32"))
+                R.output(b, c)
+            return R.tuple(b, c)
+
+        @T.prim_func
+        def exp(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
+            T.evaluate(0)
 
     # FuseOps should does no change to it.
     _check(Module, Module)
