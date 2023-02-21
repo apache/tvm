@@ -250,10 +250,12 @@ class _ArgsConverter:
 args_converter = _ArgsConverter()  # pylint: disable=invalid-name
 
 
-def copy_with_new_params(func: Function) -> Function:
-    """Copy the given function. The parameters of the original function would be copied to
-    satisfy the restriction in the well-formed check: any two functions cannot share the same
-    parameter variable.
+def copy_with_new_vars(func: Function) -> Function:
+    """Copy the given function. All variables that are bound inside the original function
+    would be copied to satisfy the restriction in the well-formed check: Variables in
+    Relax must be bound exactly once. This also ensures that both the function and its copy
+    can be inserted into the same IRModule, and be asserted on the structural equality
+    agaisnt IRModule created by TVMScript.
 
     Parameters
     ----------
@@ -265,4 +267,4 @@ def copy_with_new_params(func: Function) -> Function:
     ret : Function
         The copied function.
     """
-    return _ffi_api.CopyWithNewParams(func)  # type: ignore
+    return _ffi_api.CopyWithNewVars(func)  # type: ignore
