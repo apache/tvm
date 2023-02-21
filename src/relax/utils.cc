@@ -82,5 +82,34 @@ bool IsLeafOrTuple(const Expr& expr) {
          expr.as<OpNode>() || expr.as<TupleNode>();
 }
 
+class FunctionCopier : public ExprMutator {
+ public:
+  static Function Transform(Function func) {
+    FunctionCopier copier;
+    // All variables that are bound inside the original function would be copied
+    // to satisfy the restriction in the well-formed check: Variables in Relax
+    // must be bound exactly once.
+    return Downcast<Function>(copier.VisitExpr(func));
+  }
+
+  Var VisitVarDef_(const DataflowVarNode* var) override {
+    Var new_var = ExprMutator::VisitVarDef_(var);
+    Var copied_var = DataflowVar(new_var->name_hint(), GetStructInfo(new_var), new_var->span);
+    var_remap_[var->vid] = copied_var;
+    return copied_var;
+  }
+
+  Var VisitVarDef_(const VarNode* var) override {
+    Var new_var = ExprMutator::VisitVarDef_(var);
+    Var copied_var = Var(new_var->name_hint(), GetStructInfo(new_var), new_var->span);
+    var_remap_[var->vid] = copied_var;
+    return copied_var;
+  }
+};
+
+Function CopyWithNewVars(Function func) { return FunctionCopier::Transform(func); }
+
+TVM_REGISTER_GLOBAL("relax.CopyWithNewVars").set_body_typed(CopyWithNewVars);
+
 }  // namespace relax
 }  // namespace tvm
