@@ -22,12 +22,12 @@ import tvm.testing
 from tvm.script.parser import relax as R, tir as T
 
 
-def verify_model(torch_model, input_info, binding, expected):
+def verify_model(torch_model, input_info, binding, expected, keep_params_as_input=False):
     from torch import fx
     from tvm.relax.frontend.torch import from_fx
 
     graph_model = fx.symbolic_trace(torch_model)
-    mod = from_fx(graph_model, input_info)
+    mod = from_fx(graph_model, input_info, keep_params_as_input=keep_params_as_input)
     binding = {k: tvm.nd.array(v) for k, v in binding.items()}
     expected = relax.transform.BindParams("main", binding)(expected)
     tvm.ir.assert_structural_equal(mod, expected)
@@ -786,6 +786,7 @@ def test_binary():
 
     input_info1 = [([1, 3, 10, 10], "float32"), ([1, 3, 10, 10], "float32")]
     input_info2 = [([1, 3, 10, 10], "float32")]
+
     # Add
     class Add1(Module):
         def forward(self, lhs, rhs):
@@ -1723,6 +1724,52 @@ def test_view():
             return gv
 
     verify_model(View(), input_info, {}, expected1)
+
+
+@tvm.testing.requires_gpu
+def test_keep_params():
+    import torch
+    from torch.nn import Module
+
+    class Conv2D1(Module):
+        def __init__(self):
+            super().__init__()
+            self.conv = torch.nn.Conv2d(3, 6, 7, bias=True)
+
+        def forward(self, input):
+            return self.conv(input)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            w1: R.Tensor((6, 3, 7, 7), dtype="float32"),
+            w2: R.Tensor((6,), dtype="float32"),
+        ) -> R.Tensor((1, 6, 4, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            # block 0
+            with R.dataflow():
+                lv1: R.Tensor((1, 6, 4, 4), dtype="float32") = R.nn.conv2d(
+                    input_1,
+                    w1,
+                    strides=[1, 1],
+                    padding=[0, 0, 0, 0],
+                    dilation=[1, 1],
+                    data_layout="NCHW",
+                    kernel_layout="OIHW",
+                    out_layout="NCHW",
+                    out_dtype="float32",
+                )
+                lv2: R.Tensor((1, 6, 1, 1), dtype="float32") = R.reshape(w2, [1, 6, 1, 1])
+                lv3: R.Tensor((1, 6, 4, 4), dtype="float32") = R.add(lv1, lv2)
+                gv: R.Tensor((1, 6, 4, 4), dtype="float32") = lv3
+                R.output(gv)
+            return gv
+
+    model = Conv2D1()
+    input_info = [([1, 3, 10, 10], "float32")]
+    verify_model(model, input_info, {}, expected1, keep_params_as_input=True)
 
 
 if __name__ == "__main__":
