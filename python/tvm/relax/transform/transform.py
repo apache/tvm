@@ -276,6 +276,20 @@ def FuseOpsByPattern(
     return _ffi_api.FuseOpsByPattern(pattern_names, df_patterns, annotate_codegen)  # type: ignore
 
 
+def MergeCompositeFunctions() -> tvm.ir.transform.Pass:
+    """Group one or multiple composite functions created by FuseOpsByPattern into a new function.
+    The new function will be annotated with "Codegen" and "global_symbol" attributes, and it
+    is intented to be offloaded to an external backend.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass for merging composite functions.
+
+    """
+    return _ffi_api.MergeCompositeFunctions()  # type: ignore
+
+
 def LegalizeOps(customize_legalize_map: Optional[Dict[str, LegalizeFunc]] = None):
     """Legalize high-level operator calls in Relax functions to call_tir
     with corresponding low-level TIR PrimFuncs.
