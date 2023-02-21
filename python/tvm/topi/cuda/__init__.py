@@ -45,6 +45,7 @@ from .vision import *
 from .ssd import *
 from .nms import get_valid_counts, non_max_suppression, all_class_non_max_suppression
 from .rcnn import *
+from .diagonal_scatter import *
 from .scatter import *
 from .scatter_elements import *
 from .sort import *
