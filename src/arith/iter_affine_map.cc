@@ -898,6 +898,11 @@ class IterMapRewriter : public ExprMutator {
   PrimExpr SplitFloorModConst(IterSplitExpr lhs, PrimExpr base, PrimExpr rhs);
 
   static void AddToLhs(IterSumExprNode* lhs, IterSplitExpr rhs, int sign) {
+    if (sign < 0 && is_const_int(rhs->extent, 2)) {
+      lhs->base -= rhs->scale;
+      sign = 1;
+    }
+
     tir::ExprDeepEqual equal;
     for (size_t i = 0; i < lhs->args.size(); ++i) {
       IterSplitExpr lvalue = lhs->args[i];
