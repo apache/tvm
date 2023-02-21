@@ -17,16 +17,17 @@
 # pylint: disable=invalid-name, dangerous-default-value, arguments-differ
 """Driver for partitioning and building a Relay module for CUTLASS offload."""
 import logging
-import os
 import multiprocessing
+import os
+
 import tvm
-from tvm import relay, runtime
+from tvm import relax, relay, runtime
 from tvm._ffi.registry import register_func
 from tvm.contrib.nvcc import get_cuda_version
 
 from .gen_conv2d import CutlassConv2DProfiler
 from .gen_gemm import CutlassGemmProfiler
-from .library import ConvKind
+from .library import ConvKind, LayoutType
 
 logger = logging.getLogger("cutlass")
 
@@ -519,6 +520,192 @@ def tune_cutlass_function(
         type_params=func.type_params,
         attrs=new_attrs,
     )
+
+
+def _extract_relax_function_info(f):
+    signature = {}
+
+    for i, arg in enumerate(f.params):
+        sinfo = arg.struct_info
+        signature["arg%d_shape" % i] = list(sinfo.shape)
+        signature["arg%d_dtype" % i] = sinfo.dtype
+
+    ret_sinfo = f.ret_struct_info
+    signature["ret_shape"] = list(ret_sinfo.shape)
+    signature["ret_dtype"] = ret_sinfo.dtype
+
+    op_attrs = {}
+
+    def fvisit(e):
+        nonlocal op_attrs
+        if isinstance(e, relax.Call) and e.op.name in ["relax.nn.conv2d"]:
+            op_attrs = e.attrs
+
+    relax.analysis.post_order_visit(f.body, fvisit)
+
+    return signature, op_attrs
+
+
+@relax.expr_functor.mutator
+class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
+    """A Relax function mutator that tunes and annotates CUTLASS composite functions
+    with shape, dtype and generated templates.
+    """
+
+    def __init__(
+        self,
+        mod,
+        conv2d_profiler: CutlassConv2DProfiler,
+        gemm_profiler: CutlassGemmProfiler,
+        options,
+    ):
+        super().__init__(mod)
+        self.options = options
+        self.conv2d_profiler = conv2d_profiler
+        self.gemm_profiler = gemm_profiler
+
+    def handle_conv2d(self, f, op_type):
+        """Tune and annotate a conv2d op."""
+        signature, op_attrs = _extract_relax_function_info(f)
+
+        d_shape = signature["arg0_shape"]
+        w_shape = signature["arg1_shape"]
+        out_shape = signature["ret_shape"]
+        data_dtype = signature["arg0_dtype"]
+        weight_dtype = signature["arg1_dtype"]
+        out_dtype = signature["ret_dtype"]
+        padding = op_attrs["padding"]
+        strides = op_attrs["strides"]
+        dilation = op_attrs["dilation"]
+        conv_kind = ConvKind.Fprop
+
+        use_3xtf32 = self.options.get("use_3xtf32", False)
+        profile_all_alignments = self.options.get("profile_all_alignments", False)
+        find_first_valid = self.options.get("find_first_valid", True)
+        use_multiprocessing = self.options.get("use_multiprocessing", True)
+        split_k_slices = self.options.get("split_k_slices", [1])
+
+        op_name, op_def, _ = self.conv2d_profiler.profile(
+            op_type,
+            d_shape,
+            w_shape,
+            padding,
+            strides,
+            dilation,
+            out_dtype,
+            data_dtype,
+            weight_dtype,
+            use_3xtf32,
+            conv_kind,
+            split_k_slices,
+            profile_all_alignments,
+            find_first_valid=find_first_valid,
+            use_multiprocessing=use_multiprocessing,
+        )
+
+        return f.with_attrs(
+            {
+                "op_type": op_type,
+                "arg0_dtype": data_dtype,
+                "arg1_dtype": weight_dtype,
+                "ret_dtype": out_dtype,
+                "arg0_shape": d_shape,
+                "arg1_shape": w_shape,
+                "ret_shape": out_shape,
+                "strides": strides,
+                "padding": padding,
+                "dilation": dilation,
+                "cutlass_op_name": op_name,
+                "cutlass_op_def": op_def,
+            }
+        )
+
+    def handle_matmul(self, f, op_type):
+        """Tune and annotate a dense op."""
+        signature, _ = _extract_relax_function_info(f)
+
+        arg0_shape = signature["arg0_shape"]
+        arg1_shape = signature["arg1_shape"]
+        out_shape = signature["ret_shape"]
+        arg0_dtype = signature["arg0_dtype"]
+        arg1_dtype = signature["arg1_dtype"]
+        out_dtype = signature["ret_dtype"]
+
+        MM = arg0_shape[0]
+        KK = arg0_shape[1]
+        NN = arg1_shape[1]
+
+        use_3xtf32 = self.options.get("use_3xtf32", False)
+        find_first_valid = self.options.get("find_first_valid", True)
+        use_multiprocessing = self.options.get("use_multiprocessing", True)
+
+        op_name, op_def, _ = self.gemm_profiler.profile(
+            op_type,
+            MM,
+            NN,
+            KK,
+            out_dtype,
+            arg0_dtype,
+            arg1_dtype,
+            use_3xtf32,
+            batched=False,
+            find_first_valid=find_first_valid,
+            use_multiprocessing=use_multiprocessing,
+            layout_b=LayoutType.RowMajor,
+        )
+
+        return f.with_attrs(
+            {
+                "op_type": op_type,
+                "arg0_dtype": arg0_dtype,
+                "arg1_dtype": arg1_dtype,
+                "ret_dtype": out_dtype,
+                "arg0_shape": arg0_shape,
+                "arg1_shape": arg1_shape,
+                "ret_shape": out_shape,
+                "lda": "K",
+                "ldb": "N",
+                "ldc": "N",
+                "cutlass_op_name": op_name,
+                "cutlass_op_def": op_def,
+            }
+        )
+
+    def visit_function_(self, f):
+        if "Composite" not in f.attrs:
+            body = super().visit_expr(f.body)
+            return relax.Function(f.params, body, f.ret_struct_info, f.attrs, f.span)
+
+        op_type = f.attrs["Composite"]
+
+        if "conv2d" in op_type:
+            return self.handle_conv2d(f, op_type)
+        elif "matmul" in op_type:
+            return self.handle_matmul(f, op_type)
+
+        raise ValueError("Unsupported composite {}".format(op_type))
+
+    def visit_span(self, span):
+        return span
+
+
+@register_func("contrib.cutlass.tune_relax_function")
+def profile_relax_function(functions, options):
+    """Tune and annotate CUTLASS composite functions with shape, dtype and generated templates."""
+    tmp_dir = options.get("tmp_dir", "./tmp")
+    sm = options.get("sm", 80)
+    conv2d_profiler = CutlassConv2DProfiler(sm, _get_cutlass_path(), tmp_dir)
+    gemm_profiler = CutlassGemmProfiler(sm, _get_cutlass_path(), tmp_dir)
+
+    annotated_functions = []
+
+    for f in functions:
+        annotator = CutlassRelaxFunctionAnnotator(
+            tvm.IRModule.from_expr(f), conv2d_profiler, gemm_profiler, options
+        )
+        annotated_functions.append(annotator.visit_expr(f))
+
+    return annotated_functions
 
 
 @register_func("contrib.cutlass.compile")
