@@ -61,7 +61,7 @@ def diagonal_scatter(data, src, offset=0, dim1=0, dim2=1):
     assert rank > 1, "Multidimensional input tensor is expected (rank>=2)"
     assert 0 <= dim1 < rank, "First given dimension is out of bounds"
     assert 0 <= dim2 < rank, "Second given dimension is out of bounds"
-    # Check some statements for using by gen_ir without check 
+    # Check some statements for using by gen_ir without check
     assert dim1 != dim2, "Given dimensions should not be the same"
     assert shape[dim1] == shape[dim2], "The slice for diagonal is assumed square"
     if dim1 > dim2:
@@ -98,14 +98,14 @@ def diagonal_scatter(data, src, offset=0, dim1=0, dim2=1):
 
     def gen_diagonal_scatter_2d(data, src, out):
         ib = tir.ir_builder.create()
-        
+
         data_ptr = ib.buffer_ptr(data)
         src_ptr = ib.buffer_ptr(src)
         out_ptr = ib.buffer_ptr(out)
 
         # Copy initial input data to output
         with ib.for_range(0, data_range, "i", kind="parallel") as i:
-                out_ptr[i] = data_ptr[i]
+            out_ptr[i] = data_ptr[i]
 
         with ib.for_range(0, src_range, "j", kind="parallel") as j:
             out_index = j * mstride + base_offset

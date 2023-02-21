@@ -4212,7 +4212,9 @@ def test_forward_diagonal_scatter():
     """test_forward_diagonal_scatter"""
     # integer cannot be traced
     def test_fn_diagonal_scatter(offset, dim1, dim2):
-        return lambda data, src: torch.diagonal_scatter(data, src, offset=offset, dim1=dim1, dim2=dim2)
+        return lambda data, src: torch.diagonal_scatter(
+            data, src, offset=offset, dim1=dim1, dim2=dim2
+        )
 
     in_data = torch.rand(5, 5) - 1
     in_src1 = torch.rand(5) - 1
