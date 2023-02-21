@@ -310,5 +310,38 @@ def test_squeeze_with_indices():
     _check(foo, bb.get()["foo"])
 
 
+def test_collapse_sum_like():
+    @R.function
+    def foo(
+        x: R.Tensor((3, 4, 5), "float32"), y: R.Tensor((4, 5), "float32")
+    ) -> R.Tensor((4, 5), "float32"):
+        gv: R.Tensor((4, 5), "float32") = R.collapse_sum_like(x, y)
+        return gv
+
+    x = relax.Var("x", R.Tensor((3, 4, 5), "float32"))
+    y = relax.Var("y", R.Tensor((4, 5), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", [x, y]):
+        gv = bb.emit(relax.op.collapse_sum_like(x, y))
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
+def test_collapse_sum_to():
+    @R.function
+    def foo(x: R.Tensor((3, 4, 5), "float32")) -> R.Tensor((4, 5), "float32"):
+        gv: R.Tensor((4, 5), "float32") = R.collapse_sum_to(x, (4, 5))
+        return gv
+
+    x = relax.Var("x", R.Tensor((3, 4, 5), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", [x]):
+        gv = bb.emit(relax.op.collapse_sum_to(x, (4, 5)))
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
 if __name__ == "__main__":
     tvm.testing.main()

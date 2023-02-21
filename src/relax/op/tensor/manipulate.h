@@ -112,6 +112,27 @@ Expr split(Expr x, ObjectRef indices_or_sections, int axis);
  */
 Expr squeeze(Expr x, Optional<Array<Integer>> axis);
 
+/*!
+ * \brief Return a summation of data to the shape of collapse_target.
+ * For details, please see the operator `relax.collapse_sum_to`.
+ * \param data The input tensor.
+ * \param collapse_target The tensor whose shape is the shape to collapse to.
+ * \return The result tensor after summation.
+ */
+Expr collapse_sum_like(Expr data, Expr collapse_target);
+
+/*!
+ * \brief Return a summation of data to the given shape.
+ * collapse_sum_to is intended as the backward operator of broadcast_to and
+ * other broadcast operators in the automatic differentiation process.
+ * We expect that data is the result of broadcasting some tensor of the given shape in some
+ * broadcast operation. Thus the given shape and data.shape must follow broadcast rules.
+ * \param data The input tensor.
+ * \param shape The shape to collapse to.
+ * \return The result tensor of the given shape after summation.
+ */
+Expr collapse_sum_to(Expr data, Expr shape);
+
 }  // namespace relax
 }  // namespace tvm
 
