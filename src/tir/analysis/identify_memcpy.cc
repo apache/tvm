@@ -218,9 +218,9 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
       }
     };
     return std::tuple{
-        bool(expr->scale.as<IntImmNode>()),        as_int_or_zero(expr->scale),
-        bool(expr->extent.as<IntImmNode>()),       as_int_or_zero(expr->lower_factor),
-        bool(expr->lower_factor.as<IntImmNode>()), as_int_or_zero(expr->lower_factor),
+        static_cast<bool>(expr->scale.as<IntImmNode>()),        as_int_or_zero(expr->scale),
+        static_cast<bool>(expr->extent.as<IntImmNode>()),       as_int_or_zero(expr->lower_factor),
+        static_cast<bool>(expr->lower_factor.as<IntImmNode>()), as_int_or_zero(expr->lower_factor),
     };
   };
   auto sorting_function = [&make_comparison_tuple](const arith::IterSplitExpr& lhs,
