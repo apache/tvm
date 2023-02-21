@@ -1099,7 +1099,7 @@ non-zero)doc" TVM_ADD_FILELINE)
 TVM_REGISTER_NODE_TYPE(DiagonalScatterAttrs);
 
 bool DiagonalScatterRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                const TypeReporter& reporter) {
+                        const TypeReporter& reporter) {
   ICHECK_EQ(num_inputs, 2);
   ICHECK_EQ(types.size(), 3);
   auto data = types[0].as<TensorTypeNode>();
