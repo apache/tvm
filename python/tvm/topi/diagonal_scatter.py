@@ -69,11 +69,12 @@ def diagonal_scatter(data, src, offset=0, dim1=0, dim2=1):
 
     # Prepare ranges and strides
     axis_range = shape[dim1]
-    data_range = 1
+    cut_data_range = 1
     mid_tail_stride = 1
     stride2 = 1
     for i, value in enumerate(shape, 0):
-        data_range *= value
+        if i not in (dim1, dim2):
+            cut_data_range *= value
         if i > dim1 and i != dim2:
             mid_tail_stride *= value
         if i > dim2:
@@ -82,7 +83,7 @@ def diagonal_scatter(data, src, offset=0, dim1=0, dim2=1):
     istride = axis_range * stride1
     jstride = axis_range * stride2
     mstride = stride1 + stride2
-    cut_data_range = data_range / (axis_range * axis_range)
+    data_range = cut_data_range * axis_range * axis_range
 
     src_range = 1
     for i, value in enumerate(src.shape, 0):
