@@ -189,14 +189,16 @@ def gen_ir(data, indices, updates, out, axis, reduce_func):
         with ib.if_scope(ind_fused < ind_full_range_excl_axis):
             i = ind_fused // ind_after_axis_range
             j = ind_fused % ind_after_axis_range
+            pre_index1 = i * ind_before_axis_stride + j
+            pre_index2 = i * before_axis_stride + j
             with ib.for_range(0, ind_axis_range, "k") as k:
                 # Offset along indices or updates
-                index1 = i * ind_before_axis_stride + k * ind_after_axis_range + j
+                index1 = pre_index1 + k * ind_after_axis_range
                 # Get index and shift to positive side if need
                 new_index = indices_ptr[index1]
                 shifted_index = new_index + (new_index < 0) * axis_range
                 # Offset along data
-                index2 = i * before_axis_stride + shifted_index * after_axis_range + j
+                index2 = pre_index2 + shifted_index * after_axis_range
                 reduce_func(out_ptr, index2, updates_ptr[index1])
 
     return ib.get()
