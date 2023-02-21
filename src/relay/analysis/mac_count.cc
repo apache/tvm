@@ -79,8 +79,8 @@ int64_t ConvMacCount(const Call& call_node) {
   ICHECK_EQ(kernel_size.size(), 2) << "The dimension of the kernel in Conv 2D should be 2.";
   const auto* expr = call_node->checked_type().as<TensorTypeNode>();
   Array<IndexExpr> output_tensor = expr->shape;
-  ICHECK(output_tensor.size() == 4 || output_tensor.size() == 5)
-      << "The dimension of the output tensor in Conv 2D should be 4 or 5.";
+  ICHECK(output_tensor.size() == 4 || output_tensor.size() == 5 || output_tensor.size() == 6)
+      << "The dimension of the output tensor in Conv 2D should be 4, 5 or 6.";
   int64_t count = GetCartesianProd(output_tensor) * GetCartesianProd(kernel_size);
   ICHECK_EQ(input_channel % conv_2d_attr->groups, 0)
       << "The number of input channels is not divisble by groups.";
@@ -110,8 +110,8 @@ int64_t Conv2dTransposeMacCount(const Call& call_node) {
       << "The dimension of the kernel in Conv 2D Transpose should be 2.";
   const auto* expr = call_node->checked_type().as<TensorTypeNode>();
   Array<IndexExpr> output_tensor = expr->shape;
-  ICHECK(output_tensor.size() == 4 || output_tensor.size() == 5)
-      << "The dimension of the output tensor in Conv 2D Transpose should be 4 or 5.";
+  ICHECK(output_tensor.size() == 4 || output_tensor.size() == 5 || output_tensor.size() == 6)
+      << "The dimension of the output tensor in Conv 2D Transpose should be 4, 5 or 6.";
   int64_t count = GetCartesianProd(output_tensor) * GetCartesianProd(kernel_size);
   ICHECK_EQ(input_channel % conv_2d_transpose_attr->groups, 0)
       << "The number of input channels is not divisble by groups.";
