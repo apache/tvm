@@ -33,7 +33,7 @@ endif()
 
 if (NOT DEFINED CRT_LIBS)
   set(CRT_LIBS microtvm_rpc_server
-    microtvm_rpc_common 
+    microtvm_rpc_common
     aot_executor_module
     aot_executor
     graph_executor_module
