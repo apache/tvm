@@ -131,9 +131,9 @@ def diagonal_scatter(data, src, offset=0, dim1=0, dim2=1):
             src_range *= value
 
         base_offset = 0
-        with ib.if_scope(offset >= 0):
+        if offset >= 0:
             base_offset += offset * stride2
-        with ib.else_scope():
+        else:
             base_offset -= offset * stride1
 
         max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
