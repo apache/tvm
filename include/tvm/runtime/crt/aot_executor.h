@@ -97,6 +97,7 @@ int TVMAotExecutor_GetInputIndex(TVMAotExecutor* executor, const char* name);
  *
  * \param executor Pointer to executor instance, created by TVMAotExecutor_Create().
  * \param index Input index for retrieving name.
+ * \param name Output for retrieving name.
  * \return Pointer to input name in `name`.
  */
 int TVMAotExecutor_GetInputName(TVMAotExecutor* executor, int index, char** name);
