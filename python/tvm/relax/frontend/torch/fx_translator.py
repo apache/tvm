@@ -36,7 +36,7 @@ class TorchFXImporter:
         from torch import fx
 
         self.env: Dict[fx.node.Node, relax.Expr] = {}
-        self.params: Dict[torch.Tensor, relax.Constant] = {}
+        self.params: Dict[torch.Tensor, relax.Expr] = {}
         self.named_modules: Dict[str, torch.Module] = None
         self.block_builder: relax.BlockBuilder = None
         self.create_convert_map()
@@ -675,7 +675,9 @@ class TorchFXImporter:
             "adaptive_avg_pool2d": self._adaptive_avg_pool2d(is_module=False),
         }
 
-    def from_fx(self, model, input_info: List[Tuple[Tuple[int], str]]) -> tvm.IRModule:
+    def from_fx(
+        self, model, input_info: List[Tuple[Tuple[int], str]], keep_params_as_input: bool
+    ) -> tvm.IRModule:
         """Convert a PyTorch FX GraphModule to a Relax program."""
         from torch import fx
 
@@ -693,7 +695,17 @@ class TorchFXImporter:
 
         # Initialize the block builder with a function and a dataflow block.
         self.block_builder = relax.BlockBuilder()
-        with self.block_builder.function(name="main", params=inputs.copy()):
+        if keep_params_as_input:
+            func_attrs = {"num_input": len(inputs)}
+            for name, param in model.named_parameters():
+                shape = param.data.shape
+                dtype = self._convert_data_type(str(param.data.dtype))
+                inputs.append(relax.Var(name, relax.TensorStructInfo(shape, dtype)))
+                self.params[param] = inputs[-1]
+        else:
+            func_attrs = None
+
+        with self.block_builder.function(name="main", params=inputs.copy(), attrs=func_attrs):
             output = None
             with self.block_builder.dataflow():
                 # Translate model parameters.
@@ -701,7 +713,8 @@ class TorchFXImporter:
                     shape = param.data.shape
                     dtype = self._convert_data_type(str(param.data.dtype))
                     if dtype in ("float32", "float16"):
-                        self.params[param] = relax.const(param.data.cpu().numpy(), dtype)
+                        if not keep_params_as_input:
+                            self.params[param] = relax.const(param.data.cpu().numpy(), dtype)
                     else:
                         raise ValueError("Unsupported data type for model parameters: %s" % dtype)
                 # Translate the model.
@@ -740,7 +753,9 @@ class TorchFXImporter:
         return self.block_builder.get()
 
 
-def from_fx(model, input_info: List[Tuple[Tuple[int], str]]) -> tvm.IRModule:
+def from_fx(
+    model, input_info: List[Tuple[Tuple[int], str]], keep_params_as_input: bool = False
+) -> tvm.IRModule:
     """Convert a PyTorch FX GraphModule to a Relax program
 
     Parameters
@@ -750,6 +765,9 @@ def from_fx(model, input_info: List[Tuple[Tuple[int], str]]) -> tvm.IRModule:
 
     input_info : List[Tuple[Tuple[int], str]]
         A list of shapes and data types of input tensors.
+
+    keep_params_as_input : bool
+        Whether to keep model parameters as input variables.
 
     Returns
     -------
@@ -814,4 +832,4 @@ def from_fx(model, input_info: List[Tuple[Tuple[int], str]]) -> tvm.IRModule:
     to print out the tabular representation of the PyTorch module, and then
     check the placeholder rows in the beginning of the tabular.
     """
-    return TorchFXImporter().from_fx(model, input_info)
+    return TorchFXImporter().from_fx(model, input_info, keep_params_as_input)
