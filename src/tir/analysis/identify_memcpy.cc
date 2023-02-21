@@ -287,7 +287,7 @@ TVM_REGISTER_GLOBAL("tir.analysis._identify_memcpy").set_body_typed([](const Stm
   Array<ObjectRef> output;
 
   struct Visitor : arith::IRVisitorWithAnalyzer {
-    Visitor(Array<ObjectRef>* output) : output(output) {}
+    explicit Visitor(Array<ObjectRef>* output) : output(output) {}
     Array<ObjectRef>* output;
 
    private:
@@ -307,7 +307,8 @@ TVM_REGISTER_GLOBAL("tir.analysis._identify_memcpy").set_body_typed([](const Stm
     }
   };
 
-  Visitor{&output}(stmt);
+  Visitor visitor(&output);
+  visitor(stmt);
 
   return output;
 });
