@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, unused-argument
 """Diagonal scatter operator """
 import tvm
 from tvm import te, tir
@@ -182,9 +182,7 @@ def diagonal_scatter(data, src, offset=0, dim1=0, dim2=1):
     assert dim1 != dim2, "Given dimensions should not be the same"
     assert shape[dim1] == shape[dim2], "The slice for diagonal is assumed square"
     if dim1 > dim2:
-        dim = dim2
-        dim2 = dim1
-        dim1 = dim
+        dim1, dim2 = dim2, dim1
 
     gen_diagonal_scatter_ir = None
     if rank == 2:

@@ -65,9 +65,7 @@ def diagonal_scatter(data, src, offset=0, dim1=0, dim2=1):
     assert dim1 != dim2, "Given dimensions should not be the same"
     assert shape[dim1] == shape[dim2], "The slice for diagonal is assumed square"
     if dim1 > dim2:
-        dim = dim2
-        dim2 = dim1
-        dim1 = dim
+        dim1, dim2 = dim2, dim1
 
     # Prepare ranges and strides
     axis_range = shape[dim1]
