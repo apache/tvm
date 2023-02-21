@@ -32,12 +32,19 @@ prediction_shape, reduction, ignore_index, dtype = tvm.testing.parameters(
     ((10, 5), "none", -100, "float32"),
     ((10, 5), "mean", 3, "float32"),
     ((10, 5), "mean", -100, "float64"),
+    ((5,), "mean", -100, "float32"),
+    ((5,), "mean", 3, "float32"),
+    ((5,), "none", -100, "float32"),
 )
 
 
 def test_nll_loss(target, dev, prediction_shape, reduction, ignore_index, dtype):
-    C = prediction_shape[1]
-    target_shape = prediction_shape[:1] + prediction_shape[2:]
+    if len(prediction_shape) == 1:
+        C = prediction_shape[0]
+        target_shape = []
+    else:
+        C = prediction_shape[1]
+        target_shape = prediction_shape[:1] + prediction_shape[2:]
     predictions = te.placeholder(shape=prediction_shape, name="predictions", dtype=dtype)
     targets = te.placeholder(shape=target_shape, name="targets", dtype="int32")
     weights = te.placeholder(shape=(C,), name="weights", dtype=dtype)
