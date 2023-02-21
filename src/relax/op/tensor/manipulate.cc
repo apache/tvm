@@ -839,5 +839,135 @@ TVM_REGISTER_OP("relax.squeeze")
     .add_argument("x", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSqueeze);
 
+void CheckCollapseShape(const Call& call, const BlockBuilder& ctx,
+                        const Array<PrimExpr>& data_shape, const Array<PrimExpr>& target_shape) {
+  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+
+  int data_ndim = data_shape.size();
+  int target_ndim = target_shape.size();
+
+  int data_ax = data_ndim - 1;
+  int target_ax = target_ndim - 1;
+  for (; data_ax >= 0; --data_ax) {
+    if (target_ax < 0) {
+      continue;
+    }
+    const PrimExpr& dim0 = data_shape[data_ax];
+    const PrimExpr& dim1 = target_shape[target_ax];
+    const auto* int_dim0 = dim0.as<IntImmNode>();
+    const auto* int_dim1 = dim1.as<IntImmNode>();
+
+    if (analyzer->CanProveEqual(dim0, dim1) || (int_dim1 != nullptr && int_dim1->value == 1)) {
+      --target_ax;
+    } else if (int_dim0 && int_dim1 && int_dim0->value != int_dim1->value) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "In " << call->op << ", the data shape at dim " << data_ax << " is "
+                       << dim0 << " and the target shape at dim " << target_ax << " is " << dim1
+                       << ", which do not match the rule of collapse sum.");
+    } else {
+      // Todo(relax-team): At this moment, enforcing MatchCast is fine. But we may need to revisit
+      // this requirement to reduce the workload of importers and better support dynamic shapes.
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << call->op
+                       << " fails to match the axes because of unknown dim or symbolic"
+                          " shape. In this position the dim of data shape is "
+                       << dim0 << " while the dim of target shape is " << dim1
+                       << ". If it is symbolic, consider use MatchCast first.");
+    }
+  }
+}
+
+/* relax.collapse_sum_like */
+Expr collapse_sum_like(Expr data, Expr collapse_target) {
+  static const Op& op = Op::Get("relax.collapse_sum_like");
+  return Call(op, {std::move(data), std::move(collapse_target)}, Attrs(), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.collapse_sum_like").set_body_typed(collapse_sum_like);
+
+StructInfo InferStructInfoCollapseSumLike(const Call& call, const BlockBuilder& ctx) {
+  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  TensorStructInfo data_sinfo = input_sinfo[0];
+  TensorStructInfo collapse_target_sinfo = input_sinfo[1];
+
+  DataType output_dtype = data_sinfo->dtype;
+
+  Optional<Array<PrimExpr>> data_shape_value;
+  if (data_sinfo->shape.defined()) {
+    data_shape_value = GetStructInfoAs<ShapeStructInfoNode>(data_sinfo->shape.value())->values;
+  }
+  Optional<Array<PrimExpr>> collapse_target_shape_value;
+  if (collapse_target_sinfo->shape.defined()) {
+    collapse_target_shape_value =
+        GetStructInfoAs<ShapeStructInfoNode>(collapse_target_sinfo->shape.value())->values;
+  }
+
+  if (data_shape_value.defined() && collapse_target_shape_value.defined()) {
+    CheckCollapseShape(call, ctx, data_shape_value.value(), collapse_target_shape_value.value());
+  }
+
+  if (collapse_target_sinfo->shape.defined()) {
+    return TensorStructInfo(collapse_target_sinfo->shape.value(), output_dtype);
+  } else {
+    return TensorStructInfo(output_dtype, collapse_target_sinfo->ndim);
+  }
+}
+
+TVM_REGISTER_OP("relax.collapse_sum_like")
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("collapse_target", "Tensor",
+                  "The tensor whose shape is the shape to collapse to.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCollapseSumLike);
+
+/* relax.collapse_sum_to */
+Expr collapse_sum_to(Expr data, Expr shape) {
+  static const Op& op = Op::Get("relax.collapse_sum_to");
+  return Call(op, {std::move(data), std::move(shape)}, Attrs(), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.collapse_sum_to").set_body_typed(collapse_sum_to);
+
+StructInfo InferStructInfoCollapseSumTo(const Call& call, const BlockBuilder& ctx) {
+  if (call->args.size() != 2) {
+    ctx->ReportFatal(Diagnostic::Error(call) << "CollapseSumTo should have 2 arguments");
+  }
+
+  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[1]);
+
+  if (data_sinfo == nullptr) {
+    ctx->ReportFatal(
+        Diagnostic::Error(call)
+        << "CollapseSumTo requires the input data to be a Tensor. However, the given one is "
+        << call->args[0]->struct_info_->GetTypeKey());
+  }
+  if (shape_sinfo == nullptr) {
+    ctx->ReportFatal(
+        Diagnostic::Error(call)
+        << "CollapseSumTo requires the input shape to be a Shape. However, the given one is "
+        << call->args[1]->struct_info_->GetTypeKey());
+  }
+
+  DataType output_dtype = data_sinfo->dtype;
+
+  Optional<Array<PrimExpr>> data_shape_value;
+  if (data_sinfo->shape.defined()) {
+    data_shape_value = GetStructInfoAs<ShapeStructInfoNode>(data_sinfo->shape.value())->values;
+  }
+
+  if (data_shape_value.defined() && shape_sinfo->values.defined()) {
+    CheckCollapseShape(call, ctx, data_shape_value.value(), shape_sinfo->values.value());
+  }
+
+  return TensorStructInfo(/*shape=*/call->args[1], output_dtype);
+}
+
+TVM_REGISTER_OP("relax.collapse_sum_to")
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("shape", "Shape", "The shape to collapse to.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCollapseSumTo);
+
 }  // namespace relax
 }  // namespace tvm
