@@ -142,13 +142,16 @@ TVM_DLL bool IsBoolScalarType(const Type& ty, bool permit_unknown_rank = true,
 TVM_DLL bool IsLeafOrTuple(const Expr& expr);
 
 /*!
- * \brief Copy the given function. The parameters of the original function would be copied to
- * satisfy the restriction in the well-formed check: any two functions cannot share the same
- * parameter variable.
+ * \brief Copy the given function. All variables that are bound inside the original function
+ *  would be copied to satisfy the restriction in the well-formed check: Variables in
+ *  Relax must be bound exactly once. This also ensures that both the function and its copy
+ *  can be inserted into the same IRModule, and be asserted on the structural equality
+ *  agaisnt IRModule created by TVMScript.
+ *
  * \param func The relax function to copy.
  * \return The copied function.
  */
-TVM_DLL Function CopyWithNewParams(Function func);
+TVM_DLL Function CopyWithNewVars(Function func);
 
 }  // namespace relax
 }  // namespace tvm
