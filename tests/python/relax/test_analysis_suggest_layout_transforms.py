@@ -22,7 +22,7 @@ from tvm import relax, tir
 from tvm.script import tir as T
 
 
-def apply_transformations(func, suggested_transfoms, print_transformation = False):
+def apply_transformations(func, suggested_transfoms, print_transformation=False):
     sch = tir.Schedule(func)
     for block, per_block_transformations in suggested_transfoms.items():
         blockrv = sch.get_block(block.name_hint)
