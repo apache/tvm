@@ -317,7 +317,7 @@ def conv2d_spatial_pack_nhwc(cfg, data, kernel, strides, padding, dilation, out_
             return 1
 
         # Tile size 8 results in efficient vectorization for these schedules.
-        # If the axis is not divisible by 8, try 4
+        # If the axis is not divisible by 8, try 4
         cfg["tile_oh"] = SplitEntity([-1, 1])
         cfg["tile_ow"] = SplitEntity([-1, _tile_size(OW, [8, 4])])
         cfg["tile_co"] = SplitEntity([-1, _tile_size(OC, [8, 4])])
