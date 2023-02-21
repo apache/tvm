@@ -1272,6 +1272,8 @@ void CodeGenCUDA::PrintWmmaScope(const std::string& scope, DataType t, const Var
                                  std::ostream& os) {
   std::stringstream type;
   PrintType(t, type);
+  ICHECK(fragment_shapes.count(variable))
+      << "Cannot find shape of the wmma fragment " << variable->name_hint;
   std::string shape_str = fragment_shapes.at(variable);
   if ((t.is_int() || t.is_uint()) && t.bits() < 8 && t.lanes() == 1) {
     type.str(std::string());
@@ -1321,6 +1323,8 @@ int stoi(const std::string& str) {
 
 int32_t CodeGenCUDA::GetWmmaFragmentSize(const std::string& scope, const VarNode* variable,
                                          int32_t size) {
+  ICHECK(fragment_shapes.count(variable))
+      << "Cannot find shape of the wmma fragment " << variable->name_hint;
   std::string shape_str = fragment_shapes.at(variable);
   size_t m, n, k;
   size_t last_pos = 0, pos = 0;
