@@ -40,11 +40,13 @@ IS_TEMPLATE = not os.path.exists(os.path.join(PROJECT_DIR, MODEL_LIBRARY_FORMAT_
 # Used this size to pass most CRT tests in TVM.
 WORKSPACE_SIZE_BYTES = 2 * 1024 * 1024
 
-MAKEFILE_FILENAME = "Makefile"
+CMAKEFILE_FILENAME = "CMakeLists.txt"
+
+# The build target given to make
+BUILD_TARGET = "build/main"
 
 
 class Handler(server.ProjectAPIHandler):
-
     BUILD_TARGET = "build/main"
 
     def __init__(self):
@@ -79,29 +81,25 @@ class Handler(server.ProjectAPIHandler):
     # These files and directories will be recursively copied into generated projects from the CRT.
     CRT_COPY_ITEMS = ("include", "Makefile", "src")
 
-    # The build target given to make
-    BUILD_TARGET = "build/main"
-
-    def _populate_makefile(
+    def _populate_cmake(
         self,
-        makefile_template_path: pathlib.Path,
-        makefile_path: pathlib.Path,
+        cmakefile_template_path: pathlib.Path,
+        cmakefile_path: pathlib.Path,
         memory_size: int,
+        verbose: bool,
     ):
-        """Generate Makefile from template."""
-        flags = {
-            "TVM_WORKSPACE_SIZE_BYTES": str(memory_size),
-        }
+        """Generate CMakeList file from template."""
 
         regex = re.compile(r"([A-Z_]+) := (<[A-Z_]+>)")
-        with open(makefile_path, "w") as makefile_f:
-            with open(makefile_template_path, "r") as makefile_template_f:
-                for line in makefile_template_f:
-                    m = regex.match(line)
-                    if m:
-                        var, token = m.groups()
-                        line = line.replace(token, flags[var])
-                    makefile_f.write(line)
+        with open(cmakefile_path, "w") as cmakefile_f:
+            with open(cmakefile_template_path, "r") as cmakefile_template_f:
+                for line in cmakefile_template_f:
+                    cmakefile_f.write(line)
+                cmakefile_f.write(
+                    f"target_compile_definitions(main PUBLIC -DTVM_WORKSPACE_SIZE_BYTES={memory_size})\n"
+                )
+                if verbose:
+                    cmakefile_f.write(f"set(CMAKE_VERBOSE_MAKEFILE TRUE)\n")
 
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
         # Make project directory.
@@ -134,11 +132,12 @@ class Handler(server.ProjectAPIHandler):
             else:
                 shutil.copy2(src_path, dst_path)
 
-        # Populate Makefile
-        self._populate_makefile(
-            current_dir / f"{MAKEFILE_FILENAME}.template",
-            project_dir / MAKEFILE_FILENAME,
+        # Populate CMake file
+        self._populate_cmake(
+            current_dir / f"{CMAKEFILE_FILENAME}.template",
+            project_dir / CMAKEFILE_FILENAME,
             options.get("workspace_size_bytes", WORKSPACE_SIZE_BYTES),
+            options.get("verbose"),
         )
 
         # Populate crt-config.h
@@ -162,13 +161,10 @@ class Handler(server.ProjectAPIHandler):
         )
 
     def build(self, options):
-        args = ["make"]
-        if options.get("verbose"):
-            args.append("VERBOSE=1")
-
-        args.append(self.BUILD_TARGET)
-
-        subprocess.check_call(args, cwd=PROJECT_DIR)
+        build_dir = PROJECT_DIR / "build"
+        build_dir.mkdir()
+        subprocess.check_call(["cmake", ".."], cwd=build_dir)
+        subprocess.check_call(["make"], cwd=build_dir)
 
     def flash(self, options):
         pass  # Flashing does nothing on host.

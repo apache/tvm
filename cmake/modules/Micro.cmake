@@ -61,7 +61,7 @@ if(USE_MICRO)
         APPEND
         PLATFORM_FILE_COPY_JOBS
         "src/runtime/crt/host microtvm_api_server.py -> crt"
-        "src/runtime/crt/host Makefile.template -> crt"
+        "src/runtime/crt/host CMakeLists.txt.template -> crt"
         "src/runtime/crt/host **.cc -> crt/src"
       )
     else()
