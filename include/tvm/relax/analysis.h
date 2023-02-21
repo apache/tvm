@@ -33,7 +33,6 @@
 #include <tvm/tir/function.h>
 
 #include <functional>
-#include <unordered_map>
 #include <utility>
 
 namespace tvm {
