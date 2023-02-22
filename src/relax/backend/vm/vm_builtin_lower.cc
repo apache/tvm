@@ -53,6 +53,8 @@ class VMBuiltinLowerMutator : public ExprMutator {
       return CallTIRDyn(call);
     } else if (call->op == reshape_op_) {
       return Reshape(call);
+    } else if (call->op == shape_of_op_) {
+      return ShapeOf(call);
     } else if (call->op == make_closure_op_) {
       return MakeClosure(call);
     } else if (call->op == invoke_closure_op_) {
@@ -132,6 +134,12 @@ class VMBuiltinLowerMutator : public ExprMutator {
     return Call(builtin_reshape_, call_node->args, Attrs(), {GetStructInfo(call_node)});
   }
 
+  Expr ShapeOf(const Call& call_node) {
+    ICHECK(call_node->args.size() == 1);
+    ICHECK(call_node->struct_info_.defined());
+    return Call(builtin_shape_of_, call_node->args, Attrs(), {GetStructInfo(call_node)});
+  }
+
   Expr MakeClosure(const Call& call_node) {
     ICHECK(call_node->args.size() == 2);
     ICHECK(call_node->args[0]->IsInstance<GlobalVarNode>());
@@ -173,6 +181,7 @@ class VMBuiltinLowerMutator : public ExprMutator {
   // object to pattern match.
   const Op& call_tir_dyn_op_ = Op::Get("relax.vm.call_tir_dyn");
   const Op& reshape_op_ = Op::Get("relax.reshape");
+  const Op& shape_of_op_ = Op::Get("relax.shape_of");
   const Op& make_closure_op_ = Op::Get("relax.make_closure");
   const Op& invoke_closure_op_ = Op::Get("relax.invoke_closure");
   const Op& alloc_tensor_op_ = Op::Get("relax.builtin.alloc_tensor");
@@ -187,6 +196,7 @@ class VMBuiltinLowerMutator : public ExprMutator {
   const ExternFunc builtin_compute_alloc_shape_{"vm.builtin.compute_alloc_shape"};
   const ExternFunc builtin_call_tir_dyn_{"vm.builtin.call_tir_dyn"};
   const ExternFunc builtin_reshape_{"vm.builtin.reshape"};
+  const ExternFunc builtin_shape_of_{"vm.builtin.shape_of"};
   const ExternFunc builtin_make_closure_{"vm.builtin.make_closure"};
   const ExternFunc builtin_invoke_closure_{"vm.builtin.invoke_closure"};
 };
