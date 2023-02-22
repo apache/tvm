@@ -80,6 +80,20 @@ def Normalize() -> tvm.ir.transform.Pass:
     return _ffi_api.Normalize()  # type: ignore
 
 
+def CanonicalizeBindings() -> tvm.ir.transform.Pass:
+    """
+    Canonicalizes variable definitions
+    (e.g., if there is y = x and z = y, it replaces uses of y and z with x).
+
+    Best combined with constant folding and the elimination of unused definitions.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.CanonicalizeBindings()  # type: ignore
+
+
 def RewriteDataflowReshape() -> tvm.ir.transform.Pass:
     """Convert all reshape-like call_tir to VM reshape operator call.
     The VM reshape operator calls will be further lowered to a CreateView
