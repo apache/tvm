@@ -29,6 +29,7 @@ def test_op_correctness():
     assert relax.op.nn.gelu(x).op == Op.get("relax.nn.gelu")
     assert relax.op.nn.silu(x).op == Op.get("relax.nn.silu")
     assert relax.op.nn.softmax(x).op == Op.get("relax.nn.softmax")
+    assert relax.op.nn.log_softmax(x).op == Op.get("relax.nn.log_softmax")
     assert relax.op.nn.dropout(x).op == Op.get("relax.nn.dropout")
 
     x = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
@@ -40,6 +41,12 @@ def test_op_correctness():
         "relax.nn.batch_norm"
     )
     assert relax.op.nn.layer_norm(x, gamma, beta, axes=1).op == Op.get("relax.nn.layer_norm")
+
+    x = relax.Var("x", R.Tensor((2, 3), "float32"))
+    y = relax.Var("y", R.Tensor((2, 3), "float32"))
+    assert relax.op.nn.cross_entropy_with_logits(x, y).op == Op.get(
+        "relax.nn.cross_entropy_with_logits"
+    )
 
 
 def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: relax.StructInfo):
@@ -117,7 +124,7 @@ def test_linear_unit_infer_struct_info_wrong_input_type():
         bb.normalize(relax.op.nn.silu(x1))
 
 
-def test_softmax_infer_struct_info():
+def test_softmax_log_softmax_infer_struct_info():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=3))
@@ -133,8 +140,20 @@ def test_softmax_infer_struct_info():
     _check_inference(bb, relax.op.nn.softmax(x3, axis=-1), relax.TensorStructInfo((2, 3), dtype=""))
     _check_inference(bb, relax.op.nn.softmax(x4, axis=-2), relax.TensorStructInfo(dtype=""))
 
+    _check_inference(bb, relax.op.nn.log_softmax(x0), relax.TensorStructInfo((2, 3), "float32"))
+    _check_inference(
+        bb, relax.op.nn.log_softmax(x1, axis=0), relax.TensorStructInfo(dtype="float32", ndim=3)
+    )
+    _check_inference(
+        bb, relax.op.nn.log_softmax(x2, axis=1), relax.TensorStructInfo(dtype="float32")
+    )
+    _check_inference(
+        bb, relax.op.nn.log_softmax(x3, axis=-1), relax.TensorStructInfo((2, 3), dtype="")
+    )
+    _check_inference(bb, relax.op.nn.log_softmax(x4, axis=-2), relax.TensorStructInfo(dtype=""))
 
-def test_softmax_infer_struct_info_shape_symbolic():
+
+def test_softmax_log_softmax_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
     m = tir.Var("m", "int64")
     n = tir.Var("n", "int64")
@@ -144,8 +163,13 @@ def test_softmax_infer_struct_info_shape_symbolic():
     _check_inference(bb, relax.op.nn.softmax(x0), relax.TensorStructInfo((m, n), "float32"))
     _check_inference(bb, relax.op.nn.softmax(x1, axis=0), relax.TensorStructInfo((4, n), "float32"))
 
+    _check_inference(bb, relax.op.nn.log_softmax(x0), relax.TensorStructInfo((m, n), "float32"))
+    _check_inference(
+        bb, relax.op.nn.log_softmax(x1, axis=0), relax.TensorStructInfo((4, n), "float32")
+    )
 
-def test_softmax_infer_struct_info_shape_var():
+
+def test_softmax_log_softmax_infer_struct_info_shape_var():
     bb = relax.BlockBuilder()
     s0 = relax.Var("s", relax.ShapeStructInfo(ndim=2))
     s1 = relax.Var("s", relax.ShapeStructInfo())
@@ -155,8 +179,11 @@ def test_softmax_infer_struct_info_shape_var():
     _check_inference(bb, relax.op.nn.softmax(x0), relax.TensorStructInfo(s0, "float32"))
     _check_inference(bb, relax.op.nn.softmax(x1), relax.TensorStructInfo(s1, "float32"))
 
+    _check_inference(bb, relax.op.nn.log_softmax(x0), relax.TensorStructInfo(s0, "float32"))
+    _check_inference(bb, relax.op.nn.log_softmax(x1), relax.TensorStructInfo(s1, "float32"))
 
-def test_softmax_infer_struct_info_more_input_dtype():
+
+def test_softmax_log_softmax_infer_struct_info_more_input_dtype():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3), "float16"))
     x1 = relax.Var("x", R.Tensor((2, 3), "float64"))
@@ -164,8 +191,11 @@ def test_softmax_infer_struct_info_more_input_dtype():
     _check_inference(bb, relax.op.nn.softmax(x0), relax.TensorStructInfo((2, 3), "float16"))
     _check_inference(bb, relax.op.nn.softmax(x1), relax.TensorStructInfo((2, 3), "float64"))
 
+    _check_inference(bb, relax.op.nn.log_softmax(x0), relax.TensorStructInfo((2, 3), "float16"))
+    _check_inference(bb, relax.op.nn.log_softmax(x1), relax.TensorStructInfo((2, 3), "float64"))
 
-def test_softmax_infer_struct_info_invalid_input_dtype():
+
+def test_softmax_log_softmax_infer_struct_info_invalid_input_dtype():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3), "int8"))
     x1 = relax.Var("x", R.Tensor((2, 3), "int64"))
@@ -174,26 +204,40 @@ def test_softmax_infer_struct_info_invalid_input_dtype():
         bb.normalize(relax.op.nn.softmax(x0))
     with pytest.raises(TVMError):
         bb.normalize(relax.op.nn.softmax(x1))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.log_softmax(x0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.log_softmax(x1))
 
 
-def test_softmax_infer_struct_info_axis_out_of_range():
+def test_softmax_log_softmax_infer_struct_info_axis_out_of_range():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3, 4), "float32"))
+
     with pytest.raises(TVMError):
         bb.normalize(relax.op.nn.softmax(x, axis=3))
     with pytest.raises(TVMError):
         bb.normalize(relax.op.nn.softmax(x, axis=-4))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.log_softmax(x, axis=3))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.log_softmax(x, axis=-4))
 
 
-def test_softmax_wrong_with_multiple_axes():
+def test_softmax_log_softmax_wrong_with_multiple_axes():
     x = relax.Var("x", R.Tensor((2, 3, 4), "float32"))
+
     with pytest.raises(TVMError):
         relax.op.nn.softmax(x, axis=[1, 2])
     with pytest.raises(TVMError):
         relax.op.nn.softmax(x, axis=[-1, -2, -3])
+    with pytest.raises(TVMError):
+        relax.op.nn.log_softmax(x, axis=[1, 2])
+    with pytest.raises(TVMError):
+        relax.op.nn.log_softmax(x, axis=[-1, -2, -3])
 
 
-def test_softmax_infer_struct_info_wrong_input_type():
+def test_softmax_log_softmax_infer_struct_info_wrong_input_type():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3), "float32")))
@@ -202,6 +246,10 @@ def test_softmax_infer_struct_info_wrong_input_type():
         bb.normalize(relax.op.nn.softmax(x0))
     with pytest.raises(TVMError):
         bb.normalize(relax.op.nn.softmax(x1))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.log_softmax(x0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.log_softmax(x1))
 
 
 def test_batch_norm_infer_struct_info():
@@ -923,6 +971,115 @@ def test_dropout_infer_struct_info_wrong_input_type():
         bb.normalize(relax.op.nn.dropout(x0))
     with pytest.raises(TVMError):
         bb.normalize(relax.op.nn.dropout(x1))
+
+
+def test_cross_entropy_infer_struct_info():
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((2, 3), "float32"))
+    y0 = relax.Var("y", R.Tensor((2, 3), "float32"))
+    y1 = relax.Var("y", R.Tensor("float32", ndim=2))
+    y2 = relax.Var("y", R.Tensor((2, 3)))
+    y3 = relax.Var("y", R.Tensor(ndim=2))
+
+    _check_inference(
+        bb, relax.op.nn.cross_entropy_with_logits(x, y0), relax.TensorStructInfo((), "float32")
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.cross_entropy_with_logits(x, y1),
+        relax.TensorStructInfo((), dtype="float32"),
+    )
+    _check_inference(
+        bb, relax.op.nn.cross_entropy_with_logits(x, y2), relax.TensorStructInfo((), dtype="")
+    )
+    _check_inference(
+        bb, relax.op.nn.cross_entropy_with_logits(x, y3), relax.TensorStructInfo((), dtype="")
+    )
+
+
+def test_cross_entropy_infer_struct_info_shape_symbolic():
+    bb = relax.BlockBuilder()
+    m0 = tir.Var("m", "int64")
+    m1 = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
+    x0 = relax.Var("x", R.Tensor((m0, n), "float32"))
+    x1 = relax.Var("x", R.Tensor((m1, n), "float32"))
+    y = relax.Var("y", R.Tensor((m0, n), "float32"))
+
+    _check_inference(
+        bb, relax.op.nn.cross_entropy_with_logits(x0, y), relax.TensorStructInfo((), "float32")
+    )
+    _check_inference(
+        bb, relax.op.nn.cross_entropy_with_logits(x1, y), relax.TensorStructInfo((), "float32")
+    )
+
+
+def test_cross_entropy_infer_struct_info_shape_var():
+    bb = relax.BlockBuilder()
+    s0 = relax.Var("s", relax.ShapeStructInfo(ndim=2))
+    s1 = relax.Var("s", relax.ShapeStructInfo(ndim=2))
+    x = relax.Var("x", relax.TensorStructInfo(s0, "float32"))
+    y0 = relax.Var("x", relax.TensorStructInfo(s0, "float32"))
+    y1 = relax.Var("x", relax.TensorStructInfo(s1, "float32"))
+
+    _check_inference(
+        bb, relax.op.nn.cross_entropy_with_logits(x, y0), relax.TensorStructInfo((), "float32")
+    )
+    _check_inference(
+        bb, relax.op.nn.cross_entropy_with_logits(x, y1), relax.TensorStructInfo((), "float32")
+    )
+
+
+def test_cross_entropy_infer_struct_info_more_input_dtype():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3), "float16"))
+    y0 = relax.Var("y", R.Tensor((2, 3), "float16"))
+    x1 = relax.Var("x", R.Tensor((2, 3), "int8"))
+    y1 = relax.Var("y", R.Tensor((2, 3), "int8"))
+    x2 = relax.Var("x", R.Tensor((2, 3), "int32"))
+    y2 = relax.Var("y", R.Tensor((2, 3), "int32"))
+
+    _check_inference(
+        bb, relax.op.nn.cross_entropy_with_logits(x0, y0), relax.TensorStructInfo((), "float16")
+    )
+    _check_inference(
+        bb, relax.op.nn.cross_entropy_with_logits(x1, y1), relax.TensorStructInfo((), "int8")
+    )
+
+
+def test_cross_entropy_infer_struct_info_wrong_ndim():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3), "float32"))
+    x1 = relax.Var("x", R.Tensor((2, 3, 4), "float32"))
+    y0 = relax.Var("y", R.Tensor((2, 3), "float32"))
+    y1 = relax.Var("y", R.Tensor("float32", ndim=4))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.cross_entropy_with_logits(x1, y0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.cross_entropy_with_logits(x0, y1))
+
+
+def test_cross_entropy_infer_struct_info_shape_mismatch():
+    bb = relax.BlockBuilder()
+    m = tir.Var("m", "int64")
+    x0 = relax.Var("x", R.Tensor((2, 3), "float32"))
+    y0 = relax.Var("y", R.Tensor((2, 4), "float32"))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.cross_entropy_with_logits(x0, y0))
+
+
+def test_cross_entropy_infer_struct_info_wrong_input_type():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", relax.ShapeStructInfo((2, 3)))
+    x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3), "float32")))
+    y = relax.Var("y", R.Tensor((2, 3), "float32"))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.cross_entropy_with_logits(x0, y))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.cross_entropy_with_logits(x1, y))
 
 
 if __name__ == "__main__":
