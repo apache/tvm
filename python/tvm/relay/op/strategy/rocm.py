@@ -117,12 +117,8 @@ def scatter_elements_cuda(attrs, inputs, out_type, target):
     )
 
     rank = len(inputs[0].shape)
-    reduction = attrs.get("reduction", None)
-    if reduction is None:
-        reduction = b"update"
-    reduction = reduction.decode("utf-8")
 
-    with SpecializedCondition(rank == 1 and reduction == "update"):
+    with SpecializedCondition(rank == 1 and attrs.reduction == "update"):
         if can_use_rocthrust(target, "tvm.contrib.thrust.stable_sort_by_key"):
             strategy.add_implementation(
                 wrap_compute_scatter_elements(topi.cuda.scatter_via_sort),

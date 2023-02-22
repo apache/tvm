@@ -1558,6 +1558,7 @@ def scatter_elements_strategy(attrs, inputs, out_type, target):
         wrap_topi_schedule(topi.generic.schedule_extern),
         name="scatter_elements.generic",
     )
+    # TODO(vvchernov): implement specialized case (rank=1, reduction="update"), see cuda strategy
     return strategy
 
 
