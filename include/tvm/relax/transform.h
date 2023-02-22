@@ -128,6 +128,15 @@ TVM_DLL Pass AttachGlobalSymbol();
 TVM_DLL Pass Normalize();
 
 /*!
+ * \brief Simplify a Relax module by folding var bindings and match shape nodes.
+ * May include other forms of expression simplification in the future.
+ * Best used alongside constant folding and eliminating unused bindings.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass CanonicalizeBindings();
+
+/*!
  * \brief Bind params of function of the module to constant tensors.
  *
  * \param func_name The name of the function to bind parameters.
