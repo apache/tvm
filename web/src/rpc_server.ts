@@ -82,6 +82,9 @@ export class RPCServer {
   state: RPCServerState = RPCServerState.InitHeader;
   logger: (msg: string) => void;
   getImports: () => Record<string, unknown>;
+  private ndarrayCacheUrl: string;
+  private ndarrayCacheDevice: string;
+  private fetchProgressCallback?: runtime.FetchProgressCallback;
   private pendingSend: Promise<void> = Promise.resolve();
   private name: string;
   private inst?: runtime.Instance = undefined;
@@ -98,13 +101,19 @@ export class RPCServer {
     url: string,
     key: string,
     getImports: () => Record<string, unknown>,
-    logger: (msg: string) => void = console.log
+    logger: (msg: string) => void = console.log,
+    ndarrayCacheUrl: string = "",
+    ndarrayCacheDevice: string = "cpu",
+    fetchProgressCallback: runtime.FetchProgressCallback | undefined = undefined
   ) {
     this.url = url;
     this.key = key;
     this.name = "WebSocketRPCServer[" + this.key + "]: ";
     this.getImports = getImports;
     this.logger = logger;
+    this.ndarrayCacheUrl = ndarrayCacheUrl;
+    this.ndarrayCacheDevice = ndarrayCacheDevice;
+    this.fetchProgressCallback = fetchProgressCallback;
 
     this.checkLittleEndian();
     this.socket = compact.createWebSocket(url);
@@ -132,7 +141,9 @@ export class RPCServer {
     if (this.state == RPCServerState.ReceivePacketHeader) {
       this.log("Closing the server in clean state");
       this.log("Automatic reconnecting..");
-      new RPCServer(this.url, this.key, this.getImports, this.logger);
+      new RPCServer(
+        this.url, this.key, this.getImports, this.logger,
+        this.ndarrayCacheUrl, this.ndarrayCacheDevice, this.fetchProgressCallback);
     } else {
       this.log("Closing the server, final state=" + this.state);
     }
@@ -272,6 +283,20 @@ export class RPCServer {
       // begin scope to allow handling of objects
       // the object should stay alive during all sessions.
       this.inst.beginScope();
+      if (this.fetchProgressCallback !== undefined) {
+        this.inst.registerFetchProgressCallback(this.fetchProgressCallback);
+      }
+
+      if (this.ndarrayCacheUrl.length != 0) {
+        if (this.ndarrayCacheDevice == "cpu") {
+          await this.inst.fetchNDArrayCache(this.ndarrayCacheUrl, this.inst.cpu());
+        } else {
+          assert(this.ndarrayCacheDevice == "webgpu");
+          await this.inst.fetchNDArrayCache(this.ndarrayCacheUrl, this.inst.webgpu());
+        }
+      }
+
+      assert(this.inst !== undefined);
       const fcreate = this.inst.getGlobalFunc("rpc.CreateEventDrivenServer");
 
       const messageHandler = fcreate(

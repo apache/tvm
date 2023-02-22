@@ -180,6 +180,18 @@ def _vmcodegen(
     raise ValueError("Unknown exec_mode %s" % exec_mode)
 
 
+def _autodetect_system_lib_req(target: tvm.target.Target):
+    """Automatically detect system lib requirement"""
+    host = target if target.host is None else target.host
+    system_lib = False
+    if "wasm" in host.attrs.get("mtriple", ""):
+        system_lib = True
+    if system_lib:
+        # use packed-func to avoid relay dep.
+        return tvm.get_global_func("relay.backend.CreateRuntime")("cpp", {"system-lib": system_lib})
+    return None
+
+
 def _vmlink(
     builder: "relax.ExecBuilder",
     target: Union[str, tvm.target.Target],
@@ -224,7 +236,7 @@ def _vmlink(
         ext_libs = []
     lib = None
     if tir_mod is not None:
-        lib = tvm.build(tir_mod, target=target)
+        lib = tvm.build(tir_mod, target=target, runtime=_autodetect_system_lib_req(target))
     return Executable(_ffi_api.VMLink(builder, target, lib, ext_libs, params))  # type: ignore
 
 
