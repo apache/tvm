@@ -111,8 +111,8 @@ def scatter_elements_cuda(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     strategy.add_implementation(
         wrap_compute_scatter_elements(topi.cuda.scatter_elements),
-        wrap_topi_schedule(topi.cuda.schedule_scatter),
-        name="scatter.rocm",
+        wrap_topi_schedule(topi.cuda.schedule_extern),
+        name="scatter_elements.rocm",
         plevel=10,
     )
 
