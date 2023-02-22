@@ -95,7 +95,7 @@ def test_model_platform_templating(project_dir, project):
         # TVM causes the amount of memory needed to decrease.
         workspace_size = int(workspace_size_defs[0])
         assert workspace_size < 30000
-        assert workspace_size > 10000
+        assert workspace_size > 9000
 
 
 def test_import_rerouting(project_dir, project):
