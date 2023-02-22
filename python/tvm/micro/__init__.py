@@ -29,6 +29,7 @@ from .project import generate_project, GeneratedProject, TemplateProject
 from .session import (
     create_local_graph_executor,
     create_local_debug_executor,
+    create_local_aot_executor,
     Session,
     SessionTerminatedError,
 )
