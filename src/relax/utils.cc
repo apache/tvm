@@ -67,8 +67,9 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
   }
 }
 
-bool IsBoolScalarType(const Type& ty, bool permit_unknown_rank, bool permit_unknown_dtype) {
-  const DynTensorTypeNode* tt = ty.as<DynTensorTypeNode>();
+bool IsBoolStructInfo(const StructInfo& sinfo, bool permit_unknown_rank,
+                      bool permit_unknown_dtype) {
+  const TensorStructInfoNode* tt = sinfo.as<TensorStructInfoNode>();
   if (!tt) {
     return false;
   }
