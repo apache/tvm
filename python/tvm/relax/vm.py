@@ -616,9 +616,15 @@ def build(
     new_mod = seq(mod)
 
     # Extract external runtime modules if exist.
-    ext_libs = []
-    if mod.attrs and "external_mods" in mod.attrs:
-        ext_libs = mod.attrs["external_mods"]
+    attrs = dict(mod.attrs) if mod.attrs else {}
+
+    ext_libs = attrs.get("external_mods", [])
+    constants = attrs.get("const_name_to_constant", {})
+
+    if params is not None:
+        params.update(dict(constants))
+    else:
+        params = constants
 
     # builder collects the executable
     builder = relax.ExecBuilder()
