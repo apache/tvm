@@ -258,10 +258,10 @@ def test_SRSR_block():
 def test_op_elemwise_symbolic():
     @T.prim_func
     def before(arg: T.handle, relu: T.handle):
-        N = T.var("int64")
-        C = T.var("int64")
-        H = T.var("int64")
-        W = T.var("int64")
+        N = T.int64()
+        C = T.int64()
+        H = T.int64()
+        W = T.int64()
         Arg = T.match_buffer(arg, (N, C, H, W))
         Relu = T.match_buffer(relu, (N, C, H, W))
         for i0, i1, i2, i3 in T.grid(N, C, H, W):
@@ -273,10 +273,10 @@ def test_op_elemwise_symbolic():
 
     @T.prim_func
     def expected(arg: T.handle, relu: T.handle):
-        N = T.var("int64")
-        H = T.var("int64")
-        W = T.var("int64")
-        C = T.var("int64")
+        N = T.int64()
+        C = T.int64()
+        H = T.int64()
+        W = T.int64()
         Arg = T.match_buffer(arg, (N, H, W, C))
         Relu = T.match_buffer(relu, (N, H, W, C))
         # with T.block("root"):
