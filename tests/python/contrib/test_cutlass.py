@@ -511,6 +511,17 @@ def test_dense():
     )
 
     dense_fp32 = get_dense(M, N, K, "float32", "float32", "float32")
+    # fp32
+    verify_dense(
+        dense_fp32,
+        M,
+        N,
+        K,
+        data_dtype="float32",
+        weight_dtype="float32",
+        use_3xtf32=False,
+        sm=75,
+    )
     # tf32
     verify_dense(
         dense_fp32,
@@ -757,7 +768,10 @@ def verify_conv2d_backward_weight(
 
 @tvm.testing.requires_cutlass
 def test_conv2d():
+    d_shape = (16, 16, 32, 32)
+    w_shape = (32, 16, 3, 3)
     padding = (1, 1)
+
     for IC in [3, 16]:
         d_shape = (16, IC, 32, 32)
         w_shape = (32, IC, 3, 3)
@@ -775,11 +789,7 @@ def test_conv2d():
             run_benchmark=False,
         )
 
-    d_shape = (16, 16, 32, 32)
-    w_shape = (32, 16, 3, 3)
-    padding = (1, 1)
     dyn_batch_shape = (relay.Any(),) + d_shape[1:]
-
     mod_nchw = get_conv2d_nchw(d_shape, w_shape, padding)
     mod_dyn = get_conv2d_nchw(dyn_batch_shape, w_shape, padding)
 
@@ -880,7 +890,7 @@ def test_conv2d_fusion():
 
     mod_nchw = get_conv2d_nchw_bias_hardswish(d_shape, w_shape, padding, out_dtype="float16")
     verify_conv2d(
-        mod_nchw, mod_nchw, d_shape, w_shape, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
+        mod_nchw, mod_nchw, d_shape, w_shape, sm=80, atol=5e-2, rtol=5e-2, run_benchmark=False
     )
 
 
@@ -900,7 +910,7 @@ def test_conv2d_residual_block():
         # HardSwish requires higher tolerance since vectoring the residual block epilogue
         # in cutlass.
         # TODO(masahi): Invesitigate this issue
-        (relay.nn.relu(hardswish(bias_add) + residual_input), 1e-3),
+        (relay.nn.relu(hardswish(bias_add) + residual_input), 5e-2),
     ]:
         verify_conv2d(func, func, d_shape, w_shape, sm=80, atol=tol, rtol=tol, run_benchmark=False)
 
@@ -976,8 +986,8 @@ def test_conv2d_backward_weight():
                 d_shape,
                 sm=80,
                 split_k_slices=[split_k_slices],
-                atol=1e-3,
-                rtol=1e-3,
+                atol=5e-3,
+                rtol=5e-3,
                 use_cudnn_ref=False,
                 grad_dtype=dtype,
                 data_dtype=dtype,

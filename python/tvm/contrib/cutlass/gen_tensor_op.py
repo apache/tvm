@@ -18,17 +18,26 @@
 """Common functions and classes for CUTLASS GEMM and Conv2d geneator."""
 import logging
 import os
+import re
 import tempfile
 import subprocess
 import multiprocessing
+import tvm._ffi
+from tvm.tir import IntImm
+from tvm.runtime import Object
+from . import _ffi_api as ffi
 from .library import (
     MathInstruction,
     DataType,
+    DataTypeTag,
     OpcodeClass,
     MathOperation,
     TileDescription,
     EpilogueFunctor,
 )
+from .gemm_operation import instantiate_gemm_template
+from .conv2d_operation import instantiate_conv2d_template
+
 
 logger = logging.getLogger("cutlass")
 
@@ -36,6 +45,7 @@ logger = logging.getLogger("cutlass")
 dtype_map = {
     "int8": DataType.s8,
     "uint8": DataType.u8,
+    "int32": DataType.s32,
     "float32": DataType.f32,
     "float16": DataType.f16,
 }
@@ -60,6 +70,54 @@ def generate_tensor_op_common(
         ops.extend(out)
 
     return ops
+
+
+def generate_sm50_simt(
+    out_dtype,
+    arg0_dtype,
+    arg1_dtype,
+    op_creator,
+    accumulator_dtype="float32",
+):
+    """Gemerate GEMM or Conv2D SIMT kernels"""
+    # pylint: disable=unused-argument
+    min_cc = 50
+    max_cc = 1024
+    if arg0_dtype == "float32" and arg1_dtype == "float32":
+        assert out_dtype == "float32" and accumulator_dtype == "float32"
+        math_instructions = [
+            MathInstruction(
+                [1, 1, 1],
+                DataType.f32,
+                DataType.f32,
+                DataType.f32,
+                OpcodeClass.Simt,
+                MathOperation.multiply_add,
+            ),
+        ]
+        alignment_constraints = [
+            1,
+        ]
+        tile_descriptions = [
+            ([128, 128, 8], 2, [4, 2, 1], min_cc, max_cc),
+            ([128, 64, 8], 2, [2, 2, 1], min_cc, max_cc),
+            ([64, 128, 8], 2, [2, 2, 1], min_cc, max_cc),
+            ([64, 64, 8], 2, [2, 1, 1], min_cc, max_cc),
+            ([128, 32, 8], 2, [2, 1, 1], min_cc, max_cc),
+            ([32, 128, 8], 2, [1, 2, 1], min_cc, max_cc),
+        ]
+
+        def get_tile_descriptions(math_inst):
+            return [
+                TileDescription(threadblock_shape, stages, warp_count, math_inst, min_cc, max_cc)
+                for threadblock_shape, stages, warp_count, min_cc, max_cc in tile_descriptions
+            ]
+
+        return generate_tensor_op_common(
+            math_instructions, alignment_constraints, get_tile_descriptions, op_creator
+        )
+    else:
+        raise NotImplementedError()
 
 
 def generate_sm75_tensor_op_1688(
@@ -100,7 +158,7 @@ def generate_sm75_tensor_op_1688(
             ([64, 128, 64], 2, [1, 2, 2], min_cc, max_cc),
         ]
 
-    else:
+    elif "int8" in arg0_dtype and "int8" in arg1_dtype:
         assert out_dtype == "int32"
         math_instructions = [
             MathInstruction(
@@ -124,6 +182,16 @@ def generate_sm75_tensor_op_1688(
             ([128, 64, 64], 2, [2, 2, 1], min_cc, max_cc),
             ([64, 64, 64], 2, [2, 2, 1], min_cc, max_cc),
         ]
+    elif arg0_dtype == "float32" and arg1_dtype == "float32" and out_dtype == "float32":
+        return generate_sm50_simt(
+            out_dtype,
+            arg0_dtype,
+            arg1_dtype,
+            op_creator,
+            accumlator_dtype,
+        )
+    else:
+        raise NotImplementedError()
 
     alignment_constraints = [align for align in alignment_constraints if check_align(align)]
     assert len(alignment_constraints) > 0
@@ -208,6 +276,7 @@ def generate_sm80_tensor_op_16816(
         alignment_constraints = [4, 2, 1]
 
         if use_3xtf32:
+            # tf32
             tile_descriptions = [
                 ([128, 128, 16], 4, [4, 2, 1], min_cc, max_cc),
                 ([128, 128, 16], 3, [4, 2, 1], min_cc, max_cc),
@@ -317,7 +386,7 @@ class ProfilerEngine:
         self.cuda_arch = cuda_arch
         self.binary_prefix = binary_prefix
         self.cutlass = cutlass_path
-        self.cflags = "-I{cutlass}/include -I{cutlass}/tools/util/include -O3 -std=c++11".format(
+        self.cflags = "-I{cutlass}/include -I{cutlass}/tools/util/include -O3 -std=c++17".format(
             cutlass=cutlass_path
         )
         self.cflags += " -DCUTLASS_ENABLE_TENSOR_CORE_MMA=1"
@@ -372,3 +441,162 @@ class ProfilerEngine:
         except subprocess.CalledProcessError:
             rt = float("inf")
         return rt
+
+
+class CodegenResult(Object):
+    """The holder for the generated code and required headers."""
+
+    def __init__(self, code, headers):
+        self.__init_handle_by_constructor__(ffi.CodegenResult, code, headers)
+
+
+@tvm._ffi.register_func("contrib.cutlass.instantiate_template")
+def instantiate_template(func_name, annotations, func_args):
+    """Return CUTLASS host code based on a template and the provided annotations.
+
+    Parameters
+    ----------
+    func_name: str
+        A string to identify the type of the kernel (dense/matmul, batched_matmul, or conv2d).
+
+    annotations: container.Map
+        Key and value pairs annotated during kernel selection.
+
+    func_args: list
+        Names of the function arguments.
+
+    Returns
+    -------
+    codegen_result : CodegenResult
+        Generated CUTLASS host code and required header-file names.
+    """
+    attrs = {}
+
+    for k in ["lda", "ldb", "ldc", "cutlass_op_def", "cutlass_op_name", "op_type"]:
+        if k in annotations:
+            attrs[k] = annotations[k]
+
+    arg0_shape = annotations["arg0_shape"]
+    arg1_shape = annotations["arg1_shape"]
+    attrs["ElementInputA"] = DataTypeTag[dtype_map[annotations["arg0_dtype"]]]
+    attrs["ElementInputB"] = DataTypeTag[dtype_map[annotations["arg1_dtype"]]]
+    attrs["ElementOutput"] = DataTypeTag[dtype_map[annotations["ret_dtype"]]]
+
+    headers = []
+
+    if "relu" in func_name:
+        headers.append("cutlass/epilogue/thread/linear_combination_bias_relu.h")
+    elif "gelu" in func_name:
+        headers.append("cutlass/epilogue/thread/linear_combination_gelu.h")
+    elif "sigmoid" in func_name:
+        headers.append("cutlass/epilogue/thread/linear_combination_sigmoid.h")
+    elif "silu" in func_name:
+        headers.append("cutlass/epilogue/thread/linear_combination_silu.h")
+    elif "hardswish" in func_name:
+        headers.append("cutlass/epilogue/thread/linear_combination_hardswish.h")
+    else:
+        headers.append("cutlass/epilogue/thread/linear_combination.h")
+
+    if "residual" in func_name:
+        headers.append("cutlass/epilogue/thread/linear_combination_residual_block.h")
+
+    def get_dim(shape_annot, var_name, axis_idx, batched_offset=0):
+        if isinstance(shape_annot, IntImm):
+            return str(int(shape_annot))
+        return "{}->shape[{}]".format(var_name, batched_offset + axis_idx)
+
+    def get_batch_stride(stride_annot, arg0_idx, arg1_idx, arg0_axis_idx, arg1_axis_idx):
+        if isinstance(stride_annot, IntImm):
+            return str(int(stride_annot))
+        dim1 = func_args[arg0_idx] + "->shape[{}]".format(arg0_axis_idx)
+        dim2 = func_args[arg1_idx] + "->shape[{}]".format(arg1_axis_idx)
+        return dim1 + " * " + dim2
+
+    if "dense" in func_name or "matmul" in func_name:
+        batched = "batch_matmul" in func_name
+        batched_offset = 1 if batched else 0
+        attrs["K"] = str(int(arg0_shape[batched_offset + 1]))
+        attrs["M"] = get_dim(arg0_shape[batched_offset], func_args[0], 0, batched_offset)
+
+        if annotations["ldb"] == "N":
+            attrs["N"] = get_dim(arg1_shape[batched_offset + 1], func_args[1], 1, batched_offset)
+        else:
+            attrs["N"] = get_dim(arg1_shape[batched_offset], func_args[1], 0, batched_offset)
+
+        if batched:
+            headers.append("cutlass/gemm/device/gemm_batched.h")
+            attrs["batch"] = get_dim(arg0_shape[0], func_args[0], 0)
+            attrs["batch_stride_A"] = get_batch_stride(annotations["batch_stride_A"], 0, 0, 1, 2)
+            attrs["batch_stride_B"] = get_batch_stride(annotations["batch_stride_B"], 1, 1, 1, 2)
+
+            if annotations["ldb"] == "N":
+                attrs["batch_stride_C"] = get_batch_stride(
+                    annotations["batch_stride_C"], 0, 1, 1, 2
+                )
+            else:
+                attrs["batch_stride_C"] = get_batch_stride(
+                    annotations["batch_stride_C"], 0, 1, 1, 1
+                )
+        else:
+            headers.append("cutlass/gemm/device/gemm.h")
+
+        code = instantiate_gemm_template(attrs, func_args)
+        return CodegenResult(code, headers)
+
+    elif "conv2d" in func_name:
+        activation_shape = arg0_shape
+        weight_shape = arg1_shape
+        output_shape = annotations["ret_shape"]
+        activation_var = func_args[0]
+
+        if "conv2d_transpose" in func_name:
+            headers.append("cutlass/conv/kernel/default_conv2d_dgrad.h")
+            activation_shape = output_shape
+            output_shape = arg0_shape
+        elif "backward" in func_name:
+            headers.append("cutlass/conv/kernel/default_conv2d_wgrad.h")
+            activation_shape = arg1_shape
+            weight_shape = output_shape
+            output_shape = arg0_shape
+        elif "residual" in func_name:
+            headers.append("cutlass/conv/kernel/default_conv2d_fprop_with_broadcast.h")
+        else:
+            headers.append("cutlass/conv/kernel/default_conv2d_fprop.h")
+
+        headers.append("cutlass/conv/device/implicit_gemm_convolution.h")
+
+        op_name = attrs["cutlass_op_name"]
+
+        if "splitk" in op_name:
+            headers += [
+                "cutlass/reduction/device/reduce_split_k.h",
+                "cutlass/reduction/thread/reduction_operators.h",
+            ]
+
+        attrs["N"] = get_dim(activation_shape[0], activation_var, 0)
+        attrs["H"] = get_dim(activation_shape[1], activation_var, 1)
+        attrs["W"] = get_dim(activation_shape[2], activation_var, 2)
+        attrs["C"] = str(int(activation_shape[3]))
+        attrs["P"] = get_dim(output_shape[1], "out0", 1)
+        attrs["Q"] = get_dim(output_shape[2], "out0", 2)
+        attrs["K"] = str(int(output_shape[3]))
+        attrs["R"] = str(int(weight_shape[1]))
+        attrs["S"] = str(int(weight_shape[2]))
+        attrs["pad_h"] = str(int(annotations["padding"][0]))
+        attrs["pad_w"] = str(int(annotations["padding"][1]))
+        attrs["stride_h"] = str(int(annotations["strides"][0]))
+        attrs["stride_w"] = str(int(annotations["strides"][1]))
+        attrs["dilation_h"] = str(int(annotations["dilation"][0]))
+        attrs["dilation_w"] = str(int(annotations["dilation"][1]))
+
+        if "splitk" in op_name:
+            attrs["split_k_mode"] = "kParallel"
+            attrs["split_k_slices"] = str(re.search(r"splitk(\d+)", op_name).group(1))
+        else:
+            attrs["split_k_mode"] = "kSerial"
+            attrs["split_k_slices"] = "1"
+
+        code = instantiate_conv2d_template(attrs, func_args)
+        return CodegenResult(code, headers)
+
+    raise ValueError("Do not have a template for {}".format(func_name))
