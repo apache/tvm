@@ -184,7 +184,7 @@ def translate_and_build_vms(relay_mod, target_str="llvm", translate_op_with_tir=
     relax_mod = relay_translator.from_relay(
         relay_mod["main"], target, translate_op_with_tir=translate_op_with_tir
     )
-    relax_ex = relax.vm.build(relax_mod, target)
+    relax_ex = relax.build(relax_mod, target)
     relax_vm = relax.VirtualMachine(relax_ex, tvm.cpu())
 
     return relay_vm, relax_vm, relax_mod

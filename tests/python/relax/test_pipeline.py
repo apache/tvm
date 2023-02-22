@@ -34,7 +34,7 @@ def test_pipeline_compile():
     mod = pipeline(mod)
     target = tvm.target.Target("llvm", host="llvm")
 
-    ex = relax.vm.build(mod, target)
+    ex = relax.build(mod, target)
     x_np = np.random.rand(3, 4).astype(np.float32)
     y_np = np.random.rand(3, 4).astype(np.float32)
     x = tvm.nd.array(x_np)

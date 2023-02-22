@@ -56,10 +56,10 @@ def check_executable(exec, dev, inputs, expected):
 
 def check_roundtrip(exec0, dev, inputs, expected):
     exec0.mod.export_library("exec.so")
-    exec1 = relax.vm.Executable(tvm.runtime.load_module("exec.so"))
+    exec1 = tvm.runtime.load_module("exec.so")
     os.remove("exec.so")
-    assert exec0.stats() == exec1.stats()
-    assert exec0.as_text() == exec1.as_text()
+    assert exec0.stats() == exec1["stats"]
+    assert exec0.as_text() == exec1["as_text"]()
 
     check_executable(exec0, dev, inputs, expected)
     check_executable(exec1, dev, inputs, expected)
@@ -81,7 +81,7 @@ def gen_ground_truth(mod, target, dev, inputs):
             )
             new_mod = seq(mod)
     assert relax.analysis.well_formed(new_mod)
-    exec = relax.vm.build(new_mod, target, params={})
+    exec = relax.build(new_mod, target, params={})
     vm = relax.VirtualMachine(exec, dev)
     return vm["main"](*inputs)
 
@@ -140,7 +140,7 @@ def test_tensorrt_only():
         ]
     )(mod)
 
-    ex0 = relax.vm.build(new_mod, target, params={})
+    ex0 = relax.build(new_mod, target, params={})
     # Sanity check for the correctness and rountrip
     check_roundtrip(ex0, dev, inputs, expected)
 
@@ -173,7 +173,7 @@ def test_mix_use_tensorrt_and_tvm():
             )(mod)
     assert relax.analysis.well_formed(new_mod)
     with transform.PassContext(opt_level=0):
-        ex0 = relax.vm.build(new_mod, target, params={})
+        ex0 = relax.build(new_mod, target, params={})
 
     # Sanity check for the correctness and rountrip
     check_roundtrip(ex0, dev, inputs, expected)
