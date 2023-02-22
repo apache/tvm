@@ -565,8 +565,10 @@ class TestNoPaddingOpaqueBlock(BasePaddingCompare):
                 A[i // 4, i % 4] = 0
 
 
-class TestErrorIfPaddingForbidden(BasePaddingCompare):
-    """Unless padding is explicitly enabled, should raise error"""
+class TestImplicitPadding(BasePaddingCompare):
+    """When pad_value is None, the buffer can be implicitly padded. The padded region is not
+    accessed because the original loop extent is not changed.
+    """
 
     def before():
         A = T.alloc_buffer(14, "int32")
@@ -575,7 +577,12 @@ class TestErrorIfPaddingForbidden(BasePaddingCompare):
                 vi = T.axis.remap("S", [i])
                 A[vi] = 0
 
-    expected = tvm.tir.schedule.schedule.ScheduleError
+    def expected():
+        A = T.alloc_buffer([4, 4], "int32")
+        for i in T.serial(14):
+            with T.block("block"):
+                vi = T.axis.remap("S", [i])
+                A[vi // 4, vi % 4] = 0
 
 
 class TestErrorOnWrongPaddingType(BasePaddingCompare):
