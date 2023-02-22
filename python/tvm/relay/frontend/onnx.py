@@ -4900,8 +4900,8 @@ class DFT(OnnxOpConverter):
         input_shape = infer_shape(input_tensor)
         assert len(input_shape) >= 3
         if axis < 0:
-            axis = len(input_shape) - axis
-        assert 1 <= axis <= len(input_shape) - 1
+            axis = len(input_shape) + axis
+        assert 1 <= axis <= len(input_shape) - 1, "axis is out of bounds"
 
         # dft_length
         if dft_length is None:
@@ -4929,9 +4929,7 @@ class DFT(OnnxOpConverter):
             re_input_tensor = cls._crop_onesided(re_input_tensor, axis)
             im_input_tensor = cls._crop_onesided(im_input_tensor, axis)
 
-        output = cls._merge_real_and_imag_parts(re_input_tensor, im_input_tensor)
-
-        return output
+        return cls._merge_real_and_imag_parts(re_input_tensor, im_input_tensor)
 
     @classmethod
     def _crop_axis(cls, tensor, axis, new_dim):
@@ -4975,17 +4973,13 @@ class DFT(OnnxOpConverter):
         else:
             re, im = _op.split(tensor, 2, -1)
 
-        re = _op.squeeze(re, -1)
-        im = _op.squeeze(im, -1)
-
-        return re, im
+        return _op.squeeze(re, -1), _op.squeeze(im, -1)
 
     @classmethod
     def _merge_real_and_imag_parts(cls, re, im):
         re = _op.expand_dims(re, axis=-1)
         im = _op.expand_dims(im, axis=-1)
-        output = _op.concatenate([re, im], axis=-1)
-        return output
+        return _op.concatenate([re, im], axis=-1)
 
     @classmethod
     def _crop_onesided(cls, tensor, axis):
