@@ -144,6 +144,26 @@ def _nn_softmax(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(topi.nn.softmax, call.args[0], call.attrs.axis)
 
 
+@register_legalize("relax.nn.log_softmax")
+def _nn_log_softmax(bb: BlockBuilder, call: Call):
+    return bb.call_te(topi.nn.log_softmax, call.args[0], call.attrs.axis)
+
+
+@register_legalize("relax.nn.cross_entropy_with_logits")
+def _nn_cross_entropy_with_logits(bb: BlockBuilder, call: Call):
+    def te_cross_entropy_with_logits(x, y):
+        if len(x.shape) > 1:
+            return -topi.sum(x * y) / x.shape[0]
+        return -topi.sum(x * y)
+
+    return bb.call_te(
+        te_cross_entropy_with_logits,
+        call.args[0],
+        call.args[1],
+        primfunc_name_hint="cross_entropy_with_logits",
+    )
+
+
 @register_legalize("relax.nn.batch_norm")
 def _nn_batch_norm(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(
