@@ -2601,7 +2601,7 @@ class PyTorchOpConverter:
             [
                 isinstance(dim1_size, tvm.tir.Any),
                 isinstance(dim2_size, tvm.tir.Any),
-                isinstance(src_diag_len, tvm.tir.Any)
+                isinstance(src_diag_len, tvm.tir.Any),
             ]
         ):
             min_dim = min(dim1_size, dim2_size)
