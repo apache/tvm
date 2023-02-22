@@ -668,13 +668,13 @@ def test_qemu_make_fail(workspace_dir, board, microtvm_debug, serial_number):
     runtime = Runtime("crt", {"system-lib": True})
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lowered = relay.build(ir_mod, target, executor=executor, runtime=runtime)
-    
+
     project_options = {
         "project_type": "host_driven",
         "verbose": bool(build_config.get("debug")),
         "board": board,
     }
-    
+
     sample = np.zeros(shape=shape, dtype=dtype)
     project = tvm.micro.generate_project(
         str(utils.TEMPLATE_PROJECT_DIR),
@@ -693,6 +693,7 @@ def test_qemu_make_fail(workspace_dir, board, microtvm_debug, serial_number):
     with pytest.raises(server.JSONRPCError) as excinfo:
         project.transport().open()
     assert "QEMU setup failed" in str(excinfo.value)
+
 
 if __name__ == "__main__":
     tvm.testing.main()
