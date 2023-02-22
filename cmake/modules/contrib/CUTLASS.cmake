@@ -16,8 +16,8 @@
 # under the License.
 
 if(USE_CUDA AND USE_CUTLASS)
-  tvm_file_glob(GLOB CUTLASS_RELAY_CONTRIB_SRC src/relay/backend/contrib/cutlass/*.cc)
-  list(APPEND COMPILER_SRCS ${CUTLASS_RELAY_CONTRIB_SRC})
+  tvm_file_glob(GLOB CUTLASS_CONTRIB_SRC src/relay/backend/contrib/cutlass/*.cc src/relax/backend/contrib/cutlass/*.cc)
+  list(APPEND COMPILER_SRCS ${CUTLASS_CONTRIB_SRC})
 
   message(STATUS "Build with CUTLASS")
 endif()
