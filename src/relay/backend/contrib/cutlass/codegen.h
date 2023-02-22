@@ -27,6 +27,9 @@
 
 #include <tvm/ir/transform.h>
 
+#include <string>
+#include <vector>
+
 #include "../codegen_c/codegen_c.h"
 
 namespace tvm {
