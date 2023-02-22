@@ -25,7 +25,6 @@
 #define TVM_RELAX_UTILS_H_
 
 #include <tvm/ir/module.h>
-#include <tvm/relax/expr.h>
 #include <tvm/runtime/logging.h>
 
 #include <algorithm>
@@ -110,9 +109,10 @@ class NameTable {
 TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds);
 
 /*!
- * \brief Check if the given type is a boolean scalar type (tensor of rank 0 with a boolean dtype).
+ * \brief Check if the given StructInfo is for a boolean scalar (tensor of rank 0 with a boolean
+ * dtype).
  *
- * \param ty The input type.
+ * \param sinfo The input StructInfo.
  * \param permit_unknown_rank If true, it will permit the input type to have unknown rank
  *   (ndim of -1), which will require a dynamic check.
  * \param permit_unknown_dtype If true, it will permit the input type to have an unknown dtype
@@ -121,7 +121,7 @@ TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds);
  * \return True iff the input type is a boolean scalar type (or, depending on options, has unknown
  *   rank or dtype)
  */
-TVM_DLL bool IsBoolScalarType(const Type& ty, bool permit_unknown_rank = true,
+TVM_DLL bool IsBoolStructInfo(const StructInfo& sinfo, bool permit_unknown_rank = true,
                               bool permit_unknown_dtype = true);
 
 /*!
