@@ -19,6 +19,7 @@
 
 #include <tvm/driver/driver_api.h>
 #include <tvm/ir/function.h>
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
@@ -30,9 +31,15 @@ namespace relax {
 
 class ConstantFolder : public ExprMutator {
  public:
-  explicit ConstantFolder(IRModule ctx_module) : ctx_module_(ctx_module) {}
+  static Function Fold(Function func, IRModule ctx_module) {
+    ConstantFolder folder(std::move(ctx_module));
+    func = RemoveAllUnused(Downcast<Function>(folder(func)));
+    return func;
+  }
 
  private:
+  explicit ConstantFolder(IRModule ctx_module) : ctx_module_(ctx_module) {}
+
   /*!
    * \brief Pattern match the shape inside the given struct info to a
    * constant shape and get runtime shape tuple from it.
@@ -215,10 +222,7 @@ namespace transform {
 
 Pass FoldConstant() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) {
-        ConstantFolder folder(m);
-        return Downcast<Function>(folder(f));
-      };
+      [=](Function f, IRModule m, PassContext pc) { return ConstantFolder::Fold(f, m); };
   return CreateFunctionPass(pass_func, 0, "FoldConstant", {});
 }
 
