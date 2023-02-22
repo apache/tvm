@@ -164,8 +164,9 @@ def diagonal_scatter(data, src, offset=0, dim1=0, dim2=1):
             index1 = bx1 * max_threads + tx1
             with ib.if_scope(index1 < src_range_wo_diag):
                 i = index1 // mid_tail_stride
-                j = index1 // stride2
-                k = index1 % stride2
+                jk = index1 % mid_tail_stride
+                j = jk // stride2
+                k = jk % stride2
                 out_preindex = base_offset + i * istride + j * jstride + k
                 src_preindex = index1 * src_diag_len
                 with ib.for_range(0, src_diag_len, "m") as m:

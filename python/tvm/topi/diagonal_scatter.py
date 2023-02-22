@@ -127,8 +127,9 @@ def diagonal_scatter(data, src, offset=0, dim1=0, dim2=1):
 
         with ib.for_range(0, src_range_wo_diag, "fused", kind="parallel") as fused:
             i = fused // mid_tail_stride
-            j = fused // stride2
-            k = fused % stride2
+            jk = fused % mid_tail_stride
+            j = jk // stride2
+            k = jk % stride2
             out_preindex = base_offset + i * istride + j * jstride + k
             src_preindex = fused * src_diag_len
             with ib.for_range(0, src_diag_len, "m") as m:
