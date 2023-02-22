@@ -21,6 +21,7 @@ Provides support to compile networks both AOT and JIT.
 import logging
 import os.path
 import re
+import sys
 import itertools
 from copy import deepcopy
 from typing import Any, Optional, Dict, List, Union, Callable, Sequence
@@ -47,6 +48,7 @@ from .pass_list import parse_pass_list_str
 from .transform import generate_transform_args, parse_graph_transform_args, apply_graph_transforms
 from .shape_parser import parse_shape_string
 from .workspace_pools import generate_workspace_pools_args, workspace_pools_recombobulate
+from .extensions import load_extensions, get_extensions
 
 # pylint: disable=invalid-name
 logger = logging.getLogger("TVMC")
@@ -58,6 +60,13 @@ def add_compile_parser(subparsers, _, json_params):
 
     parser = subparsers.add_parser("compile", help="compile a model.")
     parser.set_defaults(func=drive_compile)
+    parser.add_argument(
+        "--experimental-tvm-extension",
+        default="",
+        help="path from which to load packages named tvm_extension which implement the TVMExtension interface."
+    )
+    _handle_extensions()
+
     parser.add_argument(
         "--cross-compiler",
         default="",
@@ -178,6 +187,19 @@ def add_compile_parser(subparsers, _, json_params):
         parser.set_defaults(**one_entry)
 
     generate_workspace_pools_args(parser)
+
+
+def _handle_extensions():
+    # Need to manually parse this argument so that the parser options of any extension can be generated automatically.
+    extension_paths = []
+    for i, arg in enumerate(sys.argv):
+        if arg == "--experimental-tvm-extension" and i + 1 < len(sys.argv):
+            extension_paths.append(sys.argv[i + 1])
+    load_extensions(extension_paths)
+
+    for ext in get_extensions():
+        for uma_backend in ext.uma_backends():
+            uma_backend.register()
 
 
 def drive_compile(args):
@@ -410,6 +432,10 @@ def compile_model(
         if initial_relay:
             # dump which operations are offloaded to which backend
             dump_operation_offloads(mod, initial_relay, dump_offloads)
+
+        for ext in get_extensions():
+            for uma_backend in ext.uma_backends():
+                mod = uma_backend.partition(mod)
 
         if tuning_records and os.path.exists(tuning_records):
             logger.debug("tuning records file provided: %s", tuning_records)
