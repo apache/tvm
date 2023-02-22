@@ -132,6 +132,7 @@ We do encourage everyone to work anything they are interested in.
 - [Michael J. Klaiber](https://github.com/MichaelJKlaiber/) @MichaelJKlaiber
 - [Noah Kontur](https://github.com/konturn/) @konturn
 - [Tristan Konolige](https://github.com/tkonolige): @tkonolige
+- [Mohamad Katanbaf](https://github.com/mkatanbaf): @mkatanbaf
 - [Denise Kutnick](https://github.com/denise-k): @denise-k
 - [Ruihang Lai](https://github.com/MasterJH5574): @MasterJH5574
 - [Nicola Lancellotti](https://github.com/nicolalancellotti): @NicolaLancellotti
