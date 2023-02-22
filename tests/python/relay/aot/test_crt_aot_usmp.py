@@ -57,7 +57,7 @@ def _check_for_no_tvm_backendallocworkspace_calls(mod: tvm.runtime.module):
 
 
 # U1 test case
-@parametrize_aot_options
+@parametrize_aot_options(enable_rust=True)
 def test_synthetic(interface_api, use_unpacked_api, test_runner):
     """
     Simple U1 usecase test
@@ -84,13 +84,19 @@ def test_synthetic(interface_api, use_unpacked_api, test_runner):
         },
     )
 
+    prologue = test_runner.prologue
+    includes = test_runner.includes
+    if interface_api == "rust":
+        prologue = ""
+        includes = ""
+
     test_runner = AOTTestRunner(
         makefile=test_runner.makefile,
-        prologue=test_runner.prologue,
+        prologue=prologue,
         epilogue=test_runner.epilogue,
-        includes=test_runner.includes,
+        includes=includes,
         parameters=test_runner.parameters,
-        pass_config={**test_runner.pass_config},
+        pass_config=test_runner.pass_config,
     )
     test_runner.pass_config.update(*config)
     compile_and_run(
@@ -171,7 +177,7 @@ def test_memory_planning(
     assert sum(lib.function_metadata["__tvm_main__"].constant_sizes.values()) == main_constant_size
 
 
-@parametrize_aot_options
+@parametrize_aot_options(enable_rust=True)
 @pytest.mark.parametrize("groups,weight_shape", [(1, 32), (32, 1)])
 def test_conv2d(interface_api, use_unpacked_api, test_runner, groups, weight_shape):
     """Test a subgraph with a single conv2d operator."""
@@ -179,11 +185,18 @@ def test_conv2d(interface_api, use_unpacked_api, test_runner, groups, weight_sha
     ishape = (1, 32, 14, 14)
     wshape = (32, weight_shape, 3, 3)
     pass_config = {"tir.usmp.enable": True}
+
+    prologue = test_runner.prologue
+    includes = test_runner.includes
+    if interface_api == "rust":
+        prologue = ""
+        includes = ""
+
     test_runner = AOTTestRunner(
         makefile=test_runner.makefile,
-        prologue=test_runner.prologue,
+        prologue=prologue,
         epilogue=test_runner.epilogue,
-        includes=test_runner.includes,
+        includes=includes,
         parameters=test_runner.parameters,
         pass_config=pass_config,
     )
@@ -202,17 +215,73 @@ def test_conv2d(interface_api, use_unpacked_api, test_runner, groups, weight_sha
     inputs = OrderedDict([("data", i_data), ("weight", w1_data)])
 
     output_list = generate_ref_data(mod, inputs)
-    compile_and_run(
-        AOTTestModel(module=mod, inputs=inputs, outputs=output_list),
-        test_runner,
-        interface_api,
-        use_unpacked_api,
-    )
     compiled_test_mods = compile_models(
         models=AOTTestModel(module=mod, inputs=inputs, outputs=output_list),
         interface_api=interface_api,
         use_unpacked_api=use_unpacked_api,
         pass_config=test_runner.pass_config,
+    )
+
+    for compiled_model in compiled_test_mods:
+        _check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
+
+    run_and_check(
+        models=compiled_test_mods,
+        runner=test_runner,
+        interface_api=interface_api,
+    )
+
+
+@parametrize_aot_options(enable_rust=True)
+@pytest.mark.parametrize("groups,weight_shape", [(1, 32), (32, 1)])
+def test_conv2d_mem_pools(interface_api, use_unpacked_api, test_runner, groups, weight_shape):
+    """Test a subgraph with a single conv2d operator."""
+    dtype = "float32"
+    ishape = (1, 32, 14, 14)
+    wshape = (32, weight_shape, 3, 3)
+
+    pool_name = "my_memory_pool"
+    target = tvm.target.Target("c")
+    workspace_memory_pools = WorkspaceMemoryPools([WorkspacePoolInfo(pool_name, [target])])
+    if interface_api == "rust":
+        pool_size = _get_workspace_size_define_macro(pool_name, skip_prefix=True)
+        pool_size = "tvmgen_default::" + pool_size
+        prologue = f"let mut {pool_name}: [u8;{pool_size}] = [0;{pool_size}];"
+    elif interface_api == "c":
+        prologue = f"""
+        __attribute__((section(".data.tvm"), aligned(16)))
+        static uint8_t {pool_name}[{_get_workspace_size_define_macro(pool_name)}];
+        """
+    else:
+        workspace_memory_pools = None
+        prologue = ""
+
+    test_runner = AOTTestRunner(
+        pass_config={"tir.usmp.enable": True, "tir.usmp.algorithm": "greedy_by_size"},
+        prologue=prologue,
+    )
+
+    data0 = relay.var("data", shape=ishape, dtype=dtype)
+    weight0 = relay.var("weight", shape=wshape, dtype=dtype)
+    out = relay.nn.conv2d(data0, weight0, kernel_size=(3, 3), padding=(1, 1), groups=groups)
+    main_f = relay.Function([data0, weight0], out)
+    mod = tvm.IRModule()
+    mod["main"] = main_f
+    mod = transform.InferType()(mod)
+
+    i_data = np.random.uniform(0, 1, ishape).astype(dtype)
+    w1_data = np.random.uniform(0, 1, wshape).astype(dtype)
+
+    inputs = OrderedDict([("data", i_data), ("weight", w1_data)])
+
+    output_list = generate_ref_data(mod, inputs)
+
+    compiled_test_mods = compile_models(
+        models=AOTTestModel(module=mod, inputs=inputs, outputs=output_list),
+        interface_api=interface_api,
+        use_unpacked_api=use_unpacked_api,
+        pass_config=test_runner.pass_config,
+        workspace_memory_pools=workspace_memory_pools,
     )
 
     for compiled_model in compiled_test_mods:
@@ -365,11 +434,15 @@ def test_tflite_model_u1_usecase(model_url, usmp_algo, workspace_size, constant_
     )
 
 
-def _get_workspace_size_define_macro(pool_name: str, model_name="default") -> str:
+def _get_workspace_size_define_macro(
+    pool_name: str, model_name="default", skip_prefix=False
+) -> str:
     """This function converts pool names to compiler generated
     pool size macros"""
 
-    prefix = "TVMGEN_" + model_name.upper() + "_"
+    prefix = ""
+    if not skip_prefix:
+        prefix = "TVMGEN_" + model_name.upper() + "_"
     postfix = "_WORKSPACE_POOL_SIZE"
     return prefix + pool_name.upper() + postfix
 
@@ -397,30 +470,36 @@ def _add_module_prefix(suffix: str, model_name="default") -> str:
     return "tvmgen_" + model_name + "_" + suffix
 
 
+@pytest.mark.parametrize("interface_api", ["c", "rust"])
 @pytest.mark.parametrize(
     "model_url, usmp_algo",
     [
         (MOBILENET_V1_URL, "greedy_by_size"),
     ],
 )
-def test_tflite_model_u3_usecase_single_external_pool(model_url, usmp_algo):
+def test_tflite_model_u3_usecase_single_external_pool(model_url, usmp_algo, interface_api):
     """This checks for inference with USMP using external pool placed in the application"""
     pytest.importorskip("tflite")
 
     import tvm.relay.testing.tf as tf_testing  # pylint: disable=import-outside-toplevel
 
     use_unpacked_api = True
-    interface_api = "c"
 
     pool_name = "my_memory_pool"
     target = tvm.target.Target("c")
     workspace_memory_pools = WorkspaceMemoryPools([WorkspacePoolInfo(pool_name, [target])])
-    test_runner = AOTTestRunner(
-        pass_config={"tir.usmp.enable": True, "tir.usmp.algorithm": usmp_algo},
-        prologue=f"""
+    if interface_api == "rust":
+        pool_size = _get_workspace_size_define_macro(pool_name, skip_prefix=True)
+        pool_size = "tvmgen_default::" + pool_size
+        prologue = f"let mut {pool_name}: [u8;{pool_size}] = [0;{pool_size}];"
+    elif interface_api == "c":
+        prologue = f"""
         __attribute__((section(".data.tvm"), aligned(16)))
         static uint8_t {pool_name}[{_get_workspace_size_define_macro(pool_name)}];
-        """,
+        """
+    test_runner = AOTTestRunner(
+        pass_config={"tir.usmp.enable": True, "tir.usmp.algorithm": usmp_algo},
+        prologue=prologue,
     )
 
     tflite_model_file = tf_testing.get_workload_official(

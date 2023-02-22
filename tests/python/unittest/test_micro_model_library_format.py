@@ -142,20 +142,32 @@ def validate_graph_json(extract_dir, factory):
 
 @tvm.testing.requires_micro
 @pytest.mark.parametrize(
-    "executor,runtime,should_generate_interface,json_constants_size_bytes",
+    "executor,runtime,should_generate_c_interface,should_generate_rust_interface,json_constants_size_bytes",
     [
-        (Executor("graph"), Runtime("crt", {"system-lib": True}), False, 8),
-        (Executor("aot", {"link-params": True}), Runtime("crt"), False, 0),
+        (Executor("graph"), Runtime("crt", {"system-lib": True}), False, False, 8),
+        (Executor("aot", {"link-params": True}), Runtime("crt"), False, False, 0),
         (
             Executor("aot", {"unpacked-api": True, "interface-api": "c"}),
             Runtime("crt"),
+            True,
+            False,
+            0,
+        ),
+        (
+            Executor("aot", {"unpacked-api": True, "interface-api": "rust"}),
+            Runtime("crt"),
+            True,
             True,
             0,
         ),
     ],
 )
 def test_export_model_library_format_c(
-    executor, runtime, should_generate_interface, json_constants_size_bytes
+    executor,
+    runtime,
+    should_generate_c_interface,
+    should_generate_rust_interface,
+    json_constants_size_bytes,
 ):
     target = tvm.target.target.micro("host")
     with utils.TempDirectory.set_keep_for_debug(True):
@@ -229,8 +241,11 @@ def test_export_model_library_format_c(
 
         assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "src", "add_lib0.c"))
         assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "src", "add_lib1.c"))
-        assert should_generate_interface == os.path.exists(
+        assert should_generate_c_interface == os.path.exists(
             os.path.join(extract_dir, "codegen", "host", "include", "tvmgen_add.h")
+        )
+        assert should_generate_rust_interface == os.path.exists(
+            os.path.join(extract_dir, "codegen", "host", "src", "tvmgen_add.rs")
         )
 
         if executor.name == "graph":

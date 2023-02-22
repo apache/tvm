@@ -609,7 +609,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     GenerateInternalBuffers();
 
     if (metadata_->unpacked_api) {
-      if (metadata_->interface_api == "c") {
+      if (metadata_->interface_api == "c" || metadata_->interface_api == "rust") {
         GenerateCInterfaceEntrypoint(entrypoint_mangled, run_func_mangled, metadata_->mod_name);
       } else {
         GenerateEntrypointForUnpackedAPI(entrypoint_mangled, run_func_mangled);

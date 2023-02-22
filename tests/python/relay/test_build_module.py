@@ -15,6 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import unittest.mock as mock
+import warnings
+
+import numpy as np
 import pytest
 
 import tvm
@@ -60,6 +64,35 @@ def test_build_relay_graph_():
         return mod
 
     build_graph(add((1, 8), "float32"), tvm.target.Target("llvm"))
+
+
+def test_experimental_rust_warning():
+    input_a = tvm.relay.var("input_a", shape=(3, 4, 5), dtype="int64")
+    output_1 = input_a + tvm.relay.const(1, "int64")
+    main_func = tvm.relay.Function([input_a], output_1)
+    mod = tvm.IRModule.from_expr(main_func)
+    mod = tvm.relay.transform.InferType()(mod)
+
+    target = Target("c")
+    non_experimental_executor = Executor("aot", {"unpacked-api": True, "interface-api": "c"})
+    experimental_executor = Executor("aot", {"unpacked-api": True, "interface-api": "rust"})
+    runtime = Runtime("crt")
+
+    with mock.patch.object(warnings, "warn", wraps=warnings.warn) as warning_spy:
+        tvm.relay.build(
+            mod,
+            target,
+            executor=non_experimental_executor,
+            runtime=runtime,
+        )
+        warning_spy.assert_not_called()
+        tvm.relay.build(
+            mod,
+            target,
+            executor=experimental_executor,
+            runtime=runtime,
+        )
+        warning_spy.assert_called_once_with("Rust Interface API is unstable, use with caution")
 
 
 if __name__ == "__main__":

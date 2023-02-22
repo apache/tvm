@@ -73,7 +73,7 @@ def test_error_c_interface_with_packed_api():
         )
 
 
-@parametrize_aot_options
+@parametrize_aot_options()
 def test_conv_with_params(interface_api, use_unpacked_api, test_runner):
     """Tests compilation of convolution with parameters"""
     mod = get_conv2d_relay_module()
@@ -96,7 +96,7 @@ def test_conv_with_params(interface_api, use_unpacked_api, test_runner):
     )
 
 
-@parametrize_aot_options
+@parametrize_aot_options()
 def test_add_with_params(interface_api, use_unpacked_api, test_runner):
     """Tests compilation of add with parameters"""
     input_x = relay.var("x", shape=(1, 10))
@@ -124,7 +124,7 @@ def test_add_with_params(interface_api, use_unpacked_api, test_runner):
     )
 
 
-@parametrize_aot_options
+@parametrize_aot_options()
 @pytest.mark.parametrize("groups,weight_shape", [(1, 32), (32, 1)])
 def test_conv2d(interface_api, use_unpacked_api, test_runner, groups, weight_shape):
     """Test a subgraph with a single conv2d operator."""
@@ -281,7 +281,7 @@ def test_io_size_definition():
         assert f"TVMGEN_DEFAULT_OUTPUT_SIZE {ref_output_size}" in contents
 
 
-@parametrize_aot_options
+@parametrize_aot_options()
 def test_concatenate(interface_api, use_unpacked_api, test_runner):
     """Tests compilation of concatenate"""
     dtype = "float32"
@@ -306,7 +306,7 @@ def test_concatenate(interface_api, use_unpacked_api, test_runner):
     )
 
 
-@parametrize_aot_options
+@parametrize_aot_options()
 def test_nested_tuples(interface_api, use_unpacked_api, test_runner):
     """Tests compilation of functions with nested tuple outputs"""
     input_x = relay.var("x", shape=(10,))
@@ -331,7 +331,7 @@ def test_nested_tuples(interface_api, use_unpacked_api, test_runner):
     )
 
 
-@parametrize_aot_options
+@parametrize_aot_options()
 def test_tuple_getitem(interface_api, use_unpacked_api, test_runner):
     func = relay.Function([], relay.TupleGetItem(relay.Tuple([relay.const(1), relay.const(2)]), 0))
     output_list = generate_ref_data(func, {})
@@ -344,7 +344,7 @@ def test_tuple_getitem(interface_api, use_unpacked_api, test_runner):
     )
 
 
-@parametrize_aot_options
+@parametrize_aot_options()
 def test_id(interface_api, use_unpacked_api, test_runner):
     x = relay.var("x", "float32")
     ident = relay.Function([x], x)
@@ -360,7 +360,7 @@ def test_id(interface_api, use_unpacked_api, test_runner):
     )
 
 
-@parametrize_aot_options
+@parametrize_aot_options()
 def test_add_const(interface_api, use_unpacked_api, test_runner):
     two = relay.add(relay.const(1), relay.const(1))
     func = relay.Function([], two)
@@ -374,7 +374,7 @@ def test_add_const(interface_api, use_unpacked_api, test_runner):
     )
 
 
-@parametrize_aot_options
+@parametrize_aot_options()
 def test_multiply(interface_api, use_unpacked_api, test_runner):
     """Tests compilation of multiply"""
     x = relay.var("x", shape=(10, 10))
@@ -394,7 +394,7 @@ def test_multiply(interface_api, use_unpacked_api, test_runner):
     )
 
 
-@parametrize_aot_options
+@parametrize_aot_options()
 def test_subtract(interface_api, use_unpacked_api, test_runner):
     i = relay.var("i", shape=[], dtype="int32")
     sub = relay.subtract(i, relay.const(1, dtype="int32"))
@@ -410,7 +410,7 @@ def test_subtract(interface_api, use_unpacked_api, test_runner):
     )
 
 
-@parametrize_aot_options
+@parametrize_aot_options()
 def test_tuple_output(interface_api, use_unpacked_api, test_runner):
     """Tests getting items from tuples"""
     x = relay.var("x", shape=(6, 9))
@@ -577,7 +577,7 @@ def test_byoc_microtvm_multiple_subgraphs(merge_compiler_regions):
     )
 
 
-@parametrize_aot_options
+@parametrize_aot_options()
 def test_add_name_mangling_with_params(interface_api, use_unpacked_api, test_runner):
     """Checks name mangling works with parameters"""
     input_x = relay.var("x", shape=(1, 10))
@@ -606,7 +606,7 @@ def test_add_name_mangling_with_params(interface_api, use_unpacked_api, test_run
     )
 
 
-@parametrize_aot_options
+@parametrize_aot_options()
 def test_multiple_models(interface_api, use_unpacked_api, test_runner):
     """Compiles multiple models to ensure both can be compiled into one output"""
     # Identity model without params
@@ -682,7 +682,7 @@ def test_quant_mobilenet_tfl():
     )
 
 
-@parametrize_aot_options
+@parametrize_aot_options()
 def test_transpose(interface_api, use_unpacked_api, test_runner):
     """Test that non-inpleaceable operations (e.g., transpose) do not happen in-place."""
 
