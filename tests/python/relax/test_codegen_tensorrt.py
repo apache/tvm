@@ -101,7 +101,7 @@ def test_tensorrt_offload():
 
     target = "cuda"
     dev = tvm.device(target, 0)
-    ex = relax.vm.build(mod, target)
+    ex = relax.build(mod, target)
 
     vm = relax.VirtualMachine(ex, dev)
     f = vm["main"]

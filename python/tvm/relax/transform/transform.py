@@ -222,6 +222,10 @@ def RunCodegen(
     """
     if entry_functions is None:
         entry_functions = ["main"]
+    # enable cutlass byoc registries
+    # pylint: disable=unused-import,import-outside-toplevel
+    from tvm.contrib import cutlass as _cutlass
+
     return _ffi_api.RunCodegen(target_options, entry_functions)  # type: ignore
 
 
