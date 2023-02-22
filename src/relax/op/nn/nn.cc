@@ -68,6 +68,22 @@ TVM_REGISTER_OP("relax.nn.softmax")
     .set_attrs_type<SoftmaxAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSoftmax);
 
+/* relax.nn.log_softmax */
+Expr log_softmax(Expr data, int axis) {
+  auto attrs = make_object<SoftmaxAttrs>();
+  attrs->axis = axis;
+  static const Op& op = Op::Get("relax.nn.log_softmax");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.nn.log_softmax").set_body_typed(log_softmax);
+
+TVM_REGISTER_OP("relax.nn.log_softmax")
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_attrs_type<SoftmaxAttrs>()
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSoftmax);
+
 bool NormCheckDtypeAndShape(const Call& call, const BlockBuilder& ctx,
                             const Array<TensorStructInfo>& input_sinfo, Array<Integer> axes) {
   Op op = Downcast<Op>(call->op);
@@ -240,6 +256,64 @@ TVM_REGISTER_OP("relax.nn.dropout")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "Input to which dropout will be applied.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoDropout);
+
+/* relax.nn.cross_entropy_with_logits */
+StructInfo InferStructInfoCrossEntropy(const Call& call, const BlockBuilder& ctx) {
+  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  TensorStructInfo pred_sinfo = input_sinfo[0];
+  TensorStructInfo label_sinfo = input_sinfo[1];
+
+  // infer dtype
+  DataType dtype = InferBinaryArithOpOutDtype(call, ctx, pred_sinfo, label_sinfo);
+
+  // infer ndim
+  if (!pred_sinfo->IsUnknownNdim() && !label_sinfo->IsUnknownNdim() &&
+      pred_sinfo->ndim != label_sinfo->ndim) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "CrossEntropy requires predictions and labels to have the same ndim. "
+                        "However, the ndim of predictions is "
+                     << pred_sinfo->ndim << " while the ndim of labels is " << label_sinfo->ndim);
+  }
+
+  Optional<Array<PrimExpr>> pred_shape_value;
+  if (pred_sinfo->shape.defined()) {
+    pred_shape_value = GetStructInfoAs<ShapeStructInfoNode>(pred_sinfo->shape.value())->values;
+  }
+
+  Optional<Array<PrimExpr>> label_shape_value;
+  if (label_sinfo->shape.defined()) {
+    label_shape_value = GetStructInfoAs<ShapeStructInfoNode>(label_sinfo->shape.value())->values;
+  }
+
+  if (pred_shape_value.defined() && label_shape_value.defined()) {
+    arith::Analyzer* analyzer = ctx->GetAnalyzer();
+    for (size_t i = 0; i < pred_shape_value.value().size(); ++i) {
+      if (analyzer->CanProve(pred_shape_value.value()[i] != label_shape_value.value()[i])) {
+        ctx->ReportFatal(Diagnostic::Error(call)
+                         << "CrossEntropy requires the predictions and labels to have "
+                            "the same shape. However, the shape of predictions at dim "
+                         << i << " is" << pred_shape_value.value()[i]
+                         << " while the shape of labels at this dim is "
+                         << label_shape_value.value()[i]);
+      }
+    }
+  }
+  return TensorStructInfo(ShapeExpr(Array<PrimExpr>()), dtype);
+}
+
+Expr cross_entropy_with_logits(Expr predictions, Expr labels) {
+  static const Op& op = Op::Get("relax.nn.cross_entropy_with_logits");
+  return Call(op, {std::move(predictions), std::move(labels)}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.nn.cross_entropy_with_logits")
+    .set_body_typed(cross_entropy_with_logits);
+
+TVM_REGISTER_OP("relax.nn.cross_entropy_with_logits")
+    .set_num_inputs(2)
+    .add_argument("predictions", "Tensor", "The predictions.")
+    .add_argument("labels", "Tensor", "The labels.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCrossEntropy);
 
 }  // namespace relax
 }  // namespace tvm

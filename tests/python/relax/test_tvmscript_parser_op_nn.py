@@ -115,6 +115,21 @@ def test_softmax():
     _check(foo, bb.get()["foo"])
 
 
+def test_log_softmax():
+    @R.function
+    def foo(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
+        gv: R.Tensor((2, 3), "float32") = R.nn.log_softmax(x)
+        return gv
+
+    x = relax.Var("x", R.Tensor((2, 3), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", [x]):
+        gv = bb.emit(relax.op.nn.log_softmax(x))
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
 def test_batch_norm():
     @R.function
     def foo(
@@ -184,6 +199,24 @@ def test_dropout():
     bb = relax.BlockBuilder()
     with bb.function("foo", [x]):
         gv = bb.emit(relax.op.nn.dropout(x))
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
+def test_cross_entropy_with_logits():
+    @R.function
+    def foo(
+        predictions: R.Tensor((2, 3), "float32"), labels: R.Tensor((2, 3), "float32")
+    ) -> R.Tensor((), "float32"):
+        gv: R.Tensor((), "float32") = R.nn.cross_entropy_with_logits(predictions, labels)
+        return gv
+
+    predictions = relax.Var("predictions", R.Tensor((2, 3), "float32"))
+    labels = relax.Var("labels", R.Tensor((2, 3), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", [predictions, labels]):
+        gv = bb.emit(relax.op.nn.cross_entropy_with_logits(predictions, labels))
         bb.emit_func_output(gv)
 
     _check(foo, bb.get()["foo"])
