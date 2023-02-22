@@ -188,6 +188,29 @@ def RemoveUnusedFunctions(entry_functions: Optional[List[str]] = None) -> tvm.ir
     return _ffi_api.RemoveUnusedFunctions(entry_functions)  # type: ignore
 
 
+def RunCodegen(
+    target_options: Optional[dict] = None,
+    entry_functions: Optional[List[str]] = None,
+) -> tvm.ir.transform.Pass:
+    """Produce the runtime::Module with an annotated codegen and global symbol.
+
+    Parameters
+    ----------
+    target_options: Optional[dict]
+        Pairs of a target name and compilation options
+    entry_functions: Optional[List[str]]
+        The set of entry functions to start from.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass to remove unused functions.
+    """
+    if entry_functions is None:
+        entry_functions = ["main"]
+    return _ffi_api.RunCodegen(target_options, entry_functions)  # type: ignore
+
+
 def FoldConstant() -> tvm.ir.transform.Pass:
     """Fold constant expressions.
 
