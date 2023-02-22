@@ -73,7 +73,7 @@ class UMAPartitioner:
         register_pattern_table(self.target_name, self._pattern_table)
 
     def partition(
-        self, mod: tvm.IRModule, params: Optional[Dict[str, tvm.runtime.NDArray]] = None
+        self, mod: tvm.IRModule, params: Optional[Dict[str, tvm.runtime.NDArray]] = None, mod_name: Optional[str] = "default"
     ) -> tvm.IRModule:
         """Partition the relay graph in parts supported and unsupported by the
         target hardware accelerator.
@@ -102,7 +102,7 @@ class UMAPartitioner:
         pass_sequence.append(relay.transform.AnnotateTarget(self.target_name))
         if self.merge_compiler_regions:
             pass_sequence.append(relay.transform.MergeCompilerRegions())
-        pass_sequence.append(relay.transform.PartitionGraph())
+        pass_sequence.append(relay.transform.PartitionGraph(mod_name=mod_name))
         pass_sequence.extend(
             [p[1] for p in self._relay_passes if p[0] == PassPhase.POST_PARTITIONING_0]
         )
