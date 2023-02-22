@@ -16,6 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name
 """GEMM kernel generator and profiler for CUTLASS."""
+from functools import partial
+
 from .gemm_operation import EmitGemmInstance, GemmOperation
 from .gemm_profiler import GemmProfilerEmitter
 from .gen_tensor_op import EPILOGUE_MAP, GENERATOR_FUNC_TABLE, ProfilerEngine
@@ -36,6 +38,7 @@ def create_gemm_operator_with_epilogue(
     alignment,
     swizzling_functor,
     batched=False,
+    layout_b=LayoutType.ColumnMajor,
 ):
     """
     Instantiate a cutlass kernel from the given configuration,
@@ -44,7 +47,7 @@ def create_gemm_operator_with_epilogue(
     element_a, element_b, element_c, element_epilogue = data_type
 
     A = TensorDescription(element_a, LayoutType.RowMajor, alignment)
-    B = TensorDescription(element_b, LayoutType.ColumnMajor, alignment)
+    B = TensorDescription(element_b, layout_b, alignment)
     C = TensorDescription(element_c, LayoutType.RowMajor, alignment)
 
     if batched:
@@ -74,6 +77,7 @@ def enumerate_gemm_operators(
     data_type,
     alignment_constraints,
     swizzling_functor=SwizzlingFunctor.Identity8,
+    layout_b=LayoutType.ColumnMajor,
 ):
     """Exhaustively instantiate all kernels from a given configuration."""
     ret = []
@@ -85,7 +89,7 @@ def enumerate_gemm_operators(
     for tile_description in tile_descriptions:
         for alignment in alignment_constraints:
             A = TensorDescription(element_a, LayoutType.RowMajor, alignment)
-            B = TensorDescription(element_b, LayoutType.ColumnMajor, alignment)
+            B = TensorDescription(element_b, layout_b, alignment)
             C = TensorDescription(element_c, LayoutType.RowMajor, alignment)
 
             if element_c == DataType.s32 and A.alignment == 1:
@@ -160,7 +164,14 @@ class CutlassGemmProfiler:
         self.cache = {}
 
     def get_default(
-        self, op_type, out_dtype, arg0_dtype, arg1_dtype, use_3xtf32=True, batched=False
+        self,
+        op_type,
+        out_dtype,
+        arg0_dtype,
+        arg1_dtype,
+        use_3xtf32=True,
+        batched=False,
+        layout_b=LayoutType.ColumnMajor,
     ):
         """Return the default kernel for the requested architecture.
         For now, the default kernel was picked arbitrary.
@@ -169,7 +180,7 @@ class CutlassGemmProfiler:
             out_dtype,
             arg0_dtype,
             arg1_dtype,
-            enumerate_gemm_operators,
+            partial(enumerate_gemm_operators, layout_b=layout_b),
             lambda align: align == 1,  # Only request align1 kernels
             use_3xtf32,
             profile_all_alignments=True,  # To include all align1 kernels
@@ -194,6 +205,7 @@ class CutlassGemmProfiler:
             op["alignment"],
             op["swizzle_functor"],
             batched=batched,
+            layout_b=layout_b,
         )
         op.update({"name": name, "opdef": opdef})
         return op
@@ -210,6 +222,7 @@ class CutlassGemmProfiler:
         profile_all_alignments=False,
         find_first_valid=False,
         use_multiprocessing=False,
+        layout_b=LayoutType.ColumnMajor,
     ):
         """
         Profile and select the best kernel from candidate kernels.
@@ -227,7 +240,7 @@ class CutlassGemmProfiler:
             out_dtype,
             arg0_dtype,
             arg1_dtype,
-            enumerate_gemm_operators,
+            partial(enumerate_gemm_operators, layout_b=layout_b),
             lambda align: all([dim % align == 0 for dim in [M, N, K]]),
             use_3xtf32,
             profile_all_alignments=profile_all_alignments,
@@ -263,6 +276,7 @@ class CutlassGemmProfiler:
         find_first_valid=False,
         use_multiprocessing=False,
         batched=False,
+        layout_b=LayoutType.ColumnMajor,
     ):
         """Profile and select the best kernel from candidate kernels.
         If find_first_valid is True, return immediately after the first applicable kernel is found.
@@ -279,6 +293,7 @@ class CutlassGemmProfiler:
             profile_all_alignments=profile_all_alignments,
             find_first_valid=find_first_valid,
             use_multiprocessing=use_multiprocessing,
+            layout_b=layout_b,
         )
 
         name, opdef = create_gemm_operator_with_epilogue(
@@ -288,6 +303,7 @@ class CutlassGemmProfiler:
             op["alignment"],
             op["swizzle_functor"],
             batched=batched,
+            layout_b=layout_b,
         )
 
         return name, opdef, op["runtime"]
