@@ -353,7 +353,7 @@ def emit_var_binding(value: VarBinding) -> Var:
     var: Var
         The left side var of the emitted binding.
     """
-    return _ffi_api.EmitVarBinding(value)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.EmitVarBinding(value)  # type: ignore
 
 
 ############################# If Then Else #############################
