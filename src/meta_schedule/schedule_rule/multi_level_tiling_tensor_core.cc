@@ -25,7 +25,6 @@
 
 #include "../utils.h"
 #include "./multi_level_tiling.h"
-
 namespace tvm {
 namespace meta_schedule {
 
@@ -257,44 +256,36 @@ void MultiLevelTilingTensorCoreNode::TileAndAnnotateTensorize(Schedule* sch,
 
 std::vector<State> MultiLevelTilingTensorCoreNode::TransformIntermediateOutputLayout(
     TensorCoreState state) {
+  // Transform the intermediate output to packed layout
+  //   [..., warp_m, warp_n, accum_frag_m, accum_frag_n, accum_elem_m, accum_elem_n]
+  // where warp_m, warp_n are thread indices bound to the warp id, accum_frag_m, accum_frag_n are
+  // the index of the fragments in each warp, accum_elem_m, accum_elem_n are the index of the
+  // elements in each accumulator fragment.
+
   // Get the shape of the wmma accumulator
-  tir::Block intrin_block =
-      Downcast<tir::BlockRealize>(
-          tir::TensorIntrin::Get(state->intrin_group.init_intrin).value()->desc->body)
-          ->block;
-  tir::For loop_m = Downcast<tir::For>(intrin_block->body);
-  tir::For loop_n = Downcast<tir::For>(loop_m->body);
-  PrimExpr accumulator_m = loop_m->extent;
-  PrimExpr accumulator_n = loop_n->extent;
-  Schedule& sch = state->sch;
+  auto [frag_shape_m, frag_shape_n] = [&]() {
+    tir::Block intrin_block =
+        Downcast<tir::BlockRealize>(
+            tir::TensorIntrin::Get(state->intrin_group.init_intrin).value()->desc->body)
+            ->block;
+    tir::For loop_m = Downcast<tir::For>(intrin_block->body);
+    tir::For loop_n = Downcast<tir::For>(loop_m->body);
+    return std::make_tuple(loop_m->extent, loop_n->extent);
+  }();
 
-  auto buffer_ndim = sch->Get(state->block_rv)->writes[0]->buffer->shape.size();
-
-  // The dimension of the buffer should be larger or same as that of the tensor intrin.
-  ICHECK_GE(buffer_ndim, 2);
-
-  auto index_map_pack_accumulator_tile =
-      tir::IndexMap::FromFunc(buffer_ndim, [&](const Array<tir::Var>& indices) -> Array<PrimExpr> {
-        const auto& i = indices[buffer_ndim - 2];
-        const auto& j = indices[buffer_ndim - 1];
-        Array<PrimExpr> result;
-        for (int i = 0; i < buffer_ndim - 2; ++i) {
-          result.push_back(indices[i]);
-        }
-        result.push_back(floordiv(i, accumulator_m));
-        result.push_back(floordiv(j, accumulator_n));
-        result.push_back(floormod(i, accumulator_m));
-        result.push_back(floormod(j, accumulator_n));
-        return result;
-      });
-  sch->TransformLayout(state->block_rv, 0, tir::BufferIndexType::kWrite,
-                       index_map_pack_accumulator_tile);
+  // Get the tile index of the warp id (i.e. threadIdx.y)
   auto it = std::find(tile_binds.begin(), tile_binds.end(), "threadIdx.y");
   ICHECK(it != tile_binds.end());
-  auto idx = std::distance(tile_binds.begin(), it);
-  auto f_get_tile_product = [&](int loop_idx) {
+  auto tile_index_warp_id = std::distance(tile_binds.begin(), it);
+
+  // Get the extent of loop indicated by `loop_idx` inside the warp scope.
+  // For example, after spatial loops i, j are tiled, we will have
+  // tile_factors = ((i0, j0), (i1, j1), ..., (in, jn))
+  // This function computes the product of tile_factors[i][loop_idx] for i > tile_index_warp_id.
+  // `loop_idx` can be negative, in which case it is counted from the end.
+  auto f_get_inner_tile_product = [&](int loop_idx) {
     Array<tir::ExprRV> factors;
-    for (int i = idx + 1; i < s_indices_.size(); ++i) {
+    for (int i = tile_index_warp_id + 1; i < static_cast<int>(s_indices_.size()); ++i) {
       auto s_factors = state->tile_factors[s_indices_[i]];
       if (loop_idx < 0) {
         loop_idx += s_factors.size();
@@ -306,33 +297,82 @@ std::vector<State> MultiLevelTilingTensorCoreNode::TransformIntermediateOutputLa
       return factors[0];
     }
     auto result = factors[0];
-    for (int i = 1; i < factors.size(); ++i) {
+    for (int i = 1; i < static_cast<int>(factors.size()); ++i) {
       result = result * factors[i];
     }
     return result;
   };
-  auto warp_factor_m = f_get_tile_product(-2);
-  auto warp_factor_n = f_get_tile_product(-1);
-  auto index_map_pack_warp_tile =
-      tir::IndexMap::FromFunc(buffer_ndim + 2, [&](const Array<tir::Var>& indices) -> Array<PrimExpr> {
-        const auto& i = indices[indices.size() - 4];
-        const auto& j = indices[indices.size() - 3];
-        const auto& m = indices[indices.size() - 2];
-        const auto& n = indices[indices.size() - 1];
-        Array<PrimExpr> result;
-        for (int i = 0; i < indices.size() - 4; ++i) {
-          result.push_back(indices[i]);
-        }
-        result.push_back(floordiv(i, warp_factor_m));
-        result.push_back(floordiv(j, warp_factor_n));
-        result.push_back(floormod(i, warp_factor_m));
-        result.push_back(floormod(j, warp_factor_n));
-        result.push_back(m);
-        result.push_back(n);
-        return result;
-      });
-  sch->TransformLayout(state->block_rv, 0, tir::BufferIndexType::kWrite, index_map_pack_warp_tile);
-  sch->GetLoops(state->block_rv);
+
+  // Compute the number of output fragment of each warp
+  auto warp_num_frag_m = f_get_inner_tile_product(-2);
+  auto warp_num_frag_n = f_get_inner_tile_product(-1);
+
+  Schedule& sch = state->sch;
+  int buffer_ndim = static_cast<int>(sch->Get(state->block_rv)->writes[0]->buffer->shape.size());
+  // The dimension of the buffer should be larger or same as that of the tensor intrin.
+  ICHECK_GE(buffer_ndim, 2);
+  int num_higher_dims = buffer_ndim - 2;
+
+  sch->TransformLayout(state->block_rv, 0, tir::BufferIndexType::kWrite,
+  tir::IndexMap::FromFunc(buffer_ndim, [&](const Array<tir::Var>& indices) {
+    Array<PrimExpr> result;
+    result.reserve(indices.size() + 4);
+    for (int i = 0; i < num_higher_dims; ++i) {
+      result.push_back(indices[i]);
+    }
+    const auto& m = indices[num_higher_dims];
+    const auto& n = indices[num_higher_dims + 1];
+    auto accum_m = floormod(m, frag_shape_m);
+    auto accum_n = floormod(n, frag_shape_n);
+    auto outer_m = floordiv(m, frag_shape_m);
+    auto outer_n = floordiv(n, frag_shape_n);
+
+    result.push_back(floordiv(outer_m, warp_num_frag_m));
+    result.push_back(floordiv(outer_n, warp_num_frag_n));
+    result.push_back(floormod(outer_m, warp_num_frag_m));
+    result.push_back(floormod(outer_n, warp_num_frag_n));
+    result.push_back(accum_m);
+    result.push_back(accum_n);
+    return result;
+  }));
+
+  // // Tile by the fragment shape
+  // sch->TransformLayout(state->block_rv, 0, tir::BufferIndexType::kWrite,
+  //                      tir::IndexMap::FromFunc(buffer_ndim, [&](const Array<tir::Var>& indices) {
+  //                        Array<PrimExpr> result;
+  //                        result.reserve(indices.size() + 2);
+  //                        for (int i = 0; i < num_higher_dims; ++i) {
+  //                          result.push_back(indices[i]);
+  //                        }
+  //                        const auto& m = indices[num_higher_dims];
+  //                        const auto& n = indices[num_higher_dims + 1];
+  //                        result.push_back(floordiv(m, frag_shape_m));
+  //                        result.push_back(floordiv(n, frag_shape_n));
+  //                        result.push_back(floormod(m, frag_shape_m));
+  //                        result.push_back(floormod(n, frag_shape_n));
+  //                        return result;
+  //                      }));
+
+  // // Tile by the number of fragments
+  // sch->TransformLayout(
+  //     state->block_rv, 0, tir::BufferIndexType::kWrite,
+  //     tir::IndexMap::FromFunc(buffer_ndim + 2, [&](const Array<tir::Var>& indices) {
+  //       Array<PrimExpr> result;
+  //       result.reserve(indices.size() + 2);
+  //       for (int i = 0; i < num_higher_dims; ++i) {
+  //         result.push_back(indices[i]);
+  //       }
+  //       const auto& m = indices[num_higher_dims];
+  //       const auto& n = indices[num_higher_dims + 1];
+  //       result.push_back(floordiv(m, warp_num_frag_m));
+  //       result.push_back(floordiv(n, warp_num_frag_n));
+  //       result.push_back(floormod(m, warp_num_frag_m));
+  //       result.push_back(floormod(n, warp_num_frag_n));
+  //       // The last two indices are the fragment element indices
+  //       result.push_back(indices[num_higher_dims + 2]);
+  //       result.push_back(indices[num_higher_dims + 3]);
+  //       return result;
+  //     }));
 
   return {state};
 }
@@ -340,40 +380,55 @@ std::vector<State> MultiLevelTilingTensorCoreNode::TransformIntermediateOutputLa
 std::vector<State> MultiLevelTilingTensorCoreNode::AddWriteReuseTensorCore(
     TensorCoreState state) const {
   // Add the cache write stage for Tensor Core
-  int level = r_indices_.front() - 1;
-  const LoopRV& loop = state->tiles[level].back();
   Schedule& sch = state->sch;
   auto cache_write = sch->CacheWrite(state->block_rv, 0, "wmma.accumulator");
 
-  if (state->write_reuse.count(0)) {
-    auto f_get_loops = [&](const BlockRV& block_rv) -> std::tuple<LoopRV, LoopRV, LoopRV, LoopRV> {
-      Array<LoopRV> buffer_loops = sch->GetLoops(block_rv);
-      ICHECK_GT(buffer_loops.size(), 6);
-      return {buffer_loops[buffer_loops.size() - 6], buffer_loops[buffer_loops.size() - 5],
-              buffer_loops[buffer_loops.size() - 4], buffer_loops[buffer_loops.size() - 3]};
-    };
+  // The compute block has been tiled by the warp shape and the fragment shape.
+  // We need to bind the cache write block (from the accumulator to the shared memory) to the warp
+  // id. The schedule is as follows:
+  //
+  // After adding cache write for wmma.accumulator, we will have
+  //   for i0, j0, i1, j1, accum_m, accum_n:
+  //     shared_mem[i0, j0, i1, j1, accum_m, accum_n] = accum[i0, j0, i1, j1, accum_m, accum_n]
+  //   for i0', j0', i1', j1', accum_m', accum_n':
+  //      global_mem[i0', j0', i1', j1', accum_m', accum_n'] =
+  //        shared_mem[i0', j0', i1', j1', accum_m', accum_n']
+  // where i0' and j0' are already bound to the block id and warp id.
+  //
+  // To reduce the shared memory usage and allow efficient data movement, we will apply
+  // transformations to generate the following schedule:
+  //
+  //   for i1':
+  //     for i0_j0 (fused and bound to threadIdx.y):
+  //       for j1, accum_m, accum_n:
+  //         shared_mem[i0, j0, i1, j1, accum_m, accum_n] = accum[i0, j0, i1, j1, accum_m, accum_n]
+  //     for i0', j0', j1', accum_m', accum_n':
+  //       global_mem[i0', j0', i1', j1', accum_m', accum_n'] =
+  //         shared_mem[i0', j0', i1', j1', accum_m', accum_n']
+  //
+  // i1' is reordered to the outermost. This effectively allows only a row (i.e. loop i1') of the
+  // fragments are moved to the shared memory and then to the global memory each time.
+  // As a result, shared memory for the output will only have shape of [j1, accum_m, accum_n]
+  // instead of [i0 * i1 * accum_m, j0 * j1 * accum_n].
 
-    {
-      const auto& [i0, j0, i1, j1] = f_get_loops(state->write_reuse[0]);
-      sch->Reorder({i1, i0, j0, j1});
-      sch->ComputeAt(cache_write, i1, true);
-    }
-    {
-      const auto& [i0, j0, i1, j1] = f_get_loops(cache_write);
-      auto fused = sch->Fuse({i0, j0});
-      sch->Bind(fused, "threadIdx.y");
-    }
+  // Get the loops other than the innermost two loops (accum_m and accum_n).
+  auto f_get_loops = [&](const BlockRV& block_rv) -> std::array<LoopRV, 4> {
+    Array<LoopRV> buffer_loops = sch->GetLoops(block_rv);
+    ICHECK_GT(buffer_loops.size(), 6);
+    return {buffer_loops[buffer_loops.size() - 6], buffer_loops[buffer_loops.size() - 5],
+            buffer_loops[buffer_loops.size() - 4], buffer_loops[buffer_loops.size() - 3]};
+  };
+  {
+    const auto& [i0, j0, i1, j1] = f_get_loops(state->write_reuse[0]);
+    sch->Reorder({i1, i0, j0, j1});
+    sch->ComputeAt(cache_write, i1, true);
   }
-  // sch->ReverseComputeAt(cache_write, loop, true);
+  {
+    const auto& [i0, j0, i1, j1] = f_get_loops(cache_write);
+    auto fused = sch->Fuse({i0, j0});
+    sch->Bind(fused, "threadIdx.y");
+  }
 
-  // if (state->write_reuse.count(0)) {
-  //   // Fuse the iterators of the cache_write
-  //   Array<LoopRV> buffer_loops = sch->GetLoops(state->write_reuse[0]);
-  //   ICHECK_GT(buffer_loops.size(), 2);
-  //   sch->Fuse(Array<LoopRV>{buffer_loops.end() - 2,  // The src shmem is always 2D
-  //                           buffer_loops.end()});
-  //   AnnotateCooperativeFetching(&sch, state->write_reuse[0]);
-  // }
   sch->ReverseComputeInline(state->tensor_core_reindex_store);
   auto loops = sch->GetLoops(cache_write);
   auto blockized_store = sch->Blockize(loops[loops.size() - 2]);
@@ -385,10 +440,6 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddWriteReuseTensorCore(
   sch->Fuse(Array<LoopRV>{buffer_loops.end() - 5,  // The src shmem is always 2D
                           buffer_loops.end()});
   AnnotateCooperativeFetching(&sch, state->write_reuse[0]);
-
-  //
-  //
-  // TileAndAnnotateTensorize(&sch, cache_write, state->intrin_group.store_intrin);
   return {state};
 }
 
@@ -690,6 +741,10 @@ ScheduleRule ScheduleRule::MultiLevelTilingTensorCore(
   }
   auto node = MultiLevelTilingInitCommon<MultiLevelTilingTensorCoreNode>(
       structure, tile_binds, max_innermost_factor, vector_load_lens, reuse_read, reuse_write);
+
+  CHECK(node->reuse_write_.req == ReuseType::kMustReuse &&
+        runtime::StorageScope::Create(node->reuse_write_.scope).rank == runtime::StorageRank::kShared)
+      << "ValueError: Shared memory write reuse must be enabled for MultiLevelTilingTensorCore.";
 
   node->intrin_groups.reserve(intrin_groups.size());
   for (const auto& intrin_group_config : intrin_groups) {
