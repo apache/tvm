@@ -25,6 +25,7 @@
 #define TVM_RELAX_TRANSFORM_H_
 
 #include <tvm/ir/transform.h>
+#include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr.h>
 
 namespace tvm {
@@ -68,6 +69,13 @@ TVM_DLL Pass CreateDataflowBlockPass(
     int opt_level, String name, tvm::Array<String> required, bool traceable = false);
 
 /*!
+ * \brief Perform lambda lifting to lift functions from nested into global.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass LambdaLift();
+
+/*!
  * \brief Transform all dataflow structure to non-dataflow version.
  *
  * \return The Pass.
@@ -105,43 +113,11 @@ TVM_DLL Pass RewriteDataflowReshape();
 TVM_DLL Pass StaticPlanBlockMemory();
 
 /*!
- * \brief Bind params of function of the module to constant tensors.
- *
- * \param func_name The name of the function to bind parameters.
- * \param params The parameters to bind.
- *
- * \return The Pass.
- */
-TVM_DLL Pass BindParams(String func_name, Map<String, runtime::NDArray> params);
-
-/*!
- * \brief Fold constant expressions.
- *
- * \return The Pass.
- */
-TVM_DLL Pass FoldConstant();
-/*!
  * \brief Attach global_symbol to Relax functions and TIR Primfuncs for codegen.
  *
  * \return The Pass.
  */
 TVM_DLL Pass AttachGlobalSymbol();
-/*!
- * \brief Bind params of function of the module to constant tensors.
- *
- * \param func_name The name of the function to bind parameters.
- * \param params The parameters to bind.
- *
- * \return The Pass.
- */
-TVM_DLL Pass BindParams(String func_name, Map<String, runtime::NDArray> params);
-
-/*!
- * \brief Fold constant expressions.
- *
- * \return The Pass.
- */
-TVM_DLL Pass FoldConstant();
 
 /*!
  * \brief Transform Relax IR to normal form: transform AST to A-normal form, and fill the
@@ -150,6 +126,23 @@ TVM_DLL Pass FoldConstant();
  * \return The Pass.
  */
 TVM_DLL Pass Normalize();
+
+/*!
+ * \brief Bind params of function of the module to constant tensors.
+ *
+ * \param func_name The name of the function to bind parameters.
+ * \param params The parameters to bind.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass BindParams(String func_name, Map<String, runtime::NDArray> params);
+
+/*!
+ * \brief Fold constant expressions.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass FoldConstant();
 
 /*!
  * \brief Legalize high-level operator calls in Relax functions to call_tir
@@ -189,6 +182,81 @@ TVM_DLL Pass LegalizeOps(Optional<Map<String, PackedFunc>> cmap);
  * \return The Pass.
  */
 TVM_DLL Pass LiftTransformParams();
+
+/*!
+ * \brief Annotate Op Pattern Kind for TIR functions, which is used in FuseOps.
+ * \note It is an auto-detect pass for "unscheduled prim_funcs", the op_pattern will be
+ *       "opaque" of we can't detect it. Users can manually annotate the attr `op_pattern`
+ *       to prim_func.
+ * \return The Pass.
+ */
+TVM_DLL Pass AnnotateTIROpPattern();
+
+/*!
+ * \brief This pass groups bindings in a dataflow block of Relax functions and generates a new
+ * grouped Relax function for each group, according to the fusion algorithm described in the pass
+ * implementation. By grouping bindings into new Relax functions, we substitute the bindings in the
+ * function being manipulated into function calls to the new grouped function.
+ *
+ * A follow-up pass named "FuseTIR" will generate a TIR PrimFunc for each grouped function.
+ * \param fuse_opt_level The level of fuse optimization.
+ *        -1 indicates that the level will be inferred from pass context.
+ * \return The Pass.
+ */
+TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
+
+/*!
+ * \brief Apply pattern matching to each function in the given module, and group matched
+ * expressions into a new function. The end result is similar to FuseOps, but fusion is driven
+ * completely by the provided patterns.
+ *
+ * \param pattern_names The name of each pattern. It becomes the value of the kComposite attribute
+ * of a fused function after successful matching.
+ * \param patterns The patterns to detect. The order of the patterns determines the order
+ * of priority in which they are matched. Higher-priority patterns should come earlier in the list.
+ * \param annotate_codegen If true, wrap each created composite function with another function,
+ * whose body consists only of a call to the composite function, and annotate the outer function
+ * with kCodegen and kGlobalSymbol attributes. The kCodegen attribute is set as the prefix of the
+ * corresponding pattern name. For example, "dnnl" if the pattern name is "dnnl.conv2d_relu".
+ * This must be True if the created composite functions are intended to be offloaded to
+ * an external backend without using the MergeCompositeFunctions pass.
+ * \return The Pass.
+ */
+TVM_DLL Pass FuseOpsByPattern(const tvm::Array<runtime::String>& pattern_names,
+                              const tvm::Array<DFPattern>& patterns, bool annotate_codegen = false);
+
+/*!
+ * \brief Group one or multiple composite functions created by FuseOpsByPattern into a new
+ *  function. The new function will be annotated with kCodegen and GlobalSymbol attributes,
+ *  and it is intented to be offloaded to an external backend.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass MergeCompositeFunctions();
+
+/*!
+ * \brief Fuse relax sub-function into a larger TIR function if possible.
+    this pass works together with FuseOps to perform operator fusion.
+
+ * \return The Pass.
+ */
+TVM_DLL Pass FuseTIR();
+
+/*!
+ * \brief Remove unused global relax functions in an IRModule.
+ * \param entry_functions list of entry functions
+ * \return The Pass.
+ */
+TVM_DLL Pass RemoveUnusedFunctions(Array<runtime::String> entry_functions);
+
+/*!
+ * \brief Run codegen.
+ * \param target_options pairs of target name and compilation options
+ * \param entry_functions list of entry functions
+ * \return The Pass.
+ */
+TVM_DLL Pass RunCodegen(Optional<Map<String, Map<String, ObjectRef>>> target_options,
+                        Array<runtime::String> entry_functions);
 
 }  // namespace transform
 }  // namespace relax
