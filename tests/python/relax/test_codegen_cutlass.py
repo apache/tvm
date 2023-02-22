@@ -22,9 +22,8 @@ import pytest
 
 import tvm
 import tvm.testing
-import tvm.contrib.cutlass.build
-
 from tvm import relax, relay
+from tvm.contrib.cutlass.build import finalize_modules_relax
 from tvm.relax.dpl import make_fused_bias_activation_pattern, make_matmul_pattern
 from tvm.script import relax as R
 
@@ -233,6 +232,7 @@ def get_result_with_relax_cutlass_offload(mod, patterns: List[Tuple], *args):
 
     target = tvm.target.Target("cuda")
     ex = relax.vm.build(mod, target)
+    ex = finalize_modules_relax(ex)
 
     dev = tvm.gpu(0)
     vm = relax.VirtualMachine(ex, dev)
