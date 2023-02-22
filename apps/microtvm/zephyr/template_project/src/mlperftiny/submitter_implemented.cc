@@ -19,6 +19,7 @@
 
 #include "api/submitter_implemented.h"
 
+#include <assert.h>
 #include <string.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/platform.h>
@@ -161,11 +162,7 @@ void Infer(void* input_ptr) {
 
   struct tvmgen_default_outputs outputs = {
 #if TARGET_MODEL == MODEL_KWS
-#if COMPILE_WITH_CMSISNN
     .Identity = output_data,
-#else
-    .output = output_data,
-#endif
 #elif TARGET_MODEL == MODEL_IC
     .Identity_int8 = output_data,
 #elif TARGET_MODEL == MODEL_VWW
