@@ -176,7 +176,7 @@ TVM_DLL Pass FoldConstant();
  */
 TVM_DLL Pass LegalizeOps(Optional<Map<String, PackedFunc>> cmap);
 
-/*
+/*!
  * \brief Lift transformation of the parameters of a function.
  *
  * When some inputs of the function is marked as 'parameters' (the model weights), this pass
