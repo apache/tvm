@@ -52,7 +52,10 @@ class UDChain : public relax::ExprVisitor {
 
   void VisitExpr_(const VarNode* op) override { to_users[op].insert(cur_user_); }
   void VisitVarDef(const Var& var) override { to_users[var.get()] = {}; }
-  void VisitExpr_(const FunctionNode* op) override { ExprVisitor::VisitExpr_(op); }
+  void VisitExpr_(const FunctionNode* op) override {
+    cur_user_ = nullptr;
+    ExprVisitor::VisitExpr_(op);
+  }
 
   void VisitExpr_(const DataflowVarNode* op) override {
     VisitExpr_(static_cast<const VarNode*>(op));
