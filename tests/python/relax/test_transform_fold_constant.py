@@ -165,9 +165,6 @@ def test_dataflow_fold():
 
         @R.function
         def expected(c1: R.Tensor((16, 16), "float32")):
-            with R.dataflow():
-                gv0 = c1
-                R.output(gv0)
             return c1
 
     c0_np = np.arange((16 * 16)).astype("float32").reshape(16, 16)
