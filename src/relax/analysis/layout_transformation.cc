@@ -24,67 +24,20 @@
  */
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/relax/analysis.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
+
+#include "../../support/array.h"
 
 namespace tvm {
 namespace relax {
 
 using namespace tir;
 
-using VarSet = std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual>;
-using VarToBlockIndexMap = std::unordered_map<tir::Var, int, ObjectPtrHash, ObjectPtrEqual>;
-using VarToIterTypeMap = std::unordered_map<tir::Var, IterVarType, ObjectPtrHash, ObjectPtrEqual>;
-
 /********** Helper Functions **********/
 
-/*! \brief Converts a list to an Array */
-template <typename T>
-static inline Array<T> list_to_array(std::list<T> l) {
-  Array<T> array;
-  for (auto& v : l) {
-    array.push_back(v);
-  }
-  return array;
-}
-
-/*! \brief Converts an Array to a list */
-template <typename T>
-static inline std::list<T> array_to_list(Array<T> array) {
-  std::list<T> l;
-  for (auto& v : array) {
-    l.push_back(v);
-  }
-  return l;
-}
-
-/*! \brief Checks if `expr` is dependent on any var in `defs`*/
-static inline bool IsDependentOn(const PrimExpr& expr, const VarSet& vars) {
-  bool is_dependent = false;
-  tir::PostOrderVisit(expr, [&](const ObjectRef& node) {
-    if (const tir::VarNode* op = node.as<tir::VarNode>()) {
-      if (vars.count(GetRef<tir::Var>(op)) != 0) {
-        is_dependent = true;
-      }
-    }
-  });
-  return is_dependent;
-}
-
-/*! \brief Checks the PrimExpr for any vars not defined in `defs` */
-static inline bool HasUndefinedVars(const PrimExpr& expr, const VarSet& defs) {
-  bool has_undefined_vars = false;
-  tir::PostOrderVisit(expr, [&](const ObjectRef& node) {
-    if (const tir::VarNode* op = node.as<tir::VarNode>()) {
-      if (defs.count(GetRef<tir::Var>(op)) == 0) {
-        has_undefined_vars = true;
-      }
-    }
-  });
-  return has_undefined_vars;
-}
-
-/* Checks if a transformation is bijective affine over the given ranges*/
-static inline bool IsBijectiveAffine(const IndexMap& m, const Array<Range>& ranges) {
+/*! \brief Checks if a transformation is bijective affine over the given ranges */
+static bool IsBijectiveAffine(const IndexMap& m, const Array<Range>& ranges) {
   Map<tir::Var, Range> input_iters;
   ICHECK_EQ(m->initial_indices.size(), ranges.size());
   for (size_t i = 0; i < ranges.size(); i++) {
@@ -97,9 +50,11 @@ static inline bool IsBijectiveAffine(const IndexMap& m, const Array<Range>& rang
   return !iter_map_result->indices.empty();
 }
 
-/*! \brief Analyzes the indices returned from DetectIterMap analysis. It collects the spatial
- * iterators that are used in indices. This is important to get which spatial iter vars are
- * accessed in each index of buffer access.
+/*!
+ * \brief Analyzer to collect iterators from IterSumExpr.
+ * \details Analyzes the indices from DetectIterMap analysis to collect the spatial iterators that
+ * are used in it. This is important to get which spatial iterators are accessed in each index
+ * of buffer access.
  */
 class IndexAnalyzer : public ExprVisitor {
  public:
@@ -138,19 +93,23 @@ class IndexAnalyzer : public ExprVisitor {
   Array<tir::Var> iterators_;
 };
 
-/*! \brief Analyzes IterMapResult to get the Spatial Layout of buffer access. We define Spatial
- * Layout of a buffer access as an array of length equal to the dimensions of the buffer. i-th
- * element of Spatial Layout contains spatial iter var used from the block iteration domain. For
- * indices, where no spatial iter vars are used, the spatial layout element is empty. If any of the
- * buffer access indices use multiple spatial iter vars, the spatial layout is undefined.
+/*!
+ * \brief Analyzes IterMapResult to get the Spatial Layout of buffer access.
+ * \details We define Spatial Layout of a buffer access as an array of length equal to the
+ * dimensions of the buffer. i-th element of Spatial Layout contains spatial iter var used from the
+ * block iteration domain. For indices, where no spatial iter vars are used, the spatial layout
+ * element is empty. If any of the buffer access indices use multiple spatial iter vars, the spatial
+ * layout is undefined.
+ *
  * Here are a few examples of inferred spatial layout from buffer access. si denotes i-th spatial
  * iter var, and ri denotes i-th reduction iter var.
+ *
  * SpatialLayout(A[s0*constant, s1]) = {s0, s1}
  * SpatialLayout(A[s0, constant, r0, s1]) = {s0, null, null, s1}
  * SpatialLayout(A[s0 * c + s1]) = undefined
  */
 using SpatialLayout = Array<Optional<tir::Var>>;
-static inline SpatialLayout GetSpatialLayout(const arith::IterMapResult& iter_map_result) {
+static SpatialLayout GetSpatialLayout(const arith::IterMapResult& iter_map_result) {
   ICHECK(!iter_map_result->indices.empty());
   SpatialLayout result;
   for (const arith::IterSumExpr& index : iter_map_result->indices) {
@@ -170,9 +129,11 @@ static inline SpatialLayout GetSpatialLayout(const arith::IterMapResult& iter_ma
   return result;
 }
 
-/*! \brief Checks if the two spatial layouts are identical. Two empty spatial layouts are treated as
- * unequal.*/
-static inline bool AreIdenticalSpatialAccess(const SpatialLayout& s0, const SpatialLayout& s1) {
+/*!
+ * \brief Checks if the two spatial layouts are identical. Two empty spatial layouts are treated as
+ * unequal.
+ */
+static bool AreIdenticalSpatialAccess(const SpatialLayout& s0, const SpatialLayout& s1) {
   if (s0.empty() || s1.empty()) return false;
   if (s0.size() != s1.size()) return false;
   for (size_t i = 0; i < s0.size(); ++i) {
@@ -183,9 +144,12 @@ static inline bool AreIdenticalSpatialAccess(const SpatialLayout& s0, const Spat
   return true;
 }
 
-/*! \brief Checks if the block accesses a buffer sequentially in terms of spatial dimensions
- * (ignoring reduction iterators). It checks that the order of spatial iter vars in spatial layout
- * of a buffer access is same as the order of spatial iter vars in block domain.*/
+/*!
+ * \brief Checks if the block accesses a buffer sequentially in terms of spatial dimensions
+ * (ignoring reduction dimensions). It checks that the order of spatial iter vars in spatial layout
+ * of a buffer access is same as the order of spatial iter vars in block domain.
+ */
+using VarToBlockIndexMap = std::unordered_map<tir::Var, int, ObjectPtrHash, ObjectPtrEqual>;
 static bool IsSequentialAccess(const SpatialLayout& iterators,
                                const VarToBlockIndexMap& iter_to_block_index) {
   int last_value = -1;
@@ -200,8 +164,8 @@ static bool IsSequentialAccess(const SpatialLayout& iterators,
   return true;
 }
 
-/*! \brief Checks if two IndexMaps represent identical transforms*/
-static inline bool AreIdenticalTransforms(const IndexMap& t0, const IndexMap& t1) {
+/*! \brief Checks if two IndexMaps represent identical transforms */
+static bool AreIdenticalTransforms(const IndexMap& t0, const IndexMap& t1) {
   if (t0->initial_indices.size() != t1->initial_indices.size()) return false;
   if (t0->final_indices.size() != t1->final_indices.size()) return false;
 
@@ -216,39 +180,42 @@ static inline bool AreIdenticalTransforms(const IndexMap& t0, const IndexMap& t1
   return true;
 }
 
-/*! Given the source buffer spatial layout and its transformation, this function infers the
- * transformation for the target buffer whose spatial layout is given as `tgt_spatial_layout`. The
- * algorithm used is as follows. We start by copying over the source transformation.
+/*!
+ * \brief Returns the layout transformation for a target spatial layout from the source spatial
+ * layout and transformation.
+ * \details Given the source buffer spatial layout \p src_spatial_layout and its transformation \p
+ * src_transformation, this function constructs the transformation for the target buffer whose
+ * spatial layout is given as \p tgt_spatial_layout.
  *
- * For example, let's say the source transformation is lambda N, C, H, W -> (N, H, W, C // 4, C %
+ * The algorithm is explained below using an example:
+ *
+ * Let's say the source transformation is lambda N, C, H, W -> (N, H, W, C // 4, C %
  * 4), source spatial layout is 'NCHW' and target spatial layout is 'KCHW'.
  *
- * Step 1
- * Copy over the source transformation initial & final indices to target transformation initial
- * and final indices.
+ * Step 1: Copy over the source transformation initial & final indices to target transformation
+ * initial and final indices.
  * target transformation = lambda N, C, H, W -> (N, H, W, C // 4, C %4)
  *
- * Step 2
- * Drop any vars from initial indices which do not occur in target buffer using source and target
- * spatial layouts.
+ * Step 2: Drop any vars from initial indices which do not occur in target buffer using source and
+ * target spatial layouts.
  * target transformation = lambda C, H, W -> (N, H, W, C // 4, C %4)
  *
- * Step 3
- * Erase any expression from final indices which is dependent on a var not present in initial
- * indices. target transformation = lambda C, H, W -> (H, W, C // 4, C %4)
+ * Step 3: Erase any expression from final indices which is dependent on a var not present in
+ * initial indices.
+ * target transformation = lambda C, H, W -> (H, W, C // 4, C %4)
  *
- * Step 4
- * Go over the target spatial layout and add any missing dims to both initial and final indices.
- * This is done by checking if any iterator in target spatial layout is not present in source
- * spatial layout.
+ * Step 4: Go over the target spatial layout and add any missing dims to both initial and final
+ * indices. This is done by checking if any iterator in target spatial layout is not present in
+ * source spatial layout.
  * target transformation = lambda dim, C, H, W -> (dim, H, W, C // 4, C %4)
  */
+using VarSet = std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual>;
 static Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& src_spatial_layout,
                                                     const IndexMap& src_transformation,
                                                     const SpatialLayout& tgt_spatial_layout) {
   // Copy over the src transformation intial and final indices
-  auto initial_indices = array_to_list(src_transformation->initial_indices);
-  auto final_indices = array_to_list(src_transformation->final_indices);
+  auto initial_indices = support::AsList(src_transformation->initial_indices);
+  auto final_indices = support::AsList(src_transformation->final_indices);
 
   // Get the iterator var set used in target spatial layout.
   VarSet tgt_var_set;
@@ -273,7 +240,19 @@ static Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& src_spa
   // Erase any expressions in final indices that have undefined vars
   auto final_indices_it = final_indices.begin();
   while (final_indices_it != final_indices.end()) {
-    if (!HasUndefinedVars(*final_indices_it, initial_indices_var_set)) {
+    // Collect all the vars used in this final index.
+    Array<tir::Var> used_vars = tir::UndefinedVars(*final_indices_it);
+    ICHECK(!used_vars.empty())
+        << "IndexMap expression must always contain tir::Var nodes but found none in: "
+        << *final_indices_it;
+
+    bool has_undefined_vars = std::any_of(used_vars.begin(), used_vars.end(),
+                                          [&initial_indices_var_set](const tir::Var& v) {
+                                            return initial_indices_var_set.count(v) == 0;
+                                          });
+
+    // If all vars are from initial indices, nothing to do for this final index.
+    if (!has_undefined_vars) {
       final_indices_it++;
       continue;
     }
@@ -283,11 +262,16 @@ static Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& src_spa
     // This captures the scenario where the source transformation is unpacking a dimension (e.g,
     // "H4h" -> "H*4+h" ) and the buffer we are trying to infer the transformation of has 'h'
     // dimension, but not 'H'. So, it is dependent on undefined var 'H' and defined var 'h'.
-    if (IsDependentOn(*final_indices_it, initial_indices_var_set)) {
+    bool depends_on_initial_indices = std::any_of(used_vars.begin(), used_vars.end(),
+                                                  [&initial_indices_var_set](const tir::Var& v) {
+                                                    return initial_indices_var_set.count(v) != 0;
+                                                  });
+    if (depends_on_initial_indices) {
       LOG(WARNING)
           << "[LayoutInference] Buffer access is dependent on both defined and undefined vars";
       return {};
     }
+    // It is ok to erase this final index expression as it only depends on undefined vars.
     final_indices_it = final_indices.erase(final_indices_it);
   }
 
@@ -314,15 +298,16 @@ static Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& src_spa
     final_indices.insert(final_indices_it, new_dim);
   }
 
-  return IndexMap(list_to_array(initial_indices), list_to_array(final_indices));
+  return IndexMap(support::AsArray(initial_indices), support::AsArray(final_indices));
 }
 
-/*! \brief Analyzes the Block and given output buffer transformations to propose
- * transformations of block and read buffers. It does a best effort analysis to
- * propose transformations which would preserve sequential access to buffers (especially output
- * buffers). Since this is best effort, it is possible that the Block is too complex for
- * analysis. In such a case, no transformations are proposed.
- * Limitations:
+/*!
+ * \brief Analyzes the Block and given output buffer transformations to propose
+ * transformations of block and read buffers.
+ * \details It does a best effort analysis to propose transformations which would preserve
+ * sequential access to buffers (especially output buffers). Since this is best effort, it is
+ * possible that the Block is too complex for analysis. In such a case, no transformations are
+ * proposed. Limitations:
  * 1. Expects exactly one write buffer in the block whose transformation is given by
  * `write_transformation`.
  * 2. Expects write buffer access to be affine and only use spatial iterators of the block.
@@ -352,15 +337,13 @@ class BlockAnalyzer : public StmtExprVisitor {
       return;
     }
 
-    // Get iterator ordering, it's types and it's spatial layout.
-    VarToIterTypeMap iter_var_to_type;
+    // Get iterator ordering and it's spatial layout.
     VarToBlockIndexMap iter_var_to_block_index;
     SpatialLayout block_spatial_layout;
     int index = 0;
     for (const auto& iter_var : block->iter_vars) {
       auto var = iter_var->var;
       iter_var_to_block_index[var] = index++;
-      iter_var_to_type[var] = iter_var->iter_type;
       block_spatial_layout.push_back(var);
     }
 
@@ -546,11 +529,13 @@ class BlockAnalyzer : public StmtExprVisitor {
   std::unordered_map<Buffer, BufferAccessInfo, ObjectPtrHash, ObjectPtrEqual> buffer_access_info_;
 };
 
-/*! \brief Analyzes the PrimFunc and user provided output buffer transformations to propose
- * transformations of block and buffers within the PrimFunc. It does a best effort analysis to
- * propose transformations which would preserve sequential access to buffers (especially output
- * buffers). Since this is best effort, it is possible that the PrimFunc is too complex for
- * analysis. In such a case, no transformations are proposed.
+/*!
+ * \brief Analyzes the PrimFunc and user provided output buffer transformations to propose
+ * transformations of block and buffers within the PrimFunc.
+ * \details It does a best effort analysis to propose transformations which would preserve
+ * sequential access to buffers (especially output buffers). Since this is best effort, it is
+ * possible that the PrimFunc is too complex for analysis. In such a case, no transformations are
+ * proposed.
  */
 class PrimFuncAnalyzer : public StmtExprVisitor {
  public:

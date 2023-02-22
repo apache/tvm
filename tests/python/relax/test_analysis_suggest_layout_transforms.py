@@ -825,3 +825,7 @@ def test_op_split_tiling_split_dim():
     )
     after = apply_transformations(before, suggested_transforms)
     tvm.ir.assert_structural_equal(after, expected)
+
+
+if __name__ == "__main__":
+    tvm.testing.main()
