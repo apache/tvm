@@ -34,6 +34,7 @@ namespace hexagon {
 #define DMA_FAILURE -1
 #define DMA_RETRY 1
 #define MAX_DMA_DESCRIPTORS 100
+#define MAX_DMA_QUEUES 3
 #define SYNC_DMA_QUEUE -1
 
 class HexagonUserDMA {

@@ -190,12 +190,20 @@ TEST_F(RingBufferTest, half_in_flight_blocked) {
 }
 
 class QueuedRingBufferTest : public RingBufferTest {
-  void SetUp() override { queued_ring_buff = new QueuedRingBuffer<int>(size, in_flight); }
+  void SetUp() override { queued_ring_buff = new QueuedRingBuffer<int>(MAX_QUEUES, size, in_flight); }
   void TearDown() override { delete queued_ring_buff; }
 
  public:
+  int MAX_QUEUES = 2;
   QueuedRingBuffer<int>* queued_ring_buff = nullptr;
 };
+
+TEST_F(QueuedRingBufferTest, invalid_queue) {
+  ASSERT_THROW(queued_ring_buff->Next(MAX_QUEUES), InternalError);
+  ASSERT_THROW(queued_ring_buff->InFlight(MAX_QUEUES), InternalError);
+  ASSERT_THROW(queued_ring_buff->StartGroup(MAX_QUEUES), InternalError);
+  ASSERT_THROW(queued_ring_buff->EndGroup(MAX_QUEUES), InternalError);
+}
 
 TEST_F(QueuedRingBufferTest, two_queues) {
   int* q0 = queued_ring_buff->Next(0);
