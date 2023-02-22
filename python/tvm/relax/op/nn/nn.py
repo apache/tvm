@@ -348,6 +348,34 @@ def softmax(data: Expr, axis: int = -1) -> Expr:
     return _ffi_api.softmax(data, axis)  # type: ignore
 
 
+def log_softmax(data: Expr, axis: int = -1) -> Expr:
+    r"""Computes log softmax.
+
+    .. math::
+
+        \text{log\_softmax}(x_i) = \log\left( \frac{\exp(x_i)}{\sum_j \exp(x_j)}\right)
+
+    .. note::
+        This operator can be optimized away for inference.
+
+    Parameters
+    ----------
+    data: relax.Expr
+        The input data to the operator.
+
+    axis: int
+        The axis to sum over when computing log softmax.
+        If not specified, it is by default the last axis of the input tensor.
+        Supports negative indexing.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.log_softmax(data, axis)  # type: ignore
+
+
 def batch_norm(
     data: Expr,
     gamma: Expr,
@@ -522,3 +550,30 @@ def dropout(data: Expr, rate: float = 0.5) -> Expr:
         mask tensor (1.0 where element not dropped, 0.0 where dropped)
     """
     return _ffi_api.dropout(data, rate)  # type: ignore
+
+
+def cross_entropy_with_logits(predictions: Expr, labels: Expr) -> Expr:
+    r"""CrossEntropy with logits between the predictions and labels.
+
+    The shape of predictions and labels must be the same. And when ndim >= 2,
+    the first dimension is regarded as the batch_size N. In this case the
+    computed result will divide by N to perform a mean reduction.
+
+    .. math::
+
+        \text{cross\_entropy\_with\_logits}(x_i, y_i) = \frac{\sum_i -x_i \cdot y_i}{N}
+
+    Parameters
+    ----------
+    predictions : relax.Expr
+      The predictions.
+
+    labels : relax.Expr
+      The labels (the ground truth values).
+
+    Returns
+    -------
+    result : relax.Expr
+      The computed result.
+    """
+    return _ffi_api.cross_entropy_with_logits(predictions, labels)  # type: ignore
