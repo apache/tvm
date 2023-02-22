@@ -14,43 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, redefined-builtin, no-else-return
-"""The Relax virtual machine"""
+# pylint: disable=invalid-name, redefined-builtin, no-else-return, consider-using-dict-items
+"""The Relax virtual machine."""
 from typing import Callable, List, Optional, Union, Dict, Tuple, Any
 import numpy as np  # type: ignore
 
-from tvm._ffi import base as _base
 import tvm
-from tvm import relax
-from tvm.ir.module import IRModule
-from tvm.runtime import Device, Module, PackedFunc, container
-from tvm.runtime.object import Object
+from tvm._ffi import base as _base
+
+from tvm.runtime import Device, PackedFunc, container, Object
 from tvm.runtime.profiling import Report
-from tvm.tir.function import PrimFunc
-from . import _ffi_api
+
 from ..rpc.base import RPC_SESS_MASK
-
-
-class Executable(object):
-    """The executable object emitted by the VM compiler or the ExecBuilder."""
-
-    def __init__(self, mod: Module):
-        self.mod = mod
-        self._stats = self.mod["stats"]
-        self._as_text = self.mod["as_text"]
-        self._as_python = self.mod["as_python"]
-
-    def stats(self) -> str:
-        """print the detailed statistics of the executable."""
-        return self._stats()
-
-    def as_text(self) -> str:
-        """print the instructions as text format."""
-        return self._as_text()
-
-    def as_python(self) -> str:
-        """print the instructions as python program."""
-        return self._as_python()
 
 
 class VirtualMachine(object):
@@ -61,7 +36,7 @@ class VirtualMachine(object):
 
     def __init__(
         self,
-        exec: Union[Executable, Module],
+        rt_mod: Union[tvm.runtime.Module, "tvm.relax.Executable"],
         device: Union[Device, List[Device]],
         memory_cfg: Optional[Union[str, Dict[Device, str]]] = None,
         profile: bool = False,
@@ -71,8 +46,8 @@ class VirtualMachine(object):
 
         Parameters
         ----------
-        exec: Union[Executable, Module]
-            The VM executable or Runtime Module
+        mod: Union[tvm.runtime.Module, tvm.relax.Executable]
+            Runtime module exported by the result of build.
 
         device : Union[Device, List[Device]]
             The device to deploy the module.
@@ -88,8 +63,20 @@ class VirtualMachine(object):
         profile : Optional[bool]
             Whether or not to enable profiling.
         """
+        if not isinstance(rt_mod, tvm.runtime.Module):
+            # important to keep this import local
+            # as the relax_vm needs to be isolated from compiler
+            # if we do not use the jit feature
+            # pylint:disable=import-outside-toplevel
+            from tvm import relax
+
+            if isinstance(rt_mod, relax.Executable):
+                rt_mod = rt_mod.jit()
+            else:
+                raise ValueError("Expect the rt_mod to be an runtime.Module")
+
         load_exec = "vm_profiler_load_executable" if profile else "vm_load_executable"
-        self.module = exec.mod[load_exec]() if isinstance(exec, Executable) else exec[load_exec]()
+        self.module = rt_mod[load_exec]()
         self._invoke_closure = self.module["invoke_closure"]
         self._save_function = self.module["save_function"]
         self._set_input = self.module["set_input"]
@@ -408,7 +395,7 @@ class VirtualMachine(object):
         .. code-block:: python
 
             target = tvm.target.Target("llvm", host="llvm")
-            ex = relax.vm.build(TestTimeEvaluator, target)
+            ex = relax.build(TestTimeEvaluator, target)
             vm = relax.VirtualMachine(mod, tvm.cpu())
             timing_res = vm.time_evaluator("func_name", tvm.cpu())(arg0, arg1, ..., argn)
 
@@ -417,7 +404,7 @@ class VirtualMachine(object):
         .. code-block:: python
 
             target = tvm.target.Target("llvm", host="llvm")
-            ex = relax.vm.build(TestTimeEvaluator, target)
+            ex = relax.build(TestTimeEvaluator, target)
             vm = relax.VirtualMachine(mod, tvm.cpu())
             vm.set_input("func_name", arg0, arg1, ..., argn)
             timing_res = vm.time_evaluator("invoke_stateful", tvm.cpu())("func_name")
@@ -428,7 +415,7 @@ class VirtualMachine(object):
         .. code-block:: python
 
             target = tvm.target.Target("llvm", host="llvm")
-            ex = relax.vm.build(TestTimeEvaluator, target)
+            ex = relax.build(TestTimeEvaluator, target)
             vm = relax.VirtualMachine(mod, tvm.cpu())
             vm.save_function("func_name", "func_name_saved", arg0, arg1, ..., argn)
             timing_res = vm.time_evaluator("func_name_saved", tvm.cpu())()
@@ -471,171 +458,3 @@ class VirtualMachine(object):
 
         report_json = self.module["profile"](func_name, *cargs)
         return Report.from_json(report_json)
-
-
-def _vmcodegen(
-    builder: "relax.ExecBuilder",
-    mod: tvm.IRModule,
-    exec_mode: str = "bytecode",
-) -> tvm.IRModule:
-    """Running VM codegen.
-
-    Parameters
-    ----------
-    builder: relax.ExecBuilder
-        ExecBuilder to collect the vm executable.
-
-    mod: IRModule
-        The input IRModule to be built.
-
-    exec_mode: {"bytecode", "compiled"}
-        The execution mode.
-
-    Return
-    ------
-    leftover: IRModule
-        Left over IRModule that may contain extra functions.
-    """
-
-    if exec_mode == "bytecode":
-        return _ffi_api.VMCodeGen(builder, mod)  # type:ignore
-    if exec_mode == "compiled":
-        return _ffi_api.VMTIRCodeGen(builder, mod)  # type: ignore
-    raise ValueError("Unknown exec_mode %s" % exec_mode)
-
-
-def _vmlink(
-    builder: "relax.ExecBuilder",
-    target: Union[str, tvm.target.Target],
-    tir_mod: Optional[tvm.IRModule] = None,
-    ext_libs: List[tvm.runtime.Module] = None,
-    params: Optional[Dict[str, list]] = None,
-):
-    """
-    Internal codegen function to make executable.
-
-    This function is only used for unit-testing purpoes.
-
-    Use build instead.
-
-    Parameters
-    ----------
-    builder: relax.ExecBuilder
-        Builder used to collect executables.
-
-    target : Union[str, tvm.target.Target]
-        A build target which can have optional host side compilation target.
-
-    tir_mod: IRModule
-        The input TIR IRModule to be linked together.
-
-    ext_libs:  List[tvm.runtime.Module]
-        List of compiled external modules.
-
-    params: Optional[Dict[str, list]]
-        Extra parameter mappings.
-
-    Returns
-    -------
-    ex: tvm.relax.vm.Executable
-        An executable that can be loaded by virtual machine.
-    """
-    if isinstance(target, str):
-        target = tvm.target.Target(target)
-    if params is None:
-        params = {}
-    if ext_libs is None:
-        ext_libs = []
-    lib = None
-    if tir_mod is not None:
-        lib = tvm.build(tir_mod, target=target)
-    return Executable(_ffi_api.VMLink(builder, target, lib, ext_libs, params))  # type: ignore
-
-
-def build(
-    mod: tvm.IRModule,
-    target: Union[str, tvm.target.Target],
-    params: Optional[Dict[str, list]] = None,
-    exec_mode: str = "bytecode",
-) -> Executable:
-    """
-    Build an IRModule to VM executable.
-
-    Parameters
-    ----------
-    mod: IRModule
-        The input IRModule to be built.
-
-    target : Union[str, tvm.target.Target]
-        A build target which can have optional host side compilation target.
-
-        When TVM compiles device specific program such as CUDA,
-        we also need host(CPU) side code to interact with the driver
-        to setup the dimensions and parameters correctly.
-        host is used to specify the host side codegen target.
-        By default, llvm is used if it is enabled,
-        otherwise a stackvm interpreter is used.
-
-    params: Optional[Dict[str, list]]
-        Parameters for the input IRModule that will be bound.
-
-    exec_mode: {"bytecode", "compiled"}
-        The execution mode.
-
-    Returns
-    -------
-    ex: tvm.relax.vm.Executable
-        An executable that can be loaded by virtual machine.
-
-    Example
-    -------
-
-    .. code-block:: python
-        class InputModule:
-            @R.function
-            def foo(x: Tensor((3, 4), "float32"), y: Tensor((3, 4), "float32")):
-                z = R.add(x, y)
-                return z
-
-        mod = InputModule
-        target = tvm.target.Target("llvm", host="llvm")
-        ex = relax.vm.build(mod, target)
-    """
-    if isinstance(target, str):
-        target = tvm.target.Target(target)
-
-    passes = []
-    passes.append(relax.transform.RewriteDataflowReshape())
-    passes.append(relax.transform.ToNonDataflow())
-    passes.append(relax.transform.CallTIRRewrite())
-    passes.append(relax.transform.StaticPlanBlockMemory())
-    passes.append(relax.transform.VMBuiltinLower())
-    passes.append(relax.transform.VMShapeLower())
-    passes.append(relax.transform.AttachGlobalSymbol())
-    seq = tvm.transform.Sequential(passes)
-    new_mod = seq(mod)
-
-    # Extract external runtime modules if exist.
-    attrs = dict(mod.attrs) if mod.attrs else {}
-
-    ext_libs = attrs.get("external_mods", [])
-    constants = attrs.get("const_name_to_constant", {})
-
-    if params is not None:
-        params.update(dict(constants))
-    else:
-        params = constants
-
-    # builder collects the executable
-    builder = relax.ExecBuilder()
-    leftover_mod = _vmcodegen(builder, new_mod, exec_mode=exec_mode)
-    tir_mod = _filter_tir(leftover_mod)
-    return _vmlink(builder, target, tir_mod, ext_libs, params)
-
-
-def _filter_tir(mod: tvm.IRModule) -> tvm.IRModule:
-    tir_mod = IRModule({})
-    for gv in mod.get_global_vars():
-        if isinstance(mod[gv], PrimFunc):
-            tir_mod[gv] = mod[gv]
-    return tir_mod

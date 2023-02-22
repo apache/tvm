@@ -23,7 +23,6 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax, relay
-from tvm.contrib.cutlass.build import finalize_modules_relax
 from tvm.relax.dpl import make_fused_bias_activation_pattern, make_matmul_pattern
 from tvm.script import relax as R
 
@@ -214,7 +213,7 @@ has_cutlass = tvm.get_global_func("relax.ext.cutlass", True)
 
 cutlass_enabled = pytest.mark.skipif(
     not has_cutlass,
-    reason="CUTLASS note enabled.",
+    reason="CUTLASS not enabled.",
 )
 
 pytestmark = [cutlass_enabled]
@@ -231,8 +230,7 @@ def get_result_with_relax_cutlass_offload(mod, patterns: List[Tuple], *args):
     mod = seq(mod)
 
     target = tvm.target.Target("cuda")
-    ex = relax.vm.build(mod, target)
-    ex = finalize_modules_relax(ex)
+    ex = relax.build(mod, target)
 
     dev = tvm.gpu(0)
     vm = relax.VirtualMachine(ex, dev)

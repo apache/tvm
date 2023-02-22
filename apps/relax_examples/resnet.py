@@ -36,7 +36,7 @@ if __name__ == "__main__":
     relax_mod.show()
 
     # build the IRModule and create relax vm
-    ex = relax.vm.build(relax_mod, target)
+    ex = relax.build(relax_mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     # init weights and run the model on relax vm

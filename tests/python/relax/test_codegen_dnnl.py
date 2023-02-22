@@ -88,7 +88,7 @@ def test_dnnl_offload():
     mod = seq(Conv2dReLUx2)
 
     target = tvm.target.Target("llvm")
-    ex = relax.vm.build(mod, target)
+    ex = relax.build(mod, target)
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
     f = vm["main"]

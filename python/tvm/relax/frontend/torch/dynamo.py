@@ -23,7 +23,7 @@ import functools
 from typing import Optional
 
 import tvm
-from tvm.relax.vm import build as relax_build
+from tvm.relax import build as relax_build
 from tvm.relax.frontend.torch.fx_translator import from_fx
 
 
@@ -96,7 +96,7 @@ def relax_dynamo(pipeline: Optional[tvm.transform.Pass] = None):
 
         ex = relax_build(mod, target=target)
 
-        vm = tvm.relax.vm.VirtualMachine(exec=ex.mod, device=dev)
+        vm = tvm.relax.VirtualMachine(ex.mod, device=dev)
 
         def exec_tvm(*i_args):
             args = [a.contiguous() for a in i_args]

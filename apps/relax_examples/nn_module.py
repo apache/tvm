@@ -56,7 +56,7 @@ if __name__ == "__main__":
 
     # build the IRModule and create relax vm
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target)
+    ex = relax.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     # init parameters

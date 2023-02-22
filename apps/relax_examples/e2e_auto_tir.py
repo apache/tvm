@@ -142,7 +142,7 @@ def apply_opt_before_tuning(
 def f_measurement(
     rt_mod: runtime.Module, device: runtime.ndarray.Device, input_data: Dict[str, runtime.NDArray]
 ):
-    vm = relax.vm.VirtualMachine(exec=rt_mod, device=device)
+    vm = relax.VirtualMachine(rt_mod, device=device)
     vm.save_function("main", "measure_func", **input_data, include_return=False)
     evaluator = vm.time_evaluator(
         func_name="measure_func",

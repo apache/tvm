@@ -46,7 +46,7 @@ def test_vm_compile_simple(exec_mode):
 
     mod = TestVMCompileStage0
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target, exec_mode=exec_mode)
     inp1 = tvm.nd.array(np.random.rand(3, 4).astype(np.float32))
     inp2 = tvm.nd.array(np.random.rand(3, 4).astype(np.float32))
     vm = relax.VirtualMachine(ex, tvm.cpu())
@@ -64,7 +64,7 @@ def test_match_check(exec_mode):
 
     mod = TestMatchCheck
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     x0 = tvm.nd.array(np.zeros((1, 2)).astype("int32"))
     y0 = tvm.nd.array(np.zeros((2, 1)).astype("float32"))
@@ -92,7 +92,7 @@ def test_vm_compile_stage2(exec_mode):
 
     mod = TestVMCompileStage2
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     shape = (32, 16)
@@ -127,7 +127,7 @@ def test_vm_compile_stage3(exec_mode):
 
     mod = TestVMCompileStage3
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     shape = (32, 16)
@@ -152,7 +152,7 @@ def test_vm_compile_e2e(exec_mode):
     mod = TestVMCompileE2E
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     shape = (32, 16)
@@ -193,7 +193,7 @@ def test_vm_compile_e2e_func_param_with_shape(exec_mode):
     mod = TestVMCompileE2E2
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     data = tvm.nd.array(np.random.rand(32, 16).astype(np.float32))
@@ -220,7 +220,7 @@ def test_vm_emit_te_extern(exec_mode):
     mod = bb.get()
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     data = tvm.nd.array(np.random.rand(16, 32).astype(np.float32))
@@ -249,7 +249,7 @@ def test_vm_emit_te_concat(exec_mode):
     mod = bb.get()
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target, exec_mode=exec_mode)
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
     inp = tvm.nd.array(
@@ -288,7 +288,7 @@ def test_vm_emit_te_dtype_change(exec_mode):
     new_mod = relax.transform.CallTIRRewrite()(mod)
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target, exec_mode=exec_mode)
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
     inp = tvm.nd.array(
@@ -317,7 +317,7 @@ def test_vm_emit_te_floor_symbolic_shape(exec_mode):
     mod = bb.get()
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target, exec_mode=exec_mode)
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
     shape = (9,)
@@ -346,7 +346,7 @@ def test_vm_emit_te_constant_param_cpu(exec_mode):
         bb.emit_func_output(gv)
 
     mod = bb.get()
-    exec = relax.vm.build(mod, "llvm", exec_mode=exec_mode)
+    exec = relax.build(mod, "llvm", exec_mode=exec_mode)
     dev = tvm.cpu()
     vm = relax.VirtualMachine(exec, dev)
 
@@ -374,7 +374,7 @@ def test_vm_emit_te_constant_param_gpu(exec_mode):
     loops = sch.get_loops(sch.get_block(name="T_add", func_name="add"))
     sch.bind(loops[0], "threadIdx.x")
 
-    exec = relax.vm.build(sch.mod, "cuda", exec_mode=exec_mode)
+    exec = relax.build(sch.mod, "cuda", exec_mode=exec_mode)
     dev = tvm.cuda()
     vm = relax.VirtualMachine(exec, dev)
 
@@ -400,7 +400,7 @@ def test_vm_relax_symbolic_shape(exec_mode):
     mod = bb.get()
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target, exec_mode=exec_mode)
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
     shape1 = (5,)
@@ -435,14 +435,10 @@ def test_vm_relax_dyn_tir_shape(exec_mode):
     mod = bb.get()
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target, exec_mode=exec_mode)
 
-    ex.mod.export_library("exec.so")
-    exec1 = relax.vm.Executable(tvm.runtime.load_module("exec.so"))
-    os.remove("exec.so")
-    assert ex.as_text() == exec1.as_text()
-
-    vm = relax.VirtualMachine(ex, tvm.cpu())
+    ex.export_library("exec.so")
+    vm = relax.VirtualMachine(tvm.runtime.load_module("exec.so"), tvm.cpu())
     inp = tvm.nd.array(np.random.rand(2).astype(np.float32))
     inp2 = tvm.nd.array(np.random.rand(3).astype(np.float32))
 
@@ -466,7 +462,7 @@ def test_vm_tuple(exec_mode):
     mod = bb.get()
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target, exec_mode=exec_mode)
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
     shape = (5,)
@@ -496,7 +492,7 @@ def test_vm_tuplegetitem(exec_mode):
 
     mod = TestVMTupleGetItem
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     x_inp = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
     y_inp = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
@@ -526,7 +522,7 @@ def test_lower_memory_alloc_storage_tensor(exec_mode):
 
     mod = TestMemoryAllocStorageTensor
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     x = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
     y = vm["main"](x)
@@ -577,7 +573,7 @@ def test_sub_func_call(exec_mode):
             return gv1
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(TestVMSubFunction, target, exec_mode=exec_mode)
+    ex = relax.build(TestVMSubFunction, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     x_inp = tvm.nd.array(np.random.rand(32, 32).astype(np.float32))
     y_inp = tvm.nd.array(np.random.rand(32, 32).astype(np.float32))
@@ -609,7 +605,7 @@ def test_recursion(exec_mode):
             return res
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(TestVMRecursion, target, exec_mode=exec_mode)
+    ex = relax.build(TestVMRecursion, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     inp = np.empty(1).astype("float32")
@@ -639,7 +635,7 @@ def test_vm_closure(exec_mode):
 
     mod = TestClosure
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     x_inp = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
     y_inp = tvm.nd.array(np.array([[3.1, 4.0, 5.0], [6.0, 7.1, 9.0]], dtype="float32"))
@@ -658,7 +654,7 @@ def test_time_evaluator(exec_mode):
             )
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(TestTimeEvaluator, target, exec_mode=exec_mode)
+    ex = relax.build(TestTimeEvaluator, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     x = tvm.nd.array(np.random.rand(1).astype("float32"))
     y = tvm.nd.array(np.random.rand(1).astype("float32"))
@@ -780,9 +776,9 @@ def set_input_attempt_get(vm: relax.VirtualMachine, device: tvm.runtime.Device) 
 def make_vm(mod, exec_mode) -> Tuple[relax.VirtualMachine, tvm.runtime.Device]:
     """Returns a local VM for the given mod and the device"""
     target = tvm.target.Target("llvm", host="llvm")
-    exec = relax.vm.build(TestVMSetInput, target, exec_mode=exec_mode)
-    exec.mod.export_library("exec.so")
-    exec_loaded = relax.vm.Executable(tvm.runtime.load_module("exec.so"))
+    exec = relax.build(TestVMSetInput, target, exec_mode=exec_mode)
+    exec.export_library("exec.so")
+    exec_loaded = tvm.runtime.load_module("exec.so")
     os.remove("exec.so")
     device = tvm.cpu()
     return relax.VirtualMachine(exec_loaded, device), device
@@ -798,10 +794,10 @@ def run_on_rpc(
     The trial function should take a VM and a device
     """
     target = tvm.target.Target("llvm", host="llvm")
-    exec = relax.vm.build(mod, target, exec_mode=exec_mode)
+    exec = relax.build(mod, target, exec_mode=exec_mode)
     temp = utils.tempdir()
     path = temp.relpath("vm_library.so")
-    exec.mod.export_library(path)
+    exec.export_library(path)
 
     # Use local rpc server for testing.
     # Server must use popen so it doesn't inherit the current process state. It
@@ -817,7 +813,7 @@ def run_on_rpc(
 
         device = remote.cpu()
         # Build a VM out of the executable and context.
-        vm = relax.vm.VirtualMachine(exec=rexec, device=device)
+        vm = relax.VirtualMachine(rexec, device=device)
         trial_func(vm, device)
 
     check_remote(rpc.Server("127.0.0.1"))
