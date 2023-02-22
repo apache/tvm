@@ -43,7 +43,7 @@ class TensorIntrinMismatchError : public ScheduleError {
     std::ostringstream os;
     os << "The stmt {0} doesn't match the tensor intrin\nThe pattern attempting to be matched:\n"
        << lhs_stmt_ << "\nDoes not match the tensorize description:\n"
-       << rhs_stmt_;
+       << rhs_stmt_ << '\n';
     for (const auto& msg : error_messages_) {
       os << msg << std::endl;
     }
@@ -173,6 +173,9 @@ bool TensorizeComparator::VisitStmt_(const BlockRealizeNode* op, const Stmt& oth
 
 bool TensorizeComparator::VisitStmt_(const BlockNode* op, const Stmt& other) {
   const auto* rhs = other.as<BlockNode>();
+  for (const IterVar& iter : op->iter_vars) {
+    lhs_analyzer_.Bind(iter->var, iter->dom);
+  }
   // Check block equality.
   // All iter vars and buffer regions including the order should match.
   // When checking iter vars, DefEqual is used to remap variables.
@@ -313,7 +316,7 @@ bool TensorizeComparator::DefEqual(const Var& lhs, const Var& rhs) {
   equal_map_[lhs] = rhs;
   // Cast if necessary. This allows the workload and the tensor intrin to have different dtypes in
   // the indices.
-  analyzer_.Bind(lhs, cast(lhs.dtype(), rhs));
+  analyzer_.Bind(lhs, cast(lhs.dtype(), rhs), /*allow_override=*/true);
   return true;
 }
 
@@ -433,7 +436,7 @@ bool TensorizeComparator::CompareBufferRegion(const BufferRegion& lhs, const Buf
         }
         return false;
       }
-      indices_base.emplace_back(lhs->region[i]->min);
+      indices_base.emplace_back(lhs_analyzer_.Simplify(lhs->region[i]->min));
     }
     for (size_t i = 0; i < rhs->region.size(); i++) {
       // save base index
@@ -465,12 +468,15 @@ bool TensorizeComparator::CompareBufferRegion(const BufferRegion& lhs, const Buf
         }
         return false;
       }
-      if (!analyzer_.CanProveEqual(indices_base[i], lhs->region[i]->min)) {
+      if (!lhs_analyzer_.CanProveEqual(indices_base[i], lhs->region[i]->min)) {
         if (assert_mode_) {
           std::ostringstream os;
           os << "Buffer base index consistency check failed due to unequal index base: "
                 "indices_base[i]="
              << indices_base[i] << " vs lhs->region[i]->min=" << lhs->region[i]->min;
+          os << "\ni=" << i << ", offset=" << offset << ", lhs->region.qsize()="
+             << lhs->region.size() << ", rhs->region.size()=" << rhs->region.size() << lhs->region << rhs->region;
+          os << "\nTrying simplify: " << analyzer_.Simplify(lhs->region[i]->min);
           EmitError(os.str());
         }
         return false;
@@ -487,7 +493,7 @@ bool TensorizeComparator::CompareBufferRegion(const BufferRegion& lhs, const Buf
         }
         return false;
       }
-      PrimExpr normalized_lhs_min = (lhs->region[i + offset]->min - indices_base[i + offset]);
+      PrimExpr normalized_lhs_min = lhs_analyzer_.Simplify((lhs->region[i + offset]->min - indices_base[i + offset]));
       if (!analyzer_.CanProveEqual(normalized_lhs_min, rhs->region[i]->min)) {
         if (assert_mode_) {
           std::ostringstream os;
