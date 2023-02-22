@@ -356,5 +356,32 @@ def test_multiple_bufer_stores_fallback():
     assert new_mod["cumsum"].attrs["op_pattern"] == OpPatternKind.kOpaque
 
 
+def test_sum_sqsum():
+    @tvm.script.ir_module
+    class Module:
+        @T.prim_func
+        def sum_sqsum(
+            A: T.Buffer((32, 64), "float32"),
+            vsum: T.Buffer((32,), "float32"),
+            sqsum: T.Buffer((32,), "float32"),
+        ):
+            for ax0, k0 in T.grid(32, 64):
+                with T.block("block"):
+                    v_ax0, v_k0 = T.axis.remap("SR", [ax0, k0])
+                    T.reads(A[v_ax0, v_k0])
+                    T.writes(vsum[v_ax0], sqsum[v_ax0])
+                    with T.init():
+                        vsum[v_ax0] = T.float32(0)
+                        sqsum[v_ax0] = T.float32(0)
+                    v_vsum: T.float32 = vsum[v_ax0] + A[v_ax0, v_k0]
+                    v_sqsum: T.float32 = sqsum[v_ax0] + A[v_ax0, v_k0] * A[v_ax0, v_k0]
+                    vsum[v_ax0] = v_vsum
+                    sqsum[v_ax0] = v_sqsum
+
+    mod = Module
+    new_mod = relax.transform.AnnotateTIROpPattern()(mod)
+    assert new_mod["sum_sqsum"].attrs["op_pattern"] == OpPatternKind.kCommReduce
+
+
 if __name__ == "__main__":
     tvm.testing.main()
