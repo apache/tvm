@@ -116,6 +116,12 @@ class IRModuleNode : public Object {
   }
 
   /*!
+   * \brief Get the metadata attributes.
+   * \returns The additional meta-data attributes
+   */
+  DictAttrs GetAttrs() const { return attrs; }
+
+  /*!
    * \brief Check whether the module has an non-zero integer attr.
    *
    * This function can be used to check whether an optional
