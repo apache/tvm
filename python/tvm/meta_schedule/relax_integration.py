@@ -317,7 +317,7 @@ def compile_relax(
     mod: IRModule,
     target: Union[Target, str],
     params: Optional[Dict[str, NDArray]],
-) -> "relax.vm.Executable":
+) -> "relax.Executable":
     """Compile a relax program with a MetaSchedule database.
 
     Parameters
@@ -333,12 +333,12 @@ def compile_relax(
 
     Returns
     -------
-    lib : relax.vm.Executable
+    lib : relax.Executable
         The built runtime module or vm Executable for the given relax workload.
     """
     # pylint: disable=import-outside-toplevel
     from tvm.relax.transform import BindParams, MetaScheduleApplyDatabase
-    from tvm.relax.vm import build as relax_build
+    from tvm.relax import build as relax_build
 
     # pylint: enable=import-outside-toplevel
     if not isinstance(target, Target):

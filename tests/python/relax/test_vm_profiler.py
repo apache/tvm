@@ -47,7 +47,7 @@ def get_exec(data_shape):
     mod = relax.transform.BindParams("main", params)(mod)
 
     target = "llvm"
-    return relax.vm.build(mod, target)
+    return relax.build(mod, target)
 
 
 def test_conv2d_cpu():
@@ -65,7 +65,7 @@ def test_conv2d_cpu():
 def with_rpc(ex, f, data_np):
     temp = utils.tempdir()
     path = temp.relpath("vm_library.so")
-    ex.mod.export_library(path)
+    ex.export_library(path)
 
     server = rpc.Server("127.0.0.1")
     remote = rpc.connect(server.host, server.port, session_timeout=10)
@@ -75,7 +75,7 @@ def with_rpc(ex, f, data_np):
 
     device = remote.cpu()
 
-    vm = relax.vm.VirtualMachine(exec=rexec, device=device, profile=True)
+    vm = relax.VirtualMachine(rexec, device=device, profile=True)
     data = tvm.nd.array(data_np, device)
 
     f(vm, data)
@@ -115,7 +115,7 @@ def test_tuple():
             return ((x, (x,)), x)
 
     target = "llvm"
-    ex = relax.vm.build(NestedTuple, target)
+    ex = relax.build(NestedTuple, target)
 
     data_np = np.random.randn(16).astype("float32")
 

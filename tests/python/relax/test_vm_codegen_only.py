@@ -33,8 +33,8 @@ EXEC_MODE = ["bytecode", "compiled"]
 
 def codegen(mod, target, exec_mode="bytecode"):
     builder = relax.ExecBuilder()
-    tir_mod = relax.vm._vmcodegen(builder, mod, exec_mode=exec_mode)
-    return relax.vm._vmlink(builder, target, tir_mod)
+    tir_mod = relax.vm_build._vmcodegen(builder, mod, exec_mode=exec_mode)
+    return relax.vm_build._vmlink(builder, target, tir_mod)
 
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
@@ -95,10 +95,10 @@ def test_vm_exec_serialize_export_library(exec_mode):
 
     temp_dir = utils.tempdir()
     path_exec = temp_dir.relpath("exec.so")
-    ex.mod.export_library(path_exec)
+    ex.export_library(path_exec)
 
-    loaded_exec = relax.vm.Executable(tvm.runtime.load_module(path_exec))
-    assert ex.as_text() == loaded_exec.as_text()
+    loaded_exec = tvm.runtime.load_module(path_exec)
+    assert ex.as_text() == loaded_exec["as_text"]()
 
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
