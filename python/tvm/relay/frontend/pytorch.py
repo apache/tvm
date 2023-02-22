@@ -2684,6 +2684,57 @@ class PyTorchOpConverter:
         src = inputs[3]
         return _op.scatter_add(data, index, src, axis=axis)
 
+    def scatter_reduce(self, inputs, input_types):
+        assert len(inputs) == 5 or len(inputs) == 6, (
+            "scatter_reduce takes 5 or 6 inputs (data, dim, index, src, reduce, include_self), "
+            + "but {} given".format(len(inputs))
+        )
+        data = inputs[0]
+        dim = inputs[1]
+        index = inputs[2]
+        src = inputs[3]
+        reduce = inputs[4]
+        if len(inputs) == 6:
+            include_self = inputs[5]
+            # TODO(vvchernov): support include_self == False
+            assert include_self, "include_self=False has not been suppoted for scatter_reduce yet"
+
+        data_shape = self.infer_shape(inputs[0])
+        data_rank = len(data_shape)
+        index_shape = self.infer_shape(inputs[2])
+        index_rank = len(index_shape)
+        src_shape = self.infer_shape(inputs[3])
+        src_rank = len(src_shape)
+        assert data_rank == index_rank, "Index rank is not the same as data rank"
+        assert data_rank == src_rank, "Src rank is not the same as data rank"
+
+        assert 0 <= dim < data_rank, "Dim is out of bounds"
+
+        for i in range(data_rank):
+            assert index_shape[i] <= src_shape[i], "Index dim size should be less than src one"
+            if i != dim:
+                assert (
+                    index_shape[i] <= data_shape[i]
+                ), "Index dim size should be less than data one"
+
+        red_valids = ["sum", "prod", "mean", "amax", "amin"]
+        assert reduce in red_valids, "Only {} modes are supported, but {} is gotten".format(
+            red_valids, reduce
+        )
+        if reduce == "sum":
+            reduce = "add"
+        elif reduce == "prod":
+            reduce = "mul"
+        elif reduce == "amin":
+            reduce = "min"
+        elif reduce == "amax":
+            reduce = "max"
+        else:  # reduce == "mean"
+            # TODO(vvchernov): support mean reduction
+            raise NotImplementedError("Mean reduction has not been supported yet!")
+
+        return _op.scatter_elements(data, index, src, axis=dim, reduction=reduce)
+
     def cumsum(self, inputs, input_types):
         data = inputs[0]
         dim = inputs[1]
@@ -3785,6 +3836,8 @@ class PyTorchOpConverter:
             "aten::nonzero": self.nonzero,
             "aten::nonzero_numpy": self.nonzero_numpy,
             "aten::scatter": self.scatter,
+            "aten::scatter_add": self.scatter_add,
+            "aten::scatter_reduce": self.scatter_reduce,
             "aten::index_put": self.index_put,
             "aten::scalar_tensor": self.scalar_tensor,
             "aten::__interpolate": self.interpolate,
@@ -3796,7 +3849,6 @@ class PyTorchOpConverter:
             "aten::new_empty": self.new_empty,
             "aten::randn": self.randn,
             "aten::bincount": self.bincount,
-            "aten::scatter_add": self.scatter_add,
             "aten::__not__": self.logical_not,
             "aten::hardswish": self.hard_swish,
             "aten::hardsigmoid": self.hard_sigmoid,
