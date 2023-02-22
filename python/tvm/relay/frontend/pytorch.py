@@ -2577,7 +2577,7 @@ class PyTorchOpConverter:
         assert dim1 < data_rank, "dim1 is outof bounds"
         assert dim2 < data_rank, "dim2 is outof bounds"
         # TODO(vvchernov): reverse case is not clearly described in pytorch
-        assert dim1 < dim2, "first dimension less than second one is supported only"
+        assert dim1 < dim2, "First dimension less than second one is supported only"
 
         dim1_size = data_shape[dim1]
         dim2_size = data_shape[dim2]
@@ -2597,11 +2597,13 @@ class PyTorchOpConverter:
                 ), "Source is stack of diagonals with shape corresponding input tensor"
                 src_dim += 1
         src_diag_len = src_shape[src_rank - 1]
-        if not any([
-            isinstance(dim1_size, tvm.tir.Any),
-            isinstance(dim2_size, tvm.tir.Any),
-            isinstance(src_diag_len, tvm.tir.Any)
-        ]):
+        if not any(
+            [
+                isinstance(dim1_size, tvm.tir.Any),
+                isinstance(dim2_size, tvm.tir.Any),
+                isinstance(src_diag_len, tvm.tir.Any)
+            ]
+        ):
             min_dim = min(dim1_size, dim2_size)
             delta = dim2_size - dim1_size
             calc_diag_len = min_dim

@@ -109,26 +109,31 @@ def diagonal_scatter(data, src, offset=0, dim1=0, dim2=1):
         # Prepare ranges and strides
         shape = data.shape
 
-        axis_range = shape[dim1]
-        cut_data_range = 1
+        axis1_range = shape[dim1]
+        axis2_range = shape[dim2]
+        data_range = 1
         mid_tail_stride = 1
         stride2 = 1
         for i, value in enumerate(shape, 0):
-            if i not in (dim1, dim2):
-                cut_data_range *= value
+            data_range *= value
             if i > dim1 and i != dim2:
                 mid_tail_stride *= value
             if i > dim2:
                 stride2 *= value
-        stride1 = axis_range * mid_tail_stride
-        istride = axis_range * stride1
-        jstride = axis_range * stride2
+        stride1 = axis2_range * mid_tail_stride
+        istride = axis1_range * stride1
+        jstride = axis2_range * stride2
         mstride = stride1 + stride2
-        data_range = cut_data_range * axis_range * axis_range
 
-        src_range = 1
+        src_shape = src.shape
+        src_rank = len(src_shape)
+        src_range_wo_diag = 1
+        src_diag_len = 1
         for i, value in enumerate(src.shape, 0):
-            src_range *= value
+            if i != (src_rank - 1):
+                src_range_wo_diag *= value
+            else:
+                src_diag_len = value
 
         base_offset = 0
         if offset >= 0:
@@ -150,20 +155,21 @@ def diagonal_scatter(data, src, offset=0, dim1=0, dim2=1):
                 out_ptr[index] = data_ptr[index]
 
         with ib.new_scope():
-            num_blocks_1 = ceil_div(cut_data_range, max_threads)
+            num_blocks_1 = ceil_div(src_range_wo_diag, max_threads)
             bx1 = te.thread_axis("blockIdx.x")
             tx1 = te.thread_axis("threadIdx.x")
             ib.scope_attr(bx1, "thread_extent", num_blocks_1)
             ib.scope_attr(tx1, "thread_extent", max_threads)
 
             index1 = bx1 * max_threads + tx1
-            with ib.if_scope(index1 < cut_data_range):
+            with ib.if_scope(index1 < src_range_wo_diag):
                 i = index1 // mid_tail_stride
                 j = index1 // stride2
                 k = index1 % stride2
                 out_preindex = base_offset + i * istride + j * jstride + k
-                with ib.for_range(0, src_range, "m") as m:
-                    out_ptr[out_preindex + m * mstride] = src_ptr[m]
+                src_preindex = index1 * src_diag_len
+                with ib.for_range(0, src_diag_len, "m") as m:
+                    out_ptr[out_preindex + m * mstride] = src_ptr[src_preindex + m]
 
         return ib.get()
 
@@ -180,10 +186,7 @@ def diagonal_scatter(data, src, offset=0, dim1=0, dim2=1):
     assert 0 <= dim1 < rank, "First given dimension is out of bounds"
     assert 0 <= dim2 < rank, "Second given dimension is out of bounds"
     # Check some statements for using by gen_ir without check
-    assert dim1 != dim2, "Given dimensions should not be the same"
-    assert shape[dim1] == shape[dim2], "The slice for diagonal is assumed square"
-    if dim1 > dim2:
-        dim1, dim2 = dim2, dim1
+    assert dim1 < dim2, "First dimension less than second one is supported only"
 
     gen_diagonal_scatter_ir = None
     if rank == 2:
