@@ -16,7 +16,7 @@
 // under the License.
 {% include "utils/base.groovy.j2" with context %}
 {% import 'utils/macros.j2' as m with context -%}
-
+return;
 def ecr_push(full_name) {
   aws_account_id = sh(
     returnStdout: true,

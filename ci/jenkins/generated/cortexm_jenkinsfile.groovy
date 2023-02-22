@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-02-02T20:12:16.614676
+// Generated at 2023-02-23T10:17:05.005251
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -636,16 +636,7 @@ def shard_run_test_Cortex_M_2_of_12() {
               'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
-                  label: 'Download artifacts from S3',
-                )
-
-              ci_setup(ci_cortexm)
-              sh (
-                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
-                label: 'Run microTVM tests',
-              )
+              
             })
           }
         } finally {
@@ -681,16 +672,7 @@ def shard_run_test_Cortex_M_3_of_12() {
               'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=2',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
-                  label: 'Download artifacts from S3',
-                )
-
-              ci_setup(ci_cortexm)
-              sh (
-                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
-                label: 'Run microTVM tests',
-              )
+              
             })
           }
         } finally {
@@ -726,16 +708,7 @@ def shard_run_test_Cortex_M_4_of_12() {
               'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=3',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
-                  label: 'Download artifacts from S3',
-                )
-
-              ci_setup(ci_cortexm)
-              sh (
-                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
-                label: 'Run microTVM tests',
-              )
+              
             })
           }
         } finally {
@@ -771,16 +744,7 @@ def shard_run_test_Cortex_M_5_of_12() {
               'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=4',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
-                  label: 'Download artifacts from S3',
-                )
-
-              ci_setup(ci_cortexm)
-              sh (
-                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
-                label: 'Run microTVM tests',
-              )
+              
             })
           }
         } finally {
@@ -816,16 +780,7 @@ def shard_run_test_Cortex_M_6_of_12() {
               'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=5',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
-                  label: 'Download artifacts from S3',
-                )
-
-              ci_setup(ci_cortexm)
-              sh (
-                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
-                label: 'Run microTVM tests',
-              )
+              
             })
           }
         } finally {
@@ -861,16 +816,7 @@ def shard_run_test_Cortex_M_7_of_12() {
               'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=6',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
-                  label: 'Download artifacts from S3',
-                )
-
-              ci_setup(ci_cortexm)
-              sh (
-                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
-                label: 'Run microTVM tests',
-              )
+              
             })
           }
         } finally {
@@ -906,16 +852,7 @@ def shard_run_test_Cortex_M_8_of_12() {
               'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=7',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
-                  label: 'Download artifacts from S3',
-                )
-
-              ci_setup(ci_cortexm)
-              sh (
-                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
-                label: 'Run microTVM tests',
-              )
+              
             })
           }
         } finally {
@@ -951,16 +888,7 @@ def shard_run_test_Cortex_M_9_of_12() {
               'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=8',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
-                  label: 'Download artifacts from S3',
-                )
-
-              ci_setup(ci_cortexm)
-              sh (
-                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
-                label: 'Run microTVM tests',
-              )
+              
             })
           }
         } finally {
@@ -996,16 +924,7 @@ def shard_run_test_Cortex_M_10_of_12() {
               'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=9',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
-                  label: 'Download artifacts from S3',
-                )
-
-              ci_setup(ci_cortexm)
-              sh (
-                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
-                label: 'Run microTVM tests',
-              )
+              
             })
           }
         } finally {
@@ -1041,16 +960,7 @@ def shard_run_test_Cortex_M_11_of_12() {
               'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=10',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
-                  label: 'Download artifacts from S3',
-                )
-
-              ci_setup(ci_cortexm)
-              sh (
-                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
-                label: 'Run microTVM tests',
-              )
+              
             })
           }
         } finally {
@@ -1086,16 +996,7 @@ def shard_run_test_Cortex_M_12_of_12() {
               'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=11',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
-                  label: 'Download artifacts from S3',
-                )
-
-              ci_setup(ci_cortexm)
-              sh (
-                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
-                label: 'Run microTVM tests',
-              )
+              
             })
           }
         } finally {

@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,19 +15,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+set -euxo pipefail
 
-: '
-.. _tutorial-micro-cli-tool:
+# .. _tutorial-micro-cli-tool:
+# 
+# 1. microTVM CLI Tool
+# ====================
+# **Author**: `Mehrdad Hessar <https://github.com/mehrdadh>`_
+# 
+# This tutorial explains how to compile a tiny model for a micro device,
+# build a program on Zephyr platform to execute this model, flash the program
+# and run the model all using `tvmc micro` command.
+# You need to install python and Zephyr dependencies before processing with this tutorial.
 
-1. microTVM CLI Tool
-====================
-**Author**: `Mehrdad Hessar <https://github.com/mehrdadh>`_
-
-This tutorial explains how to compile a tiny model for a micro device,
-build a program on Zephyr platform to execute this model, flash the program
-and run the model all using `tvmc micro` command.
-You need to install python and Zephyr dependencies before processing with this tutorial.
-'
 
 ######################################################################
 #
