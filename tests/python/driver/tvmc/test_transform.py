@@ -20,7 +20,7 @@ from unittest.mock import MagicMock
 import tvm
 from tvm import relay
 from tvm.ir.instrument import pass_instrument
-from tvm.driver.tvmc.transform import convert_graph_layout
+from tvm.driver.tvmc.transform import apply_graph_transforms
 
 
 def test_layout_transform_fold_constant(relay_conv2d):
@@ -39,7 +39,7 @@ def test_layout_transform_fold_constant(relay_conv2d):
 
     pass_names = CollectPassNames()
     with tvm.transform.PassContext(opt_level=3, instruments=[pass_names]):
-        convert_graph_layout(relay_conv2d, desired_layout)
+        apply_graph_transforms(relay_conv2d, {"desired_layout": desired_layout})
 
     names = pass_names.names
     assert "ConvertLayout" in names
@@ -59,7 +59,7 @@ def test_layout_transform_convert_layout_pass_args(relay_conv2d, monkeypatch):
     monkeypatch.setattr(relay.transform, "ConvertLayout", mock_convert_layout)
 
     with tvm.transform.PassContext(opt_level=3):
-        convert_graph_layout(relay_conv2d, desired_layout)
+        apply_graph_transforms(relay_conv2d, {"desired_layout": desired_layout})
 
     mock_convert_layout.assert_called_once_with(
         {
@@ -68,6 +68,56 @@ def test_layout_transform_convert_layout_pass_args(relay_conv2d, monkeypatch):
             "qnn.conv2d": ["NHWC", "default"],
         }
     )
+
+
+def test_layout_transform_to_mixed_precision_pass_args(relay_conv2d, monkeypatch):
+    """
+    Check the mixed precision arugments which are expected when
+    mixed precision arguments are provided.
+    """
+    mock_mixed_precision = MagicMock()
+    mock_mixed_precision.return_value = tvm.driver.tvmc.transform.MixedPrecision([])
+    monkeypatch.setattr(tvm.driver.tvmc.transform, "MixedPrecision", mock_mixed_precision)
+
+    with tvm.transform.PassContext(opt_level=3):
+        apply_graph_transforms(
+            relay_conv2d,
+            {
+                "mixed_precision": True,
+            },
+        )
+        mock_mixed_precision.assert_called_with(["nn.conv2d", "nn.dense"])
+
+        apply_graph_transforms(
+            relay_conv2d,
+            {
+                "mixed_precision": True,
+                "mixed_precision_ops": "nn.conv2d",
+            },
+        )
+        mock_mixed_precision.assert_called_with(["nn.conv2d"])
+
+        apply_graph_transforms(
+            relay_conv2d,
+            {
+                "mixed_precision": True,
+                "mixed_precision_ops": "nn.conv2d,nn.dense",
+                "mixed_precision_input": "float16",
+                "mixed_precision_output": "float16",
+            },
+        )
+        mock_mixed_precision.assert_called_with(["nn.conv2d", "nn.dense"])
+
+        apply_graph_transforms(
+            relay_conv2d,
+            {
+                "mixed_precision": True,
+                "mixed_precision_ops": "nn.conv2d,nn.dense",
+                "mixed_precision_input": "float16",
+                "mixed_precision_output": "float32",
+            },
+        )
+        mock_mixed_precision.assert_called_with(["nn.conv2d", "nn.dense"])
 
 
 if __name__ == "__main__":
