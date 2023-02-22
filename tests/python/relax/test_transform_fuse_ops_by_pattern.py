@@ -385,6 +385,37 @@ class Conv2dx2_partitioned:
         return gv1
 
 
+@tvm.script.ir_module
+class AddWithSameOperands:
+    @R.function
+    def main(
+        data: R.Tensor((1, 64, 56, 56), "float32"),
+    ):
+        with R.dataflow():
+            out = R.add(data, data)
+            R.output(out)
+
+        return out
+
+
+@tvm.script.ir_module
+class AddWithSameOperands_partitioned:
+    @R.function
+    def fused_relax_add(data: R.Tensor((1, 64, 56, 56), dtype="float32"), data_1: R.Tensor((1, 64, 56, 56), dtype="float32")) -> R.Tensor((1, 64, 56, 56), dtype="float32"):
+        R.func_attr({"Composite": "tensorrt.add", "Primitive": 1})
+        with R.dataflow():
+            gv: R.Tensor((1, 64, 56, 56), dtype="float32") = R.add(data, data)
+            R.output(gv)
+        return gv
+
+    @R.function
+    def main(data: R.Tensor((1, 64, 56, 56), dtype="float32")) -> R.Tensor((1, 64, 56, 56), dtype="float32"):
+        with R.dataflow():
+            gv: R.Tensor((1, 64, 56, 56), dtype="float32") = fused_relax_add(data, data)
+            R.output(gv)
+        return gv
+
+
 conv2d_pat = make_fused_bias_activation_pattern("relax.nn.conv2d", activation=None)
 conv2d_relu_pat = make_fused_bias_activation_pattern("relax.nn.conv2d", activation="relax.nn.relu")
 
@@ -458,6 +489,11 @@ def test_annotate_codegen():
 def test_multiple_calls_same_extern():
     pat = make_fused_bias_activation_pattern("relax.nn.conv2d", with_bias=False, activation=None)
     check(Conv2dx2, [("cutlass.conv2d", pat)], Conv2dx2_partitioned, annoatate_codegen=True)
+
+
+def test_dup_params_preserve():
+    add_pat = is_op("relax.add")(wildcard(), wildcard())
+    check(AddWithSameOperands, [("tensorrt.add", add_pat)], AddWithSameOperands_partitioned)
 
 
 if __name__ == "__main__":

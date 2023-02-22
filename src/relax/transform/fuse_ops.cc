@@ -379,9 +379,7 @@ class FunctionCreator : public ExprMutator {
           name_hint_ = name_hint_ + "_" + Downcast<GlobalVar>(call->args[0])->name_hint;
 
           const Tuple& args = Downcast<Tuple>(call->args[1]);
-          for (const Expr& arg : args->fields) {
-            CheckDefAndUpdateParam(arg);
-          }
+          CheckDefAndUpdateParams(args->fields);
           // TODO(tvm-team): handle shape expr
         } else {
           if (call->op->IsInstance<OpNode>()) {
@@ -395,9 +393,7 @@ class FunctionCreator : public ExprMutator {
             }
           }
 
-          for (const Expr& arg : call->args) {
-            CheckDefAndUpdateParam(arg);
-          }
+          CheckDefAndUpdateParams(call->args);
         }
       } else {
         const auto* tuple_item = var_binding->value.as<TupleGetItemNode>();
@@ -491,12 +487,14 @@ class FunctionCreator : public ExprMutator {
   /*!
    * \brief Check whether the input expression is defined within this function. If not, create a new
    * parameter for the expression.
+   * \param dedup_params Whether or not to deduplicate a parameter that is already in arguments_.
    * \param expr The expression to be checked
+   * \return true if the input expression is added as a parameter of a grouped function.
    */
-  void CheckDefAndUpdateParam(const Expr& expr) {
+  bool CheckDefAndUpdateParam(const Expr& expr, bool dedup_params = true) {
     // If the expression has already served as an argument, no need to create another one for it.
-    if (std::find(arguments_.begin(), arguments_.end(), expr) != arguments_.end()) {
-      return;
+    if (dedup_params && std::find(arguments_.begin(), arguments_.end(), expr) != arguments_.end()) {
+      return false;
     }
 
     // If the expression is not a variable or is a undefined variable, it should be populated as a
@@ -514,6 +512,25 @@ class FunctionCreator : public ExprMutator {
       Var param(std::move(name), GetStructInfo(expr));
       arguments_.push_back(expr);
       params_.push_back(param);
+      return true;
+    }
+    return false;
+  }
+
+  /*!
+   * \brief Apply CheckDefAndUpdateParam to each expression in the array, allowing
+   * duplicated parameters in the same call arguments to appear as distinct
+   * parameters in a grouped function.
+   */
+  void CheckDefAndUpdateParams(const Array<Expr>& args) {
+    std::unordered_set<const Object*> added_params;
+    for (auto arg : args) {
+      if (auto it = std::find(arguments_.begin(), arguments_.end(), arg);
+          it == arguments_.end() || added_params.count(arg.get())) {
+        if (CheckDefAndUpdateParam(arg, /*dedup_params*/ false)) {
+          added_params.insert(arg.get());
+        }
+      }
     }
   }
 
