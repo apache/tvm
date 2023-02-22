@@ -114,7 +114,9 @@ def test_closure():
             x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")
         ) -> R.Tensor((2, 3), "float32"):
             @R.function
-            def outer_func(c1: R.Tensor((2, 3), "float32")):
+            def outer_func(
+                c1: R.Tensor((2, 3), "float32")
+            ) -> R.Callable((R.Tensor((2, 3), "float32"),), R.Tensor((2, 3), "float32")):
                 @R.function
                 def inner_func(x1: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
                     s: R.Tensor((2, 3), "float32") = R.add(x1, c1)
@@ -133,7 +135,6 @@ def test_closure():
     _check_save_roundtrip(after)
 
 
-@pytest.mark.skip(reason="Need fix after parser switch over")
 def test_recursive():
     # the expected IRModule
     @tvm.script.ir_module
@@ -149,18 +150,19 @@ def test_recursive():
             if cond:
                 new_i: R.Tensor((), "int32") = R.add(i, c)
                 new_s: R.Tensor((2, 3), "float32") = R.add(s, x)
-                r = lifted_func_0(new_i, new_s, x)
+                new_r = lifted_func_0(new_i, new_s, x)
+                r = new_r
             else:
                 r = s
             return r
 
         @R.function
-        def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor:
+        def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), dtype="float32"):
             while_loop = R.make_closure(lifted_func_0, (x,))
-            gv = R.invoke_closure(
+            gv: R.Tensor((2, 3), dtype="float32") = R.invoke_closure(
                 while_loop,
-                (relax.const(0), x),
-                sinfo_args=(R.Tensor(ndim=2, dtype="float32")),
+                (R.const(0), x),
+                sinfo_args=(R.Tensor((2, 3), dtype="float32")),
             )
             return gv
 
@@ -185,11 +187,14 @@ def test_recursive():
                     r: R.Tensor((2, 3), "float32") = s
                 return r
 
-            gv: R.Tensor((2, 3), "float32") = while_loop(relax.const(0), x)
+            gv: R.Tensor((2, 3), "float32") = while_loop(R.const(0), x)
             return gv
 
     before = Before
     expected = Expected
+    # check well-formness of recursive call
+    assert relax.analysis.well_formed(before)
+
     # Perform Lambda Lifting
     after = transform.LambdaLift()(before)
     assert len(after.functions) == 2
@@ -198,7 +203,6 @@ def test_recursive():
     _check_save_roundtrip(after)
 
 
-@pytest.mark.skip(reason="Need fix after parser switch over")
 def test_multi_func():
     # expected IRModule
     @tvm.script.ir_module
@@ -207,29 +211,29 @@ def test_multi_func():
         def glob_func_1(
             x1: R.Tensor((10, 5), "float32"), y1: R.Tensor((10, 5), "float32")
         ) -> R.Tensor(None, "float32", ndim=2):
-            inner = lifted_func_1
-            gv1 = inner(x1, y1)
+            inner = lifted_func_0
+            gv1: R.Tensor((10, 5), "float32") = inner(x1, y1)
             return gv1
 
         @R.function
         def glob_func_2(
             x11: R.Tensor((10, 5), "float32"), y11: R.Tensor((10, 5), "float32")
         ) -> R.Tensor(None, "float32", ndim=2):
-            inner1 = lifted_func_0
-            gv11 = inner1(x11, y11)
+            inner = lifted_func_1
+            gv11: R.Tensor((10, 5), "float32") = inner(x11, y11)
             return gv11
 
         @R.function
         def lifted_func_0(
             x2: R.Tensor((10, 5), "float32"), y2: R.Tensor((10, 5), "float32")
-        ) -> R.Tensor(None, "float32", ndim=2):
+        ) -> R.Tensor((10, 5), "float32"):
             s: R.Tensor((10, 5), "float32") = R.add(x2, y2)
             return s
 
         @R.function
         def lifted_func_1(
             x21: R.Tensor((10, 5), "float32"), y21: R.Tensor((10, 5), "float32")
-        ) -> R.Tensor(None, "float32", ndim=2):
+        ) -> R.Tensor((10, 5), "float32"):
             s1: R.Tensor((10, 5), "float32") = R.add(x21, y21)
             return s1
 

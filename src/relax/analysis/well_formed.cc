@@ -177,7 +177,7 @@ class WellFormedChecker : public relax::ExprVisitor,
 
   void VisitExpr_(const VarNode* op) final {
     Var var = GetRef<Var>(op);
-    if (var_set_.count(var) == 0) {
+    if (var_set_.count(var) == 0 && recur_vars_.count(var) == 0) {
       Malformed(Diagnostic::Error(var) << "Var " << op->name_hint() << " is not defined.");
     }
     CheckStructInfo(op);
@@ -316,12 +316,20 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   void VisitBinding_(const VarBindingNode* binding) final {
+    bool is_lambda = false;
+    if (binding->value->IsInstance<FunctionNode>()) {
+      is_lambda = true;
+      recur_vars_.insert(binding->var);
+    }
     if (binding->value->IsInstance<tir::PrimFuncNode>()) {
       Malformed(Diagnostic::Error(binding->value) << "Inline PrimFunc is disallowed in Relax IR.");
     } else {
       this->VisitExpr(binding->value);
     }
     this->VisitVarDef(binding->var);
+    if (is_lambda) {
+      recur_vars_.erase(binding->var);
+    }
   }
 
   void VisitBinding_(const MatchCastNode* binding) final {
@@ -451,6 +459,7 @@ class WellFormedChecker : public relax::ExprVisitor,
   VisitMode mode_ = VisitMode::kDefault;
   // set of context variables.
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> var_set_;
+  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> recur_vars_;
   std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> dataflow_var_set_;
   std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> symbolic_var_set_;
   std::unordered_map<Var, Function, ObjectPtrHash, ObjectPtrEqual> param_var_func_map_;

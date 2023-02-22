@@ -297,15 +297,6 @@ TVM_DLL tvm::Array<Var> FreeVars(const Expr& expr);
 TVM_DLL tvm::Array<Var> AllVars(const Expr& expr);
 
 /*!
- * \brief Get all global variables used in calls in expression expr.
- *
- * \param expr the expression.
- *
- * \return List of all global variables called in expr.
- */
-TVM_DLL tvm::Array<GlobalVar> CalledGlobalVars(const Expr& expr);
-
-/*!
  * \brief Get all global variables from expression expr.
  *
  * AllVars is a superset of BoundVars and FreeVars.
