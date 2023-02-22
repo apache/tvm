@@ -28,7 +28,7 @@ from tvm.script import tir as T
 
 def get_tir_mod(mod):
     builder = relax.ExecBuilder()
-    return relax.vm._vmcodegen(builder, mod, exec_mode="compiled")
+    return relax.vm_build._vmcodegen(builder, mod, exec_mode="compiled")
 
 
 def test_add():
