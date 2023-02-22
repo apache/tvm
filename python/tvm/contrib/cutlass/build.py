@@ -851,29 +851,3 @@ def finalize_modules_vm(vm_exec, lib_path="compile.so", vmcode_path="vmcode.ro",
         fo.write(code)
     lib = tvm.runtime.load_module(lib_path)
     return tvm.runtime.vm.Executable.load_exec(code, lib)
-
-
-def finalize_modules_relax(vm_exec, lib_path="compile.so", tmp_dir="./tmp"):
-    """finalize_modules_vm equivalent for Relax VM.
-
-    Parameters
-    ----------
-    vm_exec : vm.Executable
-        The output from relax.vm.build containing compiled host code and kernels.
-
-    lib_path : string
-        The path to a shared library which will be generated as the result of the build process.
-
-    tmp_dir : string
-        A temporary directory where intermediate compiled artifacts will be stored.
-
-    Returns
-    -------
-    updated_vm_exec : relax.vm.Executable
-        The updated VM executable with all compilation and linking completed.
-    """
-    lib_path = os.path.join(tmp_dir, lib_path)
-    vm_exec.mod.export_library(lib_path, workspace_dir=tmp_dir, cc="nvcc")
-    lib = tvm.runtime.load_module(lib_path)
-
-    return relax.vm.Executable(lib)

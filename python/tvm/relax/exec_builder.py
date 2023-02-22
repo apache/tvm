@@ -21,7 +21,7 @@ from typing import Optional, Union, List
 import tvm
 from tvm.runtime import Object
 from tvm.runtime.container import ShapeTuple
-from .vm import Executable
+from .vm_build import Executable
 from . import _ffi_api
 
 
