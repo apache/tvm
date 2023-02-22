@@ -30,6 +30,7 @@ import tvm.testing
 import tvm.relay as relay
 from tvm.relay.backend import Executor, Runtime
 from tvm.relay.testing import byoc
+from tvm.micro.project_api import server
 from tvm.contrib import utils
 from tvm.micro.testing.utils import check_tune_log
 
@@ -643,6 +644,55 @@ def test_debugging_enabled(workspace_dir):
     )
     project.build()
 
+
+@tvm.testing.requires_micro
+@pytest.mark.skip_boards(["mps2_an521", "mps3_an547"])
+def test_qemu_make_fail(workspace_dir, board, microtvm_debug, serial_number):
+    """Testing QEMU make fail."""
+    if not utils.ZEPHYR_BOARDS[board]["is_qemu"]:
+        pytest.skip(msg="Only for QEMU targets.")
+
+    build_config = {"debug": microtvm_debug}
+    shape = (10,)
+    dtype = "float32"
+
+    # Construct Relay program.
+    x = relay.var("x", relay.TensorType(shape=shape, dtype=dtype))
+    xx = relay.multiply(x, x)
+    z = relay.add(xx, relay.const(np.ones(shape=shape, dtype=dtype)))
+    func = relay.Function([x], z)
+    ir_mod = tvm.IRModule.from_expr(func)
+
+    target = tvm.micro.testing.get_target("zephyr", board)
+    executor = Executor("aot")
+    runtime = Runtime("crt", {"system-lib": True})
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        lowered = relay.build(ir_mod, target, executor=executor, runtime=runtime)
+    
+    project_options = {
+        "project_type": "host_driven",
+        "verbose": bool(build_config.get("debug")),
+        "board": board,
+    }
+    
+    sample = np.zeros(shape=shape, dtype=dtype)
+    project = tvm.micro.generate_project(
+        str(utils.TEMPLATE_PROJECT_DIR),
+        lowered,
+        workspace_dir / "project",
+        project_options,
+    )
+    project.build()
+
+    file_path = workspace_dir / "project" / "build" / "build.ninja"
+    assert file_path.is_file(), f"[{file_path}] does not exist."
+
+    # Remove a file to create make failure.
+    os.remove(file_path)
+    project.flash()
+    with pytest.raises(server.JSONRPCError) as excinfo:
+        project.transport().open()
+    assert "QEMU setup failed" in str(excinfo.value)
 
 if __name__ == "__main__":
     tvm.testing.main()
