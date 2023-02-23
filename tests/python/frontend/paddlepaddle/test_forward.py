@@ -57,7 +57,7 @@ def get_paddle_model(func, input_spec):
     return baseline_model
 
 
-def verify_model(func, input_data, using_vm=False, rtol=1e-5, atol=1e-5):
+def verify_model(func, input_data, use_vm=False, rtol=1e-5, atol=1e-5):
     if not (isinstance(input_data, (tuple, list))):
         input_data = [input_data]
 
@@ -93,7 +93,7 @@ def verify_model(func, input_data, using_vm=False, rtol=1e-5, atol=1e-5):
         if arg.name_hint in input_names:
             compiled_names.append(arg.name_hint)
 
-    if using_vm:
+    if use_vm:
         tvm_vm_input = []
         for idx, data in enumerate(input_data):
             if isinstance(data, np.ndarray):
@@ -1781,7 +1781,7 @@ def test_forward_where_index():
         return paddle.nonzero(inputs)
 
     input_data = paddle.to_tensor([[1.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 3.0]])
-    verify_model(where_index_1, input_data=input_data, using_vm=True)
+    verify_model(where_index_1, input_data=input_data, use_vm=True)
 
 
 if __name__ == "__main__":
