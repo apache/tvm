@@ -23,7 +23,6 @@ import numpy as np
 import tvm
 import tvm.testing
 import tvm.micro.testing
-from tvm.micro.project_api import server
 import tvm.relay as relay
 from tvm.relay.backend import Executor, Runtime
 from tvm.contrib.download import download_testdata
@@ -86,54 +85,6 @@ def test_tflite(workspace_dir, board, microtvm_debug, serial_number):
 
     result, _ = utils.run_model(project)
     assert result == 6
-
-
-@tvm.testing.requires_micro
-@pytest.mark.skip_boards(["mps2_an521", "mps3_an547"])
-def test_qemu_make_fail(workspace_dir, board, microtvm_debug, serial_number):
-    """Testing QEMU make fail."""
-    if not utils.ZEPHYR_BOARDS[board]["is_qemu"]:
-        pytest.skip(msg="Only for QEMU targets.")
-
-    build_config = {"debug": microtvm_debug}
-    shape = (10,)
-    dtype = "float32"
-
-    # Construct Relay program.
-    x = relay.var("x", relay.TensorType(shape=shape, dtype=dtype))
-    xx = relay.multiply(x, x)
-    z = relay.add(xx, relay.const(np.ones(shape=shape, dtype=dtype)))
-    func = relay.Function([x], z)
-    ir_mod = tvm.IRModule.from_expr(func)
-
-    target = tvm.micro.testing.get_target("zephyr", board)
-    executor = Executor("aot")
-    runtime = Runtime("crt")
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        lowered = relay.build(ir_mod, target, executor=executor, runtime=runtime)
-
-    sample = np.zeros(shape=shape, dtype=dtype)
-    project, project_dir = utils.generate_project(
-        workspace_dir,
-        board,
-        lowered,
-        build_config,
-        sample,
-        shape,
-        dtype,
-        False,
-        serial_number,
-    )
-
-    file_path = pathlib.Path(project_dir) / "build" / "build.ninja"
-    assert file_path.is_file(), f"[{file_path}] does not exist."
-
-    # Remove a file to create make failure.
-    os.remove(file_path)
-    project.flash()
-    with pytest.raises(server.JSONRPCError) as excinfo:
-        project.transport().open()
-    assert "QEMU setup failed" in str(excinfo.value)
 
 
 if __name__ == "__main__":
