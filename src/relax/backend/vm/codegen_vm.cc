@@ -148,7 +148,14 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     // allocate dst register.
     RegName dst_reg = HasVoidStructInfo(call) ? Instruction::kVoidRegister : NewRegister();
     if (call->op.as<OpNode>()) {
-      if (call_node->op == call_builtin_with_ctx_op_) {
+      // special case generate for the intrinsics whose attribute fields
+      // cannot be represented by args in the CallNode
+      FCallPacked name = GetPackedFuncName(call);
+      if (!name.empty()) {
+        // If the operator has a registered packed function implementation, emit call to that packed
+        // function.
+        EmitPackedFuncCall(call, name, dst_reg);
+      } else if (call_node->op == call_builtin_with_ctx_op_) {
         // TODO(relax-team) migrate most handling of op to
         // directly map to call_builtin_with_ctx before codegen and simplify vm codegen.
         EmitCallBuiltinWithCtx(call, dst_reg);
@@ -355,22 +362,9 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     builder_->EmitCall(func, args, dst_reg);
   }
 
-  // TODO(relax-team) revisit after PrimValue.
-  // Emit the `call_node` attributes as constants and append these constants to `args` vector.
-  void AppendAttrsAsConstants(const Call& call_node, std::vector<Instruction::Arg>& args) {
-    auto attrs = call_node->attrs;
-    if (!attrs.defined()) return;
-
-    LOG(FATAL) << "Support for attributes of Op " << call_node->op
-               << " has not been implemented yet.";
-    return;
-  }
-
-  // Emits call to packed function `name` with arguments copied over from `call_node` args and
-  // attributes.
+  // Emits call to packed function `name` with arguments copied over from `call_node` args
   void EmitPackedFuncCall(const Call& call_node, const FCallPacked& name, RegName dst_reg) {
     std::vector<Instruction::Arg> args = VisitArray(call_node->args);
-    AppendAttrsAsConstants(call_node, args);
     builder_->EmitCall(name, args, dst_reg);
   }
 

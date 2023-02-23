@@ -141,6 +141,70 @@ Expr MakeCallNullValue() {
 
 TVM_REGISTER_GLOBAL("relax.op.null_value").set_body_typed(MakeCallNullValue);
 
+// print
+
+RELAY_REGISTER_OP("relax.print")
+    .set_num_inputs(-1)
+    .add_argument("vals", "Array<Expr>",
+                  "The first value is Python-style format string to use to print. The others "
+                  "are values to print")
+    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
+    .set_attr<FCallPacked>("FCallPacked", "relax.run.print");
+
+Expr MakePrint(Array<Expr> vals, StringImm format) {
+  Array<Expr> params;
+  params.push_back(format);
+  for (const auto val : vals) {
+    params.push_back(val);
+  }
+  static const Op& op = Op::Get("relax.print");
+  return Call(op, params);
+}
+
+TVM_REGISTER_GLOBAL("relax.op.print").set_body_typed(MakePrint);
+
+// assert_op
+
+// can't actually name it assert or else Python will consider it a syntax error
+
+StructInfo InferAssertStructInfo(const Call& call, const BlockBuilder& ctx) {
+  // Ensure that the condition argument is a boolean scalar.
+  // Also permitted is a tensor with unknown shape and unknown dtype
+  // (checked dynamically in that case). Returns void.
+  if (call->args.size() < 1) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Assert must have at least one argument (the condition).");
+  }
+  StructInfo arg_struct_info = GetStructInfo(call->args[0]);
+  if (!IsBoolStructInfo(arg_struct_info)) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "The argument to assert must be a boolean scalar, but received "
+                     << arg_struct_info);
+  }
+  return ReturnVoidStructInfo(call, ctx);
+}
+
+RELAY_REGISTER_OP("relax.assert_op")
+    .set_num_inputs(-1)
+    .add_argument("vals", "Array<Expr>",
+                  "The first value is used as the assertion condition. The second value is "
+                  "Python-style format string to use for displaying an error message, if the "
+                  "assert fails. The others are used as format arguments if there is an error.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferAssertStructInfo)
+    .set_attr<FCallPacked>("FCallPacked", "relax.run.assert_op");
+
+Expr MakeAssertOp(Expr condition, Array<Expr> vals, StringImm format) {
+  static const Op& op = Op::Get("relax.assert_op");
+  Array<Expr> args = {condition};
+  args.push_back(format);
+  for (auto val : vals) {
+    args.push_back(val);
+  }
+  return Call(op, args);
+}
+
+TVM_REGISTER_GLOBAL("relax.op.assert_op").set_body_typed(MakeAssertOp);
+
 // make_closure
 
 RELAY_REGISTER_OP("relax.make_closure")
@@ -213,15 +277,15 @@ StructInfo InferStructInfoAllocateTensor(const Call& call, const BlockBuilder& c
 RELAY_REGISTER_OP("relax.builtin.alloc_tensor")
     .set_num_inputs(3)
     .add_argument("shape", "Expr", "The shape of the tensor to allocate.")
-    .add_argument("dtype", "DataType", "The dtype of the tensor to allocate.")
-    .add_argument("runtime_device_index", "int64_t",
+    .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
+    .add_argument("runtime_device_index", "PrimValue",
                   "The device index indicating on which device the tensor is to be "
                   "allocated at runtime. Index -1 is reserved for the host device.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAllocateTensor);
 
-Expr MakeAllocTensor(Expr shape, DataType dtype, int64_t runtime_device_index) {
+Expr MakeAllocTensor(Expr shape, DataTypeImm dtype, PrimValue runtime_device_index) {
   static const Op& op = Op::Get("relax.builtin.alloc_tensor");
-  return Call(op, {shape, DataTypeImm(dtype), PrimValue::Int64(runtime_device_index)}, Attrs(), {});
+  return Call(op, {shape, dtype, runtime_device_index}, Attrs(), {});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.builtin.alloc_tensor").set_body_typed(MakeAllocTensor);
