@@ -96,8 +96,7 @@ def eval_struct_info_proxy(self: Parser, node: doc.expr) -> StructInfoProxy:
             annotation = annotation()
         if isinstance(annotation, StructInfoProxy):
             return annotation
-        else:
-            raise TypeError(f"Expected StructInfoProxy but got {type(annotation)}.")
+        raise TypeError(f"Expected StructInfoProxy but got {type(annotation)}.")
     except Exception as err:
         self.report_error(node, str(err))
         raise err
@@ -110,6 +109,38 @@ def eval_struct_info(self: Parser, node: doc.expr, eval_str: bool = False) -> St
     except Exception as err:
         self.report_error(node, str(err))
         raise err
+
+
+def is_called(node: Any, func_name: str) -> bool:
+    # Check if it calls into a func
+    if isinstance(node, doc.Call):
+        # Recursive call was found
+        if isinstance(node.func, doc.Name) and node.func.id == func_name:
+            return True
+    elif isinstance(node, (list, tuple)):
+        for stmt in node:
+            if is_called(stmt, func_name):
+                return True
+    elif isinstance(node, (doc.AnnAssign, doc.Assign, doc.Return, doc.Expr)):
+        return is_called(node.value, func_name)
+    elif isinstance(node, doc.With):
+        return is_called(node.body, func_name)
+    elif isinstance(node, doc.If):
+        smts = []
+        if node.body is not None:
+            smts = smts + list(node.body)
+        if node.orelse is not None:
+            smts = smts + list(node.orelse)
+        return is_called(smts, func_name)
+    return False
+
+
+def is_recursive(node: doc.FunctionDef) -> bool:
+    # Check if it is a recursive function
+    for stmt in node.body:
+        if is_called(stmt, node.name):
+            return True
+    return False
 
 
 def collect_symbolic_var_from_params(self: Parser, node: doc.FunctionDef) -> None:
@@ -128,6 +159,24 @@ def collect_symbolic_var_from_params(self: Parser, node: doc.FunctionDef) -> Non
 
 @dispatch.register(token="relax", type_name="FunctionDef")
 def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
+    # reserve a var for local function
+    func_val = self.var_table.get().get(node.name)
+    if not func_val and is_recursive(node):
+        collect_symbolic_var_from_params(self, node)
+        if node.returns is None:
+            ret_sinfo = relax.TupleStructInfo([])
+        else:
+            ret_sinfo = eval_struct_info(self, node.returns, eval_str=True)
+        params_sinfo = []
+        for arg in node.args.args:
+            if arg.annotation is None:
+                self.report_error(arg, "Type annotation is required for function parameters.")
+            param_sinfo = eval_struct_info(self, arg.annotation, eval_str=True)
+            params_sinfo.append(param_sinfo)
+        # created a var for the local function, the same var could be used for recursive call
+        local_func_var = relax.Var(node.name, relax.FuncStructInfo(params_sinfo, ret_sinfo))
+        self.var_table.add(node.name, local_func_var)
+
     with self.var_table.with_frame():
         with self.with_dispatch_token("relax"):
             with R.function():
@@ -164,12 +213,10 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> None:
         else:
             ret_sinfo = eval_struct_info(self, node.returns, eval_str=True)
         params = []
-        params_sinfo = []
         for arg in node.args.args:
             if arg.annotation is None:
                 self.report_error(arg, "Type annotation is required for function parameters.")
             param_sinfo = eval_struct_info(self, arg.annotation, eval_str=True)
-            params_sinfo.append(param_sinfo)
             params.append(relax.Var(arg.arg, param_sinfo))
 
     func_signature = relax.Function.create_empty(params, ret_sinfo)
@@ -188,7 +235,12 @@ def post_token_switch(self: Parser, node: doc.Expr) -> None:
     ir_builder = IRBuilder.current()
     result = ir_builder.get()
     ir_builder.__exit__(None, None, None)
-    var = R.emit(result)
+    # reuse var if it is reserved
+    reserved_var = self.var_table.get().get(node.name)
+    if reserved_var:
+        var = R.emit_var_binding(relax.VarBinding(reserved_var, result))
+    else:
+        var = R.emit(result)
     IRBuilder.name(node.name, var)
     self.var_table.add(node.name, var, allow_shadowing=False)
 
