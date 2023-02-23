@@ -336,6 +336,7 @@ def test_dp4a_conv2d():
 @tvm.testing.requires_cascadelake
 @pytest.mark.skipif(tvm.testing.IS_IN_CI, reason="Slow on CI")
 def test_vnni_bert_int8():
+    pytest.importorskip("onnx")
     relay_mod, params, input_info = load_quantized_bert_base()
     _test_bert_int8(
         relay_mod,
