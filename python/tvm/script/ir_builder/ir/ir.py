@@ -16,7 +16,11 @@
 # under the License.
 """Package tvm.script.ir_builder.ir.ir"""
 
-from tvm.ir import BaseFunc, GlobalVar
+from typing import Dict, List
+
+from tvm.ir import BaseFunc, GlobalVar, GlobalInfo
+from tvm.runtime import Object as tvm_Object
+
 
 from . import _ffi_api
 from .frame import IRModuleFrame
@@ -67,3 +71,23 @@ def def_function(func_name: str, func: BaseFunc) -> None:
         The given function implementation
     """
     return _ffi_api.DefFunction(func_name, func)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def module_attrs(attrs: Dict[str, tvm_Object]) -> None:
+    """Specify the attrs of the ir_module frame.
+    Parameters
+    ----------
+    attrs: Dict[str, Object]
+        The module attrs.
+    """
+    return _ffi_api.ModuleAttrs(attrs)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def module_global_infos(global_infos: Dict[str, List[GlobalInfo]]) -> None:
+    """Specify the global infos of the ir_module frame.
+    Parameters
+    ----------
+    global_infos: Dict[str, List[GlobalInfo]]
+        The module global infos.
+    """
+    return _ffi_api.ModuleGlobalInfos(global_infos)  # type: ignore[attr-defined] # pylint: disable=no-member

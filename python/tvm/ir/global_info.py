@@ -14,6 +14,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Package tvm.script.ir_builder.ir"""
-from .frame import IRModuleFrame
-from .ir import decl_function, def_function, ir_module, module_attrs, module_global_infos
+"""Global Info."""
+import tvm
+from tvm.runtime.object import Object
+
+
+class GlobalInfo(Object):
+    """Base node for all global info that can appear in the IR"""
+
+    pass
+
+    def __eq__(self, other):
+        """Compare two struct info for structural equivalence."""
+        return tvm.ir.structural_equal(self, other)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def same_as(self, other):
+        """Overload with structural equality."""
+        return super().__eq__(other)
