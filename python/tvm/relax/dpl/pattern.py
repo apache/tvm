@@ -1082,14 +1082,3 @@ def make_fused_bias_activation_pattern(op_name, with_bias=False, activation=None
     out = is_op(op_name)(lhs, rhs)
 
     return _add_bias_activation_pattern(out, with_bias, activation)
-
-
-def make_matmul_pattern(with_bias=False, activation=None, transposed_b=False):
-    lhs = wildcard()
-    if transposed_b:
-        rhs = is_op("relax.permute_dims")(wildcard())
-    else:
-        rhs = wildcard()
-    out = is_op("relax.matmul")(lhs, rhs)
-
-    return _add_bias_activation_pattern(out, with_bias, activation)
