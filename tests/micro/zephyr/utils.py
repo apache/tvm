@@ -44,6 +44,7 @@ _LOG = logging.getLogger(__name__)
 
 PASS_CONFIG = {"tir.disable_vectorize": True}
 
+
 def zephyr_boards() -> dict:
     """Returns Zephyr board properties"""
     with open(TEMPLATE_PROJECT_DIR / "boards.json") as f:

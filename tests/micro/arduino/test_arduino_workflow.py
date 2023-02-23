@@ -23,7 +23,7 @@ import pytest
 
 import tvm.testing
 
-from . import utils 
+from . import utils
 
 """
 This unit test simulates a simple user workflow, where we:

@@ -33,6 +33,7 @@ BOARDS = TEMPLATE_PROJECT_DIR / "boards.json"
 
 PASS_CONFIG = {"tir.disable_vectorize": True}
 
+
 def arduino_boards() -> dict:
     """Returns a dict mapping board to target model"""
     with open(BOARDS) as f:

@@ -1048,7 +1048,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     std::string interface_api =
         executor_config->GetAttr<String>("interface-api").value_or("packed");
     bool unpacked_api = executor_config->GetAttr<Bool>("unpacked-api").value_or(Bool(false));
-    
+
     // Validate choice of unpacked_api and use_call_cpacked_
     if (runtime_config->name == kTvmRuntimeCrt) {
       if (unpacked_api == true) {

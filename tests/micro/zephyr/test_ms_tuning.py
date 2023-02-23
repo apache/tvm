@@ -31,6 +31,7 @@ from tvm.contrib.micro.meta_schedule.rpc_runner_micro import get_rpc_runner_micr
 
 from . import utils
 
+
 def create_relay_module():
     data_shape = (1, 3, 16, 16)
     weight_shape = (8, 3, 5, 5)
