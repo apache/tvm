@@ -2074,6 +2074,14 @@ def convert_unsqueeze(g, op, block):
     g.add_node(op.output("Out")[0], x)
 
 
+def convert_where_index(g, op, block):
+    """Operator converter for where_index."""
+
+    condition = g.get_node(op.input("Condition")[0])
+    out = _op.argwhere(condition)
+    g.add_node(op.output("Out")[0], out)
+
+
 _convert_map = {
     "abs": convert_unary_op,
     "acos": convert_unary_op,
@@ -2211,6 +2219,7 @@ _convert_map = {
     "top_k_v2": convert_topk,
     "transpose2": convert_transpose,
     "unsqueeze2": convert_unsqueeze,
+    "where_index": convert_where_index,
 }
 
 
