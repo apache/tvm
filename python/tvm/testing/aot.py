@@ -23,7 +23,7 @@ import re
 import subprocess
 import tarfile
 import logging
-from typing import Any, NamedTuple, Union, Tuple, Optional, List, Dict
+from typing import Any, NamedTuple, Union, Tuple, Optional, List, Dict, Callable
 import numpy as np
 
 import tvm
@@ -728,6 +728,7 @@ def run_and_check(
     test_dir: str = None,
     verbose: bool = False,
     use_workspace_io: bool = False,
+    checker: Optional[Callable[[str], bool]] = None,
 ):
     """
     This method uses the original test data and compiled runtime.Modules
@@ -812,6 +813,9 @@ def run_and_check(
             debug_last_error,
         )
 
+        if checker and (not checker(base_path)):
+            return False
+
         # Verify that compiles fine
         file_dir = os.path.dirname(os.path.abspath(__file__))
         makefile_dir = os.path.join(file_dir, "../../../tests/python/relay/aot")
@@ -859,11 +863,13 @@ def run_and_check(
         with open(run_log_path) as run_log:
             assert AOT_SUCCESS_TOKEN in run_log.read()
 
+        return True
+
     if test_dir is None:
         tmpdir = utils.tempdir()
-        run_and_check_body(os.path.join(tmpdir.path, "test"))
+        return run_and_check_body(os.path.join(tmpdir.path, "test"))
     else:
-        run_and_check_body(test_dir)
+        return run_and_check_body(test_dir)
 
 
 def compile_and_run(
@@ -882,7 +888,8 @@ def compile_and_run(
     test_dir: str = None,
     verbose: bool = False,
     schedule_name: str = None,
-):
+    checker: Optional[Callable[[str], bool]] = None,
+) -> bool:
     """This is a wrapper API to compile and run models as test for AoT
 
     Parameters
@@ -913,7 +920,7 @@ def compile_and_run(
         schedule_name=schedule_name,
     )
 
-    run_and_check(
+    return run_and_check(
         models=compiled_test_mods,
         runner=runner,
         interface_api=interface_api,
@@ -923,6 +930,7 @@ def compile_and_run(
         data_linkage=data_linkage,
         test_dir=test_dir,
         verbose=verbose,
+        checker=checker,
     )
 
 
