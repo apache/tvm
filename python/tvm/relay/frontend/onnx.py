@@ -4345,6 +4345,45 @@ class Clip(OnnxOpConverter):
         return result
 
 
+class Col2Im(OnnxOpConverter):
+    """Operator converter for Col2Im."""
+
+    @classmethod
+    def _impl_v18(cls, inputs, attr, params):
+        assert (
+            len(inputs) == 3
+        ), "Col2Im takes 3 inputs (input, image_shape, block_shape), {} given".format(len(inputs))
+
+        data = inputs[0]
+        assert len(infer_shape(data)) == 3, "Input rank should be 3"
+
+        image_shape = inputs[1]
+        assert (
+            infer_type(image_shape).checked_type.dtype == "int64"
+        ), "image_shape dtype should be int64"
+        img_dims = infer_shape(image_shape)
+        assert len(img_dims) == 1, "image_shape should be 1d tensor"
+        sp_axis_num = img_dims[0]
+        assert sp_axis_num > 1, "image_shape is 1d tensor of size of at least 2"
+
+        block_shape = inputs[2]
+        assert (
+            infer_type(block_shape).checked_type.dtype == "int64"
+        ), "block_shape dtype should be int64"
+        blk_dims = infer_shape(block_shape)
+        assert len(blk_dims) == 1, "block_shape should be 1d tensor"
+        assert blk_dims[0] > 1, "block_shape is 1d tensor of size of at least 2"
+
+        def_dil = [1] * sp_axis_num
+        dilation = attr.get("dilation", def_dil)
+        def_pads = [0] * 2 * sp_axis_num
+        pads = attr.get("pads", def_pads)
+        def_sds = [1] * sp_axis_num
+        strides = attr.get("strides", def_sds)
+
+        return _op.col2im(data, image_shape, block_shape, dilation, pads, strides)
+
+
 class Softplus(OnnxOpConverter):
     """Operator converter for Softplus."""
 
@@ -6566,6 +6605,7 @@ def _get_convert_map(opset):
         "Sum": Sum.get_converter(opset),
         "Mean": Mean.get_converter(opset),
         "Clip": Clip.get_converter(opset),
+        "Col2Im": Col2Im.get_converter(opset),
         "Softplus": Softplus.get_converter(opset),
         # softmax default axis is different in onnx
         "Softmax": Softmax.get_converter(opset),
