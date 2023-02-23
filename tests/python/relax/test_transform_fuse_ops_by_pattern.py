@@ -401,7 +401,10 @@ class AddWithSameOperands:
 @tvm.script.ir_module
 class AddWithSameOperands_partitioned:
     @R.function
-    def fused_relax_add(data: R.Tensor((1, 64, 56, 56), dtype="float32"), data_1: R.Tensor((1, 64, 56, 56), dtype="float32")) -> R.Tensor((1, 64, 56, 56), dtype="float32"):
+    def fused_relax_add(
+        data: R.Tensor((1, 64, 56, 56), dtype="float32"),
+        data_1: R.Tensor((1, 64, 56, 56), dtype="float32"),
+    ) -> R.Tensor((1, 64, 56, 56), dtype="float32"):
         R.func_attr({"Composite": "tensorrt.add", "Primitive": 1})
         with R.dataflow():
             gv: R.Tensor((1, 64, 56, 56), dtype="float32") = R.add(data, data)
@@ -409,7 +412,9 @@ class AddWithSameOperands_partitioned:
         return gv
 
     @R.function
-    def main(data: R.Tensor((1, 64, 56, 56), dtype="float32")) -> R.Tensor((1, 64, 56, 56), dtype="float32"):
+    def main(
+        data: R.Tensor((1, 64, 56, 56), dtype="float32")
+    ) -> R.Tensor((1, 64, 56, 56), dtype="float32"):
         with R.dataflow():
             gv: R.Tensor((1, 64, 56, 56), dtype="float32") = fused_relax_add(data, data)
             R.output(gv)
