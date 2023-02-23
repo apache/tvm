@@ -484,7 +484,7 @@ class FunctionCreator : public ExprMutator {
   /*!
    * \brief Check whether the input expression is defined within this function. If not, create a new
    * parameter for the expression. The caller is responsible for deduplicating expressions in
-   * arguments_ if needed.
+   * arguments_ beforehand if needed.
    * \param expr The expression to be checked
    * \return true if the input expression is added as a parameter of the grouped function being
    * created.
@@ -550,32 +550,31 @@ class FunctionCreator : public ExprMutator {
     ICHECK(it != arg_param_indices.end());
 
     const auto& param_indices = it->second;
-    Array<Expr> new_args;
 
-    if (call->op == Op::Get("relax.call_tir")) {
-      new_args.push_back(call->args[0]);
-      Array<Expr> new_call_tir_args;
-
-      const auto fields = Downcast<Tuple>(call->args[1])->fields;
-      ICHECK_EQ(fields.size(), param_indices.size());
-      for (size_t i = 0; i < fields.size(); ++i) {
-        if (param_indices[i]) {
-          new_call_tir_args.push_back(params_[*param_indices[i]]);
-        } else {
-          new_call_tir_args.push_back(VisitExpr(fields[i]));
-        }
-      }
-      new_args.push_back(Tuple(new_call_tir_args));
-    } else {
-      ICHECK_EQ(call->args.size(), param_indices.size());
-      for (size_t i = 0; i < call->args.size(); ++i) {
+    auto get_new_args = [this, &param_indices](const Array<Expr>& old_args) {
+      Array<Expr> new_args;
+      for (size_t i = 0; i < old_args.size(); ++i) {
         if (param_indices[i]) {
           new_args.push_back(params_[*param_indices[i]]);
         } else {
-          new_args.push_back(VisitExpr(call->args[i]));
+          new_args.push_back(VisitExpr(old_args[i]));
         }
       }
-    }
+      return new_args;
+    };
+
+    auto new_args = [&]() -> Array<Expr> {
+      if (call->op == Op::Get("relax.call_tir")) {
+        const auto fields = Downcast<Tuple>(call->args[1])->fields;
+        ICHECK_EQ(fields.size(), param_indices.size());
+        auto new_call_tir_args = get_new_args(fields);
+        return {call->args[0], Tuple(new_call_tir_args)};
+      } else {
+        ICHECK_EQ(call->args.size(), param_indices.size());
+        return get_new_args(call->args);
+      }
+    }();
+
     return Call(call->op, new_args, call->attrs, call->sinfo_args, call->span);
   }
 
