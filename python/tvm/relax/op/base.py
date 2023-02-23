@@ -22,7 +22,7 @@ import tvm
 from tvm.runtime.object import Object
 
 from . import _ffi_api
-from ..expr import Expr, ShapeExpr, Call, ExternFunc
+from ..expr import Expr, StringImm, ShapeExpr, Call, ExternFunc
 from ..expr import Tuple as RxTuple
 from ..struct_info import StructInfo, TensorStructInfo
 from ...ir import PrimExpr
@@ -199,7 +199,7 @@ def render_object(val: tvm.Object) -> str:
     ret: str
         A string representing the value, ideally human-readable
     """
-    if isinstance(val, tvm.runtime.ndarray.NDArray):
+    if isinstance(val, tvm.nd.NDArray):
         return str(val)
     # no pretty-printer by default, so if we don't handle this,
     # then we can't look inside tuples
@@ -211,6 +211,9 @@ def render_object(val: tvm.Object) -> str:
         if val.tag == 0:
             return f"({fields})"
         return f"ADT(tag={val.tag}, fields=[{fields}])"
+    if isinstance(val, tvm.ir.Array):
+        fields = ", ".join([render_object(val[i]) for i in range(len(val))])
+        return f"({fields})"
     return str(val)
 
 
@@ -240,7 +243,7 @@ def relax_print(format_str: str, *format_args: tvm.Object) -> None:
         py_print(format_str.format(*val_strs))
 
 
-def print(*values: List[Expr], format: str = "") -> Expr:
+def print(*values: List[Expr], format: Union[str, Expr] = "") -> Expr:
     """Print op to print the values
 
     Parameters
@@ -248,14 +251,17 @@ def print(*values: List[Expr], format: str = "") -> Expr:
     values : List[Expr]
         The values to print.
 
-    format_str: str
-        The format string.
+    format: Union[str, Expr]
+        The format string or StringImm.
 
     Returns
     -------
     result : Expr
         A relax Call, which will print the value during runtime.
     """
+    if isinstance(format, str):
+        format = StringImm(format)
+
     return _ffi_api.print(values, format)  # type: ignore # pylint: disable=no-member
 
 
@@ -289,7 +295,7 @@ def relax_assert_op(condition: tvm.Object, format_str: str, *format_args: tvm.Ob
         )
 
     # should be guaranteed by the type system
-    if not isinstance(condition, tvm.runtime.ndarray.NDArray):
+    if not isinstance(condition, tvm.nd.NDArray):
         raise ValueError(f"The condition must be an NDArray, but given a {type(condition)}.")
 
     # may happen if the original program had unknown shape or dtype for the tensor's type
@@ -313,7 +319,9 @@ def relax_assert_op(condition: tvm.Object, format_str: str, *format_args: tvm.Ob
 
 
 def assert_op(
-    condition: Expr, format_args: Optional[Union[Expr, List[Expr]]] = None, format: str = ""
+    condition: Expr,
+    format_args: Optional[Union[Expr, List[Expr]]] = None,
+    format: Union[str, Expr] = "",
 ) -> Expr:
     """
     Create a call to Relax's assert_op operation (`assert` is reserved in Python,
@@ -327,8 +335,8 @@ def assert_op(
     format_args: Optional[Union[Expr, List[Expr]]]
         Format arguments for the error message if the condition fails.
 
-    format_str: str
-        The format string for the error message.
+    format: Union[str, Expr]
+        The format string or StringImm for the error message.
 
     Returns
     -------
@@ -339,6 +347,8 @@ def assert_op(
         format_args = []
     if isinstance(format_args, Expr):  # type: ignore
         format_args = [format_args]
+    if isinstance(format, str):
+        format = StringImm(format)
     return _ffi_api.assert_op(condition, format_args, format)  # type: ignore
 
 

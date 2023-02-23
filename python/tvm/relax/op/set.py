@@ -16,22 +16,22 @@
 # under the License.
 # pylint: disable=import-outside-toplevel, redefined-builtin, unused-argument
 """Set operators."""
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np  # type: ignore
 import tvm
 
 from . import _ffi_api
-from ..expr import Expr
+from ..expr import Expr, PrimValue
 
 
 def unique(
     x: Expr,
-    sorted: bool = True,
-    return_index: bool = False,
-    return_inverse: bool = False,
-    return_counts: bool = False,
-    axis: Optional[int] = None,
+    sorted: Union[bool, Expr] = True,
+    return_index: Union[bool, Expr] = False,
+    return_inverse: Union[bool, Expr] = False,
+    return_counts: Union[bool, Expr] = False,
+    axis: Optional[Union[int, Expr]] = None,
 ) -> Expr:
     """Find the unique elements in a given tensor.
     In addition, it optionally returns
@@ -44,19 +44,19 @@ def unique(
     x : relax.Expr
         The input tensor.
 
-    sorted : bool
+    sorted : Union[bool, Expr]
         Whether to sort the unique elements in ascending order before
         returning as output.
 
-    return_index : bool
+    return_index : Union[bool, Expr]
         Whether to return an additional tensor with indices for where elements in
         the unique tensor come from the original input.
 
-    return_inverse : bool
+    return_inverse : Union[bool, Expr]
         Whether to return an additional tensor with indices for where elements in
         the original input ended up in the returned unique list.
 
-    return_counts : bool
+    return_counts : Union[bool, Expr]
         Whether to return an additional tensor with counts of each unique elements.
 
     axis : Optional
@@ -69,6 +69,16 @@ def unique(
         The created relax call with
     """
 
+    if isinstance(sorted, bool):
+        sorted = PrimValue(sorted)
+    if isinstance(return_index, bool):
+        return_index = PrimValue(return_index)
+    if isinstance(return_inverse, bool):
+        return_inverse = PrimValue(return_inverse)
+    if isinstance(return_counts, bool):
+        return_counts = PrimValue(return_counts)
+    if axis and isinstance(axis, int):
+        axis = PrimValue(axis)
     return _ffi_api.unique(  # type: ignore
         x, sorted, return_index, return_inverse, return_counts, axis
     )
@@ -81,7 +91,6 @@ def numpy_unique(
     return_index: int,
     return_inverse: int,
     return_counts: int,
-    axis: Optional[int],
 ) -> tvm.nd.array:
     """Returns the unique elements of the input tensor.
 
