@@ -396,10 +396,6 @@ class FunctionCreator : public ExprMutator {
 
           CheckDefAndUpdateParams(call, call->args);
         }
-      } else {
-        const auto* tuple_item = var_binding->value.as<TupleGetItemNode>();
-        ICHECK(tuple_item != nullptr);
-        CheckDefAndUpdateParam(tuple_item->tuple);
       }
 
       // Mark the binding variable as defined.
@@ -487,18 +483,13 @@ class FunctionCreator : public ExprMutator {
 
   /*!
    * \brief Check whether the input expression is defined within this function. If not, create a new
-   * parameter for the expression.
-   * \param dedup_params Whether or not to deduplicate a parameter that is already in arguments_.
+   * parameter for the expression. The caller is responsible for deduplicating expressions in
+   * arguments_ if needed.
    * \param expr The expression to be checked
    * \return true if the input expression is added as a parameter of the grouped function being
    * created.
    */
-  bool CheckDefAndUpdateParam(const Expr& expr, bool dedup_params = true) {
-    // If the expression has already served as an argument, no need to create another one for it.
-    if (dedup_params && std::find(arguments_.begin(), arguments_.end(), expr) != arguments_.end()) {
-      return false;
-    }
-
+  bool CheckDefAndUpdateParam(const Expr& expr) {
     // If the expression is not a variable or is a undefined variable, it should be populated as a
     // parameter of the relax function.
     const auto* var = expr.as<VarNode>();
@@ -535,7 +526,7 @@ class FunctionCreator : public ExprMutator {
       auto arg = args[i];
       if (auto it = std::find(arguments_.begin(), arguments_.end(), arg);
           it == arguments_.end() || added_params.count(arg.get())) {
-        if (CheckDefAndUpdateParam(arg, /*dedup_params*/ false)) {
+        if (CheckDefAndUpdateParam(arg)) {
           added_params.insert(arg.get());
           // Associate arg with the newly created parameter of the grouped function.
           arg_param_indices[call].push_back(params_.size() - 1);
