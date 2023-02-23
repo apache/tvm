@@ -358,7 +358,7 @@ class BlockAnalyzer : public StmtExprVisitor {
     };
 
     // Check that write has sequential access within the block.
-    const auto& write_spatial_layout = get_spatial_layout(write_buffer);
+    SpatialLayout write_spatial_layout = get_spatial_layout(write_buffer);
     if (write_spatial_layout.empty()) {
       can_transform_block_ = false;
       return;
@@ -388,7 +388,7 @@ class BlockAnalyzer : public StmtExprVisitor {
 
     // Infer read buffer transformations from write buffer transformation.
     for (const auto& r : block->reads) {
-      const auto& read_spatial_layout = get_spatial_layout(r->buffer);
+      SpatialLayout read_spatial_layout = get_spatial_layout(r->buffer);
       if (read_spatial_layout.empty()) continue;
       if (!IsSequentialAccess(read_spatial_layout, iter_var_to_block_index)) continue;
 
