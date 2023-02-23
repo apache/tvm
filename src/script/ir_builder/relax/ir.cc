@@ -203,8 +203,17 @@ tvm::relax::Var EmitMatchCast(const tvm::relax::Expr& value,
   return var;
 }
 
+tvm::relax::Var EmitVarBinding(const tvm::relax::VarBinding& binding) {
+  BlockFrame block_frame = CheckBlockFrameExistAndUnended();
+  const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
+  block_builder->EmitNormalized(binding);
+  block_frame->emitted_vars.push_back(binding->var);
+  return binding->var;
+}
+
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Emit").set_body_typed(Emit);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.EmitMatchCast").set_body_typed(EmitMatchCast);
+TVM_REGISTER_GLOBAL("script.ir_builder.relax.EmitVarBinding").set_body_typed(EmitVarBinding);
 
 ///////////////////////////// If Then Else /////////////////////////////
 

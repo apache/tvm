@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import tvm
 from tvm import DataType, relax
 from tvm.ir import PrimExpr
-from tvm.relax import Call, Expr, ExternFunc, TupleGetItem, Var, const
+from tvm.relax import Call, Expr, ExternFunc, TupleGetItem, Var, VarBinding, const
 
 ############################### Operators ###############################
 from tvm.relax.op import (
@@ -342,6 +342,20 @@ def emit_match_cast(value: Expr, struct_info: StructInfo) -> Var:
     return _ffi_api.EmitMatchCast(value, struct_info)  # type: ignore
 
 
+def emit_var_binding(value: VarBinding) -> Var:
+    """Emit a binding to the last binding block frame.
+    Parameters
+    ----------
+    value: VarBinding
+        The binding to be emitted.
+    Returns
+    -------
+    var: Var
+        The left side var of the emitted binding.
+    """
+    return _ffi_api.EmitVarBinding(value)  # type: ignore
+
+
 ############################# If Then Else #############################
 
 
@@ -497,6 +511,7 @@ __all__ = [
     "divide",
     "dtype",
     "emit",
+    "emit_var_binding",
     "emit_match_cast",
     "equal",
     "ewise_fma",

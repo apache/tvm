@@ -173,6 +173,33 @@ def test_seq_expr():
     assert not rx.analysis.well_formed(mod, check_struct_info=False)
 
 
+def test_recursive():
+    scalar_struct_info = rx.TensorStructInfo(shape=[], dtype="int32")
+    gv0 = rx.Var("gv0", scalar_struct_info)
+    f = rx.Var("f", rx.FuncStructInfo([scalar_struct_info], scalar_struct_info))
+    ipt = rx.Var("ipt", scalar_struct_info)
+    x0 = rx.Var("x0", scalar_struct_info)
+    x1 = rx.Var("x1", scalar_struct_info)
+    x2 = rx.Var("x2", scalar_struct_info)
+    y = rx.Var("y", scalar_struct_info)
+    inner_block = rx.BindingBlock(
+        [rx.VarBinding(x0, rx.const(2, "int32")), rx.VarBinding(y, rx.Call(f, [x0]))]
+    )
+    inner_func = rx.Function([ipt], rx.SeqExpr([inner_block], y), scalar_struct_info)
+    outer_block = rx.BindingBlock(
+        [
+            rx.VarBinding(f, inner_func),
+            rx.VarBinding(x1, rx.const(1, "int32")),
+            rx.VarBinding(x2, rx.op.add(x1, rx.Call(f, [x1]))),
+            rx.VarBinding(gv0, x2),
+        ]
+    )
+    func = rx.Function([], rx.SeqExpr([outer_block], gv0), scalar_struct_info)
+    mod = tvm.IRModule.from_expr(func)
+    normalized = rx.transform.Normalize()(mod)
+    assert rx.analysis.well_formed(normalized)
+
+
 def test_if():
     # Error: Var defined in true/false branch is invisible in the outer scope
     # except the return Var, i.e the var in the last stmt
