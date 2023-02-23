@@ -110,6 +110,13 @@ TVM_DLL tvm::relax::Var Emit(
 TVM_DLL tvm::relax::Var EmitMatchCast(const tvm::relax::Expr& value,
                                       const tvm::relax::StructInfo& struct_info);
 
+/*!
+ * \brief Emit a binding to the last binding block frame.
+ * \param binding The binding to be emitted.
+ * \return The left side var of the emitted binding.
+ */
+TVM_DLL tvm::relax::Var EmitVarBinding(const tvm::relax::VarBinding& binding);
+
 ///////////////////////////// If Then Else /////////////////////////////
 
 /*!
