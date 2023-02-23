@@ -1569,17 +1569,6 @@ def wrap_compute_scatter(topi_compute):
     return _compute_scatter
 
 
-@override_native_generic_func("scatter_add_strategy")
-def scatter_add_strategy(attrs, outs, out_type, target):
-    strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_scatter(topi.scatter_add),
-        wrap_topi_schedule(topi.generic.schedule_scatter),
-        name="scatter_add.generic",
-    )
-    return strategy
-
-
 # scatter_elements
 @override_native_generic_func("scatter_elements_strategy")
 def scatter_elements_strategy(attrs, inputs, out_type, target):

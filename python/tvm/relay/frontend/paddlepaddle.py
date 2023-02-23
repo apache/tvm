@@ -1743,7 +1743,7 @@ def convert_scatter(g, op, block):
     if overwrite:
         out = _op.scatter(x, index, updates, axis=0)
     else:
-        out = _op.scatter_add(_op.zeros_like(x), index, updates, axis=0)
+        out = _op.scatter_elements(_op.zeros_like(x), index, updates, axis=0, reduction="add")
         out += _op.scatter(x, index, _op.zeros_like(updates), axis=0)
     g.add_node(op.output("Out")[0], out)
 

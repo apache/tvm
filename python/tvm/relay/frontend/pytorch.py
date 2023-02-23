@@ -210,6 +210,18 @@ class PyTorchOpConverter:
     def infer_shape_with_prelude(self, inputs):
         return self.infer_shape(inputs, mod=self.prelude.mod)
 
+    def is_empty_shape(self, shape):
+        rank = len(shape)
+        if rank:
+            is_empty = False
+            for i in range(rank):
+                if shape[i] == 0:
+                    is_empty = True
+                    break
+            return is_empty
+        else:
+            return True
+
     def record_output_type(self, output):
         if isinstance(output, tuple):
             cleaned_output = [o for o in output if o is not None]
@@ -2671,18 +2683,43 @@ class PyTorchOpConverter:
             updates = _op.ones_like(data)
 
         counts = _op.zeros(_op.reshape(dim, [1]), out_dtype)
-        out = _op.scatter_add(counts, data, updates, axis=0)
+        out = _op.scatter_elements(counts, data, updates, axis=0, reduction="add")
         if input_type == "int32":
             # Torch always outputs int64 results for bincount
             return _op.cast(out, "int64")
         return out
 
     def scatter_add(self, inputs, input_types):
+        assert (
+            len(inputs) == 4
+        ), "scatter_add takes 4 inputs (data, dim, index, src), but {} given".format(len(inputs))
         data = inputs[0]
         axis = inputs[1]
         index = inputs[2]
         src = inputs[3]
-        return _op.scatter_add(data, index, src, axis=axis)
+
+        data_shape = self.infer_shape(inputs[0])
+        data_rank = len(data_shape)
+        index_shape = self.infer_shape(inputs[2])
+        index_rank = len(index_shape)
+        # When index is empty, the operation returns data unchanged
+        if self.is_empty_shape(index_shape):
+            return data
+        src_shape = self.infer_shape(inputs[3])
+        src_rank = len(src_shape)
+        assert data_rank == index_rank, "Index rank is not the same as data rank"
+        assert data_rank == src_rank, "Src rank is not the same as data rank"
+
+        assert 0 <= axis < data_rank, "Dim is out of bounds"
+
+        for i in range(data_rank):
+            assert index_shape[i] <= src_shape[i], "Index dim size should be less than src one"
+            if i != axis:
+                assert (
+                    index_shape[i] <= data_shape[i]
+                ), "Index dim size should be less than data one"
+
+        return _op.scatter_elements(data, index, src, axis=axis, reduction="add")
 
     def scatter_reduce(self, inputs, input_types):
         assert len(inputs) == 5 or len(inputs) == 6, (

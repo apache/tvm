@@ -41,7 +41,6 @@ from .scatter import *
 from .scatter_elements import *
 from .sparse_fill_empty_rows import *
 from .sparse_reshape import *
-from .scatter_add import *
 from .argwhere import *
 from .scan import *
 from .einsum import *

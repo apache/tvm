@@ -378,31 +378,6 @@ def scatter(data, indices, updates, axis):
     return _make.scatter(data, indices, updates, axis)
 
 
-def scatter_add(data, indices, updates, axis):
-    """Update data by adding values in updates at positions defined by indices.
-
-    Parameters
-    ----------
-    data : relay.Expr
-        The input data to the operator.
-
-    indices : relay.Expr
-        The index locations to update.
-
-    updates : relay.Expr
-        The values to add.
-
-    axis : int
-        The axis to scatter_add on.
-
-    Returns
-    -------
-    ret : relay.Expr
-        The computed result.
-    """
-    return _make.scatter_add(data, indices, updates, axis)
-
-
 def scatter_elements(data, indices, updates, axis=0, reduction="update"):
     """Scatter elements with updating data by reduction of values in updates
     at positions defined by indices.
@@ -1717,7 +1692,7 @@ def segment_sum(data, segment_ids, num_segments=None):
     expanded_segment_ids = tile(segment_ids, segment_ids_tiled_shape)
     scatter_add_segment_ids = transpose(expanded_segment_ids)
     src = cast_like(_dyn_make.zeros(new_shape, "float64"), data)
-    return scatter_add(src, scatter_add_segment_ids, data, axis=0)
+    return scatter_elements(src, scatter_add_segment_ids, data, axis=0, reduction="add")
 
 
 def cumsum(data, axis=None, dtype=None, exclusive=None):
