@@ -28,7 +28,7 @@ from tvm.script import relax as R
 
 def run_cpu(mod, func_name, *input):
     target = tvm.target.Target("llvm")
-    ex = relax.vm.build(mod, target)
+    ex = relax.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     return vm[func_name](*input)
 

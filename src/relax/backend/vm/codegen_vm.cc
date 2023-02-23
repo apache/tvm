@@ -355,22 +355,9 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     builder_->EmitCall(func, args, dst_reg);
   }
 
-  // TODO(relax-team) revisit after PrimValue.
-  // Emit the `call_node` attributes as constants and append these constants to `args` vector.
-  void AppendAttrsAsConstants(const Call& call_node, std::vector<Instruction::Arg>& args) {
-    auto attrs = call_node->attrs;
-    if (!attrs.defined()) return;
-
-    LOG(FATAL) << "Support for attributes of Op " << call_node->op
-               << " has not been implemented yet.";
-    return;
-  }
-
-  // Emits call to packed function `name` with arguments copied over from `call_node` args and
-  // attributes.
+  // Emits call to packed function `name` with arguments copied over from `call_node` args
   void EmitPackedFuncCall(const Call& call_node, const FCallPacked& name, RegName dst_reg) {
     std::vector<Instruction::Arg> args = VisitArray(call_node->args);
-    AppendAttrsAsConstants(call_node, args);
     builder_->EmitCall(name, args, dst_reg);
   }
 

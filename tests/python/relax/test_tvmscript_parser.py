@@ -213,8 +213,8 @@ def test_relax_base_op():
         alloc = bb.emit(relax.op.builtin.alloc_tensor(relax.ShapeExpr((4, 4)), "float32", 0))
         shape = bb.emit(relax.op.shape_of(alloc))
         bb.emit_func_output(shape)
-    # todo(yongwww): comment this check because 0 was changed to R.prim_value(0) in the printed IR
-    # _check(foo, bb.get()["foo"])
+
+    _check(foo, bb.get()["foo"])
 
 
 def test_symbolic_shape():

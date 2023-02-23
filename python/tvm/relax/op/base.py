@@ -22,7 +22,7 @@ import tvm
 from tvm.runtime.object import Object
 
 from . import _ffi_api
-from ..expr import Expr, ShapeExpr, Call, ExternFunc
+from ..expr import Expr, StringImm, ShapeExpr, Call, ExternFunc
 from ..expr import Tuple as RxTuple
 from ..struct_info import StructInfo, TensorStructInfo
 from ...ir import PrimExpr
@@ -240,7 +240,7 @@ def relax_print(format_str: str, *format_args: tvm.Object) -> None:
         py_print(format_str.format(*val_strs))
 
 
-def print(*values: List[Expr], format: str = "") -> Expr:
+def print(*values: List[Expr], format: Union[str, Expr] = "") -> Expr:
     """Print op to print the values
 
     Parameters
@@ -248,14 +248,17 @@ def print(*values: List[Expr], format: str = "") -> Expr:
     values : List[Expr]
         The values to print.
 
-    format_str: str
-        The format string.
+    format: Union[str, Expr]
+        The format string or StringImm.
 
     Returns
     -------
     result : Expr
         A relax Call, which will print the value during runtime.
     """
+    if isinstance(format, str):
+        format = StringImm(format)
+
     return _ffi_api.print(values, format)  # type: ignore # pylint: disable=no-member
 
 
@@ -313,7 +316,9 @@ def relax_assert_op(condition: tvm.Object, format_str: str, *format_args: tvm.Ob
 
 
 def assert_op(
-    condition: Expr, format_args: Optional[Union[Expr, List[Expr]]] = None, format: str = ""
+    condition: Expr,
+    format_args: Optional[Union[Expr, List[Expr]]] = None,
+    format: Union[str, Expr] = "",
 ) -> Expr:
     """
     Create a call to Relax's assert_op operation (`assert` is reserved in Python,
@@ -327,8 +332,8 @@ def assert_op(
     format_args: Optional[Union[Expr, List[Expr]]]
         Format arguments for the error message if the condition fails.
 
-    format_str: str
-        The format string for the error message.
+    format: Union[str, Expr]
+        The format string or StringImm for the error message.
 
     Returns
     -------
@@ -339,6 +344,8 @@ def assert_op(
         format_args = []
     if isinstance(format_args, Expr):  # type: ignore
         format_args = [format_args]
+    if isinstance(format, str):
+        format = StringImm(format)
     return _ffi_api.assert_op(condition, format_args, format)  # type: ignore
 
 
