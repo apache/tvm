@@ -15,13 +15,16 @@
 # specific language governing permissions and limitations
 """The builtin Relax operators."""
 
-from ...expr import Call, Expr
+from typing import Union
+from ...expr import Call, Expr, PrimValue, DataTypeImm
 from ...utils import args_converter
 from . import _ffi_api
 
 
 @args_converter.auto
-def alloc_tensor(shape: Expr, dtype: str, runtime_device_index: int) -> Call:
+def alloc_tensor(
+    shape: Expr, dtype: Union[str, Expr], runtime_device_index: Union[int, Expr]
+) -> Call:
     """Construct a Call to allocate a tensor with specific shape, dtype, runtime_device_index.
 
     Parameters
@@ -29,10 +32,10 @@ def alloc_tensor(shape: Expr, dtype: str, runtime_device_index: int) -> Call:
     shape : Expr
         The shape of the tensor to be allocated.
 
-    dtype : str
+    dtype : Union[str, Expr]
         The datatype of the tensor to be allocated.
 
-    runtime_device_index : int
+    runtime_device_index : Union[int, Expr]
         The device index indicating on which device the tensor is to be allocated at runtime.
         Index -1 is reserved for the host device.
 
@@ -41,4 +44,9 @@ def alloc_tensor(shape: Expr, dtype: str, runtime_device_index: int) -> Call:
     result : Call
         A relax Call, which gets the allocated tensor.
     """
+    if isinstance(dtype, str):
+        dtype = DataTypeImm(dtype)
+    if isinstance(runtime_device_index, int):
+        runtime_device_index = PrimValue(runtime_device_index)
+
     return _ffi_api.alloc_tensor(shape, dtype, runtime_device_index)  # type: ignore
