@@ -31,34 +31,55 @@ namespace tvm {
 namespace relax {
 
 /* relax.unique */
-TVM_REGISTER_NODE_TYPE(UniqueAttrs);
 
-Expr unique(Expr x, bool sorted, bool return_index, bool return_inverse, bool return_counts,
-            Optional<Integer> axis) {
-  ObjectPtr<UniqueAttrs> attrs = make_object<UniqueAttrs>();
-  attrs->sorted = sorted;
-  attrs->return_index = return_index;
-  attrs->return_inverse = return_inverse;
-  attrs->return_counts = return_counts;
-  attrs->axis = std::move(axis);
-
+Expr unique(Expr x, PrimValue sorted, PrimValue return_index, PrimValue return_inverse,
+            PrimValue return_counts, Optional<PrimValue> axis) {
   static const Op& op = Op::Get("relax.unique");
-  return Call(op, {std::move(x)}, Attrs(attrs), {});
+  Call call;
+  if (!axis) {
+    call = Call(op, {std::move(x), sorted, return_index, return_inverse, return_counts});
+  } else {
+    PrimValue pv_axis = axis.value();
+    call = Call(op, {std::move(x), sorted, return_index, return_inverse, return_counts, pv_axis});
+  }
+  return call;
 }
 
 TVM_REGISTER_GLOBAL("relax.op.unique").set_body_typed(unique);
 
 StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
-  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
-  const auto* attrs = call->attrs.as<UniqueAttrs>();
-  if (!data_sinfo->IsUnknownNdim() && attrs->axis.defined()) {
-    // Normalize the axis for sanity check purpose.
-    NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis.value()->value);
+  TensorStructInfo data_sinfo = Downcast<TensorStructInfo>(call->args[0]->struct_info_);
+  PrimValue axis, return_index, return_inverse, return_counts;
+  if (call->args.size() == 6) {
+    if (auto* prim_value_node = call->args[5].as<PrimValueNode>()) {
+      axis = GetRef<PrimValue>(prim_value_node);
+    }
   }
+  if (!data_sinfo->IsUnknownNdim() && axis.defined()) {
+    // Normalize the axis for sanity check purpose.
+    if (const auto* axis_int = axis->value.as<IntImmNode>()) {
+      NormalizeAxis(call, ctx, data_sinfo->ndim, axis_int->value);
+    }
+  }
+  ICHECK(call->args[2]->IsInstance<PrimValueNode>());
+  ICHECK(call->args[3]->IsInstance<PrimValueNode>());
+  ICHECK(call->args[4]->IsInstance<PrimValueNode>());
 
-  int n_int_return = static_cast<int>(attrs->return_index) +
-                     static_cast<int>(attrs->return_inverse) +
-                     static_cast<int>(attrs->return_counts);
+  return_index = Downcast<PrimValue>(call->args[2]);
+  return_inverse = Downcast<PrimValue>(call->args[3]);
+  return_counts = Downcast<PrimValue>(call->args[4]);
+
+  auto f_convert_to_int64 = [](const PrimExpr& value) {
+    CHECK(value->IsInstance<IntImmNode>())
+        << value << " expects to be IntImm, but gets " << value->GetTypeKey();
+    const auto* val_node = value.as<IntImmNode>();
+    auto val_imm = GetRef<IntImm>(val_node);
+    return val_imm->value;
+  };
+
+  int64_t n_int_return = f_convert_to_int64(return_index->value) +
+                         f_convert_to_int64(return_inverse->value) +
+                         f_convert_to_int64(return_counts->value);
 
   std::vector<StructInfo> output_sinfo;
   output_sinfo.reserve(1 + n_int_return);
@@ -67,7 +88,7 @@ StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
   if (data_sinfo->ndim == 0) {
     output_sinfo.push_back(
         TensorStructInfo(ShapeExpr({IntImm(DataType::Int(64), /*value=*/1)}), data_sinfo->dtype));
-  } else if (attrs->axis.defined()) {
+  } else if (axis.defined()) {
     output_sinfo.push_back(TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim));
   } else {
     output_sinfo.push_back(TensorStructInfo(data_sinfo->dtype, /*ndim=*/1));
@@ -93,9 +114,24 @@ StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
 }
 
 TVM_REGISTER_OP("relax.unique")
-    .set_attrs_type<UniqueAttrs>()
-    .set_num_inputs(1)
+    .set_num_inputs(6)
     .add_argument("x", "Tensor", "The input tensor")
+    .add_argument(
+        "sorted", "Tensor",
+        "Whether to sort the unique elements in ascending order before returning as output.")
+    .add_argument(
+        "return_index", "Tensor",
+        "Whether to return an additional tensor with indices for where elements in the unique "
+        "tensor come from the original input.")
+    .add_argument("return_inverse", "Tensor",
+                  "Whether to return an additional tensor with indices for where elements in the "
+                  "original input ended up in the returned unique list.")
+    .add_argument("return_counts", "Tensor",
+                  "Whether to return an additional tensor with counts of each unique elements")
+    .add_argument(
+        "axis", "Tensor",
+        "The dimension to apply unique. If it is NullOpt, the unique values of the flattened input "
+        "are returned.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoUnique)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.unique");
 
