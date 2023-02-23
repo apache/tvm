@@ -199,7 +199,7 @@ def render_object(val: tvm.Object) -> str:
     ret: str
         A string representing the value, ideally human-readable
     """
-    if isinstance(val, tvm.runtime.ndarray.NDArray):
+    if isinstance(val, tvm.nd.NDArray):
         return str(val)
     # no pretty-printer by default, so if we don't handle this,
     # then we can't look inside tuples
@@ -211,6 +211,9 @@ def render_object(val: tvm.Object) -> str:
         if val.tag == 0:
             return f"({fields})"
         return f"ADT(tag={val.tag}, fields=[{fields}])"
+    if isinstance(val, tvm.ir.Array):
+        fields = ", ".join([render_object(val[i]) for i in range(len(val))])
+        return f"({fields})"
     return str(val)
 
 
@@ -292,7 +295,7 @@ def relax_assert_op(condition: tvm.Object, format_str: str, *format_args: tvm.Ob
         )
 
     # should be guaranteed by the type system
-    if not isinstance(condition, tvm.runtime.ndarray.NDArray):
+    if not isinstance(condition, tvm.nd.NDArray):
         raise ValueError(f"The condition must be an NDArray, but given a {type(condition)}.")
 
     # may happen if the original program had unknown shape or dtype for the tensor's type
