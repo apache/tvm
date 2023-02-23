@@ -21,6 +21,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/runtime/container/array.h>
 
+#include <list>
 #include <vector>
 
 namespace tvm {
@@ -81,10 +82,34 @@ inline std::vector<TDst> AsVector(const Array<TSrc>& vec);
  * \brief Convert a std::vector to tvm::runtime::Array
  * \tparam TSrc The type of elements in the source vector
  * \tparam TDst The type of elements in the result Array
- * \return The result vector
+ * \return The result Array
  */
 template <class TSrc, class TDst>
 inline Array<TDst> AsArray(const std::vector<TSrc>& vec);
+
+/*!
+ * \brief Convert a tvm::runtime::Array to std::list
+ * \tparam T The type of elements in the source array
+ * \return The result list
+ */
+template <class T>
+inline std::list<T> AsList(const Array<T>& array) {
+  std::list<T> list;
+  for (const auto& v : array) list.push_back(v);
+  return list;
+}
+
+/*!
+ * \brief Convert a std::list to tvm::runtime::Array
+ * \tparam T The type of elements in the source list
+ * \return The result list
+ */
+template <class T>
+inline Array<T> AsArray(const std::list<T>& list) {
+  Array<T> array;
+  for (const auto& v : list) array.push_back(v);
+  return array;
+}
 
 /*!
  * \brief Get the shape tuple as array
