@@ -407,7 +407,7 @@ class AddWithSameOperands_partitioned:
     ) -> R.Tensor((1, 64, 56, 56), dtype="float32"):
         R.func_attr({"Composite": "tensorrt.add", "Primitive": 1})
         with R.dataflow():
-            gv: R.Tensor((1, 64, 56, 56), dtype="float32") = R.add(data, data)
+            gv: R.Tensor((1, 64, 56, 56), dtype="float32") = R.add(data, data_1)
             R.output(gv)
         return gv
 

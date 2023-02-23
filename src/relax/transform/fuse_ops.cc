@@ -359,6 +359,7 @@ class GraphCreator : public ExprVisitor {
 class FunctionCreator : public ExprMutator {
  public:
   explicit FunctionCreator(bool lift_constant) : lift_constant_(lift_constant) {}
+  using ExprMutator::VisitExpr_;
   /*!
    * \brief Append a new binding to this function and possibly create new parameters for the
    * function accordingly
@@ -379,7 +380,7 @@ class FunctionCreator : public ExprMutator {
           name_hint_ = name_hint_ + "_" + Downcast<GlobalVar>(call->args[0])->name_hint;
 
           const Tuple& args = Downcast<Tuple>(call->args[1]);
-          CheckDefAndUpdateParams(args->fields);
+          CheckDefAndUpdateParams(call, args->fields);
           // TODO(tvm-team): handle shape expr
         } else {
           if (call->op->IsInstance<OpNode>()) {
@@ -393,7 +394,7 @@ class FunctionCreator : public ExprMutator {
             }
           }
 
-          CheckDefAndUpdateParams(call->args);
+          CheckDefAndUpdateParams(call, call->args);
         }
       } else {
         const auto* tuple_item = var_binding->value.as<TupleGetItemNode>();
@@ -489,7 +490,8 @@ class FunctionCreator : public ExprMutator {
    * parameter for the expression.
    * \param dedup_params Whether or not to deduplicate a parameter that is already in arguments_.
    * \param expr The expression to be checked
-   * \return true if the input expression is added as a parameter of a grouped function.
+   * \return true if the input expression is added as a parameter of the grouped function being
+   * created.
    */
   bool CheckDefAndUpdateParam(const Expr& expr, bool dedup_params = true) {
     // If the expression has already served as an argument, no need to create another one for it.
@@ -521,27 +523,69 @@ class FunctionCreator : public ExprMutator {
    * \brief Apply CheckDefAndUpdateParam to each expression in the array, allowing
    * duplicated parameters in the same call arguments to appear as distinct
    * parameters in a grouped function.
+   *
+   * As we update the parameter list, we associate each argument in the call node
+   * with an index into the parameter list, if the argument is a variable. When the
+   * grouped function is created, those arguments are replaced with the corresponding
+   * parameters.
    */
-  void CheckDefAndUpdateParams(const Array<Expr>& args) {
+  void CheckDefAndUpdateParams(const CallNode* call, const Array<Expr>& args) {
     std::unordered_set<const Object*> added_params;
-    for (auto arg : args) {
+    for (size_t i = 0; i < args.size(); ++i) {
+      auto arg = args[i];
       if (auto it = std::find(arguments_.begin(), arguments_.end(), arg);
           it == arguments_.end() || added_params.count(arg.get())) {
         if (CheckDefAndUpdateParam(arg, /*dedup_params*/ false)) {
           added_params.insert(arg.get());
+          // Associate arg with the newly created parameter of the grouped function.
+          arg_param_indices[call].push_back(params_.size() - 1);
+        } else {
+          // arg is not Var
+          arg_param_indices[call].push_back(std::nullopt);
         }
+      } else {
+        // Associate arg with the existing parameter of the grouped function.
+        arg_param_indices[call].push_back(it - arguments_.begin());
       }
     }
   }
 
-  Expr VisitExpr(const Expr& expr) final {
-    // If the expression serves as an argument, return its correspondng parameter.
-    auto it = std::find(arguments_.begin(), arguments_.end(), expr);
-    if (it != arguments_.end()) {
-      return params_[it - arguments_.begin()];
+  /*!
+   * \brief Replace variable arguments to call with the corresponding parameters to the
+   * grouped function.
+   */
+  Expr VisitExpr_(const CallNode* call) final {
+    auto it = arg_param_indices.find(call);
+    ICHECK(it != arg_param_indices.end());
+
+    const auto& param_indices = it->second;
+    Array<Expr> new_args;
+
+    if (call->op == Op::Get("relax.call_tir")) {
+      new_args.push_back(call->args[0]);
+      Array<Expr> new_call_tir_args;
+
+      const auto fields = Downcast<Tuple>(call->args[1])->fields;
+      ICHECK_EQ(fields.size(), param_indices.size());
+      for (size_t i = 0; i < fields.size(); ++i) {
+        if (param_indices[i]) {
+          new_call_tir_args.push_back(params_[*param_indices[i]]);
+        } else {
+          new_call_tir_args.push_back(VisitExpr(fields[i]));
+        }
+      }
+      new_args.push_back(Tuple(new_call_tir_args));
+    } else {
+      ICHECK_EQ(call->args.size(), param_indices.size());
+      for (size_t i = 0; i < call->args.size(); ++i) {
+        if (param_indices[i]) {
+          new_args.push_back(params_[*param_indices[i]]);
+        } else {
+          new_args.push_back(VisitExpr(call->args[i]));
+        }
+      }
     }
-    // Otherwise, recurse into this expression.
-    return ExprMutator::VisitExpr(expr);
+    return Call(call->op, new_args, call->attrs, call->sinfo_args, call->span);
   }
 
  private:
@@ -553,6 +597,9 @@ class FunctionCreator : public ExprMutator {
   std::vector<const VarNode*> output_vars_;
   /*! \brief Whether or not to lift bound constants to parameters */
   bool lift_constant_;
+  /*! \brief The map between arguments in the call node and their corresponding indices into
+   * params_. When the argument is not a variable, the index is set to nullopt. */
+  std::unordered_map<const CallNode*, std::vector<std::optional<int>>> arg_param_indices;
 };
 
 /*!
