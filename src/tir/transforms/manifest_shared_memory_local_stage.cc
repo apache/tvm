@@ -53,8 +53,7 @@ class IntermediateStageRewriter {
     const BufferStoreNode* store = block->body.as<BufferStoreNode>();
     CHECK(store != nullptr && runtime::StorageScope::Create(store->buffer.scope()).rank ==
                                   runtime::StorageRank::kShared)
-        << "ValueError: Expect the body of the block to be BufferStore to shared memory."
-        << "But get " << block->body;
+        << "ValueError: Expect the body of the block to be BufferStore to shared memory.";
 
     const Buffer& target_buffer = store->buffer;
 

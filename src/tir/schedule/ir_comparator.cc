@@ -316,7 +316,7 @@ bool TensorizeComparator::DefEqual(const Var& lhs, const Var& rhs) {
   equal_map_[lhs] = rhs;
   // Cast if necessary. This allows the workload and the tensor intrin to have different dtypes in
   // the indices.
-  analyzer_.Bind(lhs, cast(lhs.dtype(), rhs), /*allow_override=*/true);
+  analyzer_.Bind(lhs, cast(lhs.dtype(), rhs));
   return true;
 }
 
@@ -474,9 +474,6 @@ bool TensorizeComparator::CompareBufferRegion(const BufferRegion& lhs, const Buf
           os << "Buffer base index consistency check failed due to unequal index base: "
                 "indices_base[i]="
              << indices_base[i] << " vs lhs->region[i]->min=" << lhs->region[i]->min;
-          os << "\ni=" << i << ", offset=" << offset << ", lhs->region.qsize()="
-             << lhs->region.size() << ", rhs->region.size()=" << rhs->region.size() << lhs->region << rhs->region;
-          os << "\nTrying simplify: " << analyzer_.Simplify(lhs->region[i]->min);
           EmitError(os.str());
         }
         return false;
@@ -493,7 +490,8 @@ bool TensorizeComparator::CompareBufferRegion(const BufferRegion& lhs, const Buf
         }
         return false;
       }
-      PrimExpr normalized_lhs_min = lhs_analyzer_.Simplify((lhs->region[i + offset]->min - indices_base[i + offset]));
+      PrimExpr normalized_lhs_min =
+          lhs_analyzer_.Simplify((lhs->region[i + offset]->min - indices_base[i + offset]));
       if (!analyzer_.CanProveEqual(normalized_lhs_min, rhs->region[i]->min)) {
         if (assert_mode_) {
           std::ostringstream os;

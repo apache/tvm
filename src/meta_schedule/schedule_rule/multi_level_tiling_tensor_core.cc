@@ -25,6 +25,7 @@
 
 #include "../utils.h"
 #include "./multi_level_tiling.h"
+
 namespace tvm {
 namespace meta_schedule {
 
@@ -314,27 +315,27 @@ std::vector<State> MultiLevelTilingTensorCoreNode::TransformIntermediateOutputLa
   int num_higher_dims = buffer_ndim - 2;
 
   sch->TransformLayout(state->block_rv, 0, tir::BufferIndexType::kWrite,
-  tir::IndexMap::FromFunc(buffer_ndim, [&](const Array<tir::Var>& indices) {
-    Array<PrimExpr> result;
-    result.reserve(indices.size() + 4);
-    for (int i = 0; i < num_higher_dims; ++i) {
-      result.push_back(indices[i]);
-    }
-    const auto& m = indices[num_higher_dims];
-    const auto& n = indices[num_higher_dims + 1];
-    auto accum_m = floormod(m, frag_shape_m);
-    auto accum_n = floormod(n, frag_shape_n);
-    auto outer_m = floordiv(m, frag_shape_m);
-    auto outer_n = floordiv(n, frag_shape_n);
+                       tir::IndexMap::FromFunc(buffer_ndim, [&](const Array<tir::Var>& indices) {
+                         Array<PrimExpr> result;
+                         result.reserve(indices.size() + 4);
+                         for (int i = 0; i < num_higher_dims; ++i) {
+                           result.push_back(indices[i]);
+                         }
+                         const auto& m = indices[num_higher_dims];
+                         const auto& n = indices[num_higher_dims + 1];
+                         auto accum_m = floormod(m, frag_shape_m);
+                         auto accum_n = floormod(n, frag_shape_n);
+                         auto outer_m = floordiv(m, frag_shape_m);
+                         auto outer_n = floordiv(n, frag_shape_n);
 
-    result.push_back(floordiv(outer_m, warp_num_frag_m));
-    result.push_back(floordiv(outer_n, warp_num_frag_n));
-    result.push_back(floormod(outer_m, warp_num_frag_m));
-    result.push_back(floormod(outer_n, warp_num_frag_n));
-    result.push_back(accum_m);
-    result.push_back(accum_n);
-    return result;
-  }));
+                         result.push_back(floordiv(outer_m, warp_num_frag_m));
+                         result.push_back(floordiv(outer_n, warp_num_frag_n));
+                         result.push_back(floormod(outer_m, warp_num_frag_m));
+                         result.push_back(floormod(outer_n, warp_num_frag_n));
+                         result.push_back(accum_m);
+                         result.push_back(accum_n);
+                         return result;
+                       }));
 
   // // Tile by the fragment shape
   // sch->TransformLayout(state->block_rv, 0, tir::BufferIndexType::kWrite,
@@ -743,7 +744,8 @@ ScheduleRule ScheduleRule::MultiLevelTilingTensorCore(
       structure, tile_binds, max_innermost_factor, vector_load_lens, reuse_read, reuse_write);
 
   CHECK(node->reuse_write_.req == ReuseType::kMustReuse &&
-        runtime::StorageScope::Create(node->reuse_write_.scope).rank == runtime::StorageRank::kShared)
+        runtime::StorageScope::Create(node->reuse_write_.scope).rank ==
+            runtime::StorageRank::kShared)
       << "ValueError: Shared memory write reuse must be enabled for MultiLevelTilingTensorCore.";
 
   node->intrin_groups.reserve(intrin_groups.size());

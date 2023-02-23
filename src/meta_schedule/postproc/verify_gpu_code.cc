@@ -190,7 +190,6 @@ class VerifyGPUCodeNode : public PostprocNode {
           IRModule mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(g_var->name_hint), f}}));
           lowered = tvm::transform::Sequential(pass_list)(std::move(mod));
         } catch (const dmlc::Error& e) {
-          LOG(INFO) << e.what();
           return false;
         }
         if (!Verify(lowered)) {
