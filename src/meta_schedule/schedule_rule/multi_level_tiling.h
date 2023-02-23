@@ -164,8 +164,10 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
  protected:
   virtual std::vector<State> ApplySubRules(std::vector<State> states);
 
-  virtual std::pair<Array<tir::ExprRV>, Array<tir::LoopRV>> SplitLoop(const tir::Schedule& sch, tir::BlockRV block,
-                                       tir::LoopRV loop, int n_tiles) const;
+  virtual std::pair<Array<tir::ExprRV>, Array<tir::LoopRV>> SplitLoop(const tir::Schedule& sch,
+                                                                      tir::BlockRV block,
+                                                                      tir::LoopRV loop,
+                                                                      int n_tiles) const;
 
   // Annotate a block to use cooperative fetching
   void AnnotateCooperativeFetching(tir::Schedule* sch, const tir::BlockRV& block) const;

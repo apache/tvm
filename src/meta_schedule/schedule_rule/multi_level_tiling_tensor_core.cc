@@ -425,7 +425,9 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddWriteReuseTensorCore(
     sch->ComputeAt(cache_write, i1, true);
   }
   {
-    const auto& [i0, j0, i1, j1] = f_get_loops(cache_write);
+    auto loops = f_get_loops(cache_write);
+    const auto& i0 = loops[0];
+    const auto& j0 = loops[1];
     auto fused = sch->Fuse({i0, j0});
     sch->Bind(fused, "threadIdx.y");
   }
