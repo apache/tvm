@@ -69,7 +69,7 @@ def test_copy_with_new_vars_on_ir_module_nested_function():
         @R.function
         def func(x: R.Tensor((3,), "float32"), y: R.Tensor((3,), "float32")):
             @R.function
-            def inner(x: R.Tensor((3,), "float32")):
+            def inner(x: R.Tensor((3,), "float32")) -> R.Tensor((3,), dtype="float32"):
                 gv = R.add(x, x)
                 return gv
 
@@ -81,7 +81,7 @@ def test_copy_with_new_vars_on_ir_module_nested_function():
         @R.function
         def func(x: R.Tensor((3,), "float32"), y: R.Tensor((3,), "float32")):
             @R.function
-            def inner(x: R.Tensor((3,), "float32")):
+            def inner(x: R.Tensor((3,), "float32")) -> R.Tensor((3,), dtype="float32"):
                 gv = R.add(x, x)
                 return gv
 
@@ -91,7 +91,7 @@ def test_copy_with_new_vars_on_ir_module_nested_function():
         @R.function
         def func_copied(x: R.Tensor((3,), "float32"), y: R.Tensor((3,), "float32")):
             @R.function
-            def inner(x: R.Tensor((3,), "float32")):
+            def inner(x: R.Tensor((3,), "float32")) -> R.Tensor((3,), dtype="float32"):
                 gv = R.add(x, x)
                 return gv
 
