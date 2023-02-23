@@ -58,27 +58,6 @@ using FCallPacked = String;
  */
 using FLegalize = runtime::TypedPackedFunc<Expr(const BlockBuilder& bb, const Call& call)>;
 
-struct PrintAttrs : public tvm::AttrsNode<PrintAttrs> {
-  std::string format;
-  TVM_DECLARE_ATTRS(PrintAttrs, "relax.attrs.PrintAttrs") {
-    TVM_ATTR_FIELD(format)
-        .describe("Python-style format string to use for displaying the input. Ignored if empty.")
-        .set_default("");
-  }
-};
-
-struct AssertOpAttrs : public tvm::AttrsNode<AssertOpAttrs> {
-  std::string format;
-  TVM_DECLARE_ATTRS(AssertOpAttrs, "relax.attrs.AssertOpAttrs") {
-    TVM_ATTR_FIELD(format)
-        .describe(
-            "Python-style format string to use for displaying "
-            "an error message if the assert fails. "
-            "Ignored if empty.")
-        .set_default("");
-  }
-};
-
 }  // namespace relax
 }  // namespace tvm
 #endif  // TVM_RELAX_OP_ATTR_TYPES_H_

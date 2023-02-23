@@ -24,16 +24,13 @@
 #ifndef TVM_RELAX_OP_TENSOR_SET_H_
 #define TVM_RELAX_OP_TENSOR_SET_H_
 
-#include <tvm/relax/attrs/set.h>
-
 #include "../op_common.h"
 
 namespace tvm {
 namespace relax {
 
-Expr unique(Expr x, bool sorted, bool return_index, bool return_inverse, bool return_counts,
-            Optional<Integer> axis);
-
+Expr unique(Expr x, PrimValue sorted, PrimValue return_index, PrimValue return_inverse,
+            PrimValue return_counts, Optional<PrimValue> axis);
 }  // namespace relax
 }  // namespace tvm
 
