@@ -60,7 +60,10 @@ class PatternRegistryEntry(Object):
 Pattern = Union[
     PatternRegistryEntry,
     Tuple[str, DFPattern],
-    Tuple[str, Tuple[DFPattern, Mapping[str, DFPattern]]],
+    Tuple[
+        str,
+        Tuple[DFPattern, Mapping[str, DFPattern], Callable[[Mapping[DFPattern, Expr], Expr], bool]],
+    ],
 ]
 
 
@@ -82,9 +85,9 @@ def register_patterns(patterns: List[Pattern]):
         elif isinstance(item, tuple):
             name, pattern_or_tuple = item
             if isinstance(pattern_or_tuple, tuple):
-                pattern, arg_patterns = pattern_or_tuple
+                pattern, arg_patterns, check = pattern_or_tuple
             else:
-                pattern, arg_patterns = pattern_or_tuple, {}
+                pattern, arg_patterns = pattern_or_tuple, {}, lambda *_: True
             entries.append(PatternRegistryEntry(name, pattern, arg_patterns))
         else:
             raise TypeError(f"Cannot register type {type(pattern)} as pattern")

@@ -40,6 +40,7 @@
 
 #include "../../relay/analysis/graph_partitioner.h"
 #include "../../support/arena.h"
+#include "../backend/pattern_registry.h"
 
 namespace tvm {
 namespace relax {
@@ -899,7 +900,7 @@ class PatternBasedPartitioner : ExprVisitor {
   using Group = GraphPartitioner::Group;
   using GroupMap = OperatorFusor::GroupMap;
   using ExprVisitor::VisitExpr_;
-  using FCheckMatch = runtime::TypedPackedFunc<bool(const Map<DFPattern, Expr>&, const Expr&)>;
+  using FCheckMatch = backend::PatternRegistryEntryNode::FCheckMatch;
 
   static GroupMap Run(String pattern_name, DFPattern pattern, FCheckMatch check, Expr expr,
                       support::Arena* arena) {
