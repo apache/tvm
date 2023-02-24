@@ -1124,7 +1124,7 @@ def test_simple_compute_async():
                 B = T.alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
                 with T.block():
                     T.reads(A[tx, 0])
-                    T.writes(B[0, tx, 0])
+                    T.writes(B[T.FloorMod(0, 2), tx, 0])
                     with T.attr(0, "async_commit_queue_scope", 0):
                         with T.attr(0, "async_scope", 1):
                             B[T.FloorMod(0, 2), tx, 0] = A[tx, 0] * T.float32(2)
@@ -1350,8 +1350,8 @@ def test_three_stage_compute_two_stage_async():
                                     B[i % 2, tx, 0] = A[tx, i] * T.float32(2)
                         with T.block():
                             T.where(i == 1 and i - 1 < 16)
-                            T.reads(B[(i + 1) % 2, tx, 0])
-                            T.writes(C[(i + 1) % 2, tx, 0])
+                            T.reads(B[(i - 1) % 2, tx, 0])
+                            T.writes(C[(i - 1) % 2, tx, 0])
                             with T.attr(0, "async_commit_queue_scope", 1):
                                 with T.attr(0, "async_wait_queue_scope", 0):
                                     with T.attr(0, "async_wait_inflight_count", 1):
@@ -1366,14 +1366,14 @@ def test_three_stage_compute_two_stage_async():
                         with T.block():
                             T.where(i + 2 < 16)
                             T.reads(A[tx, i + 2])
-                            T.writes(B[i % 2, tx, 0])
+                            T.writes(B[(i + 2) % 2, tx, 0])
                             with T.attr(0, "async_commit_queue_scope", 0):
                                 with T.attr(0, "async_scope", 1):
                                     B[(i + 2) % 2, tx, 0] = A[tx, i + 2] * T.float32(2)
                         with T.block():
                             T.where(i + 2 - 1 < 16)
-                            T.reads(B[(i + 1) % 2, tx, 0])
-                            T.writes(C[(i + 1) % 2, tx, 0])
+                            T.reads(B[(i - 1 + 2) % 2, tx, 0])
+                            T.writes(C[(i - 1 + 2) % 2, tx, 0])
                             with T.attr(0, "async_commit_queue_scope", 1):
                                 with T.attr(0, "async_wait_queue_scope", 0):
                                     with T.attr(0, "async_wait_inflight_count", 1):
@@ -1394,8 +1394,8 @@ def test_three_stage_compute_two_stage_async():
                     for i in T.unroll(2):
                         with T.block():
                             T.where(i + 16 - 1 < 16)
-                            T.reads(B[(i + 1) % 2, tx, 0])
-                            T.writes(C[(i + 1) % 2, tx, 0])
+                            T.reads(B[(i - 1 + 16) % 2, tx, 0])
+                            T.writes(C[(i - 1 + 16) % 2, tx, 0])
                             with T.attr(0, "async_commit_queue_scope", 1):
                                 with T.attr(0, "async_wait_queue_scope", 0):
                                     with T.attr(0, "async_wait_inflight_count", 0 - i):
