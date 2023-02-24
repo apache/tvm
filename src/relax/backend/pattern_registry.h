@@ -35,10 +35,28 @@ namespace tvm {
 namespace relax {
 namespace backend {
 
+/*!
+ * \brief An entry in the pattern registry. This represents a single pattern that
+ * can be used to identify expressions that can be handled by external
+ * backends, like CUTLASS and TensorRT.
+ */
 class PatternRegistryEntryNode : public Object {
  public:
+  /*!
+   * \brief The name of pattern. Usually it starts with the name of backend, like
+   * 'cutlass.matmul'.
+   */
   String name;
+  /*!
+   * \brief The dataflow pattern that will be used to match expressions that can
+   * be handled by external backends.
+   */
   DFPattern pattern;
+  /*!
+   * \brief The mapping from arg name to its pattern. It can be used to extract
+   * arg expression from match result. All DFPattern in this map should be part of
+   * the `pattern`.
+   */
   Map<String, DFPattern> arg_patterns;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -59,11 +77,27 @@ class PatternRegistryEntry : public ObjectRef {
                                             PatternRegistryEntryNode);
 };
 
+/*!
+ * \brief Register patterns which will be used to partition the DataflowBlock
+ *        into subgraphs that are supported by external backends.
+ * \param patterns Patterns to be registered. Patterns that appear later in the list have
+ *        higher priority when partitioning DataflowBlock.
+ */
 void RegisterPatterns(Array<PatternRegistryEntry> entries);
 
+/*!
+ * \brief Find patterns whose name starts with a particular prefix.
+ * \param prefx The pattern name prefix.
+ * \return Matched patterns, ordered by priority from high to low.
+ */
 Array<PatternRegistryEntry> GetPatternsWithPrefix(const String& prefix);
 
-Optional<PatternRegistryEntry> GetPattern(const String& pattern_name);
+/*!
+ * \brief Find the pattern with a particular name.
+ * \param name The pattern name.
+ * \return The matched pattern. NullOpt if not found.
+ */
+Optional<PatternRegistryEntry> GetPattern(const String& name);
 
 }  // namespace backend
 }  // namespace relax

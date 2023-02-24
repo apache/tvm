@@ -1046,17 +1046,6 @@ def _only_used_by(
     return ffi.only_used_by(lhs, rhs, index)  # type: ignore
 
 
-def _add_bias_activation_pattern(out, with_bias=False, activation=None):
-    if with_bias:
-        bias = wildcard()
-        out = is_op("relax.add")(out, bias)
-
-    if activation:
-        return is_op(activation)(out)
-
-    return out
-
-
 def make_fused_bias_activation_pattern(op_name, with_bias=False, activation=None):
     """
     A simple utility to create patterns for an operation fused with bias addition and activation.
@@ -1081,4 +1070,11 @@ def make_fused_bias_activation_pattern(op_name, with_bias=False, activation=None
     rhs = wildcard()
     out = is_op(op_name)(lhs, rhs)
 
-    return _add_bias_activation_pattern(out, with_bias, activation)
+    if with_bias:
+        bias = wildcard()
+        out = is_op("relax.add")(out, bias)
+
+    if activation:
+        return is_op(activation)(out)
+
+    return out

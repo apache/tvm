@@ -28,6 +28,25 @@ from . import _ffi_api
 
 @tvm._ffi.register_object("relax.backend.PatternRegistryEntry")
 class PatternRegistryEntry(Object):
+    """
+    An entry in the pattern registry. This represents a single pattern that
+    can be used to identify expressions that can be handled by external
+    backends, like CUTLASS and TensorRT.
+
+    Parameters
+    ----------
+    name: str
+        The name of pattern. Usually it starts with the name of backend, like 'cutlass.matmul'.
+
+    pattern: DFPattern
+        The dataflow pattern that will be used to match expressions that can be handled
+        by external backends.
+
+    arg_patterns: Mapping[str, DFPattern]
+        The mapping from arg name to its pattern. It can be used to extract arg expression
+        from match result. All DFPattern in this map should be part of the `pattern`.
+    """
+
     name: str
     pattern: DFPattern
     arg_patterns: Mapping[str, DFPattern]
@@ -46,6 +65,16 @@ Pattern = Union[
 
 
 def register_patterns(patterns: List[Pattern]):
+    """
+    Register patterns which will be used to partition the DataflowBlock into
+    subgraphs that are supported by external backends.
+
+    Parameters
+    ----------
+    patterns: List[Pattern]
+        Patterns to be registered. Patterns that appear later in the list have
+        higher priority when partitioning DataflowBlock.
+    """
     entries = []
     for item in patterns:
         if isinstance(item, PatternRegistryEntry):
@@ -63,8 +92,34 @@ def register_patterns(patterns: List[Pattern]):
 
 
 def get_patterns_with_prefix(prefix: str) -> List[PatternRegistryEntry]:
+    """
+    Get a list of patterns whose names startwith `prefix`.
+
+    Parameters
+    ----------
+    prefix: str
+        The prefix of pattern name.
+
+    Returns
+    -------
+    patterns: PatternRegistryEntry
+        Matched patterns, ordered by priority from high to low.
+    """
     return _ffi_api.GetPatternsWithPrefix(prefix)
 
 
 def get_pattern(name: str) -> Optional[PatternRegistryEntry]:
+    """
+    Find the pattern with a particular name.
+
+    Parameters
+    ----------
+    name: str
+        The pattern name.
+
+    Returns
+    -------
+    pattern: Optional[PatternRegistryEntry]
+        The matched pattern. Returns None if such pattern is not found.
+    """
     return _ffi_api.GetPattern(name)

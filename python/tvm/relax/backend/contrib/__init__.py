@@ -15,4 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from . import cutlass
+"""External backend codegen modules for Relax."""
+
+from .cutlass import partition_for_cutlass

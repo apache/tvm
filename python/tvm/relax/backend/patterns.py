@@ -17,10 +17,17 @@
 
 """Common patterns used in BYOC"""
 
+from typing import Dict, Mapping, Tuple
+
 from tvm.relax.dpl.pattern import DFPattern, is_op, wildcard
 
 
-def _with_bias_activation_pattern(out, args, with_bias=False, activation=None):
+def _with_bias_activation_pattern(
+    out: DFPattern,
+    args: Dict[str, DFPattern],
+    with_bias: bool = False,
+    activation: str = None,
+) -> Tuple[DFPattern, Mapping[str, DFPattern]]:
     if with_bias:
         args["bias"] = bias = wildcard()
         out = is_op("relax.add")(out, bias)
@@ -31,7 +38,11 @@ def _with_bias_activation_pattern(out, args, with_bias=False, activation=None):
     return out, args
 
 
-def make_fused_bias_activation_pattern(op_name, with_bias=False, activation=None):
+def make_fused_bias_activation_pattern(
+    op_name: str,
+    with_bias: bool = False,
+    activation: str = None,
+) -> Tuple[DFPattern, Mapping[str, DFPattern]]:
     """
     A simple utility to create patterns for an operation fused with bias addition and activation.
 
@@ -50,6 +61,10 @@ def make_fused_bias_activation_pattern(op_name, with_bias=False, activation=None
     -------
     pattern: DFPattern
         The resulting pattern describing a fused operation
+
+    args: Mapping[str, DFPattern]
+        The mapping from arg name to its pattern. It can be used to extract
+        arg expression from match result.
     """
     lhs = wildcard()
     rhs = wildcard()
@@ -59,7 +74,35 @@ def make_fused_bias_activation_pattern(op_name, with_bias=False, activation=None
     return _with_bias_activation_pattern(out, args, with_bias, activation)
 
 
-def make_matmul_pattern(with_bias=False, activation=None, transposed_rhs=False):
+def make_matmul_pattern(
+    with_bias: bool = False,
+    activation: str = None,
+    transposed_rhs: bool = False,
+) -> Tuple[DFPattern, Mapping[str, DFPattern]]:
+    """
+    Create pattern for matrix multiplication.
+
+    Parameters
+    ----------
+    with_bias: bool
+        Whether or not to include bias addition
+
+    activation: str
+        The name of an activation Relax op, such as "relax.nn.relu"
+
+    transposed_rhs: bool
+        Whether the right hand side of multiplication is transposed.
+
+    Returns
+    -------
+    pattern: DFPattern
+        The resulting pattern describing a matrix multiplication.
+
+    args: Mapping[str, DFPattern]
+        The mapping from arg name to its pattern. It can be used to extract
+        arg expression from match result.
+    """
+
     lhs = wildcard()
     rhs = wildcard()
     args = {"lhs": lhs, "rhs": rhs}

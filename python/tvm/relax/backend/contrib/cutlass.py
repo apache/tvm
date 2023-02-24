@@ -17,7 +17,9 @@
 
 """Pattern table for CUTLASS backend"""
 
-from ..pattern_registry import register_patterns
+from tvm.relax import transform
+
+from ..pattern_registry import get_patterns_with_prefix, register_patterns
 from ..patterns import make_fused_bias_activation_pattern, make_matmul_pattern
 
 register_patterns(
@@ -66,3 +68,23 @@ register_patterns(
         ),
     ]
 )
+
+
+def partition_for_cutlass(mod):
+    """
+    Partition the input module into CUTLASS-supported subgraphs.
+
+    Parameters
+    ----------
+    mod: tvm.IRModule
+        The IRModule to be partitioned.
+
+    Returns
+    -------
+    mod: tvm.IRModule
+        The resulting IRModule, containing partitioned subgraphs to be
+        compiled by the CUTLASS backend.
+    """
+
+    cutlass_patterns = get_patterns_with_prefix("cutlass")
+    return transform.FuseOpsByPattern(cutlass_patterns, annotate_codegen=True)(mod)
