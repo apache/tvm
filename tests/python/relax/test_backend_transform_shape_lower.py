@@ -164,8 +164,8 @@ def test_symbolic_compute():
         def main(
             x: R.Tensor(["n", "m"], "float32"), y: R.Tensor(ndim=3, dtype=None)
         ) -> R.Shape(ndim=3):
-            n = T.Var("n", "int64")
-            k = T.Var("k", "int64")
+            n = T.int64()
+            k = T.int64()
             z = R.match_cast(y, R.Tensor([k, m, k + 1], dtype=None))
             return R.shape([k + 1, m, 2])
 
@@ -185,8 +185,8 @@ def test_symbolic_compute():
         def main(
             x: R.Tensor(["n", "m"], "float32"), y: R.Tensor(ndim=3, dtype=None)
         ) -> R.Shape(ndim=3):
-            n = T.Var("n", "int64")
-            k = T.Var("k", "int64")
+            n = T.int64()
+            k = T.int64()
             shape_heap = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
                 [R.prim_value(4)],
