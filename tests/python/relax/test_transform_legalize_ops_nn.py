@@ -868,7 +868,7 @@ def test_log_softmax():
             return gv
 
         @T.prim_func
-        def log_softmax(rxplaceholder: T.Buffer[(T.int64(2), T.int64(3), T.int64(16), T.int64(32)), "float32"], compute: T.Buffer[(T.int64(2), T.int64(3), T.int64(16), T.int64(32)), "float32"],):
+        def log_softmax(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(16), T.int64(32)), "float32"), compute: T.Buffer((T.int64(2), T.int64(3), T.int64(16), T.int64(32)), "float32"),):
             T.func_attr({"tir.noalias": True})
             T_softmax_maxelem = T.alloc_buffer([T.int64(2), T.int64(3), T.int64(32)], dtype="float32")
             compute_1 = T.alloc_buffer([T.int64(2), T.int64(3), T.int64(32)], dtype="float32")
@@ -907,9 +907,9 @@ def test_log_softmax_symbolic():
     class LogSoftmax:
         @R.function
         def main(x: R.Tensor(("a", "b", "c"), "float32")) -> R.Tensor(("a", "b", "c"), "float32"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
             gv: R.Tensor((a, b, c), "float32") = R.nn.log_softmax(x)
             return gv
 
@@ -917,9 +917,9 @@ def test_log_softmax_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("a", "b", "c"), dtype="float32")) -> R.Tensor(("a", "b", "c"), dtype="float32"):
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
             # block 0
             gv = R.call_tir(log_softmax, (x,), R.Tensor((a, b, c), dtype="float32"))
             return gv
@@ -927,9 +927,9 @@ def test_log_softmax_symbolic():
         @T.prim_func
         def log_softmax(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.func_attr({"tir.noalias": True})
-            a = T.var("int64")
-            b = T.var("int64")
-            c = T.var("int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [a, b, c], dtype="float32")
             compute = T.match_buffer(var_compute, [a, b, c], dtype="float32")
             T_softmax_maxelem = T.alloc_buffer([a, b], dtype="float32")
@@ -980,7 +980,7 @@ def test_cross_entropy_with_logits():
             return gv
 
         @T.prim_func
-        def cross_entropy_with_logits(rxplaceholder: T.Buffer[T.int64(3), "float32"], rxplaceholder_1: T.Buffer[T.int64(3), "float32"], T_multiply: T.Buffer[(), "float32"]):
+        def cross_entropy_with_logits(rxplaceholder: T.Buffer(T.int64(3), "float32"), rxplaceholder_1: T.Buffer(T.int64(3), "float32"), T_multiply: T.Buffer((), "float32")):
             T.func_attr({"tir.noalias": True})
             T_multiply_1 = T.alloc_buffer([T.int64(3)], dtype="float32")
             T_multiply_red = T.alloc_buffer([], dtype="float32")
@@ -1026,7 +1026,7 @@ def test_cross_entropy_with_logits_batch():
             return gv
 
         @T.prim_func
-        def cross_entropy_with_logits(rxplaceholder: T.Buffer[(T.int64(2), T.int64(3)), "float32"], rxplaceholder_1: T.Buffer[(T.int64(2), T.int64(3)), "float32"], T_divide: T.Buffer[(), "float32"]):
+        def cross_entropy_with_logits(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_divide: T.Buffer((), "float32")):
             T.func_attr({"tir.noalias": True})
             T_multiply = T.alloc_buffer([T.int64(2), T.int64(3)], dtype="float32")
             T_multiply_red = T.alloc_buffer([], dtype="float32")
@@ -1067,8 +1067,8 @@ def test_cross_entropy_with_logits_batch_symbolic():
     class CrossEntropyWithLogits:
         @R.function
         def main(x: R.Tensor(("n", "m"), "float32"), y: R.Tensor(("n", "m"), "float32")) -> R.Tensor(None, "float32", ndim=2):
-            n = T.var("int64")
-            m = T.var("int64")
+            n = T.int64()
+            m = T.int64()
             gv: R.Tensor((), "float32") = R.nn.cross_entropy_with_logits(x, y)
             return gv
 
@@ -1080,10 +1080,10 @@ def test_cross_entropy_with_logits_batch_symbolic():
             return gv
 
         @T.prim_func
-        def cross_entropy_with_logits(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, T_divide: T.Buffer[(), "float32"]):
+        def cross_entropy_with_logits(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, T_divide: T.Buffer((), "float32")):
             T.func_attr({"tir.noalias": True})
-            m = T.var("int64")
-            n = T.var("int64")
+            m = T.int64()
+            n = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [n, m], dtype="float32")
             rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [n, m], dtype="float32")
             T_multiply = T.alloc_buffer([n, m], dtype="float32")

@@ -53,12 +53,7 @@ Doc PrintTIRVar(tir::Var n, ObjectPath n_p, IRDocsifier d) {
     }
     IdDoc var = d->Define(n, GetRef<Frame>(f), n->name_hint.empty() ? "v" : n->name_hint);
     var->source_paths.push_back(n_p);
-    f->stmts.push_back(AssignDoc(var,
-                                 TIR(d, "Var")->Call({
-                                     LiteralDoc::Str(var->name, n_p->Attr("name_hint")),
-                                     LiteralDoc::DataType(n->dtype, n_p->Attr("dtype")),
-                                 }),
-                                 NullOpt));
+    f->stmts.push_back(AssignDoc(var, TIR(d, DType2Str(n->dtype))->Call({}), NullOpt));
   }
   if (Optional<ExprDoc> doc = d->GetVarDoc(n)) {
     return doc.value();

@@ -516,8 +516,8 @@ class BlockBuilder(Object):
                             var_compute: T.handle) -> None:
                     # function attr dict
                     T.func_attr({"tir.noalias": True})
-                    m = T.var("int64")
-                    n = T.var("int64")
+                    m = T.int64()
+                    n = T.int64()
                     rxplaceholder = T.match_buffer(var_rxplaceholder, [n, m], dtype="float32")
                     rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [n, m], dtype="float32")
                     compute = T.match_buffer(var_compute, [128, 128], dtype="float32")
