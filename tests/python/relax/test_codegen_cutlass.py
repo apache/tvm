@@ -23,7 +23,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax, relay
-from tvm.relax.dpl import make_fused_bias_activation_pattern, make_matmul_pattern
+from tvm.relax.backend import get_patterns_with_prefix
 from tvm.script import relax as R
 
 
@@ -219,7 +219,11 @@ cutlass_enabled = pytest.mark.skipif(
 pytestmark = [cutlass_enabled]
 
 
-def get_result_with_relax_cutlass_offload(mod, patterns: List[Tuple], *args):
+def get_result_with_relax_cutlass_offload(mod, *args):
+    patterns = [(entry.name, entry.pattern) for entry in get_patterns_with_prefix("cutlass")]
+
+    assert len(patterns) != 0, "Cannot find cutlass patterns"
+
     seq = tvm.transform.Sequential(
         [
             relax.transform.FuseOpsByPattern(patterns, annotate_codegen=True),
@@ -243,15 +247,7 @@ def test_conv2d_offload():
     weight = np.random.randn(32, 3, 3, 16).astype("float16")
     bias = np.random.randn(1, 1, 1, 32).astype("float16")
 
-    patterns = [
-        (
-            "cutlass.conv2d_bias_relu",
-            make_fused_bias_activation_pattern(
-                "relax.nn.conv2d", with_bias=True, activation="relax.nn.relu"
-            ),
-        )
-    ]
-    out = get_result_with_relax_cutlass_offload(Conv2dBiasReLU, patterns, data, weight, bias)
+    out = get_result_with_relax_cutlass_offload(Conv2dBiasReLU, data, weight, bias)
 
     ref_relay_expr = get_relay_conv2d_bias_relu(data.shape, weight.shape)
     ref = get_relay_ref(ref_relay_expr, data, weight, bias)
@@ -327,17 +323,8 @@ def matmul_bias(matmul_size, target_dtype):
 def test_matmul_offload(matmul_x, matmul_y):
     x, y = matmul_x, matmul_y
 
-    patterns = [
-        (
-            "cutlass.matmul",
-            make_matmul_pattern(
-                with_bias=False,
-            ),
-        ),
-    ]
-
     mod = get_relax_matmul_module(x, y)
-    out = get_result_with_relax_cutlass_offload(mod, patterns, x, y)
+    out = get_result_with_relax_cutlass_offload(mod, x, y)
     ref_relay_expr = get_relay_matmul(x.shape, y.shape[::-1])
     ref = get_relay_ref(ref_relay_expr, x, y.transpose())
 
@@ -347,16 +334,8 @@ def test_matmul_offload(matmul_x, matmul_y):
 def test_matmul_bias_offload(matmul_x, matmul_y, matmul_bias):
     x, y, bias = matmul_x, matmul_y, matmul_bias
 
-    patterns = [
-        (
-            "cutlass.matmul_bias",
-            make_matmul_pattern(
-                with_bias=True,
-            ),
-        ),
-    ]
     mod = get_relax_matmul_module(x, y, with_bias=True)
-    out = get_result_with_relax_cutlass_offload(mod, patterns, x, y, bias)
+    out = get_result_with_relax_cutlass_offload(mod, x, y, bias)
 
     ref_relay_expr = get_relay_matmul_bias(x.shape, y.shape[::-1])
     ref = get_relay_ref(ref_relay_expr, x, y.transpose(), bias)
@@ -367,17 +346,8 @@ def test_matmul_bias_offload(matmul_x, matmul_y, matmul_bias):
 def test_matmul_bias_relu_offload(matmul_x, matmul_y, matmul_bias):
     x, y, bias = matmul_x, matmul_y, matmul_bias
 
-    patterns = [
-        (
-            "cutlass.matmul_bias_relu",
-            make_matmul_pattern(
-                with_bias=True,
-                activation="relax.nn.relu",
-            ),
-        ),
-    ]
     mod = get_relax_matmul_module(x, y, with_bias=True, activation=R.nn.relu)
-    out = get_result_with_relax_cutlass_offload(mod, patterns, x, y, bias)
+    out = get_result_with_relax_cutlass_offload(mod, x, y, bias)
 
     ref_relay_expr = get_relay_matmul_bias_relu(x.shape, y.shape[::-1])
     ref = get_relay_ref(ref_relay_expr, x, y.transpose(), bias)
@@ -388,17 +358,8 @@ def test_matmul_bias_relu_offload(matmul_x, matmul_y, matmul_bias):
 def test_matmul_bias_gelu_offload(matmul_x, matmul_y, matmul_bias):
     x, y, bias = matmul_x, matmul_y, matmul_bias
 
-    patterns = [
-        (
-            "cutlass.matmul_bias_gelu",
-            make_matmul_pattern(
-                with_bias=True,
-                activation="relax.nn.gelu",
-            ),
-        ),
-    ]
     mod = get_relax_matmul_module(x, y, with_bias=True, activation=R.nn.gelu)
-    out = get_result_with_relax_cutlass_offload(mod, patterns, x, y, bias)
+    out = get_result_with_relax_cutlass_offload(mod, x, y, bias)
 
     ref_relay_expr = get_relay_matmul_bias_gelu(x.shape, y.shape[::-1])
     ref = get_relay_ref(ref_relay_expr, x, y.transpose(), bias)
@@ -411,11 +372,7 @@ def test_kernel_sharing():
     weight1_np = np.random.randn(16, 3, 3, 16).astype("float16")
     weight2_np = np.random.randn(16, 3, 3, 16).astype("float16")
 
-    pat = make_fused_bias_activation_pattern("relax.nn.conv2d", with_bias=False, activation=None)
-
-    out = get_result_with_relax_cutlass_offload(
-        Conv2dx2, [("cutlass.conv2d", pat)], data_np, weight1_np, weight2_np
-    )
+    out = get_result_with_relax_cutlass_offload(Conv2dx2, data_np, weight1_np, weight2_np)
 
     relay_expr = get_relay_conv2d_relu_x2(data_np.shape, weight1_np.shape)
     ref = get_relay_ref(relay_expr, data_np, weight1_np, weight2_np)
