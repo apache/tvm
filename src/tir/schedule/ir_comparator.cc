@@ -436,7 +436,7 @@ bool TensorizeComparator::CompareBufferRegion(const BufferRegion& lhs, const Buf
         }
         return false;
       }
-      indices_base.emplace_back(lhs_analyzer_.Simplify(lhs->region[i]->min));
+      indices_base.emplace_back(lhs->region[i]->min);
     }
     for (size_t i = 0; i < rhs->region.size(); i++) {
       // save base index
