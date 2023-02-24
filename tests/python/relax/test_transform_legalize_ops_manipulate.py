@@ -802,7 +802,7 @@ def test_collapse_sum_like():
             return gv
 
         @T.prim_func
-        def collapse_sum(rxplaceholder: T.Buffer[(T.int64(2), T.int64(3)), "float32"], rxplaceholder_red: T.Buffer[(T.int64(1), T.int64(3)), "float32"]):
+        def collapse_sum(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), rxplaceholder_red: T.Buffer((T.int64(1), T.int64(3)), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1, i2 in T.grid(T.int64(1), T.int64(3), T.int64(2)):
                 with T.block("rxplaceholder_red"):
@@ -825,7 +825,7 @@ def test_collapse_sum_like_symbolic():
     class CollapseSumLike:
         @R.function
         def main(x: R.Tensor(("a", "b", "a"), "float32"), y: R.Tensor(("b", 1), "float32")) -> R.Tensor(("b", 1), "float32"):
-            b = T.var("int64")
+            b = T.int64()
             gv: R.Tensor((b, 1), "float32") = R.collapse_sum_like(x, y)
             return gv
 
@@ -855,7 +855,7 @@ def test_collapse_sum_to():
             return gv
 
         @T.prim_func
-        def collapse_sum(rxplaceholder: T.Buffer[(T.int64(3), T.int64(2), T.int64(3)), "float32"], rxplaceholder_red: T.Buffer[(T.int64(2), T.int64(1)), "float32"]):
+        def collapse_sum(rxplaceholder: T.Buffer((T.int64(3), T.int64(2), T.int64(3)), "float32"), rxplaceholder_red: T.Buffer((T.int64(2), T.int64(1)), "float32")):
             T.func_attr({"tir.noalias": True})
             for ax0, ax1, k0, k2 in T.grid(T.int64(2), T.int64(1), T.int64(3), T.int64(3)):
                 with T.block("rxplaceholder_red"):
@@ -878,7 +878,7 @@ def test_collapse_sum_to_symbolic():
     class CollapseSumTo:
         @R.function
         def main(x: R.Tensor(("a", "b", "c"), "float32")) -> R.Tensor(("b", 1), "float32"):
-            b = T.var("int64")
+            b = T.int64()
             gv: R.Tensor((b, 1), "float32") = R.collapse_sum_to(x, (b, 1))
             return gv
 
