@@ -223,8 +223,8 @@ TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
  * of a fused function after successful matching.
  * \param patterns The patterns to detect. The order of the patterns determines the order
  * of priority in which they are matched. Higher-priority patterns should come earlier in the list.
- * \param checks The callback functions that takes a match result and returns a boolean value to
-        indicate whether the match result is accepted.
+ * \param checks The callback functions with type (Map<DFPattern, Expr>, Expr) -> bool. It takes a
+ * match result and returns a boolean value to indicate whether the match result is accepted.
  * \param annotate_codegen If true, wrap each created composite function with another function,
  * whose body consists only of a call to the composite function, and annotate the outer function
  * with kCodegen and kGlobalSymbol attributes. The kCodegen attribute is set as the prefix of the
