@@ -324,12 +324,16 @@ IRModule MergeCompositeFunctions(IRModule mod) {
   auto new_mod = MakeGroupedFunctions(mod, group_map);
 
   CompositeInliner inliner(mod);
+  std::vector<std::pair<GlobalVar, BaseFunc>> to_update;
   for (const auto& [gvar, func] : new_mod->functions) {
     if (func->GetAttr<String>(attr::kCodegen)) {
       auto new_func = inliner.Run(Downcast<Function>(func));
       new_func = WithAttr(new_func, tvm::attr::kGlobalSymbol, gvar->name_hint);
-      new_mod->Update(gvar, new_func);
+      to_update.emplace_back(gvar, new_func);
     }
+  }
+  for (const auto& [gvar, func] : to_update) {
+    new_mod->Update(gvar, func);
   }
   // TODO(@tvm-team): Implicit pass dependency. Revisit when we have a better way to handle this.
   return RemoveUnusedFunctions(new_mod, {"main"});
