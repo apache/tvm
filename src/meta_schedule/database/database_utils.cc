@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <cmath>
 #include <iomanip>
 #include <sstream>
 #include <vector>
@@ -40,7 +41,12 @@ void JSONDumps(ObjectRef json_obj, std::ostringstream& os) {
       os << int_imm->value;
     }
   } else if (const auto* float_imm = json_obj.as<FloatImmNode>()) {
-    os << std::setprecision(20) << float_imm->value;
+    double int_part;
+    if (std::modf(float_imm->value, &int_part) == 0.0) {
+      os << std::fixed << std::setprecision(1) << float_imm->value;
+    } else {
+      os << std::setprecision(20) << float_imm->value;
+    }
   } else if (const auto* str = json_obj.as<runtime::StringObj>()) {
     os << '"' << support::StrEscape(str->data, str->size) << '"';
   } else if (const auto* array = json_obj.as<runtime::ArrayNode>()) {

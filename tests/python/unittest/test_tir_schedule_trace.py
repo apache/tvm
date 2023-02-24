@@ -244,6 +244,40 @@ def test_trace_as_json_1():
     ]
 
 
+def test_trace_as_json_floatimm():
+    var = tir.Var("v", "int32")
+    trace1 = Trace(
+        insts=[
+            Instruction(
+                kind=InstructionKind.get("SampleCategorical"),
+                inputs=[],
+                attrs=[[tvm.tir.IntImm("int32", 3)], [tvm.tir.FloatImm("float32", 1.0)]],
+                outputs=[var],
+            )
+        ],
+        decisions={},
+    )
+    json1 = trace1.as_json()
+    assert json1 == [[["SampleCategorical", [], [[3], [1.0]], ["v0"]]], []]
+
+    trace2 = Trace(
+        insts=[
+            Instruction(
+                kind=InstructionKind.get("SampleCategorical"),
+                inputs=[],
+                attrs=[
+                    [tvm.tir.IntImm("int32", 3), tvm.tir.IntImm("int32", 4)],
+                    [tvm.tir.FloatImm("float32", 0.5), tvm.tir.FloatImm("float32", 0.5)],
+                ],
+                outputs=[var],
+            )
+        ],
+        decisions={},
+    )
+    json2 = trace2.as_json()
+    assert json2 == [[["SampleCategorical", [], [[3, 4], [0.5, 0.5]], ["v0"]]], []]
+
+
 def test_trace_simplified_1():
     trace = _make_trace_3(BlockRV(), BlockRV(), add_postproc=True)
     assert str(trace) == "\n".join(
@@ -367,5 +401,4 @@ def test_apply_annotation_from_json():
 
 
 if __name__ == "__main__":
-    test_trace_simplified_2()
-    # tvm.testing.main()
+    tvm.testing.main()
