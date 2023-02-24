@@ -321,7 +321,7 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
 def visit_return(self: Parser, node: doc.Assign) -> None:
     value = self.eval_expr(node.value)
     value = convert_to_expr(value)
-    R.func_ret_value(value)
+    R.ret_value(value)
 
 
 @dispatch.register(token="relax", type_name="If")
@@ -331,6 +331,7 @@ def visit_if(self: Parser, node: doc.If) -> None:
     with R.If(self.eval_expr(node.test)) as if_frame:
         with self.var_table.with_frame():
             with R.Then():
+                print("fuck here")
                 self.visit_body(node.body)
         with self.var_table.with_frame():
             with R.Else():

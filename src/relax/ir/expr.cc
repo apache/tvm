@@ -309,6 +309,17 @@ TVM_REGISTER_GLOBAL("relax.PrimValue").set_body_typed([](PrimExpr value, Span sp
   return PrimValue(value, span);
 });
 
+NullExpr::NullExpr(Span span) {
+  ObjectPtr<NullExprNode> n = make_object<NullExprNode>();
+  n->checked_type_ = ObjectType();
+  n->struct_info_ = ObjectStructInfo();
+  n->span = std::move(span);
+}
+
+TVM_REGISTER_NODE_TYPE(NullExprNode);
+
+TVM_REGISTER_GLOBAL("relax.NullExpr").set_body_typed([](Span span) { return NullExpr(span); });
+
 StringImm::StringImm(String value, Span span) {
   ObjectPtr<StringImmNode> n = make_object<StringImmNode>();
   n->value = std::move(value);

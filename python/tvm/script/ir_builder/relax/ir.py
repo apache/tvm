@@ -190,14 +190,14 @@ def func_ret_struct_info(ret_sinfo: StructInfo) -> None:
     return _ffi_api.FuncRetStructInfo(ret_sinfo)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def func_ret_value(value: Expr) -> None:
-    """Specify the return value of the last function frame.
+def ret_value(value: Expr) -> None:
+    """Specify the return value of the last frame.
     Parameters
     ----------
     value: Expr
-        The function return value.
+        The return value.
     """
-    return _ffi_api.FuncRetValue(value)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.RetValue(value)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 ############################# BindingBlock ##############################
@@ -557,7 +557,7 @@ __all__ = [
     "func_attr",
     "func_name",
     "func_ret_struct_info",
-    "func_ret_value",
+    "ret_value",
     "function",
     "greater",
     "greater_equal",

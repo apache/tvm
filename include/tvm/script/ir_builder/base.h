@@ -236,6 +236,7 @@ class IRBuilder : public runtime::ObjectRef {
    * \sa IRBuilder::ExitWithScope
    * \sa tvm::support::With
    */
+  static std::vector<IRBuilder> All();
   static IRBuilder Current();
   /*! \brief See if the current thread-local scope has an IRBuilder. */
   static bool IsInScope();

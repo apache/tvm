@@ -284,7 +284,7 @@ def get_relax_matmul_module(x, y, transposed_y=False, with_bias=False, activatio
                     result = R.emit(activation(result))
                 R.output(result)
 
-            R.func_ret_value(frame.output_vars[0])
+            R.ret_value(frame.output_vars[0])
 
     func = builder.get()
     return tvm.IRModule({"main": func})

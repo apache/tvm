@@ -67,7 +67,7 @@ TVM_DLL void FuncRetStructInfo(const tvm::relax::StructInfo& ret_sinfo);
  * \brief Specify the return value of the last function frame.
  * \param value The return value.
  */
-TVM_DLL void FuncRetValue(const tvm::relax::Expr& value);
+TVM_DLL void RetValue(const tvm::relax::Expr& value);
 
 ///////////////////////////// BindingBlock //////////////////////////////
 

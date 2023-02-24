@@ -79,8 +79,12 @@ inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, String
   }
 
   // Step 1. Check non-empty block and last binding is non-dataflow
-  CHECK(!frame->binding_blocks.empty())
-      << "Empty body is not allowed for '" << method << "' statements.";
+  // CHECK(!frame->binding_blocks.empty())
+  //    << "Empty body is not allowed for '" << method << "' statements.";
+  if (frame->binding_blocks.empty()) {
+    LOG(INFO) << " frame output : " << frame->output;
+    return tvm::relax::SeqExpr({}, frame->output.value());
+  }
   const tvm::relax::BindingBlock& last_block = frame->binding_blocks.back();
   CHECK(!last_block->bindings.empty()) << "Blocks are expected to be non-empty.";
 

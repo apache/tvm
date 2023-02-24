@@ -52,10 +52,17 @@ void FunctionFrameNode::ExitWithScope() {
   IRBuilder builder = IRBuilder::Current();
   SeqExprFrameNode::ExitWithScope();
   // Step 1: Create the function.
-  CHECK(output.defined()) << "ValueError: A Relax function must have a return value. Please use "
-                             "`return` to return an Expr";
+  // CHECK(output.defined()) << "ValueError: A Relax function must have a return value. Please use "
+  //                           "`return` to return an Expr";
   this->block_builder->BeginScope(params);
-  Expr body = this->block_builder->Normalize(tvm::relax::SeqExpr(binding_blocks, output.value()));
+  Expr body;
+  if (output.defined()) {
+    body = this->block_builder->Normalize(tvm::relax::SeqExpr(binding_blocks, output.value()));
+  } else {
+    body =
+        this->block_builder->Normalize(tvm::relax::SeqExpr(binding_blocks, tvm::relax::NullExpr()));
+  }
+
   auto dict_attrs = attrs.empty() ? NullValue<DictAttrs>() : DictAttrs(attrs);
   this->block_builder->EndScope();
   tvm::relax::Function func(/*params=*/params,

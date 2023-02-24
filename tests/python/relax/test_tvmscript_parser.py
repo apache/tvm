@@ -1162,5 +1162,21 @@ def test_class_normalize():
     _check(InputModule, OutputModule)
 
 
+def test_control_flow():
+    @tvm.script.ir_module
+    class ControlFlowExample:
+        @R.function
+        def foo(x: R.Tensor) -> R.Tensor:
+            y: R.Tensor((), dtype="bool") = R.const(True, dtype="bool")
+            if y:
+                return R.add(x, x)
+            else:
+                return R.multiply(x, x)
+            return x
+
+    ControlFlowExample.show()
+
+
 if __name__ == "__main__":
-    tvm.testing.main()
+    # tvm.testing.main()
+    test_control_flow()

@@ -96,27 +96,49 @@ void FuncRetStructInfo(const tvm::relax::StructInfo& ret_sinfo) {
   frame->ret_struct_info = ret_sinfo;
 }
 
-void FuncRetValue(const tvm::relax::Expr& value) {
+void RetValue(const tvm::relax::Expr& value) {
   // Step 0. Normalize the value.
   const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
   tvm::relax::Expr normalized_value = block_builder->Normalize(value);
+  LOG(INFO) << "normalized_value: " << normalized_value;
 
   // Step 1. The current Relax TVMScript syntax only allows function return appearing at the end of
   // a function body. Therefore if there is any unended block frame when dealing with function
   // return, we should end the block frame.
   Optional<BlockFrame> block_frame = IRBuilder::Current()->GetLastFrame<BlockFrame>();
+  // Exit BlockFrame
   if (block_frame.defined()) {
     block_frame.value()->ExitWithScope();
     ICHECK(!IRBuilder::Current()->FindFrame<BlockFrame>())
         << "ValueError: Relax functions don't support return in true/false branch of If Node.";
   }
   // Step 2. Add the output value to the function frame.
+  Array<IRBuilderFrame> all_frames = IRBuilder::Current()->frames;
+  int i = 0;
+  for (auto f : all_frames) {
+    LOG(INFO) << "yongwww frame_" << i++ << " = " << f;
+  }
+
+  // IfFrame if_frame = IRBuilder::Current()->FindFrame<IfFrame>().value();
+  // LOG(INFO) << "return if_frame: " << if_frame;
+
+  IRBuilderFrame last_frame = all_frames[all_frames.size() - 1];
+  Optional<ThenFrame> then_frame = IRBuilder::Current()->GetLastFrame<ThenFrame>();
+  if (then_frame.defined()) {
+    then_frame.value()->output = std::move(normalized_value);
+    return;
+  }
+  Optional<ElseFrame> else_frame = IRBuilder::Current()->GetLastFrame<ElseFrame>();
+  if (else_frame.defined()) {
+    else_frame.value()->output = std::move(normalized_value);
+    return;
+  }
+  // Optional<FunctionFrame> func_frame = IRBuilder::Current()->GetLastFrame<FunctionFrame>();
   FunctionFrame frame = FindFunctionFrame("return");
-  CHECK(!frame->output.defined())
-      << "ValueError: Relax functions don't support multiple return statement. Please make sure "
-         "the return statement appears at the end of function.";
+  LOG(INFO) << "return FunctionFrame frame: " << frame;
 
   frame->output = std::move(normalized_value);
+  // block_frame.value()->ExitWithScope();
 }
 
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Function").set_body_typed(Function);
@@ -124,7 +146,7 @@ TVM_REGISTER_GLOBAL("script.ir_builder.relax.Arg").set_body_typed(Arg);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncName").set_body_typed(FuncName);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncAttrs").set_body_typed(FuncAttrs);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncRetStructInfo").set_body_typed(FuncRetStructInfo);
-TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncRetValue").set_body_typed(FuncRetValue);
+TVM_REGISTER_GLOBAL("script.ir_builder.relax.RetValue").set_body_typed(RetValue);
 
 ///////////////////////////// BindingBlock //////////////////////////////
 

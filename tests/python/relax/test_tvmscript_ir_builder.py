@@ -39,7 +39,7 @@ def test_function_simple():
                 R.call_tir("extern_func", x, relax.TensorStructInfo((128, 128), dtype="float32"))
             )
             IRBuilder.name("out", out)
-            R.func_ret_value(out)
+            R.ret_value(out)
     func = ir_builder.get()
     # create with BlockBuilder
     x = relax.Var("x", relax.TensorStructInfo((128, 128), "float32"))
@@ -137,7 +137,7 @@ def test_dataflow_block():
                 IRBuilder.name("gv", gv)
                 R.output(gv)
             (gv,) = df.output_vars
-            R.func_ret_value(gv)
+            R.ret_value(gv)
     func = ir_builder.get()
 
     # create with BlockBuilder
