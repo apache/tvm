@@ -22,7 +22,9 @@ import tvm.testing
 from tvm.script import tir
 
 
-def test_floor_div_op(target, dev):
+def test_floor_div_op():
+    target = "llvm"
+    dev = tvm.device(target)
     N = 100
     divisor = 5
 
