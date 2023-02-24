@@ -66,6 +66,36 @@ register_patterns(
                 activation="relax.nn.gelu",
             ),
         ),
+        (
+            "cutlass.matmul_transposed",
+            make_matmul_pattern(
+                with_bias=False,
+                transposed_rhs=True,
+            ),
+        ),
+        (
+            "cutlass.matmul_transposed_bias",
+            make_matmul_pattern(
+                with_bias=True,
+                transposed_rhs=True,
+            ),
+        ),
+        (
+            "cutlass.matmul_transposed_bias_relu",
+            make_matmul_pattern(
+                with_bias=True,
+                activation="relax.nn.relu",
+                transposed_rhs=True,
+            ),
+        ),
+        (
+            "cutlass.matmul_transposed_bias_gelu",
+            make_matmul_pattern(
+                with_bias=True,
+                activation="relax.nn.gelu",
+                transposed_rhs=True,
+            ),
+        ),
     ]
 )
 
