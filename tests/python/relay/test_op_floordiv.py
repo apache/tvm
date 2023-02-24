@@ -21,19 +21,16 @@ from tvm import te
 import tvm.testing
 from tvm.script import tir
 
-executor_kind = tvm.testing.parameter("graph", "vm")
 
-
-@tvm.testing.uses_gpu
 def test_floor_div_op(target, dev):
     N = 100
     divisor = 5
 
     @tir.prim_func
     def func_64(
-        A: tir.Buffer[(N + 100, 2), "int64"],
-        B: tir.Buffer[(N), "int64"],
-        C: tir.Buffer[(N), "int64"],
+        A: tir.Buffer((N + 100, 2), "int64"),
+        B: tir.Buffer((N), "int64"),
+        C: tir.Buffer((N), "int64"),
     ):
         for i in tir.serial(N):
             with tir.block("A"):
@@ -45,9 +42,9 @@ def test_floor_div_op(target, dev):
 
     @tir.prim_func
     def func_32(
-        A: tir.Buffer[(N + 100, 2), "int32"],
-        B: tir.Buffer[(N), "int32"],
-        C: tir.Buffer[(N), "int32"],
+        A: tir.Buffer((N + 100, 2), "int32"),
+        B: tir.Buffer((N), "int32"),
+        C: tir.Buffer((N), "int32"),
     ):
         for i in tir.serial(N):
             with tir.block("A"):
@@ -59,9 +56,9 @@ def test_floor_div_op(target, dev):
 
     @tir.prim_func
     def func_16(
-        A: tir.Buffer[(N + 100, 2), "int16"],
-        B: tir.Buffer[(N), "int16"],
-        C: tir.Buffer[(N), "int16"],
+        A: tir.Buffer((N + 100, 2), "int16"),
+        B: tir.Buffer((N), "int16"),
+        C: tir.Buffer((N), "int16"),
     ):
         for i in tir.serial(N):
             with tir.block("A"):
@@ -73,7 +70,7 @@ def test_floor_div_op(target, dev):
 
     @tir.prim_func
     def func_8(
-        A: tir.Buffer[(N + 100, 2), "int8"], B: tir.Buffer[(N), "int8"], C: tir.Buffer[(N), "int8"]
+        A: tir.Buffer((N + 100, 2), "int8"), B: tir.Buffer((N), "int8"), C: tir.Buffer((N), "int8")
     ):
         for i in tir.serial(N):
             with tir.block("A"):
@@ -91,11 +88,7 @@ def test_floor_div_op(target, dev):
     ]:
         built = tvm.build(opfunc, target=target)
         x_data = np.random.randint(te.min_value(type), te.max_value(type), size=(100), dtype=type)
-        data = []
-        for i in range(N):
-            data.append(i)
-
-        y_data = np.asarray(data, dtype=type)
+        y_data = np.asarray([i for i in range(N)], dtype=type)
 
         a_dev = tvm.nd.empty([N + 100, 2], type, dev)
         b_dev = tvm.nd.array(x_data, dev)
