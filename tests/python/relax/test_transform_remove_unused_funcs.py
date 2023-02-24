@@ -34,9 +34,9 @@ def test_unused_relax_func():
     class InputModule:
         @T.prim_func
         def tir_add(
-            x: T.Buffer[(16, 16), "float32"],
-            y: T.Buffer[(16, 16), "float32"],
-            z: T.Buffer[(16, 16), "float32"],
+            x: T.Buffer((16, 16), "float32"),
+            y: T.Buffer((16, 16), "float32"),
+            z: T.Buffer((16, 16), "float32"),
         ) -> None:
             for i, j in T.grid(16, 16):
                 with T.block("add"):
@@ -68,9 +68,9 @@ def test_unused_relax_func_custom_entry_func():
     class InputModule:
         @T.prim_func
         def tir_add(
-            x: T.Buffer[(16, 16), "float32"],
-            y: T.Buffer[(16, 16), "float32"],
-            z: T.Buffer[(16, 16), "float32"],
+            x: T.Buffer((16, 16), "float32"),
+            y: T.Buffer((16, 16), "float32"),
+            z: T.Buffer((16, 16), "float32"),
         ) -> None:
             for i, j in T.grid(16, 16):
                 with T.block("add"):
@@ -105,9 +105,9 @@ def test_unused_relax_func_symbolic_shape():
     class InputModule:
         @T.prim_func
         def tir_add(
-            x: T.Buffer[(16, 16), "float32"],
-            y: T.Buffer[(16, 16), "float32"],
-            z: T.Buffer[(16, 16), "float32"],
+            x: T.Buffer((16, 16), "float32"),
+            y: T.Buffer((16, 16), "float32"),
+            z: T.Buffer((16, 16), "float32"),
         ) -> None:
             for i, j in T.grid(16, 16):
                 with T.block("add"):
@@ -121,7 +121,7 @@ def test_unused_relax_func_symbolic_shape():
 
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")):
-            m, k = T.var("int64"), T.var("int64")
+            m, k = T.int64(), T.int64()
             gv0 = R.call_tir(tir_add, (x, w), R.Tensor((m + 1, k), dtype="float32"))
             return gv0
 
@@ -139,9 +139,9 @@ def test_unused_prim_func():
     class InputModule:
         @T.prim_func
         def unused_func(
-            x: T.Buffer[(16, 16), "float32"],
-            y: T.Buffer[(16, 16), "float32"],
-            z: T.Buffer[(16, 16), "float32"],
+            x: T.Buffer((16, 16), "float32"),
+            y: T.Buffer((16, 16), "float32"),
+            z: T.Buffer((16, 16), "float32"),
         ) -> None:
             T.func_attr({"global_symbol": "tir_unused"})
             for i, j in T.grid(16, 16):
@@ -175,9 +175,9 @@ def test_multiple_unused_funcs():
     class InputModule:
         @T.prim_func
         def unused_func1(
-            x: T.Buffer[(16, 16), "float32"],
-            y: T.Buffer[(16, 16), "float32"],
-            z: T.Buffer[(16, 16), "float32"],
+            x: T.Buffer((16, 16), "float32"),
+            y: T.Buffer((16, 16), "float32"),
+            z: T.Buffer((16, 16), "float32"),
         ) -> None:
             T.func_attr({"global_symbol": "tir_unused"})
             for i, j in T.grid(16, 16):
