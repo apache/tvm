@@ -142,7 +142,7 @@ def test_match_cast():
         @R.function
         def main(x: R.Tensor):
             q = x
-            m, n = T.var("int64"), T.var("int64")
+            m, n = T.int64(), T.int64()
             z = R.match_cast(q, R.Tensor((m, n)))
             w = z
             return w
@@ -153,7 +153,7 @@ def test_match_cast():
         def main(x: R.Tensor):
             q = x
             # can't get rid of z because its shape_ is different from x's
-            m, n = T.var("int64"), T.var("int64")
+            m, n = T.int64(), T.int64()
             z = R.match_cast(x, R.Tensor((m, n)))
             w = z
             return z
@@ -167,7 +167,7 @@ def test_same_shape():
     class TestSameShape:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")):
-            m, n = T.var("int64"), T.var("int64")
+            m, n = T.int64(), T.int64()
             y = x
             # trivial check
             z = R.match_cast(x, R.Tensor((m, n), "float32"))
@@ -179,7 +179,7 @@ def test_same_shape():
     class Expected:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")):
-            m, n = T.var("int64"), T.var("int64")
+            m, n = T.int64(), T.int64()
             y = x
             # canonicalized into a var binding
             z = x
@@ -198,7 +198,7 @@ def test_change_shape():
         def main(x: R.Tensor(("m", "n"))):
             y = x
             # not trivial: introduces new shape vars
-            o, p = T.var("int64"), T.var("int64")
+            o, p = T.int64(), T.int64()
             z = R.match_cast(x, R.Tensor((o, p)))
             w = z
             q = R.add(w, y)
@@ -209,7 +209,7 @@ def test_change_shape():
         @R.function
         def main(x: R.Tensor(("m", "n"))):
             y = x
-            o, p = T.var("int64"), T.var("int64")
+            o, p = T.int64(), T.int64()
             z = R.match_cast(x, R.Tensor((o, p)))
             w = z
             # the shape_ field on q will need to be updated
