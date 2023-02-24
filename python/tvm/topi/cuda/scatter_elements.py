@@ -260,7 +260,7 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
         dst_ptr[dst_index] *= update
 
     def mean_func(dst_ptr, dst_index, update):
-        dst_ptr[dst_index] = (dst_ptr[dst_index] + update)/2
+        dst_ptr[dst_index] = (dst_ptr[dst_index] + update) / 2
 
     def min_func(dst_ptr, dst_index, update):
         dst_ptr[dst_index] = tir.min(dst_ptr[dst_index], update)
