@@ -3623,6 +3623,19 @@ def merge_shape_var_def():
     return main
 
 
+def if_then_else_var():
+    @T.prim_func
+    def main(n: T.int32):
+        if n == 0:
+            x = 5
+            T.evaluate(x)
+        else:
+            x = 10
+            T.evaluate(x)
+
+    return main
+
+
 ir_generator = tvm.testing.parameter(
     launch_env_thread,
     opt_gemm_normalize,
@@ -3686,6 +3699,7 @@ ir_generator = tvm.testing.parameter(
     let_stmt_value,
     string_stride,
     merge_shape_var_def,
+    if_then_else_var,
 )
 
 

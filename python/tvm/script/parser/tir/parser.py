@@ -432,10 +432,12 @@ def visit_if(self: Parser, node: doc.If) -> None:
     with self.var_table.with_frame():
         with T.If(self.eval_expr(node.test)):
             with T.Then():
-                self.visit_body(node.body)
+                with self.var_table.with_frame():
+                    self.visit_body(node.body)
             if node.orelse:
                 with T.Else():
-                    self.visit_body(node.orelse)
+                    with self.var_table.with_frame():
+                        self.visit_body(node.orelse)
 
 
 @dispatch.register(token="tir", type_name="Assert")
