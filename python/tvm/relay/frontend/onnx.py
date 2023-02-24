@@ -4381,7 +4381,7 @@ class Col2Im(OnnxOpConverter):
         def_sds = [1] * sp_axis_num
         strides = attr.get("strides", def_sds)
 
-        return _op.col2im(data, image_shape, block_shape, dilation, pads, strides)
+        return _op.image.col2im(data, image_shape, block_shape, dilation, pads, strides)
 
 
 class Softplus(OnnxOpConverter):

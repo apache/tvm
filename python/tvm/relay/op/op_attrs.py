@@ -169,6 +169,11 @@ class CropAndResizeAttrs(Attrs):
     """Attributes for image.crop_and_resize"""
 
 
+@tvm._ffi.register_object("relay.attrs.Col2ImAttrs")
+class Col2ImAttrs(Attrs):
+    """Attributes used in col2im operators"""
+
+
 @tvm._ffi.register_object("relay.attrs.Dilation2DAttrs")
 class Dilation2DAttrs(Attrs):
     """Attributes for image.dilation2d"""
@@ -297,11 +302,6 @@ class SliceLikeAttrs(Attrs):
 @tvm._ffi.register_object("relay.attrs.ClipAttrs")
 class ClipAttrs(Attrs):
     """Attributes for transform.clip"""
-
-
-@tvm._ffi.register_object("relay.attrs.Col2ImAttrs")
-class Col2ImAttrs(Attrs):
-    """Attributes used in col2im operators"""
 
 
 @tvm._ffi.register_object("relay.attrs.LayoutTransformAttrs")

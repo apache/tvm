@@ -66,29 +66,6 @@ struct CastAttrs : public tvm::AttrsNode<CastAttrs> {
   }
 };  // struct CastAttrs.
 
-/*! \brief Attributes used in col2im operators */
-struct Col2ImAttrs : public tvm::AttrsNode<Col2ImAttrs> {
-  Array<Integer> dilation;
-  Array<Integer> pads;
-  Array<Integer> strides;
-
-  TVM_DECLARE_ATTRS(Col2ImAttrs, "relay.attrs.Col2ImAttrs") {
-    TVM_ATTR_FIELD(dilation).describe(
-        "1-D tensor with dilation value along each spatial axis of the image."
-        "If not present, the dilation defaults to 1 along each spatial axis of the image.");
-    TVM_ATTR_FIELD(pads).describe(
-        "1-D tensor with padding value for the beginning and ending along each spatial axis, "
-        "it can take any value greater than or equal to 0. The value represent the number of "
-        "pixels added to the beginning and end part of the corresponding axis. "
-        "`pads` format should be as follow [x1_begin, x2_begin...x1_end, x2_end,...], "
-        "where xi_begin is the number of pixels added at the beginning of axis `i` and "
-        "xi_end is the number of pixels added at the end of axis `i`."
-        "If not present, the padding defaults to 0 along start and end of each spatial axis. ");
-    TVM_ATTR_FIELD(strides).describe("1-D tensor with stride value along each spatial axis. "
-        "If not present, the stride defaults to 1 along each spatial axis.");
-  }
-};  // struct Col2ImAttrs
-
 /*! \brief Attributes used in expand_dims operators */
 struct ExpandDimsAttrs : public tvm::AttrsNode<ExpandDimsAttrs> {
   int axis;
