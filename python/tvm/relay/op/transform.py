@@ -397,10 +397,11 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
         The axis to scatter elements on. It is zero by default.
 
     reduction : string, optional
-        The reduction mode for scatter. Choise is from ["update", "add", "mul", "min", max"]
+        The reduction mode for scatter. Choise is from ["update", "add", "mul", "mean", "min", max"]
         If update, the update values will replace the input data
         If add, the update values will be added to the input data
-        If mul, the update values will be multiply to the input data
+        If mul, the input data will be multiplied on the update values
+        If mean, the input data will be mean between the update values and the input data
         If min, there is choice of minimal between the update values and the input data
         If max, there is choice of maximal between the update values and the input data
         It is "update" by default
