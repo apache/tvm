@@ -144,6 +144,7 @@ class PyTorchOpConverter:
         self.types = {}  # map from nodes to (Relay) type annotations
         self.source_map = {}  # map from graph node to its source name
         self.op_type_dict = {}  # map from op type to its presenting order
+        self.current_op = []  # stack for recording current processing op
         self.use_parser_friendly_name = use_parser_friendly_name
 
     # this incrementally infers the type, see the comments on the type visitor
@@ -337,7 +338,10 @@ class PyTorchOpConverter:
         def _get_value(val, dtype):
             # dtype is a tvm dtype
             if isinstance(val, _expr.Expr):
-                inp = _op.cast(val, dtype)
+                # since "arange" op will fill expr into its attribute
+                # invoke set_span here to prevent expr-rewritten occurrs in span-filling stage
+                source_name = self.source_map[self.current_op[-1]]
+                inp = set_span(_op.cast(val, dtype), source_name)
                 ret, _ = try_infer_value(inp, lambda ret: _expr.const(ret, dtype))
             else:
                 ret = _create_typed_const(val, dtype)
@@ -2398,7 +2402,7 @@ class PyTorchOpConverter:
         # TVM NMS assumes score > 0
         # - since there exists multi-comsumers for "scores", "num_boxes"
         # - invoke set_span here to prevent expr-rewritten occurrs in span-filling stage
-        source_name = self._get_source_name_from_parameter(boxes)
+        source_name = self.source_map[self.current_op[-1]]
         scores = set_span(scores - _op.min(scores) + _op.const(1.0), source_name)
 
         num_boxes = set_span(_op.shape_of(scores), source_name)
@@ -4038,6 +4042,9 @@ class PyTorchOpConverter:
         for node_name, op_node in operators:
             operator = op_node.kind()
             inputs = _get_op_inputs(op_node, outputs)
+            # we need to record what current operator is to provide correct source name
+            # for operators needed to be taken care with (e.g. nms / arange ...)
+            self.current_op.append(op_node)
 
             if operator == "prim::Constant":
                 outputs[node_name] = _get_constant(op_node)
@@ -4071,11 +4078,10 @@ class PyTorchOpConverter:
                 if isinstance(inputs[0], (list, _expr.TupleWrapper)):
                     unpacked = inputs[0]
                 else:
-                    unpacked = set_span(
-                        _unpack_tuple(inputs[0]),
-                        self.source_map[op_node],
-                    )
-                outputs.update(zip(_get_output_names(op_node), unpacked))
+                    unpacked = _unpack_tuple(inputs[0])
+                outputs.update(
+                    zip(_get_output_names(op_node), set_span(unpacked, self.source_map[op_node]))
+                )
             elif operator == "prim::prim::RaiseException":
                 logger.warning("raising exceptions is ignored")
                 outputs[node_name] = None
@@ -4120,6 +4126,8 @@ class PyTorchOpConverter:
                     assert op_node.outputsSize() == 1
                     outputs[node_name] = relay_out
 
+            self.current_op.pop()
+
         return [_wrap_const(outputs[ret_name]) for ret_name in ret_names]
 
     def _set_parameter_source_name(self, op_node, outputs):
@@ -4139,20 +4147,6 @@ class PyTorchOpConverter:
                         source_name.append(expr.name_hint)
                 new_expr = set_span(expr, name_sep.join(source_name))
                 outputs[name] = new_expr
-
-    def _get_source_name_from_parameter(self, expr):
-        """A helper function to get source information of graph node from parameter."""
-        if expr.span:
-            name_sep = "_" if self.use_parser_friendly_name else "."
-            source_name = expr.span.source_name.name
-            # discard variable/parameter name to get source_name of op node
-            # e.g. conv2d.w / conv2d_w -> conv2d
-            if isinstance(expr, _expr.Var):
-                postfix = f"{name_sep}{expr.name_hint}"
-                assert postfix in source_name
-                source_name = source_name[: -len(postfix)]
-            return source_name
-        return None
 
 
 def _pytorch_result_type(dtypes, non_tensor_inputs):
@@ -4775,8 +4769,8 @@ def from_pytorch(
 
     export_renamed_c_graph_path : str, optional
         Export the renamed torch._C.Graph to the path.
-        During the conversion, variable names in torch._C.Graph are assigned based on op types.
-        The exported text file can be the reference to spans.
+        During the conversion, variable names in torch._C.Graph will be assigned based on their op
+        types. The exported text file can be the reference to spans.
 
     Returns
     -------
