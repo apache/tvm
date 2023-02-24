@@ -422,9 +422,9 @@ def LegalizeOps(customize_legalize_map: Optional[Dict[str, LegalizeFunc]] = None
 
             @T.prim_func
             def add(
-                A: T.Buffer[(2, 3), "float32"],
-                B: T.Buffer[(2, 3), "float32"],
-                T_add: T.Buffer[(2, 3), "float32"],
+                A: T.Buffer((2, 3), "float32"),
+                B: T.Buffer((2, 3), "float32"),
+                T_add: T.Buffer((2, 3), "float32"),
             ):
                 T.func_attr({"tir.noalias": True})
                 for ax0, ax1 in T.grid(2, 3):
@@ -436,9 +436,9 @@ def LegalizeOps(customize_legalize_map: Optional[Dict[str, LegalizeFunc]] = None
 
             @T.prim_func
             def multiply(
-                A: T.Buffer[(2, 3), "float32"],
-                B: T.Buffer[(2, 3), "float32"],
-                T_multiply: T.Buffer[(2, 3), "float32"],
+                A: T.Buffer((2, 3), "float32"),
+                B: T.Buffer((2, 3), "float32"),
+                T_multiply: T.Buffer((2, 3), "float32"),
             ):
                 T.func_attr({"tir.noalias": True})
                 for ax0, ax1 in T.grid(2, 3):

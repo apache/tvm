@@ -17,6 +17,7 @@
 # pylint: disable=missing-docstring
 import tvm
 import pytest
+import tvm.testing
 from tvm import IRModule, relax, tir
 from tvm.script import relax as R
 
@@ -99,7 +100,7 @@ def test_shape_struct_info_2():
     _assert_print(
         obj,
         """
-a = T.Var("a", "int64")
+a = T.int64()
 R.Shape([1, a, 3])""",
     )
 
@@ -112,7 +113,7 @@ def test_tensor_struct_info():
     _assert_print(
         obj,
         """
-a = T.Var("a", "int64")
+a = T.int64()
 R.Tensor((1, a, 3), dtype="float32")
 """,
     )
@@ -134,7 +135,7 @@ def test_tuple_struct_info():
     _assert_print(
         obj,
         """
-a = T.Var("a", "int64")
+a = T.int64()
 R.Tuple(R.Prim("float32"), R.Object, R.Shape([1, a, 3]))
 """,
     )
@@ -155,7 +156,7 @@ def test_func_struct_info():
     _assert_print(
         obj,
         """
-a = T.Var("a", "int64")
+a = T.int64()
 R.Callable((R.Prim("float32"), R.Object, R.Shape([1, a, 3])), R.Tensor((1, 2, 3), dtype="float32"))
 """,
     )
@@ -226,7 +227,7 @@ def test_var():
     _assert_print(
         obj,
         """
-x = T.Var("x", "int64")
+x = T.int64()
 a: R.Tensor((1, x, 3), dtype="float32")
 a""",
     )
@@ -237,7 +238,7 @@ def test_dataflow_var():
     _assert_print(
         obj,
         """
-x = T.Var("x", "int64")
+x = T.int64()
 a: R.Tensor((1, x, 3), dtype="float32")
 a""",
     )
@@ -254,11 +255,11 @@ def test_tuple():
     _assert_print(
         obj,
         """
-x = T.Var("x", "int64")
+x = T.int64()
 a: R.Tensor((1, x, 3), dtype="float32")
-y = T.Var("y", "int64")
+y = T.int64()
 b: R.Tensor((1, y, 3), dtype="float32")
-z = T.Var("z", "int64")
+z = T.int64()
 c: R.Tensor((1, z, 3), dtype="float32")
 (a, b, c)
 """,
@@ -279,11 +280,11 @@ def test_tuple_get_item():
     _assert_print(
         obj,
         """
-x = T.Var("x", "int64")
+x = T.int64()
 a: R.Tensor((1, x, 3), dtype="float32")
-y = T.Var("y", "int64")
+y = T.int64()
 b: R.Tensor((1, y, 3), dtype="float32")
-z = T.Var("z", "int64")
+z = T.int64()
 c: R.Tensor((1, z, 3), dtype="float32")
 (a, b, c)[0]
 """,
@@ -302,7 +303,7 @@ def test_call():
     _assert_print(
         obj,
         """
-x = T.Var("x", "int64")
+x = T.int64()
 a: R.Tensor((1, x, 3), dtype="float32")
 R.call_tir("my_func", (a,), out_sinfo=R.Tensor((1, x, 3), dtype="float32"), tir_vars=R.shape([x]))
 """,
@@ -330,7 +331,7 @@ def test_seq_expr():
     _assert_print(
         obj,
         """
-x = T.Var("x", "int64")
+x = T.int64()
 a: R.Tensor((1, x, 3), dtype="float32")
 with R.dataflow():
     b: R.Tensor((1, x, 3), dtype="float32") = R.sin(a)
@@ -356,7 +357,7 @@ def test_binding_block():
     _assert_print(
         obj,
         """
-x = T.Var("x", "int64")
+x = T.int64()
 a: R.Tensor((1, x, 3), dtype="float32")
 b: R.Tensor((1, x, 3), dtype="float32") = R.sin(a)
 c: R.Tensor((1, x, 3), dtype="float32") = R.sin(b)
@@ -379,7 +380,7 @@ def test_dataflow_block():
     _assert_print(
         obj,
         """
-x = T.Var("x", "int64")
+x = T.int64()
 a: R.Tensor((1, x, 3), dtype="float32")
 with R.dataflow():
     b: R.Tensor((1, x, 3), dtype="float32") = R.sin(a)
@@ -401,7 +402,7 @@ def test_match_cast():
     _assert_print(
         obj,
         """
-x = T.Var("x", "int64")
+x = T.int64()
 a: R.Tensor((1, x, 3), dtype="float32")
 b: R.Tensor((1, 5, 3), dtype="float32") = R.match_cast(a, R.Tensor((1, 5, 3), dtype="float32"))
 """,
@@ -417,7 +418,7 @@ def test_var_binding():
     _assert_print(
         obj,
         """
-x = T.Var("x", "int64")
+x = T.int64()
 a: R.Tensor((1, x, 3), dtype="float32")
 b: R.Tensor((1, x, 3), dtype="float32") = R.sin(a)
 """,

@@ -194,8 +194,8 @@ def test_shape_check_builtin(exec_mode):
         @R.function
         def main(x: R.Tensor(["n", "m"], "float32")) -> R.Shape(ndim=3):
             R.func_attr({"global_symbol": "main"})
-            n = T.Var("n", "int64")
-            k = T.Var("k", "int64")
+            n = T.int64()
+            k = T.int64()
             shape_heap = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
                 [R.prim_value(3)],
