@@ -234,10 +234,11 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
         The axis to scatter on. It is zero by default.
 
     reduction : optional, string
-        The update mode for the algorithm, either "update", "add", "mul", "min" or "max"
+        The update mode for the algorithm, either "update", "add", "mul", "mean", "min" or "max"
         If update, the update values will replace the input data
         If add, the update values will be added to the input data
-        If mul, the update values will be multiply to the input data
+        If mul, the input data will be multiplied on the update values
+        If mean, the input data will be mean between the update values and the input data
         If min, there is choice of minimal between the update values and the input data
         If max, there is choice of maximal between the update values and the input data
         It is "update" by default
@@ -258,6 +259,9 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
     def mul_func(dst_ptr, dst_index, update):
         dst_ptr[dst_index] *= update
 
+    def mean_func(dst_ptr, dst_index, update):
+        dst_ptr[dst_index] = (dst_ptr[dst_index] + update)/2
+
     def min_func(dst_ptr, dst_index, update):
         dst_ptr[dst_index] = tir.min(dst_ptr[dst_index], update)
 
@@ -271,6 +275,8 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
         reduce_func = add_func
     elif reduction == "mul":
         reduce_func = mul_func
+    elif reduction == "mean":
+        reduce_func = mean_func
     elif reduction == "min":
         reduce_func = min_func
     elif reduction == "max":

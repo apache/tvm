@@ -164,7 +164,7 @@ struct ScatterElementsAttrs : public tvm::AttrsNode<ScatterElementsAttrs> {
     TVM_ATTR_FIELD(axis).set_default(0).describe("The axis over which to select values.");
     TVM_ATTR_FIELD(reduction).set_default("update").describe(
         "Reduction mode of the scatter elements, "
-        "either \"update\", \"add\", \"mul\", \"min\" or \"max\".");
+        "either \"update\", \"add\", \"mul\", \"mean\", \"min\" or \"max\".");
   }
 };
 
