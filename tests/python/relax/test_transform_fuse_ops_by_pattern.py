@@ -579,5 +579,17 @@ def test_unused():
     check(Conv2dReLU, [("cutlass.conv2d", pat)], Conv2dReLU_partitioned)
 
 
+def test_check_pattern():
+    pat = make_fused_bias_activation_pattern("relax.nn.conv2d", with_bias=False, activation=None)
+
+    def pred(match):
+        for pat, expr in match.items():
+            if isinstance(expr, relax.expr.Call) and expr.op.name == "relax.nn.conv2d":
+                return expr.struct_info.dtype == "float32"
+        return False
+
+    check(Conv2dx2, [("cutlass.conv2d", pat, pred)], Conv2dx2)  # expect no partitioning
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

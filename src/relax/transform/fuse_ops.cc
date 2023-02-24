@@ -900,14 +900,14 @@ class PatternBasedPartitioner : ExprVisitor {
   using GroupMap = OperatorFusor::GroupMap;
   using ExprVisitor::VisitExpr_;
 
-  static GroupMap Run(String pattern_name, DFPattern pattern, Expr expr, support::Arena* arena) {
-    PatternBasedPartitioner part(pattern_name, pattern, arena);
+  static GroupMap Run(String pattern_name, DFPattern pattern, runtime::PackedFunc check, Expr expr,
+                      support::Arena* arena) {
     part.VisitExpr(expr);
     return part.group_map_;
   }
 
   PatternBasedPartitioner(String pattern_name, DFPattern pattern, support::Arena* arena)
-      : pat_name_(pattern_name), pat_(pattern), arena_(arena) {}
+      : pat_name_(pattern_name), pat_(pattern), check_(check), arena_(arena) {}
 
   void VisitVarDef(const Var& var) final { group_map_[var.get()] = arena_->make<Group>(); }
 
@@ -921,7 +921,8 @@ class PatternBasedPartitioner : ExprVisitor {
 
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call) final {
     VisitVarDef(binding->var);
-    if (auto matches_opt = ExtractMatchedExpr(pat_, GetRef<Call>(call), bindings_)) {
+    if (auto matches_opt = ExtractMatchedExpr(pat_, GetRef<Call>(call), bindings_);
+        matches_opt.defined() && static_cast<bool>(check_(matches_opt.value()))) {
       // If a match is found, put all matching expressions into the same group.
       // OperatorFusor also requires that the bound variable be in the same group as the RHS value.
       // Since is_op(...) based pattern only matches against call nodes on the right hand side,
@@ -965,7 +966,11 @@ class PatternBasedPartitioner : ExprVisitor {
 
   String pat_name_;
   DFPattern pat_;
+<<<<<<< HEAD
   support::Arena* arena_;
+=======
+  runtime::PackedFunc check_;
+>>>>>>> 2034a3ec9 ([Unity] Add callback to FuseOpsByPattern to check match result is accepted)
   Map<Var, Expr> bindings_;
   Map<Expr, Var> value_to_bound_var_;
   GroupMap group_map_;
@@ -1042,16 +1047,22 @@ class CompositeFunctionAnnotator : public ExprMutator {
 };
 
 IRModule FuseOpsByPattern(const tvm::Array<String>& pattern_names,
-                          const tvm::Array<DFPattern>& patterns, IRModule mod,
+                          const tvm::Array<DFPattern>& patterns,
+                          const tvm::Array<runtime::PackedFunc>& checks, IRModule mod,
                           bool annotate_codegen) {
   support::Arena arena;
   for (size_t i = 0; i < pattern_names.size(); ++i) {
     OperatorFusor::GroupMap group_map;
     for (const auto& entry : mod->functions) {
+<<<<<<< HEAD
       if (entry.second->IsInstance<tir::PrimFuncNode>()) {
         continue;
       }
       auto map = PatternBasedPartitioner::Run(pattern_names[i], patterns[i], entry.second, &arena);
+=======
+      auto map = PatternBasedPartitioner::Run(pattern_names[i], patterns[i], checks[i],
+                                              entry.second, &arena);
+>>>>>>> 2034a3ec9 ([Unity] Add callback to FuseOpsByPattern to check match result is accepted)
       group_map.insert(map.begin(), map.end());
     }
     mod = MakeGroupedFunctions(mod, group_map, /*lift_constants*/ false);
@@ -1080,10 +1091,11 @@ Pass FuseOps(int fuse_opt_level) {
 TVM_REGISTER_GLOBAL("relax.transform.FuseOps").set_body_typed(FuseOps);
 
 Pass FuseOpsByPattern(const tvm::Array<String>& pattern_names,
-                      const tvm::Array<DFPattern>& patterns, bool annotate_codegen) {
+                      const tvm::Array<DFPattern>& patterns,
+                      const tvm::Array<runtime::PackedFunc>& checks, bool annotate_codegen) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
       [=](IRModule m, PassContext pc) {
-        return relax::FuseOpsByPattern(pattern_names, patterns, m, annotate_codegen);
+        return relax::FuseOpsByPattern(pattern_names, patterns, checks, m, annotate_codegen);
       };
   return CreateModulePass(/*pass_function=*/pass_func,       //
                           /*opt_level=*/0,                   //
