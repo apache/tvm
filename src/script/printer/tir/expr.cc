@@ -225,9 +225,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       static const OpAttrMap<tir::TScriptDtypePrintLocation> dtype_locations =
           Op::GetAttrMap<tir::TScriptDtypePrintLocation>("TScriptDtypePrintLocation");
       tir::ScriptDtypePrintLocation dtype_print_location = tir::ScriptDtypePrintLocation::kNone;
-      static const std::unordered_set<const Object*> dtype_last_arg = {
-          tir::builtin::tvm_struct_get().get(),
-      };
       ExprDoc prefix{nullptr};
       if (const auto* op = call->op.as<OpNode>()) {
         String name = op_names.get(GetRef<Op>(op), op->name);
