@@ -54,16 +54,7 @@
 /*! Maximum supported string length in parameter names */
 #define TVM_CRT_MAX_STRLEN_PARAM_NAME ${TVM_CRT_MAX_STRLEN_PARAM_NAME}
 
-/*! Maximum length of a PackedFunc function name. */
-#define TVM_CRT_MAX_FUNCTION_NAME_LENGTH_BYTES ${TVM_CRT_MAX_FUNCTION_NAME_LENGTH_BYTES}
-
 /*! Enable checks to enforce the stack allocator with a FIFO ordering. Off by default */
 // #define TVM_CRT_STACK_ALLOCATOR_ENABLE_FIFO_CHECK
-
-/*! Log2 of the page size (bytes) for a virtual memory page. */
-#define TVM_CRT_PAGE_BITS ${TVM_CRT_PAGE_BITS}
-
-/*! Number of pages on device. */
-#define TVM_CRT_MAX_PAGES ${TVM_CRT_MAX_PAGES}
 
 #endif  // TVM_RUNTIME_CRT_CRT_CONFIG_H_
