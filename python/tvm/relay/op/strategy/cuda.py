@@ -861,6 +861,20 @@ def conv1d_transpose_strategy_cuda(attrs, inputs, out_type, target):
     return strategy
 
 
+@col2im_strategy.register(["cuda", "gpu"])
+def col2im_cuda(attrs, inputs, out_type, target):
+    """col2im cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_col2im(topi.image.col2im_cuda),
+        wrap_topi_schedule(topi.cuda.schedule_extern),
+        name="col2im.cuda",
+        plevel=10,
+    )
+
+    return strategy
+
+
 @matmul_strategy.register(["cuda", "gpu"])
 def matmul_strategy_cuda(attrs, inputs, out_type, target):
     """Matmul cuda strategy."""

@@ -326,6 +326,10 @@ def crop_and_resize_func(attrs, inputs, _):
     ]
 
 
+# col2im
+reg.register_strategy("image.col2im", strategy.col2im_strategy)
+
+
 # dilation2d
 reg.register_strategy("image.dilation2d", strategy.dilation2d_strategy)
 reg.register_pattern("image.dilation2d", OpPattern.OUT_ELEMWISE_FUSABLE)

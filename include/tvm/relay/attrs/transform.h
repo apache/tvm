@@ -156,6 +156,7 @@ struct ScatterAttrs : public tvm::AttrsNode<ScatterAttrs> {
   }
 };
 
+/*! \brief Attributes used in scatter_elements operators */
 struct ScatterElementsAttrs : public tvm::AttrsNode<ScatterElementsAttrs> {
   Integer axis;
   String reduction;
@@ -166,8 +167,9 @@ struct ScatterElementsAttrs : public tvm::AttrsNode<ScatterElementsAttrs> {
         "Reduction mode of the scatter elements, "
         "either \"update\", \"add\", \"mul\", \"mean\", \"min\" or \"max\".");
   }
-};
+};  // struct ScatterElementsAttrs
 
+/*! \brief Attributes used in scatter_nd operators */
 struct ScatterNDAttrs : public tvm::AttrsNode<ScatterNDAttrs> {
   String mode;
 
@@ -176,7 +178,7 @@ struct ScatterNDAttrs : public tvm::AttrsNode<ScatterNDAttrs> {
         "Accumulation mode of the ScatterND, "
         "either \"update\", \"add\", \"mul\", \"min\" or \"max\".");
   }
-};
+};  // struct ScatterNDAttrs
 
 struct GatherAttrs : public tvm::AttrsNode<GatherAttrs> {
   Integer axis;

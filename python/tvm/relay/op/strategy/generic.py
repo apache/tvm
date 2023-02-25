@@ -752,6 +752,31 @@ def conv1d_transpose_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
+# col2im
+@override_native_generic_func("col2im_strategy")
+def col2im_strategy(attrs, outs, out_type, target):
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_col2im(topi.image.col2im),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="col2im.generic",
+    )
+    return strategy
+
+
+def wrap_compute_col2im(topi_compute):
+    """Wrap col2im topi compute"""
+
+    def _compute_col2im(attrs, inputs, _):
+        dilations = get_const_tuple(attrs.dilations)
+        pads = get_const_tuple(attrs.pads)
+        strides = get_const_tuple(attrs.strides)
+
+        return [topi_compute(inputs[0], inputs[1], inputs[2], dilations, pads, strides)]
+
+    return _compute_col2im
+
+
 # dilation2d
 def wrap_compute_dilation2d(topi_compute, need_data_layout=False):
     """Wrap dilation2d topi compute"""
