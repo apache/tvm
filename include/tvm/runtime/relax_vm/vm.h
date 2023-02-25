@@ -23,6 +23,10 @@
 #ifndef TVM_RUNTIME_RELAX_VM_VM_H_
 #define TVM_RUNTIME_RELAX_VM_VM_H_
 
+#ifndef TVM_RELAX_VM_ENABLE_PROFILER
+#define TVM_RELAX_VM_ENABLE_PROFILER 1
+#endif
+
 #include <memory>
 #include <string>
 #include <vector>
