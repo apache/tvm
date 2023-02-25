@@ -604,7 +604,7 @@ class BlockBuilder(Object):
         """
         return _ffi_api.BlockBuilderEmitMatchCast(self, value, struct_info)  # type: ignore
 
-    def emit_output(self, output: Union[Expr, Tuple, List[Expr]], name_hint: str = "") -> None:
+    def emit_output(self, output: Union[Expr, Tuple, List[Expr]], name_hint: str = "") -> Var:
         """Emit output for the current dataflow block or function.
 
         Parameters
@@ -639,11 +639,6 @@ class BlockBuilder(Object):
         params : tvm.relax.Var | Tuple | List[tvm.relax.Var], optional
             The parameters of the function to be built.
             If params is None, it means the params have been initialized in the function with scope.
-
-        Returns
-        -------
-        ret : tvm.relax.Var
-            The return variable which gets bound to the output.
         """
         if self._is_emit_func_output_called:
             raise RuntimeError("emit_func_output must be called exactly once in a relax function.")
