@@ -23,7 +23,7 @@ Connect javascript end to the websocket port and connect to the RPC.
 import tvm
 from tvm import te
 from tvm import rpc
-from tvm.contrib import utils, emcc
+from tvm.contrib import utils, tvmjs
 from tvm.relay.backend import Runtime
 import numpy as np
 
@@ -52,7 +52,7 @@ def test_rpc():
     temp = utils.tempdir()
 
     wasm_path = temp.relpath("addone_gpu.wasm")
-    fadd.export_library(wasm_path, emcc.create_tvmjs_wasm)
+    fadd.export_library(wasm_path, tvmjs.create_tvmjs_wasm)
 
     wasm_binary = open(wasm_path, "rb").read()
     remote = rpc.connect(
