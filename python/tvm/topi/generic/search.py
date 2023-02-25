@@ -52,22 +52,6 @@ def schedule_scatter(outs):
     return _default_schedule(outs, False)
 
 
-def schedule_scatter_add(outs):
-    """Schedule for scatter_add operator.
-
-    Parameters
-    ----------
-    outs: Array of Tensor
-      The computation graph description of scatter_add.
-
-    Returns
-    -------
-    s: Schedule
-      The computation schedule for the op.
-    """
-    return _default_schedule(outs, False)
-
-
 def schedule_sparse_fill_empty_rows(outs):
     return _default_schedule(outs, False)
 

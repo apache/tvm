@@ -20,8 +20,7 @@ import pathlib
 
 BASH = "# bash"
 BASH_IGNORE = "# bash-ignore"
-BASH_MULTILINE_COMMENT_START = ": '"
-BASH_MULTILINE_COMMENT_END = "'"
+BASH_MULTILINE_COMMENT = "# bash-comment"
 
 
 def bash_to_python(src_path: pathlib.Path, dest_path: pathlib.Path):
@@ -33,6 +32,8 @@ def bash_to_python(src_path: pathlib.Path, dest_path: pathlib.Path):
             bash_detected = False
             bash_ignore_detected = False
             new_line_required = False
+            bash_multiline_comment_detected = False
+
             while line:
                 line = line.strip("\n").strip("\r")
                 if bash_detected:
@@ -42,7 +43,7 @@ def bash_to_python(src_path: pathlib.Path, dest_path: pathlib.Path):
                             dest_f.write("\n")
                         python_code = "# .. code-block:: bash\n#\n"
                         for bash_line in bash_block:
-                            python_code += f"#\t  {bash_line}\n"
+                            python_code += f"# \t  {bash_line}\n"
                         python_code += "#"
                         dest_f.write(python_code)
 
@@ -55,20 +56,24 @@ def bash_to_python(src_path: pathlib.Path, dest_path: pathlib.Path):
                 elif bash_ignore_detected:
                     if line == BASH_IGNORE:
                         bash_ignore_detected = False
-                        new_line_required = True
                     else:
                         new_line_required = False
                         pass
+                elif bash_multiline_comment_detected:
+                    if line == BASH_MULTILINE_COMMENT:
+                        bash_multiline_comment_detected = False
+                    else:
+                        if line != "#":
+                            assert len(line) > 2, "Detected empty line."
+                            dest_f.write(line[2:])
+                        new_line_required = True
                 else:
                     if line == BASH:
                         bash_detected = True
                     elif line == BASH_IGNORE:
                         bash_ignore_detected = True
-                    elif line in [BASH_MULTILINE_COMMENT_START, BASH_MULTILINE_COMMENT_END]:
-                        if new_line_required:
-                            dest_f.write("\n")
-                        dest_f.write('"""')
-                        new_line_required = True
+                    elif line == BASH_MULTILINE_COMMENT:
+                        bash_multiline_comment_detected = True
                     else:
                         if new_line_required:
                             dest_f.write("\n")
@@ -76,8 +81,9 @@ def bash_to_python(src_path: pathlib.Path, dest_path: pathlib.Path):
                         new_line_required = True
 
                 line = src_f.readline()
-            if new_line_required:
-                dest_f.write("\n")
+                if new_line_required:
+                    dest_f.write("\n")
+                    new_line_required = False
 
 
 def main():

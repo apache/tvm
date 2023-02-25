@@ -77,4 +77,22 @@ tasks.whenTaskAdded { task ->
     if (task.name == 'assembleRelease') {
         task.dependsOn 'extractModels'
     }
+    if (task.name == 'mergeDebugAssets') {
+        task.dependsOn 'extractModels'
+    }
+    if (task.name == 'mergeReleaseAssets') {
+        task.dependsOn 'extractModels'
+    }
+    if (task.name == 'lintVitalAnalyzeRelease') {
+        task.dependsOn 'extractModels'
+    }
+    if (task.name == 'lintVitalReportRelease') {
+        task.dependsOn 'extractModels'
+    }
+    if (task.name == 'lintAnalyzeDebug') {
+        task.dependsOn 'extractModels'
+    }
+    if (task.name == 'lintReportDebug') {
+        task.dependsOn 'extractModels'
+    }
 }

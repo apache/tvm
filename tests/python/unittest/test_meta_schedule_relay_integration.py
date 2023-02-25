@@ -724,7 +724,7 @@ def test_module_equality_ignore_ndarray():
     np.testing.assert_allclose(ref, out, rtol=1e-4, atol=1e-4)
 
 
-def _test_anchor_tuning(target):
+def _test_anchor_tuning(target, space):
     data_shape = (128, 128)
     weight_shape1 = (128, 128)
     weight_shape2 = (128, 128)
@@ -756,6 +756,7 @@ def _test_anchor_tuning(target):
             target=target,
             params=params,
             work_dir=work_dir,
+            space=space,
             max_trials_global=4,
             strategy="replay-trace",
             module_equality=module_equality,
@@ -779,8 +780,15 @@ def _test_anchor_tuning(target):
     np.testing.assert_allclose(ref, out, atol=1e-3)
 
 
-def test_anchor_tuning_cpu():
-    _test_anchor_tuning("llvm --num-cores=4")
+@pytest.mark.parametrize(
+    "space",
+    [
+        ms.space_generator.PostOrderApply(),
+        ms.space_generator.PostOrderApply(sch_rules=[], postprocs=[], mutator_probs={}),
+    ],
+)
+def test_anchor_tuning_cpu(space):
+    _test_anchor_tuning("llvm --num-cores=4", space)
 
 
 def test_anchor_tuning_cpu_link_params():

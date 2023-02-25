@@ -46,6 +46,7 @@ export type FTVMModGetFunction = (
  *                  TVMModuleHandle dep);
  */
 export type FTVMModImport = (mod: Pointer, dep: Pointer) => number;
+
 /**
  * int TVMModFree(TVMModuleHandle mod);
  */
@@ -160,6 +161,27 @@ export type FTVMSynchronize = (
 export type FTVMBackendPackedCFunc = (
   argValues: Pointer, argCodes: Pointer, nargs: number,
   outValue: Pointer, outCode: Pointer) => number;
+
+
+/**
+ * int TVMObjectFree(TVMObjectHandle obj);
+ */
+ export type FTVMObjectFree = (obj: Pointer) => number;
+
+/**
+ * int TVMObjectGetTypeIndex(TVMObjectHandle obj, unsigned* out_tindex);
+ */
+export type FTVMObjectGetTypeIndex = (obj: Pointer, out_tindex: Pointer) => number;
+
+/**
+ * int TVMObjectTypeIndex2Key(unsigned tindex, char** out_type_key);
+ */
+export type FTVMObjectTypeIndex2Key = (type_index: number, out_type_key: Pointer) => number;
+
+/**
+ * int TVMObjectTypeKey2Index(const char* type_key, unsigned* out_tindex);
+ */
+export type FTVMObjectTypeKey2Index = (type_key: Pointer, out_tindex: Pointer) => number;
 
 // -- TVM Wasm Auxiliary C API --
 

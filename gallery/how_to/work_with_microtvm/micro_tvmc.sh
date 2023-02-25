@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,18 +16,24 @@
 # specific language governing permissions and limitations
 # under the License.
 
-: '
-.. _tutorial-micro-cli-tool:
+# bash-ignore
+set -euxo pipefail
+# bash-ignore
 
-1. microTVM CLI Tool
-====================
-**Author**: `Mehrdad Hessar <https://github.com/mehrdadh>`_
-
-This tutorial explains how to compile a tiny model for a micro device,
-build a program on Zephyr platform to execute this model, flash the program
-and run the model all using `tvmc micro` command.
-You need to install python and Zephyr dependencies before processing with this tutorial.
-'
+# bash-comment
+# """
+# .. _tutorial-micro-cli-tool:
+#
+# 1. microTVM CLI Tool
+# ====================
+# **Author**: `Mehrdad Hessar <https://github.com/mehrdadh>`_
+#
+# This tutorial explains how to compile a tiny model for a micro device,
+# build a program on Zephyr platform to execute this model, flash the program
+# and run the model all using `tvmc micro` command.
+# You need to install python and Zephyr dependencies before processing with this tutorial.
+# """
+# bash-comment
 
 ######################################################################
 #
@@ -126,7 +133,7 @@ tvmc micro create \
     project \
     model.tar \
     zephyr \
-    --project-option project_type=host_driven zephyr_board=qemu_x86
+    --project-option project_type=host_driven board=qemu_x86
 # bash
 # This will generate a ``Host-Driven`` Zephyr project for ``qemu_x86`` Zephyr board. In Host-Driven template project,
 # the Graph Executor will run on host and perform the model execution on Zephyr device by issuing commands to the

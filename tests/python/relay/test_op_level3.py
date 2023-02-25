@@ -1112,7 +1112,7 @@ class TestScatterAdd:
             "i", relay.TensorType(shape=[relay.Any() for _ in ishape], dtype=indice_dtype)
         )
         u = relay.var("u", relay.TensorType(shape=[relay.Any() for _ in ishape], dtype=dtype))
-        z = relay.op.scatter_add(d, i, u, axis)
+        z = relay.op.scatter_elements(d, i, u, axis, "add")
 
         func = relay.Function([d, i, u], z)
 

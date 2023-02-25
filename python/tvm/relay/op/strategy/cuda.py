@@ -1086,19 +1086,6 @@ def scatter_cuda(attrs, inputs, out_type, target):
     return strategy
 
 
-@scatter_add_strategy.register(["cuda", "gpu"])
-def scatter_add_cuda(attrs, inputs, out_type, target):
-    """scatter_add cuda strategy"""
-    strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_scatter(topi.cuda.scatter_add),
-        wrap_topi_schedule(topi.generic.schedule_extern),
-        name="scatter_add.cuda",
-        plevel=10,
-    )
-    return strategy
-
-
 @scatter_elements_strategy.register(["cuda", "gpu"])
 def scatter_elements_cuda(attrs, inputs, out_type, target):
     """scatter elements cuda strategy"""

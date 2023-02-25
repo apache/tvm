@@ -70,6 +70,13 @@ class TVM_DLL AotExecutor : public ModuleNode {
   int GetInputIndex(const std::string& name);
 
   /*!
+   * \brief Get the input name given the index of input.
+   * \param index The index of the input.
+   * \return The name of input.
+   */
+  std::string GetInputName(int index);
+
+  /*!
    * \brief Get the output index given the name of output.
    * \param name The name of the output.
    * \return The index of output.
