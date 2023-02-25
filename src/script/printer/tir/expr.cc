@@ -222,26 +222,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Call>("", [](tir::Call call, ObjectPath call_p, IRDocsifier d) -> Doc {
       static const OpAttrMap<tir::TScriptPrinterName>& op_names =
           Op::GetAttrMap<tir::TScriptPrinterName>("TScriptPrinterName");
-      static const std::unordered_set<const Object*> dtype_first_arg = {
-          tir::builtin::reinterpret().get(),
-          tir::builtin::call_extern().get(),
-          tir::builtin::call_llvm_intrin().get(),       //
-          tir::builtin::call_llvm_pure_intrin().get(),  //
-          tir::builtin::call_pure_extern().get(),       //
-          tir::builtin::ptx_mma().get(),
-          tir::builtin::ptx_mma_sp().get(),
-          tir::builtin::ptx_ldmatrix().get(),
-          tir::builtin::ptx_cp_async().get(),
-          tir::builtin::mma_store().get(),
-          tir::builtin::mma_fill().get(),
-          tir::builtin::vectorlow().get(),
-          tir::builtin::vectorhigh().get(),
-          tir::builtin::vectorcombine().get(),
-          Op::Get("tir.type_annotation").get(),
-      };
-      static const std::unordered_set<const Object*> dtype_last_arg = {
-          tir::builtin::tvm_struct_get().get(),
-      };
+      static const OpAttrMap<tir::TScriptDtypePrintLocation> dtype_locations =
+          Op::GetAttrMap<tir::TScriptDtypePrintLocation>("TScriptDtypePrintLocation");
+      tir::ScriptDtypePrintLocation dtype_print_location = tir::ScriptDtypePrintLocation::kNone;
       ExprDoc prefix{nullptr};
       if (const auto* op = call->op.as<OpNode>()) {
         String name = op_names.get(GetRef<Op>(op), op->name);
@@ -249,6 +232,10 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           LOG(WARNING) << "No TScriptPrinterName attribute for " << op->name;
         }
         prefix = TIR(d, name);
+        if (dtype_locations.count(GetRef<Op>(op))) {
+          dtype_print_location = static_cast<tir::ScriptDtypePrintLocation>(
+              dtype_locations[GetRef<Op>(op)].IntValue());
+        }
       } else if (const auto* gv = call->op.as<GlobalVarNode>()) {
         prefix = LiteralDoc::Str(gv->name_hint, call_p->Attr("op"));
       } else {
@@ -257,13 +244,13 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       Array<ExprDoc> args;
       int n_args = call->args.size();
       args.reserve(n_args + 1);
-      if (dtype_first_arg.count(call->op.get())) {
+      if (dtype_print_location == tir::ScriptDtypePrintLocation::kFirst) {
         args.push_back(LiteralDoc::DataType(call->dtype, call_p->Attr("dtype")));
       }
       for (int i = 0; i < n_args; ++i) {
         args.push_back(d->AsDoc<ExprDoc>(call->args[i], call_p->Attr("args")->ArrayIndex(i)));
       }
-      if (dtype_last_arg.count(call->op.get())) {
+      if (dtype_print_location == tir::ScriptDtypePrintLocation::kLast) {
         args.push_back(LiteralDoc::DataType(call->dtype, call_p->Attr("dtype")));
       }
       return prefix->Call(args);
