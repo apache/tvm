@@ -56,10 +56,10 @@ def _try_convert_to_scalar_const(expr: Expr) -> Union[Expr, bool, float, int]:
         expr is a scalar constant. Or return the input itself
         if it is not.
     """
-    if isinstance(expr, Constant) and expr.struct_info.ndim == 0:
-        return expr.data.numpy()[()].item()
-    else:
-        return expr
+    # TODO: uncomment this once we have better way to support scalar prim value
+    # if isinstance(expr, Constant) and expr.struct_info.ndim == 0:
+    #     return expr.data.numpy()[()].item()
+    return expr
 
 
 def _call_topi_without_attr(te_func: TEFunc, primfunc_name: Optional[str] = None) -> LegalizeFunc:

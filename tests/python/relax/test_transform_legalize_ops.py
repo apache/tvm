@@ -89,7 +89,11 @@ def test_legalize_multiple_types_of_call():
     class Expected:
         @R.function
         def mul2(x: R.Tensor((3, 3), dtype="float32")) -> R.Tensor((3, 3), dtype="float32"):
-            gv = R.call_tir(multiply, (x,), R.Tensor((3, 3), dtype="float32"))
+            gv = R.call_tir(
+                multiply,
+                (x, R.const(2, "float32")),
+                out_sinfo=R.Tensor((3, 3), dtype="float32"),
+            )
             return gv
 
         @T.prim_func
@@ -102,20 +106,21 @@ def test_legalize_multiple_types_of_call():
                     T_id[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1]
 
         @T.prim_func
-        def multiply(rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "float32"), T_multiply: T.Buffer((T.int64(3), T.int64(3)), "float32")):
+        def multiply(rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((), "float32"), T_multiply: T.Buffer((T.int64(3), T.int64(3)), "float32")):
             T.func_attr({"tir.noalias": True})
             for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
                 with T.block("T_multiply"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(rxplaceholder[v_ax0, v_ax1])
+                    T.reads(rxplaceholder[v_ax0, v_ax1], rxplaceholder_1[()])
                     T.writes(T_multiply[v_ax0, v_ax1])
-                    T_multiply[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1] * T.float32(2)
+                    T_multiply[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1] * rxplaceholder_1[()]
+
 
         @R.function
-        def main(x1: R.Tensor((3, 3), dtype="float32")) -> R.Tensor((3, 3), dtype="float32"):
-            gv1: R.Tensor((3, 3), dtype="float32") = mul2(x1)
-            gv11 = R.call_tir(identity, gv1, R.Tensor((3, 3), dtype="float32"))
-            gv2 = R.call_tir(multiply, (gv11,), R.Tensor((3, 3), dtype="float32"))
+        def main(x: R.Tensor((3, 3), dtype="float32")) -> R.Tensor((3, 3), dtype="float32"):
+            gv: R.Tensor((3, 3), dtype="float32") = mul2(x)
+            gv1 = R.call_tir(identity, (gv,), out_sinfo=R.Tensor((3, 3), dtype="float32"))
+            gv2 = R.call_tir(multiply, (gv1, R.const(2, "float32")), out_sinfo=R.Tensor((3, 3), dtype="float32"))
             return gv2
     # fmt: on
 
@@ -154,6 +159,48 @@ def test_can_not_legalize():
     Before1 = bb.get()
     After1 = LegalizeOps()(Before1)
     tvm.ir.assert_structural_equal(After1, Before1)
+
+
+def test_legalize_scalar_data_type_preservation():
+    # fmt: off
+    @tvm.script.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor((3, 3), "float16")):
+            gv: R.Tensor((3, 3), "float16") = R.multiply(x, R.const(1.14514, "float16"))
+            return gv
+
+    @tvm.script.ir_module
+    class After:
+        @T.prim_func
+        def multiply(
+            rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "float16"),
+            rxplaceholder_1: T.Buffer((), "float16"),
+            T_multiply: T.Buffer((T.int64(3), T.int64(3)), "float16"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            # with T.block("root"):
+            for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
+                with T.block("T_multiply"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(rxplaceholder[v_ax0, v_ax1], rxplaceholder_1[()])
+                    T.writes(T_multiply[v_ax0, v_ax1])
+                    T_multiply[v_ax0, v_ax1] = (
+                        rxplaceholder[v_ax0, v_ax1] * rxplaceholder_1[()]
+                    )
+
+        @R.function
+        def main(x: R.Tensor((3, 3), dtype="float16")) -> R.Tensor((3, 3), dtype="float16"):
+            gv = R.call_tir(
+                multiply,
+                (x, R.const(1.14514, "float16")),
+                out_sinfo=R.Tensor((3, 3), dtype="float16"),
+            )
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(Before)
+    tvm.ir.assert_structural_equal(mod, After)
 
 
 if __name__ == "__main__":
