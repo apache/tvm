@@ -29,7 +29,6 @@ import { WebGPUContext } from "./webgpu";
 
 import * as compact from "./compact";
 import * as ctypes from "./ctypes";
-import { tsImportEqualsDeclaration } from "@babel/types";
 
 /**
  * Type for PackedFunc inthe TVMRuntime.
@@ -144,6 +143,11 @@ class RuntimeContext implements Disposable {
   arrayGetSize : PackedFunc;
   arrayMake : PackedFunc;
   getSysLib: PackedFunc;
+  arrayCacheGet: PackedFunc;
+  arrayCacheUpdate: PackedFunc;
+  arrayCacheRemove: PackedFunc;
+  arrayCacheClear: PackedFunc;
+  arrayDecodeStorage: PackedFunc;
 
   private autoDisposeScope: Array<Array<Disposable | undefined>> = [];
 
@@ -152,12 +156,25 @@ class RuntimeContext implements Disposable {
     this.arrayGetSize = getGlobalFunc("runtime.ArraySize");
     this.arrayMake = getGlobalFunc("runtime.Array");
     this.getSysLib = getGlobalFunc("runtime.SystemLib");
+    this.arrayCacheGet = getGlobalFunc("tvmjs.ndarray_cache.get");
+    this.arrayCacheRemove = getGlobalFunc("tvmjs.ndarray_cache.remove");
+    this.arrayCacheUpdate = getGlobalFunc("tvmjs.ndarray_cache.update");
+    this.arrayCacheClear = getGlobalFunc("tvmjs.ndarray_cache.clear");
+    this.arrayDecodeStorage = getGlobalFunc("tvmjs.array.decode_storage");
+
   }
 
   dispose(): void {
+    // call array cache clear to clear all cached items
+    this.arrayCacheClear();
     this.arrayGetItem.dispose();
     this.arrayGetSize.dispose();
     this.arrayMake.dispose();
+    this.arrayCacheGet.dispose();
+    this.arrayCacheRemove.dispose();
+    this.arrayCacheUpdate.dispose();
+    this.arrayCacheClear.dispose();
+    this.arrayDecodeStorage.dispose();
   }
 
   beginScope() : void {
@@ -522,6 +539,9 @@ export class NDArray implements Disposable {
    * @returns this
    */
   copyFromRawBytes(data: Uint8Array): this {
+    if (this.device.deviceType != DeviceStrToEnum.cpu) {
+      throw new Error("Can only sync copy CPU array, use cpu_arr.copyfrom(gpu_arr) then sync instead.");
+    }
     const size = this.shape.reduce((a, b) => {
       return a * b;
     }, 1);
@@ -552,7 +572,7 @@ export class NDArray implements Disposable {
    */
   toRawBytes(): Uint8Array {
     if (this.device.deviceType != DeviceStrToEnum.cpu) {
-      throw new Error("Can only synchronize copy for GPU array, use copyfrom instead.");
+      throw new Error("Can only sync copy CPU array, use cpu_arr.copyfrom(gpu_arr) then sync instead.");
     }
     const size = this.shape.reduce((a, b) => {
       return a * b;
@@ -806,11 +826,69 @@ export class TVMArray extends TVMObject {
   }
 }
 
+export const enum VMAllocatorKind {
+  NAIVE_ALLOCATOR = 1,
+  POOLED_ALLOCATOR = 2,
+}
+
+/**
+ *  VirtualMachine Executor.
+ *
+ *  This is a thin wrapper of the underlying TVM module.
+ *  you can also directly call set_input, run, and get_output
+ *  of underlying module functions
+ */
+export class VirtualMachine implements Disposable {
+  private mod: Module;
+  /**
+   * Constructor
+   * @param mod The underlying module, need to be detached.
+   * @param device The main device ro run VM on.
+   */
+  constructor(mod: Module, device: DLDevice) {
+    this.mod = mod;
+    this.mod.getFunction("vm_initialization")(
+      new Scalar(device.deviceType, "int"),
+      new Scalar(device.deviceId, "int"),
+      new Scalar(VMAllocatorKind.POOLED_ALLOCATOR, "int")
+    );
+  }
+
+  dispose(): void {
+    this.mod.dispose();
+  }
+  /**
+   * Get a function in the VM module.
+   * @param name The name of the function.
+   * @returns The result function.
+   */
+  getFunction(name: string): PackedFunc {
+    return this.mod.getFunction(name);
+  }
+}
+
 /** Code used as the first argument of the async callback. */
 const enum AyncCallbackCode {
   kReturn = 4,
   kException = 5,
 }
+
+export interface NDArrayCacheEntry {
+  name: string;
+  shape: Array<number>;
+  dtype: string;
+  format: "f32-to-bf16" | "raw";
+  dataPath: string;
+}
+
+export interface FetchProgressReport {
+  fetchedBytes: number;
+  totalBytes: number;
+  timeElapsed: number;
+  text: string;
+}
+
+export type FetchProgressCallback = (report: FetchProgressReport) => void;
 
 /**
  * TVM runtime instance.
@@ -836,6 +914,7 @@ export class Instance implements Disposable {
   private env: Environment;
   private objFactory: Map<number, FObjectConstructor>;
   private ctx: RuntimeContext;
+  private fetchProgressCallback: Array<FetchProgressCallback> = [];
 
   /**
    * Internal function(registered by the runtime)
@@ -898,26 +977,26 @@ export class Instance implements Disposable {
    * @number The number of times to compute the average.
    * @repeat The number of times to repeat the run.
    */
-    async benchmark(run: ()=>void, dev: DLDevice, number=10, repeat=4): Promise<number[]> {
-      // Skip first run as it can involve GPU warmup and module loading time.
-      const perf = compact.getPerformance();
-      const results = [];
+  async benchmark(run: ()=>void, dev: DLDevice, number=10, repeat=4): Promise<number[]> {
+    // Skip first run as it can involve GPU warmup and module loading time.
+    const perf = compact.getPerformance();
+    const results = [];
 
-      // run with new scope
-      this.withNewScope(run);
-      await dev.sync();
+    // run with new scope
+    this.withNewScope(run);
+    await dev.sync();
 
-      for (let k = 0; k < repeat; ++k) {
-        const tstart = perf.now();
-        for (let i = 0; i < number; ++i) {
-          this.withNewScope(run);
-        }
-        await dev.sync();
-        const tend = perf.now();
-        results.push((tend - tstart) / number);
+    for (let k = 0; k < repeat; ++k) {
+      const tstart = perf.now();
+      for (let i = 0; i < number; ++i) {
+        this.withNewScope(run);
       }
-      return results;
+      await dev.sync();
+      const tend = perf.now();
+      results.push((tend - tstart) / number);
     }
+    return results;
+  }
 
   dispose(): void {
     // order matters
@@ -1131,15 +1210,209 @@ export class Instance implements Disposable {
    * @param func Input function.
    * @returns The converted function.
    */
-   toPackedFunc(func: Function): PackedFunc {
-      return this.toPackedFuncInternal(func, true);
-   }
+  toPackedFunc(func: Function): PackedFunc {
+    return this.toPackedFuncInternal(func, true);
+  }
 
   private toPackedFuncInternal(func: Function, autoAttachToScope: boolean): PackedFunc {
     if (this.isPackedFunc(func)) return func as PackedFunc;
     const ret = this.createPackedFuncFromCFunc(this.wrapJSFuncAsPackedCFunc(func));
     if (autoAttachToScope) return this.ctx.attachToCurrentScope(ret);
     return ret;
+  }
+
+   /**
+   * Setup a virtual machine module with given device.
+   *
+   * @param dev DLDevice the device.
+   * @returns The created virtual machime.
+   */
+  createVirtualMachine(dev: DLDevice): VirtualMachine {
+    const mod = this.ctx.detachFromCurrentScope(
+      this.systemLib().getFunction("vm_load_executable")()
+    );
+    return this.ctx.attachToCurrentScope(
+      new VirtualMachine(mod, dev)
+    );
+  }
+
+  //-----------------------------------------------
+  // Native NDArray Cache Support
+  //-----------------------------------------------
+  /**
+   * Register a call back for fetch progress.
+  *
+   * @param cb the fetch progress callback.
+   */
+  registerFetchProgressCallback(cb: FetchProgressCallback) {
+    this.fetchProgressCallback.push(cb);
+  }
+
+  /**
+   * Get NDArray from cache.
+   * @param name  The name of array.
+   * @returns  The result.
+   */
+  ndarrayCacheGet(name: string) : NDArray | undefined {
+    return this.ctx.arrayCacheGet(name);
+  }
+
+  /**
+   * Get NDArray from cache.
+   * @param name  The name of array.
+   * @returns  The result.
+   */
+  ndarrayCacheRemove(name: string) : NDArray | undefined {
+    return this.ctx.arrayCacheRemove(name);
+  }
+
+  /**
+   * Update the ndarray cache.
+   * @param name The name of the array.
+   * @param arr The content.
+   */
+  ndarrayCacheUpdate(name: string, arr: NDArray, override: boolean = false) {
+    this.ctx.arrayCacheUpdate(name, arr, this.scalar(override ? 1 : 0, "int32"));
+  }
+
+  /**
+   * Update the ndarray cache.
+   * @param name The name of the array.
+   * @param arr The content.
+   */
+  ndarrayCacheClear() {
+    this.ctx.arrayCacheClear();
+  }
+
+  /**
+   * Fetch NDArray cache from url.
+   *
+   * @param ndarrayCacheUrl The cache url.
+   * @param device The device to be fetched to.
+   */
+  async fetchNDArrayCache(ndarrayCacheUrl: string, device: DLDevice) {
+    const jsonUrl = new URL("ndarray-cache.json", ndarrayCacheUrl).href;
+    var list;
+    try {
+
+      list = await (await fetch(jsonUrl)).json();
+    } catch(err) {
+      this.env.logger("Cannot fetch " + jsonUrl);
+    }
+    await this.fetchNDArrayCacheInternal(ndarrayCacheUrl, list as Array<NDArrayCacheEntry>, device);
+  }
+
+  /**
+   * Fetch list of NDArray into the NDArrayCache.
+   *
+   * @param ndarrayCacheUrl The cache url.
+   * @param list The list of array data.
+   * @param device The device to store the data to.
+   */
+  private async fetchNDArrayCacheInternal(ndarrayCacheUrl: string, list: Array<NDArrayCacheEntry>, device: DLDevice) {
+    const computeTotalBytes = (rec: NDArrayCacheEntry) => {
+
+      const dtype = this.toDLDataType(rec.dtype);
+      const size = rec.shape.reduce((a, b) => {
+        return a * b;
+      }, 1);
+      if (rec.format == "f32-to-bf16" && rec.dtype == "float32") {
+        return size * 2;
+      }
+      return size * dtype.bits * dtype.lanes / 8;
+    };
+    const perf = compact.getPerformance();
+    let tstart = perf.now();
+
+    let totalBytes = 0;
+    for (let i = 0; i < list.length; ++i) {
+      totalBytes += computeTotalBytes(list[i]);
+    };
+    let fetchedBytes = 0;
+    let timeElapsed = 0;
+
+    const reportCallback = (iter: number)=> {
+      // report
+      for (let j = 0; j < this.fetchProgressCallback.length; ++j) {
+        let text = "Fetching NDArray Cache[" + iter + "/" + list.length+ "]:";
+        text += Math.ceil(fetchedBytes / (1024 * 1024)).toString() + "MB fetched "
+        text += "from " + Math.ceil(totalBytes / (1024 * 1024)).toString() + "MB, "
+        text += Math.floor(fetchedBytes * 100 / totalBytes).toString() + "% completed, "
+        text += timeElapsed + " secs elapsed";
+        if (timeElapsed != 0){
+          text += ", speed=" + (fetchedBytes / timeElapsed / (1024 * 1024)).toFixed(1) + " MB/sec";
+        }
+        this.fetchProgressCallback[j]({
+          fetchedBytes: fetchedBytes,
+          totalBytes: totalBytes,
+          timeElapsed: timeElapsed,
+          text: text
+        });
+      }
+    };
+
+    for (let j = 0; j < this.fetchProgressCallback.length; ++j) {
+      this.fetchProgressCallback[j]({
+        fetchedBytes: 0,
+        totalBytes: totalBytes,
+        timeElapsed: 0,
+        text: "Start to fetch " + ndarrayCacheUrl
+      });
+    }
+    const cache = await caches.open("tvmjs");
+
+    for (let i = 0; i < list.length; ++i) {
+      const rec = list[i];
+      reportCallback(i);
+      fetchedBytes += computeTotalBytes(rec);
+      const cpu_arr = this.withNewScope(() => {
+        return this.detachFromCurrentScope(
+          this.empty(rec.shape, rec.dtype, this.cpu())
+        )
+      });
+      const dataUrl = new URL(rec.dataPath, ndarrayCacheUrl).href;
+      const request = new Request(dataUrl);
+
+      let buffer;
+      try {
+        // use native cache
+        let result = await cache.match(request);
+        if (result === undefined) {
+          await cache.add(request);
+          result = await cache.match(request);
+        }
+        if (result == undefined) {
+          this.env.logger("Error: Cannot cache " + dataUrl + ", reloading will be slow");
+          result = await fetch(request);
+        }
+        buffer = await result.arrayBuffer();
+      } catch (err) {
+        this.env.logger("Error: Cannot fetch " + dataUrl + " err= " + err);
+        cpu_arr.dispose();
+        throw err;
+      }
+      // first sync copy to cpu.
+      this.ctx.arrayDecodeStorage(cpu_arr, new Uint8Array(buffer), rec.format);
+      // then async stream into GPU if needed
+      if (device.deviceType == DeviceStrToEnum.cpu) {
+        this.ndarrayCacheUpdate(rec.name, cpu_arr, false);
+        cpu_arr.dispose();
+      } else {
+        // allocate a gpu arr and async copy to it.
+        const gpu_arr = this.withNewScope(() => {
+          return this.detachFromCurrentScope(
+            this.empty(rec.shape, rec.dtype, device)
+          )
+        });
+        gpu_arr.copyFrom(cpu_arr);
+        await device.sync();
+        this.ndarrayCacheUpdate(rec.name, gpu_arr, false);
+        cpu_arr.dispose();
+        gpu_arr.dispose();
+      }
+      timeElapsed = Math.ceil((perf.now() - tstart) / 1000);
+    }
+    reportCallback(list.length);
   }
 
   /**

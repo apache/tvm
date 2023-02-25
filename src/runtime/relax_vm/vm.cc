@@ -827,6 +827,11 @@ void VirtualMachineImpl::RunLoop() {
 
 ObjectPtr<VirtualMachine> VirtualMachine::Create() { return make_object<VirtualMachineImpl>(); }
 
+//----------------------------------------------------------------
+// Profiler can be optionally disabled via a macro to reduce dep.
+//----------------------------------------------------------------
+#if TVM_RELAX_VM_ENABLE_PROFILER
+
 /*!
  * \brief An extension of VirtualMachineImpl to support per-op profiling
  * It overrides RunInstrCall to add instrumentations around it.
@@ -927,6 +932,12 @@ ObjectPtr<VirtualMachine> VirtualMachine::CreateProfiler() {
   return make_object<VirtualMachineProfiler>();
 }
 
+#else
+ObjectPtr<VirtualMachine> VirtualMachine::CreateProfiler() {
+  LOG(FATAL) << "Profiler support is disabled";
+  return nullptr;
+}
+#endif  // TVM_RELAX_VM_ENABLE_PROFILER
 }  // namespace relax_vm
 }  // namespace runtime
 }  // namespace tvm

@@ -4,3 +4,4 @@ out
 node_modules
 build
 debug
+.ndarray_cache

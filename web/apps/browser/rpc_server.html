@@ -15,38 +15,71 @@
   <!--- KIND, either express or implied.  See the License for the -->
   <!--- specific language governing permissions and limitations -->
   <!--- under the License. -->
+  <!DOCTYPE html>
 
-  <head>
+  <head lang="en-US"></head>
     <title>TVM RPC Test Page</title>
   </head>
   <script src="tvmjs_runtime.wasi.js"></script>
   <script src="tvmjs.bundle.js"></script>
   <script>
-
     function customLog(message) {
       console.log(message);
       const d = document.createElement("div");
       d.innerHTML = message;
       document.getElementById("log").appendChild(d);
     };
+
     function clearLog() {
       const node = document.getElementById("log");
       while (node.hasChildNodes()) {
         node.removeChild(node.lastChild);
       }
     }
+
+    function fetchProgressCallback(report) {
+      document.getElementById("fetch-text").innerHTML = report.text;
+      document.getElementById("fetch-progress").value = (report.fetchedBytes / report.totalBytes) * 100;
+    }
+
     function connectRPC() {
-      const proxyUrl = document.getElementById("proxyURL").value;
+      const proxyUrl = document.getElementById("proxyUrl").value;
       const key = document.getElementById("proxyKey").value;
+      const ndarrayCacheName = document.getElementById("cache-select").value;
+      let ndarrayCacheUrl = new URL(ndarrayCacheName + "/", document.URL).href;
+      let ndarrayCacheDevice = document.getElementById("ndarrayCacheDevice").value;
+
+      if (ndarrayCacheName == "none" || ndarrayCacheName === undefined) {
+        ndarrayCacheUrl = "";
+      }
+
       // only works for once.
       const getImports = () => {
         return new EmccWASI();
       };
 
-      new tvmjs.RPCServer(proxyUrl, key, getImports, customLog);
+      new tvmjs.RPCServer(
+        proxyUrl, key, getImports, customLog,
+        ndarrayCacheUrl, ndarrayCacheDevice, fetchProgressCallback);
+    }
+
+    async function loadCacheOption() {
+      const select = document.getElementById("cache-select");
+      try {
+        const list = await (await fetch("/cache-list.json")).json()
+        for (let i = 0; i < list.length; ++i) {
+          const option = document.createElement("option");
+          option.text = list[i];
+          option.value = list[i];
+          select.add(option);
+        }
+        if (list.length != 0) {
+          select.value = list[0];
+        }
+      } catch (err) {}
     }
   </script>
-  <body>
+  <body onload="loadCacheOption()">
     <h1>TVM WebSocket RPC Server</h1>
     To use this page
     <ul>
@@ -59,20 +92,34 @@
     </ul>
 
     <h2>Options</h2>
-    Proxy URL<input
-      name="proxyurl"
-      id="proxyURL"
+    Proxy URL <input
+      name="proxyrl"
+      id="proxyUrl"
       type="text"
       value="ws://localhost:8888/ws"
     /><br />
-    RPC Server Key<input
+    RPC Server Key <input
       name="serverkey"
       id="proxyKey"
       type="text"
       value="wasm"
     /><br />
+    NDArrayCache -
+    <select name="cache-name" id="cache-select">
+      <option value="none">none</option>
+    </select>
+    CacheDevice -
+    <select name="cache-device" id="ndarrayCacheDevice">
+      <option value="webgpu">webgpu</option>
+      <option value="cpu">cpu</option>
+    </select>
+    <br />
     <button onclick="connectRPC()">Connect To Proxy</button>
     <button onclick="clearLog()">Clear Log</button>
+    <div id="progress">
+      <label id="fetch-text"></div>
+      <progress id="fetch-progress" max="100" value="100"> </progress>
+    </div>
     <div id="log"></div>
     <canvas id="canvas" width="224" height="224"></canvas>
   </body>
