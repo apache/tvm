@@ -26,6 +26,7 @@
 #define TVM_LOG_STACK_TRACE 0
 #define TVM_LOG_DEBUG 0
 #define TVM_LOG_CUSTOMIZE 1
+
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 
 #include <tvm/runtime/c_runtime_api.h>
@@ -51,6 +52,12 @@
 #include "src/runtime/rpc/rpc_session.cc"
 #include "src/runtime/system_library.cc"
 #include "src/runtime/workspace_pool.cc"
+// relax setup
+#include "src/runtime/relax_vm/builtin.cc"
+#include "src/runtime/relax_vm/bytecode.cc"
+#include "src/runtime/relax_vm/executable.cc"
+#include "src/runtime/relax_vm/memory_manager.cc"
+#include "src/runtime/relax_vm/vm.cc"
 
 // --- Implementations of backend and wasm runtime API. ---
 
@@ -111,5 +118,72 @@ TVM_REGISTER_GLOBAL("testing.object_use_count").set_body([](TVMArgs args, TVMRet
   // and get another value.
   *ret = (obj.use_count() - 1);
 });
+
+/*!
+ * A NDArray cache to store pre-loaded arrays in the system.
+ */
+class NDArrayCache {
+ public:
+  static NDArrayCache* Global() {
+    static NDArrayCache* inst = new NDArrayCache();
+    return inst;
+  }
+
+  static void Update(String name, NDArray arr, bool override) {
+    NDArrayCache* pool = Global();
+    if (!override) {
+      ICHECK_EQ(pool->pool_.count(name), 0) << "Name " << name << " already exists in the cache";
+    }
+    pool->pool_.Set(name, arr);
+  }
+
+  static Optional<NDArray> Get(String name) {
+    NDArrayCache* pool = Global();
+    auto it = pool->pool_.find(name);
+    if (it != pool->pool_.end()) {
+      return (*it).second;
+    } else {
+      return NullOpt;
+    }
+  }
+
+  static void Remove(String name) {
+    NDArrayCache* pool = Global();
+    pool->pool_.erase(name);
+  }
+
+  static void Clear() { Global()->pool_.clear(); }
+
+ private:
+  Map<String, NDArray> pool_;
+};
+
+TVM_REGISTER_GLOBAL("tvmjs.ndarray_cache.get").set_body_typed(NDArrayCache::Get);
+TVM_REGISTER_GLOBAL("tvmjs.ndarray_cache.update").set_body_typed(NDArrayCache::Update);
+TVM_REGISTER_GLOBAL("tvmjs.ndarray_cache.remove").set_body_typed(NDArrayCache::Remove);
+TVM_REGISTER_GLOBAL("tvmjs.ndarray_cache.clear").set_body_typed(NDArrayCache::Clear);
+
+void ArrayDecodeStorage(NDArray cpu_arr, std::string bytes, std::string format) {
+  if (format == "f32-to-bf16") {
+    std::vector<uint16_t> buffer(bytes.length() / 2);
+    std::memcpy(buffer.data(), bytes.data(), buffer.size() * 2);
+    // decode bf16 to f32
+    const uint16_t* bf16 = reinterpret_cast<const uint16_t*>(buffer.data());
+    uint32_t* data = static_cast<uint32_t*>(cpu_arr->data);
+    ICHECK(cpu_arr.IsContiguous());
+    size_t size = 1;
+    for (int i = 0; i < cpu_arr->ndim; ++i) {
+      size *= cpu_arr->shape[i];
+    }
+    ICHECK_EQ(size, bytes.length() / 2);
+    for (size_t i = 0; i < size; ++i) {
+      data[i] = static_cast<uint32_t>(bf16[i]) << 16;
+    }
+  } else {
+    cpu_arr.CopyFromBytes(bytes.data(), bytes.length());
+  }
+}
+
+TVM_REGISTER_GLOBAL("tvmjs.array.decode_storage").set_body_typed(ArrayDecodeStorage);
 }  // namespace runtime
 }  // namespace tvm
