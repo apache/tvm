@@ -20,11 +20,9 @@ from tvm.script.parser import ir as I
 from tvm.script.parser import tir as T
 
 
-def _assert_print(obj, expected):
-    assert obj.script(verbose_expr=True).strip() == expected.strip()
-
-
 def test_str_metadata():
+    # This test is to check we reuse the existing metadata element for the same tir.StringImm
+    # So metadata["tir.StringImm"][0] will occur in the printed script for three times
     str_imm = T.StringImm("aaa\nbbb\n")
 
     @I.ir_module
@@ -38,27 +36,10 @@ def test_str_metadata():
         def foo1() -> None:
             A = str_imm
 
-    _assert_print(
-        Module,
-        """
-# from tvm.script import ir as I
-# from tvm.script import tir as T
-
-@I.ir_module
-class Module:
-    @T.prim_func
-    def foo():
-        A: T.handle = metadata["tir.StringImm"][0]
-        B: T.handle = metadata["tir.StringImm"][0]
-        T.evaluate(0)
-
-    @T.prim_func
-    def foo1():
-        A: T.handle = metadata["tir.StringImm"][0]
-        T.evaluate(0)
-
-
-# Metadata omitted. Use show_meta=True in script() method to show it.""",
+    printed_str = Module.script(verbose_expr=True)
+    assert (
+        printed_str.count('metadata["tir.StringImm"][0]') == 3
+        and printed_str.count('metadata["tir.StringImm"][1]') == 0
     )
 
 
