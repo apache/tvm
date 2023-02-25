@@ -66,7 +66,7 @@ def build_image(image_name) {
     returnStdout: true,
     script: 'git log -1 --format=\'%h\''
   ).trim()
-  def full_name = "${image_name}:${env.BRANCH_NAME}-${hash}-${env.BUILD_NUMBER}"
+  def full_name = "${image_name}:${env.BRANCH_NAME.replace('/', '-')}-${hash}-${env.BUILD_NUMBER}"
   sh(
     script: "${docker_build} ${image_name} --spec ${full_name}",
     label: 'Build docker image'
