@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-12-09T15:39:24.455336
+// Generated at 2023-02-24T10:59:48.211755
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -145,12 +145,12 @@ def init_git() {
   )
 
   // Determine merge commit to use for all stages
-  if (env.BRANCH_NAME == 'main') {
-    // Only set upstream_revision to HEAD and skip merging to avoid a race with another commit merged to main.
+  if (!env.CHANGE_ID) {
+    // Only set upstream_revision to HEAD and skip merging to avoid a race with another commit merged to a branch.
     update_upstream_revision("HEAD")
   } else {
-    // This is PR branch so merge with latest main.
-    merge_with_main()
+    // This is PR branch so merge with latest upstream.
+    merge_with_upstream()
   }
 
   sh(
@@ -174,15 +174,15 @@ def update_upstream_revision(git_ref) {
   }
 }
 
-def merge_with_main() {
+def merge_with_upstream() {
   sh (
-    script: 'git fetch origin main',
-    label: 'Fetch upstream',
+    script: "git fetch origin ${env.CHANGE_TARGET}",
+    label: "Fetch upstream branch ${env.CHANGE_TARGET}",
   )
   update_upstream_revision("FETCH_HEAD")
   sh (
     script: "git -c user.name=TVM-Jenkins -c user.email=jenkins@tvm.apache.org merge ${upstream_revision}",
-    label: 'Merge to origin/main'
+    label: "Merge to ${env.CHANGE_TARGET}"
   )
 }
 
@@ -275,8 +275,8 @@ def should_skip_slow_tests(pr_number) {
 }
 
 def cancel_previous_build() {
-  // cancel previous build if it is not on main.
-  if (env.BRANCH_NAME != 'main') {
+  // cancel previous build if it is for a PR.
+  if (env.CHANGE_ID) {
     def buildNumber = env.BUILD_NUMBER as int
     // Milestone API allows us to cancel previous build
     // with the same milestone number
@@ -287,7 +287,7 @@ def cancel_previous_build() {
 
 def checkout_trusted_files() {
   // trust everything from branch builds
-  if (env.BRANCH_NAME == null || !env.BRANCH_NAME.startsWith('PR-')) {
+  if (!env.CHANGE_ID) {
     return;
   }
 
@@ -310,7 +310,7 @@ def checkout_trusted_files() {
 }
 
 def should_skip_ci(pr_number) {
-  if (env.BRANCH_NAME == null || !env.BRANCH_NAME.startsWith('PR-')) {
+  if (!env.CHANGE_ID) {
     // never skip CI on build sourced from a branch
     return false
   }
