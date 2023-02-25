@@ -57,6 +57,22 @@ def test_block_builder():
     assert not isinstance(b2, rx.DataflowBlock)
 
 
+def test_emit_with_name():
+    m = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
+    x = rx.Var("x", rx.TensorStructInfo([m, n], "float16"))
+    y = rx.Var("y", rx.TensorStructInfo([n], "float16"))
+    bb = rx.BlockBuilder()
+
+    bb._begin_dataflow_block()
+    lv0 = bb.emit(rx.op.add(x, y), "add")
+    gv0 = bb.emit_output(rx.op.multiply(lv0, y), "multi")
+    b0 = bb._end_block()
+
+    assert b0.bindings[0].var.name_hint == "add"
+    assert b0.bindings[1].var.name_hint == "multi"
+
+
 def test_function_single_block():
     m = tir.Var("m", "int64")
     n = tir.Var("n", "int64")
