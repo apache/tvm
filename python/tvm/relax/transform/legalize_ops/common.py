@@ -20,7 +20,7 @@ from typing import Callable, Optional, Union
 import tvm
 from tvm import te
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr, Constant
+from ...expr import Call, Expr
 
 
 ##################### Types #####################
