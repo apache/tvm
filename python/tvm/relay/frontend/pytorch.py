@@ -738,6 +738,8 @@ class PyTorchOpConverter:
             size = _op.concatenate(tmp, axis=0)
 
         if not isinstance(fill_value, _expr.Constant):
+            if isinstance(fill_value, _expr.Expr):
+                fill_value = _infer_value(fill_value, {})
             fill_value = _expr.const(fill_value, dtype=dtype)
         out = _op.full(fill_value, size, dtype=dtype)
         if need_reshape:
