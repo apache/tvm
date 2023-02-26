@@ -38,7 +38,8 @@ void IRModuleFrameNode::ExitWithScope() {
   }
   IRBuilder builder = IRBuilder::Current();
   ICHECK(!builder->result.defined()) << "ValueError: Builder.result has already been set";
-  builder->result = tvm::IRModule(func_map);
+  auto dict_attrs = attrs.empty() ? NullValue<DictAttrs>() : DictAttrs(attrs);
+  builder->result = tvm::IRModule(func_map, {}, {}, {}, dict_attrs, global_infos);
 }
 
 TVM_REGISTER_NODE_TYPE(IRModuleFrameNode);
