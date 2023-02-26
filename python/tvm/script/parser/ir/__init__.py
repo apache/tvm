@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """The ir module parser"""
-
+from ...ir_builder.ir import *  # pylint: disable=redefined-builtin
 from . import parser as _parser
 from .entry import ir_module
 
-__all__ = ["ir_module"]
+__all__ = ["ir_module", "module_attrs", "module_global_infos", "dummy_global_info"]

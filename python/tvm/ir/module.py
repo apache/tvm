@@ -42,7 +42,7 @@ class IRModule(Node, Scriptable):
         Map of global var to BaseFunc
     """
 
-    def __init__(self, functions=None, type_definitions=None):
+    def __init__(self, functions=None, type_definitions=None, attrs=None, global_infos=None):
         if functions is None:
             functions = {}
         elif isinstance(functions, dict):
@@ -65,7 +65,20 @@ class IRModule(Node, Scriptable):
                     raise TypeError("Expect type_definitions to be Dict[GlobalTypeVar, Type]")
                 mapped_type_defs[k] = v
             type_definitions = mapped_type_defs
-        self.__init_handle_by_constructor__(_ffi_api.IRModule, functions, type_definitions)
+
+        attrs = None if not attrs else attrs
+        if attrs is not None:
+            attrs = ast.literal_eval(str(attrs))
+            attrs = tvm.ir.make_node("DictAttrs", **attrs)
+        if global_infos is None:
+            global_infos = {}
+        self.__init_handle_by_constructor__(
+            _ffi_api.IRModule,
+            functions,
+            type_definitions,
+            attrs,
+            global_infos,
+        )
 
     def __setitem__(self, var, val):
         """Add a mapping to the module.
@@ -139,6 +152,19 @@ class IRModule(Node, Scriptable):
             The function to be inserted.
         """
         return _ffi_api.Module_UpdateFunction(self, var, func)
+
+    def update_global_info(self, name, global_info):
+        """Update global info in the module
+
+        Parameters
+        ----------
+        name: str
+            The name for the global info.
+
+        global_info: List[GlobalInfo]
+            The global info to be updated.
+        """
+        return _ffi_api.Module_UpdateGlobalInfo(self, name, global_info)
 
     def get_global_var(self, name):
         """Get a global variable in the function by name.
