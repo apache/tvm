@@ -3707,6 +3707,19 @@ def tvm_shfl_builtins():
     return func
 
 
+def ir_module_with_attrs():
+    @I.ir_module
+    class Module:
+        I.module_attrs({"attr": 10})
+
+        @T.prim_func
+        def tir_func(A: T.Buffer(16, "int32"), B: T.Buffer(16, "int32")):
+            for i in range(16):
+                B[i] = A[i]
+
+    return Module
+
+
 ir_generator = tvm.testing.parameter(
     launch_env_thread,
     opt_gemm_normalize,
@@ -3772,6 +3785,7 @@ ir_generator = tvm.testing.parameter(
     merge_shape_var_def,
     if_then_else_var,
     tvm_shfl_builtins,
+    ir_module_with_attrs,
 )
 
 
