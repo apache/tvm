@@ -357,8 +357,9 @@ Array<BlockRV> TracedScheduleNode::CacheInplace(const BlockRV& block_rv, int rea
   return result;
 }
 
-Array<BlockRV> TracedScheduleNode::CacheIndex(const BlockRV& block_rv, int buffer_index) {
-  Array<BlockRV> result = ConcreteScheduleNode::CacheIndex(block_rv, buffer_index);
+Array<BlockRV> TracedScheduleNode::CacheIndex(const BlockRV& block_rv, const String& storage_scope,
+                                              int cse_thresh) {
+  Array<BlockRV> result = ConcreteScheduleNode::CacheIndex(block_rv, storage_scope, cse_thresh);
   Array<ObjectRef> outputs;
   for (const BlockRV& r : result) {
     outputs.push_back(r);
@@ -366,7 +367,7 @@ Array<BlockRV> TracedScheduleNode::CacheIndex(const BlockRV& block_rv, int buffe
   static const InstructionKind& kind = InstructionKind::Get("CacheIndex");
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
                                       /*inputs=*/{block_rv},
-                                      /*attrs=*/{Integer(buffer_index)},
+                                      /*attrs=*/{storage_scope, Integer(cse_thresh)},
                                       /*outputs=*/outputs));
   return result;
 }
@@ -561,8 +562,8 @@ void TracedScheduleNode::TransformLayout(const BlockRV& block_rv, int buffer_ind
   trace_->Append(
       /*inst=*/Instruction(
           /*kind=*/kind,
-          /*inputs=*/{block_rv},
-          /*attrs=*/{Integer(buffer_index), Integer(buffer_index_type), index_map, pad_value},
+          /*inputs=*/{block_rv, index_map},
+          /*attrs=*/{Integer(buffer_index), Integer(buffer_index_type), pad_value},
           /*outputs=*/{}));
 }
 

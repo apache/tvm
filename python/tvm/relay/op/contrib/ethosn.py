@@ -117,7 +117,7 @@ def partition_for_ethosn(mod, params=None, **opts):
     ret : annotated and partitioned module.
     """
     api_version = ethosn_api_version()
-    supported_api_versions = ["3.1.0"]
+    supported_api_versions = ["3.2.0"]
     if all(api_version != LooseVersion(exp_ver) for exp_ver in supported_api_versions):
         raise ValueError(
             f"Driver stack version {api_version} is unsupported. "
@@ -129,6 +129,7 @@ def partition_for_ethosn(mod, params=None, **opts):
 
     passes = [
         transform.InferType(),
+        transform.FoldConstant(fold_qnn=True),
         transform.MergeComposite(pattern_table()),
         transform.AnnotateTarget("ethos-n"),
         transform.MergeCompilerRegions(),

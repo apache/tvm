@@ -65,42 +65,27 @@ class MemoryDatabaseNode : public DatabaseNode {
     if (top_k == 0) {
       return {};
     }
-    std::vector<std::pair<double, TuningRecord>> results;
+    std::vector<TuningRecord> results;
     results.reserve(records.size());
     for (const TuningRecord& record : records) {
-      if (!record->run_secs.defined()) {
-        continue;
-      }
-      Array<FloatImm> run_secs = record->run_secs.value();
-      if (run_secs.empty()) {
+      if (!record->IsValid()) {
         continue;
       }
       if (record->workload.same_as(workload) ||
           WorkloadEqual(GetModuleEquality())(record->workload, workload)) {
-        double sum = 0.0;
-        for (const FloatImm& i : run_secs) {
-          sum += i->value;
-        }
-        results.emplace_back(sum / run_secs.size(), record);
+        results.emplace_back(record);
       }
     }
-    std::sort(results.begin(), results.end());
-    auto begin = results.begin();
-    auto end = results.end();
+    std::stable_sort(results.begin(), results.end(), SortTuningRecordByMeanRunSecs());
     if (results.size() > static_cast<size_t>(top_k)) {
-      end = begin + top_k;
+      return {results.begin(), results.begin() + top_k};
+    } else {
+      if (results.size() < static_cast<size_t>(top_k)) {
+        LOG(WARNING) << "Returned tuning records less than requested(" << results.size() << " of "
+                     << top_k << " asked).";
+      }
+      return results;
     }
-    Array<TuningRecord> ret;
-    ret.reserve(end - begin);
-    while (begin != end) {
-      ret.push_back(begin->second);
-      ++begin;
-    }
-    if (ret.size() < static_cast<size_t>(top_k)) {
-      LOG(WARNING) << "The size of the GetTopK result is smaller than requested. There are not "
-                      "enough valid records in the database for this workload.";
-    }
-    return ret;
   }
 
   Array<TuningRecord> GetAllTuningRecords() final { return records; }

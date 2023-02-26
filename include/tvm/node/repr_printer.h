@@ -24,8 +24,10 @@
 #define TVM_NODE_REPR_PRINTER_H_
 
 #include <tvm/node/functor.h>
+#include <tvm/node/script_printer.h>
 
 #include <iostream>
+#include <string>
 
 namespace tvm {
 /*! \brief A printer class to print the AST/IR nodes. */
@@ -46,6 +48,32 @@ class ReprPrinter {
   // Allow registration to be printer.
   using FType = NodeFunctor<void(const ObjectRef&, ReprPrinter*)>;
   TVM_DLL static FType& vtable();
+};
+
+/*! \brief Legacy behavior of ReprPrinter. */
+class ReprLegacyPrinter {
+ public:
+  /*! \brief The indentation level. */
+  int indent{0};
+
+  explicit ReprLegacyPrinter(std::ostream& stream)  // NOLINT(*)
+      : stream(stream) {}
+
+  /*! \brief The node to be printed. */
+  TVM_DLL void Print(const ObjectRef& node);
+  /*! \brief Print indent to the stream */
+  TVM_DLL void PrintIndent();
+  /*! \brief Could the LegacyPrinter dispatch the node */
+  TVM_DLL static bool CanDispatch(const ObjectRef& node);
+  /*! \brief Return the ostream it maintains */
+  TVM_DLL std::ostream& Stream() const;
+  // Allow registration to be printer.
+  using FType = NodeFunctor<void(const ObjectRef&, ReprLegacyPrinter*)>;
+  TVM_DLL static FType& vtable();
+
+ private:
+  /*! \brief The output stream */
+  std::ostream& stream;
 };
 
 /*!
@@ -70,6 +98,13 @@ inline std::ostream& operator<<(std::ostream& os, const ObjectRef& n) {  // NOLI
   ReprPrinter(os).Print(n);
   return os;
 }
+
+inline std::string AsLegacyRepr(const ObjectRef& n) {
+  std::ostringstream os;
+  ReprLegacyPrinter(os).Print(n);
+  return os.str();
+}
 }  // namespace runtime
+using runtime::AsLegacyRepr;
 }  // namespace tvm
 #endif  // TVM_NODE_REPR_PRINTER_H_

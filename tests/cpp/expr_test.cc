@@ -32,7 +32,7 @@ TEST(Expr, Basic) {
   std::ostringstream os;
   os << z;
   ICHECK(zz.same_as(z));
-  ICHECK(os.str() == "max(((x + 1) + 2), 100)");
+  ICHECK(os.str() == "T.max(x + 1 + 2, 100)");
 }
 
 TEST(Expr, VarTypeAnnotation) {

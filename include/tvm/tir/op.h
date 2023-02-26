@@ -40,6 +40,9 @@
 
 namespace tvm {
 
+#define TVM_TIR_REGISTER_OP(OpName) \
+  TVM_REGISTER_OP("tir." OpName).set_attr<TScriptPrinterName>("TScriptPrinterName", OpName)
+
 // Most common operators can be overloaded by argument type(PrimExpr).
 // So we put them under the root namespace.
 //
@@ -674,6 +677,15 @@ TVM_DLL PrimExpr LargeUIntImm(DataType dtype, int64_t low, int64_t high, Span sp
  */
 TVM_DLL PrimExpr q_multiply_shift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr s,
                                   Span span = Span());
+
+/*!
+ * \brief Fast_erf_float expression from Eigen
+ *
+ * \param arg The input expression.
+ * \param bits The number of bits in the type.
+ * \return The constructed expression.
+ */
+TVM_DLL PrimExpr fast_erf_float_expr(PrimExpr arg, int bits);
 
 // Intrinsic operators
 #define TVM_DECLARE_INTRIN_UNARY(OpName)                                \

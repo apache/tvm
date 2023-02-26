@@ -248,8 +248,9 @@ class Session:
         GraphModule :
             Runtime graph module that can be used to execute the graph.
         """
-        aot_mod = self.load_module(module_file)
-        return tvm.runtime.executor.AotModule(aot_mod["default"](self.device))
+        # Temporary workaround for https://github.com/apache/tvm/issues/13741
+        self.aot_mod = self.load_module(module_file)
+        return tvm.runtime.executor.AotModule(self.aot_mod["default"](self.device))
 
     def get_graph_debug_executor(
         self,

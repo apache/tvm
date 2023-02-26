@@ -123,4 +123,4 @@ def test_strided_slice_grad(executor_kind):
 
 
 if __name__ == "__main__":
-    pytest.main()
+    tvm.testing.main()

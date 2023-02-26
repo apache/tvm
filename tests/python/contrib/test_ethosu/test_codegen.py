@@ -258,6 +258,29 @@ def test_tflite_depthwise_conv2d_with_separate_pad():
     infra.compare_tvm_with_tflite(depthwise_conv2d, [ifm_shape], "ethos-u55-256")
 
 
+@pytest.mark.parametrize("ifm_shape", [(1, 55, 55, 3), (1, 23, 32, 7)])
+@pytest.mark.parametrize("padding", [(0, 1, 0, 0), (1, 1, 1, 1), (1, 1, 5, 5)])
+@pytest.mark.parametrize("const_value", [0, 5, 125, -5])
+def test_tflite_separate_pad(
+    ifm_shape,
+    padding,
+    const_value,
+):
+
+    np.random.seed(0)
+
+    @tf.function
+    def pad2d(x):
+        return tf.pad(
+            x,
+            [[0, 0], [padding[0], padding[2]], [padding[1], padding[3]], [0, 0]],
+            "CONSTANT",
+            const_value,
+        )
+
+    infra.compare_tvm_with_tflite(pad2d, [ifm_shape], "ethos-u55-256")
+
+
 @pytest.mark.parametrize(
     "accel_type",
     ACCEL_TYPES,
@@ -592,6 +615,71 @@ def test_ethosu_right_shift_binary_elemwise(
     in_min, in_max = 18, 19
     lhs = np.random.randint(in_min, high=in_max, size=ifm_shape, dtype=dtype)
     rhs = np.random.randint(1, high=2, size=ifm2_shape, dtype=dtype)
+    input_data = {
+        "ifm": lhs,
+        "ifm2": rhs,
+    }
+    output_data = {"output": generate_output_data(input_data)[0]}
+    ethosu_mod = infra.create_ethosu_partition(cpu_mod)
+
+    infra.compare_ethosu_with_reference(ethosu_mod, input_data, output_data, accel_type)
+
+
+@pytest.mark.parametrize("accel_type", ["ethos-u55-256", "ethos-u65-256"])
+@pytest.mark.parametrize(
+    "ifm_shape, ifm2_shape, scale, shift, dtype",
+    [
+        ([1, 1, 1, 16], [1, 1, 1, 16], 5, 2, "int8"),
+        ([1, 2, 3, 1], [1, 1, 3, 1], 2, 1, "int8"),
+        ([1, 5, 1, 8], [1, 1, 1, 8], 1, 2, "int32"),
+    ],
+)
+def test_ethosu_rescale_mul_binary_elemwise(ifm_shape, ifm2_shape, scale, shift, accel_type, dtype):
+    np.random.seed(0)
+
+    def create_model():
+        ifm = relay.var("ifm", shape=ifm_shape, dtype=dtype)
+        ifm2 = relay.var("ifm2", shape=ifm2_shape, dtype=dtype)
+        rescale_mul_op = infra.make_ethosu_binary_elementwise(
+            ifm,
+            ifm2,
+            ifm_shape[3],
+            ifm2_shape[3],
+            "MUL",
+            dtype,
+            use_rescale=True,
+            rescale_scale=scale,
+            rescale_shift=shift,
+        )
+        return tvm.IRModule.from_expr(relay.Function([ifm, ifm2], rescale_mul_op))
+
+    def generate_output_data(input_data):
+        lhs = input_data["ifm"]
+        rhs = input_data["ifm2"]
+        rhs = np.broadcast_to(rhs, ifm_shape)
+
+        def rounding_right_shift(lhs, shift):
+            r = 1 << (shift - 1)
+            return (lhs + r) >> shift
+
+        def apply_scale(lhs, scale):
+            if dtype == "int32":
+                # For 32-bit operations scale is not applied but shift is
+                return lhs
+            else:
+                return lhs * scale
+
+        return [
+            rounding_right_shift(
+                apply_scale(np.multiply(lhs.astype("int32"), rhs.astype("int32")), scale), shift
+            ).astype(dtype)
+        ]
+
+    cpu_mod = create_model()
+
+    # Generate reference data
+    lhs = np.random.randint(low=-10, high=15, size=ifm_shape, dtype=dtype)
+    rhs = np.random.randint(low=1, high=5, size=ifm2_shape, dtype=dtype)
     input_data = {
         "ifm": lhs,
         "ifm2": rhs,
@@ -1109,6 +1197,88 @@ def test_tflite_leaky_relu(accel_type, ifm_shape, alpha):
     )
 
 
+# conv2d + relu_n1_to_1 is used because separate activation is not offloaded to NPU.
+def test_tflite_relu_n1_to_1():
+    np.random.seed(0)
+    accel_type = "ethos-u55-256"
+    ifm_shape = (1, 55, 34, 3)
+    kernel_shape = (3, 2)
+    strides = (1, 1)
+
+    @tf.function
+    def conv2d_relu_n1_to_1(x):
+        tf_strides = [1, strides[0], strides[1], 1]
+        weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], 3]
+        weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
+        op = tf.nn.conv2d(
+            x,
+            weight,
+            strides=tf_strides,
+            padding="VALID",
+        )
+        # The specific pattern will be replaced into RELU_N1_TO_1 by tflite.
+        return tf.math.maximum(-1.0, tf.math.minimum(op, 1.0))
+
+    infra.compare_tvm_with_tflite(
+        conv2d_relu_n1_to_1,
+        [ifm_shape],
+        accel_type,
+        enable_cascader=True,
+    )
+
+
+# conv2d + relu6 is used because separate activation is not offloaded to NPU.
+def test_tflite_relu6():
+    np.random.seed(0)
+    accel_type = "ethos-u55-256"
+    ifm_shape = (1, 55, 34, 3)
+    kernel_shape = (3, 2)
+    strides = (1, 1)
+
+    @tf.function
+    def conv2d_relu6(x):
+        tf_strides = [1, strides[0], strides[1], 1]
+        weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], 3]
+        weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
+        op = tf.nn.conv2d(
+            x,
+            weight,
+            strides=tf_strides,
+            padding="VALID",
+        )
+        return tf.nn.relu6(op)
+
+    infra.compare_tvm_with_tflite(
+        conv2d_relu6,
+        [ifm_shape],
+        accel_type,
+        enable_cascader=True,
+    )
+
+
+# Specific case when operation cannot be offloaded to NPU by single binary elementwise operation because
+# min and max operations cannot be fused with requantize if there are different scales as it's not supported on NPU.
+@pytest.mark.parametrize("operation", [tf.math.minimum, tf.math.maximum])
+def test_tflite_min_max_relu_n1_to_1(operation):
+    np.random.seed(0)
+    accel_type = "ethos-u55-128"
+    ifm_shape = (1, 12, 16, 8)
+
+    @tf.function
+    def min_max_relu_n1_to_1(lhs, rhs):
+        op = operation(lhs, rhs)
+        # The specific pattern will be replaced into RELU_N1_TO_1 by tflite.
+        return tf.math.maximum(-1.0, tf.math.minimum(op, 1.0))
+
+    infra.compare_tvm_with_tflite(
+        min_max_relu_n1_to_1,
+        [ifm_shape, ifm_shape],
+        accel_type,
+        enable_cascader=True,
+        ranges=[(-1, 1), (0, 2)],
+    )
+
+
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize("ifm_shape", [(1, 14), (1, 151)])
 @pytest.mark.parametrize("ofm_channels", [32, 64])
@@ -1143,8 +1313,24 @@ def test_tflite_fully_connected(
     )
 
 
-if __name__ == "__main__":
-    import sys
-    import pytest
+@pytest.mark.parametrize("accel_type", ["ethos-u55-256", "ethos-u65-256"])
+def test_tflite_subtract_sigmoid(accel_type):
+    np.random.seed(0)
+    ifm_shape = [1, 6, 8, 4]
 
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    @tf.function
+    def subtract_sigmoid_function(lhs, rhs):
+        op = tf.math.subtract(lhs, rhs)
+        op = tf.nn.sigmoid(op)
+        return op
+
+    infra.compare_tvm_with_tflite(
+        subtract_sigmoid_function,
+        [ifm_shape, ifm_shape],
+        accel_type,
+        enable_cascader=is_u55_accel_type(accel_type),
+    )
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

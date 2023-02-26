@@ -122,11 +122,15 @@ def test_tvmc_model_build_only(platform, board, output_dir):
     shutil.rmtree(output_dir)
 
 
+@pytest.mark.skip("Flaky, https://github.com/apache/tvm/issues/14004")
 @pytest.mark.requires_hardware
 @tvm.testing.requires_micro
 @pytest.mark.parametrize(
     "output_dir,",
     [pathlib.Path("./tvmc_relative_path_test"), pathlib.Path(tempfile.mkdtemp())],
+)
+@pytest.mark.skip_boards(
+    ["nucleo_l4r5zi", "", "nucleo_f746zg", "stm32f746g_disco", "nrf5340dk_nrf5340_cpuapp"]
 )
 def test_tvmc_model_run(platform, board, output_dir):
     target = tvm.micro.testing.get_target(platform, board)

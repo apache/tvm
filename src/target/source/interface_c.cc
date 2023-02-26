@@ -218,8 +218,7 @@ class InterfaceCNode : public runtime::ModuleNode {
       code_ << '\n';
 
     } else {
-      LOG(FATAL) << "No constant data in constant pool found "
-                 << PrettyPrint(GetRef<ObjectRef>(pool_info));
+      LOG(FATAL) << "No constant data in constant pool found " << GetRef<ObjectRef>(pool_info);
     }
   }
 

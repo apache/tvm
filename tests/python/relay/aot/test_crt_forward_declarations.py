@@ -34,30 +34,6 @@ from tvm.micro.testing.aot_test_utils import (
 )
 
 
-def get_range_for_dtype_str(dtype):
-    """
-    Produces the min,max for a give data type.
-
-    Parameters
-    ----------
-    dtype : str
-        a type string (e.g., int8)
-
-    Returns
-    -------
-    type_info.min : int
-        the minimum of the range
-    type_info.max : int
-        the maximum of the range
-    """
-
-    try:
-        type_info = np.iinfo(dtype)
-    except ValueError:
-        type_info = np.finfo(dtype)
-    return type_info.min, type_info.max
-
-
 def _change_ndarray_layout(arr, src_layout, dst_layout):
     """Makes a copy of an ndarray, reshaping it to a new data layout.
 

@@ -22,13 +22,11 @@
  * \brief Implementation of DiagnosticContext and friends.
  */
 #include <tvm/ir/diagnostic.h>
-#include <tvm/parser/source_map.h>
+#include <tvm/ir/source_map.h>
 
 #include <rang.hpp>
 
 namespace tvm {
-
-using tvm::parser::Source;
 
 // failed to check to argument arg0.dims[0] != 0
 
@@ -67,6 +65,34 @@ DiagnosticBuilder Diagnostic::Note(Span span) {
 DiagnosticBuilder Diagnostic::Help(Span span) {
   return DiagnosticBuilder(DiagnosticLevel::kHelp, span);
 }
+
+DiagnosticBuilder Diagnostic::Bug(ObjectRef loc) {
+  return DiagnosticBuilder(DiagnosticLevel::kBug, loc);
+}
+
+DiagnosticBuilder Diagnostic::Error(ObjectRef loc) {
+  return DiagnosticBuilder(DiagnosticLevel::kError, loc);
+}
+
+DiagnosticBuilder Diagnostic::Warning(ObjectRef loc) {
+  return DiagnosticBuilder(DiagnosticLevel::kWarning, loc);
+}
+
+DiagnosticBuilder Diagnostic::Note(ObjectRef loc) {
+  return DiagnosticBuilder(DiagnosticLevel::kNote, loc);
+}
+
+DiagnosticBuilder Diagnostic::Help(ObjectRef loc) {
+  return DiagnosticBuilder(DiagnosticLevel::kHelp, loc);
+}
+
+DiagnosticBuilder Diagnostic::Bug(const Object* loc) { return Bug(GetRef<ObjectRef>(loc)); }
+
+DiagnosticBuilder Diagnostic::Error(const Object* loc) { return Error(GetRef<ObjectRef>(loc)); }
+
+DiagnosticBuilder Diagnostic::Note(const Object* loc) { return Note(GetRef<ObjectRef>(loc)); }
+
+DiagnosticBuilder Diagnostic::Help(const Object* loc) { return Help(GetRef<ObjectRef>(loc)); }
 
 /* Diagnostic Renderer */
 TVM_REGISTER_NODE_TYPE(DiagnosticRendererNode);
@@ -286,7 +312,7 @@ DiagnosticRenderer TerminalRenderer(std::ostream& out) {
   });
 }
 
-TVM_REGISTER_GLOBAL(DEFAULT_RENDERER).set_body_typed([]() { return TerminalRenderer(std::cout); });
+TVM_REGISTER_GLOBAL(DEFAULT_RENDERER).set_body_typed([]() { return TerminalRenderer(std::cerr); });
 
 TVM_REGISTER_GLOBAL("diagnostics.GetRenderer").set_body_typed([]() { return GetRenderer(); });
 

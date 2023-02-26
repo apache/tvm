@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-from tvm.script import tir as T
 import numpy as np
+import tvm
 import tvm.testing
+from tvm.script import tir as T
 
 
 @T.prim_func
@@ -152,8 +152,8 @@ def _check_alloc_zero_dim_buffer(f):
 def test_alloc_zero_dim_buffer_round_trip():
     func = alloc_zero_dim_buffer
     func_with_block = alloc_zero_dim_buffer_block
-    rt_func = tvm.script.from_source(func.script(show_meta=True))
-    rt_func_with_block = tvm.script.from_source(func_with_block.script(show_meta=True))
+    rt_func = tvm.script.from_source(func.script())
+    rt_func_with_block = tvm.script.from_source(func_with_block.script())
     rt_mod = tvm.build(rt_func, "llvm")
     rt_mod_with_block = tvm.build(rt_func_with_block, "llvm")
     tvm.ir.assert_structural_equal(func, func_with_block)
@@ -163,7 +163,7 @@ def test_alloc_zero_dim_buffer_round_trip():
 
 
 @T.prim_func
-def ceildiv_test(A: T.Buffer[16, "int32"]):
+def ceildiv_test(A: T.Buffer(16, "int32")):
     for i in range(16):
         A[i] = T.ceildiv(A[i], 4)
 

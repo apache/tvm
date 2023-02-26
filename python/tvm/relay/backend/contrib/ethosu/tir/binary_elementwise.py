@@ -18,28 +18,10 @@
 """Extract information from the binary_elementwise operators in TIR."""
 from typing import Tuple
 import tvm
-from .utils import get_outer_loops, get_op_attrs
+from .utils import get_outer_loops, get_op_attrs, get_loads
 from .dma import get_ifm_params, get_ofm_params
-from .spec import SerialActivation, SerialBinaryElementwise
+from .spec import SerialActivation, SerialBinaryElementwise, SerialRescaleConfig
 from .producers_consumers import ProducersConsumers
-
-
-def ignore_cast(tir_load: tvm.tir.expr.Load) -> tvm.tir.Var:
-    """When the datatype of the ifm, ifm2 and ofm do not match,
-    casts are inserted in TE to handle the difference in these types.
-    Since TIR is not directly run on the NPU we can simply ignore
-    these, and allow the NPU to handle the difference in datatypes
-    itself.
-
-    Parameters
-    ----------
-    tir_load : tvm.tir.expr.Load
-
-    Returns
-    -------
-    tvm.tir.Var
-    """
-    return tir_load.value if isinstance(tir_load, tvm.tir.Cast) else tir_load
 
 
 def get_binary_elementwise_params(
@@ -72,9 +54,10 @@ def get_binary_elementwise_params(
     reversed_operands = attrs["reversed_operands"]
 
     _, _, _, _, _, inner = get_outer_loops(body, "NHWC")
-    op = ignore_cast(inner.value)
-    input_pointer = ignore_cast(op.a).buffer.data
-    input_pointer1 = ignore_cast(op.b).buffer.data
+    # loads = [input, input, LUT, LUT]
+    loads = get_loads(inner)
+    input_pointer = loads[0].buffer.data
+    input_pointer1 = loads[1].buffer.data
 
     if reversed_operands:
         input_pointer, input_pointer1 = input_pointer1, input_pointer
@@ -89,6 +72,9 @@ def get_binary_elementwise_params(
     serial_activation = SerialActivation(
         op=attrs["activation"], clip_min=attrs["clip_min"], clip_max=attrs["clip_max"]
     )
+    rescale_config = SerialRescaleConfig(
+        use_rescale=attrs["use_rescale"], scale=attrs["rescale_scale"], shift=attrs["rescale_shift"]
+    )
     return (
         SerialBinaryElementwise(
             ifm=serial_ifm,
@@ -99,6 +85,7 @@ def get_binary_elementwise_params(
             activation=serial_activation,
             rounding_mode=attrs["rounding_mode"],
             block_config=serial_block_config,
+            rescale_config=rescale_config,
         ),
         output_pointer,
         replace_pointer,

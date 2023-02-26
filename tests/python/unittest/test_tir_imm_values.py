@@ -254,19 +254,19 @@ def test_tir_floatimm_const_fold():
     """Behavior check: folding fp32 match platform f32 arithmetic"""
 
     @T.prim_func
-    def float_imm_multiply(x: T.float32, y: T.float32, z: T.Buffer[(), "float32"]):
+    def float_imm_multiply(x: T.float32, y: T.float32, z: T.Buffer((), "float32")):
         z[()] = x * y
 
     @T.prim_func
-    def float_imm_add(x: T.float32, y: T.float32, z: T.Buffer[(), "float32"]):
+    def float_imm_add(x: T.float32, y: T.float32, z: T.Buffer((), "float32")):
         z[()] = x + y
 
     @T.prim_func
-    def float_imm_sub(x: T.float32, y: T.float32, z: T.Buffer[(), "float32"]):
+    def float_imm_sub(x: T.float32, y: T.float32, z: T.Buffer((), "float32")):
         z[()] = x - y
 
     @T.prim_func
-    def float_imm_div(x: T.float32, y: T.float32, z: T.Buffer[(), "float32"]):
+    def float_imm_div(x: T.float32, y: T.float32, z: T.Buffer((), "float32")):
         z[()] = x / y
 
     def __wrap_build(f):

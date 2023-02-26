@@ -316,9 +316,8 @@ def test_meta_schedule_integration_extract_from_resnet_with_filter_func():
         assert t.task_name in expected_task_names, t.task_name
 
 
-@pytest.mark.skip("Too slow on CI")
-def extract_task_qbert():
-    def _test(mod, params, target):
+def extract_task_qbert(target, sch_rule_tag):
+    def _test(mod, params, target, sch_rule_tag):
         extracted_tasks = ms.relay_integration.extract_tasks(mod, target, params)
         tune_tasks = list(
             filter(
@@ -341,10 +340,20 @@ def extract_task_qbert():
             annotations = sch.get(block).annotations
 
             assert "schedule_rule" in annotations
-            assert "vnni" in annotations["schedule_rule"]
+            assert sch_rule_tag in annotations["schedule_rule"]
 
     mod, params, _ = load_quantized_bert_base(batch_size=1, seq_len=128)
-    _test(mod, params, target="llvm -mcpu=cascadelake")
+    _test(mod, params, target=target, sch_rule_tag=sch_rule_tag)
+
+
+@pytest.mark.skip("Too slow on CI")
+def extract_task_qbert_vnni():
+    extract_task_qbert("llvm -mcpu=cascadelake", "vnni")
+
+
+@pytest.mark.skip("Too slow on CI")
+def extract_task_qbert_avx512():
+    extract_task_qbert("llvm -mcpu=skylake-avx512", "avx512")
 
 
 @tvm.testing.skip_if_32bit(reason="Apparently the LLVM version on i386 image is too old")
@@ -399,8 +408,8 @@ def test_meta_schedule_te2primfunc_argument_order_and_lowering():
     class _fused_layout_transform:
         @T.prim_func
         def main( # type: ignore
-            placeholder: T.Buffer[(T.int64(1), T.int64(3), T.int64(16), T.int64(16)), "float32"], # type: ignore
-            T_layout_trans: T.Buffer[(T.int64(1), T.int64(1), T.int64(16), T.int64(16), T.int64(3)), "float32"], # type: ignore
+            placeholder: T.Buffer((T.int64(1), T.int64(3), T.int64(16), T.int64(16)), "float32"), # type: ignore
+            T_layout_trans: T.Buffer((T.int64(1), T.int64(1), T.int64(16), T.int64(16), T.int64(3)), "float32"), # type: ignore
         ) -> None: # type: ignore
             # function attr dict
             T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -421,7 +430,7 @@ def test_meta_schedule_te2primfunc_argument_order_and_lowering():
     @tvm.script.ir_module
     class _fused_layout_transform_1:
         @T.prim_func
-        def main(placeholder: T.Buffer[(T.int64(1), T.int64(2), T.int64(16), T.int64(16), T.int64(4)), "float32"], T_layout_trans: T.Buffer[(T.int64(1), T.int64(8), T.int64(16), T.int64(16)), "float32"]) -> None: # type: ignore
+        def main(placeholder: T.Buffer((T.int64(1), T.int64(2), T.int64(16), T.int64(16), T.int64(4)), "float32"), T_layout_trans: T.Buffer((T.int64(1), T.int64(8), T.int64(16), T.int64(16)), "float32")) -> None: # type: ignore
             # function attr dict
             T.func_attr({"global_symbol": "main", "tir.noalias": True})
             # body
@@ -436,7 +445,7 @@ def test_meta_schedule_te2primfunc_argument_order_and_lowering():
     @tvm.script.ir_module
     class _fused_nn_contrib_conv2d_NCHWc:
         @T.prim_func
-        def main(placeholder: T.Buffer[(T.int64(1), T.int64(1), T.int64(16), T.int64(16), T.int64(3)), "float32"], placeholder_1: T.Buffer[(T.int64(2), T.int64(1), T.int64(5), T.int64(5), T.int64(3), T.int64(4)), "float32"], conv2d_NCHWc: T.Buffer[(T.int64(1), T.int64(2), T.int64(16), T.int64(16), T.int64(4)), "float32"]) -> None: # type: ignore
+        def main(placeholder: T.Buffer((T.int64(1), T.int64(1), T.int64(16), T.int64(16), T.int64(3)), "float32"), placeholder_1: T.Buffer((T.int64(2), T.int64(1), T.int64(5), T.int64(5), T.int64(3), T.int64(4)), "float32"), conv2d_NCHWc: T.Buffer((T.int64(1), T.int64(2), T.int64(16), T.int64(16), T.int64(4)), "float32")) -> None: # type: ignore
             # function attr dict
             T.func_attr({"global_symbol": "main", "tir.noalias": True})
             # body
@@ -715,7 +724,7 @@ def test_module_equality_ignore_ndarray():
     np.testing.assert_allclose(ref, out, rtol=1e-4, atol=1e-4)
 
 
-def _test_anchor_tuning(target):
+def _test_anchor_tuning(target, space):
     data_shape = (128, 128)
     weight_shape1 = (128, 128)
     weight_shape2 = (128, 128)
@@ -747,6 +756,7 @@ def _test_anchor_tuning(target):
             target=target,
             params=params,
             work_dir=work_dir,
+            space=space,
             max_trials_global=4,
             strategy="replay-trace",
             module_equality=module_equality,
@@ -770,8 +780,15 @@ def _test_anchor_tuning(target):
     np.testing.assert_allclose(ref, out, atol=1e-3)
 
 
-def test_anchor_tuning_cpu():
-    _test_anchor_tuning("llvm --num-cores=4")
+@pytest.mark.parametrize(
+    "space",
+    [
+        ms.space_generator.PostOrderApply(),
+        ms.space_generator.PostOrderApply(sch_rules=[], postprocs=[], mutator_probs={}),
+    ],
+)
+def test_anchor_tuning_cpu(space):
+    _test_anchor_tuning("llvm --num-cores=4", space)
 
 
 def test_anchor_tuning_cpu_link_params():
@@ -824,6 +841,125 @@ def test_anchor_tuning_cpu_link_params():
     )
 
     np.testing.assert_allclose(ref, out, atol=1e-3)
+
+
+@pytest.mark.xfail(raises=tvm.error.TVMError)
+def test_disabled_pass_param():
+    """
+    Check 'disabled_pass' parameter in tune_relay. Should throw exception in
+    case of correct work.
+    """
+    data_shape = [1, 4, 16, 16]
+    weight_shape = [32, 4, 2, 2]
+
+    data = relay.var("data", shape=data_shape, dtype="uint8")
+    weight = relay.var("weight", shape=weight_shape, dtype="int8")
+
+    op = relay.qnn.op.conv2d(
+        data,
+        weight,
+        input_zero_point=relay.const(0),
+        kernel_zero_point=relay.const(0),
+        input_scale=relay.const(0.7),
+        kernel_scale=relay.const(0.3),
+        kernel_size=[2, 2],
+        channels=32,
+    )
+    mod = tvm.IRModule.from_expr(op)
+
+    weight_np = np.random.randint(-10, 10, size=weight_shape).astype("int8")
+    params = {"weight": weight_np}
+
+    executor = relay.backend.Executor("graph", {"link-params": True})
+    mod = mod.with_attr("executor", executor)
+
+    with tempfile.TemporaryDirectory() as work_dir:
+        database = ms.relay_integration.tune_relay(
+            mod=mod,
+            target="llvm --num-cores=4",
+            params=params,
+            work_dir=work_dir,
+            max_trials_global=4,
+            strategy="replay-trace",
+            disabled_pass=["qnn.Legalize"],
+        )
+
+    # Test failed, otherwise we can not reach this point.
+    pytest.fail("'disabled_pass' argument does not work")
+
+
+def test_rewrite_layout_link_params_1x1_conv2d():
+    I, O, H, W = 32, 16, 256, 256
+    kH = kW = 1
+
+    strides = (1, 1)
+    padding = (0, 0)
+
+    data_shape = (1, H, W, I)
+    w_shape = (kH, kW, I, O)
+
+    data = relay.var("data", shape=data_shape, dtype="float32")
+    weight = relay.var("weight", shape=w_shape, dtype="float32")
+
+    conv = relay.nn.conv2d(
+        data=data,
+        weight=weight,
+        kernel_size=(kH, kW),
+        channels=O,
+        padding=padding,
+        strides=strides,
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+        out_dtype="float32",
+    )
+
+    mod = tvm.IRModule.from_expr(conv)
+
+    weight_np = np.random.randn(*w_shape).astype("float32")
+
+    params = {"weight": weight_np}
+
+    data_np = np.random.randn(*data_shape).astype("float32")
+
+    ref = (
+        relay.create_executor("graph", mod=mod, device=tvm.cpu(0), target="llvm")
+        .evaluate()(*[data_np, weight_np])
+        .numpy()
+    )
+
+    link_params = True
+
+    target = "llvm --num-cores=4"
+
+    executor = relay.backend.Executor("graph", {"link-params": link_params})
+    mod = mod.with_attr("executor", executor)
+
+    with tempfile.TemporaryDirectory() as work_dir:
+        database = ms.relay_integration.tune_relay(
+            mod=mod,
+            target=target,
+            params=params,
+            work_dir=work_dir,
+            max_trials_global=8,
+            strategy="replay-trace",
+        )
+
+        lib = ms.relay_integration.compile_relay(
+            database=database,
+            mod=mod,
+            target=target,
+            params=params,
+        )
+
+    dev = tvm.device(target, 0)
+    runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+    runtime.set_input("data", data_np)
+    runtime.run()
+
+    out = runtime.get_output(0).numpy()
+
+    np.testing.assert_allclose(ref, out, rtol=1e-4, atol=1e-4)
 
 
 if __name__ == "__main__":

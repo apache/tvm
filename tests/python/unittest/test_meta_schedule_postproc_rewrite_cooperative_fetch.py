@@ -107,9 +107,9 @@ class AfterRewrite0:
 class WarpExecutionAfterRewrite:
     @T.prim_func
     def main(
-        A: T.Buffer[(512, 512), "float32"],
-        B: T.Buffer[(512, 512), "float32"],
-        C: T.Buffer[(512, 512), "float32"],
+        A: T.Buffer((512, 512), "float32"),
+        B: T.Buffer((512, 512), "float32"),
+        C: T.Buffer((512, 512), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})

@@ -237,6 +237,18 @@ def pack_filter(
             Filter[indices[0], indices[1], indices[2] * out_block + indices[4], indices[3]],
         )
 
+    def _reorder_weights_depthwise_hwio(*indices):
+        conditionA = []
+        conditionA.append(indices[3] == out_chunks - 1)
+        conditionA.append(indices[4] >= out_original_tail)
+        conditionAT = tvm.tir.all(*conditionA)
+
+        return tvm.tir.if_then_else(
+            conditionAT,
+            pad_value,
+            Filter[indices[0], indices[1], indices[2], indices[3] * out_block + indices[4]],
+        )
+
     def _reorder_weights_oihw(*indices):
         conditionA = []
         conditionA.append(indices[0] == out_chunks - 1)
@@ -281,6 +293,13 @@ def pack_filter(
             reordered_filter = te.compute(
                 [kernel_h, kernel_w, out_chunks, in_filter_channels, out_block],
                 _reorder_weights_depthwise_hwoi,
+                name="filter_pack",
+                tag="filter_pack",
+            )
+        elif layout == "HWIO":
+            reordered_filter = te.compute(
+                [kernel_h, kernel_w, in_filter_channels, out_chunks, out_block],
+                _reorder_weights_depthwise_hwio,
                 name="filter_pack",
                 tag="filter_pack",
             )

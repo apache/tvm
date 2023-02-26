@@ -54,7 +54,7 @@ echo set\(USE_ETHOSN_HW OFF\) >> config.cmake
 echo set\(USE_CMSISNN OFF\) >> config.cmake
 echo set\(USE_VITIS_AI ON\) >> config.cmake
 echo set\(USE_VERILATOR ON\) >> config.cmake
-echo set\(USE_LIBBACKTRACE ON\) >> config.cmake
+echo set\(USE_LIBBACKTRACE COMPILE\) >> config.cmake
 echo set\(BACKTRACE_ON_SEGFAULT ON\) >> config.cmake
 echo set\(USE_CCACHE OFF\) >> config.cmake
 echo set\(USE_ETHOSU OFF\) >> config.cmake

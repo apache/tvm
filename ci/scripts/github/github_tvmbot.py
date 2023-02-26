@@ -540,6 +540,7 @@ class PR:
             "tvm-i386",
             "tvm-lint",
             "tvm-minimal",
+            "tvm-minimal-cross-isa",
             "tvm-riscv",
             "tvm-wasm",
         ]

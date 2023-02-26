@@ -51,7 +51,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../printer/text_printer.h"
 #include "../../te/operation/create_primfunc.h"
 #include "../op/memory/memory.h"
 #include "../src/meta_schedule/module_equality.h"
@@ -135,6 +134,7 @@ class QnnPatternMatcher {
   QnnPatternMatcher()
       : qnn_conv2d_op_(Op::Get("qnn.conv2d")),
         qnn_dense_op_(Op::Get("qnn.dense")),
+        qnn_dense_pack_op_(Op::Get("qnn.contrib_dense_pack")),
         qnn_requantize_op_(Op::Get("qnn.requantize")),
         bias_add_op_(Op::Get("add")) {}
 
@@ -154,6 +154,10 @@ class QnnPatternMatcher {
       registered_ops_.push_front(P_QDense);
       ICHECK(anchor_op_ == nullptr);
       anchor_op_ = call_node;
+    } else if (op == qnn_dense_pack_op_) {
+      registered_ops_.push_front(P_QDensePack);
+      ICHECK(anchor_op_ == nullptr);
+      anchor_op_ = call_node;
     } else {
       registered_ops_.push_front(P_Opaque);
     }
@@ -164,7 +168,7 @@ class QnnPatternMatcher {
     if (registered_ops_.empty()) return false;
 
     if (op == qnn_conv2d_op_ || op == qnn_requantize_op_ || op == bias_add_op_ ||
-        op == qnn_dense_op_) {
+        op == qnn_dense_op_ || op == qnn_dense_pack_op_) {
       for (const auto& pat : supported_patterns_) {
         auto it =
             std::search(registered_ops_.begin(), registered_ops_.end(), pat.begin(), pat.end());
@@ -184,21 +188,24 @@ class QnnPatternMatcher {
  private:
   const Op& qnn_conv2d_op_;
   const Op& qnn_dense_op_;
+  const Op& qnn_dense_pack_op_;
   const Op& qnn_requantize_op_;
   const Op& bias_add_op_;
 
   // Main (complicated) operation in the primitive (for example qnn.conv2d, qnn.dense etc.).
   const CallNode* anchor_op_ = nullptr;
 
-  enum POper { P_QConv2d, P_QDense, P_BiasAdd, P_QRequantize, P_Opaque };
+  enum POper { P_QConv2d, P_QDense, P_QDensePack, P_BiasAdd, P_QRequantize, P_Opaque };
 
   std::deque<POper> registered_ops_;
 
   const std::vector<std::deque<POper>> supported_patterns_ = {
-      {P_QDense, P_BiasAdd, P_QRequantize},   // Pattern qnn.dense -> bias_add -> qnn.requantize
-      {P_QDense, P_QRequantize},              // Patter qnn.dense -> qnn.requantize
-      {P_QConv2d, P_BiasAdd, P_QRequantize},  // Pattern qnn.conv2d -> bias_add -> qnn.requantize
-      {P_QConv2d, P_QRequantize}              // Patter qnn.conv2d -> qnn.requantize
+      {P_QDense, P_BiasAdd, P_QRequantize},      // qnn.dense -> bias_add -> qnn.requantize
+      {P_QDense, P_QRequantize},                 // qnn.dense -> qnn.requantize
+      {P_QDensePack, P_BiasAdd, P_QRequantize},  // qnn.contrib_dense_pack -> bias -> qnn.requantize
+      {P_QDensePack, P_QRequantize},             // qnn.contrib_dense_pack -> qnn.requantize
+      {P_QConv2d, P_BiasAdd, P_QRequantize},     // qnn.conv2d -> bias_add -> qnn.requantize
+      {P_QConv2d, P_QRequantize}                 // qnn.conv2d -> qnn.requantize
   };
 };
 
@@ -539,8 +546,8 @@ class ScheduleBuilder : public ExprVisitor {
             TuningRecord record = opt_record.value();
             for (const Instruction& inst : record->trace->insts) {
               if (inst->kind.same_as(kind_transform_layout)) {
-                ICHECK_EQ(inst->attrs.size(), 4);
-                auto index_map = Downcast<IndexMap>(inst->attrs[2]);
+                ICHECK_EQ(inst->inputs.size(), 2);
+                auto index_map = Downcast<IndexMap>(inst->inputs[1]);
 
                 if (!const_collector.constants.empty()) {
                   // In this case, RewriteLayout is acting on an AllocateConst node.
@@ -577,7 +584,26 @@ class ScheduleBuilder : public ExprVisitor {
                       << "Only one layout-free constant is supported by RewriteLayout for now";
                   auto constant = const_collector.constants[0];
 
-                  if (constant.Shape().size() == index_map->initial_indices.size()) {
+                  auto is_constant_transformed = [index_map](runtime::NDArray c) {
+                    if (c.Shape().size() != index_map->initial_indices.size()) {
+                      return true;
+                    }
+                    size_t src_size_1d = 1;
+                    Array<PrimExpr> orig_shape;
+                    for (size_t i = 0; i < c.Shape().size(); ++i) {
+                      src_size_1d *= c->shape[i];
+                      orig_shape.push_back(PrimExpr(static_cast<int>((c->shape[i]))));
+                    }
+                    auto dst_shape = index_map->MapShape(orig_shape);
+                    std::vector<int64_t> dst_shape_int;
+                    size_t dst_size_1d = 1;
+                    for (size_t i = 0; i < dst_shape.size(); ++i) {
+                      dst_size_1d *= dst_shape[i].as<IntImmNode>()->value;
+                    }
+                    return src_size_1d != dst_size_1d;
+                  };
+
+                  if (!is_constant_transformed(constant)) {
                     // This is the first case, reached during the MetaScheduleLayoutRewrite pass.
                     //
                     // A layout-free constant having the same rank as an input to the index map
@@ -646,7 +672,7 @@ class ScheduleBuilder : public ExprVisitor {
             // (dispatch & 4): controls whether to raise fatal errors for missing TIR
             if (dispatch & 2) {
               LOG(WARNING) << "Cannot find workload: " << prim_fn_var->name_hint << "\n"
-                           << tir::AsTVMScript(f.value());
+                           << f.value();
             } else {
               LOG(WARNING) << "Cannot find workload: " << prim_fn_var->name_hint;
             }

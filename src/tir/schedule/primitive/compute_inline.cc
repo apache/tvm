@@ -225,11 +225,11 @@ class ProducerHasNonTrivialPredicateError : public ScheduleError {
   }
 
   String DetailRenderTemplate() const final {
-    return "ScheduleError: The producer block {0} has a non-trivial predicate " +
-           PrettyPrint(producer_->predicate) +
-           " that cannot be implied "
-           "by the synthesized predicate " +
-           PrettyPrint(new_predicate_) + " of the new inlined block.";
+    std::ostringstream os;
+    os << "ScheduleError: The producer block {0} has a non-trivial predicate "
+       << producer_->predicate << " that cannot be implied by the synthesized predicate "
+       << new_predicate_ << " of the new inlined block.";
+    return os.str();
   }
 
   IRModule mod() const final { return mod_; }
@@ -608,7 +608,7 @@ class ReverseComputeInliner : public BaseInliner {
         /*indices=*/buffer_load_indices_,
         /*input_iters=*/consumer_iter_doms,
         /*predicate=*/true,
-        /*check_level=*/arith::IterMapLevel::Bijective,
+        /*check_level=*/arith::IterMapLevel::NoCheck,
         /*analyzer=*/&analyzer_,
         /*simplify_trivial_iterators=*/false);
     buffer_load_iter_map_ = res->indices;
@@ -651,6 +651,7 @@ class ReverseComputeInliner : public BaseInliner {
     // Substitute the producer block iters with the its bindings since the predicate in BlockRealize
     // should not contain the block iters
     predicate = Substitute(predicate, subst_map);
+    predicate = analyzer_.Simplify(predicate);
     return predicate;
   }
 
@@ -865,6 +866,13 @@ void ReverseComputeInlineImpl(ScheduleState self, const StmtSRef& consumer_block
     return;
   }
   self->Replace(scope_root_sref, tgt_stmt, inliner.block_reuse);
+  // Step 8. Update the cached flags
+  arith::Analyzer analyzer;
+  BlockInfo& block_info = self->block_info[producer_block_sref];
+  block_info.affine_binding = IsAffineBinding(
+      /*realize=*/GetBlockRealize(self, producer_block_sref),
+      /*loop_var_ranges=*/LoopDomainOfSRefTreePath(GetRef<StmtSRef>(producer_block_sref->parent)),
+      /*analyzer=*/&analyzer);
 }
 
 bool CanReverseComputeInline(const ScheduleState& self, const StmtSRef& block_sref) {

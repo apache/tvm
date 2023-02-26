@@ -1830,15 +1830,17 @@ def test_forward_linear():
         def forward(self, inputs, weight):
             return F.linear(inputs, weight)
 
-    class LinearNested(torch.nn.Module):
+    class LinearNested(Module):
         def forward(self, x, y, z):
             return F.linear(x, F.linear(y, z))
 
+    input1d = torch.rand([2]).float()
     input2d = torch.rand([2, 2]).float()
     input3d = torch.rand([4, 3, 2]).float()
     weight1d = torch.rand([2]).float()
     weight2d = torch.rand([2, 2]).float()
     weight3x2 = torch.rand([3, 2]).float()
+    bias0d = torch.rand([]).float()
     bias1d = torch.rand([2]).float()
     bias2d = torch.rand([2, 2]).float()
     # 2D input, 2D weight, 1D bias
@@ -1858,11 +1860,14 @@ def test_forward_linear():
 
     verify_model(LinearNested(), input_data=[torch.randn(10, 10) for _ in range(3)])
 
-    # TODO: Add the following cases when matmul(1D, _) is supported by TVM
     # 1D input, 2D weight, 1D bias
+    verify_model(Linear(), input_data=[input1d, weight2d, bias1d])
     # 1D input, 2D weight, no bias
+    verify_model(LinearNoBias(), input_data=[input1d, weight2d])
     # 1D input, 1D weight, scalar bias
+    verify_model(Linear(), input_data=[input1d, weight1d, bias0d])
     # 1D input, 1D weight, no bias
+    verify_model(LinearNoBias(), input_data=[input1d, weight1d])
 
 
 @tvm.testing.uses_gpu
@@ -3977,42 +3982,81 @@ def test_forward_matmul():
         def forward(self, *args):
             return torch.matmul(args[0], args[1])
 
-    # matrix x vector
-    tensor1 = torch.randn(3, 4)
-    tensor2 = torch.randn(4)
-    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
-
-    # vector x matrix
+    # vector x vector - 1D x 1D
     tensor1 = torch.randn(4)
-    tensor2 = torch.randn(4, 3)
-    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
-
-    # matrix x matrix
-    tensor1 = torch.randn(10, 4)
-    tensor2 = torch.randn(4, 10)
+    tensor2 = torch.randn(4)
     verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
 
-    # batched matrix x batched matrix
-    tensor1 = torch.randn(10, 3, 4)
-    tensor2 = torch.randn(10, 4, 5)
+    # vector x matrix - 1D x 2D
+    tensor1 = torch.randn(4)
+    tensor2 = torch.randn(4, 3)
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
+
+    # vector x batched_matrix - 1D x ND
+    tensor1 = torch.randn(5)
+    tensor2 = torch.randn(2, 3, 5, 4)
     verify_model(
         MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
     )
 
-    # batched matrix x broadcasted matrix
+    # matrix x vector - 2D - 1D
+    tensor1 = torch.randn(3, 4)
+    tensor2 = torch.randn(4)
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
+
+    # matrix x matrix - 2D x 2D
+    tensor1 = torch.randn(10, 4)
+    tensor2 = torch.randn(4, 10)
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
+
+    # broadcasted matrix x batched matrix - 2D x ND
+    tensor1 = torch.randn(10, 4)
+    tensor2 = torch.randn(2, 3, 4, 5)
+    verify_model(
+        MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
+    )
+
+    # batched matrix x vector - ND x 1D
+    tensor1 = torch.randn(2, 3, 4, 5)
+    tensor2 = torch.randn(5)
+    verify_model(
+        MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
+    )
+
+    # batched matrix x broadcasted matrix - ND x 2D
     tensor1 = torch.randn(10, 3, 4)
     tensor2 = torch.randn(4, 5)
-    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
+    verify_model(
+        MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
+    )
 
-    # broadcasted matrix x batched matrix
-    tensor1 = torch.randn(10, 4)
-    tensor2 = torch.randn(3, 4, 5)
-    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
+    # batched matrix x batched matrix - ND x ND
+    tensor1 = torch.randn(2, 10, 3, 4)
+    tensor2 = torch.randn(2, 10, 4, 5)
+    verify_model(
+        MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
+    )
 
-    # batched matrix x batched matrix
-    tensor1 = torch.randn(1, 12, 14, 64)
-    tensor2 = torch.randn(1, 12, 64, 14)
-    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
+    # batched matrix x broadcasted matrix - ND x ND
+    tensor1 = torch.randn(2, 5, 3, 4)
+    tensor2 = torch.randn(2, 1, 4, 5)
+    verify_model(
+        MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
+    )
+
+    # broadcasted matrix x batched matrix - ND x ND
+    tensor1 = torch.randn(2, 1, 5, 4)
+    tensor2 = torch.randn(2, 5, 4, 3)
+    verify_model(
+        MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
+    )
+
+    # broadcasted matrix x broadcasted matrix - ND x ND
+    tensor1 = torch.randn(3, 2, 3, 1, 5, 4)
+    tensor2 = torch.randn(2, 1, 5, 4, 3)
+    verify_model(
+        MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
+    )
 
 
 def test_forward_index():
@@ -4033,6 +4077,41 @@ def test_forward_index():
 
     input_data = torch.rand(input_shape).float()
     verify_model(Index1().eval(), input_data=input_data)
+
+    class Index2(Module):
+        def forward(self, x):
+            return x[None, [2, 2]]
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Index2().eval(), input_data=input_data)
+
+    class Index3(Module):
+        def forward(self, x):
+            return x[None, [0, 1, 2], 1, [2, 3, 4]]
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Index3().eval(), input_data=input_data)
+
+    class Index4(Module):
+        def forward(self, x):
+            return x[None, [0, 0], None, np.array([[0], [1], [2]]), None]
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Index4().eval(), input_data=input_data)
+
+    class Index5(Module):
+        def forward(self, x):
+            return x[None, None, [0, 0], np.array([[0], [1], [2]]), None]
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Index5().eval(), input_data=input_data)
+
+    class Index6(Module):
+        def forward(self, x):
+            return x[None, 1, None, [1, 2, 3]]
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Index6().eval(), input_data=input_data)
 
     def test_fn_bool_mask():
         return lambda data, mask: data[0, mask]
@@ -4152,6 +4231,36 @@ def test_forward_scatter():
 
     verify_trace_model(test_fn_scatter(1), [in_data, in_index, in_src], targets)
     verify_trace_model(test_fn_scatter_add(1), [in_data, in_index, in_src], targets)
+
+    # Check empty indices for scatter_add
+    in_data = torch.zeros(2, 4)
+    in_index = torch.empty((0,))
+    in_src = torch.rand(2, 1)
+    verify_trace_model(test_fn_scatter_add(0), [in_data, in_index, in_src], targets)
+
+
+def test_forward_scatter_reduce():
+    """test_forward_scatter_reduce"""
+    # integer cannot be traced
+    def test_fn_scatter_reduce(dim, reduce):
+        return lambda data, index, src: torch.scatter_reduce(
+            data, dim=dim, index=index, src=src, reduce=reduce
+        )
+
+    in_data = torch.rand(3, 5) - 1
+    in_index = torch.tensor([[0, 1, 2, 0, 0], [2, 0, 0, 1, 2]])
+    in_src = torch.rand(2, 5) - 1
+
+    targets = ["llvm", "cuda"]
+    for reduce in ["sum", "prod", "amin", "amax", "mean"]:
+        verify_trace_model(test_fn_scatter_reduce(0, reduce), [in_data, in_index, in_src], targets)
+
+    in_data = torch.rand(2, 4) - 1
+    in_index = torch.tensor([[2], [3]])
+    in_src = torch.rand(2, 1) - 1
+
+    for reduce in ["sum", "prod", "amin", "amax", "mean"]:
+        verify_trace_model(test_fn_scatter_reduce(1, reduce), [in_data, in_index, in_src], targets)
 
 
 def test_forward_index_put():
@@ -5036,6 +5145,30 @@ def test_multinomial():
         cpu_only=True,
         check_correctness=False,
     )
+
+
+def test_weight_norm():
+    """Test for atten::_weight_norm"""
+    in_channels = 32
+    out_channels = 64
+    input_data_conv = torch.rand((1, in_channels, 32, 32)).float()
+
+    conv_wn = torch.nn.utils.weight_norm(torch.nn.Conv2d(in_channels, out_channels, kernel_size=3))
+    verify_model(conv_wn.eval().float(), input_data_conv)
+
+    conv_wn_groups = torch.nn.utils.weight_norm(
+        torch.nn.Conv2d(in_channels, out_channels, kernel_size=3, groups=2)
+    )
+    verify_model(conv_wn_groups.eval().float(), input_data_conv)
+
+    conv_wn = torch.nn.utils.weight_norm(
+        torch.nn.Conv2d(in_channels, out_channels, kernel_size=3), dim=1
+    )
+    verify_model(conv_wn.eval().float(), input_data_conv)
+
+    linear_wn = torch.nn.utils.weight_norm(torch.nn.Linear(in_channels, out_channels))
+    input_data_linear = torch.rand((128, in_channels)).float()
+    verify_model(linear_wn.eval().float(), input_data_linear)
 
 
 @tvm.testing.uses_gpu

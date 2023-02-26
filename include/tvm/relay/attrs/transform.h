@@ -156,11 +156,15 @@ struct ScatterAttrs : public tvm::AttrsNode<ScatterAttrs> {
   }
 };
 
-struct ScatterAddAttrs : public tvm::AttrsNode<ScatterAddAttrs> {
+struct ScatterElementsAttrs : public tvm::AttrsNode<ScatterElementsAttrs> {
   Integer axis;
+  String reduction;
 
-  TVM_DECLARE_ATTRS(ScatterAddAttrs, "relay.attrs.ScatterAddAttrs") {
+  TVM_DECLARE_ATTRS(ScatterElementsAttrs, "relay.attrs.ScatterElementsAttrs") {
     TVM_ATTR_FIELD(axis).set_default(0).describe("The axis over which to select values.");
+    TVM_ATTR_FIELD(reduction).set_default("update").describe(
+        "Reduction mode of the scatter elements, "
+        "either \"update\", \"add\", \"mul\", \"mean\", \"min\" or \"max\".");
   }
 };
 
@@ -168,8 +172,9 @@ struct ScatterNDAttrs : public tvm::AttrsNode<ScatterNDAttrs> {
   String mode;
 
   TVM_DECLARE_ATTRS(ScatterNDAttrs, "relay.attrs.ScatterNDAttrs") {
-    TVM_ATTR_FIELD(mode).describe(
-        "Accumulation mode of the scatter, either \"update\" or \"add\".");
+    TVM_ATTR_FIELD(mode).set_default("update").describe(
+        "Accumulation mode of the ScatterND, "
+        "either \"update\", \"add\", \"mul\", \"min\" or \"max\".");
   }
 };
 

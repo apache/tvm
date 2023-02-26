@@ -22,7 +22,7 @@ from tvm import topi
 from .. import strategy
 from ...op.op import register_compute
 from ...op.op import register_injective_schedule
-from ...op.op import register_strategy, register_pattern, OpPattern
+from ...op.op import register_strategy, register_pattern, register_alter_op_layout, OpPattern
 
 
 @register_compute("qnn.simulated_quantize")
@@ -83,11 +83,26 @@ register_pattern("qnn.concatenate", OpPattern.INJECTIVE)
 
 # qnn.conv2d
 register_strategy("qnn.conv2d", strategy.qnn_conv2d_strategy)
-register_pattern("qnn.conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+@register_alter_op_layout("qnn.conv2d")
+def alter_op_layout_qnn_conv2d(attrs, inputs, tinfos, out_type):
+    """Alternate the layout of qnn.conv2d"""
+    return topi.nn.qnn_conv2d_alter_layout(attrs, inputs, tinfos, out_type)
+
 
 # qnn.dense
 register_strategy("qnn.dense", strategy.qnn_dense_strategy)
-register_pattern("qnn.dense", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+@register_alter_op_layout("qnn.dense")
+def alter_op_layout_qnn_dense(attrs, inputs, tinfos, out_type):
+    """Alternate the layout of qnn.dense"""
+    return topi.nn.qnn_dense_alter_layout(attrs, inputs, tinfos, out_type)
+
+
+# qnn.contrib_dense_pack
+register_strategy("qnn.contrib_dense_pack", strategy.qnn_dense_pack_strategy)
 
 # qnn.batch_matmul
 register_strategy("qnn.batch_matmul", strategy.qnn_batch_matmul_strategy)

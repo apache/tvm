@@ -456,7 +456,7 @@ def test_tflite_model_u3_usecase_single_external_pool(model_url, usmp_algo):
 def test_tflite_model_u3_usecase_conv2d_var_cons(usmp_algo):
     """This checks for inference using workspace and constant pools placed in the application"""
 
-    mod = tvm.parser.fromtext(
+    mod = tvm.relay.fromtext(
         """\
         #[version = "0.0.5"]
         def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(3, 3, 5, 5), int8]) {

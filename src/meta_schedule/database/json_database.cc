@@ -127,7 +127,8 @@ class JSONDatabaseNode : public DatabaseNode {
     Array<TuningRecord> results;
     results.reserve(top_k);
     for (const TuningRecord& record : this->tuning_records_) {
-      if (!record->run_secs.defined() || record->run_secs.value().empty()) {
+      auto run_secs = record->run_secs;
+      if (!record->IsValid()) {
         continue;
       }
       if (record->workload.same_as(workload) ||
@@ -139,8 +140,8 @@ class JSONDatabaseNode : public DatabaseNode {
       }
     }
     if (results.size() < static_cast<size_t>(top_k)) {
-      LOG(WARNING) << "The size of the GetTopK result is smaller than requested. There are not "
-                      "enough valid records in the database for this workload.";
+      LOG(WARNING) << "Returned tuning records less than requested(" << results.size() << " of "
+                   << top_k << " asked).";
     }
     return results;
   }
@@ -196,7 +197,7 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
           } catch (std::runtime_error& e) {
             LOG(FATAL) << "ValueError: Unable to parse TuningRecord, on line " << (task_id + 1)
                        << " of file " << path_tuning_record << ". The workload is:\n"
-                       << (workload.defined() ? tir::AsTVMScript(workload->mod) : "(null)")
+                       << (workload.defined() ? workload->mod->Script() : "(null)")
                        << "\nThe JSONObject of TuningRecord is:\n"
                        << json_obj << "\nThe error message is:\n"
                        << e.what();

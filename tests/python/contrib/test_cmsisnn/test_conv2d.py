@@ -24,6 +24,7 @@ from tvm import relay
 from tvm.relay.op.contrib import cmsisnn
 
 from tvm.testing.aot import (
+    get_dtype_range,
     generate_ref_data,
     AOTTestModel,
     compile_models,
@@ -33,7 +34,6 @@ from tvm.testing.aot import (
 from tvm.micro.testing.aot_test_utils import AOT_USMP_CORSTONE300_RUNNER
 from .utils import (
     make_module,
-    get_range_for_dtype_str,
     get_same_padding,
     get_conv2d_qnn_params,
     get_kernel_bias_dtype,
@@ -82,10 +82,11 @@ def make_model(
         p = get_same_padding((shape[1], shape[2]), (kernel_h, kernel_w), dilation, strides)
 
     rng = np.random.default_rng(12321)
+    kmin, kmax = get_dtype_range(kernel_dtype)
     kernel = tvm.nd.array(
         rng.integers(
-            np.iinfo(kernel_dtype).min,
-            high=np.iinfo(kernel_dtype).max,
+            kmin,
+            high=kmax,
             size=kernel_shape,
             dtype=kernel_dtype,
         )
@@ -157,7 +158,7 @@ def test_conv2d_number_primfunc_args(
     kernel_w = kernel_size[1]
     kernel_shape = (kernel_h, kernel_w, ifm_shape[3] // groups, out_channels)
     kernel_zero_point = 0
-    in_min, in_max = get_range_for_dtype_str(dtype)
+    in_min, in_max = get_dtype_range(dtype)
     relu_type = "RELU"
 
     kernel_dtype, bias_dtype = get_kernel_bias_dtype(dtype)
@@ -264,7 +265,7 @@ def test_conv2d_symmetric_padding(
     kernel_w = kernel_size[1]
     kernel_shape = (kernel_h, kernel_w, ifm_shape[3] // groups, out_channels)
     kernel_zero_point = 0
-    in_min, in_max = get_range_for_dtype_str(dtype)
+    in_min, in_max = get_dtype_range(dtype)
 
     kernel_dtype, bias_dtype = get_kernel_bias_dtype(dtype)
 
@@ -358,7 +359,7 @@ def test_conv2d_asymmetric_padding(
     kernel_w = kernel_size[1]
     kernel_shape = (kernel_h, kernel_w, ifm_shape[3] // groups, out_channels)
     kernel_zero_point = 0
-    in_min, in_max = get_range_for_dtype_str(dtype)
+    in_min, in_max = get_dtype_range(dtype)
 
     kernel_dtype, bias_dtype = get_kernel_bias_dtype(dtype)
 
@@ -454,7 +455,7 @@ def test_pad_conv2d_fusion_int8(
     kernel_w = kernel_size[1]
     kernel_shape = (kernel_h, kernel_w, ifm_shape[3] // groups, out_channels)
     kernel_zero_point = 0
-    in_min, in_max = get_range_for_dtype_str(dtype)
+    in_min, in_max = get_dtype_range(dtype)
 
     kernel_dtype, bias_dtype = get_kernel_bias_dtype(dtype)
     output_scale, output_zero_point = get_conv2d_qnn_params(
@@ -567,7 +568,7 @@ def test_invalid_pad_conv2d_fusion_int8(
     kernel_w = kernel_size[1]
     kernel_shape = (kernel_h, kernel_w, ifm_shape[3] // groups, out_channels)
     kernel_zero_point = 0
-    in_min, in_max = get_range_for_dtype_str(dtype)
+    in_min, in_max = get_dtype_range(dtype)
 
     kernel_dtype, bias_dtype = get_kernel_bias_dtype(dtype)
 
@@ -740,7 +741,7 @@ def test_depthwise(
     kernel_w = kernel_size[1]
     kernel_shape = (kernel_h, kernel_w, ifm_shape[3] // groups, out_channels)
     kernel_zero_point = 0
-    in_min, in_max = get_range_for_dtype_str(dtype)
+    in_min, in_max = get_dtype_range(dtype)
 
     groups = ifm_shape[3]
     kernel_layout = "HWOI"
@@ -844,7 +845,7 @@ def test_relay_conv2d_cmsisnn_depthwise_int8(
     test_runner = AOT_USMP_CORSTONE300_RUNNER
 
     dtype = "int8"
-    in_min, in_max = get_range_for_dtype_str(dtype)
+    in_min, in_max = get_dtype_range(dtype)
 
     ifm_shape = (1, 24, 24, 1)
     groups = ifm_shape[3]

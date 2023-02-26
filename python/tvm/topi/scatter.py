@@ -16,11 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name, too-many-arguments, too-many-nested-blocks
 """Scatter operator"""
-from ..tir import decl_buffer, ir_builder, AssertStmt, StringImm, Evaluate, expr
-from ..te import extern, hybrid
+from tvm import te, tir  # hide redefinition of min and max
+from tvm.tir import expr
 
 
-@hybrid.script
+@te.hybrid.script
 def _scatter_1d(data, indices, updates):
     out = output_tensor(data.shape, data.dtype)
     for i in range(data.shape[0]):
@@ -30,7 +30,7 @@ def _scatter_1d(data, indices, updates):
     return out
 
 
-@hybrid.script
+@te.hybrid.script
 def _scatter_2d(data, indices, updates, axis):
     out = output_tensor(data.shape, data.dtype)
     for i in range(data.shape[0]):
@@ -52,7 +52,7 @@ def _scatter_2d(data, indices, updates, axis):
     return out
 
 
-@hybrid.script
+@te.hybrid.script
 def _scatter_3d(data, indices, updates, axis):
     out = output_tensor(data.shape, data.dtype)
     for i in range(data.shape[0]):
@@ -96,7 +96,7 @@ def _scatter_3d(data, indices, updates, axis):
     return out
 
 
-@hybrid.script
+@te.hybrid.script
 def _scatter_4d(data, indices, updates, axis):
     out = output_tensor(data.shape, data.dtype)
     for i in range(data.shape[0]):
@@ -268,63 +268,66 @@ def scatter_nd(data, indices, updates, mode):
     _verify_scatter_nd_inputs(data, indices, updates)
 
     def gen_ir(data_ptr, indices_ptr, updates_ptr, out_ptr):
-        ib = ir_builder.create()
+        # pylint: disable=invalid-name
+        ib = tir.ir_builder.create()
 
         data = ib.buffer_ptr(data_ptr)
         indices = ib.buffer_ptr(indices_ptr)
         updates = ib.buffer_ptr(updates_ptr)
         out = ib.buffer_ptr(out_ptr)
 
-        fused_shape = 1
-        for i in data.shape:
-            fused_shape *= i
-        with ib.for_range(0, fused_shape) as i:
-            out[i] = data[i]
-
         # We combine all the indices dimensions but the first one into a single
         # dimension so we can iterate it in single loop instead of an arbitrary
-        # number of loops. We do the same thing for all the data dimensions.
+        # number of loops. We do the same thing for all the update dimensions.
         fused_indices_dimension = 1
         for i in indices_ptr.shape[1:]:
             fused_indices_dimension *= i
 
-        fused_data_dimension = 1
-        for i in data_ptr.shape[len(indices_ptr.shape) - 1 :]:
-            fused_data_dimension *= i
+        fused_updates_dimension = 1
+        for i in updates_ptr.shape[len(indices_ptr.shape) - 1 :]:
+            fused_updates_dimension *= i
 
-        with ib.for_range(0, fused_indices_dimension, name="i") as i:
-            with ib.for_range(0, fused_data_dimension, name="j") as j:
-                offset = fused_data_dimension
+        fused_shape = 1
+        for i in data_ptr.shape:
+            fused_shape *= i
+
+        with ib.for_range(0, fused_shape) as i:
+            out[i] = data[i]
+
+        with ib.for_range(0, fused_indices_dimension) as i:
+            with ib.for_range(0, fused_updates_dimension, kind="parallel") as j:
+                offset = fused_updates_dimension
                 index = j  # This is x_M, .. x_{N-1} part of the index into out.
                 # Build up the indices[0, y_0, .. y_{K-1}], .. indices[M-1, y_0, .. y_{K-1}] part
                 # of the index into out.
                 for l in reversed(range(indices_ptr.shape[0].value)):
                     # indices[i * l * fused_indices_dimension] = indices[l, y_0, ... y_{k-1}]
                     index += offset * indices[i + l * fused_indices_dimension]
-                    ib.emit(
-                        AssertStmt(
-                            indices[i + l * fused_indices_dimension] < shape[l],
-                            StringImm("index out of bounds"),
-                            Evaluate(0),
-                        )
-                    )
-                    offset *= shape[l]
-                if mode == "add":
-                    out[index] += updates[i * fused_data_dimension + j]
-                elif mode == "update":
-                    out[index] = updates[i * fused_data_dimension + j]
+                    offset *= data_ptr.shape[l]
+                if mode == "update":
+                    out[index] = updates[i * fused_updates_dimension + j]
+                elif mode == "add":
+                    out[index] += updates[i * fused_updates_dimension + j]
+                elif mode == "mul":
+                    out[index] *= updates[i * fused_updates_dimension + j]
+                elif mode == "min":
+                    out[index] = tir.min(out[index], updates[i * fused_updates_dimension + j])
+                elif mode == "max":
+                    out[index] = tir.max(out[index], updates[i * fused_updates_dimension + j])
                 else:
-                    raise NotImplementedError("scatter_nd mode not in [update, add]:", mode)
+                    raise NotImplementedError(
+                        "scatter_nd mode not in [update, add, mul, min, max]:", mode
+                    )
 
         return ib.get()
 
-    out_buf = decl_buffer(shape, data.dtype, "out_buf")
-    return extern(
-        [shape],
+    out_buf = tir.decl_buffer(data.shape, data.dtype, "out_buf")
+    return te.extern(
+        [data.shape],
         [data, indices, updates],
         lambda ins, outs: gen_ir(ins[0], ins[1], ins[2], outs[0]),
         dtype=data.dtype,
         out_buffers=[out_buf],
-        name="scatter_nd_generic",
-        tag="scatter_nd_generic",
+        name="scatter_nd.generic",
+        tag="scatter_nd.generic",
     )

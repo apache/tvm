@@ -31,14 +31,14 @@ from typing import List, Mapping, Optional, Union
 
 import tvm._ffi
 from tvm.ir import PrimExpr, Range, Span
-from tvm.runtime import Object, const
+from tvm.runtime import Object, Scriptable, const
 
 from . import _ffi_api
 from .buffer import Buffer
 from .expr import IterVar
 
 
-class Stmt(Object):
+class Stmt(Object, Scriptable):
     """Base class of all the statements."""
 
 
@@ -548,7 +548,7 @@ class Prefetch(Stmt):
 
 
 @tvm._ffi.register_object("tir.BufferRegion")
-class BufferRegion(Object):
+class BufferRegion(Object, Scriptable):
     """BufferRegion node.
 
     Parameters
@@ -568,7 +568,7 @@ class BufferRegion(Object):
 
 
 @tvm._ffi.register_object("tir.MatchBufferRegion")
-class MatchBufferRegion(Object):
+class MatchBufferRegion(Object, Scriptable):
     """MatchBufferRegion node.
 
     Parameters

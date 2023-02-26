@@ -212,6 +212,7 @@ inline cl_channel_type DTypeToOpenCLChannelType(DLDataType data_type) {
   }
 
 class OpenCLThreadEntry;
+struct BufferDescriptor;
 
 /*!
  * \brief Process global OpenCL workspace.
@@ -220,16 +221,14 @@ class OpenCLWorkspace : public DeviceAPI {
  public:
   // type key
   std::string type_key;
-  // global platform id
-  cl_platform_id platform_id;
-  // global platform name
-  std::string platform_name;
-  // global context of this process
-  cl_context context{nullptr};
+  // available platforms
+  std::vector<cl_platform_id> platform_ids;
+  // map platform to its context
+  std::unordered_map<cl_platform_id, cl_context> contexts;
   // whether the workspace it initialized.
   bool initialized_{false};
-  // the device type
-  std::string device_type;
+  // map device to platform
+  std::unordered_map<cl_device_id, cl_platform_id> device_to_platform;
   // the devices
   std::vector<cl_device_id> devices;
   // the queues
@@ -247,11 +246,11 @@ class OpenCLWorkspace : public DeviceAPI {
   std::mutex mu;
   // destructor
   ~OpenCLWorkspace() {
-    if (context != nullptr) {
-      OPENCL_CALL(clReleaseContext(context));
+    for (auto& it : contexts) {
+      OPENCL_CALL(clReleaseContext(it.second));
     }
   }
-  // Initialzie the device.
+  // Initialize the device.
   void Init(const std::string& type_key, const std::string& device_type,
             const std::string& platform_name = "");
   virtual void Init() { Init("opencl", "gpu"); }
@@ -283,13 +282,36 @@ class OpenCLWorkspace : public DeviceAPI {
 
     return prop & CL_QUEUE_PROFILING_ENABLE;
   }
+  // Check if the device is present or not
+  bool IsDeviceExists(unsigned int device_id) { return device_id < devices.size(); }
+  // Enable queue profiling, recreate if required
+  void EnableQueueProfiling(Device dev, bool enable) {
+    bool is_enabled = cl::OpenCLWorkspace::Global()->IsProfiling(dev);
+    if (is_enabled == enable) {
+      return;
+    }
+    cl_command_queue_properties prop = (enable) ? CL_QUEUE_PROFILING_ENABLE : 0;
+    auto queue = cl::OpenCLWorkspace::Global()->GetQueue(dev);
+    OPENCL_CALL(clFlush(queue));
+    OPENCL_CALL(clFinish(queue));
+    OPENCL_CALL(clReleaseCommandQueue(queue));
+    cl_int err_code;
+    cl_device_id did = cl::OpenCLWorkspace::Global()->GetCLDeviceID(dev.device_id);
+    cl_platform_id platform = cl::OpenCLWorkspace::Global()->device_to_platform[did];
+    auto profiling_queue = clCreateCommandQueue(cl::OpenCLWorkspace::Global()->contexts[platform],
+                                                did, prop, &err_code);
+    OPENCL_CHECK_ERROR(err_code);
+    cl::OpenCLWorkspace::Global()->queues[dev.device_id] = profiling_queue;
+  }
 
+  cl_device_id GetCLDeviceID(int device_id);
   // override device API
   void SetDevice(Device dev) final;
   void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final;
   void* AllocDataSpace(Device dev, size_t size, size_t alignment, DLDataType type_hint) final;
   void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
                        Optional<String> mem_scope = NullOpt) final;
+  void* GetNativePtr(const tvm::runtime::NDArray& narr);
   void FreeDataSpace(Device dev, void* ptr) final;
   void StreamSync(Device dev, TVMStreamHandle stream) final;
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
@@ -309,6 +331,8 @@ class OpenCLWorkspace : public DeviceAPI {
   static OpenCLWorkspace* Global();
 
   void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) final;
+
+  void* CreateHostPtrIfEnabled(BufferDescriptor* desc, Device dev, size_t size);
 
  private:
   std::string GetError() {
@@ -377,6 +401,7 @@ struct BufferDescriptor {
   static String ScopeFromMemoryLayout(MemoryLayout mem_scope);
 
   cl_mem buffer{nullptr};
+  cl_uchar* host_ptr{nullptr};
   MemoryLayout layout{MemoryLayout::kBuffer1D};
 };
 }  // namespace cl
@@ -415,6 +440,8 @@ class OpenCLModuleNode : public ModuleNode {
   // install a new kernel to thread local entry
   cl_kernel InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThreadEntry* t,
                           const std::string& func_name, const KTRefEntry& e);
+  void SetPreCompiledPrograms(const std::string& bytes);
+  std::string GetPreCompiledPrograms();
 
  private:
   // The workspace, need to keep reference to use it in destructor.
@@ -503,26 +530,8 @@ class OpenCLTimerNode : public TimerNode {
   Device dev_;
 
   void recreateCommandQueue() {
-    cl_command_queue_properties prop;
-
-    if (!cl::OpenCLWorkspace::Global()->IsProfiling(dev_)) {
-      prop = CL_QUEUE_PROFILING_ENABLE;
-    } else {
-      prop = 0;
-    }
-
-    auto queue = cl::OpenCLWorkspace::Global()->GetQueue(dev_);
-
-    OPENCL_CALL(clFlush(queue));
-    OPENCL_CALL(clFinish(queue));
-    OPENCL_CALL(clReleaseCommandQueue(queue));
-
-    cl_int err_code;
-    cl_device_id did = cl::OpenCLWorkspace::Global()->devices[dev_.device_id];
-    auto profiling_queue =
-        clCreateCommandQueue(cl::OpenCLWorkspace::Global()->context, did, prop, &err_code);
-    OPENCL_CHECK_ERROR(err_code);
-    cl::OpenCLWorkspace::Global()->queues[dev_.device_id] = profiling_queue;
+    cl::OpenCLWorkspace::Global()->EnableQueueProfiling(
+        dev_, !cl::OpenCLWorkspace::Global()->IsProfiling(dev_));
   }
 };
 }  // namespace runtime

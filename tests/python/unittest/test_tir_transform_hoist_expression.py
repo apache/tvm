@@ -59,13 +59,13 @@ class TestHoistToTop(BaseBeforeAfter):
     )
 
     @T.prim_func
-    def before(A: T.Buffer[(16,), "float32"], n: T.int32):
+    def before(A: T.Buffer((16,), "float32"), n: T.int32):
         for i in T.serial(16):
             if n != 0:
                 A[i] = 0.0
 
     @T.prim_func
-    def expected(A: T.Buffer[(16,), "float32"], n: T.int32):
+    def expected(A: T.Buffer((16,), "float32"), n: T.int32):
         if n != 0:
             for i in T.serial(16):
                 A[i] = 0.0
@@ -78,7 +78,7 @@ class TestSuppressHoistIfElse(BaseBeforeAfter):
     )
 
     @T.prim_func
-    def before(A: T.Buffer[(16,), "float32"], n: T.int32):
+    def before(A: T.Buffer((16,), "float32"), n: T.int32):
         for i in T.serial(16):
             if n != 0:
                 A[i] = 0.0
@@ -88,7 +88,7 @@ class TestSuppressHoistIfElse(BaseBeforeAfter):
 
 class TestHoistBlockVar(BaseBeforeAfter):
     @T.prim_func
-    def before(A: T.Buffer[(128, 16), "float32"], n: T.int32):
+    def before(A: T.Buffer((128, 16), "float32"), n: T.int32):
         i = T.env_thread("threadIdx.x")
         T.launch_thread(i, 128)
 
@@ -97,7 +97,7 @@ class TestHoistBlockVar(BaseBeforeAfter):
                 A[i, j] = 0.0
 
     @T.prim_func
-    def expected(A: T.Buffer[(128, 16), "float32"], n: T.int32):
+    def expected(A: T.Buffer((128, 16), "float32"), n: T.int32):
         i = T.env_thread("threadIdx.x")
         T.launch_thread(i, 128)
 
@@ -112,7 +112,7 @@ class TestSuppressHoistBlockVar(BaseBeforeAfter):
     )
 
     @T.prim_func
-    def before(A: T.Buffer[(128, 16), "float32"], n: T.int32):
+    def before(A: T.Buffer((128, 16), "float32"), n: T.int32):
         thread_x = T.env_thread("threadIdx.x")
         T.launch_thread(thread_x, 128)
 
@@ -126,7 +126,7 @@ class TestSuppressHoistBlockVar(BaseBeforeAfter):
 
 class TestHoistAcrossBlockVar(BaseBeforeAfter):
     @T.prim_func
-    def before(A: T.Buffer[(128, 16), "float32"], n: T.int32):
+    def before(A: T.Buffer((128, 16), "float32"), n: T.int32):
         thread_x = T.env_thread("threadIdx.x")
         T.launch_thread(thread_x, 128)
 
@@ -136,7 +136,7 @@ class TestHoistAcrossBlockVar(BaseBeforeAfter):
                     A[i, j] = 0.0
 
     @T.prim_func
-    def expected(A: T.Buffer[(128, 16), "float32"], n: T.int32):
+    def expected(A: T.Buffer((128, 16), "float32"), n: T.int32):
         thread_x = T.env_thread("threadIdx.x")
 
         if n == 0:
@@ -152,7 +152,7 @@ class TestSuppressHoistAcrossBlockVar(BaseBeforeAfter):
     )
 
     @T.prim_func
-    def before(A: T.Buffer[(128, 16), "float32"], n: T.int32):
+    def before(A: T.Buffer((128, 16), "float32"), n: T.int32):
         thread_x = T.env_thread("threadIdx.x")
         T.launch_thread(thread_x, 128)
 
@@ -162,7 +162,7 @@ class TestSuppressHoistAcrossBlockVar(BaseBeforeAfter):
                     A[i, j] = 0.0
 
     @T.prim_func
-    def expected(A: T.Buffer[(128, 16), "float32"], n: T.int32):
+    def expected(A: T.Buffer((128, 16), "float32"), n: T.int32):
         thread_x = T.env_thread("threadIdx.x")
 
         T.launch_thread(thread_x, 128)
@@ -174,14 +174,14 @@ class TestSuppressHoistAcrossBlockVar(BaseBeforeAfter):
 
 class TestHoistToMiddle(BaseBeforeAfter):
     @T.prim_func
-    def before(A: T.Buffer[(4, 4), "float32"]):
+    def before(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             for j in T.serial(4):
                 if i < 3:
                     A[i, j] = 0.0
 
     @T.prim_func
-    def expected(A: T.Buffer[(4, 4), "float32"]):
+    def expected(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             if i < 3:
                 for j in T.serial(4):
@@ -190,7 +190,7 @@ class TestHoistToMiddle(BaseBeforeAfter):
 
 class TestHoistWithLet(BaseBeforeAfter):
     @T.prim_func
-    def before(A: T.Buffer[(4, 4), "float32"]):
+    def before(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             for j in T.serial(4):
                 condition = i < 3
@@ -198,7 +198,7 @@ class TestHoistWithLet(BaseBeforeAfter):
                     A[i, j] = 0.0
 
     @T.prim_func
-    def expected(A: T.Buffer[(4, 4), "float32"]):
+    def expected(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             condition = i < 3
             if condition:
@@ -216,7 +216,7 @@ class TestHoistDisableLet(BaseBeforeAfter):
     hoisted_let_bindings = tvm.testing.parameter(HoistedLetBindings.Never)
 
     @T.prim_func
-    def before(A: T.Buffer[(4, 4), "float32"]):
+    def before(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             for j in T.serial(4):
                 condition = i < 3
@@ -228,7 +228,7 @@ class TestHoistDisableLet(BaseBeforeAfter):
 
 class TestHoistIfElse(BaseBeforeAfter):
     @T.prim_func
-    def before(A: T.Buffer[(4, 4), "float32"]):
+    def before(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             for j in T.serial(4):
                 if i < 3:
@@ -237,7 +237,7 @@ class TestHoistIfElse(BaseBeforeAfter):
                     A[i, j] = 1.0
 
     @T.prim_func
-    def expected(A: T.Buffer[(4, 4), "float32"]):
+    def expected(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             if i < 3:
                 for j in T.serial(4):
@@ -249,7 +249,7 @@ class TestHoistIfElse(BaseBeforeAfter):
 
 class TestHoistSequentialAssign(BaseBeforeAfter):
     @T.prim_func
-    def before(A: T.Buffer[(4, 4), "float32"], B: T.Buffer[(4, 4), "float32"]):
+    def before(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             for j in T.serial(4):
                 if i < 3:
@@ -260,7 +260,7 @@ class TestHoistSequentialAssign(BaseBeforeAfter):
                     B[i, j] = 1.0
 
     @T.prim_func
-    def expected(A: T.Buffer[(4, 4), "float32"], B: T.Buffer[(4, 4), "float32"]):
+    def expected(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             if i < 3:
                 for j in T.serial(4):
@@ -274,7 +274,7 @@ class TestHoistSequentialAssign(BaseBeforeAfter):
 
 class TestHoistMultiIf(BaseBeforeAfter):
     @T.prim_func
-    def before(A: T.Buffer[(4, 4), "float32"]):
+    def before(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             for j in T.serial(4):
                 for k in T.serial(4):
@@ -283,7 +283,7 @@ class TestHoistMultiIf(BaseBeforeAfter):
                             A[i, j] = 0.0
 
     @T.prim_func
-    def expected(A: T.Buffer[(4, 4), "float32"]):
+    def expected(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             if i < 2:
                 for j in T.serial(4):
@@ -294,13 +294,13 @@ class TestHoistMultiIf(BaseBeforeAfter):
 
 class TestHoistComplexConditional(BaseBeforeAfter):
     @T.prim_func
-    def before(A: T.Buffer[(4, 4), "float32"]):
+    def before(A: T.Buffer((4, 4), "float32")):
         for i, j, k in T.grid(4, 4, 4):
             if j < 3 and i < 2:
                 A[i, j] = 0.0
 
     @T.prim_func
-    def expected(A: T.Buffer[(4, 4), "float32"]):
+    def expected(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             if i < 2:
                 for j in T.serial(4):
@@ -315,13 +315,13 @@ class TestSuppressSplittingConditional(BaseBeforeAfter):
     )
 
     @T.prim_func
-    def before(A: T.Buffer[(4, 4), "float32"]):
+    def before(A: T.Buffer((4, 4), "float32")):
         for i, j, k in T.grid(4, 4, 4):
             if j < 3 and i < 2:
                 A[i, j] = 0.0
 
     @T.prim_func
-    def expected(A: T.Buffer[(4, 4), "float32"]):
+    def expected(A: T.Buffer((4, 4), "float32")):
         for i, j in T.grid(4, 4):
             if j < 3 and i < 2:
                 for k in T.serial(4):
@@ -330,7 +330,7 @@ class TestSuppressSplittingConditional(BaseBeforeAfter):
 
 class TestHoistMultiIfElse(BaseBeforeAfter):
     @T.prim_func
-    def before(A: T.Buffer[(4, 4), "float32"]):
+    def before(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             for j in T.serial(4):
                 for k in T.serial(4):
@@ -346,7 +346,7 @@ class TestHoistMultiIfElse(BaseBeforeAfter):
                             A[i, j] = 3.0
 
     @T.prim_func
-    def expected(A: T.Buffer[(4, 4), "float32"]):
+    def expected(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             if i < 2:
                 for j in T.serial(4):
@@ -368,7 +368,7 @@ class TestHoistMultiIfElse(BaseBeforeAfter):
 
 class TestHoistMultiIfElseDifferentBranches(BaseBeforeAfter):
     @T.prim_func
-    def before(A: T.Buffer[(4, 4), "float32"]):
+    def before(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             for j in T.serial(4):
                 for k in T.serial(4):
@@ -384,7 +384,7 @@ class TestHoistMultiIfElseDifferentBranches(BaseBeforeAfter):
                             A[i, j] = 3.0
 
     @T.prim_func
-    def expected(A: T.Buffer[(4, 4), "float32"]):
+    def expected(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             if i < 2:
                 if i < 1:
@@ -415,12 +415,12 @@ class TestHoistMultiIfElseDifferentBranches(BaseBeforeAfter):
 
 class TestHoistIfElseExpr(BaseBeforeAfter):
     @T.prim_func
-    def before(A: T.Buffer[(4, 4), "float32"]):
+    def before(A: T.Buffer((4, 4), "float32")):
         for i, j in T.grid(4, 4):
             A[i, j] = T.if_then_else(i < 2, 1.0, 2.0, dtype="float32")
 
     @T.prim_func
-    def expected(A: T.Buffer[(4, 4), "float32"]):
+    def expected(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             if i < 2:
                 for j in T.serial(4):
@@ -436,7 +436,7 @@ class TestSuppressHoistIfElseExpr(TestHoistIfElseExpr):
     )
 
     @T.prim_func
-    def before(A: T.Buffer[(4, 4), "float32"]):
+    def before(A: T.Buffer((4, 4), "float32")):
         for i, j in T.grid(4, 4):
             A[i, j] = T.if_then_else(i < 2, 1.0, 2.0, dtype="float32")
 
@@ -445,13 +445,13 @@ class TestSuppressHoistIfElseExpr(TestHoistIfElseExpr):
 
 class TestHoistLetExpr(BaseBeforeAfter):
     @T.prim_func
-    def before(A: T.Buffer[(4, 4), "float32"]):
+    def before(A: T.Buffer((4, 4), "float32")):
         for i, j in T.grid(4, 4):
-            x = T.var("float32")
+            x = T.float32()
             A[i, j] = T.Let(x, T.cast(i + 1, "float32"), 5.0 * x + T.cast(j, "float32"))
 
     @T.prim_func
-    def expected(A: T.Buffer[(4, 4), "float32"]):
+    def expected(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             x = T.cast(i + 1, "float32")
             for j in T.serial(4):
@@ -464,9 +464,9 @@ class TestSuppressHoistLetExpr(BaseBeforeAfter):
     )
 
     @T.prim_func
-    def before(A: T.Buffer[(4, 4), "float32"]):
+    def before(A: T.Buffer((4, 4), "float32")):
         for i, j in T.grid(4, 4):
-            x = T.var("float32")
+            x = T.float32()
             A[i, j] = T.Let(x, T.cast(i + 1, "float32"), 5.0 * x + T.cast(j, "float32"))
 
     expected = before

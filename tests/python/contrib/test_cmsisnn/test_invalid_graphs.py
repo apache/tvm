@@ -19,13 +19,12 @@
 import numpy as np
 import tvm
 
-from tvm.testing.aot import AOTTestModel, compile_and_run, generate_ref_data
+from tvm.testing.aot import AOTTestModel, get_dtype_range, compile_and_run, generate_ref_data
 from tvm.micro.testing.aot_test_utils import (
     AOT_USMP_CORSTONE300_RUNNER,
 )
 from .utils import (
     skip_if_no_reference_system,
-    get_range_for_dtype_str,
 )
 
 
@@ -49,8 +48,8 @@ def @main(%data : Tensor[(16, 29), int8]) -> Tensor[(16, 29), int8] {
   %1
 }
 """
-    orig_mod = tvm.parser.fromtext(original_model)
-    cmsisnn_mod = tvm.parser.fromtext(cmsisnn_model)
+    orig_mod = tvm.relay.fromtext(original_model)
+    cmsisnn_mod = tvm.relay.fromtext(cmsisnn_model)
     params = {}
 
     # validate the output
@@ -58,7 +57,7 @@ def @main(%data : Tensor[(16, 29), int8]) -> Tensor[(16, 29), int8] {
     use_unpacked_api = True
     test_runner = AOT_USMP_CORSTONE300_RUNNER
     dtype = "int8"
-    in_min, in_max = get_range_for_dtype_str(dtype)
+    in_min, in_max = get_dtype_range(dtype)
     rng = np.random.default_rng(12345)
     inputs = {"data": rng.integers(in_min, high=in_max, size=(16, 29), dtype=dtype)}
     outputs = generate_ref_data(orig_mod["main"], inputs, params)

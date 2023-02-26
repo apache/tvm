@@ -18,6 +18,8 @@
 """Intrinsics for tensorization on NVIDIA GPU."""
 from typing import Dict, Tuple
 
+from typing_extensions import Literal
+
 from tvm.script import tir as T
 from tvm.tir.function import PrimFunc
 
@@ -144,8 +146,8 @@ def get_ldmatrix_intrin(k_dim, dtype, is_b, transposed, shared_scope="shared"):
 
     @T.prim_func
     def ldmatrix_impl(warp_handle: T.handle, shared_handle: T.handle) -> None:
-        s0 = T.var("int32")
-        s1 = T.var("int32")
+        s0 = T.int32()
+        s1 = T.int32()
         shared = T.match_buffer(
             shared_handle,
             shmem_shape,
@@ -383,8 +385,8 @@ def get_mma_store_intrin(dtype, local_size, scope="global"):
 
     @T.prim_func
     def mma_store_impl(a: T.handle, c: T.handle) -> None:
-        s0 = T.var("int32")
-        s1 = T.var("int32")
+        s0 = T.int32()
+        s1 = T.int32()
 
         C_warp = T.match_buffer(
             a, [WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1
@@ -528,10 +530,10 @@ def get_wmma_load_intrin(
 
     @T.prim_func
     def wmma_load_impl(a: T.handle, c: T.handle) -> None:
-        s1 = T.var("int32")
-        s0 = T.var("int32")
-        d1 = T.var("int32")
-        d0 = T.var("int32")
+        s1 = T.int32()
+        s0 = T.int32()
+        d1 = T.int32()
+        d0 = T.int32()
         A = T.match_buffer(
             a,
             (m_dim, n_dim),
@@ -591,8 +593,8 @@ def get_wmma_fill_intrin(
 
     @T.prim_func
     def wmma_fill_impl(c: T.handle) -> None:
-        d1 = T.var("int32")
-        d0 = T.var("int32")
+        d1 = T.int32()
+        d0 = T.int32()
         C = T.match_buffer(
             c,
             (m_dim, n_dim),
@@ -641,10 +643,10 @@ def get_wmma_store_intrin(
 
     @T.prim_func
     def wmma_store_impl(a: T.handle, c: T.handle) -> None:
-        s1 = T.var("int32")
-        s0 = T.var("int32")
-        d1 = T.var("int32")
-        d0 = T.var("int32")
+        s1 = T.int32()
+        s0 = T.int32()
+        d1 = T.int32()
+        d0 = T.int32()
         A = T.match_buffer(
             a,
             (m_dim, n_dim),
@@ -724,12 +726,12 @@ def get_wmma_sync_intrin(
 
     @T.prim_func
     def wmma_sync_impl(a: T.handle, b: T.handle, c: T.handle) -> None:
-        a1 = T.var("int32")
-        a0 = T.var("int32")
-        b1 = T.var("int32")
-        b0 = T.var("int32")
-        c1 = T.var("int32")
-        c0 = T.var("int32")
+        a1 = T.int32()
+        a0 = T.int32()
+        b1 = T.int32()
+        b0 = T.int32()
+        c1 = T.int32()
+        c0 = T.int32()
 
         A = T.match_buffer(
             a,
@@ -815,54 +817,101 @@ TensorIntrin.register(
     *get_wmma_sync_intrin(16, 16, 16, "int8", "int32", True),
 )
 
-WMMA_LOAD_16x16x16_F16_A_INTRIN = "wmma_load_16x16x16_f16_a"
+WMMA_LOAD_16x16x16_F16_A_INTRIN = "wmma_load_16x16x16_f16_a_shared"
 TensorIntrin.register(
     WMMA_LOAD_16x16x16_F16_A_INTRIN,
     *get_wmma_load_intrin(16, 16, 16, "float16", "shared", False, False),
 )
 
-WMMA_LOAD_16x16x16_F16_B_INTRIN = "wmma_load_16x16x16_f16_b"
+WMMA_LOAD_16x16x16_F16_A_DYN_INTRIN = "wmma_load_16x16x16_f16_a_shared_dyn"
+TensorIntrin.register(
+    WMMA_LOAD_16x16x16_F16_A_DYN_INTRIN,
+    *get_wmma_load_intrin(16, 16, 16, "float16", "shared.dyn", False, False),
+)
+
+WMMA_LOAD_16x16x16_F16_B_INTRIN = "wmma_load_16x16x16_f16_b_shared"
 TensorIntrin.register(
     WMMA_LOAD_16x16x16_F16_B_INTRIN,
     *get_wmma_load_intrin(16, 16, 16, "float16", "shared", True, False),
 )
 
-WMMA_LOAD_16x16x16_F16_A_TRANS_INTRIN = "wmma_load_16x16x16_f16_a_trans"
+WMMA_LOAD_16x16x16_F16_B_DYN_INTRIN = "wmma_load_16x16x16_f16_b_shared_dyn"
+TensorIntrin.register(
+    WMMA_LOAD_16x16x16_F16_B_DYN_INTRIN,
+    *get_wmma_load_intrin(16, 16, 16, "float16", "shared.dyn", True, False),
+)
+
+WMMA_LOAD_16x16x16_F16_A_TRANS_INTRIN = "wmma_load_16x16x16_f16_a_trans_shared"
 TensorIntrin.register(
     WMMA_LOAD_16x16x16_F16_A_TRANS_INTRIN,
     *get_wmma_load_intrin(16, 16, 16, "float16", "shared", False, True),
 )
 
-WMMA_LOAD_16x16x16_F16_B_TRANS_INTRIN = "wmma_load_16x16x16_f16_b_trans"
+WMMA_LOAD_16x16x16_F16_A_TRANS_DYN_INTRIN = "wmma_load_16x16x16_f16_a_trans_shared_dyn"
+TensorIntrin.register(
+    WMMA_LOAD_16x16x16_F16_A_TRANS_DYN_INTRIN,
+    *get_wmma_load_intrin(16, 16, 16, "float16", "shared.dyn", False, True),
+)
+
+WMMA_LOAD_16x16x16_F16_B_TRANS_INTRIN = "wmma_load_16x16x16_f16_b_trans_shared"
 TensorIntrin.register(
     WMMA_LOAD_16x16x16_F16_B_TRANS_INTRIN,
     *get_wmma_load_intrin(16, 16, 16, "float16", "shared", True, True),
 )
 
-WMMA_LOAD_16x16x16_S8_A_INTRIN = "wmma_load_16x16x16_s8_a"
+WMMA_LOAD_16x16x16_F16_B_TRANS_DYN_INTRIN = "wmma_load_16x16x16_f16_b_trans_shared_dyn"
+TensorIntrin.register(
+    WMMA_LOAD_16x16x16_F16_B_TRANS_DYN_INTRIN,
+    *get_wmma_load_intrin(16, 16, 16, "float16", "shared.dyn", True, True),
+)
+
+WMMA_LOAD_16x16x16_S8_A_INTRIN = "wmma_load_16x16x16_s8_a_shared"
 TensorIntrin.register(
     WMMA_LOAD_16x16x16_S8_A_INTRIN,
     *get_wmma_load_intrin(16, 16, 16, "int8", "shared", False, False),
 )
 
-WMMA_LOAD_16x16x16_S8_B_INTRIN = "wmma_load_16x16x16_s8_b"
+WMMA_LOAD_16x16x16_S8_A_DYN_INTRIN = "wmma_load_16x16x16_s8_a_shared_dyn"
+TensorIntrin.register(
+    WMMA_LOAD_16x16x16_S8_A_DYN_INTRIN,
+    *get_wmma_load_intrin(16, 16, 16, "int8", "shared.dyn", False, False),
+)
+
+WMMA_LOAD_16x16x16_S8_B_INTRIN = "wmma_load_16x16x16_s8_b_shared"
 TensorIntrin.register(
     WMMA_LOAD_16x16x16_S8_B_INTRIN,
     *get_wmma_load_intrin(16, 16, 16, "int8", "shared", True, False),
 )
 
-WMMA_LOAD_16x16x16_S8_A_TRANS_INTRIN = "wmma_load_16x16x16_s8_a_trans"
+WMMA_LOAD_16x16x16_S8_B_DYN_INTRIN = "wmma_load_16x16x16_s8_b_shared_dyn"
+TensorIntrin.register(
+    WMMA_LOAD_16x16x16_S8_B_DYN_INTRIN,
+    *get_wmma_load_intrin(16, 16, 16, "int8", "shared.dyn", True, False),
+)
+
+WMMA_LOAD_16x16x16_S8_A_TRANS_INTRIN = "wmma_load_16x16x16_s8_a_trans_shared"
 TensorIntrin.register(
     WMMA_LOAD_16x16x16_S8_A_TRANS_INTRIN,
     *get_wmma_load_intrin(16, 16, 16, "int8", "shared", False, True),
 )
 
-WMMA_LOAD_16x16x16_S8_B_TRANS_INTRIN = "wmma_load_16x16x16_s8_b_trans"
+WMMA_LOAD_16x16x16_S8_A_TRANS_DYN_INTRIN = "wmma_load_16x16x16_s8_a_trans_shared_dyn"
+TensorIntrin.register(
+    WMMA_LOAD_16x16x16_S8_A_TRANS_DYN_INTRIN,
+    *get_wmma_load_intrin(16, 16, 16, "int8", "shared.dyn", False, True),
+)
+
+WMMA_LOAD_16x16x16_S8_B_TRANS_INTRIN = "wmma_load_16x16x16_s8_b_trans_shared"
 TensorIntrin.register(
     WMMA_LOAD_16x16x16_S8_B_TRANS_INTRIN,
     *get_wmma_load_intrin(16, 16, 16, "int8", "shared", True, True),
 )
 
+WMMA_LOAD_16x16x16_S8_B_TRANS_DYN_INTRIN = "wmma_load_16x16x16_s8_b_trans_shared_dyn"
+TensorIntrin.register(
+    WMMA_LOAD_16x16x16_S8_B_TRANS_DYN_INTRIN,
+    *get_wmma_load_intrin(16, 16, 16, "int8", "shared.dyn", True, True),
+)
 
 WMMA_FILL_16x16x16_F32_INTRIN = "wmma_fill_16x16x16_f32"
 TensorIntrin.register(WMMA_FILL_16x16x16_F32_INTRIN, *get_wmma_fill_intrin(16, 16, 16, "float32"))
@@ -878,14 +927,32 @@ TensorIntrin.register(
     WMMA_STORE_16x16x16_F32_SHARED_INTRIN, *get_wmma_store_intrin(16, 16, 16, "float32", "shared")
 )
 
+WMMA_STORE_16x16x16_F32_SHARED_DYN_INTRIN = "wmma_store_16x16x16_f32_shared_dyn"
+TensorIntrin.register(
+    WMMA_STORE_16x16x16_F32_SHARED_DYN_INTRIN,
+    *get_wmma_store_intrin(16, 16, 16, "float32", "shared.dyn"),
+)
+
 WMMA_STORE_16x16x16_F16_SHARED_INTRIN = "wmma_store_16x16x16_f16_shared"
 TensorIntrin.register(
     WMMA_STORE_16x16x16_F16_SHARED_INTRIN, *get_wmma_store_intrin(16, 16, 16, "float16", "shared")
 )
 
+WMMA_STORE_16x16x16_F16_SHARED_DYN_INTRIN = "wmma_store_16x16x16_f16_shared_dyn"
+TensorIntrin.register(
+    WMMA_STORE_16x16x16_F16_SHARED_DYN_INTRIN,
+    *get_wmma_store_intrin(16, 16, 16, "float16", "shared.dyn"),
+)
+
 WMMA_STORE_16x16x16_S32_SHARED_INTRIN = "wmma_store_16x16x16_s32_shared"
 TensorIntrin.register(
     WMMA_STORE_16x16x16_S32_SHARED_INTRIN, *get_wmma_store_intrin(16, 16, 16, "int32", "shared")
+)
+
+WMMA_STORE_16x16x16_S32_SHARED_DYN_INTRIN = "wmma_store_16x16x16_s32_shared_dyn"
+TensorIntrin.register(
+    WMMA_STORE_16x16x16_S32_SHARED_DYN_INTRIN,
+    *get_wmma_store_intrin(16, 16, 16, "int32", "shared.dyn"),
 )
 
 WMMA_STORE_16x16x16_F32_GLOBAL_INTRIN = "wmma_store_16x16x16_f32_global"
@@ -905,14 +972,21 @@ TensorIntrin.register(
 
 
 def get_wmma_intrin_group(
-    store_scope: str, in_dtype: str, out_dtype: str, trans_b: bool
+    load_scope: Literal["shared", "shared.dyn"],
+    store_scope: Literal["global", "shared", "shared.dyn"],
+    in_dtype: str,
+    out_dtype: str,
+    trans_b: bool,
 ) -> Dict[str, str]:
     """Get a group of intrinsics for wmma tensor core with the given configurations
 
     Parameters
     ----------
-    store_scope : str
-        Must be one of ["global", "shared"]. The memory scope of the result buffer.
+    load_scope : Literal["shared", "shared.dyn"]
+        The memory scope of the input buffer.
+
+    store_scope : Literal["global", "shared", "shared.dyn"]
+        The memory scope of the result buffer.
 
     in_dtype : str
         The input data type.
@@ -928,51 +1002,35 @@ def get_wmma_intrin_group(
     ret : Dict[str, str]
         A group of tensor intrinsics.
     """
-    assert store_scope in ["global", "shared"]
+    assert load_scope in ["shared", "shared.dyn"]
+    assert store_scope in ["global", "shared", "shared.dyn"]
     assert in_dtype in ["float16", "int8"]
     assert out_dtype in ["float16", "float32", "int32"]
 
-    load_a_intrins = {
-        "float16": WMMA_LOAD_16x16x16_F16_A_INTRIN,
-        "int8": WMMA_LOAD_16x16x16_S8_A_INTRIN,
-    }
-    load_b_intrins = {
-        "float16": WMMA_LOAD_16x16x16_F16_B_TRANS_INTRIN
-        if trans_b
-        else WMMA_LOAD_16x16x16_F16_B_INTRIN,
-        "int8": WMMA_LOAD_16x16x16_S8_B_TRANS_INTRIN if trans_b else WMMA_LOAD_16x16x16_S8_B_INTRIN,
-    }
-    compute_intrins = {
-        "float16": WMMA_SYNC_16x16x16_f16f16f16_TRANS_INTRIN
-        if trans_b
-        else WMMA_SYNC_16x16x16_f16f16f16_INTRIN,
-        "float32": WMMA_SYNC_16x16x16_f16f16f32_TRANS_INTRIN
-        if trans_b
-        else WMMA_SYNC_16x16x16_f16f16f32_INTRIN,
-        "int32": WMMA_SYNC_16x16x16_s8s8s32_TRANS_INTRIN
-        if trans_b
-        else WMMA_SYNC_16x16x16_s8s8s32_INTRIN,
-    }
-    init_intrins = {
-        "float16": WMMA_FILL_16x16x16_F16_INTRIN,
-        "float32": WMMA_FILL_16x16x16_F32_INTRIN,
-        "int32": WMMA_FILL_16x16x16_S32_INTRIN,
-    }
-    store_intrins = {
-        "float16": WMMA_STORE_16x16x16_F16_SHARED_INTRIN
-        if store_scope == "shared"
-        else WMMA_STORE_16x16x16_F16_GLOBAL_INTRIN,
-        "float32": WMMA_STORE_16x16x16_F32_SHARED_INTRIN
-        if store_scope == "shared"
-        else WMMA_STORE_16x16x16_F32_GLOBAL_INTRIN,
-        "int32": WMMA_STORE_16x16x16_S32_SHARED_INTRIN
-        if store_scope == "shared"
-        else WMMA_STORE_16x16x16_S32_GLOBAL_INTRIN,
-    }
+    shape = "16x16x16"
+    in_dtype = "f16" if in_dtype == "float16" else "s8"
+    out_dtype = "f16" if out_dtype == "float16" else "f32" if out_dtype == "float32" else "s32"
+    # convert "shared.dyn" to "shared_dyn"
+    load_scope = load_scope.replace(".", "_")
+    store_scope = store_scope.replace(".", "_")
+    trans_a = ""
+    trans_b = "_trans" if trans_b else ""
+
+    # e.g. wmma_load_16x16x16_f16_a_shared
+    load_a_intrin = f"wmma_load_{shape}_{in_dtype}_a{trans_a}_{load_scope}"
+    # e.g. wmma_load_16x16x16_f16_b_trans_shared_dyn
+    load_b_intrin = f"wmma_load_{shape}_{in_dtype}_b{trans_b}_{load_scope}"
+    # e.g. wmma_sync_16x16x16_f16f16f32_trans
+    compute_intrin = f"wmma_sync_{shape}_{in_dtype}{in_dtype}{out_dtype}{trans_b}"
+    # e.g. wmma_fill_16x16x16_f16
+    init_intrin = f"wmma_fill_{shape}_{out_dtype}"
+    # e.g. wmma_store_16x16x16_f16_shared_dyn
+    store_intrin = f"wmma_store_{shape}_{out_dtype}_{store_scope}"
+
     return {
-        "init": init_intrins[out_dtype],
-        "load_a": load_a_intrins[in_dtype],
-        "load_b": load_b_intrins[in_dtype],
-        "compute": compute_intrins[out_dtype],
-        "store": store_intrins[out_dtype],
+        "init": init_intrin,
+        "load_a": load_a_intrin,
+        "load_b": load_b_intrin,
+        "compute": compute_intrin,
+        "store": store_intrin,
     }

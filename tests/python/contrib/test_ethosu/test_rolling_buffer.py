@@ -100,4 +100,4 @@ def test_rolling_buffer_3_layers(axis, ifm_shape, pool_shape):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

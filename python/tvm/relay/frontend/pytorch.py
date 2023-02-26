@@ -210,6 +210,18 @@ class PyTorchOpConverter:
     def infer_shape_with_prelude(self, inputs):
         return self.infer_shape(inputs, mod=self.prelude.mod)
 
+    def is_empty_shape(self, shape):
+        rank = len(shape)
+        if rank:
+            is_empty = False
+            for i in range(rank):
+                if shape[i] == 0:
+                    is_empty = True
+                    break
+            return is_empty
+        else:
+            return True
+
     def record_output_type(self, output):
         if isinstance(output, tuple):
             cleaned_output = [o for o in output if o is not None]
@@ -726,6 +738,8 @@ class PyTorchOpConverter:
             size = _op.concatenate(tmp, axis=0)
 
         if not isinstance(fill_value, _expr.Constant):
+            if isinstance(fill_value, _expr.Expr):
+                fill_value = _infer_value(fill_value, {})
             fill_value = _expr.const(fill_value, dtype=dtype)
         out = _op.full(fill_value, size, dtype=dtype)
         if need_reshape:
@@ -1871,70 +1885,77 @@ class PyTorchOpConverter:
         return beta * input + alpha * _op.nn.batch_matmul(batch1, batch2, transpose_b=False)
 
     def matmul(self, inputs, input_types):
+        assert len(inputs) == 2, "Two tensors to be multiplied are expected."
 
-        inputs_0 = inputs[0]
-        inputs_1 = inputs[1]
+        a = inputs[0]
+        b = inputs[1]
 
         # Need to check input shape as batch matmul must be supported.
-        a_shape = self.infer_shape_with_prelude(inputs_0)
-        b_shape = self.infer_shape_with_prelude(inputs_1)
+        a_shape = self.infer_shape_with_prelude(a)
+        b_shape = self.infer_shape_with_prelude(b)
 
-        # When performing a batch matmul, we need to properly handle N-dim shapes.
-        if len(a_shape) > 2 and len(b_shape) > 2:
-            # Convert a into a 3 dimensional tensors.
-            need_reshape_output = False
-            if len(a_shape) != 3:
-                a = _op.reshape(inputs_0, [-1, a_shape[-2], a_shape[-1]])
-                need_reshape_output = True
-            else:
-                a = inputs_0
+        a_ndims = len(a_shape)
+        b_ndims = len(b_shape)
 
-            # Transpose matrix dimensions of b.
-            trans_axes = list(range(len(b_shape)))
-            trans_axes[-2], trans_axes[-1] = trans_axes[-1], trans_axes[-2]
-            b = _op.transpose(inputs_1, trans_axes)
+        # Check if both tensors are at least 1D.
+        if a_ndims == 0 or b_ndims == 0:
+            msg = "Both arguments to matmul must be at least 1D."
+            raise AssertionError(msg)
 
-            # Convert b into a 3 dimensional tensor. Note that the last two dimensions
-            # are transposed.
-            if len(b_shape) != 3:
-                b = _op.reshape(b, [-1, b_shape[-1], b_shape[-2]])
+        # Check if tensors can be multiplied.
+        b_mulaxis = b_shape[-2] if b_ndims > 1 else b_shape[0]
+        if a_shape[-1] != b_mulaxis:
+            msg = "Tensors being multiplied do not have compatible shapes."
+            raise AssertionError(msg)
 
-            # Perform a batch matmul.
-            output = _op.nn.batch_matmul(a, b)
+        # If 1D, remember axis that should be deleted at the end
+        squeeze_dims = []
+        if a_ndims == 1:
+            a = _op.expand_dims(a, axis=0)
+            squeeze_dims += [-2]
+            a_ndims = 2
+            a_shape = (1,) + a_shape
 
-            # Reshape output to original dimensions.
-            if need_reshape_output:
-                return _op.reshape(output, [*a_shape[:-2], a_shape[-2], b_shape[-1]])
-            return output
-        elif len(a_shape) > 2:
-            inputs_0 = _op.reshape(inputs_0, [-1, a_shape[-1]])
-        elif len(a_shape) == 1:
-            return _op.squeeze(_op.nn.matmul(_op.expand_dims(inputs_0, axis=0), inputs_1), axis=[0])
+        if b_ndims == 1:
+            b = _op.expand_dims(b, axis=1)
+            squeeze_dims += [-1]
+            b_ndims = 2
+            b_shape = b_shape + (1,)
 
-        if len(b_shape) > 2:
-            trans_axes = list(range(len(b_shape)))
-            trans_axes[-2], trans_axes[-1] = trans_axes[-1], trans_axes[-2]
-            input_1 = _op.reshape(_op.transpose(inputs_1, trans_axes), [-1, b_shape[-2]])
-        elif len(b_shape) == 2:
-            input_1 = _op.transpose(inputs_1, axes=(1, 0))
-        elif len(b_shape) == 1:
-            input_1 = _op.expand_dims(inputs_1, 0, 1)
+        # Compute result
+        if a_ndims == 2 and b_ndims == 2:
+            # Result is obtained using matmul
+            out = _op.nn.dense(a, _op.transpose(b))
+        else:
+            # Result is obtained using batch_matmul
+            batch_shape = [1] * (max(a_ndims, b_ndims) - 2)
 
-        out = _op.nn.dense(inputs_0, input_1)
+            for i, j in enumerate(reversed(a_shape[:-2])):
+                batch_shape[i] = j
 
-        if len(b_shape) == 1:
-            out = _op.squeeze(out, axis=[-1])
+            for i, j in enumerate(reversed(b_shape[:-2])):
+                # Need to check if axis can be broadcasted
+                if batch_shape[i] == 1 or j == 1 or batch_shape[i] == j:
+                    batch_shape[i] = max(batch_shape[i], j)
+                else:
+                    msg = "Batch dimensions are not broadcastable."
+                    raise AssertionError(msg)
 
-        # Reshape output into a N dimensional tensor when a or b dim > 2
-        if len(a_shape) > 2:
-            out = _op.reshape(out, [*a_shape[:-1], b_shape[-1]])
-        elif len(b_shape) > 2:
-            out = _op.reshape(out, [a_shape[-2], -1, b_shape[-1]])
-            out = _op.reshape(
-                _op.transpose(out, [1, 0, 2]), [*b_shape[:-2], a_shape[-2], b_shape[-1]]
+            batch_shape = batch_shape[::-1]
+
+            a = _op.broadcast_to(a, batch_shape + list(a_shape[-2:]))
+            b = _op.broadcast_to(b, batch_shape + list(b_shape[-2:]))
+
+            out = _op.nn.batch_matmul(
+                _op.reshape(a, [-1, *a_shape[-2:]]),
+                _op.reshape(b, [-1, *b_shape[-2:]]),
+                transpose_b=False,
             )
 
-        return out
+            out_shape = batch_shape + [a_shape[-2]] + [b_shape[-1]]
+            out = _op.reshape(out, out_shape)
+
+        return _op.squeeze(out, axis=squeeze_dims)
 
     def expand(self, inputs, input_types):
         data_in = inputs[0]
@@ -2330,19 +2351,49 @@ class PyTorchOpConverter:
 
     def index(self, inputs, input_types):
         data = inputs[0]
-        indices_list = []
+        data_shape = self.infer_type(data).shape
 
-        for indices in inputs[1]:
-            if self.infer_type(indices).dtype == "bool":
+        axes_adv_idx = [i for i, v in enumerate(inputs[1]) if v is not None]
+        axes_rest = [i for i in range(len(data_shape)) if i not in axes_adv_idx]
+
+        # check if the adv_index axes are consecutive
+        # if consecutive, result must be transposed again at the end
+        consecutive = True
+        for curr, nxt in zip(axes_adv_idx[:-1], axes_adv_idx[1:]):
+            if nxt - curr != 1:
+                consecutive = False
+                break
+
+        indices_list = []
+        axes_order = axes_adv_idx + axes_rest
+
+        for i in axes_adv_idx:
+            inp = inputs[1][i]
+            if self.infer_type(inp).dtype == "bool":
                 # adv_index does not support a mask as the index tensor (it will treat 0/1 as
                 # an index rather than a flag).
                 # So we use argwhere to turn the mask into indices, which will also take care
                 # of the dynamism in the indexing by mask.
-                indices_list.append(_op.squeeze(_op.transform.argwhere(indices), axis=[1]))
+                indices_list.append(_op.squeeze(_op.transform.argwhere(inp), axis=[1]))
             else:
-                indices_list.append(indices)
+                indices_list.append(inp)
 
-        return _op.adv_index([data] + indices_list)
+        data_after_adv_index = _op.adv_index([_op.transpose(data, axes=axes_order)] + indices_list)
+
+        if consecutive:
+            num_dims = len(self.infer_type(data_after_adv_index).shape)
+            num_new_dims = num_dims - len(axes_rest)
+
+            axes_final_order = list(range(num_dims))
+            axes_final_order = (
+                axes_final_order[num_new_dims : num_new_dims + axes_adv_idx[0]]
+                + axes_final_order[:num_new_dims]
+                + axes_final_order[num_new_dims + axes_adv_idx[0] :]
+            )
+
+            return _op.transpose(data_after_adv_index, axes=axes_final_order)
+        else:
+            return data_after_adv_index
 
     def meshgrid(self, inputs, input_types):
         data = inputs[0]
@@ -2634,18 +2685,91 @@ class PyTorchOpConverter:
             updates = _op.ones_like(data)
 
         counts = _op.zeros(_op.reshape(dim, [1]), out_dtype)
-        out = _op.scatter_add(counts, data, updates, axis=0)
+        out = _op.scatter_elements(counts, data, updates, axis=0, reduction="add")
         if input_type == "int32":
             # Torch always outputs int64 results for bincount
             return _op.cast(out, "int64")
         return out
 
     def scatter_add(self, inputs, input_types):
+        assert (
+            len(inputs) == 4
+        ), "scatter_add takes 4 inputs (data, dim, index, src), but {} given".format(len(inputs))
         data = inputs[0]
         axis = inputs[1]
         index = inputs[2]
         src = inputs[3]
-        return _op.scatter_add(data, index, src, axis=axis)
+
+        data_shape = self.infer_shape(inputs[0])
+        data_rank = len(data_shape)
+        index_shape = self.infer_shape(inputs[2])
+        index_rank = len(index_shape)
+        # When index is empty, the operation returns data unchanged
+        if self.is_empty_shape(index_shape):
+            return data
+        src_shape = self.infer_shape(inputs[3])
+        src_rank = len(src_shape)
+        assert data_rank == index_rank, "Index rank is not the same as data rank"
+        assert data_rank == src_rank, "Src rank is not the same as data rank"
+
+        assert 0 <= axis < data_rank, "Dim is out of bounds"
+
+        for i in range(data_rank):
+            assert index_shape[i] <= src_shape[i], "Index dim size should be less than src one"
+            if i != axis:
+                assert (
+                    index_shape[i] <= data_shape[i]
+                ), "Index dim size should be less than data one"
+
+        return _op.scatter_elements(data, index, src, axis=axis, reduction="add")
+
+    def scatter_reduce(self, inputs, input_types):
+        assert len(inputs) == 5 or len(inputs) == 6, (
+            "scatter_reduce takes 5 or 6 inputs (data, dim, index, src, reduce, include_self), "
+            + "but {} given".format(len(inputs))
+        )
+        data = inputs[0]
+        dim = inputs[1]
+        index = inputs[2]
+        src = inputs[3]
+        reduce = inputs[4]
+        if len(inputs) == 6:
+            include_self = inputs[5]
+            # TODO(vvchernov): support include_self == False
+            assert include_self, "include_self=False has not been suppoted for scatter_reduce yet"
+
+        data_shape = self.infer_shape(inputs[0])
+        data_rank = len(data_shape)
+        index_shape = self.infer_shape(inputs[2])
+        index_rank = len(index_shape)
+        src_shape = self.infer_shape(inputs[3])
+        src_rank = len(src_shape)
+        assert data_rank == index_rank, "Index rank is not the same as data rank"
+        assert data_rank == src_rank, "Src rank is not the same as data rank"
+
+        assert 0 <= dim < data_rank, "Dim is out of bounds"
+
+        for i in range(data_rank):
+            assert index_shape[i] <= src_shape[i], "Index dim size should be less than src one"
+            if i != dim:
+                assert (
+                    index_shape[i] <= data_shape[i]
+                ), "Index dim size should be less than data one"
+
+        red_valids = ["sum", "prod", "mean", "amax", "amin"]
+        assert reduce in red_valids, "Only {} modes are supported, but {} is gotten".format(
+            red_valids, reduce
+        )
+        if reduce == "sum":
+            reduce = "add"
+        elif reduce == "prod":
+            reduce = "mul"
+        elif reduce == "amin":
+            reduce = "min"
+        elif reduce == "amax":
+            reduce = "max"
+
+        return _op.scatter_elements(data, index, src, axis=dim, reduction=reduce)
 
     def cumsum(self, inputs, input_types):
         data = inputs[0]
@@ -3514,6 +3638,20 @@ class PyTorchOpConverter:
         _, indices = _expr.TupleWrapper(output, 2)
         return indices
 
+    def weight_norm(self, inputs, input_types):
+        weight_v, weight_g = inputs[0], inputs[1]
+        dim = inputs[2]
+        dtype = input_types[0]
+        order = 2.0
+        reci_order = _expr.const(1.0 / order, dtype=dtype)
+        order = _expr.const(order)
+
+        norm_v = _op.power(
+            _op.reduce.sum(_op.power(_op.abs(weight_v), order), axis=dim, exclude=2, keepdims=True),
+            reci_order,
+        )
+        return weight_g * (weight_v / norm_v)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -3734,6 +3872,8 @@ class PyTorchOpConverter:
             "aten::nonzero": self.nonzero,
             "aten::nonzero_numpy": self.nonzero_numpy,
             "aten::scatter": self.scatter,
+            "aten::scatter_add": self.scatter_add,
+            "aten::scatter_reduce": self.scatter_reduce,
             "aten::index_put": self.index_put,
             "aten::scalar_tensor": self.scalar_tensor,
             "aten::__interpolate": self.interpolate,
@@ -3745,7 +3885,6 @@ class PyTorchOpConverter:
             "aten::new_empty": self.new_empty,
             "aten::randn": self.randn,
             "aten::bincount": self.bincount,
-            "aten::scatter_add": self.scatter_add,
             "aten::__not__": self.logical_not,
             "aten::hardswish": self.hard_swish,
             "aten::hardsigmoid": self.hard_sigmoid,
@@ -3781,6 +3920,7 @@ class PyTorchOpConverter:
             "aten::__lshift__": self.make_elemwise("left_shift"),
             "aten::__rshift__": self.make_elemwise("right_shift"),
             "aten::multinomial": self.multinomial,
+            "aten::_weight_norm": self.weight_norm,
         }
 
     def update_convert_map(self, custom_map):

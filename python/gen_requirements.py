@@ -251,7 +251,8 @@ CONSTRAINTS = [
     ("h5py", "==2.10.0"),
     ("image", None),
     ("matplotlib", None),
-    ("numpy", None),
+    # Workaround, see https://github.com/apache/tvm/issues/13647
+    ("numpy", "<=1.23"),
     ("onnx", None),
     ("onnxoptimizer", None),
     ("onnxruntime", None),
@@ -275,7 +276,7 @@ CONSTRAINTS = [
     ("torch", None),
     ("torchvision", None),
     ("tornado", None),
-    ("xgboost", ">=1.1.0,<1.6.0"),  # From PR #4953 & Issue #12009
+    ("xgboost", ">=1.1.0"),  # From PR #4953 & Issue #12009
 ]
 
 ################################################################################

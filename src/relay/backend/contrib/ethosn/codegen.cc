@@ -190,6 +190,17 @@ void InferTensorsVisitor::VisitExpr_(const CallNode* cn) {
   }
 }
 
+void ConstructNetworkVisitor::VisitExpr_(const ConstantNode* cn) {
+  Constant constant = GetRef<Constant>(cn);
+  if (tensor_table_.count(constant)) {
+    sl::TensorInfo tensor_info = tensor_table_[constant][0];
+    sl::TensorAndId<sl::Constant> tensor_and_id =
+        sl::AddConstant(network_, tensor_info, constant->data->data);
+    auto operand = sl::GetOperand(tensor_and_id.tensor);
+    operand_table_[constant] = std::vector{operand};
+  }
+}
+
 void InferTensorsVisitor::VisitExpr_(const TupleNode* tn) {
   auto tuple = GetRef<Tuple>(tn);
   ICHECK(tensor_table_.find(tuple) != tensor_table_.end());

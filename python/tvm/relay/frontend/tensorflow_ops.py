@@ -1847,7 +1847,7 @@ def _reshape():
                 shape_arg = tuple(params_new.numpy().astype("int32").flatten())
             except Exception:
                 # Deal with symbolic shape case.
-                if isinstance(pop_node, _expr.Call) and "shape_of" in str(pop_node.op):
+                if isinstance(pop_node, _expr.Call) and "shape_of" in str(pop_node.op.name):
                     # shape_of is the direct ancestor.
                     return _op.reshape_like(inputs[0], pop_node.args[0])
                 shape_arg = pop_node
@@ -2383,6 +2383,24 @@ def _where():
     def _impl(inputs, attr, params, mod):
         if len(inputs) == 1:
             return AttrCvt(op_name="argwhere")(inputs, attr)
+        cond_shape = _infer_shape(inputs[0], mod)
+        x_shape = _infer_shape(inputs[1], mod)
+        # Due to difference in broadcast behavior between Select and SelectV2,
+        # we adjust condition dimension with expand_dim and then broadcast.
+        if len(cond_shape) == 1 and cond_shape[0] == x_shape[0]:
+            for _ in range(len(x_shape) - 1):
+                inputs[0] = _op.expand_dims(inputs[0], axis=-1)
+            broadcast_cond = _op.broadcast_to(inputs[0], x_shape)
+            inputs[0] = _op.cast(broadcast_cond, "bool")
+        return AttrCvt(op_name="where")(inputs, attr)
+
+    return _impl
+
+
+def _where_v2():
+    def _impl(inputs, attr, params, mod):
+        if len(inputs) == 1:
+            return AttrCvt(op_name="argwhere")(inputs, attr)
         return AttrCvt(op_name="where")(inputs, attr)
 
     return _impl
@@ -2900,7 +2918,7 @@ def _bincount():
 
         counts_shape = _op.reshape(size, [1])
         counts = _op.zeros(counts_shape, out_dtype)
-        out = _op.scatter_add(counts, input, updates, axis=0)
+        out = _op.scatter_elements(counts, input, updates, axis=0, reduction="add")
         return out
 
     return _impl
@@ -2947,11 +2965,11 @@ def _dense_bincount():
             size_arr = _op.reshape(size, [1])
             counts_shape = _op.concatenate([batch_arr, size_arr], axis=0)
             counts = _op.zeros(counts_shape, out_dtype)
-            out = _op.scatter_add(counts, input, updates, axis=1)
+            out = _op.scatter_elements(counts, input, updates, axis=1, reduction="add")
         else:
             counts_shape = _op.reshape(size, [1])
             counts = _op.zeros(counts_shape, out_dtype)
-            out = _op.scatter_add(counts, input, updates, axis=0)
+            out = _op.scatter_elements(counts, input, updates, axis=0, reduction="add")
 
         if attr["binary_output"]:
             out = _op.cast(_op.cast(out, "bool"), out_dtype)
@@ -3088,7 +3106,7 @@ _convert_map = {
     "Round": AttrCvt("round"),
     "Rsqrt": _rsqrt(),
     "Select": _where(),
-    "SelectV2": _where(),
+    "SelectV2": _where_v2(),
     "Selu": _selu(),
     "Shape": _shape(),
     "Sigmoid": AttrCvt("sigmoid"),
@@ -3142,6 +3160,6 @@ _convert_map = {
     "UniqueWithCounts": _unique(True),
     "Unpack": _unpack(),
     "UnravelIndex": _unravel_index(),
-    "Where": _where(),
+    "Where": _where_v2(),
     "ZerosLike": AttrCvt("zeros_like"),
 }

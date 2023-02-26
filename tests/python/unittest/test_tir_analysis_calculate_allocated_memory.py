@@ -22,14 +22,14 @@ from tvm.script import tir as T
 
 
 @T.prim_func
-def scale_by_two(a: T.Buffer[(128,), "int8"], c: T.Buffer[(128,), "int8"]):
+def scale_by_two(a: T.Buffer((128,), "int8"), c: T.Buffer((128,), "int8")):
     for i in T.serial(128):
         with T.block("C"):
             c[i] = a[i] * T.int8(2)
 
 
 @T.prim_func
-def scale_by_two_three(a: T.Buffer[(128,), "int8"], c: T.Buffer[(128,), "int8"]):
+def scale_by_two_three(a: T.Buffer((128,), "int8"), c: T.Buffer((128,), "int8")):
     B = T.alloc_buffer([128], dtype="int8", scope="global.vtcm")
     for i in T.serial(128):
         with T.block("B"):

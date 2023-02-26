@@ -92,4 +92,6 @@ function run_pytest() {
     if [ "$exit_code" -ne "0" ] && [ "$exit_code" -ne "5" ]; then
         pytest_errors+=("${suite_name}: $@")
     fi
+    # To avoid overwriting.
+    set -e
 }

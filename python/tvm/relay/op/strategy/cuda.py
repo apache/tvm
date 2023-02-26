@@ -918,13 +918,16 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
             name="dense_int8.cuda",
         )
     else:
-        strategy.add_implementation(
-            wrap_compute_dense(topi.gpu.dense_small_batch),
-            wrap_topi_schedule(topi.gpu.schedule_dense_small_batch),
-            name="dense_small_batch.gpu",
-        )
+        # Some AMDGPU cards have accuracy issues with this schedule
+        # See https://github.com/apache/tvm/issues/13666
+        if target.kind.name != "rocm":
+            strategy.add_implementation(
+                wrap_compute_dense(topi.gpu.dense_small_batch),
+                wrap_topi_schedule(topi.gpu.schedule_dense_small_batch),
+                name="dense_small_batch.gpu",
+            )
 
-        with SpecializedCondition(b >= 32):
+        with SpecializedCondition(target.kind.name == "rocm" or b >= 32):
             strategy.add_implementation(
                 wrap_compute_dense(topi.gpu.dense_large_batch),
                 wrap_topi_schedule(topi.gpu.schedule_dense_large_batch),
@@ -1083,16 +1086,17 @@ def scatter_cuda(attrs, inputs, out_type, target):
     return strategy
 
 
-@scatter_add_strategy.register(["cuda", "gpu"])
-def scatter_add_cuda(attrs, inputs, out_type, target):
-    """scatter_add cuda strategy"""
+@scatter_elements_strategy.register(["cuda", "gpu"])
+def scatter_elements_cuda(attrs, inputs, out_type, target):
+    """scatter elements cuda strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_scatter(topi.cuda.scatter_add),
-        wrap_topi_schedule(topi.generic.schedule_extern),
-        name="scatter_add.cuda",
+        wrap_compute_scatter_elements(topi.cuda.scatter_elements),
+        wrap_topi_schedule(topi.cuda.schedule_extern),
+        name="scatter_elements.cuda",
         plevel=10,
     )
+    # TODO(vvchernov): There is possible specification for rank=1 as for scatter
     return strategy
 
 

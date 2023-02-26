@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """TVM Script Parser utils"""
-
 import inspect
 from types import FrameType
 from typing import Any, Callable, Dict, List

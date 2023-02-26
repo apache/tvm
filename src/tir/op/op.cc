@@ -39,13 +39,13 @@ namespace tvm {
 using namespace tir;
 
 // macro to register an unary op
-#define TIR_REGISTER_PURE_UNARY_OP(OpName)                             \
-  TVM_REGISTER_OP(OpName).set_num_inputs(1).set_attr<TCallEffectKind>( \
+#define TVM_TIR_REGISTER_PURE_UNARY_OP(OpName)                             \
+  TVM_TIR_REGISTER_OP(OpName).set_num_inputs(1).set_attr<TCallEffectKind>( \
       "TCallEffectKind", Integer(CallEffectKind::kPure))
 
 // macro to register an binary op
-#define TIR_REGISTER_PURE_BINARY_OP(OpName)                            \
-  TVM_REGISTER_OP(OpName).set_num_inputs(2).set_attr<TCallEffectKind>( \
+#define TVM_TIR_REGISTER_PURE_BINARY_OP(OpName)                            \
+  TVM_TIR_REGISTER_OP(OpName).set_num_inputs(2).set_attr<TCallEffectKind>( \
       "TCallEffectKind", Integer(CallEffectKind::kPure))
 
 runtime::DataType GetRuntimeDataType(const Type& type) {
@@ -657,7 +657,7 @@ PrimExpr pow(PrimExpr x, PrimExpr y, Span span) {
   return tir::Call(x.dtype(), op, {x, y}, span);
 }
 
-TIR_REGISTER_PURE_BINARY_OP("tir.pow").set_attr<TVectorizable>("TVectorizable", true);
+TVM_TIR_REGISTER_PURE_BINARY_OP("pow").set_attr<TVectorizable>("TVectorizable", true);
 
 // abs
 PrimExpr abs(PrimExpr x, Span span) {
@@ -685,7 +685,7 @@ PrimExpr abs(PrimExpr x, Span span) {
   }
 }
 
-TIR_REGISTER_PURE_UNARY_OP("tir.fabs").set_attr<TVectorizable>("TVectorizable", true);
+TVM_TIR_REGISTER_PURE_UNARY_OP("fabs").set_attr<TVectorizable>("TVectorizable", true);
 
 // isnan
 PrimExpr isnan(PrimExpr x, Span span) {
@@ -783,7 +783,7 @@ PrimExpr fmod(PrimExpr x, PrimExpr y, Span span) {
   return tir::Call(x.dtype(), op, {x, y}, span);
 }
 
-TIR_REGISTER_PURE_UNARY_OP("tir.fmod");
+TVM_TIR_REGISTER_PURE_UNARY_OP("fmod");
 
 // floor
 PrimExpr floor(PrimExpr x, Span span) {
@@ -797,7 +797,7 @@ PrimExpr floor(PrimExpr x, Span span) {
   return tir::Call(x.dtype(), op, {x}, span);
 }
 
-TIR_REGISTER_PURE_UNARY_OP("tir.floor").set_attr<TVectorizable>("TVectorizable", true);
+TVM_TIR_REGISTER_PURE_UNARY_OP("floor").set_attr<TVectorizable>("TVectorizable", true);
 
 // ceil
 PrimExpr ceil(PrimExpr x, Span span) {
@@ -811,7 +811,7 @@ PrimExpr ceil(PrimExpr x, Span span) {
   return tir::Call(x.dtype(), op, {x}, span);
 }
 
-TIR_REGISTER_PURE_UNARY_OP("tir.ceil").set_attr<TVectorizable>("TVectorizable", true);
+TVM_TIR_REGISTER_PURE_UNARY_OP("ceil").set_attr<TVectorizable>("TVectorizable", true);
 
 // round
 PrimExpr round(PrimExpr x, Span span) {
@@ -825,7 +825,7 @@ PrimExpr round(PrimExpr x, Span span) {
   return tir::Call(x.dtype(), op, {x}, span);
 }
 
-TIR_REGISTER_PURE_UNARY_OP("tir.round").set_attr<TVectorizable>("TVectorizable", true);
+TVM_TIR_REGISTER_PURE_UNARY_OP("round").set_attr<TVectorizable>("TVectorizable", true);
 
 // nearbyint
 PrimExpr nearbyint(PrimExpr x, Span span) {
@@ -839,7 +839,7 @@ PrimExpr nearbyint(PrimExpr x, Span span) {
   return tir::Call(x.dtype(), op, {x}, span);
 }
 
-TIR_REGISTER_PURE_UNARY_OP("tir.nearbyint");
+TVM_TIR_REGISTER_PURE_UNARY_OP("nearbyint");
 
 // trunc
 PrimExpr trunc(PrimExpr x, Span span) {
@@ -856,67 +856,77 @@ PrimExpr trunc(PrimExpr x, Span span) {
   return tir::Call(x.dtype(), op, {x}, span);
 }
 
-TIR_REGISTER_PURE_UNARY_OP("tir.trunc").set_attr<TVectorizable>("TVectorizable", true);
+TVM_TIR_REGISTER_PURE_UNARY_OP("trunc").set_attr<TVectorizable>("TVectorizable", true);
 
 // unary op registration.
-TIR_REGISTER_PURE_UNARY_OP("tir.exp").set_attr<TVectorizable>("TVectorizable", true);
+TVM_TIR_REGISTER_PURE_UNARY_OP("exp").set_attr<TVectorizable>("TVectorizable", true);
 
-TIR_REGISTER_PURE_UNARY_OP("tir.exp2").set_attr<TVectorizable>("TVectorizable", true);
+TVM_TIR_REGISTER_PURE_UNARY_OP("exp2").set_attr<TVectorizable>("TVectorizable", true);
 
-TIR_REGISTER_PURE_UNARY_OP("tir.exp10").set_attr<TVectorizable>("TVectorizable", true);
+TVM_TIR_REGISTER_PURE_UNARY_OP("exp10").set_attr<TVectorizable>("TVectorizable", true);
 
-TIR_REGISTER_PURE_UNARY_OP("tir.erf");
+TVM_TIR_REGISTER_PURE_UNARY_OP("erf");
 
-TIR_REGISTER_PURE_UNARY_OP("tir.tanh").set_attr<TVectorizable>("TVectorizable", true);
+TVM_TIR_REGISTER_PURE_UNARY_OP("tanh").set_attr<TVectorizable>("TVectorizable", true);
 
-TIR_REGISTER_PURE_UNARY_OP("tir.sigmoid").set_attr<TVectorizable>("TVectorizable", true);
+TVM_TIR_REGISTER_PURE_UNARY_OP("sigmoid").set_attr<TVectorizable>("TVectorizable", true);
 
-TIR_REGISTER_PURE_UNARY_OP("tir.sqrt").set_attr<TVectorizable>("TVectorizable", true);
+TVM_TIR_REGISTER_PURE_UNARY_OP("sqrt").set_attr<TVectorizable>("TVectorizable", true);
 
-TIR_REGISTER_PURE_UNARY_OP("tir.rsqrt");
+TVM_TIR_REGISTER_PURE_UNARY_OP("rsqrt");
 
-TIR_REGISTER_PURE_UNARY_OP("tir.log").set_attr<TVectorizable>("TVectorizable", true);
+TVM_TIR_REGISTER_PURE_UNARY_OP("log").set_attr<TVectorizable>("TVectorizable", true);
 
-TIR_REGISTER_PURE_UNARY_OP("tir.log2").set_attr<TVectorizable>("TVectorizable", true);
+TVM_TIR_REGISTER_PURE_UNARY_OP("log2").set_attr<TVectorizable>("TVectorizable", true);
 
-TIR_REGISTER_PURE_UNARY_OP("tir.log1p");
+TVM_TIR_REGISTER_PURE_UNARY_OP("log1p");
 
-TIR_REGISTER_PURE_UNARY_OP("tir.log10").set_attr<TVectorizable>("TVectorizable", true);
+TVM_TIR_REGISTER_PURE_UNARY_OP("log10").set_attr<TVectorizable>("TVectorizable", true);
 
-TIR_REGISTER_PURE_UNARY_OP("tir.tan").set_attr<TVectorizable>("TVectorizable", true);
+TVM_TIR_REGISTER_PURE_UNARY_OP("tan").set_attr<TVectorizable>("TVectorizable", true);
 
-TIR_REGISTER_PURE_UNARY_OP("tir.cos").set_attr<TVectorizable>("TVectorizable", true);
+TVM_TIR_REGISTER_PURE_UNARY_OP("cos").set_attr<TVectorizable>("TVectorizable", true);
 
-TIR_REGISTER_PURE_UNARY_OP("tir.cosh").set_attr<TVectorizable>("TVectorizable", true);
+TVM_TIR_REGISTER_PURE_UNARY_OP("cosh").set_attr<TVectorizable>("TVectorizable", true);
 
-TIR_REGISTER_PURE_UNARY_OP("tir.sin").set_attr<TVectorizable>("TVectorizable", true);
+TVM_TIR_REGISTER_PURE_UNARY_OP("sin").set_attr<TVectorizable>("TVectorizable", true);
 
-TIR_REGISTER_PURE_UNARY_OP("tir.sinh").set_attr<TVectorizable>("TVectorizable", true);
+TVM_TIR_REGISTER_PURE_UNARY_OP("sinh").set_attr<TVectorizable>("TVectorizable", true);
 
-TIR_REGISTER_PURE_UNARY_OP("tir.asin");
+TVM_TIR_REGISTER_PURE_UNARY_OP("asin");
 
-TIR_REGISTER_PURE_UNARY_OP("tir.acos");
+TVM_TIR_REGISTER_PURE_UNARY_OP("acos");
 
-TIR_REGISTER_PURE_UNARY_OP("tir.atan");
+TVM_TIR_REGISTER_PURE_UNARY_OP("atan");
 
-TIR_REGISTER_PURE_UNARY_OP("tir.acosh");
+TVM_TIR_REGISTER_PURE_UNARY_OP("acosh");
 
-TIR_REGISTER_PURE_UNARY_OP("tir.asinh");
+TVM_TIR_REGISTER_PURE_UNARY_OP("asinh");
 
-TIR_REGISTER_PURE_UNARY_OP("tir.atanh");
+TVM_TIR_REGISTER_PURE_UNARY_OP("atanh");
 
-TIR_REGISTER_PURE_UNARY_OP("tir.clz");
+TVM_TIR_REGISTER_PURE_UNARY_OP("clz");
 
 // binary intrinsics
-TIR_REGISTER_PURE_BINARY_OP("tir.atan2");
+TVM_TIR_REGISTER_PURE_BINARY_OP("atan2");
 
-TIR_REGISTER_PURE_BINARY_OP("tir.nextafter");
+TVM_TIR_REGISTER_PURE_BINARY_OP("nextafter");
 
-TIR_REGISTER_PURE_BINARY_OP("tir.hypot");
+TVM_TIR_REGISTER_PURE_BINARY_OP("hypot");
 
-TIR_REGISTER_PURE_BINARY_OP("tir.copysign");
+TVM_TIR_REGISTER_PURE_BINARY_OP("copysign");
 
-TIR_REGISTER_PURE_BINARY_OP("tir.ldexp");
+TVM_TIR_REGISTER_PURE_BINARY_OP("ldexp");
+
+TVM_TIR_REGISTER_OP("TVMBackendAllocWorkspace")
+    .set_num_inputs(5)
+    .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendAllocWorkspace")
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+
+TVM_TIR_REGISTER_OP("TVMBackendFreeWorkspace")
+    .set_num_inputs(3)
+    .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendFreeWorkspace")
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
 // expose basic functions to node namespace
 TVM_REGISTER_GLOBAL("node._const").set_body([](TVMArgs args, TVMRetValue* ret) {
@@ -1015,5 +1025,47 @@ TVM_REGISTER_GLOBAL("tir._OpIfThenElse")
 TVM_REGISTER_GLOBAL("tir.const_true").set_body_typed([](DataType t, Span span) {
   return const_true(t.lanes(), span);
 });
+
+PrimExpr fast_erf_float_expr(PrimExpr arg, int bits) {
+  auto plus_4 = make_const(DataType::Float(bits), 4.f);
+  auto minus_4 = make_const(DataType::Float(bits), -4.f);
+
+  // The monomial coefficients of the numerator polynomial (odd).
+  auto alpha_1 = make_const(DataType::Float(bits), -1.60960333262415e-02f);
+  auto alpha_3 = make_const(DataType::Float(bits), -2.95459980854025e-03f);
+  auto alpha_5 = make_const(DataType::Float(bits), -7.34990630326855e-04f);
+  auto alpha_7 = make_const(DataType::Float(bits), -5.69250639462346e-05f);
+  auto alpha_9 = make_const(DataType::Float(bits), -2.10102402082508e-06f);
+  auto alpha_11 = make_const(DataType::Float(bits), 2.77068142495902e-08f);
+  auto alpha_13 = make_const(DataType::Float(bits), -2.72614225801306e-10f);
+
+  // The monomial coefficients of the denominator polynomial (even).
+  auto beta_0 = make_const(DataType::Float(bits), -1.42647390514189e-02f);
+  auto beta_2 = make_const(DataType::Float(bits), -7.37332916720468e-03f);
+  auto beta_4 = make_const(DataType::Float(bits), -1.68282697438203e-03f);
+  auto beta_6 = make_const(DataType::Float(bits), -2.13374055278905e-04f);
+  auto beta_8 = make_const(DataType::Float(bits), -1.45660718464996e-05f);
+
+  // clamp x
+  auto x = tvm::max(tvm::min(arg, plus_4), minus_4);
+  auto x2 = x * x;
+
+  // Evaluate the numerator polynomial p.
+  auto p = x2 * alpha_13 + alpha_11;
+  p = x2 * p + alpha_9;
+  p = x2 * p + alpha_7;
+  p = x2 * p + alpha_5;
+  p = x2 * p + alpha_3;
+  p = x2 * p + alpha_1;
+  p = x * p;
+
+  // Evaluate the denominator polynomial p.
+  auto q = x2 * beta_8 + beta_6;
+  q = x2 * q + beta_4;
+  q = x2 * q + beta_2;
+  q = x2 * q + beta_0;
+
+  return p / q;
+}
 
 }  // namespace tvm

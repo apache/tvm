@@ -24,11 +24,19 @@ namespace meta_schedule {
 String GetRuleKindFromTarget(const Target& target) {
   if (target->kind->name == "llvm") {
     static const PackedFunc* f_check_vnni =
-        runtime::Registry::Get("tvm.topi.x86.utils.target_has_vnni");
+        runtime::Registry::Get("tvm.target.x86.target_has_vnni");
     ICHECK(f_check_vnni != nullptr) << "The `target_has_vnni` func is not in tvm registry.";
     if (target->GetAttr<String>("mcpu") &&
         (*f_check_vnni)(target->GetAttr<String>("mcpu").value())) {
       return "vnni";
+    } else {
+      static const PackedFunc* f_check_avx512 =
+          runtime::Registry::Get("tvm.target.x86.target_has_avx512");
+      ICHECK(f_check_avx512 != nullptr) << "The `target_has_avx512` func is not in tvm registry.";
+      if (target->GetAttr<String>("mcpu") &&
+          (*f_check_avx512)(target->GetAttr<String>("mcpu").value())) {
+        return "avx512";
+      }
     }
     return "llvm";
   }
@@ -57,6 +65,9 @@ String GetRuleKindFromTarget(const Target& target) {
     return "cuda";
   }
 
+  if (target->kind->name == "c") {
+    return "c";
+  }
   LOG(FATAL) << "Unsupported target: " << target;
   throw;
 }
@@ -70,6 +81,7 @@ void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
     Array<ScheduleRule> default_sch_rules;
     Array<Postproc> default_postprocs;
     Map<Mutator, FloatImm> default_mutator_probs;
+    // for target with skylake-avx512
     if (kind == "llvm") {
       default_sch_rules = ScheduleRule::DefaultLLVM();
       default_postprocs = Postproc::DefaultLLVM();
@@ -87,9 +99,17 @@ void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
       default_postprocs = Postproc::DefaultHexagon();
       default_mutator_probs = Mutator::DefaultHexagon();
     } else if (kind == "vnni") {
-      default_sch_rules = ScheduleRule::DefaultVNNI();
-      default_postprocs = Postproc::DefaultVNNI();
-      default_mutator_probs = Mutator::DefaultVNNI();
+      default_sch_rules = ScheduleRule::DefaultX86("vnni");
+      default_postprocs = Postproc::DefaultCPUTensorization();
+      default_mutator_probs = Mutator::DefaultLLVM();
+    } else if (kind == "avx512") {
+      default_sch_rules = ScheduleRule::DefaultX86("avx512");
+      default_postprocs = Postproc::DefaultCPUTensorization();
+      default_mutator_probs = Mutator::DefaultLLVM();
+    } else if (kind == "c") {
+      default_sch_rules = ScheduleRule::DefaultMicro();
+      default_postprocs = Postproc::DefaultMicro();
+      default_mutator_probs = Mutator::DefaultMicro();
     } else {
       LOG(FATAL) << "Unsupported kind: " << kind;
       throw;

@@ -57,7 +57,7 @@ def get_paddle_model(func, input_spec):
     return baseline_model
 
 
-def verify_model(func, input_data, rtol=1e-5, atol=1e-5):
+def verify_model(func, input_data, use_vm=False, rtol=1e-5, atol=1e-5):
     if not (isinstance(input_data, (tuple, list))):
         input_data = [input_data]
 
@@ -93,19 +93,44 @@ def verify_model(func, input_data, rtol=1e-5, atol=1e-5):
         if arg.name_hint in input_names:
             compiled_names.append(arg.name_hint)
 
-    with tvm.transform.PassContext(opt_level=3):
+    if use_vm:
+        tvm_vm_input = []
+        for idx, data in enumerate(input_data):
+            if isinstance(data, np.ndarray):
+                tvm_vm_input.append(data)
+            else:
+                tvm_vm_input.append(data.numpy())
         for target, dev in tvm.testing.enabled_targets():
-            lib = relay.build(mod, target=target, params=params)
-            gmod = graph_executor.GraphModule(lib["default"](dev))
-            for name in compiled_names:
-                gmod.set_input(name, compiled_input[name])
-            gmod.run()
+            result = relay.create_executor("vm", mod=mod, device=dev, target=target).evaluate()(
+                *tvm_vm_input, **params
+            )
+            tvm_vm_output = []
+            if isinstance(result, tvm.runtime.NDArray):
+                tvm_vm_output = result.numpy()
+            else:
+                tvm_vm_output = [r.numpy() for r in result]
+            if not isinstance(tvm_vm_output, list):
+                tvm_vm_output = [tvm_vm_output]
 
             for i, baseline_output in enumerate(baseline_outputs):
-                compiled_output = gmod.get_output(i).numpy()
+                assert_shapes_match(baseline_output, tvm_vm_output[i])
+                tvm.testing.assert_allclose(baseline_output, tvm_vm_output[i], rtol=rtol, atol=atol)
+    else:
+        with tvm.transform.PassContext(opt_level=3):
+            for target, dev in tvm.testing.enabled_targets():
+                lib = relay.build(mod, target=target, params=params)
+                gmod = graph_executor.GraphModule(lib["default"](dev))
+                for name in compiled_names:
+                    gmod.set_input(name, compiled_input[name])
+                gmod.run()
 
-                assert_shapes_match(baseline_output, compiled_output)
-                tvm.testing.assert_allclose(baseline_output, compiled_output, rtol=rtol, atol=atol)
+                for i, baseline_output in enumerate(baseline_outputs):
+                    compiled_output = gmod.get_output(i).numpy()
+
+                    assert_shapes_match(baseline_output, compiled_output)
+                    tvm.testing.assert_allclose(
+                        baseline_output, compiled_output, rtol=rtol, atol=atol
+                    )
 
 
 @tvm.testing.uses_gpu
@@ -1351,6 +1376,11 @@ def test_forward_slice():
         x1 = paddle.to_tensor([3]) + paddle.to_tensor([1])
         return inputs[:, x0:, 1:x1, :]
 
+    @paddle.jit.to_static
+    def slice5(inputs):
+        b, c, h, w = inputs  # add decrease_axis
+        return h
+
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(
@@ -1362,6 +1392,7 @@ def test_forward_slice():
     verify_model(slice2, input_data=input_data)
     verify_model(slice3, input_data=paddle.randn((4, 4)))
     verify_model(slice4, input_data=input_data)
+    # verify_model(slice5, input_data=paddle.randn((4,)))
 
 
 @tvm.testing.uses_gpu
@@ -1681,5 +1712,77 @@ def test_forward_rnn():
         )
 
 
+@tvm.testing.uses_gpu
+def test_forward_topk():
+    @paddle.jit.to_static
+    def topk1(inputs):
+        return paddle.topk(inputs, k=1)
+
+    @paddle.jit.to_static
+    def topk2(inputs):
+        k = paddle.to_tensor([1], dtype=paddle.int32)
+        return paddle.topk(inputs, k=k)
+
+    @paddle.jit.to_static
+    def topk3(inputs):
+        return paddle.topk(inputs, k=1, largest=False)
+
+    @paddle.jit.to_static
+    def topk4(inputs):
+        return paddle.topk(inputs, k=2, sorted=True)
+
+    @paddle.jit.to_static
+    def topk5(inputs):
+        return paddle.topk(inputs, k=2, sorted=False)
+
+    @paddle.jit.to_static
+    def topk6(inputs):
+        return paddle.topk(inputs, k=1, axis=0)
+
+    input_data = paddle.to_tensor([[1, 4, 5, 7], [3, 6, 2, 5]], dtype=paddle.int32)
+    verify_model(topk1, input_data=input_data)
+    # verify_model(topk2, input_data=input_data)
+    verify_model(topk3, input_data=input_data)
+    verify_model(topk4, input_data=input_data)
+    verify_model(topk5, input_data=input_data)
+    verify_model(topk6, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_one_hot_v2():
+    @paddle.jit.to_static
+    def one_hot_v2_1(inputs):
+        return nn.functional.one_hot(inputs, num_classes=4)
+
+    input_data = paddle.to_tensor([1, 1, 3, 0], dtype=paddle.int32)
+    verify_model(one_hot_v2_1, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_norm():
+    @paddle.jit.to_static
+    def norm_1(inputs):
+        return paddle.fluid.layers.l2_normalize(inputs, -1, 1e-12)
+
+    def norm_2(inputs):
+        return paddle.fluid.layers.l2_normalize(inputs, 1, 1e-12)
+
+    input_data = paddle.to_tensor(
+        [[[1, 2], [3, 1], [4, 5]], [[3, 1], [3, 5], [2, 4]]], dtype=paddle.float32
+    )
+    verify_model(norm_1, input_data=input_data)
+    verify_model(norm_2, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_where_index():
+    @paddle.jit.to_static
+    def where_index_1(inputs):
+        return paddle.nonzero(inputs)
+
+    input_data = paddle.to_tensor([[1.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 3.0]])
+    verify_model(where_index_1, input_data=input_data, use_vm=True)
+
+
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

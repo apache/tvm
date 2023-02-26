@@ -416,7 +416,7 @@ def @shallow_opt[A](%a: Arith[A]) -> Arith[A] {
     }
 }
 """
-    tvm.parser.fromtext(code)
+    tvm.relay.fromtext(code)
     # fromtext parse the module, then checked it (which include strictness checking).
 
 
@@ -444,7 +444,7 @@ def @expand_on_nil_match(%a: List[(List[()],)]) -> int {
     # Cons((Nil), Nil) passes the first pattern
     # Cons((Cons(*, *)), Nil) fails the first pattern, passes _
     # Note Nil() is passed to ExpandWildcardsConstructor many times in the above!
-    tvm.parser.fromtext(code)
+    tvm.relay.fromtext(code)
 
 
 def test_expanding_empty_tuple():
@@ -463,8 +463,8 @@ def @expand_on_empty_tuple_match(%a: (List[()], ())) -> int {
     }
 }
 """
-    tvm.parser.fromtext(code)
+    tvm.relay.fromtext(code)
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

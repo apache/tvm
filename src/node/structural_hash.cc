@@ -467,21 +467,67 @@ struct ArrayNodeTrait {
     //    (2)     a b c d e g h i j k l m
     //                      ^
     //                  error here
-    if (lhs->size() > min_size) {
-      equal->DeferFail({array_paths->lhs_path->ArrayIndex(min_size),
-                        array_paths->rhs_path->MissingArrayElement(min_size)});
-    } else {
-      equal->DeferFail({array_paths->lhs_path->MissingArrayElement(min_size),
-                        array_paths->rhs_path->ArrayIndex(min_size)});
+    if (equal->IsFailDeferralEnabled()) {
+      if (lhs->size() > min_size) {
+        equal->DeferFail({array_paths->lhs_path->ArrayIndex(min_size),
+                          array_paths->rhs_path->MissingArrayElement(min_size)});
+      } else {
+        equal->DeferFail({array_paths->lhs_path->MissingArrayElement(min_size),
+                          array_paths->rhs_path->ArrayIndex(min_size)});
+      }
+      // Can return `true` pretending that everything is good since we have deferred the failure.
+      return true;
     }
-
-    // Can return `true` pretending that everything is good since we have deferred the failure.
-    return true;
+    return false;
   }
 };
 TVM_REGISTER_REFLECTION_VTABLE(ArrayNode, ArrayNodeTrait)
     .set_creator([](const std::string&) -> ObjectPtr<Object> {
       return ::tvm::runtime::make_object<ArrayNode>();
+    });
+
+struct ShapeTupleObjTrait {
+  static constexpr const std::nullptr_t VisitAttrs = nullptr;
+
+  static void SHashReduce(const ShapeTupleObj* self, SHashReducer hash_reduce) {
+    hash_reduce(self->size);
+    for (size_t i = 0; i < self->size; ++i) {
+      hash_reduce(self->data[i]);
+    }
+  }
+
+  static bool SEqualReduce(const ShapeTupleObj* lhs, const ShapeTupleObj* rhs,
+                           SEqualReducer equal) {
+    if (lhs->size != rhs->size) return false;
+    for (size_t i = 0; i < lhs->size; ++i) {
+      if (!equal(lhs->data[i], rhs->data[i])) return false;
+    }
+    return true;
+  }
+};
+
+TVM_REGISTER_REFLECTION_VTABLE(ShapeTupleObj, ShapeTupleObjTrait)
+    .set_creator([](const std::string& blob) {
+      // Store shape tuple in blob to avoid large integer overflow in JSON.
+      dmlc::MemoryStringStream mstrm(const_cast<std::string*>(&blob));
+      support::Base64InStream b64strm(&mstrm);
+      b64strm.InitPosition();
+      uint64_t size;
+      b64strm.Read<uint64_t>(&size);
+      std::vector<int64_t> data(size);
+      b64strm.ReadArray(data.data(), size);
+      ShapeTuple shape(data);
+      return RefToObjectPtr::Get(shape);
+    })
+    .set_repr_bytes([](const Object* n) -> std::string {
+      std::string blob;
+      dmlc::MemoryStringStream mstrm(&blob);
+      support::Base64OutStream b64strm(&mstrm);
+      const auto* shape = static_cast<const runtime::ShapeTupleObj*>(n);
+      b64strm.Write<uint64_t>(shape->size);
+      b64strm.WriteArray(shape->data, shape->size);
+      b64strm.Finish();
+      return blob;
     });
 
 struct MapNodeTrait {

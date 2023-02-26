@@ -17,8 +17,9 @@
 # pylint: disable=invalid-name
 """Primitive operators in the TVM IR."""
 import tvm._ffi
-from .expr import RelayExpr
+
 from . import _ffi_api
+from .expr import RelayExpr
 
 
 @tvm._ffi.register_object("Op")
@@ -27,6 +28,34 @@ class Op(RelayExpr):
 
     def __init__(self):
         raise RuntimeError("Cannot create op, use get instead")
+
+    def astext(self, show_meta_data=True, annotate=None):
+        """Get the text format of the expression.
+
+        Parameters
+        ----------
+        show_meta_data : bool
+            Whether to include meta data section in the text
+            if there is meta data.
+
+        annotate: Optional[Object->str]
+            Optionally annotate function to provide additional
+            information in the comment block.
+
+        Returns
+        -------
+        text : str
+            The text format of the expression.
+
+        Notes
+        -----
+        The meta data section is necessary to fully parse the text format.
+        However, it can contain dumps that are big (e.g constant weights),
+        so it can be helpful to skip printing the meta data section.
+        """
+        from tvm.relay import astext  # pylint: disable=import-outside-toplevel
+
+        return astext(self, show_meta_data, annotate)
 
     @staticmethod
     def get(op_name):

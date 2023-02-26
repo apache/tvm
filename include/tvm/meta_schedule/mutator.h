@@ -131,14 +131,14 @@ class Mutator : public runtime::ObjectRef {
                                    FApply f_apply, FClone f_clone, FAsString f_as_string);
   /*! \brief Create default mutators for LLVM */
   TVM_DLL static Map<Mutator, FloatImm, void> DefaultLLVM();
-  /*! \brief Create default mutators for x86 VNNI */
-  TVM_DLL static Map<Mutator, FloatImm, void> DefaultVNNI();
   /*! \brief Create default mutators for CUDA */
   TVM_DLL static Map<Mutator, FloatImm, void> DefaultCUDA();
   /*! \brief Create default mutators for CUDA with TensorCore */
   TVM_DLL static Map<Mutator, FloatImm, void> DefaultCUDATensorCore();
   /*! \brief Create default mutators for Hexagon */
   TVM_DLL static Map<Mutator, FloatImm, void> DefaultHexagon();
+  /*! \brief Create default mutators for Micro */
+  TVM_DLL static Map<Mutator, FloatImm, void> DefaultMicro();
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Mutator, ObjectRef, MutatorNode);
 };

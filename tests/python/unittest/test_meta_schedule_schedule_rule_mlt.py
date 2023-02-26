@@ -22,6 +22,7 @@ from tvm.meta_schedule.testing import te_workload
 from tvm.meta_schedule.testing.space_generation import (
     check_sketches,
     generate_design_space,
+    print_sketches,
 )
 from tvm.script import tir as T
 from tvm.target import Target
@@ -30,9 +31,9 @@ from tvm.target import Target
 def test_cpu_matmul():
     @T.prim_func
     def cpu_matmul_0(
-        A: T.Buffer[(512, 512), "float32"],
-        B: T.Buffer[(512, 512), "float32"],
-        C: T.Buffer[(512, 512), "float32"],
+        A: T.Buffer((512, 512), "float32"),
+        B: T.Buffer((512, 512), "float32"),
+        C: T.Buffer((512, 512), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -61,9 +62,9 @@ def test_cpu_matmul():
 
     @T.prim_func
     def cpu_matmul_1(
-        A: T.Buffer[(512, 512), "float32"],
-        B: T.Buffer[(512, 512), "float32"],
-        C: T.Buffer[(512, 512), "float32"],
+        A: T.Buffer((512, 512), "float32"),
+        B: T.Buffer((512, 512), "float32"),
+        C: T.Buffer((512, 512), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -92,9 +93,9 @@ def test_cpu_matmul():
 
     @T.prim_func
     def cpu_matmul_2(
-        A: T.Buffer[(512, 512), "float32"],
-        B: T.Buffer[(512, 512), "float32"],
-        C: T.Buffer[(512, 512), "float32"],
+        A: T.Buffer((512, 512), "float32"),
+        B: T.Buffer((512, 512), "float32"),
+        C: T.Buffer((512, 512), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -148,9 +149,9 @@ def test_cpu_matmul():
 def test_cpu_matmul_relu():
     @T.prim_func
     def cpu_matmul_relu_0(
-        A: T.Buffer[(512, 512), "float32"],
-        B: T.Buffer[(512, 512), "float32"],
-        compute: T.Buffer[(512, 512), "float32"],
+        A: T.Buffer((512, 512), "float32"),
+        B: T.Buffer((512, 512), "float32"),
+        compute: T.Buffer((512, 512), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -179,9 +180,9 @@ def test_cpu_matmul_relu():
 
     @T.prim_func
     def cpu_matmul_relu_1(
-        A: T.Buffer[(512, 512), "float32"],
-        B: T.Buffer[(512, 512), "float32"],
-        compute: T.Buffer[(512, 512), "float32"],
+        A: T.Buffer((512, 512), "float32"),
+        B: T.Buffer((512, 512), "float32"),
+        compute: T.Buffer((512, 512), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -210,9 +211,9 @@ def test_cpu_matmul_relu():
 
     @T.prim_func
     def cpu_matmul_relu_2(
-        A: T.Buffer[(512, 512), "float32"],
-        B: T.Buffer[(512, 512), "float32"],
-        compute: T.Buffer[(512, 512), "float32"],
+        A: T.Buffer((512, 512), "float32"),
+        B: T.Buffer((512, 512), "float32"),
+        compute: T.Buffer((512, 512), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -272,9 +273,9 @@ def test_cpu_matmul_relu():
 def test_cuda_matmul():
     @T.prim_func
     def cuda_matmul_0(
-        A: T.Buffer[(512, 512), "float32"],
-        B: T.Buffer[(512, 512), "float32"],
-        C: T.Buffer[(512, 512), "float32"],
+        A: T.Buffer((512, 512), "float32"),
+        B: T.Buffer((512, 512), "float32"),
+        C: T.Buffer((512, 512), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -364,7 +365,7 @@ def test_cuda_matmul():
     actual = generate_design_space(
         kind="cuda",
         mod=mod,
-        target=Target("nvidia/geforce-rtx-3080"),
+        target=Target("nvidia/geforce-rtx-2080"),  # disable async trace using sm75
         types=ms.schedule_rule.MultiLevelTiling,
     )
     check_sketches(
@@ -378,9 +379,9 @@ def test_cuda_matmul():
 def test_cuda_matmul_relu():
     @T.prim_func
     def cuda_matmul_relu_0(
-        A: T.Buffer[(512, 512), "float32"],
-        B: T.Buffer[(512, 512), "float32"],
-        compute: T.Buffer[(512, 512), "float32"],
+        A: T.Buffer((512, 512), "float32"),
+        B: T.Buffer((512, 512), "float32"),
+        compute: T.Buffer((512, 512), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -482,7 +483,7 @@ def test_cuda_matmul_relu():
     actual = generate_design_space(
         kind="cuda",
         mod=mod,
-        target=Target("nvidia/geforce-rtx-3080"),
+        target=Target("nvidia/geforce-rtx-2080"),  # disable async trace using sm75
         types=ms.schedule_rule.MultiLevelTiling,
     )
     check_sketches(
@@ -496,8 +497,8 @@ def test_cuda_matmul_relu():
 def test_cuda_sum_with_trivial_block_iter():
     @T.prim_func
     def sum_with_trivial_block_iter(
-        A: T.Buffer[(1, 64, 768), "float32"],
-        B: T.Buffer[(1, 64, 1), "float32"],
+        A: T.Buffer((1, 64, 768), "float32"),
+        B: T.Buffer((1, 64, 1), "float32"),
     ) -> None:
         for i0, i1, i2, i3 in T.grid(1, 64, 1, 768):
             with T.block("sum"):
@@ -522,9 +523,9 @@ def test_cuda_sum_with_trivial_block_iter():
 def test_multi_level_tiling_hexagon():
     @T.prim_func
     def cpu_conv2d_nhwc(
-        inputs: T.Buffer[(1, 56, 56, 64), "float16"],
-        weight: T.Buffer[(3, 3, 64, 64), "float16"],
-        conv2d_nhwc: T.Buffer[(1, 56, 56, 64), "float16"],
+        inputs: T.Buffer((1, 56, 56, 64), "float16"),
+        weight: T.Buffer((3, 3, 64, 64), "float16"),
+        conv2d_nhwc: T.Buffer((1, 56, 56, 64), "float16"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -625,34 +626,120 @@ def test_multi_level_tiling_hexagon():
 
 
 def test_cache_read_specify_consumer():
+    @T.prim_func
+    def cache_read_specify_consumer_0(
+        A: T.Buffer((512, 512), "float32"),
+        B: T.Buffer((512, 512), "float32"),
+        T_add: T.Buffer((512, 512), "float32"),
+    ):
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        C = T.alloc_buffer((512, 512))
+        C_local = T.alloc_buffer((512, 512), scope="local")
+        A_shared = T.alloc_buffer((512, 512), scope="shared")
+        B_shared = T.alloc_buffer((512, 512), scope="shared")
+        for i_0_j_0_fused in T.thread_binding(2, thread="blockIdx.x"):
+            for i_1_j_1_fused in T.thread_binding(512, thread="vthread.x"):
+                for i_2_j_2_fused in T.thread_binding(16, thread="threadIdx.x"):
+                    for k_0 in range(2):
+                        for ax0_ax1_fused in range(131072):
+                            with T.block("A_shared"):
+                                v0 = T.axis.spatial(512, ax0_ax1_fused // 256)
+                                v1 = T.axis.spatial(512, k_0 * 256 + ax0_ax1_fused % 256)
+                                T.reads(A[v0, v1])
+                                T.writes(A_shared[v0, v1])
+                                T.block_attr({"meta_schedule.cooperative_fetch": 2})
+                                A_shared[v0, v1] = A[v0, v1]
+                        for ax0_ax1_fused in range(65536):
+                            with T.block("B_shared"):
+                                v0 = T.axis.spatial(512, k_0 * 256 + ax0_ax1_fused // 256)
+                                v1 = T.axis.spatial(512, i_0_j_0_fused * 256 + ax0_ax1_fused % 256)
+                                T.reads(B[v0, v1])
+                                T.writes(B_shared[v0, v1])
+                                T.block_attr({"meta_schedule.cooperative_fetch": 3})
+                                B_shared[v0, v1] = B[v0, v1]
+                        for k_1, i_3, j_3, k_2, i_4, j_4 in T.grid(64, 1, 1, 4, 1, 16):
+                            with T.block("C"):
+                                v_i = T.axis.spatial(
+                                    512,
+                                    i_1_j_1_fused // 8 * 8 + i_2_j_2_fused // 2 + i_3 + i_4,
+                                )
+                                v_j = T.axis.spatial(
+                                    512,
+                                    i_0_j_0_fused * 256
+                                    + i_1_j_1_fused % 8 * 32
+                                    + i_2_j_2_fused % 2 * 16
+                                    + j_3 * 16
+                                    + j_4,
+                                )
+                                v_k = T.axis.reduce(512, k_0 * 256 + k_1 * 4 + k_2)
+                                T.reads(A_shared[v_i, v_k], B_shared[v_k, v_j])
+                                T.writes(C_local[v_i, v_j])
+                                T.block_attr(
+                                    {
+                                        "meta_schedule.thread_extent_high_inclusive": 1024,
+                                        "meta_schedule.thread_extent_low_inclusive": 32,
+                                        "meta_schedule.tiling_structure": "SSSRRSRS",
+                                    }
+                                )
+                                with T.init():
+                                    C_local[v_i, v_j] = T.float32(0)
+                                C_local[v_i, v_j] = (
+                                    C_local[v_i, v_j] + A_shared[v_i, v_k] * B_shared[v_k, v_j]
+                                )
+                    for ax0, ax1 in T.grid(1, 16):
+                        with T.block("C_local"):
+                            v0 = T.axis.spatial(
+                                512,
+                                i_1_j_1_fused // 8 * 8 + i_2_j_2_fused // 2 + ax0,
+                            )
+                            v1 = T.axis.spatial(
+                                512,
+                                i_0_j_0_fused * 256
+                                + i_1_j_1_fused % 8 * 32
+                                + i_2_j_2_fused % 2 * 16
+                                + ax1,
+                            )
+                            T.reads(C_local[v0, v1])
+                            T.writes(C[v0, v1])
+                            C[v0, v1] = C_local[v0, v1]
+        for ax0, ax1 in T.grid(512, 512):
+            with T.block("T_add"):
+                v_ax0 = T.axis.spatial(512, ax0)
+                v_ax1 = T.axis.spatial(512, ax1)
+                T.reads(C[v_ax0, v_ax1], A[v_ax0, v_ax1])
+                T.writes(T_add[v_ax0, v_ax1])
+                T_add[v_ax0, v_ax1] = C[v_ax0, v_ax1] + A[v_ax0, v_ax1]
+
+    decision_0 = [
+        ("SamplePerfectTile", [1, 64, 8, 1, 1]),
+        ("SamplePerfectTile", [2, 8, 2, 1, 16]),
+        ("SamplePerfectTile", [2, 64, 4]),
+        ("SampleCategorical", 1),
+        ("SampleCategorical", 2),
+    ]
     A, B, C = te_workload.matmul(512, 512, 512)
     mod = te.create_prim_func([A, B, C + A])
 
     space = generate_design_space(
         kind="cuda",
         mod=mod,
-        target=Target("nvidia/geforce-rtx-3080"),
+        target=Target("nvidia/geforce-rtx-2080"),  # disable async trace using sm75
         types=ms.schedule_rule.MultiLevelTiling,
     )
-
-    residual_block = """
-        for ax0, ax1 in T.grid(512, 512):
-            with T.block("T_add"):
-                v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                T.reads(C[v_ax0, v_ax1], A[v_ax0, v_ax1])
-                T.writes(T_add[v_ax0, v_ax1])
-                T_add[v_ax0, v_ax1] = C[v_ax0, v_ax1] + A[v_ax0, v_ax1]
-    """
-
-    assert residual_block in space[0].mod.script()
+    check_sketches(
+        mod,
+        sketches=space,
+        expected_mods=[cache_read_specify_consumer_0],
+        expected_decisions=[decision_0],
+    )
 
 
 def test_max_pool_blocked():
     # fmt off
     @T.prim_func
     def pool_blocked_cache_read_write(
-        X: T.Buffer[(1, 2, 8, 8, 8, 8, 32), "uint8"],
-        pool: T.Buffer[(1, 2, 4, 4, 8, 8, 32), "uint8"],
+        X: T.Buffer((1, 2, 8, 8, 8, 8, 32), "uint8"),
+        pool: T.Buffer((1, 2, 4, 4, 8, 8, 32), "uint8"),
     ):
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         pool_global = T.alloc_buffer([1, 2, 4, 4, 8, 8, 32], dtype="uint8")

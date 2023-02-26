@@ -21,7 +21,11 @@
  * \file src/relay/ir/function.cc
  * \brief Function in relay.
  */
+#include <tvm/ir/type_functor.h>
+#include <tvm/relay/analysis.h>
+#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/function.h>
+#include <tvm/relay/transform.h>
 
 namespace tvm {
 namespace relay {
@@ -120,12 +124,158 @@ const FunctionNode* AsOptimizableFunctionNode(const BaseFunc& base_func) {
   return nullptr;
 }
 
+TVM_REGISTER_GLOBAL("relay.ir.PrintRelayModule")
+    .set_body_typed([](IRModule mod) -> Optional<String> {
+      for (const auto& it : mod->functions) {
+        if (it.second->IsInstance<FunctionNode>()) {
+          return PrettyPrint(mod);
+        }
+      }
+      return NullOpt;
+    });
+
+TVM_REGISTER_GLOBAL("relay.ir.PrintIR")
+    .set_body_typed([](IRModule mod, String header, bool show_metadata) -> bool {
+      for (const auto& it : mod->functions) {
+        if (it.second->IsInstance<FunctionNode>()) {
+          LOG(INFO) << "PrintIR(" << header << "):\n" << AsText(mod, show_metadata);
+          return true;
+        }
+      }
+      return false;
+    });
+
+TVM_REGISTER_GLOBAL("relay.ir.WarnIfMalformed")
+    .set_body_typed([](const IRModule& mod, const BaseFunc& base_func) -> void {
+      if (const auto* relay_func = base_func.as<FunctionNode>()) {
+        Function func = Downcast<relay::Function>(relay::DeDup(GetRef<Function>(relay_func)));
+        // Type check the item before we add it to the module.
+        auto fv = relay::FreeVars(func);
+        auto ftv = relay::FreeTypeVars(func, mod);
+        // TODO(@jroesch): refactor to use diagnostic context
+        ICHECK_EQ(fv.size(), 0) << "Function:" << std::endl
+                                << PrettyPrint(func) << std::endl
+                                << "contains free variables: " << fv;
+        ICHECK_EQ(ftv.size(), 0) << "Function:" << std::endl
+                                 << PrettyPrint(func) << std::endl
+                                 << "contains free type variables: " << fv;
+      }
+    });
+TVM_REGISTER_GLOBAL("relay.ir.IRModuleAdd")
+    .set_body_typed([](IRModule mod, GlobalVar var, ObjectRef val, bool update) -> IRModule {
+      if (val->IsInstance<BaseFuncNode>()) {
+        mod->Add(var, Downcast<BaseFunc>(val), update);
+      } else if (val->IsInstance<GlobalVarNode>()) {
+        GlobalVar gv = Downcast<GlobalVar>(val);
+        IRModule mod_copy(make_object<IRModuleNode>(*mod.operator->()));
+        mod_copy = relay::transform::EtaExpand(
+            /* expand_constructor */ false,
+            /* expand_global_var */ true)(mod_copy);
+        auto func = mod_copy->Lookup(gv->name_hint);
+        mod->Add(var, Downcast<relay::Function>(func), update);
+      } else {
+        auto func = relay::Function({}, Downcast<RelayExpr>(val), Type(nullptr), {});
+        mod->Add(var, func, update);
+      }
+      return mod;
+    });
+
+TVM_REGISTER_GLOBAL("relay.ir.IRModuleUpdateWithRenamer")
+    .set_body_typed([](IRModule self, IRModule mod) -> void {
+      struct Renamer : relay::ExprMutator, TypeMutator {
+        Map<String, GlobalVar> defs;
+        Map<String, GlobalTypeVar> types;
+        std::unordered_map<int32_t, Constructor> ctors;
+
+        Renamer(Map<String, GlobalVar> defs_one, Map<String, GlobalVar> defs_two,
+                Map<String, GlobalTypeVar> types_one, Map<String, GlobalTypeVar> types_two,
+                std::unordered_map<int32_t, Constructor> ctors_one,
+                std::unordered_map<int32_t, Constructor> ctor_two) {
+          for (auto pair : defs_one) {
+            defs.Set(pair.first, pair.second);
+          }
+
+          for (auto pair : defs_two) {
+            auto it = defs.find(pair.first);
+            if (it == defs.end()) {
+              defs.Set(pair.first, pair.second);
+            }
+          }
+
+          for (auto pair : types_one) {
+            types.Set(pair.first, pair.second);
+          }
+
+          for (auto pair : types_two) {
+            auto it = types.find(pair.first);
+            if (it == types.end()) {
+              types.Set(pair.first, pair.second);
+            }
+          }
+        }
+
+        relay::Expr VisitExpr_(const GlobalVarNode* node) override {
+          return defs.at(node->name_hint);
+        }
+
+        Type VisitType_(const GlobalTypeVarNode* node) override {
+          return types.at(node->name_hint);
+        }
+      };
+
+      Renamer renamer(self->global_var_map_, mod->global_var_map_, self->global_type_var_map_,
+                      mod->global_type_var_map_, self->constructor_tag_map_,
+                      mod->constructor_tag_map_);
+
+      self->global_var_map_ = renamer.defs;
+      self->global_type_var_map_ = renamer.types;
+      self->constructor_tag_map_ = renamer.ctors;
+
+      for (auto pair : mod->type_definitions) {
+        auto tvar = renamer.types.at(pair.first->name_hint);
+        auto ty = renamer.ExprMutator::VisitType(pair.second);
+        self->AddTypeDefUnchecked(tvar, Downcast<TypeData>(ty), true);
+      }
+
+      for (auto pair : mod->functions) {
+        if (auto rfn = pair.second.as<relay::FunctionNode>()) {
+          auto gvar = renamer.defs.at(pair.first->name_hint);
+          auto fn = renamer.VisitExpr(GetRef<relay::Function>(rfn));
+          self->AddUnchecked(gvar, Downcast<BaseFunc>(fn));
+        } else {
+          // TODO(@jroesch): rename into IRModule.
+          self->AddUnchecked(pair.first, pair.second);
+        }
+      }
+    });
+
+TVM_REGISTER_GLOBAL("relay.ir.FunctionFromExprInContext")
+    .set_body_typed([](RelayExpr expr, IRModule mod) -> Function {
+      return Function(relay::FreeVars(expr), expr, Type(), relay::FreeTypeVars(expr, mod), {});
+    });
+
+TVM_REGISTER_GLOBAL("relay.ir.FuncWithAttr")
+    .set_body_typed([](BaseFunc func, String key, ObjectRef value) -> Optional<Function> {
+      if (func->IsInstance<relay::FunctionNode>()) {
+        return WithAttr(Downcast<relay::Function>(std::move(func)), key, value);
+      }
+      return NullOpt;
+    });
+
+TVM_REGISTER_GLOBAL("relay.ir.FuncWithoutAttr")
+    .set_body_typed([](BaseFunc func, String key) -> Optional<Function> {
+      if (func->IsInstance<relay::FunctionNode>()) {
+        return WithoutAttr(Downcast<relay::Function>(std::move(func)), key);
+      }
+      return NullOpt;
+    });
+
 TVM_REGISTER_NODE_TYPE(FunctionNode);
 
 TVM_REGISTER_GLOBAL("relay.ir.Function")
     .set_body_typed([](tvm::Array<Var> params, Expr body, Type ret_type,
-                       tvm::Array<TypeVar> ty_params, tvm::DictAttrs attrs) {
-      return Function(params, body, ret_type, ty_params, attrs);
+                       tvm::Array<TypeVar> ty_params, tvm::DictAttrs attrs, Span span) {
+      return Function(params, body, ret_type, ty_params, attrs, span);
     });
 TVM_REGISTER_GLOBAL("relay.ir.FunctionWithFields")
     .set_body_typed([](Function function, Optional<Array<Var>> opt_params, Optional<Expr> opt_body,

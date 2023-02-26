@@ -33,9 +33,9 @@ def astext(program, unify_free_vars=False):
     text = program.astext()
 
     if isinstance(program, Expr):
-        roundtrip_program = tvm.parser.parse_expr(text)
+        roundtrip_program = tvm.relay.parse_expr(text)
     else:
-        roundtrip_program = tvm.parser.fromtext(text)
+        roundtrip_program = tvm.relay.fromtext(text)
 
     tvm.ir.assert_structural_equal(roundtrip_program, program, map_free_vars=True)
 
@@ -254,7 +254,7 @@ def @main[A]() -> fn (A, List[A]) -> List[A] {
   Cons
 }
     """
-    mod = tvm.parser.parse(SEMVER + type_def_str + main_def_str)
+    mod = tvm.relay.parse(SEMVER + type_def_str + main_def_str)
     mod_str = str(mod)
     # ensure constructors are printed correctly in type definitions (with their
     # signature) and as exprs (without their signature)

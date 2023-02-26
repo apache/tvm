@@ -29,15 +29,25 @@
 #endif
 #include <stdlib.h>
 #include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
 
 #include <fstream>
 #include <map>
 #include <utility>
 
+#include "../../file_utils.h"
 #include "../../opencl/opencl_common.h"
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
+
+#define CAT_I(a, b) a##b
+#define CAT(a, b) CAT_I(a, b)
+#define GET_ML_INTERFACE CAT(CAT(clGetMLInterfaceV, CL_QCOM_ML_OPS_H_MAJOR_VERSION), QCOM)
+#define GET_ML_API_INTERFACE CAT(CAT(CLMLInterfaceV, CL_QCOM_ML_OPS_H_MAJOR_VERSION), QCOM)
+
+/*! \brief Magic number for CLML Tuning cache entry */
+static const uint64_t kTVMCLMLTuningCacheMagic = 0x434C4D4C54554E45;
 
 namespace tvm {
 namespace runtime {
@@ -58,7 +68,7 @@ class CLMLRuntime : public JSONRuntimeBase {
    */
   explicit CLMLRuntime(const std::string& symbol_name, const std::string& graph_json,
                        const Array<String>& const_names)
-      : JSONRuntimeBase(symbol_name, graph_json, const_names) {}
+      : JSONRuntimeBase(symbol_name, graph_json, const_names), clml_symbol(symbol_name) {}
 
   ~CLMLRuntime() {
 #ifdef TVM_GRAPH_EXECUTOR_CLML
@@ -130,15 +140,17 @@ class CLMLRuntime : public JSONRuntimeBase {
   void InitCLML() {
     // Setup CLML Context
     cl_int result = 0;
-
     workspace = cl::OpenCLWorkspace::Global();
     workspace->Init();
     tentry = workspace->GetThreadEntry();
 
     if (!ExtensionStringPresent()) {
-      LOG(WARNING) << "CLML Runtime Init: Qualcomm extn not present.\n";
+      LOG(FATAL) << "CLML Runtime Init: Qualcomm extn not present.\n";
       return;
     }
+    device_id = workspace->GetCLDeviceID(tentry->device.device_id);
+    platform_id = workspace->device_to_platform[device_id];
+
     // Query and Get CLML Interface
     static const cl_uint MAX_VERSIONS = 256;
     cl_int majorVersions[MAX_VERSIONS];
@@ -153,28 +165,59 @@ class CLMLRuntime : public JSONRuntimeBase {
     ICHECK(result == CL_SUCCESS) << "clQueryMLInterfaceVersionsQCOM:" << result;
 
     for (cl_uint i = 0; i < numVersions; ++i) {
-      if (majorVersions[i] == 2) {
-        LOG(WARNING) << "CLML Version Selected:" << majorVersions[i] << " : " << majorVersions[i];
-        h_ClmlIntf = clGetMLInterfaceV2QCOM(0);
-        ICHECK(h_ClmlIntf != NULL) << "clGetMLInterfaceV2QCOM:" << result;
+      if (majorVersions[i] == CL_QCOM_ML_OPS_H_MAJOR_VERSION) {
+        h_ClmlIntf = GET_ML_INTERFACE(0);
+        LOG(WARNING) << "CLML Target version:" << majorVersions[i];
         break;
       }
     }
+    ICHECK(h_ClmlIntf != NULL)
+        << "clGetMLInterfaceVxQCOM:" << result
+        << " Perhaps there is mispatch between CLML SDK version to target supported version:"
+        << majorVersions[numVersions - 1];
     char* tune_flag;
-    if ((tune_flag = getenv("CLML_IS_TUNNING_RUN")))
+    if ((tune_flag = getenv("CLML_IS_TUNING_RUN")))
       this->is_tuning_run = std::stoi(tune_flag);
     else
       this->is_tuning_run = 0;
 
-    if (!(tuning_file = getenv("CLML_TUNNING_CACHE"))) this->is_tuning_run = 0;
+    if (!(tuning_file = getenv("CLML_TUNING_CACHE"))) this->is_tuning_run = 0;
     // A Tuning run, so create the cache from scratch
     result = h_ClmlIntf->clCreateMLTuningCacheQCOM(&tuning_cache);
     ICHECK(result == CL_SUCCESS) << "clCreateMLTuningCacheQCOM:" << result;
     if (!this->is_tuning_run && this->tuning_file) {
-      std::vector<unsigned char> buffer;
-      buffer = readBinFile(this->tuning_file);
-      result = h_ClmlIntf->clLoadMLTuningCacheQCOM(tuning_cache, buffer.size(), buffer.data());
-      ICHECK(result == CL_SUCCESS) << "clLoadMLTuningCacheQCOM:" << result;
+      std::vector<unsigned char> tune_buffer;
+      std::string tune_blob;
+      LoadBinaryFromFile(this->tuning_file, &tune_blob);
+      dmlc::MemoryStringStream mstrm(const_cast<std::string*>(&tune_blob));
+      dmlc::Stream* strm = &mstrm;
+
+      uint64_t header, reserve;
+      std::string tune_symbol;
+      while (strm->Read(&header)) {
+        if (header != kTVMCLMLTuningCacheMagic) break;
+        if (!strm->Read(&reserve)) break;
+        if (!strm->Read(&tune_symbol)) break;
+        LOG(INFO) << "Tuning Cache Symbol:" << tune_symbol;
+        if (tune_symbol == clml_symbol) {
+          strm->Read(&tune_buffer);
+          break;
+        } else {
+          std::vector<unsigned char> tmp_buf;
+          if (!strm->Read(&tmp_buf)) break;
+        }
+      }
+
+      if (tune_buffer.size()) {
+        LOG(INFO) << "Loading tuning cache for symbol:" << clml_symbol
+                  << " size:" << tune_buffer.size();
+        result = h_ClmlIntf->clLoadMLTuningCacheQCOM(tuning_cache, tune_buffer.size(),
+                                                     tune_buffer.data());
+        ICHECK(result == CL_SUCCESS) << "clLoadMLTuningCacheQCOM:" << result;
+      } else {
+        LOG(WARNING) << "Tuning cache not cound for symbol :" << clml_symbol << " in file "
+                     << this->tuning_file;
+      }
     }
   }
 
@@ -247,9 +290,14 @@ class CLMLRuntime : public JSONRuntimeBase {
           layer_.in_placeholder[i]->memory = static_cast<cl_mem>(
               ((cl::BufferDescriptor*)const_cast<DLTensor*>(data_entry_[eid])->data)->buffer);
           cl_event cpy_evt = NULL;
+          cl_event* evt = &cpy_evt;
+          if (workspace->IsProfiling(tentry->device)) {
+            evts.resize(evts.size() + 1);
+            evt = &(evts.back());
+          }
           result = h_ClmlIntf->clEnqueueCopyMLTensorDataQCOM(
               queue, layer_.in_placeholder[i]->tensor, layer_.in_placeholder[i]->memory,
-              layer_.inputs[i]->tensor, layer_.inputs[i]->memory, 0, NULL, &cpy_evt);
+              layer_.inputs[i]->tensor, layer_.inputs[i]->memory, 0, NULL, evt);
           ICHECK(result == CL_SUCCESS) << "clEnqueueCopyMLTensorDataQCOM:" << result;
         } else {
           DLDataType tvm_dtype = const_cast<DLTensor*>(data_entry_[eid])->dtype;
@@ -264,31 +312,33 @@ class CLMLRuntime : public JSONRuntimeBase {
       }
     }
 
+    int64_t duration = 0;
     for (size_t i = 0; i < this->layer_.function.size(); ++i) {
+      // Make CLML subgraphs accounted by OpenCLTimerNode.
+
       if (getenv("CLML_PROFILING")) {
+        Timer t;
+        auto f = Registry::Get(std::string("profiling.timer.opencl"));
+        t = f->operator()(tentry->device);
+        t->Start();
+        queue = workspace->GetQueue(tentry->device);
         evts.resize(evts.size() + 1);
         cl_event* evt = &(evts.back());
+
         result = h_ClmlIntf->clEnqueueMLOpQCOM(queue, this->layer_.function[i],
                                                this->layer_.descriptorSet, 0, NULL, evt);
+        t->Stop();
+        duration += t->SyncAndGetElapsedNanos();
+        LOG(WARNING) << "Layer:" << this->layer_.layer_names[i]
+                     << " Duration:" << t->SyncAndGetElapsedNanos();
       } else {
         result = h_ClmlIntf->clEnqueueMLOpQCOM(queue, this->layer_.function[i],
                                                this->layer_.descriptorSet, 0, NULL, NULL);
       }
       ICHECK(result == CL_SUCCESS) << "clEnqueueMLOpQCOM:" << result;
     }
-
     if (getenv("CLML_PROFILING")) {
-      cl_ulong start, end;
-      cl_ulong duration = 0;
-      clWaitForEvents(1, &(evts.back()));
-      for (size_t i = 0; i < this->layer_.layer_names.size(); ++i) {
-        clGetEventProfilingInfo(evts[i], CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &start,
-                                nullptr);
-        clGetEventProfilingInfo(evts[i], CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &end, nullptr);
-        duration += (end - start);
-        LOG(WARNING) << "Layer:" << this->layer_.layer_names[i] << " Duration:" << (end - start);
-      }
-      LOG(WARNING) << "Total Duration:" << duration;
+      LOG(WARNING) << "Total Duration for " << clml_symbol << " is:" << duration;
     }
 
     for (size_t i = 0; i < outputs_.size(); ++i) {
@@ -305,10 +355,14 @@ class CLMLRuntime : public JSONRuntimeBase {
         layer_.out_placeholder[i]->memory = static_cast<cl_mem>(
             ((cl::BufferDescriptor*)const_cast<DLTensor*>(data_entry_[eid])->data)->buffer);
         cl_event cpy_evt = NULL;
+        cl_event* evt = &cpy_evt;
+        if (workspace->IsProfiling(tentry->device)) {
+          evts.resize(evts.size() + 1);
+          evt = &(evts.back());
+        }
         result = h_ClmlIntf->clEnqueueCopyMLTensorDataQCOM(
             queue, layer_.outputs[i]->tensor, layer_.outputs[i]->memory,
-            layer_.out_placeholder[i]->tensor, layer_.out_placeholder[i]->memory, 0, NULL,
-            &cpy_evt);
+            layer_.out_placeholder[i]->tensor, layer_.out_placeholder[i]->memory, 0, NULL, evt);
         ICHECK(result == CL_SUCCESS) << "clEnqueueCopyMLTensorDataQCOM:" << result;
       } else {
         DLDataType tvm_dtype = const_cast<DLTensor*>(data_entry_[eid])->dtype;
@@ -395,13 +449,25 @@ class CLMLRuntime : public JSONRuntimeBase {
           auto out = CreatePadLayer(&layer_, node);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
           this->layer_.func_outs.push_back(out);
+        } else if ("nn.batch_flatten" == op_name) {
+          auto out = CreateBatchFlattenLayer(&layer_, node);
+          this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
+          this->layer_.func_outs.push_back(out);
         } else if ("clip" == op_name) {
           auto out = CreateClipLayer(&layer_, node);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
           this->layer_.func_outs.push_back(out);
         } else if ("add" == op_name || "subtract" == op_name || "multiply" == op_name ||
-                   "minimum" == op_name || "maximum" == op_name) {
+                   "minimum" == op_name || "maximum" == op_name || "divide" == op_name) {
           auto out = CreateBinaryLayer(&layer_, node);
+          this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
+          this->layer_.func_outs.push_back(out);
+        } else if ("nn.depth_to_space" == op_name) {
+          auto out = CreateDepthToSpaceLayer(&layer_, node);
+          this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
+          this->layer_.func_outs.push_back(out);
+        } else if ("nn.upsampling" == op_name) {
+          auto out = CreateResizeLayer(&layer_, node);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
           this->layer_.func_outs.push_back(out);
         } else {
@@ -428,7 +494,7 @@ class CLMLRuntime : public JSONRuntimeBase {
       JSONGraphNode node = it->second.second;
       void* node_data = nullptr;
 
-      allocateTensorMemory(h_ClmlIntf, workspace->context, tensor_desc);
+      allocateTensorMemory(h_ClmlIntf, workspace->contexts[platform_id], tensor_desc);
 
       if (node.GetOpType() == "const") {
         node_data = data_entry_[EntryID(it->first, 0)]->data;
@@ -450,30 +516,42 @@ class CLMLRuntime : public JSONRuntimeBase {
 
     if (this->is_tuning_run) {
       LOG(WARNING) << "CLML Tunning In Progress:";
+      // Let the command queue recreated in profiling mode.
+      cl::OpenCLWorkspace::Global()->EnableQueueProfiling(tentry->device, true);
       for (size_t i = 0; i < this->layer_.function.size(); ++i) {
-        LOG(WARNING) << "CLML Tunning:" << i;
+        LOG(WARNING) << "CLML Tunning:" << this->layer_.layer_names[i];
         result = h_ClmlIntf->clTuneMLOpQCOM(workspace->GetQueue(tentry->device),
                                             this->layer_.function[i], this->layer_.descriptorSet,
                                             this->tuning_cache, NULL);
         ICHECK(result == CL_SUCCESS) << "clTuneMLOpQCOM:" << result;
       }
+      cl::OpenCLWorkspace::Global()->EnableQueueProfiling(tentry->device, false);
 
-      size_t cacheLenBytes = 0;
-      size_t lenRet = 0;
-      result = h_ClmlIntf->clSaveMLTuningCacheQCOM(tuning_cache, 0, NULL, &cacheLenBytes);
+      size_t cache_len_bytes = 0;
+      size_t len_ret = 0;
+      result = h_ClmlIntf->clSaveMLTuningCacheQCOM(tuning_cache, 0, NULL, &cache_len_bytes);
       ICHECK(result == CL_SUCCESS) << "clSaveMLTuningCacheQCOM:" << result;
 
-      std::vector<unsigned char> savedCache(cacheLenBytes, 0);
-      result = h_ClmlIntf->clSaveMLTuningCacheQCOM(tuning_cache, savedCache.size(),
-                                                   savedCache.data(), &lenRet);
-      assert(result == CL_SUCCESS);
+      std::vector<unsigned char> saved_cache(cache_len_bytes, 0);
+      result = h_ClmlIntf->clSaveMLTuningCacheQCOM(tuning_cache, saved_cache.size(),
+                                                   saved_cache.data(), &len_ret);
+      ICHECK(result == CL_SUCCESS) << "clSaveMLTuningCacheQCOM" << result;
 
-      std::ofstream cache_out(tuning_file, std::ios_base::binary);
-      if (cache_out) {
-        cache_out.write(reinterpret_cast<char*>(savedCache.data()), savedCache.size());
-        cache_out.close();
-      }
-      LOG(WARNING) << "CLML: Tuning cache dumped to:" << tuning_file;
+      std::string tune_str;
+      dmlc::MemoryStringStream mstrm(&tune_str);
+      dmlc::Stream* strm = &mstrm;
+      uint64_t header = kTVMCLMLTuningCacheMagic;
+      uint64_t reserved = 0x0;
+      strm->Write(header);
+      strm->Write(reserved);
+      strm->Write(clml_symbol);
+      strm->Write(saved_cache);
+
+      std::ofstream fs(tuning_file, std::ios::app | std::ios::binary);
+      ICHECK(!fs.fail()) << "Cannot open " << tuning_file;
+      fs.write(&tune_str[0], tune_str.length());
+      LOG(WARNING) << "CLML: Tuning cache dumped to:" << tuning_file << " size" << tune_str.length()
+                   << " with tuning blob len " << saved_cache.size();
     }
   }
 
@@ -505,11 +583,9 @@ class CLMLRuntime : public JSONRuntimeBase {
 
   bool ExtensionStringPresent(void) {
     cl_int result = 0;
-    if (workspace->platform_id == nullptr) {
-      return 0;
-    }
     size_t reqd_size = 0;
-    cl_device_id device_id = workspace->devices[workspace->GetThreadEntry()->device.device_id];
+    cl_device_id device_id =
+        workspace->GetCLDeviceID(workspace->GetThreadEntry()->device.device_id);
     result = clGetDeviceInfo(device_id, CL_DEVICE_EXTENSIONS, 0, NULL, &reqd_size);
     ICHECK(reqd_size > 0u && result == CL_SUCCESS) << "clGetDeviceInfo:" << result;
 
@@ -523,7 +599,7 @@ class CLMLRuntime : public JSONRuntimeBase {
   }
 
   cl_ml_tensor_qcom DeviceMakeCLMLTensor(
-      void* pClmlIntf, cl_context context, tensor_dims_t dims,
+      cl_context context, tensor_dims_t dims,
       cl_ml_tensor_layout_qcom layout = CL_TENSOR_LAYOUT_OPTIMAL_QCOM,
       cl_channel_type dtype = CL_FLOAT) {
     cl_ml_tensor_qcom tensor;
@@ -531,8 +607,8 @@ class CLMLRuntime : public JSONRuntimeBase {
 
     cl_ml_tensor_desc_qcom desc = {
         dtype, layout, dims.n, dims.c, dims.h, dims.w, 0, CL_TENSOR_DIMENSIONS_4D_QCOM, { 0 }};
-    CLMLInterfaceV2QCOM* clmlIntf = reinterpret_cast<CLMLInterfaceV2QCOM*>(pClmlIntf);
-    result = clmlIntf->clCreateMLTensorQCOM(workspace->context, NULL, &desc, &tensor);
+    result =
+        h_ClmlIntf->clCreateMLTensorQCOM(workspace->contexts[platform_id], NULL, &desc, &tensor);
     ICHECK(tensor && result == CL_SUCCESS) << "clCreateMLTensorQCOM:" << result;
     (void)result;
     return tensor;
@@ -544,12 +620,12 @@ class CLMLRuntime : public JSONRuntimeBase {
     cl_int result = CL_OUT_OF_HOST_MEMORY;
     cl_mem buffer = NULL;
 
-    CLMLInterfaceV2QCOM* clmlIntf = reinterpret_cast<CLMLInterfaceV2QCOM*>(pClmlIntf);
-    result =
-        clmlIntf->clGetMLTensorMemorySizeQCOM(workspace->context, pTensorMemDesc->tensor, &size);
+    result = h_ClmlIntf->clGetMLTensorMemorySizeQCOM(workspace->contexts[platform_id],
+                                                     pTensorMemDesc->tensor, &size);
     ICHECK(result == CL_SUCCESS) << "clGetMLTensorMemorySizeQCOM:" << result;
 
-    buffer = clCreateBuffer(workspace->context, CL_MEM_READ_WRITE, size, NULL, &result);
+    buffer =
+        clCreateBuffer(workspace->contexts[platform_id], CL_MEM_READ_WRITE, size, NULL, &result);
     ICHECK(result == CL_SUCCESS) << "clCreateBuffer:" << result;
 
     pTensorMemDesc->memory = buffer;
@@ -613,7 +689,7 @@ class CLMLRuntime : public JSONRuntimeBase {
 
     auto tensor_dsc = std::make_shared<cl_ml_tensor_memory_desc_qcom>();
     tensor_dsc->tensor =
-        DeviceMakeCLMLTensor(h_ClmlIntf, workspace->context, dims, layout, cl_dtype);
+        DeviceMakeCLMLTensor(workspace->contexts[platform_id], dims, layout, cl_dtype);
     return tensor_dsc;
   }
 
@@ -727,8 +803,8 @@ class CLMLRuntime : public JSONRuntimeBase {
     } else {
       cl_ml_tensor_desc_qcom desc = {};
       desc.num_dimensions = CL_TENSOR_UNUSED_QCOM;
-      result =
-          h_ClmlIntf->clCreateMLTensorQCOM(workspace->context, NULL, &desc, &layer_.unusedTensor);
+      result = h_ClmlIntf->clCreateMLTensorQCOM(workspace->contexts[platform_id], NULL, &desc,
+                                                &layer_.unusedTensor);
       ICHECK(layer_.unusedTensor && result == CL_SUCCESS) << "clCreateMLTensorQCOM:" << result;
       bias->tensor = layer_.unusedTensor;
     }
@@ -748,13 +824,13 @@ class CLMLRuntime : public JSONRuntimeBase {
     if (!has_bn) {
       if (!has_act) {
         result = h_ClmlIntf->clCreateMLOpConvolutionForwardQCOM(
-            workspace->context, 0, &conv_desc, input->tensor, weight->tensor, bias->tensor,
-            output->tensor, &op, NULL);
+            workspace->contexts[platform_id], 0, &conv_desc, input->tensor, weight->tensor,
+            bias->tensor, output->tensor, &op, NULL);
         ICHECK(op && result == CL_SUCCESS) << "Convolution Error:" << result;
       } else {
         result = h_ClmlIntf->clCreateMLOpFusedConvolutionActivationForwardQCOM(
-            workspace->context, 0, &conv_desc, &act_desc, input->tensor, weight->tensor,
-            bias->tensor, NULL, output->tensor, &op, tuning_cache);
+            workspace->contexts[platform_id], 0, &conv_desc, &act_desc, input->tensor,
+            weight->tensor, bias->tensor, NULL, output->tensor, &op, tuning_cache);
         ICHECK(op && result == CL_SUCCESS) << "Convolution Error:" << result;
       }
       layer_.func_ins.push_back(input);
@@ -781,15 +857,15 @@ class CLMLRuntime : public JSONRuntimeBase {
       cl_ml_op_batchnorm_desc_qcom bn_desc = {CL_BATCHNORM_MODE_SPATIAL_QCOM, cl_arithmetic_mode};
       if (!has_act) {
         result = h_ClmlIntf->clCreateMLOpFusedConvolutionBatchNormForwardQCOM(
-            workspace->context, 0, &conv_desc, &bn_desc, input->tensor, weight->tensor,
-            bias->tensor, output->tensor, bn_mean->tensor, bn_var->tensor, bn_scale->tensor,
-            bn_bias->tensor, &op, tuning_cache);
+            workspace->contexts[platform_id], 0, &conv_desc, &bn_desc, input->tensor,
+            weight->tensor, bias->tensor, output->tensor, bn_mean->tensor, bn_var->tensor,
+            bn_scale->tensor, bn_bias->tensor, &op, tuning_cache);
         ICHECK(op && result == CL_SUCCESS) << "Convolution Error:" << result;
       } else {
         result = h_ClmlIntf->clCreateMLOpFusedConvolutionBatchNormActivationForwardQCOM(
-            workspace->context, 0, &conv_desc, &bn_desc, &act_desc, input->tensor, weight->tensor,
-            bias->tensor, output->tensor, NULL, bn_mean->tensor, bn_var->tensor, bn_scale->tensor,
-            bn_bias->tensor, &op, tuning_cache);
+            workspace->contexts[platform_id], 0, &conv_desc, &bn_desc, &act_desc, input->tensor,
+            weight->tensor, bias->tensor, output->tensor, NULL, bn_mean->tensor, bn_var->tensor,
+            bn_scale->tensor, bn_bias->tensor, &op, tuning_cache);
 
         ICHECK(op && result == CL_SUCCESS) << "Convolution Error:" << result;
       }
@@ -822,13 +898,13 @@ class CLMLRuntime : public JSONRuntimeBase {
 
     cl_ml_tensor_desc_qcom desc = {};
     desc.num_dimensions = CL_TENSOR_UNUSED_QCOM;
-    result =
-        h_ClmlIntf->clCreateMLTensorQCOM(workspace->context, NULL, &desc, &layer_.unusedTensor);
+    result = h_ClmlIntf->clCreateMLTensorQCOM(workspace->contexts[platform_id], NULL, &desc,
+                                              &layer_.unusedTensor);
     ICHECK(layer_.unusedTensor && result == CL_SUCCESS) << ":" << result;
 
-    result = h_ClmlIntf->clCreateMLOpActivationForwardQCOM(workspace->context, 0, &act_desc,
-                                                           input->tensor, layer_.unusedTensor,
-                                                           output->tensor, &op, tuning_cache);
+    result = h_ClmlIntf->clCreateMLOpActivationForwardQCOM(
+        workspace->contexts[platform_id], 0, &act_desc, input->tensor, layer_.unusedTensor,
+        output->tensor, &op, tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << "Activation Error:" << result;
 
     layer_.func_ins.push_back(input);
@@ -874,8 +950,8 @@ class CLMLRuntime : public JSONRuntimeBase {
     cl_ml_op_batchnorm_desc_qcom bn_desc = {CL_BATCHNORM_MODE_SPATIAL_QCOM, cl_arithmetic_mode};
 
     result = h_ClmlIntf->clCreateMLOpBatchNormForwardQCOM(
-        workspace->context, 0, &bn_desc, input->tensor, bn_mean->tensor, bn_var->tensor,
-        bn_scale->tensor, bn_bias->tensor, output->tensor, &op, tuning_cache);
+        workspace->contexts[platform_id], 0, &bn_desc, input->tensor, bn_mean->tensor,
+        bn_var->tensor, bn_scale->tensor, bn_bias->tensor, output->tensor, &op, tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << "Batchnorm Error:" << result;
 
     layer->function.push_back(op);
@@ -901,7 +977,6 @@ class CLMLRuntime : public JSONRuntimeBase {
     auto input = MakeCLMLTensorFromJSONEntry(node.GetInputs()[0], {}, CL_TENSOR_LAYOUT_OPTIMAL_QCOM,
                                              cl_dtype);
     auto output = MakeCLMLTensorFromJSONNode(node, CL_TENSOR_LAYOUT_OPTIMAL_QCOM, cl_dtype);
-    auto in_dims = get_tensor_dims(nodes_[node.GetInputs()[0].id_]);
 
     std::vector<std::string> windows = node.GetAttr<std::vector<std::string>>("pool_size");
     std::vector<std::string> strides = node.GetAttr<std::vector<std::string>>("strides");
@@ -925,12 +1000,13 @@ class CLMLRuntime : public JSONRuntimeBase {
     cl_ml_tensor_desc_qcom desc = {};
     cl_ml_tensor_qcom unusedTensor = NULL;
     desc.num_dimensions = CL_TENSOR_UNUSED_QCOM;
-    result = h_ClmlIntf->clCreateMLTensorQCOM(workspace->context, NULL, &desc, &unusedTensor);
+    result = h_ClmlIntf->clCreateMLTensorQCOM(workspace->contexts[platform_id], NULL, &desc,
+                                              &unusedTensor);
     ICHECK(unusedTensor && result == CL_SUCCESS) << ":" << result;
 
-    result =
-        h_ClmlIntf->clCreateMLOpPoolingForwardQCOM(workspace->context, 0, &pool_desc, input->tensor,
-                                                   unusedTensor, output->tensor, &op, tuning_cache);
+    result = h_ClmlIntf->clCreateMLOpPoolingForwardQCOM(workspace->contexts[platform_id], 0,
+                                                        &pool_desc, input->tensor, unusedTensor,
+                                                        output->tensor, &op, tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << "Pooling Error:" << result;
 
     layer_.func_ins.push_back(input);
@@ -971,13 +1047,13 @@ class CLMLRuntime : public JSONRuntimeBase {
 
     cl_ml_tensor_desc_qcom desc = {};
     desc.num_dimensions = CL_TENSOR_UNUSED_QCOM;
-    result =
-        h_ClmlIntf->clCreateMLTensorQCOM(workspace->context, NULL, &desc, &layer_.unusedTensor);
+    result = h_ClmlIntf->clCreateMLTensorQCOM(workspace->contexts[platform_id], NULL, &desc,
+                                              &layer_.unusedTensor);
     ICHECK(layer_.unusedTensor && result == CL_SUCCESS) << ":" << result;
 
-    result = h_ClmlIntf->clCreateMLOpPoolingForwardQCOM(workspace->context, 0, &pool_desc,
-                                                        input->tensor, layer_.unusedTensor,
-                                                        output->tensor, &op, tuning_cache);
+    result = h_ClmlIntf->clCreateMLOpPoolingForwardQCOM(
+        workspace->contexts[platform_id], 0, &pool_desc, input->tensor, layer_.unusedTensor,
+        output->tensor, &op, tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << "Pooling Error:" << result;
 
     layer_.func_ins.push_back(input);
@@ -1007,7 +1083,7 @@ class CLMLRuntime : public JSONRuntimeBase {
     cl_ml_op_softmax_desc_qcom softmax_desc = {CL_SOFTMAX_ALGORITHM_ACCURATE_QCOM,
                                                CL_SOFTMAX_MODE_INSTANCE_QCOM, cl_arithmetic_mode};
 
-    result = h_ClmlIntf->clCreateMLOpSoftmaxQCOM(workspace->context, 0, &softmax_desc,
+    result = h_ClmlIntf->clCreateMLOpSoftmaxQCOM(workspace->contexts[platform_id], 0, &softmax_desc,
                                                  input->tensor, output->tensor, &op, tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << "SoftMax Error:" << result;
 
@@ -1053,9 +1129,34 @@ class CLMLRuntime : public JSONRuntimeBase {
         {clml_padding[0], clml_padding[1], clml_padding[2], clml_padding[3], 0, 0, 0, 0},
         cl_arithmetic_mode};
 
-    result = h_ClmlIntf->clCreateMLOpPadQCOM(workspace->context, 0, &pad_desc, input->tensor,
-                                             output->tensor, &op, tuning_cache);
+    result = h_ClmlIntf->clCreateMLOpPadQCOM(workspace->contexts[platform_id], 0, &pad_desc,
+                                             input->tensor, output->tensor, &op, tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << "Pad Error:" << result;
+
+    layer_.func_ins.push_back(input);
+    layer->function.push_back(op);
+    return output;
+  }
+
+  /*!
+   * \brief Create a Batch Flatten layer.
+   *
+   * \param layer The CLML layer to build. Containing inputs, outputs and the CLML output.
+   * \param node The JSON representation of the operator.
+   */
+  std::shared_ptr<cl_ml_tensor_memory_desc_qcom> CreateBatchFlattenLayer(
+      CachedLayer* layer, const JSONGraphNode& node) {
+    cl_int result = 0;
+    cl_ml_op_qcom op = NULL;
+    DLDataType tvm_dtype = node.GetOpDataType()[0];
+    cl_channel_type cl_dtype = MakeCLDataType(tvm_dtype);
+    auto input = MakeCLMLTensorFromJSONEntry(node.GetInputs()[0], {}, CL_TENSOR_LAYOUT_OPTIMAL_QCOM,
+                                             cl_dtype);
+    auto output = MakeCLMLTensorFromJSONNode(node, CL_TENSOR_LAYOUT_OPTIMAL_QCOM, cl_dtype);
+
+    result = h_ClmlIntf->clCreateMLOpReshapeQCOM(workspace->contexts[platform_id], 0, input->tensor,
+                                                 output->tensor, &op, tuning_cache);
+    ICHECK(op && result == CL_SUCCESS) << "Reshape Error:" << result;
 
     layer_.func_ins.push_back(input);
     layer->function.push_back(op);
@@ -1078,7 +1179,7 @@ class CLMLRuntime : public JSONRuntimeBase {
                                              cl_dtype);
     auto output = MakeCLMLTensorFromJSONNode(node, CL_TENSOR_LAYOUT_OPTIMAL_QCOM, cl_dtype);
 
-    result = h_ClmlIntf->clCreateMLOpReshapeQCOM(workspace->context, 0, input->tensor,
+    result = h_ClmlIntf->clCreateMLOpReshapeQCOM(workspace->contexts[platform_id], 0, input->tensor,
                                                  output->tensor, &op, tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << "Reshape Error:" << result;
 
@@ -1103,18 +1204,18 @@ class CLMLRuntime : public JSONRuntimeBase {
     cl_channel_type cl_dtype = MakeCLDataType(tvm_dtype);
     cl_arithmetic_mode_qcom cl_arithmetic_mode = MakeCLArithMode(cl_dtype);
     int inputSize = input_.size();
-    int axis = std::stoi(node.GetAttr<std::vector<std::string>>("axis")[0]);
     auto output = MakeCLMLTensorFromJSONNode(node, CL_TENSOR_LAYOUT_OPTIMAL_QCOM, cl_dtype);
+    cl_uint axis = std::stoi(node.GetAttr<std::vector<std::string>>("axis")[0]);
     cl_ml_tensor_qcom* concatInputs = new cl_ml_tensor_qcom[inputSize];
     for (int i = 0; i < inputSize; i++) {
       auto input = MakeCLMLTensorFromJSONEntry(node.GetInputs()[i], {},
                                                CL_TENSOR_LAYOUT_OPTIMAL_QCOM, cl_dtype);
       concatInputs[i] = input->tensor;
     }
-    cl_ml_op_concat_desc_qcom concatDesc = {1, (cl_uint)inputSize, cl_arithmetic_mode};
+    cl_ml_op_concat_desc_qcom concatDesc = {axis, (cl_uint)inputSize, cl_arithmetic_mode};
 
-    result = h_ClmlIntf->clCreateMLOpConcatQCOM(workspace->context, 0, &concatDesc, concatInputs,
-                                                output->tensor, &op, tuning_cache);
+    result = h_ClmlIntf->clCreateMLOpConcatQCOM(workspace->contexts[platform_id], 0, &concatDesc,
+                                                concatInputs, output->tensor, &op, tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << "Concat Error:" << result;
 
     layer->function.push_back(op);
@@ -1153,8 +1254,8 @@ class CLMLRuntime : public JSONRuntimeBase {
     } else {
       cl_ml_tensor_desc_qcom desc = {};
       desc.num_dimensions = CL_TENSOR_UNUSED_QCOM;
-      result =
-          h_ClmlIntf->clCreateMLTensorQCOM(workspace->context, NULL, &desc, &layer_.unusedTensor);
+      result = h_ClmlIntf->clCreateMLTensorQCOM(workspace->contexts[platform_id], NULL, &desc,
+                                                &layer_.unusedTensor);
       ICHECK(layer_.unusedTensor && result == CL_SUCCESS) << "clCreateMLTensorQCOM:" << result;
       bias->tensor = layer_.unusedTensor;
     }
@@ -1172,8 +1273,8 @@ class CLMLRuntime : public JSONRuntimeBase {
                                                 cl_arithmetic_mode};
 
     result = h_ClmlIntf->clCreateMLOpConvolutionForwardQCOM(
-        workspace->context, 0, &conv_desc, input->tensor, weight->tensor, bias->tensor,
-        output->tensor, &op, NULL);
+        workspace->contexts[platform_id], 0, &conv_desc, input->tensor, weight->tensor,
+        bias->tensor, output->tensor, &op, NULL);
     ICHECK(op && result == CL_SUCCESS) << "Fully Connected Error:" << result;
 
     layer->function.push_back(op);
@@ -1203,8 +1304,8 @@ class CLMLRuntime : public JSONRuntimeBase {
     cl_ml_op_clip_desc_qcom clip_desc = {
         CL_CLIP_BY_VALUE_QCOM, {{a_max}, CL_FLOAT}, {{a_min}, CL_FLOAT}, cl_arithmetic_mode};
 
-    result = h_ClmlIntf->clCreateMLOpClipQCOM(workspace->context, 0, &clip_desc, input->tensor,
-                                              output->tensor, &op, tuning_cache);
+    result = h_ClmlIntf->clCreateMLOpClipQCOM(workspace->contexts[platform_id], 0, &clip_desc,
+                                              input->tensor, output->tensor, &op, tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << "Clip Error:" << result;
 
     layer_.func_ins.push_back(input);
@@ -1236,6 +1337,8 @@ class CLMLRuntime : public JSONRuntimeBase {
       binary_op = CL_TENSOR_OP_SUB_QCOM;
     else if (op_name == "multiply")
       binary_op = CL_TENSOR_OP_MUL_QCOM;
+    else if (op_name == "divide")
+      binary_op = CL_TENSOR_OP_DIV_QCOM;
     else if (op_name == "minimum")
       binary_op = CL_TENSOR_OP_MIN_QCOM;
     else if (op_name == "maximum")
@@ -1243,12 +1346,71 @@ class CLMLRuntime : public JSONRuntimeBase {
     cl_ml_op_binary_desc_qcom add_desc = {
         binary_op, {{1.0}, CL_FLOAT}, {{1.0}, CL_FLOAT}, {{0.0}, CL_FLOAT}, cl_arithmetic_mode};
 
-    result = h_ClmlIntf->clCreateMLOpBinaryQCOM(workspace->context, 0, &add_desc, input_a->tensor,
-                                                input_b->tensor, output->tensor, &op, tuning_cache);
+    result = h_ClmlIntf->clCreateMLOpBinaryQCOM(workspace->contexts[platform_id], 0, &add_desc,
+                                                input_a->tensor, input_b->tensor, output->tensor,
+                                                &op, tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << op_name << " Node Error:" << result;
 
     layer_.func_ins.push_back(input_a);
     layer_.func_ins.push_back(input_b);
+    layer->function.push_back(op);
+    return output;
+  }
+
+  /*!
+   * \brief Create a DepthToSpace(X) layer.
+   *
+   * \param layer The CLML layer to build. Containing inputs, outputs and the CLML output.
+   * \param node The JSON representation of the operator.
+   */
+  std::shared_ptr<cl_ml_tensor_memory_desc_qcom> CreateDepthToSpaceLayer(
+      CachedLayer* layer, const JSONGraphNode& node) {
+    cl_int result = 0;
+    cl_ml_op_qcom op = NULL;
+    DLDataType tvm_dtype = node.GetOpDataType()[0];
+    cl_channel_type cl_dtype = MakeCLDataType(tvm_dtype);
+    cl_arithmetic_mode_qcom cl_arithmetic_mode = MakeCLArithMode(cl_dtype);
+    auto input = MakeCLMLTensorFromJSONEntry(node.GetInputs()[0], {}, CL_TENSOR_LAYOUT_OPTIMAL_QCOM,
+                                             cl_dtype);
+    auto output = MakeCLMLTensorFromJSONNode(node, CL_TENSOR_LAYOUT_OPTIMAL_QCOM, cl_dtype);
+    cl_uint block_size = std::stoi(node.GetAttr<std::vector<std::string>>("block_size")[0]);
+
+    cl_ml_op_depthtospace_desc_qcom dtos_desc = {block_size, cl_arithmetic_mode};
+    result =
+        h_ClmlIntf->clCreateMLOpDepthToSpaceQCOM(workspace->contexts[platform_id], 0, &dtos_desc,
+                                                 input->tensor, output->tensor, &op, tuning_cache);
+    ICHECK(op && result == CL_SUCCESS) << "DepthToSpace Layer Error:" << result;
+
+    layer_.func_ins.push_back(input);
+    layer->function.push_back(op);
+    return output;
+  }
+
+  /*!
+   * \brief Create a Resize(X) layer.
+   *
+   * \param layer The CLML layer to build. Containing inputs, outputs and the CLML output.
+   * \param node The JSON representation of the operator.
+   */
+  std::shared_ptr<cl_ml_tensor_memory_desc_qcom> CreateResizeLayer(CachedLayer* layer,
+                                                                   const JSONGraphNode& node) {
+    cl_int result = 0;
+    cl_ml_op_qcom op = NULL;
+    DLDataType tvm_dtype = node.GetOpDataType()[0];
+    cl_channel_type cl_dtype = MakeCLDataType(tvm_dtype);
+    cl_arithmetic_mode_qcom cl_arithmetic_mode = MakeCLArithMode(cl_dtype);
+    auto input = MakeCLMLTensorFromJSONEntry(node.GetInputs()[0], {}, CL_TENSOR_LAYOUT_OPTIMAL_QCOM,
+                                             cl_dtype);
+    auto output = MakeCLMLTensorFromJSONNode(node, CL_TENSOR_LAYOUT_OPTIMAL_QCOM, cl_dtype);
+    cl_bool align_corners = std::stoi(node.GetAttr<std::vector<std::string>>("align_corners")[0]);
+
+    cl_ml_op_resize_bilinear_desc_qcom resize_desc = {align_corners, false, cl_arithmetic_mode};
+    result = h_ClmlIntf->clCreateMLOpResizeBilinearQCOM(workspace->contexts[platform_id], 0,
+                                                        &resize_desc, input->tensor, output->tensor,
+                                                        &op, tuning_cache);
+    ICHECK(op && result == CL_SUCCESS) << "Resize Layer Error:" << result;
+
+    layer_.func_ins.push_back(input);
     layer->function.push_back(op);
     return output;
   }
@@ -1260,9 +1422,11 @@ class CLMLRuntime : public JSONRuntimeBase {
 
   CachedLayer layer_;
   // CLML Context
-  CLMLInterfaceV2QCOM* h_ClmlIntf = NULL;
+  GET_ML_API_INTERFACE* h_ClmlIntf = NULL;
   cl::OpenCLWorkspace* workspace = NULL;
   cl::OpenCLThreadEntry* tentry = NULL;
+  cl_device_id device_id;
+  cl_platform_id platform_id;
   cl_ml_tuningcache_qcom tuning_cache = NULL;
   bool is_tuning_run;
   char* tuning_file;
@@ -1277,6 +1441,8 @@ class CLMLRuntime : public JSONRuntimeBase {
                  << "Please build with USE_CLML_GRAPH_EXECUTOR.";
   }
 #endif
+  /*! CLML sub graph symbol in TVM main module */
+  std::string clml_symbol;
 };
 
 runtime::Module CLMLRuntimeCreate(const String& symbol_name, const String& graph_json,

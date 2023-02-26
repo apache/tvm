@@ -262,7 +262,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    */
   void RegisterHandleType(const VarNode* buf_var, DataType t);
   // override
-  void PrintSSAAssign(const std::string& target, const std::string& src, DataType t) final;
+  void PrintSSAAssign(const std::string& target, const std::string& src, DataType t) override;
   /*! \brief reserves common C keywords */
   void ReserveKeywordsAsUnique();
 
@@ -281,10 +281,10 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   const Op& builtin_call_extern_ = builtin::call_extern();
   const Op& builtin_call_pure_extern_ = builtin::call_pure_extern();
   Integer constants_byte_alignment_ = 16;
-
- private:
   /*! \brief whether to print in SSA form */
   bool print_ssa_form_{false};
+
+ private:
   /*! \brief set of volatile buf access */
   std::unordered_set<const VarNode*> volatile_buf_;
   // deep comparison of PrimExpr

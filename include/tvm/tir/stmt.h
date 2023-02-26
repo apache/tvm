@@ -46,6 +46,8 @@ class StmtNode : public Object {
   StmtNode() = default;
   explicit StmtNode(Span span) : span(span) {}
 
+  TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
+
   static constexpr const char* _type_key = "tir.Stmt";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
@@ -1612,6 +1614,9 @@ constexpr const char* meta_schedule_auto_tensorize_init = "meta_schedule.auto_te
  * warp size.
  */
 constexpr const char* warp_execution = "warp_execution";
+
+/*! \brief Mark that a block is disallowed in auto inline. */
+constexpr const char* meta_schedule_inline_rule = "meta_schedule.inline_rule";
 
 /*!
  * \brief Check if attr_key is a pragma key extension

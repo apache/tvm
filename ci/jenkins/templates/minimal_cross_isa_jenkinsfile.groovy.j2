@@ -1,0 +1,56 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+{% include "utils/base.groovy.j2" with context %}
+{% import 'utils/macros.j2' as m with context -%}
+
+{% call m.invoke_build(
+  name='BUILD: CPU MINIMAL CROSS ISA',
+  node='CPU-SMALL',
+  condition='!skip_ci && is_docs_only_build != 1',
+  ws='tvm/build-cpu-minimal-cross-isa',
+  docker_image='ci_minimal',
+) %}
+  sh (
+    script: "${docker_run} ${ci_minimal} ./tests/scripts/task_config_build_minimal_cross_isa.sh build",
+    label: 'Create CPU minimal cmake config',
+  )
+  cmake_build(ci_minimal, 'build', '-j2')
+  {{ m.upload_artifacts(tag='cpu-minimal-cross-isa', filenames=tvm_lib + tvm_allvisible + standalone_crt + microtvm_template_projects) }}
+{% endcall %}
+
+
+{% set test_method_names = [] %}
+
+{% call(shard_index, num_shards) m.sharded_test_step(
+  name="unittest: CPU MINIMAL CROSS ISA",
+  node="ARM-SMALL",
+  num_shards=1,
+  ws="tvm/ut-cpp-arm-cross-isa",
+  platform="arm",
+  docker_image="ci_arm",
+  test_method_names=test_method_names,
+) %}
+  {{ m.download_artifacts(tag='cpu-minimal-cross-isa') }}
+  ci_setup(ci_arm)
+  sh "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_minimal_cross_isa.sh build"
+  make_cpp_tests(ci_arm, 'build')
+  cpp_unittest(ci_arm)
+  python_unittest(ci_arm)
+{% endcall %}
+
+
+{{ m.invoke_tests(test_method_names) -}}

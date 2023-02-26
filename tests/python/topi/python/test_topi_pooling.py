@@ -17,12 +17,13 @@
 # pylint: disable=invalid-name, too-many-locals, too-many-statements, unused-argument
 """Test code for pooling"""
 import math
+import pytest
 
 import numpy as np
 import tvm
 import tvm.testing
 import tvm.topi.testing
-from tvm import te, topi
+from tvm import te, topi, TVMError
 from tvm.topi.utils import get_const_tuple
 
 _pool_schedule = {
@@ -762,10 +763,50 @@ def test_pool1d():
     verify_pool1d([1, 31, 16], [3], [3], [3], [3, 0], "max", True, layout="NWC")
 
 
+def test_pool_invalid_tiled_layout():
+
+    with pytest.raises(TVMError, match="Unsupported layout NCHWD4d"):
+        A_3d = te.placeholder([1, 16, 32, 32, 32], name="A")
+        B = topi.nn.pool3d(
+            A_3d,
+            kernel=[2, 2, 2],
+            stride=[2, 2, 2],
+            dilation=[1, 1, 1],
+            padding=[0, 0, 0, 0, 0, 0],
+            pool_type="avg",
+            ceil_mode=False,
+            count_include_pad=True,
+            layout="NCHWD4d",
+        )
+
+    with pytest.raises(TVMError, match="Unsupported layout NCHW4h4w"):
+        A_2d = te.placeholder([1, 16, 32, 32], name="A")
+        B = topi.nn.pool2d(
+            A_2d,
+            kernel=[2, 2],
+            stride=[2, 2],
+            dilation=[1, 1],
+            padding=[0, 0, 0, 0],
+            pool_type="avg",
+            ceil_mode=False,
+            count_include_pad=True,
+            layout="NCHW4h4w",
+        )
+
+    with pytest.raises(TVMError, match="Unsupported layout NCW4w"):
+        A_1d = te.placeholder([1, 16, 32], name="A")
+        B = topi.nn.pool1d(
+            A_1d,
+            kernel=[2],
+            stride=[2],
+            dilation=[1],
+            padding=[0, 0],
+            pool_type="avg",
+            ceil_mode=False,
+            count_include_pad=True,
+            layout="NCW4w",
+        )
+
+
 if __name__ == "__main__":
-    test_pool1d()
-    test_pool2d()
-    test_pool3d()
-    test_pool_grad()
-    test_global_pool()
-    test_adaptive_pool()
+    tvm.testing.main()

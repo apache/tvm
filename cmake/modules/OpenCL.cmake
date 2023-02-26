@@ -43,7 +43,7 @@ if(USE_OPENCL)
   tvm_file_glob(GLOB RUNTIME_OPENCL_SRCS src/runtime/opencl/*.cc)
 
   if(${USE_OPENCL} MATCHES ${IS_TRUE_PATTERN})
-    message(WARNING "Build with OpenCL wrapper")
+    message(STATUS "Enabled runtime search for OpenCL library location")
     file_glob_append(RUNTIME_OPENCL_SRCS
       "src/runtime/opencl/opencl_wrapper/opencl_wrapper.cc"
     )
@@ -74,6 +74,9 @@ if(USE_OPENCL)
     target_link_libraries(opencl-cpptest PRIVATE gtest_main tvm_runtime)
   endif()
   list(APPEND RUNTIME_SRCS ${RUNTIME_OPENCL_SRCS})
+  if(USE_OPENCL_ENABLE_HOST_PTR)
+    add_definitions(-DOPENCL_ENABLE_HOST_PTR)
+  endif(USE_OPENCL_ENABLE_HOST_PTR)
 else()
   list(APPEND COMPILER_SRCS src/target/opt/build_opencl_off.cc)
 endif(USE_OPENCL)

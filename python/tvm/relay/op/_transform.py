@@ -195,14 +195,14 @@ def stft_shape_func(attrs, inputs, _):
 _reg.register_strategy("trilu", strategy.trilu_strategy)
 
 
-# scatter_add
-@_reg.register_compute("scatter_add")
-def compute_scatter_add(attrs, inputs, output_type):
-    """Compute definition of scatter_add"""
-    return [topi.scatter_add(inputs[0], inputs[1], inputs[2], attrs.axis)]
+# scatter_elements
+@_reg.register_compute("scatter_elements")
+def compute_scatter_elements(attrs, inputs, output_type):
+    """Compute definition of scatter_elements"""
+    return [topi.scatter_elements(inputs[0], inputs[1], inputs[2], attrs.axis, attrs.reduction)]
 
 
-_reg.register_strategy("scatter_add", strategy.scatter_add_strategy)
+_reg.register_strategy("scatter_elements", strategy.scatter_elements_strategy)
 
 # scatter_nd
 @_reg.register_compute("scatter_nd")
@@ -678,7 +678,7 @@ def argwhere_shape_func(attrs, inputs, out_ndims):
 
 
 _reg.register_shape_func("scatter", False, elemwise_shape_func)
-_reg.register_shape_func("scatter_add", False, elemwise_shape_func)
+_reg.register_shape_func("scatter_elements", False, elemwise_shape_func)
 _reg.register_shape_func("scatter_nd", False, elemwise_shape_func)
 
 

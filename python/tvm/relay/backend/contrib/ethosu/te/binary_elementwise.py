@@ -47,6 +47,9 @@ def binary_elementwise_compute(
     ifm2_layout: str,
     ofm_layout: str,
     ofm_dtype: str,
+    use_rescale: bool,
+    rescale_scale: int,
+    rescale_shift: int,
 ) -> te.Tensor:
     """A compute operator representing the capabilities of binary_elementwise for the NPU.
 
@@ -121,6 +124,12 @@ def binary_elementwise_compute(
           {int32}->{int8, uint8, int32}, any pairing"
         SHL:
           {int32}->{int32} only
+    use_rescale : bool
+        Use explicit scaling if True.
+    rescale_scale : int
+        Scale value for rescale. For 32-bit operations scale is not applied but shift is.
+    rescale_shift : int
+        Shift value for rescale.
 
     Returns
     -------
@@ -153,6 +162,9 @@ def binary_elementwise_compute(
         "clip_min": clip_min,
         "clip_max": clip_max,
         "rounding_mode": rounding_mode,
+        "use_rescale": use_rescale,
+        "rescale_scale": rescale_scale,
+        "rescale_shift": rescale_shift,
     }
 
     operators = {
@@ -166,6 +178,14 @@ def binary_elementwise_compute(
     }
     broadcast = [value == 1 for value in dmaed_ifm2.shape]
 
+    has_lut = activation in ("TANH", "LUT", "SIGMOID")
+    # This is a trick to insert the LUT tensor into the TE graph if LUT is present
+    lut_expr = (lut[0] + lut[255]).astype(ifm.dtype) if has_lut else 0
+
+    # Add the LUT tensor to the attributes to be able to later tell which tensor is the LUT
+    if has_lut:
+        binary_elementwise_attrs["lut"] = lut
+
     if reversed_operands:
         binary_elementwise = te.compute(
             (1, ofm_height, ofm_width, ifm_channels),
@@ -176,7 +196,7 @@ def binary_elementwise_compute(
                     0 if broadcast[2] else ww,
                     0 if broadcast[3] else cc,
                 ).astype(ifm.dtype),
-                dmaed_ifm(nn, hh, ww, cc).astype(ifm.dtype),
+                dmaed_ifm(nn, hh, ww, cc).astype(ifm.dtype) + lut_expr,
             ).astype(ofm_dtype),
             name="ethosu_binary_elementwise",
             attrs=binary_elementwise_attrs,
@@ -191,7 +211,8 @@ def binary_elementwise_compute(
                     0 if broadcast[1] else hh,
                     0 if broadcast[2] else ww,
                     0 if broadcast[3] else cc,
-                ).astype(ifm.dtype),
+                ).astype(ifm.dtype)
+                + lut_expr,
             ).astype(ofm_dtype),
             name="ethosu_binary_elementwise",
             attrs=binary_elementwise_attrs,

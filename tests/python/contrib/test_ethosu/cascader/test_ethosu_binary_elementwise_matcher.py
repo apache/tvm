@@ -145,6 +145,9 @@ def test_ethosu_binary_elementwise_matcher(
         ifm2_layout=ifm2_layout,
         ofm_layout=ofm_layout,
         ofm_dtype="int8",
+        use_rescale=False,
+        rescale_scale=0,
+        rescale_shift=0,
     )
     ifm_propagator = out.op.attrs["ifm_propagator"]
     ifm2_propagator = out.op.attrs["ifm2_propagator"]
@@ -175,4 +178,4 @@ def test_ethosu_binary_elementwise_matcher(
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

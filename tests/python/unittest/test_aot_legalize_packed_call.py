@@ -26,19 +26,19 @@ from tvm.script import tir as T
 class Module:
     @T.prim_func
     def tvm_test_cpacked(
-        A: T.Buffer[(1,), "float32"],
-        B: T.Buffer[(1,), "float32"],
-        C: T.Buffer[(1,), "float32"],
-        device_context: T.Buffer[(1,), "float32"],
+        A: T.Buffer((1,), "float32"),
+        B: T.Buffer((1,), "float32"),
+        C: T.Buffer((1,), "float32"),
+        device_context: T.Buffer((1,), "float32"),
     ) -> T.handle:
         T.evaluate(C.data)
 
     @T.prim_func
     def tir_packed_call() -> None:
-        A = T.var("handle")
-        B = T.var("handle")
-        C = T.var("handle")
-        device_context = T.var("handle")
+        A = T.handle()
+        B = T.handle()
+        C = T.handle()
+        device_context = T.handle()
         # body
         T.evaluate(
             T.tvm_call_cpacked(
@@ -56,19 +56,19 @@ class Module:
 class Expected:
     @T.prim_func
     def tvm_test_cpacked(
-        A: T.Buffer[(1,), "float32"],
-        B: T.Buffer[(1,), "float32"],
-        C: T.Buffer[(1,), "float32"],
-        device_context: T.Buffer[(1,), "float32"],
+        A: T.Buffer((1,), "float32"),
+        B: T.Buffer((1,), "float32"),
+        C: T.Buffer((1,), "float32"),
+        device_context: T.Buffer((1,), "float32"),
     ) -> T.handle:
         T.evaluate(C.data)
 
     @T.prim_func
     def tir_packed_call() -> None:
-        A = T.var("handle")
-        B = T.var("handle")
-        C = T.var("handle")
-        device_context = T.var("handle")
+        A = T.handle()
+        B = T.handle()
+        C = T.handle()
+        device_context = T.handle()
 
         # body
         T.evaluate(
@@ -115,4 +115,4 @@ def test_aot_packed_call():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

@@ -29,6 +29,12 @@
 
 #include "opencl_common.h"
 
+#ifdef OPENCL_ENABLE_HOST_PTR
+#define CL_MEM_CREATE_FLAGS CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR
+#else
+#define CL_MEM_CREATE_FLAGS CL_MEM_READ_WRITE
+#endif
+
 namespace tvm {
 namespace runtime {
 namespace cl {
@@ -104,6 +110,11 @@ OpenCLWorkspace* OpenCLWorkspace::Global() {
   return inst;
 }
 
+cl_device_id OpenCLWorkspace::GetCLDeviceID(int device_id) {
+  ICHECK_LT(device_id, devices.size()) << "Invalid device id " << device_id << ". " << GetError();
+  return devices[device_id];
+}
+
 void OpenCLWorkspace::SetDevice(Device dev) { GetThreadEntry()->device.device_id = dev.device_id; }
 
 void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) {
@@ -113,14 +124,14 @@ void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
     *rv = static_cast<int>(index < devices.size());
     return;
   }
-  ICHECK_LT(index, devices.size()) << "Invalid device id " << index << ". " << GetError();
+  cl_device_id device_id = GetCLDeviceID(index);
   switch (kind) {
     case kExist:
       break;
     case kMaxThreadsPerBlock: {
       size_t value;
-      OPENCL_CALL(clGetDeviceInfo(devices[index], CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t),
-                                  &value, nullptr));
+      OPENCL_CALL(clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &value,
+                                  nullptr));
       *rv = static_cast<int64_t>(value);
       break;
     }
@@ -136,21 +147,21 @@ void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
     }
     case kMaxSharedMemoryPerBlock: {
       cl_ulong value;
-      OPENCL_CALL(clGetDeviceInfo(devices[index], CL_DEVICE_LOCAL_MEM_SIZE, sizeof(cl_ulong),
-                                  &value, nullptr));
+      OPENCL_CALL(
+          clGetDeviceInfo(device_id, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(cl_ulong), &value, nullptr));
       *rv = static_cast<int64_t>(value);
       break;
     }
     case kComputeVersion:
-      *rv = GetOpenCLVersion(devices[index]);
+      *rv = GetOpenCLVersion(device_id);
       break;
     case kDeviceName:
-      *rv = GetDeviceInfo(devices[index], CL_DEVICE_NAME);
+      *rv = GetDeviceInfo(device_id, CL_DEVICE_NAME);
       break;
     case kMaxClockRate: {
       cl_uint value;
-      OPENCL_CALL(clGetDeviceInfo(devices[index], CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(cl_uint),
-                                  &value, nullptr));
+      OPENCL_CALL(clGetDeviceInfo(device_id, CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(cl_uint), &value,
+                                  nullptr));
       // OpenCL returns the clock rate in MHz, while CUDA/ROCm return the
       // clock rate in kHz.  Converting to the same units for each.
       *rv = static_cast<int32_t>(value * 1000);
@@ -158,15 +169,15 @@ void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
     }
     case kMultiProcessorCount: {
       cl_uint value;
-      OPENCL_CALL(clGetDeviceInfo(devices[index], CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint),
-                                  &value, nullptr));
+      OPENCL_CALL(clGetDeviceInfo(device_id, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint), &value,
+                                  nullptr));
       *rv = static_cast<int32_t>(value);
       break;
     }
     case kMaxThreadDimensions: {
       size_t dims[3];
-      OPENCL_CALL(clGetDeviceInfo(devices[index], CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(dims), dims,
-                                  nullptr));
+      OPENCL_CALL(
+          clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(dims), dims, nullptr));
 
       std::stringstream ss;  // use json string to return multiple int values;
       ss << "[" << dims[0] << ", " << dims[1] << ", " << dims[2] << "]";
@@ -183,28 +194,40 @@ void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
     }
     case kDriverVersion: {
       char value[128] = {0};
-      OPENCL_CALL(
-          clGetDeviceInfo(devices[index], CL_DRIVER_VERSION, sizeof(value) - 1, value, nullptr));
+      OPENCL_CALL(clGetDeviceInfo(device_id, CL_DRIVER_VERSION, sizeof(value) - 1, value, nullptr));
       *rv = std::string(value);
       break;
     }
   }
 }
 
+void* OpenCLWorkspace::CreateHostPtrIfEnabled(cl::BufferDescriptor* desc, Device dev, size_t size) {
+#if defined(OPENCL_ENABLE_HOST_PTR)
+  cl_int err_code;
+  desc->host_ptr = reinterpret_cast<cl_uchar*>(
+      clEnqueueMapBuffer(this->GetQueue(dev), desc->buffer, CL_TRUE, CL_MAP_WRITE, 0,
+                         sizeof(cl_uchar) * size, 0, nullptr, nullptr, &err_code));
+  OPENCL_CHECK_ERROR(err_code);
+#endif  // OPENCL_ENABLE_HOST_PTR
+  return desc;
+}
+
 void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t size, size_t alignment,
                                       DLDataType type_hint) {
   this->Init();
-  ICHECK(context != nullptr) << "No OpenCL device. " << GetError();
+  cl_device_id device_id = GetCLDeviceID(dev.device_id);
+  auto platform = device_to_platform[device_id];
   cl_int err_code;
   cl::BufferDescriptor* desc = new cl::BufferDescriptor;
   // CL_INVALID_BUFFER_SIZE if size is 0.
   if (size == 0) {
     size = 1;
   }
-  desc->buffer = clCreateBuffer(this->context, CL_MEM_READ_WRITE, size, nullptr, &err_code);
+  desc->buffer =
+      clCreateBuffer(this->contexts[platform], CL_MEM_CREATE_FLAGS, size, nullptr, &err_code);
   desc->layout = cl::BufferDescriptor::MemoryLayout::kBuffer1D;
   OPENCL_CHECK_ERROR(err_code);
-  return desc;
+  return CreateHostPtrIfEnabled(desc, dev, size);
 }
 
 void* OpenCLWorkspace::AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
@@ -226,12 +249,21 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, int ndim, const int64_t* shape
   return desc;
 }
 
+void* OpenCLWorkspace::GetNativePtr(const tvm::runtime::NDArray& narr) {
+  cl::BufferDescriptor* desc = static_cast<cl::BufferDescriptor*>(narr.operator->()->data);
+  return desc->host_ptr;
+}
+
 void OpenCLWorkspace::FreeDataSpace(Device dev, void* ptr) {
   // We have to make sure that the memory object is not in the command queue
   // for some OpenCL platforms.
   OPENCL_CALL(clFinish(this->GetQueue(dev)));
 
   cl::BufferDescriptor* desc = static_cast<cl::BufferDescriptor*>(ptr);
+  if (desc->host_ptr) {
+    clEnqueueUnmapMemObject(this->GetQueue(dev), desc->buffer,
+                            reinterpret_cast<void*>(desc->host_ptr), 0, nullptr, nullptr);
+  }
   OPENCL_CALL(clReleaseMemObject(desc->buffer));
   delete desc;
 }
@@ -239,13 +271,14 @@ void OpenCLWorkspace::FreeDataSpace(Device dev, void* ptr) {
 cl_mem OpenCLWorkspace::AllocTexture(Device dev, size_t width, size_t height,
                                      DLDataType type_hint) {
   this->Init();
-  ICHECK(context != nullptr) << "No OpenCL device. " << GetError();
+  cl_device_id device_id = GetCLDeviceID(dev.device_id);
+  auto platform = device_to_platform[device_id];
   cl_int err_code;
   cl_channel_type cl_type = DTypeToOpenCLChannelType(type_hint);
   cl_image_format format = {CL_RGBA, cl_type};
   cl_image_desc descriptor = {CL_MEM_OBJECT_IMAGE2D, width, height, 0, 0, 0, 0, 0, 0};
-  cl_mem mptr =
-      clCreateImage(this->context, CL_MEM_READ_WRITE, &format, &descriptor, nullptr, &err_code);
+  cl_mem mptr = clCreateImage(this->contexts[platform], CL_MEM_CREATE_FLAGS, &format, &descriptor,
+                              nullptr, &err_code);
   OPENCL_CHECK_ERROR(err_code);
   return mptr;
 }
@@ -419,7 +452,6 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
   if (initialized_) return;
   std::lock_guard<std::mutex> lock(this->mu);
   if (initialized_) return;
-  if (context != nullptr) return;
   this->type_key = type_key;
   // matched platforms
   std::vector<cl_platform_id> platform_ids = cl::GetPlatformIDs();
@@ -427,64 +459,69 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
     LOG(WARNING) << "No OpenCL platform matched given existing options ...";
     return;
   }
-  this->platform_id = nullptr;
-  for (auto platform_id : platform_ids) {
-    if (!MatchPlatformInfo(platform_id, CL_PLATFORM_NAME, platform_name)) {
-      continue;
-    }
-    std::vector<cl_device_id> devices_matched = cl::GetDeviceIDs(platform_id, device_type);
-    if ((devices_matched.size() == 0) && (device_type == "gpu")) {
-      LOG(WARNING) << "Using CPU OpenCL device";
-      devices_matched = cl::GetDeviceIDs(platform_id, "cpu");
-    }
-    std::vector<cl_device_id> supported_devices = {};
-    auto get_version_str = [](int version) {
-      std::ostringstream out;
-      out.precision(1);
-      out << std::fixed << version / 100.f;
-      return out.str();
-    };
-    for (auto& device : devices_matched) {
-      std::string ver = GetOpenCLVersion(device);
-      int opencl_version = std::stod(ver) * 100;
-      if (opencl_version >= CL_TARGET_OPENCL_VERSION) {
-        supported_devices.push_back(device);
-      } else {
-        std::string dev_msg = GetDeviceInfo(device, CL_DEVICE_NAME) +
-                              " has OpenCL version == " + get_version_str(opencl_version);
-        LOG(WARNING) << "TVM supports devices with OpenCL version >= "
-                     << get_version_str(CL_TARGET_OPENCL_VERSION) << ", device " << dev_msg
-                     << ". This device will be ignored.";
+  auto find_opencl_device = [&](const std::string& device_type, const std::string& platform_name) {
+    std::unordered_map<cl_platform_id, std::vector<cl_device_id>> device_map;
+    for (auto platform_id : platform_ids) {
+      if (!MatchPlatformInfo(platform_id, CL_PLATFORM_NAME, platform_name)) {
+        continue;
+      }
+      std::vector<cl_device_id> devices_matched = cl::GetDeviceIDs(platform_id, device_type);
+      std::vector<cl_device_id> supported_devices = {};
+      auto get_version_str = [](int version) {
+        std::ostringstream out;
+        out.precision(1);
+        out << std::fixed << version / 100.f;
+        return out.str();
+      };
+      for (auto& device : devices_matched) {
+        std::string ver = GetOpenCLVersion(device);
+        int opencl_version = std::stod(ver) * 100;
+        if (opencl_version >= CL_TARGET_OPENCL_VERSION) {
+          supported_devices.push_back(device);
+        } else {
+          std::string dev_msg = GetDeviceInfo(device, CL_DEVICE_NAME) +
+                                " has OpenCL version == " + get_version_str(opencl_version);
+          LOG(WARNING) << "TVM supports devices with OpenCL version >= "
+                       << get_version_str(CL_TARGET_OPENCL_VERSION) << ", device " << dev_msg
+                       << ". This device will be ignored.";
 
-        if (noDevicesErrorMsg.empty()) {
-          noDevicesErrorMsg =
-              "Probably this error happen because TVM supports devices with OpenCL version >= " +
-              get_version_str(CL_TARGET_OPENCL_VERSION) + ". We found the following devices:\n";
+          if (noDevicesErrorMsg.empty()) {
+            noDevicesErrorMsg =
+                "Probably this error happen because TVM supports devices with OpenCL version >= " +
+                get_version_str(CL_TARGET_OPENCL_VERSION) + ". We found the following devices:\n";
+          }
+          noDevicesErrorMsg += "\t" + dev_msg + "\n";
         }
-        noDevicesErrorMsg += "\t" + dev_msg + "\n";
+      }
+      if (supported_devices.size()) {
+        device_map[platform_id] = supported_devices;
       }
     }
-    if (supported_devices.size() > 0) {
-      this->platform_id = platform_id;
-      this->platform_name = cl::GetPlatformInfo(platform_id, CL_PLATFORM_NAME);
-      this->device_type = device_type;
-      this->devices = supported_devices;
-      break;
-    }
+    return device_map;
+  };
+  auto device_map = find_opencl_device(device_type, platform_name);
+  if ((device_map.size() == 0) && (device_type == "gpu")) {
+    LOG(WARNING) << "Using CPU OpenCL device";
+    device_map = find_opencl_device("cpu", "");
   }
-  if (this->platform_id == nullptr) {
+  if (device_map.empty()) {
     LOG(WARNING) << "No OpenCL device";
     initialized_ = true;
     return;
   }
-  cl_int err_code;
-  this->context = clCreateContext(nullptr, this->devices.size(), &(this->devices[0]), nullptr,
-                                  nullptr, &err_code);
-  OPENCL_CHECK_ERROR(err_code);
   ICHECK_EQ(this->queues.size(), 0U);
-  for (size_t i = 0; i < this->devices.size(); ++i) {
-    cl_device_id did = this->devices[i];
-    this->queues.push_back(clCreateCommandQueue(this->context, did, 0, &err_code));
+  cl_int err_code;
+  for (auto& [platform, devices] : device_map) {
+    this->platform_ids.push_back(platform);
+    this->contexts[platform] =
+        clCreateContext(nullptr, devices.size(), &(devices[0]), nullptr, nullptr, &err_code);
+    this->devices.insert(this->devices.end(), devices.begin(), devices.end());
+    for (size_t i = 0; i < devices.size(); ++i) {
+      cl_device_id did = devices[i];
+      device_to_platform[did] = platform;
+      this->queues.push_back(clCreateCommandQueue(this->contexts[platform], did, 0, &err_code));
+      OPENCL_CHECK_ERROR(err_code);
+    }
     OPENCL_CHECK_ERROR(err_code);
   }
   this->events.resize(this->devices.size());

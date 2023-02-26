@@ -1141,6 +1141,32 @@ def convert_mv(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_norm(g, op, block):
+    """Operator converter for norm."""
+
+    x = g.get_node(op.input("X")[0])
+    axis = op.attr("axis")
+    axis_l = [axis]
+    epsilon = op.attr("epsilon")
+    out = _op.nn.l2_normalize(x, epsilon, axis_l)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_one_hot_v2(g, op, block):
+    """Operator converter for one_hot_v2."""
+
+    x = g.get_node(op.input("X")[0])
+    depth = op.attr("depth")
+    dtype = op.attr("dtype")
+    dtype = _convert_dtype_value(dtype)
+    ndim = len(infer_shape(x))
+    on_value = _op.const(1)
+    off_value = _op.const(0)
+    axis = ndim
+    out = _op.one_hot(x, on_value, off_value, depth, axis, dtype)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_padding(g, op, block):
     """Operator converter for padding."""
 
@@ -1717,7 +1743,7 @@ def convert_scatter(g, op, block):
     if overwrite:
         out = _op.scatter(x, index, updates, axis=0)
     else:
-        out = _op.scatter_add(_op.zeros_like(x), index, updates, axis=0)
+        out = _op.scatter_elements(_op.zeros_like(x), index, updates, axis=0, reduction="add")
         out += _op.scatter(x, index, _op.zeros_like(updates), axis=0)
     g.add_node(op.output("Out")[0], out)
 
@@ -1884,7 +1910,8 @@ def convert_slice(g, op, block):
         strides = _op.const([1] * dims, dtype="int64")
 
     out = _op.strided_slice(data, begin=starts, end=ends, strides=strides)
-    if decrease_axis:
+    out_shape = infer_shape(out)
+    if decrease_axis and len(out_shape) > 1:
         out = _op.squeeze(out, axis=decrease_axis)
     g.add_node(op.output("Out")[0], out)
 
@@ -1998,6 +2025,37 @@ def convert_swish(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_topk(g, op, block):
+    """Operator converter for topk."""
+
+    data = g.get_node(op.input("X")[0])
+    if op.input("K"):
+        k = g.get_node(op.input("K")[0])
+    else:
+        k = op.attr("k")
+
+    largest = op.attr("largest")
+    is_ascend = not largest
+    axis = op.attr("axis")
+
+    value_names = op.output("Out")
+    indice_names = op.output("Indices")
+
+    out = None
+    indice = None
+    if value_names and indice_names:
+        out, indice = _op.topk(data=data, k=k, axis=axis, ret_type="both", is_ascend=is_ascend)
+    elif value_names:
+        out = _op.topk(data=data, k=k, axis=axis, ret_type="values", is_ascend=is_ascend)
+    elif indice_names:
+        indice = _op.topk(data=data, k=k, axis=axis, ret_type="indices", is_ascend=is_ascend)
+
+    if out is not None:
+        g.add_node(value_names[0], out)
+    if indice is not None:
+        g.add_node(indice_names[0], indice)
+
+
 def convert_transpose(g, op, block):
     """Operator converter for transpose."""
 
@@ -2014,6 +2072,14 @@ def convert_unsqueeze(g, op, block):
     for axis in axes:
         x = _op.expand_dims(x, axis=axis, num_newaxis=1)
     g.add_node(op.output("Out")[0], x)
+
+
+def convert_where_index(g, op, block):
+    """Operator converter for where_index."""
+
+    condition = g.get_node(op.input("Condition")[0])
+    out = _op.argwhere(condition)
+    g.add_node(op.output("Out")[0], out)
 
 
 _convert_map = {
@@ -2103,7 +2169,9 @@ _convert_map = {
     "mul": convert_mul,
     "mv": convert_mv,
     "nearest_interp_v2": convert_interpolate,
+    "norm": convert_norm,
     "not_equal": convert_elementwise_op,
+    "one_hot_v2": convert_one_hot_v2,
     "pad1d": convert_padding,
     "pad2d": convert_padding,
     "pad3d": convert_padding,
@@ -2148,8 +2216,10 @@ _convert_map = {
     "swish": convert_swish,
     "tan": convert_unary_op,
     "tanh": convert_unary_op,
+    "top_k_v2": convert_topk,
     "transpose2": convert_transpose,
     "unsqueeze2": convert_unsqueeze,
+    "where_index": convert_where_index,
 }
 
 

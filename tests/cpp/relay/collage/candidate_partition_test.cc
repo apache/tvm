@@ -20,9 +20,9 @@
 #include "../../../src/relay/collage/candidate_partition.h"
 
 #include <gtest/gtest.h>
-#include <tvm/parser/parser.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
+#include <tvm/relay/parser.h>
 #include <tvm/relay/transform.h>
 
 #include "../../../../src/relay/collage/mock_cost_estimator.h"
@@ -37,7 +37,7 @@ namespace {
 // so not re-tested here. The only other non-trivial code is CandidatePartition::EstimateCost
 
 Function MakeTestFunction(const std::string& mod_text) {
-  IRModule mod = parser::ParseModule("string", mod_text, {}, {});
+  IRModule mod = ParseModule("string", mod_text, {}, {});
   mod = transform::CapturePostDfsIndexInSpans()(mod);
   auto func = Downcast<Function>(mod->Lookup("main"));
   LOG(INFO) << "------- input function -------";

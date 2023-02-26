@@ -497,6 +497,13 @@ TVM_DLL Pass LowerAsyncDMA();
 TVM_DLL Pass CommonSubexprElimTIR(bool enable_cse_tir = true, bool identify_equiv_terms = false);
 
 /*!
+ * \brief Add TIR-printer output as debug information to all ops in the module
+ * \return The pass.
+ */
+
+TVM_DLL Pass InstallDebugSpans();
+
+/*!
  * \brief Unify all the thread bindings for "blockIdx.x/y/z", "threadIdx.x/y/z", and
  *        "vthread.x/y/z". Before the unification, two vars that are bound to a thread axis (e.g.,
  *        "threadIdx.x") use different IterVars and variables in their AttrStmts. After the
@@ -569,7 +576,7 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  *
  * \code{.py}
  * @T.prim_func
- * def before_transform(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]) -> None:
+ * def before_transform(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")) -> None:
  *     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
  *         for i in T.serial(0, 16,
  *                           annotations={"software_pipeline_stage": [0, 1],
@@ -594,7 +601,7 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  *
  * \code{.py}
  * @T.prim_func
- * def after_transform(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]) -> None:
+ * def after_transform(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")) -> None:
  *     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
  *         with T.block():
  *             T.reads([A[tx, 0:16]])
@@ -669,6 +676,12 @@ TVM_DLL Pass Filter(runtime::TypedPackedFunc<bool(PrimFunc)> fcond);
  * \return The pass.
  */
 TVM_DLL Pass InjectPTXAsyncCopy();
+
+/*!
+ * \brief Pass to rewrite global to local memory copy on CUDA with ldg32 instruction.
+ * \return The pass.
+ */
+TVM_DLL Pass InjectPTXLDG32(bool enable_ptx_ldg32 = true);
 
 /*!
  * \brief Remove the weight layout rewrite block

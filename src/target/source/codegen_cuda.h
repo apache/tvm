@@ -58,6 +58,7 @@ class CodeGenCUDA final : public CodeGenC {
   void PrintVecElemStore(const std::string& vec, DataType t, int i, const std::string& value) final;
   void BindThreadIndex(const IterVar& iv) final;  // NOLINT(*)
   void PrintVecElemLoadExpr(DataType t, int i, const std::string& value, std::ostream& os) final;
+  std::string CastFromTo(std::string value, DataType from, DataType target) final;
   // overload visitor
   void VisitExpr_(const RampNode* op, std::ostream& os) final;       // NOLINT(*)
   void VisitExpr_(const ShuffleNode* op, std::ostream& os) final;    // NOLINT(*)

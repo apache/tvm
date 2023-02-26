@@ -291,4 +291,4 @@ def test_custom_hash_func_extract_tasks():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

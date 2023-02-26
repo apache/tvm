@@ -150,7 +150,7 @@ def test_buffer_index_merge_mult_mod():
     index_simplified = A.offset_of(
         (idxd(idxm(k0, idxd(k1, s)), n), idxm(idxm(k0, idxd(k1, s)), n) + idxm(k0, k1))
     )
-    index_direct = A.offset_of((0, idxm(k0, k1) + idxm(k0, idxd(k1, s))))
+    index_direct = A.offset_of((0, idxm(k0, idxd(k1, s)) + idxm(k0, k1)))
     assert_simplified_equal(index_simplified, index_direct)
     # Test Case3
     index_simplified = A.offset_of(
@@ -277,4 +277,4 @@ def test_buffer_broadcast_expr():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

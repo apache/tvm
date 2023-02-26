@@ -192,6 +192,7 @@ class ConstructNetworkVisitor : public MixedModeVisitor, private ErrorReportingP
   sl::TensorsAndId HandleCall(const CallNode*);
 
   void VisitExpr_(const CallNode* cn) final;
+  void VisitExpr_(const ConstantNode* cn) final;
   void VisitExpr_(const TupleNode* op) final;
   void VisitExpr_(const TupleGetItemNode* tg) final;
   void VisitLeaf(const Expr& expr) final;

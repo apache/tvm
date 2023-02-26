@@ -121,8 +121,8 @@ def elementwise_buffer_kwargs(
 # match buffer - use buffer without kwargs
 @T.prim_func
 def elementwise_buffer_no_kwargs(
-    a: T.Buffer[(128, 128, 128, 128), "float32"],
-    b: T.Buffer[(128, 128, 128, 128), "float32"],
+    a: T.Buffer((128, 128, 128, 128), "float32"),
+    b: T.Buffer((128, 128, 128, 128), "float32"),
 ) -> None:
     for i, j, k, l in T.grid(128, 128, 128, 128):
         with T.block("B"):
@@ -145,31 +145,19 @@ def test_match_buffer_1d():
             A[i] = 0.0
 
     @T.prim_func
-    def func_with_sugar(A: T.Buffer[16, "float32"]):
+    def func_with_sugar(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
             A[i] = 0.0
 
     assert_structural_equal(func_no_sugar, func_with_sugar)
 
 
-# match buffer failed case
-def test_match_buffer_no_kwargs_failed():
-    with pytest.raises(ValueError) as e:
-
-        @T.prim_func
-        def elementwise_buffer_no_kwargs_failed(
-            a: T.Buffer[(128, 128, 128, 128)],
-            b: T.Buffer[(128, 128, 128, 128)],
-        ) -> None:
-            pass
-
-
 # dynamic shape gemm
 @T.prim_func
 def gemm_dyn_shape(a: T.handle, b: T.handle, c: T.handle):
-    N = T.var("int32")
-    M = T.var("int32")
-    K = T.var("int32")
+    N = T.int32()
+    M = T.int32()
+    K = T.int32()
     A = T.match_buffer(a, (N, K), "float32")
     B = T.match_buffer(b, (K, M), "float32")
     C = T.match_buffer(c, (N, M), "float32")
@@ -203,8 +191,8 @@ def match_buffer_int64(a: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def match_buffer_int64_after_roundtrip(
-    A: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
-    C: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
+    A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+    C: T.Buffer((T.int64(128), T.int64(128)), "float32"),
 ) -> None:
     B = T.alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
     for i, j in T.grid(128, 128):
@@ -225,13 +213,13 @@ def test_match_buffer_int64():
 
 def test_match_buffer_region_has_implicit_shape_dtype():
     @T.prim_func
-    def explicit_shape_dtype(A: T.Buffer[(16, 64), "int32"]):
+    def explicit_shape_dtype(A: T.Buffer((16, 64), "int32")):
         with T.block():
             B = T.match_buffer(A[8:16, 32:64], shape=(8, 32), dtype="int32")
             T.evaluate(0)
 
     @T.prim_func
-    def implicit_shape_dtype(A: T.Buffer[(16, 64), "int32"]):
+    def implicit_shape_dtype(A: T.Buffer((16, 64), "int32")):
         with T.block():
             B = T.match_buffer(A[8:16, 32:64])
             T.evaluate(0)
@@ -257,7 +245,7 @@ def test_letstmt_bufferload_without_type_annotation():
 
     # Failure occurred during parsing of the tvmscript.
     @T.prim_func
-    def func_without_type_annotation(A: T.Buffer[(1,), "int32"]):
+    def func_without_type_annotation(A: T.Buffer((1,), "int32")):
         x = A[0]
         T.evaluate(x)
 
@@ -362,8 +350,8 @@ def test_func_call():
 def test_int64_loop():
     @T.prim_func
     def int64_grid(
-        A: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
-        B: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
+        A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+        B: T.Buffer((T.int64(128), T.int64(128)), "float32"),
     ) -> None:
         for i, j in T.grid(T.int64(128), T.int64(128)):
             with T.block("C"):
@@ -372,8 +360,8 @@ def test_int64_loop():
 
     @T.prim_func
     def int64_grid_expanded(
-        A: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
-        B: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
+        A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+        B: T.Buffer((T.int64(128), T.int64(128)), "float32"),
     ) -> None:
         for i in range(T.int64(0), T.int64(128)):
             for j in range(T.int64(0), T.int64(128)):
@@ -387,12 +375,12 @@ def test_int64_loop():
 
 def test_implicit_evaluate_assume():
     @T.prim_func
-    def explicit(A: T.Buffer[1, "int32"]):
+    def explicit(A: T.Buffer(1, "int32")):
         T.evaluate(T.assume(A[0] == 5))
         A[0] = 10
 
     @T.prim_func
-    def implicit(A: T.Buffer[1, "int32"]):
+    def implicit(A: T.Buffer(1, "int32")):
         T.assume(A[0] == 5)
         A[0] = 10
 
@@ -401,11 +389,11 @@ def test_implicit_evaluate_assume():
 
 def test_implicit_evaluate_call_extern():
     @T.prim_func
-    def explicit(A: T.Buffer[1, "int32"]):
+    def explicit(A: T.Buffer(1, "int32")):
         T.evaluate(T.call_extern("extern_func", A.data, dtype="int32"))
 
     @T.prim_func
-    def implicit(A: T.Buffer[1, "int32"]):
+    def implicit(A: T.Buffer(1, "int32")):
         T.call_extern("extern_func", A.data, dtype="int32")
 
     assert_structural_equal(implicit, explicit)

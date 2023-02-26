@@ -41,11 +41,6 @@ The goal of this section is to give you an overview of TVM and TVMC's
 capabilities, and set the stage for understanding how TVM works.
 """
 
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
 
 ################################################################################
 # Using TVMC
@@ -57,7 +52,7 @@ testing.utils.install_request_hook(depth=3)
 # will vary depending on your platform and installation method.
 #
 # Alternatively, if you have TVM as a Python module on your
-# ``$PYTHONPATH``,you can access the command line driver functionality
+# ``$PYTHONPATH``, you can access the command line driver functionality
 # via the executable python module, ``python -m tvm.driver.tvmc``.
 #
 # For simplicity, this tutorial will mention TVMC command line using

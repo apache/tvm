@@ -1355,6 +1355,62 @@ class FullyConnectedRewriter(DFPatternCallback):
         return ethosu_fc
 
 
+class PadRewriter(DFPatternCallback):
+    """Convert ethos-u.pad2d composite function to ethosu_depthwise_conv2d
+    operator"""
+
+    def __init__(self):
+        super().__init__(require_type=True)
+        self.pattern = (
+            wildcard().has_attr({"Composite": ethosu_patterns.PadParams.composite_name})
+        )(wildcard())
+
+    def callback(
+        self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
+    ) -> tvm.relay.Expr:
+        params = ethosu_patterns.PadParams(post.op.body)
+        params.ifm.tensor = post.args[0]
+        channels_map = {
+            "NHWC": 3,
+        }
+        w_h, w_w = (1, 1)
+        # OHWI format for the ethosu_depthwise_conv2d kernel weights
+        weight_shape = (params.ifm.shape[-1], w_h, w_w, 1)
+        weights = relay.const(np.full(weight_shape, 1), params.ifm.dtype)
+        scale_bias = vela_api.pack_biases(
+            biases=np.zeros(params.ifm.shape[-1]),
+            ifm_scale=params.ifm.q_params.scale_f32,
+            ifm_dtype=np.dtype(params.ifm.dtype),
+            weight_scales=np.array(1.0, dtype=np.float32),
+            ofm_scale=params.ofm.q_params.scale_f32,
+            is_activation_tanh_or_sigmoid=False,
+        )
+
+        return ethosu_ops.ethosu_depthwise_conv2d(
+            ifm=post.args[0],
+            weight=weights,
+            scale_bias=relay.const(scale_bias, "uint8"),
+            lut=relay.const([], "int8"),
+            ifm_scale=float(params.ifm.q_params.scale_f32),
+            ifm_zero_point=int(params.ifm.q_params.zero_point.item()),
+            weight_zero_point=0,
+            ofm_scale=float(params.ofm.q_params.scale_f32),
+            ofm_zero_point=int(params.ofm.q_params.zero_point.item()),
+            kernel_shape=(w_h, w_w),
+            ofm_channels=params.ofm.shape[channels_map[str(params.ofm.layout)]],
+            strides=(1, 1),
+            padding=params.padding,
+            dilation=(1, 1),
+            activation="NONE",
+            clip_min=0,
+            clip_max=0,
+            upscale="NONE",
+            ifm_layout=str(params.ifm.layout),
+            ofm_layout=str(params.ofm.layout),
+            ofm_dtype=str(params.ofm.dtype),
+        )
+
+
 @util.create_npu_function_pass(opt_level=1)
 class LegalizeEthosU:
     """This is the pass to call graph-rewrites to perform graph transformation
@@ -1375,6 +1431,7 @@ class LegalizeEthosU:
             FullyConnectedRewriter(),
             MaxPoolingRewriter(),
             AvgPoolingRewriter(),
+            PadRewriter(),
             AddRewriter(),
             SubRewriter(),
             MulRewriter(),
