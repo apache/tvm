@@ -64,6 +64,16 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       std::sort(functions.begin(), functions.end());
       With<IRFrame> f(d);
       (*f)->AddDispatchToken(d, "ir");
+      if (mod->attrs.defined() && !mod->attrs->dict.empty()) {
+        (*f)->stmts.push_back(
+            ExprStmtDoc(IR(d, "module_attrs")  //
+                            ->Call({d->AsDoc<ExprDoc>(mod->attrs, p->Attr("attrs"))})));
+      }
+      if (mod->global_infos.defined() && !mod->global_infos.empty()) {
+        (*f)->stmts.push_back(ExprStmtDoc(
+            IR(d, "module_global_infos")  //
+                ->Call({d->AsDoc<ExprDoc>(mod->global_infos, p->Attr("global_infos"))})));
+      }
       for (const auto& entry : functions) {
         const GlobalVar& gv = entry.gv;
         const BaseFunc& func = entry.func;
@@ -91,6 +101,11 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<GlobalVar>("", [](GlobalVar gv, ObjectPath p, IRDocsifier d) -> Doc {
       return IR(d, "GlobalVar")->Call({LiteralDoc::Str(gv->name_hint, p->Attr("name_hint"))});
+    });
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<DummyGlobalInfo>("", [](GlobalInfo ginfo, ObjectPath p, IRDocsifier d) -> Doc {
+      return IR(d, "dummy_global_info")->Call({});
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
