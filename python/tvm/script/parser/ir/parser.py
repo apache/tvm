@@ -35,11 +35,17 @@ def _visit_class_def(self: Parser, node: doc.ClassDef) -> None:
 
     with self.var_table.with_frame():
         with I.ir_module():
+            with self.with_dispatch_token("ir"):
+                for stmt in node.body:
+                    if not isinstance(stmt, doc.FunctionDef):
+                        self.visit(stmt)
             for stmt in node.body:
                 if isinstance(stmt, doc.FunctionDef):
                     self.visit_tvm_declare_function(stmt)
             with self.with_dispatch_token("ir"):
-                self.visit_body(node.body)
+                for stmt in node.body:
+                    if isinstance(stmt, doc.FunctionDef):
+                        self.visit(stmt)
 
 
 @dispatch.register(token="ir", type_name="Assign")
@@ -57,7 +63,7 @@ def _visit_assign(_self: Parser, _node: doc.Assign) -> None:
 
 
 @dispatch.register(token="ir", type_name="Expr")
-def _visit_expr(_self: Parser, _node: doc.Expr) -> None:
+def _visit_expr(self: Parser, node: doc.Expr) -> None:
     """The expression visiting method for ir module.
 
     Parameters
@@ -68,6 +74,7 @@ def _visit_expr(_self: Parser, _node: doc.Expr) -> None:
     node : doc.ClassDef
         The doc AST expression node.
     """
+    self.eval_expr(node.value)
 
 
 @dispatch.register(token="default", type_name="Assign")
