@@ -119,7 +119,7 @@ TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
                                                      DispatchPureExtern<FloatSuffix>);
 
 PrimExpr DispatchFastErf(const PrimExpr& e) {
-  LOG(WARNING) << "fast_erf will be used instead of erf";
+  DLOG(WARNING) << "fast_erf will be used instead of erf";
   const CallNode* call = e.as<CallNode>();
   ICHECK(call != nullptr);
   ICHECK_EQ(call->args.size(), 1);

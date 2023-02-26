@@ -61,7 +61,7 @@ class Allocator {
    *  \param dev The device where the array is allocated.
    *  \return The empty NDArray.
    */
-  runtime::NDArray Empty(std::vector<int64_t> shape, DLDataType dtype, Device dev);
+  runtime::NDArray Empty(ShapeTuple shape, DLDataType dtype, Device dev);
   /*! \brief Return the allocator type. */
   inline AllocatorType type() const { return type_; }
   /*! \brief Allocate a buffer given a size, alignment and type.

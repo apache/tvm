@@ -185,5 +185,40 @@ void ArrayDecodeStorage(NDArray cpu_arr, std::string bytes, std::string format) 
 }
 
 TVM_REGISTER_GLOBAL("tvmjs.array.decode_storage").set_body_typed(ArrayDecodeStorage);
+
+class ParamModuleNode : public runtime::ModuleNode {
+ public:
+  const char* type_key() const final { return "param_module"; }
+
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+    if (name == "get_params") {
+      auto params = params_;
+      return PackedFunc([params](TVMArgs args, TVMRetValue* rv) { *rv = params; });
+    } else {
+      return PackedFunc();
+    }
+  }
+
+  static Module Create(std::string prefix, int num_params) {
+    Array<NDArray> params;
+    for (int i = 0; i < num_params; ++i) {
+      std::string name = prefix + "_" + std::to_string(i);
+      auto opt = NDArrayCache::Get(name);
+      if (opt) {
+        params.push_back(opt.value());
+      } else {
+        LOG(FATAL) << "Cannot find " << name << " in cache";
+      }
+    }
+    auto n = make_object<ParamModuleNode>();
+    n->params_ = params;
+    return Module(n);
+  }
+
+ private:
+  Array<NDArray> params_;
+};
+
+TVM_REGISTER_GLOBAL("tvmjs.param_module_from_cache").set_body_typed(ParamModuleNode::Create);
 }  // namespace runtime
 }  // namespace tvm

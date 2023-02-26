@@ -22,7 +22,6 @@ import { assert, StringToUint8Array, Uint8ArrayToString } from "./support";
 import { detectGPUDevice } from "./webgpu";
 import * as compact from "./compact";
 import * as runtime from "./runtime";
-import { timeStamp } from "console";
 import { Disposable } from "./types";
 
 enum RPCServerState {
@@ -85,6 +84,7 @@ export class RPCServer {
   private ndarrayCacheUrl: string;
   private ndarrayCacheDevice: string;
   private fetchProgressCallback?: runtime.FetchProgressCallback;
+  private asyncOnServerLoad?: (inst: runtime.Instance) => Promise<void>;
   private pendingSend: Promise<void> = Promise.resolve();
   private name: string;
   private inst?: runtime.Instance = undefined;
@@ -104,7 +104,8 @@ export class RPCServer {
     logger: (msg: string) => void = console.log,
     ndarrayCacheUrl: string = "",
     ndarrayCacheDevice: string = "cpu",
-    fetchProgressCallback: runtime.FetchProgressCallback | undefined = undefined
+    fetchProgressCallback: runtime.FetchProgressCallback | undefined = undefined,
+    asyncOnServerLoad: ((inst: runtime.Instance) => Promise<void>) | undefined = undefined,
   ) {
     this.url = url;
     this.key = key;
@@ -114,7 +115,7 @@ export class RPCServer {
     this.ndarrayCacheUrl = ndarrayCacheUrl;
     this.ndarrayCacheDevice = ndarrayCacheDevice;
     this.fetchProgressCallback = fetchProgressCallback;
-
+    this.asyncOnServerLoad = asyncOnServerLoad;
     this.checkLittleEndian();
     this.socket = compact.createWebSocket(url);
     this.socket.binaryType = "arraybuffer";
@@ -143,7 +144,8 @@ export class RPCServer {
       this.log("Automatic reconnecting..");
       new RPCServer(
         this.url, this.key, this.getImports, this.logger,
-        this.ndarrayCacheUrl, this.ndarrayCacheDevice, this.fetchProgressCallback);
+        this.ndarrayCacheUrl, this.ndarrayCacheDevice,
+        this.fetchProgressCallback, this.asyncOnServerLoad);
     } else {
       this.log("Closing the server, final state=" + this.state);
     }
@@ -268,12 +270,15 @@ export class RPCServer {
         this.getImports(),
         this.logger
       );
+
       try {
         const gpuDevice: GPUDevice | undefined | null = await detectGPUDevice();
         if (gpuDevice !== undefined && gpuDevice !== null) {
           const label = gpuDevice.label?.toString() || "WebGPU";
           this.log("Initialize GPU device: " + label);
           inst.initWebGPU(gpuDevice);
+        } else {
+          this.log("Cannot find WebGPU device in the env");
         }
       } catch (err) {
         this.log("Cannnot initialize WebGPU, " + err.toString());
@@ -281,7 +286,6 @@ export class RPCServer {
 
       this.inst = inst;
       // begin scope to allow handling of objects
-      // the object should stay alive during all sessions.
       this.inst.beginScope();
       if (this.fetchProgressCallback !== undefined) {
         this.inst.registerFetchProgressCallback(this.fetchProgressCallback);
@@ -297,8 +301,10 @@ export class RPCServer {
       }
 
       assert(this.inst !== undefined);
+      if (this.asyncOnServerLoad !== undefined) {
+        await this.asyncOnServerLoad(this.inst);
+      }
       const fcreate = this.inst.getGlobalFunc("rpc.CreateEventDrivenServer");
-
       const messageHandler = fcreate(
         (cbytes: Uint8Array): runtime.Scalar => {
           assert(this.inst !== undefined);

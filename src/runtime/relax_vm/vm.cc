@@ -21,7 +21,6 @@
  * \file src/runtime/relax_vm/vm.cc
  */
 
-#include <tvm/runtime/container/adt.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/profiling.h>
 #include <tvm/runtime/relax_vm/vm.h>
@@ -72,43 +71,46 @@ PackedFunc VMClosure::BindLastArgs(PackedFunc func, std::vector<TVMRetValue> las
 ObjectRef IndexIntoNestedObject(ObjectRef obj, TVMArgs args, int starting_arg_idx) {
   for (int i = starting_arg_idx; i < args.size(); i++) {
     // the object must be an ADT to be able to index into it
-    if (!obj.as<ADTObj>()) {
+    if (!obj.as<ArrayNode>()) {
       LOG(FATAL) << "ValueError: Attempted to index into an object that is not an ADT.";
     }
     int index = args[i];
-    auto adt = Downcast<ADT>(obj);
+    auto arr = Downcast<Array<ObjectRef>>(obj);
     // make sure the index is in bounds
-    if (index >= static_cast<int>(adt.size())) {
-      LOG(FATAL) << "IndexError: Invalid index (" << index << " >= " << adt.size() << ").";
+    if (index >= static_cast<int>(arr.size())) {
+      LOG(FATAL) << "IndexError: Invalid index (" << index << " >= " << arr.size() << ").";
     }
-    obj = adt[index];
+    obj = arr[index];
   }
   return obj;
 }
 
-NDArray ConvertNDArrayToDevice(NDArray src, const DLDevice& dev) {
+NDArray ConvertNDArrayToDevice(NDArray src, const DLDevice& dev, Allocator* alloc) {
   if (src->device.device_type == dev.device_type && src->device.device_id == dev.device_id) {
     return src;
+  } else {
+    auto res = alloc->Empty(src.Shape(), src->dtype, dev);
+    res.CopyFrom(src);
+    return res;
   }
-  return src.CopyTo(dev);
 }
 
-ObjectRef ConvertObjectToDevice(ObjectRef src, const Device& dev) {
+ObjectRef ConvertObjectToDevice(ObjectRef src, const Device& dev, Allocator* alloc) {
   if (src->IsInstance<NDArray::ContainerType>()) {
-    return ConvertNDArrayToDevice(Downcast<NDArray>(src), dev);
-  } else if (src->IsInstance<ADTObj>()) {
+    return ConvertNDArrayToDevice(Downcast<NDArray>(src), dev, alloc);
+  } else if (src->IsInstance<ArrayNode>()) {
     std::vector<ObjectRef> ret;
-    ADT adt = Downcast<ADT>(src);
-    for (size_t i = 0; i < adt.size(); i++) {
-      ret.push_back(ConvertObjectToDevice(adt[i], dev));
+    auto arr = Downcast<Array<ObjectRef>>(src);
+    for (size_t i = 0; i < arr.size(); i++) {
+      ret.push_back(ConvertObjectToDevice(arr[i], dev, alloc));
     }
-    return ADT(adt->tag, ret.begin(), ret.end());
+    return Array<ObjectRef>(ret.begin(), ret.end());
   } else {
     return src;
   }
 }
 
-TVMRetValue ConvertArgToDevice(TVMArgValue input, Device dev) {
+TVMRetValue ConvertArgToDevice(TVMArgValue input, Device dev, Allocator* alloc) {
   // NOTE: NDArray::FromExternalDLTensor is not safe
   // in terms of memory-behavior.
   // To be extra careful, we copy DLTensor.
@@ -117,19 +119,23 @@ TVMRetValue ConvertArgToDevice(TVMArgValue input, Device dev) {
   TVMRetValue ret;
 
   if (input.type_code() == kTVMDLTensorHandle) {
-    ret = NDArray::NewFromDLTensor(input, dev);
+    DLTensor* tensor = input;
+    std::vector<int64_t> shape(tensor->shape, tensor->shape + tensor->ndim);
+    auto dst = alloc->Empty(shape, tensor->dtype, dev);
+    dst.CopyFrom(tensor);
+    ret = dst;
   } else if (input.IsObjectRef<ObjectRef>()) {
-    ret = ConvertObjectToDevice(input.operator ObjectRef(), dev);
+    ret = ConvertObjectToDevice(input.operator ObjectRef(), dev, alloc);
   } else {
     ret = input;
   }
   return ret;
 }
 
-TVMRetValue ConvertRegToDevice(TVMRetValue input, Device dev) {
+TVMRetValue ConvertRegToDevice(TVMRetValue input, Device dev, Allocator* alloc) {
   TVMRetValue ret;
   if (input.IsObjectRef<ObjectRef>()) {
-    ret = ConvertObjectToDevice(input.operator ObjectRef(), dev);
+    ret = ConvertObjectToDevice(input.operator ObjectRef(), dev, alloc);
   } else {
     ret = input;
   }
@@ -196,11 +202,13 @@ class VirtualMachineImpl : public VirtualMachine {
    * \param args args[offset:] are arguments to the function. If the arguments are not of the
    * correct device for the function, they will be copied to the device.
    * \param offset Starting offset of the arguments in \p args.
-   * \note This interface works when using VM over RPC by internally converting NDArray in
+   * \param with_param_module If set to true, the last argument will be a module and can be invoked
+   *        to get the argument, this is mainly used for debugging purposes and setting composite
+   * objects. \note This interface works when using VM over RPC by internally converting NDArray in
    * the arguments to DLTensor, which is supported in RPC where remote could only have a minimal C
    * runtime.
    */
-  void SetInput(std::string func_name, TVMArgs args, int offset);
+  void SetInput(std::string func_name, TVMArgs args, int offset, bool with_param_module = false);
 
   /*!
    * \brief Look up whether the VM has a function by the given name.
@@ -401,7 +409,7 @@ void VirtualMachineImpl::Init(const std::vector<Device>& devices,
     if (constant.type_code() != kTVMNDArrayHandle) {
       this->const_pool_.push_back(constant);
     } else {
-      this->const_pool_.push_back(ConvertRegToDevice(constant, devices[0]));
+      this->const_pool_.push_back(ConvertRegToDevice(constant, devices[0], allocators[0]));
     }
   }
   // Setup function sections.
@@ -479,8 +487,8 @@ PackedFunc VirtualMachineImpl::GetFunction(const std::string& name,
       // use remaining args as indices
       ObjectRef obj = IndexIntoNestedObject(out.AsObjectRef<ObjectRef>(), args, 1);
       // after chasing through the indices, examine the final object
-      if (const auto* adt = obj.as<ADTObj>()) {
-        *rv = static_cast<int>(adt->size);
+      if (const auto* arr = obj.as<ArrayNode>()) {
+        *rv = static_cast<int>(arr->size());
       } else {
         *rv = -1;
       }
@@ -491,7 +499,7 @@ PackedFunc VirtualMachineImpl::GetFunction(const std::string& name,
       RegType out = LookupVMOutput(func_name);
       // use remaining args as indices
       ObjectRef obj = IndexIntoNestedObject(out.AsObjectRef<ObjectRef>(), args, 1);
-      if (obj.as<ADTObj>()) {
+      if (obj.as<ArrayNode>()) {
         LOG(FATAL) << "ValueError: `get_output` cannot return a tuple for RPC compatibility. "
                       "Please specify another index argument.";
         return;
@@ -501,6 +509,9 @@ PackedFunc VirtualMachineImpl::GetFunction(const std::string& name,
   } else if (name == "set_input") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { SetInput(args[0], args, 1); });
+  } else if (name == "set_input_with_param_module") {
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { SetInput(args[0], args, 1, true); });
   } else if (name == "get_function_arity") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       std::string func_name = args[0];
@@ -527,7 +538,8 @@ PackedFunc VirtualMachineImpl::GetFunction(const std::string& name,
   }
 }
 
-void VirtualMachineImpl::SetInput(std::string func_name, TVMArgs args, int offset) {
+void VirtualMachineImpl::SetInput(std::string func_name, TVMArgs args, int offset,
+                                  bool with_param_module) {
   const auto& m = exec_->func_map;
   if (m.find(func_name) != m.end()) {
     Index gf_idx = m.at(func_name);
@@ -536,9 +548,15 @@ void VirtualMachineImpl::SetInput(std::string func_name, TVMArgs args, int offse
     ICHECK_EQ(args.size() - offset, params_num)
         << "The number of provided parameters doesn't match the number of arguments for";
     std::vector<RegType> func_args(params_num);
+
     for (int i = offset; i < args.size(); ++i) {
       int index = i - offset;
-      func_args[index] = ConvertArgToDevice(args[i], devices[0]);
+      if (with_param_module && i == args.size() - 1) {
+        // call param func to get the arguments(usually corresponds to param pack.)
+        func_args[index] = (args[i].operator Module()).GetFunction("get_params")();
+      } else {
+        func_args[index] = ConvertArgToDevice(args[i], devices[0], allocators[0]);
+      }
     }
     inputs_[func_name] = func_args;
   } else {
@@ -604,7 +622,7 @@ void VirtualMachineImpl::SaveClosure(const String& func_name, const String& save
   VMClosure clo = this->GetClosure(func_name);
   std::vector<RegType> inputs(args.size());
   for (int i = 0; i < args.size(); ++i) {
-    inputs[i] = ConvertArgToDevice(args[i], this->devices[0]);
+    inputs[i] = ConvertArgToDevice(args[i], this->devices[0], this->allocators[0]);
   }
   PackedFunc impl = VMClosure::BindLastArgs(clo->impl, inputs);
   if (!include_return) {
