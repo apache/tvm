@@ -60,9 +60,21 @@ void DefFunction(const String& func_name, const BaseFunc& func) {
   }
 }
 
+void ModuleAttrs(Map<String, ObjectRef> attrs) {
+  if (IRBuilder::IsInScope()) {
+    // TODO(hongyi): add comments to explain why we need to check if the module frame is in scope
+    IRModuleFrame frame = FindModuleFrame("I.ModuleAttr");
+    if (!frame->attrs.empty()) {
+      LOG(FATAL) << "ValueError: Duplicate module attrs, previous one is:\n" << frame->attrs;
+    }
+    frame->attrs = attrs;
+  }
+}
+
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.IRModule").set_body_typed(IRModule);
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.DeclFunction").set_body_typed(DeclFunction);
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.DefFunction").set_body_typed(DefFunction);
+TVM_REGISTER_GLOBAL("script.ir_builder.ir.ModuleAttrs").set_body_typed(ModuleAttrs);
 
 }  // namespace ir
 }  // namespace ir_builder

@@ -45,11 +45,14 @@ class IRModuleFrameNode : public IRBuilderFrameNode {
    * \note Only defined functions are in the map, while declared functions are not included.
    */
   Map<GlobalVar, BaseFunc> functions;
+  /*! \brief IRModule's attributes. */
+  Map<String, ObjectRef> attrs;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     IRBuilderFrameNode::VisitAttrs(v);
     v->Visit("global_vars", &global_var_map);
     v->Visit("functions", &functions);
+    v->Visit("attrs", &attrs);
   }
 
   static constexpr const char* _type_key = "script.ir_builder.IRModuleFrame";
