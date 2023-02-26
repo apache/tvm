@@ -138,6 +138,17 @@ class IRBuilder(_Object):
         """
         return _ffi_api.IRBuilderCurrent()  # type: ignore[attr-defined] # pylint: disable=no-member
 
+    @staticmethod
+    def is_in_scope() -> bool:
+        """See if the current thread-local scope has an IRBuilder.
+
+        Returns
+        -------
+        bool
+            Whether the current thread-local scope has an IRBuilder
+        """
+        return _ffi_api.IRBuilderIsInScope()  # type: ignore[attr-defined] # pylint: disable=no-member
+
     def get(self) -> _Object:
         """Get the constructed IR."""
         return _ffi_api.IRBuilderGet(self)  # type: ignore[attr-defined] # pylint: disable=no-member
