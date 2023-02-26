@@ -50,6 +50,31 @@ class GlobalInfo : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(GlobalInfo, ObjectRef, GlobalInfoNode);
 };
 
+/*!
+ * \brief A dummy global info sub-class for testing purpose.
+ */
+class DummyGlobalInfoNode : public GlobalInfoNode {
+ public:
+  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static constexpr const char* _type_key = "DummyGlobalInfo";
+
+  TVM_DLL bool SEqualReduce(const DummyGlobalInfoNode* other, SEqualReducer equal) const {
+    return true;
+  }
+
+  TVM_DLL void SHashReduce(SHashReducer hash_reduce) const {}
+  TVM_DECLARE_FINAL_OBJECT_INFO(DummyGlobalInfoNode, GlobalInfoNode);
+};
+
+/*!
+ * \brief Managed reference to DummyGlobalInfoNode.
+ * \sa DummyGlobalInfoNode
+ */
+class DummyGlobalInfo : public GlobalInfo {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(DummyGlobalInfo, GlobalInfo, DummyGlobalInfoNode);
+};
+
 }  // namespace tvm
 
 #endif  // TVM_IR_GLOBAL_INFO_H_

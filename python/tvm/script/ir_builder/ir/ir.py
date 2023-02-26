@@ -18,7 +18,7 @@
 
 from typing import Dict, List
 
-from tvm.ir import BaseFunc, GlobalVar, GlobalInfo
+from tvm.ir import BaseFunc, GlobalVar, GlobalInfo, DummyGlobalInfo
 from tvm.runtime import Object as tvm_Object
 
 
@@ -91,3 +91,16 @@ def module_global_infos(global_infos: Dict[str, List[GlobalInfo]]) -> None:
         The module global infos.
     """
     return _ffi_api.ModuleGlobalInfos(global_infos)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+############################### GlobalInfo ###############################
+
+
+def dummy_global_info() -> DummyGlobalInfo:
+    """Create a dummy global info expression.
+    Returns
+    -------
+    res : DummyGlobalInfo
+        The result dummy global info.
+    """
+    return DummyGlobalInfo()  # type: ignore[attr-defined] # pylint: disable=no-member

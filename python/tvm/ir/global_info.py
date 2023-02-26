@@ -17,12 +17,11 @@
 """Global Info."""
 import tvm
 from tvm.runtime.object import Object
+from . import _ffi_api
 
 
 class GlobalInfo(Object):
     """Base node for all global info that can appear in the IR"""
-
-    pass
 
     def __eq__(self, other):
         """Compare two struct info for structural equivalence."""
@@ -34,3 +33,10 @@ class GlobalInfo(Object):
     def same_as(self, other):
         """Overload with structural equality."""
         return super().__eq__(other)
+
+
+class DummyGlobalInfo(GlobalInfo):
+    def __init__(self) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.DummyGlobalInfo,
+        )
