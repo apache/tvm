@@ -237,6 +237,8 @@ class IRBuilder : public runtime::ObjectRef {
    * \sa tvm::support::With
    */
   static IRBuilder Current();
+  /*! \brief See if the current thread-local scope has an IRBuilder. */
+  static bool IsInScope();
   /*!
    * \brief Give a string name to the `obj`
    * \tparam TObjectRef The type of the object to name.
