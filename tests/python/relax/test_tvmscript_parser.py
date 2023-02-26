@@ -22,6 +22,7 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import IRModule, relax, tir, topi
+from tvm.ir import DummyGlobalInfo
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tir as T
@@ -181,6 +182,47 @@ def test_simple_module():
         bb.emit_func_output(out)
 
     _check(TestModule, bb.get())
+
+
+def test_module_with_attr_and_global_info():
+    @I.ir_module
+    class TestModule:
+        I.module_attrs({"attr": 10})
+        I.module_global_infos(
+            {
+                "dummy": [
+                    I.dummy_global_info(),  # dummy[0]
+                    I.dummy_global_info(),  # dummy[1]
+                ]
+            }
+        )
+
+        @T.prim_func
+        def tir_func(
+            x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+            y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i, j in T.grid(T.int64(128), T.int64(128)):
+                with T.block():
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    y[vi, vj] = x[vi, vj] + 1.0
+
+        @R.function
+        def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor((128, 128), "float32"):
+            # TODO(Siyuan): Need to change to `TestModule.tir_func`
+            gv0 = R.call_tir(tir_func, x, R.Tensor((128, 128), dtype="float32"))
+            return gv0
+
+    x = relax.Var("x", R.Tensor((128, 128), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x,)):
+        out = bb.emit_te(lambda x: x + 1, x, primfunc_name_hint="tir_func")
+        bb.emit_func_output(out)
+    mod = bb.get()
+    mod.update_global_info("dummy", [DummyGlobalInfo(), DummyGlobalInfo()])
+    mod = mod.with_attr("attr", tvm.tir.IntImm("int32", 10))
+    _check(TestModule, mod)
 
 
 def test_relax_tensor_op():
