@@ -382,10 +382,8 @@ IRModule IRModule::FromText(const String& text, const String& source_path) {
 TVM_REGISTER_NODE_TYPE(IRModuleNode);
 
 TVM_REGISTER_GLOBAL("ir.IRModule")
-    .set_body_typed([](tvm::Map<GlobalVar, BaseFunc> funcs,
-                       tvm::Map<GlobalTypeVar, TypeData> types) {
-      return IRModule(funcs, types, {});
-    });
+    .set_body_typed([](tvm::Map<GlobalVar, BaseFunc> funcs, tvm::Map<GlobalTypeVar, TypeData> types,
+                       tvm::DictAttrs attrs) { return IRModule(funcs, types, {}, {}, attrs); });
 
 TVM_REGISTER_GLOBAL("ir.Module_Add")
     .set_body_typed([](IRModule mod, GlobalVar var, ObjectRef val, bool update) -> IRModule {
