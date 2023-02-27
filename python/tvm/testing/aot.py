@@ -47,6 +47,16 @@ NP_TYPE_TO_C = {
     "float32": "float",
 }
 
+NP_TYPE_TO_RUST = {
+    "int8": "i8",
+    "uint8": "u8",
+    "int16": "i16",
+    "uint16": "u16",
+    "int32": "i32",
+    "uint32": "u32",
+    "float32": "f32",
+}
+
 AOT_SUCCESS_TOKEN = "AOT_TEST_SUCCESS"
 AOT_FAILURE_TOKEN = "AOT_TEST_FAILURE"
 
@@ -690,6 +700,320 @@ def compile_models(
     return compiled_mods
 
 
+def _create_rust_build(build_path, codegen_path):
+    file_path = pathlib.Path(f"{build_path}/build.rs").resolve()
+    raw_path = file_path.with_suffix(".rs").resolve()
+
+    codegen_c_files = []
+    codegen_c_path = os.path.join(codegen_path, "src")
+    codegen_c_rel_path = os.path.relpath(codegen_c_path, build_path)
+    for codegen_c in os.listdir(codegen_c_path):
+        if codegen_c.endswith(".c"):
+            codegen_c_files.append(os.path.join(codegen_c_rel_path, codegen_c))
+
+    codegen_rel_path = os.path.relpath(codegen_path, build_path)
+    with open(raw_path, "w") as build_file:
+        build_file.write("use cc;\n")
+        build_file.write("fn main() {\n")
+        build_file.write("    cc::Build::new()\n")
+        build_file.write(f'        .include("{codegen_rel_path}/include")\n')
+        build_file.write(f'        .include("../runtime/include")\n')
+        for cfile in codegen_c_files:
+            build_file.write("%s%s%s" % ('        .file("', cfile, '")\n'))
+        build_file.write('        .compile("mlf");\n')
+        build_file.write("}")
+
+
+def _write_rust_array(io_file, npy_data, tensor_name):
+    io_file.write(f"const {tensor_name}_len : u32 = {npy_data.size};\n")
+    rust_dtype = NP_TYPE_TO_RUST[str(npy_data.dtype)]
+    io_file.write(f"let mut {tensor_name} : [{rust_dtype}; {npy_data.size}] = ")
+    io_file.write("[")
+    for i in np.ndindex(npy_data.shape):
+        io_file.write(f"{npy_data[i]}, ")
+    io_file.write("];\n")
+
+
+def _emit_rust_compare(main_file, outputs, output_tolerance, mod_name):
+    for key in outputs:
+        is_float_dtype = outputs[key].dtype == "float32"
+        tolerance = output_tolerance or (0.001 if is_float_dtype else 0)
+
+        sanitized_tensor_name = re.sub(r"\W", "_", key)
+        tensor_name = f'{_mangle_name(mod_name, "output_data")}_{sanitized_tensor_name}'
+        absolute_difference = (
+            "(actual - expected).abs()" if is_float_dtype else "actual.abs_diff(*expected)"
+        )
+        main_file.write(
+            f"for it in {tensor_name}.iter().zip({tensor_name}_expected.iter()) {{\n"
+            f"    let (actual, expected) = it;"
+            f"    if {absolute_difference} > {tolerance} {{\n"
+            f'        panic!("{AOT_FAILURE_TOKEN}");\n'
+            f"    }}\n"
+            f"}}\n"
+        )
+
+
+def _create_rust_main(build_path, runner, codegen_path, compiled_model):
+    main_path = os.path.join(build_path, "src")
+    os.makedirs(main_path, exist_ok=True)
+    file_path = pathlib.Path(f"{main_path}/main.rs").resolve()
+    raw_path = file_path.with_suffix(".rs").resolve()
+    with open(raw_path, "w") as main_file:
+        codegen_src_path = os.path.join(codegen_path, "src")
+        codegen_src_rel_path = os.path.relpath(codegen_src_path, main_path)
+        main_file.write(f'#[path = "{codegen_src_rel_path}/tvmgen_default.rs"]\n')
+        main_file.write("mod tvmgen_default;\n")
+        main_file.write("\n")
+
+        main_file.write("fn main() {\n")
+        main_file.write("\n")
+
+        main_file.write(runner.prologue)
+        main_file.write("\n")
+
+        # emit memory pools
+        executor_codegen_metadata = compiled_model.executor_factory.executor_codegen_metadata
+        workspace_pool_names = {}
+        if executor_codegen_metadata.pool_inputs:
+            workspace_pool_names = {
+                allocated_pool.pool_info.pool_name: "&"
+                if isinstance(allocated_pool.pool_info, tvm.ir.memory_pools.ConstantPoolInfo)
+                else ""
+                for allocated_pool in dict(executor_codegen_metadata.pool_inputs).values()
+                if not allocated_pool.pool_info.is_internal
+            }
+
+        if len(workspace_pool_names) > 0:
+            pools_struct_members = ""
+            for name in workspace_pool_names.keys():
+                pools_struct_members += f"&mut {name}, "
+
+            main_file.write(f"let mut workspace_pools = tvmgen_default::WorkspacePools::new(")
+            main_file.write(pools_struct_members[:-2])
+            main_file.write(");\n\n")
+
+        # init input arrays
+        input_struct_members = ""
+        model = compiled_model.model
+        for key in model.inputs:
+            npy_data = model.inputs[key]
+            sanitized_tensor_name = re.sub(r"\W", "_", key)
+            tensor_name = f'{_mangle_name(model.name, "input_data")}_{sanitized_tensor_name}'
+            _write_rust_array(main_file, npy_data, tensor_name)
+            input_struct_members += f"&mut {tensor_name}, "
+
+        main_file.write(f"let mut inputs = tvmgen_default::Inputs::new(")
+        main_file.write(input_struct_members[:-2])
+        main_file.write(");\n\n")
+
+        output_struct_members = ""
+        # init reference output arrays
+        for key in model.outputs:
+            npy_data = model.outputs[key]
+            np_zeros = np.zeros(npy_data.shape, npy_data.dtype)
+            sanitized_tensor_name = re.sub(r"\W", "_", key)
+            tensor_name = f'{_mangle_name(model.name, "output_data")}_{sanitized_tensor_name}'
+            _write_rust_array(main_file, np_zeros, tensor_name)
+            _write_rust_array(main_file, npy_data, f"{tensor_name}_expected")
+            output_struct_members += f"&mut {tensor_name}, "
+
+        main_file.write(f"let mut outputs = tvmgen_default::Outputs::new(")
+        main_file.write(output_struct_members[:-2])
+        main_file.write(");\n\n")
+
+        # run main function
+        main_file.write("tvmgen_default::run(")
+        main_file.write("&mut inputs, &mut outputs")
+        if len(workspace_pool_names) > 0:
+            main_file.write(", &mut workspace_pools")
+        main_file.write(");\n")
+
+        # compare the outputs
+        _emit_rust_compare(main_file, model.outputs, model.output_tolerance, model.name)
+        main_file.write(f'println!("{AOT_SUCCESS_TOKEN}");\n')
+        main_file.write("}\n")
+
+
+def _run_rust_test(build_path, verbose):
+    cargo_toml_path = pathlib.Path(__file__).parent.resolve()
+    cargo_toml_path = os.path.join(cargo_toml_path, "Cargo.toml")
+    run_log_path = os.path.join(build_path, "test_run.log")
+    run_command = f"cd {build_path};cp {cargo_toml_path} .;cargo run"
+    if verbose:
+        print("run command:\n", run_command)
+    try:
+        _subprocess_check_log_output(run_command, build_path, run_log_path)
+    except RuntimeError as err:
+        print("Failed to run the module, having a second attempt...", file=sys.stderr)
+        print(err, file=sys.stderr)
+        _subprocess_check_log_output(run_command, build_path, run_log_path)
+
+
+def _run_and_check_c(
+    models: List[AOTCompiledTestModel],
+    runner: AOTTestRunner,
+    interface_api: str,
+    debug_calculated_workspaces=False,
+    workspace_byte_alignment=8,
+    constant_byte_alignment=8,
+    data_linkage: AOTDataLinkage = None,
+    base_path: str = None,
+    verbose: bool = False,
+    use_workspace_io: bool = False,
+):
+    cflags = (
+        f"-DTVM_RUNTIME_ALLOC_ALIGNMENT_BYTES={workspace_byte_alignment} "
+        f" -DTVM_RUNTIME_CONST_ALLOC_ALIGNMENT_BYTES={constant_byte_alignment} "
+    )
+    # The calculated workspaces will not account for stack allocator tags used for debugging
+    if debug_calculated_workspaces:
+        cflags += "-DTVM_CRT_STACK_ALLOCATOR_ENABLE_LIFO_CHECK "
+
+    base_path = os.path.abspath(base_path)
+    build_path = os.path.join(base_path, "build")
+    os.makedirs(build_path, exist_ok=True)
+
+    include_path = os.path.join(base_path, "include")
+    os.mkdir(include_path)
+    tvm.micro.copy_crt_config_header("crt", include_path)
+
+    workspace_bytes = 0
+    for compiled_model in models:
+        model = compiled_model.model
+        tar_file = os.path.join(base_path, f"{model.name}.tar")
+        export_model_library_format(compiled_model.executor_factory, tar_file)
+        t = tarfile.open(tar_file)
+        t.extractall(base_path)
+
+        # Interface C APIs does not need compiler generated
+        # workspace to generate the test application, because
+        # workspace size is codegen'd as a macro to
+        # tvmgen_<model_name>.h.
+        if interface_api != "c":
+            workspace_bytes += mlf_extract_workspace_size_bytes(tar_file)
+
+        workspace_bytes += model.extra_memory_in_bytes
+        for key in model.inputs:
+            sanitized_tensor_name = re.sub(r"\W", "_", key)
+            _create_header_file(
+                f'{_mangle_name(model.name, "input_data")}_{sanitized_tensor_name}',
+                model.inputs[key],
+                include_path,
+                data_linkage,
+            )
+
+        for key in model.outputs:
+            sanitized_tensor_name = re.sub(r"\W", "_", key)
+            _create_header_file(
+                f'{_mangle_name(model.name, "output_data")}_{sanitized_tensor_name}',
+                np.zeros(model.outputs[key].shape, model.outputs[key].dtype),
+                include_path,
+                data_linkage,
+            )
+            _create_header_file(
+                f'{_mangle_name(model.name, "expected_output_data")}_{sanitized_tensor_name}',
+                model.outputs[key],
+                include_path,
+                data_linkage,
+            )
+
+    use_usmp = runner.pass_config.get("tir.usmp.enable", False)
+    # We only need the stack allocator if USMP is not used
+    use_stack_allocator = not use_usmp
+
+    _create_main(
+        "test.c",
+        models,
+        build_path,
+        runner.includes,
+        runner.prologue,
+        runner.epilogue,
+        data_linkage,
+        interface_api,
+        workspace_bytes,
+        use_stack_allocator,
+        use_workspace_io,
+    )
+
+    # Verify that compiles fine
+    file_dir = os.path.dirname(os.path.abspath(__file__))
+    makefile_dir = os.path.join(file_dir, "../../../tests/python/relay/aot")
+    codegen_path = os.path.join(base_path, "codegen")
+    makefile = os.path.join(makefile_dir, f"{runner.makefile}.mk")
+    fvp_dir = "/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4/"
+    # TODO(@grant-arm): Remove once ci_cpu docker image has been updated to FVP_Corstone_SSE
+    if not os.path.isdir(fvp_dir):
+        fvp_dir = "/opt/arm/FVP_Corstone_SSE-300_Ethos-U55/models/Linux64_GCC-6.4/"
+    custom_params = " ".join([f" {param}='{value}'" for param, value in runner.parameters.items()])
+    make_command = (
+        f"make -f {makefile} build_dir={build_path}"
+        + f" CFLAGS='{cflags}'"
+        + f" TVM_ROOT={file_dir}/../../.."
+        + f" AOT_TEST_ROOT={makefile_dir}"
+        + f" CODEGEN_ROOT={codegen_path}"
+        + f" STANDALONE_CRT_DIR={tvm.micro.get_standalone_crt_dir()}"
+        + f" FVP_DIR={fvp_dir}"
+        + custom_params
+    )
+
+    compile_log_path = os.path.join(build_path, "test_compile.log")
+    compile_command = f"{make_command} aot_test_runner"
+    if verbose:
+        print("Compile command:\n", compile_command)
+    _subprocess_check_log_output(compile_command, ".", compile_log_path)
+
+    # Verify that runs fine
+    run_log_path = os.path.join(build_path, "test_run.log")
+    run_command = f"{make_command} run"
+    if verbose:
+        print("Run command:\n", run_command)
+
+    # TODO(lhutton1) This is a quick and dirty work around to help temporarily reduce
+    # the flakyness of the tests. Will remove once #10300 and #10314 are resolved.
+    try:
+        _subprocess_check_log_output(run_command, build_path, run_log_path)
+    except RuntimeError as err:
+        print("Failed to run the module, having a second attempt...", file=sys.stderr)
+        print(err, file=sys.stderr)
+        _subprocess_check_log_output(run_command, build_path, run_log_path)
+
+    with open(run_log_path) as run_log:
+        assert AOT_SUCCESS_TOKEN in run_log.read()
+
+
+def _run_and_check_rust(
+    models: List[AOTCompiledTestModel],
+    runner: AOTTestRunner,
+    base_path: str = None,
+    verbose: bool = False,
+):
+    for compiled_model in models:
+        # init various paths within MLF dir
+        base_path = os.path.abspath(base_path)
+        build_path = os.path.join(base_path, "build")
+        codegen_path = os.path.join(base_path, "codegen")
+        codegen_path = os.path.join(codegen_path, "host")
+        os.makedirs(build_path, exist_ok=True)
+
+        # extract MLF contents
+        model = compiled_model.model
+        tar_file = os.path.join(base_path, f"{model.name}.tar")
+        export_model_library_format(compiled_model.executor_factory, tar_file)
+        t = tarfile.open(tar_file)
+        t.extractall(base_path)
+
+        # copy runtime from tvm source
+        include_path = os.path.join(base_path, "include")
+        os.mkdir(include_path)
+        tvm.micro.copy_crt_config_header("crt", include_path)
+
+        # generate main.rs and build.rs; and run the test using cargo
+        _create_rust_main(build_path, runner, codegen_path, compiled_model)
+        _create_rust_build(build_path, codegen_path)
+        _run_rust_test(build_path, verbose)
+
+
 def run_and_check(
     models: List[AOTCompiledTestModel],
     runner: AOTTestRunner,
@@ -706,134 +1030,27 @@ def run_and_check(
     This method uses the original test data and compiled runtime.Modules
     to run in the test runner to verify the results.
     """
-
-    def run_and_check_body(base_path):
-        cflags = (
-            f"-DTVM_RUNTIME_ALLOC_ALIGNMENT_BYTES={workspace_byte_alignment} "
-            f" -DTVM_RUNTIME_CONST_ALLOC_ALIGNMENT_BYTES={constant_byte_alignment} "
-        )
-        # The calculated workspaces will not account for stack allocator tags used for debugging
-        if debug_calculated_workspaces:
-            cflags += "-DTVM_CRT_STACK_ALLOCATOR_ENABLE_LIFO_CHECK "
-
-        base_path = os.path.abspath(base_path)
-        build_path = os.path.join(base_path, "build")
-        os.makedirs(build_path, exist_ok=True)
-
-        include_path = os.path.join(base_path, "include")
-        os.mkdir(include_path)
-        tvm.micro.copy_crt_config_header("crt", include_path)
-
-        workspace_bytes = 0
-        for compiled_model in models:
-            model = compiled_model.model
-            tar_file = os.path.join(base_path, f"{model.name}.tar")
-            export_model_library_format(compiled_model.executor_factory, tar_file)
-            t = tarfile.open(tar_file)
-            t.extractall(base_path)
-
-            # Interface C APIs does not need compiler generated
-            # workspace to generate the test application, because
-            # workspace size is codegen'd as a macro to
-            # tvmgen_<model_name>.h.
-            if interface_api != "c":
-                workspace_bytes += mlf_extract_workspace_size_bytes(tar_file)
-
-            workspace_bytes += model.extra_memory_in_bytes
-            for key in model.inputs:
-                sanitized_tensor_name = re.sub(r"\W", "_", key)
-                _create_header_file(
-                    f'{_mangle_name(model.name, "input_data")}_{sanitized_tensor_name}',
-                    model.inputs[key],
-                    include_path,
-                    data_linkage,
-                )
-
-            for key in model.outputs:
-                sanitized_tensor_name = re.sub(r"\W", "_", key)
-                _create_header_file(
-                    f'{_mangle_name(model.name, "output_data")}_{sanitized_tensor_name}',
-                    np.zeros(model.outputs[key].shape, model.outputs[key].dtype),
-                    include_path,
-                    data_linkage,
-                )
-                _create_header_file(
-                    f'{_mangle_name(model.name, "expected_output_data")}_{sanitized_tensor_name}',
-                    model.outputs[key],
-                    include_path,
-                    data_linkage,
-                )
-
-        use_usmp = runner.pass_config.get("tir.usmp.enable", False)
-        # We only need the stack allocator if USMP is not used
-        use_stack_allocator = not use_usmp
-
-        _create_main(
-            "test.c",
-            models,
-            build_path,
-            runner.includes,
-            runner.prologue,
-            runner.epilogue,
-            data_linkage,
-            interface_api,
-            workspace_bytes,
-            use_stack_allocator,
-            use_workspace_io,
-        )
-
-        # Verify that compiles fine
-        file_dir = os.path.dirname(os.path.abspath(__file__))
-        makefile_dir = os.path.join(file_dir, "../../../tests/python/relay/aot")
-        codegen_path = os.path.join(base_path, "codegen")
-        makefile = os.path.join(makefile_dir, f"{runner.makefile}.mk")
-        fvp_dir = "/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4/"
-        # TODO(@grant-arm): Remove once ci_cpu docker image has been updated to FVP_Corstone_SSE
-        if not os.path.isdir(fvp_dir):
-            fvp_dir = "/opt/arm/FVP_Corstone_SSE-300_Ethos-U55/models/Linux64_GCC-6.4/"
-        custom_params = " ".join(
-            [f" {param}='{value}'" for param, value in runner.parameters.items()]
-        )
-        make_command = (
-            f"make -f {makefile} build_dir={build_path}"
-            + f" CFLAGS='{cflags}'"
-            + f" TVM_ROOT={file_dir}/../../.."
-            + f" AOT_TEST_ROOT={makefile_dir}"
-            + f" CODEGEN_ROOT={codegen_path}"
-            + f" STANDALONE_CRT_DIR={tvm.micro.get_standalone_crt_dir()}"
-            + f" FVP_DIR={fvp_dir}"
-            + custom_params
-        )
-
-        compile_log_path = os.path.join(build_path, "test_compile.log")
-        compile_command = f"{make_command} aot_test_runner"
-        if verbose:
-            print("Compile command:\n", compile_command)
-        _subprocess_check_log_output(compile_command, ".", compile_log_path)
-
-        # Verify that runs fine
-        run_log_path = os.path.join(build_path, "test_run.log")
-        run_command = f"{make_command} run"
-        if verbose:
-            print("Run command:\n", run_command)
-
-        # TODO(lhutton1) This is a quick and dirty work around to help temporarily reduce
-        # the flakyness of the tests. Will remove once #10300 and #10314 are resolved.
-        try:
-            _subprocess_check_log_output(run_command, build_path, run_log_path)
-        except RuntimeError as err:
-            print("Failed to run the module, having a second attempt...", file=sys.stderr)
-            print(err, file=sys.stderr)
-            _subprocess_check_log_output(run_command, build_path, run_log_path)
-
-        with open(run_log_path) as run_log:
-            assert AOT_SUCCESS_TOKEN in run_log.read()
-
     if test_dir is None:
         tmpdir = utils.tempdir()
-        run_and_check_body(os.path.join(tmpdir.path, "test"))
+        test_dir = os.path.join(tmpdir.path, "test")
+
+    if interface_api in ["c", "packed"]:
+        _run_and_check_c(
+            models,
+            runner,
+            interface_api,
+            debug_calculated_workspaces,
+            workspace_byte_alignment,
+            constant_byte_alignment,
+            data_linkage,
+            test_dir,
+            verbose,
+            use_workspace_io,
+        )
+    elif interface_api == "rust":
+        _run_and_check_rust(models, runner, test_dir, verbose)
     else:
-        run_and_check_body(test_dir)
+        raise ValueError(f"Invalid interface_api: {interface_api}")
 
 
 def compile_and_run(

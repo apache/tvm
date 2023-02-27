@@ -377,6 +377,8 @@ def build(
         executor_codegen_metadata = bld_mod.get_executor_codegen_metadata()
 
         if executor.name == "aot":
+            if "interface-api" in executor and executor["interface-api"] == "rust":
+                warnings.warn("Rust Interface API is unstable, use with caution")
             executor_factory = _executor_factory.AOTExecutorFactoryModule(
                 ir_mod,
                 lowered_ir_mods,

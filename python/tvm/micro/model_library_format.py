@@ -54,20 +54,22 @@ def generate_c_interface_header(
     pools,
     io_pool_allocations,
     devices,
+    input_names,
+    output_names,
     workspace_size,
     include_path,
-    input_sizes,
-    output_sizes,
 ):
     """Generate C Interface header to be included in MLF"""
     mangled_name = to_c_variable_style(prefix_generated_name(module_name))
     metadata_header = os.path.join(include_path, f"{mangled_name}.h")
+    input_sizes = {name: property_map["size"] for name, property_map in inputs.items()}
+    output_sizes = {name: property_map["size"] for name, property_map in outputs.items()}
 
     interface_c_create = tvm._ffi.get_global_func("runtime.InterfaceCCreate")
     interface_c_module = interface_c_create(
         module_name,
-        inputs,
-        outputs,
+        input_names,
+        output_names,
         pools,
         io_pool_allocations,
         devices,
@@ -78,6 +80,41 @@ def generate_c_interface_header(
 
     with open(metadata_header, "w") as header_file:
         header_file.write(interface_c_module.get_source())
+
+    return metadata_header
+
+
+def generate_rust_interface(
+    module_name,
+    inputs,
+    outputs,
+    pools,
+    io_pool_allocations,
+    devices,
+    input_names,
+    output_names,
+    workspace_size,
+    src_dir,
+):
+    """Generate Rust Interface header to be included in MLF"""
+    mangled_name = to_c_variable_style(prefix_generated_name(module_name))
+    metadata_header = os.path.join(src_dir, f"{mangled_name}.rs")
+
+    interface_rust_create = tvm._ffi.get_global_func("runtime.InterfaceRustCreate")
+    interface_rust_module = interface_rust_create(
+        module_name,
+        inputs,
+        outputs,
+        pools,
+        io_pool_allocations,
+        devices,
+        input_names,
+        output_names,
+        workspace_size,
+    )
+
+    with open(metadata_header, "w") as rust_interface_file:
+        rust_interface_file.write(interface_rust_module.get_source())
 
     return metadata_header
 
@@ -357,7 +394,11 @@ def _get_io_pool_allocation_from_module(mod):
 
 
 def _should_generate_interface_header(mod):
-    return "interface-api" in mod.executor and mod.executor["interface-api"] == "c"
+    return "interface-api" in mod.executor and mod.executor["interface-api"] in ["c", "rust"]
+
+
+def _should_generate_interface_rust(mod):
+    return "interface-api" in mod.executor and mod.executor["interface-api"] == "rust"
 
 
 def _make_tar(source_dir, tar_file_path, modules):
@@ -476,23 +517,38 @@ def _export_graph_model_library_format(
             workspace_size = int(main_func["workspace_size_bytes"])
             inputs = main_func["inputs"]
             outputs = main_func["outputs"]
-            inputs_sizes = {name: property_map["size"] for name, property_map in inputs.items()}
-            output_sizes = {name: property_map["size"] for name, property_map in outputs.items()}
             input_names = list(inputs.keys())
             output_names = list(outputs.keys())
 
             generate_c_interface_header(
                 mod.libmod_name,
-                input_names,
-                output_names,
+                inputs,
+                outputs,
                 pools,
                 io_pool_allocations,
                 devices,
+                input_names,
+                output_names,
                 workspace_size,
                 include_path,
-                inputs_sizes,
-                output_sizes,
             )
+
+            if _should_generate_interface_rust(mod):
+                host_src_path = codegen_dir / "host" / "src"
+                if not host_src_path.exists():
+                    host_src_path.mkdir()
+                generate_rust_interface(
+                    mod.libmod_name,
+                    inputs,
+                    outputs,
+                    pools,
+                    io_pool_allocations,
+                    devices,
+                    input_names,
+                    output_names,
+                    workspace_size,
+                    host_src_path,
+                )
 
         is_aot = isinstance(mod, executor_factory.AOTExecutorFactoryModule)
         param_filename = parameters_dir / f"{mod.libmod_name}.params"

@@ -66,45 +66,52 @@ AOT_USMP_CORSTONE300_RUNNER = AOTTestRunner(
 )
 
 
-def parametrize_aot_options(test):
+def parametrize_aot_options(enable_rust=False):
     """Parametrize over valid option combinations"""
 
-    requires_arm_eabi = pytest.mark.skipif(
-        shutil.which("arm-none-eabi-gcc") is None, reason="ARM embedded toolchain unavailable"
-    )
+    def _parametrize_aot_options(test):
+        requires_arm_eabi = pytest.mark.skipif(
+            shutil.which("arm-none-eabi-gcc") is None, reason="ARM embedded toolchain unavailable"
+        )
 
-    interface_api = ["packed", "c"]
-    use_unpacked_api = [True, False]
-    test_runner = [AOT_DEFAULT_RUNNER, AOT_CORSTONE300_RUNNER]
+        interface_api = ["packed", "c"]
+        use_unpacked_api = [True, False]
+        test_runner = [AOT_DEFAULT_RUNNER, AOT_CORSTONE300_RUNNER]
+        if enable_rust:
+            interface_api.append("rust")
 
-    all_combinations = itertools.product(interface_api, use_unpacked_api, test_runner)
+        all_combinations = itertools.product(interface_api, use_unpacked_api, test_runner)
 
-    # Filter out packed operators with c interface
-    valid_combinations = filter(
-        lambda parameters: not (parameters[0] == "c" and not parameters[1]),
-        all_combinations,
-    )
+        # Filter out packed operators with c interface
+        valid_combinations = filter(
+            lambda parameters: not (parameters[0] in ["c", "rust"] and not parameters[1]),
+            all_combinations,
+        )
 
-    # Only use reference system for C interface and unpacked API calls
-    valid_combinations = filter(
-        lambda parameters: not (
-            parameters[2] == AOT_CORSTONE300_RUNNER
-            and (parameters[0] == "packed" or not parameters[1])
-        ),
-        valid_combinations,
-    )
+        # Only use reference system for C interface and unpacked API calls
+        valid_combinations = filter(
+            lambda parameters: not (
+                parameters[2] == AOT_CORSTONE300_RUNNER
+                and (parameters[0] == "packed" or not parameters[1])
+            ),
+            valid_combinations,
+        )
 
-    # Skip reference system tests if running in i386 container
-    marked_combinations = map(
-        lambda parameters: pytest.param(*parameters, marks=[requires_arm_eabi])
-        if parameters[2] == AOT_CORSTONE300_RUNNER
-        else parameters,
-        valid_combinations,
-    )
+        # Skip reference system tests if running in i386 container
+        marked_combinations = map(
+            lambda parameters: pytest.param(*parameters, marks=[requires_arm_eabi])
+            if parameters[2] == AOT_CORSTONE300_RUNNER
+            else parameters,
+            valid_combinations,
+        )
 
-    func = pytest.mark.parametrize(
-        ["interface_api", "use_unpacked_api", "test_runner"],
-        marked_combinations,
-    )(test)
+        func = pytest.mark.parametrize(
+            ["interface_api", "use_unpacked_api", "test_runner"],
+            marked_combinations,
+        )(test)
 
-    return tvm.testing.skip_if_32bit(reason="Reference system unavailable in i386 container")(func)
+        return tvm.testing.skip_if_32bit(reason="Reference system unavailable in i386 container")(
+            func
+        )
+
+    return _parametrize_aot_options
