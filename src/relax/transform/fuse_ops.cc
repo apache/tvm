@@ -890,14 +890,6 @@ IRModule MakeGroupedFunctions(
   return OperatorFusor(mod, partition, lift_constants).Transform();
 }
 
-static Map<Expr, Var> GetBindingInverse(const Map<Var, Expr>& binding) {
-  Map<Expr, Var> value_to_bound_var;
-  for (const auto& [var, val] : binding) {
-    value_to_bound_var.Set(val, var);
-  }
-  return value_to_bound_var;
-}
-
 /*! \brief Create a "partitioning", a map from interior / leaf expr to its representative group,
  * based on the provided pattern. The result can be passed to OperatorFusor above to fuse operations
  * in a group and create a grouped function.
@@ -909,21 +901,26 @@ class PatternBasedPartitioner : ExprVisitor {
   using ExprVisitor::VisitExpr_;
 
   static GroupMap Run(String pattern_name, DFPattern pattern, Expr expr, support::Arena* arena) {
-    PatternBasedPartitioner part(pattern_name, pattern, AnalyzeVar2Value(expr));
-    // Initialize each expr to have its own group
-    PostOrderVisit(
-        expr, [arena, &part](const Expr& e) { part.group_map_[e.get()] = arena->make<Group>(); });
+    PatternBasedPartitioner part(pattern_name, pattern, arena);
     part.VisitExpr(expr);
     return part.group_map_;
   }
 
-  PatternBasedPartitioner(String pattern_name, DFPattern pattern, const Map<Var, Expr>& bindings)
-      : pat_name_(pattern_name),
-        pat_(pattern),
-        bindings_(bindings),
-        value_to_bound_var_(GetBindingInverse(bindings)) {}
+  PatternBasedPartitioner(String pattern_name, DFPattern pattern, support::Arena* arena)
+      : pat_name_(pattern_name), pat_(pattern), arena_(arena) {}
 
-  void VisitExpr_(const CallNode* call) override {
+  void VisitVarDef(const Var& var) final { group_map_[var.get()] = arena_->make<Group>(); }
+
+  void VisitBinding_(const VarBindingNode* binding) final {
+    bindings_.Set(binding->var, binding->value);
+    value_to_bound_var_.Set(binding->value, binding->var);
+    ExprVisitor::VisitBinding_(binding);
+  }
+
+  void VisitExpr_(const ConstantNode* op) final { group_map_[op] = arena_->make<Group>(); }
+
+  void VisitBinding_(const VarBindingNode* binding, const CallNode* call) final {
+    VisitVarDef(binding->var);
     if (auto matches_opt = ExtractMatchedExpr(pat_, GetRef<Call>(call), bindings_)) {
       // If a match is found, put all matching expressions into the same group.
       // OperatorFusor also requires that the bound variable be in the same group as the RHS value.
@@ -939,15 +936,12 @@ class PatternBasedPartitioner : ExprVisitor {
       //   conv1: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.relu(lv)
 
       // parent_group corresponds to the group of "conv1" above.
-      auto parent_group = GetGroupForBoundVar(GetRef<Call>(call));
+      auto parent_group = GetGroupForBoundVar(binding->var);
       ICHECK(parent_group);
       parent_group->attrs.Set(attr::kComposite, pat_name_);
-
       for (const auto& [pat, match] : matches_opt.value()) {
-        ICHECK(group_map_.count(match.get()));
         // Put all matching call nodes into the parent group.
         if (pat->IsInstance<CallPatternNode>() && match != GetRef<Call>(call)) {
-          AddToGroup(match, parent_group);
           // Put the bound variable on the LHS into the same parent group.
           AddToGroup(value_to_bound_var_[match], parent_group);
         }
@@ -964,15 +958,14 @@ class PatternBasedPartitioner : ExprVisitor {
     }
   }
 
-  Group* GetGroupForBoundVar(Expr e) {
-    ICHECK(value_to_bound_var_.count(e));
-    auto bound_var = value_to_bound_var_[e];
+  Group* GetGroupForBoundVar(const Var& bound_var) {
     ICHECK(group_map_.count(bound_var.get()));
     return group_map_[bound_var.get()]->FindRoot();
   }
 
   String pat_name_;
   DFPattern pat_;
+  support::Arena* arena_;
   Map<Var, Expr> bindings_;
   Map<Expr, Var> value_to_bound_var_;
   GroupMap group_map_;
@@ -1055,6 +1048,9 @@ IRModule FuseOpsByPattern(const tvm::Array<String>& pattern_names,
   for (size_t i = 0; i < pattern_names.size(); ++i) {
     OperatorFusor::GroupMap group_map;
     for (const auto& entry : mod->functions) {
+      if (entry.second->IsInstance<tir::PrimFuncNode>()) {
+        continue;
+      }
       auto map = PatternBasedPartitioner::Run(pattern_names[i], patterns[i], entry.second, &arena);
       group_map.insert(map.begin(), map.end());
     }
