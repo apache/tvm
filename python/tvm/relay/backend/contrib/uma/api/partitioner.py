@@ -73,7 +73,10 @@ class UMAPartitioner:
         register_pattern_table(self.target_name, self._pattern_table)
 
     def partition(
-        self, mod: tvm.IRModule, params: Optional[Dict[str, tvm.runtime.NDArray]] = None, mod_name: Optional[str] = "default"
+        self,
+        mod: tvm.IRModule,
+        params: Optional[Dict[str, tvm.runtime.NDArray]] = None,
+        mod_name: Optional[str] = "default",
     ) -> tvm.IRModule:
         """Partition the relay graph in parts supported and unsupported by the
         target hardware accelerator.

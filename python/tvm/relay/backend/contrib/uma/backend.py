@@ -290,6 +290,9 @@ class UMABackend(ABC):
             self._tir_to_runtime.register()
 
     def partition(
-        self, mod: tvm.IRModule, params: Optional[Dict[str, tvm.runtime.NDArray]] = None, mod_name: Optional[str] = "default"
+        self,
+        mod: tvm.IRModule,
+        params: Optional[Dict[str, tvm.runtime.NDArray]] = None,
+        mod_name: Optional[str] = "default",
     ) -> tvm.IRModule:
         return self._relay_to_relay.partition(mod, params, mod_name=mod_name)

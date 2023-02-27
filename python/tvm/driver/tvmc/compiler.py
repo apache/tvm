@@ -49,23 +49,31 @@ from .transform import generate_transform_args, parse_graph_transform_args, appl
 from .shape_parser import parse_shape_string
 from .workspace_pools import generate_workspace_pools_args, workspace_pools_recombobulate
 from .extensions import load_extensions, get_extensions
+from .arguments import TVMCSuppressedArgumentParser
 
 # pylint: disable=invalid-name
 logger = logging.getLogger("TVMC")
 
 
 @register_parser
-def add_compile_parser(subparsers, _, json_params):
+def add_compile_parser(subparsers, main_parser, json_params, argv):
     """Include parser for 'compile' subcommand"""
 
     parser = subparsers.add_parser("compile", help="compile a model.")
     parser.set_defaults(func=drive_compile)
+
     parser.add_argument(
         "--experimental-tvm-extension",
-        default="",
-        help="path from which to load packages named tvm_extension which implement the TVMExtension interface."
+        default=[],
+        action="append",
+        help="path from which to load packages named tvm_extension which implement the TVMExtension interface.",
     )
-    _handle_extensions()
+    disposable_parser = TVMCSuppressedArgumentParser(main_parser)
+    try:
+        known_args, _ = disposable_parser.parse_known_args(argv)
+        _handle_extensions(known_args.experimental_tvm_extension)
+    except TVMCException:
+        pass
 
     parser.add_argument(
         "--cross-compiler",
@@ -189,14 +197,12 @@ def add_compile_parser(subparsers, _, json_params):
     generate_workspace_pools_args(parser)
 
 
-def _handle_extensions():
-    # Need to manually parse this argument so that the parser options of any extension can be generated automatically.
-    extension_paths = []
-    for i, arg in enumerate(sys.argv):
-        if arg == "--experimental-tvm-extension" and i + 1 < len(sys.argv):
-            extension_paths.append(sys.argv[i + 1])
-    load_extensions(extension_paths)
+def _handle_extensions(extra_paths):
+    extension_paths = extra_paths
+    if os.environ.get("TVM_EXTENSION_DIR", None):
+        extension_paths.append(os.environ["TVM_EXTENSION_DIR"])
 
+    load_extensions(extension_paths)
     for ext in get_extensions():
         for uma_backend in ext.uma_backends():
             uma_backend.register()
