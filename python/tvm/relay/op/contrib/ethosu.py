@@ -1386,7 +1386,13 @@ class SumParams:
     def __init__(self, func_body: Call):
         from tvm.relay.backend.contrib.ethosu.util import RequantArgs
 
-        requantize = func_body
+        clip = None
+        if str(func_body.op.name) == "clip":
+            clip = func_body
+            requantize = clip.args[0]
+        else:
+            requantize = func_body
+
         sum_op = requantize.args[0]
         attrs = sum_op.attrs
         cast = sum_op.args[0]
@@ -1404,6 +1410,8 @@ class SumParams:
             requantize.args[RequantArgs.OFM_SCALE.value],
             requantize.args[RequantArgs.OFM_ZERO_POINT.value],
         )
+
+        self.activation = clip
 
         ifm_shape = self.ifm.shape
         self.height = ifm_shape[0] if len(ifm_shape) in (2, 3) else ifm_shape[1]
@@ -1448,6 +1456,7 @@ def sum_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
         is_constant(),
         is_constant(),
     )
+    pattern = pattern.optional(is_op("clip"))
     return pattern
 
 

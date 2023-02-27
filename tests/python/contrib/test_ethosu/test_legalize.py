@@ -1695,23 +1695,24 @@ def test_mean(ifm_shape, axis, keep_dims, use_same_quantization):
 
 
 @pytest.mark.parametrize(
-    "ifm_shape, axis, keepdims",
+    "ifm_shape, axis, keepdims, relu",
     [
-        [(1, 4, 2, 8), 3, False],
-        [(1, 4, 4, 1), 3, False],
-        [(3, 5, 7), 2, False],
-        [(1, 4, 2, 8), 3, True],
-        [(3, 5, 7), 2, True],
+        [(1, 4, 2, 8), 3, False, False],
+        [(1, 4, 4, 1), 3, False, True],
+        [(3, 5, 7), 2, False, True],
+        [(1, 4, 2, 8), 3, True, False],
+        [(3, 5, 7), 2, True, False],
     ],
 )
-def test_ethosu_sum(ifm_shape, axis, keepdims):
+def test_ethosu_sum(ifm_shape, axis, keepdims, relu):
     dtype = "int8"
 
     def create_tflite_graph():
         class Model(tf.Module):
             @tf.function
             def tf_function(self, x):
-                return tf.math.reduce_sum(x, axis=axis, keepdims=keepdims)
+                op = tf.math.reduce_sum(x, axis=axis, keepdims=keepdims)
+                return tf.nn.relu(op) if relu else op
 
         model = Model()
         concrete_func = model.tf_function.get_concrete_function(
@@ -1784,10 +1785,12 @@ def test_ethosu_sum(ifm_shape, axis, keepdims):
         assert pooling_op
         attrs = pooling_op.attrs
         assert attrs.pooling_type == "SUM"
+        if relu:
+            assert attrs.activation == "CLIP"
 
         assert binary_elementwise_op
         attrs = binary_elementwise_op.attrs
-        assert attrs.operator_type == "SHR"
+        assert attrs.operator_type == "MUL"
         assert attrs.ifm_channels == attrs.ifm2_channels == 1
         assert attrs.ofm_dtype == "int8"
 

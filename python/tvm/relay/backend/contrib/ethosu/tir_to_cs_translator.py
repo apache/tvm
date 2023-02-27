@@ -822,7 +822,10 @@ def _create_npu_quantization(
     """This is a helper function to capture a list
     of arguments to create Vela NpuQuantization object.
     """
-    return vapi.NpuQuantization(scale_f32=float(scale), zero_point=int(zero_point))
+    scale = float(scale)
+    if scale == 0.0:
+        scale = None
+    return vapi.NpuQuantization(scale_f32=scale, zero_point=int(zero_point))
 
 
 def _create_npu_weights_zero_point(

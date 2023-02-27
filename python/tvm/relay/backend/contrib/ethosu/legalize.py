@@ -1148,6 +1148,16 @@ class SumRewriter(DFPatternCallback):
             ifm_shape = [1, params.height, params.width, ifm_shape[2]]
             reduced_op = relay.reshape(reduced_op, ifm_shape)
 
+        activation_map = {"clip": "CLIP"}
+        if params.activation:
+            activation = activation_map[params.activation.op.name]
+            clip_min = int(params.activation.attrs.a_min)
+            clip_max = int(params.activation.attrs.a_max)
+        else:
+            activation = "NONE"
+            clip_min = 0
+            clip_max = 0
+
         reduced_op = ethosu_ops.ethosu_pooling(
             ifm=reduced_op,
             lut=lut,
@@ -1158,23 +1168,26 @@ class SumRewriter(DFPatternCallback):
             ofm_zero_point=0,
             pool_shape=(1, 1),
             ofm_channels=1,
+            activation=activation,
+            clip_min=clip_min,
+            clip_max=clip_max,
             ifm_layout=params.ifm.layout,
             ofm_layout=params.ofm.layout,
             rounding_mode="NATURAL",
         )
 
-        scalar_tensor = relay.const(np.zeros([1, 1, 1, 1], dtype="int32"), dtype="int32")
-        # operation to convert tensor dtype from int32 to int8
+        # Convert tensor dtype from int32 to int8
+        scalar_tensor = relay.const(np.ones([1, 1, 1, 1], dtype="int32"), dtype="int32")
         reduced_op = ethosu_ops.ethosu_binary_elementwise(
             ifm=reduced_op,
             ifm2=scalar_tensor,
             lut=lut,
-            operator_type="SHR",
-            ifm_scale=1,
+            operator_type="MUL",
+            ifm_scale=0.0,
             ifm_zero_point=0,
-            ifm2_scale=1,
+            ifm2_scale=0.0,
             ifm2_zero_point=0,
-            ofm_scale=1,
+            ofm_scale=0.0,
             ofm_zero_point=int(params.ofm.q_params.zero_point),
             ifm_channels=1,
             ifm2_channels=1,
