@@ -204,6 +204,31 @@ class DFPattern(Node):
         """
         return ffi.match_expr(self, expr, var2val)  # type: ignore
 
+    def extract_matched_expr(
+        self, expr, var2val: Optional[Dict[Var, Expr]] = None
+    ) -> Optional[Dict["DFPattern", Expr]]:
+        """
+        Match a relax.Expr and return a map from matching patterns to matched expressions.
+
+        Parameters
+        ----------
+        expr : tvm.relax.Expr
+            The expression to match
+        var2val : Optional[Dict[tvm.relax.Var, tvm.relax.Expr]]
+            A mapping from relax.Var to relax.Expr for autojump.
+
+        Returns
+        -------
+        result: Optional[Dict[DFPattern, Expr]]
+            Map from matching patterns to matched expressions.
+            Return None if the pattern does not match expr.
+
+        Note
+        ----
+        Check the note of `match` for the meaning of var2val.
+        """
+        return ffi.extract_matched_expr(self, expr, var2val)
+
     def used_by(self, other: Union["DFPattern", "PatternSeq"], index=-1) -> "PatternSeq":
         """
         The current pattern being used by another pattern (sequence)
