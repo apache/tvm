@@ -17,27 +17,28 @@
 # pylint: disable=invalid-name
 """Common functions and classes for CUTLASS GEMM and Conv2d geneator."""
 import logging
+import multiprocessing
 import os
 import re
-import tempfile
 import subprocess
-import multiprocessing
+import tempfile
+
 import tvm._ffi
-from tvm.tir import IntImm
 from tvm.runtime import Object
+from tvm.tir import IntImm
+
 from . import _ffi_api as ffi
+from .conv2d_operation import instantiate_conv2d_template
+from .gemm_operation import instantiate_gemm_template
 from .library import (
-    MathInstruction,
     DataType,
     DataTypeTag,
-    OpcodeClass,
-    MathOperation,
-    TileDescription,
     EpilogueFunctor,
+    MathInstruction,
+    MathOperation,
+    OpcodeClass,
+    TileDescription,
 )
-from .gemm_operation import instantiate_gemm_template
-from .conv2d_operation import instantiate_conv2d_template
-
 
 logger = logging.getLogger("cutlass")
 
@@ -371,6 +372,10 @@ EPILOGUE_MAP = {
     "cutlass.matmul_bias": (EpilogueFunctor.LinearCombinationBias, True),
     "cutlass.matmul_bias_relu": (EpilogueFunctor.LinearCombinationRelu, True),
     "cutlass.matmul_bias_gelu": (EpilogueFunctor.LinearCombinationGelu, False),
+    "cutlass.matmul_transposed": (EpilogueFunctor.LinearCombination, False),
+    "cutlass.matmul_transposed_bias": (EpilogueFunctor.LinearCombinationBias, True),
+    "cutlass.matmul_transposed_bias_relu": (EpilogueFunctor.LinearCombinationRelu, True),
+    "cutlass.matmul_transposed_bias_gelu": (EpilogueFunctor.LinearCombinationGelu, False),
     "cutlass.batch_matmul": (EpilogueFunctor.LinearCombination, False),
     "cutlass.conv2d_bias_hardswish": (EpilogueFunctor.LinearCombinationHardSwish, False),
     "cutlass.conv2d_bias_silu": (EpilogueFunctor.LinearCombinationSilu, False),
@@ -454,6 +459,13 @@ class CodegenResult(Object):
         self.__init_handle_by_constructor__(ffi.CodegenResult, code, headers)
 
 
+def _get_optional_int_annotation(annotations, key, default=None):
+    value = annotations.get(key, default)
+    if value is not None:
+        return int(value)
+    return value
+
+
 @tvm._ffi.register_func("contrib.cutlass.instantiate_template")
 def instantiate_template(func_name, annotations, func_args):
     """Return CUTLASS host code based on a template and the provided annotations.
@@ -519,32 +531,69 @@ def instantiate_template(func_name, annotations, func_args):
     if "dense" in func_name or "matmul" in func_name:
         batched = "batch_matmul" in func_name
         batched_offset = 1 if batched else 0
-        attrs["K"] = str(int(arg0_shape[batched_offset + 1]))
-        attrs["M"] = get_dim(arg0_shape[batched_offset], func_args[0], 0, batched_offset)
+        transposed = "transposed" in func_name
+        lhs_arg_idx = _get_optional_int_annotation(annotations, "lhs_arg_idx", 0)
+        rhs_arg_idx = _get_optional_int_annotation(annotations, "rhs_arg_idx", 1)
+        bias_arg_idx = _get_optional_int_annotation(annotations, "bias_arg_idx", 2)
+        lhs_arg = func_args[lhs_arg_idx]
+        rhs_arg = func_args[rhs_arg_idx]
+        lhs_shape = annotations[f"arg{lhs_arg_idx}_shape"]
+        rhs_shape = annotations[f"arg{rhs_arg_idx}_shape"]
 
-        if annotations["ldb"] == "N":
-            attrs["N"] = get_dim(arg1_shape[batched_offset + 1], func_args[1], 1, batched_offset)
+        attrs["lhs_arg"] = lhs_arg
+        attrs["rhs_arg"] = rhs_arg
+        if len(func_args) > 2:
+            attrs["bias_arg"] = func_args[bias_arg_idx]
+        attrs["ElementInputA"] = DataTypeTag[dtype_map[annotations[f"arg{lhs_arg_idx}_dtype"]]]
+        attrs["ElementInputB"] = DataTypeTag[dtype_map[annotations[f"arg{rhs_arg_idx}_dtype"]]]
+        attrs["ElementOutput"] = DataTypeTag[dtype_map[annotations["ret_dtype"]]]
+
+        attrs["K"] = str(int(lhs_shape[batched_offset + 1]))
+        attrs["M"] = get_dim(lhs_shape[batched_offset], lhs_arg, 0, batched_offset)
+
+        if transposed:
+            attrs["N"] = get_dim(rhs_shape[batched_offset], rhs_arg, 0, batched_offset)
         else:
-            attrs["N"] = get_dim(arg1_shape[batched_offset], func_args[1], 0, batched_offset)
+            attrs["N"] = get_dim(rhs_shape[batched_offset + 1], rhs_arg, 1, batched_offset)
 
         if batched:
             headers.append("cutlass/gemm/device/gemm_batched.h")
-            attrs["batch"] = get_dim(arg0_shape[0], func_args[0], 0)
-            attrs["batch_stride_A"] = get_batch_stride(annotations["batch_stride_A"], 0, 0, 1, 2)
-            attrs["batch_stride_B"] = get_batch_stride(annotations["batch_stride_B"], 1, 1, 1, 2)
+            attrs["batch"] = get_dim(lhs_shape[0], lhs_arg, 0)
+            attrs["batch_stride_A"] = get_batch_stride(
+                annotations["batch_stride_A"],
+                lhs_arg_idx,
+                lhs_arg_idx,
+                1,
+                2,
+            )
+            attrs["batch_stride_B"] = get_batch_stride(
+                annotations["batch_stride_B"],
+                rhs_arg_idx,
+                rhs_arg_idx,
+                1,
+                2,
+            )
 
-            if annotations["ldb"] == "N":
+            if transposed:
                 attrs["batch_stride_C"] = get_batch_stride(
-                    annotations["batch_stride_C"], 0, 1, 1, 2
+                    annotations["batch_stride_C"],
+                    lhs_arg_idx,
+                    rhs_arg_idx,
+                    1,
+                    1,
                 )
             else:
                 attrs["batch_stride_C"] = get_batch_stride(
-                    annotations["batch_stride_C"], 0, 1, 1, 1
+                    annotations["batch_stride_C"],
+                    lhs_arg_idx,
+                    rhs_arg_idx,
+                    1,
+                    2,
                 )
         else:
             headers.append("cutlass/gemm/device/gemm.h")
 
-        code = instantiate_gemm_template(attrs, func_args)
+        code = instantiate_gemm_template(attrs)
         return CodegenResult(code, headers)
 
     elif "conv2d" in func_name:
