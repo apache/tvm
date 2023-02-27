@@ -942,7 +942,6 @@ class PatternBasedPartitioner : ExprVisitor {
       for (const auto& [pat, match] : matches_opt.value()) {
         // Put all matching call nodes into the parent group.
         if (pat->IsInstance<CallPatternNode>() && match != GetRef<Call>(call)) {
-          // AddToGroup(match, parent_group);
           // Put the bound variable on the LHS into the same parent group.
           AddToGroup(value_to_bound_var_[match], parent_group);
         }
