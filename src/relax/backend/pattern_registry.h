@@ -42,6 +42,8 @@ namespace backend {
  */
 class PatternRegistryEntryNode : public Object {
  public:
+  using FCheckMatch = runtime::TypedPackedFunc<bool(const Map<DFPattern, Expr>&, const Expr&)>;
+
   /*!
    * \brief The name of pattern. Usually it starts with the name of backend, like
    * 'cutlass.matmul'.
@@ -58,6 +60,11 @@ class PatternRegistryEntryNode : public Object {
    * the `pattern`.
    */
   Map<String, DFPattern> arg_patterns;
+
+  /*!
+   * \brief The function to check whether the match result is accepted.
+   */
+  FCheckMatch check;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name", &name);
