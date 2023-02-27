@@ -520,12 +520,8 @@ def test_any_squeeze():
     verify_any_squeeze(
         (1, relay.Any(), relay.Any(), 1, relay.Any(), relay.Any()), (0, 3), (1, 12, 2, 1, 9, 17)
     )
-    verify_any_squeeze_sqrt(
-        (1, relay.Any(), 12, 32, 1), (-1,), (1, 100, 12, 32, 1)
-    )
-    verify_any_squeeze_sqrt(
-        (relay.Any(), relay.Any(), relay.Any(), 1), (-1,), (1, 9, 8, 1)
-    )
+    verify_any_squeeze_sqrt((1, relay.Any(), 12, 32, 1), (-1,), (1, 100, 12, 32, 1))
+    verify_any_squeeze_sqrt((relay.Any(), relay.Any(), relay.Any(), 1), (-1,), (1, 9, 8, 1))
 
 
 @tvm.testing.uses_gpu
