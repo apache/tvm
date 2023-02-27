@@ -321,19 +321,19 @@ def suggest_layout_transforms(
     return _ffi_api.suggest_layout_transforms(func, write_buffer_index_maps)  # type: ignore
 
 
-def find_mutual_recursion(mod: tvm.IRModule) -> List[List[GlobalVar]]:
+def detect_recursion(mod: tvm.IRModule) -> List[List[GlobalVar]]:
     """
-    Return all groups of mutually recursive functions from the module.
-
+    Find all sets of recursive or mutually recursive functions in the module.
+ 
     Two or more functions are mutually recursive if there is some cycle of calls
     among them. For example, if there are two functions A and B, they are
     mutually recursive if A calls B and B calls A. Another case would be with
     three functions A, B, and C, where A calls B, B calls C, and C calls A.
 
-    Note: Simple recursion is not reported (e.g., if D is recursive, there will not be
-    a group of only D reported)
+    If a function is simply recursive and not mutually recursive with any other,
+    it will be reported as a group by itself.
 
-    Parameters
+        Parameters
     ----------
     mod: The module
 
@@ -342,5 +342,7 @@ def find_mutual_recursion(mod: tvm.IRModule) -> List[List[GlobalVar]]:
     ret: List[List[GlobalVar]]
         Each member of the list is a list of global functions
         that call each other mutually recursively.
+        If a function is simply recursive and not mutually recursive
+        with any other, it will be a singleton in this list.
     """
-    return _ffi_api.find_mutual_recursion(mod)  # type: ignore
+    return _ffi_api.detect_recursion(mod)  # type: ignore

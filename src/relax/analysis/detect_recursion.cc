@@ -19,9 +19,9 @@
 
 /*!
  *
- * \file mutual_recursion.cc
+ * \file detect_recursion.cc
  *
- * \brief Analysis to detect groups of mutually recursive functions.
+ * \brief Analysis to detect global recursive or mutually recursive functions.
  */
 
 #include <tvm/relax/analysis.h>
@@ -32,10 +32,11 @@ namespace tvm {
 namespace relax {
 
 /*
- * General approach to detecting mutual recursion:
+ * General approach to detecting recursion:
  *   Suppose we have a dependency graph of global functions,
  *   where function A depends on function B if A contains a call to B
- *   (i.e., an edge A->B means A calls B).
+ *   (i.e., an edge A->B means A calls B). If function A is recursive,
+ *   then it has a self-edge A->A.
  *
  *   Note that the call can happen _anywhere_ in the function's body:
  *   All that is important for mutual recursion is that one function
@@ -43,11 +44,9 @@ namespace relax {
  *   the body. This includes calls that happen inside local function definitions,
  *   branches that may not execute, etc.
  *
- *   (Note: We will ignore simple recursion and not include the self-edges.)
- *
- *   Then detecting mutual recursion is a problem of cycle detection:
- *   Functions F1, F2, ..., Fn are mutually recursive if there exists a single
- *   directed cycle that contains all of them.
+ *   Then detecting simple recursion and mutual recursion is a problem of cycle
+ *   detection: Functions F1, F2, ..., Fn are mutually recursive if there exists 
+ *   a single directed cycle that contains all of them.
  *
  *   We aim to find the _largest_ directed cycles in the graph, as there can
  *   be smaller cycles within the larger ones, as in the following example:
@@ -78,8 +77,6 @@ namespace relax {
 
 class DependencyGatherer : public ExprVisitor {
  public:
-  DependencyGatherer(std::string own_name) : own_name_(own_name) {}
-
   std::unordered_set<std::string> Track(const Function& func) {
     this->VisitExpr(func);
     return deps_;
@@ -87,14 +84,11 @@ class DependencyGatherer : public ExprVisitor {
 
   void VisitExpr_(const CallNode* call) override {
     auto* gv = call->op.as<GlobalVarNode>();
-    if (gv && gv->name_hint != own_name_) {
-      deps_.insert(gv->name_hint);
-    }
+    deps_.insert(gv->name_hint);
     ExprVisitor::VisitExpr_(call);
   }
 
  private:
-  std::string own_name_;
   std::unordered_set<std::string> deps_;
 };
 
@@ -111,7 +105,7 @@ adjacency_map GatherDependencyGraph(const IRModule& m) {
       continue;
     }
     std::string name = gv_func.first->name_hint;
-    auto deps = DependencyGatherer(name).Track(GetRef<relax::Function>(func));
+    auto deps = DependencyGatherer().Track(GetRef<relax::Function>(func));
     ret.insert({name, deps});
   }
   return ret;
@@ -321,7 +315,7 @@ std::vector<node_set> DetectElementaryCircuits(const adjacency_index& graph) {
     auto scc = GetLeastSCC(sccs);
     s = LeastVertex(scc);
     // Note: the pseudocode calls for an early exit if the subgraph is empty.
-    // However, that will never happen (there will always be at least one SCC 
+    // However, that will never happen (there will always be at least one SCC
     // with at least one node)
     for (size_t i = s; i < graph.size(); i++) {
       if (!scc.count(i)) {
@@ -369,7 +363,7 @@ std::vector<node_set> CoalesceCircuits(const std::vector<node_set>& circuits) {
   return ret;
 }
 
-tvm::Array<tvm::Array<GlobalVar>> FindMutualRecursion(const IRModule& m) {
+tvm::Array<tvm::Array<GlobalVar>> DetectRecursion(const IRModule& m) {
   auto graph = GatherDependencyGraph(m);
 
   // have to decide on some ordering for names
@@ -393,7 +387,7 @@ tvm::Array<tvm::Array<GlobalVar>> FindMutualRecursion(const IRModule& m) {
   return ret;
 }
 
-TVM_REGISTER_GLOBAL("relax.analysis.find_mutual_recursion").set_body_typed(FindMutualRecursion);
+TVM_REGISTER_GLOBAL("relax.analysis.detect_recursion").set_body_typed(DetectRecursion);
 
 }  // namespace relax
 }  // namespace tvm

@@ -20,7 +20,7 @@ import tvm.testing
 from tvm import relax as rx
 from tvm.script import relax as R
 
-from tvm.relax.analysis import find_mutual_recursion
+from tvm.relax.analysis import detect_recursion
 
 
 def assert_groups(groups: List[List[rx.GlobalVar]], expected: List[List[str]]) -> None:
@@ -45,7 +45,7 @@ def test_no_recursion():
         def b(x: R.Object) -> R.Object:
             return x
 
-    groups = find_mutual_recursion(NoRecursion)
+    groups = detect_recursion(NoRecursion)
     assert len(groups) == 0
 
 
@@ -56,8 +56,8 @@ def test_simple_recursion():
         def c(x: R.Object) -> R.Object:
             return c(x)
 
-    groups = find_mutual_recursion(SimpleRecursion)
-    assert len(groups) == 0
+    groups = detect_recursion(SimpleRecursion)
+    assert_groups(groups, ["c"])
 
 
 def test_tree():
@@ -74,7 +74,6 @@ def test_tree():
 
         @R.function
         def c(x: R.Object) -> R.Object:
-            z: R.Object = c(x)
             z: R.Object = d(x)
             return e(z)
 
@@ -86,7 +85,7 @@ def test_tree():
         def e(x: R.Object) -> R.Object:
             return x
 
-    groups = find_mutual_recursion(Tree)
+    groups = detect_recursion(Tree)
     assert len(groups) == 0
 
 
@@ -106,7 +105,7 @@ def test_two_function_case():
         def c(x: R.Object) -> R.Object:
             return x
 
-    groups = find_mutual_recursion(TwoFunctionCase)
+    groups = detect_recursion(TwoFunctionCase)
     assert_groups(groups, [["a", "b"]])
 
 
@@ -134,7 +133,7 @@ def test_two_groups_of_two():
         def e(x: R.Object) -> R.Object:
             return x
 
-    groups = find_mutual_recursion(TwoGroupsOfTwo)
+    groups = detect_recursion(TwoGroupsOfTwo)
     assert_groups(groups, [["a", "b"], ["c", "d"]])
 
 
@@ -153,7 +152,7 @@ def test_three_function_case():
         def c(x: R.Object) -> R.Object:
             return a(x)
 
-    groups = find_mutual_recursion(ThreeFunctionCase)
+    groups = detect_recursion(ThreeFunctionCase)
     assert_groups(groups, [["a", "b", "c"]])
 
 
@@ -183,7 +182,7 @@ def test_call_from_outside_of_group():
         def e(x: R.Object) -> R.Object:
             return b(x)
 
-    groups = find_mutual_recursion(CallFromOutOfGroup)
+    groups = detect_recursion(CallFromOutOfGroup)
     assert_groups(groups, [["b", "c", "d"]])
 
 
@@ -226,7 +225,7 @@ def test_group_with_two_cycles():
         def f(x: R.Object) -> R.Object:
             return b(x)
 
-    groups = find_mutual_recursion(GroupWithTwoCycles)
+    groups = detect_recursion(GroupWithTwoCycles)
     assert_groups(groups, [["a", "b", "c", "d", "e", "f"]])
 
 
@@ -278,7 +277,7 @@ def test_multicycle_example():
             y = f(x)
             return c(y)
 
-    groups = find_mutual_recursion(MulticycleExample)
+    groups = detect_recursion(MulticycleExample)
     assert_groups(groups, [["a", "b", "c", "d", "e", "f", "g"]])
 
 
@@ -302,7 +301,7 @@ def test_control_flow():
         def c(x: R.Object) -> R.Object:
             return a(x)
 
-    groups = find_mutual_recursion(ControlFlowExample)
+    groups = detect_recursion(ControlFlowExample)
     assert_groups(groups, [["a", "b", "c"]])
 
 
