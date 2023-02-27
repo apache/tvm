@@ -255,9 +255,12 @@ def test_conv2d_offload():
     tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
 
-def get_relax_matmul_module(x, y, with_bias=False, activation=None):
+def get_relax_matmul_module(x, y, transposed_y=False, with_bias=False, activation=None):
     m, k = x.shape
-    n = y.shape[-1]
+    if transposed_y:
+        n = y.shape[-2]
+    else:
+        n = y.shape[-1]
     dtype = str(x.dtype)
 
     from tvm.script.ir_builder import IRBuilder
@@ -266,13 +269,15 @@ def get_relax_matmul_module(x, y, with_bias=False, activation=None):
     with IRBuilder() as builder:
         with relax_builder.function():
             R.func_name("main")
-            x = R.arg("x", R.Tensor((m, k), dtype))
-            y = R.arg("y", R.Tensor((k, n), dtype))
+            x = R.arg("x", R.Tensor(x.shape, dtype))
+            y = R.arg("y", R.Tensor(y.shape, dtype))
             if with_bias:
                 bias = R.arg("bias", R.Tensor((n,), dtype))
 
             with R.dataflow() as frame:
-                result = R.emit(R.matmul(x, y))
+                if transposed_y:
+                    y = R.emit(R.permute_dims(y))
+                result = R.emit(R.matmul(x, y, out_dtype=dtype))
                 if with_bias:
                     result = R.emit(result + bias)
                 if activation is not None:
@@ -378,6 +383,59 @@ def test_kernel_sharing():
     ref = get_relay_ref(relay_expr, data_np, weight1_np, weight2_np)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
+
+
+def test_matmul_transposed_offload(matmul_x, matmul_y):
+    x, y = matmul_x, matmul_y
+
+    mod = get_relax_matmul_module(x, y.transpose(), transposed_y=True)
+    out = get_result_with_relax_cutlass_offload(mod, x, y.transpose())
+    ref_relay_expr = get_relay_matmul(x.shape, y.shape[::-1])
+    ref = get_relay_ref(ref_relay_expr, x, y.transpose())
+
+    tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-4)
+
+
+def test_matmul_transposed_bias_offload(matmul_x, matmul_y, matmul_bias):
+    x, y, bias = matmul_x, matmul_y, matmul_bias
+
+    mod = get_relax_matmul_module(
+        x, y.transpose(), transposed_y=True, with_bias=True, activation=None
+    )
+    out = get_result_with_relax_cutlass_offload(mod, x, y.transpose(), bias)
+
+    ref_relay_expr = get_relay_matmul_bias(x.shape, y.shape[::-1])
+    ref = get_relay_ref(ref_relay_expr, x, y.transpose(), bias)
+
+    tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-4)
+
+
+def test_matmul_transposed_bias_relu_offload(matmul_x, matmul_y, matmul_bias):
+    x, y, bias = matmul_x, matmul_y, matmul_bias
+
+    mod = get_relax_matmul_module(
+        x, y.transpose(), transposed_y=True, with_bias=True, activation=R.nn.relu
+    )
+    out = get_result_with_relax_cutlass_offload(mod, x, y.transpose(), bias)
+
+    ref_relay_expr = get_relay_matmul_bias_relu(x.shape, y.shape[::-1])
+    ref = get_relay_ref(ref_relay_expr, x, y.transpose(), bias)
+
+    tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-4)
+
+
+def test_matmul_transposed_bias_gelu_offload(matmul_x, matmul_y, matmul_bias):
+    x, y, bias = matmul_x, matmul_y, matmul_bias
+
+    mod = get_relax_matmul_module(
+        x, y.transpose(), transposed_y=True, with_bias=True, activation=R.nn.gelu
+    )
+    out = get_result_with_relax_cutlass_offload(mod, x, y.transpose(), bias)
+
+    ref_relay_expr = get_relay_matmul_bias_gelu(x.shape, y.shape[::-1])
+    ref = get_relay_ref(ref_relay_expr, x, y.transpose(), bias)
+
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-3)
 
 
 if __name__ == "__main__":
