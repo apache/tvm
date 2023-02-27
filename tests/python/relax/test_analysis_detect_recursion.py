@@ -320,7 +320,8 @@ def test_multicycle_example():
 
         @R.function
         def c(x: R.Object) -> R.Object:
-            return b(x)
+            y = g(x)
+            return b(y)
 
         @R.function
         def d(x: R.Object) -> R.Object:
