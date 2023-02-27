@@ -20,12 +20,13 @@
 import builtins
 import functools
 import inspect
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, Callable
 
 import tvm
 from tvm import DataType, relax
 from tvm.ir import PrimExpr
 from tvm.relax import Call, Expr, ExternFunc, TupleGetItem, Var, VarBinding, const
+from tvm.relax.block_builder import BlockBuilder as rx_bb
 
 ############################### Operators ###############################
 from tvm.relax.op import (
@@ -304,6 +305,7 @@ invoke_closure = _sinfo_arg_wrapper(invoke_closure)  # pylint: disable=invalid-n
 
 call_builtin_with_ctx = _sinfo_arg_wrapper(call_builtin_with_ctx)  # pylint: disable=invalid-name
 
+
 ############################### Bindings ###############################
 
 
@@ -323,6 +325,35 @@ def emit(value: Expr, annotate_struct_info: Optional[StructInfo] = None) -> Var:
         The left side var of the emitted binding.
     """
     return _ffi_api.Emit(value, annotate_struct_info)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def emit_te(func: Callable, *args: Any, **kwargs: Any) -> Var:
+    """Emit a call node according to the te function.
+    This function converts arguments from relax expression to te tensor,
+    The callback func should return a te tensor or a list of te tensors.
+
+    Parameters
+    ----------
+    func : Callable
+        A function that returns a te tensor or a list of te tensors.
+
+    args : Any, optional
+        arguments passed to the function.
+
+    kwargs : Any, optional
+        The keyword arguments passed to the function.
+        Note that the key "primfunc_name_hint" is reserved for passing name hint
+        to the PrimFunc that gets generated.
+
+    Returns
+    -------
+    var : Var
+        A newly created variable that gets bound to the call code.
+    """
+
+    # Levarage the util function call_te in Relax Block Blocker
+    emit_expr = rx_bb().call_te(func, *args, **kwargs)
+    return emit(emit_expr)
 
 
 def emit_match_cast(value: Expr, struct_info: StructInfo) -> Var:
@@ -511,6 +542,7 @@ __all__ = [
     "divide",
     "dtype",
     "emit",
+    "emit_te",
     "emit_var_binding",
     "emit_match_cast",
     "equal",
