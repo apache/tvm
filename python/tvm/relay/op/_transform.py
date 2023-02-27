@@ -920,7 +920,9 @@ def squeeze_shape_func(attrs, inputs, _):
     keep_axes = []
     remove_axes = []
     if axis is not None:
-        for i in range(inputs[0].shape[0].value):
+        ndim = inputs[0].shape[0].value
+        axis = [i + ndim if i < 0 else i for i in axis]
+        for i in range(ndim):
             if i not in axis:
                 keep_axes.append(i)
             else:
