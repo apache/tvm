@@ -19,6 +19,7 @@
 import logging
 import multiprocessing
 import os
+from typing import Optional
 
 import tvm
 from tvm import relax, relay, runtime
@@ -522,7 +523,19 @@ def tune_cutlass_function(
     )
 
 
-def _extract_relax_function_info(f):
+def _get_call_node(expr: relax.Expr, op_name: str) -> Optional[relax.Call]:
+    node = None
+
+    def fvisit(e):
+        nonlocal node
+        if isinstance(e, relax.Call) and e.op.name == op_name:
+            node = e
+
+    relax.analysis.post_order_visit(expr, fvisit)
+    return node
+
+
+def _extract_relax_function_signature(f):
     signature = {}
 
     for i, arg in enumerate(f.params):
@@ -534,16 +547,26 @@ def _extract_relax_function_info(f):
     signature["ret_shape"] = list(ret_sinfo.shape)
     signature["ret_dtype"] = ret_sinfo.dtype
 
-    op_attrs = {}
+    return signature
 
-    def fvisit(e):
-        nonlocal op_attrs
-        if isinstance(e, relax.Call) and e.op.name in ["relax.nn.conv2d"]:
-            op_attrs = e.attrs
 
-    relax.analysis.post_order_visit(f.body, fvisit)
+def _extract_arg_idx(pattern_name, f):
+    pattern_entry = relax.backend.get_pattern(pattern_name)
+    if pattern_entry is None:
+        raise ValueError(f"Unsupported op_type {pattern_name}")
+    var2val = relax.analysis.get_var2val(f)
+    matched_expr = pattern_entry.pattern.extract_matched_expr(f.body.body, var2val)
 
-    return signature, op_attrs
+    func_args = list(f.params)
+
+    arg_idx = {}
+    for arg_name, arg_pattern in pattern_entry.arg_patterns.items():
+        arg_expr = matched_expr[arg_pattern]
+        if arg_expr not in func_args:
+            raise ValueError(f"Cannot find arg {arg_name} in the fused function parameters")
+        arg_idx[arg_name] = func_args.index(arg_expr)
+
+    return arg_idx
 
 
 @relax.expr_functor.mutator
@@ -566,7 +589,8 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
 
     def handle_conv2d(self, f, op_type):
         """Tune and annotate a conv2d op."""
-        signature, op_attrs = _extract_relax_function_info(f)
+        signature = _extract_relax_function_signature(f)
+        op_attrs = _get_call_node(f.body, "relax.nn.conv2d").attrs
 
         d_shape = signature["arg0_shape"]
         w_shape = signature["arg1_shape"]
@@ -622,18 +646,29 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
 
     def handle_matmul(self, f, op_type):
         """Tune and annotate a dense op."""
-        signature, _ = _extract_relax_function_info(f)
+        signature = _extract_relax_function_signature(f)
+        arg_idx = _extract_arg_idx(op_type, f)
 
-        arg0_shape = signature["arg0_shape"]
-        arg1_shape = signature["arg1_shape"]
+        lhs_arg = f"arg{arg_idx['lhs']}"
+        rhs_arg = f"arg{arg_idx['rhs']}"
+
+        lhs_shape = signature[f"{lhs_arg}_shape"]
+        rhs_shape = signature[f"{rhs_arg}_shape"]
         out_shape = signature["ret_shape"]
-        arg0_dtype = signature["arg0_dtype"]
-        arg1_dtype = signature["arg1_dtype"]
+        lhs_dtype = signature[f"{lhs_arg}_dtype"]
+        rhs_dtype = signature[f"{rhs_arg}_dtype"]
         out_dtype = signature["ret_dtype"]
 
-        MM = arg0_shape[0]
-        KK = arg0_shape[1]
-        NN = arg1_shape[1]
+        MM = lhs_shape[0]
+        KK = lhs_shape[1]
+        if "transposed" in op_type:
+            NN = rhs_shape[0]
+            ldb = "K"
+            layout_b = LayoutType.ColumnMajor
+        else:
+            NN = rhs_shape[1]
+            ldb = "N"
+            layout_b = LayoutType.RowMajor
 
         use_3xtf32 = self.options.get("use_3xtf32", False)
         find_first_valid = self.options.get("find_first_valid", True)
@@ -645,26 +680,29 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
             NN,
             KK,
             out_dtype,
-            arg0_dtype,
-            arg1_dtype,
+            lhs_dtype,
+            rhs_dtype,
             use_3xtf32,
             batched=False,
             find_first_valid=find_first_valid,
             use_multiprocessing=use_multiprocessing,
-            layout_b=LayoutType.RowMajor,
+            layout_b=layout_b,
         )
 
         return f.with_attrs(
             {
                 "op_type": op_type,
-                "arg0_dtype": arg0_dtype,
-                "arg1_dtype": arg1_dtype,
+                "lhs_arg_idx": arg_idx["lhs"],
+                "rhs_arg_idx": arg_idx["rhs"],
+                "bias_arg_idx": arg_idx.get("bias"),
+                "arg0_dtype": signature["arg0_dtype"],
+                "arg1_dtype": signature["arg1_dtype"],
                 "ret_dtype": out_dtype,
-                "arg0_shape": arg0_shape,
-                "arg1_shape": arg1_shape,
+                "arg0_shape": signature["arg0_shape"],
+                "arg1_shape": signature["arg1_shape"],
                 "ret_shape": out_shape,
                 "lda": "K",
-                "ldb": "N",
+                "ldb": ldb,
                 "ldc": "N",
                 "cutlass_op_name": op_name,
                 "cutlass_op_def": op_def,

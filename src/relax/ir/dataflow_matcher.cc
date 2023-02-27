@@ -515,6 +515,8 @@ Optional<Map<DFPattern, Expr>> ExtractMatchedExpr(DFPattern pattern, Expr expr,
   return matching;
 }
 
+TVM_REGISTER_GLOBAL("relax.dpl.extract_matched_expr").set_body_typed(ExtractMatchedExpr);
+
 bool MatchExpr(DFPattern pattern, Expr expr, Optional<Map<Var, Expr>> bindings_opt) {
   return static_cast<bool>(ExtractMatchedExpr(pattern, expr, bindings_opt));
 }
