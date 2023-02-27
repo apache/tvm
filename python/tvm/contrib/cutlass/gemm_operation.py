@@ -259,7 +259,7 @@ class EmitGemmInstance:
         return substitute_template(gemm_template, values)
 
 
-def instantiate_gemm_template(attrs, func_args):
+def instantiate_gemm_template(attrs):
     """Return CUTLASS host code for GEMM based on a template and the provided attribute map."""
 
     template = """
@@ -277,8 +277,8 @@ def instantiate_gemm_template(attrs, func_args):
   cutlass::gemm::GemmCoord problem_size(M, N, K);
   ElementComputeEpilogue alpha = ElementComputeEpilogue(1);
   ElementComputeEpilogue beta = ElementComputeEpilogue(${beta});
-  void* ptr_a = (void*)(${arg0}->data);
-  void* ptr_b = (void*)(${arg1}->data);
+  void* ptr_a = (void*)(${lhs_arg}->data);
+  void* ptr_b = (void*)(${rhs_arg}->data);
   ${bias_decl}
   void* ptr_out = (void*)(out0->data);
 
@@ -310,7 +310,7 @@ def instantiate_gemm_template(attrs, func_args):
     if has_bias:
         aux_map.update(
             {
-                "bias_decl": "void* ptr_c_bias = (void*)(${arg2}->data);\n",
+                "bias_decl": "void* ptr_c_bias = (void*)(${bias_arg}->data);\n",
                 "ptr_c": "ptr_c_bias",
                 "c_stride": "0",
             }
@@ -341,8 +341,5 @@ def instantiate_gemm_template(attrs, func_args):
         attrs["split_k_slices_or_batch"] = "1"
 
     template = substitute_template(template, aux_map)
-
-    for i, arg in enumerate(func_args):
-        attrs["arg{}".format(i)] = arg
 
     return substitute_template(template, attrs)
