@@ -55,10 +55,10 @@ bool EthosuPoolingRel(const Array<Type>& types, int num_inputs, const Attrs& att
     return false;
   }
 
-  std::initializer_list<DataType> max_avg_pooling_ifm_dtypes =
-    {DataType::UInt(8), DataType::Int(8), DataType::Int(16)};
-  std::initializer_list<DataType> sum_pooling_ifm_dtypes =
-    {DataType::UInt(8), DataType::Int(8), DataType::Int(16), DataType::Int(32)};
+  std::initializer_list<DataType> max_avg_pooling_ifm_dtypes = {DataType::UInt(8), DataType::Int(8),
+                                                                DataType::Int(16)};
+  std::initializer_list<DataType> sum_pooling_ifm_dtypes = {DataType::UInt(8), DataType::Int(8),
+                                                            DataType::Int(16), DataType::Int(32)};
 
   std::initializer_list<DataType>& allowed_ifm_dtypes = max_avg_pooling_ifm_dtypes;
   auto ofm_dtype = ifm->dtype;
