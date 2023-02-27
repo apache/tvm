@@ -70,7 +70,6 @@ class PatternRegistryEntryNode : public Object {
     v->Visit("name", &name);
     v->Visit("pattern", &pattern);
     v->Visit("arg_patterns", &arg_patterns);
-    v->Visit("check", &check);
   }
 
   static constexpr const char* _type_key = "relax.backend.PatternRegistryEntry";

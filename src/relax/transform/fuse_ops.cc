@@ -904,11 +904,13 @@ class PatternBasedPartitioner : ExprVisitor {
 
   static GroupMap Run(String pattern_name, DFPattern pattern, FCheckMatch check, Expr expr,
                       support::Arena* arena) {
+    PatternBasedPartitioner part(pattern_name, pattern, check, arena);
     part.VisitExpr(expr);
     return part.group_map_;
   }
 
-  PatternBasedPartitioner(String pattern_name, DFPattern pattern, FCheckMatch check, support::Arena* arena)
+  PatternBasedPartitioner(String pattern_name, DFPattern pattern, FCheckMatch check,
+                          support::Arena* arena)
       : pat_name_(pattern_name), pat_(pattern), check_(check), arena_(arena) {}
 
   void VisitVarDef(const Var& var) final { group_map_[var.get()] = arena_->make<Group>(); }
@@ -970,8 +972,8 @@ class PatternBasedPartitioner : ExprVisitor {
 
   String pat_name_;
   DFPattern pat_;
-  support::Arena* arena_;
   FCheckMatch check_;
+  support::Arena* arena_;
   Map<Var, Expr> bindings_;
   Map<Expr, Var> value_to_bound_var_;
   GroupMap group_map_;

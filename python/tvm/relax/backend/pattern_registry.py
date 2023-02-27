@@ -17,13 +17,14 @@
 
 """Pattern registry for BYOC backends"""
 
-from typing import List, Mapping, Optional, Tuple, Union
+from typing import Callable, List, Mapping, Optional, Tuple, Union
 
 import tvm
 from tvm.relax.dpl import DFPattern
 from tvm.runtime import Object
 
 from . import _ffi_api
+from ..expr import Expr
 
 
 @tvm._ffi.register_object("relax.backend.PatternRegistryEntry")
@@ -85,9 +86,13 @@ def register_patterns(patterns: List[Pattern]):
         elif isinstance(item, tuple):
             name, pattern_or_tuple = item
             if isinstance(pattern_or_tuple, tuple):
-                pattern, arg_patterns, check = pattern_or_tuple
+                if len(pattern_or_tuple) == 2:
+                    pattern, arg_patterns = pattern_or_tuple
+                    check = lambda *_: True
+                else:
+                    pattern, arg_patterns, check = pattern_or_tuple
             else:
-                pattern, arg_patterns = pattern_or_tuple, {}, lambda *_: True
+                pattern, arg_patterns, check = pattern_or_tuple, {}, lambda *_: True
             entries.append(PatternRegistryEntry(name, pattern, arg_patterns))
         else:
             raise TypeError(f"Cannot register type {type(pattern)} as pattern")
