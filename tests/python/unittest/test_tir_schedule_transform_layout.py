@@ -477,11 +477,19 @@ class BasePaddingCompare(tvm.testing.CompareBeforeAfter):
 
     index_map = tvm.testing.parameter(lambda i: [i // 4, i % 4])
 
+    assume_injective_transform = tvm.testing.parameter(False)
+
     @pytest.fixture
-    def transform(self, pad_value, transformed_buffer, index_map):
+    def transform(self, pad_value, transformed_buffer, index_map, assume_injective_transform):
         def transform(mod):
             sch = tir.Schedule(mod)
-            sch.transform_layout("block", transformed_buffer, index_map, pad_value=pad_value)
+            sch.transform_layout(
+                "block",
+                transformed_buffer,
+                index_map,
+                pad_value=pad_value,
+                assume_injective_transform=assume_injective_transform,
+            )
             return sch.mod
 
         return transform
@@ -565,10 +573,25 @@ class TestNoPaddingOpaqueBlock(BasePaddingCompare):
                 A[i // 4, i % 4] = 0
 
 
-class TestImplicitPadding(BasePaddingCompare):
-    """When pad_value is None, the buffer can be implicitly padded. The padded region is not
-    accessed because the original loop extent is not changed.
+class TestErrorIfPaddingForbidden(BasePaddingCompare):
+    """Unless padding is explicitly enabled, should raise error"""
+
+    def before():
+        A = T.alloc_buffer(14, "int32")
+        for i in T.serial(14):
+            with T.block("block"):
+                vi = T.axis.remap("S", [i])
+                A[vi] = 0
+
+    expected = tvm.tir.schedule.schedule.ScheduleError
+
+
+class TestImplicitPaddingAssumeInjective(BasePaddingCompare):
+    """When pad_value is None and assume_injective_transform is set, the buffer can be implicitly
+    padded. The padded region is not accessed because the original loop extent is not changed.
     """
+
+    assume_injective_transform = tvm.testing.parameter(True)
 
     def before():
         A = T.alloc_buffer(14, "int32")
