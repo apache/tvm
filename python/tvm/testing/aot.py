@@ -728,6 +728,7 @@ def run_and_check(
     test_dir: str = None,
     verbose: bool = False,
     use_workspace_io: bool = False,
+    debug_last_error: bool = False,
     checker: Optional[Callable[[str], bool]] = None,
 ):
     """
@@ -793,8 +794,6 @@ def run_and_check(
                 )
 
         use_usmp = runner.pass_config.get("tir.usmp.enable", False)
-        options = runner.pass_config.get("relay.ext.cmsisnn.options")
-        debug_last_error = options.get("debug_last_error", False) if options else False
         # We only need the stack allocator if USMP is not used
         use_stack_allocator = not use_usmp
 
@@ -888,6 +887,7 @@ def compile_and_run(
     test_dir: str = None,
     verbose: bool = False,
     schedule_name: str = None,
+    debug_last_error: bool = False,
     checker: Optional[Callable[[str], bool]] = None,
 ) -> bool:
     """This is a wrapper API to compile and run models as test for AoT
@@ -930,6 +930,7 @@ def compile_and_run(
         data_linkage=data_linkage,
         test_dir=test_dir,
         verbose=verbose,
+        debug_last_error=debug_last_error,
         checker=checker,
     )
 

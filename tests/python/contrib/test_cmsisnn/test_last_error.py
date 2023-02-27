@@ -158,6 +158,7 @@ def test_last_error(debug_last_error):
         create_test_runner(compiler_cpu, cpu_flags, debug_last_error=debug_last_error),
         interface_api,
         use_unpacked_api,
+        debug_last_error=debug_last_error,
         checker=checker,
     )
     assert result
