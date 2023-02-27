@@ -26,10 +26,10 @@ from distutils.version import LooseVersion
 
 import os
 import tempfile
+import typing
 from packaging import version as package_version
 import pytest
 import numpy as np
-import typing
 
 from PIL import Image
 
@@ -5303,6 +5303,8 @@ def test_structure_and_span():
 
 
 class TestConv2d:
+    """Import Conv2d operator from TFLite, build with Relay and test."""
+
     input_shape, kernel_shape, padding = tvm.testing.parameters(
         ((1, 128, 256, 6), (5, 5, 6, 10), "SAME"),
         ((1, 128, 256, 6), (5, 5, 6, 10), "VALID"),
