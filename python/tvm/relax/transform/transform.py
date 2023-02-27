@@ -292,7 +292,11 @@ def FuseOpsByPattern(
 
     Parameters
     ----------
-    patterns : List[Tuple[str, DFPattern]]
+    patterns : List[Union[Tuple[str, DFPattern], Tuple[str, DFPattern, Callable]]]
+        A list of tuple of (name, pattern) or (name, pattern, predicate) to be matched.
+        The predicate is a function with type (Map<DFPattern, Expr>, Expr) -> bool. It takes a
+        match result and returns a boolean value to indicate whether the match result is accepted.
+
         The patterns to detect. The order of the patterns determines the order of priority in which
         they are matched. Higher-priority patterns should come earlier in the list.
         The string is the name of the corresponding pattern. It becomes the value of the kComposite
@@ -313,8 +317,23 @@ def FuseOpsByPattern(
         The registered pass for pattern-based fusion.
 
     """
-    pattern_names, df_patterns = zip(*patterns)
-    return _ffi_api.FuseOpsByPattern(pattern_names, df_patterns, annotate_codegen)  # type: ignore
+    pattern_names = []
+    df_patterns = []
+    checks = []
+    for tup in patterns:
+        if len(tup) == 2:
+            pattern_names.append(tup[0])
+            df_patterns.append(tup[1])
+            checks.append(lambda *_: True)
+        elif len(tup) == 3:
+            pattern_names.append(tup[0])
+            df_patterns.append(tup[1])
+            checks.append(tup[2])
+        else:
+            raise ValueError("Invalid pattern: {}".format(tup))
+    return _ffi_api.FuseOpsByPattern(
+        pattern_names, df_patterns, checks, annotate_codegen
+    )  # type: ignore
 
 
 def MergeCompositeFunctions() -> tvm.ir.transform.Pass:
