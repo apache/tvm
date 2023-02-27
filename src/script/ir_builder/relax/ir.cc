@@ -108,7 +108,7 @@ void FuncRetValue(const tvm::relax::Expr& value) {
   if (block_frame.defined()) {
     block_frame.value()->ExitWithScope();
     ICHECK(!IRBuilder::Current()->FindFrame<BlockFrame>())
-        << "All block frame are supposed to be popped out already";
+        << "ValueError: Relax functions don't support return in true/false branch of If Node.";
   }
   // Step 2. Add the output value to the function frame.
   FunctionFrame frame = FindFunctionFrame("return");

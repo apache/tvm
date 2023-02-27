@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 import tvm.testing
-from tvm import relax, tir
+from tvm import relax, tir, topi
 from tvm.script.ir_builder import relax as R
 from tvm.script.ir_builder.base import IRBuilder
 
@@ -57,15 +57,19 @@ def test_function_simple():
     assert func.body.body.name_hint == "out"
 
 
-def test_match_cast():
-    """
+def test_emits():
+    """Tests for R.emit, R.emit_match_cast, R.emit_var_binding, R.emit_te
+
     @R.function
-    def foo(x: R.Tensor(None, "float32"), y: R.Tensor(None, "float32")):
+    def foo(x: R.Tensor(dtype="float32"), y: R.Tensor(dtype="float32")) -> R.Shape(ndim=2):
         m = T.int64()
         n = T.int64()
-        _ = R.match_cast(x, R.Tensor((m,), "float32"))
-        y1 = R.match_cast(x, R.Tensor((n,), "float32"))
-        return (m, n * 2)
+        gv: R.Tensor((m,), dtype="float32") = R.match_cast(x, R.Tensor((m,), dtype="float32"))
+        gv1: R.Tensor((n,), dtype="float32") = R.match_cast(y, R.Tensor((n,), dtype="float32"))
+        v: R.Tensor((n,), dtype="float32") = gv1
+        gv2 = R.call_tir(add, (v, v), out_sinfo=R.Tensor((n,), dtype="float32"))
+        gv3: R.Tensor((n,), dtype="float32") = gv2
+        return R.shape([m, n * 2])
     """
     # create with Script IRBuilder
     with IRBuilder() as ir_builder:
@@ -77,23 +81,33 @@ def test_match_cast():
             n = tir.Var("n", dtype="int64")
             _ = R.emit_match_cast(x, relax.TensorStructInfo((m,), "float32"))
             y1 = R.emit_match_cast(y, relax.TensorStructInfo((n,), "float32"))
-            IRBuilder.name("y1", y1)
+            v = relax.Var("v", relax.TensorStructInfo((n,), "float32"))
+            vb = relax.VarBinding(v, y1)
+            v = R.emit_var_binding(vb)
+            v1 = R.emit_te(topi.add, v, v)
+            R.emit(v1)
+
+            IRBuilder.name("v", v)
             R.func_ret_value(relax.ShapeExpr([m, n * 2]))
     func = ir_builder.get()
 
     # create with BlockBuilder
-    x = relax.Var("x", relax.TensorStructInfo(dtype="float32", ndim=-1))
-    y = relax.Var("y", relax.TensorStructInfo(dtype="float32", ndim=-1))
     m = tir.Var("m", dtype="int64")
     n = tir.Var("n", dtype="int64")
+    x = relax.Var("x", relax.TensorStructInfo(dtype="float32", ndim=-1))
+    y = relax.Var("y", relax.TensorStructInfo(dtype="float32", ndim=-1))
+    v = relax.Var("v", relax.TensorStructInfo((n,), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x, y)):
         _ = bb.match_cast(x, relax.TensorStructInfo((m,), "float32"))
         y1 = bb.match_cast(y, relax.TensorStructInfo((n,), "float32"))
+        bb.emit_normalized(relax.VarBinding(v, y1))
+        v1 = bb.emit_te(topi.add, v, v)
+        bb.emit(v1)
         bb.emit_func_output(relax.ShapeExpr([m, n * 2]))
     mod = bb.get()
 
-    tvm.ir.assert_structural_equal(func, mod["foo"])
+    tvm.ir.assert_structural_equal(func, mod["foo"], map_free_vars=True)
 
 
 def test_dataflow_block():
