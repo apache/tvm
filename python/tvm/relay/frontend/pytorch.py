@@ -2553,6 +2553,72 @@ class PyTorchOpConverter:
     def nonzero_numpy(self, inputs, input_types):
         return self.nonzero(inputs, input_types, is_numpy_style=False)
 
+    def diagonal_scatter(self, inputs, input_types):
+        args_num = len(inputs)
+        assert 1 < args_num < 6, (
+            "diagonal_scatter takes from 2 to 5 inputs (input, src, offset, dim1, dim2), "
+            + "but {} given".format(len(inputs))
+        )
+        data = inputs[0]
+        src = inputs[1]
+        if args_num > 2:
+            offset = int(inputs[2])
+        else:
+            offset = 0
+        if args_num > 3:
+            dim1 = int(inputs[3])
+        else:
+            dim1 = 0
+        if args_num > 4:
+            dim2 = int(inputs[4])
+        else:
+            dim2 = 1
+
+        data_shape = self.infer_shape(data)
+        data_rank = len(data_shape)
+        assert dim1 < data_rank, "dim1 is outof bounds"
+        assert dim2 < data_rank, "dim2 is outof bounds"
+        # TODO(vvchernov): reverse case is not clearly described in pytorch
+        assert dim1 < dim2, "First dimension less than second one is supported only"
+
+        dim1_size = data_shape[dim1]
+        dim2_size = data_shape[dim2]
+
+        # Skip check for dynamic dimension
+        if not any([isinstance(dim1_size, tvm.tir.Any), isinstance(dim2_size, tvm.tir.Any)]):
+            assert -dim1_size < offset < dim2_size, "Diagonal offset is out of bounds"
+
+        src_shape = self.infer_shape(src)
+        src_rank = len(src_shape)
+        assert src_rank == data_rank - 1, "Source rank must be less than data rank on 1"
+        src_dim = 0
+        for i in range(data_rank):
+            if i not in (dim1, dim2):
+                assert (
+                    src_shape[src_dim] == data_shape[i]
+                ), "Source is stack of diagonals with shape corresponding input tensor"
+                src_dim += 1
+        src_diag_len = src_shape[src_rank - 1]
+        if not any(
+            [
+                isinstance(dim1_size, tvm.tir.Any),
+                isinstance(dim2_size, tvm.tir.Any),
+                isinstance(src_diag_len, tvm.tir.Any),
+            ]
+        ):
+            min_dim = min(dim1_size, dim2_size)
+            delta = dim2_size - dim1_size
+            calc_diag_len = min_dim
+            if offset >= 0 and offset > delta:
+                calc_diag_len = dim2_size - offset
+            elif offset < 0 and offset < delta:
+                calc_diag_len = dim1_size + offset
+            assert (
+                src_diag_len == calc_diag_len
+            ), "Src must be of the proper size in order to be embedded into input"
+
+        return _op.diagonal_scatter(data, src, offset, dim1, dim2)
+
     def scatter(self, inputs, input_types):
         data = inputs[0]
         axis = int(inputs[1])
@@ -3871,6 +3937,7 @@ class PyTorchOpConverter:
             "aten::_shape_as_tensor": self.shape_as_tensor,
             "aten::nonzero": self.nonzero,
             "aten::nonzero_numpy": self.nonzero_numpy,
+            "aten::diagonal_scatter": self.diagonal_scatter,
             "aten::scatter": self.scatter,
             "aten::scatter_add": self.scatter_add,
             "aten::scatter_reduce": self.scatter_reduce,

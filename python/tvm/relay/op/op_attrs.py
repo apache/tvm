@@ -634,6 +634,11 @@ class DynExpandDimsAttrs(Attrs):
     """Attributes used in dynamic expand_dims operators"""
 
 
+@tvm._ffi.register_object("relay.attrs.DiagonalScatterAttrs")
+class DiagonalScatterAttrs(Attrs):
+    """Attributes used in diagonal_scatter operators"""
+
+
 @tvm._ffi.register_object("relay.attrs.ScatterElementsAttrs")
 class ScatterElementsAttrs(Attrs):
     """Attributes used in scatter_elements operators"""

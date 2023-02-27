@@ -1062,6 +1062,19 @@ def sparse_dense_padded_strategy_cuda(attrs, inputs, out_type, target):
     return strategy
 
 
+@diagonal_scatter_strategy.register(["cuda", "gpu"])
+def diagonal_scatter_cuda(attrs, inputs, out_type, target):
+    """diagonal_scatter cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_diagonal_scatter(topi.cuda.diagonal_scatter),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="diagonal_scatter.cuda",
+        plevel=10,
+    )
+    return strategy
+
+
 @scatter_strategy.register(["cuda", "gpu"])
 def scatter_cuda(attrs, inputs, out_type, target):
     """scatter cuda strategy"""
