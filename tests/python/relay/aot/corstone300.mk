@@ -99,6 +99,22 @@ $(build_dir)/crt_backend_api.o: $(TVM_ROOT)/src/runtime/crt/common/crt_backend_a
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^
 
+ifeq ($(DEBUG_LAST_ERROR), 1)
+$(build_dir)/crt_runtime_api.o: $(TVM_ROOT)/src/runtime/crt/common/crt_runtime_api.c
+	$(QUIET)mkdir -p $(@D)
+	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^
+
+$(build_dir)/func_registry.o: $(TVM_ROOT)/src/runtime/crt/common/func_registry.c
+	$(QUIET)mkdir -p $(@D)
+	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^
+
+$(build_dir)/ndarray.o: $(TVM_ROOT)/src/runtime/crt/common/ndarray.c
+	$(QUIET)mkdir -p $(@D)
+	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^
+
+DEBUG_LAST_ERROR_SOURCES = $(build_dir)/crt_runtime_api.o $(build_dir)/func_registry.o $(build_dir)/ndarray.o
+endif
+
 $(build_dir)/tvm_ethosu_runtime.o: $(TVM_ROOT)/src/runtime/contrib/ethosu/bare_metal/tvm_ethosu_runtime.c
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^
@@ -133,7 +149,7 @@ ${build_dir}/ethosu_core_platform/libethosu_uart_cmsdk_apb.a:
 	$(QUIET)cd ${ETHOSU_PLATFORM_PATH}/drivers/uart && $(CMAKE) -B $(abspath $(build_dir)/ethosu_core_platform) $(CMAKE_FLAGS)
 	$(QUIET)cd $(abspath $(build_dir)/ethosu_core_platform) && $(MAKE)
 
-$(build_dir)/aot_test_runner: $(build_dir)/test.c $(build_dir)/crt_backend_api.o $(build_dir)/stack_allocator.o $(build_dir)/libcodegen.a ${build_dir}/libcmsis_startup.a ${build_dir}/libcmsis_nn.a ${build_dir}/libcorstone.a ${build_dir}/ethosu_core_platform/libethosu_uart_cmsdk_apb.a $(ETHOSU_DRIVER_LIBS) $(ETHOSU_RUNTIME)
+$(build_dir)/aot_test_runner: $(build_dir)/test.c $(build_dir)/crt_backend_api.o $(build_dir)/stack_allocator.o $(build_dir)/libcodegen.a ${build_dir}/libcmsis_startup.a ${build_dir}/libcmsis_nn.a ${build_dir}/libcorstone.a ${build_dir}/ethosu_core_platform/libethosu_uart_cmsdk_apb.a $(ETHOSU_DRIVER_LIBS) $(ETHOSU_RUNTIME) $(DEBUG_LAST_ERROR_SOURCES)
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) $(PKG_CFLAGS) $(ETHOSU_INCLUDE) -o $@ -Wl,--whole-archive $^ -Wl,--no-whole-archive $(PKG_LDFLAGS)
 
