@@ -137,6 +137,43 @@ def test_two_groups_of_two():
     assert_groups(groups, [["a", "b"], ["c", "d"]])
 
 
+def test_mutual_recursion_and_simple_recursion():
+    @tvm.script.ir_module
+    class MutualAndSimple:
+        @R.function
+        def a(x: R.Object) -> R.Object:
+            return b(x)
+
+        @R.function
+        def b(x: R.Object) -> R.Object:
+            return a(x)
+
+        # forms its own group
+        @R.function
+        def c(x: R.Object) -> R.Object:
+            return c(x)
+
+    groups = detect_recursion(MutualAndSimple)
+    assert_groups(groups, [["a", "b"], ["c"]])
+
+
+def test_simultaneous_mutual_and_simple_recursion():
+    # even though both call themselves and each other,
+    # it should still form only one group
+    @tvm.script.ir_module
+    class SimultaneousMutualAndSimple:
+        @R.function
+        def a(x: R.Object) -> R.Object:
+            return b(a(x))
+
+        @R.function
+        def b(x: R.Object) -> R.Object:
+            return a(b(x))
+
+    groups = detect_recursion(SimultaneousMutualAndSimple)
+    assert_groups(groups, [["a", "b"]])
+
+
 def test_three_function_case():
     @tvm.script.ir_module
     class ThreeFunctionCase:
@@ -184,6 +221,33 @@ def test_call_from_outside_of_group():
 
     groups = detect_recursion(CallFromOutOfGroup)
     assert_groups(groups, [["b", "c", "d"]])
+
+
+def test_call_from_group_to_outside():
+    @tvm.script.ir_module
+    class CallFromGroupToOutside:
+        # A calls into a group of mutually recursive functions,
+        # but is not part of the cycle
+        @R.function
+        def a(x: R.Object) -> R.Object:
+            return b(x)
+
+        @R.function
+        def b(x: R.Object) -> R.Object:
+            # d is called from a member of the group but it is not part of the cycle
+            z: R.Object = d(x)
+            return c(z)
+
+        @R.function
+        def c(x: R.Object) -> R.Object:
+            return a(x)
+
+        @R.function
+        def d(x: R.Object) -> R.Object:
+            return x
+
+    groups = detect_recursion(CallFromGroupToOutside)
+    assert_groups(groups, [["a", "b", "c"]])
 
 
 def test_group_with_two_cycles():
