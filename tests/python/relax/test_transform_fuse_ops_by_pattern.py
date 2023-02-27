@@ -20,7 +20,7 @@ import numpy as np
 import tvm
 
 from tvm import relax
-from tvm.script import relax as R
+from tvm.script import relax as R, tir as T, ir as I
 from tvm.relax.dpl.pattern import make_fused_bias_activation_pattern, is_op, wildcard
 
 
@@ -458,6 +458,125 @@ def test_annotate_codegen():
 def test_multiple_calls_same_extern():
     pat = make_fused_bias_activation_pattern("relax.nn.conv2d", with_bias=False, activation=None)
     check(Conv2dx2, [("cutlass.conv2d", pat)], Conv2dx2_partitioned, annoatate_codegen=True)
+
+
+def test_ignore_call_tir():
+    @I.ir_module
+    class Conv2dReLUCallTIR:
+        @T.prim_func
+        def relu(
+            data: T.Buffer((64, 64, 56, 56), "float32"), out: T.Buffer((64, 64, 56, 56), "float32")
+        ):
+            for ax0, ax1, ax2, ax3 in T.grid(64, 64, 56, 56):
+                with T.block("root"):
+                    i, j, k, l = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    out[i, j, k, l] = T.max(data[i, j, k, l], 0.0)
+
+        @R.function
+        def main(
+            data: R.Tensor((1, 64, 56, 56), "float32"),
+            weight1: R.Tensor((64, 64, 3, 3), "float32"),
+        ):
+            with R.dataflow():
+                conv1 = R.nn.conv2d(data, weight1, padding=(1, 1))
+                relu1 = R.call_tir(relu, (conv1,), R.Tensor((64, 64, 56, 56), "float32"))
+                R.output(relu1)
+
+            return relu1
+
+    @I.ir_module
+    class Conv2dReLUCallTIR_partitioned:
+        @T.prim_func
+        def relu(
+            data: T.Buffer((64, 64, 56, 56), "float32"), out: T.Buffer((64, 64, 56, 56), "float32")
+        ):
+            # with T.block("root"):
+            for ax0, ax1, ax2, ax3 in T.grid(64, 64, 56, 56):
+                with T.block("root"):
+                    i, j, k, l = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(data[i, j, k, l])
+                    T.writes(out[i, j, k, l])
+                    out[i, j, k, l] = T.max(data[i, j, k, l], T.float32(0))
+
+        @R.function
+        def fused_relax_nn_conv2d(
+            data: R.Tensor((1, 64, 56, 56), dtype="float32"),
+            weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
+        ) -> R.Tensor((1, 64, 56, 56), dtype="float32"):
+            R.func_attr({"Composite": "cutlass.conv2d", "Primitive": 1})
+            with R.dataflow():
+                gv: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.conv2d(
+                    data,
+                    weight1,
+                    padding=(1, 1),
+                )
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(
+            data: R.Tensor((1, 64, 56, 56), dtype="float32"),
+            weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
+        ) -> R.Tensor((64, 64, 56, 56), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1, 64, 56, 56), dtype="float32") = fused_relax_nn_conv2d(
+                    data, weight1
+                )
+                relu1 = R.call_tir(
+                    relu, (lv,), out_sinfo=R.Tensor((64, 64, 56, 56), dtype="float32")
+                )
+                R.output(relu1)
+            return relu1
+
+    pat = make_fused_bias_activation_pattern("relax.nn.conv2d", with_bias=False, activation=None)
+    check(Conv2dReLUCallTIR, [("cutlass.conv2d", pat)], Conv2dReLUCallTIR_partitioned)
+
+
+def test_unused():
+    @I.ir_module
+    class Conv2dReLU:
+        @R.function
+        def main(
+            data: R.Tensor((1, 64, 56, 56), "float32"),
+            weight1: R.Tensor((64, 64, 3, 3), "float32"),
+        ):
+            with R.dataflow():
+                conv1 = R.nn.conv2d(data, weight1, padding=(1, 1))
+                relu = R.nn.relu(data)
+                R.output(conv1)
+
+            return conv1
+
+    @I.ir_module
+    class Conv2dReLU_partitioned:
+        @R.function
+        def fused_relax_nn_conv2d(
+            data: R.Tensor((1, 64, 56, 56), dtype="float32"),
+            weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
+        ) -> R.Tensor((1, 64, 56, 56), dtype="float32"):
+            R.func_attr({"Composite": "cutlass.conv2d", "Primitive": 1})
+            with R.dataflow():
+                gv: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.conv2d(
+                    data, weight1, padding=(1, 1)
+                )
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(
+            data: R.Tensor((1, 64, 56, 56), dtype="float32"),
+            weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
+        ) -> R.Tensor((1, 64, 56, 56), dtype="float32"):
+            with R.dataflow():
+                gv: R.Tensor((1, 64, 56, 56), dtype="float32") = fused_relax_nn_conv2d(
+                    data, weight1
+                )
+                relu: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.relu(data)
+                R.output(gv)
+            return gv
+
+    pat = make_fused_bias_activation_pattern("relax.nn.conv2d", with_bias=False, activation=None)
+    check(Conv2dReLU, [("cutlass.conv2d", pat)], Conv2dReLU_partitioned)
 
 
 if __name__ == "__main__":
