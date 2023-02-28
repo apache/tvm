@@ -45,7 +45,7 @@ namespace relax {
  *   branches that may not execute, etc.
  *
  *   Then detecting simple recursion and mutual recursion is a problem of cycle
- *   detection: Functions F1, F2, ..., Fn are mutually recursive if there exists 
+ *   detection: Functions F1, F2, ..., Fn are mutually recursive if there exists
  *   a single directed cycle that contains all of them.
  *
  *   We aim to find the _largest_ directed cycles in the graph, as there can
