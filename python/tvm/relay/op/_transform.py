@@ -104,15 +104,6 @@ _reg.register_pattern("meta_schedule_layout_transform", OpPattern.INJECTIVE)
 # argwhere
 _reg.register_strategy("argwhere", strategy.argwhere_strategy)
 
-# scatter
-@_reg.register_compute("scatter")
-def compute_scatter(attrs, inputs, output_type):
-    """Compute definition of scatter"""
-    return [topi.scatter(inputs[0], inputs[1], inputs[2], attrs.axis)]
-
-
-_reg.register_strategy("scatter", strategy.scatter_strategy)
-
 # sparse_fill_empty_rows
 @_reg.register_compute("sparse_fill_empty_rows")
 def compute_sparse_fill_empty_rows(attrs, inputs, output_type):
@@ -677,7 +668,6 @@ def argwhere_shape_func(attrs, inputs, out_ndims):
     return ValueError("Does not support rank higher than 5 in argwhere")
 
 
-_reg.register_shape_func("scatter", False, elemwise_shape_func)
 _reg.register_shape_func("scatter_elements", False, elemwise_shape_func)
 _reg.register_shape_func("scatter_nd", False, elemwise_shape_func)
 

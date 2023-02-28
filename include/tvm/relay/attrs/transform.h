@@ -148,14 +148,6 @@ struct ReshapeLikeAttrs : public tvm::AttrsNode<ReshapeLikeAttrs> {
   }
 };  // struct ReshapeLikeAttrs
 
-struct ScatterAttrs : public tvm::AttrsNode<ScatterAttrs> {
-  Integer axis;
-
-  TVM_DECLARE_ATTRS(ScatterAttrs, "relay.attrs.ScatterAttrs") {
-    TVM_ATTR_FIELD(axis).set_default(0).describe("The axis over which to select values.");
-  }
-};
-
 struct ScatterElementsAttrs : public tvm::AttrsNode<ScatterElementsAttrs> {
   Integer axis;
   String reduction;

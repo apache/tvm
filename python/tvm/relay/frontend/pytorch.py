@@ -496,7 +496,7 @@ class PyTorchOpConverter:
                     end[dim] = target_end
                 else:
                     target_end = _expr.const(target_end)
-                    end = _op.scatter(
+                    end = _op.scatter_elements(
                         end,
                         _op.expand_dims(_expr.const(dim), axis=0),
                         _op.expand_dims(target_end, axis=0),
@@ -508,7 +508,7 @@ class PyTorchOpConverter:
                 ttype = self.infer_type(target_end).dtype
                 if str(ttype) != axis_dtype:
                     target_end = _op.cast(target_end, axis_dtype)
-                end = _op.scatter(
+                end = _op.scatter_elements(
                     end,
                     _op.expand_dims(_expr.const(dim), axis=0),
                     _op.expand_dims(target_end, axis=0),
@@ -2554,11 +2554,62 @@ class PyTorchOpConverter:
         return self.nonzero(inputs, input_types, is_numpy_style=False)
 
     def scatter(self, inputs, input_types):
+        assert len(inputs) == 4 or len(inputs) == 5, (
+            "scatter takes 4 or 5 inputs: data, dim, index, src, reduce (optional), "
+            + "but {} given".format(len(inputs))
+        )
         data = inputs[0]
         axis = int(inputs[1])
         index = inputs[2]
         src = inputs[3]
-        return _op.transform.scatter(data, index, src, axis)
+        if len(inputs) == 5:
+            reduce = inputs[4]
+        else:
+            reduce = "update"
+
+        data_shape = self.infer_shape(data)
+        data_rank = len(data_shape)
+        index_shape = self.infer_shape(index)
+        index_rank = len(index_shape)
+        # When index is empty, the operation returns data unchanged
+        if self.is_empty_shape(index_shape):
+            return data
+
+        if np.isscalar(src):
+            assert self.infer_type(src).dtype == "float", "Scalar source can be float only"
+            src = _op.broadcast_to_like(src, data_shape)
+            src_shape = data_shape
+        else:
+            src_shape = self.infer_shape(src)
+        src_rank = len(src_shape)
+        assert data_rank == index_rank, "Index rank is not the same as data rank"
+        assert data_rank == src_rank, "Src rank is not the same as data rank"
+
+        assert 0 <= axis < data_rank, "Dim is out of bounds"
+
+        for i in range(data_rank):
+            index_dim = index_shape[i]
+            src_dim = src_shape[i]
+            data_dim = data_shape[i]
+            # Skip check for dynamic dimensions
+            if not any([isinstance(index_dim, tvm.tir.Any), isinstance(src_dim, tvm.tir.Any)]):
+                assert index_dim <= src_dim, "Index dim size should be less than src one"
+            if i != axis and not any(
+                [isinstance(index_dim, tvm.tir.Any), isinstance(data_dim, tvm.tir.Any)]
+            ):
+                assert index_dim <= data_dim, "Index dim size should be less than data one"
+
+        if reduce is None:
+            reduce = "update"
+        elif reduce == "multiply":
+            reduce = "mul"
+        assert reduce in [
+            "update",
+            "add",
+            "mul",
+        ], 'reduce arg is expected from "add", "multiply" or None'
+
+        return _op.scatter_elements(data, index, src, axis, reduce)
 
     def index_put(self, inputs, input_types):
         in_tensor = inputs[0]
@@ -2571,7 +2622,7 @@ class PyTorchOpConverter:
             mode = "add"
         # Combine array of index tensors into one index tensor with shape (N,_)
         index_tensor = _op.stack(indices, axis=0)
-        return _op.transform.scatter_nd(in_tensor, index_tensor, values, mode)
+        return _op.scatter_nd(in_tensor, index_tensor, values, mode)
 
     def scalar_tensor(self, inputs, input_types):
         data = inputs[0]
