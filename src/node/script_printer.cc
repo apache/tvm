@@ -49,9 +49,7 @@ PrinterConfig::PrinterConfig(Map<String, ObjectRef> config_dict) {
   if (auto v = config_dict.Get("tir_prefix")) {
     n->tir_prefix = Downcast<String>(v);
   }
-  if (auto v = config_dict.Get("relax_prefix")) {
-    n->relax_prefix = Downcast<String>(v);
-  }
+
   if (auto v = config_dict.Get("buffer_dtype")) {
     n->buffer_dtype = DataType(runtime::String2DLDataType(Downcast<String>(v)));
   }
