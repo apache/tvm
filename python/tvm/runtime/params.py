@@ -51,6 +51,38 @@ def save_param_dict(params):
     return _ffi_api.SaveParams(transformed)
 
 
+def save_param_dict_to_file(params, path):
+    """Save parameter dictionary to binary bytes.
+
+    The result binary bytes can be loaded by the
+    GraphModule with API "load_params".
+
+    Parameters
+    ----------
+    params : dict of str to NDArray
+        The parameter dictionary.
+
+    Returns
+    -------
+    param_bytes: bytearray
+        Serialized parameters.
+
+    Examples
+    --------
+    .. code-block:: python
+
+       # set up the parameter dict
+       params = {"param0": arr0, "param1": arr1}
+       # save the parameters as byte array
+       param_bytes = tvm.runtime.save_param_dict(params)
+       # We can serialize the param_bytes and load it back later.
+       # Pass in byte array to module to directly set parameters
+       tvm.runtime.load_param_dict(param_bytes)
+    """
+    transformed = {k: ndarray.array(v) for (k, v) in params.items()}
+    return _ffi_api.SaveParamsToFile(transformed, path)
+
+
 def load_param_dict(param_bytes):
     """Load parameter dictionary to binary bytes.
 
@@ -69,7 +101,7 @@ def load_param_dict(param_bytes):
     return _ffi_api.LoadParams(param_bytes)
 
 
-def load_param_dict_from_file(file_name):
+def load_param_dict_from_file(path):
     """Load parameter dictionary to binary bytes.
 
     Parameters
@@ -82,4 +114,4 @@ def load_param_dict_from_file(file_name):
     params : dict of str to NDArray
         The parameter dictionary.
     """
-    return _ffi_api.LoadParamsFromFile(file_name)
+    return _ffi_api.LoadParamsFromFile(path)
