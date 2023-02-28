@@ -137,7 +137,7 @@ class ConstantFolder : public ExprMutator {
    * of the program.
    */
   bool ShouldBeFolded(Expr expr) {
-    // TODO(prakalp): Implement a heuristic to check if folding this op is actually useful or
+    // TODO(prakalp): Implement a heuristic to check if folding this expr is actually useful or
     // not.
     return true;
   }
