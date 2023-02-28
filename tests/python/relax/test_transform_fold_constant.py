@@ -357,17 +357,23 @@ def test_unsupported_fold_ops_legalized_to_multiple_calls():
 
     from tvm.relax.transform.legalize_ops.common import register_legalize
 
-    # custom legalization of relu that emits multiple bindings
-    def customize_legalize_relu(bb: relax.BlockBuilder, call: relax.Call):
+    def customized_legalize_relu(bb: relax.BlockBuilder, call: relax.Call):
         from tvm import topi  # pylint: disable=import-outside-toplevel
 
         x = bb.emit_te(topi.nn.relu, *call.args)
         return bb.call_te(topi.identity, x)
 
-    # register a higher priority legalization of relu, to override the default one
-    register_legalize("relax.nn.relu", customize_legalize_relu, level=20)
+    # register custom legalization for relu that emits multiple bindings for testing
+    relu_legalize = tvm.ir.Op.get("relax.nn.relu").get_attr("FLegalize")
+    tvm.ir.Op.get("relax.nn.relu").reset_attr("FLegalize")
+    register_legalize("relax.nn.relu", customized_legalize_relu)
+
     after = relax.transform.FoldConstant()(before)
     tvm.ir.assert_structural_equal(after, before)
+
+    # revert to correct legalization of relu
+    tvm.ir.Op.get("relax.nn.relu").reset_attr("FLegalize")
+    register_legalize("relax.nn.relu", relu_legalize)
 
 
 if __name__ == "__main__":

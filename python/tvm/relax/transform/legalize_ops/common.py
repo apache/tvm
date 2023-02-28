@@ -90,7 +90,7 @@ def _call_topi_without_attr(te_func: TEFunc, primfunc_name: Optional[str] = None
 _LEGALIZE_ATTR_NAME = "FLegalize"
 
 
-def register_legalize(op_name: str, legal_func: LegalizeFunc = None, level: int = 10):
+def register_legalize(op_name: str, legal_func: LegalizeFunc = None):
     """Register legal transformation function for a Relax op.
 
     Parameters
@@ -100,8 +100,5 @@ def register_legalize(op_name: str, legal_func: LegalizeFunc = None, level: int 
 
     legal_func: function (bb: BlockBuilder, call: Call) -> new_expr: Expr
         The function for transforming an expr to another expr.
-
-    level: int, optional
-        The priority level
     """
-    return tvm.ir.register_op_attr(op_name, _LEGALIZE_ATTR_NAME, legal_func, level)
+    return tvm.ir.register_op_attr(op_name, _LEGALIZE_ATTR_NAME, legal_func)
