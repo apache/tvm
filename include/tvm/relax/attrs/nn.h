@@ -184,6 +184,15 @@ struct DropoutAttrs : public tvm::AttrsNode<DropoutAttrs> {
   }
 };  // struct DropoutAttrs
 
+/*! \brief Attributes used in fuse multi head attention operator */
+struct AttentionAttrs : public tvm::AttrsNode<AttentionAttrs> {
+  DataType out_dtype;
+
+  TVM_DECLARE_ATTRS(AttentionAttrs, "relax.attrs.AttentionAttrs") {
+    TVM_ATTR_FIELD(out_dtype).describe("The data type of the output tensor");
+  }
+};  // struct AttentionAttrs
+
 }  // namespace relax
 }  // namespace tvm
 

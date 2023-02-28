@@ -30,6 +30,7 @@ from tvm.tir import IntImm
 from . import _ffi_api as ffi
 from .conv2d_operation import instantiate_conv2d_template
 from .gemm_operation import instantiate_gemm_template
+from .attention_operation import instantiate_attention_template
 from .library import (
     DataType,
     DataTypeTag,
@@ -651,6 +652,27 @@ def instantiate_template(func_name, annotations, func_args):
             attrs["split_k_slices"] = "1"
 
         code = instantiate_conv2d_template(attrs, func_args)
+        return CodegenResult(code, headers)
+
+    elif "attention" in func_name:
+        headers.append("kernel_forward.h")
+        attrs["num_batches"] = str(int(annotations["num_batches"]))
+        attrs["num_queries"] = str(int(annotations["num_queries"]))
+        attrs["num_keys"] = str(int(annotations["num_keys"]))
+        attrs["num_heads"] = str(int(annotations["num_heads"]))
+        attrs["head_dim"] = str(int(annotations["head_dim"]))
+        h_v = int(annotations["head_dim_value"])
+        attrs["head_dim_value"] = str(h_v)
+        if h_v > 64:
+            attrs["kQueriesPerBlock"] = "32"
+            attrs["kKeysPerBlock"] = "128"
+            attrs["kSingleValueIteration"] = "true" if h_v <= 128 else "false"
+        else:
+            attrs["kQueriesPerBlock"] = "64"
+            attrs["kKeysPerBlock"] = "64"
+            attrs["kSingleValueIteration"] = "true"
+        attrs["arch"] = "cutlass::arch::Sm{}".format(annotations["arch"])
+        code = instantiate_attention_template(attrs, func_args)
         return CodegenResult(code, headers)
 
     raise ValueError("Do not have a template for {}".format(func_name))

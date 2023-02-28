@@ -25,7 +25,11 @@ from tvm.relax import Call, Expr, ShapeExpr, transform
 from tvm.relax.dpl import DFPattern
 
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
-from ..patterns import make_fused_bias_activation_pattern, make_matmul_pattern
+from ..patterns import (
+    make_fused_bias_activation_pattern,
+    make_matmul_pattern,
+    make_attention_pattern,
+)
 
 
 def _get_static_shape(shape: ShapeExpr) -> Optional[Tuple[int]]:
@@ -156,6 +160,10 @@ register_patterns(
                 transposed_rhs=True,
             ),
             _check_matmul,
+        ),
+        (
+            "cutlass.attention",
+            make_attention_pattern(),
         ),
     ]
 )

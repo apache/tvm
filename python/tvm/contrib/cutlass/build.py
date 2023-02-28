@@ -57,6 +57,7 @@ def _get_cutlass_compile_options(sm, threads, use_fast_math=False):
     cutlass_root = _get_cutlass_path()
     cutlass_include = os.path.join(cutlass_root, "include")
     cutlass_util_include = os.path.join(cutlass_root, "tools/util/include")
+    cutlass_attention_include = os.path.join(cutlass_root, "examples/41_fused_multi_head_attention")
 
     kwargs = {}
     kwargs["cc"] = "nvcc"
@@ -71,6 +72,7 @@ def _get_cutlass_compile_options(sm, threads, use_fast_math=False):
         "-std=c++17",
         "-I" + cutlass_include,
         "-I" + cutlass_util_include,
+        "-I" + cutlass_attention_include,
     ]
     if use_fast_math:
         kwargs["options"].append("-DCUTLASS_USE_TANH_FOR_SIGMOID")
@@ -756,6 +758,43 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
             }
         )
 
+    def handle_attention(self, f, op_type):
+        """Tune and annotate a dense op."""
+        signature = _extract_relax_function_signature(f)
+
+        q_shape = signature["arg0_shape"]
+        k_shape = signature["arg1_shape"]
+        v_shape = signature["arg2_shape"]
+        out_shape = signature["ret_shape"]
+        q_dtype = signature["arg0_dtype"]
+        k_dtype = signature["arg1_dtype"]
+        v_dtype = signature["arg2_dtype"]
+        out_dtype = signature["ret_dtype"]
+        num_batches, num_queries, num_heads, head_dim = q_shape
+        _, num_keys, _, _ = k_shape
+        _, _, _, head_dim_value = v_shape
+
+        return f.with_attrs(
+            {
+                "op_type": op_type,
+                "arg0_dtype": q_dtype,
+                "arg1_dtype": k_dtype,
+                "arg2_dtype": v_dtype,
+                "ret_dtype": out_dtype,
+                "arg0_shape": q_shape,
+                "arg1_shape": k_shape,
+                "arg2_shape": v_shape,
+                "ret_shape": out_shape,
+                "num_batches": num_batches,
+                "num_queries": num_queries,
+                "num_keys": num_keys,
+                "num_heads": num_heads,
+                "head_dim": head_dim,
+                "head_dim_value": head_dim_value,
+                "arch": self.options["sm"],
+            }
+        )
+
     def visit_function_(self, f):
         if "Composite" not in f.attrs:
             body = super().visit_expr(f.body)
@@ -767,6 +806,8 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
             return self.handle_conv2d(f, op_type)
         elif "matmul" in op_type:
             return self.handle_matmul(f, op_type)
+        elif "attention" in op_type:
+            return self.handle_attention(f, op_type)
 
         raise ValueError("Unsupported composite {}".format(op_type))
 

@@ -577,3 +577,43 @@ def cross_entropy_with_logits(predictions: Expr, labels: Expr) -> Expr:
       The computed result.
     """
     return _ffi_api.cross_entropy_with_logits(predictions, labels)  # type: ignore
+
+
+def attention(
+    query: Expr, key: Expr, value: Expr, out_dtype: Optional[Union[str, DataType]] = None
+) -> Expr:
+    r"""Computes fused multi head attention.
+
+    All input tensors are of 4-D tensors with BSNH layout.
+
+    .. math::
+        FMA(Q, K, V) = \text{Softmax}(Q @ K^T) @ V
+
+    .. note::
+        The input tensor is required to have float16 dtype
+
+    Parameters
+    ----------
+    query: relax.Expr
+        The input query to the operator. The layout of the input query should be
+        (batch_size, seq_len, num_head, head_dim).
+
+    key: relax.Expr
+        The input key to the operator. The layout of the input key should be
+        (batch_size, seq_len_kv, num_head, head_dim).
+
+    value: relax.Expr
+        The input value to the operator. The layout of the input value should be
+        (batch_size, seq_len_kv, num_head, head_dim_v).
+
+    out_dtype: Optional[Union[str, DataType]]
+        The data type of the attention result.
+        When it is not specified, the output dtype will be the the same as input dtype.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result. The layout of the output should be
+        (batch_size, seq_len, num_head, head_dim_v).
+    """
+    return _ffi_api.attention(query, key, value, out_dtype)  # type: ignore
