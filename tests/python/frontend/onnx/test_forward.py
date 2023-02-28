@@ -7941,8 +7941,9 @@ def test_dft(target, dev):
         _axis,
         _inverse,
         _onesided,
-        _input,
-        _dft_length=None,
+        _dft_length,
+        _input_shape,
+        _output_shape,
     ):
         input_names = ["input"]
         if _dft_length is not None:
@@ -7968,19 +7969,20 @@ def test_dft(target, dev):
             nodes,
             "dft_test",
             inputs=[
-                helper.make_tensor_value_info("input", TensorProto.FLOAT, input_shape),
+                helper.make_tensor_value_info("input", TensorProto.FLOAT, _input_shape),
             ],
             outputs=[
-                helper.make_tensor_value_info("output", TensorProto.FLOAT, output_shape),
+                helper.make_tensor_value_info("output", TensorProto.FLOAT, _output_shape),
             ],
         )
 
         model = helper.make_model(graph, producer_name="dft_test")
 
+        _input = np.random.normal(size=_input_shape).astype("float32")
         verify_with_ort_with_inputs(
             model,
             [_input],
-            [input_shape],
+            [_input_shape],
             target=target,
             dev=dev,
             rtol=1e-4,
@@ -8000,8 +8002,7 @@ def test_dft(target, dev):
                     output_shape = [batch_size] + n * [D] + [2]
                     if onesided == 1:
                         output_shape[axis] = output_shape[axis] // 2 + 1
-                    input_tensor = np.random.normal(size=input_shape).astype("float32")
-                    verify_dft(axis, inverse, onesided, input_tensor, n_fft)
+                    verify_dft(axis, inverse, onesided, n_fft, input_shape, output_shape)
 
 
 @tvm.testing.parametrize_targets
