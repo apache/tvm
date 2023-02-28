@@ -19,4 +19,12 @@ from ...ir_builder.ir import *  # pylint: disable=redefined-builtin
 from . import parser as _parser
 from .entry import ir_module
 
-__all__ = ["ir_module", "module_attrs", "module_global_infos", "dummy_global_info"]
+__all__ = [
+    "ir_module",
+    "module_attrs",
+    "module_global_infos",
+    "module_get_global_infos",
+    "module_update_global_infos",
+    "return_global_info",
+    "dummy_global_info",
+]

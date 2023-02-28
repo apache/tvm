@@ -59,6 +59,7 @@ void FunctionFrameNode::ExitWithScope() {
   if (output.defined()) {
     body = this->block_builder->Normalize(tvm::relax::SeqExpr(binding_blocks, output.value()));
   } else {
+    // todo (yongwww): handle null for no return for func's body
     body =
         this->block_builder->Normalize(tvm::relax::SeqExpr(binding_blocks, tvm::relax::NullExpr()));
   }

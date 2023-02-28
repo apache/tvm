@@ -22,5 +22,8 @@ from .ir import (
     ir_module,
     module_attrs,
     module_global_infos,
+    module_get_global_infos,
+    module_update_global_infos,
+    return_global_info,
     dummy_global_info,
 )

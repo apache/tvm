@@ -91,11 +91,28 @@ void ModuleGlobalInfos(Map<String, Array<GlobalInfo>> global_infos) {
   }
 }
 
+Map<String, Array<GlobalInfo>> ModuleGetGlobalInfos() {
+  CHECK(IRBuilder::IsInScope());
+  IRModuleFrame frame = FindModuleFrame("I.ModuleGlobalInfos");
+  return frame->global_infos;
+}
+
+void ModuleUpdateGlobalInfos(Map<String, Array<GlobalInfo>> global_infos) {
+  if (IRBuilder::IsInScope()) {
+    IRModuleFrame frame = FindModuleFrame("I.ModuleGlobalInfos");
+    frame->global_infos = global_infos;
+  }
+}
+
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.IRModule").set_body_typed(IRModule);
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.DeclFunction").set_body_typed(DeclFunction);
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.DefFunction").set_body_typed(DefFunction);
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.ModuleAttrs").set_body_typed(ModuleAttrs);
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.ModuleGlobalInfos").set_body_typed(ModuleGlobalInfos);
+TVM_REGISTER_GLOBAL("script.ir_builder.ir.ModuleGetGlobalInfos")
+    .set_body_typed(ModuleGetGlobalInfos);
+TVM_REGISTER_GLOBAL("script.ir_builder.ir.ModuleUpdateGlobalInfos")
+    .set_body_typed(ModuleUpdateGlobalInfos);
 
 }  // namespace ir
 }  // namespace ir_builder

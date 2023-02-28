@@ -166,6 +166,16 @@ class IRModule(Node, Scriptable):
         """
         return _ffi_api.Module_UpdateGlobalInfo(self, name, global_info)
 
+    def get_global_info(self, name):
+        """Get global info in the module
+
+        Parameters
+        ----------
+        name: str
+            The name for the global info.
+        """
+        return _ffi_api.Module_GetGlobalInfo(self, name)
+
     def get_global_var(self, name):
         """Get a global variable in the function by name.
 

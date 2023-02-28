@@ -29,10 +29,11 @@ namespace ir {
 inline IRModuleFrame FindModuleFrame(const String& method) {
   IRBuilder builder = IRBuilder::Current();
   if (Optional<IRModuleFrame> frame = builder->FindFrame<IRModuleFrame>()) {
-    const Optional<IRModuleFrame>& last_module_frame = builder->GetLastFrame<IRModuleFrame>();
-    if (last_module_frame.defined() && last_module_frame.value() == frame) {
-      return frame.value();
-    }
+    return frame.value();
+    // const Optional<IRModuleFrame>& last_module_frame = builder->GetLastFrame<IRModuleFrame>();
+    // if (last_module_frame.defined() && last_module_frame.value() == frame) {
+    //  return frame.value();
+    //}
   } else {
     LOG(FATAL) << "ValueError: IRModule frame not find. Please ensure '" << method
                << "' is called under I.ir_module()";

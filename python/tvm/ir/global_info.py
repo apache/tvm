@@ -16,6 +16,8 @@
 # under the License.
 """Global Info."""
 import tvm
+from typing import List
+from tvm.ir import RelayExpr as Expr
 from tvm.runtime.object import Object
 from . import _ffi_api
 
@@ -33,6 +35,34 @@ class GlobalInfo(Object):
     def same_as(self, other):
         """Overload with structural equality."""
         return super().__eq__(other)
+
+
+class ReturnGlobalInfo(GlobalInfo):
+    """ReturnGlobalInfo in the IR.
+
+    Parameters
+    ----------
+    return_exprs : List[Expr]
+        The expressions to be returned.
+    """
+
+    return_exprs: List[Expr]
+
+    def __init__(self, return_exprs: List[Expr]) -> None:
+        print("yes entering ReturnGlobalInfo in global_info.py, return_exprs: ", return_exprs)
+        self.__init_handle_by_constructor__(_ffi_api.ReturnGlobalInfo, return_exprs)
+
+    def add():
+        pass
+
+    def update(return_exprs: List[Expr]):
+        pass
+
+    def get() -> GlobalInfo:
+        pass
+
+    def get_exprs(self):
+        return self.return_exprs
 
 
 class DummyGlobalInfo(GlobalInfo):

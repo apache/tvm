@@ -249,6 +249,10 @@ void IRModuleNode::UpdateGlobalInfo(const String& name, const Array<GlobalInfo>&
   this->global_infos.Set(name, info);
 }
 
+Array<GlobalInfo> IRModuleNode::GetGlobalInfo(const String& name) {
+  return this->global_infos[name];
+}
+
 void IRModuleNode::Remove(const GlobalVar& var) {
   auto functions_node = this->functions.CopyOnWrite();
   functions_node->erase(var);
@@ -432,6 +436,10 @@ TVM_REGISTER_GLOBAL("ir.Module_Update").set_body_typed([](IRModule mod, IRModule
 
 TVM_REGISTER_GLOBAL("ir.Module_UpdateFunction")
     .set_body_typed([](IRModule mod, GlobalVar gv, BaseFunc func) { mod->Update(gv, func); });
+
+TVM_REGISTER_GLOBAL("ir.Module_GetGlobalInfo").set_body_typed([](IRModule mod, String name) {
+  return mod->GetGlobalInfo(name);
+});
 
 TVM_REGISTER_GLOBAL("ir.Module_UpdateGlobalInfo")
     .set_body_typed([](IRModule mod, String name, Array<GlobalInfo> global_info) {

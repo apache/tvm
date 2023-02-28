@@ -221,6 +221,8 @@ class IRModuleNode : public Object {
    */
   TVM_DLL void UpdateGlobalInfo(const String& name, const Array<GlobalInfo>& info);
 
+  TVM_DLL Array<GlobalInfo> GetGlobalInfo(const String& name);
+
   /*!
    * \brief Remove a function from the global environment.
    * \param var The name of the global function to update.

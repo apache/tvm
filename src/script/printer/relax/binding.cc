@@ -27,6 +27,7 @@ IfDoc PrintIfExpr(const relax::If& n, const ObjectPath& n_p, const IRDocsifier& 
   using relax::SeqExpr;
   ExprDoc cond = d->AsDoc<ExprDoc>(n->cond, n_p->Attr("cond"));
   std::vector<Array<StmtDoc>> branches{
+      // todo(yongwww): check if it's return
       PrintSeqExpr(Downcast<SeqExpr>(n->true_branch), n_p->Attr("true_branch"), d, false),
       PrintSeqExpr(Downcast<SeqExpr>(n->false_branch), n_p->Attr("false_branch"), d, false),
   };

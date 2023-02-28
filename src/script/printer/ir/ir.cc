@@ -70,6 +70,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
                             ->Call({d->AsDoc<ExprDoc>(mod->attrs, p->Attr("attrs"))})));
       }
       if (mod->global_infos.defined() && !mod->global_infos.empty()) {
+        // todo(yongwww): global return_exprs for printer
         (*f)->stmts.push_back(ExprStmtDoc(
             IR(d, "module_global_infos")  //
                 ->Call({d->AsDoc<ExprDoc>(mod->global_infos, p->Attr("global_infos"))})));
@@ -101,6 +102,16 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<GlobalVar>("", [](GlobalVar gv, ObjectPath p, IRDocsifier d) -> Doc {
       return IR(d, "GlobalVar")->Call({LiteralDoc::Str(gv->name_hint, p->Attr("name_hint"))});
     });
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<ReturnGlobalInfo>(
+        "", [](ReturnGlobalInfo rginfo, ObjectPath p, IRDocsifier d) -> Doc {
+          Array<ExprDoc> return_exprs;
+          for (const auto& ret_expr : rginfo->return_exprs) {
+            return_exprs.push_back(d->AsDoc<ExprDoc>(ret_expr, p->Attr("return_exprs")));
+          }
+          return IR(d, "return_global_info")->Call({ListDoc(return_exprs)});
+        });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<DummyGlobalInfo>("", [](GlobalInfo ginfo, ObjectPath p, IRDocsifier d) -> Doc {

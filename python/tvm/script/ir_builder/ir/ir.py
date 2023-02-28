@@ -18,7 +18,8 @@
 
 from typing import Dict, List
 
-from tvm.ir import BaseFunc, GlobalVar, GlobalInfo, DummyGlobalInfo
+from tvm.ir import BaseFunc, GlobalVar, GlobalInfo, ReturnGlobalInfo, DummyGlobalInfo
+from tvm.ir import RelayExpr as Expr
 from tvm.runtime import Object as tvm_Object
 
 
@@ -93,7 +94,49 @@ def module_global_infos(global_infos: Dict[str, List[GlobalInfo]]) -> None:
     return _ffi_api.ModuleGlobalInfos(global_infos)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
+def module_get_global_infos() -> Dict[str, List[GlobalInfo]]:
+    """Get the global infos of the ir_module frame.
+
+    Returns
+    ----------
+    ret: Dict[str, List[GlobalInfo]]
+        The module global infos.
+    """
+    ginfos = _ffi_api.ModuleGetGlobalInfos()  # type: ignore[attr-defined] # pylint: disable=no-member
+    # Map -> Python Dict
+    ret = {}
+    for (k, v) in ginfos.items():
+        ret[k] = v
+    return ret
+
+
+def module_update_global_infos(global_infos: Dict[str, List[GlobalInfo]]) -> None:
+    """Update the global infos of the ir_module frame.
+    Parameters
+    ----------
+    global_infos: Dict[str, List[GlobalInfo]]
+        The module global infos.
+    """
+    return _ffi_api.ModuleUpdateGlobalInfos(global_infos)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
 ############################### GlobalInfo ###############################
+
+
+def return_global_info(return_exprs: List[Expr]) -> ReturnGlobalInfo:
+    """Create a return global info expression.
+    Parameters
+    ----------
+    return_exprs : List[Expr]
+        The expressions to be returned.
+
+    Returns
+    -------
+    res : ReturnGlobalInfo
+        The result return global info.
+    """
+    print("yes return_global_info in ir_builder/ir.py")
+    return ReturnGlobalInfo(return_exprs)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def dummy_global_info() -> DummyGlobalInfo:

@@ -232,6 +232,7 @@ def pre_token_switch(self: Parser, node: doc.Expr) -> None:  # pylint: disable=u
 
 @dispatch.register(token="relax", type_name="post_token_switch")
 def post_token_switch(self: Parser, node: doc.Expr) -> None:
+    print("it could be the last one")
     ir_builder = IRBuilder.current()
     result = ir_builder.get()
     ir_builder.__exit__(None, None, None)
@@ -321,7 +322,52 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
 def visit_return(self: Parser, node: doc.Assign) -> None:
     value = self.eval_expr(node.value)
     value = convert_to_expr(value)
-    R.ret_value(value)
+    """
+    TODO (yongwww):
+    issue 1): Save all values into a global list, and add into global_info in the end of parsing  -> Status: wip
+          => we can just have a single api like add_return_global_info into the ReturnGlobalInfo,
+             Solution: 
+               o1: create one if no ReturnGlobalInfo found, therefore we can avoid saving values when parsing
+               o2: Create an IRModuleNode::GetGlobalInfo(String name), plus UpdateGlobalInfo should help do the modification
+                   But how to expose it to parser? doesn't work, hard to expose to ir_builder
+            [x]o3: add ModuleGetGlobalInfos and ModuleUpdateGlobalInfos in src/script/ir_builder/ir/ir.cc
+                   and python/tvm/script/ir_builder/ir/ir.py
+                   how to reassembly the ReturnGlobalInfo and make sure just only one in the ir_module
+
+
+    issue 2): global issue was required explicitly at the beggining of the ir_module,
+              need to figure out a way to update/create a return global info at any point  -> Status: todo
+              Solution: No matter if the tvmscript has explicitly feed the module_gloabl_info or not, and one for return!
+
+    issue 3): need to hide the return global info, it shouldn't be visible to users,
+              it might crash the exiting test cases -> Status: todo
+              Solution: solution in 2) should help fix test cases, since we will have return_global_info anyway,
+                the only concern is that the ordering of return_exprs, topological ordering for relax func parsing
+                should fix it too. And it just potentially impact test structural_equal, no functionality impacted!
+    
+    Conclusion: 
+        1) The best way is to add "Bool return_body" in SeqExpr, but we need to keep IR constrained at this moment
+        2) Introduce func_info in relax function level, similar to global info, but it will introduce return_func_info
+           into Function, and the IR is affected, then prefer option 1)
+        So, I decided to move forward with GlobalInfo, because it is already there.
+    """
+    ginfo = I.module_get_global_infos()
+    print("the current global info: ", ginfo)
+    # ReturnGlobalInfo exists, append a new value
+    from tvm.ir.container import Array, Map
+    from tvm.ir.global_info import ReturnGlobalInfo
+
+    ret_ginfo = I.return_global_info([value])
+    if "return_exprs" in ginfo:
+        r_ginfos = []
+        for rginfo in ginfo["return_exprs"]:
+            r_ginfos.append(rginfo)
+        r_ginfos.append(ret_ginfo)
+        ginfo["return_exprs"] = r_ginfos
+    else:
+        ginfo["return_exprs"] = [ret_ginfo]
+    I.module_update_global_infos(ginfo)
+    R.ret_value(value)  # TODO(yongwww): probably we can remove R.ret_value as well
 
 
 @dispatch.register(token="relax", type_name="If")
@@ -331,9 +377,10 @@ def visit_if(self: Parser, node: doc.If) -> None:
     with R.If(self.eval_expr(node.test)) as if_frame:
         with self.var_table.with_frame():
             with R.Then():
-                print("fuck here")
+                print("Entering R.Then")
                 self.visit_body(node.body)
         with self.var_table.with_frame():
             with R.Else():
+                print("Entering R.Else")
                 self.visit_body(node.orelse)
     self.var_table.add(if_frame.var_name, if_frame.var, allow_shadowing=True)

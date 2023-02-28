@@ -109,8 +109,8 @@ void RetValue(const tvm::relax::Expr& value) {
   // Exit BlockFrame
   if (block_frame.defined()) {
     block_frame.value()->ExitWithScope();
-    ICHECK(!IRBuilder::Current()->FindFrame<BlockFrame>())
-        << "ValueError: Relax functions don't support return in true/false branch of If Node.";
+    //ICHECK(!IRBuilder::Current()->FindFrame<BlockFrame>())
+    //    << "ValueError: Relax functions don't support return in true/false branch of If Node.";
   }
   // Step 2. Add the output value to the function frame.
   Array<IRBuilderFrame> all_frames = IRBuilder::Current()->frames;

@@ -75,6 +75,32 @@ class DummyGlobalInfo : public GlobalInfo {
   TVM_DEFINE_OBJECT_REF_METHODS(DummyGlobalInfo, GlobalInfo, DummyGlobalInfoNode);
 };
 
+/*!
+ * \brief A return global info sub-class for expressions to return.
+ */
+class ReturnGlobalInfoNode : public GlobalInfoNode {
+ public:
+  Array<RelayExpr> return_exprs;
+  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static constexpr const char* _type_key = "ReturnGlobalInfo";
+
+  TVM_DLL bool SEqualReduce(const ReturnGlobalInfoNode* other, SEqualReducer equal) const {
+    return equal(return_exprs, other->return_exprs);
+  }
+
+  TVM_DLL void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(return_exprs); }
+  TVM_DECLARE_FINAL_OBJECT_INFO(ReturnGlobalInfoNode, GlobalInfoNode);
+};
+
+/*!
+ * \brief Managed reference to ReturnGlobalInfoNode.
+ * \sa ReturnGlobalInfoNode
+ */
+class ReturnGlobalInfo : public GlobalInfo {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(ReturnGlobalInfo, GlobalInfo, ReturnGlobalInfoNode);
+};
+
 }  // namespace tvm
 
 #endif  // TVM_IR_GLOBAL_INFO_H_

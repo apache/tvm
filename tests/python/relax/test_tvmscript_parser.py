@@ -22,7 +22,7 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import IRModule, relax, tir, topi
-from tvm.ir import DummyGlobalInfo
+from tvm.ir import ReturnGlobalInfo, DummyGlobalInfo
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tir as T
@@ -190,9 +190,17 @@ def test_module_with_attr_and_global_info():
         I.module_attrs({"attr": 10})
         I.module_global_infos(
             {
-                "dummy": [
-                    I.dummy_global_info(),  # dummy[0]
-                    I.dummy_global_info(),  # dummy[1]
+                "return_exprs": [
+                    I.return_global_info(
+                        [
+                            R.prim_value(1),
+                        ]
+                    ),  # dummy[0]
+                    I.return_global_info(
+                        [
+                            R.prim_value(2),
+                        ]
+                    ),  # dummy[1]
                 ]
             }
         )
@@ -214,6 +222,7 @@ def test_module_with_attr_and_global_info():
             gv0 = R.call_tir(tir_func, x, R.Tensor((128, 128), dtype="float32"))
             return gv0
 
+    TestModule.show()
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
@@ -1165,6 +1174,8 @@ def test_class_normalize():
 def test_control_flow():
     @tvm.script.ir_module
     class ControlFlowExample:
+        I.module_global_infos({"return_exprs": []})
+
         @R.function
         def foo(x: R.Tensor) -> R.Tensor:
             y: R.Tensor((), dtype="bool") = R.const(True, dtype="bool")
@@ -1175,8 +1186,12 @@ def test_control_flow():
             return x
 
     ControlFlowExample.show()
+    print("yongwww get_global_info:")
+    print(ControlFlowExample.get_global_info("return_exprs"))
+    print("yongwww get_global_info: done")
 
 
 if __name__ == "__main__":
     # tvm.testing.main()
+    # test_module_with_attr_and_global_info()
     test_control_flow()

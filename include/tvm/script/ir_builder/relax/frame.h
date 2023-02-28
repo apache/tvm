@@ -100,6 +100,8 @@ class FunctionFrameNode : public SeqExprFrameNode {
 
   /*! \brief The function attributes. */
   Map<String, ObjectRef> attrs;
+
+  // todo(yongwww) Add Map<String, Array<GlobalInfo>> global_infos;
   /*! \brief The block builder to create Relax function. */
   tvm::relax::BlockBuilder block_builder;
 
