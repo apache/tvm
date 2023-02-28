@@ -82,7 +82,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
         : buffer(buffer), accessed_region(region) {}
   };
 
-  explicit BufferAccessRegionCollector(bool collect_inbound) : collect_inbound_(collect_inbound){};
+  explicit BufferAccessRegionCollector(bool collect_inbound) : collect_inbound_(collect_inbound) {}
 
   /**************** Visitor overload ****************/
 

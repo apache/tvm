@@ -788,7 +788,7 @@ def CompactBufferAllocation(is_strict=True):
     is_strict : bool
         Ensure the compacted shape to be always smaller than the original shape.
         Otherwise it allows to grow the shape to match actual accessed buffer regions.
-             
+
     Returns
     -------
     fpass : tvm.transform.Pass
