@@ -309,34 +309,34 @@ BlockRV TracedScheduleNode::CacheWrite(const BlockRV& block_rv, int write_buffer
   return result;
 }
 
-BlockRV TracedScheduleNode::ReverseCacheRead(const BlockRV& block_rv, int read_buffer_index,
-                                             const String& storage_scope, Array<Integer> dim_order,
+BlockRV TracedScheduleNode::ReindexCacheRead(const BlockRV& block_rv, int read_buffer_index,
+                                             const String& storage_scope, const IndexMap& index_map,
                                              Array<BlockRV> consumer_blocks) {
-  BlockRV result = ConcreteScheduleNode::ReverseCacheRead(
-      block_rv, read_buffer_index, storage_scope, dim_order, consumer_blocks);
+  BlockRV result = ConcreteScheduleNode::ReindexCacheRead(
+      block_rv, read_buffer_index, storage_scope, index_map, consumer_blocks);
 
-  static const InstructionKind& kind = InstructionKind::Get("ReverseCacheRead");
+  static const InstructionKind& kind = InstructionKind::Get("ReindexCacheRead");
   trace_->Append(
       /*inst=*/Instruction(
           /*kind=*/kind,
           /*inputs=*/{block_rv},
-          /*attrs=*/{Integer(read_buffer_index), storage_scope, dim_order, consumer_blocks},
+          /*attrs=*/{Integer(read_buffer_index), storage_scope, index_map, consumer_blocks},
           /*outputs=*/{result}));
   return result;
 }
 
-BlockRV TracedScheduleNode::ReverseCacheWrite(const BlockRV& block_rv, int write_buffer_index,
-                                              const String& storage_scope, Array<Integer> dim_order,
+BlockRV TracedScheduleNode::ReindexCacheWrite(const BlockRV& block_rv, int write_buffer_index,
+                                              const String& storage_scope, const IndexMap& index_map,
                                               Array<BlockRV> consumer_blocks) {
-  BlockRV result = ConcreteScheduleNode::ReverseCacheWrite(
-      block_rv, write_buffer_index, storage_scope, dim_order, consumer_blocks);
+  BlockRV result = ConcreteScheduleNode::ReindexCacheWrite(
+      block_rv, write_buffer_index, storage_scope, index_map, consumer_blocks);
 
-  static const InstructionKind& kind = InstructionKind::Get("ReverseCacheWrite");
+  static const InstructionKind& kind = InstructionKind::Get("ReindexCacheWrite");
   trace_->Append(
       /*inst=*/Instruction(
           /*kind=*/kind,
           /*inputs=*/{block_rv},
-          /*attrs=*/{Integer(write_buffer_index), storage_scope, dim_order, consumer_blocks},
+          /*attrs=*/{Integer(write_buffer_index), storage_scope, index_map, consumer_blocks},
           /*outputs=*/{result}));
   return result;
 }

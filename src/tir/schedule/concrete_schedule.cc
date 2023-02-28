@@ -568,9 +568,9 @@ BlockRV ConcreteScheduleNode::CacheWrite(const BlockRV& block_rv, int write_buff
   return CreateRV<BlockRV>(result);
 }
 
-BlockRV ConcreteScheduleNode::ReverseCacheRead(const BlockRV& block_rv, int read_buffer_index,
+BlockRV ConcreteScheduleNode::ReindexCacheRead(const BlockRV& block_rv, int read_buffer_index,
                                                const String& storage_scope,
-                                               Array<Integer> dim_order,
+                                               const IndexMap& index_map,
                                                const Array<BlockRV> consumer_blocks) {
   StmtSRef result{nullptr};
   // Create a new array of SRefs from the consumer block list.
@@ -579,16 +579,16 @@ BlockRV ConcreteScheduleNode::ReverseCacheRead(const BlockRV& block_rv, int read
     consumer_block_refs.push_back(this->GetSRef(block));
   }
   TVM_TIR_SCHEDULE_BEGIN();
-  result = tir::ReverseCacheRead(state_, this->GetSRef(block_rv), read_buffer_index, storage_scope,
-                                 dim_order, consumer_block_refs);
+  result = tir::ReindexCacheRead(state_, this->GetSRef(block_rv), read_buffer_index, storage_scope,
+                                 index_map, consumer_block_refs);
   TVM_TIR_SCHEDULE_END("reverse-cache-read", this->error_render_level_);
   this->state_->DebugVerify();
   return CreateRV<BlockRV>(result);
 }
 
-BlockRV ConcreteScheduleNode::ReverseCacheWrite(const BlockRV& block_rv, int write_buffer_index,
+BlockRV ConcreteScheduleNode::ReindexCacheWrite(const BlockRV& block_rv, int write_buffer_index,
                                                 const String& storage_scope,
-                                                Array<Integer> dim_order,
+                                                const IndexMap& index_map,
                                                 const Array<BlockRV> consumer_blocks) {
   StmtSRef result{nullptr};
   // Create a new array of SRefs from the consumer block list.
@@ -597,8 +597,8 @@ BlockRV ConcreteScheduleNode::ReverseCacheWrite(const BlockRV& block_rv, int wri
     consumer_block_refs.push_back(this->GetSRef(block));
   }
   TVM_TIR_SCHEDULE_BEGIN();
-  result = tir::ReverseCacheWrite(state_, this->GetSRef(block_rv), write_buffer_index,
-                                  storage_scope, dim_order, consumer_block_refs);
+  result = tir::ReindexCacheWrite(state_, this->GetSRef(block_rv), write_buffer_index,
+                                  storage_scope, index_map, consumer_block_refs);
   TVM_TIR_SCHEDULE_END("reverse-cache-write", this->error_render_level_);
   this->state_->DebugVerify();
   return CreateRV<BlockRV>(result);

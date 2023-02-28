@@ -409,31 +409,31 @@ class ScheduleNode : public runtime::Object {
    * \brief Create a block that reads a buffer region into a read cache. It requires:
    * 1) There is at most one block who writes the buffer in the scope.
    * 2) The scope block have stage-pipeline property.
-   * Compared to cache read, the index mapping was performed at producer rather than consumer.
+   * Compared to cache read, the indices to access allocated cache buffer is customized by user.
    * \param block_rv The consumer block of the target buffer.
    * \param read_buffer_index The index of the buffer in block's read region.
    * \param storage_scope The target storage scope.
-   * \param dim_order The user-defined dimension order of allocated buffer.
+   * \param index_map User defined indices to access allocated cache buffer, maps from block iter vars.
    * \param consumer_blocks An optional list of consumers to read from cache directly.
    * \return The cache stage block.
    */
-  virtual BlockRV ReverseCacheRead(const BlockRV& block_rv, int read_buffer_index,
-                                   const String& storage_scope, Array<Integer> dim_order,
+  virtual BlockRV ReindexCacheRead(const BlockRV& block_rv, int read_buffer_index,
+                                   const String& storage_scope, const IndexMap& index_map,
                                    Array<BlockRV> consumer_blocks) = 0;
   /*!
    * \brief Create a block that writes a buffer region into a write cache. It requires:
    * 1) There is only one block who writes the target buffer.
    * 2) The scope block have stage-pipeline property.
-   * Compared to cache write, the index mapping was performed at consumer rather than producer.
+   * Compared to cache write, the indices to access allocated cache buffer is customized by user.
    * \param block_rv The producer of the buffer
    * \param write_buffer_index The index of the buffer in block's write region
    * \param storage_scope The target storage scope
-   * \param dim_order The user-defined dimension order of allocated buffer.
+   * \param index_map User defined indices to access allocated cache buffer, maps from block iter vars.
    * \param consumer_blocks An optional list of consumers to read from cache directly.
    * \return The cache stage block.
    */
-  virtual BlockRV ReverseCacheWrite(const BlockRV& block_rv, int write_buffer_index,
-                                    const String& storage_scope, Array<Integer> dim_order,
+  virtual BlockRV ReindexCacheWrite(const BlockRV& block_rv, int write_buffer_index,
+                                    const String& storage_scope, const IndexMap& index_map,
                                     Array<BlockRV> consumer_blocks) = 0;
   /*!
    * \brief Create 2 blocks that read&write a buffer region into a read/write cache.

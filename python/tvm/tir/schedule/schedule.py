@@ -1204,12 +1204,15 @@ class Schedule(Object):
         )
 
     @type_checked
-    def reverse_cache_read(
-        self, block: BlockRV, read_buffer_index: int, storage_scope: str, dim_order: List[int] = [], 
+    def reindex_cache_read(
+        self, block: BlockRV, read_buffer_index: int, storage_scope: str,
+        index_map: Union[IndexMap, Callable],
         consumer_blocks=None,
     ) -> BlockRV:
-        """Create a block that reads a buffer region into a read cache.
-        The index mapping was performed at producer rather than consumer.
+        """Create a block that reads a buffer region into a read cache, with user customized
+        indices specified by index map.
+        The read region of the buffer to read in the block must be a single point.
+
         Parameters
         ----------
         block : BlockRV
@@ -1218,9 +1221,8 @@ class Schedule(Object):
             The index of the buffer in block's read region.
         storage_scope: str
             The target storage scope.
-        dim_order: List[int]
-            The user-defined dimension order of allocated buffer.
-            Numbers indicate the index of block iter vars.
+        index_map: Union[IndexMap, Callable]
+            User defined indices to access allocated cache buffer, maps from block iter vars.
         consumer_blocks: Optional[List[Union[BlockRV, str]]]
             An optional list of consumers that should read directly from the cache.
             If not specified, all consumers will read from the original buffer.
@@ -1229,20 +1231,68 @@ class Schedule(Object):
         -------
         cached_block : BlockRV
             The block of the cache stage
+
+        Examples
+        --------
+        Before reindex_cache_read, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_reindex_cache_read(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        Create the schedule and reindex_cache_read:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_cache_read)
+            block_b = sch.get_block("B")
+            sch.reindex_cache_read(block_b, 0, "local", lambda vi, vj: (vj, vi))
+            print(sch.mod["main"].script())
+
+        After applying reindex_cache_read, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_reindex_cache_read(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                A_local = T.alloc_buffer((128, 128), scope="local")
+                for i, j in T.grid(128, 128):
+                    with T.block("A_local"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        A_local[vj, vi] = A[vi, vj]
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A_local[vj, vi] * 2.0
+
         """
         if consumer_blocks is None:
             consumer_blocks = []
-        return _ffi_api.ScheduleReverseCacheRead(  # type: ignore # pylint: disable=no-member
-            self, block, read_buffer_index, storage_scope, dim_order, consumer_blocks
+        if callable(index_map):
+            index_map = IndexMap.from_func(index_map)
+        return _ffi_api.ScheduleReindexCacheRead(  # type: ignore # pylint: disable=no-member
+            self, block, read_buffer_index, storage_scope, index_map, consumer_blocks
         )
 
     @type_checked
-    def reverse_cache_write(
-        self, block: BlockRV, write_buffer_index: int, storage_scope: str, dim_order: List[int] = [], 
+    def reindex_cache_write(
+        self, block: BlockRV, write_buffer_index: int, storage_scope: str,
+        index_map: Union[Callable, IndexMap],
         consumer_blocks=None,
     ) -> BlockRV:
-        """Create a block that reads a buffer region into a write cache.
-        The index mapping was performed at consumer rather than producer.
+        """Create a block that reads a buffer region into a write cache, with user customized
+        indices specified by index map.
+        The write region of the buffer to write in the block must be a single point.
+
         Parameters
         ----------
         block : BlockRV
@@ -1251,9 +1301,8 @@ class Schedule(Object):
             The index of the buffer in block's write region.
         storage_scope: str
             The target storage scope.
-        dim_order: List[int]
-            The user-defined dimension order of allocated buffer.
-            Numbers indicate the index of block iter vars.
+        index_map: Union[Callable, IndexMap]
+            User defined indices to access allocated cache buffer, maps from block iter vars.
         consumer_blocks: Optional[List[Union[BlockRV, str]]]
             An optional list of consumers that should read directly from the cache.
             If not specified, all consumers will read from the original buffer.
@@ -1262,11 +1311,56 @@ class Schedule(Object):
         -------
         cached_block : BlockRV
             The block of the cache stage
+
+        Examples
+        --------
+        Before reindex_cache_write, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_reindex_cache_write(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        Create the schedule and reindex_cache_write:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_cache_write)
+            block_b = sch.get_block("B")
+            sch.reindex_cache_write(block_b, 0, "local", lambda vi, vj: (vi // 2, vi % 2, vj))
+            print(sch.mod["main"].script())
+
+        After applying reindex_cache_write, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_cache_write(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (64, 2, 128))
+                B_local = T.alloc_buffer((128, 128), scope="local")
+                for i, j in T.grid(128, 128):
+                    with T.block("A_local"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B_local[vi % 2, vi // 2, vj] = A[vi, vj] * 2.0
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = B_local[vi % 2, vi // 2, vj]
+
         """
         if consumer_blocks is None:
             consumer_blocks = []
-        return _ffi_api.ScheduleReverseCacheWrite(  # type: ignore # pylint: disable=no-member
-            self, block, write_buffer_index, storage_scope, dim_order, consumer_blocks
+        if callable(index_map):
+            index_map = IndexMap.from_func(index_map)
+        return _ffi_api.ScheduleReindexCacheWrite(  # type: ignore # pylint: disable=no-member
+            self, block, write_buffer_index, storage_scope, index_map, consumer_blocks
         )
 
     @type_checked
@@ -1491,7 +1585,7 @@ class Schedule(Object):
         Examples
         --------
 
-        Before transform_layout, in TensorIR, the IR is:
+        Before reindex, in TensorIR, the IR is:
 
         .. code-block:: python
 
@@ -1505,7 +1599,7 @@ class Schedule(Object):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vj, vi] * 2.0
 
-        Create the schedule and do transform_layout:
+        Create the schedule and do reindex:
 
         .. code-block:: python
 
