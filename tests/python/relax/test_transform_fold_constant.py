@@ -273,5 +273,108 @@ def test_int32_fold():
     tvm.ir.assert_structural_equal(after, expected)
 
 
+def test_fold_single_relax_op():
+    # put before after in a single module
+    @tvm.script.ir_module
+    class Module:
+        @R.function
+        def before(c0: R.Tensor((16, 16), "float32")):
+            with R.dataflow():
+                gv = R.add(c0, c0)
+                R.output(gv)
+            return gv
+
+        @R.function
+        def expected(c1: R.Tensor((16, 16), "float32")):
+            return c1
+
+    c0_np = np.arange((16 * 16)).astype("float32").reshape(16, 16)
+    c1_np = c0_np + c0_np
+    before = gen_mod(Module, "before", {"c0": c0_np})
+    expected = gen_mod(Module, "expected", {"c1": c1_np})
+
+    after = relax.transform.FoldConstant()(before)
+    tvm.ir.assert_structural_equal(after, expected)
+
+
+def test_fold_multiple_relax_ops():
+    # put before after in a single module
+    @tvm.script.ir_module
+    class Module:
+        @R.function
+        def before(c0: R.Tensor((16, 16), "float32"), c1: R.Tensor((16, 16), "float32")):
+            with R.dataflow():
+                lv0 = R.add(c0, c1)
+                lv1 = R.multiply(c0, lv0)
+                gv = R.subtract(lv1, c1)
+                R.output(gv)
+            return gv
+
+        @R.function
+        def expected(c4: R.Tensor((16, 16), "float32")):
+            return c4
+
+    c0_np = np.arange((16 * 16)).astype("float32").reshape(16, 16)
+    c1_np = np.arange((16 * 16)).astype("float32").reshape(16, 16)
+    c2_np = c0_np + c1_np
+    c3_np = c0_np * c2_np
+    c4_np = c3_np - c1_np
+    before = gen_mod(Module, "before", {"c0": c0_np, "c1": c1_np})
+    expected = gen_mod(Module, "expected", {"c4": c4_np})
+
+    after = relax.transform.FoldConstant()(before)
+    tvm.ir.assert_structural_equal(after, expected)
+
+
+def test_do_not_fold_ops_outside_dataflow():
+    # put before after in a single module
+    @tvm.script.ir_module
+    class Module:
+        @R.function
+        def before(c0: R.Tensor((16, 16), "float32")):
+            gv = R.add(c0, c0)
+            return gv
+
+    c0_np = np.arange((16 * 16)).astype("float32").reshape(16, 16)
+    before = gen_mod(Module, "before", {"c0": c0_np})
+
+    after = relax.transform.FoldConstant()(before)
+    tvm.ir.assert_structural_equal(after, before)
+
+
+def test_unsupported_fold_ops_legalized_to_multiple_calls():
+    @tvm.script.ir_module
+    class Module:
+        @R.function
+        def before(c0: R.Tensor((16, 16), "float32")):
+            with R.dataflow():
+                gv = R.nn.relu(c0)
+                R.output(gv)
+            return gv
+
+    c0_np = np.arange((16 * 16)).astype("float32").reshape(16, 16)
+    before = gen_mod(Module, "before", {"c0": c0_np})
+
+    from tvm.relax.transform.legalize_ops.common import register_legalize
+
+    def customized_legalize_relu(bb: relax.BlockBuilder, call: relax.Call):
+        from tvm import topi  # pylint: disable=import-outside-toplevel
+
+        x = bb.emit_te(topi.nn.relu, *call.args)
+        return bb.call_te(topi.identity, x)
+
+    # register custom legalization for relu that emits multiple bindings for testing
+    relu_legalize = tvm.ir.Op.get("relax.nn.relu").get_attr("FLegalize")
+    tvm.ir.Op.get("relax.nn.relu").reset_attr("FLegalize")
+    register_legalize("relax.nn.relu", customized_legalize_relu)
+
+    after = relax.transform.FoldConstant()(before)
+    tvm.ir.assert_structural_equal(after, before)
+
+    # revert to correct legalization of relu
+    tvm.ir.Op.get("relax.nn.relu").reset_attr("FLegalize")
+    register_legalize("relax.nn.relu", relu_legalize)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
