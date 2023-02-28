@@ -43,8 +43,6 @@ class PrinterConfigNode : public Object {
   std::string ir_prefix = "I";
   /*! \brief The prefix of TIR nodes */
   std::string tir_prefix = "T";
-  /*! \brief The prefix of Relax nodes */
-  std::string relax_prefix = "R";
   /*! \brief Default data type of TIR buffer */
   DataType buffer_dtype = DataType::Float(32);
   /*! \brief Default data type of integer literals */
