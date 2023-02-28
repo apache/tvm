@@ -96,7 +96,7 @@ void MultiLevelTilingNode::InitializeWithTuneContext(const TuneContext& context)
         if (std::stoi(sm) >= 80) {
           // only stage = 4 & 5 is tested. all integer that is bigger than 2
           // is theoretically feasible, but no guarantee for great performance.
-          this->stages.insert(this->stages.end(), {4, 5});
+          this->stages = {4, 5};
         }
       } catch (const std::invalid_argument& e) {
         LOG(WARNING) << "ValueError: Unable to parse `target.arch`: " << sm
