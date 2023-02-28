@@ -24,11 +24,12 @@ configuring the passes and scripting them in Python.
 from typing import Dict, List, Union, Callable
 from enum import IntEnum
 
+import tvm
 from tvm import tir
 from tvm import IRModule
 from tvm.relax.ty import Type
 from tvm.relax.struct_info import StructInfo, FuncStructInfo
-from tvm.relax.expr import DataflowBlock, Var, Expr, Function, Call, Binding
+from tvm.relax.expr import DataflowBlock, Var, GlobalVar, Expr, Function, Call, Binding
 from tvm.tir import IndexMap, PrimFunc, Block, Buffer
 from . import _ffi_api
 
@@ -324,7 +325,7 @@ def suggest_layout_transforms(
 def detect_recursion(mod: tvm.IRModule) -> List[List[GlobalVar]]:
     """
     Find all sets of recursive or mutually recursive functions in the module.
- 
+
     Two or more functions are mutually recursive if there is some cycle of calls
     among them. For example, if there are two functions A and B, they are
     mutually recursive if A calls B and B calls A. Another case would be with
