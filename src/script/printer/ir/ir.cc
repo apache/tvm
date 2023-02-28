@@ -65,6 +65,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       With<IRFrame> f(d);
       (*f)->AddDispatchToken(d, "ir");
       IdDoc module_doc = d->Define(mod, f(), GetBindingName(d).value_or("Module"));
+      (*f)->global_infos = &mod->global_infos;
       if (mod->attrs.defined() && !mod->attrs->dict.empty()) {
         (*f)->stmts.push_back(
             ExprStmtDoc(IR(d, "module_attrs")  //
@@ -164,6 +165,15 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       return IR(d, "IncompleteType")->Call({});
     });
 
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<Range>("ir", [](Range range, ObjectPath p, IRDocsifier d) -> Doc {
+      return IR(d, "Range")
+          ->Call({
+              d->AsDoc<ExprDoc>(range->min, p->Attr("min")),
+              d->AsDoc<ExprDoc>(range->extent + range->min, p->Attr("extent")),
+          });
+    });
+
 std::string ReprPrintIRModule(const ObjectRef& mod, const PrinterConfig& cfg) {
   if (const auto* f = runtime::Registry::Get("relay.ir.PrintRelayModule")) {
     if (Optional<String> s = (*f)(mod)) {
@@ -180,6 +190,7 @@ TVM_SCRIPT_REPR(DictAttrsNode, ReprPrintIR);
 TVM_SCRIPT_REPR(RelayRefTypeNode, ReprPrintIR);
 TVM_SCRIPT_REPR(FuncTypeNode, ReprPrintIR);
 TVM_SCRIPT_REPR(IncompleteTypeNode, ReprPrintIR);
+TVM_SCRIPT_REPR(RangeNode, ReprPrintIR);
 TVM_SCRIPT_REPR(IRModuleNode, ReprPrintIRModule);
 
 }  // namespace printer

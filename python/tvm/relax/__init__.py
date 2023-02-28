@@ -50,7 +50,15 @@ from .expr import (
 from .expr import const, extern, get_shape_of
 
 # Type
-from .ty import Type, ObjectType, ShapeType, DynTensorType, TupleType, FuncType, PackedFuncType
+from .ty import (
+    Type,
+    ObjectType,
+    ShapeType,
+    DynTensorType,
+    TupleType,
+    FuncType,
+    PackedFuncType,
+)
 
 # VM
 from .exec_builder import ExecBuilder
@@ -89,6 +97,7 @@ from . import op
 from . import struct_info
 from . import backend
 from . import training
+from . import distributed
 from . import frontend
 
 # VM

@@ -14,8 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-import
-"""Package tvm.script.ir_builder.relax"""
-from . import frame
-from .ir import *  # pylint: disable=wildcard-import,redefined-builtin
-from . import distributed  # pylint: disable=wildcard-import,redefined-builtin
+
+"""The infrastructure for distributed inference on Relax."""
+
+from .global_info import DeviceMesh, device_mesh
+from .struct_info import Placement, DTensorStructInfo, PlacementSpec

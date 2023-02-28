@@ -44,6 +44,10 @@ void StructInfoVisitor::VisitStructInfo_(const TensorStructInfoNode* op) {
   }
 }
 
+void StructInfoVisitor::VisitStructInfo_(const distributed::DTensorStructInfoNode* op) {
+  this->VisitStructInfo(op->tensor_sinfo);
+}
+
 void StructInfoVisitor::VisitStructInfo_(const TupleStructInfoNode* op) {
   for (StructInfo field : op->fields) {
     this->VisitStructInfo(field);
@@ -95,6 +99,12 @@ StructInfo StructInfoMutator::VisitStructInfo_(const TensorStructInfoNode* op) {
   } else {
     return TensorStructInfo(shape.value(), op->dtype, op->span);
   }
+}
+
+StructInfo StructInfoMutator::VisitStructInfo_(const distributed::DTensorStructInfoNode* op) {
+  TensorStructInfo tensor_sinfo =
+      Downcast<TensorStructInfo>(this->VisitStructInfo(op->tensor_sinfo));
+  return distributed::DTensorStructInfo(tensor_sinfo, op->device_mesh, op->placement);
 }
 
 StructInfo StructInfoMutator::VisitStructInfo_(const TupleStructInfoNode* op) {

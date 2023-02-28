@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/relax/attrs/op.h>
+#include <tvm/relax/distributed/struct_info.h>
 
 #include "./utils.h"
 
@@ -114,15 +115,22 @@ Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const ObjectPath& 
   // Step 3. Print n->sinfo_args, the output struct info
   relax::StructInfo o_sinfo = n->sinfo_args[0];
   ObjectPath o_sinfo_p = n_p->Attr("sinfo_args")->ArrayIndex(0);
+  bool is_dtensor = false;
   kwargs_keys.push_back("out_sinfo");
   if (const auto* o = o_sinfo.as<relax::TupleStructInfoNode>()) {
     Array<ExprDoc> fields;
     ObjectPath fields_p = o_sinfo_p->Attr("fields");
     for (int i = 0, l = o->fields.size(); i < l; ++i) {
+      if (o->fields[i].as<relax::distributed::DTensorStructInfoNode>()) {
+        is_dtensor = true;
+      }
       fields.push_back(d->AsDoc<ExprDoc>(o->fields[i], fields_p->ArrayIndex(i)));
     }
     kwargs_values.push_back(ListDoc(fields));
   } else {
+    if (o_sinfo.as<relax::distributed::DTensorStructInfoNode>()) {
+      is_dtensor = true;
+    }
     kwargs_values.push_back(d->AsDoc<ExprDoc>(o_sinfo, o_sinfo_p));
   }
 
@@ -150,7 +158,11 @@ Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const ObjectPath& 
     kwargs_keys.push_back("tir_vars");
     kwargs_values.push_back(d->AsDoc<ExprDoc>(n->args[2], n_p->Attr("args")->ArrayIndex(2)));
   }
-  return Relax(d, "call_tir")->Call(args, kwargs_keys, kwargs_values);
+  if (is_dtensor) {
+    return Relax(d, "dist.call_tir")->Call(args, kwargs_keys, kwargs_values);
+  } else {
+    return Relax(d, "call_tir")->Call(args, kwargs_keys, kwargs_values);
+  }
 }
 
 Optional<ExprDoc> PrintAssertOp(const relax::Call& n, const ObjectPath& n_p, const IRDocsifier& d) {

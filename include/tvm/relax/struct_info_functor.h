@@ -25,6 +25,7 @@
 #define TVM_RELAX_STRUCT_INFO_FUNCTOR_H_
 
 #include <tvm/node/functor.h>
+#include <tvm/relax/distributed/struct_info.h>
 #include <tvm/relax/struct_info.h>
 
 #include <utility>
@@ -84,6 +85,8 @@ class StructInfoFunctor<R(const StructInfo& n, Args...)> {
                              Args... args) STRUCT_INFO_FUNCTOR_DEFAULT;
   virtual R VisitStructInfo_(const TensorStructInfoNode* op,
                              Args... args) STRUCT_INFO_FUNCTOR_DEFAULT;
+  virtual R VisitStructInfo_(const distributed::DTensorStructInfoNode* op,
+                             Args... args) STRUCT_INFO_FUNCTOR_DEFAULT;
   virtual R VisitStructInfo_(const TupleStructInfoNode* op,
                              Args... args) STRUCT_INFO_FUNCTOR_DEFAULT;
   virtual R VisitStructInfo_(const FuncStructInfoNode* op,
@@ -102,6 +105,7 @@ class StructInfoFunctor<R(const StructInfo& n, Args...)> {
     TVM_STRUCT_INFO_FUNCTOR_DISPATCH(PrimStructInfoNode);
     TVM_STRUCT_INFO_FUNCTOR_DISPATCH(ShapeStructInfoNode);
     TVM_STRUCT_INFO_FUNCTOR_DISPATCH(TensorStructInfoNode);
+    TVM_STRUCT_INFO_FUNCTOR_DISPATCH(distributed::DTensorStructInfoNode);
     TVM_STRUCT_INFO_FUNCTOR_DISPATCH(TupleStructInfoNode);
     TVM_STRUCT_INFO_FUNCTOR_DISPATCH(FuncStructInfoNode);
     return vtable;
@@ -119,6 +123,7 @@ class TVM_DLL StructInfoVisitor : public StructInfoFunctor<void(const StructInfo
   void VisitStructInfo_(const PrimStructInfoNode* op) override;
   void VisitStructInfo_(const ShapeStructInfoNode* op) override;
   void VisitStructInfo_(const TensorStructInfoNode* op) override;
+  void VisitStructInfo_(const distributed::DTensorStructInfoNode* op) override;
   void VisitStructInfo_(const TupleStructInfoNode* op) override;
   void VisitStructInfo_(const FuncStructInfoNode* op) override;
 
@@ -137,6 +142,7 @@ class TVM_DLL StructInfoMutator : public StructInfoFunctor<StructInfo(const Stru
   StructInfo VisitStructInfo_(const PrimStructInfoNode* op) override;
   StructInfo VisitStructInfo_(const ShapeStructInfoNode* op) override;
   StructInfo VisitStructInfo_(const TensorStructInfoNode* op) override;
+  StructInfo VisitStructInfo_(const distributed::DTensorStructInfoNode* op) override;
   StructInfo VisitStructInfo_(const TupleStructInfoNode* op) override;
   StructInfo VisitStructInfo_(const FuncStructInfoNode* op) override;
 

@@ -222,7 +222,7 @@ class TensorStructInfo : public StructInfo {
    */
   TVM_DLL TensorStructInfo(DataType dtype, int ndim, Span span = Span());
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TensorStructInfo, StructInfo, TensorStructInfoNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(TensorStructInfo, StructInfo, TensorStructInfoNode);
 };
 
 /*!

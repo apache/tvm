@@ -301,6 +301,7 @@ tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
     src/relax/backend/task_extraction.cc
     src/relax/backend/pattern_registry.cc
     src/relax/utils.cc
+    src/relax/distributed/*.cc
     )
 
 tvm_file_glob(GLOB CODEGEN_SRCS
