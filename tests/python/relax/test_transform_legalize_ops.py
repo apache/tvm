@@ -111,7 +111,6 @@ def test_legalize_multiple_types_of_call():
                     T.writes(T_multiply[v_ax0, v_ax1])
                     T_multiply[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1] * T.float32(2)
 
-
         @R.function
         def main(x1: R.Tensor((3, 3), dtype="float32")) -> R.Tensor((3, 3), dtype="float32"):
             gv1: R.Tensor((3, 3), dtype="float32") = mul2(x1)
