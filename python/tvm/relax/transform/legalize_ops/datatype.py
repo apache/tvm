@@ -24,7 +24,7 @@ from .common import _try_convert_to_scalar_const, register_legalize
 
 @register_legalize("relax.astype")
 def _astype(bb: BlockBuilder, call: Call) -> Expr:
-    arg = _try_convert_to_scalar_const(call.args[0])
+    arg = _try_convert_to_scalar_const(call.args[0], python_native=True)
     if isinstance(arg, Expr):  # type: ignore
         return bb.call_te(topi.cast, arg, call.attrs.dtype)
     else:

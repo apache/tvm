@@ -156,5 +156,102 @@ def test_can_not_legalize():
     tvm.ir.assert_structural_equal(After1, Before1)
 
 
+def test_legalize_scalar_data_type_preserve():
+    # fmt: off
+    @tvm.script.ir_module
+    class Before0:
+        @R.function
+        def main(x: R.Tensor((3, 3), "float16")):
+            gv: R.Tensor((3, 3), "float16") = R.multiply(x, R.const(1.14514, "float16"))
+            return gv
+
+    @tvm.script.ir_module
+    class Before1:
+        @R.function
+        def main(x: R.Tensor((3, 3), "uint8")):
+            gv: R.Tensor((3, 3), "uint8") = R.multiply(x, R.const(2, "uint8"))
+            return gv
+
+    @tvm.script.ir_module
+    class Before2:
+        @R.function
+        def main(x: R.Tensor((3, 3), "bool")):
+            gv: R.Tensor((3, 3), "bool") = R.equal(x, R.const(True, "bool"))
+            return gv
+
+    @tvm.script.ir_module
+    class Expected0:
+        @T.prim_func
+        def multiply(
+            rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "float16"),
+            T_multiply: T.Buffer((T.int64(3), T.int64(3)), "float16"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            # with T.block("root"):
+            for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
+                with T.block("T_multiply"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(rxplaceholder[v_ax0, v_ax1])
+                    T.writes(T_multiply[v_ax0, v_ax1])
+                    T_multiply[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1] * T.float16(
+                        1.1455078125
+                    )
+
+        @R.function
+        def main(x: R.Tensor((3, 3), dtype="float16")) -> R.Tensor((3, 3), dtype="float16"):
+            gv = R.call_tir(multiply, (x,), out_sinfo=R.Tensor((3, 3), dtype="float16"))
+            return gv
+
+    @tvm.script.ir_module
+    class Expected1:
+        @T.prim_func
+        def multiply(
+            rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "uint8"),
+            T_multiply: T.Buffer((T.int64(3), T.int64(3)), "uint8"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            # with T.block("root"):
+            for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
+                with T.block("T_multiply"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(rxplaceholder[v_ax0, v_ax1])
+                    T.writes(T_multiply[v_ax0, v_ax1])
+                    T_multiply[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1] * T.uint8(2)
+
+        @R.function
+        def main(x: R.Tensor((3, 3), dtype="uint8")) -> R.Tensor((3, 3), dtype="uint8"):
+            gv = R.call_tir(multiply, (x,), out_sinfo=R.Tensor((3, 3), dtype="uint8"))
+            return gv
+
+    @tvm.script.ir_module
+    class Expected2:
+        @T.prim_func
+        def equal(
+            rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "bool"),
+            T_equal: T.Buffer((T.int64(3), T.int64(3)), "bool"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            # with T.block("root"):
+            for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
+                with T.block("T_equal"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(rxplaceholder[v_ax0, v_ax1])
+                    T.writes(T_equal[v_ax0, v_ax1])
+                    T_equal[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1] == tvm.tir.const(True, "bool")
+
+        @R.function
+        def main(x: R.Tensor((3, 3), dtype="bool")) -> R.Tensor((3, 3), dtype="bool"):
+            gv = R.call_tir(equal, (x,), out_sinfo=R.Tensor((3, 3), dtype="bool"))
+            return gv
+    # fmt: on
+
+    After0 = LegalizeOps()(Before0)
+    tvm.ir.assert_structural_equal(After0, Expected0)
+    After1 = LegalizeOps()(Before1)
+    tvm.ir.assert_structural_equal(After1, Expected1)
+    After2 = LegalizeOps()(Before2)
+    tvm.ir.assert_structural_equal(After2, Expected2)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
