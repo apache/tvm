@@ -190,7 +190,7 @@ class ConstantFolder : public ExprMutator {
       DynTensorType ret_type = Downcast<DynTensorType>(call->checked_type());
       // value_or will return value if it is not null, otherwise return or
       return ConstEvaluateCallTIR(func.value(), arr_args.value(), shape.value(), ret_type->dtype)
-          .value_or(call);
+          .value_or({});
     }
     // TODO(hongyi): support const-fold tuple outputs
     return {};
