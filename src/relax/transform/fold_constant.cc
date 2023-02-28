@@ -21,6 +21,7 @@
 #include <tvm/ir/function.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 #include <tvm/tir/function.h>
@@ -38,7 +39,7 @@ class ConstantFolder : public ExprMutator {
   }
 
  private:
-  explicit ConstantFolder(IRModule ctx_module) : ctx_module_(ctx_module) {}
+  explicit ConstantFolder(IRModule ctx_module) : ExprMutator(ctx_module) {}
 
   /*!
    * \brief Pattern match the shape inside the given struct info to a
@@ -88,7 +89,8 @@ class ConstantFolder : public ExprMutator {
   Optional<tir::PrimFunc> MatchPrimFunc(const Expr& op) {
     if (auto* ptr = op.as<GlobalVarNode>()) {
       // NOTE: as check works for nullptr(returns null)
-      Optional<BaseFunc> base_func = ctx_module_->functions.Get(GetRef<GlobalVar>(ptr));
+      Optional<BaseFunc> base_func =
+          builder_->GetContextIRModule()->functions.Get(GetRef<GlobalVar>(ptr));
       if (auto* pfunc = base_func.as<tir::PrimFuncNode>()) {
         return GetRef<tir::PrimFunc>(pfunc);
       }
@@ -127,6 +129,19 @@ class ConstantFolder : public ExprMutator {
     return build_func;
   }
 
+  /*!
+   * \brief Checks if it is useful to fold \p expr.
+   * \details Folding an expr is a trade-off - we are materializing a constant in the IRModule and
+   * paying compile time cost to avoid the cost of executing this expr at runtime. For example,
+   * folding iota ops could result in large constants being materialized, thus increasing the size
+   * of the program.
+   */
+  bool ShouldBeFolded(Expr expr) {
+    // TODO(prakalp): Implement a heuristic to check if folding this expr is actually useful or
+    // not.
+    return true;
+  }
+
   // Try constant evaluate the function call
   // if failed return NullOpt
   Optional<Expr> ConstEvaluateCallTIR(tir::PrimFunc tir_func, Array<runtime::NDArray> arr_args,
@@ -159,7 +174,8 @@ class ConstantFolder : public ExprMutator {
     return Constant(ret_tensor);
   }
 
-  Expr VisitCallTIR(Call call) {
+  // Returns the folded expr if the call is successfully folded to constant, otherwise null.
+  Optional<Expr> VisitCallTIR(Call call) {
     // call_tir needs to have at least three arguments
     ICHECK_GE(call->args.size(), 2);
     Optional<tir::PrimFunc> func = MatchPrimFunc(call->args[0]);
@@ -174,10 +190,10 @@ class ConstantFolder : public ExprMutator {
       DynTensorType ret_type = Downcast<DynTensorType>(call->checked_type());
       // value_or will return value if it is not null, otherwise return or
       return ConstEvaluateCallTIR(func.value(), arr_args.value(), shape.value(), ret_type->dtype)
-          .value_or(call);
+          .value_or({});
     }
     // TODO(hongyi): support const-fold tuple outputs
-    return std::move(call);
+    return {};
   }
 
   using ExprMutator::VisitExpr_;
@@ -185,11 +201,35 @@ class ConstantFolder : public ExprMutator {
   Expr VisitExpr_(const CallNode* call) final {
     // post-order mutation
     Call post_call = Downcast<Call>(VisitExprPostOrder_(call));
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
 
-    if (call->op.same_as(call_tir_op)) {
-      return VisitCallTIR(post_call);
+    // Check if it is useful to fold this call
+    if (!ShouldBeFolded(post_call)) return post_call;
+
+    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
+    auto* op_node = post_call->op.as<OpNode>();
+
+    // Not an OpNode
+    if (op_node == nullptr) {
+      return post_call;
     }
+    auto op = GetRef<Op>(op_node);
+
+    if (op.same_as(call_tir_op)) {
+      return VisitCallTIR(post_call).value_or(post_call);
+    }
+
+    // If we are in a dataflow block, we can fold ops by lowering them to call_tir.
+    if (builder_->CurrentBlockIsDataFlow() && legalize_map.count(op)) {
+      // Get the legalized expression
+      Expr legalized_expr = builder_->Normalize(legalize_map[op](builder_, post_call));
+      // If the legalized expression is call_tir, try to fold it.
+      const CallNode* call = legalized_expr.as<CallNode>();
+      if (call && call->op.same_as(call_tir_op)) {
+        return VisitCallTIR(GetRef<Call>(call)).value_or(post_call);
+      }
+    }
+
     return std::move(post_call);
   }
 
@@ -211,8 +251,6 @@ class ConstantFolder : public ExprMutator {
     return ExprMutator::VisitExpr_(op);
   }
 
-  // the context module to lookup functions
-  IRModule ctx_module_;
   // cache for function build, via structural equality
   std::unordered_map<tir::PrimFunc, Optional<runtime::PackedFunc>, StructuralHash, StructuralEqual>
       func_build_cache_;
