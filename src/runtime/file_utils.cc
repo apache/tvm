@@ -207,6 +207,11 @@ Map<String, NDArray> LoadParams(dmlc::Stream* strm) {
   return params;
 }
 
+Map<String, NDArray> LoadParamsFromFile(const std::string& file_name) {
+  tvm::runtime::SimpleBinaryFileStream strm(file_name, "rb");
+  return LoadParams(&strm);
+}
+
 void SaveParams(dmlc::Stream* strm, const Map<String, NDArray>& params) {
   std::vector<std::string> names;
   std::vector<const DLTensor*> arrays;
@@ -245,6 +250,10 @@ TVM_REGISTER_GLOBAL("runtime.SaveParams").set_body_typed([](const Map<String, ND
 });
 TVM_REGISTER_GLOBAL("runtime.LoadParams").set_body_typed([](const String& s) {
   return ::tvm::runtime::LoadParams(s);
+});
+
+TVM_REGISTER_GLOBAL("runtime.LoadParamsFromFile").set_body_typed([](const String& file_name) {
+  return ::tvm::runtime::LoadParamsFromFile(file_name);
 });
 
 }  // namespace runtime

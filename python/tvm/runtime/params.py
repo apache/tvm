@@ -67,3 +67,19 @@ def load_param_dict(param_bytes):
     if isinstance(param_bytes, (bytes, str)):
         param_bytes = bytearray(param_bytes)
     return _ffi_api.LoadParams(param_bytes)
+
+
+def load_param_dict_from_file(file_name):
+    """Load parameter dictionary to binary bytes.
+
+    Parameters
+    ----------
+    param_bytes: bytearray
+        Serialized parameters.
+
+    Returns
+    -------
+    params : dict of str to NDArray
+        The parameter dictionary.
+    """
+    return _ffi_api.LoadParamsFromFile(file_name)
