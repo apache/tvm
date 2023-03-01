@@ -95,6 +95,7 @@ def convert_unary_op(g, op, block):
         "isinf_v2": _op.isinf,
         "isfinite_v2": _op.isfinite,
         "isnan_v2": _op.isnan,
+        "sin": _op.tensor.sin,
     }
     if op.type in op_map:
         unary_func = op_map[op.type]
@@ -2072,6 +2073,16 @@ def convert_unsqueeze(g, op, block):
     for axis in axes:
         x = _op.expand_dims(x, axis=axis, num_newaxis=1)
     g.add_node(op.output("Out")[0], x)
+
+
+def convert_where(g, op, block):
+    """Operator converter for where."""
+
+    condition = g.get_node(op.input("Condition")[0])
+    x = g.get_node(op.input("X")[0])
+    y = g.get_node(op.input("Y")[0])
+    out = _op.transform.where(condition, x, y)
+    g.add_node(op.output("Out")[0], out)
 
 
 def convert_where_index(g, op, block):
