@@ -1216,9 +1216,9 @@ class Schedule(Object):
         indices specified by index map. The read region of the buffer must be a single point.
 
         The cache stage block follows the original order of loops and block itervars in the block.
-        If a block itervar does not appear in the buffer access region, it and its corresponding loop
-        variables will be omitted. User can then use `transform_block_layout` primitive to reorder
-        the block itervars and surrounding loops of the cache read/write block.
+        If a block itervar does not appear in the buffer access region, it and its corresponding
+        loop variables will be omitted. User can then use `transform_block_layout` primitive to
+        reorder the block itervars and surrounding loops of the cache read/write block.
 
         Parameters
         ----------
@@ -1308,9 +1308,9 @@ class Schedule(Object):
         indices specified by index map. The write region of the buffer must be a single point.
 
         The cache stage block follows the original order of loops and block itervars in the block.
-        If a block itervar does not appear in the buffer access region, it and its corresponding loop
-        variables will be omitted. User can then use `transform_block_layout` primitive to reorder
-        the block itervars and surrounding loops of the cache read/write block.
+        If a block itervar does not appear in the buffer access region, it and its corresponding
+        loop variables will be omitted. User can then use `transform_block_layout` primitive to
+        reorder the block itervars and surrounding loops of the cache read/write block.
 
         Parameters
         ----------

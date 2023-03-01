@@ -24,7 +24,7 @@ endif()
 # You can create a config.cmake at build folder
 # and add set(OPTION VALUE) to override these build options.
 # Alernatively, use cmake -DOPTION=VALUE through command-line.
-tvm_option(USE_CUDA "Build with CUDA" OFF)
+tvm_option(USE_CUDA "Build with CUDA" ON)
 tvm_option(USE_OPENCL "Build with OpenCL" OFF)
 tvm_option(USE_OPENCL_ENABLE_HOST_PTR "Enable OpenCL memory object access to host" OFF)
 tvm_option(USE_OPENCL_GTEST "Path to OpenCL specific gtest version for runtime cpp tests." /path/to/opencl/gtest)
@@ -61,7 +61,7 @@ tvm_option(USE_RTTI "Build with RTTI" ON)
 tvm_option(USE_MSVC_MT "Build with MT" OFF)
 tvm_option(USE_MICRO "Build with Micro TVM support" OFF)
 tvm_option(INSTALL_DEV "Install compiler infrastructure" OFF)
-tvm_option(HIDE_PRIVATE_SYMBOLS "Compile with -fvisibility=hidden." OFF)
+tvm_option(HIDE_PRIVATE_SYMBOLS "Compile with -fvisibility=hidden." ON)
 tvm_option(USE_TF_TVMDSOOP "Build with TensorFlow TVMDSOOp" OFF)
 tvm_option(USE_PT_TVMDSOOP "Build with PyTorch TVMDSOOp" OFF)
 tvm_option(USE_FALLBACK_STL_MAP "Use TVM's POD compatible Map" OFF)

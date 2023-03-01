@@ -99,9 +99,8 @@ def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target
     # However, we cannot use TVM_CXX_COMPILER_PATH because the runtime env.
     # Because it is hard to do runtime compiler detection, we require nvcc is configured
     # correctly by default.
-    cxx_compiler_path = os.environ.get("CUDAHOSTCXX", "")
-    if cxx_compiler_path != "":
-       cmd += ["-ccbin", cxx_compiler_path]
+    # if cxx_compiler_path != "":
+    #    cmd += ["-ccbin", cxx_compiler_path]
 
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
