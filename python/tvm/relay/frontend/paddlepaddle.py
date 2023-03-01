@@ -538,6 +538,15 @@ def convert_feed(g, op, block):
     g.add_node(ipt_name, out)
 
 
+def convert_fill_zero_like(g, op, block):
+    """Operator converter for fill_zero_like."""
+    dtype = op.attr("dtype")
+    dtype = _convert_dtype_value(dtype)
+    x = g.get_node(op.input("X")[0])
+    value = _expr.const(0, dtype=dtype)
+    out = _op.transform.full_like(x, value).astype(dtype)
+    g.add_node(op.output("Out")[0], out)
+
 def convert_fill_any_like(g, op, block):
     """Operator converter for fill_any_like."""
 
@@ -2055,6 +2064,21 @@ def convert_topk(g, op, block):
     if indice is not None:
         g.add_node(indice_names[0], indice)
 
+def convert_tile(g, op, block):
+    """Operator converter for tile."""
+
+    x = g.get_node(op.input("X")[0])
+    if op.input("RepeatTimes"):
+        repeat_times = g.get_node(op.input("RepeatTimes")[0])
+    else:
+        repeat_times = op.attr("repeat_times")
+    repeat_times, infered = try_infer_value(repeat_times, g.get_params())
+    if infered:
+        repeat_times = repeat_times.tolist()
+    else:
+        raise ValueError("Dynamic Tile not yet supported.")
+    out = _op.tile(x, repeat_times)
+    g.add_node(op.output("Out")[0], out)
 
 def convert_transpose(g, op, block):
     """Operator converter for transpose."""
@@ -2131,6 +2155,7 @@ _convert_map = {
     "fill_any_like": convert_fill_any_like,
     "fill_constant": convert_fill_constant,
     "fill_constant_batch_size_like": convert_fill_constant_batch_size_like,
+    "fill_zero_like": convert_fill_zero_like,
     "flatten_contiguous_range": convert_flatten,
     "floor": convert_unary_op,
     "floor_mod": convert_elementwise_op,
@@ -2217,6 +2242,7 @@ _convert_map = {
     "tan": convert_unary_op,
     "tanh": convert_unary_op,
     "top_k_v2": convert_topk,
+    "tile":convert_tile,
     "transpose2": convert_transpose,
     "unsqueeze2": convert_unsqueeze,
     "where_index": convert_where_index,

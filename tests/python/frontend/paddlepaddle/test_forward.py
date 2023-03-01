@@ -882,6 +882,36 @@ def test_forward_ones_like():
 
 
 @tvm.testing.uses_gpu
+def test_forward_zeros_like():
+    @paddle.jit.to_static
+    def zeros_like1(inputs):
+        return paddle.zeros_like(inputs)
+
+    @paddle.jit.to_static
+    def zeros_like2(inputs):
+        return paddle.zeros_like(inputs, dtype="int32")
+
+    input_shape = [1, 3, 10, 10]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(zeros_like1, input_data=input_data)
+    verify_model(zeros_like2, input_data=input_data)
+
+@tvm.testing.uses_gpu
+def test_forward_tile():
+    @paddle.jit.to_static
+    def tile1(inputs):
+        return paddle.tile(inputs, [1, 2, 3])
+
+    @paddle.jit.to_static
+    def tile2(inputs):
+        return paddle.tile(inputs, [1, 2, 3, 4])
+
+    input_shape = [1, 3, 10]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(tile1, input_data=input_data)
+    verify_model(tile2, input_data=input_data)
+
+@tvm.testing.uses_gpu
 def test_forward_gelu():
     @paddle.jit.to_static
     def gelu(inputs):
