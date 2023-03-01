@@ -43,6 +43,7 @@ from . import qnn_torch
 from .common import AttrCvt, get_relay_op, gru_cell, logger, rnn_cell
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
+from .common import fold_constant
 from .common import infer_value_simulated as _infer_value_simulated
 from .common import lstm_cell, try_infer_value, unbind, fold_constant
 from .common import set_span
@@ -2345,6 +2346,81 @@ class PyTorchOpConverter:
 
         return _op.take(weight, indices.astype("int32"), axis=0)
 
+    def embedding_bag(self, inputs, _):
+
+        assert len(inputs) == 9, "embedding_bag needs 9 arguments"
+        (
+            weights,
+            indices,
+            offsets_1d,
+            scale_grad_by_freq,
+            mode,
+            sparse,
+            per_sample_weights,
+            include_last_offset,
+            padding_idx,
+        ) = inputs
+
+        assert len(_infer_shape(indices)) == 1, "Expects 1D indices for aten::embedding_bag."
+
+        if scale_grad_by_freq:
+            logger.warning(
+                " ".join(
+                    [
+                        "`scale_grad_by_freq` arguments would not",
+                        "affect the results of our embedding_bag implementation.",
+                    ]
+                )
+            )
+        if sparse:
+            logger.warning(
+                " ".join(
+                    [
+                        "`sparse` arguments would not",
+                        "affect the results of our embedding_bag implementation.",
+                    ]
+                )
+            )
+
+        mode_map = {0: _op.sum, 1: _op.mean, 2: _op.max}
+        assert mode in mode_map, "unsupported reduction op mode %d." % mode
+
+        if per_sample_weights is not None:
+            assert mode == 0, "per_sample_weights only support for mode sum."
+        else:
+            per_sample_weights = _op.ones_like(indices)
+
+        offsets_const_fold = fold_constant(offsets_1d)
+
+        # python impl if offsets_1s is passed as array of constant
+        if isinstance(offsets_const_fold, _expr.Constant):
+            assert padding_idx is None, "padding_idx not supported in embedding_bag."
+
+            offsets_np = offsets_const_fold.data.numpy()
+            if include_last_offset == 1:
+                offsets_np = offsets_np[..., 0]  # exclude last dimension
+            offsets_diff = np.diff(offsets_np)
+            indices_2d = _op.reshape(indices, (-1, offsets_diff[0]))
+            reduce_op = mode_map[mode]
+            gather = _op.take(weights, indices_2d, axis=0) * per_sample_weights
+            reduced = reduce_op(gather, 1)
+            # pytorch/aten/src/ATen/native/EmbeddingBag.cpp shows that aten::embedding_bag returns
+            # 4 outputs: output, offset2bag, bag_size, max_indices
+            # The Python version of the op only returns the first output, so we also support only the
+            # first output. If the model uses other outputs, the conversion would fail.
+            return reduced, None, None, None
+
+        padding_idx = -1 if padding_idx is None else padding_idx
+        return _op.embedding_bag(
+            indices,
+            weights,
+            offsets_1d,
+            mode,
+            padding_idx,
+            per_sample_weights,
+            include_last_offset,
+        )
+
     def one_hot(self, inputs, input_types):
         indices = inputs[0].astype("int32")
         num_classes = inputs[1]
@@ -2685,7 +2761,7 @@ class PyTorchOpConverter:
         )
 
     def numel(self, inputs, input_types):
-        return _op.ndarray_size(inputs[0])
+        return fold_constant(_op.ndarray_size(inputs[0]))
 
     def empty(self, inputs, input_types):
         shape = []
@@ -3916,6 +3992,7 @@ class PyTorchOpConverter:
             "aten::Float": self.Float,
             "aten::rsub": self.rsub,
             "aten::embedding": self.embedding,
+            "aten::embedding_bag": self.embedding_bag,
             "aten::one_hot": self.one_hot,
             "aten::mm": self.matmul,
             "aten::add": self.add,
@@ -4262,7 +4339,14 @@ class PyTorchOpConverter:
                     out_names = _get_output_names(op_node)
                     outputs.update(zip(out_names, relay_out))
                 else:
-                    assert op_node.outputsSize() == 1
+                    if operator == "aten::embedding_bag":
+                        # The node_name of embedding_bag is like "22_23_24_25"
+                        embedding_bag_outputs = node_name.split("_")
+                        if len(embedding_bag_outputs) != 4:
+                            embedding_bag_outputs = node_name.rsplit("_", 3)
+                        # Warning: only return the first output of embedding_bag
+                        # There will be side effects if other outputs are used
+                        node_name = embedding_bag_outputs[0]
                     outputs[node_name] = relay_out
 
             self.current_op.pop()
