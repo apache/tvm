@@ -726,7 +726,7 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
 }
 
 /*!
- * \brief Calcluate the output shape of strided_slice, the entry point for Relay type relation
+ * \brief Calculate the output shape of strided_slice, the entry point for Relay type relation
  *
  * \param ishape The input tensor shape
  * \param begin The indices to begin with in the slicing
@@ -1800,7 +1800,7 @@ inline Tensor ndarray_size(const Tensor& src, const DataType& dtype,
 }
 
 /*!
- * \brief Returns a one-hot tensor where the locations repsented by indices take value on_value,
+ * \brief Returns a one-hot tensor where the locations represented by indices take value on_value,
     other locations take value off_value.
  * \param indices locations to set to on_value.
  * \param on_value value that locations represented by indices take on.
@@ -2017,6 +2017,70 @@ inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
       },
       name, tag);
 }
+
+/*!
+ * \brief Returns the sums, means or maxes of bags of embeddings
+ * \param input 1-d tensor of indics.
+ * \param weight the 2-d lookup table.
+ * \param offset the starting index position of each bag.
+ * \param mode  the way (`sum`, `mean` or `max`) to reduce the bag.
+ * \param per_sample_weights the weights for every input.
+ * \param padding_idx the index of padding_idx is not contributed to the result.
+ * \param include_last_offset if the last element of offset array is included.
+ * \param dtype the type of result.
+ * \param name output tensor name.
+ * \param tag output tensor tag.
+ * \return The embedded tensor.
+ */
+inline Tensor embedding_bag(const Tensor& input, const Tensor& weight, const Tensor& offset,
+                            int mode, const Tensor& per_sample_weights, Integer padding_idx,
+                            bool include_last_offset, DataType dtype,
+                            const std::string name = "T_embedding_bag",
+                            const std::string tag = kInjective) {
+  auto row = offset->shape[0];
+  auto column = weight->shape[1];
+
+  int N = GetConstInt(input->shape[0]);
+  if (include_last_offset) {
+    row = row - 1;
+  }
+
+  Array<PrimExpr> oshape{row, column};
+
+  auto func = [&](tvm::tir::Var i, tvm::tir::Var j) {
+    auto ret = make_zero(dtype);
+    auto count = make_zero(dtype);  // count how many elements are used
+
+    auto st = offset(i);  // start point
+    auto ed = tvm::tir::Select(row == i + 1, PrimExpr(N),
+                               cast(DataType::Int(32), offset(i + 1)));  // end point
+
+    // Use loop iteration here for the lack of `fold` in relay
+    for (auto idx = 0; idx < N; idx++) {
+      auto real_idx = st + idx;
+      auto idx_i = input(real_idx);
+      auto cond = (real_idx < ed) && (idx_i != padding_idx);
+      auto element = weight[idx_i][j] * per_sample_weights[real_idx];
+      if (mode == 0) {  // sum(0)
+        ret = tvm::tir::Select(cond, ret + element, ret);
+      } else if (mode == 1) {  // mean(1)
+        count = tvm::tir::Select(cond, count + 1, count);
+        ret = tvm::tir::Select(cond, ret + element, ret);
+      } else {  // max(2)
+        auto on_true = tvm::tir::Select(count == 0, element, max(ret, element));
+        ret = tvm::tir::Select(cond, on_true, ret);
+        count = tvm::tir::Select(cond, count + 1, count);
+      }
+    }
+    if (mode == 1) {  // mean
+      ret = tvm::topi::divide(ret, count);
+    }
+
+    return ret;
+  };
+
+  return compute(oshape, func, name, tag);
+}  // namespace topi
 
 }  // namespace topi
 }  // namespace tvm
