@@ -229,6 +229,9 @@ def alter_requantize_layout(attrs, inputs, _tinfos, _out_type):
     if not (current_target.features.has_dsp and "cortex-m" in current_target.mcpu):
         return None
 
+    if not prev_ops_match(inputs[0], ("add", "qnn.conv2d")):
+        return None
+
     _, in_scale, _, out_scale, _ = inputs
     in_scale_numpy = in_scale.data.numpy().astype("float64")
     out_scale_scalar = out_scale.data.numpy().item()

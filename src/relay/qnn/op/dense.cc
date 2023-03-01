@@ -242,7 +242,7 @@ RELAY_REGISTER_OP("qnn.dense")
                   "The quantization zero_point of the weight tensor.")
     .set_support_level(11)
     .add_type_rel("QDense", QnnDenseRel)
-//    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", QnnDenseInferCorrectLayout)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", QnnDenseInferCorrectLayout)
     .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnDenseCanonicalize)
     .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable);
