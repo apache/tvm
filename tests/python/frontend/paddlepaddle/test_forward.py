@@ -1779,8 +1779,8 @@ def test_forward_where():
     @paddle.jit.to_static
     def where_1(condition, x, y):
         return paddle.sin(condition, x, y)
-    
-    condition_data = paddle.to_tensor([[1, 0, 0], [0, 1, 0], [1, 1, 0]]).astpye('bool')
+
+    condition_data = paddle.to_tensor([[1, 0, 0], [0, 1, 0], [1, 1, 0]]).astpye("bool")
     x_data = paddle.ones((3, 3)).astype("float32")
     y_data = paddle.zeros((3, 3)).astype("float32")
     verify_model(where_1, input_data=[condition_data, x_data, y_data], use_vm=True)
@@ -1794,7 +1794,6 @@ def test_forward_where_index():
 
     input_data = paddle.to_tensor([[1.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 3.0]])
     verify_model(where_index_1, input_data=input_data, use_vm=True)
-
 
 
 if __name__ == "__main__":
