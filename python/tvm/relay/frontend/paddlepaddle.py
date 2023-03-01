@@ -1794,6 +1794,12 @@ def convert_size(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_silu(g, op, block):
+    x = g.get_node(op.input("X")[0])
+    out = x * _op.tensor.sigmoid(x)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_slice(g, op, block):
     """Operator converter for slice."""
 
@@ -2025,6 +2031,14 @@ def convert_swish(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_sum(g, op, block):
+    x = g.get_node(op.input("X")[0])
+    axis = op.attr("axis")
+    keepdims = op.attr("keepdims")
+    out = _op.sum(x, axis, keepdims=keepdims)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_topk(g, op, block):
     """Operator converter for topk."""
 
@@ -2204,6 +2218,7 @@ _convert_map = {
     "sin": convert_unary_op,
     "sinh": convert_unary_op,
     "size": convert_size,
+    "silu": convert_silu,
     "slice": convert_slice,
     "softmax": convert_softmax,
     "softplus": convert_softplus,
@@ -2214,6 +2229,7 @@ _convert_map = {
     "square": convert_square,
     "squeeze2": convert_squeeze,
     "swish": convert_swish,
+    "sum": convert_sum,
     "tan": convert_unary_op,
     "tanh": convert_unary_op,
     "top_k_v2": convert_topk,

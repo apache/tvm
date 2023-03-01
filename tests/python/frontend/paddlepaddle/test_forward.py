@@ -1784,5 +1784,27 @@ def test_forward_where_index():
     verify_model(where_index_1, input_data=input_data, use_vm=True)
 
 
+@tvm.testing.uses_gpu
+def test_forward_sum():
+    @paddle.jit.to_static
+    def sum_1(x, axis, keepdims):
+        return paddle.sum(x, axis=1, keepdims=true)
+    
+    x = paddle.to_tensor([[0.2, 0.3, 0.5, 0.9],
+                        [0.1, 0.2, 0.6, 0.7]]).astype("float32")
+    
+    verify_model(sum_1, input_data=[x])
+
+
+@tvm.testing.uses_gpu
+def test_forward_silu():
+    @paddle.jit.to_static
+    def silu_1(x):
+        return paddle.nn.functional.silu(x)
+    
+    x = paddle.to_tensor([1.0, 2.0, 3.0, 4.0]).astype("float32")
+    verify_model(silu_1, input_data=[x])
+
+
 if __name__ == "__main__":
     tvm.testing.main()
