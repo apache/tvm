@@ -1603,7 +1603,7 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
   return result_block_sref;
 }
 
-/*! \brief A visitor that collects variables appeared in expressions, stored in touched filed.*/
+/*! \brief A visitor that collects variables appeared in expressions, stored in `touched` field.*/
 class VarCollector : public ExprVisitor {
  public:
   VarCollector() {}
