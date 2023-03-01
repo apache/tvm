@@ -19,30 +19,9 @@ import numpy as np
 import tvm
 import tvm.testing
 
-from tvm import relax, relay
+from tvm import relax
 from tvm.script import relax as R
 from tvm.relax.dpl import make_fused_bias_activation_pattern, is_op, wildcard
-
-
-def get_relay_residual_block(d_shape, w_shape):
-    data = relay.var("data", shape=d_shape)
-    weight1 = relay.var("weight1", shape=w_shape)
-    weight2 = relay.var("weight2", shape=w_shape)
-    conv1 = relay.nn.relu(
-        relay.nn.conv2d(
-            data=data,
-            weight=weight1,
-            padding=(1, 1),
-        )
-    )
-    conv2d = relay.nn.relu(
-        relay.nn.conv2d(
-            data=conv1,
-            weight=weight2,
-            padding=(1, 1),
-        )
-    )
-    return conv2d + data
 
 
 @tvm.script.ir_module
@@ -72,6 +51,18 @@ tensorrt_enabled = pytest.mark.skipif(
 pytestmark = [tensorrt_enabled]
 
 
+def build_and_run(mod, inputs_np, target, legalize=False):
+    if legalize:
+        mod = relax.transform.LegalizeOps()(mod)
+
+    dev = tvm.device(target, 0)
+    ex = relax.build(mod, target)
+    vm = relax.VirtualMachine(ex, dev)
+    f = vm["main"]
+    inputs = [tvm.nd.array(inp, dev) for inp in inputs_np]
+    return f(*inputs).numpy()
+
+
 def test_tensorrt_offload():
     weight1_np = np.random.randn(64, 64, 3, 3).astype("float32")
     weight2_np = np.random.randn(64, 64, 3, 3).astype("float32")
@@ -99,22 +90,11 @@ def test_tensorrt_offload():
         ]
     )(Conv2dResidualBlock)
 
-    target = "cuda"
-    dev = tvm.device(target, 0)
-    ex = relax.build(mod, target)
-
-    vm = relax.VirtualMachine(ex, dev)
-    f = vm["main"]
-
     data_np = np.random.randn(1, 64, 56, 56).astype("float32")
-    out = f(tvm.nd.array(data_np, dev)).numpy()
 
-    relay_mod = tvm.IRModule.from_expr(get_relay_residual_block(data_np.shape, weight1_np.shape))
-
-    ref = (
-        relay.create_executor("graph", mod=relay_mod, device=tvm.cpu(0), target="llvm")
-        .evaluate()(*[data_np, weight1_np, weight2_np])
-        .numpy()
+    out = build_and_run(mod, [data_np], "cuda")
+    ref = build_and_run(
+        Conv2dResidualBlock, [data_np, weight1_np, weight2_np], "llvm", legalize=True
     )
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
