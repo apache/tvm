@@ -480,11 +480,9 @@ def test_call_tir():
 
 
 def test_operators():
-    # the operator attributes need to be registered to work in the printer
-
     @R.function
     def foo(x: R.Tensor):
-        return R.unique(x, sorted=True)
+        return R.unique(x, sorted=True, axis=-1)
 
     foo_str = strip_whitespace(
         dump_ast(
@@ -493,12 +491,11 @@ def test_operators():
             include_struct_info_annotations=False,
         )
     )
-    # checking that the attributes are present
-    assert '"sorted":1' in foo_str
-    assert '"return_index"' in foo_str
-    assert '"return_inverse"' in foo_str
-    assert '"return_counts"' in foo_str
-    assert '"axis"' in foo_str
+    assert 'Op(name="relax.unique")' in foo_str
+    # the sorted argument is true, so it will be a PrimValue of 1
+    assert "PrimExpr(value=`T.int64(1)`)" in foo_str
+    # axis is -1
+    assert "PrimExpr(value=`T.int64(-1)`)" in foo_str
 
     @R.function
     def bar(x: R.Tensor):
@@ -511,8 +508,8 @@ def test_operators():
             include_struct_info_annotations=False,
         )
     )
-    print_attrs_str = strip_whitespace('{"format": "{}"}')
-    assert print_attrs_str in bar_str
+    # the format string is a StringImm argument
+    assert 'StringImm(value="{}")' in bar_str
 
 
 def test_print_struct_info_annotation_non_var():
