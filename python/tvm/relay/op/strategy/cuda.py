@@ -1408,7 +1408,6 @@ def layout_transform_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
-# "meta_schedule.cuda.layout_transform"
 import tvm
 
 @tvm.register_func("meta_schedule.cuda.layout_transform")
@@ -1551,11 +1550,11 @@ def cuda_layout_transform_schedule_rule(sch, block):
         ):
             """TODO"""
             for i in indices:
-                if work_needed_inner_loop == 1:
-                    break
                 loops, cur_loop_extants, work_needed_inner_loop = spin_out_factor(
                     loops, cur_loop_extants, i, work_needed_inner_loop
                 )
+                if work_needed_inner_loop == 1:
+                    break
             return loops, cur_loop_extants
 
         def get_high_level_loop_structure(block):
@@ -1654,6 +1653,16 @@ def cuda_layout_transform_schedule_rule(sch, block):
         sch.bind(loop=inner_write_loop, thread_axis="threadIdx.x")
         sch.bind(loop=inner_read_loop, thread_axis="threadIdx.x")
 
-    # tile_size = sch.sample_categorical([8, 16, 32, 64], [0.25] * 4)
-    schedule_layout_transform_v4(sch, src_layout, dst_layout, input_shape, 32)
-    return [sch]
+    schedules = []
+
+    # Tile size 2,3,4...64
+    # Tile size of 1 does not make sense...
+    for tile_size in range(2, 65):
+        cur_sch = sch.copy()
+        schedule_layout_transform_v4(cur_sch, src_layout, dst_layout, input_shape, tile_size)
+        schedules.append(cur_sch)
+
+    # Also include the default schedules which will be handled via AutoBind schedule rule
+    schedules.append(sch)
+
+    return schedules
