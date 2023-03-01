@@ -190,6 +190,10 @@ def test_module_with_attr_and_global_info():
         I.module_attrs({"attr": 10})
         I.module_global_infos(
             {
+                "dummy": [
+                    I.dummy_global_info(),  # dummy[0]
+                    I.dummy_global_info(),  # dummy[1]
+                ],
                 "return_exprs": [
                     I.return_global_info(
                         [
@@ -201,7 +205,7 @@ def test_module_with_attr_and_global_info():
                             R.prim_value(2),
                         ]
                     ),  # dummy[1]
-                ]
+                ],
             }
         )
 
@@ -1183,7 +1187,7 @@ def test_control_flow():
                 return R.add(x, x)
             else:
                 return R.multiply(x, x)
-            return x
+            return R.subtract(x, x)
 
     ControlFlowExample.show()
     print("yongwww get_global_info:")
@@ -1193,5 +1197,6 @@ def test_control_flow():
 
 if __name__ == "__main__":
     # tvm.testing.main()
+    # test_module_with_attr_and_global_info()
     # test_module_with_attr_and_global_info()
     test_control_flow()

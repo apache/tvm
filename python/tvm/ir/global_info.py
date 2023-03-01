@@ -50,6 +50,7 @@ class ReturnGlobalInfo(GlobalInfo):
 
     def __init__(self, return_exprs: List[Expr]) -> None:
         print("yes entering ReturnGlobalInfo in global_info.py, return_exprs: ", return_exprs)
+        self.return_exprs = return_exprs
         self.__init_handle_by_constructor__(_ffi_api.ReturnGlobalInfo, return_exprs)
 
     def add():

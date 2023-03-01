@@ -19,8 +19,10 @@
 #ifndef TVM_SCRIPT_PRINTER_IR_DOCSIFIER_H_
 #define TVM_SCRIPT_PRINTER_IR_DOCSIFIER_H_
 
+#include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/node.h>
+#include <tvm/relax/expr.h>
 #include <tvm/script/printer/doc.h>
 #include <tvm/script/printer/ir_docsifier_functor.h>
 
@@ -143,8 +145,12 @@ class IRDocsifierNode : public Object {
   Array<String> dispatch_tokens;
   /*! \brief Mapping from a var to its info */
   std::unordered_map<ObjectRef, VariableInfo, ObjectPtrHash, ObjectPtrEqual> obj2info;
+  /*! \brief A binding table that maps var to value. */
+  std::unordered_map<relax::Id, RelayExpr, ObjectPtrHash, ObjectPtrEqual> binding_table_;
   /*! \brief Metadata printing */
   std::unordered_map<String, Array<ObjectRef>> metadata;
+  /*! \brief Return exprs used to help tell whether or not an expr is a return*/
+  std::unordered_set<RelayExpr, ObjectPtrHash, ObjectPtrEqual> return_exprs;
   /*! \brief The variable names used already */
   std::unordered_set<String> defined_names;
   /*! \brief Common prefixes of variable usages */
@@ -206,6 +212,11 @@ class IRDocsifierNode : public Object {
   Optional<ExprDoc> GetVarDoc(const ObjectRef& obj) const;
   /*! \brief Add a TVM object to the metadata section*/
   ExprDoc AddMetadata(const ObjectRef& obj);
+
+  Optional<RelayExpr> LookupBinding(const relax::Var& var);
+
+  void AddReturnExpr(const RelayExpr& ret_expr);
+
   /*!
    * \brief Check if a variable exists in the table.
    * \param obj The variable object.

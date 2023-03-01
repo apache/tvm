@@ -30,7 +30,12 @@ from ...ir_builder import ir as I
 from ...ir_builder import relax as R
 from ...ir_builder.base import IRBuilder
 from .._core import Parser, dispatch, doc
+from ..core.parser import VarTable as return_var_table
 from .entry import MatchCastPair, StructInfoProxy, TupleProxy
+
+
+# An global list to record all exprs to return
+return_expr_list = []
 
 
 def bind_assign_value(
@@ -232,7 +237,7 @@ def pre_token_switch(self: Parser, node: doc.Expr) -> None:  # pylint: disable=u
 
 @dispatch.register(token="relax", type_name="post_token_switch")
 def post_token_switch(self: Parser, node: doc.Expr) -> None:
-    print("it could be the last one")
+    print("Entering post_token_switch")
     ir_builder = IRBuilder.current()
     result = ir_builder.get()
     ir_builder.__exit__(None, None, None)
@@ -327,12 +332,16 @@ def visit_return(self: Parser, node: doc.Assign) -> None:
     issue 1): Save all values into a global list, and add into global_info in the end of parsing  -> Status: wip
           => we can just have a single api like add_return_global_info into the ReturnGlobalInfo,
              Solution: 
-               o1: create one if no ReturnGlobalInfo found, therefore we can avoid saving values when parsing
+            [x]o1: Save all return values in a global list, and assembly it in the end of parsing,
+                   don't allow user to provide it. Ignore if it exists
                o2: Create an IRModuleNode::GetGlobalInfo(String name), plus UpdateGlobalInfo should help do the modification
                    But how to expose it to parser? doesn't work, hard to expose to ir_builder
-            [x]o3: add ModuleGetGlobalInfos and ModuleUpdateGlobalInfos in src/script/ir_builder/ir/ir.cc
+               o3: add ModuleGetGlobalInfos and ModuleUpdateGlobalInfos in src/script/ir_builder/ir/ir.cc
                    and python/tvm/script/ir_builder/ir/ir.py
-                   how to reassembly the ReturnGlobalInfo and make sure just only one in the ir_module
+                   how to reassembly the ReturnGlobalInfo is a problem, before the fetch returnGlobalInfo is a runtime.Object
+                   seems there is no way to update it, so give up o3
+
+                   Solution: expose get elements of ReturnGlobalInfo into IR-builder
 
 
     issue 2): global issue was required explicitly at the beggining of the ir_module,
@@ -351,22 +360,17 @@ def visit_return(self: Parser, node: doc.Assign) -> None:
            into Function, and the IR is affected, then prefer option 1)
         So, I decided to move forward with GlobalInfo, because it is already there.
     """
-    ginfo = I.module_get_global_infos()
-    print("the current global info: ", ginfo)
-    # ReturnGlobalInfo exists, append a new value
-    from tvm.ir.container import Array, Map
-    from tvm.ir.global_info import ReturnGlobalInfo
 
-    ret_ginfo = I.return_global_info([value])
-    if "return_exprs" in ginfo:
-        r_ginfos = []
-        for rginfo in ginfo["return_exprs"]:
-            r_ginfos.append(rginfo)
-        r_ginfos.append(ret_ginfo)
-        ginfo["return_exprs"] = r_ginfos
-    else:
-        ginfo["return_exprs"] = [ret_ginfo]
-    I.module_update_global_infos(ginfo)
+    return_expr_list.append(value)
+    print("Entering return visit")
+    # use var_table to record the return exprs
+    ginfos = I.module_get_global_infos()
+    print("the current global info: ", ginfos)
+    ret_ginfo = I.return_global_info(return_expr_list)
+    # str "relax_return_exprs" was reserved as key for return exprs in global_info
+    ginfos["return_exprs"] = [ret_ginfo]
+    I.module_update_global_infos(ginfos)
+
     R.ret_value(value)  # TODO(yongwww): probably we can remove R.ret_value as well
 
 

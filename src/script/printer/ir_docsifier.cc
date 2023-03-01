@@ -63,6 +63,14 @@ ExprDoc IRDocsifierNode::AddMetadata(const ObjectRef& obj) {
       [{LiteralDoc::Int(index, NullOpt)}];
 }
 
+void IRDocsifierNode::AddReturnExpr(const RelayExpr& ret_expr) { return_exprs.insert(ret_expr); }
+
+Optional<RelayExpr> IRDocsifierNode::LookupBinding(const relax::Var& var) {
+  auto it = binding_table_.find(var->vid);
+  if (it == binding_table_.end()) return NullOpt;
+  return it->second;
+}
+
 bool IRDocsifierNode::IsVarDefined(const ObjectRef& obj) const { return obj2info.count(obj); }
 
 void IRDocsifierNode::RemoveVar(const ObjectRef& obj) {

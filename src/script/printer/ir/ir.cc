@@ -104,14 +104,20 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<ReturnGlobalInfo>(
-        "", [](ReturnGlobalInfo rginfo, ObjectPath p, IRDocsifier d) -> Doc {
-          Array<ExprDoc> return_exprs;
-          for (const auto& ret_expr : rginfo->return_exprs) {
-            return_exprs.push_back(d->AsDoc<ExprDoc>(ret_expr, p->Attr("return_exprs")));
-          }
-          return IR(d, "return_global_info")->Call({ListDoc(return_exprs)});
-        });
+    .set_dispatch<ReturnGlobalInfo>("",
+                                    [](ReturnGlobalInfo rginfo, ObjectPath p,
+                                       IRDocsifier d) -> Doc {
+                                      Array<ExprDoc> return_exprs;
+                                      for (const auto& ret_expr : rginfo->return_exprs) {
+                                        d->AddReturnExpr(ret_expr);
+                                        // return_exprs.push_back(d->AsDoc<ExprDoc>(ret_expr,
+                                        // p->Attr("return_exprs")));
+                                      }
+                                      // return IR(d,
+                                      // "return_global_info")->Call({ListDoc(return_exprs)});
+
+                                      return IR(d, "return_global_info")->Call({});
+                                    });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<DummyGlobalInfo>("", [](GlobalInfo ginfo, ObjectPath p, IRDocsifier d) -> Doc {

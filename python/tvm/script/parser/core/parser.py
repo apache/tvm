@@ -683,5 +683,4 @@ class Parser(doc.NodeVisitor):
         res : Any
             The visiting result.
         """
-        print("yes visiting return, value: ", node.value)
         return _dispatch(self, "Return")(self, node)
