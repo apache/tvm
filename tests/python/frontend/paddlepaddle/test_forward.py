@@ -1789,7 +1789,7 @@ def test_forward_tile():
     class Tile1(nn.Layer):
         @paddle.jit.to_static
         def forward(self, inputs):
-            return paddle.tile(inputs, repeat_times=[10], name="test1")
+            return paddle.tile(inputs, repeat_times=[10])
 
     class Tile2(nn.Layer):
         @paddle.jit.to_static
@@ -1799,12 +1799,25 @@ def test_forward_tile():
     class Tile3(nn.Layer):
         @paddle.jit.to_static
         def forward(self, inputs):
-            return paddle.tile(inputs, repeat_times=[1, 2, 3], name="test3")
+            return paddle.tile(inputs, repeat_times=[1, 2, 3])
 
     class Tile4(nn.Layer):
         @paddle.jit.to_static
         def forward(self, inputs):
             return paddle.tile(inputs, repeat_times=[2, 3, 4, 1, 5])
+
+    class Tile5(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            reps = paddle.to_tensor([3, 2])
+            return paddle.tile(inputs, repeat_times=reps)
+
+    class Tile6(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            rep_0 = paddle.to_tensor([3])
+            rep_1 = paddle.to_tensor([2])
+            return paddle.tile(inputs, repeat_times=[rep_0, rep_1])
 
     input_shapes = [
         [10],
@@ -1816,6 +1829,11 @@ def test_forward_tile():
     for input_shape in input_shapes:
         input_data = paddle.randn(shape=input_shape, dtype="float32")
         verify_model(Tile1(), input_data=input_data)
+        verify_model(Tile2(), input_data=input_data)
+        verify_model(Tile3(), input_data=input_data)
+        verify_model(Tile4(), input_data=input_data)
+        verify_model(Tile5(), input_data=input_data)
+        verify_model(Tile6(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
