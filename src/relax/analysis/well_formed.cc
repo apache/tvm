@@ -225,6 +225,12 @@ class WellFormedChecker : public relax::ExprVisitor,
       }
       param_var_func_map_.insert({param, GetRef<Function>(op)});
     }
+    // check function ret_struct_info
+    if (op->ret_struct_info.defined()) {
+      this->VisitStructInfo(op->ret_struct_info);
+    } else {
+      Malformed(Diagnostic::Error(op) << "Function must have defined ret_struct_info");
+    }
 
     if (auto seq = op->body.as<SeqExprNode>()) {
       this->VisitSeqExpr(seq);
