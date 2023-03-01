@@ -71,9 +71,13 @@ def add_compile_parser(subparsers, main_parser, json_params, argv):
     disposable_parser = TVMCSuppressedArgumentParser(main_parser)
     try:
         known_args, _ = disposable_parser.parse_known_args(argv)
-        _handle_extensions(known_args.experimental_tvm_extension)
     except TVMCException:
         pass
+    try:
+        ext_dirs = known_args.experimental_tvm_extension
+    except AttributeError:
+        ext_dirs = []
+    _handle_extensions(ext_dirs)
 
     parser.add_argument(
         "--cross-compiler",
