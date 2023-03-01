@@ -225,6 +225,7 @@ TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
  * of priority in which they are matched. Higher-priority patterns should come earlier in the list.
  * \param checks The callback functions with type (Map<DFPattern, Expr>, Expr) -> bool. It takes a
  * match result and returns a boolean value to indicate whether the match result is accepted.
+ * \param bind_constants Whether or not to keep bound constants of the grouped function.
  * \param annotate_codegen If true, wrap each created composite function with another function,
  * whose body consists only of a call to the composite function, and annotate the outer function
  * with kCodegen and kGlobalSymbol attributes. The kCodegen attribute is set as the prefix of the
@@ -235,7 +236,8 @@ TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
  */
 TVM_DLL Pass FuseOpsByPattern(const tvm::Array<runtime::String>& pattern_names,
                               const tvm::Array<DFPattern>& patterns,
-                              const tvm::Array<PackedFunc>& checks, bool annotate_codegen = false);
+                              const tvm::Array<PackedFunc>& checks, bool bind_constants = true,
+                              bool annotate_codegen = false);
 
 /*!
  * \brief Group one or multiple composite functions created by FuseOpsByPattern into a new
