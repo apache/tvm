@@ -907,10 +907,23 @@ def test_forward_tile():
     def tile2(inputs):
         return paddle.tile(inputs, [1, 2, 3, 4])
 
+    @paddle.jit.to_static
+    def tile3(inputs):
+        repeat_times = paddle.to_tensor([1, 2, 3, 4, 5], dtype="int32")
+        return paddle.tile(inputs, repeat_times)
+
+    @paddle.jit.to_static
+    def tile4(inputs):
+        x1 = paddle.to_tensor([1], dtype="int32")
+        x2 = paddle.to_tensor([2], dtype="int32")
+        return paddle.tile(inputs, [x1, x2])
+
     input_shape = [1, 3, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(tile1, input_data=input_data)
     verify_model(tile2, input_data=input_data)
+    verify_model(tile3, input_data=input_data)
+    verify_model(tile4, input_data=input_data)
 
 
 @tvm.testing.uses_gpu
