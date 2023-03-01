@@ -1839,9 +1839,13 @@ def test_forward_tile():
 @tvm.testing.uses_gpu
 def test_forward_mish():
     class Mish(nn.Layer):
+        def __init__(self, alpha=1.0, beta=1.0):
+            super(Mish, self).__init__()
+            self.mish = paddle.nn.Mish()
+
         @paddle.jit.to_static
         def forward(self, inputs):
-            return nn.functional.mish(inputs)
+            return self.mish(inputs)
 
     input_shapes = [[10], [2, 3], [5, 10, 11], [3, 4, 5, 6]]
     for input_shape in input_shapes:

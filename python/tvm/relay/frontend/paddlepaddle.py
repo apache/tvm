@@ -117,7 +117,7 @@ def convert_tile(g, op, block):
     elif op.input("repeat_times_tensor"):
         reps = []
         for rep_value in op.input("repeat_times_tensor"):
-            rep_value = g.get_node(rep_value).astype("int64")
+            rep_value = g.get_node(rep_value).astype("int32")
             reps.append(rep_value)
         reps = _op.concatenate(reps, axis=0)
         reps, infered = try_infer_value(reps, g.get_params())
