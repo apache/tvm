@@ -1631,6 +1631,38 @@ def test_forward_mv():
 
 
 @tvm.testing.uses_gpu
+def test_forward_mish():
+    class Mish(nn.Layer):
+        def forward(self, input):
+            return paddle.nn.functional.mish(input)
+
+    input_data = paddle.randn((3, 4), dtype="float32")
+    verify_model(Mish(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_unstack():
+    @paddle.jit.to_static
+    def unstack1(x):
+        return paddle.unstack(x)
+
+    def unstack2(x):
+        return paddle.unstack(x, axis=1)
+
+    def unstack3(x):
+        return paddle.unstack(x, axis=1, num=2)
+
+    def unstack4(x):
+        return paddle.unstack(x, axis=-1)
+
+    input_data = paddle.randn((3, 4), dtype="float32")
+    verify_model(unstack1, input_data=input_data)
+    verify_model(unstack2, input_data=input_data)
+    verify_model(unstack3, input_data=input_data)
+    verify_model(unstack4, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_pixel_shuffle():
     class PixelShuffle(nn.Layer):
         def __init__(self, upscale_factor):

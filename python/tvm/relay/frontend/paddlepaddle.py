@@ -1141,6 +1141,17 @@ def convert_mv(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_mish(g, op, block):
+    """Operator converter for mish."""
+    x = g.get_node(op.input("X")[0])
+    exp = _op.exp(x)
+    add = _op.add(exp, _op.const(1.0))
+    log = _op.log(add)
+    tanh = _op.tanh(log)
+    out = _op.multiply(x, tanh)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_norm(g, op, block):
     """Operator converter for norm."""
 
@@ -2074,6 +2085,19 @@ def convert_unsqueeze(g, op, block):
     g.add_node(op.output("Out")[0], x)
 
 
+def convert_unstack(g, op, block):
+    """Operator converter for unstack."""
+
+    x = g.get_node(op.input("X")[0])
+    axis = op.attr("axis")
+    if axis < 0:
+        axis += len(x.shape)
+    num = op.attr("num")
+    outs = _op.split(x, indices_or_sections=num, axis=axis)
+    for i, out in enumerate(outs):
+        g.add_node(op.output("Out")[i], out)
+
+
 def convert_where_index(g, op, block):
     """Operator converter for where_index."""
 
@@ -2168,6 +2192,7 @@ _convert_map = {
     "meshgrid": convert_meshgrid,
     "mul": convert_mul,
     "mv": convert_mv,
+    "mish": convert_mish,
     "nearest_interp_v2": convert_interpolate,
     "norm": convert_norm,
     "not_equal": convert_elementwise_op,
@@ -2219,6 +2244,7 @@ _convert_map = {
     "top_k_v2": convert_topk,
     "transpose2": convert_transpose,
     "unsqueeze2": convert_unsqueeze,
+    "unstack": convert_unstack,
     "where_index": convert_where_index,
 }
 
