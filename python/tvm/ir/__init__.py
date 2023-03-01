@@ -34,7 +34,7 @@ from .base import (
 from .container import Array, Map
 from .expr import BaseExpr, GlobalVar, PrimExpr, Range, RelayExpr
 from .function import BaseFunc, CallingConv
-from .global_info import GlobalInfo, ReturnGlobalInfo, DummyGlobalInfo
+from .global_info import GlobalInfo, RelaxReturnGlobalInfo, DummyGlobalInfo
 from .memory_pools import (
     ConstantMemoryPools,
     ConstantPoolInfo,

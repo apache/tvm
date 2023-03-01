@@ -22,7 +22,7 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import IRModule, relax, tir, topi
-from tvm.ir import ReturnGlobalInfo, DummyGlobalInfo
+from tvm.ir import RelaxReturnGlobalInfo, DummyGlobalInfo
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tir as T
@@ -193,19 +193,7 @@ def test_module_with_attr_and_global_info():
                 "dummy": [
                     I.dummy_global_info(),  # dummy[0]
                     I.dummy_global_info(),  # dummy[1]
-                ],
-                "return_exprs": [
-                    I.return_global_info(
-                        [
-                            R.prim_value(1),
-                        ]
-                    ),  # dummy[0]
-                    I.return_global_info(
-                        [
-                            R.prim_value(2),
-                        ]
-                    ),  # dummy[1]
-                ],
+                ]
             }
         )
 
@@ -226,7 +214,6 @@ def test_module_with_attr_and_global_info():
             gv0 = R.call_tir(tir_func, x, R.Tensor((128, 128), dtype="float32"))
             return gv0
 
-    TestModule.show()
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
@@ -234,8 +221,11 @@ def test_module_with_attr_and_global_info():
         bb.emit_func_output(out)
     mod = bb.get()
     mod.update_global_info("dummy", [DummyGlobalInfo(), DummyGlobalInfo()])
+    mod.update_global_info("relax_return_exprs", [RelaxReturnGlobalInfo([mod["foo"].body.body])])
     mod = mod.with_attr("attr", tvm.tir.IntImm("int32", 10))
-    _check(TestModule, mod)
+    roundtrip_mod = tvm.script.from_source(TestModule.script(show_meta=True))
+    tvm.ir.assert_structural_equal(TestModule, roundtrip_mod, True)
+    tvm.ir.assert_structural_equal(TestModule, mod, True)
 
 
 def test_relax_tensor_op():
@@ -1175,11 +1165,11 @@ def test_class_normalize():
     _check(InputModule, OutputModule)
 
 
-def test_control_flow():
+def test_multi_return():
     @tvm.script.ir_module
-    class ControlFlowExample:
-        I.module_global_infos({"return_exprs": []})
-
+    class MultiReturn:
+        """
+        # foo was supported due to the body of SeqExpr of function is required
         @R.function
         def foo(x: R.Tensor) -> R.Tensor:
             y: R.Tensor((), dtype="bool") = R.const(True, dtype="bool")
@@ -1187,16 +1177,53 @@ def test_control_flow():
                 return R.add(x, x)
             else:
                 return R.multiply(x, x)
+
+        # noelse don't work. Main reason is SeqExpr is required
+        # in false branch relax.If
+        @R.function
+        def noelse(x: R.Tensor) -> R.Tensor:
+            y: R.Tensor((), dtype="bool") = R.const(True, dtype="bool")
+            if y:
+                return R.add(x, x)
+            return R.subtract(x, x)
+        """
+
+        @R.function
+        def foo0(x: R.Tensor) -> R.Tensor:
+            y: R.Tensor((), dtype="bool") = R.const(True, dtype="bool")
+            if y:
+                v = R.add(x, x)
+                return v
+            else:
+                v = R.multiply(x, x)
+            return v
+
+        @R.function
+        def foo1(x: R.Tensor) -> R.Tensor:
+            y: R.Tensor((), dtype="bool") = R.const(True, dtype="bool")
+            if y:
+                return R.add(x, x)
+            else:
+                return R.multiply(x, x)
             return R.subtract(x, x)
 
-    ControlFlowExample.show()
-    print("yongwww get_global_info:")
-    print(ControlFlowExample.get_global_info("return_exprs"))
-    print("yongwww get_global_info: done")
+        @R.function
+        def foo2(x: R.Tensor) -> R.Tensor:
+            y: R.Tensor((), dtype="bool") = R.const(True, dtype="bool")
+            if y:
+                v = R.add(x, x)
+            else:
+                return R.multiply(x, x)
+            return v
+
+    MultiReturn.show()
+    print("yongwww get_global_info:", MultiReturn.get_global_info("relax_return_exprs"))
+    _check(MultiReturn)
+    roundtrip_mod = tvm.script.from_source(MultiReturn.script(show_meta=True))
+    tvm.ir.assert_structural_equal(MultiReturn, roundtrip_mod, True)
 
 
 if __name__ == "__main__":
     # tvm.testing.main()
     # test_module_with_attr_and_global_info()
-    # test_module_with_attr_and_global_info()
-    test_control_flow()
+    test_multi_return()

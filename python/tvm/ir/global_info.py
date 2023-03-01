@@ -37,33 +37,20 @@ class GlobalInfo(Object):
         return super().__eq__(other)
 
 
-class ReturnGlobalInfo(GlobalInfo):
-    """ReturnGlobalInfo in the IR.
+class RelaxReturnGlobalInfo(GlobalInfo):
+    """RelaxReturnGlobalInfo in the IR.
 
     Parameters
     ----------
-    return_exprs : List[Expr]
+    relax_return_exprs : List[Expr]
         The expressions to be returned.
     """
 
-    return_exprs: List[Expr]
+    relax_return_exprs: List[Expr]
 
-    def __init__(self, return_exprs: List[Expr]) -> None:
-        print("yes entering ReturnGlobalInfo in global_info.py, return_exprs: ", return_exprs)
-        self.return_exprs = return_exprs
-        self.__init_handle_by_constructor__(_ffi_api.ReturnGlobalInfo, return_exprs)
-
-    def add():
-        pass
-
-    def update(return_exprs: List[Expr]):
-        pass
-
-    def get() -> GlobalInfo:
-        pass
-
-    def get_exprs(self):
-        return self.return_exprs
+    def __init__(self, relax_return_exprs: List[Expr]) -> None:
+        self.relax_return_exprs = relax_return_exprs
+        self.__init_handle_by_constructor__(_ffi_api.RelaxReturnGlobalInfo, relax_return_exprs)
 
 
 class DummyGlobalInfo(GlobalInfo):

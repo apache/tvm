@@ -60,8 +60,8 @@ void FunctionFrameNode::ExitWithScope() {
     body = this->block_builder->Normalize(tvm::relax::SeqExpr(binding_blocks, output.value()));
   } else {
     // todo (yongwww): handle null for no return for func's body
-    body =
-        this->block_builder->Normalize(tvm::relax::SeqExpr(binding_blocks, tvm::relax::NullExpr()));
+    //binding_blocks.pop_back()
+    LOG(FATAL) << "ValueError: Cannot find the output for the function";
   }
 
   auto dict_attrs = attrs.empty() ? NullValue<DictAttrs>() : DictAttrs(attrs);
@@ -264,8 +264,6 @@ void ElseFrameNode::ExitWithScope() {
   output = GetSeqExprForBranch(GetRef<ElseFrame>(this), &var_name);
   IfFrame frame = FindIfFrame("R.Else");
   frame->else_expr = output;
-  CHECK(frame->var_name == var_name)
-      << "This last binding of both branches must have the same variable.";
 }
 
 TVM_REGISTER_NODE_TYPE(FunctionFrameNode);

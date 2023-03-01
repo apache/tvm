@@ -70,10 +70,13 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
                             ->Call({d->AsDoc<ExprDoc>(mod->attrs, p->Attr("attrs"))})));
       }
       if (mod->global_infos.defined() && !mod->global_infos.empty()) {
-        // todo(yongwww): global return_exprs for printer
-        (*f)->stmts.push_back(ExprStmtDoc(
-            IR(d, "module_global_infos")  //
-                ->Call({d->AsDoc<ExprDoc>(mod->global_infos, p->Attr("global_infos"))})));
+        // RelaxReturnGlobalInfo was not printed
+        ExprStmtDoc mod_ginfos = ExprStmtDoc(
+            IR(d, "module_global_infos")
+                ->Call({d->AsDoc<ExprDoc>(mod->global_infos, p->Attr("global_infos"))}));
+        if (mod->global_infos.size() > 1 || mod->global_infos.count("relax_return_exprs") == 0) {
+          (*f)->stmts.push_back(mod_ginfos);
+        }
       }
       for (const auto& entry : functions) {
         const GlobalVar& gv = entry.gv;
@@ -104,20 +107,14 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<ReturnGlobalInfo>("",
-                                    [](ReturnGlobalInfo rginfo, ObjectPath p,
-                                       IRDocsifier d) -> Doc {
-                                      Array<ExprDoc> return_exprs;
-                                      for (const auto& ret_expr : rginfo->return_exprs) {
-                                        d->AddReturnExpr(ret_expr);
-                                        // return_exprs.push_back(d->AsDoc<ExprDoc>(ret_expr,
-                                        // p->Attr("return_exprs")));
-                                      }
-                                      // return IR(d,
-                                      // "return_global_info")->Call({ListDoc(return_exprs)});
-
-                                      return IR(d, "return_global_info")->Call({});
-                                    });
+    .set_dispatch<RelaxReturnGlobalInfo>("",
+                                         [](RelaxReturnGlobalInfo rginfo, ObjectPath p,
+                                            IRDocsifier d) -> Doc {
+                                           for (const auto& ret_expr : rginfo->relax_return_exprs) {
+                                             d->AddReturnExpr(ret_expr);
+                                           }
+                                           return IR(d, "relax_return_global_info")->Call({});
+                                         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<DummyGlobalInfo>("", [](GlobalInfo ginfo, ObjectPath p, IRDocsifier d) -> Doc {

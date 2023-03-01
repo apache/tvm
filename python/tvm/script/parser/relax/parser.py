@@ -34,10 +34,6 @@ from ..core.parser import VarTable as return_var_table
 from .entry import MatchCastPair, StructInfoProxy, TupleProxy
 
 
-# An global list to record all exprs to return
-return_expr_list = []
-
-
 def bind_assign_value(
     self: Parser,
     node: doc.expr,
@@ -330,7 +326,7 @@ def visit_return(self: Parser, node: doc.Assign) -> None:
     """
     TODO (yongwww):
     issue 1): Save all values into a global list, and add into global_info in the end of parsing  -> Status: wip
-          => we can just have a single api like add_return_global_info into the ReturnGlobalInfo,
+          => we can just have a single api like add_relax_return_global_info into the RelaxReturnGlobalInfo,
              Solution: 
             [x]o1: Save all return values in a global list, and assembly it in the end of parsing,
                    don't allow user to provide it. Ignore if it exists
@@ -338,10 +334,10 @@ def visit_return(self: Parser, node: doc.Assign) -> None:
                    But how to expose it to parser? doesn't work, hard to expose to ir_builder
                o3: add ModuleGetGlobalInfos and ModuleUpdateGlobalInfos in src/script/ir_builder/ir/ir.cc
                    and python/tvm/script/ir_builder/ir/ir.py
-                   how to reassembly the ReturnGlobalInfo is a problem, before the fetch returnGlobalInfo is a runtime.Object
+                   how to reassembly the RelaxReturnGlobalInfo is a problem, before the fetch returnGlobalInfo is a runtime.Object
                    seems there is no way to update it, so give up o3
 
-                   Solution: expose get elements of ReturnGlobalInfo into IR-builder
+                   Solution: expose get elements of RelaxReturnGlobalInfo into IR-builder
 
 
     issue 2): global issue was required explicitly at the beggining of the ir_module,
@@ -350,8 +346,8 @@ def visit_return(self: Parser, node: doc.Assign) -> None:
 
     issue 3): need to hide the return global info, it shouldn't be visible to users,
               it might crash the exiting test cases -> Status: todo
-              Solution: solution in 2) should help fix test cases, since we will have return_global_info anyway,
-                the only concern is that the ordering of return_exprs, topological ordering for relax func parsing
+              Solution: solution in 2) should help fix test cases, since we will have relax_return_global_info anyway,
+                the only concern is that the ordering of relax_return_exprs, topological ordering for relax func parsing
                 should fix it too. And it just potentially impact test structural_equal, no functionality impacted!
     
     Conclusion: 
@@ -361,14 +357,16 @@ def visit_return(self: Parser, node: doc.Assign) -> None:
         So, I decided to move forward with GlobalInfo, because it is already there.
     """
 
-    return_expr_list.append(value)
-    print("Entering return visit")
-    # use var_table to record the return exprs
+    # "relax_return_exprs" was used as key for return exprs
+    return_expr_key = "relax_return_exprs"
+    if return_expr_key not in self.aux_dict:
+        self.aux_dict[return_expr_key] = []
+    self.aux_dict[return_expr_key].append(value)
     ginfos = I.module_get_global_infos()
-    print("the current global info: ", ginfos)
-    ret_ginfo = I.return_global_info(return_expr_list)
-    # str "relax_return_exprs" was reserved as key for return exprs in global_info
-    ginfos["return_exprs"] = [ret_ginfo]
+
+    ret_ginfo = I.relax_return_global_info(self.aux_dict[return_expr_key])
+
+    ginfos[return_expr_key] = [ret_ginfo]
     I.module_update_global_infos(ginfos)
 
     R.ret_value(value)  # TODO(yongwww): probably we can remove R.ret_value as well

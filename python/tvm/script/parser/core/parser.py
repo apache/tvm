@@ -231,16 +231,22 @@ class Parser(doc.NodeVisitor):
 
     var_table : VarTable
         The variable table for parsing.
+
+    aux_dict: Dict[str, List[Any]]
+        The auxiliary dict for storing global info. like return exprs
+        of RelaxReturnGloablInfo
     """
 
     diag: Diagnostics
     dispatch_tokens: List[str]
     var_table: VarTable
+    aux_dict: Dict[str, List[Any]]
 
     def __init__(self, source: Source) -> None:
         self.diag = Diagnostics(source)
         self.dispatch_tokens = ["default"]
         self.var_table = VarTable()
+        self.aux_dict = {}
 
     def parse(self, extra_vars: Optional[Dict[str, Any]] = None) -> Any:
         """The main parse method for parser.

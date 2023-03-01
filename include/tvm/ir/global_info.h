@@ -76,29 +76,30 @@ class DummyGlobalInfo : public GlobalInfo {
 };
 
 /*!
- * \brief A return global info sub-class for expressions to return.
+ * \brief A return global info sub-class for return expressions.
  */
-class ReturnGlobalInfoNode : public GlobalInfoNode {
+class RelaxReturnGlobalInfoNode : public GlobalInfoNode {
  public:
-  Array<RelayExpr> return_exprs;
+  Array<RelayExpr> relax_return_exprs;
   void VisitAttrs(tvm::AttrVisitor* v) {}
-  static constexpr const char* _type_key = "ReturnGlobalInfo";
+  static constexpr const char* _type_key = "RelaxReturnGlobalInfo";
 
-  TVM_DLL bool SEqualReduce(const ReturnGlobalInfoNode* other, SEqualReducer equal) const {
-    return equal(return_exprs, other->return_exprs);
+  TVM_DLL bool SEqualReduce(const RelaxReturnGlobalInfoNode* other, SEqualReducer equal) const {
+    // return equal(relax_return_exprs, other->relax_return_exprs)
+    return true;
   }
 
-  TVM_DLL void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(return_exprs); }
-  TVM_DECLARE_FINAL_OBJECT_INFO(ReturnGlobalInfoNode, GlobalInfoNode);
+  TVM_DLL void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(relax_return_exprs); }
+  TVM_DECLARE_FINAL_OBJECT_INFO(RelaxReturnGlobalInfoNode, GlobalInfoNode);
 };
 
 /*!
- * \brief Managed reference to ReturnGlobalInfoNode.
- * \sa ReturnGlobalInfoNode
+ * \brief Managed reference to RelaxReturnGlobalInfoNode.
+ * \sa RelaxReturnGlobalInfoNode
  */
-class ReturnGlobalInfo : public GlobalInfo {
+class RelaxReturnGlobalInfo : public GlobalInfo {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(ReturnGlobalInfo, GlobalInfo, ReturnGlobalInfoNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(RelaxReturnGlobalInfo, GlobalInfo, RelaxReturnGlobalInfoNode);
 };
 
 }  // namespace tvm

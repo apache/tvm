@@ -25,13 +25,14 @@
 #include <tvm/ir/global_info.h>
 namespace tvm {
 
-TVM_REGISTER_NODE_TYPE(ReturnGlobalInfoNode);
+TVM_REGISTER_NODE_TYPE(RelaxReturnGlobalInfoNode);
 
-TVM_REGISTER_GLOBAL("ir.ReturnGlobalInfo").set_body_typed([](Array<RelayExpr> return_exprs) {
-  auto n = make_object<ReturnGlobalInfoNode>();
-  n->return_exprs = return_exprs;
-  return ReturnGlobalInfo(n);
-});
+TVM_REGISTER_GLOBAL("ir.RelaxReturnGlobalInfo")
+    .set_body_typed([](Array<RelayExpr> relax_return_exprs) {
+      auto n = make_object<RelaxReturnGlobalInfoNode>();
+      n->relax_return_exprs = relax_return_exprs;
+      return RelaxReturnGlobalInfo(n);
+    });
 
 TVM_REGISTER_NODE_TYPE(DummyGlobalInfoNode);
 TVM_REGISTER_GLOBAL("ir.DummyGlobalInfo").set_body_typed([]() {

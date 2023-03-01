@@ -27,10 +27,10 @@ IfDoc PrintIfExpr(const relax::If& n, const ObjectPath& n_p, const IRDocsifier& 
   using relax::SeqExpr;
   ExprDoc cond = d->AsDoc<ExprDoc>(n->cond, n_p->Attr("cond"));
   std::vector<Array<StmtDoc>> branches;
-  // todo(yongwww): looks the return_exprs are the values, and normalizer adds a new binding
-  // need to figure out a way to get if the seqexpr.body was bound to one of return_exprs, too
+  // todo(yongwww): looks the relax_return_exprs are the values, and normalizer adds a new binding
+  // need to figure out a way to get if the seqexpr.body was bound to one of relax_return_exprs, too
   // complicated!
-  for (auto ret_expr : d->return_exprs) {
+  for (auto ret_expr : d->relax_return_exprs) {
     LOG(INFO) << "yongwww 33 ret_expr: " << ret_expr;
   }
   auto true_seq_expr = Downcast<SeqExpr>(n->true_branch);
@@ -57,7 +57,7 @@ IfDoc PrintIfExpr(const relax::If& n, const ObjectPath& n_p, const IRDocsifier& 
   if (auto* var_binding = last_binding_true.as<relax::VarBindingNode>()) {
     auto last_var_binding_true = GetRef<relax::VarBinding>(var_binding);
     if (last_var_binding_true->var.same_as(true_seq_expr->body) &&
-        d->return_exprs.find(last_var_binding_true->value) != d->return_exprs.end()) {
+        d->relax_return_exprs.find(last_var_binding_true->value) != d->relax_return_exprs.end()) {
       ret_true_branch = true;
       LOG(INFO) << "yongwww  ret_true_branch true";
     }
@@ -69,19 +69,19 @@ IfDoc PrintIfExpr(const relax::If& n, const ObjectPath& n_p, const IRDocsifier& 
   if (auto* var_binding = last_binding_false.as<relax::VarBindingNode>()) {
     auto last_var_binding_false = GetRef<relax::VarBinding>(var_binding);
     if (last_var_binding_false->var.same_as(false_seq_expr->body) &&
-        d->return_exprs.find(last_var_binding_false->value) != d->return_exprs.end()) {
+        d->relax_return_exprs.find(last_var_binding_false->value) != d->relax_return_exprs.end()) {
       ret_false_branch = true;
       LOG(INFO) << "yongwww  ret_false_branch true";
     }
   }
 
-  if (d->return_exprs.find(true_seq_expr->body) != d->return_exprs.end()) {
+  if (d->relax_return_exprs.find(true_seq_expr->body) != d->relax_return_exprs.end()) {
     branches.push_back(PrintSeqExpr(true_seq_expr, n_p->Attr("true_branch"), d, ret_true_branch));
   } else {
     branches.push_back(PrintSeqExpr(true_seq_expr, n_p->Attr("true_branch"), d, ret_true_branch));
   }
 
-  if (d->return_exprs.find(false_seq_expr->body) != d->return_exprs.end()) {
+  if (d->relax_return_exprs.find(false_seq_expr->body) != d->relax_return_exprs.end()) {
     branches.push_back(
         PrintSeqExpr(false_seq_expr, n_p->Attr("false_branch"), d, ret_false_branch));
   } else {
@@ -117,7 +117,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::VarBinding>(  //
         "", [](relax::VarBinding n, ObjectPath n_p, IRDocsifier d) -> Doc {
-          LOG(INFO) << "n->var: " << n->var << " --- value: " << n->value;
           d->binding_table_[n->var->vid] = n->value;
           if (const auto if_ = n->value.as<relax::IfNode>()) {
             Optional<ExprDoc> ann = StructInfoAsAnn(n->var, n_p->Attr("var"), d, n->value);

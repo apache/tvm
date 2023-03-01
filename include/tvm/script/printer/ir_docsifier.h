@@ -150,7 +150,7 @@ class IRDocsifierNode : public Object {
   /*! \brief Metadata printing */
   std::unordered_map<String, Array<ObjectRef>> metadata;
   /*! \brief Return exprs used to help tell whether or not an expr is a return*/
-  std::unordered_set<RelayExpr, ObjectPtrHash, ObjectPtrEqual> return_exprs;
+  std::unordered_set<RelayExpr, ObjectPtrHash, ObjectPtrEqual> relax_return_exprs;
   /*! \brief The variable names used already */
   std::unordered_set<String> defined_names;
   /*! \brief Common prefixes of variable usages */

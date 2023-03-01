@@ -650,28 +650,6 @@ class NullExprNode : public LeafExprNode {
 };
 
 /*!
- * \brief Managed reference to NullExprNode
- * \sa NullExprNode
- */
-class NullExpr : public LeafExpr {
- public:
-  /*!
-   * \brief The constructor
-   * \param span The source span of the expression.
-   */
-  TVM_DLL explicit NullExpr(Span span);
-
-  /*!
-   * \brief Create a null expression.
-   * \param span The source span of the expression.
-   * \return The created prim value.
-   */
-
-  TVM_DEFINE_OBJECT_REF_METHODS(NullExpr, LeafExpr, NullExprNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(NullExprNode);
-};
-
-/*!
  * \brief Represent a string literal constant.
  */
 class StringImmNode : public LeafExprNode {

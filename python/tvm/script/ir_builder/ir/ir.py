@@ -18,7 +18,7 @@
 
 from typing import Dict, List
 
-from tvm.ir import BaseFunc, GlobalVar, GlobalInfo, ReturnGlobalInfo, DummyGlobalInfo
+from tvm.ir import BaseFunc, GlobalVar, GlobalInfo, RelaxReturnGlobalInfo, DummyGlobalInfo
 from tvm.ir import RelayExpr as Expr
 from tvm.runtime import Object as tvm_Object
 
@@ -123,20 +123,21 @@ def module_update_global_infos(global_infos: Dict[str, List[GlobalInfo]]) -> Non
 ############################### GlobalInfo ###############################
 
 
-def return_global_info(return_exprs: List[Expr]) -> ReturnGlobalInfo:
+def relax_return_global_info(relax_return_exprs: List[Expr] = None) -> RelaxReturnGlobalInfo:
     """Create a return global info expression.
     Parameters
     ----------
-    return_exprs : List[Expr]
+    relax_return_exprs : List[Expr]
         The expressions to be returned.
 
     Returns
     -------
-    res : ReturnGlobalInfo
+    res : RelaxReturnGlobalInfo
         The result return global info.
     """
-    print("yes return_global_info in ir_builder/ir.py")
-    return ReturnGlobalInfo(return_exprs)  # type: ignore[attr-defined] # pylint: disable=no-member
+    if relax_return_exprs is None:
+        relax_return_exprs = []
+    return RelaxReturnGlobalInfo(relax_return_exprs)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def dummy_global_info() -> DummyGlobalInfo:
