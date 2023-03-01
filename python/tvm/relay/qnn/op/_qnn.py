@@ -19,7 +19,7 @@
 
 import numpy as np
 
-from tvm import topi, TVMError
+from tvm import topi
 
 from .. import strategy
 from ...op.op import register_compute
