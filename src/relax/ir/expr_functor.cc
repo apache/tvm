@@ -651,7 +651,7 @@ RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(DataTypeImmNode);
 void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
   Var new_var = this->VisitVarDef(binding->var);
 
-  // fast path: reemit binding if nothing changes
+  // fast path: re-emit binding if nothing changes
   if (new_var.same_as(binding->var) && new_value.same_as(binding->value)) {
     builder_->EmitNormalized(GetRef<VarBinding>(binding));
     return;
@@ -660,8 +660,8 @@ void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
   Var temp = WithStructInfo(new_var, GetStructInfo(new_value));
   if (!temp.same_as(new_var)) {
     new_var = temp;
-    this->var_remap_[binding->var->vid] = new_var;
   }
+  this->var_remap_[binding->var->vid] = new_var;
 
   builder_->EmitNormalized(VarBinding(new_var, new_value));
 }

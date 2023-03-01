@@ -306,7 +306,7 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
     ExprVisitor* parent_;
   };
   // This visitor is not visible to child classes and only
-  // used to supportd default visiting behavior.
+  // used to supported default visiting behavior.
   DefaultStructInfoFieldVisitor default_struct_info_field_visitor_{this};
 };
 
@@ -409,7 +409,7 @@ class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
     ExprMutatorBase* parent_;
   };
   // This visitor is not visible to child classes and only
-  // used to supportd default visiting behavior.
+  // used to supported default visiting behavior.
   DefaultStructInfoFieldMutator default_struct_info_field_mutator_{this};
 };
 

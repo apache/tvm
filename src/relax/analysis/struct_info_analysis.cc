@@ -330,7 +330,7 @@ class StructInfoBaseChecker
       return BaseCheckResult::kFailL0;
     }
 
-    // ndim msiamtch
+    // ndim mismatch
     if (!lhs->IsUnknownNdim() && lhs->ndim != rhs->ndim) {
       if (rhs->IsUnknownNdim()) return BaseCheckResult::kFailL1;
       return BaseCheckResult::kFailL0;

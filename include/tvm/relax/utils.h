@@ -103,10 +103,12 @@ class NameTable {
  * \param expr The input expression.
  * \param binds The variable to expression map that will be used to help the
  *        binding.
+ * \param symbolic_var_map The map from symbolic var to the expr it binds to.
  *
  * \return The updated expression.
  */
-TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds);
+TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds,
+                  const tvm::Map<tir::Var, PrimExpr>& symbolic_var_map = {});
 
 /*!
  * \brief Check if the given StructInfo is for a boolean scalar (tensor of rank 0 with a boolean

@@ -25,7 +25,36 @@ namespace relax {
 /*! \brief Helper to implement bind params.*/
 class ExprBinder : public ExprMutator {
  public:
-  explicit ExprBinder(const tvm::Map<Var, Expr>& args_map) : args_map_(args_map) {}
+  explicit ExprBinder(const tvm::Map<Var, Expr>& args_map,
+                      const tvm::Map<tir::Var, PrimExpr>& symbolic_var_map)
+      : args_map_(args_map), symbolic_var_map_(symbolic_var_map) {}
+
+ private:
+  Expr VisitExpr_(const FunctionNode* op) final {
+    tvm::Array<Var> params;
+    bool all_params_unchanged = true;
+    for (const Var& param : op->params) {
+      if (args_map_.count(param)) {
+        all_params_unchanged = false;
+      } else {
+        Var new_param = this->VisitVarDef(param);
+        params.push_back(new_param);
+        if (!param.same_as(new_param)) {
+          this->var_remap_[param->vid] = new_param;
+          all_params_unchanged = false;
+        }
+      }
+    }
+
+    Expr body = this->VisitWithNewScope(op->body, params);
+
+    // FuncStructInfo does not depend on Expr
+    if (all_params_unchanged && body.same_as(op->body)) {
+      return GetRef<Expr>(op);
+    } else {
+      return Function(params, body, VisitExprDepStructInfoField(op->ret_struct_info), op->attrs);
+    }
+  }
 
   Expr VisitExpr_(const VarNode* op) final {
     auto id = GetRef<Var>(op);
@@ -37,34 +66,31 @@ class ExprBinder : public ExprMutator {
     }
   }
 
+  PrimExpr VisitPrimExpr(const PrimExpr& expr) final {
+    if (const tir::VarNode* var = expr.as<tir::VarNode>()) {
+      auto it = symbolic_var_map_.find(GetRef<tir::Var>(var));
+      if (it != symbolic_var_map_.end()) {
+        return (*it).second;
+      }
+    }
+    return ExprMutator::VisitPrimExpr(expr);
+  }
+
  private:
   const tvm::Map<Var, Expr>& args_map_;
+  const tvm::Map<tir::Var, PrimExpr>& symbolic_var_map_;
 };
 
 /*!
  * \brief Bind params on expr
  * \param expr The expr where to bind params
- * \param args_map The map from param var to the expr it binds to
+ * \param binds The map from param var to the expr it binds to
+ * \param symbolic_var_map The map from symbolic var to the expr it binds to
  * \return The result expr after bind params
  */
-Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
-  if (const FunctionNode* func = expr.as<FunctionNode>()) {
-    Expr new_body = ExprBinder(args_map).VisitExpr(func->body);
-    Array<Var> new_params;
-    for (size_t i = 0; i < func->params.size(); ++i) {
-      if (!args_map.count(func->params[i])) {
-        new_params.push_back(func->params[i]);
-      }
-    }
-    if (new_body.same_as(func->body) && new_params.size() == func->params.size()) {
-      return expr;
-    }
-    // The checked_type_ of the new function is deduced from the function body
-    // TODO(@relax-team): Should infer the shape from the body as well
-    return Function(new_params, new_body, NullOpt, func->attrs);
-  } else {
-    return ExprBinder(args_map).VisitExpr(expr);
-  }
+Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds,
+          const tvm::Map<tir::Var, PrimExpr>& symbolic_var_map) {
+  return ExprBinder(binds, symbolic_var_map).VisitExpr(expr);
 }
 
 bool IsBoolStructInfo(const StructInfo& sinfo, bool permit_unknown_rank,
