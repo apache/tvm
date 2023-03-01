@@ -19,13 +19,13 @@ import pytest
 
 from tvm.micro.project_api.server import ServerError
 
-from . import utils
+import test_utils
 import tvm.testing
 
 
 @pytest.fixture
 def project(board, microtvm_debug, workspace_dir, serial_number):
-    return utils.make_kws_project(board, microtvm_debug, workspace_dir, serial_number)
+    return test_utils.make_kws_project(board, microtvm_debug, workspace_dir, serial_number)
 
 
 def test_blank_project_compiles(workspace_dir, project):

@@ -52,7 +52,7 @@ def _make_sess_from_op(
     runtime = Runtime("crt", {"system-lib": True})
     target = tvm.micro.testing.get_target("zephyr", board)
     target = tvm.target.Target(target=target, host=target)
-    with tvm.transform.PassContext(opt_level=3, config=utils.PASS_CONFIG):
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.build(sched, arg_bufs, target=target, runtime=runtime, name=op_name)
 
     return _make_session(temp_dir, board, mod, build_config, use_fvp, serial_number)
@@ -209,7 +209,7 @@ def test_relay(workspace_dir, board, microtvm_debug, use_fvp, serial_number):
 
     runtime = Runtime("crt", {"system-lib": True})
     target = tvm.micro.testing.get_target("zephyr", board)
-    with tvm.transform.PassContext(opt_level=3, config=utils.PASS_CONFIG):
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.relay.build(ir_mod, target=target, runtime=runtime)
 
     with _make_session(workspace_dir, board, mod, build_config, use_fvp, serial_number) as session:
@@ -252,7 +252,7 @@ def test_onnx(workspace_dir, board, microtvm_debug, use_fvp, serial_number):
     # the model weights when set using graph_mod.set_input().
     # See: https://github.com/apache/tvm/issues/7567
     target = tvm.micro.testing.get_target("zephyr", board)
-    with tvm.transform.PassContext(opt_level=3, config=utils.PASS_CONFIG):
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         executor = Executor("graph", {"link-params": True})
         runtime = Runtime("crt", {"system-lib": True})
         lowered = relay.build(relay_mod, target, params=params, executor=executor, runtime=runtime)
@@ -293,7 +293,7 @@ def check_result(
     TOL = 1e-5
     runtime = Runtime("crt", {"system-lib": True})
     target = tvm.micro.testing.get_target("zephyr", board)
-    with tvm.transform.PassContext(opt_level=3, config=utils.PASS_CONFIG):
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.relay.build(relay_mod, target=target, runtime=runtime)
 
     with _make_session(temp_dir, board, mod, build_config, use_fvp, serial_number) as session:
@@ -454,7 +454,7 @@ def test_autotune_conv2d(workspace_dir, board, microtvm_debug, use_fvp, serial_n
     params = {mod["main"].params[1].name_hint: weight_sample}
 
     target = tvm.micro.testing.get_target("zephyr", board)
-    pass_context = tvm.transform.PassContext(opt_level=3, config=utils.PASS_CONFIG)
+    pass_context = tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True})
     with pass_context:
         tasks = tvm.autotvm.task.extract_from_program(mod["main"], {}, target)
     assert len(tasks) > 0
@@ -482,7 +482,7 @@ def test_autotune_conv2d(workspace_dir, board, microtvm_debug, use_fvp, serial_n
     builder = tvm.autotvm.LocalBuilder(
         timeout=timeout,
         n_parallel=1,
-        build_kwargs={"build_option": utils.PASS_CONFIG},
+        build_kwargs={"build_option": {"tir.disable_vectorize": True}},
         do_fork=True,
         build_func=tvm.micro.autotvm_build_func,
         runtime=runtime,
@@ -580,7 +580,7 @@ def test_schedule_build_with_cmsis_dependency(workspace_dir, board, microtvm_deb
 
     runtime = Runtime("crt", {"system-lib": True})
 
-    with tvm.transform.PassContext(opt_level=3, config=utils.PASS_CONFIG):
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.relay.build(ir_mod, target=target, runtime=runtime)
 
     project_options = {
@@ -633,7 +633,7 @@ def test_debugging_enabled(workspace_dir):
     executor = Executor("aot")
     target = tvm.micro.testing.get_target("zephyr", board)
 
-    with tvm.transform.PassContext(opt_level=3, config=utils.PASS_CONFIG):
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.relay.build(ir_mod, target=target, runtime=runtime, executor=executor)
 
     project = tvm.micro.generate_project(

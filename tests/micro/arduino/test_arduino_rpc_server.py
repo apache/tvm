@@ -23,7 +23,6 @@ This unit test simulates an autotuning workflow, where we:
 """
 
 import pathlib
-import sys
 import numpy as np
 import onnx
 import pytest
@@ -35,7 +34,7 @@ from tvm import relay
 from tvm.relay.testing import byoc
 from tvm.relay.backend import Executor, Runtime
 
-from . import utils
+import test_utils
 
 
 def _make_session(
@@ -47,7 +46,7 @@ def _make_session(
     serial_number: str = None,
 ):
     project = tvm.micro.generate_project(
-        str(utils.TEMPLATE_PROJECT_DIR),
+        str(test_utils.TEMPLATE_PROJECT_DIR),
         mod,
         workspace_dir / "project",
         {
@@ -74,7 +73,7 @@ def _make_sess_from_op(
 ):
     target = tvm.target.target.micro(model)
     runtime = Runtime("crt", {"system-lib": True})
-    with tvm.transform.PassContext(opt_level=3, config=utils.PASS_CONFIG):
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.build(sched, arg_bufs, target=target, runtime=runtime, name=op_name)
 
     return _make_session(model, arduino_board, workspace_dir, mod, build_config, serial_number)
@@ -103,7 +102,7 @@ def _make_add_sess(model, arduino_board, workspace_dir, build_config, serial_num
 def test_compile_runtime(board, microtvm_debug, workspace_dir, serial_number):
     """Test compiling the on-device runtime."""
 
-    model = utils.ARDUINO_BOARDS[board]
+    model = test_utils.ARDUINO_BOARDS[board]
     build_config = {"debug": microtvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
@@ -128,7 +127,7 @@ def test_compile_runtime(board, microtvm_debug, workspace_dir, serial_number):
 def test_platform_timer(board, microtvm_debug, workspace_dir, serial_number):
     """Test compiling the on-device runtime."""
 
-    model = utils.ARDUINO_BOARDS[board]
+    model = test_utils.ARDUINO_BOARDS[board]
     build_config = {"debug": microtvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
@@ -157,7 +156,7 @@ def test_platform_timer(board, microtvm_debug, workspace_dir, serial_number):
 @pytest.mark.requires_hardware
 def test_relay(board, microtvm_debug, workspace_dir, serial_number):
     """Testing a simple relay graph"""
-    model = utils.ARDUINO_BOARDS[board]
+    model = test_utils.ARDUINO_BOARDS[board]
     build_config = {"debug": microtvm_debug}
 
     shape = (10,)
@@ -171,7 +170,7 @@ def test_relay(board, microtvm_debug, workspace_dir, serial_number):
 
     target = tvm.target.target.micro(model)
     runtime = Runtime("crt", {"system-lib": True})
-    with tvm.transform.PassContext(opt_level=3, config=utils.PASS_CONFIG):
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.relay.build(func, target=target, runtime=runtime)
 
     with _make_session(model, board, workspace_dir, mod, build_config, serial_number) as session:
@@ -190,7 +189,7 @@ def test_relay(board, microtvm_debug, workspace_dir, serial_number):
 @pytest.mark.requires_hardware
 def test_onnx(board, microtvm_debug, workspace_dir, serial_number):
     """Testing a simple ONNX model."""
-    model = utils.ARDUINO_BOARDS[board]
+    model = test_utils.ARDUINO_BOARDS[board]
     build_config = {"debug": microtvm_debug}
 
     # Load test images.
@@ -212,7 +211,7 @@ def test_onnx(board, microtvm_debug, workspace_dir, serial_number):
 
     target = tvm.target.target.micro(model)
     runtime = Runtime("crt", {"system-lib": True})
-    with tvm.transform.PassContext(opt_level=3, config=utils.PASS_CONFIG):
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         executor = Executor("graph", {"link-params": True})
         lowered = relay.build(relay_mod, target, params=params, executor=executor, runtime=runtime)
         graph = lowered.get_graph_json()
@@ -253,7 +252,7 @@ def check_result(
     TOL = 1e-5
     target = tvm.target.target.micro(model)
     runtime = Runtime("crt", {"system-lib": True})
-    with tvm.transform.PassContext(opt_level=3, config=utils.PASS_CONFIG):
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.relay.build(relay_mod, target=target, runtime=runtime)
 
     with _make_session(
@@ -281,7 +280,7 @@ def check_result(
 @pytest.mark.requires_hardware
 def test_byoc_microtvm(board, microtvm_debug, workspace_dir, serial_number):
     """This is a simple test case to check BYOC capabilities of microTVM"""
-    model = utils.ARDUINO_BOARDS[board]
+    model = test_utils.ARDUINO_BOARDS[board]
     build_config = {"debug": microtvm_debug}
 
     x = relay.var("x", shape=(10, 10))
@@ -377,7 +376,7 @@ def _make_add_sess_with_shape(
 @pytest.mark.requires_hardware
 def test_rpc_large_array(board, microtvm_debug, workspace_dir, shape, serial_number):
     """Test large RPC array transfer."""
-    model = utils.ARDUINO_BOARDS[board]
+    model = test_utils.ARDUINO_BOARDS[board]
     build_config = {"debug": microtvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.

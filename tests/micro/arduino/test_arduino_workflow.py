@@ -18,12 +18,11 @@
 import pathlib
 import re
 import shutil
-import sys
 import pytest
 
 import tvm.testing
 
-from . import utils
+import test_utils
 
 """
 This unit test simulates a simple user workflow, where we:
@@ -43,7 +42,7 @@ This unit test simulates a simple user workflow, where we:
 @pytest.fixture(scope="module")
 def workflow_workspace_dir(request):
     board = request.config.getoption("--board")
-    return utils.make_workspace_dir("arduino_workflow", board)
+    return test_utils.make_workspace_dir("arduino_workflow", board)
 
 
 @pytest.fixture(scope="module")
@@ -57,7 +56,7 @@ def project_dir(workflow_workspace_dir):
 def project(request, microtvm_debug, workflow_workspace_dir):
     board = request.config.getoption("--board")
     serial_number = request.config.getoption("--serial-number")
-    return utils.make_kws_project(board, microtvm_debug, workflow_workspace_dir, serial_number)
+    return test_utils.make_kws_project(board, microtvm_debug, workflow_workspace_dir, serial_number)
 
 
 def _get_directory_elements(directory):

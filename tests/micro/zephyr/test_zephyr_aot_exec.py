@@ -22,7 +22,6 @@ import tvm.testing
 import tvm.micro.testing
 import tvm.relay as relay
 from tvm.relay.backend import Executor, Runtime
-from tvm.contrib import utils
 
 from . import utils
 
@@ -78,7 +77,7 @@ def test_relay(workspace_dir, board, microtvm_debug, use_fvp, serial_number):
     runtime = Runtime("crt", {"system-lib": True})
     executor = Executor("aot")
     target = tvm.micro.testing.get_target("zephyr", board)
-    with tvm.transform.PassContext(opt_level=3, config=utils.PASS_CONFIG):
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.relay.build(ir_mod, target=target, runtime=runtime, executor=executor)
 
     with _make_session(workspace_dir, board, mod, build_config, use_fvp, serial_number) as session:
@@ -117,7 +116,7 @@ def test_aot_executor(workspace_dir, board, microtvm_debug, use_fvp, serial_numb
     runtime = Runtime("crt", {"system-lib": True})
     executor = Executor("aot")
     target = tvm.micro.testing.get_target("zephyr", board)
-    with tvm.transform.PassContext(opt_level=3, config=utils.PASS_CONFIG):
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.relay.build(relay_mod, target=target, runtime=runtime, executor=executor)
 
     def do_test():

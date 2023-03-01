@@ -42,8 +42,6 @@ TEMPLATE_PROJECT_DIR = pathlib.Path(tvm.micro.get_microtvm_template_projects("ze
 
 _LOG = logging.getLogger(__name__)
 
-PASS_CONFIG = {"tir.disable_vectorize": True}
-
 
 def zephyr_boards() -> dict:
     """Returns Zephyr board properties"""
