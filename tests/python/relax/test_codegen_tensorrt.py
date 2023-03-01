@@ -22,6 +22,7 @@ import tvm.testing
 from tvm import relax
 from tvm.script import relax as R
 from tvm.relax.dpl import make_fused_bias_activation_pattern, is_op, wildcard
+from tvm.contrib.pickle_memoize import memoize
 
 
 @tvm.script.ir_module
@@ -64,8 +65,16 @@ def build_and_run(mod, inputs_np, target, legalize=False):
 
 
 def test_tensorrt_offload():
-    weight1_np = np.random.randn(64, 64, 3, 3).astype("float32")
-    weight2_np = np.random.randn(64, 64, 3, 3).astype("float32")
+    @memoize("relax.tests.test_codegen_tensorrt.conv2d_residual")
+    def get_ref():
+        data_np = np.random.randn(1, 64, 56, 56).astype("float32")
+        weight1_np = np.random.randn(64, 64, 3, 3).astype("float32")
+        weight2_np = np.random.randn(64, 64, 3, 3).astype("float32")
+        inputs = [data_np, weight1_np, weight2_np]
+        ref = build_and_run(Conv2dResidualBlock, inputs, "llvm", legalize=True)
+        return inputs, ref
+
+    inputs, ref = get_ref()
 
     conv_pat = make_fused_bias_activation_pattern(
         "relax.nn.conv2d", with_bias=False, activation=None
@@ -79,7 +88,7 @@ def test_tensorrt_offload():
         ("tensorrt.add", add_pat),
     ]
 
-    params_np = {"weight1": weight1_np, "weight2": weight2_np}
+    params_np = {"weight1": inputs[1], "weight2": inputs[2]}
 
     mod = tvm.transform.Sequential(
         [
@@ -90,12 +99,7 @@ def test_tensorrt_offload():
         ]
     )(Conv2dResidualBlock)
 
-    data_np = np.random.randn(1, 64, 56, 56).astype("float32")
-
-    out = build_and_run(mod, [data_np], "cuda")
-    ref = build_and_run(
-        Conv2dResidualBlock, [data_np, weight1_np, weight2_np], "llvm", legalize=True
-    )
+    out = build_and_run(mod, inputs[:1], "cuda")
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
 

@@ -22,6 +22,7 @@ import tvm.testing
 from tvm import relax
 from tvm.script import relax as R
 from tvm.relax.dpl import make_fused_bias_activation_pattern
+from tvm.contrib.pickle_memoize import memoize
 
 
 @tvm.script.ir_module
@@ -55,8 +56,11 @@ def build_and_run(mod, inputs, legalize=False):
         mod = relax.transform.LegalizeOps()(mod)
 
     target = tvm.target.Target("llvm")
+    dev = tvm.cpu()
+    inputs = [tvm.nd.array(inp, dev) for inp in inputs]
+
     ex = relax.build(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
+    vm = relax.VirtualMachine(ex, dev)
     f = vm["main"]
     return f(*inputs).numpy()
 
@@ -74,13 +78,18 @@ def test_dnnl_offload():
         ]
     )
 
-    data_np = np.random.randn(1, 64, 56, 56).astype("float32")
-    weight1_np = np.random.randn(64, 64, 3, 3).astype("float32")
-    weight2_np = np.random.randn(64, 64, 3, 3).astype("float32")
-    inputs = [tvm.nd.array(data_np), tvm.nd.array(weight1_np), tvm.nd.array(weight2_np)]
+    @memoize("relax.tests.test_codegen_dnnl.conv2d_relu_x2")
+    def get_ref():
+        data_np = np.random.randn(1, 64, 56, 56).astype("float32")
+        weight1_np = np.random.randn(64, 64, 3, 3).astype("float32")
+        weight2_np = np.random.randn(64, 64, 3, 3).astype("float32")
+        inputs = [data_np, weight1_np, weight2_np]
+        ref = build_and_run(Conv2dReLUx2, inputs, legalize=True)
+        return inputs, ref
+
+    inputs, ref = get_ref()
 
     out = build_and_run(seq(Conv2dReLUx2), inputs)
-    ref = build_and_run(Conv2dReLUx2, inputs, legalize=True)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
 
