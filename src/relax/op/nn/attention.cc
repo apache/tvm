@@ -26,13 +26,9 @@ namespace tvm {
 namespace relax {
 
 /* relax.nn.attention */
-TVM_REGISTER_NODE_TYPE(AttentionAttrs);
-
 Expr attention(Expr query, Expr key, Expr value, DataType out_dtype) {
-  ObjectPtr<AttentionAttrs> attrs = make_object<AttentionAttrs>();
-  attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("relax.nn.attention");
-  return Call(op, {std::move(query), std::move(key), std::move(value)}, Attrs(attrs), {});
+  return Call(op, {std::move(query), std::move(key), std::move(value)}, {}, {});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.nn.attention").set_body_typed(attention);
@@ -52,10 +48,6 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
   diag_dim(q_sinfo, "query");
   diag_dim(k_sinfo, "key");
   diag_dim(v_sinfo, "value");
-  const auto* attrs = call->attrs.as<AttentionAttrs>();
-  DataType out_dtype = attrs->out_dtype.is_void()
-                           ? InferBinaryArithOpOutDtype(call, ctx, q_sinfo, k_sinfo)
-                           : attrs->out_dtype;
   const ShapeExprNode* q_shape = q_sinfo->shape.as<ShapeExprNode>();
   const ShapeExprNode* k_shape = k_sinfo->shape.as<ShapeExprNode>();
   const ShapeExprNode* v_shape = v_sinfo->shape.as<ShapeExprNode>();
@@ -82,7 +74,7 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
   diag_equal(head_dim, k_shape->values[3], "query", "key", "dimension of heads");
 
   Array<PrimExpr> output_shape = {num_batches, num_queries, num_heads, head_dim_value};
-  return TensorStructInfo(ShapeExpr(output_shape), out_dtype);
+  return TensorStructInfo(ShapeExpr(output_shape), q_sinfo->dtype);
 }
 
 TVM_REGISTER_OP("relax.nn.attention")
@@ -90,7 +82,6 @@ TVM_REGISTER_OP("relax.nn.attention")
     .add_argument("query", "Tensor", "The input queries tensor.")
     .add_argument("key", "Tensor", "The input keys tensor.")
     .add_argument("value", "Tensor", "The input values tensor.")
-    .set_attrs_type<AttentionAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention);
 
 }  // namespace relax

@@ -21,6 +21,7 @@ import scipy
 import tvm
 import tvm.testing
 import tvm.topi.testing
+from tvm.contrib.pickle_memoize import memoize
 from tvm import relax, relay
 from tvm.contrib.cutlass.build import is_valid_for_cutlass_matmul
 from tvm.relax.backend import get_patterns_with_prefix
@@ -301,6 +302,11 @@ def test_cutlass_partition_matmul_blocked(x_shape, y_shape, transpose_y, dtype):
     tvm.ir.assert_structural_equal(mod, partition_for_cutlass(mod))
 
 
+@pytest.fixture(params=["float16"])
+def attention_dtype(request):
+    return request.param
+
+
 @pytest.fixture(
     params=[
         # B, S, N, H
@@ -311,24 +317,6 @@ def test_cutlass_partition_matmul_blocked(x_shape, y_shape, transpose_y, dtype):
 )
 def attention_size(request):
     return request.param
-
-
-@pytest.fixture
-def attention_q(attention_size, target_dtype):
-    b, (s, _), n, (h, _) = attention_size
-    return np.random.randn(b, s, n, h).astype(target_dtype)
-
-
-@pytest.fixture
-def attention_k(attention_size, target_dtype):
-    b, (_, s), n, (h, _) = attention_size
-    return np.random.randn(b, s, n, h).astype(target_dtype)
-
-
-@pytest.fixture
-def attention_v(attention_size, target_dtype):
-    b, (_, s), n, (_, h) = attention_size
-    return np.random.randn(b, s, n, h).astype(target_dtype)
 
 
 def get_relax_attention_module(q, k, v):
@@ -354,23 +342,26 @@ def get_relax_attention_module(q, k, v):
     return tvm.IRModule({"main": func})
 
 
-def get_numpy_attention_ref(q, k, v):
+@memoize("topi.tests.test_codegen_cutlass.test_attention_offload")
+def get_numpy_attention_ref(b, s, s_kv, n, h, h_v, dtype):
+    q = np.random.randn(b, s, n, h).astype(dtype)
+    k = np.random.randn(b, s_kv, n, h).astype(dtype)
+    v = np.random.randn(b, s_kv, n, h_v).astype(dtype)
     qt = q.transpose(0, 2, 1, 3)  # b, n, s, h
-    kt = k.transpose(0, 2, 3, 1)  # b, n, h, s
-    score = qt @ kt / np.sqrt(q.shape[-1])  # b, n, s, s
+    kt = k.transpose(0, 2, 3, 1)  # b, n, h, s_kv
+    score = qt @ kt / np.sqrt(q.shape[-1])  # b, n, s, s_kv
     attn = tvm.topi.testing.softmax_python(score, -1)
-    vt = v.transpose(0, 2, 1, 3)  # b, n, s, h
-    ref = attn @ vt  # b, n, s, h
-    return ref.transpose(0, 2, 1, 3)  # b, s, n, h
+    vt = v.transpose(0, 2, 1, 3)  # b, n, s_kv, h_v
+    ref = attn @ vt  # b, n, s, h_v
+    return q, k, v, ref.transpose(0, 2, 1, 3)  # b, s, n, h_v
 
 
-def test_attention_offload(attention_q, attention_k, attention_v):
-    q, k, v = attention_q, attention_k, attention_v
+def test_attention_offload(attention_size, attention_dtype):
+    b, (s, s_kv), n, (h, h_v) = attention_size
+    q, k, v, ref = get_numpy_attention_ref(b, s, s_kv, n, h, h_v, attention_dtype)
 
     mod = get_relax_attention_module(q, k, v)
     out = get_result_with_relax_cutlass_offload(mod, q, k, v)
-
-    ref = get_numpy_attention_ref(q, k, v)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 

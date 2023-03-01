@@ -63,7 +63,6 @@ def instantiate_attention_template(attrs, func_args):
   p.q_strideH = p.head_dim; // H
   p.k_strideH = p.head_dim; // H
   p.v_strideH = p.head_dim_value; // H'
-  // p.o_strideH = p.head_dim_value; // H'
 
   // stride for S
   p.q_strideM = p.q_strideH * p.num_heads; // H * N
@@ -75,7 +74,6 @@ def instantiate_attention_template(attrs, func_args):
   p.q_strideB = p.q_strideM * p.num_queries; // H * N * S
   p.k_strideB = p.k_strideM * p.num_keys; // H * N * S'
   p.v_strideB = p.v_strideM * p.num_keys; // H'* N * S'
-  // p.o_strideB = p.o_strideM * p.num_queries; // H'* N * S
 
   constexpr auto kernel_fn = attention_kernel_batched_impl<Attention>;
   int smem_bytes = sizeof(typename Attention::SharedStorage);
