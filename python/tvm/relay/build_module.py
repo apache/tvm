@@ -278,7 +278,7 @@ def build(
     ir_mod,
     target=None,
     target_host=None,
-    executor=Executor("graph"),
+    executor=None,
     runtime=Runtime("cpp"),
     workspace_memory_pools=None,
     constant_memory_pools=None,
@@ -304,7 +304,8 @@ def build(
 
     executor : Optional[Executor]
         The executor configuration with which to build the model.
-        Defaults to "graph" if no executor specified.
+        Defaults to "aot" if runtime is CRT, otherwise defaults to
+        "graph" if no executor specified.
 
     runtime : Optional[Runtime]
         Runtime configuration to use when building the model.
@@ -334,6 +335,12 @@ def build(
     """
     # pylint: enable=line-too-long
     # fmt: on
+
+    if executor is None:
+        if "crt" in runtime:
+            executor = Executor("aot")
+        else:
+            executor = Executor("graph")
 
     if not isinstance(ir_mod, (IRModule, _function.Function)):
         raise ValueError("Type of input parameter mod must be tvm.IRModule")
