@@ -21,7 +21,6 @@ Provides support to compile networks both AOT and JIT.
 import logging
 import os.path
 import re
-import sys
 import itertools
 from copy import deepcopy
 from typing import Any, Optional, Dict, List, Union, Callable, Sequence
@@ -59,14 +58,15 @@ logger = logging.getLogger("TVMC")
 def add_compile_parser(subparsers, main_parser, json_params, argv):
     """Include parser for 'compile' subcommand"""
 
-    parser = subparsers.add_parser("compile", help="compile a model.")
+    parser = subparsers.add_parser("compile", help="compile a model.", add_help=False)
     parser.set_defaults(func=drive_compile)
 
     parser.add_argument(
         "--experimental-tvm-extension",
         default=[],
         action="append",
-        help="path from which to load packages named tvm_extension which implement the TVMExtension interface.",
+        help="path from which to load packages named tvm_extension which implement the "
+        "TVMExtension interface.",
     )
     disposable_parser = TVMCSuppressedArgumentParser(main_parser)
     try:

@@ -48,7 +48,7 @@ logger = logging.getLogger("TVMC")
 
 
 @register_parser
-def add_tune_parser(subparsers, _, json_params, argv):
+def add_tune_parser(subparsers, _, json_params, argv):  # pylint: disable=unused-argument
     """Include parser for 'tune' subcommand"""
 
     parser = subparsers.add_parser("tune", help="auto-tune a model")

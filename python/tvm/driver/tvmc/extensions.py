@@ -14,16 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+"""
+Allows to extend TVMC with external code.
+"""
 import sys
 import importlib
 import inspect
 import pkgutil
 import warnings
+import copy
 from abc import abstractmethod
 
 
-_extensions = []
+_EXTENSIONS = []
 
 
 class TVMExtension(object):
@@ -33,12 +36,21 @@ class TVMExtension(object):
 
 
 def get_extensions():
-    for ext in _extensions:
+    """Returns all loaded extensions."""
+
+    for ext in _EXTENSIONS:
         yield ext
 
 
 def load_extensions(paths):
-    path_backup = sys.path
+    """
+    Loads extensions from the given locations.
+
+    Extensions must implement the `TVMExtension` interface and be stored in a directory called
+    `tvm_extension`.
+    """
+
+    path_backup = copy.copy(sys.path)
     sys.path.extend(paths)
 
     top_modules = []
@@ -48,17 +60,18 @@ def load_extensions(paths):
     except ImportError:
         pass
 
-    sys.path = path_backup
+    sys.path.clear()
+    sys.path.extend(path_backup)
 
     extension_classes = _scan_all(top_modules)
     for ext_cls in extension_classes:
-        _extensions.append(ext_cls())
+        _EXTENSIONS.append(ext_cls())
 
 
 def _scan_all(top_level):
     scanned_extensions = []
     for mdl in top_level:
-        for importer, modname, ispkg in pkgutil.walk_packages(
+        for importer, modname, _ in pkgutil.walk_packages(
             path=mdl.__path__, prefix=mdl.__name__ + ".", onerror=lambda x: None
         ):
             try:
@@ -86,25 +99,25 @@ def _scan_all(top_level):
                             sys.modules[modname] = loaded_mod
 
                 if len(recorded_warnings) > 0:
-                    for w in recorded_warnings:
+                    for warning in recorded_warnings:
                         warnings.showwarning(
-                            message=w.message,
-                            category=w.category,
-                            filename=w.filename,
-                            lineno=w.lineno,
-                            file=w.file,
-                            line=w.line,
+                            message=warning.message,
+                            category=warning.category,
+                            filename=warning.filename,
+                            lineno=warning.lineno,
+                            file=warning.file,
+                            line=warning.line,
                         )
 
                 if loaded_mod is not None:
                     for _name, obj in inspect.getmembers(loaded_mod):
                         if _is_concrete_extension_type(obj):
                             scanned_extensions.append(obj)
-            except ImportError as e:
+            except ImportError as err:
                 warnings.warn(
                     message=f"\n"
                     f"\tError importing extension '{modname}'.\n"
-                    f"\t\t{type(e).__name__} : {e}",
+                    f"\t\t{type(err).__name__} : {err}",
                     category=UserWarning,
                 )
 
