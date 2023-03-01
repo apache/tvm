@@ -413,9 +413,9 @@ class ScheduleNode : public runtime::Object {
    * \param block_rv The consumer block of the target buffer.
    * \param read_buffer_index The index of the buffer in block's read region.
    * \param storage_scope The target storage scope.
-   * \param index_map User defined indices to access allocated cache buffer, maps from block iter vars.
-   * \param consumer_blocks An optional list of consumers to read from cache directly.
-   * \return The cache stage block.
+   * \param index_map User defined indices to access allocated cache buffer, maps from block iter
+   * vars. \param consumer_blocks An optional list of consumers to read from cache directly. \return
+   * The cache stage block.
    */
   virtual BlockRV ReindexCacheRead(const BlockRV& block_rv, int read_buffer_index,
                                    const String& storage_scope, const IndexMap& index_map,
@@ -428,9 +428,9 @@ class ScheduleNode : public runtime::Object {
    * \param block_rv The producer of the buffer
    * \param write_buffer_index The index of the buffer in block's write region
    * \param storage_scope The target storage scope
-   * \param index_map User defined indices to access allocated cache buffer, maps from block iter vars.
-   * \param consumer_blocks An optional list of consumers to read from cache directly.
-   * \return The cache stage block.
+   * \param index_map User defined indices to access allocated cache buffer, maps from block iter
+   * vars. \param consumer_blocks An optional list of consumers to read from cache directly. \return
+   * The cache stage block.
    */
   virtual BlockRV ReindexCacheWrite(const BlockRV& block_rv, int write_buffer_index,
                                     const String& storage_scope, const IndexMap& index_map,

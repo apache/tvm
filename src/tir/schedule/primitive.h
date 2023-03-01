@@ -278,14 +278,13 @@ TVM_DLL StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int 
  * \param block_sref The consumer block of the target buffer.
  * \param read_buffer_index The index of the buffer in block's read region.
  * \param storage_scope The target storage scope.
- * \param index_map User defined indices to access allocated cache buffer, maps from block iter vars.
- * \param consumer_blocks Array of blocks that consume the cache.
- * \return The cache stage block.
+ * \param index_map User defined indices to access allocated cache buffer, maps from block iter
+ * vars. \param consumer_blocks Array of blocks that consume the cache. \return The cache stage
+ * block.
  */
 TVM_DLL StmtSRef ReindexCacheRead(ScheduleState self, const StmtSRef& block_sref,
                                   int read_buffer_index, const String& storage_scope,
-                                  const IndexMap& index_map,
-                                  Array<StmtSRef> consumer_blocks = {});
+                                  const IndexMap& index_map, Array<StmtSRef> consumer_blocks = {});
 /*!
  * \brief Create a block that writes a buffer region into a write cache. It requires:
  * 1) There is only one block that writes the target buffer.
@@ -295,14 +294,13 @@ TVM_DLL StmtSRef ReindexCacheRead(ScheduleState self, const StmtSRef& block_sref
  * \param block_sref The producer of the buffer
  * \param write_buffer_index The index of the buffer in block's write region
  * \param storage_scope The target storage scope
- * \param index_map User defined indices to access allocated cache buffer, maps from block iter vars.
- * \param consumer_blocks Array of blocks that consume the cache.
- * \return The cache stage block.
+ * \param index_map User defined indices to access allocated cache buffer, maps from block iter
+ * vars. \param consumer_blocks Array of blocks that consume the cache. \return The cache stage
+ * block.
  */
 TVM_DLL StmtSRef ReindexCacheWrite(ScheduleState self, const StmtSRef& block_sref,
                                    int write_buffer_index, const String& storage_scope,
-                                   const IndexMap& index_map,
-                                   Array<StmtSRef> consumer_blocks = {});
+                                   const IndexMap& index_map, Array<StmtSRef> consumer_blocks = {});
 
 /*!
  *!
