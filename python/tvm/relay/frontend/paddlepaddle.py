@@ -2072,6 +2072,9 @@ def convert_tile(g, op, block):
     x = g.get_node(op.input("X")[0])
     if op.input("RepeatTimes"):
         repeat_times = g.get_node(op.input("RepeatTimes")[0])
+    elif op.input("repeat_times_tensor"):
+        repeat_times = g.get_node(op.input("repeat_times_tensor")[0])
+        repeat_times = _op.concatenate(repeat_times, axis=0)
     else:
         repeat_times = op.attr("repeat_times")
     repeat_times, infered = try_infer_value(repeat_times, g.get_params())
