@@ -123,10 +123,14 @@ register_legalize("relax.nn.relu", _call_topi_without_attr(topi.nn.relu))
 def _nn_gelu(bb: BlockBuilder, call: Call) -> Expr:
     def te_gelu(x: te.Tensor):
         dtype = x.dtype
-        return x * (
-            tir.const(0.5, dtype)
-            + topi.erf(x * tir.const(0.5**0.5, dtype)) * tir.const(0.5, dtype)
-        )
+        erf_inp = x * tir.const(0.5**0.5, dtype)
+
+        if dtype == "float16":
+            erf = topi.math.cast(topi.erf(topi.math.cast(erf_inp, "float32")), "float16")
+        else:
+            erf = topi.erf(erf_inp)
+
+        return x * (tir.const(0.5, dtype) + erf * tir.const(0.5, dtype))
 
     return bb.call_te(te_gelu, call.args[0], primfunc_name_hint="gelu")
 
