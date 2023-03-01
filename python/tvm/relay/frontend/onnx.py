@@ -4903,6 +4903,116 @@ class LinearRegressor(OnnxOpConverter):
         return mm_out
 
 
+class DFT(OnnxOpConverter):
+    """Operator converter for discrete Fourier transform (DFT)."""
+
+    @classmethod
+    def _impl_v17(cls, inputs, attr, params):
+        # ************************* Read attrs *************************
+        axis = attr.get("axis")
+        inverse = attr.get("inverse")
+        onesided = attr.get("onesided")
+
+        # ************************* Read inputs ************************
+        input_tensor = inputs[0]
+        dft_length = inputs[1]
+
+        # ************************* Parse inputs ***********************
+        t1 = ["float16", "float32", "float64"]
+        t2 = ["int32", "int64"]
+
+        # input
+        assert infer_type(input_tensor).checked_type.dtype in t1
+        input_shape = infer_shape(input_tensor)
+        assert len(input_shape) >= 3
+        if axis < 0:
+            axis = len(input_shape) + axis
+        assert 1 <= axis <= len(input_shape) - 1, "axis is out of bounds"
+
+        # dft_length
+        if dft_length is None:
+            dft_length = input_shape[axis]
+        else:
+            dft_length_dtype = infer_type(dft_length).checked_type.dtype
+            assert dft_length_dtype in t2
+            dft_length = int(infer_value(dft_length, params).numpy())
+
+        # ************************
+        input_tensor = cls._maybe_crop_or_pad(input_tensor, axis, dft_length)
+
+        swap_axis = -1
+        re_input_tensor, im_input_tensor = cls._split_real_and_imag_parts(input_tensor)
+
+        re_input_tensor = cls._swap_axes(re_input_tensor, axis, swap_axis)
+        im_input_tensor = cls._swap_axes(im_input_tensor, axis, swap_axis)
+
+        re_input_tensor, im_input_tensor = _op.dft(re_input_tensor, im_input_tensor, inverse)
+
+        re_input_tensor = cls._swap_axes(re_input_tensor, axis, swap_axis)
+        im_input_tensor = cls._swap_axes(im_input_tensor, axis, swap_axis)
+
+        if onesided:
+            re_input_tensor = cls._crop_onesided(re_input_tensor, axis)
+            im_input_tensor = cls._crop_onesided(im_input_tensor, axis)
+
+        return cls._merge_real_and_imag_parts(re_input_tensor, im_input_tensor)
+
+    @classmethod
+    def _crop_axis(cls, tensor, axis, new_dim):
+        shape = infer_shape(tensor)
+        slices = [slice(0, a, 1) for a in shape]
+        slices[axis] = slice(0, new_dim, 1)
+        return _op.strided_slice(
+            tensor,
+            begin=[s.start for s in slices],
+            end=[s.stop for s in slices],
+            strides=[s.step for s in slices],
+            axes=list(range(len(shape))),
+        )
+
+    @classmethod
+    def _maybe_crop_or_pad(cls, input_tensor, axis, n_fft):
+        shape = infer_shape(input_tensor)
+        if shape[axis] != n_fft:
+            if shape[axis] > n_fft:
+                return cls._crop_axis(input_tensor, axis, n_fft)
+            else:
+                pad_width = [(0, 0)] * len(shape)
+                pad_width[axis] = (0, n_fft - shape[axis])
+                return _op.nn.pad(input_tensor, pad_width)
+        return input_tensor
+
+    @classmethod
+    def _swap_axes(cls, tensor, axis1, axis2):
+        permutation = list(range(len(infer_shape(tensor))))
+        permutation[axis1] = axis2
+        permutation[axis2] = axis1
+        return _op.transpose(tensor, permutation)
+
+    @classmethod
+    def _split_real_and_imag_parts(cls, tensor):
+        shape = infer_shape(tensor)
+        dtype = infer_type(tensor).checked_type.dtype
+        if shape[-1] == 1:
+            re = tensor
+            im = _op.const(np.zeros(shape), dtype=dtype)
+        else:
+            re, im = _op.split(tensor, 2, -1)
+
+        return _op.squeeze(re, -1), _op.squeeze(im, -1)
+
+    @classmethod
+    def _merge_real_and_imag_parts(cls, re, im):
+        re = _op.expand_dims(re, axis=-1)
+        im = _op.expand_dims(im, axis=-1)
+        return _op.concatenate([re, im], axis=-1)
+
+    @classmethod
+    def _crop_onesided(cls, tensor, axis):
+        shape = infer_shape(tensor)
+        return cls._crop_axis(tensor, axis, shape[axis] // 2 + 1)
+
+
 class NonMaxSuppression(OnnxOpConverter):
     """Operator converter for NonMaxSuppression."""
 
@@ -6722,6 +6832,7 @@ def _get_convert_map(opset):
         "Scan": Scan.get_converter(opset),
         # ML
         "LinearRegressor": LinearRegressor.get_converter(opset),
+        "DFT": DFT.get_converter(opset),
         # Sequence operators
         "SequenceConstruct": SequenceConstruct.get_converter(opset),
         "SequenceEmpty": SequenceEmpty.get_converter(opset),

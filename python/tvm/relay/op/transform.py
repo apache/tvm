@@ -1938,6 +1938,33 @@ def stft(
     return _make.stft(data, n_fft, hop_length, win_length, window, normalized, onesided)
 
 
+def dft(re_data, im_data, inverse=False):
+    """
+    Computes the discrete Fourier transform of input (calculation along the last axis).
+    This gives frequency components of the signal as they change over time.
+
+    Parameters
+    ----------
+    re_data : relay.Expr
+        N-D tensor, real part of the input signal.
+
+    im_data : relay.Expr
+        N-D tensor, imaginary part of the input signal.
+        If the signal is real, then the values of this tensor are zeros.
+
+    inverse : bool
+        Whether to perform the inverse discrete fourier transform.
+
+    Returns
+    -------
+    re_output : relay.Expr
+        The Fourier Transform of the input (Real part).
+    im_output : relay.Expr
+        The Fourier Transform of the input (Imaginary part).
+    """
+    return TupleWrapper(_make.dft(re_data, im_data, inverse), 2)
+
+
 def trilu(data, k, upper=True):
     """Given a 2-D matrix or batches of 2-D matrices, returns the
     upper or lower triangular part of the tensor.

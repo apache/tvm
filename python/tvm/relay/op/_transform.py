@@ -182,6 +182,20 @@ def stft_shape_func(attrs, inputs, _):
     ]
 
 
+# DFT
+@_reg.register_compute("dft")
+def compute_dft(attrs, inputs, _):
+    """Compute definition of DFT"""
+    return topi.dft(
+        inputs[0],
+        inputs[1],
+        attrs.inverse,
+    )
+
+
+_reg.register_strategy("dft", strategy.dft_strategy)
+
+
 # trilu
 _reg.register_strategy("trilu", strategy.trilu_strategy)
 
