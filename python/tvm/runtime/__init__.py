@@ -32,6 +32,11 @@ from .ndarray import device, cpu, cuda, gpu, opencl, cl, vulkan, metal, mtl
 from .ndarray import vpi, rocm, ext_dev
 from .module import load_module, enabled, system_lib, load_static_library
 from .container import String, ShapeTuple
-from .params import save_param_dict, load_param_dict
+from .params import (
+    save_param_dict,
+    load_param_dict,
+    save_param_dict_to_file,
+    load_param_dict_from_file,
+)
 
 from . import executor
