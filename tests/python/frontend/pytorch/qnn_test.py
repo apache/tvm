@@ -45,9 +45,15 @@ def torch_version_check():
 
 def get_tvm_runtime(script_module, input_name, ishape, keep_quantized_weight=False, target="llvm"):
     input_shapes = [(input_name, ishape)]
-    mod, params = relay.frontend.from_pytorch(
-        script_module, input_shapes, keep_quantized_weight=keep_quantized_weight
-    )
+    with tvm.testing.disable_span_filling():
+        mod, params = relay.frontend.from_pytorch(
+            script_module, input_shapes, keep_quantized_weight=keep_quantized_weight
+        )
+    with tvm.testing.enable_span_filling():
+        mod_with_span, _ = relay.frontend.from_pytorch(
+            script_module, input_shapes, keep_quantized_weight=keep_quantized_weight
+        )
+    assert tvm.ir.structural_equal(mod, mod_with_span, map_free_vars=True)
 
     if keep_quantized_weight:
         for p in params.values():
@@ -629,7 +635,11 @@ def pattern_table():
 
 def run_qnn_mergecomposite(script_module, input_name, ishape):
     input_shapes = [(input_name, ishape)]
-    mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
+    with tvm.testing.disable_span_filling():
+        mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
+    with tvm.testing.enable_span_filling():
+        mod_with_span, _ = relay.frontend.from_pytorch(script_module, input_shapes)
+    assert tvm.ir.structural_equal(mod, mod_with_span, map_free_vars=True)
     pattern_table = get_pattern_table("test_table")
     with tvm.transform.PassContext(opt_level=3):
         pass_list = [
@@ -778,7 +788,11 @@ def test_tuple_lowered():
     script_module = torch.jit.trace(model_int8, fp32_input).eval()
 
     input_infos = [("input", (fp32_input.shape, "float32"))]
-    mod, _ = relay.frontend.from_pytorch(script_module, input_infos)
+    with tvm.testing.disable_span_filling():
+        mod, _ = relay.frontend.from_pytorch(script_module, input_infos)
+    with tvm.testing.enable_span_filling():
+        mod_with_span, _ = relay.frontend.from_pytorch(script_module, input_infos)
+    assert tvm.ir.structural_equal(mod, mod_with_span, map_free_vars=True)
     output = mod["main"].body
 
     assert isinstance(output, relay.Tuple) and len(output) == 2
