@@ -24,11 +24,12 @@ configuring the passes and scripting them in Python.
 from typing import Dict, List, Union, Callable
 from enum import IntEnum
 
+import tvm
 from tvm import tir
 from tvm import IRModule
 from tvm.relax.ty import Type
 from tvm.relax.struct_info import StructInfo, FuncStructInfo
-from tvm.relax.expr import DataflowBlock, Var, Expr, Function, Call, Binding
+from tvm.relax.expr import DataflowBlock, Var, GlobalVar, Expr, Function, Call, Binding
 from tvm.tir import IndexMap, PrimFunc, Block, Buffer
 from . import _ffi_api
 
@@ -319,3 +320,35 @@ def suggest_layout_transforms(
         assert isinstance(transform, IndexMap)
         write_buffer_index_maps.append(transform)
     return _ffi_api.suggest_layout_transforms(func, write_buffer_index_maps)  # type: ignore
+
+
+def detect_recursion(mod: tvm.IRModule) -> List[List[GlobalVar]]:
+    """
+    Find all sets of recursive or mutually recursive functions in the module.
+
+    Two or more functions are mutually recursive if there is some cycle of references
+    among them. For example, if there are two functions A and B, they are
+    mutually recursive if A calls B and B calls A. Another case would be with
+    three functions A, B, and C, where A calls B, B calls C, and C calls A.
+
+    (Note that functions do not have to call each other to reference each other.
+    For example, if a function returns another function, that is still a reference
+    that could potentially be recursive, even without a call.)
+
+
+    If a function is simply recursive and not mutually recursive with any other,
+    it will be reported as a group by itself.
+
+    Parameters
+    ----------
+    mod: The module
+
+    Returns
+    -------
+    ret: List[List[GlobalVar]]
+        Each member of the list is a list of global functions
+        that references each other mutually recursively.
+        If a function is simply recursive and not mutually recursive
+        with any other, it will be a singleton in this list.
+    """
+    return _ffi_api.detect_recursion(mod)  # type: ignore
