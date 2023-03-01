@@ -1115,7 +1115,7 @@ class Schedule(Object):
         block: Union[BlockRV, str],
         write_buffer_index: Union[int, str, Buffer],
         storage_scope: str,
-        consumer_blocks=None,
+        consumer_blocks: Optional[List[Union[BlockRV, str]]] = None,
     ) -> BlockRV:
         """Create a block that reads a buffer region into a write cache. It requires:
 
@@ -1205,13 +1205,19 @@ class Schedule(Object):
 
     @type_checked
     def reindex_cache_read(
-        self, block: BlockRV, read_buffer_index: int, storage_scope: str,
+        self,
+        block: Union[BlockRV, str],
+        read_buffer_index: int,
+        storage_scope: str,
         index_map: Union[IndexMap, Callable],
-        consumer_blocks=None,
+        consumer_blocks: Optional[List[Union[BlockRV, str]]] = None,
     ) -> BlockRV:
-        """Create a block that reads a buffer region into a read cache, with user customized
-        indices specified by index map.
-        The read region of the buffer to read in the block must be a single point.
+        """Create a block that reads a buffer region into a read cache using customized
+        indices specified by index map. The read region of the buffer must be a single point.
+
+        The cache stage block follows the original order of loops and block itervars in the block.
+        If a block itervar does not appear in the buffer access region,
+        it and its corresponding loop variables will be omitted.
 
         Parameters
         ----------
@@ -1277,6 +1283,11 @@ class Schedule(Object):
         """
         if consumer_blocks is None:
             consumer_blocks = []
+
+        # Convert any string block names into Block RVs.
+        consumer_blocks = [self._normalize_block_arg(b) for b in consumer_blocks]
+        block = self._normalize_block_arg(block)
+
         if callable(index_map):
             index_map = IndexMap.from_func(index_map)
         return _ffi_api.ScheduleReindexCacheRead(  # type: ignore # pylint: disable=no-member
@@ -1285,17 +1296,23 @@ class Schedule(Object):
 
     @type_checked
     def reindex_cache_write(
-        self, block: BlockRV, write_buffer_index: int, storage_scope: str,
+        self,
+        block: Union[BlockRV, str],
+        write_buffer_index: int,
+        storage_scope: str,
         index_map: Union[Callable, IndexMap],
-        consumer_blocks=None,
+        consumer_blocks: Optional[List[Union[BlockRV, str]]] = None,
     ) -> BlockRV:
-        """Create a block that reads a buffer region into a write cache, with user customized
-        indices specified by index map.
-        The write region of the buffer to write in the block must be a single point.
+        r"""Create a block that reads a buffer region into a write cache using customized
+        indices specified by index map. The write region of the buffer must be a single point.
+
+        The cache stage block follows the original order of loops and block itervars in the block.
+        If a block itervar does not appear in the buffer access region,
+        it and its corresponding loop variables will be omitted.
 
         Parameters
         ----------
-        block : BlockRV
+        block : Union[BlockRV, str]
             The consumer block of the target buffer.
         write_buffer_index: int
             The index of the buffer in block's write region.
@@ -1357,6 +1374,11 @@ class Schedule(Object):
         """
         if consumer_blocks is None:
             consumer_blocks = []
+
+        # Convert any string block names into Block RVs.
+        consumer_blocks = [self._normalize_block_arg(b) for b in consumer_blocks]
+        block = self._normalize_block_arg(block)
+
         if callable(index_map):
             index_map = IndexMap.from_func(index_map)
         return _ffi_api.ScheduleReindexCacheWrite(  # type: ignore # pylint: disable=no-member

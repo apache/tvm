@@ -158,7 +158,7 @@ Block MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStageI
   Map<Var, PrimExpr> var_map;
   for (size_t i = 0; i < info->loop_vars.size(); ++i) {
     Var original_var = info->loop_vars[i];
-    Var loop_var("ax" + std::to_string(i), original_var.dtype());
+    Var loop_var(original_var->name_hint, original_var.dtype());
     var_map.Set(original_var, loop_var);
     loop_vars.push_back(loop_var);
   }
@@ -167,7 +167,7 @@ Block MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStageI
     PrimExpr original_iter_value = info->block_iter_values[i];
     IterVar block_var = IterVar(
         /*dom=*/original_block_var->dom,
-        /*var=*/Var("v" + std::to_string(i), original_block_var->var.dtype()),
+        /*var=*/Var(original_block_var->var->name_hint, original_block_var->var.dtype()),
         /*IterVarType=*/kDataPar);
     var_map.Set(original_block_var->var, block_var->var);
     block_vars.push_back(block_var);
@@ -506,7 +506,8 @@ class CacheLocDetector : public StmtVisitor {
    * \brief Detect the insertion position of the cache stage, and write the position into the
    * CacheStageInfo
    * \param self The state of the schedule
-   * \param block_sref The sref of the unique writer block of the buffer being applied cache_read or cache_write
+   * \param block_sref The sref of the unique writer block of the buffer being applied cache_read or
+   * cache_write
    * \param scope_sref The sref of the scope block of the cached block
    * \param info The cache stage info.
    */
@@ -2227,20 +2228,20 @@ struct ReindexCacheReadTraits : public UnpackedInstTraits<ReindexCacheReadTraits
   static constexpr bool kIsPure = false;
 
  private:
-  static constexpr size_t kNumInputs = 1;
-  static constexpr size_t kNumAttrs = 4;
+  static constexpr size_t kNumInputs = 3;
+  static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
-  static BlockRV UnpackedApplyToSchedule(Schedule sch, BlockRV block, Integer read_buffer_index,
-                                         String storage_scope, IndexMap index_map,
-                                         Array<BlockRV> consumer_blocks) {
+  static BlockRV UnpackedApplyToSchedule(Schedule sch, BlockRV block, IndexMap index_map,
+                                         Array<BlockRV> consumer_blocks, Integer read_buffer_index,
+                                         String storage_scope) {
     return sch->ReindexCacheRead(block, read_buffer_index->value, storage_scope, index_map,
                                  consumer_blocks);
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String block, Integer read_buffer_index,
-                                 String storage_scope, IndexMap index_map,
-                                 Array<BlockRV> consumer_blocks) {
+  static String UnpackedAsPython(Array<String> outputs, String block, IndexMap index_map,
+                                 Array<BlockRV> consumer_blocks, Integer read_buffer_index,
+                                 String storage_scope) {
     PythonAPICall py("reindex_cache_read");
     py.Input("block", block);
     py.Input("read_buffer_index", read_buffer_index->value);
@@ -2262,20 +2263,20 @@ struct ReindexCacheWriteTraits : public UnpackedInstTraits<ReindexCacheWriteTrai
   static constexpr bool kIsPure = false;
 
  private:
-  static constexpr size_t kNumInputs = 1;
-  static constexpr size_t kNumAttrs = 4;
+  static constexpr size_t kNumInputs = 3;
+  static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
-  static BlockRV UnpackedApplyToSchedule(Schedule sch, BlockRV block, Integer write_buffer_index,
-                                         String storage_scope, IndexMap index_map,
-                                         Array<BlockRV> consumer_blocks) {
+  static BlockRV UnpackedApplyToSchedule(Schedule sch, BlockRV block, IndexMap index_map,
+                                         Array<BlockRV> consumer_blocks, Integer write_buffer_index,
+                                         String storage_scope) {
     return sch->ReindexCacheWrite(block, write_buffer_index->value, storage_scope, index_map,
                                   consumer_blocks);
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String block, Integer write_buffer_index,
-                                 String storage_scope, IndexMap index_map,
-                                 Array<BlockRV> consumer_blocks) {
+  static String UnpackedAsPython(Array<String> outputs, String block, IndexMap index_map,
+                                 Array<BlockRV> consumer_blocks, Integer write_buffer_index,
+                                 String storage_scope) {
     PythonAPICall py("reindex_cache_write");
     py.Input("block", block);
     py.Input("write_buffer_index", write_buffer_index->value);

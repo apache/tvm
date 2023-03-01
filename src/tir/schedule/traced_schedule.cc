@@ -319,14 +319,15 @@ BlockRV TracedScheduleNode::ReindexCacheRead(const BlockRV& block_rv, int read_b
   trace_->Append(
       /*inst=*/Instruction(
           /*kind=*/kind,
-          /*inputs=*/{block_rv},
-          /*attrs=*/{Integer(read_buffer_index), storage_scope, index_map, consumer_blocks},
+          /*inputs=*/{block_rv, index_map, consumer_blocks},
+          /*attrs=*/{Integer(read_buffer_index), storage_scope},
           /*outputs=*/{result}));
   return result;
 }
 
 BlockRV TracedScheduleNode::ReindexCacheWrite(const BlockRV& block_rv, int write_buffer_index,
-                                              const String& storage_scope, const IndexMap& index_map,
+                                              const String& storage_scope,
+                                              const IndexMap& index_map,
                                               Array<BlockRV> consumer_blocks) {
   BlockRV result = ConcreteScheduleNode::ReindexCacheWrite(
       block_rv, write_buffer_index, storage_scope, index_map, consumer_blocks);
@@ -335,8 +336,8 @@ BlockRV TracedScheduleNode::ReindexCacheWrite(const BlockRV& block_rv, int write
   trace_->Append(
       /*inst=*/Instruction(
           /*kind=*/kind,
-          /*inputs=*/{block_rv},
-          /*attrs=*/{Integer(write_buffer_index), storage_scope, index_map, consumer_blocks},
+          /*inputs=*/{block_rv, index_map, consumer_blocks},
+          /*attrs=*/{Integer(write_buffer_index), storage_scope},
           /*outputs=*/{result}));
   return result;
 }
