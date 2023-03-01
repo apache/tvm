@@ -370,5 +370,36 @@ def test_control_flow():
     assert_groups(groups, [["a", "b", "c"]])
 
 
+def test_returning_self():
+    @tvm.script.ir_module
+    class ReturnsSelf:
+        @R.function
+        def a() -> R.Object:
+            # this is also a form of recursion
+            return a
+
+    groups = detect_recursion(ReturnsSelf)
+    assert_groups(groups, [["a"]])
+
+
+def test_mutual_recursion_via_references():
+    @tvm.script.ir_module
+    class GatherReferences:
+        @R.function
+        def a(x: R.Object) -> R.Object:
+            return b(x)
+
+        @R.function
+        def b(x: R.Object) -> R.Object:
+            return (a, b, c)
+
+        @R.function
+        def c(x: R.Object) -> R.Object:
+            return a(x)
+
+    groups = detect_recursion(GatherReferences)
+    assert_groups(groups, [["a", "b", "c"]])
+
+
 if __name__ == "__main__":
     tvm.testing.main()

@@ -34,8 +34,8 @@ namespace relax {
 /*
  * General approach to detecting recursion:
  *   Suppose we have a dependency graph of global functions,
- *   where function A depends on function B if A contains a call to B
- *   (i.e., an edge A->B means A calls B). If function A is recursive,
+ *   where function A depends on function B if A contains a reference to B
+ *   (i.e., an edge A->B means A references B). If function A is recursive,
  *   then it has a self-edge A->A.
  *
  *   Note that the call can happen _anywhere_ in the function's body:
@@ -82,11 +82,7 @@ class DependencyGatherer : public ExprVisitor {
     return deps_;
   }
 
-  void VisitExpr_(const CallNode* call) override {
-    auto* gv = call->op.as<GlobalVarNode>();
-    deps_.insert(gv->name_hint);
-    ExprVisitor::VisitExpr_(call);
-  }
+  void VisitExpr_(const GlobalVarNode* gv) override { deps_.insert(gv->name_hint); }
 
  private:
   std::unordered_set<std::string> deps_;

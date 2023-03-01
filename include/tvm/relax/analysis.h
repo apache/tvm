@@ -311,10 +311,14 @@ TVM_DLL tvm::Array<GlobalVar> AllGlobalVars(const Expr& expr);
 /*!
  * \brief Find all sets of recursive or mutually recursive functions in the module.
  *
- * Two or more functions are mutually recursive if there is some cycle of calls
+ * Two or more functions are mutually recursive if there is some cycle of references
  * among them. For example, if there are two functions A and B, they are
  * mutually recursive if A calls B and B calls A. Another case would be with
  * three functions A, B, and C, where A calls B, B calls C, and C calls A.
+ * 
+ * (Note that functions do not have to call each other to reference each other.
+ * For example, if a function returns another function, that is still a reference
+ * that could potentially be recursive, even without a call.)
  *
  * If a function is simply recursive and not mutually recursive with any other,
  * it will be reported as a group by itself.
