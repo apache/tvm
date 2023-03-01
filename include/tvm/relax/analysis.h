@@ -309,6 +309,31 @@ TVM_DLL tvm::Array<Var> AllVars(const Expr& expr);
 TVM_DLL tvm::Array<GlobalVar> AllGlobalVars(const Expr& expr);
 
 /*!
+ * \brief Find all sets of recursive or mutually recursive functions in the module.
+ *
+ * Two or more functions are mutually recursive if there is some cycle of references
+ * among them. For example, if there are two functions A and B, they are
+ * mutually recursive if A calls B and B calls A. Another case would be with
+ * three functions A, B, and C, where A calls B, B calls C, and C calls A.
+ *
+ * (Note that functions do not have to call each other to reference each other.
+ * For example, if a function returns another function, that is still a reference
+ * that could potentially be recursive, even without a call.)
+ *
+ * If a function is simply recursive and not mutually recursive with any other,
+ * it will be reported as a group by itself.
+ *
+ * \param m The module
+ *
+ * \return List of all groups of mutually recursive functions.
+ *     Each member of the result is a list of functions in the module
+ *     that are all mutually recursive.
+ *     If a function is simply recursive and not mutually recursive with any other,
+ *     then it will be listed as a group by itself.
+ */
+TVM_DLL tvm::Array<tvm::Array<GlobalVar>> DetectRecursion(const IRModule& m);
+
+/*!
  * \brief Analyze var -> value mapping from VarBindings.
  *
  * \param m The IRModule to check.
