@@ -896,6 +896,7 @@ def test_forward_zeros_like():
     verify_model(zeros_like1, input_data=input_data)
     verify_model(zeros_like2, input_data=input_data)
 
+
 @tvm.testing.uses_gpu
 def test_forward_tile():
     @paddle.jit.to_static
@@ -910,6 +911,7 @@ def test_forward_tile():
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(tile1, input_data=input_data)
     verify_model(tile2, input_data=input_data)
+
 
 @tvm.testing.uses_gpu
 def test_forward_gelu():
