@@ -389,8 +389,8 @@ conv2d_pat = make_fused_bias_activation_pattern("relax.nn.conv2d", activation=No
 conv2d_relu_pat = make_fused_bias_activation_pattern("relax.nn.conv2d", activation="relax.nn.relu")
 
 
-def check(mod, patterns, expected, lift_constants=False, annoatate_codegen=False):
-    partitioned = relax.transform.FuseOpsByPattern(patterns, lift_constants, annoatate_codegen)(mod)
+def check(mod, patterns, expected, bind_constants=True, annoatate_codegen=False):
+    partitioned = relax.transform.FuseOpsByPattern(patterns, bind_constants, annoatate_codegen)(mod)
     tvm.ir.assert_structural_equal(partitioned, expected)
 
 
@@ -425,7 +425,7 @@ def test_cyclic_dependency():
 
     with pytest.raises(tvm.error.TVMError) as err:
         relax.transform.FuseOpsByPattern(
-            [("compiler_A.conv2d_relu_add", add_pat)], lift_constants=False
+            [("compiler_A.conv2d_relu_add", add_pat)], bind_constants=True
         )(Branch)
 
     assert "A cyclic dependency detected" in str(err.value)
@@ -437,7 +437,7 @@ def test_bind_params():
         [
             relax.transform.BindParams("main", {"weight1": weight_np}),
             relax.transform.FuseOpsByPattern(
-                [("dnnl.conv2d_relu", conv2d_relu_pat)], lift_constants=False
+                [("dnnl.conv2d_relu", conv2d_relu_pat)], bind_constants=True
             ),
         ]
     )(Conv2dReLU)
@@ -593,7 +593,7 @@ def test_check_pattern():
     check(Conv2dx2, [("cutlass.conv2d", pat, pred)], Conv2dx2)  # expect no partitioning
 
 
-def test_lift_constants():
+def test_bind_constants():
     weight = np.random.randn(64, 64, 3, 3).astype("float32")
 
     @I.ir_module
@@ -638,7 +638,7 @@ def test_lift_constants():
         Conv2dWithConstantWeight,
         [("cutlass.conv2d", pat)],
         Conv2dWithConstantWeight_partitioned,
-        lift_constants=True,
+        bind_constants=False,
     )
 
 

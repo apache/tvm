@@ -1054,7 +1054,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
 IRModule FuseOpsByPattern(const tvm::Array<String>& pattern_names,
                           const tvm::Array<DFPattern>& patterns,
                           const tvm::Array<runtime::PackedFunc>& checks, IRModule mod,
-                          bool lift_constants, bool annotate_codegen) {
+                          bool bind_constants, bool annotate_codegen) {
   support::Arena arena;
   for (size_t i = 0; i < pattern_names.size(); ++i) {
     OperatorFusor::GroupMap group_map;
@@ -1066,7 +1066,7 @@ IRModule FuseOpsByPattern(const tvm::Array<String>& pattern_names,
                                               entry.second, &arena);
       group_map.insert(map.begin(), map.end());
     }
-    mod = MakeGroupedFunctions(mod, group_map, /*lift_constants*/ lift_constants);
+    mod = MakeGroupedFunctions(mod, group_map, /*lift_constants*/ !bind_constants);
   }
   if (annotate_codegen) {
     return CompositeFunctionAnnotator(mod).Run();
@@ -1093,11 +1093,11 @@ TVM_REGISTER_GLOBAL("relax.transform.FuseOps").set_body_typed(FuseOps);
 
 Pass FuseOpsByPattern(const tvm::Array<String>& pattern_names,
                       const tvm::Array<DFPattern>& patterns,
-                      const tvm::Array<runtime::PackedFunc>& checks, bool lift_constants,
+                      const tvm::Array<runtime::PackedFunc>& checks, bool bind_constants,
                       bool annotate_codegen) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
       [=](IRModule m, PassContext pc) {
-        return relax::FuseOpsByPattern(pattern_names, patterns, checks, m, lift_constants,
+        return relax::FuseOpsByPattern(pattern_names, patterns, checks, m, bind_constants,
                                        annotate_codegen);
       };
   return CreateModulePass(/*pass_function=*/pass_func,       //

@@ -226,7 +226,7 @@ def get_result_with_relax_cutlass_offload(mod, *args):
 
     seq = tvm.transform.Sequential(
         [
-            relax.transform.FuseOpsByPattern(patterns, lift_constants=True, annotate_codegen=True),
+            relax.transform.FuseOpsByPattern(patterns, bind_constants=False, annotate_codegen=True),
             relax.transform.RunCodegen({"cutlass": {"sm": 80, "find_first_valid": True}}),
         ]
     )

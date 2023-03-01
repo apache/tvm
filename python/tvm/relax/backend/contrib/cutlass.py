@@ -117,6 +117,6 @@ def partition_for_cutlass(mod):
     """
 
     cutlass_patterns = get_patterns_with_prefix("cutlass")
-    return transform.FuseOpsByPattern(cutlass_patterns, lift_constants=True, annotate_codegen=True)(
+    return transform.FuseOpsByPattern(cutlass_patterns, bind_constants=True, annotate_codegen=True)(
         mod
     )
