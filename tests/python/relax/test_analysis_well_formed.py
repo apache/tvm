@@ -17,9 +17,10 @@
 import pytest
 import tvm
 import tvm.testing
-from tvm import tir
 from tvm import relax as rx
+from tvm import tir
 from tvm.script import relax as R
+from tvm.script import tir as T
 
 m = tir.Var("m", "int64")
 n = tir.Var("n", "int64")
@@ -495,6 +496,28 @@ def test_sinfo_args_tir_var_used_before_define_call_tir():
     func = build_function([rx.BindingBlock([rx.VarBinding(rx.Var("gv"), call)])])
     mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
     assert not rx.analysis.well_formed(mod, check_struct_info=False)
+
+
+def test_sinfo_erase_to_well_formed():
+    # Error: The return sinfo contains undefined symbolic vars
+    """
+    @R.function
+    def foo(x: R.Tensor(("m", "n"), dtype="float32")) -> R.Tensor(("m1", "n1"), dtype="float32"):
+        m = T.int64()
+        n = T.int64()
+        gv = R.call_tir("my_func", (x,), out_sinfo=R.Tensor((m, n), dtype="float32"))
+        return gv
+    """
+    m1 = tir.Var("m1", "int64")
+    n1 = tir.Var("n1", "int64")
+    call = R.call_tir("my_func", x, out_sinfo=R.Tensor((m, n), "float32"))
+    blocks = [rx.BindingBlock([rx.VarBinding(rx.Var("gv"), call)])]
+    seq_expr = rx.SeqExpr(blocks, blocks[-1].bindings[-1].var)
+    func = rx.Function([x], seq_expr, R.Tensor((m1, n1), "float32")).with_attr(
+        "global_symbol", "foo"
+    )
+    mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
+    assert not rx.analysis.well_formed(mod)
 
 
 if __name__ == "__main__":
