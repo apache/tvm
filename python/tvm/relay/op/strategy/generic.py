@@ -21,12 +21,8 @@ import re
 
 from tvm import _ffi, ir, te, topi
 from tvm.target import generic_func, override_native_generic_func
-from tvm.topi.utils import (
-    get_const_float,
-    get_const_int,
-    get_const_tuple,
-    get_float_tuple,
-)
+from tvm.topi.utils import (get_const_float, get_const_int, get_const_tuple,
+                            get_float_tuple)
 
 from .. import op as _op
 
@@ -2060,3 +2056,31 @@ def conv2d_backward_weight_strategy(attrs, inputs, out_type, target):
         "conv2d_backward_weight is currently only supported with cudnn. "
         "Please run Legalize pass to decompose this op into supported ops."
     )
+
+
+@override_native_generic_func("layout_transform_strategy")
+def layout_transform_strategy(attrs, inputs, out_type, target):
+    """layout transform generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_layout_transform(topi.layout_transform),
+        wrap_topi_schedule(topi.generic.schedule_injective),
+        name="layout_transform.generic",
+    )
+    return strategy
+
+
+def wrap_compute_layout_transform(topi_compute, schedule_rule=""):
+    """Wrap stft compute"""
+
+    def _compute_layout_transform(attrs, inputs, output_type):
+        return [
+            topi_compute(
+                inputs[0],
+                attrs.src_layout,
+                attrs.dst_layout,
+                schedule_rule,
+            )
+        ]
+
+    return _compute_layout_transform
