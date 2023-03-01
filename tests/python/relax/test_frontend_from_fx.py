@@ -142,7 +142,7 @@ def test_linear():
         def main(
             input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
             w1: R.Tensor((7, 10), dtype="float32"),
-            w2: R.Tensor((1, 7), dtype="float32"),
+            w2: R.Tensor((7,), dtype="float32"),
         ) -> R.Tensor((1, 3, 10, 7), dtype="float32"):
             # block 0
             with R.dataflow():
