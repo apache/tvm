@@ -38,6 +38,15 @@ def _get_static_shape(shape: ShapeExpr) -> Optional[Tuple[int]]:
     return result
 
 
+def _is_supported_dtype(lhs_dtype, rhs_dtype):
+    """Check if dtypes in the given workload are supported by CUTLASS."""
+    return (
+        (lhs_dtype == "float16" and rhs_dtype == "float16")
+        or (lhs_dtype == "float32" and rhs_dtype == "float32")
+        or (lhs_dtype in ("int8", "uint8") and rhs_dtype in ("int8", "uint8"))
+    )
+
+
 def _check_matmul(
     match_result: Mapping[DFPattern, Expr],
     _: Expr,
@@ -56,7 +65,7 @@ def _check_matmul(
 
     lhs_dtype = matmul_call.args[0].struct_info.dtype
     rhs_dtype = matmul_call.args[1].struct_info.dtype
-    if lhs_dtype != "float16" or rhs_dtype != "float16":
+    if not _is_supported_dtype(lhs_dtype, rhs_dtype):
         return False
 
     return is_valid_for_cutlass_matmul(lhs_shape, rhs_shape)

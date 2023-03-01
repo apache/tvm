@@ -40,7 +40,6 @@
 
 #include "../../relay/analysis/graph_partitioner.h"
 #include "../../support/arena.h"
-#include "../backend/pattern_registry.h"
 
 namespace tvm {
 namespace relax {
