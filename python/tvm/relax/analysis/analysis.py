@@ -339,7 +339,7 @@ def detect_recursion(mod: tvm.IRModule) -> List[List[GlobalVar]]:
     If a function is simply recursive and not mutually recursive with any other,
     it will be reported as a group by itself.
 
-        Parameters
+    Parameters
     ----------
     mod: The module
 
