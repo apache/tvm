@@ -19,31 +19,10 @@ import numpy as np
 import tvm
 import tvm.testing
 
-from tvm import relax, relay
+from tvm import relax
 from tvm.script import relax as R
 from tvm.relax.dpl import make_fused_bias_activation_pattern
-
-
-def get_relay_conv2d_relu_x2(d_shape, w_shape):
-    data = relay.var("data", shape=d_shape)
-    weight1 = relay.var("weight1", shape=w_shape)
-    weight2 = relay.var("weight2", shape=w_shape)
-    conv1 = relay.nn.relu(
-        relay.nn.conv2d(
-            data=data,
-            weight=weight1,
-            kernel_size=w_shape[2:],
-            padding=(1, 1),
-        )
-    )
-    return relay.nn.relu(
-        relay.nn.conv2d(
-            data=conv1,
-            weight=weight2,
-            kernel_size=w_shape[2:],
-            padding=(0, 0),
-        )
-    )
+from tvm.contrib.pickle_memoize import memoize
 
 
 @tvm.script.ir_module
@@ -72,6 +51,20 @@ dnnl_enabled = pytest.mark.skipif(
 pytestmark = [dnnl_enabled]
 
 
+def build_and_run(mod, inputs, legalize=False):
+    if legalize:
+        mod = relax.transform.LegalizeOps()(mod)
+
+    target = tvm.target.Target("llvm")
+    dev = tvm.cpu()
+    inputs = [tvm.nd.array(inp, dev) for inp in inputs]
+
+    ex = relax.build(mod, target)
+    vm = relax.VirtualMachine(ex, dev)
+    f = vm["main"]
+    return f(*inputs).numpy()
+
+
 def test_dnnl_offload():
     pat = make_fused_bias_activation_pattern(
         "relax.nn.conv2d", with_bias=False, activation="relax.nn.relu"
@@ -85,35 +78,20 @@ def test_dnnl_offload():
         ]
     )
 
-    mod = seq(Conv2dReLUx2)
+    @memoize("relax.tests.test_codegen_dnnl.conv2d_relu_x2")
+    def get_ref():
+        data_np = np.random.randn(1, 64, 56, 56).astype("float32")
+        weight1_np = np.random.randn(64, 64, 3, 3).astype("float32")
+        weight2_np = np.random.randn(64, 64, 3, 3).astype("float32")
+        inputs = [data_np, weight1_np, weight2_np]
+        ref = build_and_run(Conv2dReLUx2, inputs, legalize=True)
+        return inputs, ref
 
-    target = tvm.target.Target("llvm")
-    ex = relax.build(mod, target)
+    inputs, ref = get_ref()
 
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    f = vm["main"]
-
-    data_np = np.random.randn(1, 64, 56, 56).astype("float32")
-    weight1_np = np.random.randn(64, 64, 3, 3).astype("float32")
-    weight2_np = np.random.randn(64, 64, 3, 3).astype("float32")
-    out = f(tvm.nd.array(data_np), tvm.nd.array(weight1_np), tvm.nd.array(weight2_np)).numpy()
-
-    relay_mod = tvm.IRModule.from_expr(get_relay_conv2d_relu_x2(data_np.shape, weight1_np.shape))
-
-    ref = (
-        relay.create_executor("graph", mod=relay_mod, device=tvm.cpu(0), target="llvm")
-        .evaluate()(*[data_np, weight1_np, weight2_np])
-        .numpy()
-    )
+    out = build_and_run(seq(Conv2dReLUx2), inputs)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
-
-    profiler_vm = relax.VirtualMachine(ex, tvm.cpu(), profile=True)
-    report = profiler_vm.profile(
-        "main", tvm.nd.array(data_np), tvm.nd.array(weight1_np), tvm.nd.array(weight2_np)
-    )
-
-    print(report)
 
 
 if __name__ == "__main__":
