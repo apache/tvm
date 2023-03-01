@@ -14,15 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import math
-from typing import List, Tuple
-
 import numpy as np
 import pytest
 
 import tvm
 import tvm.testing
-from tvm import relax, relay
+from tvm import relax
 from tvm.relax.backend import get_patterns_with_prefix
 from tvm.script import relax as R
 
@@ -30,74 +27,6 @@ from tvm.script import relax as R
 @pytest.fixture(autouse=True)
 def reset_seed():
     np.random.seed(0)
-
-
-def get_relay_matmul(
-    x_shape,
-    y_shape,
-    x_dtype="float16",
-    y_dtype="float16",
-    out_dtype="float16",
-):
-    x = relay.var("x", shape=x_shape, dtype=x_dtype)
-    y = relay.var("y", shape=y_shape, dtype=y_dtype)
-    return relay.nn.dense(x, y, out_dtype=out_dtype)
-
-
-def get_relay_matmul_bias(
-    x_shape,
-    y_shape,
-    x_dtype="float16",
-    y_dtype="float16",
-    bias_dtype="float16",
-    out_dtype="float16",
-):
-    bias = relay.var("bias", shape=(y_shape[0],), dtype=bias_dtype)
-    return relay.nn.bias_add(
-        get_relay_matmul(
-            x_shape,
-            y_shape,
-            x_dtype,
-            y_dtype,
-            out_dtype,
-        ),
-        bias,
-    )
-
-
-def get_relay_matmul_bias_gelu(
-    x_shape,
-    y_shape,
-    x_dtype="float16",
-    y_dtype="float16",
-    bias_dtype="float16",
-    out_dtype="float16",
-):
-    bias_add = get_relay_matmul_bias(x_shape, y_shape, x_dtype, y_dtype, bias_dtype, out_dtype)
-    mul = bias_add * relay.const((1.0 / math.sqrt(2.0)), dtype=out_dtype)
-    if out_dtype == "float16":
-        erf = relay.cast(relay.op.erf(relay.cast(mul, "float32")), "float16")
-    else:
-        erf = relay.op.erf(mul)
-    mul_half = erf * relay.const(0.5, dtype=out_dtype)
-    add = mul_half + relay.const(0.5, dtype=out_dtype)
-    return add * bias_add
-
-
-def get_relay_ref(relay_expr, *args):
-    relay_mod = tvm.IRModule.from_expr(relay_expr)
-
-    with tvm.transform.PassContext(opt_level=3):
-        seq = tvm.transform.Sequential(
-            [relay.transform.ConvertLayout({"nn.conv2d": ["NHWC", "HWIO"]})]
-        )
-        relay_mod = seq(relay_mod)
-
-    return (
-        relay.create_executor("graph", mod=relay_mod, device=tvm.gpu(0), target="cuda")
-        .evaluate()(*args)
-        .numpy()
-    )
 
 
 @tvm.script.ir_module
@@ -234,8 +163,8 @@ def target_dtype(request):
     params=[
         # M, K, N
         (32, 6, 16),
-        # (29, 17, 19),
-        # (64, 128, 1024),
+        (29, 17, 19),
+        (64, 128, 1024),
     ]
 )
 def matmul_size(request):
@@ -297,16 +226,10 @@ def test_matmul_bias_gelu_offload(matmul_x, matmul_y, matmul_bias):
     x, y, bias = matmul_x, matmul_y, matmul_bias
     mod = get_relax_matmul_module(x, y, with_bias=True, activation=R.nn.gelu)
 
+    out = get_result_with_relax_cutlass_offload(mod, x, y, bias)
     ref = build_and_run(mod, [x, y, bias], "llvm", legalize=True)
 
-    out = get_result_with_relax_cutlass_offload(mod, x, y, bias)
-
-    # ref_relay_expr = get_relay_matmul_bias_gelu(x.shape, y.shape[::-1])
-    # ref = get_relay_ref(ref_relay_expr, x, y.transpose(), bias)
-
-    # tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-3)
-
-    # np.testing.assert_equal(out, ref)
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-3)
 
 
 def test_kernel_sharing():
@@ -362,14 +285,10 @@ def test_matmul_transposed_bias_gelu_offload(matmul_x, matmul_y, matmul_bias):
         x, y.transpose(), transposed_y=True, with_bias=True, activation=R.nn.gelu
     )
     out = get_result_with_relax_cutlass_offload(mod, x, y.transpose(), bias)
-
-    ref_relay_expr = get_relay_matmul_bias_gelu(x.shape, y.shape[::-1])
-    ref = get_relay_ref(ref_relay_expr, x, y.transpose(), bias)
+    ref = build_and_run(mod, [x, y.transpose(), bias], "llvm", legalize=True)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-3)
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    # test_conv2d_offload()
-    test_kernel_sharing()
+    tvm.testing.main()
