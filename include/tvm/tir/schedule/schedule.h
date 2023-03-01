@@ -643,7 +643,7 @@ class ScheduleNode : public runtime::Object {
    *    optimizations may assume that this precondition is met, and
    *    may result in incorrect results being returned.
    *
-   * \param assume_injective_transform If set to true, the schedule  primitive will assume the
+   * \param assume_injective_transform If set to true, the schedule primitive will assume the
    * index_map is injective and skip checking overlapping of the mapped indices. This can be useful
    * for complicated index_map that the analysis does not cover. It is the callers' responsibility
    * to ensure the index map is injective, otherwise, the correctness of the schedule is not

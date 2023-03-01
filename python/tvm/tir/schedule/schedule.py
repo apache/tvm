@@ -2645,7 +2645,7 @@ class Schedule(Object):
         index_map: Union[IndexMap, Callable],
         pad_value: Optional[Union[int, float, PrimExpr, IndexMap, Callable]] = None,
         *,
-        assume_injective_transform=False,
+        assume_injective_transform: bool = False,
     ) -> None:
         """Apply a transformation represented by IndexMap to buffer
 
