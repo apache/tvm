@@ -34,7 +34,7 @@ from scipy.signal import convolve2d
 from tvm.topi.utils import get_const_tuple
 from tvm import nd, relay
 from .qnn_alter_op import prev_ops_match, edit_attrs
-from ..nn import qnn_bias_add_legalize
+from ..nn import bias_add_legalize
 
 
 def _compute_fixed_conv2d_outputs(requantize_op):
@@ -328,7 +328,7 @@ def _densify_conv_pool_dense_pattern(attrs, inputs):
     return new_op
 
 
-@qnn_bias_add_legalize.register(["arm_cpu"])
+@bias_add_legalize.register(["arm_cpu"])
 def legalize_bias_add(attrs, inputs, _tinfos):
     """Remove empty convolution channels when possible, and "fold" them into the bias add.
 

@@ -17,6 +17,8 @@
 # pylint: disable=invalid-name, unused-argument, len-as-condition
 """QNN operator feature registration"""
 
+import numpy as np
+
 from tvm import topi, TVMError
 
 from .. import strategy
@@ -91,19 +93,6 @@ register_pattern("qnn.concatenate", OpPattern.INJECTIVE)
 register_strategy("qnn.conv2d", strategy.qnn_conv2d_strategy)
 
 
-def _get_clip_dtype_bounds(dtype):
-    """Returns the minimum and maximum values of a C integer data type."""
-    assert "int" in dtype
-    bits = int(dtype[dtype.find("int") + 3 :])
-
-    if dtype.startswith("int"):
-        return (-(2 ** (bits - 1)), 2 ** (bits - 1) - 1)
-    elif dtype.startswith("uint"):
-        return (0, 2**bits - 1)
-    else:
-        raise TVMError(f"Clip legalization is not supported for data type '{dtype}'!")
-
-
 @register_legalize("clip")
 def legalize_clip(attrs, inputs, tinfos):
     """Removes clip operators with bounds matching the defaults for their dtype.
@@ -113,7 +102,8 @@ def legalize_clip(attrs, inputs, tinfos):
     """
 
     if hasattr(inputs[0], "op") and inputs[0].op.name == "qnn.requantize":
-        if _get_clip_dtype_bounds(tinfos[0].dtype) == (attrs.a_min, attrs.a_max):
+        dtype_info = np.iinfo(tinfos[0].dtype)
+        if dtype_info.min == attrs.a_min and dtype_info.max == attrs.a_max:
             return inputs[0]
 
     return None
@@ -127,7 +117,7 @@ def legalize_bias_add(attrs, inputs, tinfos):
     be done before layout rewrites occur to minimize the amount of "extra" overhead operators
     like "cast" and "layout_transform".
     """
-    return topi.nn.qnn_bias_add_legalize(attrs, inputs, tinfos)
+    return topi.nn.bias_add_legalize(attrs, inputs, tinfos)
 
 
 @register_alter_op_layout("qnn.conv2d")
@@ -148,7 +138,7 @@ def alter_op_layout_add(attrs, inputs, tinfos, out_type):
     Useful for fusing the bias constant with an input zero point constant in a previous quantized
     op. Only used when previous op is a quantized op, which is why it lives in topi.nn.qnn.
     """
-    return topi.nn.qnn_add_alter_layout(attrs, inputs, tinfos, out_type)
+    return topi.nn.add_alter_layout(attrs, inputs, tinfos, out_type)
 
 
 @register_alter_op_layout("qnn.requantize")

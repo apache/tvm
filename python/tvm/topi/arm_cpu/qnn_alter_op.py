@@ -22,7 +22,7 @@ import numpy as np
 
 from tvm import nd, relay, target
 from ..utils import get_const_tuple
-from ..nn import qnn_conv2d_alter_layout, qnn_add_alter_layout, qnn_requantize_alter_layout
+from ..nn import qnn_conv2d_alter_layout, add_alter_layout, qnn_requantize_alter_layout
 
 
 def prev_ops_match(curr_op: relay.expr.Call, pattern: Iterable[str]):
@@ -130,7 +130,7 @@ def alter_conv2d_layout(attrs, inputs, _tinfos, _out_type):
     return op
 
 
-@qnn_add_alter_layout.register(["arm_cpu"])
+@add_alter_layout.register(["arm_cpu"])
 def alter_add_layout(_attrs, inputs, _tinfos, _out_type):
     """Fuses the zero point for a previous quantized operator with this add operation.
 
