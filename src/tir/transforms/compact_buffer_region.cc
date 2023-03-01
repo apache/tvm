@@ -28,6 +28,7 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
+#include <numeric>
 #include <stack>
 
 #include "../../support/arena.h"
