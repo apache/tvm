@@ -1633,6 +1633,7 @@ def test_forward_mv():
 @tvm.testing.uses_gpu
 def test_forward_mish():
     class Mish(nn.Layer):
+        @paddle.jit.to_static
         def forward(self, input):
             return paddle.nn.functional.mish(input)
 
@@ -1642,24 +1643,20 @@ def test_forward_mish():
 
 @tvm.testing.uses_gpu
 def test_forward_unstack():
-    @paddle.jit.to_static
-    def unstack1(x):
-        return paddle.unstack(x)
+    class Unstack(nn.Layer):
+        def __init__(self, axis, num):
+            super(Unstack, self).__init__()
+            self.axis = axis
+            self.num = num
 
-    def unstack2(x):
-        return paddle.unstack(x, axis=1)
-
-    def unstack3(x):
-        return paddle.unstack(x, axis=1, num=2)
-
-    def unstack4(x):
-        return paddle.unstack(x, axis=-1)
+        @paddle.jit.to_static
+        def forward(self, input):
+            return paddle.unstack(input, axis=self.axis, num=self.num)
 
     input_data = paddle.randn((3, 4), dtype="float32")
-    verify_model(unstack1, input_data=input_data)
-    verify_model(unstack2, input_data=input_data)
-    verify_model(unstack3, input_data=input_data)
-    verify_model(unstack4, input_data=input_data)
+    verify_model(Unstack(0, 3), input_data=input_data)
+    verify_model(Unstack(1, 4), input_data=input_data)
+    verify_model(Unstack(-1, 4), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
