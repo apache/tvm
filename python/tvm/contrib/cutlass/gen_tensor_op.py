@@ -529,8 +529,7 @@ def instantiate_template(func_name, annotations, func_args):
         return dim1 + " * " + dim2
 
     if "dense" in func_name or "matmul" in func_name:
-        batched = "batch_matmul" in func_name
-        batched_offset = 1 if batched else 0
+        batched = "batch" in annotations
         transposed = "transposed" in func_name
         lhs_arg_idx = _get_optional_int_annotation(annotations, "lhs_arg_idx", 0)
         rhs_arg_idx = _get_optional_int_annotation(annotations, "rhs_arg_idx", 1)
@@ -539,6 +538,8 @@ def instantiate_template(func_name, annotations, func_args):
         rhs_arg = func_args[rhs_arg_idx]
         lhs_shape = annotations[f"arg{lhs_arg_idx}_shape"]
         rhs_shape = annotations[f"arg{rhs_arg_idx}_shape"]
+        lhs_batched_offset = len(lhs_shape) - 2
+        rhs_batched_offset = len(rhs_shape) - 2
 
         attrs["lhs_arg"] = lhs_arg
         attrs["rhs_arg"] = rhs_arg
@@ -548,17 +549,20 @@ def instantiate_template(func_name, annotations, func_args):
         attrs["ElementInputB"] = DataTypeTag[dtype_map[annotations[f"arg{rhs_arg_idx}_dtype"]]]
         attrs["ElementOutput"] = DataTypeTag[dtype_map[annotations["ret_dtype"]]]
 
-        attrs["K"] = str(int(lhs_shape[batched_offset + 1]))
-        attrs["M"] = get_dim(lhs_shape[batched_offset], lhs_arg, 0, batched_offset)
+        attrs["K"] = str(int(lhs_shape[lhs_batched_offset + 1]))
+        attrs["M"] = get_dim(lhs_shape[lhs_batched_offset], lhs_arg, 0, lhs_batched_offset)
 
         if transposed:
-            attrs["N"] = get_dim(rhs_shape[batched_offset], rhs_arg, 0, batched_offset)
+            attrs["N"] = get_dim(rhs_shape[rhs_batched_offset], rhs_arg, 0, rhs_batched_offset)
         else:
-            attrs["N"] = get_dim(rhs_shape[batched_offset + 1], rhs_arg, 1, batched_offset)
+            attrs["N"] = get_dim(rhs_shape[rhs_batched_offset + 1], rhs_arg, 1, rhs_batched_offset)
 
         if batched:
             headers.append("cutlass/gemm/device/gemm_batched.h")
-            attrs["batch"] = get_dim(lhs_shape[0], lhs_arg, 0)
+            # TODO: Support dynamic shape
+            # With the support of more general broadcasting in batch matmul,
+            # it needs more sophisticated code to handle dynamic shape
+            attrs["batch"] = str(int(annotations["batch"]))
             attrs["batch_stride_A"] = get_batch_stride(
                 annotations["batch_stride_A"],
                 lhs_arg_idx,

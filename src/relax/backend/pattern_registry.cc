@@ -26,11 +26,12 @@ namespace relax {
 namespace backend {
 
 PatternRegistryEntry::PatternRegistryEntry(String name, DFPattern pattern,
-                                           Map<String, DFPattern> arg_patterns) {
+                                           Map<String, DFPattern> arg_patterns, PackedFunc check) {
   ObjectPtr<PatternRegistryEntryNode> n = make_object<PatternRegistryEntryNode>();
   n->name = std::move(name);
   n->pattern = std::move(pattern);
   n->arg_patterns = std::move(arg_patterns);
+  n->check = check;
   data_ = std::move(n);
 }
 
@@ -46,6 +47,17 @@ void RegisterPatterns(Array<PatternRegistryEntry> entries) {
   for (const auto& entry : entries) {
     table->push_back(entry);
   }
+}
+
+void RemovePatterns(Array<String> names) {
+  std::unordered_set<String> name_set{names.begin(), names.end()};
+
+  auto* table = GetRegistryTable();
+  table->erase(std::remove_if(table->begin(), table->end(),
+                              [&](const PatternRegistryEntry& entry) {
+                                return name_set.count(entry->name) > 0;
+                              }),
+               table->end());
 }
 
 Array<PatternRegistryEntry> GetPatternsWithPrefix(const String& prefix) {
@@ -70,10 +82,12 @@ Optional<PatternRegistryEntry> GetPattern(const String& pattern_name) {
 }
 
 TVM_REGISTER_GLOBAL("relax.backend.PatternRegistryEntry")
-    .set_body_typed([](String name, DFPattern pattern, Map<String, DFPattern> arg_patterns) {
-      return PatternRegistryEntry(name, pattern, arg_patterns);
+    .set_body_typed([](String name, DFPattern pattern, Map<String, DFPattern> arg_patterns,
+                       PackedFunc check) {
+      return PatternRegistryEntry(name, pattern, arg_patterns, check);
     });
 TVM_REGISTER_GLOBAL("relax.backend.RegisterPatterns").set_body_typed(RegisterPatterns);
+TVM_REGISTER_GLOBAL("relax.backend.RemovePatterns").set_body_typed(RemovePatterns);
 TVM_REGISTER_GLOBAL("relax.backend.GetPatternsWithPrefix").set_body_typed(GetPatternsWithPrefix);
 TVM_REGISTER_GLOBAL("relax.backend.GetPattern").set_body_typed(GetPattern);
 

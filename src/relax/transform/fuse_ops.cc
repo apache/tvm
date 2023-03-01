@@ -902,7 +902,7 @@ class PatternBasedPartitioner : ExprVisitor {
   using Group = GraphPartitioner::Group;
   using GroupMap = OperatorFusor::GroupMap;
   using ExprVisitor::VisitExpr_;
-  using FCheckMatch = backend::PatternRegistryEntryNode::FCheckMatch;
+  using FCheckMatch = runtime::TypedPackedFunc<bool(const Map<DFPattern, Expr>&, const Expr&)>;
 
   static GroupMap Run(String pattern_name, DFPattern pattern, FCheckMatch check, Expr expr,
                       support::Arena* arena) {
