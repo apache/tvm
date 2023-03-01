@@ -116,8 +116,8 @@ def test_match_cast() -> None:
     b0_str = dump_ast(b0)
     assert b0_str.startswith("MatchCast(")
     assert "Constant" in b0_str
-    assert "PrimExpr(value=`m: int64`)" in b0_str
-    assert "PrimExpr(value=`n: int64`)" in b0_str
+    assert "PrimExpr(value=`m" in b0_str
+    assert "PrimExpr(value=`n" in b0_str
     assert "16" in b0_str
     assert "8" in b0_str
     assert b0_str != dump_ast(b0, include_type_annotations=False)
@@ -129,8 +129,8 @@ def test_match_cast() -> None:
     b1 = rx.MatchCast(var, value, R.Tensor([m, n], "float32"))
     b1_str = dump_ast(b1)
     assert b1_str.startswith("MatchCast(")
-    assert "PrimExpr(value=`m: int64`)" in b1_str
-    assert "PrimExpr(value=`n: int64`)" in b1_str
+    assert "PrimExpr(value=`m" in b1_str
+    assert "PrimExpr(value=`n" in b1_str
     assert b1_str != dump_ast(
         b1, include_type_annotations=False, include_struct_info_annotations=False
     )
@@ -247,8 +247,8 @@ def test_shape_of():
     s1_str = dump_ast(s1)
     assert s1_str.startswith("ShapeExpr("), s1_str
     assert "values=" in s1_str
-    assert "PrimExpr(value=`96i64`)" in s1_str
-    assert "PrimExpr(value=`54i64`)" in s1_str
+    assert "PrimExpr(value=`T.int64(96)`)" in s1_str
+    assert "PrimExpr(value=`T.int64(54)`)" in s1_str
 
 
 def test_shape_expr():
@@ -256,8 +256,8 @@ def test_shape_expr():
     shape_expr_str = dump_ast(shape_expr)
     assert shape_expr_str.startswith("ShapeExpr(")
     assert "values" in shape_expr_str
-    assert "PrimExpr(value=`10i64`)" in shape_expr_str
-    assert "PrimExpr(value=`20i64`)" in shape_expr_str
+    assert "PrimExpr(value=`T.int64(10)`)" in shape_expr_str
+    assert "PrimExpr(value=`T.int64(20)`)" in shape_expr_str
 
 
 def test_types():
@@ -300,9 +300,16 @@ def test_struct_info():
 
     # include some dimensions
     shape_info = rx.ShapeStructInfo([tir.IntImm("int64", 1), tir.IntImm("int64", 2)])
-    assert (
-        strip_whitespace(printer.visit_struct_info_(shape_info))
-        == "ShapeStructInfo(ndim=2,values=[PrimExpr(value=`1i64`),PrimExpr(value=`2i64`)])"
+    assert strip_whitespace(printer.visit_struct_info_(shape_info)) == strip_whitespace(
+        """
+        ShapeStructInfo(
+            ndim=2,
+            values=[
+                PrimExpr(value=`T.int64(1)`),
+                PrimExpr(value=`T.int64(2)`)
+            ]
+        )
+        """
     )
 
     # tensor struct info
@@ -460,8 +467,8 @@ def test_call_tir():
                     dtype=float32,
                     shape=ShapeExpr(
                         values=[
-                            PrimExpr(value=`m: int64`),
-                            PrimExpr(value=`n: int64`)
+                            PrimExpr(value=`m`),
+                            PrimExpr(value=`n`)
                         ]
                     )
                 )
@@ -521,10 +528,10 @@ def test_print_struct_info_annotation_non_var():
         struct_info=TensorStructInfo(
             dtype=int32,
             shape=ShapeExpr(
-                values=[PrimExpr(value=`2i64`)],
+                values=[PrimExpr(value=`T.int64(2)`)],
                 struct_info=ShapeStructInfo(
                     ndim=1,
-                    values=[PrimExpr(value=`2i64`)]
+                    values=[PrimExpr(value=`T.int64(2)`)]
                 ),
                 checked_type_=ShapeType(ndim=1)
             )
@@ -592,7 +599,7 @@ def test_prim_value():
     assert prim_str == strip_whitespace(
         """
         PrimValue(
-            value=PrimExpr(value=`1i64`),
+            value=PrimExpr(value=`T.int64(1)`),
             struct_info=PrimStructInfo(dtype=int64),
             checked_type_=PrimType(dtype=int64)
         )
