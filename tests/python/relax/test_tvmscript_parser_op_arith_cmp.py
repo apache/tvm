@@ -104,6 +104,7 @@ def test_unary_check(unary_check_op: Callable):
     (relax.op.divide,),
     (relax.op.floor_divide,),
     (relax.op.multiply,),
+    (relax.op.power,),
     (relax.op.subtract,),
 )
 

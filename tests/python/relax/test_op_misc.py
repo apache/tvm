@@ -68,6 +68,7 @@ def test_implicit_op():
     _check_call(x * y, "multiply")
     _check_call(x / y, "divide")
     _check_call(x // y, "floor_divide")
+    _check_call(x**y, "power")
     # _check_call(x % y, "mod") <= relax.mod is not implemented yet
 
     # Cast
