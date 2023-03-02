@@ -103,6 +103,24 @@ def multiply(x1: Expr, x2: Expr) -> Expr:
     return _ffi_api.multiply(x1, x2)  # type: ignore
 
 
+def power(x1: Expr, x2: Expr):
+    """Power with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.power(x1, x2)  # type: ignore
+
+
 def subtract(x1: Expr, x2: Expr) -> Expr:
     """Subtraction with numpy-style broadcasting.
 
