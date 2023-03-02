@@ -1599,7 +1599,6 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
                                const std::string schedule_rule = "None",
                                const std::string name = "T_layout_trans",
                                const std::string tag = kInjective) {
-  // LOG(FATAL) << "WHATTT";
   Layout src_layout_struct(src_layout);
   Layout dst_layout_struct(dst_layout);
 
@@ -1616,11 +1615,10 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
 
   Array<PrimExpr> dst_shape = layout_converter.ForwardShape(src->shape);
 
-  Map<String, ObjectRef> attrs = {
-    {"schedule_rule", String(schedule_rule)}, 
-    {"src_layout", String(src_layout)},
-    {"dst_layout", String(dst_layout)}
-  };
+  Map<String, ObjectRef> attrs = {{"schedule_rule", String(schedule_rule)},
+                                  // Information about layouts needed for the schedule rule
+                                  {"src_layout", String(src_layout)},
+                                  {"dst_layout", String(dst_layout)}};
 
   return compute(
       dst_shape,

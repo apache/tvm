@@ -17,12 +17,12 @@
 # pylint: disable=invalid-name,too-many-locals,unused-variable,unused-argument
 """cuda batch_matmul operators"""
 import tvm
-from tvm import autotvm, te
-from tvm.autotvm.task.space import OtherOptionEntity, SplitEntity
+from tvm import autotvm
+from tvm import te
 from tvm.contrib import cublas
-
-from .. import generic, nn
-from ..utils import get_const_tuple, get_max_power2_factor, traverse_inline
+from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
+from .. import nn, generic
+from ..utils import traverse_inline, get_const_tuple, get_max_power2_factor
 from .tensor_intrin import dp4a
 
 
@@ -87,7 +87,6 @@ def schedule_batch_matmul(cfg, outs):
     s: Schedule
         The computation schedule for the op.
     """
-    breakpoint()
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = te.create_schedule([x.op for x in outs])
 

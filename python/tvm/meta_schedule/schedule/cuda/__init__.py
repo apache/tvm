@@ -15,3 +15,5 @@
 # specific language governing permissions and limitations
 # under the License.
 """Per-block schedule rules in MetaSchedule for target key 'cuda'"""
+
+from . import layout_transform

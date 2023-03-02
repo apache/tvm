@@ -706,11 +706,6 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
                               /*provided_regions=*/std::move(provided_regions),
                               /*required_regions=*/std::move(required_regions),
                               /*analyzer=*/analyzer);
-
-  for (int i = 0; i < iter_doms.size(); i++) {
-    //LOG(WARNING) << i << " " << iter_doms[i].dom << "  " << iter_doms[i].bound << std::endl;
-  }
-
   // Step 6. Create the new scope according to the iteration domain
   reconstructor.MakeNewLoop(/*insert_position=*/insert_position, /*iter_doms=*/std::move(iter_doms),
                             /*analyzer=*/analyzer, /*preserve_unit_loops=*/preserve_unit_loops);
