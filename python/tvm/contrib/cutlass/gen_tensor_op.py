@@ -551,8 +551,8 @@ def instantiate_template(func_name, annotations, func_args):
         attrs["ElementInputB"] = DataTypeTag[dtype_map[annotations[f"arg{rhs_arg_idx}_dtype"]]]
         attrs["ElementOutput"] = DataTypeTag[dtype_map[annotations["ret_dtype"]]]
 
-        attrs["K"] = lhs_shape[batched_offset + 1]
-        attrs["M"] = get_dim(lhs_shape[batched_offset], lhs_arg, 0, batched_offset)
+        attrs["K"] = lhs_shape[lhs_batched_offset + 1]
+        attrs["M"] = get_dim(lhs_shape[lhs_batched_offset], lhs_arg, 0, lhs_batched_offset)
 
         if transposed:
             attrs["N"] = get_dim(rhs_shape[rhs_batched_offset], rhs_arg, 0, rhs_batched_offset)
@@ -650,7 +650,7 @@ def instantiate_template(func_name, annotations, func_args):
             attrs["split_k_slices"] = str(re.search(r"splitk(\d+)", op_name).group(1))
         else:
             attrs["split_k_mode"] = "kSerial"
-            attrs["split_k_slices"] = "1"
+            attrs["split_k_slices"] = 1
 
         code = instantiate_conv2d_template(attrs, func_args)
         return CodegenResult(code, headers)
@@ -673,12 +673,12 @@ def instantiate_template(func_name, annotations, func_args):
         else:
             raise NotImplementedError()
         if h_v > 64:
-            attrs["kQueriesPerBlock"] = "32"
-            attrs["kKeysPerBlock"] = "128"
+            attrs["kQueriesPerBlock"] = 32
+            attrs["kKeysPerBlock"] = 128
             attrs["kSingleValueIteration"] = h_v <= 128
         else:
-            attrs["kQueriesPerBlock"] = "64"
-            attrs["kKeysPerBlock"] = "64"
+            attrs["kQueriesPerBlock"] = 64
+            attrs["kKeysPerBlock"] = 64
             attrs["kSingleValueIteration"] = True
         attrs["output_size"] = b * s * n * h_v
         attrs["arch"] = "cutlass::arch::Sm{}".format(annotations["arch"])
