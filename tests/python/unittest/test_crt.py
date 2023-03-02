@@ -434,5 +434,32 @@ def test_autotune():
     tvm.testing.assert_allclose(output, expected_output, rtol=1e-4, atol=1e-5)
 
 
+@tvm.testing.requires_micro
+def test_default_executor():
+    """Verify default executor is AOTExecutor when
+    runtime is CRT.
+    """
+    runtime = Runtime("crt")
+
+    data = tvm.relay.var("data", tvm.relay.TensorType((1, 3, 64, 64), "float32"))
+    weight = tvm.relay.var("weight", tvm.relay.TensorType((8, 3, 5, 5), "float32"))
+    y = tvm.relay.nn.conv2d(
+        data,
+        weight,
+        padding=(2, 2),
+        kernel_size=(5, 5),
+        kernel_layout="OIHW",
+        out_dtype="float32",
+    )
+    f = tvm.relay.Function([data, weight], y)
+    mod = tvm.IRModule.from_expr(f)
+    mod = tvm.relay.transform.InferType()(mod)
+
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        lowered = tvm.relay.build(mod, target=TARGET, runtime=runtime)
+
+    assert lowered.module.type_key == "AotExecutorFactory"
+
+
 if __name__ == "__main__":
     tvm.testing.main()

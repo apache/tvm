@@ -337,7 +337,7 @@ def build(
     # fmt: on
 
     if executor is None:
-        if "crt" in runtime:
+        if runtime.name == "crt":
             executor = Executor("aot")
         else:
             executor = Executor("graph")
