@@ -429,11 +429,24 @@ def test_call_packed():
 
 def test_call_tir():
     # also from test_parser
-    @R.function
-    def foo(x: R.Tensor(("m", "n"), "float32")):
-        m, n = T.int64(), T.int64()
-        gv0 = R.call_tir("test.op.identity", (x,), R.Tensor((m, n), dtype="float32"))
-        return gv0
+    @tvm.script.ir_module
+    class TestCallTIR:
+        @T.prim_func
+        def addone(A: T.Buffer((16, 16), "int32"), B: T.Buffer((16, 16), "int32")) -> None:
+            T.func_attr(({"global_symbol": "addone"}))
+            for i, j in T.grid(16, 16):
+                with T.block("addone"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    B[vi, vj] = A[vi, vj] + T.int32(1)
+
+        @R.function
+        def foo(x: R.Tensor(("m", "n"), "float32")):
+            m, n = T.var("int64"), T.var("int64")
+            gv0 = R.call_tir(addone, (x,), R.Tensor((m, n), dtype="float32"))
+            return gv0
+
+    mod = TestCallTIR
+    foo = mod["foo"]
 
     foo_str = strip_whitespace(
         dump_ast(
@@ -458,6 +471,57 @@ def test_call_tir():
         "Call",
         {
             "op": 'Op(name="relax.call_tir")',
+            "args": """[
+                GlobalVar(name_hint="addone"),
+                Tuple(fields=[Var(name_hint="x")])
+            ]""",
+            "sinfo_args": """[
+                TensorStructInfo(
+                    dtype=float32,
+                    shape=ShapeExpr(
+                        values=[
+                            PrimExpr(value=`m`),
+                            PrimExpr(value=`n`)
+                        ]
+                    )
+                )
+            ]""",
+        },
+        tir_call_text,
+    )
+    assert strip_whitespace(tir_call_text) in foo_str
+
+
+def test_call_dps_packed():
+    @R.function
+    def foo(x: R.Tensor(("m", "n"), "float32")):
+        m, n = T.var("int64"), T.var("int64")
+        gv0 = R.call_dps_packed("test.op.identity", (x,), R.Tensor((m, n), dtype="float32"))
+        return gv0
+
+    foo_str = strip_whitespace(
+        dump_ast(
+            foo,
+            include_type_annotations=False,
+            include_struct_info_annotations=False,
+            include_call_attrs=False,
+        )
+    )
+    assert foo_str.startswith('Function(params=[Var(name_hint="x")]')
+
+    # call_dps_packed is an op in Relax and it takes an extern func as an argument
+    assert isinstance(foo.body, rx.SeqExpr)
+    tir_call = foo.body.blocks[0].bindings[0].value
+    tir_call_text = dump_ast(
+        tir_call,
+        include_type_annotations=False,
+        include_struct_info_annotations=False,
+        include_call_attrs=False,
+    )
+    assert_fields(
+        "Call",
+        {
+            "op": 'Op(name="relax.call_dps_packed")',
             "args": """[
                 ExternFunc(global_symbol="test.op.identity"),
                 Tuple(fields=[Var(name_hint="x")])

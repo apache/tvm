@@ -492,7 +492,7 @@ def test_sinfo_args_tir_var_used_before_define_call_tir():
     # Error: Symbolic Var m1, n1 are not defined
     m1 = tir.Var("m1", "int64")
     n1 = tir.Var("n1", "int64")
-    call = R.call_tir("my_func", x, out_sinfo=R.Tensor((m1, n1), "float32"))
+    call = R.call_dps_packed("my_func", x, out_sinfo=R.Tensor((m1, n1), "float32"))
     func = build_function([rx.BindingBlock([rx.VarBinding(rx.Var("gv"), call)])])
     mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
     assert not rx.analysis.well_formed(mod, check_struct_info=False)
@@ -505,12 +505,12 @@ def test_sinfo_erase_to_well_formed():
     def foo(x: R.Tensor(("m", "n"), dtype="float32")) -> R.Tensor(("m1", "n1"), dtype="float32"):
         m = T.int64()
         n = T.int64()
-        gv = R.call_tir("my_func", (x,), out_sinfo=R.Tensor((m, n), dtype="float32"))
+        gv = R.call_dps_packed("my_func", (x,), out_sinfo=R.Tensor((m, n), dtype="float32"))
         return gv
     """
     m1 = tir.Var("m1", "int64")
     n1 = tir.Var("n1", "int64")
-    call = R.call_tir("my_func", x, out_sinfo=R.Tensor((m, n), "float32"))
+    call = R.call_dps_packed("my_func", x, out_sinfo=R.Tensor((m, n), "float32"))
     blocks = [rx.BindingBlock([rx.VarBinding(rx.Var("gv"), call)])]
     seq_expr = rx.SeqExpr(blocks, blocks[-1].bindings[-1].var)
     func = rx.Function([x], seq_expr, R.Tensor((m1, n1), "float32")).with_attr(

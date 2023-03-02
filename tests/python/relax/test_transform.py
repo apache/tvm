@@ -32,8 +32,10 @@ def test_to_non_dataflow():
         def foo(x: R.Tensor(("m", "n"), "float32")):
             m, n = T.int64(), T.int64()
             with R.dataflow():
-                lv0 = R.call_tir("test.op.identity", (x,), R.Tensor((m, n), dtype="float32"))
-                gv0 = R.call_tir("test.op.identity", (lv0,), R.Tensor((m, n), dtype="float32"))
+                lv0 = R.call_dps_packed("test.op.identity", (x,), R.Tensor((m, n), dtype="float32"))
+                gv0 = R.call_dps_packed(
+                    "test.op.identity", (lv0,), R.Tensor((m, n), dtype="float32")
+                )
                 R.output(gv0)
             return gv0
 
@@ -73,10 +75,14 @@ def test_to_non_dataflow():
 def test_call_tir_rewrite():
     @tvm.script.ir_module
     class TestCallTIRRewrite:
+        @T.prim_func
+        def exp(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
+            T.evaluate(0)
+
         @R.function
         def foo(x: R.Tensor(("m", "n"), "float32")):
             m, n = T.int64(), T.int64()
-            gv0 = R.call_tir("test.op.identity", (x,), R.Tensor((m, n), dtype="float32"))
+            gv0 = R.call_tir(exp, (x,), R.Tensor((m, n), dtype="float32"))
             return gv0
 
     mod = TestCallTIRRewrite
@@ -89,6 +95,40 @@ def test_call_tir_rewrite():
 
     # after rewrite
     new_mod = relax.transform.CallTIRRewrite()(mod)
+    func = new_mod["foo"]
+
+    block = func.body.blocks[0]
+    assert not isinstance(block, relax.DataflowBlock)
+
+    s1 = block.bindings[0].value
+    assert isinstance(s1, relax.Call)
+    assert s1.op.name == "relax.builtin.alloc_tensor"
+    assert isinstance(s1.args[0], relax.ShapeExpr)
+    assert structural_equal(s1.args[0], s0.sinfo_args[0].shape)
+    s2 = block.bindings[1].value
+    tvm.ir.expr.GlobalVar
+    assert s2.op.name_hint == "exp"
+
+
+def test_call_dps_packed_rewrite():
+    @tvm.script.ir_module
+    class TestCallDPSPackedRewrite:
+        @R.function
+        def foo(x: R.Tensor(("m", "n"), "float32")):
+            m, n = T.int64(), T.int64()
+            gv0 = R.call_dps_packed("test.op.identity", (x,), R.Tensor((m, n), dtype="float32"))
+            return gv0
+
+    mod = TestCallDPSPackedRewrite
+
+    # before rewrite
+    v0 = mod["foo"].body.blocks[0].bindings[0].var
+    s0 = mod["foo"].body.blocks[0].bindings[0].value
+    assert isinstance(s0, relax.Call)
+    assert s0.op.name == "relax.call_dps_packed"
+
+    # after rewrite
+    new_mod = relax.transform.CallDPSPackedRewrite()(mod)
     func = new_mod["foo"]
 
     block = func.body.blocks[0]

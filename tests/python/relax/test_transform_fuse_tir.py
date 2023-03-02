@@ -690,7 +690,7 @@ def test_skip_call_dps_packed():
         @R.function
         def main(x: R.Tensor((2, 3), "float32")):
             with R.dataflow():
-                y = R.call_tir("func_packed_dps", x, R.Tensor((2, 3), "float32"))
+                y = R.call_dps_packed("func_packed_dps", x, R.Tensor((2, 3), "float32"))
                 R.output(y)
             return y
 

@@ -56,7 +56,7 @@ from .ty import Type, ObjectType, ShapeType, DynTensorType, TupleType, FuncType,
 from .exec_builder import ExecBuilder
 
 # Operator
-from .op.base import call_tir
+from .op.base import call_tir, call_dps_packed
 
 # BlockBuilder
 from .block_builder import BlockBuilder

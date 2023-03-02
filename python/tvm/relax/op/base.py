@@ -22,7 +22,7 @@ import tvm
 from tvm.runtime.object import Object
 
 from . import _ffi_api
-from ..expr import Expr, StringImm, ShapeExpr, Call, ExternFunc
+from ..expr import Expr, StringImm, ShapeExpr, Call, ExternFunc, GlobalVar
 from ..expr import Tuple as RxTuple
 from ..struct_info import StructInfo, TensorStructInfo
 from ...ir import PrimExpr
@@ -51,12 +51,12 @@ def call_tir(
     tir_vars: Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]] = None,
 ) -> Call:
     """
-    Call a destination-passing-style function and return the output.
+    Call a tir.prim_func function and return the output.
 
     Parameters
     ----------
     func : Union[str, Expr]
-        The destination-passing-style function, can be ExternFunc or PrimFunc.
+        The tir PrimFunc function.
 
     args : Expr
         The input arguments.
@@ -75,7 +75,7 @@ def call_tir(
         A call node for the call_tir operator.
     """
     if isinstance(func, str):
-        func = ExternFunc(func)
+        func = GlobalVar(func)
 
     if isinstance(args, Expr) and not isinstance(args, RxTuple):  # type: ignore
         args = RxTuple((args,))
@@ -87,6 +87,45 @@ def call_tir(
         tir_vars = ShapeExpr(tir_vars)
 
     return _ffi_api.call_tir(func, args, out_sinfo, tir_vars)  # type: ignore
+
+
+@args_converter.auto
+def call_dps_packed(
+    func: Union[str, Expr],
+    args: Expr,
+    out_sinfo: Union[TensorStructInfo, List[TensorStructInfo]],
+) -> Call:
+    """
+    Call a destination-passing-style packed function and return the output.
+
+    Parameters
+    ----------
+    func : Union[str, Expr]
+        The destination-passing-style function, can be ExternFunc.
+
+    args : Expr
+        The input arguments.
+
+    out_sinfo : Union[TensorStructInfo, List[TensorStructInfo]]
+        The structure info of the call_dps_packed output.
+        It should be a single or a list of TensorStructInfo. Each one denotes the
+        structure info of a returned tensor.
+
+    Returns
+    -------
+    ret: Call
+        A call node for the call_dps_packed operator.
+    """
+    if isinstance(func, str):
+        func = ExternFunc(func)
+
+    if isinstance(args, Expr) and not isinstance(args, RxTuple):  # type: ignore
+        args = RxTuple((args,))
+
+    if not isinstance(out_sinfo, list):
+        out_sinfo = [out_sinfo]
+
+    return _ffi_api.call_dps_packed(func, args, out_sinfo)  # type: ignore
 
 
 @args_converter.auto

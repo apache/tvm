@@ -90,6 +90,13 @@ TVM_DLL Pass ToNonDataflow();
 TVM_DLL Pass CallTIRRewrite();
 
 /*!
+ * \brief Perform explicit tensor allocation for call_dps_packed.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass CallDPSPackedRewrite();
+
+/*!
  * \brief Convert all reshape-like call_tir whose corresponding binding
  * vars are DataflowVars to relax.reshape operator calls. The relax.reshape
  * calls will be lowered an external builtin function call in a subsequent
