@@ -50,7 +50,7 @@ def instantiate_attention_template(attrs, func_args):
   p.output_accum_ptr = nullptr;
   if (Attention::kNeedsOutputAccumulatorBuffer) {
     cudaMalloc(
-      &p.output_accum_ptr, 
+      &p.output_accum_ptr,
       ${output_size} * sizeof(Attention::output_accum_t)
     );
   }
