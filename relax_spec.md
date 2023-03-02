@@ -108,11 +108,11 @@ The `derive_func` field of `FuncStructInfo` is a macro in the meta-language: Giv
 
 The representation of datatypes, `DataType`, in the above AST is taken directly from TIR. However, the usage of datatypes in Relax is more restricted than in TIR.
 1. The `lanes` field for the `Int`, `UInt`, and `Float` datatypes must always be 1; we do not directly consider vectorized values in Relax.
-2. The `lanes` field for the `Handle` datatype must always be 0, indicating that it is `Void` (see below). The `bits` field for `Handle` should always be set to 64 (it will not be used by Relax).
+2. The `bits` field for the `Handle` datatype must always be 0, indicating that it is `Void` (see below). The `lanes` field for `Handle` should always be set to 0 (it will not be used by Relax).
 
 We also define the following special notation for datatypes, to be used in the rest of the specification:
 1. `Bool()`: This is shorthand for `UInt(bits=1, lanes=1)`, since TIR does not have a separate Boolean type. "True" refers to a value of 1 in this datatype and "false" refers to a value of 0. For convenience, we will refer to Boolean values as a separate datatype in the specification, due to their significance in `If` nodes.
-2. `Void()`: This is shorthand for `Handle(bits=64, lanes=0)`. TIR uses this datatype to refer to opaque objects; in Relax, it is used to denote an unknown datatype.
+2. `Void()`: This is shorthand for `Handle(bits=0, lanes=0)`. TIR uses this datatype to refer to opaque objects; in Relax, it is used to denote an unknown datatype.
 
 ## Expression Survey
 
