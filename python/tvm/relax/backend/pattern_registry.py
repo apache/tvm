@@ -83,7 +83,7 @@ def _ensure_cleanup_function_registered():
     """
     Add a cleanup function to be called on interpreter termination, to remove all
     patterns registered on the Python side. Without cleaning up those patterns,
-    program will segfault on termination. It's because the check functiosn of pattern
+    program will segfault on termination. It's because the check functions of pattern
     entries are referenced from the static memory of libtvm, thus they will be cleaned
     up at the very end, making calls to Py_DecRef after Python interpreter terminates.
     """

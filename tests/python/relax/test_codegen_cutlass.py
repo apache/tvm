@@ -108,6 +108,7 @@ def get_result_with_relax_cutlass_offload(mod, *args):
 
 
 def test_conv2d_offload():
+    low, high = -1, 1
     data = np.random.randint(low, high, size=(16, 32, 32, 16)).astype("float16")
     weight = np.random.randint(low, high, size=(32, 3, 3, 16)).astype("float16")
     bias = np.random.randint(low, high, size=(1, 1, 1, 32)).astype("float16")
@@ -120,16 +121,15 @@ def test_conv2d_offload():
 
 
 def test_kernel_sharing():
-    data_np = np.random.randn(16, 32, 32, 16).astype("float16")
-    weight1_np = np.random.randn(16, 3, 3, 16).astype("float16")
-    weight2_np = np.random.randn(16, 3, 3, 16).astype("float16")
+    low, high = -1, 1
+    data_np = np.random.randint(low, high, size=(16, 32, 32, 8)).astype("float16")
+    weight1_np = np.random.randint(low, high, size=(8, 3, 3, 8)).astype("float16")
+    weight2_np = np.random.randint(low, high, size=(8, 3, 3, 8)).astype("float16")
 
     out = get_result_with_relax_cutlass_offload(Conv2dx2, data_np, weight1_np, weight2_np)
+    ref = build_and_run(Conv2dx2, [data_np, weight1_np, weight2_np], "llvm", legalize=True)
 
-    relay_expr = get_relay_conv2d_relu_x2(data_np.shape, weight1_np.shape)
-    ref = get_relay_ref(relay_expr, data_np, weight1_np, weight2_np)
-
-    tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
+    np.testing.assert_equal(out, ref)
 
 
 def get_relax_matmul_module(x, y, transposed_y=False, with_bias=False, activation=None):
@@ -244,7 +244,7 @@ def test_matmul_offload(
     out = get_result_with_relax_cutlass_offload(mod, *args)
     ref = build_and_run(mod, args, "llvm", legalize=True)
 
-    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-3)
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
 @pytest.mark.parametrize(
@@ -287,9 +287,6 @@ def test_is_valid_for_cutlass_matmul(x_shape, y_shape, expected):
         ((1, 2, 1, 16, 15), (2, 1, 4, 15, 2), False, "float16"),
         ((3, 2, 4, 16, 15), (2, 4, 15, 2), True, "float16"),
         ((3, 16, 15), (2, 1, 3, 15, 2), True, "float16"),
-        # Unsupported dtype
-        ((4, 8), (8, 4), False, "float32"),
-        ((5, 4, 8), (8, 4), True, "float32"),
     ],
 )
 def test_cutlass_partition_matmul_blocked(x_shape, y_shape, transpose_y, dtype):

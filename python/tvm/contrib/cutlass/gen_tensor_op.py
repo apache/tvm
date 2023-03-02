@@ -561,6 +561,7 @@ def instantiate_template(func_name, annotations, func_args):
             headers.append("cutlass/gemm/device/gemm_batched.h")
             # TODO: Support dynamic shape
             # With the support of more general broadcasting in batch matmul,
+            # like matmul with shape (a, b, c, 5, 6) x (6, 8),
             # it needs more sophisticated code to handle dynamic shape
             attrs["batch"] = str(int(annotations["batch"]))
             attrs["batch_stride_A"] = get_batch_stride(
