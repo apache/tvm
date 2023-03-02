@@ -241,7 +241,7 @@ def test_full():
                     T.reads(rxplaceholder[()])
                     T.writes(T_full[ax0, ax1])
                     T_full[ax0, ax1] = rxplaceholder[()]
-    
+
     @tvm.script.ir_module
     class Expected:
         @T.prim_func
