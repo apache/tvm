@@ -51,6 +51,10 @@ class ThreadBindMutator : public ExprMutator {
         Array<tir::BlockRV> blocks = meta_schedule::BlockCollector::Collect(sch);
         for (const tir::BlockRV& block : blocks) {
           Array<tir::LoopRV> loops = sch->GetLoops(block);
+          if (loops.size() == 0) {
+            // Skip root block
+            continue;
+          }
           tir::LoopRV fused = sch->Fuse(loops, /*preserve_unit_iters=*/false);
           Array<tir::LoopRV> splits =
               sch->Split(fused, /*factors=*/{NullOpt, Integer(256), Integer(max_thread_per_block)});
