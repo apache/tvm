@@ -982,13 +982,52 @@ def test_binary():
     verify_model(FloorDiv1(), input_info1, {}, expected9)
     verify_model(FloorDiv2(), input_info2, {}, expected10)
 
+    # Power
+    class Power1(Module):
+        def forward(self, lhs, rhs):
+            return lhs**rhs
+
+    @tvm.script.ir_module
+    class expected11:
+        @R.function
+        def main(
+            lhs_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            rhs_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.power(lhs_1, rhs_1)
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    class Power2(Module):
+        def forward(self, lhs):
+            return lhs**1.0
+
+    @tvm.script.ir_module
+    class expected12:
+        @R.function
+        def main(
+            lhs_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.power(lhs_1, R.const(1.0))
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Power1(), input_info1, {}, expected11)
+    verify_model(Power2(), input_info2, {}, expected12)
+
     # LT
     class LT1(Module):
         def forward(self, lhs, rhs):
             return lhs < rhs
 
     @tvm.script.ir_module
-    class expected11:
+    class expected13:
         @R.function
         def main(
             lhs_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
@@ -1006,7 +1045,7 @@ def test_binary():
             return lhs < 1.0
 
     @tvm.script.ir_module
-    class expected12:
+    class expected14:
         @R.function
         def main(
             lhs_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
@@ -1018,8 +1057,8 @@ def test_binary():
                 R.output(gv)
             return gv
 
-    verify_model(LT1(), input_info1, {}, expected11)
-    verify_model(LT2(), input_info2, {}, expected12)
+    verify_model(LT1(), input_info1, {}, expected13)
+    verify_model(LT2(), input_info2, {}, expected14)
 
 
 @tvm.testing.requires_gpu
