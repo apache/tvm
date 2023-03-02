@@ -21,32 +21,34 @@ TVMC Graph Transforms
 from tvm import relay, transform
 from tvm.driver.tvmc import TVMCException
 
-# ToMixedPrecision
-ACC_DTYPE = "float32"
 
+def generate_mixed_precision_rule(acc_dtype):
+    def _mixed_precision_rule(call_node: "relay.Call", mixed_precision_type: str):
+        return [
+            relay.transform.mixed_precision.MIXED_PRECISION_ALWAYS,
+            acc_dtype,
+            mixed_precision_type,
+        ]
 
-def mixed_precision_rule(call_node: "relay.Call", mixed_precision_type: str):
-    global ACC_DTYPE
-    return [
-        relay.transform.mixed_precision.MIXED_PRECISION_ALWAYS,
-        ACC_DTYPE,
-        mixed_precision_type,
-    ]
+    return _mixed_precision_rule
 
 
 class MixedPrecision(object):
     """Temporarily changes attr of ops to enable required precision."""
 
-    def __init__(self, ops):
+    def __init__(self, ops, acc_type):
         """Saves the required info for RAII pattern usage.
 
         Parameters
         ----------
         ops : list
             list of operators
+        acc_type: str
+            Output or accumulation precision to be used.
         """
         self.older_attr = {}
         self.ops = ops
+        self.acc_type = acc_type
         self.attr_key = "FTVMMixedPrecisionConversionType"
 
     def __enter__(self):
@@ -54,7 +56,7 @@ class MixedPrecision(object):
             op = relay.op.get(op_name)
             self.older_attr[op_name] = op.get_attr(self.attr_key)
             op.reset_attr(self.attr_key)
-            op.set_attr(self.attr_key, mixed_precision_rule)
+            op.set_attr(self.attr_key, generate_mixed_precision_rule(self.acc_type))
         return self
 
     def __exit__(self, ptype, value, trace):
@@ -65,20 +67,18 @@ class MixedPrecision(object):
                 op.set_attr(self.attr_key, self.older_attr[op_name])
 
 
-def convert_to_mixed_precision(
-    mod, ops="nn.conv2d,nn.dense", input_type="float16", out_type="float16"
-):
+def convert_to_mixed_precision(mod, ops=None, calculation_type="float16", acc_type="float16"):
     """Converts the operator datatypes
 
     Parameters
     ----------
     mod : tvm.IRModule
         The relay module to convert.
-    ops : str
+    ops : list
         List of operators to be precision converted.
-    input_type: str
+    calculation_type: str
         Input precision to be used.
-    output_type: str
+    acc_type: str
         Output or accumulation precision to be used.
 
     Returns
@@ -87,10 +87,10 @@ def convert_to_mixed_precision(
         The converted module.
     """
 
-    global ACC_DTYPE
-    ACC_DTYPE = out_type
+    if ops is None:
+        ops = ["nn.conv2d", "nn.dense"]
 
-    with MixedPrecision(ops.split(",")):
+    with MixedPrecision(ops, acc_type):
         seq = transform.Sequential(
             [relay.transform.InferType(), relay.transform.ToMixedPrecision()]
         )
@@ -103,7 +103,7 @@ def convert_to_mixed_precision(
                 raise TVMCException("Error converting mixed precision : {0}".format(str(err)))
 
 
-def convert_graph_layout(mod, desired_layout, ops="nn.conv2d,nn.conv2d_transpose,qnn.conv2d"):
+def convert_graph_layout(mod, desired_layout, ops=None):
     """Alter the layout of the input graph.
 
     Parameters
@@ -112,7 +112,7 @@ def convert_graph_layout(mod, desired_layout, ops="nn.conv2d,nn.conv2d_transpose
         The relay module to convert.
     desired_layout : str
         The layout to convert to.
-    ops : str
+    ops : list
         List of operators to be layout converted.
 
     Returns
@@ -120,8 +120,10 @@ def convert_graph_layout(mod, desired_layout, ops="nn.conv2d,nn.conv2d_transpose
     mod : tvm.IRModule
         The converted module.
     """
+    if ops is None:
+        ops = ["nn.conv2d", "nn.conv2d_transpose", "qnn.conv2d"]
 
-    desired_layouts = {op: [desired_layout, "default"] for op in ops.split(",")}
+    desired_layouts = {op: [desired_layout, "default"] for op in ops}
 
     # Convert the layout of the graph where possible.
     seq = transform.Sequential(
@@ -164,9 +166,9 @@ def apply_graph_transforms(mod, args):
     if args.get("mixed_precision", False):
         mod = convert_to_mixed_precision(
             mod,
-            args.get("mixed_precision_ops", "nn.conv2d,nn.dense"),
-            args.get("mixed_precision_input", "float16"),
-            args.get("mixed_precision_output", "float16"),
+            args.get("mixed_precision_ops"),
+            args.get("mixed_precision_calculation_type"),
+            args.get("mixed_precision_acc_type"),
         )
     return mod
 
@@ -176,8 +178,8 @@ def parse_graph_transform_args(args):
 
     Parameters
     ----------
-    args: argparse.Namespace
-        Arguments from command line parser.
+    args: argparse.Namespace or dict
+        Arguments.
 
     Returns
     -------
@@ -185,17 +187,18 @@ def parse_graph_transform_args(args):
         Graph transform arguments
     """
 
-    args_dict = vars(args)
+    if not isinstance(args, dict):
+        args = vars(args)
 
     transform_args = [
         "desired_layout",
         "desired_layout_ops",
         "mixed_precision",
         "mixed_precision_ops",
-        "mixed_precision_input",
-        "mixed_precision_output",
+        "mixed_precision_calculation_type",
+        "mixed_precision_acc_type",
     ]
-    transform_args = {key: args_dict.get(key, None) for key in transform_args}
+    transform_args = {key: args.get(key, None) for key in transform_args}
     return transform_args
 
 
@@ -211,7 +214,8 @@ def generate_transform_args(parser):
     )
     parser.add_argument(
         "--desired-layout-ops",
-        default="nn.conv2d,nn.conv2d_transpose,qnn.conv2d",
+        default=["nn.conv2d", "nn.conv2d_transpose", "qnn.conv2d"],
+        nargs="+",
         help="List of operators to be layout converted.",
     )
 
@@ -223,18 +227,19 @@ def generate_transform_args(parser):
     )
     parser.add_argument(
         "--mixed-precision-ops",
-        default="nn.conv2d,nn.dense",
+        default=["nn.conv2d", "nn.dense"],
+        nargs="+",
         help="List of operators to be converted to mixed precision",
     )
     parser.add_argument(
-        "--mixed-precision-input",
+        "--mixed-precision-calculation-type",
         choices=["float16", "float32"],
         default="float16",
-        help="Input precision type",
+        help="Calculation precision type",
     )
     parser.add_argument(
-        "--mixed-precision-output",
+        "--mixed-precision-acc-type",
         choices=["float16", "float32"],
         default="float16",
-        help="Output or accumulator precision type",
+        help="Accumulator precision type",
     )

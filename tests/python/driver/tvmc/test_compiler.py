@@ -72,7 +72,7 @@ def verify_compile_tflite_module(model, shape_dict=None, use_vm=False):
         tvmc_model,
         target="llvm",
         dump_code="ll",
-        transform_args={"desired_layout": "NCHW"},
+        desired_layout="NCHW",
         use_vm=use_vm,
     )
     dumps_path = tvmc_package.package_path + ".ll"
@@ -290,9 +290,7 @@ def test_cross_compile_options_aarch64_onnx_module(onnx_resnet50):
 def verify_compile_paddle_module(model, shape_dict=None):
     pytest.importorskip("paddle")
     tvmc_model = tvmc.load(model, "paddle", shape_dict=shape_dict)
-    tvmc_package = tvmc.compile(
-        tvmc_model, target="llvm", dump_code="ll", transform_args={"desired_layout": "NCHW"}
-    )
+    tvmc_package = tvmc.compile(tvmc_model, target="llvm", dump_code="ll", desired_layout="NCHW")
     dumps_path = tvmc_package.package_path + ".ll"
 
     # check for output types
@@ -374,7 +372,7 @@ def test_compile_opencl(tflite_mobilenet_v1_0_25_128):
     tvmc_package = tvmc.compile(
         tvmc_model,
         target="opencl -host=llvm",
-        transform_args={"desired_layout": "NCHW"},
+        desired_layout="NCHW",
         dump_code="asm",
     )
     dumps_path = tvmc_package.package_path + ".asm"

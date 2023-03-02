@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=unused-argument
 """
 Provides support to auto-tuning networks using AutoTVM.
 """
@@ -280,7 +281,6 @@ def drive_tune(args):
         tuner=args.tuner,
         min_repeat_ms=args.min_repeat_ms,
         early_stopping=args.early_stopping,
-        transform_args=transform_args,
         timeout=args.timeout,
         repeat=args.repeat,
         number=args.number,
@@ -289,6 +289,7 @@ def drive_tune(args):
         include_simple_tasks=args.include_simple_tasks,
         log_estimated_latency=args.log_estimated_latency,
         additional_target_options=reconstruct_target_args(args),
+        **transform_args,
     )
 
 
@@ -306,7 +307,6 @@ def tune_model(
     tuner: str = "xgb",
     min_repeat_ms: Optional[int] = None,
     early_stopping: Optional[int] = None,
-    transform_args: Optional[Dict[str, Any]] = None,
     timeout: int = 10,
     repeat: int = 1,
     number: int = 10,
@@ -315,6 +315,12 @@ def tune_model(
     include_simple_tasks: bool = False,
     log_estimated_latency: bool = False,
     additional_target_options: Optional[Dict[str, Dict[str, Any]]] = None,
+    desired_layout: Optional[str] = None,
+    desired_layout_ops: Optional[List[str]] = None,
+    mixed_precision: bool = False,
+    mixed_precision_ops: Optional[List[str]] = None,
+    mixed_precision_calculation_type: Optional[str] = None,
+    mixed_precision_acc_type: Optional[str] = None,
 ):
     """Use tuning to automatically optimize the functions in a model.
 
@@ -351,8 +357,6 @@ def tune_model(
         Minimum time to run each trial. Defaults to 0 on x86 and 1000 on other targets.
     early_stopping : int, optional
         When specified, stop tuning after this number of trials if results aren't improving.
-    transform_args: dict, optional
-        Graph transformation arguments that are applied to the relay module.
     timeout : int, optional,
         If a kernel trial lasts longer than this duration in seconds, it will be
         considered a failure.
@@ -371,12 +375,28 @@ def tune_model(
         If using the autoscheduler, write the estimated latency at each step of tuning to file.
     additional_target_options: Optional[Dict[str, Dict[str, Any]]]
         Additional target options in a dictionary to combine with initial Target arguments
+    desired_layout: str, optional
+        Can be one of "NCHW" or "NHWC". When specified, compatible operations in the graph
+        will have their layout set to this format. Tasks will then be tuned using this
+        specified layout.
+    desired_layout_ops: list[str], optional
+        The list of operators to be transformed with desired layout.
+    mixed_precision: bool
+        To enable mixed precision transformation.
+    mixed_precision_ops: list[str], optional
+        The list of operators to be converted to mixed precision.
+    mixed_precision_calculation_type: str
+        The calculation dtype to be used while mixed precision.
+    mixed_precision_acc_type: str
+        The accumulation data type to be used while mixed precision.
+
 
     Returns
     -------
     tuning_records : str
         The path to the produced tuning log file.
     """
+    transform_args = parse_graph_transform_args(locals())
     target, extra_targets = target_from_cli(target, additional_target_options)
     target, target_host = Target.canon_target_and_host(target, target_host)
     # TODO(jwfromm) Remove this deepcopy once AlterOpLayout bug that mutates source

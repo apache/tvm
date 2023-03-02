@@ -76,7 +76,7 @@ def test_layout_transform_to_mixed_precision_pass_args(relay_conv2d, monkeypatch
     mixed precision arguments are provided.
     """
     mock_mixed_precision = MagicMock()
-    mock_mixed_precision.return_value = tvm.driver.tvmc.transform.MixedPrecision([])
+    mock_mixed_precision.return_value = tvm.driver.tvmc.transform.MixedPrecision([], "")
     monkeypatch.setattr(tvm.driver.tvmc.transform, "MixedPrecision", mock_mixed_precision)
 
     with tvm.transform.PassContext(opt_level=3):
@@ -84,40 +84,23 @@ def test_layout_transform_to_mixed_precision_pass_args(relay_conv2d, monkeypatch
             relay_conv2d,
             {
                 "mixed_precision": True,
+                "mixed_precision_ops": ["nn.conv2d"],
+                "mixed_precision_calculation_type": "float16",
+                "mixed_precision_acc_type": "float16",
             },
         )
-        mock_mixed_precision.assert_called_with(["nn.conv2d", "nn.dense"])
+        mock_mixed_precision.assert_called_with(["nn.conv2d"], "float16")
 
         apply_graph_transforms(
             relay_conv2d,
             {
                 "mixed_precision": True,
-                "mixed_precision_ops": "nn.conv2d",
+                "mixed_precision_ops": ["nn.conv2d", "nn.dense"],
+                "mixed_precision_calculation_type": "float16",
+                "mixed_precision_acc_type": "float32",
             },
         )
-        mock_mixed_precision.assert_called_with(["nn.conv2d"])
-
-        apply_graph_transforms(
-            relay_conv2d,
-            {
-                "mixed_precision": True,
-                "mixed_precision_ops": "nn.conv2d,nn.dense",
-                "mixed_precision_input": "float16",
-                "mixed_precision_output": "float16",
-            },
-        )
-        mock_mixed_precision.assert_called_with(["nn.conv2d", "nn.dense"])
-
-        apply_graph_transforms(
-            relay_conv2d,
-            {
-                "mixed_precision": True,
-                "mixed_precision_ops": "nn.conv2d,nn.dense",
-                "mixed_precision_input": "float16",
-                "mixed_precision_output": "float32",
-            },
-        )
-        mock_mixed_precision.assert_called_with(["nn.conv2d", "nn.dense"])
+        mock_mixed_precision.assert_called_with(["nn.conv2d", "nn.dense"], "float32")
 
 
 if __name__ == "__main__":

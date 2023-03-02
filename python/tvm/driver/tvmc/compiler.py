@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=unused-argument
 """
 Provides support to compile networks both AOT and JIT.
 """
@@ -187,7 +188,6 @@ def drive_compile(args):
         output_format=args.output_format,
         dump_code=dump_code,
         target_host=None,
-        transform_args=transform_args,
         disabled_pass=args.disabled_pass,
         pass_context_configs=args.pass_config,
         mod_name=args.module_name,
@@ -195,6 +195,7 @@ def drive_compile(args):
         workspace_pools=(
             workspace_pools_recombobulate(args, [workspace_pools_target], extra_targets)
         ),
+        **transform_args,
     )
 
     return 0
@@ -213,7 +214,6 @@ def compile_model(
     output_format: str = "so",
     dump_code: Optional[List[str]] = None,
     target_host: Optional[str] = None,
-    transform_args: Optional[Dict[str, Any]] = None,
     disabled_pass: Optional[str] = None,
     pass_context_configs: Optional[List[str]] = None,
     additional_target_options: Optional[Dict[str, Dict[str, Any]]] = None,
@@ -221,6 +221,12 @@ def compile_model(
     mod_name: Optional[str] = "default",
     workspace_pools: Optional[WorkspaceMemoryPools] = None,
     instruments: Optional[Sequence[PassInstrument]] = None,
+    desired_layout: Optional[str] = None,
+    desired_layout_ops: Optional[List[str]] = None,
+    mixed_precision: bool = False,
+    mixed_precision_ops: Optional[List[str]] = None,
+    mixed_precision_calculation_type: Optional[str] = None,
+    mixed_precision_acc_type: Optional[str] = None,
 ):
     """Compile a model from a supported framework into a TVM module.
 
@@ -256,8 +262,6 @@ def compile_model(
     target_host : str, optional
         The target of the host machine if host-side code
         needs to be generated.
-    transform_args: dict, optional
-        Graph transformation arguments that are applied to the relay module.
     disabled_pass: str, optional
         Comma-separated list of passes which needs to be disabled
         during compilation
@@ -275,6 +279,20 @@ def compile_model(
         compilation.
     instruments: Optional[Sequence[PassInstrument]]
         The list of pass instrument implementations.
+    desired_layout: str, optional
+        Can be one of "NCHW" or "NHWC". When specified, compatible operations in the graph
+        will have their layout set to this format. Tasks will then be tuned using this
+        specified layout.
+    desired_layout_ops: list[str], optional
+        The list of operators to be transformed with desired layout.
+    mixed_precision: bool
+        To enable mixed precision transformation.
+    mixed_precision_ops: list[str], optional
+        The list of operators to be converted to mixed precision.
+    mixed_precision_calculation_type: str
+        The calculation dtype to be used while mixed precision.
+    mixed_precision_acc_type: str
+        The accumulation data type to be used while mixed precision.
 
     Returns
     -------
@@ -304,6 +322,7 @@ def compile_model(
         disabled_pass=disabled_pass,
         instruments=instruments,
     ):
+        transform_args = parse_graph_transform_args(locals())
         mod = apply_graph_transforms(mod, transform_args)
 
         for partition_function, opts in zip(partition_functions, partition_opts):
