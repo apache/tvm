@@ -25,6 +25,9 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         tools:ignore="AllowBackup,MissingApplicationIcon">
+        <uses-native-library
+            android:name="libOpenCL.so"
+            android:required="false"/>
         <activity
             android:name="org.apache.tvm.android.androidcamerademo.MainActivity"
             android:exported="true"
