@@ -37,7 +37,7 @@ namespace relax {
  */
 class ThreadBindMutator : public ExprMutator {
  public:
-  static IRModule Transform(const IRModule& mod, int max_thread_per_block) {
+  static IRModule Transform(const IRModule& mod, int64_t max_thread_per_block) {
     ThreadBindMutator mutator(mod);
 
     for (const auto& kv : mod->functions) {
@@ -51,16 +51,38 @@ class ThreadBindMutator : public ExprMutator {
         Array<tir::BlockRV> blocks = meta_schedule::BlockCollector::Collect(sch);
         for (const tir::BlockRV& block : blocks) {
           Array<tir::LoopRV> loops = sch->GetLoops(block);
-          if (loops.size() == 0) {
-            // Skip root block
+          Array<tir::IterVar> iters = sch->Get(block)->iter_vars;
+          ICHECK_EQ(loops.size(), iters.size());
+          Array<tir::LoopRV> data_parallel_loops;
+          for (size_t i = 0; i < loops.size(); ++i) {
+            // only fuse data parallel loops
+            if (iters[i]->iter_type == tir::IterVarType::kDataPar) {
+              data_parallel_loops.push_back(loops[i]);
+            }
+          }
+          if (data_parallel_loops.size() == 0) {
             continue;
           }
-          tir::LoopRV fused = sch->Fuse(loops, /*preserve_unit_iters=*/false);
-          Array<tir::LoopRV> splits =
-              sch->Split(fused, /*factors=*/{NullOpt, Integer(256), Integer(max_thread_per_block)});
-          sch->Reorder(/*ordered_loop_rvs=*/{splits[1], splits[2], splits[0]});
-          sch->Bind(splits[1], "blockIdx.x");
-          sch->Bind(splits[2], "threadIdx.x");
+          tir::LoopRV fused = sch->Fuse(data_parallel_loops, /*preserve_unit_iters=*/false);
+          int64_t product = std::numeric_limits<int64_t>::max();
+          if (sch->Get(fused)->extent->IsInstance<tir::IntImmNode>()) {
+            product = sch->Get(fused)->extent.as<tir::IntImmNode>()->value;
+          }
+          static const int64_t max_threadblocks = 256;
+
+          if (product > max_thread_per_block * max_threadblocks) {
+            Array<tir::LoopRV> splits = sch->Split(
+                fused,
+                /*factors=*/{NullOpt, Integer(max_threadblocks), Integer(max_thread_per_block)});
+            sch->Reorder(/*ordered_loop_rvs=*/{splits[1], splits[2], splits[0]});
+            sch->Bind(splits[1], "blockIdx.x");
+            sch->Bind(splits[2], "threadIdx.x");
+          } else {
+            Array<tir::LoopRV> splits = sch->Split(
+                fused, /*factors=*/{NullOpt, Integer(std::min(product, max_thread_per_block))});
+            sch->Bind(splits[0], "blockIdx.x");
+            sch->Bind(splits[1], "threadIdx.x");
+          }
         }
         mutator.builder_->AddFunction(sch->mod()->Lookup(gv->name_hint), gv->name_hint);
       } else {
@@ -78,7 +100,7 @@ class ThreadBindMutator : public ExprMutator {
   const IRModule& mod_;
 };
 
-IRModule DefaultSchedule(IRModule mod, int max_thread_per_block) {
+IRModule DefaultSchedule(IRModule mod, int64_t max_thread_per_block) {
   mod = ThreadBindMutator::Transform(mod, max_thread_per_block);
   return mod;
 }
