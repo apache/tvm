@@ -98,19 +98,19 @@ wget https://github.com/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/e
 # containing a file for each piece of the TVM compiler output which can be used on micro targets outside
 # TVM environment. Read more about :ref:`Model Library Format <model_library_format>`.
 #
-# Here, we generate a MLF file for ``qemu_x86`` Zephyr board. To generate MLF output for the ``magic_wand`` tflite model:
+# Here, we generate a MLF file for ``qemu_x86`` Zephyr board. You can chooses `aot` or `graph` executor type
+# to run this tutorial, however, we recommend to use `aot` for microTVM targets since `aot` uses ahead of time
+# compilation with static memory allocation. To generate MLF output for the ``magic_wand`` tflite model:
 #
 # bash
 tvmc compile magic_wand.tflite \
     --target='c -keys=cpu -model=host' \
     --runtime=crt \
     --runtime-crt-system-lib 1 \
-    --executor='graph' \
-    --executor-graph-link-params 0 \
+    --executor='aot' \
     --output model.tar \
     --output-format mlf \
-    --pass-config tir.disable_vectorize=1 \
-    --disabled-pass=AlterOpLayout
+    --pass-config tir.disable_vectorize=1
 # bash
 # This will generate a ``model.tar`` file which contains TVM compiler output files. To run this command for
 # a different Zephyr device, you need to update ``target``. For instance, for ``nrf5340dk_nrf5340_cpuapp`` board
