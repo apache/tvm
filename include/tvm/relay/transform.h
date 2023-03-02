@@ -468,6 +468,13 @@ TVM_DLL Pass RemoveUnusedFunctions(Array<runtime::String> entry_functions);
 TVM_DLL Pass SimplifyExpr();
 
 /*!
+ * \brief Stripped down version of SimplifyExpr which is run after AlterOpLayout.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass SimplifyExprPostAlterOp();
+
+/*!
  * \brief Run any custom passes registered under "RelayToTIR" attributes on TargetKinds.
  *
  * This pass looks for inline, let-bound or global functions which have a "Compiler" attribute.

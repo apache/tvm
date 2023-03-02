@@ -286,7 +286,14 @@ def _write_sums_to_memory(num_outputs, offset, stride) -> Iterator[str]:
         num_packed = (num_outputs - offset) // 2
         for i in range(num_packed):
             index = 2 * i + offset
-            yield f"int32_t packed_res_{i} = requant_{index} + (requant_{index + 1} << 16);"
+            # We must explicitly call asm inline to use the PKHBT instruction. It is not part of
+            # ACLE and has no __builtin. Writing it using masks and bitshifts does not work either:
+            # Arm GCC 12 with -O3 does not compile these efficiently.
+            yield f"int packed_res_{i};"
+            yield (
+                f'__asm__ ("pkhbt %0, %1, %2, lsl #16" : "=r" (packed_res_{i}) : '
+                f'"r" (requant_{index}), "r" (requant_{index + 1}));'
+            )
 
         if offset == 1:
             yield "((int16_t*) output)[1] = (int16_t) requant_0;"
