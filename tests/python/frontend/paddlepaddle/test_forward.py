@@ -1784,5 +1784,134 @@ def test_forward_where_index():
     verify_model(where_index_1, input_data=input_data, use_vm=True)
 
 
+@tvm.testing.uses_gpu
+def test_forward_thresholded_relu():
+    class ThresholdedRelu(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return nn.functional.thresholded_relu(inputs)
+
+    input_shapes = [[10], [2, 3], [5, 10, 11], [3, 4, 5, 6]]
+    for input_shape in input_shapes:
+        input_data = paddle.randn(shape=input_shape, dtype="float32")
+        verify_model(ThresholdedRelu(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_index_select():
+    class IndexSelect1(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, x, index):
+            return paddle.index_select(x, index, axis=0)
+
+    class IndexSelect2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, x, index):
+            return paddle.index_select(x, index, axis=-1)
+
+    input_shapes = [[10], [2, 3], [5, 10, 11], [3, 4, 5, 6]]
+    for input_shape in input_shapes:
+        input_data = paddle.randn(shape=input_shape, dtype="float32")
+        index = paddle.to_tensor([0, 1, 1], dtype="int32")
+        verify_model(IndexSelect1(), input_data=[input_data, index])
+        verify_model(IndexSelect2(), input_data=[input_data, index])
+
+
+@tvm.testing.uses_gpu
+def test_forward_eye():
+    class Eye1(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self):
+            return paddle.eye(3, 5, dtype="int32"), paddle.eye(3, 5, dtype="float32")
+
+    class Eye2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self):
+            return paddle.eye(5, 3, dtype="int64"), paddle.eye(5, 3, dtype="float64")
+
+    class Eye2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self):
+            return paddle.eye(0, 3, dtype="int64"), paddle.eye(0, 0, dtype="float64")
+
+    verify_model(Eye1(), input_data=[])
+    verify_model(Eye2(), input_data=[])
+
+
+@tvm.testing.uses_gpu
+def test_forward_linspace():
+    class Linspace1(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self):
+            return paddle.linspace(0, 7, 1, "int32"), paddle.linspace(1, 7, 5, "float32")
+
+    class Linspace2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self):
+            start = paddle.to_tensor([1.0])
+            stop = paddle.to_tensor([10.0])
+            num = paddle.to_tensor([8])
+            num = paddle.cast(num, "int32")
+            return paddle.linspace(start, stop, num, "int32"), paddle.linspace(
+                start, stop, num, "float32"
+            )
+
+    verify_model(Linspace1(), input_data=[])
+    verify_model(Linspace2(), input_data=[])
+
+
+@tvm.testing.uses_gpu
+def test_take_alone_axis():
+    class TakeAloneAxis1(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            index = paddle.to_tensor([[0, 1], [1, 2], [1, 0]])
+            return paddle.take_along_axis(inputs, index, axis=-1)
+
+    class TakeAloneAxis2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            index = paddle.to_tensor([[[0], [0], [1]]])
+            return paddle.take_along_axis(inputs, index, axis=1)
+
+    class TakeAloneAxis3(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            index = paddle.to_tensor([[[0], [0], [1]]])
+            return paddle.take_along_axis(inputs, index, axis=-1)
+
+    x = paddle.to_tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+    verify_model(TakeAloneAxis1(), input_data=x)
+
+    y = paddle.to_tensor(
+        [[[1, 2], [2, 3], [3, 4]], [[4, 5], [5, 6], [6, 7]], [[7, 8], [8, 9], [9, 10]]],
+        dtype="float32",
+    )
+    verify_model(TakeAloneAxis2(), input_data=y)
+    verify_model(TakeAloneAxis3(), input_data=y)
+
+
+@tvm.testing.uses_gpu
+def test_forward_dist():
+    class Dist1(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, x, y):
+            l0_norm = paddle.dist(x, y, 0)
+            l2_norm = paddle.dist(x, y, 2)
+            float_norm = paddle.dist(x, y, 1.3)
+            inf_norm = paddle.dist(x, y, float("inf"))
+            ninf_norm = paddle.dist(x, y, float("-inf"))
+            return l0_norm, l2_norm, float_norm, inf_norm, ninf_norm
+
+    x = paddle.to_tensor([[3, 3], [3, 3]], dtype="float32")
+    y = paddle.to_tensor([[1, 2], [3, 4]], dtype="float32")
+    w = paddle.to_tensor([[1, 2]], dtype="float32")
+    v = paddle.to_tensor([[2.1]], dtype="float32")
+    verify_model(Dist1(), input_data=[x, y])
+    verify_model(Dist1(), input_data=[x, w])
+    verify_model(Dist1(), input_data=[w, v])
+    verify_model(Dist1(), input_data=[y, v])
+
+
 if __name__ == "__main__":
     tvm.testing.main()

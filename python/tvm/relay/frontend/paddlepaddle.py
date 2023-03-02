@@ -400,6 +400,30 @@ def convert_conv2d_transpose(g, op, block):
     g.add_node(op.output("Output")[0], out)
 
 
+def convert_dist(g, op, block):
+    """Operator converter for dist."""
+
+    x = g.get_node(op.input("X")[0])
+    y = g.get_node(op.input("Y")[0])
+    z = _op.abs(_op.subtract(x, y))
+    dtype = infer_type(x).checked_type.dtype
+    p = op.attr("p")
+    if p == np.inf:
+        out = _op.reduce.max(_op.abs(z))
+    elif p == np.NINF:
+        out = _op.reduce.min(_op.abs(z))
+    elif p == 0.0:
+        out = _op.reduce.sum(_op.sign(_op.abs(z)))
+    else:
+        inv_p = _expr.const(1.0 / p, dtype=dtype)
+        p = _expr.const(p, dtype=dtype)
+        power_z = _op.power(z, p)
+        sum_pow = _op.reduce.sum(power_z)
+        out = _op.power(sum_pow, inv_p)
+    out = _op.full(out, shape=(1))
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_cumsum(g, op, block):
     """Operator converter for cumsum."""
 
@@ -475,6 +499,47 @@ def convert_elementwise_op(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_linspace(g, op, block):
+    """Operator converter for linspace."""
+
+    start = g.get_node(op.input("Start")[0])
+    stop = g.get_node(op.input("Stop")[0])
+    num = g.get_node(op.input("Num")[0])
+    dtype = _convert_dtype_value(op.attr("dtype"))
+    start, infered = try_infer_value(start, parameters=g.get_params())
+    if infered:
+        start = start.tolist()[0]
+    else:
+        msg = 'Value {} in attribute "start" of operator Linspace is not "valid."'
+        raise tvm.error.OpAttributeInvalid(msg.format(start))
+
+    stop, infered = try_infer_value(stop, parameters=g.get_params())
+    if infered:
+        stop = stop.tolist()[0]
+    else:
+        msg = 'Value {} in attribute "stop" of operator Linspace is not "valid."'
+        raise tvm.error.OpAttributeInvalid(msg.format(stop))
+
+    num, infered = try_infer_value(num, parameters=g.get_params())
+    if infered:
+        num = num.tolist()[0]
+    else:
+        msg = 'Value {} in attribute "num" of operator Linspace is not "valid."'
+        raise tvm.error.OpAttributeInvalid(msg.format(num))
+
+    if num == 1:
+        out = _op.full(_expr.const(start, dtype), shape=(1))
+    else:
+        step = (stop - start) / (num - 1)
+        stop = stop + step
+        start = _expr.const(start, "float32")
+        stop = _expr.const(stop, "float32")
+        step = _expr.const(step, "float32")
+        out = _op.transform.arange(start=start, stop=stop, step=step, dtype="float32")
+        out = _op.cast(out, dtype)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_elu(g, op, block):
     """Operator converter for elu."""
 
@@ -511,6 +576,27 @@ def convert_expand_as(g, op, block):
     x = g.get_node(op.input("X")[0])
     target_shape = op.attr("target_shape")
     out = _op.broadcast_to(x, target_shape)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_eye(g, op, block):
+    """Operator converter for eye."""
+
+    num_rows = op.attr("num_rows")
+    num_columns = op.attr("num_columns")
+    one_nums = min(num_rows, num_columns)
+    dtype = op.attr("dtype")
+    dtype = _convert_dtype_value(dtype)
+
+    zeros = _op.zeros((num_rows, num_columns), dtype)
+    if one_nums == 0:
+        out = zeros
+    else:
+        ones = _op.ones(one_nums, dtype)
+        indices = _op.arange(
+            _expr.const(0, dtype="int32"), _expr.const(one_nums, dtype="int32"), dtype="int32"
+        )
+        out = _op.scatter_nd(zeros, _op.stack([indices, indices], axis=0), ones, "update")
     g.add_node(op.output("Out")[0], out)
 
 
@@ -827,6 +913,16 @@ def convert_interpolate(g, op, block):
         rounding_method=rounding_method,
         cubic_alpha=-0.75,
     )
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_index_select(g, op, block):
+    """Operator converter for index_select."""
+
+    x = g.get_node(op.input("X")[0])
+    index = g.get_node(op.input("Index")[0])
+    axis = op.attr("dim")
+    out = _op.transform.take(x, index, axis, mode="wrap")
     g.add_node(op.output("Out")[0], out)
 
 
@@ -2025,6 +2121,29 @@ def convert_swish(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_take_along_axis(g, op, block):
+    """Operator converter for take_along_axis."""
+
+    x = g.get_node(op.input("Input")[0])
+    index = g.get_node(op.input("Index")[0])
+    axis = op.attr("Axis")
+    out = _op.gather(x, axis, index)
+    g.add_node(op.output("Result")[0], out)
+
+
+def convert_thresholded_relu(g, op, block):
+    """Operator converter for thresholded_relu."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    threshold = op.attr("threshold")
+    threshold = _expr.const(threshold, dtype)
+    zero = _expr.const(0.0, dtype)
+    condition = tvm.relay.greater(x, threshold)
+    out = tvm.relay.where(condition, x, zero)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_topk(g, op, block):
     """Operator converter for topk."""
 
@@ -2109,6 +2228,7 @@ _convert_map = {
     "cumsum": convert_cumsum,
     "depthwise_conv2d": convert_conv2d,
     "depthwise_conv2d_transpose": convert_conv2d_transpose,
+    "dist": convert_dist,
     "dot": convert_dot,
     "dropout": convert_dropout,
     "elementwise_add": convert_elementwise_op,
@@ -2127,6 +2247,7 @@ _convert_map = {
     "exp": convert_unary_op,
     "expand_v2": convert_expand,
     "expand_as_v2": convert_expand_as,
+    "eye": convert_eye,
     "feed": convert_feed,
     "fill_any_like": convert_fill_any_like,
     "fill_constant": convert_fill_constant,
@@ -2143,6 +2264,7 @@ _convert_map = {
     "hard_shrink": convert_hard_shrink,
     "hard_sigmoid": convert_hard_sigmoid,
     "hard_swish": convert_hard_swish,
+    "index_select": convert_index_select,
     "instance_norm": convert_instance_norm,
     "isfinite_v2": convert_unary_op,
     "isinf_v2": convert_unary_op,
@@ -2151,6 +2273,7 @@ _convert_map = {
     "leaky_relu": convert_leaky_relu,
     "less_equal": convert_elementwise_op,
     "less_than": convert_elementwise_op,
+    "linspace": convert_linspace,
     "log": convert_unary_op,
     "log2": convert_unary_op,
     "log10": convert_unary_op,
@@ -2214,8 +2337,10 @@ _convert_map = {
     "square": convert_square,
     "squeeze2": convert_squeeze,
     "swish": convert_swish,
+    "take_along_axis": convert_take_along_axis,
     "tan": convert_unary_op,
     "tanh": convert_unary_op,
+    "thresholded_relu": convert_thresholded_relu,
     "top_k_v2": convert_topk,
     "transpose2": convert_transpose,
     "unsqueeze2": convert_unsqueeze,
