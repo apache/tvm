@@ -78,6 +78,30 @@ def insert_dot_id(sch):
     return sch
 
 
+def itervar_equal(iv_a, iv_b):
+    """A helper method that compares the equality of two iterative variables"""
+    # after schedule.normalize was called, domains of iterative variables inside
+    # stage.leaf_iter_vars would be discarded and expected to be inferred in later
+    # InferBound call
+    # this rebase behavior would make plain comparison fail (i.e. ivar == itervar)
+    # here we adopt a new comparison method to serach the correct relationship of
+    # itervars
+    def _var_equal(v_a, v_b):
+        condtions = [
+            v_a.name == v_b.name,
+            v_a.dtype == v_b.dtype,
+            v_a.type_annotation == v_b.type_annotation,
+        ]
+        return all(c for c in condtions)
+
+    condtions = [
+        _var_equal(iv_a.var, iv_b.var),
+        iv_a.iter_type == iv_b.iter_type,
+        iv_a.thread_tag == iv_b.thread_tag,
+    ]
+    return all(c for c in condtions)
+
+
 class ObjectManager:
     """A helper class tracking schedule objects, e.g. stage, IterVar,
     relationship, and tensor, to their DOM path."""
@@ -88,6 +112,10 @@ class ObjectManager:
             self.dict[stage] = [stage_idx]
             for itervar_idx, itervar in enumerate(stage.all_iter_vars):
                 self.dict[itervar] = [stage_idx, itervar_idx]
+                # the rebased itervars should also be mapped to the original one
+                for rebased in stage.leaf_iter_vars:
+                    if itervar_equal(rebased, itervar):
+                        self.dict[rebased] = [stage_idx, itervar_idx]
             for rel_idx, rel in enumerate(stage.relations):
                 self.dict[rel] = [stage_idx, rel_idx]
             for tensor_idx in range(stage.op.num_outputs):
@@ -289,7 +317,7 @@ def dump_json(sch, need_range):
 
         def get_leaf_itervar_index(itervar, leaf_iv):
             for leaf_index, ivar in enumerate(leaf_iv):
-                if ivar == itervar:
+                if itervar_equal(ivar, itervar):
                     return leaf_index
             return -1
 
