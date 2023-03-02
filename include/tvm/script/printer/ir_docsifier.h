@@ -145,8 +145,6 @@ class IRDocsifierNode : public Object {
   Array<String> dispatch_tokens;
   /*! \brief Mapping from a var to its info */
   std::unordered_map<ObjectRef, VariableInfo, ObjectPtrHash, ObjectPtrEqual> obj2info;
-  /*! \brief A binding table that maps var to value. */
-  std::unordered_map<relax::Id, RelayExpr, ObjectPtrHash, ObjectPtrEqual> binding_table_;
   /*! \brief Metadata printing */
   std::unordered_map<String, Array<ObjectRef>> metadata;
   /*! \brief Return exprs used to help tell whether or not an expr is a return*/
@@ -212,11 +210,11 @@ class IRDocsifierNode : public Object {
   Optional<ExprDoc> GetVarDoc(const ObjectRef& obj) const;
   /*! \brief Add a TVM object to the metadata section*/
   ExprDoc AddMetadata(const ObjectRef& obj);
-
-  Optional<RelayExpr> LookupBinding(const relax::Var& var);
-
+  /*!
+   * \brief Add an expression into return expression set.
+   * \param ret_expr The return expression.
+   */
   void AddReturnExpr(const RelayExpr& ret_expr);
-
   /*!
    * \brief Check if a variable exists in the table.
    * \param obj The variable object.

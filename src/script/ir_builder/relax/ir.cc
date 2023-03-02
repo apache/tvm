@@ -109,18 +109,13 @@ void RetValue(const tvm::relax::Expr& value) {
   // Exit BlockFrame
   if (block_frame.defined()) {
     block_frame.value()->ExitWithScope();
-    //ICHECK(!IRBuilder::Current()->FindFrame<BlockFrame>())
+    // ICHECK(!IRBuilder::Current()->FindFrame<BlockFrame>())
     //    << "ValueError: Relax functions don't support return in true/false branch of If Node.";
   }
   // Step 2. Add the output value to the function frame.
   Array<IRBuilderFrame> all_frames = IRBuilder::Current()->frames;
-  int i = 0;
-  for (auto f : all_frames) {
-    LOG(INFO) << "yongwww frame_" << i++ << " = " << f;
-  }
 
   // IfFrame if_frame = IRBuilder::Current()->FindFrame<IfFrame>().value();
-  // LOG(INFO) << "return if_frame: " << if_frame;
 
   IRBuilderFrame last_frame = all_frames[all_frames.size() - 1];
   Optional<ThenFrame> then_frame = IRBuilder::Current()->GetLastFrame<ThenFrame>();
@@ -138,7 +133,6 @@ void RetValue(const tvm::relax::Expr& value) {
   LOG(INFO) << "return FunctionFrame frame: " << frame;
 
   frame->output = std::move(normalized_value);
-  // block_frame.value()->ExitWithScope();
 }
 
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Function").set_body_typed(Function);

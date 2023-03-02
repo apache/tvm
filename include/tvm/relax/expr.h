@@ -626,30 +626,6 @@ class PrimValue : public LeafExpr {
 };
 
 /*!
- * \brief NullExpr.
- *
- * Expression representing a Null expression.
- */
-class NullExprNode : public LeafExprNode {
- public:
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("struct_info_", &struct_info_);
-    v->Visit("_checked_type_", &checked_type_);
-    v->Visit("span", &span);
-  }
-
-  bool SEqualReduce(const NullExprNode* other, SEqualReducer equal) const {
-    // struct info can be deterministically derived from data.
-    return equal(struct_info_, other->struct_info_);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(struct_info_); }
-
-  static constexpr const char* _type_key = "relax.expr.NullExpr";
-  TVM_DECLARE_FINAL_OBJECT_INFO(NullExprNode, LeafExprNode);
-};
-
-/*!
  * \brief Represent a string literal constant.
  */
 class StringImmNode : public LeafExprNode {

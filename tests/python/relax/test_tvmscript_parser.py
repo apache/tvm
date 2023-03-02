@@ -33,6 +33,7 @@ def _check(
     expect: Optional[Union[relax.Function, IRModule]] = None,
 ):
     test = parsed.script(show_meta=True)
+    print(test)
     roundtrip_mod = tvm.script.from_source(test)
     tvm.ir.assert_structural_equal(parsed, roundtrip_mod)
     if expect:
@@ -1192,11 +1193,11 @@ def test_multi_return():
         def foo0(x: R.Tensor) -> R.Tensor:
             y: R.Tensor((), dtype="bool") = R.const(True, dtype="bool")
             if y:
-                v = R.add(x, x)
-                return v
+                r = R.add(x, x)
+                return r
             else:
-                v = R.multiply(x, x)
-            return v
+                r = R.multiply(x, x)
+            return r
 
         @R.function
         def foo1(x: R.Tensor) -> R.Tensor:
@@ -1211,19 +1212,27 @@ def test_multi_return():
         def foo2(x: R.Tensor) -> R.Tensor:
             y: R.Tensor((), dtype="bool") = R.const(True, dtype="bool")
             if y:
-                v = R.add(x, x)
+                r = R.add(x, x)
             else:
                 return R.multiply(x, x)
-            return v
+            return r
 
     MultiReturn.show()
-    print("yongwww get_global_info:", MultiReturn.get_global_info("relax_return_exprs"))
+    # print("yongwww get_global_info:", MultiReturn.get_global_info("relax_return_exprs"))
     _check(MultiReturn)
     roundtrip_mod = tvm.script.from_source(MultiReturn.script(show_meta=True))
     tvm.ir.assert_structural_equal(MultiReturn, roundtrip_mod, True)
 
 
+def test_meta_data():
+    @R.function
+    def foo(x: R.Tensor((2, 3), "float32")) -> R.Tensor(None, "float32", ndim=2):
+        a = R.const([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], "float32")
+        g = R.add(x, a)
+        return g
+
+    _check(foo)
+
+
 if __name__ == "__main__":
-    # tvm.testing.main()
-    # test_module_with_attr_and_global_info()
-    test_multi_return()
+    tvm.testing.main()

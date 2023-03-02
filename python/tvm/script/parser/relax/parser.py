@@ -323,53 +323,17 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
 def visit_return(self: Parser, node: doc.Assign) -> None:
     value = self.eval_expr(node.value)
     value = convert_to_expr(value)
-    """
-    TODO (yongwww):
-    issue 1): Save all values into a global list, and add into global_info in the end of parsing  -> Status: wip
-          => we can just have a single api like add_relax_return_global_info into the RelaxReturnGlobalInfo,
-             Solution: 
-            [x]o1: Save all return values in a global list, and assembly it in the end of parsing,
-                   don't allow user to provide it. Ignore if it exists
-               o2: Create an IRModuleNode::GetGlobalInfo(String name), plus UpdateGlobalInfo should help do the modification
-                   But how to expose it to parser? doesn't work, hard to expose to ir_builder
-               o3: add ModuleGetGlobalInfos and ModuleUpdateGlobalInfos in src/script/ir_builder/ir/ir.cc
-                   and python/tvm/script/ir_builder/ir/ir.py
-                   how to reassembly the RelaxReturnGlobalInfo is a problem, before the fetch returnGlobalInfo is a runtime.Object
-                   seems there is no way to update it, so give up o3
-
-                   Solution: expose get elements of RelaxReturnGlobalInfo into IR-builder
-
-
-    issue 2): global issue was required explicitly at the beggining of the ir_module,
-              need to figure out a way to update/create a return global info at any point  -> Status: todo
-              Solution: No matter if the tvmscript has explicitly feed the module_gloabl_info or not, and one for return!
-
-    issue 3): need to hide the return global info, it shouldn't be visible to users,
-              it might crash the exiting test cases -> Status: todo
-              Solution: solution in 2) should help fix test cases, since we will have relax_return_global_info anyway,
-                the only concern is that the ordering of relax_return_exprs, topological ordering for relax func parsing
-                should fix it too. And it just potentially impact test structural_equal, no functionality impacted!
-    
-    Conclusion: 
-        1) The best way is to add "Bool return_body" in SeqExpr, but we need to keep IR constrained at this moment
-        2) Introduce func_info in relax function level, similar to global info, but it will introduce return_func_info
-           into Function, and the IR is affected, then prefer option 1)
-        So, I decided to move forward with GlobalInfo, because it is already there.
-    """
-
     # "relax_return_exprs" was used as key for return exprs
     return_expr_key = "relax_return_exprs"
     if return_expr_key not in self.aux_dict:
         self.aux_dict[return_expr_key] = []
     self.aux_dict[return_expr_key].append(value)
+    # update the return global info
     ginfos = I.module_get_global_infos()
-
     ret_ginfo = I.relax_return_global_info(self.aux_dict[return_expr_key])
-
     ginfos[return_expr_key] = [ret_ginfo]
     I.module_update_global_infos(ginfos)
-
-    R.ret_value(value)  # TODO(yongwww): probably we can remove R.ret_value as well
+    R.ret_value(value)
 
 
 @dispatch.register(token="relax", type_name="If")
@@ -379,10 +343,11 @@ def visit_if(self: Parser, node: doc.If) -> None:
     with R.If(self.eval_expr(node.test)) as if_frame:
         with self.var_table.with_frame():
             with R.Then():
-                print("Entering R.Then")
                 self.visit_body(node.body)
         with self.var_table.with_frame():
             with R.Else():
-                print("Entering R.Else")
                 self.visit_body(node.orelse)
-    self.var_table.add(if_frame.var_name, if_frame.var, allow_shadowing=True)
+    if not if_frame.var_name:
+        self.var_table.add(str(if_frame.var), if_frame.var, allow_shadowing=True)
+    else:
+        self.var_table.add(if_frame.var_name, if_frame.var, allow_shadowing=True)

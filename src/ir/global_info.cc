@@ -39,5 +39,4 @@ TVM_REGISTER_GLOBAL("ir.DummyGlobalInfo").set_body_typed([]() {
   auto n = DummyGlobalInfo(make_object<DummyGlobalInfoNode>());
   return n;
 });
-
 }  // namespace tvm
