@@ -18,7 +18,6 @@ import os
 import platform
 import pytest
 import shutil
-import re
 
 from pytest_lazyfixture import lazy_fixture
 from unittest import mock
