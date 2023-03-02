@@ -42,8 +42,6 @@ namespace backend {
  */
 class PatternRegistryEntryNode : public Object {
  public:
-  using FCheckMatch = runtime::TypedPackedFunc<bool(const Map<DFPattern, Expr>&, const Expr&)>;
-
   /*!
    * \brief The name of pattern. Usually it starts with the name of backend, like
    * 'cutlass.matmul'.
@@ -63,13 +61,17 @@ class PatternRegistryEntryNode : public Object {
 
   /*!
    * \brief The function to check whether the match result is accepted.
+   *
+   * It should have signature
+   * bool(const Map<DFPattern, Expr>& match_result, const Expr& matched_expr)
    */
-  FCheckMatch check;
+  PackedFunc check;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("pattern", &pattern);
     v->Visit("arg_patterns", &arg_patterns);
+    v->Visit("check", &check);
   }
 
   static constexpr const char* _type_key = "relax.backend.PatternRegistryEntry";
@@ -78,7 +80,8 @@ class PatternRegistryEntryNode : public Object {
 
 class PatternRegistryEntry : public ObjectRef {
  public:
-  PatternRegistryEntry(String name, DFPattern pattern, Map<String, DFPattern> arg_patterns);
+  PatternRegistryEntry(String name, DFPattern pattern, Map<String, DFPattern> arg_patterns,
+                       PackedFunc check);
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(PatternRegistryEntry, ObjectRef,
                                             PatternRegistryEntryNode);
@@ -91,6 +94,12 @@ class PatternRegistryEntry : public ObjectRef {
  *        higher priority when partitioning DataflowBlock.
  */
 void RegisterPatterns(Array<PatternRegistryEntry> entries);
+
+/*!
+ * \brief Remove patterns from the registry by their name.
+ * \param names The name of patterns to be removed
+ */
+void RemovePatterns(Array<String> names);
 
 /*!
  * \brief Find patterns whose name starts with a particular prefix.

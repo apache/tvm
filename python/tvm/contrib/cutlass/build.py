@@ -16,10 +16,13 @@
 # under the License.
 # pylint: disable=invalid-name, dangerous-default-value, arguments-differ
 """Driver for partitioning and building a Relay module for CUTLASS offload."""
+import itertools
 import logging
 import multiprocessing
+import operator
 import os
-from typing import Optional
+from functools import reduce
+from typing import Optional, Tuple
 
 import tvm
 from tvm import relax, relay, runtime
@@ -569,6 +572,31 @@ def _extract_arg_idx(pattern_name, f):
     return arg_idx
 
 
+def is_valid_for_cutlass_matmul(lhs_shape: Tuple[int], rhs_shape: Tuple[int]) -> bool:
+    """
+    Check whether the shape of inputs can be handled by CUTLASS GEMM.
+
+    The stride-based batch matmul in CUTLASS cannot handle cases that some of
+    the batch dimensions need to be stretched while others don't. This means
+    it can only handle ND x ND whose batch dimensions match exactly on both side,
+    as well as ND x 2D and 2D x ND. For example, it cannot handle matmul with shape
+    (2, 1, 4, 8) x (2, 3, 8, 16), because the batch stride of lhs is not constant.
+    """
+    lhs_batches = reduce(operator.mul, lhs_shape[:-2], 1)
+    rhs_batches = reduce(operator.mul, rhs_shape[:-2], 1)
+    if lhs_batches == 1 or rhs_batches == 1:
+        # This could be regular matmul or batch matmul with shape ND x 2D or 2D x ND
+        return True
+
+    # If one side has less dimensions, use 1 to fill the gap
+    batch_dim_pairs = itertools.zip_longest(
+        lhs_shape[-3::-1],  # Remove the last two dimensions and reverse
+        rhs_shape[-3::-1],
+        fillvalue=1,
+    )
+    return all(p[0] == p[1] for p in batch_dim_pairs)
+
+
 @relax.expr_functor.mutator
 class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
     """A Relax function mutator that tunes and annotates CUTLASS composite functions
@@ -659,16 +687,34 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         rhs_dtype = signature[f"{rhs_arg}_dtype"]
         out_dtype = signature["ret_dtype"]
 
-        MM = lhs_shape[0]
-        KK = lhs_shape[1]
+        if not is_valid_for_cutlass_matmul(lhs_shape, rhs_shape):
+            raise ValueError(f"Cannot handle the input shapes, lhs: {lhs_shape}, rhs: {rhs_shape}")
+
+        MM = lhs_shape[-2]
+        KK = lhs_shape[-1]
         if "transposed" in op_type:
-            NN = rhs_shape[0]
+            NN = rhs_shape[-2]
             ldb = "K"
             layout_b = LayoutType.ColumnMajor
         else:
-            NN = rhs_shape[1]
+            NN = rhs_shape[-1]
             ldb = "N"
             layout_b = LayoutType.RowMajor
+
+        lhs_batches = reduce(operator.mul, lhs_shape[:-2], 1)
+        rhs_batches = reduce(operator.mul, rhs_shape[:-2], 1)
+        if lhs_batches == 1 and rhs_batches == 1:
+            # Regular matmul
+            is_batched = False
+            batch_attrs = {}
+        else:
+            is_batched = True
+            batch_attrs = {
+                "batch": max(lhs_batches, rhs_batches),
+                "batch_stride_A": 0 if lhs_batches == 1 else MM * KK,
+                "batch_stride_B": 0 if rhs_batches == 1 else KK * NN,
+                "batch_stride_C": MM * NN,
+            }
 
         use_3xtf32 = self.options.get("use_3xtf32", False)
         find_first_valid = self.options.get("find_first_valid", True)
@@ -683,7 +729,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
             lhs_dtype,
             rhs_dtype,
             use_3xtf32,
-            batched=False,
+            batched=is_batched,
             find_first_valid=find_first_valid,
             use_multiprocessing=use_multiprocessing,
             layout_b=layout_b,
@@ -706,6 +752,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
                 "ldc": "N",
                 "cutlass_op_name": op_name,
                 "cutlass_op_def": op_def,
+                **batch_attrs,
             }
         )
 
