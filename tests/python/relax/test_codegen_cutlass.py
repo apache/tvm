@@ -302,7 +302,7 @@ def test_cutlass_partition_matmul_blocked(x_shape, y_shape, transpose_y, dtype):
     tvm.ir.assert_structural_equal(mod, partition_for_cutlass(mod))
 
 
-@pytest.fixture(params=["float16"])
+@pytest.fixture(params=["float16", "float32"])
 def attention_dtype(request):
     return request.param
 
@@ -311,8 +311,10 @@ def attention_dtype(request):
     params=[
         # B, S, N, H
         (32, (4, 4), 16, (8, 8)),
-        (4, (8, 4), 32, (8, 8)),
-        (4, (8, 4), 32, (8, 16)),
+        (4, (8, 4), 32, (8, 8)),  # s != s_kv
+        (4, (8, 4), 32, (8, 16)),  # h != h_v
+        (32, (4, 4), 16, (4, 4)),  # h is not aligned
+        (2, (4, 4), 8, (256, 256)),  # needs output accumulator buffer
     ]
 )
 def attention_size(request):

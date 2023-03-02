@@ -24,7 +24,7 @@ def instantiate_attention_template(attrs, func_args):
     based on a template and the provided attribute map."""
 
     template = """
-  using T = cutlass::half_t;
+  using T = ${data_type};
 
   CHECK(${arg0}->ndim == 4); // B, S, N, H
   CHECK(${arg1}->ndim == 4); // B, S', N, H
@@ -34,7 +34,7 @@ def instantiate_attention_template(attrs, func_args):
   using Attention =
       AttentionKernel<T,
                       /*ArchTag=*/${arch},
-                      /*is_aligned=*/true,
+                      /*is_aligned=*/${kIsAligned},
                       /*queries_per_block=*/${kQueriesPerBlock},
                       /*keys_per_block=*/${kKeysPerBlock},
                       /*single_value_iteration=*/${kSingleValueIteration}
@@ -47,8 +47,13 @@ def instantiate_attention_template(attrs, func_args):
   p.value_ptr = reinterpret_cast<T *>(${arg2}->data);
   p.logsumexp_ptr = nullptr;
   p.output_ptr = reinterpret_cast<T *>(out0->data);
-  static_assert(!Attention::kNeedsOutputAccumulatorBuffer);
   p.output_accum_ptr = nullptr;
+  if (Attention::kNeedsOutputAccumulatorBuffer) {
+    cudaMalloc(
+      &p.output_accum_ptr, 
+      ${output_size} * sizeof(Attention::output_accum_t)
+    );
+  }
 
   p.num_heads = ${num_heads}; // N
   p.num_batches = ${num_batches}; // B
@@ -57,7 +62,6 @@ def instantiate_attention_template(attrs, func_args):
   p.num_queries = ${num_queries}; // S
   p.num_keys = ${num_keys}; // S'
   p.scale = 1.0f / sqrt(float(${head_dim}));
-  // p.causal = false;
 
   // stride for N
   p.q_strideH = p.head_dim; // H
