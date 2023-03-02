@@ -162,7 +162,7 @@ class TorchFXImporter:
         lhs, rhs = self.retrieve_args(node)
         if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
             return self._call_binary_op(relax.op.power, lhs, rhs)
-        return lhs - rhs
+        return lhs**rhs
 
     def _sub(self, node: fx.node.Node) -> relax.Expr:
         lhs, rhs = self.retrieve_args(node)
