@@ -287,7 +287,7 @@ def instantiate_gemm_template(attrs):
    {static_cast<ElementInputA*>(ptr_a), ${lda}}, ${batch_stride_A}
    {static_cast<ElementInputB*>(ptr_b), ${ldb}}, ${batch_stride_B}
    {static_cast<ElementOutput*>(${ptr_c}), ${c_stride}}, ${batch_stride_C}
-   {static_cast<ElementOutput*>(ptr_out), ${ldc}}, ${batch_stride_C}
+   {static_cast<ElementOutput*>(ptr_out), ${ldc}}, ${batch_stride_D}
    {${alpha_beta}},
    ${split_k_slices_or_batch}
   };
@@ -303,8 +303,7 @@ def instantiate_gemm_template(attrs):
 """
     has_bias = "bias" in attrs["op_type"]
     is_gelu = "gelu" in attrs["op_type"]
-    batched = "batch_matmul" in attrs["op_type"]
-
+    batched = "batch" in attrs
     aux_map = {"kernel": "Gemm"}
 
     if has_bias:
@@ -334,6 +333,10 @@ def instantiate_gemm_template(attrs):
             aux_map[key] = ""
         else:
             aux_map[key] = attrs[key] + ","
+
+    aux_map["batch_stride_D"] = aux_map["batch_stride_C"]
+    if has_bias and batched:
+        aux_map["batch_stride_C"] = "0,"
 
     if batched:
         attrs["split_k_slices_or_batch"] = attrs["batch"]

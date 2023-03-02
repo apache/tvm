@@ -17,14 +17,15 @@
 
 """Pattern registry for BYOC backends"""
 
-from typing import Callable, List, Mapping, Optional, Tuple, Union
+import atexit
+from typing import Callable, List, Mapping, Optional, Set, Tuple, Union
 
 import tvm
 from tvm.relax.dpl import DFPattern
 from tvm.runtime import Object
 
-from . import _ffi_api
 from ..expr import Expr
+from . import _ffi_api
 
 
 @tvm._ffi.register_object("relax.backend.PatternRegistryEntry")
@@ -46,25 +47,59 @@ class PatternRegistryEntry(Object):
     arg_patterns: Mapping[str, DFPattern]
         The mapping from arg name to its pattern. It can be used to extract arg expression
         from match result. All DFPattern in this map should be part of the `pattern`.
+
+    check: Callable[[Mapping[DFPattern, Expr], Expr], bool]
+        The function to check whether the match result is accepted.
     """
 
     name: str
     pattern: DFPattern
     arg_patterns: Mapping[str, DFPattern]
+    check: Callable[[Mapping[DFPattern, Expr], Expr], bool]
 
-    def __init__(self, name: str, pattern: DFPattern, arg_patterns: Mapping[str, DFPattern]):
+    def __init__(
+        self,
+        name: str,
+        pattern: DFPattern,
+        arg_patterns: Mapping[str, DFPattern],
+        check: Callable[[Mapping[DFPattern, Expr], Expr], bool],
+    ):
         self.__init_handle_by_constructor__(
-            _ffi_api.PatternRegistryEntry, name, pattern, arg_patterns  # type: ignore
+            _ffi_api.PatternRegistryEntry, name, pattern, arg_patterns, check  # type: ignore
         )
 
 
+_REGISTERED_PATTERN_NAMES: Set[str] = set()
+
+
+def _cleanup_registered_patterns():
+    _ffi_api.RemovePatterns(list(_REGISTERED_PATTERN_NAMES))  # type: ignore # pylint: disable=no-member
+
+
+_CLEANUP_REGISTERED = False
+
+
+def _ensure_cleanup_function_registered():
+    """
+    Add a cleanup function to be called on interpreter termination, to remove all
+    patterns registered on the Python side. Without cleaning up those patterns,
+    program will segfault on termination. It's because the check functions of pattern
+    entries are referenced from the static memory of libtvm, thus they will be cleaned
+    up at the very end, making calls to Py_DecRef after Python interpreter terminates.
+    """
+    global _CLEANUP_REGISTERED  # pylint: disable=global-statement
+
+    if not _CLEANUP_REGISTERED:
+        atexit.register(_cleanup_registered_patterns)
+        _CLEANUP_REGISTERED = True
+
+
+CheckFunc = Callable[[Mapping[DFPattern, Expr], Expr], bool]
 Pattern = Union[
     PatternRegistryEntry,
     Tuple[str, DFPattern],
-    Tuple[
-        str,
-        Tuple[DFPattern, Mapping[str, DFPattern], Callable[[Mapping[DFPattern, Expr], Expr], bool]],
-    ],
+    Tuple[str, DFPattern, Mapping[str, DFPattern]],
+    Tuple[str, DFPattern, Mapping[str, DFPattern], CheckFunc],
 ]
 
 
@@ -79,21 +114,27 @@ def register_patterns(patterns: List[Pattern]):
         Patterns to be registered. Patterns that appear later in the list have
         higher priority when partitioning DataflowBlock.
     """
+    _ensure_cleanup_function_registered()
+
     entries = []
     for item in patterns:
         if isinstance(item, PatternRegistryEntry):
             entries.append(item)
         elif isinstance(item, tuple):
-            name, pattern_or_tuple = item
-            if isinstance(pattern_or_tuple, tuple):
-                if len(pattern_or_tuple) == 2:
-                    pattern, arg_patterns = pattern_or_tuple
-                    check = lambda *_: True
-                else:
-                    pattern, arg_patterns, check = pattern_or_tuple
+            name, pattern, *rest = item
+
+            if len(rest) > 0:
+                arg_patterns = rest[0]
             else:
-                pattern, arg_patterns, check = pattern_or_tuple, {}, lambda *_: True
-            entries.append(PatternRegistryEntry(name, pattern, arg_patterns))
+                arg_patterns = {}
+
+            if len(rest) > 1:
+                check = rest[1]
+            else:
+                check = lambda *_: True
+
+            entries.append(PatternRegistryEntry(name, pattern, arg_patterns, check))
+            _REGISTERED_PATTERN_NAMES.add(name)
         else:
             raise TypeError(f"Cannot register type {type(pattern)} as pattern")
     _ffi_api.RegisterPatterns(entries)
