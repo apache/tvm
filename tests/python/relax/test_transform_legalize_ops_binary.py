@@ -519,6 +519,86 @@ def test_multiply_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_power():
+    # fmt: off
+    @tvm.script.ir_module
+    class Power:
+        @R.function
+        def main(x: R.Tensor((1, 2, 3), "float32"), y: R.Tensor((4, 3, 2, 1), "float32")) -> R.Tensor((4, 3, 2, 3), "float32"):
+            gv: R.Tensor((4, 3, 2, 3), "float32") = R.power(x, y)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def power(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_power: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
+            T.func_attr({"tir.noalias": True})
+            # with T.block("root"):
+            for ax0, ax1, ax2, ax3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
+                with T.block("T_power"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(rxplaceholder[T.int64(0), v_ax2, v_ax3], rxplaceholder_1[v_ax0, v_ax1, v_ax2, T.int64(0)])
+                    T.writes(T_power[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T_power[v_ax0, v_ax1, v_ax2, v_ax3] = T.pow(rxplaceholder[T.int64(0), v_ax2, v_ax3], rxplaceholder_1[v_ax0, v_ax1, v_ax2, T.int64(0)])
+
+        @R.function
+        def main(x: R.Tensor((1, 2, 3), dtype="float32"), y: R.Tensor((4, 3, 2, 1), dtype="float32")) -> R.Tensor((4, 3, 2, 3), dtype="float32"):
+            gv = R.call_tir(power, (x, y), out_sinfo=R.Tensor((4, 3, 2, 3), dtype="float32"))
+            return gv
+
+    # fmt: on
+
+    mod = LegalizeOps()(Power)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_power_symbolic():
+    # fmt: off
+    @tvm.script.ir_module
+    class Power:
+        @R.function
+        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
+            gv: R.Tensor((a, b, c, d), "float32") = R.power(x, y)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def power(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_power: T.handle):
+            T.func_attr({"tir.noalias": True})
+            c = T.int64()
+            d = T.int64()
+            rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(1), c, d))
+            a = T.int64()
+            b = T.int64()
+            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (a, b, c, T.int64(1)))
+            T_power = T.match_buffer(var_T_power, (a, b, c, d))
+            # with T.block("root"):
+            for ax0, ax1, ax2, ax3 in T.grid(a, b, c, d):
+                with T.block("T_power"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(rxplaceholder[T.int64(0), v_ax2, v_ax3], rxplaceholder_1[v_ax0, v_ax1, v_ax2, T.int64(0)])
+                    T.writes(T_power[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T_power[v_ax0, v_ax1, v_ax2, v_ax3] = T.pow(rxplaceholder[T.int64(0), v_ax2, v_ax3], rxplaceholder_1[v_ax0, v_ax1, v_ax2, T.int64(0)])
+
+        @R.function
+        def main(x: R.Tensor((1, "c", "d"), dtype="float32"), y: R.Tensor(("a", "b", "c", 1), dtype="float32")) -> R.Tensor(("a", "b", "c", "d"), dtype="float32"):
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
+            gv = R.call_tir(power, (x, y), out_sinfo=R.Tensor((a, b, c, d), dtype="float32"))
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(Expected)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 def test_subtract():
     # fmt: off
     @tvm.script.ir_module

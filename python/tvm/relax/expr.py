@@ -188,6 +188,12 @@ class ExprWithOp(Expr, Scriptable):
     def __rmod__(self, other: Expr) -> "ExprWithOp":
         return _binary_rhs_helper(other)
 
+    def __pow__(self, other: Expr) -> "ExprWithOp":
+        return _binary_op_helper(self, other, _op_ffi_api.power)  # type: ignore
+
+    def __rpow__(self, other: Expr) -> "ExprWithOp":
+        return _binary_rhs_helper(other)
+
     def __call__(self, *args: List[Expr], attrs: Optional[Dict[str, Any]] = None) -> "ExprWithOp":
         """Call the variable (if it represents a function).
 
