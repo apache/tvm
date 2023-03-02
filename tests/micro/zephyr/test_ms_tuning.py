@@ -24,7 +24,7 @@ import tvm
 from tvm import relay
 import tvm.micro.testing
 from tvm.relay.backend import Executor
-from tvm.contrib import graph_executor, utils
+from tvm.contrib import graph_executor
 from tvm import meta_schedule as ms
 from tvm.contrib.micro.meta_schedule.local_builder_micro import get_local_builder_micro
 from tvm.contrib.micro.meta_schedule.rpc_runner_micro import get_rpc_runner_micro
