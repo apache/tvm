@@ -2069,6 +2069,37 @@ def convert_swish(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_tile(g, op, block):
+    """Operator converter for tile."""
+
+    x = g.get_node(op.input("X")[0])
+    if op.input("RepeatTimes"):
+        reps = g.get_node(op.input("RepeatTimes")[0])
+        reps, infered = try_infer_value(reps, g.get_params())
+        if infered:
+            reps = reps.tolist()
+    elif op.input("repeat_times_tensor"):
+        reps = []
+        for rep_value in op.input("repeat_times_tensor"):
+            rep_value = g.get_node(rep_value).astype("int32")
+            reps.append(rep_value)
+        reps = _op.concatenate(reps, axis=0)
+        reps, infered = try_infer_value(reps, g.get_params())
+        if infered:
+            reps = reps.tolist()
+    else:
+        reps = op.attr("repeat_times")
+        infered = True
+
+    if not infered:
+        msg = 'Value {} in attribute "repeat_times" of operator Tile is not "valid."'
+        raise tvm.error.OpAttributeInvalid(msg.format(reps))
+
+    op_func = get_relay_op(op.type)
+    out = op_func(x, reps=reps)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_topk(g, op, block):
     """Operator converter for topk."""
 
@@ -2285,6 +2316,7 @@ _convert_map = {
     "swish": convert_swish,
     "tan": convert_unary_op,
     "tanh": convert_unary_op,
+    "tile": convert_tile,
     "top_k_v2": convert_topk,
     "transpose2": convert_transpose,
     "unsqueeze2": convert_unsqueeze,
