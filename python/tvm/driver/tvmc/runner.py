@@ -109,6 +109,7 @@ def add_run_parser(subparsers, main_parser, json_params):
         "Profiling may also have an impact on inference time, "
         "making it take longer to be generated. (non-micro devices only)",
     )
+    parser.add_argument("-v", "--verbose", action="count", default=0, help="increase verbosity.")
     parser.add_argument(
         "--end-to-end",
         action="store_true",

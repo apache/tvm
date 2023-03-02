@@ -18,6 +18,7 @@ import os
 import platform
 import pytest
 import shutil
+import re
 
 from pytest_lazyfixture import lazy_fixture
 from unittest import mock
@@ -210,3 +211,45 @@ def test_tvmc_compile_input_model(mock_compile_model, tmpdir_factory, model):
     _main(run_arg)
 
     mock_compile_model.assert_called_once()
+
+
+# TODO(ekalda): This test just makes sure that we log - unfortunately pytest seems to intercept
+# the logging output, so we can't test whether it actually writes the logging output to sys.stdout
+def test_tvmc_logger(caplog, tmpdir_factory, keras_simple):
+    tmpdir = tmpdir_factory.mktemp("out")
+
+    # TUNE
+    log_path = os.path.join(tmpdir, "records.json")
+    tune_cmd = f"tvmc tune --target llvm -vvvv --output {log_path} " f"--trials 2 {keras_simple}"
+
+    tuning_args = tune_cmd.split(" ")[1:]
+    _main(tuning_args)
+
+    # Check that we log during tvmc tune
+    for log_str in ("DEBUG", "INFO", "WARNING", "TVMC"):
+        assert log_str in caplog.text
+
+    caplog.clear()
+
+    # COMPILE
+    module_file = os.path.join(tmpdir, "m.tar")
+    compile_cmd = f"tvmc compile --target 'llvm' {keras_simple} -vvvv --output {module_file}"
+
+    compile_args = compile_cmd.split(" ")[1:]
+    _main(compile_args)
+
+    # Check that we log during tvmc compile
+    for log_str in ("DEBUG", "WARNING", "TVMC"):
+        assert log_str in caplog.text
+
+    caplog.clear()
+
+    # RUN
+    run_cmd = f"tvmc run -vvvv {module_file}"
+
+    run_args = run_cmd.split(" ")[1:]
+    _main(run_args)
+
+    # Check that we log during tvmc run
+    for log_str in ("DEBUG", "TVMC"):
+        assert log_str in caplog.text
