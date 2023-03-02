@@ -380,6 +380,40 @@ TVM_REGISTER_GLOBAL("vm.builtin.make_tuple").set_body([](TVMArgs args, TVMRetVal
   *rv = arr;
 });
 
+TVM_REGISTER_GLOBAL("vm.builtin.tensor_to_shape").set_body_typed([](NDArray data) {
+  NDArray arr = data;
+  if (data->device.device_type != kDLCPU) {
+    arr = data.CopyTo(DLDevice{kDLCPU, 0});
+  }
+
+  ICHECK_EQ(arr->ndim, 1);
+  ICHECK_EQ(arr->dtype.code, kDLInt);
+
+  std::vector<int64_t> out_shape;
+  for (int i = 0; i < arr.Shape()[0]; ++i) {
+    int64_t result;
+    switch (arr->dtype.bits) {
+      case 16: {
+        result = reinterpret_cast<int16_t*>(arr->data)[i];
+        break;
+      }
+      case 32: {
+        result = reinterpret_cast<int32_t*>(arr->data)[i];
+        break;
+      }
+      case 64: {
+        result = reinterpret_cast<int64_t*>(arr->data)[i];
+        break;
+      }
+      default:
+        LOG(FATAL) << "Unknown scalar int type: " << DLDataType2String(arr->dtype);
+        throw;
+    }
+    out_shape.push_back(result);
+  }
+  return ShapeTuple(out_shape);
+});
+
 }  // namespace relax_vm
 }  // namespace runtime
 }  // namespace tvm

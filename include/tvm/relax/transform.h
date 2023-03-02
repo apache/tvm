@@ -27,6 +27,7 @@
 #include <tvm/ir/transform.h>
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr.h>
+#include <tvm/target/target.h>
 
 namespace tvm {
 namespace relax {
@@ -271,6 +272,12 @@ TVM_DLL Pass RemoveUnusedFunctions(Array<runtime::String> entry_functions);
  */
 TVM_DLL Pass RunCodegen(Optional<Map<String, Map<String, ObjectRef>>> target_options,
                         Array<runtime::String> entry_functions);
+
+/*!
+ * \brief Create default schedule for PrimFuncs.
+ * \return The Pass.
+ */
+TVM_DLL Pass DefaultSchedule(tvm::Target target);
 
 }  // namespace transform
 }  // namespace relax
