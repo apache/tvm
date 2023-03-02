@@ -1430,6 +1430,7 @@ def cuda_layout_transform_schedule_rule(sch, block):
 
     def schedule_layout_transform_v4(
         sch: tvm.tir.Schedule,
+        block_write: BlockRV,
         src_layout: str,
         dst_layout: str,
         input_shape: List[int],
@@ -1606,14 +1607,12 @@ def cuda_layout_transform_schedule_rule(sch, block):
 
         rank = len(src_layout)
 
-        # Assume write to output global memory is coalesced
-        block_write = sch.get_block(name="T_layout_trans", func_name="main")
-
         # Outer loop structure of read block matches that of src_layout
         # E.g. if input_shape is [4, 6, 8]. Loops for read block will be
         # for i, j, k in T.grid(4, 6, 8):
         #     ...
         # Read block will read from global memory coalesced at the start
+        # Assume write to output global memory is coalesced in block_write
         block_read = sch.cache_read(block_write, 0, "shared")
 
         # Here we have [loop1, loop2, loop3 ... dim0_tiled, dim1_tiled]
@@ -1653,16 +1652,41 @@ def cuda_layout_transform_schedule_rule(sch, block):
         sch.bind(loop=inner_write_loop, thread_axis="threadIdx.x")
         sch.bind(loop=inner_read_loop, thread_axis="threadIdx.x")
 
+    from collections import deque
+    def auto_inline(start_block):
+        # BFS from start block in a chain (no branches)
+        fringe = deque([start_block])
+        visited = set()
+        while len(fringe) > 0:
+            cur_block = fringe.popleft()
+            if cur_block in visited:
+                continue 
+            else:
+                visited.add(cur_block)
+                
+            consumer_blocks = sch.get_consumers(cur_block)
+            
+            if len(consumer_blocks) >= 1:
+                fringe.extend(consumer_blocks)
+                sch.compute_inline(cur_block)
+            else:
+                # consumer yay!
+                return cur_block
+
     schedules = []
+    
+    # For each schedule we also want to inline each stage as would be done in normal circumstances
+    # The block which producers the layout transform block seems 
+    block = auto_inline(block)
 
     # Tile size 2,3,4...64
     # Tile size of 1 does not make sense...
     for tile_size in range(2, 65):
         cur_sch = sch.copy()
-        schedule_layout_transform_v4(cur_sch, src_layout, dst_layout, input_shape, tile_size)
+        schedule_layout_transform_v4(cur_sch, block, src_layout, dst_layout, input_shape, tile_size)
         schedules.append(cur_sch)
 
     # Also include the default schedules which will be handled via AutoBind schedule rule
     schedules.append(sch)
-
+        
     return schedules
