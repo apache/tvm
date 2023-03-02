@@ -632,9 +632,8 @@ void CodeGenC::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs,
   }
 }
 
-NameSupply global_name_supply = NameSupply("");
 void CodeGenC::VisitStmt_(const AllocateConstNode* op) {
-  std::string symbol_name = global_name_supply->FreshName(op->buffer_var->name_hint);
+  std::string symbol_name = AllocVarID(op->buffer_var.get());
 
   int64_t num_elements = 1;
   const auto& data = op->data.value();
