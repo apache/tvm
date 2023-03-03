@@ -342,44 +342,6 @@ std::vector<State> MultiLevelTilingTensorCoreNode::TransformIntermediateOutputLa
                               });
   sch->TransformLayout(state->block_rv, 0, tir::BufferIndexType::kWrite, index_map);
 
-  // // Tile by the fragment shape
-  // sch->TransformLayout(state->block_rv, 0, tir::BufferIndexType::kWrite,
-  //                      tir::IndexMap::FromFunc(buffer_ndim, [&](const Array<tir::Var>& indices) {
-  //                        Array<PrimExpr> result;
-  //                        result.reserve(indices.size() + 2);
-  //                        for (int i = 0; i < num_higher_dims; ++i) {
-  //                          result.push_back(indices[i]);
-  //                        }
-  //                        const auto& m = indices[num_higher_dims];
-  //                        const auto& n = indices[num_higher_dims + 1];
-  //                        result.push_back(floordiv(m, frag_shape_m));
-  //                        result.push_back(floordiv(n, frag_shape_n));
-  //                        result.push_back(floormod(m, frag_shape_m));
-  //                        result.push_back(floormod(n, frag_shape_n));
-  //                        return result;
-  //                      }));
-
-  // // Tile by the number of fragments
-  // sch->TransformLayout(
-  //     state->block_rv, 0, tir::BufferIndexType::kWrite,
-  //     tir::IndexMap::FromFunc(buffer_ndim + 2, [&](const Array<tir::Var>& indices) {
-  //       Array<PrimExpr> result;
-  //       result.reserve(indices.size() + 2);
-  //       for (int i = 0; i < num_higher_dims; ++i) {
-  //         result.push_back(indices[i]);
-  //       }
-  //       const auto& m = indices[num_higher_dims];
-  //       const auto& n = indices[num_higher_dims + 1];
-  //       result.push_back(floordiv(m, warp_num_frag_m));
-  //       result.push_back(floordiv(n, warp_num_frag_n));
-  //       result.push_back(floormod(m, warp_num_frag_m));
-  //       result.push_back(floormod(n, warp_num_frag_n));
-  //       // The last two indices are the fragment element indices
-  //       result.push_back(indices[num_higher_dims + 2]);
-  //       result.push_back(indices[num_higher_dims + 3]);
-  //       return result;
-  //     }));
-
   return {state};
 }
 
