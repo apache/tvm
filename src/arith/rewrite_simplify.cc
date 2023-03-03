@@ -278,8 +278,6 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
     TVM_TRY_REWRITE_IF(floordiv(floormod(x, c2) + c1, c2) + floordiv(x, c2), floordiv(x + c1, c2),
                        c2.Eval()->value > 0);
 
-    TVM_TRY_REWRITE(floormod(x + 1, 2) + floormod(x, 2), OneWithTypeLike(x));
-    TVM_TRY_REWRITE(floormod(x, 2) + floormod(x + 1, 2), OneWithTypeLike(x));
     TVM_TRY_RECURSIVE_REWRITE(floordiv(x, 2) + floormod(x, 2), floordiv(x + 1, 2));
 
     // canonicalization rule
@@ -488,7 +486,6 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
         c1.Eval()->value != 0 && c3.Eval()->value == c1.Eval()->value * c2.Eval()->value);
 
     TVM_TRY_RECURSIVE_REWRITE(floordiv(x + 1, 2) - floormod(x, 2), floordiv(x, 2));
-    TVM_TRY_RECURSIVE_REWRITE(floordiv(x, 2) - floormod(x - 1, 2), floordiv(x - 1, 2));
 
     TVM_TRY_REWRITE_IF(floordiv(x + c1, c3) - floordiv(x + c2, c3),
                        floordiv(floormod(x + floormod(c2, c3), c3) + (c1 - c2), c3),
