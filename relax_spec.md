@@ -789,8 +789,8 @@ The above evaluation rules are general, but leave much room for implementations 
 
 - `call_tir(prim_func, args, packed_ints, sinfo_args=[aS1, aS2, ..., aSk])`: 
     - `prim_func` must be a `PrimFunc` object in the current `IRModule` (we will call it `f`). 
-    - `args` must should be an expression that evaluates to a tuple of tensor values (where each member of a tuple will be a tensor argument to the `PrimFunc`). Let us call the members of the tuple `arg1`, `arg2`, ..., `argn`.
-    - `packed_ints` is an optional argument. If present, it must be a shape value (with `ShapeStructInfo`). Each dimension of the value (which we will call `shape1`, `shape2`, ..., `shapem`)
+    - `args` must be an expression that evaluates to a tuple of tensor values (where each member of a tuple will be a tensor argument to the `PrimFunc`). Let us call the members of the tuple `arg1`, `arg2`, ..., `argn`.
+    - `packed_ints` is an optional argument. If present, it must be a shape value (with `ShapeStructInfo`). If present, we will call the dimensions of the value`shape1`, `shape2`, ..., `shapem` for convenience.
     - The `StructInfo` arguments `aS1` through `aSk` give the `StructInfo` of the results of calling the `PrimFunc`. 
     - All the `aSi` must be `TensorStructInfo` with a `shape` field consisting of a `ShapeExpr` (possibly containing shape variables) and a non-`Void` `dtype`, denoting the shape of the resulting tensors. 
     - If there is exactly one member of `sinfo_args`, then the operation returns a single tensor with that shape; if there are multiple or zero members of `sinfo_args`, then the result will have the `StructInfo` `TupleStructInfo(fields=[aS1, as2, ..., aSk])`.
