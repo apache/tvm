@@ -51,14 +51,18 @@ def start_qemu(
     port=PORT,
 ):
     if net_is_used(port, ip):
-        raise Exception(f"Port {port} is busy, QEMU start faild")
+        raise Exception(f"Port {port} is busy, QEMU startup faild")
 
     start_cmd = f"exec qemu-riscv64 -cpu {cpu} -L {sysroot} {cmd} --host={ip} --port={port}"
 
     process = subprocess.Popen(start_cmd, shell=True)
     # Wait for QEMU to start
+    count = 0
     while not net_is_used(port, ip):
         time.sleep(1)
+        count += 1
+        if count > 3:
+            raise Exception(f"Startup timeout, QEMU startup faild")
 
     yield
     process.kill()
