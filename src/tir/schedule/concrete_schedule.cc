@@ -800,14 +800,15 @@ void ConcreteScheduleNode::Unannotate(const BlockRV& block_rv, const String& ann
 void ConcreteScheduleNode::TransformLayout(const BlockRV& block_rv, int buffer_index,
                                            BufferIndexType buffer_index_type,
                                            const IndexMap& index_map,
-                                           const Optional<IndexMap>& pad_value) {
+                                           const Optional<IndexMap>& pad_value,
+                                           bool assume_injective_transform) {
   TVM_TIR_SCHEDULE_BEGIN();
   auto f_subst = [&](const Var& var) -> Optional<PrimExpr> {
     return Downcast<Optional<PrimExpr>>(symbol_table_.Get(var));
   };
   auto new_index_map = Substitute(index_map, f_subst);
   tir::TransformLayout(state_, this->GetSRef(block_rv), buffer_index, buffer_index_type,
-                       new_index_map, pad_value);
+                       new_index_map, pad_value, assume_injective_transform);
   this->state_->DebugVerify();
   TVM_TIR_SCHEDULE_END("transform_layout", this->error_render_level_);
 }

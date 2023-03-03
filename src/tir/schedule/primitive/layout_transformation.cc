@@ -753,10 +753,12 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
    */
   static std::pair<Stmt, Map<Block, Block>> Rewrite(
       const Block& scope_stmt, const Buffer& old_buffer, const Buffer& new_buffer,
-      const IndexMap& index_map, const IndexMap& inverse, const PrimExpr& padding_predicate,
-      const Optional<IndexMap>& pad_value) {
-    auto plan = TransformLayoutPlanner::Plan(scope_stmt, old_buffer, new_buffer, index_map, inverse,
-                                             padding_predicate, pad_value);
+      const IndexMap& index_map, const Optional<IndexMap>& opt_inverse,
+      const PrimExpr& padding_predicate, const Optional<IndexMap>& pad_value) {
+    auto plan = pad_value.defined() ? TransformLayoutPlanner::Plan(
+                                          scope_stmt, old_buffer, new_buffer, index_map,
+                                          opt_inverse.value(), padding_predicate, pad_value)
+                                    : TransformLayoutPlanner::NoPaddingRequired();
 
     arith::Analyzer analyzer;
     TransformLayoutRewriter rewriter(old_buffer, new_buffer, index_map, plan, &analyzer);
@@ -1119,7 +1121,7 @@ IndexMap LegalizeIndexMapDType(const IndexMap& index_map, const Array<PrimExpr>&
 
 void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                      BufferIndexType buffer_index_type, const IndexMap& index_map_orig,
-                     const Optional<IndexMap>& pad_value) {
+                     const Optional<IndexMap>& pad_value, bool assume_injective_transform) {
   // Step 1: Input handling and error checking
   const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_sref);
   Buffer old_buffer =
@@ -1147,13 +1149,17 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
                             : GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
   const BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_sref);
 
-  auto [inverse, padding_predicate] = [&]() {
-    Array<Range> region;
-    for (const auto& dim : old_buffer->shape) {
-      region.push_back(Range::FromMinExtent(make_zero(dim.dtype()), dim));
-    }
-    return index_map.NonSurjectiveInverse(region);
-  }();
+  Optional<IndexMap> opt_inverse = NullOpt;
+  PrimExpr padding_predicate = Bool(false);
+  if (!assume_injective_transform) {
+    std::tie(opt_inverse, padding_predicate) = [&]() {
+      Array<Range> region;
+      for (const auto& dim : old_buffer->shape) {
+        region.push_back(Range::FromMinExtent(make_zero(dim.dtype()), dim));
+      }
+      return index_map.NonSurjectiveInverse(region);
+    }();
+  }
 
   bool has_padding = !is_zero(padding_predicate);
   if (has_padding && !pad_value.defined()) {
@@ -1168,7 +1174,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
   // alloc_buffers.
   auto [new_stmt, block_sref_reuse] =
       TransformLayoutRewriter::Rewrite(GetRef<Block>(scope_block), old_buffer, new_buffer,
-                                       index_map, inverse, padding_predicate, pad_value);
+                                       index_map, opt_inverse, padding_predicate, pad_value);
   Block new_scope_block = Downcast<Block>(new_stmt);
 
   // Step 4: Rewrite buffer_map of the PrimFunc if necessary.
@@ -1511,20 +1517,21 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
 
  private:
   static constexpr size_t kNumInputs = 2;
-  static constexpr size_t kNumAttrs = 3;
+  static constexpr size_t kNumAttrs = 4;
   static constexpr size_t kNumDecisions = 0;
 
   static void UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv, IndexMap index_map,
                                       Integer buffer_index, Integer buffer_index_type,
-                                      Optional<IndexMap> pad_value) {
+                                      Optional<IndexMap> pad_value,
+                                      Bool assume_injective_transform) {
     return sch->TransformLayout(block_rv, buffer_index.IntValue(),
                                 static_cast<BufferIndexType>(buffer_index_type->value), index_map,
-                                pad_value);
+                                pad_value, assume_injective_transform.operator bool());
   }
 
   static String UnpackedAsPython(Array<String> outputs, String block_rv, IndexMap index_map,
                                  Integer buffer_index, Integer buffer_index_type,
-                                 Optional<IndexMap> pad_value) {
+                                 Optional<IndexMap> pad_value, Bool assume_injective_transform) {
     PythonAPICall py("transform_layout");
     py.Input("block", block_rv);
 
@@ -1534,6 +1541,7 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
     py.Input("buffer", os.str());
     py.Input("index_map", index_map->ToPythonString());
     py.Input("pad_value", pad_value ? pad_value.value()->ToPythonString() : "None");
+    py.Input("assume_injective_transform", assume_injective_transform.operator bool());
 
     return py.Str();
   }
@@ -1549,6 +1557,7 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
     } else {
       attrs_record.push_back(attrs[2]);
     }
+    attrs_record.push_back(attrs[3]);
     return std::move(attrs_record);
   }
 
@@ -1562,6 +1571,7 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
     } else {
       attrs.push_back(attrs_record[2]);
     }
+    attrs.push_back(attrs_record[3]);
     return attrs;
   }
 
