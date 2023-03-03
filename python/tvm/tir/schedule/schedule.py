@@ -1210,7 +1210,6 @@ class Schedule(Object):
         read_buffer_index: int,
         storage_scope: str,
         index_map: Union[IndexMap, Callable],
-        consumer_blocks: Optional[List[Union[BlockRV, str]]] = None,
     ) -> BlockRV:
         """Create a block that reads a buffer region into a read cache using customized
         indices specified by index map. The read region of the buffer must be a single point.
@@ -1219,6 +1218,9 @@ class Schedule(Object):
         If a block itervar does not appear in the buffer access region, it and its corresponding
         loop variables will be omitted. User can then use `transform_block_layout` primitive to
         reorder the block itervars and surrounding loops of the cache read/write block.
+
+        Unlike `cache_read`, `reindex_cache_read` only supports single consumer, please use
+        `cache_read` when there are multiple consumers.
 
         Parameters
         ----------
@@ -1230,9 +1232,6 @@ class Schedule(Object):
             The target storage scope.
         index_map: Union[IndexMap, Callable]
             User defined indices to access allocated cache buffer, maps from block iter vars.
-        consumer_blocks: Optional[List[Union[BlockRV, str]]]
-            An optional list of consumers that should read directly from the cache.
-            If not specified, all consumers will read from the original buffer.
 
         Returns
         -------
@@ -1281,18 +1280,21 @@ class Schedule(Object):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A_local[vj, vi] * 2.0
 
+        See Also
+        --------
+        reindex_cache_write
+        transform_block_layout
+        transform_layout
+        cache_read
+        reindex
         """
-        if consumer_blocks is None:
-            consumer_blocks = []
-
         # Convert any string block names into Block RVs.
-        consumer_blocks = [self._normalize_block_arg(b) for b in consumer_blocks]
         block = self._normalize_block_arg(block)
 
         if callable(index_map):
             index_map = IndexMap.from_func(index_map)
         return _ffi_api.ScheduleReindexCacheRead(  # type: ignore # pylint: disable=no-member
-            self, block, read_buffer_index, storage_scope, index_map, consumer_blocks
+            self, block, read_buffer_index, storage_scope, index_map
         )
 
     @type_checked
@@ -1311,6 +1313,9 @@ class Schedule(Object):
         If a block itervar does not appear in the buffer access region, it and its corresponding
         loop variables will be omitted. User can then use `transform_block_layout` primitive to
         reorder the block itervars and surrounding loops of the cache read/write block.
+
+        Unlike `cache_write`, `reindex_cache_write` only supports single consumer, please use
+        `cache_write` when there are multiple consumers.
 
         Parameters
         ----------
@@ -1373,18 +1378,21 @@ class Schedule(Object):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = B_local[vi % 2, vi // 2, vj]
 
+        See Also
+        --------
+        reindex_cache_read
+        transform_block_layout
+        transform_layout
+        cache_write
+        reindex
         """
-        if consumer_blocks is None:
-            consumer_blocks = []
-
         # Convert any string block names into Block RVs.
-        consumer_blocks = [self._normalize_block_arg(b) for b in consumer_blocks]
         block = self._normalize_block_arg(block)
 
         if callable(index_map):
             index_map = IndexMap.from_func(index_map)
         return _ffi_api.ScheduleReindexCacheWrite(  # type: ignore # pylint: disable=no-member
-            self, block, write_buffer_index, storage_scope, index_map, consumer_blocks
+            self, block, write_buffer_index, storage_scope, index_map
         )
 
     @type_checked

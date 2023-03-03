@@ -570,17 +570,11 @@ BlockRV ConcreteScheduleNode::CacheWrite(const BlockRV& block_rv, int write_buff
 
 BlockRV ConcreteScheduleNode::ReindexCacheRead(const BlockRV& block_rv, int read_buffer_index,
                                                const String& storage_scope,
-                                               const IndexMap& index_map,
-                                               const Array<BlockRV> consumer_blocks) {
+                                               const IndexMap& index_map) {
   StmtSRef result{nullptr};
-  // Create a new array of SRefs from the consumer block list.
-  Array<StmtSRef> consumer_block_refs = {};
-  for (BlockRV block : consumer_blocks) {
-    consumer_block_refs.push_back(this->GetSRef(block));
-  }
   TVM_TIR_SCHEDULE_BEGIN();
   result = tir::ReindexCacheRead(state_, this->GetSRef(block_rv), read_buffer_index, storage_scope,
-                                 index_map, consumer_block_refs);
+                                 index_map);
   TVM_TIR_SCHEDULE_END("reverse-cache-read", this->error_render_level_);
   this->state_->DebugVerify();
   return CreateRV<BlockRV>(result);
@@ -588,17 +582,11 @@ BlockRV ConcreteScheduleNode::ReindexCacheRead(const BlockRV& block_rv, int read
 
 BlockRV ConcreteScheduleNode::ReindexCacheWrite(const BlockRV& block_rv, int write_buffer_index,
                                                 const String& storage_scope,
-                                                const IndexMap& index_map,
-                                                const Array<BlockRV> consumer_blocks) {
+                                                const IndexMap& index_map) {
   StmtSRef result{nullptr};
-  // Create a new array of SRefs from the consumer block list.
-  Array<StmtSRef> consumer_block_refs = {};
-  for (BlockRV block : consumer_blocks) {
-    consumer_block_refs.push_back(this->GetSRef(block));
-  }
   TVM_TIR_SCHEDULE_BEGIN();
   result = tir::ReindexCacheWrite(state_, this->GetSRef(block_rv), write_buffer_index,
-                                  storage_scope, index_map, consumer_block_refs);
+                                  storage_scope, index_map);
   TVM_TIR_SCHEDULE_END("reverse-cache-write", this->error_render_level_);
   this->state_->DebugVerify();
   return CreateRV<BlockRV>(result);

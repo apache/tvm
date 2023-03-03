@@ -310,16 +310,15 @@ BlockRV TracedScheduleNode::CacheWrite(const BlockRV& block_rv, int write_buffer
 }
 
 BlockRV TracedScheduleNode::ReindexCacheRead(const BlockRV& block_rv, int read_buffer_index,
-                                             const String& storage_scope, const IndexMap& index_map,
-                                             Array<BlockRV> consumer_blocks) {
+                                             const String& storage_scope, const IndexMap& index_map) {
   BlockRV result = ConcreteScheduleNode::ReindexCacheRead(
-      block_rv, read_buffer_index, storage_scope, index_map, consumer_blocks);
+      block_rv, read_buffer_index, storage_scope, index_map);
 
   static const InstructionKind& kind = InstructionKind::Get("ReindexCacheRead");
   trace_->Append(
       /*inst=*/Instruction(
           /*kind=*/kind,
-          /*inputs=*/{block_rv, index_map, consumer_blocks},
+          /*inputs=*/{block_rv, index_map},
           /*attrs=*/{Integer(read_buffer_index), storage_scope},
           /*outputs=*/{result}));
   return result;
@@ -327,16 +326,15 @@ BlockRV TracedScheduleNode::ReindexCacheRead(const BlockRV& block_rv, int read_b
 
 BlockRV TracedScheduleNode::ReindexCacheWrite(const BlockRV& block_rv, int write_buffer_index,
                                               const String& storage_scope,
-                                              const IndexMap& index_map,
-                                              Array<BlockRV> consumer_blocks) {
+                                              const IndexMap& index_map) {
   BlockRV result = ConcreteScheduleNode::ReindexCacheWrite(
-      block_rv, write_buffer_index, storage_scope, index_map, consumer_blocks);
+      block_rv, write_buffer_index, storage_scope, index_map);
 
   static const InstructionKind& kind = InstructionKind::Get("ReindexCacheWrite");
   trace_->Append(
       /*inst=*/Instruction(
           /*kind=*/kind,
-          /*inputs=*/{block_rv, index_map, consumer_blocks},
+          /*inputs=*/{block_rv, index_map},
           /*attrs=*/{Integer(write_buffer_index), storage_scope},
           /*outputs=*/{result}));
   return result;

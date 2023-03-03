@@ -120,11 +120,11 @@ class NotSinglePointAccess : public ScheduleError {
   }
 
   String DetailRenderTemplate() const final {
-    std::stringstream s;
-    s << "The buffer region " << cache_region_
-      << " accessed inside block {0} is not a single point, which violates"
-      << " the prerequisite of " << primitive_name_ << " primitive.";
-    return String(s.str());
+    std::ostringstream os;
+    os << "The buffer region " << cache_region_
+       << " accessed inside block {0} is not a single point, which violates"
+       << " the prerequisite of " << primitive_name_ << " primitive.";
+    return String(os.str());
   }
 
   IRModule mod() const final { return mod_; }
@@ -985,12 +985,13 @@ class CacheWriteRewriter : public StmtExprMutator {
       const BlockNode* consumer_node = TVM_SREF_TO_BLOCK(consumer_sref);
       Block consumer_block = GetRef<Block>(consumer_node);
       if (old_stmt.same_as(consumer_block)) {
-        Array<BufferRegion> reads =
-            ReplaceBuffer(block->reads, info_->write_buffer, info_->read_buffer);
-        Array<MatchBufferRegion> match_buffers =
-            ReplaceBuffer(block->match_buffers, info_->write_buffer, info_->read_buffer);
-        if (!reads.same_as(block->reads) || !match_buffers.same_as(block->match_buffers)) {
+        Array<BufferRegion> writes = update_access_regions(block->writes);
+        Array<BufferRegion> reads = update_access_regions(block->reads);
+        Array<MatchBufferRegion> match_buffers = update_match_buffers(block->match_buffers);
+        if (!writes.same_as(block->writes) || !reads.same_as(block->reads) ||
+            !match_buffers.same_as(block->match_buffers)) {
           auto n = CopyOnWrite(block);
+          n->writes = std::move(writes);
           n->reads = std::move(reads);
           n->match_buffers = std::move(match_buffers);
           n->body = VisitStmt(block->body);
@@ -1764,8 +1765,7 @@ void CheckSinglePoint(ScheduleState self, const Block& block, const BufferRegion
 }
 
 StmtSRef ReindexCacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buffer_index,
-                          const String& storage_scope, const IndexMap& index_map,
-                          const Array<StmtSRef> consumer_blocks) {
+                          const String& storage_scope, const IndexMap& index_map) {
   /*!
    * Check:
    *   - The index is in the array of block reading region
@@ -1789,14 +1789,7 @@ StmtSRef ReindexCacheRead(ScheduleState self, const StmtSRef& block_sref, int re
   // Step 2. Create CacheStageInfo
   ReindexCacheStageInfo info;
   info.read_buffer = read_buffer;
-
-  // info.consumer_blocks indicates which buffers should consume the cache.
-  for (auto consumer : consumer_blocks) {
-    info.consumer_blocks.insert(consumer);
-    for (auto child : tir::GetChildBlocks(self, consumer)) {
-      info.consumer_blocks.insert(child);
-    }
-  }
+  info.consumer_blocks.insert(block_sref);
 
   // Step 3. Update cache stage info.
   Optional<BufferRegion> maybe_region = GetBufferRegionFromBuffer(block->reads, read_buffer);
@@ -1842,8 +1835,7 @@ StmtSRef ReindexCacheRead(ScheduleState self, const StmtSRef& block_sref, int re
 }
 
 StmtSRef ReindexCacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_buffer_index,
-                           const String& storage_scope, const IndexMap& index_map,
-                           const Array<StmtSRef> consumer_blocks) {
+                           const String& storage_scope, const IndexMap& index_map) {
   /*!
    * Check:
    *   - The index is in the array of block reading region
@@ -1868,14 +1860,8 @@ StmtSRef ReindexCacheWrite(ScheduleState self, const StmtSRef& block_sref, int w
   // Step 2. Creating CacheStageInfo
   ReindexCacheStageInfo info;
   info.write_buffer = write_buffer;
-
-  // info.consumer_blocks indicates which buffers should consume the cache.
-  for (auto consumer : consumer_blocks) {
-    info.consumer_blocks.insert(consumer);
-    for (auto child : tir::GetChildBlocks(self, consumer)) {
-      info.consumer_blocks.insert(child);
-    }
-  }
+  LOG(INFO) << block->name_hint;
+  info.consumer_blocks.insert(block_sref);
 
   // Step 3. Check the only writer block.
   ICHECK_EQ(block_sref.get(), GetOnlyWriteBlock(self, scope_sref, write_buffer).get());
@@ -2228,28 +2214,22 @@ struct ReindexCacheReadTraits : public UnpackedInstTraits<ReindexCacheReadTraits
   static constexpr bool kIsPure = false;
 
  private:
-  static constexpr size_t kNumInputs = 3;
+  static constexpr size_t kNumInputs = 2;
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
   static BlockRV UnpackedApplyToSchedule(Schedule sch, BlockRV block, IndexMap index_map,
-                                         Array<BlockRV> consumer_blocks, Integer read_buffer_index,
-                                         String storage_scope) {
-    return sch->ReindexCacheRead(block, read_buffer_index->value, storage_scope, index_map,
-                                 consumer_blocks);
+                                         Integer read_buffer_index, String storage_scope) {
+    return sch->ReindexCacheRead(block, read_buffer_index->value, storage_scope, index_map);
   }
 
   static String UnpackedAsPython(Array<String> outputs, String block, IndexMap index_map,
-                                 Array<BlockRV> consumer_blocks, Integer read_buffer_index,
-                                 String storage_scope) {
+                                 Integer read_buffer_index, String storage_scope) {
     PythonAPICall py("reindex_cache_read");
     py.Input("block", block);
     py.Input("read_buffer_index", read_buffer_index->value);
     py.Input("storage_scope", storage_scope);
     py.Input("index_map", index_map->ToPythonString());
-    if (!consumer_blocks.empty()) {
-      py.Input("consumer_blocks", consumer_blocks);
-    }
     py.SingleOutput(outputs);
     return py.Str();
   }
@@ -2263,28 +2243,22 @@ struct ReindexCacheWriteTraits : public UnpackedInstTraits<ReindexCacheWriteTrai
   static constexpr bool kIsPure = false;
 
  private:
-  static constexpr size_t kNumInputs = 3;
+  static constexpr size_t kNumInputs = 2;
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
   static BlockRV UnpackedApplyToSchedule(Schedule sch, BlockRV block, IndexMap index_map,
-                                         Array<BlockRV> consumer_blocks, Integer write_buffer_index,
-                                         String storage_scope) {
-    return sch->ReindexCacheWrite(block, write_buffer_index->value, storage_scope, index_map,
-                                  consumer_blocks);
+                                         Integer write_buffer_index, String storage_scope) {
+    return sch->ReindexCacheWrite(block, write_buffer_index->value, storage_scope, index_map);
   }
 
   static String UnpackedAsPython(Array<String> outputs, String block, IndexMap index_map,
-                                 Array<BlockRV> consumer_blocks, Integer write_buffer_index,
-                                 String storage_scope) {
+                                 Integer write_buffer_index, String storage_scope) {
     PythonAPICall py("reindex_cache_write");
     py.Input("block", block);
     py.Input("write_buffer_index", write_buffer_index->value);
     py.Input("storage_scope", storage_scope);
     py.Input("index_map", index_map->ToPythonString());
-    if (!consumer_blocks.empty()) {
-      py.Input("consumer_blocks", consumer_blocks);
-    }
     py.SingleOutput(outputs);
     return py.Str();
   }

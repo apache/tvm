@@ -269,6 +269,39 @@ def func_multi_consumer() -> None:
 
 
 @T.prim_func
+def reindex_cache_read_multi_consumer() -> None:
+    A = T.alloc_buffer((128,))
+    B = T.alloc_buffer((128,))
+    C = T.alloc_buffer((128,))
+    A_shared = T.alloc_buffer((4, 32), scope="shared")
+    for i in range(8):
+        for j in range(16):
+            with T.block("A"):
+                vi = T.axis.spatial(128, i * 16 + j)
+                T.reads()
+                T.writes(A[vi])
+                A[vi] = T.float32(1)
+        for j in range(16):
+            with T.block("A_shared"):
+                vi = T.axis.spatial(128, i * 16 + j)
+                T.reads(A[vi])
+                T.writes(A_shared[vi // 32, vi % 32])
+                A_shared[vi // 32, vi % 32] = A[vi]
+        for j in range(16):
+            with T.block("B"):
+                vi = T.axis.spatial(128, i * 16 + j)
+                T.reads(A_shared[vi // 32, vi % 32])
+                T.writes(B[vi])
+                B[vi] = A_shared[vi // 32, vi % 32] + T.float32(1)
+    for i in range(128):
+        with T.block("C"):
+            vi = T.axis.spatial(128, i)
+            T.reads(A[vi])
+            T.writes(C[vi])
+            C[vi] = A[vi]
+
+
+@T.prim_func
 def func_multi_producer() -> None:
     A = T.alloc_buffer((128))
     B = T.alloc_buffer((128))
@@ -1394,6 +1427,15 @@ def test_reindex_cache_read():
     tvm.ir.assert_structural_equal(elementwise_reindex_cache_read, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise)
 
+
+def test_reindex_cache_read_multi_consumer():
+    sch = tir.Schedule(func_multi_consumer)
+    sch.reindex_cache_read("B", 0, "shared", lambda i: (i // 32, i % 32))
+    tvm.ir.assert_structural_equal(reindex_cache_read_multi_consumer, sch.mod["main"])
+    # NOTE(zihao): we do not verify trace roundtrip because of in set analysis issues.
+
+
+def test_reindex_cache_read_fail_not_match():
     sch = tir.Schedule(elementwise, debug_mask="all")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.reindex_cache_read(
@@ -1404,13 +1446,20 @@ def test_reindex_cache_read():
         )
 
 
+def test_reindex_cache_read_faile_not_single_point():
+    sch = tir.Schedule(access_under_scope, debug_mask="all")
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.reindex_cache_read("scope", 0, "shared", lambda i, j: (i, j))
+
+
 def test_reindex_cache_write():
     sch = tir.Schedule(elementwise, debug_mask="all")
     sch.reindex_cache_write("B", 0, "shared", lambda i, j: (j, i))
-    print(sch.mod["main"].show())
     tvm.ir.assert_structural_equal(elementwise_reindex_cache_write, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise)
 
+
+def test_reindex_cache_write_fail_not_match():
     sch = tir.Schedule(elementwise, debug_mask="all")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.reindex_cache_write(
@@ -1419,6 +1468,12 @@ def test_reindex_cache_write():
             "shared",
             lambda i, j: i,
         )
+
+
+def test_reindex_cache_write_fail_not_single_point():
+    sch = tir.Schedule(access_under_scope, debug_mask="all")
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.reindex_cache_write("scope", 0, "shared", lambda i, j: (i, j))
 
 
 if __name__ == "__main__":
