@@ -273,5 +273,42 @@ def test_full():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
+def test_scheduled():
+    target = tvm.target.Target("nvidia/geforce-rtx-3070")
+    # pylint: disable=no-self-argument,missing-class-docstring
+    # fmt: off
+
+    @tvm.script.ir_module
+    class Scheduled:
+        @T.prim_func
+        def full(
+            rxplaceholder: T.Buffer((), "int32"),
+            T_full: T.Buffer((T.int64(2), T.int64(3)), "int32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            # with T.block("root"):
+            for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
+                for i0_i1_fused_1 in T.thread_binding(T.int64(6), thread="threadIdx.x"):
+                    with T.block("T_full"):
+                        ax0 = T.axis.spatial(
+                            T.int64(2),
+                            (i0_i1_fused_0 * T.int64(6) + i0_i1_fused_1) // T.int64(3),
+                        )
+                        ax1 = T.axis.spatial(
+                            T.int64(3),
+                            (i0_i1_fused_0 * T.int64(6) + i0_i1_fused_1) % T.int64(3),
+                        )
+                        T.reads(rxplaceholder[()])
+                        T.writes(T_full[ax0, ax1])
+                        T_full[ax0, ax1] = rxplaceholder[()]
+
+    # fmt: on
+    # pylint: enable=no-self-argument,missing-class-docstring
+    with tvm.transform.PassContext(opt_level=3):
+        # should do nothing
+        After = DefaultSchedule(target)(Scheduled)
+    tvm.ir.assert_structural_equal(After, Scheduled)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

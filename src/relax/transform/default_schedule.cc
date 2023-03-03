@@ -50,12 +50,24 @@ class ThreadBindMutator : public ExprMutator {
                                                   tir::ScheduleErrorRenderLevel::kDetail);
         Array<tir::BlockRV> blocks = meta_schedule::BlockCollector::Collect(sch);
         for (const tir::BlockRV& block : blocks) {
+          // fetch the loops
           Array<tir::LoopRV> loops = sch->GetLoops(block);
+          bool scheduled = false;
+          for (const tir::LoopRV& loop : loops) {
+            if (sch->Get(loop)->thread_binding.defined()) {
+              scheduled = true;
+              break;
+            }
+          }
+          // skip if already scheduled
+          if (scheduled) {
+            continue;
+          }
           Array<tir::IterVar> iters = sch->Get(block)->iter_vars;
           ICHECK_EQ(loops.size(), iters.size());
           Array<tir::LoopRV> data_parallel_loops;
+          // only fuse data parallel loops
           for (size_t i = 0; i < loops.size(); ++i) {
-            // only fuse data parallel loops
             if (iters[i]->iter_type == tir::IterVarType::kDataPar) {
               data_parallel_loops.push_back(loops[i]);
             }
@@ -63,13 +75,14 @@ class ThreadBindMutator : public ExprMutator {
           if (data_parallel_loops.size() == 0) {
             continue;
           }
+          // fuse all data parallel loops
           tir::LoopRV fused = sch->Fuse(data_parallel_loops, /*preserve_unit_iters=*/false);
           int64_t product = std::numeric_limits<int64_t>::max();
           if (sch->Get(fused)->extent->IsInstance<tir::IntImmNode>()) {
             product = sch->Get(fused)->extent.as<tir::IntImmNode>()->value;
           }
           static const int64_t max_threadblocks = 256;
-
+          // schedule the fused loop
           if (product > max_thread_per_block * max_threadblocks) {
             Array<tir::LoopRV> splits = sch->Split(
                 fused,
