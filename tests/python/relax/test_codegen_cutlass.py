@@ -374,11 +374,11 @@ def get_numpy_attention_bias_ref(b, s, s_kv, n, h, h_v, dtype):
     q = np.random.randn(b, s, n, h).astype(dtype)
     k = np.random.randn(b, s_kv, n, h).astype(dtype)
     v = np.random.randn(b, s_kv, n, h_v).astype(dtype)
-    bias = np.random.randn(b, s, n, s_kv).astype(dtype)
+    bias = np.random.randn(b, n, s, s_kv).astype(dtype)
     qt = q.transpose(0, 2, 1, 3)  # b, n, s, h
     kt = k.transpose(0, 2, 3, 1)  # b, n, h, s_kv
     score = qt @ kt / np.sqrt(q.shape[-1])  # b, n, s, s_kv
-    score_bias = score + bias.transpose(0, 2, 1, 3)  # b, n, s, s_kv
+    score_bias = score + bias  # b, n, s, s_kv
     attn = tvm.topi.testing.softmax_python(score_bias, -1)
     vt = v.transpose(0, 2, 1, 3)  # b, n, s_kv, h_v
     ref = attn @ vt  # b, n, s, h_v

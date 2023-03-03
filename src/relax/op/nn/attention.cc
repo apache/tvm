@@ -27,7 +27,6 @@ namespace relax {
 
 /* relax.nn.attention */
 Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias) {
-  static const Op& op = Op::Get("relax.nn.attention");
   if (bias.defined()) {
     return Call(Op::Get("relax.nn.attention_bias"),
                 {std::move(query), std::move(key), std::move(value), std::move(bias.value())}, {},
@@ -88,8 +87,8 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
     }
     const ShapeExprNode* bias_shape = bias_sinfo->shape.as<ShapeExprNode>();
     diag_equal(num_batches, bias_shape->values[0], "query", "bias", "batch size");
-    diag_equal(num_queries, bias_shape->values[1], "query", "bias", "sequence length");
-    diag_equal(num_heads, bias_shape->values[2], "query", "bias", "number of heads");
+    diag_equal(num_heads, bias_shape->values[1], "query", "bias", "number of heads");
+    diag_equal(num_queries, bias_shape->values[2], "query", "bias", "sequence length");
     diag_equal(num_keys, bias_shape->values[3], "key", "bias", "sequence length");
   }
 

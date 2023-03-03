@@ -24,12 +24,12 @@ def instantiate_attention_template(attrs, func_args):
     based on a template and the provided attribute map."""
 
     bias_template = """
-  CHECK(${arg3}->ndim == 4); // B, S, N, S'
+  CHECK(${arg3}->ndim == 4); // B, N, S, S'
 
   p.attn_bias_ptr = reinterpret_cast<T *>(${arg3}->data);
-  p.bias_strideH = p.num_keys; // S'
-  p.bias_strideM = p.bias_strideH * p.num_heads; // S' * N
-  p.bias_strideB = p.bias_strideM * p.num_queries; // S' * N * S
+  p.bias_strideM = p.num_keys; // S'
+  p.bias_strideH = p.bias_strideM * p.num_queries; // S' * S
+  p.bias_strideB = p.bias_strideH * p.num_heads; // S' * S * N
 
 """
 
