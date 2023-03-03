@@ -91,7 +91,7 @@ TVM_DLL double EstimateTIRFlops(const IRModule& mod);
  * \brief Visitor class to perform use/def analysis, also delete unreferenced lets.
  * \sa UndefinedVars
  */
-class VarUseDefAnalysis : public StmtExprMutator {
+class VarUseDefAnalyzer : public StmtExprMutator {
  public:
   // The fields are publically readible to
   // be accessible to the users.

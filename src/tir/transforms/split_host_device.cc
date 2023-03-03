@@ -65,7 +65,7 @@ class HostDeviceSplitter : public StmtMutator {
     os << name_prefix_ << "_kernel" << device_func_counter_++;
     std::string kernel_symbol = os.str();
     // isolate the device function.
-    VarUseDefAnalysis m;
+    VarUseDefAnalyzer m;
     m.visit_thread_extent_ = false;
     body = m(std::move(body));
 

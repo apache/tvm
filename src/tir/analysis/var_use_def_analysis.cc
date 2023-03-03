@@ -29,7 +29,7 @@
 namespace tvm {
 namespace tir {
 
-Stmt VarUseDefAnalysis::VisitStmt_(const AttrStmtNode* op) {
+Stmt VarUseDefAnalyzer::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == attr::thread_extent) {
     IterVar iv = Downcast<IterVar>(op->node);
     ICHECK_NE(iv->thread_tag.length(), 0U);
@@ -55,7 +55,7 @@ Stmt VarUseDefAnalysis::VisitStmt_(const AttrStmtNode* op) {
   }
 }
 
-Stmt VarUseDefAnalysis::VisitStmt_(const LetStmtNode* op) {
+Stmt VarUseDefAnalyzer::VisitStmt_(const LetStmtNode* op) {
   this->HandleDef(op->var.get());
   Stmt body = this->VisitStmt(op->body);
   // eliminate unreferenced let
@@ -72,12 +72,12 @@ Stmt VarUseDefAnalysis::VisitStmt_(const LetStmtNode* op) {
   }
 }
 
-Stmt VarUseDefAnalysis::VisitStmt_(const ForNode* op) {
+Stmt VarUseDefAnalyzer::VisitStmt_(const ForNode* op) {
   this->HandleDef(op->loop_var.get());
   return StmtExprMutator::VisitStmt_(op);
 }
 
-Stmt VarUseDefAnalysis::VisitStmt_(const AllocateNode* op) {
+Stmt VarUseDefAnalyzer::VisitStmt_(const AllocateNode* op) {
   this->HandleDef(op->buffer_var.get());
   auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer_var));
   if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
@@ -93,21 +93,21 @@ Stmt VarUseDefAnalysis::VisitStmt_(const AllocateNode* op) {
   return StmtExprMutator::VisitStmt_(op);
 }
 
-Stmt VarUseDefAnalysis::VisitStmt_(const AllocateConstNode* op) {
+Stmt VarUseDefAnalyzer::VisitStmt_(const AllocateConstNode* op) {
   this->HandleDef(op->buffer_var.get());
   return StmtExprMutator::VisitStmt_(op);
 }
 
-Stmt VarUseDefAnalysis::VisitStmt_(const StoreNode* op) {
+Stmt VarUseDefAnalyzer::VisitStmt_(const StoreNode* op) {
   LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
 }
 
-Stmt VarUseDefAnalysis::VisitStmt_(const BufferStoreNode* op) {
+Stmt VarUseDefAnalyzer::VisitStmt_(const BufferStoreNode* op) {
   VisitBuffer(op->buffer);
   return StmtExprMutator::VisitStmt_(op);
 }
 
-PrimExpr VarUseDefAnalysis::VisitExpr_(const LetNode* op) {
+PrimExpr VarUseDefAnalyzer::VisitExpr_(const LetNode* op) {
   // Weaker SSA condition
   // A single var can be binded in multiple lets
   // but they have to bind to the same value.
@@ -138,28 +138,28 @@ PrimExpr VarUseDefAnalysis::VisitExpr_(const LetNode* op) {
   }
 }
 
-PrimExpr VarUseDefAnalysis::VisitExpr_(const VarNode* op) {
+PrimExpr VarUseDefAnalyzer::VisitExpr_(const VarNode* op) {
   this->HandleUse(GetRef<PrimExpr>(op));
   return StmtExprMutator::VisitExpr_(op);
 }
 
-PrimExpr VarUseDefAnalysis::VisitExpr_(const ReduceNode* op) {
+PrimExpr VarUseDefAnalyzer::VisitExpr_(const ReduceNode* op) {
   for (const auto& iv : op->axis) {
     this->HandleDef(iv->var.get());
   }
   return StmtExprMutator::VisitExpr_(op);
 }
 
-PrimExpr VarUseDefAnalysis::VisitExpr_(const LoadNode* op) {
+PrimExpr VarUseDefAnalyzer::VisitExpr_(const LoadNode* op) {
   LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
 }
 
-PrimExpr VarUseDefAnalysis::VisitExpr_(const BufferLoadNode* op) {
+PrimExpr VarUseDefAnalyzer::VisitExpr_(const BufferLoadNode* op) {
   VisitBuffer(op->buffer);
   return StmtExprMutator::VisitExpr_(op);
 }
 
-void VarUseDefAnalysis::VisitBuffer(Buffer buffer) {
+void VarUseDefAnalyzer::VisitBuffer(Buffer buffer) {
   this->HandleUse(buffer->data);
   auto visit_arr = [&](Array<PrimExpr> arr) {
     for (const auto& element : arr) {
@@ -171,7 +171,7 @@ void VarUseDefAnalysis::VisitBuffer(Buffer buffer) {
   visit_arr(buffer->strides);
 }
 
-void VarUseDefAnalysis::HandleDef(const VarNode* v) {
+void VarUseDefAnalyzer::HandleDef(const VarNode* v) {
   ICHECK(!def_count_.count(v)) << "variable " << v->name_hint
                                << " has already been defined, the Stmt is not SSA";
   ICHECK(!use_count_.count(v)) << "variable " << v->name_hint
@@ -180,7 +180,7 @@ void VarUseDefAnalysis::HandleDef(const VarNode* v) {
   def_count_[v] = 1;
 }
 
-void VarUseDefAnalysis::HandleUse(const PrimExpr& v) {
+void VarUseDefAnalyzer::HandleUse(const PrimExpr& v) {
   ICHECK(v.as<VarNode>());
   Var var = Downcast<Var>(v);
   auto it = use_count_.find(var.get());
@@ -195,7 +195,7 @@ void VarUseDefAnalysis::HandleUse(const PrimExpr& v) {
 }
 
 Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& args) {
-  VarUseDefAnalysis m;
+  VarUseDefAnalyzer m;
   m.simplify_let_ = false;
   for (Var arg : args) {
     m.use_count_[arg.get()] = 0;
@@ -205,7 +205,7 @@ Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& args) {
 }
 
 Array<Var> UndefinedVars(const PrimExpr& expr) {
-  VarUseDefAnalysis m;
+  VarUseDefAnalyzer m;
   m.simplify_let_ = false;
   m(expr);
   return m.undefined_;
