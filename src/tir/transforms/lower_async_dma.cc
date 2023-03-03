@@ -23,25 +23,70 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/iter_affine_map.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
+
+#include <tvm/arith/bound.h>
+#include <tvm/tir/buffer.h>
+#include <tvm/tir/stmt.h>
+
+#include "../../arith/ir_mutator_with_analyzer.h"
+#include <optional>
+
 
 #include "ir_utils.h"
 
 namespace tvm {
 namespace tir {
 
-class AsyncDMALowerer : public StmtExprMutator {
- public:
-  explicit AsyncDMALowerer(bool dma_bypass_cache) : dma_bypass_cache_(dma_bypass_cache) {}
 
-  // Create member statement to track a mapping from iter var to iter range
-  Stmt VisitStmt_(const ForNode* op) final {
-    input_iters.Set(op->loop_var, Range(op->min, op->extent));
-    return StmtExprMutator::VisitStmt_(op);
+class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
+ public:
+
+  explicit AsyncDMALowerer(bool dma_bypass_cache, arith::Analyzer* analyzer) : IRMutatorWithAnalyzer(analyzer), dma_bypass_cache_(dma_bypass_cache) {}
+
+  Stmt VisitStmt_(const ForNode* loop) final {
+    if (!async_queue_id_.has_value()) return arith::IRMutatorWithAnalyzer::VisitStmt_(loop);
+
+    std::optional<tvm::tir::MemCpyDetails> mem_copy = IdentifyMemCpy(GetRef<For>(loop), analyzer_);
+
+    // if memcpy is not replacable with DMA copy
+    if (!mem_copy.has_value() || mem_copy->dest->region.size() != 1 || mem_copy->source->region.size() != 1) {
+      // if we subsequently find a memcpy that is replacable with DMA copy
+      // then create a DMA group to contain the outer for loop as a group of DMAs
+      start_dma_group_ = true;
+      return arith::IRMutatorWithAnalyzer::VisitStmt_(loop);
+    }
+
+    // now that we are about to perform the `copy` transform
+    // save queue ID for inspection in `wait` transform
+    queue_ids_.insert(async_queue_id_.value());
+    
+    tvm::PrimExpr src_min = mem_copy->source->region[0]->min;
+    tvm::PrimExpr dst_min = mem_copy->dest->region[0]->min;
+    tvm::PrimExpr dst_extent = mem_copy->dest->region[0]->extent;
+
+    //FIXME(nverke): Choose one of these. 
+    if (analyzer_->CanProve(dst_extent <= 0)) return arith::IRMutatorWithAnalyzer::VisitStmt_(loop);
+    // if (analyzer_->CanProve(dst_extent <= 0)) return Evaluate(0);
+    return Evaluate(
+      Call(
+        DataType::Int(32),
+        builtin::dma_copy(),
+        {
+          async_queue_id_.value(),
+          Call(DataType::Handle(), builtin::address_of(), {BufferLoad(mem_copy->dest->buffer, {dst_min})}),
+          Call(DataType::Handle(), builtin::address_of(), {BufferLoad(mem_copy->source->buffer, {src_min})}),
+          dst_extent,
+          dma_bypass_cache_
+        }
+      )
+    );
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
+    arith::IRMutatorWithAnalyzer::VisitStmt_(op);
     // Convert this, for example:
     // attr [0] "async_wait_queue_scope" = 0;
     // attr [0] "async_wait_inflight_count" = 0;
@@ -63,7 +108,7 @@ class AsyncDMALowerer : public StmtExprMutator {
         DLOG(INFO) << "AsyncDMALowerer exiting because the queue ID observed in the "
                       "`async_wait_queue_scope` transform has not been previously observed in the "
                       "`async_commit_queue_scope` transform";
-        return StmtExprMutator::VisitStmt_(op);
+        return arith::IRMutatorWithAnalyzer::VisitStmt_(op);
       }
 
       auto async_wait = op->body.as<AttrStmtNode>();
@@ -71,14 +116,13 @@ class AsyncDMALowerer : public StmtExprMutator {
         DLOG(INFO) << "AsyncDMALowerer exiting because the body of the `AttrStmtNode` with key "
                       "`async_wait_queue_scope` does not contain an `AttrStmtNode` with key "
                       "`async_wait_inflight_count`";
-        return StmtExprMutator::VisitStmt_(op);
+        return arith::IRMutatorWithAnalyzer::VisitStmt_(op);
       }
-
       auto call_dma_wait =
           Evaluate(Call(DataType::Int(32), builtin::dma_wait(), {queue_id, async_wait->value}));
 
       // concatenate the call with the body and return
-      return SeqStmt({call_dma_wait, StmtExprMutator::VisitStmt(async_wait->body)});
+      return SeqStmt({call_dma_wait, arith::IRMutatorWithAnalyzer::VisitStmt(async_wait->body)});
 
       // Convert this, for example:
       // attr [0] "async_commit_queue_scope" = 0;
@@ -101,110 +145,26 @@ class AsyncDMALowerer : public StmtExprMutator {
       ICHECK(queue_id_node);
       int queue_id = queue_id_node->value;
 
-      // walk the graph to verify this is a mem copy ...
-      // 1) async_commit_queue_scope contains async_scope
-      auto async_scope = op->body.as<AttrStmtNode>();
-      if (!async_scope || async_scope->attr_key != tir::attr::async_scope) {
-        DLOG(INFO) << "AsyncDMALowerer exiting because the body of the `AttrStmtNode` with key "
-                      "`async_commit_queue_scope` does not contain an `AttrStmtNode` with key "
-                      "`async_scope`";
-        return StmtExprMutator::VisitStmt_(op);
+      async_queue_id_ = queue_id;
+      auto result = arith::IRMutatorWithAnalyzer::VisitStmt_(op);
+      async_queue_id_ = std::nullopt;
+      if (start_dma_group_) {
+        auto call_dma_start_group = Evaluate(Call(DataType::Int(32), builtin::dma_start_group(), {queue_id}));
+        auto call_dma_end_group = Evaluate(Call(DataType::Int(32), builtin::dma_end_group(), {queue_id}));
+        start_dma_group_ = false;
+        auto out = SeqStmt({call_dma_start_group, result, call_dma_end_group});
+        return out;
+      } else {
+        return result;
       }
-
-      // 2) async_scope contains single for loop
-      auto for_loop = async_scope->body.as<ForNode>();
-      if (!for_loop) {
-        DLOG(INFO) << "AsyncDMALowerer exiting because the body of the `AttrStmtNode` with key "
-                      "`async_scope` does not contain a single `ForNode`";
-        return StmtExprMutator::VisitStmt_(op);
-      }
-
-      // Add the current loop to the input iters mapping.
-      input_iters.Set(for_loop->loop_var, Range(for_loop->min, for_loop->extent));
-
-      // 3) for loop contains buffer store with single index
-      auto bufferstorenode = for_loop->body.as<BufferStoreNode>();
-      if (!bufferstorenode || bufferstorenode->indices.size() != 1) {
-        DLOG(INFO)
-            << "AsyncDMALowerer exiting because the body of the `ForNode` does not contain a "
-               "single `BufferStoreNode` with a single index variable";
-        return StmtExprMutator::VisitStmt_(op);
-      }
-
-      // 4) buffer store value is a buffer load with single index
-      auto bufferloadnode = bufferstorenode->value.as<BufferLoadNode>();
-      if (!bufferloadnode || bufferloadnode->indices.size() != 1) {
-        DLOG(INFO) << "AsyncDMALowerer exiting because the value of the `BufferStoreNode` is not a "
-                      "single `BufferLoadNode` with a single index variable";
-        return StmtExprMutator::VisitStmt_(op);
-      }
-
-      // get store buffer; assert it exists and is contiguous given it uses a single index
-      auto bufferstore = bufferstorenode->buffer.as<BufferNode>();
-      ICHECK(bufferstore && bufferstore->strides.empty());
-
-      // get load buffer; assert it exists and is contiguous given it uses a single index
-      auto bufferload = bufferloadnode->buffer.as<BufferNode>();
-      ICHECK(bufferload && bufferload->strides.empty());
-
-      // we will be replacing the entire for loop including its index
-      // with a DMA copy instrinsic that spans the entire index space of the for loop
-      // so we will need to replace the for loop index with value zero in the buffer indices
-      // thus we eliminate the index from the expression so the DMA copy receives the buffer range
-      // base address
-      Map<Var, PrimExpr> loop_var_remap = {{for_loop->loop_var, IntImm(DataType::Int(32), 0)}};
-
-      // map loop variable to zero for the store index & simplify
-      Array<PrimExpr> store_index = bufferstorenode->indices;
-
-      // Use DetectIterMap to detect whether store index is non-contiguous.
-      arith::Analyzer analyzer;
-      auto store_iter_map = DetectIterMap(store_index, input_iters, 1,
-                                          arith::IterMapLevel::Surjective, &analyzer, false);
-      if (!store_iter_map->errors.empty()) {
-        LOG(FATAL)
-            << "Unable to lower async dma for non contiguous memory access with store index: "
-            << store_index;
-      }
-
-      store_index.MutateByApply([&](PrimExpr expr) {
-        arith::Analyzer analyzer;
-        return analyzer.Simplify(Substitute(std::move(expr), loop_var_remap));
-      });
-
-      // map loop variable to zero for the load index & simplify
-      Array<PrimExpr> load_index = bufferloadnode->indices;
-
-      // Use DetectIterMap to detect whether load index is non-contiguous.
-      auto load_iter_map = DetectIterMap(load_index, input_iters, 1,
-                                         arith::IterMapLevel::Surjective, &analyzer, false);
-      if (!load_iter_map->errors.empty()) {
-        LOG(FATAL) << "Unable to lower async dma for non contiguous memory access with load index: "
-                   << load_index;
-      }
-
-      load_index.MutateByApply([&](PrimExpr expr) {
-        arith::Analyzer analyzer;
-        return analyzer.Simplify(Substitute(std::move(expr), loop_var_remap));
-      });
-
-      // now that we are about to perform the `copy` transform
-      // save queue ID for inspection in `wait` transform
-      queue_ids_.insert(queue_id);
-
-      return Evaluate(Call(DataType::Int(32), builtin::dma_copy(),
-                           {queue_id,
-                            Call(DataType::Handle(), builtin::address_of(),
-                                 {BufferLoad(bufferstorenode->buffer, store_index)}),
-                            Call(DataType::Handle(), builtin::address_of(),
-                                 {BufferLoad(bufferloadnode->buffer, load_index)}),
-                            for_loop->extent * bufferloadnode->dtype.bytes(), dma_bypass_cache_}));
     }
-    return StmtExprMutator::VisitStmt_(op);
+    return arith::IRMutatorWithAnalyzer::VisitStmt_(op);
   }
 
  private:
+  bool start_dma_group_ = false;
   std::set<int> queue_ids_;
+  std::optional<int> async_queue_id_ = std::nullopt;
   bool dma_bypass_cache_;
   Map<Var, Range> input_iters = Map<Var, Range>();
 };
@@ -214,9 +174,10 @@ namespace transform {
 Pass LowerAsyncDMA() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto fptr = f.CopyOnWrite();
+    arith::Analyzer analyzer;
     bool dma_bypass_cache =
         ctx->GetConfig<Bool>("tir.experimental_dma_bypass_cache", Bool(false)).value();
-    fptr->body = AsyncDMALowerer(dma_bypass_cache)(std::move(fptr->body));
+    fptr->body = AsyncDMALowerer(dma_bypass_cache, &analyzer)(std::move(fptr->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerAsyncDMA", {});
