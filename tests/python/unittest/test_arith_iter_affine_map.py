@@ -199,6 +199,18 @@ def test_compound():
     assert_iter_sum_pattern({z[0]: (18, 0, 1, sz), xi[0]: (5, 0)}, var_dom([(x, 10), (y, 9)]))
 
 
+def test_compound_floormod_two():
+    x = tvm.tir.Var("x", "int32")
+    fld = tvm.tir.floordiv
+    flm = tvm.tir.floormod
+
+    # extent of 2 are normalized to positive scale
+    assert_iter_sum_pattern(
+        expect_dict={fld(x, 2) * 2 - flm(x, 2) + 1: (8, 0, 1)},
+        dom_map=var_dom([(x, 8)]),
+    )
+
+
 def test_predicate():
     x = tvm.tir.Var("x", "int32")
     y = tvm.tir.Var("y", "int32")
