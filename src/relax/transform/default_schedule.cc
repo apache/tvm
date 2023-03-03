@@ -40,12 +40,9 @@ class ThreadBindMutator : public ExprMutator {
   static IRModule Transform(const IRModule& mod, int64_t max_thread_per_block) {
     ThreadBindMutator mutator(mod);
 
-    for (const auto& kv : mod->functions) {
-      const GlobalVar& gv = kv.first;
-      const BaseFunc& func = kv.second;
-
+    for (const auto& [gv, func] : mod->functions) {
       if (func->IsInstance<tir::PrimFuncNode>()) {
-        IRModule mod = IRModule(Map<GlobalVar, BaseFunc>({kv}));
+        IRModule mod = IRModule(Map<GlobalVar, BaseFunc>({{gv, func}}));
         tir::Schedule sch = tir::Schedule::Traced(mod, /*seed=*/-1, /*debug_mask=*/0,
                                                   tir::ScheduleErrorRenderLevel::kDetail);
         Array<tir::BlockRV> blocks = meta_schedule::BlockCollector::Collect(sch);

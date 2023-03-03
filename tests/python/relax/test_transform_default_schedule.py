@@ -32,8 +32,8 @@ def test_broadcast_to_symbolic():
             var_T_broadcast_to: T.handle,
         ):
             T.func_attr({"tir.noalias": True})
-            x_0 = T.var("int64")
-            x_1 = T.var("int64")
+            x_0 = T.int64()
+            x_1 = T.int64()
             T_broadcast_to = T.match_buffer(var_T_broadcast_to, (x_0, x_1))
             # with T.block("root"):
             for ax0, ax1 in T.grid(x_0, x_1):
