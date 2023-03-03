@@ -30,104 +30,81 @@
 
 namespace tvm {
 namespace relax {
-
-/*!
- * \brief The helper class to schedule functions and build a new module which calls the new TIR
- * function.
- */
-class ThreadBindMutator : public ExprMutator {
- public:
-  static IRModule Transform(const IRModule& mod, int64_t max_thread_per_block) {
-    ThreadBindMutator mutator(mod);
-
-    for (const auto& [gv, func] : mod->functions) {
-      if (func->IsInstance<tir::PrimFuncNode>()) {
-        IRModule mod = IRModule(Map<GlobalVar, BaseFunc>({{gv, func}}));
-        tir::Schedule sch = tir::Schedule::Traced(mod, /*seed=*/-1, /*debug_mask=*/0,
-                                                  tir::ScheduleErrorRenderLevel::kDetail);
-        Array<tir::BlockRV> blocks = meta_schedule::BlockCollector::Collect(sch);
-        for (const tir::BlockRV& block : blocks) {
-          // fetch the loops
-          Array<tir::LoopRV> loops = sch->GetLoops(block);
-          bool scheduled = false;
-          for (const tir::LoopRV& loop : loops) {
-            if (sch->Get(loop)->thread_binding.defined()) {
-              scheduled = true;
-              break;
-            }
-          }
-          // skip if already scheduled
-          if (scheduled) {
-            continue;
-          }
-          Array<tir::IterVar> iters = sch->Get(block)->iter_vars;
-          ICHECK_EQ(loops.size(), iters.size());
-          Array<tir::LoopRV> data_parallel_loops;
-          // only fuse data parallel loops
-          for (size_t i = 0; i < loops.size(); ++i) {
-            if (iters[i]->iter_type == tir::IterVarType::kDataPar) {
-              data_parallel_loops.push_back(loops[i]);
-            }
-          }
-          if (data_parallel_loops.size() == 0) {
-            continue;
-          }
-          // fuse all data parallel loops
-          tir::LoopRV fused = sch->Fuse(data_parallel_loops, /*preserve_unit_iters=*/false);
-          int64_t product = std::numeric_limits<int64_t>::max();
-          if (sch->Get(fused)->extent->IsInstance<tir::IntImmNode>()) {
-            product = sch->Get(fused)->extent.as<tir::IntImmNode>()->value;
-          }
-          static const int64_t max_threadblocks = 256;
-          // schedule the fused loop
-          if (product > max_thread_per_block * max_threadblocks) {
-            Array<tir::LoopRV> splits = sch->Split(
-                fused,
-                /*factors=*/{NullOpt, Integer(max_threadblocks), Integer(max_thread_per_block)});
-            sch->Reorder(/*ordered_loop_rvs=*/{splits[1], splits[2], splits[0]});
-            sch->Bind(splits[1], "blockIdx.x");
-            sch->Bind(splits[2], "threadIdx.x");
-          } else {
-            Array<tir::LoopRV> splits = sch->Split(
-                fused, /*factors=*/{NullOpt, Integer(std::min(product, max_thread_per_block))});
-            sch->Bind(splits[0], "blockIdx.x");
-            sch->Bind(splits[1], "threadIdx.x");
-          }
-        }
-        mutator.builder_->AddFunction(sch->mod()->Lookup(gv->name_hint), gv->name_hint);
-      } else {
-        mutator.builder_->AddFunction(func, gv->name_hint);
-      }
-    }
-    return mutator.builder_->GetContextIRModule();
-  }
-
- private:
-  explicit ThreadBindMutator(const IRModule& mod) : mod_(mod) {}
-
- private:
-  /*! \brief The IRModule */
-  const IRModule& mod_;
-};
-
-IRModule DefaultSchedule(IRModule mod, int64_t max_thread_per_block) {
-  mod = ThreadBindMutator::Transform(mod, max_thread_per_block);
-  return mod;
-}
-
 namespace transform {
 
 Pass DefaultSchedule() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
       [=](IRModule m, PassContext pc) {
+        // Get the target from context.
         tvm::Target target = tvm::Target::Current();
         ICHECK(target.defined()) << "Target is not set in current context";
-        Integer max_thread_per_block = target->GetAttr<Integer>("max_num_threads").value_or(-1);
+        // Skip non-cuda targets.
         if (target->kind->name != "cuda") {
-          ICHECK_NE(max_thread_per_block, -1) << "max_num_threads is not set for target " << target;
           return m;
         }
-        return relax::DefaultSchedule(m, max_thread_per_block.IntValue());
+        // Get the max thread per block from target.
+        Optional<Integer> opt_max_thread_per_block = target->GetAttr<Integer>("max_num_threads");
+        ICHECK(opt_max_thread_per_block.defined())
+            << "max_num_threads is not set for target " << target;
+        int64_t max_thread_per_block = opt_max_thread_per_block.value().IntValue();
+        tir::Schedule sch = tir::Schedule::Traced(m, /*seed=*/-1, /*debug_mask=*/0,
+                                                  tir::ScheduleErrorRenderLevel::kDetail);
+        for (const auto& [gv, func] : m->functions) {
+          if (func->IsInstance<tir::PrimFuncNode>()) {
+            sch->WorkOn(gv->name_hint);
+            Array<tir::BlockRV> blocks = meta_schedule::BlockCollector::Collect(sch);
+            for (const tir::BlockRV& block : blocks) {
+              // fetch the loops
+              Array<tir::LoopRV> loops = sch->GetLoops(block);
+              bool scheduled = false;
+              for (const tir::LoopRV& loop : loops) {
+                if (sch->Get(loop)->thread_binding.defined()) {
+                  scheduled = true;
+                  break;
+                }
+              }
+              // skip if already scheduled
+              if (scheduled) {
+                continue;
+              }
+              Array<tir::IterVar> iters = sch->Get(block)->iter_vars;
+              ICHECK_EQ(loops.size(), iters.size());
+              Array<tir::LoopRV> data_parallel_loops;
+              // only fuse data parallel loops
+              for (size_t i = 0; i < loops.size(); ++i) {
+                if (iters[i]->iter_type == tir::IterVarType::kDataPar) {
+                  data_parallel_loops.push_back(loops[i]);
+                }
+              }
+              if (data_parallel_loops.size() == 0) {
+                continue;
+              }
+              // fuse all data parallel loops
+              tir::LoopRV fused = sch->Fuse(data_parallel_loops, /*preserve_unit_iters=*/false);
+              int64_t product = std::numeric_limits<int64_t>::max();
+              if (sch->Get(fused)->extent->IsInstance<tir::IntImmNode>()) {
+                product = sch->Get(fused)->extent.as<tir::IntImmNode>()->value;
+              }
+              static const int64_t max_threadblocks = 256;
+              // schedule the fused loop
+              if (product > max_thread_per_block * max_threadblocks) {
+                Array<tir::LoopRV> splits =
+                    sch->Split(fused,
+                               /*factors=*/{NullOpt, Integer(max_threadblocks),
+                                            Integer(max_thread_per_block)});
+                sch->Reorder(/*ordered_loop_rvs=*/{splits[1], splits[2], splits[0]});
+                sch->Bind(splits[1], "blockIdx.x");
+                sch->Bind(splits[2], "threadIdx.x");
+              } else {
+                Array<tir::LoopRV> splits = sch->Split(
+                    fused, /*factors=*/{NullOpt, Integer(std::min(product, max_thread_per_block))});
+                sch->Bind(splits[0], "blockIdx.x");
+                sch->Bind(splits[1], "threadIdx.x");
+              }
+            }
+          }
+        }
+        return sch->mod();
       };
   return CreateModulePass(/*pass_function=*/pass_func,      //
                           /*opt_level=*/0,                  //
