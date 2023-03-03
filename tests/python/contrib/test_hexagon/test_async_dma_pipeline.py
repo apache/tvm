@@ -883,7 +883,7 @@ def test_non_contiguous():
     """Test Non Contiguous memory lowering."""
     sch = tvm.tir.Schedule(conv2d_async_non_contig)
     target_hexagon = tvm.target.hexagon("v68", link_params=True)
-    err_rgx = r"Unable to lower async dma for non contiguous memory access with load index: "
+    err_rgx = r"Unable to lower async dma due to non contiguous memory access"
     # Currently we do not support non contiguous memory access being lowered to
     # async dma so we throw an error.
     with pytest.raises(tvm.TVMError, match=err_rgx):

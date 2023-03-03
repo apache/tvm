@@ -47,38 +47,39 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
   explicit AsyncDMALowerer(bool dma_bypass_cache, arith::Analyzer* analyzer) : IRMutatorWithAnalyzer(analyzer), dma_bypass_cache_(dma_bypass_cache) {}
 
   Stmt VisitStmt_(const ForNode* loop) final {
-    if (!async_queue_id_.has_value()) return arith::IRMutatorWithAnalyzer::VisitStmt_(loop);
-
-    std::optional<tvm::tir::MemCpyDetails> mem_copy = IdentifyMemCpy(GetRef<For>(loop), analyzer_);
-
-    // if memcpy is not replacable with DMA copy
-    if (!mem_copy.has_value() || mem_copy->dest->region.size() != 1 || mem_copy->source->region.size() != 1) {
-      // if we subsequently find a memcpy that is replacable with DMA copy
-      // then create a DMA group to contain the outer for loop as a group of DMAs
-      start_dma_group_ = true;
+    // if for loop is not within async_commit_queue_scope
+    if (!async_queue_id_.has_value()) {
       return arith::IRMutatorWithAnalyzer::VisitStmt_(loop);
+    }
+
+    // if for loop is not a memcpy of a contiguous region
+    std::optional<tvm::tir::MemCpyDetails> mem_copy = IdentifyMemCpy(GetRef<For>(loop), analyzer_);
+    if (!mem_copy.has_value() || mem_copy->dest->region.size() != 1 ||
+        mem_copy->source->region.size() != 1) {
+      LOG(FATAL) << "Unable to lower async dma due to non contiguous memory access";
     }
 
     // now that we are about to perform the `copy` transform
     // save queue ID for inspection in `wait` transform
+    // and, increment the number of DMA copies in the group
     queue_ids_.insert(async_queue_id_.value());
+    dmas_in_group_++;
     
     tvm::PrimExpr src_min = mem_copy->source->region[0]->min;
     tvm::PrimExpr dst_min = mem_copy->dest->region[0]->min;
     tvm::PrimExpr dst_extent = mem_copy->dest->region[0]->extent;
 
-    //FIXME(nverke): Choose one of these. 
-    if (analyzer_->CanProve(dst_extent <= 0)) return arith::IRMutatorWithAnalyzer::VisitStmt_(loop);
-    // if (analyzer_->CanProve(dst_extent <= 0)) return Evaluate(0);
+    auto src = BufferLoad(mem_copy->source->buffer, {src_min});
+    auto dst = BufferLoad(mem_copy->dest->buffer, {dst_min});
     return Evaluate(
       Call(
         DataType::Int(32),
         builtin::dma_copy(),
         {
           async_queue_id_.value(),
-          Call(DataType::Handle(), builtin::address_of(), {BufferLoad(mem_copy->dest->buffer, {dst_min})}),
-          Call(DataType::Handle(), builtin::address_of(), {BufferLoad(mem_copy->source->buffer, {src_min})}),
-          dst_extent,
+          Call(DataType::Handle(), builtin::address_of(), {dst}),
+          Call(DataType::Handle(), builtin::address_of(), {src}),
+          dst_extent * src->dtype.bytes(),
           dma_bypass_cache_
         }
       )
@@ -143,26 +144,23 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
       // get queue ID
       auto queue_id_node = op->value.as<IntImmNode>();
       ICHECK(queue_id_node);
-      int queue_id = queue_id_node->value;
-
-      async_queue_id_ = queue_id;
+      async_queue_id_ = queue_id_node->value;
       auto result = arith::IRMutatorWithAnalyzer::VisitStmt_(op);
-      async_queue_id_ = std::nullopt;
-      if (start_dma_group_) {
-        auto call_dma_start_group = Evaluate(Call(DataType::Int(32), builtin::dma_start_group(), {queue_id}));
-        auto call_dma_end_group = Evaluate(Call(DataType::Int(32), builtin::dma_end_group(), {queue_id}));
-        start_dma_group_ = false;
-        auto out = SeqStmt({call_dma_start_group, result, call_dma_end_group});
-        return out;
-      } else {
-        return result;
+      if (dmas_in_group_ > 1) {
+        auto call_dma_start_group = Evaluate(Call(DataType::Int(32), builtin::dma_start_group(), {async_queue_id_.value()}));
+        auto call_dma_end_group = Evaluate(Call(DataType::Int(32), builtin::dma_end_group(), {async_queue_id_.value()}));
+        result = SeqStmt({call_dma_start_group, result, call_dma_end_group});
       }
+
+      async_queue_id_ = std::nullopt;
+      dmas_in_group_ = 0;
+      return result;
     }
     return arith::IRMutatorWithAnalyzer::VisitStmt_(op);
   }
 
  private:
-  bool start_dma_group_ = false;
+  int dmas_in_group_ = 0;
   std::set<int> queue_ids_;
   std::optional<int> async_queue_id_ = std::nullopt;
   bool dma_bypass_cache_;

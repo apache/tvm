@@ -726,16 +726,23 @@ TVM_DLL const Op& texture2d_store();
 TVM_DLL const Op& texture2d_load();
 
 /*!
- * \brief Initiate a non-blocking DMA copy from source to destination
+ * \brief Initiate a non-blocking DMA copy from source to destination; a DMA copy outside of a group has a defacto group size of one
  */
 TVM_DLL const Op& dma_copy();
 
 /*!
- * \brief Wait until the number of DMAs in flight is less than or equal to some maximum
+ * \brief Wait until the number of DMA groups in flight is less than or equal to some maximum
  */
 TVM_DLL const Op& dma_wait();
 
+/*!
+ * \brief Start a group of DMA copies
+ */
 TVM_DLL const Op& dma_start_group();
+
+/*!
+ * \brief End a group of DMA copies
+ */
 TVM_DLL const Op& dma_end_group();
 
 /*!
