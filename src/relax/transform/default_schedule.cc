@@ -124,6 +124,7 @@ Pass DefaultSchedule() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
       [=](IRModule m, PassContext pc) {
         tvm::Target target = tvm::Target::Current();
+        ICHECK(target.defined()) << "Target is not set in current context";
         Integer max_thread_per_block = target->GetAttr<Integer>("max_num_threads").value_or(-1);
         if (target->kind->name != "cuda") {
           ICHECK_NE(max_thread_per_block, -1) << "max_num_threads is not set for target " << target;
