@@ -30,7 +30,7 @@ def instantiate_attention_template(attrs, func_args):
   p.bias_strideH = p.num_keys; // S'
   p.bias_strideM = p.bias_strideH * p.num_heads; // S' * N
   p.bias_strideB = p.bias_strideM * p.num_queries; // S' * N * S
-  
+
 """
 
     template = """
@@ -47,7 +47,9 @@ def instantiate_attention_template(attrs, func_args):
                       /*is_aligned=*/${kIsAligned},
                       /*queries_per_block=*/${kQueriesPerBlock},
                       /*keys_per_block=*/${kKeysPerBlock},
-                      /*single_value_iteration=*/${kSingleValueIteration}
+                      /*single_value_iteration=*/${kSingleValueIteration},
+                      /*supports_dropout=*/${kSupportsDropout},
+                      /*supports_bias=*/${kSupportsBias}
       >;
 
   typename Attention::Params p;
@@ -104,7 +106,7 @@ def instantiate_attention_template(attrs, func_args):
   CHECK(Attention::check_supported(p));
   kernel_fn<<<p.getBlocksGrid(), p.getThreadsGrid(), smem_bytes>>>(p);
 """
-    if len(func_args) > 3:
+    if attrs["kSupportsBias"]:
         template = substitute_template(template, {"bias_template": bias_template})
     else:
         template = substitute_template(template, {"bias_template": ""})

@@ -682,6 +682,8 @@ def instantiate_template(func_name, annotations, func_args):
             attrs["kSingleValueIteration"] = True
         attrs["output_size"] = b * s * n * h_v
         attrs["arch"] = "cutlass::arch::Sm{}".format(annotations["arch"])
+        attrs["kSupportsDropout"] = False
+        attrs["kSupportsBias"] = len(func_args) > 3
         code = instantiate_attention_template(attrs, func_args)
         return CodegenResult(code, headers)
 
