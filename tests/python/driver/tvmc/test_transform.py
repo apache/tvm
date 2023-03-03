@@ -19,6 +19,8 @@ from unittest.mock import MagicMock
 
 import tvm
 from tvm import relay
+from tvm.relay import testing
+from tvm.relay.expr_functor import ExprMutator
 from tvm.ir.instrument import pass_instrument
 from tvm.driver.tvmc.transform import apply_graph_transforms
 
@@ -70,7 +72,7 @@ def test_layout_transform_convert_layout_pass_args(relay_conv2d, monkeypatch):
     )
 
 
-def test_layout_transform_to_mixed_precision_pass_args(relay_conv2d, monkeypatch):
+def test_layout_transform_to_mixed_precision_pass_args_mock(relay_conv2d, monkeypatch):
     """
     Check the mixed precision arugments which are expected when
     mixed precision arguments are provided.
@@ -101,6 +103,66 @@ def test_layout_transform_to_mixed_precision_pass_args(relay_conv2d, monkeypatch
             },
         )
         mock_mixed_precision.assert_called_with(["nn.conv2d", "nn.dense"], "float32")
+
+
+def test_layout_transform_to_mixed_precision_pass_args_graph():
+    """
+    Check the mixed precision arugments application with in a graph.
+    """
+
+    mod, params = testing.mobilenet.get_workload(batch_size=1, dtype="float32")
+
+    class CheckOpMutator(ExprMutator):
+        """Inspect Ops According to expected types."""
+
+        def __init__(self, calculation_type, acc_type, op):
+            self.calculation_type = calculation_type
+            self.acc_type = acc_type
+            self.op = op
+            self.is_expected = True
+            super().__init__()
+
+        def visit_call(self, call):
+            visit = super().visit(call.args[0])
+            if call.op == relay.op.get(self.op):
+                if self.is_expected:
+                    self.is_expected = (
+                        call.checked_type.dtype == self.acc_type
+                        or call.args[0].checked_type.dtype == self.calculation_type
+                    )
+            return call
+
+        def check(self, func):
+            self.visit(func)
+            return self.is_expected
+
+    mod = apply_graph_transforms(
+        mod,
+        {
+            "mixed_precision": True,
+            "mixed_precision_ops": ["nn.conv2d", "nn.dense"],
+            "mixed_precision_calculation_type": "float16",
+            "mixed_precision_acc_type": "float16",
+        },
+    )
+    ret = CheckOpMutator("float16", "float16", "nn.conv2d").check(mod["main"])
+    assert ret
+    ret = CheckOpMutator("float16", "float16", "nn.dense").check(mod["main"])
+    assert ret
+
+    mod = apply_graph_transforms(
+        mod,
+        {
+            "mixed_precision": True,
+            "mixed_precision_ops": ["nn.conv2d", "nn.dense"],
+            "mixed_precision_calculation_type": "float16",
+            "mixed_precision_acc_type": "float32",
+        },
+    )
+    ret = CheckOpMutator("float16", "float32", "nn.conv2d").check(mod["main"])
+    assert ret
+    ret = CheckOpMutator("float16", "float32", "nn.dense").check(mod["main"])
+    assert ret
 
 
 if __name__ == "__main__":
