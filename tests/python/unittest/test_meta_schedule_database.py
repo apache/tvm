@@ -18,19 +18,19 @@
 """Test Meta Schedule Database"""
 import os.path as osp
 import tempfile
-import pytest
-from typing import Callable, Optional, List
+from typing import Callable, List, Optional
 
+import pytest
 import tvm
 import tvm.testing
-from tvm.target import Target
 from tvm import meta_schedule as ms
-from tvm.meta_schedule.database import TuningRecord, Workload
-from tvm import tir
+from tvm import relay, tir
 from tvm.ir.module import IRModule
+from tvm.meta_schedule.database import TuningRecord, Workload
 from tvm.script import tir as T
+from tvm.target import Target
 from tvm.tir import Schedule
-from tvm import relay
+
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 # fmt: off
@@ -556,6 +556,7 @@ def call_get_top_k(run_secs_list, database, k):
     "k,expected",
     [
         (0, []),
+        (1, [[0.0, 2.0]]),
         (4, [[0.0, 2.0], [2.0], [1.5, 4.5], [3.0, 1e10]]),
         (5, [[0.0, 2.0], [2.0], [1.5, 4.5], [3.0, 1e10]]),
     ],

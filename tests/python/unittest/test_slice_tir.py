@@ -122,7 +122,7 @@ class TestAnnotateAndSliceTIR(tvm.testing.CompareBeforeAfter):
     #    @tvm.script.ir_module
     #    class irmod_before:
     #        @T.prim_func
-    #        def main(A: T.Buffer[(1,), "int8"):
+    #        def main(A: T.Buffer((1,), "int8"):
     #            #A = T.match_buffer(a, (1,), "int8")
     #            A[0] = 0
     #            with T.block("block_foo"): # optional: give this block a name, perhaps for testing?

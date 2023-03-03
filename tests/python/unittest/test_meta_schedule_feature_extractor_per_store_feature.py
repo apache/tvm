@@ -31,9 +31,9 @@ N_FEATURES = 164
 
 @T.prim_func
 def matmul(
-    A: T.Buffer[(512, 512), "float32"],
-    B: T.Buffer[(512, 512), "float32"],
-    C: T.Buffer[(512, 512), "float32"],
+    A: T.Buffer((512, 512), "float32"),
+    B: T.Buffer((512, 512), "float32"),
+    C: T.Buffer((512, 512), "float32"),
 ) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -56,7 +56,7 @@ def matmul(
 @tvm.script.ir_module
 class LayoutTransform:
     @T.prim_func
-    def main(placeholder: T.Buffer[(1, 16, 7, 7, 32), "float32"], placeholder_1: T.Buffer[(25088,), "float32"], T_layout_trans: T.Buffer[(1, 1, 7, 7, 512), "float32"]) -> None:
+    def main(placeholder: T.Buffer((1, 16, 7, 7, 32), "float32"), placeholder_1: T.Buffer((25088,), "float32"), T_layout_trans: T.Buffer((1, 1, 7, 7, 512), "float32")) -> None:
         # function attr dict
         T.func_attr({"tir.noalias": True, "global_symbol": "main"})
         # body
@@ -1595,7 +1595,7 @@ def test_cpu_layout_transform():
 
 
 @T.prim_func
-def negative_extent(A: T.Buffer[(1,), "float32"]):
+def negative_extent(A: T.Buffer((1,), "float32")):
     for j in range(0, -1):
         A[j] = A[j] + 1.0
 

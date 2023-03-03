@@ -754,9 +754,9 @@ class Schedule(Object):
 
             @T.prim_func
             def before_add_unit_loop(
-                A: T.Buffer[(), "int32"],
-                B: T.Buffer[(), "int32"],
-                C: T.Buffer[(), "int32"],
+                A: T.Buffer((), "int32"),
+                B: T.Buffer((), "int32"),
+                C: T.Buffer((), "int32"),
             ) -> None:
                 with T.block("C"):
                     vi = T.axis.spatial(1, 0)
@@ -776,9 +776,9 @@ class Schedule(Object):
 
             @T.prim_func
             def after_add_unit_loop(
-                A: T.Buffer[(), "int32"],
-                B: T.Buffer[(), "int32"],
-                C: T.Buffer[(), "int32"],
+                A: T.Buffer((), "int32"),
+                B: T.Buffer((), "int32"),
+                C: T.Buffer((), "int32"),
             ) -> None:
                 for u in T.serial(1):
                     with T.block("C"):
@@ -1240,7 +1240,7 @@ class Schedule(Object):
         .. code-block:: python
 
             @T.prim_func
-            def before_cache_inplace(data_io: T.Buffer[(64), "int32"]):
+            def before_cache_inplace(data_io: T.Buffer((64), "int32")):
                 for i0 in T.serial(1):
                     with T.block("A"):
                         T.reads(data_io[:64])
@@ -1261,7 +1261,7 @@ class Schedule(Object):
         .. code-block:: python
 
             @T.prim_func
-            def cache_inplace(data_io: T.Buffer[64, "int32"]) -> None:
+            def cache_inplace(data_io: T.Buffer(64, "int32")) -> None:
                 data_io_local = T.alloc_buffer([64], dtype="int32", scope="local")
                 for i0 in T.serial(1):
                     for ax0 in T.serial(64):
@@ -1350,7 +1350,7 @@ class Schedule(Object):
 
             @T.prim_func
             def resize_cache_index(
-                A: T.Buffer[(1, 3, 40, 40), "float32"], B: T.Buffer[(1, 3, 80, 80), "float32"]
+                A: T.Buffer((1, 3, 40, 40), "float32"), B: T.Buffer((1, 3, 80, 80), "float32")
             ) -> None:
                 index_var_0 = T.alloc_buffer([80, 80], dtype="int32", strides=[1])
                 index_var_1 = T.alloc_buffer([80], dtype="int32", strides=[1])
@@ -1425,14 +1425,14 @@ class Schedule(Object):
         Examples
         --------
 
-        Before transform_layout, in TensorIR, the IR is:
+        Before reindex, in TensorIR, the IR is:
 
         .. code-block:: python
 
             @T.prim_func
             def before_reindex(
-                A: T.Buffer[(128, 128), "float32"],
-                B: T.Buffer[(128, 128), "float32"]
+                A: T.Buffer((128, 128), "float32"),
+                B: T.Buffer((128, 128), "float32")
             ) -> None:
                 for i, j in T.grid(128, 128):
                     with T.block("B"):
@@ -1453,8 +1453,8 @@ class Schedule(Object):
 
             @T.prim_func
             def after_reindex(
-                A: T.Buffer[(128, 128), "float32"],
-                B: T.Buffer[(128, 128), "float32"]
+                A: T.Buffer((128, 128), "float32"),
+                B: T.Buffer((128, 128), "float32")
             ) -> None:
                 A_reindex = T.alloc_buffer((128, 128), "float32")
                 for i, j in T.grid(128, 128):
@@ -2151,7 +2151,7 @@ class Schedule(Object):
 
             @T.prim_func
             def before_set_scope(
-                A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(128, 128), "float32"]
+                A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
             ) -> None:
                 B = T.alloc_buffer((128, 128), dtype="float32")
 
@@ -2178,7 +2178,7 @@ class Schedule(Object):
 
             @T.prim_func
             def after_set_scope(
-                A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(128, 128), "float32"]
+                A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
             ) -> None:
                 B_shared = T.alloc_buffer([128, 128], dtype="float32", scope="shared")
 
@@ -2227,8 +2227,8 @@ class Schedule(Object):
 
             @T.prim_func
             def before_blockize(
-                A: T.Buffer[(128, 128), "float32"],
-                B: T.Buffer[(128, 128), "float32"]
+                A: T.Buffer((128, 128), "float32"),
+                B: T.Buffer((128, 128), "float32")
             ) -> None:
                 for i_0, j_0, i_1, j_1 in T.grid(8, 8, 16, 16):
                     with T.block("B"):
@@ -2254,8 +2254,8 @@ class Schedule(Object):
 
             @T.prim_func
             def after_blockize(
-                A: T.Buffer[(128, 128), "float32"],
-                B: T.Buffer[(128, 128), "float32"]
+                A: T.Buffer((128, 128), "float32"),
+                B: T.Buffer((128, 128), "float32")
             )-> None:
                 for i_0, j_0 in T.grid(8, 8):
                     with T.block("B_o"):
@@ -2305,9 +2305,9 @@ class Schedule(Object):
 
             @T.prim_func
             def before_tensorize(
-                A: T.Buffer[(128, 128), "float32"],
-                B: T.Buffer[(128, 128), "float32"],
-                C: T.Buffer[(128, 128), "float32"],
+                A: T.Buffer((128, 128), "float32"),
+                B: T.Buffer((128, 128), "float32"),
+                C: T.Buffer((128, 128), "float32"),
             ) -> None:
                 # body
                 # with T.block("root")
@@ -2380,9 +2380,9 @@ class Schedule(Object):
 
             @T.prim_func
             def after_tensorize(
-                A: T.Buffer[(128, 128), "float32"],
-                B: T.Buffer[(128, 128), "float32"],
-                C: T.Buffer[(128, 128), "float32"],
+                A: T.Buffer((128, 128), "float32"),
+                B: T.Buffer((128, 128), "float32"),
+                C: T.Buffer((128, 128), "float32"),
             ) -> None:
                 # body
                 # with T.block("root")
@@ -2819,8 +2819,8 @@ class Schedule(Object):
 
             @T.prim_func
             def before_transform_block_layout(
-                A: T.Buffer[(16, 16), "float32"],
-                B: T.Buffer[(16, 16), "float32"]
+                A: T.Buffer((16, 16), "float32"),
+                B: T.Buffer((16, 16), "float32")
             ) -> None:
                 for i, j in T.grid(16, 16):
                     with T.block("B"):
@@ -2841,8 +2841,8 @@ class Schedule(Object):
 
             @T.prim_func
             def after_transform_block_layout(
-                A: T.Buffer[(16, 16), "float32"],
-                B: T.Buffer[(16, 16), "float32"]
+                A: T.Buffer((16, 16), "float32"),
+                B: T.Buffer((16, 16), "float32")
             ) -> None:
                 for i in range(256):
                     with T.block("B"):
@@ -2903,7 +2903,7 @@ class Schedule(Object):
 
             @T.prim_func
             def before_set_axis_separator(
-                A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(128, 128), "float32"]
+                A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
             ) -> None:
                 B = T.alloc_buffer((128, 128), dtype="float32")
 
@@ -2931,7 +2931,7 @@ class Schedule(Object):
 
             @T.prim_func
             def after_set_axis_separators(
-                A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(128, 128), "float32"]
+                A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
             ) -> None:
                 B = T.alloc_buffer([128, 128], dtype="float32", axis_separators=[1])
 
@@ -2992,7 +2992,7 @@ class Schedule(Object):
         .. code-block:: python
 
             @T.prim_func
-            def before_decompose(x: T.Buffer[128, "int32"], y: T.Buffer[140, "int32"]):
+            def before_decompose(x: T.Buffer(128, "int32"), y: T.Buffer(140, "int32")):
                 for i in range(140):
                     with T.block("block"):
                         vi = T.axis.remap("S", [i])
@@ -3012,7 +3012,7 @@ class Schedule(Object):
         .. code-block:: python
 
             @T.prim_func
-            def after_decompose(x: T.Buffer[128, "int32"], y: T.Buffer[140, "int32"]):
+            def after_decompose(x: T.Buffer(128, "int32"), y: T.Buffer(140, "int32")):
                 for i in T.serial(140):
                     with T.block("block_pad_const"):
                         vi = T.axis.spatial(140, i)
@@ -3067,9 +3067,9 @@ class Schedule(Object):
 
             @T.prim_func
             def before_pad_einsum(
-                A: T.Buffer[(128, 127), "float32"],
-                B: T.Buffer[(127, 127), "float32"],
-                C: T.Buffer[(128, 127), "float32"],
+                A: T.Buffer((128, 127), "float32"),
+                B: T.Buffer((127, 127), "float32"),
+                C: T.Buffer((128, 127), "float32"),
             ) -> None:
                 A_shared = T.alloc_buffer((128, 127), "float32", scope="shared")
                 B_shared = T.alloc_buffer((127, 127), "float32", scope="shared")
@@ -3108,9 +3108,9 @@ class Schedule(Object):
 
             @T.prim_func
             def after_pad_einsum(
-                A: T.Buffer[(128, 127), "float32"],
-                B: T.Buffer[(127, 127), "float32"],
-                C: T.Buffer[(128, 127), "float32"],
+                A: T.Buffer((128, 127), "float32"),
+                B: T.Buffer((127, 127), "float32"),
+                C: T.Buffer((128, 127), "float32"),
             ) -> None:
                 A_shared_padded = T.alloc_buffer([128, 128], dtype="float32", scope="shared")
                 B_shared_padded = T.alloc_buffer([128, 128], dtype="float32", scope="shared")
@@ -3193,7 +3193,7 @@ class Schedule(Object):
 
             @T.prim_func
             def before_rolling_buffer(
-                A: T.Buffer[(12, 12), "int8"], C: T.Buffer[(8, 8), "int8"]
+                A: T.Buffer((12, 12), "int8"), C: T.Buffer((8, 8), "int8")
             ) -> None:
                 # body
                 # with T.block("root")
@@ -3230,8 +3230,8 @@ class Schedule(Object):
 
             @T.prim_func
             def after_rolling_buffer(
-                A: T.Buffer[(12, 12), "int8"],
-                C: T.Buffer[(8, 8), "int8"]
+                A: T.Buffer((12, 12), "int8"),
+                C: T.Buffer((8, 8), "int8")
             ) -> None:
                 # body
                 # with T.block("root")

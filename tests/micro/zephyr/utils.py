@@ -31,7 +31,6 @@ import requests
 
 import tvm.micro
 from tvm.micro import export_model_library_format
-from tvm.micro.model_library_format import generate_c_interface_header
 from tvm.micro.testing.utils import create_header_file
 from tvm.micro.testing.utils import (
     mlf_extract_workspace_size_bytes,
@@ -153,30 +152,16 @@ def generate_project(
     with tempfile.NamedTemporaryFile() as tar_temp_file:
         with tarfile.open(tar_temp_file.name, "w:gz") as tf:
             with tempfile.TemporaryDirectory() as tar_temp_dir:
-                model_files_path = os.path.join(tar_temp_dir, "include")
-                os.mkdir(model_files_path)
+                model_files_path = pathlib.Path(tar_temp_dir) / "include"
+                model_files_path.mkdir(parents=True)
                 if load_cmsis:
                     loadCMSIS(model_files_path)
                     tf.add(
                         model_files_path, arcname=os.path.relpath(model_files_path, tar_temp_dir)
                     )
-                header_path = generate_c_interface_header(
-                    lowered.libmod_name,
-                    ["input_1"],
-                    ["Identity"],
-                    [],
-                    {},
-                    [],
-                    0,
-                    model_files_path,
-                    {},
-                    {},
-                )
-                tf.add(header_path, arcname=os.path.relpath(header_path, tar_temp_dir))
-
-            create_header_file("input_data", sample, "include", tf)
+            create_header_file("input_data", sample, "include/tvm", tf)
             create_header_file(
-                "output_data", np.zeros(shape=output_shape, dtype=output_type), "include", tf
+                "output_data", np.zeros(shape=output_shape, dtype=output_type), "include/tvm", tf
             )
 
         project, project_dir = build_project(

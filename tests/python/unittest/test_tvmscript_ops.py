@@ -163,7 +163,7 @@ def test_alloc_zero_dim_buffer_round_trip():
 
 
 @T.prim_func
-def ceildiv_test(A: T.Buffer[16, "int32"]):
+def ceildiv_test(A: T.Buffer(16, "int32")):
     for i in range(16):
         A[i] = T.ceildiv(A[i], 4)
 

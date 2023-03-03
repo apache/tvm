@@ -367,7 +367,7 @@ def test_conv2d_single(trial):
 @tvm.script.ir_module
 class Conv2dDoubleCascade1:
     @T.prim_func
-    def main(input_placeholder_5: T.Buffer[(1, 8, 8, 3), "int8"], input_ethosu_write_1: T.Buffer[(1, 8, 8, 8), "int8"]) -> None:
+    def main(input_placeholder_5: T.Buffer((1, 8, 8, 3), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 8, 8), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = T.Buffer([304], "uint8")
@@ -389,7 +389,7 @@ class Conv2dDoubleCascade1:
 @tvm.script.ir_module
 class Conv2dDoubleCascade2:
     @T.prim_func
-    def main(input_placeholder_5: T.Buffer[(1, 8, 8, 3), "int8"], input_ethosu_write_1: T.Buffer[(1, 8, 8, 8), "int8"]) -> None:
+    def main(input_placeholder_5: T.Buffer((1, 8, 8, 3), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 8, 8), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = T.Buffer([80], "uint8")
@@ -411,7 +411,7 @@ class Conv2dDoubleCascade2:
 @tvm.script.ir_module
 class Conv2dDoubleCascade3:
     @T.prim_func
-    def main(input_placeholder_5: T.Buffer[(1, 16, 16, 3), "int8"], input_ethosu_write_1: T.Buffer[(1, 20, 4, 8), "int8"]) -> None:
+    def main(input_placeholder_5: T.Buffer((1, 16, 16, 3), "int8"), input_ethosu_write_1: T.Buffer((1, 20, 4, 8), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = T.Buffer([1744], "uint8")
@@ -436,7 +436,7 @@ class Conv2dDoubleCascade3:
 @tvm.script.ir_module
 class Conv2dDoubleCascade4:
     @T.prim_func
-    def main(input_placeholder_5: T.Buffer[(1, 8, 1, 8, 16), "int8"], input_ethosu_write_1: T.Buffer[(1, 8, 2, 8, 16), "int8"]) -> None:
+    def main(input_placeholder_5: T.Buffer((1, 8, 1, 8, 16), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 2, 8, 16), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = T.Buffer([1456], "uint8")
@@ -458,7 +458,7 @@ class Conv2dDoubleCascade4:
 @tvm.script.ir_module
 class Conv2dDoubleCascade5:
     @T.prim_func
-    def main(input_placeholder: T.Buffer[(1, 8, 8, 3), "int8"], input_ethosu_write: T.Buffer[(1, 32, 32, 8), "int8"]) -> None:
+    def main(input_placeholder: T.Buffer((1, 8, 8, 3), "int8"), input_ethosu_write: T.Buffer((1, 32, 32, 8), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = T.Buffer([160], "uint8")
@@ -480,7 +480,7 @@ class Conv2dDoubleCascade5:
 @tvm.script.ir_module
 class Conv2dDoubleCascade6:
     @T.prim_func
-    def main(input_placeholder: T.Buffer[(1, 8, 1, 8, 16), "int8"], input_ethosu_write: T.Buffer[(1, 32, 2, 32, 16), "int8"]) -> None:
+    def main(input_placeholder: T.Buffer((1, 8, 1, 8, 16), "int8"), input_ethosu_write: T.Buffer((1, 32, 2, 32, 16), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = T.Buffer([1456], "uint8")
@@ -644,7 +644,7 @@ def test_conv2d_double_cascade(trial):
 @tvm.script.ir_module
 class Conv2dInlineCopy1:
     @T.prim_func
-    def main(input_placeholder_3: T.Buffer[(1, 10, 12, 8), "int8"], input_ethosu_write_1: T.Buffer[(1, 8, 8, 16), "int8"]) -> None:
+    def main(input_placeholder_3: T.Buffer((1, 10, 12, 8), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 8, 16), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = T.Buffer([848], "uint8")
@@ -659,7 +659,7 @@ class Conv2dInlineCopy1:
 @tvm.script.ir_module
 class Conv2dInlineCopy2:
     @T.prim_func
-    def main(input_placeholder_3: T.Buffer[(1, 7, 9, 5), "int8"], input_ethosu_write_1: T.Buffer[(1, 3, 5, 16), "int8"]) -> None:
+    def main(input_placeholder_3: T.Buffer((1, 7, 9, 5), "int8"), input_ethosu_write_1: T.Buffer((1, 3, 5, 16), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = T.Buffer([160], "uint8")
@@ -703,7 +703,7 @@ def test_conv2d_inline_copy(trial):
 @tvm.script.ir_module
 class Conv2dInlineReshape1:
     @T.prim_func
-    def main(input_placeholder_3: T.Buffer[(4, 6, 8, 1), "int8"], input_ethosu_write_1: T.Buffer[(1, 8, 6, 16), "int8"]) -> None:
+    def main(input_placeholder_3: T.Buffer((4, 6, 8, 1), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 6, 16), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = T.Buffer([160], "uint8")
@@ -719,7 +719,7 @@ class Conv2dInlineReshape1:
 @tvm.script.ir_module
 class Conv2dInlineReshape2:
     @T.prim_func
-    def main(input_placeholder_3: T.Buffer[(1, 24, 8), "int8"], input_ethosu_write_1: T.Buffer[(1, 8, 6, 16), "int8"]) -> None:
+    def main(input_placeholder_3: T.Buffer((1, 24, 8), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 6, 16), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = T.Buffer([160], "uint8")
@@ -735,7 +735,7 @@ class Conv2dInlineReshape2:
 @tvm.script.ir_module
 class Conv2dInlineReshape3:
     @T.prim_func
-    def main(input_placeholder_3: T.Buffer[(192, 1), "int8"], input_ethosu_write_1: T.Buffer[(1, 8, 6, 16), "int8"]) -> None:
+    def main(input_placeholder_3: T.Buffer((192, 1), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 6, 16), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = T.Buffer([160], "uint8")
@@ -751,7 +751,7 @@ class Conv2dInlineReshape3:
 @tvm.script.ir_module
 class Conv2dInlineReshape4:
     @T.prim_func
-    def main(placeholder_3: T.Buffer[(192,), "int8"], input_ethosu_write_1: T.Buffer[(1, 8, 6, 16), "int8"]) -> None:
+    def main(placeholder_3: T.Buffer((192,), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 6, 16), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = T.Buffer([160], "uint8")

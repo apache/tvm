@@ -15,9 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Configuration of TVMScript printer"""
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional, Sequence
 
-from tvm._ffi import register_object
+from tvm._ffi import get_global_func, register_object
 from tvm.runtime import Object
 
 from . import _ffi_node_api
@@ -28,9 +28,10 @@ from .object_path import ObjectPath
 class PrinterConfig(Object):
     """Configuration of TVMScript printer"""
 
+    binding_names: Sequence[str]
+    show_meta: bool
     ir_prefix: str
     tir_prefix: str
-    relax_prefix: str
     buffer_dtype: str
     int_dtype: str
     float_dtype: str
@@ -47,9 +48,10 @@ class PrinterConfig(Object):
     def __init__(
         self,
         *,
+        name: Optional[str] = None,
+        show_meta: bool = False,
         ir_prefix: str = "I",
         tir_prefix: str = "T",
-        relax_prefix: str = "R",
         buffer_dtype: str = "float32",
         int_dtype: str = "int32",
         float_dtype: str = "void",
@@ -65,30 +67,38 @@ class PrinterConfig(Object):
     ) -> None:
         if num_context_lines is None:
             num_context_lines = -1
+        cfg = {
+            "show_meta": show_meta,
+            "ir_prefix": ir_prefix,
+            "tir_prefix": tir_prefix,
+            "buffer_dtype": buffer_dtype,
+            "int_dtype": int_dtype,
+            "float_dtype": float_dtype,
+            "verbose_expr": verbose_expr,
+            "indent_spaces": indent_spaces,
+            "print_line_numbers": print_line_numbers,
+            "num_context_lines": num_context_lines,
+            "syntax_sugar": syntax_sugar,
+            "path_to_underline": path_to_underline,
+            "path_to_annotate": path_to_annotate,
+            "obj_to_underline": obj_to_underline,
+            "obj_to_annotate": obj_to_annotate,
+        }
+
+        if name is not None:
+            cfg["name"] = name
         self.__init_handle_by_constructor__(
-            _ffi_node_api.PrinterConfig,  # type: ignore # pylint: disable=no-member
-            {
-                "ir_prefix": ir_prefix,
-                "tir_prefix": tir_prefix,
-                "relax_prefix": relax_prefix,
-                "buffer_dtype": buffer_dtype,
-                "int_dtype": int_dtype,
-                "float_dtype": float_dtype,
-                "verbose_expr": verbose_expr,
-                "indent_spaces": indent_spaces,
-                "print_line_numbers": print_line_numbers,
-                "num_context_lines": num_context_lines,
-                "syntax_sugar": syntax_sugar,
-                "path_to_underline": path_to_underline,
-                "path_to_annotate": path_to_annotate,
-                "obj_to_underline": obj_to_underline,
-                "obj_to_annotate": obj_to_annotate,
-            },
+            _ffi_node_api.PrinterConfig, cfg  # type: ignore # pylint: disable=no-member
         )
 
 
 def _script(obj: Object, config: PrinterConfig) -> str:
     return _ffi_node_api.TVMScriptPrinterScript(obj, config)  # type: ignore # pylint: disable=no-member
+
+
+def _relax_script(obj: Object, config: PrinterConfig) -> str:
+    func = get_global_func("script.printer.ReprPrintRelax")
+    return func(obj, config)
 
 
 class Scriptable:
@@ -97,9 +107,10 @@ class Scriptable:
     def script(
         self,
         *,
+        name: Optional[str] = None,
+        show_meta: bool = False,
         ir_prefix: str = "I",
         tir_prefix: str = "T",
-        relax_prefix: str = "R",
         buffer_dtype: str = "float32",
         int_dtype: str = "int32",
         float_dtype: str = "void",
@@ -117,12 +128,15 @@ class Scriptable:
 
         Parameters
         ----------
+        name : Optional[str] = None
+            The name of the object
+        show_meta : bool = False
+            Whether to print the meta data of the object
         ir_prefix : str = "I"
             The prefix of AST nodes from tvm.ir
         tir_prefix : str = "T"
             The prefix of AST nodes from tvm.tir
-        relax_prefix : str = "R"
-            The prefix of AST nodes from tvm.relax
+
         buffer_dtype : str = "float32"
             The default data type of buffer
         int_dtype : str = "int32"
@@ -156,9 +170,10 @@ class Scriptable:
         return _script(
             self,
             PrinterConfig(
+                name=name,
+                show_meta=show_meta,
                 ir_prefix=ir_prefix,
                 tir_prefix=tir_prefix,
-                relax_prefix=relax_prefix,
                 buffer_dtype=buffer_dtype,
                 int_dtype=int_dtype,
                 float_dtype=float_dtype,
@@ -179,9 +194,10 @@ class Scriptable:
         style: Optional[str] = None,
         black_format: bool = True,
         *,
+        name: Optional[str] = None,
+        show_meta: bool = False,
         ir_prefix: str = "I",
         tir_prefix: str = "T",
-        relax_prefix: str = "R",
         buffer_dtype: str = "float32",
         int_dtype: str = "int32",
         float_dtype: str = "void",
@@ -204,12 +220,15 @@ class Scriptable:
             `tvm.script.highlight.cprint` for more details.
         black_format: bool
             If true (default), use the formatter Black to format the TVMScript
+        name : Optional[str] = None
+            The name of the object
+        show_meta : bool = False
+            Whether to print the meta data of the object
         ir_prefix : str = "I"
             The prefix of AST nodes from tvm.ir
         tir_prefix : str = "T"
             The prefix of AST nodes from tvm.tir
-        relax_prefix : str = "R"
-            The prefix of AST nodes from tvm.relax
+
         buffer_dtype : str = "float32"
             The default data type of buffer
         int_dtype : str = "int32"
@@ -241,9 +260,10 @@ class Scriptable:
 
         cprint(
             self.script(
+                name=name,
+                show_meta=show_meta,
                 ir_prefix=ir_prefix,
                 tir_prefix=tir_prefix,
-                relax_prefix=relax_prefix,
                 buffer_dtype=buffer_dtype,
                 int_dtype=int_dtype,
                 float_dtype=float_dtype,

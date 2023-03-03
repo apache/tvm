@@ -22,6 +22,8 @@ import logging
 import os
 import contextlib
 import enum
+from pathlib import Path
+import shutil
 
 from typing import Union
 from .._ffi import libinfo
@@ -104,6 +106,21 @@ def get_microtvm_template_projects(platform: str) -> str:
         raise MicroTVMTemplateProjectNotFoundError()
 
     return os.path.join(microtvm_template_projects, platform)
+
+
+def copy_crt_config_header(platform: str, output_path: Path):
+    """Copy crt_config header file for a platform to destinatin.
+
+    Parameters
+    ----------
+    platform : str
+        Platform type which should be defined in MicroTVMTemplateProject.
+
+    output_path: Path
+        Output path for crt_config header file.
+    """
+    crt_config_path = Path(get_microtvm_template_projects(platform)) / "crt_config" / "crt_config.h"
+    shutil.copy(crt_config_path, output_path)
 
 
 class AutoTvmModuleLoader:

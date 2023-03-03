@@ -51,6 +51,7 @@ class OptimizeLUTs(ExprMutator):
             "contrib.ethosu.conv2d": op.ethosu_conv2d,
             "contrib.ethosu.depthwise_conv2d": op.ethosu_depthwise_conv2d,
             "contrib.ethosu.pooling": op.ethosu_pooling,
+            "contrib.ethosu.binary_elementwise": op.ethosu_binary_elementwise,
         }
 
     def create_op_with_lut(self, call):

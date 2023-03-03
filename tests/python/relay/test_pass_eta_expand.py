@@ -25,7 +25,7 @@ import tvm.relay.transform as _transform
 
 
 def test_eta_expand_global_var():
-    mod = tvm.parser.fromtext(
+    mod = tvm.relay.fromtext(
         r"""
         #[version = "0.0.5"]
         def @aux(%x: Tensor[(), int32]) -> Tensor[(), int32] {
@@ -39,7 +39,7 @@ def test_eta_expand_global_var():
     seq = tvm.transform.Sequential([_transform.EtaExpand(expand_global_var=True)])
     with tvm.transform.PassContext(opt_level=3):
         mod = seq(mod)
-    expected = tvm.parser.fromtext(
+    expected = tvm.relay.fromtext(
         r"""
         #[version = "0.0.5"]
         def @aux(%x: Tensor[(), int32]) -> Tensor[(), int32] {
@@ -56,7 +56,7 @@ def test_eta_expand_global_var():
 
 
 def test_eta_expand_constructor():
-    mod = tvm.parser.fromtext(
+    mod = tvm.relay.fromtext(
         r"""
         #[version = "0.0.5"]
         type List[A] {
@@ -73,7 +73,7 @@ def test_eta_expand_constructor():
     )
     with tvm.transform.PassContext(opt_level=3):
         mod = seq(mod)
-    expected = tvm.parser.fromtext(
+    expected = tvm.relay.fromtext(
         r"""
         #[version = "0.0.5"]
         type List[A] {

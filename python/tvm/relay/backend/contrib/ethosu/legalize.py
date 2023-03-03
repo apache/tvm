@@ -1121,6 +1121,87 @@ class MeanRewriter(DFPatternCallback):
         return reduced_op
 
 
+class SumRewriter(DFPatternCallback):
+    """
+    Convert ethosu.sum composite functions to pooling operations
+    """
+
+    def __init__(self):
+        super().__init__(require_type=True)
+        self.pattern = (
+            wildcard().has_attr({"Composite": ethosu_patterns.SumParams.composite_name})
+        )(wildcard())
+
+    def callback(
+        self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
+    ) -> tvm.relay.Expr:
+
+        params = ethosu_patterns.SumParams(post.op.body)
+
+        ifm_shape = params.ifm.shape
+        ofm_shape = params.ofm.shape
+        lut = relay.const([], "int8")
+        reduced_op = post.args[0]
+
+        # Enforce 4d input
+        if len(ifm_shape) == 3:
+            ifm_shape = [1, params.height, params.width, ifm_shape[2]]
+            reduced_op = relay.reshape(reduced_op, ifm_shape)
+
+        activation_map = {"clip": "CLIP"}
+        if params.activation:
+            activation = activation_map[params.activation.op.name]
+            clip_min = int(params.activation.attrs.a_min)
+            clip_max = int(params.activation.attrs.a_max)
+        else:
+            activation = "NONE"
+            clip_min = 0
+            clip_max = 0
+
+        reduced_op = ethosu_ops.ethosu_pooling(
+            ifm=reduced_op,
+            lut=lut,
+            pooling_type="SUM",
+            ifm_scale=float(params.ifm.q_params.scale_f32),
+            ifm_zero_point=int(params.ifm.q_params.zero_point),
+            ofm_scale=float(params.ofm.q_params.scale_f32),
+            ofm_zero_point=0,
+            pool_shape=(1, 1),
+            ofm_channels=1,
+            activation=activation,
+            clip_min=clip_min,
+            clip_max=clip_max,
+            ifm_layout=params.ifm.layout,
+            ofm_layout=params.ofm.layout,
+            rounding_mode="NATURAL",
+        )
+
+        # Convert tensor dtype from int32 to int8
+        scalar_tensor = relay.const(np.ones([1, 1, 1, 1], dtype="int32"), dtype="int32")
+        reduced_op = ethosu_ops.ethosu_binary_elementwise(
+            ifm=reduced_op,
+            ifm2=scalar_tensor,
+            lut=lut,
+            operator_type="MUL",
+            ifm_scale=0.0,
+            ifm_zero_point=0,
+            ifm2_scale=0.0,
+            ifm2_zero_point=0,
+            ofm_scale=0.0,
+            ofm_zero_point=int(params.ofm.q_params.zero_point),
+            ifm_channels=1,
+            ifm2_channels=1,
+            reversed_operands=False,
+            ofm_dtype="int8",
+        )
+
+        # Reshape to original ofm shape
+        if len(ofm_shape) < 4:
+            reduced_op = relay.reshape(reduced_op, ofm_shape)
+
+        return reduced_op
+
+
 class ConcatRewriter(DFPatternCallback):
     """The newer versions of TFLite converters return a concatenate operator that concatenates
     tensors with same QNN params (if the QNN params of tensors were initially different,
@@ -1443,6 +1524,7 @@ class LegalizeEthosU:
             HardSwishRewriter(),
             LeakyReLURewriter(),
             MeanRewriter(),
+            SumRewriter(),
             ConcatRewriter(),
             SigmoidRewriter(),
             RequantizeRewriter(),

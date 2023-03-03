@@ -117,9 +117,9 @@ def test_block_realize():
     _assert_print(
         obj,
         """
-i = T.var("int32")
-j = T.var("int32")
-k = T.var("int32")
+i = T.int32()
+j = T.int32()
+k = T.int32()
 with T.block("block"):
     vi = T.axis.spatial(128, i)
     vj = T.axis.spatial(64, j)
@@ -248,13 +248,13 @@ for i, j, k in T.grid(128, 128, 128):
 
 def test_let_stmt():
     with IRBuilder() as ib:
-        with T.let(T.var("float32"), T.float32(10)):
+        with T.let(T.float32(), T.float32(10)):
             T.evaluate(0)
     obj = ib.get()
     _assert_print(
         obj,
         """
-v = T.var("float32")
+v = T.float32()
 with T.let(v, T.float32(10)):
     T.evaluate(0)
 """,
@@ -291,14 +291,14 @@ with T.Assert(1, "assertion"):
 
 def test_while():
     with IRBuilder() as ib:
-        x = T.var("int32")
+        x = T.int32()
         with T.While(x < 10):
             T.evaluate(0)
     obj = ib.get()
     _assert_print(
         obj,
         """
-v = T.var("int32")
+v = T.int32()
 while v < 10:
     T.evaluate(0)
 """,
@@ -410,7 +410,7 @@ T.evaluate(1)
 
 def test_if_then_else():
     with IRBuilder() as ib:
-        with T.If(T.var("int32") == 1):
+        with T.If(T.int32() == 1):
             with T.Then():
                 T.evaluate(0)
 
@@ -418,7 +418,7 @@ def test_if_then_else():
     _assert_print(
         obj,
         """
-v = T.var("int32")
+v = T.int32()
 if v == 1:
     T.evaluate(0)
 """,
@@ -458,7 +458,7 @@ def test_var():
     _assert_print(
         a,
         """
-a = T.var("float32")
+a = T.float32()
 a""",
     )
 
@@ -468,7 +468,7 @@ def test_size_var():
     _assert_print(
         a,
         """
-a = T.var("float32")
+a = T.float32()
 a""",
     )
 
@@ -478,7 +478,7 @@ def test_iter_var():
     _assert_print(
         a,
         """
-a = T.var("int32")
+a = T.int32()
 T.iter_var(a, T.Range(0, 8), "DataPar", "")
 """,
     )
@@ -494,7 +494,7 @@ def test_cast():
     _assert_print(
         obj,
         """
-a = T.var("float32")
+a = T.float32()
 T.Cast("float64", a)
 """,
     )
@@ -521,15 +521,15 @@ def test_binary_arith():
         obj = op(a, b)
         if sign.isalpha():
             expected = """
-a = T.var("float32")
-b = T.var("float32")
+a = T.float32()
+b = T.float32()
 T.{}(a, b)""".format(
                 sign
             )
         else:
             expected = """
-a = T.var("float32")
-b = T.var("float32")
+a = T.float32()
+b = T.float32()
 a {} b""".format(
                 sign
             )
@@ -537,28 +537,28 @@ a {} b""".format(
 
 
 def test_logical():
-    a = T.var("bool", "a")
-    b = T.var("bool", "b")
+    a = tir.Var("a", "bool")
+    b = tir.Var("b", "bool")
     _assert_print(
         tir.And(a, b),
         """
-a = T.var("bool")
-b = T.var("bool")
+a = T.bool()
+b = T.bool()
 a and b
 """,
     )
     _assert_print(
         tir.Or(a, b),
         """
-a = T.var("bool")
-b = T.var("bool")
+a = T.bool()
+b = T.bool()
 a or b
 """,
     )
     _assert_print(
         tir.Not(a),
         """
-a = T.var("bool")
+a = T.bool()
 not a
 """,
     )
@@ -579,7 +579,7 @@ def test_ramp():
     _assert_print(
         obj,
         """
-a = T.var("int32")
+a = T.int32()
 T.Ramp(a, 1, 32)
 """,
     )
@@ -601,7 +601,7 @@ def test_let_expr():
     _assert_print(
         obj,
         """
-x = T.var("int32")
+x = T.int32()
 T.let(x, 1, x + 1)
 """,
     )
@@ -674,7 +674,7 @@ def test_prim_type():
 
 def test_pointer_type():
     obj = ir.PointerType(ir.PrimType("int32"), "global")
-    _assert_print(obj, 'T.Ptr("int32", "global")')
+    _assert_print(obj, 'T.handle("int32", "global")')
 
 
 def test_tuple_type():

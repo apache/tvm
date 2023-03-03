@@ -73,7 +73,7 @@ def Move_PUV0(a: T.handle, b: T.handle) -> None:
 @tvm.script.ir_module
 class Fused_NN_Dense:
     @T.prim_func
-    def main(placeholder: T.Buffer[(64, 768), "float32"], placeholder_1: T.Buffer[(768, 768), "float32"], T_matmul_NT: T.Buffer[(64, 768), "float32"]) -> None:
+    def main(placeholder: T.Buffer((64, 768), "float32"), placeholder_1: T.Buffer((768, 768), "float32"), T_matmul_NT: T.Buffer((64, 768), "float32")) -> None:
         for i0, i1, i2 in T.grid(64, 768, 768):
             with T.block("T_matmul_NT"):
                 i, j, k = T.axis.remap("SSR", [i0, i1, i2])
@@ -85,9 +85,9 @@ class Fused_NN_Dense:
 
 @T.prim_func
 def before_matmul_vectorize(
-    placeholder: T.Buffer[(64, 768), "float32"],
-    placeholder_1: T.Buffer[(768, 768), "float32"],
-    T_matmul_NT: T.Buffer[(64, 768), "float32"],
+    placeholder: T.Buffer((64, 768), "float32"),
+    placeholder_1: T.Buffer((768, 768), "float32"),
+    T_matmul_NT: T.Buffer((64, 768), "float32"),
 ) -> None:
     with T.block("root"):
         T.reads()
@@ -115,9 +115,9 @@ def before_matmul_vectorize(
 
 @T.prim_func
 def after_matmul_vectorize(
-    placeholder: T.Buffer[(64, 768), "float32"],
-    placeholder_1: T.Buffer[(768, 768), "float32"],
-    T_matmul_NT: T.Buffer[(64, 768), "float32"],
+    placeholder: T.Buffer((64, 768), "float32"),
+    placeholder_1: T.Buffer((768, 768), "float32"),
+    T_matmul_NT: T.Buffer((64, 768), "float32"),
 ) -> None:
     T_matmul_NT_global = T.alloc_buffer([64, 768], dtype="float32")
     for i0_0, i1_0, i0_1, i1_1 in T.grid(1, 16, 1, 3):

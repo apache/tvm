@@ -22,6 +22,7 @@
 import functools
 import itertools
 import math
+import re
 import sys
 
 import numpy as np
@@ -44,6 +45,7 @@ from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
 from .common import infer_value_simulated as _infer_value_simulated
 from .common import lstm_cell, try_infer_value, unbind, fold_constant
+from .common import set_span
 from .pytorch_utils import is_version_greater_than, getattr_attr_name
 
 __all__ = ["from_pytorch"]
@@ -135,11 +137,15 @@ def _is_int_seq(seq):
 class PyTorchOpConverter:
     """A helper class for holding PyTorch op converters."""
 
-    def __init__(self, prelude, default_dtype):
+    def __init__(self, prelude, default_dtype, use_parser_friendly_name=False):
         self.prelude = prelude
         self.default_dtype = default_dtype
         self.create_convert_map()
         self.types = {}  # map from nodes to (Relay) type annotations
+        self.source_map = {}  # map from graph node to its source name
+        self.op_type_dict = {}  # map from op type to its presenting order
+        self.current_op = []  # stack for recording current processing op
+        self.use_parser_friendly_name = use_parser_friendly_name
 
     # this incrementally infers the type, see the comments on the type visitor
     # above.
@@ -209,6 +215,18 @@ class PyTorchOpConverter:
 
     def infer_shape_with_prelude(self, inputs):
         return self.infer_shape(inputs, mod=self.prelude.mod)
+
+    def is_empty_shape(self, shape):
+        rank = len(shape)
+        if rank:
+            is_empty = False
+            for i in range(rank):
+                if shape[i] == 0:
+                    is_empty = True
+                    break
+            return is_empty
+        else:
+            return True
 
     def record_output_type(self, output):
         if isinstance(output, tuple):
@@ -332,7 +350,10 @@ class PyTorchOpConverter:
         def _get_value(val, dtype):
             # dtype is a tvm dtype
             if isinstance(val, _expr.Expr):
-                inp = _op.cast(val, dtype)
+                # since "arange" op will fill expr into its attribute
+                # invoke set_span here to prevent expr-rewritten occurrs in span-filling stage
+                source_name = self.source_map[self.current_op[-1]]
+                inp = set_span(_op.cast(val, dtype), source_name)
                 ret, _ = try_infer_value(inp, lambda ret: _expr.const(ret, dtype))
             else:
                 ret = _create_typed_const(val, dtype)
@@ -484,7 +505,7 @@ class PyTorchOpConverter:
                     end[dim] = target_end
                 else:
                     target_end = _expr.const(target_end)
-                    end = _op.scatter(
+                    end = _op.scatter_elements(
                         end,
                         _op.expand_dims(_expr.const(dim), axis=0),
                         _op.expand_dims(target_end, axis=0),
@@ -496,7 +517,7 @@ class PyTorchOpConverter:
                 ttype = self.infer_type(target_end).dtype
                 if str(ttype) != axis_dtype:
                     target_end = _op.cast(target_end, axis_dtype)
-                end = _op.scatter(
+                end = _op.scatter_elements(
                     end,
                     _op.expand_dims(_expr.const(dim), axis=0),
                     _op.expand_dims(target_end, axis=0),
@@ -726,6 +747,8 @@ class PyTorchOpConverter:
             size = _op.concatenate(tmp, axis=0)
 
         if not isinstance(fill_value, _expr.Constant):
+            if isinstance(fill_value, _expr.Expr):
+                fill_value = _infer_value(fill_value, {})
             fill_value = _expr.const(fill_value, dtype=dtype)
         out = _op.full(fill_value, size, dtype=dtype)
         if need_reshape:
@@ -1871,70 +1894,77 @@ class PyTorchOpConverter:
         return beta * input + alpha * _op.nn.batch_matmul(batch1, batch2, transpose_b=False)
 
     def matmul(self, inputs, input_types):
+        assert len(inputs) == 2, "Two tensors to be multiplied are expected."
 
-        inputs_0 = inputs[0]
-        inputs_1 = inputs[1]
+        a = inputs[0]
+        b = inputs[1]
 
         # Need to check input shape as batch matmul must be supported.
-        a_shape = self.infer_shape_with_prelude(inputs_0)
-        b_shape = self.infer_shape_with_prelude(inputs_1)
+        a_shape = self.infer_shape_with_prelude(a)
+        b_shape = self.infer_shape_with_prelude(b)
 
-        # When performing a batch matmul, we need to properly handle N-dim shapes.
-        if len(a_shape) > 2 and len(b_shape) > 2:
-            # Convert a into a 3 dimensional tensors.
-            need_reshape_output = False
-            if len(a_shape) != 3:
-                a = _op.reshape(inputs_0, [-1, a_shape[-2], a_shape[-1]])
-                need_reshape_output = True
-            else:
-                a = inputs_0
+        a_ndims = len(a_shape)
+        b_ndims = len(b_shape)
 
-            # Transpose matrix dimensions of b.
-            trans_axes = list(range(len(b_shape)))
-            trans_axes[-2], trans_axes[-1] = trans_axes[-1], trans_axes[-2]
-            b = _op.transpose(inputs_1, trans_axes)
+        # Check if both tensors are at least 1D.
+        if a_ndims == 0 or b_ndims == 0:
+            msg = "Both arguments to matmul must be at least 1D."
+            raise AssertionError(msg)
 
-            # Convert b into a 3 dimensional tensor. Note that the last two dimensions
-            # are transposed.
-            if len(b_shape) != 3:
-                b = _op.reshape(b, [-1, b_shape[-1], b_shape[-2]])
+        # Check if tensors can be multiplied.
+        b_mulaxis = b_shape[-2] if b_ndims > 1 else b_shape[0]
+        if a_shape[-1] != b_mulaxis:
+            msg = "Tensors being multiplied do not have compatible shapes."
+            raise AssertionError(msg)
 
-            # Perform a batch matmul.
-            output = _op.nn.batch_matmul(a, b)
+        # If 1D, remember axis that should be deleted at the end
+        squeeze_dims = []
+        if a_ndims == 1:
+            a = _op.expand_dims(a, axis=0)
+            squeeze_dims += [-2]
+            a_ndims = 2
+            a_shape = (1,) + a_shape
 
-            # Reshape output to original dimensions.
-            if need_reshape_output:
-                return _op.reshape(output, [*a_shape[:-2], a_shape[-2], b_shape[-1]])
-            return output
-        elif len(a_shape) > 2:
-            inputs_0 = _op.reshape(inputs_0, [-1, a_shape[-1]])
-        elif len(a_shape) == 1:
-            return _op.squeeze(_op.nn.matmul(_op.expand_dims(inputs_0, axis=0), inputs_1), axis=[0])
+        if b_ndims == 1:
+            b = _op.expand_dims(b, axis=1)
+            squeeze_dims += [-1]
+            b_ndims = 2
+            b_shape = b_shape + (1,)
 
-        if len(b_shape) > 2:
-            trans_axes = list(range(len(b_shape)))
-            trans_axes[-2], trans_axes[-1] = trans_axes[-1], trans_axes[-2]
-            input_1 = _op.reshape(_op.transpose(inputs_1, trans_axes), [-1, b_shape[-2]])
-        elif len(b_shape) == 2:
-            input_1 = _op.transpose(inputs_1, axes=(1, 0))
-        elif len(b_shape) == 1:
-            input_1 = _op.expand_dims(inputs_1, 0, 1)
+        # Compute result
+        if a_ndims == 2 and b_ndims == 2:
+            # Result is obtained using matmul
+            out = _op.nn.dense(a, _op.transpose(b))
+        else:
+            # Result is obtained using batch_matmul
+            batch_shape = [1] * (max(a_ndims, b_ndims) - 2)
 
-        out = _op.nn.dense(inputs_0, input_1)
+            for i, j in enumerate(reversed(a_shape[:-2])):
+                batch_shape[i] = j
 
-        if len(b_shape) == 1:
-            out = _op.squeeze(out, axis=[-1])
+            for i, j in enumerate(reversed(b_shape[:-2])):
+                # Need to check if axis can be broadcasted
+                if batch_shape[i] == 1 or j == 1 or batch_shape[i] == j:
+                    batch_shape[i] = max(batch_shape[i], j)
+                else:
+                    msg = "Batch dimensions are not broadcastable."
+                    raise AssertionError(msg)
 
-        # Reshape output into a N dimensional tensor when a or b dim > 2
-        if len(a_shape) > 2:
-            out = _op.reshape(out, [*a_shape[:-1], b_shape[-1]])
-        elif len(b_shape) > 2:
-            out = _op.reshape(out, [a_shape[-2], -1, b_shape[-1]])
-            out = _op.reshape(
-                _op.transpose(out, [1, 0, 2]), [*b_shape[:-2], a_shape[-2], b_shape[-1]]
+            batch_shape = batch_shape[::-1]
+
+            a = _op.broadcast_to(a, batch_shape + list(a_shape[-2:]))
+            b = _op.broadcast_to(b, batch_shape + list(b_shape[-2:]))
+
+            out = _op.nn.batch_matmul(
+                _op.reshape(a, [-1, *a_shape[-2:]]),
+                _op.reshape(b, [-1, *b_shape[-2:]]),
+                transpose_b=False,
             )
 
-        return out
+            out_shape = batch_shape + [a_shape[-2]] + [b_shape[-1]]
+            out = _op.reshape(out, out_shape)
+
+        return _op.squeeze(out, axis=squeeze_dims)
 
     def expand(self, inputs, input_types):
         data_in = inputs[0]
@@ -2384,11 +2414,16 @@ class PyTorchOpConverter:
         iou_threshold = inputs[2]
 
         # TVM NMS assumes score > 0
-        scores = scores - _op.min(scores) + _op.const(1.0)
+        # - since there exists multi-comsumers for "scores", "num_boxes"
+        # - invoke set_span here to prevent expr-rewritten occurrs in span-filling stage
+        source_name = self.source_map[self.current_op[-1]]
+        scores = set_span(scores - _op.min(scores) + _op.const(1.0), source_name)
 
-        num_boxes = _op.shape_of(scores)
+        num_boxes = set_span(_op.shape_of(scores), source_name)
         # PyTorch NMS doesn't have score_threshold, so no need to run get_valid_count
-        indices = _op.transform.arange(_op.squeeze(num_boxes), dtype="int32")
+        # - since "arange" op will fill expr into its attribute
+        # - invoke set_span here to prevent expr-rewritten occurrs in span-filling stage
+        indices = _op.transform.arange(set_span(_op.squeeze(num_boxes), source_name), dtype="int32")
         indices = _op.expand_dims(indices, 0, 1)
 
         # Generate data with shape (1, num_anchors, 5)
@@ -2533,11 +2568,62 @@ class PyTorchOpConverter:
         return self.nonzero(inputs, input_types, is_numpy_style=False)
 
     def scatter(self, inputs, input_types):
+        assert len(inputs) == 4 or len(inputs) == 5, (
+            "scatter takes 4 or 5 inputs: data, dim, index, src, reduce (optional), "
+            + "but {} given".format(len(inputs))
+        )
         data = inputs[0]
         axis = int(inputs[1])
         index = inputs[2]
         src = inputs[3]
-        return _op.transform.scatter(data, index, src, axis)
+        if len(inputs) == 5:
+            reduce = inputs[4]
+        else:
+            reduce = "update"
+
+        data_shape = self.infer_shape(data)
+        data_rank = len(data_shape)
+        index_shape = self.infer_shape(index)
+        index_rank = len(index_shape)
+        # When index is empty, the operation returns data unchanged
+        if self.is_empty_shape(index_shape):
+            return data
+
+        if np.isscalar(src):
+            assert self.infer_type(src).dtype == "float", "Scalar source can be float only"
+            src = _op.broadcast_to_like(src, data_shape)
+            src_shape = data_shape
+        else:
+            src_shape = self.infer_shape(src)
+        src_rank = len(src_shape)
+        assert data_rank == index_rank, "Index rank is not the same as data rank"
+        assert data_rank == src_rank, "Src rank is not the same as data rank"
+
+        assert 0 <= axis < data_rank, "Dim is out of bounds"
+
+        for i in range(data_rank):
+            index_dim = index_shape[i]
+            src_dim = src_shape[i]
+            data_dim = data_shape[i]
+            # Skip check for dynamic dimensions
+            if not any([isinstance(index_dim, tvm.tir.Any), isinstance(src_dim, tvm.tir.Any)]):
+                assert index_dim <= src_dim, "Index dim size should be less than src one"
+            if i != axis and not any(
+                [isinstance(index_dim, tvm.tir.Any), isinstance(data_dim, tvm.tir.Any)]
+            ):
+                assert index_dim <= data_dim, "Index dim size should be less than data one"
+
+        if reduce is None:
+            reduce = "update"
+        elif reduce == "multiply":
+            reduce = "mul"
+        assert reduce in [
+            "update",
+            "add",
+            "mul",
+        ], 'reduce arg is expected from "add", "multiply" or None'
+
+        return _op.scatter_elements(data, index, src, axis, reduce)
 
     def index_put(self, inputs, input_types):
         in_tensor = inputs[0]
@@ -2550,7 +2636,7 @@ class PyTorchOpConverter:
             mode = "add"
         # Combine array of index tensors into one index tensor with shape (N,_)
         index_tensor = _op.stack(indices, axis=0)
-        return _op.transform.scatter_nd(in_tensor, index_tensor, values, mode)
+        return _op.scatter_nd(in_tensor, index_tensor, values, mode)
 
     def scalar_tensor(self, inputs, input_types):
         data = inputs[0]
@@ -2664,18 +2750,91 @@ class PyTorchOpConverter:
             updates = _op.ones_like(data)
 
         counts = _op.zeros(_op.reshape(dim, [1]), out_dtype)
-        out = _op.scatter_add(counts, data, updates, axis=0)
+        out = _op.scatter_elements(counts, data, updates, axis=0, reduction="add")
         if input_type == "int32":
             # Torch always outputs int64 results for bincount
             return _op.cast(out, "int64")
         return out
 
     def scatter_add(self, inputs, input_types):
+        assert (
+            len(inputs) == 4
+        ), "scatter_add takes 4 inputs (data, dim, index, src), but {} given".format(len(inputs))
         data = inputs[0]
         axis = inputs[1]
         index = inputs[2]
         src = inputs[3]
-        return _op.scatter_add(data, index, src, axis=axis)
+
+        data_shape = self.infer_shape(inputs[0])
+        data_rank = len(data_shape)
+        index_shape = self.infer_shape(inputs[2])
+        index_rank = len(index_shape)
+        # When index is empty, the operation returns data unchanged
+        if self.is_empty_shape(index_shape):
+            return data
+        src_shape = self.infer_shape(inputs[3])
+        src_rank = len(src_shape)
+        assert data_rank == index_rank, "Index rank is not the same as data rank"
+        assert data_rank == src_rank, "Src rank is not the same as data rank"
+
+        assert 0 <= axis < data_rank, "Dim is out of bounds"
+
+        for i in range(data_rank):
+            assert index_shape[i] <= src_shape[i], "Index dim size should be less than src one"
+            if i != axis:
+                assert (
+                    index_shape[i] <= data_shape[i]
+                ), "Index dim size should be less than data one"
+
+        return _op.scatter_elements(data, index, src, axis=axis, reduction="add")
+
+    def scatter_reduce(self, inputs, input_types):
+        assert len(inputs) == 5 or len(inputs) == 6, (
+            "scatter_reduce takes 5 or 6 inputs (data, dim, index, src, reduce, include_self), "
+            + "but {} given".format(len(inputs))
+        )
+        data = inputs[0]
+        dim = inputs[1]
+        index = inputs[2]
+        src = inputs[3]
+        reduce = inputs[4]
+        if len(inputs) == 6:
+            include_self = inputs[5]
+            # TODO(vvchernov): support include_self == False
+            assert include_self, "include_self=False has not been suppoted for scatter_reduce yet"
+
+        data_shape = self.infer_shape(inputs[0])
+        data_rank = len(data_shape)
+        index_shape = self.infer_shape(inputs[2])
+        index_rank = len(index_shape)
+        src_shape = self.infer_shape(inputs[3])
+        src_rank = len(src_shape)
+        assert data_rank == index_rank, "Index rank is not the same as data rank"
+        assert data_rank == src_rank, "Src rank is not the same as data rank"
+
+        assert 0 <= dim < data_rank, "Dim is out of bounds"
+
+        for i in range(data_rank):
+            assert index_shape[i] <= src_shape[i], "Index dim size should be less than src one"
+            if i != dim:
+                assert (
+                    index_shape[i] <= data_shape[i]
+                ), "Index dim size should be less than data one"
+
+        red_valids = ["sum", "prod", "mean", "amax", "amin"]
+        assert reduce in red_valids, "Only {} modes are supported, but {} is gotten".format(
+            red_valids, reduce
+        )
+        if reduce == "sum":
+            reduce = "add"
+        elif reduce == "prod":
+            reduce = "mul"
+        elif reduce == "amin":
+            reduce = "min"
+        elif reduce == "amax":
+            reduce = "max"
+
+        return _op.scatter_elements(data, index, src, axis=dim, reduction=reduce)
 
     def cumsum(self, inputs, input_types):
         data = inputs[0]
@@ -3778,6 +3937,8 @@ class PyTorchOpConverter:
             "aten::nonzero": self.nonzero,
             "aten::nonzero_numpy": self.nonzero_numpy,
             "aten::scatter": self.scatter,
+            "aten::scatter_add": self.scatter_add,
+            "aten::scatter_reduce": self.scatter_reduce,
             "aten::index_put": self.index_put,
             "aten::scalar_tensor": self.scalar_tensor,
             "aten::__interpolate": self.interpolate,
@@ -3789,7 +3950,6 @@ class PyTorchOpConverter:
             "aten::new_empty": self.new_empty,
             "aten::randn": self.randn,
             "aten::bincount": self.bincount,
-            "aten::scatter_add": self.scatter_add,
             "aten::__not__": self.logical_not,
             "aten::hardswish": self.hard_swish,
             "aten::hardsigmoid": self.hard_sigmoid,
@@ -3862,7 +4022,12 @@ class PyTorchOpConverter:
 
     def convert_block(self, block, outputs):
         """Translate Torch "Block", used for prim::If and prim::Loop"""
-        ops = _get_operator_nodes(block.nodes())
+        ops = _get_operator_nodes(
+            block.nodes(),
+            self.source_map,
+            self.op_type_dict,
+            self.use_parser_friendly_name,
+        )
         ret_names = _get_input_names(block.returnNode())
         return self.convert_operators(ops, outputs, ret_names)
 
@@ -3933,13 +4098,19 @@ class PyTorchOpConverter:
                             actual_shape.append(Any())
                         else:
                             actual_shape.append(dim)
-                    return _expr.var(name, shape=actual_shape, dtype=checked_type.dtype)
+                    expr = _expr.var(name, shape=actual_shape, dtype=checked_type.dtype)
                 else:
-                    return _expr.var(name, type_annotation=checked_type)
+                    expr = _expr.var(name, type_annotation=checked_type)
+                return set_span(expr, val.span) if val.span else expr
             return _expr.var(name)
 
-        loop_iter_var = _expr.var(block_input_names[0], shape=(), dtype=loop_iter_dtype)
-        loop_vars = [get_var(name, val) for name, val in name_val_pairs[1:]]
+        source_name = self.source_map[loop_node]
+        loop_iter_var = set_span(
+            _expr.var(block_input_names[0], shape=(), dtype=loop_iter_dtype), span=source_name
+        )
+        loop_vars = set_span(
+            [get_var(name, val) for name, val in name_val_pairs[1:]], span=source_name
+        )
 
         # Add non constant free variables to loop variables to prevent code blow up
         # Without this, if there are two for loops in a row, which often happens
@@ -3962,7 +4133,7 @@ class PyTorchOpConverter:
             prev_output = outputs[name]
             new_loop_var = get_var(name, prev_output)
             prev_outputs[name] = prev_output
-            outputs[name] = new_loop_var
+            outputs[name] = set_span(new_loop_var, source_name)
             loop_vars.append(new_loop_var)
             init_vals.append(prev_output)
 
@@ -4010,11 +4181,17 @@ class PyTorchOpConverter:
         for node_name, op_node in operators:
             operator = op_node.kind()
             inputs = _get_op_inputs(op_node, outputs)
+            # we need to record what current operator is to provide correct source name
+            # for operators needed to be taken care with (e.g. nms / arange ...)
+            self.current_op.append(op_node)
 
             if operator == "prim::Constant":
                 outputs[node_name] = _get_constant(op_node)
             elif operator == "prim::ListConstruct" and _should_construct_dynamic_list(op_node):
-                outputs[node_name] = self.convert_to_list_adt(inputs)
+                outputs[node_name] = set_span(
+                    self.convert_to_list_adt(inputs),
+                    self.source_map[op_node],
+                )
             elif operator == "prim::ListConstruct":
                 # This assumes that no more elements will be appended to this list
                 # In this case, we keep the Python list
@@ -4031,25 +4208,30 @@ class PyTorchOpConverter:
                             inputs_list.append(inputs[i])
                     return _expr.Tuple(inputs_list)
 
-                outputs[node_name] = _handel_nested_input(inputs)
+                outputs[node_name] = set_span(
+                    _handel_nested_input(inputs),
+                    self.source_map[op_node],
+                )
             elif operator in ["prim::ListUnpack", "prim::TupleUnpack"]:
                 assert len(inputs) == 1
                 if isinstance(inputs[0], (list, _expr.TupleWrapper)):
                     unpacked = inputs[0]
                 else:
                     unpacked = _unpack_tuple(inputs[0])
-                outputs.update(zip(_get_output_names(op_node), unpacked))
+                outputs.update(
+                    zip(_get_output_names(op_node), set_span(unpacked, self.source_map[op_node]))
+                )
             elif operator == "prim::prim::RaiseException":
                 logger.warning("raising exceptions is ignored")
                 outputs[node_name] = None
             elif operator == "prim::If":
                 if_out = self.convert_if(op_node, outputs)
-                outputs[node_name] = if_out
+                outputs[node_name] = set_span(if_out, self.source_map[op_node])
             elif operator == "prim::Loop":
                 loop_out = self.convert_loop(op_node, outputs)
                 unpacked_names = _get_output_names(op_node)
                 assert len(loop_out) == len(unpacked_names)
-                outputs.update(zip(unpacked_names, loop_out))
+                outputs.update(zip(unpacked_names, set_span(loop_out, self.source_map[op_node])))
             else:
                 if operator not in self.convert_map:
                     # At this point, the only possible ops that are not in convert_map are
@@ -4064,9 +4246,14 @@ class PyTorchOpConverter:
                 else:
                     relay_op = self.convert_map[operator]
 
+                self._set_parameter_source_name(op_node, outputs)
                 relay_out = relay_op(
-                    inputs, _get_input_types(op_node, outputs, default_dtype=self.default_dtype)
+                    # since the elements in "outputs" may change due to span-filling process
+                    # we have to call "_get_op_inputs" again rather than use "inputs" directly
+                    _get_op_inputs(op_node, outputs),
+                    _get_input_types(op_node, outputs, default_dtype=self.default_dtype),
                 )
+                relay_out = set_span(relay_out, self.source_map[op_node])
                 self.record_output_type(relay_out)
 
                 if isinstance(relay_out, tuple):
@@ -4078,7 +4265,27 @@ class PyTorchOpConverter:
                     assert op_node.outputsSize() == 1
                     outputs[node_name] = relay_out
 
+            self.current_op.pop()
+
         return [_wrap_const(outputs[ret_name]) for ret_name in ret_names]
+
+    def _set_parameter_source_name(self, op_node, outputs):
+        """A helper function to rewrite source_name of parameter."""
+        for name in _get_input_names(op_node):
+            expr = outputs[name]
+            if isinstance(expr, (_expr.Var, _expr.Constant)):
+                name_sep = "_" if self.use_parser_friendly_name else "."
+                source_name = [self.source_map[op_node]]
+                if isinstance(expr, _expr.Var):
+                    # variable name should have contained node source name
+                    # for op with attributes in convert_params stage
+                    # e.g. "aten::batch_norm_5.running_mean"
+                    if expr.name_hint.startswith(source_name[0]):
+                        source_name[0] = expr.name_hint
+                    else:
+                        source_name.append(expr.name_hint)
+                new_expr = set_span(expr, name_sep.join(source_name))
+                outputs[name] = new_expr
 
 
 def _pytorch_result_type(dtypes, non_tensor_inputs):
@@ -4347,13 +4554,67 @@ def _get_constant(node):
         return None
 
 
-def _get_operator_nodes(nodes):
+def _rename_outputs(node, source_map, op_type_dict, use_parser_friendly_name):
+    """Rewrite debug name of node outputs with its operator type"""
+
+    def _get_source_name(op_type):
+        op_idx = 0
+        if op_type in op_type_dict:
+            op_idx = op_type_dict[op_type] + 1
+        op_type_dict[op_type] = op_idx
+        return "_".join([op_type, str(op_idx)])
+
+    # get source name of operator and rename all of its outputs
+    # e.g. node.kind(): aten::adaptive_max_pool2d
+    # node_src_name -> aten::adaptive_max_pool2d_x
+    # output_1 -> aten::adaptive_max_pool2d_x_0
+    # output_2 -> aten::adaptive_max_pool2d_x_1
+    if node.kind() != "prim::GetAttr":
+        node_src_name = _get_source_name(node.kind())
+        for index, output in enumerate(node.outputs()):
+            output.setDebugName("_".join([node_src_name, str(index)]))
+        # update source map
+        # if use_parser_friendly_name is True: e.g. prim::Constant_0 -> prim__Constant_0
+        if use_parser_friendly_name:
+            node_src_name = re.sub(r":|\.", "_", node_src_name)
+        source_map[node] = node_src_name
+
+
+def _debug_rename(graph, use_parser_friendly_name):
+    """Returns map between node and source name"""
+    source_map, op_type_dict = {}, {}
+    prim_with_blocks = ["prim::If", "prim::Loop"]
+
+    def _traverse_graph(nodes):
+        for node in nodes:
+            if node.outputsSize() == 0:
+                continue
+            if node.kind() in prim_with_blocks:
+                for block in node.blocks():
+                    _traverse_graph(block.nodes())
+            _rename_outputs(node, source_map, op_type_dict, use_parser_friendly_name)
+
+    _traverse_graph(graph.nodes())
+    return source_map
+
+
+def _get_operator_nodes(
+    nodes,
+    source_map=None,
+    op_type_dict=None,
+    use_parser_friendly_name=False,
+):
     """Returns torch IR nodes that need conversion to Relay"""
-    ops = []
+    ops, should_rename_graph = [], all([source_map, op_type_dict]) is not None
+
     # Traverse nodes and add to graph
     for node in nodes:
         if node.outputsSize() == 0:
             continue
+
+        if should_rename_graph:
+            _rename_outputs(node, source_map, op_type_dict, use_parser_friendly_name)
+
         if node.outputsSize() > 1:
             node_name = "_".join(_get_output_names(node))
         else:
@@ -4524,7 +4785,7 @@ def get_attr_chains(root_getattr_node):
     return get_use_chains(root_getattr_node, terminate)
 
 
-def convert_params(graph, state_dict, use_parser_friendly_name=False):
+def convert_params(graph, state_dict, source_map, use_parser_friendly_name=False):
     """
     Return Relay vars and TVM NDArrays for input parameters
     A chain of prim::GetAttr nodes is processed one at a time
@@ -4533,6 +4794,7 @@ def convert_params(graph, state_dict, use_parser_friendly_name=False):
     params = {}
     param_tensors = {}
     packed_param_map = {}
+    param_debug_name_map = {}
     vars_by_name = {}
     seen = set()
     attr_name_sep = "_" if use_parser_friendly_name else "."
@@ -4546,20 +4808,30 @@ def convert_params(graph, state_dict, use_parser_friendly_name=False):
 
             full_attr = _getattr_full_name(getattrs, attr_name_sep)
             full_attr_node_name = _get_output_name(getattrs[-1])
+            # set variable name by concatenating first consumer's name with full attribute
+            # e.g. "aten::batch_norm_5.running_mean"
+            var_name = attr_name_sep.join(
+                [
+                    source_map[_get_users(getattrs[-1])[0]],
+                    full_attr.split(attr_name_sep)[-1],
+                ]
+            )
 
             if full_attr.endswith("_packed_params"):  # for quantized models
                 packed_param_map[full_attr_node_name] = full_attr
             elif full_attr in state_dict:
-                if full_attr in vars_by_name:
-                    var = vars_by_name[full_attr]
+                if var_name in vars_by_name:
+                    var = vars_by_name[var_name]
                 else:
                     torch_tensor = state_dict[full_attr]
-                    tensor, var = _get_tensor_and_var(torch_tensor, full_attr)
-                    param_tensors[full_attr] = tensor
-                    vars_by_name[full_attr] = var
+                    tensor, var = _get_tensor_and_var(torch_tensor, var_name)
+                    param_tensors[var_name] = tensor
+                    # for quantized parameters to be correctly located
+                    param_debug_name_map[full_attr_node_name] = var_name
+                    vars_by_name[var_name] = var
                 params[full_attr_node_name] = var
 
-    return params, param_tensors, packed_param_map
+    return params, param_tensors, packed_param_map, param_debug_name_map
 
 
 def get_all_op_names(graph):
@@ -4574,6 +4846,19 @@ def get_all_op_names(graph):
     return set(node.kind() for node in nodes)
 
 
+def export_c_graph(location, graph):
+    """Convert the graph to an onnx model and export it to the location."""
+    import datetime
+    import os
+
+    if not os.path.exists(location):
+        os.makedirs(location)
+    time_stamp = datetime.datetime.now().strftime("%m_%d_%Y_%H_%M_%S")
+    fname = os.path.join(location, "tvm_exported_c_graph_{}.txt".format(time_stamp))
+    with open(f"{fname}", "w") as f:
+        f.write(str(graph))
+
+
 def from_pytorch(
     script_module,
     input_infos,
@@ -4581,6 +4866,7 @@ def from_pytorch(
     default_dtype="float32",
     use_parser_friendly_name=False,
     keep_quantized_weight=False,
+    export_renamed_c_graph_path=None,
 ):
     """Load PyTorch model in the form of a scripted PyTorch model and convert into relay.
     The companion parameters will be handled automatically.
@@ -4623,6 +4909,11 @@ def from_pytorch(
         we quantize weights in the frontend using a function that is equivalent to
         qnn.op.quantize(...) operating on Numpy arrays.
 
+    export_renamed_c_graph_path : str, optional
+        Export the renamed torch._C.Graph to the path.
+        During the conversion, variable names in torch._C.Graph will be assigned based on their op
+        types. The exported text file can be the reference to spans.
+
     Returns
     -------
     mod : tvm.IRModule
@@ -4637,7 +4928,7 @@ def from_pytorch(
     prelude = Prelude(mod)
     enable_lower_all_tuples = True
 
-    converter = PyTorchOpConverter(prelude, default_dtype)
+    converter = PyTorchOpConverter(prelude, default_dtype, use_parser_friendly_name)
 
     graph = script_module.graph.copy()
 
@@ -4666,12 +4957,16 @@ def from_pytorch(
         new_names = [key.replace(".", "_") for key in params.keys()]
         params = dict(zip(new_names, params.values()))
 
-    param_vars, tensors, packed_param_map = convert_params(graph, params, use_parser_friendly_name)
+    # rename _C.Graph here for constructing meaningful source name of graph nodes
+    # by doing so, we could Use source_map as the reference to rename model parameters
+    source_map = _debug_rename(graph, use_parser_friendly_name)
+    param_vars, tensors, packed_param_map, param_debug_name_map = convert_params(
+        graph, params, source_map, use_parser_friendly_name
+    )
 
     tvm_params = {k: tvm.nd.array(v) for k, v in tensors.items()}
 
     outputs.update(param_vars)
-    ret_name = _get_input_names(graph.return_node())
 
     # For quantized models
     quantized_ops = set(["aten::quantize_per_tensor", "quantized::linear_dynamic"])
@@ -4679,7 +4974,7 @@ def from_pytorch(
         weight_quant_params = qnn_torch.get_weight_quant_params(
             script_module, packed_param_map.values()
         )
-        qnn_torch.inline_input_quant_params_for_fx(graph, tensors)
+        qnn_torch.inline_input_quant_params_for_fx(graph, tensors, param_debug_name_map)
         input_scales_for_bias = qnn_torch.add_input_quant_params_to_op_inputs(graph)
         qnn_torch.add_quant_params_to_outputs(
             outputs,
@@ -4691,7 +4986,14 @@ def from_pytorch(
         qnn_torch.add_quant_params(tvm_params, weight_quant_params)
         converter.update_convert_map(qnn_torch.convert_map)
 
-    outputs = converter.convert_operators(_get_operator_nodes(graph.nodes()), outputs, ret_name)
+    operator_nodes = _get_operator_nodes(
+        graph.nodes(),
+        converter.source_map,
+        converter.op_type_dict,
+        use_parser_friendly_name,
+    )
+    ret_name = _get_input_names(graph.return_node())
+    outputs = converter.convert_operators(operator_nodes, outputs, ret_name)
 
     # ListConstruct kept original python list. Convert to tuple.
     outputs = [_expr.Tuple(output) if isinstance(output, list) else output for output in outputs]
@@ -4712,5 +5014,8 @@ def from_pytorch(
     func_args = data_inputs + func_args
 
     mod["main"] = tvm.relay.Function(func_args, ret)
+
+    if export_renamed_c_graph_path:
+        export_c_graph(export_renamed_c_graph_path, graph)
 
     return transform.RemoveUnusedFunctions()(mod), tvm_params

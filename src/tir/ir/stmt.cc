@@ -507,6 +507,12 @@ BufferStore::BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
       << "Cannot store value with " << value.dtype().lanes() << ", expected value with "
       << index_lanes * buffer_lanes << " (" << index_lanes << " index lanes * " << buffer_lanes
       << " buffer element lanes)";
+  if (buffer->dtype.with_lanes(buffer_lanes * index_lanes) != value.dtype()) {
+    LOG(FATAL) << "TypeError: dtype mismatch on BufferStore: "      //
+               << "buffer's dtype is `" << buffer->dtype            //
+               << "`, the lanes of indexing are: `" << index_lanes  //
+               << "`, but RHS's dtype is `" << value.dtype() << "`";
+  }
 
   ObjectPtr<BufferStoreNode> node = make_object<BufferStoreNode>();
   node->buffer = std::move(buffer);
@@ -686,7 +692,9 @@ PrimExpr TypeAnnotation(DataType dtype, Span span) {
 }
 
 TVM_TIR_REGISTER_OP("type_annotation")
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
+    .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
+                                         Integer(ScriptDtypePrintLocation::kFirst));
 
 }  // namespace tir
 }  // namespace tvm

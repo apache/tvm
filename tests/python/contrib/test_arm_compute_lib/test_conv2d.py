@@ -294,7 +294,29 @@ def _get_expected_codegen(
     return inputs
 
 
-def test_conv2d():
+@pytest.mark.parametrize(
+    "trial",
+    [
+        # Normal convolution
+        [2, 2, (1, 1), (1, 1), (1, 1), 4, (10, 10, 14), (False, False, False), False],
+        [2, 1, (2, 2), (1, 1), (1, 1), 7, (12, 15, 16), (False, False, True), False],
+        [3, 3, (2, 1), (1, 1), (1, 1), 4, (10, 10, 14), (False, True, False), False],
+        [3, 3, (1, 1), (1, 1), (1, 1), 16, (12, 15, 16), (False, False, False), False],
+        [5, 5, (1, 1), (2, 2), (1, 1), 4, (10, 10, 14), (True, False, False), False],
+        [1, 3, (1, 1), (1, 1), (1, 1), 7, (20, 20, 20), (False, False, True), False],
+        [2, 2, (2, 2), (1, 1), (1, 1), 4, (20, 20, 20), (False, True, False), False],
+        [5, 5, (1, 1), (2, 2), (1, 1), 4, (10, 10, 14), (True, False, False), False],
+        [3, 3, (2, 1), (1, 1), (1, 1), 7, (20, 20, 20), (False, False, False), False],
+        [3, 3, (1, 1), (2, 2), (1, 1), 16, (10, 10, 14), (False, True, True), False],
+        # Depth-wise convolution
+        [3, 3, (1, 1), (1, 1), (1, 1), 20, (20, 20, 20), (False, False, True), True],
+        [5, 5, (2, 2), (1, 1), (1, 1), 20, (20, 20, 20), (False, True, False), True],
+        [3, 3, (2, 2), (2, 2), (1, 1), 14, (10, 10, 14), (True, False, False), True],
+        [5, 5, (0, 0), (1, 1), (1, 1), 20, (20, 20, 20), (False, False, False), True],
+        [3, 3, (1, 1), (2, 2), (1, 1), 14, (10, 10, 14), (False, True, True), True],
+    ],
+)
+def test_conv2d(trial):
     Device.load("test_config.json")
 
     if skip_runtime_test():
@@ -304,7 +326,63 @@ def test_conv2d():
     np.random.seed(0)
 
     dtype = "float32"
-    trials = [
+
+    (
+        kernel_h,
+        kernel_w,
+        pad,
+        stride,
+        dilation,
+        out_channels,
+        shape,
+        composite,
+        is_depthwise,
+    ) = trial
+    shape = (1, *shape)
+    if is_depthwise:
+        groups = shape[3]
+    else:
+        groups = 1
+    outputs = []
+    inputs = {
+        "a": tvm.nd.array(np.random.uniform(-128, 127, shape).astype(dtype)),
+    }
+
+    func, params = _get_model(
+        shape,
+        kernel_h,
+        kernel_w,
+        pad,
+        stride,
+        dilation,
+        groups,
+        dtype,
+        out_channels,
+        iter(inputs),
+        has_pad=composite[0],
+        has_bias=composite[1],
+        has_activation=composite[2],
+    )
+    # Generate results for ACL conv2d and TVM native conv2d for comparison
+    for acl in [False, True]:
+        outputs.append(build_and_run(func, inputs, 1, params, device, enable_acl=acl)[0])
+
+    config = {
+        "shape": shape,
+        "groups": groups,
+        "kernel size": (kernel_h, kernel_w),
+        "padding": pad,
+        "stride": stride,
+        "dilation": dilation,
+        "out channels": out_channels,
+        "composite operators (pad, bias, activation)": composite,
+    }
+    verify(outputs, atol=0.002, rtol=0.01, config=config)
+
+
+@pytest.mark.parametrize(
+    "trial",
+    [
         # Normal convolution
         [2, 2, (1, 1), (1, 1), (1, 1), 4, (10, 10, 14), (False, False, False), False],
         [2, 1, (2, 2), (1, 1), (1, 1), 7, (12, 15, 16), (False, False, True), False],
@@ -322,66 +400,48 @@ def test_conv2d():
         [3, 3, (2, 2), (2, 2), (1, 1), 14, (10, 10, 14), (True, False, False), True],
         [5, 5, (0, 0), (1, 1), (1, 1), 20, (20, 20, 20), (False, False, False), True],
         [3, 3, (1, 1), (2, 2), (1, 1), 14, (10, 10, 14), (False, True, True), True],
-    ]
-
-    for (
-        kernel_h,
-        kernel_w,
-        pad,
-        stride,
-        dilation,
-        out_channels,
-        shape,
-        composite,
-        is_depthwise,
-    ) in trials:
-        shape = (1, *shape)
-        if is_depthwise:
-            groups = shape[3]
-        else:
-            groups = 1
-        outputs = []
-        inputs = {
-            "a": tvm.nd.array(np.random.uniform(-128, 127, shape).astype(dtype)),
-        }
-
-        func, params = _get_model(
-            shape,
-            kernel_h,
-            kernel_w,
-            pad,
-            stride,
-            dilation,
-            groups,
-            dtype,
-            out_channels,
-            iter(inputs),
-            has_pad=composite[0],
-            has_bias=composite[1],
-            has_activation=composite[2],
-        )
-        for acl in [False, True]:
-            outputs.append(build_and_run(func, inputs, 1, params, device, enable_acl=acl)[0])
-
-        config = {
-            "shape": shape,
-            "groups": groups,
-            "kernel size": (kernel_h, kernel_w),
-            "padding": pad,
-            "stride": stride,
-            "dilation": dilation,
-            "out channels": out_channels,
-            "composite operators (pad, bias, activation)": composite,
-        }
-        verify(outputs, atol=0.002, rtol=0.01, config=config)
-
-
-def test_codegen_conv2d():
+    ],
+)
+def test_codegen_conv2d(trial):
     if skip_codegen_test():
         return
 
     dtype = "float32"
-    trials = [
+
+    (
+        kernel_h,
+        kernel_w,
+        pad,
+        stride,
+        dilation,
+        out_channels,
+        shape,
+        composite,
+        is_depthwise,
+    ) = trial
+    shape = (1, *shape)
+    if is_depthwise:
+        groups = shape[3]
+    else:
+        groups = 1
+    inputs = {"a"}
+
+    args = (shape, kernel_h, kernel_w, pad, stride, dilation, groups, dtype, out_channels)
+
+    func, params = _get_model(
+        *args,
+        var_names=iter(inputs),
+        has_pad=composite[0],
+        has_bias=composite[1],
+        has_activation=composite[2],
+    )
+    exp_codegen = _get_expected_codegen(*args, has_bias=composite[1], has_activation=composite[2])
+    verify_codegen(func, exp_codegen, 1)
+
+
+@pytest.mark.parametrize(
+    "trial",
+    [
         # Normal convolution
         [2, 2, (1, 1), (1, 1), (1, 1), 4, (10, 10, 14), (False, False, False), False],
         [2, 1, (2, 2), (1, 1), (1, 1), 7, (12, 15, 16), (False, False, True), False],
@@ -399,43 +459,10 @@ def test_codegen_conv2d():
         [3, 3, (2, 2), (2, 2), (1, 1), 14, (10, 10, 14), (True, False, False), True],
         [5, 5, (0, 0), (1, 1), (1, 1), 20, (20, 20, 20), (False, False, False), True],
         [3, 3, (1, 1), (2, 2), (1, 1), 14, (10, 10, 14), (False, True, True), True],
-    ]
-
-    for (
-        kernel_h,
-        kernel_w,
-        pad,
-        stride,
-        dilation,
-        out_channels,
-        shape,
-        composite,
-        is_depthwise,
-    ) in trials:
-        shape = (1, *shape)
-        if is_depthwise:
-            groups = shape[3]
-        else:
-            groups = 1
-        inputs = {"a"}
-
-        args = (shape, kernel_h, kernel_w, pad, stride, dilation, groups, dtype, out_channels)
-
-        func, params = _get_model(
-            *args,
-            var_names=iter(inputs),
-            has_pad=composite[0],
-            has_bias=composite[1],
-            has_activation=composite[2],
-        )
-        exp_codegen = _get_expected_codegen(
-            *args, has_bias=composite[1], has_activation=composite[2]
-        )
-        verify_codegen(func, exp_codegen, 1)
-
-
+    ],
+)
 @pytest.mark.parametrize("dtype", QNN_DTYPES)
-def test_qnn_conv2d(dtype):
+def test_qnn_conv2d(trial, dtype):
     Device.load("test_config.json")
 
     if skip_runtime_test():
@@ -444,27 +471,7 @@ def test_qnn_conv2d(dtype):
     device = Device()
     np.random.seed(0)
 
-    trials = [
-        # Normal convolution
-        [2, 2, (1, 1), (1, 1), (1, 1), 4, (10, 10, 14), (False, False, False), False],
-        [2, 1, (2, 2), (1, 1), (1, 1), 7, (12, 15, 16), (False, False, True), False],
-        [3, 3, (2, 1), (1, 1), (1, 1), 4, (10, 10, 14), (False, True, False), False],
-        [3, 3, (1, 1), (1, 1), (1, 1), 16, (12, 15, 16), (False, False, False), False],
-        [5, 5, (1, 1), (2, 2), (1, 1), 4, (10, 10, 14), (True, False, False), False],
-        [1, 3, (1, 1), (1, 1), (1, 1), 7, (20, 20, 20), (False, False, True), False],
-        [2, 2, (2, 2), (1, 1), (1, 1), 4, (20, 20, 20), (False, True, False), False],
-        [5, 5, (1, 1), (2, 2), (1, 1), 4, (10, 10, 14), (True, False, False), False],
-        [3, 3, (2, 1), (1, 1), (1, 1), 7, (20, 20, 20), (False, False, False), False],
-        [3, 3, (1, 1), (2, 2), (1, 1), 16, (10, 10, 14), (False, True, True), False],
-        # Depth-wise convolution
-        [3, 3, (1, 1), (1, 1), (1, 1), 20, (20, 20, 20), (False, False, True), True],
-        [5, 5, (2, 2), (1, 1), (1, 1), 20, (20, 20, 20), (False, True, False), True],
-        [3, 3, (2, 2), (2, 2), (1, 1), 14, (10, 10, 14), (True, False, False), True],
-        [5, 5, (0, 0), (1, 1), (1, 1), 20, (20, 20, 20), (False, False, False), True],
-        [3, 3, (1, 1), (2, 2), (1, 1), 14, (10, 10, 14), (False, True, True), True],
-    ]
-
-    for (
+    (
         kernel_h,
         kernel_w,
         pad,
@@ -474,74 +481,72 @@ def test_qnn_conv2d(dtype):
         shape,
         composite,
         is_depthwise,
-    ) in trials:
-        shape = (1, *shape)
-        if is_depthwise:
-            groups = shape[3]
-        else:
-            groups = 1
-        outputs = []
-        inputs = {"a": tvm.nd.array(np.random.uniform(0, 255, shape).astype(dtype))}
+    ) = trial
+    shape = (1, *shape)
+    if is_depthwise:
+        groups = shape[3]
+    else:
+        groups = 1
+    outputs = []
+    inputs = {"a": tvm.nd.array(np.random.uniform(0, 255, shape).astype(dtype))}
 
-        input_zp = 100
-        input_sc = 0.5
-        kernel_zp = 25
-        kernel_sc = 0.03
-        output_zp, output_sc = _get_qnn_params(
-            input_zp, input_sc, kernel_zp, kernel_sc, kernel_h, kernel_w, shape[3]
-        )
+    input_zp = 100
+    input_sc = 0.5
+    kernel_zp = 25
+    kernel_sc = 0.03
+    output_zp, output_sc = _get_qnn_params(
+        input_zp, input_sc, kernel_zp, kernel_sc, kernel_h, kernel_w, shape[3]
+    )
 
-        func, params = _get_qnn_model(
-            shape,
-            kernel_h,
-            kernel_w,
-            pad,
-            stride,
-            dilation,
-            groups,
-            dtype,
-            out_channels,
-            input_zp,
-            input_sc,
-            kernel_zp,
-            kernel_sc,
-            output_zp,
-            output_sc,
-            iter(inputs),
-            has_pad=composite[0],
-            has_bias=composite[1],
-            has_activation=composite[2],
-        )
-        for acl in [False, True]:
-            outputs.append(build_and_run(func, inputs, 1, params, device, enable_acl=acl)[0])
+    func, params = _get_qnn_model(
+        shape,
+        kernel_h,
+        kernel_w,
+        pad,
+        stride,
+        dilation,
+        groups,
+        dtype,
+        out_channels,
+        input_zp,
+        input_sc,
+        kernel_zp,
+        kernel_sc,
+        output_zp,
+        output_sc,
+        iter(inputs),
+        has_pad=composite[0],
+        has_bias=composite[1],
+        has_activation=composite[2],
+    )
+    for acl in [False, True]:
+        outputs.append(build_and_run(func, inputs, 1, params, device, enable_acl=acl)[0])
 
-        config = {
-            "shape": shape,
-            "groups": groups,
-            "kernel size": (kernel_h, kernel_w),
-            "padding": pad,
-            "stride": stride,
-            "dilation": dilation,
-            "out channels": out_channels,
-            "composite operators (pad, bias, activation)": composite,
-            "input scale": input_sc,
-            "input zero point": input_zp,
-            "kernel scale": kernel_sc,
-            "kernel zero point": kernel_zp,
-            "output scale": output_sc,
-            "output zero point": output_zp,
-        }
+    config = {
+        "shape": shape,
+        "groups": groups,
+        "kernel size": (kernel_h, kernel_w),
+        "padding": pad,
+        "stride": stride,
+        "dilation": dilation,
+        "out channels": out_channels,
+        "composite operators (pad, bias, activation)": composite,
+        "input scale": input_sc,
+        "input zero point": input_zp,
+        "kernel scale": kernel_sc,
+        "kernel zero point": kernel_zp,
+        "output scale": output_sc,
+        "output zero point": output_zp,
+    }
 
-        atol = 2 if is_depthwise else 1
-        verify(outputs, atol=atol, rtol=0, config=config, verify_saturation=True)
+    atol = 2 if is_depthwise else 1
+    verify(outputs, atol=atol, rtol=0, config=config, verify_saturation=True)
 
 
 @pytest.mark.parametrize("dtype", QNN_DTYPES)
-def test_codegen_qnn_conv2d(dtype):
-    if skip_codegen_test():
-        return
-
-    trials = [
+@pytest.mark.parametrize(
+    "trial",
+    [
         # Normal convolution
         [2, 2, (1, 1), (1, 1), (1, 1), 4, (10, 10, 14), (False, False, False), False],
         [2, 1, (2, 2), (1, 1), (1, 1), 7, (12, 15, 16), (False, False, True), False],
@@ -559,9 +564,13 @@ def test_codegen_qnn_conv2d(dtype):
         [3, 3, (2, 2), (2, 2), (1, 1), 14, (10, 10, 14), (True, False, False), True],
         [5, 5, (0, 0), (1, 1), (1, 1), 20, (20, 20, 20), (False, False, False), True],
         [3, 3, (1, 1), (2, 2), (1, 1), 14, (10, 10, 14), (False, True, True), True],
-    ]
+    ],
+)
+def test_codegen_qnn_conv2d(trial, dtype):
+    if skip_codegen_test():
+        return
 
-    for (
+    (
         kernel_h,
         kernel_w,
         pad,
@@ -571,41 +580,39 @@ def test_codegen_qnn_conv2d(dtype):
         shape,
         composite,
         is_depthwise,
-    ) in trials:
-        shape = (1, *shape)
-        if is_depthwise:
-            groups = shape[3]
-        else:
-            groups = 1
-        inputs = {"a"}
+    ) = trial
+    shape = (1, *shape)
+    if is_depthwise:
+        groups = shape[3]
+    else:
+        groups = 1
+    inputs = {"a"}
 
-        input_zp = 100
-        input_sc = 0.5
-        kernel_zp = 25
-        kernel_sc = 0.03
-        output_zp, output_sc = _get_qnn_params(
-            input_zp, input_sc, kernel_zp, kernel_sc, kernel_h, kernel_w, shape[3]
-        )
+    input_zp = 100
+    input_sc = 0.5
+    kernel_zp = 25
+    kernel_sc = 0.03
+    output_zp, output_sc = _get_qnn_params(
+        input_zp, input_sc, kernel_zp, kernel_sc, kernel_h, kernel_w, shape[3]
+    )
 
-        args = (shape, kernel_h, kernel_w, pad, stride, dilation, groups, dtype, out_channels)
+    args = (shape, kernel_h, kernel_w, pad, stride, dilation, groups, dtype, out_channels)
 
-        func, params = _get_qnn_model(
-            *args,
-            input_zp=input_zp,
-            input_sc=input_sc,
-            kernel_zp=kernel_zp,
-            kernel_sc=kernel_sc,
-            output_zp=output_zp,
-            output_sc=output_sc,
-            var_names=iter(inputs),
-            has_pad=composite[0],
-            has_bias=composite[1],
-            has_activation=composite[2],
-        )
-        exp_codegen = _get_expected_codegen(
-            *args, has_bias=composite[1], has_activation=composite[2]
-        )
-        verify_codegen(func, exp_codegen, 1)
+    func, params = _get_qnn_model(
+        *args,
+        input_zp=input_zp,
+        input_sc=input_sc,
+        kernel_zp=kernel_zp,
+        kernel_sc=kernel_sc,
+        output_zp=output_zp,
+        output_sc=output_sc,
+        var_names=iter(inputs),
+        has_pad=composite[0],
+        has_bias=composite[1],
+        has_activation=composite[2],
+    )
+    exp_codegen = _get_expected_codegen(*args, has_bias=composite[1], has_activation=composite[2])
+    verify_codegen(func, exp_codegen, 1)
 
 
 if __name__ == "__main__":

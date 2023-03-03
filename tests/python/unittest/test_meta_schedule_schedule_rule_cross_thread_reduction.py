@@ -32,7 +32,7 @@ from tvm.te import create_prim_func
 class Softmax_mn_after_inline:
     @T.prim_func
     def main(
-        A: T.Buffer[(256, 256), "float32"], T_softmax_norm: T.Buffer[(256, 256), "float32"]
+        A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")
     ) -> None:
         T_softmax_maxelem = T.alloc_buffer([256], dtype="float32")
         T_softmax_expsum = T.alloc_buffer([256], dtype="float32")
@@ -63,8 +63,8 @@ class Softmax_mn_after_inline:
 def test_gpu_softmax_mn():
     @T.prim_func
     def softmax_mn_0(
-        A: T.Buffer[(256, 256), "float32"],
-        T_softmax_norm: T.Buffer[(256, 256), "float32"],
+        A: T.Buffer((256, 256), "float32"),
+        T_softmax_norm: T.Buffer((256, 256), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -107,7 +107,7 @@ def test_gpu_softmax_mn():
 
     @T.prim_func
     def softmax_mn_1(
-        A: T.Buffer[(256, 256), "float32"], T_softmax_norm: T.Buffer[(256, 256), "float32"]
+        A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -159,7 +159,7 @@ def test_gpu_softmax_mn():
 
     @T.prim_func
     def softmax_mn_2(
-        A: T.Buffer[(256, 256), "float32"], T_softmax_norm: T.Buffer[(256, 256), "float32"]
+        A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -211,7 +211,7 @@ def test_gpu_softmax_mn():
 
     @T.prim_func
     def softmax_mn_3(
-        A: T.Buffer[(256, 256), "float32"], T_softmax_norm: T.Buffer[(256, 256), "float32"]
+        A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -299,7 +299,7 @@ def test_gpu_softmax_mn():
 def test_gpu_softmax_mn_after_inline():
     @T.prim_func
     def softmax_mn_after_inline_0(
-        A: T.Buffer[(256, 256), "float32"], T_softmax_norm: T.Buffer[(256, 256), "float32"]
+        A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")
     ) -> None:
         T_softmax_maxelem = T.alloc_buffer([256], dtype="float32")
         T_softmax_expsum = T.alloc_buffer([256], dtype="float32")
@@ -334,7 +334,7 @@ def test_gpu_softmax_mn_after_inline():
 
     @T.prim_func
     def softmax_mn_after_inline_1(
-        A: T.Buffer[(256, 256), "float32"], T_softmax_norm: T.Buffer[(256, 256), "float32"]
+        A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")
     ) -> None:
         T_softmax_maxelem = T.alloc_buffer([256], dtype="float32")
         T_softmax_expsum = T.alloc_buffer([256], dtype="float32")
@@ -371,7 +371,7 @@ def test_gpu_softmax_mn_after_inline():
 
     @T.prim_func
     def softmax_mn_after_inline_2(
-        A: T.Buffer[(256, 256), "float32"], T_softmax_norm: T.Buffer[(256, 256), "float32"]
+        A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")
     ) -> None:
         T_softmax_maxelem = T.alloc_buffer([256], dtype="float32")
         T_softmax_expsum_shared = T.alloc_buffer([256], dtype="float32", scope="shared")
@@ -415,7 +415,7 @@ def test_gpu_softmax_mn_after_inline():
 
     @T.prim_func
     def softmax_mn_after_inline_3(
-        A: T.Buffer[(256, 256), "float32"], T_softmax_norm: T.Buffer[(256, 256), "float32"]
+        A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")
     ) -> None:
         T_softmax_maxelem_shared = T.alloc_buffer([256], dtype="float32", scope="shared")
         T_softmax_expsum_shared = T.alloc_buffer([256], dtype="float32", scope="shared")
@@ -498,7 +498,7 @@ def test_gpu_softmax_mn_after_inline():
 
 def test_gpu_batch_norm_bmn():
     @T.prim_func
-    def batch_norm_bmn_0(A: T.Buffer[(1, 512, 512), "float32"], D: T.Buffer[1, "float32"]) -> None:
+    def batch_norm_bmn_0(A: T.Buffer((1, 512, 512), "float32"), D: T.Buffer(1, "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
@@ -520,7 +520,7 @@ def test_gpu_batch_norm_bmn():
                 D[b] = T.sqrt(C[b], dtype="float32")
 
     @T.prim_func
-    def batch_norm_bmn_1(A: T.Buffer[(1, 512, 512), "float32"], D: T.Buffer[1, "float32"]) -> None:
+    def batch_norm_bmn_1(A: T.Buffer((1, 512, 512), "float32"), D: T.Buffer(1, "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
@@ -568,10 +568,10 @@ def test_gpu_batch_norm_bmn():
 
 @T.prim_func
 def argmax(
-    idx: T.Buffer[(128, 128), "int32"],
-    val: T.Buffer[(128, 128), "float32"],
-    argmax_v0: T.Buffer[(128,), "int32"],
-    argmax_v1: T.Buffer[(128,), "float32"],
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
 ) -> None:
     for i0, i1 in T.grid(128, 128):
         with T.block("argmax"):
@@ -590,10 +590,10 @@ def argmax(
 
 @T.prim_func
 def argmax_32(
-    idx: T.Buffer[(1, 32), "int32"],
-    val: T.Buffer[(1, 32), "float32"],
-    argmax_v0: T.Buffer[(1,), "int32"],
-    argmax_v1: T.Buffer[(1,), "float32"],
+    idx: T.Buffer((1, 32), "int32"),
+    val: T.Buffer((1, 32), "float32"),
+    argmax_v0: T.Buffer((1,), "int32"),
+    argmax_v1: T.Buffer((1,), "float32"),
 ) -> None:
     for i0, i1 in T.grid(1, 32):
         with T.block("argmax"):
@@ -613,10 +613,10 @@ def argmax_32(
 def test_gpu_argmax():
     @T.prim_func
     def argmax_0(
-        idx: T.Buffer[(128, 128), "int32"],
-        val: T.Buffer[(128, 128), "float32"],
-        argmax_v0: T.Buffer[128, "int32"],
-        argmax_v1: T.Buffer[128, "float32"],
+        idx: T.Buffer((128, 128), "int32"),
+        val: T.Buffer((128, 128), "float32"),
+        argmax_v0: T.Buffer(128, "int32"),
+        argmax_v1: T.Buffer(128, "float32"),
     ) -> None:
         # body
         # with T.block("root")
@@ -637,10 +637,10 @@ def test_gpu_argmax():
 
     @T.prim_func
     def argmax_1(
-        idx: T.Buffer[(128, 128), "int32"],
-        val: T.Buffer[(128, 128), "float32"],
-        argmax_v0: T.Buffer[128, "int32"],
-        argmax_v1: T.Buffer[128, "float32"],
+        idx: T.Buffer((128, 128), "int32"),
+        val: T.Buffer((128, 128), "float32"),
+        argmax_v0: T.Buffer(128, "int32"),
+        argmax_v1: T.Buffer(128, "float32"),
     ) -> None:
         # body
         # with T.block("root")
@@ -686,10 +686,10 @@ def test_gpu_argmax():
 def test_gpu_argmax_32():
     @T.prim_func
     def argmax_0(
-        idx: T.Buffer[(1, 32), "int32"],
-        val: T.Buffer[(1, 32), "float32"],
-        argmax_v0: T.Buffer[(1,), "int32"],
-        argmax_v1: T.Buffer[(1,), "float32"],
+        idx: T.Buffer((1, 32), "int32"),
+        val: T.Buffer((1, 32), "float32"),
+        argmax_v0: T.Buffer((1,), "int32"),
+        argmax_v1: T.Buffer((1,), "float32"),
     ) -> None:
         # body
         # with T.block("root")
@@ -710,10 +710,10 @@ def test_gpu_argmax_32():
 
     @T.prim_func
     def argmax_1(
-        idx: T.Buffer[(1, 32), "int32"],
-        val: T.Buffer[(1, 32), "float32"],
-        argmax_v0: T.Buffer[(1,), "int32"],
-        argmax_v1: T.Buffer[(1,), "float32"],
+        idx: T.Buffer((1, 32), "int32"),
+        val: T.Buffer((1, 32), "float32"),
+        argmax_v0: T.Buffer((1,), "int32"),
+        argmax_v1: T.Buffer((1,), "float32"),
     ) -> None:
         # body
         # with T.block("root")

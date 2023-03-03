@@ -159,8 +159,10 @@ def test_export_model_library_format_c(
 ):
     target = tvm.target.target.micro("host")
     with utils.TempDirectory.set_keep_for_debug(True):
-        with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-            relay_mod = tvm.parser.fromtext(
+        with tvm.transform.PassContext(
+            opt_level=3, config={"tir.disable_vectorize": True, "tir.usmp.enable": False}
+        ):
+            relay_mod = tvm.relay.fromtext(
                 """
             #[version = "0.0.5"]
             def @main(%a : Tensor[(1, 2), uint8], %b : Tensor[(1, 2), float32], %c : Tensor[(1, 2), float32]) {
@@ -254,7 +256,7 @@ def test_export_model_library_format_llvm():
         assert str(target)[:2] == "c "
         target = tvm.target.Target("llvm " + str(target)[2:])
         with tvm.transform.PassContext(opt_level=3):
-            relay_mod = tvm.parser.fromtext(
+            relay_mod = tvm.relay.fromtext(
                 """
             #[version = "0.0.5"]
             def @main(%a : Tensor[(1, 2), uint8], %b : Tensor[(1, 2), float32], %c : Tensor[(1, 2), float32]) {
@@ -338,8 +340,10 @@ def test_export_model_library_format_llvm():
 )
 def test_export_model_library_format_workspace(executor, runtime):
     target = tvm.target.target.micro("host")
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        relay_mod = tvm.parser.fromtext(
+    with tvm.transform.PassContext(
+        opt_level=3, config={"tir.disable_vectorize": True, "tir.usmp.enable": False}
+    ):
+        relay_mod = tvm.relay.fromtext(
             """
             #[version = "0.0.5"]
             def @main(%p0: Tensor[(1, 56, 56, 128), int16], %p1: Tensor[(3, 3, 128, 1), int16], %p2: Tensor[(1, 1, 1, 128), int32]){
@@ -713,6 +717,31 @@ def test_output_names_many():
         "test_output_c": {"size": 48, "dtype": "int32"},
         "test_output_d": {"size": 12, "dtype": "float32"},
     }
+
+
+@tvm.testing.requires_micro
+def test_template_files():
+    """Check template files in generated model library format."""
+    mod = get_conv2d_relay_module()
+
+    executor = Executor("aot", {"unpacked-api": True, "interface-api": "c"})
+    runtime = Runtime("crt")
+    target = tvm.target.target.micro("host")
+
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        factory = tvm.relay.build(mod, target, runtime=runtime, executor=executor, mod_name="mod")
+
+    temp_dir = utils.tempdir()
+    mlf_tar_path = temp_dir / "lib.tar"
+    micro.export_model_library_format(factory, mlf_tar_path)
+
+    tf = tarfile.open(mlf_tar_path)
+    extract_dir = temp_dir / "extract"
+    os.mkdir(extract_dir)
+    tf.extractall(extract_dir)
+
+    assert (extract_dir / "templates" / "crt_config.h.template").is_file()
+    assert (extract_dir / "templates" / "platform.c.template").is_file()
 
 
 if __name__ == "__main__":

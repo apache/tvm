@@ -704,6 +704,42 @@ class TransformLayoutPlanner : private StmtExprVisitor {
   Buffer old_buffer_;
 };
 
+/*!
+ * \brief Collect blocks that are part of root block to be passed to ScheduleState::Replace for SRef
+ * reuse
+ */
+class ReuseBlocksCollector : public tir::StmtVisitor {
+ public:
+  static Map<Block, Block> Collect(Block result, Map<Block, Block> new_block_to_old) {
+    return ReuseBlocksCollector(new_block_to_old).Run(result);
+  }
+
+ private:
+  /*! \brief Entry point */
+  Map<Block, Block> Run(const Block result) {
+    VisitStmt(result);
+    return block_sref_reuse_;
+  }
+  /*! \brief Constructor */
+  explicit ReuseBlocksCollector(Map<Block, Block> new_block_to_old)
+      : new_block_to_old_(new_block_to_old) {}
+
+  /*! \brief Override the Stmt visiting behaviour */
+  void VisitStmt_(const tir::BlockNode* block) override {
+    Block block_ref = GetRef<Block>(block);
+    auto it = new_block_to_old_.find(block_ref);
+    if (it != new_block_to_old_.end()) {
+      block_sref_reuse_.Set((*it).second, (*it).first);
+    }
+    StmtVisitor::VisitStmt_(block);
+  }
+
+  /*! \brief New map to be filled with just blocks from scope block */
+  Map<Block, Block> block_sref_reuse_;
+  /*! \brief All block replacements collected so far */
+  Map<Block, Block> new_block_to_old_;
+};
+
 class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
  public:
   /*!
@@ -730,17 +766,8 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
       write_ptr->body = SeqStmt({plan_ptr->prologue, write_ptr->body});
     }
 
-    Map<Block, Block> block_sref_reuse;
-    for (auto [after, before] : rewriter.new_block_to_old_) {
-      while (auto opt = rewriter.new_block_to_old_.Get(before)) {
-        before = opt.value();
-      }
-      while (auto opt = block_sref_reuse.Get(after)) {
-        after = opt.value();
-      }
-
-      block_sref_reuse.Set(before, after);
-    }
+    Map<Block, Block> block_sref_reuse =
+        ReuseBlocksCollector::Collect(result, rewriter.new_block_to_old_);
 
     return {result, block_sref_reuse};
   }
@@ -1483,20 +1510,20 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
   static constexpr bool kIsPure = false;
 
  private:
-  static constexpr size_t kNumInputs = 1;
-  static constexpr size_t kNumAttrs = 4;
+  static constexpr size_t kNumInputs = 2;
+  static constexpr size_t kNumAttrs = 3;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv, Integer buffer_index,
-                                      Integer buffer_index_type, IndexMap index_map,
+  static void UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv, IndexMap index_map,
+                                      Integer buffer_index, Integer buffer_index_type,
                                       Optional<IndexMap> pad_value) {
     return sch->TransformLayout(block_rv, buffer_index.IntValue(),
                                 static_cast<BufferIndexType>(buffer_index_type->value), index_map,
                                 pad_value);
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String block_rv, Integer buffer_index,
-                                 Integer buffer_index_type, IndexMap index_map,
+  static String UnpackedAsPython(Array<String> outputs, String block_rv, IndexMap index_map,
+                                 Integer buffer_index, Integer buffer_index_type,
                                  Optional<IndexMap> pad_value) {
     PythonAPICall py("transform_layout");
     py.Input("block", block_rv);
@@ -1505,7 +1532,6 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
     os << "(\"" << BufferIndexType2Str(static_cast<BufferIndexType>(buffer_index_type->value))
        << "\", " << buffer_index << ")";
     py.Input("buffer", os.str());
-
     py.Input("index_map", index_map->ToPythonString());
     py.Input("pad_value", pad_value ? pad_value.value()->ToPythonString() : "None");
 
@@ -1518,8 +1544,11 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
     attrs_record.reserve(kNumAttrs);
     attrs_record.push_back(attrs[0]);
     attrs_record.push_back(attrs[1]);
-    attrs_record.push_back(String(::tvm::SaveJSON(attrs[2])));
-    attrs_record.push_back(attrs[3]);
+    if (attrs[2].defined()) {
+      attrs_record.push_back(String(::tvm::SaveJSON(attrs[2])));
+    } else {
+      attrs_record.push_back(attrs[2]);
+    }
     return std::move(attrs_record);
   }
 
@@ -1528,8 +1557,11 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
     Array<ObjectRef> attrs;
     attrs.push_back(attrs_record[0]);
     attrs.push_back(attrs_record[1]);
-    attrs.push_back(::tvm::LoadJSON(Downcast<String>(attrs_record[2])));
-    attrs.push_back(attrs_record[3]);
+    if (attrs_record[2].defined()) {
+      attrs.push_back(::tvm::LoadJSON(Downcast<String>(attrs_record[2])));
+    } else {
+      attrs.push_back(attrs_record[2]);
+    }
     return attrs;
   }
 

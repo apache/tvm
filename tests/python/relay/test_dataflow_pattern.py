@@ -1826,7 +1826,7 @@ def test_matched_outside_but_dominated():
     """In this example the pattern matches the nn.conv2d/add/multiply flow. Even though the
     add output is consumed by the sigmoid, the sigmoid itself is dominated by the multiply.
     So partitioning can proceed, all be it with a duplication of the add."""
-    in_mod = tvm.parser.parse(
+    in_mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%data: Tensor[(16, 16, 32, 32), float16], %weight: Tensor[(32, 16, 3, 3), float16], %bias: Tensor[(32), float32]) -> Tensor[(16, 32, 32, 32), float32] {
@@ -1843,7 +1843,7 @@ def test_matched_outside_but_dominated():
         }
         """
     )
-    expected_mod = tvm.parser.parse(
+    expected_mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%data: Tensor[(16, 16, 32, 32), float16], %weight: Tensor[(32, 16, 3, 3), float16], %bias: Tensor[(32), float32]) -> Tensor[(16, 32, 32, 32), float32] {

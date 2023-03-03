@@ -251,7 +251,7 @@ def func_with_block_predicate() -> None:
 
 
 @T.prim_func
-def inplace_func(data_io: T.Buffer[(64), "int32"]):
+def inplace_func(data_io: T.Buffer((64), "int32")):
     data_1d = T.alloc_buffer([64], dtype="int32")
     for i0 in T.serial(64):
         with T.block("copy_in"):
@@ -269,7 +269,7 @@ def inplace_func(data_io: T.Buffer[(64), "int32"]):
 
 
 @T.prim_func
-def inplace_call(data_io: T.Buffer[(64), "int32"]):
+def inplace_call(data_io: T.Buffer((64), "int32")):
     for i0 in T.serial(1):
         with T.block("ext_call"):
             T.reads(data_io[:64])
@@ -279,7 +279,7 @@ def inplace_call(data_io: T.Buffer[(64), "int32"]):
 
 @T.prim_func
 def cache_read_nested_seq_target(
-    B: T.Buffer[(128, 128), "float32"], C: T.Buffer[(128, 128), "float32"]
+    B: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
 ) -> None:
     A = T.alloc_buffer([128, 128], dtype="float32")
     A_global = T.alloc_buffer([128, 128], dtype="float32")
@@ -597,7 +597,7 @@ def cache_read_shape_int64(var_A: T.handle, var_C: T.handle) -> None:
 
 
 @T.prim_func
-def cache_read_inplace(data_io: T.Buffer[64, "int32"]) -> None:
+def cache_read_inplace(data_io: T.Buffer(64, "int32")) -> None:
     data_1d = T.alloc_buffer([64], dtype="int32")
     data_io_local = T.alloc_buffer([64], dtype="int32", scope="local")
     for ax0 in T.serial(64):
@@ -626,7 +626,7 @@ def cache_read_inplace(data_io: T.Buffer[64, "int32"]) -> None:
 
 
 @T.prim_func
-def cache_inplace_buffer(data_io: T.Buffer[64, "int32"]) -> None:
+def cache_inplace_buffer(data_io: T.Buffer(64, "int32")) -> None:
     data_io_local = T.alloc_buffer([64], dtype="int32", scope="local")
     data_io_global = T.alloc_buffer([64], dtype="int32")
     data_io_global_1 = T.alloc_buffer([64], dtype="int32")
@@ -1007,7 +1007,7 @@ use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name"
 
 @T.prim_func
 def cache_write_allocate_const(
-    A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(128, 128), "float16"]
+    A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float16")
 ):
     B = T.alloc_buffer([128, 128], dtype="float32")
     const = T.allocate_const([0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], "float32", [8])
@@ -1031,7 +1031,7 @@ def cache_write_allocate_const(
 
 @T.prim_func
 def cache_write_allocate_const_output(
-    A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(128, 128), "float16"]
+    A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float16")
 ):
     B = T.alloc_buffer([128, 128], dtype="float32")
     A_global = T.alloc_buffer([128, 128], dtype="float32")

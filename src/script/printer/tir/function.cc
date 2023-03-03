@@ -24,18 +24,6 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-String FindFunctionName(const IRDocsifier& d, const tir::PrimFunc& f) {
-  if (!d->mod.defined()) {
-    return "main";
-  }
-  for (const auto& kv : d->mod.value()->functions) {
-    if (kv.second.same_as(f)) {
-      return kv.first->name_hint;
-    }
-  }
-  return "main";
-}
-
 bool IsSimpleBuffer(const tir::Buffer& buf) {
   if (!buf->strides.empty()) {
     return false;
@@ -78,7 +66,11 @@ int CountVarOccurrence(const tir::PrimFunc& f, const tir::Var& v) {
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::PrimFunc>("", [](tir::PrimFunc func, ObjectPath p, IRDocsifier d) -> Doc {
-      With<TIRFrame> frame(MakeDispatchFrame(d, func, func));
+      With<TIRFrame> f(d, func);
+      (*f)->AddDispatchToken(d, "tir");
+      d->SetCommonPrefix(func, [](const ObjectRef& obj) {
+        return obj->IsInstance<tir::VarNode>() || obj->IsInstance<tir::BufferNode>();
+      });
       int n_args = func->params.size();
       std::unordered_map<const tir::VarNode*, int> buffer_data_counter;
       for (const auto& pair : func->buffer_map) {
@@ -100,18 +92,18 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           tir::Buffer buffer = func->buffer_map[var];
           if (IsSimpleBuffer(buffer) && buffer_data_counter.at(buffer->data.get()) == 1) {
             ObjectPath buffer_p = p->Attr("buffer_map")->MapValue(var);
-            args.push_back(AssignDoc(DefineBuffer(buffer, *frame, d), NullOpt,
-                                     BufferAttn(buffer, buffer_p, *frame, d)));
+            args.push_back(AssignDoc(DefineBuffer(buffer, *f, d), NullOpt,
+                                     BufferAttn(buffer, buffer_p, *f, d)));
             buffer_inlined.insert(buffer.get());
             continue;
           }
         }
         ExprDoc a = d->AsDoc<ExprDoc>(var->type_annotation, var_p->Attr("type_annotation"));
-        args.push_back(AssignDoc(DefineVar(var, *frame, d), NullOpt, a));
+        args.push_back(AssignDoc(DefineVar(var, *f, d), NullOpt, a));
       }
       // Step 2. Handle `func->attrs`
       if (func->attrs.defined() && !func->attrs->dict.empty()) {
-        (*frame)->stmts.push_back(
+        (*f)->stmts.push_back(
             ExprStmtDoc(TIR(d, "func_attr")  //
                             ->Call({d->AsDoc<ExprDoc>(func->attrs, p->Attr("attrs"))})));
       }
@@ -125,10 +117,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           }
           ExprDoc param_doc = args[i]->lhs;
           ObjectPath buffer_p = p->Attr("buffer_map")->MapValue(param);
-          ExprDoc lhs =
-              DefineBuffer(buffer, *frame, d);  // TODO(@junrushao): switch `lhs` and `rhs`
-          ExprDoc rhs = BufferDecl(buffer, "match_buffer", {param_doc}, buffer_p, *frame, d);
-          (*frame)->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
+          ExprDoc lhs = DefineBuffer(buffer, *f, d);  // TODO(@junrushao): switch `lhs` and `rhs`
+          ExprDoc rhs = BufferDecl(buffer, "match_buffer", {param_doc}, buffer_p, *f, d);
+          (*f)->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
         }
       }
       // Step 4. Handle `func->body`
@@ -154,18 +145,18 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       if (d->cfg->syntax_sugar && implicit_root_block) {
         tir::Block root_block = implicit_root_block.value();
         ObjectPath root_block_p = p->Attr("body")->Attr("block");
-        (*frame)->stmts.push_back(CommentDoc("with T.block(\"root\"):"));
+        (*f)->stmts.push_back(CommentDoc("with T.block(\"root\"):"));
         // Handle root block `alloc_buffer`
         for (int i = 0, n = root_block->alloc_buffers.size(); i < n; ++i) {
           tir::Buffer buffer = root_block->alloc_buffers[i];
           ObjectPath buffer_p = root_block_p->Attr("alloc_buffers")->ArrayIndex(i);
-          IdDoc lhs = DefineBuffer(buffer, *frame, d);
-          ExprDoc rhs = BufferDecl(buffer, "alloc_buffer", {}, buffer_p, *frame, d);
-          (*frame)->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
+          IdDoc lhs = DefineBuffer(buffer, *f, d);
+          ExprDoc rhs = BufferDecl(buffer, "alloc_buffer", {}, buffer_p, *f, d);
+          (*f)->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
         }
-        AsDocBody(root_block->body, root_block_p->Attr("body"), frame->get(), d);
+        AsDocBody(root_block->body, root_block_p->Attr("body"), f->get(), d);
       } else {
-        AsDocBody(func->body, p->Attr("body"), frame->get(), d);
+        AsDocBody(func->body, p->Attr("body"), f->get(), d);
       }
       Optional<ExprDoc> ret_type = NullOpt;
       if (func->ret_type.defined()) {
@@ -174,21 +165,15 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           ret_type = d->AsDoc<ExprDoc>(func->ret_type, p->Attr("ret_type"));
         }
       }
-      return FunctionDoc(
-          /*name=*/IdDoc(FindFunctionName(d, func)),
-          /*args=*/args,
-          /*decorators=*/{TIR(d, "prim_func")},
-          /*return_type=*/ret_type,
-          /*body=*/(*frame)->stmts);
+      return HeaderWrapper(d, FunctionDoc(
+                                  /*name=*/IdDoc(FindFunctionName(d, func).value_or("main")),
+                                  /*args=*/args,
+                                  /*decorators=*/{TIR(d, "prim_func")},
+                                  /*return_type=*/ret_type,
+                                  /*body=*/(*f)->stmts));
     });
 
-std::string ReprPrintPrimFunc(const ObjectRef& obj, const PrinterConfig& cfg) {
-  IRDocsifier d(cfg);
-  Doc doc = HeaderWrapper(d, d->AsDoc(obj, ObjectPath::Root()));
-  return DocToPythonScript(doc, cfg);
-}
-
-TVM_SCRIPT_REPR(tir::PrimFuncNode, ReprPrintPrimFunc);
+TVM_SCRIPT_REPR(tir::PrimFuncNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script

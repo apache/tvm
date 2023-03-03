@@ -87,6 +87,23 @@ void MultiLevelTilingNode::InitializeWithTuneContext(const TuneContext& context)
       TVM_PY_LOG(INFO, context->logger) << "'thread_warp_size' is not defined in the target";
     }
   }
+  if (Optional<String> opt_sm = context->target.value()->GetAttr<String>("arch")) {
+    std::string sm = opt_sm.value();
+    if (support::StartsWith(sm, "sm_")) {
+      sm = sm.substr(3);
+      try {
+        // only sm_80 or higher supports async memcopy
+        if (std::stoi(sm) >= 80) {
+          // only stage = 4 & 5 is tested. all integer that is bigger than 2
+          // is theoretically feasible, but no guarantee for great performance.
+          this->stages = {4, 5};
+        }
+      } catch (const std::invalid_argument& e) {
+        LOG(WARNING) << "ValueError: Unable to parse `target.arch`: " << sm
+                     << ". Details: " << e.what();
+      }
+    }
+  }
   logger = context->logger;
 }
 
@@ -115,6 +132,8 @@ std::vector<State> MultiLevelTilingNode::ApplySubRules(std::vector<State> states
   states = SubRule(std::move(states), [&](State state) { return TileLoopNest(std::move(state)); });
   states = SubRule(std::move(states), [&](State state) { return AddWriteReuse(std::move(state)); });
   states = SubRule(std::move(states), [&](State state) { return AddReadReuse(std::move(state)); });
+  states =
+      SubRule(std::move(states), [&](State state) { return AddAsyncPipeline(std::move(state)); });
   return states;
 }
 
@@ -278,6 +297,43 @@ std::vector<State> MultiLevelTilingNode::AddReadReuse(State state) const {
     results.push_back(std::move(new_state));
   }
   return results;
+}
+
+std::vector<State> MultiLevelTilingNode::AddAsyncPipeline(State state) const {
+  // For arch that does not support async pipeline, this->stages will be an empty vector
+  if (r_indices_.size() < 1 || this->stages.empty()) {
+    return {state};
+  }
+  // Current only support default config used by ScheduleRule::DefaultCUDA
+  // @see src/meta_schedule/schedule_rule/schedule_rule.cc
+  // check the reduce loop contains exactly 3 for loops
+  // therefore it matches the notation array size in the following code
+  tir::StmtSRef r_loop_sref = state->sch->GetSRef(state->tiles[r_indices_[0]].back());
+  const tir::ForNode* r_for_loop = TVM_SREF_TO_FOR(r_loop_sref);
+  Array<tir::Stmt> seq = Downcast<tir::SeqStmt>(r_for_loop->body)->seq;
+  if (seq.size() != 3) {
+    return {state};
+  }
+  for (auto& stmt : seq) {
+    if (!stmt.as<tir::ForNode>()) {
+      return {state};
+    }
+  }
+
+  std::vector<State> ret;
+  ret.push_back(state);
+  for (int stage : this->stages) {
+    State new_state = state->Copy();
+    LoopRV r_loop_fused = new_state->sch->Fuse(new_state->tiles[r_indices_[0]]);
+    new_state->sch->Annotate(r_loop_fused, tir::attr::software_pipeline_stage,
+                             Array<Integer>{0, 0, stage - 2});
+    new_state->sch->Annotate(r_loop_fused, tir::attr::software_pipeline_order,
+                             Array<Integer>{0, 1, 2});
+    new_state->sch->Annotate(r_loop_fused, tir::attr::software_pipeline_async_stages,
+                             Array<Integer>{0});
+    ret.push_back(std::move(new_state));
+  }
+  return ret;
 }
 
 void MultiLevelTilingNode::AnnotateCooperativeFetching(Schedule* sch,

@@ -35,7 +35,7 @@ class ObjectGeneric(object):
         raise NotImplementedError()
 
 
-ObjectTypes = (ObjectBase, NDArrayBase, Module, ObjectRValueRef, PyNativeObject)
+ObjectTypes = (ObjectBase, NDArrayBase, Module, ObjectRValueRef, PackedFuncBase, PyNativeObject)
 
 
 def convert_to_object(value, span=None):
@@ -79,6 +79,8 @@ def convert_to_object(value, span=None):
         return _ffi_api.Map(*vlist)
     if isinstance(value, ObjectGeneric):
         return value.asobject()
+    if callable(value):
+        return convert_to_tvm_func(value)
     if value is None:
         return None
 
@@ -99,13 +101,12 @@ def convert(value, span=None):
     -------
     tvm_val : Object or Function
         Converted value in TVM
+
+    Note
+    ----
+    This function is redirected to `convert_to_object` as it is widely used in
+    the codebase. We can choose one to keep and discard the other one later.
     """
-    if isinstance(value, (PackedFuncBase, ObjectBase)):
-        return value
-
-    if callable(value):
-        return convert_to_tvm_func(value)
-
     return convert_to_object(value, span=span)
 
 

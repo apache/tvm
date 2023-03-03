@@ -18,15 +18,15 @@
 # pylint: disable=unused-argument, redefined-builtin, no-else-return
 """Conv3D operators"""
 from collections import namedtuple
+
 import tvm
-from tvm import te
-from tvm import autotvm
-from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
-from ..utils import traverse_inline
-from ..nn.utils import get_pad_tuple3d, infer_pad3d
+from tvm import autotvm, te
+from tvm.autotvm.task.space import OtherOptionEntity, SplitEntity
+from tvm.target.x86 import get_simd_32bit_lanes
+
 from ..nn.pad import pad
-from ..utils import get_const_tuple, simplify, get_const_int
-from .utils import get_simd_32bit_lanes
+from ..nn.utils import get_pad_tuple3d, infer_pad3d
+from ..utils import get_const_int, get_const_tuple, simplify, traverse_inline
 
 Workload3D = namedtuple(
     "Workload",

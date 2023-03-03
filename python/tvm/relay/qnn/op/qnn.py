@@ -27,7 +27,7 @@ from tvm.relay.op.nn.utils import get_pad_tuple2d
 from tvm.runtime import Object
 from tvm.target import Target
 from tvm.topi.nn.qnn import SQNN_DTYPE_TO_CODE
-from tvm.topi.x86.utils import target_has_sse41
+from tvm.target.x86 import target_has_sse41
 
 from . import _make, _requantize
 

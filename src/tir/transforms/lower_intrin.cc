@@ -118,9 +118,8 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // If the numerator's lower bound is known, express the floordiv
       // in terms of truncdiv using only positive operands.
       arith::ConstIntBound const_int_bound = analyzer_->const_int_bound(op->a);
-      if (const_int_bound->min_value != arith::ConstIntBound::kNegInf &&
-          const_int_bound->min_value < 0 &&
-          const_int_bound->min_value > Downcast<IntImm>(tvm::min_value(op->a->dtype))->value) {
+      if (const_int_bound->min_value < 0 &&
+          const_int_bound->min_value > -(Downcast<IntImm>(tvm::max_value(op->a->dtype))->value)) {
         // The goal is to write floordiv(a,b) in terms of truncdiv, without using
         // negative operands.
         //
@@ -214,9 +213,8 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // If the numerator's lower bound is known, express the floormod
       // in terms of truncmod using only positive operands.
       arith::ConstIntBound const_int_bound = analyzer_->const_int_bound(op->a);
-      if (const_int_bound->min_value != arith::ConstIntBound::kNegInf &&
-          const_int_bound->min_value < 0 &&
-          const_int_bound->min_value > Downcast<IntImm>(tvm::min_value(op->a->dtype))->value) {
+      if (const_int_bound->min_value < 0 &&
+          const_int_bound->min_value > -(Downcast<IntImm>(tvm::max_value(op->a->dtype))->value)) {
         // The goal is to write floormod(a,b) in terms of truncdiv and truncmod,
         // without using negative operands.
         //

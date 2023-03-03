@@ -17,7 +17,7 @@
 """Test code for clip operator"""
 import numpy as np
 import tvm
-from tvm import te
+from tvm import te, tir
 from tvm import topi
 import tvm.testing
 import tvm.topi.testing
@@ -32,12 +32,14 @@ def verify_clip(N, a_min, a_max, dtype):
 
     # use memoize to pickle the test data for next time use
     @memoize("topi.tests.test_topi_clip")
-    def get_ref_data():
+    def get_ref_data(a_min, a_max):
         a_np = np.random.uniform(a_min * 2, a_max * 2, size=(N, N)).astype(dtype)
         b_np = np.clip(a_np, a_min, a_max)
         return a_np, b_np
 
-    a_np, b_np = get_ref_data()
+    a_min = a_min.value if isinstance(a_min, (tir.FloatImm, tir.IntImm)) else a_min
+    a_max = a_max.value if isinstance(a_max, (tir.FloatImm, tir.IntImm)) else a_max
+    a_np, b_np = get_ref_data(a_min, a_max)
 
     def check_target(target, dev):
         print("Running on target: %s" % target)
@@ -61,5 +63,13 @@ def test_clip():
     verify_clip(1024, -127, 127, "int8")
 
 
+@tvm.testing.uses_gpu
+def test_clip_floaimm_intimm():
+    verify_clip(1024, tir.FloatImm("float32", -127), tir.FloatImm("float32", 127), "float32")
+    verify_clip(1024, tir.IntImm("int32", -127), tir.IntImm("int32", 127), "int16")
+    verify_clip(1024, tir.IntImm("int32", -127), tir.IntImm("int32", 127), "int8")
+
+
 if __name__ == "__main__":
     test_clip()
+    test_clip_floaimm_intimm()

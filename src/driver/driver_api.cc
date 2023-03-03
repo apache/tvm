@@ -55,6 +55,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tir.use_async_copy", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.merge_async_commit_queue_scope", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.instrument_lwp", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.vtcm_capacity", Integer);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.ptx_ldg32", Bool);
 
 // WARNING: May cause coherency issues resulting data miscompares
 // Experimental feature that, when enabled by the runtime, bypasses the cache when using DMA. When
@@ -159,6 +160,8 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   bool enable_equiv_terms_in_cse_tir =
       pass_ctx->GetConfig<Bool>("tir.enable_equiv_terms_in_cse_tir", Bool(false)).value();
 
+  bool ptx_ldg32 = pass_ctx->GetConfig<Bool>("tir.ptx_ldg32", Bool(false)).value();
+
   // Get any user-added passes
   Array<Array<ObjectRef>> add_lower_pass =
       pass_ctx->GetConfig<Array<Array<ObjectRef>>>("tir.add_lower_pass", Array<Array<ObjectRef>>())
@@ -255,6 +258,10 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
 
   if (instrument_bound_checkers) {
     pass_list.push_back(tir::transform::InstrumentBoundCheckers());
+  }
+
+  if (ptx_ldg32) {
+    pass_list.push_back(tir::transform::InjectPTXLDG32(true));
   }
 
   pass_list.push_back(
@@ -582,6 +589,11 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
 
   if (use_async_copy) {
     mixed_pass_list.push_back(tir::transform::InjectPTXAsyncCopy());
+  }
+
+  bool ptx_ldg32 = pass_ctx->GetConfig<Bool>("tir.ptx_ldg32", Bool(false)).value();
+  if (ptx_ldg32) {
+    mixed_pass_list.push_back(tir::transform::InjectPTXLDG32());
   }
 
   bool unpacked_api = mixed_mod->GetAttr<relay::Executor>(tvm::attr::kExecutor)

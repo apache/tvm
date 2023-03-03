@@ -157,6 +157,131 @@ def test_op_int8(
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize("op", [relay.qnn.op.mul, relay.qnn.op.add])
 @pytest.mark.parametrize("relu_type", ["RELU", "NONE"])
+@pytest.mark.parametrize(
+    [
+        "input_0_scale",
+        "input_1_scale",
+        "output_scale",
+    ],
+    [
+        [0.256, 0.256, 0.256],
+        [0.0128, 0.0128, 0.0128],
+        [0.0128, 0.256, 0.256],
+    ],
+)
+@pytest.mark.parametrize(
+    "compiler_cpu, cpu_flags", [("cortex-m55", "+nomve"), ("cortex-m55", ""), ("cortex-m7", "")]
+)
+def test_op_int16(
+    op,
+    relu_type,
+    input_0_scale,
+    input_1_scale,
+    output_scale,
+    compiler_cpu,
+    cpu_flags,
+):
+    """Tests QNN 16bit binary operators for CMSIS-NN"""
+    interface_api = "c"
+    use_unpacked_api = True
+
+    dtype = "int16"
+    shape = [1, 16, 16, 3]
+    model = make_model(
+        op,
+        generate_variable("input_0", dtype),
+        generate_variable("input_1", dtype),
+        input_0_scale,
+        0,
+        input_1_scale,
+        0,
+        relu_type,
+        output_scale,
+        0,
+    )
+    orig_mod = make_module(model)
+
+    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod)
+
+    assert_partitioned_function(orig_mod, cmsisnn_mod)
+
+    # validate the output
+    in_min, in_max = get_dtype_range(dtype)
+    inputs = {
+        "input_0": np.random.randint(in_min, high=in_max, size=shape, dtype=dtype),
+        "input_1": np.random.randint(in_min, high=in_max, size=shape, dtype=dtype),
+    }
+    output_list = generate_ref_data(orig_mod["main"], inputs)
+    compile_and_run(
+        AOTTestModel(
+            module=cmsisnn_mod,
+            inputs=inputs,
+            outputs=output_list,
+            output_tolerance=1,
+        ),
+        create_test_runner(compiler_cpu, cpu_flags),
+        interface_api,
+        use_unpacked_api,
+    )
+
+
+@skip_if_no_reference_system
+@tvm.testing.requires_cmsisnn
+@pytest.mark.parametrize("op", [relay.qnn.op.mul, relay.qnn.op.add])
+@pytest.mark.parametrize("relu_type", ["RELU", "NONE"])
+@pytest.mark.parametrize(
+    [
+        "input_0_scale",
+        "input_0_zero_point",
+        "input_1_scale",
+        "input_1_zero_point",
+        "output_scale",
+        "output_zero_point",
+    ],
+    [
+        [0.256, 0, 0.256, 33, 0.256, 33],
+        [0.0128, -64, 0.0128, 0, 0.0128, -64],
+        [0.0128, -64, 0.256, 33, 0.256, 0],
+    ],
+)
+def test_op_int16_cannot_partition(
+    op,
+    relu_type,
+    input_0_scale,
+    input_0_zero_point,
+    input_1_scale,
+    input_1_zero_point,
+    output_scale,
+    output_zero_point,
+):
+    """Tests QNN 16bit binary operators for CMSIS-NN in the edge case of
+    non-zero zero points"""
+
+    model = make_model(
+        op,
+        generate_variable("input_0", "int16"),
+        generate_variable("input_1", "int16"),
+        input_0_scale,
+        input_0_zero_point,
+        input_1_scale,
+        input_1_zero_point,
+        relu_type,
+        output_scale,
+        output_zero_point,
+    )
+    orig_mod = make_module(model)
+
+    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod)
+
+    # arm_elementwise_(mul|add)_s16 does not support non-zero shifts in any
+    # argument
+    assert_no_external_function(cmsisnn_mod)
+
+
+@skip_if_no_reference_system
+@tvm.testing.requires_cmsisnn
+@pytest.mark.parametrize("op", [relay.qnn.op.mul, relay.qnn.op.add])
+@pytest.mark.parametrize("relu_type", ["RELU", "NONE"])
 def test_same_input_to_binary_op(op, relu_type):
     """Tests QNN binary operator for CMSIS-NN where both inputs are the same"""
     interface_api = "c"
@@ -320,7 +445,7 @@ def test_both_scalar_inputs_int8(
 @skip_if_no_reference_system
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize("op", [relay.qnn.op.mul, relay.qnn.op.add])
-@pytest.mark.parametrize(["input_dtype"], [["uint8"], ["int16"]])
+@pytest.mark.parametrize(["input_dtype"], [["uint8"], ["uint16"]])
 def test_invalid_parameters(
     op,
     input_dtype,

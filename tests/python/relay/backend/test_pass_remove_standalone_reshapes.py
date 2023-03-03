@@ -75,7 +75,7 @@ def test_first_reshape():
 
     reshape_gv = relay.GlobalVar("reshape", type_annot=reshape_ty)
     mod[reshape_gv] = reshape_primfunc
-    mod = tvm.parser.parse(
+    mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%x {virtual_device=meta[VirtualDevice][0]}: Tensor[(128, 128), float32],
@@ -141,7 +141,7 @@ def test_last_reshape():
 
     reshape_gv = relay.GlobalVar("reshape", type_annot=reshape_ty)
     mod[reshape_gv] = reshape_primfunc
-    mod = tvm.parser.parse(
+    mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%x {virtual_device=meta[VirtualDevice][0]}: Tensor[(128, 128), float32],
@@ -221,7 +221,7 @@ def test_fused_reshape():
 
     reshape_gv = relay.GlobalVar("fused_reshape", type_annot=reshape_ty)
     mod[reshape_gv] = fused_reshape_primfunc
-    mod = tvm.parser.parse(
+    mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%x {virtual_device=meta[VirtualDevice][0]}: Tensor[(128, 128), float32],

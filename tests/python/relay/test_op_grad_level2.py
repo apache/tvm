@@ -353,7 +353,7 @@ def test_conv2d_backward_weight_infer_type():
     SEMVER = '#[version = "0.0.5"]\n'
 
     for code in [normal_conv_code, depthwise_conv_code]:
-        expr = tvm.parser.parse_expr(SEMVER + code)
+        expr = tvm.relay.parse_expr(SEMVER + code)
         fmod = tvm.IRModule.from_expr(expr)
 
         mod = relay.transform.InferType()(fmod)

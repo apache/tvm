@@ -98,7 +98,7 @@ def test_sync_else_branch():
 @tvm.testing.requires_cuda
 def test_sync_read_thread_id_independent_location():
     @T.prim_func
-    def func(p0_arg: T.Buffer[(1, 2, 1, 1), "float32"], p1: T.Buffer[2, "float32"]) -> None:
+    def func(p0_arg: T.Buffer((1, 2, 1, 1), "float32"), p1: T.Buffer(2, "float32")) -> None:
         threadIdx_x = T.env_thread("threadIdx.x")
         blockIdx_x = T.env_thread("blockIdx.x")
         p0 = T.Buffer([2], dtype="float32", data=p0_arg.data)

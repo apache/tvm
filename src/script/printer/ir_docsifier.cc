@@ -21,26 +21,16 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/script/printer/ir_docsifier.h>
 
+#include "./utils.h"
+
 namespace tvm {
 namespace script {
 namespace printer {
 
-String GenerateUniqueName(std::string name_hint, std::unordered_set<String>* defined_names) {
-  for (char& c : name_hint) {
-    if (c != '_' && !std::isalnum(c)) {
-      c = '_';
-    }
-  }
-  std::string name = name_hint;
-  for (int i = 1; !defined_names->insert(name).second; ++i) {
-    name = name_hint + "_" + std::to_string(i);
-  }
-  return name;
-}
-
 IdDoc IRDocsifierNode::Define(const ObjectRef& obj, const Frame& frame, const String& name_hint) {
   ICHECK(obj2info.find(obj) == obj2info.end()) << "Duplicated object: " << obj;
-  String name = GenerateUniqueName(name_hint, &this->defined_names);
+  String name = GenerateUniqueName(name_hint, this->defined_names);
+  this->defined_names.insert(name);
   DocCreator doc_factory = [name]() { return IdDoc(name); };
   obj2info.insert({obj, VariableInfo{std::move(doc_factory), name}});
   IdDoc def_doc(name);
@@ -60,6 +50,17 @@ Optional<ExprDoc> IRDocsifierNode::GetVarDoc(const ObjectRef& obj) const {
     return NullOpt;
   }
   return it->second.creator();
+}
+
+ExprDoc IRDocsifierNode::AddMetadata(const ObjectRef& obj) {
+  ICHECK(obj.defined()) << "TypeError: Cannot add nullptr to metadata";
+  String key = obj->GetTypeKey();
+  Array<ObjectRef>& array = metadata[key];
+  int index = std::find(array.begin(), array.end(), obj) - array.begin();
+  if (index == static_cast<int>(array.size())) {
+    array.push_back(obj);
+  }
+  return IdDoc("metadata")[{LiteralDoc::Str(key, NullOpt)}][{LiteralDoc::Int(index, NullOpt)}];
 }
 
 bool IRDocsifierNode::IsVarDefined(const ObjectRef& obj) const { return obj2info.count(obj); }

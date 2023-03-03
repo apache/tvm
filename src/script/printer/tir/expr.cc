@@ -29,20 +29,37 @@ Doc PrintVar(const tir::Var& var, const ObjectPath& var_p, const IRDocsifier& d)
     if (Optional<Frame> opt_f = FindLowestVarDef(var, d)) {
       ExprDoc lhs = DefineVar(var, opt_f.value(), d);
       Type type = var->type_annotation;
+      ObjectPath type_p = var_p->Attr("type_annotation");
+      ExprDoc rhs{nullptr};
       if (const auto* ptr_type = type.as<PointerTypeNode>()) {
-        ICHECK(ptr_type->element_type->IsInstance<PrimTypeNode>());
-        ExprDoc rhs = d->AsDoc<ExprDoc>(type, var_p->Attr("type_annotation"));
-        opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
+        const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>();
+        ICHECK(prim_type);
+        ExprDoc element_type =
+            LiteralDoc::DataType(prim_type->dtype, type_p->Attr("element_type")->Attr("dtype"));
+        rhs = TIR(d, "handle");
+        rhs->source_paths.push_back(var_p->Attr("dtype"));
+        if (ptr_type->storage_scope == "") {
+          rhs = rhs->Call({element_type});
+        } else {
+          rhs = rhs->Call({element_type,
+                           LiteralDoc::Str(ptr_type->storage_scope,  //
+                                           type_p->Attr("storage_scope"))});
+        }
       } else {
-        ExprDoc rhs = TIR(d, "var")->Call({LiteralDoc::DataType(var->dtype, var_p->Attr("dtype"))});
-        opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
+        rhs = TIR(d, DType2Str(var->dtype));
+        rhs->source_paths.push_back(var_p->Attr("dtype"));
+        rhs = rhs->Call({});
       }
+      rhs->source_paths.push_back(type_p);
+      opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
+    } else {
+      LOG(WARNING) << "Didn't find variable definition for: " << var->name_hint;
     }
   }
   if (Optional<ExprDoc> doc = d->GetVarDoc(var)) {
     return doc.value();
   }
-  LOG(FATAL) << "IndexError: Variable is not defined in the environment: " << var;
+  LOG(FATAL) << "IndexError: Variable is not defined in the environment: " << var->name_hint;
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
@@ -77,7 +94,11 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::StringImm>("", [](tir::StringImm s, ObjectPath p, IRDocsifier d) -> Doc {
-      return d->AsDoc<ExprDoc>(s->value, p->Attr("value"));
+      if (HasMultipleLines(s->value)) {
+        return d->AddMetadata(s);
+      } else {
+        return d->AsDoc<ExprDoc>(s->value, p->Attr("value"));
+      }
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -157,6 +178,37 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return TIR(d, "comm_reducer")->Call({lambda, id});
         });
 
+LambdaDoc PrintIndexMap(const ObjectRef& map, const Array<tir::Var>& vs, const ObjectPath& vs_p,
+                        const Array<PrimExpr>& es, const ObjectPath& es_p, const IRDocsifier& d) {
+  With<TIRFrame> f(d, map);
+  Array<IdDoc> vars;
+  for (int i = 0, l = vs.size(); i < l; ++i) {
+    vars.push_back(Downcast<IdDoc>(DefineVar(vs[i], *f, d)));
+  }
+  Array<ExprDoc> exprs;
+  for (int i = 0, l = es.size(); i < l; ++i) {
+    exprs.push_back(d->AsDoc<ExprDoc>(es[i], es_p->ArrayIndex(i)));
+  }
+  return LambdaDoc(vars, TupleDoc(exprs));
+}
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<tir::IndexMap>(  //
+        "", [](tir::IndexMap m, ObjectPath m_p, IRDocsifier d) -> Doc {
+          LambdaDoc map = PrintIndexMap(m, m->initial_indices, m_p->Attr("initial_indices"),
+                                        m->final_indices, m_p->Attr("final_indices"), d);
+          if (m->inverse_index_map.defined()) {
+            tir::IndexMap inverse = Downcast<tir::IndexMap>(m->inverse_index_map);
+            LambdaDoc inv = PrintIndexMap(inverse, inverse->initial_indices,
+                                          m_p->Attr("inverse_index_map")->Attr("initial_indices"),
+                                          inverse->final_indices,
+                                          m_p->Attr("inverse_index_map")->Attr("final_indices"), d);
+            return TIR(d, "index_map")->Call({map}, {"inverse_index_map"}, {inv});
+          } else {
+            return TIR(d, "index_map")->Call({map});
+          }
+        });
+
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Let>("", [](tir::Let let, ObjectPath p, IRDocsifier d) -> Doc {
       return TIR(d, "let")->Call({
@@ -170,26 +222,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Call>("", [](tir::Call call, ObjectPath call_p, IRDocsifier d) -> Doc {
       static const OpAttrMap<tir::TScriptPrinterName>& op_names =
           Op::GetAttrMap<tir::TScriptPrinterName>("TScriptPrinterName");
-      static const std::unordered_set<const Object*> dtype_first_arg = {
-          tir::builtin::reinterpret().get(),
-          tir::builtin::call_extern().get(),
-          tir::builtin::call_llvm_intrin().get(),       //
-          tir::builtin::call_llvm_pure_intrin().get(),  //
-          tir::builtin::call_pure_extern().get(),       //
-          tir::builtin::ptx_mma().get(),
-          tir::builtin::ptx_mma_sp().get(),
-          tir::builtin::ptx_ldmatrix().get(),
-          tir::builtin::ptx_cp_async().get(),
-          tir::builtin::mma_store().get(),
-          tir::builtin::mma_fill().get(),
-          tir::builtin::vectorlow().get(),
-          tir::builtin::vectorhigh().get(),
-          tir::builtin::vectorcombine().get(),
-          Op::Get("tir.type_annotation").get(),
-      };
-      static const std::unordered_set<const Object*> dtype_last_arg = {
-          tir::builtin::tvm_struct_get().get(),
-      };
+      static const OpAttrMap<tir::TScriptDtypePrintLocation> dtype_locations =
+          Op::GetAttrMap<tir::TScriptDtypePrintLocation>("TScriptDtypePrintLocation");
+      tir::ScriptDtypePrintLocation dtype_print_location = tir::ScriptDtypePrintLocation::kNone;
       ExprDoc prefix{nullptr};
       if (const auto* op = call->op.as<OpNode>()) {
         String name = op_names.get(GetRef<Op>(op), op->name);
@@ -197,6 +232,10 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           LOG(WARNING) << "No TScriptPrinterName attribute for " << op->name;
         }
         prefix = TIR(d, name);
+        if (dtype_locations.count(GetRef<Op>(op))) {
+          dtype_print_location = static_cast<tir::ScriptDtypePrintLocation>(
+              dtype_locations[GetRef<Op>(op)].IntValue());
+        }
       } else if (const auto* gv = call->op.as<GlobalVarNode>()) {
         prefix = LiteralDoc::Str(gv->name_hint, call_p->Attr("op"));
       } else {
@@ -205,13 +244,13 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       Array<ExprDoc> args;
       int n_args = call->args.size();
       args.reserve(n_args + 1);
-      if (dtype_first_arg.count(call->op.get())) {
+      if (dtype_print_location == tir::ScriptDtypePrintLocation::kFirst) {
         args.push_back(LiteralDoc::DataType(call->dtype, call_p->Attr("dtype")));
       }
       for (int i = 0; i < n_args; ++i) {
         args.push_back(d->AsDoc<ExprDoc>(call->args[i], call_p->Attr("args")->ArrayIndex(i)));
       }
-      if (dtype_last_arg.count(call->op.get())) {
+      if (dtype_print_location == tir::ScriptDtypePrintLocation::kLast) {
         args.push_back(LiteralDoc::DataType(call->dtype, call_p->Attr("dtype")));
       }
       return prefix->Call(args);
@@ -250,17 +289,26 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
                                      return TIR(d, OpString)->Call({a, b});                     \
                                    });
 
-#define TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(NodeType, OpString, OpKind)          \
-  TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)                                          \
-      .set_dispatch<tir::NodeType>(                                                   \
-          "", [](tir::NodeType node, ObjectPath p, IRDocsifier d) -> Doc {            \
-            ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));                     \
-            ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));                     \
-            if (a->IsInstance<LiteralDocNode>() && b->IsInstance<LiteralDocNode>()) { \
-              return TIR(d, OpString)->Call({a, b});                                  \
-            }                                                                         \
-            return OperationDoc(OperationDocNode::Kind::OpKind, {a, b});              \
-          });
+bool IsNumber(const ExprDoc& e) {
+  if (const auto* n = e.as<LiteralDocNode>()) {
+    if (n->value.defined()) {
+      return n->value->IsInstance<IntImmNode>() || n->value->IsInstance<FloatImmNode>();
+    }
+  }
+  return false;
+}
+
+#define TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(NodeType, OpString, OpKind)                      \
+  TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)                                                      \
+      .set_dispatch<tir::NodeType>("",                                                            \
+                                   [](tir::NodeType node, ObjectPath p, IRDocsifier d) -> Doc {   \
+                                     ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));        \
+                                     ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));        \
+                                     if (IsNumber(a) && IsNumber(b)) {                            \
+                                       return TIR(d, OpString)->Call({a, b});                     \
+                                     }                                                            \
+                                     return OperationDoc(OperationDocNode::Kind::OpKind, {a, b}); \
+                                   });
 
 TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Add, "Add", kAdd);
 TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Sub, "Sub", kSub);
@@ -314,6 +362,7 @@ TVM_SCRIPT_REPR(tir::LetNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::CallNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::ShuffleNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::CommReducerNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::IndexMapNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::AnyNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::ReduceNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::LoadNode, ReprPrintTIR);

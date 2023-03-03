@@ -69,7 +69,6 @@ def test_rpc():
         assert fecho(100, 2, 3) == 100
         assert fecho("xyz") == "xyz"
         assert bytes(fecho(bytearray(b"123"))) == b"123"
-
         # run the generated library.
         f1 = remote.system_lib()
         dev = remote.cpu(0)

@@ -694,11 +694,12 @@ def make_ethosu_binary_elementwise(
     use_rescale: bool = False,
     rescale_scale: int = 0,
     rescale_shift: int = 0,
+    lut=relay.const([], dtype="int8"),
 ):
     ethosu_binary_elementwise = ethosu_ops.ethosu_binary_elementwise(
         ifm=ifm,
         ifm2=ifm2,
-        lut=relay.const([], dtype="int8"),
+        lut=lut,
         operator_type=operator_type,
         ifm_scale=1,
         ifm_zero_point=0,

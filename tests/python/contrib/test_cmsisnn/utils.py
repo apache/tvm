@@ -252,7 +252,7 @@ class CheckForPadsWithinCompositeFunc(tvm.relay.ExprVisitor):
         assert self.num_pads_ > 0, "Composite function should have pads within it."
 
 
-def create_test_runner(compiler_cpu="cortex-m55", cpu_flags=""):
+def create_test_runner(compiler_cpu="cortex-m55", cpu_flags="", debug_last_error=False):
     """
     Creates AOT test runner for CMSIS-NN tests.
 
@@ -267,6 +267,8 @@ def create_test_runner(compiler_cpu="cortex-m55", cpu_flags=""):
         Arm(R) Cortex(R)-M55: when null +mve is set by default.
             +nomve disables vector extensions.
         Arm(R) Cortex(R)-M7 does not support mve.
+    debug_last_error: bool
+        Whether to enable storing the last error
     """
     # cmsis_cpu is used to find out start up code inside CMSIS package
     cmsis_cpu = "ARMCM7" if compiler_cpu == "cortex-m7" else "ARMCM55"
@@ -280,6 +282,7 @@ def create_test_runner(compiler_cpu="cortex-m55", cpu_flags=""):
         pass_config={
             "relay.ext.cmsisnn.options": {
                 "mcpu": compiler_cpu + cpu_flags,
+                "debug_last_error": debug_last_error,
             },
             "tir.usmp.enable": True,
             "tir.disable_storage_rewrite": True,
@@ -289,5 +292,6 @@ def create_test_runner(compiler_cpu="cortex-m55", cpu_flags=""):
             "MCPU": compiler_cpu,
             "MCPU_FLAGS": cpu_flags,
             "MFLOAT_ABI": mfloat_abi,
+            "DEBUG_LAST_ERROR": 1 if debug_last_error else 0,
         },
     )

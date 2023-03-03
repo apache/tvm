@@ -22,7 +22,6 @@ import tvm.testing
 import tvm.micro.testing
 import tvm.relay as relay
 from tvm.relay.backend import Executor, Runtime
-from tvm.contrib import utils
 
 from . import utils
 
@@ -105,7 +104,7 @@ def test_aot_executor(workspace_dir, board, microtvm_debug, use_fvp, serial_numb
     print("test_relay: construct relay program\n")
 
     # Construct Relay program.
-    relay_mod = tvm.parser.fromtext(
+    relay_mod = tvm.relay.fromtext(
         """
       #[version = "0.0.5"]
       def @main(%a : Tensor[(1, 2), uint8], %b : Tensor[(1, 2), uint8]) {

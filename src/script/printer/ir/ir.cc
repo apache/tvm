@@ -26,34 +26,60 @@ namespace printer {
 
 TVM_REGISTER_NODE_TYPE(IRFrameNode);
 
+struct SortableFunction {
+  int priority;
+  GlobalVar gv;
+  BaseFunc func;
+
+  explicit SortableFunction(const std::pair<GlobalVar, BaseFunc>& obj)
+      : priority(0), gv(obj.first), func(obj.second) {
+    if (gv->name_hint == "main") {
+      priority = 1000;
+    } else if (obj.second->GetTypeKey() == "tir.PrimFunc") {
+      priority = 1;
+    } else if (obj.second->GetTypeKey() == "relax.expr.ExternFunc") {
+      priority = 2;
+    } else if (obj.second->GetTypeKey() == "relax.expr.Function") {
+      priority = 3;
+    } else {
+      LOG(FATAL) << "TypeError: TVMScript cannot print functions of type: "
+                 << obj.second->GetTypeKey();
+    }
+  }
+
+  bool operator<(const SortableFunction& other) const {
+    if (this->priority != other.priority) {
+      return this->priority < other.priority;
+    }
+    return this->gv->name_hint < other.gv->name_hint;
+  }
+};
+
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<IRModule>("", [](IRModule mod, ObjectPath p, IRDocsifier d) -> Doc {
-      std::vector<std::pair<GlobalVar, BaseFunc>> functions{mod->functions.begin(),
-                                                            mod->functions.end()};
-      // print "main" first
-      std::sort(functions.begin(), functions.end(), [](const auto& lhs, const auto& rhs) {
-        String lhs_name = lhs.first->name_hint;
-        String rhs_name = rhs.first->name_hint;
-        if (lhs_name == "main") {
-          lhs_name = "";
-        }
-        if (rhs_name == "main") {
-          rhs_name = "";
-        }
-        return lhs_name < rhs_name;
-      });
-      ICHECK(!d->mod.defined());
-      d->mod = mod;
-      {
-        With<IRFrame> f(d);
-        (*f)->AddDispatchToken(d, "ir");
-        for (const auto& kv : functions) {
-          GlobalVar gv = kv.first;
-          BaseFunc func = kv.second;
-          (*f)->stmts.push_back(d->AsDoc<FunctionDoc>(func, p->Attr("functions")->MapValue(gv)));
-        }
-        return ClassDoc(IdDoc("Module"), {IR(d, "ir_module")}, (*f)->stmts);
+      std::vector<SortableFunction> functions;
+      for (const auto& kv : mod->functions) {
+        functions.push_back(SortableFunction(kv));
       }
+      std::sort(functions.begin(), functions.end());
+      With<IRFrame> f(d);
+      (*f)->AddDispatchToken(d, "ir");
+      for (const auto& entry : functions) {
+        const GlobalVar& gv = entry.gv;
+        const BaseFunc& func = entry.func;
+        d->cfg->binding_names.push_back(gv->name_hint);
+        Doc doc = d->AsDoc(func, p->Attr("functions")->MapValue(gv));
+        d->cfg->binding_names.pop_back();
+        if (const auto* stmt_block = doc.as<StmtBlockDocNode>()) {
+          (*f)->stmts.push_back(stmt_block->stmts.back());
+        } else if (const auto* stmt = doc.as<StmtDocNode>()) {
+          (*f)->stmts.push_back(GetRef<StmtDoc>(stmt));
+        } else {
+          (*f)->stmts.push_back(Downcast<FunctionDoc>(doc));
+        }
+      }
+      return HeaderWrapper(d, ClassDoc(IdDoc(GetBindingName(d).value_or("Module")),
+                                       {IR(d, "ir_module")}, (*f)->stmts));
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -119,9 +145,7 @@ std::string ReprPrintIRModule(const ObjectRef& mod, const PrinterConfig& cfg) {
       return s.value();
     }
   }
-  IRDocsifier d(cfg);
-  Doc doc = HeaderWrapper(d, d->AsDoc(mod, ObjectPath::Root()));
-  return DocToPythonScript(doc, cfg);
+  return ReprPrintIR(mod, cfg);
 }
 
 TVM_SCRIPT_REPR(TypeVarNode, ReprPrintIR);

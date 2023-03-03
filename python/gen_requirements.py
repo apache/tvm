@@ -276,7 +276,7 @@ CONSTRAINTS = [
     ("torch", None),
     ("torchvision", None),
     ("tornado", None),
-    ("xgboost", ">=1.1.0,<1.6.0"),  # From PR #4953 & Issue #12009
+    ("xgboost", ">=1.1.0"),  # From PR #4953 & Issue #12009
 ]
 
 ################################################################################
