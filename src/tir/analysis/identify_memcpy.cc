@@ -19,7 +19,7 @@
 
 /*!
  * \file tir/analysis/identify_memcpy.cc
- * \brief Check if a loopnest is equivalent to memcpy
+ * \brief Check if a loop nest is equivalent to memcpy
  */
 
 #include <tvm/arith/bound.h>
@@ -45,7 +45,7 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   Map<Var, Range> loop_ranges;
   PrimExpr total_loop_iterations = 1;
 
-  // Walk through the loopnest, stopping at the first loop whose body
+  // Walk through the loop nest, stopping at the first loop whose body
   // is not a loop.
   Stmt stmt = loop;
   while (auto* for_node = stmt.as<ForNode>()) {
@@ -182,7 +182,7 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
     }
   }
 
-  // Thrid check, is there a transformation applied between the input
+  // Third check, is there a transformation applied between the input
   // and output iterators?
   //
   // For example, the following would pass all checks so far, but
@@ -281,8 +281,7 @@ std::optional<MemCpyDetails> IdentifyMemCpy(const For& loop, arith::Analyzer* an
   }
 }
 
-// Expose the IdentifyMemCpy functionality to Python API for purpose
-// of unit testing.
+// Expose the IdentifyMemCpy functionality to Python API for purpose of unit testing.
 TVM_REGISTER_GLOBAL("tir.analysis._identify_memcpy").set_body_typed([](const Stmt& stmt) {
   Array<ObjectRef> output;
 

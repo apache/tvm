@@ -21,7 +21,6 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import te, topi
 from tvm.tir import BufferRegion, StringImm
 
 from tvm.script import tir as T
