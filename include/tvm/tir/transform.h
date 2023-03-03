@@ -717,6 +717,12 @@ TVM_DLL Pass ManifestSharedMemoryLocalStage();
  */
 TVM_DLL Pass InstrumentProfileIntrinsics();
 
+/*!
+ * \brief Create default schedule for PrimFuncs to run on cuda device.
+ * \return The Pass.
+ */
+TVM_DLL Pass DefaultSchedule();
+
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm

@@ -273,12 +273,6 @@ TVM_DLL Pass RemoveUnusedFunctions(Array<runtime::String> entry_functions);
 TVM_DLL Pass RunCodegen(Optional<Map<String, Map<String, ObjectRef>>> target_options,
                         Array<runtime::String> entry_functions);
 
-/*!
- * \brief Create default schedule for PrimFuncs to run on cuda device.
- * \return The Pass.
- */
-TVM_DLL Pass DefaultSchedule();
-
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm

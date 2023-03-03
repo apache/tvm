@@ -249,16 +249,6 @@ def AnnotateTIROpPattern() -> tvm.ir.transform.Pass:
     return _ffi_api.AnnotateTIROpPattern()  # type: ignore
 
 
-def DefaultSchedule() -> tvm.ir.transform.Pass:
-    """Default schedule for PrimFuncs.
-
-    Returns
-    -------
-    ret: tvm.ir.transform.Pass
-    """
-    return _ffi_api.DefaultSchedule()  # type: ignore
-
-
 def FuseOps(fuse_opt_level=-1) -> tvm.ir.transform.Pass:
     """This pass groups bindings in a dataflow block of Relax functions and generate a new grouped
     Relax function for each group, according to the fusion algorithm described in the pass

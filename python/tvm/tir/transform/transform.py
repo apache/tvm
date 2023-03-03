@@ -1055,3 +1055,13 @@ def InstallDebugSpans():
         The result pass
     """
     return _ffi_api.InstallDebugSpans()  # type: ignore
+
+
+def DefaultSchedule():
+    """Default schedule for PrimFuncs.
+
+    Returns
+    -------
+    ret: tvm.transform.Pass
+    """
+    return _ffi_api.DefaultSchedule()  # type: ignore
