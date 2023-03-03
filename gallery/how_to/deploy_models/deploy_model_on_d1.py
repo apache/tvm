@@ -165,6 +165,7 @@ def get_network(name, batch_size, layout="NCHW", dtype="float32"):
 # deep learning workload. Actually, the option matters, different option
 # will lead to very different performance.
 
+
 ######################################################################
 # If we run the example on our x86 server for demonstration, we can simply
 # set it as :code:`llvm`. If running it on the D1, we need to specify its
@@ -178,15 +179,12 @@ def main():
     else:
         target = "llvm -mtriple=riscv64-unknown-linux-gnu -mcpu=generic-rv64 -mabi=lp64d -mattr=+64bit,+m,+a,+f,+d,+c"
 
-
     network = "mobilenet"
     batch_size = 1
     layout = "NCHW"
     dtype = "float32"
     print("Get model...")
-    mod, params, input_shape, output_shape = get_network(
-        network, batch_size, layout, dtype=dtype
-    )
+    mod, params, input_shape, output_shape = get_network(network, batch_size, layout, dtype=dtype)
 
     with tvm.transform.PassContext(opt_level=3):
         mod = csinn.partition_for_csinn(mod, params)
