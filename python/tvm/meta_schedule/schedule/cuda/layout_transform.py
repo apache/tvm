@@ -18,7 +18,7 @@ def tile_layout_transform(
     """
     High level tiling for layout transform block.
     """
-    
+
     ## Tiling layout transforms:
     # Assume we have an input shape of [A, B, C, D] and want to layout transform
     # ABCD --> DBAC so the output shape would be [D, B, A, C].
@@ -31,15 +31,15 @@ def tile_layout_transform(
     # lDw, lBw, lAw, lCw = T.grid(D, B, A, C)
     #
     # Clearly in many scenarios it is impossible to guarantee contiguous writes and reads
-    # within a single loop. Due to non-adjacent dimensions. Instead we work on transposing some 
-    # small sub-tensor of our input writing and then reading from shared memory. We must now 
-    # construct our submatrix so that reading and writing can both be done with some contiguous  
+    # within a single loop. Due to non-adjacent dimensions. Instead we work on transposing some
+    # small sub-tensor of our input writing and then reading from shared memory. We must now
+    # construct our submatrix so that reading and writing can both be done with some contiguous
     # access in global memory.
     #
     # Consider the case of a 2D transpose. For example [1024, 2048] -> [2048, 1024].
-    # We note that if we deal with a submatrix of shape [32, 32] which corresponds 
+    # We note that if we deal with a submatrix of shape [32, 32] which corresponds
     # to the dimension of our input tensor, then rows of the submatrix are contiguous
-    # in the input tensor. Meanwhile, columns of our submatrix are contiguous in our 
+    # in the input tensor. Meanwhile, columns of our submatrix are contiguous in our
     # output vector. Therefore, with this tile shape we have opportunity to read
     # contiguously in our input tensor and write to shared memory, and write contiguously
     # to our output tensor.
@@ -48,13 +48,13 @@ def tile_layout_transform(
     # memory per block of [`tile_size`, `tile_size`]. We want the inner most dimension
     # of our shared memory to correspond to contiguous reads from the input tensor and
     # the outer dimension to correspond to contiguous writes into the output tensor.
-    # 
+    #
     # In terms of the loop structure reading from the input tensor, the inner most loops
-    # of our tile must correspond to the inner most dimensions of the input shape,  
+    # of our tile must correspond to the inner most dimensions of the input shape,
     # while the outer dimensions correspond to the inner most dimensions of the output shape.
     # To obtain an inner tile with this loop structure we factor out a contiguous `tile_size`
-    # chunk of our loop in the shape of interest. 
-    # 
+    # chunk of our loop in the shape of interest.
+    #
     # An example is probably best to show this idea:
     # Let's say we want a layout transform of ABCD --> DCAB. With shape
     # [1024_a, 2_b, 32_c, 8_d] --> [8_d, 32_c, 1024_a, 2_b]
@@ -63,12 +63,12 @@ def tile_layout_transform(
     #
     # Then we initially have a coalesced-read loop pattern of:
     # T.grid(1024_a, 2_b, 32_c, 8_d)
-    # 
+    #
     # To obtain an inner tile of 32, we factor 4 from 32_c and 8 from 8_d:
     # T.grid(1024_a, 2_b, 8_c1, 1_d1, 4_c2t, 8_d2t)
     # T.grid(1024_a, 2_b, 8_cr, 1_dr, 32_dim1)
     #
-    # To obtain an outer tile of 32, we factor from B then A to follow contiguous write 
+    # To obtain an outer tile of 32, we factor from B then A to follow contiguous write
     # pattern:
     #
     # T.grid(64_a1, 1_b1, 8_cr, 1_dr, 16_a2t, 2_b2t, 32_dim1)
@@ -165,7 +165,7 @@ def tile_layout_transform(
         work_needed_inner_loop: int = tile_size,
     ):
         """Factors out the loops in the order of indices until we reach needed work.
-        
+
         Adds new loop factors to the back in reverse order of access.
         """
         for i in indices:
@@ -269,6 +269,7 @@ def tile_layout_transform(
     sch.bind(loop=inner_write_loop, thread_axis="threadIdx.x")
     sch.bind(loop=inner_read_loop, thread_axis="threadIdx.x")
 
+
 def auto_inline(sch, start_block):
     # Autoinlines given block into consumers, and repeats process for consumer of block
     # Done by default for injective schedules.
@@ -296,7 +297,7 @@ def cuda_layout_transform_schedule_rule(sch, block):
     params = sch.mod["main"].params
     input_buffer = sch.mod["main"].buffer_map[params[0]]
     output_buffer = sch.mod["main"].buffer_map[params[1]]
-    
+
     # Info needed for tiling
     input_shape = [int(dim) for dim in input_buffer.shape]
     output_shape = [int(dim) for dim in output_buffer.shape]
