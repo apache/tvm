@@ -269,7 +269,7 @@ def tile_layout_transform(
     sch.bind(loop=inner_write_loop, thread_axis="threadIdx.x")
     sch.bind(loop=inner_read_loop, thread_axis="threadIdx.x")
 
-def auto_inline(start_block):
+def auto_inline(sch, start_block):
     # Autoinlines given block into consumers, and repeats process for consumer of block
     # Done by default for injective schedules.
     fringe = deque([start_block])
@@ -305,7 +305,7 @@ def cuda_layout_transform_schedule_rule(sch, block):
 
     # For each schedule we also want to inline each stage as would be done in normal circumstances
     # to prevent extraneous memory access.
-    block = auto_inline(block)
+    block = auto_inline(sch, block)
 
     schedules = []
 
