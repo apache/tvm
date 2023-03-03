@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-02-02T20:12:16.792163
+// Generated at 2023-03-03T06:24:01.289250
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -621,6 +621,65 @@ def shard_run_test_RISC_V_1_of_1() {
 }
 
 
+
+def shard_run_test_CSINN_1_of_1() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-csinn") {
+        try {
+          init_git()
+          docker_init(ci_riscv)
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=riscv',
+              'TEST_STEP_NAME=test: CSINN',
+              'TVM_NUM_SHARDS=1',
+              'TVM_SHARD_INDEX=0',
+              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+              sh(
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/riscv",
+                  label: 'Download artifacts from S3',
+                )
+
+              ci_setup(ci_riscv)
+              sh (
+                script: "${docker_run} ${ci_riscv} ./tests/scripts/task_config_build_csinn2.sh build",
+                label: 'Create CSINN cmake config',
+              )
+              cmake_build(ci_riscv, 'build', '-j4')
+              make_standalone_crt(ci_riscv, 'build')
+              sh (
+                script: "${docker_run} ${ci_riscv} ./tests/scripts/task_config_build_c906.sh build-c906",
+                label: 'Create CSINN cmake config',
+              )
+              cmake_build(ci_riscv, 'build-c906', '-j4')
+              make_standalone_crt(ci_riscv, 'build-c906')
+              sh (
+                script: "${docker_run} ${ci_riscv} ./tests/scripts/task_riscv_csinn.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          try {
+            sh(
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/test_CSINN --items build/pytest-results",
+            label: 'Upload JUnits to S3',
+          )
+
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: CSINN 1 of 1')
+  }
+}
+
+
 def test() {
   stage('Test') {
     environment {
@@ -629,6 +688,9 @@ def test() {
     parallel(
     'test: RISC-V 1 of 1': {
       shard_run_test_RISC_V_1_of_1()
+    },
+    'test: CSINN 1 of 1': {
+      shard_run_test_CSINN_1_of_1()
     },
     )
   }

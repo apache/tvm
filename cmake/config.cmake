@@ -431,3 +431,18 @@ set(USE_UMA OFF)
 
 # Set custom Alloc Alignment for device allocated memory ndarray points to
 set(USE_KALLOC_ALIGNMENT 64)
+
+# Whether to build with CSI-NN2 codegen support
+# Possible values:
+# - OFF: disable csinn runtime support
+# - ON: add support for compiling CSI-NN2 codegen.
+# - path/to/CSI-NN2: use a specific version of the
+#   CSI-NN2 compute library
+set(USE_CSINN OFF)
+
+# Whether to build with csinn runtime for device
+# Possible values:
+# - OFF: disable csinn runtime support
+# - X86: compiling CSI-NN2 runtime for x86 device.
+# - C906: cross-compiling CSI-NN2 runtime for C906 device.
+set(USE_CSINN_DEVICE_RUNTIME OFF)

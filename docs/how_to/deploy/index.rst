@@ -176,6 +176,7 @@ target device without relying on RPC. See the following resources on how to do s
    tensorrt
    vitis_ai
    bnns
+   riscv_csinn_compute_lib
 
 Additional Deployment How-Tos
 -----------------------------

@@ -1,0 +1,8 @@
+{
+    "connection_type": "remote",
+    "host": "127.0.0.1",
+    "port": 9090,
+    "target": "llvm -mtriple=riscv64-unknown-linux-gnu -mcpu=generic-rv64 -mabi=lp64d -mattr=+64bit,+m,+a,+f,+d,+c",
+    "device_key": "",
+    "cross_compile": "riscv64-unknown-linux-gnu-g++"
+  }

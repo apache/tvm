@@ -59,4 +59,33 @@
   )
 {% endcall %}
 
+{% call(shard_index, num_shards) m.sharded_test_step(
+  name="test: CSINN",
+  node="CPU-SMALL",
+  ws="tvm/test-csinn",
+  platform="riscv",
+  docker_image="ci_riscv",
+  num_shards=1,
+  test_method_names=test_method_names,
+) %}
+  {{ m.download_artifacts(tag='riscv') }}
+  ci_setup(ci_riscv)
+  sh (
+    script: "${docker_run} ${ci_riscv} ./tests/scripts/task_config_build_csinn2.sh build",
+    label: 'Create CSINN cmake config',
+  )
+  cmake_build(ci_riscv, 'build', '-j4')
+  make_standalone_crt(ci_riscv, 'build')
+  sh (
+    script: "${docker_run} ${ci_riscv} ./tests/scripts/task_config_build_c906.sh build-c906",
+    label: 'Create CSINN cmake config',
+  )
+  cmake_build(ci_riscv, 'build-c906', '-j4')
+  make_standalone_crt(ci_riscv, 'build-c906')
+  sh (
+    script: "${docker_run} ${ci_riscv} ./tests/scripts/task_riscv_csinn.sh",
+    label: 'Run microTVM tests',
+  )
+{% endcall %}
+
 {{ m.invoke_tests(test_method_names) -}}
