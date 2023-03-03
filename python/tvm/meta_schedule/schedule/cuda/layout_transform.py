@@ -312,8 +312,8 @@ def cuda_layout_transform_schedule_rule(sch, block):
     # Always include the default schedules which will be handled via AutoBind schedule rule
     schedules.append(sch)
 
-    # Tile size 2,3,4...64 as tile size of 1 has no coaslescing.
-    for tile_size in range(2, 65):
+    # Tile size 2,3,4...32 as tile size of 1 has no coaslescing.
+    for tile_size in range(2, 33):
         cur_sch = sch.copy()
         tile_layout_transform(cur_sch, block, src_layout, dst_layout, input_shape, tile_size)
         schedules.append(cur_sch)
