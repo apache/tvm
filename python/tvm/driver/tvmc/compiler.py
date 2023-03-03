@@ -459,8 +459,7 @@ def add_tir_to_dumps(config, dumps):
 
     tir_lower_passes = config.get("tir.add_lower_pass", [])
     tir_lower_passes.append((phase, _dump_tir_pass))
-    if tir_lower_passes:
-        config["tir.add_lower_pass"] = tir_lower_passes
+    config["tir.add_lower_pass"] = tir_lower_passes
 
     return config, dumps
 

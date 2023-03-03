@@ -88,7 +88,7 @@ def test_compile_tflite_module(use_vm, tflite_mobilenet_v1_1_quant):
     verify_compile_tflite_module(tflite_mobilenet_v1_1_quant, shape_dict, use_vm=use_vm)
 
 
-def test_tir_dump(tflite_mobilenet_v1_1_quant):
+def test_single_tir_dump(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
     tvmc_model = tvmc.load(tflite_mobilenet_v1_1_quant)
     tvmc_package = tvmc.compile(tvmc_model, target="llvm", dump_code="tir")
@@ -96,6 +96,18 @@ def test_tir_dump(tflite_mobilenet_v1_1_quant):
     assert os.path.exists(dumps_path)
     with open(dumps_path) as f:
         assert "tir" in f.read()
+
+
+def test_code_dumps(tflite_mobilenet_v1_1_quant):
+    pytest.importorskip("tflite")
+    tvmc_model = tvmc.load(tflite_mobilenet_v1_1_quant)
+    dump_code = ["asm", "ll", "tir", "relay"]
+    tvmc_package = tvmc.compile(tvmc_model, target="llvm", dump_code=dump_code)
+    for ext in dump_code:
+        dumps_path = tvmc_package.package_path + "." + ext
+        assert os.path.exists(dumps_path)
+        with open(dumps_path) as f:
+            assert len(f.read()) > 0
 
 
 # This test will be skipped if the AArch64 cross-compilation toolchain is not installed.
