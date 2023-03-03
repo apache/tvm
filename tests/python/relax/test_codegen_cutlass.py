@@ -369,7 +369,7 @@ def test_attention_offload(attention_size, attention_dtype):
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
-@memoize("topi.tests.test_codegen_cutlass.test_attention_offload")
+@memoize("topi.tests.test_codegen_cutlass.test_attention_bias_offload")
 def get_numpy_attention_bias_ref(b, s, s_kv, n, h, h_v, dtype):
     q = np.random.randn(b, s, n, h).astype(dtype)
     k = np.random.randn(b, s_kv, n, h).astype(dtype)
