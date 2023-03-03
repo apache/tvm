@@ -1304,7 +1304,6 @@ class Schedule(Object):
         write_buffer_index: int,
         storage_scope: str,
         index_map: Union[Callable, IndexMap],
-        consumer_blocks: Optional[List[Union[BlockRV, str]]] = None,
     ) -> BlockRV:
         r"""Create a block that reads a buffer region into a write cache using customized
         indices specified by index map. The write region of the buffer must be a single point.
