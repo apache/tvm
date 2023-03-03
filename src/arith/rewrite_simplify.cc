@@ -460,7 +460,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
 
     TVM_TRY_RECURSIVE_REWRITE(
         floordiv(x + c1, 2) - floordiv(x + c2, 2),
-        floormod(x, 2) * (floormod(c1, 2) - floormod(c2, 2)) + floordiv(c1, 2) - floordiv(c2, 2));
+        floormod(x, 2) * (floormod(c1, 2) - floormod(c2, 2)) + (floordiv(c1, 2) - floordiv(c2, 2)));
     TVM_TRY_RECURSIVE_REWRITE(floordiv(x, 2) - floordiv(x + c2, 2),
                               floormod(x, 2) * (0 - floormod(c2, 2)) - floordiv(c2, 2));
     TVM_TRY_RECURSIVE_REWRITE(floordiv(x + c1, 2) - floordiv(x, 2),
