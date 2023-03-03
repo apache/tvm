@@ -2063,7 +2063,8 @@ def layout_transform_strategy(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     strategy.add_implementation(
         wrap_compute_layout_transform(topi.layout_transform),
-        wrap_topi_schedule(topi.generic.schedule_injective),
+        # Defined earlier in the file
+        schedule_injective,
         name="layout_transform.generic",
     )
     return strategy
