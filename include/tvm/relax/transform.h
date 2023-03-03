@@ -27,7 +27,6 @@
 #include <tvm/ir/transform.h>
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr.h>
-#include <tvm/target/target.h>
 
 namespace tvm {
 namespace relax {
