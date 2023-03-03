@@ -274,10 +274,10 @@ TVM_DLL Pass RunCodegen(Optional<Map<String, Map<String, ObjectRef>>> target_opt
                         Array<runtime::String> entry_functions);
 
 /*!
- * \brief Create default schedule for PrimFuncs.
+ * \brief Create default schedule for PrimFuncs to run on cuda device.
  * \return The Pass.
  */
-TVM_DLL Pass DefaultSchedule(tvm::Target target);
+TVM_DLL Pass DefaultSchedule();
 
 }  // namespace transform
 }  // namespace relax

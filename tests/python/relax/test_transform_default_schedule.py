@@ -94,7 +94,7 @@ def test_broadcast_to_symbolic():
     # pylint: enable=no-self-argument,missing-class-docstring
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
     with tvm.transform.PassContext(opt_level=3):
-        After = DefaultSchedule(target)(Before)
+        After = DefaultSchedule()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
 
 
@@ -150,7 +150,7 @@ def test_matmul():
     # pylint: enable=no-self-argument,missing-class-docstring
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
     with tvm.transform.PassContext(opt_level=3):
-        After = DefaultSchedule(target)(Before)
+        After = DefaultSchedule()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
 
 
@@ -222,7 +222,7 @@ def test_add():
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring
     with tvm.transform.PassContext(opt_level=3):
-        After = DefaultSchedule(target)(Before)
+        After = DefaultSchedule()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
 
 
@@ -269,7 +269,7 @@ def test_full():
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring
     with tvm.transform.PassContext(opt_level=3):
-        After = DefaultSchedule(target)(Before)
+        After = DefaultSchedule()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
 
 
@@ -306,7 +306,7 @@ def test_scheduled():
     # pylint: enable=no-self-argument,missing-class-docstring
     with tvm.transform.PassContext(opt_level=3):
         # should do nothing
-        After = DefaultSchedule(target)(Scheduled)
+        After = DefaultSchedule()(Scheduled)
     tvm.ir.assert_structural_equal(After, Scheduled)
 
 

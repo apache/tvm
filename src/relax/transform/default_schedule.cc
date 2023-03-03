@@ -120,11 +120,13 @@ IRModule DefaultSchedule(IRModule mod, int64_t max_thread_per_block) {
 
 namespace transform {
 
-Pass DefaultSchedule(tvm::Target target) {
+Pass DefaultSchedule() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
       [=](IRModule m, PassContext pc) {
+        tvm::Target target = tvm::Target::Current();
         Integer max_thread_per_block = target->GetAttr<Integer>("max_num_threads").value_or(-1);
-        if (target->kind->name == "llvm" || max_thread_per_block == -1) {
+        if (target->kind->name != "cuda") {
+          ICHECK_NE(max_thread_per_block, -1) << "max_num_threads is not set for target " << target;
           return m;
         }
         return relax::DefaultSchedule(m, max_thread_per_block.IntValue());

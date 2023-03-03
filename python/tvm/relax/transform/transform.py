@@ -249,14 +249,14 @@ def AnnotateTIROpPattern() -> tvm.ir.transform.Pass:
     return _ffi_api.AnnotateTIROpPattern()  # type: ignore
 
 
-def DefaultSchedule(target: tvm.target.Target) -> tvm.ir.transform.Pass:
+def DefaultSchedule() -> tvm.ir.transform.Pass:
     """Default schedule for PrimFuncs.
 
     Returns
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.DefaultSchedule(target)  # type: ignore
+    return _ffi_api.DefaultSchedule()  # type: ignore
 
 
 def FuseOps(fuse_opt_level=-1) -> tvm.ir.transform.Pass:

@@ -566,9 +566,9 @@ class BlockCollector : public tir::StmtVisitor {
   /*! \brief Entry point */
   Array<tir::BlockRV> Run() {
     std::vector<tir::BlockRV> results;
-    for (const auto& kv : sch_->mod()->functions) {
-      const GlobalVar& gv = kv.first;         // `gv->name_hint` is the name of the function
-      const BaseFunc& base_func = kv.second;  // this can be PrimFunc or relay::Function
+    for (const auto& [gv, base_func] : sch_->mod()->functions) {
+      // `gv->name_hint` is the name of the function
+      // `base_func` can be PrimFunc or relay::Function
       if (const auto* func = base_func.as<tir::PrimFuncNode>()) {
         func_name_ = gv->name_hint;
         block_names_.clear();
