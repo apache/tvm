@@ -310,9 +310,10 @@ BlockRV TracedScheduleNode::CacheWrite(const BlockRV& block_rv, int write_buffer
 }
 
 BlockRV TracedScheduleNode::ReindexCacheRead(const BlockRV& block_rv, int read_buffer_index,
-                                             const String& storage_scope, const IndexMap& index_map) {
-  BlockRV result = ConcreteScheduleNode::ReindexCacheRead(
-      block_rv, read_buffer_index, storage_scope, index_map);
+                                             const String& storage_scope,
+                                             const IndexMap& index_map) {
+  BlockRV result =
+      ConcreteScheduleNode::ReindexCacheRead(block_rv, read_buffer_index, storage_scope, index_map);
 
   static const InstructionKind& kind = InstructionKind::Get("ReindexCacheRead");
   trace_->Append(
@@ -327,8 +328,8 @@ BlockRV TracedScheduleNode::ReindexCacheRead(const BlockRV& block_rv, int read_b
 BlockRV TracedScheduleNode::ReindexCacheWrite(const BlockRV& block_rv, int write_buffer_index,
                                               const String& storage_scope,
                                               const IndexMap& index_map) {
-  BlockRV result = ConcreteScheduleNode::ReindexCacheWrite(
-      block_rv, write_buffer_index, storage_scope, index_map);
+  BlockRV result = ConcreteScheduleNode::ReindexCacheWrite(block_rv, write_buffer_index,
+                                                           storage_scope, index_map);
 
   static const InstructionKind& kind = InstructionKind::Get("ReindexCacheWrite");
   trace_->Append(
