@@ -106,7 +106,6 @@ Expr MakeCallTIR(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list,
 
 TVM_REGISTER_GLOBAL("relax.op.call_tir").set_body_typed(MakeCallTIR);
 
-
 // call_dps_packed
 
 StructInfo InferStructInfoCallDPSPacked(const Call& call, const BlockBuilder& ctx) {
@@ -126,9 +125,10 @@ RELAY_REGISTER_OP("relax.call_dps_packed")
 Expr MakeCallDPSPacked(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list) {
   for (const TensorStructInfo& sinfo : out_sinfo_list) {
     const auto* shape = sinfo->shape.as<ShapeExprNode>();
-    CHECK(shape != nullptr) << "out_sinfo of call_dps_packed should have defined ShapeExpr as shape. "
-                               "However, one given structure info is "
-                            << sinfo;
+    CHECK(shape != nullptr)
+        << "out_sinfo of call_dps_packed should have defined ShapeExpr as shape. "
+           "However, one given structure info is "
+        << sinfo;
   }
 
   StructInfo out_sinfo{nullptr};
@@ -143,7 +143,6 @@ Expr MakeCallDPSPacked(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_
 }
 
 TVM_REGISTER_GLOBAL("relax.op.call_dps_packed").set_body_typed(MakeCallDPSPacked);
-
 
 // call builtin
 StructInfo InferStructInfoCallBuiltinWithCtx(const Call& call, const BlockBuilder& ctx) {
