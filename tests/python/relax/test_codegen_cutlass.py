@@ -310,18 +310,18 @@ def attention_dtype(request):
 @pytest.fixture(
     params=[
         # B, S, N, H
-        (32, (4, 4), 16, (8, 8)),
-        (4, (8, 4), 32, (8, 8)),  # s != s_kv
-        (4, (8, 4), 32, (8, 16)),  # h != h_v
-        (32, (4, 4), 16, (4, 4)),  # h is not aligned
-        (2, (4, 4), 8, (256, 256)),  # needs output accumulator buffer
+        (32, (8, 8), 16, (8, 8)),
+        (4, (16, 8), 32, (8, 8)),  # s != s_kv
+        (4, (16, 8), 32, (8, 16)),  # h != h_v
+        (32, (8, 8), 16, (4, 4)),  # h is not aligned
+        (2, (8, 8), 8, (256, 256)),  # needs output accumulator buffer
     ]
 )
 def attention_size(request):
     return request.param
 
 
-def get_relax_attention_module(q, k, v):
+def get_relax_attention_module(q, k, v, bias=None):
     dtype = str(q.dtype)
 
     from tvm.script.ir_builder import IRBuilder
@@ -333,9 +333,10 @@ def get_relax_attention_module(q, k, v):
             q = R.arg("q", R.Tensor(q.shape, dtype))
             k = R.arg("k", R.Tensor(k.shape, dtype))
             v = R.arg("v", R.Tensor(v.shape, dtype))
-
+            if bias is not None:
+                bias = R.arg("bias", R.Tensor(bias.shape, dtype))
             with R.dataflow() as frame:
-                result = R.emit(R.nn.attention(q, k, v))
+                result = R.emit(R.nn.attention(q, k, v, bias))
                 R.output(result)
 
             R.func_ret_value(frame.output_vars[0])
@@ -364,6 +365,32 @@ def test_attention_offload(attention_size, attention_dtype):
 
     mod = get_relax_attention_module(q, k, v)
     out = get_result_with_relax_cutlass_offload(mod, q, k, v)
+
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
+@memoize("topi.tests.test_codegen_cutlass.test_attention_offload")
+def get_numpy_attention_bias_ref(b, s, s_kv, n, h, h_v, dtype):
+    q = np.random.randn(b, s, n, h).astype(dtype)
+    k = np.random.randn(b, s_kv, n, h).astype(dtype)
+    v = np.random.randn(b, s_kv, n, h_v).astype(dtype)
+    bias = np.random.randn(b, s, n, s_kv).astype(dtype)
+    qt = q.transpose(0, 2, 1, 3)  # b, n, s, h
+    kt = k.transpose(0, 2, 3, 1)  # b, n, h, s_kv
+    score = qt @ kt / np.sqrt(q.shape[-1])  # b, n, s, s_kv
+    score_bias = score + bias.transpose(0, 2, 1, 3)  # b, n, s, s_kv
+    attn = tvm.topi.testing.softmax_python(score_bias, -1)
+    vt = v.transpose(0, 2, 1, 3)  # b, n, s_kv, h_v
+    ref = attn @ vt  # b, n, s, h_v
+    return q, k, v, bias, ref.transpose(0, 2, 1, 3)  # b, s, n, h_v
+
+
+def test_attention_bias_offload(attention_size, attention_dtype):
+    b, (s, s_kv), n, (h, h_v) = attention_size
+    q, k, v, bias, ref = get_numpy_attention_bias_ref(b, s, s_kv, n, h, h_v, attention_dtype)
+
+    mod = get_relax_attention_module(q, k, v, bias)
+    out = get_result_with_relax_cutlass_offload(mod, q, k, v, bias)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 

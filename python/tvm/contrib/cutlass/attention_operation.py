@@ -23,6 +23,16 @@ def instantiate_attention_template(attrs, func_args):
     """Return CUTLASS host code for fused multi head attention
     based on a template and the provided attribute map."""
 
+    bias_template = """
+  CHECK(${arg3}->ndim == 4); // B, S, N, S'
+
+  p.attn_bias_ptr = reinterpret_cast<T *>(${arg3}->data);
+  p.bias_strideH = p.num_keys; // S'
+  p.bias_strideM = p.bias_strideH * p.num_heads; // S' * N
+  p.bias_strideB = p.bias_strideM * p.num_queries; // S' * N * S
+  
+"""
+
     template = """
   using T = ${data_type};
 
@@ -79,6 +89,8 @@ def instantiate_attention_template(attrs, func_args):
   p.k_strideB = p.k_strideM * p.num_keys; // H * N * S'
   p.v_strideB = p.v_strideM * p.num_keys; // H'* N * S'
 
+  ${bias_template}
+
   constexpr auto kernel_fn = attention_kernel_batched_impl<Attention>;
   int smem_bytes = sizeof(typename Attention::SharedStorage);
   if (smem_bytes > 0xc000) {
@@ -92,6 +104,10 @@ def instantiate_attention_template(attrs, func_args):
   CHECK(Attention::check_supported(p));
   kernel_fn<<<p.getBlocksGrid(), p.getThreadsGrid(), smem_bytes>>>(p);
 """
+    if len(func_args) > 3:
+        template = substitute_template(template, {"bias_template": bias_template})
+    else:
+        template = substitute_template(template, {"bias_template": ""})
     for i, arg in enumerate(func_args):
         attrs["arg{}".format(i)] = arg
     return substitute_template(template, attrs)

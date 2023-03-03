@@ -163,7 +163,11 @@ register_patterns(
         ),
         (
             "cutlass.attention",
-            make_attention_pattern(),
+            *make_attention_pattern(),
+        ),
+        (
+            "cutlass.attention_bias",
+            *make_attention_pattern(with_bias=True),
         ),
     ]
 )

@@ -26,9 +26,15 @@ namespace tvm {
 namespace relax {
 
 /* relax.nn.attention */
-Expr attention(Expr query, Expr key, Expr value, DataType out_dtype) {
+Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias) {
   static const Op& op = Op::Get("relax.nn.attention");
-  return Call(op, {std::move(query), std::move(key), std::move(value)}, {}, {});
+  if (bias.defined()) {
+    return Call(Op::Get("relax.nn.attention_bias"),
+                {std::move(query), std::move(key), std::move(value), std::move(bias.value())}, {},
+                {});
+  }
+  return Call(Op::Get("relax.nn.attention"), {std::move(query), std::move(key), std::move(value)},
+              {}, {});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.nn.attention").set_body_typed(attention);
@@ -70,8 +76,22 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
   diag_equal(num_batches, v_shape->values[0], "query", "value", "batch size");
   diag_equal(num_heads, k_shape->values[2], "query", "key", "number of heads");
   diag_equal(num_heads, v_shape->values[2], "query", "value", "number of heads");
-  diag_equal(k_shape->values[1], v_shape->values[1], "key", "value", "sequence length");
+  diag_equal(num_keys, v_shape->values[1], "key", "value", "sequence length");
   diag_equal(head_dim, k_shape->values[3], "query", "key", "dimension of heads");
+
+  if (input_sinfo.size() == 4) {
+    TensorStructInfo bias_sinfo = input_sinfo[3];
+    if (bias_sinfo->ndim != 4) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "The bias should have 4 dimension, namely "
+                       << "[batch size, sequence length, number of heads, sequence length].");
+    }
+    const ShapeExprNode* bias_shape = bias_sinfo->shape.as<ShapeExprNode>();
+    diag_equal(num_batches, bias_shape->values[0], "query", "bias", "batch size");
+    diag_equal(num_queries, bias_shape->values[1], "query", "bias", "sequence length");
+    diag_equal(num_heads, bias_shape->values[2], "query", "bias", "number of heads");
+    diag_equal(num_keys, bias_shape->values[3], "key", "bias", "sequence length");
+  }
 
   Array<PrimExpr> output_shape = {num_batches, num_queries, num_heads, head_dim_value};
   return TensorStructInfo(ShapeExpr(output_shape), q_sinfo->dtype);
@@ -82,6 +102,14 @@ TVM_REGISTER_OP("relax.nn.attention")
     .add_argument("query", "Tensor", "The input queries tensor.")
     .add_argument("key", "Tensor", "The input keys tensor.")
     .add_argument("value", "Tensor", "The input values tensor.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention);
+
+TVM_REGISTER_OP("relax.nn.attention_bias")
+    .set_num_inputs(4)
+    .add_argument("query", "Tensor", "The input queries tensor.")
+    .add_argument("key", "Tensor", "The input keys tensor.")
+    .add_argument("value", "Tensor", "The input values tensor.")
+    .add_argument("bias", "Tensor", "The input bias tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention);
 
 }  // namespace relax

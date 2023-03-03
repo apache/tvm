@@ -115,7 +115,7 @@ def make_matmul_pattern(
     return _with_bias_activation_pattern(out, args, with_bias, activation)
 
 
-def make_attention_pattern():
+def make_attention_pattern(with_bias: bool = False):
     """
     Create pattern for fused multi head attention.
 
@@ -131,6 +131,12 @@ def make_attention_pattern():
     query = wildcard()
     key = wildcard()
     value = wildcard()
-    out = is_op("relax.nn.attention")(query, key, value)
+    args = {"query": query, "key": key, "value": value}
+    if with_bias:
+        bias = wildcard()
+        args["bias"] = bias
+        out = is_op("relax.nn.attention_bias")(query, key, value, bias)
+    else:
+        out = is_op("relax.nn.attention")(query, key, value)
 
-    return out
+    return out, args

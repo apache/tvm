@@ -579,9 +579,7 @@ def cross_entropy_with_logits(predictions: Expr, labels: Expr) -> Expr:
     return _ffi_api.cross_entropy_with_logits(predictions, labels)  # type: ignore
 
 
-def attention(
-    query: Expr, key: Expr, value: Expr, out_dtype: Optional[Union[str, DataType]] = None
-) -> Expr:
+def attention(query: Expr, key: Expr, value: Expr, bias: Optional[Expr] = None) -> Expr:
     r"""Computes fused multi head attention.
 
     All input tensors are of 4-D tensors with BSNH layout.
@@ -606,9 +604,9 @@ def attention(
         The input value to the operator. The layout of the input value should be
         (batch_size, seq_len_kv, num_head, head_dim_v).
 
-    out_dtype: Optional[Union[str, DataType]]
-        The data type of the attention result.
-        When it is not specified, the output dtype will be the the same as input dtype.
+    bias: Optional[Expr]
+        The optional attention bias to the operator. The layout of the attention bias should be
+        (batch_size, seq_len, num_head, seq_len_kv).
 
     Returns
     -------
@@ -616,4 +614,4 @@ def attention(
         The computed result. The layout of the output should be
         (batch_size, seq_len, num_head, head_dim_v).
     """
-    return _ffi_api.attention(query, key, value, out_dtype)  # type: ignore
+    return _ffi_api.attention(query, key, value, bias)  # type: ignore
