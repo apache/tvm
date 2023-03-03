@@ -30,6 +30,7 @@
 #include <tvm/tir/function.h>
 #include <tvm/tir/op_attr_types.h>
 #include <tvm/tir/stmt.h>
+#include <tvm/tir/stmt_functor.h>
 
 #include <string>
 
@@ -85,6 +86,58 @@ TVM_DLL double EstimateTIRFlops(const Stmt& stmt);
  * \return The estimated FLOPs.
  */
 TVM_DLL double EstimateTIRFlops(const IRModule& mod);
+
+/*!
+ * \brief Visitor class to perform use/def analysis, also delete unreferenced lets.
+ * \sa UndefinedVars
+ */
+class VarUseDefAnalysis : public StmtExprMutator {
+ public:
+  // The fields are publically readible to
+  // be accessible to the users.
+  bool visit_thread_extent_{true};
+  bool simplify_let_{true};
+  Array<Var> undefined_;
+  Array<IterVar> thread_axis_;
+  Array<PrimExpr> thread_extent_;
+  PrimExpr dyn_shmem_size_{0};
+  bool use_dyn_shmem_{false};
+  std::unordered_map<const VarNode*, int> use_count_;
+  std::unordered_map<const VarNode*, int> def_count_;
+
+ private:
+  ExprDeepEqual deep_equal_;
+  std::unordered_map<Var, const LetNode*, ObjectPtrHash, ObjectPtrEqual> let_binding_;
+  Stmt VisitStmt_(const AttrStmtNode* op) final;
+
+  Stmt VisitStmt_(const LetStmtNode* op) final;
+
+  Stmt VisitStmt_(const ForNode* op) final;
+
+  Stmt VisitStmt_(const AllocateNode* op) final;
+
+  Stmt VisitStmt_(const AllocateConstNode* op) final;
+
+  Stmt VisitStmt_(const StoreNode* op) final;
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final;
+
+  PrimExpr VisitExpr_(const LetNode* op) final;
+
+  PrimExpr VisitExpr_(const VarNode* op) final;
+
+  PrimExpr VisitExpr_(const ReduceNode* op) final;
+
+  PrimExpr VisitExpr_(const LoadNode* op) final;
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final;
+
+  void HandleDef(const VarNode* v);
+
+  void HandleUse(const PrimExpr& v);
+
+  void VisitBuffer(Buffer buffer);
+};
 
 /*!
  * \brief Find undefined vars in the statement.
