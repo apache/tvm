@@ -240,7 +240,6 @@ std::vector<State> MultiLevelTilingNode::TileLoopNest(State state) const {
       for (int j = 0; j < n_tiles; ++j) {
         tiles[idx->at(j)].push_back(splits[j]);
         tile_factors[idx->at(j)].push_back(factors[j]);
-        // Array<PrimExpr>& a=state->tile_size[idx->at(j)];//.push_back(factors[j]);
       }
     }
   }

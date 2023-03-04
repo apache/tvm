@@ -94,11 +94,12 @@ class StateNode : public Object {
   tir::BlockRV block_rv;
   /*! \brief The loop tiles */
   Array<Array<tir::LoopRV>> tiles;
+  /*! \brief The factors of the loop tiles. */
+  Array<Array<tir::ExprRV>> tile_factors;
   /*! \brief The mapping from buffer index to read cache block. */
   std::unordered_map<int, tir::BlockRV> read_reuse;
   /*! \brief The mapping from buffer index to write cache block. */
   std::unordered_map<int, tir::BlockRV> write_reuse;
-  Array<Array<tir::ExprRV>> tile_factors;
 
   /*!
    * \brief Create a copy of the state. The underlying schedule is copied. Schedule rules that
