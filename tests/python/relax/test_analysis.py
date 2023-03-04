@@ -21,8 +21,21 @@ import tvm
 import tvm.testing
 from tvm import tir
 from tvm import relax as rx
-from tvm.relax.analysis import has_reshape_pattern, udchain, remove_all_unused, name_to_binding
+from tvm.relax.analysis import (
+    has_reshape_pattern,
+    udchain,
+    remove_all_unused,
+    name_to_binding,
+    all_vars,
+    all_global_vars,
+    free_vars,
+    bound_vars,
+)
 from tvm.script import relax as R, tir as T
+
+
+def var_name_set(vars: List[Union[rx.Var, rx.GlobalVar]]) -> Set[str]:
+    return set(map(lambda v: v.name_hint, vars))
 
 
 def test_use_def():
@@ -160,6 +173,104 @@ def test_name_to_binding_var_shadowing():
     assert "lv2" in n2binding
 
     assert len(n2binding["lv0"]) == 2
+
+
+@tvm.script.ir_module
+class VarExample:
+    @R.function
+    def func(a: R.Tensor) -> R.Tensor:
+        # normalized into assigning R.add(a, a) to a var and returning it
+        return R.add(a, a)
+
+    @R.function
+    def main(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+        z = R.add(x, y)
+        # no binding here
+        _ = R.match_cast(x, R.Tensor((5, 5)))
+        with R.dataflow():
+            q = R.add(z, z)
+            p = func(q)
+            r = R.match_cast(p, R.Tensor((5, 5)))
+            s = r
+            R.output(s)
+        return s
+
+
+def test_all_vars():
+    vars = all_vars(VarExample["func"])
+    assert len(vars) == 2
+    assert vars[0].name_hint == "a"
+    # the body of the seq expr in the func body is a var
+    assert vars[1] == VarExample["func"].body.body
+
+    var_names = var_name_set(all_vars(VarExample["main"]))
+    assert var_names == {"_", "x", "y", "z", "p", "q", "r", "s"}
+
+
+def test_bound_vars():
+    vars = bound_vars(VarExample["func"])
+    assert len(vars) == 2
+    assert vars[0].name_hint == "a"
+    # the body of the seq expr in the func body is a bound var
+    assert vars[1] == VarExample["func"].body.body
+
+    # all the vars are bound
+    var_names = var_name_set(bound_vars(VarExample["main"]))
+    assert var_names == {"_", "x", "y", "z", "p", "q", "r", "s"}
+
+    # if we consider only the body, then the function arguments are not bound
+    body_names = var_name_set(bound_vars(VarExample["main"].body))
+    assert body_names == {"_", "z", "p", "q", "r", "s"}
+
+    # only binding is in the (normalized) body
+    simple_body_vars = bound_vars(VarExample["func"].body)
+    assert len(simple_body_vars) == 1
+    assert simple_body_vars[0] == VarExample["func"].body.body
+
+
+def test_free_vars():
+    # all the vars are bound
+    assert len(free_vars(VarExample["func"])) == 0
+    assert len(free_vars(VarExample["main"])) == 0
+
+    # the arguments are free if we look only at the bodies
+    func_free = var_name_set(free_vars(VarExample["func"].body))
+    main_free = var_name_set(free_vars(VarExample["main"].body))
+    assert len(func_free) == 1
+    assert len(main_free) == 2
+    assert "a" in func_free
+    assert main_free == {"x", "y"}
+
+    # function that captures vars
+    x = rx.Var("x", R.Tensor(ndim=-1))
+    y = rx.Var("y", R.Tensor(ndim=-1))
+    z = rx.Var("z", R.Tensor(ndim=-1))
+    inner = rx.Function(
+        [z],
+        rx.op.add(x, rx.op.add(y, z)),
+        ret_struct_info=R.Tensor(ndim=-1),
+    )
+    outer = rx.Function(
+        [x, y],
+        rx.Call(inner, [y]),
+        ret_struct_info=R.Tensor(ndim=-1),
+    )
+    assert len(free_vars(outer)) == 0
+    assert var_name_set(free_vars(inner)) == {"x", "y"}
+
+
+def test_all_global_vars():
+    # there is one call to "func"
+    global_vars = all_global_vars(VarExample["main"])
+    assert len(global_vars) == 1
+    assert global_vars[0].name_hint == "func"
+
+    gv1 = rx.GlobalVar("gv1")
+    gv2 = rx.GlobalVar("gv2")
+    gv3 = rx.GlobalVar("gv3")
+    call = rx.Call(gv1, [gv2, gv3])
+    call_var_names = var_name_set(all_global_vars(call))
+    assert call_var_names == {"gv1", "gv2", "gv3"}
 
 
 def test_reshape_pattern_reshape():
