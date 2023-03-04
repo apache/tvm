@@ -708,29 +708,19 @@ def test_groupnorm():
             w1: R.Tensor((3,), dtype="float32"),
             w2: R.Tensor((3,), dtype="float32"),
         ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-            # block 0
             with R.dataflow():
-                lv: R.Tensor((1, 3, 1, 10, 10), dtype="float32") = R.reshape(
-                    input_1, (1, 3, 1, 10, 10)
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.group_norm(
+                    input_1,
+                    w1,
+                    w2,
+                    num_groups=3,
+                    channel_axis=1,
+                    axes=[2, 3],
+                    epsilon=1.0000000000000001e-05,
+                    center=True,
+                    scale=True,
                 )
-                lv1: R.Tensor((1, 3, 1, 1, 1), dtype="float32") = R.mean(
-                    lv, axis=[2, 3, 4], keepdims=True
-                )
-                lv2: R.Tensor((1, 3, 1, 10, 10), dtype="float32") = R.subtract(lv, lv1)
-                lv3: R.Tensor((1, 3, 1, 10, 10), dtype="float32") = R.multiply(lv2, lv2)
-                lv4: R.Tensor((1, 3, 1, 1, 1), dtype="float32") = R.sum(
-                    lv3, axis=[2, 3, 4], keepdims=True
-                )
-                lv5: R.Tensor((1, 3, 1, 1, 1), dtype="float32") = R.divide(lv4, R.const(100.0))
-                lv6: R.Tensor((1, 3, 1, 1, 1), dtype="float32") = R.add(lv5, R.const(1e-05))
-                lv7: R.Tensor((1, 3, 1, 1, 1), dtype="float32") = R.sqrt(lv6)
-                lv8: R.Tensor((1, 3, 1, 10, 10), dtype="float32") = R.divide(lv2, lv7)
-                lv9: R.Tensor((1, 3, 1, 1, 1), dtype="float32") = R.reshape(w1, (1, 3, 1, 1, 1))
-                lv10: R.Tensor((1, 3, 1, 1, 1), dtype="float32") = R.reshape(w2, (1, 3, 1, 1, 1))
-                lv11: R.Tensor((1, 3, 1, 10, 10), dtype="float32") = R.multiply(lv8, lv9)
-                lv12: R.Tensor((1, 3, 1, 10, 10), dtype="float32") = R.add(lv11, lv10)
-                lv13: R.Tensor((1, 3, 10, 10), dtype="float32") = R.reshape(lv12, (1, 3, 10, 10))
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv13
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
                 R.output(gv)
             return gv
 
