@@ -92,7 +92,7 @@ def convert_to_mixed_precision(mod, ops=None, calculation_type="float16", acc_ty
 
     with MixedPrecision(ops, acc_type):
         seq = transform.Sequential(
-            [relay.transform.InferType(), relay.transform.ToMixedPrecision()]
+            [relay.transform.InferType(), relay.transform.ToMixedPrecision(calculation_type)]
         )
         with transform.PassContext(
             config={"relay.ToMixedPrecision.keep_orig_output_dtype": True}, opt_level=3
@@ -160,7 +160,9 @@ def apply_graph_transforms(mod, args):
 
     # AlterLayout
     if args.get("desired_layout", False):
-        mod = convert_graph_layout(mod, args["desired_layout"])
+        mod = convert_graph_layout(
+            mod, args["desired_layout"], args.get("desired_layout_ops", None)
+        )
 
     # ToMixedPrecision
     if args.get("mixed_precision", False):
