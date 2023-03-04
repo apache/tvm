@@ -362,7 +362,7 @@ def test_call_packed():
         y: R.Tensor(("m",), "float32"),
         r: R.Tensor(dtype="int64"),
     ) -> R.Object:
-        m = T.var("int64")
+        m = T.int64()
         z: R.Tensor((32, m), "float32") = R.multiply(x, y)
         w: R.Tensor = R.multiply(z, z)
         q: R.Tensor(ndim=2) = R.add(w, w)
@@ -431,7 +431,7 @@ def test_call_tir():
     # also from test_parser
     @R.function
     def foo(x: R.Tensor(("m", "n"), "float32")):
-        m, n = T.var("int64"), T.var("int64")
+        m, n = T.int64(), T.int64()
         gv0 = R.call_tir("test.op.identity", (x,), R.Tensor((m, n), dtype="float32"))
         return gv0
 
