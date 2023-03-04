@@ -69,6 +69,23 @@ TVM_DLL void FuncRetStructInfo(const tvm::relax::StructInfo& ret_sinfo);
  */
 TVM_DLL void FuncRetValue(const tvm::relax::Expr& value);
 
+/*!
+ * \brief Add a Relax function or a TIR PrimFunc to the IRModuleFrame.
+ * \param func The function to be added.
+ * \param func_name_hint The name hint of the function to be added.
+ * \note If the function to be added already exists, return its
+ * GlobalVar directly.
+ * \return The global var bound to the added function.
+ */
+TVM_DLL GlobalVar AddFunction(const BaseFunc& func, String func_name_hint);
+
+/*!
+ * \brief Update a Relax function or a TIR PrimFunc in the IRModuleFrame.
+ * \param gv The global var referring the function to be updated.
+ * \param function The updated function.
+ */
+TVM_DLL void UpdateFunction(const GlobalVar& gv, BaseFunc function);
+
 ///////////////////////////// BindingBlock //////////////////////////////
 
 /*!

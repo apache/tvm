@@ -184,6 +184,42 @@ def test_simple_module():
     _check(TestModule, bb.get())
 
 
+def test_emit_te():
+    @I.ir_module
+    class EmitTE:
+        @R.function
+        def main(x: R.Tensor((10, 20), "float32")) -> R.Tensor((10, 20), dtype="float32"):
+            gv = R.emit_te(topi.add, x, x)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def add(
+            rxplaceholder: T.Buffer((T.int64(10), T.int64(20)), "float32"),
+            rxplaceholder_1: T.Buffer((T.int64(10), T.int64(20)), "float32"),
+            T_add: T.Buffer((T.int64(10), T.int64(20)), "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            # with T.block("root"):
+            for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
+                with T.block("T_add"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(rxplaceholder[v_ax0, v_ax1], rxplaceholder_1[v_ax0, v_ax1])
+                    T.writes(T_add[v_ax0, v_ax1])
+                    T_add[v_ax0, v_ax1] = (
+                        rxplaceholder[v_ax0, v_ax1] + rxplaceholder_1[v_ax0, v_ax1]
+                    )
+
+        @R.function
+        def main(x: R.Tensor((10, 20), dtype="float32")) -> R.Tensor((10, 20), dtype="float32"):
+            gv = R.call_tir(add, (x, x), out_sinfo=R.Tensor((10, 20), dtype="float32"))
+            out: R.Tensor((10, 20), dtype="float32") = gv
+            return out
+
+    _check(EmitTE, Expected)
+
+
 def test_module_with_attr_and_global_info():
     @I.ir_module
     class TestModule:
@@ -1023,7 +1059,7 @@ def test_arith_operators():
         a3 = x * y
         a4 = x / y
         a5 = x // y
-        a6 = x**y
+        a6 = x ** y
 
         c0 = x > y
         c1 = x < y

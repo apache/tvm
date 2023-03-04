@@ -119,12 +119,57 @@ void FuncRetValue(const tvm::relax::Expr& value) {
   frame->output = std::move(normalized_value);
 }
 
+GlobalVar AddFunction(const BaseFunc& func, String func_name_hint) {
+  IRBuilder builder = IRBuilder::Current();
+  GlobalVar gvar = GlobalVar(func_name_hint);
+  if (func->struct_info_.defined()) {
+    gvar->struct_info_ = tvm::relax::GetStructInfo(func);
+  } else if (const auto* prim_func = func.as<tvm::tir::PrimFuncNode>()) {
+    gvar->struct_info_ =
+        tvm::relax::FuncStructInfo::OpaqueFunc(tvm::relax::StructInfoFromType(prim_func->ret_type));
+  } else {
+    LOG(FATAL) << "Unsupported function type: " << func->GetTypeKey();
+  }
+  if (Optional<ir::IRModuleFrame> opt_frame = builder->FindFrame<ir::IRModuleFrame>()) {
+    const ir::IRModuleFrame& mod_frame = opt_frame.value();
+    if (mod_frame->global_var_map.count(func_name_hint)) {
+      return mod_frame->global_var_map[func_name_hint];
+    }
+    mod_frame->global_var_map.Set(func_name_hint, gvar);
+    mod_frame->functions.Set(gvar, func);
+  } else {
+    LOG(FATAL) << "ValueError: IRModule frame not find. Please ensure "
+               << "AddFunction called under I.ir_module()";
+  }
+  return gvar;
+}
+
+void UpdateFunction(const GlobalVar& gv, BaseFunc function) {
+  IRBuilder builder = IRBuilder::Current();
+  if (Optional<ir::IRModuleFrame> opt_frame = builder->FindFrame<ir::IRModuleFrame>()) {
+    const ir::IRModuleFrame& mod_frame = opt_frame.value();
+    // invalidate old function first
+    if (mod_frame->global_var_map.count(gv->name_hint)) {
+      mod_frame->global_var_map.erase(gv->name_hint);
+      mod_frame->functions.erase(gv);
+    }
+    // add func in
+    mod_frame->global_var_map.Set(gv->name_hint, gv);
+    mod_frame->functions.Set(gv, function);
+  } else {
+    LOG(FATAL) << "ValueError: IRModule frame not find. Please ensure "
+               << "UpdateFunction called under I.ir_module()";
+  }
+}
+
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Function").set_body_typed(Function);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Arg").set_body_typed(Arg);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncName").set_body_typed(FuncName);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncAttrs").set_body_typed(FuncAttrs);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncRetStructInfo").set_body_typed(FuncRetStructInfo);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncRetValue").set_body_typed(FuncRetValue);
+TVM_REGISTER_GLOBAL("script.ir_builder.relax.AddFunction").set_body_typed(AddFunction);
+TVM_REGISTER_GLOBAL("script.ir_builder.relax.UpdateFunction").set_body_typed(UpdateFunction);
 
 ///////////////////////////// BindingBlock //////////////////////////////
 

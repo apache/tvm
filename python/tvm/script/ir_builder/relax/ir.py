@@ -26,7 +26,8 @@ import tvm
 from tvm import DataType, relax
 from tvm.ir import PrimExpr
 from tvm.relax import Call, Expr, ExternFunc, TupleGetItem, ShapeExpr, Var, VarBinding, const
-from tvm.relax.block_builder import BlockBuilder as rx_bb
+from tvm.relax.utils import gen_call_tir_inputs
+
 
 ############################### Operators ###############################
 from tvm.relax.op import (
@@ -310,7 +311,7 @@ invoke_closure = _sinfo_arg_wrapper(invoke_closure)  # pylint: disable=invalid-n
 call_builtin_with_ctx = _sinfo_arg_wrapper(call_builtin_with_ctx)  # pylint: disable=invalid-name
 
 
-############################### Bindings ###############################
+############################### Emits ###############################
 
 
 def emit(value: Expr, annotate_struct_info: Optional[StructInfo] = None) -> Var:
@@ -329,6 +330,38 @@ def emit(value: Expr, annotate_struct_info: Optional[StructInfo] = None) -> Var:
         The left side var of the emitted binding.
     """
     return _ffi_api.Emit(value, annotate_struct_info)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def call_te(func: Callable, *args: Any, **kwargs: Any) -> Expr:
+    """Generate a call node according to the te function.
+    This function converts arguments from relax expression to te tensor,
+    The callback func should return a te tensor or a list of te tensors.
+
+    Parameters
+    ----------
+    func : Callable
+        A function that returns a te tensor or a list of te tensors.
+
+    args : Any, optional
+        arguments passed to the function.
+
+    kwargs : Any, optional
+        The keyword arguments passed to the function.
+        Note that the key "primfunc_name_hint" is reserved for passing name hint
+        to the PrimFunc that gets generated.
+
+    Returns
+    -------
+    ret : tvm.relax.Call
+        A newly created call node
+    """
+
+    func_name = kwargs.pop("primfunc_name_hint", None)
+    tir_func, call_args, out_sinfo, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
+    if not func_name:
+        func_name = func.__name__
+    gvar = _ffi_api.AddFunction(tir_func, func_name)  # type: ignore
+    return call_tir(gvar, call_args, out_sinfo, tir_vars)
 
 
 def emit_te(func: Callable, *args: Any, **kwargs: Any) -> Var:
@@ -354,10 +387,7 @@ def emit_te(func: Callable, *args: Any, **kwargs: Any) -> Var:
     var : Var
         A newly created variable that gets bound to the call code.
     """
-
-    # Levarage the util function call_te in Relax Block Blocker
-    emit_expr = rx_bb().call_te(func, *args, **kwargs)
-    return emit(emit_expr)
+    return emit(call_te(func, *args, **kwargs))
 
 
 def emit_match_cast(value: Expr, struct_info: StructInfo) -> Var:
@@ -534,6 +564,7 @@ __all__ = [
     "broadcast_to",
     "builtin",
     "call_packed",
+    "call_te",
     "call_tir",
     "call_builtin_with_ctx",
     "ceil",
