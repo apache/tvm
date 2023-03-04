@@ -185,6 +185,31 @@ def test_layer_norm():
     _check(foo, bb.get()["foo"])
 
 
+def test_group_norm():
+    @R.function
+    def foo(
+        x: R.Tensor((2, 4, 4, 5), "float32"),
+        gamma: R.Tensor((4,), "float32"),
+        beta: R.Tensor((4,), "float32"),
+    ) -> R.Tensor((2, 4, 4, 5), "float32"):
+        gv: R.Tensor((2, 4, 4, 5), "float32") = R.nn.group_norm(
+            x, gamma, beta, num_groups=2, channel_axis=1, axes=[2, 3]
+        )
+        return gv
+
+    x = relax.Var("x", R.Tensor((2, 4, 4, 5), "float32"))
+    gamma = relax.Var("gamma", R.Tensor((4,), "float32"))
+    beta = relax.Var("beta", R.Tensor((4,), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", [x, gamma, beta]):
+        gv = bb.emit(
+            relax.op.nn.group_norm(x, gamma, beta, num_groups=2, channel_axis=1, axes=[2, 3])
+        )
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
 def test_dropout():
     @R.function
     def foo(

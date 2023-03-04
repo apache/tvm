@@ -174,6 +174,27 @@ struct LayerNormAttrs : public tvm::AttrsNode<LayerNormAttrs> {
   }
 };  // struct LayerNormAttrs
 
+/*! \brief Attributes used in group_norm operator */
+struct GroupNormAttrs : public tvm::AttrsNode<GroupNormAttrs> {
+  int num_groups;
+  int channel_axis;
+  Array<Integer> axes;
+  double epsilon;
+  bool center;
+  bool scale;
+
+  TVM_DECLARE_ATTRS(GroupNormAttrs, "relax.attrs.GroupNormAttrs") {
+    TVM_ATTR_FIELD(num_groups).describe("The number of groups to separate the channels into.");
+    TVM_ATTR_FIELD(channel_axis).describe("The axis that represents the channel.");
+    TVM_ATTR_FIELD(axes).describe(
+        "The axes that along which the normalization is applied (excluding the channel axis).");
+    TVM_ATTR_FIELD(epsilon).describe("Small float added to variance to avoid dividing by zero");
+    TVM_ATTR_FIELD(center).describe(
+        "Indicating if the beta offset will be added to the normalized tensor.");
+    TVM_ATTR_FIELD(scale).describe("Indicating if the gamma scale will be multiplied.");
+  }
+};  // struct GroupNormAttrs
+
 /*! \brief Attributes used in dropout operator */
 struct DropoutAttrs : public tvm::AttrsNode<DropoutAttrs> {
   double rate;

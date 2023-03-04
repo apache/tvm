@@ -527,6 +527,64 @@ def layer_norm(
     return _ffi_api.layer_norm(data, gamma, beta, axes, epsilon, center, scale)  # type: ignore
 
 
+def group_norm(
+    data: Expr,
+    gamma: Expr,
+    beta: Expr,
+    num_groups: int,
+    channel_axis: int,
+    axes: Union[int, List[int]],
+    epsilon: float = 1e-5,
+    center: bool = True,
+    scale: bool = True,
+) -> Expr:
+    r"""
+    Group normalization (Yuxin Wu and et al., 2016).
+    Applies group normalization to the n-dimensional input array.
+    This operator takes an n-dimensional input array. First separate the input array
+    into groups along the channel axis. Then apply layer normalization to each group.
+
+    Parameters
+        ----------
+    data : relax.Expr
+        Input to which group_norm will be applied.
+
+    gamma : relax.Expr
+        The gamma scale factor.
+
+    beta : relax.Expr
+        The beta offset factor.
+
+    num_groups : int
+        Number of groups to separate the channels into.
+
+    channel_axis : int
+        The index of the channel axis in the input data.
+
+    axes : Union[int, List[int]]
+        The axes that along which the normalization is applied (excluding the group axis)
+
+    epsilon : float
+        Small float added to variance to avoid dividing by zero.
+
+    center : bool
+        Indicating if the beta offset will be added to the normalized tensor.
+
+    scale : bool
+        Indicating if the gamma scale will be multiplied.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    if isinstance(axes, int):
+        axes = [axes]
+    return _ffi_api.group_norm(  # type: ignore
+        data, gamma, beta, num_groups, channel_axis, axes, epsilon, center, scale
+    )
+
+
 def dropout(data: Expr, rate: float = 0.5) -> Expr:
     """Applies the dropout operation to the input tensor.
 

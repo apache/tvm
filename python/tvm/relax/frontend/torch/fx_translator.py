@@ -465,44 +465,30 @@ class TorchFXImporter:
         )
 
     def _group_norm(self, node: fx.node.Node) -> relax.Var:
-        # torch.nn.GroupNorm(num_groups, num_channels, eps=1e-05,
-        #                    affine=True, device=None, dtype=None)
+        import torch  # type: ignore
+
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
-        num_groups = module.num_groups
-        num_channels = module.num_channels
-        eps = module.eps
-        affine = module.affine
 
-        shape = self.shape_of(x)
-        assert len(shape) == 4
-        N, C, H, W = shape[0], shape[1], shape[2], shape[3]
-        assert C == num_channels
-        assert C % num_groups == 0
-        grouped_x = self.block_builder.emit(
-            relax.op.reshape(x, [N, num_groups, C // num_groups, H, W])
+        if module.affine:
+            gamma = self.params[module.weight]
+            beta = self.params[module.bias]
+        else:
+            gamma = relax.const(torch.ones_like(module.num_channels), x.checked_type)
+            beta = relax.const(torch.zeros_like(module.num_channels), x.checked_type)
+
+        dim = len(self.shape_of(x))
+        return self.block_builder.emit(
+            relax.op.nn.group_norm(
+                x,
+                gamma,
+                beta,
+                num_groups=module.num_groups,
+                channel_axis=1,
+                axes=list(range(2, dim)),
+                epsilon=module.eps,
+            )
         )
-        mean_x = self.block_builder.emit(relax.op.mean(grouped_x, [2, 3, 4], keepdims=True))
-        sub_x = self.block_builder.emit(relax.op.subtract(grouped_x, mean_x))
-        square_x = self.block_builder.emit(relax.op.multiply(sub_x, sub_x))
-        sum_square_x = self.block_builder.emit(relax.op.sum(square_x, [2, 3, 4], keepdims=True))
-        var_x = self._call_binary_op(relax.op.divide, sum_square_x, (C // num_groups * H * W).value)
-        var_x_eps = self._call_binary_op(relax.op.add, var_x, eps)
-        std_x = self.block_builder.emit(relax.op.sqrt(var_x_eps))
-        norm_x = self.block_builder.emit(relax.op.divide(sub_x, std_x))
-
-        if affine:
-            weight = self.params[module.weight]
-            bias = self.params[module.bias]
-            weight_reshape = self.block_builder.emit(
-                relax.op.reshape(weight, (1, num_groups, C // num_groups, 1, 1))
-            )
-            bias_reshape = self.block_builder.emit(
-                relax.op.reshape(bias, (1, num_groups, C // num_groups, 1, 1))
-            )
-            norm_x = self.block_builder.emit(relax.op.multiply(norm_x, weight_reshape))
-            norm_x = self.block_builder.emit(relax.op.add(norm_x, bias_reshape))
-        return self.block_builder.emit(relax.op.reshape(norm_x, (N, C, H, W)))
 
     def _embedding(self, node: fx.node.Node) -> relax.Var:
         x = self.env[node.args[0]]
