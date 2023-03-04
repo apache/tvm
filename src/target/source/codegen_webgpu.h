@@ -48,7 +48,7 @@ class CodeGenWebGPU final : public CodeGenC {
   explicit CodeGenWebGPU(Target target);
   // overrides
   std::string Finish() final;
-  void AddFunction(const PrimFunc& f);  // NOLINT(*)
+  runtime::FunctionInfo AddFunction(const PrimFunc& f);  // NOLINT(*)
   void InitFuncState(const PrimFunc& f) final;
   void PrintStorageSync(const CallNode* op) final;     // NOLINT(*)
   void PrintType(DataType t, std::ostream& os) final;  // NOLINT(*)
@@ -71,15 +71,14 @@ class CodeGenWebGPU final : public CodeGenC {
   void VisitStmt_(const BufferStoreNode* op) final;
   void VisitStmt_(const ForNode* op) final;
   void VisitStmt_(const AllocateNode* op) final;
-  void VisitStmt_(const AttrStmtNode* op) final;
   void VisitStmt_(const AssertStmtNode* op) final;
   void VisitStmt_(const AllocateConstNode* op) final;
 
  private:
   /*!
-   * \brief Records the workgroup size of the kernel.
+   * \brief Enforce value to be U32.
    */
-  uint32_t workgroup_size_[3];
+  static PrimExpr EnforceU32(PrimExpr value);
   /*!
    * \brief Storage type of bool values.
    */

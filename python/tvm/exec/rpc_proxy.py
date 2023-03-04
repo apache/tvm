@@ -28,12 +28,14 @@ def find_example_resource():
     curr_path = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
     base_path = os.path.abspath(os.path.join(curr_path, "..", "..", ".."))
     index_page = os.path.join(base_path, "web", "apps", "browser", "rpc_server.html")
+    default_plugin_page = os.path.join(base_path, "web", "apps", "browser", "rpc_plugin.html")
+
     resource_files = [
         ("/", os.path.join(base_path, "web", "dist", "tvmjs.bundle.js")),
         ("/", os.path.join(base_path, "web", "dist", "wasm", "tvmjs_runtime.wasi.js")),
         ("/", index_page),
     ]
-    allow_format = ("json", "bin", "js", "wasm")
+    allow_format = ("json", "bin", "js", "wasm", "html")
 
     # recursively apend things in www, up to two levels
     resource_bases = [
@@ -54,6 +56,10 @@ def find_example_resource():
         fname = item[-1]
         if not os.path.exists(fname):
             raise RuntimeError("Cannot find %s" % fname)
+
+    if not any(item[-1].endswith("rpc_plugin.html") for item in resource_files):
+        resource_files.append(("/", default_plugin_page))
+
     return index_page, resource_files
 
 

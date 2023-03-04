@@ -162,7 +162,7 @@ Allocator* MemoryManager::GetAllocator(Device dev) {
   return it->second.get();
 }
 
-runtime::NDArray Allocator::Empty(std::vector<int64_t> shape, DLDataType dtype, DLDevice dev) {
+runtime::NDArray Allocator::Empty(ShapeTuple shape, DLDataType dtype, DLDevice dev) {
   VerifyDataType(dtype);
   runtime::NDArray::Container* container =
       new runtime::NDArray::Container(nullptr, shape, dtype, dev);
