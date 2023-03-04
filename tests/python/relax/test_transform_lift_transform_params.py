@@ -106,7 +106,7 @@ def test_basic():
                     out[o, i, h, w] = w1[i, o, h, w]
 
         @R.function
-        def transform_params(
+        def main_transform_params(
             params: R.Tuple(
                 R.Tensor((3, 16, 3, 3), dtype="float32"), R.Tensor((16, 16, 3, 3), dtype="float32")
             )
@@ -193,7 +193,7 @@ def test_tuple():
             return conv2
 
         @R.function
-        def transform_params(
+        def main_transform_params(
             params: R.Tuple(R.Tensor((16, 16, 3, 3), dtype="float32"))
         ) -> R.Tuple(
             R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 16, 3, 3), dtype="float32")
@@ -242,7 +242,7 @@ def test_condition():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def transform_params(
+        def main_transform_params(
             params: R.Tuple(
                 R.Tensor((16, 16, 3, 3), dtype="float32"),
                 R.Tensor((16, 16, 3, 3), dtype="float32"),
@@ -285,6 +285,105 @@ def test_condition():
                 conv1 = R.nn.conv2d(x, w, padding=(1, 1), data_layout="NCHW", kernel_layout="OIHW")
                 R.output(conv1)
             return conv1
+
+    mod = Before
+    after = relax.transform.LiftTransformParams()(mod)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+def test_multiple_functions():
+    @tvm.script.ir_module
+    class Before:
+        @R.function
+        def func1(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                w1_t = R.permute_dims(w1, [1, 0])
+                y = R.matmul(x, w1_t)
+                R.output(y)
+            return y
+
+        @R.function
+        def func2(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((128, 256), "float32"),
+        ) -> R.Tensor((256, 128), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                w1_t = R.permute_dims(w1, [1, 0])
+                y = R.matmul(x, w1_t)
+                R.output(y)
+            return y
+
+        @R.function
+        def func3(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            with R.dataflow():
+                w1_t = R.permute_dims(w1, [1, 0])
+                y = R.matmul(x, w1_t)
+                R.output(y)
+            return y
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def func1(
+            x: R.Tensor((256, 256), dtype="float32"),
+            params: R.Tuple(R.Tensor((256, 256), dtype="float32")),
+        ) -> R.Tensor((256, 256), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((256, 256), dtype="float32") = params[0]
+                y: R.Tensor((256, 256), dtype="float32") = R.matmul(x, lv, out_dtype="void")
+                R.output(y)
+            return y
+
+        @R.function
+        def func1_transform_params(
+            params: R.Tuple(R.Tensor((256, 256), dtype="float32"))
+        ) -> R.Tuple(R.Tensor((256, 256), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((256, 256), dtype="float32") = params[0]
+                lv1: R.Tensor((256, 256), dtype="float32") = R.permute_dims(lv, axes=[1, 0])
+                gv: R.Tuple(R.Tensor((256, 256), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+        @R.function
+        def func2(
+            x: R.Tensor((256, 256), dtype="float32"),
+            params: R.Tuple(R.Tensor((256, 128), dtype="float32")),
+        ) -> R.Tensor((256, 128), dtype="float32"):
+            with R.dataflow():
+                lv1: R.Tensor((256, 128), dtype="float32") = params[0]
+                y: R.Tensor((256, 128), dtype="float32") = R.matmul(x, lv1, out_dtype="void")
+                R.output(y)
+            return y
+
+        @R.function
+        def func2_transform_params(
+            params: R.Tuple(R.Tensor((128, 256), dtype="float32"))
+        ) -> R.Tuple(R.Tensor((256, 128), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((128, 256), dtype="float32") = params[0]
+                lv1: R.Tensor((256, 128), dtype="float32") = R.permute_dims(lv, axes=[1, 0])
+                gv: R.Tuple(R.Tensor((256, 128), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+        @R.function
+        def func3(
+            x: R.Tensor((256, 256), dtype="float32"), w1: R.Tensor((256, 256), dtype="float32")
+        ) -> R.Tensor((256, 256), dtype="float32"):
+            with R.dataflow():
+                w1_t: R.Tensor((256, 256), dtype="float32") = R.permute_dims(w1, axes=[1, 0])
+                y: R.Tensor((256, 256), dtype="float32") = R.matmul(x, w1_t, out_dtype="void")
+                R.output(y)
+            return y
 
     mod = Before
     after = relax.transform.LiftTransformParams()(mod)
