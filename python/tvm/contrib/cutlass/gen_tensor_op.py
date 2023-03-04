@@ -683,7 +683,18 @@ def instantiate_template(func_name, annotations, func_args):
         attrs["output_size"] = b * s * n * h_v
         attrs["arch"] = "cutlass::arch::Sm{}".format(annotations["arch"])
         attrs["kSupportsDropout"] = False
-        attrs["kSupportsBias"] = len(func_args) > 3
+        if len(func_args) > 3:
+            attrs["kSupportsBias"] = True
+            if len(annotations["arg3_shape"]) == 4:
+                attrs["bias_layout"] = "BNSS'"
+            elif len(annotations["arg3_shape"]) == 3:
+                attrs["bias_layout"] = "B1SS'"
+            elif len(annotations["arg3_shape"]) == 2:
+                attrs["bias_layout"] = "B11S'"
+            else:
+                raise NotImplementedError()
+        else:
+            attrs["kSupportsBias"] = False
         code = instantiate_attention_template(attrs, func_args)
         return CodegenResult(code, headers)
 

@@ -773,6 +773,11 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         num_batches, num_queries, num_heads, head_dim = q_shape
         _, num_keys, _, _ = k_shape
         _, _, _, head_dim_value = v_shape
+        bias = {}
+        if "arg3_dtype" in signature:
+            bias["arg3_dtype"] = signature["arg3_dtype"]
+        if "arg3_shape" in signature:
+            bias["arg3_shape"] = signature["arg3_shape"]
 
         return f.with_attrs(
             {
@@ -792,6 +797,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
                 "head_dim": head_dim,
                 "head_dim_value": head_dim_value,
                 "arch": self.options["sm"],
+                **bias,
             }
         )
 

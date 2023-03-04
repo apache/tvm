@@ -23,15 +23,32 @@ def instantiate_attention_template(attrs, func_args):
     """Return CUTLASS host code for fused multi head attention
     based on a template and the provided attribute map."""
 
-    bias_template = """
+    bias_template = {
+        "B11S'": """
+  CHECK(${arg3}->ndim == 2); // B, 1, 1, S'
+
+  p.attn_bias_ptr = reinterpret_cast<T *>(${arg3}->data);
+  p.bias_strideM = 0; // 0
+  p.bias_strideH = 0; // 0
+  p.bias_strideB = p.num_keys; // S'
+""",
+        "B1SS'": """
+  CHECK(${arg3}->ndim == 3); // B, 1, S, S'
+
+  p.attn_bias_ptr = reinterpret_cast<T *>(${arg3}->data);
+  p.bias_strideM = p.num_keys; // S'
+  p.bias_strideH = 0; // 0
+  p.bias_strideB = p.bias_strideM * p.num_queries; // S' * S
+""",
+        "BNSS'": """
   CHECK(${arg3}->ndim == 4); // B, N, S, S'
 
   p.attn_bias_ptr = reinterpret_cast<T *>(${arg3}->data);
   p.bias_strideM = p.num_keys; // S'
   p.bias_strideH = p.bias_strideM * p.num_queries; // S' * S
   p.bias_strideB = p.bias_strideH * p.num_heads; // S' * S * N
-
-"""
+""",
+    }
 
     template = """
   using T = ${data_type};
@@ -107,7 +124,9 @@ def instantiate_attention_template(attrs, func_args):
   kernel_fn<<<p.getBlocksGrid(), p.getThreadsGrid(), smem_bytes>>>(p);
 """
     if attrs["kSupportsBias"]:
-        template = substitute_template(template, {"bias_template": bias_template})
+        template = substitute_template(
+            template, {"bias_template": bias_template[attrs["bias_layout"]]}
+        )
     else:
         template = substitute_template(template, {"bias_template": ""})
     for i, arg in enumerate(func_args):

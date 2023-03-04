@@ -606,7 +606,8 @@ def attention(query: Expr, key: Expr, value: Expr, bias: Optional[Expr] = None) 
 
     bias: Optional[Expr]
         The optional attention bias to the operator. The layout of the attention bias should be
-        (batch_size, num_head, seq_len, seq_len_kv).
+        (batch_size, num_head, seq_len, seq_len_kv),
+        (batch_size, seq_len, seq_len_kv) or (batch_size, seq_len_kv).
 
     Returns
     -------
