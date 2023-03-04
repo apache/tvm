@@ -207,35 +207,41 @@ class TransformParamsLifter : public ExprMutator {
 
   IRModule Lift() {
     auto mod = builder_->GetContextIRModule();
-    GlobalVar gv_main = mod->GetGlobalVar("main");
-    Function func = Downcast<Function>(mod->Lookup(gv_main));
-    func = RewriteFunc(func);
-    builder_->UpdateFunction(gv_main, func);
+    for (const auto& [gv, base_func] : mod->functions) {
+      // Skip non-Relax functions.
+      const auto* func_ = base_func.as<FunctionNode>();
+      if (func_ == nullptr) {
+        continue;
+      }
+      // Skip functions that do not have the `num_input` attribute.
+      Optional<Integer> opt_num_input = func_->attrs.GetAttr<Integer>(attr_num_input_);
+      if (!opt_num_input.defined()) {
+        continue;
+      }
+      Function func = RewriteFunc(GetRef<Function>(func_), opt_num_input.value()->value,
+                                  gv->name_hint + "_transform_params");
+      builder_->UpdateFunction(gv, func);
+    }
+
     return builder_->GetContextIRModule();
   }
 
  private:
-  Function RewriteFunc(const Function& func) {
-    const std::string attr_num_input = "num_input";
-    auto opt_num_input = func->attrs.GetAttr<Integer>(attr_num_input);
-    if (!opt_num_input.defined()) {
-      return func;
-    }
+  Function RewriteFunc(const Function& func, int num_input, String new_func_name) {
     LiftTransformParamsPlanner planner;
-    int64_t params_begin = opt_num_input.value()->value;
 
     // Step 1: Create the plan of lifting transform params
-    lift_plan_ = planner.Plan(func, params_begin);
+    lift_plan_ = planner.Plan(func, num_input);
 
     // Step 2: Add the lifted function to the module
-    builder_->AddFunction(lift_plan_.f_transform_params, "transform_params");
+    builder_->AddFunction(lift_plan_.f_transform_params, new_func_name);
 
     // Step 3: Update the current function.
 
     // Step 3.1: Update the function signature
     Var params("params", lift_plan_.f_transform_params->ret_struct_info);
     Array<Var> new_params;
-    for (int i = 0; i < params_begin; ++i) {
+    for (int i = 0; i < num_input; ++i) {
       new_params.push_back(func->params[i]);
     }
     new_params.push_back(params);
@@ -249,7 +255,7 @@ class TransformParamsLifter : public ExprMutator {
     // Step 3.3: Remove function attributes that are not needed
     auto new_attrs = func->attrs;
     auto* new_attrs_node = new_attrs.CopyOnWrite();
-    new_attrs_node->dict.erase(attr_num_input);
+    new_attrs_node->dict.erase(attr_num_input_);
     if (new_attrs->dict.empty()) {
       new_attrs = NullValue<DictAttrs>();
     }
@@ -277,6 +283,7 @@ class TransformParamsLifter : public ExprMutator {
     return VisitExpr_(static_cast<const VarNode*>(var));
   }
 
+  const char* attr_num_input_ = "num_input";
   // Remap the original parameters to TupleGetItem from the packed tuple of transformed parameters.
   std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> param_remap_;
   // The plan of lifting the transform params
