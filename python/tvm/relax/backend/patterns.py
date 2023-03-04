@@ -113,3 +113,30 @@ def make_matmul_pattern(
     out = is_op("relax.matmul")(lhs, rhs)
 
     return _with_bias_activation_pattern(out, args, with_bias, activation)
+
+
+def make_attention_pattern(with_bias: bool = False):
+    """
+    Create pattern for fused multi head attention.
+
+    Returns
+    -------
+    pattern: DFPattern
+        The resulting pattern describing a fused multi head attention.
+
+    args: Mapping[str, DFPattern]
+        The mapping from arg name to its pattern. It can be used to extract
+        arg expression from match result.
+    """
+    query = wildcard()
+    key = wildcard()
+    value = wildcard()
+    args = {"query": query, "key": key, "value": value}
+    if with_bias:
+        bias = wildcard()
+        args["bias"] = bias
+        out = is_op("relax.nn.attention_bias")(query, key, value, bias)
+    else:
+        out = is_op("relax.nn.attention")(query, key, value)
+
+    return out, args

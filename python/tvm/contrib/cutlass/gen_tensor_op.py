@@ -30,8 +30,10 @@ from tvm.tir import IntImm
 from . import _ffi_api as ffi
 from .conv2d_operation import instantiate_conv2d_template
 from .gemm_operation import instantiate_gemm_template
+from .attention_operation import instantiate_attention_template
 from .library import (
     DataType,
+    DataTypeSize,
     DataTypeTag,
     EpilogueFunctor,
     MathInstruction,
@@ -549,7 +551,7 @@ def instantiate_template(func_name, annotations, func_args):
         attrs["ElementInputB"] = DataTypeTag[dtype_map[annotations[f"arg{rhs_arg_idx}_dtype"]]]
         attrs["ElementOutput"] = DataTypeTag[dtype_map[annotations["ret_dtype"]]]
 
-        attrs["K"] = str(int(lhs_shape[lhs_batched_offset + 1]))
+        attrs["K"] = lhs_shape[lhs_batched_offset + 1]
         attrs["M"] = get_dim(lhs_shape[lhs_batched_offset], lhs_arg, 0, lhs_batched_offset)
 
         if transposed:
@@ -630,27 +632,70 @@ def instantiate_template(func_name, annotations, func_args):
         attrs["N"] = get_dim(activation_shape[0], activation_var, 0)
         attrs["H"] = get_dim(activation_shape[1], activation_var, 1)
         attrs["W"] = get_dim(activation_shape[2], activation_var, 2)
-        attrs["C"] = str(int(activation_shape[3]))
+        attrs["C"] = activation_shape[3]
         attrs["P"] = get_dim(output_shape[1], "out0", 1)
         attrs["Q"] = get_dim(output_shape[2], "out0", 2)
-        attrs["K"] = str(int(output_shape[3]))
-        attrs["R"] = str(int(weight_shape[1]))
-        attrs["S"] = str(int(weight_shape[2]))
-        attrs["pad_h"] = str(int(annotations["padding"][0]))
-        attrs["pad_w"] = str(int(annotations["padding"][1]))
-        attrs["stride_h"] = str(int(annotations["strides"][0]))
-        attrs["stride_w"] = str(int(annotations["strides"][1]))
-        attrs["dilation_h"] = str(int(annotations["dilation"][0]))
-        attrs["dilation_w"] = str(int(annotations["dilation"][1]))
+        attrs["K"] = output_shape[3]
+        attrs["R"] = weight_shape[1]
+        attrs["S"] = weight_shape[2]
+        attrs["pad_h"] = annotations["padding"][0]
+        attrs["pad_w"] = annotations["padding"][1]
+        attrs["stride_h"] = annotations["strides"][0]
+        attrs["stride_w"] = annotations["strides"][1]
+        attrs["dilation_h"] = annotations["dilation"][0]
+        attrs["dilation_w"] = annotations["dilation"][1]
 
         if "splitk" in op_name:
             attrs["split_k_mode"] = "kParallel"
             attrs["split_k_slices"] = str(re.search(r"splitk(\d+)", op_name).group(1))
         else:
             attrs["split_k_mode"] = "kSerial"
-            attrs["split_k_slices"] = "1"
+            attrs["split_k_slices"] = 1
 
         code = instantiate_conv2d_template(attrs, func_args)
+        return CodegenResult(code, headers)
+
+    elif "attention" in func_name:
+        headers.append("kernel_forward.h")
+        data_type = dtype_map[annotations["arg0_dtype"]]
+        attrs["data_type"] = DataTypeTag[data_type]
+        attrs["num_batches"] = b = annotations["num_batches"]
+        attrs["num_queries"] = s = annotations["num_queries"]
+        attrs["num_keys"] = annotations["num_keys"]
+        attrs["num_heads"] = n = annotations["num_heads"]
+        attrs["head_dim"] = h = annotations["head_dim"]
+        attrs["head_dim_value"] = h_v = annotations["head_dim_value"]
+        data_type_size = DataTypeSize[data_type]
+        if (data_type_size * h // 8) % 16 == 0 and (data_type_size * h_v // 8) % 16 == 0:
+            attrs["kIsAligned"] = True
+        elif (h % 4 == 0) and (h_v % 4 == 0):
+            attrs["kIsAligned"] = False
+        else:
+            raise NotImplementedError()
+        if h_v > 64:
+            attrs["kQueriesPerBlock"] = 32
+            attrs["kKeysPerBlock"] = 128
+            attrs["kSingleValueIteration"] = h_v <= 128
+        else:
+            attrs["kQueriesPerBlock"] = 64
+            attrs["kKeysPerBlock"] = 64
+            attrs["kSingleValueIteration"] = True
+        attrs["output_size"] = b * s * n * h_v
+        attrs["arch"] = "cutlass::arch::Sm{}".format(annotations["arch"])
+        attrs["kSupportsDropout"] = False
+        if len(func_args) > 3:
+            attrs["kSupportsBias"] = True
+            if len(annotations["arg3_shape"]) == 4:
+                attrs["bias_layout"] = "BNSS'"
+            elif len(annotations["arg3_shape"]) == 3:
+                attrs["bias_layout"] = "B1SS'"
+            elif len(annotations["arg3_shape"]) == 2:
+                attrs["bias_layout"] = "B11S'"
+            else:
+                raise NotImplementedError()
+        else:
+            attrs["kSupportsBias"] = False
+        code = instantiate_attention_template(attrs, func_args)
         return CodegenResult(code, headers)
 
     raise ValueError("Do not have a template for {}".format(func_name))
