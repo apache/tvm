@@ -130,6 +130,7 @@ ALLOW_SPECIFIC_FILE = {
     "apps/wasm-standalone/wasm-graph/.cargo/config",
     # html for demo purposes
     "web/apps/browser/rpc_server.html",
+    "web/apps/browser/rpc_plugin.html",
     # images are normally not allowed
     # discuss with committers before add more images
     "apps/android_rpc/app/src/main/res/mipmap-hdpi/ic_launcher.png",
