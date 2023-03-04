@@ -148,6 +148,7 @@ class RuntimeContext implements Disposable {
   arrayCacheRemove: PackedFunc;
   arrayCacheClear: PackedFunc;
   arrayDecodeStorage: PackedFunc;
+  paramModuleFromCache: PackedFunc;
 
   private autoDisposeScope: Array<Array<Disposable | undefined>> = [];
 
@@ -161,6 +162,7 @@ class RuntimeContext implements Disposable {
     this.arrayCacheUpdate = getGlobalFunc("tvmjs.ndarray_cache.update");
     this.arrayCacheClear = getGlobalFunc("tvmjs.ndarray_cache.clear");
     this.arrayDecodeStorage = getGlobalFunc("tvmjs.array.decode_storage");
+    this.paramModuleFromCache = getGlobalFunc("tvmjs.param_module_from_cache");
 
   }
 
@@ -175,6 +177,7 @@ class RuntimeContext implements Disposable {
     this.arrayCacheUpdate.dispose();
     this.arrayCacheClear.dispose();
     this.arrayDecodeStorage.dispose();
+    this.paramModuleFromCache.dispose();
   }
 
   beginScope() : void {
@@ -410,7 +413,7 @@ export class NDArray implements Disposable {
   /** Device of the array. */
   device: DLDevice;
   /** Whether it is a temporary view that can become invalid after the call. */
-  private isView: boolean;
+  isView: boolean;
   private byteOffset: number;
   private dltensor: Pointer;
   private dataPtr: Pointer;
@@ -479,6 +482,18 @@ export class NDArray implements Disposable {
     return this.handle;
   }
 
+ /**
+  * Get dataPtr of NDarray
+  *
+  * @returns The handle.
+  */
+  getDataPtr(): Pointer {
+    if (this.handle == 0) {
+      throw Error("NDArray has already been disposed");
+    }
+    return this.dataPtr;
+  }
+
   dispose(): void {
     if (this.handle != 0 && !this.isView) {
       this.lib.checkCall(
@@ -539,9 +554,12 @@ export class NDArray implements Disposable {
    * @returns this
    */
   copyFromRawBytes(data: Uint8Array): this {
-    if (this.device.deviceType != DeviceStrToEnum.cpu) {
-      throw new Error("Can only sync copy CPU array, use cpu_arr.copyfrom(gpu_arr) then sync instead.");
+    // short cut for gpu copy
+    if (this.device.deviceType == DeviceStrToEnum.webgpu) {
+      this.lib.webGPUContext?.copyRawBytesToBuffer(data, this.getDataPtr(), 0, data.length);
+      return this;
     }
+    // CPU copy
     const size = this.shape.reduce((a, b) => {
       return a * b;
     }, 1);
@@ -910,6 +928,7 @@ export type FetchProgressCallback = (report: FetchProgressReport) => void;
 export class Instance implements Disposable {
   memory: Memory;
   exports: Record<string, Function>;
+  cacheMetadata: Record<string, any> = {};
   private lib: FFILibrary;
   private env: Environment;
   private objFactory: Map<number, FObjectConstructor>;
@@ -951,7 +970,6 @@ export class Instance implements Disposable {
       env = new Environment(importObject);
       wasmInstance = new WebAssembly.Instance(wasmModule, env.imports);
     }
-
     env.start(wasmInstance);
     this.env = env;
     this.lib = new FFILibrary(wasmInstance, env.imports);
@@ -977,7 +995,7 @@ export class Instance implements Disposable {
    * @number The number of times to compute the average.
    * @repeat The number of times to repeat the run.
    */
-  async benchmark(run: ()=>void, dev: DLDevice, number=10, repeat=4): Promise<number[]> {
+  async benchmark(run: ()=>void, dev: DLDevice, number=10, repeat=1): Promise<number[]> {
     // Skip first run as it can involve GPU warmup and module loading time.
     const perf = compact.getPerformance();
     const results = [];
@@ -999,6 +1017,8 @@ export class Instance implements Disposable {
   }
 
   dispose(): void {
+    // dispose canvas resource
+    this.lib.webGPUContext?.disposeCanvas();
     // order matters
     // ctx release goes back into lib.
     this.ctx.dispose();
@@ -1016,7 +1036,7 @@ export class Instance implements Disposable {
    * End a scope and release all created TVM objects
    * under the current scope.
    *
-   * Exception: one can call retainToParentScope to move
+   * Exception: one can call {@link moveToParentScope} to move
    * a value to parent scope.
    */
   endScope(): void {
@@ -1030,7 +1050,7 @@ export class Instance implements Disposable {
    * @returns The result value.
    *
    * @note For action to return a valid value,
-   *       we will need to call {@link retainToParentScope}
+   *       we will need to call {@link moveToParentScope}
    *       for the objects that are created in the scope.
    */
   withNewScope<T>(action: ()=>T): T {
@@ -1249,6 +1269,18 @@ export class Instance implements Disposable {
   }
 
   /**
+   * Get parameters in the form of prefix_i
+   *
+   * @param prefix The parameter prefix.
+   * @param numParams  Number of parameters.
+   * @returns
+   */
+  getParamsFromCache(prefix: string, numParams: number) : TVMObject {
+    return (this.ctx.paramModuleFromCache(
+      prefix, new Scalar(numParams, "int32")) as Module).getFunction("get_params")();
+  }
+
+  /**
    * Get NDArray from cache.
    * @param name  The name of array.
    * @returns  The result.
@@ -1289,17 +1321,20 @@ export class Instance implements Disposable {
    *
    * @param ndarrayCacheUrl The cache url.
    * @param device The device to be fetched to.
+   * @returns The meta data
    */
-  async fetchNDArrayCache(ndarrayCacheUrl: string, device: DLDevice) {
+  async fetchNDArrayCache(ndarrayCacheUrl: string, device: DLDevice) : Promise<any> {
     const jsonUrl = new URL("ndarray-cache.json", ndarrayCacheUrl).href;
     var list;
     try {
-
       list = await (await fetch(jsonUrl)).json();
     } catch(err) {
       this.env.logger("Cannot fetch " + jsonUrl);
     }
-    await this.fetchNDArrayCacheInternal(ndarrayCacheUrl, list as Array<NDArrayCacheEntry>, device);
+    await this.fetchNDArrayCacheInternal(
+      ndarrayCacheUrl,
+      list["records"] as Array<NDArrayCacheEntry>, device);
+    this.cacheMetadata = { ...this.cacheMetadata, ...(list["metadata"] as Record<string, any>) };
   }
 
   /**
@@ -1334,14 +1369,14 @@ export class Instance implements Disposable {
     const reportCallback = (iter: number)=> {
       // report
       for (let j = 0; j < this.fetchProgressCallback.length; ++j) {
-        let text = "Fetching NDArray Cache[" + iter + "/" + list.length+ "]:";
+        let text = "Fetching param cache[" + iter + "/" + list.length+ "]:";
         text += Math.ceil(fetchedBytes / (1024 * 1024)).toString() + "MB fetched "
-        text += "from " + Math.ceil(totalBytes / (1024 * 1024)).toString() + "MB, "
         text += Math.floor(fetchedBytes * 100 / totalBytes).toString() + "% completed, "
         text += timeElapsed + " secs elapsed";
         if (timeElapsed != 0){
-          text += ", speed=" + (fetchedBytes / timeElapsed / (1024 * 1024)).toFixed(1) + " MB/sec";
+          text += ", speed=" + (fetchedBytes / timeElapsed / (1024 * 1024)).toFixed(1) + " MB/sec."
         }
+        text += " This can take a while during first load.";
         this.fetchProgressCallback[j]({
           fetchedBytes: fetchedBytes,
           totalBytes: totalBytes,
@@ -1540,6 +1575,72 @@ export class Instance implements Disposable {
     );
     this.lib.recycleCallStack(stack);
     return ret;
+  }
+
+  /**
+   * Create am uniform {@link NDArray} with given shape.
+   *
+   * @param shape The shape of the array.
+   * @param low The low value.
+   * @param high The high value.
+   * @param dev The device of the ndarray.
+   * @returns The created ndarray.
+   */
+  uniform(
+    shape: Array<number>,
+    low: number,
+    high: number,
+    dev: DLDevice
+  ): NDArray {
+    const ret = this.empty(shape, "float32", dev);
+    const size = shape.reduce((a, b) => {
+      return a * b;
+    }, 1);
+    const scale = high - low;
+    const input = new Float32Array(size);
+    for (let i = 0; i < input.length; ++i) {
+      input[i] = low + Math.random() * scale;
+    }
+    return ret.copyFrom(input);
+  }
+
+  /**
+   * Bind canvas to the current WebGPU context
+   * @param canvas The canvas.
+   */
+  bindCanvas(canvas: HTMLCanvasElement) {
+    this.lib.webGPUContext?.bindCanvas(canvas);
+  }
+
+  /**
+   * Show image in canvas.
+   *
+   * @param dataRGBA Image array in height x width uint32 NDArray RGBA format on GPU.
+   */
+  showImage(dataRGBA: NDArray) {
+    if (dataRGBA.shape.length != 2) {
+      throw Error("Require a height x width uint32 NDArray in RGBA" +
+        "get shape=" + dataRGBA.shape.toString() + " instead."
+      );
+    }
+    if (dataRGBA.device.deviceType != DeviceStrToEnum.webgpu) {
+      throw new Error("Can only run showImage on WebGPU array, " +
+        "get " + DeviceEnumToStr[dataRGBA.device.deviceType] + " instead.");
+    }
+    if (dataRGBA.dtype != "uint32") {
+      throw Error("Require a height x width uint32 NDArray in RGBA, " +
+        "get " + dataRGBA.dtype + " instead.");
+    }
+    this.lib.webGPUContext?.drawImageFromBuffer(
+      dataRGBA.getDataPtr(), dataRGBA.shape[0], dataRGBA.shape[1]
+    );
+  }
+
+  /**
+   * Clear canvas
+   */
+  clearCanvas() {
+    this.lib.webGPUContext?.clearCanvas();
   }
 
   /**
@@ -1773,8 +1874,13 @@ export class Instance implements Disposable {
       const valueOffset = argsValue + i * SizeOf.TVMValue;
       const codeOffset = argsCode + i * SizeOf.I32;
       if (val instanceof NDArray) {
-        stack.storePtr(valueOffset, val.getHandle());
-        stack.storeI32(codeOffset, ArgTypeCode.TVMNDArrayHandle);
+        if (!val.isView) {
+          stack.storePtr(valueOffset, val.getHandle());
+          stack.storeI32(codeOffset, ArgTypeCode.TVMNDArrayHandle);
+        } else {
+          stack.storePtr(valueOffset, val.getHandle());
+          stack.storeI32(codeOffset, ArgTypeCode.TVMDLTensorHandle);
+        }
       } else if (val instanceof Scalar) {
         if (val.dtype.startsWith("int") || val.dtype.startsWith("uint")) {
           stack.storeI64(valueOffset, val.value);

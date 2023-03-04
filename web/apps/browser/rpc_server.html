@@ -20,9 +20,15 @@
   <head lang="en-US"></head>
     <title>TVM RPC Test Page</title>
   </head>
+
+  <meta http-equiv="origin-trial" content="Agx76XA0ITxMPF0Z8rbbcMllwuxsyp9qdtQaXlLqu1JUrdHB6FPonuyIKJ3CsBREUkeioJck4nn3KO0c0kkwqAMAAABJeyJvcmlnaW4iOiJodHRwOi8vbG9jYWxob3N0Ojg4ODgiLCJmZWF0dXJlIjoiV2ViR1BVIiwiZXhwaXJ5IjoxNjkxNzExOTk5fQ==">
+
   <script src="tvmjs_runtime.wasi.js"></script>
   <script src="tvmjs.bundle.js"></script>
   <script>
+    // Global environment
+    var tvmjsGlobalEnv = {};
+
     function customLog(message) {
       console.log(message);
       const d = document.createElement("div");
@@ -38,8 +44,8 @@
     }
 
     function fetchProgressCallback(report) {
-      document.getElementById("fetch-text").innerHTML = report.text;
-      document.getElementById("fetch-progress").value = (report.fetchedBytes / report.totalBytes) * 100;
+      document.getElementById("progress-tracker-label").innerHTML = report.text;
+      document.getElementById("progress-tracker-progress").value = (report.fetchedBytes / report.totalBytes) * 100;
     }
 
     function connectRPC() {
@@ -60,7 +66,8 @@
 
       new tvmjs.RPCServer(
         proxyUrl, key, getImports, customLog,
-        ndarrayCacheUrl, ndarrayCacheDevice, fetchProgressCallback);
+        ndarrayCacheUrl, ndarrayCacheDevice, fetchProgressCallback,
+        tvmjsGlobalEnv.asyncOnRPCServerLoad);
     }
 
     async function loadCacheOption() {
@@ -79,6 +86,12 @@
       } catch (err) {}
     }
   </script>
+<script src="https://code.jquery.com/jquery-3.6.3.min.js" integrity="sha256-pvPw+upLPUjgMXY0G+8O0xUf+/Im1MZjXxxgOcBQBXU=" crossorigin="anonymous"></script>
+<script>
+  $(function(){
+    $("#includeRPCPlugin").load("rpc_plugin.html");
+  });
+</script>
   <body onload="loadCacheOption()">
     <h1>TVM WebSocket RPC Server</h1>
     To use this page
@@ -117,10 +130,10 @@
     <button onclick="connectRPC()">Connect To Proxy</button>
     <button onclick="clearLog()">Clear Log</button>
     <div id="progress">
-      <label id="fetch-text"></div>
-      <progress id="fetch-progress" max="100" value="100"> </progress>
+      <label id="progress-tracker-label"></div>
+      <progress id="progress-tracker-progress" max="100" value="100"> </progress>
     </div>
+    <div id="includeRPCPlugin"></div>
     <div id="log"></div>
-    <canvas id="canvas" width="224" height="224"></canvas>
   </body>
 </html>

@@ -45,10 +45,16 @@ def _convert_f32_to_bf16(value):
     return ((data + rounding_bias) >> 16).astype("uint16")
 
 
+def _convert_bf16_to_f32(value):
+    data = value.view("uint16")
+    return (data.astype("uint32") << 16).view("float32")
+
+
 def dump_ndarray_cache(
     params: Mapping[str, Union[np.ndarray, tvm.runtime.NDArray]],
     cachedir: str,
     encode_format="f32-to-bf16",
+    meta_data=None,
 ):
     """Dump parameters to NDArray cache.
 
@@ -62,7 +68,14 @@ def dump_ndarray_cache(
 
     encode_format: {"f32-to-bf16", "raw"}
         Encoding format.
+
+    meta_data: json-compatible-struct
+        Extra meta_data to be stored in the cache json file.
     """
+    if encode_format not in ("raw", "f32-to-bf16"):
+        raise ValueError(f"Invalie encode_format {encode_format}")
+
+    meta_data = {} if meta_data is None else meta_data
     records = []
     total = len(params)
     counter = 0
@@ -101,8 +114,9 @@ def dump_ndarray_cache(
         sys.stdout.write(flush + last_cmd)
 
     nd_cache_json = os.path.join(cachedir, "ndarray-cache.json")
+
     with open(nd_cache_json, "w") as outfile:
-        json.dump(records, outfile, indent=4)
+        json.dump({"metadata": meta_data, "records": records}, outfile, indent=4)
     print("\nAll finished, record saved to %s" % nd_cache_json)
 
     if f32_to_bf16_triggered:
@@ -115,5 +129,44 @@ def dump_ndarray_cache(
         b16_nd_cache_json = os.path.join(cachedir, "ndarray-cache-b16.json")
         # also dump a file that contains bf16
         with open(b16_nd_cache_json, "w") as outfile:
-            json.dump(rec_bf16, outfile, indent=4)
+            json.dump({"metadata": meta_data, "records": rec_bf16}, outfile, indent=4)
         print("Also saved a bf16 record to %s" % b16_nd_cache_json)
+
+
+def load_ndarray_cache(cachepath: str, device: tvm.runtime.Device):
+    """Load the ndarray cache from the directory or json.
+
+
+    Parameters
+    ----------
+    cachepath: str
+        Path to the location or json file.
+
+    device: tvm.runtime.Device
+        The device we would like to load the data from.
+    """
+    if not cachepath.endswith(".json"):
+        cachepath = os.path.join(cachepath, "ndarray-cache.json")
+
+    cachedir = os.path.dirname(cachepath)
+    json_info = json.loads(open(cachepath, "r").read())
+    result_dict = {}
+
+    for rec in json_info["records"]:
+        name = rec["name"]
+        shape = rec["shape"]
+        dtype = rec["dtype"]
+        encode_format = rec["format"]
+        data_path = rec["dataPath"]
+
+        arr = tvm.nd.empty(shape, dtype, device=device)
+        full_data_path = os.path.join(cachedir, data_path)
+
+        if encode_format == "f32-to-bf16":
+            data = np.fromfile(full_data_path, dtype="uint16").reshape(shape)
+            arr.copyfrom(_convert_bf16_to_f32(data))
+        else:
+            data = np.fromfile(full_data_path, dtype=dtype).reshape(shape)
+            arr.copyfrom(data)
+        result_dict[name] = arr
+    return result_dict, json_info["metadata"]
