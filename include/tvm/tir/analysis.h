@@ -104,7 +104,7 @@ TVM_DLL Array<Var> UndefinedVars(const PrimExpr& expr);
 
 /*!
  * \brief Find undefined vars in the expression.
- * \param stmt The statement to be checked.
+ * \param expr The expression to be checked.
  * \param defs The vars that is defined.
  * \return Array of undefined vars.
  */

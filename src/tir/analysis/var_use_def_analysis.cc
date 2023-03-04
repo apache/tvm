@@ -32,7 +32,7 @@ VarUseDefAnalyzer::VarUseDefAnalyzer(const Array<Var>& defined_vars, bool visit_
   }
 }
 
-Stmt VarUseDefAnalyzer::VisitStmt_(const AttrStmtNode* op) {
+void VarUseDefAnalyzer::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == attr::thread_extent) {
     IterVar iv = Downcast<IterVar>(op->node);
     ICHECK_NE(iv->thread_tag.length(), 0U);
@@ -40,77 +40,48 @@ Stmt VarUseDefAnalyzer::VisitStmt_(const AttrStmtNode* op) {
     // use the first appearance as def.
     if (!use_count_.count(iv->var.get())) {
       this->HandleDef(iv->var.get());
-      thread_axis_.push_back(iv);
-      thread_extent_.push_back(op->value);
     }
 
-    PrimExpr value = op->value;
     if (visit_thread_extent_) {
-      value = this->VisitExpr(value);
+      this->VisitExpr(op->value);
     }
-    Stmt body = this->VisitStmt(op->body);
-    if (value.same_as(op->value) && body.same_as(op->body)) {
-      return GetRef<Stmt>(op);
-    }
-    return AttrStmt(op->node, op->attr_key, value, body);
+
+    this->VisitStmt(op->body);
   } else {
-    return StmtExprMutator::VisitStmt_(op);
+    StmtExprVisitor::VisitStmt_(op);
   }
 }
 
-Stmt VarUseDefAnalyzer::VisitStmt_(const LetStmtNode* op) {
+void VarUseDefAnalyzer::VisitStmt_(const LetStmtNode* op) {
   this->HandleDef(op->var.get());
-  Stmt body = this->VisitStmt(op->body);
-  // eliminate unreferenced let
-  if (use_count_.at(op->var.get()) == 0 && SideEffect(op->value) <= CallEffectKind::kReadState &&
-      simplify_let_) {
-    return body;
-  } else {
-    PrimExpr value = this->VisitExpr(op->value);
-    if (body.same_as(op->body) && value.same_as(op->value)) {
-      return GetRef<Stmt>(op);
-    } else {
-      return LetStmt(op->var, value, body);
-    }
-  }
+  StmtExprVisitor::VisitStmt_(op);
 }
 
-Stmt VarUseDefAnalyzer::VisitStmt_(const ForNode* op) {
+void VarUseDefAnalyzer::VisitStmt_(const ForNode* op) {
   this->HandleDef(op->loop_var.get());
-  return StmtExprMutator::VisitStmt_(op);
+  StmtExprVisitor::VisitStmt_(op);
 }
 
-Stmt VarUseDefAnalyzer::VisitStmt_(const AllocateNode* op) {
+void VarUseDefAnalyzer::VisitStmt_(const AllocateNode* op) {
   this->HandleDef(op->buffer_var.get());
-  auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer_var));
-  if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
-    ICHECK_EQ(use_dyn_shmem_, false) << "Only one dynamic shared memory allocation is allowed.";
-    ICHECK_GT(op->extents.size(), 0);
-    dyn_shmem_size_ = op->extents[0];
-    for (size_t i = 1; i < op->extents.size(); ++i) {
-      dyn_shmem_size_ *= op->extents[i];
-    }
-    dyn_shmem_size_ = dyn_shmem_size_ * (op->dtype.bytes());
-    use_dyn_shmem_ = true;
-  }
-  return StmtExprMutator::VisitStmt_(op);
+  StmtExprVisitor::VisitStmt_(op);
 }
 
-Stmt VarUseDefAnalyzer::VisitStmt_(const AllocateConstNode* op) {
+void VarUseDefAnalyzer::VisitStmt_(const AllocateConstNode* op) {
   this->HandleDef(op->buffer_var.get());
-  return StmtExprMutator::VisitStmt_(op);
+  StmtExprVisitor::VisitStmt_(op);
 }
 
-Stmt VarUseDefAnalyzer::VisitStmt_(const StoreNode* op) {
+void VarUseDefAnalyzer::VisitStmt_(const StoreNode* op) {
   LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
 }
 
-Stmt VarUseDefAnalyzer::VisitStmt_(const BufferStoreNode* op) {
+void VarUseDefAnalyzer::VisitStmt_(const BufferStoreNode* op) {
   VisitBuffer(op->buffer);
-  return StmtExprMutator::VisitStmt_(op);
+  StmtExprVisitor::VisitStmt_(op);
 }
 
-PrimExpr VarUseDefAnalyzer::VisitExpr_(const LetNode* op) {
+void VarUseDefAnalyzer::VisitExpr_(const LetNode* op) {
   // Weaker SSA condition
   // A single var can be binded in multiple lets
   // but they have to bind to the same value.
@@ -118,48 +89,36 @@ PrimExpr VarUseDefAnalyzer::VisitExpr_(const LetNode* op) {
   // expression to construct a nested expr.
   // (let x = 1 in x + 1) * (let x = 1 in x + 1)
   auto it = let_binding_.find(op->var);
-  PrimExpr value = this->VisitExpr(op->value);
+  this->VisitExpr(op->value);
   if (it != let_binding_.end()) {
-    ICHECK(deep_equal_(it->second->value, value))
+    ICHECK(deep_equal_(it->second->value, op->value))
         << "Let cannot bind the same var to two different values";
-    return GetRef<PrimExpr>(it->second);
   } else {
     this->HandleDef(op->var.get());
     let_binding_[op->var] = op;
   }
-  PrimExpr body = this->VisitExpr(op->body);
-  // eliminate unreferenced let
-  if (use_count_.at(op->var.get()) == 0 && SideEffect(op->value) <= CallEffectKind::kReadState &&
-      simplify_let_) {
-    return body;
-  } else {
-    if (body.same_as(op->body) && value.same_as(op->value)) {
-      return GetRef<PrimExpr>(op);
-    } else {
-      return Let(op->var, value, body);
-    }
-  }
+  this->VisitExpr(op->body);
 }
 
-PrimExpr VarUseDefAnalyzer::VisitExpr_(const VarNode* op) {
+void VarUseDefAnalyzer::VisitExpr_(const VarNode* op) {
   this->HandleUse(op);
-  return StmtExprMutator::VisitExpr_(op);
+  StmtExprVisitor::VisitExpr_(op);
 }
 
-PrimExpr VarUseDefAnalyzer::VisitExpr_(const ReduceNode* op) {
+void VarUseDefAnalyzer::VisitExpr_(const ReduceNode* op) {
   for (const auto& iv : op->axis) {
     this->HandleDef(iv->var.get());
   }
-  return StmtExprMutator::VisitExpr_(op);
+  StmtExprVisitor::VisitExpr_(op);
 }
 
-PrimExpr VarUseDefAnalyzer::VisitExpr_(const LoadNode* op) {
+void VarUseDefAnalyzer::VisitExpr_(const LoadNode* op) {
   LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
 }
 
-PrimExpr VarUseDefAnalyzer::VisitExpr_(const BufferLoadNode* op) {
+void VarUseDefAnalyzer::VisitExpr_(const BufferLoadNode* op) {
   VisitBuffer(op->buffer);
-  return StmtExprMutator::VisitExpr_(op);
+  StmtExprVisitor::VisitExpr_(op);
 }
 
 void VarUseDefAnalyzer::VisitBuffer(Buffer buffer) {

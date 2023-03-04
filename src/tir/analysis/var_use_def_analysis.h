@@ -35,49 +35,47 @@ namespace tir {
 
 /*!
  * \brief Visitor class to perform use/def analysis, also delete unreferenced lets.
+ * \param defined_vars Variables that have been defined.
+ * \param visit_thread_extent Whether enters thread extent expressions or not.
  * \sa UndefinedVars
  */
-class VarUseDefAnalyzer : public StmtExprMutator {
+class VarUseDefAnalyzer : public StmtExprVisitor {
  public:
   explicit VarUseDefAnalyzer(const Array<Var>& defined_vars, bool visit_thread_extent = true);
   // The fields are publically readible to
   // be accessible to the users.
   bool visit_thread_extent_{true};
-  bool simplify_let_{true};
   Array<Var> undefined_;
-  Array<IterVar> thread_axis_;
-  Array<PrimExpr> thread_extent_;
-  PrimExpr dyn_shmem_size_{0};
-  bool use_dyn_shmem_{false};
+
   std::unordered_map<const VarNode*, int> use_count_;
   std::unordered_map<const VarNode*, int> def_count_;
 
  private:
   ExprDeepEqual deep_equal_;
   std::unordered_map<Var, const LetNode*, ObjectPtrHash, ObjectPtrEqual> let_binding_;
-  Stmt VisitStmt_(const AttrStmtNode* op) final;
+  void VisitStmt_(const AttrStmtNode* op) final;
 
-  Stmt VisitStmt_(const LetStmtNode* op) final;
+  void VisitStmt_(const LetStmtNode* op) final;
 
-  Stmt VisitStmt_(const ForNode* op) final;
+  void VisitStmt_(const ForNode* op) final;
 
-  Stmt VisitStmt_(const AllocateNode* op) final;
+  void VisitStmt_(const AllocateNode* op) final;
 
-  Stmt VisitStmt_(const AllocateConstNode* op) final;
+  void VisitStmt_(const AllocateConstNode* op) final;
 
-  Stmt VisitStmt_(const StoreNode* op) final;
+  void VisitStmt_(const StoreNode* op) final;
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final;
+  void VisitStmt_(const BufferStoreNode* op) final;
 
-  PrimExpr VisitExpr_(const LetNode* op) final;
+  void VisitExpr_(const LetNode* op) final;
 
-  PrimExpr VisitExpr_(const VarNode* op) final;
+  void VisitExpr_(const VarNode* op) final;
 
-  PrimExpr VisitExpr_(const ReduceNode* op) final;
+  void VisitExpr_(const ReduceNode* op) final;
 
-  PrimExpr VisitExpr_(const LoadNode* op) final;
+  void VisitExpr_(const LoadNode* op) final;
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final;
+  void VisitExpr_(const BufferLoadNode* op) final;
 
   void HandleDef(const VarNode* v);
 

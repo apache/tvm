@@ -39,6 +39,95 @@
 namespace tvm {
 namespace tir {
 
+/*!
+ * \brief Visit class to collect device-side program information.
+ */
+class DeviceInfoCollector : public StmtVisitor {
+ public:
+  Array<IterVar> thread_axis_;
+  Array<PrimExpr> thread_extent_;
+  PrimExpr dyn_shmem_size_{0};
+  bool use_dyn_shmem_{false};
+
+ private:
+  void VisitStmt_(const AttrStmtNode* op) final {
+    if (op->attr_key == attr::thread_extent) {
+      IterVar iv = Downcast<IterVar>(op->node);
+      ICHECK_NE(iv->thread_tag.length(), 0U);
+      // thread_extent can appear multiple times
+      // use the first appearance as def.
+      if (!defined_thread.count(iv.get())) {
+        defined_thread.insert(iv.get());
+        thread_axis_.push_back(iv);
+        thread_extent_.push_back(op->value);
+      }
+
+      this->VisitExpr(op->value);
+      this->VisitStmt(op->body);
+    } else {
+      StmtVisitor::VisitStmt_(op);
+    }
+  }
+
+  void VisitStmt_(const AllocateNode* op) {
+    auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer_var));
+    if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
+      ICHECK_EQ(use_dyn_shmem_, false) << "Only one dynamic shared memory allocation is allowed.";
+      ICHECK_GT(op->extents.size(), 0);
+      dyn_shmem_size_ = op->extents[0];
+      for (size_t i = 1; i < op->extents.size(); ++i) {
+        dyn_shmem_size_ *= op->extents[i];
+      }
+      dyn_shmem_size_ = dyn_shmem_size_ * (op->dtype.bytes());
+      use_dyn_shmem_ = true;
+    }
+    StmtVisitor::VisitStmt_(op);
+  }
+
+  std::unordered_set<const IterVarNode*> defined_thread;
+};
+
+/*!
+ * \brief Visitor class to remove unrefenced let stmt/expressions.
+ */
+class UnreferencedLetRemover : public StmtExprMutator {
+ public:
+  explicit UnreferencedLetRemover(const std::unordered_map<const VarNode*, int>& use_count)
+      : use_count_(use_count) {}
+
+ private:
+  Stmt VisitStmt_(const LetStmtNode* op) final {
+    Stmt body = this->VisitStmt(op->body);
+    // eliminate unreferenced let
+    if (use_count_.at(op->var.get()) == 0 && SideEffect(op->value) <= CallEffectKind::kReadState) {
+      return body;
+    } else {
+      PrimExpr value = this->VisitExpr(op->value);
+      if (body.same_as(op->body) && value.same_as(op->value)) {
+        return GetRef<Stmt>(op);
+      } else {
+        return LetStmt(op->var, value, body);
+      }
+    }
+  }
+
+  PrimExpr VisitExpr_(const LetNode* op) final {
+    PrimExpr body = this->VisitExpr(op->body);
+    PrimExpr value = this->VisitExpr(op->value);
+    if (use_count_.at(op->var.get()) == 0 && SideEffect(op->value) <= CallEffectKind::kReadState) {
+      return body;
+    } else {
+      if (body.same_as(op->body) && value.same_as(op->value)) {
+        return GetRef<PrimExpr>(op);
+      } else {
+        return Let(op->var, value, body);
+      }
+    }
+  }
+
+  const std::unordered_map<const VarNode*, int>& use_count_;
+};
+
 class HostDeviceSplitter : public StmtMutator {
  public:
   explicit HostDeviceSplitter(IRModule* device_mod, Target device_target, std::string name_prefix)
@@ -63,15 +152,19 @@ class HostDeviceSplitter : public StmtMutator {
     os << name_prefix_ << "_kernel" << device_func_counter_++;
     std::string kernel_symbol = os.str();
     // isolate the device function.
-    VarUseDefAnalyzer m({}, false);
-    body = m(std::move(body));
+    VarUseDefAnalyzer var_use_def({}, false);
+    var_use_def(body);
+    DeviceInfoCollector dev_info;
+    dev_info(body);
+    UnreferencedLetRemover let_remover(var_use_def.use_count_);
+    body = let_remover(std::move(body));
 
     Array<Var> params;
     Array<PrimExpr> arguments;
     Map<tir::Var, PrimExpr> remap_vars;
 
     // Strictly order the arguments: Var pointers, positional arguments.
-    for (Var var : m.undefined_) {
+    for (Var var : var_use_def.undefined_) {
       if (var.dtype().is_handle()) {
         // Create a new version of v.
         auto it = handle_data_type_.find(var.get());
@@ -91,7 +184,7 @@ class HostDeviceSplitter : public StmtMutator {
       }
     }
     // positional arguments
-    for (Var var : m.undefined_) {
+    for (Var var : var_use_def.undefined_) {
       if (!var.dtype().is_handle()) {
         params.push_back(var);
         arguments.push_back(var);
@@ -101,7 +194,8 @@ class HostDeviceSplitter : public StmtMutator {
     GlobalVar kernel_symbol_global = global_var_supply->FreshGlobal(kernel_symbol, false);
 
     PrimFunc device_func(params, Substitute(body, remap_vars));
-    device_func = WithAttr(std::move(device_func), tir::attr::kDeviceThreadAxis, m.thread_axis_);
+    device_func =
+        WithAttr(std::move(device_func), tir::attr::kDeviceThreadAxis, dev_info.thread_axis_);
     device_func = WithAttr(std::move(device_func), tvm::attr::kCallingConv,
                            Integer(CallingConv::kDeviceKernelLaunch));
     device_func = WithAttr(std::move(device_func), tvm::attr::kGlobalSymbol,
@@ -109,7 +203,7 @@ class HostDeviceSplitter : public StmtMutator {
     device_func = WithAttr(std::move(device_func), tir::attr::kNoAlias, Integer(1));
     device_func = WithAttr(std::move(device_func), tvm::attr::kTarget, device_target_);
     device_func = WithAttr(std::move(device_func), tir::attr::kIsGlobalFunc, Integer(1));
-    if (m.use_dyn_shmem_) {
+    if (dev_info.use_dyn_shmem_) {
       device_func =
           WithAttr(std::move(device_func), tir::attr::kDeviceUseDynSharedMemory, Integer(1));
     }
@@ -121,11 +215,11 @@ class HostDeviceSplitter : public StmtMutator {
     for (PrimExpr arg : arguments) {
       call_args.push_back(arg);
     }
-    for (PrimExpr ext : m.thread_extent_) {
+    for (PrimExpr ext : dev_info.thread_extent_) {
       call_args.push_back(ext);
     }
-    if (m.use_dyn_shmem_) {
-      call_args.push_back(m.dyn_shmem_size_);
+    if (dev_info.use_dyn_shmem_) {
+      call_args.push_back(dev_info.dyn_shmem_size_);
     }
     return Evaluate(Call(DataType::Int(32), builtin::tvm_call_packed(), call_args));
   }
