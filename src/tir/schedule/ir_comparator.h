@@ -104,7 +104,8 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   bool is_scope_block = true;
   /*! \brief The arithmetic analyzer for comparing LHS and RHS */
   arith::Analyzer analyzer_;
-  /*! \brief The arithmetic analyzer for simplifying expressions on LHS.
+  /*!
+   * \brief The arithmetic analyzer for simplifying expressions on LHS.
    *  This analyzer only contains the domains of the iterators on LHS.
    */
   arith::Analyzer lhs_analyzer_;
