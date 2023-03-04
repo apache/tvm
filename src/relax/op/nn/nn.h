@@ -68,6 +68,10 @@ Expr batch_norm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_
 Expr layer_norm(Expr data, Expr gamma, Expr beta, Array<Integer> axes, double epsilon, bool center,
                 bool scale);
 
+/*! \brief Compute group normalization. */
+Expr group_norm(Expr data, Expr gamma, Expr beta, int num_groups, int channel_axis,
+                Array<Integer> axes, double epsilon, bool center, bool scale);
+
 /*!
  * \brief Applies the dropout operation to the input tensor.
  * \param data The input data to the operator.
