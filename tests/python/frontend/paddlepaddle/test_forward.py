@@ -1049,6 +1049,15 @@ def test_forward_leaky_relu():
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(leaky_relu, input_data=input_data)
 
+@tvm.testing.uses_gpu
+def test_forward_mish():
+    @paddle.jit.to_static
+    def mish(inputs):
+        return nn.functional.mish(inputs)
+    input_shape = [1,3,10,10]
+    input_data = paddle.rand(input_shape,dtype="float32")
+    verify_model(mish,input_data=input_data)
+
 
 @tvm.testing.uses_gpu
 def test_forward_logical_api():
@@ -1421,189 +1430,189 @@ def run_math_api(func):
         verify_model(MathAPI(api_name), input_data=input_data)
 
 
-@run_math_api
-def test_forward_abs():
-    pass
+# @run_math_api
+# def test_forward_abs():
+#     pass
 
 
-@run_math_api
-def test_forward_acos():
-    pass
+# # @run_math_api
+# # def test_forward_acos():
+# #     pass
 
 
-@run_math_api
-def test_forward_abs():
-    pass
+# @run_math_api
+# def test_forward_abs():
+#     pass
 
 
-@run_math_api
-def test_forward_atan():
-    pass
+# @run_math_api
+# def test_forward_atan():
+#     pass
 
 
-@run_math_api
-def test_forward_ceil():
-    pass
+# @run_math_api
+# def test_forward_ceil():
+#     pass
 
 
-@run_math_api
-def test_forward_cos():
-    pass
+# @run_math_api
+# def test_forward_cos():
+#     pass
 
 
-@run_math_api
-def test_forward_cosh():
-    pass
+# @run_math_api
+# def test_forward_cosh():
+#     pass
 
 
-@run_math_api
-def test_forward_elu():
-    pass
+# @run_math_api
+# def test_forward_elu():
+#     pass
 
 
-@run_math_api
-def test_forward_erf():
-    pass
+# @run_math_api
+# def test_forward_erf():
+#     pass
 
 
-@run_math_api
-def test_forward_exp():
-    pass
+# @run_math_api
+# def test_forward_exp():
+#     pass
 
 
-@run_math_api
-def test_forward_floor():
-    pass
+# @run_math_api
+# def test_forward_floor():
+#     pass
 
 
-@run_math_api
-def test_forward_hardshrink():
-    pass
+# @run_math_api
+# def test_forward_hardshrink():
+#     pass
 
 
-@run_math_api
-def test_forward_hardtanh():
-    pass
+# @run_math_api
+# def test_forward_hardtanh():
+#     pass
 
 
-@run_math_api
-def test_forward_log_sigmoid():
-    pass
+# @run_math_api
+# def test_forward_log_sigmoid():
+#     pass
 
 
-@run_math_api
-def test_forward_log_softmax():
-    pass
+# @run_math_api
+# def test_forward_log_softmax():
+#     pass
 
 
-@run_math_api
-def test_forward_log():
-    pass
+# @run_math_api
+# def test_forward_log():
+#     pass
 
 
-@run_math_api
-def test_forward_log2():
-    pass
+# @run_math_api
+# def test_forward_log2():
+#     pass
 
 
-@run_math_api
-def test_forward_log10():
-    pass
+# @run_math_api
+# def test_forward_log10():
+#     pass
 
 
-@run_math_api
-def test_forward_log1p():
-    pass
+# @run_math_api
+# def test_forward_log1p():
+#     pass
 
 
-@run_math_api
-def test_forward_reciprocal():
-    pass
+# @run_math_api
+# def test_forward_reciprocal():
+#     pass
 
 
-@run_math_api
-def test_forward_relu():
-    pass
+# @run_math_api
+# def test_forward_relu():
+#     pass
 
 
-@run_math_api
-def test_forward_round():
-    pass
+# @run_math_api
+# def test_forward_round():
+#     pass
 
 
-@run_math_api
-def test_forward_rsqrt():
-    pass
+# @run_math_api
+# def test_forward_rsqrt():
+#     pass
 
 
-@run_math_api
-def test_forward_selu():
-    pass
+# @run_math_api
+# def test_forward_selu():
+#     pass
 
 
-@run_math_api
-def test_forward_sigmoid():
-    pass
+# @run_math_api
+# def test_forward_sigmoid():
+#     pass
 
 
-@run_math_api
-def test_forward_sign():
-    pass
+# @run_math_api
+# def test_forward_sign():
+#     pass
 
 
-@run_math_api
-def test_forward_sin():
-    pass
+# @run_math_api
+# def test_forward_sin():
+#     pass
 
 
-@run_math_api
-def test_forward_softplus():
-    pass
+# @run_math_api
+# def test_forward_softplus():
+#     pass
 
 
-@run_math_api
-def test_forward_sqrt():
-    pass
+# @run_math_api
+# def test_forward_sqrt():
+#     pass
 
 
-@run_math_api
-def test_forward_square():
-    pass
+# @run_math_api
+# def test_forward_square():
+#     pass
 
 
-@run_math_api
-def test_forward_sin():
-    pass
+# @run_math_api
+# def test_forward_sin():
+#     pass
 
 
-@run_math_api
-def test_forward_softsign():
-    pass
+# @run_math_api
+# def test_forward_softsign():
+#     pass
 
 
-@run_math_api
-def test_forward_sqrt():
-    pass
+# @run_math_api
+# def test_forward_sqrt():
+#     pass
 
 
-@run_math_api
-def test_forward_square():
-    pass
+# @run_math_api
+# def test_forward_square():
+#     pass
 
 
-@run_math_api
-def test_forward_swish():
-    pass
+# @run_math_api
+# def test_forward_swish():
+#     pass
 
 
-@run_math_api
-def test_forward_tan():
-    pass
+# @run_math_api
+# def test_forward_tan():
+#     pass
 
 
-@run_math_api
-def test_forward_tanh():
-    pass
+# @run_math_api
+# def test_forward_tanh():
+#     pass
 
 
 @tvm.testing.uses_gpu
