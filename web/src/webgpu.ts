@@ -20,6 +20,7 @@ import "@webgpu/types";
 import { assert } from "./support";
 import { Pointer } from "./ctypes";
 import { Memory } from "./memory";
+import { Disposable } from "./types";
 
 /** A pointer to points to the raw address space. */
 export type GPUPointer = number;
@@ -30,7 +31,12 @@ export type GPUPointer = number;
 export async function detectGPUDevice(): Promise<GPUDevice | undefined | null> {
   if (typeof navigator !== "undefined" && navigator.gpu !== undefined) {
     const adapter = await navigator.gpu.requestAdapter();
-    return await adapter?.requestDevice();
+    return await adapter?.requestDevice({
+      requiredLimits: {
+        maxStorageBufferBindingSize: 1 << 30,
+        maxComputeWorkgroupStorageSize: 32 << 10,
+      }
+    });
   } else {
     return undefined;
   }
@@ -40,6 +46,214 @@ interface FunctionInfo {
   name: string;
   arg_types: Array<string>;
   launch_param_tags: Array<string>;
+}
+
+const canvasRenderWGSL =`
+@group(0) @binding(0) var my_sampler : sampler;
+@group(0) @binding(1) var my_texture : texture_2d<f32>;
+
+struct VertexOutput {
+  @builtin(position) position : vec4<f32>,
+  @location(0) uv : vec2<f32>,
+}
+
+@vertex
+fn vertex_main(@builtin(vertex_index) vidx : u32) -> VertexOutput {
+  const pos = array(
+    vec2( 1.0,  1.0),
+    vec2( 1.0, -1.0),
+    vec2(-1.0, -1.0),
+    vec2( 1.0,  1.0),
+    vec2(-1.0, -1.0),
+    vec2(-1.0,  1.0),
+  );
+
+  const uv = array(
+    vec2(1.0, 0.0),
+    vec2(1.0, 1.0),
+    vec2(0.0, 1.0),
+    vec2(1.0, 0.0),
+    vec2(0.0, 1.0),
+    vec2(0.0, 0.0),
+  );
+
+  var output : VertexOutput;
+  output.position = vec4(pos[vidx], 0.0, 1.0);
+  output.uv = uv[vidx];
+  return output;
+}
+
+@fragment
+fn fragment_main(@location(0) uv : vec2<f32>) -> @location(0) vec4<f32> {
+  return textureSample(my_texture, my_sampler, uv);
+}
+
+@fragment
+fn fragment_clear(@location(0) uv : vec2<f32>) -> @location(0) vec4<f32> {
+  return vec4(1.0, 1.0, 1.0, 1.0);
+}
+`
+class CanvaRenderManager implements Disposable {
+  private device: GPUDevice;
+  private canvasContext: GPUCanvasContext;
+  private stagingTexture: GPUTexture;
+  private renderSampler: GPUSampler;
+  private renderPipeline: GPURenderPipeline;
+  private clearPipeline: GPURenderPipeline;
+  private canvasTextureFormat: GPUTextureFormat;
+
+  constructor(device: GPUDevice, canvas: HTMLCanvasElement) {
+    this.device = device;
+    const ctx = canvas.getContext("webgpu");
+    if (ctx == null) {
+      throw Error("Cannot bind WebGPU context");
+    }
+    this.canvasContext = ctx;
+    this.canvasTextureFormat = navigator.gpu.getPreferredCanvasFormat();
+    this.canvasContext.configure({
+      device: this.device,
+      format: this.canvasTextureFormat,
+      alphaMode: "opaque",
+    });
+
+    this.renderPipeline = device.createRenderPipeline({
+      layout: "auto",
+      vertex: {
+        module: device.createShaderModule({
+          code: canvasRenderWGSL,
+        }),
+        entryPoint: "vertex_main",
+      },
+      fragment: {
+        module: device.createShaderModule({
+          code: canvasRenderWGSL,
+        }),
+        entryPoint: "fragment_main",
+        targets: [{
+            format: this.canvasTextureFormat,
+        }],
+      },
+      primitive: {
+        topology: "triangle-list",
+      },
+    });
+
+    this.clearPipeline = device.createRenderPipeline({
+      layout: "auto",
+      vertex: {
+        module: device.createShaderModule({
+          code: canvasRenderWGSL,
+        }),
+        entryPoint: "vertex_main",
+      },
+      fragment: {
+        module: device.createShaderModule({
+          code: canvasRenderWGSL,
+        }),
+        entryPoint: "fragment_clear",
+        targets: [{
+            format: this.canvasTextureFormat,
+        }],
+      },
+      primitive: {
+        topology: "triangle-list",
+      },
+    });
+
+    this.renderSampler = device.createSampler({
+      magFilter: "linear",
+      minFilter: "linear",
+    });
+    // staging texture always be in RGBA
+    this.stagingTexture = device.createTexture({
+      size: [canvas.height, canvas.width, 1],
+      format: "rgba8unorm",
+      usage:
+        GPUTextureUsage.TEXTURE_BINDING |
+        GPUTextureUsage.COPY_DST |
+        GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+  }
+
+  clear() {
+    const commandEncoder = this.device.createCommandEncoder();
+    const passEncoder = commandEncoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: this.canvasContext.getCurrentTexture().createView(),
+          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+          loadOp: "clear",
+          storeOp: "store",
+        },
+      ],
+    });
+    passEncoder.setPipeline(this.clearPipeline);
+    const renderBindingGroup = this.device.createBindGroup({
+      layout: this.renderPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: this.renderSampler },
+        { binding: 1, resource: this.stagingTexture.createView() },
+      ],
+    });
+    passEncoder.setBindGroup(0, renderBindingGroup);
+    passEncoder.draw(6, 1, 0, 0);
+    passEncoder.end();
+    this.device.queue.submit([commandEncoder.finish()]);
+  }
+
+  draw(buffer: GPUBuffer, height: number, width: number) {
+    // resize the staging texture
+    if (height != this.stagingTexture.height || width != this.stagingTexture.width) {
+      this.stagingTexture.destroy();
+      this.stagingTexture = this.device.createTexture({
+        size: [height, width, 1],
+        format: "rgba8unorm",
+        usage:
+          GPUTextureUsage.TEXTURE_BINDING |
+          GPUTextureUsage.COPY_DST |
+          GPUTextureUsage.RENDER_ATTACHMENT,
+      });
+    }
+
+    const commandEncoder = this.device.createCommandEncoder();
+    commandEncoder.copyBufferToTexture({
+      buffer: buffer,
+      offset: 0,
+      bytesPerRow: this.stagingTexture.width * 4
+    }, {
+      texture: this.stagingTexture
+    },{
+      width: this.stagingTexture.width,
+      height: this.stagingTexture.height
+    });
+
+    const passEncoder = commandEncoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: this.canvasContext.getCurrentTexture().createView(),
+          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+          loadOp: "clear",
+          storeOp: "store",
+        },
+      ],
+    });
+    passEncoder.setPipeline(this.renderPipeline);
+    const renderBindingGroup = this.device.createBindGroup({
+      layout: this.renderPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: this.renderSampler },
+        { binding: 1, resource: this.stagingTexture.createView() },
+      ],
+    });
+    passEncoder.setBindGroup(0, renderBindingGroup);
+    passEncoder.draw(6, 1, 0, 0);
+    passEncoder.end();
+    this.device.queue.submit([commandEncoder.finish()]);
+  }
+
+  dispose() : void {
+    this.stagingTexture.destroy();
+  }
 }
 
 /**
@@ -53,8 +267,7 @@ export class WebGPUContext {
   //private readBuffer:;
   private bufferTable: Array<GPUBuffer | undefined> = [undefined];
   private bufferTableFreeId: Array<number> = [];
-  private pendingRead: Promise<void> = Promise.resolve();
-  private numPendingReads = 0;
+  private canvasRenderManager?: CanvaRenderManager = undefined;
 
   constructor(memory: Memory, device: GPUDevice) {
     this.memory = memory;
@@ -65,14 +278,66 @@ export class WebGPUContext {
    * Wait for all pending GPU tasks to complete
    */
   async sync(): Promise<void> {
-    if (this.numPendingReads != 0) {
-      await Promise.all([
-        this.device.queue.onSubmittedWorkDone(),
-        this.pendingRead
-      ])
-    } else {
-      await this.device.queue.onSubmittedWorkDone()
+    await this.device.queue.onSubmittedWorkDone();
+  }
+
+  /**
+   * Dispose the binded canvas.
+   */
+  disposeCanvas() {
+    this.canvasRenderManager?.dispose();
+    this.canvasRenderManager = undefined;
+  }
+
+  /**
+   * Draw image from data in storage buffer.
+   * @param ptr The GPU ptr
+   * @param height The height of the image.
+   * @param width The width of the image.
+   */
+  drawImageFromBuffer(ptr: GPUPointer, height: number, width: number) {
+    if (this.canvasRenderManager == undefined) {
+      throw Error("Do not have a canvas context, call bindCanvas first");
     }
+    this.canvasRenderManager.draw(this.gpuBufferFromPtr(ptr), height, width);
+  }
+
+  /**
+   * Copy raw bytes into buffer ptr.
+   *
+   * @param rawBytes The raw bytes
+   * @param toPtr The target gpu buffer ptr
+   * @param toOffset The beginning offset
+   * @param nbytes Number of bytes
+   */
+  copyRawBytesToBuffer(
+    rawBytes: Uint8Array,
+    toPtr: GPUPointer,
+    toOffset: number,
+    nbytes: number
+  ): void {
+    // Perhaps it would be more useful to use a staging buffer?
+    this.device.queue.writeBuffer(
+      this.gpuBufferFromPtr(toPtr),
+      toOffset,
+      rawBytes,
+      0,
+      nbytes
+    );
+  }
+  /**
+   * Clear canvas
+   */
+  clearCanvas() {
+    this.canvasRenderManager?.clear();
+  }
+
+  /**
+   * Bind a canvas element to the runtime.
+   * @param canvas The HTML canvas/
+   */
+  bindCanvas(canvas: HTMLCanvasElement) {
+    this.canvasRenderManager = new CanvaRenderManager(this.device, canvas);
   }
 
   /**
@@ -83,38 +348,8 @@ export class WebGPUContext {
    */
   createShader(info: string, code: string): Function {
     const finfo = JSON.parse(info);
-    const layoutEntries: Array<GPUBindGroupLayoutEntry> = [];
-    for (let i = 0; i < finfo.arg_types.length; ++i) {
-      const dtype = finfo.arg_types[i];
-      if (dtype == "handle") {
-        layoutEntries.push({
-          binding: i,
-          visibility: GPUShaderStage.COMPUTE,
-          buffer :  {
-            type: "storage"
-          }
-        });
-      } else {
-        throw new Error("Cannot handle argument type " + dtype + " in WebGPU shader");
-      }
-    }
-    const bindGroupLayout = this.device.createBindGroupLayout({
-      entries: layoutEntries
-    });
-
-    const pipeline = this.device.createComputePipeline({
-      layout: this.device.createPipelineLayout({
-        bindGroupLayouts: [ bindGroupLayout ]
-      }),
-      compute: {
-        module: this.device.createShaderModule({
-          code: code
-        }),
-        entryPoint: "main"
-      }
-    });
-
     const dispatchToDim: Array<number> = [];
+    let paramWriteAccess: Array<number> = [];
 
     for (let i = 0; i < finfo.launch_param_tags.length; ++i) {
       const tag: string = finfo.launch_param_tags[i];
@@ -126,10 +361,51 @@ export class WebGPUContext {
         const target: number = tag.charCodeAt(tag.length - 1) - ("x".charCodeAt(0));
         assert(target >= 0 && target < 3);
         dispatchToDim.push(target + 3);
+      } else if (tag.startsWith("paramWriteAccess:")) {
+        paramWriteAccess = JSON.parse(tag.substring(17));
       } else {
         throw new Error("Cannot handle thread_axis " + tag);
       }
     }
+
+    assert(paramWriteAccess.length == finfo.arg_types.length);
+
+    const layoutEntries: Array<GPUBindGroupLayoutEntry> = [];
+    for (let i = 0; i < finfo.arg_types.length; ++i) {
+      const dtype = finfo.arg_types[i];
+      if (dtype == "handle") {
+        layoutEntries.push({
+          binding: i,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer :  {
+            type: paramWriteAccess[i] ? "storage" : "read-only-storage"
+          }
+        });
+      } else {
+        throw new Error("Cannot handle argument type " + dtype + " in WebGPU shader");
+      }
+    }
+    const bindGroupLayout = this.device.createBindGroupLayout({
+      entries: layoutEntries
+    });
+    const pipelineLayout = this.device.createPipelineLayout({
+      bindGroupLayouts: [ bindGroupLayout ]
+    });
+
+    const pipeline = this.device.createComputePipeline({
+      layout: pipelineLayout,
+      compute: {
+        module: this.device.createShaderModule({
+          code: code,
+          hints: {
+            main: {
+              layout: pipelineLayout
+            }
+          }
+        }),
+        entryPoint: "main"
+      }
+    });
 
     const submitShader = (...args: Array<GPUPointer | number>): void => {
       const commandEncoder = this.device.createCommandEncoder();
@@ -154,6 +430,26 @@ export class WebGPUContext {
       const wl: Array<number> = [1, 1, 1, 1, 1, 1];
       for (let i = 0; i < dispatchToDim.length; ++i) {
         wl[dispatchToDim[i]] = args[layoutEntries.length + i];
+      }
+
+      // get around 65535 restriction of blockIdx.x
+      if (wl[2] != 1) {
+        throw Error("WebGPU: blockIdx.z is reserved for internal use");
+      }
+      // spread thinsg out into blockIdx.z
+      if (wl[0] >= (1 << 16)) {
+        let wl_x = wl[0];
+        let wl_z = wl[2];
+
+        while (wl_x >= (1 << 16)) {
+          if (wl_x % 2 != 0) {
+            throw Error("WebGPU: cannot factorize big gridDim.x=" + wl[0].toString());
+          }
+          wl_x /= 2;
+          wl_z *= 2;
+        }
+        wl[0] = wl_x;
+        wl[2] = wl_z;
       }
       compute.dispatchWorkgroups(wl[0], wl[1], wl[2])
       compute.end()
@@ -209,7 +505,6 @@ export class WebGPUContext {
     } else {
       throw new Error("Unknown DeviceAPI function " + name);
     }
-
   }
 
   // DeviceAPI
@@ -218,7 +513,8 @@ export class WebGPUContext {
       size: nbytes,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
     });
-    return this.attachToBufferTable(buffer);
+    const ptr = this.attachToBufferTable(buffer);
+    return ptr;
   }
 
   private deviceFreeDataSpace(ptr: GPUPointer): void {
@@ -237,29 +533,14 @@ export class WebGPUContext {
     nbytes: number
   ): void {
     // Perhaps it would be more useful to use a staging buffer?
-    const gpuTemp = this.device.createBuffer({
-      mappedAtCreation: true,
-      size: nbytes,
-      usage: GPUBufferUsage.MAP_WRITE | GPUBufferUsage.COPY_SRC
-    });
-
-    const cpuTemp = gpuTemp.getMappedRange();
-
-    const viewU8 = new Uint8Array(cpuTemp);
-    viewU8.set(this.memory.loadRawBytes(from, nbytes));
-    gpuTemp.unmap();
-
-    const copyEncoder = this.device.createCommandEncoder();
-    copyEncoder.copyBufferToBuffer(
-      gpuTemp,
-      0,
+    const rawBytes = this.memory.loadRawBytes(from, nbytes);
+    this.device.queue.writeBuffer(
       this.gpuBufferFromPtr(to),
       toOffset,
+      rawBytes,
+      0,
       nbytes
     );
-    const copyCommands = copyEncoder.finish();
-    this.device.queue.submit([copyCommands]);
-    gpuTemp.destroy();
   }
 
   private deviceCopyFromGPU(
@@ -285,24 +566,11 @@ export class WebGPUContext {
     const copyCommands = copyEncoder.finish();
     this.device.queue.submit([copyCommands]);
 
-    this.numPendingReads += 1;
-
-    const readEvent = gpuTemp.mapAsync(GPUMapMode.READ).then(() => {
+    gpuTemp.mapAsync(GPUMapMode.READ).then(() => {
       const data = gpuTemp.getMappedRange();
       this.memory.storeRawBytes(to, new Uint8Array(data));
-      this.numPendingReads -= 1;
       gpuTemp.destroy();
     });
-
-    if (this.numPendingReads == 1) {
-      this.pendingRead = readEvent;
-    } else {
-      this.pendingRead = Promise.all([
-        this.pendingRead,
-        readEvent,
-        // eslint-disable-next-line @typescript-eslint/no-empty-function
-      ]).then(() => {});
-    }
   }
 
   private deviceCopyWithinGPU(
