@@ -849,6 +849,244 @@ def test_layer_norm_infer_struct_info_wrong_input_type():
         bb.normalize(relax.op.nn.layer_norm(x0, gamma1, beta, axes=[-2, -1]))
 
 
+def test_group_norm_infer_struct_info():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
+    x1 = relax.Var("x", R.Tensor("float32", ndim=4))
+    x2 = relax.Var("x", R.Tensor("float32"))
+    x3 = relax.Var("x", R.Tensor((2, 3, 4, 5)))
+    gamma0 = relax.Var("gamma", R.Tensor((4,), "float32"))
+    gamma1 = relax.Var("gamma", R.Tensor("float32", ndim=1))
+    gamma2 = relax.Var("gamma", R.Tensor((4,)))
+    beta0 = relax.Var("beta", R.Tensor((4,), "float32"))
+    beta1 = relax.Var("beta", R.Tensor((4,)))
+
+    _check_inference(
+        bb,
+        relax.op.nn.group_norm(x0, gamma0, beta0, num_groups=2, channel_axis=-2, axes=[-1]),
+        relax.TensorStructInfo((2, 3, 4, 5), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.group_norm(x0, gamma0, beta0, num_groups=2, channel_axis=-2, axes=[-1]),
+        relax.TensorStructInfo((2, 3, 4, 5), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.group_norm(x1, gamma0, beta0, num_groups=2, channel_axis=-2, axes=[-1]),
+        relax.TensorStructInfo(dtype="float32", ndim=4),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.group_norm(x2, gamma0, beta0, num_groups=2, channel_axis=-2, axes=[-1]),
+        relax.TensorStructInfo(dtype="float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.group_norm(x0, gamma1, beta0, num_groups=2, channel_axis=-2, axes=[-1]),
+        relax.TensorStructInfo((2, 3, 4, 5), dtype="float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.group_norm(x3, gamma2, beta1, num_groups=2, channel_axis=-2, axes=[-1]),
+        relax.TensorStructInfo((2, 3, 4, 5), dtype=""),
+    )
+
+
+def test_group_norm_infer_struct_info_shape_symbolic():
+    bb = relax.BlockBuilder()
+    n = tir.Var("n", "int64")
+    a = tir.Var("a", "int64")
+    b = tir.Var("b", "int64")
+    c0 = tir.Var("c", "int64")
+    c1 = tir.Var("c", "int64")
+    x0 = relax.Var("x", R.Tensor((n, a, b, c0), "float32"))
+    x1 = relax.Var("x", R.Tensor((n, a, b, c1), "float32"))
+    x2 = relax.Var("x", R.Tensor("float32", ndim=4))
+    gamma0 = relax.Var("gamma", R.Tensor((a,), "float32"))
+    gamma1 = relax.Var("gamma", R.Tensor((a,), "float32"))
+    beta = relax.Var("beta", R.Tensor((a,), "float32"))
+
+    _check_inference(
+        bb,
+        relax.op.nn.group_norm(x0, gamma0, beta, num_groups=2, channel_axis=-3, axes=[-2, -1]),
+        relax.TensorStructInfo((n, a, b, c0), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.group_norm(x1, gamma0, beta, num_groups=2, channel_axis=-3, axes=[-2, -1]),
+        relax.TensorStructInfo((n, a, b, c1), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.group_norm(x0, gamma1, beta, num_groups=2, channel_axis=-3, axes=[-2, -1]),
+        relax.TensorStructInfo((n, a, b, c0), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.group_norm(x2, gamma0, beta, num_groups=2, channel_axis=-3, axes=[-2, -1]),
+        relax.TensorStructInfo(dtype="float32", ndim=4),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.group_norm(x2, gamma1, beta, num_groups=2, channel_axis=-3, axes=[-2, -1]),
+        relax.TensorStructInfo(dtype="float32", ndim=4),
+    )
+
+
+def test_group_norm_infer_struct_info_shape_var():
+    bb = relax.BlockBuilder()
+    s0 = relax.Var("s0", relax.ShapeStructInfo(ndim=4))
+    s1 = relax.Var("s1", relax.ShapeStructInfo())
+    s2 = relax.Var("s2", relax.ShapeStructInfo(ndim=1))
+    s3 = relax.Var("s3", relax.ShapeStructInfo(ndim=1))
+    x0 = relax.Var("x", relax.TensorStructInfo(s0, "float32"))
+    x1 = relax.Var("x", relax.TensorStructInfo(s1, "float32"))
+    gamma = relax.Var("gamma", relax.TensorStructInfo(s2, "float32"))
+    beta = relax.Var("beta", relax.TensorStructInfo(s3, "float32"))
+
+    _check_inference(
+        bb,
+        relax.op.nn.group_norm(x0, gamma, beta, num_groups=2, channel_axis=-2, axes=[1, 3]),
+        relax.TensorStructInfo(s0, "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.group_norm(x1, gamma, beta, num_groups=2, channel_axis=-2, axes=[1, 3]),
+        relax.TensorStructInfo(s1, "float32"),
+    )
+
+
+def test_group_norm_infer_struct_info_more_input_dtype():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float16"))
+    gamma0 = relax.Var("gamma", R.Tensor((3,), "float16"))
+    beta0 = relax.Var("beta", R.Tensor((3,), "float16"))
+    x1 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float64"))
+    gamma1 = relax.Var("gamma", R.Tensor((3,), "float64"))
+    beta1 = relax.Var("beta", R.Tensor((3,), "float64"))
+
+    _check_inference(
+        bb,
+        relax.op.nn.group_norm(x0, gamma0, beta0, num_groups=3, channel_axis=1, axes=[-2, -1]),
+        relax.TensorStructInfo((2, 3, 4, 5), "float16"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.group_norm(x1, gamma1, beta1, num_groups=3, channel_axis=1, axes=[-2, -1]),
+        relax.TensorStructInfo((2, 3, 4, 5), "float64"),
+    )
+
+
+def test_group_norm_infer_struct_info_invalid_input_dtype():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3, 4, 5), "int8"))
+    gamma0 = relax.Var("gamma", R.Tensor((4,), "int8"))
+    beta0 = relax.Var("beta", R.Tensor((4,), "int8"))
+    x1 = relax.Var("x", R.Tensor((2, 3, 4, 5), "int32"))
+    gamma1 = relax.Var("gamma", R.Tensor((4,), "int32"))
+    beta1 = relax.Var("beta", R.Tensor((4,), "int32"))
+
+    with pytest.raises(TVMError):
+        bb.normalize(
+            relax.op.nn.group_norm(x0, gamma0, beta0, num_groups=2, channel_axis=-2, axes=[-2, -1])
+        )
+    with pytest.raises(TVMError):
+        bb.normalize(
+            relax.op.nn.group_norm(x1, gamma1, beta1, num_groups=2, channel_axis=-2, axes=[-2, -1])
+        )
+
+
+def test_group_norm_infer_struct_info_axis_out_of_range_and_repetitive():
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
+    gamma = relax.Var("gamma", R.Tensor((4,), "float32"))
+    beta = relax.Var("beta", R.Tensor((4,), "float32"))
+
+    with pytest.raises(TVMError):
+        bb.normalize(
+            relax.op.nn.group_norm(x, gamma, beta, num_groups=2, channel_axis=-2, axes=[3, 4])
+        )
+    with pytest.raises(TVMError):
+        bb.normalize(
+            relax.op.nn.group_norm(x, gamma, beta, num_groups=2, channel_axis=-2, axes=[3, -1])
+        )
+
+
+def test_group_norm_infer_struct_info_dtype_mismatch():
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
+    gamma0 = relax.Var("gamma", R.Tensor((4,), "float32"))
+    gamma1 = relax.Var("gamma", R.Tensor((4,), "int8"))
+    beta0 = relax.Var("beta", R.Tensor((4,), "float32"))
+    beta1 = relax.Var("beta", R.Tensor((4,)))
+
+    with pytest.raises(TVMError):
+        bb.normalize(
+            relax.op.nn.group_norm(x, gamma1, beta0, num_groups=2, channel_axis=-2, axes=[-2, -1])
+        )
+    with pytest.raises(TVMError):
+        bb.normalize(
+            relax.op.nn.group_norm(x, gamma0, beta1, num_groups=2, channel_axis=-2, axes=[-2, -1])
+        )
+
+
+def test_group_norm_infer_struct_info_ndim_mismatch():
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
+    gamma0 = relax.Var("gamma", R.Tensor((4, 5), "float32"))
+    gamma1 = relax.Var("gamma", R.Tensor((4,), "float32"))
+    beta0 = relax.Var("beta", R.Tensor((4, 5), "float32"))
+    beta1 = relax.Var("beta", R.Tensor((3, 4, 5), "float32"))
+
+    with pytest.raises(TVMError):
+        bb.normalize(
+            relax.op.nn.group_norm(x, gamma1, beta0, num_groups=2, channel_axis=-2, axes=[-2, -1])
+        )
+    with pytest.raises(TVMError):
+        bb.normalize(
+            relax.op.nn.group_norm(x, gamma0, beta1, num_groups=2, channel_axis=-2, axes=[-2, -1])
+        )
+
+
+def test_group_norm_infer_struct_info_shape_mismatch():
+    bb = relax.BlockBuilder()
+    c0 = tir.Var("c", "int64")
+    x0 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
+    x1 = relax.Var("x", R.Tensor((2, 3, 4, c0), "float32"))
+    gamma0 = relax.Var("gamma", R.Tensor((4, 6), "float32"))
+    gamma1 = relax.Var("gamma", R.Tensor((4, c0), "float32"))
+    beta0 = relax.Var("beta", R.Tensor((4, 5), "float32"))
+    beta1 = relax.Var("beta", R.Tensor((4, c0 - 2), "float32"))
+
+    with pytest.raises(TVMError):
+        bb.normalize(
+            relax.op.nn.group_norm(x0, gamma0, beta0, num_groups=2, channel_axis=-2, axes=[-2, -1])
+        )
+    with pytest.raises(TVMError):
+        bb.normalize(
+            relax.op.nn.group_norm(x1, gamma1, beta1, num_groups=2, channel_axis=-2, axes=[-2, -1])
+        )
+
+
+def test_group_norm_infer_struct_info_wrong_input_type():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
+    x1 = relax.Var("x", relax.ShapeStructInfo((2, 3, 4, 5)))
+    gamma0 = relax.Var("gamma", R.Tensor((4, 5), "float32"))
+    gamma1 = relax.Var("gamma", relax.FuncStructInfo([], R.Tensor((4, 5), "float32")))
+    beta = relax.Var("beta", R.Tensor((4, 5), "float32"))
+
+    with pytest.raises(TVMError):
+        bb.normalize(
+            relax.op.nn.group_norm(x1, gamma0, beta, num_groups=2, channel_axis=-2, axes=[-2, -1])
+        )
+    with pytest.raises(TVMError):
+        bb.normalize(
+            relax.op.nn.group_norm(x0, gamma1, beta, num_groups=2, channel_axis=-2, axes=[-2, -1])
+        )
+
+
 def test_dropout_infer_struct_info():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3), "float32"))
