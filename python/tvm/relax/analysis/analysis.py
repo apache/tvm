@@ -167,6 +167,70 @@ def struct_info_lca(lhs: StructInfo, rhs: StructInfo) -> StructInfo:
     return _ffi_api.StructInfoLCA(lhs, rhs)  # type: ignore
 
 
+def bound_vars(expr: Expr) -> List[Var]:
+    """
+    Return all bound variables from expression expr.
+    Bound variables are all variables that are declared in the expr.
+    They only have meaning inside that expr, and can only be used in it.
+    Parameters
+    ----------
+    expr: Expr
+        The expression.
+    Returns
+    -------
+    ret: List[Var]
+        List of bound vars in expr, in post-DFS order
+    """
+    return _ffi_api.bound_vars(expr)
+
+
+def free_vars(expr: Expr) -> List[Var]:
+    """
+    Return all free variables from expression expr.
+    Free variables are variables that are not bound by a
+    VarBinding or a function parameter in the expression.
+    Parameters
+    ----------
+    expr: Expr
+        The expression.
+    Returns
+    -------
+    ret: List[Var]
+        List of free vars in expr, in post-DFS order
+    """
+    return _ffi_api.free_vars(expr)
+
+
+def all_vars(expr: Expr) -> List[Var]:
+    """
+    Return all (local) variables from expression expr.
+    Parameters
+    ----------
+    expr: Expr
+        The expression.
+    Returns
+    -------
+    ret: List[Var]
+        List of vars in expr, in post-DFS order
+    """
+    return _ffi_api.all_vars(expr)
+
+
+def all_global_vars(expr: Expr) -> List[GlobalVar]:
+    """
+    Return all global variables from expression expr.
+    Parameters
+    ----------
+    expr: Expr
+        The expression.
+    Returns
+    -------
+    ret: List[GlobalVar]
+        List of global vars in expr, in post-DFS order
+    """
+    return _ffi_api.all_global_vars(expr)
+
+
 def post_order_visit(expr, fvisit):
     """Recursively visit the ir in post DFS order node,
     apply fvisit. Each node is guaranteed to be visited
