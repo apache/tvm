@@ -356,11 +356,11 @@ def call_te(func: Callable, *args: Any, **kwargs: Any) -> Expr:
         A newly created call node
     """
 
-    func_name = kwargs.pop("primfunc_name_hint", None)
+    primfunc_name_hint = kwargs.pop("primfunc_name_hint", None)
     tir_func, call_args, out_sinfo, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
-    if not func_name:
-        func_name = func.__name__
-    gvar = _ffi_api.AddFunction(tir_func, func_name)  # type: ignore
+    if not primfunc_name_hint:
+        primfunc_name_hint = func.__name__
+    gvar = _ffi_api.AddFunction(tir_func, primfunc_name_hint)  # type: ignore
     return call_tir(gvar, call_args, out_sinfo, tir_vars)
 
 

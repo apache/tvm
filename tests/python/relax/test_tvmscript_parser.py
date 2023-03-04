@@ -1059,7 +1059,7 @@ def test_arith_operators():
         a3 = x * y
         a4 = x / y
         a5 = x // y
-        a6 = x ** y
+        a6 = x**y
 
         c0 = x > y
         c1 = x < y
