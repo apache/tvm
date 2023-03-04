@@ -34,10 +34,10 @@
 
 #include <unordered_map>
 
+#include "../analysis/var_use_def_analysis.h"
 
 namespace tvm {
 namespace tir {
-
 
 class HostDeviceSplitter : public StmtMutator {
  public:
@@ -63,8 +63,7 @@ class HostDeviceSplitter : public StmtMutator {
     os << name_prefix_ << "_kernel" << device_func_counter_++;
     std::string kernel_symbol = os.str();
     // isolate the device function.
-    VarUseDefAnalyzer m;
-    m.visit_thread_extent_ = false;
+    VarUseDefAnalyzer m({}, false);
     body = m(std::move(body));
 
     Array<Var> params;

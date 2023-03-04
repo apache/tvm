@@ -21,13 +21,16 @@
  * \file var_use_def_analysis.cc
  * \brief Classes and functions to analyze var defition and usage.
  */
-#include <tvm/tir/analysis.h>
-
-#include "../../runtime/thread_storage_scope.h"
-#include "../transforms/ir_utils.h"
-
+#include "var_use_def_analysis.h"
 namespace tvm {
 namespace tir {
+
+VarUseDefAnalyzer::VarUseDefAnalyzer(const Array<Var>& defined_vars, bool visit_thread_extent)
+    : visit_thread_extent_(visit_thread_extent) {
+  for (const Var v : defined_vars) {
+    use_count_[v.get()] = 0;
+  }
+}
 
 Stmt VarUseDefAnalyzer::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == attr::thread_extent) {
@@ -139,7 +142,7 @@ PrimExpr VarUseDefAnalyzer::VisitExpr_(const LetNode* op) {
 }
 
 PrimExpr VarUseDefAnalyzer::VisitExpr_(const VarNode* op) {
-  this->HandleUse(GetRef<PrimExpr>(op));
+  this->HandleUse(op);
   return StmtExprMutator::VisitExpr_(op);
 }
 
@@ -160,7 +163,7 @@ PrimExpr VarUseDefAnalyzer::VisitExpr_(const BufferLoadNode* op) {
 }
 
 void VarUseDefAnalyzer::VisitBuffer(Buffer buffer) {
-  this->HandleUse(buffer->data);
+  this->HandleUse(buffer->data.get());
   auto visit_arr = [&](Array<PrimExpr> arr) {
     for (const auto& element : arr) {
       this->VisitExpr(element);
@@ -180,33 +183,32 @@ void VarUseDefAnalyzer::HandleDef(const VarNode* v) {
   def_count_[v] = 1;
 }
 
-void VarUseDefAnalyzer::HandleUse(const PrimExpr& v) {
-  ICHECK(v.as<VarNode>());
-  Var var = Downcast<Var>(v);
-  auto it = use_count_.find(var.get());
+void VarUseDefAnalyzer::HandleUse(const VarNode* v) {
+  auto it = use_count_.find(v);
   if (it != use_count_.end()) {
     if (it->second >= 0) {
       ++it->second;
     }
   } else {
-    undefined_.push_back(var);
-    use_count_[var.get()] = -1;
+    undefined_.push_back(GetRef<Var>(v));
+    use_count_[v] = -1;
   }
 }
 
 Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& args) {
-  VarUseDefAnalyzer m;
-  m.simplify_let_ = false;
-  for (Var arg : args) {
-    m.use_count_[arg.get()] = 0;
-  }
+  VarUseDefAnalyzer m(args);
   m(stmt);
   return m.undefined_;
 }
 
 Array<Var> UndefinedVars(const PrimExpr& expr) {
-  VarUseDefAnalyzer m;
-  m.simplify_let_ = false;
+  VarUseDefAnalyzer m({});
+  m(expr);
+  return m.undefined_;
+}
+
+Array<Var> UndefinedVars(const PrimExpr& expr, const Array<Var>& args) {
+  VarUseDefAnalyzer m(args);
   m(expr);
   return m.undefined_;
 }
