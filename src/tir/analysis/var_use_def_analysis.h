@@ -21,8 +21,8 @@
  * \file tvm/src/tir/analysis/var_use_def_analyzer.h
  * \brief Variable definition and usage analysis class.
  */
-#ifndef TVM_TIR_ANALYSIS_VAR_USE_DEF_ANALZER_H_
-#define TVM_TIR_ANALYSIS_VAR_USE_DEF_ANALZER_H_
+#ifndef TVM_TIR_ANALYSIS_VAR_USE_DEF_ANALYSIS_H_
+#define TVM_TIR_ANALYSIS_VAR_USE_DEF_ANALYSIS_H_
 
 #include <tvm/tir/analysis.h>
 
@@ -86,4 +86,4 @@ class VarUseDefAnalyzer : public StmtExprVisitor {
 }  // namespace tir
 }  // namespace tvm
 
-#endif  // TVM_TIR_ANALYSIS_VAR_USE_DEF_ANALZER_H_
+#endif  // TVM_TIR_ANALYSIS_VAR_USE_DEF_ANALYSIS_H_
