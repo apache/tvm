@@ -969,6 +969,19 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   return RewritePatterns(composer.MakeCallbacks(), expr, mod);
 }
 
+Expr SimplifyExprPostAlterOp(const Expr& expr, const IRModule& mod) {
+  // stripped-down version of AlterOp that cleans up some patterns
+  // often left by the AlterOpLayout pass.
+  DFPatternRewriteComposer composer;
+  composer.AddRewrite<EliminateIdentityRewrite>();
+  composer.AddRewrite<SimplifyReshape>();
+  composer.AddRewrite<SimplifySameCast>();
+  composer.AddRewrite<SimplifyConsecutiveCast>();
+  composer.AddRewrite<SimplifyClipAndConsecutiveCast>();
+  composer.AddRewrite<SimplifyCastClip>();
+  return RewritePatterns(composer.MakeCallbacks(), expr, mod);
+}
+
 namespace transform {
 
 Pass SimplifyExpr() {
@@ -979,7 +992,17 @@ Pass SimplifyExpr() {
   return CreateFunctionPass(pass_func, 0, "SimplifyExpr", {"InferType"});
 }
 
+Pass SimplifyExprPostAlterOp() {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+      [=](Function f, IRModule m, PassContext pc) {
+        return Downcast<Function>(SimplifyExprPostAlterOp(f, m));
+      };
+  return CreateFunctionPass(pass_func, 0, "SimplifyExprPostAlterOp", {"InferType"});
+}
+
 TVM_REGISTER_GLOBAL("relay._transform.SimplifyExpr").set_body_typed(SimplifyExpr);
+TVM_REGISTER_GLOBAL("relay._transform.SimplifyExprPostAlterOp")
+    .set_body_typed(SimplifyExprPostAlterOp);
 
 }  // namespace transform
 

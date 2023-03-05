@@ -117,7 +117,7 @@ def test_thread_axis_2():
     @tvm.script.ir_module
     class Before:
         @T.prim_func
-        def main(T_reshape: T.Buffer[(1, 12, 384, 384), "float32"], placeholder_1: T.Buffer[(T.int64(1), T.int64(12), T.int64(384), 384), "bool"], T_where: T.Buffer[(T.int64(1), T.int64(12), T.int64(384), 384), "float32"]) -> None:
+        def main(T_reshape: T.Buffer((1, 12, 384, 384), "float32"), placeholder_1: T.Buffer((T.int64(1), T.int64(12), T.int64(384), 384), "bool"), T_where: T.Buffer((T.int64(1), T.int64(12), T.int64(384), 384), "float32")) -> None:
             # function attr dict
             T.func_attr({"global_symbol": "main", "tir.noalias": True})
             # body
@@ -299,7 +299,7 @@ def test_ramp_dtype_consistency():
 
 def test_condition():
     @T.prim_func
-    def before(A: T.Buffer[(128,), "float32"], B: T.Buffer[(130,), "float32"]):
+    def before(A: T.Buffer((128,), "float32"), B: T.Buffer((130,), "float32")):
         for i, j in T.grid(T.int64(2), T.int64(65)):
             if i * T.int64(65) + j >= T.int64(0) and i * T.int64(65) + j < T.int64(128):
                 A[i * T.int64(65) + j] = 0.0
@@ -312,7 +312,7 @@ def test_condition():
             )
 
     @T.prim_func
-    def expected_after(A: T.Buffer[128, "float32"], B: T.Buffer[130, "float32"]):
+    def expected_after(A: T.Buffer(128, "float32"), B: T.Buffer(130, "float32")):
         for i, j in T.grid(2, 65):
             if i * 65 + j >= 0 and i * 65 + j < 128:
                 A[i * 65 + j] = T.float32(0)
@@ -327,7 +327,7 @@ def test_condition():
 
 def test_block():
     @T.prim_func
-    def before(A: T.Buffer[(128,), "float32"], B: T.Buffer[(128,), "float32"]):
+    def before(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
         for i in T.serial(0, T.int64(16)):
             for j in T.serial(0, T.int64(8)):
                 with T.block():
@@ -335,7 +335,7 @@ def test_block():
                     B[vi] = A[vi] + T.float32(1)
 
     @T.prim_func
-    def expected_after(A: T.Buffer[(128,), "float32"], B: T.Buffer[(128,), "float32"]):
+    def expected_after(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
         for i in T.serial(0, T.int32(16)):
             for j in T.serial(0, T.int32(8)):
                 with T.block():

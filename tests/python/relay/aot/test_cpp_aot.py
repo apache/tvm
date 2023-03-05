@@ -81,7 +81,7 @@ def test_conv2d(enable_usmp, target_kind):
         }
     """
     )
-    ir_mod = tvm.parser.fromtext(relay_model)
+    ir_mod = tvm.relay.fromtext(relay_model)
 
     main_func = ir_mod["main"]
     shape_dict = {p.name_hint: p.checked_type.concrete_shape for p in main_func.params}
@@ -112,6 +112,12 @@ def test_conv2d(enable_usmp, target_kind):
     loaded_mod = tvm.runtime.load_module(test_so_path)
     runner = tvm.runtime.executor.AotModule(loaded_mod["default"](tvm.cpu(0)))
     runner.set_input(**inputs)
+
+    assert runner.get_input_name(0) == "data"
+    shape_dict, dtype_dict = runner.get_input_info()
+    assert shape_dict == {"data": (1, 3, 64, 64)}
+    assert dtype_dict == {"data": "uint8"}
+
     runner.run()
     assert (runner.get_output(0).numpy() == list(ref_outputs.values())[0]).all()
 

@@ -490,6 +490,14 @@ Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
 void TranslateAddOutputRVs(const Array<ObjectRef>& old_outputs, const Array<ObjectRef>& new_outputs,
                            std::unordered_map<const Object*, const Object*>* rv_map);
 
+/*!
+ * \brief Counts the number of trace instructions.
+ * \param insts The instructions representing a trace.
+ * \param remove_postproc If postprocessing instructions are removed.
+ * \return Number of instructions.
+ */
+int GetNumValidInstructions(const Array<Instruction>& insts, bool remove_postproc);
+
 }  // namespace tir
 }  // namespace tvm
 

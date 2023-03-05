@@ -25,20 +25,41 @@ namespace printer {
 
 namespace {
 
-void SortAndMergeSpans(std::vector<ByteSpan>* spans) {
-  if (spans->empty()) {
-    return;
+std::vector<ByteSpan> MergeAndExemptSpans(const std::vector<ByteSpan>& spans,
+                                          const std::vector<ByteSpan>& spans_exempted) {
+  // use prefix sum to merge and exempt spans
+  std::vector<ByteSpan> res;
+  std::vector<std::pair<size_t, int>> prefix_stamp;
+  for (ByteSpan span : spans) {
+    prefix_stamp.push_back({span.first, 1});
+    prefix_stamp.push_back({span.second, -1});
   }
-  std::sort(spans->begin(), spans->end());
-  auto last = spans->begin();
-  for (auto cur = spans->begin() + 1; cur != spans->end(); ++cur) {
-    if (cur->first > last->second) {
-      *++last = *cur;
-    } else if (cur->second > last->second) {
-      last->second = cur->second;
+  // at most spans.size() spans accumulated in prefix sum
+  // use spans.size() + 1 as stamp unit to exempt all positive spans
+  // with only one negative span
+  int max_n = spans.size() + 1;
+  for (ByteSpan span : spans_exempted) {
+    prefix_stamp.push_back({span.first, -max_n});
+    prefix_stamp.push_back({span.second, max_n});
+  }
+  std::sort(prefix_stamp.begin(), prefix_stamp.end());
+  int prefix_sum = 0;
+  int n = prefix_stamp.size();
+  for (int i = 0; i < n - 1; ++i) {
+    prefix_sum += prefix_stamp[i].second;
+    // positive prefix sum leads to spans without exemption
+    // different stamp positions guarantee the stamps in same position accumulated
+    if (prefix_sum > 0 && prefix_stamp[i].first < prefix_stamp[i + 1].first) {
+      if (res.size() && res.back().second == prefix_stamp[i].first) {
+        // merge to the last spans if it is successive
+        res.back().second = prefix_stamp[i + 1].first;
+      } else {
+        // add a new independent span
+        res.push_back({prefix_stamp[i].first, prefix_stamp[i + 1].first});
+      }
     }
   }
-  spans->erase(++last, spans->end());
+  return res;
 }
 
 size_t GetTextWidth(const std::string& text, const ByteSpan& span) {
@@ -234,22 +255,24 @@ std::string DecorateText(const std::string& text, const std::vector<size_t>& lin
   return ret;
 }
 
-}  // anonymous namespace
+}  // namespace
 
 DocPrinter::DocPrinter(const PrinterConfig& options) : options_(options) {
   line_starts_.push_back(0);
 }
 
-void DocPrinter::Append(const Doc& doc) { Append(doc, NullOpt); }
+void DocPrinter::Append(const Doc& doc) { Append(doc, PrinterConfig()); }
 
-void DocPrinter::Append(const Doc& doc, Optional<ObjectPath> path_to_underline) {
-  path_to_underline_ = path_to_underline;
-  current_max_path_length_ = 0;
-  current_underline_candidates_.clear();
+void DocPrinter::Append(const Doc& doc, const PrinterConfig& cfg) {
+  for (const ObjectPath& p : cfg->path_to_underline) {
+    path_to_underline_.push_back(p);
+    current_max_path_length_.push_back(0);
+    current_underline_candidates_.push_back(std::vector<ByteSpan>());
+  }
   PrintDoc(doc);
-
-  underlines_.insert(underlines_.end(), current_underline_candidates_.begin(),
-                     current_underline_candidates_.end());
+  for (const auto& c : current_underline_candidates_) {
+    underlines_.insert(underlines_.end(), c.begin(), c.end());
+  }
 }
 
 String DocPrinter::GetString() const {
@@ -264,9 +287,8 @@ String DocPrinter::GetString() const {
     text.push_back('\n');
   }
 
-  std::vector<ByteSpan> underlines = underlines_;
-  SortAndMergeSpans(&underlines);
-  return DecorateText(text, line_starts_, options_, underlines);
+  return DecorateText(text, line_starts_, options_,
+                      MergeAndExemptSpans(underlines_, underlines_exempted_));
 }
 
 void DocPrinter::PrintDoc(const Doc& doc) {
@@ -332,14 +354,15 @@ void DocPrinter::PrintDoc(const Doc& doc) {
 }
 
 void DocPrinter::MarkSpan(const ByteSpan& span, const ObjectPath& path) {
-  if (path_to_underline_.defined()) {
-    if (path->Length() >= current_max_path_length_ &&
-        path->IsPrefixOf(path_to_underline_.value())) {
-      if (path->Length() > current_max_path_length_) {
-        current_max_path_length_ = path->Length();
-        current_underline_candidates_.clear();
+  int n = path_to_underline_.size();
+  for (int i = 0; i < n; ++i) {
+    ObjectPath p = path_to_underline_[i];
+    if (path->Length() >= current_max_path_length_[i] && path->IsPrefixOf(p)) {
+      if (path->Length() > current_max_path_length_[i]) {
+        current_max_path_length_[i] = path->Length();
+        current_underline_candidates_[i].clear();
       }
-      current_underline_candidates_.push_back(span);
+      current_underline_candidates_[i].push_back(span);
     }
   }
 }

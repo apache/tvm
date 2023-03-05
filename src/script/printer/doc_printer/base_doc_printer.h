@@ -71,7 +71,7 @@ class DocPrinter {
    *
    * \sa GetString
    */
-  void Append(const Doc& doc, Optional<ObjectPath> path_to_underline);
+  void Append(const Doc& doc, const PrinterConfig& cfg);
 
   /*!
    * \brief Get the printed string of all Doc appended
@@ -232,9 +232,12 @@ class DocPrinter {
    * \sa output_
    */
   std::ostream& NewLine() {
+    size_t start_pos = output_.tellp();
     output_ << "\n";
     line_starts_.push_back(output_.tellp());
     output_ << std::string(indent_, ' ');
+    size_t end_pos = output_.tellp();
+    underlines_exempted_.push_back({start_pos, end_pos});
     return output_;
   }
 
@@ -247,6 +250,9 @@ class DocPrinter {
    * \sa GetString
    */
   std::ostringstream output_;
+
+  /*! \brief Spans that we have already committed to underline exemption. */
+  std::vector<ByteSpan> underlines_exempted_;
 
  private:
   void MarkSpan(const ByteSpan& span, const ObjectPath& path);
@@ -261,16 +267,16 @@ class DocPrinter {
   std::vector<size_t> line_starts_;
 
   /*! \brief Path of the object that we would like to underline */
-  Optional<ObjectPath> path_to_underline_;
+  Array<ObjectPath> path_to_underline_;
 
   /*!
    * \brief Candidate spans to be underlined, until we find a better match.
    * (A better match is an object with a longer path that is still a prefix of path_to_underline_.)
    */
-  std::vector<ByteSpan> current_underline_candidates_;
+  std::vector<std::vector<ByteSpan>> current_underline_candidates_;
 
   /*! \brief Path length of the objects that are current candidates for underlining. */
-  int current_max_path_length_;
+  std::vector<int> current_max_path_length_;
 
   /*! \brief Spans that we have already committed to underline. */
   std::vector<ByteSpan> underlines_;

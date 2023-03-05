@@ -2146,7 +2146,7 @@ class OperatorConverter(object):
             _, kernel_h, kernel_w, in_channels = to_int_list(self.get_tensor_shape(weight_tensor))
             assert in_channels == input_c * depth_multiplier
         else:
-            output_channels, kernel_h, kernel_w, _ = to_int_list(
+            output_channels, kernel_h, kernel_w, in_channels = to_int_list(
                 self.get_tensor_shape(weight_tensor)
             )
 
@@ -2170,6 +2170,11 @@ class OperatorConverter(object):
         else:
             params["channels"] = int(output_channels)
             params["kernel_layout"] = "HWIO"
+            if input_c != in_channels:
+                assert (
+                    input_c % in_channels == 0
+                ), "Input channels is not divisible of kernel in_channels."
+                params["groups"] = int(input_c / in_channels)
 
         # weight tensor type should be INT8/UINT8 (quantization) or FLOAT32
         weight_tensor_type = weight_tensor.tensor.Type()

@@ -254,7 +254,7 @@ def test_loop_carried_dependency():
     and the allocate buffer should keep the order."""
 
     @T.prim_func
-    def before(A: T.Buffer[(8, 8, 8), "int32"], B: T.Buffer[(8, 8, 8), "int32"]):
+    def before(A: T.Buffer((8, 8, 8), "int32"), B: T.Buffer((8, 8, 8), "int32")):
         C = T.alloc_buffer([8, 8, 8], dtype="int32")
         D = T.alloc_buffer([8, 8, 8], dtype="int32")
         for i in T.serial(8):
@@ -278,7 +278,7 @@ def test_loop_carried_dependency():
                         )
 
     @T.prim_func
-    def after(A: T.Buffer[(8, 8, 8), "int32"], B: T.Buffer[(8, 8, 8), "int32"]) -> None:
+    def after(A: T.Buffer((8, 8, 8), "int32"), B: T.Buffer((8, 8, 8), "int32")) -> None:
         for i in T.serial(8):
             with T.block():
                 T.reads(A[i, 0:8, 0:8])
@@ -312,7 +312,7 @@ def test_1D_cascade_op_rolling_buffer():
     which is marked as opaque in consumer block's iter mappings."""
 
     @T.prim_func
-    def before(A: T.Buffer[(4, 16), "int32"], C: T.Buffer[(4, 8), "int32"]):
+    def before(A: T.Buffer((4, 16), "int32"), C: T.Buffer((4, 8), "int32")):
         B = T.alloc_buffer((4, 6), "int32")
         for c in T.serial(4):
             for i in T.serial(0, 2):
@@ -338,7 +338,7 @@ def test_1D_cascade_op_rolling_buffer():
                             )
 
     @T.prim_func
-    def after(A: T.Buffer[(4, 16), "int32"], C: T.Buffer[(4, 8), "int32"]):
+    def after(A: T.Buffer((4, 16), "int32"), C: T.Buffer((4, 8), "int32")):
         for c in T.serial(4):
             with T.block():
                 T.reads(A[c, 0:12], C[c, 0:8])
@@ -424,7 +424,7 @@ def test_buffer_conditional_lowering():
     """
 
     @T.prim_func
-    def before(A: T.Ptr("float32")):
+    def before(A: T.handle("float32")):
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         for i in range(1):
             A_1 = T.Buffer((1,), data=A)

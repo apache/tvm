@@ -501,10 +501,15 @@ TVM_DLL void Unannotate(ScheduleState self, const StmtSRef& sref, const String& 
  * \param buffer_index_type The type of the buffer index, kRead or kWrite.
  * \param index_map The transformation to apply.
  * \param pad_value The value to write into padding introduced by the transformation.
+ * \param assume_injective_transform If set to true, the schedule primitive will assume the
+ * index_map is injective and skip checking overlapping of the mapped indices. This can be useful
+ * for complicated index_map that the analysis does not cover. It is the callers' responsibility
+ * to ensure the index map is injective, otherwise, the correctness of the schedule is not
+ * guaranteed.
  */
 TVM_DLL void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                              BufferIndexType buffer_index_type, const IndexMap& index_map,
-                             const Optional<IndexMap>& pad_value);
+                             const Optional<IndexMap>& pad_value, bool assume_injective_transform);
 
 /*!
  * \brief Apply a transformation represented by IndexMap to block

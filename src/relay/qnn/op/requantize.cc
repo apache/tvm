@@ -124,8 +124,8 @@ bool has_current_target_sse41_support() {
   auto target = Target::Current(true);
   Optional<String> mcpu =
       target.defined() ? target->GetAttr<String>("mcpu") : Optional<String>(nullptr);
-  auto target_has_sse41_fn_ptr = tvm::runtime::Registry::Get("tvm.topi.x86.utils.target_has_sse41");
-  ICHECK(target_has_sse41_fn_ptr) << "Function tvm.topi.x86.utils.target_has_sse41 not found";
+  auto target_has_sse41_fn_ptr = tvm::runtime::Registry::Get("tvm.target.x86.target_has_sse41");
+  ICHECK(target_has_sse41_fn_ptr) << "Function tvm.target.x86.target_has_sse41 not found";
   return mcpu && (*target_has_sse41_fn_ptr)(mcpu.value());
 }
 

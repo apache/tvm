@@ -81,7 +81,7 @@ def test_matmul_relu(shared_scope):
     intrin_suffix = shared_scope.replace(".", "_")
     # fmt: off
     @T.prim_func
-    def matmul_relu_0(A: T.Buffer[(128, 128), "float16"], B: T.Buffer[(128, 128), "float16"], compute: T.Buffer[(128, 128), "float32"]) -> None:
+    def matmul_relu_0(A: T.Buffer((128, 128), "float16"), B: T.Buffer((128, 128), "float16"), compute: T.Buffer((128, 128), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         C_reindex_shared = T.alloc_buffer([128, 128], dtype="float32", scope=shared_scope)
         C_reindex_shared_wmma_accumulator = T.alloc_buffer([128, 128], dtype="float32", scope="wmma.accumulator")
@@ -222,7 +222,7 @@ def test_matmul_relu(shared_scope):
 def test_matmul_relu_with_fallback():
     # fmt: off
     @T.prim_func
-    def matmul_relu_fallback_0(A: T.Buffer[(128, 128), "float16"], B: T.Buffer[(128, 128), "float16"], compute: T.Buffer[(128, 128), "float32"]) -> None:
+    def matmul_relu_fallback_0(A: T.Buffer((128, 128), "float16"), B: T.Buffer((128, 128), "float16"), compute: T.Buffer((128, 128), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
@@ -371,7 +371,7 @@ def test_conv2d(shared_scope):
     intrin_suffix = shared_scope.replace(".", "_")
     # fmt: off
     @T.prim_func
-    def conv2d_0(inputs: T.Buffer[(1, 16, 16, 32), "float16"], weight: T.Buffer[(3, 3, 32, 32), "float16"], conv2d_nhwc: T.Buffer[(1, 16, 16, 32), "float32"]) -> None:
+    def conv2d_0(inputs: T.Buffer((1, 16, 16, 32), "float16"), weight: T.Buffer((3, 3, 32, 32), "float16"), conv2d_nhwc: T.Buffer((1, 16, 16, 32), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         PadInput = T.alloc_buffer([1, 18, 18, 32], dtype="float16")
         conv2d_nhwc_reindex_shared = T.alloc_buffer([256, 32], dtype="float32", scope=shared_scope)
@@ -546,7 +546,7 @@ def test_matmul_relu_pipeline(shared_scope):
     intrin_suffix = shared_scope.replace(".", "_")
     # fmt: off
     @T.prim_func
-    def matmul_relu_pipeline_0(A: T.Buffer[(128, 128), "float16"], B: T.Buffer[(128, 128), "float16"], compute: T.Buffer[(128, 128), "float32"]) -> None:
+    def matmul_relu_pipeline_0(A: T.Buffer((128, 128), "float16"), B: T.Buffer((128, 128), "float16"), compute: T.Buffer((128, 128), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
@@ -696,7 +696,7 @@ def test_matmul_relu_pipeline(shared_scope):
 def test_matmul_relu_global():
     # fmt: off
     @T.prim_func
-    def matmul_relu_global_0(A: T.Buffer[(128, 128), "float16"], B: T.Buffer[(128, 128), "float16"], compute: T.Buffer[(128, 128), "float32"]) -> None:
+    def matmul_relu_global_0(A: T.Buffer((128, 128), "float16"), B: T.Buffer((128, 128), "float16"), compute: T.Buffer((128, 128), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
@@ -851,7 +851,7 @@ def test_matmul_relu_non_tensorizable():
 def test_padded_matmul_relu():
     # fmt: off
     @T.prim_func
-    def padded_matmul_relu_0(A: T.Buffer[(127, 127), "float16"], B: T.Buffer[(127, 127), "float16"], compute: T.Buffer[(127, 127), "float32"]) -> None:
+    def padded_matmul_relu_0(A: T.Buffer((127, 127), "float16"), B: T.Buffer((127, 127), "float16"), compute: T.Buffer((127, 127), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
@@ -992,7 +992,7 @@ def test_padded_matmul_relu():
 def test_conv_1x1():
     # fmt: off
     @T.prim_func
-    def conv2d_1x1_0(inputs: T.Buffer[(1, 16, 16, 64), "float16"], weight: T.Buffer[(1, 1, 64, 64), "float16"], conv2d_nhwc: T.Buffer[(1, 16, 16, 64), "float32"]) -> None:
+    def conv2d_1x1_0(inputs: T.Buffer((1, 16, 16, 64), "float16"), weight: T.Buffer((1, 1, 64, 64), "float16"), conv2d_nhwc: T.Buffer((1, 16, 16, 64), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         conv2d_nhwc_reindex_shared = T.alloc_buffer([256, 64], dtype="float32", scope="shared")
         conv2d_nhwc_reindex_shared_wmma_accumulator = T.alloc_buffer([256, 64], dtype="float32", scope="wmma.accumulator")

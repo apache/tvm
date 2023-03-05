@@ -44,6 +44,16 @@ namespace tvm {
  */
 using MemoryScope = String;
 
+// NOTE: cannot use enum as they are out of bound of the original enum
+// and results in an undefined behavior
+// A 'null' device type, does not correspond to any DLDeviceType enum.
+// TODO(mbs): This is to help us as we transition away from representing the 'homogenous' case
+// as a singleton target map indexed by the invalid DLDeviceType '0'.
+constexpr int kNullDeviceType = 0;
+
+// An 'invalid' device type, does not correspond to any DLDeviceType enum.
+constexpr int kInvalidDeviceType = -1;
+
 /*!
  * \brief Describes at compile time the constraints on where data is to be stored at runtime
  * down to the (virtual) device and memory scope level, and how to compile code to compute that
@@ -229,7 +239,7 @@ class VirtualDeviceNode : public AttrsNode<VirtualDeviceNode> {
    * Physical Devices" above.
    */
   Device ToDevice() const {
-    ICHECK(device_type() != kInvalidDeviceType);
+    ICHECK(device_type_int != kInvalidDeviceType);
     ICHECK(virtual_device_id != -1);
     Device device;
     device.device_type = device_type();
@@ -262,7 +272,7 @@ class VirtualDevice : public ObjectRef {
  public:
   /*!
    * \brief Construct a virtual device.
-   * \param device_type The device type for the virtual device, or \p kInvalidDeviceType if
+   * \param device_type_int The device type for the virtual device, or \p kInvalidDeviceType if
    * unconstrained.  If \p target is defined then must match its \p target->GetTargetDeviceType().
    * \param virtual_device_id The device id for the virtual device, or -1 if unconstrained.
    * \param target The target describing how to compile for the virtual device, or null if
@@ -271,7 +281,7 @@ class VirtualDevice : public ObjectRef {
    * unconstrained.
    * \return The virtual device.
    */
-  explicit VirtualDevice(DLDeviceType device_type = kInvalidDeviceType, int virtual_device_id = -1,
+  explicit VirtualDevice(int device_type_int = kInvalidDeviceType, int virtual_device_id = -1,
                          Target target = {}, MemoryScope memory_scope = {});
 
   /*! \brief Returns the unique fully unconstrained \p VirtualDevice. */
@@ -349,7 +359,7 @@ class VirtualDevice : public ObjectRef {
 class VirtualDeviceCache {
  public:
   /*! \brief Returns the unique \p VirtualDevice representing given fields. */
-  VirtualDevice Make(DLDeviceType device_type = kInvalidDeviceType, int virtual_device_id = -1,
+  VirtualDevice Make(int device_type = kInvalidDeviceType, int virtual_device_id = -1,
                      Target target = {}, MemoryScope memory_scope = {});
 
   /*!

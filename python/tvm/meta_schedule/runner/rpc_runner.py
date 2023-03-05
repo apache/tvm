@@ -27,7 +27,6 @@ from tvm.runtime import Device, Module
 from ..logging import get_logger
 from ..profiler import Profiler
 from ..utils import (
-    cpu_count,
     derived_object,
     get_global_func_on_rpc_session,
     get_global_func_with_default_on_worker,
@@ -270,7 +269,7 @@ class RPCRunner(PyRunner):
         f_cleanup: Union[T_CLEANUP, str, None]
             The function name to cleanup the session or the function itself.
         max_workers: Optional[int] = None
-            The maximum number of connections. Defaults to number of logical CPU cores.
+            The maximum number of connections. Defaults to 1.
         initializer: Optional[Callable[[], None]]
             The initializer function.
         """
@@ -285,11 +284,10 @@ class RPCRunner(PyRunner):
         self.f_run_evaluator = f_run_evaluator
         self.f_cleanup = f_cleanup
         if max_workers is None:
-            max_workers = cpu_count(logical=True)
+            max_workers = 1
         logger.info("RPCRunner: max_workers = %d", max_workers)
         self.pool = PopenPoolExecutor(
             max_workers=max_workers,
-            timeout=rpc_config.session_timeout_sec,
             initializer=initializer,
         )
         self._sanity_check()

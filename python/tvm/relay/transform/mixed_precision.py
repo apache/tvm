@@ -63,6 +63,8 @@ DEFAULT_FOLLOW_LIST = [
     "tile",
     "dyn.tile",
     "scatter",
+    "scatter_elements",
+    "scatter_nd",
     "full",
     "dyn.full",
     "nn.depth_to_space",

@@ -37,15 +37,19 @@ std::string TVMScriptPrinter::Script(const ObjectRef& node, const Optional<Print
 
 PrinterConfig::PrinterConfig(Map<String, ObjectRef> config_dict) {
   runtime::ObjectPtr<PrinterConfigNode> n = make_object<PrinterConfigNode>();
+  if (auto v = config_dict.Get("name")) {
+    n->binding_names.push_back(Downcast<String>(v));
+  }
+  if (auto v = config_dict.Get("show_meta")) {
+    n->show_meta = Downcast<IntImm>(v)->value;
+  }
   if (auto v = config_dict.Get("ir_prefix")) {
     n->ir_prefix = Downcast<String>(v);
   }
   if (auto v = config_dict.Get("tir_prefix")) {
     n->tir_prefix = Downcast<String>(v);
   }
-  if (auto v = config_dict.Get("relax_prefix")) {
-    n->relax_prefix = Downcast<String>(v);
-  }
+
   if (auto v = config_dict.Get("buffer_dtype")) {
     n->buffer_dtype = DataType(runtime::String2DLDataType(Downcast<String>(v)));
   }
@@ -68,7 +72,18 @@ PrinterConfig::PrinterConfig(Map<String, ObjectRef> config_dict) {
     n->num_context_lines = Downcast<IntImm>(v)->value;
   }
   if (auto v = config_dict.Get("path_to_underline")) {
-    n->path_to_underline = Downcast<ObjectPath>(v);
+    n->path_to_underline = Downcast<Optional<Array<ObjectPath>>>(v).value_or(Array<ObjectPath>());
+  }
+  if (auto v = config_dict.Get("path_to_annotate")) {
+    n->path_to_annotate =
+        Downcast<Optional<Map<ObjectPath, String>>>(v).value_or(Map<ObjectPath, String>());
+  }
+  if (auto v = config_dict.Get("obj_to_underline")) {
+    n->obj_to_underline = Downcast<Optional<Array<ObjectRef>>>(v).value_or(Array<ObjectRef>());
+  }
+  if (auto v = config_dict.Get("obj_to_annotate")) {
+    n->obj_to_annotate =
+        Downcast<Optional<Map<ObjectRef, String>>>(v).value_or(Map<ObjectRef, String>());
   }
   if (auto v = config_dict.Get("syntax_sugar")) {
     n->syntax_sugar = Downcast<IntImm>(v)->value;

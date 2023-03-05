@@ -141,10 +141,10 @@ class IRDocsifierNode : public Object {
    * when converting IR node object to Doc.
    */
   Array<String> dispatch_tokens;
-  /*! \brief The IRModule to be docsifier is handling */
-  Optional<IRModule> mod;
   /*! \brief Mapping from a var to its info */
   std::unordered_map<ObjectRef, VariableInfo, ObjectPtrHash, ObjectPtrEqual> obj2info;
+  /*! \brief Metadata printing */
+  std::unordered_map<String, Array<ObjectRef>> metadata;
   /*! \brief The variable names used already */
   std::unordered_set<String> defined_names;
   /*! \brief Common prefixes of variable usages */
@@ -155,8 +155,8 @@ class IRDocsifierNode : public Object {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("frames", &frames);
     v->Visit("dispatch_tokens", &dispatch_tokens);
-    v->Visit("mod", &mod);
     // `obj2info` is not visited
+    // `metadata` is not visited
     // `defined_names` is not visited
     // `common_prefix` is not visited
     // `ir_usage` is not visited
@@ -204,7 +204,8 @@ class IRDocsifierNode : public Object {
    * \return The doc for variable, if it exists in the table. Otherwise it returns NullOpt.
    */
   Optional<ExprDoc> GetVarDoc(const ObjectRef& obj) const;
-
+  /*! \brief Add a TVM object to the metadata section*/
+  ExprDoc AddMetadata(const ObjectRef& obj);
   /*!
    * \brief Check if a variable exists in the table.
    * \param obj The variable object.
@@ -264,10 +265,49 @@ inline void FrameNode::ExitWithScope() {
 }
 
 template <class TDoc>
+inline static void AddDocDecoration(const Doc& d, const ObjectRef& obj, const ObjectPath& path,
+                                    const PrinterConfig& cfg) {
+  if (cfg->obj_to_annotate.count(obj)) {
+    if (const auto* stmt = d.as<StmtDocNode>()) {
+      if (stmt->comment.defined()) {
+        stmt->comment = stmt->comment.value() + "\n" + cfg->obj_to_annotate.at(obj);
+      } else {
+        stmt->comment = cfg->obj_to_annotate.at(obj);
+      }
+    } else {
+      LOG(WARNING) << "Expect StmtDoc to be annotated for object " << obj << ", but got "
+                   << Downcast<TDoc>(d)->_type_key;
+    }
+  }
+  for (const ObjectRef& o : cfg->obj_to_underline) {
+    if (o.same_as(obj)) {
+      cfg->path_to_underline.push_back(path);
+    }
+  }
+  for (const auto& pair : cfg->path_to_annotate) {
+    ObjectPath p = pair.first;
+    String attn = pair.second;
+    if (p->IsPrefixOf(path) && path->IsPrefixOf(p)) {
+      if (const auto* stmt = d.as<StmtDocNode>()) {
+        if (stmt->comment.defined()) {
+          stmt->comment = stmt->comment.value() + "\n" + attn;
+        } else {
+          stmt->comment = attn;
+        }
+      } else {
+        LOG(WARNING) << "Expect StmtDoc to be annotated at object path " << p << ", but got "
+                     << Downcast<TDoc>(d)->_type_key;
+      }
+    }
+  }
+}
+
+template <class TDoc>
 inline TDoc IRDocsifierNode::AsDoc(const ObjectRef& obj, const ObjectPath& path) const {
   if (obj.defined()) {
     Doc d = IRDocsifier::vtable()(dispatch_tokens.back(), obj, path, GetRef<IRDocsifier>(this));
     d->source_paths.push_back(path);
+    AddDocDecoration<TDoc>(d, obj, path, cfg);
     return Downcast<TDoc>(d);
   }
   return Downcast<TDoc>(LiteralDoc::None(path));

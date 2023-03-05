@@ -416,15 +416,16 @@ def test_batch_matmul(run_module):
 
 
 def test_bias_add(run_module):
-    def get_graph(x_shape=(1, 16), channels=16):
+    def get_graph(x_shape=(1, 16), channels=16, axis=1):
         x = relay.var("x", shape=(x_shape), dtype="float32")
         bias = relay.var("bias", shape=(channels,), dtype="float32")
-        out = relay.nn.bias_add(x, bias)
+        out = relay.nn.bias_add(x, bias, axis)
         f = relay.Function([x, bias], out)
         return f, {"x": x_shape, "bias": (channels,)}, ["bias"]
 
     run_and_verify_func(get_graph(), run_module=run_module)
     run_and_verify_func(get_graph((1, 6, 3, 4), 6), run_module=run_module)
+    run_and_verify_func(get_graph((1, 6, 3, 4), 4, -1), run_module=run_module)
 
 
 def test_pool2d(run_module):

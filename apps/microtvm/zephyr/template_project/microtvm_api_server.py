@@ -210,14 +210,14 @@ def _get_board_mem_size_bytes(zephyr_base: str, board: str):
     return None
 
 
-DEFAULT_HEAP_SIZE_BYTES = 216 * 1024
+DEFAULT_WORKSPACE_SIZE_BYTES = 216 * 1024
 
 
 def _get_recommended_heap_size_bytes(board: str):
     prop = BOARD_PROPERTIES[board]
     if "recommended_heap_size_bytes" in prop:
         return prop["recommended_heap_size_bytes"]
-    return DEFAULT_HEAP_SIZE_BYTES
+    return DEFAULT_WORKSPACE_SIZE_BYTES
 
 
 def generic_find_serial_port(serial_number: str = None):
@@ -358,11 +358,11 @@ PROJECT_OPTIONS = server.default_project_options(
         help="Run on the FVP emulator instead of hardware.",
     ),
     server.ProjectOption(
-        "heap_size_bytes",
+        "workspace_size_bytes",
         optional=["generate_project"],
         type="int",
         default=None,
-        help="Sets the value for HEAP_SIZE_BYTES passed to K_HEAP_DEFINE() to service TVM memory allocation requests.",
+        help="Sets the value for TVM_WORKSPACE_SIZE_BYTES passed to K_HEAP_DEFINE() to service TVM memory allocation requests.",
     ),
 ]
 
@@ -383,7 +383,7 @@ class Handler(server.ProjectAPIHandler):
         )
 
     # These files and directories will be recursively copied into generated projects from the CRT.
-    CRT_COPY_ITEMS = ("include", "Makefile", "src")
+    CRT_COPY_ITEMS = ("include", "CMakeLists.txt", "src")
 
     # Maps extra line added to prj.conf to a tuple or list of zephyr_board for which it is needed.
     EXTRA_PRJ_CONF_DIRECTIVES = {
@@ -404,7 +404,13 @@ class Handler(server.ProjectAPIHandler):
     }
 
     def _create_prj_conf(
-        self, project_dir: pathlib.Path, board: str, project_type: str, config_main_stack_size
+        self,
+        project_dir: pathlib.Path,
+        board: str,
+        project_type: str,
+        config_main_stack_size: int,
+        config_led: bool,
+        use_fvp: bool,
     ):
         with open(project_dir / "prj.conf", "w") as f:
             f.write(
@@ -414,6 +420,13 @@ class Handler(server.ProjectAPIHandler):
                 "CONFIG_UART_INTERRUPT_DRIVEN=y\n"
                 "\n"
             )
+            if (
+                config_led
+                and not self._is_qemu(board, use_fvp)
+                and not self._is_fvp(board, use_fvp)
+            ):
+                f.write("# For debugging.\n" "CONFIG_LED=y\n" "\n")
+
             f.write("# For TVMPlatformAbort().\n" "CONFIG_REBOOT=y\n" "\n")
 
             if project_type == "host_driven":
@@ -523,6 +536,18 @@ class Handler(server.ProjectAPIHandler):
 
         return cmake_args
 
+    def _copy_src_and_header_files(self, src_dir: pathlib.Path, dst_dir: pathlib.Path):
+        """Copy content of src_dir from template project to dst_dir in separate
+        source and header sub-directories.
+        """
+        for file in os.listdir(src_dir):
+            file = src_dir / file
+            if file.is_file():
+                if file.suffix in [".cc", ".c"]:
+                    shutil.copy2(file, dst_dir / "src")
+                elif file.suffix in [".h"]:
+                    shutil.copy2(file, dst_dir / "include" / "tvm")
+
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
         zephyr_board = options["board"]
         project_type = options["project_type"]
@@ -534,7 +559,7 @@ class Handler(server.ProjectAPIHandler):
         verbose = options.get("verbose")
 
         recommended_heap_size = _get_recommended_heap_size_bytes(zephyr_board)
-        heap_size_bytes = options.get("heap_size_bytes") or recommended_heap_size
+        workspace_size_bytes = options.get("workspace_size_bytes") or recommended_heap_size
         board_mem_size = _get_board_mem_size_bytes(zephyr_base, zephyr_board)
 
         compile_definitions = options.get("compile_definitions")
@@ -603,7 +628,7 @@ class Handler(server.ProjectAPIHandler):
             else:
                 shutil.copy2(src_path, dst_path)
 
-        # Populate Makefile.
+        # Populate CMakeLists.
         with open(project_dir / CMAKELIST_FILENAME, "w") as cmake_f:
             with open(API_SERVER_DIR / f"{CMAKELIST_FILENAME}.template", "r") as cmake_template_f:
                 for line in cmake_template_f:
@@ -630,10 +655,10 @@ class Handler(server.ProjectAPIHandler):
 
                 if board_mem_size is not None:
                     assert (
-                        heap_size_bytes < board_mem_size
-                    ), f"Heap size {heap_size_bytes} is larger than memory size {board_mem_size} on this board."
+                        workspace_size_bytes < board_mem_size
+                    ), f"Workspace size {workspace_size_bytes} is larger than memory size {board_mem_size} on this board."
                 cmake_f.write(
-                    f"target_compile_definitions(app PUBLIC -DHEAP_SIZE_BYTES={heap_size_bytes})\n"
+                    f"target_compile_definitions(app PUBLIC -DTVM_WORKSPACE_SIZE_BYTES={workspace_size_bytes})\n"
                 )
 
                 if compile_definitions:
@@ -650,7 +675,9 @@ class Handler(server.ProjectAPIHandler):
                 if self._is_fvp(zephyr_board, use_fvp):
                     cmake_f.write(f"target_compile_definitions(app PUBLIC -DFVP=1)\n")
 
-        self._create_prj_conf(project_dir, zephyr_board, project_type, config_main_stack_size)
+        self._create_prj_conf(
+            project_dir, zephyr_board, project_type, config_main_stack_size, verbose, use_fvp
+        )
 
         # Populate crt-config.h
         crt_config_dir = project_dir / "crt_config"
@@ -659,13 +686,19 @@ class Handler(server.ProjectAPIHandler):
             API_SERVER_DIR / "crt_config" / "crt_config.h", crt_config_dir / "crt_config.h"
         )
 
-        # Populate src/
+        # Populate `src` and `include`
         src_dir = project_dir / "src"
-        if project_type != "host_driven" or self._is_fvp(zephyr_board, use_fvp):
-            shutil.copytree(API_SERVER_DIR / "src" / project_type, src_dir)
-        else:
-            src_dir.mkdir()
-            shutil.copy2(API_SERVER_DIR / "src" / project_type / "main.c", src_dir)
+        src_dir.mkdir()
+        include_dir = project_dir / "include" / "tvm"
+        include_dir.mkdir(parents=True)
+        src_project_type_dir = API_SERVER_DIR / "src" / project_type
+        self._copy_src_and_header_files(src_project_type_dir, project_dir)
+
+        if self._is_fvp(zephyr_board, use_fvp):
+            self._copy_src_and_header_files(src_project_type_dir / "fvp", project_dir)
+
+        if project_type == "mlperftiny":
+            shutil.copytree(src_project_type_dir / "api", src_dir / "api")
 
         # Populate extra_files
         if extra_files_tar:

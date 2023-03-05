@@ -128,13 +128,7 @@ class JSONDatabaseNode : public DatabaseNode {
     results.reserve(top_k);
     for (const TuningRecord& record : this->tuning_records_) {
       auto run_secs = record->run_secs;
-      if (!run_secs.defined() || run_secs.value().empty() ||
-          std::all_of(run_secs.value().begin(), run_secs.value().end(),
-                      // kMaxMeanTime(1e10) is used as a stub for undefined measurement times.
-                      [](tvm::FloatImm v) {
-                        return v.defined() &&
-                               v->value == SortTuningRecordByMeanRunSecs::kMaxMeanTime;
-                      })) {
+      if (!record->IsValid()) {
         continue;
       }
       if (record->workload.same_as(workload) ||
@@ -146,8 +140,8 @@ class JSONDatabaseNode : public DatabaseNode {
       }
     }
     if (results.size() < static_cast<size_t>(top_k)) {
-      LOG(WARNING) << "The size of the GetTopK result is smaller than requested. There are not "
-                      "enough valid records in the database for this workload.";
+      LOG(WARNING) << "Returned tuning records less than requested(" << results.size() << " of "
+                   << top_k << " asked).";
     }
     return results;
   }
@@ -178,9 +172,13 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
     for (int i = 0; i < n_objs; ++i) {
       Workload workload = Workload::FromJSON(json_objs[i]);
       auto recalc_hash = n->GetModuleEquality().Hash(workload->mod);
-      CHECK_EQ(recalc_hash, workload->shash)
-          << "ValueError: Module hash changed. Given: " << workload->shash
-          << "; Recalculated: " << recalc_hash;
+      // Todo(tvm-team): re-enable the shash check when we get environment
+      // independent structural hash values.
+      if (recalc_hash != workload->shash) {
+        ObjectPtr<WorkloadNode> wkl = make_object<WorkloadNode>(*workload.get());
+        wkl->shash = recalc_hash;
+        workload = Workload(wkl);
+      }
       n->workloads2idx_.emplace(workload, i);
       workloads.push_back(workload);
     }

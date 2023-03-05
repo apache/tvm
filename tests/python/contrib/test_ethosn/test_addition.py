@@ -178,6 +178,61 @@ def test_addition_both_inputs_constants(
 @pytest.mark.parametrize(
     "lhs_shape,lhs_is_constant,rhs_shape,rhs_is_constant",
     [
+        ((1, 4, 4, 8), False, (1, 4, 4, 8), True),
+        ((1, 16, 12, 4), True, (1, 16, 12, 4), False),
+    ],
+)
+def test_addition_with_one_constant(dtype, lhs_shape, lhs_is_constant, rhs_shape, rhs_is_constant):
+    """Validate addition with one input as a constant."""
+    np.random.seed(0)
+
+    iinfo = np.iinfo(dtype)
+    data_min = iinfo.min
+    data_max = iinfo.max
+    lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc = _get_addition_qnn_params(dtype)
+
+    model = _get_model(
+        lhs_shape,
+        rhs_shape,
+        lhs_zp,
+        lhs_sc,
+        rhs_zp,
+        rhs_sc,
+        out_zp,
+        out_sc,
+        dtype,
+        lhs_is_constant=lhs_is_constant,
+        rhs_is_constant=rhs_is_constant,
+    )
+    input_shape = rhs_shape if lhs_is_constant else lhs_shape
+    input_name = "b" if lhs_is_constant else "a"
+    inputs = {
+        input_name: tvm.nd.array(
+            np.random.randint(data_min, data_max + 1, size=input_shape, dtype=dtype)
+        )
+    }
+
+    outputs = []
+    for npu in [False, True]:
+        mod = tei.make_module(model, {})
+        outputs.append(
+            tei.build_and_run(
+                mod,
+                inputs,
+                1,
+                {},
+                npu=npu,
+                additional_config_args={"inline_non_compute_intensive_partitions": False},
+            )
+        )
+    tei.verify(outputs, dtype, 1)
+
+
+@requires_ethosn
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+@pytest.mark.parametrize(
+    "lhs_shape,lhs_is_constant,rhs_shape,rhs_is_constant",
+    [
         ((1, 4, 4, 8), False, (1, 1, 1, 8), True),
         ((4,), True, (1, 16, 12, 4), False),
         ((1, 1, 1, 8), True, (1, 4, 4, 8), False),
@@ -320,3 +375,43 @@ def test_addition_failure(dtype, shape, err_msg):
     model = tei.make_ethosn_composite(model, "ethos-n.qnn_add")
     mod = tei.make_ethosn_partition(model)
     tei.test_error(mod, {}, err_msg)
+
+
+@requires_ethosn
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+@pytest.mark.parametrize(
+    "lhs_shape,lhs_is_constant,rhs_shape,rhs_is_constant",
+    [
+        ((1, 4, 4, 8), True, (1, 1, 4, 8), False),
+        ((1, 4, 4, 8), False, (1, 1, 4, 8), False),
+        ((1, 16, 1, 4), True, (1, 1, 12, 4), False),
+    ],
+)
+def test_unsupported_broadcast_addition(
+    dtype, lhs_shape, lhs_is_constant, rhs_shape, rhs_is_constant
+):
+    """Test broadcast compatible addition falls back to TVM."""
+    np.random.seed(0)
+
+    lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc = _get_addition_qnn_params(dtype)
+
+    model = _get_model(
+        lhs_shape,
+        rhs_shape,
+        lhs_zp,
+        lhs_sc,
+        rhs_zp,
+        rhs_sc,
+        out_zp,
+        out_sc,
+        dtype,
+        lhs_is_constant=lhs_is_constant,
+        rhs_is_constant=rhs_is_constant,
+    )
+    from tvm.relay.op.contrib import partition_for_ethosn  # pylint: disable=import-outside-toplevel
+
+    mod = tei.make_module(model, {})
+    assert "qnn.add" in mod.astext(False)
+    mod = partition_for_ethosn(mod, {})
+    assert "qnn.add" in mod.astext(False)
+    assert "ethos-n.qnn_add" not in mod.astext(False)

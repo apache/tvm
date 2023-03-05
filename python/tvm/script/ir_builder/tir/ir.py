@@ -29,12 +29,13 @@ from typing_extensions import Literal
 import numpy as np  # type: ignore
 
 from tvm.ir import Range, Type
+from tvm.ir.base import deprecated
 from tvm.runtime import convert, ndarray
 from tvm.target import Target
 
 # pylint: disable=unused-import
 from tvm.target.codegen import llvm_lookup_intrinsic_id
-from tvm.tir import Buffer, BufferRegion, PrimExpr
+from tvm.tir import Buffer, BufferRegion, IndexMap, PrimExpr
 from tvm.tir import op as _tir_op
 from tvm.tir import type_annotation
 
@@ -85,7 +86,7 @@ from . import _ffi_api, frame
 # pylint: enable=unused-import
 
 
-def buffer_decl(
+def buffer(
     shape: Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral],
     dtype: str = "float32",
     data: Var = None,
@@ -137,7 +138,7 @@ def buffer_decl(
         The declared buffer.
     """
     shape = (shape,) if isinstance(shape, (PrimExpr, Integral)) else shape
-    return _ffi_api.BufferDecl(  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Buffer(  # type: ignore[attr-defined] # pylint: disable=no-member
         shape,
         dtype,
         "",
@@ -150,6 +151,11 @@ def buffer_decl(
         buffer_type,
         axis_separators,
     )
+
+
+@deprecated("T.buffer_decl(...)", "T.Buffer(...)")
+def buffer_decl(*args, **kwargs):
+    return buffer(*args, **kwargs)
 
 
 def prim_func() -> frame.PrimFuncFrame:
@@ -1176,7 +1182,11 @@ def env_thread(thread_tag: str) -> IterVar:
     return _ffi_api.EnvThread(thread_tag)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def buffer_store(buffer: Buffer, value: PrimExpr, indices: List[Union[PrimExpr, slice]]) -> None:
+def buffer_store(
+    buffer: Buffer,  # pylint: disable=redefined-outer-name
+    value: PrimExpr,
+    indices: List[Union[PrimExpr, slice]],
+) -> None:
     """Buffer store node.
 
     Parameters
@@ -1210,7 +1220,10 @@ def buffer_store(buffer: Buffer, value: PrimExpr, indices: List[Union[PrimExpr, 
     )
 
 
-def prefetch(buffer: Buffer, bounds: List[Range]) -> None:
+def prefetch(
+    buffer: Buffer,  # pylint: disable=redefined-outer-name
+    bounds: List[Range],
+) -> None:
     """The prefetch hint for a buffer.
 
     Parameters
@@ -1357,20 +1370,23 @@ def boolean(expr: Optional[PrimExpr] = None) -> PrimExpr:
     return _ffi_api.Boolean(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def handle(expr: Optional[PrimExpr] = None) -> PrimExpr:
-    """Construct a new tir.Var with type handle or cast expression to type handle.
+def handle(dtype: str = "void", storage_scope: str = "global") -> Var:
+    """Create a TIR var that represents a pointer.
 
     Parameters
     ----------
-    expr: PrimExpr
-        The expression to be cast.
+    dtype: str
+        The data type of the pointer.
+
+    storage_scope: str
+        The storage scope of the pointer.
 
     Returns
     -------
     res : PrimExpr
         The new tir.Var with type handle or casted expression with type handle.
     """
-    return _ffi_api.Handle(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Handle(dtype, storage_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def void(expr: Optional[PrimExpr] = None) -> PrimExpr:
@@ -1389,6 +1405,7 @@ def void(expr: Optional[PrimExpr] = None) -> PrimExpr:
     return _ffi_api.Void(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
+@deprecated("T.var", "T.{dtype}")
 def var(dtype: str, name: str = "") -> Var:
     """Construct a new tir.Var.
 
@@ -1409,6 +1426,26 @@ def var(dtype: str, name: str = "") -> Var:
 
 
 def ptr(dtype: str, storage_scope: str = "global") -> Var:
+    """The pointer declaration function.
+
+    Parameters
+    ----------
+    dtype : str
+        The data type of the pointer.
+
+    storage_scope : str
+        The storage scope of the pointer.
+
+    Returns
+    -------
+    res : Var
+        The pointer.
+    """
+    return _ffi_api.Ptr(dtype, storage_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+@deprecated("T.buffer_var", "T.handle")
+def buffer_var(dtype: str, storage_scope: str = "global") -> Var:
     """The pointer declaration function.
 
     Parameters
@@ -1522,6 +1559,15 @@ def comm_reducer(combiner: Callable, identity: List[PrimExpr]) -> CommReducer:
     return CommReducer(args[: num_args // 2], args[num_args // 2 :], res, identity)
 
 
+def index_map(
+    mapping: Callable,
+    *,
+    inverse_index_map: Optional[Callable] = None,
+) -> IndexMap:
+    """Create a TIR Index mapping"""
+    return IndexMap.from_func(mapping, inverse_index_map=inverse_index_map)
+
+
 def target(target_config: Union[Dict, str]) -> Target:
     """
     Create a target
@@ -1586,6 +1632,10 @@ asinh = _op_wrapper(_tir_op.asinh)
 atan = _op_wrapper(_tir_op.atan)
 atan2 = _op_wrapper(_tir_op.atan2)
 atanh = _op_wrapper(_tir_op.atanh)
+bitwise_and = _op_wrapper(_tir_op.bitwise_and)
+bitwise_not = _op_wrapper(_tir_op.bitwise_not)
+bitwise_or = _op_wrapper(_tir_op.bitwise_or)
+bitwise_xor = _op_wrapper(_tir_op.bitwise_xor)
 ceil = _op_wrapper(_tir_op.ceil)
 clz = _op_wrapper(_tir_op.clz)
 copysign = _op_wrapper(_tir_op.copysign)
@@ -1694,7 +1744,6 @@ vectorcombine = _dtype_forward(_tir_op.vectorcombine)
 
 broadcast = Broadcast
 ramp = Ramp
-buffer_var = ptr
 fabs = abs
 tvm_call_packed = call_packed
 tvm_call_cpacked = call_cpacked
@@ -1778,6 +1827,7 @@ __all__ = [
     "float16x64",
     "float32x64",
     "float64x64",
+    "buffer",
     "buffer_decl",
     "prim_func",
     "arg",
@@ -1824,6 +1874,7 @@ __all__ = [
     "max",
     "iter_var",
     "comm_reducer",
+    "index_map",
     "target",
     "buffer_var",
     "abs",
@@ -1836,6 +1887,10 @@ __all__ = [
     "atan",
     "atan2",
     "atanh",
+    "bitwise_and",
+    "bitwise_not",
+    "bitwise_or",
+    "bitwise_xor",
     "ceil",
     "clz",
     "copysign",

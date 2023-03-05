@@ -176,7 +176,7 @@ def _make_mod_and_params(dtype):
         "}",
     ]
 
-    mod = tvm.parser.fromtext("\n".join(mod_lines))
+    mod = tvm.relay.fromtext("\n".join(mod_lines))
     return mod, param_init
 
 

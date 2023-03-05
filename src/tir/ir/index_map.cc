@@ -24,6 +24,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_set.h>
 #include <tvm/arith/iter_affine_map.h>
+#include <tvm/ir/name_supply.h>
 #include <tvm/tir/index_map.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -310,8 +311,59 @@ runtime::NDArray IndexMapNode::MapNDArray(runtime::NDArray arr_src) const {
   return arr_dst;
 }
 
+IndexMap IndexMap::RenameVariables(
+    const std::function<Optional<String>(const Var& var)>& f_name_map) const {
+  std::unordered_set<std::string> used_names;
+  Map<Var, PrimExpr> var_remap;
+  NameSupply name_supply{""};
+  const IndexMapNode* n = this->get();
+  if (f_name_map != nullptr) {
+    // Collect variables with pre-defined names provided by f_name_map.
+    std::unordered_set<const Object*> visited;
+    std::for_each(n->final_indices.begin(), n->final_indices.end(), [&](const PrimExpr& expr) {
+      PostOrderVisit(expr, [&](const ObjectRef& obj) {
+        if (!obj->IsInstance<VarNode>()) {
+          return;
+        }
+        if (visited.count(obj.get())) {
+          return;
+        }
+        visited.emplace(obj.get());
+        Var var = Downcast<Var>(obj);
+        if (Optional<String> opt_name = f_name_map(var); opt_name.defined()) {
+          String name = opt_name.value();
+          ICHECK(!name_supply->ContainsName(name, /*add_prefix=*/false));
+          name_supply->ReserveName(name, /*add_prefix=*/false);
+          var_remap.Set(var, Var(name, var->dtype));
+        }
+      });
+    });
+  }
+
+  for (const Var& initial_index : n->initial_indices) {
+    if (var_remap.count(initial_index)) {
+      // The name of the variable is pre-defined.
+      continue;
+    }
+    String unique_name = name_supply->FreshName(initial_index->name_hint, /*add_prefix=*/false);
+    if (unique_name != initial_index->name_hint) {
+      var_remap.Set(initial_index, Var(unique_name));
+    }
+  }
+
+  auto new_initial_indices = n->initial_indices.Map(
+      [&](const Var& var) { return Downcast<Var>(Substitute(var, var_remap)); });
+  auto new_final_indices =
+      n->final_indices.Map([&](const PrimExpr& expr) { return Substitute(expr, var_remap); });
+  Optional<IndexMap> new_inverse_index_map = NullOpt;
+  if (n->inverse_index_map.defined()) {
+    new_inverse_index_map = Downcast<IndexMap>(n->inverse_index_map).RenameVariables(f_name_map);
+  }
+  return IndexMap(new_initial_indices, new_final_indices, new_inverse_index_map);
+}
+
 /*!
- * \brief Auxilarry function to comvert an index map to lambda expression in Python.
+ * \brief Auxilarry function to convert an index map to lambda expression in Python.
  * \param initial_indices The initial indices in the index map.
  * \param final_indices The final indices in the index map.
  * \return The lambda expression string.
@@ -320,47 +372,36 @@ std::string IndexMap2PythonLambdaExpr(const Array<Var>& initial_indices,
                                       const Array<PrimExpr>& final_indices) {
   std::unordered_set<std::string> used_names;
   Map<Var, PrimExpr> var_remap;
-  for (const Var& initial_index : initial_indices) {
-    if (used_names.count(initial_index->name_hint)) {
-      std::string new_name = initial_index->name_hint + std::to_string(used_names.size());
-      used_names.insert(new_name);
-      var_remap.Set(initial_index, Var(new_name));
-    } else {
-      used_names.insert(initial_index->name_hint);
-    }
-  }
   std::ostringstream oss;
   oss << "lambda ";
   for (size_t i = 0; i < initial_indices.size(); ++i) {
     if (i != 0) {
       oss << ", ";
     }
-    auto it = var_remap.find(initial_indices[i]);
-    if (it != var_remap.end()) {
-      oss << (*it).second;
-    } else {
-      oss << initial_indices[i];
-    }
+    oss << initial_indices[i];
   }
   oss << ": (";
   for (size_t i = 0; i < final_indices.size(); ++i) {
     if (i != 0) {
       oss << " ";
     }
-    oss << Substitute(final_indices[i], var_remap);
+    oss << final_indices[i];
     oss << ",";
   }
   oss << ")";
   return oss.str();
 }
 
-String IndexMapNode::ToPythonString() const {
-  std::string lambda_expr = IndexMap2PythonLambdaExpr(initial_indices, final_indices);
-  if (!inverse_index_map.defined()) {
+String IndexMapNode::ToPythonString(
+    const std::function<Optional<String>(const Var& var)>& f_name_map) const {
+  auto index_map = GetRef<IndexMap>(this).RenameVariables(f_name_map);
+  std::string lambda_expr =
+      IndexMap2PythonLambdaExpr(index_map->initial_indices, index_map->final_indices);
+  if (!index_map->inverse_index_map.defined()) {
     return String(lambda_expr);
   }
   // Also convert the inverse index map.
-  IndexMap inverse = Downcast<IndexMap>(inverse_index_map.value());
+  IndexMap inverse = Downcast<IndexMap>(index_map->inverse_index_map.value());
   std::string inverse_lambda_expr =
       IndexMap2PythonLambdaExpr(inverse->initial_indices, inverse->final_indices);
   std::ostringstream oss;
@@ -369,11 +410,16 @@ String IndexMapNode::ToPythonString() const {
   return String(oss.str());
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<IndexMapNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const IndexMapNode*>(node.get());
-      p->stream << "index_map(" << op->ToPythonString() << ")";
-    });
+IndexMap Substitute(const IndexMap& index_map,
+                    std::function<Optional<PrimExpr>(const Var& var)> f_subst) {
+  Array<PrimExpr> new_output =
+      index_map->final_indices.Map([&](const PrimExpr& expr) { return Substitute(expr, f_subst); });
+  Optional<IndexMap> new_inverse_map = NullOpt;
+  if (index_map->inverse_index_map.defined()) {
+    new_inverse_map = Substitute(Downcast<IndexMap>(index_map->inverse_index_map.value()), f_subst);
+  }
+  return IndexMap{index_map->initial_indices, new_output, new_inverse_map};
+}
 
 TVM_REGISTER_NODE_TYPE(IndexMapNode);
 

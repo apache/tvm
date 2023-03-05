@@ -642,10 +642,17 @@ class ScheduleNode : public runtime::Object {
    *    Algebraic symplifications, branch elimination, and other
    *    optimizations may assume that this precondition is met, and
    *    may result in incorrect results being returned.
+   *
+   * \param assume_injective_transform If set to true, the schedule primitive will assume the
+   * index_map is injective and skip checking overlapping of the mapped indices. This can be useful
+   * for complicated index_map that the analysis does not cover. It is the callers' responsibility
+   * to ensure the index map is injective, otherwise, the correctness of the schedule is not
+   * guaranteed.
    */
   virtual void TransformLayout(const BlockRV& block_rv, int buffer_index,
                                BufferIndexType buffer_index_type, const IndexMap& index_map,
-                               const Optional<IndexMap>& pad_value = NullOpt) = 0;
+                               const Optional<IndexMap>& pad_value = NullOpt,
+                               bool assume_injective_transform = false) = 0;
 
   /*!
    * \brief Apply a transformation represented by IndexMap to block

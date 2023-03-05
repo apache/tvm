@@ -14,17 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, dangerous-default-value
+# pylint: disable=invalid-name, dangerous-default-value, arguments-differ
 """Driver for partitioning and building a Relay module for CUTLASS offload."""
 import logging
 import os
 import multiprocessing
 import tvm
-from tvm import runtime, relay
-from tvm.contrib.nvcc import get_cuda_version
+from tvm import relay, runtime
 from tvm._ffi.registry import register_func
-from .gen_gemm import CutlassGemmProfiler
+from tvm.contrib.nvcc import get_cuda_version
+
 from .gen_conv2d import CutlassConv2DProfiler
+from .gen_gemm import CutlassGemmProfiler
 from .library import ConvKind
 
 logger = logging.getLogger("cutlass")
@@ -93,7 +94,11 @@ class OpAnnotator(tvm.relay.ExprVisitor):
             self.signature["ret_dtype"] = op.ret_type.dtype
             self.visit(op.body)
 
-        if str(op) in ["nn.conv2d", "nn.conv2d_transpose", "nn.conv2d_backward_weight"]:
+        elif isinstance(op, tvm.ir.Op) and op.name in [
+            "nn.conv2d",
+            "nn.conv2d_transpose",
+            "nn.conv2d_backward_weight",
+        ]:
             self.op_attrs = call.attrs
 
         for arg in call.args:
@@ -516,6 +521,42 @@ def tune_cutlass_function(
     )
 
 
+@register_func("contrib.cutlass.compile")
+def compile_cutlass_module(c_source_module, options):
+    """Compile all CUTLASS kernels in the given C-source module.
+
+    Parameters
+    ----------
+    c_source_module: runtime.Module
+        A C-source module containing CUTLASS kernels.
+
+    options: dict
+        Compilation options. Currently recognizes
+          "sm": The target architecture (compute capability), for example 75 or 80 (default: 80)
+          "threads": The number of threads to use in NVCC parallel compilation (default:
+          use all logical cores)
+          "use_fast_math": Whether or not to use faster but approximate arithmetic in some
+          CUTLASS epilogues (default: False)
+
+    Returns
+    -------
+    rt_mod : runtime.Module
+        A runtime module where all cutlass kernels have been compiled.
+    """
+    tmp_dir = options.get("tmp_dir", "./tmp")
+    defaults = {"sm": 80, "threads": -1, "use_fast_math": False}
+    compile_config = {key: options.get(key, val) for key, val in defaults.items()}
+
+    function_names = c_source_module.get_function("get_func_names")()
+    compile_options = _get_cutlass_compile_options(**compile_config)
+    lib_path = os.path.join(tmp_dir, "cutlass.o")
+    logger.info("Compiling generated CUTLASS code")
+    c_source_module.export_library(lib_path, workspace_dir=tmp_dir, **compile_options)
+
+    # Recover static library
+    return tvm.runtime.load_static_library(lib_path, function_names)
+
+
 @register_func("relay.ext.cutlass.compile_for_cutlass")
 def compile_for_cutlass(mod, cutlass_target):
     """Given an IRModule with at least one Compiler='cutlass' Relay function, return a
@@ -549,6 +590,7 @@ def compile_for_cutlass(mod, cutlass_target):
         key: cutlass_target.attrs.get(key) for key in ["sm", "threads", "use_fast_math"]
     }
     tmp_dir = cutlass_target.attrs.get("tmp_dir")
+    compile_config["tmp_dir"] = tmp_dir
 
     # Tune
     logger.info("Tuning for CUTLASS")
@@ -558,18 +600,7 @@ def compile_for_cutlass(mod, cutlass_target):
     logger.info("Creating CSource module for CUTLASS")
     create_c_source_module = tvm._ffi.get_global_func("relay.ext.cutlass.create_c_source_module")
     c_module = create_c_source_module(mod)
-    function_names = c_module.get_function("get_func_names")()
-    compile_options = _get_cutlass_compile_options(**compile_config)
-    lib_path = os.path.join(tmp_dir, "cutlass.o")
-    logger.info("Compiling generated CUTLASS code")
-    c_module.export_library(lib_path, workspace_dir=tmp_dir, **compile_options)
-
-    # Recover static library
-    logger.info("Loading compiled CUTLASS code")
-    final_mod = tvm.runtime.load_static_library(lib_path, function_names)
-
-    logger.info("Done with CUTLASS compilation")
-    return final_mod
+    return compile_cutlass_module(c_module, compile_config)
 
 
 def finalize_modules(lib, lib_path="compile.so", tmp_dir="./tmp"):

@@ -97,6 +97,41 @@ jobs:
         run: >-
           python -m pytest -v tests/python/all-platform-minimal-test
 
+  # Disabled due to https://github.com/apache/tvm/issues/13950
+  # Windows-Static-Runtime:
+  #   if: ${{ github.repository == 'apache/tvm' }}
+  #   runs-on: windows-2019
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #       with:
+  #         submodules: 'recursive'
+  #     - name: Set up environment
+  #       uses: ./.github/actions/setup
+  #     - name: Build static TVM runtime
+  #       shell: bash -l {0}
+  #       run: |
+  #         tests/scripts/task_config_build_static.sh build
+  #         cd build
+  #         cmake .. -A x64 -DCMAKE_CONFIGURATION_TYPES="Release"
+  #         cmake --build . --config Release --target runtime
+
+  Linux-Static-Runtime:
+    if: ${{ github.repository == 'apache/tvm' }}
+    runs-on: Ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+      - name: Set up environment
+        uses: ./.github/actions/setup
+      - name: Build static TVM runtime
+        shell: bash -l {0}
+        run: |
+          tests/scripts/task_config_build_static.sh build
+          cd build
+          cmake ..
+          cmake --build . --config Release --target runtime
+
   Android:
     if: ${{ github.repository == 'apache/tvm' }}
     runs-on: Ubuntu-20.04

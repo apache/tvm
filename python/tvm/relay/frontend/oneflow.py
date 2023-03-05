@@ -1227,7 +1227,7 @@ class Scatter(OneFlowOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attrs, params):
         axis = attrs.get("axis", 0)
-        return _op.scatter(inputs[0], inputs[1], inputs[2], axis)
+        return _op.scatter_elements(inputs[0], inputs[1], inputs[2], axis)
 
 
 class Unsqueeze(OneFlowOpConverter):

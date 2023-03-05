@@ -98,7 +98,6 @@ class Function(BaseFunc):
         return astext(self, show_meta_data, annotate)
 
 
-@tvm._ffi.register_func("relay.FunctionWithFields")
 def FunctionWithFields(
     function,
     params=None,

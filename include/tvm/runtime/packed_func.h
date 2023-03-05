@@ -1458,6 +1458,10 @@ template <>
 struct Type2Str<TVMArgValue> {
   static std::string v() { return "TVMArgValue"; }
 };
+template <>
+struct Type2Str<TVMByteArray> {
+  static std::string v() { return "TVMByteArray"; }
+};
 template <typename FType>
 struct Type2Str<TypedPackedFunc<FType>> {
   static std::string v() { return SignaturePrinter<function_signature<FType>>::F(); }

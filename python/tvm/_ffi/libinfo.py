@@ -165,9 +165,11 @@ def find_include_path(name=None, search_path=None, optional=False):
     include_path : list(string)
         List of all found paths to header files.
     """
-    ffi_dir = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    source_dir = os.path.join(ffi_dir, "..", "..", "..")
-
+    if os.environ.get("TVM_HOME", None):
+        source_dir = os.environ["TVM_HOME"]
+    else:
+        ffi_dir = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+        source_dir = os.path.join(ffi_dir, "..", "..", "..")
     third_party_dir = os.path.join(source_dir, "3rdparty")
 
     header_path = []

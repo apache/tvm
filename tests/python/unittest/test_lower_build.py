@@ -54,9 +54,9 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 class LoweredModule:
     @T.prim_func
     def main(
-        A: T.Buffer[(128, 128), "float32"],
-        B: T.Buffer[(128, 128), "float32"],
-        C: T.Buffer[(128, 128), "float32"],
+        A: T.Buffer((128, 128), "float32"),
+        B: T.Buffer((128, 128), "float32"),
+        C: T.Buffer((128, 128), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "from_legacy_te_schedule": True, "tir.noalias": True})
@@ -76,9 +76,9 @@ class LoweredModule:
 class LoweredTIRModule:
     @T.prim_func
     def main(
-        A: T.Buffer[(128, 128), "float32"],
-        B: T.Buffer[(128, 128), "float32"],
-        C: T.Buffer[(128, 128), "float32"],
+        A: T.Buffer((128, 128), "float32"),
+        B: T.Buffer((128, 128), "float32"),
+        C: T.Buffer((128, 128), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})

@@ -1468,6 +1468,32 @@ def wrap_compute_stft(topi_compute):
     return _compute_stft
 
 
+# dft
+@override_native_generic_func("dft_strategy")
+def dft_strategy(attrs, outs, out_type, target):
+    """DFT generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_dft(topi.dft),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="dft.generic",
+    )
+    return strategy
+
+
+def wrap_compute_dft(topi_compute):
+    """Wrap DFT compute"""
+
+    def _compute_dft(attrs, inputs, _):
+        return topi_compute(
+            inputs[0],
+            inputs[1],
+            attrs.inverse,
+        )
+
+    return _compute_dft
+
+
 # trilu
 @override_native_generic_func("trilu_strategy")
 def trilu_strategy(attrs, outs, out_type, target):
@@ -1548,36 +1574,27 @@ def proposal_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
-# scatter
-@override_native_generic_func("scatter_strategy")
-def scatter_strategy(attrs, outs, out_type, target):
+# scatter_elements
+@override_native_generic_func("scatter_elements_strategy")
+def scatter_elements_strategy(attrs, inputs, out_type, target):
+    """scatter_elements generic strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_scatter(topi.scatter),
-        wrap_topi_schedule(topi.generic.schedule_scatter),
-        name="scatter.generic",
+        wrap_compute_scatter_elements(topi.scatter_elements),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="scatter_elements.generic",
     )
+    # TODO(vvchernov): implement specialized case (rank=1, reduction="update"), see cuda strategy
     return strategy
 
 
-def wrap_compute_scatter(topi_compute):
-    """Wrap scatter topi compute"""
+def wrap_compute_scatter_elements(topi_compute):
+    """Wrap scatter_elements topi compute"""
 
-    def _compute_scatter(attrs, inputs, _):
-        return [topi_compute(inputs[0], inputs[1], inputs[2], attrs.axis)]
+    def _compute_scatter_elements(attrs, inputs, _):
+        return [topi_compute(inputs[0], inputs[1], inputs[2], attrs.axis, attrs.reduction)]
 
-    return _compute_scatter
-
-
-@override_native_generic_func("scatter_add_strategy")
-def scatter_add_strategy(attrs, outs, out_type, target):
-    strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_scatter(topi.scatter_add),
-        wrap_topi_schedule(topi.generic.schedule_scatter),
-        name="scatter_add.generic",
-    )
-    return strategy
+    return _compute_scatter_elements
 
 
 # scatter_nd

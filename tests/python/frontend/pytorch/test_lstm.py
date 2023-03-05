@@ -337,7 +337,11 @@ def test_custom_lstm():
 
     for (name, raw_model, states, input_shapes) in models:
         script_module = torch.jit.script(raw_model)
-        mod, params = from_pytorch(script_module, input_shapes)
+        with tvm.testing.disable_span_filling():
+            mod, params = from_pytorch(script_module, input_shapes)
+        with tvm.testing.enable_span_filling():
+            mod_with_span, _ = from_pytorch(script_module, input_shapes)
+        assert tvm.ir.structural_equal(mod, mod_with_span, map_free_vars=True)
 
         with torch.no_grad():
             pt_result = raw_model(inp.clone(), states)

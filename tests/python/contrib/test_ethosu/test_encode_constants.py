@@ -36,7 +36,7 @@ from .infra import make_ethosu_binary_elementwise, make_ethosu_conv2d
 @tvm.script.ir_module
 class WeightStreamOnlyU55:
     @T.prim_func
-    def main(input_placeholder: T.Buffer[(1, 16, 16, 32), "int8"], input_ethosu_write: T.Buffer[(1, 16, 16, 8), "int8"]) -> None:
+    def main(input_placeholder: T.Buffer((1, 16, 16, 32), "int8"), input_ethosu_write: T.Buffer((1, 16, 16, 8), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         placeholder = T.Buffer([8192], "int8", data=input_placeholder.data)
@@ -66,7 +66,7 @@ class WeightStreamOnlyU55:
 @tvm.script.ir_module
 class WeightStreamOnlyU65:
     @T.prim_func
-    def main(input_placeholder: T.Buffer[(1, 16, 16, 32), "int8"], input_ethosu_write: T.Buffer[(1, 16, 16, 8), "int8"]) -> None:
+    def main(input_placeholder: T.Buffer((1, 16, 16, 32), "int8"), input_ethosu_write: T.Buffer((1, 16, 16, 8), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         # buffer definition
@@ -154,7 +154,7 @@ def test_weight_stream_only(accelerator, reference_mod, reference_const_sizes):
 @tvm.script.ir_module
 class RereadWeightsU55:
     @T.prim_func
-    def main(input_placeholder: T.Buffer[(1, 16, 16, 32), "int8"], input_ethosu_write: T.Buffer[(1, 16, 16, 8), "int8"]) -> None:
+    def main(input_placeholder: T.Buffer((1, 16, 16, 32), "int8"), input_ethosu_write: T.Buffer((1, 16, 16, 8), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer1 = T.Buffer([384], "uint8")
@@ -175,7 +175,7 @@ class RereadWeightsU55:
 @tvm.script.ir_module
 class RereadWeightsU65:
     @T.prim_func
-    def main(input_placeholder: T.Buffer[(1, 16, 16, 32), "int8"], input_ethosu_write: T.Buffer[(1, 16, 16, 8), "int8"]) -> None:
+    def main(input_placeholder: T.Buffer((1, 16, 16, 32), "int8"), input_ethosu_write: T.Buffer((1, 16, 16, 8), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         # buffer definition
@@ -256,7 +256,7 @@ def test_re_read_weights(accelerator, reference_mod, reference_const_sizes):
 @tvm.script.ir_module
 class DirectReadOnlyU55:
     @T.prim_func
-    def main(input_placeholder: T.Buffer[(1, 16, 16, 32), "int8"], input_ethosu_write: T.Buffer[(1, 16, 16, 8), "int8"]) -> None:
+    def main(input_placeholder: T.Buffer((1, 16, 16, 32), "int8"), input_ethosu_write: T.Buffer((1, 16, 16, 8), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = T.Buffer([592], "uint8")
@@ -276,7 +276,7 @@ class DirectReadOnlyU55:
 @tvm.script.ir_module
 class DirectReadOnlyU65:
     @T.prim_func
-    def main(input_placeholder: T.Buffer[(1, 16, 16, 32), "int8"], input_ethosu_write: T.Buffer[(1, 16, 16, 8), "int8"]) -> None:
+    def main(input_placeholder: T.Buffer((1, 16, 16, 32), "int8"), input_ethosu_write: T.Buffer((1, 16, 16, 8), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         # buffer definition
@@ -354,7 +354,7 @@ def test_direct_read_only(accelerator, reference_mod, reference_const_sizes):
 @tvm.script.ir_module
 class MixedReadU55:
     @T.prim_func
-    def main(input_ifm: T.Buffer[(1,16,16,32), "int8"], input_ethosu_write: T.Buffer[(1,16,16,8), "int8"]) -> None:
+    def main(input_ifm: T.Buffer((1,16,16,32), "int8"), input_ethosu_write: T.Buffer((1,16,16,8), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer1 = T.Buffer([112], "uint8")
@@ -387,7 +387,7 @@ class MixedReadU55:
 @tvm.script.ir_module
 class MixedReadU65:
     @T.prim_func
-    def main(input_ifm: T.Buffer[(1,16,16,32), "int8"], input_ethosu_write: T.Buffer[(1,16,16,8), "int8"]) -> None:
+    def main(input_ifm: T.Buffer((1,16,16,32), "int8"), input_ethosu_write: T.Buffer((1,16,16,8), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         # buffer definition

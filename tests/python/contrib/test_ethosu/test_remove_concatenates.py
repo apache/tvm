@@ -31,7 +31,7 @@ from .infra import make_ethosu_conv2d
 @tvm.script.ir_module
 class ReferenceModule:
     @T.prim_func
-    def main(input_placeholder: T.Buffer[(1,8,12,16), "int8"], input_placeholder_1: T.Buffer[(1,8,10,16), "int8"], input_T_concat: T.Buffer[(1,8,32,16), "int8"]) -> None:
+    def main(input_placeholder: T.Buffer((1,8,12,16), "int8"), input_placeholder_1: T.Buffer((1,8,10,16), "int8"), input_T_concat: T.Buffer((1,8,32,16), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
 

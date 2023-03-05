@@ -214,50 +214,54 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
   }
 }
 
+/*!
+ * \brief Find index of Depth, Height or Width dimension in a layout string.
+ *
+ * \param layout The layout string
+ * \param depth_axis set as the index of depth ('D') if not nullptr.
+ * \param height_axis set as the index of height ('H') if not nullptr.
+ * \param width_axis set as the index of width ('W') if not nullptr.
+ *
+ * \return true if the layout is valid (i.e., no tiling on D, H or W dimensions, no duplicates and
+ * if the requested dimensions are found), otherwise false.
+ */
 inline bool find_depth_height_width(const std::string& layout, int* depth_axis, int* height_axis,
                                     int* width_axis) {
-  *depth_axis = -1;
-  *height_axis = -1;
-  *width_axis = -1;
+  if (depth_axis) *depth_axis = -1;
+  if (height_axis) *height_axis = -1;
+  if (width_axis) *width_axis = -1;
   int curr_idx = 0;
   for (size_t i = 0; i < layout.size(); ++i) {
     if ((layout[i] >= 'A' && layout[i] <= 'Z') || (layout[i] >= 'a' && layout[i] <= 'z')) {
-      if (layout[i] == 'D') {
+      if (layout[i] == 'D' && depth_axis) {
         if (*depth_axis != -1) return false;
         *depth_axis = curr_idx;
-      } else if (layout[i] == 'H') {
+      } else if (layout[i] == 'H' && height_axis) {
         if (*height_axis != -1) return false;
         *height_axis = curr_idx;
-      } else if (layout[i] == 'W') {
+      } else if (layout[i] == 'W' && width_axis) {
         if (*width_axis != -1) return false;
         *width_axis = curr_idx;
       } else if (layout[i] == 'd' || layout[i] == 'h' || layout[i] == 'w') {
-        // do not support split on height or width, e.g., NCHW16w
+        // do not support split on height, width or depth, e.g., NCHW16w
         return false;
       }
       ++curr_idx;
     }
   }
-  if (*depth_axis == -1 || *height_axis == -1 || *width_axis == -1) return false;
+  if ((depth_axis && *depth_axis == -1) || (height_axis && *height_axis == -1) ||
+      (width_axis && *width_axis == -1))
+    return false;
   return true;
 }
 
 inline bool find_height_width(const std::string& layout, int* height_axis, int* width_axis) {
-  int dummy;
-  ICHECK_EQ(find_depth_height_width(layout, &dummy, height_axis, width_axis), false);
-  if (*height_axis != -1 && *width_axis != -1) {
-    return true;
-  }
-  return false;
+  return find_depth_height_width(layout, /*depth_axis=*/nullptr, height_axis, width_axis);
 }
 
 inline bool find_width(const std::string& layout, int* width_axis) {
-  int dummy;
-  ICHECK_EQ(find_depth_height_width(layout, &dummy, &dummy, width_axis), false);
-  if (*width_axis != -1) {
-    return true;
-  }
-  return false;
+  return find_depth_height_width(layout, /*depth_axis=*/nullptr, /*height_axis=*/nullptr,
+                                 width_axis);
 }
 
 /*!

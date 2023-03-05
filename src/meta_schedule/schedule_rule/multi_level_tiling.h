@@ -148,6 +148,8 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   std::vector<State> TileLoopNest(State state) const;
   // SubRule 3. add read cache
   std::vector<State> AddReadReuse(State state) const;
+  // SubRule 4. add async pipeline
+  std::vector<State> AddAsyncPipeline(State state) const;
 
   // Do nothing; Inherited from ScheduleRuleNode
   void InitializeWithTuneContext(const TuneContext& context) final;
@@ -192,6 +194,8 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   int thread_warp_size_;
   /*! \brief The maximum number of threads to be used size of a thread warp */
   int max_threads_per_block_;
+  /*! \brief All available async pipeline stages. */
+  std::vector<int> stages;
   /*! \brief The logging function */
   PackedFunc logger;
   /*! \brief The function to overwrite the default condition for applying MultiLevelTiling. */

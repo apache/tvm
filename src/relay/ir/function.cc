@@ -262,6 +262,14 @@ TVM_REGISTER_GLOBAL("relay.ir.FuncWithAttr")
       return NullOpt;
     });
 
+TVM_REGISTER_GLOBAL("relay.ir.FuncWithoutAttr")
+    .set_body_typed([](BaseFunc func, String key) -> Optional<Function> {
+      if (func->IsInstance<relay::FunctionNode>()) {
+        return WithoutAttr(Downcast<relay::Function>(std::move(func)), key);
+      }
+      return NullOpt;
+    });
+
 TVM_REGISTER_NODE_TYPE(FunctionNode);
 
 TVM_REGISTER_GLOBAL("relay.ir.Function")

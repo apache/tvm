@@ -17,10 +17,10 @@
  * under the License.
  */
 
-#include "src/model.h"
+#include "src/standalone_crt/include/tvm/runtime/crt/platform.h"
 
 void setup() {
-  TVMInitialize();
+  TVMPlatformInitialize();
   // If desired, initialize the RNG with random noise
   // randomSeed(analogRead(0));
 }

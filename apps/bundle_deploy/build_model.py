@@ -18,6 +18,8 @@
 
 import argparse
 import os
+import pathlib
+
 from tvm import relay
 import tvm
 from tvm import runtime as tvm_runtime
