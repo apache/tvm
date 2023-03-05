@@ -1801,5 +1801,91 @@ def test_keep_params():
     verify_model(model, input_info, {}, expected1, keep_params_as_input=True)
 
 
+@tvm.testing.requires_gpu
+def test_argmax():
+    import torch
+    from torch.nn import Module
+
+    class Argmax1(Module):
+        def __init__(self) -> None:
+            super().__init__()
+
+        def forward(self, input):
+            return torch.argmax(input, dim=-1)
+
+    class Argmax2(Module):
+        def __init__(self) -> None:
+            super().__init__()
+
+        def forward(self, input):
+            return torch.argmax(input, dim=-1, keepdim=True)
+
+    @tvm.script.ir_module
+    class Expected1:
+        @R.function
+        def main(inp_0: R.Tensor((256, 256), dtype="float32")) -> R.Tensor((256,), dtype="int64"):
+            with R.dataflow():
+                lv: R.Tensor((256,), dtype="int64") = R.argmax(inp_0, axis=-1, keepdims=False)
+                gv: R.Tensor((256,), dtype="int64") = lv
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected2:
+        @R.function
+        def main(inp_0: R.Tensor((256, 256), dtype="float32")) -> R.Tensor((256, 1), dtype="int64"):
+            with R.dataflow():
+                lv: R.Tensor((256, 1), dtype="int64") = R.argmax(inp_0, axis=-1, keepdims=True)
+                gv: R.Tensor((256, 1), dtype="int64") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Argmax1(), [([256, 256], "float32")], {}, Expected1)
+    verify_model(Argmax2(), [([256, 256], "float32")], {}, Expected2)
+
+
+@tvm.testing.requires_gpu
+def test_argmin():
+    import torch
+    from torch.nn import Module
+
+    class Argmin1(Module):
+        def __init__(self) -> None:
+            super().__init__()
+
+        def forward(self, input):
+            return torch.argmin(input)
+
+    class Argmin2(Module):
+        def __init__(self) -> None:
+            super().__init__()
+
+        def forward(self, input):
+            return torch.argmin(input, keepdim=True)
+
+    @tvm.script.ir_module
+    class Expected1:
+        @R.function
+        def main(inp_0: R.Tensor((256, 256), dtype="float32")) -> R.Tensor((), dtype="int64"):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="int64") = R.argmin(inp_0, axis=None, keepdims=False)
+                gv: R.Tensor((), dtype="int64") = lv
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected2:
+        @R.function
+        def main(inp_0: R.Tensor((256, 256), dtype="float32")) -> R.Tensor((1, 1), dtype="int64"):
+            with R.dataflow():
+                lv: R.Tensor((1, 1), dtype="int64") = R.argmin(inp_0, axis=None, keepdims=True)
+                gv: R.Tensor((1, 1), dtype="int64") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Argmin1(), [([256, 256], "float32")], {}, Expected1)
+    verify_model(Argmin2(), [([256, 256], "float32")], {}, Expected2)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
