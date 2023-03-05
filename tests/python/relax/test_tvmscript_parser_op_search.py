@@ -56,5 +56,50 @@ def test_where():
     _check(foo, bb.get()["foo"])
 
 
+def test_argmax():
+    @R.function
+    def foo(x: R.Tensor((1, 2, 3, 4), "float32")) -> R.Tensor((1, 3, 4), "int64"):
+        gv: R.Tensor((1, 3, 4), "int64") = R.argmax(x, axis=1)
+        return gv
+
+    x = relax.Var("x", R.Tensor((1, 2, 3, 4), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", [x]):
+        gv = bb.emit(relax.op.argmax(x, axis=1))
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
+def test_argmax_without_specified_axis():
+    @R.function
+    def foo(x: R.Tensor((1, 2, 3, 4), "float32")) -> R.Tensor((), "int64"):
+        gv: R.Tensor((), "int64") = R.argmax(x)
+        return gv
+
+    x = relax.Var("x", R.Tensor((1, 2, 3, 4), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", [x]):
+        gv = bb.emit(relax.op.argmax(x))
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
+def test_argmax_keep_dims():
+    @R.function
+    def foo(x: R.Tensor((1, 2, 3, 4), "float32")) -> R.Tensor((1, 1, 3, 4), "int64"):
+        gv: R.Tensor((1, 1, 3, 4), "int64") = R.argmax(x, axis=1, keepdims=True)
+        return gv
+
+    x = relax.Var("x", R.Tensor((1, 2, 3, 4), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", [x]):
+        gv = bb.emit(relax.op.argmax(x, axis=1, keepdims=True))
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
 if __name__ == "__main__":
     tvm.testing.main()
