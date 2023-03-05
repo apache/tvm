@@ -21,11 +21,15 @@ from .common import _call_topi_without_attr, register_legalize
 # To avoid conflict of IRModule function name and libc function name, we add
 # "tir_" as the prefix of the generated PrimFunc name.
 register_legalize("relax.abs", _call_topi_without_attr(topi.abs, "tir_abs"))
+register_legalize("relax.ceil", _call_topi_without_attr(topi.ceil, "tir_ceil"))
 register_legalize("relax.cos", _call_topi_without_attr(topi.cos, "tir_cos"))
 register_legalize("relax.log", _call_topi_without_attr(topi.log, "tir_log"))
 register_legalize("relax.exp", _call_topi_without_attr(topi.exp, "tir_exp"))
+register_legalize("relax.floor", _call_topi_without_attr(topi.floor, "tir_floor"))
 register_legalize("relax.negative", _call_topi_without_attr(topi.negative, "tir_negative"))
+register_legalize("relax.round", _call_topi_without_attr(topi.round, "tir_round"))
 register_legalize("relax.sigmoid", _call_topi_without_attr(topi.sigmoid, "tir_sigmoid"))
+register_legalize("relax.sign", _call_topi_without_attr(topi.sign, "tir_sign"))
 register_legalize("relax.sin", _call_topi_without_attr(topi.sin, "tir_sin"))
 register_legalize("relax.sqrt", _call_topi_without_attr(topi.sqrt, "tir_sqrt"))
 register_legalize("relax.tanh", _call_topi_without_attr(topi.tanh, "tir_tanh"))
