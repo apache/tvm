@@ -40,7 +40,7 @@ namespace tvm {
 namespace tir {
 
 /*!
- * \brief Visit class to collect device-side program information.
+ * \brief Visitor class to collect device-side program information.
  */
 class DeviceInfoCollector : public StmtVisitor {
  public:
@@ -69,7 +69,7 @@ class DeviceInfoCollector : public StmtVisitor {
     }
   }
 
-  void VisitStmt_(const AllocateNode* op) {
+  void VisitStmt_(const AllocateNode* op) final {
     auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer_var));
     if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
       ICHECK_EQ(use_dyn_shmem_, false) << "Only one dynamic shared memory allocation is allowed.";
@@ -84,11 +84,13 @@ class DeviceInfoCollector : public StmtVisitor {
     StmtVisitor::VisitStmt_(op);
   }
 
+  // recording what thread axis have been visited.
   std::unordered_set<const IterVarNode*> defined_thread;
 };
 
 /*!
- * \brief Visitor class to remove unrefenced let stmt/expressions.
+ * \brief Mutator class to remove unrefenced let stmt/expressions.
+ * \param use_count The pre-computed variable to use count map.
  */
 class UnreferencedLetRemover : public StmtExprMutator {
  public:
@@ -125,6 +127,7 @@ class UnreferencedLetRemover : public StmtExprMutator {
     }
   }
 
+  // pre-computed variable to use count map.
   const std::unordered_map<const VarNode*, int>& use_count_;
 };
 
@@ -152,11 +155,11 @@ class HostDeviceSplitter : public StmtMutator {
     os << name_prefix_ << "_kernel" << device_func_counter_++;
     std::string kernel_symbol = os.str();
     // isolate the device function.
-    VarUseDefAnalyzer var_use_def({}, false);
-    var_use_def(body);
+    VarUseDefAnalyzer use_def(/*defined_vars=*/{}, /*visit_thread_extent=*/false);
+    use_def(body);
     DeviceInfoCollector dev_info;
     dev_info(body);
-    UnreferencedLetRemover let_remover(var_use_def.use_count_);
+    UnreferencedLetRemover let_remover(use_def.use_count_);
     body = let_remover(std::move(body));
 
     Array<Var> params;
@@ -164,7 +167,7 @@ class HostDeviceSplitter : public StmtMutator {
     Map<tir::Var, PrimExpr> remap_vars;
 
     // Strictly order the arguments: Var pointers, positional arguments.
-    for (Var var : var_use_def.undefined_) {
+    for (Var var : use_def.undefined_) {
       if (var.dtype().is_handle()) {
         // Create a new version of v.
         auto it = handle_data_type_.find(var.get());
@@ -184,7 +187,7 @@ class HostDeviceSplitter : public StmtMutator {
       }
     }
     // positional arguments
-    for (Var var : var_use_def.undefined_) {
+    for (Var var : use_def.undefined_) {
       if (!var.dtype().is_handle()) {
         params.push_back(var);
         arguments.push_back(var);
