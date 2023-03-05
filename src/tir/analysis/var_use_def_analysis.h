@@ -26,6 +26,8 @@
 
 #include <tvm/tir/analysis.h>
 
+#include <unordered_map>
+
 #include "../../runtime/thread_storage_scope.h"
 #include "../transforms/ir_utils.h"
 
