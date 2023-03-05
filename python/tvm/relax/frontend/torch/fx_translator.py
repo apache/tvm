@@ -18,7 +18,7 @@
 # pylint: disable=invalid-name, inconsistent-return-statements, unidiomatic-typecheck
 # pylint: disable=import-outside-toplevel
 """PyTorch FX frontend of Relax."""
-from typing import Callable, Dict, List, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 from functools import reduce
 
 import tvm
@@ -61,9 +61,12 @@ class TorchFXImporter:
         return attr_itr
 
     @staticmethod
-    def _convert_data_type(input_type):
+    def _convert_data_type(input_type, env: Optional[Dict] = None):
         """converts the PyTorch scalar type input_type to a TVM dtype."""
         import torch  # type: ignore
+
+        if env is not None and input_type in env:
+            input_type = env[input_type]
 
         input_type = input_type.lower() if isinstance(input_type, str) else input_type
         if input_type in ["float", "float32", "torch.float32", torch.float32]:
@@ -247,7 +250,7 @@ class TorchFXImporter:
             start_end_step[2] = 1
 
         if "dtype" in node.kwargs:
-            dtype = TorchFXImporter._convert_data_type(str(node.kwargs["dtype"]))
+            dtype = TorchFXImporter._convert_data_type(str(node.kwargs["dtype"]), self.env)
         elif any([isinstance(x, float) for x in start_end_step]):
             dtype = TorchFXImporter._convert_data_type(torch.get_default_dtype())
         else:
@@ -256,7 +259,7 @@ class TorchFXImporter:
         return relax.const(np.arange(*start_end_step, dtype=dtype))
 
     def _empty(self, node: fx.node.Node) -> relax.Var:
-        dtype = TorchFXImporter._convert_data_type(str(node.kwargs["dtype"]))
+        dtype = TorchFXImporter._convert_data_type(str(node.kwargs["dtype"]), self.env)
         return self.block_builder.emit(relax.op.zeros(node.args, dtype))
 
     def _inplace_fill(self, node: fx.node.Node) -> relax.Var:
@@ -334,7 +337,7 @@ class TorchFXImporter:
 
     def _type(self, node: fx.node.Node) -> relax.Var:
         x = self.env[node.args[0]]
-        dtype = self._convert_data_type(node.args[1])
+        dtype = TorchFXImporter._convert_data_type(node.args[1], self.env)
         return self.block_builder.emit(relax.op.astype(x, dtype))
 
     ########## Linear Algebra ##########
@@ -565,7 +568,7 @@ class TorchFXImporter:
         module = self.named_modules[node.target]
         weight = self.params[module.weight]
         bias = self.params[module.bias]
-        dtype = self._convert_data_type(str(module.running_mean.dtype))
+        dtype = TorchFXImporter._convert_data_type(str(module.running_mean.dtype))
         running_mean = relax.const(module.running_mean.cpu().detach().numpy(), dtype)
         running_var = relax.const(module.running_var.cpu().detach().numpy(), dtype)
         eps = module.eps
