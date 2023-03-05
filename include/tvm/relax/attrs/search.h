@@ -18,32 +18,31 @@
  */
 
 /*!
- * \file search.h
- * \brief The functions to make Relax searching operator calls.
+ * \file tvm/relax/attrs/search.h
+ * \brief Attributes for search operators.
  */
-#ifndef TVM_RELAX_OP_TENSOR_SEARCH_H_
-#define TVM_RELAX_OP_TENSOR_SEARCH_H_
+#ifndef TVM_RELAX_ATTRS_SEARCH_H_
+#define TVM_RELAX_ATTRS_SEARCH_H_
 
-#include <tvm/relax/attrs/search.h>
-
-#include "../op_common.h"
+#include <tvm/relax/expr.h>
 
 namespace tvm {
 namespace relax {
 
-/*!
- * \brief Selecting elements from either the input tensors depending on the value of the
- * condition.
- */
-Expr where(Expr condition, Expr x1, Expr x2);
+/*! \brief Attributes for search operators */
+struct ArgmaxArgminAttrs : public tvm::AttrsNode<ArgmaxArgminAttrs> {
+  Optional<Integer> axis;
+  bool keepdims;
 
-/*! \brief Computes the argmax of tensor elements over given axis. */
-Expr argmax(Expr x, Optional<Integer> axis, bool keepdims);
-
-/*! \brief Computes the argmin of tensor elements over given axis. */
-Expr argmin(Expr x, Optional<Integer> axis, bool keepdims);
+  TVM_DECLARE_ATTRS(ArgmaxArgminAttrs, "relax.attrs.ArgmaxArgminAttrs") {
+    TVM_ATTR_FIELD(axis).describe("The axis along which to perform the argmin/argmax.");
+    TVM_ATTR_FIELD(keepdims).describe(
+        "If this is set to `True`, the reduced axis is left in the result as dimension with size "
+        "one.");
+  }
+};  // struct ArgmaxArgminAttrs
 
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_OP_TENSOR_SEARCH_H_
+#endif  // TVM_RELAX_ATTRS_SEARCH_H_

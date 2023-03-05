@@ -122,3 +122,8 @@ class LayoutTransformAttrs(Attrs):
 @tvm._ffi.register_object("relax.attrs.Resize2DAttrs")
 class Resize2DAttrs(Attrs):
     """Attributes used in image resize2d operator"""
+
+
+@tvm._ffi.register_object("relax.attrs.ArgmaxArgminAttrs")
+class ArgmaxArgminAttrs(Attrs):
+    """Attributes for argmax/argmin operator"""

@@ -95,5 +95,82 @@ TVM_REGISTER_OP("relax.where")
     .add_argument("x2", "Tensor", "The second input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoWhere);
 
+/* relax.argmax & relax.argmin */
+TVM_REGISTER_NODE_TYPE(ArgmaxArgminAttrs);
+
+StructInfo InferStructInfoArgmaxArgmin(const Call& call, const BlockBuilder& ctx) {
+  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+  const auto* attrs = call->attrs.as<ArgmaxArgminAttrs>();
+
+  int axis = -1;
+  if (!data_sinfo->IsUnknownNdim() && attrs->axis.defined()) {
+    axis = NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis.value()->value);
+  }
+
+  int out_ndim;
+  if (attrs->keepdims) {
+    out_ndim = data_sinfo->ndim;
+  } else if (!attrs->axis.defined()) {
+    out_ndim = 0;
+  } else if (data_sinfo->IsUnknownNdim()) {
+    out_ndim = kUnknownNDim;
+  } else {
+    out_ndim = data_sinfo->ndim - 1;
+    ICHECK_GE(out_ndim, 0);
+  }
+
+  DataType out_dtype = DataType::Int(64);
+  // The inference rule for reduction operator output shapes:
+  // - axes is None, keepdims is false -> return the zero-rank shape;
+  // - axes is None, keepdims is true -> return the shape whose ndim is the same as input and every
+  // value is 1.
+  // - axes is not None, keepdims is false -> the returned shape does not contain the input axes.
+  // - axes is not None, keepdims is true -> the returned shape has value 1 at the positions of the
+  // input axes
+  const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
+  if (data_shape == nullptr) {
+    if (!attrs->axis.defined() && attrs->keepdims && out_ndim != kUnknownNDim) {
+      return TensorStructInfo(ShapeExpr(Array<PrimExpr>(out_ndim, IntImm(out_dtype, /*value=*/1))),
+                              out_dtype);
+    } else {
+      return out_ndim == 0 ? TensorStructInfo(ShapeExpr(Array<PrimExpr>()), out_dtype)
+                           : TensorStructInfo(out_dtype, out_ndim);
+    }
+  }
+
+  if (data_sinfo->ndim > 0) {
+    out_dtype = data_shape->values[0]->dtype;
+  }
+
+  Array<PrimExpr> out_shape;
+  out_shape.reserve(out_ndim);
+  for (int i = 0; i < data_sinfo->ndim; ++i) {
+    if (attrs->axis.defined() && i != axis) {
+      out_shape.push_back(data_shape->values[i]);
+    } else if (attrs->keepdims) {
+      out_shape.push_back(IntImm(out_dtype, /*value=*/1));
+    }
+  }
+  ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
+  return TensorStructInfo(ShapeExpr(out_shape), out_dtype);
+}
+
+#define RELAX_REGISTER_ARGMAX_ARGMIN_OP(OpName)                            \
+  Expr OpName(Expr x, Optional<Integer> axis, bool keepdims) {             \
+    ObjectPtr<ArgmaxArgminAttrs> attrs = make_object<ArgmaxArgminAttrs>(); \
+    attrs->axis = std::move(axis);                                         \
+    attrs->keepdims = std::move(keepdims);                                 \
+    static const Op& op = Op::Get("relax." #OpName);                       \
+    return Call(op, {std::move(x)}, Attrs(attrs));                         \
+  }                                                                        \
+  TVM_REGISTER_GLOBAL("relax.op." #OpName).set_body_typed(OpName);         \
+  TVM_REGISTER_OP("relax." #OpName)                                        \
+      .set_num_inputs(1)                                                   \
+      .add_argument("x", "Tensor", "The input data tensor")                \
+      .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoArgmaxArgmin);
+
+RELAX_REGISTER_ARGMAX_ARGMIN_OP(argmax);
+RELAX_REGISTER_ARGMAX_ARGMIN_OP(argmin);
+
 }  // namespace relax
 }  // namespace tvm

@@ -99,6 +99,203 @@ def test_where_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_argmax():
+    # fmt: off
+    @tvm.script.ir_module
+    class Argmax:
+        @R.function
+        def main(x: R.Tensor((2, 3, 4, 5), "float32")) -> R.Tensor((2, 4, 5), "int64"):
+            gv: R.Tensor((2, 4, 5), "int64") = R.argmax(x, axis=1)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3, 4, 5), dtype="float32")) -> R.Tensor((2, 4, 5), dtype="int64"):
+            gv = R.call_tir(argmax, (x,), out_sinfo=R.Tensor((2, 4, 5), dtype="int64"))
+            return gv
+
+        @T.prim_func
+        def argmax(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_red: T.Buffer((T.int64(2), T.int64(4), T.int64(5)), "int64")):
+            T.func_attr({"tir.noalias": True})
+            rxplaceholder_red_temp_v0 = T.alloc_buffer((T.int64(2), T.int64(4), T.int64(5)), "int64")
+            rxplaceholder_red_temp_v1 = T.alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
+            for ax0, ax1, ax2, k1 in T.grid(T.int64(2), T.int64(4), T.int64(5), T.int64(3)):
+                with T.block("rxplaceholder_red_temp"):
+                    v_ax0, v_ax1, v_ax2, v_k1 = T.axis.remap("SSSR", [ax0, ax1, ax2, k1])
+                    T.reads(rxplaceholder[v_ax0, v_k1, v_ax1, v_ax2])
+                    T.writes(rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2], rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2])
+                    with T.init():
+                        rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2] = T.int64(-1)
+                        rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2] = T.min_value("float32")
+                    v_rxplaceholder_red_temp_v0: T.int64 = T.Select(rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2] > rxplaceholder[v_ax0, v_k1, v_ax1, v_ax2] or rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2] == rxplaceholder[v_ax0, v_k1, v_ax1, v_ax2] and rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2] < v_k1, rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2], v_k1)
+                    v_rxplaceholder_red_temp_v1: T.float32 = T.Select(rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2] > rxplaceholder[v_ax0, v_k1, v_ax1, v_ax2], rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2], rxplaceholder[v_ax0, v_k1, v_ax1, v_ax2])
+                    rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2] = v_rxplaceholder_red_temp_v0
+                    rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2] = v_rxplaceholder_red_temp_v1
+            for ax0, ax1, ax2 in T.grid(T.int64(2), T.int64(4), T.int64(5)):
+                with T.block("rxplaceholder_red"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2])
+                    T.writes(rxplaceholder_red[v_ax0, v_ax1, v_ax2])
+                    rxplaceholder_red[v_ax0, v_ax1, v_ax2] = rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2]
+    # fmt: on
+
+    mod = LegalizeOps()(Argmax)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_argmax_symbolic():
+    # fmt: off
+    @tvm.script.ir_module
+    class Argmax:
+        @R.function
+        def main(x: R.Tensor(("a", "b", "c", "d"), "float32")) -> R.Tensor(("a", 1, "c", "d"), "int64"):
+            a = T.int64()
+            c = T.int64()
+            d = T.int64()
+            gv: R.Tensor((a, 1, c, d), "int64") = R.argmax(x, axis=1, keepdims=True)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor(("a", "b", "c", "d"), dtype="float32")) -> R.Tensor(("a", 1, "c", "d"), dtype="int64"):
+            a = T.int64()
+            c = T.int64()
+            d = T.int64()
+            gv = R.call_tir(argmax, (x,), out_sinfo=R.Tensor((a, 1, c, d), dtype="int64"))
+            return gv
+
+        @T.prim_func
+        def argmax(var_rxplaceholder: T.handle, var_rxplaceholder_red: T.handle):
+            T.func_attr({"tir.noalias": True})
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
+            rxplaceholder = T.match_buffer(var_rxplaceholder, (a, b, c, d))
+            rxplaceholder_red = T.match_buffer(var_rxplaceholder_red, (a, T.int64(1), c, d), "int64")
+            # with T.block("root"):
+            rxplaceholder_red_temp_v0 = T.alloc_buffer((a, T.int64(1), c, d), "int64")
+            rxplaceholder_red_temp_v1 = T.alloc_buffer((a, T.int64(1), c, d))
+            for ax0, ax1, ax2, ax3, k1 in T.grid(a, T.int64(1), c, d, b):
+                with T.block("rxplaceholder_red_temp"):
+                    v_ax0, v_ax1, v_ax2, v_ax3, v_k1 = T.axis.remap("SSSSR", [ax0, ax1, ax2, ax3, k1])
+                    T.reads(rxplaceholder[v_ax0, v_k1, v_ax2, v_ax3])
+                    T.writes(rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3], rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3])
+                    with T.init():
+                        rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3] = T.int64(-1)
+                        rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] = T.min_value("float32")
+                    v_rxplaceholder_red_temp_v0: T.int64 = T.Select(rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] > rxplaceholder[v_ax0, v_k1, v_ax2, v_ax3] or rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] == rxplaceholder[v_ax0, v_k1, v_ax2, v_ax3] and rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3] < v_k1, rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3], v_k1)
+                    v_rxplaceholder_red_temp_v1: T.float32 = T.Select(rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] > rxplaceholder[v_ax0, v_k1, v_ax2, v_ax3], rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3], rxplaceholder[v_ax0, v_k1, v_ax2, v_ax3])
+                    rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3] = v_rxplaceholder_red_temp_v0
+                    rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] = v_rxplaceholder_red_temp_v1
+            for ax0, ax1, ax2, ax3 in T.grid(a, T.int64(1), c, d):
+                with T.block("rxplaceholder_red"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T.writes(rxplaceholder_red[v_ax0, v_ax1, v_ax2, v_ax3])
+                    rxplaceholder_red[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3]
+    # fmt: on
+
+    mod = LegalizeOps()(Argmax)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_argmin():
+    # fmt: off
+    @tvm.script.ir_module
+    class Argmin:
+        @R.function
+        def main(x: R.Tensor((2, 3, 4, 5), "float32")) -> R.Tensor((), "int64"):
+            gv: R.Tensor((), "int64") = R.argmin(x)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def argmin(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_red: T.Buffer((), "int64")):
+            T.func_attr({"tir.noalias": True})
+            rxplaceholder_red_temp_v0 = T.alloc_buffer((), "int64")
+            rxplaceholder_red_temp_v1 = T.alloc_buffer(())
+            for k0, k1, k2, k3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
+                with T.block("rxplaceholder_red_temp"):
+                    v_k0, v_k1, v_k2, v_k3 = T.axis.remap("RRRR", [k0, k1, k2, k3])
+                    T.reads(rxplaceholder[v_k0, v_k1, v_k2, v_k3])
+                    T.writes(rxplaceholder_red_temp_v0[()], rxplaceholder_red_temp_v1[()])
+                    with T.init():
+                        rxplaceholder_red_temp_v0[()] = T.int64(-1)
+                        rxplaceholder_red_temp_v1[()] = T.max_value("float32")
+                    v_rxplaceholder_red_temp_v0: T.int64 = T.Select(rxplaceholder_red_temp_v1[()] < rxplaceholder[v_k0, v_k1, v_k2, v_k3] or rxplaceholder_red_temp_v1[()] == rxplaceholder[v_k0, v_k1, v_k2, v_k3] and rxplaceholder_red_temp_v0[()] < v_k0 * T.int64(60) + v_k1 * T.int64(20) + v_k2 * T.int64(5) + v_k3, rxplaceholder_red_temp_v0[()], v_k0 * T.int64(60) + v_k1 * T.int64(20) + v_k2 * T.int64(5) + v_k3)
+                    v_rxplaceholder_red_temp_v1: T.float32 = T.Select(rxplaceholder_red_temp_v1[()] < rxplaceholder[v_k0, v_k1, v_k2, v_k3], rxplaceholder_red_temp_v1[()], rxplaceholder[v_k0, v_k1, v_k2, v_k3])
+                    rxplaceholder_red_temp_v0[()] = v_rxplaceholder_red_temp_v0
+                    rxplaceholder_red_temp_v1[()] = v_rxplaceholder_red_temp_v1
+            with T.block("rxplaceholder_red"):
+                vi = T.axis.spatial(1, T.int64(0))
+                T.reads(rxplaceholder_red_temp_v0[()])
+                T.writes(rxplaceholder_red[()])
+                rxplaceholder_red[()] = rxplaceholder_red_temp_v0[()]
+
+        @R.function
+        def main(x: R.Tensor((2, 3, 4, 5), dtype="float32")) -> R.Tensor((), dtype="int64"):
+            gv = R.call_tir(argmin, (x,), out_sinfo=R.Tensor((), dtype="int64"))
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(Argmin)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_argmin_symbolic():
+    # fmt: off
+    @tvm.script.ir_module
+    class Argmin:
+        @R.function
+        def main(x: R.Tensor(("a", "b", "c", "d"), "float32")) -> R.Tensor((1, 1, 1, 1), "int64"):
+            gv: R.Tensor((1, 1, 1, 1), "int64") = R.argmin(x, keepdims=True)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def argmin(var_rxplaceholder: T.handle, rxplaceholder_red: T.Buffer((T.int64(1), T.int64(1), T.int64(1), T.int64(1)), "int64")):
+            T.func_attr({"tir.noalias": True})
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
+            rxplaceholder = T.match_buffer(var_rxplaceholder, (a, b, c, d))
+            rxplaceholder_red_temp_v0 = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(1), T.int64(1)), "int64")
+            rxplaceholder_red_temp_v1 = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(1), T.int64(1)))
+            for ax0, ax1, ax2, ax3, k0, k1, k2, k3 in T.grid(T.int64(1), T.int64(1), T.int64(1), T.int64(1), a, b, c, d):
+                with T.block("rxplaceholder_red_temp"):
+                    v_ax0, v_ax1, v_ax2, v_ax3, v_k0, v_k1, v_k2, v_k3 = T.axis.remap("SSSSRRRR", [ax0, ax1, ax2, ax3, k0, k1, k2, k3])
+                    T.reads(rxplaceholder[v_k0, v_k1, v_k2, v_k3])
+                    T.writes(rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3], rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3])
+                    with T.init():
+                        rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3] = T.int64(-1)
+                        rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] = T.max_value("float32")
+                    v_rxplaceholder_red_temp_v0: T.int64 = T.Select(rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] < rxplaceholder[v_k0, v_k1, v_k2, v_k3] or rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] == rxplaceholder[v_k0, v_k1, v_k2, v_k3] and rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3] < ((v_k0 * b + v_k1) * c + v_k2) * d + v_k3, rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3], ((v_k0 * b + v_k1) * c + v_k2) * d + v_k3)
+                    v_rxplaceholder_red_temp_v1: T.float32 = T.Select(rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] < rxplaceholder[v_k0, v_k1, v_k2, v_k3], rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3], rxplaceholder[v_k0, v_k1, v_k2, v_k3])
+                    rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3] = v_rxplaceholder_red_temp_v0
+                    rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] = v_rxplaceholder_red_temp_v1
+            for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(1), T.int64(1), T.int64(1)):
+                with T.block("rxplaceholder_red"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T.writes(rxplaceholder_red[v_ax0, v_ax1, v_ax2, v_ax3])
+                    rxplaceholder_red[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3]
+
+        @R.function
+        def main(x: R.Tensor(("a", "b", "c", "d"), dtype="float32")) -> R.Tensor((1, 1, 1, 1), dtype="int64"):
+            gv = R.call_tir(argmin, (x,), out_sinfo=R.Tensor((1, 1, 1, 1), dtype="int64"))
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(Argmin)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 ##################### Statistical #####################
 
 

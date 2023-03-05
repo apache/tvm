@@ -16,6 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name
 """Search operators."""
+from typing import Optional
+
 from . import _ffi_api
 from ..expr import Expr
 
@@ -48,3 +50,55 @@ def where(condition: Expr, x1: Expr, x2: Expr) -> Expr:
         The result tensor.
     """
     return _ffi_api.where(condition, x1, x2)  # type: ignore
+
+
+def argmax(x: Expr, axis: Optional[int] = None, keepdims: bool = False) -> Expr:
+    """Computes the argmax of tensor elements over given axis.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data tensor
+
+    axis : Optional[int]
+        Axis along which an argmax operation is performed.
+        The default, axis=None, will compute the argmax of all elements in the input tensor.
+        Negative indexing is supported.
+
+    keepdims : bool
+        If this is set to True, the axis being reduced is left in the result as dimensions
+        with size one.
+        With this option, the result will broadcast correctly against the input tensor.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.argmax(x, axis, keepdims)  # type: ignore
+
+
+def argmin(x: Expr, axis: Optional[int] = None, keepdims: bool = False) -> Expr:
+    """Computes the argmin of tensor elements over given axis.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data tensor
+
+    axis : Optional[int]
+        Axis along which an argmin operation is performed.
+        The default, axis=None, will compute the argmin of all elements in the
+        input tensor. Negative indexing is supported.
+
+    keepdims : bool
+        If this is set to True, the axis being reduced is left in the result as
+        dimensions with size one.
+        With this option, the result will broadcast correctly against the input tensor.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.argmin(x, axis, keepdims)  # type: ignore

@@ -319,6 +319,32 @@ class TorchFXImporter:
         full_idx[args[1]], full_idx[args[2]] = full_idx[args[2]], full_idx[args[1]]
         return self.block_builder.emit(relax.op.permute_dims(args[0], full_idx))
 
+    ########## Search ##########
+
+    def _argmax_argmin(self, op: Callable) -> Callable:
+        from torch import fx
+
+        def convert(node: fx.node.Node):
+            x = self.env[node.args[0]]
+            dim = None
+            keepdims = False
+
+            if len(node.args) > 1:
+                dim = node.args[1]
+            if len(node.args) > 2:
+                keepdims = node.args[2]
+
+            if "dim" in node.kwargs:
+                dim = node.kwargs["dim"]
+            if "keepdim" in node.kwargs:
+                keepdims = node.kwargs["keepdim"]
+            if "keepdims" in node.kwargs:
+                keepdims = node.kwargs["keepdims"]
+
+            return self.block_builder.emit(op(x, dim, keepdims))
+
+        return convert
+
     ########## Neural Network ##########
 
     def _linear(self, node: fx.node.Node) -> relax.Var:
@@ -656,6 +682,8 @@ class TorchFXImporter:
                 relax.op.expand_dims(self.env[node.args[0]], node.args[1])
             ),
             "view": self._reshape,
+            "argmax": self._argmax_argmin(relax.op.argmax),
+            "argmin": self._argmax_argmin(relax.op.argmin),
             "softmax": self._softmax,
             "clamp": self._clamp,
             "relu": lambda node: self.block_builder.emit(relax.op.nn.relu(self.env[node.args[0]])),
