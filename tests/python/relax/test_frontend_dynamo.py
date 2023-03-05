@@ -147,7 +147,7 @@ def test_subgraph_capture():
             return gv
 
     model = Input1()
-    mod = dynamo_capture_subgraphs(model, torch.randn(10, 100))
+    mod = dynamo_capture_subgraphs(model, torch.randn(10, 100)).mod
     binding = {"w0": model.lin.weight.detach().numpy(), "w1": model.lin.bias.detach().numpy()}
     binding = {k: tvm.nd.array(v) for k, v in binding.items()}
     expected = relax.transform.BindParams("subgraph_0", binding)(Expected1)
@@ -190,7 +190,7 @@ def test_subgraph_capture():
                 R.output(gv1)
             return gv1
 
-    mod = dynamo_capture_subgraphs(Input2, torch.randn(10), torch.ones(10))
+    mod = dynamo_capture_subgraphs(Input2, torch.randn(10), torch.ones(10)).mod
     tvm.ir.assert_structural_equal(mod, Expected2)
 
 

@@ -27,7 +27,7 @@ def verify_model(torch_model, input_info, binding, expected, keep_params_as_inpu
     from tvm.relax.frontend.torch import from_fx
 
     graph_model = fx.symbolic_trace(torch_model)
-    mod = from_fx(graph_model, input_info, keep_params_as_input=keep_params_as_input)
+    mod = from_fx(graph_model, input_info, keep_params_as_input=keep_params_as_input).mod
     binding = {k: tvm.nd.array(v) for k, v in binding.items()}
     expected = relax.transform.BindParams("main", binding)(expected)
     tvm.ir.assert_structural_equal(mod, expected)
@@ -2096,7 +2096,9 @@ def test_view():
 @tvm.testing.requires_gpu
 def test_keep_params():
     import torch
+    from torch import fx
     from torch.nn import Module
+    from tvm.relax.frontend.torch import from_fx
 
     class Conv2D1(Module):
         def __init__(self):
@@ -2135,8 +2137,19 @@ def test_keep_params():
             return gv
 
     model = Conv2D1()
-    input_info = [([1, 3, 10, 10], "float32")]
-    verify_model(model, input_info, {}, expected1, keep_params_as_input=True)
+    graph_model = fx.symbolic_trace(model)
+    trace_output = from_fx(graph_model, [([1, 3, 10, 10], "float32")], keep_params_as_input=True)
+    tvm.ir.assert_structural_equal(trace_output.mod, expected1)
+    func = trace_output.mod["main"]
+    params = trace_output.params["main"]
+
+    assert len(params) == len(func.params) - 1
+    for param_var, param_ndarray in zip(func.params[1:], params):
+        assert tuple(x.value for x in param_var.struct_info.shape.values) == param_ndarray.shape
+        assert param_var.struct_info.dtype == param_ndarray.dtype
+
+    tvm.testing.assert_allclose(params[0].numpy(), model.conv.weight.detach().numpy())
+    tvm.testing.assert_allclose(params[1].numpy(), model.conv.bias.detach().numpy())
 
 
 @tvm.testing.requires_gpu
