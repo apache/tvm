@@ -1683,7 +1683,7 @@ def test_arange():
             return torch.arange(0, 20, dtype=torch.int32)
 
     graph_model = fx.symbolic_trace(Arange())
-    mod = from_fx(graph_model, [([10, 10], "float32")])
+    mod = from_fx(graph_model, [([10, 10], "float32")]).mod
     assert len(mod["main"].body.blocks) == 1
     assert len(mod["main"].body.blocks[0].bindings) == 1
     assert isinstance(mod["main"].body.blocks[0].bindings[0].value, relax.Constant)
@@ -1707,7 +1707,7 @@ def test_empty():
             return torch.empty((10, 10), dtype=torch.float32)
 
     graph_model = fx.symbolic_trace(Empty())
-    mod = from_fx(graph_model, [([10, 10], "float32")])
+    mod = from_fx(graph_model, [([10, 10], "float32")]).mod
     assert len(mod["main"].body.blocks) == 1
     assert len(mod["main"].body.blocks[0].bindings) == 1
     assert isinstance(mod["main"].body.blocks[0].bindings[0].value, relax.Constant)
@@ -1734,7 +1734,7 @@ def test_tensor():
             return torch.tensor(3)
 
     graph_model1 = fx.symbolic_trace(Empty1())
-    mod1 = from_fx(graph_model1, [([10, 10], "float32")])
+    mod1 = from_fx(graph_model1, [([10, 10], "float32")]).mod
     assert len(mod1["main"].body.blocks) == 1
     assert len(mod1["main"].body.blocks[0].bindings) == 1
     assert isinstance(mod1["main"].body.blocks[0].bindings[0].value, relax.Constant)
@@ -1742,7 +1742,7 @@ def test_tensor():
     assert mod1["main"].body.blocks[0].bindings[0].value.data.dtype == "float32"
 
     graph_model2 = fx.symbolic_trace(Empty2())
-    mod2 = from_fx(graph_model2, [([10, 10], "float32")])
+    mod2 = from_fx(graph_model2, [([10, 10], "float32")]).mod
     assert len(mod2["main"].body.blocks) == 1
     assert len(mod2["main"].body.blocks[0].bindings) == 1
     assert isinstance(mod2["main"].body.blocks[0].bindings[0].value, relax.Constant)
@@ -1968,12 +1968,18 @@ def test_datatype():
         def forward(self, x):
             return x.type(torch.float32)
 
+    # type
+    class TypeFromAttr(Module):
+        def forward(self, x):
+            return x.type(x.getattr("dtype"))
+
     # astype
     class AsType(Module):
         def forward(self, x):
             return x.astype(torch.float32)
 
     verify_model(Type(), input_info, {}, expected1)
+    verify_model(TypeFromAttr(), input_info, {}, expected1)
     verify_model(AsType(), input_info, {}, expected1)
 
 
