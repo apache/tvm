@@ -262,6 +262,75 @@ def test_bmm():
 
 
 @tvm.testing.requires_gpu
+def test_baddbmm():
+    import torch
+    from torch.nn import Module
+
+    torch.set_grad_enabled(False)
+    torch.random.manual_seed(0)
+
+    class BAddBMM1(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, c, x, y):
+            return torch.baddbmm(c, x, y)
+
+    class BAddBMM2(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, c, x, y):
+            return torch.baddbmm(c, x, y, alpha=2, beta=0)
+
+    @tvm.script.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((4, 128, 512), dtype="float32"),
+            inp_1: R.Tensor((4, 128, 256), dtype="float32"),
+            inp_2: R.Tensor((4, 256, 512), dtype="float32"),
+        ) -> R.Tensor((4, 128, 512), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((4, 128, 512), dtype="float32") = R.matmul(inp_1, inp_2)
+                lv1: R.Tensor((4, 128, 512), dtype="float32") = R.add(lv, inp_0)
+                gv: R.Tensor((4, 128, 512), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((4, 128, 512), dtype="float32"),
+            inp_1: R.Tensor((4, 128, 256), dtype="float32"),
+            inp_2: R.Tensor((4, 256, 512), dtype="float32"),
+        ) -> R.Tensor((4, 128, 512), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((4, 128, 512), dtype="float32") = R.matmul(inp_1, inp_2)
+                lv1: R.Tensor((4, 128, 512), dtype="float32") = R.multiply(
+                    lv, R.const(2, "float32")
+                )
+                gv: R.Tensor((4, 128, 512), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    verify_model(
+        BAddBMM1(),
+        [((4, 128, 512), "float32"), ((4, 128, 256), "float32"), ((4, 256, 512), "float32")],
+        {},
+        Expected1,
+    )
+
+    verify_model(
+        BAddBMM2(),
+        [((4, 128, 512), "float32"), ((4, 128, 256), "float32"), ((4, 256, 512), "float32")],
+        {},
+        Expected2,
+    )
+
+
+@tvm.testing.requires_gpu
 def test_relu():
     import torch
     from torch.nn import Module
@@ -1488,7 +1557,7 @@ def test_interpolate():
 
     class Interpolate(Module):
         def forward(self, input):
-            return torch.nn.functional.interpolate(input, size=(5, 5))
+            return torch.nn.functional.interpolate(input, (5, 5))
 
     @tvm.script.ir_module
     class expected1:
