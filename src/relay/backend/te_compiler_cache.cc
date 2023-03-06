@@ -653,7 +653,8 @@ class ScheduleBuilder : public ExprVisitor {
               // When the database lookup succeeds while structural equality check fails,
               // it implies that the anchor block based equality has been used during tuning.
               // The trace in the record cannot directly be applied to this query module.
-              meta_schedule::ScheduleUsingAnchorTrace(sch, record->trace, target_);
+              meta_schedule::ScheduleUsingAnchorTrace(sch, record->trace, record->workload->mod,
+                                                      target_);
             } else {
               record->trace->ApplyToSchedule(sch, /*remove_postproc=*/false);
             }

@@ -37,10 +37,11 @@ namespace meta_schedule {
  * inlined or parallelized.
  * \param sch The schedule to apply the anchor trace.
  * \param anchor_trace The trace tuned on other subgraph with the same anchor-block workload.
+ * \param record_mod The IR module where anchor trace is tuned on
  * \param target The target information needed for inlining and parallelization.
  */
 void ScheduleUsingAnchorTrace(tir::Schedule sch, const tir::Trace& anchor_trace,
-                              const tvm::Target& target);
+                              const IRModule& record_mod, const tvm::Target& target);
 
 }  // namespace meta_schedule
 }  // namespace tvm
