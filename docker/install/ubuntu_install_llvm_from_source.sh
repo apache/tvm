@@ -21,25 +21,25 @@
 
 set -e
 
-LLVM_VERSION_MAJOR=$1
+LLVM_VERSION=$1
 
-detect_llvm_version() {
-  curl -sL "https://api.github.com/repos/llvm/llvm-project/releases?per_page=100" | \
-    grep tag_name | \
-    grep -o "llvmorg-${LLVM_VERSION_MAJOR}[^\"]*" | \
-    grep -v rc | \
-    sed -e "s/^llvmorg-//g" | \
-    head -n 1
+echo ${LLVM_VERSION}
+
+tmpdir=$(mktemp -d)
+
+cleanup()
+{
+    rm -rf "$tmpdir"
 }
 
-LLVM_VERSION=$(detect_llvm_version)
-echo ${LLVM_VERSION}
+trap cleanup 0
+
+pushd "$tmpdir"
 
 curl -sL \
   https://github.com/llvm/llvm-project/releases/download/llvmorg-${LLVM_VERSION}/llvm-project-${LLVM_VERSION}.src.tar.xz \
   -o llvm-project-${LLVM_VERSION}.src.tar.xz
-unxz llvm-project-${LLVM_VERSION}.src.tar.xz
-tar xf llvm-project-${LLVM_VERSION}.src.tar
+tar xf llvm-project-${LLVM_VERSION}.src.tar.xz
 pushd llvm-project-${LLVM_VERSION}.src
 
 pushd llvm
@@ -66,7 +66,6 @@ cmake \
 ninja install
 popd
 popd
-rm -rf llvm-${LLVM_VERSION}.src.tar.xz llvm-${LLVM_VERSION}.src.tar llvm-${LLVM_VERSION}.src
 
 # clang is only used to precompile Gandiva bitcode
 if [ ${LLVM_VERSION_MAJOR} -lt 9 ]; then
@@ -96,4 +95,4 @@ popd
 
 # out of llvm-project-${LLVM_VERSION}.src
 popd
-rm -rf ${clang_package_name}-${LLVM_VERSION}.src.tar.xz ${clang_package_name}-${LLVM_VERSION}.src.tar ${clang_package_name}-${LLVM_VERSION}.src
+popd
