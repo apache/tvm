@@ -21,68 +21,6 @@
 namespace tvm {
 namespace meta_schedule {
 
-/*! \brief Collecting all the blocks */
-class BlockCollector : public tir::StmtVisitor {
- public:
-  static Array<tir::BlockRV> Collect(const tir::Schedule& sch,
-                                     const runtime::PackedFunc f_block_filter = nullptr) {  //
-    return BlockCollector(sch, f_block_filter).Run();
-  }
-
- private:
-  /*! \brief Entry point */
-  Array<tir::BlockRV> Run() {
-    std::vector<tir::BlockRV> results;
-    for (const auto& kv : sch_->mod()->functions) {
-      const GlobalVar& gv = kv.first;         // `gv->name_hint` is the name of the function
-      const BaseFunc& base_func = kv.second;  // this can be PrimFunc or relay::Function
-      if (const auto* func = base_func.as<tir::PrimFuncNode>()) {
-        func_name_ = gv->name_hint;
-        block_names_.clear();
-        blocks_to_collect_.clear();
-        VisitStmt(func->body);
-        for (const String& name : blocks_to_collect_) {
-          results.push_back(sch_->GetBlock(name, func_name_));
-        }
-      }
-    }
-    return results;
-  }
-  /*! \brief Constructor */
-  explicit BlockCollector(const tir::Schedule& sch,
-                          const runtime::PackedFunc f_block_filter = nullptr)
-      : sch_(sch), f_block_filter_(f_block_filter) {}
-  /*! \brief Override the Stmt visiting behaviour */
-  void VisitStmt_(const tir::BlockNode* block) override {
-    tir::StmtVisitor::VisitStmt_(block);
-    CHECK(block_names_.count(block->name_hint) == 0)
-        << "Duplicated block name " << block->name_hint << " in function " << func_name_
-        << " not supported!";
-    block_names_.insert(block->name_hint);
-
-    // If filter function is provided, use it to selectively collect blocks.
-    // Otherwise collect all blocks.
-    Bool collect_block = Bool(true);
-    if (f_block_filter_ != nullptr) {
-      collect_block = f_block_filter_(GetRef<tir::Block>(block));
-    }
-    if (collect_block) {
-      blocks_to_collect_.push_back(block->name_hint);
-    }
-  }
-
-  /*! \brief The schedule to be collected */
-  const tir::Schedule& sch_;
-  /*! \brief An optional packed func that allows only certain blocks to be collected. */
-  const runtime::PackedFunc f_block_filter_;
-  /*! \brief The set of func name and block name pair */
-  std::unordered_set<String> block_names_;
-  /* \brief The list of blocks to collect in order */
-  Array<String> blocks_to_collect_;
-  /*! \brief Name of the current PrimFunc */
-  String func_name_;
-};
-
 /*!
  * \brief Design Space Generator that generates design spaces by applying schedule rules to blocks
  *  in post-DFS order.
