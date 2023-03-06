@@ -155,6 +155,7 @@ def is_depthwise_conv2d(ic, oc, groups):
 
 def check_conv2d_common(op_name, expected_kernel_layout, call):
     """Check if the given conv2d workload can be offloaded to CUTLASS."""
+    
     conv2d = get_root_call(call, op_name)
     data_layout = conv2d.attrs.data_layout
     kernel_layout = conv2d.attrs.kernel_layout
@@ -267,16 +268,16 @@ def pattern_table():
 
     residual_block_patterns = []
 
-    for with_act, postfix in [("relu", "_relu"), (None, "")]:
-        for name, pat, _ in conv2d_patterns[:-1]:
-            for bin_op in ["add", "multiply"]:
-                residual_block_patterns.append(
-                    (
-                        name + "_residual_" + bin_op + postfix,
-                        make_residual_block_pattern(pat, bin_op, with_act=with_act),
-                        partial(check_conv2d_residual, binary_op=bin_op),
-                    )
-                )
+    #for with_act, postfix in [("relu", "_relu"), (None, "")]:
+    #    for name, pat, _ in conv2d_patterns[:-1]:
+    #        for bin_op in ["add", "multiply"]:
+    #            residual_block_patterns.append(
+    #                (
+    #                    name + "_residual_" + bin_op + postfix,
+    #                    make_residual_block_pattern(pat, bin_op, with_act=with_act),
+    #                    partial(check_conv2d_residual, binary_op=bin_op),
+    #                )
+    #            )
 
     return residual_block_patterns + dense_patterns + conv2d_patterns + conv2d_grad_patterns
 

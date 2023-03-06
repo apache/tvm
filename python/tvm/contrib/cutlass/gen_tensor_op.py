@@ -91,6 +91,7 @@ def generate_sm50_simt(
                 DataType.f32,
                 DataType.f32,
                 DataType.f32,
+                DataType.f32, # Element Accumulator
                 OpcodeClass.Simt,
                 MathOperation.multiply_add,
             ),
