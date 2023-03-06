@@ -57,30 +57,35 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::LetStmt>("", [](tir::LetStmt stmt, ObjectPath p, IRDocsifier d) -> Doc {
       bool concise = AllowConciseScoping(d);
-      if (concise && !d->IsVarDefined(stmt->var)) {
-        ExprDoc rhs = d->AsDoc<ExprDoc>(stmt->value, p->Attr("value"));
-        With<TIRFrame> f(d, stmt);
-        ExprDoc lhs = DefineVar(stmt->var, *f, d);
-        AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
-        Array<StmtDoc>* stmts = &(*f)->stmts;
-        Type type = stmt->var->type_annotation;
-        Optional<ExprDoc> type_doc =
-            d->AsDoc<ExprDoc>(type, p->Attr("var")->Attr("type_annotation"));
-        if (const auto* tuple_type = type.as<TupleTypeNode>()) {
-          if (tuple_type->fields.empty()) {
-            type_doc = NullOpt;
-          }
+      // Step 1. Type annotation
+      Optional<ExprDoc> type_doc = d->AsDoc<ExprDoc>(stmt->var->type_annotation,  //
+                                                     p->Attr("var")->Attr("type_annotation"));
+      if (const auto* tuple_type = stmt->var->type_annotation.as<TupleTypeNode>()) {
+        if (tuple_type->fields.empty()) {
+          type_doc = NullOpt;
         }
+      }
+      // Step 2. RHS
+      ExprDoc rhs = d->AsDoc<ExprDoc>(stmt->value, p->Attr("value"));
+      // Step 3. LHS and body
+      With<TIRFrame> f(d, stmt);
+      Array<StmtDoc>* stmts = &(*f)->stmts;
+      bool var_defined = d->IsVarDefined(stmt->var);
+      if (!var_defined) {
+        DefineVar(stmt->var, *f, d);
+      }
+      ExprDoc lhs = d->AsDoc<ExprDoc>(stmt->var, p->Attr("var"));
+      AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
+      // Step 4. Dispatch
+      if (var_defined) {
+        return ScopeDoc(NullOpt, TIR(d, "LetStmt")->Call({rhs}, {"var"}, {lhs}), *stmts);
+      } else if (concise) {
         stmts->insert(stmts->begin(), AssignDoc(lhs, rhs, type_doc));
         return StmtBlockDoc(*stmts);
+      } else if (type_doc.defined() && !stmt->var->type_annotation->IsInstance<PrimTypeNode>()) {
+        return ScopeDoc(lhs, TIR(d, "LetStmt")->Call({rhs, type_doc.value()}), *stmts);
       } else {
-        ExprDoc lhs = d->AsDoc<ExprDoc>(stmt->var, p->Attr("var"));
-        ExprDoc rhs = d->AsDoc<ExprDoc>(stmt->value, p->Attr("value"));
-        With<TIRFrame> f(d, stmt);
-        AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
-        Array<StmtDoc>* stmts = &(*f)->stmts;
-        rhs = TIR(d, "let")->Call({lhs, rhs});
-        return ScopeDoc(NullOpt, rhs, *stmts);
+        return ScopeDoc(lhs, TIR(d, "LetStmt")->Call({rhs}), *stmts);
       }
     });
 
