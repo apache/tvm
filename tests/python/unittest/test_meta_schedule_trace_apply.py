@@ -3860,7 +3860,6 @@ def test_inline_with_get_child_blocks():
         sch.reorder(l26, l27, l25)
         sch.bind(loop=l26, thread_axis="blockIdx.x")
         sch.bind(loop=l27, thread_axis="threadIdx.x")
-        print(sch.mod.script())
         l28, l29, l30, l31 = sch.get_loops(block=b1)
         l32 = sch.fuse(l28, l29, preserve_unit_iters=True)
         sch.bind(loop=l32, thread_axis="blockIdx.x")
