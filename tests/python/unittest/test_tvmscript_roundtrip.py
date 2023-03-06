@@ -335,9 +335,9 @@ def opt_gemm_mod_host():
             T.attr(0, "compute_scope", "mmult_compute_")
             T.attr(packedB.data, "storage_scope", "global")
             T.attr(packedB.data, "storage_alignment", 128)
-            with T.let(
-                packedB.data,
+            with T.LetStmt(
                 T.TVMBackendAllocWorkspace(1, dev_id, T.uint64(4194304), 2, 32, dtype="handle"),
+                var=packedB.data,
             ):
                 if T.isnullptr(packedB.data, dtype="bool"):
                     T.evaluate(T.tvm_throw_last_error(dtype="int32"))
@@ -349,11 +349,11 @@ def opt_gemm_mod_host():
                 for x_outer in T.parallel(0, 32):
                     T.attr(C_global.data, "storage_scope", "global")
                     T.attr(C_global.data, "storage_alignment", 128)
-                    with T.let(
-                        C_global.data,
+                    with T.LetStmt(
                         T.TVMBackendAllocWorkspace(
                             1, dev_id, T.uint64(4096), 2, 32, dtype="handle"
                         ),
+                        var=C_global.data,
                     ):
                         if T.isnullptr(C_global.data, dtype="bool"):
                             T.evaluate(T.tvm_throw_last_error(dtype="int32"))
@@ -3317,7 +3317,7 @@ def let_expression():
     @T.prim_func
     def func():
         x = T.int32()
-        T.evaluate(T.let(x, 1, x + 1))
+        T.evaluate(T.Let(x + 1, where={x: 1}))
 
     return func
 
@@ -3542,10 +3542,8 @@ def intrinsic_pow():
 def let_stmt_var():
     @T.prim_func
     def func():
-        x = T.int32()
-        y = T.int32()
-        with T.let(x, 0):
-            with T.let(y, 0):
+        with T.LetStmt(0) as x:
+            with T.LetStmt(0) as y:
                 T.evaluate(0)
         T.evaluate(0)
 
@@ -3555,10 +3553,9 @@ def let_stmt_var():
 def let_stmt_value():
     @T.prim_func
     def func():
-        x = T.int32()
         y = T.int32()
-        with T.let(x, y):
-            with T.let(y, 0):
+        with T.LetStmt(y) as x:
+            with T.LetStmt(0, var=y):
                 T.evaluate(0)
         T.evaluate(0)
 
