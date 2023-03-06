@@ -16,13 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/tir/schedule/schedule.h>
-#include <tvm/tir/stmt_functor.h>
 
 #include "../../meta_schedule/utils.h"
-#include "../../relay/analysis/graph_partitioner.h"
-#include "../../support/arena.h"
-#include "../../tir/ir/functor_common.h"
 
 namespace tvm {
 namespace tir {
@@ -38,16 +33,11 @@ void ThreadBind(tir::Schedule sch, const tir::BlockRV& block, int64_t max_thread
                 int64_t max_threadblocks = 256) {
   // fetch the loops
   Array<tir::LoopRV> loops = sch->GetLoops(block);
-  bool scheduled = false;
   for (const tir::LoopRV& loop : loops) {
+    // skip block if already scheduled
     if (sch->Get(loop)->thread_binding.defined()) {
-      scheduled = true;
-      break;
+      return;
     }
-  }
-  // skip if already scheduled
-  if (scheduled) {
-    return;
   }
   Array<tir::IterVar> iters = sch->Get(block)->iter_vars;
   ICHECK_EQ(loops.size(), iters.size());
@@ -58,6 +48,7 @@ void ThreadBind(tir::Schedule sch, const tir::BlockRV& block, int64_t max_thread
       data_parallel_loops.push_back(loops[i]);
     }
   }
+  // skip if no data parallel loops
   if (data_parallel_loops.size() == 0) {
     return;
   }
@@ -86,14 +77,14 @@ void ThreadBind(tir::Schedule sch, const tir::BlockRV& block, int64_t max_thread
 Pass DefaultSchedule() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
       [=](IRModule m, PassContext pc) {
-        // Get the target from context.
+        // get the target from context.
         tvm::Target target = tvm::Target::Current();
         ICHECK(target.defined()) << "Target is not set in current context";
-        // Skip non-cuda targets.
+        // skip non-cuda targets.
         if (target->kind->name != "cuda") {
           return m;
         }
-        // Get the max thread per block from target.
+        // get the max thread per block from target.
         Optional<Integer> opt_max_thread_per_block = target->GetAttr<Integer>("max_num_threads");
         ICHECK(opt_max_thread_per_block.defined())
             << "max_num_threads is not set for target " << target;
