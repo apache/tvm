@@ -2189,15 +2189,15 @@ def test_keep_params():
         @R.function
         def main(
             input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
-            w1: R.Tensor((6, 3, 7, 7), dtype="float32"),
-            w2: R.Tensor((6,), dtype="float32"),
+            w1: R.Tensor((6,), dtype="float32"),
+            w2: R.Tensor((6, 3, 7, 7), dtype="float32"),
         ) -> R.Tensor((1, 6, 4, 4), dtype="float32"):
             R.func_attr({"num_input": 1})
             # block 0
             with R.dataflow():
                 lv1: R.Tensor((1, 6, 4, 4), dtype="float32") = R.nn.conv2d(
                     input_1,
-                    w1,
+                    w2,
                     strides=[1, 1],
                     padding=[0, 0, 0, 0],
                     dilation=[1, 1],
@@ -2206,7 +2206,7 @@ def test_keep_params():
                     out_layout="NCHW",
                     out_dtype="float32",
                 )
-                lv2: R.Tensor((1, 6, 1, 1), dtype="float32") = R.reshape(w2, [1, 6, 1, 1])
+                lv2: R.Tensor((1, 6, 1, 1), dtype="float32") = R.reshape(w1, [1, 6, 1, 1])
                 lv3: R.Tensor((1, 6, 4, 4), dtype="float32") = R.add(lv1, lv2)
                 gv: R.Tensor((1, 6, 4, 4), dtype="float32") = lv3
                 R.output(gv)
@@ -2225,8 +2225,8 @@ def test_keep_params():
         assert tuple(x.value for x in param_var.struct_info.shape.values) == param_ndarray.shape
         assert param_var.struct_info.dtype == param_ndarray.dtype
 
-    tvm.testing.assert_allclose(params[0].numpy(), model.conv.weight.detach().numpy())
-    tvm.testing.assert_allclose(params[1].numpy(), model.conv.bias.detach().numpy())
+    tvm.testing.assert_allclose(params[0].numpy(), model.conv.bias.detach().numpy())
+    tvm.testing.assert_allclose(params[1].numpy(), model.conv.weight.detach().numpy())
 
 
 @tvm.testing.requires_gpu
