@@ -148,7 +148,12 @@ def dynamo_capture_subgraphs(model, *params, **kwargs) -> tvm.IRModule:
     def _capture(graph_module: fx.GraphModule, example_inputs):
         assert isinstance(graph_module, torch.fx.GraphModule)
         input_info = [(tuple(tensor.shape), str(tensor.dtype)) for tensor in example_inputs]
-        mod_ = from_fx(graph_module, input_info, keep_params_as_input)
+        mod_ = from_fx(
+            graph_module,
+            input_info,
+            keep_params_as_input=keep_params_as_input,
+            unwrap_unit_return_tuple=True,
+        )
         mod[f"subgraph_{len(mod.get_global_vars())}"] = mod_["main"]
         return graph_module.forward
 
