@@ -1741,10 +1741,10 @@ def convert_scatter(g, op, block):
     index = _op.transform.broadcast_to(index, shape)
 
     if overwrite:
-        out = _op.scatter(x, index, updates, axis=0)
+        out = _op.scatter_elements(x, index, updates, axis=0)
     else:
-        out = _op.scatter_add(_op.zeros_like(x), index, updates, axis=0)
-        out += _op.scatter(x, index, _op.zeros_like(updates), axis=0)
+        out = _op.scatter_elements(_op.zeros_like(x), index, updates, axis=0, reduction="add")
+        out += _op.scatter_elements(x, index, _op.zeros_like(updates), axis=0)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1826,7 +1826,7 @@ def convert_slice(g, op, block):
 
     if len(axes) < dims:
         if isinstance(starts, _expr.Expr):
-            starts = _op.scatter(
+            starts = _op.scatter_elements(
                 _op.const([0] * dims, dtype=infer_type(starts).checked_type.dtype),
                 indices,
                 starts,
@@ -1857,7 +1857,7 @@ def convert_slice(g, op, block):
 
     if len(axes) < dims:
         if isinstance(ends, _expr.Expr):
-            ends = _op.scatter(
+            ends = _op.scatter_elements(
                 _expr.const(
                     np.array([np.iinfo(np.int32).max] * dims),
                     dtype=infer_type(ends).checked_type.dtype,
@@ -1892,7 +1892,7 @@ def convert_slice(g, op, block):
 
     if len(axes) < dims:
         if isinstance(strides, _expr.Expr):
-            strides = _op.scatter(
+            strides = _op.scatter_elements(
                 _expr.const(
                     np.array([1] * dims),
                     dtype=infer_type(strides).checked_type.dtype,
@@ -2074,6 +2074,14 @@ def convert_unsqueeze(g, op, block):
     g.add_node(op.output("Out")[0], x)
 
 
+def convert_where_index(g, op, block):
+    """Operator converter for where_index."""
+
+    condition = g.get_node(op.input("Condition")[0])
+    out = _op.argwhere(condition)
+    g.add_node(op.output("Out")[0], out)
+
+
 _convert_map = {
     "abs": convert_unary_op,
     "acos": convert_unary_op,
@@ -2211,6 +2219,7 @@ _convert_map = {
     "top_k_v2": convert_topk,
     "transpose2": convert_transpose,
     "unsqueeze2": convert_unsqueeze,
+    "where_index": convert_where_index,
 }
 
 

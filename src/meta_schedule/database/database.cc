@@ -113,6 +113,21 @@ ObjectRef TuningRecordNode::AsJSON() const {
                           json_args_info};
 }
 
+bool TuningRecordNode::IsValid() const {
+  if (!GetNumValidInstructions(trace->insts, /*remove_postproc*/ true)) {
+    return false;
+  }
+  if (run_secs.defined()) {
+    for (const auto& run_sec : run_secs.value()) {
+      // kMaxMeanTime(1e10) is used as a stub for undefined measurement times.
+      if (run_sec.defined() && run_sec->value != SortTuningRecordByMeanRunSecs::kMaxMeanTime) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& workload) {
   tir::Trace trace{nullptr};
   Optional<Array<FloatImm>> run_secs{nullptr};

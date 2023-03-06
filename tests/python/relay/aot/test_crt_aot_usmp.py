@@ -907,5 +907,40 @@ def test_incompatible_interface_api_errors():
             tvm.relay.build(mod, target, executor=executor, runtime=runtime, params=params)
 
 
+@parametrize_aot_options
+def test_usmp_enabled_by_default_for_crt(interface_api, use_unpacked_api, test_runner):
+    """This test checks whether USMP is enabled by default
+    for cortex-M targets.
+    """
+    dtype = "float32"
+    ishape = (1, 32, 14, 14)
+    wshape = (32, 32, 3, 3)
+
+    data0 = relay.var("data", shape=ishape, dtype=dtype)
+    weight0 = relay.var("weight", shape=wshape, dtype=dtype)
+    out = relay.nn.conv2d(data0, weight0, kernel_size=(3, 3), padding=(1, 1), groups=1)
+    main_f = relay.Function([data0, weight0], out)
+    mod = tvm.IRModule()
+    mod["main"] = main_f
+    mod = transform.InferType()(mod)
+
+    i_data = np.random.uniform(0, 1, ishape).astype(dtype)
+    w1_data = np.random.uniform(0, 1, wshape).astype(dtype)
+
+    inputs = OrderedDict([("data", i_data), ("weight", w1_data)])
+    output_list = generate_ref_data(mod, inputs)
+
+    compiled_test_mods = compile_models(
+        models=AOTTestModel(module=mod, inputs=inputs, outputs=output_list),
+        interface_api=interface_api,
+        use_unpacked_api=use_unpacked_api,
+        pass_config=test_runner.pass_config,
+        target=tvm.target.target.micro("host"),
+    )
+
+    for compiled_model in compiled_test_mods:
+        _check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

@@ -391,9 +391,22 @@ struct SampleCategoricalTraits : public UnpackedInstTraits<SampleCategoricalTrai
 
   static ExprRV UnpackedApplyToSchedule(Schedule sch,               //
                                         Array<Integer> candidates,  //
-                                        Array<FloatImm> probs,      //
+                                        Array<ObjectRef> probs,     //
                                         Optional<Integer> decision) {
-    return sch->SampleCategorical(candidates, probs, decision);
+    Array<FloatImm> probs_float = probs.Map([](const ObjectRef& prob) {
+      const auto* prob_float = prob.as<FloatImmNode>();
+      if (prob_float != nullptr) {
+        return GetRef<FloatImm>(prob_float);
+      }
+      const auto* prob_int = prob.as<IntImmNode>();
+      if (prob_int != nullptr) {
+        return FloatImm(DataType::Float(32), static_cast<double>(prob_int->value));
+      }
+      LOG(FATAL)
+          << "SampleCategorical does not accept probability with type other than float or int.";
+      throw;
+    });
+    return sch->SampleCategorical(candidates, probs_float, decision);
   }
 
   static String UnpackedAsPython(Array<String> outputs,      //

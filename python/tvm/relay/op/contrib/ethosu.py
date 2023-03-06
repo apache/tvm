@@ -1375,6 +1375,91 @@ def mean_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     return pattern
 
 
+class SumParams:
+    """
+    This class will parse a call to ethosu.sum composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.sum"
+
+    def __init__(self, func_body: Call):
+        from tvm.relay.backend.contrib.ethosu.util import RequantArgs
+
+        clip = None
+        if str(func_body.op.name) == "clip":
+            clip = func_body
+            requantize = clip.args[0]
+        else:
+            requantize = func_body
+
+        sum_op = requantize.args[0]
+        attrs = sum_op.attrs
+        cast = sum_op.args[0]
+
+        layout = "NHWC"
+        self.ifm = TensorParams(
+            cast.args[0],
+            layout,
+            requantize.args[RequantArgs.IFM_SCALE.value],
+            requantize.args[RequantArgs.IFM_ZERO_POINT.value],
+        )
+        self.ofm = TensorParams(
+            requantize,
+            layout,
+            requantize.args[RequantArgs.OFM_SCALE.value],
+            requantize.args[RequantArgs.OFM_ZERO_POINT.value],
+        )
+
+        self.activation = clip
+
+        ifm_shape = self.ifm.shape
+        self.height = ifm_shape[0] if len(ifm_shape) in (2, 3) else ifm_shape[1]
+        self.width = ifm_shape[1] if len(ifm_shape) in (2, 3) else ifm_shape[2]
+        self.keepdims = attrs.keepdims
+
+        self.axis = list(sorted(attrs.axis))
+        if attrs.exclude:
+            self.axis = [i for i in range(len(self.ifm.shape)) if i not in self.axis]
+
+    def is_valid(self) -> bool:
+        """
+        Checks whether Sum has compatible attributes with HW.
+        """
+
+        ifm_shape_len = len(self.ifm.shape)
+
+        if not check_valid_dtypes([self.ifm], [np.uint8, np.int8, np.int16, np.int32]):
+            return False
+        if not check_valid_dtypes([self.ofm], [np.int8]):
+            return False
+        if not ifm_shape_len in (3, 4):
+            return False
+        if ifm_shape_len == 3 and self.axis not in [[2]]:
+            return False
+        if ifm_shape_len == 4 and self.axis not in [[3]]:
+            return False
+
+        return True
+
+
+def sum_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for sum.
+    """
+    pattern = is_op("cast")(wildcard())
+    pattern = is_op("sum")(pattern)
+    pattern = is_op("qnn.requantize")(
+        pattern,
+        is_constant(),
+        is_constant(),
+        is_constant(),
+        is_constant(),
+    )
+    pattern = pattern.optional(is_op("clip"))
+    return pattern
+
+
 class ConcatParams:
     """
     This class will parse a call to a ethos-u.concat composite function
@@ -1994,6 +2079,11 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             MeanParams.composite_name,
             mean_pattern(),
             lambda pat: MeanParams(pat).is_valid(),
+        ),
+        (
+            SumParams.composite_name,
+            sum_pattern(),
+            lambda pat: SumParams(pat).is_valid(),
         ),
         (
             LeakyReLUParams.composite_name,

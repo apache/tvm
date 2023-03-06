@@ -1695,6 +1695,123 @@ def test_mean(ifm_shape, axis, keep_dims, use_same_quantization):
 
 
 @pytest.mark.parametrize(
+    "ifm_shape, axis, keepdims, relu",
+    [
+        [(1, 4, 2, 8), 3, False, False],
+        [(1, 4, 4, 1), 3, False, True],
+        [(3, 5, 7), 2, False, True],
+        [(1, 4, 2, 8), 3, True, False],
+        [(3, 5, 7), 2, True, False],
+    ],
+)
+def test_ethosu_sum(ifm_shape, axis, keepdims, relu):
+    dtype = "int8"
+
+    def create_tflite_graph():
+        class Model(tf.Module):
+            @tf.function
+            def tf_function(self, x):
+                op = tf.math.reduce_sum(x, axis=axis, keepdims=keepdims)
+                return tf.nn.relu(op) if relu else op
+
+        model = Model()
+        concrete_func = model.tf_function.get_concrete_function(
+            tf.TensorSpec(ifm_shape, dtype=tf.float32)
+        )
+
+        # Convert the model
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model, 0)
+
+        mod, _ = relay.frontend.from_tflite(
+            tflite_model,
+            shape_dict={"input": ifm_shape},
+            dtype_dict={"input": dtype},
+        )
+        return mod
+
+    def verify(ext_func):
+        out_var = ext_func.body
+
+        binary_elementwise_op = None
+        pooling_op = None
+        next_op = out_var
+        if (
+            isinstance(next_op, relay.expr.Call)
+            and isinstance(next_op.op, tvm.ir.op.Op)
+            and next_op.op.name == "reshape"
+        ):
+            next_op = next_op.args[0]
+        binary_elementwise_op = next_op
+        pooling_op = binary_elementwise_op.args[0]
+        next_op = pooling_op.args[0]
+        if (
+            isinstance(next_op, relay.expr.Call)
+            and isinstance(next_op.op, tvm.ir.op.Op)
+            and next_op.op.name == "reshape"
+        ):
+            next_op = next_op.args[0]
+        in_var = next_op
+
+        def calculate_expected_output_shape():
+            for i in range(len(ifm_shape)):
+                if i != axis:
+                    yield ifm_shape[i]
+                elif keepdims:
+                    yield 1
+
+        out_shape = tuple(calculate_expected_output_shape())
+
+        # check IFM
+        assert tuple(in_var.checked_type.shape) == ifm_shape
+        assert in_var.checked_type.dtype == dtype
+
+        # check OFM
+        assert tuple(out_var.checked_type.shape) == out_shape
+        assert out_var.checked_type.dtype == dtype
+
+        # check expected legalization case
+        assert pooling_op
+        attrs = pooling_op.attrs
+        assert attrs.pooling_type == "SUM"
+        if relu:
+            assert attrs.activation == "CLIP"
+
+        assert binary_elementwise_op
+        attrs = binary_elementwise_op.attrs
+        assert attrs.operator_type == "MUL"
+        assert attrs.ifm_channels == attrs.ifm2_channels == 1
+        assert attrs.ofm_dtype == "int8"
+
+    rewriter = legalize.SumRewriter()
+    pattern_table = [
+        (
+            ethosu.SumParams.composite_name,
+            ethosu.sum_pattern(),
+            lambda pat: ethosu.SumParams(pat).is_valid(),
+        ),
+    ]
+
+    mod = create_tflite_graph()
+    mod = partition_ethosu_by_table(mod, pattern_table)
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        rewriter, mod["tvmgen_default_ethos_u_main_0"]
+    )
+    verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
+@pytest.mark.parametrize(
     "shapes, axis",
     [
         ([(2, 3), (4, 3)], 0),

@@ -16,7 +16,19 @@
 # under the License.
 # pylint: disable=invalid-name
 """Helper utility to save and load parameter dicts."""
-from . import _ffi_api, ndarray
+from . import _ffi_api, ndarray, NDArray
+
+
+def _to_ndarray(params):
+    transformed = {}
+
+    for (k, v) in params.items():
+        if not isinstance(v, NDArray):
+            transformed[k] = ndarray.array(v)
+        else:
+            transformed[k] = v
+
+    return transformed
 
 
 def save_param_dict(params):
@@ -47,12 +59,25 @@ def save_param_dict(params):
        # Pass in byte array to module to directly set parameters
        tvm.runtime.load_param_dict(param_bytes)
     """
-    transformed = {k: ndarray.array(v) for (k, v) in params.items()}
-    return _ffi_api.SaveParams(transformed)
+    return _ffi_api.SaveParams(_to_ndarray(params))
+
+
+def save_param_dict_to_file(params, path):
+    """Save parameter dictionary to file.
+
+    Parameters
+    ----------
+    params : dict of str to NDArray
+        The parameter dictionary.
+
+    path: str
+        The path to the parameter file.
+    """
+    return _ffi_api.SaveParamsToFile(_to_ndarray(params), path)
 
 
 def load_param_dict(param_bytes):
-    """Load parameter dictionary to binary bytes.
+    """Load parameter dictionary from binary bytes.
 
     Parameters
     ----------
@@ -67,3 +92,19 @@ def load_param_dict(param_bytes):
     if isinstance(param_bytes, (bytes, str)):
         param_bytes = bytearray(param_bytes)
     return _ffi_api.LoadParams(param_bytes)
+
+
+def load_param_dict_from_file(path):
+    """Load parameter dictionary from file.
+
+    Parameters
+    ----------
+    path: str
+        The path to the parameter file to load from.
+
+    Returns
+    -------
+    params : dict of str to NDArray
+        The parameter dictionary.
+    """
+    return _ffi_api.LoadParamsFromFile(path)

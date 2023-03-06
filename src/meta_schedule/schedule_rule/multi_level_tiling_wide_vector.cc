@@ -48,11 +48,12 @@ class MultiLevelTilingWideVectorNode : public MultiLevelTilingNode {
     return ScheduleRule(n);
   }
 
-  Array<tir::LoopRV> SplitLoop(const Schedule& sch, BlockRV block, LoopRV loop, int n_tiles) const;
+  std::pair<Array<tir::ExprRV>, Array<tir::LoopRV>> SplitLoop(const Schedule& sch, BlockRV block,
+                                                              LoopRV loop, int n_tiles) const;
 };
 
-Array<tir::LoopRV> MultiLevelTilingWideVectorNode::SplitLoop(const Schedule& sch, BlockRV block_rv,
-                                                             LoopRV loop_rv, int n_tiles) const {
+std::pair<Array<tir::ExprRV>, Array<tir::LoopRV>> MultiLevelTilingWideVectorNode::SplitLoop(
+    const Schedule& sch, BlockRV block_rv, LoopRV loop_rv, int n_tiles) const {
   const tir::ForNode* loop = TVM_SREF_TO_FOR(sch->GetSRef(loop_rv));
   const tir::StmtSRef block_sref = sch->GetSRef(block_rv);
   const tir::BlockNode* block_node = block_sref->StmtAs<tir::BlockNode>();
@@ -99,12 +100,14 @@ Array<tir::LoopRV> MultiLevelTilingWideVectorNode::SplitLoop(const Schedule& sch
       Array<tir::LoopRV> outer_splits = sch->Split(
           /*loop=*/inner_splits[0], /*factors=*/{outer_factors.begin(), outer_factors.end()});
       outer_splits.push_back(inner_splits[1]);
-      return outer_splits;
+      outer_factors.push_back(PrimExpr(vec_len));
+      return {outer_factors, outer_splits};
     } else {
       Array<tir::ExprRV> factors(n_tiles - 1, PrimExpr(1));
       factors.push_back(loop->extent);
-      return sch->Split(/*loop=*/loop_rv,
-                        /*factors=*/{factors.begin(), factors.end()});
+      Array<tir::LoopRV> splits = sch->Split(/*loop=*/loop_rv,
+                                             /*factors=*/{factors.begin(), factors.end()});
+      return {factors, splits};
     }
   }
 }

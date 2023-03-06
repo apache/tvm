@@ -31,9 +31,15 @@
 #include <tvm/tir/op_attr_types.h>
 #include <tvm/tir/stmt.h>
 
+#include <optional>
 #include <string>
 
 namespace tvm {
+
+namespace arith {
+class Analyzer;
+}
+
 namespace tir {
 
 /*!
@@ -202,6 +208,29 @@ TVM_DLL Array<Array<BufferRegion>> GetBlockAccessRegion(const Block& block,
  */
 TVM_DLL Array<Array<BufferRegion>> GetBlockReadWriteRegion(const Block& block,
                                                            const Map<Var, Buffer>& buffer_var_map);
+
+/*! \brief Helper struct for return value of IdentifyMemCpy
+ *
+ * This helper struct is not strictly necessary, as `IdentifyMemCpy`
+ * could instead return a `std::pair<BufferRegion, BufferRegion>`.
+ * However, that would introduce ambiguity between the two unnamed
+ * regions.
+ */
+struct MemCpyDetails {
+  BufferRegion source;
+  BufferRegion dest;
+};
+
+/*! \brief Identify whether a For loop is semantically equivalent to MemCpy
+ *
+ * \param loop The loop to be checked
+ *
+ * \param analyzer The analyzer with which to check any algebraic expressions
+ *
+ * \returns The source and destination regions being copied, if the
+ * loop is equivalent to memcpy.  Otherwise, returns nullopt.
+ */
+TVM_DLL std::optional<MemCpyDetails> IdentifyMemCpy(const For& loop, arith::Analyzer* analyzer);
 
 /*!
  * \brief Calculate the expresion complexity based on number of symbols it contains.

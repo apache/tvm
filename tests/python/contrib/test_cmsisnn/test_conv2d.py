@@ -210,6 +210,7 @@ def test_conv2d_number_primfunc_args(
         AOTTestModel(module=cmsisnn_mod, inputs=inputs, outputs=output_list, params=params),
         interface_api,
         use_unpacked_api,
+        pass_config={"tir.usmp.enable": False},
     )
 
     # validate number of TIR primfunc args

@@ -56,11 +56,11 @@ ExprDoc IRDocsifierNode::AddMetadata(const ObjectRef& obj) {
   ICHECK(obj.defined()) << "TypeError: Cannot add nullptr to metadata";
   String key = obj->GetTypeKey();
   Array<ObjectRef>& array = metadata[key];
-  int index = array.size();
-  array.push_back(obj);
-  return IdDoc("metadata")               //
-      [{LiteralDoc::Str(key, NullOpt)}]  //
-      [{LiteralDoc::Int(index, NullOpt)}];
+  int index = std::find(array.begin(), array.end(), obj) - array.begin();
+  if (index == static_cast<int>(array.size())) {
+    array.push_back(obj);
+  }
+  return IdDoc("metadata")[{LiteralDoc::Str(key, NullOpt)}][{LiteralDoc::Int(index, NullOpt)}];
 }
 
 bool IRDocsifierNode::IsVarDefined(const ObjectRef& obj) const { return obj2info.count(obj); }

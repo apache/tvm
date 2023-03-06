@@ -383,7 +383,7 @@ class Handler(server.ProjectAPIHandler):
         )
 
     # These files and directories will be recursively copied into generated projects from the CRT.
-    CRT_COPY_ITEMS = ("include", "Makefile", "src")
+    CRT_COPY_ITEMS = ("include", "CMakeLists.txt", "src")
 
     # Maps extra line added to prj.conf to a tuple or list of zephyr_board for which it is needed.
     EXTRA_PRJ_CONF_DIRECTIVES = {

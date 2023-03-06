@@ -38,15 +38,15 @@ Before you build the Android application, please refer to [TVM4J Installation Gu
 
 ```
 dependencies {
-    compile fileTree(dir: 'libs', include: ['*.jar'])
-    androidTestCompile('com.android.support.test.espresso:espresso-core:2.2.2', {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    androidTestImplementation('androidx.test.espresso:espresso-core:3.1.0', {
         exclude group: 'com.android.support', module: 'support-annotations'
     })
-    compile 'com.android.support:appcompat-v7:26.0.1'
-    compile 'com.android.support.constraint:constraint-layout:1.0.2'
-    compile 'com.android.support:design:26.0.1'
-    compile 'org.apache.tvm:tvm4j-core:0.0.1-SNAPSHOT'
-    testCompile 'junit:junit:4.12'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'com.google.android.material:material:1.8.0'
+    implementation files('../../../jvm/core/target/tvm4j-core-0.0.1-SNAPSHOT.jar')
+    testImplementation 'junit:junit:4.13.2'
 }
 ```
 
@@ -120,3 +120,14 @@ Copied these compiled model deploy_lib.so, deploy_graph.json and deploy_param.pa
 Install compiled android application on phone and enjoy the image classifier demo using extraction model
 
 You can define your own TVM operators and deploy via this demo application on your Android device to find the most optimized TVM schedule.
+
+### Troubleshooting
+
+If you build the application in Android Studio and see error similar to this one:
+```
+A problem occurred evaluating project ':app'.
+> Failed to apply plugin 'com.android.internal.version-check'.
+   > Minimum supported Gradle version is 7.5. Current version is 7.4. If using the gradle wrapper, try editing the distributionUrl in /Users/echuraev/Workspace/OctoML/tvm_android_test/apps/android_deploy/gradle/wrapper/gradle-wrapper.properties to gradle-7.5-all.zip
+```
+Run project syncing `File -> Sync Project with Gradle Files`. It should sync the
+project and create gradle-wrapper files.

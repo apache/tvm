@@ -79,7 +79,7 @@ if(USE_MICRO)
         "include/tvm/runtime c_*_api.h -> include/tvm/runtime"
         "include/tvm/runtime metadata_types.h -> include/tvm/runtime"
         "include/tvm/runtime/crt *.h -> include/tvm/runtime/crt"
-        "src/runtime/crt Makefile -> ."
+        "src/runtime/crt CMakeLists.txt -> ."
         "src/runtime/crt/include *.h -> include"
         "src/runtime/crt/aot_executor *.c -> src/runtime/crt/aot_executor"
         "src/runtime/crt/aot_executor_module *.c -> src/runtime/crt/aot_executor_module"
