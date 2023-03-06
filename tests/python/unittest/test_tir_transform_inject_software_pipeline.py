@@ -1133,7 +1133,7 @@ def test_simple_compute_async():
                         with T.block():
                             T.where(i + 1 < 16)
                             T.reads(A[tx, i + 1])
-                            T.writes(B[1 - i % 2, tx, 0])
+                            T.writes(B[(i + 1) % 2, tx, 0])
                             with T.attr(0, "async_commit_queue_scope", 0):
                                 with T.attr(0, "async_scope", 1):
                                     B[(i + 1) % 2, tx, 0] = A[tx, i + 1] * T.float32(2)
