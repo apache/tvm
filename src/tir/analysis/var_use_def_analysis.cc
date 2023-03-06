@@ -88,14 +88,14 @@ void VarUseDefAnalyzer::VisitExpr_(const LetNode* op) {
   // This is used to allow cases when we reuse a single let
   // expression to construct a nested expr.
   // (let x = 1 in x + 1) * (let x = 1 in x + 1)
-  auto it = let_binding_.find(op->var);
+  auto it = let_binding_.find(op->var.get());
   this->VisitExpr(op->value);
   if (it != let_binding_.end()) {
     ICHECK(deep_equal_(it->second->value, op->value))
         << "Let cannot bind the same var to two different values";
   } else {
     this->HandleDef(op->var.get());
-    let_binding_[op->var] = op;
+    let_binding_[op->var.get()] = op;
   }
   this->VisitExpr(op->body);
 }

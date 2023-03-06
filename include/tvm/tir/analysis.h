@@ -30,7 +30,6 @@
 #include <tvm/tir/function.h>
 #include <tvm/tir/op_attr_types.h>
 #include <tvm/tir/stmt.h>
-#include <tvm/tir/stmt_functor.h>
 
 #include <string>
 

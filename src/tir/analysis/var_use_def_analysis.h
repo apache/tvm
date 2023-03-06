@@ -25,11 +25,9 @@
 #define TVM_TIR_ANALYSIS_VAR_USE_DEF_ANALYSIS_H_
 
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/stmt_functor.h>
 
 #include <unordered_map>
-
-#include "../../runtime/thread_storage_scope.h"
-#include "../transforms/ir_utils.h"
 
 namespace tvm {
 namespace tir {
@@ -53,7 +51,7 @@ class VarUseDefAnalyzer : public StmtExprVisitor {
 
  private:
   ExprDeepEqual deep_equal_;
-  std::unordered_map<Var, const LetNode*, ObjectPtrHash, ObjectPtrEqual> let_binding_;
+  std::unordered_map<const VarNode*, const LetNode*> let_binding_;
   void VisitStmt_(const AttrStmtNode* op) final;
 
   void VisitStmt_(const LetStmtNode* op) final;
