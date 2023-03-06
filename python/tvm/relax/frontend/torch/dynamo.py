@@ -26,7 +26,6 @@ import tvm
 from tvm.relax import build as relax_build
 
 from .fx_translator import from_fx
-from ..common import ImporterOutput
 
 
 def device_from_inputs(example_inputs):
@@ -74,7 +73,7 @@ def relax_dynamo(pipeline: Optional[tvm.transform.Pass] = None):
 
         device = device_from_inputs(example_inputs)
         input_info = [(tuple(tensor.shape), str(tensor.dtype)) for tensor in example_inputs]
-        mod = from_fx(graph_module, input_info).mod
+        mod = from_fx(graph_module, input_info)
 
         if device.type == "cuda":
             dev = tvm.cuda(device.index)
@@ -116,7 +115,7 @@ def relax_dynamo(pipeline: Optional[tvm.transform.Pass] = None):
     return _relax_backend
 
 
-def dynamo_capture_subgraphs(model, *params, **kwargs) -> ImporterOutput:
+def dynamo_capture_subgraphs(model, *params, **kwargs) -> tvm.IRModule:
     """Capture subgraphs of the PyTorch model using torch.compile into an IRModule.
 
     Parameters
@@ -133,8 +132,10 @@ def dynamo_capture_subgraphs(model, *params, **kwargs) -> ImporterOutput:
     Returns
     -------
     output : ImporterOutput
-        The output of translation, including the translated IRModule, and
-        the weights of the input model when `keep_params_as_input` is true.
+        The output of translation, including the translated IRModule.
+        If `keep_params_as_input` is true, the functions in the IRModule have an
+        attribute "params" that contains the weights of the input model. The
+        weights can be detached by `relax.frontend.detach_params`.
     """
     import torch  # type: ignore[import]
     from torch import fx  # type: ignore[import]
@@ -143,22 +144,18 @@ def dynamo_capture_subgraphs(model, *params, **kwargs) -> ImporterOutput:
     keep_params_as_input = "keep_params_as_input" in kwargs and kwargs["keep_params_as_input"]
 
     mod = tvm.IRModule()
-    params_ndarray = dict() if keep_params_as_input else None
 
     def _capture(graph_module: fx.GraphModule, example_inputs):
         assert isinstance(graph_module, torch.fx.GraphModule)
         input_info = [(tuple(tensor.shape), str(tensor.dtype)) for tensor in example_inputs]
-        trace_output = from_fx(graph_module, input_info, keep_params_as_input)
-        func_name = f"subgraph_{len(mod.get_global_vars())}"
-        mod[func_name] = trace_output.mod["main"]
-        if keep_params_as_input:
-            params_ndarray[func_name] = trace_output.params["main"]
+        mod_ = from_fx(graph_module, input_info, keep_params_as_input)
+        mod[f"subgraph_{len(mod.get_global_vars())}"] = mod_["main"]
         return graph_module.forward
 
     dynamo.reset()
     compiled_model = torch.compile(model, backend=_capture)
     compiled_model(*params)
-    return ImporterOutput(mod, params_ndarray)
+    return mod
 
 
 @functools.lru_cache(None)

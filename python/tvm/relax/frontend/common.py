@@ -14,35 +14,42 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 """Commons for Relax frontend."""
-from typing import Dict, List, Optional
+from typing import Dict, List, Tuple
 
 import tvm
 
 
-class ImporterOutput:
-    """The data structure representing the result of frontend imports.
+def detach_params(mod: tvm.IRModule) -> Tuple[tvm.IRModule, Dict[str, List[tvm.nd.NDArray]]]:
+    """Detach the attribute "params" in the functions of the input IRModule as
+    separate dictionary of params.
 
-    Attributes
+    Parameters
     ----------
     mod : tvm.IRModule
-        The IRModule imported from frontend.
+        The IRModule whose functions' "param" attribute is going to be detached.
 
-    params : Optional[Dict[str, List[tvm.nd.NDArray]]]
-        The weights of the imported model, when the weights of the model are
-        requested to be kept as parameters of functions in the IRModule. (e.g.,
-        when the `keep_params_as_input` flag of `frontend.torch.from_fx` is set to
-        True.)
-        - `params` is defined to be None when not requested.
-        - The keys of `params` are the names of the Relax functions in the IRModule.
-        - Each weight tensor is in the form of TVM NDArray on device CPU.
-        - The order of the returned weights is in accordance with the order of
-        the kept Relax function input variables.
+    Returns
+    -------
+    detached_mod : tvm.IRModule
+        The IRModule after the detachment.
+
+    params_dict : Dict[str, List[tvm.nd.NDArray]]
+        The detached params. The dict keys corresponds to the names of the
+        functions in the input IRModule that have attribute "params".
     """
-
-    mod: tvm.IRModule
-    params: Optional[Dict[str, List[tvm.nd.NDArray]]]
-
-    def __init__(self, mod: tvm.IRModule, params: Optional[Dict[str, List[tvm.nd.NDArray]]]):
-        self.mod = mod
-        self.params = params
+    detached_mod = tvm.IRModule()
+    params_dict = dict()
+    for gv, func in mod.functions.items():
+        if "params" in func.attrs:
+            params = list(func.attrs["params"])
+            if not all([isinstance(param, tvm.nd.NDArray) for param in params]):
+                raise ValueError(
+                    'The value "params" attribute is expected to be a list of NDArray.'
+                )
+            params_dict[gv.name_hint] = params
+            detached_mod[gv] = func.without_attr("params")
+        else:
+            detached_mod[gv] = func
+    return detached_mod, params_dict
