@@ -19,7 +19,7 @@
 
 import { SizeOf, ArgTypeCode } from "./ctypes";
 import { assert, StringToUint8Array, Uint8ArrayToString } from "./support";
-import { detectGPUDevice } from "./webgpu";
+import { detectGPUDevice, GPUDeviceDetectOutput } from "./webgpu";
 import * as compact from "./compact";
 import * as runtime from "./runtime";
 import { Disposable } from "./types";
@@ -272,11 +272,11 @@ export class RPCServer {
       );
 
       try {
-        const gpuDevice: GPUDevice | undefined | null = await detectGPUDevice();
-        if (gpuDevice !== undefined && gpuDevice !== null) {
-          const label = gpuDevice.label?.toString() || "WebGPU";
+        const output: GPUDeviceDetectOutput | undefined = await detectGPUDevice();
+        if (output !== undefined) {
+          const label = "WebGPU: "+ output.adapterInfo.description;
           this.log("Initialize GPU device: " + label);
-          inst.initWebGPU(gpuDevice);
+          inst.initWebGPU(output.device);
         } else {
           this.log("Cannot find WebGPU device in the env");
         }

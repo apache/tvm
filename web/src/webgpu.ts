@@ -25,18 +25,33 @@ import { Disposable } from "./types";
 /** A pointer to points to the raw address space. */
 export type GPUPointer = number;
 
+export interface GPUDeviceDetectOutput {
+  adapter: GPUAdapter;
+  adapterInfo: GPUAdapterInfo;
+  device: GPUDevice;
+}
+
 /**
  * DetectGPU device in the environment.
  */
-export async function detectGPUDevice(): Promise<GPUDevice | undefined | null> {
+export async function detectGPUDevice(): Promise<GPUDeviceDetectOutput | undefined> {
   if (typeof navigator !== "undefined" && navigator.gpu !== undefined) {
     const adapter = await navigator.gpu.requestAdapter();
-    return await adapter?.requestDevice({
+    if (adapter == null) {
+      throw Error("Cannot find adapter that matches the request");
+    }
+    const adapterInfo = await adapter.requestAdapterInfo();
+    const device = await adapter.requestDevice({
       requiredLimits: {
         maxStorageBufferBindingSize: 1 << 30,
         maxComputeWorkgroupStorageSize: 32 << 10,
       }
     });
+    return {
+      adapter: adapter,
+      adapterInfo: adapterInfo,
+      device: device
+    };
   } else {
     return undefined;
   }
@@ -403,7 +418,7 @@ export class WebGPUContext {
             }
           }
         }),
-        entryPoint: "main"
+        entryPoint: finfo.name
       }
     });
 

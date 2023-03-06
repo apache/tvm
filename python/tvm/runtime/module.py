@@ -251,6 +251,10 @@ class Module(object):
         """
         return _ffi_api.ModuleIsDSOExportable(self)
 
+    def clear_imports(self):
+        """Remove all imports of the module."""
+        _ffi_api.ModuleClearImports(self)
+
     def save(self, file_name, fmt=""):
         """Save the module to file.
 
@@ -441,7 +445,7 @@ class Module(object):
             raise RuntimeError("Cannot call export_library in runtime only mode")
         # Extra dependencies during runtime.
         from pathlib import Path
-        from tvm.contrib import cc as _cc, tar as _tar, utils as _utils
+        from tvm.contrib import cc as _cc, tar as _tar, utils as _utils, tvmjs as _tvmjs
 
         if isinstance(file_name, Path):
             file_name = str(file_name)
@@ -506,6 +510,8 @@ class Module(object):
         if not fcompile:
             if file_name.endswith(".tar"):
                 fcompile = _tar.tar
+            elif file_name.endswith(".wasm"):
+                fcompile = _tvmjs.create_tvmjs_wasm
             else:
                 fcompile = _cc.create_shared
 
