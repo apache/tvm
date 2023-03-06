@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name,,missing-function-docstring
 import tvm
-from tvm.tir.transform import DefaultSchedule
+from tvm.tir.transform import DefaultGPUSchedule
 from tvm.script import tir as T
 import tvm.testing
 
@@ -94,7 +94,7 @@ def test_broadcast_to_symbolic():
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
     with target, tvm.transform.PassContext(opt_level=3):
-        After = DefaultSchedule()(Before)
+        After = DefaultGPUSchedule()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
 
 
@@ -150,7 +150,7 @@ def test_matmul():
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
     with target, tvm.transform.PassContext(opt_level=3):
-        After = DefaultSchedule()(Before)
+        After = DefaultGPUSchedule()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
 
 
@@ -222,7 +222,7 @@ def test_add():
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
     with target, tvm.transform.PassContext(opt_level=3):
-        After = DefaultSchedule()(Before)
+        After = DefaultGPUSchedule()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
 
 
@@ -269,7 +269,7 @@ def test_full():
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
     with target, tvm.transform.PassContext(opt_level=3):
-        After = DefaultSchedule()(Before)
+        After = DefaultGPUSchedule()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
 
 
@@ -306,7 +306,7 @@ def test_scheduled():
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
     with target, tvm.transform.PassContext(opt_level=3):
         # should do nothing
-        After = DefaultSchedule()(Scheduled)
+        After = DefaultGPUSchedule()(Scheduled)
     tvm.ir.assert_structural_equal(After, Scheduled)
 
 
@@ -409,7 +409,7 @@ def test_multiple():
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
     with target, tvm.transform.PassContext(opt_level=3):
-        After = DefaultSchedule()(Before)
+        After = DefaultGPUSchedule()(Before)
     assert tvm.ir.structural_equal(After, Expected)
 
 

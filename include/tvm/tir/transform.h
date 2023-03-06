@@ -723,10 +723,11 @@ TVM_DLL Pass InstrumentProfileIntrinsics();
  *  PrimFunc and conducts loop fusion, splitting, and reordering operations based on the loop extent
  *  and target information, such as the maximum thread block number and maximum thread per block.
  * \note The primary objective of this pass is not to optimize performance, but rather to
- *  generate a valid GPU kernel for unscheduled or symbolic shape PrimFuncs.
+ *  generate a valid GPU kernel for unscheduled or symbolic shape PrimFuncs. The pass is
+ *  currently only working for CUDA targets.
  * \return The Pass.
  */
-TVM_DLL Pass DefaultSchedule();
+TVM_DLL Pass DefaultGPUSchedule();
 
 }  // namespace transform
 }  // namespace tir

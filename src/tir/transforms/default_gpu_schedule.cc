@@ -74,7 +74,7 @@ void ThreadBind(tir::Schedule sch, const tir::BlockRV& block, int64_t max_thread
   }
 }
 
-Pass DefaultSchedule() {
+Pass DefaultGPUSchedule() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
       [=](IRModule m, PassContext pc) {
         // get the target from context.
@@ -102,13 +102,13 @@ Pass DefaultSchedule() {
         }
         return sch->mod();
       };
-  return CreateModulePass(/*pass_function=*/pass_func,      //
-                          /*opt_level=*/0,                  //
-                          /*pass_name=*/"DefaultSchedule",  //
+  return CreateModulePass(/*pass_function=*/pass_func,         //
+                          /*opt_level=*/0,                     //
+                          /*pass_name=*/"DefaultGPUSchedule",  //
                           /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.DefaultSchedule").set_body_typed(DefaultSchedule);
+TVM_REGISTER_GLOBAL("tir.transform.DefaultGPUSchedule").set_body_typed(DefaultGPUSchedule);
 
 }  // namespace transform
 
