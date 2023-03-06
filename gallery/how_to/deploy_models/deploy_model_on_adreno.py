@@ -145,9 +145,10 @@ from tvm import autotvm
 # it's advisable to use lower precision.
 # We have a helper API to make the precision conversion simple and
 # it supports dtype with "float16" and "float16_acc32" modes.
-# Let's choose "float16_acc32" for this example.
+# Let's choose "float16" for calculation and "float32" for accumulation.
 
-dtype = "float16_acc32"
+calculation_dtype = "float16"
+acc_dtype = "float32"
 
 # Specify Adreno target before compiling to generate texture
 # leveraging kernels and get all the benefits of textures
@@ -240,16 +241,21 @@ mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
 # We may need to register precision rules like precision type, accumultation
 # datatype ...etc. for the required operators to override the default settings.
 # The below helper api simplifies the precision conversions across the module.
-# Now it supports dtypes "float16" and "float16_acc32".
 
-# dtype is set to "float16_acc32" in configuration section above.
+# Calculation dtype is set to "float16" and accumulation dtype is set to "float32"
+# in configuration section above.
 
-from tvm.relay.op.contrib import adreno
+from tvm.driver.tvmc.transform import apply_graph_transforms
 
-adreno.convert_to_dtype(mod["main"], dtype)
-
-dtype = "float32" if dtype == "float32" else "float16"
-print(mod)
+mod = apply_graph_transforms(
+    mod,
+    {
+        "mixed_precision": True,
+        "mixed_precision_ops": ["nn.conv2d", "nn.dense"],
+        "mixed_precision_calculation_type": calculation_dtype,
+        "mixed_precision_acc_type": acc_dtype,
+    },
+)
 
 #################################################################
 # As you can see in the IR, the architecture now contains cast operations, which are

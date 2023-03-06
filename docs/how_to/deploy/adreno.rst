@@ -559,12 +559,21 @@ To do the conversion you need to call adreno specific transformation API as soon
 
 .. code:: python
 
-   from tvm.relay.op.contrib import adreno
-   adreno.convert_to_dtype(mod["main"], "float16")
+   from tvm.driver.tvmc.transform import apply_graph_transforms
+   mod  = apply_graph_transforms(
+            mod,
+            {
+                "mixed_precision": True,
+                "mixed_precision_ops": ["nn.conv2d", "nn.dense"],
+                "mixed_precision_calculation_type": "float16",
+                "mixed_precision_acc_type": "float16",
+            },
+        )
 
-``tvm.relay.op.contrib.adreno.convert_to_dtype`` is simplified API over ``ToMixedPrecision`` pass to get desired precision.
 
-We then can compile our model in any convinient way
+``tvm.driver.tvmc.transform.apply_graph_transforms`` is simplified API over ``ToMixedPrecision`` pass to get desired precision.
+
+We can then compile our model in any convinient way
 
 .. code:: python
 
@@ -573,8 +582,23 @@ We then can compile our model in any convinient way
            mod, target_host=target_host, target=target, params=params
        )
 
-While using ``tvmc`` python interface, argument ``pre_build_hooks=[adreno.mixed_precision_fp16]`` enables precision conversion to float16.
-Similarly, ``tvmc`` command line interface option ``--pre-build-hooks "adreno.mixed_precision_fp16]"`` does the same.
+While using ``tvmc`` python interface, the below arguments enables precision conversion to float16.
+
+.. code:: python
+
+    mixed_precision = True,
+    mixed_precision_ops = ["nn.conv2d", "nn.dense"],
+    mixed_precision_calculation_type = "float16",
+    mixed_precision_acc_type = "float16"
+
+Similarly, ``tvmc`` command line interface option bas below listed options.
+
+.. code:: bash
+
+    --mixed-precision
+    --mixed-precision-ops nn.conv2d nn.dense
+    --mixed-precision-calculation-type float16
+    --mixed-precision-acc-type float16
 
 
 **float16_acc32 (Mixed Precision)**
@@ -596,11 +620,21 @@ as it halves the expected size of the weights (FP16_acc16 case).
 
 .. code:: python
 
-   from tvm.relay.op.contrib import adreno
-   adreno.convert_to_dtype(mod["main"], "float16_acc32")
+   from tvm.driver.tvmc.transform import apply_graph_transforms
+   mod  = apply_graph_transforms(
+            mod,
+            {
+                "mixed_precision": True,
+                "mixed_precision_ops": ["nn.conv2d", "nn.dense"],
+                "mixed_precision_calculation_type": "float16",
+                "mixed_precision_acc_type": "float32",
+            },
+        )
 
 
-We then can compile our model in any convinient way
+``tvm.driver.tvmc.transform.apply_graph_transforms`` is simplified API over ``ToMixedPrecision`` pass to get desired precision.
+
+We can then compile our model in any convinient way
 
 .. code:: python
 
@@ -609,8 +643,23 @@ We then can compile our model in any convinient way
            mod, target_host=target_host, target=target, params=params
        )
 
-While using ``tvmc`` python interface, argument ``pre_build_hooks=[adreno.mixed_precision_fp16_acc32]`` enables precision conversion to float16.
-Similarly, ``tvmc`` command line interface option ``--pre-build-hooks "adreno.mixed_precision_fp16_acc32]"`` does the same.
+While using ``tvmc`` python interface, the below arguments enables precision conversion to float16.
+
+.. code:: python
+
+    mixed_precision = True,
+    mixed_precision_ops = ["nn.conv2d", "nn.dense"],
+    mixed_precision_calculation_type = "float16",
+    mixed_precision_acc_type = "float32"
+
+Similarly, ``tvmc`` command line interface option bas below listed options.
+
+.. code:: bash
+
+    --mixed-precision
+    --mixed-precision-ops nn.conv2d nn.dense
+    --mixed-precision-calculation-type float16
+    --mixed-precision-acc-type float32
 
 
 .. |High-level overview of the Adreno™ A5x architecture for OpenCL| image:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/how-to/adreno_architecture.png
