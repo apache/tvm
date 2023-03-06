@@ -286,13 +286,14 @@ def compile_model(
     desired_layout_ops: list[str], optional
         The list of operators to be transformed with desired layout.
     mixed_precision: bool
-        To enable mixed precision transformation.
+        To enable mixed precision transformation. Disabled by default.
     mixed_precision_ops: list[str], optional
         The list of operators to be converted to mixed precision.
+        Set to ["nn.conv2d", "nn.dense"] by default
     mixed_precision_calculation_type: str
-        The calculation dtype to be used while mixed precision.
+        The calculation dtype to be used while mixed precision. Set to "float16" by default.
     mixed_precision_acc_type: str
-        The accumulation data type to be used while mixed precision.
+        The accumulation data type to be used while mixed precision. Set to "float16" by default.
 
     Returns
     -------
