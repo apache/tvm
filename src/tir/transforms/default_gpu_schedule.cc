@@ -23,7 +23,7 @@ namespace tvm {
 namespace tir {
 namespace transform {
 /*!
- * \brief A helper class to do default thread binding for a block.
+ * \brief A helper function to do default thread binding for a block.
  * \param sch The schedule to work on.
  * \param block The block to be scheduled.
  * \param max_thread_per_block The maximum number of threads per block.
