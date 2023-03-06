@@ -135,14 +135,14 @@ def test_subgraph_capture():
             inp_0: R.Tensor((10, 100), dtype="float32"),
             w0: R.Tensor((10, 100), dtype="float32"),
             w1: R.Tensor((10,), dtype="float32"),
-        ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
+        ) -> R.Tensor((10, 10), dtype="float32"):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((100, 10), dtype="float32") = R.permute_dims(w0, axes=None)
                 lv1: R.Tensor((10, 10), dtype="float32") = R.matmul(inp_0, lv, out_dtype="float32")
                 lv2: R.Tensor((10, 10), dtype="float32") = R.add(lv1, w1)
                 lv3: R.Tensor((10, 10), dtype="float32") = R.nn.relu(lv2)
-                gv: R.Tuple(R.Tensor((10, 10), dtype="float32")) = (lv3,)
+                gv: R.Tensor((10, 10), dtype="float32") = lv3
                 R.output(gv)
             return gv
 
@@ -182,11 +182,11 @@ def test_subgraph_capture():
         @R.function
         def subgraph_1(
             inp_01: R.Tensor((10,), dtype="float32"), inp_11: R.Tensor((10,), dtype="float32")
-        ) -> R.Tuple(R.Tensor((10,), dtype="float32")):
+        ) -> R.Tensor((10,), dtype="float32"):
             # block 0
             with R.dataflow():
                 lv5: R.Tensor((10,), dtype="float32") = R.multiply(inp_11, inp_01)
-                gv1: R.Tuple(R.Tensor((10,), dtype="float32")) = (lv5,)
+                gv1: R.Tensor((10,), dtype="float32") = lv5
                 R.output(gv1)
             return gv1
 
