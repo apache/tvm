@@ -1961,25 +1961,14 @@ def convert_softsign(g, op, block):
 def convert_softshrink(g, op, block):
     """Operator converter for softshrink."""
 
-    threshold = op.attr("lambda")
     x = g.get_node(op.input("X")[0])
     dtype = infer_type(x).checked_type.dtype
-    threshold_right = _expr.const(threshold, dtype)
-    threshold_left = _expr.const(-1.0 * threshold, dtype)
-    middle = _expr.const(0.0, dtype)
-    condition_0 = tvm.relay.logical_and(
-        tvm.relay.less_equal(x, threshold_right), tvm.relay.greater_equal(x, threshold_left)
+    threshold = _expr.const(op.attr("lambda"), dtype=dtype)
+    zeros = _op.zeros_like(x)
+    out = _op.where(x < -threshold, x + threshold, zeros) + _op.where(
+        x > threshold, x - threshold, zeros
     )
-    calc_middle = tvm.relay.where(condition_0, middle, x)
-
-    sub_threshold = _op.subtract(x, threshold_right)
-    condition_1 = tvm.relay.greater(calc_middle, threshold_right)
-    calc_right = tvm.relay.where(condition_1, sub_threshold, calc_middle)
-
-    add_threshold = _op.add(x, threshold_right)
-    condition_2 = tvm.relay.less(calc_right, threshold_left)
-    calc_left = tvm.relay.where(condition_2, add_threshold, calc_right)
-    g.add_node(op.output("Out")[0], calc_left)
+    g.add_node(op.output("Out")[0], out)
 
 
 def convert_split(g, op, block):
