@@ -22,12 +22,12 @@ import tvm.testing
 from tvm.script.parser import relax as R, tir as T
 
 
-def verify_model(torch_model, input_info, binding, expected, keep_params_as_input=False):
+def verify_model(torch_model, input_info, binding, expected):
     from torch import fx
     from tvm.relax.frontend.torch import from_fx
 
     graph_model = fx.symbolic_trace(torch_model)
-    mod = from_fx(graph_model, input_info, keep_params_as_input=keep_params_as_input).mod
+    mod = from_fx(graph_model, input_info)
     binding = {k: tvm.nd.array(v) for k, v in binding.items()}
     expected = relax.transform.BindParams("main", binding)(expected)
     tvm.ir.assert_structural_equal(mod, expected)
@@ -1752,7 +1752,7 @@ def test_arange():
             return torch.arange(0, 20, dtype=torch.int32)
 
     graph_model = fx.symbolic_trace(Arange())
-    mod = from_fx(graph_model, [([10, 10], "float32")]).mod
+    mod = from_fx(graph_model, [([10, 10], "float32")])
     assert len(mod["main"].body.blocks) == 1
     assert len(mod["main"].body.blocks[0].bindings) == 1
     assert isinstance(mod["main"].body.blocks[0].bindings[0].value, relax.Constant)
@@ -1776,7 +1776,7 @@ def test_empty():
             return torch.empty((10, 10), dtype=torch.float32)
 
     graph_model = fx.symbolic_trace(Empty())
-    mod = from_fx(graph_model, [([10, 10], "float32")]).mod
+    mod = from_fx(graph_model, [([10, 10], "float32")])
     assert len(mod["main"].body.blocks) == 1
     assert len(mod["main"].body.blocks[0].bindings) == 1
     assert isinstance(mod["main"].body.blocks[0].bindings[0].value, relax.Constant)
@@ -1803,7 +1803,7 @@ def test_tensor():
             return torch.tensor(3)
 
     graph_model1 = fx.symbolic_trace(Empty1())
-    mod1 = from_fx(graph_model1, [([10, 10], "float32")]).mod
+    mod1 = from_fx(graph_model1, [([10, 10], "float32")])
     assert len(mod1["main"].body.blocks) == 1
     assert len(mod1["main"].body.blocks[0].bindings) == 1
     assert isinstance(mod1["main"].body.blocks[0].bindings[0].value, relax.Constant)
@@ -1811,7 +1811,7 @@ def test_tensor():
     assert mod1["main"].body.blocks[0].bindings[0].value.data.dtype == "float32"
 
     graph_model2 = fx.symbolic_trace(Empty2())
-    mod2 = from_fx(graph_model2, [([10, 10], "float32")]).mod
+    mod2 = from_fx(graph_model2, [([10, 10], "float32")])
     assert len(mod2["main"].body.blocks) == 1
     assert len(mod2["main"].body.blocks[0].bindings) == 1
     assert isinstance(mod2["main"].body.blocks[0].bindings[0].value, relax.Constant)
@@ -2173,6 +2173,7 @@ def test_keep_params():
     import torch
     from torch import fx
     from torch.nn import Module
+    from tvm.relax.frontend import detach_params
     from tvm.relax.frontend.torch import from_fx
 
     class Conv2D1(Module):
@@ -2213,10 +2214,11 @@ def test_keep_params():
 
     model = Conv2D1()
     graph_model = fx.symbolic_trace(model)
-    trace_output = from_fx(graph_model, [([1, 3, 10, 10], "float32")], keep_params_as_input=True)
-    tvm.ir.assert_structural_equal(trace_output.mod, expected1)
-    func = trace_output.mod["main"]
-    params = trace_output.params["main"]
+    mod = from_fx(graph_model, [([1, 3, 10, 10], "float32")], keep_params_as_input=True)
+    mod, params = detach_params(mod)
+    tvm.ir.assert_structural_equal(mod, expected1)
+    func = mod["main"]
+    params = params["main"]
 
     assert len(params) == len(func.params) - 1
     for param_var, param_ndarray in zip(func.params[1:], params):
