@@ -360,6 +360,28 @@ class TorchFXImporter:
         matmul = self.block_builder.emit(relax.op.linear_algebra.matmul(y, z, out_dtype="float32"))
         return self.block_builder.emit(relax.op.add(x, matmul))
 
+    def _baddbmm(self, node: fx.node.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        a = self.env[node.args[1]]
+        b = self.env[node.args[2]]
+        alpha = node.kwargs["alpha"] if "alpha" in node.kwargs else 1
+        beta = node.kwargs["beta"] if "beta" in node.kwargs else 1
+
+        res = None
+        if alpha != 0:
+            res = self.block_builder.emit(relax.op.matmul(a, b))
+            if alpha != 1:
+                dtype = res.struct_info.dtype
+                res = self.block_builder.emit(relax.op.multiply(res, relax.const(alpha, dtype)))
+        if beta != 0:
+            dtype = x.struct_info.dtype
+            if beta != 1:
+                bias = self.block_builder.emit(relax.op.multiply(x, relax.const(beta, dtype)))
+            else:
+                bias = x
+            res = bias if res is None else self.block_builder.emit(relax.op.add(res, bias))
+        return res
+
     ########## Manipulation ##########
 
     def _cat(self, node: fx.node.Node) -> relax.Var:
@@ -661,12 +683,40 @@ class TorchFXImporter:
         # (TODO) this is a temporary implementation for interpolate that only considers NCHW layout
         # it basically replicates the implementation in tvm.relay.frontend.pytorch
         data = self.env[node.args[0]]
-        size = node.kwargs["size"]
-        scale_factor = node.kwargs["scale_factor"]
-        method = node.kwargs["mode"]
-        align_corners = node.kwargs["align_corners"]
-        recompute_scale_factor = node.kwargs["recompute_scale_factor"]
-        antialias = node.kwargs["antialias"]
+        size = (
+            node.args[1]
+            if len(node.args) > 1
+            else (node.kwargs["size"] if "size" in node.kwargs else None)
+        )
+        scale_factor = (
+            node.args[2]
+            if len(node.args) > 2
+            else (node.kwargs["scale_factor"] if "scale_factor" in node.kwargs else None)
+        )
+        method = (
+            node.args[3]
+            if len(node.args) > 3
+            else (node.kwargs["method"] if "method" in node.kwargs else "nearest")
+        )
+        align_corners = (
+            node.args[4]
+            if len(node.args) > 4
+            else (node.kwargs["align_corners"] if "align_corners" in node.kwargs else None)
+        )
+        recompute_scale_factor = (
+            node.args[5]
+            if len(node.args) > 5
+            else (
+                node.kwargs["recompute_scale_factor"]
+                if "recompute_scale_factor" in node.kwargs
+                else None
+            )
+        )
+        antialias = (
+            node.args[6]
+            if len(node.args) > 6
+            else (node.kwargs["antialias"] if "antialias" in node.kwargs else False)
+        )
 
         assert recompute_scale_factor is None
         assert antialias is False
@@ -816,6 +866,7 @@ class TorchFXImporter:
             "astype": self._type,
             "matmul": self._matmul,
             "addmm": self._addmm,
+            "baddbmm": self._baddbmm,
             "bmm": self._matmul,
             "cat": self._cat,
             "expand": self._expand,
