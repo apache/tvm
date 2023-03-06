@@ -24,8 +24,6 @@ from functools import reduce
 import tvm
 from tvm import relax
 
-from ..common import ImporterOutput
-
 
 class TorchFXImporter:
     """An importer from PyTorch FX to Relax."""
@@ -899,7 +897,7 @@ class TorchFXImporter:
 
     def from_fx(
         self, model, input_info: List[Tuple[Tuple[int], str]], keep_params_as_input: bool
-    ) -> ImporterOutput:
+    ) -> tvm.IRModule:
         """Convert a PyTorch FX GraphModule to a Relax program."""
         from torch import fx
 
@@ -918,18 +916,16 @@ class TorchFXImporter:
         # Initialize the block builder with a function and a dataflow block.
         func_name = "main"
         self.block_builder = relax.BlockBuilder()
+        params = []
         if keep_params_as_input:
-            params_ = []
             func_attrs = {"num_input": len(inputs)}
             for name, param in model.named_parameters():
                 shape = param.data.shape
                 dtype = self._convert_data_type(str(param.data.dtype))
                 inputs.append(relax.Var(name, relax.TensorStructInfo(shape, dtype)))
                 self.params[param] = inputs[-1]
-                params_.append(tvm.nd.array(param.data.cpu().numpy()))
-            params = {func_name: params_}
+                params.append(tvm.nd.array(param.data.cpu().numpy()))
         else:
-            params = None
             func_attrs = None
 
         with self.block_builder.function(name=func_name, params=inputs.copy(), attrs=func_attrs):
@@ -977,12 +973,15 @@ class TorchFXImporter:
             assert output is not None
             self.block_builder.emit_func_output(output)
 
-        return ImporterOutput(self.block_builder.get(), params)
+        mod = self.block_builder.get()
+        if keep_params_as_input:
+            mod["main"] = mod["main"].with_attr("params", params)
+        return mod
 
 
 def from_fx(
     model, input_info: List[Tuple[Tuple[int], str]], keep_params_as_input: bool = False
-) -> ImporterOutput:
+) -> tvm.IRModule:
     """Convert a PyTorch FX GraphModule to a Relax program
 
     Parameters
@@ -998,9 +997,12 @@ def from_fx(
 
     Returns
     -------
-    output : ImporterOutput
-        The output of translation, including the translated IRModule, and
-        the weights of the input model when `keep_params_as_input` is true.
+    output : tvm.IRModule
+        The import result IRModule, with the function "main" containing the
+        translated logic.
+        If `keep_params_as_input` is true, the "main" function have an attribute
+        "params" that contains the weights of the input model. The weights
+        can be detached by `relax.frontend.detach_params`.
 
     Examples
     --------
@@ -1043,7 +1045,7 @@ def from_fx(
             raise RuntimeError("Failed to export the PyTorch model to FX.")
 
         # Use the importer to import the PyTorch model to Relax.
-        mod: tvm.IRModule = from_fx(graph_module, input_info).mod
+        mod: tvm.IRModule = from_fx(graph_module, input_info)
 
         # Print out the imported model.
         print(mod.script())
