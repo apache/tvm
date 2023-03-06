@@ -114,7 +114,7 @@ void CodeGenWebGPU::InitFuncState(const PrimFunc& f) {
 
 CodeGenWebGPU::CodeGenWebGPU(Target target) : target_(target) {}
 
-runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f) {
+runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_readonly_decl) {
   // clear previous generated state.
   this->InitFuncState(f);
   // skip the first underscore, so SSA variable starts from
@@ -130,7 +130,7 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f) {
       << "CodeGenWebGPU: Expect PrimFunc to have the global_symbol attribute";
 
   decl_stream << "//----------------------------------------\n"
-              << "// function: " << global_symbol.value() << "\n"
+              << "// Function: " << global_symbol.value() << "\n"
               << "//----------------------------------------\n";
   runtime::FunctionInfo func_info;
   func_info.name = global_symbol.value();
@@ -167,7 +167,7 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f) {
       if (num_buffer != 0) {
         os_param_access << ",";
       }
-      if (info.write_access_set.count(arg)) {
+      if (skip_readonly_decl || info.write_access_set.count(arg)) {
         access_mode = "read_write";
         os_param_access << "1";
       } else {
@@ -208,7 +208,7 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f) {
 
   // add to alloc buffer type.
   // Function header.
-  this->stream << "fn main(\n"
+  this->stream << "fn " << func_info.name << "(\n"
                << "  @builtin(workgroup_id) blockIdx : vec3<u32>,\n"
                << "  @builtin(num_workgroups) gridDim : vec3<u32>,\n"
                << "  @builtin(local_invocation_id) threadIdx : vec3<u32>\n"
@@ -568,15 +568,21 @@ void CodeGenWebGPU::VisitStmt_(const AllocateNode* op) {
 
 void CodeGenWebGPU::VisitStmt_(const ForNode* op) {
   std::string extent = PrintExpr(op->extent);
-  PrintIndent();
   std::string vid = AllocVarID(op->loop_var.get());
   ICHECK(is_zero(op->min));
-  stream << "for (var ";
-  stream << vid << " : ";
+
+  PrintIndent();
+  stream << "var " << vid << " : ";
   PrintType(op->loop_var.dtype(), stream);
-  stream << " = 0; " << vid << " < " << extent << "; " << vid << "++) {\n";
+  stream << " = 0;\n";
+  PrintIndent();
+  stream << "loop {\n";
   int for_scope = BeginScope();
+  PrintIndent();
+  stream << "if " << vid << " >= " << extent << " { break; }\n";
   PrintStmt(op->body);
+  PrintIndent();
+  stream << vid << "++;\n";
   this->EndScope(for_scope);
   PrintIndent();
   stream << "}\n";
@@ -617,11 +623,17 @@ class WebGPUSourceModuleNode final : public runtime::ModuleNode {
   }
 
   std::string GetSource(const std::string& format) final {
-    std::ostringstream os;
-    for (auto kv : smap_) {
-      os << kv.second;
+    if (format == "func_info") {
+      std::ostringstream stream;
+      dmlc::JSONWriter(&stream).Write(fmap_);
+      return stream.str();
+    } else {
+      std::ostringstream os;
+      for (auto kv : smap_) {
+        os << kv.second;
+      }
+      return os.str();
     }
-    return os.str();
   }
 
  private:
@@ -637,9 +649,12 @@ class WebGPUSourceModuleNode final : public runtime::ModuleNode {
 runtime::Module BuildWebGPU(IRModule mod, Target target) {
   mod = tir::transform::PointerValueTypeRewrite()(std::move(mod));
   bool output_ssa = false;
-
+  bool skip_readonly_decl = false;
   std::unordered_map<std::string, std::string> smap;
   std::unordered_map<std::string, runtime::FunctionInfo> fmap;
+
+  // narrow all i64 to i32
+  mod = tir::transform::ForceNarrowIndexToInt32()(std::move(mod));
 
   for (auto kv : mod->functions) {
     CodeGenWebGPU cg(target);
@@ -653,7 +668,7 @@ runtime::Module BuildWebGPU(IRModule mod, Target target) {
         << "CodeGenWebGPU: Expect PrimFunc to have the global_symbol attribute";
     std::string f_name = global_symbol.value();
     cg.Init(output_ssa);
-    fmap[f_name] = cg.AddFunction(f);
+    fmap[f_name] = cg.AddFunction(f, skip_readonly_decl);
     std::string code = cg.Finish();
     smap[f_name] = code;
   }

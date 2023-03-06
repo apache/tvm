@@ -1373,10 +1373,8 @@ export class Instance implements Disposable {
         text += Math.ceil(fetchedBytes / (1024 * 1024)).toString() + "MB fetched "
         text += Math.floor(fetchedBytes * 100 / totalBytes).toString() + "% completed, "
         text += timeElapsed + " secs elapsed";
-        if (timeElapsed != 0){
-          text += ", speed=" + (fetchedBytes / timeElapsed / (1024 * 1024)).toFixed(1) + " MB/sec."
-        }
-        text += " This can take a while during first load.";
+        text += " It can take a while when we first visit this page to populate the cache."
+        text += " Later refreshes will become faster.";
         this.fetchProgressCallback[j]({
           fetchedBytes: fetchedBytes,
           totalBytes: totalBytes,
@@ -1391,7 +1389,7 @@ export class Instance implements Disposable {
         fetchedBytes: 0,
         totalBytes: totalBytes,
         timeElapsed: 0,
-        text: "Start to fetch " + ndarrayCacheUrl
+        text: "Start to fetch params",
       });
     }
     const cache = await caches.open("tvmjs");

@@ -277,6 +277,15 @@ Module MetalModuleCreate(std::string data, std::string fmt,
   return Module(n);
 }
 
+TVM_REGISTER_GLOBAL("runtime.module.create_metal_module")
+    .set_body_typed([](std::string data, std::string fmap_json) {
+      std::istringstream stream(fmap_json);
+      std::unordered_map<std::string, FunctionInfo> fmap;
+      dmlc::JSONReader reader(&stream);
+      reader.Read(&fmap);
+      return MetalModuleCreate(data, "metal", fmap, "");
+    });
+
 // Load module from module.
 Module MetalModuleLoadFile(const std::string& file_name, const std::string& format) {
   std::string data;
