@@ -283,11 +283,15 @@ AssertFrame Assert(PrimExpr condition, String message);
 
 /*!
  * \brief The let binding.
- * \param var The variable to bind.
  * \param value The value to be bound.
+ * \param type_annotation  The type annotation of the let binding.
+ *                         Usually it is used for fine-grained var typing,
+ *                         particularly, PointerType.
+ * \param var The variable to be bound. If not specified, a new variable will be created.
  * \return The created LetFrame.
  */
-LetFrame Let(Var var, PrimExpr value);
+LetFrame LetStmt(PrimExpr value, Optional<Type> type_annotation = NullOpt,
+                 Optional<Var> var = NullOpt);
 
 /*!
  * \brief The realization.
