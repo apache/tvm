@@ -1783,6 +1783,83 @@ def test_forward_where_index():
     input_data = paddle.to_tensor([[1.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 3.0]])
     verify_model(where_index_1, input_data=input_data, use_vm=True)
 
+@tvm.testing.uses_gpu
+def test_forward_silu():
 
+    @paddle.jit.to_static
+    def silu(inputs):
+        return nn.functional.silu(inputs)
+    input_shapes = [[128], [8, 20], [4, 20, 3], [2, 3, 8, 8], [2, 3, 3, 9, 9]]
+    for shape in input_shapes:
+        input_data = paddle.rand(shape, dtype="float32")
+        verify_model(silu, input_data=input_data)
+
+@tvm.testing.uses_gpu
+def test_forward_thresholded_relu():
+    @paddle.jit.to_static
+    def thresholded_relu_0(inputs):
+        return nn.functional.thresholded_relu(inputs, threshold=-1.0)
+    @paddle.jit.to_static
+    def thresholded_relu_1(inputs):
+        return nn.functional.thresholded_relu(inputs, threshold=0.0)
+    @paddle.jit.to_static
+    def thresholded_relu_2(inputs):
+        return nn.functional.thresholded_relu(inputs, threshold=1.0)
+ 
+    input_shapes = [[128], [8, 20], [4, 20, 3], [2, 3, 8, 8], [2, 3, 3, 9, 9]]
+    for shape in input_shapes:
+        input_data = paddle.rand(shape, dtype="float32")
+        verify_model(thresholded_relu_0, input_data=input_data)
+        verify_model(thresholded_relu_1, input_data=input_data)
+        verify_model(thresholded_relu_2, input_data=input_data)
+
+@tvm.testing.uses_gpu
+def test_forward_where():
+    @paddle.jit.to_static
+    def where_0(x, y):
+        return paddle.where(x < y, x, y)
+    
+    @paddle.jit.to_static
+    def where_1(x, y):
+        return paddle.where(x > y, x, y)
+    
+    input_shapes = [[128], [8, 20], [4, 20, 3], [2, 3, 8, 8], [2, 3, 3, 9, 9]]
+    for shape in input_shapes:
+        x = paddle.rand(shape, dtype="float32")
+        y = paddle.rand(shape, dtype="float32")
+        verify_model(where_0, [x, y])
+        verify_model(where_1, [x, y])
+    
+@tvm.testing.uses_gpu
+def test_forward_eye():
+    class eye(nn.Layer):
+        def __init__(self, row=2, col=2):
+            super(eye, self).__init__()
+            self.row = row
+            self.col = col
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            x = inputs
+            y = paddle.eye(self.row, self.col,dtype=x.dtype)
+            assert x.shape ==y.shape ,f"{x.shape},{y.shape}"
+            return x + y
+
+    shapes = [[2,3], [2,2], [4,4], [4,5]]
+    for row, col in shapes:
+        input_data = paddle.randn([row, col],dtype = "float32")
+        verify_model(eye(row = row, col = col), input_data = input_data)
+        input_data = paddle.randn([row, col],dtype = "float64")
+        verify_model(eye(row = row, col = col), input_data = input_data)
+
+@tvm.testing.uses_gpu
+def test_forward_mish():
+    @paddle.jit.to_static
+    def mish(inputs):
+        return nn.functional.mish(inputs)
+    input_shapes = [[128], [8, 20], [4, 20, 3], [2, 3, 8, 8], [2, 3, 3, 9, 9],[2, 2, 2, 3], [1, 3, 5, 5],[10], [2, 3], [5, 10, 11], [3, 4, 5, 6]]
+    for shape in input_shapes:
+        input_data = paddle.rand(shape, dtype="float32")
+        verify_model(mish, input_data=input_data)
+        
 if __name__ == "__main__":
     tvm.testing.main()
