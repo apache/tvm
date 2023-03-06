@@ -427,6 +427,10 @@ LaunchThreadFrame LaunchThread(Var var, PrimExpr extent) {
   return LaunchThreadFrame(n);
 }
 
+LaunchThreadFrame LaunchThread(String thread_tag, PrimExpr extent) {
+  return LaunchThread(EnvThread(thread_tag), extent);
+}
+
 RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, String storage_scope,
                      PrimExpr condition) {
   ObjectPtr<RealizeFrameNode> n = make_object<RealizeFrameNode>();
@@ -658,7 +662,18 @@ TVM_REGISTER_GLOBAL("script.ir_builder.tir.If").set_body_typed(If);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Then").set_body_typed(Then);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Else").set_body_typed(Else);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.DeclBuffer").set_body_typed(DeclBuffer);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.LaunchThread").set_body_typed(LaunchThread);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.LaunchThread")
+    .set_body_typed([](ObjectRef thread_tag_or_var, PrimExpr extent) {
+      if (const auto* var = thread_tag_or_var.as<tvm::tir::VarNode>()) {
+        return LaunchThread(GetRef<tvm::tir::Var>(var), extent);
+      } else if (const auto* str = thread_tag_or_var.as<StringObj>()) {
+        return LaunchThread(GetRef<String>(str), extent);
+      } else {
+        LOG(FATAL) << "ValueError: Unexpected type for TIR LaunchThread: "
+                   << thread_tag_or_var->GetTypeKey();
+        throw;
+      }
+    });
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.EnvThread").set_body_typed(EnvThread);
 
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.BufferStore").set_body_typed(BufferStore);

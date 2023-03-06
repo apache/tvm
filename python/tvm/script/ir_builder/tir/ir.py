@@ -31,7 +31,7 @@ import numpy as np  # type: ignore
 from tvm import tir
 from tvm.ir import Range, Type
 from tvm.ir.base import deprecated
-from tvm.runtime import convert, ndarray
+from tvm.runtime import String, convert, ndarray
 from tvm.target import Target
 
 # pylint: disable=unused-import
@@ -1185,14 +1185,14 @@ def decl_buffer(
 
 
 def launch_thread(
-    iter_var: IterVar,  # pylint: disable=redefined-outer-name
+    thread: Union[IterVar, str],  # pylint: disable=redefined-outer-name
     extent: PrimExpr,
 ) -> frame.LaunchThreadFrame:
     """Launch a thread.
 
     Parameters
     ----------
-    iter_var : IterVar
+    thread : Union[IterVar, str]
         The iteration variable.
 
     extent : PrimExpr
@@ -1213,11 +1213,14 @@ def launch_thread(
     T.launch_thread(brow, 1)
 
     """
-    return _ffi_api.LaunchThread(iter_var, extent)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+    if isinstance(thread, str):
+        thread = String(thread)
+    return _ffi_api.LaunchThread(thread, extent)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def env_thread(thread_tag: str) -> IterVar:
-    """Bind a var to thread env"
+    """Bind a var to thread env
 
     Parameters
     ----------
