@@ -919,7 +919,7 @@ class TorchFXImporter:
         params = []
         if keep_params_as_input:
             func_attrs = {"num_input": len(inputs)}
-            for name, param in model.named_parameters():
+            for name, param in sorted(model.named_parameters(), key=lambda x: x[0]):
                 shape = param.data.shape
                 dtype = self._convert_data_type(str(param.data.dtype))
                 inputs.append(relax.Var(name, relax.TensorStructInfo(shape, dtype)))
