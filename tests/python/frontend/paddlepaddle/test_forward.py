@@ -1062,8 +1062,7 @@ def test_forward_logical_api():
 
         @paddle.jit.to_static
         def forward(self, x, y):
-            out = paddle.to_tensor([True, True, True])
-            z = self.func(x, y, out=out)
+            z = self.func(x, y)
             return paddle.cast(z, "int32")
 
     x_shapes = [[128], [8, 20], [4, 20, 3], [2, 3, 8, 8], [2, 3, 3, 9, 9]]
@@ -1268,7 +1267,7 @@ def test_forward_transpose():
 
         @paddle.jit.to_static
         def forward(self, inputs):
-            inputs = inputs + inputs.size()
+            inputs = inputs * 2
             return paddle.transpose(inputs, perm=self.perm)
 
     input_data = paddle.rand([1, 3, 5, 4, 3], dtype="float32")
