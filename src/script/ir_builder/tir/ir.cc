@@ -381,7 +381,20 @@ AssertFrame Assert(PrimExpr condition, String message) {
   return AssertFrame(n);
 }
 
-LetFrame Let(Var var, PrimExpr value) {
+LetFrame LetStmt(PrimExpr value, Optional<Type> type_annotation, Optional<Var> var) {
+  ObjectPtr<LetFrameNode> n = make_object<LetFrameNode>();
+  if (var.defined()) {
+    n->var = var.value();
+  } else if (type_annotation.defined()) {
+    n->var = Var("v", type_annotation.value());
+  } else {
+    n->var = Var("v", value.dtype());
+  }
+  n->value = value;
+  return LetFrame(n);
+}
+
+LetFrame LegacyLetStmt(Var var, PrimExpr value) {
   ObjectPtr<LetFrameNode> n = make_object<LetFrameNode>();
   n->var = var;
   n->value = value;
@@ -634,7 +647,8 @@ TVM_REGISTER_GLOBAL("script.ir_builder.tir.ThreadBinding").set_body_typed(Thread
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Grid").set_body_typed(Grid);
 
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Assert").set_body_typed(Assert);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Let").set_body_typed(Let);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.LetStmt").set_body_typed(LetStmt);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.LegacyLetStmt").set_body_typed(LegacyLetStmt);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Allocate").set_body_typed(Allocate);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.AllocateConst").set_body_typed(AllocateConst);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Realize").set_body_typed(Realize);

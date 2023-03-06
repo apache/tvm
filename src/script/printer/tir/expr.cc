@@ -211,11 +211,10 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Let>("", [](tir::Let let, ObjectPath p, IRDocsifier d) -> Doc {
-      return TIR(d, "let")->Call({
-          d->AsDoc<ExprDoc>(let->var, p->Attr("var")),
-          d->AsDoc<ExprDoc>(let->value, p->Attr("value")),
-          d->AsDoc<ExprDoc>(let->body, p->Attr("body")),
-      });
+      DictDoc where({d->AsDoc<ExprDoc>(let->var, p->Attr("var"))},
+                    {d->AsDoc<ExprDoc>(let->value, p->Attr("value"))});
+      return TIR(d, "Let")->Call({d->AsDoc<ExprDoc>(let->body, p->Attr("body"))},  //
+                                 {"where"}, {where});
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
