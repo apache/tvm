@@ -297,32 +297,47 @@ bool IsNumber(const ExprDoc& e) {
   return false;
 }
 
-#define TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(NodeType, OpString, OpKind)                      \
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<tir::Div>("", [](tir::Div node, ObjectPath p, IRDocsifier d) -> Doc {
+      ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));
+      ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));
+      PrimExpr ret = tvm::div(node->a, node->b);
+      if (!ret->IsInstance<tir::DivNode>()) {
+        return TIR(d, "Div")->Call({a, b});
+      }
+      if ((node->a->dtype.is_int() || node->a->dtype.is_uint()) &&
+          (node->b->dtype.is_int() || node->b->dtype.is_uint())) {
+        return TIR(d, "Div")->Call({a, b});
+      }
+      return OperationDoc(OperationDocNode::Kind::kDiv, {a, b});
+    });
+
+#define TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(NodeType, NodeObj, NodeFunc, OpString, OpKind)   \
   TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)                                                      \
       .set_dispatch<tir::NodeType>("",                                                            \
                                    [](tir::NodeType node, ObjectPath p, IRDocsifier d) -> Doc {   \
                                      ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));        \
                                      ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));        \
-                                     if (IsNumber(a) && IsNumber(b)) {                            \
+                                     PrimExpr ret = tvm::NodeFunc(node->a, node->b);              \
+                                     if (!ret->IsInstance<tir::NodeObj>()) {                      \
                                        return TIR(d, OpString)->Call({a, b});                     \
                                      }                                                            \
                                      return OperationDoc(OperationDocNode::Kind::OpKind, {a, b}); \
                                    });
 
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Add, "Add", kAdd);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Sub, "Sub", kSub);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Mul, "Mul", kMult);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Div, "Div", kDiv);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(FloorDiv, "FloorDiv", kFloorDiv);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(FloorMod, "FloorMod", kMod);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LT, "LT", kLt);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LE, "LE", kLtE);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(EQ, "EQ", kEq);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(NE, "NE", kNotEq);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(GT, "GT", kGt);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(GE, "GE", kGtE);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(And, "And", kAnd);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Or, "Or", kOr);
+TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Add, AddNode, add, "Add", kAdd);
+TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Sub, SubNode, sub, "Sub", kSub);
+TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Mul, MulNode, mul, "Mul", kMult);
+TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(FloorDiv, FloorDivNode, floordiv, "FloorDiv", kFloorDiv);
+TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(FloorMod, FloorModNode, floormod, "FloorMod", kMod);
+TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LT, LTNode, less, "LT", kLt);
+TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LE, LENode, less_equal, "LE", kLtE);
+TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(EQ, EQNode, equal, "EQ", kEq);
+TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(NE, NENode, not_equal, "NE", kNotEq);
+TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(GT, GTNode, greater, "GT", kGt);
+TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(GE, GENode, greater_equal, "GE", kGtE);
+TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(And, AndNode, logical_and, "And", kAnd);
+TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Or, OrNode, logical_or, "Or", kOr);
 
 TVM_SCRIPT_PRINTER_DEF_BINARY(Mod, "truncmod");
 TVM_SCRIPT_PRINTER_DEF_BINARY(Min, "min");
