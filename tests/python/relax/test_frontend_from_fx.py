@@ -2230,6 +2230,35 @@ def test_keep_params():
 
 
 @tvm.testing.requires_gpu
+def test_unwrap_unit_return_tuple():
+    import torch.fx as fx
+    from torch.nn import Module
+    from tvm.relax.frontend.torch import from_fx
+
+    class Identity(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x):
+            return (x,)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32")
+        ) -> R.Tensor((256, 256), dtype="float32"):
+            with R.dataflow():
+                gv: R.Tensor((256, 256), dtype="float32") = inp_0
+                R.output(gv)
+            return gv
+
+    graph_model = fx.symbolic_trace(Identity())
+    mod = from_fx(graph_model, [([256, 256], "float32")], unwrap_unit_return_tuple=True)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+@tvm.testing.requires_gpu
 def test_argmax():
     import torch
     from torch.nn import Module

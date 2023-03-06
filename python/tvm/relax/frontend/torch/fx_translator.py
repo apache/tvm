@@ -896,7 +896,11 @@ class TorchFXImporter:
         }
 
     def from_fx(
-        self, model, input_info: List[Tuple[Tuple[int], str]], keep_params_as_input: bool
+        self,
+        model,
+        input_info: List[Tuple[Tuple[int], str]],
+        keep_params_as_input: bool,
+        unwrap_unit_return_tuple: bool,
     ) -> tvm.IRModule:
         """Convert a PyTorch FX GraphModule to a Relax program."""
         from torch import fx
@@ -947,7 +951,15 @@ class TorchFXImporter:
                         self.env[node] = inputs.pop(0)
                     elif node.op == "output":
                         args = self.retrieve_args(node)
-                        output = self.block_builder.emit_output(args[0])
+                        assert len(args) == 1
+                        if (
+                            unwrap_unit_return_tuple
+                            and isinstance(args[0], (tuple, relax.Tuple))
+                            and len(args[0]) == 1
+                        ):
+                            output = self.block_builder.emit_output(args[0][0])
+                        else:
+                            output = self.block_builder.emit_output(args[0])
                         break
                     elif node.op == "get_attr":
                         self.env[node] = TorchFXImporter._fetch_attr(model, node.target)
@@ -980,7 +992,11 @@ class TorchFXImporter:
 
 
 def from_fx(
-    model, input_info: List[Tuple[Tuple[int], str]], keep_params_as_input: bool = False
+    model,
+    input_info: List[Tuple[Tuple[int], str]],
+    *,
+    keep_params_as_input: bool = False,
+    unwrap_unit_return_tuple: bool = False,
 ) -> tvm.IRModule:
     """Convert a PyTorch FX GraphModule to a Relax program
 
@@ -994,6 +1010,10 @@ def from_fx(
 
     keep_params_as_input : bool
         Whether to keep model parameters as input variables.
+
+    unwrap_unit_return_tuple : bool
+        A boolean flag indicating if to the return value when it is an unit tuple.
+        When the return value is not a unit tuple, no unwrap will take place.
 
     Returns
     -------
@@ -1062,4 +1082,6 @@ def from_fx(
     to print out the tabular representation of the PyTorch module, and then
     check the placeholder rows in the beginning of the tabular.
     """
-    return TorchFXImporter().from_fx(model, input_info, keep_params_as_input)
+    return TorchFXImporter().from_fx(
+        model, input_info, keep_params_as_input, unwrap_unit_return_tuple
+    )
