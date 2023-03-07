@@ -74,9 +74,15 @@ def get_dll_directories():
 
     dll_path.append(install_lib_dir)
 
-    if os.path.isdir(source_dir):
-        dll_path.append(os.path.join(source_dir, "web", "dist", "wasm"))
-        dll_path.append(os.path.join(source_dir, "web", "dist"))
+    # use extra TVM_HOME environment for finding libraries.
+    if os.environ.get("TVM_HOME", None):
+        tvm_source_home_dir = os.environ["TVM_HOME"]
+    else:
+        tvm_source_home_dir = source_dir
+
+    if os.path.isdir(tvm_source_home_dir):
+        dll_path.append(os.path.join(tvm_source_home_dir, "web", "dist", "wasm"))
+        dll_path.append(os.path.join(tvm_source_home_dir, "web", "dist"))
 
     dll_path = [os.path.realpath(x) for x in dll_path]
     return [x for x in dll_path if os.path.isdir(x)]

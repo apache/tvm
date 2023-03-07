@@ -19,11 +19,13 @@
 import sys
 import os
 import json
+import shutil
 from typing import Mapping, Union
 
 import numpy as np
 
 import tvm
+from tvm._ffi.libinfo import find_lib_path
 from .emcc import create_tvmjs_wasm
 
 
@@ -170,3 +172,31 @@ def load_ndarray_cache(cachepath: str, device: tvm.runtime.Device):
             arr.copyfrom(data)
         result_dict[name] = arr
     return result_dict, json_info["metadata"]
+
+
+def export_runtime(runtime_dir):
+    """Export TVMJS runtime to the runtime_dir
+
+    Parameters
+    ----------
+    runtime_dir: str
+        The runtime directory
+    """
+    web_hint = (
+        "make sure you setup tvm web runtime correctly."
+        + " obtain a copy of TVM source code, set TVM_HOME env variable:\n"
+        + " cd /path/to/tvm/web; make; npm run bundle"
+    )
+
+    jsbundle = find_lib_path("tvmjs.bundle.js", optional=True)
+    if not jsbundle:
+        raise RuntimeError("Cannot find tvmjs.bundle.js, " + web_hint)
+
+    wasi = find_lib_path("tvmjs_runtime.wasi.js", optional=True)
+    if not wasi:
+        raise RuntimeError("Cannot find tvmjs_runtime.wasi.js, " + web_hint)
+
+    print(f"Copy {jsbundle[0]} to {runtime_dir}")
+    shutil.copy(jsbundle[0], runtime_dir)
+    print(f"Copy {wasi[0]} to {runtime_dir}")
+    shutil.copy(wasi[0], runtime_dir)

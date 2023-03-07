@@ -335,32 +335,8 @@ void CodeGenWebGPU::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLIN
     this->PrintExpr(EnforceU32(op->args[1]), os);
     os << ')';
   } else if (op->op.same_as(builtin::if_then_else())) {
+    // WebGPU will insert clamping in buffer access so no need to check OOB.
     this->PrintExpr(Select(op->args[0], op->args[1], op->args[2]), os);
-    return;
-    // conditional that skips eval if cond evals to false
-    std::string result = name_supply_->FreshName("condval");
-    std::string cond = PrintExpr(op->args[0]);
-    this->PrintIndent();
-    this->stream << "var " << result << " : ";
-    PrintType(op->dtype, this->stream);
-    this->stream << ";\n";
-    this->PrintIndent();
-    this->stream << "if (" << cond << ") {\n";
-    {
-      int then_scope = this->BeginScope();
-      std::string true_val = PrintExpr(op->args[1]);
-      this->PrintIndent();
-      this->stream << result << " = " << true_val << ";\n} else {\n";
-      this->EndScope(then_scope);
-    }
-    {
-      int else_scope = this->BeginScope();
-      std::string false_val = PrintExpr(op->args[2]);
-      this->PrintIndent();
-      this->stream << result << " = " << false_val << ";\n}\n";
-      this->EndScope(else_scope);
-    }
-    os << result;
   } else {
     CodeGenC::VisitExpr_(op, os);
   }
@@ -570,19 +546,12 @@ void CodeGenWebGPU::VisitStmt_(const ForNode* op) {
   std::string extent = PrintExpr(op->extent);
   std::string vid = AllocVarID(op->loop_var.get());
   ICHECK(is_zero(op->min));
-
   PrintIndent();
-  stream << "var " << vid << " : ";
+  stream << "for (var " << vid << " : ";
   PrintType(op->loop_var.dtype(), stream);
-  stream << " = 0;\n";
-  PrintIndent();
-  stream << "loop {\n";
+  stream << " = 0; " << vid << " < " << extent << "; " << vid << "++) {\n";
   int for_scope = BeginScope();
-  PrintIndent();
-  stream << "if " << vid << " >= " << extent << " { break; }\n";
   PrintStmt(op->body);
-  PrintIndent();
-  stream << vid << "++;\n";
   this->EndScope(for_scope);
   PrintIndent();
   stream << "}\n";
