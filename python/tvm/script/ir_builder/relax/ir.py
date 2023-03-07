@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union, Callable
 import tvm
 from tvm import DataType, relax
 from tvm.ir import PrimExpr
-from tvm.relax import Call, Expr, ExternFunc, TupleGetItem, Var, VarBinding, const
+from tvm.relax import Call, Expr, ExternFunc, TupleGetItem, ShapeExpr, Var, VarBinding, const
 from tvm.relax.block_builder import BlockBuilder as rx_bb
 
 ############################### Operators ###############################
@@ -113,6 +113,7 @@ from tvm.relax.op import (
     tril,
     triu,
     unique,
+    vm,
     where,
     zeros,
     zeros_like,
@@ -598,6 +599,7 @@ __all__ = [
     "round",
     "shape",
     "shape_of",
+    "ShapeExpr",
     "std",
     "str",
     "strided_slice",
@@ -621,6 +623,7 @@ __all__ = [
     "tuple",
     "unique",
     "variance",
+    "vm",
     "where",
     "zeros",
     "zeros_like",

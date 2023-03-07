@@ -1065,19 +1065,34 @@ def test_arith_operators():
     _check(foo, bb.get()["foo"])
 
 
-# TODO(relax-team): enable this when vm ops are ready
-@pytest.mark.xfail
+def test_memory_ops():
+    @R.function
+    def foo(x: R.Tensor(("m", "n"), dtype="float32")):
+        m = T.int64()
+        n = T.int64()
+        storage = R.memory.alloc_storage(
+            R.shape([4 * m * n]), virtual_device_index=0, storage_scope="global", dtype="float32"
+        )
+        alloc = R.memory.alloc_tensor(storage, offset=0, shape=R.shape([m, n]), dtype="float32")
+        tensor = R.builtin.alloc_tensor(R.shape([m, n]), dtype="float32", runtime_device_index=0)
+        gv = tensor
+        return alloc, gv
+
+    _check(foo)
+
+
 def test_vm_ops():
     @R.function
     def foo(x: R.Tensor(("m", "n"), dtype="float32")):
         m = T.int64()
         n = T.int64()
-        storage = R.vm.alloc_storage(R.shape([4 * m * n]), dtype="float32", runtime_device_index=0)
-        alloc = R.vm.alloc_tensor(storage, shape=R.shape([m, n]), offset=0, dtype="float32")
+        storage = R.vm.alloc_storage(R.shape([4 * m * n]), runtime_device_index=0, dtype="float32")
+        alloc = R.vm.alloc_tensor(storage, offset=0, shape=R.shape([m, n]), dtype="float32")
         tensor = R.builtin.alloc_tensor(R.shape([m, n]), dtype="float32", runtime_device_index=0)
-        _ = R.vm.call_tir_dyn("te_func", (x, tensor, (m, n)))
-        gv = tensor
-        return alloc, gv
+        tir_dym = R.vm.call_tir_dyn("te_func", (x, tensor, R.ShapeExpr((m, n))))
+        return alloc, tir_dym
+
+    _check(foo)
 
 
 def test_prim_value():

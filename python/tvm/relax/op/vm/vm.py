@@ -13,35 +13,31 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
-"""Relax memory primitives."""
+"""Relax vm primitives."""
 
 from typing import Union
 from . import _ffi_api
-from ...expr import Expr, Call, PrimValue, DataTypeImm, StringImm
+from ...expr import Expr, Call, PrimValue, DataTypeImm, Tuple
 from ...utils import args_converter
 
 
 @args_converter.auto
 def alloc_storage(
     size: Expr,
-    virtual_device_index: Union[int, Expr],
-    storage_scope: Union[str, Expr],
+    runtime_device_index: Union[int, Expr],
     dtype: Union[str, Expr],
 ) -> Call:
-    """Construct a Call to allocate a storage with specific size, virtual_device_index,
-    storage_scope and dtype.
+    """Construct a Call to allocate a storage with specific size,
+    runtime_device_index, and dtype.
 
     Parameters
     ----------
     size : Expr
         The size of the storage to be allocated.
 
-    virtual_device_index : Union[int, Expr]
-        The virtual device index indicating on which device the storage is to be allocated.
-        Index -1 is reserved for the host device.
-
-    storage_scope : Union[str, Expr]
-        The storage scope to allocate the storage to.
+    runtime_device_index : Union[int, Expr]
+        The device index indicating on which device the tensor is to
+        be allocated at runtime. Index -1 is reserved for the host device.
 
     dtype : Union[str, Expr]
         The datatype of the storage to be allocated.
@@ -53,11 +49,9 @@ def alloc_storage(
     """
     if isinstance(dtype, str):
         dtype = DataTypeImm(dtype)
-    if isinstance(storage_scope, str):
-        storage_scope = StringImm(storage_scope)
-    if isinstance(virtual_device_index, int):
-        virtual_device_index = PrimValue(virtual_device_index)
-    return _ffi_api.alloc_storage(size, virtual_device_index, storage_scope, dtype)  # type: ignore
+    if isinstance(runtime_device_index, int):
+        runtime_device_index = PrimValue(runtime_device_index)
+    return _ffi_api.alloc_storage(size, runtime_device_index, dtype)  # type: ignore
 
 
 @args_converter.auto
@@ -93,34 +87,23 @@ def alloc_tensor(
 
 
 @args_converter.auto
-def kill_storage(storage: Expr) -> Call:
+def call_tir_dyn(func: Expr, args: Tuple) -> Call:
     """Construct a Call to kill a storage.
 
     Parameters
     ----------
-    storage : Expr
+    func : Expr
         The storage to be killed.
 
-    Returns
-    -------
-    result : Call
-        A relax Call to kill a storage.
-    """
-    return _ffi_api.kill_storage(storage)  # type: ignore
-
-
-@args_converter.auto
-def kill_tensor(tensor: Expr) -> Call:
-    """Construct a Call to kill a tensor.
-
-    Parameters
-    ----------
-    tensor : Expr
-        The tensor to be killed.
+    args : Tuple
+        The input args, includes a list of tensors, and a ShapeExpr.
 
     Returns
     -------
     result : Call
-        A relax Call to kill a tensor.
+        A relax Call to call_tir_dyn.
     """
-    return _ffi_api.kill_tensor(tensor)  # type: ignore
+    if isinstance(args, (list, tuple)):
+        args = Tuple(args)
+
+    return _ffi_api.call_tir_dyn(func, args)  # type: ignore
