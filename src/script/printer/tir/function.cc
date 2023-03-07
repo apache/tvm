@@ -92,8 +92,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           tir::Buffer buffer = func->buffer_map[var];
           if (IsSimpleBuffer(buffer) && buffer_data_counter.at(buffer->data.get()) == 1) {
             ObjectPath buffer_p = p->Attr("buffer_map")->MapValue(var);
-            args.push_back(AssignDoc(DefineBuffer(buffer, *f, d), NullOpt,
-                                     BufferAttn(buffer, buffer_p, *f, d)));
+            IdDoc lhs = DefineBuffer(buffer, *f, d);
+            ExprDoc annotation = BufferAttn(buffer, buffer_p, *f, d);
+            args.push_back(AssignDoc(lhs, NullOpt, annotation));
             buffer_inlined.insert(buffer.get());
             continue;
           }
@@ -117,7 +118,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           }
           ExprDoc param_doc = args[i]->lhs;
           ObjectPath buffer_p = p->Attr("buffer_map")->MapValue(param);
-          ExprDoc lhs = DefineBuffer(buffer, *f, d);  // TODO(@junrushao): switch `lhs` and `rhs`
+          ExprDoc lhs = DefineBuffer(buffer, *f, d);
           ExprDoc rhs = BufferDecl(buffer, "match_buffer", {param_doc}, buffer_p, *f, d);
           (*f)->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
         }
