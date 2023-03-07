@@ -391,6 +391,14 @@ DeclBufferFrame DeclBuffer(Array<PrimExpr> shape, DataType dtype, String buffer_
 LaunchThreadFrame LaunchThread(Var var, PrimExpr extent);
 
 /*!
+ * \brief Launch a new thread.
+ * \param thread_tag The thread type tag.
+ * \param extent The extent of environment thread.
+ * \return The result LaunchThreadFrame.
+ */
+LaunchThreadFrame LaunchThread(String thread_tag, PrimExpr extent);
+
+/*!
  * \brief Bind a var to thread env.
  * \param thread_tag The thread type tag.
  * \return The result variable which gets bound to the thread env.
