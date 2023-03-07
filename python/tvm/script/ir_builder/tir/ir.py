@@ -138,6 +138,10 @@ def buffer(
         The declared buffer.
     """
     shape = (shape,) if isinstance(shape, (PrimExpr, Integral)) else shape
+    if strides is not None:
+        strides = [Var(s, "int32") if isinstance(s, str) else s for s in strides]
+    else:
+        strides = []
     return _ffi_api.Buffer(  # type: ignore[attr-defined] # pylint: disable=no-member
         shape,
         dtype,
@@ -304,7 +308,9 @@ def match_buffer(
         else:
             raise ValueError("Shape must be specified when binding input param")
     shape = (shape,) if isinstance(shape, (PrimExpr, Integral)) else shape
-    if strides is None:
+    if strides is not None:
+        strides = [Var(s, "int32") if isinstance(s, str) else s for s in strides]
+    else:
         strides = []
     return _ffi_api.MatchBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
         param,
@@ -472,7 +478,9 @@ def alloc_buffer(
         The allocated buffer.
     """
     shape = (shape,) if isinstance(shape, (PrimExpr, Integral)) else shape
-    if strides is None:
+    if strides is not None:
+        strides = [Var(s, "int32") if isinstance(s, str) else s for s in strides]
+    else:
         strides = []
     return _ffi_api.AllocBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
         shape,
@@ -1169,6 +1177,10 @@ def decl_buffer(
         The result DeclBufferFrame.
     """
     shape = (shape,) if isinstance(shape, (PrimExpr, Integral)) else shape
+    if strides is not None:
+        strides = [Var(s, "int32") if isinstance(s, str) else s for s in strides]
+    else:
+        strides = []
     return _ffi_api.DeclBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
         shape,
         dtype,

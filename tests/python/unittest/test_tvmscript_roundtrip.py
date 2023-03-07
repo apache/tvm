@@ -3572,6 +3572,57 @@ def let_stmt_value():
     return func
 
 
+def string_stride():
+    @T.prim_func
+    def main(a: T.handle, b: T.handle):
+        T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+        n = T.int32()
+        A = T.match_buffer(a, (n,), strides=("A_s0",), buffer_type="auto")
+        B = T.match_buffer(b, (n,), strides=("B_s0",), buffer_type="auto")
+        blockIdx_x = T.launch_thread("blockIdx.x", (n + 63) // 64)
+        threadIdx_x = T.launch_thread("threadIdx.x", 64)
+        if T.likely(blockIdx_x * 64 + threadIdx_x < n):
+            B2 = T.Buffer((B.strides[0] * n,), data=B.data)
+            A2 = T.Buffer((A.strides[0] * n,), data=A.data)
+            B2[(blockIdx_x * 64 + threadIdx_x) * B.strides[0]] = A2[
+                (blockIdx_x * 64 + threadIdx_x) * A.strides[0]
+            ] * T.float32(2)
+
+    return main
+
+
+def merge_shape_var_def():
+    @T.prim_func
+    def main(A: T.handle, B: T.handle):
+        T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+        m, n = T.int32(), T.int32()
+        A_1 = T.match_buffer(A, (m, n), strides=("A_1_s0", "A_1_s1"), buffer_type="auto")
+        B_1 = T.match_buffer(B, (m, n), strides=("B_1_s0", "B_1_s1"), buffer_type="auto")
+        for i_outer, j_outer, i_inner in T.grid((m + 9) // 10, (n + 4) // 5, 10):
+            if T.likely(i_outer * 10 + i_inner < m):
+                for j_inner in range(5):
+                    if T.likely(j_outer * 5 + j_inner < n):
+                        cse_var_2: T.int32 = j_outer * 5 + j_inner
+                        cse_var_1: T.int32 = i_outer * 10 + i_inner
+                        B_2 = T.Buffer(
+                            (B_1.strides[0] * m,),
+                            data=B_1.data,
+                            strides=("B_2_s0",),
+                            buffer_type="auto",
+                        )
+                        A_2 = T.Buffer(
+                            (A_1.strides[0] * m,),
+                            data=A_1.data,
+                            strides=("A_2_s0",),
+                            buffer_type="auto",
+                        )
+                        B_2[cse_var_1 * B_1.strides[0] + cse_var_2 * B_1.strides[1]] = A_2[
+                            cse_var_1 * A_1.strides[0] + cse_var_2 * A_1.strides[1]
+                        ]
+
+    return main
+
+
 ir_generator = tvm.testing.parameter(
     launch_env_thread,
     opt_gemm_normalize,
@@ -3633,6 +3684,8 @@ ir_generator = tvm.testing.parameter(
     intrinsic_pow,
     let_stmt_var,
     let_stmt_value,
+    string_stride,
+    merge_shape_var_def,
 )
 
 

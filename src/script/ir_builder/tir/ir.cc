@@ -32,6 +32,8 @@ Buffer BufferDecl(Array<PrimExpr> shape, DataType dtype, String buffer_name, Opt
                   Optional<Array<PrimExpr>> strides, Optional<PrimExpr> elem_offset,
                   String storage_scope, int align, int offset_factor, String buffer_type,
                   Optional<Array<IntImm>> axis_separators) {
+  CHECK(buffer_type == "auto" || buffer_type == "default" || buffer_type.empty())
+      << "ValueError: `buffer_type` must be `auto` or `default` or empty";
   Var buffer_data;
   if (!data.defined()) {
     DataType storage_dtype = dtype;
@@ -48,7 +50,7 @@ Buffer BufferDecl(Array<PrimExpr> shape, DataType dtype, String buffer_name, Opt
   }
   return Buffer(buffer_data, dtype, shape, strides.value_or(Array<PrimExpr>()),
                 elem_offset.value_or(PrimExpr()), buffer_name, align, offset_factor,
-                (buffer_type == "auto_broadcast") ? tvm::tir::kAutoBroadcast : tvm::tir::kDefault,
+                (buffer_type == "auto" ? tvm::tir::kAutoBroadcast : tvm::tir::kDefault),
                 axis_separators.value_or(Array<IntImm>()));
 }
 
