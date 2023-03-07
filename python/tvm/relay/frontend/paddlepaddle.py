@@ -2138,9 +2138,8 @@ def convert_thresholded_relu(g, op, block):
     dtype = infer_type(x).checked_type.dtype
     threshold = op.attr("threshold")
     threshold = _expr.const(threshold, dtype)
-    zero = _expr.const(0.0, dtype)
-    condition = tvm.relay.greater(x, threshold)
-    out = tvm.relay.where(condition, x, zero)
+    zero = _expr.const(0, dtype=dtype)
+    out = tvm.relay.where(x > threshold, x, zero)
     g.add_node(op.output("Out")[0], out)
 
 
