@@ -19,6 +19,7 @@
 
 #include <unordered_set>
 
+#include "../../analysis/var_use_def_analysis.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -1205,7 +1206,9 @@ Buffer CreateReindexBuffer(const Buffer& buffer, const Array<IterVar>& block_ite
   return Buffer(new_buffer);
 }
 
-/*! \brief The schedule error that the target is not a leaf block. */
+/*!
+ * \brief The schedule error that the target is not a leaf block.
+ */
 class NotLeafBlockError : public ScheduleError {
  public:
   NotLeafBlockError(IRModule mod, Block block) : mod_(std::move(mod)), block_(std::move(block)) {}
@@ -1604,16 +1607,6 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
   return result_block_sref;
 }
 
-/*! \brief A visitor that collects variables appeared in expressions, stored in `touched` field.*/
-class VarCollector : public ExprVisitor {
- public:
-  VarCollector() {}
-  std::unordered_set<const VarNode*> touched;
-
- private:
-  void VisitExpr_(const VarNode* op) final { touched.insert(op); }
-};
-
 Array<StmtSRef> GetLoopsUnderScope(const StmtSRef& block_sref, const StmtSRef& top_sref) {
   std::vector<StmtSRef> result;
   for (StmtSRefNode* parent = block_sref->parent; parent && parent->stmt->IsInstance<ForNode>();
@@ -1624,7 +1617,8 @@ Array<StmtSRef> GetLoopsUnderScope(const StmtSRef& block_sref, const StmtSRef& t
   return {result.rbegin(), result.rend()};
 }
 
-/*! \brief The schedule error that block iter vars appears in old buffer and new
+/*!
+ * \brief The schedule error that block iter vars appears in old buffer and new
  * allocated cache buffer does not match.
  */
 class ReindexCacheReadWriteNotMatchError : public ScheduleError {
@@ -1692,7 +1686,7 @@ void CollectReindexCacheStageInfoAndCreateBuffer(
   info->indices = new_indices;
 
   // Step 5. Update CacheTouchedInfo
-  VarCollector collector_old;
+  VarUseDefAnalyzer collector_old;
   Array<PrimExpr> old_indices;
   for (const Range& range : cache_region->region) {
     collector_old(range->min);
@@ -1701,17 +1695,17 @@ void CollectReindexCacheStageInfoAndCreateBuffer(
 
   arith::Analyzer analyzer;
 
-  VarCollector collector_new;
+  VarUseDefAnalyzer collector_new;
   for (const PrimExpr& idx : new_indices) {
     collector_new(idx);
   }
 
-  VarCollector collector_iter_values;
+  VarUseDefAnalyzer collector_iter_values;
   for (size_t i = 0; i < block->iter_vars.size(); ++i) {
     const IterVar& block_iter_var = block->iter_vars[i];
     const PrimExpr& block_iter_value = realize->iter_values[i];
-    bool appears_in_new = collector_new.touched.count(block_iter_var->var.get());
-    bool appears_in_old = collector_old.touched.count(block_iter_var->var.get());
+    bool appears_in_new = collector_new.use_count_.count(block_iter_var->var.get());
+    bool appears_in_old = collector_old.use_count_.count(block_iter_var->var.get());
     if (appears_in_new != appears_in_old) {
       throw ReindexCacheReadWriteNotMatchError(mod, block, block_iter_var->var, old_indices,
                                                new_indices, is_cache_read, appears_in_old);
@@ -1725,7 +1719,7 @@ void CollectReindexCacheStageInfoAndCreateBuffer(
 
   for (const StmtSRef& loop_sref : GetLoopsUnderScope(block_sref, info->loc_sref)) {
     const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-    if (collector_iter_values.touched.count(loop->loop_var.get())) {
+    if (collector_iter_values.use_count_.count(loop->loop_var.get())) {
       info->loop_vars.push_back(loop->loop_var);
       info->loop_ranges.push_back(Range::FromMinExtent(loop->min, loop->extent));
     }
