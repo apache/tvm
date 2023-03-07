@@ -3884,5 +3884,4 @@ def test_inline_with_get_child_blocks():
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_inline_with_get_child_blocks()
+    tvm.testing.main()
