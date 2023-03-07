@@ -299,7 +299,7 @@ def test_shape_expr():
 def test_call():
     x = tir.Var("x", "int64")
     a = relax.Var("a", relax.TensorStructInfo([1, x, 3], "float32"))
-    o0 = relax.call_tir("tir_func", args=a, out_sinfo=a.struct_info, tir_vars=[x])
+    o0 = relax.call_tir(relax.GlobalVar("tir_func"), args=a, out_sinfo=a.struct_info, tir_vars=[x])
     o1 = relax.call_dps_packed("my_dps_func", args=a, out_sinfo=a.struct_info)
     _assert_print(
         o0,

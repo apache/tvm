@@ -250,6 +250,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     } else {
       Malformed(Diagnostic::Error(op) << "The called expression must be a leaf expression");
     }
+
     for (size_t i = 0; i < op->args.size(); i++) {
       Expr arg = op->args[i];
       if (IsLeafOrTuple(arg)) {
@@ -258,6 +259,19 @@ class WellFormedChecker : public relax::ExprVisitor,
         Malformed(Diagnostic::Error(arg->span)
                   << "Call is not in ANF form, arg " << i << " gets " << arg->GetTypeKey());
       }
+    }
+
+    // call_tir works for tir PrimFunc, call_dps_packed works for ExternFunc
+    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
+    if (op->op == call_tir_op && !op->args[0]->IsInstance<GlobalVarNode>()) {
+      Malformed(Diagnostic::Error(op->args[0]->span)
+                << "call_tir expects a prim_func, but gets " << op->args[0]->GetTypeKey());
+    }
+    if (op->op == call_dps_packed_op && !op->args[0]->IsInstance<ExternFuncNode>()) {
+      Malformed(Diagnostic::Error(op->args[0]->span)
+                << "call_dps_packed expects an extern func, but gets "
+                << op->args[0]->GetTypeKey());
     }
 
     for (const StructInfo& sinfo_arg : op->sinfo_args) {

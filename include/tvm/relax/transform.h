@@ -83,18 +83,11 @@ TVM_DLL Pass LambdaLift();
 TVM_DLL Pass ToNonDataflow();
 
 /*!
- * \brief Perform explicit tensor allocation for call_tir.
+ * \brief Perform explicit tensor allocation for call_tir and call_dps_packed.
  *
  * \return The Pass.
  */
 TVM_DLL Pass CallTIRRewrite();
-
-/*!
- * \brief Perform explicit tensor allocation for call_dps_packed.
- *
- * \return The Pass.
- */
-TVM_DLL Pass CallDPSPackedRewrite();
 
 /*!
  * \brief Convert all reshape-like call_tir whose corresponding binding

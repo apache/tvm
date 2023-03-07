@@ -714,7 +714,7 @@ class TestVMSetInput:
 
     @R.function
     def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Tensor:
-        gv0 = R.call_dps_packed("test_vm_mul", (x, w), R.Tensor((32, 32), dtype="float32"))
+        gv0 = R.call_tir(test_vm_mul, (x, w), R.Tensor((32, 32), dtype="float32"))
         return gv0
 
 

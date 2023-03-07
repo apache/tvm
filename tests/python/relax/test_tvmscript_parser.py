@@ -115,15 +115,34 @@ def test_unexpected_tir_cast_args():
             return R.call_tir("foo", (x,), R.Tensor((T.cast("int32", m, 1),), dtype="float32"))
 
 
-def test_unexpected_tir_max_args():
+def test_unexpected_tir_args():
+
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @tvm.script.ir_module
+        class TestWellCallTIR:
+            @T.prim_func
+            def tir_addone(A: T.Buffer((16, 16), "int32"), B: T.Buffer((16, 16), "int32")) -> None:
+                T.func_attr(({"global_symbol": "tir_addone"}))
+                for i, j in T.grid(16, 16):
+                    with T.block("tir_addone"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] + T.int32(1)
+
+            @R.function
+            def foo(x: R.Tensor(("m", "m"), "float32")):
+                m = T.int64()
+                # tir.max expects 2 arguments, but got 1
+                gv = R.call_tir(tir_addone, (x,), R.Tensor((T.max(16),), dtype="float32"))
+                return gv
 
     with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function
         def f(x: R.Tensor(("m", "n"), "float32")):
             m = T.int64()
-            # tir.max expects 2 arguments, but got 1
-            return relax.call_tir("foo", (x,), R.Tensor((T.max(m),), dtype="float32"))
+            # call_tir expected a tir prim_func
+            return relax.call_tir("extern_func", (x,), R.Tensor((T.max(m),), dtype="float32"))
 
 
 def test_func_type_annotation_fail():
@@ -724,10 +743,10 @@ def test_annotate_override():
     assert isinstance(z_bind.var.struct_info, relax.TensorStructInfo)
 
 
-def test_call_tir_empty_shape():
+def test_call_dps_packed_empty_shape():
     @R.function
     def foo(x: R.Tensor((), "float32")):
-        z = R.call_tir("scalar_add", x, R.Tensor((), dtype="float32"))
+        z = R.call_dps_packed("scalar_add", x, R.Tensor((), dtype="float32"))
         return z
 
     (z_bind,) = foo.body.blocks[0].bindings

@@ -127,8 +127,8 @@ def test_call_dps_packed_rewrite():
     assert isinstance(s0, relax.Call)
     assert s0.op.name == "relax.call_dps_packed"
 
-    # after rewrite
-    new_mod = relax.transform.CallDPSPackedRewrite()(mod)
+    # CallTIRRewrite also works for call_dps_packed
+    new_mod = relax.transform.CallTIRRewrite()(mod)
     func = new_mod["foo"]
 
     block = func.body.blocks[0]

@@ -440,6 +440,55 @@ def test_ANF():
     assert not rx.analysis.well_formed(mod, check_struct_info=False)
 
 
+def test_call_tir():
+    @tvm.script.ir_module
+    class TestWellCallTIR:
+        @T.prim_func
+        def tir_addone(A: T.Buffer((16, 16), "int32"), B: T.Buffer((16, 16), "int32")) -> None:
+            T.func_attr(({"global_symbol": "tir_addone"}))
+            for i, j in T.grid(16, 16):
+                with T.block("tir_addone"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    B[vi, vj] = A[vi, vj] + T.int32(1)
+
+        @R.function
+        def foo(x: R.Tensor((16, 16), "float32")):
+            gv = R.call_tir(tir_addone, (x,), R.Tensor((16, 16), dtype="float32"))
+            return gv
+
+    # well-formed check
+    assert rx.analysis.well_formed(TestWellCallTIR, check_struct_info=False)
+
+
+def test_call_dps_packed():
+    @tvm.script.ir_module
+    class TestWellCallDPSPacked:
+        @R.function
+        def foo(x: R.Tensor((16, 16), "float32")):
+            gv = R.call_dps_packed("extern_func", (x,), R.Tensor((16, 16), dtype="float32"))
+            return gv
+
+    assert rx.analysis.well_formed(TestWellCallDPSPacked, check_struct_info=False)
+
+    @tvm.script.ir_module
+    class TestMalCallDPSPacked:
+        @T.prim_func
+        def tir_addone(A: T.Buffer((16, 16), "int32"), B: T.Buffer((16, 16), "int32")) -> None:
+            T.func_attr(({"global_symbol": "tir_addone"}))
+            for i, j in T.grid(16, 16):
+                with T.block("tir_addone"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    B[vi, vj] = A[vi, vj] + T.int32(1)
+
+        @R.function
+        def foo(x: R.Tensor((16, 16), "float32")):
+            gv = R.call_dps_packed(tir_addone, (x,), R.Tensor((16, 16), dtype="float32"))
+            return gv
+
+    # call_dps_packed is not able to call tir prim_func
+    assert not rx.analysis.well_formed(TestMalCallDPSPacked, check_struct_info=False)
+
+
 def test_global_var_vs_gsymbol():
     # Error: gsymbol "main1" not equals to the name in global var "main"
     gv0 = rx.Var("gv0", R.Tensor([m, n], "float32"))
