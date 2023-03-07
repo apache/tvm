@@ -45,6 +45,19 @@ bool AllowConciseScoping(const IRDocsifier& d) {
   LOG(FATAL) << "NotImplementedError: fragment printing";
 }
 
+bool IsAncestorOfAllVarUse(const tir::Stmt& node, const ObjectRef& var, const IRDocsifier& d) {
+  if (!d->common_prefix.count(var.get())) {
+    return false;
+  }
+  const std::vector<const Object*>& path = d->common_prefix.at(var.get());
+  for (auto it = path.rbegin(); it != path.rend(); ++it) {
+    if (*it == node.get()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Evaluate>("", [](tir::Evaluate eval, ObjectPath p, IRDocsifier d) -> Doc {
       ExprDoc value = d->AsDoc<ExprDoc>(eval->value, p->Attr("value"));
@@ -322,6 +335,39 @@ ExprDoc DocsifyBufferRealize(const tir::BufferRealizeNode* stmt, Optional<ExprDo
   return TIR(d, "realize")->Call(args, kwargs_keys, kwargs_values);
 }
 
+void InsertEnvThread(const tir::IterVar& iter_var, const ObjectPath& iter_var_p,
+                     const IRDocsifier& d) {
+  Frame f = FindLowestVarDef(iter_var->var, d).value();
+  DefineVar(iter_var->var, f, d);
+  ExprDoc rhs = TIR(d, "env_thread")
+                    ->Call({LiteralDoc::Str(iter_var->thread_tag,  //
+                                            iter_var_p->Attr("thread_tag"))});
+  ExprDoc lhs = d->AsDoc<ExprDoc>(iter_var->var, iter_var_p->Attr("var"));
+  f->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
+}
+
+ExprDoc DocsifyLaunchThread(const tir::AttrStmt& attr_stmt, const ObjectPath& attr_stmt_p,
+                            Optional<tir::Var>* define_var, const IRDocsifier& d) {
+  tir::IterVar iter_var = Downcast<tir::IterVar>(attr_stmt->node);
+  ObjectPath iter_var_p = attr_stmt_p->Attr("node");
+
+  ExprDoc var_doc{nullptr};
+  if (d->IsVarDefined(iter_var->var)) {
+    var_doc = d->AsDoc<ExprDoc>(iter_var->var, iter_var_p->Attr("var"));
+  } else if (IsAncestorOfAllVarUse(attr_stmt, iter_var->var, d)) {
+    var_doc = LiteralDoc::Str(iter_var->thread_tag, iter_var_p->Attr("thread_tag"));
+    *define_var = iter_var->var;
+  } else {
+    InsertEnvThread(iter_var, iter_var_p, d);
+    var_doc = d->AsDoc<ExprDoc>(iter_var->var, iter_var_p->Attr("var"));
+  }
+  return TIR(d, "launch_thread")
+      ->Call({
+          var_doc,
+          d->AsDoc<ExprDoc>(attr_stmt->value, attr_stmt_p->Attr("value")),
+      });
+}
+
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::BufferRealize>(  //
         "", [](tir::BufferRealize stmt, ObjectPath p, IRDocsifier d) -> Doc {
@@ -336,7 +382,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::AttrStmt>(  //
         "", [](tir::AttrStmt stmt, ObjectPath stmt_p, IRDocsifier d) -> Doc {
           bool concise = AllowConciseScoping(d);
+          Optional<ExprDoc> lhs = NullOpt;
           Optional<ExprDoc> rhs = NullOpt;
+          Optional<tir::Var> define_var = NullOpt;
           tir::Stmt body = stmt->body;
           ObjectPath body_p = stmt_p->Attr("body");
           if (stmt->attr_key == "realize_scope") {
@@ -347,29 +395,13 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
                     /*value=*/d->AsDoc<ExprDoc>(stmt->value, stmt_p->Attr("value")),
                     /*p=*/stmt_p->Attr("body"), d);
                 body = realize->body;
-                body_p = body_p->Attr("body");
+                body_p = stmt_p->Attr("body")->Attr("body");
               }
             }
           }
           if (stmt->attr_key == "thread_extent" || stmt->attr_key == "virtual_thread") {
-            if (const auto* iter_var = stmt->node.as<tir::IterVarNode>()) {
-              if (!d->IsVarDefined(iter_var->var)) {
-                // `DefineVar` is not used here because a more specific name is desirable
-                ObjectPath iter_var_p = stmt_p->Attr("node");
-                Frame f = FindLowestVarDef(iter_var->var, d).value();
-                DefineVar(iter_var->var, f, d);
-                f->stmts.push_back(
-                    AssignDoc(d->AsDoc<ExprDoc>(iter_var->var, iter_var_p->Attr("var")),
-                              TIR(d, "env_thread")
-                                  ->Call({LiteralDoc::Str(iter_var->thread_tag,
-                                                          iter_var_p->Attr("thread_tag"))}),  //
-                              NullOpt));
-              }
-              rhs = TIR(d, "launch_thread")
-                        ->Call({
-                            d->AsDoc<ExprDoc>(iter_var->var, stmt_p->Attr("node")),
-                            d->AsDoc<ExprDoc>(stmt->value, stmt_p->Attr("value")),
-                        });
+            if (stmt->node->IsInstance<tir::IterVarNode>()) {
+              rhs = DocsifyLaunchThread(stmt, stmt_p, &define_var, d);
             }
           }
           if (!rhs.defined()) {
@@ -380,8 +412,11 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             });
           }
           With<TIRFrame> f(d, stmt);
+          if (define_var.defined()) {
+            lhs = DefineVar(define_var.value(), *f, d);
+          }
           AsDocBody(body, body_p, f->get(), d);
-          return DoConciseScoping(NullOpt, rhs.value(), &(*f)->stmts, concise);
+          return DoConciseScoping(lhs, rhs.value(), &(*f)->stmts, concise);
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)

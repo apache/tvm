@@ -171,6 +171,16 @@ def opt_gemm_lower():
     return Module
 
 
+def launch_env_thread():
+    @T.prim_func
+    def main(inputs: T.Buffer((64, 2, 4), "float32")) -> None:
+        bx = T.launch_thread("blockIdx.x", 64)
+        for i, j in T.grid(2, 4):
+            T.evaluate(inputs[bx, i, j])
+
+    return main
+
+
 def opt_gemm_mod_host():
     @tvm.script.ir_module
     class Module:
@@ -3563,6 +3573,7 @@ def let_stmt_value():
 
 
 ir_generator = tvm.testing.parameter(
+    launch_env_thread,
     opt_gemm_normalize,
     opt_gemm_lower,
     opt_gemm_mod_host,
