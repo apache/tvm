@@ -22,6 +22,7 @@
 set -e
 
 LLVM_VERSION=$1
+LLVM_FILE_SHA=$2
 
 echo ${LLVM_VERSION}
 
@@ -39,6 +40,7 @@ pushd "$tmpdir"
 curl -sL \
   https://github.com/llvm/llvm-project/releases/download/llvmorg-${LLVM_VERSION}/llvm-project-${LLVM_VERSION}.src.tar.xz \
   -o llvm-project-${LLVM_VERSION}.src.tar.xz
+echo "$LLVM_FILE_SHA llvm-project-${LLVM_VERSION}.src.tar.xz" | sha256sum --check
 tar xf llvm-project-${LLVM_VERSION}.src.tar.xz
 pushd llvm-project-${LLVM_VERSION}.src
 
