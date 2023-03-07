@@ -851,7 +851,7 @@ def test_padded_matmul_relu():
                                         C_reindex_shared[v0, v1, v2, v3, v4_i, v5_i] = C_reindex_shared_wmma_accumulator[v0, v1, v2, v3, v4_i, v5_i]
                     for ax0_ax1_ax3_ax4_ax5_fused in range(512):
                         with T.block("C_reindex_shared"):
-                            v0 = T.axis.spatial(4, ax0_0_0_ax1_0_0_fused // 2 + 0)
+                            v0 = T.axis.spatial(4, T.Add(ax0_0_0_ax1_0_0_fused // 2, 0))
                             v1 = T.axis.spatial(8, ax0_0_0_ax1_0_0_fused % 2 * 4 + ax0_0_1_ax1_0_1_fused * 2 + ax0_ax1_ax3_ax4_ax5_fused % 512 // 256)
                             v2 = T.axis.spatial(2, ax2)
                             v3 = T.axis.spatial(1, 0)
