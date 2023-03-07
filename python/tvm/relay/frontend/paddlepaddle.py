@@ -1084,6 +1084,21 @@ def convert_meshgrid(g, op, block):
         g.add_node(op.output("Out")[i], out)
 
 
+def convert_mish(g, op, block):
+    """Operator converter for mish."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    threshold = _expr.const(op.attr("threshold"), dtype=dtype)
+    exp = _op.exp(x)
+    add = _op.add(exp, _expr.const(1.0, dtype))
+    log = _op.log(add)
+    softplus = _op.where(x > threshold, x, log)
+    tanh = _op.tanh(softplus)
+    out = _op.multiply(x, tanh)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_mul(g, op, block):
     """Operator converter for mul."""
 
@@ -2252,6 +2267,7 @@ _convert_map = {
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,
     "meshgrid": convert_meshgrid,
+    "mish": convert_mish,
     "mul": convert_mul,
     "mv": convert_mv,
     "nearest_interp_v2": convert_interpolate,

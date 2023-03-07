@@ -1951,5 +1951,23 @@ def test_forward_tile():
         verify_model(Tile6(), input_data=input_data)
 
 
+@tvm.testing.uses_gpu
+def test_forward_mish():
+    class Mish(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return nn.functional.mish(inputs)
+
+    input_shapes = [[10], [2, 3], [5, 10, 11], [3, 4, 5, 6]]
+    for input_shape in input_shapes:
+        input_data = paddle.randn(shape=input_shape, dtype="float32")
+        verify_model(Mish(), input_data=input_data)
+        input_data += 20.0
+        verify_model(Mish(), input_data=input_data)
+
+    input_data = paddle.to_tensor([-5.0, 0.0, 5.0, 23.1, 20.0])
+    verify_model(Mish(), input_data=input_data)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
