@@ -94,7 +94,7 @@ TVM_DLL double EstimateTIRFlops(const IRModule& mod);
 
 /*!
  * \brief Find undefined vars in the statement.
- * \param stmt The function to be checked.
+ * \param stmt The statement to be checked.
  * \param defs The vars that is defined.
  * \return Array of undefined vars.
  */
@@ -106,6 +106,14 @@ TVM_DLL Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& defs);
  * \return Array of undefined vars.
  */
 TVM_DLL Array<Var> UndefinedVars(const PrimExpr& expr);
+
+/*!
+ * \brief Find undefined vars in the expression.
+ * \param expr The expression to be checked.
+ * \param defs The vars that is defined.
+ * \return Array of undefined vars.
+ */
+TVM_DLL Array<Var> UndefinedVars(const PrimExpr& expr, const Array<Var>& defs);
 
 /*!
  * \brief Analyze the side effect
