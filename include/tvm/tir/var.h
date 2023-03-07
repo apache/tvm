@@ -153,6 +153,13 @@ class SizeVar : public Var {
   TVM_DLL explicit SizeVar(String name_hint = "s", DataType t = DataType::Int(32),
                            Span span = Span());
   /*!
+   * \brief Constructor which provides a more detailed type annotation.
+   * \param name_hint variable name.
+   * \param type_annotation The type annotation.
+   * \param span The location of this object in the source code.
+   */
+  TVM_DLL explicit SizeVar(String name_hint, Type type_annotation, Span span = Span());
+  /*!
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
    */

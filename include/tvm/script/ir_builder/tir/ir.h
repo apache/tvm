@@ -430,14 +430,27 @@ void Evaluate(PrimExpr value);
  * \brief Create a TIR var that represents a pointer
  * \param dtype The data type of the pointer.
  * \param storage_scope The storage scope of the pointer.
+ * \param is_size_var Whether the pointer is a size var.
  * \return The pointer.
  */
-Var Handle(runtime::DataType dtype = runtime::DataType::Void(), String storage_scope = "global");
+inline Var Handle(runtime::DataType dtype = runtime::DataType::Void(),  //
+                  String storage_scope = "global",                      //
+                  bool is_size_var = false) {
+  Type type_annotation{nullptr};
+  if (dtype.is_void() && storage_scope == "global") {
+    type_annotation = PrimType(runtime::DataType::Handle());
+  } else {
+    type_annotation = PointerType(PrimType(dtype), storage_scope);
+  }
+  return is_size_var ? tvm::tir::SizeVar("", type_annotation) : tvm::tir::Var("", type_annotation);
+}
 
-#define TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                             \
-  inline PrimExpr FuncName(Optional<PrimExpr> expr = NullOpt) {                        \
-    DataType dtype = DType;                                                            \
-    return expr.defined() ? tvm::cast(dtype, expr.value()) : tvm::tir::Var("", dtype); \
+#define TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                                \
+  inline PrimExpr FuncName(Optional<PrimExpr> expr = NullOpt, bool is_size_var = false) { \
+    DataType dtype = DType;                                                               \
+    return expr.defined()                                                                 \
+               ? tvm::cast(dtype, expr.value())                                           \
+               : (is_size_var ? tvm::tir::SizeVar("", dtype) : tvm::tir::Var("", dtype)); \
   }
 
 #define TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST_SIZES(DType, FDType) \

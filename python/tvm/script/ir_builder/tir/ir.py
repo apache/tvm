@@ -1333,11 +1333,13 @@ def func_gen(name: str):
             Literal["inf", "-inf", "nan"],
             int,
             float,
-        ] = None
+        ] = None,
+        *,
+        is_size_var: bool = False,
     ) -> PrimExpr:
         if isinstance(expr, str):
             expr = float(expr)
-        return getattr(_ffi_api, name)(expr)
+        return getattr(_ffi_api, name)(expr, is_size_var)
 
     return func
 
@@ -1420,7 +1422,7 @@ float64x64 = func_gen(("Float64x64"))
 # pylint: enable=invalid-name
 
 
-def boolean(expr: Optional[PrimExpr] = None) -> PrimExpr:
+def boolean(expr: Optional[PrimExpr] = None, is_size_var: bool = False) -> PrimExpr:
     """Construct a new tir.Var with type boolean or cast expression to type boolean.
 
     Parameters
@@ -1428,15 +1430,18 @@ def boolean(expr: Optional[PrimExpr] = None) -> PrimExpr:
     expr: PrimExpr
         The expression to be cast.
 
+    is_size_var: bool
+        Whether or not to return a SizeVar instead of Var.
+
     Returns
     -------
     res : PrimExpr
         The new tir.Var with type boolean or casted expression with type boolean.
     """
-    return _ffi_api.Boolean(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Boolean(expr, is_size_var)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def handle(dtype: str = "void", storage_scope: str = "global") -> Var:
+def handle(dtype: str = "void", storage_scope: str = "global", *, is_size_var: bool = False) -> Var:
     """Create a TIR var that represents a pointer.
 
     Parameters
@@ -1447,15 +1452,18 @@ def handle(dtype: str = "void", storage_scope: str = "global") -> Var:
     storage_scope: str
         The storage scope of the pointer.
 
+    is_size_var: bool
+        Whether or not to return a SizeVar instead of Var.
+
     Returns
     -------
     res : PrimExpr
         The new tir.Var with type handle or casted expression with type handle.
     """
-    return _ffi_api.Handle(dtype, storage_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Handle(dtype, storage_scope, is_size_var)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def void(expr: Optional[PrimExpr] = None) -> PrimExpr:
+def void(expr: Optional[PrimExpr] = None, *, is_size_var: bool = False) -> PrimExpr:
     """Construct a new tir.Var with type void or cast expression to type void.
 
     Parameters
@@ -1468,7 +1476,7 @@ def void(expr: Optional[PrimExpr] = None) -> PrimExpr:
     res : PrimExpr
         The new tir.Var with type void or casted expression with type void.
     """
-    return _ffi_api.Void(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Void(expr, is_size_var)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 @deprecated("T.var", "T.{dtype}")
@@ -1491,7 +1499,7 @@ def var(dtype: str, name: str = "") -> Var:
     return Var(name, dtype)  # pylint: disable=no-member
 
 
-def ptr(dtype: str, storage_scope: str = "global") -> Var:
+def ptr(dtype: str, storage_scope: str = "global", is_size_var: bool = False) -> Var:
     """The pointer declaration function.
 
     Parameters
@@ -1502,12 +1510,15 @@ def ptr(dtype: str, storage_scope: str = "global") -> Var:
     storage_scope : str
         The storage scope of the pointer.
 
+    is_size_var: bool
+        Whether or not to return a SizeVar instead of Var.
+
     Returns
     -------
     res : Var
         The pointer.
     """
-    return _ffi_api.Ptr(dtype, storage_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Ptr(dtype, storage_scope, is_size_var)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 @deprecated("T.buffer_var", "T.handle")
