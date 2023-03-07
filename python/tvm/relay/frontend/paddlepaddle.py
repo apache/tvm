@@ -1089,12 +1089,10 @@ def convert_mish(g, op, block):
 
     x = g.get_node(op.input("X")[0])
     dtype = infer_type(x).checked_type.dtype
-    threshold = _expr.const(op.attr("threshold"), dtype=dtype)
     exp = _op.exp(x)
     add = _op.add(exp, _expr.const(1.0, dtype))
     log = _op.log(add)
-    softplus = _op.where(x > threshold, x, log)
-    tanh = _op.tanh(softplus)
+    tanh = _op.tanh(log)
     out = _op.multiply(x, tanh)
     g.add_node(op.output("Out")[0], out)
 
