@@ -439,16 +439,6 @@ class AffineGridAttrs(Attrs):
     """Attributes used in affine_grid operators"""
 
 
-@tvm._ffi.register_object("relay.attrs.AllocStorageAttrs")
-class AllocStorageAttrs(Attrs):
-    """Attributes used in alloc_storage operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.AllocTensorAttrs")
-class AllocTensorAttrs(Attrs):
-    """Attributes used in alloc_tensor operators"""
-
-
 @tvm._ffi.register_object("relay.attrs.CastHintAttrs")
 class CastHintAttrs(Attrs):
     """Attributes used in cast_hint annotation operators"""
