@@ -1686,7 +1686,7 @@ void CollectReindexCacheStageInfoAndCreateBuffer(
   info->indices = new_indices;
 
   // Step 5. Update CacheTouchedInfo
-  VarUseDefAnalyzer collector_old;
+  VarUseDefAnalyzer collector_old(/*defined_vars=*/{});
   Array<PrimExpr> old_indices;
   for (const Range& range : cache_region->region) {
     collector_old(range->min);
@@ -1695,12 +1695,12 @@ void CollectReindexCacheStageInfoAndCreateBuffer(
 
   arith::Analyzer analyzer;
 
-  VarUseDefAnalyzer collector_new;
+  VarUseDefAnalyzer collector_new(/*defined_vars=*/{});
   for (const PrimExpr& idx : new_indices) {
     collector_new(idx);
   }
 
-  VarUseDefAnalyzer collector_iter_values;
+  VarUseDefAnalyzer collector_iter_values(/*defined_vars=*/{});
   for (size_t i = 0; i < block->iter_vars.size(); ++i) {
     const IterVar& block_iter_var = block->iter_vars[i];
     const PrimExpr& block_iter_value = realize->iter_values[i];
