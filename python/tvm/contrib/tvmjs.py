@@ -196,7 +196,7 @@ def export_runtime(runtime_dir):
     if not wasi:
         raise RuntimeError("Cannot find tvmjs_runtime.wasi.js, " + web_hint)
 
-    print(f"Copying {jsbundle[0]} to {runtime_dir}")
+    print(f"Copy {jsbundle[0]} to {runtime_dir}")
     shutil.copy(jsbundle[0], runtime_dir)
-    print(f"Copyping {wasi[0]} to {runtime_dir}")
+    print(f"Copy {wasi[0]} to {runtime_dir}")
     shutil.copy(wasi[0], runtime_dir)
