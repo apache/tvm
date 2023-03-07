@@ -18,7 +18,7 @@
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.script import relax as R, tir as T
+from tvm.script import ir as I, relax as R, tir as T
 
 
 def test_basic():
@@ -606,6 +606,127 @@ def test_reshape_param():
     # The pass does no change.
     mod = relax.transform.StaticPlanBlockMemory()(Module)
     tvm.ir.assert_structural_equal(mod, Module)
+
+
+def test_multiple_functions():
+    @tvm.script.ir_module
+    class Module:
+        @T.prim_func
+        def add(
+            A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+            B: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+            C: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+        ):
+            T.evaluate(0)
+
+        @T.prim_func
+        def add1(
+            A: T.Buffer((T.int64(2), T.int64(3)), "int32"),
+            B: T.Buffer((T.int64(2), T.int64(3)), "int32"),
+            C: T.Buffer((T.int64(2), T.int64(3)), "int32"),
+        ):
+            T.evaluate(0)
+
+        @R.function
+        def func1(
+            x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="int32")
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            alloc: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
+                R.shape([2, 3]), dtype="float32", runtime_device_index=0
+            )
+            _: R.Tuple() = add(x, x, alloc)
+            gv: R.Tensor((2, 3), dtype="float32") = alloc
+            alloc1: R.Tensor((2, 3), dtype="int32") = R.builtin.alloc_tensor(
+                R.shape([2, 3]), dtype="int32", runtime_device_index=0
+            )
+            _1: R.Tuple() = add1(y, y, alloc1)
+            gv1: R.Tensor((2, 3), dtype="int32") = alloc1
+            return x
+
+        @R.function
+        def func2(
+            x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            alloc: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
+                R.shape([2, 3]), dtype="float32", runtime_device_index=0
+            )
+            _: R.Tuple() = add(x, x, alloc)
+            gv: R.Tensor((2, 3), dtype="float32") = alloc
+            alloc1: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
+                R.shape([2, 3]), dtype="float32", runtime_device_index=0
+            )
+            _1: R.Tuple() = add(y, y, alloc1)
+            gv1: R.Tensor((2, 3), dtype="float32") = alloc1
+            return x
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def add(
+            A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+            B: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+            C: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+        ):
+            T.evaluate(0)
+
+        @T.prim_func
+        def add1(
+            A: T.Buffer((T.int64(2), T.int64(3)), "int32"),
+            B: T.Buffer((T.int64(2), T.int64(3)), "int32"),
+            C: T.Buffer((T.int64(2), T.int64(3)), "int32"),
+        ):
+            T.evaluate(0)
+
+        @R.function
+        def func1(
+            x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="int32")
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            storage: R.Object = R.memory.alloc_storage(
+                R.shape([24]), virtual_device_index=0, storage_scope="global", dtype="float32"
+            )
+            alloc: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
+                storage, 0, R.shape([2, 3]), dtype="float32"
+            )
+            _: R.Tuple() = add(x, x, alloc)
+            _1: R.Tuple() = R.memory.kill_tensor(alloc)
+            gv1: R.Tensor((2, 3), dtype="float32") = alloc
+            storage1: R.Object = R.memory.alloc_storage(
+                R.shape([24]), virtual_device_index=0, storage_scope="global", dtype="int32"
+            )
+            alloc1: R.Tensor((2, 3), dtype="int32") = R.memory.alloc_tensor(
+                storage1, 0, R.shape([2, 3]), dtype="int32"
+            )
+            _2: R.Tuple() = add1(y, y, alloc1)
+            _3: R.Tuple() = R.memory.kill_tensor(alloc1)
+            gv12: R.Tensor((2, 3), dtype="int32") = alloc1
+            _5: R.Tuple() = R.memory.kill_storage(storage)
+            _4: R.Tuple() = R.memory.kill_storage(storage1)
+            return x
+
+        @R.function
+        def func2(
+            x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            storage: R.Object = R.memory.alloc_storage(
+                R.shape([24]), virtual_device_index=0, storage_scope="global", dtype="float32"
+            )
+            alloc: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
+                storage, 0, R.shape([2, 3]), dtype="float32"
+            )
+            _: R.Tuple() = add(x, x, alloc)
+            _1: R.Tuple() = R.memory.kill_tensor(alloc)
+            gv1: R.Tensor((2, 3), dtype="float32") = alloc
+            alloc1: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
+                storage, 0, R.shape([2, 3]), dtype="float32"
+            )
+            _2: R.Tuple() = add(y, y, alloc1)
+            _3: R.Tuple() = R.memory.kill_tensor(alloc1)
+            gv12: R.Tensor((2, 3), dtype="float32") = alloc1
+            _4: R.Tuple() = R.memory.kill_storage(storage)
+            return x
+
+    mod = relax.transform.StaticPlanBlockMemory()(Module)
+    tvm.ir.assert_structural_equal(mod, Expected)
 
 
 if __name__ == "__main__":
