@@ -46,17 +46,17 @@ def _register_expr_op(ty: Type):  # pylint: disable=invalid-name
 
     for i in [0, 1]:
         # Case 1. binop
-        r(doc.Add, i, lambda a, b: a + b)
-        r(doc.Sub, i, lambda a, b: a - b)
-        r(doc.Mult, i, lambda a, b: a * b)
-        r(doc.Div, i, lambda a, b: a / b)
-        r(doc.FloorDiv, i, lambda a, b: a // b)
-        r(doc.Mod, i, lambda a, b: a % b)
-        r(doc.LShift, i, lambda a, b: a << b)
-        r(doc.RShift, i, lambda a, b: a >> b)
-        r(doc.BitOr, i, lambda a, b: a | b)
-        r(doc.BitXor, i, lambda a, b: a ^ b)
-        r(doc.BitAnd, i, lambda a, b: a & b)
+        # doc.Add <-- is overloaded
+        # doc.Sub <-- is overloaded
+        # doc.Mult <-- is overloaded
+        # doc.Div <-- is overloaded
+        # doc.FloorDiv <-- is overloaded
+        # doc.Mod <-- is overloaded
+        # doc.LShift <-- is overloaded
+        # doc.RShift <-- is overloaded
+        # doc.BitOr <-- is overloaded
+        # doc.BitXor <-- is overloaded
+        # doc.BitAnd <-- is overloaded
         # doc.MatMult <-- not implemented
         # doc.Pow <-- not implemented
         # Case 2. cmpop
@@ -75,10 +75,10 @@ def _register_expr_op(ty: Type):  # pylint: disable=invalid-name
         r(doc.Or, i, _or)
     for i in [0]:
         #  Case 4. unaryop
-        r(doc.Invert, i, lambda a: ~a)
+        # doc.Invert <-- is overloaded
         r(doc.Not, i, tir.Not)
-        r(doc.UAdd, i, lambda a: +a)
-        r(doc.USub, i, lambda a: -a)
+        # doc.UAdd <-- is overloaded
+        # doc.USub <-- is overloaded
 
 
 _register_expr_op(tir.PrimExpr)
