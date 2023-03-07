@@ -39,6 +39,7 @@ from .bnn import *
 from .qnn import *
 from .upsampling import *
 from .layer_norm import layer_norm
+from .group_norm import group_norm
 from .local_response_norm import *
 from .bitserial_conv2d import *
 from .bitserial_dense import *

@@ -120,3 +120,14 @@ Copied these compiled model deploy_lib.so, deploy_graph.json and deploy_param.pa
 Install compiled android application on phone and enjoy the image classifier demo using extraction model
 
 You can define your own TVM operators and deploy via this demo application on your Android device to find the most optimized TVM schedule.
+
+### Troubleshooting
+
+If you build the application in Android Studio and see error similar to this one:
+```
+A problem occurred evaluating project ':app'.
+> Failed to apply plugin 'com.android.internal.version-check'.
+   > Minimum supported Gradle version is 7.5. Current version is 7.4. If using the gradle wrapper, try editing the distributionUrl in /Users/echuraev/Workspace/OctoML/tvm_android_test/apps/android_deploy/gradle/wrapper/gradle-wrapper.properties to gradle-7.5-all.zip
+```
+Run project syncing `File -> Sync Project with Gradle Files`. It should sync the
+project and create gradle-wrapper files.

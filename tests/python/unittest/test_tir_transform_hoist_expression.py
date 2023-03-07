@@ -15,11 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import tir
 import tvm.testing
-
+from tvm import tir
 from tvm.script import tir as T
-from tvm.tir.transform import HoistExpression, HoistedConditionals, HoistedLetBindings
+from tvm.tir.transform import HoistedConditionals, HoistedLetBindings, HoistExpression
 
 
 class BaseBeforeAfter:
@@ -448,7 +447,7 @@ class TestHoistLetExpr(BaseBeforeAfter):
     def before(A: T.Buffer((4, 4), "float32")):
         for i, j in T.grid(4, 4):
             x = T.float32()
-            A[i, j] = T.Let(x, T.cast(i + 1, "float32"), 5.0 * x + T.cast(j, "float32"))
+            A[i, j] = T.Let(5.0 * x + T.cast(j, "float32"), where={x: T.cast(i + 1, "float32")})
 
     @T.prim_func
     def expected(A: T.Buffer((4, 4), "float32")):
@@ -467,7 +466,7 @@ class TestSuppressHoistLetExpr(BaseBeforeAfter):
     def before(A: T.Buffer((4, 4), "float32")):
         for i, j in T.grid(4, 4):
             x = T.float32()
-            A[i, j] = T.Let(x, T.cast(i + 1, "float32"), 5.0 * x + T.cast(j, "float32"))
+            A[i, j] = T.Let(5.0 * x + T.cast(j, "float32"), where={x: T.cast(i + 1, "float32")})
 
     expected = before
 

@@ -22,7 +22,6 @@ import tvm.testing
 import tvm.micro.testing
 import tvm.relay as relay
 from tvm.relay.backend import Executor, Runtime
-from tvm.contrib import utils
 
 from . import utils
 

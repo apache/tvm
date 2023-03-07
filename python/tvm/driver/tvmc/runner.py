@@ -652,13 +652,17 @@ def run_module(
             else:
                 if device == "micro":
                     logger.debug("Creating runtime (micro) with profiling disabled.")
-                    module = tvm.micro.create_local_graph_executor(tvmc_package.graph, lib, dev)
+                    if tvmc_package.executor_type == "aot":
+                        module = tvm.micro.create_local_aot_executor(session)
+                    else:
+                        module = tvm.micro.create_local_graph_executor(tvmc_package.graph, lib, dev)
                 else:
                     logger.debug("Creating runtime with profiling disabled.")
                     module = executor.create(tvmc_package.graph, lib, dev)
 
-            logger.debug("Loading params into the runtime module.")
-            module.load_params(tvmc_package.params)
+            if tvmc_package.executor_type == "graph":
+                logger.debug("Loading params into the runtime module.")
+                module.load_params(tvmc_package.params)
 
             logger.debug("Collecting graph input shape and type:")
 

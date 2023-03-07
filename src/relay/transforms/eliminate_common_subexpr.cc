@@ -65,8 +65,7 @@ class CommonSubexprEliminator : public MixedModeMutator {
             continue;
           }
           for (size_t i = 0; i < new_call->args.size(); i++) {
-            if (!new_call->args[i].same_as(candidate->args[i]) &&
-                !IsEqualScalar(new_call->args[i], candidate->args[i])) {
+            if (!IsEquivalent(new_call->args[i], candidate->args[i])) {
               is_equivalent = false;
               break;
             }
@@ -105,6 +104,31 @@ class CommonSubexprEliminator : public MixedModeMutator {
 
   std::unordered_map<Expr, std::vector<Expr>, ObjectPtrHash, ObjectPtrEqual> expr_map_;
   runtime::TypedPackedFunc<bool(Expr)> fskip_;
+
+ private:
+  bool IsEquivalent(const Expr& arg, const Expr& candidate_arg) {
+    if (arg->IsInstance<TupleNode>() && candidate_arg->IsInstance<TupleNode>()) {
+      const TupleNode* arg_node = arg.as<TupleNode>();
+      const TupleNode* candidate_arg_node = candidate_arg.as<TupleNode>();
+
+      if (arg_node->fields.size() != candidate_arg_node->fields.size()) {
+        return false;
+      }
+
+      for (size_t i = 0; i < arg_node->fields.size(); i++) {
+        if (!arg_node->fields[i].same_as(candidate_arg_node->fields[i]) &&
+            !IsEqualScalar(arg_node->fields[i], candidate_arg_node->fields[i])) {
+          return false;
+        }
+      }
+    } else {
+      if (!arg.same_as(candidate_arg) && !IsEqualScalar(arg, candidate_arg)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
 };
 
 Expr EliminateCommonSubexpr(const Expr& expr, PackedFunc callback) {

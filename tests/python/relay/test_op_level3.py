@@ -1002,7 +1002,7 @@ def test_scatter(target, dev, executor_kind):
         d = relay.var("d", relay.TensorType(dshape, "float32"))
         i = relay.var("i", relay.TensorType(ishape, indices_dtype))
         u = relay.var("u", relay.TensorType(ishape, "float32"))
-        z = relay.op.scatter(d, i, u, axis)
+        z = relay.op.scatter_elements(d, i, u, axis)
 
         func = relay.Function([d, i, u], z)
 
@@ -1055,7 +1055,7 @@ class TestDynamicScatter:
         d = relay.var("d", relay.TensorType([relay.Any() for i in range(len(dshape))], "float32"))
         i = relay.var("i", relay.TensorType([relay.Any() for i in range(len(ishape))], "int64"))
         u = relay.var("u", relay.TensorType([relay.Any() for i in range(len(ishape))], "float32"))
-        z = relay.op.scatter(d, i, u, axis)
+        z = relay.op.scatter_elements(d, i, u, axis)
 
         func = relay.Function([d, i, u], z)
 

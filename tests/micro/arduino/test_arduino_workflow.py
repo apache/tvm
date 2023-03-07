@@ -18,7 +18,6 @@
 import pathlib
 import re
 import shutil
-import sys
 import pytest
 
 import tvm.testing

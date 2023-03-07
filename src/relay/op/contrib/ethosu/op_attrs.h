@@ -361,7 +361,9 @@ struct EthosuPoolingAttrs : public tvm::AttrsNode<EthosuPoolingAttrs> {
 
   TVM_DECLARE_ATTRS(EthosuPoolingAttrs, "relay.attrs.EthosuPoolingAttrs") {
     TVM_ATTR_FIELD(pooling_type)
-        .describe("The type of the pooling. 'AVG' - average pool, 'MAX' - max pool.");
+        .describe(
+            "The type of the pooling. 'AVG' - average pool, 'MAX' - max pool, "
+            "'SUM' - reduce sum pool.");
     TVM_ATTR_FIELD(ifm_scale).describe("The quantization scale for the Input Feature Map tensor.");
     TVM_ATTR_FIELD(ifm_zero_point)
         .describe("The quantization zero point for the Input Feature Map tensor.");

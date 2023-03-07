@@ -1967,7 +1967,7 @@ class MaxUnpool(OnnxOpConverter):
         # Create a tensor of zeros then scatter our data through it.
         zeros_tensor = _op.zeros(total_output_shape, data_type)
         # We need to flatten all our tensors before scattering.
-        flat_tensor = _op.scatter(
+        flat_tensor = _op.scatter_elements(
             _op.reshape(zeros_tensor, [-1]),
             _op.reshape(indices, [-1]),
             _op.reshape(data, [-1]),
@@ -2734,15 +2734,15 @@ class Slice(OnnxOpConverter):
         # Update the starts and ends according to axes if required.
         if axes is not None:
             data_shape = shape_of(inputs[0], dtype=infer_type(ends).checked_type.dtype)
-            starts = _op.scatter(
+            starts = _op.scatter_elements(
                 _op.const([0] * data_rank, dtype=infer_type(starts).checked_type.dtype),
                 axes,
                 starts,
                 axis=0,
             )
-            ends = _op.scatter(data_shape, axes, ends, axis=0)
+            ends = _op.scatter_elements(data_shape, axes, ends, axis=0)
             if steps is not None:
-                steps = _op.scatter(
+                steps = _op.scatter_elements(
                     _op.const([1] * data_rank, dtype=infer_type(steps).checked_type.dtype),
                     axes,
                     steps,
@@ -2848,9 +2848,35 @@ class Scatter(OnnxOpConverter):
     """Operator converter for Scatter."""
 
     @classmethod
-    def _impl_v9(cls, inputs, attr, params):
+    def _args_check(cls, inputs, attr):
+        assert len(inputs) == 3, "Scatter takes 3 inputs (data, indices, updates), {} given".format(
+            len(inputs)
+        )
+        assert infer_type(inputs[1]).checked_type.dtype in ["int32", "int64"]
+
+        data_rank = len(infer_shape(inputs[0]))
+        assert data_rank > 0, "Data rank higher than 0 is expected"
+        indices_shape = infer_shape(inputs[1])
+        indices_rank = len(indices_shape)
+        assert indices_rank == data_rank, "Indices rank is not the same as data one"
+        updates_shape = infer_shape(inputs[2])
+        updates_rank = len(updates_shape)
+        assert updates_rank == data_rank, "Updates rank is not the same as data one"
+
+        for i in range(data_rank):
+            assert (
+                indices_shape[i] == updates_shape[i]
+            ), "Indices dimension size should be the same as updates one"
+
         axis = attr.get("axis", 0)
-        return _op.scatter(inputs[0], inputs[1], inputs[2], axis)
+        assert -data_rank <= axis < data_rank, "Axis is out of bounds"
+
+        return axis
+
+    @classmethod
+    def _impl_v9(cls, inputs, attr, params):
+        axis = cls._args_check(inputs, attr)
+        return _op.scatter_elements(inputs[0], inputs[1], inputs[2], axis)
 
 
 class ScatterElements(OnnxOpConverter):
@@ -4877,6 +4903,116 @@ class LinearRegressor(OnnxOpConverter):
         return mm_out
 
 
+class DFT(OnnxOpConverter):
+    """Operator converter for discrete Fourier transform (DFT)."""
+
+    @classmethod
+    def _impl_v17(cls, inputs, attr, params):
+        # ************************* Read attrs *************************
+        axis = attr.get("axis")
+        inverse = attr.get("inverse")
+        onesided = attr.get("onesided")
+
+        # ************************* Read inputs ************************
+        input_tensor = inputs[0]
+        dft_length = inputs[1]
+
+        # ************************* Parse inputs ***********************
+        t1 = ["float16", "float32", "float64"]
+        t2 = ["int32", "int64"]
+
+        # input
+        assert infer_type(input_tensor).checked_type.dtype in t1
+        input_shape = infer_shape(input_tensor)
+        assert len(input_shape) >= 3
+        if axis < 0:
+            axis = len(input_shape) + axis
+        assert 1 <= axis <= len(input_shape) - 1, "axis is out of bounds"
+
+        # dft_length
+        if dft_length is None:
+            dft_length = input_shape[axis]
+        else:
+            dft_length_dtype = infer_type(dft_length).checked_type.dtype
+            assert dft_length_dtype in t2
+            dft_length = int(infer_value(dft_length, params).numpy())
+
+        # ************************
+        input_tensor = cls._maybe_crop_or_pad(input_tensor, axis, dft_length)
+
+        swap_axis = -1
+        re_input_tensor, im_input_tensor = cls._split_real_and_imag_parts(input_tensor)
+
+        re_input_tensor = cls._swap_axes(re_input_tensor, axis, swap_axis)
+        im_input_tensor = cls._swap_axes(im_input_tensor, axis, swap_axis)
+
+        re_input_tensor, im_input_tensor = _op.dft(re_input_tensor, im_input_tensor, inverse)
+
+        re_input_tensor = cls._swap_axes(re_input_tensor, axis, swap_axis)
+        im_input_tensor = cls._swap_axes(im_input_tensor, axis, swap_axis)
+
+        if onesided:
+            re_input_tensor = cls._crop_onesided(re_input_tensor, axis)
+            im_input_tensor = cls._crop_onesided(im_input_tensor, axis)
+
+        return cls._merge_real_and_imag_parts(re_input_tensor, im_input_tensor)
+
+    @classmethod
+    def _crop_axis(cls, tensor, axis, new_dim):
+        shape = infer_shape(tensor)
+        slices = [slice(0, a, 1) for a in shape]
+        slices[axis] = slice(0, new_dim, 1)
+        return _op.strided_slice(
+            tensor,
+            begin=[s.start for s in slices],
+            end=[s.stop for s in slices],
+            strides=[s.step for s in slices],
+            axes=list(range(len(shape))),
+        )
+
+    @classmethod
+    def _maybe_crop_or_pad(cls, input_tensor, axis, n_fft):
+        shape = infer_shape(input_tensor)
+        if shape[axis] != n_fft:
+            if shape[axis] > n_fft:
+                return cls._crop_axis(input_tensor, axis, n_fft)
+            else:
+                pad_width = [(0, 0)] * len(shape)
+                pad_width[axis] = (0, n_fft - shape[axis])
+                return _op.nn.pad(input_tensor, pad_width)
+        return input_tensor
+
+    @classmethod
+    def _swap_axes(cls, tensor, axis1, axis2):
+        permutation = list(range(len(infer_shape(tensor))))
+        permutation[axis1] = axis2
+        permutation[axis2] = axis1
+        return _op.transpose(tensor, permutation)
+
+    @classmethod
+    def _split_real_and_imag_parts(cls, tensor):
+        shape = infer_shape(tensor)
+        dtype = infer_type(tensor).checked_type.dtype
+        if shape[-1] == 1:
+            re = tensor
+            im = _op.const(np.zeros(shape), dtype=dtype)
+        else:
+            re, im = _op.split(tensor, 2, -1)
+
+        return _op.squeeze(re, -1), _op.squeeze(im, -1)
+
+    @classmethod
+    def _merge_real_and_imag_parts(cls, re, im):
+        re = _op.expand_dims(re, axis=-1)
+        im = _op.expand_dims(im, axis=-1)
+        return _op.concatenate([re, im], axis=-1)
+
+    @classmethod
+    def _crop_onesided(cls, tensor, axis):
+        shape = infer_shape(tensor)
+        return cls._crop_axis(tensor, axis, shape[axis] // 2 + 1)
+
+
 class NonMaxSuppression(OnnxOpConverter):
     """Operator converter for NonMaxSuppression."""
 
@@ -4991,7 +5127,7 @@ class ATen(OnnxOpConverter):
         else:
             mode = "add"
         index_tensor = _op.stack(indices, axis=0)
-        return _op.transform.scatter_nd(in_tensor, index_tensor, values, mode)
+        return _op.scatter_nd(in_tensor, index_tensor, values, mode)
 
     @classmethod
     def _reshape(cls, inputs, attr, params):
@@ -6696,6 +6832,7 @@ def _get_convert_map(opset):
         "Scan": Scan.get_converter(opset),
         # ML
         "LinearRegressor": LinearRegressor.get_converter(opset),
+        "DFT": DFT.get_converter(opset),
         # Sequence operators
         "SequenceConstruct": SequenceConstruct.get_converter(opset),
         "SequenceEmpty": SequenceEmpty.get_converter(opset),

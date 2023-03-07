@@ -23,7 +23,6 @@ This unit test simulates an autotuning workflow, where we:
 """
 
 import pathlib
-import sys
 import numpy as np
 import onnx
 import pytest

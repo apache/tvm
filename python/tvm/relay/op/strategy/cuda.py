@@ -1062,30 +1062,6 @@ def sparse_dense_padded_strategy_cuda(attrs, inputs, out_type, target):
     return strategy
 
 
-@scatter_strategy.register(["cuda", "gpu"])
-def scatter_cuda(attrs, inputs, out_type, target):
-    """scatter cuda strategy"""
-    strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_scatter(topi.cuda.scatter),
-        wrap_topi_schedule(topi.cuda.schedule_scatter),
-        name="scatter.cuda",
-        plevel=10,
-    )
-
-    rank = len(inputs[0].shape)
-
-    with SpecializedCondition(rank == 1):
-        if can_use_thrust(target, "tvm.contrib.thrust.stable_sort_by_key"):
-            strategy.add_implementation(
-                wrap_compute_scatter(topi.cuda.scatter_via_sort),
-                wrap_topi_schedule(topi.cuda.schedule_scatter_via_sort),
-                name="scatter_via_sort.cuda",
-                plevel=9,  # use the sequential version by default
-            )
-    return strategy
-
-
 @scatter_elements_strategy.register(["cuda", "gpu"])
 def scatter_elements_cuda(attrs, inputs, out_type, target):
     """scatter elements cuda strategy"""
@@ -1096,7 +1072,17 @@ def scatter_elements_cuda(attrs, inputs, out_type, target):
         name="scatter_elements.cuda",
         plevel=10,
     )
-    # TODO(vvchernov): There is possible specification for rank=1 as for scatter
+
+    rank = len(inputs[0].shape)
+
+    with SpecializedCondition(rank == 1 and attrs.reduction == "update"):
+        if can_use_thrust(target, "tvm.contrib.thrust.stable_sort_by_key"):
+            strategy.add_implementation(
+                wrap_compute_scatter_elements(topi.cuda.scatter_via_sort),
+                wrap_topi_schedule(topi.cuda.schedule_scatter_via_sort),
+                name="scatter_via_sort.cuda",
+                plevel=9,  # use the sequential version by default
+            )
     return strategy
 
 
@@ -1397,5 +1383,16 @@ def stft_strategy_cuda(attrs, inputs, out_type, target):
         wrap_compute_stft(topi.cuda.stft),
         wrap_topi_schedule(topi.generic.schedule_extern),
         name="stft.cuda",
+    )
+    return strategy
+
+
+@dft_strategy.register(["cuda", "gpu"])
+def dft_strategy_cuda(attrs, inputs, out_type, target):
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_dft(topi.cuda.dft),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="dft.cuda",
     )
     return strategy

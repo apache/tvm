@@ -529,11 +529,6 @@ class RequantizeAttrs(Attrs):
     """Attributes used in requantize operators"""
 
 
-@tvm._ffi.register_object("relay.attrs.ScatterAttrs")
-class ScatterAttrs(Attrs):
-    """Attributes used in scatter operators"""
-
-
 @tvm._ffi.register_object("relay.attrs.SequenceMaskAttrs")
 class SequenceMaskAttrs(Attrs):
     """Attributes used in sequence_mask operators"""

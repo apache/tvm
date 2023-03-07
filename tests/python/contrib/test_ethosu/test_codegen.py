@@ -490,6 +490,36 @@ def test_mean(accel_type, ifm_shape, axis, keep_dims, use_same_quantization):
     infra.verify_source(compiled_models, test_runner)
 
 
+@pytest.mark.parametrize(
+    "accel_type",
+    ACCEL_TYPES,
+)
+@pytest.mark.parametrize(
+    "ifm_shape, axis, keepdims, relu",
+    [
+        [(1, 4, 2, 8), 3, False, False],
+        [(1, 4, 4, 1), 3, False, True],
+        [(3, 5, 7), 2, False, True],
+        [(1, 4, 2, 8), 3, True, False],
+        [(3, 5, 7), 2, True, False],
+    ],
+)
+def test_ethosu_sum(accel_type, ifm_shape, axis, keepdims, relu):
+    np.random.seed(0)
+
+    @tf.function
+    def sum_func(x):
+        op = tf.math.reduce_sum(x, axis=axis, keepdims=keepdims)
+        return tf.nn.relu(op) if relu else op
+
+    infra.compare_tvm_with_tflite(
+        sum_func,
+        [ifm_shape],
+        accel_type,
+        enable_cascader=is_u55_accel_type(accel_type),
+    )
+
+
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize("dtype", ["int8", "uint8"])
 @pytest.mark.parametrize("constant", [np.ones((1, 1, 1, 1)), np.array(1)])

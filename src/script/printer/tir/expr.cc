@@ -24,33 +24,38 @@ namespace tvm {
 namespace script {
 namespace printer {
 
+ExprDoc PrintVarCreation(const tir::Var& var, const ObjectPath& var_p, const IRDocsifier& d) {
+  Type type = var->type_annotation;
+  ObjectPath type_p = var_p->Attr("type_annotation");
+  ExprDoc rhs{nullptr};
+  if (const auto* ptr_type = type.as<PointerTypeNode>()) {
+    const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>();
+    ICHECK(prim_type);
+    ExprDoc element_type =
+        LiteralDoc::DataType(prim_type->dtype, type_p->Attr("element_type")->Attr("dtype"));
+    rhs = TIR(d, "handle");
+    rhs->source_paths.push_back(var_p->Attr("dtype"));
+    if (ptr_type->storage_scope == "") {
+      rhs = rhs->Call({element_type});
+    } else {
+      rhs = rhs->Call({element_type,
+                       LiteralDoc::Str(ptr_type->storage_scope,  //
+                                       type_p->Attr("storage_scope"))});
+    }
+  } else {
+    rhs = TIR(d, DType2Str(var->dtype));
+    rhs->source_paths.push_back(var_p->Attr("dtype"));
+    rhs = rhs->Call({});
+  }
+  rhs->source_paths.push_back(type_p);
+  return rhs;
+}
+
 Doc PrintVar(const tir::Var& var, const ObjectPath& var_p, const IRDocsifier& d) {
   if (!d->IsVarDefined(var)) {
     if (Optional<Frame> opt_f = FindLowestVarDef(var, d)) {
       ExprDoc lhs = DefineVar(var, opt_f.value(), d);
-      Type type = var->type_annotation;
-      ObjectPath type_p = var_p->Attr("type_annotation");
-      ExprDoc rhs{nullptr};
-      if (const auto* ptr_type = type.as<PointerTypeNode>()) {
-        const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>();
-        ICHECK(prim_type);
-        ExprDoc element_type =
-            LiteralDoc::DataType(prim_type->dtype, type_p->Attr("element_type")->Attr("dtype"));
-        rhs = TIR(d, "handle");
-        rhs->source_paths.push_back(var_p->Attr("dtype"));
-        if (ptr_type->storage_scope == "") {
-          rhs = rhs->Call({element_type});
-        } else {
-          rhs = rhs->Call({element_type,
-                           LiteralDoc::Str(ptr_type->storage_scope,  //
-                                           type_p->Attr("storage_scope"))});
-        }
-      } else {
-        rhs = TIR(d, DType2Str(var->dtype));
-        rhs->source_paths.push_back(var_p->Attr("dtype"));
-        rhs = rhs->Call({});
-      }
-      rhs->source_paths.push_back(type_p);
+      ExprDoc rhs = PrintVarCreation(var, var_p, d);
       opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
     } else {
       LOG(WARNING) << "Didn't find variable definition for: " << var->name_hint;
@@ -211,11 +216,10 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Let>("", [](tir::Let let, ObjectPath p, IRDocsifier d) -> Doc {
-      return TIR(d, "let")->Call({
-          d->AsDoc<ExprDoc>(let->var, p->Attr("var")),
-          d->AsDoc<ExprDoc>(let->value, p->Attr("value")),
-          d->AsDoc<ExprDoc>(let->body, p->Attr("body")),
-      });
+      DictDoc where({d->AsDoc<ExprDoc>(let->var, p->Attr("var"))},
+                    {d->AsDoc<ExprDoc>(let->value, p->Attr("value"))});
+      return TIR(d, "Let")->Call({d->AsDoc<ExprDoc>(let->body, p->Attr("body"))},  //
+                                 {"where"}, {where});
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)

@@ -874,7 +874,7 @@ def qnn_dense(
 
     # Add bias
     if bias is not None:
-        out = te.compute(out.shape, lambda n, c: out[n, c] + bias[c])
+        out = te.compute(out.shape, lambda n, c: out[n, c] + bias[0, c])
 
     # Requantize output of dense
     # Q_output = zp_output + round((scale_input)/(scale_output) * (Q_input - zp_input))

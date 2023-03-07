@@ -104,15 +104,6 @@ _reg.register_pattern("meta_schedule_layout_transform", OpPattern.INJECTIVE)
 # argwhere
 _reg.register_strategy("argwhere", strategy.argwhere_strategy)
 
-# scatter
-@_reg.register_compute("scatter")
-def compute_scatter(attrs, inputs, output_type):
-    """Compute definition of scatter"""
-    return [topi.scatter(inputs[0], inputs[1], inputs[2], attrs.axis)]
-
-
-_reg.register_strategy("scatter", strategy.scatter_strategy)
-
 # sparse_fill_empty_rows
 @_reg.register_compute("sparse_fill_empty_rows")
 def compute_sparse_fill_empty_rows(attrs, inputs, output_type):
@@ -189,6 +180,20 @@ def stft_shape_func(attrs, inputs, _):
             inputs[0], convert(attrs.n_fft), convert(attrs.hop_length), convert(attrs.onesided)
         )
     ]
+
+
+# DFT
+@_reg.register_compute("dft")
+def compute_dft(attrs, inputs, _):
+    """Compute definition of DFT"""
+    return topi.dft(
+        inputs[0],
+        inputs[1],
+        attrs.inverse,
+    )
+
+
+_reg.register_strategy("dft", strategy.dft_strategy)
 
 
 # trilu
@@ -677,7 +682,6 @@ def argwhere_shape_func(attrs, inputs, out_ndims):
     return ValueError("Does not support rank higher than 5 in argwhere")
 
 
-_reg.register_shape_func("scatter", False, elemwise_shape_func)
 _reg.register_shape_func("scatter_elements", False, elemwise_shape_func)
 _reg.register_shape_func("scatter_nd", False, elemwise_shape_func)
 
@@ -920,7 +924,9 @@ def squeeze_shape_func(attrs, inputs, _):
     keep_axes = []
     remove_axes = []
     if axis is not None:
-        for i in range(inputs[0].shape[0].value):
+        ndim = inputs[0].shape[0].value
+        axis = [i + ndim if i < 0 else i for i in axis]
+        for i in range(ndim):
             if i not in axis:
                 keep_axes.append(i)
             else:

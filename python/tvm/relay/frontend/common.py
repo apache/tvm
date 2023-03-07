@@ -1169,6 +1169,10 @@ class _SpanFiller(ExprMutator):
             return sym
         elif isinstance(sym, np.ndarray):
             return sym
+        elif not sym:
+            # some op conversion may return None
+            # e.g. op in frontend/pytorch.py: prim::device
+            return sym
 
         raise RuntimeError(f"unsupported type {type(sym)}")
 
