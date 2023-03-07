@@ -22,7 +22,7 @@ import multiprocessing
 import operator
 import os
 from functools import reduce
-from typing import Optional, Tuple
+from typing import Optional, Sequence
 
 import tvm
 from tvm import relax, relay, runtime
@@ -549,7 +549,10 @@ def _extract_relax_function_signature(f):
         signature["arg%d_dtype" % i] = sinfo.dtype
 
     ret_sinfo = f.ret_struct_info
-    signature["ret_shape"] = list(ret_sinfo.shape)
+    if ret_sinfo.shape is not None:
+        signature["ret_shape"] = list(ret_sinfo.shape)
+    else:
+        signature["ret_shape"] = None
     signature["ret_dtype"] = ret_sinfo.dtype
 
     return signature
@@ -574,7 +577,10 @@ def _extract_arg_idx(pattern_name, f):
     return arg_idx
 
 
-def is_valid_for_cutlass_matmul(lhs_shape: Tuple[int], rhs_shape: Tuple[int]) -> bool:
+def is_shape_valid_for_cutlass_matmul(
+    lhs_shape: Sequence[tvm.ir.PrimExpr],
+    rhs_shape: Sequence[tvm.ir.PrimExpr],
+) -> bool:
     """
     Check whether the shape of inputs can be handled by CUTLASS GEMM.
 
@@ -584,19 +590,26 @@ def is_valid_for_cutlass_matmul(lhs_shape: Tuple[int], rhs_shape: Tuple[int]) ->
     as well as ND x 2D and 2D x ND. For example, it cannot handle matmul with shape
     (2, 1, 4, 8) x (2, 3, 8, 16), because the batch stride of lhs is not constant.
     """
+    if not isinstance(lhs_shape[-1], (tvm.tir.expr.IntImm, int)):
+        # Reduction axis must be constant
+        return False
+
     lhs_batches = reduce(operator.mul, lhs_shape[:-2], 1)
     rhs_batches = reduce(operator.mul, rhs_shape[:-2], 1)
     if lhs_batches == 1 or rhs_batches == 1:
         # This could be regular matmul or batch matmul with shape ND x 2D or 2D x ND
         return True
 
+    analyzer = tvm.arith.Analyzer()
     # If one side has less dimensions, use 1 to fill the gap
-    batch_dim_pairs = itertools.zip_longest(
-        lhs_shape[-3::-1],  # Remove the last two dimensions and reverse
-        rhs_shape[-3::-1],
-        fillvalue=1,
+    batch_dim_pairs = list(
+        itertools.zip_longest(
+            list(lhs_shape)[-3::-1],  # Remove the last two dimensions and reverse
+            list(rhs_shape)[-3::-1],
+            fillvalue=1,
+        )
     )
-    return all(p[0] == p[1] for p in batch_dim_pairs)
+    return all(analyzer.can_prove_equal(p[0], p[1]) for p in batch_dim_pairs)
 
 
 @relax.expr_functor.mutator
@@ -689,7 +702,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         rhs_dtype = signature[f"{rhs_arg}_dtype"]
         out_dtype = signature["ret_dtype"]
 
-        if not is_valid_for_cutlass_matmul(lhs_shape, rhs_shape):
+        if not is_shape_valid_for_cutlass_matmul(lhs_shape, rhs_shape):
             raise ValueError(f"Cannot handle the input shapes, lhs: {lhs_shape}, rhs: {rhs_shape}")
 
         MM = lhs_shape[-2]
@@ -712,7 +725,9 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         else:
             is_batched = True
             batch_attrs = {
-                "batch": max(lhs_batches, rhs_batches),
+                # If both lhs_batches and rhs_batches are greater than 1,
+                # they must be equal. This is checked by is_shape_valid_for_cutlass_matmul.
+                "batch": lhs_batches if rhs_batches == 1 else rhs_batches,
                 "batch_stride_A": 0 if lhs_batches == 1 else MM * KK,
                 "batch_stride_B": 0 if rhs_batches == 1 else KK * NN,
                 "batch_stride_C": MM * NN,

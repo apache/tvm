@@ -561,20 +561,34 @@ def instantiate_template(func_name, annotations, func_args):
 
         if batched:
             headers.append("cutlass/gemm/device/gemm_batched.h")
-            attrs["batch"] = get_dim(annotations["batch"], lhs_arg, 0)
+
+            def get_batch_on_arg(arg_name, arg_shape):
+                return " * ".join(
+                    "{}->shape[{}]".format(arg_name, i) for i in range(len(arg_shape) - 2)
+                )
+
+            if isinstance(annotations["batch"], IntImm):
+                attrs["batch"] = str(int(annotations["batch"]))
+            elif annotations["batch_stride_A"] == 0:
+                # 2D x ND
+                attrs["batch"] = get_batch_on_arg(rhs_arg, rhs_shape)
+            else:
+                # ND x 2D or ND x ND
+                attrs["batch"] = get_batch_on_arg(lhs_arg, lhs_shape)
+
             attrs["batch_stride_A"] = get_batch_stride(
                 annotations["batch_stride_A"],
                 lhs_arg_idx,
                 lhs_arg_idx,
-                1,
-                2,
+                lhs_batched_offset,
+                lhs_batched_offset + 1,
             )
             attrs["batch_stride_B"] = get_batch_stride(
                 annotations["batch_stride_B"],
                 rhs_arg_idx,
                 rhs_arg_idx,
-                1,
-                2,
+                rhs_batched_offset,
+                rhs_batched_offset + 1,
             )
 
             if transposed:
@@ -582,16 +596,16 @@ def instantiate_template(func_name, annotations, func_args):
                     annotations["batch_stride_C"],
                     lhs_arg_idx,
                     rhs_arg_idx,
-                    1,
-                    1,
+                    lhs_batched_offset,
+                    rhs_batched_offset,
                 )
             else:
                 attrs["batch_stride_C"] = get_batch_stride(
                     annotations["batch_stride_C"],
                     lhs_arg_idx,
                     rhs_arg_idx,
-                    1,
-                    2,
+                    lhs_batched_offset,
+                    rhs_batched_offset + 1,
                 )
         else:
             headers.append("cutlass/gemm/device/gemm.h")

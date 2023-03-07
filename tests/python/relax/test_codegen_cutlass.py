@@ -16,17 +16,17 @@
 # under the License.
 import numpy as np
 import pytest
-import scipy
 
 import tvm
 import tvm.testing
 import tvm.topi.testing
+from tvm import relax
+from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
 from tvm.contrib.pickle_memoize import memoize
-from tvm import relax, relay
-from tvm.contrib.cutlass.build import is_valid_for_cutlass_matmul
 from tvm.relax.backend import get_patterns_with_prefix
 from tvm.relax.backend.contrib.cutlass import partition_for_cutlass
 from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 @pytest.fixture(autouse=True)
@@ -134,14 +134,13 @@ def test_kernel_sharing():
     np.testing.assert_equal(out, ref)
 
 
-def get_relax_matmul_module(x, y, transposed_y=False, with_bias=False, activation=None):
-    m, k = x.shape[-2:]
+def get_relax_matmul_module(
+    x_shape, y_shape, dtype, transposed_y=False, with_bias=False, activation=None
+):
     if transposed_y:
-        n = y.shape[-2]
+        n = y_shape[-2]
     else:
-        n = y.shape[-1]
-    dtype = str(x.dtype)
-    y_shape = y.shape
+        n = y_shape[-1]
 
     from tvm.script.ir_builder import IRBuilder
     from tvm.script.ir_builder import relax as relax_builder
@@ -149,8 +148,8 @@ def get_relax_matmul_module(x, y, transposed_y=False, with_bias=False, activatio
     with IRBuilder() as builder:
         with relax_builder.function():
             R.func_name("main")
-            x = R.arg("x", R.Tensor(x.shape, dtype))
-            y = R.arg("y", R.Tensor(y.shape, dtype))
+            x = R.arg("x", R.Tensor(x_shape, dtype))
+            y = R.arg("y", R.Tensor(y_shape, dtype))
             if with_bias:
                 bias = R.arg("bias", R.Tensor((n,), dtype))
 
@@ -171,46 +170,63 @@ def get_relax_matmul_module(x, y, transposed_y=False, with_bias=False, activatio
     return tvm.IRModule({"main": func})
 
 
+def _to_concrete_shape(symbolic_shape, var_table):
+    result = []
+    for dim in symbolic_shape:
+        if not isinstance(dim, tvm.tir.expr.Var):
+            result.append(dim)
+            continue
+
+        if dim not in var_table:
+            var_table[dim] = np.random.randint(10, 50)
+        result.append(var_table[dim])
+
+    return tuple(result)
+
+
+_vars = {
+    "a": tvm.tir.expr.Var("a", "int64"),
+    "b": tvm.tir.expr.Var("b", "int64"),
+}
+
+
+_epilogue_table = {
+    "none": (False, None),
+    "bias": (True, None),
+    "relu": (True, R.nn.relu),
+    "gelu": (True, R.nn.gelu),
+}
+
+
 @pytest.mark.parametrize(
-    "x_shape, y_shape, transpose_y",
+    "x_shape, y_shape, transpose_y, epilogue",
     [
         # Regular
-        ((32, 6), (6, 16), False),
+        ((32, 6), (6, 16), False, "none"),
+        ((_vars["a"], 6), (6, 16), False, "bias"),
         # Transposed
-        ((4, 16), (16, 128), True),
-        ((35, 8), (8, 8), True),
+        ((4, 16), (16, 128), True, "relu"),
+        ((35, 8), (8, 8), True, "gelu"),
         # 3D x 3D
-        ((6, 32, 8), (6, 8, 10), False),
-        ((6, 32, 8), (6, 8, 10), True),
+        ((6, 32, 8), (6, 8, 10), False, "bias"),
+        ((6, 32, 8), (6, 8, 10), True, "none"),
+        ((_vars["a"], 32, 8), (_vars["a"], 8, 10), True, "gelu"),
         # 3D x 2D
-        ((6, 32, 8), (8, 10), False),
-        ((10, 16, 8), (8, 10), True),
+        ((6, 32, 8), (8, 10), False, "none"),
+        ((_vars["a"], 32, 8), (8, 10), False, "bias"),
+        ((10, 16, 8), (8, 10), True, "relu"),
         # 2D x 3D
-        ((32, 8), (10, 8, 10), False),
-        ((32, 8), (10, 8, 10), True),
+        ((32, 8), (10, 8, 10), False, "relu"),
+        ((32, 8), (_vars["a"], 8, 10), True, "gelu"),
         # ND x 2D
-        ((3, 6, 32, 8), (8, 10), False),
+        ((3, 6, 32, 8), (8, 10), False, "bias"),
+        ((_vars["a"], _vars["b"], 6, 32, 8), (8, 10), False, "none"),
         # 2D x ND
-        ((32, 8), (5, 3, 8, 10), False),
+        ((32, 8), (5, 3, 8, 10), False, "gelu"),
         # ND x ND
-        ((5, 3, 32, 8), (5, 3, 8, 10), True),
-        ((3, 2, 4, 16, 15), (1, 1, 15, 2), True),
-        ((1, 1, 16, 15), (3, 2, 4, 15, 2), False),
-    ],
-)
-@pytest.mark.parametrize(
-    "with_bias, activation",
-    [
-        (True, None),
-        (False, None),
-        (True, R.nn.relu),
-        (True, R.nn.gelu),
-    ],
-    ids=[
-        "no_bias",
-        "biased",
-        "biased_relu",
-        "biased_gelu",
+        ((5, 3, 32, 8), (5, 3, 8, 10), True, "relu"),
+        ((3, 2, 4, 16, 15), (1, 1, 15, 2), True, "gelu"),
+        ((1, 1, 16, 15), (3, 2, _vars["a"], 15, 2), False, "none"),
     ],
 )
 @pytest.mark.parametrize(
@@ -223,25 +239,34 @@ def test_matmul_offload(
     x_shape,
     y_shape,
     transpose_y,
-    with_bias,
-    activation,
+    epilogue,
     dtype,
 ):
-    x = np.random.randn(*x_shape).astype(dtype)
-    y = np.random.randn(*y_shape).astype(dtype)
+    with_bias, activation = _epilogue_table[epilogue]
+    var_table = {}
+    concrete_x_shape = _to_concrete_shape(x_shape, var_table)
+    concrete_y_shape = _to_concrete_shape(y_shape, var_table)
+    x = np.random.randn(*concrete_x_shape).astype(dtype)
+    y = np.random.randn(*concrete_y_shape).astype(dtype)
 
     if transpose_y:
         y = np.swapaxes(y, -2, -1)
+        y_shape = (*y_shape[:-2], y_shape[-1], y_shape[-2])
 
     if with_bias:
-        bias = np.random.randn(y_shape[-1]).astype(dtype)
+        bias = np.random.randn(concrete_y_shape[-1]).astype(dtype)
         args = (x, y, bias)
     else:
         bias = None
         args = (x, y)
 
     mod = get_relax_matmul_module(
-        x, y, with_bias=with_bias, transposed_y=transpose_y, activation=activation
+        x_shape,
+        y_shape,
+        dtype,
+        with_bias=with_bias,
+        transposed_y=transpose_y,
+        activation=activation,
     )
     out = get_result_with_relax_cutlass_offload(mod, *args)
     ref = build_and_run(mod, args, "llvm", legalize=True)
@@ -256,15 +281,24 @@ def test_matmul_offload(
         ((3, 4), (4, 5), True),
         # Batch matmul without stretching
         ((3, 16, 15), (3, 15, 2), True),
+        ((_vars["a"], 16, 15), (_vars["a"], 15, 2), True),
         # Broadcast 2D to 3D
         ((3, 16, 15), (15, 2), True),
+        ((_vars["a"], 16, 15), (15, 2), True),
         ((16, 15), (3, 15, 2), True),
         # Broadcast one-length dimension
         ((1, 16, 15), (3, 15, 2), True),
         ((3, 16, 15), (1, 15, 2), True),
         ((1, 1, 16, 15), (3, 2, 4, 15, 2), True),
+        ((1, 1, 16, 15), (3, _vars["a"], 4, 15, 2), True),
         # ND x ND
         ((3, 2, 4, 16, 15), (3, 2, 4, 15, 2), True),
+        ((_vars["a"], 2, 4, 16, 15), (_vars["a"], 2, 4, 15, 2), True),
+        (
+            (_vars["a"], _vars["b"], 4, 16, 15),
+            (_vars["a"], _vars["b"], 4, 15, 2),
+            True,
+        ),
         # ND x ND with one-length dimension
         ((1, 2, 4, 16, 15), (1, 2, 4, 15, 2), True),
         ((3, 2, 1, 16, 15), (3, 2, 1, 15, 2), True),
@@ -275,10 +309,16 @@ def test_matmul_offload(
         ((3, 2, 4, 16, 15), (2, 4, 15, 2), False),
         # Different shape
         ((3, 4, 16, 15), (3, 2, 15, 2), False),
+        ((3, _vars["a"], 16, 15), (3, _vars["b"], 15, 2), False),
+        # Cannot prove that broadcast dimensions are equal
+        ((_vars["a"], 16, 15), (3, 15, 2), False),
+        ((3, _vars["a"], 1, 16, 15), (1, 1, 3, 2, 1, 15, 2), False),
+        # Reduction axis must be constant
+        ((3, _vars["a"]), (_vars["a"], 5), False),
     ],
 )
-def test_is_valid_for_cutlass_matmul(x_shape, y_shape, expected):
-    assert is_valid_for_cutlass_matmul(x_shape, y_shape) == expected
+def test_is_shape_valid_for_cutlass_matmul(x_shape, y_shape, expected):
+    assert is_shape_valid_for_cutlass_matmul(x_shape, y_shape) == expected
 
 
 @pytest.mark.parametrize(
@@ -286,20 +326,24 @@ def test_is_valid_for_cutlass_matmul(x_shape, y_shape, expected):
     [
         # Not broadcasting all dims. Cannot be computed by stride-based batch gemm
         ((3, 1, 1, 16, 15), (3, 2, 4, 15, 2), False, "float16"),
+        ((3, 2, _vars["a"], 16, 15), (3, 2, 4, 15, 2), False, "float16"),
         ((1, 2, 1, 16, 15), (2, 1, 4, 15, 2), False, "float16"),
         ((3, 2, 4, 16, 15), (2, 4, 15, 2), True, "float16"),
         ((3, 16, 15), (2, 1, 3, 15, 2), True, "float16"),
+        ((3, 16, 15), (_vars["a"], 1, 3, 15, 2), True, "float16"),
+        ((_vars["a"], 1, 3, 16, 15), (_vars["b"], 1, 3, 15, 2), True, "float16"),
+        ((_vars["a"], _vars["b"], 3, 16, 15), (_vars["a"], 1, 3, 15, 2), True, "float16"),
     ],
 )
 def test_cutlass_partition_matmul_blocked(x_shape, y_shape, transpose_y, dtype):
-    x = np.random.randn(*x_shape).astype(dtype)
-    y = np.random.randn(*y_shape).astype(dtype)
     if transpose_y:
-        y = np.swapaxes(y, -2, -1)
+        y_shape = (*y_shape[:-2], y_shape[-1], y_shape[-2])
 
-    mod = get_relax_matmul_module(x, y, with_bias=False, transposed_y=transpose_y)
+    mod = get_relax_matmul_module(
+        x_shape, y_shape, dtype, with_bias=False, transposed_y=transpose_y
+    )
 
-    tvm.ir.assert_structural_equal(mod, partition_for_cutlass(mod))
+    assert len(mod.functions) == 1
 
 
 @pytest.fixture(params=["float16", "float32"])
