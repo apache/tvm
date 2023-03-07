@@ -20,9 +20,9 @@
 from typing import Mapping, Optional, Tuple
 
 import tvm
-from tvm.contrib.cutlass.build import is_valid_for_cutlass_matmul
+from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
 from tvm.relax import Call, Expr, ShapeExpr, transform
-from tvm.relax.dpl import DFPattern
+from tvm.relax.dpl import CallPattern, DFPattern
 
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
 from ..patterns import (
@@ -56,9 +56,10 @@ def _check_matmul(
     _: Expr,
 ) -> bool:
     matmul_call: Call = None
-    for _, expr in match_result.items():
+    for pattern, expr in match_result.items():
         if (
             isinstance(expr, Call)
+            and isinstance(pattern, CallPattern)
             and isinstance(expr.op, tvm.ir.Op)
             and expr.op.name == "relax.matmul"
         ):
@@ -66,17 +67,16 @@ def _check_matmul(
     if matmul_call is None:
         raise ValueError("Cannot find call to matmul from match_result.")
 
-    lhs_shape = _get_static_shape(matmul_call.args[0].struct_info.shape)
-    rhs_shape = _get_static_shape(matmul_call.args[1].struct_info.shape)
-    if len(lhs_shape) < 2 or len(rhs_shape) < 2:
-        return False
+    lhs, rhs, *_ = matmul_call.args
 
-    lhs_dtype = matmul_call.args[0].struct_info.dtype
-    rhs_dtype = matmul_call.args[1].struct_info.dtype
+    lhs_dtype = lhs.struct_info.dtype
+    rhs_dtype = rhs.struct_info.dtype
     if not _is_supported_dtype(lhs_dtype, rhs_dtype):
         return False
 
-    return is_valid_for_cutlass_matmul(lhs_shape, rhs_shape)
+    lhs_shape = lhs.struct_info.shape.values
+    rhs_shape = rhs.struct_info.shape.values
+    return is_shape_valid_for_cutlass_matmul(lhs_shape, rhs_shape)
 
 
 register_patterns(
