@@ -30,7 +30,7 @@ namespace tvm {
 namespace relax {
 
 Expr unique(Expr x, PrimValue sorted, PrimValue return_index, PrimValue return_inverse,
-            PrimValue return_counts, Optional<PrimValue> axis);
+            PrimValue return_counts, Optional<PrimValue> axis, Span span = Span());
 }  // namespace relax
 }  // namespace tvm
 

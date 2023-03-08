@@ -124,9 +124,9 @@ TVM_REGISTER_OP("relax.call_builtin_with_ctx")
     .add_argument("args", "Tuple", "The input arguments.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallBuiltinWithCtx);
 
-Expr MakeCallBuiltinWithCtx(Expr func, Tuple args, Array<StructInfo> sinfo_args) {
+Expr MakeCallBuiltinWithCtx(Expr func, Tuple args, Array<StructInfo> sinfo_args, Span span) {
   static const Op& op = Op::Get("relax.call_builtin_with_ctx");
-  return Call(op, {func, args}, Attrs(), sinfo_args);
+  return Call(op, {func, args}, Attrs(), sinfo_args, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.call_builtin_with_ctx").set_body_typed(MakeCallBuiltinWithCtx);
@@ -135,9 +135,9 @@ TVM_REGISTER_OP("relax.null_value")
     .set_num_inputs(0)
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo);
 
-Expr MakeCallNullValue() {
+Expr MakeCallNullValue(Span span = Span()) {
   static const Op& op = Op::Get("relax.null_value");
-  return Call(op, {}, {}, {});
+  return Call(op, {}, {}, {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.null_value").set_body_typed(MakeCallNullValue);
@@ -152,14 +152,14 @@ RELAY_REGISTER_OP("relax.print")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.print");
 
-Expr MakePrint(Array<Expr> vals, StringImm format) {
+Expr MakePrint(Array<Expr> vals, StringImm format, Span span) {
   Array<Expr> params;
   params.push_back(format);
   for (const auto val : vals) {
     params.push_back(val);
   }
   static const Op& op = Op::Get("relax.print");
-  return Call(op, params);
+  return Call(op, params, {}, {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.print").set_body_typed(MakePrint);
@@ -194,14 +194,14 @@ RELAY_REGISTER_OP("relax.assert_op")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferAssertStructInfo)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.assert_op");
 
-Expr MakeAssertOp(Expr condition, Array<Expr> vals, StringImm format) {
+Expr MakeAssertOp(Expr condition, Array<Expr> vals, StringImm format, Span span) {
   static const Op& op = Op::Get("relax.assert_op");
   Array<Expr> args = {condition};
   args.push_back(format);
   for (auto val : vals) {
     args.push_back(val);
   }
-  return Call(op, args);
+  return Call(op, args, {}, {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.assert_op").set_body_typed(MakeAssertOp);
@@ -214,9 +214,9 @@ RELAY_REGISTER_OP("relax.make_closure")
     .add_argument("args", "Tuple", "The captured variables.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo);
 
-Expr MakeClosure(Expr func, Tuple args) {
+Expr MakeClosure(Expr func, Tuple args, Span span) {
   static const Op& op = Op::Get("relax.make_closure");
-  return Call(op, {func, args}, {}, {});
+  return Call(op, {func, args}, {}, {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.make_closure").set_body_typed(MakeClosure);
@@ -239,9 +239,9 @@ RELAY_REGISTER_OP("relax.invoke_closure")
     .add_argument("args", "Tuple", "The captured variables.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoInvokeClosure);
 
-Expr InvokeClosure(Expr closure, Tuple args, Array<StructInfo> sinfo_args) {
+Expr InvokeClosure(Expr closure, Tuple args, Array<StructInfo> sinfo_args, Span span) {
   static const Op& op = Op::Get("relax.invoke_closure");
-  return Call(op, {closure, args}, {}, sinfo_args);
+  return Call(op, {closure, args}, {}, sinfo_args, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.invoke_closure").set_body_typed(InvokeClosure);
@@ -284,9 +284,9 @@ RELAY_REGISTER_OP("relax.builtin.alloc_tensor")
                   "allocated at runtime. Index -1 is reserved for the host device.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAllocateTensor);
 
-Expr MakeAllocTensor(Expr shape, DataTypeImm dtype, PrimValue runtime_device_index) {
+Expr MakeAllocTensor(Expr shape, DataTypeImm dtype, PrimValue runtime_device_index, Span span) {
   static const Op& op = Op::Get("relax.builtin.alloc_tensor");
-  return Call(op, {shape, dtype, runtime_device_index}, Attrs(), {});
+  return Call(op, {shape, dtype, runtime_device_index}, Attrs(), {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.builtin.alloc_tensor").set_body_typed(MakeAllocTensor);
@@ -306,9 +306,9 @@ RELAY_REGISTER_OP("relax.memory.alloc_storage")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo);
 
 Expr MakeAllocStorage(Expr size, PrimValue virtual_device_index, StringImm storage_scope,
-                      DataTypeImm dtype) {
+                      DataTypeImm dtype, Span span) {
   static const Op& op = Op::Get("relax.memory.alloc_storage");
-  return Call(op, {size, virtual_device_index, storage_scope, dtype}, Attrs(), {});
+  return Call(op, {size, virtual_device_index, storage_scope, dtype}, Attrs(), {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.memory.alloc_storage").set_body_typed(MakeAllocStorage);
@@ -334,9 +334,9 @@ RELAY_REGISTER_OP("relax.memory.alloc_tensor")
     .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMemAllocTensor);
 
-Expr MakeMemAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm dtype) {
+Expr MakeMemAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm dtype, Span span) {
   static const Op& op = Op::Get("relax.memory.alloc_tensor");
-  return Call(op, {storage, offset, shape, dtype}, Attrs(), {});
+  return Call(op, {storage, offset, shape, dtype}, Attrs(), {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.memory.alloc_tensor").set_body_typed(MakeMemAllocTensor);
@@ -348,9 +348,9 @@ RELAY_REGISTER_OP("relax.memory.kill_storage")
     .add_argument("storage", "Expr", "The storage to be killed.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo);
 
-Expr MakeMemKillStorage(Expr storage) {
+Expr MakeMemKillStorage(Expr storage, Span span) {
   static const Op& op = Op::Get("relax.memory.kill_storage");
-  return Call(op, {storage}, {}, {});
+  return Call(op, {storage}, {}, {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.memory.kill_storage").set_body_typed(MakeMemKillStorage);
@@ -362,9 +362,9 @@ RELAY_REGISTER_OP("relax.memory.kill_tensor")
     .add_argument("tensor", "Expr", "The tensor to be killed.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo);
 
-Expr MakeMemKillTensor(Expr tensor) {
+Expr MakeMemKillTensor(Expr tensor, Span span) {
   static const Op& op = Op::Get("relax.memory.kill_tensor");
-  return Call(op, {tensor}, {}, {});
+  return Call(op, {tensor}, {}, {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.memory.kill_tensor").set_body_typed(MakeMemKillTensor);
@@ -380,9 +380,9 @@ RELAY_REGISTER_OP("relax.vm.alloc_storage")
                   "to be allocated at runtime.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo);
 
-Expr MakeVMAllocStorage(Expr size, PrimValue runtime_device_index, DataTypeImm dtype) {
+Expr MakeVMAllocStorage(Expr size, PrimValue runtime_device_index, DataTypeImm dtype, Span span) {
   static const Op& op = Op::Get("relax.vm.alloc_storage");
-  return Call(op, {size, runtime_device_index, dtype}, Attrs(), {});
+  return Call(op, {size, runtime_device_index, dtype}, Attrs(), {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.vm.alloc_storage").set_body_typed(MakeVMAllocStorage);
@@ -411,9 +411,9 @@ RELAY_REGISTER_OP("relax.vm.alloc_tensor")
     .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoVMAllocTensor);
 
-Expr MakeVMAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm dtype) {
+Expr MakeVMAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm dtype, Span span) {
   static const Op& op = Op::Get("relax.vm.alloc_tensor");
-  return Call(op, {storage, offset, shape, dtype}, Attrs(), {});
+  return Call(op, {storage, offset, shape, dtype}, Attrs(), {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.vm.alloc_tensor").set_body_typed(MakeVMAllocTensor);
@@ -427,9 +427,9 @@ RELAY_REGISTER_OP("relax.vm.call_tir_dyn")
                   "The input arguments (list of tensors and last argument is ShapeExpr)")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo);
 
-Expr MakeCallTIRDyn(Expr func, Tuple args) {
+Expr MakeCallTIRDyn(Expr func, Tuple args, Span span) {
   static const Op& op = Op::Get("relax.vm.call_tir_dyn");
-  return Call(op, {func, args}, Attrs(), {});
+  return Call(op, {func, args}, Attrs(), {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.vm.call_tir_dyn").set_body_typed(MakeCallTIRDyn);

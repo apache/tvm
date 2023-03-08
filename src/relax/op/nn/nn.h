@@ -70,7 +70,7 @@ Expr layer_norm(Expr data, Expr gamma, Expr beta, Array<Integer> axes, double ep
 
 /*! \brief Compute group normalization. */
 Expr group_norm(Expr data, Expr gamma, Expr beta, int num_groups, int channel_axis,
-                Array<Integer> axes, double epsilon, bool center, bool scale);
+                Array<Integer> axes, double epsilon, bool center, bool scale, Span span = Span());
 
 /*!
  * \brief Applies the dropout operation to the input tensor.

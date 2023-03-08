@@ -38,10 +38,10 @@ namespace relax {
 Expr where(Expr condition, Expr x1, Expr x2, Span span = Span());
 
 /*! \brief Computes the argmax of tensor elements over given axis. */
-Expr argmax(Expr x, Optional<Integer> axis, bool keepdims);
+Expr argmax(Expr x, Optional<Integer> axis, bool keepdims, Span span = Span());
 
 /*! \brief Computes the argmin of tensor elements over given axis. */
-Expr argmin(Expr x, Optional<Integer> axis, bool keepdims);
+Expr argmin(Expr x, Optional<Integer> axis, bool keepdims, Span span = Span());
 
 }  // namespace relax
 }  // namespace tvm

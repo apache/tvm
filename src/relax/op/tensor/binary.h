@@ -73,7 +73,7 @@ Expr floor_divide(Expr x1, Expr x2, Span span = Span());
 Expr multiply(Expr x1, Expr x2, Span span = Span());
 
 /*! \brief Power with numpy-style broadcasting. */
-Expr power(Expr x1, Expr x2);
+Expr power(Expr x1, Expr x2, Span span = Span());
 
 /*! \brief Subtraction with numpy-style broadcasting. */
 Expr subtract(Expr x1, Expr x2, Span span = Span());

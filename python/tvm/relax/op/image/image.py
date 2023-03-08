@@ -21,7 +21,8 @@ from tvm import DataType
 from tvm.ir.expr import PrimExpr
 
 from . import _ffi_api
-from ...expr import Expr, ShapeExpr
+from ...expr import Expr, ShapeExpr, Span
+from ...utils import SpanContext
 
 
 PrimExprLike = Union[int, PrimExpr]
@@ -39,6 +40,7 @@ def resize2d(
     cubic_exclude: int = 0,
     extrapolation_value: float = 0.0,
     out_dtype: Optional[Union[str, DataType]] = None,
+    span: Span = None,
 ) -> Expr:
     """Image resize2d operator.
 
@@ -95,6 +97,9 @@ def resize2d(
         The dtype of the output tensor.
         It it is not specified, the output will have the same dtype as input if not specified.
 
+    span : Span
+        The span of the source program.
+
     Returns
     -------
     result: relax.Expr
@@ -112,6 +117,8 @@ def resize2d(
             size = ShapeExpr([size[0], size[0]])
         else:
             size = ShapeExpr(size)
+    if span is None:
+        span = SpanContext.current()
 
     return _ffi_api.resize2d(  # type: ignore
         data,
@@ -125,4 +132,5 @@ def resize2d(
         cubic_exclude,
         extrapolation_value,
         out_dtype,
+        span,
     )

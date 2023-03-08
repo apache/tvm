@@ -32,15 +32,22 @@ from ..utils import args_converter, SpanContext
 py_print = print  # pylint: disable=invalid-name
 
 
-def null_value() -> Call:
+def null_value(span: Span = None) -> Call:
     """Create a call node that represents a null value object.
+
+    Parameters
+    ----------
+    span : Span
+        The span for the call being emitted.
 
     Returns
     -------
     ret: Call
         The created call node.
     """
-    return _ffi_api.null_value()  # type: ignore
+    if span is None:
+        span = SpanContext.current()
+    return _ffi_api.null_value(span)  # type: ignore
 
 
 @args_converter.auto
@@ -102,6 +109,7 @@ def call_builtin_with_ctx(
     args: Expr,
     *,
     sinfo_args: Optional[Union[StructInfo, List[StructInfo]]] = None,
+    span: Span = None,
 ) -> Call:
     """Call a builtin function func.
 
@@ -116,6 +124,9 @@ def call_builtin_with_ctx(
     sinfo_args: Optional[Union[StructInfo, List[StructInfo]]]
         The struct info arguments to the call node.
 
+    span : Span
+        The span for the call being emitted.
+
     Returns
     -------
     ret: Call
@@ -127,10 +138,14 @@ def call_builtin_with_ctx(
     if sinfo_args is not None and not isinstance(sinfo_args, (list, tuple)):
         sinfo_args = [sinfo_args]
 
+    if span is None:
+        span = SpanContext.current()
+
     return _ffi_api.call_builtin_with_ctx(  # type: ignore
         func,
         args,
         sinfo_args,  # type: ignore
+        span,
     )
 
 
@@ -138,6 +153,7 @@ def call_builtin_with_ctx(
 def make_closure(
     func: Expr,
     args: Expr,
+    span: Span = None,
 ) -> Object:
     """
     Create a closure with free variables and return the closure.
@@ -150,6 +166,9 @@ def make_closure(
     args : Expr
         The input arguments.
 
+    span : Span
+        The span for the call being emitted.
+
 
     Returns
     -------
@@ -157,7 +176,7 @@ def make_closure(
         The VMClosure.
     """
 
-    return _ffi_api.make_closure(func, args)  # type: ignore
+    return _ffi_api.make_closure(func, args, span)  # type: ignore
 
 
 @args_converter.auto
@@ -165,6 +184,7 @@ def invoke_closure(
     closure: Expr,
     args: Expr,
     sinfo_args: Union[List[StructInfo], StructInfo],
+    span: Span = None,
 ) -> Object:
     """
     Invoke a closure.
@@ -180,6 +200,9 @@ def invoke_closure(
     type_args: Union[List[StructInfo], StructInfo]
         The structure info arguments of the CallNode
 
+    span : Span
+        The span for the call being emitted.
+
     Returns
     -------
     ret: Object
@@ -189,7 +212,10 @@ def invoke_closure(
     if not isinstance(sinfo_args, (list, tuple)):
         sinfo_args = [sinfo_args]
 
-    return _ffi_api.invoke_closure(closure, args, sinfo_args)  # type: ignore
+    if span is None:
+        span = SpanContext.current()
+
+    return _ffi_api.invoke_closure(closure, args, sinfo_args, span)  # type: ignore
 
 
 def render_object(val: tvm.Object) -> str:
@@ -250,7 +276,7 @@ def relax_print(format_str: str, *format_args: tvm.Object) -> None:
         py_print(format_str.format(*val_strs))
 
 
-def print(*values: List[Expr], format: Union[str, Expr] = "") -> Expr:
+def print(*values: List[Expr], format: Union[str, Expr] = "", span: Span = None) -> Expr:
     """Print op to print the values
 
     Parameters
@@ -261,6 +287,9 @@ def print(*values: List[Expr], format: Union[str, Expr] = "") -> Expr:
     format: Union[str, Expr]
         The format string or StringImm.
 
+    span : Span
+        The span for the call being emitted.
+
     Returns
     -------
     result : Expr
@@ -269,7 +298,10 @@ def print(*values: List[Expr], format: Union[str, Expr] = "") -> Expr:
     if isinstance(format, str):
         format = StringImm(format)
 
-    return _ffi_api.print(values, format)  # type: ignore # pylint: disable=no-member
+    if span is None:
+        span = SpanContext.current()
+
+    return _ffi_api.print(values, format, span)  # type: ignore # pylint: disable=no-member
 
 
 @tvm.register_func("relax.run.assert_op")
@@ -329,6 +361,7 @@ def assert_op(
     condition: Expr,
     format_args: Optional[Union[Expr, List[Expr]]] = None,
     format: Union[str, Expr] = "",
+    span: Span = None,
 ) -> Expr:
     """
     Create a call to Relax's assert_op operation (`assert` is reserved in Python,
@@ -345,6 +378,9 @@ def assert_op(
     format: Union[str, Expr]
         The format string or StringImm for the error message.
 
+    span : Span
+        The span for the call being emitted.
+
     Returns
     -------
     result : Expr
@@ -356,7 +392,9 @@ def assert_op(
         format_args = [format_args]
     if isinstance(format, str):
         format = StringImm(format)
-    return _ffi_api.assert_op(condition, format_args, format)  # type: ignore
+    if span is None:
+        span = SpanContext.current()
+    return _ffi_api.assert_op(condition, format_args, format, span)  # type: ignore
 
 
 def shape_of(expr: Expr, span: Span = None) -> Expr:

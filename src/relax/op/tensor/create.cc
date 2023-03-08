@@ -33,7 +33,7 @@ namespace relax {
 TVM_REGISTER_NODE_TYPE(InitAttrs);
 
 /* relax.full */
-Expr full(ObjectRef shape, Expr fill_value, DataType dtype) {
+Expr full(ObjectRef shape, Expr fill_value, DataType dtype, Span span) {
   Expr shape_in_expr{nullptr};
   if (const auto* expr = shape.as<ExprNode>()) {
     shape_in_expr = GetRef<Expr>(expr);
@@ -49,7 +49,8 @@ Expr full(ObjectRef shape, Expr fill_value, DataType dtype) {
   attrs->dtype = dtype;
 
   static const Op& op = Op::Get("relax.full");
-  return Call(op, {std::move(shape_in_expr), std::move(fill_value)}, Attrs(attrs), {});
+  return Call(op, {std::move(shape_in_expr), std::move(fill_value)}, Attrs(attrs), {},
+              std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.full").set_body_typed(full);
@@ -85,11 +86,11 @@ TVM_REGISTER_OP("relax.full")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoFull);
 
 /* relax.full_like */
-Expr full_like(Expr x, Expr fill_value, DataType dtype) {
+Expr full_like(Expr x, Expr fill_value, DataType dtype, Span span) {
   ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("relax.full_like");
-  return Call(op, {std::move(x), std::move(fill_value)}, Attrs(attrs), {});
+  return Call(op, {std::move(x), std::move(fill_value)}, Attrs(attrs), {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.full_like").set_body_typed(full_like);
@@ -152,20 +153,20 @@ StructInfo InferStructInfoOnesLikeZerosLike(const Call& call, const BlockBuilder
 }
 
 /* relax.ones & relax.ones_like */
-Expr ones(Expr shape, DataType dtype) {
+Expr ones(Expr shape, DataType dtype, Span span) {
   CHECK(!dtype.is_void()) << "Ones op expects the input dtype not to be void";
   ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
   attrs->dtype = dtype;
 
   static const Op& op = Op::Get("relax.ones");
-  return Call(op, {std::move(shape)}, Attrs(attrs), {});
+  return Call(op, {std::move(shape)}, Attrs(attrs), {}, std::move(span));
 }
 
-Expr ones_like(Expr x, DataType dtype) {
+Expr ones_like(Expr x, DataType dtype, Span span) {
   ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("relax.ones_like");
-  return Call(op, {std::move(x)}, Attrs(attrs), {});
+  return Call(op, {std::move(x)}, Attrs(attrs), {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.ones").set_body_typed(ones);
@@ -184,20 +185,20 @@ TVM_REGISTER_OP("relax.ones_like")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoOnesLikeZerosLike);
 
 /* relax.zeros & relax.zeros_like */
-Expr zeros(Expr shape, DataType dtype) {
+Expr zeros(Expr shape, DataType dtype, Span span) {
   CHECK(!dtype.is_void()) << "Zeros op expects the input dtype not to be void";
   ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
   attrs->dtype = dtype;
 
   static const Op& op = Op::Get("relax.zeros");
-  return Call(op, {std::move(shape)}, Attrs(attrs), {});
+  return Call(op, {std::move(shape)}, Attrs(attrs), {}, std::move(span));
 }
 
-Expr zeros_like(Expr x, DataType dtype) {
+Expr zeros_like(Expr x, DataType dtype, Span span) {
   ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("relax.zeros_like");
-  return Call(op, {std::move(x)}, Attrs(attrs), {});
+  return Call(op, {std::move(x)}, Attrs(attrs), {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.zeros").set_body_typed(zeros);
@@ -218,20 +219,20 @@ TVM_REGISTER_OP("relax.zeros_like")
 /* relax.tril & relax.triu */
 TVM_REGISTER_NODE_TYPE(TriluAttrs);
 
-Expr tril(Expr x, int k) {
+Expr tril(Expr x, int k, Span span) {
   ObjectPtr<TriluAttrs> attrs = make_object<TriluAttrs>();
   attrs->k = k;
 
   static const Op& op = Op::Get("relax.tril");
-  return Call(op, {std::move(x)}, Attrs(attrs), {});
+  return Call(op, {std::move(x)}, Attrs(attrs), {}, std::move(span));
 }
 
-Expr triu(Expr x, int k) {
+Expr triu(Expr x, int k, Span span) {
   ObjectPtr<TriluAttrs> attrs = make_object<TriluAttrs>();
   attrs->k = k;
 
   static const Op& op = Op::Get("relax.triu");
-  return Call(op, {std::move(x)}, Attrs(attrs), {});
+  return Call(op, {std::move(x)}, Attrs(attrs), {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.tril").set_body_typed(tril);

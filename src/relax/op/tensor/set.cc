@@ -33,14 +33,16 @@ namespace relax {
 /* relax.unique */
 
 Expr unique(Expr x, PrimValue sorted, PrimValue return_index, PrimValue return_inverse,
-            PrimValue return_counts, Optional<PrimValue> axis) {
+            PrimValue return_counts, Optional<PrimValue> axis, Span span) {
   static const Op& op = Op::Get("relax.unique");
   Call call;
   if (!axis) {
-    call = Call(op, {std::move(x), sorted, return_index, return_inverse, return_counts});
+    call = Call(op, {std::move(x), sorted, return_index, return_inverse, return_counts}, {}, {},
+                std::move(span));
   } else {
     PrimValue pv_axis = axis.value();
-    call = Call(op, {std::move(x), sorted, return_index, return_inverse, return_counts, pv_axis});
+    call = Call(op, {std::move(x), sorted, return_index, return_inverse, return_counts, pv_axis},
+                {}, {}, std::move(span));
   }
   return call;
 }

@@ -22,7 +22,8 @@ import numpy as np  # type: ignore
 import tvm
 
 from . import _ffi_api
-from ..expr import Expr, PrimValue
+from ..expr import Expr, PrimValue, Span
+from ..utils import SpanContext
 
 
 def unique(
@@ -32,6 +33,7 @@ def unique(
     return_inverse: Union[bool, Expr] = False,
     return_counts: Union[bool, Expr] = False,
     axis: Optional[Union[int, Expr]] = None,
+    span: Span = None,
 ) -> Expr:
     """Find the unique elements in a given tensor.
     In addition, it optionally returns
@@ -63,6 +65,9 @@ def unique(
         The dimension to apply unique.
         If not specified, the unique values of the flattened input are returned.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     ret : relax.Expr
@@ -79,8 +84,10 @@ def unique(
         return_counts = PrimValue(return_counts)
     if axis and isinstance(axis, int):
         axis = PrimValue(axis)
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.unique(  # type: ignore
-        x, sorted, return_index, return_inverse, return_counts, axis
+        x, sorted, return_index, return_inverse, return_counts, axis, span
     )
 
 

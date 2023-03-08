@@ -157,12 +157,12 @@ StructInfo InferStructInfoArgmaxArgmin(const Call& call, const BlockBuilder& ctx
 }
 
 #define RELAX_REGISTER_ARGMAX_ARGMIN_OP(OpName)                            \
-  Expr OpName(Expr x, Optional<Integer> axis, bool keepdims) {             \
+  Expr OpName(Expr x, Optional<Integer> axis, bool keepdims, Span span) {  \
     ObjectPtr<ArgmaxArgminAttrs> attrs = make_object<ArgmaxArgminAttrs>(); \
     attrs->axis = std::move(axis);                                         \
     attrs->keepdims = std::move(keepdims);                                 \
     static const Op& op = Op::Get("relax." #OpName);                       \
-    return Call(op, {std::move(x)}, Attrs(attrs));                         \
+    return Call(op, {std::move(x)}, Attrs(attrs), {}, std::move(span));    \
   }                                                                        \
   TVM_REGISTER_GLOBAL("relax.op." #OpName).set_body_typed(OpName);         \
   TVM_REGISTER_OP("relax." #OpName)                                        \

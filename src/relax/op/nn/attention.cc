@@ -26,14 +26,14 @@ namespace tvm {
 namespace relax {
 
 /* relax.nn.attention */
-Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias) {
+Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias, Span span) {
   if (bias.defined()) {
     return Call(Op::Get("relax.nn.attention_bias"),
                 {std::move(query), std::move(key), std::move(value), std::move(bias.value())}, {},
-                {});
+                {}, std::move(span));
   }
   return Call(Op::Get("relax.nn.attention"), {std::move(query), std::move(key), std::move(value)},
-              {}, {});
+              {}, {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.nn.attention").set_body_typed(attention);

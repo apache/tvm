@@ -122,7 +122,7 @@ def multiply(x1: Expr, x2: Expr, span: Span = None) -> Expr:
     return _ffi_api.multiply(x1, x2, span)  # type: ignore
 
 
-def power(x1: Expr, x2: Expr):
+def power(x1: Expr, x2: Expr, span: Span = None) -> Expr:
     """Power with numpy-style broadcasting.
 
     Parameters
@@ -131,13 +131,17 @@ def power(x1: Expr, x2: Expr):
         The first input tensor.
     x2 : relax.Expr
         The second input tensor.
+    span : Span
+        The source code span.
 
     Returns
     -------
     result : relax.Expr
         The computed result.
     """
-    return _ffi_api.power(x1, x2)  # type: ignore
+    if span is None:
+        span = SpanContext.current()
+    return _ffi_api.power(x1, x2, span)  # type: ignore
 
 
 def subtract(x1: Expr, x2: Expr, span: Span = None) -> Expr:

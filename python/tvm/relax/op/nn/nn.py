@@ -598,6 +598,7 @@ def group_norm(
     epsilon: float = 1e-5,
     center: bool = True,
     scale: bool = True,
+    span: Span = None,
 ) -> Expr:
     r"""
     Group normalization (Yuxin Wu and et al., 2016).
@@ -634,6 +635,9 @@ def group_norm(
     scale : bool
         Indicating if the gamma scale will be multiplied.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
@@ -641,8 +645,10 @@ def group_norm(
     """
     if isinstance(axes, int):
         axes = [axes]
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.group_norm(  # type: ignore
-        data, gamma, beta, num_groups, channel_axis, axes, epsilon, center, scale
+        data, gamma, beta, num_groups, channel_axis, axes, epsilon, center, scale, span
     )
 
 
@@ -708,7 +714,9 @@ def cross_entropy_with_logits(predictions: Expr, labels: Expr, span: Span = None
     return _ffi_api.cross_entropy_with_logits(predictions, labels, span)  # type: ignore
 
 
-def attention(query: Expr, key: Expr, value: Expr, bias: Optional[Expr] = None) -> Expr:
+def attention(
+    query: Expr, key: Expr, value: Expr, bias: Optional[Expr] = None, span: Span = None
+) -> Expr:
     r"""Computes fused multi head attention.
 
     All input tensors are of 4-D tensors with BSNH layout.
@@ -738,10 +746,15 @@ def attention(query: Expr, key: Expr, value: Expr, bias: Optional[Expr] = None) 
         (batch_size, num_head, seq_len, seq_len_kv),
         (batch_size, seq_len, seq_len_kv) or (batch_size, seq_len_kv).
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
         The computed result. The layout of the output should be
         (batch_size, seq_len, num_head, head_dim_v).
     """
-    return _ffi_api.attention(query, key, value, bias)  # type: ignore
+    if span is None:
+        span = SpanContext.current()
+    return _ffi_api.attention(query, key, value, bias, span)  # type: ignore

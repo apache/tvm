@@ -120,7 +120,7 @@ Expr squeeze(Expr x, Optional<Array<Integer>> axis, Span span = Span());
  * \param collapse_target The tensor whose shape is the shape to collapse to.
  * \return The result tensor after summation.
  */
-Expr collapse_sum_like(Expr data, Expr collapse_target);
+Expr collapse_sum_like(Expr data, Expr collapse_target, Span span = Span());
 
 /*!
  * \brief Return a summation of data to the given shape.
@@ -132,7 +132,7 @@ Expr collapse_sum_like(Expr data, Expr collapse_target);
  * \param shape The shape to collapse to.
  * \return The result tensor of the given shape after summation.
  */
-Expr collapse_sum_to(Expr data, Expr shape);
+Expr collapse_sum_to(Expr data, Expr shape, Span span = Span());
 
 }  // namespace relax
 }  // namespace tvm

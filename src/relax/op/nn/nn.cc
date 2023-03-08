@@ -238,7 +238,7 @@ TVM_REGISTER_OP("relax.nn.layer_norm")
 TVM_REGISTER_NODE_TYPE(GroupNormAttrs);
 
 Expr group_norm(Expr data, Expr gamma, Expr beta, int num_groups, int channel_axis,
-                Array<Integer> axes, double epsilon, bool center, bool scale) {
+                Array<Integer> axes, double epsilon, bool center, bool scale, Span span) {
   ObjectPtr<GroupNormAttrs> attrs = make_object<GroupNormAttrs>();
   attrs->num_groups = num_groups;
   attrs->channel_axis = channel_axis;
@@ -248,7 +248,8 @@ Expr group_norm(Expr data, Expr gamma, Expr beta, int num_groups, int channel_ax
   attrs->scale = scale;
 
   static const Op& op = Op::Get("relax.nn.group_norm");
-  return Call(op, {std::move(data), std::move(gamma), std::move(beta)}, Attrs{attrs}, {});
+  return Call(op, {std::move(data), std::move(gamma), std::move(beta)}, Attrs{attrs}, {},
+              std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.nn.group_norm").set_body_typed(group_norm);

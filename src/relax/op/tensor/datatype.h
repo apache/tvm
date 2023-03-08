@@ -37,7 +37,7 @@ namespace relax {
  * \param dtype The target data type
  * \return The casted result.
  */
-Expr astype(Expr x, DataType dtype);
+Expr astype(Expr x, DataType dtype, Span span = Span());
 
 }  // namespace relax
 }  // namespace tvm

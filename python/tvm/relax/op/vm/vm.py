@@ -17,15 +17,13 @@
 
 from typing import Union
 from . import _ffi_api
-from ...expr import Expr, Call, PrimValue, DataTypeImm, Tuple
-from ...utils import args_converter
+from ...expr import Expr, Call, PrimValue, DataTypeImm, Tuple, Span
+from ...utils import args_converter, SpanContext
 
 
 @args_converter.auto
 def alloc_storage(
-    size: Expr,
-    runtime_device_index: Union[int, Expr],
-    dtype: Union[str, Expr],
+    size: Expr, runtime_device_index: Union[int, Expr], dtype: Union[str, Expr], span: Span = None
 ) -> Call:
     """Construct a Call to allocate a storage with specific size,
     runtime_device_index, and dtype.
@@ -42,6 +40,9 @@ def alloc_storage(
     dtype : Union[str, Expr]
         The datatype of the storage to be allocated.
 
+    span : Span
+        The span of the call to alloc_storage.
+
     Returns
     -------
     result : Call
@@ -51,12 +52,14 @@ def alloc_storage(
         dtype = DataTypeImm(dtype)
     if isinstance(runtime_device_index, int):
         runtime_device_index = PrimValue(runtime_device_index)
-    return _ffi_api.alloc_storage(size, runtime_device_index, dtype)  # type: ignore
+    if span is None:
+        span = SpanContext.current()
+    return _ffi_api.alloc_storage(size, runtime_device_index, dtype, span)  # type: ignore
 
 
 @args_converter.auto
 def alloc_tensor(
-    storage: Expr, offset: Union[int, Expr], shape: Expr, dtype: Union[str, Expr]
+    storage: Expr, offset: Union[int, Expr], shape: Expr, dtype: Union[str, Expr], span: Span = None
 ) -> Call:
     """Construct a Call to allocate a tensor on a certain storage starting from the given offset.
 
@@ -74,6 +77,9 @@ def alloc_tensor(
     dtype : Union[str, Expr]
         The datatype of the tensor to be allocated.
 
+    span : Span
+        The span of the call to alloc_tensor.
+
     Returns
     -------
     result : Call
@@ -83,11 +89,13 @@ def alloc_tensor(
         offset = PrimValue(offset)
     if isinstance(dtype, str):
         dtype = DataTypeImm(dtype)
-    return _ffi_api.alloc_tensor(storage, offset, shape, dtype)  # type: ignore
+    if span is None:
+        span = SpanContext.current()
+    return _ffi_api.alloc_tensor(storage, offset, shape, dtype, span)  # type: ignore
 
 
 @args_converter.auto
-def call_tir_dyn(func: Expr, args: Tuple) -> Call:
+def call_tir_dyn(func: Expr, args: Tuple, span: Span = None) -> Call:
     """Construct a Call to kill a storage.
 
     Parameters
@@ -98,6 +106,9 @@ def call_tir_dyn(func: Expr, args: Tuple) -> Call:
     args : Tuple
         The input args, includes a list of tensors, and a ShapeExpr.
 
+    span: Span
+        The span of the call to call_tir_dyn.
+
     Returns
     -------
     result : Call
@@ -105,5 +116,6 @@ def call_tir_dyn(func: Expr, args: Tuple) -> Call:
     """
     if isinstance(args, (list, tuple)):
         args = Tuple(args)
-
-    return _ffi_api.call_tir_dyn(func, args)  # type: ignore
+    if span is None:
+        span = SpanContext.current()
+    return _ffi_api.call_tir_dyn(func, args, span)  # type: ignore

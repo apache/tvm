@@ -17,10 +17,11 @@
 # pylint: disable=redefined-builtin, invalid-name
 """Relax ternary arithmetic operators."""
 from . import _ffi_api
-from ..expr import Expr
+from ..expr import Expr, Span
+from ..utils import SpanContext
 
 
-def ewise_fma(x1: Expr, x2: Expr, x3: Expr) -> Expr:
+def ewise_fma(x1: Expr, x2: Expr, x3: Expr, span: Span = None) -> Expr:
     """Elementwise fused multiply-add operator
     Returns elementwise result of :math:`x1 * x2 + x3`
 
@@ -35,9 +36,14 @@ def ewise_fma(x1: Expr, x2: Expr, x3: Expr) -> Expr:
     x3 : relax.Expr
         The operand of the addition
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
         The computed result.
     """
-    return _ffi_api.ewise_fma(x1, x2, x3)  # type: ignore
+    if span is None:
+        span = SpanContext.current()
+    return _ffi_api.ewise_fma(x1, x2, x3, span)  # type: ignore

@@ -16,14 +16,14 @@
 """The builtin Relax operators."""
 
 from typing import Union
-from ...expr import Call, Expr, PrimValue, DataTypeImm
-from ...utils import args_converter
+from ...expr import Call, Expr, PrimValue, DataTypeImm, Span
+from ...utils import args_converter, SpanContext
 from . import _ffi_api
 
 
 @args_converter.auto
 def alloc_tensor(
-    shape: Expr, dtype: Union[str, Expr], runtime_device_index: Union[int, Expr]
+    shape: Expr, dtype: Union[str, Expr], runtime_device_index: Union[int, Expr], span: Span = None
 ) -> Call:
     """Construct a Call to allocate a tensor with specific shape, dtype, runtime_device_index.
 
@@ -39,6 +39,9 @@ def alloc_tensor(
         The device index indicating on which device the tensor is to be allocated at runtime.
         Index -1 is reserved for the host device.
 
+    span : Span
+        The span of the call to alloc_tensor.
+
     Returns
     -------
     result : Call
@@ -48,5 +51,7 @@ def alloc_tensor(
         dtype = DataTypeImm(dtype)
     if isinstance(runtime_device_index, int):
         runtime_device_index = PrimValue(runtime_device_index)
+    if span is None:
+        span = SpanContext.current()
 
-    return _ffi_api.alloc_tensor(shape, dtype, runtime_device_index)  # type: ignore
+    return _ffi_api.alloc_tensor(shape, dtype, runtime_device_index, span)  # type: ignore

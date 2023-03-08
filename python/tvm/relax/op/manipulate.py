@@ -312,7 +312,7 @@ def squeeze(x: Expr, axis: Optional[Union[int, List[int]]] = None, span: Span = 
     return _ffi_api.squeeze(x, axis, span)  # type: ignore
 
 
-def collapse_sum_like(data: Expr, collapse_target: Expr) -> Expr:
+def collapse_sum_like(data: Expr, collapse_target: Expr, span: Span = None) -> Expr:
     """Return a summation of data to the shape of collapse_target.
 
     For details, please see relax.op.collapse_sum_to.
@@ -325,15 +325,20 @@ def collapse_sum_like(data: Expr, collapse_target: Expr) -> Expr:
     collapse_target : relax.Expr
         The tensor whose shape is the shape to collapse to.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
         The result tensor after summation.
     """
-    return _ffi_api.collapse_sum_like(data, collapse_target)  # type: ignore
+    if span is None:
+        span = SpanContext.current()
+    return _ffi_api.collapse_sum_like(data, collapse_target, span)  # type: ignore
 
 
-def collapse_sum_to(data: Expr, shape: Union[Tuple[PrimExprLike], Expr]) -> Expr:
+def collapse_sum_to(data: Expr, shape: Union[Tuple[PrimExprLike], Expr], span: Span = None) -> Expr:
     """Return a summation of data to the given shape.
 
     collapse_sum_to is intended as the backward operator of tvm.relax.op.broadcast_to and
@@ -355,6 +360,9 @@ def collapse_sum_to(data: Expr, shape: Union[Tuple[PrimExprLike], Expr]) -> Expr
     shape : Union[Tuple[PrimExprLike], relax.Expr]
         The shape to collapse to.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
@@ -362,4 +370,6 @@ def collapse_sum_to(data: Expr, shape: Union[Tuple[PrimExprLike], Expr]) -> Expr
     """
     if isinstance(shape, (tuple, list)):
         shape = ShapeExpr(shape)
-    return _ffi_api.collapse_sum_to(data, shape)  # type: ignore
+    if span is None:
+        span = SpanContext.current()
+    return _ffi_api.collapse_sum_to(data, shape, span)  # type: ignore

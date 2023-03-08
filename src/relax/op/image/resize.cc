@@ -34,7 +34,7 @@ TVM_REGISTER_NODE_TYPE(Resize2DAttrs);
 
 Expr resize2d(Expr data, Expr size, Array<FloatImm> roi, String layout, String method,
               String coordinate_transformation_mode, String rounding_method, double cubic_alpha,
-              int cubic_exclude, double extrapolation_value, DataType out_dtype) {
+              int cubic_exclude, double extrapolation_value, DataType out_dtype, Span span) {
   ObjectPtr<Resize2DAttrs> attrs = make_object<Resize2DAttrs>();
   attrs->roi = std::move(roi);
   attrs->layout = std::move(layout);
@@ -47,7 +47,7 @@ Expr resize2d(Expr data, Expr size, Array<FloatImm> roi, String layout, String m
   attrs->out_dtype = out_dtype;
 
   static const Op& op = Op::Get("relax.image.resize2d");
-  return Call(op, {std::move(data), std::move(size)}, Attrs(attrs), {});
+  return Call(op, {std::move(data), std::move(size)}, Attrs(attrs), {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.image.resize2d").set_body_typed(resize2d);

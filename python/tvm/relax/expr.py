@@ -379,9 +379,11 @@ class ShapeExpr(ExprWithOp):
         return len(self.values)
 
 
-def make_shape(shape: Union[List[Any], typing.Tuple[Any, ...]]) -> ShapeExpr:
+def make_shape(shape: Union[List[Any], typing.Tuple[Any, ...]], span: Span = None) -> ShapeExpr:
     if isinstance(shape, (list, tuple)):
-        return ShapeExpr(shape)
+        if span is None:
+            span = tvm.relax.SpanContext.current()
+        return ShapeExpr(shape, span)
     raise ValueError("Wrong type")
 
 
@@ -625,6 +627,8 @@ class ExternFunc(BaseFunc):
 
 def extern(name: str, span: Span = None):
     """Create extern function."""
+    if span is None:
+        span = tvm.relax.SpanContext.current()
     return ExternFunc(name, span)
 
 

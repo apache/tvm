@@ -20,10 +20,11 @@ from typing import Union
 from tvm import DataType
 
 from . import _ffi_api
-from ..expr import Expr
+from ..expr import Expr, Span
+from ..utils import SpanContext
 
 
-def astype(x: Expr, dtype: Union[str, DataType]) -> Expr:
+def astype(x: Expr, dtype: Union[str, DataType], span: Span = None) -> Expr:
     """Cast input tensor to the given data type.
 
     Parameters
@@ -34,9 +35,14 @@ def astype(x: Expr, dtype: Union[str, DataType]) -> Expr:
     dtype: Union[str, DataType]
         The target data type
 
+    span: Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
         The casted result.
     """
-    return _ffi_api.astype(x, dtype)  # type: ignore
+    if span is None:
+        span = SpanContext.current()
+    return _ffi_api.astype(x, dtype, span)  # type: ignore

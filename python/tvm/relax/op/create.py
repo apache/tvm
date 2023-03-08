@@ -21,7 +21,8 @@ from tvm import DataType
 from tvm.ir.expr import PrimExpr
 
 from . import _ffi_api
-from ..expr import Expr, ShapeExpr
+from ..expr import Expr, ShapeExpr, Span
+from ..utils import SpanContext
 
 PrimExprLike = Union[int, PrimExpr]
 
@@ -30,6 +31,7 @@ def full(
     shape: Union[Tuple[PrimExprLike], Expr],
     fill_value: Expr,
     dtype: Optional[Union[str, DataType]] = None,
+    span: Span = None,
 ) -> Expr:
     """Fill array with scalar value.
 
@@ -50,10 +52,14 @@ def full(
     result : relax.Expr
         The result tensor.
     """
-    return _ffi_api.full(shape, fill_value, dtype)  # type: ignore
+    if span is None:
+        span = SpanContext.current()
+    return _ffi_api.full(shape, fill_value, dtype, span)  # type: ignore
 
 
-def full_like(x: Expr, fill_value: Expr, dtype: Optional[Union[str, DataType]] = None) -> Expr:
+def full_like(
+    x: Expr, fill_value: Expr, dtype: Optional[Union[str, DataType]] = None, span: Span = None
+) -> Expr:
     """Construct a tensor such that
     - its shape is the same as the input data tensor's shape,
     - its value is filled with the input scalar fill value.
@@ -71,15 +77,22 @@ def full_like(x: Expr, fill_value: Expr, dtype: Optional[Union[str, DataType]] =
         The data type of the created tensor.
         If dtype is not given, it will by default use the dtype of the input tensor.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
         The result tensor.
     """
-    return _ffi_api.full_like(x, fill_value, dtype)  # type: ignore
+    if span is None:
+        span = SpanContext.current()
+    return _ffi_api.full_like(x, fill_value, dtype, span)  # type: ignore
 
 
-def ones(shape: Union[Tuple[PrimExprLike], Expr], dtype: Union[str, DataType]) -> Expr:
+def ones(
+    shape: Union[Tuple[PrimExprLike], Expr], dtype: Union[str, DataType], span: Span = None
+) -> Expr:
     """Construct a tensor of all ones, with the input shape and dtype.
 
     Parameters
@@ -90,6 +103,9 @@ def ones(shape: Union[Tuple[PrimExprLike], Expr], dtype: Union[str, DataType]) -
     dtype : Union[str, DataType]
         The data type of the created tensor.
 
+    span: Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
@@ -97,10 +113,12 @@ def ones(shape: Union[Tuple[PrimExprLike], Expr], dtype: Union[str, DataType]) -
     """
     if isinstance(shape, (tuple, list)):
         shape = ShapeExpr(shape)
-    return _ffi_api.ones(shape, dtype)  # type: ignore
+    if span is None:
+        span = SpanContext.current()
+    return _ffi_api.ones(shape, dtype, span)  # type: ignore
 
 
-def ones_like(x: Expr, dtype: Optional[Union[str, DataType]] = None) -> Expr:
+def ones_like(x: Expr, dtype: Optional[Union[str, DataType]] = None, span: Span = None) -> Expr:
     """Construct a tensor with all ones, with shape of the input tensor shape.
 
     Parameters
@@ -113,15 +131,22 @@ def ones_like(x: Expr, dtype: Optional[Union[str, DataType]] = None) -> Expr:
         The data type of the created tensor.
         If dtype is not given, it will by default use the dtype of the input tensor.
 
+    span: Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
         The result tensor.
     """
-    return _ffi_api.ones_like(x, dtype)  # type: ignore
+    if span is None:
+        span = SpanContext.current()
+    return _ffi_api.ones_like(x, dtype, span)  # type: ignore
 
 
-def zeros(shape: Union[Tuple[PrimExprLike], Expr], dtype: Union[str, DataType]) -> Expr:
+def zeros(
+    shape: Union[Tuple[PrimExprLike], Expr], dtype: Union[str, DataType], span: Span = None
+) -> Expr:
     """Construct a tensor of all zeros, with the input shape and dtype.
 
     Parameters
@@ -132,6 +157,9 @@ def zeros(shape: Union[Tuple[PrimExprLike], Expr], dtype: Union[str, DataType]) 
     dtype : Union[str, DataType]
         The data type of the created tensor.
 
+    span: Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
@@ -139,10 +167,12 @@ def zeros(shape: Union[Tuple[PrimExprLike], Expr], dtype: Union[str, DataType]) 
     """
     if isinstance(shape, (tuple, list)):
         shape = ShapeExpr(shape)
-    return _ffi_api.zeros(shape, dtype)  # type: ignore
+    if span is None:
+        span = SpanContext.current()
+    return _ffi_api.zeros(shape, dtype, span)  # type: ignore
 
 
-def zeros_like(x: Expr, dtype: Optional[Union[str, DataType]] = None) -> Expr:
+def zeros_like(x: Expr, dtype: Optional[Union[str, DataType]] = None, span: Span = None) -> Expr:
     """Construct a tensor with all zeros, with shape of the input tensor shape.
 
     Parameters
@@ -155,15 +185,20 @@ def zeros_like(x: Expr, dtype: Optional[Union[str, DataType]] = None) -> Expr:
         The data type of the created tensor.
         If dtype is not given, it will by default use the dtype of the input tensor.
 
+    span: Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
         The result tensor.
     """
-    return _ffi_api.zeros_like(x, dtype)  # type: ignore
+    if span is None:
+        span = SpanContext.current()
+    return _ffi_api.zeros_like(x, dtype, span)  # type: ignore
 
 
-def tril(x: Expr, k: int = 0) -> Expr:
+def tril(x: Expr, k: int = 0, span: Span = None) -> Expr:
     """Return the lower triangular part of a matrix or a batch of matrices.
 
     Parameters
@@ -178,15 +213,20 @@ def tril(x: Expr, k: int = 0) -> Expr:
         If k < 0, the diagonal is below the main diagonal.
         If k > 0, the diagonal is above the main diagonal.
 
+    span: Span
+        The source code span.
+
     Returns
     -------
     ret : relax.Expr
         The result tensor.
     """
-    return _ffi_api.tril(x, k)  # type: ignore
+    if span is None:
+        span = SpanContext.current()
+    return _ffi_api.tril(x, k, span)  # type: ignore
 
 
-def triu(x: Expr, k: int = 0) -> Expr:
+def triu(x: Expr, k: int = 0, span: Span = None) -> Expr:
     """Return the upper triangular part of a matrix or a batch of matrices.
 
     Parameters
@@ -201,9 +241,14 @@ def triu(x: Expr, k: int = 0) -> Expr:
         If k < 0, the diagonal is below the main diagonal.
         If k > 0, the diagonal is above the main diagonal.
 
+    span: Span
+        The source code span.
+
     Returns
     -------
     ret : relax.Expr
         The result tensor.
     """
-    return _ffi_api.triu(x, k)  # type: ignore
+    if span is None:
+        span = SpanContext.current()
+    return _ffi_api.triu(x, k, span)  # type: ignore

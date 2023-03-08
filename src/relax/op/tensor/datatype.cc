@@ -32,12 +32,12 @@ namespace relax {
 /* relax.astype */
 TVM_REGISTER_NODE_TYPE(AstypeAttrs);
 
-Expr astype(Expr x, DataType dtype) {
+Expr astype(Expr x, DataType dtype, Span span) {
   ObjectPtr<AstypeAttrs> attrs = make_object<AstypeAttrs>();
   attrs->dtype = dtype;
 
   static const Op& op = Op::Get("relax.astype");
-  return Call(op, {std::move(x)}, Attrs(attrs), {});
+  return Call(op, {std::move(x)}, Attrs(attrs), {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.astype").set_body_typed(astype);

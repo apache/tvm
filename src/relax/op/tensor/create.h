@@ -39,7 +39,7 @@ namespace relax {
  * If dtype is not given, it will by default use the dtype of fill_value.
  * \return The result tensor.
  */
-Expr full(ObjectRef shape, Expr fill_value, DataType dtype);
+Expr full(ObjectRef shape, Expr fill_value, DataType dtype, Span span = Span());
 
 /*!
  * \brief Construct a tensor such that
@@ -52,7 +52,7 @@ Expr full(ObjectRef shape, Expr fill_value, DataType dtype);
  * void, the input tensor's dtype will be used.
  * \return The result tensor.
  */
-Expr full_like(Expr x, Expr fill_value, DataType dtype);
+Expr full_like(Expr x, Expr fill_value, DataType dtype, Span span = Span());
 
 /*!
  * \brief Construct a tensor of all ones, with the input shape and dtype.
@@ -60,7 +60,7 @@ Expr full_like(Expr x, Expr fill_value, DataType dtype);
  * \param dtype The data type of the created tensor.
  * \return The result tensor.
  */
-Expr ones(Expr shape, DataType dtype);
+Expr ones(Expr shape, DataType dtype, Span span = Span());
 
 /*!
  * \brief Construct a tensor with all ones, with shape of the input tensor shape.
@@ -70,19 +70,19 @@ Expr ones(Expr shape, DataType dtype);
  * void, the input tensor's dtype will be used.
  * \return The result tensor.
  */
-Expr ones_like(Expr x, DataType dtype);
+Expr ones_like(Expr x, DataType dtype, Span span = Span());
 
 /*! \brief Construct a tensor of all zeros, with the input shape and dtype. */
-Expr zeros(Expr shape, DataType dtype);
+Expr zeros(Expr shape, DataType dtype, Span span = Span());
 
 /*! \brief Construct a tensor with all zeros, with shape of the input tensor shape. */
-Expr zeros_like(Expr x, DataType dtype);
+Expr zeros_like(Expr x, DataType dtype, Span span = Span());
 
 /*! \brief Return the lower triangular part of a matrix or a batch of matrices. */
-Expr tril(Expr x, int k);
+Expr tril(Expr x, int k, Span span = Span());
 
 /*! \brief Return the upper triangular part of a matrix or a batch of matrices. */
-Expr triu(Expr x, int k);
+Expr triu(Expr x, int k, Span span = Span());
 
 }  // namespace relax
 }  // namespace tvm

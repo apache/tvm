@@ -33,7 +33,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief fused multi head attention */
-Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias);
+Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias, Span span = Span());
 
 }  // namespace relax
 }  // namespace tvm

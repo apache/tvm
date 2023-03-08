@@ -878,9 +878,9 @@ void CheckCollapseShape(const Call& call, const BlockBuilder& ctx,
 }
 
 /* relax.collapse_sum_like */
-Expr collapse_sum_like(Expr data, Expr collapse_target) {
+Expr collapse_sum_like(Expr data, Expr collapse_target, Span span) {
   static const Op& op = Op::Get("relax.collapse_sum_like");
-  return Call(op, {std::move(data), std::move(collapse_target)}, Attrs(), {});
+  return Call(op, {std::move(data), std::move(collapse_target)}, Attrs(), {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.collapse_sum_like").set_body_typed(collapse_sum_like);
@@ -921,9 +921,9 @@ TVM_REGISTER_OP("relax.collapse_sum_like")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCollapseSumLike);
 
 /* relax.collapse_sum_to */
-Expr collapse_sum_to(Expr data, Expr shape) {
+Expr collapse_sum_to(Expr data, Expr shape, Span span) {
   static const Op& op = Op::Get("relax.collapse_sum_to");
-  return Call(op, {std::move(data), std::move(shape)}, Attrs(), {});
+  return Call(op, {std::move(data), std::move(shape)}, Attrs(), {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.collapse_sum_to").set_body_typed(collapse_sum_to);

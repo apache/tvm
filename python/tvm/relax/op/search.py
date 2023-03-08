@@ -60,7 +60,7 @@ def where(condition: Expr, x1: Expr, x2: Expr, span: Span = None) -> Expr:
     return _ffi_api.where(condition, x1, x2, span)  # type: ignore
 
 
-def argmax(x: Expr, axis: Optional[int] = None, keepdims: bool = False) -> Expr:
+def argmax(x: Expr, axis: Optional[int] = None, keepdims: bool = False, span: Span = None) -> Expr:
     """Computes the argmax of tensor elements over given axis.
 
     Parameters
@@ -78,15 +78,20 @@ def argmax(x: Expr, axis: Optional[int] = None, keepdims: bool = False) -> Expr:
         with size one.
         With this option, the result will broadcast correctly against the input tensor.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
         The computed result.
     """
-    return _ffi_api.argmax(x, axis, keepdims)  # type: ignore
+    if span is None:
+        span = SpanContext.current()
+    return _ffi_api.argmax(x, axis, keepdims, span)  # type: ignore
 
 
-def argmin(x: Expr, axis: Optional[int] = None, keepdims: bool = False) -> Expr:
+def argmin(x: Expr, axis: Optional[int] = None, keepdims: bool = False, span: Span = None) -> Expr:
     """Computes the argmin of tensor elements over given axis.
 
     Parameters
@@ -104,9 +109,12 @@ def argmin(x: Expr, axis: Optional[int] = None, keepdims: bool = False) -> Expr:
         dimensions with size one.
         With this option, the result will broadcast correctly against the input tensor.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
         The computed result.
     """
-    return _ffi_api.argmin(x, axis, keepdims)  # type: ignore
+    return _ffi_api.argmin(x, axis, keepdims, span)  # type: ignore

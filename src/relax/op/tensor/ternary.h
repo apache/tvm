@@ -37,7 +37,7 @@ namespace relax {
  * \param x3 The operand of the addition
  * \return The computed result.
  */
-Expr ewise_fma(Expr x1, Expr x2, Expr x3);
+Expr ewise_fma(Expr x1, Expr x2, Expr x3, Span span = Span());
 
 }  // namespace relax
 }  // namespace tvm

@@ -24,6 +24,8 @@
 
 #include "ternary.h"
 
+#include <utility>
+
 namespace tvm {
 namespace relax {
 
@@ -97,9 +99,9 @@ TVM_REGISTER_OP("relax.ewise_fma")
     .add_argument("x3", "Tensor", "The operand of the addition")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoEwiseFMA);
 
-Expr ewise_fma(Expr x1, Expr x2, Expr x3) {
+Expr ewise_fma(Expr x1, Expr x2, Expr x3, Span span) {
   static const Op& op = Op::Get("relax.ewise_fma");
-  return Call(op, {x1, x2, x3}, Attrs(), {});
+  return Call(op, {x1, x2, x3}, Attrs(), {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.ewise_fma").set_body_typed(ewise_fma);
