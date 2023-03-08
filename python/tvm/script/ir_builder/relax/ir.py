@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union, Callable
 import tvm
 from tvm import DataType, relax
 from tvm.ir import PrimExpr
-from ..ir import add_function
+from ..ir import decl_function
 from tvm.relax import Call, Expr, ExternFunc, TupleGetItem, ShapeExpr, Var, VarBinding, const
 from tvm.relax.utils import gen_call_tir_inputs
 
@@ -360,7 +360,7 @@ def emit_te(func: Callable, *args: Any, **kwargs: Any) -> Call:
     tir_func, call_args, out_sinfo, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
     if not primfunc_name_hint:
         primfunc_name_hint = func.__name__
-    gvar = add_function(tir_func, primfunc_name_hint)  # type: ignore
+    gvar = decl_function(primfunc_name_hint, tir_func)  # type: ignore
     return call_tir(gvar, call_args, out_sinfo, tir_vars)
 
 
