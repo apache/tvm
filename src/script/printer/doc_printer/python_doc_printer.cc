@@ -674,7 +674,6 @@ void PythonDocPrinter::PrintTypedDoc(const ClassDoc& doc) {
     PrintBlockComment(doc->comment.value());
   }
   PrintIndentedBlock(doc->body);
-  NewLineWithoutIndent();
 }
 
 void PythonDocPrinter::PrintTypedDoc(const CommentDoc& doc) {
