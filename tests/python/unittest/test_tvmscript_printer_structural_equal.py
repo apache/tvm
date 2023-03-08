@@ -21,7 +21,7 @@ import tvm
 from tvm.ir import assert_structural_equal
 from tvm.relay.op.transform import split
 from tvm.runtime import ObjectPath
-from tvm.script import tir as T
+from tvm.script import ir as I, tir as T
 
 
 def _error_message(exception):
@@ -68,21 +68,35 @@ def test_prim_func_buffer_map():
 
 
 def test_evaluate():
-    @T.prim_func
-    def func1():
-        T.evaluate(0)
+    @I.ir_module
+    class module1:
+        @T.prim_func
+        def func():
+            T.evaluate(0)
 
-    @T.prim_func
-    def func2():
-        T.evaluate(1)
+    @I.ir_module
+    class module2:
+        @T.prim_func
+        def func():
+            T.evaluate(1)
 
     with pytest.raises(ValueError) as ve:
-        assert_structural_equal(func1, func2)
+        assert_structural_equal(module1, module2)
     assert _error_message(ve.value) == _expected_result(
-        func1,
-        func2,
-        ObjectPath.root().attr("body").attr("value").attr("value"),
-        ObjectPath.root().attr("body").attr("value").attr("value"),
+        module1,
+        module2,
+        ObjectPath.root()
+        .attr("functions")
+        .map_value(module1.get_global_var("func"))
+        .attr("body")
+        .attr("value")
+        .attr("value"),
+        ObjectPath.root()
+        .attr("functions")
+        .map_value(module2.get_global_var("func"))
+        .attr("body")
+        .attr("value")
+        .attr("value"),
     )
 
 
