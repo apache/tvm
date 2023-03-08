@@ -36,7 +36,7 @@ IRModuleFrame IRModule() {
 }
 
 GlobalVar DeclFunction(const String& func_name, const BaseFunc& func_signature) {
-  IRModuleFrame frame = FindModuleFrame("I.DeclFunction");
+  IRModuleFrame frame = FindModuleFrame();
   CHECK(!frame->global_var_map.count(func_name))
       << "ValueError: function " << func_name << " already exists";
   GlobalVar gv = GlobalVar(func_name);
@@ -58,7 +58,7 @@ GlobalVar DeclFunction(const String& func_name, const BaseFunc& func_signature) 
 }
 
 void DefFunction(const String& func_name, const BaseFunc& func) {
-  IRModuleFrame frame = FindModuleFrame("I.DefFunction");
+  IRModuleFrame frame = FindModuleFrame();
   auto it = frame->global_var_map.find(func_name);
   CHECK(it != frame->global_var_map.end())
       << "ValueError: function " << func_name << " does not exist, please declare it first.";
