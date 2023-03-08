@@ -14,15 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring
+# pylint: disable=missing-docstring, unused-argument
 
 import functools
 import numbers
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 from tvm import relax, tir
-from tvm.ir import structural_equal
-from tvm.relax import StructInfo
+from tvm.ir import GlobalVar, structural_equal
+from tvm.relax import Expr, StructInfo
 from tvm.relax.utils import convert_to_expr
 from tvm.script.ir_builder.relax.frame import BlockFrame
 
@@ -224,14 +224,14 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> None:
     self.var_table.add(node.name, global_var)
 
 
-@dispatch.register(token="relax", type_name="pre_token_switch")
-def pre_token_switch(self: Parser, node: doc.Expr) -> None:  # pylint: disable=unused-argument
+@dispatch.register(token="relax", type_name="pre_visit_local_function")
+def pre_visit_local_function(self: Parser, node: doc.Expr) -> None:
     ir_builder = IRBuilder()
     ir_builder.__enter__()
 
 
-@dispatch.register(token="relax", type_name="post_token_switch")
-def post_token_switch(self: Parser, node: doc.Expr) -> None:
+@dispatch.register(token="relax", type_name="post_visit_local_function")
+def post_visit_local_function(self: Parser, node: doc.Expr) -> None:
     ir_builder = IRBuilder.current()
     result = ir_builder.get()
     ir_builder.__exit__(None, None, None)
@@ -336,3 +336,24 @@ def visit_if(self: Parser, node: doc.If) -> None:
             with R.Else():
                 self.visit_body(node.orelse)
     self.var_table.add(if_frame.var_name, if_frame.var, allow_shadowing=True)
+
+
+@dispatch.register(token="relax", type_name="enter_token")
+def enter_token(self: Parser) -> Dict[str, Any]:
+    def relax_call(self, *args) -> Expr:
+        if all(isinstance(x, Expr) for x in args):
+            return relax.Call(self, args)
+        arg_types = [type(x) for x in args]
+        raise RuntimeError(
+            "Do not know how to handle GlobalVar.__call__ for types {}".format(arg_types)
+        )
+
+    context = {"GlobalVar.__call__": GlobalVar.__call__}
+    GlobalVar.__call__ = relax_call
+    return context
+
+
+@dispatch.register(token="relax", type_name="exit_token")
+def exit_token(self: Parser, context: Dict[str, Any]) -> None:
+    assert "GlobalVar.__call__" in context
+    GlobalVar.__call__ = context.get("GlobalVar.__call__")

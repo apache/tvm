@@ -1179,5 +1179,33 @@ def test_class_normalize():
     _check(InputModule, OutputModule)
 
 
+def test_context_aware_parsing():
+    @tvm.script.ir_module
+    class Module:
+        @T.prim_func
+        def add(
+            X: T.Buffer(T.int64(8), "float32"),
+            Y: T.Buffer((), "float32"),
+            Z: T.Buffer(T.int64(8), "float32"),
+        ):
+            T.evaluate(0)
+
+        @R.function
+        def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
+            alloc = R.builtin.alloc_tensor(R.shape([2, 4]), dtype="float32", runtime_device_index=0)
+            _: R.Tuple() = add(x, R.const(1, "float32"), alloc)
+            return alloc
+
+    _check(Module)
+
+    # Break the env settings, but context-aware parsing can still handle it
+    def _break_env(self, *args):
+        raise RuntimeError("Fail to pass context-aware parsing")
+
+    tvm.ir.GlobalVar.__call__ = _break_env
+
+    _check(Module)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

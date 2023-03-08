@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=unused-argument
 """The base parser for ir module"""
 
 from ...ir_builder import ir as I
@@ -86,3 +87,13 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
     self.eval_assign(
         target=lhs, source=rhs, bind_value=lambda _a, _b, _c, value: value, allow_shadowing=True
     )
+
+
+@dispatch.register(token="default", type_name="pre_visit_local_function")
+def pre_visit_local_function(self: Parser, node: doc.Expr) -> None:
+    pass
+
+
+@dispatch.register(token="default", type_name="post_visit_local_function")
+def post_visit_local_function(self: Parser, node: doc.Expr) -> None:
+    pass
