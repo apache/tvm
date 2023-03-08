@@ -22,7 +22,7 @@ import tvm
 from tvm.runtime.object import Object
 
 from . import _ffi_api
-from ..expr import Expr, StringImm, ShapeExpr, Call, ExternFunc
+from ..expr import Expr, StringImm, ShapeExpr, Call, ExternFunc, GlobalVar
 from ..expr import Tuple as RxTuple
 from ..struct_info import StructInfo, TensorStructInfo
 from ...ir import PrimExpr
@@ -45,18 +45,18 @@ def null_value() -> Call:
 
 @args_converter.auto
 def call_tir(
-    func: Union[str, Expr],
+    gvar: GlobalVar,
     args: Expr,
     out_sinfo: Union[TensorStructInfo, List[TensorStructInfo]],
     tir_vars: Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]] = None,
 ) -> Call:
     """
-    Call a tir.prim_func function and return the output.
+    Call a tir.prim_func and return the output.
 
     Parameters
     ----------
-    func : Union[str, Expr]
-        The tir PrimFunc function.
+    gvar : GlobalVar
+        The GlobalVar referring to a tir PrimFunc.
 
     args : Expr
         The input arguments.
@@ -83,7 +83,7 @@ def call_tir(
     if isinstance(tir_vars, (list, tuple)):
         tir_vars = ShapeExpr(tir_vars)
 
-    return _ffi_api.call_tir(func, args, out_sinfo, tir_vars)  # type: ignore
+    return _ffi_api.call_tir(gvar, args, out_sinfo, tir_vars)  # type: ignore
 
 
 @args_converter.auto
