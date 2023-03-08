@@ -19,6 +19,7 @@
 import logging
 
 from tvm import topi, tir, te
+from tvm.tir.expr import IntImm
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
 from .common import register_legalize, _call_topi_without_attr
@@ -65,6 +66,41 @@ def _nn_conv2d(bb: BlockBuilder, call: Call) -> Expr:
     )
 
 
+@register_legalize("relax.nn.conv2d_transpose")
+def _nn_conv2d_transpose(bb: BlockBuilder, call: Call) -> Expr:
+    if call.attrs.out_layout != call.attrs.data_layout:
+        logging.info(
+            "TOPI conv2d_transpose does not support different input-output "
+            "layouts, and thus cannot be legalized by TOPI"
+        )
+        return call
+    if call.attrs.data_layout != "NCHW" or call.attrs.kernel_layout != "IOHW":
+        logging.info(
+            "TOPI conv2d_transpose does not support input layout other than NCHW, "
+            "and kernel layout other than IOHW, so cannot be legalized by TOPI"
+        )
+        return call
+    dilation = call.attrs.dilation
+    if len(dilation) != 2 or dilation[0] != 1 or dilation[1] != 1:
+        logging.info(
+            "TOPI conv2d_transpose does not support dilations other than 1, "
+            "and thus cannot be legalized by TOPI"
+        )
+        return call
+
+    return bb.call_te(
+        topi.nn.group_conv2d_transpose_nchw,
+        call.args[0],
+        call.args[1],
+        stride=call.attrs.strides,
+        padding=call.attrs.padding,
+        out_dtype=call.struct_info.dtype,
+        output_padding=call.attrs.output_padding,
+        groups=call.attrs.groups,
+        primfunc_name_hint="conv2d_transpose",
+    )
+
+
 @register_legalize("relax.nn.max_pool2d")
 def _nn_max_pool2d(bb: BlockBuilder, call: Call) -> Expr:
     if call.attrs.out_layout != call.attrs.layout:
@@ -85,6 +121,29 @@ def _nn_max_pool2d(bb: BlockBuilder, call: Call) -> Expr:
         ceil_mode=call.attrs.ceil_mode,
         layout=call.attrs.layout,
         primfunc_name_hint="max_pool2d",
+    )
+
+
+@register_legalize("relax.nn.avg_pool2d")
+def _nn_avg_pool2d(bb: BlockBuilder, call: Call) -> Expr:
+    if call.attrs.out_layout != call.attrs.layout:
+        logging.info(
+            "TOPI avg_pool2d does not support different input-output "
+            "layouts, and thus cannot be legalized by TOPI"
+        )
+        return call
+
+    return bb.call_te(
+        topi.nn.pool2d,
+        call.args[0],
+        kernel=call.attrs.pool_size,
+        stride=call.attrs.strides,
+        dilation=call.attrs.dilation,
+        padding=call.attrs.padding,
+        pool_type="avg",
+        ceil_mode=call.attrs.ceil_mode,
+        layout=call.attrs.layout,
+        primfunc_name_hint="avg_pool2d",
     )
 
 

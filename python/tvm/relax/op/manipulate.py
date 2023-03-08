@@ -314,3 +314,77 @@ def collapse_sum_to(data: Expr, shape: Union[Tuple[PrimExprLike], Expr]) -> Expr
     if isinstance(shape, (tuple, list)):
         shape = ShapeExpr(shape)
     return _ffi_api.collapse_sum_to(data, shape)  # type: ignore
+
+
+def repeat(data: Expr, repeats: int, axis: Optional[int] = None) -> Expr:
+    """Repeats elements of an array.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input tensor.
+
+    repeats : int
+        The number of repetitions.
+
+    axis: Optional[int]
+        The axis along which to repeat values. The negative numbers are interpreted
+        counting from the backward. By default, use the flattened input array, and
+        return a flat output array.
+
+    Returns
+    -------
+    ret : relax.Expr
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+        x = R.const([[1, 2], [3, 4]])
+        lv1 = R.repeat(x, repeats=2) # lv1 == [1, 1, 2, 2, 3, 3, 4, 4]
+        lv2 = R.repeat(x, repeats=2, axis=1) # lv2 == [[1., 1., 2., 2.],
+                                             #         [3., 3., 4., 4.]]
+    """
+    return _ffi_api.repeat(data, repeats, axis)  # type: ignore
+
+
+def tile(data: Expr, repeats: Union[int, Tuple[int], List[int]]) -> Expr:
+    """Construct an array by repeating data the number of times given by repeats.
+
+    If repeats has length l, and data has dimension d, the result will have dimension of max(l, d).
+
+    If d < l, data is promoted to be l-dimensional by prepending new axes. So a shape (3,) Tensor is
+    promoted to (1, 3) for 2-D replication, or shape (1, 1, 3) for 3-D replication. If this is not
+    the desired behavior, promote data to d-dimensions manually before calling this function.
+
+    If d > l, reps is promoted to length d by pre-pending 1's to it. Thus for a data of shape
+    (2, 3, 4, 5), a reps of (2, 2) is treated as (1, 1, 2, 2).
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data to the operator.
+
+    repeats : Union[int, Tuple[int], List[int]]
+        The number of repetitions of data along each axis.
+
+    Returns
+    -------
+    ret : relax.Expr
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        x = R.const([[1, 2], [3, 4]])
+        lv1 = R.tile(x, reps=(2, 3)) # lv1 = [[1., 2., 1., 2., 1., 2.],
+                                     #        [3., 4., 3., 4., 3., 4.],
+                                     #        [1., 2., 1., 2., 1., 2.],
+                                     #        [3., 4., 3., 4., 3., 4.]]
+        lv2 = R.tile(x, reps=2) # lv2 = [[1., 2., 1., 2.],
+                                #        [3., 4., 3., 4.]]
+    """
+    if isinstance(repeats, int):
+        repeats = [repeats]
+    return _ffi_api.tile(data, repeats)  # type: ignore

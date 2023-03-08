@@ -57,7 +57,7 @@ def _try_convert_to_scalar_const(
         The expr to be checked and converted.
 
     Returns
-    --–----
+    -------
     ret : Union[Expr, FloatImm, IntImm, bool, float, int]
         Return a FloatImm or IntImm if the given expr is a scalar integer or float constant, and the
         python native flag is False. Or return the plain value of the constant in native python type
