@@ -66,7 +66,7 @@ StructInfo InferStructInfoCallTIR(const Call& call, const BlockBuilder& ctx) {
                      << "sinfo_args should have exact 1 output struct info.");
   }
   CHECK(call->args[0]->IsInstance<GlobalVarNode>())
-      << "call_tir expects the first argument as a GlobalVar referring tir PrimFunc. "
+      << "call_tir expects the first argument to be a GlobalVar referring to a TIR PrimFunc. "
       << "However, gets " << call->args[0];
   return call->sinfo_args[0];
 }
