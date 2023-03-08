@@ -513,6 +513,17 @@ def convert_expand_as(g, op, block):
     out = _op.broadcast_to(x, target_shape)
     g.add_node(op.output("Out")[0], out)
 
+def convert_eye(g, op, block):
+    """Operator convert for eye"""
+
+    num_rows = op.attr("num_rows")
+    num_columns = op.attr("num_columns")
+    dtype = op.attr("dtype")
+    dtype = _convert_dtype_value(dtype)
+
+    out = np.eye(num_rows, num_columns).astype(dtype)
+    out = _op.const(out, dtype=dtype)
+    g.add_node(op.output("Out")[0], out)
 
 def convert_feed(g, op, block):
     """Converter for model input node."""
@@ -1083,6 +1094,20 @@ def convert_meshgrid(g, op, block):
     for i, out in enumerate(outs):
         g.add_node(op.output("Out")[i], out)
 
+def convert_mish(g, op, block):
+    """Operator convert for mish."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    threshold = op.attr("threshold")
+    threshold = _op.const(threshold, dtype)
+    lhs = x * _op.cast((x > threshold), dtype)
+    one = _expr.const(1.0, dtype = dtype)
+
+    rhs = _op.log(one + _op.exp(x)) * _op.cast((x <= threshold), dtype)
+    softplus = lhs + rhs
+    out = x*_op.tanh(softplus)
+    g.add_node(op.output("Out")[0], out)
 
 def convert_mul(g, op, block):
     """Operator converter for mul."""
@@ -1784,6 +1809,14 @@ def convert_shape(g, op, block):
     out = shape_of(x, dtype="int32")
     g.add_node(op.output("Out")[0], out)
 
+def convert_silu(g, op, block):
+    """Operator converter for silu."""
+    
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    
+    out = x / (_op.exp(-x) + _expr.const(1.0, dtype=dtype))
+    g.add_node(op.output("Out")[0], out)
 
 def convert_size(g, op, block):
     """Operator converter for size."""
@@ -1940,6 +1973,22 @@ def convert_softplus(g, op, block):
     out = _op.log(_op.exp(x * beta) + _expr.const(1.0, dtype=dtype)) / beta
     g.add_node(op.output("Out")[0], out)
 
+def convert_softshrink(g, op, block):
+    """Operator converter for softshrink."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    threshold = op.attr("lambda")
+    threshold = _op.const(threshold, dtype)
+
+    out = _op.logical_or(x < _op.const(-1.0, dtype) * threshold, x > threshold)
+    result = threshold
+    #result *= _op.cast(out, dtype) * _op.const(-1.0, dtype) * ((_op.cast(x > threshold, dtype)) - _op.const(0.5, dtype)) * _op.const(2, dtype) 
+    result *= _op.cast(out, dtype) * _op.where(x > threshold, _op.const(-1.0, dtype), _op.const(1.0, dtype))
+    out = _op.cast(out, dtype) * x + result
+    g.add_node(op.output("Out")[0], out)
+
+
 
 def convert_softsign(g, op, block):
     """Operator converter for softsign."""
@@ -2024,6 +2073,16 @@ def convert_swish(g, op, block):
     out = x * _op.tensor.sigmoid(x)
     g.add_node(op.output("Out")[0], out)
 
+def convert_thresholded_relu(g, op, block):
+    """Operator convert for convert_thresholded_relu."""
+    
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    threshold = op.attr("threshold")
+    threshold = _op.const(threshold, dtype)
+
+    out = x * _op.cast((x > threshold), dtype)
+    g.add_node(op.output("Out")[0], out)
 
 def convert_topk(g, op, block):
     """Operator converter for topk."""
@@ -2072,6 +2131,16 @@ def convert_unsqueeze(g, op, block):
     for axis in axes:
         x = _op.expand_dims(x, axis=axis, num_newaxis=1)
     g.add_node(op.output("Out")[0], x)
+
+def convert_where(g, op, block):
+    """Operator converter for where"""
+
+    condition = g.get_node(op.input("Condition")[0])
+    x = g.get_node(op.input("X")[0])
+    y = g.get_node(op.input("Y")[0])
+
+    out = _op.where(condition, x, y)
+    g.add_node(op.output("Out")[0], out)
 
 
 def convert_where_index(g, op, block):
@@ -2127,6 +2196,7 @@ _convert_map = {
     "exp": convert_unary_op,
     "expand_v2": convert_expand,
     "expand_as_v2": convert_expand_as,
+    "eye": convert_eye,
     "feed": convert_feed,
     "fill_any_like": convert_fill_any_like,
     "fill_constant": convert_fill_constant,
@@ -2166,6 +2236,7 @@ _convert_map = {
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,
     "meshgrid": convert_meshgrid,
+    "mish": convert_mish,
     "mul": convert_mul,
     "mv": convert_mv,
     "nearest_interp_v2": convert_interpolate,
@@ -2203,11 +2274,13 @@ _convert_map = {
     "sign": convert_unary_op,
     "sin": convert_unary_op,
     "sinh": convert_unary_op,
+    "silu": convert_silu,
     "size": convert_size,
     "slice": convert_slice,
     "softmax": convert_softmax,
     "softplus": convert_softplus,
     "softsign": convert_softsign,
+    "softshrink": convert_softshrink,
     "split": convert_split,
     "strided_slice": convert_slice,
     "sqrt": convert_unary_op,
@@ -2216,9 +2289,11 @@ _convert_map = {
     "swish": convert_swish,
     "tan": convert_unary_op,
     "tanh": convert_unary_op,
+    "thresholded_relu": convert_thresholded_relu,
     "top_k_v2": convert_topk,
     "transpose2": convert_transpose,
     "unsqueeze2": convert_unsqueeze,
+    "where": convert_where,
     "where_index": convert_where_index,
 }
 
