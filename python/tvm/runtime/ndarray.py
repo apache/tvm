@@ -417,6 +417,20 @@ def cuda(dev_id=0):
     """
     return Device(Device.kDLCUDA, dev_id)
 
+# def sycl(dev_id=0):
+#     """Construct a sycl GPU device
+
+#     Parameters
+#     ----------
+#     dev_id : int, optional
+#         The integer device id
+
+#     Returns
+#     -------
+#     dev : Device
+#         The created device
+#     """
+#     return Device(Device.kDLCUDA, dev_id)
 
 def gpu(dev_id=0):
     """Construct a CUDA GPU device
