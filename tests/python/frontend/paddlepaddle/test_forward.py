@@ -1959,14 +1959,15 @@ def test_forward_mish():
             return nn.functional.mish(inputs)
 
     input_shapes = [[10], [2, 3], [5, 10, 11], [3, 4, 5, 6]]
-    for input_shape in input_shapes:
-        input_data = paddle.randn(shape=input_shape, dtype="float32")
-        verify_model(Mish(), input_data=input_data)
-        input_data += 20.0
-        verify_model(Mish(), input_data=input_data)
+    if paddle.version.full_version >= "2.4.2":
+        for input_shape in input_shapes:
+            input_data = paddle.randn(shape=input_shape, dtype="float32")
+            verify_model(Mish(), input_data=input_data)
+            input_data += 20.0
+            verify_model(Mish(), input_data=input_data)
 
-    input_data = paddle.to_tensor([-5.0, 0.0, 5.0, 23.1, 20.0])
-    verify_model(Mish(), input_data=input_data)
+        input_data = paddle.to_tensor([-5.0, 0.0, 5.0, 23.1, 20.0])
+        verify_model(Mish(), input_data=input_data)
 
 
 if __name__ == "__main__":
