@@ -755,10 +755,12 @@ class OperatorFusor : public ExprMutator {
           // Only check those group defined before.
           // Skip the vars from input or groups with single binding.
           if (producer_group != cur_group) {
-            ICHECK(!group_deps_[producer_group].count(cur_group))
-                << "A cyclic dependency detected between the groups " << binding->var->name_hint()
-                << " and " << used_var->name_hint() << " are in.";
-            group_deps_[cur_group].insert(producer_group);
+            for (Group* depgroup : group_deps_[producer_group]) {
+              ICHECK(depgroup != cur_group)
+                  << "A cyclic dependency detected between the groups " << binding->var->name_hint()
+                  << " and " << used_var->name_hint() << " are in.";
+            }
+            group_deps_[cur_group].push_back(producer_group);
           }
 
           if (auto producer = group2func_.find(producer_group);
@@ -865,8 +867,12 @@ class OperatorFusor : public ExprMutator {
   /*! \brief Record the index for TupleGetItem if the variable needs to be remapped to an output
    * tuple element after fusion. */
   std::unordered_map<const VarNode*, int> tuple_get_indices_;
-  /*! \brief A map from a group to its dependent groups, used to detect cyclic dependencies. */
-  std::unordered_map<Group*, std::unordered_set<Group*>> group_deps_;
+  /*!
+   * \brief A map from a group to its dependent groups, used to detect cyclic dependencies.
+   * \note Use vector so we can be deterministic, there won't be a lot of dep groups so
+   *       linear search is OK.
+   */
+  std::unordered_map<Group*, std::vector<Group*>> group_deps_;
   /*! \brief Whether or not to lift bound constants to parameters of the grouped function. */
   bool lift_constants_{true};
 };
