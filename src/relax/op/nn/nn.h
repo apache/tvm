@@ -46,27 +46,27 @@ namespace relax {
   RELAX_UNARY_OP_INTERFACE(OpName, OpRegName);
 
 /*! \brief Rectified linear unit. */
-Expr relu(Expr data);
+Expr relu(Expr data, Span span = Span());
 
 /*! \brief Gaussian Error Linear Units function. */
-Expr gelu(Expr data);
+Expr gelu(Expr data, Span span = Span());
 
 /*! \brief Sigmoid Linear Unit function. */
-Expr silu(Expr data);
+Expr silu(Expr data, Span span = Span());
 
 /*! \brief Softmax function. */
-Expr softmax(Expr data, int axis);
+Expr softmax(Expr data, int axis, Span span = Span());
 
 /*! \brief LogSoftmax function. */
-Expr log_softmax(Expr data, int axis);
+Expr log_softmax(Expr data, int axis, Span span = Span());
 
 /*! \brief Compute batch normalization. */
 Expr batch_norm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_var,  //
-                int axis, double epsilon, bool center, bool scale);
+                int axis, double epsilon, bool center, bool scale, Span span = Span());
 
 /*! \brief Compute layer normalization. */
 Expr layer_norm(Expr data, Expr gamma, Expr beta, Array<Integer> axes, double epsilon, bool center,
-                bool scale);
+                bool scale, Span span = Span());
 
 /*! \brief Compute group normalization. */
 Expr group_norm(Expr data, Expr gamma, Expr beta, int num_groups, int channel_axis,
@@ -80,10 +80,10 @@ Expr group_norm(Expr data, Expr gamma, Expr beta, int num_groups, int channel_ax
  * The first one is the original tensor and the second one is a
  * mask tensor (1.0 where element not dropped, 0.0 where dropped)
  */
-Expr dropout(Expr data, double rate);
+Expr dropout(Expr data, double rate, Span span = Span());
 
 /*! \brief CrossEntropy with logits. */
-Expr cross_entropy_with_logits(Expr predictions, Expr labels);
+Expr cross_entropy_with_logits(Expr predictions, Expr labels, Span span = Span());
 
 }  // namespace relax
 }  // namespace tvm

@@ -38,7 +38,7 @@ namespace relax {
 template <typename T>
 inline Expr MakeConv(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
                      Array<IntImm> dilation, int groups, String data_layout, String kernel_layout,
-                     String out_layout, DataType out_dtype, std::string op_name) {
+                     String out_layout, DataType out_dtype, std::string op_name, Span span) {
   auto attrs = make_object<T>();
   attrs->strides = ConvertIntImmToInt64(strides);
   attrs->padding = ConvertIntImmToInt64(padding);
@@ -49,13 +49,13 @@ inline Expr MakeConv(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm
   attrs->out_layout = std::move(out_layout);
   attrs->out_dtype = std::move(out_dtype);
   const Op& op = Op::Get(op_name);
-  return Call(op, {data, weight}, Attrs(attrs), {});
+  return Call(op, {data, weight}, Attrs(attrs), {}, std::move(span));
 }
 
 /*! \brief 2D convolution */
 Expr conv2d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
             Array<IntImm> dilation, int groups, String data_layout, String kernel_layout,
-            Optional<String> out_layout, DataType out_dtype);
+            Optional<String> out_layout, DataType out_dtype, Span span = Span());
 
 }  // namespace relax
 }  // namespace tvm

@@ -33,12 +33,12 @@ namespace relax {
 /* relax.take */
 TVM_REGISTER_NODE_TYPE(TakeAttrs);
 
-Expr take(Expr x, Expr indices, Optional<Integer> axis) {
+Expr take(Expr x, Expr indices, Optional<Integer> axis, Span span) {
   ObjectPtr<TakeAttrs> attrs = make_object<TakeAttrs>();
   attrs->axis = std::move(axis);
 
   static const Op& op = Op::Get("relax.take");
-  return Call(op, {std::move(x), std::move(indices)}, Attrs(attrs), {});
+  return Call(op, {std::move(x), std::move(indices)}, Attrs(attrs), {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.take").set_body_typed(take);
@@ -99,7 +99,7 @@ Expr strided_slice(Expr x,                 //
                    Array<Integer> axes,    //
                    Array<PrimExpr> begin,  //
                    Array<PrimExpr> end,    //
-                   Optional<Array<PrimExpr>> strides) {
+                   Optional<Array<PrimExpr>> strides, Span span) {
   int n_axis = axes.size();
   CHECK_EQ(static_cast<int>(begin.size()), n_axis)
       << "StridedSlice requires the number of begin indices to equal the number of axes.";
@@ -137,7 +137,7 @@ Expr strided_slice(Expr x,                 //
   attrs->strides = strides.defined() ? strides.value().Map(f_convert_to_int64) : strides;
 
   static const Op& op = Op::Get("relax.strided_slice");
-  return Call(op, {std::move(x)}, Attrs(attrs), {});
+  return Call(op, {std::move(x)}, Attrs(attrs), {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.strided_slice").set_body_typed(strided_slice);

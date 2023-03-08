@@ -18,6 +18,7 @@
 from typing import List, Optional, Tuple, Union
 
 from tvm import DataType
+from tvm.ir import Span
 
 from . import _ffi_api
 from ...expr import Expr
@@ -34,6 +35,7 @@ def conv2d(
     kernel_layout: str = "OIHW",
     out_layout: Optional[str] = None,
     out_dtype: Optional[Union[str, DataType]] = None,
+    span: Span = None,
 ) -> Expr:
     r"""2D convolution.
 
@@ -95,6 +97,9 @@ def conv2d(
     out_dtype : Optional[Union[str, DataType]]
         Specifies the output data type for mixed precision conv2d.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
@@ -118,6 +123,7 @@ def conv2d(
         kernel_layout,
         out_layout,
         out_dtype,
+        span,
     )
 
 
@@ -130,6 +136,7 @@ def max_pool2d(
     ceil_mode: bool = False,
     layout: str = "NCHW",
     out_layout: Optional[str] = None,
+    span: Span = None,
 ) -> Expr:
     r"""2D maximum pooling operator.
 
@@ -179,6 +186,9 @@ def max_pool2d(
     out_layout : Optional[str]
         Layout of the output. If not specified, it is the same as data_layout
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : Expr
@@ -194,7 +204,7 @@ def max_pool2d(
         padding = (padding, padding, padding, padding)
 
     return _ffi_api.max_pool2d(  # type: ignore
-        data, pool_size, strides, padding, dilation, ceil_mode, layout, out_layout
+        data, pool_size, strides, padding, dilation, ceil_mode, layout, out_layout, span
     )
 
 
@@ -203,6 +213,7 @@ def adaptive_avg_pool2d(
     output_size: Optional[Union[int, Tuple[int, int]]] = None,
     layout: str = "NCHW",
     out_layout: Optional[str] = None,
+    span: Span = None,
 ) -> Expr:
     r"""2D adaptive average pooling operator. This operator is experimental.
 
@@ -244,6 +255,9 @@ def adaptive_avg_pool2d(
     out_layout : Optional[str]
         Layout of the output. If not specified, it is the same as data_layout
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
@@ -251,10 +265,10 @@ def adaptive_avg_pool2d(
     """
     if isinstance(output_size, int):
         output_size = (output_size, output_size)
-    return _ffi_api.adaptive_avg_pool2d(data, output_size, layout, out_layout)  # type: ignore
+    return _ffi_api.adaptive_avg_pool2d(data, output_size, layout, out_layout, span)  # type: ignore
 
 
-def relu(data: Expr) -> Expr:
+def relu(data: Expr, span: Span = None) -> Expr:
     """Rectified linear unit.
 
     .. math::
@@ -265,15 +279,18 @@ def relu(data: Expr) -> Expr:
     data : relax.Expr
         The input data
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
         The computed result.
     """
-    return _ffi_api.relu(data)  # type: ignore
+    return _ffi_api.relu(data, span)  # type: ignore
 
 
-def gelu(data: Expr) -> Expr:
+def gelu(data: Expr, span: Span = None) -> Expr:
     """Gaussian Error Linear Units function
 
     .. math::
@@ -286,6 +303,9 @@ def gelu(data: Expr) -> Expr:
     data : relax.Expr
         The input data
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
@@ -295,10 +315,10 @@ def gelu(data: Expr) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
-    return _ffi_api.gelu(data)  # type: ignore
+    return _ffi_api.gelu(data, span)  # type: ignore
 
 
-def silu(data: Expr) -> Expr:
+def silu(data: Expr, span: Span = None) -> Expr:
     """Sigmoid Linear Unit function
 
     .. math::
@@ -309,6 +329,9 @@ def silu(data: Expr) -> Expr:
     data : relax.Expr
         The input data
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
@@ -318,10 +341,10 @@ def silu(data: Expr) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
-    return _ffi_api.silu(data)  # type: ignore
+    return _ffi_api.silu(data, span)  # type: ignore
 
 
-def softmax(data: Expr, axis: int = -1) -> Expr:
+def softmax(data: Expr, axis: int = -1, span: Span = None) -> Expr:
     r"""Computes softmax.
 
     .. math:: text{softmax}(x)_i = frac{exp(x_i)}{\sum_j exp(x_j)}
@@ -336,6 +359,9 @@ def softmax(data: Expr, axis: int = -1) -> Expr:
         If not specified, it is by default the last axis of the input tensor.
         Supports negative indexing.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
@@ -345,10 +371,10 @@ def softmax(data: Expr, axis: int = -1) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
-    return _ffi_api.softmax(data, axis)  # type: ignore
+    return _ffi_api.softmax(data, axis, span)  # type: ignore
 
 
-def log_softmax(data: Expr, axis: int = -1) -> Expr:
+def log_softmax(data: Expr, axis: int = -1, span: Span = None) -> Expr:
     r"""Computes log softmax.
 
     .. math::
@@ -368,12 +394,15 @@ def log_softmax(data: Expr, axis: int = -1) -> Expr:
         If not specified, it is by default the last axis of the input tensor.
         Supports negative indexing.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
         The computed result.
     """
-    return _ffi_api.log_softmax(data, axis)  # type: ignore
+    return _ffi_api.log_softmax(data, axis, span)  # type: ignore
 
 
 def batch_norm(
@@ -386,6 +415,7 @@ def batch_norm(
     epsilon: float = 1e-5,
     center: bool = True,
     scale: bool = True,
+    span: Span = None,
 ) -> Expr:
     r"""
     Batch normalization layer (Ioffe and Szegedy, 2014).
@@ -456,13 +486,16 @@ def batch_norm(
     scale : bool
         Indicating if the gamma scale will be multiplied.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
         The computed result.
     """
     return _ffi_api.batch_norm(  # type: ignore
-        data, gamma, beta, moving_mean, moving_var, axis, epsilon, center, scale
+        data, gamma, beta, moving_mean, moving_var, axis, epsilon, center, scale, span
     )
 
 
@@ -474,6 +507,7 @@ def layer_norm(
     epsilon: float = 1e-5,
     center: bool = True,
     scale: bool = True,
+    span: Span = None,
 ) -> Expr:
     r"""
     Layer normalization (Lei Ba and et al., 2016).
@@ -517,6 +551,9 @@ def layer_norm(
     scale : bool
         Indicating if the gamma scale will be multiplied.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
@@ -524,7 +561,9 @@ def layer_norm(
     """
     if isinstance(axes, int):
         axes = [axes]
-    return _ffi_api.layer_norm(data, gamma, beta, axes, epsilon, center, scale)  # type: ignore
+    return _ffi_api.layer_norm(
+        data, gamma, beta, axes, epsilon, center, scale, span
+    )  # type: ignore
 
 
 def group_norm(
@@ -585,7 +624,7 @@ def group_norm(
     )
 
 
-def dropout(data: Expr, rate: float = 0.5) -> Expr:
+def dropout(data: Expr, rate: float = 0.5, span: Span = None) -> Expr:
     """Applies the dropout operation to the input tensor.
 
     During training, each element of the input is set to zero with
@@ -600,6 +639,9 @@ def dropout(data: Expr, rate: float = 0.5) -> Expr:
     rate : float
         The probability for an element to be reset to 0.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
@@ -607,10 +649,10 @@ def dropout(data: Expr, rate: float = 0.5) -> Expr:
         The first one is the original tensor and the second one is a
         mask tensor (1.0 where element not dropped, 0.0 where dropped)
     """
-    return _ffi_api.dropout(data, rate)  # type: ignore
+    return _ffi_api.dropout(data, rate, span)  # type: ignore
 
 
-def cross_entropy_with_logits(predictions: Expr, labels: Expr) -> Expr:
+def cross_entropy_with_logits(predictions: Expr, labels: Expr, span: Span = None) -> Expr:
     r"""CrossEntropy with logits between the predictions and labels.
 
     The shape of predictions and labels must be the same. And when ndim >= 2,
@@ -629,12 +671,15 @@ def cross_entropy_with_logits(predictions: Expr, labels: Expr) -> Expr:
     labels : relax.Expr
       The labels (the ground truth values).
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
       The computed result.
     """
-    return _ffi_api.cross_entropy_with_logits(predictions, labels)  # type: ignore
+    return _ffi_api.cross_entropy_with_logits(predictions, labels, span)  # type: ignore
 
 
 def attention(query: Expr, key: Expr, value: Expr, bias: Optional[Expr] = None) -> Expr:

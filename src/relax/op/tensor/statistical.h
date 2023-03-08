@@ -42,18 +42,18 @@ namespace relax {
  *  1. be prepended with a prefix "relax.op." as the FFI identifier string for the make function,
  *  2. be prepended with a prefix "relax." as the identifier string in the operator registry.
  */
-#define RELAX_REGISTER_STATISTICAL_OP_INTERFACE(OpName)                  \
-  Expr OpName(Expr x, Optional<Array<Integer>> axis, bool keepdims) {    \
-    ObjectPtr<StatisticalAttrs> attrs = make_object<StatisticalAttrs>(); \
-    attrs->axis = std::move(axis);                                       \
-    attrs->keepdims = keepdims;                                          \
-    static const Op& op = Op::Get("relax." #OpName);                     \
-    return Call(op, {std::move(x)}, Attrs{attrs}, {});                   \
-  }                                                                      \
-  TVM_REGISTER_GLOBAL("relax.op." #OpName).set_body_typed(OpName);       \
-  TVM_REGISTER_OP("relax." #OpName)                                      \
-      .set_num_inputs(1)                                                 \
-      .add_argument("x", "Tensor", "The input data tensor")              \
+#define RELAX_REGISTER_STATISTICAL_OP_INTERFACE(OpName)                          \
+  Expr OpName(Expr x, Optional<Array<Integer>> axis, bool keepdims, Span span) { \
+    ObjectPtr<StatisticalAttrs> attrs = make_object<StatisticalAttrs>();         \
+    attrs->axis = std::move(axis);                                               \
+    attrs->keepdims = keepdims;                                                  \
+    static const Op& op = Op::Get("relax." #OpName);                             \
+    return Call(op, {std::move(x)}, Attrs{attrs}, {}, std::move(span));          \
+  }                                                                              \
+  TVM_REGISTER_GLOBAL("relax.op." #OpName).set_body_typed(OpName);               \
+  TVM_REGISTER_OP("relax." #OpName)                                              \
+      .set_num_inputs(1)                                                         \
+      .add_argument("x", "Tensor", "The input data tensor")                      \
       .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStatistical)
 
 /*!
@@ -66,25 +66,25 @@ namespace relax {
  * input tensor.
  * \return The result after reduction.
  */
-Expr max(Expr x, Optional<Array<Integer>> axis, bool keepdims);
+Expr max(Expr x, Optional<Array<Integer>> axis, bool keepdims, Span span = Span());
 
 /*! \brief Computes the mean of tensor elements over given axes. */
-Expr mean(Expr x, Optional<Array<Integer>> axis, bool keepdims);
+Expr mean(Expr x, Optional<Array<Integer>> axis, bool keepdims, Span span = Span());
 
 /*! \brief Computes the min of tensor elements over given axes. */
-Expr min(Expr x, Optional<Array<Integer>> axis, bool keepdims);
+Expr min(Expr x, Optional<Array<Integer>> axis, bool keepdims, Span span = Span());
 
 /*! \brief Computes the product of tensor elements over given axes. */
-Expr prod(Expr x, Optional<Array<Integer>> axis, bool keepdims);
+Expr prod(Expr x, Optional<Array<Integer>> axis, bool keepdims, Span span = Span());
 
 /*! \brief Computes the standard deviation of tensor elements over given axes. */
-Expr std(Expr x, Optional<Array<Integer>> axis, bool keepdims);
+Expr std(Expr x, Optional<Array<Integer>> axis, bool keepdims, Span span = Span());
 
 /*! \brief Computes the sum of tensor elements over given axes. */
-Expr sum(Expr x, Optional<Array<Integer>> axis, bool keepdims);
+Expr sum(Expr x, Optional<Array<Integer>> axis, bool keepdims, Span span = Span());
 
 /*! \brief Computes the variance of tensor elements over given axes. */
-Expr variance(Expr x, Optional<Array<Integer>> axis, bool keepdims);
+Expr variance(Expr x, Optional<Array<Integer>> axis, bool keepdims, Span span = Span());
 
 }  // namespace relax
 }  // namespace tvm

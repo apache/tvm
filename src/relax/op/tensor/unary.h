@@ -56,87 +56,87 @@ namespace relax {
  * \param x The input data.
  * \return The computed result.
  */
-Expr abs(Expr x);
+Expr abs(Expr x, Span span = Span());
 
 /*! \brief Compute element-wise arc cos of the input data. */
-Expr acos(Expr x);
+Expr acos(Expr x, Span span = Span());
 
 /*! \brief Compute element-wise arc cosh of the input data. */
-Expr acosh(Expr x);
+Expr acosh(Expr x, Span span = Span());
 
 /*! \brief Compute element-wise arc sin of the input data. */
-Expr asin(Expr x);
+Expr asin(Expr x, Span span = Span());
 
 /*! \brief Compute element-wise arc sinh of the input data. */
-Expr asinh(Expr x);
+Expr asinh(Expr x, Span span = Span());
 
 /*! \brief Compute element-wise arc tan of the input data. */
-Expr atan(Expr x);
+Expr atan(Expr x, Span span = Span());
 
 /*! \brief Compute element-wise arc tanh of the input data. */
-Expr atanh(Expr x);
+Expr atanh(Expr x, Span span = Span());
 
 /*! \brief Take ceil of input data. */
-Expr ceil(Expr x);
+Expr ceil(Expr x, Span span = Span());
 
 /*! \brief Compute element-wise cos of the input data. */
-Expr cos(Expr x);
+Expr cos(Expr x, Span span = Span());
 
 /*! \brief Compute element-wise cosh of the input data. */
-Expr cosh(Expr x);
+Expr cosh(Expr x, Span span = Span());
 
 /*! \brief Compute element-wise exp of data. */
-Expr exp(Expr x);
+Expr exp(Expr x, Span span = Span());
 
 /*! \brief Take floor of input data. */
-Expr floor(Expr x);
+Expr floor(Expr x, Span span = Span());
 
 /*! \brief Compute element-wise natural logarithm of data. */
-Expr log(Expr x);
+Expr log(Expr x, Span span = Span());
 
 /*! \brief Compute element-wise negative value of data. */
-Expr negative(Expr x);
+Expr negative(Expr x, Span span = Span());
 
 /*! \brief Rounds each element of the input data to nearest integer. */
-Expr round(Expr x);
+Expr round(Expr x, Span span = Span());
 
 /*! \brief Compute element-wise sigmoid of data. */
-Expr sigmoid(Expr x);
+Expr sigmoid(Expr x, Span span = Span());
 
 /*! \brief Returns an indication of the sign of a number for each element of the input data. */
-Expr sign(Expr x);
+Expr sign(Expr x, Span span = Span());
 
 /*! \brief Compute element-wise sin of data. */
-Expr sin(Expr x);
+Expr sin(Expr x, Span span = Span());
 
 /*! \brief Compute element-wise sinh of data. */
-Expr sinh(Expr x);
+Expr sinh(Expr x, Span span = Span());
 
 /*! \brief Compute element-wise square root of data. */
-Expr sqrt(Expr x);
+Expr sqrt(Expr x, Span span = Span());
 
 /*! \brief Squares each element of the input data. */
-Expr square(Expr x);
+Expr square(Expr x, Span span = Span());
 
 /*! \brief Compute element-wise tan of data. */
-Expr tan(Expr x);
+Expr tan(Expr x, Span span = Span());
 
 /*! \brief Compute element-wise tanh of data. */
-Expr tanh(Expr x);
+Expr tanh(Expr x, Span span = Span());
 
 /*! \brief Clips tensor values to a specified min and max. */
-Expr clip(Expr x, Expr min, Expr max);
+Expr clip(Expr x, Expr min, Expr max, Span span = Span());
 
 /***************** Check operators *****************/
 
 /*! \brief Check if input value is finite. */
-Expr isfinite(Expr x);
+Expr isfinite(Expr x, Span span = Span());
 
 /*! \brief Check if input value is infinite. */
-Expr isinf(Expr x);
+Expr isinf(Expr x, Span span = Span());
 
 /*! \brief Check if input value is Nan. */
-Expr isnan(Expr x);
+Expr isnan(Expr x, Span span = Span());
 
 }  // namespace relax
 }  // namespace tvm

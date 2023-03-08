@@ -18,11 +18,15 @@
 """Statistical operators."""
 from typing import List, Optional, Union
 
+from tvm.ir import Span
+
 from . import _ffi_api
 from ..expr import Expr
 
 
-def max(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False) -> Expr:
+def max(
+    x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False, span: Span = None
+) -> Expr:
     """Computes the max of tensor elements over given axes.
 
     Parameters
@@ -40,6 +44,9 @@ def max(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = 
         with size one.
         With this option, the result will broadcast correctly against the input tensor.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
@@ -47,10 +54,12 @@ def max(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = 
     """
     if isinstance(axis, int):
         axis = [axis]
-    return _ffi_api.max(x, axis, keepdims)  # type: ignore
+    return _ffi_api.max(x, axis, keepdims, span)  # type: ignore
 
 
-def mean(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False) -> Expr:
+def mean(
+    x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False, span: Span = None
+) -> Expr:
     """Computes the mean of tensor elements over given axes.
 
     Parameters
@@ -68,6 +77,9 @@ def mean(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool =
         with size one.
         With this option, the result will broadcast correctly against the input tensor.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
@@ -75,10 +87,12 @@ def mean(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool =
     """
     if isinstance(axis, int):
         axis = [axis]
-    return _ffi_api.mean(x, axis, keepdims)  # type: ignore
+    return _ffi_api.mean(x, axis, keepdims, span)  # type: ignore
 
 
-def min(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False) -> Expr:
+def min(
+    x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False, span: Span = None
+) -> Expr:
     """Computes the min of tensor elements over given axes.
 
     Parameters
@@ -96,6 +110,9 @@ def min(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = 
         with size one.
         With this option, the result will broadcast correctly against the input tensor.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
@@ -103,10 +120,12 @@ def min(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = 
     """
     if isinstance(axis, int):
         axis = [axis]
-    return _ffi_api.min(x, axis, keepdims)  # type: ignore
+    return _ffi_api.min(x, axis, keepdims, span)  # type: ignore
 
 
-def prod(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False) -> Expr:
+def prod(
+    x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False, span: Span = None
+) -> Expr:
     """Computes the product of tensor elements over given axes.
 
     Parameters
@@ -124,6 +143,9 @@ def prod(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool =
         dimensions with size one.
         With this option, the result will broadcast correctly against the input tensor.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
@@ -131,10 +153,12 @@ def prod(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool =
     """
     if isinstance(axis, int):
         axis = [axis]
-    return _ffi_api.prod(x, axis, keepdims)  # type: ignore
+    return _ffi_api.prod(x, axis, keepdims, span)  # type: ignore
 
 
-def std(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False) -> Expr:
+def std(
+    x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False, span: Span = None
+) -> Expr:
     """Computes the standard deviation of tensor elements over given axes.
 
     Parameters
@@ -152,6 +176,9 @@ def std(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = 
         dimensions with size one.
         With this option, the result will broadcast correctly against the input tensor.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
@@ -159,10 +186,12 @@ def std(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = 
     """
     if isinstance(axis, int):
         axis = [axis]
-    return _ffi_api.std(x, axis, keepdims)  # type: ignore
+    return _ffi_api.std(x, axis, keepdims, span)  # type: ignore
 
 
-def sum(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False) -> Expr:
+def sum(
+    x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False, span: Span = None
+) -> Expr:
     """Computes the sum of tensor elements over given axes.
 
     Parameters
@@ -180,6 +209,9 @@ def sum(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = 
         dimensions with size one.
         With this option, the result will broadcast correctly against the input tensor.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
@@ -187,10 +219,12 @@ def sum(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = 
     """
     if isinstance(axis, int):
         axis = [axis]
-    return _ffi_api.sum(x, axis, keepdims)  # type: ignore
+    return _ffi_api.sum(x, axis, keepdims, span)  # type: ignore
 
 
-def variance(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False) -> Expr:
+def variance(
+    x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False, span: Span = None
+) -> Expr:
     """Computes the variance of tensor elements over given axes.
 
     Parameters
@@ -208,6 +242,9 @@ def variance(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bo
         with size one.
         With this option, the result will broadcast correctly against the input tensor.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
@@ -215,4 +252,4 @@ def variance(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bo
     """
     if isinstance(axis, int):
         axis = [axis]
-    return _ffi_api.variance(x, axis, keepdims)  # type: ignore
+    return _ffi_api.variance(x, axis, keepdims, span)  # type: ignore

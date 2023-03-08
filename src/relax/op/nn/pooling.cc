@@ -29,8 +29,8 @@ namespace relax {
 TVM_REGISTER_NODE_TYPE(MaxPool2DAttrs);
 
 Expr max_pool2d(Expr data, Array<IntImm> pool_size, Array<IntImm> strides, Array<IntImm> padding,
-                Array<IntImm> dilation, bool ceil_mode, String layout,
-                Optional<String> out_layout) {
+                Array<IntImm> dilation, bool ceil_mode, String layout, Optional<String> out_layout,
+                Span span) {
   padding = GetCompletePadding2D(std::move(padding));
   if (pool_size.size() == 1) {
     pool_size.push_back(pool_size[0]);
@@ -60,7 +60,7 @@ Expr max_pool2d(Expr data, Array<IntImm> pool_size, Array<IntImm> strides, Array
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
   static const Op& op = Op::Get("relax.nn.max_pool2d");
-  return Call(op, {std::move(data)}, Attrs(attrs), {});
+  return Call(op, {std::move(data)}, Attrs(attrs), {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.nn.max_pool2d").set_body_typed(max_pool2d);
@@ -120,7 +120,7 @@ TVM_REGISTER_OP("relax.nn.max_pool2d")
 TVM_REGISTER_NODE_TYPE(AdaptivePool2DAttrs);
 
 Expr adaptive_avg_pool2d(Expr data, Optional<Array<IntImm>> output_size, String layout,
-                         Optional<String> out_layout) {
+                         Optional<String> out_layout, Span span) {
   ObjectPtr<AdaptivePool2DAttrs> attrs = make_object<AdaptivePool2DAttrs>();
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
@@ -136,7 +136,7 @@ Expr adaptive_avg_pool2d(Expr data, Optional<Array<IntImm>> output_size, String 
   }
 
   static const Op& op = Op::Get("relax.nn.adaptive_avg_pool2d");
-  return Call(op, {std::move(data)}, Attrs(attrs), {});
+  return Call(op, {std::move(data)}, Attrs(attrs), {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.nn.adaptive_avg_pool2d").set_body_typed(adaptive_avg_pool2d);

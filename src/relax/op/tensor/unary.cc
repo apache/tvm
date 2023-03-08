@@ -68,7 +68,7 @@ TVM_REGISTER_OP("relax.clip")
     .add_argument("max", "PrimValue", "The upper-bound of the range to be clipped to")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnStructInfoFromArg<0>);
 
-Expr clip(Expr x, Expr min, Expr max) {
+Expr clip(Expr x, Expr min, Expr max, Span span) {
   CHECK(min->IsInstance<PrimValueNode>())
       << "The argument `min` of relax.clip is expected to be a PrimValue, but got"
       << min->GetTypeKey();
@@ -76,7 +76,7 @@ Expr clip(Expr x, Expr min, Expr max) {
       << "The argument `max` of relax.clip is expected to be a PrimValue, but got"
       << max->GetTypeKey();
   static const Op& op = Op::Get("relax.clip");
-  return Call(op, {std::move(x), std::move(min), std::move(max)});
+  return Call(op, {std::move(x), std::move(min), std::move(max)}, Attrs(), {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.clip").set_body_typed(clip);

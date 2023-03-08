@@ -24,6 +24,7 @@
 
 #include "convolution.h"
 
+#include <utility>
 #include <vector>
 
 namespace tvm {
@@ -34,7 +35,7 @@ TVM_REGISTER_NODE_TYPE(Conv2DAttrs);
 
 Expr conv2d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
             Array<IntImm> dilation, int groups, String data_layout, String kernel_layout,
-            Optional<String> out_layout, DataType out_dtype) {
+            Optional<String> out_layout, DataType out_dtype, Span span) {
   padding = GetCompletePadding2D(std::move(padding));
   if (strides.size() == 1) {
     strides.push_back(strides[0]);
@@ -54,7 +55,7 @@ Expr conv2d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding
   return MakeConv<Conv2DAttrs>(std::move(data), std::move(weight), std::move(strides),
                                std::move(padding), std::move(dilation), groups, data_layout,
                                std::move(kernel_layout), out_layout.value_or(data_layout),
-                               out_dtype, /*op_name=*/"relax.nn.conv2d");
+                               out_dtype, /*op_name=*/"relax.nn.conv2d", std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.nn.conv2d").set_body_typed(conv2d);

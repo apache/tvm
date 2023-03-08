@@ -308,12 +308,13 @@ class BlockBuilder(Object):
         """
 
         primfunc_name = kwargs.pop("primfunc_name_hint", None)
+        span = kwargs.pop("span", None)
         tir_func, call_args, output_sinfo, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
         if not primfunc_name:
             primfunc_name = func.__name__
         gvar = self.add_func(tir_func, primfunc_name)
 
-        return call_tir(gvar, call_args, output_sinfo, tir_vars)
+        return call_tir(gvar, call_args, output_sinfo, tir_vars, span=span)
 
     def emit_te(self, func: Callable, *args: Any, **kwargs: Any) -> Var:
         """Emit a call node according to the te function.

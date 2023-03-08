@@ -18,11 +18,13 @@
 """Search operators."""
 from typing import Optional
 
+from tvm.ir import Span
+
 from . import _ffi_api
 from ..expr import Expr
 
 
-def where(condition: Expr, x1: Expr, x2: Expr) -> Expr:
+def where(condition: Expr, x1: Expr, x2: Expr, span: Span = None) -> Expr:
     """Selecting elements from either the input tensors depending on the value of the
     condition.
 
@@ -44,12 +46,15 @@ def where(condition: Expr, x1: Expr, x2: Expr) -> Expr:
         The second input tensor.
         Must be broadcasting compatible with `condition` and `x1`.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
         The result tensor.
     """
-    return _ffi_api.where(condition, x1, x2)  # type: ignore
+    return _ffi_api.where(condition, x1, x2, span)  # type: ignore
 
 
 def argmax(x: Expr, axis: Optional[int] = None, keepdims: bool = False) -> Expr:

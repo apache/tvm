@@ -17,6 +17,7 @@
 """Manipulation operators."""
 from typing import List, Optional, Tuple, Union, Callable
 
+from tvm.ir import Span
 from tvm.ir.expr import PrimExpr
 from tvm.tir import IntImm, FloatImm, IndexMap
 
@@ -27,7 +28,7 @@ from ..expr import Expr, PrimValue, ShapeExpr, Tuple as RxTuple
 PrimExprLike = Union[int, PrimExpr]
 
 
-def broadcast_to(x: Expr, shape: Union[Tuple[PrimExprLike], Expr]) -> Expr:
+def broadcast_to(x: Expr, shape: Union[Tuple[PrimExprLike], Expr], span: Span = None) -> Expr:
     """Broadcasts a tensor to a specified shape.
 
     Parameters
@@ -38,6 +39,9 @@ def broadcast_to(x: Expr, shape: Union[Tuple[PrimExprLike], Expr]) -> Expr:
     shape : Union[Tuple[PrimExprLike], Expr]
         The target shape.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
@@ -45,10 +49,10 @@ def broadcast_to(x: Expr, shape: Union[Tuple[PrimExprLike], Expr]) -> Expr:
     """
     if isinstance(shape, (tuple, list)):
         shape = ShapeExpr(shape)
-    return _ffi_api.broadcast_to(x, shape)  # type: ignore
+    return _ffi_api.broadcast_to(x, shape, span)  # type: ignore
 
 
-def concat(tensors: Union[Expr, List[Expr]], axis: Optional[int] = 0) -> Expr:
+def concat(tensors: Union[Expr, List[Expr]], axis: Optional[int] = 0, span: Span = None) -> Expr:
     """Concatenate the input tensors along the given axis.
 
     Parameters
@@ -61,6 +65,9 @@ def concat(tensors: Union[Expr, List[Expr]], axis: Optional[int] = 0) -> Expr:
         The axis along which the tensors are concatenated.
         If `axis` is `None`, the input tensor is required to be flattened before concatenation.
 
+    span : Span
+        The span information for this operator.
+
     Returns
     -------
     result: relax.Expr
@@ -68,10 +75,10 @@ def concat(tensors: Union[Expr, List[Expr]], axis: Optional[int] = 0) -> Expr:
     """
     if isinstance(tensors, (list, tuple)):
         tensors = RxTuple(tensors)
-    return _ffi_api.concat(tensors, axis)  # type: ignore
+    return _ffi_api.concat(tensors, axis, span)  # type: ignore
 
 
-def expand_dims(x: Expr, axis: Union[int, List[int]]) -> Expr:
+def expand_dims(x: Expr, axis: Union[int, List[int]], span: Span = None) -> Expr:
     """Insert new axes at the positions given by `axis`.
 
     Parameters
@@ -84,6 +91,9 @@ def expand_dims(x: Expr, axis: Union[int, List[int]]) -> Expr:
         All values are required to lie in range `[-data.ndim - 1, data.ndim]`, with the convention
         of negative indexing.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
@@ -91,10 +101,10 @@ def expand_dims(x: Expr, axis: Union[int, List[int]]) -> Expr:
     """
     if isinstance(axis, int):
         axis = [axis]
-    return _ffi_api.expand_dims(x, axis)  # type: ignore
+    return _ffi_api.expand_dims(x, axis, span)  # type: ignore
 
 
-def flatten(x: Expr) -> Expr:
+def flatten(x: Expr, span: Span = None) -> Expr:
     """Flatten all the tensor dimensions into one.
 
     Parameters
@@ -102,18 +112,22 @@ def flatten(x: Expr) -> Expr:
     x : relax.Expr
         The input data to the operator.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
         The flattened result.
     """
-    return _ffi_api.flatten(x)  # type: ignore
+    return _ffi_api.flatten(x, span)  # type: ignore
 
 
 def layout_transform(
     x: Expr,
     index_map: Union[Callable, IndexMap],
     pad_value: Optional[Union[int, float, PrimValue]] = None,
+    span: Span = None,
 ):
     """Modifies the layout of a tensor.
 
@@ -128,6 +142,9 @@ def layout_transform(
     pad_value : Optional[Union[int, float, PrimValue]]
         The value used for padding if the transformation results in implicit padding.
         If not specified, any value can be used.
+
+    span : Span
+        The source code span.
 
     Returns
     -------
@@ -148,10 +165,10 @@ def layout_transform(
         elif "float" in x_dtype and (isinstance(pad_value, (int, float))):
             pad_value = FloatImm(x_dtype, float(pad_value))
         pad_value = PrimValue(pad_value)
-    return _ffi_api.layout_transform(x, index_map, pad_value)  # type: ignore
+    return _ffi_api.layout_transform(x, index_map, pad_value, span)  # type: ignore
 
 
-def permute_dims(x: Expr, axes: Optional[List[int]] = None) -> Expr:
+def permute_dims(x: Expr, axes: Optional[List[int]] = None, span: Span = None) -> Expr:
     """Permutes the dimensions of an array.
 
     Parameters
@@ -162,15 +179,18 @@ def permute_dims(x: Expr, axes: Optional[List[int]] = None) -> Expr:
     axes : Optional[List[int]]
         The target axes order, reverse order if not specified.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
         The transposed result.
     """
-    return _ffi_api.permute_dims(x, axes)  # type: ignore
+    return _ffi_api.permute_dims(x, axes, span)  # type: ignore
 
 
-def reshape(x: Expr, shape: Union[Tuple[PrimExprLike], Expr]) -> Expr:
+def reshape(x: Expr, shape: Union[Tuple[PrimExprLike], Expr], span: Span = None) -> Expr:
     """Reshape the input array.
 
     ``-1`` infers the dimension of the output shape by using the remainder of
@@ -191,6 +211,9 @@ def reshape(x: Expr, shape: Union[Tuple[PrimExprLike], Expr]) -> Expr:
     shape : Union[Tuple[PrimExprLike], Expr]
         The new shape. Should be compatible with the original shape.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
@@ -202,13 +225,14 @@ def reshape(x: Expr, shape: Union[Tuple[PrimExprLike], Expr]) -> Expr:
     That is to say, in any case the dimension length of ``-1`` cannot be inferred in
     compile-time, an error will be thrown.
     """
-    return _ffi_api.reshape(x, shape)  # type: ignore
+    return _ffi_api.reshape(x, shape, span)  # type: ignore
 
 
 def split(
     x: Expr,
     indices_or_sections: Union[int, List[PrimExprLike]],
     axis: int = 0,
+    span: Span = None,
 ) -> Expr:
     """Split input tensor along axis by sections or indices.
 
@@ -230,6 +254,9 @@ def split(
     axis : int
         The axis over which to split.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     ret : relax.Expr
@@ -237,10 +264,10 @@ def split(
     """
     if isinstance(indices_or_sections, int):
         indices_or_sections = IntImm("int64", indices_or_sections)
-    return _ffi_api.split(x, indices_or_sections, axis)  # type: ignore
+    return _ffi_api.split(x, indices_or_sections, axis, span)  # type: ignore
 
 
-def squeeze(x: Expr, axis: Optional[Union[int, List[int]]] = None) -> Expr:
+def squeeze(x: Expr, axis: Optional[Union[int, List[int]]] = None, span: Span = None) -> Expr:
     """Squeeze axes in the array.
 
     Parameters
@@ -253,6 +280,9 @@ def squeeze(x: Expr, axis: Optional[Union[int, List[int]]] = None) -> Expr:
         If axis = None, remove all axis of dimensions 1.
         If any specified axis has dimension that does not equal 1, it is an error.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : relax.Expr
@@ -260,7 +290,7 @@ def squeeze(x: Expr, axis: Optional[Union[int, List[int]]] = None) -> Expr:
     """
     if isinstance(axis, int):
         axis = [axis]
-    return _ffi_api.squeeze(x, axis)  # type: ignore
+    return _ffi_api.squeeze(x, axis, span)  # type: ignore
 
 
 def collapse_sum_like(data: Expr, collapse_target: Expr) -> Expr:

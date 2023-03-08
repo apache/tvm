@@ -41,7 +41,7 @@ namespace relax {
  * When it is not specified, the output dtype will be the the same as input dtype.
  * \return The computed result.
  */
-Expr matmul(Expr x1, Expr x2, DataType out_dtype);
+Expr matmul(Expr x1, Expr x2, DataType out_dtype, Span span = Span());
 
 }  // namespace relax
 }  // namespace tvm

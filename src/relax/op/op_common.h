@@ -72,18 +72,17 @@ inline TensorStructInfo GetUnaryInputTensorStructInfo(const Call& call, const Bl
   TVM_REGISTER_OP("relax." OpRegName)      \
       .set_num_inputs(1)                   \
       .add_argument("x", "Tensor", "The input tensor.")
-
 /*!
  * \brief Quick helper macro to expose a make-function to construct the operator.
  * \param OpName The name of the operator as well as the make-function name, which will
  * be prepended with a prefix "relax.op." as the FFI identifier string for the make function,
  * \param OpRegName The identifier of the operator in the registry.
  */
-#define RELAX_UNARY_OP_INTERFACE(OpName, OpRegName)    \
-  Expr OpName(Expr x) {                                \
-    static const Op& op = Op::Get("relax." OpRegName); \
-    return Call(op, {std::move(x)}, Attrs(), {});      \
-  }                                                    \
+#define RELAX_UNARY_OP_INTERFACE(OpName, OpRegName)                \
+  Expr OpName(Expr x, Span span) {                                 \
+    static const Op& op = Op::Get("relax." OpRegName);             \
+    return Call(op, {std::move(x)}, Attrs(), {}, std::move(span)); \
+  }                                                                \
   TVM_REGISTER_GLOBAL("relax.op." OpRegName).set_body_typed(OpName)
 
 /************ Utilities ************/

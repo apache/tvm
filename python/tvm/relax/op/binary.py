@@ -16,13 +16,15 @@
 # under the License.
 # pylint: disable=redefined-builtin, invalid-name
 """Relax binary arithmetic and comparison operators."""
+from tvm.ir import Span
+
 from . import _ffi_api
 from ..expr import Expr
 
 ###################### Arithmetic operators ######################
 
 
-def add(x1: Expr, x2: Expr) -> Expr:
+def add(x1: Expr, x2: Expr, span: Span = None) -> Expr:
     """Addition with numpy-style broadcasting.
 
     Parameters
@@ -31,6 +33,8 @@ def add(x1: Expr, x2: Expr) -> Expr:
         The first input tensor.
     x2 : Expr
         The second input tensor.
+    span : Span
+        The source code span.
 
     Returns
     -------
@@ -46,10 +50,10 @@ def add(x1: Expr, x2: Expr) -> Expr:
       b = relax.Var("b", relax.TensorStructInfo(shape=(2, 1), dtype="float32"))
       c = bb.normalize(relax.op.add(a, b))  # c has TensorStructInfo(shape=(2, 3), dtype="float32")
     """
-    return _ffi_api.add(x1, x2)  # type: ignore
+    return _ffi_api.add(x1, x2, span)  # type: ignore
 
 
-def divide(x1: Expr, x2: Expr) -> Expr:
+def divide(x1: Expr, x2: Expr, span: Span = None) -> Expr:
     """Division with numpy-style broadcasting.
 
     Parameters
@@ -58,16 +62,18 @@ def divide(x1: Expr, x2: Expr) -> Expr:
         The first input tensor.
     x2 : relax.Expr
         The second input tensor.
+    span : Span
+        The source code span.
 
     Returns
     -------
     result : relax.Expr
         The computed result.
     """
-    return _ffi_api.divide(x1, x2)  # type: ignore
+    return _ffi_api.divide(x1, x2, span)  # type: ignore
 
 
-def floor_divide(x1: Expr, x2: Expr) -> Expr:
+def floor_divide(x1: Expr, x2: Expr, span: Span = None) -> Expr:
     """Floor division with numpy-style broadcasting.
 
     Parameters
@@ -76,16 +82,18 @@ def floor_divide(x1: Expr, x2: Expr) -> Expr:
         The first input tensor.
     x2 : relax.Expr
         The second input tensor.
+    span : Span
+        The source code span.
 
     Returns
     -------
     result : relax.Expr
         The computed result.
     """
-    return _ffi_api.floor_divide(x1, x2)  # type: ignore
+    return _ffi_api.floor_divide(x1, x2, span)  # type: ignore
 
 
-def multiply(x1: Expr, x2: Expr) -> Expr:
+def multiply(x1: Expr, x2: Expr, span: Span = None) -> Expr:
     """Multiplication with numpy-style broadcasting.
 
     Parameters
@@ -94,13 +102,15 @@ def multiply(x1: Expr, x2: Expr) -> Expr:
         The first input tensor.
     x2 : Expr
         The second input tensor.
+    span : Span
+        The source code span.
 
     Returns
     -------
     result : Expr
         The computed result.
     """
-    return _ffi_api.multiply(x1, x2)  # type: ignore
+    return _ffi_api.multiply(x1, x2, span)  # type: ignore
 
 
 def power(x1: Expr, x2: Expr):
@@ -121,7 +131,7 @@ def power(x1: Expr, x2: Expr):
     return _ffi_api.power(x1, x2)  # type: ignore
 
 
-def subtract(x1: Expr, x2: Expr) -> Expr:
+def subtract(x1: Expr, x2: Expr, span: Span = None) -> Expr:
     """Subtraction with numpy-style broadcasting.
 
     Parameters
@@ -130,19 +140,21 @@ def subtract(x1: Expr, x2: Expr) -> Expr:
         The first input tensor.
     x2 : relax.Expr
         The second input tensor.
+    span : Span
+        The source code span.
 
     Returns
     -------
     result : relax.Expr
         The computed result.
     """
-    return _ffi_api.subtract(x1, x2)  # type: ignore
+    return _ffi_api.subtract(x1, x2, span)  # type: ignore
 
 
 ###################### Comparison operators ######################
 
 
-def equal(x1: Expr, x2: Expr) -> Expr:
+def equal(x1: Expr, x2: Expr, span: Span = None) -> Expr:
     """Broadcasted element-wise test for (lhs == rhs).
 
     Parameters
@@ -151,16 +163,18 @@ def equal(x1: Expr, x2: Expr) -> Expr:
         The first input tensor.
     x2 : relax.Expr
         The second input tensor.
+    span : Span
+        The source code span.
 
     Returns
     -------
     result : relax.Expr
         The computed result.
     """
-    return _ffi_api.equal(x1, x2)  # type: ignore
+    return _ffi_api.equal(x1, x2, span)  # type: ignore
 
 
-def greater(x1: Expr, x2: Expr) -> Expr:
+def greater(x1: Expr, x2: Expr, span: Span = None) -> Expr:
     """Broadcasted element-wise test for (lhs > rhs).
 
     Parameters
@@ -169,16 +183,18 @@ def greater(x1: Expr, x2: Expr) -> Expr:
         The first input tensor.
     x2 : relax.Expr
         The second input tensor.
+    span : Span
+        The source code span.
 
     Returns
     -------
     result : relax.Expr
         The computed result.
     """
-    return _ffi_api.greater(x1, x2)  # type: ignore
+    return _ffi_api.greater(x1, x2, span)  # type: ignore
 
 
-def greater_equal(x1: Expr, x2: Expr) -> Expr:
+def greater_equal(x1: Expr, x2: Expr, span: Span = None) -> Expr:
     """Broadcasted element-wise test for (lhs >= rhs).
 
     Parameters
@@ -187,16 +203,18 @@ def greater_equal(x1: Expr, x2: Expr) -> Expr:
         The first input tensor.
     x2 : relax.Expr
         The second input tensor.
+    span : Span
+        The source code span.
 
     Returns
     -------
     result : relax.Expr
         The computed result.
     """
-    return _ffi_api.greater_equal(x1, x2)  # type: ignore
+    return _ffi_api.greater_equal(x1, x2, span)  # type: ignore
 
 
-def less(x1: Expr, x2: Expr) -> Expr:
+def less(x1: Expr, x2: Expr, span: Span = None) -> Expr:
     """Broadcasted element-wise test for (lhs < rhs).
 
     Parameters
@@ -205,16 +223,18 @@ def less(x1: Expr, x2: Expr) -> Expr:
         The first input tensor.
     x2 : relax.Expr
         The second input tensor.
+    span : Span
+        The source code span.
 
     Returns
     -------
     result : relax.Expr
         The computed result.
     """
-    return _ffi_api.less(x1, x2)  # type: ignore
+    return _ffi_api.less(x1, x2, span)  # type: ignore
 
 
-def less_equal(x1: Expr, x2: Expr) -> Expr:
+def less_equal(x1: Expr, x2: Expr, span: Span = None) -> Expr:
     """Broadcasted element-wise test for (lhs <= rhs).
 
     Parameters
@@ -223,16 +243,18 @@ def less_equal(x1: Expr, x2: Expr) -> Expr:
         The first input tensor.
     x2 : relax.Expr
         The second input tensor.
+    span : Span
+        The source code span.
 
     Returns
     -------
     result : relax.Expr
         The computed result.
     """
-    return _ffi_api.less_equal(x1, x2)  # type: ignore
+    return _ffi_api.less_equal(x1, x2, span)  # type: ignore
 
 
-def not_equal(x1: Expr, x2: Expr) -> Expr:
+def not_equal(x1: Expr, x2: Expr, span: Span = None) -> Expr:
     """Broadcasted element-wise test for (lhs != rhs).
 
     Parameters
@@ -241,10 +263,12 @@ def not_equal(x1: Expr, x2: Expr) -> Expr:
         The first input tensor.
     x2 : relax.Expr
         The second input tensor.
+    span : Span
+        The source code span.
 
     Returns
     -------
     result : relax.Expr
         The computed result.
     """
-    return _ffi_api.not_equal(x1, x2)  # type: ignore
+    return _ffi_api.not_equal(x1, x2, span)  # type: ignore

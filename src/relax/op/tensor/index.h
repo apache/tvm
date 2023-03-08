@@ -40,7 +40,7 @@ namespace relax {
  * If it is `NullOpt`, the input tensor is required to be one-dimensional.
  * \return The taken result.
  */
-Expr take(Expr x, Expr indices, Optional<Integer> axis);
+Expr take(Expr x, Expr indices, Optional<Integer> axis, Span span = Span());
 
 /*!
  * \brief Strided slice of a tensor.
@@ -57,7 +57,7 @@ Expr strided_slice(Expr x,                 //
                    Array<Integer> axes,    //
                    Array<PrimExpr> begin,  //
                    Array<PrimExpr> end,    //
-                   Optional<Array<PrimExpr>> strides);
+                   Optional<Array<PrimExpr>> strides, Span span = Span());
 
 }  // namespace relax
 }  // namespace tvm

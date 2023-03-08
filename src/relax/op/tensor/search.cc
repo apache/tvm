@@ -31,9 +31,10 @@ namespace tvm {
 namespace relax {
 
 /* relax.where */
-Expr where(Expr condition, Expr x1, Expr x2) {
+Expr where(Expr condition, Expr x1, Expr x2, Span span) {
   static const Op& op = Op::Get("relax.where");
-  return Call(op, {std::move(condition), std::move(x1), std::move(x2)}, Attrs(), {});
+  return Call(op, {std::move(condition), std::move(x1), std::move(x2)}, Attrs(), {},
+              std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.where").set_body_typed(where);

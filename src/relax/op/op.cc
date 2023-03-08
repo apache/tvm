@@ -69,16 +69,17 @@ StructInfo InferStructInfoCallTIR(const Call& call, const BlockBuilder& ctx) {
 }
 
 RELAY_REGISTER_OP("relax.call_tir")
-    .set_num_inputs(3)
+    .set_num_inputs(4)
     .add_argument("func", "Expr", "The destination-passing-style function.")
     .add_argument("args", "Tuple", "The input arguments.")
     .add_argument("packed_ints", "Expr",
                   "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
                   "args if unused")
+    .add_argument("span", "Span", "The source code location.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIR);
 
 Expr MakeCallTIR(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list,
-                 Optional<Expr> packed_ints) {
+                 Optional<Expr> packed_ints, Span span) {
   for (const TensorStructInfo& sinfo : out_sinfo_list) {
     const auto* shape = sinfo->shape.as<ShapeExprNode>();
     CHECK(shape != nullptr) << "out_sinfo of call_tir should have defined ShapeExpr as shape. "
@@ -97,9 +98,9 @@ Expr MakeCallTIR(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list,
   Call call;
   if (!packed_ints) {
     // don't use additional optional argument
-    call = Call(op, {func, args}, {}, {out_sinfo});
+    call = Call(op, {func, args}, {}, {out_sinfo}, span);
   } else {
-    call = Call(op, {func, args, packed_ints.value()}, {}, {out_sinfo});
+    call = Call(op, {func, args, packed_ints.value()}, {}, {out_sinfo}, span);
   }
   return call;
 }
@@ -252,9 +253,9 @@ RELAY_REGISTER_OP("relax.shape_of")
     .add_argument("input", "Expr", "The input expression")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnShapeStructInfo);
 
-Expr MakeShapeOf(Expr expr) {
+Expr MakeShapeOf(Expr expr, Span span) {
   static const Op& op = Op::Get("relax.shape_of");
-  return Call(op, {expr}, {}, {});
+  return Call(op, {expr}, {}, {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.shape_of").set_body_typed(MakeShapeOf);

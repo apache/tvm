@@ -99,7 +99,7 @@ def _binary_op_helper(lhs: "ExprWithOp", rhs: "ExprWithOp", op: Callable) -> "Ex
     if not isinstance(lhs, Expr):  # type: ignore
         raise ValueError("lhs must be Expr")
     if isinstance(rhs, Expr):  # type: ignore
-        return op(lhs, rhs)
+        return op(lhs, rhs, rhs.span)
     elif isinstance(rhs, Number):
         raise TypeError(f"Please convert {rhs} with `const` first")
     else:
@@ -613,7 +613,9 @@ def extern(name: str, span: Span = None):
 
 
 def const(
-    value: Union[bool, int, float, _np.ndarray, tvm.nd.NDArray], dtype: Optional[str] = None
+    value: Union[bool, int, float, _np.ndarray, tvm.nd.NDArray],
+    dtype: Optional[str] = None,
+    span: Span = None,
 ) -> Constant:
     """Create a constant value.
 
@@ -624,6 +626,9 @@ def const(
 
     dtype: Optional[str]
         The data type of the resulting constant.
+
+    span: Span
+        The span for the constant.
 
     Note
     ----
@@ -654,7 +659,7 @@ def const(
     if not isinstance(value, _nd.NDArray):
         raise ValueError("value has to be scalar or NDArray")
 
-    return Constant(value)
+    return Constant(value, span=span)
 
 
 def te_tensor(

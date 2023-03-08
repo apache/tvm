@@ -24,6 +24,8 @@
 #ifndef TVM_RELAX_OP_TENSOR_BINARY_H_
 #define TVM_RELAX_OP_TENSOR_BINARY_H_
 
+#include <utility>
+
 #include "../op_common.h"
 
 namespace tvm {
@@ -38,9 +40,9 @@ namespace relax {
  *  2. be prepended with a prefix "relax." as the identifier string in the operator registry.
  */
 #define RELAX_REGISTER_BINARY_OP_AND_IMPL(OpName)                  \
-  Expr OpName(Expr x1, Expr x2) {                                  \
+  Expr OpName(Expr x1, Expr x2, Span span) {                       \
     static const Op& op = Op::Get("relax." #OpName);               \
-    return Call(op, {x1, x2}, Attrs(), {});                        \
+    return Call(op, {x1, x2}, Attrs(), {}, std::move(span));       \
   }                                                                \
   TVM_REGISTER_GLOBAL("relax.op." #OpName).set_body_typed(OpName); \
   TVM_REGISTER_OP("relax." #OpName)                                \
@@ -59,42 +61,42 @@ namespace relax {
 /***************** Arithmetic operators *****************/
 
 /*! \brief Addition with numpy-style broadcasting. */
-Expr add(Expr x1, Expr x2);
+Expr add(Expr x1, Expr x2, Span span = Span());
 
 /*! \brief Division with numpy-style broadcasting. */
-Expr divide(Expr x1, Expr x2);
+Expr divide(Expr x1, Expr x2, Span span = Span());
 
 /*! \brief Floor division with numpy-style broadcasting. */
-Expr floor_divide(Expr x1, Expr x2);
+Expr floor_divide(Expr x1, Expr x2, Span span = Span());
 
 /*! \brief Multiplication with numpy-style broadcasting. */
-Expr multiply(Expr x1, Expr x2);
+Expr multiply(Expr x1, Expr x2, Span span = Span());
 
 /*! \brief Power with numpy-style broadcasting. */
 Expr power(Expr x1, Expr x2);
 
 /*! \brief Subtraction with numpy-style broadcasting. */
-Expr subtract(Expr x1, Expr x2);
+Expr subtract(Expr x1, Expr x2, Span span = Span());
 
 /***************** Comparison operators *****************/
 
 /*! \brief Broadcasted element-wise test for (lhs == rhs). */
-Expr equal(Expr x1, Expr x2);
+Expr equal(Expr x1, Expr x2, Span span = Span());
 
 /*! \brief Broadcasted element-wise test for (lhs > rhs). */
-Expr greater(Expr x1, Expr x2);
+Expr greater(Expr x1, Expr x2, Span span = Span());
 
 /*! \brief Broadcasted element-wise test for (lhs >= rhs). */
-Expr greter_equal(Expr x1, Expr x2);
+Expr greater_equal(Expr x1, Expr x2, Span span = Span());
 
 /*! \brief Broadcasted element-wise test for (lhs < rhs). */
-Expr less(Expr x1, Expr x2);
+Expr less(Expr x1, Expr x2, Span span = Span());
 
 /*! \brief Broadcasted element-wise test for (lhs <= rhs). */
-Expr less_equal(Expr x1, Expr x2);
+Expr less_equal(Expr x1, Expr x2, Span span = Span());
 
 /*! \brief Broadcasted element-wise test for (lhs != rhs). */
-Expr not_equal(Expr x1, Expr x2);
+Expr not_equal(Expr x1, Expr x2, Span span = Span());
 
 }  // namespace relax
 }  // namespace tvm

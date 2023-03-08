@@ -17,6 +17,7 @@
 """Indexing operators."""
 from typing import List, Optional, Union
 
+from tvm.ir import Span
 from tvm.ir.expr import PrimExpr
 
 from . import _ffi_api
@@ -25,7 +26,7 @@ from ..expr import Expr
 PrimExprLike = Union[int, PrimExpr]
 
 
-def take(x: Expr, indices: Expr, axis: Optional[int] = None) -> Expr:
+def take(x: Expr, indices: Expr, axis: Optional[int] = None, span: Span = None) -> Expr:
     """Take elements from a tensor along an axis.
 
     Parameters
@@ -41,12 +42,15 @@ def take(x: Expr, indices: Expr, axis: Optional[int] = None) -> Expr:
         The axis over which to select values.
         If it is none, the input tensor is required to be one-dimensional.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     ret : relax.Expr
         The taken result.
     """
-    return _ffi_api.take(x, indices, axis)  # type: ignore
+    return _ffi_api.take(x, indices, axis, span)  # type: ignore
 
 
 def strided_slice(
@@ -55,6 +59,7 @@ def strided_slice(
     begin: List[PrimExprLike],
     end: List[PrimExprLike],
     strides: Optional[List[PrimExprLike]] = None,
+    span: Span = None,
 ) -> Expr:
     """Strided slice of a tensor.
 
@@ -77,6 +82,9 @@ def strided_slice(
         the input tensor will be reversed in that particular axis.
         If not specified, it by default is an list of ones of the same length as `axes`.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     ret : relax.Expr
@@ -87,4 +95,4 @@ def strided_slice(
     strided_slice require the input `begin`, `end` and `strides` to have the
     same length as `axes`.
     """
-    return _ffi_api.strided_slice(x, axes, begin, end, strides)  # type: ignore
+    return _ffi_api.strided_slice(x, axes, begin, end, strides, span)  # type: ignore

@@ -32,7 +32,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Broadcasts a tensor to a specified shape. */
-Expr broadcast_to(Expr x, Expr shape);
+Expr broadcast_to(Expr x, Expr shape, Span span = Span());
 
 /*!
  * \brief Concatenate the input tensors along the given axis.
@@ -42,7 +42,7 @@ Expr broadcast_to(Expr x, Expr shape);
  * If it is `NullOpt`, the input tensor is required to be flattened before concatenation.
  * \return The concatenated tensor.
  */
-Expr concat(Expr tensors, Optional<Integer> axis);
+Expr concat(Expr tensors, Optional<Integer> axis, Span span = Span());
 
 /*!
  * \brief Insert new axes at the positions given by `axis`.
@@ -50,14 +50,14 @@ Expr concat(Expr tensors, Optional<Integer> axis);
  * \param axis The axes at which the input array are expanded.
  * \return The transformed result.
  */
-Expr expand_dims(Expr x, Array<Integer> axis);
+Expr expand_dims(Expr x, Array<Integer> axis, Span span = Span());
 
 /*!
  * \brief Flatten all the tensor dimensions into one.
  * \param x The input data to the operator.
  * \return The flattened result.
  */
-Expr flatten(Expr x);
+Expr flatten(Expr x, Span span = Span());
 
 /*!
  * \brief Transform layout of a tensor.
@@ -67,7 +67,8 @@ Expr flatten(Expr x);
  * not specified, any value can be used.
  * \return The transformed result.
  */
-Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_value);
+Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_value,
+                      Span span = Span());
 
 /*!
  * \brief Permutes the dimensions of an array.
@@ -75,7 +76,7 @@ Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_v
  * \param axes The target axes order, reverse order if not specified.
  * \return The transposed result.
  */
-Expr permute_dims(Expr x, Optional<Array<Integer>> axes);
+Expr permute_dims(Expr x, Optional<Array<Integer>> axes, Span span = Span());
 
 /*!
  * \brief Reshape the input array, supporting `-1` inference in the new
@@ -85,7 +86,7 @@ Expr permute_dims(Expr x, Optional<Array<Integer>> axes);
  * It is required to be either an Array of PrimExpr, or a Shape in Relax
  * \return The reshaped result.
  */
-Expr reshape(Expr x, ObjectRef shape);
+Expr reshape(Expr x, ObjectRef shape, Span span = Span());
 
 /*!
  * \brief Split input tensor along axis by sections or indices.
@@ -100,7 +101,7 @@ Expr reshape(Expr x, ObjectRef shape);
  * \param axis The axis over which to split.
  * \return The computed result.
  */
-Expr split(Expr x, ObjectRef indices_or_sections, int axis);
+Expr split(Expr x, ObjectRef indices_or_sections, int axis, Span span = Span());
 
 /*!
  * \brief Squeeze axes in the array.
@@ -110,7 +111,7 @@ Expr split(Expr x, ObjectRef indices_or_sections, int axis);
  * If any specified axis has dimension that does not equal 1, it is an error.
  * \return The squeezed result.
  */
-Expr squeeze(Expr x, Optional<Array<Integer>> axis);
+Expr squeeze(Expr x, Optional<Array<Integer>> axis, Span span = Span());
 
 /*!
  * \brief Return a summation of data to the shape of collapse_target.

@@ -33,9 +33,9 @@ namespace tvm {
 namespace relax {
 
 /* relax.broadcast_to */
-Expr broadcast_to(Expr x, Expr shape) {
+Expr broadcast_to(Expr x, Expr shape, Span span) {
   static const Op& op = Op::Get("relax.broadcast_to");
-  return Call(op, {std::move(x), std::move(shape)}, Attrs(), {});
+  return Call(op, {std::move(x), std::move(shape)}, Attrs(), {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.broadcast_to").set_body_typed(broadcast_to);
@@ -111,12 +111,12 @@ TVM_REGISTER_OP("relax.broadcast_to")
 /* relax.concat */
 TVM_REGISTER_NODE_TYPE(ConcatAttrs);
 
-Expr concat(Expr tensors, Optional<Integer> axis) {
+Expr concat(Expr tensors, Optional<Integer> axis, Span span) {
   ObjectPtr<ConcatAttrs> attrs = make_object<ConcatAttrs>();
   attrs->axis = std::move(axis);
 
   static const Op& op = Op::Get("relax.concat");
-  return Call(op, {std::move(tensors)}, Attrs(attrs), {});
+  return Call(op, {std::move(tensors)}, Attrs(attrs), {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.concat").set_body_typed(concat);
@@ -281,12 +281,12 @@ TVM_REGISTER_OP("relax.concat")
 /* relax.expand_dims */
 TVM_REGISTER_NODE_TYPE(ExpandDimsAttrs);
 
-Expr expand_dims(Expr x, Array<Integer> axis) {
+Expr expand_dims(Expr x, Array<Integer> axis, Span span) {
   ObjectPtr<ExpandDimsAttrs> attrs = make_object<ExpandDimsAttrs>();
   attrs->axis = std::move(axis);
 
   static const Op& op = Op::Get("relax.expand_dims");
-  return Call(op, {std::move(x)}, Attrs{attrs}, {});
+  return Call(op, {std::move(x)}, Attrs{attrs}, {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.expand_dims").set_body_typed(expand_dims);
@@ -346,9 +346,9 @@ PrimExpr ComputeShapeProduct(const Array<PrimExpr>& shape_values) {
 }
 
 /* relax.flatten */
-Expr flatten(Expr x) {
+Expr flatten(Expr x, Span span) {
   static const Op& op = Op::Get("relax.flatten");
-  return Call(op, {std::move(x)}, {}, {});
+  return Call(op, {std::move(x)}, {}, {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.flatten").set_body_typed(flatten);
@@ -379,13 +379,13 @@ TVM_REGISTER_OP("relax.flatten")
 /* relax.layout_transform */
 TVM_REGISTER_NODE_TYPE(LayoutTransformAttrs);
 
-Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_value) {
+Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_value, Span span) {
   ObjectPtr<LayoutTransformAttrs> attrs = make_object<LayoutTransformAttrs>();
   attrs->index_map = std::move(index_map);
   attrs->pad_value = std::move(pad_value);
 
   static const Op& op = Op::Get("relax.layout_transform");
-  return Call(op, {std::move(x)}, Attrs{attrs}, {});
+  return Call(op, {std::move(x)}, Attrs{attrs}, {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.layout_transform").set_body_typed(layout_transform);
@@ -441,12 +441,12 @@ TVM_REGISTER_OP("relax.layout_transform")
 /* relax.permute_dims */
 TVM_REGISTER_NODE_TYPE(PermuteDimsAttrs);
 
-Expr permute_dims(Expr x, Optional<Array<Integer>> axes) {
+Expr permute_dims(Expr x, Optional<Array<Integer>> axes, Span span) {
   ObjectPtr<PermuteDimsAttrs> attrs = make_object<PermuteDimsAttrs>();
   attrs->axes = std::move(axes);
 
   static const Op& op = Op::Get("relax.permute_dims");
-  return Call(op, {std::move(x)}, Attrs{attrs}, {});
+  return Call(op, {std::move(x)}, Attrs{attrs}, {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.permute_dims").set_body_typed(permute_dims);
@@ -575,10 +575,10 @@ Expr ConvertNewShapeToExpr(const Expr& data, const ObjectRef& shape) {
   return ShapeExpr(array_ref);
 }
 
-Expr reshape(Expr x, ObjectRef shape) {
+Expr reshape(Expr x, ObjectRef shape, Span span) {
   Expr shape_in_expr = ConvertNewShapeToExpr(x, shape);
   static const Op& op = Op::Get("relax.reshape");
-  return Call(op, {std::move(x), std::move(shape_in_expr)}, Attrs(), {});
+  return Call(op, {std::move(x), std::move(shape_in_expr)}, Attrs(), {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.reshape").set_body_typed(reshape);
@@ -632,7 +632,7 @@ TVM_REGISTER_OP("relax.reshape")
 /* relax.split */
 TVM_REGISTER_NODE_TYPE(SplitAttrs);
 
-Expr split(Expr x, ObjectRef indices_or_sections, int axis) {
+Expr split(Expr x, ObjectRef indices_or_sections, int axis, Span span) {
   ObjectPtr<SplitAttrs> attrs = make_object<SplitAttrs>();
   if (const auto* indices = indices_or_sections.as<ArrayNode>()) {
     for (int i = 0; i < static_cast<int>(indices->size()); ++i) {
@@ -656,7 +656,7 @@ Expr split(Expr x, ObjectRef indices_or_sections, int axis) {
   attrs->axis = axis;
 
   static const Op& op = Op::Get("relax.split");
-  return Call(op, {std::move(x)}, Attrs(attrs), {});
+  return Call(op, {std::move(x)}, Attrs(attrs), {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.split").set_body_typed(split);
@@ -743,12 +743,12 @@ TVM_REGISTER_OP("relax.split")
 /* relax.squeeze */
 TVM_REGISTER_NODE_TYPE(SqueezeAttrs);
 
-Expr squeeze(Expr x, Optional<Array<Integer>> axis) {
+Expr squeeze(Expr x, Optional<Array<Integer>> axis, Span span) {
   ObjectPtr<SqueezeAttrs> attrs = make_object<SqueezeAttrs>();
   attrs->axis = std::move(axis);
 
   static const Op& op = Op::Get("relax.squeeze");
-  return Call(op, {std::move(x)}, Attrs{attrs}, {});
+  return Call(op, {std::move(x)}, Attrs{attrs}, {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.squeeze").set_body_typed(squeeze);

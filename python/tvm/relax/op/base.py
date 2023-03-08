@@ -25,7 +25,7 @@ from . import _ffi_api
 from ..expr import Expr, StringImm, ShapeExpr, Call, ExternFunc
 from ..expr import Tuple as RxTuple
 from ..struct_info import StructInfo, TensorStructInfo
-from ...ir import PrimExpr
+from ...ir import PrimExpr, Span
 from ..utils import args_converter
 
 
@@ -49,6 +49,7 @@ def call_tir(
     args: Expr,
     out_sinfo: Union[TensorStructInfo, List[TensorStructInfo]],
     tir_vars: Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]] = None,
+    span: Span = None,
 ) -> Call:
     """
     Call a destination-passing-style function and return the output.
@@ -69,6 +70,9 @@ def call_tir(
     tir_vars : Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]]
         ShapeExpr representing a tuple of integers to unpack when calling func. Is null if not used
 
+    span : Span
+        The span for the call_tir being emitted.
+
     Returns
     -------
     ret: Call
@@ -86,7 +90,7 @@ def call_tir(
     if isinstance(tir_vars, (list, tuple)):
         tir_vars = ShapeExpr(tir_vars)
 
-    return _ffi_api.call_tir(func, args, out_sinfo, tir_vars)  # type: ignore
+    return _ffi_api.call_tir(func, args, out_sinfo, tir_vars, span)  # type: ignore
 
 
 @args_converter.auto
@@ -352,7 +356,7 @@ def assert_op(
     return _ffi_api.assert_op(condition, format_args, format)  # type: ignore
 
 
-def shape_of(expr: Expr) -> Expr:
+def shape_of(expr: Expr, span: Span = None) -> Expr:
     """Get shape of a tensor.
 
     Parameters
@@ -360,9 +364,12 @@ def shape_of(expr: Expr) -> Expr:
     expr : Expr
         The input Expr.
 
+    span : Span
+        The source code span.
+
     Returns
     -------
     result : Expr
         A relax Call, which gets the shape of the input
     """
-    return _ffi_api.shape_of(expr)  # type: ignore # pylint: disable=no-member
+    return _ffi_api.shape_of(expr, span)  # type: ignore # pylint: disable=no-member

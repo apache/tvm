@@ -35,7 +35,7 @@ namespace relax {
  * \brief Selecting elements from either the input tensors depending on the value of the
  * condition.
  */
-Expr where(Expr condition, Expr x1, Expr x2);
+Expr where(Expr condition, Expr x1, Expr x2, Span span = Span());
 
 /*! \brief Computes the argmax of tensor elements over given axis. */
 Expr argmax(Expr x, Optional<Integer> axis, bool keepdims);

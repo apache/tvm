@@ -37,11 +37,11 @@ RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(silu, "nn.silu", /*require_float_dtype=*/tru
 /* relax.nn.softmax */
 TVM_REGISTER_NODE_TYPE(SoftmaxAttrs);
 
-Expr softmax(Expr data, int axis) {
+Expr softmax(Expr data, int axis, Span span) {
   auto attrs = make_object<SoftmaxAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("relax.nn.softmax");
-  return Call(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.nn.softmax").set_body_typed(softmax);
@@ -69,11 +69,11 @@ TVM_REGISTER_OP("relax.nn.softmax")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSoftmax);
 
 /* relax.nn.log_softmax */
-Expr log_softmax(Expr data, int axis) {
+Expr log_softmax(Expr data, int axis, Span span) {
   auto attrs = make_object<SoftmaxAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("relax.nn.log_softmax");
-  return Call(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.nn.log_softmax").set_body_typed(log_softmax);
@@ -156,7 +156,7 @@ bool NormCheckDtypeAndShape(const Call& call, const BlockBuilder& ctx,
 TVM_REGISTER_NODE_TYPE(BatchNormAttrs);
 
 Expr batch_norm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_var,  //
-                int axis, double epsilon, bool center, bool scale) {
+                int axis, double epsilon, bool center, bool scale, Span span) {
   ObjectPtr<BatchNormAttrs> attrs = make_object<BatchNormAttrs>();
   attrs->axis = axis;
   attrs->epsilon = epsilon;
@@ -167,7 +167,7 @@ Expr batch_norm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_
   return Call(op,
               {std::move(data), std::move(gamma), std::move(beta), std::move(moving_mean),
                std::move(moving_var)},
-              Attrs{attrs}, {});
+              Attrs{attrs}, {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.nn.batch_norm").set_body_typed(batch_norm);
@@ -202,7 +202,7 @@ TVM_REGISTER_OP("relax.nn.batch_norm")
 TVM_REGISTER_NODE_TYPE(LayerNormAttrs);
 
 Expr layer_norm(Expr data, Expr gamma, Expr beta, Array<Integer> axes, double epsilon, bool center,
-                bool scale) {
+                bool scale, Span span) {
   ObjectPtr<LayerNormAttrs> attrs = make_object<LayerNormAttrs>();
   attrs->axes = std::move(axes);
   attrs->epsilon = epsilon;
@@ -210,7 +210,8 @@ Expr layer_norm(Expr data, Expr gamma, Expr beta, Array<Integer> axes, double ep
   attrs->scale = scale;
 
   static const Op& op = Op::Get("relax.nn.layer_norm");
-  return Call(op, {std::move(data), std::move(gamma), std::move(beta)}, Attrs{attrs}, {});
+  return Call(op, {std::move(data), std::move(gamma), std::move(beta)}, Attrs{attrs}, {},
+              std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.nn.layer_norm").set_body_typed(layer_norm);
@@ -319,12 +320,12 @@ TVM_REGISTER_OP("relax.nn.group_norm")
 /* relax.nn.dropout */
 TVM_REGISTER_NODE_TYPE(DropoutAttrs);
 
-Expr dropout(Expr data, double rate) {
+Expr dropout(Expr data, double rate, Span span) {
   ObjectPtr<DropoutAttrs> attrs = make_object<DropoutAttrs>();
   attrs->rate = rate;
 
   static const Op& op = Op::Get("relax.nn.dropout");
-  return Call(op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(op, {std::move(data)}, Attrs{attrs}, {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.nn.dropout").set_body_typed(dropout);
@@ -384,9 +385,9 @@ StructInfo InferStructInfoCrossEntropy(const Call& call, const BlockBuilder& ctx
   return TensorStructInfo(ShapeExpr(Array<PrimExpr>()), dtype);
 }
 
-Expr cross_entropy_with_logits(Expr predictions, Expr labels) {
+Expr cross_entropy_with_logits(Expr predictions, Expr labels, Span span) {
   static const Op& op = Op::Get("relax.nn.cross_entropy_with_logits");
-  return Call(op, {std::move(predictions), std::move(labels)}, {}, {});
+  return Call(op, {std::move(predictions), std::move(labels)}, {}, {}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.nn.cross_entropy_with_logits")
