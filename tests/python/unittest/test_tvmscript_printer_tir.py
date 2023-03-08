@@ -468,7 +468,7 @@ def test_size_var():
     _assert_print(
         a,
         """
-a = T.float32()
+a = T.float32(is_size_var=True)
 a""",
     )
 

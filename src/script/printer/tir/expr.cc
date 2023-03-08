@@ -28,6 +28,14 @@ ExprDoc PrintVarCreation(const tir::Var& var, const ObjectPath& var_p, const IRD
   Type type = var->type_annotation;
   ObjectPath type_p = var_p->Attr("type_annotation");
   ExprDoc rhs{nullptr};
+  Array<String> kwargs_keys;
+  Array<ExprDoc> kwargs_values;
+
+  if (var->IsInstance<tir::SizeVarNode>()) {
+    kwargs_keys.push_back("is_size_var");
+    kwargs_values.push_back(LiteralDoc::Boolean(true, NullOpt));
+  }
+
   if (const auto* ptr_type = type.as<PointerTypeNode>()) {
     const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>();
     ICHECK(prim_type);
@@ -36,16 +44,17 @@ ExprDoc PrintVarCreation(const tir::Var& var, const ObjectPath& var_p, const IRD
     rhs = TIR(d, "handle");
     rhs->source_paths.push_back(var_p->Attr("dtype"));
     if (ptr_type->storage_scope == "") {
-      rhs = rhs->Call({element_type});
+      rhs = rhs->Call({element_type}, kwargs_keys, kwargs_values);
     } else {
       rhs = rhs->Call({element_type,
                        LiteralDoc::Str(ptr_type->storage_scope,  //
-                                       type_p->Attr("storage_scope"))});
+                                       type_p->Attr("storage_scope"))},
+                      kwargs_keys, kwargs_values);
     }
   } else {
     rhs = TIR(d, DType2Str(var->dtype));
     rhs->source_paths.push_back(var_p->Attr("dtype"));
-    rhs = rhs->Call({});
+    rhs = rhs->Call({}, kwargs_keys, kwargs_values);
   }
   rhs->source_paths.push_back(type_p);
   return rhs;

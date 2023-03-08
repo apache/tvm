@@ -560,18 +560,9 @@ DeclBufferFrame DeclBuffer(Array<PrimExpr> shape, DataType dtype, String buffer_
 
 void Evaluate(PrimExpr value) { AddToParent(tvm::tir::Evaluate(value)); }
 
-PrimExpr Ptr(runtime::DataType dtype, String storage_scope) {
-  return tvm::tir::Var("", tvm::PointerType(PrimType(dtype), storage_scope));
-}
-
-Var Handle(runtime::DataType dtype, String storage_scope) {
-  Type type_annotation{nullptr};
-  if (dtype.is_void() && storage_scope == "global") {
-    type_annotation = PrimType(runtime::DataType::Handle());
-  } else {
-    type_annotation = PointerType(PrimType(dtype), storage_scope);
-  }
-  return tvm::tir::Var("", type_annotation);
+PrimExpr Ptr(runtime::DataType dtype, String storage_scope = "global", bool is_size_var = false) {
+  PointerType type_annotation(PrimType(dtype), storage_scope);
+  return is_size_var ? tvm::tir::SizeVar("", type_annotation) : tvm::tir::Var("", type_annotation);
 }
 
 using tvm::script::ir_builder::details::Namer;
