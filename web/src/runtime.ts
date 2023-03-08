@@ -890,13 +890,20 @@ const enum AyncCallbackCode {
   kReturn = 4,
   kException = 5,
 }
-
 export interface NDArrayCacheEntry {
   name: string;
   shape: Array<number>;
   dtype: string;
   format: "f32-to-bf16" | "raw";
+  byteOffset: number;
+  nbytes: number;
+}
+
+export interface NDArrayShardEntry {
   dataPath: string;
+  format: "raw-shard";
+  nbytes: number;
+  records: Array<NDArrayCacheEntry>;
 }
 
 export interface FetchProgressReport {
@@ -1333,7 +1340,7 @@ export class Instance implements Disposable {
     }
     await this.fetchNDArrayCacheInternal(
       ndarrayCacheUrl,
-      list["records"] as Array<NDArrayCacheEntry>, device);
+      list["records"] as Array<NDArrayShardEntry>, device);
     this.cacheMetadata = { ...this.cacheMetadata, ...(list["metadata"] as Record<string, any>) };
   }
 
@@ -1344,24 +1351,13 @@ export class Instance implements Disposable {
    * @param list The list of array data.
    * @param device The device to store the data to.
    */
-  private async fetchNDArrayCacheInternal(ndarrayCacheUrl: string, list: Array<NDArrayCacheEntry>, device: DLDevice) {
-    const computeTotalBytes = (rec: NDArrayCacheEntry) => {
-
-      const dtype = this.toDLDataType(rec.dtype);
-      const size = rec.shape.reduce((a, b) => {
-        return a * b;
-      }, 1);
-      if (rec.format == "f32-to-bf16" && rec.dtype == "float32") {
-        return size * 2;
-      }
-      return size * dtype.bits * dtype.lanes / 8;
-    };
+  private async fetchNDArrayCacheInternal(ndarrayCacheUrl: string, list: Array<NDArrayShardEntry>, device: DLDevice) {
     const perf = compact.getPerformance();
     let tstart = perf.now();
 
     let totalBytes = 0;
     for (let i = 0; i < list.length; ++i) {
-      totalBytes += computeTotalBytes(list[i]);
+      totalBytes += list[i].nbytes;
     };
     let fetchedBytes = 0;
     let timeElapsed = 0;
@@ -1395,17 +1391,10 @@ export class Instance implements Disposable {
     const cache = await caches.open("tvmjs");
 
     for (let i = 0; i < list.length; ++i) {
-      const rec = list[i];
       reportCallback(i);
-      fetchedBytes += computeTotalBytes(rec);
-      const cpu_arr = this.withNewScope(() => {
-        return this.detachFromCurrentScope(
-          this.empty(rec.shape, rec.dtype, this.cpu())
-        )
-      });
-      const dataUrl = new URL(rec.dataPath, ndarrayCacheUrl).href;
+      fetchedBytes += list[i].nbytes;
+      const dataUrl = new URL(list[i].dataPath, ndarrayCacheUrl).href;
       const request = new Request(dataUrl);
-
       let buffer;
       try {
         // use native cache
@@ -1421,27 +1410,36 @@ export class Instance implements Disposable {
         buffer = await result.arrayBuffer();
       } catch (err) {
         this.env.logger("Error: Cannot fetch " + dataUrl + " err= " + err);
-        cpu_arr.dispose();
         throw err;
       }
-      // first sync copy to cpu.
-      this.ctx.arrayDecodeStorage(cpu_arr, new Uint8Array(buffer), rec.format);
-      // then async stream into GPU if needed
-      if (device.deviceType == DeviceStrToEnum.cpu) {
-        this.ndarrayCacheUpdate(rec.name, cpu_arr, false);
-        cpu_arr.dispose();
-      } else {
-        // allocate a gpu arr and async copy to it.
-        const gpu_arr = this.withNewScope(() => {
+      const shardRecords = list[i].records;
+      for (let j = 0; j < shardRecords.length; ++j) {
+        const rec = shardRecords[j];
+        const cpu_arr = this.withNewScope(() => {
           return this.detachFromCurrentScope(
-            this.empty(rec.shape, rec.dtype, device)
+            this.empty(rec.shape, rec.dtype, this.cpu())
           )
         });
-        gpu_arr.copyFrom(cpu_arr);
-        await device.sync();
-        this.ndarrayCacheUpdate(rec.name, gpu_arr, false);
-        cpu_arr.dispose();
-        gpu_arr.dispose();
+        const recSource = buffer.slice(rec.byteOffset, rec.byteOffset + rec.nbytes);
+        // first sync copy to cpu.
+        this.ctx.arrayDecodeStorage(cpu_arr, new Uint8Array(recSource), rec.format);
+        // then async stream into GPU if needed
+        if (device.deviceType == DeviceStrToEnum.cpu) {
+          this.ndarrayCacheUpdate(rec.name, cpu_arr, false);
+          cpu_arr.dispose();
+        } else {
+          // allocate a gpu arr and async copy to it.
+          const gpu_arr = this.withNewScope(() => {
+            return this.detachFromCurrentScope(
+              this.empty(rec.shape, rec.dtype, device)
+            )
+          });
+          gpu_arr.copyFrom(cpu_arr);
+          await device.sync();
+          this.ndarrayCacheUpdate(rec.name, gpu_arr, false);
+          cpu_arr.dispose();
+          gpu_arr.dispose();
+        }
       }
       timeElapsed = Math.ceil((perf.now() - tstart) / 1000);
     }
