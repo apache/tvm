@@ -95,11 +95,27 @@ class StructInfo(Node, Scriptable):
 _op_ffi_api = None
 
 
+def _unify_span(span: Span, other: Span) -> Span:
+    """Unify two spans."""
+    if span is None:
+        return other
+    if other is None:
+        return span
+    span_name = span.source_name.name
+    if span.source_name.name != other.source_name.name:
+        span_name += "_" + other.source_name.name
+    line = min(span.line, other.line)
+    column = min(span.column, other.column)
+    end_line = max(span.end_line, other.end_line)
+    end_column = max(span.end_column, other.end_column)
+    return Span(SourceName(span_name), line, column, end_line, end_column)
+
+
 def _binary_op_helper(lhs: "ExprWithOp", rhs: "ExprWithOp", op: Callable) -> "ExprWithOp":
     if not isinstance(lhs, Expr):  # type: ignore
         raise ValueError("lhs must be Expr")
     if isinstance(rhs, Expr):  # type: ignore
-        return op(lhs, rhs, rhs.span)
+        return op(lhs, rhs, _unify_span(lhs.span, rhs.span))
     elif isinstance(rhs, Number):
         raise TypeError(f"Please convert {rhs} with `const` first")
     else:
@@ -658,6 +674,9 @@ def const(
 
     if not isinstance(value, _nd.NDArray):
         raise ValueError("value has to be scalar or NDArray")
+
+    if span is None:
+        span = tvm.relax.SpanContext.current()
 
     return Constant(value, span=span)
 

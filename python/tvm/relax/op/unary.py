@@ -20,7 +20,7 @@ from tvm.ir import Span
 
 from . import _ffi_api
 from ..expr import Expr
-from ..utils import args_converter
+from ..utils import args_converter, SpanContext
 
 
 ###################### Arithmetic operators ######################
@@ -42,6 +42,8 @@ def abs(x: Expr, span: Span = None) -> Expr:
     result : relax.Expr
         The computed result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.abs(x, span)  # type: ignore
 
 
@@ -65,6 +67,8 @@ def acos(x: Expr, span: Span = None) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.acos(x, span)  # type: ignore
 
 
@@ -88,6 +92,8 @@ def acosh(x: Expr, span: Span = None) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.acosh(x, span)  # type: ignore
 
 
@@ -111,6 +117,8 @@ def asin(x: Expr, span: Span = None) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.asin(x, span)  # type: ignore
 
 
@@ -134,6 +142,8 @@ def asinh(x: Expr, span: Span = None) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.asinh(x, span)  # type: ignore
 
 
@@ -157,6 +167,8 @@ def atan(x: Expr, span: Span = None) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.atan(x, span)  # type: ignore
 
 
@@ -180,6 +192,8 @@ def atanh(x: Expr, span: Span = None) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.atanh(x, span)  # type: ignore
 
 
@@ -199,6 +213,8 @@ def ceil(x: Expr, span: Span = None) -> Expr:
     result : relax.Expr
         The computed result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.ceil(x, span)  # type: ignore
 
 
@@ -222,6 +238,8 @@ def cos(x: Expr, span: Span = None) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.cos(x, span)  # type: ignore
 
 
@@ -245,6 +263,8 @@ def cosh(x: Expr, span: Span = None) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.cosh(x, span)  # type: ignore
 
 
@@ -268,6 +288,8 @@ def exp(x: Expr, span: Span = None) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.exp(x, span)  # type: ignore
 
 
@@ -287,6 +309,8 @@ def floor(x: Expr, span: Span = None) -> Expr:
     result : relax.Expr
         The computed result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.floor(x, span)  # type: ignore
 
 
@@ -310,6 +334,8 @@ def log(x: Expr, span: Span = None) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.log(x, span)  # type: ignore
 
 
@@ -329,6 +355,8 @@ def negative(x: Expr, span: Span = None) -> Expr:
     result : relax.Expr
         The computed result
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.negative(x, span)  # type: ignore
 
 
@@ -348,6 +376,8 @@ def round(x: Expr, span: Span = None) -> Expr:
     result : relax.Expr
         The computed result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.round(x, span)  # type: ignore
 
 
@@ -371,6 +401,8 @@ def sigmoid(x: Expr, span: Span = None) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.sigmoid(x, span)  # type: ignore
 
 
@@ -390,6 +422,8 @@ def sign(x: Expr, span: Span = None) -> Expr:
     result : relax.Expr
         The computed result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.sign(x, span)  # type: ignore
 
 
@@ -413,6 +447,8 @@ def sin(x: Expr, span: Span = None) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.sin(x, span)  # type: ignore
 
 
@@ -436,6 +472,8 @@ def sinh(x: Expr, span: Span = None) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.sinh(x, span)  # type: ignore
 
 
@@ -455,6 +493,8 @@ def square(x: Expr, span: Span = None) -> Expr:
     result : relax.Expr
         The computed result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.square(x, span)  # type: ignore
 
 
@@ -478,6 +518,8 @@ def sqrt(x: Expr, span: Span = None) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.sqrt(x, span)  # type: ignore
 
 
@@ -501,6 +543,8 @@ def tan(x: Expr, span: Span = None) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.tan(x, span)  # type: ignore
 
 
@@ -524,6 +568,8 @@ def tanh(x: Expr, span: Span = None) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.tanh(x, span)  # type: ignore
 
 
@@ -550,6 +596,8 @@ def clip(x: Expr, min: Expr, max: Expr, span: Span = None) -> Expr:
     result : relax.Expr
         The computed result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.clip(x, min, max, span)  # type: ignore
 
 
@@ -572,6 +620,8 @@ def isfinite(x: Expr, span: Span = None) -> Expr:
     result : relax.Expr
         The computed result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.isfinite(x, span)  # type: ignore
 
 
@@ -591,6 +641,8 @@ def isinf(x: Expr, span: Span = None) -> Expr:
     result : relax.Expr
         The computed result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.isinf(x, span)  # type: ignore
 
 
@@ -610,4 +662,6 @@ def isnan(x: Expr, span: Span = None) -> Expr:
     result : relax.Expr
         The computed result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.isnan(x, span)  # type: ignore

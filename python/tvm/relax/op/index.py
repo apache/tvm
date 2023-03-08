@@ -22,6 +22,7 @@ from tvm.ir.expr import PrimExpr
 
 from . import _ffi_api
 from ..expr import Expr
+from ..utils import SpanContext
 
 PrimExprLike = Union[int, PrimExpr]
 
@@ -50,6 +51,8 @@ def take(x: Expr, indices: Expr, axis: Optional[int] = None, span: Span = None) 
     ret : relax.Expr
         The taken result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.take(x, indices, axis, span)  # type: ignore
 
 
@@ -95,4 +98,6 @@ def strided_slice(
     strided_slice require the input `begin`, `end` and `strides` to have the
     same length as `axes`.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.strided_slice(x, axes, begin, end, strides, span)  # type: ignore

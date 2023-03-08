@@ -20,6 +20,7 @@ from tvm.ir import Span
 
 from . import _ffi_api
 from ..expr import Expr
+from ..utils import SpanContext
 
 ###################### Arithmetic operators ######################
 
@@ -50,6 +51,8 @@ def add(x1: Expr, x2: Expr, span: Span = None) -> Expr:
       b = relax.Var("b", relax.TensorStructInfo(shape=(2, 1), dtype="float32"))
       c = bb.normalize(relax.op.add(a, b))  # c has TensorStructInfo(shape=(2, 3), dtype="float32")
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.add(x1, x2, span)  # type: ignore
 
 
@@ -70,6 +73,8 @@ def divide(x1: Expr, x2: Expr, span: Span = None) -> Expr:
     result : relax.Expr
         The computed result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.divide(x1, x2, span)  # type: ignore
 
 
@@ -90,6 +95,8 @@ def floor_divide(x1: Expr, x2: Expr, span: Span = None) -> Expr:
     result : relax.Expr
         The computed result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.floor_divide(x1, x2, span)  # type: ignore
 
 
@@ -110,6 +117,8 @@ def multiply(x1: Expr, x2: Expr, span: Span = None) -> Expr:
     result : Expr
         The computed result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.multiply(x1, x2, span)  # type: ignore
 
 
@@ -148,6 +157,8 @@ def subtract(x1: Expr, x2: Expr, span: Span = None) -> Expr:
     result : relax.Expr
         The computed result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.subtract(x1, x2, span)  # type: ignore
 
 
@@ -171,6 +182,8 @@ def equal(x1: Expr, x2: Expr, span: Span = None) -> Expr:
     result : relax.Expr
         The computed result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.equal(x1, x2, span)  # type: ignore
 
 
@@ -191,6 +204,8 @@ def greater(x1: Expr, x2: Expr, span: Span = None) -> Expr:
     result : relax.Expr
         The computed result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.greater(x1, x2, span)  # type: ignore
 
 
@@ -211,6 +226,8 @@ def greater_equal(x1: Expr, x2: Expr, span: Span = None) -> Expr:
     result : relax.Expr
         The computed result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.greater_equal(x1, x2, span)  # type: ignore
 
 
@@ -231,6 +248,8 @@ def less(x1: Expr, x2: Expr, span: Span = None) -> Expr:
     result : relax.Expr
         The computed result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.less(x1, x2, span)  # type: ignore
 
 
@@ -251,6 +270,8 @@ def less_equal(x1: Expr, x2: Expr, span: Span = None) -> Expr:
     result : relax.Expr
         The computed result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.less_equal(x1, x2, span)  # type: ignore
 
 
@@ -271,4 +292,6 @@ def not_equal(x1: Expr, x2: Expr, span: Span = None) -> Expr:
     result : relax.Expr
         The computed result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.not_equal(x1, x2, span)  # type: ignore

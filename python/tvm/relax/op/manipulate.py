@@ -23,6 +23,7 @@ from tvm.tir import IntImm, FloatImm, IndexMap
 
 from . import _ffi_api
 from ..expr import Expr, PrimValue, ShapeExpr, Tuple as RxTuple
+from ..utils import SpanContext
 
 
 PrimExprLike = Union[int, PrimExpr]
@@ -49,6 +50,8 @@ def broadcast_to(x: Expr, shape: Union[Tuple[PrimExprLike], Expr], span: Span = 
     """
     if isinstance(shape, (tuple, list)):
         shape = ShapeExpr(shape)
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.broadcast_to(x, shape, span)  # type: ignore
 
 
@@ -75,6 +78,8 @@ def concat(tensors: Union[Expr, List[Expr]], axis: Optional[int] = 0, span: Span
     """
     if isinstance(tensors, (list, tuple)):
         tensors = RxTuple(tensors)
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.concat(tensors, axis, span)  # type: ignore
 
 
@@ -101,6 +106,8 @@ def expand_dims(x: Expr, axis: Union[int, List[int]], span: Span = None) -> Expr
     """
     if isinstance(axis, int):
         axis = [axis]
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.expand_dims(x, axis, span)  # type: ignore
 
 
@@ -120,6 +127,8 @@ def flatten(x: Expr, span: Span = None) -> Expr:
     result : relax.Expr
         The flattened result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.flatten(x, span)  # type: ignore
 
 
@@ -165,6 +174,8 @@ def layout_transform(
         elif "float" in x_dtype and (isinstance(pad_value, (int, float))):
             pad_value = FloatImm(x_dtype, float(pad_value))
         pad_value = PrimValue(pad_value)
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.layout_transform(x, index_map, pad_value, span)  # type: ignore
 
 
@@ -187,6 +198,8 @@ def permute_dims(x: Expr, axes: Optional[List[int]] = None, span: Span = None) -
     result : relax.Expr
         The transposed result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.permute_dims(x, axes, span)  # type: ignore
 
 
@@ -225,6 +238,8 @@ def reshape(x: Expr, shape: Union[Tuple[PrimExprLike], Expr], span: Span = None)
     That is to say, in any case the dimension length of ``-1`` cannot be inferred in
     compile-time, an error will be thrown.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.reshape(x, shape, span)  # type: ignore
 
 
@@ -264,6 +279,8 @@ def split(
     """
     if isinstance(indices_or_sections, int):
         indices_or_sections = IntImm("int64", indices_or_sections)
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.split(x, indices_or_sections, axis, span)  # type: ignore
 
 
@@ -290,6 +307,8 @@ def squeeze(x: Expr, axis: Optional[Union[int, List[int]]] = None, span: Span = 
     """
     if isinstance(axis, int):
         axis = [axis]
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.squeeze(x, axis, span)  # type: ignore
 
 

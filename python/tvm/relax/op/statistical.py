@@ -22,6 +22,7 @@ from tvm.ir import Span
 
 from . import _ffi_api
 from ..expr import Expr
+from ..utils import SpanContext
 
 
 def max(
@@ -54,6 +55,8 @@ def max(
     """
     if isinstance(axis, int):
         axis = [axis]
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.max(x, axis, keepdims, span)  # type: ignore
 
 
@@ -87,6 +90,8 @@ def mean(
     """
     if isinstance(axis, int):
         axis = [axis]
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.mean(x, axis, keepdims, span)  # type: ignore
 
 
@@ -120,6 +125,8 @@ def min(
     """
     if isinstance(axis, int):
         axis = [axis]
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.min(x, axis, keepdims, span)  # type: ignore
 
 
@@ -153,6 +160,8 @@ def prod(
     """
     if isinstance(axis, int):
         axis = [axis]
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.prod(x, axis, keepdims, span)  # type: ignore
 
 
@@ -186,6 +195,8 @@ def std(
     """
     if isinstance(axis, int):
         axis = [axis]
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.std(x, axis, keepdims, span)  # type: ignore
 
 
@@ -219,6 +230,8 @@ def sum(
     """
     if isinstance(axis, int):
         axis = [axis]
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.sum(x, axis, keepdims, span)  # type: ignore
 
 
@@ -252,4 +265,6 @@ def variance(
     """
     if isinstance(axis, int):
         axis = [axis]
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.variance(x, axis, keepdims, span)  # type: ignore

@@ -26,7 +26,7 @@ from ..expr import Expr, StringImm, ShapeExpr, Call, ExternFunc
 from ..expr import Tuple as RxTuple
 from ..struct_info import StructInfo, TensorStructInfo
 from ...ir import PrimExpr, Span
-from ..utils import args_converter
+from ..utils import args_converter, SpanContext
 
 
 py_print = print  # pylint: disable=invalid-name
@@ -89,6 +89,9 @@ def call_tir(
 
     if isinstance(tir_vars, (list, tuple)):
         tir_vars = ShapeExpr(tir_vars)
+
+    if span is None:
+        span = SpanContext.current()
 
     return _ffi_api.call_tir(func, args, out_sinfo, tir_vars, span)  # type: ignore
 
@@ -372,4 +375,6 @@ def shape_of(expr: Expr, span: Span = None) -> Expr:
     result : Expr
         A relax Call, which gets the shape of the input
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.shape_of(expr, span)  # type: ignore # pylint: disable=no-member

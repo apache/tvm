@@ -22,6 +22,7 @@ from tvm.ir import Span
 
 from . import _ffi_api
 from ..expr import Expr
+from ..utils import SpanContext
 
 
 def where(condition: Expr, x1: Expr, x2: Expr, span: Span = None) -> Expr:
@@ -54,6 +55,8 @@ def where(condition: Expr, x1: Expr, x2: Expr, span: Span = None) -> Expr:
     result : relax.Expr
         The result tensor.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.where(condition, x1, x2, span)  # type: ignore
 
 

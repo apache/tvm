@@ -22,6 +22,7 @@ from tvm import DataType
 from tvm.ir import Span
 
 from ..expr import Expr
+from ..utils import SpanContext
 from . import _ffi_api
 from .manipulate import permute_dims
 
@@ -54,6 +55,8 @@ def matmul(
     result : relax.Expr
         The computed result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.matmul(x1, x2, out_dtype, span)  # type: ignore
 
 
@@ -94,7 +97,8 @@ def linear(
     result : relax.Expr
         The computed result.
     """
-
+    if span is None:
+        span = SpanContext.current()
     # Since weight can be 1D or 2D, we use `axes=None` to support both cases.
     x = matmul(data, permute_dims(weight, axes=None), out_dtype=out_dtype, span=span)
     return x + bias if bias is not None else x

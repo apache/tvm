@@ -78,6 +78,9 @@ from .struct_info import (
 # pipeline
 from .pipeline import get_pipeline
 
+# Utils
+from .utils import SpanContext
+
 # Import submodules in the last to avoid dependency
 from . import exec_builder
 from . import expr

@@ -22,6 +22,7 @@ from tvm.ir import Span
 
 from . import _ffi_api
 from ...expr import Expr
+from ...utils import SpanContext
 
 
 def conv2d(
@@ -111,6 +112,8 @@ def conv2d(
         dilation = (dilation, dilation)
     if isinstance(padding, int):
         padding = (padding, padding, padding, padding)
+    if span is None:
+        span = SpanContext.current()
 
     return _ffi_api.conv2d(  # type: ignore
         data,
@@ -202,6 +205,8 @@ def max_pool2d(
         dilation = (dilation, dilation)
     if isinstance(padding, int):
         padding = (padding, padding, padding, padding)
+    if span is None:
+        span = SpanContext.current()
 
     return _ffi_api.max_pool2d(  # type: ignore
         data, pool_size, strides, padding, dilation, ceil_mode, layout, out_layout, span
@@ -265,6 +270,9 @@ def adaptive_avg_pool2d(
     """
     if isinstance(output_size, int):
         output_size = (output_size, output_size)
+    if span is None:
+        span = SpanContext.current()
+
     return _ffi_api.adaptive_avg_pool2d(data, output_size, layout, out_layout, span)  # type: ignore
 
 
@@ -287,6 +295,8 @@ def relu(data: Expr, span: Span = None) -> Expr:
     result : relax.Expr
         The computed result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.relu(data, span)  # type: ignore
 
 
@@ -315,6 +325,8 @@ def gelu(data: Expr, span: Span = None) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.gelu(data, span)  # type: ignore
 
 
@@ -341,6 +353,8 @@ def silu(data: Expr, span: Span = None) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.silu(data, span)  # type: ignore
 
 
@@ -371,6 +385,8 @@ def softmax(data: Expr, axis: int = -1, span: Span = None) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.softmax(data, axis, span)  # type: ignore
 
 
@@ -402,6 +418,8 @@ def log_softmax(data: Expr, axis: int = -1, span: Span = None) -> Expr:
     result : relax.Expr
         The computed result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.log_softmax(data, axis, span)  # type: ignore
 
 
@@ -494,6 +512,8 @@ def batch_norm(
     result : relax.Expr
         The computed result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.batch_norm(  # type: ignore
         data, gamma, beta, moving_mean, moving_var, axis, epsilon, center, scale, span
     )
@@ -561,6 +581,8 @@ def layer_norm(
     """
     if isinstance(axes, int):
         axes = [axes]
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.layer_norm(
         data, gamma, beta, axes, epsilon, center, scale, span
     )  # type: ignore
@@ -649,6 +671,8 @@ def dropout(data: Expr, rate: float = 0.5, span: Span = None) -> Expr:
         The first one is the original tensor and the second one is a
         mask tensor (1.0 where element not dropped, 0.0 where dropped)
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.dropout(data, rate, span)  # type: ignore
 
 
@@ -679,6 +703,8 @@ def cross_entropy_with_logits(predictions: Expr, labels: Expr, span: Span = None
     result : relax.Expr
       The computed result.
     """
+    if span is None:
+        span = SpanContext.current()
     return _ffi_api.cross_entropy_with_logits(predictions, labels, span)  # type: ignore
 
 
