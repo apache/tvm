@@ -27,7 +27,7 @@ from tvm.script.printer.doc import (
     StmtBlockDoc,
 )
 from tvm.script.printer.doc_printer import to_python_script
-from tvm.script import tir as T
+from tvm.script import ir as I, tir as T
 
 
 def make_path(name: str) -> ObjectPath:
@@ -468,5 +468,89 @@ def test_underline_from_multi_obj():
             T.evaluate(6)
             T.evaluate(7)
             ^^^^^^^^^^^^^
+    """
+    )
+
+
+def test_underline_func():
+    @T.prim_func
+    def func():
+        T.evaluate(0)
+
+    result = func.script(
+        path_to_underline=[
+            ObjectPath.root(),
+        ]
+    )
+    assert result == format_script(
+        """
+        # from tvm.script import tir as T
+
+        @T.prim_func
+        ^^^^^^^^^^^^
+        def main():
+        ^^^^^^^^^^^
+            T.evaluate(0)
+            ^^^^^^^^^^^^^
+    """
+    )
+
+
+def test_underline_func_in_irmodule():
+    @I.ir_module
+    class irmodule:
+        @T.prim_func
+        def func():
+            T.evaluate(0)
+
+    result = irmodule.script(
+        path_to_underline=[
+            ObjectPath.root().attr("functions").map_value(irmodule.get_global_var("func")),
+        ]
+    )
+    assert result == format_script(
+        """
+        # from tvm.script import ir as I
+        # from tvm.script import tir as T
+
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            ^^^^^^^^^^^^
+            def func():
+            ^^^^^^^^^^^
+                T.evaluate(0)
+                ^^^^^^^^^^^^^
+    """
+    )
+
+
+def test_underline_irmodule():
+    @I.ir_module
+    class irmodule:
+        @T.prim_func
+        def func():
+            T.evaluate(0)
+
+    result = irmodule.script(
+        path_to_underline=[
+            ObjectPath.root(),
+        ]
+    )
+    assert result == format_script(
+        """
+        # from tvm.script import ir as I
+        # from tvm.script import tir as T
+
+        @I.ir_module
+        ^^^^^^^^^^^^
+        class Module:
+        ^^^^^^^^^^^^^
+            @T.prim_func
+            ^^^^^^^^^^^^
+            def func():
+            ^^^^^^^^^^^
+                T.evaluate(0)
+                ^^^^^^^^^^^^^
     """
     )
