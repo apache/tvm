@@ -1592,6 +1592,7 @@ inline Array<Tensor> meshgrid(const Array<Tensor>& inputs, const std::string& in
  * \param dst_layout the destination layout.
  * \param name output tensor name.
  * \param tag output tensor tag.
+ * \param schedule_rule name of specialized schedule rule to use.
  * \return A tensor with shape in \p dst_layout
  */
 inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
