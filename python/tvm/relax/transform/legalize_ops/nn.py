@@ -19,7 +19,6 @@
 import logging
 
 from tvm import topi, tir, te
-from tvm.tir.expr import IntImm
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
 from .common import register_legalize, _call_topi_without_attr
