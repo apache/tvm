@@ -1060,9 +1060,10 @@ def test_flatten_infer_struct_info_wrong_input_type():
 def test_flatten_wrong_input_number():
     x = relax.Var("x", R.Tensor((3, 4, 5), "float32"))
     y = relax.Var("y", R.Tensor((2, 3, 4), "float32"))
+    span = tvm.ir.Span(tvm.ir.SourceName("test"), 0, 0, 0, 0)
 
     with pytest.raises(TypeError):
-        relax.op.flatten(x, y)
+        relax.op.flatten(x, span, y)
 
 
 def test_concat_infer_struct_info_with_axis():

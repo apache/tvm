@@ -157,11 +157,12 @@ def test_unary_arith_infer_struct_info_invalid_input_dtype(
 
 def test_unary_arith_wrong_input_number(unary_arith_op: Callable):
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
+    span = tvm.ir.Span(tvm.ir.SourceName("test"), 0, 0, 0, 0)
 
     with pytest.raises(TypeError):
-        unary_arith_op(x, x)
+        unary_arith_op(x, span, x)
     with pytest.raises(TypeError):
-        unary_arith_op(x, x, x)
+        unary_arith_op(x, span, x, x)
 
 
 def test_unary_arith_infer_struct_info_wrong_input_type(unary_arith_op: Callable):

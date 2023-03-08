@@ -136,13 +136,14 @@ def test_ewise_fma_infer_struct_info_ndim_mismatch():
 
 def test_ewise_fma_wrong_input_number():
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
+    span = tvm.ir.Span(tvm.ir.SourceName("test"), 0, 0, 0, 0)
 
     with pytest.raises(TypeError):
         relax.op.ewise_fma(x)
     with pytest.raises(TypeError):
         relax.op.ewise_fma(x, x)
     with pytest.raises(TypeError):
-        relax.op.ewise_fma(x, x, x, x)
+        relax.op.ewise_fma(x, x, x, span, x)
 
 
 def test_ewise_fma_infer_struct_info_wrong_input_type():

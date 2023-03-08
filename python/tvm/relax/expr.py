@@ -131,13 +131,15 @@ def _binary_rhs_helper(rhs: "ExprWithOp") -> "ExprWithOp":
 class ExprWithOp(Expr, Scriptable):
     """Basetype of all relax expressions that defines op overloading."""
 
-    def astype(self, dtype: Union[str, DataType]) -> "ExprWithOp":
+    def astype(self, dtype: Union[str, DataType], span: Span = None) -> "ExprWithOp":
         """Cast the content type of the current data to dtype.
 
         Parameters
         ----------
         dtype : str
             The target data type.
+        span : Span
+            The source span.
 
         Note
         ----
@@ -148,10 +150,12 @@ class ExprWithOp(Expr, Scriptable):
         result : ExprWithOp
             The result expression.
         """
-        return _op_ffi_api.astype(self, dtype)  # type: ignore
+        if span is None:
+            span = tvm.relax.SpanContext.current()
+        return _op_ffi_api.astype(self, dtype, span)  # type: ignore
 
     def __neg__(self) -> "ExprWithOp":
-        return _op_ffi_api.negative(self)  # type: ignore
+        return _op_ffi_api.negative(self, self.span)  # type: ignore
 
     def __lt__(self, other: Expr) -> "ExprWithOp":
         return _binary_op_helper(self, other, _op_ffi_api.less)  # type: ignore

@@ -186,13 +186,14 @@ def test_binary_arith_infer_struct_info_dtype_mismatch(binary_arith_op: Callable
 
 def test_binary_wrong_input_number(binary_arith_op: Callable):
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
+    span = tvm.ir.Span(tvm.ir.SourceName("test"), 0, 0, 0, 0)
 
     with pytest.raises(TypeError):
-        binary_arith_op(x, x, x)
+        binary_arith_op(x, x, span, x)
     with pytest.raises(TypeError):
         binary_arith_op(x)
     with pytest.raises(TypeError):
-        binary_arith_op(x, x, x, x)
+        binary_arith_op(x, x, span, x, x)
 
 
 def test_binary_infer_struct_info_wrong_input_type(binary_arith_op: Callable):

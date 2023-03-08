@@ -103,5 +103,18 @@ def test_copy_with_new_vars_on_ir_module_nested_function():
     assert_structural_equal(Actual, Expected)
 
 
+def test_span_context():
+    span = tvm.ir.Span(tvm.ir.SourceName("testSpan"), 0, 0, 0, 0)
+    with relax.utils.SpanContext(span):
+        add = relax.op.add(relax.Var("x"), relax.Var("y"))
+        div = relax.op.divide(add, relax.Var("z"))
+
+    mul = relax.op.multiply(relax.Var("a"), relax.Var("b"))
+
+    assert add.span == span
+    assert div.span == span
+    assert mul.span is None
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
