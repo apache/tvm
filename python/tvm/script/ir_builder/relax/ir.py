@@ -25,6 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union, Callable
 import tvm
 from tvm import DataType, relax
 from tvm.ir import PrimExpr
+from ..ir import add_function
 from tvm.relax import Call, Expr, ExternFunc, TupleGetItem, ShapeExpr, Var, VarBinding, const
 from tvm.relax.utils import gen_call_tir_inputs
 
@@ -332,39 +333,7 @@ def emit(value: Expr, annotate_struct_info: Optional[StructInfo] = None) -> Var:
     return _ffi_api.Emit(value, annotate_struct_info)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def call_te(func: Callable, *args: Any, **kwargs: Any) -> Expr:
-    """Generate a call node according to the te function.
-    This function converts arguments from relax expression to te tensor,
-    The callback func should return a te tensor or a list of te tensors.
-
-    Parameters
-    ----------
-    func : Callable
-        A function that returns a te tensor or a list of te tensors.
-
-    args : Any, optional
-        arguments passed to the function.
-
-    kwargs : Any, optional
-        The keyword arguments passed to the function.
-        Note that the key "primfunc_name_hint" is reserved for passing name hint
-        to the PrimFunc that gets generated.
-
-    Returns
-    -------
-    ret : tvm.relax.Call
-        A newly created call node
-    """
-
-    primfunc_name_hint = kwargs.pop("primfunc_name_hint", None)
-    tir_func, call_args, out_sinfo, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
-    if not primfunc_name_hint:
-        primfunc_name_hint = func.__name__
-    gvar = _ffi_api.AddFunction(tir_func, primfunc_name_hint)  # type: ignore
-    return call_tir(gvar, call_args, out_sinfo, tir_vars)
-
-
-def emit_te(func: Callable, *args: Any, **kwargs: Any) -> Var:
+def emit_te(func: Callable, *args: Any, **kwargs: Any) -> Call:
     """Emit a call node according to the te function.
     This function converts arguments from relax expression to te tensor,
     The callback func should return a te tensor or a list of te tensors.
@@ -384,10 +353,15 @@ def emit_te(func: Callable, *args: Any, **kwargs: Any) -> Var:
 
     Returns
     -------
-    var : Var
-        A newly created variable that gets bound to the call code.
+    call : Call
+        A newly created call that calls into a tir function.
     """
-    return emit(call_te(func, *args, **kwargs))
+    primfunc_name_hint = kwargs.pop("primfunc_name_hint", None)
+    tir_func, call_args, out_sinfo, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
+    if not primfunc_name_hint:
+        primfunc_name_hint = func.__name__
+    gvar = add_function(tir_func, primfunc_name_hint)  # type: ignore
+    return call_tir(gvar, call_args, out_sinfo, tir_vars)
 
 
 def emit_match_cast(value: Expr, struct_info: StructInfo) -> Var:
@@ -564,7 +538,6 @@ __all__ = [
     "broadcast_to",
     "builtin",
     "call_packed",
-    "call_te",
     "call_tir",
     "call_builtin_with_ctx",
     "ceil",

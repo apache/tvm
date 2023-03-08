@@ -17,6 +17,8 @@
 """Package tvm.script.ir_builder.ir"""
 from .frame import IRModuleFrame
 from .ir import (
+    add_function,
+    update_function,
     decl_function,
     def_function,
     ir_module,

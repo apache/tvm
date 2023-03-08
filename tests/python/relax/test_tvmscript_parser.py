@@ -189,35 +189,18 @@ def test_emit_te():
     class EmitTE:
         @R.function
         def main(x: R.Tensor((10, 20), "float32")) -> R.Tensor((10, 20), dtype="float32"):
-            gv = R.emit_te(topi.add, x, x)
-            return gv
-
-    @I.ir_module
-    class Expected:
-        @T.prim_func
-        def add(
-            rxplaceholder: T.Buffer((T.int64(10), T.int64(20)), "float32"),
-            rxplaceholder_1: T.Buffer((T.int64(10), T.int64(20)), "float32"),
-            T_add: T.Buffer((T.int64(10), T.int64(20)), "float32"),
-        ):
-            T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
-            for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
-                with T.block("T_add"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(rxplaceholder[v_ax0, v_ax1], rxplaceholder_1[v_ax0, v_ax1])
-                    T.writes(T_add[v_ax0, v_ax1])
-                    T_add[v_ax0, v_ax1] = (
-                        rxplaceholder[v_ax0, v_ax1] + rxplaceholder_1[v_ax0, v_ax1]
-                    )
-
-        @R.function
-        def main(x: R.Tensor((10, 20), dtype="float32")) -> R.Tensor((10, 20), dtype="float32"):
-            gv = R.call_tir(add, (x, x), out_sinfo=R.Tensor((10, 20), dtype="float32"))
-            out: R.Tensor((10, 20), dtype="float32") = gv
+            lv1 = R.emit_te(topi.add, x, x)
+            out = R.emit_te(topi.multiply, lv1, lv1)
             return out
 
-    _check(EmitTE, Expected)
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", relax.TensorStructInfo([10, 20], "float32"))
+    with bb.function("main", [x]):
+        lv1 = bb.emit_te(topi.add, x, x)
+        out = bb.emit_te(topi.multiply, lv1, lv1)
+        bb.emit_func_output(out)
+
+    _check(EmitTE, bb.get())
 
 
 def test_module_with_attr_and_global_info():

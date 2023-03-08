@@ -73,6 +73,35 @@ def def_function(func_name: str, func: BaseFunc) -> None:
     return _ffi_api.DefFunction(func_name, func)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
+def add_function(func: BaseFunc, name_hint: str) -> GlobalVar:
+    """Add a Relax function or a TIR PrimFunc to the IRModule.
+    Parameters
+    ----------
+    func : BaseFunc
+        Relax function or TIR PrimFunc.
+    name_hint: str
+        The name hint of the function to be added.
+
+    Returns
+    -------
+    gvar : GlobalVar
+        The global var bound to the added function.
+    """
+    return _ffi_api.AddFunction(func, name_hint)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def update_function(gvar: GlobalVar, updated_func: BaseFunc) -> None:
+    """Update a Relax function or a TIR PrimFunc.
+    Parameters
+    ----------
+    gvar : GlobalVar
+        The global var referring the function to be updated.
+    updated_func : BaseFunc
+        The updated function.
+    """
+    return _ffi_api.UpdateFunction(gvar, updated_func)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
 def module_attrs(attrs: Dict[str, tvm_Object]) -> None:
     """Specify the attrs of the ir_module frame.
     Parameters

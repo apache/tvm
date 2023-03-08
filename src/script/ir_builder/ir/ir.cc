@@ -69,6 +69,49 @@ void DefFunction(const String& func_name, const BaseFunc& func) {
   }
 }
 
+GlobalVar AddFunction(const BaseFunc& func, String func_name_hint) {
+  IRBuilder builder = IRBuilder::Current();
+  GlobalVar gvar = GlobalVar(func_name_hint);
+  if (func->struct_info_.defined()) {
+    gvar->struct_info_ = tvm::relax::GetStructInfo(func);
+  } else if (const auto* prim_func = func.as<tvm::tir::PrimFuncNode>()) {
+    gvar->struct_info_ =
+        tvm::relax::FuncStructInfo::OpaqueFunc(tvm::relax::StructInfoFromType(prim_func->ret_type));
+  } else {
+    LOG(FATAL) << "Unsupported function type: " << func->GetTypeKey();
+  }
+  if (Optional<ir::IRModuleFrame> opt_frame = builder->FindFrame<ir::IRModuleFrame>()) {
+    const ir::IRModuleFrame& mod_frame = opt_frame.value();
+    if (mod_frame->global_var_map.count(func_name_hint)) {
+      return mod_frame->global_var_map[func_name_hint];
+    }
+    mod_frame->global_var_map.Set(func_name_hint, gvar);
+    mod_frame->functions.Set(gvar, func);
+  } else {
+    LOG(FATAL) << "ValueError: IRModule frame not find. Please ensure "
+               << "AddFunction called under I.ir_module()";
+  }
+  return gvar;
+}
+
+void UpdateFunction(const GlobalVar& gv, BaseFunc function) {
+  IRBuilder builder = IRBuilder::Current();
+  if (Optional<ir::IRModuleFrame> opt_frame = builder->FindFrame<ir::IRModuleFrame>()) {
+    const ir::IRModuleFrame& mod_frame = opt_frame.value();
+    // invalidate old function first
+    if (mod_frame->global_var_map.count(gv->name_hint)) {
+      mod_frame->global_var_map.erase(gv->name_hint);
+      mod_frame->functions.erase(gv);
+    }
+    // add func in
+    mod_frame->global_var_map.Set(gv->name_hint, gv);
+    mod_frame->functions.Set(gv, function);
+  } else {
+    LOG(FATAL) << "ValueError: IRModule frame not find. Please ensure "
+               << "UpdateFunction called under I.ir_module()";
+  }
+}
+
 void ModuleAttrs(Map<String, ObjectRef> attrs) {
   if (IRBuilder::IsInScope()) {
     // TODO(hongyi): add comments to explain why we need to check if the module frame is in scope
@@ -94,6 +137,8 @@ void ModuleGlobalInfos(Map<String, Array<GlobalInfo>> global_infos) {
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.IRModule").set_body_typed(IRModule);
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.DeclFunction").set_body_typed(DeclFunction);
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.DefFunction").set_body_typed(DefFunction);
+TVM_REGISTER_GLOBAL("script.ir_builder.ir.AddFunction").set_body_typed(AddFunction);
+TVM_REGISTER_GLOBAL("script.ir_builder.ir.UpdateFunction").set_body_typed(UpdateFunction);
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.ModuleAttrs").set_body_typed(ModuleAttrs);
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.ModuleGlobalInfos").set_body_typed(ModuleGlobalInfos);
 
