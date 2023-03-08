@@ -77,15 +77,24 @@ namespace relax {
 
 class DependencyGatherer : public ExprVisitor {
  public:
+  explicit DependencyGatherer(const IRModule& m) : m_(m) {}
+
   std::unordered_set<std::string> Track(const Function& func) {
     this->VisitExpr(func);
     return deps_;
   }
 
-  void VisitExpr_(const GlobalVarNode* gv) override { deps_.insert(gv->name_hint); }
+  void VisitExpr_(const GlobalVarNode* gv) override {
+    // disregard PrimFuncs
+    if (!m_->Lookup(GetRef<GlobalVar>(gv)).as<relax::FunctionNode>()) {
+      return;
+    }
+    deps_.insert(gv->name_hint);
+  }
 
  private:
   std::unordered_set<std::string> deps_;
+  const IRModule& m_;
 };
 
 using adjacency_map = std::unordered_map<std::string, std::unordered_set<std::string>>;
@@ -101,7 +110,7 @@ adjacency_map GatherDependencyGraph(const IRModule& m) {
       continue;
     }
     std::string name = gv_func.first->name_hint;
-    auto deps = DependencyGatherer().Track(GetRef<relax::Function>(func));
+    auto deps = DependencyGatherer(m).Track(GetRef<relax::Function>(func));
     ret.insert({name, deps});
   }
   return ret;

@@ -18,7 +18,7 @@ from typing import List
 import tvm
 import tvm.testing
 from tvm import relax as rx
-from tvm.script import relax as R
+from tvm.script import relax as R, tir as T
 
 from tvm.relax.analysis import detect_recursion
 
@@ -399,6 +399,37 @@ def test_mutual_recursion_via_references():
 
     groups = detect_recursion(GatherReferences)
     assert_groups(groups, [["a", "b", "c"]])
+
+
+def test_disregard_primfuncs():
+    @tvm.script.ir_module
+    class CallPrimFunc:
+        # copied from test_analysis.py
+        @T.prim_func
+        def identity_identity(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4, 4), "float32")):
+            C = T.alloc_buffer((128, 128), "float32")
+            for i0, i1 in T.grid(4, 4):
+                with T.block("identity"):
+                    vi0, vi1 = T.axis.remap("SS", [i0, i1])
+                    C[vi0, vi1] = A[vi0, vi1]
+            for i0, i1 in T.grid(4, 4):
+                with T.block("identity"):
+                    vi0, vi1 = T.axis.remap("SS", [i0, i1])
+                    B[vi0, vi1] = C[vi0, vi1]
+
+        @R.function
+        def a(x: R.Tensor((4, 4), "float32")) -> R.Object:
+            y = R.call_tir(identity_identity, x, R.Tensor((4, 4), "float32"))
+            return b(y)
+
+        @R.function
+        def b(x: R.Tensor((4, 4), "float32")) -> R.Object:
+            y = R.call_tir(identity_identity, x, R.Tensor((4, 4), "float32"))
+            return a(y)
+
+    groups = detect_recursion(CallPrimFunc)
+    # the prim func should not be listed here
+    assert_groups(groups, [["a", "b"]])
 
 
 if __name__ == "__main__":
