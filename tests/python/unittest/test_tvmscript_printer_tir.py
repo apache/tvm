@@ -501,13 +501,12 @@ T.Cast("float64", a)
 
 
 def test_binary_arith():
-    a = tir.Var("a", "float32")
-    b = tir.Var("b", "float32")
+    a = tir.Var("a", "int32")
+    b = tir.Var("b", "int32")
     for op, sign in [
         (tir.Add, "+"),
         (tir.Sub, "-"),
         (tir.Mul, "*"),
-        (tir.Div, "/"),
         (tir.Mod, "truncmod"),
         (tir.FloorDiv, "//"),
         (tir.FloorMod, "%"),
@@ -521,19 +520,58 @@ def test_binary_arith():
         obj = op(a, b)
         if sign.isalpha():
             expected = """
-a = T.float32()
-b = T.float32()
+a = T.int32()
+b = T.int32()
 T.{}(a, b)""".format(
                 sign
             )
         else:
             expected = """
-a = T.float32()
-b = T.float32()
+a = T.int32()
+b = T.int32()
 a {} b""".format(
                 sign
             )
         _assert_print(obj, expected)
+
+
+def test_binary_arith_const():
+    a = tir.IntImm("int64", 3)
+    b = tir.IntImm("int64", 4)
+    for op, name in [
+        (tir.Add, "Add"),
+        (tir.Sub, "Sub"),
+        (tir.Mul, "Mul"),
+        (tir.Div, "Div"),
+        (tir.Mod, "truncmod"),
+        (tir.FloorDiv, "FloorDiv"),
+        (tir.FloorMod, "FloorMod"),
+        (tir.LT, "LT"),
+        (tir.LE, "LE"),
+        (tir.EQ, "EQ"),
+        (tir.NE, "NE"),
+        (tir.GT, "GT"),
+        (tir.GE, "GE"),
+    ]:
+        obj = op(a, b)
+        expected = """
+T.{}({}, {})""".format(
+            name, str(a), str(b)
+        )
+        _assert_print(obj, expected)
+
+
+def test_int_div():
+    a = tir.Var("a", "int32")
+    b = tir.Var("b", "int32")
+    _assert_print(
+        tir.Div(a, b),
+        """
+a = T.int32()
+b = T.int32()
+T.Div(a, b)
+""",
+    )
 
 
 def test_logical():
