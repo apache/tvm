@@ -184,6 +184,25 @@ def test_simple_module():
     _check(TestModule, bb.get())
 
 
+def test_emit_te():
+    @I.ir_module
+    class EmitTE:
+        @R.function
+        def main(x: R.Tensor((10, 20), "float32")) -> R.Tensor((10, 20), dtype="float32"):
+            lv1 = R.emit_te(topi.add, x, x)
+            out = R.emit_te(topi.multiply, lv1, lv1)
+            return out
+
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", relax.TensorStructInfo([10, 20], "float32"))
+    with bb.function("main", [x]):
+        lv1 = bb.emit_te(topi.add, x, x)
+        out = bb.emit_te(topi.multiply, lv1, lv1)
+        bb.emit_func_output(out)
+
+    _check(EmitTE, bb.get())
+
+
 def test_module_with_attr_and_global_info():
     @I.ir_module
     class TestModule:

@@ -58,7 +58,7 @@ def test_function_simple():
 
 
 def test_emits():
-    """Tests for R.emit, R.emit_match_cast, R.emit_var_binding, R.emit_te
+    """Tests for R.emit, R.emit_match_cast, R.emit_var_binding
 
     @R.function
     def foo(x: R.Tensor(dtype="float32"), y: R.Tensor(dtype="float32")) -> R.Shape(ndim=2):
@@ -67,8 +67,6 @@ def test_emits():
         gv: R.Tensor((m,), dtype="float32") = R.match_cast(x, R.Tensor((m,), dtype="float32"))
         gv1: R.Tensor((n,), dtype="float32") = R.match_cast(y, R.Tensor((n,), dtype="float32"))
         v: R.Tensor((n,), dtype="float32") = gv1
-        gv2 = R.call_tir(add, (v, v), out_sinfo=R.Tensor((n,), dtype="float32"))
-        gv3: R.Tensor((n,), dtype="float32") = gv2
         return R.shape([m, n * 2])
     """
     # create with Script IRBuilder
@@ -84,8 +82,7 @@ def test_emits():
             v = relax.Var("v", relax.TensorStructInfo((n,), "float32"))
             vb = relax.VarBinding(v, y1)
             v = R.emit_var_binding(vb)
-            v1 = R.emit_te(topi.add, v, v)
-            R.emit(v1)
+            R.emit(v)
 
             IRBuilder.name("v", v)
             R.func_ret_value(relax.ShapeExpr([m, n * 2]))
@@ -102,12 +99,11 @@ def test_emits():
         _ = bb.match_cast(x, relax.TensorStructInfo((m,), "float32"))
         y1 = bb.match_cast(y, relax.TensorStructInfo((n,), "float32"))
         bb.emit_normalized(relax.VarBinding(v, y1))
-        v1 = bb.emit_te(topi.add, v, v)
-        bb.emit(v1)
+        bb.emit(v)
         bb.emit_func_output(relax.ShapeExpr([m, n * 2]))
     mod = bb.get()
 
-    tvm.ir.assert_structural_equal(func, mod["foo"], map_free_vars=True)
+    tvm.ir.assert_structural_equal(func, mod["foo"])
 
 
 def test_dataflow_block():

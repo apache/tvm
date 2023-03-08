@@ -25,8 +25,10 @@ from typing import Any, Dict, List, Optional, Tuple, Union, Callable
 import tvm
 from tvm import DataType, relax
 from tvm.ir import PrimExpr
+from ..ir import decl_function
 from tvm.relax import Call, Expr, ExternFunc, TupleGetItem, ShapeExpr, Var, VarBinding, const
-from tvm.relax.block_builder import BlockBuilder as rx_bb
+from tvm.relax.utils import gen_call_tir_inputs
+
 
 ############################### Operators ###############################
 from tvm.relax.op import (
@@ -310,7 +312,7 @@ invoke_closure = _sinfo_arg_wrapper(invoke_closure)  # pylint: disable=invalid-n
 call_builtin_with_ctx = _sinfo_arg_wrapper(call_builtin_with_ctx)  # pylint: disable=invalid-name
 
 
-############################### Bindings ###############################
+############################### Emits ###############################
 
 
 def emit(value: Expr, annotate_struct_info: Optional[StructInfo] = None) -> Var:
@@ -331,7 +333,7 @@ def emit(value: Expr, annotate_struct_info: Optional[StructInfo] = None) -> Var:
     return _ffi_api.Emit(value, annotate_struct_info)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def emit_te(func: Callable, *args: Any, **kwargs: Any) -> Var:
+def emit_te(func: Callable, *args: Any, **kwargs: Any) -> Call:
     """Emit a call node according to the te function.
     This function converts arguments from relax expression to te tensor,
     The callback func should return a te tensor or a list of te tensors.
@@ -351,13 +353,15 @@ def emit_te(func: Callable, *args: Any, **kwargs: Any) -> Var:
 
     Returns
     -------
-    var : Var
-        A newly created variable that gets bound to the call code.
+    call : Call
+        A newly created call that calls into a tir function.
     """
-
-    # Levarage the util function call_te in Relax Block Blocker
-    emit_expr = rx_bb().call_te(func, *args, **kwargs)
-    return emit(emit_expr)
+    primfunc_name_hint = kwargs.pop("primfunc_name_hint", None)
+    tir_func, call_args, out_sinfo, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
+    if not primfunc_name_hint:
+        primfunc_name_hint = func.__name__
+    gvar = decl_function(primfunc_name_hint, tir_func)  # type: ignore
+    return call_tir(gvar, call_args, out_sinfo, tir_vars)
 
 
 def emit_match_cast(value: Expr, struct_info: StructInfo) -> Var:
