@@ -24,14 +24,32 @@
 #ifndef TVM_RELAX_TRANSFORM_UTILS_H_
 #define TVM_RELAX_TRANSFORM_UTILS_H_
 
+#include <builtin_fp16.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 
+#include <algorithm>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "../../relay/analysis/graph_partitioner.h"
+#include "../../support/array.h"
+#include "../op/nn/convolution.h"
+#include "../op/nn/nn.h"
+#include "../op/nn/pooling.h"
+#include "../op/tensor/binary.h"
+#include "../op/tensor/create.h"
+#include "../op/tensor/datatype.h"
+#include "../op/tensor/index.h"
+#include "../op/tensor/linear_algebra.h"
+#include "../op/tensor/manipulate.h"
+#include "../op/tensor/search.h"
+#include "../op/tensor/set.h"
+#include "../op/tensor/statistical.h"
+#include "../op/tensor/ternary.h"
+#include "../op/tensor/unary.h"
 
 namespace tvm {
 namespace relax {
@@ -115,6 +133,93 @@ IRModule MakeGroupedFunctions(
     IRModule mod,
     const std::unordered_map<const Object*, relay::GraphPartitioner::Group*>& partition,
     bool lift_constants = true);
+
+/*!
+ * \brief Check if the given StructInfo is a nested tensor StructInfo satisfying the given
+ * condition f_condition.
+ * \param sinfo The StructInfo to be checked.
+ * \param f_condition The condition function for each leaf StructInfo with signature
+ * `bool f_condition(TensorStructInfo)`.
+ * \tparam FType The condition function type.
+ * \return true if the given StructInfo is a nested tensor satisfying the given f_condition.
+ */
+template <typename FType>
+bool IsNestedTensorConditioned(const StructInfo& sinfo, FType f_condition) {
+  if (const auto* tensor_sinfo = sinfo.as<TensorStructInfoNode>()) {
+    return f_condition(GetRef<TensorStructInfo>(tensor_sinfo));
+  } else if (const auto* tuple_sinfo = sinfo.as<TupleStructInfoNode>()) {
+    return !std::any_of(
+        tuple_sinfo->fields.begin(), tuple_sinfo->fields.end(),
+        [&](const StructInfo& field) { return !IsNestedTensorConditioned(field, f_condition); });
+  }
+  return false;
+}
+
+/*!
+ * \brief Create a Constant with a scalar
+ *
+ * \param dtype The data type.
+ * \param value The value of the scalar.
+ * \return A Constant.
+ */
+template <typename T>
+inline Constant MakeConstantScalar(T value, DataType dtype) {
+  runtime::NDArray arr = runtime::NDArray::Empty({}, dtype, {kDLCPU, 0});
+  if (dtype == DataType::Float(32)) {
+    *static_cast<float*>(arr->data) = static_cast<float>(value);
+  } else if (dtype == DataType::Float(64)) {
+    *static_cast<double*>(arr->data) = static_cast<double>(value);
+  } else if (dtype == DataType::Int(32)) {
+    *static_cast<int32_t*>(arr->data) = static_cast<int32_t>(value);
+  } else if (dtype == DataType::Int(64)) {
+    *static_cast<int64_t*>(arr->data) = static_cast<int64_t>(value);
+  } else if (dtype == DataType::UInt(1)) {
+    *static_cast<bool*>(arr->data) = static_cast<bool>(value);
+  } else if (dtype == DataType::UInt(8)) {
+    *static_cast<uint8_t*>(arr->data) = static_cast<uint8_t>(value);
+  } else if (dtype == DataType::UInt(16)) {
+    *static_cast<uint16_t*>(arr->data) = static_cast<uint16_t>(value);
+  } else if (dtype == DataType::UInt(32)) {
+    *static_cast<uint32_t*>(arr->data) = static_cast<uint32_t>(value);
+  } else if (dtype == DataType::UInt(64)) {
+    *static_cast<uint64_t*>(arr->data) = static_cast<uint64_t>(value);
+  } else if (dtype == DataType::Int(8)) {
+    *static_cast<int8_t*>(arr->data) = static_cast<int8_t>(value);
+  } else if (dtype == DataType::Int(16)) {
+    *static_cast<int16_t*>(arr->data) = static_cast<int16_t>(value);
+  } else if (dtype == DataType::Int(32)) {
+    *static_cast<int32_t*>(arr->data) = static_cast<int32_t>(value);
+  } else if (dtype == DataType::Int(64)) {
+    *static_cast<int64_t*>(arr->data) = static_cast<int64_t>(value);
+  } else if (dtype == DataType::Float(16)) {
+    // convert to float16 storage is uint16_t
+    *static_cast<uint16_t*>(arr->data) =
+        __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(static_cast<float>(value));
+  } else if (dtype == DataType::BFloat(16)) {
+    // convert to bfloat16 storage is uint16_t
+    *static_cast<uint16_t*>(arr->data) =
+        __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 7>(static_cast<float>(value));
+  } else {
+    LOG(FATAL) << "Unsupported dtype " << dtype;
+  }
+  return Constant(arr);
+}
+
+inline Array<Integer> GetOrderedPositiveAxes(const Array<Integer>& axes, int ndim) {
+  std::vector<int64_t> ret;
+  ret.reserve(axes.size());
+  for (const auto& axis : axes) {
+    int64_t axis_val = axis->value;
+    if (axis_val < 0) {
+      axis_val += ndim;
+    }
+    ICHECK(axis_val >= 0 && axis_val < ndim) << "axis " << axis << " is out of bounds for array of "
+                                             << "dimension " << ndim;
+    ret.push_back(axis_val);
+  }
+  std::sort(ret.begin(), ret.end());
+  return support::AsArray<int64_t, Integer>(ret);
+}
 
 }  // namespace relax
 }  // namespace tvm
