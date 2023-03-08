@@ -1369,10 +1369,10 @@ export class Instance implements Disposable {
     const reportCallback = (iter: number)=> {
       // report
       for (let j = 0; j < this.fetchProgressCallback.length; ++j) {
-        let text = "Fetching param cache[" + iter + "/" + list.length+ "]:";
-        text += Math.ceil(fetchedBytes / (1024 * 1024)).toString() + "MB fetched "
+        let text = "Fetching param cache[" + iter + "/" + list.length+ "]: ";
+        text += Math.ceil(fetchedBytes / (1024 * 1024)).toString() + "MB fetched. "
         text += Math.floor(fetchedBytes * 100 / totalBytes).toString() + "% completed, "
-        text += timeElapsed + " secs elapsed";
+        text += timeElapsed + " secs elapsed.";
         text += " It can take a while when we first visit this page to populate the cache."
         text += " Later refreshes will become faster.";
         this.fetchProgressCallback[j]({
