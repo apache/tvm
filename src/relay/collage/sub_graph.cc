@@ -132,7 +132,8 @@ class Extractor : public ExprMutator {
     
     // Invoke the compiler target preprocessing function define under "relay.ext.compiler.optimize"
     if(opt_attrs_.defined() && (opt_attrs_.find("Compiler") != opt_attrs_.end())) {
-      std::string spec_name = "clml";
+      DictAttrs opt_dict_attr = DictAttrs(opt_attrs_);
+      std::string spec_name = opt_dict_attr.GetAttr("Compiler", Optional<String>()).value();
       std::string ext_opt = "relay.ext." + spec_name + ".optimize";
       auto pf = tvm::runtime::Registry::Get(ext_opt);
       if (pf != nullptr) {

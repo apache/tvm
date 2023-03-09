@@ -235,7 +235,7 @@ def opencl_cost_estimator(mod, target):
     m.run()
     time_f = m.module.time_evaluator("run", ctx, repeat=5, number=20)
     cost = time_f().mean
-    return cost.mean
+    return cost
 
 
 def collage(model):
