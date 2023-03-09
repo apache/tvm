@@ -609,8 +609,33 @@ class TorchFXImporter:
 
     def _layer_norm(self, node: fx.node.Node) -> relax.Var:
         import torch  # type: ignore
+        import numpy as np  # type: ignore
 
         x = self.env[node.args[0]]
+
+        # functional.layer_norm
+        if node.target not in self.named_modules:
+            normalized_shape = self.env[node.args[1]]
+            dim_num = len(normalized_shape)
+            axes = list(range(-dim_num, 0))
+
+            gamma = self.env[node.kwargs["weight"]]
+            beta = node.kwargs["bias"]
+            if beta is None:
+                shape_tuple = [int(s) for s in normalized_shape.values]
+                beta = relax.const(np.zeros(shape_tuple), x.struct_info.dtype)
+            eps = node.kwargs["eps"]
+
+            return self.block_builder.emit(
+                relax.op.nn.layer_norm(
+                    x,
+                    gamma,
+                    beta,
+                    axes=axes,
+                    epsilon=eps,
+                )
+            )
+
         module = self.named_modules[node.target]
 
         if module.elementwise_affine:
@@ -886,6 +911,7 @@ class TorchFXImporter:
             "clamp": self._clamp,
             "relu": lambda node: self.block_builder.emit(relax.op.nn.relu(self.env[node.args[0]])),
             "gelu": lambda node: self.block_builder.emit(relax.op.nn.gelu(self.env[node.args[0]])),
+            "tanh": lambda node: self.block_builder.emit(relax.op.tanh(self.env[node.args[0]])),
             "interpolate": self._interpolate,
             "size": self._size,
             "getattr": self._getattr,
@@ -893,6 +919,7 @@ class TorchFXImporter:
             "contiguous": lambda node: self.env[node.args[0]],
             "to": lambda node: self.env[node.args[0]],
             "adaptive_avg_pool2d": self._adaptive_avg_pool2d(is_module=False),
+            "layer_norm": self._layer_norm,
         }
 
     def from_fx(
