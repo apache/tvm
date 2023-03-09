@@ -69,10 +69,6 @@ def _find_call(op_name: str, match_result: Mapping[DFPattern, Expr]) -> Optional
     return result
 
 
-def _is_depthwise_conv2d(ic, oc, groups):
-    return ic == oc == groups
-
-
 def _check_conv2d(
     match_result: Mapping[DFPattern, Expr],
     _: Expr,
@@ -93,9 +89,11 @@ def _check_conv2d(
     ):
         return False
 
+    # pylint: disable=invalid-name
     IC = data.struct_info.shape.values[3]
     OC = weight.struct_info.shape.values[0]
-    return not _is_depthwise_conv2d(IC, OC, conv2d_call.attrs.groups)
+    # not depthwise conv2d
+    return not IC == OC == conv2d_call.attrs.groups
 
 
 def _check_matmul(
@@ -132,6 +130,10 @@ def _get_activation_from_name(pattern_name):
 
 
 def matmul_patterns():
+    """
+    Returns a list of all matmul patterns in cutlass BYOC backend.
+    """
+
     def _matmul_pattern(pattern_name):
         transposed_rhs = "_transposed" in pattern_name
         with_bias = "_bias" in pattern_name
@@ -160,6 +162,10 @@ def matmul_patterns():
 
 
 def conv2d_patterns():
+    """
+    Returns a list of all conv2d patterns in cutlass BYOC backend.
+    """
+
     def _conv2d_pattern(pattern_name):
         with_bias = "_bias" in pattern_name
         activation = _get_activation_from_name(pattern_name)
@@ -183,6 +189,9 @@ def conv2d_patterns():
 
 
 def residual_block_patterns():
+    """
+    Returns a list of all residual block patterns in cutlass BYOC backend.
+    """
     patterns = []
 
     for activation, name_postfix in [(None, ""), ("relax.nn.relu", "_relu")]:
@@ -202,6 +211,9 @@ def residual_block_patterns():
 
 
 def attention_patterns():
+    """
+    Returns a list of all attention patterns in cutlass BYOC backend.
+    """
     return [
         (
             "cutlass.attention",
