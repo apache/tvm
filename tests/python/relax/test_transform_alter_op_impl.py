@@ -22,7 +22,6 @@ from tvm import relax
 from tvm.script import tir as T, ir as I, relax as R
 
 kOperatorName = "operator_name"
-kFrozenLayout = "frozen_layout"
 
 
 def _check(before, expected, operator_name, replacement_primfunc, layout_changes):
@@ -58,7 +57,7 @@ def test_single_output():
     class Expected:
         @T.prim_func
         def relax_add_replacement(arg0: T.Buffer((4, 4), "float32"), arg1: T.Buffer((4, 4), "float32"), output: T.Buffer((4, 4), "float32")):
-            T.func_attr({"frozen_layout": True, "operator_name": "relax.add"})
+            T.func_attr({"operator_name": "relax.add"})
             for ax0, ax1 in T.grid(4, 4):
                 with T.block("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -121,7 +120,7 @@ def test_empty_layout_changes():
     class Expected:
         @T.prim_func
         def relax_mul_by_2_replacement(arg0: T.Buffer((16,), "float32"), output: T.Buffer((16,), "float32")):
-            T.func_attr({"frozen_layout": True, "operator_name": "relax.mul_by_2"})
+            T.func_attr({"operator_name": "relax.mul_by_2"})
             for ax0 in range(16):
                 with T.block("T_add"):
                     v_ax0 = T.axis.spatial(16, ax0)
@@ -182,7 +181,7 @@ def test_multiple_outputs():
     class Expected:
         @T.prim_func
         def relax_some_op_replacement(arg0: T.Buffer((4, 4), "float32"), arg1: T.Buffer((4, 4), "float32"), output0: T.Buffer((4, 4), "float32"), output1: T.Buffer((4, 4), "float32")):
-            T.func_attr({"frozen_layout": True, "operator_name": "relax.some_op"})
+            T.func_attr({"operator_name": "relax.some_op"})
             for ax0, ax1 in T.grid(4, 4):
                 with T.block("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -296,7 +295,7 @@ def test_multiple_call_sites():
     class Expected:
         @T.prim_func
         def relax_add_replacement(arg0: T.Buffer((4, 4), "float32"), arg1: T.Buffer((4, 4), "float32"), output: T.Buffer((4, 4), "float32")):
-            T.func_attr({"frozen_layout": True, "operator_name": "relax.add"})
+            T.func_attr({"operator_name": "relax.add"})
             # with T.block("root"):
             for ax0, ax1 in T.grid(4, 4):
                 with T.block("T_add"):

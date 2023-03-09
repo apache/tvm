@@ -35,7 +35,6 @@ namespace relax {
 
 using namespace tir;
 static constexpr const char* kOperatorName = "operator_name";
-static constexpr const char* kFrozenLayout = "frozen_layout";
 
 /*! \brief Construct ranges from shape dimensions */
 static Array<Range> ConstructRangeFromShape(const Array<PrimExpr>& shape) {
@@ -185,13 +184,10 @@ class AlterOpImplMutator : public ExprMutator {
     if (cache_.count(replacement_func) != 0) {
       return cache_[replacement_func];
     }
-    Map<String, ObjectRef> attrs;
     // Retain the operator name attribute on the replacement PrimFunc. This can help any future
     // passes that use kOperatorName attribute to identify operator represented by a PrimFunc.
-    attrs.Set(kOperatorName, op_kind);
-    // Mark layouts as frozen to avoid any future modifications to the layouts of this PrimFunc.
-    attrs.Set(kFrozenLayout, Bool(true));
-    PrimFunc replacement_func_with_frozen_layout = WithAttrs(replacement_func, attrs);
+    PrimFunc replacement_func_with_frozen_layout =
+        WithAttr(replacement_func, kOperatorName, op_kind);
 
     GlobalVar gv_replacement =
         builder_->AddFunction(replacement_func_with_frozen_layout, op_kind + "_replacement");
