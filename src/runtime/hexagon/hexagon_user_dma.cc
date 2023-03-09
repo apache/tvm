@@ -89,16 +89,24 @@ int HexagonUserDMA::Copy(int queue_id, void* dst, void* src, uint32_t length, bo
   dma_desc_set_src(dma_desc, src32);
   dma_desc_set_dst(dma_desc, dst32);
 
-  // store to the dst to make sure we have ownership before we DMA
+  // Ensure it is safe to issue the DMA by asserting ownership over the destination address for the
+  // specified lenght in bytes which will be modified by the DMA copy. There are two methods to do
+  // this: 1) Write a byte per crouton in the destination address and 2) Issue a StoreRelease.
+  // Method 1: The scalar core which executes this code will respect ownership by another hardware
+  // entity on the destination croutons and block until such ownership is released. Method 2:
+  // StoreRelease ensurse that all stores in flight prior to issuing this DMA copy have completed
+  // the DMA is issued. Using method 1 for now as it appears to be more efficient but leaving method
+  // 2 (commented) for possible future use.
+
+  // 1) Write a byte per crouton in the destination address
   int crouton = 8 * 8 * 32;
   for (int i = 0; i < length; i += crouton) {
     *(static_cast<char*>(dst) + i) = 0;
   }
 
-  // Write the destination pointer using memw_rl aka StoreRelease to ensure that all stores in
-  // flight prior to issuing this DMA copy have completed the DMA is issued
-  //uint32_t* dstptr = reinterpret_cast<uint32_t*>(dma_desc) + 3;
-  //asm volatile("memw_rl(%0):at=%1" : : "r"(dstptr), "r"(dst32));
+  // 2) Issue a store release
+  // uint32_t* dstptr = reinterpret_cast<uint32_t*>(dma_desc) + 3;
+  // asm volatile("memw_rl(%0):at=%1" : : "r"(dstptr), "r"(dst32));
 
   if (first_dma_) {
     // `dmstart` first descriptor
