@@ -33,9 +33,6 @@
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
 
-// TODO(@apeskov): Have to mute warning from cublas headers.
-//  -Wzero-as-null-pointer-constant and -Wdocumentation-unknown-command
-
 #include "cublas_utils.h"
 
 namespace tvm {
@@ -49,34 +46,38 @@ class CublasJSONRuntime : public JSONRuntimeBase {
  public:
   CublasJSONRuntime(const std::string& symbol_name, const std::string& graph_json,
                     const Array<String> const_names)
-      : JSONRuntimeBase(symbol_name, graph_json, const_names) {}
+      : JSONRuntimeBase(symbol_name, graph_json, const_names) {
+  }
 
   void Init(const Array<NDArray>& consts) override {
   }
 
-  /* Unused stub implementation */
-  void Run() override { LOG(FATAL) << "Unreachable code"; }
+  void Run() override{
+    cublasLtHandle_t handle;
+    cublasLtCreate(&handle);
 
-  /* Thread safe implementation of Run. Keep runtime instance immutable */
-  void Run(const TVMArgs& args) const {}
-
-  /* Override GetFunction to reimplement Run method */
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override {
-    if (this->symbol_name_ == name) {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        ICHECK(this->initialized_) << "The module has not been initialized";
-
-        ICHECK_EQ(args.size(), input_var_eid_.size() + outputs_.size())
-            << "Found mismatch in the number of provided data entries and required.";
-
-        Run(args);
-      });
-    } else {
-      return JSONRuntimeBase::GetFunction(name, sptr_to_self);
+    for (size_t i = 0; i < nodes_.size();  ++i) {
+      const auto& node = nodes_[i];
+      if (node.GetOpType() == "kernel") {
+        auto op_name = node.GetOpName();
+        if (op_name == "cublas.matmul") {
+	  auto a_ptr = GetInput(node, 0);
+	  auto b_ptr = GetInput(node, 1);
+          uint32_t output_eid = EntryID(outputs_[0]);
+	  auto out_ptr = data_entry_[output_eid];
+	  tvm::contrib::CallCublasLt(handle, a_ptr, b_ptr, out_ptr, false, false, 1.0, 0.0);
+	}
+      }
     }
   }
 
  private:
+  const DLTensor* GetInput(const JSONGraphNode& node, const int idx) {
+    ICHECK_LT(idx, node.GetInputs().size());
+    auto eid = EntryID(node.GetInputs()[idx]);
+    ICHECK(eid < data_entry_.size());
+    return data_entry_[eid];
+  }
 };
 
 runtime::Module CublasJSONRuntimeCreate(String symbol_name, String graph_json,

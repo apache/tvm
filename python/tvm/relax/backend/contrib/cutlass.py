@@ -33,16 +33,6 @@ from ..patterns import (
 )
 
 
-def _get_static_shape(shape: ShapeExpr) -> Optional[Tuple[int]]:
-    result = []
-    for dim in shape.values:
-        if isinstance(dim, tvm.tir.expr.IntImm):
-            result.append(int(dim))
-        else:
-            return None
-    return result
-
-
 def _is_supported_dtype(lhs_dtype, rhs_dtype):
     """Check if dtypes in the given workload are supported by CUTLASS."""
     return (

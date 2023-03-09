@@ -23,7 +23,6 @@ import tvm.topi.testing
 from tvm import relax
 from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
 from tvm.contrib.pickle_memoize import memoize
-from tvm.relax.backend import get_patterns_with_prefix
 from tvm.relax.backend.contrib.cutlass import partition_for_cutlass
 from tvm.script import relax as R
 from tvm.script.ir_builder import IRBuilder
@@ -96,9 +95,6 @@ def build_and_run(mod, inputs_np, target, legalize=False):
 
 
 def get_result_with_relax_cutlass_offload(mod, *args, assert_all_bindings_fused=True):
-    patterns = [(entry.name, entry.pattern) for entry in get_patterns_with_prefix("cutlass")]
-    assert len(patterns) != 0, "Cannot find cutlass patterns"
-
     mod = partition_for_cutlass(mod)
 
     if assert_all_bindings_fused:

@@ -104,6 +104,10 @@ inline cudaDataType_t GetCudaDataType(DLDataType type) {
   }
   LOG(FATAL) << "Unsupported cuda type";
 }
+
+void CallCublasLt(cublasLtHandle_t hdl, const DLTensor* A, const DLTensor* B, const DLTensor* C,
+                  bool transa, bool transb, float alpha, float beta);
+
 }  // namespace contrib
 }  // namespace tvm
 
