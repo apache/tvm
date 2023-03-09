@@ -354,7 +354,7 @@ using ReductionStrideIndex = typename ReductionDevice::StrideIndex;
         return substitute_template(template, values)
 
 
-def instantiate_conv2d_template(attrs, func_args):
+def instantiate_conv2d_template(attrs):
     """Return CUTLASS host code for conv2d based on a template and the provided attribute map."""
     template = """
     ${cutlass_op_def}
@@ -382,8 +382,8 @@ def instantiate_conv2d_template(attrs, func_args):
   cutlass::conv::Conv2dProblemSize problem_size(N, H, W, C, K, R, S, P, Q, pad_h, pad_w, stride_h, stride_w, dilation_h, dilation_w, cutlass::conv::Mode::kCrossCorrelation, split_k_slices);
   const cutlass::conv::SplitKMode split_k_mode = cutlass::conv::SplitKMode::${split_k_mode};
 
-  void* ptr_a = (void*)(${arg0}->data);
-  void* ptr_b = (void*)(${arg1}->data);
+  void* ptr_a = (void*)(${data_arg}->data);
+  void* ptr_b = (void*)(${weight_arg}->data);
   ${bias_decl}
   ${residual_decl}
   void* ptr_out = (void*)(out0->data);
@@ -481,12 +481,12 @@ def instantiate_conv2d_template(attrs, func_args):
         aux_map["beta"] = "1"
 
     if has_residual_blcok:
-        aux_map["bias_decl"] = "void* ptr_bias = (void*)(${arg2}->data);\n"
-        aux_map["residual_decl"] = "void* ptr_residual = (void*)(${arg3}->data);"
+        aux_map["bias_decl"] = "void* ptr_bias = (void*)(${bias_arg}->data);\n"
+        aux_map["residual_decl"] = "void* ptr_residual = (void*)(${residual_arg}->data);"
         aux_map["tensor_c"] = "ptr_residual"
         aux_map["tensor_c_layout"] = "layout_C"
     elif has_bias:
-        aux_map["bias_decl"] = "void* ptr_c_bias = (void*)(${arg2}->data);\n"
+        aux_map["bias_decl"] = "void* ptr_c_bias = (void*)(${bias_arg}->data);\n"
         aux_map["residual_decl"] = ""
         aux_map["tensor_c"] = "ptr_c_bias"
         aux_map["tensor_c_layout"] = "cutlass::layout::TensorNHWC::Stride(0)"
@@ -533,8 +533,5 @@ def instantiate_conv2d_template(attrs, func_args):
         aux_map["split_k_reset"] = aux_map["split_k_update"] = aux_map["split_k_reduction"] = ""
 
     template = substitute_template(template, aux_map)
-
-    for i, arg in enumerate(func_args):
-        attrs["arg{}".format(i)] = arg
 
     return substitute_template(template, attrs)

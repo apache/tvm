@@ -633,13 +633,17 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
     def handle_conv2d(self, f, op_type):
         """Tune and annotate a conv2d op."""
         signature = _extract_relax_function_signature(f)
+        arg_idx = _extract_arg_idx(op_type, f)
         op_attrs = _get_call_node(f.body, "relax.nn.conv2d").attrs
 
-        d_shape = signature["arg0_shape"]
-        w_shape = signature["arg1_shape"]
+        data_arg = f"arg{arg_idx['lhs']}"
+        weight_arg = f"arg{arg_idx['rhs']}"
+
+        d_shape = signature[f"{data_arg}_shape"]
+        w_shape = signature[f"{weight_arg}_shape"]
         out_shape = signature["ret_shape"]
-        data_dtype = signature["arg0_dtype"]
-        weight_dtype = signature["arg1_dtype"]
+        data_dtype = signature[f"{data_arg}_dtype"]
+        weight_dtype = signature[f"{weight_arg}_dtype"]
         out_dtype = signature["ret_dtype"]
         padding = op_attrs["padding"]
         strides = op_attrs["strides"]
@@ -673,6 +677,10 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         return f.with_attrs(
             {
                 "op_type": op_type,
+                "data_arg_idx": arg_idx["lhs"],
+                "weight_arg_idx": arg_idx["rhs"],
+                "bias_arg_idx": arg_idx.get("bias"),
+                "residual_arg_idx": arg_idx.get("residual"),
                 "arg0_dtype": data_dtype,
                 "arg1_dtype": weight_dtype,
                 "ret_dtype": out_dtype,

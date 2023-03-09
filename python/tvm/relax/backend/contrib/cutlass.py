@@ -26,9 +26,10 @@ from tvm.relax.dpl import CallPattern, DFPattern
 
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
 from ..patterns import (
+    make_attention_pattern,
     make_fused_bias_activation_pattern,
     make_matmul_pattern,
-    make_attention_pattern,
+    make_residual_block_pattern,
 )
 
 
@@ -51,21 +52,59 @@ def _is_supported_dtype(lhs_dtype, rhs_dtype):
     )
 
 
-def _check_matmul(
-    match_result: Mapping[DFPattern, Expr],
-    _: Expr,
-) -> bool:
-    matmul_call: Call = None
+def _find_call(op_name: str, match_result: Mapping[DFPattern, Expr]) -> Optional[Expr]:
+    result = None
+
     for pattern, expr in match_result.items():
         if (
             isinstance(expr, Call)
             and isinstance(pattern, CallPattern)
             and isinstance(expr.op, tvm.ir.Op)
-            and expr.op.name == "relax.matmul"
+            and expr.op.name == op_name
         ):
-            matmul_call = expr
+            if result is not None:
+                raise ValueError(f"Found multiple matched call node for {op_name}")
+            result = expr
+
+    return result
+
+
+def _check_conv2d(
+    match_result: Mapping[DFPattern, Expr],
+    _: Expr,
+):
+    """Check if the given conv2d workload can be offloaded to CUTLASS."""
+
+    conv2d_call = _find_call("relax.nn.conv2d", match_result)
+    if conv2d_call is None:
+        return False
+
+    data_layout = conv2d_call.attrs.data_layout
+    kernel_layout = conv2d_call.attrs.kernel_layout
+    data, weight, *_ = conv2d_call.args
+    if (
+        data_layout != "NHWC"
+        or kernel_layout != "OHWI"
+        or not _is_supported_dtype(data.struct_info.dtype, weight.struct_info.dtype)
+    ):
+        return False
+
+    # pylint: disable=invalid-name
+    IC = data.struct_info.shape.values[3]
+    OC = weight.struct_info.shape.values[0]
+    # not depthwise conv2d
+    return not IC == OC == conv2d_call.attrs.groups
+
+
+def _check_matmul(
+    match_result: Mapping[DFPattern, Expr],
+    _: Expr,
+) -> bool:
+    """Check if the given matmul workload can be offloaded to CUTLASS."""
+
+    matmul_call: Call = _find_call("relax.matmul", match_result)
     if matmul_call is None:
-        raise ValueError("Cannot find call to matmul from match_result.")
+        return False
 
     lhs, rhs, *_ = matmul_call.args
 
@@ -79,88 +118,103 @@ def _check_matmul(
     return is_shape_valid_for_cutlass_matmul(lhs_shape, rhs_shape)
 
 
-register_patterns(
-    [
-        (
-            "cutlass.conv2d",
+def _get_activation_from_name(pattern_name):
+    if "_relu" in pattern_name:
+        return "relax.nn.relu"
+    elif "_gelu" in pattern_name:
+        return "relax.nn.gelu"
+    elif "_silu" in pattern_name:
+        return "relax.nn.silu"
+    else:
+        return None
+
+
+def matmul_patterns():
+    """
+    Returns a list of all matmul patterns in cutlass BYOC backend.
+    """
+
+    def _matmul_pattern(pattern_name):
+        transposed_rhs = "_transposed" in pattern_name
+        with_bias = "_bias" in pattern_name
+        activation = _get_activation_from_name(pattern_name)
+
+        return (
+            pattern_name,
+            *make_matmul_pattern(
+                transposed_rhs=transposed_rhs,
+                with_bias=with_bias,
+                activation=activation,
+            ),
+            _check_matmul,
+        )
+
+    return [
+        _matmul_pattern("cutlass.matmul"),
+        _matmul_pattern("cutlass.matmul_bias"),
+        _matmul_pattern("cutlass.matmul_bias_relu"),
+        _matmul_pattern("cutlass.matmul_bias_gelu"),
+        _matmul_pattern("cutlass.matmul_transposed"),
+        _matmul_pattern("cutlass.matmul_transposed_bias"),
+        _matmul_pattern("cutlass.matmul_transposed_bias_relu"),
+        _matmul_pattern("cutlass.matmul_transposed_bias_gelu"),
+    ]
+
+
+def conv2d_patterns():
+    """
+    Returns a list of all conv2d patterns in cutlass BYOC backend.
+    """
+
+    def _conv2d_pattern(pattern_name):
+        with_bias = "_bias" in pattern_name
+        activation = _get_activation_from_name(pattern_name)
+
+        return (
+            pattern_name,
             *make_fused_bias_activation_pattern(
                 "relax.nn.conv2d",
-                with_bias=False,
-                activation=None,
+                with_bias=with_bias,
+                activation=activation,
             ),
-        ),
-        (
-            "cutlass.conv2d_bias_relu",
-            *make_fused_bias_activation_pattern(
-                "relax.nn.conv2d",
-                with_bias=True,
-                activation="relax.nn.relu",
-            ),
-        ),
-        (
-            "cutlass.matmul",
-            *make_matmul_pattern(
-                with_bias=False,
-            ),
-            _check_matmul,
-        ),
-        (
-            "cutlass.matmul_bias",
-            *make_matmul_pattern(
-                with_bias=True,
-            ),
-            _check_matmul,
-        ),
-        (
-            "cutlass.matmul_bias_relu",
-            *make_matmul_pattern(
-                with_bias=True,
-                activation="relax.nn.relu",
-            ),
-            _check_matmul,
-        ),
-        (
-            "cutlass.matmul_bias_gelu",
-            *make_matmul_pattern(
-                with_bias=True,
-                activation="relax.nn.gelu",
-            ),
-            _check_matmul,
-        ),
-        (
-            "cutlass.matmul_transposed",
-            *make_matmul_pattern(
-                with_bias=False,
-                transposed_rhs=True,
-            ),
-            _check_matmul,
-        ),
-        (
-            "cutlass.matmul_transposed_bias",
-            *make_matmul_pattern(
-                with_bias=True,
-                transposed_rhs=True,
-            ),
-            _check_matmul,
-        ),
-        (
-            "cutlass.matmul_transposed_bias_relu",
-            *make_matmul_pattern(
-                with_bias=True,
-                activation="relax.nn.relu",
-                transposed_rhs=True,
-            ),
-            _check_matmul,
-        ),
-        (
-            "cutlass.matmul_transposed_bias_gelu",
-            *make_matmul_pattern(
-                with_bias=True,
-                activation="relax.nn.gelu",
-                transposed_rhs=True,
-            ),
-            _check_matmul,
-        ),
+            _check_conv2d,
+        )
+
+    return [
+        _conv2d_pattern("cutlass.conv2d"),
+        _conv2d_pattern("cutlass.conv2d_bias"),
+        _conv2d_pattern("cutlass.conv2d_bias_relu"),
+        _conv2d_pattern("cutlass.conv2d_bias_silu"),
+    ]
+
+
+def residual_block_patterns():
+    """
+    Returns a list of all residual block patterns in cutlass BYOC backend.
+    """
+    patterns = []
+
+    for activation, name_postfix in [(None, ""), ("relax.nn.relu", "_relu")]:
+        for name, pat, arg_pat, _ in conv2d_patterns()[1:]:
+            for bin_op in ["relax.add", "relax.multiply"]:
+                patterns.append(
+                    (
+                        name + "_residual_" + bin_op.split(".")[-1] + name_postfix,
+                        *make_residual_block_pattern(
+                            (pat, arg_pat), binary_op=bin_op, activation=activation
+                        ),
+                        _check_conv2d,
+                    )
+                )
+
+    return patterns
+
+
+def attention_patterns():
+    """
+    Returns a list of all attention patterns in cutlass BYOC backend.
+    """
+    return [
         (
             "cutlass.attention",
             *make_attention_pattern(),
@@ -169,6 +223,15 @@ register_patterns(
             "cutlass.attention_bias",
             *make_attention_pattern(with_bias=True),
         ),
+    ]
+
+
+register_patterns(
+    [
+        *conv2d_patterns(),
+        *matmul_patterns(),
+        *residual_block_patterns(),
+        *attention_patterns(),
     ]
 )
 

@@ -28,9 +28,9 @@ from tvm.runtime import Object
 from tvm.tir import IntImm
 
 from . import _ffi_api as ffi
+from .attention_operation import instantiate_attention_template
 from .conv2d_operation import instantiate_conv2d_template
 from .gemm_operation import instantiate_gemm_template
-from .attention_operation import instantiate_attention_template
 from .library import (
     DataType,
     DataTypeSize,
@@ -463,9 +463,9 @@ class CodegenResult(Object):
 
 def _get_optional_int_annotation(annotations, key, default=None):
     value = annotations.get(key, default)
-    if value is not None:
-        return int(value)
-    return value
+    if value is None:
+        return default
+    return int(value)
 
 
 @tvm._ffi.register_func("contrib.cutlass.instantiate_template")
@@ -614,10 +614,21 @@ def instantiate_template(func_name, annotations, func_args):
         return CodegenResult(code, headers)
 
     elif "conv2d" in func_name:
-        activation_shape = arg0_shape
-        weight_shape = arg1_shape
+        data_arg_idx = _get_optional_int_annotation(annotations, "data_arg_idx", 0)
+        weight_arg_idx = _get_optional_int_annotation(annotations, "weight_arg_idx", 1)
+        bias_arg_idx = _get_optional_int_annotation(annotations, "bias_arg_idx", 2)
+        residual_arg_idx = _get_optional_int_annotation(annotations, "residual_arg_idx", 3)
+
+        attrs["data_arg"] = func_args[data_arg_idx]
+        attrs["weight_arg"] = func_args[weight_arg_idx]
+        if len(func_args) > bias_arg_idx:
+            attrs["bias_arg"] = func_args[bias_arg_idx]
+        if len(func_args) > residual_arg_idx:
+            attrs["residual_arg"] = func_args[residual_arg_idx]
+
+        activation_shape = annotations[f"arg{data_arg_idx}_shape"]
+        weight_shape = annotations[f"arg{weight_arg_idx}_shape"]
         output_shape = annotations["ret_shape"]
-        activation_var = func_args[0]
 
         if "conv2d_transpose" in func_name:
             headers.append("cutlass/conv/kernel/default_conv2d_dgrad.h")
@@ -643,9 +654,10 @@ def instantiate_template(func_name, annotations, func_args):
                 "cutlass/reduction/thread/reduction_operators.h",
             ]
 
-        attrs["N"] = get_dim(activation_shape[0], activation_var, 0)
-        attrs["H"] = get_dim(activation_shape[1], activation_var, 1)
-        attrs["W"] = get_dim(activation_shape[2], activation_var, 2)
+        data_arg = attrs["data_arg"]
+        attrs["N"] = get_dim(activation_shape[0], data_arg, 0)
+        attrs["H"] = get_dim(activation_shape[1], data_arg, 1)
+        attrs["W"] = get_dim(activation_shape[2], data_arg, 2)
         attrs["C"] = activation_shape[3]
         attrs["P"] = get_dim(output_shape[1], "out0", 1)
         attrs["Q"] = get_dim(output_shape[2], "out0", 2)
@@ -666,7 +678,7 @@ def instantiate_template(func_name, annotations, func_args):
             attrs["split_k_mode"] = "kSerial"
             attrs["split_k_slices"] = 1
 
-        code = instantiate_conv2d_template(attrs, func_args)
+        code = instantiate_conv2d_template(attrs)
         return CodegenResult(code, headers)
 
     elif "attention" in func_name:
