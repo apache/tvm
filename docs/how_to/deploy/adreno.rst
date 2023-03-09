@@ -475,7 +475,7 @@ Please refer to the tutorial for the same
 Saved ``TVMCPackage`` can be used for native deployment using ``rtvm`` utility too.
 
 Also, please refer to `tvmc <https://tvm.apache.org/docs/tutorial/tvmc_command_line_driver.html?highlight=tvmc>`_
- documentation for more details about the api interface.
+documentation for more details about the api interface.
 
 **Relay Interface:**
 
