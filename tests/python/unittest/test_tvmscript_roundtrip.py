@@ -21,7 +21,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import tir
-from tvm.script import tir as T
+from tvm.script import tir as T, relax as R, ir as I
 
 import numpy as np
 
@@ -3565,6 +3565,22 @@ def let_stmt_value():
     return func
 
 
+def call_tir_attrs():
+    @I.ir_module
+    class mod:
+        @R.function
+        def main(A: R.Tensor(("m", "n"), "float32")) -> R.Tensor:
+            m, n = T.var("int64"), T.var("int64")
+            B = R.call_tir(tir_primfunc, (A,), R.Tensor((m, n), dtype="float32"), attrs={"key": 42})
+            return B
+
+        @T.prim_func
+        def tir_primfunc(a: T.handle, c: T.handle):
+            T.evaluate(0)
+
+    return mod
+
+
 ir_generator = tvm.testing.parameter(
     opt_gemm_normalize,
     opt_gemm_lower,
@@ -3625,6 +3641,7 @@ ir_generator = tvm.testing.parameter(
     intrinsic_pow,
     let_stmt_var,
     let_stmt_value,
+    call_tir_attrs,
 )
 
 
@@ -3638,6 +3655,14 @@ def test_return_none_no_trailing_type():
     func = return_none()
     script = func.script()
     assert "-> None" not in script
+
+
+def test_call_tir_has_attrs():
+    mod = call_tir_attrs()
+    call_node = mod["main"].body.blocks[0].bindings[0].value
+    assert call_node.attrs is not None
+    assert "key" in call_node.attrs
+    assert call_node.attrs["key"] == 42
 
 
 if __name__ == "__main__":

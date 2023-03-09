@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # pylint: disable=redefined-builtin
 """The base Relax operators."""
-from typing import Union, List, Tuple, Optional
+from typing import Union, List, Tuple, Optional, Dict
 
 
 import tvm
@@ -49,6 +49,7 @@ def call_tir(
     args: Expr,
     out_sinfo: Union[TensorStructInfo, List[TensorStructInfo]],
     tir_vars: Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]] = None,
+    attrs: Optional[Union[tvm.ir.Attrs, Dict]] = None,
 ) -> Call:
     """
     Call a destination-passing-style function and return the output.
@@ -69,6 +70,9 @@ def call_tir(
     tir_vars : Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]]
         ShapeExpr representing a tuple of integers to unpack when calling func. Is null if not used
 
+    attrs: Optional[Union[tvm.ir.Attrs,Dict]]
+        The attributes of the `relax::Call` node.
+
     Returns
     -------
     ret: Call
@@ -86,7 +90,10 @@ def call_tir(
     if isinstance(tir_vars, (list, tuple)):
         tir_vars = ShapeExpr(tir_vars)
 
-    return _ffi_api.call_tir(func, args, out_sinfo, tir_vars)  # type: ignore
+    if isinstance(attrs, dict):
+        attrs = tvm.ir.make_node("DictAttrs", **attrs)
+
+    return _ffi_api.call_tir(func, args, out_sinfo, tir_vars, attrs)  # type: ignore
 
 
 @args_converter.auto

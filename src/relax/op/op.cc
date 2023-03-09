@@ -93,7 +93,7 @@ RELAY_REGISTER_OP("relax.call_tir")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIR);
 
 Expr MakeCallTIR(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list,
-                 Optional<Expr> packed_ints) {
+                 Optional<Expr> packed_ints, Optional<Attrs> opt_attrs) {
   for (const TensorStructInfo& sinfo : out_sinfo_list) {
     const auto* shape = sinfo->shape.as<ShapeExprNode>();
     CHECK(shape != nullptr) << "out_sinfo of call_tir should have defined ShapeExpr as shape. "
@@ -108,13 +108,15 @@ Expr MakeCallTIR(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list,
     out_sinfo = TupleStructInfo({out_sinfo_list.begin(), out_sinfo_list.end()});
   }
 
+  Attrs attrs = opt_attrs.value_or({});
+
   static const Op& op = Op::Get("relax.call_tir");
   Call call;
   if (!packed_ints) {
     // don't use additional optional argument
-    call = Call(op, {func, args}, {}, {out_sinfo});
+    call = Call(op, {func, args}, attrs, {out_sinfo});
   } else {
-    call = Call(op, {func, args, packed_ints.value()}, {}, {out_sinfo});
+    call = Call(op, {func, args, packed_ints.value()}, attrs, {out_sinfo});
   }
   return call;
 }

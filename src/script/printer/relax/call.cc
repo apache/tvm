@@ -128,6 +128,13 @@ Optional<ExprDoc> PrintCallTIR(const relax::Call& n, const ObjectPath& n_p, cons
     kwargs_keys.push_back("tir_vars");
     kwargs_values.push_back(d->AsDoc<ExprDoc>(n->args[2], n_p->Attr("args")->ArrayIndex(2)));
   }
+
+  // Step 5. Print any attributes as an additional keyword argument
+  if (n->attrs.defined()) {
+    kwargs_keys.push_back("attrs");
+    kwargs_values.push_back(d->AsDoc<ExprDoc>(n->attrs, n_p->Attr("attrs")));
+  }
+
   return Relax(d, "call_tir")->Call(args, kwargs_keys, kwargs_values);
 }
 
