@@ -18,7 +18,7 @@
 import pytest
 import tvm
 from tvm.relax.transform import LegalizeOps
-from tvm.script import relax as R, tir as T
+from tvm.script import relax as R, tir as T, ir as I
 import tvm.testing
 
 
@@ -207,6 +207,188 @@ def test_conv2d_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_conv2d_transpose():
+    # fmt: off
+    @I.ir_module
+    class Conv2dTranspose:
+        @R.function
+        def main(x: R.Tensor((2, 128, 28, 28), "float32"), w: R.Tensor((128, 16, 3, 3), "float32")):
+            gv = R.nn.conv2d_transpose(x, w, strides=(2, 3), padding=(1, 1), dilation=(1, 1), output_padding=(1, 2), groups=8)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 128, 28, 28), dtype="float32"), w: R.Tensor((128, 16, 3, 3), dtype="float32")) -> R.Tensor((2, 128, 56, 84), dtype="float32"):
+            gv = R.call_tir(conv2d_transpose, (x, w), out_sinfo=R.Tensor((2, 128, 56, 84), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def conv2d_transpose(rxplaceholder: T.Buffer((T.int64(2), T.int64(128), T.int64(28), T.int64(28)), "float32"), rxplaceholder_1: T.Buffer((T.int64(128), T.int64(16), T.int64(3), T.int64(3)), "float32"), compute: T.Buffer((T.int64(2), T.int64(128), T.int64(56), T.int64(84)), "float32")):
+            T.func_attr({"tir.noalias": True})
+            # with T.block("root"):
+            data_dilate = T.alloc_buffer((T.int64(2), T.int64(128), T.int64(55), T.int64(82)))
+            data_pad = T.alloc_buffer((T.int64(2), T.int64(128), T.int64(58), T.int64(86)))
+            kernel_transform = T.alloc_buffer((T.int64(16), T.int64(128), T.int64(3), T.int64(3)))
+            for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(128), T.int64(55), T.int64(82)):
+                with T.block("data_dilate"):
+                    v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    T.reads(rxplaceholder[v_i0, v_i1, v_i2 // T.int64(2), v_i3 // T.int64(3)])
+                    T.writes(data_dilate[v_i0, v_i1, v_i2, v_i3])
+                    data_dilate[v_i0, v_i1, v_i2, v_i3] = T.if_then_else(v_i2 % T.int64(2) == T.int64(0) and v_i3 % T.int64(3) == T.int64(0), rxplaceholder[v_i0, v_i1, v_i2 // T.int64(2), v_i3 // T.int64(3)], T.float32(0))
+            for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(128), T.int64(58), T.int64(86)):
+                with T.block("data_pad"):
+                    v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    T.reads(data_dilate[v_i0, v_i1, v_i2 - T.int64(1), v_i3 - T.int64(1)])
+                    T.writes(data_pad[v_i0, v_i1, v_i2, v_i3])
+                    data_pad[v_i0, v_i1, v_i2, v_i3] = T.if_then_else(T.int64(1) <= v_i2 and v_i2 < T.int64(56) and T.int64(1) <= v_i3 and v_i3 < T.int64(83), data_dilate[v_i0, v_i1, v_i2 - T.int64(1), v_i3 - T.int64(1)], T.float32(0))
+            for i, o, h, w in T.grid(T.int64(16), T.int64(128), T.int64(3), T.int64(3)):
+                with T.block("kernel_transform"):
+                    v_i, v_o, v_h, v_w = T.axis.remap("SSSS", [i, o, h, w])
+                    T.reads(rxplaceholder_1[v_o, v_i, T.int64(2) - v_h, T.int64(2) - v_w])
+                    T.writes(kernel_transform[v_i, v_o, v_h, v_w])
+                    kernel_transform[v_i, v_o, v_h, v_w] = rxplaceholder_1[v_o, v_i, T.int64(2) - v_h, T.int64(2) - v_w]
+            for b, c, h, w, dc, dh, dw in T.grid(T.int64(2), T.int64(128), T.int64(56), T.int64(84), T.int64(16), T.int64(3), T.int64(3)):
+                with T.block("compute"):
+                    v_b, v_c, v_h, v_w, v_dc, v_dh, v_dw = T.axis.remap("SSSSRRR", [b, c, h, w, dc, dh, dw])
+                    T.reads(data_pad[v_b, v_c // T.int64(16) * T.int64(16) + v_dc, v_h + v_dh, v_w + v_dw], kernel_transform[v_c % T.int64(16), v_c // T.int64(16) * T.int64(16) + v_dc, v_dh, v_dw])
+                    T.writes(compute[v_b, v_c, v_h, v_w])
+                    with T.init():
+                        compute[v_b, v_c, v_h, v_w] = T.float32(0)
+                    compute[v_b, v_c, v_h, v_w] = compute[v_b, v_c, v_h, v_w] + data_pad[v_b, v_c // T.int64(16) * T.int64(16) + v_dc, v_h + v_dh, v_w + v_dw] * kernel_transform[v_c % T.int64(16), v_c // T.int64(16) * T.int64(16) + v_dc, v_dh, v_dw]
+    # fmt: on
+
+    mod = LegalizeOps()(Conv2dTranspose)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_conv2d_transpose_with_out_dtype():
+    # fmt: off
+    @tvm.script.ir_module
+    class Conv2dTranspose:
+        @R.function
+        def main(x: R.Tensor((2, 3, 28, 28), "float32"), w: R.Tensor((3, 4, 3, 3), "float32")):
+            gv = R.nn.conv2d_transpose(x, w, out_dtype="float16")
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3, 28, 28), dtype="float32"), w: R.Tensor((3, 4, 3, 3), dtype="float32")) -> R.Tensor((2, 4, 30, 30), dtype="float16"):
+            gv = R.call_tir(conv2d_transpose, (x, w), out_sinfo=R.Tensor((2, 4, 30, 30), dtype="float16"))
+            return gv
+
+        @T.prim_func
+        def conv2d_transpose(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(28), T.int64(28)), "float32"), rxplaceholder_1: T.Buffer((T.int64(3), T.int64(4), T.int64(3), T.int64(3)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4), T.int64(30), T.int64(30)), "float16")):
+            T.func_attr({"tir.noalias": True})
+            # with T.block("root"):
+            data_dilate = T.alloc_buffer((T.int64(2), T.int64(3), T.int64(28), T.int64(28)))
+            data_pad = T.alloc_buffer((T.int64(2), T.int64(3), T.int64(32), T.int64(32)))
+            kernel_transform = T.alloc_buffer((T.int64(4), T.int64(3), T.int64(3), T.int64(3)))
+            for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(3), T.int64(28), T.int64(28)):
+                with T.block("data_dilate"):
+                    v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    T.reads(rxplaceholder[v_i0, v_i1, v_i2, v_i3])
+                    T.writes(data_dilate[v_i0, v_i1, v_i2, v_i3])
+                    data_dilate[v_i0, v_i1, v_i2, v_i3] = rxplaceholder[v_i0, v_i1, v_i2, v_i3]
+            for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(3), T.int64(32), T.int64(32)):
+                with T.block("data_pad"):
+                    v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    T.reads(data_dilate[v_i0, v_i1, v_i2 - T.int64(2), v_i3 - T.int64(2)])
+                    T.writes(data_pad[v_i0, v_i1, v_i2, v_i3])
+                    data_pad[v_i0, v_i1, v_i2, v_i3] = T.if_then_else(T.int64(2) <= v_i2 and v_i2 < T.int64(30) and T.int64(2) <= v_i3 and v_i3 < T.int64(30), data_dilate[v_i0, v_i1, v_i2 - T.int64(2), v_i3 - T.int64(2)], T.float32(0))
+            for o, i, h, w in T.grid(T.int64(4), T.int64(3), T.int64(3), T.int64(3)):
+                with T.block("kernel_transform"):
+                    v_o, v_i, v_h, v_w = T.axis.remap("SSSS", [o, i, h, w])
+                    T.reads(rxplaceholder_1[v_i, v_o, T.int64(2) - v_h, T.int64(2) - v_w])
+                    T.writes(kernel_transform[v_o, v_i, v_h, v_w])
+                    kernel_transform[v_o, v_i, v_h, v_w] = rxplaceholder_1[v_i, v_o, T.int64(2) - v_h, T.int64(2) - v_w]
+            for b, c, h, w, dc, dh, dw in T.grid(T.int64(2), T.int64(4), T.int64(30), T.int64(30), T.int64(3), T.int64(3), T.int64(3)):
+                with T.block("compute"):
+                    v_b, v_c, v_h, v_w, v_dc, v_dh, v_dw = T.axis.remap("SSSSRRR", [b, c, h, w, dc, dh, dw])
+                    T.reads(data_pad[v_b, v_dc, v_h + v_dh, v_w + v_dw], kernel_transform[v_c, v_dc, v_dh, v_dw])
+                    T.writes(compute[v_b, v_c, v_h, v_w])
+                    with T.init():
+                        compute[v_b, v_c, v_h, v_w] = T.float16(0)
+                    compute[v_b, v_c, v_h, v_w] = compute[v_b, v_c, v_h, v_w] + T.Cast("float16", data_pad[v_b, v_dc, v_h + v_dh, v_w + v_dw]) * T.Cast("float16", kernel_transform[v_c, v_dc, v_dh, v_dw])
+    # fmt: on
+
+    mod = LegalizeOps()(Conv2dTranspose)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_conv2d_transpose_symbolic():
+    # fmt: off
+    @tvm.script.ir_module
+    class Conv2dTranspose:
+        @R.function
+        def main(x: R.Tensor(("n", "c", "h", "w"), "float32"), kernel: R.Tensor(("f", "c", "kh", "kw"), "float32")):
+            gv = R.nn.conv2d_transpose(x, kernel, strides=(3, 3))
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor(("n", "c", "h", "w"), dtype="float32"), kernel: R.Tensor(("f", "c", "kh", "kw"), dtype="float32")) -> R.Tensor(("n", "c", "h * 3 + kh - 3", "w * 3 + kw - 3"), dtype="float32"):
+            n = T.Var("n", "int64")
+            c = T.Var("c", "int64")
+            h = T.Var("h", "int64")
+            kh = T.Var("kh", "int64")
+            w = T.Var("w", "int64")
+            kw = T.Var("kw", "int64")
+            f = T.Var("f", "int64")
+            gv = R.call_tir(conv2d_transpose, (x, kernel), out_sinfo=R.Tensor((n, c, h * 3 + kh - 3, w * 3 + kw - 3), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def conv2d_transpose(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_compute: T.handle):
+            T.func_attr({"tir.noalias": True})
+            n = T.var("int64")
+            c = T.var("int64")
+            h = T.var("int64")
+            w = T.var("int64")
+            rxplaceholder = T.match_buffer(var_rxplaceholder, (n, c, h, w))
+            f = T.var("int64")
+            kh = T.var("int64")
+            kw = T.var("int64")
+            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (f, c, kh, kw))
+            compute = T.match_buffer(var_compute, (n, c, h * T.int64(3) + kh - T.int64(3), w * T.int64(3) + kw - T.int64(3)))
+            # with T.block("root"):
+            data_dilate = T.alloc_buffer((n, c, h * T.int64(3) - T.int64(2), w * T.int64(3) - T.int64(2)))
+            data_pad = T.alloc_buffer((n, c, h * T.int64(3) + kh * T.int64(2) - T.int64(4), w * T.int64(3) + kw * T.int64(2) - T.int64(4)))
+            kernel_transform = T.alloc_buffer((c, c, kh, kw))
+            for i0, i1, i2, i3 in T.grid(n, c, h * T.int64(3) - T.int64(2), w * T.int64(3) - T.int64(2)):
+                with T.block("data_dilate"):
+                    v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    T.reads(rxplaceholder[v_i0, v_i1, v_i2 // T.int64(3), v_i3 // T.int64(3)])
+                    T.writes(data_dilate[v_i0, v_i1, v_i2, v_i3])
+                    data_dilate[v_i0, v_i1, v_i2, v_i3] = T.if_then_else(v_i2 % T.int64(3) == T.int64(0) and v_i3 % T.int64(3) == T.int64(0), rxplaceholder[v_i0, v_i1, v_i2 // T.int64(3), v_i3 // T.int64(3)], T.float32(0))
+            for i0, i1, i2, i3 in T.grid(n, c, h * T.int64(3) + kh * T.int64(2) - T.int64(4), w * T.int64(3) + kw * T.int64(2) - T.int64(4)):
+                with T.block("data_pad"):
+                    v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    T.reads(data_dilate[v_i0, v_i1, v_i2 + T.int64(1) - kh, v_i3 + T.int64(1) - kw])
+                    T.writes(data_pad[v_i0, v_i1, v_i2, v_i3])
+                    data_pad[v_i0, v_i1, v_i2, v_i3] = T.if_then_else(kh - T.int64(1) <= v_i2 and v_i2 < h * T.int64(3) + kh - T.int64(3) and kw - T.int64(1) <= v_i3 and v_i3 < w * T.int64(3) + kw - T.int64(3), data_dilate[v_i0, v_i1, v_i2 + T.int64(1) - kh, v_i3 + T.int64(1) - kw], T.float32(0))
+            for o, i, h_1, w_1 in T.grid(c, c, kh, kw):
+                with T.block("kernel_transform"):
+                    v_o, v_i, v_h, v_w = T.axis.remap("SSSS", [o, i, h_1, w_1])
+                    T.reads(rxplaceholder_1[v_i, v_o, kh - v_h - T.int64(1), kw - v_w - T.int64(1)])
+                    T.writes(kernel_transform[v_o, v_i, v_h, v_w])
+                    kernel_transform[v_o, v_i, v_h, v_w] = rxplaceholder_1[v_i, v_o, kh - v_h - T.int64(1), kw - v_w - T.int64(1)]
+            for b, c_1, h_1, w_1, dc, dh, dw in T.grid(n, c, h * T.int64(3) + kh - T.int64(3), w * T.int64(3) + kw - T.int64(3), c, kh, kw):
+                with T.block("compute"):
+                    v_b, v_c, v_h, v_w, v_dc, v_dh, v_dw = T.axis.remap("SSSSRRR", [b, c_1, h_1, w_1, dc, dh, dw])
+                    T.reads(data_pad[v_b, v_dc, v_h + v_dh, v_w + v_dw], kernel_transform[v_c, v_dc, v_dh, v_dw])
+                    T.writes(compute[v_b, v_c, v_h, v_w])
+                    with T.init():
+                        compute[v_b, v_c, v_h, v_w] = T.float32(0)
+                    compute[v_b, v_c, v_h, v_w] = compute[v_b, v_c, v_h, v_w] + data_pad[v_b, v_dc, v_h + v_dh, v_w + v_dw] * kernel_transform[v_c, v_dc, v_dh, v_dw]
+    # fmt: on
+
+    mod = LegalizeOps()(Conv2dTranspose)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 def test_max_pool2d():
     # fmt: off
     @tvm.script.ir_module
@@ -342,6 +524,169 @@ def test_max_pool2d_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(MaxPool2D)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_avg_pool2d():
+    # fmt: off
+    @tvm.script.ir_module
+    class AvgPool2D:
+        @R.function
+        def main(x: R.Tensor((4, 112, 112, 6), "float32")) -> R.Tensor((4, 56, 56, 6), "float32"):
+            gv: R.Tensor((4, 56, 56, 6), "float32") = R.nn.avg_pool2d(x, pool_size=[3, 3], strides=[2, 2], dilation=[1, 1], padding=[1, 1, 1, 1], layout="NHWC")
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def avg_pool2d(rxplaceholder: T.Buffer((T.int64(4), T.int64(112), T.int64(112), T.int64(6)), "float32"), pool_avg: T.Buffer((T.int64(4), T.int64(56), T.int64(56), T.int64(6)), "float32")):
+            T.func_attr({"tir.noalias": True})
+            # with T.block("root"):
+            pad_temp = T.alloc_buffer((T.int64(4), T.int64(114), T.int64(114), T.int64(6)))
+            pool_sum = T.alloc_buffer((T.int64(4), T.int64(56), T.int64(56), T.int64(6)))
+            for ax0, ax1, ax2, ax3 in T.grid(T.int64(4), T.int64(114), T.int64(114), T.int64(6)):
+                with T.block("pad_temp"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(rxplaceholder[v_ax0, v_ax1 - T.int64(1), v_ax2 - T.int64(1), v_ax3])
+                    T.writes(pad_temp[v_ax0, v_ax1, v_ax2, v_ax3])
+                    pad_temp[v_ax0, v_ax1, v_ax2, v_ax3] = T.if_then_else(T.int64(1) <= v_ax1 and v_ax1 < T.int64(113) and T.int64(1) <= v_ax2 and v_ax2 < T.int64(113), rxplaceholder[v_ax0, v_ax1 - T.int64(1), v_ax2 - T.int64(1), v_ax3], T.float32(0))
+            for ax0, ax1, ax2, ax3, rv0, rv1 in T.grid(T.int64(4), T.int64(56), T.int64(56), T.int64(6), T.int64(3), T.int64(3)):
+                with T.block("pool_sum"):
+                    v_ax0, v_ax1, v_ax2, v_ax3, v_rv0, v_rv1 = T.axis.remap("SSSSRR", [ax0, ax1, ax2, ax3, rv0, rv1])
+                    T.reads(pad_temp[v_ax0, v_ax1 * T.int64(2) + v_rv0, v_ax2 * T.int64(2) + v_rv1, v_ax3])
+                    T.writes(pool_sum[v_ax0, v_ax1, v_ax2, v_ax3])
+                    with T.init():
+                        pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] = T.float32(0)
+                    pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] = pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] + pad_temp[v_ax0, v_ax1 * T.int64(2) + v_rv0, v_ax2 * T.int64(2) + v_rv1, v_ax3]
+            for ax0, ax1, ax2, ax3 in T.grid(T.int64(4), T.int64(56), T.int64(56), T.int64(6)):
+                with T.block("pool_avg"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(pool_sum[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T.writes(pool_avg[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T.block_attr({"schedule_rule": "meta_schedule.pool_avg"})
+                    pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / T.Cast("float32", (T.min(T.int64(1), T.int64(112) - v_ax1 * T.int64(2)) + T.int64(2)) * (T.min(T.int64(1), T.int64(112) - v_ax2 * T.int64(2)) + T.int64(2)))
+
+        @R.function
+        def main(x: R.Tensor((4, 112, 112, 6), dtype="float32")) -> R.Tensor((4, 56, 56, 6), dtype="float32"):
+            gv = R.call_tir(avg_pool2d, (x,), out_sinfo=R.Tensor((4, 56, 56, 6), dtype="float32"))
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(AvgPool2D)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_avg_pool2d_NCHW16c():
+    # fmt: off
+    @tvm.script.ir_module
+    class AvgPool2D:
+        @R.function
+        def main(x: R.Tensor((4, 4, 112, 112, 16), "float32")) -> R.Tensor((4, 4, 110, 110, 16), "float32"):
+            gv: R.Tensor((4, 4, 110, 110, 16), "float32") = R.nn.avg_pool2d(x, pool_size=[3, 3], layout="NCHW16c")
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def avg_pool2d(rxplaceholder: T.Buffer((T.int64(4), T.int64(4), T.int64(112), T.int64(112), T.int64(16)), "float32"), pool_avg: T.Buffer((T.int64(4), T.int64(4), T.int64(110), T.int64(110), T.int64(16)), "float32")):
+            T.func_attr({"tir.noalias": True})
+            # with T.block("root"):
+            pool_sum = T.alloc_buffer((T.int64(4), T.int64(4), T.int64(110), T.int64(110), T.int64(16)))
+            for ax0, ax1, ax2, ax3, ax4, rv0, rv1 in T.grid(T.int64(4), T.int64(4), T.int64(110), T.int64(110), T.int64(16), T.int64(3), T.int64(3)):
+                with T.block("pool_sum"):
+                    v_ax0, v_ax1, v_ax2, v_ax3, v_ax4, v_rv0, v_rv1 = T.axis.remap("SSSSSRR", [ax0, ax1, ax2, ax3, ax4, rv0, rv1])
+                    T.reads(rxplaceholder[v_ax0, v_ax1, v_ax2 + v_rv0, v_ax3 + v_rv1, v_ax4])
+                    T.writes(pool_sum[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
+                    with T.init():
+                        pool_sum[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = T.float32(0)
+                    pool_sum[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = pool_sum[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] + rxplaceholder[v_ax0, v_ax1, v_ax2 + v_rv0, v_ax3 + v_rv1, v_ax4]
+            for ax0, ax1, ax2, ax3, ax4 in T.grid(T.int64(4), T.int64(4), T.int64(110), T.int64(110), T.int64(16)):
+                with T.block("pool_avg"):
+                    v_ax0, v_ax1, v_ax2, v_ax3, v_ax4 = T.axis.remap("SSSSS", [ax0, ax1, ax2, ax3, ax4])
+                    T.reads(pool_sum[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
+                    T.writes(pool_avg[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
+                    T.block_attr({"schedule_rule": "meta_schedule.pool_avg"})
+                    pool_avg[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = pool_sum[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] / T.Cast("float32", (T.min(T.int64(2), T.int64(111) - v_ax2) + T.int64(1)) * (T.min(T.int64(2), T.int64(111) - v_ax3) + T.int64(1)))
+
+        @R.function
+        def main(x: R.Tensor((4, 4, 112, 112, 16), dtype="float32")) -> R.Tensor((4, 4, 110, 110, 16), dtype="float32"):
+            gv = R.call_tir(avg_pool2d, (x,), out_sinfo=R.Tensor((4, 4, 110, 110, 16), dtype="float32"))
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(AvgPool2D)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_avg_pool2d_ceil_mode():
+    # fmt: off
+    @tvm.script.ir_module
+    class AvgPool2D:
+        @R.function
+        def main(x: R.Tensor((4, 6, 112, 112), "float32")) -> R.Tensor((4, 6, 38, 38), "float32"):
+            gv: R.Tensor((4, 6, 38, 38), "float32") = R.nn.avg_pool2d(x, pool_size=[3, 3], strides=[3, 3], dilation=[1, 1], padding=[1, 1, 1, 1], ceil_mode=True)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def avg_pool2d(rxplaceholder: T.Buffer((T.int64(4), T.int64(6), T.int64(112), T.int64(112)), "float32"), pool_avg: T.Buffer((T.int64(4), T.int64(6), T.int64(38), T.int64(38)), "float32")):
+            T.func_attr({"tir.noalias": True})
+            # with T.block("root"):
+            pad_temp = T.alloc_buffer((T.int64(4), T.int64(6), T.int64(116), T.int64(116)))
+            pool_sum = T.alloc_buffer((T.int64(4), T.int64(6), T.int64(38), T.int64(38)))
+            for ax0, ax1, ax2, ax3 in T.grid(T.int64(4), T.int64(6), T.int64(116), T.int64(116)):
+                with T.block("pad_temp"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(rxplaceholder[v_ax0, v_ax1, v_ax2 - T.int64(1), v_ax3 - T.int64(1)])
+                    T.writes(pad_temp[v_ax0, v_ax1, v_ax2, v_ax3])
+                    pad_temp[v_ax0, v_ax1, v_ax2, v_ax3] = T.if_then_else(T.int64(1) <= v_ax2 and v_ax2 < T.int64(113) and T.int64(1) <= v_ax3 and v_ax3 < T.int64(113), rxplaceholder[v_ax0, v_ax1, v_ax2 - T.int64(1), v_ax3 - T.int64(1)], T.float32(0))
+            for ax0, ax1, ax2, ax3, rv0, rv1 in T.grid(T.int64(4), T.int64(6), T.int64(38), T.int64(38), T.int64(3), T.int64(3)):
+                with T.block("pool_sum"):
+                    v_ax0, v_ax1, v_ax2, v_ax3, v_rv0, v_rv1 = T.axis.remap("SSSSRR", [ax0, ax1, ax2, ax3, rv0, rv1])
+                    T.reads(pad_temp[v_ax0, v_ax1, v_ax2 * T.int64(3) + v_rv0, v_ax3 * T.int64(3) + v_rv1])
+                    T.writes(pool_sum[v_ax0, v_ax1, v_ax2, v_ax3])
+                    with T.init():
+                        pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] = T.float32(0)
+                    pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] = pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] + pad_temp[v_ax0, v_ax1, v_ax2 * T.int64(3) + v_rv0, v_ax3 * T.int64(3) + v_rv1]
+            for ax0, ax1, ax2, ax3 in T.grid(T.int64(4), T.int64(6), T.int64(38), T.int64(38)):
+                with T.block("pool_avg"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(pool_sum[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T.writes(pool_avg[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T.block_attr({"schedule_rule": "meta_schedule.pool_avg"})
+                    pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / T.Cast("float32", (T.min(T.int64(1), T.int64(112) - v_ax2 * T.int64(3)) + T.int64(2)) * (T.min(T.int64(1), T.int64(112) - v_ax3 * T.int64(3)) + T.int64(2)))
+
+        @R.function
+        def main(x: R.Tensor((4, 6, 112, 112), dtype="float32")) -> R.Tensor((4, 6, 38, 38), dtype="float32"):
+            gv = R.call_tir(avg_pool2d, (x,), out_sinfo=R.Tensor((4, 6, 38, 38), dtype="float32"))
+            return gv
+
+    # fmt: on
+
+    mod = LegalizeOps()(AvgPool2D)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+@pytest.mark.skip("TOPI pooling casts every shape value to i32.")
+def test_avg_pool2d_symbolic():
+    # fmt: off
+    @tvm.script.ir_module
+    class AvgPool2D:
+        @R.function
+        def main(dumb_param: R.Tensor(("kh", "kw")), x: R.Tensor(("n", "c", "h", "w"), "float32")) -> R.Tensor(("n", "c", "h - kh + 1", "w - kw + 1"), "float32"):
+            n = T.int64()
+            c = T.int64()
+            h = T.int64()
+            w = T.int64()
+            kh = T.int64()
+            kw = T.int64()
+            gv: R.Tensor((n, c, h - kh + 1, w - kw + 1), "float32") = R.nn.avg_pool2d(x, pool_size=[kh, kw])
+            return gv
+
+    # fmt: on
+
+    mod = LegalizeOps()(AvgPool2D)
     tvm.ir.assert_structural_equal(mod, Expected)
 
 

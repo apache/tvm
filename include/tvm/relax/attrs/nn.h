@@ -74,8 +74,55 @@ struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
   }
 };  // struct Conv2dAttrs
 
-/*! \brief Attributes used in max_pool2d operator */
-struct MaxPool2DAttrs : public tvm::AttrsNode<MaxPool2DAttrs> {
+/*! \brief Attributes used in Conv2d operator */
+struct Conv2DTransposeAttrs : public tvm::AttrsNode<Conv2DTransposeAttrs> {
+  Array<IntImm> strides;
+  Array<IntImm> padding;
+  Array<IntImm> output_padding;
+  Array<IntImm> dilation;
+  int groups;
+  String data_layout;
+  String kernel_layout;
+  String out_layout;
+  DataType out_dtype;
+
+  TVM_DECLARE_ATTRS(Conv2DTransposeAttrs, "relax.attrs.Conv2DTransposeAttrs") {
+    TVM_ATTR_FIELD(strides).describe("Specifies the strides of the convolution.");
+    TVM_ATTR_FIELD(padding).describe(
+        "If padding is non-zero, then the input is implicitly zero-padded"
+        "Padding support both symmetric and asymmetric as"
+        "one int : same padding used on all sides"
+        "two int : bottom, right will use same padding as top, left"
+        "four int : padding width in the order of (top, left, bottom, right)");
+    TVM_ATTR_FIELD(output_padding).describe("Used to disambiguate the output shape.");
+    TVM_ATTR_FIELD(dilation).describe(
+        "Specifies the dilation rate to use for dilated convolution.");
+    TVM_ATTR_FIELD(groups).describe(
+        "Number of groups to split the input into for grouped convolution. The number of input and "
+        "output channels should be divisible by the number of groups.");
+    TVM_ATTR_FIELD(data_layout)
+        .describe(
+            "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
+            "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+            "dimensions respectively. Convolution is applied on the 'H' and"
+            "'W' dimensions.");
+    TVM_ATTR_FIELD(kernel_layout)
+        .describe(
+            "Dimension ordering of weight. Can be 'OIHW', 'OIHW16o16i', etc."
+            "'O', 'I', 'H', 'W' stands for num_filter, input_channel, height, and width"
+            "dimensions respectively.");
+    TVM_ATTR_FIELD(out_layout)
+        .describe(
+            "Dimension ordering of output. Can be 'NCHW', 'NHWC', etc."
+            "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+            "dimensions respectively. Default to be same as input layout.");
+    TVM_ATTR_FIELD(out_dtype).describe(
+        "Output data type, set to explicit type under mixed precision setting");
+  }
+};  // struct Conv2DTransposeAttrs
+
+/*! \brief Attributes used in max_pool2d and avg_pool2d operator */
+struct Pool2DAttrs : public tvm::AttrsNode<Pool2DAttrs> {
   Array<IntImm> pool_size;
   Array<IntImm> strides;
   Array<IntImm> padding;
@@ -84,7 +131,7 @@ struct MaxPool2DAttrs : public tvm::AttrsNode<MaxPool2DAttrs> {
   String layout;
   String out_layout;
 
-  TVM_DECLARE_ATTRS(MaxPool2DAttrs, "relax.attrs.MaxPool2DAttrs") {
+  TVM_DECLARE_ATTRS(Pool2DAttrs, "relax.attrs.Pool2DAttrs") {
     TVM_ATTR_FIELD(pool_size).describe("Size of the pooling windows.");
     TVM_ATTR_FIELD(strides).describe("Specifies the strides of the convolution.");
     TVM_ATTR_FIELD(dilation).describe("Specifies the dilation of the convolution.");
@@ -109,7 +156,7 @@ struct MaxPool2DAttrs : public tvm::AttrsNode<MaxPool2DAttrs> {
             "dimensions respectively. Pooling is applied on the 'H' and"
             "'W' dimensions.");
   }
-};  // struct MaxPool2dAttrs
+};  // struct Pool2dAttrs
 
 /*! \brief Attributes for 2d adaptive pool operator */
 struct AdaptivePool2DAttrs : public tvm::AttrsNode<AdaptivePool2DAttrs> {
