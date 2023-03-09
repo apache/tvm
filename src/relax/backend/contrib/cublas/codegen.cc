@@ -37,9 +37,9 @@ using JSONGraphNodeEntry = tvm::runtime::json::JSONGraphNodeEntry;
 using JSONSerializer = backend::contrib::JSONSerializer;
 using backend::contrib::NodeEntries;
 
-class CUBLASJSONSerializer : public JSONSerializer {
+class CublasJSONSerializer : public JSONSerializer {
  public:
-  CUBLASJSONSerializer(Map<Constant, String> constant_names, Map<Var, Expr> bindings)
+  CublasJSONSerializer(Map<Constant, String> constant_names, Map<Var, Expr> bindings)
       : JSONSerializer(constant_names), bindings_(bindings) {}
 
   using JSONSerializer::VisitExpr_;
@@ -65,8 +65,8 @@ class CUBLASJSONSerializer : public JSONSerializer {
                                                 inputs, 1 /* num_outputs_ */);
 
     const CallNode* root_call = nullptr;
-    if (composite_name.find("conv2d") != std::string::npos) {
-      root_call = backend::GetOpInFunction(fn, "relax.nn.conv2d");
+    if (composite_name.find("matmul") != std::string::npos) {
+      root_call = backend::GetOpInFunction(fn, "relax.matmul");
     } else {
       LOG(FATAL) << "Unimplemented pattern: " << composite_name;
     }
@@ -85,11 +85,11 @@ Array<runtime::Module> CublasCompiler(Array<Function> functions, Map<String, Obj
   Array<runtime::Module> compiled_functions;
 
   for (const auto& func : functions) {
-    CUBLASJSONSerializer serializer(constant_names, AnalyzeVar2Value(func));
+    CublasJSONSerializer serializer(constant_names, AnalyzeVar2Value(func));
     serializer.serialize(func);
     auto graph_json = serializer.GetJSON();
     auto constant_names = serializer.GetConstantNames();
-    const auto* pf = runtime::Registry::Get("runtime.CUBLASJSONRuntimeCreate");
+    const auto* pf = runtime::Registry::Get("runtime.CublasJSONRuntimeCreate");
     ICHECK(pf != nullptr) << "Cannot find CUBLAS runtime module create function.";
     auto func_name = GetExtSymbol(func);
     compiled_functions.push_back((*pf)(func_name, graph_json, constant_names));
