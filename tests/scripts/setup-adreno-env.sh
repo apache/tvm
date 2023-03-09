@@ -17,9 +17,17 @@
 # under the License.
 
 
-ENVIRONMENT="default"
+ENVIRONMENT=""
 RPC_PORT=""
 ADB_SERIAL=""
+
+function usage() {
+    echo "Helper script to setp the environment for Tracker, RPC Device and for application"
+    echo "Usage (Help) : source setup-adreno-env.sh -h"
+    echo "Usage (Tracker): source setup-adreno-env.sh -e tracker -p <RPC PORT>"
+    echo "Usage (Device): source setup-adreno-env.sh -e device -p <RPC PORT> -d <Android Serial>"
+    echo "Usage (Default/Application): source setup-adreno-env.sh -e default -p <RPC PORT>"
+}
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -38,10 +46,13 @@ while [[ $# -gt 0 ]]; do
       shift # past argument
       shift # past value
       ;;
+    -h|--help)
+      usage
+      return 0
+      ;;
     -*|--*)
-      echo "Unknown option $1"
-      echo "Usage: source setup-adreno-env.sh -e <tracker/device/default> -p <RPC PORT> -d <Android Serial>"
-      return 1
+      usage
+      return 0
       ;;
     *)
       ;;
@@ -97,8 +108,6 @@ case ${ENVIRONMENT} in
     ;;
 
   *)
-    echo "Unknown environment $ENVIRONMENT"
-    echo "Usage: source setup-adreno-env.sh -e <tracker/device/default> -p <RPC PORT> -d <Android Serial>"
-    return 1
+    usage
     ;;
 esac

@@ -456,8 +456,6 @@ Please refer to `rtvm <https://github.com/apache/tvm/tree/main/apps/cpp_rtvm>`_ 
 While integrating inside existing Android application TVM has multiple options. For JNI or CPP native we may use `C Runtime API <https://github.com/apache/tvm/blob/main/include/tvm/runtime/c_runtime_api.h>`_
 You may refer to ``rtvm``'s simplified interface `TVMRunner <https://github.com/apache/tvm/blob/main/apps/cpp_rtvm/tvm_runner.h>`_ also.
 
-Additionally, TVM also supports Java interface through `TVM4J <https://github.com/apache/tvm/tree/main/jvm>`_
-
 .. _python_interface:
 
 This section explains importing, auto tuning, compiling and running a model using python interface.\
@@ -488,6 +486,8 @@ This library module will be used to create graph runtime to deploy and run on ta
 
 Please refer to the tutorial `How To Deploy model on Adreno <https://tvm.apache.org/docs/how_to/deploy_models/deploy_model_on_adreno.html>`_
 for a step by step explanation of the same.
+
+Additionally, TVM also supports Java interface through `TVM4J <https://github.com/apache/tvm/tree/main/jvm>`_
 
 .. _application_integration:
 
