@@ -48,6 +48,7 @@ class HexagonUserDMA {
 
   /*!
    * \brief Initiate DMA to copy memory from source to destination address
+   * \param queue_id The virtual DMA queue
    * \param dst Destination address
    * \param src Source address
    * \param length Length in bytes to copy
@@ -57,6 +58,7 @@ class HexagonUserDMA {
 
   /*!
    * \brief Wait until the number of DMAs in flight is less than or equal to some maximum
+   * \param queue_id The virtual DMA queue
    * \param max_dmas_in_flight Maximum number of DMAs allowed to be in flight
    * to satisfy the `Wait` e.g. use `Wait(0)` to wait on "all" outstanding DMAs to complete
    */
@@ -64,18 +66,31 @@ class HexagonUserDMA {
 
   /*!
    * \brief Poll the number of DMAs in flight
+   * \param queue_id The virtual DMA queue
    * \returns Number of DMAs in flight
    */
   uint32_t Poll(int queue_id);
 
+  /*!
+   * \brief Start a group of DMA copies
+   * \param queue_id The virtual DMA queue
+   */
   void StartGroup(int queue_id) { descriptors_->StartGroup(queue_id); }
+
+  /*!
+   * \brief End a group of DMA copies
+   * \param queue_id The virtual DMA queue
+   */
   void EndGroup(int queue_id) { descriptors_->EndGroup(queue_id); }
 
  private:
   //! \brief Initializes the Hexagon User DMA engine
   unsigned int Init();
 
-  //! \brief Calculates and returns the number of DMAs in flight
+  /*!
+   * \brief Calculates and returns the number of DMAs in flight
+   * \param queue_id The virtual DMA queue
+   */
   uint32_t DMAsInFlight(int queue_id);
 
   //! \brief Tracks whether the very first DMA has been executed
