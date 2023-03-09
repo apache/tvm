@@ -24,12 +24,12 @@
  * true.
  */
 #include <tvm/ir/attrs.h>
+#include <tvm/node/serialization.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/manipulate.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/tir/transform.h>
-
 namespace tvm {
 namespace relax {
 
@@ -51,6 +51,10 @@ static Array<PrimExpr> GetShapeFromTensorStructInfo(const TensorStructInfo& tens
 static Array<PrimExpr> GetShapeFromTensor(const Expr& expr) {
   const auto& tensor_sinfo = Downcast<TensorStructInfo>(expr->struct_info_);
   return GetShapeFromTensorStructInfo(tensor_sinfo);
+}
+
+static IndexMap DeepCopyIndexMap(const IndexMap& index_map) {
+  return Downcast<IndexMap>(LoadJSON(SaveJSON(index_map)));
 }
 
 /*! \brief Checks if the \p transform is bijective on the shape of \p expr */
@@ -154,7 +158,10 @@ class AlterOpImplMutator : public ExprMutator {
 
   Expr TransformLayout(const Expr& expr, const IndexMap& index_map) {
     ObjectPtr<LayoutTransformAttrs> attrs = make_object<LayoutTransformAttrs>();
-    attrs->index_map = index_map;
+    // We want to avoid two layout_transform ops to share the same index map even if they are
+    // identical. The scope of vars used in index map initial indices is local to the op. Not doing
+    // so would confuse the structural equality check.
+    attrs->index_map = std::move(DeepCopyIndexMap(index_map));
     return Call(layout_transform_op_, {expr}, Attrs{std::move(attrs)}, {});
   }
 

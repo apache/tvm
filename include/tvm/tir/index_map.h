@@ -159,15 +159,8 @@ class IndexMapNode : public Object {
   }
 
   bool SEqualReduce(const IndexMapNode* other, SEqualReducer equal) const {
-    if (!equal(this->initial_indices.size(), other->initial_indices.size())) return false;
-    if (!equal(this->final_indices.size(), other->final_indices.size())) return false;
-
-    // Check if mapping the `other` initial indices using `this` index map produces the same
-    // expressions as `other` final indices.
-    Array<PrimExpr> other_initial_indices =
-        other->initial_indices.Map([](tir::Var i) -> PrimExpr { return i; });
-    auto mapped_other_final_indices = this->MapIndices(other_initial_indices);
-    return equal(mapped_other_final_indices, other->final_indices);
+    return equal.DefEqual(initial_indices, other->initial_indices) &&
+           equal(final_indices, other->final_indices);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
