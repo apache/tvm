@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-02-02T20:12:16.640362
+// Generated at 2023-03-09T10:22:31.286391
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -1319,7 +1319,7 @@ def deploy() {
       parallel(
   'Deploy Docs': {
     if (env.DOCS_DEPLOY_ENABLED == 'yes') {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/deploy-docs") {
           timeout(time: max_time, unit: 'MINUTES') {
             init_git()

@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-02-02T20:12:16.699838
+// Generated at 2023-03-09T10:45:48.656514
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -626,7 +626,7 @@ def deploy() {
       parallel(
   'Upload built Docker images': {
     if (env.DEPLOY_DOCKER_IMAGES == 'yes' && rebuild_docker_images && upstream_revision != null) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/deploy-docker") {
           timeout(time: max_time, unit: 'MINUTES') {
             init_git()
@@ -671,7 +671,7 @@ def deploy() {
   },
   'Tag tlcpackstaging to tlcpack': {
     if (env.DEPLOY_DOCKER_IMAGES == 'yes') {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/tag-images") {
           timeout(time: max_time, unit: 'MINUTES') {
             init_git()
@@ -849,7 +849,7 @@ if (rebuild_docker_images) {
   stage('Docker Image Build') {
     parallel(
       'ci_arm': {
-        node('ARM') {
+        node('ARM-LARGE') {
           timeout(time: max_time, unit: 'MINUTES') {
             init_git()
             // We're purposefully not setting the built image here since they
@@ -860,7 +860,7 @@ if (rebuild_docker_images) {
         }
       },
       'ci_cortexm': {
-        node('CPU') {
+        node('CPU-LARGE') {
           timeout(time: max_time, unit: 'MINUTES') {
             init_git()
             // We're purposefully not setting the built image here since they
@@ -871,7 +871,7 @@ if (rebuild_docker_images) {
         }
       },
       'ci_cpu': {
-        node('CPU') {
+        node('CPU-LARGE') {
           timeout(time: max_time, unit: 'MINUTES') {
             init_git()
             // We're purposefully not setting the built image here since they
@@ -893,7 +893,7 @@ if (rebuild_docker_images) {
         }
       },
       'ci_hexagon': {
-        node('CPU') {
+        node('CPU-LARGE') {
           timeout(time: max_time, unit: 'MINUTES') {
             init_git()
             // We're purposefully not setting the built image here since they
@@ -904,7 +904,7 @@ if (rebuild_docker_images) {
         }
       },
       'ci_i386': {
-        node('CPU') {
+        node('CPU-LARGE') {
           timeout(time: max_time, unit: 'MINUTES') {
             init_git()
             // We're purposefully not setting the built image here since they
@@ -915,7 +915,7 @@ if (rebuild_docker_images) {
         }
       },
       'ci_lint': {
-        node('CPU') {
+        node('CPU-LARGE') {
           timeout(time: max_time, unit: 'MINUTES') {
             init_git()
             // We're purposefully not setting the built image here since they
@@ -926,7 +926,7 @@ if (rebuild_docker_images) {
         }
       },
       'ci_minimal': {
-        node('CPU') {
+        node('CPU-LARGE') {
           timeout(time: max_time, unit: 'MINUTES') {
             init_git()
             // We're purposefully not setting the built image here since they
@@ -937,7 +937,7 @@ if (rebuild_docker_images) {
         }
       },
       'ci_riscv': {
-        node('CPU') {
+        node('CPU-LARGE') {
           timeout(time: max_time, unit: 'MINUTES') {
             init_git()
             // We're purposefully not setting the built image here since they
@@ -948,7 +948,7 @@ if (rebuild_docker_images) {
         }
       },
       'ci_wasm': {
-        node('CPU') {
+        node('CPU-LARGE') {
           timeout(time: max_time, unit: 'MINUTES') {
             init_git()
             // We're purposefully not setting the built image here since they

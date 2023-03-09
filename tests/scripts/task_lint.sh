@@ -43,6 +43,14 @@ function shard1 {
   echo "black check..."
   tests/lint/git-black.sh
 
+  echo "checking for the proper instance types in Jenkinsfiles..."
+  grep -rqE "('|\")CPU('|\")" ci/
+  exit_code=$?
+  if [ "$exit_code" -eq "0" ]; then
+    echo "the CPU and ARM instance types are deprecated, do not use them"
+    exit 1
+  fi
+
   echo "Linting the Python code with flake8..."
   tests/lint/flake8.sh
 
