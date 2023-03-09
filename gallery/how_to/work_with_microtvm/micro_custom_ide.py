@@ -112,7 +112,7 @@ relay_mod, params = relay.frontend.from_tflite(
 USE_CMSIS_NN = True
 
 # USMP (Unified Static Memory Planning) performs memory planning of all tensors holistically to achieve best memory utilization
-ENABLE_USMP = True
+DISABLE_USMP = False
 
 # Use the C runtime (crt)
 RUNTIME = Runtime("crt")
@@ -123,18 +123,16 @@ RUNTIME = Runtime("crt")
 TARGET = tvm.target.target.micro("stm32l4r5zi")
 
 # Use the AOT executor rather than graph or vm executors. Use unpacked API and C calling style.
-EXECUTOR = tvm.relay.backend.Executor("aot", {"unpacked-api": True, "interface-api": "c"})
-if ENABLE_USMP:
-    EXECUTOR = tvm.relay.backend.Executor(
-        "aot", {"unpacked-api": True, "interface-api": "c", "workspace-byte-alignment": 8}
-    )
+EXECUTOR = tvm.relay.backend.Executor(
+    "aot", {"unpacked-api": True, "interface-api": "c", "workspace-byte-alignment": 8}
+)
 
 # Now, we set the compilation configurations and compile the model for the target:
 config = {"tir.disable_vectorize": True}
 if USE_CMSIS_NN:
     config["relay.ext.cmsisnn.options"] = {"mcpu": TARGET.mcpu}
-if ENABLE_USMP:
-    config["tir.usmp.enable"] = True
+if DISABLE_USMP:
+    config["tir.usmp.enable"] = False
 
 with tvm.transform.PassContext(opt_level=3, config=config):
     if USE_CMSIS_NN:
