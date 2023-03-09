@@ -36,10 +36,8 @@ def _take(bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.strided_slice")
 def _strided_slice(bb: BlockBuilder, call: Call) -> Expr:
     if not all(
-        [
-            isinstance(call.args[0].struct_info.shape.values[i.value], tir.IntImm)
-            for i in call.attrs.axes
-        ]
+        isinstance(call.args[0].struct_info.shape.values[i.value], tir.IntImm)
+        for i in call.attrs.axes
     ):
         logging.info(
             "Cases where an axis with symbolic length is sliced are not able "

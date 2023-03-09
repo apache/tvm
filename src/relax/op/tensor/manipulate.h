@@ -133,6 +133,33 @@ Expr collapse_sum_like(Expr data, Expr collapse_target);
  */
 Expr collapse_sum_to(Expr data, Expr shape);
 
+/*!
+ * \brief Repeats elements of an array.
+ * \param data The input tensor.
+ * \param repeats The number of repetitions.
+ * \param axis The axis along which to repeat values. The negative numbers are interpreted counting
+ * from the backward. By default, use the flattened input array, and return a flat output array.
+ * \return The computed result.
+ */
+Expr repeat(Expr data, int repeats, Optional<Integer> axis = NullOpt);
+
+/*!
+ * \brief Construct an array by repeating data the number of times given by reps.
+ *
+ * If reps has length l, and data has dimension d, the result will have dimension of max(l, d).
+ *
+ * If d < l, data is promoted to be l-dimensional by prepending new axes. So a shape (3,) Tensor is
+ * promoted to (1, 3) for 2-D replication, or shape (1, 1, 3) for 3-D replication. If this is not
+ * the desired behavior, promote data to d-dimensions manually before calling this function.
+ *
+ * If d > l, reps is promoted to length d by pre-pending 1's to it. Thus for a data of shape
+ * (2, 3, 4, 5), a reps of (2, 2) is treated as (1, 1, 2, 2).
+ * \param data The input tensor.
+ * \param repeats The number of repetitions of data along each axis.
+ * \return The computed result.
+ */
+Expr tile(Expr data, Array<Integer> repeats);
+
 }  // namespace relax
 }  // namespace tvm
 

@@ -18,7 +18,7 @@
 import pytest
 import tvm
 from tvm.relax.transform import LegalizeOps
-from tvm.script import relax as R, tir as T
+from tvm.script import relax as R, tir as T, ir as I
 import tvm.testing
 
 
@@ -885,6 +885,203 @@ def test_collapse_sum_to_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(CollapseSumTo)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_repeat():
+    # fmt: off
+    @I.ir_module
+    class Repeat:
+        @R.function
+        def main(x: R.Tensor((3, 2, 3), "float32")):
+            gv = R.repeat(x, 2, 0)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((3, 2, 3), dtype="float32")) -> R.Tensor((6, 2, 3), dtype="float32"):
+            gv = R.call_tir(repeat, (x,), out_sinfo=R.Tensor((6, 2, 3), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def repeat(rxplaceholder: T.Buffer((T.int64(3), T.int64(2), T.int64(3)), "float32"), T_repeat: T.Buffer((T.int64(6), T.int64(2), T.int64(3)), "float32")):
+            T.func_attr({"tir.noalias": True})
+            # with T.block("root"):
+            for ax0, ax1, ax2 in T.grid(T.int64(6), T.int64(2), T.int64(3)):
+                with T.block("T_repeat"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(rxplaceholder[v_ax0 // T.int64(2), v_ax1, v_ax2])
+                    T.writes(T_repeat[v_ax0, v_ax1, v_ax2])
+                    T_repeat[v_ax0, v_ax1, v_ax2] = rxplaceholder[v_ax0 // T.int64(2), v_ax1, v_ax2]
+    # fmt: on
+
+    mod = LegalizeOps()(Repeat)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_repeat_no_axis():
+    # fmt: off
+    @I.ir_module
+    class Repeat:
+        @R.function
+        def main(x: R.Tensor((3, 2, 3), "float32")):
+            gv = R.repeat(x, 2)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 3), dtype="float32")
+        ) -> R.Tensor((36,), dtype="float32"):
+            gv = R.call_tir(repeat, (x,), out_sinfo=R.Tensor((36,), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def repeat(
+            rxplaceholder: T.Buffer((T.int64(3), T.int64(2), T.int64(3)), "float32"),
+            T_repeat: T.Buffer((T.int64(36),), "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            # with T.block("root"):
+            T_reshape = T.alloc_buffer((T.int64(18),))
+            for ax0 in range(T.int64(18)):
+                with T.block("T_reshape"):
+                    v_ax0 = T.axis.spatial(T.int64(18), ax0)
+                    T.reads(
+                        rxplaceholder[
+                            v_ax0 % T.int64(18) // T.int64(6),
+                            v_ax0 % T.int64(6) // T.int64(3),
+                            v_ax0 % T.int64(3),
+                        ]
+                    )
+                    T.writes(T_reshape[v_ax0])
+                    T_reshape[v_ax0] = rxplaceholder[
+                        v_ax0 % T.int64(18) // T.int64(6),
+                        v_ax0 % T.int64(6) // T.int64(3),
+                        v_ax0 % T.int64(3),
+                    ]
+            for ax0 in range(T.int64(36)):
+                with T.block("T_repeat"):
+                    v_ax0 = T.axis.spatial(T.int64(36), ax0)
+                    T.reads(T_reshape[v_ax0 // T.int64(2)])
+                    T.writes(T_repeat[v_ax0])
+                    T_repeat[v_ax0] = T_reshape[v_ax0 // T.int64(2)]
+    # fmt: on
+
+    mod = LegalizeOps()(Repeat)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_repeat_symbolic():
+    # fmt: off
+    @I.ir_module
+    class Repeat:
+        @R.function
+        def main(x: R.Tensor(("a", "b", "c"), "float32")):
+            gv = R.repeat(x, 2, 0)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def repeat(var_rxplaceholder: T.handle, var_T_repeat: T.handle):
+            T.func_attr({"tir.noalias": True})
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            rxplaceholder = T.match_buffer(var_rxplaceholder, (a, b, c))
+            T_repeat = T.match_buffer(var_T_repeat, (T.int64(2) * a, b, c))
+            # with T.block("root"):
+            for ax0, ax1, ax2 in T.grid(a * T.int64(2), b, c):
+                with T.block("T_repeat"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(rxplaceholder[v_ax0 // T.int64(2), v_ax1, v_ax2])
+                    T.writes(T_repeat[v_ax0, v_ax1, v_ax2])
+                    T_repeat[v_ax0, v_ax1, v_ax2] = rxplaceholder[v_ax0 // T.int64(2), v_ax1, v_ax2]
+
+        @R.function
+        def main(x: R.Tensor(("a", "b", "c"), dtype="float32")) -> R.Tensor(("2 * a", "b", "c"), dtype="float32"):
+            a = T.Var("a", "int64")
+            b = T.Var("b", "int64")
+            c = T.Var("c", "int64")
+            gv = R.call_tir(repeat, (x,), out_sinfo=R.Tensor((2 * a, b, c), dtype="float32"))
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(Repeat)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_tile():
+    # fmt: off
+    @I.ir_module
+    class Tile:
+        @R.function
+        def main(x: R.Tensor((3, 2, 3), "float32")):
+            gv = R.tile(x, (2, 1, 2, 3))
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def tile(rxplaceholder: T.Buffer((T.int64(3), T.int64(2), T.int64(3)), "float32"), T_tile: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(9)), "float32")):
+            T.func_attr({"tir.noalias": True})
+            # with T.block("root"):
+            for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(9)):
+                with T.block("T_tile"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(rxplaceholder[v_ax1 % T.int64(3), v_ax2 % T.int64(2), v_ax3 % T.int64(3)])
+                    T.writes(T_tile[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T_tile[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder[v_ax1 % T.int64(3), v_ax2 % T.int64(2), v_ax3 % T.int64(3)]
+
+        @R.function
+        def main(x: R.Tensor((3, 2, 3), dtype="float32")) -> R.Tensor((2, 3, 4, 9), dtype="float32"):
+            gv = R.call_tir(tile, (x,), out_sinfo=R.Tensor((2, 3, 4, 9), dtype="float32"))
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(Tile)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_tile_symbolic():
+    # fmt: off
+    @I.ir_module
+    class Tile:
+        @R.function
+        def main(x: R.Tensor(("a", "b", "c"), "float32")):
+            gv = R.tile(x, (2, 1, 2, 3))
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def tile(var_rxplaceholder: T.handle, var_T_tile: T.handle):
+            T.func_attr({"tir.noalias": True})
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            rxplaceholder = T.match_buffer(var_rxplaceholder, (a, b, c))
+            T_tile = T.match_buffer(var_T_tile, (T.int64(2), a, b * T.int64(2), c * T.int64(3)))
+            # with T.block("root"):
+            for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), a, b * T.int64(2), c * T.int64(3)):
+                with T.block("T_tile"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(rxplaceholder[v_ax1 % a, v_ax2 % b, v_ax3 % c])
+                    T.writes(T_tile[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T_tile[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder[v_ax1 % a, v_ax2 % b, v_ax3 % c]
+
+        @R.function
+        def main(x: R.Tensor(("a", "b", "c"), dtype="float32")) -> R.Tensor((2, "a", "b * 2", "c * 3"), dtype="float32"):
+            a = T.Var("a", "int64")
+            b = T.Var("b", "int64")
+            c = T.Var("c", "int64")
+            gv = R.call_tir(tile, (x,), out_sinfo=R.Tensor((2, a, b * 2, c * 3), dtype="float32"))
+            return gv
+    # fmt: on
+    mod = LegalizeOps()(Tile)
     tvm.ir.assert_structural_equal(mod, Expected)
 
 

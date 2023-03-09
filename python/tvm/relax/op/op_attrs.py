@@ -54,8 +54,13 @@ class Conv2DAttrs(Attrs):
     """Attributes for nn.conv2d"""
 
 
-@tvm._ffi.register_object("relax.attrs.MaxPool2DAttrs")
-class MaxPool2DAttrs(Attrs):
+@tvm._ffi.register_object("relax.attrs.Conv2DTransposeAttrs")
+class Conv2DTransposeAttrs(Attrs):
+    """Attributes for nn.conv2d_transpose"""
+
+
+@tvm._ffi.register_object("relax.attrs.Pool2DAttrs")
+class Pool2DAttrs(Attrs):
     """Attributes for nn.max_pool2d"""
 
 
@@ -127,3 +132,13 @@ class Resize2DAttrs(Attrs):
 @tvm._ffi.register_object("relax.attrs.ArgmaxArgminAttrs")
 class ArgmaxArgminAttrs(Attrs):
     """Attributes for argmax/argmin operator"""
+
+
+@tvm._ffi.register_object("relax.attrs.RepeatAttrs")
+class RepeatAttrs(Attrs):
+    """Attributes for repeat operator"""
+
+
+@tvm._ffi.register_object("relax.attrs.TileAttrs")
+class TileAttrs(Attrs):
+    """Attributes for tile operator"""

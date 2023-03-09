@@ -25,11 +25,11 @@
 namespace tvm {
 namespace relax {
 
-/* relax.nn.max_pool2d */
-TVM_REGISTER_NODE_TYPE(MaxPool2DAttrs);
+/* relax.nn.max_pool2d and relax.nn.avg_pool2d */
+TVM_REGISTER_NODE_TYPE(Pool2DAttrs);
 
-Expr max_pool2d(Expr data, Array<IntImm> pool_size, Array<IntImm> strides, Array<IntImm> padding,
-                Array<IntImm> dilation, bool ceil_mode, String layout,
+Expr MakePool2d(String op_name, Expr data, Array<IntImm> pool_size, Array<IntImm> strides,
+                Array<IntImm> padding, Array<IntImm> dilation, bool ceil_mode, String layout,
                 Optional<String> out_layout) {
   padding = GetCompletePadding2D(std::move(padding));
   if (pool_size.size() == 1) {
@@ -51,24 +51,31 @@ Expr max_pool2d(Expr data, Array<IntImm> pool_size, Array<IntImm> strides, Array
       << "The input dilation length is expected to be 2. However, the given dilation is "
       << dilation;
 
-  auto attrs = make_object<MaxPool2DAttrs>();
-  attrs->pool_size = std::move(pool_size);
+  auto attrs = make_object<Pool2DAttrs>();
+  attrs->pool_size = ConvertIntImmToInt64(pool_size);
   attrs->strides = ConvertIntImmToInt64(strides);
   attrs->padding = ConvertIntImmToInt64(padding);
   attrs->dilation = ConvertIntImmToInt64(dilation);
   attrs->ceil_mode = ceil_mode;
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
-  static const Op& op = Op::Get("relax.nn.max_pool2d");
+  const Op& op = Op::Get(op_name);
   return Call(op, {std::move(data)}, Attrs(attrs), {});
+}
+
+Expr max_pool2d(Expr data, Array<IntImm> pool_size, Array<IntImm> strides, Array<IntImm> padding,
+                Array<IntImm> dilation, bool ceil_mode, String layout,
+                Optional<String> out_layout) {
+  return MakePool2d("relax.nn.max_pool2d", data, pool_size, strides, padding, dilation, ceil_mode,
+                    layout, out_layout);
 }
 
 TVM_REGISTER_GLOBAL("relax.op.nn.max_pool2d").set_body_typed(max_pool2d);
 
-StructInfo InferStructInfoMaxPool2D(const Call& call, const BlockBuilder& ctx) {
+StructInfo InferStructInfoPool2D(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
 
-  const auto* attrs = call->attrs.as<MaxPool2DAttrs>();
+  const auto* attrs = call->attrs.as<Pool2DAttrs>();
   auto [data_layout, data2NCHW] = CheckTensorLayout(call, ctx, attrs->layout,  //
                                                     /*tgt_layout=*/"NCHW",     //
                                                     /*tensor_name=*/"data");
@@ -113,8 +120,23 @@ StructInfo InferStructInfoMaxPool2D(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.nn.max_pool2d")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor")
-    .set_attrs_type<MaxPool2DAttrs>()
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMaxPool2D);
+    .set_attrs_type<Pool2DAttrs>()
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPool2D);
+
+Expr avg_pool2d(Expr data, Array<IntImm> pool_size, Array<IntImm> strides, Array<IntImm> padding,
+                Array<IntImm> dilation, bool ceil_mode, String layout,
+                Optional<String> out_layout) {
+  return MakePool2d("relax.nn.avg_pool2d", data, pool_size, strides, padding, dilation, ceil_mode,
+                    layout, out_layout);
+}
+
+TVM_REGISTER_GLOBAL("relax.op.nn.avg_pool2d").set_body_typed(avg_pool2d);
+
+TVM_REGISTER_OP("relax.nn.avg_pool2d")
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor")
+    .set_attrs_type<Pool2DAttrs>()
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPool2D);
 
 /* relax.nn.adaptive_avg_pool2d */
 TVM_REGISTER_NODE_TYPE(AdaptivePool2DAttrs);

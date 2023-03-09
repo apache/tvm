@@ -57,6 +57,17 @@ Expr conv2d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding
             Array<IntImm> dilation, int groups, String data_layout, String kernel_layout,
             Optional<String> out_layout, DataType out_dtype);
 
+/*!
+ * \brief Two dimensional transposed convolution operator.
+ *
+ * This operator is intended to be the backward operator of conv2d. It can be used to calculate the
+ * gradient of the result of conv2d w.r.t. the input of conv2d.
+ */
+Expr conv2d_transpose(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
+                      Array<IntImm> output_padding, Array<IntImm> dilation, int groups,
+                      String data_layout, String kernel_layout, Optional<String> out_layout,
+                      DataType out_dtype);
+
 }  // namespace relax
 }  // namespace tvm
 
