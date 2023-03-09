@@ -288,7 +288,7 @@ BlockRealize GenerateInner(bool is_write_reduction,
 Stmt GenerateOuterInit(const Stmt& block_init, const BlockRealize& inner_realize,
                        const std::vector<const ForNode*>& loops, String block_name) {
   const Block& inner_block = inner_realize->block;
-  Map<Var, PrimExpr> subst_map;
+  Map<Var, Var> subst_map;
   // Step 1: Create new block vars for the block inside the init stmt of outer block
   // A iter is used in the block if
   // 1) It is data parallel

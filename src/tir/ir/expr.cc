@@ -701,8 +701,7 @@ Array<PrimExpr> CommReducerNode::operator()(Array<PrimExpr> a, Array<PrimExpr> b
     value_map.Set(lhs[i], a[i]);
     value_map.Set(rhs[i], b[i]);
   }
-  auto ret = this->result.Map([&value_map](const PrimExpr& e) { return Substitute(e, value_map); });
-  return ret;
+  return Substitute(this->result, value_map);
 }
 
 TVM_REGISTER_GLOBAL("tir.CommReducer")

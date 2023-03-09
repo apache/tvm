@@ -1597,7 +1597,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     auto* n = func.CopyOnWrite();
 
     // Remap any remaining references to the old buffer variables
-    Map<Var, PrimExpr> var_remap;
+    Map<Var, Var> var_remap;
     for (const auto& pair : rewrite_map_) {
       const auto& info = pair.second;
       var_remap.Set(info.old_buffer_var, info.new_buffer_var);
