@@ -17,7 +17,7 @@
 
 """Common patterns used in BYOC"""
 
-from typing import Dict, Mapping, Tuple
+from typing import Dict, Mapping, Tuple, Union
 
 from tvm.relax.dpl.pattern import DFPattern, is_op, wildcard
 
@@ -72,6 +72,51 @@ def make_fused_bias_activation_pattern(
     out = is_op(op_name)(lhs, rhs)
 
     return _with_bias_activation_pattern(out, args, with_bias, activation)
+
+
+def make_residual_block_pattern(
+    node_output: Union[DFPattern, Tuple[DFPattern, Mapping[str, DFPattern]]],
+    binary_op="relax.add",
+    activation=None,
+) -> Tuple[DFPattern, Mapping[str, DFPattern]]:
+    """
+    Create pattern for residual block.
+
+    Parameters
+    ----------
+    node_output: Union[DFPattern, Tuple[DFPattern, Mapping[str, DFPattern]]]
+        The output of previous node.
+
+    binary_op: str
+        The op used to combine previous node output and residual input.
+
+    activation: str
+        The activation function of this residual block. It should be a name of
+        activation Relax op, such as "relax.nn.relu".
+
+    Returns
+    -------
+    pattern: DFPattern
+        The resulting pattern describing a matrix multiplication.
+
+    args: Mapping[str, DFPattern]
+        The mapping from arg name to its pattern. It can be used to extract
+        arg expression from match result.
+    """
+
+    if isinstance(node_output, tuple):
+        node_output, arg_patterns = node_output
+    else:
+        arg_patterns = {}
+
+    residual_input = wildcard()
+    op = is_op(binary_op)
+    output = op(node_output, residual_input) | op(residual_input, node_output)
+
+    if activation is not None:
+        output = is_op(activation)(output)
+
+    return output, {**arg_patterns, "residual": residual_input}
 
 
 def make_matmul_pattern(
