@@ -27,7 +27,11 @@
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/ADT/StringRef.h>
+#if LLVM_VERSION_MAJOR >= 17
+#include <llvm/TargetParser/Triple.h>
+#else
 #include <llvm/ADT/Triple.h>
+#endif
 #include <llvm/Analysis/TargetTransformInfo.h>
 #if TVM_LLVM_VERSION >= 50
 #include <llvm/BinaryFormat/Dwarf.h>
