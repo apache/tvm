@@ -36,7 +36,6 @@
 // TODO(@apeskov): Have to mute warning from cublas headers.
 //  -Wzero-as-null-pointer-constant and -Wdocumentation-unknown-command
 
-#include "cublas_tensor_requisite.h"
 #include "cublas_utils.h"
 
 namespace tvm {
@@ -46,21 +45,20 @@ namespace contrib {
 using namespace tvm::runtime;
 using namespace tvm::runtime::json;
 
-class CUBLASJSONRuntime : public JSONRuntimeBase {
+class CublasJSONRuntime : public JSONRuntimeBase {
  public:
-  CUBLASJSONRuntime(const std::string& symbol_name, const std::string& graph_json,
-                  const Array<String> const_names)
-      : JSONRuntimeBase(symbol_name, graph_json, const_names),
-        next_unique_eid_offset_(data_entry_.size()),
-        run_arg_eid_(input_var_eid_) {
+  CublasJSONRuntime(const std::string& symbol_name, const std::string& graph_json,
+                    const Array<String> const_names)
+      : JSONRuntimeBase(symbol_name, graph_json, const_names) {}
+
+  void Init(const Array<NDArray>& consts) override {
   }
 
   /* Unused stub implementation */
   void Run() override { LOG(FATAL) << "Unreachable code"; }
 
   /* Thread safe implementation of Run. Keep runtime instance immutable */
-  void Run(const TVMArgs& args) const {
-  }
+  void Run(const TVMArgs& args) const {}
 
   /* Override GetFunction to reimplement Run method */
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override {
@@ -82,12 +80,12 @@ class CUBLASJSONRuntime : public JSONRuntimeBase {
 };
 
 runtime::Module CublasJSONRuntimeCreate(String symbol_name, String graph_json,
-                                      const Array<String>& const_names) {
+                                        const Array<String>& const_names) {
   auto n = make_object<CublasJSONRuntime>(symbol_name, graph_json, const_names);
   return runtime::Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.CublasJSONRuntimeCreate").set_body_typed(CubblasJSONRuntimeCreate);
+TVM_REGISTER_GLOBAL("runtime.CublasJSONRuntimeCreate").set_body_typed(CublasJSONRuntimeCreate);
 
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_cublas_json")
     .set_body_typed(JSONRuntimeBase::LoadFromBinary<CublasJSONRuntime>);
