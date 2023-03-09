@@ -568,6 +568,30 @@ BlockRV ConcreteScheduleNode::CacheWrite(const BlockRV& block_rv, int write_buff
   return CreateRV<BlockRV>(result);
 }
 
+BlockRV ConcreteScheduleNode::ReindexCacheRead(const BlockRV& block_rv, int read_buffer_index,
+                                               const String& storage_scope,
+                                               const IndexMap& index_map) {
+  StmtSRef result{nullptr};
+  TVM_TIR_SCHEDULE_BEGIN();
+  result = tir::ReindexCacheRead(state_, this->GetSRef(block_rv), read_buffer_index, storage_scope,
+                                 index_map);
+  TVM_TIR_SCHEDULE_END("reverse-cache-read", this->error_render_level_);
+  this->state_->DebugVerify();
+  return CreateRV<BlockRV>(result);
+}
+
+BlockRV ConcreteScheduleNode::ReindexCacheWrite(const BlockRV& block_rv, int write_buffer_index,
+                                                const String& storage_scope,
+                                                const IndexMap& index_map) {
+  StmtSRef result{nullptr};
+  TVM_TIR_SCHEDULE_BEGIN();
+  result = tir::ReindexCacheWrite(state_, this->GetSRef(block_rv), write_buffer_index,
+                                  storage_scope, index_map);
+  TVM_TIR_SCHEDULE_END("reverse-cache-write", this->error_render_level_);
+  this->state_->DebugVerify();
+  return CreateRV<BlockRV>(result);
+}
+
 Array<BlockRV> ConcreteScheduleNode::CacheInplace(const BlockRV& block_rv, int write_buffer_index,
                                                   const String& storage_scope) {
   Array<StmtSRef> results;
@@ -800,14 +824,15 @@ void ConcreteScheduleNode::Unannotate(const BlockRV& block_rv, const String& ann
 void ConcreteScheduleNode::TransformLayout(const BlockRV& block_rv, int buffer_index,
                                            BufferIndexType buffer_index_type,
                                            const IndexMap& index_map,
-                                           const Optional<IndexMap>& pad_value) {
+                                           const Optional<IndexMap>& pad_value,
+                                           bool assume_injective_transform) {
   TVM_TIR_SCHEDULE_BEGIN();
   auto f_subst = [&](const Var& var) -> Optional<PrimExpr> {
     return Downcast<Optional<PrimExpr>>(symbol_table_.Get(var));
   };
   auto new_index_map = Substitute(index_map, f_subst);
   tir::TransformLayout(state_, this->GetSRef(block_rv), buffer_index, buffer_index_type,
-                       new_index_map, pad_value);
+                       new_index_map, pad_value, assume_injective_transform);
   this->state_->DebugVerify();
   TVM_TIR_SCHEDULE_END("transform_layout", this->error_render_level_);
 }

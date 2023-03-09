@@ -802,6 +802,7 @@ def test_aot_codegen_backend_alloc_workspace_calls():
         models=AOTTestModel(module=relay_mod, inputs=None, outputs=None),
         interface_api="c",
         use_unpacked_api=True,
+        pass_config={"tir.usmp.enable": False},
     )
     source = compiled_test_mods[0].executor_factory.lib.imported_modules[0].get_source()
     # There should be three allocates created for three primitive relay function
@@ -827,6 +828,7 @@ def test_constants_alignment(constants_byte_alignment):
         interface_api,
         use_unpacked_api,
         target=tvm.target.Target(target, host=target),
+        pass_config={"tir.usmp.enable": False},
     )
     source = compiled_test_mods[0].executor_factory.lib.imported_modules[0].get_source()
     assert f'__attribute__((section(".rodata.tvm"), aligned({constants_byte_alignment})))' in source
@@ -966,6 +968,7 @@ def test_workspace_calculation(workspace_byte_alignment, main_workspace_size):
         opt_level=3,
         config={
             "tir.disable_vectorize": True,
+            "tir.usmp.enable": False,
         },
     ):
         lib = tvm.relay.build(mod, target, executor=executor, runtime=runtime, params=params)

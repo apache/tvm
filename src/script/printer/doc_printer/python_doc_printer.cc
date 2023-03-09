@@ -548,7 +548,11 @@ void PythonDocPrinter::PrintTypedDoc(const AssignDoc& doc) {
   }
   if (doc->rhs) {
     output_ << " = ";
-    PrintDoc(doc->rhs.value());
+    if (const auto* tuple_doc = doc->rhs.as<TupleDocNode>()) {
+      PrintJoinedDocs(tuple_doc->elements, ", ");
+    } else {
+      PrintDoc(doc->rhs.value());
+    }
   }
   MaybePrintCommentInline(doc);
 }
@@ -670,7 +674,6 @@ void PythonDocPrinter::PrintTypedDoc(const ClassDoc& doc) {
     PrintBlockComment(doc->comment.value());
   }
   PrintIndentedBlock(doc->body);
-  NewLineWithoutIndent();
 }
 
 void PythonDocPrinter::PrintTypedDoc(const CommentDoc& doc) {

@@ -14,9 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import os
-import pathlib
-
 import pytest
 import numpy as np
 
@@ -62,9 +59,7 @@ def test_tflite(workspace_dir, board, microtvm_debug, serial_number):
         "aot", {"unpacked-api": True, "interface-api": "c", "workspace-byte-alignment": 4}
     )
     runtime = Runtime("crt")
-    with tvm.transform.PassContext(
-        opt_level=3, config={"tir.disable_vectorize": True, "tir.usmp.enable": True}
-    ):
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lowered = relay.build(relay_mod, target, params=params, runtime=runtime, executor=executor)
 
     sample_url = "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/keyword_spotting_int8_6.pyc.npy"

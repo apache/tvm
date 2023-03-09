@@ -406,6 +406,34 @@ class ScheduleNode : public runtime::Object {
                              const String& storage_scope,
                              const Array<BlockRV> consumer_blocks = {}) = 0;
   /*!
+   * \brief Create a block that reads a buffer region into a read cache. It requires:
+   * 1) There is at most one block who writes the buffer in the scope.
+   * 2) The scope block have stage-pipeline property.
+   * Compared to cache read, the indices to access allocated cache buffer is customized by user.
+   * \param block_rv The consumer block of the target buffer.
+   * \param read_buffer_index The index of the buffer in block's read region.
+   * \param storage_scope The target storage scope.
+   * \param index_map User defined indices to access allocated cache buffer, maps from block iter
+   * vars.
+   * \return The cache stage block.
+   */
+  virtual BlockRV ReindexCacheRead(const BlockRV& block_rv, int read_buffer_index,
+                                   const String& storage_scope, const IndexMap& index_map) = 0;
+  /*!
+   * \brief Create a block that writes a buffer region into a write cache. It requires:
+   * 1) There is only one block who writes the target buffer.
+   * 2) The scope block have stage-pipeline property.
+   * Compared to cache write, the indices to access allocated cache buffer is customized by user.
+   * \param block_rv The producer of the buffer
+   * \param write_buffer_index The index of the buffer in block's write region
+   * \param storage_scope The target storage scope
+   * \param index_map User defined indices to access allocated cache buffer, maps from block iter
+   * vars.
+   * \return The cache stage block.
+   */
+  virtual BlockRV ReindexCacheWrite(const BlockRV& block_rv, int write_buffer_index,
+                                    const String& storage_scope, const IndexMap& index_map) = 0;
+  /*!
    * \brief Create 2 blocks that read&write a buffer region into a read/write cache.
    * It requires the the target block both read & write the target buffer.
    * \param block_rv The target block operates on the target buffer.
@@ -642,10 +670,17 @@ class ScheduleNode : public runtime::Object {
    *    Algebraic symplifications, branch elimination, and other
    *    optimizations may assume that this precondition is met, and
    *    may result in incorrect results being returned.
+   *
+   * \param assume_injective_transform If set to true, the schedule primitive will assume the
+   * index_map is injective and skip checking overlapping of the mapped indices. This can be useful
+   * for complicated index_map that the analysis does not cover. It is the callers' responsibility
+   * to ensure the index map is injective, otherwise, the correctness of the schedule is not
+   * guaranteed.
    */
   virtual void TransformLayout(const BlockRV& block_rv, int buffer_index,
                                BufferIndexType buffer_index_type, const IndexMap& index_map,
-                               const Optional<IndexMap>& pad_value = NullOpt) = 0;
+                               const Optional<IndexMap>& pad_value = NullOpt,
+                               bool assume_injective_transform = false) = 0;
 
   /*!
    * \brief Apply a transformation represented by IndexMap to block

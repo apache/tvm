@@ -108,3 +108,13 @@ Run uninstall first:
 ```bash
 $ANDROID_HOME/platform-tools/adb uninstall ml.apache.tvm.android.androidcamerademo
 ```
+### Troubleshooting
+
+If you build the application in Android Studio and see error similar to this one:
+```
+A problem occurred evaluating project ':app'.
+> Failed to apply plugin 'com.android.internal.version-check'.
+   > Minimum supported Gradle version is 7.5. Current version is 7.4. If using the gradle wrapper, try editing the distributionUrl in /Users/echuraev/Workspace/OctoML/tvm_android_test/apps/android_deploy/gradle/wrapper/gradle-wrapper.properties to gradle-7.5-all.zip
+```
+Run project syncing `File -> Sync Project with Gradle Files`. It should sync the
+project and create gradle-wrapper files.
