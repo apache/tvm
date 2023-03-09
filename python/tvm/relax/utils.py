@@ -292,6 +292,8 @@ def gen_call_tir_inputs(
 
     kwargs : Any, optional
         The keyword arguments passed to the function.
+        Note that the keyword args 'primfunc_attrs' is reserved for passing func
+        attributes to be added to the PrimFunc that gets created.
 
     Returns
     -------
@@ -408,6 +410,8 @@ def gen_call_tir_inputs(
             [tir.stmt_functor.substitute(value, tir_var_inverse_map) for value in shape_values]
         )
 
+    primfunc_attrs = kwargs.pop("primfunc_attrs", None)
+
     tir_var_map: Dict[tir.Var, tir.PrimExpr] = {}
     new_args, te_arg_list = _convert_te_arg(args, tir_var_map)
     new_kwargs, te_kwarg_list = _convert_te_arg(kwargs, tir_var_map)
@@ -424,6 +428,9 @@ def gen_call_tir_inputs(
 
     inputs = [*te_args] + outs
     tir_func = create_relax_prim_func(inputs, unbound_tir_vars, "int64")
+
+    if primfunc_attrs:
+        tir_func = tir_func.with_attrs(primfunc_attrs)
 
     tir_func = tir_func.without_attr("global_symbol")
 
