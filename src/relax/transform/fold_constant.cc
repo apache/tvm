@@ -87,13 +87,11 @@ class ConstantFolder : public ExprMutator {
    * \return The TIR function, or nullopt if pattern match fails.
    */
   Optional<tir::PrimFunc> MatchPrimFunc(const Expr& op) {
-    if (auto* ptr = op.as<GlobalVarNode>()) {
-      // NOTE: as check works for nullptr(returns null)
-      Optional<BaseFunc> base_func =
-          builder_->GetContextIRModule()->functions.Get(GetRef<GlobalVar>(ptr));
-      if (auto* pfunc = base_func.as<tir::PrimFuncNode>()) {
-        return GetRef<tir::PrimFunc>(pfunc);
-      }
+    const GlobalVar& global_var = Downcast<GlobalVar>(op);
+    // NOTE: as check works for nullptr(returns null)
+    Optional<BaseFunc> base_func = builder_->GetContextIRModule()->functions.Get(global_var);
+    if (auto* pfunc = base_func.as<tir::PrimFuncNode>()) {
+      return GetRef<tir::PrimFunc>(pfunc);
     }
     return NullOpt;
   }

@@ -75,6 +75,7 @@ class LegalizeMutator : public ExprMutator {
     Call visited_call = Downcast<Call>(this->VisitExprPostOrder_(call));
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
     static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
     auto* op_node = visited_call->op.as<OpNode>();
 
     // Not an OpNode
@@ -102,7 +103,7 @@ class LegalizeMutator : public ExprMutator {
     }
 
     // No legalization.
-    if (op != call_tir_op) {
+    if (op != call_tir_op && op != call_dps_packed_op) {
       LOG(WARNING) << "No legalization func for " << op->name << " is found.";
     }
     return visited_call;

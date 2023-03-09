@@ -185,19 +185,17 @@ class GraphCreator : public ExprVisitor {
     // recurse into the call expression.
     const auto* op = call->op.as<OpNode>();
     if (op == call_tir_op_.get()) {
-      // Skip ExternFunc for call_dps_packed.
-      if (const auto* global_var = call->args[0].as<GlobalVarNode>()) {
-        tir::PrimFunc func = Downcast<tir::PrimFunc>(mod_->Lookup(GetRef<GlobalVar>(global_var)));
+      const GlobalVar& global_var = Downcast<GlobalVar>(call->args[0]);
+      tir::PrimFunc func = Downcast<tir::PrimFunc>(mod_->Lookup(global_var));
 
-        // Override args for call_tir
-        args = Downcast<Tuple>(call->args[1])->fields;
+      // Override args for call_tir
+      args = Downcast<Tuple>(call->args[1])->fields;
 
-        Optional<Integer> opt_pattern = func->GetAttr<Integer>("op_pattern");
-        if (opt_pattern.defined()) {
-          pattern = static_cast<OpPatternKind>(Downcast<IntImm>(opt_pattern)->value);
-        } else {
-          pattern = OpPatternKind::kOpaque;
-        }
+      Optional<Integer> opt_pattern = func->GetAttr<Integer>("op_pattern");
+      if (opt_pattern.defined()) {
+        pattern = static_cast<OpPatternKind>(Downcast<IntImm>(opt_pattern)->value);
+      } else {
+        pattern = OpPatternKind::kOpaque;
       }
     }
     // The pattern of the current binding variable node is set to the pattern of this operator.
