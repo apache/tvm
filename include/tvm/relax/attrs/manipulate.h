@@ -102,6 +102,29 @@ struct SqueezeAttrs : public tvm::AttrsNode<SqueezeAttrs> {
   }
 };  // struct SqueezeAttrs
 
+/*! \brief Attributes used in repeat operators */
+struct RepeatAttrs : public tvm::AttrsNode<RepeatAttrs> {
+  int repeats;
+  Optional<Integer> axis;
+
+  TVM_DECLARE_ATTRS(RepeatAttrs, "relax.attrs.RepeatAttrs") {
+    TVM_ATTR_FIELD(repeats).describe("The number of repetitions.");
+    TVM_ATTR_FIELD(axis).describe(
+        "The axis along which to repeat values. The negative numbers are interpreted "
+        "counting from the backward. By default, use the flattened input array, and "
+        "return a flat output array.");
+  }
+};  // struct RepeatAttrs
+
+/*! \brief Attributes used in tile operators */
+struct TileAttrs : public tvm::AttrsNode<TileAttrs> {
+  Array<Integer> repeats;
+
+  TVM_DECLARE_ATTRS(TileAttrs, "relax.attrs.TileAttrs") {
+    TVM_ATTR_FIELD(repeats).describe("The number of repetitions of data along each axis.");
+  }
+};  // struct TileAttrs
+
 }  // namespace relax
 }  // namespace tvm
 
