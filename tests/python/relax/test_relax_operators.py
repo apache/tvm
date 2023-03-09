@@ -155,14 +155,29 @@ class ShapeOfTest:
         return R.shape_of(t)
 
     @R.function
-    def get_shape_const() -> R.Shape(ndim=-1):
+    def get_constrained_shape(t: R.Tensor(ndim=1, dtype="int32")) -> R.Shape(ndim=1):
+        # require the input tensor to have rank 1
+        return R.shape_of(t)
+
+    @R.function
+    def get_scalar_shape() -> R.Shape(()):
         x: R.Tensor((), "int32") = R.const(1, dtype="int32")
+        return R.shape_of(x)
+
+    @R.function
+    def get_constant_shape() -> R.Shape((2, 2)):
+        x: R.Tensor((2, 2), "int32") = R.const(
+            np.array([[1, 2], [3, 4]], dtype="int32"), dtype="int32"
+        )
         return R.shape_of(x)
 
 
 def test_op_shape_of():
-    const_shape = run_cpu(ShapeOfTest, "get_shape_const")
-    assert const_shape == tvm.runtime.ShapeTuple([])
+    unit_shape = run_cpu(ShapeOfTest, "get_scalar_shape")
+    assert unit_shape == tvm.runtime.ShapeTuple([])
+
+    const_shape = run_cpu(ShapeOfTest, "get_constant_shape")
+    assert const_shape == tvm.runtime.ShapeTuple([2, 2])
 
     scalar_shape = run_cpu(ShapeOfTest, "get_shape", tvm.nd.array(np.array(1, dtype="int32")))
     assert scalar_shape == tvm.runtime.ShapeTuple([])
@@ -171,6 +186,11 @@ def test_op_shape_of():
         ShapeOfTest, "get_shape", tvm.nd.array(np.zeros((1, 2, 3)).astype("int32"))
     )
     assert tensor_shape == tvm.runtime.ShapeTuple([1, 2, 3])
+
+    constrained_shape = run_cpu(
+        ShapeOfTest, "get_constrained_shape", tvm.nd.array(np.zeros((1,)).astype("int32"))
+    )
+    assert constrained_shape == tvm.runtime.ShapeTuple([1])
 
 
 if __name__ == "__main__":

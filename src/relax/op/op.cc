@@ -54,8 +54,23 @@ StructInfo ReturnObjectStructInfo(const Call& call, const BlockBuilder& ctx) {
   return ObjectStructInfo();
 }
 
-StructInfo ReturnShapeStructInfo(const Call& call, const BlockBuilder& ctx) {
-  return ShapeStructInfo(kUnknownNDim);
+StructInfo InferStructInfoShapeOf(const Call& call, const BlockBuilder& ctx) {
+  // use the StructInfo of the argument
+  auto arg_sinfo = GetStructInfo(call->args[0]);
+  auto* tensor_sinfo = GetStructInfo(call->args[0]).as<TensorStructInfoNode>();
+  CHECK(tensor_sinfo) << "shape_of expects a tensor input, but received " << arg_sinfo
+                      << "; use MatchCast if necessary";
+  if (tensor_sinfo->ndim == kUnknownNDim) {
+    return ShapeStructInfo(kUnknownNDim);
+  }
+  // if the tensor shape is a Relax var or omitted, do not try to construct a shape expr from it
+  if (!tensor_sinfo->shape.defined() || tensor_sinfo->shape.as<VarNode>()) {
+    return ShapeStructInfo(tensor_sinfo->ndim);
+  }
+  // otherwise, copy over the values from the tensor shape
+  auto* tensor_shape = tensor_sinfo->shape.as<ShapeExprNode>();
+  CHECK(tensor_shape);
+  return ShapeStructInfo(tensor_shape->values);
 }
 
 // call_tir
@@ -250,7 +265,7 @@ TVM_REGISTER_GLOBAL("relax.op.invoke_closure").set_body_typed(InvokeClosure);
 RELAY_REGISTER_OP("relax.shape_of")
     .set_num_inputs(1)
     .add_argument("input", "Expr", "The input expression")
-    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnShapeStructInfo);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoShapeOf);
 
 Expr MakeShapeOf(Expr expr) {
   static const Op& op = Op::Get("relax.shape_of");

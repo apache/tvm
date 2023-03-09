@@ -554,7 +554,7 @@ def test_print_type_annotation_non_var():
 
     call_str = strip_whitespace(dump_ast(call))
     # we expect the shape_of call to have a checked_type_ of ShapeType
-    type_str = "checked_type_=ShapeType(ndim=-1)"
+    type_str = "checked_type_=ShapeType(ndim=0)"
     assert type_str in call_str
 
 
