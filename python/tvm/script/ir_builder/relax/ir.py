@@ -350,8 +350,12 @@ def emit_te(func: Callable, *args: Any, **kwargs: Any) -> Call:
 
     kwargs : Any, optional
         The keyword arguments passed to the function.
-        Note that the key "primfunc_name_hint" is reserved for passing name hint
-        to the PrimFunc that gets generated.
+        Note that the following keyword args are reserved:
+
+            - 'primfunc_name_hint' for passing name hint to the PrimFunc
+                that gets generated.
+            - 'primfunc_attrs' is reserved for passing func attributes to
+                be added to the PrimFunc that gets created.
 
     Returns
     -------
