@@ -17,9 +17,11 @@
 # pylint: disable=invalid-name
 """Default legalization function for manipulate operators."""
 import logging
+from typing import Optional
 
 import tvm
 from tvm import topi, tir, relax, te
+from tvm.tir.expr import IntImm
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr, Var, Tuple, TupleGetItem
 from .common import TEFunc, LegalizeFunc, register_legalize
@@ -117,3 +119,26 @@ def _split(bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.squeeze")
 def _squeeze(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(topi.squeeze, call.args[0], call.attrs.axis)
+
+
+@register_legalize("relax.repeat")
+def _repeat(bb: BlockBuilder, call: Call) -> Expr:
+    def te_repeat(data: te.Tensor, repeats: IntImm, axis: Optional[IntImm]):
+        if axis is None:
+            # flatten data
+            out_shape = data.shape[0]
+            for i in data.shape[1:]:
+                out_shape *= i
+            data = topi.reshape(data, (out_shape,))
+            axis = 0
+        # topi only receives int repeats and axis
+        return topi.repeat(data, int(repeats), int(axis))
+
+    return bb.call_te(
+        te_repeat, call.args[0], call.attrs.repeats, call.attrs.axis, primfunc_name_hint="repeat"
+    )
+
+
+@register_legalize("relax.tile")
+def _tile(bb: BlockBuilder, call: Call) -> Expr:
+    return bb.call_te(topi.tile, call.args[0], call.attrs.repeats)

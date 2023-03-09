@@ -969,5 +969,131 @@ TVM_REGISTER_OP("relax.collapse_sum_to")
     .add_argument("shape", "Shape", "The shape to collapse to.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCollapseSumTo);
 
+/* relax.repeat */
+TVM_REGISTER_NODE_TYPE(RepeatAttrs);
+
+Expr repeat(Expr data, int repeats, Optional<Integer> axis) {
+  auto attrs = make_object<RepeatAttrs>();
+  attrs->repeats = std::move(repeats);
+  attrs->axis = std::move(axis);
+
+  static const Op& op = Op::Get("relax.repeat");
+  return Call(op, {std::move(data)}, Attrs{attrs}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.repeat").set_body_typed(repeat);
+
+StructInfo InferStructInfoRepeat(const Call& call, const BlockBuilder& ctx) {
+  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+  const auto* attrs = call->attrs.as<RepeatAttrs>();
+  const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
+
+  if (attrs->axis.defined() && !data_sinfo->IsUnknownNdim()) {
+    int axis = attrs->axis.value()->value;
+    int ndim = data_sinfo->ndim;
+    if (axis < -ndim || axis >= ndim) {
+      ctx->ReportFatal(
+          Diagnostic::Error(call)
+          << "Repeat requires the input axis belongs range "
+             "[-data.struct_info.ndim, data.struct_info.ndim - 1]. However, the input axis is "
+          << axis << ", while ndim is " << ndim);
+    }
+  }
+
+  if (data_shape == nullptr) {
+    if (attrs->axis.defined()) {
+      if (analyzer->CanProveEqual(attrs->repeats, 1)) {
+        // the shape does not changes
+        return data_sinfo;
+      } else {
+        return TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim);
+      }
+    } else {
+      return TensorStructInfo(data_sinfo->dtype, 1);
+    }
+  }
+
+  if (!attrs->axis.defined()) {
+    PrimExpr new_shape =
+        analyzer->Simplify(ComputeShapeProduct(data_shape->values) * attrs->repeats);
+    return TensorStructInfo(ShapeExpr(Array<PrimExpr>({new_shape})), data_sinfo->dtype);
+  }
+
+  int axis = NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis.value()->value);
+  auto shape_array = data_shape->values;
+  shape_array.Set(axis, analyzer->Simplify(shape_array[axis] * attrs->repeats));
+  return TensorStructInfo(ShapeExpr(shape_array), data_sinfo->dtype);
+}
+
+// TODO(relax-team): implement FRelaxInferLayout for repeat
+TVM_REGISTER_OP("relax.repeat")
+    .set_attrs_type<RepeatAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoRepeat);
+
+/* relax.tile */
+TVM_REGISTER_NODE_TYPE(TileAttrs);
+
+Expr tile(Expr data, Array<Integer> repeats) {
+  auto attrs = make_object<TileAttrs>();
+  attrs->repeats = std::move(repeats);
+
+  static const Op& op = Op::Get("relax.tile");
+  return Call(op, {std::move(data)}, Attrs{attrs}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.tile").set_body_typed(tile);
+
+StructInfo InferStructInfoTile(const Call& call, const BlockBuilder& ctx) {
+  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+  const auto* attrs = call->attrs.as<TileAttrs>();
+  const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
+  int l = attrs->repeats.size();
+  int ndim = data_sinfo->ndim;
+
+  if (data_shape == nullptr) {
+    if (data_sinfo->IsUnknownNdim()) {
+      return TensorStructInfo(data_sinfo->dtype, kUnknownNDim);
+    }
+    if (l > ndim) {
+      return TensorStructInfo(data_sinfo->dtype, l);
+    } else {
+      for (auto i : attrs->repeats) {
+        if (!analyzer->CanProveEqual(i, 1)) {
+          return TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim);
+        }
+      }
+      // if control reaches here, the shape should not be changed
+      return data_sinfo;
+    }
+  }
+
+  int out_ndim = std::max(l, ndim);
+  int l_delta = out_ndim - l;
+  int ndim_delta = out_ndim - ndim;
+  Array<PrimExpr> out_shape;
+  for (int i = 0; i < out_ndim; ++i) {
+    if (i < l_delta) {
+      out_shape.push_back(data_shape->values[i - ndim_delta]);
+    } else if (i < ndim_delta) {
+      out_shape.push_back(attrs->repeats[i - l_delta]);
+    } else {
+      out_shape.push_back(
+          analyzer->Simplify(data_shape->values[i - ndim_delta] * attrs->repeats[i - l_delta]));
+    }
+  }
+  return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype);
+}
+
+// TODO(relax-team): implement FRelaxInferLayout for tile
+TVM_REGISTER_OP("relax.tile")
+    .set_attrs_type<TileAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTile);
+
 }  // namespace relax
 }  // namespace tvm
