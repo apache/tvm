@@ -279,7 +279,17 @@ with tarfile.open(TAR_PATH, mode="a") as tar_file:
 #
 # #. Edit the main.c file:
 #
-#    * Include following header files: <stdio.h>, <string.h>, <stdarg.h>, "tvmgen_default.h", "sample_person.h", and "sample_not_person.h".
+#    * Include following header files:
+#
+#        .. code-block:: c
+#
+#         #include <stdio.h>
+#         #include <string.h>
+#         #include <stdarg.h>
+#         #include "tvmgen_default.h"
+#         #include "sample_person.h"
+#         #include "sample_not_person.h"
+#
 #    * Copy the following code in main function right before the infinite loop. It sets the input and output to the model.
 #
 #        .. code-block:: c
