@@ -23,8 +23,7 @@ from .postproc import Postproc
 
 @register_object("meta_schedule.DisallowAsyncStridedMemCopy")
 class DisallowAsyncStridedMemCopy(Postproc):
-    """A postprocessor that disallows schedules that use async strided mem copies.
-    """
+    """A postprocessor that disallows schedules that use async strided mem copies."""
 
     def __init__(self) -> None:
         self.__init_handle_by_constructor__(

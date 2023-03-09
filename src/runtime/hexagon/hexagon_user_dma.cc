@@ -125,7 +125,8 @@ HexagonUserDMA::HexagonUserDMA() {
     unsigned int done = dma_desc_get_done(dma_desc);
     return (done != DESC_DONE_COMPLETE);
   };
-  descriptors_ = new QueuedRingBuffer<dma_desc_2d_t>(MAX_DMA_QUEUES, MAX_DMA_DESCRIPTORS, desc_in_flight);
+  descriptors_ =
+      new QueuedRingBuffer<dma_desc_2d_t>(MAX_DMA_QUEUES, MAX_DMA_DESCRIPTORS, desc_in_flight);
 }
 
 HexagonUserDMA::~HexagonUserDMA() {

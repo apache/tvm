@@ -22,29 +22,26 @@
  */
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/arith/bound.h>
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/buffer.h>
+#include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
-#include <tvm/arith/bound.h>
-#include <tvm/tir/buffer.h>
-#include <tvm/tir/stmt.h>
-
-#include "../../arith/ir_mutator_with_analyzer.h"
 #include <optional>
 
-
+#include "../../arith/ir_mutator_with_analyzer.h"
 #include "ir_utils.h"
 
 namespace tvm {
 namespace tir {
 
-
 class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
  public:
-
-  explicit AsyncDMALowerer(bool dma_bypass_cache, arith::Analyzer* analyzer) : IRMutatorWithAnalyzer(analyzer), dma_bypass_cache_(dma_bypass_cache) {}
+  explicit AsyncDMALowerer(bool dma_bypass_cache, arith::Analyzer* analyzer)
+      : IRMutatorWithAnalyzer(analyzer), dma_bypass_cache_(dma_bypass_cache) {}
 
   Stmt VisitStmt_(const ForNode* loop) final {
     // if for loop is not within async_commit_queue_scope
@@ -64,7 +61,7 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
     // and, increment the number of DMA copies in the group
     queue_ids_.insert(async_queue_id_.value());
     dmas_in_group_++;
-    
+
     tvm::PrimExpr src_min = mem_copy->source->region[0]->min;
     tvm::PrimExpr dst_min = mem_copy->dest->region[0]->min;
     tvm::PrimExpr dst_extent = mem_copy->dest->region[0]->extent;
@@ -72,18 +69,10 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
     auto src = BufferLoad(mem_copy->source->buffer, {src_min});
     auto dst = BufferLoad(mem_copy->dest->buffer, {dst_min});
     return Evaluate(
-      Call(
-        DataType::Int(32),
-        builtin::dma_copy(),
-        {
-          async_queue_id_.value(),
-          Call(DataType::Handle(), builtin::address_of(), {dst}),
-          Call(DataType::Handle(), builtin::address_of(), {src}),
-          dst_extent * src->dtype.bytes(),
-          dma_bypass_cache_
-        }
-      )
-    );
+        Call(DataType::Int(32), builtin::dma_copy(),
+             {async_queue_id_.value(), Call(DataType::Handle(), builtin::address_of(), {dst}),
+              Call(DataType::Handle(), builtin::address_of(), {src}),
+              dst_extent * src->dtype.bytes(), dma_bypass_cache_}));
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
@@ -147,8 +136,10 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
       async_queue_id_ = queue_id_node->value;
       auto result = arith::IRMutatorWithAnalyzer::VisitStmt_(op);
       if (dmas_in_group_ > 1) {
-        auto call_dma_start_group = Evaluate(Call(DataType::Int(32), builtin::dma_start_group(), {async_queue_id_.value()}));
-        auto call_dma_end_group = Evaluate(Call(DataType::Int(32), builtin::dma_end_group(), {async_queue_id_.value()}));
+        auto call_dma_start_group = Evaluate(
+            Call(DataType::Int(32), builtin::dma_start_group(), {async_queue_id_.value()}));
+        auto call_dma_end_group =
+            Evaluate(Call(DataType::Int(32), builtin::dma_end_group(), {async_queue_id_.value()}));
         result = SeqStmt({call_dma_start_group, result, call_dma_end_group});
       }
 

@@ -999,7 +999,7 @@ class PipelineInjector : private StmtExprMutator {
   }
 
  private:
-  explicit PipelineInjector() {}
+  PipelineInjector() {}
 
   /*!
    * \brief Check the pipeline satisfies the following conditions:
@@ -1134,9 +1134,9 @@ class PipelineInjector : private StmtExprMutator {
     ValidatePipelineBody(pipeline_info, original_order);
 
     // Step 4: Rewrite the pipeline body.
-    Stmt pipeline = PipelineRewriter::Rewrite(
-        buffer_data_to_buffer_, double_buffers, pipeline_allocs, GetRef<For>(op), pipeline_info,
-        fragment_info_, preserved_annotations);
+    Stmt pipeline = PipelineRewriter::Rewrite(buffer_data_to_buffer_, double_buffers,
+                                              pipeline_allocs, GetRef<For>(op), pipeline_info,
+                                              fragment_info_, preserved_annotations);
 
     if (const auto* realize = op->body.as<BlockRealizeNode>()) {
       const auto& block = realize->block;

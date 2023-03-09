@@ -98,14 +98,14 @@ class QueuedRingBuffer : RingBuffer<T> {
  public:
   QueuedRingBuffer(uint32_t max_queues, uint32_t ring_buff_size, std::function<bool(T*)> in_flight)
       : RingBuffer<T>(ring_buff_size, in_flight), max_queues_(max_queues) {
-      queue_descriptors_.resize(max_queues_);
-    }
+    queue_descriptors_.resize(max_queues_);
+  }
 
   //! \brief Returns pointer to next T; add the queue ID for tracking
   T* Next(int queue_id) {
     CHECK_LT(queue_id, max_queues_);
     queue_ids_.push_back(queue_id);
-    queue_descriptor *d = &queue_descriptors_[queue_id];
+    queue_descriptor* d = &queue_descriptors_[queue_id];
     if (d->group_started) {
       // if we have a group started just update then pending count
       d->pending_in_group++;
@@ -120,7 +120,7 @@ class QueuedRingBuffer : RingBuffer<T> {
   //! \brief Returns the number of groups of Ts in flight for a given queue ID
   uint32_t InFlight(int queue_id) {
     CHECK_LT(queue_id, max_queues_);
-    queue_descriptor *d = &queue_descriptors_[queue_id];
+    queue_descriptor* d = &queue_descriptors_[queue_id];
     CHECK(!d->group_started);
 
     uint32_t in_flight = 0;
@@ -145,7 +145,7 @@ class QueuedRingBuffer : RingBuffer<T> {
   //! \brief Start a group of Ts, if not called the deafault group size is one
   void StartGroup(int queue_id) {
     CHECK_LT(queue_id, max_queues_);
-    queue_descriptor *d = &queue_descriptors_[queue_id];
+    queue_descriptor* d = &queue_descriptors_[queue_id];
     CHECK(!d->group_started);
 
     // start group
@@ -156,7 +156,7 @@ class QueuedRingBuffer : RingBuffer<T> {
   //! \brief End a group of Ts
   void EndGroup(int queue_id) {
     CHECK_LT(queue_id, max_queues_);
-    queue_descriptor *d = &queue_descriptors_[queue_id];
+    queue_descriptor* d = &queue_descriptors_[queue_id];
     CHECK(d->group_started);
     CHECK(d->pending_in_group);
 

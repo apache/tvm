@@ -726,7 +726,8 @@ TVM_DLL const Op& texture2d_store();
 TVM_DLL const Op& texture2d_load();
 
 /*!
- * \brief Initiate a non-blocking DMA copy from source to destination; a DMA copy outside of a group has a defacto group size of one
+ * \brief Initiate a non-blocking DMA copy from source to destination; a DMA copy outside of a group
+ * has a defacto group size of one
  */
 TVM_DLL const Op& dma_copy();
 
