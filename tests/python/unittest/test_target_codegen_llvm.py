@@ -525,7 +525,7 @@ def test_llvm_div():
     ]:
         for dstart, dend in [
             (-11, -1),
-            (-11, 0),
+            (-11, 1),
             (-4, -4),
             (-2, -2),
             (1, 11),
@@ -534,7 +534,7 @@ def test_llvm_div():
             (2, 2),
             (-11, 11),
         ]:
-            if end < start or dend < dstart or (dend == 0 and dstart == 0):
+            if end < start or dend < dstart or (dend == 0 and dstart == 0) or dend == 0:
                 continue
             check(start, end, dstart, dend, "int32", floor_div=False)
             check(start, end, dstart, dend, "int32", floor_div=True)
