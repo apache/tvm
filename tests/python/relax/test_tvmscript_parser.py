@@ -184,6 +184,39 @@ def test_simple_module():
     _check(TestModule, bb.get())
 
 
+def test_emit_te_primfunc_attrs():
+    @I.ir_module
+    class TestModule:
+        @T.prim_func
+        def plus_one(
+            x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+            y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+        ):
+            T.func_attr({"some_attr": "foo", "another_attr": True, "tir.noalias": True})
+            for i, j in T.grid(T.int64(128), T.int64(128)):
+                with T.block():
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    y[vi, vj] = x[vi, vj] + 1.0
+
+        @R.function
+        def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor((128, 128), "float32"):
+            # TODO(Siyuan): Need to change to `TestModule.tir_func`
+            gv0 = R.call_tir(plus_one, x, R.Tensor((128, 128), dtype="float32"))
+            return gv0
+
+    x = relax.Var("x", R.Tensor((128, 128), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x,)):
+        out = bb.emit_te(
+            lambda x: x + 1,
+            x,
+            primfunc_name_hint="plus_one",
+            primfunc_attrs={"some_attr": "foo", "another_attr": True},
+        )
+        bb.emit_func_output(out)
+    _check(TestModule, bb.get())
+
+
 def test_emit_te():
     @I.ir_module
     class EmitTE:
@@ -1042,7 +1075,7 @@ def test_arith_operators():
         a3 = x * y
         a4 = x / y
         a5 = x // y
-        a6 = x**y
+        a6 = x ** y
 
         c0 = x > y
         c1 = x < y
