@@ -46,7 +46,8 @@ namespace relax {
   TVM_REGISTER_OP("relax." #OpName)                                \
       .set_num_inputs(2)                                           \
       .add_argument("x1", "Tensor", "The first input tensor.")     \
-      .add_argument("x2", "Tensor", "The second input tensor.")
+      .add_argument("x2", "Tensor", "The second input tensor.")    \
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
 
 #define RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(OpName)             \
   RELAX_REGISTER_BINARY_OP_AND_IMPL(OpName).set_attr<FInferStructInfo>( \

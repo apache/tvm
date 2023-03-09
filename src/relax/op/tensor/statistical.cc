@@ -24,6 +24,7 @@
 
 #include "statistical.h"
 
+#include <string>
 #include <vector>
 
 namespace tvm {
@@ -80,6 +81,57 @@ StructInfo InferStructInfoStatistical(const Call& call, const BlockBuilder& ctx)
   }
   ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
   return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype);
+}
+
+InferLayoutOutput InferLayoutStatistical(const Call& call,
+                                         const Map<String, Array<String>>& desired_layouts,
+                                         const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+
+  const auto* attrs = call->attrs.as<StatisticalAttrs>();
+  ICHECK(attrs != nullptr) << "Invalid Call";
+  const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+  ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
+  int ndim = tensor_sinfo->ndim;
+
+  Array<Integer> axis;
+  if (attrs->axis.defined()) {
+    axis = attrs->axis.value();
+  } else {
+    axis.reserve(ndim);
+    for (int i = 0; i < ndim; ++i) {
+      axis.push_back(Integer(i));
+    }
+  }
+
+  std::string axis_str(ndim, '0');
+  for (const auto& iter : axis) {
+    axis_str[iter->value] = '1';
+  }
+  for (int i = 0, j = 0; i < ndim; ++i) {
+    if (axis_str[i] != '1') {
+      axis_str[i] = 'A' + j++;
+    }
+  }
+
+  LayoutDecision exisiting_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  String new_axis_str = TransposeStrLike(axis_str, InitialLayout(ndim), exisiting_layout->layout);
+  Array<Integer> new_axis;
+  for (size_t i = 0; i < new_axis_str.size(); ++i) {
+    if (new_axis_str.at(i) == '1') {
+      new_axis.push_back(Integer(i));
+    }
+  }
+  std::string output_layout = new_axis_str;
+  output_layout.erase(std::remove(output_layout.begin(), output_layout.end(), '1'),
+                      output_layout.end());
+
+  ObjectPtr<StatisticalAttrs> new_attrs = make_object<StatisticalAttrs>(*attrs);
+  new_attrs->axis = new_axis;
+  return InferLayoutOutput({exisiting_layout},
+                           {attrs->keepdims ? exisiting_layout : Layout(output_layout)},
+                           Attrs(new_attrs));
 }
 
 TVM_REGISTER_NODE_TYPE(StatisticalAttrs);

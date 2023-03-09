@@ -280,6 +280,7 @@ TVM_DLL Pass RunCodegen(Optional<Map<String, Map<String, ObjectRef>>> target_opt
  * \return The Pass.
  */
 TVM_DLL Pass SimplifyNormInference();
+
 /*!
  * \brief Returns a pass which replaces PrimFuncs which have matching kOperatorName attribute in \p
  * op_impl_map, with replacement PrimFunc that could possibly have different layouts on i/o
@@ -294,6 +295,14 @@ TVM_DLL Pass SimplifyNormInference();
  */
 TVM_DLL Pass AlterOpImpl(const Map<String, tir::PrimFunc>& op_impl_map,
                          const Map<String, Array<tir::IndexMap>>& op_buffer_transforms);
+
+/*!
+ * \brief Layout conversion pass.
+ * \param desired_layouts The desired layouts for some operators.
+ * \return The Pass.
+ */
+TVM_DLL Pass ConvertLayout(Map<String, Array<String>> desired_layouts);
+
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm

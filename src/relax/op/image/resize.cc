@@ -102,12 +102,26 @@ StructInfo InferStructInfoResize2D(const Call& call, const BlockBuilder& ctx) {
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype);
 }
 
+InferLayoutOutput InferLayoutResize2d(const Call& call,
+                                      const Map<String, Array<String>>& desired_layouts,
+                                      const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+  const auto* attrs = call->attrs.as<Resize2DAttrs>();
+  ICHECK(attrs) << "Invalid Call";
+
+  LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  ObjectPtr<Resize2DAttrs> new_attrs = make_object<Resize2DAttrs>(*attrs);
+  new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(4), layout->layout).name();
+  return InferLayoutOutput({layout, InitialNLayout(call->args[1])}, {layout}, Attrs(new_attrs));
+}
+
 TVM_REGISTER_OP("relax.image.resize2d")
     .set_attrs_type<Resize2DAttrs>()
     .set_num_inputs(2)
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("size", "Shape", "The output image shape.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoResize2D);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoResize2D)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutResize2d);
 
 }  // namespace relax
 }  // namespace tvm
