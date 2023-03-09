@@ -28,7 +28,11 @@ from tvm.target.codegen import llvm_version_major
 @pytest.mark.skipif(
     llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
-def test_mul():
+@pytest.mark.parametrize(
+    "dtype",
+    ["float", "float16", "uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"],
+)
+def test_mul(dtype):
     target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
 
     def check_correct_assembly(type):
@@ -50,22 +54,17 @@ def test_mul():
         assert len(loads) > 1
         assert len(matches) > 1
 
-    check_correct_assembly("float")
-    check_correct_assembly("float16")
-    check_correct_assembly("uint8")
-    check_correct_assembly("uint16")
-    check_correct_assembly("uint32")
-    check_correct_assembly("uint64")
-    check_correct_assembly("int8")
-    check_correct_assembly("int16")
-    check_correct_assembly("int32")
-    check_correct_assembly("int64")
+    check_correct_assembly(type=dtype)
 
 
 @pytest.mark.skipif(
     llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
-def test_add():
+@pytest.mark.parametrize(
+    "dtype",
+    ["float", "float16", "uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"],
+)
+def test_add(dtype):
     target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
 
     def check_correct_assembly(type):
@@ -87,22 +86,17 @@ def test_add():
         assert len(loads) > 1
         assert len(matches) > 1
 
-    check_correct_assembly("float")
-    check_correct_assembly("float16")
-    check_correct_assembly("uint8")
-    check_correct_assembly("uint16")
-    check_correct_assembly("uint32")
-    check_correct_assembly("uint64")
-    check_correct_assembly("int8")
-    check_correct_assembly("int16")
-    check_correct_assembly("int32")
-    check_correct_assembly("int64")
+    check_correct_assembly(type=dtype)
 
 
 @pytest.mark.skipif(
     llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
-def test_sub():
+@pytest.mark.parametrize(
+    "dtype",
+    ["float", "float16", "uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"],
+)
+def test_sub(dtype):
     target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
 
     def check_correct_assembly(type):
@@ -124,22 +118,17 @@ def test_sub():
         assert len(loads) > 1
         assert len(matches) > 1
 
-    check_correct_assembly("float")
-    check_correct_assembly("float16")
-    check_correct_assembly("uint8")
-    check_correct_assembly("uint16")
-    check_correct_assembly("uint32")
-    check_correct_assembly("uint64")
-    check_correct_assembly("int8")
-    check_correct_assembly("int16")
-    check_correct_assembly("int32")
-    check_correct_assembly("int64")
+    check_correct_assembly(type=dtype)
 
 
 @pytest.mark.skipif(
     llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
-def test_muladd():
+@pytest.mark.parametrize(
+    "dtype",
+    ["float", "float16", "uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"],
+)
+def test_muladd(dtype):
     target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
 
     def check_correct_assembly(type):
@@ -162,22 +151,17 @@ def test_muladd():
         assert len(loads) > 1
         assert len(matches) > 1
 
-    check_correct_assembly("float")
-    check_correct_assembly("float16")
-    check_correct_assembly("uint8")
-    check_correct_assembly("uint16")
-    check_correct_assembly("uint32")
-    check_correct_assembly("uint64")
-    check_correct_assembly("int8")
-    check_correct_assembly("int16")
-    check_correct_assembly("int32")
-    check_correct_assembly("int64")
+    check_correct_assembly(type=dtype)
 
 
 @pytest.mark.skipif(
     llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
-def test_max():
+@pytest.mark.parametrize(
+    "dtype",
+    ["float", "float16", "uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"],
+)
+def test_max(dtype):
     target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
 
     def check_correct_assembly(type):
@@ -203,22 +187,17 @@ def test_max():
         assert len(loads) > 1
         assert (len(compare) > 1 and len(select) == len(compare)) or len(max) > 1
 
-    check_correct_assembly("float")
-    check_correct_assembly("float16")
-    check_correct_assembly("uint8")
-    check_correct_assembly("uint16")
-    check_correct_assembly("uint32")
-    check_correct_assembly("uint64")
-    check_correct_assembly("int8")
-    check_correct_assembly("int16")
-    check_correct_assembly("int32")
-    check_correct_assembly("int64")
+    check_correct_assembly(type=dtype)
 
 
 @pytest.mark.skipif(
     llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
-def test_min():
+@pytest.mark.parametrize(
+    "dtype",
+    ["float", "float16", "uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"],
+)
+def test_min(dtype):
     target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
 
     def check_correct_assembly(type):
@@ -244,22 +223,17 @@ def test_min():
         assert len(loads) > 1
         assert (len(compare) > 1 and len(select) == len(compare)) or len(min) > 1
 
-    check_correct_assembly("float")
-    check_correct_assembly("float16")
-    check_correct_assembly("uint8")
-    check_correct_assembly("uint16")
-    check_correct_assembly("uint32")
-    check_correct_assembly("uint64")
-    check_correct_assembly("int8")
-    check_correct_assembly("int16")
-    check_correct_assembly("int32")
-    check_correct_assembly("int64")
+    check_correct_assembly(type=dtype)
 
 
 @pytest.mark.skipif(
     llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
-def test_div():
+@pytest.mark.parametrize(
+    "dtype",
+    ["float", "float16", "uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"],
+)
+def test_div(dtype):
     target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
 
     def check_correct_assembly(type):
@@ -281,22 +255,16 @@ def test_div():
         assert len(loads) > 1
         assert len(matches) > 1
 
-    check_correct_assembly("float")
-    check_correct_assembly("float16")
-    check_correct_assembly("uint8")
-    check_correct_assembly("uint16")
-    check_correct_assembly("uint32")
-    check_correct_assembly("uint64")
-    check_correct_assembly("int8")
-    check_correct_assembly("int16")
-    check_correct_assembly("int32")
-    check_correct_assembly("int64")
+    check_correct_assembly(type=dtype)
 
 
 @pytest.mark.skipif(
     llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
-def test_mod():
+@pytest.mark.parametrize(
+    "dtype", ["uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"]
+)
+def test_mod(dtype):
     target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
 
     def check_correct_assembly(type):
@@ -318,20 +286,17 @@ def test_mod():
         assert len(loads) > 1
         assert len(matches) > 0
 
-    check_correct_assembly("uint8")
-    check_correct_assembly("uint16")
-    check_correct_assembly("uint32")
-    check_correct_assembly("uint64")
-    check_correct_assembly("int8")
-    check_correct_assembly("int16")
-    check_correct_assembly("int32")
-    check_correct_assembly("int64")
+    check_correct_assembly(type=dtype)
 
 
 @pytest.mark.skipif(
     llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
-def test_eq():
+@pytest.mark.parametrize(
+    "dtype",
+    ["float", "float16", "uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"],
+)
+def test_eq(dtype):
     target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
 
     def check_correct_assembly(type):
@@ -353,22 +318,17 @@ def test_eq():
         assert len(loads) > 1
         assert len(matches) > 1
 
-    check_correct_assembly("float")
-    check_correct_assembly("float16")
-    check_correct_assembly("uint8")
-    check_correct_assembly("uint16")
-    check_correct_assembly("uint32")
-    check_correct_assembly("uint64")
-    check_correct_assembly("int8")
-    check_correct_assembly("int16")
-    check_correct_assembly("int32")
-    check_correct_assembly("int64")
+    check_correct_assembly(type=dtype)
 
 
 @pytest.mark.skipif(
     llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
-def test_neq():
+@pytest.mark.parametrize(
+    "dtype",
+    ["float", "float16", "uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"],
+)
+def test_neq(dtype):
     target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
 
     def check_correct_assembly(type):
@@ -390,22 +350,16 @@ def test_neq():
         assert len(loads) > 1
         assert len(matches) > 1
 
-    check_correct_assembly("float")
-    check_correct_assembly("float16")
-    check_correct_assembly("uint8")
-    check_correct_assembly("uint16")
-    check_correct_assembly("uint32")
-    check_correct_assembly("uint64")
-    check_correct_assembly("int8")
-    check_correct_assembly("int16")
-    check_correct_assembly("int32")
-    check_correct_assembly("int64")
+    check_correct_assembly(type=dtype)
 
 
 @pytest.mark.skipif(
     llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
-def test_or():
+@pytest.mark.parametrize(
+    "dtype", ["uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"]
+)
+def test_or(dtype):
     target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
 
     def check_correct_assembly(type):
@@ -427,20 +381,16 @@ def test_or():
         assert len(loads) > 1
         assert len(matches) > 1
 
-    check_correct_assembly("uint8")
-    check_correct_assembly("uint16")
-    check_correct_assembly("uint32")
-    check_correct_assembly("uint64")
-    check_correct_assembly("int8")
-    check_correct_assembly("int16")
-    check_correct_assembly("int32")
-    check_correct_assembly("int64")
+    check_correct_assembly(type=dtype)
 
 
 @pytest.mark.skipif(
     llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
-def test_and():
+@pytest.mark.parametrize(
+    "dtype", ["uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"]
+)
+def test_and(dtype):
     target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
 
     def check_correct_assembly(type):
@@ -462,20 +412,16 @@ def test_and():
         assert len(loads) > 1
         assert len(matches) > 1
 
-    check_correct_assembly("uint8")
-    check_correct_assembly("uint16")
-    check_correct_assembly("uint32")
-    check_correct_assembly("uint64")
-    check_correct_assembly("int8")
-    check_correct_assembly("int16")
-    check_correct_assembly("int32")
-    check_correct_assembly("int64")
+    check_correct_assembly(type=dtype)
 
 
 @pytest.mark.skipif(
     llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
-def test_not():
+@pytest.mark.parametrize(
+    "dtype", ["uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"]
+)
+def test_not(dtype):
     target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
 
     def check_correct_assembly(type):
@@ -496,14 +442,7 @@ def test_not():
         assert len(loads) > 1
         assert len(matches) > 1
 
-    check_correct_assembly("uint8")
-    check_correct_assembly("uint16")
-    check_correct_assembly("uint32")
-    check_correct_assembly("uint64")
-    check_correct_assembly("int8")
-    check_correct_assembly("int16")
-    check_correct_assembly("int32")
-    check_correct_assembly("int64")
+    check_correct_assembly(type=dtype)
 
 
 @pytest.mark.skipif(
@@ -513,7 +452,10 @@ def test_not():
     reason="Awaiting llvm support for gathered loads",
     strict=True,
 )
-def test_memcpy():
+@pytest.mark.parametrize(
+    "dtype", ["uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"]
+)
+def test_memcpy(dtype):
     target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
 
     def check_correct_assembly(type):
@@ -531,14 +473,7 @@ def test_memcpy():
 
         assert len(loads) > 0
 
-    check_correct_assembly("uint8")
-    check_correct_assembly("uint16")
-    check_correct_assembly("uint32")
-    check_correct_assembly("uint64")
-    check_correct_assembly("int8")
-    check_correct_assembly("int16")
-    check_correct_assembly("int32")
-    check_correct_assembly("int64")
+    check_correct_assembly(type=dtype)
 
 
 if __name__ == "__main__":
