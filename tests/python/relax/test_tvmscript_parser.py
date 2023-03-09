@@ -200,7 +200,6 @@ def test_emit_te_primfunc_attrs():
 
         @R.function
         def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor((128, 128), "float32"):
-            # TODO(Siyuan): Need to change to `TestModule.tir_func`
             gv0 = R.call_tir(plus_one, x, R.Tensor((128, 128), dtype="float32"))
             return gv0
 
@@ -1075,7 +1074,7 @@ def test_arith_operators():
         a3 = x * y
         a4 = x / y
         a5 = x // y
-        a6 = x**y
+        a6 = x ** y
 
         c0 = x > y
         c1 = x < y
