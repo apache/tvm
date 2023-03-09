@@ -70,7 +70,11 @@ def verify_compile_tflite_module(model, shape_dict=None, use_vm=False):
     pytest.importorskip("tflite")
     tvmc_model = tvmc.load(model, shape_dict=shape_dict)
     tvmc_package = tvmc.compile(
-        tvmc_model, target="llvm", dump_code="ll", desired_layout="NCHW", use_vm=use_vm
+        tvmc_model,
+        target="llvm",
+        dump_code="ll",
+        desired_layout="NCHW",
+        use_vm=use_vm,
     )
     dumps_path = tvmc_package.package_path + ".ll"
     verify_tvmc_package(tvmc_package, dumps_path, use_vm=use_vm)

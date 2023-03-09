@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=unused-argument
 """
 Provides support to compile networks both AOT and JIT.
 """
@@ -37,7 +38,7 @@ from .main import register_parser
 from .target import target_from_cli, generate_target_args, reconstruct_target_args
 from .pass_config import parse_configs
 from .pass_list import parse_pass_list_str
-from .transform import convert_graph_layout
+from .transform import generate_transform_args, parse_graph_transform_args, apply_graph_transforms
 from .shape_parser import parse_shape_string
 from .workspace_pools import generate_workspace_pools_args, workspace_pools_recombobulate
 
@@ -61,12 +62,7 @@ def add_compile_parser(subparsers, _, json_params):
         default="",
         help="the cross compiler options to generate target libraries, e.g. '-mfpu=neon-vfpv4'.",
     )
-    parser.add_argument(
-        "--desired-layout",
-        choices=["NCHW", "NHWC"],
-        default=None,
-        help="change the data layout of the whole graph.",
-    )
+    generate_transform_args(parser)
     parser.add_argument(
         "--dump-code",
         metavar="FORMAT",
@@ -177,6 +173,7 @@ def drive_compile(args):
 
     additional_targets = reconstruct_target_args(args)
     workspace_pools_target, extra_targets = target_from_cli(args.target, additional_targets)
+    transform_args = parse_graph_transform_args(args)
 
     compile_model(
         tvmc_model,
@@ -191,7 +188,6 @@ def drive_compile(args):
         output_format=args.output_format,
         dump_code=dump_code,
         target_host=None,
-        desired_layout=args.desired_layout,
         disabled_pass=args.disabled_pass,
         pass_context_configs=args.pass_config,
         mod_name=args.module_name,
@@ -199,6 +195,7 @@ def drive_compile(args):
         workspace_pools=(
             workspace_pools_recombobulate(args, [workspace_pools_target], extra_targets)
         ),
+        **transform_args,
     )
 
     return 0
@@ -217,7 +214,6 @@ def compile_model(
     output_format: str = "so",
     dump_code: Optional[List[str]] = None,
     target_host: Optional[str] = None,
-    desired_layout: Optional[str] = None,
     disabled_pass: Optional[str] = None,
     pass_context_configs: Optional[List[str]] = None,
     additional_target_options: Optional[Dict[str, Dict[str, Any]]] = None,
@@ -225,6 +221,12 @@ def compile_model(
     mod_name: Optional[str] = "default",
     workspace_pools: Optional[WorkspaceMemoryPools] = None,
     instruments: Optional[Sequence[PassInstrument]] = None,
+    desired_layout: Optional[str] = None,
+    desired_layout_ops: Optional[List[str]] = None,
+    mixed_precision: bool = False,
+    mixed_precision_ops: Optional[List[str]] = None,
+    mixed_precision_calculation_type: Optional[str] = None,
+    mixed_precision_acc_type: Optional[str] = None,
 ):
     """Compile a model from a supported framework into a TVM module.
 
@@ -260,10 +262,6 @@ def compile_model(
     target_host : str, optional
         The target of the host machine if host-side code
         needs to be generated.
-    desired_layout: str, optional
-        The layout to convert the graph to. Note, the convert layout
-        pass doesn't currently guarantee the whole of the graph will
-        be converted to the chosen layout.
     disabled_pass: str, optional
         Comma-separated list of passes which needs to be disabled
         during compilation
@@ -281,6 +279,21 @@ def compile_model(
         compilation.
     instruments: Optional[Sequence[PassInstrument]]
         The list of pass instrument implementations.
+    desired_layout: str, optional
+        Can be one of "NCHW" or "NHWC". When specified, compatible operations in the graph
+        will have their layout set to this format. Tasks will then be tuned using this
+        specified layout.
+    desired_layout_ops: list[str], optional
+        The list of operators to be transformed with desired layout.
+    mixed_precision: bool
+        To enable mixed precision transformation. Disabled by default.
+    mixed_precision_ops: list[str], optional
+        The list of operators to be converted to mixed precision.
+        Set to ["nn.conv2d", "nn.dense"] by default
+    mixed_precision_calculation_type: str
+        The calculation dtype to be used while mixed precision. Set to "float16" by default.
+    mixed_precision_acc_type: str
+        The accumulation data type to be used while mixed precision. Set to "float16" by default.
 
     Returns
     -------
@@ -318,8 +331,8 @@ def compile_model(
         disabled_pass=disabled_pass,
         instruments=instruments,
     ):
-        if desired_layout:
-            mod = convert_graph_layout(mod, desired_layout)
+        transform_args = parse_graph_transform_args(locals())
+        mod = apply_graph_transforms(mod, transform_args)
 
         for partition_function, opts in zip(partition_functions, partition_opts):
             mod = partition_function(mod, params, mod_name=mod_name, **opts)
