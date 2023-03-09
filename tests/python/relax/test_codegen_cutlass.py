@@ -27,6 +27,8 @@ from tvm.relax.backend import get_patterns_with_prefix
 from tvm.relax.backend.contrib.cutlass import partition_for_cutlass
 from tvm.script import relax as R
 from tvm.script import tir as T
+from tvm.script.ir_builder import IRBuilder
+from tvm.script.ir_builder import relax as relax_builder
 
 
 @pytest.fixture(autouse=True)
@@ -43,13 +45,9 @@ class Conv2dBiasReLU:
         bias: R.Tensor((1, 1, 1, 32), "float16"),
     ):
         with R.dataflow():
-            conv1 = relax.op.nn.relu(
-                relax.op.add(
-                    relax.op.nn.conv2d(
-                        data, weight, padding=(1, 1), data_layout="NHWC", kernel_layout="OHWI"
-                    ),
-                    bias,
-                )
+            conv1 = R.nn.relu(
+                R.nn.conv2d(data, weight, padding=(1, 1), data_layout="NHWC", kernel_layout="OHWI")
+                + bias,
             )
             R.output(conv1)
 
@@ -98,28 +96,18 @@ def build_and_run(mod, inputs_np, target, legalize=False):
     return f(*inputs).numpy()
 
 
-def get_result_with_relax_cutlass_offload(mod, *args):
+def get_result_with_relax_cutlass_offload(mod, *args, assert_all_bindings_fused=True):
     patterns = [(entry.name, entry.pattern) for entry in get_patterns_with_prefix("cutlass")]
     assert len(patterns) != 0, "Cannot find cutlass patterns"
 
     mod = partition_for_cutlass(mod)
+    if assert_all_bindings_fused:
+        assert len(mod["main"].body.blocks[0].bindings) == 1
+
     codegen_pass = relax.transform.RunCodegen({"cutlass": {"sm": 80, "find_first_valid": True}})
     mod = codegen_pass(mod)
 
     return build_and_run(mod, args, "cuda")
-
-
-def test_conv2d_offload():
-    low, high = -1, 1
-    data = np.random.randint(low, high, size=(16, 32, 32, 16)).astype("float16")
-    weight = np.random.randint(low, high, size=(32, 3, 3, 16)).astype("float16")
-    bias = np.random.randint(low, high, size=(1, 1, 1, 32)).astype("float16")
-
-    out = get_result_with_relax_cutlass_offload(Conv2dBiasReLU, data, weight, bias)
-
-    ref = build_and_run(Conv2dBiasReLU, [data, weight, bias], "llvm", legalize=True)
-
-    np.testing.assert_equal(out, ref)
 
 
 def test_kernel_sharing():
@@ -128,10 +116,56 @@ def test_kernel_sharing():
     weight1_np = np.random.randint(low, high, size=(8, 3, 3, 8)).astype("float16")
     weight2_np = np.random.randint(low, high, size=(8, 3, 3, 8)).astype("float16")
 
-    out = get_result_with_relax_cutlass_offload(Conv2dx2, data_np, weight1_np, weight2_np)
+    out = get_result_with_relax_cutlass_offload(
+        Conv2dx2, data_np, weight1_np, weight2_np, assert_all_bindings_fused=False
+    )
     ref = build_and_run(Conv2dx2, [data_np, weight1_np, weight2_np], "llvm", legalize=True)
 
     np.testing.assert_equal(out, ref)
+
+
+def get_relax_conv2d_module(
+    data_shape,
+    weight_shape,
+    dtype,
+    with_bias=False,
+    activation=None,
+    residual_bin_op=None,
+    residual_activation=None,
+):
+    with IRBuilder() as builder:
+        with relax_builder.function():
+            R.func_name("main")
+            data = R.arg("data", R.Tensor(data_shape, dtype))
+            weight = R.arg("weight", R.Tensor(weight_shape, dtype))
+            if with_bias:
+                bias = R.arg("bias", R.Tensor((1, 1, 1, weight_shape[0]), dtype))
+
+            with R.dataflow() as frame:
+                output = R.emit(
+                    R.nn.conv2d(
+                        data,
+                        weight,
+                        out_dtype=dtype,
+                        padding=(1, 1),
+                        data_layout="NHWC",
+                        kernel_layout="OHWI",
+                    )
+                )
+                if with_bias:
+                    output = R.emit(output + bias)
+                if activation is not None:
+                    output = R.emit(activation(output))
+                if residual_bin_op is not None:
+                    output = R.emit(residual_bin_op(output, data))
+                if residual_activation is not None:
+                    output = R.emit(residual_activation(output))
+                R.output(output)
+
+            R.func_ret_value(frame.output_vars[0])
+
+    func = builder.get()
+    return tvm.IRModule({"main": func})
 
 
 def get_relax_matmul_module(
@@ -141,9 +175,6 @@ def get_relax_matmul_module(
         n = y_shape[-2]
     else:
         n = y_shape[-1]
-
-    from tvm.script.ir_builder import IRBuilder
-    from tvm.script.ir_builder import relax as relax_builder
 
     with IRBuilder() as builder:
         with relax_builder.function():
@@ -195,7 +226,62 @@ _epilogue_table = {
     "bias": (True, None),
     "relu": (True, R.nn.relu),
     "gelu": (True, R.nn.gelu),
+    "silu": (True, R.nn.silu),
 }
+
+
+_residual_block_table = {
+    "none": (None, None),
+    "add_relu": (R.add, R.nn.relu),
+    "mul_relu": (R.multiply, R.nn.relu),
+    "add": (R.add, None),
+    "mul": (R.multiply, None),
+}
+
+
+@pytest.mark.parametrize(
+    "data_shape, weight_shape, dtype, epilogue, residual_block",
+    [
+        # Regular
+        ((16, 32, 32, 16), (32, 3, 3, 16), "float16", "none", "none"),
+        ((40, 128, 50, 16), (16, 2, 2, 16), "float16", "bias", "none"),
+        ((3, 64, 64, 128), (32, 1, 1, 128), "float16", "relu", "none"),
+        ((12, 32, 32, 16), (45, 5, 5, 16), "float16", "silu", "none"),
+        # residual block
+        ((3, 64, 64, 16), (16, 3, 3, 16), "float16", "relu", "add"),
+        ((16, 32, 32, 16), (16, 3, 3, 16), "float16", "relu", "mul_relu"),
+        ((40, 128, 50, 16), (16, 3, 3, 16), "float16", "bias", "add_relu"),
+        ((128, 32, 32, 16), (16, 3, 3, 16), "float16", "silu", "mul"),
+    ],
+)
+def test_conv2d_offload(data_shape, weight_shape, dtype, epilogue, residual_block):
+    low, high = -1, 1
+    data = np.random.randint(low, high, size=data_shape).astype(dtype)
+    weight = np.random.randint(low, high, size=weight_shape).astype(dtype)
+    bias = np.random.randint(low, high, size=(1, 1, 1, weight_shape[0])).astype(dtype)
+
+    with_bias, activation = _epilogue_table[epilogue]
+    residual_bin_op, residual_activation = _residual_block_table[residual_block]
+
+    if with_bias:
+        args = (data, weight, bias)
+    else:
+        args = (data, weight)
+
+    mod = get_relax_conv2d_module(
+        data_shape,
+        weight_shape,
+        dtype,
+        with_bias=with_bias,
+        activation=activation,
+        residual_bin_op=residual_bin_op,
+        residual_activation=residual_activation,
+    )
+    out = get_result_with_relax_cutlass_offload(mod, *args)
+
+    ref = build_and_run(mod, args, "llvm", legalize=True)
+
+    tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
 
 @pytest.mark.parametrize(
