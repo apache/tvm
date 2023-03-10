@@ -87,10 +87,10 @@ def test_bind_params_symbolic_vars():
             m = T.Var("m", "int64")
             n = T.Var("n", "int64")
             with R.dataflow():
-                lv0 = R.call_tir(
+                lv0 = R.call_dps_packed(
                     "linear0", (x, w0, b0), out_sinfo=R.Tensor((batch, n), dtype="float32")
                 )
-                out = R.call_tir(
+                out = R.call_dps_packed(
                     "linear1", (lv0, w1, b1), out_sinfo=R.Tensor((batch, k), dtype="float32")
                 )
                 R.output(out)
