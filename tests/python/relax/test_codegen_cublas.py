@@ -205,3 +205,4 @@ def test_matmul_offload(
 if __name__ == "__main__":
     # tvm.testing.main()
     test_matmul_offload((32, 8), (8, 16), False, "none", "float32")
+    test_matmul_offload((32, 8), (8, 16), True, "none", "float32")

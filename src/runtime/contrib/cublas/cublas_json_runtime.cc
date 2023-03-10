@@ -61,11 +61,18 @@ class CublasJSONRuntime : public JSONRuntimeBase {
       if (node.GetOpType() == "kernel") {
         auto op_name = node.GetOpName();
         if (op_name == "cublas.matmul") {
-	  auto a_ptr = GetInput(node, 0);
-	  auto b_ptr = GetInput(node, 1);
           uint32_t output_eid = EntryID(outputs_[0]);
 	  auto out_ptr = data_entry_[output_eid];
+	  auto a_ptr = GetInput(node, 0);
+	  auto b_ptr = GetInput(node, 1);
 	  tvm::contrib::CallCublasLt(handle, a_ptr, b_ptr, out_ptr, false, false, 1.0, 0.0);
+	} else if (op_name == "cublas.matmul_transposed") {
+          uint32_t output_eid = EntryID(outputs_[0]);
+	  auto out_ptr = data_entry_[output_eid];
+	  // TODO: fix
+	  auto a_ptr = GetInput(node, 1);
+	  auto b_ptr = GetInput(node, 0);
+	  tvm::contrib::CallCublasLt(handle, a_ptr, b_ptr, out_ptr, false, true, 1.0, 0.0);
 	}
       }
     }

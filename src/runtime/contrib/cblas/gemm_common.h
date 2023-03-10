@@ -35,7 +35,7 @@ namespace tvm {
 namespace contrib {
 
 using namespace runtime;
-inline int ColumnStride(DLTensor* tensor) {
+inline int ColumnStride(const DLTensor* tensor) {
   // If the tensor itself is transposed then it will have strides
   // backward from what we expect.  Regardless, the max of the strides
   // (the other stride is 1) is the column stride.
