@@ -75,11 +75,8 @@ class DataflowReshapeRewriter : public ExprMutator {
     if (call->op != call_tir_op) {
       return false;
     }
-    const auto* gv = call->args[0].as<GlobalVarNode>();
-    if (gv == nullptr) {
-      return false;
-    }
-    const auto* func = mod_->functions.Get(GetRef<GlobalVar>(gv)).as<tir::PrimFuncNode>();
+    const GlobalVar& global_var = Downcast<GlobalVar>(call->args[0]);
+    const auto* func = mod_->functions.Get(global_var).as<tir::PrimFuncNode>();
     ICHECK_NOTNULL(func);
     return HasReshapePattern(GetRef<tir::PrimFunc>(func));
   }

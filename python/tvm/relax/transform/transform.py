@@ -60,7 +60,7 @@ def LambdaLift():
 
 
 def CallTIRRewrite() -> tvm.ir.transform.Pass:
-    """Perform explicit tensor allocation for call_tir.
+    """Perform explicit tensor allocation for call_tir and call_dps_packed.
 
     Returns
     -------

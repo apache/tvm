@@ -95,9 +95,11 @@ ExprDoc PrintCallee(const relax::Expr& n, const ObjectPath& n_p, const IRDocsifi
   }
 }
 
-Optional<ExprDoc> PrintCallTIR(const relax::Call& n, const ObjectPath& n_p, const IRDocsifier& d) {
+Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const ObjectPath& n_p,
+                                        const IRDocsifier& d) {
   static const Op& call_tir_op = Op::Get("relax.call_tir");
-  if (!n->op.same_as(call_tir_op)) {
+  static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
+  if (!n->op.same_as(call_tir_op) && !n->op.same_as(call_dps_packed_op)) {
     return NullOpt;
   }
   ICHECK(n->args.size() == 2 || n->args.size() == 3);
@@ -123,6 +125,9 @@ Optional<ExprDoc> PrintCallTIR(const relax::Call& n, const ObjectPath& n_p, cons
   } else {
     kwargs_values.push_back(d->AsDoc<ExprDoc>(o_sinfo, o_sinfo_p));
   }
+  if (n->op.same_as(call_dps_packed_op)) {
+    return Relax(d, "call_dps_packed")->Call(args, kwargs_keys, kwargs_values);
+  }
   // Step 4. Print n->args[2], the tir variables
   if (n->args.size() == 3) {
     kwargs_keys.push_back("tir_vars");
@@ -134,8 +139,8 @@ Optional<ExprDoc> PrintCallTIR(const relax::Call& n, const ObjectPath& n_p, cons
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::Call>(  //
         "", [](relax::Call n, ObjectPath n_p, IRDocsifier d) -> Doc {
-          // Special case: call_tir
-          if (Optional<ExprDoc> doc = PrintCallTIR(n, n_p, d)) {
+          // Special case: call_tir, call_dps_packed
+          if (Optional<ExprDoc> doc = PrintCallTIRDPSPacked(n, n_p, d)) {
             return doc.value();
           }
           ExprDoc prefix{nullptr};

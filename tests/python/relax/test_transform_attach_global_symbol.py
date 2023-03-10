@@ -45,7 +45,7 @@ class Before:
     @R.function
     def main(x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")) -> R.Tensor:
         m, n, k = T.int64(), T.int64(), T.int64()
-        gv0 = R.call_tir("tir_matmul", (x, w), R.Tensor((m, k), dtype="float32"))
+        gv0 = R.call_tir(tir_matmul, (x, w), R.Tensor((m, k), dtype="float32"))
         return gv0
 
 
@@ -75,7 +75,7 @@ def test_basic():
         ) -> R.Tensor:
             R.func_attr({"global_symbol": "main"})
             m, n, k = T.int64(), T.int64(), T.int64()
-            gv0 = R.call_tir("tir_matmul", (x, w), R.Tensor((m, k), dtype="float32"))
+            gv0 = R.call_tir(tir_matmul, (x, w), R.Tensor((m, k), dtype="float32"))
             return gv0
 
     before = Before

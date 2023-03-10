@@ -235,12 +235,12 @@ class Conv2dx2_after:
         weight2: R.Tensor((16, 3, 3, 16), dtype="float16"),
     ) -> R.Tensor((16, 32, 32, 16), dtype="float16"):
         with R.dataflow():
-            lv = R.call_tir(
+            lv = R.call_dps_packed(
                 "fused_relax_nn_conv2d_tensorrt",
                 (data, weight1),
                 out_sinfo=R.Tensor((16, 32, 32, 16), dtype="float16"),
             )
-            gv = R.call_tir(
+            gv = R.call_dps_packed(
                 "fused_relax_nn_conv2d_tensorrt",
                 (lv, weight2),
                 out_sinfo=R.Tensor((16, 32, 32, 16), dtype="float16"),

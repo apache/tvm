@@ -862,11 +862,23 @@ def is_call_tir(
     return _is_call_tir(func_pattern, args)
 
 
-def is_call_tir_extern(
+def _is_call_dps_packed(
+    func_pattern: DFPattern,
+    args: Union[List, Tuple, TuplePattern] = None,
+) -> CallPattern:
+    if args is None:
+        args = wildcard()
+    elif isinstance(args, (list, tuple)):
+        args = TuplePattern(args)
+
+    return is_op("relax.call_dps_packed")(func_pattern, args)
+
+
+def is_call_dps_packed(
     func_name: str,
     args: Union[List, Tuple, TuplePattern] = None,
 ) -> CallPattern:
-    """Syntax sugar for creating a CallPattern for call_tir that calls an extern function
+    """Syntax sugar for creating a CallPattern for call_dps_packed
 
     Parameters
     ----------
@@ -881,7 +893,7 @@ def is_call_tir_extern(
         The resulting CallPattern
     """
     func_pattern = ExternFuncPattern(func_name)
-    return _is_call_tir(func_pattern, args)
+    return _is_call_dps_packed(func_pattern, args)
 
 
 def is_call_packed(

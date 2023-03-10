@@ -83,7 +83,7 @@ TVM_DLL Pass LambdaLift();
 TVM_DLL Pass ToNonDataflow();
 
 /*!
- * \brief Perform explicit tensor allocation for call_tir.
+ * \brief Perform explicit tensor allocation for call_tir and call_dps_packed.
  *
  * \return The Pass.
  */
