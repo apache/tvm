@@ -400,8 +400,8 @@ inline Range Substitute(const Range& range,
  * \return The modified Range.
  */
 template <typename Obj>
-auto Substitute(Obj&& obj, const Map<Var, PrimExpr>& map) {
-  auto func = [&map](const Var& var) -> Optional<PrimExpr> { return map.Get(var); };
+auto Substitute(Obj&& obj, const Map<Var, PrimExpr>& vmap) {
+  auto func = [&vmap](const Var& var) -> Optional<PrimExpr> { return vmap.Get(var); };
   return Substitute(std::forward<Obj>(obj), func);
 }
 
@@ -416,9 +416,9 @@ auto Substitute(Obj&& obj, const Map<Var, PrimExpr>& map) {
  */
 template <typename Obj, typename Expr,
           typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr>>>
-auto Substitute(Obj&& obj, const Map<Var, Expr>& map) {
-  auto func = [&map](const Var& var) -> Optional<PrimExpr> {
-    if (auto opt = map.Get(var)) {
+auto Substitute(Obj&& obj, const Map<Var, Expr>& vmap) {
+  auto func = [&vmap](const Var& var) -> Optional<PrimExpr> {
+    if (auto opt = vmap.Get(var)) {
       return opt.value();
     } else {
       return NullOpt;
@@ -438,9 +438,9 @@ auto Substitute(Obj&& obj, const Map<Var, Expr>& map) {
  */
 template <typename Obj, typename Expr,
           typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr>>>
-auto Substitute(Obj&& obj, const std::unordered_map<const VarNode*, Expr>& map) {
-  auto func = [&map](const Var& var) -> Optional<PrimExpr> {
-    if (auto it = map.find(var.get()); it != map.end()) {
+auto Substitute(Obj&& obj, const std::unordered_map<const VarNode*, Expr>& vmap) {
+  auto func = [&vmap](const Var& var) -> Optional<PrimExpr> {
+    if (auto it = vmap.find(var.get()); it != vmap.end()) {
       return it->second;
     } else {
       return NullOpt;
@@ -460,9 +460,9 @@ auto Substitute(Obj&& obj, const std::unordered_map<const VarNode*, Expr>& map) 
  */
 template <typename Obj, typename Expr, typename Hasher, typename EqualityChecker,
           typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr>>>
-auto Substitute(Obj&& obj, const std::unordered_map<Var, Expr, Hasher, EqualityChecker>& map) {
-  auto func = [&map](const Var& var) -> Optional<PrimExpr> {
-    if (auto it = map.find(var); it != map.end()) {
+auto Substitute(Obj&& obj, const std::unordered_map<Var, Expr, Hasher, EqualityChecker>& vmap) {
+  auto func = [&vmap](const Var& var) -> Optional<PrimExpr> {
+    if (auto it = vmap.find(var); it != vmap.end()) {
       return it->second;
     } else {
       return NullOpt;
@@ -477,19 +477,19 @@ auto Substitute(Obj&& obj, const std::unordered_map<Var, Expr, Hasher, EqualityC
  * Delegates to the Substitute methods that use std::function.
  *
  * \param obj The object in which TIR variables should be substituted
- * \param vmap Map defining the TIR variables to be replaced
+ * \param iter_vmap Map defining the TIR variables to be replaced
  * \return The modified Range.
  */
 template <typename Obj, typename Expr,
           typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr>>>
-auto Substitute(Obj&& obj, const std::unordered_map<IterVar, Expr>& map) {
-  std::unordered_map<const VarNode*, PrimExpr> var_map;
-  for (const auto& [iter_var, expr] : map) {
-    var_map[iter_var->var.get()] = expr;
+auto Substitute(Obj&& obj, const std::unordered_map<IterVar, Expr>& iter_vmap) {
+  std::unordered_map<const VarNode*, PrimExpr> vmap;
+  for (const auto& [iter_var, expr] : iter_vmap) {
+    vmap[iter_var->var.get()] = expr;
   }
 
-  auto func = [map = std::move(var_map)](const Var& var) -> Optional<PrimExpr> {
-    if (auto it = map.find(var.get()); it != map.end()) {
+  auto func = [&vmap](const Var& var) -> Optional<PrimExpr> {
+    if (auto it = vmap.find(var.get()); it != vmap.end()) {
       return it->second;
     } else {
       return NullOpt;
