@@ -793,6 +793,10 @@ ExprPattern IsOp(const String& op_name);
 CallPattern IsCallTIR(const String& name, Optional<TuplePattern> args = NullOpt);
 /*! \brief Syntatic Sugar for call_tir (return a tuple of tensor) */
 CallPattern IsCallTIR(const String& name, TuplePattern var_args);
+/*! \brief Syntatic Sugar for call_dps_packed (return a tensor) */
+CallPattern IsCallDPSPacked(const String& name, Optional<TuplePattern> args = NullOpt);
+/*! \brief Syntatic Sugar for call_dps_packed (return a tuple of tensor) */
+CallPattern IsCallDPSPacked(const String& name, TuplePattern var_args);
 /*! \brief Syntatic Sugar for creating TuplePattern or UnorderedTuplePattern (unordered=true) */
 DFPattern IsTuple(const Array<DFPattern>& fields, bool unordered = false);
 /*! \brief Syntatic Sugar for creating a TupleGetItemPattern */

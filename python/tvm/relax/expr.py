@@ -597,7 +597,7 @@ class Function(BaseFunc, Scriptable):
 
 @tvm._ffi.register_object("relax.expr.ExternFunc")
 class ExternFunc(BaseFunc):
-    """extern function, which can represent a TIR PrimFunc or a PackedFunc."""
+    """extern function, which represents a PackedFunc."""
 
     global_symbol: String
 

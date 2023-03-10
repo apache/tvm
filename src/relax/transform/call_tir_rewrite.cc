@@ -33,7 +33,7 @@ namespace relax {
 
 // ==================
 // CallTIRMutator
-// Perform explicit tensor allocation for call_tir.
+// Perform explicit tensor allocation for call_tir or call_dps_packed.
 // Example:
 // lv0: Tensor(n, m) = rx.call_tir(func, (x), (n, m), dtype="float32")
 // -->
@@ -49,10 +49,11 @@ class CallTIRMutator : public ExprMutator {
     call = expr.as<CallNode>();
 
     static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
     static const Op& call_tir_dyn_op = Op::Get("relax.vm.call_tir_dyn");
 
-    if (call->op == call_tir_op) {
+    if (call->op == call_tir_op || call->op == call_dps_packed_op) {
       Array<Expr> outs;
       if (const auto& _tensor_sinfo = MatchStructInfo<TensorStructInfo>(expr)) {
         // single output case

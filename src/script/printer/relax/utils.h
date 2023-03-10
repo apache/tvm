@@ -82,7 +82,8 @@ inline Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const ObjectPath& 
   }
   if (const auto* call = rhs.as<relax::CallNode>()) {
     static const Op& call_tir_op = Op::Get("relax.call_tir");
-    if (call->op.same_as(call_tir_op)) {
+    static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
+    if (call->op.same_as(call_tir_op) || call->op.same_as(call_dps_packed_op)) {
       return NullOpt;
     }
   }

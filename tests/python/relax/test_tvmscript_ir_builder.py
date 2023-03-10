@@ -25,7 +25,7 @@ def test_function_simple():
     """
     @R.function
     def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor(None, "float32", ndim=2):
-        out = R.call_tir("extern_func", x, R.Tensor((128, 128), dtype="float32"))
+        out = R.call_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32"))
         return out
     """
     # create with Script IRBuilder
@@ -35,8 +35,15 @@ def test_function_simple():
             R.func_attr({"Primitive": 1})
             x = R.arg("x", relax.TensorStructInfo((128, 128), "float32"))
             R.func_ret_struct_info(relax.TensorStructInfo(dtype="float32", ndim=2))
+            y = R.emit(
+                R.call_dps_packed(
+                    "extern_func", x, relax.TensorStructInfo((128, 128), dtype="float32")
+                )
+            )
             out = R.emit(
-                R.call_tir("extern_func", x, relax.TensorStructInfo((128, 128), dtype="float32"))
+                R.call_dps_packed(
+                    "extern_dps_func", y, relax.TensorStructInfo((128, 128), dtype="float32")
+                )
             )
             IRBuilder.name("out", out)
             R.func_ret_value(out)
@@ -45,8 +52,15 @@ def test_function_simple():
     x = relax.Var("x", relax.TensorStructInfo((128, 128), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,), attrs={"Primitive": 1}):
+        y = bb.emit(
+            relax.call_dps_packed(
+                "extern_func", x, relax.TensorStructInfo((128, 128), dtype="float32")
+            )
+        )
         out = bb.emit(
-            relax.call_tir("extern_func", x, relax.TensorStructInfo((128, 128), dtype="float32"))
+            relax.call_dps_packed(
+                "extern_dps_func", y, relax.TensorStructInfo((128, 128), dtype="float32")
+            )
         )
         bb.emit_func_output(out)
     mod = bb.get()
@@ -112,7 +126,7 @@ def test_dataflow_block():
     def foo(x: Tensor((128, 128), "float32")) -> Tensor(None, "float32", ndim = 2):
         # block 0
         with R.dataflow():
-            lv0 = R.call_tir("extern_func", (x,), R.Tensor((128, 128), dtype="float32"))
+            lv0 = R.call_dps_packed("extern_func", (x,), R.Tensor((128, 128), dtype="float32"))
             gv: Tensor((128, 128), "float32") = lv0
             R.output(gv)
         return gv
@@ -124,7 +138,7 @@ def test_dataflow_block():
             x = R.arg("x", relax.TensorStructInfo((128, 128), "float32"))
             with R.dataflow() as df:
                 lv0 = R.emit(
-                    R.call_tir(
+                    R.call_dps_packed(
                         "extern_func", x, relax.TensorStructInfo((128, 128), dtype="float32")
                     )
                 )
@@ -142,7 +156,7 @@ def test_dataflow_block():
     with bb.function("foo", (x,)):
         with bb.dataflow():
             lv0 = bb.emit(
-                relax.call_tir(
+                relax.call_dps_packed(
                     "extern_func", x, relax.TensorStructInfo((128, 128), dtype="float32")
                 )
             )

@@ -75,17 +75,18 @@ class CodeGenRunner : ExprMutator {
     if (auto const* gvar_node = call_node->op.as<GlobalVarNode>()) {
       const GlobalVar gvar = GetRef<GlobalVar>(gvar_node);
 
-      auto create_call_tir = [call_node, this](Expr extern_func, StructInfo ret_struct_info) {
+      auto create_call_dps_packed = [call_node, this](Expr extern_func,
+                                                      StructInfo ret_struct_info) {
         Array<Expr> new_args({extern_func});
         new_args.push_back(Tuple(call_node->args.Map([this](Expr arg) { return VisitExpr(arg); })));
 
-        static const Op& call_op = Op::Get("relax.call_tir");
+        static const Op& call_op = Op::Get("relax.call_dps_packed");
 
         return Call(call_op, new_args, tvm::Attrs(), {ret_struct_info});
       };
 
       if (auto it = extern_funcs_.find(gvar_node); it != extern_funcs_.end()) {
-        return create_call_tir(it->second.first, it->second.second);
+        return create_call_dps_packed(it->second.first, it->second.second);
       } else {
         // TODO(@sunggg): Is there any better way to get this func?
         Function func = Downcast<Function>(builder_->GetContextIRModule()->Lookup(gvar));
@@ -101,7 +102,7 @@ class CodeGenRunner : ExprMutator {
           func = (*RemoveFuncAttrFunc)(func, tvm::attr::kGlobalSymbol);
           func = (*RemoveFuncAttrFunc)(func, attr::kCodegen);
           builder_->UpdateFunction(gvar, func);
-          return create_call_tir(new_func, func->ret_struct_info);
+          return create_call_dps_packed(new_func, func->ret_struct_info);
         }
       }
     }

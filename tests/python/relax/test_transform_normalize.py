@@ -124,8 +124,10 @@ def test_normalize_no_op():
         def foo(x: R.Tensor(("m", "n"), "float32")):
             m, n = T.int64(), T.int64()
             with R.dataflow():
-                lv0 = R.call_tir("test.op.identity", (x,), R.Tensor((m, n), dtype="float32"))
-                gv0 = R.call_tir("test.op.identity", (lv0,), R.Tensor((m, n), dtype="float32"))
+                lv0 = R.call_dps_packed("test.op.identity", (x,), R.Tensor((m, n), dtype="float32"))
+                gv0 = R.call_dps_packed(
+                    "test.op.identity", (lv0,), R.Tensor((m, n), dtype="float32")
+                )
                 R.output(gv0)
             return gv0
 

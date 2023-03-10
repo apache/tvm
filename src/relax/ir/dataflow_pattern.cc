@@ -563,6 +563,20 @@ CallPattern IsCallTIR(const String& name, Optional<TuplePattern> var_args) {
 CallPattern IsCallTIR(const String& name, TuplePattern var_args) {
   return IsOp("relax.call_tir")(GlobalVarPattern(name), var_args);
 }
+CallPattern IsCallDPSPacked(const String& name, Optional<TuplePattern> var_args) {
+  DFPattern arg_pattern;
+  if (!var_args.defined()) {
+    arg_pattern = Wildcard();
+  } else {
+    arg_pattern = var_args.value();
+  }
+
+  return IsOp("relax.call_dps_packed")(GlobalVarPattern(name), arg_pattern);
+}
+
+CallPattern IsCallDPSPacked(const String& name, TuplePattern var_args) {
+  return IsOp("relax.call_dps_packed")(GlobalVarPattern(name), var_args);
+}
 
 DFPattern IsTuple(const Array<DFPattern>& fields, bool unordered) {
   if (unordered)
