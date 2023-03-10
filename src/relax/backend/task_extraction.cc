@@ -73,11 +73,6 @@ class TaskExtractor : public ExprVisitor {
       return;
     }
 
-    // Do not extract external function
-    if (call->args[0].as<ExternFuncNode>()) {
-      return;
-    }
-
     const GlobalVar& global_var = Downcast<GlobalVar>(call->args[0]);
     const tir::PrimFunc& func = Downcast<tir::PrimFunc>(mod_->Lookup(global_var));
 

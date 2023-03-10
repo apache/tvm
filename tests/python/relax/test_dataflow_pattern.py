@@ -354,15 +354,15 @@ def test_simple_oub():
 
 def test_counter_syntax_match():
     with PatternContext() as ctx:
-        n0 = is_call_tir_extern("tir_matmul")
-        n1 = is_call_tir_extern("tir_impossible")
+        n0 = is_call_dps_packed("extern_matmul")
+        n1 = is_call_dps_packed("extern_impossible")
         n0 >> n1
         dfb = main_fn.body.blocks[0]
         assert not ctx.match_dfb(dfb)
 
     with PatternContext() as ctx:
-        n0 = is_call_tir_extern("tir_matmul")
-        n1 = is_call_tir_extern("tir_impossible")
+        n0 = is_call_dps_packed("extern_matmul")
+        n1 = is_call_dps_packed("extern_impossible")
         n0 ^ n1
         dfb = main_fn.body.blocks[0]
         assert not ctx.match_dfb(dfb)
@@ -378,20 +378,20 @@ class Diamond:
             # relu  sigmoid
             #  \      /
             #    add
-            lv0 = R.call_tir("tir_matmul", (x, w), R.Tensor((32, 32), dtype="float32"))
-            lv1 = R.call_tir("tir_relu", (lv0,), R.Tensor((32, 32), dtype="float32"))
-            lv2 = R.call_tir("tir_sigmoid", (lv0), R.Tensor((32, 32), dtype="float32"))
-            lv3 = R.call_tir("tir_add", (lv1, lv2), R.Tensor((32, 32), dtype="float32"))
+            lv0 = R.call_dps_packed("extern_matmul", (x, w), R.Tensor((32, 32), dtype="float32"))
+            lv1 = R.call_dps_packed("extern_relu", (lv0,), R.Tensor((32, 32), dtype="float32"))
+            lv2 = R.call_dps_packed("extern_sigmoid", (lv0), R.Tensor((32, 32), dtype="float32"))
+            lv3 = R.call_dps_packed("extern_add", (lv1, lv2), R.Tensor((32, 32), dtype="float32"))
             R.output(lv3)
         return lv3
 
 
 def test_diamond():
     with PatternContext() as ctx:
-        n0 = is_call_tir_extern("tir_matmul")
-        n1 = is_call_tir_extern("tir_relu")
-        n2 = is_call_tir_extern("tir_sigmoid")
-        n3 = is_call_tir_extern("tir_add")
+        n0 = is_call_dps_packed("extern_matmul")
+        n1 = is_call_dps_packed("extern_relu")
+        n2 = is_call_dps_packed("extern_sigmoid")
+        n3 = is_call_dps_packed("extern_add")
 
         n0 ^ n1
         n0 ^ n2
@@ -399,15 +399,15 @@ def test_diamond():
         n2 >> n3
 
         dfb = Diamond["main"].body.blocks[0]
-        assert ctx.match_dfb(dfb)
 
+        assert ctx.match_dfb(dfb)
     # simplify it with fork_to
     with PatternContext() as ctx:
-        n1 = is_call_tir_extern("tir_relu")
-        n2 = is_call_tir_extern("tir_sigmoid")
-        n3 = is_call_tir_extern("tir_add")
+        n1 = is_call_dps_packed("extern_relu")
+        n2 = is_call_dps_packed("extern_sigmoid")
+        n3 = is_call_dps_packed("extern_add")
 
-        is_call_tir_extern("tir_matmul").fork_to(n1, n2)
+        is_call_dps_packed("extern_matmul").fork_to(n1, n2)
         n1 >> n3
         n2 >> n3
 
@@ -417,10 +417,10 @@ def test_diamond():
 
 def test_diamond_counter_oub():
     with PatternContext() as ctx:
-        n0 = is_call_tir_extern("tir_matmul")
-        n1 = is_call_tir_extern("tir_relu")
-        n2 = is_call_tir_extern("tir_sigmoid")
-        n3 = is_call_tir_extern("tir_add")
+        n0 = is_call_dps_packed("extern_matmul")
+        n1 = is_call_dps_packed("extern_relu")
+        n2 = is_call_dps_packed("extern_sigmoid")
+        n3 = is_call_dps_packed("extern_add")
 
         n0 >> n1
         n0 >> n2
@@ -440,8 +440,8 @@ class SmallDiamond:
             #  /      \
             #  \      /
             #    add
-            lv0 = R.call_tir("my_relu", (x,), R.Tensor((32, 32), dtype="float32"))
-            lv1 = R.call_tir("my_add", (lv0, lv0), R.Tensor((32, 32), dtype="float32"))
+            lv0 = R.call_dps_packed("my_relu", (x,), R.Tensor((32, 32), dtype="float32"))
+            lv1 = R.call_dps_packed("my_add", (lv0, lv0), R.Tensor((32, 32), dtype="float32"))
             R.output(lv1)
         return lv1
 
@@ -454,9 +454,9 @@ class SmallParallel:
             # relu   relu
             #   \    /
             #    add
-            lv0 = R.call_tir("my_relu", (x,), R.Tensor((32, 32), dtype="float32"))
-            lv1 = R.call_tir("my_relu", (x,), R.Tensor((32, 32), dtype="float32"))
-            lv2 = R.call_tir("my_add", (lv0, lv1), R.Tensor((32, 32), dtype="float32"))
+            lv0 = R.call_dps_packed("my_relu", (x,), R.Tensor((32, 32), dtype="float32"))
+            lv1 = R.call_dps_packed("my_relu", (x,), R.Tensor((32, 32), dtype="float32"))
+            lv2 = R.call_dps_packed("my_add", (lv0, lv1), R.Tensor((32, 32), dtype="float32"))
             R.output(lv2)
         return lv2
 
@@ -468,8 +468,8 @@ def test_distiguish_diamond_and_parallel():
 
     with PatternContext() as ctx:
         # describe a diamond pattern
-        fork = is_call_tir_extern("my_relu")
-        join = is_call_tir_extern("my_add")
+        fork = is_call_dps_packed("my_relu")
+        join = is_call_dps_packed("my_add")
         fork.only_used_by(join, index=0)
         fork.only_used_by(join, index=1)
 
@@ -478,13 +478,13 @@ def test_distiguish_diamond_and_parallel():
 
     with PatternContext() as ctx:
         # describe a parallel pattern
-        join = is_call_tir_extern("my_add")
+        join = is_call_dps_packed("my_add")
         # Due to one-one mathcing:
-        # is_call_tir_extern("my_relu") creates the 1st relu
-        is_call_tir_extern("my_relu") >> join
-        # is_call_tir_extern("my_relu")
+        # is_call_dps_packed("my_relu") creates the 1st relu
+        is_call_dps_packed("my_relu") >> join
+        # is_call_dps_packed("my_relu")
         # creates the another different relu (obj address is different)
-        is_call_tir_extern("my_relu") >> join
+        is_call_dps_packed("my_relu") >> join
 
         assert ctx.match_dfb(parallel)
         assert not ctx.match_dfb(diamond)
@@ -507,13 +507,13 @@ class CBRx2:
         #     \   /
         #     concat
         with R.dataflow():
-            lv0 = R.call_tir("conv1x1", (x, w0), R.Tensor((32, 32), dtype="float32"))
-            lv1 = R.call_tir("bias_add", (lv0, bias0), R.Tensor((32, 32), dtype="float32"))
-            lv2 = R.call_tir("my_relu", (lv1), R.Tensor((32, 32), dtype="float32"))
-            lv3 = R.call_tir("conv1x1", (x, w1), R.Tensor((32, 32), dtype="float32"))
-            lv4 = R.call_tir("bias_add", (lv3, bias1), R.Tensor((32, 32), dtype="float32"))
-            lv5 = R.call_tir("my_relu", (lv4), R.Tensor((32, 32), dtype="float32"))
-            lv6 = R.call_tir("concat", (lv2, lv5), R.Tensor((32, 64), dtype="float32"))
+            lv0 = R.call_dps_packed("conv1x1", (x, w0), R.Tensor((32, 32), dtype="float32"))
+            lv1 = R.call_dps_packed("bias_add", (lv0, bias0), R.Tensor((32, 32), dtype="float32"))
+            lv2 = R.call_dps_packed("my_relu", (lv1), R.Tensor((32, 32), dtype="float32"))
+            lv3 = R.call_dps_packed("conv1x1", (x, w1), R.Tensor((32, 32), dtype="float32"))
+            lv4 = R.call_dps_packed("bias_add", (lv3, bias1), R.Tensor((32, 32), dtype="float32"))
+            lv5 = R.call_dps_packed("my_relu", (lv4), R.Tensor((32, 32), dtype="float32"))
+            lv6 = R.call_dps_packed("concat", (lv2, lv5), R.Tensor((32, 64), dtype="float32"))
             R.output(lv6)
         return lv6
 
@@ -521,9 +521,9 @@ class CBRx2:
 def test_single_cbr():
     with PatternContext() as ctx:
         (
-            is_call_tir_extern("conv1x1")
-            >> is_call_tir_extern("bias_add")
-            >> is_call_tir_extern("my_relu")
+            is_call_dps_packed("conv1x1")
+            >> is_call_dps_packed("bias_add")
+            >> is_call_dps_packed("my_relu")
         )
         dfb = CBRx2["main"].body.blocks[0]
         matched = ctx.match_dfb(dfb)
@@ -531,9 +531,9 @@ def test_single_cbr():
 
     with PatternContext() as ctx:
         chain = (
-            is_call_tir_extern("conv1x1")
-            >> is_call_tir_extern("bias_add")
-            >> is_call_tir_extern("my_relu")
+            is_call_dps_packed("conv1x1")
+            >> is_call_dps_packed("bias_add")
+            >> is_call_dps_packed("my_relu")
         )
         dfb = CBRx2["main"].body.blocks[0]
         # we want to specifically match the first CBR (lv0)
@@ -549,9 +549,9 @@ def test_single_cbr():
 def test_counter_single_crb():
     with PatternContext() as ctx:
         (
-            is_call_tir_extern("conv1x1")
-            >> is_call_tir_extern("my_relu")
-            >> is_call_tir_extern("bias_add")
+            is_call_dps_packed("conv1x1")
+            >> is_call_dps_packed("my_relu")
+            >> is_call_dps_packed("bias_add")
         )
         dfb = CBRx2["main"].body.blocks[0]
         assert not ctx.match_dfb(dfb)
@@ -567,14 +567,14 @@ def test_nested_context():
     dfb = CBRx2["main"].body.blocks[0]
     with PatternContext() as ctx0:
         (
-            is_call_tir_extern("conv1x1")
-            >> is_call_tir_extern("bias_add")
-            >> is_call_tir_extern("my_relu")
+            is_call_dps_packed("conv1x1")
+            >> is_call_dps_packed("bias_add")
+            >> is_call_dps_packed("my_relu")
         )
         with PatternContext() as ctx1:
-            is_call_tir_extern("conv1x1") >> is_call_tir_extern("my_relu")  # pattern to miss
+            is_call_dps_packed("conv1x1") >> is_call_dps_packed("my_relu")  # pattern to miss
             with PatternContext() as ctx2:
-                is_call_tir_extern("bias_add") >> is_call_tir_extern("my_relu")
+                is_call_dps_packed("bias_add") >> is_call_dps_packed("my_relu")
                 assert ctx2.match_dfb(dfb)
                 assert PatternContext.current() == ctx2
             assert not ctx1.match_dfb(dfb)
@@ -586,9 +586,9 @@ def test_nested_context():
 def test_two_cbr():
     with PatternContext() as ctx:
         cbr0 = (
-            is_call_tir_extern("conv1x1")
-            >> is_call_tir_extern("bias_add")
-            >> is_call_tir_extern("my_relu")
+            is_call_dps_packed("conv1x1")
+            >> is_call_dps_packed("bias_add")
+            >> is_call_dps_packed("my_relu")
         )
         cbr1 = cbr0.dup()
 
@@ -603,9 +603,9 @@ def test_two_cbr():
     with PatternContext() as ctx:
         # Deny the pattern
         cbr0 = (
-            is_call_tir_extern("conv1x1")
-            >> is_call_tir_extern("bias_add")
-            >> is_call_tir_extern("my_relu")
+            is_call_dps_packed("conv1x1")
+            >> is_call_dps_packed("bias_add")
+            >> is_call_dps_packed("my_relu")
         )
         cbr1 = cbr0.dup()
 
@@ -626,25 +626,25 @@ def test_two_matmul():
             c: R.Tensor((48, 32), "float32"),
         ) -> R.Tensor:
             with R.dataflow():
-                lv0 = R.call_tir("matmul", (a, b), R.Tensor((32, 48), dtype="float32"))
-                lv1 = R.call_tir("matmul", (lv0, c), R.Tensor((32, 32), dtype="float32"))
+                lv0 = R.call_dps_packed("matmul", (a, b), R.Tensor((32, 48), dtype="float32"))
+                lv1 = R.call_dps_packed("matmul", (lv0, c), R.Tensor((32, 32), dtype="float32"))
                 R.output(lv1)
             return lv1
 
     with PatternContext() as ctx:
-        is_call_tir_extern("matmul") >> is_call_tir_extern("matmul")
+        is_call_dps_packed("matmul") >> is_call_dps_packed("matmul")
         dfb = MatMul2["main"].body.blocks[0]
         assert ctx.match_dfb(dfb)
 
     with PatternContext() as ctx:
-        is_call_tir_extern("matmul").has_shape([32, 48]) >> is_call_tir_extern("matmul").has_shape(
+        is_call_dps_packed("matmul").has_shape([32, 48]) >> is_call_dps_packed("matmul").has_shape(
             [32, 32]
         )
         dfb = MatMul2["main"].body.blocks[0]
         assert ctx.match_dfb(dfb)
 
     with PatternContext() as ctx:
-        is_call_tir_extern("matmul") >> is_call_tir_extern("matmul") >> is_call_tir_extern("matmul")
+        is_call_dps_packed("matmul") >> is_call_dps_packed("matmul") >> is_call_dps_packed("matmul")
         dfb = MatMul2["main"].body.blocks[0]
         # Three MatMul cannot match
         assert not ctx.match_dfb(dfb)
@@ -661,9 +661,9 @@ def test_concat_mm_split():
             c: R.Tensor((16, 32), "float32"),
         ) -> R.Tensor:
             with R.dataflow():
-                lv0 = R.call_tir("my_concat", (b, c), R.Tensor((32, 32), dtype="float32"))
-                lv1 = R.call_tir("my_matmul", (a, lv0), R.Tensor((32, 32), dtype="float32"))
-                lv2 = R.call_tir(
+                lv0 = R.call_dps_packed("my_concat", (b, c), R.Tensor((32, 32), dtype="float32"))
+                lv1 = R.call_dps_packed("my_matmul", (a, lv0), R.Tensor((32, 32), dtype="float32"))
+                lv2 = R.call_dps_packed(
                     "my_split",
                     (lv1,),
                     [R.Tensor((16, 32), dtype="float32"), R.Tensor((16, 32), dtype="float32")],
@@ -676,15 +676,15 @@ def test_concat_mm_split():
 
     with PatternContext() as ctx:
         (
-            is_call_tir_extern("my_concat")
-            >> is_call_tir_extern("my_matmul")
-            >> is_call_tir_extern("my_split")
+            is_call_dps_packed("my_concat")
+            >> is_call_dps_packed("my_matmul")
+            >> is_call_dps_packed("my_split")
         )
         dfb = CMS["main"].body.blocks[0]
         assert ctx.match_dfb(dfb)
 
     with PatternContext() as ctx:
-        split = is_call_tir_extern("my_split")
+        split = is_call_dps_packed("my_split")
         lv3 = TupleGetItemPattern(split, 0).has_shape([16, 32])
         lv4 = TupleGetItemPattern(split, 1).has_shape([16, 32])
         split.fork_to(lv3, lv4)
@@ -711,18 +711,26 @@ def test_self_attention():
         ) -> R.Tensor:
             b, s, n, h = T.int64(), T.int64(), T.int64(), T.int64()
             with R.dataflow():
-                fcq = R.call_tir("my_fc", (x, wq), R.Tensor((b, s, n, h), dtype="float32"))
-                tpq = R.call_tir("my_transpose", (fcq,), R.Tensor((b, s, h, n), dtype="float32"))
+                fcq = R.call_dps_packed("my_fc", (x, wq), R.Tensor((b, s, n, h), dtype="float32"))
+                tpq = R.call_dps_packed(
+                    "my_transpose", (fcq,), R.Tensor((b, s, h, n), dtype="float32")
+                )
 
-                fck = R.call_tir("my_fc", (x, wk), R.Tensor((b, s, n, h), dtype="float32"))
-                tpk = R.call_tir("my_transpose", (fck,), R.Tensor((b, s, h, n), dtype="float32"))
+                fck = R.call_dps_packed("my_fc", (x, wk), R.Tensor((b, s, n, h), dtype="float32"))
+                tpk = R.call_dps_packed(
+                    "my_transpose", (fck,), R.Tensor((b, s, h, n), dtype="float32")
+                )
 
                 mul = R.multiply(tpq, tpk)
                 scale = R.multiply(mul, R.const(1.1, "float32"))
-                softmax = R.call_tir("softmax", (scale,), R.Tensor((b, s, n, h), dtype="float32"))
+                softmax = R.call_dps_packed(
+                    "softmax", (scale,), R.Tensor((b, s, n, h), dtype="float32")
+                )
 
-                fcv = R.call_tir("my_fc", (x, wv), R.Tensor((b, s, n, h), dtype="float32"))
-                tpv = R.call_tir("my_transpose", (fcv,), R.Tensor((b, s, h, n), dtype="float32"))
+                fcv = R.call_dps_packed("my_fc", (x, wv), R.Tensor((b, s, n, h), dtype="float32"))
+                tpv = R.call_dps_packed(
+                    "my_transpose", (fcv,), R.Tensor((b, s, h, n), dtype="float32")
+                )
 
                 out = R.multiply(softmax, tpv)
                 R.output(out)
@@ -730,7 +738,7 @@ def test_self_attention():
             return out
 
     with PatternContext() as ctx:
-        fc_trans_q = is_call_tir_extern("my_fc") >> is_call_tir_extern("my_transpose")
+        fc_trans_q = is_call_dps_packed("my_fc") >> is_call_dps_packed("my_transpose")
         fc_trans_k = fc_trans_q.dup()
         fc_trans_v = fc_trans_q.dup()
 
@@ -752,43 +760,59 @@ def test_nested_diamond():
                 #      add5      add6
                 #          \    /
                 #           add7
-                lv0 = R.call_tir("tir_matmul", (x, w), R.Tensor((32, 32), dtype="float32"))
-                lv1 = R.call_tir("tir_matmul", (x, w), R.Tensor((32, 32), dtype="float32"))
-                lv2 = R.call_tir("tir_sigmoid", (lv0), R.Tensor((32, 32), dtype="float32"))
-                lv3 = R.call_tir("tir_sigmoid", (lv1), R.Tensor((32, 32), dtype="float32"))
-                lv4 = R.call_tir("tir_add", (lv0, lv1), R.Tensor((32, 32), dtype="float32"))
-                lv5 = R.call_tir("tir_add", (lv2, lv4), R.Tensor((32, 32), dtype="float32"))
-                lv6 = R.call_tir("tir_add", (lv3, lv4), R.Tensor((32, 32), dtype="float32"))
-                lv7 = R.call_tir("tir_add", (lv5, lv6), R.Tensor((32, 32), dtype="float32"))
+                lv0 = R.call_dps_packed(
+                    "extern_matmul", (x, w), R.Tensor((32, 32), dtype="float32")
+                )
+                lv1 = R.call_dps_packed(
+                    "extern_matmul", (x, w), R.Tensor((32, 32), dtype="float32")
+                )
+                lv2 = R.call_dps_packed(
+                    "extern_sigmoid", (lv0), R.Tensor((32, 32), dtype="float32")
+                )
+                lv3 = R.call_dps_packed(
+                    "extern_sigmoid", (lv1), R.Tensor((32, 32), dtype="float32")
+                )
+                lv4 = R.call_dps_packed(
+                    "extern_add", (lv0, lv1), R.Tensor((32, 32), dtype="float32")
+                )
+                lv5 = R.call_dps_packed(
+                    "extern_add", (lv2, lv4), R.Tensor((32, 32), dtype="float32")
+                )
+                lv6 = R.call_dps_packed(
+                    "extern_add", (lv3, lv4), R.Tensor((32, 32), dtype="float32")
+                )
+                lv7 = R.call_dps_packed(
+                    "extern_add", (lv5, lv6), R.Tensor((32, 32), dtype="float32")
+                )
                 R.output(lv7)
             return lv7
 
     # match matmul0 diamond
     with PatternContext() as ctx:
-        sigmoid2 = is_call_tir_extern("tir_sigmoid")
-        add4 = is_call_tir_extern("tir_add")
-        is_call_tir_extern("tir_matmul").fork_to(sigmoid2, add4)
-        add5 = is_call_tir_extern("tir_add")
+        sigmoid2 = is_call_dps_packed("extern_sigmoid")
+        add4 = is_call_dps_packed("extern_add")
+        is_call_dps_packed("extern_matmul").fork_to(sigmoid2, add4)
+        add5 = is_call_dps_packed("extern_add")
         sigmoid2 >> add5
         add4 ^ add5
         assert ctx.match_dfb(DiamondInDiamond["main"].body.blocks[0])
 
     # counter case: mis-match matmul0 diamond
     with PatternContext() as ctx:
-        sigmoid2 = is_call_tir_extern("tir_sigmoid")
-        add4 = is_call_tir_extern("tir_add")
-        is_call_tir_extern("tir_matmul").fork_to(sigmoid2, add4)
-        add5 = is_call_tir_extern("tir_add")
+        sigmoid2 = is_call_dps_packed("extern_sigmoid")
+        add4 = is_call_dps_packed("extern_add")
+        is_call_dps_packed("extern_matmul").fork_to(sigmoid2, add4)
+        add5 = is_call_dps_packed("extern_add")
         sigmoid2 >> add5
         add4 >> add5  # not only-used-by relation
         assert not ctx.match_dfb(DiamondInDiamond["main"].body.blocks[0])
 
     # match matmul1 diamond
     with PatternContext() as ctx:
-        sigmoid3 = is_call_tir_extern("tir_sigmoid")
-        add4 = is_call_tir_extern("tir_add")
-        is_call_tir_extern("tir_matmul").fork_to(sigmoid3, add4)
-        add6 = is_call_tir_extern("tir_add")
+        sigmoid3 = is_call_dps_packed("extern_sigmoid")
+        add4 = is_call_dps_packed("extern_add")
+        is_call_dps_packed("extern_matmul").fork_to(sigmoid3, add4)
+        add6 = is_call_dps_packed("extern_add")
         sigmoid3 >> add6
         add4 ^ add6
         assert ctx.match_dfb(DiamondInDiamond["main"].body.blocks[0])
@@ -796,11 +820,11 @@ def test_nested_diamond():
     # match add-4-5-6-7
     with PatternContext() as ctx:
         add5, add6, add7 = (
-            is_call_tir_extern("tir_add"),
-            is_call_tir_extern("tir_add"),
-            is_call_tir_extern("tir_add"),
+            is_call_dps_packed("extern_add"),
+            is_call_dps_packed("extern_add"),
+            is_call_dps_packed("extern_add"),
         )
-        is_call_tir_extern("tir_add").fork_to(add5, add6)  # add4
+        is_call_dps_packed("extern_add").fork_to(add5, add6)  # add4
         add5 >> add7
         add6 >> add7
         assert ctx.match_dfb(DiamondInDiamond["main"].body.blocks[0])
@@ -811,15 +835,15 @@ def test_incremental_solving():
     def simple_chain(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
         with R.dataflow():
             # relu -> sigmoid -> neg
-            lv0 = R.call_tir("tir_relu", (x), R.Tensor((32, 32), dtype="float32"))
-            lv1 = R.call_tir("tir_sigmoid", (lv0), R.Tensor((32, 32), dtype="float32"))
-            lv2 = R.call_tir("tir_neg", (lv1), R.Tensor((32, 32), dtype="float32"))
+            lv0 = R.call_dps_packed("extern_relu", (x), R.Tensor((32, 32), dtype="float32"))
+            lv1 = R.call_dps_packed("extern_sigmoid", (lv0), R.Tensor((32, 32), dtype="float32"))
+            lv2 = R.call_dps_packed("extern_neg", (lv1), R.Tensor((32, 32), dtype="float32"))
             R.output(lv2)
         return lv2
 
-    relu = is_call_tir_extern("tir_relu")
-    sigmoid = is_call_tir_extern("tir_sigmoid")
-    neg = is_call_tir_extern("tir_neg")
+    relu = is_call_dps_packed("extern_relu")
+    sigmoid = is_call_dps_packed("extern_sigmoid")
+    neg = is_call_dps_packed("extern_neg")
 
     with PatternContext() as ctx0:
         relu >> sigmoid
@@ -840,14 +864,14 @@ def test_incremental_solving_counter():
     def simple_chain(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
         with R.dataflow():
             # sigmoid -> neg
-            lv0 = R.call_tir("tir_sigmoid", (x), R.Tensor((32, 32), dtype="float32"))
-            lv1 = R.call_tir("tir_neg", (lv0), R.Tensor((32, 32), dtype="float32"))
+            lv0 = R.call_dps_packed("extern_sigmoid", (x), R.Tensor((32, 32), dtype="float32"))
+            lv1 = R.call_dps_packed("extern_neg", (lv0), R.Tensor((32, 32), dtype="float32"))
             R.output(lv1)
         return lv1
 
-    relu = is_call_tir_extern("tir_relu")
-    sigmoid = is_call_tir_extern("tir_sigmoid")
-    neg = is_call_tir_extern("tir_neg")
+    relu = is_call_dps_packed("extern_relu")
+    sigmoid = is_call_dps_packed("extern_sigmoid")
+    neg = is_call_dps_packed("extern_neg")
 
     with PatternContext() as ctx0:
         relu >> sigmoid  # cannot match

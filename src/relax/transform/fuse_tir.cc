@@ -302,11 +302,10 @@ class FusedTIRConstructor : public ExprVisitor {
 
     // Step 1. Get Global var and PrimFunc
     GlobalVar gv = Downcast<GlobalVar>(call->args[0]);
-    Optional<tir::PrimFunc> prim_func_ = GetPrimFunc(gv);
-    ICHECK(prim_func_.defined()) << "Cannot find the prim_func of the call_tir in the module: "
-                                 << gv;
+    tir::PrimFunc prim_func_ = Downcast<tir::PrimFunc>(mod_->Lookup(gv));
+
     // Step 2. Renew all vars/buffer definitions and blocks to avoid duplication
-    tir::PrimFunc prim_func = tir::RenewDefs(prim_func_.value());
+    tir::PrimFunc prim_func = tir::RenewDefs(prim_func_);
 
     // Step 3. Check functions are all schedulable funcs. i.e. the body of func is root block
     // TODO(Siyuan): support un-schedulable functions.
@@ -362,22 +361,6 @@ class FusedTIRConstructor : public ExprVisitor {
 
   void VisitExpr_(const ConstantNode* op) final {
     LOG(FATAL) << "Relax.Constant is not supported in primitive functions.";
-  }
-
-  /********** Helper Functions **********/
-
-  /*!
-   * \brief Pattern match op to a TIR function and look it up.
-   * \return The TIR function, or NullOpt if patter match fails.
-   */
-  Optional<tir::PrimFunc> GetPrimFunc(const GlobalVar& global_var) {
-    // NOTE: as check works for nullptr(returns null)
-    Optional<BaseFunc> base_func = mod_->functions.Get(global_var);
-    if (auto* pfunc = base_func.as<tir::PrimFuncNode>()) {
-      return GetRef<tir::PrimFunc>(pfunc);
-    } else {
-      return NullOpt;
-    }
   }
 
   /*!
