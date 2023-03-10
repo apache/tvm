@@ -615,7 +615,10 @@ class TorchFXImporter:
 
         # functional.layer_norm
         if node.target not in self.named_modules:
-            normalized_shape = self.env[node.args[1]]
+            # static or symbolic
+            normalized_shape = (
+                node.args[1] if type(node.args[1]) == tuple else self.env[node.args[1]]
+            )
             dim_num = len(normalized_shape)
             axes = list(range(-dim_num, 0))
 
@@ -624,6 +627,8 @@ class TorchFXImporter:
             if beta is None:
                 shape_tuple = [int(s) for s in normalized_shape.values]
                 beta = relax.const(np.zeros(shape_tuple), x.struct_info.dtype)
+            else:
+                beta = self.env[beta]
             eps = node.kwargs["eps"]
 
             return self.block_builder.emit(
