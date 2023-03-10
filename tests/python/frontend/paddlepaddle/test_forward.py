@@ -1970,7 +1970,6 @@ def test_forward_mish():
 
 
 @tvm.testing.uses_gpu
-<<<<<<< HEAD
 def test_forward_thresholded_relu():
     class ThresholdedRelu(nn.Layer):
         @paddle.jit.to_static
@@ -2007,47 +2006,54 @@ def test_forward_index_select():
 def test_forward_eye():
     class Eye1(nn.Layer):
         @paddle.jit.to_static
-        def forward(self):
-            return paddle.eye(3, 5, dtype="int32"), paddle.eye(3, 5, dtype="float32")
+        def forward(self, inputs):
+            return paddle.eye(3, 5, dtype="int32"), paddle.eye(3, 5, dtype="float32"), inputs
 
     class Eye2(nn.Layer):
         @paddle.jit.to_static
-        def forward(self):
-            return paddle.eye(5, 3, dtype="int64"), paddle.eye(5, 3, dtype="float64")
+        def forward(self, inputs):
+            return paddle.eye(5, 3, dtype="int64"), paddle.eye(5, 3, dtype="float64"), inputs
 
-    class Eye2(nn.Layer):
+    class Eye3(nn.Layer):
         @paddle.jit.to_static
-        def forward(self):
-            return paddle.eye(0, 3, dtype="int64"), paddle.eye(0, 0, dtype="float64")
+        def forward(self, inputs):
+            return paddle.eye(0, 3, dtype="int64"), paddle.eye(0, 0, dtype="float64"), inputs
 
-    verify_model(Eye1(), input_data=[])
-    verify_model(Eye2(), input_data=[])
+    x = paddle.to_tensor([1], dtype="float32")
+    verify_model(Eye1(), input_data=[x])
+    verify_model(Eye2(), input_data=[x])
+    verify_model(Eye3(), input_data=[x])
 
 
 @tvm.testing.uses_gpu
 def test_forward_linspace():
     class Linspace1(nn.Layer):
         @paddle.jit.to_static
-        def forward(self):
-            return paddle.linspace(0, 7, 1, "int32"), paddle.linspace(1, 7, 5, "float32")
+        def forward(self, inputs):
+            out1 = paddle.linspace(0.5, 7, 1, "int32")
+            out2 = paddle.linspace(1.3, 7.1, 5, "float32")
+            return out1, out2, inputs
 
     class Linspace2(nn.Layer):
         @paddle.jit.to_static
-        def forward(self):
-            start = paddle.to_tensor([1.0])
-            stop = paddle.to_tensor([10.0])
-            num = paddle.to_tensor([8])
+        def forward(self, inputs):
+            start = paddle.to_tensor([2.5])
+            stop = paddle.to_tensor([3.6])
+            num = paddle.to_tensor([3])
+            start = paddle.cast(start, "float32")
+            stop = paddle.cast(stop, "float32")
             num = paddle.cast(num, "int32")
-            return paddle.linspace(start, stop, num, "int32"), paddle.linspace(
-                start, stop, num, "float32"
-            )
+            out1 = paddle.linspace(start, stop, num, "int32")
+            out2 = paddle.linspace(start, stop, num, "float32")
+            return out1, out2, inputs
 
-    verify_model(Linspace1(), input_data=[])
-    verify_model(Linspace2(), input_data=[])
+    x = paddle.to_tensor([1], dtype="float32")
+    verify_model(Linspace1(), input_data=[x])
+    verify_model(Linspace2(), input_data=[x])
 
 
 @tvm.testing.uses_gpu
-def test_take_alone_axis():
+def test_forward_take_alone_axis():
     class TakeAloneAxis1(nn.Layer):
         @paddle.jit.to_static
         def forward(self, inputs):
@@ -2066,20 +2072,21 @@ def test_take_alone_axis():
             index = paddle.to_tensor([[[0], [0], [1]]])
             return paddle.take_along_axis(inputs, index, axis=-1)
 
-    x = paddle.to_tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
-    verify_model(TakeAloneAxis1(), input_data=x)
+    if paddle.version.full_version >= "2.4.2":
+        x = paddle.to_tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+        verify_model(TakeAloneAxis1(), input_data=x)
 
-    y = paddle.to_tensor(
-        [[[1, 2], [2, 3], [3, 4]], [[4, 5], [5, 6], [6, 7]], [[7, 8], [8, 9], [9, 10]]],
-        dtype="float32",
-    )
-    verify_model(TakeAloneAxis2(), input_data=y)
-    verify_model(TakeAloneAxis3(), input_data=y)
+        y = paddle.to_tensor(
+            [[[1, 2], [2, 3], [3, 4]], [[4, 5], [5, 6], [6, 7]], [[7, 8], [8, 9], [9, 10]]],
+            dtype="float32",
+        )
+        verify_model(TakeAloneAxis2(), input_data=y)
+        verify_model(TakeAloneAxis3(), input_data=y)
 
 
 @tvm.testing.uses_gpu
 def test_forward_dist():
-    class Dist1(nn.Layer):
+    class Dist(nn.Layer):
         @paddle.jit.to_static
         def forward(self, x, y):
             l0_norm = paddle.dist(x, y, 0)
@@ -2093,10 +2100,10 @@ def test_forward_dist():
     y = paddle.to_tensor([[1, 2], [3, 4]], dtype="float32")
     w = paddle.to_tensor([[1, 2]], dtype="float32")
     v = paddle.to_tensor([[2.1]], dtype="float32")
-    verify_model(Dist1(), input_data=[x, y])
-    verify_model(Dist1(), input_data=[x, w])
-    verify_model(Dist1(), input_data=[w, v])
-    verify_model(Dist1(), input_data=[y, v])
+    verify_model(Dist(), input_data=[x, y])
+    verify_model(Dist(), input_data=[x, w])
+    verify_model(Dist(), input_data=[w, v])
+    verify_model(Dist(), input_data=[y, v])
 
 
 if __name__ == "__main__":

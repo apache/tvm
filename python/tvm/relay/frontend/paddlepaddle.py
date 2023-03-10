@@ -530,6 +530,9 @@ def convert_linspace(g, op, block):
     if num == 1:
         out = _op.full(_expr.const(start, dtype), shape=(1))
     else:
+        if dtype in ["int32", "int64"]:
+            start = int(start)
+            stop = int(stop)
         step = (stop - start) / (num - 1)
         stop = stop + step
         start = _expr.const(start, "float32")
@@ -2187,6 +2190,7 @@ def convert_thresholded_relu(g, op, block):
     zero = _expr.const(0, dtype=dtype)
     out = tvm.relay.where(x > threshold, x, zero)
     g.add_node(op.output("Out")[0], out)
+
 
 def convert_tile(g, op, block):
     """Operator converter for tile."""
