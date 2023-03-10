@@ -388,9 +388,9 @@ Commandline Tools
 -----------------
 
 Here we describe entire compilation process using command line tools. TVM has command line utility
-`tvmc <https://tvm.apache.org/docs/tutorial/tvmc_command_line_driver.html?highlight=tvmc>`_ to perform
+`tvmc <https://tvm.apache.org/docs/tutorial/tvmc_command_line_driver.html>`_ to perform
 model import, auto tuning, compilation and deply over rpc.
-`tvmc <https://tvm.apache.org/docs/tutorial/tvmc_command_line_driver.html?highlight=tvmc>`_  has many options to explore and try.
+`tvmc <https://tvm.apache.org/docs/tutorial/tvmc_command_line_driver.html>`_  has many options to explore and try.
 
 **Model Import & Tuning:**
 Use the below command to import a model from any framework and auto tune the same.
@@ -442,7 +442,7 @@ We can use below tvmc command to deploy on remore target via RPC based setup.
    python3 -m tvm.driver.tvmc run --device="cl" keras-resnet50.tar \
    --rpc-key android --rpc-tracker 127.0.0.1:9190 --print-time
 
-`tvmc <https://tvm.apache.org/docs/tutorial/tvmc_command_line_driver.html?highlight=tvmc>`_ based run has more options
+`tvmc <https://tvm.apache.org/docs/tutorial/tvmc_command_line_driver.html>`_ based run has more options
 to initialize the input in various modes like fill, random ..etc.
 
 ``tvmc`` based deployment generally a quick verification of compiled model on target from remote host via RPC setup.
