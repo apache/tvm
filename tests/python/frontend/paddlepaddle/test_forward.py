@@ -1971,15 +1971,21 @@ def test_forward_mish():
 
 @tvm.testing.uses_gpu
 def test_forward_thresholded_relu():
-    class ThresholdedRelu(nn.Layer):
+    class ThresholdedRelu1(nn.Layer):
         @paddle.jit.to_static
         def forward(self, inputs):
             return nn.functional.thresholded_relu(inputs)
 
+    class ThresholdedRelu2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return nn.functional.thresholded_relu(inputs, threshold=0.5)
+
     input_shapes = [[10], [2, 3], [5, 10, 11], [3, 4, 5, 6]]
     for input_shape in input_shapes:
         input_data = paddle.randn(shape=input_shape, dtype="float32")
-        verify_model(ThresholdedRelu(), input_data=input_data)
+        verify_model(ThresholdedRelu1(), input_data=input_data)
+        verify_model(ThresholdedRelu2(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -2019,10 +2025,16 @@ def test_forward_eye():
         def forward(self, inputs):
             return paddle.eye(0, 3, dtype="int64"), paddle.eye(0, 0, dtype="float64"), inputs
 
+    class Eye4(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.eye(4, None, dtype="int64"), paddle.eye(4, None, dtype="float64"), inputs
+
     x = paddle.to_tensor([1], dtype="float32")
     verify_model(Eye1(), input_data=[x])
     verify_model(Eye2(), input_data=[x])
     verify_model(Eye3(), input_data=[x])
+    verify_model(Eye4(), input_data=[x])
 
 
 @tvm.testing.uses_gpu
@@ -2032,24 +2044,47 @@ def test_forward_linspace():
         def forward(self, inputs):
             out1 = paddle.linspace(0.5, 7, 1, "int32")
             out2 = paddle.linspace(1.3, 7.1, 5, "float32")
-            return out1, out2, inputs
+            out3 = paddle.linspace(1, 1000000000, 10, "int64")
+            out4 = paddle.linspace(1, 7.1, 5, "float64")
+            return out1, out2, out3, out4, inputs
 
     class Linspace2(nn.Layer):
         @paddle.jit.to_static
         def forward(self, inputs):
-            start = paddle.to_tensor([2.5])
-            stop = paddle.to_tensor([3.6])
-            num = paddle.to_tensor([3])
+            start = paddle.to_tensor([-2.5])
+            stop = paddle.to_tensor([31.6])
+            num = paddle.to_tensor([13])
             start = paddle.cast(start, "float32")
             stop = paddle.cast(stop, "float32")
             num = paddle.cast(num, "int32")
             out1 = paddle.linspace(start, stop, num, "int32")
             out2 = paddle.linspace(start, stop, num, "float32")
-            return out1, out2, inputs
+            out3 = paddle.linspace(start, stop, num, "int64")
+            out4 = paddle.linspace(start, stop, num, "float64")
+            return out1, out2, out3, out4, inputs
 
+    class Linspace3(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, start, stop, num):
+            out1 = paddle.linspace(start, stop, num, "int32")
+            out2 = paddle.linspace(start, stop, num, "float32")
+            out3 = paddle.linspace(start, stop, num, "int64")
+            out4 = paddle.linspace(start, stop, num, "float32")
+            return out1
+
+    start = paddle.to_tensor([1.3])
+    stop = paddle.to_tensor([5.1])
+    num = paddle.to_tensor([3])
+    start = paddle.cast(start, "float32")
+    stop = paddle.cast(stop, "float32")
+    num = paddle.cast(num, "int32")
     x = paddle.to_tensor([1], dtype="float32")
     verify_model(Linspace1(), input_data=[x])
     verify_model(Linspace2(), input_data=[x])
+    verify_model(Linspace3(), input_data=[start, stop, num], use_vm=True)
+    num = paddle.to_tensor([1])
+    num = paddle.cast(num, "int32")
+    verify_model(Linspace3(), input_data=[start, stop, num], use_vm=True)
 
 
 @tvm.testing.uses_gpu

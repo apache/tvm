@@ -506,40 +506,29 @@ def convert_linspace(g, op, block):
     stop = g.get_node(op.input("Stop")[0])
     num = g.get_node(op.input("Num")[0])
     dtype = _convert_dtype_value(op.attr("dtype"))
-    start, infered = try_infer_value(start, parameters=g.get_params())
-    if infered:
-        start = start.tolist()[0]
-    else:
-        msg = 'Value {} in attribute "start" of operator Linspace is not "valid."'
-        raise tvm.error.OpAttributeInvalid(msg.format(start))
 
-    stop, infered = try_infer_value(stop, parameters=g.get_params())
-    if infered:
-        stop = stop.tolist()[0]
-    else:
-        msg = 'Value {} in attribute "stop" of operator Linspace is not "valid."'
-        raise tvm.error.OpAttributeInvalid(msg.format(stop))
+    start = _op.cast(start, dtype)
+    stop = _op.cast(stop, dtype)
+    num = _op.cast(num, dtype)
 
-    num, infered = try_infer_value(num, parameters=g.get_params())
-    if infered:
-        num = num.tolist()[0]
+    if dtype in ["int32", "float32"]:
+        tmp_dtype = "float32"
     else:
-        msg = 'Value {} in attribute "num" of operator Linspace is not "valid."'
-        raise tvm.error.OpAttributeInvalid(msg.format(num))
-
-    if num == 1:
-        out = _op.full(_expr.const(start, dtype), shape=(1))
-    else:
-        if dtype in ["int32", "int64"]:
-            start = int(start)
-            stop = int(stop)
-        step = (stop - start) / (num - 1)
-        stop = stop + step
-        start = _expr.const(start, "float32")
-        stop = _expr.const(stop, "float32")
-        step = _expr.const(step, "float32")
-        out = _op.transform.arange(start=start, stop=stop, step=step, dtype="float32")
-        out = _op.cast(out, dtype)
+        tmp_dtype = "float64"
+    start = _op.cast(start, tmp_dtype)
+    stop = _op.cast(stop, tmp_dtype)
+    num = _op.cast(num, tmp_dtype)
+    const_one = _expr.const(1, tmp_dtype)
+    const_zero = _expr.const(0, tmp_dtype)
+    seg_num = _op.where(num > const_one, num - const_one, num - const_zero)
+    seg_len = _op.subtract(stop, start)
+    step_len = _op.divide(seg_len, seg_num)
+    step_cnt = _op.argwhere(_op.ones(num, dtype=tmp_dtype))
+    step_cnt = _op.cast(step_cnt, dtype=tmp_dtype)
+    out = _op.multiply(step_len, step_cnt)
+    out = _op.add(start, out)
+    out = _op.squeeze(out, axis=[1])
+    out = _op.cast(out, dtype)
     g.add_node(op.output("Out")[0], out)
 
 
