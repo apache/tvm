@@ -659,7 +659,9 @@ transform::Sequential DeviceModulePassManager(IRModule mixed_mod, Target target)
 
   device_pass_list.push_back(tir::transform::BindTarget(target));
 
+  device_pass_list.push_back(transform::PrintIR());
   device_pass_list.push_back(tir::transform::LowerWarpMemory());
+  device_pass_list.push_back(transform::PrintIR());
   device_pass_list.push_back(tir::transform::Simplify());
   device_pass_list.push_back(tir::transform::LowerCustomDatatypes());
   device_pass_list.push_back(tir::transform::LowerDeviceStorageAccessInfo());

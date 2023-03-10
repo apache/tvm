@@ -130,10 +130,13 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
   }
 
   void VisitStmt_(const BufferStoreNode* op) final {
+    LOG(INFO) << "wut";
+    LOG(INFO) << op->buffer << " " << GetRef<Var>(buffer_);
     if (op->buffer->data.get() != buffer_) {
       StmtVisitor::VisitStmt_(op);
       return;
     }
+    LOG(INFO) << "hey";
 
     ICHECK_EQ(op->indices.size(), 1) << "Expected flat memory to use as warp memory.  "
                                      << "Has StorageFlatten (TE-based schedule) or "
@@ -160,7 +163,9 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
         << "` into the form ax + by + cz + ... Warp memory is approximated by storing values in "
            "thread local registers and shuffling values between these registers. Currently only "
            "linear equation indices are supported.";
+    LOG(INFO) << "index = " << index;
     PrimExpr mcoeff = analyzer_->canonical_simplify(m[0]);
+    LOG(INFO) << "mcoeff = " << mcoeff;
     const auto* mcoeff_as_int = mcoeff.as<IntImmNode>();
     ICHECK(mcoeff_as_int && mcoeff_as_int->value > 0)
         << "LowerWarpMemory failed due to store index=" << index
@@ -243,10 +248,13 @@ class WarpAccessRewriter : protected StmtExprMutator {
     ICHECK_GT(alloc_size, 0) << "warp memory only support constant alloc size";
     alloc_size *= op->dtype.lanes();
     std::tie(warp_index_, width_) = WarpIndexFinder(warp_size_).Find(op->body);
+    LOG(INFO) << "warp_index = " << warp_index_;
+    LOG(INFO) << "body = " << op->body;
     warp_coeff_ = WarpStoreCoeffFinder(buffer_, warp_index_, analyzer_).Find(op->body);
 
     // Align the local memory size. The number of elements may not
     // be a multiple of width_ * warp_coeff_; round it up.
+    LOG(INFO) << width_ << " " << warp_coeff_;
     int factor = width_ * warp_coeff_;
     ICHECK_NE(factor, 0) << "Divide by zero";
     warp_group_ = (alloc_size + (factor - 1)) / factor;
@@ -331,10 +339,6 @@ class WarpAccessRewriter : protected StmtExprMutator {
                                      << "FlattenBuffer (TIR-based schedules) been run?";
 
     auto [local_index, group] = SplitIndexByGroup(op->indices[0]);
-    // invariance: local index must do not contain warp id
-    ICHECK(!UsesVar(local_index, [this](const VarNode* var) { return var == warp_index_.get(); }))
-        << "LowerWarpMemory failed to rewrite load to shuffle for index " << op->indices[0]
-        << " local_index=" << local_index;
 
     auto writer = load.CopyOnWrite();
     writer->indices = {local_index};

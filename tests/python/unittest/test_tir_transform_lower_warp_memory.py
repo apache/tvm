@@ -19,6 +19,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import te
+from tvm.script import tir as T
 from tvm.contrib.nvcc import have_fp16
 
 
@@ -346,6 +347,27 @@ def test_lower_warp_memory_divide_by_factor():
     with pytest.raises(tvm.error.TVMError, match="Divide by zero") as cm:
         tvm.tir.transform.LowerWarpMemory()(mod)["f_kernel0"]
 
+@T.prim_func
+def func() -> None:
+    A = T.alloc_buffer([32], "float32", scope="warp")
+    B = T.alloc_buffer([32], "float32", scope="warp")
+    for i in range(32):
+        with T.block("warp_shuffle"):
+            B[i] = A[(i % 4) * 8 + i // 4] + 1
+
+
+@tvm.testing.requires_cuda
+def test_warp_shuffle():
+    mod = tvm.IRModule.from_expr(func)    
+    sch = tvm.tir.Schedule(mod["main"])
+    blk = sch.get_block("warp_shuffle")
+    i, = sch.get_loops(blk)
+    io, ii = sch.split(i, [1, 32])
+    sch.bind(io, "blockIdx.x")
+    sch.bind(ii, "threadIdx.x")
+    f = tvm.build(sch.mod["main"], target="cuda")
+
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    # tvm.testing.main()
+    test_warp_shuffle()
