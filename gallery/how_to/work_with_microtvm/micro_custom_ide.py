@@ -246,9 +246,9 @@ with tarfile.open(TAR_PATH, mode="a") as tar_file:
 #
 # #. Extract the tar file and include it in the project
 #
-#    * If you extract it inside the project folder on your disk, right click on the project name and select "Refresh" and it would appear in the Project Explorer panel.
 #    * Open the project Properties. (by right clicking on the project name and selecting "Properties" or by selecting Project -> Properties from the menu bar).
-#    * Select C/C++ General -> Paths and Symbols. In Source Location tab, click "Add folder" and select the "model" folder.
+#    * Select C/C++ General -> Paths and Symbols. Select the Source Location tab.
+#    * If you extract the model inside the project folder on your disk, click "Add Folder" and select the "model" folder. (You might need to right click on the project name and select "Refresh" before it appears.)
 #    * If you extract the model file somewhre else, click on the "Link Folder" button, check the box for "Link to folder in the file system" in the window that appears, click "Browse" and select the model folder.
 #
 # #. If you used CMSIS-NN in compiling the model, you need to include the CMSIS-NN source files in your project too.
