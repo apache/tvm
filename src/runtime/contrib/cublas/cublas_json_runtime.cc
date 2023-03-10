@@ -73,6 +73,20 @@ class CublasJSONRuntime : public JSONRuntimeBase {
 	  auto a_ptr = GetInput(node, 1);
 	  auto b_ptr = GetInput(node, 0);
 	  tvm::contrib::CallCublasLt(handle, a_ptr, b_ptr, out_ptr, false, true, 1.0, 0.0);
+	} else if (op_name == "cublas.matmul_bias") {
+          uint32_t output_eid = EntryID(outputs_[0]);
+	  auto out_ptr = data_entry_[output_eid];
+	  auto a_ptr = GetInput(node, 0);
+	  auto b_ptr = GetInput(node, 1);
+          auto bias_ptr = GetInput(node, 2);
+	  tvm::contrib::CallCublasLt(handle, a_ptr, b_ptr, bias_ptr, out_ptr, false, false, CUBLASLT_EPILOGUE_BIAS);
+	} else if (op_name == "cublas.matmul_bias_relu") {
+          uint32_t output_eid = EntryID(outputs_[0]);
+	  auto out_ptr = data_entry_[output_eid];
+	  auto a_ptr = GetInput(node, 0);
+	  auto b_ptr = GetInput(node, 1);
+          auto bias_ptr = GetInput(node, 2);
+	  tvm::contrib::CallCublasLt(handle, a_ptr, b_ptr, bias_ptr, out_ptr, false, false, CUBLASLT_EPILOGUE_RELU_BIAS);
 	}
       }
     }
