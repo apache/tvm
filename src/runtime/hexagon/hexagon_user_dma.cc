@@ -32,7 +32,8 @@ unsigned int HexagonUserDMA::Init() {
   return status;
 }
 
-int HexagonUserDMA::Copy(uint32_t queue_id, void* dst, void* src, uint32_t length, bool bypass_cache) {
+int HexagonUserDMA::Copy(uint32_t queue_id, void* dst, void* src, uint32_t length,
+                         bool bypass_cache) {
   // length limited to 24 bits
   if (length > DESC_LENGTH_MASK) {
     return DMA_FAILURE;
