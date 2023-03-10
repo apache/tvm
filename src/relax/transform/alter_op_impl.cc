@@ -127,13 +127,12 @@ class AlterOpImplMutator : public ExprMutator {
     GlobalVar replacement_gv = GetOrCreateGlobalVarForFunc(replacement_func, op_kind);
 
     auto call_tir_inputs_tuple = GetRef<Tuple>(call->args[1].as<TupleNode>());
-    Array<Expr> updated_calltir_args =
-        UpdatedArgs(replacement_gv, call_tir_inputs_tuple, buffer_transforms);
+    Tuple updated_inputs = UpdateInputs(call_tir_inputs_tuple, buffer_transforms);
 
     ICHECK_EQ(call->sinfo_args.size(), 1) << "call_tir sinfo_args.size() is expected to be 1";
     StructInfo updated_ret_sinfo = UpdateStructInfo(call->sinfo_args[0], buffer_transforms);
-    auto updated_call = builder_->Normalize(Call(call_tir_op_, std::move(updated_calltir_args),
-                                                 call->attrs, {std::move(updated_ret_sinfo)}));
+    auto updated_call = builder_->Normalize(
+        Call(call_tir_op_, {replacement_gv, updated_inputs}, call->attrs, {updated_ret_sinfo}));
 
     // Now transform each of the outputs to previous layout.
     return TransformOutputs(updated_call, buffer_transforms, call->sinfo_args[0]);
@@ -196,11 +195,10 @@ class AlterOpImplMutator : public ExprMutator {
   }
 
   /*!
-   * \brief Updates call_tir args with global var of replacement func and layout transformed inputs
+   * \brief Updates call inputs with layout transformed inputs
    */
-  Array<Expr> UpdatedArgs(const GlobalVar& replacement_gv, const Tuple& inputs,
-                          const Array<IndexMap>& transforms) {
-    if (transforms.empty()) return {replacement_gv, inputs};
+  Tuple UpdateInputs(const Tuple& inputs, const Array<IndexMap>& transforms) {
+    if (transforms.empty()) return inputs;
 
     Array<Expr> updated_inputs;
     int index = 0;
@@ -210,7 +208,7 @@ class AlterOpImplMutator : public ExprMutator {
           << "Non bijective transforms on input and output buffers are not supported.";
       updated_inputs.push_back(TransformLayout(input, transform));
     }
-    return {replacement_gv, Tuple(updated_inputs)};
+    return Tuple(updated_inputs);
   }
 
   /*! \brief Updates output struct info */
