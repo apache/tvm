@@ -1825,6 +1825,55 @@ RELAY_REGISTER_OP("stft")
     .set_support_level(3)
     .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
+// DFT
+TVM_REGISTER_NODE_TYPE(DFTAttrs);
+bool DFTRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+            const TypeReporter& reporter) {
+  // types: [re_data, im_data, output]
+  ICHECK_EQ(types.size(), 3)
+      << "DFT: expects three types, two for the input and one for the output";
+  ICHECK_EQ(num_inputs, 2) << "DFT: expect 2 inputs but " << num_inputs << " provided";
+  const auto* re_data = types[0].as<TensorTypeNode>();
+  const auto* im_data = types[1].as<TensorTypeNode>();
+
+  if (re_data == nullptr) {
+    ICHECK(types[0].as<IncompleteTypeNode>())
+        << "DFT: expect re_data type to be TensorType but get " << types[0];
+    return false;
+  }
+  if (im_data == nullptr) {
+    ICHECK(types[1].as<IncompleteTypeNode>())
+        << "DFT: expect im_data type to be TensorType but get " << types[1];
+    return false;
+  }
+
+  std::vector<Type> shapes;
+  shapes.push_back(TensorType(re_data->shape, re_data->dtype));
+  shapes.push_back(TensorType(im_data->shape, im_data->dtype));
+
+  reporter->Assign(types[2], TupleType(Array<Type>(shapes)));
+
+  return true;
+}
+
+Expr MakeDFT(Expr re_data, Expr im_data, Bool inverse) {
+  auto attrs = make_object<DFTAttrs>();
+  attrs->inverse = inverse;
+  static const Op& op = Op::Get("dft");
+  return Call(op, {re_data, im_data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.dft").set_body_typed(MakeDFT);
+
+RELAY_REGISTER_OP("dft")
+    .describe(R"doc(Computes the discrete Fourier transform of input.)doc" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .add_argument("re_data", "Tensor", "Real part of input tensor.")
+    .add_argument("im_data", "Tensor", "Imaginary part of input tensor.")
+    .set_support_level(3)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque)
+    .add_type_rel("DFT", DFTRel);
+
 // meshgrid operator
 TVM_REGISTER_NODE_TYPE(MeshgridAttrs);
 

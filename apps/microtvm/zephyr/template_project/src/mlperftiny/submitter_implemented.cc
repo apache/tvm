@@ -259,7 +259,7 @@ void th_infer() { Infer(g_input_data); }
 
 /// \brief optional API.
 // Modified from source
-void th_final_initialize(void) { TVMPlatformInitialize(); }
+void th_final_initialize(void) {}
 
 void th_pre() {}
 void th_post() {}

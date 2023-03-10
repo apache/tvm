@@ -1115,7 +1115,7 @@ class Schedule(Object):
         block: Union[BlockRV, str],
         write_buffer_index: Union[int, str, Buffer],
         storage_scope: str,
-        consumer_blocks=None,
+        consumer_blocks: Optional[List[Union[BlockRV, str]]] = None,
     ) -> BlockRV:
         """Create a block that reads a buffer region into a write cache. It requires:
 
@@ -1201,6 +1201,197 @@ class Schedule(Object):
             )
         return _ffi_api.ScheduleCacheWrite(  # type: ignore # pylint: disable=no-member
             self, block, write_buffer_index, storage_scope, consumer_blocks
+        )
+
+    @type_checked
+    def reindex_cache_read(
+        self,
+        block: Union[BlockRV, str],
+        read_buffer_index: int,
+        storage_scope: str,
+        index_map: Union[IndexMap, Callable],
+    ) -> BlockRV:
+        """Create a block that reads a buffer region into a read cache using customized
+        indices specified by index map. The read region of the buffer must be a single point.
+
+        The cache stage block follows the original order of loops and block itervars in the block.
+        If a block itervar does not appear in the buffer access region, it and its corresponding
+        loop variables will be omitted. User can then use `transform_block_layout` primitive to
+        reorder the block itervars and surrounding loops of the cache read/write block.
+
+        Unlike `cache_read`, `reindex_cache_read` only supports single consumer, please use
+        `cache_read` when there are multiple consumers.
+
+        Parameters
+        ----------
+        block : BlockRV
+            The consumer block of the target buffer.
+        read_buffer_index: int
+            The index of the buffer in block's read region.
+        storage_scope: str
+            The target storage scope.
+        index_map: Union[IndexMap, Callable]
+            User defined indices to access allocated cache buffer, maps from block iter vars.
+
+        Returns
+        -------
+        cached_block : BlockRV
+            The block of the cache stage
+
+        Examples
+        --------
+        Before reindex_cache_read, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_reindex_cache_read(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        Create the schedule and reindex_cache_read:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_cache_read)
+            block_b = sch.get_block("B")
+            sch.reindex_cache_read(block_b, 0, "local", lambda vi, vj: (vj, vi))
+            print(sch.mod["main"].script())
+
+        After applying reindex_cache_read, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_reindex_cache_read(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                A_local = T.alloc_buffer((128, 128), scope="local")
+                for i, j in T.grid(128, 128):
+                    with T.block("A_local"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        A_local[vj, vi] = A[vi, vj]
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A_local[vj, vi] * 2.0
+
+        See Also
+        --------
+        reindex_cache_write
+        transform_block_layout
+        transform_layout
+        cache_read
+        reindex
+        """
+        # Convert any string block names into Block RVs.
+        block = self._normalize_block_arg(block)
+
+        if callable(index_map):
+            index_map = IndexMap.from_func(index_map)
+        return _ffi_api.ScheduleReindexCacheRead(  # type: ignore # pylint: disable=no-member
+            self, block, read_buffer_index, storage_scope, index_map
+        )
+
+    @type_checked
+    def reindex_cache_write(
+        self,
+        block: Union[BlockRV, str],
+        write_buffer_index: int,
+        storage_scope: str,
+        index_map: Union[Callable, IndexMap],
+    ) -> BlockRV:
+        r"""Create a block that reads a buffer region into a write cache using customized
+        indices specified by index map. The write region of the buffer must be a single point.
+
+        The cache stage block follows the original order of loops and block itervars in the block.
+        If a block itervar does not appear in the buffer access region, it and its corresponding
+        loop variables will be omitted. User can then use `transform_block_layout` primitive to
+        reorder the block itervars and surrounding loops of the cache read/write block.
+
+        Unlike `cache_write`, `reindex_cache_write` only supports single consumer, please use
+        `cache_write` when there are multiple consumers.
+
+        Parameters
+        ----------
+        block : Union[BlockRV, str]
+            The consumer block of the target buffer.
+        write_buffer_index: int
+            The index of the buffer in block's write region.
+        storage_scope: str
+            The target storage scope.
+        index_map: Union[Callable, IndexMap]
+            User defined indices to access allocated cache buffer, maps from block iter vars.
+        consumer_blocks: Optional[List[Union[BlockRV, str]]]
+            An optional list of consumers that should read directly from the cache.
+            If not specified, all consumers will read from the original buffer.
+
+        Returns
+        -------
+        cached_block : BlockRV
+            The block of the cache stage
+
+        Examples
+        --------
+        Before reindex_cache_write, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_reindex_cache_write(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        Create the schedule and reindex_cache_write:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_cache_write)
+            block_b = sch.get_block("B")
+            sch.reindex_cache_write(block_b, 0, "local", lambda vi, vj: (vi // 2, vi % 2, vj))
+            print(sch.mod["main"].script())
+
+        After applying reindex_cache_write, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_cache_write(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (64, 2, 128))
+                B_local = T.alloc_buffer((128, 128), scope="local")
+                for i, j in T.grid(128, 128):
+                    with T.block("A_local"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B_local[vi % 2, vi // 2, vj] = A[vi, vj] * 2.0
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = B_local[vi % 2, vi // 2, vj]
+
+        See Also
+        --------
+        reindex_cache_read
+        transform_block_layout
+        transform_layout
+        cache_write
+        reindex
+        """
+        # Convert any string block names into Block RVs.
+        block = self._normalize_block_arg(block)
+
+        if callable(index_map):
+            index_map = IndexMap.from_func(index_map)
+        return _ffi_api.ScheduleReindexCacheWrite(  # type: ignore # pylint: disable=no-member
+            self, block, write_buffer_index, storage_scope, index_map
         )
 
     @type_checked
@@ -1425,7 +1616,7 @@ class Schedule(Object):
         Examples
         --------
 
-        Before transform_layout, in TensorIR, the IR is:
+        Before reindex, in TensorIR, the IR is:
 
         .. code-block:: python
 
@@ -1439,7 +1630,7 @@ class Schedule(Object):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vj, vi] * 2.0
 
-        Create the schedule and do transform_layout:
+        Create the schedule and do reindex:
 
         .. code-block:: python
 
@@ -2575,7 +2766,6 @@ class Schedule(Object):
         buffer: Union[Tuple[str, int], int, str, Buffer],
         required_buffer_type=None,
     ) -> Tuple[str, int, Buffer]:
-
         block_obj: Block = self.get(block)
         block_name = block_obj.name_hint
 
@@ -2645,6 +2835,8 @@ class Schedule(Object):
         buffer: Union[Tuple[str, int], str, Buffer],
         index_map: Union[IndexMap, Callable],
         pad_value: Optional[Union[int, float, PrimExpr, IndexMap, Callable]] = None,
+        *,
+        assume_injective_transform: bool = False,
     ) -> None:
         """Apply a transformation represented by IndexMap to buffer
 
@@ -2710,6 +2902,13 @@ class Schedule(Object):
             If an IndexMap or Callable, the transformation is the
             value to be present in the padding in terms of the
             transformed index.
+
+        assume_injective_transform : bool
+
+            If set to true, the schedule  primitive will assume the index_map is injective and skip
+            checking overlapping of the mapped indices. This can be useful for complicated index_map
+            that the analysis does not cover. It is the callers' responsibility to ensure the
+            index map is injective, otherwise, the correctness of the schedule is not guaranteed.
 
         Examples
         --------
@@ -2787,7 +2986,13 @@ class Schedule(Object):
 
         buffer_index_type_enum = 0 if buffer_index_type == "read" else 1
         _ffi_api.ScheduleTransformLayout(  # type: ignore # pylint: disable=no-member
-            self, block, buffer_index, buffer_index_type_enum, index_map, pad_value
+            self,
+            block,
+            buffer_index,
+            buffer_index_type_enum,
+            index_map,
+            pad_value,
+            assume_injective_transform,
         )
         if axis_separators:
             _ffi_api.ScheduleSetAxisSeparator(  # type: ignore # pylint: disable=no-member

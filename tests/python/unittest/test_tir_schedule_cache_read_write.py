@@ -60,6 +60,58 @@ def elementwise_shape_int64(a: T.handle, c: T.handle) -> None:
 
 
 @T.prim_func
+def elementwise_reindex_cache_read(
+    A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+):
+    B = T.alloc_buffer((128, 128))
+    B_shared = T.alloc_buffer((128, 64, 2), scope="shared")
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(A[vi, vj])
+            T.writes(B[vi, vj])
+            B[vi, vj] = A[vi, vj] * T.float32(2)
+    for i, j in T.grid(128, 128):
+        with T.block("B_shared"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(B[vi, vj])
+            T.writes(B_shared[vj, vi // 2, vi % 2])
+            B_shared[vj, vi // 2, vi % 2] = B[vi, vj]
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(B_shared[vj, vi // 2, vi % 2])
+            T.writes(C[vi, vj])
+            C[vi, vj] = B_shared[vj, vi // 2, vi % 2] + T.float32(1)
+
+
+@T.prim_func
+def elementwise_reindex_cache_write(
+    A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+):
+    B = T.alloc_buffer((128, 128))
+    B_shared = T.alloc_buffer((128, 128), scope="shared")
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(A[vi, vj])
+            T.writes(B_shared[vj, vi])
+            B_shared[vj, vi] = A[vi, vj] * T.float32(2)
+    for i, j in T.grid(128, 128):
+        with T.block("B_shared"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(B_shared[vj, vi])
+            T.writes(B[vi, vj])
+            B[vi, vj] = B_shared[vj, vi]
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(B[vi, vj])
+            T.writes(C[vi, vj])
+            C[vi, vj] = B[vi, vj] + T.float32(1)
+
+
+@T.prim_func
 def func_nested_seq(b: T.handle, c: T.handle) -> None:
     A = T.alloc_buffer((128, 128))
     B = T.match_buffer(b, (128, 128))
@@ -213,6 +265,39 @@ def func_multi_consumer() -> None:
     for i in T.grid(128):
         with T.block("C"):
             vi = T.axis.S(128, i)
+            C[vi] = A[vi]
+
+
+@T.prim_func
+def reindex_cache_read_multi_consumer() -> None:
+    A = T.alloc_buffer((128,))
+    B = T.alloc_buffer((128,))
+    C = T.alloc_buffer((128,))
+    A_shared = T.alloc_buffer((4, 32), scope="shared")
+    for i in range(8):
+        for j in range(16):
+            with T.block("A"):
+                vi = T.axis.spatial(128, i * 16 + j)
+                T.reads()
+                T.writes(A[vi])
+                A[vi] = T.float32(1)
+        for j in range(16):
+            with T.block("A_shared"):
+                vi = T.axis.spatial(128, i * 16 + j)
+                T.reads(A[vi])
+                T.writes(A_shared[vi // 32, vi % 32])
+                A_shared[vi // 32, vi % 32] = A[vi]
+        for j in range(16):
+            with T.block("B"):
+                vi = T.axis.spatial(128, i * 16 + j)
+                T.reads(A_shared[vi // 32, vi % 32])
+                T.writes(B[vi])
+                B[vi] = A_shared[vi // 32, vi % 32] + T.float32(1)
+    for i in range(128):
+        with T.block("C"):
+            vi = T.axis.spatial(128, i)
+            T.reads(A[vi])
+            T.writes(C[vi])
             C[vi] = A[vi]
 
 
@@ -1334,6 +1419,61 @@ def test_cache_write_allocate_const():
     sch.cache_write(block_c, 0, "global")
     tvm.ir.assert_structural_equal(cache_write_allocate_const_output, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=cache_write_allocate_const)
+
+
+def test_reindex_cache_read():
+    sch = tir.Schedule(elementwise, debug_mask="all")
+    sch.reindex_cache_read("C", 0, "shared", lambda i, j: (j, i // 2, i % 2))
+    tvm.ir.assert_structural_equal(elementwise_reindex_cache_read, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=elementwise)
+
+
+def test_reindex_cache_read_multi_consumer():
+    sch = tir.Schedule(func_multi_consumer)
+    sch.reindex_cache_read("B", 0, "shared", lambda i: (i // 32, i % 32))
+    tvm.ir.assert_structural_equal(reindex_cache_read_multi_consumer, sch.mod["main"])
+    # NOTE(zihao): we do not verify trace roundtrip because of in set analysis issues.
+
+
+def test_reindex_cache_read_fail_not_match():
+    sch = tir.Schedule(elementwise, debug_mask="all")
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.reindex_cache_read(
+            "C",
+            0,
+            "shared",
+            lambda i, j: j * 2,
+        )
+
+
+def test_reindex_cache_read_faile_not_single_point():
+    sch = tir.Schedule(access_under_scope, debug_mask="all")
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.reindex_cache_read("scope", 0, "shared", lambda i, j: (i, j))
+
+
+def test_reindex_cache_write():
+    sch = tir.Schedule(elementwise, debug_mask="all")
+    sch.reindex_cache_write("B", 0, "shared", lambda i, j: (j, i))
+    tvm.ir.assert_structural_equal(elementwise_reindex_cache_write, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=elementwise)
+
+
+def test_reindex_cache_write_fail_not_match():
+    sch = tir.Schedule(elementwise, debug_mask="all")
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.reindex_cache_write(
+            "B",
+            0,
+            "shared",
+            lambda i, j: i,
+        )
+
+
+def test_reindex_cache_write_fail_not_single_point():
+    sch = tir.Schedule(access_under_scope, debug_mask="all")
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.reindex_cache_write("scope", 0, "shared", lambda i, j: (i, j))
 
 
 if __name__ == "__main__":

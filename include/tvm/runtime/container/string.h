@@ -24,6 +24,7 @@
 #ifndef TVM_RUNTIME_CONTAINER_STRING_H_
 #define TVM_RUNTIME_CONTAINER_STRING_H_
 
+#include <dmlc/endian.h>
 #include <dmlc/logging.h>
 #include <tvm/runtime/container/base.h>
 #include <tvm/runtime/logging.h>
@@ -247,10 +248,70 @@ class String : public ObjectRef {
    * \param size The size of the bytes.
    * \return the hash value.
    */
-  static size_t HashBytes(const char* data, size_t size) {
-    // This function falls back to string copy with c++11 compiler and is
-    // recommended to be compiled with c++14
-    return std::hash<std::string_view>()(std::string_view(data, size));
+  static uint64_t StableHashBytes(const char* data, size_t size) {
+    const constexpr uint64_t kMultiplier = 1099511628211ULL;
+    const constexpr uint64_t kMod = 2147483647ULL;
+    union Union {
+      uint8_t a[8];
+      uint64_t b;
+    } u;
+    static_assert(sizeof(Union) == sizeof(uint64_t), "sizeof(Union) != sizeof(uint64_t)");
+    const char* it = data;
+    const char* end = it + size;
+    uint64_t result = 0;
+    for (; it + 8 <= end; it += 8) {
+      if (DMLC_IO_NO_ENDIAN_SWAP) {
+        u.a[0] = it[0];
+        u.a[1] = it[1];
+        u.a[2] = it[2];
+        u.a[3] = it[3];
+        u.a[4] = it[4];
+        u.a[5] = it[5];
+        u.a[6] = it[6];
+        u.a[7] = it[7];
+      } else {
+        u.a[0] = it[7];
+        u.a[1] = it[6];
+        u.a[2] = it[5];
+        u.a[3] = it[4];
+        u.a[4] = it[3];
+        u.a[5] = it[2];
+        u.a[6] = it[1];
+        u.a[7] = it[0];
+      }
+      result = (result * kMultiplier + u.b) % kMod;
+    }
+    if (it < end) {
+      u.b = 0;
+      uint8_t* a = u.a;
+      if (it + 4 <= end) {
+        a[0] = it[0];
+        a[1] = it[1];
+        a[2] = it[2];
+        a[3] = it[3];
+        it += 4;
+        a += 4;
+      }
+      if (it + 2 <= end) {
+        a[0] = it[0];
+        a[1] = it[1];
+        it += 2;
+        a += 2;
+      }
+      if (it + 1 <= end) {
+        a[0] = it[0];
+        it += 1;
+        a += 1;
+      }
+      if (!DMLC_IO_NO_ENDIAN_SWAP) {
+        std::swap(u.a[0], u.a[7]);
+        std::swap(u.a[1], u.a[6]);
+        std::swap(u.a[2], u.a[5]);
+        std::swap(u.a[3], u.a[4]);
+      }
+      result = (result * kMultiplier + u.b) % kMod;
+    }
+    return result;
   }
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(String, ObjectRef, StringObj);
@@ -448,7 +509,7 @@ inline int String::memncmp(const char* lhs, const char* rhs, size_t lhs_count, s
 
 inline size_t ObjectHash::operator()(const ObjectRef& a) const {
   if (const auto* str = a.as<StringObj>()) {
-    return String::HashBytes(str->data, str->size);
+    return String::StableHashBytes(str->data, str->size);
   }
   return ObjectPtrHash()(a);
 }
@@ -476,7 +537,7 @@ namespace std {
 template <>
 struct hash<::tvm::runtime::String> {
   std::size_t operator()(const ::tvm::runtime::String& str) const {
-    return ::tvm::runtime::String::HashBytes(str.data(), str.size());
+    return ::tvm::runtime::String::StableHashBytes(str.data(), str.size());
   }
 };
 }  // namespace std

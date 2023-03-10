@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import tempfile
 import tvm
 import tvm.testing
 from tvm import te, runtime
@@ -138,6 +139,17 @@ def test_load_unexpected_params():
     rt_mod.load_params(runtime.save_param_dict(new_params))
 
 
+def test_save_load_file():
+    p = np.random.randn(10)
+    params = {"x": p}
+
+    with tempfile.NamedTemporaryFile() as fp:
+        tvm.runtime.save_param_dict_to_file(params, fp.name)
+        params_loaded = tvm.runtime.load_param_dict_from_file(fp.name)
+
+        assert "x" in params_loaded
+        np.testing.assert_equal(p, params_loaded["x"].numpy())
+
+
 if __name__ == "__main__":
-    test_graph_simple()
-    test_load_unexpected_params()
+    tvm.testing.main()

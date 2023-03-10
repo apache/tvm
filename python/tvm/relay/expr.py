@@ -605,7 +605,7 @@ class TupleWrapper(object):
     def __getitem__(self, index):
         if index >= len(self):
             raise IndexError("Tuple index out of range")
-        return TupleGetItem(self.tuple_value, index)
+        return TupleGetItem(self.tuple_value, index, span=self.tuple_value.span)
 
     def __len__(self):
         return self.size

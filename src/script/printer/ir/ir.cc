@@ -72,6 +72,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         d->cfg->binding_names.pop_back();
         if (const auto* stmt_block = doc.as<StmtBlockDocNode>()) {
           (*f)->stmts.push_back(stmt_block->stmts.back());
+          (*f)->stmts.back()->source_paths = std::move(doc->source_paths);
         } else if (const auto* stmt = doc.as<StmtDocNode>()) {
           (*f)->stmts.push_back(GetRef<StmtDoc>(stmt));
         } else {

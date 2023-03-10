@@ -248,14 +248,14 @@ for i, j, k in T.grid(128, 128, 128):
 
 def test_let_stmt():
     with IRBuilder() as ib:
-        with T.let(T.float32(), T.float32(10)):
+        with T.LetStmt(T.float32(10)) as v:
+            ib.name("v", v)
             T.evaluate(0)
     obj = ib.get()
     _assert_print(
         obj,
         """
-v = T.float32()
-with T.let(v, T.float32(10)):
+with T.LetStmt(T.float32(10)) as v:
     T.evaluate(0)
 """,
     )
@@ -468,7 +468,7 @@ def test_size_var():
     _assert_print(
         a,
         """
-a = T.float32()
+a = T.float32(is_size_var=True)
 a""",
     )
 
@@ -501,13 +501,12 @@ T.Cast("float64", a)
 
 
 def test_binary_arith():
-    a = tir.Var("a", "float32")
-    b = tir.Var("b", "float32")
+    a = tir.Var("a", "int32")
+    b = tir.Var("b", "int32")
     for op, sign in [
         (tir.Add, "+"),
         (tir.Sub, "-"),
         (tir.Mul, "*"),
-        (tir.Div, "/"),
         (tir.Mod, "truncmod"),
         (tir.FloorDiv, "//"),
         (tir.FloorMod, "%"),
@@ -521,19 +520,58 @@ def test_binary_arith():
         obj = op(a, b)
         if sign.isalpha():
             expected = """
-a = T.float32()
-b = T.float32()
+a = T.int32()
+b = T.int32()
 T.{}(a, b)""".format(
                 sign
             )
         else:
             expected = """
-a = T.float32()
-b = T.float32()
+a = T.int32()
+b = T.int32()
 a {} b""".format(
                 sign
             )
         _assert_print(obj, expected)
+
+
+def test_binary_arith_const():
+    a = tir.IntImm("int64", 3)
+    b = tir.IntImm("int64", 4)
+    for op, name in [
+        (tir.Add, "Add"),
+        (tir.Sub, "Sub"),
+        (tir.Mul, "Mul"),
+        (tir.Div, "Div"),
+        (tir.Mod, "truncmod"),
+        (tir.FloorDiv, "FloorDiv"),
+        (tir.FloorMod, "FloorMod"),
+        (tir.LT, "LT"),
+        (tir.LE, "LE"),
+        (tir.EQ, "EQ"),
+        (tir.NE, "NE"),
+        (tir.GT, "GT"),
+        (tir.GE, "GE"),
+    ]:
+        obj = op(a, b)
+        expected = """
+T.{}({}, {})""".format(
+            name, str(a), str(b)
+        )
+        _assert_print(obj, expected)
+
+
+def test_int_div():
+    a = tir.Var("a", "int32")
+    b = tir.Var("b", "int32")
+    _assert_print(
+        tir.Div(a, b),
+        """
+a = T.int32()
+b = T.int32()
+T.Div(a, b)
+""",
+    )
 
 
 def test_logical():
@@ -602,7 +640,7 @@ def test_let_expr():
         obj,
         """
 x = T.int32()
-T.let(x, 1, x + 1)
+T.Let(x + 1, where={x: 1})
 """,
     )
 

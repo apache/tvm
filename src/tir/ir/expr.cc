@@ -126,6 +126,15 @@ SizeVar::SizeVar(String name_hint, DataType dtype, Span span) {
   data_ = std::move(n);
 }
 
+SizeVar::SizeVar(String name_hint, Type type_annotation, Span span) {
+  auto n = make_object<SizeVarNode>();
+  n->name_hint = std::move(name_hint);
+  n->dtype = GetRuntimeDataType(type_annotation);
+  n->type_annotation = std::move(type_annotation);
+  n->span = std::move(span);
+  data_ = std::move(n);
+}
+
 TVM_REGISTER_GLOBAL("tir.SizeVar").set_body_typed([](String s, DataType t, Span span) {
   return SizeVar(s, t, span);
 });

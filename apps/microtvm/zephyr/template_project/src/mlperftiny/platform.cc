@@ -38,10 +38,6 @@
 
 #include "crt_config.h"
 
-// TVM_WORKSPACE_SIZE_BYTES is defined in python
-static uint8_t g_aot_memory[TVM_WORKSPACE_SIZE_BYTES];
-tvm_workspace_t app_workspace;
-
 size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const char* fmt,
                                 va_list args) {
   return vsnprintk(out_buf, out_buf_size_bytes, fmt, args);
@@ -52,17 +48,4 @@ void TVMPlatformAbort(tvm_crt_error_t error) {
   sys_reboot(SYS_REBOOT_COLD);
   for (;;)
     ;
-}
-
-tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
-  return StackMemoryManager_Allocate(&app_workspace, num_bytes, out_ptr);
-}
-
-tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
-  return StackMemoryManager_Free(&app_workspace, ptr);
-}
-
-tvm_crt_error_t TVMPlatformInitialize() {
-  StackMemoryManager_Init(&app_workspace, g_aot_memory, sizeof(g_aot_memory));
-  return kTvmErrorNoError;
 }

@@ -57,7 +57,9 @@ class AssertFrame(TIRFrame):
 
 @_register_object("script.ir_builder.tir.LetFrame")
 class LetFrame(TIRFrame):
-    ...
+    def __enter__(self) -> Var:
+        super().__enter__()
+        return self.var
 
 
 @_register_object("script.ir_builder.tir.RealizeFrame")
@@ -113,4 +115,6 @@ class DeclBufferFrame(TIRFrame):
 
 @_register_object("script.ir_builder.tir.LaunchThreadFrame")
 class LaunchThreadFrame(TIRFrame):
-    ...
+    def __enter__(self) -> Var:
+        super().__enter__()
+        return self.iter_var.var

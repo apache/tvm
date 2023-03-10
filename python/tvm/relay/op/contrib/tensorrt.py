@@ -709,7 +709,8 @@ def strided_slice_checker(
     if any([x is not None and x <= 0 for x in attrs.strides]):
         logger.info(f"{op_name}: stride must be positive")
         return False
-    for i in range(0, len(args[0].checked_type.shape)):
+    length: int = len(attrs.axes) if attrs.axes is not None else len(args[0].checked_type.shape)
+    for i in range(0, length):
         begin = int(attrs.begin[i])
         if attrs.slice_mode == "end":
             end = (

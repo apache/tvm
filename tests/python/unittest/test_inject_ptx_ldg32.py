@@ -32,7 +32,7 @@ def vector_add(A: T.Buffer((16), "float32"), B: T.Buffer((32), "float32")) -> No
     with T.block():
         T.reads(A[0:16])
         T.writes(A_local[0:32])
-        A_local[tx] = T.if_then_else(tx % 2 == 0, A[tx / 2], T.float32(0), dtype="float32")
+        A_local[tx] = T.if_then_else(tx % 2 == 0, A[tx // 2], T.float32(0), dtype="float32")
         B[tx] = A_local[tx] + 1.0
 
 

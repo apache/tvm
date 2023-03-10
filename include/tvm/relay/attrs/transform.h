@@ -589,6 +589,17 @@ struct StftAttrs : public tvm::AttrsNode<StftAttrs> {
   }
 };  // struct StftAttrs
 
+/*! \brief Attributes used in DFT operator */
+struct DFTAttrs : public tvm::AttrsNode<DFTAttrs> {
+  Bool inverse = Bool(false);
+
+  TVM_DECLARE_ATTRS(DFTAttrs, "relay.attrs.DFTAttrs") {
+    TVM_ATTR_FIELD(inverse)
+        .describe("Whether to perform the inverse discrete Fourier transform")
+        .set_default(Bool(false));
+  }
+};  // struct DFTAttrs
+
 struct TriluAttrs : public tvm::AttrsNode<TriluAttrs> {
   bool upper;
 

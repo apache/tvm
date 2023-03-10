@@ -40,11 +40,12 @@ from tvm.contrib import utils
 
 def test_save_dumps(tmpdir_factory):
     tmpdir = tmpdir_factory.mktemp("data")
-    dump_formats = {"relay": "fake relay", "ll": "fake llvm", "asm": "fake asm"}
+    dump_formats = {"relay": "fake relay", "tir": "fake tir", "ll": "fake llvm", "asm": "fake asm"}
     tvmc.compiler.save_dumps("fake_module", dump_formats, dump_root=tmpdir)
 
     assert path.exists("{}/{}".format(tmpdir, "fake_module.ll"))
     assert path.exists("{}/{}".format(tmpdir, "fake_module.asm"))
+    assert path.exists("{}/{}".format(tmpdir, "fake_module.tir"))
     assert path.exists("{}/{}".format(tmpdir, "fake_module.relay"))
 
 
@@ -69,7 +70,11 @@ def verify_compile_tflite_module(model, shape_dict=None, use_vm=False):
     pytest.importorskip("tflite")
     tvmc_model = tvmc.load(model, shape_dict=shape_dict)
     tvmc_package = tvmc.compile(
-        tvmc_model, target="llvm", dump_code="ll", desired_layout="NCHW", use_vm=use_vm
+        tvmc_model,
+        target="llvm",
+        dump_code="ll",
+        desired_layout="NCHW",
+        use_vm=use_vm,
     )
     dumps_path = tvmc_package.package_path + ".ll"
     verify_tvmc_package(tvmc_package, dumps_path, use_vm=use_vm)
@@ -85,6 +90,28 @@ def test_compile_tflite_module(use_vm, tflite_mobilenet_v1_1_quant):
     shape_string = "input:[1,224,224,3]"
     shape_dict = tvmc.shape_parser.parse_shape_string(shape_string)
     verify_compile_tflite_module(tflite_mobilenet_v1_1_quant, shape_dict, use_vm=use_vm)
+
+
+def test_single_tir_dump(tflite_mobilenet_v1_1_quant):
+    pytest.importorskip("tflite")
+    tvmc_model = tvmc.load(tflite_mobilenet_v1_1_quant)
+    tvmc_package = tvmc.compile(tvmc_model, target="llvm", dump_code="tir")
+    dumps_path = tvmc_package.package_path + ".tir"
+    assert os.path.exists(dumps_path)
+    with open(dumps_path) as f:
+        assert "tir" in f.read()
+
+
+def test_code_dumps(tflite_mobilenet_v1_1_quant):
+    pytest.importorskip("tflite")
+    tvmc_model = tvmc.load(tflite_mobilenet_v1_1_quant)
+    dump_code = ["asm", "ll", "tir", "relay"]
+    tvmc_package = tvmc.compile(tvmc_model, target="llvm", dump_code=dump_code)
+    for ext in dump_code:
+        dumps_path = tvmc_package.package_path + "." + ext
+        assert os.path.exists(dumps_path)
+        with open(dumps_path) as f:
+            assert len(f.read()) > 0
 
 
 # This test will be skipped if the AArch64 cross-compilation toolchain is not installed.

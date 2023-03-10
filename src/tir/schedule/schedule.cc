@@ -179,6 +179,10 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheRead")
     .set_body_method<Schedule>(&ScheduleNode::CacheRead);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheWrite")
     .set_body_method<Schedule>(&ScheduleNode::CacheWrite);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReindexCacheRead")
+    .set_body_method<Schedule>(&ScheduleNode::ReindexCacheRead);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReindexCacheWrite")
+    .set_body_method<Schedule>(&ScheduleNode::ReindexCacheWrite);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheInplace")
     .set_body_method<Schedule>(&ScheduleNode::CacheInplace);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheIndex")
@@ -253,10 +257,10 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleUnannotate")
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleTransformLayout")
     .set_body_typed([](Schedule self, const BlockRV& block_rv, int buffer_index,
                        int buffer_index_type, const IndexMap& index_map,
-                       const Optional<IndexMap>& pad_value) {
+                       const Optional<IndexMap>& pad_value, bool assume_injective_transform) {
       return self->TransformLayout(block_rv, buffer_index,
                                    static_cast<BufferIndexType>(buffer_index_type), index_map,
-                                   pad_value);
+                                   pad_value, assume_injective_transform);
     });
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleTransformBlockLayout")
     .set_body_method<Schedule>(&ScheduleNode::TransformBlockLayout);
