@@ -109,7 +109,7 @@ void CallCublasLt(cublasLtHandle_t hdl, const DLTensor* A, const DLTensor* B, co
                   bool transa, bool transb, float alpha, float beta);
 
 void CallCublasLt(cublasLtHandle_t hdl, const DLTensor* A, const DLTensor* B, const DLTensor* bias, const DLTensor* C,
-                  bool transa, bool transb, cublasLtEpilogue_t epilouge=CUBLASLT_EPILOGUE_DEFAULT);
+                  bool transa, bool transb, cublasLtEpilogue_t epilogue=CUBLASLT_EPILOGUE_DEFAULT);
 
 }  // namespace contrib
 }  // namespace tvm

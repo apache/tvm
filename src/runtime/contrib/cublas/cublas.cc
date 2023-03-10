@@ -187,7 +187,7 @@ void CallCublasLt(cublasLtHandle_t hdl, const DLTensor* A, const DLTensor* B, co
 }
 
 void CallCublasLt(cublasLtHandle_t hdl, const DLTensor* A, const DLTensor* B, const DLTensor* bias, const DLTensor* C,
-                  bool transa, bool transb, cublasLtEpilogue_t epilouge) {
+                  bool transa, bool transb, cublasLtEpilogue_t epilogue) {
   ICHECK_EQ(A->ndim, 2);
   ICHECK_EQ(B->ndim, 2);
   ICHECK_EQ(C->ndim, 2);
@@ -207,12 +207,12 @@ void CallCublasLt(cublasLtHandle_t hdl, const DLTensor* A, const DLTensor* B, co
   cublasLtMatmulDesc_t operationDesc = nullptr;
   CHECK_CUBLAS_ERROR(cublasLtMatmulDescCreate(&operationDesc, CUBLAS_COMPUTE_32F, CUDA_R_32F));
 
-  if (bias_ptr != nullptr) {
+  if (bias != nullptr) {
     CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(
         operationDesc,
         CUBLASLT_MATMUL_DESC_BIAS_POINTER,
         &bias->data,
-        sizeof(float*)))
+        sizeof(float*)));
   }
 
   if (epilogue != CUBLASLT_EPILOGUE_DEFAULT) {
@@ -220,7 +220,7 @@ void CallCublasLt(cublasLtHandle_t hdl, const DLTensor* A, const DLTensor* B, co
         operationDesc,
         CUBLASLT_MATMUL_DESC_EPILOGUE,
         &epilogue,
-        sizeof(epilogue)))
+        sizeof(epilogue)));
   }
 
   cublasOperation_t opTransA = CUBLASBooleanToTranspose(transa);

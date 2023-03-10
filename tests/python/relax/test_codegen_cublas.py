@@ -118,9 +118,9 @@ _vars = {
 
 _epilogue_table = {
     "none": (False, None),
-    # "bias": (True, None),
-    # "relu": (True, R.nn.relu),
-    # "gelu": (True, R.nn.gelu),
+    "bias": (True, None),
+    "relu": (True, R.nn.relu),
+    "gelu": (True, R.nn.gelu),
 }
 
 
@@ -206,5 +206,5 @@ if __name__ == "__main__":
     # tvm.testing.main()
     # test_matmul_offload((32, 8), (8, 16), False, "none", "float32")
     # test_matmul_offload((32, 8), (8, 16), True, "none", "float32")
-    test_matmul_offload((32, 8), (8, 16), False, "bias", "float32")
-    test_matmul_offload((32, 8), (8, 16), False, "relu", "float32")
+    # test_matmul_offload((32, 8), (8, 16), False, "bias", "float32")
+    test_matmul_offload((32, 8), (8, 16), False, "gelu", "float32")
