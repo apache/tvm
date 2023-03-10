@@ -44,6 +44,8 @@ in_shape, axis, keepdims, reduce_type, dtype = tvm.testing.parameters(
     ((32, 128, 24), None, True, "any", "bool"),
     ((1, 4, 7), 1, True, "any", "bool"),
     ((128, 24, 128, 24), 2, False, "any", "bool"),
+    ((128, 24, 128, 24), 2, False, "sum", "bool"),
+    ((128, 24, 128, 24), 0, True, "sum", "bool"),
 )
 
 
@@ -57,7 +59,10 @@ def ref_data(in_shape, axis, keepdims, reduce_type, dtype):
         in_npy_map = np.sqrt(np.exp(in_npy)).astype(dtype)
 
     if reduce_type == "sum":
-        out_npy = in_npy_map.sum(axis=axis, keepdims=keepdims)
+        if dtype == "bool":
+            out_npy = in_npy_map.sum(axis=axis, keepdims=keepdims, dtype="bool")
+        else:
+            out_npy = in_npy_map.sum(axis=axis, keepdims=keepdims)
     elif reduce_type == "all" and dtype == "bool":
         out_npy = in_npy_map.all(axis=axis, keepdims=keepdims)
     elif reduce_type == "any" and dtype == "bool":
@@ -113,7 +118,10 @@ def test_reduce_map(target, dev, ref_data, in_shape, axis, keepdims, reduce_type
     A1 = topi.sqrt(topi.exp(A))
     out_dtype = dtype
     if reduce_type == "sum":
-        B = topi.sum(A1, axis=axis, keepdims=keepdims)
+        if dtype == "bool":
+            B = topi.sum(A, axis=axis, keepdims=keepdims)
+        else:
+            B = topi.sum(A1, axis=axis, keepdims=keepdims)
     elif reduce_type == "all":
         B = topi.all(A, axis=axis, keepdims=keepdims)
     elif reduce_type == "any":

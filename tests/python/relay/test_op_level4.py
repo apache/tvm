@@ -370,6 +370,41 @@ class TestReduceFunctions:
 
 
 @tvm.testing.uses_gpu
+def test_sum_with_bool_input():
+    def verify(dshape, axis, keepdims, exclude):
+        x = relay.var("x", relay.TensorType(dshape, "bool"))
+
+        y = relay.sum(x, axis, keepdims, exclude)
+
+        func = relay.Function([x], y)
+        func = run_infer_type(func)
+
+        text = func.astext()
+        assert "sum" in text
+
+        data = np.random.choice([False, True], size=dshape)
+
+        if exclude and axis is not None:
+            axis = tuple(set(range(len(dshape))) - set(axis))
+
+        ref_res = np.sum(data, axis, keepdims=keepdims, dtype="bool")
+        for target, dev in tvm.testing.enabled_targets():
+            op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
+            tvm.testing.assert_allclose(op_res.numpy(), ref_res)
+
+    verify((3, 5, 7, 9), None, False, False)
+    verify((3, 5, 7, 9), None, True, False)
+    verify((3, 5, 7, 9), (0,), False, False)
+    verify((3, 5, 7, 9), (1,), True, False)
+    verify((3, 5, 7, 9), (2, 3), False, True)
+    verify((3, 5, 7, 9), (0, 2), True, True)
+    verify((3, 5, 7, 9), (0, 1, 2, 3), False, False)
+    verify((3, 5, 7, 9), (0, 1, 2, 3), False, True)
+    verify((3, 5, 7, 9), (0, 1, 2, 3), True, False)
+    verify((3, 5, 7, 9), (0, 1, 2, 3), True, True)
+
+
+@tvm.testing.uses_gpu
 def test_argmin_argmax_get_last_elements():
     def get_test_case(shape, gt_func, test_argmin=False):
         total_ele = np.product(shape)
@@ -638,7 +673,6 @@ def test_strided_set():
         func = run_infer_type(func)
         text = func.astext()
         assert "strided_set" in text
-        print(text)
         assert func.body.checked_type == relay.ty.TensorType(dshape, "float32")
         if not test_ref:
             return
