@@ -369,7 +369,8 @@ def instantiate_gemm_template(attrs):
             {
                 "bias_decl": "void* ptr_bias = (void*)(${bias_arg}->data);\n",
                 "ptr_c": "ptr_bias",
-                "c_stride": "${bias_arg}->ndim == 1 ? 0 : " + attrs["ldc"],
+                "c_stride": "(${bias_arg}->ndim == 1 || ${bias_arg}->shape[0] == 1) ? 0 : "
+                + attrs["ldc"],
             }
         )
     else:
