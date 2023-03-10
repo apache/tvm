@@ -360,6 +360,10 @@ class TestSubIndex(BaseCompare):
         TestCase(tvm.te.max(x, y) - tvm.te.max(y, x), 0),
         TestCase(tvm.te.min(x, y) - tvm.te.min(x + 10, y + 10), -10),
         TestCase(tvm.te.min(x + 10, y + 1) - tvm.te.min(x, y - 9), 10),
+        TestCase(x - tvm.te.max(x + y, 0), tvm.te.min(0 - y, x)),
+        TestCase(x - tvm.te.max(0, x + y), tvm.te.min(x, 0 - y)),
+        TestCase(x - tvm.te.min(x + y, 0), tvm.te.max(0 - y, x)),
+        TestCase(x - tvm.te.min(0, x + y), tvm.te.max(x, 0 - y)),
         # DivMod patterns
         # truc div
         TestCase(x - tdiv(x, 3) * 3, tmod(x, 3)),
