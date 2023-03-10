@@ -236,7 +236,7 @@ def from_relay(
 
     # Since optimization passes and OpStrategy are highly context-dependent,
     # we match the exact same context with `extract_task_from_relay()` env
-    with _autotvm_silencer(), tvm.transform.PassContext(
+    with target, _autotvm_silencer(), tvm.transform.PassContext(
         opt_level=opt_level,
         config=pass_config,
         disabled_pass=disabled_pass,
