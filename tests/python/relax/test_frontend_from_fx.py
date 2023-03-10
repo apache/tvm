@@ -762,6 +762,58 @@ def test_layernorm():
 
 
 @tvm.testing.requires_gpu
+def test_functional_layernorm():
+    import torch
+    from torch.nn import Module
+
+    torch.set_grad_enabled(False)
+    torch.random.manual_seed(0)
+
+    input_info = [([1, 3, 10, 10], "float32")]
+
+    class LayerNorm(Module):
+        def __init__(self, shape):
+            super().__init__()
+            self.weight = torch.nn.Parameter(torch.ones(shape))
+            self.bias = torch.nn.Parameter(torch.zeros(shape))
+
+        def forward(self, input):
+            return torch.nn.functional.layer_norm(
+                input, self.weight.shape, self.weight, self.bias, 1e-5
+            )
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            w1: R.Tensor((10, 10), dtype="float32"),
+            w2: R.Tensor((10, 10), dtype="float32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.layer_norm(
+                    input_1,
+                    w1,
+                    w2,
+                    axes=[-2, -1],
+                    epsilon=1e-05,
+                    center=True,
+                    scale=True,
+                )
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    model = LayerNorm((10, 10))
+    binding = {
+        "w1": model.weight.numpy(),
+        "w2": model.bias.numpy(),
+    }
+    verify_model(model, input_info, binding, expected1)
+
+
+@tvm.testing.requires_gpu
 def test_silu():
     import torch
     from torch.nn import Module
@@ -1488,6 +1540,36 @@ def test_gelu():
             return gv
 
     verify_model(Gelu(), input_info, {}, expected1)
+
+
+@tvm.testing.requires_gpu
+def test_tanh():
+    import torch
+    from torch.nn import Module
+
+    torch.set_grad_enabled(False)
+    torch.random.manual_seed(0)
+
+    input_info = [([1, 3, 10, 10], "float32")]
+
+    class Tanh(Module):
+        def forward(self, input):
+            return torch.tanh(input)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.tanh(input_1)
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Tanh(), input_info, {}, expected1)
 
 
 @tvm.testing.requires_gpu
