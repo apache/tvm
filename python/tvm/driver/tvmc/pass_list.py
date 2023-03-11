@@ -35,16 +35,37 @@ def parse_pass_list_str(input_string):
     -------
     list: a list of existing passes.
     """
-    _prefix = "relay._transform."
+    replacements = {
+        "tir.": "tir.transform.",
+        "qnn.": "relay.qnn._transform.",
+        "": "relay._transform.",
+    }
+
+    def apply_prefix(p, reverse=False):
+        p = p.strip()
+        for short, long in replacements.items():
+            if not reverse and p.startswith(short):
+                if len(short) == 0:
+                    p = long + p
+                else:
+                    p = p.replace(short, long, 1)
+                break
+            elif reverse and p.startswith(long):
+                p = p.replace(long, short, 1)
+                break
+        return p
+
     pass_list = input_string.split(",")
     missing_list = [
-        p.strip()
+        p
         for p in pass_list
-        if len(p.strip()) > 0 and tvm.get_global_func(_prefix + p.strip(), True) is None
+        if len(p.strip()) > 0 and tvm.get_global_func(apply_prefix(p), True) is None
     ]
     if len(missing_list) > 0:
         available_list = [
-            n[len(_prefix) :] for n in registry.list_global_func_names() if n.startswith(_prefix)
+            apply_prefix(n, True)
+            for n in registry.list_global_func_names()
+            if any(n.startswith(pre) for pre in replacements.values())
         ]
         raise argparse.ArgumentTypeError(
             "Following passes are not registered within tvm: {}. Available: {}.".format(
