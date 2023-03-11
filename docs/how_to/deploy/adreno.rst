@@ -372,6 +372,13 @@ Now, the below comand can run TVM RPC on remote android device with id ``abcdefg
    ./tests/scripts/ci.py adreno -i # Launch a new shell on adreno docker.
    source  tests/scripts/setup-adreno-env.sh -e device -p 9190 -d abcdefgh
 
+Further, below command can be used to query the RPC setup details on any other docker terminals.
+
+::
+
+   ./tests/scripts/ci.py adreno -i # Launch a new shell on adreno docker.
+   source  tests/scripts/setup-adreno-env.sh -e query -p 9190
+
 
 **Manual RPC Setup:**
 
@@ -457,6 +464,9 @@ While integrating inside existing Android application TVM has multiple options. 
 You may refer to ``rtvm``'s simplified interface `TVMRunner <https://github.com/apache/tvm/blob/main/apps/cpp_rtvm/tvm_runner.h>`_ also.
 
 .. _python_interface:
+
+Python Interface
+----------------
 
 This section explains importing, auto tuning, compiling and running a model using python interface.\
 TVM has a high level interface through ``tvmc`` abstraction as well as low level relay api. We will discuss about both of these in details.
