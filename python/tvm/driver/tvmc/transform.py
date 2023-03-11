@@ -103,15 +103,16 @@ def convert_to_mixed_precision(mod, ops=None, calculation_type="float16", acc_ty
                 raise TVMCException("Error converting mixed precision : {0}".format(str(err)))
 
 
-def convert_graph_layout(mod, desired_layout, ops=None):
+def convert_graph_layout(mod, desired_layouts, ops=None):
     """Alter the layout of the input graph.
 
     Parameters
     ----------
     mod : tvm.IRModule
         The relay module to convert.
-    desired_layout : str
-        The layout to convert to.
+    desired_layouts : list[str]
+        The layouts to convert to.
+        Expects either a single element or one str per operator.
     ops : list
         List of operators to be layout converted.
 
@@ -123,7 +124,16 @@ def convert_graph_layout(mod, desired_layout, ops=None):
     if ops is None:
         ops = ["nn.conv2d", "nn.conv2d_transpose", "qnn.conv2d"]
 
-    desired_layouts = {op: [desired_layout, "default"] for op in ops}
+    assert isinstance(desired_layouts, list) and len(desired_layouts) > 0
+
+    if len(desired_layouts) != len(ops):
+        if len(desired_layouts) != 1:
+            raise TVMCException(
+                "Expected 1 or {} layouts but got {}".format(len(ops), len(desired_layouts))
+            )
+        desired_layouts = desired_layouts * len(ops)
+
+    desired_layouts = {op: [desired_layouts[i], "default"] for i, op in enumerate(ops)}
 
     # Convert the layout of the graph where possible.
     seq = transform.Sequential(
@@ -137,7 +147,7 @@ def convert_graph_layout(mod, desired_layout, ops=None):
     try:
         return seq(mod)
     except Exception as err:
-        raise TVMCException("Error converting layout to {0}: {1}".format(desired_layout, str(err)))
+        raise TVMCException("Error converting layouts: {}".format(str(err)))
 
 
 def apply_graph_transforms(mod, args):
@@ -159,7 +169,7 @@ def apply_graph_transforms(mod, args):
         return mod
 
     # AlterLayout
-    if args.get("desired_layout", False):
+    if args.get("desired_layout", None):
         mod = convert_graph_layout(
             mod, args["desired_layout"], args.get("desired_layout_ops", None)
         )
@@ -211,8 +221,8 @@ def generate_transform_args(parser):
     parser.add_argument(
         "--desired-layout",
         choices=["NCHW", "NHWC"],
-        default=None,
-        help="Change the data layout of the whole graph.",
+        nargs="+",
+        help="Change the data layout of the graph.",
     )
     parser.add_argument(
         "--desired-layout-ops",
