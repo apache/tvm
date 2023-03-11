@@ -3623,6 +3623,24 @@ def merge_shape_var_def():
     return main
 
 
+def iter_var_range():
+    T.prim_func
+
+    def func():
+        blockIdx_x = T.int32()
+        threadIdx_x = T.int32()
+        T.func_attr(
+            {
+                "tir.device_thread_axis": [
+                    T.iter_var(blockIdx_x, T.Range(0, 1), "ThreadIndex", "blockIdx.x"),
+                    T.iter_var(threadIdx_x, T.Range(0, 32), "ThreadIndex", "threadIdx.x"),
+                ]
+            }
+        )
+
+    return func
+
+
 ir_generator = tvm.testing.parameter(
     launch_env_thread,
     opt_gemm_normalize,

@@ -1665,6 +1665,32 @@ def target(target_config: Union[Dict, str]) -> Target:
         )
     return Target(target_config)
 
+def Range(begin: PrimExpr, end: Optional[PrimExpr]) -> Range:
+    """Create a Range node.
+    
+    Parameters
+    ----------
+    begin : PrimExpr 
+        The begin value of the range.
+    
+    end : Optional[PrimExpr]
+        The end value of the range.
+
+    Returns
+    -------
+    res : Range
+        The Range node.
+    """
+    if not isinstance(begin, PrimExpr):
+        raise ValueError(
+            f"T.Range expected a PrimExpr as begin value, but got {type(begin)} instead."
+        )
+    if not isinstance(end, PrimExpr) and end is not None:
+        raise ValueError(
+            f"T.Range expected a Optional[PrimExpr] as end value, but got {type(end)} instead."
+        )
+    return Range(begin, end)
+
 
 class meta_var:  # pylint: disable=invalid-name
     """A meta variable used in TVMScript metaprogramming. It means that the value of the variable
@@ -2109,4 +2135,5 @@ __all__ = [
     "Let",
     "IterVar",
     "CommReducer",
+    "Range"
 ]
