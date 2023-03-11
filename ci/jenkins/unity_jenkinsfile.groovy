@@ -164,7 +164,7 @@ stage('Prepare') {
 
 stage('Sanity Check') {
   timeout(time: max_time, unit: 'MINUTES') {
-    node('CPU') {
+    node('CPU-SMALL') {
       ws(per_exec_ws('tvm/sanity')) {
         init_git()
         is_docs_only_build = sh (
@@ -322,7 +322,7 @@ stage('Build and Test') {
       }
     },
     'BUILD: CPU': {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws(per_exec_ws('tvm/build-cpu')) {
           init_git()
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build"
