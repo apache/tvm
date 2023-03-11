@@ -87,7 +87,10 @@ def test_layout_transform_convert_kernel_layout_pass_args(relay_conv2d, monkeypa
     monkeypatch.setattr(relay.transform, "ConvertLayout", mock_convert_layout)
 
     with tvm.transform.PassContext(opt_level=3):
-        apply_graph_transforms(relay_conv2d, {"desired_layout": [desired_layout], "desired_layout_ops": desired_layout_ops})
+        apply_graph_transforms(
+            relay_conv2d,
+            {"desired_layout": [desired_layout], "desired_layout_ops": desired_layout_ops},
+        )
 
     mock_convert_layout.assert_called_once_with(
         {
@@ -109,7 +112,10 @@ def test_layout_transform_convert_layout_pass_args_multiple(relay_conv2d, monkey
     monkeypatch.setattr(relay.transform, "ConvertLayout", mock_convert_layout)
 
     with tvm.transform.PassContext(opt_level=3):
-        apply_graph_transforms(relay_conv2d, {"desired_layout": desired_layout, "desired_layout_ops": desired_layout_ops})
+        apply_graph_transforms(
+            relay_conv2d,
+            {"desired_layout": desired_layout, "desired_layout_ops": desired_layout_ops},
+        )
 
     mock_convert_layout.assert_called_once_with(
         {
@@ -119,13 +125,20 @@ def test_layout_transform_convert_layout_pass_args_multiple(relay_conv2d, monkey
     )
 
 
-@pytest.mark.parametrize("desired", [
-    (["NHWC", "NCHW"], ["nn.max_pool2d"]),
-    (["NHWC", "NCHW"], None),
-])
-def test_layout_transform_convert_layout_pass_args_multiple_invalid(relay_conv2d, monkeypatch, desired):
+@pytest.mark.parametrize(
+    "desired",
+    [
+        (["NHWC", "NCHW"], ["nn.max_pool2d"]),
+        (["NHWC", "NCHW"], None),
+    ],
+)
+def test_layout_transform_convert_layout_pass_args_multiple_invalid(
+    relay_conv2d,
+    monkeypatch,
+    desired,
+):
     """
-    TODO
+    Check invalid cases when passing multiple values to the desired layouts argument.
     """
     desired_layout, desired_layout_ops = desired
 
@@ -135,7 +148,10 @@ def test_layout_transform_convert_layout_pass_args_multiple_invalid(relay_conv2d
 
     with pytest.raises(TVMCException):
         with tvm.transform.PassContext(opt_level=3):
-            apply_graph_transforms(relay_conv2d, {"desired_layout": desired_layout, "desired_layout_ops": desired_layout_ops})
+            apply_graph_transforms(
+                relay_conv2d,
+                {"desired_layout": desired_layout, "desired_layout_ops": desired_layout_ops},
+            )
 
 
 def test_layout_transform_to_mixed_precision_pass_args_mock(relay_conv2d, monkeypatch):
