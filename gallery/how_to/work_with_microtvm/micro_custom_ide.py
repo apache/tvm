@@ -57,6 +57,9 @@ Let's Begin.
 # Import Python dependencies
 # ---------------------------
 #
+# If you want to run this script locally, check out `TVM Online Documentation <https://tvm.apache.org/docs/install/index.html>`_ for instructions to install TVM.
+#
+
 import os
 import numpy as np
 import pathlib
@@ -184,7 +187,7 @@ with tarfile.open(TAR_PATH, mode="a") as tar_file:
     create_header_file("sample_not_person", np.asarray(img), SAMPLES_DIR, tar_file)
 
 ######################################################################
-# At this point you have all you need to take the compiled model to your IDE and evaluate it. Inside the MLF file, you should find the following file hirearchy:
+# At this point you have all you need to take the compiled model to your IDE and evaluate it. Inside the MLF file (model.tar), you should find the following file hirearchy:
 #
 #     .. code-block::
 #
@@ -213,13 +216,13 @@ with tarfile.open(TAR_PATH, mode="a") as tar_file:
 # The next step is to create a project for our target device. We use STM32CubeIDE, you can download it `here <https://www.st.com/en/development-tools/stm32cubeide.html>`_.
 # We are using version 1.11.0 in this tutorial. Once you install STM32CubeIDE follow these steps to create a project:
 #
-# #. select File -> New -> STM32Project. The target selecttion Window appears.
+# #. select File -> New -> STM32Project. The target selection Window appears.
 #
-# #. In the "Board Selector" tab, type in the board name "nucleo-l4r5zi" in the "Commercial Part Number" text box. Select the board from the list of boards that appear on the right side of the screen and click "Next".
+# #. Navigate to the "Board Selector" tab, type in the board name "nucleo-l4r5zi" in the "Commercial Part Number" text box. Select the board from the list of boards that appear on the right side of the screen and click "Next".
 #
 # #. Type in your project name (for example microtvm_vww_demo). We are using the default options. (Target Language: C, Binary Type: Executable, Project Type: STM32Cube). Click "Finish".
 #
-# #. A text box would appear that asks you if you want to "Initialize all the peripherals with their default mode?". click "Yes". This would generate the project and open the device configuration tool where you can use the GUI to setup the peripherals. By default the USB, USART3 and LPUART1 are enabled, as well as a few GPIOs.
+# #. A text box will appear asksing if you want to "Initialize all the peripherals with their default mode?". click "Yes". This would generate the project and open the device configuration tool where you can use the GUI to setup the peripherals. By default the USB, USART3 and LPUART1 are enabled, as well as a few GPIOs.
 #
 # #. We will use LPUART1 to send data to the host pc. From the connectivity section, select the LPUART1 and set the "Baud Rate" to 115200 and the "Word Length" to 8. Save the changes and click "Yes" to regenerate the initialization code. This should regenerate the code and open your main.c file. You can also find main.c from the Project Explorer panel on the left, under microtvm_vww_demo -> Core -> Src.
 #
@@ -248,28 +251,28 @@ with tarfile.open(TAR_PATH, mode="a") as tar_file:
 #
 #    * Open the project Properties. (by right clicking on the project name and selecting "Properties" or by selecting Project -> Properties from the menu bar).
 #    * Select C/C++ General -> Paths and Symbols. Select the Source Location tab.
-#    * If you extract the model inside the project folder on your disk, click "Add Folder" and select the "model" folder. (You might need to right click on the project name and select "Refresh" before it appears.)
-#    * If you extract the model file somewhre else, click on the "Link Folder" button, check the box for "Link to folder in the file system" in the window that appears, click "Browse" and select the model folder.
+#    * If you extracted the model inside the project folder, click "Add Folder" and select the "model" folder. (You might need to right click on the project name and select "Refresh" before it appears.)
+#    * If you extracted the model file somewhere else, click on the "Link Folder" button, check the box for "Link to folder in the file system" in the window that appears, click "Browse" and select the model folder.
 #
 # #. If you used CMSIS-NN in compiling the model, you need to include the CMSIS-NN source files in your project too.
 #
 #    * Download or clone the files from the `CMSIS-NN repository <https://github.com/ARM-software/CMSIS-NN>`_, and follow the above steps to include the CMSIS-NN folder in the project.
 #
-# #. Open the project properties. In C/C++ build -> Settings: add the following folders to the list of Included Paths for GCC (and G++ if you have a C++ project) by clicking on the "+" button, selecting "Workspace" and navigating to each folder:
+# #. Open the project properties. In C/C++ Build -> Settings: add the following folders to the list of Include Paths for MCU GCC Compiler (and MCU G++ Compiler if you have a C++ project) by clicking on the "+" button, selecting "Workspace" and navigating to each of the following folders:
 #
 #    * model/runtime/include
 #    * model/codegen/host/include
 #    * model/samples
-#    * CMSIS-NN/include
+#    * CMSIS-NN/Include
 #
 # #. Copy crt_config.h.template from model/templates to the Core/Inc folder, and rename it to crt_config.h.
 #
 # #. Copy platform.c.template from model/templates to the Core/Src folder, and rename it to platform.c.
 #    * This file includes functions for managing the memory that you might need to edit based on your platform.
-#    * define "TVM_WORKSPACE_SIZE_BYTES" in platform.c. if you are using usmp, an small value (for example 1024 Bytes) is enough.
-#    * if you are not using usmp, checkout metadata.json for an estimate of the required memory.
+#    * define "TVM_WORKSPACE_SIZE_BYTES" in platform.c. if you are using USMP, a small value (for example 1024 Bytes) is enough.
+#    * if you are not using usmp, checkout "workspace_size_bytes" field in metadata.json for an estimate of the required memory.
 #
-# #. Exclude following folders from build (right click on the folder name, select Resource Configuration → Exclude from build). Check Debug and Release configurations.
+# #. Exclude the following folders from build (right click on the folder name, select Resource Configuration → Exclude from build). Check Debug and Release configurations.
 #
 #    * CMSIS_NN/Tests
 #
@@ -290,7 +293,7 @@ with tarfile.open(TAR_PATH, mode="a") as tar_file:
 #         #include "sample_person.h"
 #         #include "sample_not_person.h"
 #
-#    * Copy the following code in main function right before the infinite loop. It sets the input and output to the model.
+#    * Copy the following code into the main function right before the infinite loop. It sets the input and output to the model.
 #
 #        .. code-block:: c
 #
