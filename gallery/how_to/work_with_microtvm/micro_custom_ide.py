@@ -238,7 +238,7 @@ with tarfile.open(TAR_PATH, mode="a") as tar_file:
 #
 # #. from the menu bar, select Project -> Build (or right click on project name and select Build). This should build the project and generate the .elf file. Select Run -> Run to download the binary on your MCU. If the "Edit Configuration" window opens, just click "OK".
 #
-# #. Open the terminal console on your host machine. On Mac you can simply use the "screen <usb_device> 115200" command. An LED should blink on the board and the string "Hello World" should print out on your terminal console every second.
+# #. Open the terminal console on your host machine. On Mac you can simply use the "screen <usb_device> 115200" command, e.g. "screen tty.usbmodemXXXX 115200". An LED should blink on the board and the string "Hello World." should print out on your terminal console every second. Press "Control-a k" to exit screen.
 #
 
 ######################################################################
