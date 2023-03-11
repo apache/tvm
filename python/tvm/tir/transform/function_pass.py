@@ -16,7 +16,6 @@
 # under the License.
 """TIR specific function pass support."""
 import inspect
-import types
 import functools
 from typing import Callable, List, Optional, Union
 
@@ -151,7 +150,7 @@ def prim_func_pass(
         info = PassInfo(opt_level, fname, required)
         if inspect.isclass(pass_arg):
             return _wrap_class_function_pass(pass_arg, info)
-        if not isinstance(pass_arg, (types.FunctionType, types.LambdaType)):
+        if not callable(pass_arg):
             raise TypeError("pass_func must be a callable for Module pass")
         return _ffi_api.CreatePrimFuncPass(pass_arg, info)  # type: ignore
 
