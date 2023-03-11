@@ -113,6 +113,7 @@ def convert_graph_layout(mod, desired_layouts, ops=None):
     desired_layouts : list[str]
         The layouts to convert to.
         Expects either a single element or one str per operator.
+        Can be only data layouts or combination of both, e.g. NHWC:HWIO
     ops : list
         List of operators to be layout converted.
 
@@ -133,7 +134,15 @@ def convert_graph_layout(mod, desired_layouts, ops=None):
             )
         desired_layouts = desired_layouts * len(ops)
 
-    desired_layouts = {op: [desired_layouts[i], "default"] for i, op in enumerate(ops)}
+    def layout_helper(layout):
+        if ":" in layout:
+            data_layout, kernel_layout = layout.split(":", 1)
+        else:
+            data_layout = layout
+            kernel_layout = "default"
+        return [data_layout, kernel_layout]
+
+    desired_layouts = {op: layout_helper(desired_layouts[i]) for i, op in enumerate(ops)}
 
     # Convert the layout of the graph where possible.
     seq = transform.Sequential(
@@ -220,9 +229,8 @@ def generate_transform_args(parser):
     # AlterLayout
     parser.add_argument(
         "--desired-layout",
-        choices=["NCHW", "NHWC"],
         nargs="+",
-        help="Change the data layout of the graph.",
+        help="Change the data/kernel layout of the graph. (i.e. NCHW or NHWC:HWIO)",
     )
     parser.add_argument(
         "--desired-layout-ops",

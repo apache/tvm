@@ -74,6 +74,28 @@ def test_layout_transform_convert_layout_pass_args(relay_conv2d, monkeypatch):
     )
 
 
+def test_layout_transform_convert_kernel_layout_pass_args(relay_conv2d, monkeypatch):
+    """
+    Check the convert layout desired layouts arugment is what is expected when
+    a non-default kernel layout is provided.
+    """
+    desired_layout = "NHWC:HWIO"
+    desired_layout_ops = ["nn.nonv2d"]
+
+    mock_convert_layout = MagicMock()
+    mock_convert_layout.return_value = relay.transform.ConvertLayout({})
+    monkeypatch.setattr(relay.transform, "ConvertLayout", mock_convert_layout)
+
+    with tvm.transform.PassContext(opt_level=3):
+        apply_graph_transforms(relay_conv2d, {"desired_layout": [desired_layout], "desired_layout_ops": desired_layout_ops})
+
+    mock_convert_layout.assert_called_once_with(
+        {
+            "nn.conv2d": ["NHWC", "HWIO"],
+        }
+    )
+
+
 def test_layout_transform_convert_layout_pass_args_multiple(relay_conv2d, monkeypatch):
     """
     Check the convert layout desired layouts arugment is what is expected when
