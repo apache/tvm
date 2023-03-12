@@ -16,6 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name
 """GEMM kernel generator and profiler for CUTLASS."""
+import os
+import pickle
 from functools import partial
 
 from .gemm_operation import EmitGemmInstance, GemmOperation
@@ -195,7 +197,11 @@ class CutlassGemmProfiler:
         assert sm in GENERATOR_FUNC_TABLE and sm in DEFAULT_KERNELS, "sm%d not supported yet." % sm
         self.engine = ProfilerEngine(sm, cutlass_path, binary_path)
         self.sm = sm
-        self.cache = {}
+        self.cache_path = os.path.join(binary_path, "cutlass_gemm_cache.pickle")
+        if os.path.exists(self.cache_path):
+            self.cache = pickle.load(open(self.cache_path, "rb"))
+        else:
+            self.cache = {}
 
     def get_default(
         self,
@@ -294,6 +300,8 @@ class CutlassGemmProfiler:
 
         op = min(ops, key=lambda i: i["runtime"])
         self.cache[(M, N, K)] = op
+        with open(self.cache_path, "wb") as f:
+            pickle.dump(self.cache, f)
         return op
 
     def profile(
