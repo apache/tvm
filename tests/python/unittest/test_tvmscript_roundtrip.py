@@ -3666,6 +3666,8 @@ def tvm_shfl_builtins():
             t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 1, 32, 32)
             red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
             red_buf0_1[0] = T.tvm_warp_shuffle(mask_1[0], red_buf0_1[0], 0, 32, 32)
+            # NOTE(Zihao): test tvm_warp_shuffle_up
+            red_buf0_1[0] = T.tvm_warp_shuffle_up(mask_1[0], red_buf0_1[0], 0, 32, 32)
         if threadIdx_x == 0:
             C_1 = T.Buffer((1,), data=C)
             C_1[0] = red_buf0_1[0]
