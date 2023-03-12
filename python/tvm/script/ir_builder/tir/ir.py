@@ -1808,6 +1808,11 @@ tvm_mma_sync = _op_wrapper(_tir_op.tvm_mma_sync)
 tvm_bmma_sync = _op_wrapper(_tir_op.tvm_bmma_sync)
 tvm_fill_fragment = _op_wrapper(_tir_op.tvm_fill_fragment)
 tvm_store_matrix_sync = _op_wrapper(_tir_op.tvm_store_matrix_sync)
+tvm_storage_sync = _op_wrapper(_tir_op.tvm_storage_sync)
+tvm_warp_shuffle = _op_wrapper(_tir_op.tvm_warp_shuffle)
+tvm_warp_shuffle_up = _op_wrapper(_tir_op.tvm_warp_shuffle_up)
+tvm_warp_shuffle_down = _op_wrapper(_tir_op.tvm_warp_shuffle_down)
+tvm_warp_activemask = _op_wrapper(_tir_op.tvm_warp_activemask)
 ptx_wait_group = _op_wrapper(_tir_op.ptx_wait_group)
 ptx_commit_group = _op_wrapper(_tir_op.ptx_commit_group)
 assume = _op_wrapper(_tir_op.assume)
@@ -2068,6 +2073,9 @@ __all__ = [
     "tvm_bmma_sync",
     "tvm_fill_fragment",
     "tvm_store_matrix_sync",
+    "tvm_storage_sync",
+    "tvm_warp_shuffle",
+    "tvm_warp_activemask",
     "ptx_mma",
     "ptx_mma_sp",
     "ptx_ldmatrix",
