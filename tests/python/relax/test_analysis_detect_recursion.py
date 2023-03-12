@@ -54,7 +54,7 @@ def test_simple_recursion():
     class SimpleRecursion:
         @R.function
         def c(x: R.Object) -> R.Object:
-            return c(x)
+            return SimpleRecursion.c(x)
 
     groups = detect_recursion(SimpleRecursion)
     assert_groups(groups, ["c"])
@@ -66,20 +66,20 @@ def test_tree():
     class Tree:
         @R.function
         def a(x: R.Object) -> R.Object:
-            return b(x)
+            return Tree.b(x)
 
         @R.function
         def b(x: R.Object) -> R.Object:
-            return c(x)
+            return Tree.c(x)
 
         @R.function
         def c(x: R.Object) -> R.Object:
-            z: R.Object = d(x)
-            return e(z)
+            z: R.Object = Tree.d(x)
+            return Tree.e(z)
 
         @R.function
         def d(x: R.Object) -> R.Object:
-            return e(x)
+            return Tree.e(x)
 
         @R.function
         def e(x: R.Object) -> R.Object:
@@ -94,11 +94,11 @@ def test_two_function_case():
     class TwoFunctionCase:
         @R.function
         def a(x: R.Object) -> R.Object:
-            return b(x)
+            return TwoFunctionCase.b(x)
 
         @R.function
         def b(x: R.Object) -> R.Object:
-            return a(x)
+            return TwoFunctionCase.a(x)
 
         # not part of the group, shouldn't be reported
         @R.function
@@ -114,19 +114,19 @@ def test_two_groups_of_two():
     class TwoGroupsOfTwo:
         @R.function
         def a(x: R.Object) -> R.Object:
-            return b(x)
+            return TwoGroupsOfTwo.b(x)
 
         @R.function
         def b(x: R.Object) -> R.Object:
-            return a(x)
+            return TwoGroupsOfTwo.a(x)
 
         @R.function
         def c(x: R.Object) -> R.Object:
-            return d(x)
+            return TwoGroupsOfTwo.d(x)
 
         @R.function
         def d(x: R.Object) -> R.Object:
-            return c(x)
+            return TwoGroupsOfTwo.c(x)
 
         # not part of either group, shouldn't be reported
         @R.function
@@ -142,16 +142,16 @@ def test_mutual_recursion_and_simple_recursion():
     class MutualAndSimple:
         @R.function
         def a(x: R.Object) -> R.Object:
-            return b(x)
+            return MutualAndSimple.b(x)
 
         @R.function
         def b(x: R.Object) -> R.Object:
-            return a(x)
+            return MutualAndSimple.a(x)
 
         # forms its own group
         @R.function
         def c(x: R.Object) -> R.Object:
-            return c(x)
+            return MutualAndSimple.c(x)
 
     groups = detect_recursion(MutualAndSimple)
     assert_groups(groups, [["a", "b"], ["c"]])
@@ -164,11 +164,13 @@ def test_simultaneous_mutual_and_simple_recursion():
     class SimultaneousMutualAndSimple:
         @R.function
         def a(x: R.Object) -> R.Object:
-            return b(a(x))
+            cls = SimultaneousMutualAndSimple
+            return cls.b(cls.a(x))
 
         @R.function
         def b(x: R.Object) -> R.Object:
-            return a(b(x))
+            cls = SimultaneousMutualAndSimple
+            return cls.a(cls.b(x))
 
     groups = detect_recursion(SimultaneousMutualAndSimple)
     assert_groups(groups, [["a", "b"]])
@@ -179,15 +181,15 @@ def test_three_function_case():
     class ThreeFunctionCase:
         @R.function
         def a(x: R.Object) -> R.Object:
-            return b(x)
+            return ThreeFunctionCase.b(x)
 
         @R.function
         def b(x: R.Object) -> R.Object:
-            return c(x)
+            return ThreeFunctionCase.c(x)
 
         @R.function
         def c(x: R.Object) -> R.Object:
-            return a(x)
+            return ThreeFunctionCase.a(x)
 
     groups = detect_recursion(ThreeFunctionCase)
     assert_groups(groups, [["a", "b", "c"]])
@@ -200,24 +202,24 @@ def test_call_from_outside_of_group():
         # but is not part of the cycle
         @R.function
         def a(x: R.Object) -> R.Object:
-            return d(x)
+            return CallFromOutOfGroup.d(x)
 
         @R.function
         def b(x: R.Object) -> R.Object:
-            return c(x)
+            return CallFromOutOfGroup.c(x)
 
         @R.function
         def c(x: R.Object) -> R.Object:
-            return d(x)
+            return CallFromOutOfGroup.d(x)
 
         @R.function
         def d(x: R.Object) -> R.Object:
-            return b(x)
+            return CallFromOutOfGroup.b(x)
 
         # E also calls into the cycle but isn't part of it
         @R.function
         def e(x: R.Object) -> R.Object:
-            return b(x)
+            return CallFromOutOfGroup.b(x)
 
     groups = detect_recursion(CallFromOutOfGroup)
     assert_groups(groups, [["b", "c", "d"]])
@@ -230,17 +232,17 @@ def test_call_from_group_to_outside():
         # but is not part of the cycle
         @R.function
         def a(x: R.Object) -> R.Object:
-            return b(x)
+            return CallFromGroupToOutside.b(x)
 
         @R.function
         def b(x: R.Object) -> R.Object:
             # d is called from a member of the group but it is not part of the cycle
-            z: R.Object = d(x)
-            return c(z)
+            z: R.Object = CallFromGroupToOutside.d(x)
+            return CallFromGroupToOutside.c(z)
 
         @R.function
         def c(x: R.Object) -> R.Object:
-            return a(x)
+            return CallFromGroupToOutside.a(x)
 
         @R.function
         def d(x: R.Object) -> R.Object:
@@ -266,28 +268,28 @@ def test_group_with_two_cycles():
     class GroupWithTwoCycles:
         @R.function
         def a(x: R.Object) -> R.Object:
-            return b(x)
+            return GroupWithTwoCycles.b(x)
 
         @R.function
         def b(x: R.Object) -> R.Object:
-            return c(x)
+            return GroupWithTwoCycles.c(x)
 
         @R.function
         def c(x: R.Object) -> R.Object:
-            y = d(x)
-            return e(y)
+            y = GroupWithTwoCycles.d(x)
+            return GroupWithTwoCycles.e(y)
 
         @R.function
         def d(x: R.Object) -> R.Object:
-            return a(x)
+            return GroupWithTwoCycles.a(x)
 
         @R.function
         def e(x: R.Object) -> R.Object:
-            return f(x)
+            return GroupWithTwoCycles.f(x)
 
         @R.function
         def f(x: R.Object) -> R.Object:
-            return b(x)
+            return GroupWithTwoCycles.b(x)
 
     groups = detect_recursion(GroupWithTwoCycles)
     assert_groups(groups, [["a", "b", "c", "d", "e", "f"]])
@@ -309,38 +311,45 @@ def test_multicycle_example():
     class MulticycleExample:
         @R.function
         def a(x: R.Object) -> R.Object:
-            y = b(x)
-            return e(y)
+            cls = MulticycleExample
+            y = cls.b(x)
+            return cls.e(y)
 
         @R.function
         def b(x: R.Object) -> R.Object:
-            y = a(x)
-            z = c(y)
-            return d(z)
+            cls = MulticycleExample
+            y = cls.a(x)
+            z = cls.c(y)
+            return cls.d(z)
 
         @R.function
         def c(x: R.Object) -> R.Object:
-            y = g(x)
-            return b(y)
+            cls = MulticycleExample
+            y = cls.g(x)
+            return cls.b(y)
 
         @R.function
         def d(x: R.Object) -> R.Object:
-            return f(x)
+            cls = MulticycleExample
+            return cls.f(x)
 
         @R.function
         def e(x: R.Object) -> R.Object:
-            y = f(x)
-            return a(y)
+            cls = MulticycleExample
+            y = cls.f(x)
+            return cls.a(y)
 
         @R.function
         def f(x: R.Object) -> R.Object:
-            y = g(x)
-            return e(y)
+            cls = MulticycleExample
+            y = cls.g(x)
+            return cls.e(y)
 
         @R.function
         def g(x: R.Object) -> R.Object:
-            y = f(x)
-            return c(y)
+            cls = MulticycleExample
+            y = cls.f(x)
+            return cls.c(y)
 
     groups = detect_recursion(MulticycleExample)
     assert_groups(groups, [["a", "b", "c", "d", "e", "f", "g"]])
@@ -351,20 +360,23 @@ def test_control_flow():
     class ControlFlowExample:
         @R.function
         def a(x: R.Object) -> R.Object:
+            cls = ControlFlowExample
             y: R.Tensor((), dtype="bool") = R.const(True, dtype="bool")
             if y:
-                ret = b(x)
+                ret = cls.b(x)
             else:
-                ret = c(x)
+                ret = cls.c(x)
             return ret
 
         @R.function
         def b(x: R.Object) -> R.Object:
-            return a(x)
+            cls = ControlFlowExample
+            return cls.a(x)
 
         @R.function
         def c(x: R.Object) -> R.Object:
-            return a(x)
+            cls = ControlFlowExample
+            return cls.a(x)
 
     groups = detect_recursion(ControlFlowExample)
     assert_groups(groups, [["a", "b", "c"]])
@@ -376,7 +388,7 @@ def test_returning_self():
         @R.function
         def a() -> R.Object:
             # this is also a form of recursion
-            return a
+            return ReturnsSelf.a
 
     groups = detect_recursion(ReturnsSelf)
     assert_groups(groups, [["a"]])
@@ -387,15 +399,18 @@ def test_mutual_recursion_via_references():
     class GatherReferences:
         @R.function
         def a(x: R.Object) -> R.Object:
-            return b(x)
+            cls = GatherReferences
+            return cls.b(x)
 
         @R.function
         def b(x: R.Object) -> R.Object:
-            return (a, b, c)
+            cls = GatherReferences
+            return (cls.a, cls.b, cls.c)
 
         @R.function
         def c(x: R.Object) -> R.Object:
-            return a(x)
+            cls = GatherReferences
+            return cls.a(x)
 
     groups = detect_recursion(GatherReferences)
     assert_groups(groups, [["a", "b", "c"]])
@@ -419,13 +434,15 @@ def test_disregard_primfuncs():
 
         @R.function
         def a(x: R.Tensor((4, 4), "float32")) -> R.Object:
-            y = R.call_tir(identity_identity, x, R.Tensor((4, 4), "float32"))
-            return b(y)
+            cls = CallPrimFunc
+            y = R.call_tir(cls.identity_identity, x, R.Tensor((4, 4), "float32"))
+            return cls.b(y)
 
         @R.function
         def b(x: R.Tensor((4, 4), "float32")) -> R.Object:
-            y = R.call_tir(identity_identity, x, R.Tensor((4, 4), "float32"))
-            return a(y)
+            cls = CallPrimFunc
+            y = R.call_tir(cls.identity_identity, x, R.Tensor((4, 4), "float32"))
+            return cls.a(y)
 
     groups = detect_recursion(CallPrimFunc)
     # the prim func should not be listed here

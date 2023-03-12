@@ -68,13 +68,14 @@ def test_basic():
 
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
+            cls = Module
             storage: R.Object = R.memory.alloc_storage(
                 R.shape([32]), virtual_device_index=0, storage_scope="global", dtype="float32"
             )
             alloc: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(
                 storage, offset=0, shape=R.shape([2, 4]), dtype="float32"
             )
-            _: R.Tuple() = exp(x, alloc)
+            _: R.Tuple() = cls.exp(x, alloc)
             lv: R.Tensor((2, 4), dtype="float32") = alloc
             lv1: R.Tensor((8,), dtype="float32") = R.call_packed(
                 "vm.builtin.reshape", lv, R.shape([8]), sinfo_args=[R.Tensor((8,), dtype="float32")]
@@ -85,26 +86,26 @@ def test_basic():
             alloc1: R.Tensor((8,), dtype="float32") = R.memory.alloc_tensor(
                 storage1, offset=0, shape=R.shape([8]), dtype="float32"
             )
-            _1: R.Tuple() = relu(lv1, alloc1)
+            _1: R.Tuple() = cls.relu(lv1, alloc1)
             _2: R.Tuple() = R.memory.kill_tensor(alloc)
             _3: R.Tuple() = R.memory.kill_tensor(lv1)
             lv2: R.Tensor((8,), dtype="float32") = alloc1
             alloc2: R.Tensor((8,), dtype="float32") = R.memory.alloc_tensor(
                 storage, offset=0, shape=R.shape([8]), dtype="float32"
             )
-            _4: R.Tuple() = add(lv2, R.const(1, "float32"), alloc2)
+            _4: R.Tuple() = cls.add(lv2, R.const(1, "float32"), alloc2)
             _5: R.Tuple() = R.memory.kill_tensor(alloc1)
             lv3: R.Tensor((8,), dtype="float32") = alloc2
             alloc3: R.Tensor((10,), dtype="float32") = R.memory.alloc_tensor(
                 storage1, offset=0, shape=R.shape([10]), dtype="float32"
             )
-            _6: R.Tuple() = pad(lv3, alloc3)
+            _6: R.Tuple() = cls.pad(lv3, alloc3)
             _7: R.Tuple() = R.memory.kill_tensor(alloc2)
             lv4: R.Tensor((10,), dtype="float32") = alloc3
             alloc4: R.Tensor((10,), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([10]), dtype="float32", runtime_device_index=0
             )
-            _8: R.Tuple() = log(lv4, alloc4)
+            _8: R.Tuple() = cls.log(lv4, alloc4)
             _9: R.Tuple() = R.memory.kill_tensor(alloc3)
             gv5: R.Tensor((10,), dtype="float32") = alloc4
             _11: R.Tuple() = R.memory.kill_storage(storage)

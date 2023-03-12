@@ -36,7 +36,7 @@ def test_abs():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
-            gv = R.call_tir(tir_abs, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.tir_abs, (x,), R.Tensor((2, 3), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -71,7 +71,7 @@ def test_abs_symbolic():
         def main(x: R.Tensor(("m", "n"), dtype="float32")) -> R.Tensor(("m", "n"), dtype="float32"):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(tir_abs, (x,), R.Tensor((m, n), dtype="float32"))
+            gv = R.call_tir(Expected.tir_abs, (x,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -116,7 +116,7 @@ def test_ceil():
 
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
-            gv = R.call_tir(tir_ceil, (x,), out_sinfo=R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.tir_ceil, (x,), out_sinfo=R.Tensor((2, 3), dtype="float32"))
             return gv
     # fmt: on
 
@@ -147,7 +147,7 @@ def test_ceil_int():
 
         @R.function
         def main(x: R.Tensor((2, 3), dtype="int32")) -> R.Tensor((2, 3), dtype="int32"):
-            gv = R.call_tir(tir_ceil, (x,), out_sinfo=R.Tensor((2, 3), dtype="int32"))
+            gv = R.call_tir(Expected.tir_ceil, (x,), out_sinfo=R.Tensor((2, 3), dtype="int32"))
             return gv
     # fmt: on
 
@@ -186,7 +186,7 @@ def test_ceil_symbolic():
         def main(x: R.Tensor(("m", "n"), dtype="float32")) -> R.Tensor(("m", "n"), dtype="float32"):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(tir_ceil, (x,), out_sinfo=R.Tensor((m, n), dtype="float32"))
+            gv = R.call_tir(Expected.tir_ceil, (x,), out_sinfo=R.Tensor((m, n), dtype="float32"))
             return gv
     # fmt: on
 
@@ -207,7 +207,7 @@ def test_cos():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(tir_cos, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.tir_cos, (x,), R.Tensor((2, 3), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -242,7 +242,7 @@ def test_cos_symbolic():
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(tir_cos, (x,), R.Tensor((m, n), dtype="float32"))
+            gv = R.call_tir(Expected.tir_cos, (x,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -277,7 +277,7 @@ def test_exp():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
-            gv = R.call_tir(tir_exp, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.tir_exp, (x,), R.Tensor((2, 3), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -312,7 +312,7 @@ def test_exp_symbolic():
         def main(x: R.Tensor(("m", "n"), dtype="float32")) -> R.Tensor(("m", "n"), dtype="float32"):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(tir_exp, (x,), R.Tensor((m, n), dtype="float32"))
+            gv = R.call_tir(Expected.tir_exp, (x,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -357,7 +357,7 @@ def test_floor():
 
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
-            gv = R.call_tir(tir_floor, (x,), out_sinfo=R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.tir_floor, (x,), out_sinfo=R.Tensor((2, 3), dtype="float32"))
             return gv
     # fmt: on
 
@@ -388,7 +388,7 @@ def test_floor_int():
 
         @R.function
         def main(x: R.Tensor((2, 3), dtype="int32")) -> R.Tensor((2, 3), dtype="int32"):
-            gv = R.call_tir(tir_floor, (x,), out_sinfo=R.Tensor((2, 3), dtype="int32"))
+            gv = R.call_tir(Expected.tir_floor, (x,), out_sinfo=R.Tensor((2, 3), dtype="int32"))
             return gv
     # fmt: on
 
@@ -427,7 +427,7 @@ def test_floor_symbolic():
         def main(x: R.Tensor(("m", "n"), dtype="float32")) -> R.Tensor(("m", "n"), dtype="float32"):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(tir_floor, (x,), out_sinfo=R.Tensor((m, n), dtype="float32"))
+            gv = R.call_tir(Expected.tir_floor, (x,), out_sinfo=R.Tensor((m, n), dtype="float32"))
             return gv
     # fmt: on
 
@@ -448,7 +448,7 @@ def test_log():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(tir_log, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.tir_log, (x,), R.Tensor((2, 3), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -483,7 +483,7 @@ def test_log_symbolic():
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(tir_log, (x,), R.Tensor((m, n), dtype="float32"))
+            gv = R.call_tir(Expected.tir_log, (x,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -518,7 +518,7 @@ def test_negative():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(tir_negative, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.tir_negative, (x,), R.Tensor((2, 3), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -553,7 +553,7 @@ def test_negative_symbolic():
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(tir_negative, (x,), R.Tensor((m, n), dtype="float32"))
+            gv = R.call_tir(Expected.tir_negative, (x,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -598,7 +598,7 @@ def test_round():
 
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
-            gv = R.call_tir(tir_round, (x,), out_sinfo=R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.tir_round, (x,), out_sinfo=R.Tensor((2, 3), dtype="float32"))
             return gv
     # fmt: on
 
@@ -629,7 +629,7 @@ def test_round_int():
 
         @R.function
         def main(x: R.Tensor((2, 3), dtype="int32")) -> R.Tensor((2, 3), dtype="int32"):
-            gv = R.call_tir(tir_round, (x,), out_sinfo=R.Tensor((2, 3), dtype="int32"))
+            gv = R.call_tir(Expected.tir_round, (x,), out_sinfo=R.Tensor((2, 3), dtype="int32"))
             return gv
     # fmt: on
 
@@ -668,7 +668,7 @@ def test_round_symbolic():
         def main(x: R.Tensor(("m", "n"), dtype="float32")) -> R.Tensor(("m", "n"), dtype="float32"):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(tir_round, (x,), out_sinfo=R.Tensor((m, n), dtype="float32"))
+            gv = R.call_tir(Expected.tir_round, (x,), out_sinfo=R.Tensor((m, n), dtype="float32"))
             return gv
     # fmt: on
 
@@ -689,7 +689,7 @@ def test_sigmoid():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(tir_sigmoid, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.tir_sigmoid, (x,), R.Tensor((2, 3), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -724,7 +724,7 @@ def test_sigmoid_symbolic():
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(tir_sigmoid, (x,), R.Tensor((m, n), dtype="float32"))
+            gv = R.call_tir(Expected.tir_sigmoid, (x,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -769,7 +769,7 @@ def test_sign():
 
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
-            gv = R.call_tir(tir_sign, (x,), out_sinfo=R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.tir_sign, (x,), out_sinfo=R.Tensor((2, 3), dtype="float32"))
             return gv
     # fmt: on
 
@@ -800,7 +800,7 @@ def test_sign_int():
 
         @R.function
         def main(x: R.Tensor((2, 3), dtype="int32")) -> R.Tensor((2, 3), dtype="int32"):
-            gv = R.call_tir(tir_sign, (x,), out_sinfo=R.Tensor((2, 3), dtype="int32"))
+            gv = R.call_tir(Expected.tir_sign, (x,), out_sinfo=R.Tensor((2, 3), dtype="int32"))
             return gv
     # fmt: on
 
@@ -839,7 +839,7 @@ def test_sign_symbolic():
         def main(x: R.Tensor(("m", "n"), dtype="float32")) -> R.Tensor(("m", "n"), dtype="float32"):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(tir_sign, (x,), out_sinfo=R.Tensor((m, n), dtype="float32"))
+            gv = R.call_tir(Expected.tir_sign, (x,), out_sinfo=R.Tensor((m, n), dtype="float32"))
             return gv
     # fmt: on
 
@@ -860,7 +860,7 @@ def test_sin():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(tir_sin, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.tir_sin, (x,), R.Tensor((2, 3), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -895,7 +895,7 @@ def test_sin_symbolic():
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(tir_sin, (x,), R.Tensor((m, n), dtype="float32"))
+            gv = R.call_tir(Expected.tir_sin, (x,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -930,7 +930,7 @@ def test_sqrt():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(tir_sqrt, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.tir_sqrt, (x,), R.Tensor((2, 3), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -965,7 +965,7 @@ def test_sqrt_symbolic():
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(tir_sqrt, (x,), R.Tensor((m, n), dtype="float32"))
+            gv = R.call_tir(Expected.tir_sqrt, (x,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -1000,7 +1000,7 @@ def test_tanh():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(tir_tanh, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.tir_tanh, (x,), R.Tensor((2, 3), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -1035,7 +1035,7 @@ def test_tanh_symbolic():
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(tir_tanh, (x,), R.Tensor((m, n), dtype="float32"))
+            gv = R.call_tir(Expected.tir_tanh, (x,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -1073,7 +1073,7 @@ def test_clip_symbolic():
         def main(x: R.Tensor(("m", "n"), dtype="float32")) -> R.Tensor(("m", "n"), dtype="float32"):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(tir_clip, (x,), out_sinfo=R.Tensor((m, n), dtype="float32"))
+            gv = R.call_tir(Expected.tir_clip, (x,), out_sinfo=R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
