@@ -86,10 +86,6 @@ ExprDoc PrintCallee(const relax::Expr& n, const ObjectPath& n_p, const IRDocsifi
   // TODO(@junrushao): handle callee better
   if (const auto* ext = n.as<relax::ExternFuncNode>()) {
     return LiteralDoc::Str(ext->global_symbol, n_p);
-  } else if (const auto* gv = n.as<tvm::GlobalVarNode>()) {
-    IdDoc callee(gv->name_hint);
-    callee->source_paths.push_back(n_p);
-    return callee;
   } else {
     return d->AsDoc<ExprDoc>(n, n_p);
   }
@@ -151,9 +147,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           if (const auto* op = n->op.as<relax::ExternFuncNode>()) {
             prefix = Relax(d, "call_packed");
             args.push_back(LiteralDoc::Str(op->global_symbol, n_p->Attr("op")));
-          } else if (const auto* op = n->op.as<tvm::GlobalVarNode>()) {
-            prefix = IdDoc(op->name_hint);
-            prefix->source_paths.push_back(n_p->Attr("op"));
           } else if (const auto* op = n->op.as<tvm::OpNode>()) {
             std::string name = op->name;
             if (name.rfind("relax.", 0) == 0) {
@@ -162,7 +155,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
               prefix = IdDoc(name);
             }
             prefix->source_paths.push_back(n_p->Attr("op"));
-          } else if (n->op->IsInstance<relax::VarNode>()) {
+          } else if (n->op->IsInstance<relax::VarNode>() ||
+                     n->op->IsInstance<tvm::GlobalVarNode>()) {
             prefix = d->AsDoc<ExprDoc>(n->op, n_p->Attr("op"));
           } else {
             LOG(FATAL) << "TypeError: Unsupported op: " << n->op->GetTypeKey();

@@ -29,13 +29,14 @@ class Conv2dReLUx2:
         weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
         weight2: R.Tensor((64, 64, 3, 3), dtype="float32"),
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
+        cls = Conv2dReLUx2
         with R.dataflow():
-            lv: R.Tensor((1, 64, 56, 56), dtype="float32") = fused_relax_nn_conv2d_relax_nn_relu(
-                data, weight1
-            )
-            gv: R.Tensor((1, 64, 54, 54), dtype="float32") = fused_relax_nn_conv2d_relax_nn_relu1(
-                lv, weight2
-            )
+            lv: R.Tensor(
+                (1, 64, 56, 56), dtype="float32"
+            ) = cls.fused_relax_nn_conv2d_relax_nn_relu(data, weight1)
+            gv: R.Tensor(
+                (1, 64, 54, 54), dtype="float32"
+            ) = cls.fused_relax_nn_conv2d_relax_nn_relu1(lv, weight2)
             R.output(gv)
         return gv
 
@@ -80,10 +81,11 @@ class Conv2dReLUx2_merged:
         weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
         weight2: R.Tensor((64, 64, 3, 3), dtype="float32"),
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
+        cls = Conv2dReLUx2_merged
         with R.dataflow():
             gv: R.Tensor(
                 (1, 64, 54, 54), dtype="float32"
-            ) = fused_relax_nn_conv2d_relax_nn_relu_relax_nn_conv2d_relax_nn_relu1(
+            ) = cls.fused_relax_nn_conv2d_relax_nn_relu_relax_nn_conv2d_relax_nn_relu1(
                 data, weight1, weight2
             )
             R.output(gv)
@@ -150,11 +152,14 @@ class Diamond:
         data: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight: R.Tensor((64, 64, 3, 3), dtype="float32"),
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
+        cls = Diamond
         with R.dataflow():
-            lv2: R.Tensor((1, 64, 54, 54), dtype="float32") = fused_relax_nn_conv2d(data, weight)
-            lv3: R.Tensor((1, 64, 54, 54), dtype="float32") = fused_relax_nn_relu(lv2)
-            lv4: R.Tensor((1, 64, 54, 54), dtype="float32") = fused_relax_nn_gelu(lv2)
-            gv2: R.Tensor((1, 64, 54, 54), dtype="float32") = fused_relax_add(lv3, lv4)
+            lv2: R.Tensor((1, 64, 54, 54), dtype="float32") = cls.fused_relax_nn_conv2d(
+                data, weight
+            )
+            lv3: R.Tensor((1, 64, 54, 54), dtype="float32") = cls.fused_relax_nn_relu(lv2)
+            lv4: R.Tensor((1, 64, 54, 54), dtype="float32") = cls.fused_relax_nn_gelu(lv2)
+            gv2: R.Tensor((1, 64, 54, 54), dtype="float32") = cls.fused_relax_add(lv3, lv4)
             R.output(gv2)
         return gv2
 
@@ -299,11 +304,11 @@ class Diamond_merged:
         data2: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight2: R.Tensor((64, 64, 3, 3), dtype="float32"),
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
-        # block 0
+        cls = Diamond_merged
         with R.dataflow():
             gv5: R.Tensor(
                 (1, 64, 54, 54), dtype="float32"
-            ) = fused_relax_nn_conv2d_relax_nn_relu_relax_nn_gelu_relax_add(data2, weight2)
+            ) = cls.fused_relax_nn_conv2d_relax_nn_relu_relax_nn_gelu_relax_add(data2, weight2)
             R.output(gv5)
         return gv5
 
@@ -315,11 +320,14 @@ class Diamond_cyclic_dep:
         data: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight: R.Tensor((64, 64, 3, 3), dtype="float32"),
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
+        cls = Diamond_cyclic_dep
         with R.dataflow():
-            lv2: R.Tensor((1, 64, 54, 54), dtype="float32") = fused_relax_nn_conv2d(data, weight)
-            lv3: R.Tensor((1, 64, 54, 54), dtype="float32") = fused_relax_nn_relu(lv2)
-            lv4: R.Tensor((1, 64, 54, 54), dtype="float32") = fused_relax_nn_gelu(lv2)
-            gv2: R.Tensor((1, 64, 54, 54), dtype="float32") = fused_relax_add(lv3, lv4)
+            lv2: R.Tensor((1, 64, 54, 54), dtype="float32") = cls.fused_relax_nn_conv2d(
+                data, weight
+            )
+            lv3: R.Tensor((1, 64, 54, 54), dtype="float32") = cls.fused_relax_nn_relu(lv2)
+            lv4: R.Tensor((1, 64, 54, 54), dtype="float32") = cls.fused_relax_nn_gelu(lv2)
+            gv2: R.Tensor((1, 64, 54, 54), dtype="float32") = cls.fused_relax_add(lv3, lv4)
             R.output(gv2)
         return gv2
 
@@ -377,15 +385,16 @@ class Diamond_cyclic_dep_merged:
         data2: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight2: R.Tensor((64, 64, 3, 3), dtype="float32"),
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
+        cls = Diamond_cyclic_dep_merged
         with R.dataflow():
             lv4: R.Tuple(
                 R.Tensor((1, 64, 54, 54), dtype="float32"),
                 R.Tensor((1, 64, 54, 54), dtype="float32"),
-            ) = fused_relax_nn_conv2d_relax_nn_relu(data2, weight2)
+            ) = cls.fused_relax_nn_conv2d_relax_nn_relu(data2, weight2)
             lv12: R.Tensor((1, 64, 54, 54), dtype="float32") = lv4[0]
             lv22: R.Tensor((1, 64, 54, 54), dtype="float32") = lv4[1]
-            lv31: R.Tensor((1, 64, 54, 54), dtype="float32") = fused_relax_nn_gelu1(lv12)
-            gv5: R.Tensor((1, 64, 54, 54), dtype="float32") = fused_relax_add1(lv22, lv31)
+            lv31: R.Tensor((1, 64, 54, 54), dtype="float32") = cls.fused_relax_nn_gelu1(lv12)
+            gv5: R.Tensor((1, 64, 54, 54), dtype="float32") = cls.fused_relax_add1(lv22, lv31)
             R.output(gv5)
         return gv5
 
@@ -489,12 +498,13 @@ class MultipleProducers:
     def main(
         x1: R.Tensor((10,), dtype="float32"), x2: R.Tensor((10,), dtype="float32")
     ) -> R.Tensor((10,), dtype="float32"):
+        cls = MultipleProducers
         with R.dataflow():
-            lv1: R.Tensor((10,), dtype="float32") = fused_relax_nn_relu(x1)
-            lv2: R.Tensor((10,), dtype="float32") = fused_relax_nn_gelu(x2)
-            lv3: R.Tensor((10,), dtype="float32") = fused_relax_nn_relu(lv1)
-            lv4: R.Tensor((10,), dtype="float32") = fused_relax_nn_gelu(lv2)
-            gv1: R.Tensor((10,), dtype="float32") = fused_relax_add(lv3, lv4)
+            lv1: R.Tensor((10,), dtype="float32") = cls.fused_relax_nn_relu(x1)
+            lv2: R.Tensor((10,), dtype="float32") = cls.fused_relax_nn_gelu(x2)
+            lv3: R.Tensor((10,), dtype="float32") = cls.fused_relax_nn_relu(lv1)
+            lv4: R.Tensor((10,), dtype="float32") = cls.fused_relax_nn_gelu(lv2)
+            gv1: R.Tensor((10,), dtype="float32") = cls.fused_relax_add(lv3, lv4)
             R.output(gv1)
         return gv1
 
@@ -592,11 +602,13 @@ class MultipleProducers_merged:
     def main(
         x12: R.Tensor((10,), dtype="float32"), x22: R.Tensor((10,), dtype="float32")
     ) -> R.Tensor((10,), dtype="float32"):
-        # block 0
+        cls = MultipleProducers_merged
         with R.dataflow():
             gv4: R.Tensor(
                 (10,), dtype="float32"
-            ) = fused_relax_nn_relu_relax_nn_gelu_relax_nn_relu_relax_nn_gelu_relax_add(x12, x22)
+            ) = cls.fused_relax_nn_relu_relax_nn_gelu_relax_nn_relu_relax_nn_gelu_relax_add(
+                x12, x22
+            )
             R.output(gv4)
         return gv4
 
@@ -605,11 +617,12 @@ class MultipleProducers_merged:
 class MultipleProducersCyclic:
     @R.function
     def main(x1: R.Tensor((10,), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
+        cls = MultipleProducersCyclic
         with R.dataflow():
-            lv1: R.Tensor((10,), dtype="float32") = fused_relax_nn_relu(x1)
+            lv1: R.Tensor((10,), dtype="float32") = cls.fused_relax_nn_relu(x1)
             lv2: R.Tensor((10,), dtype="float32") = R.nn.relu(lv1)
-            lv3: R.Tensor((10,), dtype="float32") = fused_relax_nn_gelu(lv2)
-            gv1: R.Tensor((10,), dtype="float32") = fused_relax_add(lv1, lv3)
+            lv3: R.Tensor((10,), dtype="float32") = cls.fused_relax_nn_gelu(lv2)
+            gv1: R.Tensor((10,), dtype="float32") = cls.fused_relax_add(lv1, lv3)
             R.output(gv1)
         return gv1
 
@@ -648,11 +661,11 @@ class MultipleProducersCyclic:
 class MultipleProducersCyclic_merged:
     @R.function
     def main(x1: R.Tensor((10,), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
-        # block 0
+        cls = MultipleProducersCyclic_merged
         with R.dataflow():
-            lv: R.Tensor((10,), dtype="float32") = fused_relax_nn_relu1(x1)
+            lv: R.Tensor((10,), dtype="float32") = cls.fused_relax_nn_relu1(x1)
             lv2: R.Tensor((10,), dtype="float32") = R.nn.relu(lv)
-            gv: R.Tensor((10,), dtype="float32") = fused_relax_nn_gelu_relax_add(lv2, lv)
+            gv: R.Tensor((10,), dtype="float32") = cls.fused_relax_nn_gelu_relax_add(lv2, lv)
             R.output(gv)
         return gv
 
@@ -733,14 +746,15 @@ class MergeCompilerRegionsExample:
         x2: R.Tensor((10,), dtype="float32"),
         x3: R.Tensor((10,), dtype="float32"),
     ) -> R.Tensor((10,), dtype="float32"):
+        cls = MergeCompilerRegionsExample
         with R.dataflow():
-            lv: R.Tensor((10,), dtype="float32") = fused_relax_add(x1, x2)
-            lv1: R.Tensor((10,), dtype="float32") = fused_relax_nn_gelu(x3)
-            lv11: R.Tensor((10,), dtype="float32") = fused_relax_add(lv, lv1)
-            lv12: R.Tensor((10,), dtype="float32") = fused_relax_nn_gelu(lv11)
-            lv2: R.Tensor((10,), dtype="float32") = fused_relax_nn_relu(lv11)
-            lv21: R.Tensor((10,), dtype="float32") = fused_relax_add(lv12, lv2)
-            gv1: R.Tensor((10,), dtype="float32") = fused_relax_nn_relu(lv21)
+            lv: R.Tensor((10,), dtype="float32") = cls.fused_relax_add(x1, x2)
+            lv1: R.Tensor((10,), dtype="float32") = cls.fused_relax_nn_gelu(x3)
+            lv11: R.Tensor((10,), dtype="float32") = cls.fused_relax_add(lv, lv1)
+            lv12: R.Tensor((10,), dtype="float32") = cls.fused_relax_nn_gelu(lv11)
+            lv2: R.Tensor((10,), dtype="float32") = cls.fused_relax_nn_relu(lv11)
+            lv21: R.Tensor((10,), dtype="float32") = cls.fused_relax_add(lv12, lv2)
+            gv1: R.Tensor((10,), dtype="float32") = cls.fused_relax_nn_relu(lv21)
             R.output(gv1)
         return gv1
 
@@ -881,15 +895,16 @@ class MergeCompilerRegionsExampleRef:
         x22: R.Tensor((10,), dtype="float32"),
         x32: R.Tensor((10,), dtype="float32"),
     ) -> R.Tensor((10,), dtype="float32"):
+        cls = MergeCompilerRegionsExampleRef
         with R.dataflow():
-            lv5: R.Tensor((10,), dtype="float32") = fused_relax_nn_gelu1(x32)
+            lv5: R.Tensor((10,), dtype="float32") = cls.fused_relax_nn_gelu1(x32)
             lv13: R.Tuple(
                 R.Tensor((10,), dtype="float32"), R.Tensor((10,), dtype="float32")
-            ) = fused_relax_add_relax_add_relax_nn_relu(x12, x22, lv5)
+            ) = cls.fused_relax_add_relax_add_relax_nn_relu(x12, x22, lv5)
             lv23: R.Tensor((10,), dtype="float32") = lv13[0]
             lv32: R.Tensor((10,), dtype="float32") = lv13[1]
-            lv41: R.Tensor((10,), dtype="float32") = fused_relax_nn_gelu1(lv23)
-            gv6: R.Tensor((10,), dtype="float32") = fused_relax_add_relax_nn_relu(lv41, lv32)
+            lv41: R.Tensor((10,), dtype="float32") = cls.fused_relax_nn_gelu1(lv23)
+            gv6: R.Tensor((10,), dtype="float32") = cls.fused_relax_add_relax_nn_relu(lv41, lv32)
             R.output(gv6)
         return gv6
 
@@ -901,8 +916,9 @@ class ModuleWithNonComposite:
         data: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight: R.Tensor((64, 64, 3, 3), dtype="float32"),
     ) -> R.Tensor((1, 64, 56, 56), dtype="float32"):
+        cls = ModuleWithNonComposite
         with R.dataflow():
-            lv: R.Tensor((1, 64, 56, 56), dtype="float32") = fused_relax_nn_conv2d(data, weight)
+            lv: R.Tensor((1, 64, 56, 56), dtype="float32") = cls.fused_relax_nn_conv2d(data, weight)
             conv: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.relu(lv)
             R.output(conv)
         return conv
@@ -930,8 +946,11 @@ class ModuleWithNonComposite_ref:
         data: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight: R.Tensor((64, 64, 3, 3), dtype="float32"),
     ) -> R.Tensor((1, 64, 56, 56), dtype="float32"):
+        cls = ModuleWithNonComposite_ref
         with R.dataflow():
-            lv: R.Tensor((1, 64, 56, 56), dtype="float32") = fused_relax_nn_conv2d1(data, weight)
+            lv: R.Tensor((1, 64, 56, 56), dtype="float32") = cls.fused_relax_nn_conv2d1(
+                data, weight
+            )
             conv: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.relu(lv)
             R.output(conv)
         return conv

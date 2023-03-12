@@ -187,7 +187,8 @@ def test_vm_compile_e2e_func_param_with_shape(exec_mode):
             x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")
         ) -> R.Tensor:
             m, k = T.int64(), T.int64()
-            gv0 = R.call_tir(tir_matmul, (x, w), R.Tensor((m, k), dtype="float32"))
+            cls = TestVMCompileE2E2
+            gv0 = R.call_tir(cls.tir_matmul, (x, w), R.Tensor((m, k), dtype="float32"))
             return gv0
 
     mod = TestVMCompileE2E2
@@ -506,11 +507,12 @@ def test_lower_memory_alloc_storage_tensor(exec_mode):
     class TestMemoryAllocStorageTensor:
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32")):
+            cls = TestMemoryAllocStorageTensor
             storage = R.memory.alloc_storage(
                 R.shape([24]), virtual_device_index=0, storage_scope="global", dtype="float32"
             )
             y = R.memory.alloc_tensor(storage, 0, R.shape([2, 3]), dtype="float32")
-            _ = copy(x, y)
+            _ = cls.copy(x, y)
             return y
 
         @T.prim_func
@@ -554,8 +556,9 @@ def test_sub_func_call(exec_mode):
         def relax_matmul_tir(
             x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")
         ) -> R.Tensor((32, 32), dtype="float32"):
+            cls = TestVMSubFunction
             with R.dataflow():
-                gv0 = R.call_tir(tir_matmul, (x, w), R.Tensor((32, 32), dtype="float32"))
+                gv0 = R.call_tir(cls.tir_matmul, (x, w), R.Tensor((32, 32), dtype="float32"))
                 R.output(gv0)
             return gv0
 
@@ -568,8 +571,9 @@ def test_sub_func_call(exec_mode):
 
         @R.function
         def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Object:
-            gv0 = relax_matmul_tir(x, w)
-            gv1 = relax_matmul_packed(gv0, gv0)
+            cls = TestVMSubFunction
+            gv0 = cls.relax_matmul_tir(x, w)
+            gv1 = cls.relax_matmul_packed(gv0, gv0)
             return gv1
 
     target = tvm.target.Target("llvm", host="llvm")
@@ -598,7 +602,7 @@ def test_recursion(exec_mode):
                 gv0 = R.call_packed(
                     "test.vm.subtract_one", n, sinfo_args=(R.Tensor(ndim=1, dtype="float32"))
                 )
-                tmp = recursion(gv0)
+                tmp = TestVMRecursion.recursion(gv0)
                 res = R.call_packed(
                     "test.vm.add", tmp, tmp, sinfo_args=(R.Tensor(ndim=1, dtype="float32"))
                 )
@@ -629,7 +633,8 @@ def test_vm_closure(exec_mode):
             x: R.Tensor((2, 3), "float32"),
             y: R.Tensor((2, 3), "float32"),
         ):
-            clo = R.make_closure(lifted_func_1, (x,))
+            cls = TestClosure
+            clo = R.make_closure(cls.lifted_func_1, (x,))
             res = R.invoke_closure(clo, (y,), sinfo_args=(R.Tensor))
             return res
 
@@ -714,7 +719,8 @@ class TestVMSetInput:
 
     @R.function
     def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Tensor:
-        gv0 = R.call_tir(test_vm_mul, (x, w), R.Tensor((32, 32), dtype="float32"))
+        cls = TestVMSetInput
+        gv0 = R.call_tir(cls.test_vm_mul, (x, w), R.Tensor((32, 32), dtype="float32"))
         return gv0
 
 

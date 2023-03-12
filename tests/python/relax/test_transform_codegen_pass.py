@@ -141,7 +141,7 @@ def test_tensorrt_only():
     )(mod)
 
     ex0 = relax.build(new_mod, target, params={})
-    # Sanity check for the correctness and rountrip
+    # Sanity check for the correctness and roundtrip
     check_roundtrip(ex0, dev, inputs, expected)
 
 
@@ -175,7 +175,7 @@ def test_mix_use_tensorrt_and_tvm():
     with transform.PassContext(opt_level=0):
         ex0 = relax.build(new_mod, target, params={})
 
-    # Sanity check for the correctness and rountrip
+    # Sanity check for the correctness and roundtrip
     check_roundtrip(ex0, dev, inputs, expected)
 
 
@@ -187,11 +187,12 @@ class Conv2dx2:
         weight1: R.Tensor((16, 3, 3, 16), dtype="float16"),
         weight2: R.Tensor((16, 3, 3, 16), dtype="float16"),
     ) -> R.Tensor((16, 32, 32, 16), dtype="float16"):
+        cls = Conv2dx2
         with R.dataflow():
-            lv: R.Tensor((16, 32, 32, 16), dtype="float16") = fused_relax_nn_conv2d_tensorrt(
+            lv: R.Tensor((16, 32, 32, 16), dtype="float16") = cls.fused_relax_nn_conv2d_tensorrt(
                 data, weight1
             )
-            gv: R.Tensor((16, 32, 32, 16), dtype="float16") = fused_relax_nn_conv2d_tensorrt(
+            gv: R.Tensor((16, 32, 32, 16), dtype="float16") = cls.fused_relax_nn_conv2d_tensorrt(
                 lv, weight2
             )
             R.output(gv)
