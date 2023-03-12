@@ -396,7 +396,7 @@ def test_warp_shuffle_transform():
             A_1 = T.Buffer((32,), data=A)
             A_warp_1[threadIdx_x] = A_1[threadIdx_x]
             B_warp_1 = T.Buffer((32,), data=B_warp, scope="warp")
-            # T.tvm_storage_sync("warp")
+            T.tvm_storage_sync("warp")
             B_warp_1[threadIdx_x] = A_warp_1[threadIdx_x % 4 * 8 + threadIdx_x // 4] + T.float32(1)
             B_1 = T.Buffer((32,), data=B)
             B_1[threadIdx_x] = B_warp_1[threadIdx_x]
@@ -437,7 +437,7 @@ def test_warp_shuffle_transform():
             A_1 = T.Buffer((32,), data=A)
             A_warp_1[0] = A_1[threadIdx_x]
             B_warp_1 = T.Buffer((32,), data=B_warp, scope="local")
-            # T.tvm_storage_sync("warp")
+            T.tvm_storage_sync("warp")
             B_warp_1[0] = T.tvm_warp_shuffle(
                 T.tvm_warp_activemask(), A_warp_1[0], threadIdx_x % 4 * 8 + threadIdx_x // 4, 32, 32
             ) + T.float32(1)
