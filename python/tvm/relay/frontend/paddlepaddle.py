@@ -2223,9 +2223,7 @@ def convert_unique(g, op, block):
             x, is_sorted=True, return_counts=True
         )
     else:
-        unique, indices, inverse_indices, _ = _op.unique(
-            x, is_sorted=True, return_counts=False
-        )
+        unique, indices, inverse_indices, _ = _op.unique(x, is_sorted=True, return_counts=False)
 
     out = unique
     if dtype != infer_type(out).checked_type.dtype:
