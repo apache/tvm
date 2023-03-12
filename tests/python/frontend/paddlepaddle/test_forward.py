@@ -1738,13 +1738,25 @@ def test_forward_topk():
     def topk6(inputs):
         return paddle.topk(inputs, k=1, axis=0)
 
+    # paddle.fluid.layers.topk
+    @paddle.jit.to_static
+    def topk7(inputs):
+        return paddle.fluid.layers.topk(inputs, k=1)
+
+    @paddle.jit.to_static
+    def topk8(inputs):
+        return paddle.fluid.layers.topk(inputs, k=2)
+
     input_data = paddle.to_tensor([[1, 4, 5, 7], [3, 6, 2, 5]], dtype=paddle.int32)
+    input_data_fp32 = paddle.to_tensor([[1, 4, 5, 7], [3, 6, 2, 5]], dtype=paddle.float32)
     verify_model(topk1, input_data=input_data)
     # verify_model(topk2, input_data=input_data)
     verify_model(topk3, input_data=input_data)
     verify_model(topk4, input_data=input_data)
     verify_model(topk5, input_data=input_data)
     verify_model(topk6, input_data=input_data)
+    verify_model(topk7, input_data=input_data_fp32)
+    verify_model(topk8, input_data=input_data_fp32)
 
 
 @tvm.testing.uses_gpu
@@ -1781,6 +1793,17 @@ def test_forward_where_index():
 
     input_data = paddle.to_tensor([[1.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 3.0]])
     verify_model(where_index_1, input_data=input_data, use_vm=True)
+
+
+@tvm.testing.uses_gpu
+def test_forward_take_along_axis():
+    @paddle.jit.to_static
+    def take_along_axis_1(inputs, index):
+        return paddle.take_along_axis(inputs, index, 0)
+
+    input_data = paddle.to_tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+    index = paddle.to_tensor([[0]])
+    verify_model(take_along_axis_1, input_data=[input_data, index])
 
 
 @tvm.testing.uses_gpu
