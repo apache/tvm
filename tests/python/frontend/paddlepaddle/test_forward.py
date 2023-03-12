@@ -1468,9 +1468,9 @@ def test_forward_unique():
             self,
             return_index=False,
             return_inverse=False,
-            return_counts=False, 
+            return_counts=False,
             axis=None,
-            dtype="int64"
+            dtype="int64",
         ):
             super(Unique, self).__init__()
             self.return_index = return_index
