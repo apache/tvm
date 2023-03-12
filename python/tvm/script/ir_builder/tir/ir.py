@@ -1667,7 +1667,7 @@ def target(target_config: Union[Dict, str]) -> Target:
     return Target(target_config)
 
 
-def Range(begin: PrimExpr, end: PrimExpr) -> ir.Range:
+def Range(begin: PrimExpr, end: PrimExpr) -> ir.Range:  # pylint: disable=invalid-name
     """
     Create a Range object.
 
