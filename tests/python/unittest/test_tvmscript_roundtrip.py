@@ -3632,15 +3632,17 @@ def tvm_shfl_builtins():
     ):
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
         threadIdx_x = T.launch_thread("threadIdx.x", 32)
-        A_warp = T.allocate([32], "float32", "warp")
-        B_warp = T.allocate([32], "float32", "warp")
+        A_warp = T.allocate([1], "float32", "local")
+        B_warp = T.allocate([1], "float32", "local")
         red_buf0 = T.allocate([1], "float32", "local")
-        A_warp_1 = T.Buffer((32,), data=A_warp, scope="warp")
+        A_warp_1 = T.Buffer((32,), data=A_warp, scope="local")
         A_1 = T.Buffer((32,), data=A)
-        A_warp_1[threadIdx_x] = A_1[threadIdx_x]
-        B_warp_1 = T.Buffer((32,), data=B_warp, scope="warp")
+        A_warp_1[0] = A_1[threadIdx_x]
+        B_warp_1 = T.Buffer((32,), data=B_warp, scope="local")
         T.tvm_storage_sync("warp")
-        B_warp_1[threadIdx_x] = A_warp_1[threadIdx_x % 4 * 8 + threadIdx_x // 4] + T.float32(1)
+        B_warp_1[0] = T.tvm_warp_shuffle(
+            T.tvm_warp_activemask(), A_warp_1[0], threadIdx_x % 4 * 8 + threadIdx_x // 4, 32, 32
+        ) + T.float32(1)
         red_buf0_1 = T.Buffer((1,), data=red_buf0, scope="local")
         with T.attr(
             T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
@@ -3649,7 +3651,7 @@ def tvm_shfl_builtins():
         ):
             mask = T.allocate([1], "uint32", "local")
             t0 = T.allocate([1], "float32", "local")
-            red_buf0_1[0] = A_warp_1[threadIdx_x]
+            red_buf0_1[0] = A_warp_1[0]
             mask_1 = T.Buffer((1,), "uint32", data=mask, scope="local")
             mask_1[0] = T.tvm_warp_activemask()
             t0_1 = T.Buffer((1,), data=t0, scope="local")
@@ -3668,7 +3670,7 @@ def tvm_shfl_builtins():
             C_1 = T.Buffer((1,), data=C)
             C_1[0] = red_buf0_1[0]
         B_1 = T.Buffer((32,), data=B)
-        B_1[threadIdx_x] = B_warp_1[threadIdx_x]
+        B_1[threadIdx_x] = B_warp_1[0]
 
     return func
 

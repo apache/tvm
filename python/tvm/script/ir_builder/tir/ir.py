@@ -1675,11 +1675,12 @@ def Range(begin: PrimExpr, end: PrimExpr) -> ir.Range:
     ----------
     begin : PrimExpr
         The begin value of the range.
-    
+
     end : Optional[PrimExpr]
         The end value of the range.
     """
     return ir.Range(begin, end)
+
 
 class meta_var:  # pylint: disable=invalid-name
     """A meta variable used in TVMScript metaprogramming. It means that the value of the variable
