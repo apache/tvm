@@ -193,5 +193,21 @@ def test_op_shape_of():
     assert constrained_shape == tvm.runtime.ShapeTuple([1])
 
 
+@tvm.script.ir_module
+class TensorToShapeTest:
+    @R.function
+    def run_tensor_to_shape(t: R.Tensor(ndim=1, dtype="int64")) -> R.Shape((1, 2, 3)):
+        gv: R.Shape(ndim=3) = R.tensor_to_shape(t)
+        return gv
+
+
+def test_op_tensor_to_shape():
+    out_shape = run_cpu(
+        TensorToShapeTest, "run_tensor_to_shape", tvm.nd.array(np.array([1, 2, 3]).astype("int64"))
+    )
+    assert out_shape == tvm.runtime.ShapeTuple([1, 2, 3])
+
+
 if __name__ == "__main__":
-    tvm.testing.main()
+    test_op_tensor_to_shape()
+    # tvm.testing.main()
