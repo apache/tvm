@@ -33,6 +33,7 @@ class PrinterConfig(Object):
     ir_prefix: str
     tir_prefix: str
     relax_prefix: str
+    module_alias: str
     buffer_dtype: str
     int_dtype: str
     float_dtype: str
@@ -54,6 +55,7 @@ class PrinterConfig(Object):
         ir_prefix: str = "I",
         tir_prefix: str = "T",
         relax_prefix: str = "R",
+        module_alias: str = "cls",
         buffer_dtype: str = "float32",
         int_dtype: str = "int32",
         float_dtype: str = "void",
@@ -74,6 +76,7 @@ class PrinterConfig(Object):
             "ir_prefix": ir_prefix,
             "tir_prefix": tir_prefix,
             "relax_prefix": relax_prefix,
+            "module_alias": module_alias,
             "buffer_dtype": buffer_dtype,
             "int_dtype": int_dtype,
             "float_dtype": float_dtype,
@@ -115,6 +118,7 @@ class Scriptable:
         ir_prefix: str = "I",
         tir_prefix: str = "T",
         relax_prefix: str = "R",
+        module_alias: str = "cls",
         buffer_dtype: str = "float32",
         int_dtype: str = "int32",
         float_dtype: str = "void",
@@ -142,6 +146,9 @@ class Scriptable:
             The prefix of AST nodes from tvm.tir
         relax_prefix : str = "R"
             The prefix of AST nodes from tvm.relax
+        module_alias : str = "cls"
+            The alias of the current module at cross-function call,
+            Directly use module name if it's empty.
         buffer_dtype : str = "float32"
             The default data type of buffer
         int_dtype : str = "int32"
@@ -180,6 +187,7 @@ class Scriptable:
                 ir_prefix=ir_prefix,
                 tir_prefix=tir_prefix,
                 relax_prefix=relax_prefix,
+                module_alias=module_alias,
                 buffer_dtype=buffer_dtype,
                 int_dtype=int_dtype,
                 float_dtype=float_dtype,
@@ -203,6 +211,7 @@ class Scriptable:
         ir_prefix: str = "I",
         tir_prefix: str = "T",
         relax_prefix: str = "R",
+        module_alias: str = "cls",
         buffer_dtype: str = "float32",
         int_dtype: str = "int32",
         float_dtype: str = "void",
@@ -224,6 +233,7 @@ class Scriptable:
                 ir_prefix=ir_prefix,
                 tir_prefix=tir_prefix,
                 relax_prefix=relax_prefix,
+                module_alias=module_alias,
                 buffer_dtype=buffer_dtype,
                 int_dtype=int_dtype,
                 float_dtype=float_dtype,
@@ -249,6 +259,7 @@ class Scriptable:
         ir_prefix: str = "I",
         tir_prefix: str = "T",
         relax_prefix: str = "R",
+        module_alias: str = "cls",
         buffer_dtype: str = "float32",
         int_dtype: str = "int32",
         float_dtype: str = "void",
@@ -281,6 +292,9 @@ class Scriptable:
             The prefix of AST nodes from tvm.tir
         relax_prefix : str = "R"
             The prefix of AST nodes from tvm.relax
+        module_alias : str = "cls"
+            The alias of the current module at cross-function call,
+            Directly use module name if it's empty.
         buffer_dtype : str = "float32"
             The default data type of buffer
         int_dtype : str = "int32"
@@ -317,6 +331,7 @@ class Scriptable:
                 ir_prefix=ir_prefix,
                 tir_prefix=tir_prefix,
                 relax_prefix=relax_prefix,
+                module_alias=module_alias,
                 buffer_dtype=buffer_dtype,
                 int_dtype=int_dtype,
                 float_dtype=float_dtype,

@@ -15,7 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
-from tvm import IRModule
+
+import pytest
+
+from tvm import IRModule, TVMError
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import ir as I
 from tvm.script.ir_builder import tir as T
@@ -48,5 +51,17 @@ class Module:
     )
 
 
+def test_failed_invalid_prefix():
+    with IRBuilder() as ib:  # pylint: disable=invalid-name
+        with I.ir_module():
+            with T.prim_func():
+                T.func_name("foo")
+    mod = ib.get()
+
+    with pytest.raises(TVMError):
+        mod.script(ir_prefix="2I")
+
+
 if __name__ == "__main__":
     test_ir_module()
+    test_failed_invalid_prefix()
