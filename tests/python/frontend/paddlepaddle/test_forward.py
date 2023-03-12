@@ -728,7 +728,7 @@ def test_forward_flip():
     input_data = paddle.rand([2, 3, 4], dtype="float32")
     verify_model(Flip(0), input_data)
     verify_model(Flip(-1), input_data)
-    verify_model(Flip([0,1]), input_data)
+    verify_model(Flip([0, 1]), input_data)
 
 
 @tvm.testing.uses_gpu
@@ -787,14 +787,20 @@ def test_forward_group_norm():
 @tvm.testing.uses_gpu
 def test_forward_grid_sampler():
     class GridSampler(nn.Layer):
-        def __init__(self, mode='bilinear', padding_mode='zeros', align_corners=True):
+        def __init__(self, mode="bilinear", padding_mode="zeros", align_corners=True):
             super(GridSampler, self).__init__()
             self.mode = mode
             self.padding_mode = padding_mode
             self.align_corners = align_corners
 
         def forward(self, x , grid):
-            return paddle.nn.functional.grid_sample(x, grid, mode=self.mode, padding_mode=self.padding_mode, align_corners=self.align_corners)
+            return paddle.nn.functional.grid_sample(
+                x,
+                grid,
+                mode=self.mode,
+                padding_mode=self.padding_mode,
+                align_corners=self.align_corners
+            )
     
     x_2D = paddle.rand(shape=[4, 4, 8, 8], dtype="float32")
     grid_2D = paddle.rand(shape=[4, 8, 8, 2], dtype="float32")
@@ -1458,7 +1464,14 @@ def test_forward_slice():
 @tvm.testing.uses_gpu
 def test_forward_unique():
     class Unique(nn.Layer):
-        def __init__(self, return_index=False, return_inverse=False, return_counts=False, axis=None, dtype="int64"):
+        def __init__(
+                self,
+                return_index=False,
+                return_inverse=False,
+                return_counts=False, 
+                axis=None,
+                dtype="int64"
+            ):
             super(Unique, self).__init__()
             self.return_index = return_index
             self.return_inverse = return_inverse
@@ -1468,7 +1481,12 @@ def test_forward_unique():
 
         @paddle.jit.to_static
         def forward(self, inputs):
-            result = paddle.unique(inputs, return_inverse=self.return_inverse, return_counts=self.return_counts, axis=self.axis, dtype=self.dtype)
+            result = paddle.unique(
+                inputs,
+                return_inverse=self.return_inverse,
+                return_counts=self.return_counts,
+                axis=self.axis, dtype=self.dtype
+            )
             return result
         
     input_shape = [2, 3, 5]
@@ -1476,7 +1494,9 @@ def test_forward_unique():
     verify_model(Unique(), input_data=input_data)
     verify_model(Unique(return_index=True), input_data=input_data)
     verify_model(Unique(return_index=True, return_inverse=True), input_data=input_data)
-    verify_model(Unique(return_index=True, return_inverse=True, return_counts=True), input_data=input_data)
+    verify_model(
+        Unique(return_index=True, return_inverse=True, return_counts=True), input_data=input_data
+    )
 
 
 @tvm.testing.uses_gpu

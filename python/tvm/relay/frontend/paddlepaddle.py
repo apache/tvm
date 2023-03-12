@@ -647,10 +647,10 @@ def convert_flip(g, op, block):
     axis = op.attr("axis")
 
     for i in range(len(axis)):
-      if i == 0:
-        out = _op.reverse(x, axis[i])
-      else:
-        out = _op.reverse(out, axis[i])
+        if i == 0:
+            out = _op.reverse(x, axis[i])
+        else:
+            out = _op.reverse(out, axis[i])
         
     g.add_node(op.output("Out")[0], out)
 
@@ -723,9 +723,7 @@ def convert_grid_sampler(g, op, block):
         msg = f"only 4D and 5D are supported."
         raise ValueError(msg)
     
-    out = _op.image.grid_sample(
-            x, grid, mode, layout, padding_mode, align_corners
-    )
+    out = _op.image.grid_sample(x, grid, mode, layout, padding_mode, align_corners)
     g.add_node(op.output("Output")[0], out)
 
 
@@ -2229,7 +2227,7 @@ def convert_unique(g, op, block):
         unique, indices, inverse_indices, num_uniq = _op.unique(
             x, is_sorted=True, return_counts=False
         )
-    
+
     out = unique
     if dtype != infer_type(out).checked_type.dtype:
         out = _op.cast(out, dtype)
