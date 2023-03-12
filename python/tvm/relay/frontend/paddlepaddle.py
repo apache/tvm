@@ -2160,12 +2160,10 @@ def convert_swish(g, op, block):
 
 
 def convert_take_along_axis(g, op, block):
-    """Operator converter for take_along_axis."""
-
     x = g.get_node(op.input("Input")[0])
-    index = g.get_node(op.input("Index")[0])
+    idx = g.get_node(op.input("Index")[0])
     axis = op.attr("Axis")
-    out = _op.gather(x, axis, index)
+    out = _op.gather(x, axis, idx)
     g.add_node(op.output("Result")[0], out)
 
 
@@ -2221,9 +2219,13 @@ def convert_topk(g, op, block):
     else:
         k = op.attr("k")
 
-    largest = op.attr("largest")
+    largest = True
+    axis = -1
+    if op.has_attr("axis"):
+        axis = op.attr("axis")
+    if op.has_attr("largest"):
+        largest = op.attr("largest")
     is_ascend = not largest
-    axis = op.attr("axis")
 
     value_names = op.output("Out")
     indice_names = op.output("Indices")
@@ -2434,6 +2436,7 @@ _convert_map = {
     "take_along_axis": convert_take_along_axis,
     "tan": convert_unary_op,
     "tanh": convert_unary_op,
+    "top_k": convert_topk,
     "thresholded_relu": convert_thresholded_relu,
     "tile": convert_tile,
     "top_k_v2": convert_topk,
