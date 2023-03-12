@@ -29,7 +29,8 @@ from typing_extensions import Literal
 import numpy as np  # type: ignore
 
 from tvm import tir
-from tvm.ir import Range, Type
+from tvm import ir
+from tvm.ir import Type
 from tvm.ir.base import deprecated
 from tvm.runtime import String, convert, ndarray
 from tvm.target import Target
@@ -496,7 +497,7 @@ def alloc_buffer(
     )
 
 
-def _as_range(dom: Union[Range, List[PrimExpr]]) -> Range:
+def _as_range(dom: Union[ir.Range, List[PrimExpr]]) -> ir.Range:
     """The range constructor.
 
     Parameters
@@ -509,13 +510,13 @@ def _as_range(dom: Union[Range, List[PrimExpr]]) -> Range:
     res : Range
         The Range.
     """
-    if isinstance(dom, Range):
+    if isinstance(dom, ir.Range):
         return dom
     if isinstance(dom, (list, tuple)):
-        return Range(dom[0], dom[1])
+        return ir.Range(dom[0], dom[1])
     if hasattr(dom, "dtype"):
-        return Range(IntImm(dom.dtype, 0), dom)
-    return Range(0, dom)
+        return ir.Range(IntImm(dom.dtype, 0), dom)
+    return ir.Range(0, dom)
 
 
 class axis:  # pylint: disable=invalid-name
@@ -523,7 +524,7 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def spatial(
-        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]],
+        dom: Union[ir.Range, List[PrimExpr], Tuple[PrimExpr]],
         binding: PrimExpr,
         dtype: str = "int32",
     ) -> Var:
@@ -551,7 +552,7 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def reduce(
-        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]],
+        dom: Union[ir.Range, List[PrimExpr], Tuple[PrimExpr]],
         binding: PrimExpr,
         dtype: str = "int32",
     ) -> Var:
@@ -579,7 +580,7 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def scan(
-        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]],
+        dom: Union[ir.Range, List[PrimExpr], Tuple[PrimExpr]],
         binding: PrimExpr,
         dtype: str = "int32",
     ) -> Var:
@@ -607,7 +608,7 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def opaque(
-        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]],
+        dom: Union[ir.Range, List[PrimExpr], Tuple[PrimExpr]],
         binding: PrimExpr,
         dtype: str = "int32",
     ) -> Var:
@@ -1288,7 +1289,7 @@ def buffer_store(
 
 def prefetch(
     buffer: Buffer,  # pylint: disable=redefined-outer-name
-    bounds: List[Range],
+    bounds: List[ir.Range],
 ) -> None:
     """The prefetch hint for a buffer.
 
@@ -1579,7 +1580,7 @@ def max(a: PrimExpr, b: PrimExpr) -> PrimExpr:  # pylint: disable=redefined-buil
     return _ffi_api.max(a, b)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def iter_var(v: Union[Var, str], dom: Range, iter_type: str, thread_tag: str) -> IterVar:
+def iter_var(v: Union[Var, str], dom: ir.Range, iter_type: str, thread_tag: str) -> IterVar:
     """The iteration variable.
 
     Parameters
@@ -1665,32 +1666,20 @@ def target(target_config: Union[Dict, str]) -> Target:
         )
     return Target(target_config)
 
-def Range(begin: PrimExpr, end: Optional[PrimExpr]) -> Range:
-    """Create a Range node.
-    
+
+def Range(begin: PrimExpr, end: PrimExpr) -> ir.Range:
+    """
+    Create a Range object.
+
     Parameters
     ----------
-    begin : PrimExpr 
+    begin : PrimExpr
         The begin value of the range.
     
     end : Optional[PrimExpr]
         The end value of the range.
-
-    Returns
-    -------
-    res : Range
-        The Range node.
     """
-    if not isinstance(begin, PrimExpr):
-        raise ValueError(
-            f"T.Range expected a PrimExpr as begin value, but got {type(begin)} instead."
-        )
-    if not isinstance(end, PrimExpr) and end is not None:
-        raise ValueError(
-            f"T.Range expected a Optional[PrimExpr] as end value, but got {type(end)} instead."
-        )
-    return Range(begin, end)
-
+    return ir.Range(begin, end)
 
 class meta_var:  # pylint: disable=invalid-name
     """A meta variable used in TVMScript metaprogramming. It means that the value of the variable
@@ -2075,6 +2064,8 @@ __all__ = [
     "tvm_store_matrix_sync",
     "tvm_storage_sync",
     "tvm_warp_shuffle",
+    "tvm_warp_shuffle_up",
+    "tvm_warp_shuffle_down",
     "tvm_warp_activemask",
     "ptx_mma",
     "ptx_mma_sp",
@@ -2143,5 +2134,5 @@ __all__ = [
     "Let",
     "IterVar",
     "CommReducer",
-    "Range"
+    "Range",
 ]
