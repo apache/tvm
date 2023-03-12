@@ -3626,9 +3626,9 @@ def merge_shape_var_def():
 def tvm_shfl_builtins():
     @T.prim_func
     def func(
-        A: T.handle("float32", "global"),
-        C: T.handle("float32", "global"),
-        B: T.handle("float32", "global"),
+        A: T.handle("float32"),
+        B: T.handle("float32"),
+        C: T.handle("float32"),
     ):
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
         threadIdx_x = T.launch_thread("threadIdx.x", 32)
