@@ -400,6 +400,30 @@ def convert_conv2d_transpose(g, op, block):
     g.add_node(op.output("Output")[0], out)
 
 
+def convert_dist(g, op, block):
+    """Operator converter for dist."""
+
+    x = g.get_node(op.input("X")[0])
+    y = g.get_node(op.input("Y")[0])
+    z = _op.abs(_op.subtract(x, y))
+    dtype = infer_type(x).checked_type.dtype
+    p = op.attr("p")
+    if p == np.inf:
+        out = _op.reduce.max(_op.abs(z))
+    elif p == np.NINF:
+        out = _op.reduce.min(_op.abs(z))
+    elif p == 0.0:
+        out = _op.reduce.sum(_op.sign(_op.abs(z)))
+    else:
+        inv_p = _expr.const(1.0 / p, dtype=dtype)
+        p = _expr.const(p, dtype=dtype)
+        power_z = _op.power(z, p)
+        sum_pow = _op.reduce.sum(power_z)
+        out = _op.power(sum_pow, inv_p)
+    out = _op.full(out, shape=(1))
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_cumsum(g, op, block):
     """Operator converter for cumsum."""
 
@@ -475,6 +499,39 @@ def convert_elementwise_op(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_linspace(g, op, block):
+    """Operator converter for linspace."""
+
+    start = g.get_node(op.input("Start")[0])
+    stop = g.get_node(op.input("Stop")[0])
+    num = g.get_node(op.input("Num")[0])
+    dtype = _convert_dtype_value(op.attr("dtype"))
+
+    start = _op.cast(start, dtype)
+    stop = _op.cast(stop, dtype)
+    num = _op.cast(num, dtype)
+
+    if dtype in ["int32", "float32"]:
+        tmp_dtype = "float32"
+    else:
+        tmp_dtype = "float64"
+    start = _op.cast(start, tmp_dtype)
+    stop = _op.cast(stop, tmp_dtype)
+    num = _op.cast(num, tmp_dtype)
+    const_one = _expr.const(1, tmp_dtype)
+    const_zero = _expr.const(0, tmp_dtype)
+    seg_num = _op.where(num > const_one, num - const_one, num - const_zero)
+    seg_len = _op.subtract(stop, start)
+    step_len = _op.divide(seg_len, seg_num)
+    step_cnt = _op.argwhere(_op.ones(num, dtype=tmp_dtype))
+    step_cnt = _op.cast(step_cnt, dtype=tmp_dtype)
+    out = _op.multiply(step_len, step_cnt)
+    out = _op.add(start, out)
+    out = _op.squeeze(out, axis=[1])
+    out = _op.cast(out, dtype)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_elu(g, op, block):
     """Operator converter for elu."""
 
@@ -511,6 +568,27 @@ def convert_expand_as(g, op, block):
     x = g.get_node(op.input("X")[0])
     target_shape = op.attr("target_shape")
     out = _op.broadcast_to(x, target_shape)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_eye(g, op, block):
+    """Operator converter for eye."""
+
+    num_rows = op.attr("num_rows")
+    num_columns = op.attr("num_columns")
+    one_nums = min(num_rows, num_columns)
+    dtype = op.attr("dtype")
+    dtype = _convert_dtype_value(dtype)
+
+    zeros = _op.zeros((num_rows, num_columns), dtype)
+    if one_nums == 0:
+        out = zeros
+    else:
+        ones = _op.ones(one_nums, dtype)
+        indices = _op.arange(
+            _expr.const(0, dtype="int32"), _expr.const(one_nums, dtype="int32"), dtype="int32"
+        )
+        out = _op.scatter_nd(zeros, _op.stack([indices, indices], axis=0), ones, "update")
     g.add_node(op.output("Out")[0], out)
 
 
@@ -827,6 +905,16 @@ def convert_interpolate(g, op, block):
         rounding_method=rounding_method,
         cubic_alpha=-0.75,
     )
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_index_select(g, op, block):
+    """Operator converter for index_select."""
+
+    x = g.get_node(op.input("X")[0])
+    index = g.get_node(op.input("Index")[0])
+    axis = op.attr("dim")
+    out = _op.transform.take(x, index, axis, mode="wrap")
     g.add_node(op.output("Out")[0], out)
 
 
@@ -2072,11 +2160,25 @@ def convert_swish(g, op, block):
 
 
 def convert_take_along_axis(g, op, block):
+    """Operator converter for take_along_axis."""
+
     x = g.get_node(op.input("Input")[0])
     idx = g.get_node(op.input("Index")[0])
     axis = op.attr("Axis")
     out = _op.gather(x, axis, idx)
     g.add_node(op.output("Result")[0], out)
+
+
+def convert_thresholded_relu(g, op, block):
+    """Operator converter for thresholded_relu."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    threshold = op.attr("threshold")
+    threshold = _expr.const(threshold, dtype)
+    zero = _expr.const(0, dtype=dtype)
+    out = tvm.relay.where(x > threshold, x, zero)
+    g.add_node(op.output("Out")[0], out)
 
 
 def convert_tile(g, op, block):
@@ -2220,6 +2322,7 @@ _convert_map = {
     "cumsum": convert_cumsum,
     "depthwise_conv2d": convert_conv2d,
     "depthwise_conv2d_transpose": convert_conv2d_transpose,
+    "dist": convert_dist,
     "dot": convert_dot,
     "dropout": convert_dropout,
     "elementwise_add": convert_elementwise_op,
@@ -2238,6 +2341,7 @@ _convert_map = {
     "exp": convert_unary_op,
     "expand_v2": convert_expand,
     "expand_as_v2": convert_expand_as,
+    "eye": convert_eye,
     "feed": convert_feed,
     "fill_any_like": convert_fill_any_like,
     "fill_constant": convert_fill_constant,
@@ -2254,6 +2358,7 @@ _convert_map = {
     "hard_shrink": convert_hard_shrink,
     "hard_sigmoid": convert_hard_sigmoid,
     "hard_swish": convert_hard_swish,
+    "index_select": convert_index_select,
     "instance_norm": convert_instance_norm,
     "isfinite_v2": convert_unary_op,
     "isinf_v2": convert_unary_op,
@@ -2262,6 +2367,7 @@ _convert_map = {
     "leaky_relu": convert_leaky_relu,
     "less_equal": convert_elementwise_op,
     "less_than": convert_elementwise_op,
+    "linspace": convert_linspace,
     "log": convert_unary_op,
     "log2": convert_unary_op,
     "log10": convert_unary_op,
@@ -2333,6 +2439,7 @@ _convert_map = {
     "tan": convert_unary_op,
     "tanh": convert_unary_op,
     "top_k": convert_topk,
+    "thresholded_relu": convert_thresholded_relu,
     "tile": convert_tile,
     "top_k_v2": convert_topk,
     "transpose2": convert_transpose,
