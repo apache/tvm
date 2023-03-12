@@ -45,10 +45,11 @@ class Conv2dReLU_composite_annotated:
         data: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
     ) -> R.Tensor((1, 64, 56, 56), dtype="float32"):
+        cls = Conv2dReLU_composite_annotated
         with R.dataflow():
             gv: R.Tensor(
                 (1, 64, 56, 56), dtype="float32"
-            ) = fused_relax_nn_conv2d_relax_nn_relu_dnnl(data, weight1)
+            ) = cls.fused_relax_nn_conv2d_relax_nn_relu_dnnl(data, weight1)
             R.output(gv)
         return gv
 
@@ -105,13 +106,14 @@ class Conv2dReLUx2Partitioned:
         weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
         weight2: R.Tensor((64, 64, 3, 3), dtype="float32"),
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
+        cls = Conv2dReLUx2Partitioned
         with R.dataflow():
-            lv: R.Tensor((1, 64, 56, 56), dtype="float32") = fused_relax_nn_conv2d_relax_nn_relu(
-                data, weight1
-            )
-            gv: R.Tensor((1, 64, 54, 54), dtype="float32") = fused_relax_nn_conv2d_relax_nn_relu1(
-                lv, weight2
-            )
+            lv: R.Tensor(
+                (1, 64, 56, 56), dtype="float32"
+            ) = cls.fused_relax_nn_conv2d_relax_nn_relu(data, weight1)
+            gv: R.Tensor(
+                (1, 64, 54, 54), dtype="float32"
+            ) = cls.fused_relax_nn_conv2d_relax_nn_relu1(lv, weight2)
             R.output(gv)
         return gv
 
@@ -152,10 +154,15 @@ class Conv2dReLUx2Partitioned_only_conv2d:
         weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
         weight2: R.Tensor((64, 64, 3, 3), dtype="float32"),
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
+        cls = Conv2dReLUx2Partitioned_only_conv2d
         with R.dataflow():
-            lv: R.Tensor((1, 64, 56, 56), dtype="float32") = fused_relax_nn_conv2d(data, weight1)
+            lv: R.Tensor((1, 64, 56, 56), dtype="float32") = cls.fused_relax_nn_conv2d(
+                data, weight1
+            )
             conv1: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.relu(lv)
-            lv1: R.Tensor((1, 64, 54, 54), dtype="float32") = fused_relax_nn_conv2d1(conv1, weight2)
+            lv1: R.Tensor((1, 64, 54, 54), dtype="float32") = cls.fused_relax_nn_conv2d1(
+                conv1, weight2
+            )
             conv2d: R.Tensor((1, 64, 54, 54), dtype="float32") = R.nn.relu(lv1)
             R.output(conv2d)
         return conv2d
@@ -211,11 +218,14 @@ class Conv2dConv2dReLUPartitioned:
         weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
         weight2: R.Tensor((64, 64, 3, 3), dtype="float32"),
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
+        cls = Conv2dConv2dReLUPartitioned
         with R.dataflow():
-            lv: R.Tensor((1, 64, 56, 56), dtype="float32") = fused_relax_nn_conv2d(data, weight1)
-            gv: R.Tensor((1, 64, 54, 54), dtype="float32") = fused_relax_nn_conv2d_relax_nn_relu(
-                lv, weight2
+            lv: R.Tensor((1, 64, 56, 56), dtype="float32") = cls.fused_relax_nn_conv2d(
+                data, weight1
             )
+            gv: R.Tensor(
+                (1, 64, 54, 54), dtype="float32"
+            ) = cls.fused_relax_nn_conv2d_relax_nn_relu(lv, weight2)
             R.output(gv)
         return gv
 
@@ -273,10 +283,11 @@ class BranchTupleOutputPartitioned:
         weight: R.Tensor((64, 64, 3, 3), dtype="float32"),
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
         with R.dataflow():
+            cls = BranchTupleOutputPartitioned
             lv: R.Tuple(
                 R.Tensor((1, 64, 54, 54), dtype="float32"),
                 R.Tensor((1, 64, 54, 54), dtype="float32"),
-            ) = fused_relax_nn_conv2d_relax_nn_relu(data, weight)
+            ) = cls.fused_relax_nn_conv2d_relax_nn_relu(data, weight)
             lv1: R.Tensor((1, 64, 54, 54), dtype="float32") = lv[1]  # conv1
             lv2: R.Tensor((1, 64, 54, 54), dtype="float32") = lv[0]  # relu(conv1)
             gelu1: R.Tensor((1, 64, 54, 54), dtype="float32") = R.nn.gelu(lv2)
@@ -346,11 +357,12 @@ class Conv2dx2_partitioned:
         weight1: R.Tensor((16, 3, 3, 16), dtype="float16"),
         weight2: R.Tensor((16, 3, 3, 16), dtype="float16"),
     ) -> R.Tensor((16, 32, 32, 16), dtype="float16"):
+        cls = Conv2dx2_partitioned
         with R.dataflow():
-            lv: R.Tensor((16, 32, 32, 16), dtype="float16") = fused_relax_nn_conv2d_cutlass(
+            lv: R.Tensor((16, 32, 32, 16), dtype="float16") = cls.fused_relax_nn_conv2d_cutlass(
                 data, weight1
             )
-            gv: R.Tensor((16, 32, 32, 16), dtype="float16") = fused_relax_nn_conv2d_cutlass(
+            gv: R.Tensor((16, 32, 32, 16), dtype="float16") = cls.fused_relax_nn_conv2d_cutlass(
                 lv, weight2
             )
             R.output(gv)
@@ -389,8 +401,8 @@ conv2d_pat = make_fused_bias_activation_pattern("relax.nn.conv2d", activation=No
 conv2d_relu_pat = make_fused_bias_activation_pattern("relax.nn.conv2d", activation="relax.nn.relu")
 
 
-def check(mod, patterns, expected, bind_constants=True, annoatate_codegen=False):
-    partitioned = relax.transform.FuseOpsByPattern(patterns, bind_constants, annoatate_codegen)(mod)
+def check(mod, patterns, expected, bind_constants=True, annotate_codegen=False):
+    partitioned = relax.transform.FuseOpsByPattern(patterns, bind_constants, annotate_codegen)(mod)
     tvm.ir.assert_structural_equal(partitioned, expected)
 
 
@@ -455,13 +467,13 @@ def test_annotate_codegen():
         Conv2dReLU,
         [("dnnl.conv2d_relu", conv2d_relu_pat)],
         Conv2dReLU_composite_annotated,
-        annoatate_codegen=True,
+        annotate_codegen=True,
     )
 
 
 def test_multiple_calls_same_extern():
     pat = make_fused_bias_activation_pattern("relax.nn.conv2d", with_bias=False, activation=None)
-    check(Conv2dx2, [("cutlass.conv2d", pat)], Conv2dx2_partitioned, annoatate_codegen=True)
+    check(Conv2dx2, [("cutlass.conv2d", pat)], Conv2dx2_partitioned, annotate_codegen=True)
 
 
 def test_ignore_call_tir():
@@ -483,7 +495,9 @@ def test_ignore_call_tir():
         ):
             with R.dataflow():
                 conv1 = R.nn.conv2d(data, weight1, padding=(1, 1))
-                relu1 = R.call_tir(relu, (conv1,), R.Tensor((64, 64, 56, 56), "float32"))
+                relu1 = R.call_tir(
+                    Conv2dReLUCallTIR.relu, (conv1,), R.Tensor((64, 64, 56, 56), "float32")
+                )
                 R.output(relu1)
 
             return relu1
@@ -522,12 +536,13 @@ def test_ignore_call_tir():
             data: R.Tensor((1, 64, 56, 56), dtype="float32"),
             weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
         ) -> R.Tensor((64, 64, 56, 56), dtype="float32"):
+            cls = Conv2dReLUCallTIR_partitioned
             with R.dataflow():
-                lv: R.Tensor((1, 64, 56, 56), dtype="float32") = fused_relax_nn_conv2d(
+                lv: R.Tensor((1, 64, 56, 56), dtype="float32") = cls.fused_relax_nn_conv2d(
                     data, weight1
                 )
                 relu1 = R.call_tir(
-                    relu, (lv,), out_sinfo=R.Tensor((64, 64, 56, 56), dtype="float32")
+                    cls.relu, (lv,), out_sinfo=R.Tensor((64, 64, 56, 56), dtype="float32")
                 )
                 R.output(relu1)
             return relu1
@@ -571,8 +586,9 @@ def test_unused():
             data: R.Tensor((1, 64, 56, 56), dtype="float32"),
             weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
         ) -> R.Tensor((1, 64, 56, 56), dtype="float32"):
+            cls = Conv2dReLU_partitioned
             with R.dataflow():
-                gv: R.Tensor((1, 64, 56, 56), dtype="float32") = fused_relax_nn_conv2d(
+                gv: R.Tensor((1, 64, 56, 56), dtype="float32") = cls.fused_relax_nn_conv2d(
                     data, weight1
                 )
                 relu: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.relu(data)
@@ -626,8 +642,9 @@ def test_bind_constants():
             data: R.Tensor((1, 64, 56, 56), dtype="float32"),
             weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
         ) -> R.Tensor((1, 64, 56, 56), dtype="float32"):
+            cls = Conv2dWithConstantWeight_partitioned
             with R.dataflow():
-                gv: R.Tensor((1, 64, 56, 56), dtype="float32") = fused_relax_nn_conv2d(
+                gv: R.Tensor((1, 64, 56, 56), dtype="float32") = cls.fused_relax_nn_conv2d(
                     data, R.const(weight)
                 )
                 R.output(gv)

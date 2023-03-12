@@ -194,8 +194,8 @@ def test_simple_module():
 
         @R.function
         def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor((128, 128), "float32"):
-            # TODO(Siyuan): Need to change to `TestModule.tir_func`
-            gv0 = R.call_tir(tir_func, x, R.Tensor((128, 128), dtype="float32"))
+            cls = TestModule
+            gv0 = R.call_tir(cls.tir_func, x, R.Tensor((128, 128), dtype="float32"))
             return gv0
 
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
@@ -223,7 +223,8 @@ def test_emit_te_primfunc_attrs():
 
         @R.function
         def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor((128, 128), "float32"):
-            gv0 = R.call_tir(plus_one, x, R.Tensor((128, 128), dtype="float32"))
+            cls = TestModule
+            gv0 = R.call_tir(cls.plus_one, x, R.Tensor((128, 128), dtype="float32"))
             return gv0
 
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
@@ -284,8 +285,8 @@ def test_module_with_attr_and_global_info():
 
         @R.function
         def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor((128, 128), "float32"):
-            # TODO(Siyuan): Need to change to `TestModule.tir_func`
-            gv0 = R.call_tir(tir_func, x, R.Tensor((128, 128), dtype="float32"))
+            cls = TestModule
+            gv0 = R.call_tir(cls.tir_func, x, R.Tensor((128, 128), dtype="float32"))
             return gv0
 
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
@@ -825,7 +826,8 @@ def test_call_tir_with_tir_var():
             dumb_param: R.Tensor(("n",), "float32"), x: R.Tensor(("n * 2", "float32"))
         ) -> R.Tensor(("n * 2",), "float32"):
             n = T.int64()
-            y = R.call_tir(copy, (x,), R.Tensor(((n * 2,)), dtype="float32"), tir_vars=(n,))
+            cls = Module
+            y = R.call_tir(cls.copy, (x,), R.Tensor(((n * 2,)), dtype="float32"), tir_vars=(n,))
             return y
 
         @T.prim_func
@@ -905,18 +907,20 @@ def test_cross_function_call():
 
         @R.function
         def main(x: R.Tensor((10, 5), "float32")):
-            inner = foo
+            cls = Mod0
+            inner = cls.foo
             gv1 = inner(x)
-            gv2 = foo(x)
+            gv2 = Mod0.foo(x)
             return (inner, gv1, gv2)
 
     @I.ir_module
     class Mod1:
         @R.function
         def main(x: R.Tensor((10, 5), "float32")):
-            inner = foo
+            cls = Mod1
+            inner = cls.foo
             gv1 = inner(x)
-            gv2 = foo(x)
+            gv2 = Mod1.foo(x)
             return (inner, gv1, gv2)
 
         @R.function
@@ -1221,7 +1225,7 @@ def test_function_void_return_type():
     class Foo:
         @R.function
         def main(x: R.Tensor((3, 3), dtype="float32")):
-            res = mul(x)
+            res = Foo.mul(x)
             return res
 
         @R.function
@@ -1239,7 +1243,7 @@ def test_function_void_return_type():
     class Bar:
         @R.function
         def main(x1: R.Tensor((3, 3), dtype="float32")):
-            res1 = mul(x1)
+            res1 = Bar.mul(x1)
             return res1
 
         @R.function
@@ -1286,8 +1290,9 @@ def test_context_aware_parsing():
 
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
+            cls = Module
             alloc = R.builtin.alloc_tensor(R.shape([2, 4]), dtype="float32", runtime_device_index=0)
-            _: R.Tuple() = add(x, R.const(1, "float32"), alloc)
+            _: R.Tuple() = cls.add(x, R.const(1, "float32"), alloc)
             return alloc
 
     _check(Module)

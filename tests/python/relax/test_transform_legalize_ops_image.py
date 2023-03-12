@@ -34,7 +34,7 @@ def test_image_resize2d():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 8, 8, 3), "float32")) -> R.Tensor((2, 16, 16, 3), "float32"):
-            gv = R.call_tir(resize2d, (x,), R.Tensor((2, 16, 16, 3), dtype="float32"))
+            gv = R.call_tir(Expected.resize2d, (x,), R.Tensor((2, 16, 16, 3), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -73,7 +73,7 @@ def test_image_resize2d_symbolic():
             c = T.int64()
             oh = T.int64()
             ow = T.int64()
-            gv = R.call_tir(resize2d, (x,), R.Tensor((n, c, oh, ow, 16), dtype="float32"))
+            gv = R.call_tir(Expected.resize2d, (x,), R.Tensor((n, c, oh, ow, 16), dtype="float32"))
             return gv
 
         @T.prim_func
