@@ -217,14 +217,59 @@ class ConstantFolder : public ExprMutator {
       return VisitCallTIR(post_call).value_or(post_call);
     }
 
-    // If we are in a dataflow block, we can fold ops by lowering them to call_tir.
-    if (builder_->CurrentBlockIsDataFlow() && legalize_map.count(op)) {
-      // Get the legalized expression
-      Expr legalized_expr = builder_->Normalize(legalize_map[op](builder_, post_call));
-      // If the legalized expression is call_tir, try to fold it.
-      const CallNode* call = legalized_expr.as<CallNode>();
-      if (call && call->op.same_as(call_tir_op)) {
-        return VisitCallTIR(GetRef<Call>(call)).value_or(post_call);
+    // Special logic to fold ShapeExpr between operators
+    // e.g.,
+    //  <Before>
+    //     lv: R.Shape([16, 16]) = R.shape([16, 16])
+    //     gv: R.Tensor(lv2, dtype="float32") = R.reshape(data, lv)
+    //  <After>
+    //     gv: R.Tensor(lv2, dtype="float32") = R.reshape(data, R.shape([16, 16]))
+    //
+    Array<Expr> new_args;
+    for (auto arg : post_call->args) {
+      if (arg->IsInstance<VarNode>()) {
+        Optional<Expr> val = LookupBinding(Downcast<Var>(arg));
+        if (val.defined() && val.value()->IsInstance<ShapeExprNode>()) {
+          new_args.push_back(val.value());
+          continue;
+        }
+      }
+      new_args.push_back(arg);
+    }
+    post_call =
+        Call(post_call->op, new_args, post_call->attrs, post_call->sinfo_args, post_call->span);
+
+    // If we are in a dataflow block, we can fold ops.
+    if (builder_->CurrentBlockIsDataFlow()) {
+      // Check if we can them to call_tir
+      if (legalize_map.count(op)) {
+        // Get the legalized expression
+        Expr legalized_expr = builder_->Normalize(legalize_map[op](builder_, post_call));
+        // If the legalized expression is call_tir, try to fold it.
+        const CallNode* call = legalized_expr.as<CallNode>();
+        if (call && call->op.same_as(call_tir_op)) {
+          return VisitCallTIR(GetRef<Call>(call)).value_or(post_call);
+        }
+      } else if (op->name == "relax.tensor_to_shape") {
+        // Special handling for builtin op "relax.tensor_to_shape"
+        // If its input is constant, we can access its value and create ShapeExpr
+        ICHECK_EQ(post_call->args.size(), 1);
+        Expr arg = post_call->args[0];
+        if (arg->IsInstance<ConstantNode>()) {
+          Constant constant = Downcast<Constant>(arg);
+          runtime::NDArray ndarray = constant->data;
+          ICHECK_EQ(ndarray->device.device_type, kDLCPU);
+          ICHECK(ndarray->strides == nullptr);
+          ICHECK_EQ(ndarray->byte_offset, 0);
+          ICHECK_EQ(ndarray->ndim, 1);
+          const int64_t* data = static_cast<const int64_t*>(ndarray->data);
+          int64_t num_elems = ndarray->shape[0];
+          Array<PrimExpr> shape_values;
+          for (int64_t i = 0; i < num_elems; i++) {
+            shape_values.push_back(IntImm(DataType::Int(64), data[i]));
+          }
+          return ShapeExpr(shape_values);
+        }
       }
     }
 
