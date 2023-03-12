@@ -82,7 +82,7 @@ def test_call_tir_rewrite():
         @R.function
         def foo(x: R.Tensor(("m", "n"), "float32")):
             m, n = T.int64(), T.int64()
-            gv0 = R.call_tir(exp, (x,), R.Tensor((m, n), dtype="float32"))
+            gv0 = R.call_tir(TestCallTIRRewrite.exp, (x,), R.Tensor((m, n), dtype="float32"))
             return gv0
 
     mod = TestCallTIRRewrite

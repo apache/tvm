@@ -524,7 +524,7 @@ class VarBinding(Binding):
 
 
 @tvm._ffi.register_object("relax.expr.BindingBlock")
-class BindingBlock(Node):
+class BindingBlock(Node, Scriptable):
     """base class of binding block, bindings inside can be impure
     (with side effect or control flow)"""
 

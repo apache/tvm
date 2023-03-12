@@ -64,6 +64,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       std::sort(functions.begin(), functions.end());
       With<IRFrame> f(d);
       (*f)->AddDispatchToken(d, "ir");
+      IdDoc module_doc = d->Define(mod, f(), GetBindingName(d).value_or("Module"));
       if (mod->attrs.defined() && !mod->attrs->dict.empty()) {
         (*f)->stmts.push_back(
             ExprStmtDoc(IR(d, "module_attrs")  //
@@ -74,6 +75,15 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             IR(d, "module_global_infos")  //
                 ->Call({d->AsDoc<ExprDoc>(mod->global_infos, p->Attr("global_infos"))})));
       }
+      // Declare GlobalVars first
+      IdDoc module_alias = d->cfg->module_alias.empty() ? module_doc : IdDoc(d->cfg->module_alias);
+      for (const auto& entry : functions) {
+        const GlobalVar& gv = entry.gv;
+        d->Define(gv, f(), [=]() {
+          return d->AsDoc<ExprDoc>(mod, p->Attr("global_vars"))->Attr(gv->name_hint);
+        });
+      }
+      // Print functions
       for (const auto& entry : functions) {
         const GlobalVar& gv = entry.gv;
         const BaseFunc& func = entry.func;
@@ -88,8 +98,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           (*f)->stmts.push_back(Downcast<FunctionDoc>(doc));
         }
       }
-      return HeaderWrapper(d, ClassDoc(IdDoc(GetBindingName(d).value_or("Module")),
-                                       {IR(d, "ir_module")}, (*f)->stmts));
+      return HeaderWrapper(d, ClassDoc(module_doc, {IR(d, "ir_module")}, (*f)->stmts));
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)

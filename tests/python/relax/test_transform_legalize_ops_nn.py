@@ -38,7 +38,7 @@ def test_conv2d():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 128, 28, 28), "float32"), w: R.Tensor((64, 16, 3, 3), "float32")) -> R.Tensor((2, 64, 13, 13), "float32"):
-            gv = R.call_tir(conv2d, (x, w), R.Tensor((2, 64, 13, 13), dtype="float32"))
+            gv = R.call_tir(Expected.conv2d, (x, w), R.Tensor((2, 64, 13, 13), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -78,7 +78,7 @@ def test_conv2d_with_out_dtype():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 28, 28), "float32"), w: R.Tensor((4, 3, 3, 3), "float32")) -> R.Tensor((2, 4, 26, 26), "float16"):
-            gv = R.call_tir(conv2d, (x, w), R.Tensor((2, 4, 26, 26), dtype="float16"))
+            gv = R.call_tir(Expected.conv2d, (x, w), R.Tensor((2, 4, 26, 26), dtype="float16"))
             return gv
 
         @T.prim_func
@@ -118,7 +118,7 @@ def test_conv2d_nhwc():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 28, 28, 128), "float32"), w: R.Tensor((64, 128, 3, 3), "float32")) -> R.Tensor((2, 26, 26, 64), "float32"):
-            gv = R.call_tir(conv2d, (x, w), R.Tensor((2, 26, 26, 64), dtype="float32"))
+            gv = R.call_tir(Expected.conv2d, (x, w), R.Tensor((2, 26, 26, 64), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -170,7 +170,7 @@ def test_conv2d_symbolic():
             kh = T.int64()
             w = T.int64()
             kw = T.int64()
-            gv = R.call_tir(conv2d, (x, kernel), R.Tensor((n, f, ((h - kh) + 1), ((w - kw) + 1)), dtype="float32"))
+            gv = R.call_tir(Expected.conv2d, (x, kernel), R.Tensor((n, f, ((h - kh) + 1), ((w - kw) + 1)), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -220,7 +220,7 @@ def test_conv2d_transpose():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 128, 28, 28), dtype="float32"), w: R.Tensor((128, 16, 3, 3), dtype="float32")) -> R.Tensor((2, 128, 56, 84), dtype="float32"):
-            gv = R.call_tir(conv2d_transpose, (x, w), out_sinfo=R.Tensor((2, 128, 56, 84), dtype="float32"))
+            gv = R.call_tir(Expected.conv2d_transpose, (x, w), out_sinfo=R.Tensor((2, 128, 56, 84), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -275,7 +275,7 @@ def test_conv2d_transpose_with_out_dtype():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 28, 28), dtype="float32"), w: R.Tensor((3, 4, 3, 3), dtype="float32")) -> R.Tensor((2, 4, 30, 30), dtype="float16"):
-            gv = R.call_tir(conv2d_transpose, (x, w), out_sinfo=R.Tensor((2, 4, 30, 30), dtype="float16"))
+            gv = R.call_tir(Expected.conv2d_transpose, (x, w), out_sinfo=R.Tensor((2, 4, 30, 30), dtype="float16"))
             return gv
 
         @T.prim_func
@@ -337,7 +337,7 @@ def test_conv2d_transpose_symbolic():
             w = T.Var("w", "int64")
             kw = T.Var("kw", "int64")
             f = T.Var("f", "int64")
-            gv = R.call_tir(conv2d_transpose, (x, kernel), out_sinfo=R.Tensor((n, c, h * 3 + kh - 3, w * 3 + kw - 3), dtype="float32"))
+            gv = R.call_tir(Expected.conv2d_transpose, (x, kernel), out_sinfo=R.Tensor((n, c, h * 3 + kh - 3, w * 3 + kw - 3), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -402,7 +402,7 @@ def test_max_pool2d():
     class Expected:
         @R.function
         def main(x: R.Tensor((4, 112, 112, 6), "float32")) -> R.Tensor((4, 56, 56, 6), "float32"):
-            gv = R.call_tir(max_pool2d, (x,), R.Tensor((4, 56, 56, 6), dtype="float32"))
+            gv = R.call_tir(Expected.max_pool2d, (x,), R.Tensor((4, 56, 56, 6), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -443,7 +443,7 @@ def test_max_pool2d_NCHW16c():
     class Expected:
         @R.function
         def main(x: R.Tensor((4, 4, 112, 112, 16), "float32")) -> R.Tensor((4, 4, 110, 110, 16), "float32"):
-            gv = R.call_tir(max_pool2d, (x,), R.Tensor((4, 4, 110, 110, 16), dtype="float32"))
+            gv = R.call_tir(Expected.max_pool2d, (x,), R.Tensor((4, 4, 110, 110, 16), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -477,7 +477,7 @@ def test_max_pool2d_ceil_mode():
     class Expected:
         @R.function
         def main(x: R.Tensor((4, 6, 112, 112), dtype="float32")) -> R.Tensor((4, 6, 38, 38), dtype="float32"):
-            gv = R.call_tir(max_pool2d, (x,), R.Tensor((4, 6, 38, 38), dtype="float32"))
+            gv = R.call_tir(Expected.max_pool2d, (x,), R.Tensor((4, 6, 38, 38), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -568,7 +568,7 @@ def test_avg_pool2d():
 
         @R.function
         def main(x: R.Tensor((4, 112, 112, 6), dtype="float32")) -> R.Tensor((4, 56, 56, 6), dtype="float32"):
-            gv = R.call_tir(avg_pool2d, (x,), out_sinfo=R.Tensor((4, 56, 56, 6), dtype="float32"))
+            gv = R.call_tir(Expected.avg_pool2d, (x,), out_sinfo=R.Tensor((4, 56, 56, 6), dtype="float32"))
             return gv
     # fmt: on
 
@@ -610,7 +610,7 @@ def test_avg_pool2d_NCHW16c():
 
         @R.function
         def main(x: R.Tensor((4, 4, 112, 112, 16), dtype="float32")) -> R.Tensor((4, 4, 110, 110, 16), dtype="float32"):
-            gv = R.call_tir(avg_pool2d, (x,), out_sinfo=R.Tensor((4, 4, 110, 110, 16), dtype="float32"))
+            gv = R.call_tir(Expected.avg_pool2d, (x,), out_sinfo=R.Tensor((4, 4, 110, 110, 16), dtype="float32"))
             return gv
     # fmt: on
 
@@ -659,7 +659,7 @@ def test_avg_pool2d_ceil_mode():
 
         @R.function
         def main(x: R.Tensor((4, 6, 112, 112), dtype="float32")) -> R.Tensor((4, 6, 38, 38), dtype="float32"):
-            gv = R.call_tir(avg_pool2d, (x,), out_sinfo=R.Tensor((4, 6, 38, 38), dtype="float32"))
+            gv = R.call_tir(Expected.avg_pool2d, (x,), out_sinfo=R.Tensor((4, 6, 38, 38), dtype="float32"))
             return gv
 
     # fmt: on
@@ -703,7 +703,7 @@ def test_adaptive_avg_pool2d():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 4, 7, 7, 16), "float32")) -> R.Tensor((2, 4, 1, 1, 16), "float32"):
-            gv = R.call_tir(adaptive_avg_pool2d, (x,), R.Tensor((2, 4, 1, 1, 16), dtype="float32"))
+            gv = R.call_tir(Expected.adaptive_avg_pool2d, (x,), R.Tensor((2, 4, 1, 1, 16), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -744,7 +744,7 @@ def test_adaptive_avg_pool2d_without_output_size():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 16, 7, 7), "float32")) -> R.Tensor((2, 16, 7, 7), "float32"):
-            gv = R.call_tir(adaptive_avg_pool2d, (x,), R.Tensor((2, 16, 7, 7), dtype="float32"))
+            gv = R.call_tir(Expected.adaptive_avg_pool2d, (x,), R.Tensor((2, 16, 7, 7), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -804,7 +804,7 @@ def test_relu():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(relu, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.relu, (x,), R.Tensor((2, 3), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -839,7 +839,7 @@ def test_relu_symbolic():
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(relu, (x,), R.Tensor((m, n), dtype="float32"))
+            gv = R.call_tir(Expected.relu, (x,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -874,7 +874,7 @@ def test_gelu():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(gelu, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.gelu, (x,), R.Tensor((2, 3), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -937,7 +937,7 @@ def test_gelu_symbolic():
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(gelu, (x,), R.Tensor((m, n), dtype="float32"))
+            gv = R.call_tir(Expected.gelu, (x,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -1000,7 +1000,7 @@ def test_silu():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(silu, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.silu, (x,), R.Tensor((2, 3), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -1042,7 +1042,7 @@ def test_silu_symbolic():
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(silu, (x,), R.Tensor((m, n), dtype="float32"))
+            gv = R.call_tir(Expected.silu, (x,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -1084,7 +1084,7 @@ def test_softmax():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 16, 32), "float32")) -> R.Tensor((2, 3, 16, 32), "float32"):
-            gv = R.call_tir(softmax, (x,), R.Tensor((2, 3, 16, 32), dtype="float32"))
+            gv = R.call_tir(Expected.softmax, (x,), R.Tensor((2, 3, 16, 32), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -1147,7 +1147,7 @@ def test_softmax_symbolic():
             a = T.int64()
             b = T.int64()
             c = T.int64()
-            gv = R.call_tir(softmax, (x,), R.Tensor((a, b, c), dtype="float32"))
+            gv = R.call_tir(Expected.softmax, (x,), R.Tensor((a, b, c), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -1209,7 +1209,7 @@ def test_log_softmax():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 16, 32), dtype="float32")) -> R.Tensor((2, 3, 16, 32), dtype="float32"):
-            gv = R.call_tir(log_softmax, (x,), R.Tensor((2, 3, 16, 32), dtype="float32"))
+            gv = R.call_tir(Expected.log_softmax, (x,), R.Tensor((2, 3, 16, 32), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -1266,7 +1266,7 @@ def test_log_softmax_symbolic():
             b = T.int64()
             c = T.int64()
             # block 0
-            gv = R.call_tir(log_softmax, (x,), R.Tensor((a, b, c), dtype="float32"))
+            gv = R.call_tir(Expected.log_softmax, (x,), R.Tensor((a, b, c), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -1321,7 +1321,7 @@ def test_cross_entropy_with_logits():
     class Expected:
         @R.function
         def main(x: R.Tensor((3,), dtype="float32"), y: R.Tensor((3,), dtype="float32")) -> R.Tensor(dtype="float32", ndim=2):
-            gv = R.call_tir(cross_entropy_with_logits, (x, y), R.Tensor((), dtype="float32"))
+            gv = R.call_tir(Expected.cross_entropy_with_logits, (x, y), R.Tensor((), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -1367,7 +1367,7 @@ def test_cross_entropy_with_logits_batch():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")) -> R.Tensor(dtype="float32", ndim=2):
-            gv = R.call_tir(cross_entropy_with_logits, (x, y), R.Tensor((), dtype="float32"))
+            gv = R.call_tir(Expected.cross_entropy_with_logits, (x, y), R.Tensor((), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -1421,7 +1421,7 @@ def test_cross_entropy_with_logits_batch_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor(("n", "m"), dtype="float32"), y: R.Tensor(("n", "m"), dtype="float32")) -> R.Tensor(dtype="float32", ndim=2):
-            gv = R.call_tir(cross_entropy_with_logits, (x, y), R.Tensor((), dtype="float32"))
+            gv = R.call_tir(Expected.cross_entropy_with_logits, (x, y), R.Tensor((), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -1477,7 +1477,7 @@ def test_batch_norm():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 28, 28), "float32"), gamma: R.Tensor((3,), "float32"), beta: R.Tensor((3,), "float32"), moving_mean: R.Tensor((3,), "float32"), moving_var: R.Tensor((3,), "float32")) -> R.Tuple(R.Tensor((2, 3, 28, 28), "float32"), R.Tensor((3,), "float32"), R.Tensor((3,), "float32")):
-            gv = R.call_tir(batch_norm, (x, gamma, beta, moving_mean, moving_var), [R.Tensor((2, 3, 28, 28), "float32"), R.Tensor((3,), "float32"), R.Tensor((3,), "float32")])
+            gv = R.call_tir(Expected.batch_norm, (x, gamma, beta, moving_mean, moving_var), [R.Tensor((2, 3, 28, 28), "float32"), R.Tensor((3,), "float32"), R.Tensor((3,), "float32")])
             return gv
 
         @T.prim_func
@@ -1591,7 +1591,7 @@ def test_batch_norm_symbolic():
             h = T.int64()
             w = T.int64()
             c = T.int64()
-            gv = R.call_tir(batch_norm, (x, gamma, beta, moving_mean, moving_var), [R.Tensor((n, h, w, c), "float32"), R.Tensor((c,), "float32"), R.Tensor((c,), "float32")])
+            gv = R.call_tir(Expected.batch_norm, (x, gamma, beta, moving_mean, moving_var), [R.Tensor((n, h, w, c), "float32"), R.Tensor((c,), "float32"), R.Tensor((c,), "float32")])
             return gv
 
         @T.prim_func
@@ -1709,7 +1709,7 @@ def test_layer_norm():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "float32"), gamma: R.Tensor((4, 5), "float32"), beta: R.Tensor((4, 5), "float32")) -> R.Tensor((2, 3, 4, 5), "float32"):
-            gv = R.call_tir(layer_norm, (x, gamma, beta), R.Tensor((2, 3, 4, 5), dtype="float32"))
+            gv = R.call_tir(Expected.layer_norm, (x, gamma, beta), R.Tensor((2, 3, 4, 5), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -1759,7 +1759,7 @@ def test_layer_norm_symbolic():
             n = T.int64()
             s = T.int64()
             f = T.int64()
-            gv = R.call_tir(layer_norm, (x, gamma, beta), R.Tensor((n, s, f), dtype="float32"))
+            gv = R.call_tir(Expected.layer_norm, (x, gamma, beta), R.Tensor((n, s, f), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -1862,7 +1862,7 @@ def test_group_norm():
 
         @R.function
         def main(x: R.Tensor((2, 4, 4, 5), dtype="float32"), gamma: R.Tensor((4,), dtype="float32"), beta: R.Tensor((4,), dtype="float32")) -> R.Tensor((2, 4, 4, 5), dtype="float32"):
-            gv = R.call_tir(group_norm, (x, gamma, beta), out_sinfo=R.Tensor((2, 4, 4, 5), dtype="float32"))
+            gv = R.call_tir(Expected.group_norm, (x, gamma, beta), out_sinfo=R.Tensor((2, 4, 4, 5), dtype="float32"))
             return gv
     # fmt: on
 
@@ -1951,7 +1951,7 @@ def test_group_norm_symbolic():
             c = T.int64()
             h = T.int64()
             w = T.int64()
-            gv = R.call_tir(group_norm, (x, gamma, beta), out_sinfo=R.Tensor((n, 4 * c, h, w), dtype="float32"), tir_vars=R.shape([c]))
+            gv = R.call_tir(Expected.group_norm, (x, gamma, beta), out_sinfo=R.Tensor((n, 4 * c, h, w), dtype="float32"), tir_vars=R.shape([c]))
             return gv
     # fmt: on
 
