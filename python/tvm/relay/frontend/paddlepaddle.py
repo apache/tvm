@@ -602,6 +602,17 @@ def convert_fill_constant_batch_size_like(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_fill_zeros_like(g, op, block):
+    """Operator converter for fill_zeros_like."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = op.attr("dtype")
+    dtype = _convert_dtype_value(dtype)
+    value = _expr.const(0, dtype=dtype)
+    out = _op.transform.full_like(x, value).astype(dtype)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_flatten(g, op, block):
     """Operator converter for flatten."""
 
@@ -629,6 +640,21 @@ def convert_flatten(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_flip(g, op, block):
+    """Operator converter for flip."""
+
+    x = g.get_node(op.input("X")[0])
+    axis = op.attr("axis")
+
+    for i in range(len(axis)):
+      if i == 0:
+        out = _op.reverse(x, axis[i])
+      else:
+        out = _op.reverse(out, axis[i])
+        
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_gather(g, op, block):
     """Operator converter for gather."""
 
@@ -652,6 +678,18 @@ def convert_gather_nd(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_gaussian_random(g, op, block):
+    """Operator converter for convert_gaussian_random."""
+
+    x = g.get_node(op.input("X")[0])
+    mean = op.attr("mean")
+    std = op.attr("std")
+    shape = op.attr("shape")
+    seed = op.attr("seed")
+    out = _op.random.normal(key=seed, shape=shape, mean=mean, scale=std)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_gelu(g, op, block):
     """Operator converter for gelu."""
 
@@ -661,6 +699,34 @@ def convert_gelu(g, op, block):
         + _op.erf(x * _expr.const(0.5**0.5, dtype="float32")) * _expr.const(0.5, dtype="float32")
     )
     g.add_node(op.output("Out")[0], out)
+
+
+def convert_grid_sampler(g, op, block):
+    """Operator converter for grid_sampler."""
+
+    x = g.get_node(op.input("X")[0])
+    data_shape = infer_shape(x)
+    grid = g.get_node(op.input("Grid")[0])
+    mode = op.attr("mode")
+    padding_mode = op.attr("padding_mode")
+    align_corners = op.attr("align_corners")
+
+    if len(data_shape) == 4:
+        layout = "NCHW"
+        axes = [0, 3, 1, 2]
+        grid = _op.transform.transpose(grid, axes)
+    elif len(data_shape) == 5:
+        layout = "NCDHW"
+        axes = [0, 4, 1, 2, 3]
+        grid = _op.transform.transpose(grid, axes)
+    else:
+        msg = f"only 4D and 5D are supported."
+        raise ValueError(msg)
+    
+    out = _op.image.grid_sample(
+            x, grid, mode, layout, padding_mode, align_corners
+    )
+    g.add_node(op.output("Output")[0], out)
 
 
 def convert_group_norm(g, op, block):
@@ -2141,6 +2207,42 @@ def convert_transpose(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_unique(g, op, block):
+    """Operator converter for unique."""
+
+    x = g.get_node(op.input("X")[0])
+    return_index = op.attr("return_index")
+    return_inverse = op.attr("return_inverse")
+    return_counts = op.attr("return_counts")
+    axis = op.attr("axis")
+    dtype = op.attr("dtype")
+    dtype = _convert_dtype_value(dtype)
+
+    if len(axis) == 0:
+        x = _op.reshape(x, [-1])
+
+    if return_counts:
+        unique, indices, inverse_indices, num_unique, counts = _op.unique(
+            x, is_sorted=True, return_counts=True
+        )
+    else:
+        unique, indices, inverse_indices, num_uniq = _op.unique(
+            x, is_sorted=True, return_counts=False
+        )
+    
+    out = unique
+    if dtype != infer_type(out).checked_type.dtype:
+        out = _op.cast(out, dtype)
+    g.add_node(op.output("Out")[0], unique)
+
+    if return_index:
+        g.add_node(op.output("Indices")[0], indices)
+    if return_inverse:
+        g.add_node(op.output("Index")[0], inverse_indices)
+    if return_counts:
+        g.add_node(op.output("Counts")[0], counts)
+
+
 def convert_unsqueeze(g, op, block):
     """Operator converter for unsqueeze."""
 
@@ -2230,14 +2332,18 @@ _convert_map = {
     "fill_any_like": convert_fill_any_like,
     "fill_constant": convert_fill_constant,
     "fill_constant_batch_size_like": convert_fill_constant_batch_size_like,
+    "fill_zeros_like": convert_fill_zeros_like,
     "flatten_contiguous_range": convert_flatten,
     "floor": convert_unary_op,
     "floor_mod": convert_elementwise_op,
+    "flip": convert_flip,
     "gather": convert_gather,
     "gather_nd": convert_gather_nd,
+    "gaussian_random": convert_gaussian_random,
     "gelu": convert_gelu,
     "greater_equal": convert_elementwise_op,
     "greater_than": convert_elementwise_op,
+    "grid_sampler": convert_grid_sampler,
     "group_norm": convert_group_norm,
     "hard_shrink": convert_hard_shrink,
     "hard_sigmoid": convert_hard_sigmoid,
@@ -2322,6 +2428,7 @@ _convert_map = {
     "tile": convert_tile,
     "top_k_v2": convert_topk,
     "transpose2": convert_transpose,
+    "unique": convert_unique,
     "unsqueeze2": convert_unsqueeze,
     "unstack": convert_unstack,
     "where": convert_where,
