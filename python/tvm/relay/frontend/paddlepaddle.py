@@ -651,7 +651,7 @@ def convert_flip(g, op, block):
             out = _op.reverse(x, axis[i])
         else:
             out = _op.reverse(out, axis[i])
-        
+
     g.add_node(op.output("Out")[0], out)
 
 
@@ -722,7 +722,7 @@ def convert_grid_sampler(g, op, block):
     else:
         msg = f"only 4D and 5D are supported."
         raise ValueError(msg)
-    
+
     out = _op.image.grid_sample(x, grid, mode, layout, padding_mode, align_corners)
     g.add_node(op.output("Output")[0], out)
 

@@ -684,17 +684,17 @@ def test_forward_fill_zeros_like():
     class FilZeroLike(nn.Layer):
         def __init__(self, dtype=None):
             super(FilZeroLike, self).__init__()
-            self.dtype = dtype 
+            self.dtype = dtype
 
         @paddle.jit.to_static
         def forward(self, x):
-            return paddle.zeros_like(x, dtype=self.dtype)                  
+            return paddle.zeros_like(x, dtype=self.dtype)
 
     input_shape = [2, 3, 5]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(FilZeroLike("float32"), input_data=input_data)
     verify_model(FilZeroLike("int32"), input_data=input_data)
-    
+
 
 @tvm.testing.uses_gpu
 def test_forward_flatten():
@@ -724,7 +724,7 @@ def test_forward_flip():
         @paddle.jit.to_static
         def forward(self, x):
             return paddle.flip(x, axis=self.axis)
-        
+
     input_data = paddle.rand([2, 3, 4], dtype="float32")
     verify_model(Flip(0), input_data)
     verify_model(Flip(-1), input_data)
@@ -793,15 +793,15 @@ def test_forward_grid_sampler():
             self.padding_mode = padding_mode
             self.align_corners = align_corners
 
-        def forward(self, x , grid):
+        def forward(self, x, grid):
             return paddle.nn.functional.grid_sample(
                 x,
                 grid,
                 mode=self.mode,
                 padding_mode=self.padding_mode,
-                align_corners=self.align_corners
+                align_corners=self.align_corners,
             )
-    
+
     x_2D = paddle.rand(shape=[4, 4, 8, 8], dtype="float32")
     grid_2D = paddle.rand(shape=[4, 8, 8, 2], dtype="float32")
     verify_model(GridSampler(mode="nearest"), input_data=[x_2D, grid_2D])
@@ -1465,13 +1465,13 @@ def test_forward_slice():
 def test_forward_unique():
     class Unique(nn.Layer):
         def __init__(
-                self,
-                return_index=False,
-                return_inverse=False,
-                return_counts=False, 
-                axis=None,
-                dtype="int64"
-            ):
+            self,
+            return_index=False,
+            return_inverse=False,
+            return_counts=False, 
+            axis=None,
+            dtype="int64"
+        ):
             super(Unique, self).__init__()
             self.return_index = return_index
             self.return_inverse = return_inverse
@@ -1485,10 +1485,11 @@ def test_forward_unique():
                 inputs,
                 return_inverse=self.return_inverse,
                 return_counts=self.return_counts,
-                axis=self.axis, dtype=self.dtype
+                axis=self.axis,
+                dtype=self.dtype,
             )
             return result
-        
+
     input_shape = [2, 3, 5]
     input_data = paddle.rand(input_shape)
     verify_model(Unique(), input_data=input_data)
