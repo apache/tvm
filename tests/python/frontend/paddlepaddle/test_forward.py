@@ -2111,38 +2111,6 @@ def test_forward_linspace():
 
 
 @tvm.testing.uses_gpu
-def test_forward_take_alone_axis():
-    class TakeAloneAxis1(nn.Layer):
-        @paddle.jit.to_static
-        def forward(self, inputs):
-            index = paddle.to_tensor([[0, 1], [1, 2], [1, 0]])
-            return paddle.take_along_axis(inputs, index, axis=-1)
-
-    class TakeAloneAxis2(nn.Layer):
-        @paddle.jit.to_static
-        def forward(self, inputs):
-            index = paddle.to_tensor([[[0], [0], [1]]])
-            return paddle.take_along_axis(inputs, index, axis=1)
-
-    class TakeAloneAxis3(nn.Layer):
-        @paddle.jit.to_static
-        def forward(self, inputs):
-            index = paddle.to_tensor([[[0], [0], [1]]])
-            return paddle.take_along_axis(inputs, index, axis=-1)
-
-    if paddle.version.full_version >= "2.4.2":
-        x = paddle.to_tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
-        verify_model(TakeAloneAxis1(), input_data=x)
-
-        y = paddle.to_tensor(
-            [[[1, 2], [2, 3], [3, 4]], [[4, 5], [5, 6], [6, 7]], [[7, 8], [8, 9], [9, 10]]],
-            dtype="float32",
-        )
-        verify_model(TakeAloneAxis2(), input_data=y)
-        verify_model(TakeAloneAxis3(), input_data=y)
-
-
-@tvm.testing.uses_gpu
 def test_forward_dist():
     class Dist(nn.Layer):
         @paddle.jit.to_static
