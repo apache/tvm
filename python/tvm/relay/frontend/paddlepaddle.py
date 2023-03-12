@@ -2219,11 +2219,11 @@ def convert_unique(g, op, block):
         x = _op.reshape(x, [-1])
 
     if return_counts:
-        unique, indices, inverse_indices, num_unique, counts = _op.unique(
+        unique, indices, inverse_indices, _, counts = _op.unique(
             x, is_sorted=True, return_counts=True
         )
     else:
-        unique, indices, inverse_indices, num_uniq = _op.unique(
+        unique, indices, inverse_indices, _ = _op.unique(
             x, is_sorted=True, return_counts=False
         )
 
