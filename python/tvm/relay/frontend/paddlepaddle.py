@@ -2160,6 +2160,8 @@ def convert_swish(g, op, block):
 
 
 def convert_take_along_axis(g, op, block):
+    """Operator converter for take_along_axis."""
+
     x = g.get_node(op.input("Input")[0])
     idx = g.get_node(op.input("Index")[0])
     axis = op.attr("Axis")
