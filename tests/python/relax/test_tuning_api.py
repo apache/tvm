@@ -57,7 +57,8 @@ class TestModule:
     # Input IRModule.
     @R.function
     def before(c0: R.Tensor((16, 16), "int32")):
-        lv0 = R.call_tir(addone, (c0,), R.Tensor((16, 16), dtype="int32"))
+        cls = TestModule
+        lv0 = R.call_tir(cls.addone, (c0,), R.Tensor((16, 16), dtype="int32"))
         return lv0
 
     # Expected IRModule after transformation.

@@ -28,6 +28,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::Function>("", [](relax::Function n, ObjectPath n_p, IRDocsifier d) -> Doc {
       std::unordered_set<const tir::VarNode*> func_vars;
       With<RelaxFrame> f(d);
+      IdDoc func_name = d->Define(n, f(), FindFunctionName(d, n).value_or("main"));
       (*f)->AddDispatchToken(d, "relax");
       (*f)->is_func = true;
       (*f)->func_vars = &func_vars;
@@ -59,8 +60,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       Array<StmtDoc> body =
           PrintSeqExpr(Downcast<relax::SeqExpr>(n->body), n_p->Attr("body"), d, /*use_ret=*/true);
       (*f)->stmts.insert((*f)->stmts.end(), body.begin(), body.end());
-      return HeaderWrapper(d, FunctionDoc(IdDoc(FindFunctionName(d, n).value_or("main")), params,
-                                          {Relax(d, "function")}, ret_type, (*f)->stmts));
+      return HeaderWrapper(
+          d, FunctionDoc(func_name, params, {Relax(d, "function")}, ret_type, (*f)->stmts));
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)

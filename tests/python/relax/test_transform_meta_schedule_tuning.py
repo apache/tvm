@@ -60,9 +60,10 @@ class InputModule:
 
     @R.function
     def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Tensor:
+        cls = InputModule
         with R.dataflow():
-            lv0 = R.call_tir(tir_matmul, (x, w), R.Tensor((32, 32), dtype="float32"))
-            lv1 = R.call_tir(tir_relu, (lv0), R.Tensor((32, 32), dtype="float32"))
+            lv0 = R.call_tir(cls.tir_matmul, (x, w), R.Tensor((32, 32), dtype="float32"))
+            lv1 = R.call_tir(cls.tir_relu, (lv0), R.Tensor((32, 32), dtype="float32"))
             R.output(lv1)
         return lv1
 

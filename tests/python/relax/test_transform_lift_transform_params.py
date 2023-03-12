@@ -42,9 +42,10 @@ def test_basic():
             w2: R.Tensor((16, 16, 3, 3), "float32"),
         ) -> R.Tensor((1, 16, 224, 224), "float32"):
             R.func_attr({"num_input": 1})
+            cls = Before
             with R.dataflow():
                 w1_transformed = R.call_tir(
-                    transform_layout_IOHW_to_OIHW, w1, R.Tensor((16, 3, 3, 3), "float32")
+                    cls.transform_layout_IOHW_to_OIHW, w1, R.Tensor((16, 3, 3, 3), "float32")
                 )
                 conv1 = R.nn.conv2d(
                     x, w1_transformed, padding=(1, 1), data_layout="NCHW", kernel_layout="OIHW"
@@ -113,11 +114,12 @@ def test_basic():
         ) -> R.Tuple(
             R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 3, 3, 3), dtype="float32")
         ):
+            cls = Expected
             with R.dataflow():
                 lv: R.Tensor((16, 16, 3, 3), dtype="float32") = params[1]
                 lv1: R.Tensor((3, 16, 3, 3), dtype="float32") = params[0]
                 lv2 = R.call_tir(
-                    transform_layout_IOHW_to_OIHW,
+                    cls.transform_layout_IOHW_to_OIHW,
                     (lv1,),
                     out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
                 )

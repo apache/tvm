@@ -15,10 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 """Initial impl of relax parser for sugars"""
+
+from typing import TYPE_CHECKING
+
 from ...ir_builder.relax import *  # pylint: disable=redefined-builtin
 from ...ir_builder.relax import ir as _relax
 from . import parser as _parser
-from .entry import Callable, Object, Prim, Shape, Tensor, Tuple, function, match_cast
+from .entry import Callable, Object, Prim, Shape, Tensor, Tuple, match_cast
+
+if TYPE_CHECKING:
+    # pylint: disable=invalid-name
+    # Define prim_func and make it type check as static method
+    # so most tvmscript won't trigger pylint error here.
+    function = staticmethod
+else:
+    from .entry import function
 
 __all__ = _relax.__all__ + [
     "Callable",

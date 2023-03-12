@@ -54,9 +54,10 @@ class Module:
 
     @R.function
     def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Tensor:
+        cls = Module
         with R.dataflow():
-            lv0 = R.call_tir(tir_matmul, (x, w), R.Tensor((32, 32), dtype="float32"))
-            lv1 = R.call_tir(tir_relu, (lv0), R.Tensor((32, 32), dtype="float32"))
+            lv0 = R.call_tir(cls.tir_matmul, (x, w), R.Tensor((32, 32), dtype="float32"))
+            lv1 = R.call_tir(cls.tir_relu, (lv0), R.Tensor((32, 32), dtype="float32"))
             R.output(lv1)
         return lv1
 
@@ -461,7 +462,7 @@ class SmallParallel:
         return lv2
 
 
-def test_distiguish_diamond_and_parallel():
+def test_distinguish_diamond_and_parallel():
     # relay pattern lang cannot distinguish the two cases above.
     diamond = SmallDiamond["main"].body.blocks[0]
     parallel = SmallParallel["main"].body.blocks[0]
@@ -479,7 +480,7 @@ def test_distiguish_diamond_and_parallel():
     with PatternContext() as ctx:
         # describe a parallel pattern
         join = is_call_dps_packed("my_add")
-        # Due to one-one mathcing:
+        # Due to one-one matching:
         # is_call_dps_packed("my_relu") creates the 1st relu
         is_call_dps_packed("my_relu") >> join
         # is_call_dps_packed("my_relu")
@@ -555,7 +556,7 @@ def test_counter_single_crb():
         )
         dfb = CBRx2["main"].body.blocks[0]
         assert not ctx.match_dfb(dfb)
-        # Quickly fails unpromising matches by assumiung `start_hint` must be matched by a pattern.
+        # Quickly fails unpromising matches by assuming `start_hint` must be matched by a pattern.
         # This is usually faster than the full match:
         # Full match: let one pattern to match -> all Var: complexity ~ #Var
         # must_include_hint: let `start_hint` to match -> all patterns: complexity ~ #patterns

@@ -67,7 +67,8 @@ def test_one_fold_addone():
 
         @R.function
         def before(c0: R.Tensor((16, 16), "float32")):
-            lv0 = relax.call_tir(addone, (c0,), R.Tensor((16, 16), dtype="float32"))
+            cls = Module
+            lv0 = relax.call_tir(cls.addone, (c0,), R.Tensor((16, 16), dtype="float32"))
             return lv0
 
         @R.function
@@ -97,7 +98,8 @@ def test_one_fold_transpose():
 
         @R.function
         def before(c0: R.Tensor((2, 3), "float32")):
-            lv0 = relax.call_tir(func, (c0,), R.Tensor((3, 2), dtype="float32"))
+            cls = Module
+            lv0 = relax.call_tir(cls.func, (c0,), R.Tensor((3, 2), dtype="float32"))
             return lv0
 
         @R.function
@@ -126,8 +128,9 @@ def test_two_hop_addone():
 
         @R.function
         def before(c0: R.Tensor((2, 2), "float32")):
-            lv0 = relax.call_tir(addone, (c0,), R.Tensor((2, 2), dtype="float32"))
-            lv1 = relax.call_tir(addone, (lv0,), R.Tensor((2, 2), dtype="float32"))
+            cls = Module
+            lv0 = relax.call_tir(cls.addone, (c0,), R.Tensor((2, 2), dtype="float32"))
+            lv1 = relax.call_tir(cls.addone, (lv0,), R.Tensor((2, 2), dtype="float32"))
             return lv1
 
         @R.function
@@ -158,8 +161,9 @@ def test_dataflow_fold():
 
         @R.function
         def before(c0: R.Tensor((16, 16), "float32")):
+            cls = Module
             with R.dataflow():
-                gv0 = relax.call_tir(identity, (c0,), R.Tensor((16, 16), dtype="float32"))
+                gv0 = relax.call_tir(cls.identity, (c0,), R.Tensor((16, 16), dtype="float32"))
                 R.output(gv0)
             return gv0
 
@@ -204,15 +208,16 @@ def test_fold_mixed_case():
         @R.function
         def before(c0: R.Tensor((16, 16), "float32"), x: R.Tensor("float32", ndim=2)):
             n, m = T.int64(), T.int64()
+            cls = Module
             x0 = R.match_cast(x, R.Tensor((n, m), "float32"))
             # this line cannot be folded because n is unknown
-            lv0 = relax.call_tir(addone, (c0,), R.Tensor((n, 16), dtype="float32"))
+            lv0 = relax.call_tir(cls.addone, (c0,), R.Tensor((n, 16), dtype="float32"))
             # this line can be folded
-            lv1 = relax.call_tir(addone, (c0,), R.Tensor((16, 16), dtype="float32"))
+            lv1 = relax.call_tir(cls.addone, (c0,), R.Tensor((16, 16), dtype="float32"))
             # this line can be folded because all inputs are const
-            lv2 = relax.call_tir(sub, (c0, lv1), R.Tensor((16, 16), dtype="float32"))
+            lv2 = relax.call_tir(cls.sub, (c0, lv1), R.Tensor((16, 16), dtype="float32"))
             # this line can not be folded because x's shape is unknown
-            lv3 = relax.call_tir(sub, (lv2, x), R.Tensor((16, 16), dtype="float32"))
+            lv3 = relax.call_tir(cls.sub, (lv2, x), R.Tensor((16, 16), dtype="float32"))
             return lv3
 
         @R.function
@@ -223,15 +228,16 @@ def test_fold_mixed_case():
             x: R.Tensor("float32", ndim=2),
         ) -> R.Tensor:
             n, m = T.int64(), T.int64()
+            cls = Module
             x0 = R.match_cast(x, R.Tensor((n, m), "float32"))
             # this line cannot be folded because n is unknown
-            lv0 = relax.call_tir(addone, (c0,), R.Tensor((n, 16), dtype="float32"))
+            lv0 = relax.call_tir(cls.addone, (c0,), R.Tensor((n, 16), dtype="float32"))
             # this line can be folded
             lv1 = c1
             # this line can be folded because all inputs are const
             lv2 = c2
             # this line can not be folded because x's shape is unknown
-            lv3 = relax.call_tir(sub, (c2, x), R.Tensor((16, 16), dtype="float32"))
+            lv3 = relax.call_tir(cls.sub, (c2, x), R.Tensor((16, 16), dtype="float32"))
             return lv3
 
     c0_np = np.arange((16 * 16)).astype("float32").reshape(16, 16)
@@ -256,7 +262,8 @@ def test_int32_fold():
 
         @R.function
         def before(c0: R.Tensor((16, 16), "int32")):
-            lv0 = relax.call_tir(addone, (c0,), R.Tensor((16, 16), dtype="int32"))
+            cls = Module
+            lv0 = relax.call_tir(cls.addone, (c0,), R.Tensor((16, 16), dtype="int32"))
             return lv0
 
         @R.function

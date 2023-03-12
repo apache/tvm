@@ -149,6 +149,10 @@ IRDocsifier::IRDocsifier(const PrinterConfig& cfg) {
   auto n = make_object<IRDocsifierNode>();
   n->cfg = cfg;
   n->dispatch_tokens.push_back("");
+  // Define builtin keywords according to cfg.
+  for (const String& keyword : cfg->GetBuiltinKeywords()) {
+    n->defined_names.insert(keyword);
+  }
   data_ = std::move(n);
 }
 

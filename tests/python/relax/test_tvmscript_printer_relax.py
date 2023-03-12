@@ -16,10 +16,11 @@
 # under the License.
 # pylint: disable=missing-docstring
 import tvm
-import pytest
 import tvm.testing
 from tvm import IRModule, relax, tir
+from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def _assert_print(obj, expected):
@@ -319,7 +320,6 @@ R.call_dps_packed("my_dps_func", (a,), out_sinfo=R.Tensor((1, x, 3), dtype="floa
     )
 
 
-@pytest.mark.skip(reason="`relax.op.sin` is not upstreamed yet")
 def test_seq_expr():
     x = tir.Var("x", "int64")
     a = relax.Var("a", relax.TensorStructInfo([1, x, 3], "float32"))
@@ -351,7 +351,6 @@ c
     )
 
 
-@pytest.mark.skip(reason="`relax.op.sin` is not upstreamed yet")
 def test_binding_block():
     x = tir.Var("x", "int64")
     a = relax.Var("a", relax.TensorStructInfo([1, x, 3], "float32"))
@@ -374,7 +373,6 @@ c: R.Tensor((1, x, 3), dtype="float32") = R.sin(b)
     )
 
 
-@pytest.mark.skip(reason="`relax.op.sin` is not upstreamed yet")
 def test_dataflow_block():
     x = tir.Var("x", "int64")
     a = relax.Var("a", relax.TensorStructInfo([1, x, 3], "float32"))
@@ -418,7 +416,6 @@ b: R.Tensor((1, 5, 3), dtype="float32") = R.match_cast(a, R.Tensor((1, 5, 3), dt
     )
 
 
-@pytest.mark.skip(reason="`relax.op.sin` is not upstreamed yet")
 def test_var_binding():
     x = tir.Var("x", "int64")
     a = relax.Var("a", relax.TensorStructInfo([1, x, 3], "float32"))
@@ -453,6 +450,81 @@ if a:
 else:
     c: R.Tensor((1, 2, 3), dtype="float32")
     c
+""",
+    )
+
+
+def test_builtin_keywords():
+    x = tir.Var("x", "int64")
+    a = relax.Var("R", relax.TensorStructInfo([1, x, 3], "float32"))
+    b = relax.Var("T", relax.TensorStructInfo([1, x, 3], "float32"))
+    obj = relax.VarBinding(b, relax.op.sin(a))
+    _assert_print(
+        obj,
+        """
+x = T.int64()
+R_1: R.Tensor((1, x, 3), dtype="float32")
+T_1: R.Tensor((1, x, 3), dtype="float32") = R.sin(R_1)
+""",
+    )
+
+
+def test_module_cross_func_call():
+    @I.ir_module
+    class TestModule:
+        @T.prim_func
+        def tir_func(
+            x: T.Buffer((T.int64(128),), "float32"), y: T.Buffer((T.int64(128),), "float32")
+        ):
+            T.evaluate(0)
+
+        @R.function
+        def foo(x: R.Tensor((128,), "float32")) -> R.Tensor((128,), "float32"):
+            cls = TestModule
+            gv0 = R.call_tir(cls.tir_func, x, R.Tensor((128,), dtype="float32"))
+            return gv0
+
+    # default behavior
+    _assert_print(
+        TestModule,
+        """
+# from tvm.script import ir as I
+# from tvm.script import tir as T
+# from tvm.script import relax as R
+
+@I.ir_module
+class Module:
+    @T.prim_func
+    def tir_func(x: T.Buffer((T.int64(128),), "float32"), y: T.Buffer((T.int64(128),), "float32")):
+        T.evaluate(0)
+
+    @R.function
+    def foo(x: R.Tensor((128,), dtype="float32")) -> R.Tensor((128,), dtype="float32"):
+        cls = Module
+        gv0 = R.call_tir(cls.tir_func, (x,), out_sinfo=R.Tensor((128,), dtype="float32"))
+        return gv0
+""",
+    )
+
+    # empty module alias
+    module_str = TestModule.script(module_alias="")
+    _assert_print(
+        module_str,
+        """
+# from tvm.script import ir as I
+# from tvm.script import tir as T
+# from tvm.script import relax as R
+
+@I.ir_module
+class Module:
+    @T.prim_func
+    def tir_func(x: T.Buffer((T.int64(128),), "float32"), y: T.Buffer((T.int64(128),), "float32")):
+        T.evaluate(0)
+
+    @R.function
+    def foo(x: R.Tensor((128,), dtype="float32")) -> R.Tensor((128,), dtype="float32"):
+        gv0 = R.call_tir(Module.tir_func, (x,), out_sinfo=R.Tensor((128,), dtype="float32"))
+        return gv0
 """,
     )
 

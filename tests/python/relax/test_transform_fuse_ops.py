@@ -839,9 +839,10 @@ def test_edge_with_call_dps_packed():
     class Module:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")):
+            cls = Module
             with R.dataflow():
-                a = R.call_tir(exp, (x,), out_sinfo=R.Tensor((2, 3), "float32"))
-                b = R.call_tir(exp, (a,), out_sinfo=R.Tensor((2, 3), "float32"))
+                a = R.call_tir(cls.exp, (x,), out_sinfo=R.Tensor((2, 3), "float32"))
+                b = R.call_tir(cls.exp, (a,), out_sinfo=R.Tensor((2, 3), "float32"))
                 c = R.call_dps_packed("packed_dps", (a,), out_sinfo=R.Tensor((2, 3), "float32"))
                 R.output(b, c)
             return R.tuple(b, c)
@@ -860,9 +861,10 @@ def test_layer_norm_silu():
     class Module:
         @R.function
         def main(x: R.Tensor((1, 512, 64, 64), "float32"), mean: R.Tensor((64, 64), "float32"), var: R.Tensor((64, 64), "float32")):
+            cls = Module
             with R.dataflow():
-                gv0 = R.call_tir(layer_norm, (x, mean, var), out_sinfo=R.Tensor((1, 512, 64, 64)))
-                gv1 = R.call_tir(relu, gv0, out_sinfo=R.Tensor((1, 512, 64, 64), "float32"))
+                gv0 = R.call_tir(cls.layer_norm, (x, mean, var), out_sinfo=R.Tensor((1, 512, 64, 64)))
+                gv1 = R.call_tir(cls.relu, gv0, out_sinfo=R.Tensor((1, 512, 64, 64), "float32"))
                 R.output(gv1)
             return gv1
 
@@ -939,16 +941,18 @@ def test_layer_norm_silu():
         @R.function
         def fused_layer_norm_relu(x: R.Tensor((1, 512, 64, 64), dtype="float32"), mean: R.Tensor((64, 64), dtype="float32"), var: R.Tensor((64, 64), dtype="float32")) -> R.Tensor((1, 512, 64, 64), dtype="float32"):
             R.func_attr({"Primitive": 1})
+            cls = Expected
             with R.dataflow():
-                gv0 = R.call_tir(layer_norm, (x, mean, var), out_sinfo=R.Tensor((1, 512, 64, 64)))
-                gv = R.call_tir(relu, (gv0,), out_sinfo=R.Tensor((1, 512, 64, 64), dtype="float32"))
+                gv0 = R.call_tir(cls.layer_norm, (x, mean, var), out_sinfo=R.Tensor((1, 512, 64, 64)))
+                gv = R.call_tir(cls.relu, (gv0,), out_sinfo=R.Tensor((1, 512, 64, 64), dtype="float32"))
                 R.output(gv)
             return gv
 
         @R.function
         def main(x: R.Tensor((1, 512, 64, 64), dtype="float32"), mean: R.Tensor((64, 64), dtype="float32"), var: R.Tensor((64, 64), dtype="float32")) -> R.Tensor((1, 512, 64, 64), dtype="float32"):
+            cls = Expected
             with R.dataflow():
-                gv: R.Tensor((1, 512, 64, 64), dtype="float32") = fused_layer_norm_relu(x, mean, var)
+                gv: R.Tensor((1, 512, 64, 64), dtype="float32") = cls.fused_layer_norm_relu(x, mean, var)
                 R.output(gv)
             return gv
     # fmt: on
@@ -1079,31 +1083,34 @@ def test_multiple_paths():
         @R.function
         def fused_conv2d_add_add2(inp_0: R.Tensor((2, 320, 64, 64), dtype="float32"), w1: R.Tensor((320, 320, 3, 3), dtype="float32"), lv28: R.Tensor((1, 320, 1, 1), dtype="float32"), lv35: R.Tensor((2, 320, 1, 1), dtype="float32")) -> R.Tensor((2, 320, 64, 64), dtype="float32"):
             R.func_attr({"Primitive": 1})
+            cls = Expected
             with R.dataflow():
-                lv27 = R.call_tir(conv2d, (inp_0, w1), out_sinfo=R.Tensor((2, 320, 64, 64), dtype="float32"))
-                lv29 = R.call_tir(add, (lv27, lv28), out_sinfo=R.Tensor((2, 320, 64, 64), dtype="float32"))
-                gv = R.call_tir(add2, (lv29, lv35), out_sinfo=R.Tensor((2, 320, 64, 64), dtype="float32"))
+                lv27 = R.call_tir(cls.conv2d, (inp_0, w1), out_sinfo=R.Tensor((2, 320, 64, 64), dtype="float32"))
+                lv29 = R.call_tir(cls.add, (lv27, lv28), out_sinfo=R.Tensor((2, 320, 64, 64), dtype="float32"))
+                gv = R.call_tir(cls.add2, (lv29, lv35), out_sinfo=R.Tensor((2, 320, 64, 64), dtype="float32"))
                 R.output(gv)
             return gv
 
         @R.function
         def fused_matmul_add1(inp_1: R.Tensor((2, 1280), dtype="float32"), lv31: R.Tensor((1280, 320), dtype="float32"), b2: R.Tensor((320,), dtype="float32")) -> R.Tensor((2, 320), dtype="float32"):
+            cls = Expected
             R.func_attr({"Primitive": 1})
             with R.dataflow():
-                lv32 = R.call_tir(matmul, (inp_1, lv31), out_sinfo=R.Tensor((2, 320), dtype="float32"))
-                gv = R.call_tir(add1, (lv32, b2), out_sinfo=R.Tensor((2, 320), dtype="float32"))
+                lv32 = R.call_tir(cls.matmul, (inp_1, lv31), out_sinfo=R.Tensor((2, 320), dtype="float32"))
+                gv = R.call_tir(cls.add1, (lv32, b2), out_sinfo=R.Tensor((2, 320), dtype="float32"))
                 R.output(gv)
             return gv
 
         @R.function
         def main(inp_0: R.Tensor((2, 320, 64, 64), dtype="float32"), inp_1: R.Tensor((2, 1280), dtype="float32"), w1: R.Tensor((320, 320, 3, 3), dtype="float32"), b1: R.Tensor((320,), dtype="float32"), w2: R.Tensor((320, 1280), dtype="float32"), b2: R.Tensor((320,), dtype="float32")) -> R.Tensor((2, 320, 64, 64), dtype="float32"):
             R.func_attr({"num_input": 2})
+            cls = Expected
             with R.dataflow():
-                lv28 = R.call_tir(reshape, (b1,), out_sinfo=R.Tensor((1, 320, 1, 1), dtype="float32"))
-                lv31 = R.call_tir(transpose, (w2,), out_sinfo=R.Tensor((1280, 320), dtype="float32"))
-                lv: R.Tensor((2, 320), dtype="float32") = fused_matmul_add1(inp_1, lv31, b2)
-                lv35 = R.call_tir(reshape1, (lv,), out_sinfo=R.Tensor((2, 320, 1, 1), dtype="float32"))
-                lv1: R.Tensor((2, 320, 64, 64), dtype="float32") = fused_conv2d_add_add2(inp_0, w1, lv28, lv35)
+                lv28 = R.call_tir(cls.reshape, (b1,), out_sinfo=R.Tensor((1, 320, 1, 1), dtype="float32"))
+                lv31 = R.call_tir(cls.transpose, (w2,), out_sinfo=R.Tensor((1280, 320), dtype="float32"))
+                lv: R.Tensor((2, 320), dtype="float32") = cls.fused_matmul_add1(inp_1, lv31, b2)
+                lv35 = R.call_tir(cls.reshape1, (lv,), out_sinfo=R.Tensor((2, 320, 1, 1), dtype="float32"))
+                lv1: R.Tensor((2, 320, 64, 64), dtype="float32") = cls.fused_conv2d_add_add2(inp_0, w1, lv28, lv35)
                 gv: R.Tensor((2, 320, 64, 64), dtype="float32") = lv1
                 R.output(gv)
             return gv

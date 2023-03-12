@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pytest
 import tvm
 import tvm.testing
 from tvm import relax
@@ -54,7 +53,7 @@ def test_basic():
         def main(
             x1: R.Tensor((10, 5), "float32"), y1: R.Tensor((10, 5), "float32")
         ) -> R.Tensor((10, 5), "float32"):
-            inner = lifted_func_0
+            inner = Expected.lifted_func_0
             gv1: R.Tensor((10, 5), "float32") = inner(x1, y1)
             return gv1
 
@@ -91,7 +90,7 @@ def test_closure():
         def main(
             x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")
         ) -> R.Tensor((2, 3), "float32"):
-            outer_func = lifted_func_0
+            outer_func = Expected.lifted_func_0
             in_call = outer_func(x)
             res = R.invoke_closure(in_call, (y,), sinfo_args=(R.Tensor((2, 3), dtype="float32")))
             return res
@@ -103,7 +102,7 @@ def test_closure():
 
         @R.function
         def lifted_func_0(y: R.Tensor((2, 3), "float32")) -> R.Object:
-            inner_func = R.make_closure(lifted_func_1, (y,))
+            inner_func = R.make_closure(Expected.lifted_func_1, (y,))
             return inner_func
 
     # IRModule to perform Lambda Lifting
@@ -150,7 +149,7 @@ def test_recursive():
             if cond:
                 new_i: R.Tensor((), "int32") = R.add(i, c)
                 new_s: R.Tensor((2, 3), "float32") = R.add(s, x)
-                new_r = lifted_func_0(new_i, new_s, x)
+                new_r = Expected.lifted_func_0(new_i, new_s, x)
                 r = new_r
             else:
                 r = s
@@ -158,7 +157,7 @@ def test_recursive():
 
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), dtype="float32"):
-            while_loop = R.make_closure(lifted_func_0, (x,))
+            while_loop = R.make_closure(Expected.lifted_func_0, (x,))
             gv: R.Tensor((2, 3), dtype="float32") = R.invoke_closure(
                 while_loop,
                 (R.const(0), x),
@@ -211,7 +210,7 @@ def test_multi_func():
         def glob_func_1(
             x1: R.Tensor((10, 5), "float32"), y1: R.Tensor((10, 5), "float32")
         ) -> R.Tensor(None, "float32", ndim=2):
-            inner = lifted_func_0
+            inner = Expected.lifted_func_0
             gv1: R.Tensor((10, 5), "float32") = inner(x1, y1)
             return gv1
 
@@ -219,7 +218,7 @@ def test_multi_func():
         def glob_func_2(
             x11: R.Tensor((10, 5), "float32"), y11: R.Tensor((10, 5), "float32")
         ) -> R.Tensor(None, "float32", ndim=2):
-            inner = lifted_func_1
+            inner = Expected.lifted_func_1
             gv11: R.Tensor((10, 5), "float32") = inner(x11, y11)
             return gv11
 
@@ -293,7 +292,7 @@ def test_no_local_func():
 
         @R.function
         def before(c0: R.Tensor((16, 16), "float32"), x: R.Tensor(dtype="float32", ndim=2)):
-            s = R.call_tir(sub, (c0, x), R.Tensor((16, 16), dtype="float32"))
+            s = R.call_tir(Before.sub, (c0, x), R.Tensor((16, 16), dtype="float32"))
             return s
 
     before = Before

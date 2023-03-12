@@ -37,6 +37,7 @@ namespace printer {
 class RelaxFrameNode : public FrameNode {
  public:
   bool is_func = false;
+  bool module_alias_printed = false;
   std::unordered_set<const tir::VarNode*>* func_vars = nullptr;
 
   void VisitAttrs(AttrVisitor* v) {

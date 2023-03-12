@@ -37,7 +37,7 @@ def test_take():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4), "float32"), indices: R.Tensor((4,), "int64")) -> R.Tensor((2, 4, 4), "float32"):
-            gv = R.call_tir(take, (x, indices), R.Tensor((2, 4, 4), dtype="float32"))
+            gv = R.call_tir(Expected.take, (x, indices), R.Tensor((2, 4, 4), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -72,7 +72,7 @@ def test_take_symbolic():
         def main(x: R.Tensor(("m", "n"), "float32"), indices: R.Tensor(("i",), "int64")) -> R.Tensor(("m", "i"), "float32"):
             m = T.int64()
             i = T.int64()
-            gv = R.call_tir(take, (x, indices), R.Tensor((m, i), dtype="float32"))
+            gv = R.call_tir(Expected.take, (x, indices), R.Tensor((m, i), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -109,7 +109,7 @@ def test_strided_slice():
     class Expected:
         @R.function
         def main(x: R.Tensor((8, 9, 10, 10), dtype="float32")) -> R.Tensor((4, 9, 10, 3), dtype="float32"):
-            gv = R.call_tir(strided_slice, (x,), R.Tensor((4, 9, 10, 3), dtype="float32"))
+            gv = R.call_tir(Expected.strided_slice, (x,), R.Tensor((4, 9, 10, 3), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -140,7 +140,7 @@ def test_strided_slice_no_strides():
     class Expected:
         @R.function
         def main(x: R.Tensor((8, 9, 10, 10), dtype="float32")) -> R.Tensor((4, 9, 10, 3), dtype="float32"):
-            gv = R.call_tir(strided_slice, (x,), out_sinfo=R.Tensor((7, 9, 10, 2), dtype="float32"))
+            gv = R.call_tir(Expected.strided_slice, (x,), out_sinfo=R.Tensor((7, 9, 10, 2), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -189,7 +189,7 @@ def test_strided_slice_symbolic():
         @R.function
         def main(x: R.Tensor((10, "n"), dtype="float32")) -> R.Tensor((3, "n"), dtype="float32"):
             n = T.int64()
-            gv = R.call_tir(strided_slice, (x,), R.Tensor((3, n), dtype="float32"))
+            gv = R.call_tir(Expected.strided_slice, (x,), R.Tensor((3, n), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -226,7 +226,7 @@ def test_matmul_1_4():
     class Expected:
         @R.function
         def main(x: R.Tensor((4,), "float32"), y: R.Tensor((2, 3, 4, 5), "float32")) -> R.Tensor((2, 3, 5), "float32"):
-            gv = R.call_tir(matmul, (x, y), R.Tensor((2, 3, 5), dtype="float32"))
+            gv = R.call_tir(Expected.matmul, (x, y), R.Tensor((2, 3, 5), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -259,7 +259,7 @@ def test_matmul_4_1():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "float32"), y: R.Tensor((5,), "float32")) -> R.Tensor((2, 3, 4), "float32"):
-            gv = R.call_tir(matmul, (x, y), R.Tensor((2, 3, 4), dtype="float32"))
+            gv = R.call_tir(Expected.matmul, (x, y), R.Tensor((2, 3, 4), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -292,7 +292,7 @@ def test_matmul_1_1():
     class Expected:
         @R.function
         def main(x: R.Tensor((4,), "float32"), y: R.Tensor((4,), "float32")) -> R.Tensor((), "float32"):
-            gv = R.call_tir(matmul, (x, y), R.Tensor((), dtype="float32"))
+            gv = R.call_tir(Expected.matmul, (x, y), R.Tensor((), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -325,7 +325,7 @@ def test_matmul_4_5():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "float16"), y: R.Tensor((6, 2, 3, 5, 7), "float16")) -> R.Tensor((6, 2, 3, 4, 7), "float32"):
-            gv = R.call_tir(matmul, (x, y), R.Tensor((6, 2, 3, 4, 7), dtype="float32"))
+            gv = R.call_tir(Expected.matmul, (x, y), R.Tensor((6, 2, 3, 4, 7), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -368,7 +368,7 @@ def test_matmul_4_5_symbolic():
             c = T.int64()
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(matmul, (x, y), R.Tensor((a, b, c, m, n), dtype="float32"))
+            gv = R.call_tir(Expected.matmul, (x, y), R.Tensor((a, b, c, m, n), dtype="float32"))
             return gv
 
         @T.prim_func

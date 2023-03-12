@@ -74,7 +74,7 @@ def test_tir_call():
         @R.function
         def foo(x: R.Tensor):
             R.func_attr({"global_symbol": "foo"})
-            _ = shape_func(x)
+            _ = Before.shape_func(x)
             return x
 
     @tvm.script.ir_module

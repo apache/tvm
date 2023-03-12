@@ -607,7 +607,7 @@ def test_multiple_relax_functions():
         def func1(x: R.Tensor((10, 20), dtype="float32")) -> R.Tensor((10, 20), dtype="float32"):
             with R.dataflow():
                 gv2 = R.call_tir(
-                    fused_add_exp_squeeze,
+                    Expected.fused_add_exp_squeeze,
                     (x, R.const(1, "float32")),
                     out_sinfo=R.Tensor((10, 20), dtype="float32"),
                 )
@@ -618,7 +618,7 @@ def test_multiple_relax_functions():
         def func2(x: R.Tensor((20, 10), dtype="float32")) -> R.Tensor((20, 10), dtype="float32"):
             with R.dataflow():
                 gv3 = R.call_tir(
-                    fused_add1_exp1_squeeze1,
+                    Expected.fused_add1_exp1_squeeze1,
                     (x, R.const(1, "float32")),
                     out_sinfo=R.Tensor((20, 10), dtype="float32"),
                 )

@@ -81,7 +81,8 @@ def bind_assign_value(
             )
         var = R.emit_match_cast(value.value, value.struct_info)
     else:
-        raise TypeError(f"Unsupported type {type(value)} in assignment")
+        return value
+        # raise TypeError(f"Unsupported type {type(value)} in assignment")
 
     IRBuilder.name(var_name, var)
     return var
@@ -202,7 +203,7 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
 
 
 @dispatch.register(token="relax", type_name="tvm_declare_function")
-def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> None:
+def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar:
     with self.var_table.with_frame():
         collect_symbolic_var_from_params(self, node)
 
@@ -220,8 +221,7 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> None:
             params.append(relax.Var(arg.arg, param_sinfo))
 
     func_signature = relax.Function.create_empty(params, ret_sinfo)
-    global_var = I.decl_function(node.name, func_signature)
-    self.var_table.add(node.name, global_var)
+    return I.decl_function(node.name, func_signature)
 
 
 @dispatch.register(token="relax", type_name="pre_visit_local_function")

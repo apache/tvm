@@ -65,9 +65,12 @@ def test_reshape_expand_dims():
         def main(
             x: R.Tensor((8, 3), dtype="float32")
         ) -> R.Tensor((2, 1, 4, 1, 3), dtype="float32"):
+            cls = Module
             with R.dataflow():
-                y = R.call_tir(reshape, (x,), out_sinfo=R.Tensor((2, 4, 3), dtype="float32"))
-                z = R.call_tir(expand_dims, (y,), out_sinfo=R.Tensor((2, 1, 4, 1, 3), "float32"))
+                y = R.call_tir(cls.reshape, (x,), out_sinfo=R.Tensor((2, 4, 3), dtype="float32"))
+                z = R.call_tir(
+                    cls.expand_dims, (y,), out_sinfo=R.Tensor((2, 1, 4, 1, 3), "float32")
+                )
                 R.output(z)
             return z
 
@@ -114,11 +117,12 @@ def test_reshape_expand_dims():
             x: R.Tensor((8, 3), dtype="float32")
         ) -> R.Tensor((2, 1, 4, 1, 3), dtype="float32"):
             with R.dataflow():
+                cls = Expected
                 y: R.Tensor((2, 4, 3), "float32") = R.reshape(x, (2, 4, 3))
                 # Note: `z` is the output var of the dataflow block, and is thus
                 # not expected to be rewritten.
                 z = R.call_tir(
-                    expand_dims, (y,), out_sinfo=R.Tensor((2, 1, 4, 1, 3), dtype="float32")
+                    cls.expand_dims, (y,), out_sinfo=R.Tensor((2, 1, 4, 1, 3), dtype="float32")
                 )
                 R.output(z)
             return z
@@ -153,7 +157,8 @@ def test_reshape_non_dataflow():
 
         @R.function
         def main(x: R.Tensor((8, 3), dtype="float32")) -> R.Tensor((2, 4, 3), dtype="float32"):
-            y = R.call_tir(reshape, (x,), out_sinfo=R.Tensor((2, 4, 3), dtype="float32"))
+            cls = Module
+            y = R.call_tir(cls.reshape, (x,), out_sinfo=R.Tensor((2, 4, 3), dtype="float32"))
             return y
 
     assert relax.analysis.has_reshape_pattern(Module["reshape"])

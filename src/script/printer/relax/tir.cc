@@ -24,23 +24,28 @@ namespace tvm {
 namespace script {
 namespace printer {
 
+/*! \brief Find the outmost Relax function frame. If not exist, the outmost Relax frame. */
+RelaxFrameNode* GetRelaxFrame(IRDocsifier d) {
+  RelaxFrameNode* f = nullptr;
+  for (const Frame& frame : d->frames) {
+    if (const auto* relax_frame = frame.as<RelaxFrameNode>()) {
+      if (relax_frame->is_func) {
+        f = const_cast<RelaxFrameNode*>(relax_frame);
+        break;
+      } else if (f == nullptr) {
+        f = const_cast<RelaxFrameNode*>(relax_frame);
+      }
+    }
+  }
+  return f;
+}
+
 Doc PrintTIRVar(tir::Var n, ObjectPath n_p, IRDocsifier d) {
   ICHECK(n->dtype.is_int() && n->dtype.is_scalar()) << "TypeError: Relax only uses "
                                                        "scalar integer TIR variables, but gets: "
                                                     << n;
   if (!d->IsVarDefined(n)) {
-    // Find the outmost Relax function frame. If not exist, the outmost Relax frame.
-    RelaxFrameNode* f = nullptr;
-    for (const Frame& frame : d->frames) {
-      if (const auto* relax_frame = frame.as<RelaxFrameNode>()) {
-        if (relax_frame->is_func) {
-          f = const_cast<RelaxFrameNode*>(relax_frame);
-          break;
-        } else if (f == nullptr) {
-          f = const_cast<RelaxFrameNode*>(relax_frame);
-        }
-      }
-    }
+    RelaxFrameNode* f = GetRelaxFrame(d);
     // There should be at least one Relax frame
     if (f == nullptr) {
       LOG(FATAL) << "IndexError: No relax environment is found when printing a TIR var under "
@@ -74,9 +79,34 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tvm::GlobalVar>(                                             //
         "relax", [](tvm::GlobalVar n, ObjectPath n_p, IRDocsifier d) -> Doc {  //
-          IdDoc ret(n->name_hint);
-          ret->source_paths.push_back(n_p);
-          return ret;
+          if (Optional<ExprDoc> doc = d->GetVarDoc(n)) {
+            return doc.value();
+          } else {
+            IdDoc ret(n->name_hint);
+            ret->source_paths.push_back(n_p);
+            return ret;
+          }
+        });
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<tvm::IRModule>(                                               //
+        "relax", [](tvm::IRModule mod, ObjectPath n_p, IRDocsifier d) -> Doc {  //
+          Optional<ExprDoc> doc = d->GetVarDoc(mod);
+          ICHECK(doc) << "Unable to print IRModule before definition in Relax.";
+          if (d->cfg->module_alias.empty()) {
+            // Use Module Name directly
+            return doc.value();
+          }
+          RelaxFrameNode* f = GetRelaxFrame(d);
+          ICHECK(f != nullptr && f->is_func)
+              << "IndexError: No relax environment is found when printing a module alias var "
+                 "under relax's dispatch token";
+          if (!f->module_alias_printed) {
+            // If the module_alias is not defined before, define it.
+            f->stmts.push_back(AssignDoc(IdDoc(d->cfg->module_alias), doc.value(), NullOpt));
+            f->module_alias_printed = true;
+          }
+          return IdDoc(d->cfg->module_alias);
         });
 
 }  // namespace printer

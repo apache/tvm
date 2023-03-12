@@ -188,12 +188,13 @@ class VarExample:
 
     @R.function
     def main(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+        cls = VarExample
         z = R.add(x, y)
         # no binding here
         _ = R.match_cast(x, R.Tensor((5, 5)))
         with R.dataflow():
             q = R.add(z, z)
-            p = func(q)
+            p = cls.func(q)
             r = R.match_cast(p, R.Tensor((5, 5)))
             s = r
             R.output(s)

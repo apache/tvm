@@ -37,7 +37,7 @@ def test_full():
     class Expected:
         @R.function
         def main(v: R.Tensor((), "int32")) -> R.Tensor((2, 3), "int32"):
-            gv = R.call_tir(full, (v,), R.Tensor((2, 3), dtype="int32"))
+            gv = R.call_tir(Expected.full, (v,), R.Tensor((2, 3), dtype="int32"))
             return gv
 
         @T.prim_func
@@ -68,7 +68,7 @@ def test_full_constant_scalar_fill_value():
     class Expected:
         @R.function
         def main() -> R.Tensor((2, 3), "int32"):
-            gv = R.call_tir(full, R.tuple(), R.Tensor((2, 3), dtype="int32"))
+            gv = R.call_tir(Expected.full, R.tuple(), R.Tensor((2, 3), dtype="int32"))
             return gv
 
         @T.prim_func
@@ -99,7 +99,7 @@ def test_full_different_dtype():
     class Expected:
         @R.function
         def main(v: R.Tensor((), "int32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(full, (v,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.full, (v,), R.Tensor((2, 3), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -134,7 +134,7 @@ def test_full_symbolic():
         def main(dumb_param: R.Tensor(("m", "n")), v: R.Tensor((), "int32")) -> R.Tensor(("m", "n"), "int32"):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(full, (v,), R.Tensor((m, n), dtype="int32"))
+            gv = R.call_tir(Expected.full, (v,), R.Tensor((m, n), dtype="int32"))
             return gv
 
         @T.prim_func
@@ -168,7 +168,7 @@ def test_full_like():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "int32"), v: R.Tensor((), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(full, (v,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.full, (v,), R.Tensor((2, 3), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -199,7 +199,7 @@ def test_full_like_constant_scalar_fill_value():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "int32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(full, R.tuple(), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.full, R.tuple(), R.Tensor((2, 3), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -230,7 +230,7 @@ def test_full_like_different_dtype():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "int32"), v: R.Tensor((), "float32")) -> R.Tensor((2, 3), "float64"):
-            gv = R.call_tir(full, (v,), R.Tensor((2, 3), dtype="float64"))
+            gv = R.call_tir(Expected.full, (v,), R.Tensor((2, 3), dtype="float64"))
             return gv
 
         @T.prim_func
@@ -265,7 +265,7 @@ def test_full_like_symbolic():
         def main(x: R.Tensor(("m", "n"), "int32"), v: R.Tensor((), "float32")) -> R.Tensor(("m", "n"), "float32"):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(full, (v,), R.Tensor((m, n), dtype="float32"))
+            gv = R.call_tir(Expected.full, (v,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -299,7 +299,7 @@ def test_ones():
     class Expected:
         @R.function
         def main() -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(ones, R.tuple(), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.ones, R.tuple(), R.Tensor((2, 3), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -334,7 +334,7 @@ def test_ones_symbolic():
         def main(dumb_param: R.Tensor(("m", "n"))) -> R.Tensor(("m", "n"), "float32"):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(ones, R.tuple(), R.Tensor((m, n), dtype="float32"))
+            gv = R.call_tir(Expected.ones, R.tuple(), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -368,7 +368,7 @@ def test_ones_like():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "int32"):
-            gv = R.call_tir(ones, R.tuple(), R.Tensor((2, 3), dtype="int32"))
+            gv = R.call_tir(Expected.ones, R.tuple(), R.Tensor((2, 3), dtype="int32"))
             return gv
 
         @T.prim_func
@@ -403,7 +403,7 @@ def test_ones_like_symbolic():
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(ones, R.tuple(), R.Tensor((m, n), dtype="float32"))
+            gv = R.call_tir(Expected.ones, R.tuple(), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -437,7 +437,7 @@ def test_zeros():
     class Expected:
         @R.function
         def main() -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(zeros, R.tuple(), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.zeros, R.tuple(), R.Tensor((2, 3), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -472,7 +472,7 @@ def test_zeros_symbolic():
         def main(dumb_param: R.Tensor(("m", "n"))) -> R.Tensor(("m", "n"), "float32"):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(zeros, R.tuple(), R.Tensor((m, n), dtype="float32"))
+            gv = R.call_tir(Expected.zeros, R.tuple(), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -506,7 +506,7 @@ def test_zeros_like():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "int32"):
-            gv = R.call_tir(zeros, R.tuple(), R.Tensor((2, 3), dtype="int32"))
+            gv = R.call_tir(Expected.zeros, R.tuple(), R.Tensor((2, 3), dtype="int32"))
             return gv
 
         @T.prim_func
@@ -541,7 +541,7 @@ def test_zeros_like_symbolic():
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(zeros, R.tuple(), R.Tensor((m, n), dtype="float32"))
+            gv = R.call_tir(Expected.zeros, R.tuple(), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -575,7 +575,7 @@ def test_tril():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4), "float32")) -> R.Tensor((2, 3, 4), "float32"):
-            gv = R.call_tir(tril, (x,), R.Tensor((2, 3, 4), dtype="float32"))
+            gv = R.call_tir(Expected.tril, (x,), R.Tensor((2, 3, 4), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -612,7 +612,7 @@ def test_tril_symbolic():
             m = T.int64()
             n = T.int64()
             k = T.int64()
-            gv = R.call_tir(tril, (x,), R.Tensor((m, n, k), dtype="int8"))
+            gv = R.call_tir(Expected.tril, (x,), R.Tensor((m, n, k), dtype="int8"))
             return gv
 
         @T.prim_func
@@ -648,7 +648,7 @@ def test_triu():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4), "float32")) -> R.Tensor((2, 3, 4), "float32"):
-            gv = R.call_tir(triu, (x,), R.Tensor((2, 3, 4), dtype="float32"))
+            gv = R.call_tir(Expected.triu, (x,), R.Tensor((2, 3, 4), dtype="float32"))
             return gv
 
         @T.prim_func
@@ -685,7 +685,7 @@ def test_triu_symbolic():
             m = T.int64()
             n = T.int64()
             k = T.int64()
-            gv = R.call_tir(triu, (x,), R.Tensor((m, n, k), dtype="int8"))
+            gv = R.call_tir(Expected.triu, (x,), R.Tensor((m, n, k), dtype="int8"))
             return gv
 
         @T.prim_func
@@ -724,7 +724,7 @@ def test_astype():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4), "float32")) -> R.Tensor((2, 3, 4), "int32"):
-            gv = R.call_tir(cast, (x,), R.Tensor((2, 3, 4), dtype="int32"))
+            gv = R.call_tir(Expected.cast, (x,), R.Tensor((2, 3, 4), dtype="int32"))
             return gv
 
         @T.prim_func
@@ -780,7 +780,7 @@ def test_astype_symbolic():
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "int32"):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(cast, (x,), R.Tensor((m, n), dtype="int32"))
+            gv = R.call_tir(Expected.cast, (x,), R.Tensor((m, n), dtype="int32"))
             return gv
 
         @T.prim_func
