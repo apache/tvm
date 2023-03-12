@@ -363,13 +363,12 @@ def test_warp_shuffle_transform():
     class Before:
         @T.prim_func
         def main(A: T.handle("float32", "global"), B: T.handle("float32", "global")):
-            # blockIdx_x = T.int32()
             blockIdx_x = T.env_thread("blockIdx.x")
             threadIdx_x = T.env_thread("threadIdx.x")
             T.func_attr(
                 {
                     "calling_conv": 2,
-                    "global_symbol": "default_function_kernel0",
+                    "global_symbol": "main",
                     "target": T.target(
                         {
                             "host": {"keys": ["cpu"], "kind": "llvm", "tag": ""},
@@ -410,7 +409,7 @@ def test_warp_shuffle_transform():
             T.func_attr(
                 {
                     "calling_conv": 2,
-                    "global_symbol": "default_function_kernel0",
+                    "global_symbol": "main",
                     "target": T.target(
                         {
                             "host": {"keys": ["cpu"], "kind": "llvm", "tag": ""},
@@ -448,34 +447,6 @@ def test_warp_shuffle_transform():
 
     tvm.ir.assert_structural_equal(after, Expected)
 
-@T.prim_func
-def warp_shuffle(A: T.Buffer([32], "float32"), B: T.Buffer([32], "float32")) -> None:
-    for i in range(32):
-        with T.block("warp_shuffle"):
-            vi = T.axis.spatial(32, i)
-            B[vi] = A[vi % 4 * 8 + vi // 4] + T.float32(1)
-
-
-@tvm.testing.requires_cuda
-def test_warp_shuffle():
-    mod = tvm.IRModule.from_expr(warp_shuffle)
-    sch = tvm.tir.Schedule(mod["main"])
-    blk = sch.get_block("warp_shuffle")
-    i, = sch.get_loops(blk)
-    io, ii = sch.split(i, [1, 32])
-    sch.bind(ii, "threadIdx.x")
-    A_warp = sch.cache_read(blk, 0, "warp")
-    sch.compute_at(A_warp, io)
-    sch.bind(sch.get_loops(A_warp)[-1], "threadIdx.x")
-    B_warp = sch.cache_write(blk, 0, "warp")
-    sch.reverse_compute_at(B_warp, io)
-    sch.bind(sch.get_loops(B_warp)[-1], "threadIdx.x")
-    sch.bind(io, "blockIdx.x")
-    print(sch.mod["main"].script())
-    f = tvm.build(sch.mod["main"], target="cuda")
-
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_warp_shuffle_transform()
-    # test_warp_shuffle()
+    tvm.testing.main()
