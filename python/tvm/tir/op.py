@@ -646,7 +646,9 @@ def tvm_warp_shuffle_up(mask, value, offset, width, warp_size):
     call : PrimExpr
         The call expression.
     """
-    return call_intrin(value.dtype, "tir.tvm_warp_shuffle_up", mask, value, offset, width, warp_size)
+    return call_intrin(
+        value.dtype, "tir.tvm_warp_shuffle_up", mask, value, offset, width, warp_size
+    )
 
 
 def tvm_warp_shuffle_down(mask, value, offset, width, warp_size):
@@ -671,7 +673,9 @@ def tvm_warp_shuffle_down(mask, value, offset, width, warp_size):
     call : PrimExpr
         The call expression.
     """
-    return call_intrin(value.dtype, "tir.tvm_warp_shuffle_down", mask, value, offset, width, warp_size)
+    return call_intrin(
+        value.dtype, "tir.tvm_warp_shuffle_down", mask, value, offset, width, warp_size
+    )
 
 
 def tvm_warp_activemask():
@@ -682,7 +686,7 @@ def tvm_warp_activemask():
     call : PrimExpr
         The call expression.
     """
-    return call_intrin("int32", "tir.tvm_warp_activemask")
+    return call_intrin("uint32", "tir.tvm_warp_activemask")
 
 
 def type_annotation(dtype):
