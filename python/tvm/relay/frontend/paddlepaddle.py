@@ -646,11 +646,11 @@ def convert_flip(g, op, block):
     x = g.get_node(op.input("X")[0])
     axis = op.attr("axis")
 
-    for i in range(len(axis)):
+    for i, ax in enumerate(axis):
         if i == 0:
-            out = _op.reverse(x, axis[i])
+            out = _op.reverse(x, ax)
         else:
-            out = _op.reverse(out, axis[i])
+            out = _op.reverse(out, ax)
 
     g.add_node(op.output("Out")[0], out)
 
@@ -681,7 +681,6 @@ def convert_gather_nd(g, op, block):
 def convert_gaussian_random(g, op, block):
     """Operator converter for convert_gaussian_random."""
 
-    x = g.get_node(op.input("X")[0])
     mean = op.attr("mean")
     std = op.attr("std")
     shape = op.attr("shape")
