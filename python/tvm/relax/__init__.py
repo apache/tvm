@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name, wrong-import-position
 """The Relax IR namespace containing the IR, type, operator, builder, vm, etc."""
 from tvm.runtime import relax_vm as vm
-from tvm.runtime.relax_vm import VirtualMachine
+from tvm.runtime.relax_vm import VirtualMachine, VMInstrumentReturnKind
 
 # Expr
 from .expr import (
