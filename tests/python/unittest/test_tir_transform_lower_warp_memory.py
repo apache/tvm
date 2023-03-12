@@ -347,27 +347,135 @@ def test_lower_warp_memory_divide_by_factor():
     with pytest.raises(tvm.error.TVMError, match="Divide by zero") as cm:
         tvm.tir.transform.LowerWarpMemory()(mod)["f_kernel0"]
 
+
 @T.prim_func
-def func() -> None:
-    A = T.alloc_buffer([32], "float32", scope="warp")
-    B = T.alloc_buffer([32], "float32", scope="warp")
+def func(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [32], "float32")
+    B = T.match_buffer(b, [32], "float32")
     for i in range(32):
         with T.block("warp_shuffle"):
-            B[i] = A[(i % 4) * 8 + i // 4] + 1
+            vi = T.axis.spatial(32, i)
+            B[vi] = A[(vi % 4) * 8 + vi // 4] + T.float32(1)
+
+
+def test_warp_shuffle_transform():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.handle("float32", "global"), B: T.handle("float32", "global")):
+            # blockIdx_x = T.int32()
+            blockIdx_x = T.env_thread("blockIdx.x")
+            threadIdx_x = T.env_thread("threadIdx.x")
+            T.func_attr(
+                {
+                    "calling_conv": 2,
+                    "global_symbol": "default_function_kernel0",
+                    "target": T.target(
+                        {
+                            "host": {"keys": ["cpu"], "kind": "llvm", "tag": ""},
+                            "keys": ["cuda", "gpu"],
+                            "kind": "cuda",
+                            "max_num_threads": 1024,
+                            "tag": "",
+                            "thread_warp_size": 32,
+                        }
+                    ),
+                    "tir.device_thread_axis": [
+                        T.iter_var(blockIdx_x, [0, 1], "ThreadIndex", "blockIdx.x"),
+                        T.iter_var(threadIdx_x, [0, 32], "ThreadIndex", "threadIdx.x"),
+                    ],
+                    "tir.is_global_func": 1,
+                    "tir.noalias": 1,
+                }
+            )
+            T.launch_thread(blockIdx_x, 1)
+            A_warp = T.allocate([32], "float32", "warp")
+            B_warp = T.allocate([32], "float32", "warp")
+            T.launch_thread(threadIdx_x, 32)
+            A_warp_1 = T.Buffer((32,), data=A_warp, scope="warp")
+            A_1 = T.Buffer((32,), data=A)
+            A_warp_1[threadIdx_x] = A_1[threadIdx_x]
+            B_warp_1 = T.Buffer((32,), data=B_warp, scope="warp")
+            # T.tvm_storage_sync("warp")
+            B_warp_1[threadIdx_x] = A_warp_1[threadIdx_x % 4 * 8 + threadIdx_x // 4] + T.float32(1)
+            B_1 = T.Buffer((32,), data=B)
+            B_1[threadIdx_x] = B_warp_1[threadIdx_x]
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.handle("float32", "global"), B: T.handle("float32", "global")):
+            blockIdx_x = T.env_thread("blockIdx.x")
+            threadIdx_x = T.env_thread("threadIdx.x")
+            T.func_attr(
+                {
+                    "calling_conv": 2,
+                    "global_symbol": "default_function_kernel0",
+                    "target": T.target(
+                        {
+                            "host": {"keys": ["cpu"], "kind": "llvm", "tag": ""},
+                            "keys": ["cuda", "gpu"],
+                            "kind": "cuda",
+                            "max_num_threads": 1024,
+                            "tag": "",
+                            "thread_warp_size": 32,
+                        }
+                    ),
+                    "tir.device_thread_axis": [
+                        T.iter_var(blockIdx_x, [0, 1], "ThreadIndex", "blockIdx.x"),
+                        T.iter_var(threadIdx_x, [0, 32], "ThreadIndex", "threadIdx.x"),
+                    ],
+                    "tir.is_global_func": 1,
+                    "tir.noalias": 1,
+                }
+            )
+            T.launch_thread(blockIdx_x, 1)
+            A_warp = T.allocate([1], "float32", "local")
+            B_warp = T.allocate([1], "float32", "local")
+            T.launch_thread(threadIdx_x, 32)
+            A_warp_1 = T.Buffer((32,), data=A_warp, scope="local")
+            A_1 = T.Buffer((32,), data=A)
+            A_warp_1[0] = A_1[threadIdx_x]
+            B_warp_1 = T.Buffer((32,), data=B_warp, scope="local")
+            # T.tvm_storage_sync("warp")
+            B_warp_1[0] = T.tvm_warp_shuffle(
+                T.tvm_warp_activemask(), A_warp_1[0], threadIdx_x % 4 * 8 + threadIdx_x // 4, 32, 32
+            ) + T.float32(1)
+            B_1 = T.Buffer((32,), data=B)
+            B_1[threadIdx_x] = B_warp_1[0]
+
+    after = tvm.tir.transform.LowerWarpMemory()(Before)
+
+    tvm.ir.assert_structural_equal(after, Expected)
+
+@T.prim_func
+def warp_shuffle(A: T.Buffer([32], "float32"), B: T.Buffer([32], "float32")) -> None:
+    for i in range(32):
+        with T.block("warp_shuffle"):
+            vi = T.axis.spatial(32, i)
+            B[vi] = A[vi % 4 * 8 + vi // 4] + T.float32(1)
 
 
 @tvm.testing.requires_cuda
 def test_warp_shuffle():
-    mod = tvm.IRModule.from_expr(func)    
+    mod = tvm.IRModule.from_expr(warp_shuffle)
     sch = tvm.tir.Schedule(mod["main"])
     blk = sch.get_block("warp_shuffle")
     i, = sch.get_loops(blk)
     io, ii = sch.split(i, [1, 32])
-    sch.bind(io, "blockIdx.x")
     sch.bind(ii, "threadIdx.x")
+    A_warp = sch.cache_read(blk, 0, "warp")
+    sch.compute_at(A_warp, io)
+    sch.bind(sch.get_loops(A_warp)[-1], "threadIdx.x")
+    B_warp = sch.cache_write(blk, 0, "warp")
+    sch.reverse_compute_at(B_warp, io)
+    sch.bind(sch.get_loops(B_warp)[-1], "threadIdx.x")
+    sch.bind(io, "blockIdx.x")
+    print(sch.mod["main"].script())
     f = tvm.build(sch.mod["main"], target="cuda")
 
 
 if __name__ == "__main__":
     # tvm.testing.main()
-    test_warp_shuffle()
+    test_warp_shuffle_transform()
+    # test_warp_shuffle()
