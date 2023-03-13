@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+import sys
 from typing import Optional, Union
 
 import pytest
@@ -460,6 +460,7 @@ def test_tuple_return_2():
     _check(foo, bb.get()["foo"])
 
 
+@pytest.mark.skipif(sys.version_info < (3, 8), reason="requires python3.8 or higher")
 def test_tuple_binding():
     @R.function
     def foo(x: R.Tensor("float32", ndim=2)):
@@ -481,6 +482,7 @@ def test_tuple_binding():
     _check(foo, bb.get()["foo"])
 
 
+@pytest.mark.skipif(sys.version_info < (3, 8), reason="requires python3.8 or higher")
 def test_tuple_get_item():
     @R.function
     def foo(x: R.Tensor, y: R.Tensor):
@@ -1112,6 +1114,7 @@ def test_symbolic_shape_computing():
             return z
 
 
+@pytest.mark.skipif(sys.version_info < (3, 8), reason="requires python3.8 or higher")
 def test_arith_operators():
     @R.function
     def foo(x: R.Tensor(("m", "n"), "float32"), y: R.Tensor(("m", "n"), "float32")):
@@ -1132,7 +1135,7 @@ def test_arith_operators():
         t0 = tuple_expr[0]
         t1 = tuple_expr[1]
         t2 = tuple_expr[0][0]  # <= Will normalize to two bindings
-        return a0, a1, a2, a3, a4, a5, a6, c0, c1, c2, c3, t0, t1, t2
+        return (a0, a1, a2, a3, a4, a5, a6, c0, c1, c2, c3, t0, t1, t2)
 
     m = tir.Var("m", "int64")
     n = tir.Var("n", "int64")
