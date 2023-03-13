@@ -187,7 +187,7 @@ def @main(%a: Tensor[(5, 7), float32]) -> Tensor[(5, 7), float32] {
         tmp_write: T.handle("uint8") = output_buffer.data
         tmp_write_1 = T.Buffer([T.uint64(140)], dtype="uint8", data=tmp_write)
         for i in T.serial(140):
-            tmp_write_1[i] = T.let(tmp_read, a_buffer.data, tmp_read_1[i])
+            tmp_write_1[i] = T.Let(tmp_read_1[i], where={tmp_read : a_buffer.data})
     # fmt: on
 
     _assert_lowered_main(mod, func, CallType.CPacked)

@@ -44,7 +44,8 @@ if TYPE_CHECKING:
 def _normalize_mod(mod: Union[PrimFunc, IRModule]) -> IRModule:
     """Normalize the input to an IRModule"""
     if isinstance(mod, PrimFunc):
-        mod = mod.with_attr("global_symbol", "main")
+        if not (mod.attrs and "global_symbol" in mod.attrs):
+            mod = mod.with_attr("global_symbol", "main")
         mod = mod.with_attr("tir.noalias", True)
         mod = IRModule({"main": mod})
     if not isinstance(mod, IRModule):

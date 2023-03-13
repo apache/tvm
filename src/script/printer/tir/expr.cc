@@ -24,33 +24,47 @@ namespace tvm {
 namespace script {
 namespace printer {
 
+ExprDoc PrintVarCreation(const tir::Var& var, const ObjectPath& var_p, const IRDocsifier& d) {
+  Type type = var->type_annotation;
+  ObjectPath type_p = var_p->Attr("type_annotation");
+  ExprDoc rhs{nullptr};
+  Array<String> kwargs_keys;
+  Array<ExprDoc> kwargs_values;
+
+  if (var->IsInstance<tir::SizeVarNode>()) {
+    kwargs_keys.push_back("is_size_var");
+    kwargs_values.push_back(LiteralDoc::Boolean(true, NullOpt));
+  }
+
+  if (const auto* ptr_type = type.as<PointerTypeNode>()) {
+    const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>();
+    ICHECK(prim_type);
+    ExprDoc element_type =
+        LiteralDoc::DataType(prim_type->dtype, type_p->Attr("element_type")->Attr("dtype"));
+    rhs = TIR(d, "handle");
+    rhs->source_paths.push_back(var_p->Attr("dtype"));
+    if (ptr_type->storage_scope == "") {
+      rhs = rhs->Call({element_type}, kwargs_keys, kwargs_values);
+    } else {
+      rhs = rhs->Call({element_type,
+                       LiteralDoc::Str(ptr_type->storage_scope,  //
+                                       type_p->Attr("storage_scope"))},
+                      kwargs_keys, kwargs_values);
+    }
+  } else {
+    rhs = TIR(d, DType2Str(var->dtype));
+    rhs->source_paths.push_back(var_p->Attr("dtype"));
+    rhs = rhs->Call({}, kwargs_keys, kwargs_values);
+  }
+  rhs->source_paths.push_back(type_p);
+  return rhs;
+}
+
 Doc PrintVar(const tir::Var& var, const ObjectPath& var_p, const IRDocsifier& d) {
   if (!d->IsVarDefined(var)) {
     if (Optional<Frame> opt_f = FindLowestVarDef(var, d)) {
       ExprDoc lhs = DefineVar(var, opt_f.value(), d);
-      Type type = var->type_annotation;
-      ObjectPath type_p = var_p->Attr("type_annotation");
-      ExprDoc rhs{nullptr};
-      if (const auto* ptr_type = type.as<PointerTypeNode>()) {
-        const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>();
-        ICHECK(prim_type);
-        ExprDoc element_type =
-            LiteralDoc::DataType(prim_type->dtype, type_p->Attr("element_type")->Attr("dtype"));
-        rhs = TIR(d, "handle");
-        rhs->source_paths.push_back(var_p->Attr("dtype"));
-        if (ptr_type->storage_scope == "") {
-          rhs = rhs->Call({element_type});
-        } else {
-          rhs = rhs->Call({element_type,
-                           LiteralDoc::Str(ptr_type->storage_scope,  //
-                                           type_p->Attr("storage_scope"))});
-        }
-      } else {
-        rhs = TIR(d, DType2Str(var->dtype));
-        rhs->source_paths.push_back(var_p->Attr("dtype"));
-        rhs = rhs->Call({});
-      }
-      rhs->source_paths.push_back(type_p);
+      ExprDoc rhs = PrintVarCreation(var, var_p, d);
       opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
     } else {
       LOG(WARNING) << "Didn't find variable definition for: " << var->name_hint;
@@ -211,11 +225,10 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Let>("", [](tir::Let let, ObjectPath p, IRDocsifier d) -> Doc {
-      return TIR(d, "let")->Call({
-          d->AsDoc<ExprDoc>(let->var, p->Attr("var")),
-          d->AsDoc<ExprDoc>(let->value, p->Attr("value")),
-          d->AsDoc<ExprDoc>(let->body, p->Attr("body")),
-      });
+      DictDoc where({d->AsDoc<ExprDoc>(let->var, p->Attr("var"))},
+                    {d->AsDoc<ExprDoc>(let->value, p->Attr("value"))});
+      return TIR(d, "Let")->Call({d->AsDoc<ExprDoc>(let->body, p->Attr("body"))},  //
+                                 {"where"}, {where});
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -298,32 +311,47 @@ bool IsNumber(const ExprDoc& e) {
   return false;
 }
 
-#define TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(NodeType, OpString, OpKind)                      \
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<tir::Div>("", [](tir::Div node, ObjectPath p, IRDocsifier d) -> Doc {
+      ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));
+      ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));
+      PrimExpr ret = tvm::div(node->a, node->b);
+      if (!ret->IsInstance<tir::DivNode>()) {
+        return TIR(d, "Div")->Call({a, b});
+      }
+      if ((node->a->dtype.is_int() || node->a->dtype.is_uint()) &&
+          (node->b->dtype.is_int() || node->b->dtype.is_uint())) {
+        return TIR(d, "Div")->Call({a, b});
+      }
+      return OperationDoc(OperationDocNode::Kind::kDiv, {a, b});
+    });
+
+#define TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(NodeType, NodeObj, NodeFunc, OpString, OpKind)   \
   TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)                                                      \
       .set_dispatch<tir::NodeType>("",                                                            \
                                    [](tir::NodeType node, ObjectPath p, IRDocsifier d) -> Doc {   \
                                      ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));        \
                                      ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));        \
-                                     if (IsNumber(a) && IsNumber(b)) {                            \
+                                     PrimExpr ret = tvm::NodeFunc(node->a, node->b);              \
+                                     if (!ret->IsInstance<tir::NodeObj>()) {                      \
                                        return TIR(d, OpString)->Call({a, b});                     \
                                      }                                                            \
                                      return OperationDoc(OperationDocNode::Kind::OpKind, {a, b}); \
                                    });
 
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Add, "Add", kAdd);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Sub, "Sub", kSub);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Mul, "Mul", kMult);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Div, "Div", kDiv);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(FloorDiv, "FloorDiv", kFloorDiv);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(FloorMod, "FloorMod", kMod);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LT, "LT", kLt);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LE, "LE", kLtE);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(EQ, "EQ", kEq);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(NE, "NE", kNotEq);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(GT, "GT", kGt);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(GE, "GE", kGtE);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(And, "And", kAnd);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Or, "Or", kOr);
+TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Add, AddNode, add, "Add", kAdd);
+TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Sub, SubNode, sub, "Sub", kSub);
+TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Mul, MulNode, mul, "Mul", kMult);
+TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(FloorDiv, FloorDivNode, floordiv, "FloorDiv", kFloorDiv);
+TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(FloorMod, FloorModNode, floormod, "FloorMod", kMod);
+TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LT, LTNode, less, "LT", kLt);
+TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LE, LENode, less_equal, "LE", kLtE);
+TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(EQ, EQNode, equal, "EQ", kEq);
+TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(NE, NENode, not_equal, "NE", kNotEq);
+TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(GT, GTNode, greater, "GT", kGt);
+TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(GE, GENode, greater_equal, "GE", kGtE);
+TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(And, AndNode, logical_and, "And", kAnd);
+TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Or, OrNode, logical_or, "Or", kOr);
 
 TVM_SCRIPT_PRINTER_DEF_BINARY(Mod, "truncmod");
 TVM_SCRIPT_PRINTER_DEF_BINARY(Min, "min");

@@ -179,6 +179,10 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheRead")
     .set_body_method<Schedule>(&ScheduleNode::CacheRead);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheWrite")
     .set_body_method<Schedule>(&ScheduleNode::CacheWrite);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReindexCacheRead")
+    .set_body_method<Schedule>(&ScheduleNode::ReindexCacheRead);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReindexCacheWrite")
+    .set_body_method<Schedule>(&ScheduleNode::ReindexCacheWrite);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheInplace")
     .set_body_method<Schedule>(&ScheduleNode::CacheInplace);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheIndex")

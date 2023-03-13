@@ -680,6 +680,23 @@ def test_forward_expand_as():
 
 
 @tvm.testing.uses_gpu
+def test_forward_fill_zeros_like():
+    class FilZeroLike(nn.Layer):
+        def __init__(self, dtype=None):
+            super(FilZeroLike, self).__init__()
+            self.dtype = dtype
+
+        @paddle.jit.to_static
+        def forward(self, x):
+            return paddle.zeros_like(x, dtype=self.dtype)
+
+    input_shape = [2, 3, 5]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(FilZeroLike("float32"), input_data=input_data)
+    verify_model(FilZeroLike("int32"), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_flatten():
     class Flatten(nn.Layer):
         def __init__(self, start_axis=0, stop_axis=-1):
@@ -695,6 +712,23 @@ def test_forward_flatten():
     verify_model(Flatten(), input_data=input_data)
     verify_model(Flatten(2), input_data=input_data)
     verify_model(Flatten(2, -2), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_flip():
+    class Flip(nn.Layer):
+        def __init__(self, axis):
+            super(Flip, self).__init__()
+            self.axis = axis
+
+        @paddle.jit.to_static
+        def forward(self, x):
+            return paddle.flip(x, axis=self.axis)
+
+    input_data = paddle.rand([2, 3, 4], dtype="float32")
+    verify_model(Flip(0), input_data)
+    verify_model(Flip(-1), input_data)
+    verify_model(Flip([0, 1]), input_data)
 
 
 @tvm.testing.uses_gpu
@@ -748,6 +782,39 @@ def test_forward_group_norm():
         input_data = paddle.uniform(input_shape)
         verify_model(GroupNorm(num_channels, 1), input_data, rtol=1e-4, atol=1e-4)
         verify_model(GroupNorm(num_channels, 2), input_data, rtol=1e-4, atol=1e-4)
+
+
+@tvm.testing.uses_gpu
+def test_forward_grid_sampler():
+    class GridSampler(nn.Layer):
+        def __init__(self, mode="bilinear", padding_mode="zeros", align_corners=True):
+            super(GridSampler, self).__init__()
+            self.mode = mode
+            self.padding_mode = padding_mode
+            self.align_corners = align_corners
+
+        def forward(self, x, grid):
+            return paddle.nn.functional.grid_sample(
+                x,
+                grid,
+                mode=self.mode,
+                padding_mode=self.padding_mode,
+                align_corners=self.align_corners,
+            )
+
+    x_2D = paddle.rand(shape=[4, 4, 8, 8], dtype="float32")
+    grid_2D = paddle.rand(shape=[4, 8, 8, 2], dtype="float32")
+    verify_model(GridSampler(mode="nearest"), input_data=[x_2D, grid_2D])
+    verify_model(GridSampler(padding_mode="reflection"), input_data=[x_2D, grid_2D])
+    verify_model(GridSampler(padding_mode="border"), input_data=[x_2D, grid_2D])
+    verify_model(GridSampler(align_corners=False), input_data=[x_2D, grid_2D])
+
+    x_3D = paddle.rand(shape=[4, 4, 4, 4, 4], dtype="float32")
+    grid_3D = paddle.rand(shape=[4, 8, 8, 8, 3], dtype="float32")
+    verify_model(GridSampler(mode="nearest"), input_data=[x_3D, grid_3D])
+    verify_model(GridSampler(padding_mode="reflection"), input_data=[x_3D, grid_3D])
+    verify_model(GridSampler(padding_mode="border"), input_data=[x_3D, grid_3D])
+    verify_model(GridSampler(align_corners=False), input_data=[x_3D, grid_3D])
 
 
 @tvm.testing.uses_gpu
@@ -1062,8 +1129,7 @@ def test_forward_logical_api():
 
         @paddle.jit.to_static
         def forward(self, x, y):
-            out = paddle.to_tensor([True, True, True])
-            z = self.func(x, y, out=out)
+            z = self.func(x, y)
             return paddle.cast(z, "int32")
 
     x_shapes = [[128], [8, 20], [4, 20, 3], [2, 3, 8, 8], [2, 3, 3, 9, 9]]
@@ -1268,7 +1334,7 @@ def test_forward_transpose():
 
         @paddle.jit.to_static
         def forward(self, inputs):
-            inputs = inputs + inputs.size()
+            inputs = inputs * 2
             return paddle.transpose(inputs, perm=self.perm)
 
     input_data = paddle.rand([1, 3, 5, 4, 3], dtype="float32")
@@ -1393,6 +1459,45 @@ def test_forward_slice():
     verify_model(slice3, input_data=paddle.randn((4, 4)))
     verify_model(slice4, input_data=input_data)
     # verify_model(slice5, input_data=paddle.randn((4,)))
+
+
+@tvm.testing.uses_gpu
+def test_forward_unique():
+    class Unique(nn.Layer):
+        def __init__(
+            self,
+            return_index=False,
+            return_inverse=False,
+            return_counts=False,
+            axis=None,
+            dtype="int64",
+        ):
+            super(Unique, self).__init__()
+            self.return_index = return_index
+            self.return_inverse = return_inverse
+            self.return_counts = return_counts
+            self.axis = None
+            self.dtype = dtype
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            result = paddle.unique(
+                inputs,
+                return_inverse=self.return_inverse,
+                return_counts=self.return_counts,
+                axis=self.axis,
+                dtype=self.dtype,
+            )
+            return result
+
+    input_shape = [2, 3, 5]
+    input_data = paddle.rand(input_shape)
+    verify_model(Unique(), input_data=input_data)
+    verify_model(Unique(return_index=True), input_data=input_data)
+    verify_model(Unique(return_index=True, return_inverse=True), input_data=input_data)
+    verify_model(
+        Unique(return_index=True, return_inverse=True, return_counts=True), input_data=input_data
+    )
 
 
 @tvm.testing.uses_gpu
@@ -1739,13 +1844,25 @@ def test_forward_topk():
     def topk6(inputs):
         return paddle.topk(inputs, k=1, axis=0)
 
+    # paddle.fluid.layers.topk
+    @paddle.jit.to_static
+    def topk7(inputs):
+        return paddle.fluid.layers.topk(inputs, k=1)
+
+    @paddle.jit.to_static
+    def topk8(inputs):
+        return paddle.fluid.layers.topk(inputs, k=2)
+
     input_data = paddle.to_tensor([[1, 4, 5, 7], [3, 6, 2, 5]], dtype=paddle.int32)
+    input_data_fp32 = paddle.to_tensor([[1, 4, 5, 7], [3, 6, 2, 5]], dtype=paddle.float32)
     verify_model(topk1, input_data=input_data)
     # verify_model(topk2, input_data=input_data)
     verify_model(topk3, input_data=input_data)
     verify_model(topk4, input_data=input_data)
     verify_model(topk5, input_data=input_data)
     verify_model(topk6, input_data=input_data)
+    verify_model(topk7, input_data=input_data_fp32)
+    verify_model(topk8, input_data=input_data_fp32)
 
 
 @tvm.testing.uses_gpu
@@ -1782,6 +1899,343 @@ def test_forward_where_index():
 
     input_data = paddle.to_tensor([[1.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 3.0]])
     verify_model(where_index_1, input_data=input_data, use_vm=True)
+
+
+@tvm.testing.uses_gpu
+def test_forward_take_along_axis():
+    @paddle.jit.to_static
+    def take_along_axis_1(inputs, index):
+        return paddle.take_along_axis(inputs, index, 0)
+
+    input_data = paddle.to_tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+    index = paddle.to_tensor([[0]])
+    verify_model(take_along_axis_1, input_data=[input_data, index])
+
+
+@tvm.testing.uses_gpu
+def test_forward_stack():
+    class Stack1(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, input0, input1, input2):
+            return paddle.stack([input0, input1, input2], axis=-1)
+
+    class Stack2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, input0, input1, input2):
+            return paddle.stack([input0, input1, input2], axis=1)
+
+    class Stack3(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, input0, input1, input2):
+            return paddle.stack([input0, input1, input2], axis=2)
+
+    input_shapes = [[2, 3], [5, 10, 11], [3, 4, 5, 6]]
+    for input_shape in input_shapes:
+        input_data_0 = paddle.randn(shape=input_shape, dtype="float32")
+        input_data_1 = paddle.randn(shape=input_shape, dtype="float32")
+        input_data_2 = paddle.randn(shape=input_shape, dtype="float32")
+        verify_model(Stack1(), [input_data_0, input_data_1, input_data_2])
+        verify_model(Stack2(), [input_data_0, input_data_1, input_data_2])
+        verify_model(Stack3(), [input_data_0, input_data_1, input_data_2])
+
+
+@tvm.testing.uses_gpu
+def test_forward_unstack():
+    class UnStack1(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.unstack(inputs, axis=-1)
+
+    class UnStack2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.unstack(inputs, axis=1)
+
+    class UnStack3(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.unstack(inputs, axis=0)
+
+    input_shapes = [[2, 3], [5, 10, 11], [3, 4, 5, 6], [1, 3, 4, 1, 1]]
+    for input_shape in input_shapes:
+        input_data = paddle.randn(shape=input_shape, dtype="float32")
+        verify_model(UnStack1(), input_data)
+        verify_model(UnStack2(), input_data)
+        verify_model(UnStack3(), input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_silu():
+    class Silu(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return nn.functional.silu(inputs)
+
+    input_shapes = [[10], [2, 3], [5, 10, 11], [3, 4, 5, 6]]
+    for input_shape in input_shapes:
+        input_data = paddle.randn(shape=input_shape, dtype="float32")
+        verify_model(Silu(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_softshrink():
+    @paddle.jit.to_static
+    def Softshrink1(input):
+        return nn.functional.softshrink(input, threshold=0.0)
+
+    @paddle.jit.to_static
+    def Softshrink2(input):
+        return nn.functional.softshrink(input, threshold=0.5)
+
+    @paddle.jit.to_static
+    def Softshrink3(input):
+        return nn.functional.softshrink(input, threshold=1.0)
+
+    x = paddle.to_tensor([-0.9, -0.2, 0.1, 0.8])
+    verify_model(Softshrink2, x)
+
+    input_shapes = [[10], [2, 3], [5, 10, 11], [3, 4, 5, 6]]
+    for input_shape in input_shapes:
+        input_data = paddle.randn(shape=input_shape, dtype="float32")
+        verify_model(Softshrink1, input_data=input_data)
+        verify_model(Softshrink2, input_data=input_data)
+        verify_model(Softshrink3, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_where():
+    @paddle.jit.to_static
+    def where1(x, y):
+        return paddle.where(x > 1, x, y)
+
+    @paddle.jit.to_static
+    def where2(x, y):
+        return paddle.where(x > y, x, y)
+
+    x = paddle.to_tensor([0.9383, 0.1983, 3.2, 1.2])
+    y = paddle.to_tensor([1.0, 1.0, 1.0, 1.0])
+    verify_model(where1, [x, y])
+
+    input_shapes = [[10], [2, 3], [5, 10, 11], [3, 4, 5, 6]]
+    for input_shape in input_shapes:
+        x = paddle.randn(shape=input_shape, dtype="float32")
+        y = paddle.randn(shape=input_shape, dtype="float32")
+        verify_model(where1, [x, y])
+        verify_model(where2, [x, y])
+
+
+@tvm.testing.uses_gpu
+def test_forward_tile():
+    class Tile1(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.tile(inputs, repeat_times=[10])
+
+    class Tile2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.tile(inputs, repeat_times=[2, 3])
+
+    class Tile3(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.tile(inputs, repeat_times=[1, 2, 3])
+
+    class Tile4(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.tile(inputs, repeat_times=[2, 3, 4, 1, 5])
+
+    class Tile5(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            reps = paddle.to_tensor([3, 2])
+            reps = paddle.cast(reps, "int32")
+            return paddle.tile(inputs, repeat_times=reps)
+
+    class Tile6(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            rep_0 = paddle.to_tensor([3])
+            rep_1 = paddle.to_tensor([2])
+            rep_0 = paddle.cast(rep_0, "int32")
+            rep_1 = paddle.cast(rep_1, "int32")
+            return paddle.tile(inputs, repeat_times=[rep_0, rep_1])
+
+    input_shapes = [
+        [10],
+        [2, 3],
+        [3, 4, 5],
+        [5, 3, 1, 4],
+        [1, 3, 1, 6, 7],
+    ]
+    for input_shape in input_shapes:
+        input_data = paddle.randn(shape=input_shape, dtype="float32")
+        verify_model(Tile1(), input_data=input_data)
+        verify_model(Tile2(), input_data=input_data)
+        verify_model(Tile3(), input_data=input_data)
+        verify_model(Tile4(), input_data=input_data)
+        verify_model(Tile5(), input_data=input_data)
+        verify_model(Tile6(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_mish():
+    class Mish(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return nn.functional.mish(inputs)
+
+    input_shapes = [[10], [2, 3], [5, 10, 11], [3, 4, 5, 6]]
+    if paddle.version.full_version >= "2.4.2":
+        for input_shape in input_shapes:
+            input_data = paddle.randn(shape=input_shape, dtype="float32")
+            verify_model(Mish(), input_data=input_data)
+            input_data += 20.0
+            verify_model(Mish(), input_data=input_data)
+
+        input_data = paddle.to_tensor([-5.0, 0.0, 5.0, 23.1, 20.0])
+        verify_model(Mish(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_thresholded_relu():
+    class ThresholdedRelu1(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return nn.functional.thresholded_relu(inputs)
+
+    class ThresholdedRelu2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return nn.functional.thresholded_relu(inputs, threshold=0.5)
+
+    input_shapes = [[10], [2, 3], [5, 10, 11], [3, 4, 5, 6]]
+    for input_shape in input_shapes:
+        input_data = paddle.randn(shape=input_shape, dtype="float32")
+        verify_model(ThresholdedRelu1(), input_data=input_data)
+        verify_model(ThresholdedRelu2(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_index_select():
+    class IndexSelect1(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, x, index):
+            return paddle.index_select(x, index, axis=0)
+
+    class IndexSelect2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, x, index):
+            return paddle.index_select(x, index, axis=-1)
+
+    input_shapes = [[10], [2, 3], [5, 10, 11], [3, 4, 5, 6]]
+    for input_shape in input_shapes:
+        input_data = paddle.randn(shape=input_shape, dtype="float32")
+        index = paddle.to_tensor([0, 1, 1], dtype="int32")
+        verify_model(IndexSelect1(), input_data=[input_data, index])
+        verify_model(IndexSelect2(), input_data=[input_data, index])
+
+
+@tvm.testing.uses_gpu
+def test_forward_eye():
+    class Eye1(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.eye(3, 5, dtype="int32"), paddle.eye(3, 5, dtype="float32"), inputs
+
+    class Eye2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.eye(5, 3, dtype="int64"), paddle.eye(5, 3, dtype="float64"), inputs
+
+    class Eye3(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.eye(0, 3, dtype="int64"), paddle.eye(0, 0, dtype="float64"), inputs
+
+    class Eye4(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.eye(4, None, dtype="int64"), paddle.eye(4, None, dtype="float64"), inputs
+
+    x = paddle.to_tensor([1], dtype="float32")
+    verify_model(Eye1(), input_data=[x])
+    verify_model(Eye2(), input_data=[x])
+    verify_model(Eye3(), input_data=[x])
+    verify_model(Eye4(), input_data=[x])
+
+
+@tvm.testing.uses_gpu
+def test_forward_linspace():
+    class Linspace1(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            out1 = paddle.linspace(0.5, 7, 1, "int32")
+            out2 = paddle.linspace(1.3, 7.1, 5, "float32")
+            out3 = paddle.linspace(1, 1000000000, 10, "int64")
+            out4 = paddle.linspace(1, 7.1, 5, "float64")
+            return out1, out2, out3, out4, inputs
+
+    class Linspace2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            start = paddle.to_tensor([-2.5])
+            stop = paddle.to_tensor([31.6])
+            num = paddle.to_tensor([13])
+            start = paddle.cast(start, "float32")
+            stop = paddle.cast(stop, "float32")
+            num = paddle.cast(num, "int32")
+            out1 = paddle.linspace(start, stop, num, "int32")
+            out2 = paddle.linspace(start, stop, num, "float32")
+            out3 = paddle.linspace(start, stop, num, "int64")
+            out4 = paddle.linspace(start, stop, num, "float64")
+            return out1, out2, out3, out4, inputs
+
+    class Linspace3(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, start, stop, num):
+            out1 = paddle.linspace(start, stop, num, "int32")
+            out2 = paddle.linspace(start, stop, num, "float32")
+            out3 = paddle.linspace(start, stop, num, "int64")
+            out4 = paddle.linspace(start, stop, num, "float32")
+            return out1
+
+    start = paddle.to_tensor([1.3])
+    stop = paddle.to_tensor([5.1])
+    num = paddle.to_tensor([3])
+    start = paddle.cast(start, "float32")
+    stop = paddle.cast(stop, "float32")
+    num = paddle.cast(num, "int32")
+    x = paddle.to_tensor([1], dtype="float32")
+    verify_model(Linspace1(), input_data=[x])
+    verify_model(Linspace2(), input_data=[x])
+    verify_model(Linspace3(), input_data=[start, stop, num], use_vm=True)
+    num = paddle.to_tensor([1])
+    num = paddle.cast(num, "int32")
+    verify_model(Linspace3(), input_data=[start, stop, num], use_vm=True)
+
+
+@tvm.testing.uses_gpu
+def test_forward_dist():
+    class Dist(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, x, y):
+            l0_norm = paddle.dist(x, y, 0)
+            l2_norm = paddle.dist(x, y, 2)
+            float_norm = paddle.dist(x, y, 1.3)
+            inf_norm = paddle.dist(x, y, float("inf"))
+            ninf_norm = paddle.dist(x, y, float("-inf"))
+            return l0_norm, l2_norm, float_norm, inf_norm, ninf_norm
+
+    x = paddle.to_tensor([[3, 3], [3, 3]], dtype="float32")
+    y = paddle.to_tensor([[1, 2], [3, 4]], dtype="float32")
+    w = paddle.to_tensor([[1, 2]], dtype="float32")
+    v = paddle.to_tensor([[2.1]], dtype="float32")
+    verify_model(Dist(), input_data=[x, y])
+    verify_model(Dist(), input_data=[x, w])
+    verify_model(Dist(), input_data=[w, v])
+    verify_model(Dist(), input_data=[y, v])
 
 
 if __name__ == "__main__":
