@@ -751,7 +751,6 @@ StructInfo InferStructInfoReshape(const Call& call, const BlockBuilder& ctx) {
                        << new_shape_prod);
     }
   }
-
   return TensorStructInfo(call->args[1], data_sinfo->dtype);
 }
 
