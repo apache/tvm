@@ -680,6 +680,23 @@ def test_forward_expand_as():
 
 
 @tvm.testing.uses_gpu
+def test_forward_fill_zeros_like():
+    class FilZeroLike(nn.Layer):
+        def __init__(self, dtype=None):
+            super(FilZeroLike, self).__init__()
+            self.dtype = dtype
+
+        @paddle.jit.to_static
+        def forward(self, x):
+            return paddle.zeros_like(x, dtype=self.dtype)
+
+    input_shape = [2, 3, 5]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(FilZeroLike("float32"), input_data=input_data)
+    verify_model(FilZeroLike("int32"), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_flatten():
     class Flatten(nn.Layer):
         def __init__(self, start_axis=0, stop_axis=-1):
@@ -695,6 +712,23 @@ def test_forward_flatten():
     verify_model(Flatten(), input_data=input_data)
     verify_model(Flatten(2), input_data=input_data)
     verify_model(Flatten(2, -2), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_flip():
+    class Flip(nn.Layer):
+        def __init__(self, axis):
+            super(Flip, self).__init__()
+            self.axis = axis
+
+        @paddle.jit.to_static
+        def forward(self, x):
+            return paddle.flip(x, axis=self.axis)
+
+    input_data = paddle.rand([2, 3, 4], dtype="float32")
+    verify_model(Flip(0), input_data)
+    verify_model(Flip(-1), input_data)
+    verify_model(Flip([0, 1]), input_data)
 
 
 @tvm.testing.uses_gpu
@@ -748,6 +782,39 @@ def test_forward_group_norm():
         input_data = paddle.uniform(input_shape)
         verify_model(GroupNorm(num_channels, 1), input_data, rtol=1e-4, atol=1e-4)
         verify_model(GroupNorm(num_channels, 2), input_data, rtol=1e-4, atol=1e-4)
+
+
+@tvm.testing.uses_gpu
+def test_forward_grid_sampler():
+    class GridSampler(nn.Layer):
+        def __init__(self, mode="bilinear", padding_mode="zeros", align_corners=True):
+            super(GridSampler, self).__init__()
+            self.mode = mode
+            self.padding_mode = padding_mode
+            self.align_corners = align_corners
+
+        def forward(self, x, grid):
+            return paddle.nn.functional.grid_sample(
+                x,
+                grid,
+                mode=self.mode,
+                padding_mode=self.padding_mode,
+                align_corners=self.align_corners,
+            )
+
+    x_2D = paddle.rand(shape=[4, 4, 8, 8], dtype="float32")
+    grid_2D = paddle.rand(shape=[4, 8, 8, 2], dtype="float32")
+    verify_model(GridSampler(mode="nearest"), input_data=[x_2D, grid_2D])
+    verify_model(GridSampler(padding_mode="reflection"), input_data=[x_2D, grid_2D])
+    verify_model(GridSampler(padding_mode="border"), input_data=[x_2D, grid_2D])
+    verify_model(GridSampler(align_corners=False), input_data=[x_2D, grid_2D])
+
+    x_3D = paddle.rand(shape=[4, 4, 4, 4, 4], dtype="float32")
+    grid_3D = paddle.rand(shape=[4, 8, 8, 8, 3], dtype="float32")
+    verify_model(GridSampler(mode="nearest"), input_data=[x_3D, grid_3D])
+    verify_model(GridSampler(padding_mode="reflection"), input_data=[x_3D, grid_3D])
+    verify_model(GridSampler(padding_mode="border"), input_data=[x_3D, grid_3D])
+    verify_model(GridSampler(align_corners=False), input_data=[x_3D, grid_3D])
 
 
 @tvm.testing.uses_gpu
@@ -1392,6 +1459,45 @@ def test_forward_slice():
     verify_model(slice3, input_data=paddle.randn((4, 4)))
     verify_model(slice4, input_data=input_data)
     # verify_model(slice5, input_data=paddle.randn((4,)))
+
+
+@tvm.testing.uses_gpu
+def test_forward_unique():
+    class Unique(nn.Layer):
+        def __init__(
+            self,
+            return_index=False,
+            return_inverse=False,
+            return_counts=False,
+            axis=None,
+            dtype="int64",
+        ):
+            super(Unique, self).__init__()
+            self.return_index = return_index
+            self.return_inverse = return_inverse
+            self.return_counts = return_counts
+            self.axis = None
+            self.dtype = dtype
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            result = paddle.unique(
+                inputs,
+                return_inverse=self.return_inverse,
+                return_counts=self.return_counts,
+                axis=self.axis,
+                dtype=self.dtype,
+            )
+            return result
+
+    input_shape = [2, 3, 5]
+    input_data = paddle.rand(input_shape)
+    verify_model(Unique(), input_data=input_data)
+    verify_model(Unique(return_index=True), input_data=input_data)
+    verify_model(Unique(return_index=True, return_inverse=True), input_data=input_data)
+    verify_model(
+        Unique(return_index=True, return_inverse=True, return_counts=True), input_data=input_data
+    )
 
 
 @tvm.testing.uses_gpu
