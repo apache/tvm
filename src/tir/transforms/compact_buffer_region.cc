@@ -30,6 +30,7 @@
 
 #include <stack>
 
+#include "../../arith/partition_finder.h"
 #include "../../support/arena.h"
 #include "../../support/nd_int_set.h"
 #include "../../support/utils.h"
@@ -47,7 +48,8 @@ using support::NDIntSet;
  */
 Region SimplifyAndNarrowBufferRegionFromNDIntSet(
     const NDIntSet& nd_int_set, const Array<PrimExpr>& original_shape, arith::Analyzer* analyzer,
-    const std::vector<const ForNode*>& ancestor_loops) {
+    const std::vector<const ForNode*>& ancestor_loops,
+    const std::unordered_map<const VarNode*, arith::IntSet>& dom_map) {
   Array<Range> result;
   result.reserve(nd_int_set.size());
   for (size_t i = 0; i < nd_int_set.size(); ++i) {
@@ -58,13 +60,27 @@ Region SimplifyAndNarrowBufferRegionFromNDIntSet(
 
     // Check the buffer region is not loop dependent, since loop dependent
     // allocation is not supported yet.
-    auto is_loop_var = [&ancestor_loops](const VarNode* v) {
-      return std::any_of(ancestor_loops.begin(), ancestor_loops.end(),
-                         [v](const ForNode* n) { return n->loop_var.get() == v; });
-    };
-    if (UsesVar(extent, is_loop_var)) {
+    std::vector<Var> dependent_loop_vars;
+    PostOrderVisit(extent, [&](const ObjectRef& obj) {
+      if (const VarNode* v = obj.as<VarNode>()) {
+        for (const ForNode* loop : ancestor_loops) {
+          if (loop->loop_var.get() != v) {
+            continue;
+          }
+          if (std::any_of(dependent_loop_vars.begin(), dependent_loop_vars.end(),
+                          [v](const Var& loop_var) { return loop_var.get() == v; })) {
+            continue;
+          }
+          dependent_loop_vars.push_back(loop->loop_var);
+        }
+      }
+    });
+
+    if (!dependent_loop_vars.empty()) {
       // try estimate a constant upperbound on region's extent
-      int64_t upperbound = analyzer->const_int_bound(extent)->max_value;
+
+      int64_t upperbound =
+          arith::EstimatePartitionedConstIntBound(extent, dependent_loop_vars, dom_map)->max_value;
       if (upperbound != arith::ConstIntBound::kPosInf) {
         extent = make_const(extent->dtype, upperbound);
       } else {
@@ -252,7 +268,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
           << buffer << " is allocated but not accessed within block scope";
       const NDIntSet& nd_int_set = it->second;
       buffer_access_region_[buffer] = SimplifyAndNarrowBufferRegionFromNDIntSet(
-          nd_int_set, buffer->shape, &dom_analyzer_, ancestor_loops_);
+          nd_int_set, buffer->shape, &dom_analyzer_, ancestor_loops_, dom_map_);
     }
   }
 
