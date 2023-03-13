@@ -444,15 +444,13 @@ TVM_REGISTER_GLOBAL("relax.op.vm.alloc_storage").set_body_typed(MakeVMAllocStora
 
 // vm alloc_tensor
 
-Expr InferShapeVMAllocTensor(const Call& call, DiagnosticContext diag_ctx) { return call->args[1]; }
-
 StructInfo InferStructInfoVMAllocTensor(const Call& call, const BlockBuilder& ctx) {
   DataType out_dtype;
   if (const auto* dtype_node = call->args[3].as<DataTypeImmNode>()) {
     const DataTypeImm dtype_imm = GetRef<DataTypeImm>(dtype_node);
     out_dtype = dtype_imm->value;
   }
-  if (const auto* output_shape = call->args[1].as<ShapeExprNode>()) {
+  if (const auto* output_shape = call->args[2].as<ShapeExprNode>()) {
     return TensorStructInfo(GetRef<Expr>(output_shape), out_dtype);
   }
   return TensorStructInfo(out_dtype, kUnknownNDim);

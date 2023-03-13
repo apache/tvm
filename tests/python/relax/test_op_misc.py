@@ -95,5 +95,13 @@ def test_implicit_op():
     assert isinstance(x[1][0], rx.TupleGetItem)
 
 
+def test_vm_alloc_tensor():
+    bb = rx.BlockBuilder()
+    storage = rx.Var("storage", rx.TensorStructInfo(dtype="float32"))
+    alloc = rx.op.vm.alloc_tensor(storage, offset=0, shape=rx.ShapeExpr([4, 5]), dtype="float32")
+    alloc = bb.normalize(alloc)
+    tvm.ir.assert_structural_equal(alloc.struct_info, R.Tensor([4, 5], "float32"))
+
+
 if __name__ == "__main__":
     tvm.testing.main()
