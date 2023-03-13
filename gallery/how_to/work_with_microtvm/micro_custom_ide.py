@@ -33,7 +33,7 @@ Here is a brief overview of the steps that we would take in this tutorial.
 2. We also add two sample images in binary format (one person and one not-person sample) to the .tar file for evaluating the model.
 3. Next we use the stmCubeMX to generate the initialization code for the project in stmCube IDE.
 4. After that, we include our MLF file and the required CMSIS libraries in the project and build it.
-5. Finally, we Flash the device and evaluate the model performance on our sample images.
+5. Finally, we flash the device and evaluate the model performance on our sample images.
 
 Let's Begin.
 """
@@ -120,7 +120,7 @@ DISABLE_USMP = False
 # Use the C runtime (crt)
 RUNTIME = Runtime("crt")
 
-# We define the target by passing the board nameto `tvm.target.target.micro`.
+# We define the target by passing the board name to `tvm.target.target.micro`.
 # If your board is not included in the supported models, you can define the target such as:
 # TARGET = tvm.target.Target("c -keys=arm_cpu,cpu -mcpu=cortex-m4")
 TARGET = tvm.target.target.micro("stm32l4r5zi")
@@ -187,7 +187,7 @@ with tarfile.open(TAR_PATH, mode="a") as tar_file:
     create_header_file("sample_not_person", np.asarray(img), SAMPLES_DIR, tar_file)
 
 ######################################################################
-# At this point you have all you need to take the compiled model to your IDE and evaluate it. Inside the MLF file (model.tar), you should find the following file hirearchy:
+# At this point you have all you need to take the compiled model to your IDE and evaluate it. Inside the MLF file (model.tar), you should find the following file hierearchy:
 #
 #     .. code-block::
 #
@@ -202,9 +202,9 @@ with tarfile.open(TAR_PATH, mode="a") as tar_file:
 #
 # * The codegen folder includes the C code TVM generated for your model.
 # * The runtime folder includes all the TVM dependencies that the target needs to compile the generated C code.
-# * The samples folder includes the two generated sample files for evauating the model.
-# * The src folder include the relay module describing the model.
-# * The templates folder include two template files that you might need to edit based on your platform.
+# * The samples folder includes the two generated sample files for evaluating the model.
+# * The src folder includes the relay module describing the model.
+# * The templates folder includes two template files that you might need to edit based on your platform.
 # * The metadata.json file includes information about the model, its layers and memory requirement.
 #
 
@@ -222,7 +222,7 @@ with tarfile.open(TAR_PATH, mode="a") as tar_file:
 #
 # #. Type in your project name (for example microtvm_vww_demo). We are using the default options. (Target Language: C, Binary Type: Executable, Project Type: STM32Cube). Click "Finish".
 #
-# #. A text box will appear asksing if you want to "Initialize all the peripherals with their default mode?". click "Yes". This would generate the project and open the device configuration tool where you can use the GUI to setup the peripherals. By default the USB, USART3 and LPUART1 are enabled, as well as a few GPIOs.
+# #. A text box will appear asking if you want to "Initialize all the peripherals with their default mode?". click "Yes". This will generate the project and open the device configuration tool where you can use the GUI to setup the peripherals. By default the USB, USART3 and LPUART1 are enabled, as well as a few GPIOs.
 #
 # #. We will use LPUART1 to send data to the host pc. From the connectivity section, select the LPUART1 and set the "Baud Rate" to 115200 and the "Word Length" to 8. Save the changes and click "Yes" to regenerate the initialization code. This should regenerate the code and open your main.c file. You can also find main.c from the Project Explorer panel on the left, under microtvm_vww_demo -> Core -> Src.
 #
@@ -236,7 +236,7 @@ with tarfile.open(TAR_PATH, mode="a") as tar_file:
 #         HAL_UART_Transmit(&hlpuart1, "Hello World.\r\n", 14, 100);
 #         HAL_Delay(1000);
 #
-# #. from the menu bar, select Project -> Build (or right click on project name and select Build). This should build the project and generate the .elf file. Select Run -> Run to download the binary on your MCU. If the "Edit Configuration" window opens, just click "OK".
+# #. From the menu bar, select Project -> Build (or right click on project name and select Build). This should build the project and generate the .elf file. Select Run -> Run to download the binary on your MCU. If the "Edit Configuration" window opens, just click "OK".
 #
 # #. Open the terminal console on your host machine. On Mac you can simply use the "screen <usb_device> 115200" command, e.g. "screen tty.usbmodemXXXX 115200". An LED should blink on the board and the string "Hello World." should print out on your terminal console every second. Press "Control-a k" to exit screen.
 #
