@@ -21,7 +21,6 @@ import tvm
 import tvm.testing
 import tvm.topi.testing
 from tvm import relax
-from tvm.contrib.pickle_memoize import memoize
 from tvm.relax.backend.contrib.cublas import partition_for_cublas
 from tvm.script import relax as R
 
@@ -134,25 +133,11 @@ _epilogue_table = {
         ((4, 16), (16, 128), True, "relu"),
         ((35, 8), (8, 8), True, "gelu"),
         # # 3D x 3D
-        # ((6, 32, 8), (6, 8, 10), False, "bias"),
-        # ((6, 32, 8), (6, 8, 10), True, "none"),
-        # ((_vars["a"], 32, 8), (_vars["a"], 8, 10), True, "gelu"),
-        # # 3D x 2D
-        # ((6, 32, 8), (8, 10), False, "none"),
-        # ((_vars["a"], 32, 8), (8, 10), False, "bias"),
-        # ((10, 16, 8), (8, 10), True, "relu"),
-        # # 2D x 3D
-        # ((32, 8), (10, 8, 10), False, "relu"),
-        # ((32, 8), (_vars["a"], 8, 10), True, "gelu"),
-        # # ND x 2D
-        # ((3, 6, 32, 8), (8, 10), False, "bias"),
-        # ((_vars["a"], _vars["b"], 6, 32, 8), (8, 10), False, "none"),
-        # # 2D x ND
-        # ((32, 8), (5, 3, 8, 10), False, "gelu"),
-        # # ND x ND
-        # ((5, 3, 32, 8), (5, 3, 8, 10), True, "relu"),
-        # ((3, 2, 4, 16, 15), (1, 1, 15, 2), True, "gelu"),
-        # ((1, 1, 16, 15), (3, 2, _vars["a"], 15, 2), False, "none"),
+        ((6, 32, 8), (6, 8, 10), False, "bias"),
+        ((6, 32, 8), (6, 8, 10), True, "none"),
+        ((_vars["a"], 32, 8), (_vars["a"], 8, 10), True, "gelu"),
+        # ND x ND
+        ((5, 3, 32, 8), (5, 3, 8, 10), True, "relu"),
     ],
 )
 @pytest.mark.parametrize(
@@ -200,13 +185,7 @@ def test_matmul_offload(
     ref = build_and_run(mod, args, "llvm", legalize=True)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
-    print("ok")
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_matmul_offload((32, 8), (8, 16), False, "none", "float16")
-    # test_matmul_offload((32, 8), (8, 16), True, "relu", "float32")
-    # test_matmul_offload((32, 8), (8, 16), False, "bias", "float32")
-    # test_matmul_offload((32, 8), (8, 16), False, "gelu", "float32")
-    # test_matmul_offload((_vars["a"], 8), (8, 16), False, "relu", "float32")
+    tvm.testing.main()

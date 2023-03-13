@@ -24,10 +24,9 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
 
+#include "../../3rdparty/compiler-rt/builtin_fp16.h"
 #include "../cblas/gemm_common.h"
 #include "cublas_utils.h"
-
-#include "../../3rdparty/compiler-rt/builtin_fp16.h"
 
 namespace tvm {
 namespace contrib {
@@ -136,25 +135,15 @@ int roundoff(int v, int d) { return (v + d - 1) / d * d; }
 
 #if CUDART_VERSION >= 10010
 
-void CallCublasLt(cublasLtHandle_t hdl, const DLTensor* A, const DLTensor* B, const DLTensor* bias, const DLTensor* C,
-                  bool transa, bool transb, cublasLtEpilogue_t epilogue) {
-  ICHECK_EQ(A->ndim, 2);
-  ICHECK_EQ(B->ndim, 2);
-  ICHECK_EQ(C->ndim, 2);
-  ICHECK_EQ(ElementStride(A), 1);
-  ICHECK_EQ(ElementStride(B), 1);
-  ICHECK_EQ(ElementStride(C), 1);
+void CallCublasLt(cublasLtHandle_t hdl, const DLTensor* A, const DLTensor* B, const DLTensor* bias,
+                  const DLTensor* C, bool transa, bool transb, cublasLtEpilogue_t epilogue) {
   ICHECK(TypeEqual(A->dtype, B->dtype));
-
   // Reversed strides indicates an in-place transpose operation.
   transa = IsInPlaceTransposed(A) ? !transa : transa;
   transb = IsInPlaceTransposed(B) ? !transb : transb;
 
-  int M = ColumnCount(B, transb);
-  int N = RowCount(A, transa);
-  int K = ColumnCount(A, transa);
-
-  cublasLtMatmulDesc_t operationDesc = nullptr;
+  cublasOperation_t opTransA = CUBLASBooleanToTranspose(transa);
+  cublasOperation_t opTransB = CUBLASBooleanToTranspose(transb);
   auto compute_type = CUBLAS_COMPUTE_32F;
   auto scale_type = CUDA_R_32F;
   cudaDataType_t ab_type = CUDA_R_32F;
@@ -178,44 +167,74 @@ void CallCublasLt(cublasLtHandle_t hdl, const DLTensor* A, const DLTensor* B, co
     beta = &zero_fp16;
   }
 
+  cublasLtMatmulDesc_t operationDesc = nullptr;
   CHECK_CUBLAS_ERROR(cublasLtMatmulDescCreate(&operationDesc, compute_type, scale_type));
-
-  if (bias != nullptr) {
-    CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(
-        operationDesc,
-        CUBLASLT_MATMUL_DESC_BIAS_POINTER,
-        &bias->data,
-        sizeof(float*)));
-  }
-
-  if (epilogue != CUBLASLT_EPILOGUE_DEFAULT) {
-    CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(
-        operationDesc,
-        CUBLASLT_MATMUL_DESC_EPILOGUE,
-        &epilogue,
-        sizeof(epilogue)));
-  }
-
-  cublasOperation_t opTransA = CUBLASBooleanToTranspose(transa);
-  cublasOperation_t opTransB = CUBLASBooleanToTranspose(transb);
-
   CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(operationDesc, CUBLASLT_MATMUL_DESC_TRANSA,
                                                     &opTransB, sizeof(opTransA)));
   CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(operationDesc, CUBLASLT_MATMUL_DESC_TRANSB,
                                                     &opTransA, sizeof(opTransB)));
 
-  cublasLtMatrixLayout_t Adesc, Bdesc, Cdesc;
+  if (bias != nullptr) {
+    CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(
+        operationDesc, CUBLASLT_MATMUL_DESC_BIAS_POINTER, &bias->data, sizeof(float*)));
+  }
 
-  int lda = opTransB == CUBLAS_OP_N? M : K;
-  int ldb = opTransA == CUBLAS_OP_N? K : N;
+  if (epilogue != CUBLASLT_EPILOGUE_DEFAULT) {
+    CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(operationDesc, CUBLASLT_MATMUL_DESC_EPILOGUE,
+                                                      &epilogue, sizeof(epilogue)));
+  }
+
+  cublasLtMatrixLayout_t Adesc = nullptr;
+  cublasLtMatrixLayout_t Bdesc = nullptr;
+  cublasLtMatrixLayout_t Cdesc = nullptr;
+
+  auto set_batch = [](cublasLtMatrixLayout_t mat_desc, int batch_count, int64_t batch_stride) {
+    CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutSetAttribute(
+        mat_desc, CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &batch_count, sizeof(batch_count)));
+    CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutSetAttribute(mat_desc,
+                                                        CUBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET,
+                                                        &batch_stride, sizeof(batch_stride)));
+  };
+
+  int batch_offset_A = A->ndim - 2;
+  int batch_offset_B = B->ndim - 2;
+
+  int M = ColumnCount(B, transb, batch_offset_B);
+  int N = RowCount(A, transa, batch_offset_A);
+  int K = ColumnCount(A, transa, batch_offset_A);
+
+  int lda = transb ? K : M;
+  int ldb = transa ? N : K;
   int ldc = M;
-
-  CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutCreate(&Adesc, ab_type, opTransB == CUBLAS_OP_N ? M : K,
-                                                opTransB == CUBLAS_OP_N ? K : M, lda));
-  CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutCreate(&Bdesc, ab_type, opTransA == CUBLAS_OP_N ? K : N,
-                                                opTransA == CUBLAS_OP_N ? N : K, ldb));
-
+  CHECK_CUBLAS_ERROR(
+      cublasLtMatrixLayoutCreate(&Adesc, ab_type, !transb ? M : K, !transb ? K : M, lda));
+  CHECK_CUBLAS_ERROR(
+      cublasLtMatrixLayoutCreate(&Bdesc, ab_type, !transa ? K : N, !transa ? N : K, ldb));
   CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutCreate(&Cdesc, c_type, M, N, ldc));
+
+  if (A->ndim != 2 || B->ndim != 2) {
+    auto get_batch_count = [](int64_t* shape, int batch_offset) {
+      int64_t count = 1;
+      for (int i = 0; i < batch_offset; ++i) {
+        count *= shape[i];
+      }
+      return count;
+    };
+    int batch_count_A = get_batch_count(A->shape, batch_offset_A);
+    int batch_count_B = get_batch_count(B->shape, batch_offset_B);
+    int batch_count_C = get_batch_count(C->shape, C->ndim - 2);
+    int64_t batch_stride_A = M * K;
+    int64_t batch_stride_B = K * N;
+    int64_t batch_stride_C = M * N;
+
+    // CublasLT does not seem to support batched GEMM with one of matrices having
+    // one batch (with batch_stride 0).
+    ICHECK_EQ(batch_count_A, batch_count_B);
+
+    set_batch(Adesc, batch_count_A, batch_stride_A);
+    set_batch(Bdesc, batch_count_B, batch_stride_B);
+    set_batch(Cdesc, batch_count_C, batch_stride_C);
+  }
 
   auto A_data = static_cast<char*>(A->data) + A->byte_offset;
   auto B_data = static_cast<char*>(B->data) + B->byte_offset;

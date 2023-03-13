@@ -59,9 +59,13 @@ inline bool IsInPlaceTransposed(const DLTensor* tensor) {
   return tensor->strides && (tensor->strides[1] > tensor->strides[0]);
 }
 
-inline int RowCount(const DLTensor* tensor, bool trans) { return tensor->shape[trans ? 1 : 0]; }
+inline int RowCount(const DLTensor* tensor, bool trans, int batch_offset = 0) {
+  return tensor->shape[batch_offset + (trans ? 1 : 0)];
+}
 
-inline int ColumnCount(const DLTensor* tensor, bool trans) { return tensor->shape[trans ? 0 : 1]; }
+inline int ColumnCount(const DLTensor* tensor, bool trans, int batch_offset = 0) {
+  return tensor->shape[batch_offset + (trans ? 0 : 1)];
+}
 
 // Call a column major blas.  Note that data is stored in tvm as row
 // major, so this we switch the arguments.
