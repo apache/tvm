@@ -1231,8 +1231,7 @@ Pass InjectSoftwarePipeline() {
     fptr->body = ConvertSSA(std::move(fptr->body));
     return f;
   };
-  auto inner = CreatePrimFuncPass(pass_func, 0, "tir.InjectSoftwarePipelineInner", {});
-  return Sequential({inner, Simplify()}, "tir.InjectSoftwarePipeline");
+  return CreatePrimFuncPass(pass_func, 0, "tir.InjectSoftwarePipeline", {});
 }
 
 TVM_REGISTER_GLOBAL("tir.transform.InjectSoftwarePipeline").set_body_typed(InjectSoftwarePipeline);
