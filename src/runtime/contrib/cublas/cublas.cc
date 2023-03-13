@@ -27,6 +27,8 @@
 #include "../cblas/gemm_common.h"
 #include "cublas_utils.h"
 
+#include "../../3rdparty/compiler-rt/builtin_fp16.h"
+
 namespace tvm {
 namespace contrib {
 
@@ -134,58 +136,6 @@ int roundoff(int v, int d) { return (v + d - 1) / d * d; }
 
 #if CUDART_VERSION >= 10010
 
-void CallCublasLt(cublasLtHandle_t hdl, const DLTensor* A, const DLTensor* B, const DLTensor* C,
-                  bool transa, bool transb, float alpha, float beta) {
-  ICHECK_EQ(A->ndim, 2);
-  ICHECK_EQ(B->ndim, 2);
-  ICHECK_EQ(C->ndim, 2);
-  ICHECK_EQ(ElementStride(A), 1);
-  ICHECK_EQ(ElementStride(B), 1);
-  ICHECK_EQ(ElementStride(C), 1);
-  ICHECK(TypeEqual(A->dtype, B->dtype));
-
-  // Reversed strides indicates an in-place transpose operation.
-  transa = IsInPlaceTransposed(A) ? !transa : transa;
-  transb = IsInPlaceTransposed(B) ? !transb : transb;
-
-  int M = ColumnCount(B, transb);
-  int N = RowCount(A, transa);
-  int K = ColumnCount(A, transa);
-
-  cublasLtMatmulDesc_t operationDesc = nullptr;
-  CHECK_CUBLAS_ERROR(cublasLtMatmulDescCreate(&operationDesc, CUBLAS_COMPUTE_32F, CUDA_R_32F));
-
-  cublasOperation_t opTransA = CUBLASBooleanToTranspose(transa);
-  cublasOperation_t opTransB = CUBLASBooleanToTranspose(transb);
-
-  CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(operationDesc, CUBLASLT_MATMUL_DESC_TRANSA,
-                                                    &opTransB, sizeof(opTransA)));
-  CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(operationDesc, CUBLASLT_MATMUL_DESC_TRANSB,
-                                                    &opTransA, sizeof(opTransB)));
-
-  cublasLtMatrixLayout_t Adesc, Bdesc, Cdesc;
-  cudaDataType_t ab_type = CUDA_R_32F;
-  cudaDataType_t c_type = CUDA_R_32F;
-
-  int lda = opTransB == CUBLAS_OP_N? M : K;
-  int ldb = opTransA == CUBLAS_OP_N? K : N;
-  int ldc = M;
-
-  CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutCreate(&Adesc, ab_type, opTransB == CUBLAS_OP_N ? M : K,
-                                                opTransB == CUBLAS_OP_N ? K : M, lda));
-  CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutCreate(&Bdesc, ab_type, opTransA == CUBLAS_OP_N ? K : N,
-                                                opTransA == CUBLAS_OP_N ? N : K, ldb));
-
-  CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutCreate(&Cdesc, c_type, M, N, ldc));
-
-  auto A_data = reinterpret_cast<void*>(static_cast<char*>(A->data) + A->byte_offset);
-  auto B_data = reinterpret_cast<void*>(static_cast<char*>(B->data) + B->byte_offset);
-  auto C_data = reinterpret_cast<void*>(static_cast<char*>(C->data) + C->byte_offset);
-
-  CHECK_CUBLAS_ERROR(cublasLtMatmul(hdl, operationDesc, &alpha, B_data, Adesc, A_data, Bdesc, &beta,
-                                    C_data, Cdesc, C_data, Cdesc, nullptr, nullptr, 0, nullptr));
-}
-
 void CallCublasLt(cublasLtHandle_t hdl, const DLTensor* A, const DLTensor* B, const DLTensor* bias, const DLTensor* C,
                   bool transa, bool transb, cublasLtEpilogue_t epilogue) {
   ICHECK_EQ(A->ndim, 2);
@@ -205,7 +155,30 @@ void CallCublasLt(cublasLtHandle_t hdl, const DLTensor* A, const DLTensor* B, co
   int K = ColumnCount(A, transa);
 
   cublasLtMatmulDesc_t operationDesc = nullptr;
-  CHECK_CUBLAS_ERROR(cublasLtMatmulDescCreate(&operationDesc, CUBLAS_COMPUTE_32F, CUDA_R_32F));
+  auto compute_type = CUBLAS_COMPUTE_32F;
+  auto scale_type = CUDA_R_32F;
+  cudaDataType_t ab_type = CUDA_R_32F;
+  cudaDataType_t c_type = CUDA_R_32F;
+  float one_fp32 = 1.0;
+  float zero_fp32 = 0.0;
+  auto one_fp16 = __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(1.0);
+  auto zero_fp16 = __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(0.0);
+  void* alpha = &one_fp32;
+  void* beta = &zero_fp32;
+
+  if (A->dtype.bits == 16 && A->dtype.code == kDLFloat) {
+    ab_type = CUDA_R_16F;
+  }
+
+  if (C->dtype.bits == 16 && C->dtype.code == kDLFloat) {
+    c_type = CUDA_R_16F;
+    compute_type = CUBLAS_COMPUTE_16F;
+    scale_type = CUDA_R_16F;
+    alpha = &one_fp16;
+    beta = &zero_fp16;
+  }
+
+  CHECK_CUBLAS_ERROR(cublasLtMatmulDescCreate(&operationDesc, compute_type, scale_type));
 
   if (bias != nullptr) {
     CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(
@@ -232,8 +205,6 @@ void CallCublasLt(cublasLtHandle_t hdl, const DLTensor* A, const DLTensor* B, co
                                                     &opTransA, sizeof(opTransB)));
 
   cublasLtMatrixLayout_t Adesc, Bdesc, Cdesc;
-  cudaDataType_t ab_type = CUDA_R_32F;
-  cudaDataType_t c_type = CUDA_R_32F;
 
   int lda = opTransB == CUBLAS_OP_N? M : K;
   int ldb = opTransA == CUBLAS_OP_N? K : N;
@@ -246,13 +217,11 @@ void CallCublasLt(cublasLtHandle_t hdl, const DLTensor* A, const DLTensor* B, co
 
   CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutCreate(&Cdesc, c_type, M, N, ldc));
 
-  auto A_data = reinterpret_cast<void*>(static_cast<char*>(A->data) + A->byte_offset);
-  auto B_data = reinterpret_cast<void*>(static_cast<char*>(B->data) + B->byte_offset);
-  auto C_data = reinterpret_cast<void*>(static_cast<char*>(C->data) + C->byte_offset);
+  auto A_data = static_cast<char*>(A->data) + A->byte_offset;
+  auto B_data = static_cast<char*>(B->data) + B->byte_offset;
+  auto C_data = static_cast<char*>(C->data) + C->byte_offset;
 
-  float alpha = 1.0;
-  float beta = 0.0;
-  CHECK_CUBLAS_ERROR(cublasLtMatmul(hdl, operationDesc, &alpha, B_data, Adesc, A_data, Bdesc, &beta,
+  CHECK_CUBLAS_ERROR(cublasLtMatmul(hdl, operationDesc, alpha, B_data, Adesc, A_data, Bdesc, beta,
                                     C_data, Cdesc, C_data, Cdesc, nullptr, nullptr, 0, nullptr));
 }
 

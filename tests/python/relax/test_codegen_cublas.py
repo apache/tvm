@@ -129,10 +129,10 @@ _epilogue_table = {
     [
         # Regular
         ((8, 8), (8, 8), False, "none"),
-        # ((_vars["a"], 6), (6, 16), False, "bias"),
-        # # Transposed
-        # ((4, 16), (16, 128), True, "relu"),
-        # ((35, 8), (8, 8), True, "gelu"),
+        ((_vars["a"], 6), (6, 16), False, "bias"),
+        # Transposed
+        ((4, 16), (16, 128), True, "relu"),
+        ((35, 8), (8, 8), True, "gelu"),
         # # 3D x 3D
         # ((6, 32, 8), (6, 8, 10), False, "bias"),
         # ((6, 32, 8), (6, 8, 10), True, "none"),
@@ -158,7 +158,7 @@ _epilogue_table = {
 @pytest.mark.parametrize(
     "dtype",
     [
-        # "float16",
+        "float16",
         "float32",
     ],
 )
@@ -200,11 +200,13 @@ def test_matmul_offload(
     ref = build_and_run(mod, args, "llvm", legalize=True)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+    print("ok")
 
 
 if __name__ == "__main__":
     # tvm.testing.main()
-    # test_matmul_offload((32, 8), (8, 16), False, "none", "float32")
-    # test_matmul_offload((32, 8), (8, 16), True, "none", "float32")
+    test_matmul_offload((32, 8), (8, 16), False, "none", "float16")
+    # test_matmul_offload((32, 8), (8, 16), True, "relu", "float32")
     # test_matmul_offload((32, 8), (8, 16), False, "bias", "float32")
-    test_matmul_offload((32, 8), (8, 16), False, "gelu", "float32")
+    # test_matmul_offload((32, 8), (8, 16), False, "gelu", "float32")
+    # test_matmul_offload((_vars["a"], 8), (8, 16), False, "relu", "float32")
