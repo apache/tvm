@@ -107,7 +107,9 @@ def register_annotate_function(op_name, frewrite=None, level=10):
                 return default_rewrite(ref_call, new_args, ctx)
             return func(ref_call, new_args, ctx)
 
-        return tvm.ir.register_op_attr(op_name, "FQAnnotateRewrite", frewrite_with_guard, level)
+        return tvm.ir.register_op_attr(
+            op_name, "FQAnnotateRewrite", frewrite_with_guard, level
+        )
 
     return _register(frewrite) if frewrite is not None else _register
 
@@ -125,7 +127,11 @@ def attach_simulated_quantize(data, kind, sign=True, rounding="round"):
     """
     quantize_op = _op.get("relay.op.annotation.simulated_quantize")
     if isinstance(data, _expr.Call) and data.op == quantize_op:
-        if data.attrs.kind == kind and data.attrs.sign == sign and data.attrs.rounding == rounding:
+        if (
+            data.attrs.kind == kind
+            and data.attrs.sign == sign
+            and data.attrs.rounding == rounding
+        ):
             return data
 
     qctx = quantize_context()
@@ -136,12 +142,16 @@ def attach_simulated_quantize(data, kind, sign=True, rounding="round"):
     dom_scale = _expr.var("dom_scale")
     clip_min = _expr.var("clip_min")
     clip_max = _expr.var("clip_max")
-    qnode = _quantize.simulated_quantize(data, dom_scale, clip_min, clip_max, kind, sign, rounding)
+    qnode = _quantize.simulated_quantize(
+        data, dom_scale, clip_min, clip_max, kind, sign, rounding
+    )
     qctx.qnode_map[key] = qnode
     return qnode
 
 
-tvm._ffi.register_func("relay.quantize.attach_simulated_quantize", attach_simulated_quantize)
+tvm._ffi.register_func(
+    "relay.quantize.attach_simulated_quantize", attach_simulated_quantize
+)
 
 
 @register_annotate_function("nn.contrib_conv2d_NCHWc")
@@ -244,6 +254,16 @@ def multiply_rewrite(ref_call, new_args, ctx):
             rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
         expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
         return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
+    if rhs_kind in [QAnnotateKind.ACTIVATION, QAnnotateKind.INPUT] and lhs_kind is None:
+        # quantize rhs to INPUT field
+        if rhs_kind == QAnnotateKind.ACTIVATION:
+            rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
+        if _analysis.check_constant(lhs_expr):
+            lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.WEIGHT)
+        else:
+            lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT)
+        expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
+        return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
 
     raise ValueError
 
@@ -281,13 +301,16 @@ def add_rewrite(ref_call, new_args, ctx):
         if lhs_kind == QAnnotateKind.INPUT and rhs_kind == QAnnotateKind.INPUT:
             expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
             return QAnnotateExpr(expr, QAnnotateKind.INPUT)
-        if lhs_kind == QAnnotateKind.ACTIVATION and rhs_kind == QAnnotateKind.ACTIVATION:
+        if (
+            lhs_kind == QAnnotateKind.ACTIVATION
+            and rhs_kind == QAnnotateKind.ACTIVATION
+        ):
             rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
             expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
             return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
-        if (lhs_kind == QAnnotateKind.ACTIVATION and rhs_kind == QAnnotateKind.INPUT) or (
-            lhs_kind == QAnnotateKind.INPUT and rhs_kind == QAnnotateKind.ACTIVATION
-        ):
+        if (
+            lhs_kind == QAnnotateKind.ACTIVATION and rhs_kind == QAnnotateKind.INPUT
+        ) or (lhs_kind == QAnnotateKind.INPUT and rhs_kind == QAnnotateKind.ACTIVATION):
             expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
             return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
     raise ValueError()
@@ -387,7 +410,9 @@ def concatenate_rewrite(ref_call, new_args, ctx):
         return None
     for i, k in enumerate(kind_list):
         if k is None:
-            expr_list[i] = attach_simulated_quantize(expr_list[i], QAnnotateKind.ACTIVATION)
+            expr_list[i] = attach_simulated_quantize(
+                expr_list[i], QAnnotateKind.ACTIVATION
+            )
     expr = _forward_op(ref_call, [_expr.Tuple(expr_list)])
     return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
 
