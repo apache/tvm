@@ -1,10 +1,10 @@
+import math
+from collections import deque
+from typing import List, Sequence, Tuple, Union
+
 import tvm
 from tvm import topi
-import math
-from typing import List, Sequence, Tuple
-
 from tvm.tir.schedule import BlockRV, ExprRV, LoopRV
-from collections import deque
 
 
 def tile_layout_transform(
@@ -176,11 +176,88 @@ def tile_layout_transform(
                 break
         return loops, cur_loop_extants
 
-    def get_high_level_loop_structure(block):
+    # Layout transform allows semantics like NCHW --> NCHW4c
+    # Which involves splitting the original C axis into contiguous 4-element chunks
+    # This axis is then moved to the end (NCHWc)
+    # To handle this we just split the associating axis (prev. type checking ensures C is divisible by 4)
+    # And then the layout is just NCcHW --> NCHW4c
+    # input_shape, src_layout, dst_layout = handle_split_case(sch)
+    # Note: NCHW4c --> NCHW is not allowed, so the only numeric digits will be in dst
+    def handle_block_implicit_reshape(
+        block_read, orig_input_shape, orig_src_layout, orig_dst_layout
+    ) -> Tuple[List[int], str, str]:
+        # Each loop should match src_layout dimension extants
+        loops = sch.get_loops(block_read)
+
+        # Figure out split dimensions, entries are (loop index in src_layout, split dimension)
+        split_dimensions: List[Tuple[int, int]] = []
+
+        # This is without numeric digits, e.g. NCHW4c -> NCHWc
+        new_dst_layout = []
+
+        # Use state machine to parse NCHW4c string
+        split_size = 0
+        for char in orig_dst_layout:
+            if char.isnumeric():
+                split_size = split_size * 10 + int(char)
+            else:
+                if char.islower():
+                    # hit axis like 'c', need to find parent axis 'C' in src_layout
+                    src_layout_index = orig_src_layout.index(char.upper())
+                    split_dimensions.append((src_layout_index, split_size))
+                split_size = 0
+                new_dst_layout.append(char)
+
+        # Calculate final input shapes, each of these are a single element for unsplit dims
+        # and tuples for split dims associated with the two new axis
+        input_shape: List[Union[int, Tuple]] = [i for i in orig_input_shape]
+        new_src_layout: List[Union[str, Tuple]] = [c for c in orig_src_layout]
+        for src_layout_split_index, split_factor in split_dimensions:
+            dimension_name = new_src_layout[src_layout_split_index]
+            new_src_layout[src_layout_split_index] = (dimension_name, dimension_name.lower())
+
+            remain_factor = input_shape[src_layout_split_index] // split_factor
+            input_shape[src_layout_split_index] = (remain_factor, split_factor)
+
+            sch.split(loops[src_layout_split_index], [remain_factor, split_factor])
+
+        # Finally to help analyzer, make layout match that of output
+        def index_map(*loop_indices):
+            answer = []
+            assert len(loop_indices) == len(input_shape)
+            for dim, input_shape_solved in zip(loop_indices, input_shape):
+                if isinstance(input_shape_solved, tuple):
+                    (_, split_factor) = input_shape_solved
+                    answer.extend((dim // split_factor, dim % split_factor))
+                else:
+                    answer.append(dim)
+            return tuple(answer)
+
+        sch.transform_layout(
+            block_read, buffer=("write", 0), index_map=index_map, assume_injective_transform=True
+        )
+
+        # Unpack any tuples introduced via appending
+        def unpack_list(target_list) -> list:
+            output = []
+            for ele in target_list:
+                if isinstance(ele, tuple):
+                    output.extend(ele)
+                else:
+                    output.append(ele)
+            return output
+
+        new_src_layout = unpack_list(new_src_layout)
+        new_src_layout = "".join(new_src_layout)
+        new_dst_layout = "".join(new_dst_layout)
+        return unpack_list(input_shape), new_src_layout, new_dst_layout
+
+    def get_high_level_loop_structure(block_read, input_shape, src_layout, dst_layout):
         """Runs the factorization described above."""
         # index 0 ... rank - 1 will always correspond to original loops
         # perhaps after they have been factored.
-        loops = sch.get_loops(block)
+        rank = len(input_shape)
+        loops = sch.get_loops(block_read)
         cur_loop_extants = list(input_shape)
 
         # Factor dim0 tile size and fuse things together
@@ -223,8 +300,6 @@ def tile_layout_transform(
         cur_loop_extants = cur_loop_extants[: rank + 1]
         cur_loop_extants.append(tile_size)
 
-    rank = len(src_layout)
-
     # Outer loop structure of read block matches that of src_layout
     # E.g. if input_shape is [4, 6, 8]. Loops for read block will be
     # for i, j, k in T.grid(4, 6, 8):
@@ -233,8 +308,13 @@ def tile_layout_transform(
     # Assume write to output global memory is coalesced in block_write
     block_read = sch.cache_read(block_write, 0, "shared")
 
-    # Here we have [loop1, loop2, loop3 ... dim0_tiled, dim1_tiled]
-    get_high_level_loop_structure(block_read)
+    # Grab final input shape and src and dst layouts.
+    input_shape, src_layout, dst_layout = handle_block_implicit_reshape(
+        block_read, input_shape, src_layout, dst_layout
+    )
+
+    # After this we have [loop1, loop2, loop3 ... dim0_tiled, dim1_tiled]
+    get_high_level_loop_structure(block_read, input_shape, src_layout, dst_layout)
     loops = sch.get_loops(block_read)
 
     # If there are insufficient elements, than dim1_tiled or dim0_tiled might be too small
@@ -291,6 +371,18 @@ def auto_inline(sch, start_block):
             return cur_block
 
 
+def handle_split_case(sch, input_shape, src_layout, dst_layout):
+    """
+    Handle the case where the layout transform also reshapes some axis
+    e.g. NCHW --> NCHW4c
+    (split the original C axis into chunks of 4 contiguous elements, move this axis to end)
+
+    Rewrites the schedule to handle this case and returns the input shape as well as
+    src/dst layouts to use for the later code.
+    """
+    pass
+
+
 @tvm.register_func("meta_schedule.cuda.layout_transform")
 def cuda_layout_transform_schedule_rule(sch, block):
     # params: input_buffer, output_buffer
@@ -313,7 +405,10 @@ def cuda_layout_transform_schedule_rule(sch, block):
     # Always include the default schedules which will be handled via AutoBind schedule rule
     schedules.append(sch)
 
-    # Tile size 2,3,4...32 as tile size of 1 has no coaslescing.
+    # Setup up basic structure of schedule before applying tiling
+    sch = sch.copy()
+
+    # Try tile size 2,3,4...32 as tile size of 1 has no coaslescing.
     for tile_size in range(2, 33):
         cur_sch = sch.copy()
         tile_layout_transform(cur_sch, block, src_layout, dst_layout, input_shape, tile_size)
