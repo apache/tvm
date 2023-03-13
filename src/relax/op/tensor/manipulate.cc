@@ -752,15 +752,6 @@ StructInfo InferStructInfoReshape(const Call& call, const BlockBuilder& ctx) {
     }
   }
 
-  if (call->args[1]->IsInstance<VarNode>()) {
-    auto ssinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[1]);
-    ICHECK(ssinfo);
-    if (ssinfo->values.defined()) {
-      return TensorStructInfo(ShapeExpr(ssinfo->values.value()), data_sinfo->dtype);
-    } else {
-      return TensorStructInfo(data_sinfo->dtype, ssinfo->ndim);
-    }
-  }
   return TensorStructInfo(call->args[1], data_sinfo->dtype);
 }
 

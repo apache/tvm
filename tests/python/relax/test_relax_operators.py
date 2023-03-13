@@ -209,5 +209,4 @@ def test_op_tensor_to_shape():
 
 
 if __name__ == "__main__":
-    test_op_tensor_to_shape()
-    # tvm.testing.main()
+    tvm.testing.main()
