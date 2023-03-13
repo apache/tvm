@@ -47,7 +47,7 @@ Optional<Integer> ParseThreadBinding(const Schedule& sch, const Instruction& ins
     // and then later modify the schedule. As the passed in schedule is after running the entire trace
     // the bound loop may be moved around in the IRModule.
     // TODO: apply trace one inst at a time so schedule state is always accurate to instruction
-    LOG(WARNING) << "Failed to calculate extent so skipping RewriteCooperativeFetching. Error " << e.what();
+    LOG(DEBUG) << "Failed to calculate extent so skipping RewriteCooperativeFetching. Error " << e.what();
     return NullOpt;
   }
 }

@@ -448,6 +448,19 @@ def auto_inline(sch: tvm.tir.Schedule, start_block: BlockRV) -> BlockRV:
             return cur_block
 
 
+def get_max_tile_size() -> int:
+    """Returns the max tile size.
+
+    This is assuming only threads in a warp can have coalesced accesses. 32 is the default if
+    no target information can be gotten.
+    """
+    max_tile_size = 32
+    cur_target = tvm.target.Target.current()
+    if cur_target is not None and hasattr(cur_target, "thread_warp_size"):
+        max_tile_size = int(cur_target.thread_warp_size)
+    return max_tile_size
+
+
 @tvm.register_func("meta_schedule.cuda.layout_transform")
 def cuda_layout_transform_schedule_rule(
     sch: tvm.tir.Schedule, block: BlockRV
@@ -456,7 +469,10 @@ def cuda_layout_transform_schedule_rule(
     Applies tiling scheme to layout transform task (potentially fused with other injective funcs).
 
     Returned schedules will be the default schedule, as well as tiled versions with tile_size in
-    the range of 2,3...32.
+    the range of 2,3...threads_per_warp.
+
+    This is assuming only threads in a warp can have coalesced accesses. 32 is the default if
+    no target information can be gotten.
 
     Parameters
     ----------
@@ -508,8 +524,9 @@ def cuda_layout_transform_schedule_rule(
         sch, block_read, input_shape, src_layout, dst_layout
     )
 
-    # Try tile size 2,3,4...32 as tile size of 1 has no coaslescing.
-    for tile_size in range(2, 33):
+    # Try tile size 2,3...threads_per_warp as tile size of 1 has no coaslescing.
+    max_tile_size = get_max_tile_size()
+    for tile_size in range(2, max_tile_size + 1):
         new_sch = sch.copy()
         tile_layout_transform(
             new_sch, block_read, block, src_layout, dst_layout, input_shape, tile_size
