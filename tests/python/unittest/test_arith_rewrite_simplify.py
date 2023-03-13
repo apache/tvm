@@ -611,6 +611,10 @@ class TestMinIndex(BaseCompare):
         TestCase(tvm.te.min(x * (-2), 4), tvm.te.max(x, -2) * -2),
         TestCase(tvm.te.min(x * (0), 4), 0),
         TestCase(tvm.te.min(x * (0), -4), -4),
+        TestCase(x - tvm.te.max(x + y, 0), tvm.te.min(x, 0 - y)),
+        TestCase(x - tvm.te.max(0, x + y), tvm.te.min(x, 0 - y)),
+        TestCase(x - tvm.te.min(x + y, 0), tvm.te.max(x, 0 - y)),
+        TestCase(x - tvm.te.min(0, x + y), tvm.te.max(x, 0 - y)),
         # DivMod rules
         # truc div
         TestCase(tvm.te.min(tdiv(x + 3, 4) * 4, x), x),
