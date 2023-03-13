@@ -156,7 +156,9 @@ def _npy_dtype_to_ctype(data: np.ndarray) -> str:
         raise ValueError(f"Data type {data.dtype} not expected.")
 
 
-def create_header_file(tensor_name: str, npy_data: np.array, output_path: str, tar_file: str):
+def create_header_file(
+    tensor_name: str, npy_data: np.array, output_path: str, tar_file: tarfile.TarFile
+):
     """
     This method generates a header file containing the data contained in the numpy array provided
     and adds the header file to a tar file.
