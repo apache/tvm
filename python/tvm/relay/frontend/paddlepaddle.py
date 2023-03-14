@@ -415,14 +415,28 @@ def convert_conv3d(g, op, block):
     if padding_algorithm == "VALID":
         paddings = [0, 0, 0]
     elif padding_algorithm == "SAME":
-        dilations = [1, 1 ,1]
+        dilations = [1, 1, 1]
         input_x = autopad(input_x, strides, [k_d, k_h, k_w], dilations)
         paddings = [0, 0, 0]
     elif padding_algorithm == "EXPLICIT":
         if len(paddings) == 3:
-            paddings = [paddings[0], paddings[1], paddings[2], paddings[0], paddings[1], paddings[2]]
+            paddings = [
+                paddings[0],
+                paddings[1],
+                paddings[2],
+                paddings[0],
+                paddings[1],
+                paddings[2],
+            ]
         elif len(paddings) == 6:
-            paddings = [paddings[0], paddings[3], paddings[1], paddings[4], paddings[2], paddings[5]]
+            paddings = [
+                paddings[0],
+                paddings[3],
+                paddings[1],
+                paddings[4],
+                paddings[2],
+                paddings[5]
+            ]
     else:
         msg = 'Value {} in attribute "padding" of operator Conv is not "valid."'
         raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
