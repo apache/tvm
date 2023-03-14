@@ -142,8 +142,6 @@ void CallCublasLt(cublasLtHandle_t hdl, const DLTensor* A, const DLTensor* B, co
   transa = IsInPlaceTransposed(A) ? !transa : transa;
   transb = IsInPlaceTransposed(B) ? !transb : transb;
 
-  cublasOperation_t opTransA = CUBLASBooleanToTranspose(transa);
-  cublasOperation_t opTransB = CUBLASBooleanToTranspose(transb);
   auto compute_type = CUBLAS_COMPUTE_32F;
   auto scale_type = CUDA_R_32F;
   cudaDataType_t ab_type = CUDA_R_32F;
@@ -167,34 +165,25 @@ void CallCublasLt(cublasLtHandle_t hdl, const DLTensor* A, const DLTensor* B, co
     beta = &zero_fp16;
   }
 
-  cublasLtMatmulDesc_t operationDesc = nullptr;
-  CHECK_CUBLAS_ERROR(cublasLtMatmulDescCreate(&operationDesc, compute_type, scale_type));
-  CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(operationDesc, CUBLASLT_MATMUL_DESC_TRANSA,
-                                                    &opTransB, sizeof(opTransA)));
-  CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(operationDesc, CUBLASLT_MATMUL_DESC_TRANSB,
-                                                    &opTransA, sizeof(opTransB)));
+  cublasLtMatmulDesc_t op_desc;
+  cublasOperation_t op_transa = CUBLASBooleanToTranspose(transa);
+  cublasOperation_t op_transb = CUBLASBooleanToTranspose(transb);
+
+  CHECK_CUBLAS_ERROR(cublasLtMatmulDescCreate(&op_desc, compute_type, scale_type));
+  CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(op_desc, CUBLASLT_MATMUL_DESC_TRANSA,
+                                                    &op_transb, sizeof(op_transa)));
+  CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(op_desc, CUBLASLT_MATMUL_DESC_TRANSB,
+                                                    &op_transa, sizeof(op_transb)));
 
   if (bias != nullptr) {
-    CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(
-        operationDesc, CUBLASLT_MATMUL_DESC_BIAS_POINTER, &bias->data, sizeof(float*)));
+    CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(op_desc, CUBLASLT_MATMUL_DESC_BIAS_POINTER,
+                                                      &bias->data, sizeof(float*)));
   }
 
   if (epilogue != CUBLASLT_EPILOGUE_DEFAULT) {
-    CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(operationDesc, CUBLASLT_MATMUL_DESC_EPILOGUE,
+    CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(op_desc, CUBLASLT_MATMUL_DESC_EPILOGUE,
                                                       &epilogue, sizeof(epilogue)));
   }
-
-  cublasLtMatrixLayout_t Adesc = nullptr;
-  cublasLtMatrixLayout_t Bdesc = nullptr;
-  cublasLtMatrixLayout_t Cdesc = nullptr;
-
-  auto set_batch = [](cublasLtMatrixLayout_t mat_desc, int batch_count, int64_t batch_stride) {
-    CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutSetAttribute(
-        mat_desc, CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &batch_count, sizeof(batch_count)));
-    CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutSetAttribute(mat_desc,
-                                                        CUBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET,
-                                                        &batch_stride, sizeof(batch_stride)));
-  };
 
   int batch_offset_A = A->ndim - 2;
   int batch_offset_B = B->ndim - 2;
@@ -206,11 +195,13 @@ void CallCublasLt(cublasLtHandle_t hdl, const DLTensor* A, const DLTensor* B, co
   int lda = transb ? K : M;
   int ldb = transa ? N : K;
   int ldc = M;
+
+  cublasLtMatrixLayout_t A_desc, B_desc, C_desc;
   CHECK_CUBLAS_ERROR(
-      cublasLtMatrixLayoutCreate(&Adesc, ab_type, !transb ? M : K, !transb ? K : M, lda));
+      cublasLtMatrixLayoutCreate(&A_desc, ab_type, !transb ? M : K, !transb ? K : M, lda));
   CHECK_CUBLAS_ERROR(
-      cublasLtMatrixLayoutCreate(&Bdesc, ab_type, !transa ? K : N, !transa ? N : K, ldb));
-  CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutCreate(&Cdesc, c_type, M, N, ldc));
+      cublasLtMatrixLayoutCreate(&B_desc, ab_type, !transa ? K : N, !transa ? N : K, ldb));
+  CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutCreate(&C_desc, c_type, M, N, ldc));
 
   if (A->ndim != 2 || B->ndim != 2) {
     auto get_batch_count = [](int64_t* shape, int batch_offset) {
@@ -220,6 +211,14 @@ void CallCublasLt(cublasLtHandle_t hdl, const DLTensor* A, const DLTensor* B, co
       }
       return count;
     };
+    auto set_batch = [](cublasLtMatrixLayout_t mat_desc, int batch_count, int64_t batch_stride) {
+      CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutSetAttribute(
+          mat_desc, CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &batch_count, sizeof(batch_count)));
+      CHECK_CUBLAS_ERROR(
+          cublasLtMatrixLayoutSetAttribute(mat_desc, CUBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET,
+                                           &batch_stride, sizeof(batch_stride)));
+    };
+
     int batch_count_A = get_batch_count(A->shape, batch_offset_A);
     int batch_count_B = get_batch_count(B->shape, batch_offset_B);
     int batch_count_C = get_batch_count(C->shape, C->ndim - 2);
@@ -227,21 +226,26 @@ void CallCublasLt(cublasLtHandle_t hdl, const DLTensor* A, const DLTensor* B, co
     int64_t batch_stride_B = K * N;
     int64_t batch_stride_C = M * N;
 
-    // CublasLT does not seem to support batched GEMM with one of matrices having
+    // cuBLASLt does not seem to support batched GEMM with one of matrices having
     // one batch (with batch_stride 0).
     ICHECK_EQ(batch_count_A, batch_count_B);
 
-    set_batch(Adesc, batch_count_A, batch_stride_A);
-    set_batch(Bdesc, batch_count_B, batch_stride_B);
-    set_batch(Cdesc, batch_count_C, batch_stride_C);
+    set_batch(A_desc, batch_count_A, batch_stride_A);
+    set_batch(B_desc, batch_count_B, batch_stride_B);
+    set_batch(C_desc, batch_count_C, batch_stride_C);
   }
 
   auto A_data = static_cast<char*>(A->data) + A->byte_offset;
   auto B_data = static_cast<char*>(B->data) + B->byte_offset;
   auto C_data = static_cast<char*>(C->data) + C->byte_offset;
 
-  CHECK_CUBLAS_ERROR(cublasLtMatmul(hdl, operationDesc, alpha, B_data, Adesc, A_data, Bdesc, beta,
-                                    C_data, Cdesc, C_data, Cdesc, nullptr, nullptr, 0, nullptr));
+  CHECK_CUBLAS_ERROR(cublasLtMatmul(hdl, op_desc, alpha, B_data, A_desc, A_data, B_desc, beta,
+                                    C_data, C_desc, C_data, C_desc, nullptr, nullptr, 0, nullptr));
+
+  cublasLtMatmulDescDestroy(op_desc);
+  cublasLtMatrixLayoutDestroy(A_desc);
+  cublasLtMatrixLayoutDestroy(B_desc);
+  cublasLtMatrixLayoutDestroy(C_desc);
 }
 
 inline void CallLtIgemm(TVMArgs args, TVMRetValue* ret, cublasLtHandle_t hdl) {

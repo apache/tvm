@@ -22,7 +22,6 @@
  * \brief Implementation of the CUBLAS JSON serializer.
  */
 #include <tvm/ir/module.h>
-
 #include <string>
 
 #include "../codegen_json/codegen_json.h"
@@ -36,6 +35,15 @@ using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
 using JSONGraphNodeEntry = tvm::runtime::json::JSONGraphNodeEntry;
 using JSONSerializer = backend::contrib::JSONSerializer;
 using backend::contrib::NodeEntries;
+
+
+Map<String, IntImm> ExtractArgIdx(String pattern_name, Function f) {
+  Map<String, IntImm> arg_idx;
+  arg_idx.Set("lhs", IntImm(DataType::Int(64), 1));
+  arg_idx.Set("rhs", IntImm(DataType::Int(64), 0));
+  arg_idx.Set("bias", IntImm(DataType::Int(64), 2));
+  return arg_idx;
+}
 
 class CublasJSONSerializer : public JSONSerializer {
  public:
@@ -55,21 +63,27 @@ class CublasJSONSerializer : public JSONSerializer {
 
     std::string composite_name = composite_opt.value();
 
-    NodeEntries inputs;
+    NodeEntries inputs_tmp;
     for (const auto& arg : call_node->args) {
       auto res = VisitExpr(arg);
-      inputs.insert(inputs.end(), res.begin(), res.end());
+      inputs_tmp.insert(inputs_tmp.end(), res.begin(), res.end());
     }
+
+    ICHECK(inputs_tmp.size() <= 3);
+    NodeEntries inputs(inputs_tmp.size());
+
+    auto arg_idx = ExtractArgIdx(composite_name, fn);
+    inputs[0] = inputs_tmp[arg_idx["lhs"]->value];
+    inputs[1] = inputs_tmp[arg_idx["rhs"]->value];
+    if (inputs_tmp.size() == 3) {
+      inputs[2] = inputs_tmp[arg_idx["bias"]->value];
+    }
+
     auto node = std::make_shared<JSONGraphNode>(composite_name, /* name_ */
                                                 "kernel",       /* op_type_ */
                                                 inputs, 1 /* num_outputs_ */);
 
-    const CallNode* root_call = nullptr;
-    if (composite_name.find("matmul") != std::string::npos) {
-      root_call = backend::GetOpInFunction(fn, "relax.matmul");
-    } else {
-      LOG(FATAL) << "Unimplemented pattern: " << composite_name;
-    }
+    const CallNode* root_call = backend::GetOpInFunction(fn, "relax.matmul");;
 
     SetCallNodeAttribute(node, root_call);
     return AddNode(node, GetRef<Expr>(call_node));

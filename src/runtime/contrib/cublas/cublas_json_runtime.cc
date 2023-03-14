@@ -50,6 +50,7 @@ class CublasJSONRuntime : public JSONRuntimeBase {
   void Init(const Array<NDArray>& consts) override {}
 
   void Run() override {
+    // TODO(masahi): Reuse the same handle across different subgraphs
     cublasLtHandle_t handle;
     cublasLtCreate(&handle);
 
@@ -57,74 +58,39 @@ class CublasJSONRuntime : public JSONRuntimeBase {
       const auto& node = nodes_[i];
       if (node.GetOpType() == "kernel") {
         auto op_name = node.GetOpName();
-        if (op_name == "cublas.matmul") {
-          uint32_t output_eid = EntryID(outputs_[0]);
-          auto out_ptr = data_entry_[output_eid];
-          auto a_ptr = GetInput(node, 0);
-          auto b_ptr = GetInput(node, 1);
-          tvm::contrib::CallCublasLt(handle, a_ptr, b_ptr, nullptr, out_ptr, false, false,
-                                     CUBLASLT_EPILOGUE_DEFAULT);
-        } else if (op_name == "cublas.matmul_transposed") {
-          uint32_t output_eid = EntryID(outputs_[0]);
-          auto out_ptr = data_entry_[output_eid];
-          // TODO: fix
-          auto a_ptr = GetInput(node, 1);
-          auto b_ptr = GetInput(node, 0);
-          tvm::contrib::CallCublasLt(handle, a_ptr, b_ptr, nullptr, out_ptr, false, true,
-                                     CUBLASLT_EPILOGUE_DEFAULT);
-        } else if (op_name == "cublas.matmul_bias") {
-          uint32_t output_eid = EntryID(outputs_[0]);
-          auto out_ptr = data_entry_[output_eid];
-          auto a_ptr = GetInput(node, 0);
-          auto b_ptr = GetInput(node, 1);
-          auto bias_ptr = GetInput(node, 2);
-          tvm::contrib::CallCublasLt(handle, a_ptr, b_ptr, bias_ptr, out_ptr, false, false,
-                                     CUBLASLT_EPILOGUE_BIAS);
-        } else if (op_name == "cublas.matmul_bias_relu") {
-          uint32_t output_eid = EntryID(outputs_[0]);
-          auto out_ptr = data_entry_[output_eid];
-          auto a_ptr = GetInput(node, 0);
-          auto b_ptr = GetInput(node, 1);
-          auto bias_ptr = GetInput(node, 2);
-          tvm::contrib::CallCublasLt(handle, a_ptr, b_ptr, bias_ptr, out_ptr, false, false,
-                                     CUBLASLT_EPILOGUE_RELU_BIAS);
-        } else if (op_name == "cublas.matmul_bias_gelu") {
-          uint32_t output_eid = EntryID(outputs_[0]);
-          auto out_ptr = data_entry_[output_eid];
-          auto a_ptr = GetInput(node, 0);
-          auto b_ptr = GetInput(node, 1);
-          auto bias_ptr = GetInput(node, 2);
-          tvm::contrib::CallCublasLt(handle, a_ptr, b_ptr, bias_ptr, out_ptr, false, false,
-                                     CUBLASLT_EPILOGUE_GELU_BIAS);
-        } else if (op_name == "cublas.matmul_transposed_bias") {
-          uint32_t output_eid = EntryID(outputs_[0]);
-          auto out_ptr = data_entry_[output_eid];
-          auto a_ptr = GetInput(node, 1);
-          auto b_ptr = GetInput(node, 0);
-          auto bias_ptr = GetInput(node, 2);
-          tvm::contrib::CallCublasLt(handle, a_ptr, b_ptr, bias_ptr, out_ptr, false, true,
-                                     CUBLASLT_EPILOGUE_BIAS);
-        } else if (op_name == "cublas.matmul_transposed_bias_relu") {
-          uint32_t output_eid = EntryID(outputs_[0]);
-          auto out_ptr = data_entry_[output_eid];
-          auto a_ptr = GetInput(node, 1);
-          auto b_ptr = GetInput(node, 0);
-          auto bias_ptr = GetInput(node, 2);
-          tvm::contrib::CallCublasLt(handle, a_ptr, b_ptr, bias_ptr, out_ptr, false, true,
-                                     CUBLASLT_EPILOGUE_RELU_BIAS);
-        } else if (op_name == "cublas.matmul_transposed_bias_gelu") {
-          uint32_t output_eid = EntryID(outputs_[0]);
-          auto out_ptr = data_entry_[output_eid];
-          auto a_ptr = GetInput(node, 1);
-          auto b_ptr = GetInput(node, 0);
-          auto bias_ptr = GetInput(node, 2);
-          tvm::contrib::CallCublasLt(handle, a_ptr, b_ptr, bias_ptr, out_ptr, false, true,
-                                     CUBLASLT_EPILOGUE_GELU_BIAS);
-        } else {
-          LOG(FATAL) << op_name;
+        uint32_t output_eid = EntryID(outputs_[0]);
+        auto out_ptr = data_entry_[output_eid];
+        bool transa = false;
+        bool transb = false;
+        cublasLtEpilogue_t epilogue = CUBLASLT_EPILOGUE_DEFAULT;
+
+        if (op_name.find("transposed") != std::string::npos) {
+          transb = true;
         }
+
+        if (op_name.find("relu") != std::string::npos) {
+          epilogue = CUBLASLT_EPILOGUE_RELU_BIAS;
+        } else if (op_name.find("gelu") != std::string::npos) {
+          epilogue = CUBLASLT_EPILOGUE_GELU_BIAS;
+        } else if (op_name.find("bias") != std::string::npos) {
+          epilogue = CUBLASLT_EPILOGUE_BIAS;
+        }
+
+        auto get_inputs = [this](const JSONGraphNode& node, bool has_bias) {
+          const DLTensor* bias = nullptr;
+          if (has_bias) {
+            bias = GetInput(node, 2);
+          }
+          return std::make_tuple(GetInput(node, 0), GetInput(node, 1), bias);
+        };
+
+        auto [a_ptr, b_ptr, bias_ptr] = get_inputs(node, epilogue != CUBLASLT_EPILOGUE_DEFAULT);
+
+        tvm::contrib::CallCublasLt(handle, a_ptr, b_ptr, bias_ptr, out_ptr, transa, transb,
+                                   epilogue);
       }
     }
+    cublasLtDestroy(handle);
   }
 
  private:
