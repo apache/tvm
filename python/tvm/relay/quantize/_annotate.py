@@ -244,6 +244,16 @@ def multiply_rewrite(ref_call, new_args, ctx):
             rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
         expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
         return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
+    if rhs_kind in [QAnnotateKind.ACTIVATION, QAnnotateKind.INPUT] and lhs_kind is None:
+        # quantize rhs to INPUT field
+        if rhs_kind == QAnnotateKind.ACTIVATION:
+            rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
+        if _analysis.check_constant(lhs_expr):
+            lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.WEIGHT)
+        else:
+            lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT)
+        expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
+        return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
 
     raise ValueError
 
