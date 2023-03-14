@@ -142,3 +142,8 @@ def _repeat(bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.tile")
 def _tile(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(topi.tile, call.args[0], call.attrs.repeats)
+
+
+@register_legalize("relax.cumsum")
+def _cumsum(bb: BlockBuilder, call: Call) -> Expr:
+    return bb.call_te(topi.cumsum, call.args[0], call.attrs.axis, call.attrs.dtype)
