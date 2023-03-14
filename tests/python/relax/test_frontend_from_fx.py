@@ -1749,6 +1749,36 @@ def test_split():
 
 
 @tvm.testing.requires_gpu
+def test_cumsum():
+    import torch
+    from torch.nn import Module
+
+    torch.set_grad_enabled(False)
+    torch.random.manual_seed(0)
+
+    input_info = [([1, 2, 3, 4], "float32")]
+
+    class Cumsum(Module):
+        def forward(self, input):
+            return torch.cumsum(input, dim=1, dtype=torch.int32)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 2, 3, 4), dtype="float32")
+        ) -> R.Tensor((1, 2, 3, 4), dtype="int32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 2, 3, 4), dtype="int32") = R.cumsum(input_1, axis=1, dtype="int32")
+                gv: R.Tensor((1, 2, 3, 4), dtype="int32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Cumsum(), input_info, {}, expected1)
+
+
+@tvm.testing.requires_gpu
 def test_chunk():
     import torch
     from torch.nn import Module
