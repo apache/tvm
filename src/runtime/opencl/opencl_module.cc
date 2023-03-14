@@ -80,7 +80,7 @@ class OpenCLWrappedFunc {
     }
 
 #ifdef USE_ADRENO_RECORDING
-    if(m_->is_recording) { 
+    if (m_->is_recording) { 
       cl_command_queue rec_queue = w_->GetRecQueue(t->device);
       OPENCL_CALL(clEnqueueNDRangeKernel(rec_queue, kernel, work_dim, nullptr, wl.work_size,
                                         wl.work_size + 3, 0, nullptr, nullptr));
@@ -316,11 +316,11 @@ void OpenCLModuleNode::RunRecording() {
   cl_recording_qcom recording = w_->GetRecording(t->device);
   if (w_->IsProfiling(t->device)) {
     w_->GetEventQueue(t->device).resize(w_->GetEventQueue(t->device).size() + 1);
-    OPENCL_CALL(clEnqueueRecordingQCOM(queue, recording, 0, nullptr, 0, nullptr, 0, 
+    OPENCL_CALL(clEnqueueRecordingQCOM(queue, recording, 0, nullptr, 0, nullptr, 0,
                                   nullptr, 0, nullptr, 0, nullptr, &(w_->GetEventQueue(t->device).back())));
   }
   else {
-    OPENCL_CALL(clEnqueueRecordingQCOM(queue, recording, 0, nullptr, 0, nullptr, 0, 
+    OPENCL_CALL(clEnqueueRecordingQCOM(queue, recording, 0, nullptr, 0, nullptr, 0,
                                       nullptr, 0, nullptr, 0, nullptr, nullptr));
   }
 #endif

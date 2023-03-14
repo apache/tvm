@@ -74,7 +74,7 @@ if(USE_OPENCL)
     target_link_libraries(opencl-cpptest PRIVATE gtest_main tvm_runtime)
   endif()
 
-  if (DEFINED USE_ADRENO_RECORDING)
+  if (USE_ADRENO_RECORDING MATCHES ${IS_TRUE_PATTERN})
     tvm_file_glob(GLOB RUNTIME_RECORDING_GRAPH_SRCS src/runtime/graph_executor/stream_graph/graph_runtime_adreno_recording.cc)
     list(APPEND RUNTIME_SRCS ${RUNTIME_RECORDING_GRAPH_SRCS})
     if (EXISTS "${OpenCL_INCLUDE_DIRS}/CL/cl_qcom_ml_ops.h")
