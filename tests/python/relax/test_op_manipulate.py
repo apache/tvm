@@ -2961,7 +2961,9 @@ def test_cumsum_infer_struct_info():
     x5 = relax.Var("x", R.Tensor())
 
     _check_inference(bb, relax.op.cumsum(x0, axis=1), relax.TensorStructInfo((2, 10, 4), "float32"))
-    _check_inference(bb, relax.op.cumsum(x1, axis=1), relax.TensorStructInfo(dtype="float32", ndim=3))
+    _check_inference(
+        bb, relax.op.cumsum(x1, axis=1), relax.TensorStructInfo(dtype="float32", ndim=3)
+    )
     _check_inference(bb, relax.op.cumsum(x2, axis=1), relax.TensorStructInfo(dtype="float32"))
     _check_inference(bb, relax.op.cumsum(x3, axis=1), relax.TensorStructInfo((2, 10, 4), dtype=""))
     _check_inference(bb, relax.op.cumsum(x4, axis=1), relax.TensorStructInfo(dtype="", ndim=3))
