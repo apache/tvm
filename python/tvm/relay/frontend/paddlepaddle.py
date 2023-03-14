@@ -435,7 +435,7 @@ def convert_conv3d(g, op, block):
                 paddings[1],
                 paddings[4],
                 paddings[2],
-                paddings[5]
+                paddings[5],
             ]
     else:
         msg = 'Value {} in attribute "padding" of operator Conv is not "valid."'
