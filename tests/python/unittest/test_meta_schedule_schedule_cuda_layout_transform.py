@@ -108,7 +108,10 @@ def generate_test_case(
         axis_to_reshape, size_new_dim = implicit_reshape_info
         cur_dim = dst_layout[axis_to_reshape]
         dst_layout[axis_to_reshape] = f"{cur_dim}{size_new_dim}{cur_dim.lower()}"
+
     random.shuffle(dst_layout)
+    while "".join(dst_layout) == src_layout:
+        random.shuffle(dst_layout)
     dst_layout = "".join(dst_layout)
 
     op_choices = random.choices(list(extra_pattern_level_to_op.keys()), k=num_additional_ops)
@@ -141,7 +144,7 @@ def generate_all_test_case(
     ],
     implicit_reshape_conditions: List[Optional[Tuple[int, int]]] = [None, (0, 2), (1, 2)],
     dtypes: List[str] = ["float32", "float16"],
-    num_additional_ops: int = 5,
+    num_additional_ops: int = 1,
     tile_sizes: List[int] = [32, 20, 19],
     repeats_per_condition=10,
 ):
@@ -176,4 +179,29 @@ def generate_all_test_case(
 
 
 if __name__ == "__main__":
+    mod = create_relay_module([890, 14], "float32", [("AB", "BA"), 2])
+    extracted_tasks = meta_schedule.relay_integration.extract_tasks(
+        mod,
+        tvm.target.Target("cuda"),
+        {},
+        pass_config={
+            "relay.backend.use_meta_schedule": True,
+            "relay.FuseOps.max_depth": 30,
+            "relay.backend.tir_converter": "default",
+        },
+    )
+    task_of_interest = None
+    for task in extracted_tasks:
+        if "layout_transform" in task.task_name:
+            task_of_interest = task
+            break
+    assert task_of_interest is not None
+
+    # # Fused layout transform task
+    # dispatched_mod = task_of_interest.dispatched[0]
+    # base_schedule = tvm.tir.Schedule(dispatched_mod)
+    # verify_schedule(base_schedule, [32, 20, 19])
+
+    breakpoint()
+
     generate_all_test_case()

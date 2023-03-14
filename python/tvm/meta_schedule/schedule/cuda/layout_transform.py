@@ -187,7 +187,7 @@ def tile_layout_transform(
         loops[index] = new_loop_split
         loops.append(factored_loop)
 
-        loop_extants[index] = math.ceil(new_size / split_factor)
+        loop_extants[index] = math.ceil(int(new_size) / int(split_factor))
         loop_extants.append(split_factor)
 
         sch.reorder(*loops)
@@ -491,14 +491,10 @@ def cuda_layout_transform_schedule_rule(
     ret:
         A list of new schedules to try.
     """
-    # params: input_buffer, output_buffer
-    params = sch.mod["main"].params
-    input_buffer = sch.mod["main"].buffer_map[params[0]]
-
     # Info needed for tiling
-    input_shape = [int(dim) for dim in input_buffer.shape]
     src_layout = sch.get_sref(block).stmt.annotations["src_layout"]
     dst_layout = sch.get_sref(block).stmt.annotations["dst_layout"]
+    input_shape = [int(c) for c in sch.get_sref(block).stmt.annotations["input_shape"]]
 
     schedules = []
 
@@ -526,7 +522,6 @@ def cuda_layout_transform_schedule_rule(
     input_shape, src_layout, dst_layout = handle_block_implicit_reshape(
         sch, block_read, input_shape, src_layout, dst_layout
     )
-
     # Try tile size 2,3...threads_per_warp as tile size of 1 has no coaslescing.
     max_tile_size = get_max_tile_size()
     if tile_sizes is None:

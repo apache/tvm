@@ -1619,7 +1619,8 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
   Map<String, ObjectRef> attrs = {{"schedule_rule", String(schedule_rule)},
                                   // Information about layouts needed for the schedule rule
                                   {"src_layout", String(src_layout)},
-                                  {"dst_layout", String(dst_layout)}};
+                                  {"dst_layout", String(dst_layout)},
+                                  {"input_shape", src->shape}};
 
   return compute(
       dst_shape,
