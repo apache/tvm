@@ -468,7 +468,7 @@ def get_max_tile_size() -> int:
 
 @tvm.register_func("meta_schedule.cuda.layout_transform")
 def cuda_layout_transform_schedule_rule(
-    sch: tvm.tir.Schedule, block: BlockRV, tile_sizes: Optional[List[int]] = None
+    sch: tvm.tir.Schedule, block: BlockRV, testing_tile_sizes: Optional[List[int]] = None
 ) -> List[tvm.tir.Schedule]:
     """
     Applies tiling scheme to layout transform task (potentially fused with other injective funcs).
@@ -488,8 +488,9 @@ def cuda_layout_transform_schedule_rule(
         The block corresponding to the layout transform.
         Should be a block which reads and writes to global memory, doing layout transform.
 
-    tile_sizes:
-        A list of tile sizes to try, overriding normal settings. For testing
+    testing_tile_sizes:
+        A list of tile sizes to try, overriding normal settings. For testing. None means
+        ignore. Else overrides normal settings of tile sizes to try.
 
     Returns
     -------
@@ -504,7 +505,8 @@ def cuda_layout_transform_schedule_rule(
     schedules = []
 
     # Always include the default schedules which will be handled via AutoBind schedule rule
-    schedules.append(sch)
+    if not testing_tile_sizes:
+        schedules.append(sch)
     sch = sch.copy()
 
     # Inline consumers of the layout transform into the layout transform block.
@@ -531,9 +533,11 @@ def cuda_layout_transform_schedule_rule(
     )
 
     # Try tile size 2,3...threads_per_warp as tile size of 1 has no coaslescing.
-    max_tile_size = get_max_tile_size()
-    if tile_sizes is None:
-        tile_sizes = range(2, max_tile_size + 1)
+    if testing_tile_sizes is None:
+        tile_sizes = range(2, get_max_tile_size() + 1)
+    else:
+        tile_sizes = testing_tile_sizes
+
     for tile_size in tile_sizes:
         new_sch = sch.copy()
         tile_layout_transform(
