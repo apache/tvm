@@ -73,7 +73,7 @@ def tile_layout_transform(
     dst_layout: str,
     input_shape: List[int],
     tile_size: ExprRV,
-):
+) -> Tuple[BlockRV, BlockRV]:
     """
     High level tiling for layout transform block. Mutates sch in place.
 
@@ -298,6 +298,8 @@ def tile_layout_transform(
     sch.bind(loop=inner_write_loop, thread_axis="threadIdx.x")
     sch.bind(loop=inner_read_loop, thread_axis="threadIdx.x")
 
+    return block_write, block_read
+
 
 def handle_block_implicit_reshape(
     sch: tvm.tir.Schedule,
@@ -502,10 +504,6 @@ def cuda_layout_transform_schedule_rule(
     schedules.append(sch)
     sch = sch.copy()
 
-    # For each schedule we also want to inline each stage as would be done in normal circumstances
-    # to prevent extraneous memory access.
-    block = auto_inline(sch, block)
-
     # Setup up basic structure of schedule of creating read into shared mem, before applying tiling
     # Outer loop structure of read block matches that of src_layout
     # E.g. if input_shape is [4, 6, 8]. Loops for read block will be
@@ -528,9 +526,12 @@ def cuda_layout_transform_schedule_rule(
         tile_sizes = range(2, max_tile_size + 1)
     for tile_size in tile_sizes:
         new_sch = sch.copy()
-        tile_layout_transform(
+        block_write, block_read = tile_layout_transform(
             new_sch, block_read, block, src_layout, dst_layout, input_shape, tile_size
         )
+        # For each schedule we also want to inline each stage as would be done in normal circumstances
+        # to prevent extraneous memory access.
+        auto_inline(new_sch, block_write)
         schedules.append(new_sch)
 
     return schedules

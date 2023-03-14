@@ -179,29 +179,29 @@ def generate_all_test_case(
 
 
 if __name__ == "__main__":
-    mod = create_relay_module([890, 14], "float32", [("AB", "BA"), 2])
-    extracted_tasks = meta_schedule.relay_integration.extract_tasks(
-        mod,
-        tvm.target.Target("cuda"),
-        {},
-        pass_config={
-            "relay.backend.use_meta_schedule": True,
-            "relay.FuseOps.max_depth": 30,
-            "relay.backend.tir_converter": "default",
-        },
-    )
-    task_of_interest = None
-    for task in extracted_tasks:
-        if "layout_transform" in task.task_name:
-            task_of_interest = task
-            break
-    assert task_of_interest is not None
+    # mod = create_relay_module([12, 48, 18], "float32", [("ABC", "B2bAC"), 2])
+    # extracted_tasks = meta_schedule.relay_integration.extract_tasks(
+    #     mod,
+    #     tvm.target.Target("cuda"),
+    #     {},
+    #     pass_config={
+    #         "relay.backend.use_meta_schedule": True,
+    #         "relay.FuseOps.max_depth": 30,
+    #         "relay.backend.tir_converter": "default",
+    #     },
+    # )
+    # task_of_interest = None
+    # for task in extracted_tasks:
+    #     if "layout_transform" in task.task_name:
+    #         task_of_interest = task
+    #         break
+    # assert task_of_interest is not None
 
-    # # Fused layout transform task
+    # # # Fused layout transform task
     # dispatched_mod = task_of_interest.dispatched[0]
     # base_schedule = tvm.tir.Schedule(dispatched_mod)
-    # verify_schedule(base_schedule, [32, 20, 19])
+    # verify_schedule(base_schedule, [30, 20, 19])
 
-    breakpoint()
+    # exit()
 
     generate_all_test_case()
