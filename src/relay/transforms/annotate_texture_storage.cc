@@ -46,6 +46,7 @@
 #include "../op/memory/device_copy.h"
 #include "../op/memory/memory.h"
 #include "../transforms/device_aware_visitors.h"
+#include "transform_layout.h"
 
 namespace tvm {
 namespace relay {
@@ -404,7 +405,7 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
     } else if (const OpNode* opnode = call->op.as<OpNode>()) {
       auto fpattern = Op::GetAttrMap<TOpPattern>("TOpPattern");
       auto pattern = fpattern[GetRef<Op>(opnode)];
-      if (pattern <= kCommReduce) {
+      if (pattern <= kInjective) {
         if (const auto* ttype = call->checked_type().as<TensorTypeNode>()) {
           if (ttype->shape.size() == 5) {
             supports_texture_storage = true;
@@ -532,7 +533,11 @@ class RewriteVDStorageScopes : public transform::DeviceAwareExprMutator {
         VirtualDevice virtual_device_to =
             VirtualDevice(virtual_device->device_type(), virtual_device->virtual_device_id,
                           virtual_device->target, storage_scope_[arg][GetRef<Expr>(call_node)][0]);
-        new_arg = DeviceCopy(new_arg, virtual_device_from, virtual_device_to);
+        auto data_layout = call_node->op.as<FunctionNode>()->attrs.GetAttr<String>("data_layout").value();
+        if (data_layout.empty()) {
+          data_layout = call_node->op.as<FunctionNode>()->attrs.GetAttr<String>("layout").value();
+        }
+        new_arg = tvm::relay::MakeLayoutTransform(new_arg, data_layout, data_layout);
         new_arg = OnDevice(
             new_arg,
             VirtualDevice(virtual_device->device_type(), virtual_device->virtual_device_id,
@@ -645,7 +650,7 @@ Map<Expr, Map<Expr, Array<String>>> CollectStorageInfo(const Expr& expr) {
   return storage_info;
 }
 
-Expr AnnotateMemoryScopeExpr(const Expr& expr, const IRModule& mod) {
+Expr AnnotateMemoryScopeExpr(const Expr& expr, const IRModule& mod, CompilationConfig config) {
   auto storage_scope = CollectStorageInfo(expr);
   if (storage_scope.size()) {
     return RewriteVDStorageScopes(storage_scope).Rewrite(expr);
@@ -655,10 +660,10 @@ Expr AnnotateMemoryScopeExpr(const Expr& expr, const IRModule& mod) {
 }
 
 namespace transform {
-tvm::transform::Pass AnnotateMemoryScope() {
+tvm::transform::Pass AnnotateMemoryScope(CompilationConfig config) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(AnnotateMemoryScopeExpr(f, m));
+      [config = std::move(config)](Function f, IRModule m, PassContext pc) {
+        return Downcast<Function>(AnnotateMemoryScopeExpr(f, m, config));
       };
   return CreateFunctionPass(pass_func, 2, "AnnotateMemoryScope", {});
 }

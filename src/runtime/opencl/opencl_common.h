@@ -50,12 +50,16 @@
  * files.  This also allows us to expose the OpenCL version through
  * tvm.runtime.Device.
  */
-#define CL_TARGET_OPENCL_VERSION 120
+#define CL_TARGET_OPENCL_VERSION 220
 
 #ifdef __APPLE__
 #include <OpenCL/opencl.h>
 #else
 #include <CL/opencl.h>
+#endif
+
+#ifdef USE_ADRENO_RECORDING
+#include <CL/cl_qcom_ml_ops.h>
 #endif
 
 #include <memory>
@@ -235,6 +239,10 @@ class OpenCLWorkspace : public DeviceAPI {
   std::vector<cl_device_id> devices;
   // the queues
   std::vector<cl_command_queue> queues;
+  std::vector<cl_command_queue> rec_queues;
+#ifdef USE_ADRENO_RECORDING
+  std::vector<cl_recording_qcom> recordings;
+#endif
   // the events
   std::vector<std::vector<cl_event>> events;
   // Number of registered kernels
@@ -266,6 +274,23 @@ class OpenCLWorkspace : public DeviceAPI {
         << "Invalid OpenCL device_id=" << dev.device_id << ". " << GetError();
     return queues[dev.device_id];
   }
+  cl_command_queue GetRecQueue(Device dev) {
+    ICHECK(IsOpenCLDevice(dev));
+    this->Init();
+    ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < rec_queues.size())
+        << "Invalid OpenCL device_id=" << dev.device_id << ". " << GetError();
+    return rec_queues[dev.device_id];
+  }
+
+#ifdef USE_ADRENO_RECORDING
+  cl_recording_qcom GetRecording(Device dev) {
+    ICHECK(IsOpenCLDevice(dev));
+    this->Init();
+    ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < recordings.size())
+        << "Invalid OpenCL device_id=" << dev.device_id << ". " << GetError();
+    return recordings[dev.device_id];
+  }
+#endif
   // get the event queue of the context
   std::vector<cl_event>& GetEventQueue(Device dev) {
     ICHECK(IsOpenCLDevice(dev));
@@ -420,7 +445,11 @@ class OpenCLModuleNode : public ModuleNode {
   // install a new kernel to thread local entry
   cl_kernel InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThreadEntry* t,
                           const std::string& func_name, const KTRefEntry& e);
+  void StartRecording();
+  void EndRecording();
+  void RunRecording();
 
+  bool is_recording;
  private:
   // The workspace, need to keep reference to use it in destructor.
   // In case of static destruction order problem.
@@ -443,6 +472,7 @@ class OpenCLModuleNode : public ModuleNode {
   std::vector<cl_kernel> kernels_;
   // parsed kernel data
   std::unordered_map<std::string, std::string> parsed_kernels_;
+  
 };
 
 /*! \brief OpenCL timer node */

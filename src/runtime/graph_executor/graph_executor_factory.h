@@ -97,6 +97,7 @@ class TVM_DLL GraphExecutorFactory : public runtime::ModuleNode {
    */
   Module CudaGraphExecutorCreate(const std::vector<Device>& devs);
 
+  Module AdrenoRecordingExecutorCreate(const std::vector<Device>& devs);
   /*!
    * \brief Set params.
    * \param graph_executor The graph executor we want to set the params into.

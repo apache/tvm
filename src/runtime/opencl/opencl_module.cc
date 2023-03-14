@@ -78,19 +78,27 @@ class OpenCLWrappedFunc {
     for (cl_uint i = 0; i < work_dim; ++i) {
       wl.work_size[i] *= wl.work_size[i + 3];
     }
+
+#ifdef USE_ADRENO_RECORDING
+    if(m_->is_recording) { 
+      cl_command_queue rec_queue = w_->GetRecQueue(t->device);
+      OPENCL_CALL(clEnqueueNDRangeKernel(rec_queue, kernel, work_dim, nullptr, wl.work_size,
+                                        wl.work_size + 3, 0, nullptr, nullptr));
+    }
+#endif
     // launch kernel
 
     if (w_->IsProfiling(t->device)) {
       w_->GetEventQueue(t->device).resize(w_->GetEventQueue(t->device).size() + 1);
       OPENCL_CALL(clEnqueueNDRangeKernel(queue, kernel, work_dim, nullptr, wl.work_size,
-                                         wl.work_size + 3, 0, nullptr,
-                                         &(w_->GetEventQueue(t->device).back())));
+                                        wl.work_size + 3, 0, nullptr,
+                                        &(w_->GetEventQueue(t->device).back())));
     } else {
       OPENCL_CALL(clEnqueueNDRangeKernel(queue, kernel, work_dim, nullptr, wl.work_size,
-                                         wl.work_size + 3, 0, nullptr, nullptr));
+                                        wl.work_size + 3, 0, nullptr, nullptr));
     }
   }
-
+  
  private:
   // global workspace.
   cl::OpenCLWorkspace* w_;
@@ -107,7 +115,7 @@ class OpenCLWrappedFunc {
   // launch parameters config
   LaunchParamConfig launch_param_config_;
 };
-
+// uint OpenCLModuleNode::duration = 0;
 OpenCLModuleNode::~OpenCLModuleNode() {
   {
     // free the kernel ids in global table.
@@ -155,6 +163,7 @@ PackedFunc OpenCLModuleNode::GetFunction(const std::string& name,
       arg_size[i] = bits / 8;
     }
   }
+  // LOG(INFO) << "NAME           " << name;
   // initialize the wrapped func.
   f.Init(this, sptr_to_self, kid_map_.at(name), name, arg_size, info.launch_param_tags);
   return PackFuncVoidAddr(f, info.arg_types);
@@ -262,6 +271,51 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
   return kernel;
 }
 
+void OpenCLModuleNode::StartRecording() {
+#ifdef USE_ADRENO_RECORDING
+  cl_int err_code;
+  cl_command_queue rec_que;
+  auto w_ = cl::OpenCLWorkspace::Global();
+  for (size_t i = 0; i < w_->devices.size(); ++i) {
+    cl_device_id did = w_->devices[i];
+    rec_que = clCreateCommandQueue(w_->context, did, CL_QUEUE_RECORDABLE_QCOM, &err_code);
+    w_->rec_queues.push_back(rec_que);
+    OPENCL_CHECK_ERROR(err_code);
+    w_->recordings.push_back(clNewRecordingQCOM(rec_que, &err_code));
+    OPENCL_CHECK_ERROR(err_code);
+  }
+
+  this->is_recording = true;
+#endif
+}
+
+void OpenCLModuleNode::EndRecording() {
+#ifdef USE_ADRENO_RECORDING
+  auto w_ = cl::OpenCLWorkspace::Global();
+  cl::OpenCLThreadEntry* t = w_->GetThreadEntry();
+  cl_recording_qcom recording = w_->GetRecording(t->device);
+  OPENCL_CALL(clEndRecordingQCOM(recording));
+#endif
+}
+
+void OpenCLModuleNode::RunRecording() {
+#ifdef USE_ADRENO_RECORDING
+  auto w_ = cl::OpenCLWorkspace::Global();
+  cl::OpenCLThreadEntry* t = w_->GetThreadEntry();
+  cl_command_queue queue = w_->GetQueue(t->device);
+  cl_recording_qcom recording = w_->GetRecording(t->device);
+  if (w_->IsProfiling(t->device)) {
+    w_->GetEventQueue(t->device).resize(w_->GetEventQueue(t->device).size() + 1);
+    OPENCL_CALL(clEnqueueRecordingQCOM(queue, recording, 0, nullptr, 0, nullptr, 0, 
+                                  nullptr, 0, nullptr, 0, nullptr, &(w_->GetEventQueue(t->device).back())));
+  }
+  else {
+    OPENCL_CALL(clEnqueueRecordingQCOM(queue, recording, 0, nullptr, 0, nullptr, 0, 
+                                      nullptr, 0, nullptr, 0, nullptr, nullptr));
+  }
+#endif
+}
+
 Module OpenCLModuleCreate(std::string data, std::string fmt,
                           std::unordered_map<std::string, FunctionInfo> fmap, std::string source) {
   auto n = make_object<OpenCLModuleNode>(data, fmt, fmap, source);
@@ -290,6 +344,8 @@ Module OpenCLModuleLoadBinary(void* strm) {
   stream->Read(&data);
   return OpenCLModuleCreate(data, fmt, fmap, std::string());
 }
+
+
 
 TVM_REGISTER_GLOBAL("runtime.module.loadfile_cl").set_body_typed(OpenCLModuleLoadFile);
 

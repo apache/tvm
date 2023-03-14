@@ -93,6 +93,14 @@ PackedFunc GraphExecutorFactory::GetFunction(
       }
       *rv = this->CudaGraphExecutorCreate(devices);
     });
+  } else if (name == "adreno_recording_create") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      std::vector<Device> devices;
+      for (int i = 0; i < args.num_args; ++i) {
+        devices.emplace_back(args[i].operator Device());
+      }
+      *rv = this->AdrenoRecordingExecutorCreate(devices);
+    });
   } else {
     return PackedFunc();
   }
@@ -147,6 +155,31 @@ Module GraphExecutorFactory::DebugExecutorCreate(const std::vector<Device>& devs
   pf->CallPacked(TVMArgs(values.data(), codes.data(), args_size), &rv);
   Module mod = rv.operator Module();
   // debug graph executor is one child class of graph executor.
+  SetParams(const_cast<GraphExecutor*>(mod.as<GraphExecutor>()), this->params_);
+  return mod;
+}
+
+Module GraphExecutorFactory::AdrenoRecordingExecutorCreate(const std::vector<Device>& devs) {
+  const PackedFunc* pf = tvm::runtime::Registry::Get("tvm.graph_executor_adreno_recording.create");
+  ICHECK(pf != nullptr) << "Cannot find function tvm.graph_executor_adreno_recording.create in registry. "
+                           "Did you set(USE_ADRENO_RECORDING=ON)?";
+  std::vector<int> unpacked_devs;
+  for (const auto& dev : devs) {
+    unpacked_devs.emplace_back(dev.device_type);
+    unpacked_devs.emplace_back(dev.device_id);
+  }
+  size_t args_size = unpacked_devs.size() + 2;
+  std::vector<TVMValue> values(args_size);
+  std::vector<int> codes(args_size);
+  runtime::TVMArgsSetter setter(values.data(), codes.data());
+  setter(0, this->graph_json_);
+  setter(1, this->imports_[0]);
+  for (size_t i = 0; i < unpacked_devs.size(); ++i) {
+    setter(i + 2, unpacked_devs[i]);
+  }
+  TVMRetValue rv;
+  pf->CallPacked(TVMArgs(values.data(), codes.data(), args_size), &rv);
+  Module mod = rv.operator Module();
   SetParams(const_cast<GraphExecutor*>(mod.as<GraphExecutor>()), this->params_);
   return mod;
 }
