@@ -160,6 +160,18 @@ Expr repeat(Expr data, int repeats, Optional<Integer> axis = NullOpt);
  */
 Expr tile(Expr data, Array<Integer> repeats);
 
+/*!
+ * \brief Numpy style cumsum op. Return the cumulative inclusive sum of the elements along
+ * a given axis.
+ * \param data The input tensor.
+ * \param axis Axis along which the cumulative sum is computed. The default (None) is to compute
+ * the cumsum over the flattened array.
+ * \param dtype Type of the returned array and of the accumulator in which the elements are summed.
+ * If dtype is not specified, it defaults to the dtype of data.
+ * \return The computed result.
+ */
+Expr cumsum(Expr data, Optional<Integer> axis = NullOpt, DataType dtype = DataType::Void());
+
 }  // namespace relax
 }  // namespace tvm
 

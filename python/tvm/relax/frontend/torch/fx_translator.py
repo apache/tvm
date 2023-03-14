@@ -212,6 +212,10 @@ class TorchFXImporter:
         lhs, rhs = self.retrieve_args(node)
         return self._call_binary_op(relax.op.less, lhs, rhs)
 
+    def _eq(self, node: fx.node.Node) -> relax.Expr:
+        lhs, rhs = self.retrieve_args(node)
+        return self._call_binary_op(relax.op.equal, lhs, rhs)
+
     ########## Creation ##########
 
     def _arange(self, node: fx.node.Node) -> relax.Var:
@@ -460,6 +464,38 @@ class TorchFXImporter:
         else:
             dim = None
         return self.block_builder.emit(relax.op.squeeze(x, dim))
+
+    def _cumsum(self, node: fx.node.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+
+        if "dim" in node.kwargs:
+            dim = node.kwargs["dim"]
+        elif len(node.args) > 1:
+            dim = node.args[1]
+        else:
+            dim = None
+        if "dtype" in node.kwargs:
+            dtype = TorchFXImporter._convert_data_type(str(node.kwargs["dtype"]), self.env)
+        else:
+            dtype = None
+        if "out" in node.kwargs:
+            raise ValueError("specifying out for cumsum is not supported yet")
+
+        return self.block_builder.emit(relax.op.cumsum(x, dim, dtype))
+
+    def _index_select(self, node: fx.node.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dim = node.args[1]
+        index = self.env[node.args[2]]
+        return self.block_builder.emit(relax.op.take(x, index, dim))
+
+    def _masked_fill(self, node: fx.node.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        mask = self.env[node.args[1]]
+        value = node.args[2]
+        rx_value = relax.const(value)
+        values = self.block_builder.emit(relax.op.full_like(x, rx_value))
+        return self.block_builder.emit(relax.op.where(mask, values, x))
 
     ########## Search ##########
 
@@ -877,6 +913,7 @@ class TorchFXImporter:
             "sqrt": self._sqrt,
             "round": self._round,
             "lt": self._lt,
+            "eq": self._eq,
             "truediv": self._truediv,
             "fill_": self._inplace_fill,
             "new_ones": self._new_ones,
@@ -902,6 +939,7 @@ class TorchFXImporter:
             "permute": self._permute,
             "reshape": self._reshape,
             "split": self._split,
+            "cumsum": self._cumsum,
             "chunk": self._chunk,
             "transpose": self._transpose,
             "squeeze": self._squeeze,
@@ -925,6 +963,8 @@ class TorchFXImporter:
             "to": lambda node: self.env[node.args[0]],
             "adaptive_avg_pool2d": self._adaptive_avg_pool2d(is_module=False),
             "layer_norm": self._layer_norm,
+            "index_select": self._index_select,
+            "masked_fill": self._masked_fill,
         }
 
     def from_fx(

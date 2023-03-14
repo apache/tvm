@@ -1095,5 +1095,52 @@ TVM_REGISTER_OP("relax.tile")
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTile);
 
+/* relax.cumsum */
+TVM_REGISTER_NODE_TYPE(CumsumAttrs);
+
+Expr cumsum(Expr data, Optional<Integer> axis, DataType dtype) {
+  auto attrs = make_object<CumsumAttrs>();
+  attrs->axis = std::move(axis);
+  attrs->dtype = std::move(dtype);
+
+  static const Op& op = Op::Get("relax.cumsum");
+  return Call(op, {std::move(data)}, Attrs{attrs}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.cumsum").set_body_typed(cumsum);
+
+StructInfo InferStructInfoCumsum(const Call& call, const BlockBuilder& ctx) {
+  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+  const auto* attrs = call->attrs.as<CumsumAttrs>();
+
+  DataType out_type = attrs->dtype.is_void() ? data_sinfo->dtype : attrs->dtype;
+
+  if (!attrs->axis.defined()) {
+    // flattened
+    const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
+    if (data_shape == nullptr) {
+      return TensorStructInfo(out_type, data_sinfo->ndim);
+    } else {
+      PrimExpr flattened_d = 1;
+      for (const auto v : data_shape->values) {
+        flattened_d *= v;
+      }
+      return TensorStructInfo(ShapeExpr(Array<PrimExpr>({flattened_d})), out_type);
+    }
+  }
+
+  if (data_sinfo->shape.defined()) {
+    return TensorStructInfo(data_sinfo->shape.value(), out_type);
+  } else {
+    return TensorStructInfo(out_type, data_sinfo->ndim);
+  }
+}
+
+TVM_REGISTER_OP("relax.cumsum")
+    .set_attrs_type<CumsumAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCumsum);
+
 }  // namespace relax
 }  // namespace tvm
