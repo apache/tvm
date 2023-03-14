@@ -134,7 +134,7 @@ if use_physical_hw:
 
 ######################################################################
 # Now, compile the model for the target. If you do not specify Executor,
-# by default it uses GraphExecutor.
+# by default it uses AOTExecutor.
 
 with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
     module = relay.build(mod, target=TARGET, runtime=RUNTIME, params=params)
