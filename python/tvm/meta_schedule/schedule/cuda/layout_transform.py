@@ -1,6 +1,6 @@
 import math
 from collections import deque
-from typing import List, Sequence, Tuple, Union
+from typing import List, Optional, Sequence, Tuple, Union
 
 import tvm
 from tvm import topi
@@ -463,7 +463,7 @@ def get_max_tile_size() -> int:
 
 @tvm.register_func("meta_schedule.cuda.layout_transform")
 def cuda_layout_transform_schedule_rule(
-    sch: tvm.tir.Schedule, block: BlockRV
+    sch: tvm.tir.Schedule, block: BlockRV, tile_sizes: Optional[List[int]] = None
 ) -> List[tvm.tir.Schedule]:
     """
     Applies tiling scheme to layout transform task (potentially fused with other injective funcs).
@@ -482,6 +482,9 @@ def cuda_layout_transform_schedule_rule(
     block:
         The block corresponding to the layout transform.
         Should be a block which reads and writes to global memory, doing layout transform.
+
+    tile_sizes:
+        A list of tile sizes to try, overriding normal settings. For testing
 
     Returns
     -------
@@ -526,7 +529,9 @@ def cuda_layout_transform_schedule_rule(
 
     # Try tile size 2,3...threads_per_warp as tile size of 1 has no coaslescing.
     max_tile_size = get_max_tile_size()
-    for tile_size in range(2, max_tile_size + 1):
+    if tile_sizes is None:
+        tile_sizes = range(2, max_tile_size + 1)
+    for tile_size in tile_sizes:
         new_sch = sch.copy()
         tile_layout_transform(
             new_sch, block_read, block, src_layout, dst_layout, input_shape, tile_size
