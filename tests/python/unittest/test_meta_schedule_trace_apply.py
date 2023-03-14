@@ -33,9 +33,9 @@ from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 class Dense:
     @T.prim_func
     def main(
-        p0: T.Buffer[(128, 128), "float32"],
-        p1: T.Buffer[(128, 128), "float32"],
-        T_matmul_NT: T.Buffer[(128, 128), "float32"],
+        p0: T.Buffer((128, 128), "float32"),
+        p1: T.Buffer((128, 128), "float32"),
+        T_matmul_NT: T.Buffer((128, 128), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"layout_free_buffers": [1], "tir.noalias": True, "global_symbol": "main"})
@@ -56,9 +56,9 @@ class Dense:
 class DenseAdd:
     @T.prim_func
     def main(
-        p0: T.Buffer[(128, 128), "float32"],
-        p1: T.Buffer[(128, 128), "float32"],
-        T_add: T.Buffer[(128, 128), "float32"],
+        p0: T.Buffer((128, 128), "float32"),
+        p1: T.Buffer((128, 128), "float32"),
+        T_add: T.Buffer((128, 128), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
@@ -92,9 +92,9 @@ class DenseAdd:
 class DenseAdd_scheduled_cpu:
     @T.prim_func
     def main(
-        p0: T.Buffer[(128, 128), "float32"],
-        p1: T.Buffer[(128, 128), "float32"],
-        T_add: T.Buffer[(128, 128), "float32"],
+        p0: T.Buffer((128, 128), "float32"),
+        p1: T.Buffer((128, 128), "float32"),
+        T_add: T.Buffer((128, 128), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
@@ -174,7 +174,7 @@ class DenseAdd_scheduled_cpu:
 @tvm.script.ir_module
 class DenseAdd_cpu_no_write_cache:
     @T.prim_func
-    def main(p0: T.Buffer[(128, 128), "float32"], p1: T.Buffer[(128, 128), "float32"], T_add: T.Buffer[(128, 128), "float32"]) -> None:
+    def main(p0: T.Buffer((128, 128), "float32"), p1: T.Buffer((128, 128), "float32"), T_add: T.Buffer((128, 128), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
         # body
@@ -221,9 +221,9 @@ class DenseAdd_cpu_no_write_cache:
 class DenseAdd_scheduled_gpu:
     @T.prim_func
     def main(
-        p0: T.Buffer[(128, 128), "float32"],
-        p1: T.Buffer[(128, 128), "float32"],
-        T_add: T.Buffer[(128, 128), "float32"],
+        p0: T.Buffer((128, 128), "float32"),
+        p1: T.Buffer((128, 128), "float32"),
+        T_add: T.Buffer((128, 128), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
@@ -374,7 +374,7 @@ class DenseAdd_scheduled_gpu:
 @tvm.script.ir_module
 class Conv2dInt8:
     @T.prim_func
-    def main(p0: T.Buffer[(16, 56, 56, 64), "int8"], p1: T.Buffer[(256, 1, 1, 64), "int8"], p2: T.Buffer[(1, 1, 1, 256), "int32"], p3: T.Buffer[(1, 1, 1, 256), "int32"], p4: T.Buffer[(1, 1, 1, 256), "int64"], p5: T.Buffer[(1, 1, 1, 256), "int64"], p6: T.Buffer[(1, 1, 1, 256), "int64"], p7: T.Buffer[(), "int32"], p8: T.Buffer[1, "int32"], compute: T.Buffer[(16, 56, 56, 256), "int32"]) -> None:
+    def main(p0: T.Buffer((16, 56, 56, 64), "int8"), p1: T.Buffer((256, 1, 1, 64), "int8"), p2: T.Buffer((1, 1, 1, 256), "int32"), p3: T.Buffer((1, 1, 1, 256), "int32"), p4: T.Buffer((1, 1, 1, 256), "int64"), p5: T.Buffer((1, 1, 1, 256), "int64"), p6: T.Buffer((1, 1, 1, 256), "int64"), p7: T.Buffer((), "int32"), p8: T.Buffer(1, "int32"), compute: T.Buffer((16, 56, 56, 256), "int32")) -> None:
         # function attr dict
         T.func_attr({"tir.noalias": True, "global_symbol": "main"})
         # body
@@ -490,7 +490,7 @@ class Conv2dInt8:
 @tvm.script.ir_module
 class Conv2dInt8_target:
     @T.prim_func
-    def main(p0: T.Buffer[(16, 56, 56, 64), "int8"], p1: T.Buffer[(256, 1, 1, 64), "int8"], p2: T.Buffer[(1, 1, 1, 256), "int32"], p3: T.Buffer[(1, 1, 1, 256), "int32"], p4: T.Buffer[(1, 1, 1, 256), "int64"], p5: T.Buffer[(1, 1, 1, 256), "int64"], p6: T.Buffer[(1, 1, 1, 256), "int64"], p7: T.Buffer[(), "int32"], p8: T.Buffer[1, "int32"], p9: T.Buffer[(16, 56, 56, 256), "int32"], compute: T.Buffer[(16, 56, 56, 256), "uint8"]) -> None:
+    def main(p0: T.Buffer((16, 56, 56, 64), "int8"), p1: T.Buffer((256, 1, 1, 64), "int8"), p2: T.Buffer((1, 1, 1, 256), "int32"), p3: T.Buffer((1, 1, 1, 256), "int32"), p4: T.Buffer((1, 1, 1, 256), "int64"), p5: T.Buffer((1, 1, 1, 256), "int64"), p6: T.Buffer((1, 1, 1, 256), "int64"), p7: T.Buffer((), "int32"), p8: T.Buffer(1, "int32"), p9: T.Buffer((16, 56, 56, 256), "int32"), compute: T.Buffer((16, 56, 56, 256), "uint8")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
@@ -634,29 +634,29 @@ class Conv2dInt8_target:
 @tvm.script.ir_module
 class Conv2dInt8_tensorcore_scheduled:
     @T.prim_func
-    def main(p0: T.Buffer[(16, 56, 56, 64), "int8"], p1: T.Buffer[(256, 1, 1, 64), "int8"], p2: T.Buffer[(1, 1, 1, 256), "int32"], p3: T.Buffer[(1, 1, 1, 256), "int32"], p4: T.Buffer[(1, 1, 1, 256), "int64"], p5: T.Buffer[(1, 1, 1, 256), "int64"], p6: T.Buffer[(1, 1, 1, 256), "int64"], p7: T.Buffer[(), "int32"], p8: T.Buffer[1, "int32"], p9: T.Buffer[(16, 56, 56, 256), "int32"], compute: T.Buffer[(16, 56, 56, 256), "uint8"]) -> None:
+    def main(p0: T.Buffer((16, 56, 56, 64), "int8"), p1: T.Buffer((256, 1, 1, 64), "int8"), p2: T.Buffer((1, 1, 1, 256), "int32"), p3: T.Buffer((1, 1, 1, 256), "int32"), p4: T.Buffer((1, 1, 1, 256), "int64"), p5: T.Buffer((1, 1, 1, 256), "int64"), p6: T.Buffer((1, 1, 1, 256), "int64"), p7: T.Buffer((), "int32"), p8: T.Buffer(1, "int32"), p9: T.Buffer((16, 56, 56, 256), "int32"), compute: T.Buffer((16, 56, 56, 256), "uint8")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A_s0 = T.var("int32")
-        A_s0_1 = T.var("int32")
-        A_s0_2 = T.var("int32")
-        A_s0_3 = T.var("int32")
-        A_s1 = T.var("int32")
-        A_s1_1 = T.var("int32")
-        A_s1_2 = T.var("int32")
-        A_s1_3 = T.var("int32")
-        B_s0 = T.var("int32")
-        B_s1 = T.var("int32")
-        C_s0 = T.var("int32")
-        C_s0_1 = T.var("int32")
-        C_s0_2 = T.var("int32")
-        C_s0_3 = T.var("int32")
-        C_s0_4 = T.var("int32")
-        C_s1 = T.var("int32")
-        C_s1_1 = T.var("int32")
-        C_s1_2 = T.var("int32")
-        C_s1_3 = T.var("int32")
-        C_s1_4 = T.var("int32")
+        A_s0 = T.int32()
+        A_s0_1 = T.int32()
+        A_s0_2 = T.int32()
+        A_s0_3 = T.int32()
+        A_s1 = T.int32()
+        A_s1_1 = T.int32()
+        A_s1_2 = T.int32()
+        A_s1_3 = T.int32()
+        B_s0 = T.int32()
+        B_s1 = T.int32()
+        C_s0 = T.int32()
+        C_s0_1 = T.int32()
+        C_s0_2 = T.int32()
+        C_s0_3 = T.int32()
+        C_s0_4 = T.int32()
+        C_s1 = T.int32()
+        C_s1_1 = T.int32()
+        C_s1_2 = T.int32()
+        C_s1_3 = T.int32()
+        C_s1_4 = T.int32()
         # body
         # with T.block("root")
         conv2d_nhwc_reindex_shared = T.alloc_buffer([50176, 256], dtype="int32", scope="shared")
@@ -756,7 +756,7 @@ class Conv2dInt8_tensorcore_scheduled:
 @tvm.script.ir_module
 class Conv2dInt8_NCHWc:
     @T.prim_func
-    def main(p0: T.Buffer[(1, 32, 7, 7, 16), "uint8"], p1: T.Buffer[(128, 32, 1, 1, 4, 16, 4), "int8"], p2: T.Buffer[(1, 128, 1, 1, 16), "int32"], p3: T.Buffer[(1, 128, 1, 1, 16), "float32"], p4: T.Buffer[1, "float32"], p5: T.Buffer[(1, 128, 7, 7, 16), "int32"], compute: T.Buffer[(1, 128, 7, 7, 16), "uint8"]) -> None:
+    def main(p0: T.Buffer((1, 32, 7, 7, 16), "uint8"), p1: T.Buffer((128, 32, 1, 1, 4, 16, 4), "int8"), p2: T.Buffer((1, 128, 1, 1, 16), "int32"), p3: T.Buffer((1, 128, 1, 1, 16), "float32"), p4: T.Buffer(1, "float32"), p5: T.Buffer((1, 128, 7, 7, 16), "int32"), compute: T.Buffer((1, 128, 7, 7, 16), "uint8")) -> None:
         # function attr dict
         T.func_attr({"tir.noalias": True, "global_symbol": "main"})
         # body
@@ -919,7 +919,7 @@ class Conv2dInt8_NCHWc:
 @tvm.script.ir_module
 class Conv2dInt8_NCHWc_target:
     @T.prim_func
-    def main(p0: T.Buffer[(1, 32, 7, 7, 16), "uint8"], p1: T.Buffer[(128, 32, 1, 1, 4, 16, 4), "int8"], p2: T.Buffer[(1, 128, 1, 1, 16), "int32"], p3: T.Buffer[(1, 128, 1, 1, 16), "float32"], p4: T.Buffer[1, "float32"], p5: T.Buffer[(1, 128, 7, 7, 16), "uint8"], T_cast: T.Buffer[(1, 128, 7, 7, 16), "int32"]) -> None:
+    def main(p0: T.Buffer((1, 32, 7, 7, 16), "uint8"), p1: T.Buffer((128, 32, 1, 1, 4, 16, 4), "int8"), p2: T.Buffer((1, 128, 1, 1, 16), "int32"), p3: T.Buffer((1, 128, 1, 1, 16), "float32"), p4: T.Buffer(1, "float32"), p5: T.Buffer((1, 128, 7, 7, 16), "uint8"), T_cast: T.Buffer((1, 128, 7, 7, 16), "int32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
@@ -1137,7 +1137,7 @@ def get_conv2d_vnni_mod(intrin_id):
     @tvm.script.ir_module
     class Conv2dInt8_NCHWc_scheduled:
         @T.prim_func
-        def main(p0: T.Buffer[(1, 32, 7, 7, 16), "uint8"], p1: T.Buffer[(128, 32, 1, 1, 4, 16, 4), "int8"], p2: T.Buffer[(1, 128, 1, 1, 16), "int32"], p3: T.Buffer[(1, 128, 1, 1, 16), "float32"], p4: T.Buffer[1, "float32"], p5: T.Buffer[(1, 128, 7, 7, 16), "uint8"], T_cast: T.Buffer[(1, 128, 7, 7, 16), "int32"]) -> None:
+        def main(p0: T.Buffer((1, 32, 7, 7, 16), "uint8"), p1: T.Buffer((128, 32, 1, 1, 4, 16, 4), "int8"), p2: T.Buffer((1, 128, 1, 1, 16), "int32"), p3: T.Buffer((1, 128, 1, 1, 16), "float32"), p4: T.Buffer(1, "float32"), p5: T.Buffer((1, 128, 7, 7, 16), "uint8"), T_cast: T.Buffer((1, 128, 7, 7, 16), "int32")) -> None:
             # function attr dict
             T.func_attr({"global_symbol": "main", "tir.noalias": True})
             # body
@@ -1182,7 +1182,7 @@ def get_conv2d_vnni_mod(intrin_id):
                             B_i8x64: T.int8x64 = B[0, 0:64]
                             B_i32x16: T.int32x16 = T.reinterpret(B_i8x64, dtype="int32x16")
                             C_i32x16: T.int32x16 = C[0:16]
-                            C[0:16] = T.call_llvm_pure_intrin(T.uint32(intrin_id), T.uint32(0), C_i32x16, T.broadcast(A_i32, 16), B_i32x16, dtype="int32x16")
+                            C[0:16] = T.call_llvm_pure_intrin(T.uint32(intrin_id), T.uint32(3), C_i32x16, T.broadcast(A_i32, 16), B_i32x16, dtype="int32x16")
                     for ax0, ax1, ax2, ax3 in T.grid(1, 1, 1, 7):
                         for ax4_fused in T.vectorized(16):
                             with T.block("T_cast_8"):
@@ -1200,7 +1200,7 @@ def get_conv2d_vnni_mod(intrin_id):
 @tvm.script.ir_module
 class Conv2dWinogradAddRelu:
     @T.prim_func
-    def main(p0: T.Buffer[(1, 56, 56, 64), "float32"], p1: T.Buffer[(6, 6, 64, 64), "float32"], p2: T.Buffer[(1, 1, 1, 64), "float32"], T_relu: T.Buffer[(1, 56, 56, 64), "float32"]) -> None:
+    def main(p0: T.Buffer((1, 56, 56, 64), "float32"), p1: T.Buffer((6, 6, 64, 64), "float32"), p2: T.Buffer((1, 1, 1, 64), "float32"), T_relu: T.Buffer((1, 56, 56, 64), "float32")) -> None:
         # function attr dict
         T.func_attr({"layout_free_buffers": [1], "tir.noalias": True, "global_symbol": "main"})
         # body
@@ -1292,7 +1292,7 @@ class Conv2dWinogradAddRelu:
 @tvm.script.ir_module
 class Conv2dWinogradAddResidualRelu:
     @T.prim_func
-    def main(p0: T.Buffer[(1, 56, 56, 64), "float32"], p1: T.Buffer[(6, 6, 64, 64), "float32"], p2: T.Buffer[(1, 1, 1, 64), "float32"], p3: T.Buffer[(1, 56, 56, 64), "float32"], T_relu: T.Buffer[(1, 56, 56, 64), "float32"]) -> None:
+    def main(p0: T.Buffer((1, 56, 56, 64), "float32"), p1: T.Buffer((6, 6, 64, 64), "float32"), p2: T.Buffer((1, 1, 1, 64), "float32"), p3: T.Buffer((1, 56, 56, 64), "float32"), T_relu: T.Buffer((1, 56, 56, 64), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
         # body
@@ -1391,7 +1391,7 @@ class Conv2dWinogradAddResidualRelu:
 @tvm.script.ir_module
 class Conv2dWinogradAddResidualRelu_scheduled:
     @T.prim_func
-    def main(p0: T.Buffer[(1, 56, 56, 64), "float32"], p1: T.Buffer[(6, 6, 64, 64), "float32"], p2: T.Buffer[(1, 1, 1, 64), "float32"], p3: T.Buffer[(1, 56, 56, 64), "float32"], T_relu: T.Buffer[(1, 56, 56, 64), "float32"]) -> None:
+    def main(p0: T.Buffer((1, 56, 56, 64), "float32"), p1: T.Buffer((6, 6, 64, 64), "float32"), p2: T.Buffer((1, 1, 1, 64), "float32"), p3: T.Buffer((1, 56, 56, 64), "float32"), T_relu: T.Buffer((1, 56, 56, 64), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
         # body
@@ -1531,7 +1531,7 @@ class Conv2dWinogradAddResidualRelu_scheduled:
 @tvm.script.ir_module
 class Conv2dInt8_with_predicate:
     @T.prim_func
-    def main(p0: T.Buffer[(16, 56, 56, 64), "int8"], p1: T.Buffer[(256, 1, 1, 64), "int8"], p2: T.Buffer[(1, 1, 1, 256), "int32"], p3: T.Buffer[(1, 1, 1, 256), "int32"], p4: T.Buffer[256, "int32"], p5: T.Buffer[256, "int32"], p6: T.Buffer[256, "int32"], p7: T.Buffer[(), "int32"], p8: T.Buffer[1, "int32"], compute: T.Buffer[(16, 56, 56, 256), "int32"]) -> None:
+    def main(p0: T.Buffer((16, 56, 56, 64), "int8"), p1: T.Buffer((256, 1, 1, 64), "int8"), p2: T.Buffer((1, 1, 1, 256), "int32"), p3: T.Buffer((1, 1, 1, 256), "int32"), p4: T.Buffer(256, "int32"), p5: T.Buffer(256, "int32"), p6: T.Buffer(256, "int32"), p7: T.Buffer((), "int32"), p8: T.Buffer(1, "int32"), compute: T.Buffer((16, 56, 56, 256), "int32")) -> None:
         # function attr dict
         T.func_attr({"tir.noalias": True, "global_symbol": "main"})
         # body
@@ -1605,7 +1605,7 @@ class Conv2dInt8_with_predicate:
 @tvm.script.ir_module
 class Conv2dInt8_with_predicate_target:
     @T.prim_func
-    def main(p0: T.Buffer[(16, 56, 56, 64), "int8"], p1: T.Buffer[(256, 1, 1, 64), "int8"], p2: T.Buffer[(1, 1, 1, 256), "int32"], p3: T.Buffer[(1, 1, 1, 256), "int32"], p4: T.Buffer[256, "int32"], p5: T.Buffer[256, "int32"], p6: T.Buffer[256, "int32"], p7: T.Buffer[(), "int32"], p8: T.Buffer[1, "int32"], p9: T.Buffer[(16, 56, 56, 256), "int32"], compute: T.Buffer[(16, 56, 56, 256), "int32"]) -> None:
+    def main(p0: T.Buffer((16, 56, 56, 64), "int8"), p1: T.Buffer((256, 1, 1, 64), "int8"), p2: T.Buffer((1, 1, 1, 256), "int32"), p3: T.Buffer((1, 1, 1, 256), "int32"), p4: T.Buffer(256, "int32"), p5: T.Buffer(256, "int32"), p6: T.Buffer(256, "int32"), p7: T.Buffer((), "int32"), p8: T.Buffer(1, "int32"), p9: T.Buffer((16, 56, 56, 256), "int32"), compute: T.Buffer((16, 56, 56, 256), "int32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
@@ -1700,7 +1700,7 @@ class Conv2dInt8_with_predicate_target:
 @tvm.script.ir_module
 class Conv2dInt8_with_predicate_scheduled:
     @T.prim_func
-    def main(p0: T.Buffer[(16, 56, 56, 64), "int8"], p1: T.Buffer[(256, 1, 1, 64), "int8"], p2: T.Buffer[(1, 1, 1, 256), "int32"], p3: T.Buffer[(1, 1, 1, 256), "int32"], p4: T.Buffer[256, "int32"], p5: T.Buffer[256, "int32"], p6: T.Buffer[256, "int32"], p7: T.Buffer[(), "int32"], p8: T.Buffer[1, "int32"], p9: T.Buffer[(16, 56, 56, 256), "int32"], compute: T.Buffer[(16, 56, 56, 256), "int32"]) -> None:
+    def main(p0: T.Buffer((16, 56, 56, 64), "int8"), p1: T.Buffer((256, 1, 1, 64), "int8"), p2: T.Buffer((1, 1, 1, 256), "int32"), p3: T.Buffer((1, 1, 1, 256), "int32"), p4: T.Buffer(256, "int32"), p5: T.Buffer(256, "int32"), p6: T.Buffer(256, "int32"), p7: T.Buffer((), "int32"), p8: T.Buffer(1, "int32"), p9: T.Buffer((16, 56, 56, 256), "int32"), compute: T.Buffer((16, 56, 56, 256), "int32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
@@ -1743,7 +1743,7 @@ class Conv2dInt8_with_predicate_scheduled:
                                         v1_o = T.axis.spatial(4, ax4_0_0 * 2 + ax4_0_1 + ax1_0_1)
                                         T.reads(pad_temp_reindex_shared[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16])
                                         T.writes(pad_temp_reindex_shared_wmma_matrix_a[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16])
-                                        T.block_attr({"meta_schedule.auto_tensorize":"wmma_load_16x16x16_s8_a"})
+                                        T.block_attr({"meta_schedule.auto_tensorize":"wmma_load_16x16x16_s8_a_shared"})
                                         for ax0_1_1, ax1_1_1 in T.grid(16, 16):
                                             with T.block("pad_temp_reindex_shared_wmma.matrix_a"):
                                                 v0_i, v1_i = T.axis.remap("SS", [ax0_1_1, ax1_1_1])
@@ -1757,7 +1757,7 @@ class Conv2dInt8_with_predicate_scheduled:
                                         v3_o = T.axis.spatial(4, ax4_0_0 * 2 + ax4_0_1 + ax3_0)
                                         T.reads(p1_reindex_shared[v0, v1, v2_o * 16 : v2_o * 16 + 16, v3_o * 16 : v3_o * 16 + 16])
                                         T.writes(p1_reindex_shared_wmma_matrix_b[v0, v1, v2_o * 16 : v2_o * 16 + 16, v3_o * 16 : v3_o * 16 + 16])
-                                        T.block_attr({"meta_schedule.auto_tensorize":"wmma_load_16x16x16_s8_b_trans"})
+                                        T.block_attr({"meta_schedule.auto_tensorize":"wmma_load_16x16x16_s8_b_trans_shared"})
                                         for ax2_1, ax3_1 in T.grid(16, 16):
                                             with T.block("p1_reindex_shared_wmma.matrix_b"):
                                                 v2_i, v3_i = T.axis.remap("SS", [ax2_1, ax3_1])
@@ -2312,7 +2312,7 @@ def test_conv2d_int8_tensorcore():
         sch.annotate(
             block_or_loop=b158,
             ann_key="meta_schedule.auto_tensorize",
-            ann_val="wmma_load_16x16x16_s8_a",
+            ann_val="wmma_load_16x16x16_s8_a_shared",
         )
         b159 = sch.cache_read(block=b38, read_buffer_index=1, storage_scope="wmma.matrix_b")
         sch.compute_at(block=b159, loop=l80, preserve_unit_loops=True, index=-1)
@@ -2355,7 +2355,7 @@ def test_conv2d_int8_tensorcore():
         sch.annotate(
             block_or_loop=b192,
             ann_key="meta_schedule.auto_tensorize",
-            ann_val="wmma_load_16x16x16_s8_b_trans",
+            ann_val="wmma_load_16x16x16_s8_b_trans_shared",
         )
         sch.compute_inline(block=b17)
         sch.compute_inline(block=b18)
@@ -2490,10 +2490,10 @@ def test_conv2d_int8_tensorcore():
         sch.tensorize(block_or_loop=b314, tensor_intrin="wmma_fill_16x16x16_s32")
         b315 = sch.get_block(name="pad_temp_reindex_shared_wmma.matrix_a_o", func_name="main")
         sch.unannotate(block_or_loop=b315, ann_key="meta_schedule.auto_tensorize")
-        sch.tensorize(block_or_loop=b315, tensor_intrin="wmma_load_16x16x16_s8_a")
+        sch.tensorize(block_or_loop=b315, tensor_intrin="wmma_load_16x16x16_s8_a_shared")
         b316 = sch.get_block(name="p1_reindex_shared_wmma.matrix_b_o", func_name="main")
         sch.unannotate(block_or_loop=b316, ann_key="meta_schedule.auto_tensorize")
-        sch.tensorize(block_or_loop=b316, tensor_intrin="wmma_load_16x16x16_s8_b_trans")
+        sch.tensorize(block_or_loop=b316, tensor_intrin="wmma_load_16x16x16_s8_b_trans_shared")
         b317 = sch.get_block(name="conv2d_nhwc_o_update", func_name="main")
         sch.unannotate(block_or_loop=b317, ann_key="meta_schedule.auto_tensorize")
         sch.tensorize(block_or_loop=b317, tensor_intrin="wmma_sync_16x16x16_s8s8s32_trans")
@@ -3281,7 +3281,7 @@ def test_inline_order():
         sch.annotate(
             block_or_loop=b152,
             ann_key="meta_schedule.auto_tensorize",
-            ann_val="wmma_load_16x16x16_s8_a",
+            ann_val="wmma_load_16x16x16_s8_a_shared",
         )
         b153 = sch.cache_read(block=b32, read_buffer_index=1, storage_scope="wmma.matrix_b")
         sch.compute_at(block=b153, loop=l74, preserve_unit_loops=True, index=-1)
@@ -3324,7 +3324,7 @@ def test_inline_order():
         sch.annotate(
             block_or_loop=b186,
             ann_key="meta_schedule.auto_tensorize",
-            ann_val="wmma_load_16x16x16_s8_b_trans",
+            ann_val="wmma_load_16x16x16_s8_b_trans_shared",
         )
         sch.compute_inline(block=b11)
         sch.compute_inline(block=b12)

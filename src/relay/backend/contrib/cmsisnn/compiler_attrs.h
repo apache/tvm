@@ -37,6 +37,7 @@ namespace cmsisnn {
 struct CMSISNNCompilerConfigNode : public tvm::AttrsNode<CMSISNNCompilerConfigNode> {
   String mcpu;
   String mattr;
+  Bool debug_last_error = Bool(false);
 
   TVM_DECLARE_ATTRS(CMSISNNCompilerConfigNode, "ext.attrs.CMSISNNCompilerConfigNode") {
     TVM_ATTR_FIELD(mcpu)
@@ -47,6 +48,9 @@ struct CMSISNNCompilerConfigNode : public tvm::AttrsNode<CMSISNNCompilerConfigNo
     TVM_ATTR_FIELD(mattr)
         .describe("The attributes to configure CMSIS-NN (i.e. +nodsp, +nomve)")
         .set_default("");
+    TVM_ATTR_FIELD(debug_last_error)
+        .describe("Whether to enable storing the last error")
+        .set_default(Bool(false));
   }
 };
 

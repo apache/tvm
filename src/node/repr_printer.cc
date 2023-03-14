@@ -58,8 +58,18 @@ void ReprLegacyPrinter::Print(const ObjectRef& node) {
   } else if (f.can_dispatch(node)) {
     f(node, this);
   } else {
-    stream << node;  // Use ReprPrinter
+    try {
+      stream << node;  // Use ReprPrinter
+    } catch (const tvm::Error& e) {
+      LOG(WARNING) << "ReprPrinter fails";
+      stream << node->GetTypeKey() << '(' << node.get() << ')';
+    }
   }
+}
+
+bool ReprLegacyPrinter::CanDispatch(const ObjectRef& node) {
+  static const FType& f = vtable();
+  return !node.defined() || f.can_dispatch(node);
 }
 
 void ReprLegacyPrinter::PrintIndent() {

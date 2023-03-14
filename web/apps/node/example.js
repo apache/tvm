@@ -31,8 +31,10 @@ const wasmSource = fs.readFileSync(path.join(wasmPath, "tvmjs_runtime.wasm"));
 // the async version of the API.
 tvmjs.instantiate(wasmSource, new EmccWASI())
 .then((tvm) => {
+    tvm.beginScope();
     const log_info = tvm.getGlobalFunc("testing.log_info_str");
     log_info("hello world");
     // List all the global functions from the runtime.
     console.log("Runtime functions using EmccWASI\n", tvm.listGlobalFuncNames());
+    tvm.endScope();
 });

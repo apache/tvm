@@ -29,6 +29,8 @@
 #include <sys/types.h>
 #include <tvm/runtime/crt/error_codes.h>
 
+#include "../../../../src/support/ssize.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

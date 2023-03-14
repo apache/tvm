@@ -28,7 +28,7 @@ import time
 from string import Template
 from packaging import version
 
-from tvm.micro.project_api import server
+import server
 
 _LOG = logging.getLogger(__name__)
 
@@ -197,8 +197,8 @@ class Handler(server.ProjectAPIHandler):
                 metadata = json.load(f)
         return metadata
 
-    def _template_model_header(self, source_dir, metadata):
-        with open(source_dir / "model.h", "r") as f:
+    def _template_model(self, source_dir, metadata):
+        with open(source_dir / "platform.c", "r") as f:
             model_h_template = Template(f.read())
 
         all_module_names = []
@@ -218,7 +218,7 @@ class Handler(server.ProjectAPIHandler):
             "workspace_size_bytes": workspace_size_bytes,
         }
 
-        with open(source_dir / "model.h", "w") as f:
+        with open(source_dir / "platform.c", "w") as f:
             f.write(model_h_template.substitute(template_values))
 
     # Arduino ONLY recognizes .ino, .ccp, .c, .h
@@ -387,7 +387,16 @@ class Handler(server.ProjectAPIHandler):
         source_dir.mkdir()
 
         # Copies files from the template folder to project_dir
-        shutil.copy2(API_SERVER_DIR / "microtvm_api_server.py", project_dir)
+        for file in os.listdir(API_SERVER_DIR):
+            if file.endswith(".py"):
+                shutil.copy2(API_SERVER_DIR / file, project_dir / file)
+
+        # Copy launch script
+        shutil.copy2(
+            API_SERVER_DIR / "launch_microtvm_api_server.sh",
+            project_dir / "launch_microtvm_api_server.sh",
+        )
+
         shutil.copy2(BOARDS, project_dir / BOARDS.name)
         self._copy_project_files(API_SERVER_DIR, project_dir, project_type)
 
@@ -406,9 +415,9 @@ class Handler(server.ProjectAPIHandler):
         metadata = self._disassemble_mlf(model_library_format_path, source_dir)
         shutil.copy2(model_library_format_path, project_dir / MODEL_LIBRARY_FORMAT_RELPATH)
 
-        # For AOT, template model.h with metadata to minimize space usage
+        # For AOT, template platform.c with metadata to minimize space usage
         if project_type == "example_project":
-            self._template_model_header(source_dir, metadata)
+            self._template_model(source_dir, metadata)
 
         self._change_cpp_file_extensions(source_dir)
 

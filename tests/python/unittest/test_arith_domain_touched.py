@@ -21,7 +21,7 @@ from tvm.script import tir as T
 
 @T.prim_func
 def scalar_func(a: T.handle, b: T.handle):
-    m = T.var("int32")
+    m = T.int32()
     n = 100
     A = T.match_buffer(a, (n, m))
     B = T.match_buffer(b, (n, m))
@@ -73,7 +73,7 @@ def test_domain_touched_vector():
 
     @T.prim_func
     def func(a: T.handle, b: T.handle):
-        n = T.var("int32")
+        n = T.int32()
         A = T.match_buffer(a, (n * m,))
         B = T.match_buffer(b, (n * m,))
 

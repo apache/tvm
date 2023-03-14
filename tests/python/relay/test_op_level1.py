@@ -901,7 +901,7 @@ def test_extern_concat_injective_fuse():
     # do not have their elem_offset explicitly set as a variable.
 
     # fmt: off
-    mod = tvm.parser.fromtext(
+    mod = tvm.relay.fromtext(
         """
        #[version = "0.0.5"]
        def @main(%p0844: Tensor[(1, 384), int64], %p1652: Tensor[(2016, 128), float16]) {

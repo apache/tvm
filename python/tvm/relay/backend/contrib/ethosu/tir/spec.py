@@ -184,6 +184,16 @@ class SerialBlockConfig(SerializableFormat):
         self.depth = depth
 
 
+class SerialRescaleConfig(SerializableFormat):
+    """Specialization class to retrieve arguments of a rescale parameters
+    (to fill in rescale field in Vela NpuElementWiseOperation) on a predefined ordering"""
+
+    def __init__(self, use_rescale: bool, scale: int, shift: int):
+        self.use_rescale = use_rescale
+        self.scale = scale
+        self.shift = shift
+
+
 class Serial2DConvolution(SerializableFormat):
     """Specialization class to retrieve arguments of
     a ethosu.conv2d tir extern call on a predefined ordering"""
@@ -306,6 +316,7 @@ class SerialBinaryElementwise(SerializableFormat):
         activation: SerialActivation,
         rounding_mode: str,
         block_config: SerialBlockConfig,
+        rescale_config: SerialRescaleConfig,
     ):
         self.ifm = ifm
         self.ifm2 = ifm2
@@ -315,6 +326,7 @@ class SerialBinaryElementwise(SerializableFormat):
         self.activation = activation
         self.rounding_mode = rounding_mode
         self.block_config = block_config
+        self.rescale_config = rescale_config
 
 
 class SerialUnaryElementwise(SerializableFormat):

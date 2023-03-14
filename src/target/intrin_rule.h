@@ -77,6 +77,9 @@ inline PrimExpr DispatchPureExtern(const PrimExpr& e) {
   }
 }
 
+// Dispatch ERF to fast erf when it is not available.
+PrimExpr DispatchFastErf(const PrimExpr& e);
+
 }  // namespace intrin
 }  // namespace codegen
 }  // namespace tvm

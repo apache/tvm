@@ -473,19 +473,19 @@ def test_reordering_based_on_cycles():
     @tvm.script.ir_module
     class ModuleBefore:
         @T.prim_func
-        def main(placeholder: T.Buffer[97156, "int8"], placeholder_encoded: T.Buffer[208, "uint8"], placeholder_encoded_1: T.Buffer[112, "uint8"], placeholder_encoded_2: T.Buffer[96, "uint8"], placeholder_encoded_3: T.Buffer[112, "uint8"], ethosu_write: T.Buffer[43672, "int8"]) -> None:
+        def main(placeholder: T.Buffer(97156, "int8"), placeholder_encoded: T.Buffer(208, "uint8"), placeholder_encoded_1: T.Buffer(112, "uint8"), placeholder_encoded_2: T.Buffer(96, "uint8"), placeholder_encoded_3: T.Buffer(112, "uint8"), ethosu_write: T.Buffer(43672, "int8")) -> None:
             # function attr dict
             T.func_attr({"tir.noalias": True, "global_symbol": "main", "from_legacy_te_schedule": True})
-            ax0_ax1_fused_ax2_fused_ax3_fused = T.var("int32")
-            ax0_ax1_fused_ax2_fused_ax3_fused_1 = T.var("int32")
-            ax0_ax1_fused_ax2_fused_ax3_fused_2 = T.var("int32")
-            ax0_ax1_fused_ax2_fused_ax3_fused_3 = T.var("int32")
-            nn = T.var("int32")
-            nn_1 = T.var("int32")
-            nn_2 = T.var("int32")
-            nn_3 = T.var("int32")
-            nn_4 = T.var("int32")
-            nn_5 = T.var("int32")
+            ax0_ax1_fused_ax2_fused_ax3_fused = T.int32()
+            ax0_ax1_fused_ax2_fused_ax3_fused_1 = T.int32()
+            ax0_ax1_fused_ax2_fused_ax3_fused_2 = T.int32()
+            ax0_ax1_fused_ax2_fused_ax3_fused_3 = T.int32()
+            nn = T.int32()
+            nn_1 = T.int32()
+            nn_2 = T.int32()
+            nn_3 = T.int32()
+            nn_4 = T.int32()
+            nn_5 = T.int32()
             # body
             placeholder_d_global = T.decl_buffer([208], "uint8")
             placeholder_d_global_1 = T.decl_buffer([112], "uint8")
@@ -521,19 +521,19 @@ def test_reordering_based_on_cycles():
     @tvm.script.ir_module
     class ModuleAfter:
         @T.prim_func
-        def main(placeholder: T.Buffer[97156, "int8"], placeholder_encoded: T.Buffer[208, "uint8"], placeholder_encoded_1: T.Buffer[112, "uint8"], placeholder_encoded_2: T.Buffer[96, "uint8"], placeholder_encoded_3: T.Buffer[112, "uint8"], ethosu_write: T.Buffer[43672, "int8"]) -> None:
+        def main(placeholder: T.Buffer(97156, "int8"), placeholder_encoded: T.Buffer(208, "uint8"), placeholder_encoded_1: T.Buffer(112, "uint8"), placeholder_encoded_2: T.Buffer(96, "uint8"), placeholder_encoded_3: T.Buffer(112, "uint8"), ethosu_write: T.Buffer(43672, "int8")) -> None:
             # function attr dict
             T.func_attr({"tir.noalias": True, "global_symbol": "main", "from_legacy_te_schedule": True})
-            ax0_ax1_fused_ax2_fused_ax3_fused = T.var("int32")
-            ax0_ax1_fused_ax2_fused_ax3_fused_1 = T.var("int32")
-            ax0_ax1_fused_ax2_fused_ax3_fused_2 = T.var("int32")
-            ax0_ax1_fused_ax2_fused_ax3_fused_3 = T.var("int32")
-            nn = T.var("int32")
-            nn_1 = T.var("int32")
-            nn_2 = T.var("int32")
-            nn_3 = T.var("int32")
-            nn_4 = T.var("int32")
-            nn_5 = T.var("int32")
+            ax0_ax1_fused_ax2_fused_ax3_fused = T.int32()
+            ax0_ax1_fused_ax2_fused_ax3_fused_1 = T.int32()
+            ax0_ax1_fused_ax2_fused_ax3_fused_2 = T.int32()
+            ax0_ax1_fused_ax2_fused_ax3_fused_3 = T.int32()
+            nn = T.int32()
+            nn_1 = T.int32()
+            nn_2 = T.int32()
+            nn_3 = T.int32()
+            nn_4 = T.int32()
+            nn_5 = T.int32()
             # body
             placeholder_d_global = T.decl_buffer([208], "uint8")
             placeholder_d_global_1 = T.decl_buffer([112], "uint8")
@@ -576,18 +576,18 @@ def test_reordering_based_on_cycles_luts_present():
     @tvm.script.ir_module
     class ModuleBefore:
         @T.prim_func
-        def main(placeholder: T.Buffer[97156, "int8"], placeholder_encoded: T.Buffer[208, "uint8"], placeholder_encoded_1: T.Buffer[112, "uint8"], placeholder_1: T.Buffer[256, "int8"], placeholder_encoded_2: T.Buffer[96, "uint8"], placeholder_2: T.Buffer[256, "int8"], placeholder_3: T.Buffer[256, "int8"], ethosu_write: T.Buffer[46200, "int8"]) -> None:
+        def main(placeholder: T.Buffer(97156, "int8"), placeholder_encoded: T.Buffer(208, "uint8"), placeholder_encoded_1: T.Buffer(112, "uint8"), placeholder_1: T.Buffer(256, "int8"), placeholder_encoded_2: T.Buffer(96, "uint8"), placeholder_2: T.Buffer(256, "int8"), placeholder_3: T.Buffer(256, "int8"), ethosu_write: T.Buffer(46200, "int8")) -> None:
             # function attr dict
             T.func_attr({"tir.noalias": True, "global_symbol": "main", "from_legacy_te_schedule": True})
-            ax0_ax1_fused_ax2_fused_ax3_fused = T.var("int32")
-            ax0_ax1_fused_ax2_fused_ax3_fused_1 = T.var("int32")
-            ax0_ax1_fused_ax2_fused_ax3_fused_2 = T.var("int32")
-            nn = T.var("int32")
-            nn_1 = T.var("int32")
-            nn_2 = T.var("int32")
-            nn_3 = T.var("int32")
-            nn_4 = T.var("int32")
-            nn_5 = T.var("int32")
+            ax0_ax1_fused_ax2_fused_ax3_fused = T.int32()
+            ax0_ax1_fused_ax2_fused_ax3_fused_1 = T.int32()
+            ax0_ax1_fused_ax2_fused_ax3_fused_2 = T.int32()
+            nn = T.int32()
+            nn_1 = T.int32()
+            nn_2 = T.int32()
+            nn_3 = T.int32()
+            nn_4 = T.int32()
+            nn_5 = T.int32()
             # body
             placeholder_d_d_global = T.decl_buffer([208], "uint8")
             placeholder_d_d_global_1 = T.decl_buffer([112], "uint8")
@@ -626,18 +626,18 @@ def test_reordering_based_on_cycles_luts_present():
     @tvm.script.ir_module
     class ModuleAfter:
         @T.prim_func
-        def main(placeholder: T.Buffer[97156, "int8"], placeholder_encoded: T.Buffer[208, "uint8"], placeholder_encoded_1: T.Buffer[112, "uint8"], placeholder_1: T.Buffer[256, "int8"], placeholder_encoded_2: T.Buffer[96, "uint8"], placeholder_2: T.Buffer[256, "int8"], placeholder_3: T.Buffer[256, "int8"], ethosu_write: T.Buffer[46200, "int8"]) -> None:
+        def main(placeholder: T.Buffer(97156, "int8"), placeholder_encoded: T.Buffer(208, "uint8"), placeholder_encoded_1: T.Buffer(112, "uint8"), placeholder_1: T.Buffer(256, "int8"), placeholder_encoded_2: T.Buffer(96, "uint8"), placeholder_2: T.Buffer(256, "int8"), placeholder_3: T.Buffer(256, "int8"), ethosu_write: T.Buffer(46200, "int8")) -> None:
             # function attr dict
             T.func_attr({"tir.noalias": True, "global_symbol": "main", "from_legacy_te_schedule": True})
-            ax0_ax1_fused_ax2_fused_ax3_fused = T.var("int32")
-            ax0_ax1_fused_ax2_fused_ax3_fused_1 = T.var("int32")
-            ax0_ax1_fused_ax2_fused_ax3_fused_2 = T.var("int32")
-            nn = T.var("int32")
-            nn_1 = T.var("int32")
-            nn_2 = T.var("int32")
-            nn_3 = T.var("int32")
-            nn_4 = T.var("int32")
-            nn_5 = T.var("int32")
+            ax0_ax1_fused_ax2_fused_ax3_fused = T.int32()
+            ax0_ax1_fused_ax2_fused_ax3_fused_1 = T.int32()
+            ax0_ax1_fused_ax2_fused_ax3_fused_2 = T.int32()
+            nn = T.int32()
+            nn_1 = T.int32()
+            nn_2 = T.int32()
+            nn_3 = T.int32()
+            nn_4 = T.int32()
+            nn_5 = T.int32()
             # body
             placeholder_d_d_global = T.decl_buffer([208], "uint8")
             placeholder_d_d_global_1 = T.decl_buffer([112], "uint8")

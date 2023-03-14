@@ -126,7 +126,7 @@ def test_suggest_index_map_winograd():
             floordiv(i0, 2),
             floordiv(i1, 2),
             floormod(i0, 2),
-            floormod(((i1 * 4) + floordiv(i2, 32)), 8),
+            floormod(i1, 2) * 4 + floordiv(i2, 32),
             floormod(i2, 32),
             floordiv(i3, 32),
             floormod(i3, 32),
@@ -137,8 +137,8 @@ def test_suggest_index_map_winograd():
     expected_inverse_index_map = IndexMap.from_func(
         lambda i0, i1, i2, i3, i4, i5, i6: (
             ((i0 * 2) + i2),
-            ((i1 * 2) + floordiv(((i3 * 32) + i4), 128)),
-            floormod(((i3 * 32) + i4), 128),
+            i1 * 2 + floordiv(i3, 4),
+            floormod(i3, 4) * 32 + i4,
             ((i5 * 32) + i6),
         )
     )
@@ -149,9 +149,9 @@ def test_suggest_index_map_winograd():
 class DenseTIRModule:
     @T.prim_func
     def main(
-        placeholder: T.Buffer[(1024, 1024), "uint8"],
-        placeholder_1: T.Buffer[(64, 256, 16, 4), "int8"],
-        compute: T.Buffer[(1024, 1024), "int32"],
+        placeholder: T.Buffer((1024, 1024), "uint8"),
+        placeholder_1: T.Buffer((64, 256, 16, 4), "int8"),
+        compute: T.Buffer((1024, 1024), "int32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         with T.block("root"):
@@ -173,9 +173,9 @@ class DenseTIRModule:
 class Conv2dNCHWcTIRModule:
     @T.prim_func
     def main(
-        placeholder: T.Buffer[(1, 4, 56, 56, 16), "uint8"],
-        placeholder_1: T.Buffer[(16, 4, 1, 1, 4, 16, 4), "int8"],
-        conv2d_NCHWc_int8: T.Buffer[(1, 16, 56, 56, 16), "int32"],
+        placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"),
+        placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"),
+        conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         for i0, i1, i2, i3, i4, i5, i6, i7, i8, i9 in T.grid(1, 16, 56, 56, 16, 1, 1, 4, 4, 4):

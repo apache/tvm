@@ -340,6 +340,7 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
       node_row_ptr.push_back(num_entry);
     }
     writer->BeginObject();
+    writer->WriteObjectKeyValue("symbol", symbol_);
     writer->WriteObjectKeyValue("nodes", nodes_);
     writer->WriteObjectKeyValue("arg_nodes", arg_nodes);
     writer->WriteObjectKeyValue("heads", heads_);

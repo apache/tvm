@@ -24,6 +24,7 @@
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
+#include <tvm/tir/index_map.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
@@ -72,12 +73,6 @@ class TIRFrame : public Frame {
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(TIRFrame, Frame, TIRFrameNode);
 };
 
-/*! \brief Creates the TIR common prefix, which is by default `T` */
-inline ExprDoc TIR(const IRDocsifier& d, const String& attr) {
-  d->ir_usage.insert("tir");
-  return IdDoc(d->cfg->tir_prefix)->Attr(attr);
-}
-
 /*!
  * \brief Defines a variable in the IRDocsifier at the given frame,
  * and returns the corresponding IdDoc
@@ -115,10 +110,10 @@ inline IdDoc DefineBuffer(const tir::Buffer& buffer, const Frame& frame, const I
 inline void AsDocBody(const tir::Stmt& stmt, ObjectPath p, TIRFrameNode* f, const IRDocsifier& d) {
   if (const auto* seq_stmt = stmt.as<tir::SeqStmtNode>()) {
     Array<tir::Stmt> body = seq_stmt->seq;
-    p = p->Attr("seq");
     for (int i = 0, n = body.size(); i < n; ++i) {
       f->allow_concise_scoping = (i == n - 1);
-      Doc doc = d->AsDoc(body[i], p->ArrayIndex(i));
+      Doc doc = d->AsDoc(body[i], p->Attr("seq")->ArrayIndex(i));
+      doc->source_paths.push_back(p);
       if (const auto* block = doc.as<StmtBlockDocNode>()) {
         f->stmts.insert(f->stmts.end(), block->stmts.begin(), block->stmts.end());
       } else {
@@ -171,30 +166,15 @@ inline Optional<Frame> FindLowestVarDef(const ObjectRef& var, const IRDocsifier&
   return NullOpt;
 }
 
-/*!
- * \brief Create a frame and add dispatch token. Calculate LCA information for the frame.
- * \param d The IRDocsifier
- * \param root The root of the TIR AST
- * \param tir The TIR to be saved in the new TIR frame
- * \return The frame created
- */
-inline TIRFrame MakeDispatchFrame(const IRDocsifier& d, const ObjectRef& root,
-                                  const ObjectRef& tir) {
-  d->SetCommonPrefix(root, [](const ObjectRef& obj) {
-    return obj->IsInstance<tir::VarNode>() || obj->IsInstance<tir::BufferNode>();
-  });
-  TIRFrame frame(d, tir);
-  frame->AddDispatchToken(d, "tir");
-  return frame;
-}
-
 /*! \brief Redirected method for the ReprPrinter */
 inline std::string ReprPrintTIR(const ObjectRef& obj, const PrinterConfig& cfg) {
   IRDocsifier d(cfg);
-  With<TIRFrame> f(MakeDispatchFrame(d, obj, ObjectRef(nullptr)));
-  std::ostringstream oss;
-  oss << Docsify(obj, d, *f, cfg);
-  return oss.str();
+  d->SetCommonPrefix(obj, [](const ObjectRef& obj) {
+    return obj->IsInstance<tir::VarNode>() || obj->IsInstance<tir::BufferNode>();
+  });
+  With<TIRFrame> f(d, ObjectRef{nullptr});
+  (*f)->AddDispatchToken(d, "tir");
+  return Docsify(obj, d, *f, cfg);
 }
 
 /*!
@@ -220,6 +200,15 @@ ExprDoc BufferDecl(const tir::Buffer& buffer, const String& method, const Array<
  */
 ExprDoc BufferAttn(const tir::Buffer& buffer, const ObjectPath& p, const Frame& frame,
                    const IRDocsifier& d);
+
+/*!
+ * \brief Print the creation of a Var
+ * \param var The Var to be printed
+ * \param var_p The object path of the Var
+ * \param d The IRDocsifier
+ * \return The ExprDoc corresponding to the Var creation
+ */
+ExprDoc PrintVarCreation(const tir::Var& var, const ObjectPath& var_p, const IRDocsifier& d);
 
 /*! \brief A Var occurrence counter visitor */
 class OccurrenceCounter : public tir::StmtExprVisitor {

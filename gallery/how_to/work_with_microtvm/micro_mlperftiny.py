@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-.. _tutorial-micro-MLPerfTiny:
+.. _tutorial-micro-mlperftiny:
 
-Creating Your MLPerfTiny Submission with microTVM
-=================================================
+8. Creating Your MLPerfTiny Submission with microTVM
+====================================================
 **Authors**:
 `Mehrdad Hessar <https://github.com/mehrdadh>`_
 
@@ -68,7 +68,7 @@ from tvm import relay
 from tvm.relay.backend import Executor, Runtime
 from tvm.contrib.download import download_testdata
 from tvm.micro import export_model_library_format
-from tvm.micro.model_library_format import generate_c_interface_header
+import tvm.micro.testing
 from tvm.micro.testing.utils import (
     create_header_file,
     mlf_extract_workspace_size_bytes,
@@ -211,21 +211,13 @@ extra_tar_dir = tvm.contrib.utils.tempdir()
 extra_tar_file = extra_tar_dir / "extra.tar"
 
 with tarfile.open(extra_tar_file, "w:gz") as tf:
-    with tempfile.TemporaryDirectory() as tar_temp_dir:
-        model_files_path = os.path.join(tar_temp_dir, "include")
-        os.mkdir(model_files_path)
-        header_path = generate_c_interface_header(
-            module.libmod_name, [input_name], [output_name], [], {}, [], 0, model_files_path, {}, {}
-        )
-        tf.add(header_path, arcname=os.path.relpath(header_path, tar_temp_dir))
-
     create_header_file(
         "output_data",
         np.zeros(
             shape=output_shape,
             dtype=output_dtype,
         ),
-        "include",
+        "include/tvm",
         tf,
     )
 

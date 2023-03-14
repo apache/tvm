@@ -47,10 +47,16 @@ def get_supported_boards(platform: str):
         return json.load(f)
 
 
-def get_target(platform: str, board: str) -> tvm.target.Target:
+def get_target(platform: str, board: str = None) -> tvm.target.Target:
     """Intentionally simple function for making Targets for microcontrollers.
     If you need more complex arguments, one should call target.micro directly. Note
     that almost all, but not all, supported microcontrollers are Arm-based."""
+    if platform == "crt":
+        return tvm.target.target.micro("host")
+
+    if not board:
+        raise ValueError(f"`board` type is required for {platform} platform.")
+
     model = get_supported_boards(platform)[board]["model"]
     return tvm.target.target.micro(model, options=["-device=arm_cpu"])
 
@@ -150,7 +156,9 @@ def _npy_dtype_to_ctype(data: np.ndarray) -> str:
         raise ValueError(f"Data type {data.dtype} not expected.")
 
 
-def create_header_file(tensor_name: str, npy_data: np.array, output_path: str, tar_file: str):
+def create_header_file(
+    tensor_name: str, npy_data: np.array, output_path: str, tar_file: tarfile.TarFile
+):
     """
     This method generates a header file containing the data contained in the numpy array provided
     and adds the header file to a tar file.

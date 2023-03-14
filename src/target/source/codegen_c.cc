@@ -23,6 +23,7 @@
 #include "codegen_c.h"
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ir/name_supply.h>
 
 #include <cctype>
 #include <iomanip>
@@ -632,7 +633,8 @@ void CodeGenC::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs,
 }
 
 void CodeGenC::VisitStmt_(const AllocateConstNode* op) {
-  std::string symbol_name = op->buffer_var->name_hint;
+  std::string symbol_name = AllocVarID(op->buffer_var.get());
+
   int64_t num_elements = 1;
   const auto& data = op->data.value();
 

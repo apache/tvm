@@ -43,6 +43,7 @@ MODEL_URL = "https://github.com/mlcommons/tiny/raw/v0.7/benchmark/training/visua
 SAMPLE_URL = (
     "https://github.com/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/elephant-299.jpg"
 )
+MODEL_NUM_CONVS = 27
 
 
 @pytest.fixture(scope="module")
@@ -93,6 +94,54 @@ def _get_mobilenet_v1_layer_attributes(layer_num):
         return ((0, 0, 1, 1), (2, 2), True)
     # Depthwise conv2d
     return ((1, 1, 1, 1), (1, 1), True)
+
+
+@pytest.mark.parametrize("layer", range(2, 27, 2))
+@tvm.testing.requires_package("tensorflow")
+def test_empty_channel_detection(interpreter, layer):
+    """Some models (mainly MobileNetV1) have kernels with many output channels full entirely of
+    zeroes. The VWW model is one of these. This test confirms that the outputs of these channels,
+    as computed by TensorFlow, are indeed not dependent upon the input values.
+    """
+
+    _, kernel, bias, output = _load_tflite_layer(interpreter, layer)
+    kernel_data, _ = kernel
+    bias_data, bias_quant = bias
+    output_data, output_quant = output
+    is_depthwise = _get_mobilenet_v1_layer_attributes(layer)[2]
+    assert not is_depthwise
+    assert kernel_data.shape[1] == kernel_data.shape[2] == 1
+
+    out_channels = kernel_data.shape[3]
+    fixed_channels = {}
+
+    out_zero_point = output_quant["zero_points"][0]
+    assert out_zero_point == -128
+
+    for i in range(out_channels):
+        # Skip over output channels with data
+        if np.any(kernel_data[i, 0, 0, :]):
+            continue
+
+        scale = bias_quant["scales"][i] / output_quant["scales"][0]
+        channel_constant = round(bias_data[i] * scale + out_zero_point)
+        clipped = min(127, max(-128, channel_constant))
+
+        out_channel_values = output_data[0, :, :, i].flatten()
+        assert all(x == clipped for x in out_channel_values)
+        fixed_channels[i] = clipped
+
+    # Check if we are on the final convolution and skip the next test if so
+    if layer + 1 >= MODEL_NUM_CONVS:
+        return
+
+    # We now need to compute values for the following depthwise layer
+    depthwise_output = _load_tflite_layer(interpreter, layer + 1)[3][0]
+    is_depthwise = _get_mobilenet_v1_layer_attributes(layer + 1)[2]
+    assert is_depthwise
+
+    for i in fixed_channels:
+        assert np.all(depthwise_output[:, :, :, i] == depthwise_output[0, 0, 0, i])
 
 
 def _get_relu_activation_prefix(layer_num):
@@ -242,14 +291,8 @@ def _make_aot_model(params, hyperparams, layouts, is_depthwise=False):
     data, kernel, bias, output = tensors
     data_quant, kernel_quant, bias_quant, output_quant = quantizations
 
-    dtype, padding, _strides = hyperparams
+    dtype, _padding, _strides = hyperparams
     data_layout, _, output_layout = layouts
-
-    if any(padding):
-        pad_const = int(data_quant["zero_points"][0])
-        pad_before = (0, padding[0], padding[1], 0)
-        pad_after = (0, padding[2], padding[3], 0)
-        data = np.pad(data, tuple(zip(pad_before, pad_after)), constant_values=pad_const)
     data_ndarr = _change_layout(data, "NHWC", data_layout, dtype)
     output_ndarr = _change_layout(output, "NHWC", output_layout, dtype)
 
@@ -284,9 +327,10 @@ def _make_executor():
     )
 
 
-@pytest.mark.parametrize("layer", range(23))
+@pytest.mark.parametrize("output_layout", ["NHWC", "NCHW"])
+@pytest.mark.parametrize("layer", range(27))
 @tvm.testing.requires_corstone300
-def test_qnn_conv2d_mobilenetv1_layer(interpreter, layer):
+def test_qnn_conv2d_mobilenetv1_layer(interpreter, layer, output_layout):
     """Checks microTVM output against TFLite for one MobileNetV1 layer.
 
     Loads the input, kernel, bias, expected output, and quantization parameters from the specified
@@ -294,7 +338,7 @@ def test_qnn_conv2d_mobilenetv1_layer(interpreter, layer):
     same structure. The Function is run using microTVM and AOTTestModel, and we verify microTVM's
     output is the same as the TFLite ground truth.
 
-    This function only cross-checks the first 23 layers in MobileNetV1, which are regular and
+    This function only cross-checks the first 27 layers in MobileNetV1, which are regular and
     depthwise 2D convolutions (this function only works for 2D convolutions). We do not test the
     average pool, dense, or softmax layers at the end of the model.
 
@@ -309,6 +353,9 @@ def test_qnn_conv2d_mobilenetv1_layer(interpreter, layer):
 
     layer: int
         The index of the layer to check against TensorFlow's ground truth values.
+
+    output_layout: str
+        The output_layout for microTVM to use. Does not have to match the TensorFlow layout.
     """
     dtype = "int16"
 
@@ -316,9 +363,9 @@ def test_qnn_conv2d_mobilenetv1_layer(interpreter, layer):
 
     padding, strides, is_depthwise = _get_mobilenet_v1_layer_attributes(layer)
     if is_depthwise:
-        data_layout, kernel_layout, output_layout = "NCHW", "OIHW", "NHWC"
+        data_layout, kernel_layout = "NCHW", "OIHW"
     else:
-        data_layout, kernel_layout, output_layout = "NHWC", "OHWI", "NHWC"
+        data_layout, kernel_layout = "NHWC", "OHWI"
 
     test_model = _make_aot_model(
         (tensor, kernel, bias, output),

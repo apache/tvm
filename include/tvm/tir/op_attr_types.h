@@ -62,6 +62,27 @@ using FLegalize = runtime::TypedPackedFunc<PrimExpr(PrimExpr)>;
 using TScriptPrinterName = String;
 
 /*!
+ * \brief Specifies that TVMScript printer prints the dtype as the first/last argument.
+          If not specified, dtype will not be printed.
+ */
+enum class ScriptDtypePrintLocation : int {
+  /*!
+   * \brief Do not print dtype as an argument.
+   */
+  kNone = 0,
+  /*!
+   * \brief Print dtype as the first argument.
+   */
+  kFirst = 1,
+  /*!
+   * \brief FPrint dtype as the last argument.
+   */
+  kLast = 2,
+};
+
+using TScriptDtypePrintLocation = Integer;
+
+/*!
  * \brief The effect type of the call.
  */
 enum class CallEffectKind : int {

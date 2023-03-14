@@ -407,9 +407,15 @@ Stmt TransformReductionBlock(const BlockRealizeNode* realize,            //
           BufferStore(wb_buffers[i], BufferLoad(ct_buffers[i], {Integer(0)}), wb_indices));
       wb_regions.push_back(BufferRegion(wb_buffers[i], region));
     }
+    PrimExpr wb_predicate = const_true();
+    for (const ForNode* loop : reduction_loops) {
+      if (loop->thread_binding.defined()) {
+        wb_predicate = wb_predicate && (loop->loop_var == IntImm(loop->loop_var->dtype, 0));
+      }
+    }
     stmts.push_back(BlockRealize(
         /*iter_values=*/std::move(bindings),
-        /*predicate=*/const_true(),
+        /*predicate=*/wb_predicate,
         /*block=*/
         Block(/*iter_vars=*/std::move(iter_vars),
               /*reads=*/std::move(ct_buffer_regions),

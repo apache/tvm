@@ -35,12 +35,14 @@ namespace tvm {
 
 class PrinterConfigNode : public Object {
  public:
+  /*! \brief A stack that tracks the names of the binding hierarchy */
+  Array<String> binding_names = {};
+  /*! \brief Whether or not to show metadata. */
+  bool show_meta = false;
   /*! \brief The prefix of IR nodes */
   std::string ir_prefix = "I";
   /*! \brief The prefix of TIR nodes */
   std::string tir_prefix = "T";
-  /*! \brief The prefix of Relax nodes */
-  std::string relax_prefix = "R";
   /*! \brief Default data type of TIR buffer */
   DataType buffer_dtype = DataType::Float(32);
   /*! \brief Default data type of integer literals */
@@ -53,16 +55,26 @@ class PrinterConfigNode : public Object {
   DataType float_dtype = DataType::Void();
   /*! \brief Whether or not to verbose print expressions. */
   bool verbose_expr = false;
-  /* \brief Number of spaces used for indentation*/
+  /*! \brief Number of spaces used for indentation*/
   int indent_spaces = 4;
-  /* \brief Whether to print line numbers */
+  /*! \brief Whether to print line numbers */
   bool print_line_numbers = false;
-  /* \brief Number of context lines to print around the underlined text */
+  /*! \brief Number of context lines to print around the underlined text */
   int num_context_lines = -1;
+  /*! \brief Whether to output with syntax sugar, set false for complete printing. */
+  bool syntax_sugar = true;
   /* \brief Object path to be underlined */
-  Optional<ObjectPath> path_to_underline = NullOpt;
+  Array<ObjectPath> path_to_underline = Array<ObjectPath>();
+  /*! \brief Object path to be annotated. */
+  Map<ObjectPath, String> path_to_annotate = Map<ObjectPath, String>();
+  /*! \brief Object to be underlined. */
+  Array<ObjectRef> obj_to_underline = Array<ObjectRef>();
+  /*! \brief Object to be annotated. */
+  Map<ObjectRef, String> obj_to_annotate = Map<ObjectRef, String>();
 
   void VisitAttrs(AttrVisitor* v) {
+    v->Visit("binding_names", &binding_names);
+    v->Visit("show_meta", &show_meta);
     v->Visit("ir_prefix", &ir_prefix);
     v->Visit("buffer_dtype", &buffer_dtype);
     v->Visit("int_dtype", &int_dtype);
@@ -71,7 +83,11 @@ class PrinterConfigNode : public Object {
     v->Visit("indent_spaces", &indent_spaces);
     v->Visit("print_line_numbers", &print_line_numbers);
     v->Visit("num_context_lines", &num_context_lines);
+    v->Visit("syntax_sugar", &syntax_sugar);
     v->Visit("path_to_underline", &path_to_underline);
+    v->Visit("path_to_annotate", &path_to_annotate);
+    v->Visit("obj_to_underline", &obj_to_underline);
+    v->Visit("obj_to_annotate", &obj_to_annotate);
   }
 
   static constexpr const char* _type_key = "node.PrinterConfig";

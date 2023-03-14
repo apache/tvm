@@ -541,7 +541,7 @@ def test_simple_rfactor():
 
 @T.prim_func
 def partitioned_concat(
-    A: T.Buffer[(16,), "float32"], B: T.Buffer[(16,), "float32"], C: T.Buffer[(32,), "float32"]
+    A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32"), C: T.Buffer((32,), "float32")
 ) -> None:
     T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
     for i in T.serial(0, 16):
@@ -578,10 +578,10 @@ def partition_from_scheduled_tir(prim_func, pass_cfg):
 
 @T.prim_func
 def partitioned_concat_3(
-    placeholder: T.Buffer[(1, 64, 28, 28), "int8"],
-    placeholder_1: T.Buffer[(1, 32, 28, 28), "int8"],
-    placeholder_2: T.Buffer[(1, 32, 28, 28), "int8"],
-    T_concat: T.Buffer[(1, 128, 28, 28), "int8"],
+    placeholder: T.Buffer((1, 64, 28, 28), "int8"),
+    placeholder_1: T.Buffer((1, 32, 28, 28), "int8"),
+    placeholder_2: T.Buffer((1, 32, 28, 28), "int8"),
+    T_concat: T.Buffer((1, 128, 28, 28), "int8"),
 ) -> None:
     placeholder_flat = T.Buffer([50176], "int8", data=placeholder.data)
     placeholder_1_flat = T.Buffer([25088], "int8", data=placeholder_1.data)
@@ -597,10 +597,10 @@ def partitioned_concat_3(
 
 @T.prim_func
 def concat_func_3(
-    placeholder: T.Buffer[(1, 64, 28, 28), "int8"],
-    placeholder_1: T.Buffer[(1, 32, 28, 28), "int8"],
-    placeholder_2: T.Buffer[(1, 32, 28, 28), "int8"],
-    T_concat: T.Buffer[(1, 128, 28, 28), "int8"],
+    placeholder: T.Buffer((1, 64, 28, 28), "int8"),
+    placeholder_1: T.Buffer((1, 32, 28, 28), "int8"),
+    placeholder_2: T.Buffer((1, 32, 28, 28), "int8"),
+    T_concat: T.Buffer((1, 128, 28, 28), "int8"),
 ) -> None:
     placeholder_flat = T.Buffer([50176], "int8", data=placeholder.data)
     placeholder_1_flat = T.Buffer([25088], "int8", data=placeholder_1.data)
@@ -630,7 +630,7 @@ def test_condition_mutually_exclusive():
 def test_loop_partition_unroll_hint():
     @T.prim_func
     def main(
-        A_arg: T.Buffer[(1, 3, 224, 224), "int8"], B_arg: T.Buffer[(1, 224, 7, 16), "int8"]
+        A_arg: T.Buffer((1, 3, 224, 224), "int8"), B_arg: T.Buffer((1, 224, 7, 16), "int8")
     ) -> None:
         A = T.Buffer(150528, "int8", data=A_arg.data)
         B = T.Buffer(25088, "int8", data=B_arg.data)
@@ -644,7 +644,7 @@ def test_loop_partition_unroll_hint():
 
     @T.prim_func
     def partitioned_main(
-        A_arg: T.Buffer[(1, 3, 224, 224), "int8"], B_arg: T.Buffer[(1, 224, 7, 16), "int8"]
+        A_arg: T.Buffer((1, 3, 224, 224), "int8"), B_arg: T.Buffer((1, 224, 7, 16), "int8")
     ) -> None:
         A = T.Buffer(150528, dtype="int8", data=A_arg.data)
         B = T.Buffer(25088, dtype="int8", data=B_arg.data)
@@ -748,7 +748,7 @@ def test_loop_partition_recursive_unroll_hint():
 
 def test_loop_partition_keep_loop_annotations():
     @T.prim_func
-    def before(A: T.Buffer[160, "int32"], B: T.Buffer[160, "int32"]) -> None:
+    def before(A: T.Buffer(160, "int32"), B: T.Buffer(160, "int32")) -> None:
         for i in T.serial(
             160,
             annotations={"pragma_loop_partition_hint": True, "key": "value"},
@@ -761,7 +761,7 @@ def test_loop_partition_keep_loop_annotations():
                 B[i] = A[i] + 3
 
     @T.prim_func
-    def after(A: T.Buffer[160, "int32"], B: T.Buffer[160, "int32"]) -> None:
+    def after(A: T.Buffer(160, "int32"), B: T.Buffer(160, "int32")) -> None:
         for i in T.serial(10, annotations={"key": "value"}):
             B[i] = A[i] + 1
         for i in T.serial(140, annotations={"key": "value"}):
@@ -783,10 +783,10 @@ def test_loop_partition_keep_loop_annotations():
 def test_loop_partition_with_unit_loop_in_condition():
     @T.prim_func
     def before(
-        placeholder: T.Buffer[(50176,), "int8"],
-        placeholder_1: T.Buffer[(25088,), "int8"],
-        placeholder_2: T.Buffer[(25088,), "int8"],
-        T_concat: T.Buffer[(100352,), "int8"],
+        placeholder: T.Buffer((50176,), "int8"),
+        placeholder_1: T.Buffer((25088,), "int8"),
+        placeholder_2: T.Buffer((25088,), "int8"),
+        T_concat: T.Buffer((100352,), "int8"),
     ) -> None:
         for k in range(1, annotations={"preserve_unit_loop": True}):
             for i1 in T.serial(128, annotations={"pragma_loop_partition_hint": 1}):
@@ -804,10 +804,10 @@ def test_loop_partition_with_unit_loop_in_condition():
 
     @T.prim_func
     def after(
-        placeholder: T.Buffer[50176, "int8"],
-        placeholder_1: T.Buffer[25088, "int8"],
-        placeholder_2: T.Buffer[25088, "int8"],
-        T_concat: T.Buffer[100352, "int8"],
+        placeholder: T.Buffer(50176, "int8"),
+        placeholder_1: T.Buffer(25088, "int8"),
+        placeholder_2: T.Buffer(25088, "int8"),
+        T_concat: T.Buffer(100352, "int8"),
     ) -> None:
         for _ in T.serial(1, annotations={"preserve_unit_loop": True}):
             for i1, i2, i3 in T.grid(64, 28, 28):

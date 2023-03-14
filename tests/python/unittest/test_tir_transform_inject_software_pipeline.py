@@ -50,7 +50,7 @@ def _check_error(func):
 
 
 @T.prim_func
-def trivial_pipeline(A: T.Buffer[(16, 1), "float32"], C: T.Buffer[(16, 1), "float32"]):
+def trivial_pipeline(A: T.Buffer((16, 1), "float32"), C: T.Buffer((16, 1), "float32")):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(
             0, 1, annotations={"software_pipeline_stage": [0, 1], "software_pipeline_order": [0, 1]}
@@ -71,7 +71,7 @@ def trivial_pipeline(A: T.Buffer[(16, 1), "float32"], C: T.Buffer[(16, 1), "floa
 
 @T.prim_func
 def transformed_trivial_pipeline(
-    A: T.Buffer[(16, 1), "float32"], C: T.Buffer[(16, 1), "float32"]
+    A: T.Buffer((16, 1), "float32"), C: T.Buffer((16, 1), "float32")
 ) -> None:
     for tx in T.thread_binding(16, thread="threadIdx.x"):
         with T.block():
@@ -94,7 +94,7 @@ def transformed_trivial_pipeline(
 
 def gen_simple_compute(num_stages):
     @T.prim_func
-    def simple_compute(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]):
+    def simple_compute(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
         for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
             for i in T.serial(
                 0,
@@ -122,7 +122,7 @@ def gen_simple_compute(num_stages):
 
 @T.prim_func
 def transformed_simple_compute(
-    A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]
+    A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")
 ) -> None:
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         with T.block():
@@ -153,7 +153,7 @@ def transformed_simple_compute(
 
 @T.prim_func
 def simple_compute_with_other_annotation(
-    A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]
+    A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")
 ):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(
@@ -181,7 +181,7 @@ def simple_compute_with_other_annotation(
 
 @T.prim_func
 def transformed_simple_compute_with_other_annotation(
-    A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]
+    A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")
 ) -> None:
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         with T.block():
@@ -215,7 +215,7 @@ def transformed_simple_compute_with_other_annotation(
 
 
 @T.prim_func
-def three_stage_compute(A: T.Buffer[(16, 16), "float32"], D: T.Buffer[(16, 16), "float32"]):
+def three_stage_compute(A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(
             0,
@@ -246,7 +246,7 @@ def three_stage_compute(A: T.Buffer[(16, 16), "float32"], D: T.Buffer[(16, 16), 
 
 @T.prim_func
 def transformed_three_stage_compute(
-    A: T.Buffer[(16, 16), "float32"], D: T.Buffer[(16, 16), "float32"]
+    A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")
 ) -> None:
     for tx in T.thread_binding(16, thread="threadIdx.x"):
         with T.block():
@@ -300,9 +300,9 @@ def transformed_three_stage_compute(
 
 @T.prim_func
 def dag_interleaving(
-    A: T.Buffer[(16, 16), "float32"],
-    B: T.Buffer[(16, 16), "float32"],
-    C: T.Buffer[(16, 16), "float32"],
+    A: T.Buffer((16, 16), "float32"),
+    B: T.Buffer((16, 16), "float32"),
+    C: T.Buffer((16, 16), "float32"),
 ) -> None:
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(
@@ -344,9 +344,9 @@ def dag_interleaving(
 
 @T.prim_func
 def transformed_dag_interleaving(
-    A: T.Buffer[(16, 16), "float32"],
-    B: T.Buffer[(16, 16), "float32"],
-    C: T.Buffer[(16, 16), "float32"],
+    A: T.Buffer((16, 16), "float32"),
+    B: T.Buffer((16, 16), "float32"),
+    C: T.Buffer((16, 16), "float32"),
 ) -> None:
     for tx in T.thread_binding(16, thread="threadIdx.x"):
         with T.block():
@@ -409,7 +409,7 @@ def transformed_dag_interleaving(
 
 @T.prim_func
 def nested_pipeline_simple(
-    A: T.Buffer[(16, 16, 16), "float32"], C: T.Buffer[(16, 16, 16), "float32"]
+    A: T.Buffer((16, 16, 16), "float32"), C: T.Buffer((16, 16, 16), "float32")
 ):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(
@@ -453,7 +453,7 @@ def nested_pipeline_simple(
 
 @T.prim_func
 def transformed_nested_pipeline_simple(
-    A: T.Buffer[(16, 16, 16), "float32"], C: T.Buffer[(16, 16, 16), "float32"]
+    A: T.Buffer((16, 16, 16), "float32"), C: T.Buffer((16, 16, 16), "float32")
 ) -> None:
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         with T.block():
@@ -530,7 +530,7 @@ def transformed_nested_pipeline_simple(
 
 @T.prim_func
 def nested_pipeline_prefetch_inner(
-    A: T.Buffer[(16, 16, 16), "float32"], C: T.Buffer[(16, 16, 16), "float32"]
+    A: T.Buffer((16, 16, 16), "float32"), C: T.Buffer((16, 16, 16), "float32")
 ):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(
@@ -574,7 +574,7 @@ def nested_pipeline_prefetch_inner(
 
 @T.prim_func
 def transformed_nested_pipeline_prefetch_inner(
-    A: T.Buffer[(16, 16, 16), "float32"], C: T.Buffer[(16, 16, 16), "float32"]
+    A: T.Buffer((16, 16, 16), "float32"), C: T.Buffer((16, 16, 16), "float32")
 ) -> None:
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         with T.block():
@@ -654,7 +654,7 @@ def transformed_nested_pipeline_prefetch_inner(
 
 @T.prim_func
 def nested_pipeline_interleaving(
-    A: T.Buffer[(16, 16, 16), "float32"], C: T.Buffer[(16, 16, 16), "float32"]
+    A: T.Buffer((16, 16, 16), "float32"), C: T.Buffer((16, 16, 16), "float32")
 ):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(
@@ -704,7 +704,7 @@ def nested_pipeline_interleaving(
 
 @T.prim_func
 def transformed_nested_pipeline_interleaving(
-    A: T.Buffer[(16, 16, 16), "float32"], C: T.Buffer[(16, 16, 16), "float32"]
+    A: T.Buffer((16, 16, 16), "float32"), C: T.Buffer((16, 16, 16), "float32")
 ) -> None:
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         with T.block():
@@ -813,7 +813,7 @@ def transformed_nested_pipeline_interleaving(
 
 @T.prim_func
 def nested_pipeline_double_buffer(
-    A: T.Buffer[(16, 16, 16), "float32"], C: T.Buffer[(16, 16, 16), "float32"]
+    A: T.Buffer((16, 16, 16), "float32"), C: T.Buffer((16, 16, 16), "float32")
 ):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(
@@ -864,7 +864,7 @@ def nested_pipeline_double_buffer(
 
 @T.prim_func
 def transformed_nested_pipeline_double_buffer(
-    A: T.Buffer[(16, 16, 16), "float32"], C: T.Buffer[(16, 16, 16), "float32"]
+    A: T.Buffer((16, 16, 16), "float32"), C: T.Buffer((16, 16, 16), "float32")
 ) -> None:
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         with T.block():
@@ -977,7 +977,7 @@ def transformed_nested_pipeline_double_buffer(
 
 @T.prim_func
 def simple_compute_incorrect_reorder(
-    A: T.Buffer[(16, 16), "float32"], D: T.Buffer[(16, 16), "float32"]
+    A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")
 ):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(
@@ -1009,7 +1009,7 @@ def simple_compute_incorrect_reorder(
 
 @T.prim_func
 def simple_compute_conflicting_order(
-    A: T.Buffer[(16, 16), "float32"], D: T.Buffer[(16, 16), "float32"]
+    A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")
 ):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(
@@ -1041,7 +1041,7 @@ def simple_compute_conflicting_order(
 
 @T.prim_func
 def simple_compute_missing_annotation(
-    A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]
+    A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")
 ):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(0, 16, annotations={"software_pipeline_stage": [0, 1]}):
@@ -1116,7 +1116,7 @@ def test_simple_compute_async():
     mod = tvm.tir.transform.InjectSoftwarePipeline()(sch.mod)
 
     @T.prim_func
-    def ref(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]):
+    def ref(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
         for tx in T.thread_binding(16, thread="threadIdx.x"):
             with T.block():
                 T.reads(A[tx, 0:16])
@@ -1124,7 +1124,7 @@ def test_simple_compute_async():
                 B = T.alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
                 with T.block():
                     T.reads(A[tx, 0])
-                    T.writes(B[0, tx, 0])
+                    T.writes(B[T.FloorMod(0, 2), tx, 0])
                     with T.attr(0, "async_commit_queue_scope", 0):
                         with T.attr(0, "async_scope", 1):
                             B[T.FloorMod(0, 2), tx, 0] = A[tx, 0] * T.float32(2)
@@ -1163,7 +1163,7 @@ def test_simple_compute_async():
     mod = tvm.tir.transform.InjectSoftwarePipeline()(sch.mod)
 
     @T.prim_func
-    def ref(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]) -> None:
+    def ref(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")) -> None:
         for tx in T.thread_binding(16, thread="threadIdx.x"):
             with T.block():
                 T.reads(A[tx, 0:16])
@@ -1216,9 +1216,9 @@ def test_simple_compute_async():
 def test_async_producer_interleaving():
     @T.prim_func
     def simple_compute(
-        A: T.Buffer[(16, 16), "float32"],
-        B: T.Buffer[(16, 16), "float32"],
-        C: T.Buffer[(16, 16), "float32"],
+        A: T.Buffer((16, 16), "float32"),
+        B: T.Buffer((16, 16), "float32"),
+        C: T.Buffer((16, 16), "float32"),
     ):
         for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
             for i in range(16):
@@ -1251,9 +1251,9 @@ def test_async_producer_interleaving():
 
     @T.prim_func
     def ref(
-        A: T.Buffer[(16, 16), "float32"],
-        B: T.Buffer[(16, 16), "float32"],
-        C: T.Buffer[(16, 16), "float32"],
+        A: T.Buffer((16, 16), "float32"),
+        B: T.Buffer((16, 16), "float32"),
+        C: T.Buffer((16, 16), "float32"),
     ) -> None:
         for tx in T.thread_binding(16, thread="threadIdx.x"):
             with T.block():
@@ -1330,7 +1330,7 @@ def test_three_stage_compute_two_stage_async():
     mod = tvm.tir.transform.InjectSoftwarePipeline()(sch.mod)
 
     @T.prim_func
-    def ref(A: T.Buffer[(16, 16), "float32"], D: T.Buffer[(16, 16), "float32"]) -> None:
+    def ref(A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")) -> None:
         for tx in T.thread_binding(16, thread="threadIdx.x"):
             with T.block():
                 T.reads(A[tx, 0:16])
@@ -1350,8 +1350,8 @@ def test_three_stage_compute_two_stage_async():
                                     B[i % 2, tx, 0] = A[tx, i] * T.float32(2)
                         with T.block():
                             T.where(i == 1 and i - 1 < 16)
-                            T.reads(B[(i + 1) % 2, tx, 0])
-                            T.writes(C[(i + 1) % 2, tx, 0])
+                            T.reads(B[(i - 1) % 2, tx, 0])
+                            T.writes(C[(i - 1) % 2, tx, 0])
                             with T.attr(0, "async_commit_queue_scope", 1):
                                 with T.attr(0, "async_wait_queue_scope", 0):
                                     with T.attr(0, "async_wait_inflight_count", 1):
@@ -1366,14 +1366,14 @@ def test_three_stage_compute_two_stage_async():
                         with T.block():
                             T.where(i + 2 < 16)
                             T.reads(A[tx, i + 2])
-                            T.writes(B[i % 2, tx, 0])
+                            T.writes(B[(i + 2) % 2, tx, 0])
                             with T.attr(0, "async_commit_queue_scope", 0):
                                 with T.attr(0, "async_scope", 1):
                                     B[(i + 2) % 2, tx, 0] = A[tx, i + 2] * T.float32(2)
                         with T.block():
                             T.where(i + 2 - 1 < 16)
-                            T.reads(B[(i + 1) % 2, tx, 0])
-                            T.writes(C[(i + 1) % 2, tx, 0])
+                            T.reads(B[(i - 1 + 2) % 2, tx, 0])
+                            T.writes(C[(i - 1 + 2) % 2, tx, 0])
                             with T.attr(0, "async_commit_queue_scope", 1):
                                 with T.attr(0, "async_wait_queue_scope", 0):
                                     with T.attr(0, "async_wait_inflight_count", 1):
@@ -1394,8 +1394,8 @@ def test_three_stage_compute_two_stage_async():
                     for i in T.unroll(2):
                         with T.block():
                             T.where(i + 16 - 1 < 16)
-                            T.reads(B[(i + 1) % 2, tx, 0])
-                            T.writes(C[(i + 1) % 2, tx, 0])
+                            T.reads(B[(i - 1 + 16) % 2, tx, 0])
+                            T.writes(C[(i - 1 + 16) % 2, tx, 0])
                             with T.attr(0, "async_commit_queue_scope", 1):
                                 with T.attr(0, "async_wait_queue_scope", 0):
                                     with T.attr(0, "async_wait_inflight_count", 0 - i):

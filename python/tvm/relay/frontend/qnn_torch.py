@@ -534,7 +534,7 @@ def add_quant_params(params, quant_params):
             params[qparam.bias_var.name_hint] = tvm.nd.array(qparam.bias)
 
 
-def inline_input_quant_params_for_fx(graph, params):
+def inline_input_quant_params_for_fx(graph, params, param_debug_name_map):
     """
     Canonicalize input scale and zero point access for FX-quantized graphs.
     We expect input qparams to aten::quantize_per_tensor to be prim::Constant, but that's
@@ -568,7 +568,7 @@ def inline_input_quant_params_for_fx(graph, params):
         out_name = node.output().debugName()
 
         if "_scale" in out_name or "_zero_point" in out_name:
-            full_attr = get_full_attr_name(node)
+            full_attr = param_debug_name_map[get_full_attr_name(node)]
             assert full_attr in params, "%s not found in param dict." % full_attr
             param_np = params[full_attr].numpy()
             new_const_node = graph.create("prim::Constant")

@@ -1002,7 +1002,7 @@ def test_scatter(target, dev, executor_kind):
         d = relay.var("d", relay.TensorType(dshape, "float32"))
         i = relay.var("i", relay.TensorType(ishape, indices_dtype))
         u = relay.var("u", relay.TensorType(ishape, "float32"))
-        z = relay.op.scatter(d, i, u, axis)
+        z = relay.op.scatter_elements(d, i, u, axis)
 
         func = relay.Function([d, i, u], z)
 
@@ -1055,7 +1055,7 @@ class TestDynamicScatter:
         d = relay.var("d", relay.TensorType([relay.Any() for i in range(len(dshape))], "float32"))
         i = relay.var("i", relay.TensorType([relay.Any() for i in range(len(ishape))], "int64"))
         u = relay.var("u", relay.TensorType([relay.Any() for i in range(len(ishape))], "float32"))
-        z = relay.op.scatter(d, i, u, axis)
+        z = relay.op.scatter_elements(d, i, u, axis)
 
         func = relay.Function([d, i, u], z)
 
@@ -1112,7 +1112,7 @@ class TestScatterAdd:
             "i", relay.TensorType(shape=[relay.Any() for _ in ishape], dtype=indice_dtype)
         )
         u = relay.var("u", relay.TensorType(shape=[relay.Any() for _ in ishape], dtype=dtype))
-        z = relay.op.scatter_add(d, i, u, axis)
+        z = relay.op.scatter_elements(d, i, u, axis, "add")
 
         func = relay.Function([d, i, u], z)
 
@@ -1983,6 +1983,7 @@ def test_scatter_nd(target, dev, executor_kind):
         )
         tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=rtol, atol=atol)
 
+    # TODO(vcchernov): check frameworks' int type requirements. ONNX expects int64 only
     for indice_dtype in ["uint8", "uint16", "uint32"]:
         data = np.zeros((2, 2)).astype("int64")
         indices = np.array([[1, 1, 0], [0, 1, 0]]).astype(indice_dtype)
@@ -2009,7 +2010,7 @@ def test_scatter_nd(target, dev, executor_kind):
         verify_scatter_nd(data, indices, updates, out, mode="add")
         verify_scatter_nd_with_stack(data, indices, updates, out)
 
-        for mode in ["add", "update"]:
+        for mode in ["update", "add", "mul", "min", "max"]:
             indices = np.stack((np.random.randint(2, size=5), np.random.randint(7, size=5))).astype(
                 indice_dtype
             )
@@ -2019,10 +2020,20 @@ def test_scatter_nd(target, dev, executor_kind):
             out = data.copy()
             for i in range(indices.shape[1]):
                 for j in range(updates.shape[1]):
-                    if mode == "add":
-                        out[indices[0, i], indices[1, i], j] += updates[i, j]
-                    elif mode == "update":
+                    if mode == "update":
                         out[indices[0, i], indices[1, i], j] = updates[i, j]
+                    elif mode == "add":
+                        out[indices[0, i], indices[1, i], j] += updates[i, j]
+                    elif mode == "mul":
+                        out[indices[0, i], indices[1, i], j] *= updates[i, j]
+                    elif mode == "min":
+                        out[indices[0, i], indices[1, i], j] = min(
+                            out[indices[0, i], indices[1, i], j], updates[i, j]
+                        )
+                    elif mode == "max":
+                        out[indices[0, i], indices[1, i], j] = max(
+                            out[indices[0, i], indices[1, i], j], updates[i, j]
+                        )
             verify_scatter_nd(data, indices, updates, out, mode)
             verify_scatter_nd_with_stack(data, indices, updates, out, mode)
 

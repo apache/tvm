@@ -53,11 +53,11 @@ tasks.withType(JavaCompile) {
 }
 
 android {
-    compileSdkVersion 31
+    compileSdkVersion 33
     defaultConfig {
         applicationId "ml.apache.tvm.android.androidcamerademo"
         minSdkVersion 24
-        targetSdkVersion 26
+        targetSdkVersion 33
         renderscriptTargetApi 18
         renderscriptSupportModeEnabled true
         versionCode 1
@@ -80,10 +80,11 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
-
-    lintOptions {
-        disable "Instantiatable" // MainActivity and RPCActivity must extend android.app.Activity
+    lint {
+        disable 'Instantiatable' // MainActivity and RPCActivity must extend android.app.Activity
     }
+    namespace 'org.apache.tvm.android.androidcamerademo'
+
 }
 
 dependencies {

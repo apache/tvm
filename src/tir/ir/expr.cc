@@ -126,6 +126,15 @@ SizeVar::SizeVar(String name_hint, DataType dtype, Span span) {
   data_ = std::move(n);
 }
 
+SizeVar::SizeVar(String name_hint, Type type_annotation, Span span) {
+  auto n = make_object<SizeVarNode>();
+  n->name_hint = std::move(name_hint);
+  n->dtype = GetRuntimeDataType(type_annotation);
+  n->type_annotation = std::move(type_annotation);
+  n->span = std::move(span);
+  data_ = std::move(n);
+}
+
 TVM_REGISTER_GLOBAL("tir.SizeVar").set_body_typed([](String s, DataType t, Span span) {
   return SizeVar(s, t, span);
 });
@@ -393,7 +402,9 @@ Select::Select(PrimExpr condition, PrimExpr true_value, PrimExpr false_value, Sp
   ICHECK(false_value.defined()) << "ValueError: true_value is undefined";
   ICHECK(condition.dtype().is_bool());
   ICHECK(condition.dtype().lanes() == true_value.dtype().lanes() || condition.dtype().lanes() == 1);
-  ICHECK(false_value.dtype() == true_value.dtype()) << "TypeError: mismatched types";
+  ICHECK(false_value.dtype() == true_value.dtype())
+      << "TypeError: mismatched types. "
+      << "False type: " << false_value.dtype() << "; True type: " << true_value.dtype();
 
   ObjectPtr<SelectNode> node = make_object<SelectNode>();
   node->dtype = true_value.dtype();

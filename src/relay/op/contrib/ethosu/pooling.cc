@@ -46,14 +46,28 @@ bool EthosuPoolingRel(const Array<Type>& types, int num_inputs, const Attrs& att
 
   const String operator_name = "ethosu_pooling";
 
-  if (param->pooling_type != "AVG" && param->pooling_type != "MAX") {
+  if (param->pooling_type != "AVG" && param->pooling_type != "MAX" &&
+      param->pooling_type != "SUM") {
     reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
                                      << "Invalid operator: expected " << operator_name
-                                     << " type 'AVG' or 'MAX' but was " << param->pooling_type);
+                                     << " type 'AVG', 'MAX', or 'SUM' but was "
+                                     << param->pooling_type);
     return false;
   }
 
-  CheckDataType(reporter, ifm->dtype, {DataType::UInt(8), DataType::Int(8)}, operator_name, "ifm",
+  std::initializer_list<DataType> max_avg_pooling_ifm_dtypes = {DataType::UInt(8), DataType::Int(8),
+                                                                DataType::Int(16)};
+  std::initializer_list<DataType> sum_pooling_ifm_dtypes = {DataType::UInt(8), DataType::Int(8),
+                                                            DataType::Int(16), DataType::Int(32)};
+
+  std::initializer_list<DataType>& allowed_ifm_dtypes = max_avg_pooling_ifm_dtypes;
+  auto ofm_dtype = ifm->dtype;
+  if (param->pooling_type == "SUM") {
+    allowed_ifm_dtypes = sum_pooling_ifm_dtypes;
+    ofm_dtype = DataType::Int(32);
+  }
+
+  CheckDataType(reporter, ifm->dtype, allowed_ifm_dtypes, operator_name, "ifm",
                 param->pooling_type);
 
   CheckUpscaleMethod(reporter, param->upscale, {"NONE", "ZEROS", "NEAREST"}, operator_name);
@@ -67,7 +81,8 @@ bool EthosuPoolingRel(const Array<Type>& types, int num_inputs, const Attrs& att
   auto ofm_shape = EthosuInferKernelOutput(
       ifm_shape, param->ifm_layout, param->ofm_layout, param->pool_shape, param->ofm_channels,
       Array<IndexExpr>({1, 1}), param->strides, param->padding);
-  reporter->Assign(types[result_index], TensorType(ofm_shape, ifm->dtype));
+
+  reporter->Assign(types[result_index], TensorType(ofm_shape, ofm_dtype));
   return true;
 }
 

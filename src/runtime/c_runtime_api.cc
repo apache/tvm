@@ -90,7 +90,7 @@ uint8_t ParseCustomDatatype(const std::string& s, const char** scan) {
 
 class DeviceAPIManager {
  public:
-  static const int kMaxDeviceAPI = 32;
+  static const int kMaxDeviceAPI = TVMDeviceExtType_End;
   // Get API
   static DeviceAPI* Get(const Device& dev) { return Get(dev.device_type); }
   static DeviceAPI* Get(int dev_type, bool allow_missing = false) {

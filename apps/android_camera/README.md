@@ -66,14 +66,17 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.4.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.3'
     implementation 'com.google.android.material:material:1.5.0'
-    implementation 'org.apache.tvm:tvm4j-core:0.0.1-SNAPSHOT'
+    implementation files('../../../jvm/core/target/tvm4j-core-0.0.1-SNAPSHOT.jar')
     testImplementation 'junit:junit:4.13.2'
 
     implementation "androidx.concurrent:concurrent-futures:1.0.0"
     implementation "androidx.camera:camera-core:1.0.0-beta01"
     implementation "androidx.camera:camera-camera2:1.0.0-beta01"
+    // If you want to use the CameraX View class
     implementation "androidx.camera:camera-view:1.0.0-alpha08"
+    // If you want to use the CameraX Extensions library
     implementation "androidx.camera:camera-extensions:1.0.0-alpha08"
+    // If you want to use the CameraX Lifecycle library
     implementation "androidx.camera:camera-lifecycle:1.0.0-beta01"
 }
 ```
@@ -105,3 +108,13 @@ Run uninstall first:
 ```bash
 $ANDROID_HOME/platform-tools/adb uninstall ml.apache.tvm.android.androidcamerademo
 ```
+### Troubleshooting
+
+If you build the application in Android Studio and see error similar to this one:
+```
+A problem occurred evaluating project ':app'.
+> Failed to apply plugin 'com.android.internal.version-check'.
+   > Minimum supported Gradle version is 7.5. Current version is 7.4. If using the gradle wrapper, try editing the distributionUrl in /Users/echuraev/Workspace/OctoML/tvm_android_test/apps/android_deploy/gradle/wrapper/gradle-wrapper.properties to gradle-7.5-all.zip
+```
+Run project syncing `File -> Sync Project with Gradle Files`. It should sync the
+project and create gradle-wrapper files.

@@ -31,7 +31,6 @@ import requests
 
 import tvm.micro
 from tvm.micro import export_model_library_format
-from tvm.micro.model_library_format import generate_c_interface_header
 from tvm.micro.testing.utils import create_header_file
 from tvm.micro.testing.utils import (
     mlf_extract_workspace_size_bytes,
@@ -41,39 +40,17 @@ from tvm.micro.testing.utils import (
 
 TEMPLATE_PROJECT_DIR = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr"))
 
-BOARDS = TEMPLATE_PROJECT_DIR / "boards.json"
-
 _LOG = logging.getLogger(__name__)
 
 
 def zephyr_boards() -> dict:
-    """Returns a dict mapping board to target model"""
-    with open(BOARDS) as f:
+    """Returns Zephyr board properties"""
+    with open(TEMPLATE_PROJECT_DIR / "boards.json") as f:
         board_properties = json.load(f)
-
-    boards_model = {board: info["model"] for board, info in board_properties.items()}
-    return boards_model
+    return board_properties
 
 
 ZEPHYR_BOARDS = zephyr_boards()
-
-
-def qemu_boards(board: str):
-    """Returns True if board is QEMU."""
-    with open(BOARDS) as f:
-        board_properties = json.load(f)
-
-    qemu_boards = [name for name, board in board_properties.items() if board["is_qemu"]]
-    return board in qemu_boards
-
-
-def has_fpu(board: str):
-    """Returns True if board has FPU."""
-    with open(BOARDS) as f:
-        board_properties = json.load(f)
-
-    fpu_boards = [name for name, board in board_properties.items() if board["fpu"]]
-    return board in fpu_boards
 
 
 def build_project(
@@ -175,30 +152,16 @@ def generate_project(
     with tempfile.NamedTemporaryFile() as tar_temp_file:
         with tarfile.open(tar_temp_file.name, "w:gz") as tf:
             with tempfile.TemporaryDirectory() as tar_temp_dir:
-                model_files_path = os.path.join(tar_temp_dir, "include")
-                os.mkdir(model_files_path)
+                model_files_path = pathlib.Path(tar_temp_dir) / "include"
+                model_files_path.mkdir(parents=True)
                 if load_cmsis:
                     loadCMSIS(model_files_path)
                     tf.add(
                         model_files_path, arcname=os.path.relpath(model_files_path, tar_temp_dir)
                     )
-                header_path = generate_c_interface_header(
-                    lowered.libmod_name,
-                    ["input_1"],
-                    ["Identity"],
-                    [],
-                    {},
-                    [],
-                    0,
-                    model_files_path,
-                    {},
-                    {},
-                )
-                tf.add(header_path, arcname=os.path.relpath(header_path, tar_temp_dir))
-
-            create_header_file("input_data", sample, "include", tf)
+            create_header_file("input_data", sample, "include/tvm", tf)
             create_header_file(
-                "output_data", np.zeros(shape=output_shape, dtype=output_type), "include", tf
+                "output_data", np.zeros(shape=output_shape, dtype=output_type), "include/tvm", tf
             )
 
         project, project_dir = build_project(

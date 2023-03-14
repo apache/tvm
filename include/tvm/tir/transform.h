@@ -576,7 +576,7 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  *
  * \code{.py}
  * @T.prim_func
- * def before_transform(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]) -> None:
+ * def before_transform(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")) -> None:
  *     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
  *         for i in T.serial(0, 16,
  *                           annotations={"software_pipeline_stage": [0, 1],
@@ -601,7 +601,7 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  *
  * \code{.py}
  * @T.prim_func
- * def after_transform(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]) -> None:
+ * def after_transform(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")) -> None:
  *     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
  *         with T.block():
  *             T.reads([A[tx, 0:16]])
@@ -676,6 +676,12 @@ TVM_DLL Pass Filter(runtime::TypedPackedFunc<bool(PrimFunc)> fcond);
  * \return The pass.
  */
 TVM_DLL Pass InjectPTXAsyncCopy();
+
+/*!
+ * \brief Pass to rewrite global to local memory copy on CUDA with ldg32 instruction.
+ * \return The pass.
+ */
+TVM_DLL Pass InjectPTXLDG32(bool enable_ptx_ldg32 = true);
 
 /*!
  * \brief Remove the weight layout rewrite block

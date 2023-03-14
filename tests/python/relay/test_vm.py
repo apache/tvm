@@ -1267,7 +1267,7 @@ def test_storage_size_and_offset_on_cpu():
     # CPU = device type 1
     # GPU = device type 2
     def input():
-        return tvm.parser.fromtext(
+        return tvm.relay.fromtext(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 7), float32],
@@ -1303,7 +1303,7 @@ def test_reshape_shape_on_cpu():
     # CPU = device type 1
     # GPU = device type 2
     def input():
-        return tvm.parser.fromtext(
+        return tvm.relay.fromtext(
             """
             #[version = "0.0.5"]
             def @main(%x: Tensor[(2, 8), float32],

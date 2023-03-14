@@ -22,8 +22,9 @@ import json
 
 import tvm
 from tvm import relay
+import tvm.micro.testing
 from tvm.relay.backend import Executor
-from tvm.contrib import graph_executor, utils
+from tvm.contrib import graph_executor
 from tvm import meta_schedule as ms
 from tvm.contrib.micro.meta_schedule.local_builder_micro import get_local_builder_micro
 from tvm.contrib.micro.meta_schedule.rpc_runner_micro import get_rpc_runner_micro
@@ -61,7 +62,7 @@ def create_relay_module():
 
 
 @tvm.testing.requires_micro
-@pytest.mark.skip_boards(["mps2_an521", "mps3_an547"])
+@pytest.mark.skip_boards(["mps2_an521", "mps3_an547", "nucleo_f746zg", "stm32f746g_disco"])
 def test_ms_tuning_conv2d(workspace_dir, board, microtvm_debug, use_fvp, serial_number):
     """Test meta-schedule tuning for microTVM Zephyr"""
 
@@ -92,7 +93,7 @@ def test_ms_tuning_conv2d(workspace_dir, board, microtvm_debug, use_fvp, serial_
     boards_file = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr")) / "boards.json"
     with open(boards_file) as f:
         boards = json.load(f)
-    target = tvm.target.target.micro(model=boards[project_options["board"]]["model"])
+    target = tvm.micro.testing.get_target("zephyr", board)
 
     runtime = relay.backend.Runtime("crt", {"system-lib": True})
     executor = Executor("aot", {"link-params": True})
@@ -158,7 +159,7 @@ def test_ms_tuning_conv2d(workspace_dir, board, microtvm_debug, use_fvp, serial_
 
     # Build reference model (without tuning)
     dev = tvm.cpu()
-    target = tvm.target.target.micro(model="host")
+    target = tvm.micro.testing.get_target("crt")
     with tvm.transform.PassContext(
         opt_level=3, config={"tir.disable_vectorize": True}, disabled_pass=["AlterOpLayout"]
     ):

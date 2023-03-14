@@ -608,7 +608,7 @@ class ReverseComputeInliner : public BaseInliner {
         /*indices=*/buffer_load_indices_,
         /*input_iters=*/consumer_iter_doms,
         /*predicate=*/true,
-        /*check_level=*/arith::IterMapLevel::Bijective,
+        /*check_level=*/arith::IterMapLevel::NoCheck,
         /*analyzer=*/&analyzer_,
         /*simplify_trivial_iterators=*/false);
     buffer_load_iter_map_ = res->indices;
@@ -651,6 +651,7 @@ class ReverseComputeInliner : public BaseInliner {
     // Substitute the producer block iters with the its bindings since the predicate in BlockRealize
     // should not contain the block iters
     predicate = Substitute(predicate, subst_map);
+    predicate = analyzer_.Simplify(predicate);
     return predicate;
   }
 
@@ -843,9 +844,11 @@ void ReverseComputeInlineImpl(ScheduleState self, const StmtSRef& consumer_block
       NotSingleReadWriteBuffer::GetSingleRead(self, consumer_block, scope_root_sref);
   // Step 2. Check completeness
   CheckCompleteBlock(self, consumer_block_sref, scope_root_sref);
-  // Step 3. Check if the consumer has a single complete producer
+  // Step 3. Check if the consumer has a single complete producer, and the producer is not an output
+  // block
   StmtSRef producer_block_sref =
       NonSingleProducerError::Check(self, consumer_block_sref, scope_root_sref);
+  CheckNotOutputBlock(self, producer_block_sref, scope_root_sref);
   // Step 4. Analyze the block body
   ReverseComputeInliner inliner(inlined_buffer, producer_block_sref->StmtAs<BlockNode>(),
                                 consumer_block_realize, scope_root_sref, self->mod);
@@ -865,6 +868,13 @@ void ReverseComputeInlineImpl(ScheduleState self, const StmtSRef& consumer_block
     return;
   }
   self->Replace(scope_root_sref, tgt_stmt, inliner.block_reuse);
+  // Step 8. Update the cached flags
+  arith::Analyzer analyzer;
+  BlockInfo& block_info = self->block_info[producer_block_sref];
+  block_info.affine_binding = IsAffineBinding(
+      /*realize=*/GetBlockRealize(self, producer_block_sref),
+      /*loop_var_ranges=*/LoopDomainOfSRefTreePath(GetRef<StmtSRef>(producer_block_sref->parent)),
+      /*analyzer=*/&analyzer);
 }
 
 bool CanReverseComputeInline(const ScheduleState& self, const StmtSRef& block_sref) {

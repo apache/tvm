@@ -511,15 +511,15 @@ within_subsection_order = {
         "use_pass_instrument.py",
         "bring_your_own_datatypes.py",
     ],
-    "micro": [
-        "micro_train.py",
-        "micro_autotune.py",
-        "micro_reference_vm.py",
-        "micro_tflite.py",
-        "micro_ethosu.py",
+    "work_with_microtvm": [
         "micro_tvmc.py",
+        "micro_tflite.py",
         "micro_aot.py",
         "micro_pytorch.py",
+        "micro_train.py",
+        "micro_autotune.py",
+        "micro_ethosu.py",
+        "micro_mlperftiny.py",
     ],
 }
 
@@ -649,7 +649,7 @@ html_context = {
     "header_dropdown": header_dropdown,
     "header_logo": header_logo,
     "header_logo_link": header_logo_link,
-    "version_prefixes": ["main", "v0.8.0/", "v0.9.0/", "v0.10.0/"],
+    "version_prefixes": ["main", "v0.8.0/", "v0.9.0/", "v0.10.0/", "v0.11.0/"],
     "display_github": True,
     "github_user": "apache",
     "github_repo": "tvm",

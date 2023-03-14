@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-.. _tutorial-micro-AoT:
+.. _tutorial-micro-aot:
 
-microTVM Host-Driven AoT
-===========================
+3. microTVM Ahead-of-Time (AOT) Compilation
+===========================================
 **Authors**:
 `Mehrdad Hessar <https://github.com/mehrdadh>`_,
 `Alan MacDonald <https://github.com/alanmacd>`_
@@ -59,6 +59,7 @@ import json
 
 import tvm
 from tvm import relay
+import tvm.micro.testing
 from tvm.relay.backend import Executor, Runtime
 from tvm.contrib.download import download_testdata
 
@@ -73,8 +74,8 @@ from tvm.contrib.download import download_testdata
 # **Note:** By default this tutorial runs on x86 CPU using CRT, if you would like to run on Zephyr platform
 # you need to export `TVM_MICRO_USE_HW` environment variable.
 #
-MODEL_URL = "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/model/keyword_spotting_quant.tflite"
-MODEL_PATH = download_testdata(MODEL_URL, "keyword_spotting_quant.tflite", module="model")
+MODEL_URL = "https://github.com/mlcommons/tiny/raw/bceb91c5ad2e2deb295547d81505721d3a87d578/benchmark/training/keyword_spotting/trained_models/kws_ref_model.tflite"
+MODEL_PATH = download_testdata(MODEL_URL, "kws_ref_model.tflite", module="model")
 SAMPLE_URL = "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/keyword_spotting_int8_6.pyc.npy"
 SAMPLE_PATH = download_testdata(SAMPLE_URL, "keyword_spotting_int8_6.pyc.npy", module="data")
 
@@ -102,8 +103,7 @@ relay_mod, params = relay.frontend.from_tflite(
 # using AOT host driven executor. We use the host micro target which is for running a model
 # on x86 CPU using CRT runtime or running a model with Zephyr platform on qemu_x86 simulator
 # board. In the case of a physical microcontroller, we get the target model for the physical
-# board (E.g. nucleo_l4r5zi) and pass it to `tvm.target.target.micro` to create a full
-# micro target.
+# board (E.g. nucleo_l4r5zi) and change `BOARD` to supported Zephyr board.
 #
 
 # Use the C runtime (crt) and enable static linking by setting system-lib to True
@@ -111,18 +111,15 @@ RUNTIME = Runtime("crt", {"system-lib": True})
 
 # Simulate a microcontroller on the host machine. Uses the main() from `src/runtime/crt/host/main.cc`.
 # To use physical hardware, replace "host" with something matching your hardware.
-TARGET = tvm.target.target.micro("host")
+TARGET = tvm.micro.testing.get_target("crt")
 
 # Use the AOT executor rather than graph or vm executors. Don't use unpacked API or C calling style.
 EXECUTOR = Executor("aot")
 
 if use_physical_hw:
-    boards_file = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr")) / "boards.json"
-    with open(boards_file) as f:
-        boards = json.load(f)
     BOARD = os.getenv("TVM_MICRO_BOARD", default="nucleo_l4r5zi")
     SERIAL = os.getenv("TVM_MICRO_SERIAL", default=None)
-    TARGET = tvm.target.target.micro(boards[BOARD]["model"])
+    TARGET = tvm.micro.testing.get_target("zephyr", BOARD)
 
 ######################################################################
 # Compile the model

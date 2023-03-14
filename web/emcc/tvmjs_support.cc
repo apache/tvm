@@ -162,7 +162,7 @@ class AsyncLocalSession : public LocalSession {
       // pass the callback as the last argument.
       setter(num_args, packed_callback);
 
-      auto* pf = static_cast<PackedFunc*>(func);
+      auto* pf = static_cast<PackedFuncObj*>(func);
       pf->CallPacked(TVMArgs(values.data(), type_codes.data(), num_args + 1), &temp);
     } else if (func == get_time_eval_placeholder_.get()) {
       // special handle time evaluator.
@@ -214,7 +214,7 @@ class AsyncLocalSession : public LocalSession {
       local_to.dtype = remote_from->dtype;
       local_to.strides = nullptr;
       local_to.byte_offset = 0;
-      this->GetDeviceAPI(remote_from->device)->CopyDataFromTo(&local_to, remote_from, nullptr);
+      this->GetDeviceAPI(remote_from->device)->CopyDataFromTo(remote_from, &local_to, nullptr);
       this->AsyncStreamWait(remote_from->device, nullptr, on_complete);
     } catch (const std::runtime_error& e) {
       this->SendException(on_complete, e.what());
