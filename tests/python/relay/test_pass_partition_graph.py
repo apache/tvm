@@ -23,7 +23,7 @@ import numpy as np
 
 import tvm
 from tvm.relay.backend import te_compiler
-from tvm.relay.backend.runtime import Runtime
+from tvm.relay.backend import Runtime, Executor
 import tvm.relay.testing
 import tvm.relay.op as reg
 from tvm import relay
@@ -168,7 +168,9 @@ def check_result(
     def check_graph_executor_result():
         te_compiler.get().clear()
         with tvm.transform.PassContext(opt_level=3):
-            json, lib, param = relay.build(mod, target=target, params=params, runtime=runtime)
+            json, lib, param = relay.build(
+                mod, target=target, params=params, runtime=runtime, executor=Executor("graph")
+            )
         lib = update_lib(lib)
         rt_mod = tvm.contrib.graph_executor.create(json, lib, device)
 
@@ -1617,24 +1619,4 @@ def test_not_bind_constant():
 
 
 if __name__ == "__main__":
-    test_multi_node_compiler()
-    test_extern_ccompiler_single_op()
-    test_extern_ccompiler_default_ops()
-    test_extern_ccompiler_multiple_functions()
-    test_extern_ccompiler()
-    test_extern_dnnl()
-    test_extern_dnnl_mobilenet()
-    test_function_lifting()
-    test_function_lifting_inline()
-    test_constant_propagation()
-    test_multiple_outputs()
-    test_mixed_single_multiple_outputs()
-    test_dnnl_fuse()
-    test_multiple_use_of_an_output()
-    test_duplicate_outputs()
-    test_duplicate_merge_and_tuplegetitem()
-    test_constant_tuples()
-    test_flatten_tuple_output()
-    test_tuple_output_exec()
-    test_extern_opt()
-    test_not_bind_constant()
+    tvm.testing.main()

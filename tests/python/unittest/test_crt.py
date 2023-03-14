@@ -129,7 +129,9 @@ def test_graph_executor():
 
     runtime = Runtime("crt", {"system-lib": True})
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        factory = tvm.relay.build(relay_mod, target=TARGET, runtime=runtime)
+        factory = tvm.relay.build(
+            relay_mod, target=TARGET, runtime=runtime, executor=Executor("graph")
+        )
 
     def do_test(graph_mod):
 
@@ -404,7 +406,9 @@ def test_autotune():
 
     # Build without tuning
     with pass_context:
-        lowered = tvm.relay.build(mod, target=TARGET, runtime=runtime, params=params)
+        lowered = tvm.relay.build(
+            mod, target=TARGET, runtime=runtime, executor=Executor("graph"), params=params
+        )
 
     temp_dir = tvm.contrib.utils.tempdir()
     with _make_session(temp_dir, lowered) as sess:
@@ -419,7 +423,9 @@ def test_autotune():
     # Build using autotune logs
     with tvm.autotvm.apply_history_best(str(tune_log_file)):
         with pass_context:
-            lowered_tuned = tvm.relay.build(mod, target=target, runtime=runtime, params=params)
+            lowered_tuned = tvm.relay.build(
+                mod, target=target, runtime=runtime, executor=Executor("graph"), params=params
+            )
 
     temp_dir = tvm.contrib.utils.tempdir()
     with _make_session(temp_dir, lowered_tuned) as sess:

@@ -113,6 +113,7 @@ def test_micro_tuning_with_meta_schedule():
             target=target,
             params=params,
             runtime=runtime,
+            executor=Executor("graph"),
         )
     ref_mod.export_library(work_dir / "compiled_lib2.so")
     mod2: tvm.runtime.Module = tvm.runtime.load_module(work_dir / "compiled_lib2.so")

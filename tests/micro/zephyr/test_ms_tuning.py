@@ -168,6 +168,7 @@ def test_ms_tuning_conv2d(workspace_dir, board, microtvm_debug, use_fvp, serial_
             target=target,
             params=params,
             runtime=runtime,
+            executor=Executor("graph"),
         )
     ref_mod.export_library(workspace_dir / "compiled_lib2.so")
     mod2: tvm.runtime.Module = tvm.runtime.load_module(workspace_dir / "compiled_lib2.so")
