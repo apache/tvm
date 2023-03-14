@@ -91,14 +91,13 @@ class OpenCLWrappedFunc {
     if (w_->IsProfiling(t->device)) {
       w_->GetEventQueue(t->device).resize(w_->GetEventQueue(t->device).size() + 1);
       OPENCL_CALL(clEnqueueNDRangeKernel(queue, kernel, work_dim, nullptr, wl.work_size,
-                                        wl.work_size + 3, 0, nullptr,
-                                        &(w_->GetEventQueue(t->device).back())));
+                                         wl.work_size + 3, 0, nullptr,
+                                         &(w_->GetEventQueue(t->device).back())));
     } else {
       OPENCL_CALL(clEnqueueNDRangeKernel(queue, kernel, work_dim, nullptr, wl.work_size,
-                                        wl.work_size + 3, 0, nullptr, nullptr));
+                                         wl.work_size + 3, 0, nullptr, nullptr));
     }
   }
-  
  private:
   // global workspace.
   cl::OpenCLWorkspace* w_;
@@ -115,7 +114,7 @@ class OpenCLWrappedFunc {
   // launch parameters config
   LaunchParamConfig launch_param_config_;
 };
-// uint OpenCLModuleNode::duration = 0;
+
 OpenCLModuleNode::~OpenCLModuleNode() {
   {
     // free the kernel ids in global table.
@@ -172,7 +171,6 @@ PackedFunc OpenCLModuleNode::GetFunction(const std::string& name,
       arg_size[i] = bits / 8;
     }
   }
-  // LOG(INFO) << "NAME           " << name;
   // initialize the wrapped func.
   f.Init(this, sptr_to_self, kid_map_.at(name), name, arg_size, info.launch_param_tags);
   return PackFuncVoidAddr(f, info.arg_types);
@@ -424,8 +422,6 @@ Module OpenCLModuleLoadBinary(void* strm) {
   stream->Read(&data);
   return OpenCLModuleCreate(data, fmt, fmap, std::string());
 }
-
-
 
 TVM_REGISTER_GLOBAL("runtime.module.loadfile_cl").set_body_typed(OpenCLModuleLoadFile);
 

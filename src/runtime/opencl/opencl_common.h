@@ -494,7 +494,6 @@ class OpenCLModuleNode : public ModuleNode {
   std::vector<cl_kernel> kernels_;
   // parsed kernel data
   std::unordered_map<std::string, std::string> parsed_kernels_;
-  
 };
 
 /*! \brief OpenCL timer node */

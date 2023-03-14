@@ -288,8 +288,6 @@ tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
     src/tir/*.cc
     src/topi/*.cc
     src/driver/*.cc
-    src/parser/*.cc
-    src/printer/*.cc
     src/support/*.cc
     src/script/*.cc
     )
@@ -318,6 +316,8 @@ tvm_file_glob(GLOB RELAY_BACKEND_SRCS
     )
 tvm_file_glob(GLOB_RECURSE RELAY_IR_SRCS
     src/relay/ir/*.cc
+    src/relay/printer/*.cc
+    src/relay/parser/*.cc
     )
 tvm_file_glob(GLOB_RECURSE RELAY_QNN_SRCS
     src/relay/qnn/*.cc
@@ -583,6 +583,10 @@ endif()
 
 if(USE_CPP_RPC)
   add_subdirectory("apps/cpp_rpc")
+endif()
+
+if(USE_CPP_RTVM)
+  add_subdirectory("apps/cpp_rtvm")
 endif()
 
 if(USE_IOS_RPC)
