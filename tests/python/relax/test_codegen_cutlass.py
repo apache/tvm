@@ -24,6 +24,7 @@ from tvm import relax
 from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
 from tvm.contrib.pickle_memoize import memoize
 from tvm.relax.backend.contrib.cutlass import partition_for_cutlass
+from tvm.relax.testing import get_relax_matmul_module
 from tvm.script import relax as R
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import relax as relax_builder
@@ -157,50 +158,6 @@ def get_relax_conv2d_module(
                     if residual_activation is not None:
                         output = R.emit(residual_activation(output))
                 R.output(output)
-
-            R.func_ret_value(frame.output_vars[0])
-
-    func = builder.get()
-    return tvm.IRModule({"main": func})
-
-
-def get_relax_matmul_module(
-    x_shape,
-    y_shape,
-    dtype,
-    transposed_y=False,
-    with_bias=False,
-    activation=None,
-    residual_bin_op=None,
-    residual_activation=None,
-):
-    if transposed_y:
-        n = y_shape[-2]
-    else:
-        n = y_shape[-1]
-
-    with IRBuilder() as builder:
-        with relax_builder.function():
-            R.func_name("main")
-            x = R.arg("x", R.Tensor(x_shape, dtype))
-            y = R.arg("y", R.Tensor(y_shape, dtype))
-            if with_bias:
-                bias = R.arg("bias", R.Tensor((n,), dtype))
-
-            with R.dataflow() as frame:
-                if transposed_y:
-                    axes = list(range(len(y_shape) - 2)) + [-1, -2]
-                    y = R.emit(R.permute_dims(y, axes=axes))
-                result = R.emit(R.matmul(x, y, out_dtype=dtype))
-                if with_bias:
-                    result = R.emit(result + bias)
-                if activation is not None:
-                    result = R.emit(activation(result))
-                if residual_bin_op is not None:
-                    result = R.emit(residual_bin_op(result, x))
-                    if residual_activation is not None:
-                        result = R.emit(residual_activation(result))
-                R.output(result)
 
             R.func_ret_value(frame.output_vars[0])
 

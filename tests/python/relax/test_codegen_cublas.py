@@ -22,6 +22,7 @@ import tvm.testing
 import tvm.topi.testing
 from tvm import relax
 from tvm.relax.backend.contrib.cublas import partition_for_cublas
+from tvm.relax.testing import get_relax_matmul_module
 from tvm.script import relax as R
 
 
@@ -57,42 +58,6 @@ def get_result_with_relax_cublas_offload(mod, *args):
     mod = relax.transform.RunCodegen()(mod)
 
     return build_and_run(mod, args, "cuda")
-
-
-def get_relax_matmul_module(
-    x_shape, y_shape, dtype, transposed_y=False, with_bias=False, activation=None
-):
-    if transposed_y:
-        n = y_shape[-2]
-    else:
-        n = y_shape[-1]
-
-    from tvm.script.ir_builder import IRBuilder
-    from tvm.script.ir_builder import relax as relax_builder
-
-    with IRBuilder() as builder:
-        with relax_builder.function():
-            R.func_name("main")
-            x = R.arg("x", R.Tensor(x_shape, dtype))
-            y = R.arg("y", R.Tensor(y_shape, dtype))
-            if with_bias:
-                bias = R.arg("bias", R.Tensor((n,), dtype))
-
-            with R.dataflow() as frame:
-                if transposed_y:
-                    axes = list(range(len(y_shape) - 2)) + [-1, -2]
-                    y = R.emit(R.permute_dims(y, axes=axes))
-                result = R.emit(R.matmul(x, y, out_dtype=dtype))
-                if with_bias:
-                    result = R.emit(result + bias)
-                if activation is not None:
-                    result = R.emit(activation(result))
-                R.output(result)
-
-            R.func_ret_value(frame.output_vars[0])
-
-    func = builder.get()
-    return tvm.IRModule({"main": func})
 
 
 def _to_concrete_shape(symbolic_shape, var_table):
