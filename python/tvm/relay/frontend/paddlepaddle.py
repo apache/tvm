@@ -409,11 +409,11 @@ def convert_dist(g, op, block):
     dtype = infer_type(x).checked_type.dtype
     p = op.attr("p")
     if p == np.inf:
-        out = _op.reduce.max(_op.abs(z))
+        out = _op.reduce.max(z)
     elif p == np.NINF:
-        out = _op.reduce.min(_op.abs(z))
+        out = _op.reduce.min(z)
     elif p == 0.0:
-        out = _op.reduce.sum(_op.sign(_op.abs(z)))
+        out = _op.reduce.sum(_op.sign(z))
     else:
         inv_p = _expr.const(1.0 / p, dtype=dtype)
         p = _expr.const(p, dtype=dtype)
@@ -576,6 +576,8 @@ def convert_eye(g, op, block):
 
     num_rows = op.attr("num_rows")
     num_columns = op.attr("num_columns")
+    if num_columns == -1:
+        num_columns = num_rows
     one_nums = min(num_rows, num_columns)
     dtype = op.attr("dtype")
     dtype = _convert_dtype_value(dtype)
