@@ -575,7 +575,12 @@ def _extract_arg_idx(pattern_name, f):
             continue
         arg_idx[name] = func_args.index(arg_expr)
 
-    return arg_idx
+#    return arg_idx
+
+    # TODO fix
+    extract_func = tvm.get_global_func("relax.contrib.extract_arg_idx")
+    arg_indices = extract_func(pattern_name, f)
+    return {k: int(v) for k, v in arg_indices.items()}
 
 
 def is_shape_valid_for_cutlass_matmul(

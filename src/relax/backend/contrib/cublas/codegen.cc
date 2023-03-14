@@ -22,11 +22,9 @@
  * \brief Implementation of the CUBLAS JSON serializer.
  */
 #include <tvm/ir/module.h>
-#include <tvm/relax/dataflow_matcher.h>
 
 #include <string>
 
-#include "../../pattern_registry.h"
 #include "../codegen_json/codegen_json.h"
 #include "../utils.h"
 
@@ -38,35 +36,6 @@ using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
 using JSONGraphNodeEntry = tvm::runtime::json::JSONGraphNodeEntry;
 using JSONSerializer = backend::contrib::JSONSerializer;
 using backend::contrib::NodeEntries;
-
-Map<String, IntImm> ExtractArgIdx(String pattern_name, Function f) {
-  Map<String, IntImm> arg_idx;
-  auto pattern = backend::GetPattern(pattern_name);
-  ICHECK(pattern) << "Unsupported op_type " << pattern_name;
-
-  auto bindings = AnalyzeVar2Value(f);
-  auto inner_body = Downcast<SeqExpr>(f->body)->body;
-  auto matched_expr = relax::ExtractMatchedExpr(pattern.value()->pattern, inner_body, bindings);
-  ICHECK(matched_expr);
-
-  auto find_index = [](const Array<Var>& params, Var v) {
-    for (size_t i = 0; i < params.size(); ++i) {
-      if (params[i] == v) {
-        return i;
-      }
-    }
-    LOG(FATAL) << "Variable not found " << v;
-    return size_t(0);
-  };
-
-  for (const auto& [name, pat] : pattern.value()->arg_patterns) {
-    auto arg_var = matched_expr.value()[pat];
-    auto idx = find_index(f->params, Downcast<Var>(arg_var));
-    arg_idx.Set(name, IntImm(DataType::Int(64), idx));
-  }
-
-  return arg_idx;
-}
 
 class CublasJSONSerializer : public JSONSerializer {
  public:
@@ -95,7 +64,7 @@ class CublasJSONSerializer : public JSONSerializer {
     ICHECK(inputs_tmp.size() <= 3);
     NodeEntries inputs(inputs_tmp.size());
 
-    auto arg_idx = ExtractArgIdx(composite_name, fn);
+    auto arg_idx = backend::ExtractArgIdx(composite_name, fn);
     inputs[0] = inputs_tmp[arg_idx["lhs"]->value];
     inputs[1] = inputs_tmp[arg_idx["rhs"]->value];
     if (inputs_tmp.size() == 3) {
