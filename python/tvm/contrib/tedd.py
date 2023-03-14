@@ -80,10 +80,9 @@ def insert_dot_id(sch):
 
 def itervar_equal(iv_a, iv_b):
     """A helper method that compares the equality of two iterative variables"""
-    # When InferBound is invoked, domain min and max of iterative variables inside
-    # stage.leaf_iter_vars will be rebased.
-    # this rebase behavior makes plain comparison fail (i.e. ivar == itervar)
-    # Adopt the following comparison method for itervars
+    # Adopt the following method to assure the equality between two itervars.
+    # The plain comparison might fail (i.e. iv_a == iv_b) after the change of
+    # domain bounds from InferBound.
     def _var_equal(v_a, v_b):
         condtions = [
             v_a.name == v_b.name,
@@ -110,10 +109,10 @@ class ObjectManager:
             self.dict[stage] = [stage_idx]
             for itervar_idx, itervar in enumerate(stage.all_iter_vars):
                 self.dict[itervar] = [stage_idx, itervar_idx]
-                # the rebased itervars should also be mapped to the original one
-                for rebased in stage.leaf_iter_vars:
-                    if itervar_equal(rebased, itervar):
-                        self.dict[rebased] = [stage_idx, itervar_idx]
+                # the itervars of leaf should also be mapped to the original one
+                for leaf_iv in stage.leaf_iter_vars:
+                    if itervar_equal(leaf_iv, itervar):
+                        self.dict[leaf_iv] = [stage_idx, itervar_idx]
             for rel_idx, rel in enumerate(stage.relations):
                 self.dict[rel] = [stage_idx, rel_idx]
             for tensor_idx in range(stage.op.num_outputs):
