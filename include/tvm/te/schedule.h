@@ -460,9 +460,9 @@ class ScheduleContext {
   void EnterWithScope();
   void ExitWithScope();
 
-  /*! \brief the Schedule instance to store debug information */
+  /*! \brief Schedule instance to store information for debug */
   Schedule sch_;
-  /*! \brief string represents which primitive applied to Schedule */
+  /*! \brief String representing which primitive has been applied to sch_ */
   String current_primitive_name_;
 };
 
@@ -567,7 +567,7 @@ class StageNode : public Object {
   IterVar attach_ivar;
   /*! \brief The stage this node attaches to */
   Stage attach_stage;
-  /*! \brief The schedule of current stage attaches to */
+  /*! \brief The schedule current stage is attached to */
   const ScheduleNode* attach_sch;
   /*! \brief The thread storage scope level of the stage */
   std::string scope;
@@ -639,12 +639,10 @@ class ScheduleNode : public Object {
    */
   std::unordered_map<const Object*, Stage> op2stage_cache_;
   /*!
-   * \brief list of all schedules during primitives applied to stages.
-   * User could leverage TEDD to display the optimization strategy
-   * step by step to make sure the desired order and effect of
-   * different schedule primitives.
-   * The schedule-storing will take effect once "te.keep_schedule_record"
-   * is enabled in config of PassContext.
+   * \brief list of all transformed schedules
+   * User can display the optimization strategy via TEDD step by step to check
+   * the order and effect of primitives. Set "te.keep_schedule_record" in
+   * PassContext config as true to enable recording.
    */
   Array<Schedule> schedule_record;
   /*!

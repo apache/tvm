@@ -80,12 +80,10 @@ def insert_dot_id(sch):
 
 def itervar_equal(iv_a, iv_b):
     """A helper method that compares the equality of two iterative variables"""
-    # after schedule.normalize was called, domains of iterative variables inside
-    # stage.leaf_iter_vars would be discarded and expected to be inferred in later
-    # InferBound call
-    # this rebase behavior would make plain comparison fail (i.e. ivar == itervar)
-    # here we adopt a new comparison method to serach the correct relationship of
-    # itervars
+    # When InferBound is invoked, domain min and max of iterative variables inside
+    # stage.leaf_iter_vars will be rebased.
+    # this rebase behavior makes plain comparison fail (i.e. ivar == itervar)
+    # Adopt the following comparison method for itervars
     def _var_equal(v_a, v_b):
         condtions = [
             v_a.name == v_b.name,
