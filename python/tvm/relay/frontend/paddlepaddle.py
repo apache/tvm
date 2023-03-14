@@ -2468,6 +2468,7 @@ _convert_map = {
     "concat": convert_concat,
     "conv2d": convert_conv2d,
     "conv2d_transpose": convert_conv2d_transpose,
+    "conv3d": convert_conv3d,
     "cos": convert_unary_op,
     "cosh": convert_unary_op,
     "cumsum": convert_cumsum,
