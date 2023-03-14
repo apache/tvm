@@ -400,6 +400,46 @@ def convert_conv2d_transpose(g, op, block):
     g.add_node(op.output("Output")[0], out)
 
 
+def convert_conv3d(g, op, block):
+    """Operator converter for conv3d."""
+
+    dilations = op.attr("dilations")
+    groups = op.attr("groups")
+    paddings = op.attr("paddings")
+    padding_algorithm = op.attr("padding_algorithm")
+    strides = op.attr("strides")
+
+    kernel = g.get_node(op.input("Filter")[0])
+    input_x = g.get_node(op.input("Input")[0])
+    out_channels, _, k_d, k_h, k_w = infer_shape(kernel)
+    if padding_algorithm == "VALID":
+        paddings = [0, 0, 0]
+    elif padding_algorithm == "SAME":
+        dilations = [1, 1 ,1]
+        input_x = autopad(input_x, strides, [k_d, k_h, k_w], dilations)
+        paddings = [0, 0, 0]
+    elif padding_algorithm == "EXPLICIT":
+        if len(paddings) == 3:
+            paddings = [paddings[0], paddings[1], paddings[2], paddings[0], paddings[1], paddings[2]]
+        elif len(paddings) == 6:
+            paddings = [paddings[0], paddings[3], paddings[1], paddings[4], paddings[2], paddings[5]]
+    else:
+        msg = 'Value {} in attribute "padding" of operator Conv is not "valid."'
+        raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
+
+    out = _op.nn.conv3d(
+        input_x,
+        kernel,
+        strides=strides,
+        padding=paddings,
+        dilation=dilations,
+        groups=groups,
+        channels=out_channels,
+        kernel_size=[k_d, k_h, k_w],
+    )
+    g.add_node(op.output("Output")[0], out)
+
+
 def convert_dist(g, op, block):
     """Operator converter for dist."""
 
