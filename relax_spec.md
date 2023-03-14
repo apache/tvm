@@ -394,7 +394,7 @@ Note that judging subtyping requires potentially reasoning about arbitrary `Shap
 * They are _definitely not_ statically equal in at least one case.
 
 1. Reflexivity: `S1 <: S1` for all `S1`.
-2. Transitivity: For all `S1`, `S2`, and `S3`, if `S1 <: S2` and `S2 <: S3`, then `S1 <<: S3`.
+2. Transitivity: For all `S1`, `S2`, and `S3`, if `S1 <: S2` and `S2 <: S3`, then `S1 <: S3`.
 3. For all `S1`, `S1 <: ObjectStructInfo()`.
 4. For `TensorStructInfo`:
     1. Given any datatype `d`, an arbitrary `ndim` `n`, and an arbitrary expression `s` (possibly undefined), `TensorStructInfo(ndim=n, dtype=d, shape=s) <: TensorStructInfo(ndim=-1, dtype=d)`.
