@@ -3,7 +3,7 @@ from collections import deque
 from typing import List, Optional, Sequence, Tuple, Union
 
 import tvm
-from tvm import topi
+from tvm import meta_schedule, topi
 from tvm.tir.schedule import BlockRV, ExprRV, LoopRV
 
 ## Tiling layout transforms:
@@ -412,11 +412,9 @@ def handle_block_implicit_reshape(
     return unpack_list(input_shape), new_src_layout, new_dst_layout
 
 
-def auto_inline(sch: tvm.tir.Schedule, start_block: BlockRV) -> BlockRV:
+def auto_inline_into(sch: tvm.tir.Schedule, start_block: BlockRV) -> BlockRV:
     """
-    Autoinlines given block into consumers, and repeats process for consumer of block.
-
-    Done by default for injective schedules but must manually be called in new schedule rule.
+    Inlines given start_block's consumers and future dependencies into start_block.
 
     Parameters
     ----------
@@ -424,7 +422,7 @@ def auto_inline(sch: tvm.tir.Schedule, start_block: BlockRV) -> BlockRV:
         The initial schedule.
 
     start_block:
-        The block to inline, should be a block which reads and writes to global memory, doing
+        The block to inline into, should be a block which reads and writes to global memory, doing
         layout transform.
 
     Returns
@@ -432,7 +430,7 @@ def auto_inline(sch: tvm.tir.Schedule, start_block: BlockRV) -> BlockRV:
     ret:
         The new block inlined into it's consumers.
     """
-    fringe = deque([start_block])
+    fringe = deque(sch.get_consumers(start_block))
     visited = set()
     while len(fringe) > 0:
         cur_block = fringe.popleft()
@@ -442,12 +440,17 @@ def auto_inline(sch: tvm.tir.Schedule, start_block: BlockRV) -> BlockRV:
             visited.add(cur_block)
 
         consumer_blocks = sch.get_consumers(cur_block)
-        if len(consumer_blocks) >= 1:
-            fringe.extend(consumer_blocks)
-            sch.compute_inline(cur_block)
-        else:
-            # Found output block, no more inlining needed
-            return cur_block
+        fringe.extend(consumer_blocks)
+
+        autoinline_rule = meta_schedule.schedule_rule.AutoInline(
+            into_producer=True,
+            into_consumer=False,
+            inline_const_tensor=True,
+            disallow_if_then_else=False,
+            require_injective=False,
+            require_ordered=False,
+        )
+        sch = autoinline_rule.apply(sch, cur_block)[0]
 
 
 def get_max_tile_size() -> int:
@@ -504,6 +507,12 @@ def cuda_layout_transform_schedule_rule(
     schedules.append(sch)
     sch = sch.copy()
 
+    # Inline consumers of the layout transform into the layout transform block.
+    # Normally default for injective schedules but must manually be called in new schedule rule
+    # as we introduce a new block under the custom schedule rule which is not taken into account
+    # during search space generation. TODO: rectify this.
+    auto_inline_into(sch, block)
+
     # Setup up basic structure of schedule of creating read into shared mem, before applying tiling
     # Outer loop structure of read block matches that of src_layout
     # E.g. if input_shape is [4, 6, 8]. Loops for read block will be
@@ -520,18 +529,16 @@ def cuda_layout_transform_schedule_rule(
     input_shape, src_layout, dst_layout = handle_block_implicit_reshape(
         sch, block_read, input_shape, src_layout, dst_layout
     )
+
     # Try tile size 2,3...threads_per_warp as tile size of 1 has no coaslescing.
     max_tile_size = get_max_tile_size()
     if tile_sizes is None:
         tile_sizes = range(2, max_tile_size + 1)
     for tile_size in tile_sizes:
         new_sch = sch.copy()
-        block_write, block_read = tile_layout_transform(
+        tile_layout_transform(
             new_sch, block_read, block, src_layout, dst_layout, input_shape, tile_size
         )
-        # For each schedule we also want to inline each stage as would be done in normal circumstances
-        # to prevent extraneous memory access.
-        auto_inline(new_sch, block_write)
         schedules.append(new_sch)
 
     return schedules
