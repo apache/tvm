@@ -27,6 +27,8 @@
 #include <tvm/tir/op.h>
 #include <tvm/tir/op_attr_types.h>
 
+#include "../intrin_rule.h"
+
 namespace tvm {
 namespace codegen {
 namespace spirv {
@@ -100,6 +102,9 @@ TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
 
 TVM_REGISTER_OP("tir.tanh")
     .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Tanh>);
+
+TVM_REGISTER_OP("tir.erf").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
+                                                     codegen::intrin ::DispatchFastErf);
 }  // namespace intrin
 
 namespace legalize {

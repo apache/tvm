@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, redefined-builtin, no-else-return, consider-using-dict-items
 """The Relax virtual machine."""
 from typing import Callable, List, Optional, Union, Dict, Tuple, Any
+from enum import IntEnum
 import numpy as np  # type: ignore
 
 import tvm
@@ -26,6 +27,12 @@ from tvm.runtime import Device, PackedFunc, container, Object
 from tvm.runtime.profiling import Report
 
 from ..rpc.base import RPC_SESS_MASK
+
+
+class VMInstrumentReturnKind(IntEnum):
+    NO_OP = 0
+    # skip the following call, only valid in before
+    SKIP_RUN = 1
 
 
 class VirtualMachine(object):
@@ -85,6 +92,7 @@ class VirtualMachine(object):
         self._get_output_arity = self.module["get_output_arity"]
         self._get_function_arity = self.module["get_function_arity"]
         self._get_function_param_name = self.module["get_function_param_name"]
+        self._set_instrument = self.module["set_instrument"]
         self._setup_device(device, memory_cfg)
 
     def _setup_device(self, dev: Device, memory_cfg: Union[str, Dict[Device, str]]) -> None:
@@ -328,6 +336,46 @@ class VirtualMachine(object):
             return tuple(get_output_rec(func_name, *(idx_list + [i])) for i in range(arity))
 
         return get_output_rec(func_name)
+
+    def set_instrument(self, instrument: tvm.runtime.PackedFunc):
+        """Set an instrumentation function.
+
+        If instrument is present, the function will be called
+        before/after each Call instruction. The function have
+        the following signature:
+
+        .. code:: python
+
+            def instrument(
+                func: Union[VMClosure, PackedFunc],
+                func_symbol: str,
+                before_run: bool,
+                ret_value: any,
+                *args) -> bool:
+                pass
+
+        The instrument takes the following parameters:
+        - func: function object to be called.
+        - func_symbol: the symbol name of the function.
+        - before_run: whether it is before or after call.
+        - ret_value: the return value of the call, only valid after run.
+        - args: the arguments being passed to call.
+
+        The instrument function can choose an integer,
+        which corresponds to action direction for the
+        following run. See VMInstrumentReturnKind for
+        more details.
+
+        Parameters
+        ----------
+        instrument: tvm.runtime.PackedFunc
+            A instrumentation function that get invoked every VM call instr.
+
+        See Also
+        --------
+        VMInstrumentReturnKind: the possible return values in VM.
+        """
+        self._set_instrument(instrument)
 
     def time_evaluator(
         self,

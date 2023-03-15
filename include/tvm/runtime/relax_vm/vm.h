@@ -40,6 +40,16 @@ namespace runtime {
 namespace relax_vm {
 
 /*!
+ * \brief Possible instrument actions.
+ */
+enum class VMInstrumentReturnKind : int {
+  /*! \brief Running as normal. */
+  kNoOp = 0,
+  /*! \brief Skip the following run, only valid in before. */
+  kSkipRun = 1,
+};
+
+/*!
  * \brief An object representing a vm closure.
  */
 class VMClosureObj : public ClosureObj {
@@ -119,6 +129,26 @@ class VirtualMachine : public runtime::ModuleNode {
    */
   virtual void InvokeClosurePacked(const ObjectRef& closure_or_packedfunc, TVMArgs args,
                                    TVMRetValue* rv) = 0;
+  /*!
+   * \brief Set an instrumentation function.
+   *
+   * If instrument is present, the function will be called
+   * before/after each Call instruction.
+   *
+   * bool instrument(func, func_symbol, before_run, args...)
+   *
+   * - func: Union[VMClosure, PackedFunc], the function object.
+   * - func_symbol: string, the symbol of the function.
+   * - before_run: bool, whether it is before or after call.
+   * - ret_value: Only valid in after run, otherwise it is null.
+   * - args: the arguments being passed to call.
+   *
+   * instrument can return an int which corresponds to the action value.
+   * \sa VMInstrumentAction
+   *
+   * \param instrument The instrument function.
+   */
+  virtual void SetInstrument(PackedFunc instrument) = 0;
   /*!
    * \brief Create a specific instance of VM.
    * \return Created VM

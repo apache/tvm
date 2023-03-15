@@ -1031,6 +1031,16 @@ export class Instance implements Disposable {
     this.ctx.dispose();
     this.lib.dispose();
   }
+  /**
+   * Obtain the runtime information in readable format.
+   */
+  runtimeStatsText(): string {
+    if (this.lib.webGPUContext !== undefined) {
+      return this.lib.webGPUContext.runtimeStatsText();
+    } else {
+      return "";
+    }
+  }
 
   /**
    * Begin a new scope for tracking object disposal.

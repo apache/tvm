@@ -44,8 +44,8 @@
     }
 
     function fetchProgressCallback(report) {
-      document.getElementById("progress-tracker-label").innerHTML = report.text;
-      document.getElementById("progress-tracker-progress").value = (report.fetchedBytes / report.totalBytes) * 100;
+      document.getElementById("rpc-progress-tracker-label").innerHTML = report.text;
+      document.getElementById("rpc-progress-tracker-progress").value = (report.fetchedBytes / report.totalBytes) * 100;
     }
 
     function connectRPC() {
@@ -130,9 +130,8 @@
     <button onclick="connectRPC()">Connect To Proxy</button>
     <button onclick="clearLog()">Clear Log</button>
     <div id="progress">
-      <label id="gpu-tracker-label"> </label><br>
-      <label id="progress-tracker-label"> </label> <br>
-      <progress id="progress-tracker-progress" max="100" value="100"> </progress>
+      <label id="rpc-progress-tracker-label"> </label> <br>
+      <progress id="rpc-progress-tracker-progress" max="100" value="100"> </progress>
     </div>
     <div id="includeRPCPlugin"></div>
     <div id="log"></div>

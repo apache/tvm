@@ -271,6 +271,7 @@ class CanvaRenderManager implements Disposable {
   }
 }
 
+
 /**
  * WebGPU context
  * Manages all the webgpu resources here.
@@ -278,11 +279,24 @@ class CanvaRenderManager implements Disposable {
 export class WebGPUContext {
   device: GPUDevice;
   memory: Memory;
-
-  //private readBuffer:;
+  // internal data
   private bufferTable: Array<GPUBuffer | undefined> = [undefined];
   private bufferTableFreeId: Array<number> = [];
   private canvasRenderManager?: CanvaRenderManager = undefined;
+  // flags for debugging
+  // stats of the runtime.
+  // peak allocation
+  private peakAllocatedBytes: number = 0;
+  // current allocation
+  private currAllocatedBytes: number = 0;
+  // all allocation(ignoring free)
+  private allAllocatedBytes: number = 0;
+  // shader submit counter
+  private shaderSubmitCounter: number = 0;
+  // limite number of shaders to be submitted, useful for debugging, default to -1
+  protected debugShaderSubmitLimit: number = -1;
+  // log and sync each step
+  protected debugLogFinish: boolean = false;
 
   constructor(memory: Memory, device: GPUDevice) {
     this.memory = memory;
@@ -302,6 +316,16 @@ export class WebGPUContext {
   disposeCanvas() {
     this.canvasRenderManager?.dispose();
     this.canvasRenderManager = undefined;
+  }
+
+  /**
+   * Obtain the runtime information in readable format.
+   */
+  runtimeStatsText(): string {
+    let info = "peak-memory=" + Math.ceil(this.peakAllocatedBytes / (1 << 20)) + " MB";
+    info += ", all-memory=" + Math.ceil(this.allAllocatedBytes / (1 << 20)) + " MB";
+    info += ", shader-submissions=" + this.shaderSubmitCounter;
+    return info;
   }
 
   /**
@@ -423,6 +447,12 @@ export class WebGPUContext {
     });
 
     const submitShader = (...args: Array<GPUPointer | number>): void => {
+      if (this.debugShaderSubmitLimit != -1 &&
+          this.shaderSubmitCounter >= this.debugShaderSubmitLimit) {
+        this.shaderSubmitCounter += 1;
+        return;
+      }
+
       const commandEncoder = this.device.createCommandEncoder();
       const compute = commandEncoder.beginComputePass();
       compute.setPipeline(pipeline);
@@ -470,6 +500,14 @@ export class WebGPUContext {
       compute.end()
       const command = commandEncoder.finish();
       this.device.queue.submit([command]);
+
+      if (this.debugLogFinish) {
+        const currCounter = this.shaderSubmitCounter;
+        this.device.queue.onSubmittedWorkDone().then(()=> {
+          console.log("["+ currCounter + "][Debug] finish shader" + finfo.name);
+        });
+      }
+      this.shaderSubmitCounter += 1;
     };
 
     return submitShader;
@@ -528,6 +566,11 @@ export class WebGPUContext {
       size: nbytes,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
     });
+    this.currAllocatedBytes += nbytes;
+    this.allAllocatedBytes += nbytes;
+    if (this.currAllocatedBytes > this.peakAllocatedBytes) {
+      this.peakAllocatedBytes = this.currAllocatedBytes;
+    }
     const ptr = this.attachToBufferTable(buffer);
     return ptr;
   }
@@ -538,6 +581,7 @@ export class WebGPUContext {
     this.bufferTable[idx] = undefined;
     assert(buffer !== undefined);
     this.bufferTableFreeId.push(idx);
+    this.currAllocatedBytes -= buffer.size;
     buffer.destroy();
   }
 
