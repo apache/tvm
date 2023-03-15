@@ -894,8 +894,9 @@ def test_rewrite():
         x: R.Tensor((16, 16), "float32")) -> R.Tensor((16, 16), "float32"):
         with R.dataflow():
             x2 = R.add(x, x)
-            R.output(x2)
-        return x2
+            x4 = R.add(x2, x2)
+            R.output(x4)
+        return x4
 
     class Callback:
         def __init__(self):
@@ -906,7 +907,7 @@ def test_rewrite():
             x = matchings[self.x]
             return R.multiply(x, R.const(2, "float32"))
 
-    rewrite(Callback(), main)
+    print(rewrite(Callback(), main))
 
 
 if __name__ == "__main__":

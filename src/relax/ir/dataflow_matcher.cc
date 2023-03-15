@@ -787,14 +787,11 @@ class PatternRewriter : ExprMutator {
     return rewriter.VisitExpr(expr);
   }
 
-  void VisitBinding_(const VarBindingNode* binding) final {
-    bindings_.Set(binding->var, binding->value);
-    ExprMutator::VisitBinding_(binding);
-  }
-
   Expr VisitExpr_(const CallNode* call_node) final {
-    if (auto matches_opt = ExtractMatchedExpr(pattern_, GetRef<Call>(call_node), bindings_)) {
-      LOG(INFO) << "Matched";
+    if (auto matches_opt = ExtractMatchedExpr(pattern_, GetRef<Call>(call_node))) {
+      auto rewriten_expr = rewrite_func_(matches_opt.value());
+      memo_[call_node] = rewriten_expr;
+      return rewriten_expr;
     }
 
     return ExprMutator::VisitExpr_(call_node);
@@ -803,7 +800,7 @@ class PatternRewriter : ExprMutator {
  private:
   DFPattern pattern_;
   PackedFunc rewrite_func_;
-  Map<Var, Expr> bindings_;
+  std::unordered_map<const Object*, Expr> memo_;
 };
 
 Expr RewritePatterns(DFPatternCallback callback, Expr expr) {
