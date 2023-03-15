@@ -140,6 +140,9 @@ class NDArray(NDArrayBase):
             Reference to self.
         """
         if isinstance(source_array, NDArrayBase):
+            if(source_array.dtype!=self.dtype):
+                raise TypeError("source dtype: {0} is different with target dtype: {1}".format(
+                    source_array.dtype, self.dtype))
             source_array.copyto(self)
             return self
 
