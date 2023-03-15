@@ -930,6 +930,13 @@ def test_rewrite_simple():
     rewritten = rewrite(pattern, callback, main)
     tvm.ir.assert_structural_equal(rewritten, expected2)
 
+    # No rewriting, return the original call node as is
+    def callback(orig, _):
+        return orig
+
+    rewritten = rewrite(pattern, callback, main)
+    tvm.ir.assert_structural_equal(rewritten, main)
+
 
 def test_rewrite_attention():
     @R.function
