@@ -50,7 +50,7 @@ def parse_pass_list_str(input_string):
                 else:
                     p = p.replace(short, long, 1)
                 break
-            elif reverse and p.startswith(long):
+            if reverse and p.startswith(long):
                 p = p.replace(long, short, 1)
                 break
         return p
