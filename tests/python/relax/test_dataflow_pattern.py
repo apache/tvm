@@ -890,8 +890,7 @@ def test_incremental_solving_counter():
 
 def test_rewrite_simple():
     @R.function
-    def main(
-        x: R.Tensor((16, 16), "float32")) -> R.Tensor((16, 16), "float32"):
+    def main(x: R.Tensor((16, 16), "float32")) -> R.Tensor((16, 16), "float32"):
         with R.dataflow():
             x2 = R.add(x, x)
             x4 = R.add(x2, x2)
@@ -901,7 +900,7 @@ def test_rewrite_simple():
     x = wildcard()
     pattern = is_op("relax.add")(x, x)
 
-    def callback(matchings):
+    def callback(call, matchings):
         return R.multiply(matchings[x], R.const(2, "float32"))
 
     print(rewrite(pattern, callback, main))
@@ -909,7 +908,7 @@ def test_rewrite_simple():
     add1 = is_op("relax.add")(x, x)
     pattern = is_op("relax.add")(add1, add1)
 
-    def callback(matchings):
+    def callback(call, matchings):
         return R.multiply(matchings[x], R.const(4, "float32"))
 
     print(rewrite(pattern, callback, main))
@@ -917,27 +916,29 @@ def test_rewrite_simple():
 
 def test_rewrite_attention():
     @R.function
-    def main(Q: R.Tensor((2, 4096, 8, 40), "float32"),
-             K: R.Tensor((2, 4096, 8, 40), "float32"),
-             V: R.Tensor((2, 4096, 8, 40), "float32")) -> R.Tensor((2, 4096, 8, 40), "float32"):
+    def main(
+        Q: R.Tensor((2, 4096, 8, 40), "float32"),
+        K: R.Tensor((2, 4096, 8, 40), "float32"),
+        V: R.Tensor((2, 4096, 8, 40), "float32"),
+    ) -> R.Tensor((2, 4096, 8, 40), "float32"):
         with R.dataflow():
-            lv58: R.Tensor((2, 8, 4096, 40), dtype="float32") = R.permute_dims(Q, axes=[0, 2, 1, 3])
-            lv59: R.Tensor((16, 4096, 40), dtype="float32") = R.reshape(lv58, R.shape([16, 4096, 40]))
+            lv58 = R.permute_dims(Q, axes=[0, 2, 1, 3])
+            lv59 = R.reshape(lv58, R.shape([16, 4096, 40]))
 
-            lv61: R.Tensor((2, 8, 4096, 40), dtype="float32") = R.permute_dims(K, axes=[0, 2, 1, 3])
-            lv62: R.Tensor((16, 4096, 40), dtype="float32") = R.reshape(lv61, R.shape([16, 4096, 40]))
+            lv61 = R.permute_dims(K, axes=[0, 2, 1, 3])
+            lv62 = R.reshape(lv61, R.shape([16, 4096, 40]))
 
-            lv64: R.Tensor((2, 8, 4096, 40), dtype="float32") = R.permute_dims(V, axes=[0, 2, 1, 3])
-            lv65: R.Tensor((16, 4096, 40), dtype="float32") = R.reshape(lv64, R.shape([16, 4096, 40]))
+            lv64 = R.permute_dims(V, axes=[0, 2, 1, 3])
+            lv65 = R.reshape(lv64, R.shape([16, 4096, 40]))
 
-            lv62_transposed: R.Tensor((16, 40, 4096), dtype="float32") = R.permute_dims(lv62, axes=[0, 2, 1])
-            lv3_1: R.Tensor((16, 4096, 4096), dtype="float32") = R.matmul(lv59, lv62_transposed)
-            lv68: R.Tensor((16, 4096, 4096), dtype="float32") = R.multiply(lv3_1, R.const(0.15811388194561005, "float32"))
-            lv69: R.Tensor((16, 4096, 4096), dtype="float32") = R.nn.softmax(lv68, axis=-1)
-            lv_3: R.Tensor((16, 4096, 40), dtype="float32") = R.matmul(lv69, lv65)
+            lv62_transposed = R.permute_dims(lv62, axes=[0, 2, 1])
+            lv3_1 = R.matmul(lv59, lv62_transposed)
+            lv68 = R.multiply(lv3_1, R.const(0.15811388194561005, "float32"))
+            lv69 = R.nn.softmax(lv68, axis=-1)
+            lv_3 = R.matmul(lv69, lv65)
 
-            lv71: R.Tensor((2, 8, 4096, 40), dtype="float32") = R.reshape(lv_3, R.shape([2, 8, 4096, 40]))
-            lv72: R.Tensor((2, 4096, 8, 40), dtype="float32") = R.permute_dims(lv71, axes=[0, 2, 1, 3])
+            lv71 = R.reshape(lv_3, R.shape([2, 8, 4096, 40]))
+            lv72 = R.permute_dims(lv71, axes=[0, 2, 1, 3])
             R.output(lv72)
 
         return lv72
@@ -963,7 +964,7 @@ def test_rewrite_attention():
 
     pattern = BSH_to_BSNH(matmul2)
 
-    def callback(matchings):
+    def callback(call, matchings):
         return R.nn.attention(matchings[Q], matchings[K], matchings[V])
 
     print(rewrite(pattern, callback, main))
@@ -971,4 +972,4 @@ def test_rewrite_attention():
 
 if __name__ == "__main__":
     # tvm.testing.main()
-    test_rewrite_simple()
+    test_rewrite_attention()

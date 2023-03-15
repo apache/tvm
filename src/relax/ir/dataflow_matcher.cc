@@ -787,13 +787,13 @@ class PatternRewriter : ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* call_node) final {
-    if (auto matches_opt = ExtractMatchedExpr(pattern_, GetRef<Call>(call_node), bindings_)) {
-      auto rewriten_expr = callback_(matches_opt.value());
+    auto call = ExprMutator::VisitExpr_(call_node);
+    if (auto matches_opt = ExtractMatchedExpr(pattern_, call, bindings_)) {
+      auto rewriten_expr = callback_(call, matches_opt.value());
       memo_[call_node] = rewriten_expr;
       return rewriten_expr;
     }
-
-    return ExprMutator::VisitExpr_(call_node);
+    return call;
   }
 
  private:
