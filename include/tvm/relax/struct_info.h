@@ -170,6 +170,13 @@ class TensorStructInfoNode : public StructInfoNode {
   /*! \return Whether the struct info contains unknown dtype. */
   bool IsUnknownDtype() const { return dtype.is_void(); }
 
+  /*! \return Shape if it is known. */
+  Optional<Array<PrimExpr>> GetShape() const {
+    if (!shape.defined()) return {};
+    ShapeStructInfo shape_sinfo = Downcast<ShapeStructInfo>(this->shape.value()->struct_info_);
+    return shape_sinfo->values;
+  }
+
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("shape", &shape);
     v->Visit("dtype", &dtype);
