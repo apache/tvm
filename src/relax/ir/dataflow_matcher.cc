@@ -766,5 +766,28 @@ Map<DFPattern, Var> MatchGraph(const PatternContext& ctx, const DataflowBlock& d
 
 TVM_REGISTER_GLOBAL("relax.dpl.match_dfb").set_body_typed(MatchGraph);
 
+class PatternRewriter : ExprMutator {
+ public:
+  using ExprMutator::VisitExpr_;
+
+  explicit PatternRewriter(DFPatternCallback callback)
+      : pattern_(callback->pattern), rewrite_func_(callback->function) {}
+
+  static Expr Run(DFPatternCallback callback, Expr expr) {
+    PatternRewriter rewriter(callback);
+    return rewriter.VisitExpr(expr);
+  }
+
+  Expr VisitExpr_(const CallNode* call_node) final { return ExprMutator::VisitExpr_(call_node); }
+
+ private:
+  DFPattern pattern_;
+  PackedFunc rewrite_func_;
+};
+
+Expr RewritePatterns(DFPatternCallback callback, Expr expr) {
+  return PatternRewriter::Run(callback, expr);
+}
+
 }  // namespace relax
 }  // namespace tvm
