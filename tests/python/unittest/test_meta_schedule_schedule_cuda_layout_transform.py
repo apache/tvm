@@ -273,7 +273,6 @@ class TestRandomRelayE2ECorrectness:
         for tile_size in tile_sizes:
             experimental_np = run_and_get_output(tile_size)
             np.testing.assert_allclose(ground_truth_np, experimental_np)
-            assert False
 
     (
         input_shape,
