@@ -897,21 +897,38 @@ def test_rewrite_simple():
             R.output(x4)
         return x4
 
+    @R.function
+    def expected1(x: R.Tensor((16, 16), dtype="float32")) -> R.Tensor((16, 16), dtype="float32"):
+        with R.dataflow():
+            lv: R.Tensor((16, 16), dtype="float32") = R.multiply(x, R.const(2, "float32"))
+            x4: R.Tensor((16, 16), dtype="float32") = R.multiply(lv, R.const(2, "float32"))
+            R.output(x4)
+        return x4
+
+    @R.function
+    def expected2(x: R.Tensor((16, 16), dtype="float32")) -> R.Tensor((16, 16), dtype="float32"):
+        with R.dataflow():
+            x4: R.Tensor((16, 16), dtype="float32") = R.multiply(x, R.const(4, "float32"))
+            R.output(x4)
+        return x4
+
     x = wildcard()
     pattern = is_op("relax.add")(x, x)
 
-    def callback(call, matchings):
+    def callback(_, matchings):
         return R.multiply(matchings[x], R.const(2, "float32"))
 
-    print(rewrite(pattern, callback, main))
+    rewritten = rewrite(pattern, callback, main)
+    tvm.ir.assert_structural_equal(rewritten, expected1)
 
     add1 = is_op("relax.add")(x, x)
     pattern = is_op("relax.add")(add1, add1)
 
-    def callback(call, matchings):
+    def callback(_, matchings):
         return R.multiply(matchings[x], R.const(4, "float32"))
 
-    print(rewrite(pattern, callback, main))
+    rewritten = rewrite(pattern, callback, main)
+    tvm.ir.assert_structural_equal(rewritten, expected2)
 
 
 def test_rewrite_attention():
@@ -943,6 +960,17 @@ def test_rewrite_attention():
 
         return lv72
 
+    @R.function
+    def expected(
+        Q: R.Tensor((2, 4096, 8, 40), dtype="float32"),
+        K: R.Tensor((2, 4096, 8, 40), dtype="float32"),
+        V: R.Tensor((2, 4096, 8, 40), dtype="float32"),
+    ) -> R.Tensor((2, 4096, 8, 40), dtype="float32"):
+        with R.dataflow():
+            lv72: R.Tensor((2, 4096, 8, 40), dtype="float32") = R.nn.attention(Q, V, K)
+            R.output(lv72)
+        return lv72
+
     def BSNH_to_BSH(tensor):
         return is_op("relax.reshape")(is_op("relax.permute_dims")(tensor), wildcard())
 
@@ -964,12 +992,12 @@ def test_rewrite_attention():
 
     pattern = BSH_to_BSNH(matmul2)
 
-    def callback(call, matchings):
+    def callback(_, matchings):
         return R.nn.attention(matchings[Q], matchings[K], matchings[V])
 
-    print(rewrite(pattern, callback, main))
+    rewritten = rewrite(pattern, callback, main)
+    tvm.ir.assert_structural_equal(rewritten, expected)
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_rewrite_attention()
+    tvm.testing.main()
