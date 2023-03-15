@@ -301,9 +301,9 @@ def tile_layout_transform(
     return block_write, block_read
 
 
-def handle_block_implicit_reshape(
+def create_cached_read(
     sch: tvm.tir.Schedule,
-    block_read: BlockRV,
+    block_write: BlockRV,
     orig_input_shape: Sequence[int],
     orig_src_layout: str,
     orig_dst_layout: str,
@@ -345,10 +345,7 @@ def handle_block_implicit_reshape(
         A tuple of the new input shape of shared memory buffer, the new src_layout and
         new dst_layout string.
     """
-    # Each loop should match src_layout dimension extants
-    loops = sch.get_loops(block_read)
-
-    # Figure out split dimensions, entries are (loop index in src_layout, split dimension)
+    # Figure out split dimensions, entries are (loop index in src_layout, split amount)
     split_dimensions: List[Tuple[int, int]] = []
 
     # This is without numeric digits, e.g. NCHW4c -> NCHWc
@@ -367,6 +364,11 @@ def handle_block_implicit_reshape(
             split_size = 0
             new_dst_layout.append(char)
 
+    # If no splits were detected we are done
+    if len(split_dimensions) == 0:
+        block_read = sch.cache_read(block_write, 0, "shared")
+        return block_read, orig_input_shape, orig_src_layout, orig_dst_layout
+
     # Calculate final input shapes, each of these are a single element for unsplit dims
     # and tuples for split dims associated with the two new axis
     input_shape: List[Union[int, Tuple]] = [i for i in orig_input_shape]
@@ -374,27 +376,10 @@ def handle_block_implicit_reshape(
     for src_layout_split_index, split_factor in split_dimensions:
         dimension_name = new_src_layout[src_layout_split_index]
         new_src_layout[src_layout_split_index] = (dimension_name, dimension_name.lower())
-
-        remain_factor = input_shape[src_layout_split_index] // split_factor
-        input_shape[src_layout_split_index] = (remain_factor, split_factor)
-
-        sch.split(loops[src_layout_split_index], [remain_factor, split_factor])
-
-    # Finally to help analyzer, make layout match that of output
-    def index_map(*loop_indices):
-        answer = []
-        assert len(loop_indices) == len(input_shape)
-        for dim, input_shape_solved in zip(loop_indices, input_shape):
-            if isinstance(input_shape_solved, tuple):
-                (_, split_factor) = input_shape_solved
-                answer.extend((dim // split_factor, dim % split_factor))
-            else:
-                answer.append(dim)
-        return tuple(answer)
-
-    sch.transform_layout(
-        block_read, buffer=("write", 0), index_map=index_map, assume_injective_transform=True
-    )
+        input_shape[src_layout_split_index] = (
+            input_shape[src_layout_split_index] // split_factor,
+            split_factor,
+        )
 
     # Unpack any tuples introduced via appending
     def unpack_list(target_list) -> list:
@@ -409,7 +394,25 @@ def handle_block_implicit_reshape(
     new_src_layout = unpack_list(new_src_layout)
     new_src_layout = "".join(new_src_layout)
     new_dst_layout = "".join(new_dst_layout)
-    return unpack_list(input_shape), new_src_layout, new_dst_layout
+
+    # Write block loop extants match
+    reindex_map = [new_src_layout.index(dim) for dim in new_dst_layout]
+    block_read = sch.reindex_cache_read(
+        block_write,
+        read_buffer_index=0,
+        index_map=tvm.tir.IndexMap.from_func(
+            lambda *loops: [loops[reindex_map[i]] for i, _ in enumerate(loops)],
+            ndim=len(new_src_layout),
+        ),
+        storage_scope="shared",
+    )
+
+    # While the above will have the shared memory buffer match the reshaped input tensor
+    # the loops still match those of the write/output loop/buffer. Match the src layout instead
+    loops_read = sch.get_loops(block_read)
+    sch.reorder(*[loops_read[reindex_map[i]] for i, _ in enumerate(new_dst_layout)])
+
+    return block_read, unpack_list(input_shape), new_src_layout, new_dst_layout
 
 
 def auto_inline_into(sch: tvm.tir.Schedule, start_block: BlockRV) -> BlockRV:
@@ -522,14 +525,14 @@ def cuda_layout_transform_schedule_rule(
     #     ...
     # Read block will read from global memory coalesced at the start
     # Assume write to output global memory is coalesced in block_write
-    block_read = sch.cache_read(block, 0, "shared")
+    # block_read = sch.cache_read(block, 0, "shared")
 
     # Handle the case where there is an implicit reshape going on.
     # e.g. NCHW -> NCHW4c which is equivalent to reshaping NCHW
     # to NCcHW and then applying the new layout where the extant of c is 4.
     # Grab final input shape and src and dst layouts.
-    input_shape, src_layout, dst_layout = handle_block_implicit_reshape(
-        sch, block_read, input_shape, src_layout, dst_layout
+    block_read, input_shape, src_layout, dst_layout = create_cached_read(
+        sch, block, input_shape, src_layout, dst_layout
     )
 
     # Try tile size 2,3...threads_per_warp as tile size of 1 has no coaslescing.
