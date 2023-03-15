@@ -156,9 +156,10 @@ def make_byoc_partition_rule(compiler):
     return _ffi_api.MakePatternBYOCPartitionRule(compiler, sub_rules)
 
 
-@register_func("tvm.relay.build_module.transform_graph_io_layout")
-def transform_graph_io_layout(mod):
-    
+@register_func("tvm.relay.build_module.rewrite_io_layout")
+def rewrite_io_layout(mod):
+    """ Return single layout graph by removing input/output 
+        layout transform if input/output differs with graph layout """
     class AlterInOutLayout(ExprMutator):
 
         def __init__(self):
@@ -201,8 +202,8 @@ def transform_graph_io_layout(mod):
     mod["main"] = new_mod["main"]
     return mod
 
-@register_func("tvm.relay.collage.optimize_batchnorm_ops")
-def optimize_batchnorm_ops(mod, params={}):
+@register_func("tvm.relay.collage.optimize_batchnorm")
+def optimize_batchnorm(mod, params={}):
 
     class OptimizeBatchnorm(ExprMutator):
         def visit_call(self, call):
@@ -213,6 +214,7 @@ def optimize_batchnorm_ops(mod, params={}):
                     (isinstance(arg, (Var, Constant)) == False)
                     and isinstance(arg, tvm.relay.TupleGetItem)
                     and (arg.tuple_value.op.name == "nn.batch_norm")
+                    and (isinstance(arg.tuple_value.args[0], (Var, Constant)) == False)
                     and (arg.tuple_value.args[0].op.name == "nn.conv2d")
                 ):
                     ep = arg.tuple_value.attrs["epsilon"]

@@ -162,6 +162,15 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
       auto node_ptr = std::make_shared<JSONGraphNode>(param->name_hint(), "input" /* op_type_ */);
       memo_[param] = AddNode(node_ptr, param);
     }
+    // Get all runtime config attributes from target codegen.
+    auto config_attrs = GetConfigAttrMap();
+    // Create config node in json graph and populates with config attributes.
+    if (config_attrs.size()) {
+      auto config_node_ptr = std::make_shared<JSONGraphNode>("config", "config" /* op_type_ */);
+      nodes_.push_back(config_node_ptr);
+      AddConfigNode(config_node_ptr, config_attrs);
+    }
+
     heads_ = VisitExpr(func->body);
   }
 
@@ -247,6 +256,33 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
       node->SetAttr("PartitionedFromPattern", attr);
     }
   }
+
+  /*!
+   * \brief Prepare runtime config attributes map for target json graph.
+   *
+   * \return A Map of all config attributes.
+   */
+  virtual std::map<std::string, std::string> GetConfigAttrMap() {
+    return {};
+  }
+
+  /*!
+   * \brief Add config attribute maps to confi node in json graph.
+   *
+   * \param (node) A graph node. It is a shared pointer. Config attributes are 
+   *        attached to the JSON graph.
+   * \param (Map) Runtime config attributes maps.
+   */
+  void AddConfigNode(JSONGraphObjectPtr node, std::map<std::string, std::string> attrs) {
+    std::map<std::string, std::string>::iterator itr;
+    for (itr = attrs.begin(); itr != attrs.end(); ++itr) {
+      std::vector<std::string> values;
+      values.push_back(itr->second);
+      std::vector<dmlc::any> _attr;
+      _attr.emplace_back(values);
+      node->SetAttr(itr->first, _attr);
+    }
+  } 
 
   std::vector<JSONGraphNodeEntry> VisitExprDefault_(const Object* op) {
     LOG(FATAL) << "JSON runtime currently doesn't support " << op->GetTypeKey();

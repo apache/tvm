@@ -66,6 +66,19 @@ class CLMLJSONSerializer : public backend::contrib::JSONSerializer {
   };
 
   /*!
+   * \brief Prepare runtime config attributes map for target json graph.
+   *
+   * \return A Map of all config attributes.
+   */
+  std::map<std::string, std::string> GetConfigAttrMap() override {
+    std::map<std::string, std::string> config_attr;
+    auto tune_flag = backend::IsCollageTuneEnable();
+    LOG(INFO)<<"Collage tune flag: "<<tune_flag;
+    config_attr.insert(std::pair<std::string, std::string>("collage_in_tuning", std::to_string(tune_flag)));
+    return config_attr;
+  }
+
+  /*!
    * \brief Visit call nodes and generate appropriate JSON node.
    *
    * \param cn The current call node.

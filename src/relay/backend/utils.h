@@ -634,6 +634,15 @@ inline bool IsMetaScheduleEnabled() {
       .value();
 }
 
+/*!
+ * \brief Return whether the collage tuning is enabled in the pass context.
+ */
+inline bool IsCollageTuneEnable() {
+  return transform::PassContext::Current()
+      ->GetConfig<Bool>("relay.backend.collage_in_tuning", Bool(false))
+      .value();
+}
+
 /*! \brief Consider MetaSchedule's dispatch option. */
 inline int UseMetaScheduleDispatch() {
   return transform::PassContext::Current()

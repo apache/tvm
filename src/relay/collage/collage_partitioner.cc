@@ -319,13 +319,16 @@ transform::Pass CollagePartition(CompilationConfig config, CostEstimator cost_es
           IRModule mod, transform::PassContext ctxt) {
         VLOG(1) << "CollagePartition input:" << std::endl << PrettyPrint(mod);
 
-        static const runtime::PackedFunc* optimize_batchnorm_ops =
-            runtime::Registry::Get("tvm.relay.collage.optimize_batchnorm_ops");
-        ICHECK(optimize_batchnorm_ops);
-        mod = (*optimize_batchnorm_ops)(mod);
+        // Enable collage tuning flag to penalize context switch cost in subgraphs
+        ctxt->config.Set("relay.backend.collage_in_tuning", Bool(true));
+ 
+        // Optimize batchnorm to fuse with conv layer or convert to mul+add op
+        static const runtime::PackedFunc* pf =
+            runtime::Registry::Get("tvm.relay.collage.optimize_batchnorm");
+        ICHECK(pf);
+        mod = (*pf)(mod);
 
         mod = transform::CapturePostDfsIndexInSpans()(mod);
-        LOG(INFO)<<"Indexed graph: "<<PrettyPrint(mod);
 
         Array<PartitionSpec> partition_specs = GatherPartitionSpecs(config);
         VLOG(1) << "Gathered " << partition_specs.size() << " partition specs";
@@ -348,6 +351,10 @@ transform::Pass CollagePartition(CompilationConfig config, CostEstimator cost_es
 
         out_mod = OutlineCompilerFunctions(cache)(std::move(out_mod));
         VLOG(1) << "CollagePartition result:" << std::endl << PrettyPrint(out_mod);
+
+        // Disable collage tuning flag after the generation hybrid graph
+        ctxt->config.Set("relay.backend.collage_in_tuning", Bool(false));
+
         return out_mod;
       };
   return tvm::transform::CreateModulePass(pass_func, /*opt_level=*/0, "CollagePartition", {});

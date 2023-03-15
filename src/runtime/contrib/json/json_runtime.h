@@ -192,8 +192,7 @@ class JSONRuntimeBase : public ModuleNode {
           input_var_eid_.push_back(EntryID(nid, j));
         }
         nodes_[nid].SetNumOutput(nodes_[nid].GetOpShape().size());
-      } else {
-        ICHECK_EQ(nodes_[nid].op_type_, "const");
+      } else if (nodes_[nid].op_type_ == "const") {
         auto pos = std::find(std::begin(const_names_), std::end(const_names_), name);
         ICHECK(pos != std::end(const_names_)) << "Found non-existent constant: " << name;
         const_idx_.push_back(nid);

@@ -275,39 +275,43 @@ class CLMLRuntime : public JSONRuntimeBase {
     cl_int result = 0;
     cl_command_queue queue = workspace->GetQueue(tentry->device);
     std::vector<cl_event>& evts = workspace->GetEventQueue(tentry->device);
-    for (size_t i = 0; i < input_nodes_.size(); ++i) {
-      auto nid = input_nodes_[i];
-      uint32_t eid = EntryID(nid, 0);
-      if (nodes_[nid].GetOpType() == "input") {
-        void* data = data_entry_[eid]->data;
-        size_t isize = 1;
-        for (size_t j = 0; j < data_entry_[eid]->ndim; ++j) {
-          isize *= data_entry_[eid]->shape[j];
-        }
-        if (kDLCPU == data_entry_[eid]->device.device_type) {
-          CopyDataToCLMLTensor(layer_.inputs[i], data);
-        } else if (kDLOpenCL == data_entry_[eid]->device.device_type) {
-          layer_.in_placeholder[i]->memory = static_cast<cl_mem>(
-              ((cl::BufferDescriptor*)const_cast<DLTensor*>(data_entry_[eid])->data)->buffer);
-          cl_event cpy_evt = NULL;
-          cl_event* evt = &cpy_evt;
-          if (workspace->IsProfiling(tentry->device)) {
-            evts.resize(evts.size() + 1);
-            evt = &(evts.back());
+    LOG(INFO)<<"Collage tuner flag in clml runtime: "<<this->is_collage_tuning_run;
+    // Skip input copy overahead during collage tuning process
+    if (!this->is_collage_tuning_run) {
+      for (size_t i = 0; i < input_nodes_.size(); ++i) {
+        auto nid = input_nodes_[i];
+        uint32_t eid = EntryID(nid, 0);
+        if (nodes_[nid].GetOpType() == "input") {
+          void* data = data_entry_[eid]->data;
+          size_t isize = 1;
+          for (size_t j = 0; j < data_entry_[eid]->ndim; ++j) {
+            isize *= data_entry_[eid]->shape[j];
           }
-          result = h_ClmlIntf->clEnqueueCopyMLTensorDataQCOM(
-              queue, layer_.in_placeholder[i]->tensor, layer_.in_placeholder[i]->memory,
-              layer_.inputs[i]->tensor, layer_.inputs[i]->memory, 0, NULL, evt);
-          ICHECK(result == CL_SUCCESS) << "clEnqueueCopyMLTensorDataQCOM:" << result;
-        } else {
-          DLDataType tvm_dtype = const_cast<DLTensor*>(data_entry_[eid])->dtype;
-          cl_channel_type cl_dtype = MakeCLDataType(tvm_dtype);
-          int dtype_size = cl_dtype == CL_FLOAT ? 4 : 2;
-          void* tmpptr = reinterpret_cast<void*>(malloc(isize * dtype_size));
-          TVMArrayCopyToBytes(const_cast<DLTensor*>(data_entry_[eid]), const_cast<void*>(tmpptr),
-                              isize * dtype_size);
-          CopyDataToCLMLTensor(layer_.inputs[i], tmpptr);
-          free(tmpptr);
+          if (kDLCPU == data_entry_[eid]->device.device_type) {
+            CopyDataToCLMLTensor(layer_.inputs[i], data);
+          } else if (kDLOpenCL == data_entry_[eid]->device.device_type) {
+            layer_.in_placeholder[i]->memory = static_cast<cl_mem>(
+                ((cl::BufferDescriptor*)const_cast<DLTensor*>(data_entry_[eid])->data)->buffer);
+            cl_event cpy_evt = NULL;
+            cl_event* evt = &cpy_evt;
+            if (workspace->IsProfiling(tentry->device)) {
+              evts.resize(evts.size() + 1);
+              evt = &(evts.back());
+            }
+            result = h_ClmlIntf->clEnqueueCopyMLTensorDataQCOM(
+                queue, layer_.in_placeholder[i]->tensor, layer_.in_placeholder[i]->memory,
+                layer_.inputs[i]->tensor, layer_.inputs[i]->memory, 0, NULL, evt);
+            ICHECK(result == CL_SUCCESS) << "clEnqueueCopyMLTensorDataQCOM:" << result;
+          } else {
+            DLDataType tvm_dtype = const_cast<DLTensor*>(data_entry_[eid])->dtype;
+            cl_channel_type cl_dtype = MakeCLDataType(tvm_dtype);
+            int dtype_size = cl_dtype == CL_FLOAT ? 4 : 2;
+            void* tmpptr = reinterpret_cast<void*>(malloc(isize * dtype_size));
+            TVMArrayCopyToBytes(const_cast<DLTensor*>(data_entry_[eid]), const_cast<void*>(tmpptr),
+                                isize * dtype_size);
+            CopyDataToCLMLTensor(layer_.inputs[i], tmpptr);
+            free(tmpptr);
+          }
         }
       }
     }
@@ -341,39 +345,42 @@ class CLMLRuntime : public JSONRuntimeBase {
       LOG(WARNING) << "Total Duration for " << clml_symbol << " is:" << duration;
     }
 
-    for (size_t i = 0; i < outputs_.size(); ++i) {
-      uint32_t eid = EntryID(outputs_[i]);
-      void* data = data_entry_[eid]->data;
+    // Skip output copy overahead during collage tuning process
+    if (!this->is_collage_tuning_run) {
+      for (size_t i = 0; i < outputs_.size(); ++i) {
+        uint32_t eid = EntryID(outputs_[i]);
+        void* data = data_entry_[eid]->data;
 
-      size_t osize = 1;
-      for (size_t j = 0; j < data_entry_[eid]->ndim; ++j) {
-        osize *= data_entry_[eid]->shape[j];
-      }
-      if (kDLCPU == data_entry_[eid]->device.device_type) {
-        CopyDataFromCLMLTensor(layer_.outputs[0], data);
-      } else if (kDLOpenCL == data_entry_[eid]->device.device_type) {
-        layer_.out_placeholder[i]->memory = static_cast<cl_mem>(
-            ((cl::BufferDescriptor*)const_cast<DLTensor*>(data_entry_[eid])->data)->buffer);
-        cl_event cpy_evt = NULL;
-        cl_event* evt = &cpy_evt;
-        if (workspace->IsProfiling(tentry->device)) {
-          evts.resize(evts.size() + 1);
-          evt = &(evts.back());
+        size_t osize = 1;
+        for (size_t j = 0; j < data_entry_[eid]->ndim; ++j) {
+          osize *= data_entry_[eid]->shape[j];
         }
-        result = h_ClmlIntf->clEnqueueCopyMLTensorDataQCOM(
-            queue, layer_.outputs[i]->tensor, layer_.outputs[i]->memory,
-            layer_.out_placeholder[i]->tensor, layer_.out_placeholder[i]->memory, 0, NULL, evt);
-        ICHECK(result == CL_SUCCESS) << "clEnqueueCopyMLTensorDataQCOM:" << result;
-      } else {
-        DLDataType tvm_dtype = const_cast<DLTensor*>(data_entry_[eid])->dtype;
-        cl_channel_type cl_dtype = MakeCLDataType(tvm_dtype);
-        int dtype_size = cl_dtype == CL_FLOAT ? 4 : 2;
+        if (kDLCPU == data_entry_[eid]->device.device_type) {
+          CopyDataFromCLMLTensor(layer_.outputs[0], data);
+        } else if (kDLOpenCL == data_entry_[eid]->device.device_type) {
+          layer_.out_placeholder[i]->memory = static_cast<cl_mem>(
+              ((cl::BufferDescriptor*)const_cast<DLTensor*>(data_entry_[eid])->data)->buffer);
+          cl_event cpy_evt = NULL;
+          cl_event* evt = &cpy_evt;
+          if (workspace->IsProfiling(tentry->device)) {
+            evts.resize(evts.size() + 1);
+            evt = &(evts.back());
+          }
+          result = h_ClmlIntf->clEnqueueCopyMLTensorDataQCOM(
+              queue, layer_.outputs[i]->tensor, layer_.outputs[i]->memory,
+              layer_.out_placeholder[i]->tensor, layer_.out_placeholder[i]->memory, 0, NULL, evt);
+          ICHECK(result == CL_SUCCESS) << "clEnqueueCopyMLTensorDataQCOM:" << result;
+        } else {
+          DLDataType tvm_dtype = const_cast<DLTensor*>(data_entry_[eid])->dtype;
+          cl_channel_type cl_dtype = MakeCLDataType(tvm_dtype);
+          int dtype_size = cl_dtype == CL_FLOAT ? 4 : 2;
 
-        void* tmpptr = reinterpret_cast<void*>(malloc(osize * dtype_size));
-        CopyDataFromCLMLTensor(layer_.outputs[0], tmpptr);
-        TVMArrayCopyFromBytes(const_cast<DLTensor*>(data_entry_[eid]), const_cast<void*>(tmpptr),
-                              osize * dtype_size);
-        free(tmpptr);
+          void* tmpptr = reinterpret_cast<void*>(malloc(osize * dtype_size));
+          CopyDataFromCLMLTensor(layer_.outputs[0], tmpptr);
+          TVMArrayCopyFromBytes(const_cast<DLTensor*>(data_entry_[eid]), const_cast<void*>(tmpptr),
+                                osize * dtype_size);
+          free(tmpptr);
+        }
       }
     }
   }
@@ -387,17 +394,24 @@ class CLMLRuntime : public JSONRuntimeBase {
    */
   void BuildEngine() {
     size_t nid;
+    LOG(INFO)<<"CLML build Engine";
     for (nid = 0; nid < nodes_.size(); ++nid) {
       const auto& node = nodes_[nid];
-      DLDataType tvm_dtype = node.GetOpDataType()[0];
-      cl_channel_type cl_dtype = MakeCLDataType(tvm_dtype);
-      if (node.GetOpType() == "input") {
+      LOG(INFO)<<"CLML build node name: "<<node.GetOpType();
+      if (node.GetOpType() == "input") {  
+        DLDataType tvm_dtype = node.GetOpDataType()[0];
+        cl_channel_type cl_dtype = MakeCLDataType(tvm_dtype);
         auto clml_input = MakeCLMLTensorFromJSONNode(node, CL_TENSOR_LAYOUT_OPTIMAL_QCOM, cl_dtype);
         this->layer_.storage_map.insert({nid, std::make_pair(clml_input, node)});
         this->layer_.inputs.push_back(clml_input);
         // Input copy placeholder Tensor
         this->layer_.in_placeholder.push_back(
             MakeCLMLTensorFromJSONNode(node, CL_TENSOR_LAYOUT_NCHW_QCOM, cl_dtype));
+      } else if (node.GetOpType() == "config") {
+        LOG(INFO)<<"CLML config node";
+        bool collage_tune_flag = std::stoi(node.GetAttr<std::vector<std::string>>("collage_in_tuning")[0]);
+        this->is_collage_tuning_run = collage_tune_flag;
+        LOG(INFO)<<"CLML config collage flag: "<< this->is_collage_tuning_run;
       } else if (node.GetOpType() == "kernel") {
         auto op_name = node.GetOpName();
         if ("nn.conv2d" == op_name) {
@@ -1430,6 +1444,7 @@ class CLMLRuntime : public JSONRuntimeBase {
   cl_ml_tuningcache_qcom tuning_cache = NULL;
   bool is_tuning_run;
   char* tuning_file;
+  bool is_collage_tuning_run;
 #else
   void Run() override {
     LOG(FATAL) << "Cannot call run on CLML module without runtime enabled. "
