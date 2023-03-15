@@ -915,26 +915,26 @@ def test_rewrite_simple():
     x = wildcard()
     pattern = is_op("relax.add")(x, x)
 
-    def callback(_, matchings):
+    def rewriter(_, matchings):
         return R.multiply(matchings[x], R.const(2, "float32"))
 
-    rewritten = rewrite(pattern, callback, main)
+    rewritten = rewrite(pattern, rewriter, main)
     tvm.ir.assert_structural_equal(rewritten, expected1)
 
     add1 = is_op("relax.add")(x, x)
     pattern = is_op("relax.add")(add1, add1)
 
-    def callback(_, matchings):
+    def rewriter(_, matchings):
         return R.multiply(matchings[x], R.const(4, "float32"))
 
-    rewritten = rewrite(pattern, callback, main)
+    rewritten = rewrite(pattern, rewriter, main)
     tvm.ir.assert_structural_equal(rewritten, expected2)
 
     # No rewriting, return the original call node as is
-    def callback(orig, _):
+    def rewriter(orig, _):
         return orig
 
-    rewritten = rewrite(pattern, callback, main)
+    rewritten = rewrite(pattern, rewriter, main)
     tvm.ir.assert_structural_equal(rewritten, main)
 
 
@@ -999,10 +999,10 @@ def test_rewrite_attention():
 
     pattern = BSH_to_BSNH(matmul2)
 
-    def callback(_, matchings):
+    def rewriter(_, matchings):
         return R.nn.attention(matchings[Q], matchings[K], matchings[V])
 
-    rewritten = rewrite(pattern, callback, main)
+    rewritten = rewrite(pattern, rewriter, main)
     tvm.ir.assert_structural_equal(rewritten, expected)
 
 

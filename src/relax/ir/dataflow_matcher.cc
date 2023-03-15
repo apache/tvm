@@ -768,16 +768,17 @@ TVM_REGISTER_GLOBAL("relax.dpl.match_dfb").set_body_typed(MatchGraph);
 
 /*!
  * \brief Apply pattern matching to each call node and replace matching ones with the output of
- * a user-provided callback function.
+ * a user-provided rewriter function.
  */
 class PatternRewriter : ExprMutator {
  public:
   using ExprMutator::VisitExpr_;
 
-  PatternRewriter(DFPattern pat, PackedFunc callback) : pattern_(pat), callback_(callback) {}
+  PatternRewriter(DFPattern pat, PackedFunc rewriter_func)
+      : pattern_(pat), rewriter_func_(rewriter_func) {}
 
-  static Expr Run(DFPattern pat, PackedFunc callback, Function f) {
-    PatternRewriter rewriter(pat, callback);
+  static Expr Run(DFPattern pat, PackedFunc rewriter_func, Function f) {
+    PatternRewriter rewriter(pat, rewriter_func);
     return RemoveAllUnused(Downcast<Function>(rewriter.VisitExpr(f)));
   }
 
@@ -794,7 +795,7 @@ class PatternRewriter : ExprMutator {
   Expr VisitExpr_(const CallNode* call_node) final {
     auto call = ExprMutator::VisitExpr_(call_node);
     if (auto matches_opt = ExtractMatchedExpr(pattern_, call, bindings_)) {
-      auto rewriten_expr = callback_(call, matches_opt.value());
+      auto rewriten_expr = rewriter_func_(call, matches_opt.value());
       memo_[call_node] = rewriten_expr;
       return rewriten_expr;
     }
@@ -803,14 +804,14 @@ class PatternRewriter : ExprMutator {
 
  private:
   DFPattern pattern_;
-  PackedFunc callback_;
+  PackedFunc rewriter_func_;
   Map<Var, Expr> bindings_;
   std::unordered_map<const Object*, Expr> memo_;
 };
 
 TVM_REGISTER_GLOBAL("relax.dpl.rewrite")
-    .set_body_typed([](DFPattern pat, PackedFunc callback, Function f) {
-      return PatternRewriter::Run(pat, callback, f);
+    .set_body_typed([](DFPattern pat, PackedFunc rewriter, Function f) {
+      return PatternRewriter::Run(pat, rewriter, f);
     });
 
 }  // namespace relax

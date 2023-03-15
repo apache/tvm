@@ -1118,20 +1118,29 @@ def make_fused_bias_activation_pattern(op_name, with_bias=False, activation=None
 
 
 def rewrite(
-    pattern: DFPattern, callback: Callable[[Expr, Dict[DFPattern, Expr]], Expr], func: Function
+    pattern: DFPattern, rewriter: Callable[[Expr, Dict[DFPattern, Expr]], Expr], func: Function
 ) -> Function:
     """
-    Rewrite a function with the given pattern and the callback.
+    Rewrite a function with the given pattern and the rewriter function.
 
     Parameters
     ----------
     pattern: DFPattern
         The pattern to match.
 
-    callback: Callable[[Expr, Dict[DFPattern, Expr]], Expr]
-        The function to be called on a successful matching for rewriting. Given the matching
+    rewriter: Callable[[Expr, Dict[DFPattern, Expr]], Expr]
+        The function to be called on a successful matching for rewriting. Given the matched
         call node and the map of patterns and matched expressions, it should return a new call node
-        or the original matched call node as is.
+        to replace the original one or the original matched call node as is.
+
+        For example, to replace x + x with 2 * x, we can write the rewriter as follows:
+        ```
+        x = wildcard()
+        pattern = is_op("relax.add")(x, x)
+
+        def rewriter(orig, matchings):
+            return R.multiply(matchings[x], R.const(2, "float32"))
+        ```
 
     func: Function
         The function to rewrite.
@@ -1141,4 +1150,4 @@ def rewrite(
     rewritten_func: Function
         The rewritten or the input function, depending on the pattern matching result.
     """
-    return ffi.rewrite(pattern, callback, func)
+    return ffi.rewrite(pattern, rewriter, func)
