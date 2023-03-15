@@ -235,7 +235,7 @@ def generate_transform_args(parser):
     parser.add_argument(
         "--desired-layout",
         nargs="+",
-        help="Change the data/kernel layout of the graph. (i.e. NCHW or NHWC:HWIO)",
+        help="Change the data/kernel layout of the graph. (i.e. NCHW or NHWC:HWIO)"
         "This option can be provided multiple times to specify per-operator layouts, "
         "e.g. '--desired-layout NHWC:HWIO' (Apply same layout for every operator)."
         "e.g. '--desired-layout-ops nn.conv2d nn.avg_pool2d --desired-layout NCHW NHWC'."
