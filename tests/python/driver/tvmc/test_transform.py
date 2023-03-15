@@ -80,7 +80,7 @@ def test_layout_transform_convert_kernel_layout_pass_args(relay_conv2d, monkeypa
     a non-default kernel layout is provided.
     """
     desired_layout = "NHWC:HWIO"
-    desired_layout_ops = ["nn.nonv2d"]
+    desired_layout_ops = ["nn.conv2d"]
 
     mock_convert_layout = MagicMock()
     mock_convert_layout.return_value = relay.transform.ConvertLayout({})

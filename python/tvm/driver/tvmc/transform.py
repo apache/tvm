@@ -125,7 +125,12 @@ def convert_graph_layout(mod, desired_layouts, ops=None):
     if ops is None:
         ops = ["nn.conv2d", "nn.conv2d_transpose", "qnn.conv2d"]
 
-    assert isinstance(desired_layouts, list) and len(desired_layouts) > 0
+    if not isinstance(desired_layouts, list):
+        # For backwards compatibility
+        assert isinstance(desired_layouts, str)
+        desired_layouts = [desired_layouts]
+
+    assert len(desired_layouts) > 0
 
     if len(desired_layouts) != len(ops):
         if len(desired_layouts) != 1:
@@ -231,6 +236,9 @@ def generate_transform_args(parser):
         "--desired-layout",
         nargs="+",
         help="Change the data/kernel layout of the graph. (i.e. NCHW or NHWC:HWIO)",
+        "This option can be provided multiple times to specify per-operator layouts, "
+        "e.g. '--desired-layout NHWC:HWIO' (Apply same layout for every operator)."
+        "e.g. '--desired-layout-ops nn.conv2d nn.avg_pool2d --desired-layout NCHW NHWC'."
     )
     parser.add_argument(
         "--desired-layout-ops",
