@@ -43,7 +43,7 @@
     },
     "nucleo_f746zg": {
         "board": "nucleo_f746zg",
-        "model": "stm32f746xx",
+        "model": "stm32f7xx",
         "is_qemu": false,
         "fpu": true,
         "vid_hex": "0483",
@@ -51,7 +51,7 @@
     },
     "nucleo_l4r5zi": {
         "board": "nucleo_l4r5zi",
-        "model": "stm32l4r5zi",
+        "model": "stm32l4r5xx",
         "is_qemu": false,
         "fpu": true,
         "vid_hex": "0483",
@@ -93,7 +93,7 @@
     },
     "stm32f746g_disco": {
         "board": "stm32f746g_disco",
-        "model": "stm32f746xx",
+        "model": "stm32f7xx",
         "is_qemu": false,
         "fpu": true,
         "vid_hex": "0483",

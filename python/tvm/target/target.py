@@ -443,22 +443,45 @@ def intel_graphics(model="unknown", options=None):
 
 
 MICRO_SUPPORTED_MODELS = {
+    # X86 emulation
     "host": [],
-    "atsamd51": ["-mcpu=cortex-m4"],
-    "cxd5602gg": ["-mcpu=cortex-m4"],
+    # STM High-Performance
+    "stm32h7xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m7", "-march=armv7e-m"],
+    "stm32f7xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m7", "-march=armv7e-m"],
+    "stm32f4xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
+    "stm32f2xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m3"],
+    # STM Mainstream
+    "stm32g0xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m0+"],
+    "stm32f0xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m0"],
+    "stm32f1xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m3"],
+    "stm32g4xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
+    "stm32f3xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
+    "stm32l4r5xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
+    # STM Low-power
+    "stm32u5xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m33"],
+    "stm32l5xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m33"],
+    "stm32l4xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
+    "stm32l1xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m3"],
+    "stm32l0xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m0+"],
+    # NRF
+    "nrf52840": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4+nodsp"],
+    "nrf5340dk": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m33"],
+    # Microchip
+    "atsamd51": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
+    "sam3x8e": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m3"],
+    # Sony
+    "cxd5602gg": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
+    # ESP
     "esp32": [],
-    "imxrt10xx": ["-mcpu=cortex-m7"],
-    "mps2_an521": ["-mcpu=cortex-m33"],
-    "mps3_an547": ["-mcpu=cortex-m55"],
-    "nrf52840": ["-mcpu=cortex-m4+nodsp"],
-    "nrf5340dk": ["-mcpu=cortex-m33"],
-    "rp2040": ["-mcpu=cortex-m0"],
-    "sam3x8e": ["-mcpu=cortex-m3"],
-    "stm32f746xx": ["-mcpu=cortex-m7", "-march=armv7e-m"],
-    "stm32h7xx": ["-mcpu=cortex-m7"],
-    "stm32l4r5zi": ["-mcpu=cortex-m4"],
-    "stm32u5xx": ["-mcpu=cortex-m33"],
-    "zynq_mp_r5": ["-mcpu=cortex-r5"],
+    # NXP
+    "imxrt10xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m7"],
+    # Emulators
+    "mps2_an521": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m33"],
+    "mps3_an547": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m55"],
+    # Raspberry Pi
+    "rp2040": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m0"],
+    # Xilinx
+    "zynq_mp_r5": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-r5"],
 }
 
 
@@ -758,44 +781,6 @@ def hexagon(cpu_ver="v66", **kwargs):
     args_list.append("--vtcm-capacity=%d" % config["vtcm_capacity"])
 
     return Target(" ".join(["hexagon"] + args_list))
-
-
-STM32_SUPPORTED_SERIES = {
-    # High-Performance
-    "stm32H7xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m7", "-march=armv7e-m"],
-    "stm32F7xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m7"],
-    "stm32F4xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
-    "stm32F2xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m3"],
-    # Mainstream
-    "stm32G0xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m0+"],
-    "stm32F0xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m0"],
-    "stm32F1xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m3"],
-    "stm32G4xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
-    "stm32F3xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
-    # Low-power
-    "stm32U5xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m33"],
-    "stm32L5xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m33"],
-    "stm32L4xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
-    "stm32L1xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m3"],
-    "stm32L0xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m0+"],
-}
-
-
-def stm32(series="unknown", options=None):
-    """Returns a STM32 target.
-
-    Parameters
-    ----------
-    series: str
-        Series name of a STM32 board series, eg. stm32H7xx or stm32F4xx
-    options : str or list of str
-        Additional options
-    """
-
-    if series not in STM32_SUPPORTED_SERIES:
-        raise ValueError(f"Series {series} is not supported by tvm.target.stm32.")
-    opts = _merge_opts(STM32_SUPPORTED_SERIES[series], options)
-    return Target(" ".join(["c"] + opts))
 
 
 def adreno(model="unknown", options=None):
