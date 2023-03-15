@@ -216,16 +216,107 @@ TVM_DLL Pass AnnotateTIROpPattern();
 TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
 
 /*!
+ * \brief The pattern object used as the input of FuseOpsByPattern. For bindings to be
+ * fused, it needs to be matched with `pattern` and the `check` function needs to return
+ * true.
+ */
+class FuseOpsPatternNode : public Object {
+ public:
+  /*!
+   * \brief The name of pattern. It becomes the value of the kComposite attribute
+   * of a fused function after successful matching
+   */
+  String name;
+
+  /*!
+   * \brief The dataflow pattern that will be used to match expression in the DataflowBlock.
+   * All the call nodes covered by the pattern will be extracted into the fused function.
+   */
+  DFPattern pattern;
+
+  /*!
+   * \brief The map which is used to extract important expressions from the pattern match
+   * result. All DFPattern in this map should be part of the `pattern`.
+   */
+  Map<String, DFPattern> annotation_patterns;
+
+  /*!
+   * \brief The function to determine whether the match result is accepted. This can be
+   * NullOpt if check function is not necessary for this pattern.
+   *
+   * It should have signature
+   * bool(const PatternCheckFunctionInput& input)
+   */
+  Optional<PackedFunc> check;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("name", &name);
+    v->Visit("pattern", &pattern);
+    v->Visit("annotation_patterns", &annotation_patterns);
+    v->Visit("check", &check);
+  }
+
+  static constexpr const char* _type_key = "relax.transform.FuseOpsPattern";
+  TVM_DECLARE_FINAL_OBJECT_INFO(FuseOpsPatternNode, Object);
+};
+
+class FuseOpsPattern : public ObjectRef {
+ public:
+  FuseOpsPattern(String name, DFPattern pattern, Map<String, DFPattern> annotation_patterns,
+                 Optional<PackedFunc> check);
+
+  FuseOpsPattern(String name, DFPattern pattern) : FuseOpsPattern(name, pattern, {}, NullOpt) {}
+
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(FuseOpsPattern, ObjectRef, FuseOpsPatternNode);
+};
+
+/*!
+ * \brief The input of FuseOpsPattern::check.
+ */
+class PatternCheckFunctionInputNode : public Object {
+ public:
+  /*!
+   * \brief A map which contains all expressions matched by the sub patterns in
+   * FuseOpsPatternNode::annotation_patterns.
+   */
+  Map<String, Expr> annotated_expr;
+
+  /*!
+   * \brief A map mapping variable definitions to a set of uses.
+   */
+  Map<Var, Array<Var>> var_usages;
+
+  /*!
+   * \brief Map from value to its bound variable.
+   */
+  Map<Expr, Var> value_to_bound_var;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("annotated_expr", &annotated_expr);
+    v->Visit("var_usages", &var_usages);
+    v->Visit("value_to_bound_var", &value_to_bound_var);
+  }
+
+  static constexpr const char* _type_key = "relax.transform.PatternCheckFunctionInput";
+  TVM_DECLARE_FINAL_OBJECT_INFO(PatternCheckFunctionInputNode, Object);
+};
+
+class PatternCheckFunctionInput : public ObjectRef {
+ public:
+  PatternCheckFunctionInput(Map<String, Expr> annotated_expr, Map<Var, Array<Var>> var_usages,
+                            Map<Expr, Var> value_to_bound_var);
+
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(PatternCheckFunctionInput, ObjectRef,
+                                            PatternCheckFunctionInputNode);
+};
+
+/*!
  * \brief Apply pattern matching to each function in the given module, and group matched
  * expressions into a new function. The end result is similar to FuseOps, but fusion is driven
  * completely by the provided patterns.
  *
- * \param pattern_names The name of each pattern. It becomes the value of the kComposite attribute
- * of a fused function after successful matching.
  * \param patterns The patterns to detect. The order of the patterns determines the order
  * of priority in which they are matched. Higher-priority patterns should come earlier in the list.
- * \param checks The callback functions with type (Map<DFPattern, Expr>, Expr) -> bool. It takes a
- * match result and returns a boolean value to indicate whether the match result is accepted.
  * \param bind_constants Whether or not to keep bound constants of the grouped function.
  * \param annotate_codegen If true, wrap each created composite function with another function,
  * whose body consists only of a call to the composite function, and annotate the outer function
@@ -235,10 +326,8 @@ TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
  * an external backend without using the MergeCompositeFunctions pass.
  * \return The Pass.
  */
-TVM_DLL Pass FuseOpsByPattern(const tvm::Array<runtime::String>& pattern_names,
-                              const tvm::Array<DFPattern>& patterns,
-                              const tvm::Array<PackedFunc>& checks, bool bind_constants = true,
-                              bool annotate_codegen = false);
+TVM_DLL Pass FuseOpsByPattern(const tvm::Array<FuseOpsPattern>& patterns,
+                              bool bind_constants = true, bool annotate_codegen = false);
 
 /*!
  * \brief Group one or multiple composite functions created by FuseOpsByPattern into a new

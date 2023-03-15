@@ -19,11 +19,16 @@
 import functools
 import inspect
 import types
-from typing import Callable, Dict, Union, Optional, List, Tuple
-from tvm.tir import PrimFunc, IndexMap
+from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+
 import numpy as np  # type: ignore
+
 import tvm.ir
-from tvm.runtime import NDArray
+from tvm.relax import Expr, Var
+from tvm.relax.dpl import DFPattern
+from tvm.runtime import NDArray, Object
+from tvm.tir import IndexMap, PrimFunc
+
 from . import _ffi_api
 from .legalize_ops.common import LegalizeFunc
 
@@ -283,8 +288,76 @@ def FuseTIR() -> tvm.ir.transform.Pass:
     return _ffi_api.FuseTIR()  # type: ignore
 
 
+@tvm._ffi.register_object("relax.transform.PatternCheckFunctionInput")
+class PatternCheckFunctionInput(Object):
+    """
+    The input of check function `FuseOpsPattern.check`.
+
+    Parameters
+    ----------
+    annotated_expr: Mapping[str, Expr]
+        A map which contains all expressions matched by the sub patterns in
+        FuseOpsPattern.annotation_patterns.
+
+    var_usages: Mapping[Var, Sequence[Var]]
+        A map mapping variable definitions to a set of uses.
+
+    value_to_bound_var: Mapping[Expr, Var]
+        Map from value to its bound variable.
+    """
+
+    annotated_expr: Mapping[str, Expr]
+    var_usages: Mapping[Var, Sequence[Var]]
+    value_to_bound_var: Mapping[Expr, Var]
+
+
+@tvm._ffi.register_object("relax.transform.FuseOpsPattern")
+class FuseOpsPattern(Object):
+    """
+    An entry in the pattern registry. This represents a single pattern that
+    can be used to identify expressions that can be handled by external
+    backends, like CUTLASS and TensorRT.
+
+    Parameters
+    ----------
+    name: str
+        The name of pattern. Usually it starts with the name of backend, like 'cutlass.matmul'.
+
+    pattern: DFPattern
+        The dataflow pattern that will be used to match expressions that can be handled
+        by external backends.
+
+    annotation_patterns: Mapping[str, DFPattern]
+        The mapping from arg name to its pattern. It can be used to extract arg expression
+        from match result. All DFPattern in this map should be part of the `pattern`.
+
+    check: Callable[[Mapping[DFPattern, Expr], Expr], bool]
+        The function to check whether the match result is accepted.
+    """
+
+    name: str
+    pattern: DFPattern
+    annotation_patterns: Mapping[str, DFPattern]
+    check: Callable[[PatternCheckFunctionInput], bool]
+
+    def __init__(
+        self,
+        name: str,
+        pattern: DFPattern,
+        annotation_patterns: Optional[Mapping[str, DFPattern]] = None,
+        check: Optional[Callable[[Mapping[str, Expr]], bool]] = None,
+    ):
+        if annotation_patterns is None:
+            annotation_patterns = {}
+        self.__init_handle_by_constructor__(
+            _ffi_api.FuseOpsPattern, name, pattern, annotation_patterns, check  # type: ignore
+        )
+
+
 def FuseOpsByPattern(
-    patterns: List[Tuple], bind_constants: bool = True, annotate_codegen: bool = False
+    patterns: List[Union[FuseOpsPattern, Tuple]],
+    bind_constants: bool = True,
+    annotate_codegen: bool = False,
 ) -> tvm.ir.transform.Pass:
     """Apply pattern matching to each function in the given module, and group matched expressions
     into a new function.
@@ -293,15 +366,12 @@ def FuseOpsByPattern(
 
     Parameters
     ----------
-    patterns : List[Union[Tuple[str, DFPattern], Tuple[str, DFPattern, Callable]]]
-        A list of tuple of (name, pattern) or (name, pattern, predicate) to be matched.
-        The predicate is a function with type (Map<DFPattern, Expr>, Expr) -> bool. It takes a
-        match result and returns a boolean value to indicate whether the match result is accepted.
+    patterns : List[Union[FuseOpsPattern, Tuple]]
+        A list of patterns to be matched. The order of the patterns determines the order of priority
+        in which they are matched. Higher-priority patterns should come earlier in the list.
 
-        The patterns to detect. The order of the patterns determines the order of priority in which
-        they are matched. Higher-priority patterns should come earlier in the list.
-        The string is the name of the corresponding pattern. It becomes the value of the kComposite
-        attribute of a fused function after a successful matching.
+        In addition to FuseOpsPattern, a tuple can be passed as item of this list. The pattern
+        will be constructed through FuseOpsPattern(*item)
 
     bind_constants : bool
         Whether or not to keep bound constants in the grouped function.
@@ -321,22 +391,19 @@ def FuseOpsByPattern(
         The registered pass for pattern-based fusion.
 
     """
-    pattern_names = []
-    df_patterns = []
-    checks = []
-    for tup in patterns:
-        if len(tup) == 2:
-            pattern_names.append(tup[0])
-            df_patterns.append(tup[1])
-            checks.append(lambda *_: True)
-        elif len(tup) == 3:
-            pattern_names.append(tup[0])
-            df_patterns.append(tup[1])
-            checks.append(tup[2])
+    converted_patterns = []
+    for pattern in patterns:
+        if isinstance(pattern, tuple):
+            converted_patterns.append(FuseOpsPattern(*pattern))
+        elif isinstance(pattern, FuseOpsPattern):
+            converted_patterns.append(pattern)
         else:
-            raise ValueError("Invalid pattern: {}".format(tup))
+            raise ValueError(f"Invalid pattern: {pattern}")
+
     return _ffi_api.FuseOpsByPattern(
-        pattern_names, df_patterns, checks, bind_constants, annotate_codegen
+        converted_patterns,
+        bind_constants,
+        annotate_codegen,
     )  # type: ignore
 
 
