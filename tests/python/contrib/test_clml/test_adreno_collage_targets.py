@@ -30,7 +30,6 @@ from tvm.relay.build_module import bind_params_by_name
 
 # The following are necessary to force global functions or pattern tables to be registered
 from tvm.relay.collage.collage import *
-from tvm.relay.op.contrib import clml
 import pytest
 
 logging.basicConfig(level=logging.INFO)
@@ -178,7 +177,6 @@ def compile_and_benchmark(label, model, targets, tmp_dir):
     """Compile model for target and run it with profiling."""
     logging.info(f"Compiling {model['name']} using {label} with {targets}...")
     mod = model["mod"]
-    mod = clml.preprocess_for_clml(mod)
     exe = tvm.relay.vm.compile(mod, target=targets, params=model["params"])
     lib = exe.mod
     lib_path = os.path.join(tmp_dir, "lib.so")
@@ -203,7 +201,6 @@ def compile_and_benchmark(label, model, targets, tmp_dir):
 # Custom cost function for Opencl RPC targets.
 @register_func("tvm.relay.collage.opencl_cost_estimator")
 def opencl_cost_estimator(mod, target):
-    mod = clml.preprocess_for_clml(mod) if "clml" == target.kind.name else mod
     try:
         # Build the module.
         logging.info("Compiling module to estimate")
@@ -262,10 +259,6 @@ def collage(model):
         config = tvm.target.make_compilation_config(ctxt, targets)
         with ctxt:
             mod = model["mod"]
-            mod = tvm.relay.transform.CapturePostDfsIndexInSpans()(mod)
-            logging.info("-------------- BEGIN INDEXED --------------")
-            logging.info(mod)
-            logging.info("-------------- END INDEXED ----------------")
             # Register python custom cost function for targets in
             # custom cost estimator module.
             cost_estimator = CustomCostEstimator(
