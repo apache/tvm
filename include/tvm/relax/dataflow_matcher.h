@@ -104,7 +104,7 @@ inline tvm::runtime::Map<DFPattern, Var> MatchGraphDefault(const DataflowBlock& 
  * \return Return An Expr with every match of the pattern inside the callbacks rewritten by the
  * functions inside the callbacks
  */
-Expr RewritePatterns(DFPatternCallback callback, Expr expr);
+Expr RewritePatterns(DFPatternCallback callback, Function f);
 
 }  // namespace relax
 }  // namespace tvm

@@ -782,9 +782,9 @@ class PatternRewriter : ExprMutator {
   explicit PatternRewriter(DFPatternCallback callback)
       : pattern_(callback->pattern), rewrite_func_(callback->function) {}
 
-  static Expr Run(DFPatternCallback callback, Expr expr) {
+  static Expr Run(DFPatternCallback callback, Function f) {
     PatternRewriter rewriter(callback);
-    return rewriter.VisitExpr(expr);
+    return RemoveAllUnused(Downcast<Function>(rewriter.VisitExpr(f)));
   }
 
   void VisitBinding_(const VarBindingNode* binding) final {
@@ -797,7 +797,6 @@ class PatternRewriter : ExprMutator {
 
   Expr VisitExpr_(const CallNode* call_node) final {
     if (auto matches_opt = ExtractMatchedExpr(pattern_, GetRef<Call>(call_node), bindings_)) {
-      LOG(INFO) << "matched";
       auto rewriten_expr = rewrite_func_(matches_opt.value());
       memo_[call_node] = rewriten_expr;
       return rewriten_expr;
@@ -813,8 +812,8 @@ class PatternRewriter : ExprMutator {
   std::unordered_map<const Object*, Expr> memo_;
 };
 
-Expr RewritePatterns(DFPatternCallback callback, Expr expr) {
-  return PatternRewriter::Run(callback, expr);
+Expr RewritePatterns(DFPatternCallback callback, Function f) {
+  return PatternRewriter::Run(callback, f);
 }
 
 TVM_REGISTER_GLOBAL("relax.dpl.DFPatternCallback")

@@ -909,7 +909,7 @@ def test_rewrite_simple():
             x = matchings[self.x]
             return R.multiply(x, R.const(2, "float32"))
 
-    print(remove_all_unused(rewrite(Callback(), main)))
+    print(rewrite(Callback(), main))
 
     class Callback:
         def __init__(self):
@@ -921,7 +921,7 @@ def test_rewrite_simple():
             x = matchings[self.x]
             return R.multiply(x, R.const(4, "float32"))
 
-    print(remove_all_unused(rewrite(Callback(), main)))
+    print(rewrite(Callback(), main))
 
 
 def test_rewrite_attention():
@@ -967,8 +967,7 @@ def test_rewrite_attention():
             V_3D = BSNH_to_BSH(self.V)
             K_3D = BSNH_to_BSH(self.K)
 
-            V_3D_trans = is_op("relax.permute_dims")(V_3D)
-            matmul1 = is_op("relax.matmul")(Q_3D, V_3D_trans)
+            matmul1 = is_op("relax.matmul")(Q_3D, is_op("relax.permute_dims")(V_3D))
             multiply = is_op("relax.multiply")(matmul1, is_const())
             softmax = is_op("relax.nn.softmax")(multiply)
             matmul2 = is_op("relax.matmul")(softmax, K_3D)
@@ -981,10 +980,9 @@ def test_rewrite_attention():
             V = matchings[self.V]
             return R.nn.attention(Q, K, V)
 
-    from tvm.relax.analysis import remove_all_unused
-    print(remove_all_unused(rewrite(Callback(), main)))
+    print(rewrite(Callback(), main))
 
 
 if __name__ == "__main__":
     # tvm.testing.main()
-    test_rewrite_attention()
+    test_rewrite_simple()
