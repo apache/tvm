@@ -797,7 +797,7 @@ class PatternRewriter : ExprMutator {
 
   Expr VisitExpr_(const CallNode* call_node) final {
     if (auto matches_opt = ExtractMatchedExpr(pattern_, GetRef<Call>(call_node), bindings_)) {
-      LOG(INFO) << bindings_;
+      LOG(INFO) << "matched";
       auto rewriten_expr = rewrite_func_(matches_opt.value());
       memo_[call_node] = rewriten_expr;
       return rewriten_expr;

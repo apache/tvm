@@ -888,7 +888,7 @@ def test_incremental_solving_counter():
             assert not ctx1.match_dfb(simple_chain.body.blocks[0])
 
 
-def test_rewrite():
+def test_rewrite_simple():
     @R.function
     def main(
         x: R.Tensor((16, 16), "float32")) -> R.Tensor((16, 16), "float32"):
@@ -924,6 +924,67 @@ def test_rewrite():
     print(remove_all_unused(rewrite(Callback(), main)))
 
 
+def test_rewrite_attention():
+    @R.function
+    def main(Q: R.Tensor((2, 4096, 8, 40), "float32"),
+             K: R.Tensor((2, 4096, 8, 40), "float32"),
+             V: R.Tensor((2, 4096, 8, 40), "float32")) -> R.Tensor((2, 4096, 8, 40), "float32"):
+        with R.dataflow():
+            lv58: R.Tensor((2, 8, 4096, 40), dtype="float32") = R.permute_dims(Q, axes=[0, 2, 1, 3])
+            lv59: R.Tensor((16, 4096, 40), dtype="float32") = R.reshape(lv58, R.shape([16, 4096, 40]))
+
+            lv61: R.Tensor((2, 8, 4096, 40), dtype="float32") = R.permute_dims(K, axes=[0, 2, 1, 3])
+            lv62: R.Tensor((16, 4096, 40), dtype="float32") = R.reshape(lv61, R.shape([16, 4096, 40]))
+
+            lv64: R.Tensor((2, 8, 4096, 40), dtype="float32") = R.permute_dims(V, axes=[0, 2, 1, 3])
+            lv65: R.Tensor((16, 4096, 40), dtype="float32") = R.reshape(lv64, R.shape([16, 4096, 40]))
+
+            lv62_transposed: R.Tensor((16, 40, 4096), dtype="float32") = R.permute_dims(lv62, axes=[0, 2, 1])
+            lv3_1: R.Tensor((16, 4096, 4096), dtype="float32") = R.matmul(lv59, lv62_transposed)
+            lv68: R.Tensor((16, 4096, 4096), dtype="float32") = R.multiply(lv3_1, R.const(0.15811388194561005, "float32"))
+            lv69: R.Tensor((16, 4096, 4096), dtype="float32") = R.nn.softmax(lv68, axis=-1)
+            lv_3: R.Tensor((16, 4096, 40), dtype="float32") = R.matmul(lv69, lv65)
+
+            lv71: R.Tensor((2, 8, 4096, 40), dtype="float32") = R.reshape(lv_3, R.shape([2, 8, 4096, 40]))
+            lv72: R.Tensor((2, 4096, 8, 40), dtype="float32") = R.permute_dims(lv71, axes=[0, 2, 1, 3])
+            R.output(lv72)
+
+        return lv72
+
+    class Callback:
+        def __init__(self):
+            def BSNH_to_BSH(tensor):
+                return is_op("relax.reshape")(is_op("relax.permute_dims")(tensor), wildcard())
+
+            def BSH_to_BSNH(tensor):
+                return is_op("relax.permute_dims")(is_op("relax.reshape")(tensor, wildcard()))
+
+            self.Q = wildcard()
+            self.K = wildcard()
+            self.V = wildcard()
+
+            Q_3D = BSNH_to_BSH(self.Q)
+            V_3D = BSNH_to_BSH(self.V)
+            K_3D = BSNH_to_BSH(self.K)
+
+            V_3D_trans = is_op("relax.permute_dims")(V_3D)
+            matmul1 = is_op("relax.matmul")(Q_3D, V_3D_trans)
+            multiply = is_op("relax.multiply")(matmul1, is_const())
+            softmax = is_op("relax.nn.softmax")(multiply)
+            matmul2 = is_op("relax.matmul")(softmax, K_3D)
+
+            self.pattern = BSH_to_BSNH(matmul2)
+
+        def callback(self, matchings):
+            Q = matchings[self.Q]
+            K = matchings[self.K]
+            V = matchings[self.V]
+            return R.nn.attention(Q, K, V)
+
+    from tvm.relax.analysis import remove_all_unused
+    print(remove_all_unused(rewrite(Callback(), main)))
+
+
 if __name__ == "__main__":
     # tvm.testing.main()
-    test_rewrite()
+    test_rewrite_attention()
