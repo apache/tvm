@@ -20,7 +20,7 @@
 # pylint: disable=pointless-statement
 
 import typing
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, Callable
 
 import tvm
 import tvm._ffi as tvm_ffi
@@ -31,7 +31,7 @@ from tvm.relay.op import get
 from ...ir import make_node
 from ...ir.base import Node
 from ...runtime import Object
-from ..expr import Expr, Var
+from ..expr import Expr, Var, Function
 from . import _ffi as ffi
 
 
@@ -1117,5 +1117,28 @@ def make_fused_bias_activation_pattern(op_name, with_bias=False, activation=None
     return out
 
 
-def rewrite(pattern, callback, f):
-    return ffi.rewrite(pattern, callback, f)
+def rewrite(
+    pattern: DFPattern, callback: Callable[[Expr, Dict[DFPattern, Expr]], Expr], func: Function
+) -> Function:
+    """
+    Rewrite a function with the given pattern and the callback.
+
+    Parameters
+    ----------
+    pattern: DFPattern
+        The pattern to match.
+
+    callback: Callable[[Expr, Dict[DFPattern, Expr]], Expr]
+        The function to be called on a successful matching for rewriting. Given the matching
+        call node and the map of patterns and matched expressions, it should return a new call node
+        or the original matched call node as is.
+
+    func: Function
+        The function to rewrite.
+
+    Returns
+    -------
+    rewritten_func: Function
+        The rewritten or the input function, depending on the pattern matching result.
+    """
+    return ffi.rewrite(pattern, callback, func)

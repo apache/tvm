@@ -766,12 +766,15 @@ Map<DFPattern, Var> MatchGraph(const PatternContext& ctx, const DataflowBlock& d
 
 TVM_REGISTER_GLOBAL("relax.dpl.match_dfb").set_body_typed(MatchGraph);
 
+/*!
+ * \brief Apply pattern matching to each call node and replace matching ones with the output of
+ * a user-provided callback function.
+ */
 class PatternRewriter : ExprMutator {
  public:
   using ExprMutator::VisitExpr_;
 
-  explicit PatternRewriter(DFPattern pat, PackedFunc callback)
-      : pattern_(pat), callback_(callback) {}
+  PatternRewriter(DFPattern pat, PackedFunc callback) : pattern_(pat), callback_(callback) {}
 
   static Expr Run(DFPattern pat, PackedFunc callback, Function f) {
     PatternRewriter rewriter(pat, callback);
@@ -781,8 +784,10 @@ class PatternRewriter : ExprMutator {
   void VisitBinding_(const VarBindingNode* binding) final {
     bindings_.Set(binding->var, binding->value);
     ExprMutator::VisitBinding_(binding);
-    if (memo_.count(binding->value.get())) {
-      bindings_.Set(binding->var, memo_[binding->value.get()]);
+    if (auto it = memo_.find(binding->value.get()); it != memo_.end()) {
+      // We need to update the binding to pass to ExtractMatchedExpr, so that the rewritten
+      // expression can be subject to further pattern matchings.
+      bindings_.Set(binding->var, it->second);
     }
   }
 
