@@ -32,28 +32,6 @@
 namespace tvm {
 namespace relax {
 
-class DFPatternCallbackNode : public Object {
- public:
-  /*! \brief Pattern this callback matches */
-  DFPattern pattern;
-  /*! \brief Function to call when finding a matched expression */
-  PackedFunc function;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("pattern", &pattern);
-  }
-
-  static constexpr const char* _type_key = "DFPatternCallbackNode";
-  TVM_DECLARE_BASE_OBJECT_INFO(DFPatternCallbackNode, Object);
-};
-
-/*! \brief Managed reference to dataflow pattern callbacks. */
-class DFPatternCallback : public ObjectRef {
- public:
-  TVM_DLL DFPatternCallback(DFPattern pattern, PackedFunc callback);
-  TVM_DEFINE_OBJECT_REF_METHODS(DFPatternCallback, ObjectRef, DFPatternCallbackNode);
-};
-
 /**
  * \brief Determine if a pattern matches an expression.
  * \note The behavior of MatchExpr is to match a relax.Expr (`expr`) syntactically through
@@ -95,16 +73,6 @@ inline tvm::runtime::Map<DFPattern, Var> MatchGraphDefault(const DataflowBlock& 
                                                            bool must_include_hint = false) {
   return MatchGraph(PatternContext::Current(), dfb, start_hint, must_include_hint);
 }
-
-/*!
- * \brief Rewrite an expression based on some number of DFPatternCallbacks
- *
- * \param callbacks An array of DFPatternCallback Nodes
- * \param expr The expression to rewrite
- * \return Return An Expr with every match of the pattern inside the callbacks rewritten by the
- * functions inside the callbacks
- */
-Expr RewritePatterns(DFPatternCallback callback, Function f);
 
 }  // namespace relax
 }  // namespace tvm

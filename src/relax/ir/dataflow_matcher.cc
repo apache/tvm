@@ -766,24 +766,15 @@ Map<DFPattern, Var> MatchGraph(const PatternContext& ctx, const DataflowBlock& d
 
 TVM_REGISTER_GLOBAL("relax.dpl.match_dfb").set_body_typed(MatchGraph);
 
-DFPatternCallback::DFPatternCallback(DFPattern pattern, PackedFunc function) {
-  ObjectPtr<DFPatternCallbackNode> n = make_object<DFPatternCallbackNode>();
-  n->pattern = std::move(pattern);
-  n->function = std::move(function);
-  data_ = std::move(n);
-}
-
-TVM_REGISTER_NODE_TYPE(DFPatternCallbackNode);
-
 class PatternRewriter : ExprMutator {
  public:
   using ExprMutator::VisitExpr_;
 
-  explicit PatternRewriter(DFPatternCallback callback)
-      : pattern_(callback->pattern), rewrite_func_(callback->function) {}
+  explicit PatternRewriter(DFPattern pat, PackedFunc callback)
+      : pattern_(pat), callback_(callback) {}
 
-  static Expr Run(DFPatternCallback callback, Function f) {
-    PatternRewriter rewriter(callback);
+  static Expr Run(DFPattern pat, PackedFunc callback, Function f) {
+    PatternRewriter rewriter(pat, callback);
     return RemoveAllUnused(Downcast<Function>(rewriter.VisitExpr(f)));
   }
 
@@ -797,7 +788,7 @@ class PatternRewriter : ExprMutator {
 
   Expr VisitExpr_(const CallNode* call_node) final {
     if (auto matches_opt = ExtractMatchedExpr(pattern_, GetRef<Call>(call_node), bindings_)) {
-      auto rewriten_expr = rewrite_func_(matches_opt.value());
+      auto rewriten_expr = callback_(matches_opt.value());
       memo_[call_node] = rewriten_expr;
       return rewriten_expr;
     }
@@ -807,21 +798,15 @@ class PatternRewriter : ExprMutator {
 
  private:
   DFPattern pattern_;
-  PackedFunc rewrite_func_;
+  PackedFunc callback_;
   Map<Var, Expr> bindings_;
   std::unordered_map<const Object*, Expr> memo_;
 };
 
-Expr RewritePatterns(DFPatternCallback callback, Function f) {
-  return PatternRewriter::Run(callback, f);
-}
-
-TVM_REGISTER_GLOBAL("relax.dpl.DFPatternCallback")
-    .set_body_typed([](DFPattern pat, PackedFunc function) {
-      return DFPatternCallback(pat, function);
+TVM_REGISTER_GLOBAL("relax.dpl.rewrite")
+    .set_body_typed([](DFPattern pat, PackedFunc callback, Function f) {
+      return PatternRewriter::Run(pat, callback, f);
     });
-
-TVM_REGISTER_GLOBAL("relax.dpl.rewrite").set_body_typed(RewritePatterns);
 
 }  // namespace relax
 }  // namespace tvm

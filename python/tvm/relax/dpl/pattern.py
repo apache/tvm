@@ -1117,10 +1117,5 @@ def make_fused_bias_activation_pattern(op_name, with_bias=False, activation=None
     return out
 
 
-def rewrite(callback, expr: Expr) -> Expr:
-    class _DFPatternCallback(Object):
-        def __init__(self, pattern, callback):
-            self.__init_handle_by_constructor__(
-                ffi.DFPatternCallback, pattern, callback
-            )
-    return ffi.rewrite(_DFPatternCallback(callback.pattern, callback.callback), expr)
+def rewrite(pattern, callback, f):
+    return ffi.rewrite(pattern, callback, f)

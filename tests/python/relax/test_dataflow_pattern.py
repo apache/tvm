@@ -898,30 +898,21 @@ def test_rewrite_simple():
             R.output(x4)
         return x4
 
-    from tvm.relax.analysis import remove_all_unused
+    x = wildcard()
+    pattern = is_op("relax.add")(x, x)
 
-    class Callback:
-        def __init__(self):
-            self.x = wildcard()
-            self.pattern = is_op("relax.add")(self.x, self.x)
+    def callback(matchings):
+        return R.multiply(matchings[x], R.const(2, "float32"))
 
-        def callback(self, matchings):
-            x = matchings[self.x]
-            return R.multiply(x, R.const(2, "float32"))
+    print(rewrite(pattern, callback, main))
 
-    print(rewrite(Callback(), main))
+    add1 = is_op("relax.add")(x, x)
+    pattern = is_op("relax.add")(add1, add1)
 
-    class Callback:
-        def __init__(self):
-            self.x = wildcard()
-            add1 = is_op("relax.add")(self.x, self.x)
-            self.pattern = is_op("relax.add")(add1, add1)
+    def callback(matchings):
+        return R.multiply(matchings[x], R.const(4, "float32"))
 
-        def callback(self, matchings):
-            x = matchings[self.x]
-            return R.multiply(x, R.const(4, "float32"))
-
-    print(rewrite(Callback(), main))
+    print(rewrite(pattern, callback, main))
 
 
 def test_rewrite_attention():
@@ -951,36 +942,31 @@ def test_rewrite_attention():
 
         return lv72
 
-    class Callback:
-        def __init__(self):
-            def BSNH_to_BSH(tensor):
-                return is_op("relax.reshape")(is_op("relax.permute_dims")(tensor), wildcard())
+    def BSNH_to_BSH(tensor):
+        return is_op("relax.reshape")(is_op("relax.permute_dims")(tensor), wildcard())
 
-            def BSH_to_BSNH(tensor):
-                return is_op("relax.permute_dims")(is_op("relax.reshape")(tensor, wildcard()))
+    def BSH_to_BSNH(tensor):
+        return is_op("relax.permute_dims")(is_op("relax.reshape")(tensor, wildcard()))
 
-            self.Q = wildcard()
-            self.K = wildcard()
-            self.V = wildcard()
+    Q = wildcard()
+    K = wildcard()
+    V = wildcard()
 
-            Q_3D = BSNH_to_BSH(self.Q)
-            V_3D = BSNH_to_BSH(self.V)
-            K_3D = BSNH_to_BSH(self.K)
+    Q_3D = BSNH_to_BSH(Q)
+    V_3D = BSNH_to_BSH(V)
+    K_3D = BSNH_to_BSH(K)
 
-            matmul1 = is_op("relax.matmul")(Q_3D, is_op("relax.permute_dims")(V_3D))
-            multiply = is_op("relax.multiply")(matmul1, is_const())
-            softmax = is_op("relax.nn.softmax")(multiply)
-            matmul2 = is_op("relax.matmul")(softmax, K_3D)
+    matmul1 = is_op("relax.matmul")(Q_3D, is_op("relax.permute_dims")(V_3D))
+    multiply = is_op("relax.multiply")(matmul1, is_const())
+    softmax = is_op("relax.nn.softmax")(multiply)
+    matmul2 = is_op("relax.matmul")(softmax, K_3D)
 
-            self.pattern = BSH_to_BSNH(matmul2)
+    pattern = BSH_to_BSNH(matmul2)
 
-        def callback(self, matchings):
-            Q = matchings[self.Q]
-            K = matchings[self.K]
-            V = matchings[self.V]
-            return R.nn.attention(Q, K, V)
+    def callback(matchings):
+        return R.nn.attention(matchings[Q], matchings[K], matchings[V])
 
-    print(rewrite(Callback(), main))
+    print(rewrite(pattern, callback, main))
 
 
 if __name__ == "__main__":
