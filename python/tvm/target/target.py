@@ -446,42 +446,42 @@ MICRO_SUPPORTED_MODELS = {
     # X86 emulation
     "host": [],
     # STM High-Performance
-    "stm32h7xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m7", "-march=armv7e-m"],
-    "stm32f7xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m7", "-march=armv7e-m"],
-    "stm32f4xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
-    "stm32f2xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m3"],
+    "stm32h7xx": ["-keys=arm_cpu,cpu", "-mcpu=cortex-m7", "-march=armv7e-m"],
+    "stm32f7xx": ["-keys=arm_cpu,cpu", "-mcpu=cortex-m7", "-march=armv7e-m"],
+    "stm32f4xx": ["-keys=arm_cpu,cpu", "-mcpu=cortex-m4"],
+    "stm32f2xx": ["-keys=arm_cpu,cpu", "-mcpu=cortex-m3"],
     # STM Mainstream
-    "stm32g0xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m0+"],
-    "stm32f0xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m0"],
-    "stm32f1xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m3"],
-    "stm32g4xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
-    "stm32f3xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
-    "stm32l4r5xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
+    "stm32g0xx": ["-keys=arm_cpu,cpu", "-mcpu=cortex-m0+"],
+    "stm32f0xx": ["-keys=arm_cpu,cpu", "-mcpu=cortex-m0"],
+    "stm32f1xx": ["-keys=arm_cpu,cpu", "-mcpu=cortex-m3"],
+    "stm32g4xx": ["-keys=arm_cpu,cpu", "-mcpu=cortex-m4"],
+    "stm32f3xx": ["-keys=arm_cpu,cpu", "-mcpu=cortex-m4"],
+    "stm32l4r5xx": ["-keys=arm_cpu,cpu", "-mcpu=cortex-m4"],
     # STM Low-power
-    "stm32u5xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m33"],
-    "stm32l5xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m33"],
-    "stm32l4xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
-    "stm32l1xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m3"],
-    "stm32l0xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m0+"],
+    "stm32u5xx": ["-keys=arm_cpu,cpu", "-mcpu=cortex-m33"],
+    "stm32l5xx": ["-keys=arm_cpu,cpu", "-mcpu=cortex-m33"],
+    "stm32l4xx": ["-keys=arm_cpu,cpu", "-mcpu=cortex-m4"],
+    "stm32l1xx": ["-keys=arm_cpu,cpu", "-mcpu=cortex-m3"],
+    "stm32l0xx": ["-keys=arm_cpu,cpu", "-mcpu=cortex-m0+"],
     # NRF
-    "nrf52840": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4+nodsp"],
-    "nrf5340dk": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m33"],
+    "nrf52840": ["-keys=arm_cpu,cpu", "-mcpu=cortex-m4+nodsp"],
+    "nrf5340dk": ["-keys=arm_cpu,cpu", "-mcpu=cortex-m33"],
     # Microchip
-    "atsamd51": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
-    "sam3x8e": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m3"],
+    "atsamd51": ["-keys=arm_cpu,cpu", "-mcpu=cortex-m4"],
+    "sam3x8e": ["-keys=arm_cpu,cpu", "-mcpu=cortex-m3"],
     # Sony
-    "cxd5602gg": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
+    "cxd5602gg": ["-keys=arm_cpu,cpu", "-mcpu=cortex-m4"],
     # ESP
     "esp32": [],
     # NXP
-    "imxrt10xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m7"],
+    "imxrt10xx": ["-keys=arm_cpu,cpu", "-mcpu=cortex-m7"],
     # Emulators
-    "mps2_an521": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m33"],
-    "mps3_an547": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m55"],
+    "mps2_an521": ["-keys=arm_cpu,cpu", "-mcpu=cortex-m33"],
+    "mps3_an547": ["-keys=arm_cpu,cpu", "-mcpu=cortex-m55"],
     # Raspberry Pi
-    "rp2040": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m0"],
+    "rp2040": ["-keys=arm_cpu,cpu", "-mcpu=cortex-m0"],
     # Xilinx
-    "zynq_mp_r5": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-r5"],
+    "zynq_mp_r5": ["-keys=arm_cpu,cpu", "-mcpu=cortex-r5"],
 }
 
 
