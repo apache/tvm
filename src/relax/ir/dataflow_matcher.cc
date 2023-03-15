@@ -766,6 +766,15 @@ Map<DFPattern, Var> MatchGraph(const PatternContext& ctx, const DataflowBlock& d
 
 TVM_REGISTER_GLOBAL("relax.dpl.match_dfb").set_body_typed(MatchGraph);
 
+DFPatternCallback::DFPatternCallback(DFPattern pattern, PackedFunc function) {
+  ObjectPtr<DFPatternCallbackNode> n = make_object<DFPatternCallbackNode>();
+  n->pattern = std::move(pattern);
+  n->function = std::move(function);
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(DFPatternCallbackNode);
+
 class PatternRewriter : ExprMutator {
  public:
   using ExprMutator::VisitExpr_;
@@ -778,16 +787,35 @@ class PatternRewriter : ExprMutator {
     return rewriter.VisitExpr(expr);
   }
 
-  Expr VisitExpr_(const CallNode* call_node) final { return ExprMutator::VisitExpr_(call_node); }
+  void VisitBinding_(const VarBindingNode* binding) final {
+    bindings_.Set(binding->var, binding->value);
+    ExprMutator::VisitBinding_(binding);
+  }
+
+  Expr VisitExpr_(const CallNode* call_node) final {
+    if (auto matches_opt = ExtractMatchedExpr(pattern_, GetRef<Call>(call_node), bindings_)) {
+      LOG(INFO) << "Matched";
+    }
+
+    return ExprMutator::VisitExpr_(call_node);
+  }
 
  private:
   DFPattern pattern_;
   PackedFunc rewrite_func_;
+  Map<Var, Expr> bindings_;
 };
 
 Expr RewritePatterns(DFPatternCallback callback, Expr expr) {
   return PatternRewriter::Run(callback, expr);
 }
+
+TVM_REGISTER_GLOBAL("relax.dpl.DFPatternCallback")
+    .set_body_typed([](DFPattern pat, PackedFunc function) {
+      return DFPatternCallback(pat, function);
+    });
+
+TVM_REGISTER_GLOBAL("relax.dpl.rewrite").set_body_typed(RewritePatterns);
 
 }  // namespace relax
 }  // namespace tvm

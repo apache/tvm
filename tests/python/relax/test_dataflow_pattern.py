@@ -888,5 +888,27 @@ def test_incremental_solving_counter():
             assert not ctx1.match_dfb(simple_chain.body.blocks[0])
 
 
+def test_rewrite():
+    @R.function
+    def main(
+        x: R.Tensor((16, 16), "float32")) -> R.Tensor((16, 16), "float32"):
+        with R.dataflow():
+            x2 = R.add(x, x)
+            R.output(x2)
+        return x2
+
+    class Callback:
+        def __init__(self):
+            self.x = wildcard()
+            self.pattern = is_op("relax.add")(self.x, self.x)
+
+        def callback(self, matchings):
+            x = matchings[self.x]
+            return R.multiply(x, R.const(2, "float32"))
+
+    rewrite(Callback(), main)
+
+
 if __name__ == "__main__":
-    tvm.testing.main()
+    # tvm.testing.main()
+    test_rewrite()
