@@ -216,6 +216,7 @@ def test_tvmc_compile_input_model(mock_compile_model, tmpdir_factory, model):
 
 
 def test_tvmc_logger(caplog, tmpdir_factory, keras_simple):
+    pytest.importorskip("tensorflow")
     tmpdir = tmpdir_factory.mktemp("out")
 
     # TUNE
@@ -259,6 +260,7 @@ def test_tvmc_logger(caplog, tmpdir_factory, keras_simple):
 # actually writes the logging output to sys.stdout, but we can test that we call
 # logging.basicConfig with the correct arguments
 def test_tvmc_logger_set_basicConfig(monkeypatch, tmpdir_factory, keras_simple):
+    pytest.importorskip("tensorflow")
     mock_basicConfig = MagicMock()
     monkeypatch.setattr(logging, "basicConfig", mock_basicConfig)
 
