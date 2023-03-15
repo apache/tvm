@@ -137,6 +137,7 @@ export class RPCServer {
       this.globalObjects.forEach(obj => {
         obj.dispose();
       });
+      this.log(this.inst.runtimeStatsText());
       this.inst.dispose();
     }
     if (this.state == RPCServerState.ReceivePacketHeader) {
