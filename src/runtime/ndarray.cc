@@ -199,6 +199,7 @@ DLManagedTensor* NDArray::ToDLPack() const { return Internal::ToDLPack(get_mutab
 
 NDArray NDArray::Empty(ShapeTuple shape, DLDataType dtype, Device dev, Optional<String> mem_scope) {
   NDArray ret = Internal::Create(shape, dtype, dev);
+  std::cout << "NDArray::Empty ret->device = " << ret->device << " shape.size()=" << shape.size() << std::endl;
   ret.get_mutable()->dl_tensor.data =
       DeviceAPI::Get(ret->device)
           ->AllocDataSpace(ret->device, shape.size(), shape.data(), ret->dtype, mem_scope);

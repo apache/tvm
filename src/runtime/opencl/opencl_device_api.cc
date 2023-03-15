@@ -193,6 +193,8 @@ void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
 
 void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t size, size_t alignment,
                                       DLDataType type_hint) {
+  //printf("## %s: %s\n", __FUNCTION__, __LINE__);
+  std::cout << "AllocDataSpace size = " << size << std::endl;
   this->Init();
   ICHECK(context != nullptr) << "No OpenCL device. " << GetError();
   cl_int err_code;
@@ -209,6 +211,8 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t size, size_t alignment,
 
 void* OpenCLWorkspace::AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
                                       Optional<String> mem_scope) {
+  //printf("## %s: %s\n", __FUNCTION__, __LINE__);
+  std::cout << "AllocDataSpace dev.device_id " << dev.device_id << " dev.device_type = " << dev.device_type << std::endl;
   if (!mem_scope.defined() || mem_scope.value() == "global") {
     return DeviceAPI::AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
   }
@@ -395,6 +399,7 @@ std::vector<cl_platform_id> GetPlatformIDs() {
 }
 
 std::vector<cl_device_id> GetDeviceIDs(cl_platform_id pid, std::string device_type) {
+  std::cout << "### 402 device_type " << device_type << std::endl;
   cl_device_type dtype = CL_DEVICE_TYPE_ALL;
   if (device_type == "cpu") dtype = CL_DEVICE_TYPE_CPU;
   if (device_type == "gpu") dtype = CL_DEVICE_TYPE_GPU;
@@ -404,6 +409,7 @@ std::vector<cl_device_id> GetDeviceIDs(cl_platform_id pid, std::string device_ty
   std::vector<cl_device_id> ret;
   if (code != CL_SUCCESS) return ret;
   ret.resize(ret_size);
+  std::cout << "clGetDeviceIDs ret_size = " << ret_size << std::endl;
   OPENCL_CALL(clGetDeviceIDs(pid, dtype, ret_size, &ret[0], nullptr));
   return ret;
 }
@@ -416,6 +422,7 @@ bool MatchPlatformInfo(cl_platform_id pid, cl_platform_info param_name, std::str
 
 void OpenCLWorkspace::Init(const std::string& type_key, const std::string& device_type,
                            const std::string& platform_name) {
+  std::cout << "### 425 device_type " << device_type << " platform_name " << platform_name << std::endl;
   if (initialized_) return;
   std::lock_guard<std::mutex> lock(this->mu);
   if (initialized_) return;
@@ -426,16 +433,55 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
   if (platform_ids.size() == 0) {
     LOG(WARNING) << "No OpenCL platform matched given existing options ...";
     return;
+  } else {
+    for (int i = 0; i < platform_ids.size(); i++) {
+        std::cout << "platform_id " << platform_ids[i] << std::endl;
+    }
   }
+
+  // Get platform and device information
+  cl_device_id device_id = NULL;
+  //std::vector<cl_device_id> devices_matched;
+  cl_uint ret_num_devices;
+  cl_uint ret_num_platforms;
+  cl_int ret = clGetPlatformIDs(0, NULL, &ret_num_platforms);
+  std::cout << "Platforms Found: " << ret_num_platforms << std::endl;
+  cl_platform_id *ocl_platforms = (cl_platform_id *)malloc(ret_num_platforms);
+  ret = clGetPlatformIDs(ret_num_platforms, ocl_platforms, NULL);
+  int platform_index = 2;
+  size_t str_info_size = 0;
+  //devices_matched.resize(ret_num_platforms);
+  for (int i = 0; i < ret_num_platforms; i++) {
+      ret = clGetDeviceIDs(ocl_platforms[i], CL_DEVICE_TYPE_ALL, 1,
+                          &device_id, &ret_num_devices);
+      std::cout << "Devices Found: " << ret_num_devices << " device_id " << device_id <<  std::endl;
+      clGetPlatformInfo(ocl_platforms[i], CL_PLATFORM_NAME, 0, NULL, &str_info_size);
+      char *  str_info;
+      str_info = (char *)malloc(str_info_size);
+      clGetPlatformInfo(ocl_platforms[i], CL_PLATFORM_NAME, str_info_size, str_info, NULL);
+      std::cout << "  * Platform: " << str_info << std::endl;
+      free(str_info);
+  }
+
   this->platform_id = nullptr;
   for (auto platform_id : platform_ids) {
     if (!MatchPlatformInfo(platform_id, CL_PLATFORM_NAME, platform_name)) {
       continue;
     }
+
     std::vector<cl_device_id> devices_matched = cl::GetDeviceIDs(platform_id, device_type);
     if ((devices_matched.size() == 0) && (device_type == "gpu")) {
       LOG(WARNING) << "Using CPU OpenCL device";
-      devices_matched = cl::GetDeviceIDs(platform_id, "cpu");
+      //devices_matched = cl::GetDeviceIDs(platform_id, "cpu");
+      //std::cout << "devices_matched" << devices_matched[0] << std::endl;
+    } else {
+        std::cout << "Using GPU platform_id_flex170 " << std::endl;
+    }
+    if (devices_matched.size() == 0) {
+        std::cout << "devices_matched is null " << std::endl;
+    } else {
+        for (int i = 0; i < devices_matched.size(); i++)
+            std::cout << "##devices_matched is NOT null " << devices_matched[i] << std::endl;
     }
     std::vector<cl_device_id> supported_devices = {};
     auto get_version_str = [](int version) {
@@ -464,11 +510,15 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
         noDevicesErrorMsg += "\t" + dev_msg + "\n";
       }
     }
+    std::cout << "supported_devices.size() = " << supported_devices.size() << std::endl;
     if (supported_devices.size() > 0) {
       this->platform_id = platform_id;
       this->platform_name = cl::GetPlatformInfo(platform_id, CL_PLATFORM_NAME);
       this->device_type = device_type;
       this->devices = supported_devices;
+      std::cout << "platform_id " << platform_id << " platform_name " << platform_name
+                << " device_type " << device_type << " supported_devices " << supported_devices[0] << " "
+                << supported_devices[1] << std::endl;
       break;
     }
   }
