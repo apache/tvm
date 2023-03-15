@@ -1403,7 +1403,7 @@ def layout_transform_strategy(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     strategy.add_implementation(
         wrap_compute_layout_transform(topi.layout_transform, schedule_rule="layout_transform"),
-        wrap_topi_schedule(topi.cuda.schedule_injective),
+        schedule_injective,
         name="layout_transform.cuda",
     )
     return strategy
