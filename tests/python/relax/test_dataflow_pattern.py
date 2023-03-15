@@ -898,6 +898,8 @@ def test_rewrite():
             R.output(x4)
         return x4
 
+    from tvm.relax.analysis import remove_all_unused
+
     class Callback:
         def __init__(self):
             self.x = wildcard()
@@ -907,7 +909,19 @@ def test_rewrite():
             x = matchings[self.x]
             return R.multiply(x, R.const(2, "float32"))
 
-    print(rewrite(Callback(), main))
+    print(remove_all_unused(rewrite(Callback(), main)))
+
+    class Callback:
+        def __init__(self):
+            self.x = wildcard()
+            add1 = is_op("relax.add")(self.x, self.x)
+            self.pattern = is_op("relax.add")(add1, add1)
+
+        def callback(self, matchings):
+            x = matchings[self.x]
+            return R.multiply(x, R.const(4, "float32"))
+
+    print(remove_all_unused(rewrite(Callback(), main)))
 
 
 if __name__ == "__main__":
