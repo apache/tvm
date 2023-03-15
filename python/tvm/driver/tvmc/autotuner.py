@@ -87,6 +87,7 @@ def add_tune_parser(subparsers, _, json_params):
         required=True,
         help="output file to store the tuning records for the tuning process",
     )
+    parser.add_argument("-v", "--verbose", action="count", default=0, help="increase verbosity.")
     parser.add_argument(
         "--parallel",
         default=4,
