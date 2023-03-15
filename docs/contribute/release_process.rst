@@ -185,7 +185,7 @@ The release manager also needs to upload the artifacts to ASF SVN,
 
 Cherry-Picking
 --------------
-After a release branch has been cut but before the release has been voted on, the release manager may cherry-pick commits from ``main``. Since release branches are protected on GitHub, to merge this fixes into the release branch (e.g. ``v0.11``), the release manager must file a PR with the cherry-picked changes against the release branch. The PR should roughly match the original one from ``main`` with extra details on why the commit is being cherry-picked. The community then goes through a normal review and merge process for these PRs.
+After a release branch has been cut but before the release has been voted on, the release manager may cherry-pick commits from ``main``. Since release branches are protected on GitHub, to merge this fixes into the release branch (e.g. ``v0.11``), the release manager must file a PR with the cherry-picked changes against the release branch. The PR should roughly match the original one from ``main`` with extra details on why the commit is being cherry-picked. The community then goes through a normal review and merge process for these PRs. Note that these PRs against the release branches must be `signed <https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits>`_.
 
 
 Call a Vote on the Release Candidate
@@ -264,4 +264,4 @@ Send out an announcement email to announce@apache.org, and dev@tvm.apache.org. T
 
 Patch Releases
 --------------
-Patch releases should be reserved for critical bug fixes. Patch releases must go through the same process as normal releases, with the option at the release manager's discretion of a shortened release candidate voting window of 24 hours to ensure that fixes are delivered quickly. Each patch release should bump the version numbers on the release base branch (e.g. ``v0.11``) and tags created for release candidates (e.g. ``v0.11.1.rc0``). 
+Patch releases should be reserved for critical bug fixes. Patch releases must go through the same process as normal releases, with the option at the release manager's discretion of a shortened release candidate voting window of 24 hours to ensure that fixes are delivered quickly. Each patch release should bump the version numbers on the release base branch (e.g. ``v0.11``) and tags created for release candidates (e.g. ``v0.11.1.rc0``).
