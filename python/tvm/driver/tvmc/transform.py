@@ -130,8 +130,6 @@ def convert_graph_layout(mod, desired_layouts, ops=None):
         assert isinstance(desired_layouts, str)
         desired_layouts = [desired_layouts]
 
-    assert len(desired_layouts) > 0
-
     if len(desired_layouts) != len(ops):
         if len(desired_layouts) != 1:
             raise TVMCException(
