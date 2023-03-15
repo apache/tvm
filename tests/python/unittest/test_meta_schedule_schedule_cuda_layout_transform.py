@@ -273,22 +273,31 @@ class TestRandomRelayE2ECorrectness:
         for tile_size in tile_sizes:
             experimental_np = run_and_get_output(tile_size)
             np.testing.assert_allclose(ground_truth_np, experimental_np)
+            assert False
 
-    input_shape, implicit_reshape_info, dtype, tile_sizes = tvm.testing.parameters(
+    (
+        input_shape,
+        implicit_reshape_info,
+        dtype,
+        tile_sizes,
+        num_additional_ops,
+    ) = tvm.testing.parameters(
         *itertools.product(
-            # InputShapes: Each has ~10k elements, should take single microseconds on modern gpu
+            # input_shape: Each has ~10k elements, should take single microseconds on modern gpu
             [
                 [12, 48, 18],
                 [890, 14],
                 [10, 12, 2, 5, 3, 3],
             ],
-            # Implicit reshape conditions.
+            # implicit_reshape_info: Implicit reshape conditions.
             # None is do no implicit reshape, (0, 2) means divide axis 0 in half, e.g. AB --> A2aB
             [None, (0, 2), (1, 2)],
-            # Dtypes to test, should not matter that much
+            # dtype: dtypes to test, should not matter that much
             ["float16"],
-            # Tile sizes to try
+            # tile_sizes: Tile sizes to try
             [[8, 7]],
+            # num_additional_ops: number of non-layout transform ops to include and may be fused
+            [5],
         )
     )
 
@@ -299,8 +308,7 @@ class TestRandomRelayE2ECorrectness:
         implicit_reshape_info,
         dtype,
         tile_sizes,
-        # number of non-layout transform ops to include and may be fused
-        num_additional_ops: int = 5,
+        num_additional_ops,
     ):
         """Tests the product of all conditions `repeat_per_condition` times."""
         # Small gpu parameters which should work for nearly every (modern-ish) gpu.
@@ -315,11 +323,7 @@ class TestRandomRelayE2ECorrectness:
 
         # Fused layout transform task
         extracted_task = self.extract_layout_transform_task(full_mod, target)
-        print(full_mod)
-        print(extracted_task.task_name)
         self.verify_layout_transform_task(extracted_task, target, tile_sizes)
-        print("Done!")
-        print()
 
 
 if __name__ == "__main__":
