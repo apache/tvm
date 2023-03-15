@@ -193,6 +193,8 @@ class VirtualMachineImpl : public VirtualMachine {
   void InvokeClosurePacked(const ObjectRef& closure_or_packedfunc, TVMArgs args,
                            TVMRetValue* rv) final;
 
+  void SetInstrument(PackedFunc instrument) final { this->instrument_ = instrument; }
+
   //--------------------------------------------------
   // Additional support arguments functions for VM
   //--------------------------------------------------
@@ -382,6 +384,8 @@ class VirtualMachineImpl : public VirtualMachine {
   Index pc_{0};
   /*! \brief The special return register. */
   RegType return_value_;
+  /*!\ brief instrument function. */
+  PackedFunc instrument_ = nullptr;
 };
 
 void VirtualMachineImpl::LoadExecutable(ObjectPtr<Executable> exec) {
@@ -464,6 +468,21 @@ PackedFunc VirtualMachineImpl::GetFunction(const std::string& name,
       VMClosure clo = args[0];
       this->InvokeClosurePacked(clo, TVMArgs(args.values + 1, args.type_codes + 1, args.size() - 1),
                                 rv);
+    });
+  } else if (name == "set_instrument") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      PackedFunc func;
+      if (args[0].type_code() != kTVMPackedFuncHandle) {
+        String func_name = args[0];
+        const PackedFunc* factory = Registry::Get(func_name);
+        ICHECK(factory != nullptr) << "Cannot find factory " << func_name;
+        TVMRetValue rv;
+        factory->CallPacked(TVMArgs(args.values + 1, args.type_codes + 1, args.num_args - 1), &rv);
+        func = rv;
+      } else {
+        func = args[0];
+      }
+      this->SetInstrument(func);
     });
   } else if (name == "invoke_stateful") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -746,11 +765,11 @@ void VirtualMachineImpl::InitFuncPool() {
 
 void VirtualMachineImpl::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
   DLOG(INFO) << "\n  pc = " << pc_ << ", execute: " << GetFuncName(instr.func_idx);
-
+  int args_begin_offset = instrument_ != nullptr ? 4 : 0;
   // Use the call arg stack from the current frame to increase reuse
   // and avoid re-allocation
-  curr_frame->call_arg_values.resize(instr.num_args);
-  curr_frame->call_arg_tcodes.resize(instr.num_args);
+  curr_frame->call_arg_values.resize(args_begin_offset + instr.num_args);
+  curr_frame->call_arg_tcodes.resize(args_begin_offset + instr.num_args);
 
   // NOTE: no changes and resize to those vector ref(otherwise can leads to segfault)
   //       in the remainder part of the function.
@@ -760,22 +779,23 @@ void VirtualMachineImpl::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
   runtime::TVMArgsSetter setter(values.data(), tcodes.data());
   for (Index i = 0; i < instr.num_args; ++i) {
     Instruction::Arg arg = instr.args[i];
+    int arg_index = args_begin_offset + i;
     switch (arg.kind()) {
       case Instruction::ArgKind::kRegister: {
-        setter(i, ReadRegister(curr_frame, arg.value()));
+        setter(arg_index, ReadRegister(curr_frame, arg.value()));
         break;
       }
       case Instruction::ArgKind::kImmediate: {
-        setter(i, arg.value());
+        setter(arg_index, arg.value());
         break;
       }
       case Instruction::ArgKind::kConstIdx: {
-        setter(i, this->const_pool_[arg.value()]);
+        setter(arg_index, this->const_pool_[arg.value()]);
         break;
       }
       case Instruction::ArgKind::kFuncIdx: {
         ICHECK_LT(static_cast<size_t>(arg.value()), this->func_pool_.size());
-        setter(i, this->func_pool_[arg.value()]);
+        setter(arg_index, this->func_pool_[arg.value()]);
         break;
       }
       default: {
@@ -783,11 +803,43 @@ void VirtualMachineImpl::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
       }
     }
   }
-  TVMArgs args(values.data(), tcodes.data(), values.size());
+  TVMArgs args(values.data() + args_begin_offset, tcodes.data() + args_begin_offset,
+               instr.num_args);
   TVMRetValue ret;
 
   ICHECK_LT(static_cast<size_t>(instr.func_idx), this->func_pool_.size());
-  this->InvokeClosurePacked(func_pool_[instr.func_idx], args, &ret);
+
+  if (instrument_ == nullptr) {
+    this->InvokeClosurePacked(func_pool_[instr.func_idx], args, &ret);
+  } else {
+    // insert light-weight instrument callback
+    setter(0, func_pool_[instr.func_idx]);
+    setter(1, GetFuncName(instr.func_idx));
+    setter(2, true);
+    setter(3, nullptr);
+    TVMRetValue rv;
+    // store dtype to str since py callback cannot handle dtype atm.
+    std::vector<std::unique_ptr<std::string>> temp_dtype;
+    for (int i = 0; i < instr.num_args; ++i) {
+      if (tcodes[i + args_begin_offset] == kTVMDataType) {
+        std::string str_dtype = args[i];
+        temp_dtype.emplace_back(std::make_unique<std::string>(str_dtype));
+        setter(i + args_begin_offset, *temp_dtype.back());
+      }
+    }
+    int ret_kind = static_cast<int>(VMInstrumentReturnKind::kNoOp);
+    instrument_.CallPacked(TVMArgs(values.data(), tcodes.data(), values.size()), &rv);
+    if (rv.type_code() == kDLInt) {
+      ret_kind = rv;
+    }
+    if (ret_kind != static_cast<int>(VMInstrumentReturnKind::kSkipRun)) {
+      this->InvokeClosurePacked(func_pool_[instr.func_idx], args, &ret);
+      setter(2, false);
+      setter(3, ret);
+      instrument_.CallPacked(TVMArgs(values.data(), tcodes.data(), values.size()), &rv);
+    }
+  }
+
   // save the return value to the register
   // saving to special register is a NOP
   if (instr.dst < Instruction::kBeginSpecialReg) {
