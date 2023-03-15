@@ -632,6 +632,56 @@ def test_reshape_symbolic():
     mod2 = LegalizeOps()(Reshape2)
     tvm.ir.assert_structural_equal(mod2, Expected2)
 
+    # ShapeExpr might be produced by shape computation
+    @I.ir_module
+    class Reshape3:
+        @R.function
+        def main(x: R.Tensor((10, "b"), "float32")) -> R.Tensor((5, "b * 2"), "float32"):
+            a = T.int64()
+            b = T.int64()
+            lv: R.Shape((5, b * 2)) = R.shape((5, b * 2))
+            gv: R.Tensor((5, b * 2), "float32") = R.reshape(x, lv)
+            return gv
+
+    # After lowering, redundant var might be removed by later dead code elimination
+    @I.ir_module
+    class Expected3:
+        @T.prim_func
+        def reshape(var_rxplaceholder: T.handle, var_T_reshape: T.handle):
+            T.func_attr({"tir.noalias": True})
+            b = T.int64()
+            rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(10), b))
+            T_reshape = T.match_buffer(var_T_reshape, (T.int64(5), b * T.int64(2)))
+            # with T.block("root"):
+            for ax0, ax1 in T.grid(T.int64(5), b * T.int64(2)):
+                with T.block("T_reshape"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(
+                        rxplaceholder[
+                            (v_ax0 * (b * T.int64(2)) + v_ax1) // b % T.int64(10),
+                            (v_ax0 * (b * T.int64(2)) + v_ax1) % b,
+                        ]
+                    )
+                    T.writes(T_reshape[v_ax0, v_ax1])
+                    T_reshape[v_ax0, v_ax1] = rxplaceholder[
+                        (v_ax0 * (b * T.int64(2)) + v_ax1) // b % T.int64(10),
+                        (v_ax0 * (b * T.int64(2)) + v_ax1) % b,
+                    ]
+
+        @R.function
+        def main(
+            x: R.Tensor((10, "b"), dtype="float32")
+        ) -> R.Tensor((5, "b * 2"), dtype="float32"):
+            b = T.int64()
+            lv: R.Shape([5, b * 2]) = R.shape([5, b * 2])
+            gv = R.call_tir(
+                Expected3.reshape, (x,), out_sinfo=R.Tensor((5, b * 2), dtype="float32")
+            )
+            return gv
+
+    mod3 = LegalizeOps()(Reshape3)
+    tvm.ir.assert_structural_equal(mod3, Expected3)
+
 
 def test_split_by_indices():
     # fmt: off

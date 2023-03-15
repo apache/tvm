@@ -412,7 +412,7 @@ def tensor_to_shape(expr: Expr) -> Expr:
         The input Expr
     Returns
     -------
-    result : ShapeExpr
-        ShapeExpr for the tensor values
+    result : Expr
+        A relax Call, which transforms the tensor values to the shape
     """
     return _ffi_api.tensor_to_shape(expr)  # type: ignore # pylint: disable=no-member
