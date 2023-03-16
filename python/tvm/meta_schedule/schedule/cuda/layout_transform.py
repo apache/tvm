@@ -18,7 +18,7 @@
 
 import math
 from collections import deque
-from typing import List, Optional, Sequence, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import tvm
 from tvm import meta_schedule
@@ -212,11 +212,11 @@ def tile_layout_transform(
         return loops, loop_extants, factor_needed
 
     def factor_dim_in_order(
-        indices: Sequence[int],
+        indices: List[int],
         loops: List[LoopRV],
         cur_loop_extants: List[int],
         work_needed_inner_loop: int = tile_size,
-    ) -> Tuple[List[LoopRV], Sequence[int]]:
+    ) -> Tuple[List[LoopRV], List[int]]:
         """Factors out the loops in the order of indices until we reach needed work.
 
         Adds new loop factors to the back in reverse order of access. Returns new list
@@ -242,7 +242,7 @@ def tile_layout_transform(
 
         # Factor dim0 tile size and fuse things together
         loops, cur_loop_extants = factor_dim_in_order(
-            range(rank - 1, -1, -1),
+            list(range(rank - 1, -1, -1)),
             loops,
             cur_loop_extants,
             work_needed_inner_loop=tile_size,
@@ -324,7 +324,7 @@ def tile_layout_transform(
 def create_cached_read(
     sch: tvm.tir.Schedule,
     block_write: BlockRV,
-    orig_input_shape: Sequence[int],
+    orig_input_shape: List[int],
     orig_src_layout: str,
     orig_dst_layout: str,
 ) -> Tuple[BlockRV, List[int], str, str]:
@@ -395,10 +395,10 @@ def create_cached_read(
     input_shape: List[Union[int, Tuple]] = list(orig_input_shape)
     new_src_layout: List[Union[str, Tuple]] = list(orig_src_layout)
     for src_layout_split_index, split_factor in split_dimensions:
-        dimension_name = new_src_layout[src_layout_split_index]
+        dimension_name = orig_src_layout[src_layout_split_index]
         new_src_layout[src_layout_split_index] = (dimension_name, dimension_name.lower())
         input_shape[src_layout_split_index] = (
-            input_shape[src_layout_split_index] // split_factor,
+            orig_input_shape[src_layout_split_index] // split_factor,
             split_factor,
         )
 
@@ -412,18 +412,17 @@ def create_cached_read(
                 output.append(ele)
         return output
 
-    new_src_layout = unpack_list(new_src_layout)
-    new_src_layout = "".join(new_src_layout)
-    new_dst_layout = "".join(new_dst_layout)
+    new_src_layout_str = "".join(unpack_list(new_src_layout))
+    new_dst_layout_str = "".join(unpack_list(new_dst_layout))
 
     # Write block loop extants match
-    reindex_map = [new_src_layout.index(dim) for dim in new_dst_layout]
+    reindex_map = [new_src_layout_str.index(dim) for dim in new_dst_layout_str]
     block_read = sch.reindex_cache_read(
         block_write,
         read_buffer_index=0,
         index_map=tvm.tir.IndexMap.from_func(
             lambda *loops: [loops[reindex_map[i]] for i, _ in enumerate(loops)],
-            ndim=len(new_src_layout),
+            ndim=len(new_src_layout_str),
         ),
         storage_scope="shared",
     )
@@ -431,9 +430,9 @@ def create_cached_read(
     # While the above will have the shared memory buffer match the reshaped input tensor
     # the loops still match those of the write/output loop/buffer. Match the src layout instead
     loops_read = sch.get_loops(block_read)
-    sch.reorder(*[loops_read[reindex_map[i]] for i, _ in enumerate(new_dst_layout)])
+    sch.reorder(*[loops_read[reindex_map[i]] for i, _ in enumerate(new_dst_layout_str)])
 
-    return block_read, unpack_list(input_shape), new_src_layout, new_dst_layout
+    return block_read, unpack_list(input_shape), new_src_layout_str, new_dst_layout_str
 
 
 def auto_inline_into(sch: tvm.tir.Schedule, start_block: BlockRV) -> BlockRV:
@@ -559,7 +558,7 @@ def cuda_layout_transform_schedule_rule(
 
     # Try tile size 2,3...threads_per_warp as tile size of 1 has no coaslescing.
     if testing_tile_sizes is None:
-        tile_sizes = range(2, get_max_tile_size() + 1)
+        tile_sizes = list(range(2, get_max_tile_size() + 1))
     else:
         tile_sizes = testing_tile_sizes
 
