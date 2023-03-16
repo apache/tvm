@@ -124,6 +124,12 @@ def tile_layout_transform(
     tile_size:
         The tile size of read and writes. There will be tile_size threads per block, each of which
         reads up to tile_size elements.
+
+    Returns
+    -------
+    ret:
+        A tuple of the block that writes to global memory, and the block that reads from
+        global memory.
     """
 
     def pad_dimension_to_at_least_number(loop: LoopRV, requested_size: int):
@@ -329,7 +335,11 @@ def create_cached_read(
     orig_dst_layout: str,
 ) -> Tuple[BlockRV, List[int], str, str]:
     """
-    Makes layout transform schedule applicable to implicit reshape case.
+    Creates the cached read block with expected structure.
+
+    Loop extants should follow the input shape closely. E.g. if the input is [2, 6, 8], we
+    expect our loop structure to be T.grid(2, 6, 8). Possibly reshape to handle implicit reshapes,
+    in which case we will match the implicit reshape shape.
 
     Layout transform allows semantics like NCHW --> NCHW4c. Which involves splitting the original C
     axis into contiguous 4-element chunks. This axis is then moved to the end (NCHWc). This is
@@ -363,8 +373,8 @@ def create_cached_read(
     Returns
     -------
     ret:
-        A tuple of the new input shape of shared memory buffer, the new src_layout and
-        new dst_layout string.
+        A tuple of the cached read block, new input shape of shared memory buffer,
+        the new src_layout, and new dst_layout string.
     """
     # Figure out split dimensions, entries are (loop index in src_layout, split amount)
     split_dimensions: List[Tuple[int, int]] = []
@@ -431,7 +441,6 @@ def create_cached_read(
     # the loops still match those of the write/output loop/buffer. Match the src layout instead
     loops_read = sch.get_loops(block_read)
     sch.reorder(*[loops_read[reindex_map[i]] for i, _ in enumerate(new_dst_layout_str)])
-
     return block_read, unpack_list(input_shape), new_src_layout_str, new_dst_layout_str
 
 
@@ -529,14 +538,15 @@ def cuda_layout_transform_schedule_rule(
     schedules = []
 
     # Always include the default schedules which will be handled via AutoBind schedule rule
+    # Except during testing
     if not testing_tile_sizes:
         schedules.append(sch)
+
     sch = sch.copy()
 
     # Inline consumers of the layout transform into the layout transform block.
     # Normally default for injective schedules but must manually be called in new schedule rule
-    # as we introduce a new block under the custom schedule rule which is not taken into account
-    # during search space generation. TODO: rectify this.
+    # for consumers of the layout transform. TODO(AndrewZhaoLuo): Figure out why this is the case.
     auto_inline_into(sch, block)
 
     # Setup up basic structure of schedule of creating read into shared mem, before applying tiling
@@ -546,12 +556,11 @@ def cuda_layout_transform_schedule_rule(
     #     ...
     # Read block will read from global memory coalesced at the start
     # Assume write to output global memory is coalesced in block_write
-    # block_read = sch.cache_read(block, 0, "shared")
-
-    # Handle the case where there is an implicit reshape going on.
+    #
+    # This also handles the case where there is an implicit reshape going on.
     # e.g. NCHW -> NCHW4c which is equivalent to reshaping NCHW
     # to NCcHW and then applying the new layout where the extant of c is 4.
-    # Grab final input shape and src and dst layouts.
+    # Grab final input shape and src and dst layouts with possible implicit reshape.
     block_read, input_shape, src_layout, dst_layout = create_cached_read(
         sch, block, input_shape, src_layout, dst_layout
     )
