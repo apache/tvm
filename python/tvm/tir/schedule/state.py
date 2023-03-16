@@ -99,7 +99,8 @@ class ScheduleState(Object):
         Do extra correctness checking after the object construction
         and each time after calling the Replace method.
     enable_check : bool
-        Indicates whether we enable prerequisite checks for some schedule primitives or not, defaults to `True`.
+        Indicates whether we enable prerequisite checks for some schedule primitives or not,
+        defaults to `True`.
     """
 
     mod: IRModule
