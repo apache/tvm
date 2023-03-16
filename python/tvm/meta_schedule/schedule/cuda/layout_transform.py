@@ -1,9 +1,27 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""layout_transform scheduling rule for cuda."""
+
 import math
 from collections import deque
 from typing import List, Optional, Sequence, Tuple, Union
 
 import tvm
-from tvm import meta_schedule, topi
+from tvm import meta_schedule
 from tvm.tir.schedule import BlockRV, ExprRV, LoopRV
 
 ## Tiling layout transforms:
@@ -62,7 +80,7 @@ from tvm.tir.schedule import BlockRV, ExprRV, LoopRV
 # T.grid(64_ar, 1_br, 8_cr, 1_dr, 32_dim0, 32_dim1)
 #
 # Which allows us to read a tile with our wanted properties.
-# For writing we use the existing analysis infrastructure to generate the proper structure for writing.
+# For writing we use the existing analysis infrastructure to generate the structure for writing.
 
 
 def tile_layout_transform(
@@ -110,8 +128,8 @@ def tile_layout_transform(
 
     def pad_dimension_to_at_least_number(loop: LoopRV, requested_size: int):
         """E.g. if loop has extant of 8 but we want 10, returns size 10 loop with padding."""
-        l1, l2 = sch.split(loop, [None, requested_size])
-        return sch.fuse(l1, l2)
+        left, right = sch.split(loop, [None, requested_size])
+        return sch.fuse(left, right)
 
     def pad_dimension_to_factor_of_tile_size(
         loop: LoopRV, initial_size: int, tile_size: int = tile_size
@@ -213,7 +231,7 @@ def tile_layout_transform(
         return loops, cur_loop_extants
 
     def get_high_level_loop_structure(
-        block_read: BlockRV, input_shape: Sequence[int], src_layout: str, dst_layout: str
+        block_read: BlockRV, input_shape: List[int], src_layout: str, dst_layout: str
     ):
         """Runs the factorization described above."""
         # index 0 ... rank - 1 will always correspond to original loops
@@ -245,9 +263,11 @@ def tile_layout_transform(
         # Same thing with dim1
         # [:rank + 1], since we placed dim0_loop_tiled in the end which we want to keep
         loops, cur_loop_extants = factor_dim_in_order(
-            (
-                src_layout.index(dst_layout[loop_index_dst])
-                for loop_index_dst in range(rank - 1, -1, -1)
+            list(
+                (
+                    src_layout.index(dst_layout[loop_index_dst])
+                    for loop_index_dst in range(rank - 1, -1, -1)
+                )
             ),
             loops,
             cur_loop_extants,
@@ -307,14 +327,15 @@ def create_cached_read(
     orig_input_shape: Sequence[int],
     orig_src_layout: str,
     orig_dst_layout: str,
-) -> Tuple[List[int], str, str]:
+) -> Tuple[BlockRV, List[int], str, str]:
     """
     Makes layout transform schedule applicable to implicit reshape case.
 
-    Layout transform allows semantics like NCHW --> NCHW4c. Which involves splitting the original C axis into contiguous
-    4-element chunks. This axis is then moved to the end (NCHWc). This is guaranteed by the operator to be done without
-    additional padding. To handle this we just split the associating axis (prev. type checking ensures C is divisible by 4)
-    in src_layout found in block_read. E.g. NCHW -> NCHW4c now becomes NC4cHW -> NCHW4c.
+    Layout transform allows semantics like NCHW --> NCHW4c. Which involves splitting the original C
+    axis into contiguous 4-element chunks. This axis is then moved to the end (NCHWc). This is
+    guaranteed by the operator to be done without additional padding. To handle this we just split
+    the associating axis (prev. type checking ensures C is divisible by 4)in src_layout found in
+    block_read. E.g. NCHW -> NCHW4c now becomes NC4cHW -> NCHW4c.
 
     Note: NCHW4c --> NCHW is not allowed, so the only numeric digits will be in dst.
 
@@ -371,8 +392,8 @@ def create_cached_read(
 
     # Calculate final input shapes, each of these are a single element for unsplit dims
     # and tuples for split dims associated with the two new axis
-    input_shape: List[Union[int, Tuple]] = [i for i in orig_input_shape]
-    new_src_layout: List[Union[str, Tuple]] = [c for c in orig_src_layout]
+    input_shape: List[Union[int, Tuple]] = list(orig_input_shape)
+    new_src_layout: List[Union[str, Tuple]] = list(orig_src_layout)
     for src_layout_split_index, split_factor in split_dimensions:
         dimension_name = new_src_layout[src_layout_split_index]
         new_src_layout[src_layout_split_index] = (dimension_name, dimension_name.lower())
@@ -382,8 +403,8 @@ def create_cached_read(
         )
 
     # Unpack any tuples introduced via appending
-    def unpack_list(target_list) -> list:
-        output = []
+    def unpack_list(target_list) -> List:
+        output: List = []
         for ele in target_list:
             if isinstance(ele, tuple):
                 output.extend(ele)
@@ -433,26 +454,27 @@ def auto_inline_into(sch: tvm.tir.Schedule, start_block: BlockRV) -> BlockRV:
     ret:
         The new block inlined into it's consumers.
     """
+    # Rules defined by DefaultCUDA schedule_rule set.
+    autoinline_rule = meta_schedule.schedule_rule.AutoInline(
+        into_producer=True,
+        into_consumer=False,
+        inline_const_tensor=True,
+        disallow_if_then_else=False,
+        require_injective=False,
+        require_ordered=False,
+    )
+
     fringe = deque(sch.get_consumers(start_block))
     visited = set()
     while len(fringe) > 0:
         cur_block = fringe.popleft()
         if cur_block in visited:
             continue
-        else:
-            visited.add(cur_block)
 
+        visited.add(cur_block)
         consumer_blocks = sch.get_consumers(cur_block)
         fringe.extend(consumer_blocks)
 
-        autoinline_rule = meta_schedule.schedule_rule.AutoInline(
-            into_producer=True,
-            into_consumer=False,
-            inline_const_tensor=True,
-            disallow_if_then_else=False,
-            require_injective=False,
-            require_ordered=False,
-        )
         sch = autoinline_rule.apply(sch, cur_block)[0]
 
 
