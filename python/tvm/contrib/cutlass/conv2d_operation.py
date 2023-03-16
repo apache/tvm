@@ -476,9 +476,9 @@ def instantiate_conv2d_template(attrs):
     aux_map = {}
 
     if (not has_bias or no_bias_scaling) and not has_residual_block:
-        aux_map["beta"] = "0"
+        aux_map["beta"] = 0
     else:
-        aux_map["beta"] = "1"
+        aux_map["beta"] = 1
 
     if has_residual_block:
         aux_map["bias_decl"] = "void* ptr_bias = (void*)(${bias_arg}->data);\n"

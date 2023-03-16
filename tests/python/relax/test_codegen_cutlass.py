@@ -170,9 +170,14 @@ def get_relax_conv2d_module(
 
 
 def get_relax_matmul_module(
-        x_shape, y_shape, dtype, transposed_y=False, with_bias=False, activation=None, residual_bin_op=None,
+    x_shape,
+    y_shape,
+    dtype,
+    transposed_y=False,
+    with_bias=False,
+    activation=None,
+    residual_bin_op=None,
     residual_activation=None,
-
 ):
     if transposed_y:
         n = y_shape[-2]
@@ -292,7 +297,7 @@ def test_conv2d_offload(data_shape, weight_shape, dtype, epilogue, residual_bloc
 
 
 @pytest.mark.parametrize(
-    "x_shape, y_shape, transpose_y, epilogue", "residual_block",
+    "x_shape, y_shape, transpose_y, epilogue, residual_block",
     [
         # Regular
         ((32, 6), (6, 16), False, "none", "none"),
@@ -315,11 +320,17 @@ def test_conv2d_offload(data_shape, weight_shape, dtype, epilogue, residual_bloc
         ((3, 6, 32, 8), (8, 10), False, "bias", "none"),
         ((_vars["a"], _vars["b"], 6, 32, 8), (8, 10), False, "none", "none"),
         # 2D x ND
-        ((32, 8), (5, 3, 8, 10), False, "gelu", "none", "none"),
+        ((32, 8), (5, 3, 8, 10), False, "gelu", "none"),
         # ND x ND
-        ((5, 3, 32, 8), (5, 3, 8, 10), True, "relu", "none", "none"),
-        ((3, 2, 4, 16, 15), (1, 1, 15, 2), True, "gelu", "none", "none"),
-        ((1, 1, 16, 15), (3, 2, _vars["a"], 15, 2), False, "none", "none", "none"),
+        ((5, 3, 32, 8), (5, 3, 8, 10), True, "relu", "none"),
+        ((3, 2, 4, 16, 15), (1, 1, 15, 2), True, "gelu", "none"),
+        ((1, 1, 16, 15), (3, 2, _vars["a"], 15, 2), False, "none", "none"),
+        # Residual
+        ((32, 8), (8, 8), False, "bias", "add"),
+        ((4, 16), (16, 16), True, "relu", "add_relu"),
+        # Residual fusion without bias - this is supported via the matmul + bias pattern
+        # where bias == residual input
+        ((4, 16), (16, 16), False, "none", "add"),
     ],
 )
 @pytest.mark.parametrize(
@@ -590,6 +601,4 @@ def test_attention_bias_2d_offload(attention_size, attention_dtype):
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    # test_conv2d_offload((3, 64, 64, 16), (16, 3, 3, 16), "float16", "relu", "add"),
-    test_matmul_offload((32, 8), (8, 8), False, "relu", "add", "float16"),
+    tvm.testing.main()

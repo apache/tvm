@@ -97,7 +97,12 @@ def create_gemm_operator_with_epilogue(
 
     return (
         op.procedural_name(),
-        EmitGemmInstance().emit(op, no_beta_scaling=no_beta_scaling, batched=batched, residual_block_info=residual_block_info),
+        EmitGemmInstance().emit(
+            op,
+            no_beta_scaling=no_beta_scaling,
+            batched=batched,
+            residual_block_info=residual_block_info,
+        ),
     )
 
 

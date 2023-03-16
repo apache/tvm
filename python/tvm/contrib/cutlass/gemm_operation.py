@@ -272,11 +272,11 @@ class EmitGemmInstance:
                 }
             )
         elif no_beta_scaling:
-            template = substitute_template(self.gemm_template,
-            {"epilogue": self.epilogue_no_beta_scaling})
+            template = substitute_template(
+                self.gemm_template, {"epilogue": self.epilogue_no_beta_scaling}
+            )
         else:
-            template = substitute_template(self.gemm_template,
-            {"epilogue": self.epilogue_default})
+            template = substitute_template(self.gemm_template, {"epilogue": self.epilogue_default})
 
         return substitute_template(template, values)
 
@@ -369,7 +369,7 @@ def instantiate_gemm_template(attrs):
             {
                 "bias_decl": "void* ptr_bias = (void*)(${bias_arg}->data);\n",
                 "ptr_c": "ptr_bias",
-                "c_stride": "0",
+                "c_stride": "${bias_arg}->ndim == 1 ? 0 : " + attrs["ldc"],
             }
         )
     else:
@@ -377,9 +377,9 @@ def instantiate_gemm_template(attrs):
 
     if is_gelu or has_residual_block:
         # GeLU epilogue does not compile with NoBetaScaling, so we explicitly specify the scale.
-        aux_map["beta"] = "1"
+        aux_map["beta"] = 1
     else:
-        aux_map["beta"] = "0"
+        aux_map["beta"] = 0
 
     if has_bias and not is_gelu and not has_residual_block:
         aux_map["alpha_beta"] = "alpha"
@@ -407,6 +407,7 @@ def instantiate_gemm_template(attrs):
         aux_map["residual_decl"] = "void* ptr_residual = (void*)(${residual_arg}->data);\n"
     else:
         template = substitute_template(template, {"argument": argument_template_default})
+        aux_map["residual_decl"] = ""
 
     template = substitute_template(template, aux_map)
 

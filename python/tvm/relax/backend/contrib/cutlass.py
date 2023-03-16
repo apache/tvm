@@ -200,7 +200,9 @@ def residual_block_patterns():
             (_check_matmul, matmul_patterns()),
         ]:
             for name, pat, arg_pat, _ in base_patterns:
-                # TODO(masahi): Support residual fusion without bias?
+                # Append residual patterns only to those base patterns with bias add,
+                # since conv2d or matmul + residual add without bias is already supported
+                # via conv2d or matmul + bias patterns (the residual input is treated as "bias").
                 if "bias" in name:
                     for bin_op in ["relax.add", "relax.multiply"]:
                         patterns.append(
