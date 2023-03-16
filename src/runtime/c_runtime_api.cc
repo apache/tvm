@@ -27,6 +27,7 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
 
 #include <algorithm>
@@ -429,6 +430,7 @@ int TVMBackendGetFuncFromEnv(void* mod_node, const char* func_name, TVMFunctionH
 
 void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size, int dtype_code_hint,
                                int dtype_bits_hint) {
+  RT_TRACE_PUT_REC(0, ALLOC_BEGIN);
   DLDevice dev;
   dev.device_type = static_cast<DLDeviceType>(device_type);
   dev.device_id = device_id;
@@ -438,14 +440,18 @@ void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size, in
   type_hint.bits = static_cast<decltype(type_hint.bits)>(dtype_bits_hint);
   type_hint.lanes = 1;
 
-  return DeviceAPIManager::Get(dev)->AllocWorkspace(dev, static_cast<size_t>(size), type_hint);
+  void* res = DeviceAPIManager::Get(dev)->AllocWorkspace(dev, static_cast<size_t>(size), type_hint);
+  RT_TRACE_PUT_REC(0, ALLOC_END);
+  return res;
 }
 
 int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
+  RT_TRACE_PUT_REC(0, FREE_BEGIN);
   DLDevice dev;
   dev.device_type = static_cast<DLDeviceType>(device_type);
   dev.device_id = device_id;
   DeviceAPIManager::Get(dev)->FreeWorkspace(dev, ptr);
+  RT_TRACE_PUT_REC(0, FREE_END);
   return 0;
 }
 

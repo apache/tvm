@@ -37,6 +37,29 @@
 #include <utility>
 #include <vector>
 
+#define TVM_RT_TRACE_ENABLED 1
+#define SUBMISSION_BEGIN       0
+#define SUBMISSION_END         1
+#define EXECUTION_BEGIN        2
+#define EXECUTION_END          3
+#define FINISH_WAIT_BEGIN      4
+#define FINISH_WAIT_END        5
+#define ALLOC_BEGIN            6
+#define ALLOC_END              7
+#define FREE_BEGIN             8
+#define FREE_END               9
+#define KERNEL_EXECUTION_BEGIN 10
+#define KERNEL_EXECUTION_END   11
+#define DMA_WAIT_BEGIN         12
+#define DMA_WAIT_END           13
+
+
+#ifdef TVM_RT_TRACE_ENABLED
+#define RT_TRACE_PUT_REC(wid_, type_) tvm::runtime::profiling::TraceLogger::PutRecord(wid_, type_)
+#else
+#define RT_TRACE_PUT_REC(wid_, type_)
+#endif
+
 namespace tvm {
 
 namespace runtime {
@@ -586,6 +609,41 @@ PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, i
 PackedFunc WrapTimeEvaluator(PackedFunc f, Device dev, int number, int repeat, int min_repeat_ms,
                              int limit_zero_time_iterations, int cooldown_interval_ms,
                              int repeats_to_cooldown, PackedFunc f_preproc = nullptr);
+
+class TraceLogger {
+ public:
+  // Get thread local version of the logger.
+  static TraceLogger* ThreadLocal() { return dmlc::ThreadLocalStore<TraceLogger>::Get(); }
+  TraceLogger();
+
+  static void BindWithMaster(TraceLogger* master, uint64_t tid);
+  static void PutRecord(uint32_t wid, uint32_t type);
+  static void RegisterWidName(uint32_t wid, const char* name);
+
+  std::string Serialize();
+  void Enable(bool val);
+
+ private:
+  uint64_t GetTS();
+  void PutRecordImpl(uint32_t wid, uint32_t type);
+
+  struct TraceRecord {
+    uint32_t type; // type of event
+    uint32_t ts;   // time stamp
+    uint32_t wid;  // additional workload id, address of lambda
+  };
+
+  static constexpr int max_slave_logger_ = 32;
+  static constexpr int chunk_rec_size_ = 2048;
+
+  TraceLogger* master_node_ = nullptr;
+  uint32_t tid_ = 0;
+
+  bool is_enabled_{false};
+  std::vector<std::vector<TraceRecord>> counts_;
+  std::vector<std::pair<uint32_t, const char*>> wid_names_;
+  std::chrono::high_resolution_clock::time_point start_ts_;
+};
 
 }  // namespace profiling
 }  // namespace runtime

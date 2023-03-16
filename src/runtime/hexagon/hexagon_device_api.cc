@@ -27,6 +27,7 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/profiling.h>
 
 #include <cstdlib>
 #include <cstring>
@@ -226,11 +227,13 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.dma_copy").set_body([](TVMArgs args, TVM
 });
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.dma_wait").set_body([](TVMArgs args, TVMRetValue* rv) {
+  RT_TRACE_PUT_REC(0, DMA_WAIT_BEGIN);
   int queue_id = args[0];
   int inflight = args[1];
   ICHECK(inflight >= 0);
   HexagonDeviceAPI::Global()->UserDMA()->Wait(queue_id, inflight);
   *rv = static_cast<int32_t>(0);
+  RT_TRACE_PUT_REC(0, DMA_WAIT_END);
 });
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.alloc_nd").set_body([](TVMArgs args, TVMRetValue* rv) {
