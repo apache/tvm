@@ -147,10 +147,13 @@ class Schedule(Object):
             - "fast: Show a simple error message without rendering or string manipulation
             - "none": Do not show any error message.
         enable_check : bool = True
-            The default schedule checks are too strict and might prevent us performing some valid schedules.
-            `enable_check` is an argument to control whether we enable prerequisite checks for some schedule primitives or not
+            The default schedule checks are too strict and might prevent us performing some valid
+            schedules. `enable_check` is an argument to control whether we enable prerequisite
+            checks for some schedule primitives or not:
             - true: perform prerequisite check before applying some schedules.
-            - false: do not perform some check before applying schedules, but still raise error if schedule fails.
+            - false: do not perform some check before applying schedules, but still raise error
+            if schedule fails.
+
             It's user duty to guarantee schedule correctness if `enable_check` is set to `False`.
 
         Note
