@@ -180,6 +180,12 @@ def test_reshape_infer_struct_info_shape_var():
         bb, relax.op.reshape(x0, (3, 8, 5)), relax.TensorStructInfo((3, 8, 5), "float32")
     )
     _check_inference(
+        bb, relax.op.reshape(x0, (2, 3, 0, 5)), relax.TensorStructInfo((2, 3, 4, 5), "float32")
+    )
+    _check_inference(
+        bb, relax.op.reshape(x0, (1, 3, 0, -1)), relax.TensorStructInfo((1, 3, 4, 10), "float32")
+    )
+    _check_inference(
         bb, relax.op.reshape(x0, (3, -1, 5)), relax.TensorStructInfo((3, 8, 5), "float32")
     )
     _check_inference(bb, relax.op.reshape(x0, ns0), relax.TensorStructInfo(ns0, "float32"))
@@ -281,8 +287,6 @@ def test_reshape_infer_struct_info_non_positive_new_shape():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
 
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.reshape(x, (2, 0, 4, 5)))
     with pytest.raises(TVMError):
         bb.normalize(relax.op.reshape(x, (-2, -3, -4, -5)))
 
