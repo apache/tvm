@@ -209,12 +209,15 @@ class BlockInfoCollector : private StmtVisitor {
     // Calculate `BlockInfo::scope`
     Array<StmtSRef> child_block_srefs = std::move(block_frames_.back());
     BlockInfo& info = self_->block_info[scope_root] = BlockInfo(BlockScope(child_block_srefs));
+    const BlockNode* block = TVM_SREF_TO_BLOCK(scope_root);
     // Set `affine_binding`
     if (is_root_block) {
       // If the block doesn't have outer loops and BlockRealize,
       // then we set the affine binding flag as true only if the block has no block vars
-      const BlockNode* block = TVM_SREF_TO_BLOCK(scope_root);
       if (block->iter_vars.empty()) info.affine_binding = true;
+    } else if (block->iter_vars.empty()) {
+      // Loops without itervars are affine.
+      info.affine_binding = true;
     } else {
       info.affine_binding =
           IsAffineBinding(/*realize=*/block2realize_.at(scope_root->stmt),

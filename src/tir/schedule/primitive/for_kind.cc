@@ -40,7 +40,8 @@ class WrongBlockIterTypeError : public ScheduleError {
     if (op_str_ != "bind") {
       os << "The \"" << op_str_
          << "\" cannot be fulfilled with regard to block {0} because some block iter whose block "
-            "binding contains the loop var is not a data parallel block iter";
+            "binding contains the loop var ("
+         << loop_var_ << ") is not a data parallel block iter";
     } else {
       os << "The \"bind\" cannot be fulfilled with regard to block {0}. This is because some of its"
             " block iter whose block binding contains "
@@ -52,7 +53,7 @@ class WrongBlockIterTypeError : public ScheduleError {
     return os.str();
   }
   IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {block_, loop_var_}; }
   IRModule mod_;
   std::string op_str_;
   Var loop_var_;

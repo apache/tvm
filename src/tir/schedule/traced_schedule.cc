@@ -206,6 +206,13 @@ Array<LoopRV> TracedScheduleNode::Split(const LoopRV& loop_rv,
   return results;
 }
 
+Array<LoopRV> TracedScheduleNode::Partition(const LoopRV& loop_rv, const ExprRV& factor) {
+  auto results = ConcreteScheduleNode::Partition(loop_rv, factor);
+  static const InstructionKind& kind = InstructionKind::Get("Partition");
+  trace_->Append(Instruction(kind, {loop_rv, factor}, {}, {results.begin(), results.end()}));
+  return results;
+}
+
 void TracedScheduleNode::Reorder(const Array<LoopRV>& ordered_loop_rvs) {
   ConcreteScheduleNode::Reorder(ordered_loop_rvs);
 

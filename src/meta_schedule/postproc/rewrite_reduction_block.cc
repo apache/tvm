@@ -84,7 +84,7 @@ struct ReductionBlockFinder : private StmtVisitor {
 };
 
 /*!
- * \brief Find the innermost loop that the `init` of the input block could be decomposed to
+ * \brief Find the outermost loop that the `init` of the input block could be decomposed to
  * \param block_sref The StmtSRef of the block to be decomposed
  * \return The index of the innermost loop where the `init` of the input block could be decomposed,
  * or -1 if the `init` does not need to be decomposed.

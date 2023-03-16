@@ -75,7 +75,9 @@ def verify_trace_roundtrip(
     # Step 3. Check the consistency of the text format between the old and new traces
     py_repr = "\n".join(trace.as_python())
     new_py_repr = "\n".join(new_sch.trace.as_python())
-    assert py_repr == new_py_repr
+    assert (
+        py_repr == new_py_repr
+    ), f"Original python:\n{py_repr}\nRoundtripped python:\n{new_py_repr}"
 
     # Step 4. Return the new schedule in case it could be useful
     return new_sch

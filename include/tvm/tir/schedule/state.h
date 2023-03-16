@@ -44,7 +44,10 @@ struct BlockInfo {
   /*! \brief Property of a block scope rooted at the block, storing dependencies in the scope */
   BlockScope scope{nullptr};
   // The properties below are information about the current block realization under its parent scope
-  /*! \brief Property of a block, indicating the block realization binding is quasi-affine */
+  /*! \brief Property of a block, indicating the block realization binding is
+   * quasi-affine. All iter_vars of the block must be affine. Blocks without
+   * any iter_vars are considered to be affine_binding.
+   */
   bool affine_binding{false};
   /*!
    * \brief Property of a block, indicating each of the block's read regions is fully

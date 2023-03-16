@@ -66,6 +66,7 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   void Reorder(const Array<LoopRV>& ordered_loop_rvs) final;
   LoopRV AddUnitLoop(const BlockRV& block_rv) final;
   LoopRV AddUnitLoop(const LoopRV& loop_rv) final;
+  Array<LoopRV> Partition(const LoopRV& loop_rv, const ExprRV& factor) final;
   /******** Schedule: Manipulate ForKind ********/
   void Parallel(const LoopRV& loop_rv) final;
   void Vectorize(const LoopRV& loop_rv) final;
