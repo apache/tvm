@@ -414,7 +414,7 @@ class TestManualCases:
             def main(p0: T.Buffer((T.int64(1), T.int64(32), T.int64(32), T.int64(32)), "float16"), T_layout_trans: T.Buffer((T.int64(1), T.int64(8), T.int64(32), T.int64(32), T.int64(4)), "float16")):
                 T.func_attr({"global_symbol": "main", "tir.noalias": True})
                 # with T.block("root"):
-                p0_shared = T.alloc_buffer((T.int64(1), T.int64(8), T.int64(32), T.int64(4), T.int64(32)), "float16", scope="shared")
+                p0_shared = T.alloc_buffer((T.int64(1), T.int64(8), T.int64(4), T.int64(32), T.int64(32)), "float16", scope="shared")
                 for ax0_ax1_ax2_0_ax4_0_ax3_0_0_fused in T.thread_binding(T.int64(128), thread="blockIdx.x"):
                     for ax3_1_fused_0_ax3_1_fused_1_fused in T.thread_binding(T.int64(16), thread="threadIdx.x"):
                         for ax2_1_ax3_0_1_ax4_1_fused_0_ax2_1_ax3_0_1_ax4_1_fused_1_fused in range(T.int64(16)):
@@ -425,8 +425,8 @@ class TestManualCases:
                                 v_ax3 = T.axis.spatial(T.int64(32), ax2_1_ax3_0_1_ax4_1_fused_0_ax2_1_ax3_0_1_ax4_1_fused_1_fused % T.int64(8) // T.int64(4) * T.int64(16) + ax3_1_fused_0_ax3_1_fused_1_fused)
                                 v_ax4 = T.axis.spatial(T.int64(4), ax2_1_ax3_0_1_ax4_1_fused_0_ax2_1_ax3_0_1_ax4_1_fused_1_fused % T.int64(4))
                                 T.reads(p0[v_ax0, v_ax1 * T.int64(4) + v_ax4, v_ax2, v_ax3])
-                                T.writes(p0_shared[v_ax0, v_ax1, v_ax3, v_ax4, v_ax2])
-                                p0_shared[v_ax0, v_ax1, v_ax3, v_ax4, v_ax2] = p0[v_ax0, v_ax1 * T.int64(4) + v_ax4, v_ax2, v_ax3]
+                                T.writes(p0_shared[v_ax0, v_ax1, v_ax4, v_ax2, v_ax3])
+                                p0_shared[v_ax0, v_ax1, v_ax4, v_ax2, v_ax3] = p0[v_ax0, v_ax1 * T.int64(4) + v_ax4, v_ax2, v_ax3]
                     for ax0_ax1_ax2_fused_0 in range(T.int64(16)):
                         for ax0_ax1_ax2_fused_1 in T.thread_binding(T.int64(16), thread="threadIdx.x"):
                             with T.block("T_layout_trans"):
@@ -435,10 +435,10 @@ class TestManualCases:
                                 v_ax2 = T.axis.spatial(T.int64(32), ax0_ax1_ax2_0_ax4_0_ax3_0_0_fused % T.int64(16) * T.int64(2) + (ax0_ax1_ax2_fused_0 * T.int64(16) + ax0_ax1_ax2_fused_1) // T.int64(128))
                                 v_ax3 = T.axis.spatial(T.int64(32), (ax0_ax1_ax2_fused_0 * T.int64(16) + ax0_ax1_ax2_fused_1) % T.int64(128) // T.int64(4))
                                 v_ax4 = T.axis.spatial(T.int64(4), (ax0_ax1_ax2_fused_0 * T.int64(16) + ax0_ax1_ax2_fused_1) % T.int64(4))
-                                T.reads(p0_shared[v_ax0, v_ax1, v_ax3, v_ax4, v_ax2])
+                                T.reads(p0_shared[v_ax0, v_ax1, v_ax4, v_ax2, v_ax3])
                                 T.writes(T_layout_trans[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
                                 T.block_attr({"dst_layout": "NCHW4c", "input_shape": [1, 32, 32, 32], "schedule_rule": "layout_transform", "src_layout": "NCHW"})
-                                T_layout_trans[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = T.if_then_else(v_ax0 < T.int64(1) and v_ax1 * T.int64(4) + v_ax4 < T.int64(32) and v_ax2 < T.int64(32) and v_ax3 < T.int64(32), p0_shared[v_ax0, v_ax1, v_ax3, v_ax4, v_ax2], T.float16(0))
+                                T_layout_trans[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = T.if_then_else(v_ax0 < T.int64(1) and v_ax1 * T.int64(4) + v_ax4 < T.int64(32) and v_ax2 < T.int64(32) and v_ax3 < T.int64(32), p0_shared[v_ax0, v_ax1, v_ax4, v_ax2, v_ax3], T.float16(0))
         self.assert_extracted_equals_expected(mod, ExpectedModule, 16)
 
     def test_expected_fusion_post(self):
@@ -458,7 +458,7 @@ class TestManualCases:
             def main(p0: T.Buffer((T.int64(1), T.int64(32), T.int64(32), T.int64(32)), "float16"), p1: T.Buffer((), "float16"), T_add: T.Buffer((T.int64(1), T.int64(8), T.int64(32), T.int64(32), T.int64(4)), "float16")):
                 T.func_attr({"global_symbol": "main", "tir.noalias": True})
                 # with T.block("root"):
-                p0_shared = T.alloc_buffer((T.int64(1), T.int64(8), T.int64(32), T.int64(4), T.int64(32)), "float16", scope="shared")
+                p0_shared = T.alloc_buffer((T.int64(1), T.int64(8), T.int64(4), T.int64(32), T.int64(32)), "float16", scope="shared")
                 for ax0_ax1_ax2_0_ax4_0_ax3_0_0_fused in T.thread_binding(T.int64(128), thread="blockIdx.x"):
                     for ax3_1_fused_0_ax3_1_fused_1_fused in T.thread_binding(T.int64(16), thread="threadIdx.x"):
                         for ax2_1_ax3_0_1_ax4_1_fused_0_ax2_1_ax3_0_1_ax4_1_fused_1_fused in range(T.int64(16)):
@@ -469,8 +469,8 @@ class TestManualCases:
                                 v_ax3 = T.axis.spatial(T.int64(32), ax2_1_ax3_0_1_ax4_1_fused_0_ax2_1_ax3_0_1_ax4_1_fused_1_fused % T.int64(8) // T.int64(4) * T.int64(16) + ax3_1_fused_0_ax3_1_fused_1_fused)
                                 v_ax4 = T.axis.spatial(T.int64(4), ax2_1_ax3_0_1_ax4_1_fused_0_ax2_1_ax3_0_1_ax4_1_fused_1_fused % T.int64(4))
                                 T.reads(p0[v_ax0, v_ax1 * T.int64(4) + v_ax4, v_ax2, v_ax3])
-                                T.writes(p0_shared[v_ax0, v_ax1, v_ax3, v_ax4, v_ax2])
-                                p0_shared[v_ax0, v_ax1, v_ax3, v_ax4, v_ax2] = p0[v_ax0, v_ax1 * T.int64(4) + v_ax4, v_ax2, v_ax3]
+                                T.writes(p0_shared[v_ax0, v_ax1, v_ax4, v_ax2, v_ax3])
+                                p0_shared[v_ax0, v_ax1, v_ax4, v_ax2, v_ax3] = p0[v_ax0, v_ax1 * T.int64(4) + v_ax4, v_ax2, v_ax3]
                     for ax0_ax1_ax2_fused_0 in range(T.int64(16)):
                         for ax0_ax1_ax2_fused_1 in T.thread_binding(T.int64(16), thread="threadIdx.x"):
                             with T.block("T_layout_trans"):
@@ -479,10 +479,10 @@ class TestManualCases:
                                 v_ax2 = T.axis.spatial(T.int64(32), ax0_ax1_ax2_0_ax4_0_ax3_0_0_fused % T.int64(16) * T.int64(2) + (ax0_ax1_ax2_fused_0 * T.int64(16) + ax0_ax1_ax2_fused_1) // T.int64(128))
                                 v_ax3 = T.axis.spatial(T.int64(32), (ax0_ax1_ax2_fused_0 * T.int64(16) + ax0_ax1_ax2_fused_1) % T.int64(128) // T.int64(4))
                                 v_ax4 = T.axis.spatial(T.int64(4), (ax0_ax1_ax2_fused_0 * T.int64(16) + ax0_ax1_ax2_fused_1) % T.int64(4))
-                                T.reads(p0_shared[v_ax0, v_ax1, v_ax3, v_ax4, v_ax2], p1[()])
+                                T.reads(p0_shared[v_ax0, v_ax1, v_ax4, v_ax2, v_ax3], p1[()])
                                 T.writes(T_add[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
                                 T.block_attr({"dst_layout": "NCHW4c", "input_shape": [1, 32, 32, 32], "schedule_rule": "layout_transform", "src_layout": "NCHW"})
-                                T_add[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = T.if_then_else(v_ax0 < T.int64(1) and v_ax1 * T.int64(4) + v_ax4 < T.int64(32) and v_ax2 < T.int64(32) and v_ax3 < T.int64(32), p0_shared[v_ax0, v_ax1, v_ax3, v_ax4, v_ax2], T.float16(0)) + p1[()]
+                                T_add[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = T.if_then_else(v_ax0 < T.int64(1) and v_ax1 * T.int64(4) + v_ax4 < T.int64(32) and v_ax2 < T.int64(32) and v_ax3 < T.int64(32), p0_shared[v_ax0, v_ax1, v_ax4, v_ax2, v_ax3], T.float16(0)) + p1[()]
         self.assert_extracted_equals_expected(mod, ExpectedModule, 16)
 
 
