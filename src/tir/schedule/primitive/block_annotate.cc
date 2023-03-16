@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "../utils.h"
 #include <tvm/tir/expr.h>
+
+#include "../utils.h"
 
 namespace tvm {
 namespace tir {
