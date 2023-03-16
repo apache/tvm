@@ -43,6 +43,7 @@ export async function detectGPUDevice(): Promise<GPUDeviceDetectOutput | undefin
     const adapterInfo = await adapter.requestAdapterInfo();
     const device = await adapter.requestDevice({
       requiredLimits: {
+        maxBufferSize: 1 << 30,
         maxStorageBufferBindingSize: 1 << 30,
         maxComputeWorkgroupStorageSize: 32 << 10,
       }
