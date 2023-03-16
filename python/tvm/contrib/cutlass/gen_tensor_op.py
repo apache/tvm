@@ -536,6 +536,8 @@ def instantiate_template(func_name, annotations, func_args):
         lhs_arg_idx = _get_optional_int_annotation(annotations, "lhs_arg_idx", 0)
         rhs_arg_idx = _get_optional_int_annotation(annotations, "rhs_arg_idx", 1)
         bias_arg_idx = _get_optional_int_annotation(annotations, "bias_arg_idx", 2)
+        residual_arg_idx = _get_optional_int_annotation(annotations, "residual_arg_idx", 3)
+
         lhs_arg = func_args[lhs_arg_idx]
         rhs_arg = func_args[rhs_arg_idx]
         lhs_shape = annotations[f"arg{lhs_arg_idx}_shape"]
@@ -547,6 +549,8 @@ def instantiate_template(func_name, annotations, func_args):
         attrs["rhs_arg"] = rhs_arg
         if len(func_args) > 2:
             attrs["bias_arg"] = func_args[bias_arg_idx]
+        if len(func_args) > residual_arg_idx:
+            attrs["residual_arg"] = func_args[residual_arg_idx]
         attrs["ElementInputA"] = DataTypeTag[dtype_map[annotations[f"arg{lhs_arg_idx}_dtype"]]]
         attrs["ElementInputB"] = DataTypeTag[dtype_map[annotations[f"arg{rhs_arg_idx}_dtype"]]]
         attrs["ElementOutput"] = DataTypeTag[dtype_map[annotations["ret_dtype"]]]
@@ -609,6 +613,9 @@ def instantiate_template(func_name, annotations, func_args):
                 )
         else:
             headers.append("cutlass/gemm/device/gemm.h")
+
+        if "residual" in func_name:
+            headers.append("cutlass/gemm/device/gemm_universal_with_broadcast.h")
 
         code = instantiate_gemm_template(attrs)
         return CodegenResult(code, headers)
