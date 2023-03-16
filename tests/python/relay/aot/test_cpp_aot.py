@@ -254,10 +254,10 @@ def test_aot_incorrect_input_name(target_kind: str):
     dtype = "float32"
     correct_input_name = "input"
     incorrect_input_name = "input1"
-    input = relay.var(correct_input_name, shape=(10, 5), dtype=dtype)
+    input1 = relay.var(correct_input_name, shape=(10, 5), dtype=dtype)
     weight = relay.var("weight", shape=(1, 5), dtype=dtype)
-    output = relay.add(input, weight)
-    func = relay.Function([input, weight], output)
+    output = relay.add(input1, weight)
+    func = relay.Function([input1, weight], output)
 
     input_data = np.random.rand(10, 5).astype(dtype)
     weight_data = np.random.rand(1, 5).astype(dtype)
