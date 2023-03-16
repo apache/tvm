@@ -44,14 +44,21 @@ def _register_expr_op(ty: Type):  # pylint: disable=invalid-name
     def r(op: Type, i: int, m: OpMethod):  # pylint: disable=invalid-name
         register_op(ty, op, i)(m)
 
+    # The operator overloads in python delegate to the C++ operator
+    # overloads, which perform constant folding.  While useful in most
+    # circumstances, the script parsing should avoid performing any
+    # manipulations while parsing, as this can invalidate unit tests
+    # that rely on known TIR inputs.  Therefore, we use the registered
+    # ops to avoid using the operator overloads for PrimExpr parsing,
+    # and instead construct the TIR objects directly.
     for i in [0, 1]:
         # Case 1. binop
-        # doc.Add <-- is overloaded
-        # doc.Sub <-- is overloaded
-        # doc.Mult <-- is overloaded
-        # doc.Div <-- is overloaded
-        # doc.FloorDiv <-- is overloaded
-        # doc.Mod <-- is overloaded
+        r(doc.Add, i, tir.Add)
+        r(doc.Sub, i, tir.Sub)
+        r(doc.Mult, i, tir.Mul)
+        r(doc.Div, i, tir.Div)
+        r(doc.FloorDiv, i, tir.FloorDiv)
+        r(doc.Mod, i, tir.FloorMod)
         # doc.LShift <-- is overloaded
         # doc.RShift <-- is overloaded
         # doc.BitOr <-- is overloaded

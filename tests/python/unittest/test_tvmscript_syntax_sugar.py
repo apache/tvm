@@ -399,5 +399,17 @@ def test_implicit_evaluate_call_extern():
     assert_structural_equal(implicit, explicit)
 
 
+def test_preserve_foldable_constant():
+    @T.prim_func
+    def explicit(i: T.int32):
+        T.evaluate(T.Add(i, 0))
+
+    @T.prim_func
+    def implicit(i: T.int32):
+        T.evaluate(i + 0)
+
+    assert_structural_equal(implicit, explicit)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
