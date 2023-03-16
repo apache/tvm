@@ -779,12 +779,11 @@ class Schedule : public runtime::ObjectRef {
    * \param debug_mask Do extra correctness checking after the class creation
    * and each time after calling the Replace method.
    * \param error_render_level The level of error rendering
-   * \param enable_check Whether to enable prequisite checks for schedule primitives.
+   * \param enable_check Whether to enable some prequisite checks for schedule primitives, it's
+   *   user's duty to guarantee the schedule correctness if we disable the checks.
    * \return The concrete schedule created
    * \sa ScheduleDebugMask
-   * \note The checks performed includes:
-   * 1) VerifySRefTree
-   * 2) VerifyCachedFlags
+   * \note The checks performed includes: 1) VerifySRefTree 2) VerifyCachedFlags
    */
   TVM_DLL static Schedule Concrete(IRModule mod, support::LinearCongruentialEngine::TRandState seed,
                                    int debug_mask, ScheduleErrorRenderLevel error_render_level,
