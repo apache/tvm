@@ -66,91 +66,116 @@ class PatchCustomLayoutTransformScheduleRule:
         tvm.register_func(self.FUNC_NAME, self.old_func, override=True)
 
 
+# Create unary functions which apply ops with compatible fusion levels to layout transform
+def get_random_axis(data: relay.Expr):
+    rank = len(relay.transform.InferTypeLocal(data).shape)
+    return random.randint(0, rank - 1)
+
+
+def apply_elemwise_clip(data: relay.Expr, min=0, max=10):
+    assert relay.op.get("clip").get_attr("TOpPattern") == OpPattern.ELEMWISE
+    return relay.clip(data, min, max)
+
+
+def apply_broadcast_add(data: relay.Expr, val_to_add=5):
+    assert relay.op.get("add").get_attr("TOpPattern") == OpPattern.BROADCAST
+    type_info = relay.transform.InferTypeLocal(data)
+    return relay.add(data, relay.const(val_to_add, dtype=type_info.dtype))
+
+
+def apply_injective_concatenate(data: relay.Expr, axis=None):
+    if axis is None:
+        axis = get_random_axis(data)
+    assert relay.op.get("concatenate").get_attr("TOpPattern") == OpPattern.INJECTIVE
+    return relay.concatenate([data, data], axis)
+
+
+def apply_comm_reduce_max(data: relay.Expr, axis=None):
+    if axis is None:
+        axis = get_random_axis(data)
+    assert relay.op.get("max").get_attr("TOpPattern") == OpPattern.COMM_REDUCE
+
+    # Do this to maintain dimensions
+    return relay.add(data, relay.max(data, axis, keepdims=True))
+
+
+pattern_level_to_op = {
+    OpPattern.ELEMWISE: apply_elemwise_clip,
+    OpPattern.BROADCAST: apply_broadcast_add,
+    OpPattern.INJECTIVE: apply_injective_concatenate,
+    OpPattern.COMM_REDUCE: apply_comm_reduce_max,
+}
+
+
+def apply_layout_transform(data: relay.Expr, src_layout: str, dst_layout: str):
+    assert relay.op.get("layout_transform").get_attr("TOpPattern") == OpPattern.INJECTIVE
+    return relay.layout_transform(data, src_layout, dst_layout)
+
+
+def create_relay_module(
+    input_shape: List[int], dtype: str, ops: List[Union[OpPattern, Tuple[str, str]]]
+) -> tvm.IRModule:
+    """Create a relay module with the given string of ops.
+
+    ops:
+        Applies the associated operators in order. If an integer, refers to applying
+        the unary operator from `extra_pattern_level_to_op` map. If a tuple, applies
+        a layout transform with the given (src_layout, dst_layout)
+    """
+    input_data = relay.var("input", shape=input_shape, dtype=dtype)
+
+    cur_data = input_data
+    for op_info in ops:
+        # Progressively build type info
+        relay.transform.InferTypeLocal(cur_data)
+        if isinstance(op_info, tuple):
+            # layout transform case
+            src_layout, dst_layout = op_info
+            cur_data = apply_layout_transform(cur_data, src_layout, dst_layout)
+        else:
+            cur_data = pattern_level_to_op[op_info](cur_data)
+
+    relay.transform.InferTypeLocal(cur_data)
+    return tvm.IRModule.from_expr(cur_data)
+
+
+def extract_layout_transform_task(
+    mod: tvm.IRModule, target: tvm.target.Target
+) -> meta_schedule.ExtractedTask:
+    """Given a relay IRModule, return the PrimFunc IRModule with fused layout transform task."""
+    extracted_tasks = meta_schedule.relay_integration.extract_tasks(
+        mod,
+        target,
+        {},
+        pass_config={"relay.backend.use_meta_schedule": True},
+    )
+    task_of_interest = None
+    for task in extracted_tasks:
+        if "layout_transform" in task.task_name:
+            task_of_interest = task
+            break
+    assert task_of_interest is not None
+    return task_of_interest
+
+
+def run_primfunc(
+    primfunc_mod: tvm.IRModule, target: tvm.target.Target, input_tensors: List[tvm.nd.NDArray]
+):
+    """Compile and run the primfunc with the given input tensors."""
+    with tvm.transform.PassContext(
+        config={"relay.backend.use_meta_schedule": True},
+        opt_level=3,
+    ):
+        lib = tvm.build(primfunc_mod, target=target)
+    lib(*input_tensors)
+
+
 class TestRandomRelayE2ECorrectness:
     """Tests E2E correctness of layout transform schedule.
 
     Randomly generates relay mod with layout transform and fusable ops. Checks the
     layout transform task for correctness by comparing against its unscheduled result.
     """
-
-    # Create unary functions which apply ops with compatible fusion levels to layout transform
-    @staticmethod
-    def get_random_axis(data: relay.Expr):
-        rank = len(relay.transform.InferTypeLocal(data).shape)
-        return random.randint(0, rank - 1)
-
-    @staticmethod
-    def apply_elemwise_clip(data: relay.Expr, min=0, max=10):
-        assert relay.op.get("clip").get_attr("TOpPattern") == OpPattern.ELEMWISE
-        return relay.clip(data, min, max)
-
-    @staticmethod
-    def apply_broadcast_add(data: relay.Expr, val_to_add=5):
-        assert relay.op.get("add").get_attr("TOpPattern") == OpPattern.BROADCAST
-        type_info = relay.transform.InferTypeLocal(data)
-        return relay.add(data, relay.const(val_to_add, dtype=type_info.dtype))
-
-    @staticmethod
-    def apply_injective_concatenate(data: relay.Expr, axis=None):
-        if axis is None:
-            axis = TestRandomRelayE2ECorrectness.get_random_axis(data)
-        assert relay.op.get("concatenate").get_attr("TOpPattern") == OpPattern.INJECTIVE
-        return relay.concatenate([data, data], axis)
-
-    @staticmethod
-    def apply_comm_reduce_max(data: relay.Expr, axis=None):
-        if axis is None:
-            axis = TestRandomRelayE2ECorrectness.get_random_axis(data)
-        assert relay.op.get("max").get_attr("TOpPattern") == OpPattern.COMM_REDUCE
-
-        # Do this to maintain dimensions
-        return relay.add(data, relay.max(data, axis, keepdims=True))
-
-    @staticmethod
-    def get_map_pattern_level_to_op() -> Dict[OpPattern, Callable]:
-        # These are the only levels of op which can possibly be fused with layout_transform (which injective)
-        return {
-            OpPattern.ELEMWISE: TestRandomRelayE2ECorrectness.apply_elemwise_clip,
-            OpPattern.BROADCAST: TestRandomRelayE2ECorrectness.apply_broadcast_add,
-            OpPattern.INJECTIVE: TestRandomRelayE2ECorrectness.apply_injective_concatenate,
-            OpPattern.COMM_REDUCE: TestRandomRelayE2ECorrectness.apply_comm_reduce_max,
-        }
-
-    @staticmethod
-    def apply_layout_transform(data: relay.Expr, src_layout: str, dst_layout: str):
-        assert relay.op.get("layout_transform").get_attr("TOpPattern") == OpPattern.INJECTIVE
-        return relay.layout_transform(data, src_layout, dst_layout)
-
-    @staticmethod
-    def create_relay_module(
-        input_shape: List[int], dtype: str, ops: List[Union[OpPattern, Tuple[str, str]]]
-    ) -> tvm.IRModule:
-        """Create a relay module with the given string of ops.
-
-        ops:
-            Applies the associated operators in order. If an integer, refers to applying
-            the unary operator from `extra_pattern_level_to_op` map. If a tuple, applies
-            a layout transform with the given (src_layout, dst_layout)
-        """
-        input_data = relay.var("input", shape=input_shape, dtype=dtype)
-
-        cur_data = input_data
-        for op_info in ops:
-            # Progressively build type info
-            relay.transform.InferTypeLocal(cur_data)
-            if isinstance(op_info, tuple):
-                # layout transform case
-                src_layout, dst_layout = op_info
-                cur_data = TestRandomRelayE2ECorrectness.apply_layout_transform(
-                    cur_data, src_layout, dst_layout
-                )
-            else:
-                cur_data = TestRandomRelayE2ECorrectness.get_map_pattern_level_to_op()[op_info](
-                    cur_data
-                )
-
-        relay.transform.InferTypeLocal(cur_data)
-        return tvm.IRModule.from_expr(cur_data)
 
     @staticmethod
     def generate_test_case(
@@ -181,7 +206,7 @@ class TestRandomRelayE2ECorrectness:
 
         # Randomly sample a list of potentially fusable ops to layout transform
         op_order = random.choices(
-            list(TestRandomRelayE2ECorrectness.get_map_pattern_level_to_op().keys()),
+            list(pattern_level_to_op.keys()),
             k=num_additional_ops,
         )
 
@@ -189,38 +214,7 @@ class TestRandomRelayE2ECorrectness:
         op_order.append((src_layout, dst_layout))
 
         random.shuffle(op_order)
-        return TestRandomRelayE2ECorrectness.create_relay_module(input_shape, dtype, op_order)
-
-    @staticmethod
-    def extract_layout_transform_task(
-        mod: tvm.IRModule, target: tvm.target.Target
-    ) -> meta_schedule.ExtractedTask:
-        """Given a relay IRModule, return the PrimFunc IRModule with fused layout transform task."""
-        extracted_tasks = meta_schedule.relay_integration.extract_tasks(
-            mod,
-            target,
-            {},
-            pass_config={"relay.backend.use_meta_schedule": True},
-        )
-        task_of_interest = None
-        for task in extracted_tasks:
-            if "layout_transform" in task.task_name:
-                task_of_interest = task
-                break
-        assert task_of_interest is not None
-        return task_of_interest
-
-    @staticmethod
-    def run_primfunc(
-        primfunc_mod: tvm.IRModule, target: tvm.target.Target, input_tensors: List[tvm.nd.NDArray]
-    ):
-        """Compile and run the primfunc with the given input tensors."""
-        with tvm.transform.PassContext(
-            config={"relay.backend.use_meta_schedule": True},
-            opt_level=3,
-        ):
-            lib = tvm.build(primfunc_mod, target=target)
-        lib(*input_tensors)
+        return create_relay_module(input_shape, dtype, op_order)
 
     @staticmethod
     def get_primfunc(extracted_task: meta_schedule.ExtractedTask, tile_size: Optional[int]):
@@ -270,13 +264,9 @@ class TestRandomRelayE2ECorrectness:
             return tvm.nd.array(numpy_init, device)
 
         def run_and_get_output(tile_size: Optional[int]) -> np.ndarray:
-            returned_primfunc = TestRandomRelayE2ECorrectness.get_primfunc(
-                extracted_task, tile_size
-            )
+            returned_primfunc = TestRandomRelayE2ECorrectness.get_primfunc(extracted_task, tile_size)
             output_tensor = get_output_tensor()
-            TestRandomRelayE2ECorrectness.run_primfunc(
-                returned_primfunc, target, [*input_tensors, output_tensor]
-            )
+            run_primfunc(returned_primfunc, target, [*input_tensors, output_tensor])
             return output_tensor.numpy()
 
         # Passing None, we basically do not apply the custom rule we have created
@@ -329,7 +319,7 @@ class TestRandomRelayE2ECorrectness:
         )
 
         # Fused layout transform task
-        extracted_task = self.extract_layout_transform_task(full_mod, TARGET)
+        extracted_task = extract_layout_transform_task(full_mod, TARGET)
         self.verify_layout_transform_task(extracted_task, TARGET, tile_sizes)
 
 
@@ -338,9 +328,7 @@ class TestManualCases:
     def assert_extracted_equals_expected(
         self, relay_mod: tvm.IRModule, expected_mod: tvm.IRModule, tile_size: int
     ):
-        extracted_task = TestRandomRelayE2ECorrectness.extract_layout_transform_task(
-            relay_mod, TARGET
-        )
+        extracted_task = extract_layout_transform_task(relay_mod, TARGET)
         dispatched_mod = extracted_task.dispatched[0]
         sch = tvm.tir.Schedule(dispatched_mod)
         block = sch.get_block("T_layout_trans")
@@ -348,9 +336,7 @@ class TestManualCases:
         assert output_sch.mod.script() == expected_mod.script()
 
     def test_simple_tiling(self):
-        mod = TestRandomRelayE2ECorrectness.create_relay_module(
-            [1, 32, 32, 32], "float16", [("NCHW", "NHWC")]
-        )
+        mod = create_relay_module([1, 32, 32, 32], "float16", [("NCHW", "NHWC")])
 
         # Main things to notice:
         # - two blocks each with 16, 16 extents which write/read shared mem
@@ -389,9 +375,7 @@ class TestManualCases:
         self.assert_extracted_equals_expected(mod, ExpectedModule, 16)
 
     def test_simple_implicit_reshape(self):
-        mod = TestRandomRelayE2ECorrectness.create_relay_module(
-            [1, 32, 32, 32], "float16", [("NCHW", "NCHW4c")]
-        )
+        mod = create_relay_module([1, 32, 32, 32], "float16", [("NCHW", "NCHW4c")])
 
         # Main things to notice:
         # - two blocks each with 16, 16 extents which write/read shared mem
@@ -432,7 +416,7 @@ class TestManualCases:
         self.assert_extracted_equals_expected(mod, ExpectedModule, 16)
 
     def test_expected_fusion_post(self):
-        mod = TestRandomRelayE2ECorrectness.create_relay_module(
+        mod = create_relay_module(
             [1, 32, 32, 32], "float16", [("NCHW", "NCHW4c"), OpPattern.BROADCAST]
         )
 
