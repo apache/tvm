@@ -352,6 +352,8 @@ def create_cached_read(
     The returned layout strings will be santized and made compatible. E.g. NCHW --> NCHW4c becomes
     NCcHW --> NCHWc.
 
+    TODO(AndrewZhaoLuo): Investigate using proper memory alignment to avoid bank conflict.
+
     Parameters
     ----------
     sch:
@@ -426,7 +428,7 @@ def create_cached_read(
     new_dst_layout_str = "".join(unpack_list(new_dst_layout))
 
     # Write block loop extants match
-    dst_to_src_map = [new_src_layout_str.index(dim) for dim in new_dst_layout_str]
+    dst_to_src_map = [new_dst_layout_str.index(dim) for dim in new_src_layout_str]
     block_read = sch.reindex_cache_read(
         block_write,
         read_buffer_index=0,
