@@ -2457,6 +2457,7 @@ class Schedule(Object):
         Note
         ----
         set_dtype requires the buffer to be an intermediate buffer defined via `alloc_buffer`.
+        This schedule primitive might influence the computation result because of type conversion.
         """
         block = self._normalize_block_arg(block)
         _ffi_api.ScheduleSetDType(  # type: ignore # pylint: disable=no-member
