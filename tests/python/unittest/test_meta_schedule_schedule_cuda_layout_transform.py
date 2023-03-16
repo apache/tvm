@@ -24,7 +24,6 @@
 # 2. Correctness when running
 # 3. Autotuning ability
 
-
 import itertools
 import random
 import tempfile
@@ -38,7 +37,14 @@ import tvm.testing
 from tvm import meta_schedule, relay
 from tvm.meta_schedule.schedule.cuda.layout_transform import cuda_layout_transform_schedule_rule
 from tvm.relay.op import OpPattern
+from tvm.script import ir as I
+from tvm.script import tir as T
 from tvm.tir.schedule import BlockRV, ExprRV, LoopRV
+
+# Small gpu parameters which should work for nearly every (modern-ish) gpu.
+TARGET = tvm.target.Target(
+    "cuda -max_threads_per_block=32 -max_num_threads=128 -thread_warp_size=32 -max_shared_memory_per_block=8192 -registers_per_block=1024"
+)
 
 
 class PatchCustomLayoutTransformScheduleRule:
@@ -327,19 +333,157 @@ class TestRandomRelayE2ECorrectness:
         num_additional_ops,
     ):
         """Tests the product of all conditions `repeat_per_condition` times."""
-        # Small gpu parameters which should work for nearly every (modern-ish) gpu.
-        target = tvm.target.Target(
-            "cuda -max_threads_per_block=32 -max_num_threads=128 -thread_warp_size=32 -max_shared_memory_per_block=8192 -registers_per_block=1024"
-        )
-
         # Generate random module of fusable ops + layout transform and extract fused layout transform task
         full_mod = self.generate_test_case(
             input_shape, implicit_reshape_info, dtype, num_additional_ops
         )
 
         # Fused layout transform task
-        extracted_task = self.extract_layout_transform_task(full_mod, target)
-        self.verify_layout_transform_task(extracted_task, target, tile_sizes)
+        extracted_task = self.extract_layout_transform_task(full_mod, TARGET)
+        self.verify_layout_transform_task(extracted_task, TARGET, tile_sizes)
+
+
+@tvm.testing.requires_gpu
+class TestManualCases:
+    def assert_extracted_equals_expected(
+        self, relay_mod: tvm.IRModule, expected_mod: tvm.IRModule, tile_size: int
+    ):
+        extracted_task = TestRandomRelayE2ECorrectness.extract_layout_transform_task(
+            relay_mod, TARGET
+        )
+        dispatched_mod = extracted_task.dispatched[0]
+        sch = tvm.tir.Schedule(dispatched_mod)
+        block = sch.get_block("T_layout_trans")
+        output_sch = cuda_layout_transform_schedule_rule(sch, block, [tile_size])[0]
+        assert output_sch.mod.script() == expected_mod.script()
+
+    def ntest_simple_tiling(self):
+        mod = TestRandomRelayE2ECorrectness.create_relay_module(
+            [1, 32, 32, 32], "float16", [("NCHW", "NHWC")]
+        )
+
+        # Main things to notice:
+        # - two blocks each with 16, 16 extents which write/read shared mem
+        # - coalesced accesses in inner loop of global memory buffer for both
+        # fmt: off
+        @I.ir_module
+        class ExpectedModule:
+            @T.prim_func
+            def main(p0: T.Buffer((T.int64(1), T.int64(32), T.int64(32), T.int64(32)), "float16"), T_layout_trans: T.Buffer((T.int64(1), T.int64(32), T.int64(32), T.int64(32)), "float16")):
+                T.func_attr({"global_symbol": "main", "tir.noalias": True})
+                # with T.block("root"):
+                p0_shared = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(32), T.int64(32)), "float16", scope="shared")
+                for ax0_ax2_ax1_0_ax3_0_fused in T.thread_binding(T.int64(128), thread="blockIdx.x"):
+                    for ax3_1_fused_0_ax3_1_fused_1_fused in T.thread_binding(T.int64(16), thread="threadIdx.x"):
+                        for ax1_1_fused_0_ax1_1_fused_1_fused in range(T.int64(16)):
+                            with T.block("p0_shared"):
+                                v0 = T.axis.spatial(T.int64(1), T.int64(0))
+                                v1 = T.axis.spatial(T.int64(32), ax0_ax2_ax1_0_ax3_0_fused % T.int64(4) // T.int64(2) * T.int64(16) + ax1_1_fused_0_ax1_1_fused_1_fused)
+                                v2 = T.axis.spatial(T.int64(32), ax0_ax2_ax1_0_ax3_0_fused // T.int64(4))
+                                v3 = T.axis.spatial(T.int64(32), ax0_ax2_ax1_0_ax3_0_fused % T.int64(2) * T.int64(16) + ax3_1_fused_0_ax3_1_fused_1_fused)
+                                T.reads(p0[v0, v1, v2, v3])
+                                T.writes(p0_shared[v0, v1, v2, v3])
+                                p0_shared[v0, v1, v2, v3] = p0[v0, v1, v2, v3]
+                    for ax0_ax1_fused_0 in range(T.int64(16)):
+                        for ax0_ax1_fused_1 in T.thread_binding(T.int64(16), thread="threadIdx.x"):
+                            with T.block("T_layout_trans"):
+                                v_ax0 = T.axis.spatial(T.int64(1), T.int64(0))
+                                v_ax1 = T.axis.spatial(T.int64(32), ax0_ax2_ax1_0_ax3_0_fused // T.int64(4))
+                                v_ax2 = T.axis.spatial(T.int64(32), ax0_ax2_ax1_0_ax3_0_fused % T.int64(2) * T.int64(16) + (ax0_ax1_fused_0 * T.int64(16) + ax0_ax1_fused_1) // T.int64(16))
+                                v_ax3 = T.axis.spatial(T.int64(32), ax0_ax2_ax1_0_ax3_0_fused % T.int64(4) // T.int64(2) * T.int64(16) + (ax0_ax1_fused_0 * T.int64(16) + ax0_ax1_fused_1) % T.int64(16))
+                                T.reads(p0_shared[v_ax0, v_ax3, v_ax1, v_ax2])
+                                T.writes(T_layout_trans[v_ax0, v_ax1, v_ax2, v_ax3])
+                                T.block_attr({"dst_layout": "NHWC", "input_shape": [1, 32, 32, 32], "schedule_rule": "layout_transform", "src_layout": "NCHW"})
+                                T_layout_trans[v_ax0, v_ax1, v_ax2, v_ax3] = T.if_then_else(v_ax0 < T.int64(1) and v_ax3 < T.int64(32) and v_ax1 < T.int64(32) and v_ax2 < T.int64(32), p0_shared[v_ax0, v_ax3, v_ax1, v_ax2], T.float16(0))
+        
+        self.assert_extracted_equals_expected(mod, ExpectedModule, 16)
+
+    def test_simple_implicit_reshape(self):
+        mod = TestRandomRelayE2ECorrectness.create_relay_module(
+            [1, 32, 32, 32], "float16", [("NCHW", "NCHW4c")]
+        )
+
+        # Main things to notice:
+        # - two blocks each with 16, 16 extents which write/read shared mem
+        # - coalesced accesses in inner loop of global memory buffer for both
+        # - an implicit reshape is done (see p0_shared)
+        # fmt: off
+        @I.ir_module
+        class ExpectedModule:
+            @T.prim_func
+            def main(p0: T.Buffer((T.int64(1), T.int64(32), T.int64(32), T.int64(32)), "float16"), T_layout_trans: T.Buffer((T.int64(1), T.int64(8), T.int64(32), T.int64(32), T.int64(4)), "float16")):
+                T.func_attr({"global_symbol": "main", "tir.noalias": True})
+                # with T.block("root"):
+                p0_shared = T.alloc_buffer((T.int64(1), T.int64(8), T.int64(32), T.int64(4), T.int64(32)), "float16", scope="shared")
+                for ax0_ax1_ax2_0_ax4_0_ax3_0_0_fused in T.thread_binding(T.int64(128), thread="blockIdx.x"):
+                    for ax3_1_fused_0_ax3_1_fused_1_fused in T.thread_binding(T.int64(16), thread="threadIdx.x"):
+                        for ax2_1_ax3_0_1_ax4_1_fused_0_ax2_1_ax3_0_1_ax4_1_fused_1_fused in range(T.int64(16)):
+                            with T.block("p0_shared"):
+                                v_ax0 = T.axis.spatial(T.int64(1), T.int64(0))
+                                v_ax1 = T.axis.spatial(T.int64(8), ax0_ax1_ax2_0_ax4_0_ax3_0_0_fused // T.int64(16))
+                                v_ax2 = T.axis.spatial(T.int64(32), ax0_ax1_ax2_0_ax4_0_ax3_0_0_fused % T.int64(16) * T.int64(2) + ax2_1_ax3_0_1_ax4_1_fused_0_ax2_1_ax3_0_1_ax4_1_fused_1_fused // T.int64(8))
+                                v_ax3 = T.axis.spatial(T.int64(32), ax2_1_ax3_0_1_ax4_1_fused_0_ax2_1_ax3_0_1_ax4_1_fused_1_fused % T.int64(8) // T.int64(4) * T.int64(16) + ax3_1_fused_0_ax3_1_fused_1_fused)
+                                v_ax4 = T.axis.spatial(T.int64(4), ax2_1_ax3_0_1_ax4_1_fused_0_ax2_1_ax3_0_1_ax4_1_fused_1_fused % T.int64(4))
+                                T.reads(p0[v_ax0, v_ax1 * T.int64(4) + v_ax4, v_ax2, v_ax3])
+                                T.writes(p0_shared[v_ax0, v_ax1, v_ax3, v_ax4, v_ax2])
+                                p0_shared[v_ax0, v_ax1, v_ax3, v_ax4, v_ax2] = p0[v_ax0, v_ax1 * T.int64(4) + v_ax4, v_ax2, v_ax3]
+                    for ax0_ax1_ax2_fused_0 in range(T.int64(16)):
+                        for ax0_ax1_ax2_fused_1 in T.thread_binding(T.int64(16), thread="threadIdx.x"):
+                            with T.block("T_layout_trans"):
+                                v_ax0 = T.axis.spatial(T.int64(1), T.int64(0))
+                                v_ax1 = T.axis.spatial(T.int64(8), ax0_ax1_ax2_0_ax4_0_ax3_0_0_fused // T.int64(16))
+                                v_ax2 = T.axis.spatial(T.int64(32), ax0_ax1_ax2_0_ax4_0_ax3_0_0_fused % T.int64(16) * T.int64(2) + (ax0_ax1_ax2_fused_0 * T.int64(16) + ax0_ax1_ax2_fused_1) // T.int64(128))
+                                v_ax3 = T.axis.spatial(T.int64(32), (ax0_ax1_ax2_fused_0 * T.int64(16) + ax0_ax1_ax2_fused_1) % T.int64(128) // T.int64(4))
+                                v_ax4 = T.axis.spatial(T.int64(4), (ax0_ax1_ax2_fused_0 * T.int64(16) + ax0_ax1_ax2_fused_1) % T.int64(4))
+                                T.reads(p0_shared[v_ax0, v_ax1, v_ax3, v_ax4, v_ax2])
+                                T.writes(T_layout_trans[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
+                                T.block_attr({"dst_layout": "NCHW4c", "input_shape": [1, 32, 32, 32], "schedule_rule": "layout_transform", "src_layout": "NCHW"})
+                                T_layout_trans[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = T.if_then_else(v_ax0 < T.int64(1) and v_ax1 * T.int64(4) + v_ax4 < T.int64(32) and v_ax2 < T.int64(32) and v_ax3 < T.int64(32), p0_shared[v_ax0, v_ax1, v_ax3, v_ax4, v_ax2], T.float16(0))
+        self.assert_extracted_equals_expected(mod, ExpectedModule, 16)
+
+    def test_expected_fusion_post(self):
+        mod = TestRandomRelayE2ECorrectness.create_relay_module(
+            [1, 32, 32, 32], "float16", [("NCHW", "NCHW4c"), OpPattern.BROADCAST]
+        )
+
+        # Main things to notice:
+        # - two blocks each with 16, 16 extents which write/read shared mem
+        # - coalesced accesses in inner loop of global memory buffer for both
+        # - an implicit reshape is done (see p0_shared)
+        # - an addition is inlined in the final block (p1 input)
+        # fmt: off
+        @I.ir_module
+        class ExpectedModule:
+            @T.prim_func
+            def main(p0: T.Buffer((T.int64(1), T.int64(32), T.int64(32), T.int64(32)), "float16"), p1: T.Buffer((), "float16"), T_add: T.Buffer((T.int64(1), T.int64(8), T.int64(32), T.int64(32), T.int64(4)), "float16")):
+                T.func_attr({"global_symbol": "main", "tir.noalias": True})
+                # with T.block("root"):
+                p0_shared = T.alloc_buffer((T.int64(1), T.int64(8), T.int64(32), T.int64(4), T.int64(32)), "float16", scope="shared")
+                for ax0_ax1_ax2_0_ax4_0_ax3_0_0_fused in T.thread_binding(T.int64(128), thread="blockIdx.x"):
+                    for ax3_1_fused_0_ax3_1_fused_1_fused in T.thread_binding(T.int64(16), thread="threadIdx.x"):
+                        for ax2_1_ax3_0_1_ax4_1_fused_0_ax2_1_ax3_0_1_ax4_1_fused_1_fused in range(T.int64(16)):
+                            with T.block("p0_shared"):
+                                v_ax0 = T.axis.spatial(T.int64(1), T.int64(0))
+                                v_ax1 = T.axis.spatial(T.int64(8), ax0_ax1_ax2_0_ax4_0_ax3_0_0_fused // T.int64(16))
+                                v_ax2 = T.axis.spatial(T.int64(32), ax0_ax1_ax2_0_ax4_0_ax3_0_0_fused % T.int64(16) * T.int64(2) + ax2_1_ax3_0_1_ax4_1_fused_0_ax2_1_ax3_0_1_ax4_1_fused_1_fused // T.int64(8))
+                                v_ax3 = T.axis.spatial(T.int64(32), ax2_1_ax3_0_1_ax4_1_fused_0_ax2_1_ax3_0_1_ax4_1_fused_1_fused % T.int64(8) // T.int64(4) * T.int64(16) + ax3_1_fused_0_ax3_1_fused_1_fused)
+                                v_ax4 = T.axis.spatial(T.int64(4), ax2_1_ax3_0_1_ax4_1_fused_0_ax2_1_ax3_0_1_ax4_1_fused_1_fused % T.int64(4))
+                                T.reads(p0[v_ax0, v_ax1 * T.int64(4) + v_ax4, v_ax2, v_ax3])
+                                T.writes(p0_shared[v_ax0, v_ax1, v_ax3, v_ax4, v_ax2])
+                                p0_shared[v_ax0, v_ax1, v_ax3, v_ax4, v_ax2] = p0[v_ax0, v_ax1 * T.int64(4) + v_ax4, v_ax2, v_ax3]
+                    for ax0_ax1_ax2_fused_0 in range(T.int64(16)):
+                        for ax0_ax1_ax2_fused_1 in T.thread_binding(T.int64(16), thread="threadIdx.x"):
+                            with T.block("T_layout_trans"):
+                                v_ax0 = T.axis.spatial(T.int64(1), T.int64(0))
+                                v_ax1 = T.axis.spatial(T.int64(8), ax0_ax1_ax2_0_ax4_0_ax3_0_0_fused // T.int64(16))
+                                v_ax2 = T.axis.spatial(T.int64(32), ax0_ax1_ax2_0_ax4_0_ax3_0_0_fused % T.int64(16) * T.int64(2) + (ax0_ax1_ax2_fused_0 * T.int64(16) + ax0_ax1_ax2_fused_1) // T.int64(128))
+                                v_ax3 = T.axis.spatial(T.int64(32), (ax0_ax1_ax2_fused_0 * T.int64(16) + ax0_ax1_ax2_fused_1) % T.int64(128) // T.int64(4))
+                                v_ax4 = T.axis.spatial(T.int64(4), (ax0_ax1_ax2_fused_0 * T.int64(16) + ax0_ax1_ax2_fused_1) % T.int64(4))
+                                T.reads(p0_shared[v_ax0, v_ax1, v_ax3, v_ax4, v_ax2], p1[()])
+                                T.writes(T_add[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
+                                T.block_attr({"dst_layout": "NCHW4c", "input_shape": [1, 32, 32, 32], "schedule_rule": "layout_transform", "src_layout": "NCHW"})
+                                T_add[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = T.if_then_else(v_ax0 < T.int64(1) and v_ax1 * T.int64(4) + v_ax4 < T.int64(32) and v_ax2 < T.int64(32) and v_ax3 < T.int64(32), p0_shared[v_ax0, v_ax1, v_ax3, v_ax4, v_ax2], T.float16(0)) + p1[()]
+        self.assert_extracted_equals_expected(mod, ExpectedModule, 16)
 
 
 if __name__ == "__main__":

@@ -426,21 +426,21 @@ def create_cached_read(
     new_dst_layout_str = "".join(unpack_list(new_dst_layout))
 
     # Write block loop extants match
-    reindex_map = [new_src_layout_str.index(dim) for dim in new_dst_layout_str]
+    dst_to_src_map = [new_src_layout_str.index(dim) for dim in new_dst_layout_str]
     block_read = sch.reindex_cache_read(
         block_write,
         read_buffer_index=0,
         index_map=tvm.tir.IndexMap.from_func(
-            lambda *loops: [loops[reindex_map[i]] for i, _ in enumerate(loops)],
+            lambda *loops: [loops[dst_to_src_map[i]] for i, _ in enumerate(loops)],
             ndim=len(new_src_layout_str),
         ),
         storage_scope="shared",
     )
 
-    # While the above will have the shared memory buffer match the reshaped input tensor
-    # the loops still match those of the write/output loop/buffer. Match the src layout instead
     loops_read = sch.get_loops(block_read)
-    sch.reorder(*[loops_read[reindex_map[i]] for i, _ in enumerate(new_dst_layout_str)])
+    sch.reorder(
+        *[loops_read[new_dst_layout_str.index(dst_dim_name)] for dst_dim_name in new_src_layout_str]
+    )
     return block_read, unpack_list(input_shape), new_src_layout_str, new_dst_layout_str
 
 
