@@ -471,6 +471,16 @@ TVM_DLL void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int bu
 TVM_DLL void SetScope(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                       const String& storage_scope);
 /*!
+ * \brief Set the data type of a buffer, where the buffer is specified by a block and a
+ * write-index
+ * \param self The state of the schedule
+ * \param block_sref The sref of the producer block of the buffer
+ * \param buffer_index The index of the buffer in block's write region
+ * \param dtype The data type to be set
+ */
+TVM_DLL void SetDType(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
+                      const String& dtype);
+/*!
  * \brief Set the axis separator of a buffer, where the buffer is specified by a block and a read
  * or write index
  * \param block_rv The block that accesses the target buffer.
