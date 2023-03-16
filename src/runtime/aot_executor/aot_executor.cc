@@ -191,7 +191,7 @@ int AotExecutor::GetInputIndex(const std::string& name) {
       return i;
     }
   }
-  return -1;
+  ICHECK(false) << "Invalid input name.";
 }
 
 std::string AotExecutor::GetInputName(int index) {
