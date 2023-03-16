@@ -186,8 +186,8 @@ class VarTable:
         res : bool
             The existence of the value.
         """
-        for v in self.name2value.values():
-            if v is value:
+        for value_stack in self.name2value.values():
+            if value in value_stack:
                 return True
         return False
 

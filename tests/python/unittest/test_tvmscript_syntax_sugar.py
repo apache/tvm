@@ -399,5 +399,30 @@ def test_implicit_evaluate_call_extern():
     assert_structural_equal(implicit, explicit)
 
 
+def test_preserve_trivial_let_binding():
+    @T.prim_func
+    def explicit(i: T.int32):
+        j = T.int32()
+        T.LetStmt(i, var=j)
+        T.evaluate(j)
+
+    @T.prim_func
+    def implicit(i: T.int32):
+        j = i
+        T.evaluate(j)
+
+    assert_structural_equal(implicit, explicit)
+
+
+def test_preserve_parameter_name():
+    @T.prim_func
+    def func(i: T.int32):
+        j = i
+        T.evaluate(j)
+
+    param_name = func.params[0].name
+    assert param_name == "i"
+
+
 if __name__ == "__main__":
     tvm.testing.main()
