@@ -2070,7 +2070,7 @@ def layout_transform_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
-def wrap_compute_layout_transform(topi_compute, schedule_rule=""):
+def wrap_compute_layout_transform(topi_compute, schedule_rule="None"):
     """Wrap layout transform compute"""
 
     def _compute_layout_transform(attrs, inputs, output_type):
