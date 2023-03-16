@@ -195,20 +195,23 @@ def residual_block_patterns():
     patterns = []
 
     for activation, name_postfix in [(None, ""), ("relax.nn.relu", "_relu")]:
-        # TODO(masahi): Support residual fusion without bias?
-        for check, base_patterns in [(_check_conv2d, conv2d_patterns()[1:]),
-                                     (_check_matmul, matmul_patterns()[1:])]:
+        for check, base_patterns in [
+            (_check_conv2d, conv2d_patterns()),
+            (_check_matmul, matmul_patterns()),
+        ]:
             for name, pat, arg_pat, _ in base_patterns:
-                for bin_op in ["relax.add", "relax.multiply"]:
-                    patterns.append(
-                        (
-                            name + "_residual_" + bin_op.split(".")[-1] + name_postfix,
-                            *make_residual_block_pattern(
-                                (pat, arg_pat), binary_op=bin_op, activation=activation
-                            ),
-                            check,
+                # TODO(masahi): Support residual fusion without bias?
+                if "bias" in name:
+                    for bin_op in ["relax.add", "relax.multiply"]:
+                        patterns.append(
+                            (
+                                name + "_residual_" + bin_op.split(".")[-1] + name_postfix,
+                                *make_residual_block_pattern(
+                                    (pat, arg_pat), binary_op=bin_op, activation=activation
+                                ),
+                                check,
+                            )
                         )
-                    )
 
     return patterns
 
