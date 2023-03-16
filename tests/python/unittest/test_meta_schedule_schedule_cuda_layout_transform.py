@@ -15,15 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# Edge Cases:
-# 1. Fusion with ops
-# 2. Fusion with ops
-
-# Properties to test for
-# 1. Compiling -- compiles well without crashing
-# 2. Correctness when running
-# 3. Autotuning ability
-
 import itertools
 import random
 import tempfile
