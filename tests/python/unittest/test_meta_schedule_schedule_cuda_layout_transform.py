@@ -357,7 +357,7 @@ class TestManualCases:
         output_sch = cuda_layout_transform_schedule_rule(sch, block, [tile_size])[0]
         assert output_sch.mod.script() == expected_mod.script()
 
-    def ntest_simple_tiling(self):
+    def test_simple_tiling(self):
         mod = TestRandomRelayE2ECorrectness.create_relay_module(
             [1, 32, 32, 32], "float16", [("NCHW", "NHWC")]
         )
