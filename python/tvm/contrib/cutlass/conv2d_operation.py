@@ -466,7 +466,7 @@ def instantiate_conv2d_template(attrs):
     use_split_k = "splitk" in attrs["cutlass_op_name"]
     is_wgrad = "backward_weight" in op_type
     is_dgrad = "conv2d_transpose" in op_type
-    has_residual_blcok = "residual" in op_type
+    has_residual_block = "residual" in op_type
     no_bias_scaling = op_type not in [
         "cutlass.conv2d_bias_sigmoid",
         "cutlass.conv2d_bias_silu",
@@ -475,12 +475,12 @@ def instantiate_conv2d_template(attrs):
 
     aux_map = {}
 
-    if (not has_bias or no_bias_scaling) and not has_residual_blcok:
-        aux_map["beta"] = "0"
+    if (not has_bias or no_bias_scaling) and not has_residual_block:
+        aux_map["beta"] = 0
     else:
-        aux_map["beta"] = "1"
+        aux_map["beta"] = 1
 
-    if has_residual_blcok:
+    if has_residual_block:
         aux_map["bias_decl"] = "void* ptr_bias = (void*)(${bias_arg}->data);\n"
         aux_map["residual_decl"] = "void* ptr_residual = (void*)(${residual_arg}->data);"
         aux_map["tensor_c"] = "ptr_residual"
@@ -496,12 +496,12 @@ def instantiate_conv2d_template(attrs):
         aux_map["tensor_c"] = "ptr_out"
         aux_map["tensor_c_layout"] = "layout_C"
 
-    if has_bias and no_bias_scaling and not has_residual_blcok:
+    if has_bias and no_bias_scaling and not has_residual_block:
         aux_map["alpha_beta"] = "alpha"
     else:
         aux_map["alpha_beta"] = "alpha, beta"
 
-    if has_residual_blcok:
+    if has_residual_block:
         aux_map["additional_args"] = ", static_cast<ElementOutput*>(ptr_bias), nullptr, 0, K"
     else:
         aux_map["additional_args"] = ""
