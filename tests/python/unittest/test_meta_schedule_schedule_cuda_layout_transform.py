@@ -21,7 +21,6 @@ import tempfile
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
-import pytest
 
 import tvm
 import tvm.testing
@@ -30,7 +29,7 @@ from tvm.meta_schedule.schedule.cuda.layout_transform import cuda_layout_transfo
 from tvm.relay.op import OpPattern
 from tvm.script import ir as I
 from tvm.script import tir as T
-from tvm.tir.schedule import BlockRV, ExprRV, LoopRV
+from tvm.tir.schedule import BlockRV
 
 # Small gpu parameters which should work for nearly every (modern-ish) gpu.
 TARGET = tvm.target.Target(
