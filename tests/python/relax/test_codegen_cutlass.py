@@ -101,6 +101,7 @@ def get_result_with_relax_cutlass_offload(mod, *args, assert_all_bindings_fused=
     assert len(patterns) != 0, "Cannot find cutlass patterns"
 
     mod = partition_for_cutlass(mod)
+
     if assert_all_bindings_fused:
         assert len(mod["main"].body.blocks[0].bindings) == 1
 
@@ -158,8 +159,8 @@ def get_relax_conv2d_module(
                     output = R.emit(activation(output))
                 if residual_bin_op is not None:
                     output = R.emit(residual_bin_op(output, data))
-                if residual_activation is not None:
-                    output = R.emit(residual_activation(output))
+                    if residual_activation is not None:
+                        output = R.emit(residual_activation(output))
                 R.output(output)
 
             R.func_ret_value(frame.output_vars[0])
@@ -169,7 +170,14 @@ def get_relax_conv2d_module(
 
 
 def get_relax_matmul_module(
-    x_shape, y_shape, dtype, transposed_y=False, with_bias=False, activation=None
+    x_shape,
+    y_shape,
+    dtype,
+    transposed_y=False,
+    with_bias=False,
+    activation=None,
+    residual_bin_op=None,
+    residual_activation=None,
 ):
     if transposed_y:
         n = y_shape[-2]
@@ -193,6 +201,10 @@ def get_relax_matmul_module(
                     result = R.emit(result + bias)
                 if activation is not None:
                     result = R.emit(activation(result))
+                if residual_bin_op is not None:
+                    result = R.emit(residual_bin_op(result, x))
+                    if residual_activation is not None:
+                        result = R.emit(residual_activation(result))
                 R.output(result)
 
             R.func_ret_value(frame.output_vars[0])
@@ -285,34 +297,40 @@ def test_conv2d_offload(data_shape, weight_shape, dtype, epilogue, residual_bloc
 
 
 @pytest.mark.parametrize(
-    "x_shape, y_shape, transpose_y, epilogue",
+    "x_shape, y_shape, transpose_y, epilogue, residual_block",
     [
         # Regular
-        ((32, 6), (6, 16), False, "none"),
-        ((_vars["a"], 6), (6, 16), False, "bias"),
+        ((32, 6), (6, 16), False, "none", "none"),
+        ((_vars["a"], 6), (6, 16), False, "bias", "none"),
         # Transposed
-        ((4, 16), (16, 128), True, "relu"),
-        ((35, 8), (8, 8), True, "gelu"),
+        ((4, 16), (16, 128), True, "relu", "none"),
+        ((35, 8), (8, 8), True, "gelu", "none"),
         # 3D x 3D
-        ((6, 32, 8), (6, 8, 10), False, "bias"),
-        ((6, 32, 8), (6, 8, 10), True, "none"),
-        ((_vars["a"], 32, 8), (_vars["a"], 8, 10), True, "gelu"),
+        ((6, 32, 8), (6, 8, 10), False, "bias", "none"),
+        ((6, 32, 8), (6, 8, 10), True, "none", "none"),
+        ((_vars["a"], 32, 8), (_vars["a"], 8, 10), True, "gelu", "none"),
         # 3D x 2D
-        ((6, 32, 8), (8, 10), False, "none"),
-        ((_vars["a"], 32, 8), (8, 10), False, "bias"),
-        ((10, 16, 8), (8, 10), True, "relu"),
+        ((6, 32, 8), (8, 10), False, "none", "none"),
+        ((_vars["a"], 32, 8), (8, 10), False, "bias", "none"),
+        ((10, 16, 8), (8, 10), True, "relu", "none"),
         # 2D x 3D
-        ((32, 8), (10, 8, 10), False, "relu"),
-        ((32, 8), (_vars["a"], 8, 10), True, "gelu"),
+        ((32, 8), (10, 8, 10), False, "relu", "none"),
+        ((32, 8), (_vars["a"], 8, 10), True, "gelu", "none"),
         # ND x 2D
-        ((3, 6, 32, 8), (8, 10), False, "bias"),
-        ((_vars["a"], _vars["b"], 6, 32, 8), (8, 10), False, "none"),
+        ((3, 6, 32, 8), (8, 10), False, "bias", "none"),
+        ((_vars["a"], _vars["b"], 6, 32, 8), (8, 10), False, "none", "none"),
         # 2D x ND
-        ((32, 8), (5, 3, 8, 10), False, "gelu"),
+        ((32, 8), (5, 3, 8, 10), False, "gelu", "none"),
         # ND x ND
-        ((5, 3, 32, 8), (5, 3, 8, 10), True, "relu"),
-        ((3, 2, 4, 16, 15), (1, 1, 15, 2), True, "gelu"),
-        ((1, 1, 16, 15), (3, 2, _vars["a"], 15, 2), False, "none"),
+        ((5, 3, 32, 8), (5, 3, 8, 10), True, "relu", "none"),
+        ((3, 2, 4, 16, 15), (1, 1, 15, 2), True, "gelu", "none"),
+        ((1, 1, 16, 15), (3, 2, _vars["a"], 15, 2), False, "none", "none"),
+        # Residual
+        ((32, 8), (8, 8), False, "bias", "add"),
+        ((4, 16), (16, 16), True, "relu", "add_relu"),
+        # Residual fusion without bias - this is supported via the matmul + bias pattern
+        # where bias == residual input
+        ((4, 16), (16, 16), False, "none", "add"),
     ],
 )
 @pytest.mark.parametrize(
@@ -326,6 +344,7 @@ def test_matmul_offload(
     y_shape,
     transpose_y,
     epilogue,
+    residual_block,
     dtype,
 ):
     with_bias, activation = _epilogue_table[epilogue]
@@ -346,6 +365,8 @@ def test_matmul_offload(
         bias = None
         args = (x, y)
 
+    residual_bin_op, residual_activation = _residual_block_table[residual_block]
+
     mod = get_relax_matmul_module(
         x_shape,
         y_shape,
@@ -353,6 +374,8 @@ def test_matmul_offload(
         with_bias=with_bias,
         transposed_y=transpose_y,
         activation=activation,
+        residual_bin_op=residual_bin_op,
+        residual_activation=residual_activation,
     )
     out = get_result_with_relax_cutlass_offload(mod, *args)
     ref = build_and_run(mod, args, "llvm", legalize=True)

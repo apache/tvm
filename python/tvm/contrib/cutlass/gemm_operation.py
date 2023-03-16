@@ -164,6 +164,7 @@ class EmitGemmInstance:
       ${element_accumulator},
       ${element_epilogue}
     >"""
+
         self.epilogue_no_beta_scaling = """
     ${epilogue_functor}<
       ${element_c},
@@ -172,6 +173,19 @@ class EmitGemmInstance:
       ${element_epilogue},
       cutlass::epilogue::thread::ScaleType::NoBetaScaling
     >"""
+
+        self.epilogue_residual_block = """
+    ${epilogue_functor}<
+      ${element_c},
+      ${element_accumulator},
+      ${element_epilogue},
+      ${element_c},
+      ${epilogue_vector_length},
+      ${activation},
+      ${binary_op},
+      ${unary_op}
+    >"""
+
         self.gemm_template = """
   // Gemm operator ${operation_name}
   using Operation_${operation_name} = cutlass::gemm::device::${kernel_name}<
@@ -188,13 +202,11 @@ class EmitGemmInstance:
     ${swizzling_functor},
     ${stages},
     ${align_a},
-    ${align_b},
-    ${split_k_serial}
-    ${math_operation}
+    ${align_b}
   >;
 """
 
-    def emit(self, operation, no_beta_scaling=False, batched=False):
+    def emit(self, operation, no_beta_scaling=False, batched=False, residual_block_info=False):
         """Instantiate a GEMM kernel from given `operation`."""
         warp_shape = [
             operation.tile_description.threadblock_shape[idx]
@@ -246,21 +258,72 @@ class EmitGemmInstance:
         }
 
         values["kernel_name"] = "GemmBatched" if batched else "Gemm"
-        values["split_k_serial"] = "" if batched else "false,"
 
-        gemm_template = substitute_template(
-            self.gemm_template,
-            {
-                "epilogue": self.epilogue_no_beta_scaling
-                if no_beta_scaling
-                else self.epilogue_default
-            },
-        )
-        return substitute_template(gemm_template, values)
+        if residual_block_info:
+            values["kernel_name"] = "GemmUniversalWithBroadcast"
+            template = substitute_template(
+                self.gemm_template, {"epilogue": self.epilogue_residual_block}
+            )
+            values.update(
+                {
+                    "unary_op": residual_block_info["unary_op"],
+                    "binary_op": residual_block_info["binary_op"],
+                    "activation": residual_block_info["activation"],
+                }
+            )
+        elif no_beta_scaling:
+            template = substitute_template(
+                self.gemm_template, {"epilogue": self.epilogue_no_beta_scaling}
+            )
+        else:
+            template = substitute_template(self.gemm_template, {"epilogue": self.epilogue_default})
+
+        return substitute_template(template, values)
 
 
 def instantiate_gemm_template(attrs):
     """Return CUTLASS host code for GEMM based on a template and the provided attribute map."""
+
+    argument_template_default = """
+  typename ${kernel}::Arguments arguments{
+   problem_size,
+   {static_cast<ElementInputA*>(ptr_a), ${lda}}, ${batch_stride_A}
+   {static_cast<ElementInputB*>(ptr_b), ${ldb}}, ${batch_stride_B}
+   {static_cast<ElementOutput*>(${ptr_c}), ${c_stride}}, ${batch_stride_C}
+   {static_cast<ElementOutput*>(ptr_out), ${ldc}}, ${batch_stride_D}
+   {${alpha_beta}},
+   ${split_k_slices_or_batch}
+  };
+    """
+
+    # See cutlass/gemm/kernel/gemm_with_fused_epilogue.h
+    # Batched GEMM + residual fusion is not supported for now.
+    argument_template_residual = """
+  typename ${kernel}::Arguments arguments{
+    cutlass::gemm::GemmUniversalMode::kGemm,
+    problem_size,
+    1, // batch_count,
+    {${alpha_beta}},
+    static_cast<ElementInputA*>(ptr_a),
+    static_cast<ElementInputB*>(ptr_b),
+    static_cast<ElementOutput*>(ptr_residual),
+    static_cast<ElementOutput*>(ptr_out),
+    static_cast<ElementOutput*>(ptr_bias),
+    nullptr, // ptr_Tensor
+    0, // batch_stride_A,
+    0, // batch_stride_B,
+    0, // batch_stride_C,
+    0, // batch_stride_D,
+    0, // batch_stride_Vector,
+    0, // batch_stride_Tensor,
+    ${lda},
+    ${ldb},
+    ${ldc},
+    ${ldc},
+    0, // ldv, the stride for bias
+    0, // ldt
+  };
+    """
 
     template = """
   using ElementInputA = ${ElementInputA};
@@ -280,17 +343,10 @@ def instantiate_gemm_template(attrs):
   void* ptr_a = (void*)(${lhs_arg}->data);
   void* ptr_b = (void*)(${rhs_arg}->data);
   ${bias_decl}
+  ${residual_decl}
   void* ptr_out = (void*)(out0->data);
 
-  typename ${kernel}::Arguments arguments{
-   problem_size,
-   {static_cast<ElementInputA*>(ptr_a), ${lda}}, ${batch_stride_A}
-   {static_cast<ElementInputB*>(ptr_b), ${ldb}}, ${batch_stride_B}
-   {static_cast<ElementOutput*>(${ptr_c}), ${c_stride}}, ${batch_stride_C}
-   {static_cast<ElementOutput*>(ptr_out), ${ldc}}, ${batch_stride_D}
-   {${alpha_beta}},
-   ${split_k_slices_or_batch}
-  };
+  ${argument}
   size_t workspace_size = ${kernel}::get_workspace_size(arguments);
   cutlass::device_memory::allocation<uint8_t> workspace(workspace_size);
   ${kernel} gemm_op;
@@ -301,29 +357,31 @@ def instantiate_gemm_template(attrs):
   status = gemm_op();
   CHECK(status == cutlass::Status::kSuccess);
 """
-    has_bias = "bias" in attrs["op_type"]
-    is_gelu = "gelu" in attrs["op_type"]
+    op_type = attrs["op_type"]
+    has_bias = "bias" in op_type
+    is_gelu = "gelu" in op_type
     batched = "batch" in attrs
+    has_residual_block = "residual" in op_type
     aux_map = {"kernel": "Gemm"}
 
     if has_bias:
         aux_map.update(
             {
-                "bias_decl": "void* ptr_c_bias = (void*)(${bias_arg}->data);\n",
-                "ptr_c": "ptr_c_bias",
-                "c_stride": "0",
+                "bias_decl": "void* ptr_bias = (void*)(${bias_arg}->data);\n",
+                "ptr_c": "ptr_bias",
+                "c_stride": "${bias_arg}->ndim == 1 ? 0 : " + attrs["ldc"],
             }
         )
     else:
         aux_map.update({"bias_decl": "", "ptr_c": "ptr_out", "c_stride": attrs["ldc"]})
 
-    if is_gelu:
+    if is_gelu or has_residual_block:
         # GeLU epilogue does not compile with NoBetaScaling, so we explicitly specify the scale.
-        aux_map["beta"] = "1"
+        aux_map["beta"] = 1
     else:
-        aux_map["beta"] = "0"
+        aux_map["beta"] = 0
 
-    if has_bias and not is_gelu:
+    if has_bias and not is_gelu and not has_residual_block:
         aux_map["alpha_beta"] = "alpha"
     else:
         aux_map["alpha_beta"] = "alpha, beta"
@@ -341,7 +399,15 @@ def instantiate_gemm_template(attrs):
     if batched:
         attrs["split_k_slices_or_batch"] = attrs["batch"]
     else:
-        attrs["split_k_slices_or_batch"] = "1"
+        attrs["split_k_slices_or_batch"] = 1
+
+    if has_residual_block:
+        assert not batched, "Residual fusion is supported only for non-batched GEMM for now."
+        template = substitute_template(template, {"argument": argument_template_residual})
+        aux_map["residual_decl"] = "void* ptr_residual = (void*)(${residual_arg}->data);\n"
+    else:
+        template = substitute_template(template, {"argument": argument_template_default})
+        aux_map["residual_decl"] = ""
 
     template = substitute_template(template, aux_map)
 

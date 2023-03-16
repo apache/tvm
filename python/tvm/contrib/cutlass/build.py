@@ -765,6 +765,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
                 "op_type": op_type,
                 "lhs_arg_idx": arg_idx["lhs"],
                 "rhs_arg_idx": arg_idx["rhs"],
+                "residual_arg_idx": arg_idx.get("residual"),
                 "bias_arg_idx": arg_idx.get("bias"),
                 "arg0_dtype": signature["arg0_dtype"],
                 "arg1_dtype": signature["arg1_dtype"],
