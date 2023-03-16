@@ -50,7 +50,11 @@
  * files.  This also allows us to expose the OpenCL version through
  * tvm.runtime.Device.
  */
+#ifdef USE_ADRENO_RECORDING
 #define CL_TARGET_OPENCL_VERSION 220
+#else
+#define CL_TARGET_OPENCL_VERSION 120
+#endif
 
 #ifdef __APPLE__
 #include <OpenCL/opencl.h>
@@ -272,6 +276,7 @@ class OpenCLWorkspace : public DeviceAPI {
         << "Invalid OpenCL device_id=" << dev.device_id << ". " << GetError();
     return queues[dev.device_id];
   }
+#ifdef USE_ADRENO_RECORDING
   cl_command_queue GetRecQueue(Device dev) {
     ICHECK(IsOpenCLDevice(dev));
     this->Init();
@@ -280,7 +285,6 @@ class OpenCLWorkspace : public DeviceAPI {
     return rec_queues[dev.device_id];
   }
 
-#ifdef USE_ADRENO_RECORDING
   cl_recording_qcom GetRecording(Device dev) {
     ICHECK(IsOpenCLDevice(dev));
     this->Init();
@@ -471,7 +475,6 @@ class OpenCLModuleNode : public ModuleNode {
   void SetPreCompiledPrograms(const std::string& bytes);
   std::string GetPreCompiledPrograms();
 
-  bool is_recording;
  private:
   // The workspace, need to keep reference to use it in destructor.
   // In case of static destruction order problem.

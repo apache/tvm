@@ -80,10 +80,10 @@ class OpenCLWrappedFunc {
     }
 
 #ifdef USE_ADRENO_RECORDING
-    if (m_->is_recording) { 
+    if (!w_->rec_queues.empty()) {
       cl_command_queue rec_queue = w_->GetRecQueue(t->device);
       OPENCL_CALL(clEnqueueNDRangeKernel(rec_queue, kernel, work_dim, nullptr, wl.work_size,
-                                        wl.work_size + 3, 0, nullptr, nullptr));
+                                         wl.work_size + 3, 0, nullptr, nullptr));
     }
 #endif
     // launch kernel
@@ -98,6 +98,7 @@ class OpenCLWrappedFunc {
                                          wl.work_size + 3, 0, nullptr, nullptr));
     }
   }
+
  private:
   // global workspace.
   cl::OpenCLWorkspace* w_;
@@ -288,14 +289,14 @@ void OpenCLModuleNode::StartRecording() {
   auto w_ = cl::OpenCLWorkspace::Global();
   for (size_t i = 0; i < w_->devices.size(); ++i) {
     cl_device_id did = w_->devices[i];
-    rec_que = clCreateCommandQueue(w_->context, did, CL_QUEUE_RECORDABLE_QCOM, &err_code);
+    cl_platform_id platform = cl::OpenCLWorkspace::Global()->device_to_platform[did];
+    rec_que =
+        clCreateCommandQueue(w_->contexts[platform], did, CL_QUEUE_RECORDABLE_QCOM, &err_code);
     w_->rec_queues.push_back(rec_que);
     OPENCL_CHECK_ERROR(err_code);
     w_->recordings.push_back(clNewRecordingQCOM(rec_que, &err_code));
     OPENCL_CHECK_ERROR(err_code);
   }
-
-  this->is_recording = true;
 #endif
 }
 
@@ -316,14 +317,16 @@ void OpenCLModuleNode::RunRecording() {
   cl_recording_qcom recording = w_->GetRecording(t->device);
   if (w_->IsProfiling(t->device)) {
     w_->GetEventQueue(t->device).resize(w_->GetEventQueue(t->device).size() + 1);
-    OPENCL_CALL(clEnqueueRecordingQCOM(queue, recording, 0, nullptr, 0, nullptr, 0,
-                                  nullptr, 0, nullptr, 0, nullptr, &(w_->GetEventQueue(t->device).back())));
-  }
-  else {
-    OPENCL_CALL(clEnqueueRecordingQCOM(queue, recording, 0, nullptr, 0, nullptr, 0,
-                                      nullptr, 0, nullptr, 0, nullptr, nullptr));
+    OPENCL_CALL(clEnqueueRecordingQCOM(queue, recording, 0, nullptr, 0, nullptr, 0, nullptr, 0,
+                                       nullptr, 0, nullptr,
+                                       &(w_->GetEventQueue(t->device).back())));
+  } else {
+    OPENCL_CALL(clEnqueueRecordingQCOM(queue, recording, 0, nullptr, 0, nullptr, 0, nullptr, 0,
+                                       nullptr, 0, nullptr, nullptr));
   }
 #endif
+}
+
 void OpenCLModuleNode::SetPreCompiledPrograms(const std::string& bytes) {
   std::string data = bytes;
   dmlc::MemoryStringStream reader(&data);

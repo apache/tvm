@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Graph executor with Adreno recording"""
 import tvm._ffi
 
 from tvm._ffi.base import string_types
@@ -61,7 +62,7 @@ def create(graph_json_str, libmod, device):
 class GraphModuleAdrenoRecording(graph_executor.GraphModule):
     """Adreno recording graph executor module.
 
-    This is a adreno recording graph executor wrapper over the TVM runtime.
+    This is an adreno recording graph executor wrapper over the TVM runtime.
     Runtime interfaces are wrapped with adreno recording functionalities.
 
     Parameters
@@ -73,7 +74,7 @@ class GraphModuleAdrenoRecording(graph_executor.GraphModule):
         self._start_capture = module["start_capture"]
         self._end_capture = module["end_capture"]
         self._run_recording = module["run_graph"]
-        self._cuda_graph_captured = False
+        self._graph_captured = False
         graph_executor.GraphModule.__init__(self, module)
 
     def capture_graph(self):

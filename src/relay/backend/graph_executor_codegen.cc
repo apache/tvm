@@ -216,7 +216,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
           relay::tec::UpdateMainWorkspaceSize(mod, config_, memory_plan_->expr_to_storage_info);
       mod = WithAttr(mod, "main_func_info", func_info);
     }
-
+    mod = transform::FuseOps()(mod);
     IRModule lowered_mod = tec::LowerTE(mod_name_, config_, [this](BaseFunc func) {
       // We need to maintain the constant map for external
       // functions so we pass this processing function which

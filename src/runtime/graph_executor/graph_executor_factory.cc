@@ -161,7 +161,8 @@ Module GraphExecutorFactory::DebugExecutorCreate(const std::vector<Device>& devs
 
 Module GraphExecutorFactory::AdrenoRecordingExecutorCreate(const std::vector<Device>& devs) {
   const PackedFunc* pf = tvm::runtime::Registry::Get("tvm.graph_executor_adreno_recording.create");
-  ICHECK(pf != nullptr) << "Cannot find function tvm.graph_executor_adreno_recording.create in registry. "
+  ICHECK(pf != nullptr) << "Cannot find function"
+                           "tvm.graph_executor_adreno_recording.create in registry. "
                            "Did you set(USE_ADRENO_RECORDING=ON)?";
   std::vector<int> unpacked_devs;
   for (const auto& dev : devs) {

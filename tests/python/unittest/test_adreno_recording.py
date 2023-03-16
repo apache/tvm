@@ -35,7 +35,7 @@ from utils.adreno_utils import get_cpu_reference, gpu_preprocess
 
 dtype = tvm.testing.parameter("float32")
 
-# @tvm.testing.adrenorecording
+@tvm.testing.requires_adrenorecording
 @tvm.testing.parametrize_targets("opencl -device=adreno")
 def test_recording_simple(remote, target, dtype):
     input_shape, filter_shape = (1, 16, 24, 24), (32, 16, 3, 3)

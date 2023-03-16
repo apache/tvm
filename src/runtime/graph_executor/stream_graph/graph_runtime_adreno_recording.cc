@@ -17,9 +17,8 @@
  * under the License.
  */
 
-
-#include "./stream_graph_executor.h"
 #include "../../opencl/opencl_common.h"
+#include "./stream_graph_executor.h"
 namespace tvm {
 namespace runtime {
 
@@ -28,24 +27,17 @@ class GraphExecutorAdrenoStream : public StreamGraphExecutor {
   /*!
    * \brief Begin recording of operations
    */
-  void StartCapture()
-  {
+  void StartCapture() {
     reinterpret_cast<OpenCLModuleNode*>(module_.operator->())->StartRecording();
   }
   /*!
    * \brief End recording. All operations will be saved
    */
-  void EndCapture()
-  {
-    reinterpret_cast<OpenCLModuleNode*>(module_.operator->())->EndRecording();
-  }
+  void EndCapture() { reinterpret_cast<OpenCLModuleNode*>(module_.operator->())->EndRecording(); }
   /*!
    * \brief Run recorded operations in streaming mode
    */
-  void RunGraph()
-  {
-    reinterpret_cast<OpenCLModuleNode*>(module_.operator->())->RunRecording();
-  }
+  void RunGraph() { reinterpret_cast<OpenCLModuleNode*>(module_.operator->())->RunRecording(); }
 
   /*!
    * \brief GetFunction Get the function based on input.
@@ -54,13 +46,13 @@ class GraphExecutorAdrenoStream : public StreamGraphExecutor {
    */
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
     if (name == "run_graph") {
-      return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->RunGraph(); });
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->RunGraph(); });
     } else if (name == "start_capture") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->StartCapture(); });
     } else if (name == "end_capture") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->EndCapture(); });
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->EndCapture(); });
     } else {
       return GraphExecutor::GetFunction(name, sptr_to_self);
     }
@@ -68,8 +60,8 @@ class GraphExecutorAdrenoStream : public StreamGraphExecutor {
 };
 
 Module GraphExecutorAdrenoStreamCreate(const std::string& sym_json, const tvm::runtime::Module& m,
-                                    const std::vector<Device>& devs,
-                                    PackedFunc lookup_linked_param_func) {
+                                       const std::vector<Device>& devs,
+                                       PackedFunc lookup_linked_param_func) {
   auto exec = make_object<GraphExecutorAdrenoStream>();
   exec->Init(sym_json, m, devs, lookup_linked_param_func);
   return Module(exec);
@@ -89,9 +81,8 @@ TVM_REGISTER_GLOBAL("tvm.graph_executor_adreno_recording.create")
       }
 
       *rv = GraphExecutorAdrenoStreamCreate(args[0], args[1], GetAllDevice(args, dev_start_arg),
-                                         lookup_linked_param_func);
+                                            lookup_linked_param_func);
     });
 
 }  // namespace runtime
 }  // namespace tvm
-

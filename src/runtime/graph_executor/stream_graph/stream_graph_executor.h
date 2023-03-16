@@ -17,26 +17,25 @@
  * under the License.
  */
 
-
 #ifndef TVM_RUNTIME_GRAPH_EXECUTOR_STREAM_GRAPH_STREAM_GRAPH_EXECUTOR_H_
 #define TVM_RUNTIME_GRAPH_EXECUTOR_STREAM_GRAPH_STREAM_GRAPH_EXECUTOR_H_
+#include <string>
+
 #include "../graph_executor.h"
 namespace tvm {
 namespace runtime {
 
 class StreamGraphExecutor : public GraphExecutor {
  public:
-
   virtual void StartCapture() = 0;
 
   virtual void RunGraph() = 0;
 
   virtual void EndCapture() = 0;
 
-  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) = 0;
-
+  virtual PackedFunc GetFunction(const std::string& name,
+                                 const ObjectPtr<Object>& sptr_to_self) = 0;
 };
-
 }  // namespace runtime
 }  // namespace tvm
 
