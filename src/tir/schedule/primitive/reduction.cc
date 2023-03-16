@@ -1205,7 +1205,7 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   // block.
   if (self->enable_check) {
     LoopPropertyError::CheckLoopProperty(self, loops, rf_loop, block, data_par_loop_vars,
-                                        reduce_loop_vars);
+                                         reduce_loop_vars);
   }
 
   // Step 5. Get the `init` identity and the `update` combiner of the reduction. Extract the
