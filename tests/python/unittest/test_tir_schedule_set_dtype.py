@@ -53,7 +53,7 @@ def element_wise_set_dtype(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128,
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads(B[vi, vj])
             T.writes(C[vi, vj])
-            C[vi, vj] = T.cast(B[vi, vj], "float32") + 1.0 
+            C[vi, vj] = T.cast(B[vi, vj], "float32") + 1.0
 
 @T.prim_func
 def element_wise_subregion_match(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
