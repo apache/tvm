@@ -123,7 +123,7 @@ RUNTIME = Runtime("crt")
 # We define the target by passing the board name to `tvm.target.target.micro`.
 # If your board is not included in the supported models, you can define the target such as:
 # TARGET = tvm.target.Target("c -keys=arm_cpu,cpu -mcpu=cortex-m4")
-TARGET = tvm.target.target.micro("stm32l4r5zi")
+TARGET = tvm.target.target.micro("stm32l4r5xx")
 
 # Use the AOT executor rather than graph or vm executors. Use unpacked API and C calling style.
 EXECUTOR = tvm.relay.backend.Executor(
