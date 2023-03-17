@@ -91,7 +91,7 @@ class HexagonUserDMA {
    * \brief Calculates and returns the number of DMAs in flight
    * \param queue_id The virtual DMA queue
    */
-  uint32_t DMAsInFlight(uint32_t queue_id);
+  uint32_t DMAGroupsInFlight(uint32_t queue_id);
 
   //! \brief Tracks whether the very first DMA has been executed
   bool first_dma_ = true;

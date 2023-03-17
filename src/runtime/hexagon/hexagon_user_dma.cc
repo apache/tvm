@@ -106,13 +106,13 @@ int HexagonUserDMA::Copy(uint32_t queue_id, void* dst, void* src, uint32_t lengt
 
 void HexagonUserDMA::Wait(uint32_t queue_id, uint32_t max_dmas_in_flight) {
   // wait (forever) until max DMAs in flight <= actual DMAs in flight
-  while (DMAsInFlight(queue_id) > max_dmas_in_flight) {
+  while (DMAGroupsInFlight(queue_id) > max_dmas_in_flight) {
   }
 }
 
-uint32_t HexagonUserDMA::Poll(uint32_t queue_id) { return DMAsInFlight(queue_id); }
+uint32_t HexagonUserDMA::Poll(uint32_t queue_id) { return DMAGroupsInFlight(queue_id); }
 
-uint32_t HexagonUserDMA::DMAsInFlight(uint32_t queue_id) {
+uint32_t HexagonUserDMA::DMAGroupsInFlight(uint32_t queue_id) {
   dmpoll();  // update DMA engine status
   return descriptors_->InFlight(queue_id);
 }

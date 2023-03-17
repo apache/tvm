@@ -76,7 +76,9 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    arith::IRMutatorWithAnalyzer::VisitStmt_(op);
+    // populate analyzer knowledge of loop iterators
+    auto previsit = arith::IRMutatorWithAnalyzer::VisitStmt_(op);
+
     // Convert this, for example:
     // attr [0] "async_wait_queue_scope" = 0;
     // attr [0] "async_wait_inflight_count" = 0;
@@ -98,7 +100,7 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
         DLOG(INFO) << "AsyncDMALowerer exiting because the queue ID observed in the "
                       "`async_wait_queue_scope` transform has not been previously observed in the "
                       "`async_commit_queue_scope` transform";
-        return arith::IRMutatorWithAnalyzer::VisitStmt_(op);
+        return previsit;
       }
 
       auto async_wait = op->body.as<AttrStmtNode>();
@@ -106,7 +108,7 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
         DLOG(INFO) << "AsyncDMALowerer exiting because the body of the `AttrStmtNode` with key "
                       "`async_wait_queue_scope` does not contain an `AttrStmtNode` with key "
                       "`async_wait_inflight_count`";
-        return arith::IRMutatorWithAnalyzer::VisitStmt_(op);
+        return previsit;
       }
       auto call_dma_wait =
           Evaluate(Call(DataType::Int(32), builtin::dma_wait(), {queue_id, async_wait->value}));
