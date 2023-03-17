@@ -143,20 +143,22 @@ Expr strided_slice(Expr x,                 //
 TVM_REGISTER_GLOBAL("relax.op.strided_slice").set_body_typed(strided_slice);
 
 inline PrimExpr CanonicalizeIndex(PrimExpr index, PrimExpr extent, int64_t stride) {
+  // Same as topi strided slice CanonicalizeIndex function in
+  // include/tvm/topi/detail/strided_slice.h
   PrimExpr begin_range = stride < 0 ? -1 : 0;
   PrimExpr end_range = stride < 0 ? extent - 1 : extent;
   index = if_then_else(index < 0, index + extent, index);
   return min(max(index, begin_range), end_range);  // NOLINT
 }
 
-PrimExpr GetLength(PrimExpr begin, PrimExpr end, const int stride, const PrimExpr& ndim) {
+PrimExpr GetLength(PrimExpr begin, PrimExpr end, const int64_t stride, const PrimExpr& ndim) {
   begin = CanonicalizeIndex(begin, ndim, stride);
   end = CanonicalizeIndex(end, ndim, stride);
 
   if (stride < 0) {
-    return ceildiv(begin - end, -stride);
+    return ceildiv(begin - end, IntImm(DataType::Int(64), -stride));
   } else {
-    return ceildiv(end - begin, stride);
+    return ceildiv(end - begin, IntImm(DataType::Int(64), stride));
   }
 }
 
@@ -181,7 +183,7 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
   Array<PrimExpr> strides = attrs->strides.defined()
                                 ? attrs->strides.value()
                                 : Array<PrimExpr>(n_axis, IntImm(DataType::Int(64), 1));
-  std::vector<int> int_strides;
+  std::vector<int64_t> int_strides;
   int_strides.reserve(n_axis);
   // Only do output shape inference when all the begin/end/stride values are integers.
   for (int i = 0; i < n_axis; ++i) {
@@ -196,7 +198,8 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
 
   Array<PrimExpr> output_shape = data_shape->values;
   for (int i = 0; i < n_axis; ++i) {
-    ICHECK_NE(int_strides[i], 0) << "strided_slice requires stride to be non-zero.";
+    ICHECK_NE(int_strides[i], 0)
+        << "Strided slice requires stride to be non-zero but got 0 for axis " << axes[i] << ".";
     output_shape.Set(axes[i], GetLength(attrs->begin[i], attrs->end[i], int_strides[i],
                                         data_shape->values[axes[i]]));
   }
