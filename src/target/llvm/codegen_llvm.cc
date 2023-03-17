@@ -398,7 +398,11 @@ void CodeGenLLVM::Optimize() {
   }
 
   llvm::StandardInstrumentations si(*llvm_target_->GetContext(), debug_logging, verify_each);
+#if LLVM_VERSION_MAJOR >= 17
+  si.registerCallbacks(pic, &mam);
+#else
   si.registerCallbacks(pic, &fam);
+#endif
   llvm::ModulePassManager mpass;
   if (verify_each) {
     mpass.addPass(llvm::VerifierPass());
