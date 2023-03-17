@@ -24,6 +24,7 @@
 
 #include "index.h"
 
+#include <algorithm>
 #include <utility>
 #include <vector>
 
@@ -142,6 +143,39 @@ Expr strided_slice(Expr x,                 //
 
 TVM_REGISTER_GLOBAL("relax.op.strided_slice").set_body_typed(strided_slice);
 
+inline int64_t CanonicalizeIndex(int64_t index, int64_t extent, int64_t stride) {
+  int64_t begin_range = stride < 0 ? -1 : 0;
+  int64_t end_range = stride < 0 ? extent - 1 : extent;
+  if (index < 0) {
+    index += extent;
+  }
+  return std::min(std::max(index, begin_range), end_range);
+}
+
+PrimExpr GetLength(const PrimExpr& begin_expr, const PrimExpr& end_expr, const int stride,
+                   const PrimExpr& ndim_expr) {
+  ICHECK_NE(stride, 0) << "Stride cannot be 0.";
+  if (!begin_expr->IsInstance<tvm::IntImmNode>() || !end_expr->IsInstance<tvm::IntImmNode>() ||
+      !ndim_expr->IsInstance<tvm::IntImmNode>()) {
+    if (stride < 0)
+      return ceildiv(begin_expr - end_expr, -stride);
+    else
+      return ceildiv(end_expr - begin_expr, stride);
+  }
+  int64_t begin = begin_expr.as<IntImmNode>()->value;
+  int64_t end = end_expr.as<IntImmNode>()->value;
+  int64_t ndim = ndim_expr.as<IntImmNode>()->value;
+
+  begin = CanonicalizeIndex(begin, ndim, stride);
+  end = CanonicalizeIndex(end, ndim, stride);
+
+  if (stride < 0) {
+    return ceildiv(IntImm(DataType::Int(64), begin - end), -stride);
+  } else {
+    return ceildiv(IntImm(DataType::Int(64), end - begin), stride);
+  }
+}
+
 StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
   const auto* attrs = call->attrs.as<StridedSliceAttrs>();
@@ -178,9 +212,9 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
 
   Array<PrimExpr> output_shape = data_shape->values;
   for (int i = 0; i < n_axis; ++i) {
-    PrimExpr len = int_strides[i] < 0 ? ceildiv(attrs->begin[i] - attrs->end[i], -int_strides[i])
-                                      : ceildiv(attrs->end[i] - attrs->begin[i], int_strides[i]);
-    output_shape.Set(axes[i], len);
+    ICHECK_NE(int_strides[i], 0) << "strided_slice requires stride to be non-zero.";
+    output_shape.Set(axes[i], GetLength(attrs->begin[i], attrs->end[i], int_strides[i],
+                                        data_shape->values[axes[i]]));
   }
   return TensorStructInfo(ShapeExpr(output_shape), data_sinfo->dtype);
 }
