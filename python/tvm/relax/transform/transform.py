@@ -288,16 +288,16 @@ def FuseTIR() -> tvm.ir.transform.Pass:
     return _ffi_api.FuseTIR()  # type: ignore
 
 
-@tvm._ffi.register_object("relax.transform.PatternCheckFunctionInput")
-class PatternCheckFunctionInput(Object):
+@tvm._ffi.register_object("relax.transform.PatternCheckContext")
+class PatternCheckContext(Object):
     """
-    The input of check function `FuseOpsPattern.check`.
+    The input of check function `FusionPattern.check`.
 
     Parameters
     ----------
     annotated_expr: Mapping[str, Expr]
         A map which contains all expressions matched by the sub patterns in
-        FuseOpsPattern.annotation_patterns.
+        FusionPattern.annotation_patterns.
 
     var_usages: Mapping[Var, Sequence[Var]]
         A map mapping variable definitions to a set of uses.
@@ -311,12 +311,11 @@ class PatternCheckFunctionInput(Object):
     value_to_bound_var: Mapping[Expr, Var]
 
 
-@tvm._ffi.register_object("relax.transform.FuseOpsPattern")
-class FuseOpsPattern(Object):
+@tvm._ffi.register_object("relax.transform.FusionPattern")
+class FusionPattern(Object):
     """
-    An entry in the pattern registry. This represents a single pattern that
-    can be used to identify expressions that can be handled by external
-    backends, like CUTLASS and TensorRT.
+    The pattern used by `FuseOpsByPattern`. It's mainly DFPattern but with other
+    information to help during the fusion pass.
 
     Parameters
     ----------
@@ -328,17 +327,17 @@ class FuseOpsPattern(Object):
         by external backends.
 
     annotation_patterns: Mapping[str, DFPattern]
-        The mapping from arg name to its pattern. It can be used to extract arg expression
-        from match result. All DFPattern in this map should be part of the `pattern`.
+        The map which is used to extract important expressions from the pattern match
+        result. All DFPattern in this map should be part of the `pattern`.
 
-    check: Callable[[Mapping[DFPattern, Expr], Expr], bool]
+    check: Callable[[PatternCheckContext], bool]
         The function to check whether the match result is accepted.
     """
 
     name: str
     pattern: DFPattern
     annotation_patterns: Mapping[str, DFPattern]
-    check: Callable[[PatternCheckFunctionInput], bool]
+    check: Callable[[PatternCheckContext], bool]
 
     def __init__(
         self,
@@ -350,12 +349,12 @@ class FuseOpsPattern(Object):
         if annotation_patterns is None:
             annotation_patterns = {}
         self.__init_handle_by_constructor__(
-            _ffi_api.FuseOpsPattern, name, pattern, annotation_patterns, check  # type: ignore
+            _ffi_api.FusionPattern, name, pattern, annotation_patterns, check  # type: ignore
         )
 
 
 def FuseOpsByPattern(
-    patterns: List[Union[FuseOpsPattern, Tuple]],
+    patterns: List[Union[FusionPattern, Tuple]],
     bind_constants: bool = True,
     annotate_codegen: bool = False,
 ) -> tvm.ir.transform.Pass:
@@ -366,12 +365,12 @@ def FuseOpsByPattern(
 
     Parameters
     ----------
-    patterns : List[Union[FuseOpsPattern, Tuple]]
+    patterns : List[Union[FusionPattern, Tuple]]
         A list of patterns to be matched. The order of the patterns determines the order of priority
         in which they are matched. Higher-priority patterns should come earlier in the list.
 
-        In addition to FuseOpsPattern, a tuple can be passed as item of this list. The pattern
-        will be constructed through FuseOpsPattern(*item)
+        In addition to FusionPattern, a tuple can be passed as item of this list. The pattern
+        will be constructed through FusionPattern(*item)
 
     bind_constants : bool
         Whether or not to keep bound constants in the grouped function.
@@ -394,8 +393,8 @@ def FuseOpsByPattern(
     converted_patterns = []
     for pattern in patterns:
         if isinstance(pattern, tuple):
-            converted_patterns.append(FuseOpsPattern(*pattern))
-        elif isinstance(pattern, FuseOpsPattern):
+            converted_patterns.append(FusionPattern(*pattern))
+        elif isinstance(pattern, FusionPattern):
             converted_patterns.append(pattern)
         else:
             raise ValueError(f"Invalid pattern: {pattern}")

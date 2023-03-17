@@ -20,6 +20,7 @@ import pytest
 import tvm
 from tvm import relax
 from tvm.relax.dpl.pattern import is_op, make_fused_bias_activation_pattern, wildcard
+from tvm.relax.transform import PatternCheckContext
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
@@ -606,10 +607,10 @@ def test_check_pattern():
     out = is_op("relax.nn.conv2d")(lhs, rhs)
     annotation_patterns = {"root": out, "lhs": lhs, "rhs": rhs}
 
-    def pred(check_input):
-        lhs = check_input.annotated_expr["lhs"]
-        rhs = check_input.annotated_expr["rhs"]
-        expr = check_input.annotated_expr["root"]
+    def pred(context: PatternCheckContext):
+        lhs = context.annotated_expr["lhs"]
+        rhs = context.annotated_expr["rhs"]
+        expr = context.annotated_expr["root"]
         assert isinstance(lhs, relax.expr.Var) and lhs.name_hint == "data"
         assert isinstance(rhs, relax.expr.Var) and rhs.name_hint == "weight1"
         assert isinstance(expr, relax.expr.Call) and expr.op.name == "relax.nn.conv2d"

@@ -22,7 +22,7 @@ from typing import Mapping, Optional, Sequence, Tuple
 import tvm
 from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
 from tvm.relax import ShapeExpr, Var, transform
-from tvm.relax.transform import PatternCheckFunctionInput
+from tvm.relax.transform import PatternCheckContext
 
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
 from ..patterns import (
@@ -70,9 +70,9 @@ def _has_dependency(from_var: Var, to_var: Var, var_usages: Mapping[Var, Sequenc
     return False
 
 
-def _check_conv2d(check_input: PatternCheckFunctionInput) -> bool:
+def _check_conv2d(context: PatternCheckContext) -> bool:
     """Check if the given conv2d workload can be offloaded to CUTLASS."""
-    conv2d_call = check_input.annotated_expr["root"]
+    conv2d_call = context.annotated_expr["root"]
     data_layout = conv2d_call.attrs.data_layout
     kernel_layout = conv2d_call.attrs.kernel_layout
     data, weight, *_ = conv2d_call.args
@@ -83,12 +83,12 @@ def _check_conv2d(check_input: PatternCheckFunctionInput) -> bool:
     ):
         return False
 
-    if "residual" in check_input.annotated_expr:
-        residual = check_input.annotated_expr["residual"]
+    if "residual" in context.annotated_expr:
+        residual = context.annotated_expr["residual"]
         if not isinstance(residual, Var):
-            residual = check_input.value_to_bound_var[residual]
-        conv2d_var = check_input.value_to_bound_var[conv2d_call]
-        if _has_dependency(from_var=residual, to_var=conv2d_var, var_usages=check_input.var_usages):
+            residual = context.value_to_bound_var[residual]
+        conv2d_var = context.value_to_bound_var[conv2d_call]
+        if _has_dependency(from_var=residual, to_var=conv2d_var, var_usages=context.var_usages):
             # If residual depends on the result of conv2d, this cannot be handled by cutlass.
             return False
 
@@ -99,10 +99,10 @@ def _check_conv2d(check_input: PatternCheckFunctionInput) -> bool:
     return not IC == OC == conv2d_call.attrs.groups
 
 
-def _check_matmul(check_input: PatternCheckFunctionInput) -> bool:
+def _check_matmul(context: PatternCheckContext) -> bool:
     """Check if the given matmul workload can be offloaded to CUTLASS."""
-    lhs = check_input.annotated_expr["lhs"]
-    rhs = check_input.annotated_expr["rhs"]
+    lhs = context.annotated_expr["lhs"]
+    rhs = context.annotated_expr["rhs"]
 
     lhs_dtype = lhs.struct_info.dtype
     rhs_dtype = rhs.struct_info.dtype

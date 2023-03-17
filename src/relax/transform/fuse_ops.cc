@@ -906,7 +906,7 @@ class PatternBasedPartitioner : ExprVisitor {
   using Group = GraphPartitioner::Group;
   using GroupMap = OperatorFusor::GroupMap;
   using ExprVisitor::VisitExpr_;
-  using FCheckMatch = runtime::TypedPackedFunc<bool(const transform::PatternCheckFunctionInput&)>;
+  using FCheckMatch = runtime::TypedPackedFunc<bool(const transform::PatternCheckContext&)>;
 
   static GroupMap Run(String pattern_name, DFPattern pattern,
                       Map<String, DFPattern> annotation_patterns, FCheckMatch check, Expr expr,
@@ -944,9 +944,9 @@ class PatternBasedPartitioner : ExprVisitor {
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call) final {
     VisitVarDef(binding->var);
     if (auto matches_opt = ExtractMatchedExpr(pat_, GetRef<Call>(call), bindings_)) {
-      if (check_ != nullptr && !check_(transform::PatternCheckFunctionInput(
-                                   GetAnnotatedExpr(matches_opt.value()), current_block_use_def_,
-                                   value_to_bound_var_))) {
+      if (check_ != nullptr &&
+          !check_(transform::PatternCheckContext(GetAnnotatedExpr(matches_opt.value()),
+                                                 current_block_use_def_, value_to_bound_var_))) {
         return;
       }
       // If a match is found, put all matching expressions into the same group.
@@ -1081,7 +1081,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
   std::unordered_map<const GlobalVarNode*, GlobalVar> gvar_map_;
 };
 
-IRModule FuseOpsByPattern(const tvm::Array<transform::FuseOpsPattern>& patterns, IRModule mod,
+IRModule FuseOpsByPattern(const tvm::Array<transform::FusionPattern>& patterns, IRModule mod,
                           bool bind_constants, bool annotate_codegen) {
   support::Arena arena;
   for (const auto& pattern : patterns) {
@@ -1105,10 +1105,10 @@ IRModule FuseOpsByPattern(const tvm::Array<transform::FuseOpsPattern>& patterns,
 
 namespace transform {
 
-FuseOpsPattern::FuseOpsPattern(String name, DFPattern pattern,
-                               Map<String, DFPattern> annotation_patterns,
-                               Optional<PackedFunc> check) {
-  ObjectPtr<FuseOpsPatternNode> n = make_object<FuseOpsPatternNode>();
+FusionPattern::FusionPattern(String name, DFPattern pattern,
+                             Map<String, DFPattern> annotation_patterns,
+                             Optional<PackedFunc> check) {
+  ObjectPtr<FusionPatternNode> n = make_object<FusionPatternNode>();
   n->name = std::move(name);
   n->pattern = std::move(pattern);
   n->annotation_patterns = std::move(annotation_patterns);
@@ -1116,24 +1116,24 @@ FuseOpsPattern::FuseOpsPattern(String name, DFPattern pattern,
   data_ = std::move(n);
 }
 
-TVM_REGISTER_NODE_TYPE(FuseOpsPatternNode);
-TVM_REGISTER_GLOBAL("relax.transform.FuseOpsPattern")
+TVM_REGISTER_NODE_TYPE(FusionPatternNode);
+TVM_REGISTER_GLOBAL("relax.transform.FusionPattern")
     .set_body_typed([](String name, DFPattern pattern, Map<String, DFPattern> annotation_patterns,
-                       PackedFunc check) {
-      return FuseOpsPattern(name, pattern, annotation_patterns, check);
+                       Optional<PackedFunc> check) {
+      return FusionPattern(name, pattern, annotation_patterns, check);
     });
 
-PatternCheckFunctionInput::PatternCheckFunctionInput(Map<String, Expr> annotated_expr,
-                                                     Map<Var, Array<Var>> var_usages,
-                                                     Map<Expr, Var> value_to_bound_var) {
-  ObjectPtr<PatternCheckFunctionInputNode> n = make_object<PatternCheckFunctionInputNode>();
+PatternCheckContext::PatternCheckContext(Map<String, Expr> annotated_expr,
+                                         Map<Var, Array<Var>> var_usages,
+                                         Map<Expr, Var> value_to_bound_var) {
+  ObjectPtr<PatternCheckContextNode> n = make_object<PatternCheckContextNode>();
   n->annotated_expr = std::move(annotated_expr);
   n->var_usages = std::move(var_usages);
   n->value_to_bound_var = std::move(value_to_bound_var);
   data_ = std::move(n);
 }
 
-TVM_REGISTER_NODE_TYPE(PatternCheckFunctionInputNode);
+TVM_REGISTER_NODE_TYPE(PatternCheckContextNode);
 
 Pass FuseOps(int fuse_opt_level) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
@@ -1150,7 +1150,7 @@ Pass FuseOps(int fuse_opt_level) {
 
 TVM_REGISTER_GLOBAL("relax.transform.FuseOps").set_body_typed(FuseOps);
 
-Pass FuseOpsByPattern(const tvm::Array<FuseOpsPattern>& patterns, bool bind_constants,
+Pass FuseOpsByPattern(const tvm::Array<FusionPattern>& patterns, bool bind_constants,
                       bool annotate_codegen) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
       [=](IRModule m, PassContext pc) {

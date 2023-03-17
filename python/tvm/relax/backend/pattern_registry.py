@@ -21,7 +21,7 @@ import atexit
 from typing import Callable, List, Mapping, Optional, Set, Tuple, Union
 
 from tvm.relax.dpl import DFPattern
-from tvm.relax.transform import FuseOpsPattern
+from tvm.relax.transform import FusionPattern
 
 from ..expr import Expr
 from . import _ffi_api
@@ -53,7 +53,7 @@ def _ensure_cleanup_function_registered():
 
 CheckFunc = Callable[[Mapping[DFPattern, Expr], Expr], bool]
 Pattern = Union[
-    FuseOpsPattern,
+    FusionPattern,
     Tuple[str, DFPattern],
     Tuple[str, DFPattern, Mapping[str, DFPattern]],
     Tuple[str, DFPattern, Mapping[str, DFPattern], CheckFunc],
@@ -75,17 +75,17 @@ def register_patterns(patterns: List[Pattern]):
 
     entries = []
     for item in patterns:
-        if isinstance(item, FuseOpsPattern):
+        if isinstance(item, FusionPattern):
             entries.append(item)
         elif isinstance(item, tuple):
-            entries.append(FuseOpsPattern(*item))
+            entries.append(FusionPattern(*item))
             _REGISTERED_PATTERN_NAMES.add(item[0])
         else:
             raise TypeError(f"Cannot register type {type(item)} as pattern")
     _ffi_api.RegisterPatterns(entries)
 
 
-def get_patterns_with_prefix(prefix: str) -> List[FuseOpsPattern]:
+def get_patterns_with_prefix(prefix: str) -> List[FusionPattern]:
     """
     Get a list of patterns whose names startwith `prefix`.
 
@@ -96,13 +96,13 @@ def get_patterns_with_prefix(prefix: str) -> List[FuseOpsPattern]:
 
     Returns
     -------
-    patterns: FuseOpsPattern
+    patterns: FusionPattern
         Matched patterns, ordered by priority from high to low.
     """
     return _ffi_api.GetPatternsWithPrefix(prefix)
 
 
-def get_pattern(name: str) -> Optional[FuseOpsPattern]:
+def get_pattern(name: str) -> Optional[FusionPattern]:
     """
     Find the pattern with a particular name.
 
@@ -113,7 +113,7 @@ def get_pattern(name: str) -> Optional[FuseOpsPattern]:
 
     Returns
     -------
-    pattern: Optional[FuseOpsPattern]
+    pattern: Optional[FusionPattern]
         The matched pattern. Returns None if such pattern is not found.
     """
     return _ffi_api.GetPattern(name)

@@ -24,12 +24,12 @@
 namespace tvm {
 namespace relax {
 namespace backend {
-static std::vector<FuseOpsPattern>* GetRegistryTable() {
-  static std::vector<FuseOpsPattern> table;
+static std::vector<FusionPattern>* GetRegistryTable() {
+  static std::vector<FusionPattern> table;
   return &table;
 }
 
-void RegisterPatterns(Array<FuseOpsPattern> entries) {
+void RegisterPatterns(Array<FusionPattern> entries) {
   auto* table = GetRegistryTable();
   for (const auto& entry : entries) {
     table->push_back(entry);
@@ -42,13 +42,13 @@ void RemovePatterns(Array<String> names) {
   auto* table = GetRegistryTable();
   table->erase(
       std::remove_if(table->begin(), table->end(),
-                     [&](const FuseOpsPattern& entry) { return name_set.count(entry->name) > 0; }),
+                     [&](const FusionPattern& entry) { return name_set.count(entry->name) > 0; }),
       table->end());
 }
 
-Array<FuseOpsPattern> GetPatternsWithPrefix(const String& prefix) {
+Array<FusionPattern> GetPatternsWithPrefix(const String& prefix) {
   auto* table = GetRegistryTable();
-  Array<FuseOpsPattern> result;
+  Array<FusionPattern> result;
   for (auto it = table->rbegin(); it != table->rend(); ++it) {
     if (support::StartsWith((*it)->name, prefix.data())) {
       result.push_back(*it);
@@ -57,7 +57,7 @@ Array<FuseOpsPattern> GetPatternsWithPrefix(const String& prefix) {
   return result;
 }
 
-Optional<FuseOpsPattern> GetPattern(const String& pattern_name) {
+Optional<FusionPattern> GetPattern(const String& pattern_name) {
   auto* table = GetRegistryTable();
   for (auto it = table->rbegin(); it != table->rend(); ++it) {
     if ((*it)->name == pattern_name) {

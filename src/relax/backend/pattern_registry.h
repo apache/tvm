@@ -36,7 +36,7 @@ namespace tvm {
 namespace relax {
 namespace backend {
 
-using transform::FuseOpsPattern;
+using transform::FusionPattern;
 
 /*!
  * \brief Register patterns which will be used to partition the DataflowBlock
@@ -44,7 +44,7 @@ using transform::FuseOpsPattern;
  * \param patterns Patterns to be registered. Patterns that appear later in the list have
  *        higher priority when partitioning DataflowBlock.
  */
-void RegisterPatterns(Array<FuseOpsPattern> entries);
+void RegisterPatterns(Array<FusionPattern> patterns);
 
 /*!
  * \brief Remove patterns from the registry by their name.
@@ -57,14 +57,14 @@ void RemovePatterns(Array<String> names);
  * \param prefx The pattern name prefix.
  * \return Matched patterns, ordered by priority from high to low.
  */
-Array<FuseOpsPattern> GetPatternsWithPrefix(const String& prefix);
+Array<FusionPattern> GetPatternsWithPrefix(const String& prefix);
 
 /*!
  * \brief Find the pattern with a particular name.
  * \param name The pattern name.
  * \return The matched pattern. NullOpt if not found.
  */
-Optional<FuseOpsPattern> GetPattern(const String& name);
+Optional<FusionPattern> GetPattern(const String& name);
 
 }  // namespace backend
 }  // namespace relax

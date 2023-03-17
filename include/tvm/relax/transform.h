@@ -220,7 +220,7 @@ TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
  * fused, it needs to be matched with `pattern` and the `check` function needs to return
  * true.
  */
-class FuseOpsPatternNode : public Object {
+class FusionPatternNode : public Object {
  public:
   /*!
    * \brief The name of pattern. It becomes the value of the kComposite attribute
@@ -245,7 +245,7 @@ class FuseOpsPatternNode : public Object {
    * NullOpt if check function is not necessary for this pattern.
    *
    * It should have signature
-   * bool(const PatternCheckFunctionInput& input)
+   * bool(const PatternCheckContext& context)
    */
   Optional<PackedFunc> check;
 
@@ -256,28 +256,28 @@ class FuseOpsPatternNode : public Object {
     v->Visit("check", &check);
   }
 
-  static constexpr const char* _type_key = "relax.transform.FuseOpsPattern";
-  TVM_DECLARE_FINAL_OBJECT_INFO(FuseOpsPatternNode, Object);
+  static constexpr const char* _type_key = "relax.transform.FusionPattern";
+  TVM_DECLARE_FINAL_OBJECT_INFO(FusionPatternNode, Object);
 };
 
-class FuseOpsPattern : public ObjectRef {
+class FusionPattern : public ObjectRef {
  public:
-  FuseOpsPattern(String name, DFPattern pattern, Map<String, DFPattern> annotation_patterns,
-                 Optional<PackedFunc> check);
+  FusionPattern(String name, DFPattern pattern, Map<String, DFPattern> annotation_patterns,
+                Optional<PackedFunc> check);
 
-  FuseOpsPattern(String name, DFPattern pattern) : FuseOpsPattern(name, pattern, {}, NullOpt) {}
+  FusionPattern(String name, DFPattern pattern) : FusionPattern(name, pattern, {}, NullOpt) {}
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(FuseOpsPattern, ObjectRef, FuseOpsPatternNode);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(FusionPattern, ObjectRef, FusionPatternNode);
 };
 
 /*!
- * \brief The input of FuseOpsPattern::check.
+ * \brief The input of FusionPattern::check.
  */
-class PatternCheckFunctionInputNode : public Object {
+class PatternCheckContextNode : public Object {
  public:
   /*!
    * \brief A map which contains all expressions matched by the sub patterns in
-   * FuseOpsPatternNode::annotation_patterns.
+   * FusionPattern::annotation_patterns.
    */
   Map<String, Expr> annotated_expr;
 
@@ -297,17 +297,17 @@ class PatternCheckFunctionInputNode : public Object {
     v->Visit("value_to_bound_var", &value_to_bound_var);
   }
 
-  static constexpr const char* _type_key = "relax.transform.PatternCheckFunctionInput";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PatternCheckFunctionInputNode, Object);
+  static constexpr const char* _type_key = "relax.transform.PatternCheckContext";
+  TVM_DECLARE_FINAL_OBJECT_INFO(PatternCheckContextNode, Object);
 };
 
-class PatternCheckFunctionInput : public ObjectRef {
+class PatternCheckContext : public ObjectRef {
  public:
-  PatternCheckFunctionInput(Map<String, Expr> annotated_expr, Map<Var, Array<Var>> var_usages,
-                            Map<Expr, Var> value_to_bound_var);
+  PatternCheckContext(Map<String, Expr> annotated_expr, Map<Var, Array<Var>> var_usages,
+                      Map<Expr, Var> value_to_bound_var);
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(PatternCheckFunctionInput, ObjectRef,
-                                            PatternCheckFunctionInputNode);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(PatternCheckContext, ObjectRef,
+                                            PatternCheckContextNode);
 };
 
 /*!
@@ -326,8 +326,8 @@ class PatternCheckFunctionInput : public ObjectRef {
  * an external backend without using the MergeCompositeFunctions pass.
  * \return The Pass.
  */
-TVM_DLL Pass FuseOpsByPattern(const tvm::Array<FuseOpsPattern>& patterns,
-                              bool bind_constants = true, bool annotate_codegen = false);
+TVM_DLL Pass FuseOpsByPattern(const tvm::Array<FusionPattern>& patterns, bool bind_constants = true,
+                              bool annotate_codegen = false);
 
 /*!
  * \brief Group one or multiple composite functions created by FuseOpsByPattern into a new
