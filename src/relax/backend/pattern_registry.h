@@ -28,6 +28,7 @@
 
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr.h>
+#include <tvm/relax/transform.h>
 #include <tvm/runtime/container/optional.h>
 #include <tvm/runtime/object.h>
 
@@ -35,57 +36,7 @@ namespace tvm {
 namespace relax {
 namespace backend {
 
-/*!
- * \brief An entry in the pattern registry. This represents a single pattern that
- * can be used to identify expressions that can be handled by external
- * backends, like CUTLASS and TensorRT.
- */
-class PatternRegistryEntryNode : public Object {
- public:
-  /*!
-   * \brief The name of pattern. Usually it starts with the name of backend, like
-   * 'cutlass.matmul'.
-   */
-  String name;
-  /*!
-   * \brief The dataflow pattern that will be used to match expressions that can
-   * be handled by external backends.
-   */
-  DFPattern pattern;
-  /*!
-   * \brief The mapping from arg name to its pattern. It can be used to extract
-   * arg expression from match result. All DFPattern in this map should be part of
-   * the `pattern`.
-   */
-  Map<String, DFPattern> arg_patterns;
-
-  /*!
-   * \brief The function to check whether the match result is accepted.
-   *
-   * It should have signature
-   * bool(const Map<DFPattern, Expr>& match_result, const Expr& matched_expr)
-   */
-  PackedFunc check;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("pattern", &pattern);
-    v->Visit("arg_patterns", &arg_patterns);
-    v->Visit("check", &check);
-  }
-
-  static constexpr const char* _type_key = "relax.backend.PatternRegistryEntry";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PatternRegistryEntryNode, Object);
-};
-
-class PatternRegistryEntry : public ObjectRef {
- public:
-  PatternRegistryEntry(String name, DFPattern pattern, Map<String, DFPattern> arg_patterns,
-                       PackedFunc check);
-
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(PatternRegistryEntry, ObjectRef,
-                                            PatternRegistryEntryNode);
-};
+using transform::FusionPattern;
 
 /*!
  * \brief Register patterns which will be used to partition the DataflowBlock
@@ -93,7 +44,7 @@ class PatternRegistryEntry : public ObjectRef {
  * \param patterns Patterns to be registered. Patterns that appear later in the list have
  *        higher priority when partitioning DataflowBlock.
  */
-void RegisterPatterns(Array<PatternRegistryEntry> entries);
+void RegisterPatterns(Array<FusionPattern> patterns);
 
 /*!
  * \brief Remove patterns from the registry by their name.
@@ -106,14 +57,14 @@ void RemovePatterns(Array<String> names);
  * \param prefx The pattern name prefix.
  * \return Matched patterns, ordered by priority from high to low.
  */
-Array<PatternRegistryEntry> GetPatternsWithPrefix(const String& prefix);
+Array<FusionPattern> GetPatternsWithPrefix(const String& prefix);
 
 /*!
  * \brief Find the pattern with a particular name.
  * \param name The pattern name.
  * \return The matched pattern. NullOpt if not found.
  */
-Optional<PatternRegistryEntry> GetPattern(const String& name);
+Optional<FusionPattern> GetPattern(const String& name);
 
 }  // namespace backend
 }  // namespace relax

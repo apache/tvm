@@ -24,18 +24,18 @@ from tvm.relax.dpl.pattern import DFPattern, is_op, wildcard
 
 def _with_bias_activation_pattern(
     out: DFPattern,
-    args: Dict[str, DFPattern],
+    annotations: Dict[str, DFPattern],
     with_bias: bool = False,
     activation: str = None,
 ) -> Tuple[DFPattern, Mapping[str, DFPattern]]:
     if with_bias:
-        args["bias"] = bias = wildcard()
+        annotations["bias"] = bias = wildcard()
         out = is_op("relax.add")(out, bias)
 
     if activation:
         out = is_op(activation)(out)
 
-    return out, args
+    return out, annotations
 
 
 def make_fused_bias_activation_pattern(
@@ -62,16 +62,17 @@ def make_fused_bias_activation_pattern(
     pattern: DFPattern
         The resulting pattern describing a fused operation
 
-    args: Mapping[str, DFPattern]
-        The mapping from arg name to its pattern. It can be used to extract
-        arg expression from match result.
+    annotations: Mapping[str, DFPattern]
+        A mapping from name to sub pattern. It can be used to extract
+        important expressions from match result, to power the partition
+        check function and codegen.
     """
     lhs = wildcard()
     rhs = wildcard()
-    args = {"lhs": lhs, "rhs": rhs}
     out = is_op(op_name)(lhs, rhs)
+    annotations = {"lhs": lhs, "rhs": rhs, "root": out}
 
-    return _with_bias_activation_pattern(out, args, with_bias, activation)
+    return _with_bias_activation_pattern(out, annotations, with_bias, activation)
 
 
 def make_residual_block_pattern(
@@ -99,9 +100,10 @@ def make_residual_block_pattern(
     pattern: DFPattern
         The resulting pattern describing a matrix multiplication.
 
-    args: Mapping[str, DFPattern]
-        The mapping from arg name to its pattern. It can be used to extract
-        arg expression from match result.
+    annotations: Mapping[str, DFPattern]
+        A mapping from name to sub pattern. It can be used to extract
+        important expressions from match result, to power the partition
+        check function and codegen.
     """
 
     if isinstance(node_output, tuple):
@@ -143,21 +145,23 @@ def make_matmul_pattern(
     pattern: DFPattern
         The resulting pattern describing a matrix multiplication.
 
-    args: Mapping[str, DFPattern]
-        The mapping from arg name to its pattern. It can be used to extract
-        arg expression from match result.
+    annotations: Mapping[str, DFPattern]
+        A mapping from name to sub pattern. It can be used to extract
+        important expressions from match result, to power the partition
+        check function and codegen.
     """
 
     lhs = wildcard()
     rhs = wildcard()
-    args = {"lhs": lhs, "rhs": rhs}
+    annotations = {"lhs": lhs, "rhs": rhs}
 
     if transposed_rhs:
         rhs = is_op("relax.permute_dims")(rhs)
 
     out = is_op("relax.matmul")(lhs, rhs)
+    annotations["root"] = out
 
-    return _with_bias_activation_pattern(out, args, with_bias, activation)
+    return _with_bias_activation_pattern(out, annotations, with_bias, activation)
 
 
 def make_attention_pattern(with_bias: bool = False):
@@ -169,19 +173,20 @@ def make_attention_pattern(with_bias: bool = False):
     pattern: DFPattern
         The resulting pattern describing a fused multi head attention.
 
-    args: Mapping[str, DFPattern]
-        The mapping from arg name to its pattern. It can be used to extract
-        arg expression from match result.
+    annotations: Mapping[str, DFPattern]
+        A mapping from name to sub pattern. It can be used to extract
+        important expressions from match result, to power the partition
+        check function and codegen.
     """
     query = wildcard()
     key = wildcard()
     value = wildcard()
-    args = {"query": query, "key": key, "value": value}
+    annotations = {"query": query, "key": key, "value": value}
     if with_bias:
         bias = wildcard()
-        args["bias"] = bias
+        annotations["bias"] = bias
         out = is_op("relax.nn.attention_bias")(query, key, value, bias)
     else:
         out = is_op("relax.nn.attention")(query, key, value)
 
-    return out, args
+    return out, annotations
