@@ -86,20 +86,30 @@ The last step is to update the KEYS file with your code signing key https://www.
 Cut a Release Candidate
 -----------------------
 
-To cut a release candidate, one needs to first cut a branch using selected version string, e.g.,
+To cut a release candidate, one needs to first cut a branch using selected version string. Branches should be named with the base release version without the patch. For example, to cut a candidate for ``v0.11.0``, the branch should be ``v0.11`` and a tag named ``v0.11.0.rc0`` pushed to the HEAD of that branch once cut.
 
 .. code-block:: bash
 
 	git clone https://github.com/apache/tvm.git
 	cd tvm/
-	# Replace v0.6.0 with the relevant version
-	git branch v0.6.0
-	git push --set-upstream origin v0.6.0
 
-(*Make sure the version numbers in the source code are correct.* Run ``python3 version.py`` to update the version.)
+	# Update version numbers
+	# ...
+	git add .
+	git commit -m"Bump version numbers to v0.6.0"
+
+	# Replace v0.6 with the relevant version
+	git branch v0.6
+	git push --set-upstream origin v0.6
+
+	git tag v0.6.0.rc0
+	git push origin refs/tags/v0.6.0.rc0
+
+Make sure the version numbers in the source code are correct (example: https://github.com/apache/tvm/pull/14300). Run ``python3 version.py`` to update the version. Version numbers should be updated immediately after a release candidate branch is pushed.
 
 Go to the GitHub repositories "releases" tab and click "Draft a new release",
 
+- Verify the release by checking the version numbers and ensuring that TVM can build and run the unit tests.
 - Provide the release tag in the form of ``v1.0.0.rc0`` where 0 means it's the first release candidate. The tag must match this pattern ``v[0-9]+\.[0-9]+\.[0-9]+\.rc[0-9]`` exactly!
 - Select the commit by clicking Target: branch > Recent commits > $commit_hash
 - Copy and paste release note draft into the description box
@@ -171,6 +181,11 @@ The release manager also needs to upload the artifacts to ASF SVN,
 	# copy files into it
 	svn add tvm-0.6.0-rc0
 	svn ci --username $ASF_USERNAME --password "$ASF_PASSWORD" -m "Add RC"
+
+
+Cherry-Picking
+--------------
+After a release branch has been cut but before the release has been voted on, the release manager may cherry-pick commits from ``main``. Since release branches are protected on GitHub, to merge this fixes into the release branch (e.g. ``v0.11``), the release manager must file a PR with the cherry-picked changes against the release branch. The PR should roughly match the original one from ``main`` with extra details on why the commit is being cherry-picked. The community then goes through a normal review and merge process for these PRs. Note that these PRs against the release branches must be `signed <https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits>`_.
 
 
 Call a Vote on the Release Candidate
@@ -246,3 +261,7 @@ Post the Announcement
 ---------------------
 
 Send out an announcement email to announce@apache.org, and dev@tvm.apache.org. The announcement should include the link to release note and download page.
+
+Patch Releases
+--------------
+Patch releases should be reserved for critical bug fixes. Patch releases must go through the same process as normal releases, with the option at the release manager's discretion of a shortened release candidate voting window of 24 hours to ensure that fixes are delivered quickly. Each patch release should bump the version numbers on the release base branch (e.g. ``v0.11``) and tags created for release candidates (e.g. ``v0.11.1.rc0``).
