@@ -20,54 +20,11 @@
 import atexit
 from typing import Callable, List, Mapping, Optional, Set, Tuple, Union
 
-import tvm
 from tvm.relax.dpl import DFPattern
-from tvm.runtime import Object
+from tvm.relax.transform import FusionPattern
 
 from ..expr import Expr
 from . import _ffi_api
-
-
-@tvm._ffi.register_object("relax.backend.PatternRegistryEntry")
-class PatternRegistryEntry(Object):
-    """
-    An entry in the pattern registry. This represents a single pattern that
-    can be used to identify expressions that can be handled by external
-    backends, like CUTLASS and TensorRT.
-
-    Parameters
-    ----------
-    name: str
-        The name of pattern. Usually it starts with the name of backend, like 'cutlass.matmul'.
-
-    pattern: DFPattern
-        The dataflow pattern that will be used to match expressions that can be handled
-        by external backends.
-
-    arg_patterns: Mapping[str, DFPattern]
-        The mapping from arg name to its pattern. It can be used to extract arg expression
-        from match result. All DFPattern in this map should be part of the `pattern`.
-
-    check: Callable[[Mapping[DFPattern, Expr], Expr], bool]
-        The function to check whether the match result is accepted.
-    """
-
-    name: str
-    pattern: DFPattern
-    arg_patterns: Mapping[str, DFPattern]
-    check: Callable[[Mapping[DFPattern, Expr], Expr], bool]
-
-    def __init__(
-        self,
-        name: str,
-        pattern: DFPattern,
-        arg_patterns: Mapping[str, DFPattern],
-        check: Callable[[Mapping[DFPattern, Expr], Expr], bool],
-    ):
-        self.__init_handle_by_constructor__(
-            _ffi_api.PatternRegistryEntry, name, pattern, arg_patterns, check  # type: ignore
-        )
-
 
 _REGISTERED_PATTERN_NAMES: Set[str] = set()
 
@@ -96,7 +53,7 @@ def _ensure_cleanup_function_registered():
 
 CheckFunc = Callable[[Mapping[DFPattern, Expr], Expr], bool]
 Pattern = Union[
-    PatternRegistryEntry,
+    FusionPattern,
     Tuple[str, DFPattern],
     Tuple[str, DFPattern, Mapping[str, DFPattern]],
     Tuple[str, DFPattern, Mapping[str, DFPattern], CheckFunc],
@@ -118,29 +75,17 @@ def register_patterns(patterns: List[Pattern]):
 
     entries = []
     for item in patterns:
-        if isinstance(item, PatternRegistryEntry):
+        if isinstance(item, FusionPattern):
             entries.append(item)
         elif isinstance(item, tuple):
-            name, pattern, *rest = item
-
-            if len(rest) > 0:
-                arg_patterns = rest[0]
-            else:
-                arg_patterns = {}
-
-            if len(rest) > 1:
-                check = rest[1]
-            else:
-                check = lambda *_: True
-
-            entries.append(PatternRegistryEntry(name, pattern, arg_patterns, check))
-            _REGISTERED_PATTERN_NAMES.add(name)
+            entries.append(FusionPattern(*item))
+            _REGISTERED_PATTERN_NAMES.add(item[0])
         else:
-            raise TypeError(f"Cannot register type {type(pattern)} as pattern")
+            raise TypeError(f"Cannot register type {type(item)} as pattern")
     _ffi_api.RegisterPatterns(entries)
 
 
-def get_patterns_with_prefix(prefix: str) -> List[PatternRegistryEntry]:
+def get_patterns_with_prefix(prefix: str) -> List[FusionPattern]:
     """
     Get a list of patterns whose names startwith `prefix`.
 
@@ -151,13 +96,13 @@ def get_patterns_with_prefix(prefix: str) -> List[PatternRegistryEntry]:
 
     Returns
     -------
-    patterns: PatternRegistryEntry
+    patterns: FusionPattern
         Matched patterns, ordered by priority from high to low.
     """
     return _ffi_api.GetPatternsWithPrefix(prefix)
 
 
-def get_pattern(name: str) -> Optional[PatternRegistryEntry]:
+def get_pattern(name: str) -> Optional[FusionPattern]:
     """
     Find the pattern with a particular name.
 
@@ -168,7 +113,7 @@ def get_pattern(name: str) -> Optional[PatternRegistryEntry]:
 
     Returns
     -------
-    pattern: Optional[PatternRegistryEntry]
+    pattern: Optional[FusionPattern]
         The matched pattern. Returns None if such pattern is not found.
     """
     return _ffi_api.GetPattern(name)

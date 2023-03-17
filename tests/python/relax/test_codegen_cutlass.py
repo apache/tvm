@@ -26,7 +26,6 @@ from tvm.contrib.pickle_memoize import memoize
 from tvm.relax.backend import get_patterns_with_prefix
 from tvm.relax.backend.contrib.cutlass import partition_for_cutlass
 from tvm.script import relax as R
-from tvm.script import tir as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import relax as relax_builder
 
@@ -296,6 +295,43 @@ def test_conv2d_offload(data_shape, weight_shape, dtype, epilogue, residual_bloc
     tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
 
+def test_cutlass_partition_conv2d_residual_blocked():
+    @tvm.script.ir_module
+    class Conv2dReLU:
+        """
+        This conv2d should not be fused as conv2d residual block, because both lhs and rhs of
+        the last R.add depends on the result of conv2d.
+        """
+
+        @R.function
+        def main(
+            data: R.Tensor((32, 3, 3, 16), "float32"),
+            weight: R.Tensor((16, 3, 3, 16), "float32"),
+            bias: R.Tensor((1, 1, 1, 16), "float32"),
+        ):
+            with R.dataflow():
+                conv1 = R.nn.conv2d(
+                    data,
+                    weight,
+                    padding=(1, 1),
+                    data_layout="NHWC",
+                    kernel_layout="OHWI",
+                )
+                out = R.nn.relu(conv1 + bias)
+                # residual depends on conv result, which cannot be handled in cutlass
+                result = out + out
+                R.output(result)
+
+            return result
+
+    mod = partition_for_cutlass(Conv2dReLU, annotate_codegen=False)
+    for f_var in mod.functions:
+        func = mod[f_var]
+        if func.attrs and "Composite" in func.attrs:
+            # verify that the function is not fused as residual block
+            assert func.attrs["Composite"] == "cutlass.conv2d_bias_relu"
+
+
 @pytest.mark.parametrize(
     "x_shape, y_shape, transpose_y, epilogue, residual_block",
     [
@@ -451,6 +487,7 @@ def test_cutlass_partition_matmul_blocked(x_shape, y_shape, transpose_y, dtype):
     mod = get_relax_matmul_module(
         x_shape, y_shape, dtype, with_bias=False, transposed_y=transpose_y
     )
+    mod = partition_for_cutlass(mod)
 
     assert len(mod.functions) == 1
 
