@@ -373,6 +373,10 @@ def test_union_lower_bound():
     result = tvm.arith.int_set.union_lower_bound([set_0, set_1])
     assert result.min_value.same_as(neg_inf)
     assert result.max_value.same_as(pos_inf)
+    set_2 = tvm.arith.IntervalSet(min_value=pos_inf, max_value=neg_inf)
+    result = tvm.arith.int_set.union_lower_bound([set_0, set_1, set_2])
+    assert result.min_value.same_as(neg_inf)
+    assert result.max_value.same_as(pos_inf)
 
 
 if __name__ == "__main__":
