@@ -24,7 +24,6 @@
 
 #include "index.h"
 
-#include <algorithm>
 #include <utility>
 #include <vector>
 
@@ -147,7 +146,7 @@ inline PrimExpr CanonicalizeIndex(PrimExpr index, PrimExpr extent, int64_t strid
   PrimExpr begin_range = stride < 0 ? -1 : 0;
   PrimExpr end_range = stride < 0 ? extent - 1 : extent;
   index = if_then_else(index < 0, index + extent, index);
-  return min(max(index, begin_range), end_range);
+  return min(max(index, begin_range), end_range);  // NOLINT
 }
 
 PrimExpr GetLength(PrimExpr begin, PrimExpr end, const int stride, const PrimExpr& ndim) {
