@@ -151,8 +151,6 @@ inline PrimExpr CanonicalizeIndex(PrimExpr index, PrimExpr extent, int64_t strid
 }
 
 PrimExpr GetLength(PrimExpr begin, PrimExpr end, const int stride, const PrimExpr& ndim) {
-  ICHECK_NE(stride, 0) << "Stride cannot be 0.";
-
   begin = CanonicalizeIndex(begin, ndim, stride);
   end = CanonicalizeIndex(end, ndim, stride);
 
