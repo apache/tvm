@@ -28,12 +28,13 @@ from tvm import te
 import numpy as np
 from tvm import relay
 
-from tvm.contrib import utils, ndk 
+from tvm.contrib import utils, ndk
 from tvm.contrib.adreno_recording import adreno_recording_executor as graph_runtime
 
 from utils.adreno_utils import get_cpu_reference, gpu_preprocess
 
 dtype = tvm.testing.parameter("float32")
+
 
 @tvm.testing.requires_adrenorecording
 @tvm.testing.parametrize_targets("opencl -device=adreno")
@@ -43,10 +44,15 @@ def test_recording_simple(remote, target, dtype):
     A = relay.var("data", shape=input_shape, dtype=dtype)
     B = relay.var("weight", shape=filter_shape, dtype=dtype)
     bias = relay.var("bias", shape=bias_shape, dtype=dtype)
-    conv = relay.nn.conv2d(A, B, data_layout="NCHW", kernel_layout="OIHW", 
-            padding=[1, 1, 1, 1],strides=[1, 1],
-            out_dtype=dtype)
-
+    conv = relay.nn.conv2d(
+        A,
+        B,
+        data_layout="NCHW",
+        kernel_layout="OIHW",
+        padding=[1, 1, 1, 1],
+        strides=[1, 1],
+        out_dtype=dtype,
+    )
 
     D = relay.op.add(conv, bias)
     D = relay.op.nn.relu(conv)
@@ -59,18 +65,16 @@ def test_recording_simple(remote, target, dtype):
     initializer("bias", bias_data)
     params = {
         "weight": tvm.nd.array(filter_data),
-        "bias" : tvm.nd.array(bias_data),
+        "bias": tvm.nd.array(bias_data),
     }
-    
+
     if remote is None:
         target_host = "llvm"
     else:
         target_host = "llvm -mtriple=arm64-linux-android"
 
     with relay.build_config(opt_level=3):
-        graph, lib, params = relay.build(
-            mod, target_host=target_host, target=target, params=params
-        )
+        graph, lib, params = relay.build(mod, target_host=target_host, target=target, params=params)
 
     if remote is None:
         ctx = tvm.opencl()
@@ -87,7 +91,7 @@ def test_recording_simple(remote, target, dtype):
     m.set_input(**params)
     input = np.random.normal(size=input_shape).astype(dtype)
     m.set_input("data", input)
-    
+
     m.capture_graph()
     m.run_recording()
 
@@ -98,7 +102,6 @@ def test_recording_simple(remote, target, dtype):
 
         np.testing.assert_allclose(output, ref_output, rtol=1e-1, atol=1e-1)
     return graph
-    
 
 
 if __name__ == "__main__":

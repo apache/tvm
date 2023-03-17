@@ -70,6 +70,7 @@ class GraphModuleAdrenoRecording(graph_executor.GraphModule):
     module : Module
         The internal tvm module that holds the actual graph functions.
     """
+
     def __init__(self, module):
         self._start_capture = module["start_capture"]
         self._end_capture = module["end_capture"]
