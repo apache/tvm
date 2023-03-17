@@ -24,7 +24,6 @@
 
 #include "index.h"
 
-#include <algorithm>
 #include <utility>
 #include <vector>
 
@@ -143,36 +142,23 @@ Expr strided_slice(Expr x,                 //
 
 TVM_REGISTER_GLOBAL("relax.op.strided_slice").set_body_typed(strided_slice);
 
-inline int64_t CanonicalizeIndex(int64_t index, int64_t extent, int64_t stride) {
-  int64_t begin_range = stride < 0 ? -1 : 0;
-  int64_t end_range = stride < 0 ? extent - 1 : extent;
-  if (index < 0) {
-    index += extent;
-  }
-  return std::min(std::max(index, begin_range), end_range);
+inline PrimExpr CanonicalizeIndex(PrimExpr index, PrimExpr extent, int64_t stride) {
+  PrimExpr begin_range = stride < 0 ? -1 : 0;
+  PrimExpr end_range = stride < 0 ? extent - 1 : extent;
+  index = if_then_else(index < 0, index + extent, index);
+  return min(max(index, begin_range), end_range);
 }
 
-PrimExpr GetLength(const PrimExpr& begin_expr, const PrimExpr& end_expr, const int stride,
-                   const PrimExpr& ndim_expr) {
+PrimExpr GetLength(PrimExpr begin, PrimExpr end, const int stride, const PrimExpr& ndim) {
   ICHECK_NE(stride, 0) << "Stride cannot be 0.";
-  if (!begin_expr->IsInstance<tvm::IntImmNode>() || !end_expr->IsInstance<tvm::IntImmNode>() ||
-      !ndim_expr->IsInstance<tvm::IntImmNode>()) {
-    if (stride < 0)
-      return ceildiv(begin_expr - end_expr, -stride);
-    else
-      return ceildiv(end_expr - begin_expr, stride);
-  }
-  int64_t begin = begin_expr.as<IntImmNode>()->value;
-  int64_t end = end_expr.as<IntImmNode>()->value;
-  int64_t ndim = ndim_expr.as<IntImmNode>()->value;
 
   begin = CanonicalizeIndex(begin, ndim, stride);
   end = CanonicalizeIndex(end, ndim, stride);
 
   if (stride < 0) {
-    return ceildiv(IntImm(DataType::Int(64), begin - end), -stride);
+    return ceildiv(begin - end, -stride);
   } else {
-    return ceildiv(IntImm(DataType::Int(64), end - begin), stride);
+    return ceildiv(end - begin, stride);
   }
 }
 

@@ -409,22 +409,22 @@ def test_strided_slice_infer_struct_info_shape_symbolic():
     _check_inference(
         bb,
         relax.op.strided_slice(x0, axes=[0], begin=[1], end=[3]),
-        relax.TensorStructInfo((2, n), "float32"),
+        relax.TensorStructInfo((tir.min(3, m) - tir.min(1, m) + 1 - 1, n), "float32"),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(x0, axes=[0], begin=[1], end=[8], strides=[3]),
-        relax.TensorStructInfo((3, n), "float32"),
+        relax.TensorStructInfo(((tir.min(8, m) - tir.min(1, m) + 3 - 1) // 3, n), "float32"),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(x1, axes=[0], begin=[1], end=[3]),
-        relax.TensorStructInfo((2, n), dtype=""),
+        relax.TensorStructInfo((tir.min(3, m) - tir.min(1, m) + 1 - 1, n), dtype=""),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(x1, axes=[0], begin=[1], end=[8], strides=[3]),
-        relax.TensorStructInfo((3, n), dtype=""),
+        relax.TensorStructInfo(((tir.min(8, m) - tir.min(1, m) + 3 - 1) // 3, n), dtype=""),
     )
 
 
