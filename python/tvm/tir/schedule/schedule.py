@@ -2320,7 +2320,9 @@ class Schedule(Object):
         )
 
     @type_checked
-    def set_scope(self, block: Union[BlockRV, str], buffer_index: int, storage_scope: str) -> None:
+    def set_scope(
+        self, block: Union[BlockRV, str], buffer_index: Union[int, str, Buffer], storage_scope: str
+    ) -> None:
         """Set the storage scope of a buffer, where the buffer is
         specified by the a block and a write-index
 
@@ -2387,6 +2389,10 @@ class Schedule(Object):
         Set_scope requires the buffer to be an intermediate buffer defined via `alloc_buffer`.
         """
         block = self._normalize_block_arg(block)
+        if not isinstance(buffer_index, int):
+            _, buffer_index, _ = self._normalize_buffer_arg(
+                block, buffer_index, required_buffer_type="write"
+            )
         _ffi_api.ScheduleSetScope(  # type: ignore # pylint: disable=no-member
             self, block, buffer_index, storage_scope
         )
