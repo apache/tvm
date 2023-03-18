@@ -226,6 +226,7 @@ class CutlassConv2DProfiler:
             tile_description,
             data_type,
             alignment,
+            alignment,
             swizzling_functor,
             split_k_slices=1,
         )
