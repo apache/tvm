@@ -275,7 +275,7 @@ class EmitGemmInstance:
             )
         else:
             template = substitute_template(self.gemm_template, {"epilogue": self.epilogue_default})
-g
+
         return substitute_template(template, values)
 
 
