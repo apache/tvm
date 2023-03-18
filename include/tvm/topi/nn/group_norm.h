@@ -26,6 +26,10 @@
 
 #include <tvm/te/operation.h>
 
+#include <algorithm>
+#include <string>
+#include <vector>
+
 namespace tvm {
 namespace topi {
 namespace nn {
