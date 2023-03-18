@@ -22,7 +22,7 @@ from functools import partial
 
 from .gemm_operation import EmitGemmInstance, GemmOperation
 from .gemm_profiler import GemmProfilerEmitter
-from .gen_tensor_op import epilogue_creator, GENERATOR_FUNC_TABLE, ProfilerEngine
+from .gen_tensor_op import EPILOGUE_MAP, GENERATOR_FUNC_TABLE, ProfilerEngine
 from .library import (
     DataType,
     DataTypeTag,
@@ -46,8 +46,6 @@ def create_gemm_operator_with_epilogue(
     Instantiate a cutlass kernel from the given configuration,
     along with the epilouge functor
     """
-    residual_block_info, epilogue, no_beta_scaling = epilogue_creator(op_type)
-
     element_a, element_b, element_c, element_epilogue = data_type
 
     A = TensorDescription(element_a, LayoutType.RowMajor, alignment)
@@ -56,6 +54,37 @@ def create_gemm_operator_with_epilogue(
 
     if batched:
         swizzling_functor = SwizzlingFunctor.Batched
+
+    if "residual" in op_type:
+        if "hardswish" in op_type:
+            activation = "cutlass::epilogue::thread::HardSwish"
+        elif "silu" in op_type:
+            activation = "cutlass::epilogue::thread::SiLu"
+        elif "sigmoid" in op_type:
+            activation = "cutlass::epilogue::thread::Sigmoid"
+        elif "gelu" in op_type:
+            activation = "cutlass::epilogue::thread::GELU"
+        elif "relu" in op_type:
+            activation = "cutlass::epilogue::thread::ReLu"
+        else:
+            activation = "cutlass::epilogue::thread::Identity"
+
+        binary_op = "cutlass::multiplies" if "residual_multiply" in op_type else "cutlass::plus"
+        unary_op = (
+            "cutlass::epilogue::thread::ReLu"
+            if op_type.endswith("relu")
+            else "cutlass::epilogue::thread::Identity"
+        )
+        residual_block_info = {
+            "activation": activation,
+            "binary_op": binary_op,
+            "unary_op": unary_op,
+        }
+        epilogue = EpilogueFunctor.LinearCombinationResidualBlock
+        no_beta_scaling = False
+    else:
+        residual_block_info = None
+        epilogue, no_beta_scaling = EPILOGUE_MAP[op_type]
 
     op = GemmOperation(
         tile_description.minimum_compute_capability,
@@ -73,8 +102,8 @@ def create_gemm_operator_with_epilogue(
         EmitGemmInstance().emit(
             op,
             no_beta_scaling=no_beta_scaling,
-            residual_block_info=residual_block_info,
             batched=batched,
+            residual_block_info=residual_block_info,
         ),
     )
 

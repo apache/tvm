@@ -367,36 +367,6 @@ GENERATOR_FUNC_TABLE = {
 }
 
 
-def epilogue_creator(op_type):
-    if "residual" in op_type:
-        activation_map = {
-            "_bias_hardswish": "cutlass::epilogue::thread::HardSwish",
-            "_bias_silu": "cutlass::epilogue::thread::SiLu",
-            "_bias_sigmoid": "cutlass::epilogue::thread::Sigmoid",
-            "_bias_relu": "cutlass::epilogue::thread::ReLu",
-            "_bias": "cutlass::epilogue::thread::Identity",
-        }
-        prefix = op_type[op_type.find("_bias") : op_type.find("_residual")]
-        activation = activation_map[prefix]
-        binary_op = "cutlass::multiplies" if "residual_multiply" in op_type else "cutlass::plus"
-        unary_op = (
-            "cutlass::epilogue::thread::ReLu"
-            if op_type.endswith("relu")
-            else "cutlass::epilogue::thread::Identity"
-        )
-        residual_block_info = {
-            "activation": activation,
-            "binary_op": binary_op,
-            "unary_op": unary_op,
-        }
-        epilogue = EpilogueFunctor.LinearCombinationResidualBlock
-        no_beta_scaling = False
-    else:
-        residual_block_info = None
-        epilogue, no_beta_scaling = EPILOGUE_MAP[op_type]
-    return residual_block_info, epilogue, no_beta_scaling
-
-
 # (Epilogue functor name, no_beta_scaling)
 EPILOGUE_MAP = {
     "cutlass.dense": (EpilogueFunctor.LinearCombination, False),
@@ -567,7 +537,6 @@ def instantiate_template(func_name, annotations, func_args):
     if "dense" in func_name or "matmul" in func_name:
         batched = "batch" in annotations
         transposed = "transposed" in func_name
-
         lhs_arg_idx = _get_optional_int_annotation(annotations, "lhs_arg_idx", 0)
         rhs_arg_idx = _get_optional_int_annotation(annotations, "rhs_arg_idx", 1)
         bias_arg_idx = _get_optional_int_annotation(annotations, "bias_arg_idx", None)

@@ -173,7 +173,8 @@ class EmitGemmInstance:
       ${element_epilogue},
       cutlass::epilogue::thread::ScaleType::NoBetaScaling
     >"""
-        self.epilogue_residual = """
+
+        self.epilogue_residual_block = """
     ${epilogue_functor}<
       ${element_c},
       ${element_accumulator},
@@ -184,6 +185,7 @@ class EmitGemmInstance:
       ${binary_op},
       ${unary_op}
     >"""
+
         self.gemm_template = """
   // Gemm operator ${operation_name}
   using Operation_${operation_name} = cutlass::gemm::device::${kernel_name}<
@@ -204,7 +206,7 @@ class EmitGemmInstance:
   >;
 """
 
-    def emit(self, operation, no_beta_scaling=False, residual_block_info=False, batched=False):
+    def emit(self, operation, no_beta_scaling=False, batched=False, residual_block_info=False):
         """Instantiate a GEMM kernel from given `operation`."""
         warp_shape = [
             operation.tile_description.threadblock_shape[idx]
