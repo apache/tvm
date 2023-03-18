@@ -49,7 +49,7 @@ inline Tensor group_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
       << "group_norm: only support float32 and float16 for now";
   bool is_float16 = data_type == DataType::Float(16);
   // reshape data C -> G, C/G
-  auto ndim = data->shape.size();
+  int ndim = data->shape.size();
   channel_axis = GetRealAxis(static_cast<int>(ndim), {channel_axis})[0];
 
   auto shape = data->shape;
@@ -105,7 +105,7 @@ inline Tensor group_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
     int arg_counter = 0;
     int red_counter = 0;
 
-    for (size_t i = 0; i < ndim; ++i) {
+    for (int i = 0; i < ndim; ++i) {
       if (std::find(new_axes.begin(), new_axes.end(), i) != new_axes.end()) {
         // new_axes contains i
         eval_range.push_back(reduce_axes[red_counter]);
