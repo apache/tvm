@@ -364,7 +364,6 @@ bool HasReshapePattern(const PrimFunc& func) {
         if (block_iter[i]->iter_type != tir::IterVarType::kDataPar) {
           return;
         }
-        var_map_.Set(block_iter[i]->var, iter_values[i]);
       }
 
       // Recurse into the block.
@@ -376,6 +375,10 @@ bool HasReshapePattern(const PrimFunc& func) {
       if (block->body->IsInstance<ForNode>()) {
         this->VisitStmt(block->body);
         return;
+      }
+
+      for (const IterVar& v : block->iter_vars) {
+        ana_.Bind(v->var, Range::FromMinExtent(v->dom->min, v->dom->extent));
       }
 
       // Step 1. Get the load/store pattern of the block body.
@@ -409,18 +412,13 @@ bool HasReshapePattern(const PrimFunc& func) {
       PrimExpr src_idx = f_calc_flattened_idx(src_buffer_, buffer_load->indices);
       PrimExpr dst_idx = f_calc_flattened_idx(dst_buffer_, buffer_store->indices);
 
-      // Step 4. Substitute the block iterators in the flattened index
-      // with loop variables, and check if we can prove their equality.
-      src_idx = tir::Substitute(std::move(src_idx), var_map_);
-      dst_idx = tir::Substitute(std::move(dst_idx), var_map_);
+      // Step 4. Check if we can prove the equality of flattened indices.
       if (ana_.CanProveEqual(src_idx, dst_idx)) {
         this->is_reshape_ = true;
       }
     }
 
     bool is_reshape_;
-    /*! \brief The mapping from block vars to block binding values. */
-    Map<tir::Var, PrimExpr> var_map_;
     const Buffer& src_buffer_;
     const Buffer& dst_buffer_;
     arith::Analyzer ana_;
