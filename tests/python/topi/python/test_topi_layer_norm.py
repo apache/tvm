@@ -34,7 +34,8 @@ _layer_norm_schedule = {
 # only test on llvm because schedule is missing
 @tvm.testing.parametrize_targets("llvm")
 @pytest.mark.parametrize("shape,axis", [([4, 16], (1,)), ([4, 16, 16], (1, 2))])
-def test_layer_norm(target, dev, shape, axis, episilon=1e-5, dtype="float32", rtol=1e-5, atol=1e-5):
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+def test_layer_norm(target, dev, shape, axis, dtype, episilon=1e-5, rtol=5e-4, atol=5e-4):
     data = te.placeholder(shape, dtype=dtype, name="data")
     scale_shape = [shape[dim] for dim in axis]
     gamma = te.placeholder(scale_shape, dtype=dtype, name="gamma")
