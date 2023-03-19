@@ -21,6 +21,13 @@
 /*!
  * \file tvm/relax/transform/dead_code_elimination.cc
  * \brief Dead code elimination pass.
+ * \sa tvm/relax/ir/binding_rewrite.cc
+ *
+ * Currently it removes:
+ *   1. Unused local VarBindings in a DataflowBlock.
+ *   2. Unused DataflowBlocks in a function.
+ *   3. Unused Relax functions in the module.
+ *      We detect the call chain from the entry function, and remove all unused functions.
  */
 
 #include <tvm/relax/analysis.h>

@@ -316,7 +316,9 @@ def name_to_binding(func: Function) -> Dict[str, List[Binding]]:
 
 
 def remove_all_unused(func: Function) -> Function:
-    """Remove all unused variables from the function.
+    """It removes:
+    1. Unused local VarBindings in a DataflowBlock.
+    2. Unused DataflowBlocks in a function.
 
     Parameters
     ----------
