@@ -22,9 +22,10 @@ namespace tvm {
 namespace tir {
 
 Schedule Schedule::Traced(IRModule mod, support::LinearCongruentialEngine::TRandState seed,
-                          int debug_mask, ScheduleErrorRenderLevel error_render_level) {
+                          int debug_mask, ScheduleErrorRenderLevel error_render_level,
+                          bool enable_check) {
   ObjectPtr<TracedScheduleNode> n = make_object<TracedScheduleNode>();
-  n->state_ = ScheduleState(mod, debug_mask);
+  n->state_ = ScheduleState(mod, debug_mask, enable_check);
   n->error_render_level_ = error_render_level;
   n->symbol_table_ = {};
   n->analyzer_ = std::make_unique<arith::Analyzer>();

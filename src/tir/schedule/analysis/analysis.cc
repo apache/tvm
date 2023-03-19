@@ -103,7 +103,7 @@ Definition of a scope that is a stage pipeline:
     }
   }
   // Step 2. Handle `require_stage_pipeline`
-  if (require_stage_pipeline) {
+  if (require_stage_pipeline && self->enable_check) {
     bool stage_pipeline = self->GetBlockInfo(scope_root_sref).scope->stage_pipeline;
     if (stage_pipeline == false) {
       const BlockNode* block = TVM_SREF_TO_BLOCK(scope_root_sref);

@@ -81,6 +81,14 @@ def _parse_error_render_level(error_render_level: str) -> int:
     return _ERROR_RENDER_LEVEL.get(error_render_level)
 
 
+def _parse_enable_checks(enable_checks: bool) -> bool:
+    if not isinstance(enable_checks, bool):
+        raise TypeError(
+            "enable_checks only accepts bool value, got {} instead".format(type(enable_checks))
+        )
+    return enable_checks
+
+
 def _parse_seed(seed: Optional[int]) -> int:
     if seed is None:
         return -1
@@ -114,6 +122,7 @@ class Schedule(Object):
         seed: Optional[int] = None,
         debug_mask: Union[str, int] = "none",
         error_render_level: str = "detail",
+        enable_check: bool = True,
     ) -> None:
         """Construct a TensorIR schedule class from an IRModule
 
@@ -137,6 +146,15 @@ class Schedule(Object):
             - "detail": Render a detailed error message, with the TIR and error locations printed
             - "fast: Show a simple error message without rendering or string manipulation
             - "none": Do not show any error message.
+        enable_check : bool = True
+            The default schedule checks are too strict and might prevent us performing some valid
+            schedules. `enable_check` is an argument to control whether we enable prerequisite
+            checks for some schedule primitives or not:
+            - true: perform prerequisite check before applying some schedules.
+            - false: do not perform some check before applying schedules, but still raise error
+            if schedule fails.
+
+            It's user duty to guarantee schedule correctness if `enable_check` is set to `False`.
 
         Note
         ----
@@ -151,6 +169,7 @@ class Schedule(Object):
             _parse_seed(seed),
             _parse_debug_mask(debug_mask),
             _parse_error_render_level(error_render_level),
+            _parse_enable_checks(enable_check),
         )
 
     @staticmethod
@@ -160,6 +179,7 @@ class Schedule(Object):
         seed: Optional[int] = None,
         debug_mask: Union[str, int] = "none",
         error_render_level: str = "detail",
+        enable_check: bool = True,
     ) -> "Schedule":
         """Construct a non-traced TensorIR schedule class from an IRModule."""
         return _ffi_api.ConcreteSchedule(  # type: ignore # pylint: disable=no-member
@@ -167,6 +187,7 @@ class Schedule(Object):
             _parse_seed(seed),
             _parse_debug_mask(debug_mask),
             _parse_error_render_level(error_render_level),
+            _parse_enable_checks(enable_check),
         )
 
     ########## Utilities ##########
