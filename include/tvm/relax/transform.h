@@ -404,6 +404,7 @@ TVM_DLL Pass DeadCodeElimination(Array<runtime::String> entry_functions);
  * \return The Pass.
  */
 TVM_DLL Pass ToMixedPrecision(const DataType& out_dtype);
+
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm

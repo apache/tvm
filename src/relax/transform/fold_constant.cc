@@ -196,6 +196,10 @@ class ConstantFolder : public ExprMutator {
 
   using ExprMutator::VisitExpr_;
 
+  // TODO(@sunggg):
+  // Next PR will support fold with PackedFunc and MatchCast
+  // Until then, DecomposeCompositeOps() should be applied after
+  // this pass to fold `tensor_to_shape` op.
   Expr VisitExpr_(const CallNode* call) final {
     // post-order mutation
     Call post_call = Downcast<Call>(VisitExprPostOrder_(call));
@@ -251,8 +255,13 @@ class ConstantFolder : public ExprMutator {
           return VisitCallTIR(GetRef<Call>(call)).value_or(post_call);
         }
       } else if (op->name == "relax.tensor_to_shape") {
-        // Special handling for builtin op "relax.tensor_to_shape"
+        // Special handling for composite op "relax.tensor_to_shape"
         // If its input is constant, we can access its value and create ShapeExpr
+        // TODO(@sunggg):
+        //   currently, we do not have a info map about decomposition.
+        //   Thus, this is a temporary solution until we have a consensus about
+        //   how to deal with composite ops. One possibility is we register the
+        //   decomposition map for each op in a similar way we do for legalization.
         ICHECK_EQ(post_call->args.size(), 1);
         Expr arg = post_call->args[0];
         if (arg->IsInstance<ConstantNode>()) {

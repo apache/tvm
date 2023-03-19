@@ -499,6 +499,7 @@ def test_reshape():
     mod = LegalizeOps()(Reshape)
     tvm.ir.assert_structural_equal(mod, Expected)
 
+    # fmt: off
     # ShapeExpr might be produced by shape computation
     @tvm.script.ir_module
     class Reshape2:
@@ -542,6 +543,7 @@ def test_reshape():
             lv: R.Shape((8, 3)) = R.shape((8, 3))
             gv = R.call_tir(Expected2.reshape, (x,), out_sinfo=R.Tensor((8, 3), dtype="float32"))
             return gv
+    # fmt: on
 
     mod2 = LegalizeOps()(Reshape2)
     tvm.ir.assert_structural_equal(mod2, Expected2)
@@ -683,6 +685,7 @@ def test_reshape_symbolic():
     mod3 = LegalizeOps()(Reshape3)
     tvm.ir.assert_structural_equal(mod3, Expected3)
 
+
 def test_data_dependent_reshape():
     # fmt: off
     @tvm.script.ir_module
@@ -692,11 +695,13 @@ def test_data_dependent_reshape():
             lv: R.Shape([3,]) = R.tensor_to_shape(x)
             gv = R.reshape(x, lv)
             return gv
-    
+    # fmt: on
+
     assert relax.analysis.well_formed(DDReshape)
-    mod = relax.transform.DecomposeCompositeOperator()(DDReshape)
+    mod = relax.transform.DecomposeCompositeOps()(DDReshape)
     out_mod = relax.transform.LegalizeOps()(mod)
 
+    # fmt: off
     @I.ir_module
     class Expected:
         @T.prim_func
@@ -724,8 +729,10 @@ def test_data_dependent_reshape():
             lv: R.Shape([x_1]) = R.shape([x_1])
             gv_1 = R.call_tir(Expected.reshape, (x,), out_sinfo=R.Tensor((x_1,), dtype="int64"))
             return gv_1
+    # fmt: on
     tvm.ir.assert_structural_equal(out_mod, Expected)
-        
+
+
 def test_split_by_indices():
     # fmt: off
     @tvm.script.ir_module

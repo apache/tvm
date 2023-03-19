@@ -751,7 +751,6 @@ StructInfo InferStructInfoReshape(const Call& call, const BlockBuilder& ctx) {
                        << new_shape_prod);
     }
   }
-  
   Expr target_shape = call->args[1];
   // If shape values are defined, use them
   if (target_shape->IsInstance<VarNode>() && new_shape_sinfo->values.defined()) {

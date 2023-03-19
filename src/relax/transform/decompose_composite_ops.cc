@@ -150,7 +150,7 @@ class OpDecomposer : public ExprMutator {
 };
 
 namespace transform {
-Pass DecomposeCompositeOperator() {
+Pass DecomposeCompositeOps() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
         f = Downcast<Function>(NormInferenceSimplifier::Simplify(f));
@@ -158,14 +158,13 @@ Pass DecomposeCompositeOperator() {
         // Remove original ops if it's not used.
         return RemoveAllUnused(f);
       };
-  return CreateFunctionPass(/*pass_function=*/pass_func,                 //
-                            /*opt_level=*/0,                             //
-                            /*pass_name=*/"DecomposeCompositeOperator",  //
+  return CreateFunctionPass(/*pass_function=*/pass_func,            //
+                            /*opt_level=*/0,                        //
+                            /*pass_name=*/"DecomposeCompositeOps",  //
                             /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.DecomposeCompositeOperator")
-    .set_body_typed(DecomposeCompositeOperator);
+TVM_REGISTER_GLOBAL("relax.transform.DecomposeCompositeOps").set_body_typed(DecomposeCompositeOps);
 
 }  // namespace transform
 }  // namespace relax
