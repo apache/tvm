@@ -336,7 +336,7 @@ IRModule MergeCompositeFunctions(IRModule mod) {
     new_mod->Update(gvar, func);
   }
   // TODO(@tvm-team): Implicit pass dependency. Revisit when we have a better way to handle this.
-  return RemoveUnusedFunctions(new_mod, {"main"});
+  return DeadCodeElimination(new_mod, {"main"});
 }
 
 namespace transform {
