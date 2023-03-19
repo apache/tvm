@@ -62,11 +62,25 @@ StructInfo InferStructInfoSoftmax(const Call& call, const BlockBuilder& ctx) {
   return data_sinfo;
 }
 
+InferLayoutOutput InferLayoutSoftmax(const Call& call,
+                                     const Map<String, Array<String>>& desired_layouts,
+                                     const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+  const auto* attrs = call->attrs.as<SoftmaxAttrs>();
+  ICHECK(attrs) << "Invalid Call";
+
+  LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  ObjectPtr<SoftmaxAttrs> new_attrs = make_object<SoftmaxAttrs>(*attrs);
+  new_attrs->axis = FindAxis(layout->layout, attrs->axis);
+  return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
+}
+
 TVM_REGISTER_OP("relax.nn.softmax")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attrs_type<SoftmaxAttrs>()
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSoftmax);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSoftmax)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSoftmax);
 
 /* relax.nn.log_softmax */
 Expr log_softmax(Expr data, int axis) {
@@ -188,6 +202,28 @@ StructInfo InferStructInfoBatchNorm(const Call& call, const BlockBuilder& ctx) {
   }
 }
 
+InferLayoutOutput InferLayoutBatchNorm(const Call& call,
+                                       const Map<String, Array<String>>& desired_layouts,
+                                       const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+  std::vector<NLayout> initial_layouts;
+  for (size_t i = 0; i < 5; ++i) {
+    const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[i]);
+    ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+    ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
+    initial_layouts.push_back(InitialLayoutDecision(tensor_sinfo->ndim));
+  }
+  const auto* attrs = call->attrs.as<BatchNormAttrs>();
+  ICHECK(attrs) << "Invalid Call";
+
+  LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  ObjectPtr<BatchNormAttrs> new_attrs = make_object<BatchNormAttrs>(*attrs);
+  new_attrs->axis = FindAxis(layout->layout, attrs->axis);
+  return InferLayoutOutput(
+      {layout, initial_layouts[1], initial_layouts[2], initial_layouts[3], initial_layouts[4]},
+      {{layout, initial_layouts[3], initial_layouts[4]}}, Attrs(new_attrs));
+}
+
 TVM_REGISTER_OP("relax.nn.batch_norm")
     .set_attrs_type<BatchNormAttrs>()
     .set_num_inputs(5)
@@ -196,7 +232,8 @@ TVM_REGISTER_OP("relax.nn.batch_norm")
     .add_argument("beta", "Tensor", "The beta offset factor.")
     .add_argument("moving_mean", "Tensor", "Running mean of input.")
     .add_argument("moving_var", "Tensor", "Running variance of input.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoBatchNorm);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoBatchNorm)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBatchNorm);
 
 /* relax.nn.layer_norm */
 TVM_REGISTER_NODE_TYPE(LayerNormAttrs);
@@ -225,13 +262,39 @@ StructInfo InferStructInfoLayerNorm(const Call& call, const BlockBuilder& ctx) {
                        : input_sinfo[0];
 }
 
+InferLayoutOutput InferLayoutLayerNorm(const Call& call,
+                                       const Map<String, Array<String>>& desired_layouts,
+                                       const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+  std::vector<NLayout> initial_layouts;
+  for (size_t i = 0; i < 3; ++i) {
+    const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[i]);
+    ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+    ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
+    initial_layouts.push_back(InitialLayoutDecision(tensor_sinfo->ndim));
+  }
+  const auto* attrs = call->attrs.as<LayerNormAttrs>();
+  ICHECK(attrs) << "Invalid Call";
+
+  LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  ObjectPtr<LayerNormAttrs> new_attrs = make_object<LayerNormAttrs>(*attrs);
+  std::vector<Integer> new_axis;
+  for (const auto& axis : attrs->axes) {
+    new_axis.push_back(FindAxis(layout->layout, axis->value));
+  }
+  new_attrs->axes = std::move(new_axis);
+  return InferLayoutOutput({layout, initial_layouts[1], initial_layouts[2]}, {layout},
+                           Attrs(new_attrs));
+}
+
 TVM_REGISTER_OP("relax.nn.layer_norm")
     .set_attrs_type<LayerNormAttrs>()
     .set_num_inputs(3)
     .add_argument("data", "Tensor", "Input to which batch_norm will be applied.")
     .add_argument("gamma", "Tensor", "The gamma scale factor.")
     .add_argument("beta", "Tensor", "The beta offset factor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoLayerNorm);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoLayerNorm)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutLayerNorm);
 
 /* relax.nn.group_norm */
 TVM_REGISTER_NODE_TYPE(GroupNormAttrs);
@@ -308,13 +371,40 @@ StructInfo InferStructInfoGroupNorm(const Call& call, const BlockBuilder& ctx) {
   return data_sinfo;
 }
 
+InferLayoutOutput InferLayoutGroupNorm(const Call& call,
+                                       const Map<String, Array<String>>& desired_layouts,
+                                       const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+  std::vector<NLayout> initial_layouts;
+  for (size_t i = 0; i < 3; ++i) {
+    const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[i]);
+    ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+    ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
+    initial_layouts.push_back(InitialLayoutDecision(tensor_sinfo->ndim));
+  }
+  const auto* attrs = call->attrs.as<GroupNormAttrs>();
+  ICHECK(attrs) << "Invalid Call";
+
+  LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  ObjectPtr<GroupNormAttrs> new_attrs = make_object<GroupNormAttrs>(*attrs);
+  std::vector<Integer> new_axes;
+  for (const auto& axis : attrs->axes) {
+    new_axes.push_back(FindAxis(layout->layout, axis->value));
+  }
+  new_attrs->axes = std::move(new_axes);
+  new_attrs->channel_axis = FindAxis(layout->layout, attrs->channel_axis);
+  return InferLayoutOutput({layout, initial_layouts[1], initial_layouts[2]}, {layout},
+                           Attrs(new_attrs));
+}
+
 TVM_REGISTER_OP("relax.nn.group_norm")
     .set_attrs_type<GroupNormAttrs>()
     .set_num_inputs(3)
     .add_argument("data", "Tensor", "Input to which batch_norm will be applied.")
     .add_argument("gamma", "Tensor", "The gamma scale factor.")
     .add_argument("beta", "Tensor", "The beta offset factor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoGroupNorm);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoGroupNorm)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutGroupNorm);
 
 /* relax.nn.dropout */
 TVM_REGISTER_NODE_TYPE(DropoutAttrs);
@@ -338,7 +428,8 @@ TVM_REGISTER_OP("relax.nn.dropout")
     .set_attrs_type<DropoutAttrs>()
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "Input to which dropout will be applied.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoDropout);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoDropout)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise);
 
 /* relax.nn.cross_entropy_with_logits */
 StructInfo InferStructInfoCrossEntropy(const Call& call, const BlockBuilder& ctx) {

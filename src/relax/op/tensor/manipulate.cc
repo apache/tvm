@@ -26,6 +26,7 @@
 
 #include <algorithm>
 #include <numeric>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -272,11 +273,35 @@ StructInfo InferStructInfoConcat(const Call& call, const BlockBuilder& ctx) {
   }
 }
 
+InferLayoutOutput InferLayoutConcat(const Call& call,
+                                    const Map<String, Array<String>>& desired_layouts,
+                                    const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+
+  const auto* attrs = call->attrs.as<ConcatAttrs>();
+  ICHECK(attrs != nullptr) << "Invalid Call";
+  NLayout nlayout = GetNLayout(var_layout_map, call->args[0]);
+  ICHECK(nlayout.IsNested());
+  ICHECK(nlayout.NestedArray()[0].IsLeaf());
+
+  int n_tensor = nlayout.NestedArray().size();
+  LayoutDecision layout = nlayout.NestedArray()[0].LeafValue();
+  Array<NLayout> input_layouts, output_layouts;
+  for (int i = 0; i < n_tensor; ++i) {
+    input_layouts.push_back(layout);
+  }
+  output_layouts.push_back(layout);
+  ObjectPtr<ConcatAttrs> new_attrs = make_object<ConcatAttrs>(*attrs);
+  new_attrs->axis = Integer(FindAxis(layout->layout, attrs->axis.value_or(0)->value));
+  return InferLayoutOutput({NLayout(input_layouts)}, output_layouts, Attrs(new_attrs));
+}
+
 TVM_REGISTER_OP("relax.concat")
     .set_attrs_type<ConcatAttrs>()
     .set_num_inputs(1)
     .add_argument("tensors", "Tuple of Tensors", "The input list of tensors.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConcat);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConcat)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConcat);
 
 /* relax.expand_dims */
 TVM_REGISTER_NODE_TYPE(ExpandDimsAttrs);
@@ -330,11 +355,49 @@ StructInfo InferStructInfoExpandDims(const Call& call, const BlockBuilder& ctx) 
   return TensorStructInfo(ShapeExpr(output_shape), data_sinfo->dtype);
 }
 
+InferLayoutOutput InferLayoutExpandDims(const Call& call,
+                                        const Map<String, Array<String>>& desired_layouts,
+                                        const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+  const auto* attrs = call->attrs.as<ExpandDimsAttrs>();
+  ICHECK(attrs != nullptr) << "Invalid Call";
+  const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+  ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support static ndim for now";
+
+  LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  int ndim = tensor_sinfo->ndim;
+  int n_new_dim = attrs->axis.size();
+  int output_ndim = ndim + n_new_dim;
+  std::vector<bool> is_new_dim(output_ndim, false);
+  for (const auto& axis : attrs->axis) {
+    is_new_dim[(axis->value + output_ndim) % output_ndim] = true;
+  }
+  std::string new_layout;
+  for (int i = 0; i < output_ndim; ++i) {
+    if (!is_new_dim[i]) {
+      new_layout.push_back('A' + i);
+    }
+  }
+  new_layout = TransposeStrLike(new_layout, InitialLayout(ndim), existing_layout->layout);
+  std::string output_layout;
+  for (int i = 0, j = 0; i < output_ndim; ++i) {
+    if (is_new_dim[i]) {
+      output_layout.push_back('A' + i);
+    } else {
+      output_layout.push_back(new_layout.at(j++));
+    }
+  }
+  return InferLayoutOutput({existing_layout}, {LayoutDecision(Layout(output_layout))},
+                           Attrs(call->attrs));
+}
+
 TVM_REGISTER_OP("relax.expand_dims")
     .set_num_inputs(1)
     .set_attrs_type<ExpandDimsAttrs>()
     .add_argument("x", "Tensor", "The input tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoExpandDims);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoExpandDims)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutExpandDims);
 
 // Helper function for flatten and reshape.
 PrimExpr ComputeShapeProduct(const Array<PrimExpr>& shape_values) {
@@ -505,11 +568,49 @@ StructInfo InferStructInfoPermuteDims(const Call& call, const BlockBuilder& ctx)
   return TensorStructInfo(ShapeExpr(new_shape), data_sinfo->dtype);
 }
 
+InferLayoutOutput InferLayoutPermuteDims(const Call& call,
+                                         const Map<String, Array<String>>& desired_layouts,
+                                         const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+
+  const auto* attrs = call->attrs.as<PermuteDimsAttrs>();
+  ICHECK(attrs != nullptr) << "Invalid Call";
+  const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+  ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support static ndim for now";
+  int ndim = tensor_sinfo->ndim;
+
+  LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  Array<Integer> order;
+  if (attrs->axes.defined()) {
+    order = attrs->axes.value();
+  } else {
+    order.reserve(ndim);
+    for (int i = 0; i < ndim; ++i) {
+      order.push_back(Integer(ndim - i - 1));
+    }
+  }
+  std::string order_str;
+  for (const auto& axis : order) {
+    order_str.push_back(axis->value + 'A');
+  }
+  String new_axes =
+      TransposeStrLike(InitialLayout(ndim).name(), existing_layout->layout, order_str);
+  Array<Integer> new_order;
+  for (size_t i = 0; i < new_axes.size(); ++i) {
+    new_order.push_back(Integer(new_axes.at(i) - 'A'));
+  }
+  ObjectPtr<PermuteDimsAttrs> new_attrs = make_object<PermuteDimsAttrs>(*attrs);
+  new_attrs->axes = new_order;
+  return InferLayoutOutput({existing_layout}, {InitialLayoutDecision(ndim)}, Attrs(new_attrs));
+}
+
 TVM_REGISTER_OP("relax.permute_dims")
     .set_attrs_type<PermuteDimsAttrs>()
     .set_num_inputs(1)
     .add_argument("x", "Tensor", "The input tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPermuteDims);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPermuteDims)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPermuteDims);
 
 /* relax.reshape */
 Expr ConvertNewShapeToExpr(const Expr& data, const ObjectRef& shape) {
@@ -758,11 +859,33 @@ StructInfo InferStructInfoSplit(const Call& call, const BlockBuilder& ctx) {
   throw;
 }
 
+InferLayoutOutput InferLayoutSplit(const Call& call,
+                                   const Map<String, Array<String>>& desired_layouts,
+                                   const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+
+  const auto* attrs = call->attrs.as<SplitAttrs>();
+  ICHECK(attrs != nullptr) << "Invalid Call";
+  const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+  ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
+
+  LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  ObjectPtr<SplitAttrs> new_attrs = make_object<SplitAttrs>(*attrs);
+  new_attrs->axis = FindAxis(existing_layout->layout, attrs->axis);
+  StructInfo out_sinfo = InferStructInfoSplit(call, BlockBuilder::Create(IRModule()));
+  const auto* out_tuple = out_sinfo.as<TupleStructInfoNode>();
+  ICHECK(out_tuple != nullptr) << "Invalid Call";
+  NLayout tuple_layouts(Array<NLayout>(out_tuple->fields.size(), existing_layout));
+  return InferLayoutOutput({existing_layout}, {tuple_layouts}, Attrs(new_attrs));
+}
+
 TVM_REGISTER_OP("relax.split")
     .set_attrs_type<SplitAttrs>()
     .set_num_inputs(1)
     .add_argument("x", "Tensor", "The input tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSplit);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSplit)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSplit);
 
 /* relax.squeeze */
 TVM_REGISTER_NODE_TYPE(SqueezeAttrs);
@@ -857,11 +980,67 @@ StructInfo InferStructInfoSqueeze(const Call& call, const BlockBuilder& ctx) {
   }
 }
 
+InferLayoutOutput InferLayoutSqueeze(const Call& call,
+                                     const Map<String, Array<String>>& desired_layouts,
+                                     const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+
+  const auto* attrs = call->attrs.as<SqueezeAttrs>();
+  ICHECK(attrs != nullptr) << "Invalid Call";
+  const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+  ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support static ndim for now";
+  ICHECK(tensor_sinfo->shape.defined()) << "Only support static shape for now";
+  int ndim = tensor_sinfo->ndim;
+  const auto* shape = tensor_sinfo->shape.as<ShapeExprNode>();
+  ICHECK(shape != nullptr) << "Only support static shape for now";
+
+  Array<Integer> axis;
+  if (attrs->axis.defined()) {
+    axis = attrs->axis.value();
+  } else {
+    axis.reserve(ndim);
+    for (int i = 0; i < ndim; ++i) {
+      if (tir::is_one(shape->values[i])) {
+        axis.push_back(Integer(i));
+      }
+    }
+  }
+
+  std::string axis_str(ndim, '0');
+  for (const auto& iter : axis) {
+    axis_str[iter->value] = '1';
+  }
+  for (int i = 0, j = 0; i < ndim; ++i) {
+    if (axis_str[i] != '1') {
+      axis_str[i] = 'A' + j++;
+    }
+  }
+
+  LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  String new_axis_str = TransposeStrLike(axis_str, InitialLayout(ndim), existing_layout->layout);
+  Array<Integer> new_axis;
+  for (size_t i = 0; i < new_axis_str.size(); ++i) {
+    if (new_axis_str.at(i) == '1') {
+      new_axis.push_back(Integer(i));
+    }
+  }
+  std::string output_layout = new_axis_str;
+  output_layout.erase(std::remove(output_layout.begin(), output_layout.end(), '1'),
+                      output_layout.end());
+
+  ObjectPtr<SqueezeAttrs> new_attrs = make_object<SqueezeAttrs>(*attrs);
+  new_attrs->axis = new_axis;
+  return InferLayoutOutput({existing_layout}, {LayoutDecision(Layout(output_layout))},
+                           Attrs(new_attrs));
+}
+
 TVM_REGISTER_OP("relax.squeeze")
     .set_num_inputs(1)
     .set_attrs_type<SqueezeAttrs>()
     .add_argument("x", "Tensor", "The input tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSqueeze);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSqueeze)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSqueeze);
 
 void CheckCollapseShape(const Call& call, const BlockBuilder& ctx,
                         const Array<PrimExpr>& data_shape, const Array<PrimExpr>& target_shape) {

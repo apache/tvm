@@ -640,6 +640,23 @@ def AlterOpImpl(
     return _ffi_api.AlterOpImpl(op_impl_map, op_buffer_transforms)  # type: ignore
 
 
+def ConvertLayout(desired_layouts: Dict[str, List[str]]) -> tvm.ir.transform.Pass:
+    """Automatic layout conversion pass.
+    Parameters
+    ----------
+    desired_layouts : Dict[str, List[str]]
+        The desired layout of conv2d ops is a map from the name of the op to the desired layout
+        of the desired feature map, weight and output. For example, if we want to convert the
+        layout of conv2d from NCHW to NHWC, we can set the desired layout of conv2d to be
+        {"conv2d": ["NHWC", "OHWI"]}.
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass for layout conversion.
+    """
+    return _ffi_api.ConvertLayout(desired_layouts)  # type: ignore
+
+
 def _wrap_class_function_pass(pass_cls, pass_info):
     """Wrap a python class as function pass."""
 
