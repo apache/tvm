@@ -120,6 +120,7 @@ Pass MetaScheduleApplyDatabase(Optional<String> work_dir) {
           tir::PrimFunc new_prim_func = Downcast<tir::PrimFunc>(new_base_func);
           // copy the original attrs
           new_prim_func = WithAttrs(std::move(new_prim_func), {prim_func->attrs->dict});
+          new_prim_func = WithAttr(std::move(new_prim_func), tir::attr::kIsScheduled, Bool(true));
           result.Set(gv, new_prim_func);
           continue;
         } else {
