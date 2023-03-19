@@ -39,6 +39,14 @@ namespace relax {
  */
 Expr astype(Expr x, DataType dtype);
 
+/*!
+ * \brief A wrapper to wrap the input const tensor to the given data type.
+ * \param x The input const tensor to the operator.
+ * \param dtype The target data type
+ * \return The wrapped result.
+ */
+Expr wrap_param(Expr x, DataType dtype);
+
 }  // namespace relax
 }  // namespace tvm
 

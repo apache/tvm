@@ -177,13 +177,23 @@ InferLayoutOutput InferLayoutConv2d(const Call& call,
   return InferLayoutOutput({data_layout, weight_layout}, {output_layout}, Attrs(new_attrs));
 }
 
+Call InferMixedPrecisionConv2d(const Call& call, const DataType& out_dtype) {
+  const auto* conv2d_attrs = call->attrs.as<Conv2DAttrs>();
+  return Downcast<Call>(conv2d(call->args[0], call->args[1], conv2d_attrs->strides,
+                               conv2d_attrs->padding, conv2d_attrs->dilation, conv2d_attrs->groups,
+                               conv2d_attrs->data_layout, conv2d_attrs->kernel_layout,
+                               conv2d_attrs->out_layout, out_dtype));
+}
+
 TVM_REGISTER_OP("relax.nn.conv2d")
     .set_num_inputs(2)
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("weight", "Tensor", "The weight tensor.")
     .set_attrs_type<Conv2DAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConv2d)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv2d);
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv2d)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
+    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv2d);
 
 /* relax.nn.conv2d_transpose */
 TVM_REGISTER_NODE_TYPE(Conv2DTransposeAttrs);
