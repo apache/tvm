@@ -65,7 +65,7 @@ class CodeGenRunner : ExprMutator {
     }
 
     // TODO(@tvm-team): Implicit pass dependency. Revisit when we have a better way to handle this.
-    return RemoveUnusedFunctions(out_mod, entry_functions);
+    return DeadCodeElimination(out_mod, entry_functions);
   }
 
   using ExprMutator::VisitExpr_;

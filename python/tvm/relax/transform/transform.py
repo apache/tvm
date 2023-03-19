@@ -657,6 +657,64 @@ def ConvertLayout(desired_layouts: Dict[str, List[str]]) -> tvm.ir.transform.Pas
     return _ffi_api.ConvertLayout(desired_layouts)  # type: ignore
 
 
+def AlterOpImpl(
+    op_impl_map: Dict[str, PrimFunc],
+    op_buffer_transforms: Dict[str, List[Union[IndexMap, Callable]]],
+):
+    """Replace all PrimFunc's which have matching 'operator_name' attribute, with replacement
+    PrimFunc that could possibly have different layouts on i/o buffers. The layout
+    transformations on i/o buffers is present in the op_buffer_transforms map. Inserts the layout
+    transformations in the call sites of PrimFuncs being replaced to transform i/o
+    tensors into expected layout by new PrimFunc.
+
+    Parameters
+    ----------
+    op_impl_map: Dict[str, PrimFunc]
+        op_kind to PrimFunc map
+    op_buffer_transforms: Dict[str, List[Union[IndexMap, Callable]]
+        op_kind to layout transformation map for each of the buffers
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    for operator_name, transform_list in op_buffer_transforms.items():
+        l = []
+        for transform in transform_list:
+            if isinstance(transform, Callable):
+                transform = IndexMap.from_func(transform)
+            l.append(transform)
+        op_buffer_transforms[operator_name] = l
+
+    return _ffi_api.AlterOpImpl(op_impl_map, op_buffer_transforms)  # type: ignore
+
+
+def DeadCodeElimination(entry_functions: Optional[List[str]] = None) -> tvm.ir.transform.Pass:
+    """Remove dead code in the program.
+       Currently it removes:
+       1. Unused local VarBindings in a DataflowBlock.
+          The used var set is set to empty at the beginning of each DataflowBlock.
+          We reverse scan the DataflowBlock, if a VarBinding
+            - bindings to a dataflowvar, or
+            - is used in the used var set
+          We keep it and add its var to the used var set. Otherwise, we remove it.
+        2. Unused Relax functions in the module.
+          We detect the call chain from the entry function, and remove all unused functions.
+
+    Parameters
+    ----------
+    entry_functions: Optional[List[str]]
+        The set of entry functions to start from.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass.
+    """
+    if entry_functions is None:
+        entry_functions = ["main"]
+    return _ffi_api.DeadCodeElimination(entry_functions)  # type: ignore
+
+
 def _wrap_class_function_pass(pass_cls, pass_info):
     """Wrap a python class as function pass."""
 
