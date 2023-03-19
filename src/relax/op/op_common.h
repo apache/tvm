@@ -34,6 +34,8 @@
 #include <utility>
 #include <vector>
 
+#include "../transform/infer_layout_utils.h"
+
 namespace tvm {
 namespace relax {
 
@@ -68,10 +70,11 @@ inline TensorStructInfo GetUnaryInputTensorStructInfo(const Call& call, const Bl
  * \param OpRegName The name of operator to register. The name passed in will
  * be prepended with a prefix "relax." as the identifier string in the operator registry.
  */
-#define RELAX_REGISTER_UNARY_OP(OpRegName) \
-  TVM_REGISTER_OP("relax." OpRegName)      \
-      .set_num_inputs(1)                   \
-      .add_argument("x", "Tensor", "The input tensor.")
+#define RELAX_REGISTER_UNARY_OP(OpRegName)              \
+  TVM_REGISTER_OP("relax." OpRegName)                   \
+      .set_num_inputs(1)                                \
+      .add_argument("x", "Tensor", "The input tensor.") \
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
 
 /*!
  * \brief Quick helper macro to expose a make-function to construct the operator.
@@ -150,6 +153,17 @@ StructInfo InferStructInfoUnaryArith(const Call& call, const BlockBuilder& ctx) 
   return InferStructInfoUnary<require_float_dtype>(
       call, ctx, [](const TensorStructInfo& input_sinfo) { return input_sinfo->dtype; });
 }
+
+/*!
+ * \brief Layout infer util for unary elementwise ops. It will simply take the layout of the input.
+ * \param call The context Call to the operator.
+ * \param desired_layouts The desired layouts of certain ops.
+ * \param var_layout_map The layout of vars.
+ * \return The inferred layout result.
+ */
+InferLayoutOutput InferLayoutUnaryEwise(const Call& call,
+                                        const Map<String, Array<String>>& desired_layouts,
+                                        const VarLayoutMap& var_layout_map);
 
 /*!
  * \brief Infer the output datatype for binary arithmetic operators.

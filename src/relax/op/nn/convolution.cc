@@ -135,12 +135,55 @@ StructInfo InferStructInfoConv2d(const Call& call, const BlockBuilder& ctx) {
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype);
 }
 
+InferLayoutOutput InferLayoutConv2d(const Call& call,
+                                    const Map<String, Array<String>>& desired_layouts,
+                                    const VarLayoutMap& var_layout_map) {
+  const auto& it = desired_layouts.find("relax.nn.conv2d");
+  const auto* attrs = call->attrs.as<Conv2DAttrs>();
+  ICHECK(attrs) << "Invalid Call";
+
+  LayoutDecision data_layout, weight_layout, output_layout;
+  ObjectPtr<Conv2DAttrs> new_attrs = make_object<Conv2DAttrs>(*attrs);
+
+  if (it != desired_layouts.end()) {
+    // We have a desired layout for conv2d.
+    Layout desired_data_layout = (*it).second[0];
+    Layout desired_weight_layout = (*it).second[1];
+    Layout desired_output_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
+    ICHECK_EQ(desired_data_layout.ndim(), desired_data_layout.ndim_primal()) << "Axis swap only";
+    ICHECK_EQ(desired_weight_layout.ndim(), desired_weight_layout.ndim_primal())
+        << "Axis swap only";
+    ICHECK_EQ(desired_output_layout.ndim(), desired_output_layout.ndim_primal())
+        << "Axis swap only";
+    data_layout = TransposeLike(InitialLayout(4), attrs->data_layout, desired_data_layout);
+    weight_layout = TransposeLike(InitialLayout(4), attrs->kernel_layout, desired_weight_layout);
+    output_layout = TransposeLike(InitialLayout(4), attrs->out_layout, desired_output_layout);
+    new_attrs->data_layout = (*it).second[0];
+    new_attrs->kernel_layout = (*it).second[1];
+    new_attrs->out_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
+  } else {
+    // We don't have a desired layout for conv2d.
+    // We can just propagate the layout from the input.
+    data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+    weight_layout = GetLayoutDecision(var_layout_map, call->args[1]);
+    output_layout = data_layout;
+    new_attrs->data_layout =
+        TransposeLike(attrs->data_layout, InitialLayout(4), data_layout->layout).name();
+    new_attrs->kernel_layout =
+        TransposeLike(attrs->kernel_layout, InitialLayout(4), weight_layout->layout).name();
+    new_attrs->out_layout =
+        TransposeLike(attrs->out_layout, InitialLayout(4), output_layout->layout).name();
+  }
+  return InferLayoutOutput({data_layout, weight_layout}, {output_layout}, Attrs(new_attrs));
+}
+
 TVM_REGISTER_OP("relax.nn.conv2d")
     .set_num_inputs(2)
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("weight", "Tensor", "The weight tensor.")
     .set_attrs_type<Conv2DAttrs>()
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConv2d);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConv2d)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv2d);
 
 /* relax.nn.conv2d_transpose */
 TVM_REGISTER_NODE_TYPE(Conv2DTransposeAttrs);

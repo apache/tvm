@@ -185,11 +185,32 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
   return TensorStructInfo(ShapeExpr(output_shape), data_sinfo->dtype);
 }
 
+InferLayoutOutput InferLayoutStridedSlice(const Call& call,
+                                          const Map<String, Array<String>>& desired_layouts,
+                                          const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+
+  const auto* attrs = call->attrs.as<StridedSliceAttrs>();
+  ICHECK(attrs != nullptr) << "Invalid Call";
+  const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+  ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
+  LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  std::vector<Integer> new_axes;
+  for (const auto& axis : attrs->axes) {
+    new_axes.push_back(FindAxis(existing_layout->layout, axis->value));
+  }
+  ObjectPtr<StridedSliceAttrs> new_attrs = make_object<StridedSliceAttrs>(*attrs);
+  new_attrs->axes = std::move(new_axes);
+  return InferLayoutOutput({existing_layout}, {existing_layout}, Attrs(new_attrs));
+}
+
 TVM_REGISTER_OP("relax.strided_slice")
     .set_attrs_type<StridedSliceAttrs>()
     .set_num_inputs(1)
     .add_argument("x", "Tensor", "The source tensor to be sliced.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStridedSlice);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStridedSlice)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStridedSlice);
 
 }  // namespace relax
 }  // namespace tvm

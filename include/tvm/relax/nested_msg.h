@@ -531,6 +531,50 @@ Expr TransformTupleLeaf(Expr expr, std::array<NestedMsg<T>, N> msgs, FType ftran
   }
 }
 
+/*!
+ * \brief Recursively transform the tuple structure in sinfo and msgs along with it.
+ *
+ * This function will call ftransleaf for each leaf sinfo in sinfo.
+ * This function will throw an error if the nesting structure in msg does not
+ * match the tuple nesting structure in sinfo.
+ *
+ * \param sinfo The input sinfo to be transform. 
+ * \param msgs The input messages to guide the transformation.
+ * \param ftransleaf with signature ftransleaf(StructInfo, Array<NestedMsg<T>>)->StructInfo
+ * \tparam T the content type of nested msg
+ * \tparam N the number of messages
+ * \tparam FType The visit function type.
+ */
+template <typename T, std::size_t N, typename FType>
+StructInfo TransformTupleLeaf(StructInfo sinfo, std::array<NestedMsg<T>, N> msgs,
+                              FType ftransleaf) {
+  if (const auto* tuple = sinfo.as<TupleStructInfoNode>()) {
+    std::array<Array<NestedMsg<T>>, N> msg_arrays;
+    for (size_t i = 0; i < N; ++i) {
+      ICHECK(msgs[i].IsNested()) << "Expected nested to match tuple";
+      msg_arrays[i] = msgs[i].NestedArray();
+    }
+    bool same = true;
+    Array<StructInfo> fields;
+    fields.reserve(tuple->fields.size());
+    for (size_t i = 0; i < tuple->fields.size(); ++i) {
+      StructInfo field = tuple->fields[i];
+      std::array<NestedMsg<T>, N> sub_msgs;
+      for (size_t j = 0; j < N; ++j) {
+        sub_msgs[j] = msg_arrays[j][i];
+      }
+      fields.push_back(TransformTupleLeaf(field, std::move(sub_msgs), ftransleaf));
+      same &= (fields.back().same_as(field));
+    }
+    return same ? sinfo : TupleStructInfo(fields);
+  } else {
+    for (const auto& msg : msgs) {
+      ICHECK(msg.IsLeaf()) << "Expected leaf to match non-tuple";
+    }
+    return ftransleaf(sinfo, msgs);
+  }
+}
+
 }  // namespace relax
 }  // namespace tvm
 #endif  // TVM_RELAX_NESTED_MSG_H_

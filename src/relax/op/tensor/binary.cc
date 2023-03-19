@@ -78,6 +78,28 @@ StructInfo InferStructInfoBroadcastCMP(const Call& call, const BlockBuilder& ctx
          const TensorStructInfo& x2_sinfo) { return DataType::Bool(); });
 }
 
+InferLayoutOutput InferLayoutBinaryEwise(const Call& call,
+                                         const Map<String, Array<String>>& desired_layouts,
+                                         const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+  LayoutDecision layout1 = GetLayoutDecision(var_layout_map, call->args[0]);
+  LayoutDecision layout2 = GetLayoutDecision(var_layout_map, call->args[1]);
+
+  auto* x1_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  auto* x2_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+
+  ICHECK(!x1_sinfo->IsUnknownNdim() && !x2_sinfo->IsUnknownNdim())
+      << "Unknown dim tensors should not be handled by this function";
+
+  if (x1_sinfo->ndim <= x2_sinfo->ndim) {
+    LayoutDecision out_layout = FollowDecision(layout1, x2_sinfo->ndim);
+    return InferLayoutOutput({layout1, out_layout}, {out_layout}, Attrs(call->attrs));
+  } else {
+    LayoutDecision out_layout = FollowDecision(layout2, x1_sinfo->ndim);
+    return InferLayoutOutput({out_layout, layout2}, {out_layout}, Attrs(call->attrs));
+  }
+}
+
 /***************** Arithmetic operators *****************/
 
 RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(add);

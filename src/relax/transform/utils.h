@@ -156,6 +156,48 @@ bool IsNestedTensorConditioned(const StructInfo& sinfo, FType f_condition) {
 }
 
 /*!
+ * \brief Check if the given StructInfo is a nested tensor.
+ * \param sinfo The StructInfo to be checked.
+ * \return true if the given StructInfo is a nested tensor.
+ */
+bool IsNestedTensor(const StructInfo& sinfo);
+
+/*!
+ * \brief Check if the given expr is a nested tensor.
+ * \param expr The expr to be checked.
+ * \return true if the given expr is a nested tensor.
+ */
+bool IsNestedTensor(const Expr& expr);
+
+// TODO(@bohan): implements some postorder function accepts a visitor closure
+class VarReplacer : public ExprMutator {
+ public:
+  using VarMap = std::unordered_map<Id, Var, ObjectPtrHash, ObjectPtrEqual>;
+
+  explicit VarReplacer(const VarMap& var_remap) : var_remap_(var_remap) {}
+
+  static Expr Replace(const Expr& expr, const VarMap& var_remap) {
+    VarReplacer replacer(var_remap);
+    return replacer(expr);
+  }
+
+ private:
+  Expr VisitExpr_(const VarNode* op) final {
+    Var var = GetRef<Var>(op);
+    auto it = var_remap_.find(var->vid);
+    return it == var_remap_.end() ? var : it->second;
+  }
+
+  Expr VisitExpr_(const DataflowVarNode* op) final {
+    Var var = GetRef<Var>(op);
+    auto it = var_remap_.find(var->vid);
+    return it == var_remap_.end() ? var : it->second;
+  }
+
+  const VarMap& var_remap_;
+};
+
+/*!
  * \brief Create a Constant with a scalar
  *
  * \param dtype The data type.
