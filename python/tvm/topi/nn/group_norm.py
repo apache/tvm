@@ -20,6 +20,8 @@ from .. import cpp
 
 def group_norm(data, gamma, beta, num_groups, channel_axis, axes, epsilon=1e-5):
     """Group normalization operator.
+    It accepts fp16 and fp32 as input data type. It will cast the input to fp32
+    to perform the computation. The output will have the same data type as input.
 
     Parameters
     ----------

@@ -34,7 +34,8 @@ _group_norm_schedule = {
 # only test on llvm because schedule is missing
 @tvm.testing.parametrize_targets("llvm")
 @pytest.mark.parametrize("shape, axis", [([2, 4, 16], (2,)), ([2, 4, 4, 16], (2, 3))])
-def test_group_norm(target, dev, shape, axis, epsilon=1e-5, dtype="float32", rtol=1e-5, atol=1e-5):
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+def test_group_norm(target, dev, shape, axis, dtype, epsilon=1e-5, rtol=1e-5, atol=1e-5):
     data = te.placeholder(shape, dtype=dtype, name="data")
     num_groups = 2
     channel_axis = 1
