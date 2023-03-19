@@ -51,8 +51,6 @@ class VMBuiltinLowerMutator : public ExprMutator {
 
     if (call->op == call_tir_dyn_op_) {
       return CallTIRDyn(call);
-    } else if (call->op == tensor_to_shape_op_) {
-      return TensorToShape(call);
     } else if (call->op == reshape_op_) {
       return Reshape(call);
     } else if (call->op == shape_of_op_) {
@@ -150,28 +148,6 @@ class VMBuiltinLowerMutator : public ExprMutator {
                 {GetStructInfo(call_node)});
   }
 
-  ShapeExpr TensorToShape(const Call& call_node) {
-    ICHECK(call_node->args.size() == 1);
-    ICHECK(call_node->struct_info_.defined());
-    Expr expr = call_node->args[0];
-    const ShapeStructInfoNode* sinfo = GetStructInfoAs<ShapeStructInfoNode>(call_node);
-    ICHECK(sinfo);
-    // call builtin function that converts tensor to shape tuple
-    Var call = builder_->Emit(Call(ExternFunc("vm.builtin.tensor_to_shape"), {expr}, {},
-                                   {GetRef<ShapeStructInfo>(sinfo)}));
-
-    // define symbolic variables
-    Array<PrimExpr> shape_var;
-    for (int i = 0; i < sinfo->ndim; i++) {
-      shape_var.push_back(tir::Var("x", DataType::Int(64)));
-    }
-
-    // bind symbolic variables to the shape tuple
-    relax::Var var("y", ShapeStructInfo(shape_var));
-    builder_->EmitNormalized(MatchCast(var, call, ShapeStructInfo(shape_var)));
-    return ShapeExpr(shape_var);
-  }
-
   Expr ShapeOf(const Call& call_node) {
     ICHECK(call_node->args.size() == 1);
     ICHECK(call_node->struct_info_.defined());
@@ -218,7 +194,6 @@ class VMBuiltinLowerMutator : public ExprMutator {
   const StructInfo void_sinfo_ = TupleStructInfo(Array<StructInfo>({}));
   // object to pattern match.
   const Op& call_tir_dyn_op_ = Op::Get("relax.vm.call_tir_dyn");
-  const Op& tensor_to_shape_op_ = Op::Get("relax.tensor_to_shape");
   const Op& reshape_op_ = Op::Get("relax.reshape");
   const Op& shape_of_op_ = Op::Get("relax.shape_of");
   const Op& make_closure_op_ = Op::Get("relax.make_closure");

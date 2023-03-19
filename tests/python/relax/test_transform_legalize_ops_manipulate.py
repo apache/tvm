@@ -17,6 +17,7 @@
 
 import pytest
 import tvm
+from tvm import relax
 from tvm.relax.transform import LegalizeOps
 from tvm.script import relax as R, tir as T, ir as I
 import tvm.testing
@@ -682,7 +683,49 @@ def test_reshape_symbolic():
     mod3 = LegalizeOps()(Reshape3)
     tvm.ir.assert_structural_equal(mod3, Expected3)
 
+def test_data_dependent_reshape():
+    # fmt: off
+    @tvm.script.ir_module
+    class DDReshape:
+        @R.function
+        def main(x: R.Tensor((3, ), dtype="int64")):
+            lv: R.Shape([3,]) = R.tensor_to_shape(x)
+            gv = R.reshape(x, lv)
+            return gv
+    
+    assert relax.analysis.well_formed(DDReshape)
+    mod = relax.transform.DecomposeCompositeOperator()(DDReshape)
+    out_mod = relax.transform.LegalizeOps()(mod)
 
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def reshape(
+            rxplaceholder: T.Buffer((T.int64(3),), "int64"), var_T_reshape: T.handle
+        ):
+            T.func_attr({"tir.noalias": True})
+            x = T.int64()
+            T_reshape = T.match_buffer(var_T_reshape, (x,), "int64")
+            # with T.block("root"):
+            for ax0 in range(x):
+                with T.block("T_reshape"):
+                    v_ax0 = T.axis.spatial(x, ax0)
+                    T.reads(rxplaceholder[v_ax0 % T.int64(3)])
+                    T.writes(T_reshape[v_ax0])
+                    T_reshape[v_ax0] = rxplaceholder[v_ax0 % T.int64(3)]
+
+        @R.function
+        def main(x: R.Tensor((3,), dtype="int64")) -> R.Tensor((3,), dtype="int64"):
+            x_1 = T.int64()
+            gv: R.Shape([3]) = R.call_packed(
+                "vm.builtin.tensor_to_shape", x, sinfo_args=(R.Shape([3]),)
+            )
+            y: R.Shape([x_1]) = R.match_cast(gv, R.Shape([x_1]))
+            lv: R.Shape([x_1]) = R.shape([x_1])
+            gv_1 = R.call_tir(Expected.reshape, (x,), out_sinfo=R.Tensor((x_1,), dtype="int64"))
+            return gv_1
+    tvm.ir.assert_structural_equal(out_mod, Expected)
+        
 def test_split_by_indices():
     # fmt: off
     @tvm.script.ir_module

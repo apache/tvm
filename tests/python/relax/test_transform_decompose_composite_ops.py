@@ -30,7 +30,7 @@ def _check(before: Union[Function, IRModule], expected: Union[Function, IRModule
         before = IRModule({"main": before})
     if isinstance(expected, Function):
         expected = IRModule({"main": expected})
-    after = relax.transform.SimplifyNormInference()(before)
+    after = relax.transform.DecomposeCompositeOperator()(before)
     tvm.ir.assert_structural_equal(expected, after)
 
 
