@@ -299,17 +299,6 @@ void CodeGenMetal::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // N
   os << ')';
 }
 
-void CodeGenMetal::VisitExpr_(const RampNode* op, std::ostream& os) {  // NOLINT(*)
-  PrintType(op->dtype, os);
-  os << "(";
-  for (int i = 0; i < op->lanes; ++i) {
-    if (i != 0) os << ", ";
-    os << "(" << PrintExpr(op->base) << ")"
-       << "+(" << PrintExpr(op->stride) << "*" << i << ")";
-  }
-  os << ')';
-}
-
 void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   if (op->op.same_as(builtin::reinterpret())) {
     // generate as_type<TYPE>(ARG)
@@ -369,7 +358,11 @@ runtime::Module BuildMetal(IRModule mod, Target target) {
     code << fsource;
   }
 
-  return MetalModuleCreate(code.str(), fmt, ExtractFuncInfo(mod), source.str());
+  std::string code_str = code.str();
+  if (const auto* f = Registry::Get("tvm_callback_metal_postproc")) {
+    code_str = (*f)(code_str).operator std::string();
+  }
+  return MetalModuleCreate(code_str, fmt, ExtractFuncInfo(mod), source.str());
 }
 
 TVM_REGISTER_GLOBAL("target.build.metal").set_body_typed(BuildMetal);
