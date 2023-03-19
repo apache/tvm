@@ -138,7 +138,7 @@ class FusePadsMutator : public MixedModeMutator {
     auto new_conv2d_args = conv2d_call->args;
     new_conv2d_args.erase(new_conv2d_args.begin());
     new_conv2d_args.insert(new_conv2d_args.begin(), new_conv2d_input);
-    Call ret_call = Call(conv2d_call->op, new_conv2d_args, new_conv2d_attrs, {});
+    Call ret_call = Call(conv2d_call->op, new_conv2d_args, new_conv2d_attrs, {}, conv2d_call->span);
     return std::move(ret_call);
   }
 
@@ -162,6 +162,7 @@ class FusePadsMutator : public MixedModeMutator {
         Function new_func = Function(FreeVars(new_body), new_body, func->ret_type,
                                      FreeTypeVars(new_body, mod_), func->attrs);
         ret_call = Call(new_func, post_call->args);
+        ret_call->span = call->span;
       }
     }
 
