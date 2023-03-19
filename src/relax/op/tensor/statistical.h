@@ -42,19 +42,20 @@ namespace relax {
  *  1. be prepended with a prefix "relax.op." as the FFI identifier string for the make function,
  *  2. be prepended with a prefix "relax." as the identifier string in the operator registry.
  */
-#define RELAX_REGISTER_STATISTICAL_OP_INTERFACE(OpName)                  \
-  Expr OpName(Expr x, Optional<Array<Integer>> axis, bool keepdims) {    \
-    ObjectPtr<StatisticalAttrs> attrs = make_object<StatisticalAttrs>(); \
-    attrs->axis = std::move(axis);                                       \
-    attrs->keepdims = keepdims;                                          \
-    static const Op& op = Op::Get("relax." #OpName);                     \
-    return Call(op, {std::move(x)}, Attrs{attrs}, {});                   \
-  }                                                                      \
-  TVM_REGISTER_GLOBAL("relax.op." #OpName).set_body_typed(OpName);       \
-  TVM_REGISTER_OP("relax." #OpName)                                      \
-      .set_num_inputs(1)                                                 \
-      .add_argument("x", "Tensor", "The input data tensor")              \
-      .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStatistical)
+#define RELAX_REGISTER_STATISTICAL_OP_INTERFACE(OpName)                           \
+  Expr OpName(Expr x, Optional<Array<Integer>> axis, bool keepdims) {             \
+    ObjectPtr<StatisticalAttrs> attrs = make_object<StatisticalAttrs>();          \
+    attrs->axis = std::move(axis);                                                \
+    attrs->keepdims = keepdims;                                                   \
+    static const Op& op = Op::Get("relax." #OpName);                              \
+    return Call(op, {std::move(x)}, Attrs{attrs}, {});                            \
+  }                                                                               \
+  TVM_REGISTER_GLOBAL("relax.op." #OpName).set_body_typed(OpName);                \
+  TVM_REGISTER_OP("relax." #OpName)                                               \
+      .set_num_inputs(1)                                                          \
+      .add_argument("x", "Tensor", "The input data tensor")                       \
+      .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStatistical) \
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
 
 /*!
  * \brief Computes the maximum value of tensor elements over given axes.

@@ -54,7 +54,8 @@ TVM_REGISTER_OP("relax.astype")
     .set_attrs_type<AstypeAttrs>()
     .set_num_inputs(1)
     .add_argument("x", "Tensor", "The input tensor")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAstype);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAstype)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise);
 
 }  // namespace relax
 }  // namespace tvm
