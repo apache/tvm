@@ -222,7 +222,7 @@ class DTypeDecisionCollector : public ExprVisitor {
         tuple_get_item_node->tuple->struct_info_.as<TupleStructInfoNode>();
     ICHECK(sinfo != nullptr) << "TupleGetItemNode must have TupleStructInfo";
     for (size_t i = 0; i < sinfo->fields.size(); ++i) {
-      if (i == (size_t)tuple_get_item_node->index) {
+      if (i == static_cast<size_t>(tuple_get_item_node->index)) {
         require_rhs.push_back(lhs_type);
       } else {
         require_rhs.push_back(NTypeFrom(sinfo->fields[i], unknown_));
