@@ -299,6 +299,17 @@ void CodeGenMetal::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // N
   os << ')';
 }
 
+void CodeGenMetal::VisitExpr_(const RampNode* op, std::ostream& os) {  // NOLINT(*)
+  PrintType(op->dtype, os);
+  os << "(";
+  for (int i = 0; i < op->lanes; ++i) {
+    if (i != 0) os << ", ";
+    os << "(" << PrintExpr(op->base) << ")"
+       << "+(" << PrintExpr(op->stride) << "*" << i << ")";
+  }
+  os << ')';
+}
+
 void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   if (op->op.same_as(builtin::reinterpret())) {
     // generate as_type<TYPE>(ARG)
