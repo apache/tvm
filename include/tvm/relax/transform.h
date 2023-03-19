@@ -387,6 +387,7 @@ TVM_DLL Pass ConvertLayout(Map<String, Array<String>> desired_layouts);
 
 /*!
  * \brief Dead code elimination.
+ * \sa RemoveAllUnused
  * Currently it removes:
  *   1. Unused local VarBindings in a DataflowBlock.
  *   2. Unused DataflowBlocks in a function.
