@@ -294,7 +294,8 @@ TVM_REGISTER_OP("relax.nn.layer_norm")
     .add_argument("gamma", "Tensor", "The gamma scale factor.")
     .add_argument("beta", "Tensor", "The beta offset factor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoLayerNorm)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutLayerNorm);
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutLayerNorm)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
 
 /* relax.nn.group_norm */
 TVM_REGISTER_NODE_TYPE(GroupNormAttrs);
@@ -404,7 +405,8 @@ TVM_REGISTER_OP("relax.nn.group_norm")
     .add_argument("gamma", "Tensor", "The gamma scale factor.")
     .add_argument("beta", "Tensor", "The beta offset factor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoGroupNorm)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutGroupNorm);
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutGroupNorm)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
 
 /* relax.nn.dropout */
 TVM_REGISTER_NODE_TYPE(DropoutAttrs);
@@ -429,7 +431,8 @@ TVM_REGISTER_OP("relax.nn.dropout")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "Input to which dropout will be applied.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoDropout)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise);
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
 
 /* relax.nn.cross_entropy_with_logits */
 StructInfo InferStructInfoCrossEntropy(const Call& call, const BlockBuilder& ctx) {
