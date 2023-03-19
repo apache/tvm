@@ -17,6 +17,7 @@
 
 import tvm
 import tvm.testing
+from tvm.relax.analysis import remove_all_unused
 from tvm.relax.transform import DeadCodeElimination
 from tvm.script.parser import ir as I, relax as R, tir as T
 
@@ -330,6 +331,122 @@ def test_multiple_unused_funcs():
     # RemoveUnusedFunction pass won't remove the function with global symbol for the external linkage.
     assert check_if_func_exists(new_mod, "unused_func1")
     assert not check_if_func_exists(new_mod, "unused_func2")
+
+
+def test_unused_dfb():
+    # test if an unused dataflow block can be removed.
+    @tvm.script.ir_module
+    class Input:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 28, 28), dtype="float32"),
+            w: R.Tensor((4, 3, 3, 3), dtype="float32"),
+        ) -> R.Tensor((2, 4, 26, 26), dtype="float16"):
+            # block 0
+            with R.dataflow():
+                lv0: R.Tensor((2, 28, 28, 3), dtype="float32") = R.permute_dims(
+                    x, axes=[0, 2, 3, 1]
+                )
+                lv1: R.Tensor((4, 3, 3, 3), dtype="float32") = R.permute_dims(w, axes=[0, 2, 3, 1])
+                lv2: R.Tensor((2, 26, 26, 4), dtype="float32") = R.nn.conv2d(
+                    lv0, lv1, data_layout="NHWC", kernel_layout="OHWI", out_layout="NHWC"
+                )
+                lv3: R.Tensor((2, 4, 26, 26), dtype="float32") = R.permute_dims(
+                    lv2, axes=[0, 3, 1, 2]
+                )
+                R.output(lv2)
+            gv3 = R.astype(lv2, dtype="float16")
+            # dead block
+            with R.dataflow():
+                lv4: R.Tensor((2, 4, 26, 26), dtype="float16") = R.permute_dims(
+                    gv3, axes=[0, 3, 1, 2]
+                )
+                R.output(lv4)
+            return gv3
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 28, 28), dtype="float32"),
+            w: R.Tensor((4, 3, 3, 3), dtype="float32"),
+        ) -> R.Tensor((2, 4, 26, 26), dtype="float16"):
+            # block 0
+            with R.dataflow():
+                lv0: R.Tensor((2, 28, 28, 3), dtype="float32") = R.permute_dims(
+                    x, axes=[0, 2, 3, 1]
+                )
+                lv1: R.Tensor((4, 3, 3, 3), dtype="float32") = R.permute_dims(w, axes=[0, 2, 3, 1])
+                lv2: R.Tensor((2, 26, 26, 4), dtype="float32") = R.nn.conv2d(
+                    lv0, lv1, data_layout="NHWC", kernel_layout="OHWI", out_layout="NHWC"
+                )
+                R.output(lv2)
+            gv3 = R.astype(lv2, dtype="float16")
+            return gv3
+
+    verify(Input, Expected)
+
+
+def test_unused_dfb2():
+    # test if an unused dataflow block can be removed.
+    @tvm.script.ir_module
+    class Input:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 28, 28), dtype="float32"),
+            w: R.Tensor((4, 3, 3, 3), dtype="float32"),
+        ) -> R.Tensor((2, 4, 26, 26), dtype="float16"):
+            # dead block
+            with R.dataflow():
+                lv0: R.Tensor((2, 28, 28, 3), dtype="float32") = R.permute_dims(
+                    x, axes=[0, 2, 3, 1]
+                )
+                R.output(lv0)
+
+            gv_x = R.astype(x, dtype="float16")
+            gv_w = R.astype(x, dtype="float16")
+
+            with R.dataflow():
+                lv1: R.Tensor((2, 28, 28, 3), dtype="float16") = R.permute_dims(
+                    gv_x, axes=[0, 2, 3, 1]
+                )
+                lv2: R.Tensor((4, 3, 3, 3), dtype="float16") = R.permute_dims(
+                    gv_w, axes=[0, 2, 3, 1]
+                )
+                lv3: R.Tensor((2, 26, 26, 4), dtype="float16") = R.nn.conv2d(
+                    lv1, lv2, data_layout="NHWC", kernel_layout="OHWI", out_layout="NHWC"
+                )
+                # dead instruction -> usee lv1 also dead.
+                lv4: R.Tensor((2, 3, 28, 28), dtype="float32") = R.permute_dims(
+                    lv0, axes=[0, 3, 1, 2]
+                )
+                R.output(lv3)
+            return lv3
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 28, 28), dtype="float32"),
+            w: R.Tensor((4, 3, 3, 3), dtype="float32"),
+        ) -> R.Tensor((2, 4, 26, 26), dtype="float16"):
+            gv_x = R.astype(x, dtype="float16")
+            gv_w = R.astype(x, dtype="float16")
+
+            with R.dataflow():
+                lv1: R.Tensor((2, 28, 28, 3), dtype="float16") = R.permute_dims(
+                    gv_x, axes=[0, 2, 3, 1]
+                )
+                lv2: R.Tensor((4, 3, 3, 3), dtype="float16") = R.permute_dims(
+                    gv_w, axes=[0, 2, 3, 1]
+                )
+                lv3: R.Tensor((2, 26, 26, 4), dtype="float16") = R.nn.conv2d(
+                    lv1, lv2, data_layout="NHWC", kernel_layout="OHWI", out_layout="NHWC"
+                )
+                R.output(lv3)
+            return lv3
+
+    verify(Input, Expected)
 
 
 if __name__ == "__main__":

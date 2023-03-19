@@ -25,13 +25,14 @@
  *   1. Unused local VarBindings in a DataflowBlock.
  *      The used var set is set to empty at the beginning of each DataflowBlock.
  *      We reverse scan the DataflowBlock, if a VarBinding
- *        - bindings to a dataflowvar, or
+ *        - bindings to a DataflowVar, or
  *        - is used in the used var set
  *      We keep it and add its var to the used var set. Otherwise, we remove it.
  *   2. Unused Relax functions in the module.
  *      We detect the call chain from the entry function, and remove all unused functions.
  */
 
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
@@ -88,7 +89,7 @@ class CallTracer : ExprVisitor {
   std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> visiting_;
 };
 
-IRModule RemoveUnusedFunctions(IRModule mod_, Array<runtime::String> entry_funcs) {
+IRModule RemoveDeadFunctions(IRModule mod_, Array<runtime::String> entry_funcs) {
   auto tracer = CallTracer(mod_);
   for (auto entry : entry_funcs) {
     tracer.Trace(entry);
@@ -160,14 +161,17 @@ class DeadCodeEliminator : public ExprMutator {
 };
 
 IRModule DeadCodeElimination(const IRModule& mod, Array<runtime::String> entry_functions) {
-  DeadCodeEliminator eliminator;
-  for (const auto& gv : mod->GetGlobalVars()) {
-    auto func = mod->Lookup(gv);
+  // S1: remove unused functions to reduce the number of functions to be analyzed.
+  IRModule tmp_mod = RemoveDeadFunctions(mod, entry_functions);
+  // S2: remove unused variables in each function.
+  for (const auto& gv : tmp_mod->GetGlobalVars()) {
+    auto func = tmp_mod->Lookup(gv);
     if (func->IsInstance<FunctionNode>()) {
-      mod->Update(gv, Downcast<Function>(eliminator.VisitExpr(func)));
+      tmp_mod->Update(gv, RemoveAllUnused(Downcast<Function>(func)));
     }
   }
-  return RemoveUnusedFunctions(mod, entry_functions);
+  // S3: remove unused functions again as some callers may be removed in S2.
+  return RemoveDeadFunctions(tmp_mod, entry_functions);
 }
 
 namespace transform {
