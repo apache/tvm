@@ -385,7 +385,6 @@ TVM_DLL Pass AlterOpImpl(const Map<String, tir::PrimFunc>& op_impl_map,
  */
 TVM_DLL Pass ConvertLayout(Map<String, Array<String>> desired_layouts);
 
-
 /*!
  * \brief Dead code elimination.
  * Currently it removes:
@@ -400,6 +399,14 @@ TVM_DLL Pass ConvertLayout(Map<String, Array<String>> desired_layouts);
  * \return The Pass.
  */
 TVM_DLL Pass DeadCodeElimination(Array<runtime::String> entry_functions);
+
+/*!
+ * \brief Automatic mixed precision pass. Currently the pass assumes the input module to be fp32
+ * only, and will automatically cast fp32 to fp16 for certain ops.
+ * \param out_dtype The output data type of gemm/conv, which is the data type of the accumulator.
+ * \return The Pass.
+ */
+TVM_DLL Pass ToMixedPrecision(const DataType& out_dtype);
 
 }  // namespace transform
 }  // namespace relax

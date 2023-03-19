@@ -210,7 +210,8 @@ TVM_REGISTER_OP("relax.strided_slice")
     .set_num_inputs(1)
     .add_argument("x", "Tensor", "The source tensor to be sliced.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStridedSlice)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStridedSlice);
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStridedSlice)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
 
 }  // namespace relax
 }  // namespace tvm

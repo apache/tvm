@@ -121,7 +121,8 @@ TVM_REGISTER_OP("relax.image.resize2d")
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("size", "Shape", "The output image shape.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoResize2D)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutResize2d);
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutResize2d)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
 
 }  // namespace relax
 }  // namespace tvm

@@ -107,7 +107,8 @@ TVM_REGISTER_OP("relax.broadcast_to")
     .set_num_inputs(2)
     .add_argument("x", "Tensor", "The input tensor.")
     .add_argument("shape", "Shape", "The target shape.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoBroadcastTo);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoBroadcastTo)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
 
 /* relax.concat */
 TVM_REGISTER_NODE_TYPE(ConcatAttrs);
@@ -301,7 +302,8 @@ TVM_REGISTER_OP("relax.concat")
     .set_num_inputs(1)
     .add_argument("tensors", "Tuple of Tensors", "The input list of tensors.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConcat)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConcat);
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConcat)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
 
 /* relax.expand_dims */
 TVM_REGISTER_NODE_TYPE(ExpandDimsAttrs);
@@ -397,7 +399,8 @@ TVM_REGISTER_OP("relax.expand_dims")
     .set_attrs_type<ExpandDimsAttrs>()
     .add_argument("x", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoExpandDims)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutExpandDims);
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutExpandDims)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
 
 // Helper function for flatten and reshape.
 PrimExpr ComputeShapeProduct(const Array<PrimExpr>& shape_values) {
@@ -437,7 +440,8 @@ StructInfo InferStructInfoFlatten(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.flatten")
     .set_num_inputs(1)
     .add_argument("x", "Tensor", "The input tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoFlatten);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoFlatten)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
 
 /* relax.layout_transform */
 TVM_REGISTER_NODE_TYPE(LayoutTransformAttrs);
@@ -499,7 +503,8 @@ TVM_REGISTER_OP("relax.layout_transform")
     .set_num_inputs(1)
     .set_attrs_type<LayoutTransformAttrs>()
     .add_argument("x", "Tensor", "The input tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoLayoutTransform);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoLayoutTransform)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
 
 /* relax.permute_dims */
 TVM_REGISTER_NODE_TYPE(PermuteDimsAttrs);
@@ -610,7 +615,8 @@ TVM_REGISTER_OP("relax.permute_dims")
     .set_num_inputs(1)
     .add_argument("x", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPermuteDims)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPermuteDims);
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPermuteDims)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
 
 /* relax.reshape */
 Expr ConvertNewShapeToExpr(const Expr& data, const ObjectRef& shape) {
@@ -752,7 +758,8 @@ TVM_REGISTER_OP("relax.reshape")
     .set_num_inputs(2)
     .add_argument("x", "Tensor", "The input tensor.")
     .add_argument("shape", "Shape", "The input new shape.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoReshape);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoReshape)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
 
 /* relax.split */
 TVM_REGISTER_NODE_TYPE(SplitAttrs);
@@ -885,7 +892,8 @@ TVM_REGISTER_OP("relax.split")
     .set_num_inputs(1)
     .add_argument("x", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSplit)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSplit);
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSplit)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
 
 /* relax.squeeze */
 TVM_REGISTER_NODE_TYPE(SqueezeAttrs);
@@ -1040,7 +1048,8 @@ TVM_REGISTER_OP("relax.squeeze")
     .set_attrs_type<SqueezeAttrs>()
     .add_argument("x", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSqueeze)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSqueeze);
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSqueeze)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
 
 void CheckCollapseShape(const Call& call, const BlockBuilder& ctx,
                         const Array<PrimExpr>& data_shape, const Array<PrimExpr>& target_shape) {

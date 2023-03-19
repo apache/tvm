@@ -38,6 +38,15 @@ struct AstypeAttrs : public tvm::AttrsNode<AstypeAttrs> {
   }
 };  // struct AstypeAttrs.
 
+/*! \brief Attributes used in wrap_param operator */
+struct WrapParamAttrs : public tvm::AttrsNode<WrapParamAttrs> {
+  DataType dtype;
+
+  TVM_DECLARE_ATTRS(WrapParamAttrs, "relax.attrs.WrapParamAttrs") {
+    TVM_ATTR_FIELD(dtype).describe("Target data type");
+  }
+};  // struct WrapParamAttrs.
+
 }  // namespace relax
 }  // namespace tvm
 

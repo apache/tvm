@@ -139,7 +139,8 @@ TVM_REGISTER_OP("relax.nn.max_pool2d")
     .add_argument("data", "Tensor", "The input tensor")
     .set_attrs_type<Pool2DAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPool2D)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool2d);
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool2d)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
 
 Expr avg_pool2d(Expr data, Array<IntImm> pool_size, Array<IntImm> strides, Array<IntImm> padding,
                 Array<IntImm> dilation, bool ceil_mode, String layout,
@@ -155,7 +156,8 @@ TVM_REGISTER_OP("relax.nn.avg_pool2d")
     .add_argument("data", "Tensor", "The input tensor")
     .set_attrs_type<Pool2DAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPool2D)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool2d);
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool2d)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
 
 /* relax.nn.adaptive_avg_pool2d */
 TVM_REGISTER_NODE_TYPE(AdaptivePool2DAttrs);
@@ -237,7 +239,8 @@ TVM_REGISTER_OP("relax.nn.adaptive_avg_pool2d")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAdaptiveAvgPool2D)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool2D);
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool2D)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
 
 }  // namespace relax
 }  // namespace tvm

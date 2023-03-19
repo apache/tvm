@@ -37,17 +37,18 @@ namespace relax {
  *  1. be prepended with a prefix "relax.op." as the FFI identifier string for the make function,
  *  2. be prepended with a prefix "relax." as the identifier string in the operator registry.
  */
-#define RELAX_REGISTER_BINARY_OP_AND_IMPL(OpName)                  \
-  Expr OpName(Expr x1, Expr x2) {                                  \
-    static const Op& op = Op::Get("relax." #OpName);               \
-    return Call(op, {x1, x2}, Attrs(), {});                        \
-  }                                                                \
-  TVM_REGISTER_GLOBAL("relax.op." #OpName).set_body_typed(OpName); \
-  TVM_REGISTER_OP("relax." #OpName)                                \
-      .set_num_inputs(2)                                           \
-      .add_argument("x1", "Tensor", "The first input tensor.")     \
-      .add_argument("x2", "Tensor", "The second input tensor.")    \
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+#define RELAX_REGISTER_BINARY_OP_AND_IMPL(OpName)                               \
+  Expr OpName(Expr x1, Expr x2) {                                               \
+    static const Op& op = Op::Get("relax." #OpName);                            \
+    return Call(op, {x1, x2}, Attrs(), {});                                     \
+  }                                                                             \
+  TVM_REGISTER_GLOBAL("relax.op." #OpName).set_body_typed(OpName);              \
+  TVM_REGISTER_OP("relax." #OpName)                                             \
+      .set_num_inputs(2)                                                        \
+      .add_argument("x1", "Tensor", "The first input tensor.")                  \
+      .add_argument("x2", "Tensor", "The second input tensor.")                 \
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise) \
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
 
 #define RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(OpName)             \
   RELAX_REGISTER_BINARY_OP_AND_IMPL(OpName).set_attr<FInferStructInfo>( \

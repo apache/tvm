@@ -82,7 +82,8 @@ TVM_REGISTER_OP("relax.full")
     .set_num_inputs(2)
     .add_argument("shape", "Shape", "The shape of the created tensor.")
     .add_argument("fill_value", "Tensor", "The scalar tensor, denoting the value to fill.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoFull);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoFull)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
 
 /* relax.full_like */
 Expr full_like(Expr x, Expr fill_value, DataType dtype) {
@@ -119,7 +120,8 @@ TVM_REGISTER_OP("relax.full_like")
     .set_num_inputs(2)
     .add_argument("x", "Tensor", "The input tensor.")
     .add_argument("fill_value", "Tensor", "The scalar value to fill.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoFullLike);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoFullLike)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
 
 // Structure info inference for ones and zeros
 StructInfo InferStructInfoOnesZeros(const Call& call, const BlockBuilder& ctx) {
@@ -175,7 +177,8 @@ TVM_REGISTER_OP("relax.ones")
     .set_attrs_type<InitAttrs>()
     .set_num_inputs(1)
     .add_argument("shape", "Shape", "The shape of the created tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoOnesZeros);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoOnesZeros)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
 
 TVM_REGISTER_OP("relax.ones_like")
     .set_attrs_type<InitAttrs>()
@@ -207,7 +210,8 @@ TVM_REGISTER_OP("relax.zeros")
     .set_attrs_type<InitAttrs>()
     .set_num_inputs(1)
     .add_argument("shape", "Shape", "The shape of the created tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoOnesZeros);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoOnesZeros)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
 
 TVM_REGISTER_OP("relax.zeros_like")
     .set_attrs_type<InitAttrs>()
