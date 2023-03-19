@@ -17,7 +17,6 @@
 
 import tvm
 import tvm.testing
-from tvm.relax.analysis import remove_all_unused
 from tvm.relax.transform import DeadCodeElimination
 from tvm.script.parser import ir as I, relax as R, tir as T
 

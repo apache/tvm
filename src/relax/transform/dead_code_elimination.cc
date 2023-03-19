@@ -89,7 +89,7 @@ class CallTracer : ExprVisitor {
   std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> visiting_;
 };
 
-IRModule RemoveDeadFunctions(IRModule mod_, Array<runtime::String> entry_funcs) {
+IRModule RemoveUnusedFunctions(IRModule mod_, Array<runtime::String> entry_funcs) {
   auto tracer = CallTracer(mod_);
   for (auto entry : entry_funcs) {
     tracer.Trace(entry);
@@ -162,7 +162,7 @@ class DeadCodeEliminator : public ExprMutator {
 
 IRModule DeadCodeElimination(const IRModule& mod, Array<runtime::String> entry_functions) {
   // S1: remove unused functions to reduce the number of functions to be analyzed.
-  IRModule tmp_mod = RemoveDeadFunctions(mod, entry_functions);
+  IRModule tmp_mod = RemoveUnusedFunctions(mod, entry_functions);
   // S2: remove unused variables in each function.
   for (const auto& gv : tmp_mod->GetGlobalVars()) {
     auto func = tmp_mod->Lookup(gv);
@@ -171,7 +171,7 @@ IRModule DeadCodeElimination(const IRModule& mod, Array<runtime::String> entry_f
     }
   }
   // S3: remove unused functions again as some callers may be removed in S2.
-  return RemoveDeadFunctions(tmp_mod, entry_functions);
+  return RemoveUnusedFunctions(tmp_mod, entry_functions);
 }
 
 namespace transform {
