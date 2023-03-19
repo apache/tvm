@@ -151,9 +151,9 @@ inline PrimExpr CanonicalizeIndex(PrimExpr index, PrimExpr extent, int64_t strid
   return min(max(index, begin_range), end_range);  // NOLINT
 }
 
-PrimExpr GetLength(PrimExpr begin, PrimExpr end, const int64_t stride, const PrimExpr& ndim) {
-  begin = CanonicalizeIndex(begin, ndim, stride);
-  end = CanonicalizeIndex(end, ndim, stride);
+PrimExpr GetLength(PrimExpr begin, PrimExpr end, const int64_t stride, const PrimExpr& length) {
+  begin = CanonicalizeIndex(begin, length, stride);
+  end = CanonicalizeIndex(end, length, stride);
 
   if (stride < 0) {
     return ceildiv(begin - end, IntImm(DataType::Int(64), -stride));
