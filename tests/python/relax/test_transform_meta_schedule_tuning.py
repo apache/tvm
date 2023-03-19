@@ -112,5 +112,76 @@ def test_ms_tuning_primfunc():
             assert not tvm.ir.structural_equal(mod, out_mod)
 
 
+@tvm.script.ir_module
+class DefaultScheduledModule:
+    @T.prim_func
+    def tir_matmul(
+        A: T.Buffer((32, 32), "float32"),
+        B: T.Buffer((32, 32), "float32"),
+        C: T.Buffer((32, 32), "float32"),
+    ):
+        T.func_attr({"global_symbol": "tir_matmul"})
+        # with T.block("root"):
+        for i0_j0_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
+            for i0_j0_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
+                for k0 in range(32):
+                    with T.block(""):
+                        i = T.axis.spatial(32, (i0_j0_fused_0 * 1024 + i0_j0_fused_1) // 32)
+                        j = T.axis.spatial(32, (i0_j0_fused_0 * 1024 + i0_j0_fused_1) % 32)
+                        k = T.axis.reduce(32, k0)
+                        T.reads(A[i, k], B[j, k])
+                        T.writes(C[i, j])
+                        with T.init():
+                            C[i, j] = T.float32(0)
+                        C[i, j] = C[i, j] + A[i, k] * B[j, k]
+
+    @T.prim_func
+    def tir_relu(A: T.Buffer((32, 32), "float32"), B: T.Buffer((32, 32), "float32")):
+        T.func_attr({"global_symbol": "tir_relu"})
+        # with T.block("root"):
+        for i_j_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
+            for i_j_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
+                with T.block(""):
+                    vi = T.axis.spatial(32, (i_j_fused_0 * 1024 + i_j_fused_1) // 32)
+                    vj = T.axis.spatial(32, (i_j_fused_0 * 1024 + i_j_fused_1) % 32)
+                    T.reads(A[vi, vj])
+                    T.writes(B[vi, vj])
+                    B[vi, vj] = T.max(A[vi, vj], T.float32(0))
+
+    @R.function
+    def main(
+        x: R.Tensor((32, 32), dtype="float32"), w: R.Tensor((32, 32), dtype="float32")
+    ) -> R.Tensor((32, 32), dtype="float32"):
+        with R.dataflow():
+            lv0 = R.call_tir(
+                DefaultScheduledModule.tir_matmul,
+                (x, w),
+                out_sinfo=R.Tensor((32, 32), dtype="float32"),
+            )
+            lv1 = R.call_tir(
+                DefaultScheduledModule.tir_relu,
+                (lv0,),
+                out_sinfo=R.Tensor((32, 32), dtype="float32"),
+            )
+            R.output(lv1)
+        return lv1
+
+
+def test_ms_database_apply_fallback():
+    mod = InputModule
+    target_cuda = tvm.target.Target("nvidia/geforce-rtx-3090-ti")
+    assert isinstance(mod, IRModule)
+    with tempfile.TemporaryDirectory() as work_dir:
+        with target_cuda, transform.PassContext(trace=Trace(mod), opt_level=0):
+            tuning_pass = relax.transform.MetaScheduleTuneTIR(
+                work_dir=work_dir, max_trials_global=0
+            )
+            out_mod = tuning_pass(mod)
+            tvm.ir.assert_structural_equal(mod, out_mod)
+            default_pass = tvm.tir.transform.DefaultGPUSchedule()
+            out_mod = default_pass(mod)
+            tvm.ir.assert_structural_equal(out_mod, DefaultScheduledModule)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
