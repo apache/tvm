@@ -100,12 +100,21 @@ class MemoizedExprTranslator : public ::tvm::relax::ExprFunctor<OutputType(const
 };
 
 /*!
- * \brief Remove unused global relax functions in an IRModule.
+ * \brief Dead code elimination
+ * Currently it removes:
+ *   1. Unused local VarBindings in a DataflowBlock.
+ *      The used var set is set to empty at the beginning of each DataflowBlock.
+ *      We reverse scan the DataflowBlock, if a VarBinding
+ *        - bindings to a dataflowvar, or
+ *        - is used in the used var set
+ *      We keep it and add its var to the used var set. Otherwise, we remove it.
+ *   2. Unused Relax functions in the module.
+ *      We detect the call chain from the entry function, and remove all unused functions.
  * \param mod The target module
  * \param entry_functions list of entry functions
  * \return The updated module.
  */
-TVM_DLL IRModule RemoveUnusedFunctions(IRModule mod, Array<runtime::String> entry_funcs);
+TVM_DLL IRModule DeadCodeElimination(const IRModule& mod, Array<runtime::String> entry_funcs);
 
 /*!
  * \brief Get the external symbol of the Relax function name.

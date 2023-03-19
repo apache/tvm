@@ -28,7 +28,7 @@ def _check(before, expected, operator_name, replacement_primfunc, layout_changes
     after = relax.transform.AlterOpImpl(
         {operator_name: replacement_primfunc}, {operator_name: layout_changes}
     )(before)
-    after = relax.transform.RemoveUnusedFunctions()(after)
+    after = relax.transform.DeadCodeElimination()(after)
     tvm.ir.assert_structural_equal(after, expected)
 
 
