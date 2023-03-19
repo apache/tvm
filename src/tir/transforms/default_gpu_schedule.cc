@@ -92,7 +92,7 @@ Pass DefaultGPUSchedule() {
         tir::Schedule sch = tir::Schedule::Traced(m, /*seed=*/-1, /*debug_mask=*/0,
                                                   tir::ScheduleErrorRenderLevel::kDetail);
         for (const auto& [gv, func] : m->functions) {
-          if (func->IsInstance<tir::PrimFuncNode>()) {
+          if (func->IsInstance<tir::PrimFuncNode>() && !func->HasNonzeroAttr(attr::kIsScheduled)) {
             sch->WorkOn(gv->name_hint);
             Array<tir::BlockRV> blocks = meta_schedule::BlockCollector::Collect(sch);
             for (const tir::BlockRV& block : blocks) {
