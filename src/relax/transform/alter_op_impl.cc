@@ -92,6 +92,8 @@ class AlterOpImplMutator : public ExprMutator {
   }
 
  private:
+  using ExprMutator::VisitExpr_;
+
   Expr VisitExpr_(const CallNode* op) final {
     auto call = Downcast<Call>(ExprMutator::VisitExpr_(op));
 
