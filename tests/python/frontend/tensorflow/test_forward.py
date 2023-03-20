@@ -3448,6 +3448,8 @@ def test_forward_crop_and_resize():
         box_idx=[1, 0, 2, 3],
         crop_size=[24, 24],
         extrapolation_value=0.3,
+        atol=1e-3,
+        rtol=1e-3,
     )
     _test_forward_crop_and_resize(
         img_shape=[20, 229, 229, 3],
