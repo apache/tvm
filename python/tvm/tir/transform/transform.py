@@ -926,6 +926,17 @@ def ExtractPrimFuncConstants():
     return _ffi_api.ExtractPrimFuncConstants()  # type: ignore
 
 
+def LowerAutoCopy():
+    """Automatically do memory optimizations for auto copy blocks
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerAutoCopy()  # type: ignore
+
+
 def RenormalizeSplitPattern():
     """Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv())
 

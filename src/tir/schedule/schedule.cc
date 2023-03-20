@@ -194,6 +194,10 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReIndex")
                        int buffer_index_type) {
       return self->ReIndex(block_rv, buffer_index, static_cast<BufferIndexType>(buffer_index_type));
     });
+/******** (FFI) Data movement ********/
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReadAt").set_body_method<Schedule>(&ScheduleNode::ReadAt);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleWriteAt")
+    .set_body_method<Schedule>(&ScheduleNode::WriteAt);
 /******** (FFI) Compute location ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleComputeAt")
     .set_body_method<Schedule>(&ScheduleNode::ComputeAt);
