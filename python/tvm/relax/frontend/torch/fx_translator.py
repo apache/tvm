@@ -136,6 +136,9 @@ class TorchFXImporter:
     def _cos(self, node: fx.node.Node) -> relax.Var:
         return self.block_builder.emit(relax.op.cos(self.env[node.args[0]]))
 
+    def _exp(self, node: fx.node.Node) -> relax.Var:
+        return self.block_builder.emit(relax.op.exp(self.env[node.args[0]]))
+
     def _sin(self, node: fx.node.Node) -> relax.Var:
         return self.block_builder.emit(relax.op.sin(self.env[node.args[0]]))
 
@@ -858,8 +861,7 @@ class TorchFXImporter:
                     axes.append(i)
                     i = i + 1
                 elif index is None:
-                    expand_dim.append(i)
-                    i = i + 1
+                    expand_dim.append(len(axes) + len(expand_dim))
                 else:
                     raise ValueError("Unsupported index type: " + str(type(index)))
             while i < len(shape):
@@ -903,6 +905,7 @@ class TorchFXImporter:
             nn.modules.sparse.Embedding: self._embedding,
             # call_function and call_method
             "cos": self._cos,
+            "exp": self._exp,
             "sin": self._sin,
             "add": self._add,
             "floordiv": self._floordiv,

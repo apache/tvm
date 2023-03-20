@@ -19,7 +19,7 @@ import pytest
 import tvm
 from tvm import relax
 import tvm.testing
-from tvm.script.parser import relax as R, tir as T
+from tvm.script.parser import ir as I, relax as R, tir as T
 
 
 def verify_model(torch_model, input_info, binding, expected):
@@ -1372,8 +1372,6 @@ def test_getitem():
     torch.set_grad_enabled(False)
     torch.random.manual_seed(0)
 
-    input_info = [([1, 3, 10, 10], "float32")]
-
     class Slice1(Module):
         def forward(self, x):
             return x[0, 1::2, :, :3]
@@ -1398,7 +1396,29 @@ def test_getitem():
                 R.output(gv)
             return gv
 
-    verify_model(Slice1(), input_info, {}, expected1)
+    class Slice2(Module):
+        def forward(self, x):
+            return x[:, None, None, :, None]
+
+    @I.ir_module
+    class expected2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((8, 16), dtype="float32")
+        ) -> R.Tensor((8, 1, 1, 16, 1), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((8, 16), dtype="float32") = R.strided_slice(
+                    inp_0, axes=[0, 1], begin=[0, 0], end=[8, 16], strides=[1, 1]
+                )
+                lv1: R.Tensor((8, 1, 1, 16, 1), dtype="float32") = R.reshape(
+                    lv, R.shape([8, 1, 1, 16, 1])
+                )
+                gv: R.Tensor((8, 1, 1, 16, 1), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    verify_model(Slice1(), [([1, 3, 10, 10], "float32")], {}, expected1)
+    verify_model(Slice2(), [([8, 16], "float32")], {}, expected2)
 
 
 @tvm.testing.requires_gpu
@@ -1450,6 +1470,26 @@ def test_unary():
             return gv
 
     verify_model(Cos(), input_info, {}, expected2)
+
+    # exp
+    class Exp(Module):
+        def forward(self, input):
+            return torch.exp(input)
+
+    @tvm.script.ir_module
+    class expected_exp:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.exp(input_1)
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Exp(), input_info, {}, expected_exp)
 
     # sqrt
     class Sqrt(Module):
