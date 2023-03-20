@@ -2384,7 +2384,7 @@ class Schedule(Object):
 
         Note
         ----
-        Set_scope requires the buffer to be an intermediate buffer defined via `alloc_buffer`.
+        `set_scope` requires the buffer to be an intermediate buffer defined via `alloc_buffer`.
         """
         block = self._normalize_block_arg(block)
         _ffi_api.ScheduleSetScope(  # type: ignore # pylint: disable=no-member
@@ -2392,9 +2392,12 @@ class Schedule(Object):
         )
 
     @type_checked
-    def set_dtype(self, block: Union[BlockRV, str], buffer_index: int, dtype: str) -> None:
+    def unsafe_set_dtype(self, block: Union[BlockRV, str], buffer_index: int, dtype: str) -> None:
         """Set the data type of a buffer, where the buffer is
         specified by the a block and write-index.
+
+        This schedule primitive is unsafe and may change the correctness of program because of
+        type conversion.
 
         Parameters
         ----------
@@ -2456,8 +2459,7 @@ class Schedule(Object):
 
         Note
         ----
-        set_dtype requires the buffer to be an intermediate buffer defined via `alloc_buffer`.
-        This schedule primitive might influence the computation result because of type conversion.
+        `set_dtype` requires the buffer to be an intermediate buffer defined via `alloc_buffer`.
         """
         block = self._normalize_block_arg(block)
         _ffi_api.ScheduleSetDType(  # type: ignore # pylint: disable=no-member

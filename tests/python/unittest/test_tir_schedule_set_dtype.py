@@ -95,7 +95,7 @@ use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name"
 def test_set_dtype(use_block_name):
     func = element_wise
     sch = tir.Schedule(func, debug_mask="all")
-    sch.set_dtype("B" if use_block_name else sch.get_block("B"), 0, "float16")
+    sch.unsafe_set_dtype("B" if use_block_name else sch.get_block("B"), 0, "float16")
     tvm.ir.assert_structural_equal(element_wise_set_dtype, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=func)
 
@@ -103,20 +103,20 @@ def test_set_dtype_fail_on_output_buffer(use_block_name):
     func = element_wise
     sch = tir.Schedule(func, debug_mask='all')
     with pytest.raises(tvm.tir.ScheduleError):
-        sch.set_dtype('C' if use_block_name else sch.get_block("C"), 0, "float16")
+        sch.unsafe_set_dtype('C' if use_block_name else sch.get_block("C"), 0, "float16")
 
 def test_set_dtype_fail_on_index_out_of_bound():
     func = element_wise
     sch = tir.Schedule(func, debug_mask='all')
     with pytest.raises(tvm.tir.ScheduleError):
-        sch.set_dtype(sch.get_block("B"), 1, "float64")
+        sch.unsafe_set_dtype(sch.get_block("B"), 1, "float64")
     with pytest.raises(tvm.tir.ScheduleError):
-        sch.set_dtype(sch.get_block("B"), -1, "float64")
+        sch.unsafe_set_dtype(sch.get_block("B"), -1, "float64")
 
 def test_set_dtype_subregion():
     func = element_wise_subregion_match
     sch = tir.Schedule(func, debug_mask='all')
-    sch.set_dtype(sch.get_block("B"), 0, "float16")
+    sch.unsafe_set_dtype(sch.get_block("B"), 0, "float16")
     tvm.ir.assert_structural_equal(element_wise_subregion_match_set_dtype, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=func)
 
