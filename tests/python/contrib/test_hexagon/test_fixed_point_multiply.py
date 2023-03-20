@@ -195,8 +195,8 @@ class TestFixedPointMultiply:
 
         # Schedule with vectorization
         sch = tvm.tir.Schedule(mod)
-        b0 = sch.get_block(name="compute", func_name="main")
-        fused = sch.fuse(*sch.get_loops(block=b0))
+        b00 = sch.get_block(name="compute", func_name="main")
+        fused = sch.fuse(*sch.get_loops(block=b00))
         _, v = sch.split(loop=fused, factors=[None, vector_size])
         sch.vectorize(v)
 
@@ -261,8 +261,8 @@ class TestFixedPointMultiply:
 
         # Schedule with vectorization
         sch = tvm.tir.Schedule(mod)
-        b0 = sch.get_block(name="compute", func_name="main")
-        fused = sch.fuse(*sch.get_loops(block=b0))
+        b00 = sch.get_block(name="compute", func_name="main")
+        fused = sch.fuse(*sch.get_loops(block=b00))
         _, v = sch.split(loop=fused, factors=[None, vector_size])
         sch.vectorize(v)
 
