@@ -23,6 +23,8 @@ from typing import List
 import pytest
 import tvm
 import tvm.testing
+from tvm import te
+from tvm.ir.module import IRModule
 from tvm._ffi import register_func
 from tvm.error import TVMError
 from tvm.meta_schedule import TuneContext
@@ -35,6 +37,23 @@ from tvm.tir.schedule import BlockRV, Schedule
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,
 # fmt: off
+
+
+def get_matmul_packed(m, n, k, lhs_type="int8", rhs_dtype="int8", acc_dtype="int32"):
+    X = te.placeholder((m, k), name="X", dtype=lhs_type)
+    W = te.placeholder((n, k), name="W", dtype=rhs_dtype)
+
+    ak = te.reduce_axis((0, k), name="k")
+    matmul = te.compute(
+        (m, n),
+        lambda i, j: te.sum(
+            X[i, ak].astype(acc_dtype) * W[j, ak].astype(acc_dtype),
+            axis=ak,
+        ),
+        name="compute",
+    )
+    return te.create_prim_func([X, W, matmul])
+
 
 @tvm.script.ir_module
 class Matmul:
@@ -402,6 +421,60 @@ def test_target_blocks_search_space():
     ## Finally check that all blocks can be extracted by name.
     schs = _get_sch(lambda block: filter_fn(block, ["A", "B", "C"]))
     assert len(schs) == 8
+
+
+@pytest.mark.parametrize(
+    "target,mod,expected_intr",
+    [
+        (
+            Target("llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon -num-cores 2"),
+            IRModule({"main": get_matmul_packed(128, 128, 128, "int8", "int8", "int32")}),
+            "dot_4x4_i8i8s32_neon",
+        ),
+        (
+            Target(
+                "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon,+v8.2a,+dotprod -num-cores 2"
+            ),
+            IRModule({"main": get_matmul_packed(128, 128, 128, "int8", "int8", "int32")}),
+            "dot_4x4_i8i8s32_sdot",
+        ),
+        (
+            Target(
+                "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon,+v8.2a,+dotprod -num-cores 2"
+            ),
+            IRModule({"main": get_matmul_packed(128, 128, 128, "uint8", "uint8", "uint32")}),
+            "dot_4x4_u8u8u32_udot",
+        ),
+        (
+            Target(
+                "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon,+v8.2a,+dotprod -num-cores 2"
+            ),
+            IRModule({"main": get_matmul_packed(128, 128, 128, "uint8", "uint8", "int32")}),
+            "dot_4x4_u8u8i32_hdot",
+        ),
+    ],
+)
+def test_meta_schedule_post_order_apply_arm_intrin(target, mod, expected_intr):
+    context = TuneContext(
+        mod=mod,
+        target=target,
+        task_name="Arm Intrinsic Task",
+        space_generator=PostOrderApply(),  # Triggers default generator
+        rand_state=1,  # Change it while all tests are not passing
+    )
+    post_order_apply = context.space_generator
+    schs = post_order_apply.generate_design_space(mod)
+
+    assert len(schs) != 0
+
+    for sch in schs:
+        sch.enter_postproc()
+
+        for proc in context.space_generator.postprocs:
+            proc.apply(sch)
+
+    assert any(["call_llvm_pure_intrin" in sch.mod.script() for sch in schs])
+    assert any([expected_intr in str(sch.trace) for sch in schs])
 
 
 def test_meta_schedule_derived_object():

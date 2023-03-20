@@ -295,6 +295,94 @@ Array<ScheduleRule> ScheduleRule::DefaultMicro() {
   };
 }
 
+Array<ScheduleRule> GetNeonSpecificRules() {
+  return {
+      ScheduleRule::MultiLevelTilingWithIntrin(
+          /*intrin_name=*/String("dot_4x4_i8i8s32_neon"),
+          /*structure=*/"SSRSRS",
+          /*tile_binds=*/NullOpt,
+          /*max_innermost_factor=*/Integer(32),
+          /*vector_load_lens=*/NullOpt,
+          /*reuse_read=*/NullOpt,
+          /*reuse_write=*/
+          Map<String, ObjectRef>{{"req", String("may")},
+                                 {"levels", Array<Integer>{1, 2}},
+                                 {"scope", String("global")}}),
+  };
+}
+
+Array<ScheduleRule> GetDotprodSpecificRules() {
+  return {
+      ScheduleRule::MultiLevelTilingWithIntrin(
+          /*intrin_name=*/String("dot_4x4_i8i8s32_sdot"),
+          /*structure=*/"SSRSRS",
+          /*tile_binds=*/NullOpt,
+          /*max_innermost_factor=*/Integer(32),
+          /*vector_load_lens=*/NullOpt,
+          /*reuse_read=*/NullOpt,
+          /*reuse_write=*/
+          Map<String, ObjectRef>{{"req", String("may")},
+                                 {"levels", Array<Integer>{1, 2}},
+                                 {"scope", String("global")}}),
+      ScheduleRule::MultiLevelTilingWithIntrin(
+          /*intrin_name=*/String("dot_4x4_u8u8u32_udot"),
+          /*structure=*/"SSRSRS",
+          /*tile_binds=*/NullOpt,
+          /*max_innermost_factor=*/Integer(32),
+          /*vector_load_lens=*/NullOpt,
+          /*reuse_read=*/NullOpt,
+          /*reuse_write=*/
+          Map<String, ObjectRef>{{"req", String("may")},
+                                 {"levels", Array<Integer>{1, 2}},
+                                 {"scope", String("global")}}),
+      ScheduleRule::MultiLevelTilingWithIntrin(
+          /*intrin_name=*/String("dot_4x4_u8u8i32_hdot"),
+          /*structure=*/"SSRSRS",
+          /*tile_binds=*/NullOpt,
+          /*max_innermost_factor=*/Integer(32),
+          /*vector_load_lens=*/NullOpt,
+          /*reuse_read=*/NullOpt,
+          /*reuse_write=*/
+          Map<String, ObjectRef>{{"req", String("may")},
+                                 {"levels", Array<Integer>{1, 2}},
+                                 {"scope", String("global")}}),
+  };
+}
+
+Array<ScheduleRule> ScheduleRule::DefaultARM(const String& type) {
+  return Array<ScheduleRule>::Agregate(
+      ScheduleRule::ApplyCustomRule(), ScheduleRule::InlineConstantScalars(),
+      ScheduleRule::AutoInline(
+          /*into_producer=*/false,
+          /*into_consumer=*/true,
+          /*inline_const_tensor=*/true,
+          /*disallow_if_then_else=*/true,
+          /*require_injective=*/true,
+          /*require_ordered=*/true,
+          /*disallow_op=*/Array<String>{"tir.exp"}),
+      ScheduleRule::AddRFactor(
+          /*max_jobs_per_core=*/8,
+          /*max_innermost_factor=*/Integer(32)),
+      "neon" == type ? GetNeonSpecificRules() : Array<ScheduleRule>{},
+      "dotprod" == type ? GetDotprodSpecificRules() : Array<ScheduleRule>{},
+      ScheduleRule::MultiLevelTiling(
+          /*structure=*/"SSRSRS",
+          /*tile_binds=*/NullOpt,
+          /*max_innermost_factor=*/Integer(32),
+          /*vector_load_lens=*/NullOpt,
+          /*reuse_read=*/NullOpt,
+          /*reuse_write=*/
+          Map<String, ObjectRef>{{"req", String("may")},
+                                 {"levels", Array<Integer>{1, 2}},
+                                 {"scope", String("global")}}),
+      ScheduleRule::ParallelizeVectorizeUnroll(
+          /*max_jobs_per_core=*/8,
+          /*max_vectorize_extent=*/32,
+          /*unroll_max_steps=*/Array<Integer>{0, 8, 32, 256},
+          /*unroll_explicit=*/true),
+      ScheduleRule::RandomComputeLocation());
+}
+
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<PyScheduleRuleNode>([](const ObjectRef& n, ReprPrinter* p) {
       const auto* self = n.as<PyScheduleRuleNode>();
@@ -325,6 +413,8 @@ TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultHexagon")
     .set_body_typed(ScheduleRule::DefaultHexagon);
 TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultMicro")
     .set_body_typed(ScheduleRule::DefaultMicro);
+TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultARM")
+    .set_body_typed(ScheduleRule::DefaultARM);
 
 }  // namespace meta_schedule
 }  // namespace tvm
