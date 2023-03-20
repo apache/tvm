@@ -796,15 +796,12 @@ Expr PatternRewriter::Rewrite(const Array<DFPatternCallback>& callbacks, const E
   bool equal = true;
   static auto* structural_equal = runtime::Registry::Get("node.StructuralEqual");
   ICHECK(structural_equal) << "node.StructuralEqual is not registered.";
-  // Use the callback until the callback's attribute is rewrite_once=true and has been rewritten
-  std::unordered_map<DFPatternCallback, bool, ObjectPtrHash, ObjectPtrEqual> callbacks_map;
-  for (auto callback : callbacks) {
-    callbacks_map.insert({callback, true});
-  }
+  // Keep track of callbacks that have finished rewriting
+  std::unordered_map<DFPatternCallback, bool, ObjectPtrHash, ObjectPtrEqual> done;
   do {
     last = post;
     for (auto callback : callbacks) {
-      if (callbacks_map[callback]) {
+      if (!done[callback]) {
         auto before = post;
         callback_ = callback;
         if (callback_->require_type) {
@@ -821,7 +818,7 @@ Expr PatternRewriter::Rewrite(const Array<DFPatternCallback>& callbacks, const E
         if (callback_->rewrite_once) {
           bool current_equal = (*structural_equal)(before, post, false, true);
           if (!current_equal) {
-            callbacks_map[callback] = false;
+            done[callback] = true;
           }
         }
       }
