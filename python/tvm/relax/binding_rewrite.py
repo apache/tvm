@@ -112,7 +112,7 @@ class DataflowBlockRewrite(Object):
 
     def remove_all_unused(self) -> None:
         """
-        Remove all unused variables. For IRModule-wise DCE, use py:func:`tvm.relax.transform.DeadCodeElimination`.
+        Remove all unused variables.
 
         Notes
         -----

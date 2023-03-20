@@ -325,6 +325,10 @@ def remove_all_unused(func: Function) -> Function:
     func : Function
         The input function to be analyzed.
 
+    Notes
+    -----
+    For IRModule-wise DCE, use py:func:`tvm.relax.transform.DeadCodeElimination`.
+
     Returns
     -------
     Function
