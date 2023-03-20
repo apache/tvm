@@ -51,6 +51,8 @@ class CodeGenOpenCL final : public CodeGenC {
   std::string GetVecLoad(DataType t, const BufferNode* buffer, PrimExpr base) final;
   void PrintVecStore(const BufferNode* buffer, DataType t, PrimExpr base,
                      const std::string& value) final;  // NOLINT(*)
+  void PrintVecElemLoadExpr(DataType t, int i, const std::string& value,
+                            std::ostream& os) final;  // NOLINT(*)
   // the address of load/store
   void PrintVecAddr(const BufferNode* buffer, DataType t, PrimExpr base,
                     std::ostream& os);                                           // NOLINT(*)
@@ -62,6 +64,7 @@ class CodeGenOpenCL final : public CodeGenC {
   // overload visitor
   void VisitStmt_(const AllocateNode* op) final;                     // NOLINT(*)
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const RampNode* op, std::ostream& os) final;       // NOLINT(*)
   void VisitExpr_(const CallNode* op, std::ostream& os) final;       // NOLINT(*)
   void VisitExpr_(const CastNode* op, std::ostream& os) final;       // NOLINT(*)
   void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;   // NOLINT(*)
