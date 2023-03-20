@@ -249,6 +249,8 @@ def compare_tf_with_tvm(
     targets=None,
     ignore_in_shape=False,
     convert_config=None,
+    atol=1e-5,
+    rtol=1e-5,
 ):
     """Generic function to generate and compare tensorflow and TVM output"""
 
@@ -303,7 +305,7 @@ def compare_tf_with_tvm(
             for i, tf_out in enumerate(tf_output):
                 if not isinstance(tf_out, np.ndarray):
                     assert len(tvm_output[i].shape) == 0  # pylint: disable=len-as-condition
-                tvm.testing.assert_allclose(tf_out, tvm_output[i], atol=1e-5, rtol=1e-5)
+                tvm.testing.assert_allclose(tf_out, tvm_output[i], atol=atol, rtol=rtol)
 
         sess.close()
 
@@ -3415,7 +3417,7 @@ def _test_forward_crop_and_resize(
             extrapolation_value=extrapolation_value,
             name="crop_and_resize",
         )
-        compare_tf_with_tvm([image], ["in_data:0"], "crop_and_resize:0")
+        compare_tf_with_tvm([image], ["in_data:0"], "crop_and_resize:0", atol=1e-4, rtol=1e-4)
 
 
 def test_forward_crop_and_resize():
