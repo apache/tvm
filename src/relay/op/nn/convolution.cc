@@ -662,7 +662,7 @@ bool Conv3DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
           << " wshape=" << Array<IndexExpr>(wshape);
     }
     if (!dshape_ncdhw[1].as<tir::AnyNode>() && !wshape[0].as<tir::AnyNode>()) {
-      ICHECK(reporter->AssertEQ(shape_ncdhw[1], wshape[0]));
+      ICHECK(reporter->AssertEQ(dshape_ncdhw[1], wshape[0]));
     }
     channels = wshape[1];
     dilated_ksize_d = 1 + (wshape[2] - 1) * param->dilation[0];
