@@ -449,6 +449,7 @@ Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct
     ret_struct_info = body_sinfo;
   }
 
+  // TODO use annotations for purity
   FuncStructInfo func_sinfo(param_sinfo, ret_struct_info.value());
 
   // set the fields

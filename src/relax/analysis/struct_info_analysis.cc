@@ -95,7 +95,8 @@ StructInfo StructInfoFromType(const Type& type) {
     Array<StructInfo> params =
         func_type->arg_types.Map([](const Type& param) { return StructInfoFromType(param); });
     StructInfo ret = StructInfoFromType(func_type->ret_type);
-    return FuncStructInfo(params, ret, func_type->span);
+    // TODO: Maybe add purity into the type as well
+    return FuncStructInfo(params, ret, true, func_type->span);
   } else {
     LOG(FATAL) << "Unsupported type: " << type;
     return StructInfo();
@@ -359,6 +360,11 @@ class StructInfoBaseChecker
     auto* rhs = other.as<FuncStructInfoNode>();
     if (rhs == nullptr) {
       if (other.as<ObjectStructInfoNode>()) return BaseCheckResult::kFailL1;
+      return BaseCheckResult::kFailL0;
+    }
+
+    // Check purity: Pure functions are a subtype of impure functions
+    if (lhs->pure && !rhs->pure) {
       return BaseCheckResult::kFailL0;
     }
 
@@ -774,6 +780,9 @@ class StructInfoLCAFinder
     auto* rhs = other.as<FuncStructInfoNode>();
     if (rhs == nullptr) return ObjectStructInfo(lhs->span);
 
+    // the unified function is pure only if both are pure
+    bool purity = lhs->pure && rhs->pure;
+
     // lhs opaque handling
     if (lhs->IsOpaque()) {
       if (lhs->derive_func.defined()) {
@@ -781,13 +790,13 @@ class StructInfoLCAFinder
           return GetRef<StructInfo>(lhs);
         } else {
           // Create a new opaque with object return
-          return FuncStructInfo::OpaqueFunc(ObjectStructInfo(), lhs->span);
+          return FuncStructInfo::OpaqueFunc(ObjectStructInfo(), purity, lhs->span);
         }
       } else {
         // no derivation function, only depends on ret
         StructInfo ret = this->VisitStructInfo(lhs->ret, rhs->ret);
         if (ret.same_as(lhs->ret)) return GetRef<StructInfo>(lhs);
-        return FuncStructInfo::OpaqueFunc(ret, lhs->span);
+        return FuncStructInfo::OpaqueFunc(ret, purity, lhs->span);
       }
     }
     // rhs is opaque, lhs is not
@@ -795,7 +804,7 @@ class StructInfoLCAFinder
       // unify ret value, note that rhs's ret is context free(because it is opaque)
       // so result of the unify is also context-free.
       StructInfo ret = this->VisitStructInfo(lhs->ret, rhs->ret);
-      return FuncStructInfo::OpaqueFunc(ret, lhs->span);
+      return FuncStructInfo::OpaqueFunc(ret, purity, lhs->span);
     }
 
     // Both lhs and rhs are not opaque
@@ -825,9 +834,9 @@ class StructInfoLCAFinder
     } else {
       // fail to unify the params
       if (!params.defined()) {
-        return FuncStructInfo::OpaqueFunc(ret, lhs->span);
+        return FuncStructInfo::OpaqueFunc(ret, purity, lhs->span);
       } else {
-        return FuncStructInfo(params.value(), ret, lhs->span);
+        return FuncStructInfo(params.value(), ret, purity, lhs->span);
       }
     }
   }

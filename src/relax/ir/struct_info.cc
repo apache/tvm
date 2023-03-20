@@ -145,25 +145,28 @@ TVM_REGISTER_GLOBAL("relax.TupleStructInfo")
     });
 
 // Func
-FuncStructInfo::FuncStructInfo(Array<StructInfo> params, StructInfo ret, Span span) {
+FuncStructInfo::FuncStructInfo(Array<StructInfo> params, StructInfo ret, bool pure, Span span) {
   ObjectPtr<FuncStructInfoNode> n = make_object<FuncStructInfoNode>();
   n->params = std::move(params);
   n->ret = std::move(ret);
+  n->pure = std::move(pure);
   n->span = span;
   data_ = std::move(n);
 }
 
-FuncStructInfo FuncStructInfo::OpaqueFunc(StructInfoDeriveFunc derive_func, Span span) {
+FuncStructInfo FuncStructInfo::OpaqueFunc(StructInfoDeriveFunc derive_func, bool pure, Span span) {
   ObjectPtr<FuncStructInfoNode> n = make_object<FuncStructInfoNode>();
   n->derive_func = std::move(derive_func);
   n->ret = ObjectStructInfo();
+  n->pure = std::move(pure);
   n->span = span;
   return FuncStructInfo(n);
 }
 
-FuncStructInfo FuncStructInfo::OpaqueFunc(StructInfo ret, Span span) {
+FuncStructInfo FuncStructInfo::OpaqueFunc(StructInfo ret, bool pure, Span span) {
   ObjectPtr<FuncStructInfoNode> n = make_object<FuncStructInfoNode>();
   n->ret = std::move(ret);
+  n->pure = std::move(pure);
   n->span = span;
   return FuncStructInfo(n);
 }
@@ -171,18 +174,18 @@ FuncStructInfo FuncStructInfo::OpaqueFunc(StructInfo ret, Span span) {
 TVM_REGISTER_NODE_TYPE(FuncStructInfoNode);
 
 TVM_REGISTER_GLOBAL("relax.FuncStructInfo")
-    .set_body_typed([](Array<StructInfo> params, StructInfo ret, Span span) {
-      return FuncStructInfo(params, ret, span);
+    .set_body_typed([](Array<StructInfo> params, StructInfo ret, bool pure, Span span) {
+      return FuncStructInfo(params, ret, pure, span);
     });
 
 TVM_REGISTER_GLOBAL("relax.FuncStructInfoOpaqueFunc")
     .set_body_typed([](Optional<StructInfo> ret, Optional<StructInfoDeriveFunc> derive_func,
-                       Span span) {
+                       bool pure, Span span) {
       if (derive_func.defined()) {
         ICHECK(!ret.defined()) << "ValueError: Cannot specify both ret and derive_func";
-        return FuncStructInfo::OpaqueFunc(derive_func.value(), span);
+        return FuncStructInfo::OpaqueFunc(derive_func.value(), pure, span);
       } else {
-        return FuncStructInfo::OpaqueFunc(ret.value_or(ObjectStructInfo()), span);
+        return FuncStructInfo::OpaqueFunc(ret.value_or(ObjectStructInfo()), pure, span);
       }
     });
 
