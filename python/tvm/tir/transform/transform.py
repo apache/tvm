@@ -747,7 +747,7 @@ def ConvertBlocksToOpaque():
     return _ffi_api.ConvertBlocksToOpaque()  # type: ignore
 
 
-def CompactBufferAllocation(is_strict=True):
+def CompactBufferAllocation(is_strict: bool = True):
     """Compact the buffer access region. by removing the buffer regions
     that are not accessed, i.e. narrowing the buffer shape and adjust
     the access region if necessary.

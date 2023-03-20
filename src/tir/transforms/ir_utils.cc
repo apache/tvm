@@ -622,7 +622,7 @@ class StorageAlignCollector : public StmtVisitor {
     StmtVisitor::VisitStmt_(op);
   }
 
-  /*! \brief For lowerred tir, the alignment annotations reside in allocate annotations. */
+  /*! \brief For lowered tir, the alignment annotations reside in allocate annotations. */
   void VisitStmt_(const AllocateNode* op) final {
     auto it = op->annotations.find(attr::buffer_dim_align);
     if (it != op->annotations.end()) {
