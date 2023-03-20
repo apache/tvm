@@ -366,6 +366,39 @@ def test_strided_slice_infer_struct_info():
     )
 
 
+def test_strided_slice_infer_struct_info_shape_out_of_range():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((20, 10, 5), "float32"))
+    _check_inference(
+        bb,
+        relax.op.strided_slice(
+            x0, axes=[0, 1, 2], begin=[20, 10, 4], end=[0, 0, 1], strides=[-1, -3, -2]
+        ),
+        relax.TensorStructInfo((19, 3, 2), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.strided_slice(
+            x0, axes=[0, 1, 2], begin=[200, 10, 4], end=[0, 0, 1], strides=[-1, -3, -2]
+        ),
+        relax.TensorStructInfo((19, 3, 2), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.strided_slice(
+            x0, axes=[0, 1, 2], begin=[200, 10, 100], end=[0, 0, 1], strides=[-1, -3, -5]
+        ),
+        relax.TensorStructInfo((19, 3, 1), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.strided_slice(
+            x0, axes=[0, 1, 2], begin=[-21, -11, -6], end=[1, 1, 1], strides=[1000, 1000, 1000]
+        ),
+        relax.TensorStructInfo((1, 1, 1), "float32"),
+    )
+
+
 def test_strided_slice_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
     m = tir.Var("m", "int64")
@@ -376,22 +409,22 @@ def test_strided_slice_infer_struct_info_shape_symbolic():
     _check_inference(
         bb,
         relax.op.strided_slice(x0, axes=[0], begin=[1], end=[3]),
-        relax.TensorStructInfo((2, n), "float32"),
+        relax.TensorStructInfo((tir.min(3, m) - tir.min(1, m) + 1 - 1, n), "float32"),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(x0, axes=[0], begin=[1], end=[8], strides=[3]),
-        relax.TensorStructInfo((3, n), "float32"),
+        relax.TensorStructInfo(((tir.min(8, m) - tir.min(1, m) + 3 - 1) // 3, n), "float32"),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(x1, axes=[0], begin=[1], end=[3]),
-        relax.TensorStructInfo((2, n), dtype=""),
+        relax.TensorStructInfo((tir.min(3, m) - tir.min(1, m) + 1 - 1, n), dtype=""),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(x1, axes=[0], begin=[1], end=[8], strides=[3]),
-        relax.TensorStructInfo((3, n), dtype=""),
+        relax.TensorStructInfo(((tir.min(8, m) - tir.min(1, m) + 3 - 1) // 3, n), dtype=""),
     )
 
 
