@@ -40,16 +40,7 @@ Optional<Integer> ParseThreadBinding(const Schedule& sch, const Instruction& ins
     return NullOpt;
   }
 
-  try {
-    return Downcast<Integer>(sch->Get(Downcast<LoopRV>(inst->inputs[0]))->extent);
-  } catch (const std::exception& e) {
-    // This can occur if in a schedule we manually bind threads in the middle of a schedule
-    // and then later modify the schedule. As the passed in schedule is after running the entire
-    // trace the bound loop may be moved around in the IRModule.
-    LOG(DEBUG) << "Failed to calculate extent so skipping RewriteCooperativeFetching. Error "
-               << e.what();
-    return NullOpt;
-  }
+  return Downcast<Integer>(sch->Get(Downcast<LoopRV>(inst->inputs[0]))->extent);
 }
 
 /*!
