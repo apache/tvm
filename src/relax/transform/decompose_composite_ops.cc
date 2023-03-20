@@ -118,14 +118,14 @@ class OpDecomposer : public ExprMutator {
  private:
   using ExprMutator::VisitExpr_;
   Expr TensorToShape(const Call& call_node) {
-    ICHECK(call_node->args.size() == 1);
     ICHECK(call_node->struct_info_.defined());
     Expr expr = call_node->args[0];
     const ShapeStructInfoNode* sinfo = GetStructInfoAs<ShapeStructInfoNode>(call_node);
     ICHECK(sinfo);
     // call builtin function that converts tensor to shape tuple
-    Var call = builder_->Emit(Call(ExternFunc("vm.builtin.tensor_to_shape"), {expr}, {},
-                                   {GetRef<ShapeStructInfo>(sinfo)}));
+    static const Op& tensor_to_shape_op = Op::Get("relax.builtin.tensor_to_shape");
+    Var call =
+        builder_->Emit(Call(tensor_to_shape_op, {expr}, {}, {GetRef<ShapeStructInfo>(sinfo)}));
     // define symbolic variables
     Array<PrimExpr> shape_var;
     for (int i = 0; i < sinfo->ndim; i++) {
