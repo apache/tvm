@@ -57,6 +57,31 @@ def test_metal_inf_nan():
 
 @tvm.testing.requires_gpu
 @tvm.testing.requires_metal
+def test_unaligned_vectorize():
+    @tvm.script.ir_module
+    class IRModule:
+        @T.prim_func
+        def main(A: T.Buffer((2, 3), "float32"), B: T.Buffer((6,), "float32")):
+            T.func_attr({"global_symbol": "main"})
+            for i0_1 in T.thread_binding(3, thread="threadIdx.x"):
+                for i0_0 in T.vectorized(2):
+                    with T.block("block"):
+                        vi0 = T.axis.spatial(6, i0_0 * 3 + i0_1)
+                        B[vi0] = A[vi0 // 3, vi0 % 3]
+
+    target = "metal"
+    dev = tvm.metal()
+
+    a = (np.arange(6).reshape(2, 3)).astype("float32")
+    a_nd = tvm.nd.array(a, dev)
+    b_nd = tvm.nd.empty((6,), "float32", dev)
+    f = tvm.build(IRModule, target=target)
+    f(a_nd, b_nd)
+    np.testing.assert_allclose(b_nd.numpy(), a.reshape(6), atol=1e-5, rtol=1e-5)
+
+
+@tvm.testing.requires_gpu
+@tvm.testing.requires_metal
 def test_metal_erf():
     target = "metal"
 

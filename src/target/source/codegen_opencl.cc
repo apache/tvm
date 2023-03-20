@@ -303,6 +303,31 @@ void CodeGenOpenCL::PrintVecStore(const BufferNode* buffer, DataType t, PrimExpr
   stream << ");\n";
 }
 
+void CodeGenOpenCL::PrintVecElemLoadExpr(DataType t, int i, const std::string& value,
+                                         std::ostream& os) {  // NOLINT(*)
+  ICHECK_GT(t.lanes(), 1);
+  if (t.bits() == 8 && (t.is_int() || t.is_uint())) {
+    if (i != 0) {
+      os << "|";
+    }
+    os << "((0x000000ff << " << i * 8 << ") & (" << value << " << " << i * 8 << "))";
+    return;
+  }
+  if (i == 0) {
+    // NOTE: opencl print things as (float2)(v0, v1)
+    os << "((";
+    PrintType(t, os);
+    os << ")(";
+  }
+  os << value;
+  if (i != t.lanes() - 1) {
+    os << ",";
+  } else {
+    os << "))";
+  }
+  return;
+}
+
 void CodeGenOpenCL::PrintStorageSync(const CallNode* op) {
   const std::string& sync = op->args[0].as<StringImmNode>()->value;
   if (sync == "warp") {
@@ -486,6 +511,18 @@ void CodeGenOpenCL::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // 
   for (int i = 0; i < op->lanes; ++i) {
     if (i != 0) os << ", ";
     os << v;
+  }
+  os << "))";
+}
+
+void CodeGenOpenCL::VisitExpr_(const RampNode* op, std::ostream& os) {  // NOLINT(*)
+  os << "((";
+  PrintType(op->dtype, os);
+  os << ")(";
+  for (int i = 0; i < op->lanes; i++) {
+    os << "(" << PrintExpr(op->base) << ")"
+       << "+(" << PrintExpr(op->stride) << "*" << i << ")";
+    if (i != op->lanes - 1) os << ", ";
   }
   os << "))";
 }
