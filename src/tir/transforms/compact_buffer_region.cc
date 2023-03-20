@@ -193,7 +193,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     }
     // Step 2. Record relax position of ancestor_loops_
     for (const Buffer& buffer : op->alloc_buffers) {
-      VisitBufferDef(buffer);
+      VisitBufferDef(buffer->data);
+      var2buffer_[buffer->data].insert(buffer);
     }
     // Step 3. Visit match buffers
     for (const MatchBufferRegion& region : op->match_buffers) {
@@ -222,13 +223,20 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   }
 
   void VisitStmt_(const DeclBufferNode* op) final {
-    // Step 0. Record relax position of ancestor_loops_
     const Buffer& buffer = op->buffer;
-    VisitBufferDef(buffer);
+    var2buffer_[buffer->data].insert(buffer);
+    StmtExprVisitor::VisitStmt_(op);
+  }
+
+  void VisitStmt_(const AllocateNode* op) final {
+    // Step 0. Record relax position of ancestor_loops_
+    VisitBufferDef(op->buffer_var);
     // Step 1. Visit block body recursively
     StmtExprVisitor::VisitStmt(op->body);
     // Step 2. Update buffer_access_region_ from relaxed_accesses_ for inner buffers.
-    SimplifyAndNarrowBufferRegionFromNDIntSet(buffer);
+    for (const Buffer& buffer : var2buffer_[op->buffer_var]) {
+      SimplifyAndNarrowBufferRegionFromNDIntSet(buffer);
+    }
   }
 
   void VisitStmt_(const AttrStmtNode* op) final {
@@ -248,16 +256,16 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   /**************** Helper functions ****************/
 
   /*! \brief Record information on the buffer defining point. */
-  void VisitBufferDef(const Buffer& buffer) {
-    var2buffer_[buffer->data].push_back(buffer);
-    auto it = buffer_scope_depth_.find(buffer);
-    ICHECK(it == buffer_scope_depth_.end()) << buffer << " has duplicate definitions";
-    buffer_scope_depth_.insert(it, {buffer, ancestor_iters_.size()});
+  void VisitBufferDef(const Var& buffer_data) {
+    auto it = buffer_scope_depth_.find(buffer_data);
+    ICHECK(it == buffer_scope_depth_.end()) << buffer_data << " has duplicate definitions";
+    buffer_scope_depth_.insert(it, {buffer_data, ancestor_iters_.size()});
   }
 
   void VisitBufferAccess(const BufferRegion& buffer_region) {
     const Buffer& buffer = buffer_region->buffer;
-    auto it = buffer_scope_depth_.find(buffer);
+    var2buffer_[buffer->data].insert(buffer);
+    auto it = buffer_scope_depth_.find(buffer->data);
     if (it != buffer_scope_depth_.end()) {
       size_t n_ancestor_loops = it->second;
       // Step 1. Stop ancestor loop vars out of the allocation block from
@@ -388,14 +396,16 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   std::vector<IterVar> ancestor_iters_;
 
   /*!
-   * \brief Map each buffer to the n_ancester_loop. which is the loop depth at the
+   * \brief Map each buffer var to the n_ancester_loop. which is the loop depth at the
    * define point. ancestor_loops_[0: n_ancester_loop] should not be relaxed when
    * we evaluate this buffer's access regions.
    */
-  std::unordered_map<Buffer, size_t, ObjectPtrHash, ObjectPtrEqual> buffer_scope_depth_;
+  std::unordered_map<Var, size_t, ObjectPtrHash, ObjectPtrEqual> buffer_scope_depth_;
 
   /*! \brief Map the buffer var to all aliased buffers. */
-  std::unordered_map<Var, std::vector<Buffer>, ObjectPtrHash, ObjectPtrEqual> var2buffer_;
+  std::unordered_map<Var, std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual>, ObjectPtrHash,
+                     ObjectPtrEqual>
+      var2buffer_;
 
   /*! \brief The map from loop vars to their iter range. */
   std::unordered_map<const VarNode*, arith::IntSet> dom_map_;
