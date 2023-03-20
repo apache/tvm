@@ -658,21 +658,21 @@ def ConvertLayout(desired_layouts: Dict[str, List[str]]) -> tvm.ir.transform.Pas
 
 
 def DeadCodeElimination(entry_functions: Optional[List[str]] = None) -> tvm.ir.transform.Pass:
-    """Remove dead code in the program.
+    """Remove dead code in the IRModule.
        Currently it removes:
        1. Unused local VarBindings in a DataflowBlock.
-          The used var set is set to empty at the beginning of each DataflowBlock.
-          We reverse scan the DataflowBlock, if a VarBinding
-            - bindings to a dataflowvar, or
-            - is used in the used var set
-          We keep it and add its var to the used var set. Otherwise, we remove it.
-        2. Unused Relax functions in the module.
+       2. Unused DataflowBlocks in a function.
+       3. Unused Relax functions in the module.
           We detect the call chain from the entry function, and remove all unused functions.
 
     Parameters
     ----------
     entry_functions: Optional[List[str]]
         The set of entry functions to start from.
+
+    Notes
+    -----
+    For function-wise DCE, use py:func:`tvm.relax.analysis.remove_all_unused`.
 
     Returns
     -------
