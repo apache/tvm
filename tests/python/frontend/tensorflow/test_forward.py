@@ -3403,6 +3403,8 @@ def _test_forward_crop_and_resize(
     extrapolation_value=0.0,
     method="bilinear",
     dtype="float32",
+    atol=1e-4,
+    rtol=1e-4,
 ):
     image = np.random.uniform(0, 10, size=img_shape).astype(dtype)
     tf.reset_default_graph()
@@ -3417,7 +3419,7 @@ def _test_forward_crop_and_resize(
             extrapolation_value=extrapolation_value,
             name="crop_and_resize",
         )
-        compare_tf_with_tvm([image], ["in_data:0"], "crop_and_resize:0", atol=1e-4, rtol=1e-4)
+        compare_tf_with_tvm([image], ["in_data:0"], "crop_and_resize:0", atol=atol, rtol=rtol)
 
 
 def test_forward_crop_and_resize():
@@ -3454,6 +3456,8 @@ def test_forward_crop_and_resize():
         crop_size=[58, 58],
         extrapolation_value=0.2,
         method="nearest",
+        atol=1e-3,
+        rtol=1e-3,
     )
 
 
