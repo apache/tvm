@@ -529,5 +529,49 @@ class Module:
     )
 
 
+def test_runtime_module_in_irmodule_attrs():
+    @I.ir_module
+    class TestModule:
+        @T.prim_func
+        def tir_func(
+            x: T.Buffer((T.int64(128),), "float32"), y: T.Buffer((T.int64(128),), "float32")
+        ):
+            T.evaluate(0)
+
+        @R.function
+        def foo(x: R.Tensor((128,), "float32")) -> R.Tensor((128,), "float32"):
+            cls = TestModule
+            gv0 = R.call_tir(cls.tir_func, x, R.Tensor((128,), dtype="float32"))
+            return gv0
+
+    exec = relax.build(TestModule, "llvm")
+    NewTestModule = TestModule.with_attr("test", exec.mod)
+    # empty module alias
+    module_str = NewTestModule.script(module_alias="")
+    _assert_print(
+        module_str,
+        """
+# from tvm.script import ir as I
+# from tvm.script import tir as T
+# from tvm.script import relax as R
+
+@I.ir_module
+class Module:
+    I.module_attrs({"test": "Module(type_key= relax.Executable),
+""".rstrip()
+        + f" {exec.mod.handle.value:#x}".rstrip()
+        + """"})
+    @T.prim_func
+    def tir_func(x: T.Buffer((T.int64(128),), "float32"), y: T.Buffer((T.int64(128),), "float32")):
+        T.evaluate(0)
+
+    @R.function
+    def foo(x: R.Tensor((128,), dtype="float32")) -> R.Tensor((128,), dtype="float32"):
+        gv0 = R.call_tir(Module.tir_func, (x,), out_sinfo=R.Tensor((128,), dtype="float32"))
+        return gv0
+    """,
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()

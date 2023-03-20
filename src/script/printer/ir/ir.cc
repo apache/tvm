@@ -103,6 +103,14 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<runtime::Module>("",
+                                   [](runtime::Module rtmod, ObjectPath p, IRDocsifier d) -> Doc {
+                                     std::ostringstream oss;
+                                     oss << rtmod << ", " << rtmod.get();
+                                     return LiteralDoc::Str(String(oss.str()), NullOpt);
+                                   });
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<DictAttrs>("", [](DictAttrs attrs, ObjectPath p, IRDocsifier d) -> Doc {
       return d->AsDoc(attrs->dict, p->Attr("dict"));
     });
