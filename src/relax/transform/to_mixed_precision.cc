@@ -321,7 +321,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
   // Util function to check if any of the tensors in the args is fp32
   bool AnyArgIsFP32(const NType& cur_type) {
     bool result = false;
-    auto fvisitleaf = [&, this](const String& dtype) {
+    auto fvisitleaf = [&](const String& dtype) {
       if (dtype == "float32") {
         result = true;
       }

@@ -190,24 +190,6 @@ def BindParams(
     return _ffi_api.BindParams(func_name, tvm_params)  # type: ignore
 
 
-def RemoveUnusedFunctions(entry_functions: Optional[List[str]] = None) -> tvm.ir.transform.Pass:
-    """Remove unused relax/prim functions without external linkage in a IRModule.
-
-    Parameters
-    ----------
-    entry_functions: Optional[List[str]]
-        The set of entry functions to start from.
-
-    Returns
-    -------
-    ret : tvm.transform.Pass
-        The registered pass to remove unused functions.
-    """
-    if entry_functions is None:
-        entry_functions = ["main"]
-    return _ffi_api.RemoveUnusedFunctions(entry_functions)  # type: ignore
-
-
 def RunCodegen(
     target_options: Optional[dict] = None,
     entry_functions: Optional[List[str]] = None,
