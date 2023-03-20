@@ -100,6 +100,23 @@ def CanonicalizeBindings() -> tvm.ir.transform.Pass:
     return _ffi_api.CanonicalizeBindings()  # type: ignore
 
 
+def EliminateCommonSubexpr(fskip=None):
+    """Eliminate common subexpressions within dataflow blocks.
+
+    Parameters
+    ----------
+    fskip: Callable
+        The callback function that decides whether an expression should be
+        skipped.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass that eliminates common subexpressions.
+    """
+    return _ffi_api.EliminateCommonSubexpr(fskip)
+
+
 def RewriteDataflowReshape() -> tvm.ir.transform.Pass:
     """Convert all reshape-like call_tir to VM reshape operator call.
     The VM reshape operator calls will be further lowered to a CreateView

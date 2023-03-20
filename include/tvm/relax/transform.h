@@ -138,6 +138,13 @@ TVM_DLL Pass Normalize();
 TVM_DLL Pass CanonicalizeBindings();
 
 /*!
+ * Eliminate common subexpressions within dataflow blocks.
+ * \param fskip The callback function that decides whether an expression should be skipped.
+ * \return The pass that eliminates common subexpressions.
+ */
+TVM_DLL Pass EliminateCommonSubexpr(runtime::TypedPackedFunc<bool(Expr)> fskip);
+
+/*!
  * \brief Bind params of function of the module to constant tensors.
  *
  * \param func_name The name of the function to bind parameters.
