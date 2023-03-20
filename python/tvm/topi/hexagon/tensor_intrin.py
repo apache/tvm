@@ -94,7 +94,7 @@ def _adopt_to_highest_lanes(*args, intrinsic=None, intrinsic_lanes: int = 0):
 
     num_chunks = None
     for arg in args:
-        element_type, lanes = arg.dtype.split("x")
+        _, lanes = arg.dtype.split("x")
         lanes = int(lanes)
         assert lanes % intrinsic_lanes == 0
         if num_chunks is None:
@@ -136,6 +136,7 @@ def _q_multiply_shift_hexagon(op):
     if x_lanes % 32 != 0 or not is_power_of_2(x_lanes // 32):
         return op
 
+    # pylint: disable=unused-argument
     def intrinsic_lowering_32(x, y, fractional_bits, shift):
         lowered_dtype = "int32x32"
 
@@ -210,6 +211,7 @@ def _q_multiply_shift_per_axis_hexagon(op):
     if arg_is_rshift_required.value and arg_is_lshift_required.value:
         return op
 
+    # pylint: disable=unused-argument
     def intrinsic_impl_32(
         x, y, left_shift, right_shift, fractional_bits, is_lshift_required, is_rshift_required
     ):
