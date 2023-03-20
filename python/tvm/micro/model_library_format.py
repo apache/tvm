@@ -666,4 +666,4 @@ def export_model_library_format(
 
     _make_tar(tempdir.path, file_name, modules)
 
-    return file_name
+    return str(file_name)

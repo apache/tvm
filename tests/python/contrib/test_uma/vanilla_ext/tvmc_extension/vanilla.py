@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from tvm.driver.tvmc.extensions import TVMExtension
+from tvm.driver.tvmc.extensions import TVMCExtension
 from tests.python.contrib.test_uma.test_uma_vanilla_accelerator import VanillaAcceleratorBackend
 
 
-class VanillaExtension(TVMExtension):
+class VanillaExtension(TVMCExtension):
     def __init__(self):
         self.backend = VanillaAcceleratorBackend()
 

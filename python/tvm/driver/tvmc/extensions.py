@@ -29,7 +29,7 @@ from abc import abstractmethod
 _EXTENSIONS = []
 
 
-class TVMExtension(object):
+class TVMCExtension(object):
     @abstractmethod
     def uma_backends(self):
         return []
@@ -46,8 +46,8 @@ def load_extensions(paths):
     """
     Loads extensions from the given locations.
 
-    Extensions must implement the `TVMExtension` interface and be stored in a directory called
-    `tvm_extension`.
+    Extensions must implement the `TVMCExtension` interface and be stored in a directory called
+    `tvmc_extension`.
     """
 
     path_backup = copy.copy(sys.path)
@@ -55,7 +55,7 @@ def load_extensions(paths):
 
     top_modules = []
     try:
-        mod = importlib.import_module("tvm_extension")
+        mod = importlib.import_module("tvmc_extension")
         top_modules.append(mod)
     except ImportError:
         pass
@@ -125,4 +125,4 @@ def _scan_all(top_level):
 
 
 def _is_concrete_extension_type(obj):
-    return inspect.isclass(obj) and issubclass(obj, TVMExtension) and not inspect.isabstract(obj)
+    return inspect.isclass(obj) and issubclass(obj, TVMCExtension) and not inspect.isabstract(obj)
