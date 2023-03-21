@@ -2071,6 +2071,11 @@ TVM_REGISTER_GLOBAL("tir.schedule.GetAutoTensorizeMappingInfo")
     });
 
 TVM_REGISTER_GLOBAL("tir.schedule.HasBlock").set_body_typed(HasBlock);
+TVM_REGISTER_GLOBAL("tir.schedule.IsOutputBlock").set_body_typed([](Schedule sch, BlockRV block) {
+  auto state = sch->state();
+  auto block_sref = sch->GetSRef(block);
+  return IsOutputBlock(state, block_sref, GetScopeRoot(state, block_sref, false));
+});
 
 }  // namespace tir
 }  // namespace tvm
