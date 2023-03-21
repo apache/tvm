@@ -264,7 +264,9 @@ class TestRandomRelayE2ECorrectness:
             return tvm.nd.array(numpy_init, device)
 
         def run_and_get_output(tile_size: Optional[int]) -> np.ndarray:
-            returned_primfunc = TestRandomRelayE2ECorrectness.get_primfunc(extracted_task, tile_size)
+            returned_primfunc = TestRandomRelayE2ECorrectness.get_primfunc(
+                extracted_task, tile_size
+            )
             output_tensor = get_output_tensor()
             run_primfunc(returned_primfunc, target, [*input_tensors, output_tensor])
             return output_tensor.numpy()
