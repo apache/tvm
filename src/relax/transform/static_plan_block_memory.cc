@@ -107,8 +107,7 @@ class StorageToken : public ObjectRef {
     }
 
     ObjectPtr<StorageTokenNode> n = make_object<StorageTokenNode>();
-    int bytes_per_element = (dtype.bits() * dtype.lanes() + 7) / 8;
-    n->bytes = size * bytes_per_element;
+    n->bytes = size * dtype.bytes() * dtype.lanes();
     n->dtype = dtype;
     data_ = std::move(n);
   }
