@@ -652,16 +652,11 @@ class BufferCompactor : public StmtExprMutator {
 };
 
 PrimFunc CompactBufferAllocation(PrimFunc f, bool is_strict) {
-  // Only apply this pass to TIR that is not from TE schedules
-  if (!IsFromLegacyTESchedule(f)) {
-    PrimFuncNode* fptr = f.CopyOnWrite();
-    auto region = BufferAccessRegionCollector::Collect(f, /*collect_inbound=*/is_strict);
-    auto storage_align = CollectStorageAlignAnnotation(f->body);
-    fptr->body = BufferCompactor::Compact(f, region, storage_align);
-    return f;
-  } else {
-    return f;
-  }
+  PrimFuncNode* fptr = f.CopyOnWrite();
+  auto region = BufferAccessRegionCollector::Collect(f, /*collect_inbound=*/is_strict);
+  auto storage_align = CollectStorageAlignAnnotation(f->body);
+  fptr->body = BufferCompactor::Compact(f, region, storage_align);
+  return f;
 }
 
 namespace transform {
