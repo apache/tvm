@@ -242,10 +242,30 @@ def test_specialize_with_const_folding():
     tvm.ir.assert_structural_equal(func, param_in_arith_exprs_n_16)
 
 
+def test_specialize_with_pointer_size():
+    """Rewrite implicit buffers
+
+    The first appearance of a `tir::Buffer` may be at its usage in
+    BufferStore or BufferLoad.  The specialized parameter should be
+    updated in these buffers as well as explicitly defined buffers.
+    """
+
+    @T.prim_func
+    def before(a_ptr: T.handle("float32"), n: T.int64):
+        A = T.Buffer(n, "float32", data=a_ptr)
+        for i in range(n):
+            A[i] = 0.0
+
+    @T.prim_func
+    def expected(a_ptr: T.handle("float32")):
+        A = T.Buffer(T.int64(16), "float32", data=a_ptr)
+        for i in range(T.int64(16)):
+            A[i] = 0.0
+
+    _, n = before.params
+    after = before.specialize({n: tvm.tir.const(16, n.dtype)})
+    tvm.ir.assert_structural_equal(after, expected)
+
+
 if __name__ == "__main__":
-    test_specialize_nothing()
-    test_specialize_matmul()
-    test_specialize_elemwise()
-    test_specialize_mem_copy()
-    test_specialize_recursive_load()
-    test_specialize_with_const_folding()
+    tvm.testing.main()
