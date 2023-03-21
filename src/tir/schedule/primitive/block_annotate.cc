@@ -461,7 +461,7 @@ struct UnsafeSetDTypeTraits : public UnpackedInstTraits<UnsafeSetDTypeTraits> {
 
   static String UnpackedAsPython(Array<String> outputs, String block_rv, Integer buffer_index,
                                  String dtype) {
-    PythonAPICall py("set_dtype");
+    PythonAPICall py("unsafe_set_dtype");
     py.Input("block", block_rv);
     py.Input("buffer_index", buffer_index);
     py.Input("dtype", dtype);
