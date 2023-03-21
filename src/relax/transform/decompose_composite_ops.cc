@@ -123,9 +123,9 @@ class OpDecomposer : public ExprMutator {
     const ShapeStructInfoNode* sinfo = GetStructInfoAs<ShapeStructInfoNode>(call_node);
     ICHECK(sinfo);
     // call builtin function that converts tensor to shape tuple
-    static const Op& tensor_to_shape_op = Op::Get("relax.builtin.tensor_to_shape");
-    Var call =
-        builder_->Emit(Call(tensor_to_shape_op, {expr}, {}, {GetRef<ShapeStructInfo>(sinfo)}));
+    // TODO(@sunggg): Register operator for "vm.builtin.tensor_to_shape"
+    Var call = builder_->Emit(Call(ExternFunc("vm.builtin.tensor_to_shape"), {expr}, {},
+                                   {GetRef<ShapeStructInfo>(sinfo)}));
 
     // Operators like reshape take the output of `TensorToShape` as their output shape.
     // Because TOPI expects to have such output shape in symbolic shape at least (i.e.,
