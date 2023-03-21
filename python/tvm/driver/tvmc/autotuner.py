@@ -805,7 +805,7 @@ def tune_tasks(
             early_stopping=early_stopping,
             measure_option=measure_option,
             callbacks=[
-                autotvm.callback.progress_bar(trials, prefix=prefix),
+                autotvm.callback.progress_bar(min(trials, len(tsk.config_space)), prefix=prefix),
                 autotvm.callback.log_to_file(log_file),
             ],
         )
