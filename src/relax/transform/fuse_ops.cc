@@ -458,6 +458,8 @@ class FunctionCreator : public ExprMutator {
     BindingBlock new_block = builder_->EndBlock();
     if (outputs.empty()) {
       // If the result is not used outside
+      LOG(WARNING) << "There are dead codes in the current IRModule, please run the "
+                      "DeadCodeElimination Pass before FuseOps";
       function_ = NullOpt;
     } else {
       Expr body = outputs.size() == 1 ? outputs[0] : Tuple(outputs);
