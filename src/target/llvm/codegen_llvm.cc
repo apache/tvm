@@ -224,7 +224,13 @@ void CodeGenLLVM::InitTarget() {
 #endif  // TVM_LLVM_VERSION >= 60
 }
 
-void CodeGenLLVM::AddFunction(const PrimFunc& f) { this->AddFunctionInternal(f, false); }
+llvm::Function* CodeGenLLVM::DeclareFunction(const GlobalVar& gvar, const PrimFunc& f) {
+  return this->DeclareFunctionInternal(gvar, f, false);
+}
+
+void CodeGenLLVM::AddFunction(const GlobalVar& gvar, const PrimFunc& f) {
+  this->AddFunctionInternal(gvar, f, false);
+}
 
 void CodeGenLLVM::InitFuncState() {
   var_map_.clear();
@@ -234,15 +240,34 @@ void CodeGenLLVM::InitFuncState() {
   analyzer_.reset(new arith::Analyzer());
 }
 
-void CodeGenLLVM::AddFunctionInternal(const PrimFunc& f, bool ret_void) {
-  this->InitFuncState();
+std::tuple<std::string, llvm::Function::LinkageTypes> CodeGenLLVM::GetLinkage(
+    const GlobalVar& gvar, const PrimFunc& func) {
+  if (auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+    return {global_symbol.value(), llvm::Function::ExternalLinkage};
+  }
 
-  ICHECK_EQ(f->buffer_map.size(), 0U)
+  std::string symbol_name = [&]() {
+    std::stringstream ss;
+    ss << "_internal_";
+    ss << gvar->name_hint;
+    return ss.str();
+  }();
+
+  return {symbol_name, llvm::Function::PrivateLinkage};
+}
+
+llvm::Function* CodeGenLLVM::DeclareFunctionInternal(const GlobalVar& gvar, const PrimFunc& func,
+                                                     bool ret_void) {
+  if (auto it = functions_.find(gvar.get()); it != functions_.end()) {
+    return it->second;
+  }
+
+  ICHECK_EQ(func->buffer_map.size(), 0U)
       << "Cannot codegen function with buffer_map, please lower them first";
 
   std::vector<llvm::Type*> param_types;
-  is_restricted_ = f->HasNonzeroAttr(tir::attr::kNoAlias);
-  for (Var param : f->params) {
+  is_restricted_ = func->HasNonzeroAttr(tir::attr::kNoAlias);
+  for (Var param : func->params) {
     param_types.push_back(GetLLVMType(param));
     if (!is_restricted_ && param.dtype().is_handle()) {
       alias_var_set_.insert(param.get());
@@ -254,17 +279,26 @@ void CodeGenLLVM::AddFunctionInternal(const PrimFunc& f, bool ret_void) {
   llvm::FunctionType* ftype =
       llvm::FunctionType::get(ret_void ? t_void_ : t_int_, param_types, false);
 
-  auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  ICHECK(global_symbol.defined())
-      << "CodeGenLLVM: Expect PrimFunc to have the global_symbol attribute";
-  function_ = module_->getFunction(MakeStringRef(global_symbol.value()));
-  if (function_ == nullptr) {
-    function_ = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
-                                       MakeStringRef(global_symbol.value()), module_.get());
+  auto [symbol_name, linkage_type] = GetLinkage(gvar, func);
+
+  auto function = module_->getFunction(MakeStringRef(symbol_name));
+  if (function == nullptr) {
+    function =
+        llvm::Function::Create(ftype, linkage_type, MakeStringRef(symbol_name), module_.get());
   }
-  function_->setCallingConv(llvm::CallingConv::C);
-  function_->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
-  SetTargetAttributes(function_);
+  function->setCallingConv(llvm::CallingConv::C);
+  function->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
+  SetTargetAttributes(function);
+
+  functions_[gvar.get()] = function;
+
+  return function;
+}
+
+void CodeGenLLVM::AddFunctionInternal(const GlobalVar& gvar, const PrimFunc& f, bool ret_void) {
+  this->InitFuncState();
+
+  function_ = DeclareFunctionInternal(gvar, f, ret_void);
 
   // set var map and align information
   auto arg_it = function_->arg_begin();

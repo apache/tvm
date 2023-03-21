@@ -66,9 +66,13 @@ namespace codegen {
 // NVPTX code generator.
 class CodeGenNVPTX : public CodeGenLLVM {
  public:
-  void AddFunction(const PrimFunc& f) final {
+  llvm::Function* DeclareFunction(const GlobalVar& gvar, const PrimFunc& f) final {
     // add function as void return value
-    CodeGenLLVM::AddFunctionInternal(f, true);
+    return CodeGenLLVM::DeclareFunctionInternal(gvar, f, true);
+  }
+  void AddFunction(const GlobalVar& gvar, const PrimFunc& f) final {
+    // add function as void return value
+    CodeGenLLVM::AddFunctionInternal(gvar, f, true);
     // annotate as kernel function
     llvm::LLVMContext* ctx = llvm_target_->GetContext();
     module_->getOrInsertNamedMetadata("nvvm.annotations")
@@ -311,11 +315,7 @@ runtime::Module BuildNVPTX(IRModule mod, Target target) {
 
   cg->Init("TVMPTXModule", llvm_target.get(), NullOpt, false, false);
 
-  cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end(), [](auto& kv) {
-    ICHECK(kv.second->template IsInstance<PrimFuncNode>())
-        << "Can only lower IR Module with PrimFuncs";
-    return Downcast<PrimFunc>(kv.second);
-  });
+  cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end());
 
   llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
   const auto* flibdevice_path = tvm::runtime::Registry::Get("tvm_callback_libdevice_path");
