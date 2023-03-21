@@ -30,142 +30,172 @@
 namespace tvm {
 namespace relax {
 
-/*!
- * \brief Check if two expressions are equal scalars.
- * \param a The expression to be checked.
- * \param b The expression to be checked
- * \return Whether two expressions are equal scalars.
- */
-static bool IsEqualScalar(const Expr& a, const Expr& b) {
-  const auto* constant_a = a.as<ConstantNode>();
-  const auto* constant_b = b.as<ConstantNode>();
-  if (!constant_a || !constant_b || !constant_a->is_scalar() || !constant_b->is_scalar()) {
-    return false;
+class SubexprCounter : public ExprVisitor {
+ public:
+  // overriding VisitExpr ensures we do this for every subexpression
+  void VisitExpr(const Expr& e) override {
+    // Cases we ignore because we will not substitute them:
+    // 1. Vars of all kinds
+    // 2. Op nodes (nothing we can do)
+    // 3. Scalar constants (not much benefit from binding to a var)
+    if (!(e->IsInstance<VarNode>() || e->IsInstance<DataflowVarNode>() ||
+          e->IsInstance<GlobalVarNode>() || e->IsInstance<tvm::OpNode>() ||
+          (e.as<ConstantNode>() && (e.as<ConstantNode>()->is_scalar())))) {
+      int count = 0;
+      if (count_map_.count(e)) {
+        count = count_map_.at(e);
+      }
+      count_map_[e] = count + 1;
+    }
+    ExprVisitor::VisitExpr(e);
   }
-  return tvm::StructuralEqual()(a, b);
-}
+
+  // do not visit inner functions: we will do CSE within those
+  void VisitExpr_(const FunctionNode* func) override {}
+
+  // we are not going to do replacements inside struct info to avoid binding lots of reused shapes
+  void VisitExprDepStructInfoField(const StructInfo& struct_info) override {}
+
+  std::unordered_map<Expr, int, StructuralHash, StructuralEqual> Count(
+      const DataflowBlock& df_block) {
+    for (auto binding : df_block->bindings) {
+      VisitBinding(binding);
+    }
+    return count_map_;
+  }
+
+ private:
+  std::unordered_map<Expr, int, StructuralHash, StructuralEqual> count_map_;
+};
+
+// forward declaration
+DataflowBlock EliminateCommonSubexpr(const DataflowBlock&);
 
 class CommonSubexprEliminator : public ExprMutator {
  public:
-  explicit CommonSubexprEliminator(runtime::TypedPackedFunc<bool(Expr)> fskip) : fskip_(fskip) {}
+  explicit CommonSubexprEliminator(
+      const std::unordered_map<Expr, int, StructuralHash, StructuralEqual>& count_map)
+      : count_map_(count_map) {}
 
- private:
-  void VisitBinding_(const VarBindingNode* binding, const CallNode* call_node) final {
-    auto post = VisitExpr(GetRef<Call>(call_node));
-    auto new_val = Rewrite_(call_node, post);
-    return ExprMutator::VisitBinding_(binding, new_val.as<CallNode>());
-  }
-
-  void VisitBinding_(const VarBindingNode* binding, const TupleNode* val) final {
-    auto post = VisitExpr(GetRef<Tuple>(val));
-    return ExprMutator::VisitBinding_(binding, val);
-  }
-
-  void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* val) final {
-    auto post = VisitExpr(GetRef<TupleGetItem>(val));
-    auto new_val = Rewrite_(val, post);
-    return ExprMutator::VisitBinding_(binding, new_val.as<TupleGetItemNode>());
-  }
-
- private:
-  Expr Rewrite_(const CallNode* call, const Expr& post) {
-    Expr new_expr = post;
-    const CallNode* new_call = new_expr.as<CallNode>();
-    ICHECK(new_call);
-    const OpNode* op = new_call->op.as<OpNode>();
-    StructuralEqual attrs_equal;
-
-    if (new_call->args.size() == 0 || op == nullptr) {
-      return new_expr;
+  // overriding here ensures we visit every subexpression
+  Expr VisitExpr(const Expr& e) override {
+    if (count_map_.count(e) && count_map_.at(e) > 1) {
+      // if we already have a mapping for it, get it
+      if (replacements_.count(e)) {
+        return replacements_.at(e);
+      }
+      // Otherwise, insert a new binding for the current expression.
+      // Visit before emitting to do inner replacements
+      Expr new_e = ExprMutator::VisitExpr(e);
+      Var v = builder_->Emit(new_e);
+      replacements_[e] = v;
+      return v;
     }
-    if (fskip_ != nullptr && fskip_(new_expr)) {
-      return new_expr;
-    }
+    return ExprMutator::VisitExpr(e);
+  }
 
-    auto it = expr_map_.find(new_call->op);
-    if (it != expr_map_.end()) {
-      for (const Expr& candidate_expr : it->second) {
-        if (const CallNode* candidate = candidate_expr.as<CallNode>()) {
-          bool is_equivalent = true;
-          if (!attrs_equal(new_call->attrs, candidate->attrs)) {
-            continue;
-          }
-          for (size_t i = 0; i < new_call->args.size(); i++) {
-            if (!IsEquivalent(new_call->args[i], candidate->args[i])) {
-              is_equivalent = false;
-              break;
-            }
-          }
-          if (!is_equivalent) continue;
-          return GetRef<Call>(candidate);
+  // we are not going to do replacements inside struct info to avoid binding lots of reused shapes
+  StructInfo VisitExprDepStructInfoField(const StructInfo& struct_info) override {
+    return struct_info;
+  }
+
+  Expr VisitExpr_(const FunctionNode* func) override {
+    // for an inner function, we will do CSE on its body
+    Expr new_body = ExprMutator::VisitExpr(func->body);
+    if (new_body.same_as(func->body)) {
+      return GetRef<Expr>(func);
+    }
+    return Function(func->params, new_body, func->ret_struct_info, func->attrs, func->span);
+  }
+
+  // this should happen only for the inner function case
+  Expr VisitExpr_(const SeqExprNode* seq) override {
+    bool all_unchanged = true;
+    Array<BindingBlock> new_blocks;
+    // apply CSE within dataflow blocks only
+    for (auto block : seq->blocks) {
+      if (const DataflowBlockNode* df_block = block.as<DataflowBlockNode>()) {
+        auto new_df_block = EliminateCommonSubexpr(GetRef<DataflowBlock>(df_block));
+        if (!new_df_block.same_as(block)) {
+          new_blocks.push_back(new_df_block);
+          all_unchanged = false;
+          continue;
         }
       }
+      new_blocks.push_back(block);
     }
-    expr_map_[new_call->op].push_back(new_expr);
-    return new_expr;
+
+    if (all_unchanged) {
+      return GetRef<Expr>(seq);
+    }
+    // do not visit the body
+    return SeqExpr(new_blocks, seq->body, seq->span);
   }
 
-  Expr Rewrite_(const TupleGetItemNode* op, const Expr& post) {
-    Expr new_expr = post;
-    const TupleGetItemNode* new_tuple_item = new_expr.as<TupleGetItemNode>();
-    ICHECK(new_tuple_item);
+  void VisitBinding_(const VarBindingNode* binding) override {
+    // no need to visit var def because the struct info isn't going to change
+    Expr new_value = RegisterBoundValue(binding->var, binding->value);
 
-    if (fskip_ != nullptr && fskip_(new_expr)) {
-      return new_expr;
-    }
-
-    auto it = expr_map_.find(new_tuple_item->tuple);
-    if (it != expr_map_.end()) {
-      for (const Expr& candidate_expr : it->second) {
-        if (const TupleGetItemNode* candidate = candidate_expr.as<TupleGetItemNode>()) {
-          if (new_tuple_item->index == candidate->index) {
-            return GetRef<Expr>(candidate);
-          }
-        }
-      }
-    }
-    expr_map_[new_tuple_item->tuple].push_back(new_expr);
-    return new_expr;
-  }
-
-  bool IsEquivalent(const Expr& arg, const Expr& candidate_arg) {
-    if (arg->IsInstance<TupleNode>() && candidate_arg->IsInstance<TupleNode>()) {
-      const TupleNode* arg_node = arg.as<TupleNode>();
-      const TupleNode* candidate_arg_node = candidate_arg.as<TupleNode>();
-
-      if (arg_node->fields.size() != candidate_arg_node->fields.size()) {
-        return false;
-      }
-
-      for (size_t i = 0; i < arg_node->fields.size(); i++) {
-        if (!arg_node->fields[i].same_as(candidate_arg_node->fields[i]) &&
-            !IsEqualScalar(arg_node->fields[i], candidate_arg_node->fields[i])) {
-          return false;
-        }
-      }
+    if (new_value.same_as(binding->value)) {
+      builder_->EmitNormalized(GetRef<VarBinding>(binding));
     } else {
-      if (!arg.same_as(candidate_arg) && !IsEqualScalar(arg, candidate_arg)) {
-        return false;
-      }
+      // no need to renormalize new_value because all replacements are with vars
+      builder_->EmitNormalized(VarBinding(binding->var, new_value, binding->span));
+    }
+  }
+
+  void VisitBinding_(const MatchCastNode* binding) override {
+    // no need to visit var def because the struct info isn't going to change
+    Expr new_value = RegisterBoundValue(binding->var, binding->value);
+
+    // re-emit old binding if nothing changes
+    if (new_value.same_as(binding->value)) {
+      builder_->EmitNormalized(GetRef<MatchCast>(binding));
+    } else {
+      // no need to renormalize new_value because all replacements are with vars
+      builder_->EmitNormalized(
+          MatchCast(binding->var, new_value, binding->struct_info, binding->span));
+    }
+  }
+
+ private:
+  Expr RegisterBoundValue(Var var, Expr bound_value) {
+    // special case: if we are processing a binding
+    // and this is the first time we've encountered it,
+    // we will use the binding's var for the mapping
+    bool newly_replaced = false;
+    if (count_map_.count(bound_value) && count_map_.at(bound_value) > 1 &&
+        !replacements_.count(bound_value)) {
+      replacements_[bound_value] = var;
+      newly_replaced = true;
     }
 
-    return true;
+    if (newly_replaced) {
+      // If we've just added the mapping, using the overridden visitor will
+      // just return the var, which we don't want, so we will use
+      // the superclass VisitExpr to do inner substitutions
+      return ExprMutator::VisitExpr(bound_value);
+    }
+    return VisitExpr(bound_value);
   }
-  std::unordered_map<Expr, std::vector<Expr>, ObjectPtrHash, ObjectPtrEqual> expr_map_;
-  runtime::TypedPackedFunc<bool(Expr)> fskip_;
+
+  const std::unordered_map<Expr, int, StructuralHash, StructuralEqual>& count_map_;
+  std::unordered_map<Expr, Var, StructuralHash, StructuralEqual> replacements_;
 };
 
-DataflowBlock EliminateCommonSubexpr(const DataflowBlock& df_block, PackedFunc fskip) {
-  CommonSubexprEliminator mutator(fskip);
-  return Downcast<DataflowBlock>(mutator.VisitBindingBlock(df_block));
+DataflowBlock EliminateCommonSubexpr(const DataflowBlock& df_block) {
+  SubexprCounter counter;
+  auto count_map = counter.Count(df_block);
+  CommonSubexprEliminator eliminator(count_map);
+  return Downcast<DataflowBlock>(eliminator.VisitBindingBlock(df_block));
 }
 
 namespace transform {
 
-Pass EliminateCommonSubexpr(runtime::TypedPackedFunc<bool(Expr)> fskip) {
+Pass EliminateCommonSubexpr() {
   runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func =
       [=](DataflowBlock df_block, IRModule m, PassContext pc) {
-        return Downcast<DataflowBlock>(EliminateCommonSubexpr(df_block, fskip));
+        return Downcast<DataflowBlock>(EliminateCommonSubexpr(df_block));
       };
   return CreateDataflowBlockPass(pass_func, 1, "EliminateCommonSubexpr", {});
 }
