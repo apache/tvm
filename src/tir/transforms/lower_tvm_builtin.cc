@@ -239,8 +239,9 @@ class BuiltinLower : public StmtExprMutator {
         }
       }
     }
-    PrimExpr total_bytes = make_const(op->extents[0].dtype(), nbytes);
+    PrimExpr total_bytes = make_const(DataType::UInt(64), nbytes);
     for (size_t i = 0; i < op->extents.size(); ++i) {
+      // set total_bytes to uint64 to avoid overflow
       total_bytes = total_bytes * op->extents[i];
     }
     ICHECK(device_type_.defined()) << "Unknown device type in current IR";
@@ -250,13 +251,13 @@ class BuiltinLower : public StmtExprMutator {
     Stmt body = SeqStmt({IfThenElse(Call(DataType::Bool(1), builtin::isnullptr(), {op->buffer_var}),
                                     throw_last_error),
                          op->body});
-    Stmt alloca = LetStmt(
-        op->buffer_var,
-        Call(op->buffer_var.dtype(), Op::Get("tir.TVMBackendAllocWorkspace"),
-             {cast(DataType::Int(32), device_type_), cast(DataType::Int(32), device_id_),
-              cast(DataType::UInt(64), total_bytes), IntImm(DataType::Int(32), op->dtype.code()),
-              IntImm(DataType::Int(32), op->dtype.bits())}),
-        body);
+    Stmt alloca =
+        LetStmt(op->buffer_var,
+                Call(op->buffer_var.dtype(), Op::Get("tir.TVMBackendAllocWorkspace"),
+                     {cast(DataType::Int(32), device_type_), cast(DataType::Int(32), device_id_),
+                      total_bytes, IntImm(DataType::Int(32), op->dtype.code()),
+                      IntImm(DataType::Int(32), op->dtype.bits())}),
+                body);
 
     PrimExpr free_op = Call(DataType::Int(32), Op::Get("tir.TVMBackendFreeWorkspace"),
                             {cast(DataType::Int(32), device_type_),

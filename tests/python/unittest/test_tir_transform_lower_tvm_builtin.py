@@ -16,8 +16,8 @@
 # under the License.
 import tvm
 from tvm import te
+from tvm.script import tir as T
 import numpy as np
-from tvm import testing
 
 
 @tvm.register_func("tvm.test_matmul")
@@ -170,6 +170,23 @@ def test_call_packed_return_non_i32():
     a = tvm.nd.array(np.zeros(2, dtype="float32"))
     f(a)
     tvm.testing.assert_allclose(a.numpy(), expected_value)
+
+
+def test_lower_overflow_int32():
+    @T.prim_func
+    def variance4(rxplaceholder: T.Buffer((T.int64(1), T.int64(32), T.int64(25690112)), "float32")):
+        T.func_attr({"global_symbol": "variance4", "tir.noalias": True})
+        rxplaceholder_red = T.allocate([32], "float32", "global")
+        T_subtract = T.allocate([822083584], "float32", "global")
+        rxplaceholder_red_1 = T.Buffer((T.int64(32),), data=rxplaceholder_red)
+        rxplaceholder_1 = T.Buffer((T.int64(822083584),), data=rxplaceholder.data)
+        T_subtract_1 = T.Buffer((T.int64(822083584),), data=T_subtract)
+        for ax1, ax2 in T.grid(32, 25690112):
+            cse_var_1: T.int32 = ax1 * 25690112 + ax2
+            T_subtract_1[cse_var_1] = rxplaceholder_1[cse_var_1] - rxplaceholder_red_1[ax1]
+
+    func = variance4
+    tvm.build(func, target="llvm")  # should not crash
 
 
 if __name__ == "__main__":
