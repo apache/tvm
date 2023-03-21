@@ -1561,7 +1561,6 @@ def test_tflite_tanh_legalize():
     ],
 )
 def test_mean(ifm_shape, axis, keep_dims, use_same_quantization, ifm_dtype):
-
     def create_tflite_graph():
         class Model(tf.Module):
             @tf.function
