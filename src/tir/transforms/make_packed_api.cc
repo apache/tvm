@@ -139,15 +139,29 @@ inline Stmt MakeAssertEQ(PrimExpr lhs, PrimExpr rhs, std::string msg) {
   return AssertStmt(lhs == rhs, tvm::tir::StringImm(msg), Evaluate(0));
 }
 
-PrimFunc MakePackedAPI(PrimFunc&& func) {
+PrimFunc MakePackedAPI(PrimFunc func) {
+  // A function with an explicit calling convention has already been
+  // lowered, and should not be modified.
+  if (auto opt = func->GetAttr<Integer>(tvm::attr::kCallingConv)) {
+    if (CallingConv(opt.value()->value) != CallingConv::kDefault) {
+      return func;
+    }
+  }
+
+  // An internal subroutine does not require the PackedFunc API.
   auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  ICHECK(global_symbol) << "MakePackedAPI: Expect PrimFunc to have the global_symbol attribute";
-
-  auto target = func->GetAttr<Target>(tvm::attr::kTarget);
-  ICHECK(target.defined()) << "MakePackedAPI: Require the target attribute";
-  int target_device_type = target.value()->GetTargetDeviceType();
-
+  if (!global_symbol.defined()) {
+    return func;
+  }
   std::string name_hint = global_symbol.value();
+
+  Target target = [&]() {
+    auto opt = func->GetAttr<Target>(tvm::attr::kTarget);
+    ICHECK(opt) << "MakePackedAPI required the function to be annotated with tvm::attr::kTarget ("
+                << tvm::attr::kTarget << "), but the function only has attributes " << func->attrs;
+    return opt.value();
+  }();
+  int target_device_type = target->GetTargetDeviceType();
 
   auto* func_ptr = func.CopyOnWrite();
   const Stmt nop = Evaluate(0);
@@ -292,7 +306,7 @@ PrimFunc MakePackedAPI(PrimFunc&& func) {
   func_ptr->params = args;
 
   Array<Var> undefined = UndefinedVars(func_ptr->body, func_ptr->params);
-  ICHECK_EQ(undefined.size(), 0) << "In PrimFunc " << global_symbol << " variables " << undefined
+  ICHECK_EQ(undefined.size(), 0) << "In PrimFunc " << name_hint << " variables " << undefined
                                  << " are used, but are not passed in as API arguments";
 
   func_ptr->buffer_map = Map<Var, Buffer>();
@@ -300,7 +314,7 @@ PrimFunc MakePackedAPI(PrimFunc&& func) {
   func_ptr->ret_type = PrimType(DataType::Int(32));
 
   // return the function.
-  return std::move(func);
+  return func;
 }
 
 namespace transform {
