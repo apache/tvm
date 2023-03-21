@@ -216,6 +216,56 @@ def test_different_dtype():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_dtype_bool():
+    @tvm.script.ir_module
+    class Module:
+        @T.prim_func
+        def add1(
+            A: T.Buffer((T.int64(2), T.int64(3)), "bool"),
+            B: T.Buffer((T.int64(2), T.int64(3)), "bool"),
+            C: T.Buffer((T.int64(2), T.int64(3)), "bool"),
+        ):
+            T.evaluate(0)
+
+        @R.function
+        def main(y: R.Tensor((2, 3), dtype="bool")) -> R.Tensor((2, 3), dtype="bool"):
+            cls = Module
+            alloc: R.Tensor((2, 3), dtype="bool") = R.builtin.alloc_tensor(
+                R.shape([2, 3]), dtype="bool", runtime_device_index=0
+            )
+            _1: R.Tuple() = cls.add1(y, y, alloc)
+            gv1: R.Tensor((2, 3), dtype="bool") = alloc
+            return y
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def add1(
+            A: T.Buffer((T.int64(2), T.int64(3)), "bool"),
+            B: T.Buffer((T.int64(2), T.int64(3)), "bool"),
+            C: T.Buffer((T.int64(2), T.int64(3)), "bool"),
+        ):
+            T.evaluate(0)
+
+        @R.function
+        def main(y: R.Tensor((2, 3), dtype="bool")) -> R.Tensor((2, 3), dtype="bool"):
+            cls = Expected
+            storage: R.Object = R.memory.alloc_storage(
+                R.shape([6]), virtual_device_index=0, storage_scope="global", dtype="bool"
+            )
+            alloc: R.Tensor((2, 3), dtype="bool") = R.memory.alloc_tensor(
+                storage, 0, R.shape([2, 3]), dtype="bool"
+            )
+            _2: R.Tuple() = cls.add1(y, y, alloc)
+            _3: R.Tuple() = R.memory.kill_tensor(alloc)
+            gv12: R.Tensor((2, 3), dtype="bool") = alloc
+            _4: R.Tuple() = R.memory.kill_storage(storage)
+            return y
+
+    mod = relax.transform.StaticPlanBlockMemory()(Module)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 def test_same_dtype():
     @tvm.script.ir_module
     class Module:
