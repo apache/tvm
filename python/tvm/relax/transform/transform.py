@@ -277,18 +277,29 @@ class PatternCheckContext(Object):
 
     Parameters
     ----------
+    matched_expr: Expr
+        The expression that's matched with the FusionPattern.pattern.
+
     annotated_expr: Mapping[str, Expr]
         A map which contains all expressions matched by the sub patterns in
         FusionPattern.annotation_patterns.
 
+    matched_bindings: Mapping[Var, Expr]
+        Map from variable to its value. It contains variables from bindings that is
+        being fused by FuseOpsByPattern.
+
     var_usages: Mapping[Var, Sequence[Var]]
-        A map mapping variable definitions to a set of uses.
+        A map mapping variable definitions to a set of uses. It has all variables
+        used in the function.
 
     value_to_bound_var: Mapping[Expr, Var]
-        Map from value to its bound variable.
+        Map from value to its bound variable. It doesn't have variables after the
+        matched expression.
     """
 
+    matched_expr: Expr
     annotated_expr: Mapping[str, Expr]
+    matched_bindings: Mapping[Var, Expr]
     var_usages: Mapping[Var, Sequence[Var]]
     value_to_bound_var: Mapping[Expr, Var]
 

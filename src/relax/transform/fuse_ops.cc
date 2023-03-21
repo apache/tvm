@@ -905,6 +905,7 @@ class PatternBasedPartitioner : ExprVisitor {
  public:
   using Group = GraphPartitioner::Group;
   using GroupMap = OperatorFusor::GroupMap;
+  using PatternCheckContext = transform::PatternCheckContext;
   using ExprVisitor::VisitExpr_;
   using FCheckMatch = runtime::TypedPackedFunc<bool(const transform::PatternCheckContext&)>;
 
@@ -944,9 +945,7 @@ class PatternBasedPartitioner : ExprVisitor {
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call) final {
     VisitVarDef(binding->var);
     if (auto matches_opt = ExtractMatchedExpr(pat_, GetRef<Call>(call), bindings_)) {
-      if (check_ != nullptr &&
-          !check_(transform::PatternCheckContext(GetAnnotatedExpr(matches_opt.value()),
-                                                 current_block_use_def_, value_to_bound_var_))) {
+      if (check_ != nullptr && !check_(CreatePatternCheckContext(call, matches_opt.value()))) {
         return;
       }
       // If a match is found, put all matching expressions into the same group.
@@ -990,14 +989,24 @@ class PatternBasedPartitioner : ExprVisitor {
     return group_map_[bound_var.get()]->FindRoot();
   }
 
-  Map<String, Expr> GetAnnotatedExpr(const Map<DFPattern, Expr> matched_result) {
+  PatternCheckContext CreatePatternCheckContext(const CallNode* call,
+                                                const Map<DFPattern, Expr>& matched_result) {
     Map<String, Expr> annotated_expr;
     for (const auto& it : annotation_pat_) {
       if (matched_result.count(it.second)) {
         annotated_expr.Set(it.first, matched_result[it.second]);
       }
     }
-    return annotated_expr;
+
+    Map<Var, Expr> matched_bindings;
+    for (const auto& [pat, match] : matched_result) {
+      if (pat->IsInstance<CallPatternNode>()) {
+        matched_bindings.Set(value_to_bound_var_[match], match);
+      }
+    }
+
+    return PatternCheckContext(GetRef<Call>(call), annotated_expr, matched_bindings,
+                               current_block_use_def_, value_to_bound_var_);
   }
 
   String pat_name_;
@@ -1123,11 +1132,14 @@ TVM_REGISTER_GLOBAL("relax.transform.FusionPattern")
       return FusionPattern(name, pattern, annotation_patterns, check);
     });
 
-PatternCheckContext::PatternCheckContext(Map<String, Expr> annotated_expr,
+PatternCheckContext::PatternCheckContext(Expr matched_expr, Map<String, Expr> annotated_expr,
+                                         Map<Var, Expr> matched_bindings,
                                          Map<Var, Array<Var>> var_usages,
                                          Map<Expr, Var> value_to_bound_var) {
   ObjectPtr<PatternCheckContextNode> n = make_object<PatternCheckContextNode>();
+  n->matched_expr = std::move(matched_expr);
   n->annotated_expr = std::move(annotated_expr);
+  n->matched_bindings = std::move(matched_bindings);
   n->var_usages = std::move(var_usages);
   n->value_to_bound_var = std::move(value_to_bound_var);
   data_ = std::move(n);

@@ -492,6 +492,61 @@ def test_cutlass_partition_matmul_blocked(x_shape, y_shape, transpose_y, dtype):
     assert len(mod.functions) == 1
 
 
+def test_cutlass_partition_matmul_tuple_return_blocked():
+    @tvm.script.ir_module
+    class TransposedMatmul:
+        @R.function
+        def main(
+            x: R.Tensor((4, 4), "float32"),
+            y: R.Tensor((4, 4), "float32"),
+        ):
+            with R.dataflow():
+                lv1 = R.permute_dims(y)
+                # Because lv1 is used by both lv2 and out, it should stay out of
+                # the fused function. Otherwise the fused function will return
+                # tuple output, which isn't possible in cutlass, e.g.
+                # @R.function
+                # def fused_relax_permute_dims_relax_matmul(...):
+                #     R.func_attr({"Composite": "cutlass.matmul_transposed", "Primitive": 1})
+                #     with R.dataflow():
+                #         gv: R.Tensor((4, 4), dtype="float32") = R.permute_dims(y, axes=None)
+                #         gv1: R.Tensor((4, 4), dtype="float32") = R.matmul(x, gv, out_dtype="void")
+                #         R.output(gv, gv1)
+                #     return (gv, gv1)  # Cannot get `gv` if dispatch to cutlass kernel.
+                lv2 = R.matmul(x, lv1)
+                out = R.matmul(lv1, lv2)
+                R.output(out)
+
+            return out
+
+    mod = partition_for_cutlass(TransposedMatmul, annotate_codegen=False)
+    for f_var in mod.functions:
+        func = mod[f_var]
+        if func.attrs and "Composite" in func.attrs:
+            # verify that the function is not fused as transposed matmul
+            assert func.attrs["Composite"] == "cutlass.matmul"
+
+
+def test_cutlass_partition_matmul_cyclic_dependency_blocked():
+    @tvm.script.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor((128, 128), "float16"), w: R.Tensor((128, 128), "float16")):
+            with R.dataflow():
+                # Because lv1 depends on lv, this block should be fused as matmul instead of matmul_bias.
+                lv = R.matmul(x, w)
+                lv1 = R.power(lv, R.const(2.0, "float16"))
+                lv2 = R.add(lv, lv1)
+                R.output(lv2)
+            return lv2
+
+    mod = partition_for_cutlass(Module, annotate_codegen=False)
+    for f_var in mod.functions:
+        func = mod[f_var]
+        if func.attrs and "Composite" in func.attrs:
+            assert func.attrs["Composite"] == "cutlass.matmul"
+
+
 @pytest.fixture(params=["float16", "float32"])
 def attention_dtype(request):
     return request.param

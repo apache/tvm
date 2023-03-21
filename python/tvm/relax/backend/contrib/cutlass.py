@@ -21,7 +21,7 @@ from typing import Mapping, Optional, Sequence, Tuple
 
 import tvm
 from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
-from tvm.relax import ShapeExpr, Var, transform
+from tvm.relax import DataflowVar, ShapeExpr, Var, transform
 from tvm.relax.transform import PatternCheckContext
 
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
@@ -52,6 +52,28 @@ def _is_supported_dtype(lhs_dtype, rhs_dtype):
     )
 
 
+def _has_leaking_intermediate_variables(context: PatternCheckContext) -> bool:
+    """
+    Check whether intermediate variables in the region to be fused are used outside
+    the fused region.
+    """
+    defined_vars = set(context.matched_bindings.keys())
+    output_var = context.value_to_bound_var[context.matched_expr]
+    intermediate_vars = {v for v in context.matched_bindings if v != output_var}
+
+    if any(not isinstance(v, DataflowVar) for v in intermediate_vars):
+        # If intermediate variable is not a DataflowVar, it can be accessed and potentially
+        # used outside the DataflowBlock.
+        return True
+
+    # Check whether all users of an intermediate variable are inside the fused region.
+    for var in intermediate_vars:
+        if any(var_user not in defined_vars for var_user in context.var_usages[var]):
+            return True
+
+    return False
+
+
 def _has_dependency(from_var: Var, to_var: Var, var_usages: Mapping[Var, Sequence[Var]]):
     if from_var == to_var:
         return True
@@ -72,6 +94,9 @@ def _has_dependency(from_var: Var, to_var: Var, var_usages: Mapping[Var, Sequenc
 
 def _check_conv2d(context: PatternCheckContext) -> bool:
     """Check if the given conv2d workload can be offloaded to CUTLASS."""
+    if _has_leaking_intermediate_variables(context):
+        return False
+
     conv2d_call = context.annotated_expr["root"]
     data_layout = conv2d_call.attrs.data_layout
     kernel_layout = conv2d_call.attrs.kernel_layout
@@ -101,6 +126,9 @@ def _check_conv2d(context: PatternCheckContext) -> bool:
 
 def _check_matmul(context: PatternCheckContext) -> bool:
     """Check if the given matmul workload can be offloaded to CUTLASS."""
+    if _has_leaking_intermediate_variables(context):
+        return False
+
     lhs = context.annotated_expr["lhs"]
     rhs = context.annotated_expr["rhs"]
 
