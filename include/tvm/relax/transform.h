@@ -276,23 +276,38 @@ class FusionPattern : public ObjectRef {
 class PatternCheckContextNode : public Object {
  public:
   /*!
+   * \brief The expression that's matched with the FusionPattern::pattern.
+   */
+  Expr matched_expr;
+
+  /*!
    * \brief A map which contains all expressions matched by the sub patterns in
    * FusionPattern::annotation_patterns.
    */
   Map<String, Expr> annotated_expr;
 
   /*!
-   * \brief A map mapping variable definitions to a set of uses.
+   * \brief Map from variable to its value. It contains variables from bindings that
+   * is being fused by FuseOpsByPattern.
+   */
+  Map<Var, Expr> matched_bindings;
+
+  /*!
+   * \brief A map mapping variable definitions to a set of uses. It has all variables
+   * used in the function.
    */
   Map<Var, Array<Var>> var_usages;
 
   /*!
-   * \brief Map from value to its bound variable.
+   * \brief Map from value to its bound variable. It doesn't have variables after the
+   * matched expression.
    */
   Map<Expr, Var> value_to_bound_var;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("matched_expr", &matched_expr);
     v->Visit("annotated_expr", &annotated_expr);
+    v->Visit("matched_bindings", &matched_bindings);
     v->Visit("var_usages", &var_usages);
     v->Visit("value_to_bound_var", &value_to_bound_var);
   }
@@ -303,7 +318,8 @@ class PatternCheckContextNode : public Object {
 
 class PatternCheckContext : public ObjectRef {
  public:
-  PatternCheckContext(Map<String, Expr> annotated_expr, Map<Var, Array<Var>> var_usages,
+  PatternCheckContext(Expr matched_expr, Map<String, Expr> annotated_expr,
+                      Map<Var, Expr> matched_bindings, Map<Var, Array<Var>> var_usages,
                       Map<Expr, Var> value_to_bound_var);
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(PatternCheckContext, ObjectRef,
