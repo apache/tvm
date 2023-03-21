@@ -361,8 +361,8 @@ class DTypeMutator : private ReplaceBufferMutator {
   DataType src_dtype_, tgt_dtype_;
 };
 
-void SetDType(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
-              const String& dtype) {
+void UnsafeSetDType(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
+                    const String& dtype) {
   const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   Buffer buffer =
       GetNthAccessBuffer(self, GetRef<Block>(block), buffer_index, BufferIndexType::kWrite);
@@ -445,8 +445,8 @@ struct SetScopeTraits : public UnpackedInstTraits<SetScopeTraits> {
   friend struct ::tvm::tir::UnpackedInstTraits;
 };
 
-struct SetDTypeTraits : public UnpackedInstTraits<SetDTypeTraits> {
-  static constexpr const char* kName = "SetDType";
+struct UnsafeSetDTypeTraits : public UnpackedInstTraits<UnsafeSetDTypeTraits> {
+  static constexpr const char* kName = "UnsafeSetDType";
   static constexpr bool kIsPure = false;
 
  private:
@@ -456,7 +456,7 @@ struct SetDTypeTraits : public UnpackedInstTraits<SetDTypeTraits> {
 
   static void UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv, Integer buffer_index,
                                       String dtype) {
-    return sch->SetDType(block_rv, buffer_index->value, dtype);
+    return sch->UnsafeSetDType(block_rv, buffer_index->value, dtype);
   }
 
   static String UnpackedAsPython(Array<String> outputs, String block_rv, Integer buffer_index,
@@ -474,7 +474,7 @@ struct SetDTypeTraits : public UnpackedInstTraits<SetDTypeTraits> {
 
 TVM_REGISTER_INST_KIND_TRAITS(StorageAlignTraits);
 TVM_REGISTER_INST_KIND_TRAITS(SetScopeTraits);
-TVM_REGISTER_INST_KIND_TRAITS(SetDTypeTraits);
+TVM_REGISTER_INST_KIND_TRAITS(UnsafeSetDTypeTraits);
 
 }  // namespace tir
 }  // namespace tvm

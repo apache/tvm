@@ -2397,7 +2397,7 @@ class Schedule(Object):
         specified by the a block and write-index.
 
         This schedule primitive is unsafe and may change the correctness of program because of
-        type conversion.
+        type conversion, please use with caution.
 
         Parameters
         ----------
@@ -2462,7 +2462,7 @@ class Schedule(Object):
         `set_dtype` requires the buffer to be an intermediate buffer defined via `alloc_buffer`.
         """
         block = self._normalize_block_arg(block)
-        _ffi_api.ScheduleSetDType(  # type: ignore # pylint: disable=no-member
+        _ffi_api.ScheduleUnsafeSetDType(  # type: ignore # pylint: disable=no-member
             self, block, buffer_index, dtype
         )
 

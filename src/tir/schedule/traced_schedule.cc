@@ -475,9 +475,10 @@ void TracedScheduleNode::SetScope(const BlockRV& block_rv, int buffer_index,
       /*outputs=*/{}));
 }
 
-void TracedScheduleNode::SetDType(const BlockRV& block_rv, int buffer_index, const String& dtype) {
-  ConcreteScheduleNode::SetDType(block_rv, buffer_index, dtype);
-  static const InstructionKind& kind = InstructionKind::Get("SetDType");
+void TracedScheduleNode::UnsafeSetDType(const BlockRV& block_rv, int buffer_index,
+                                        const String& dtype) {
+  ConcreteScheduleNode::UnsafeSetDType(block_rv, buffer_index, dtype);
+  static const InstructionKind& kind = InstructionKind::Get("UnsafeSetDType");
   trace_->Append(/*inst=*/Instruction(
       /*kind=*/kind,
       /*inputs=*/{block_rv},

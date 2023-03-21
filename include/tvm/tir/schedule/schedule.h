@@ -594,11 +594,13 @@ class ScheduleNode : public runtime::Object {
   /*!
    * \brief Set the data type of a buffer, where the buffer is specified by a block and a
    * write-index
+   * \note This schedule primitive is unsafe and may change correctness of program because of
+   *   type conversion, please use with caution.
    * \param block_rv The producer block of the buffer
    * \param buffer_index the index of the buffer in block's write region
    * \param dtype The data type to be set
    */
-  virtual void SetDType(const BlockRV& block_rv, int buffer_index, const String& dtype) = 0;
+  virtual void UnsafeSetDType(const BlockRV& block_rv, int buffer_index, const String& dtype) = 0;
   /******** Schedule: Blockize & Tensorize ********/
   /*!
    * \brief Convert the subtree rooted at a specific loop into a block.

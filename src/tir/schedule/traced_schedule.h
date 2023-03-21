@@ -100,7 +100,7 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   void StorageAlign(const BlockRV& block_rv, int buffer_index, int axis, int factor,
                     int offset) final;
   void SetScope(const BlockRV& block_rv, int buffer_index, const String& storage_scope) final;
-  void SetDType(const BlockRV& block_rv, int buffer_index, const String& dtype) final;
+  void UnsafeSetDType(const BlockRV& block_rv, int buffer_index, const String& dtype) final;
   /******** Schedule: Blockize & Tensorize ********/
   BlockRV Blockize(const LoopRV& loop_rv, bool preserve_unit_iters) final;
   void Tensorize(const BlockRV& block_rv, const String& intrin, bool preserve_unit_iters) final;
