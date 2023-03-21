@@ -88,12 +88,13 @@ def test_reshape_infer_struct_info():
     _check_inference(
         bb, relax.op.reshape(x5, (3, 8, 5)), relax.TensorStructInfo((3, 8, 5), dtype="")
     )
-    _check_inference(bb, relax.op.reshape(x0, s0), relax.TensorStructInfo(s0, "float32"))
-    _check_inference(bb, relax.op.reshape(x1, s0), relax.TensorStructInfo(s0, "float32"))
-    _check_inference(bb, relax.op.reshape(x2, s0), relax.TensorStructInfo(s0, "float32"))
-    _check_inference(bb, relax.op.reshape(x3, s0), relax.TensorStructInfo(s0, dtype=""))
-    _check_inference(bb, relax.op.reshape(x4, s0), relax.TensorStructInfo(s0, dtype=""))
-    _check_inference(bb, relax.op.reshape(x5, s0), relax.TensorStructInfo(s0, dtype=""))
+    # Remove Var from StructInfo when we can
+    _check_inference(bb, relax.op.reshape(x0, s0), relax.TensorStructInfo((3, 8, 5), "float32"))
+    _check_inference(bb, relax.op.reshape(x1, s0), relax.TensorStructInfo((3, 8, 5), "float32"))
+    _check_inference(bb, relax.op.reshape(x2, s0), relax.TensorStructInfo((3, 8, 5), "float32"))
+    _check_inference(bb, relax.op.reshape(x3, s0), relax.TensorStructInfo((3, 8, 5), dtype=""))
+    _check_inference(bb, relax.op.reshape(x4, s0), relax.TensorStructInfo((3, 8, 5), dtype=""))
+    _check_inference(bb, relax.op.reshape(x5, s0), relax.TensorStructInfo((3, 8, 5), dtype=""))
     _check_inference(bb, relax.op.reshape(x0, s1), relax.TensorStructInfo(s1, "float32"))
     _check_inference(bb, relax.op.reshape(x1, s1), relax.TensorStructInfo(s1, "float32"))
     _check_inference(bb, relax.op.reshape(x2, s1), relax.TensorStructInfo(s1, "float32"))
@@ -160,7 +161,8 @@ def test_reshape_infer_struct_info_shape_symbolic():
             (c, a * b * d, tir.floordiv(a * b * c * d, c * (a * b * d))), "float32"
         ),
     )
-    _check_inference(bb, relax.op.reshape(x, s0), relax.TensorStructInfo(s0, "float32"))
+    # Remove Var from StructInfo when we can
+    _check_inference(bb, relax.op.reshape(x, s0), relax.TensorStructInfo((c, a, d, b), "float32"))
     _check_inference(bb, relax.op.reshape(x, s1), relax.TensorStructInfo(s1, "float32"))
     _check_inference(bb, relax.op.reshape(x, s2), relax.TensorStructInfo(s2, "float32"))
 
@@ -188,17 +190,20 @@ def test_reshape_infer_struct_info_shape_var():
     _check_inference(
         bb, relax.op.reshape(x0, (3, -1, 5)), relax.TensorStructInfo((3, 8, 5), "float32")
     )
-    _check_inference(bb, relax.op.reshape(x0, ns0), relax.TensorStructInfo(ns0, "float32"))
+    # Remove Var from StructInfo when we can
+    _check_inference(bb, relax.op.reshape(x0, ns0), relax.TensorStructInfo((3, 8, 5), "float32"))
     _check_inference(bb, relax.op.reshape(x0, ns1), relax.TensorStructInfo(ns1, "float32"))
     _check_inference(
         bb, relax.op.reshape(x1, (3, 8, 5)), relax.TensorStructInfo((3, 8, 5), "float32")
     )
-    _check_inference(bb, relax.op.reshape(x1, ns0), relax.TensorStructInfo(ns0, "float32"))
+    # Remove Var from StructInfo when we can
+    _check_inference(bb, relax.op.reshape(x1, ns0), relax.TensorStructInfo((3, 8, 5), "float32"))
     _check_inference(bb, relax.op.reshape(x1, ns1), relax.TensorStructInfo(ns1, "float32"))
     _check_inference(
         bb, relax.op.reshape(x2, (3, 8, 5)), relax.TensorStructInfo((3, 8, 5), "float32")
     )
-    _check_inference(bb, relax.op.reshape(x2, ns0), relax.TensorStructInfo(ns0, "float32"))
+    # Remove Var from StructInfo when we can
+    _check_inference(bb, relax.op.reshape(x2, ns0), relax.TensorStructInfo((3, 8, 5), "float32"))
     _check_inference(bb, relax.op.reshape(x2, ns1), relax.TensorStructInfo(ns1, "float32"))
 
 

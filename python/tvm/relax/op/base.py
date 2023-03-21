@@ -402,3 +402,17 @@ def shape_of(expr: Expr) -> Expr:
         A relax Call, which gets the shape of the input
     """
     return _ffi_api.shape_of(expr)  # type: ignore # pylint: disable=no-member
+
+
+def tensor_to_shape(expr: Expr) -> Expr:
+    """Convert tensor to shape expr.
+    Parameters
+    ----------
+    expr : Expr
+        The input Expr
+    Returns
+    -------
+    result : Expr
+        A relax Call, which transforms the tensor values to the shape
+    """
+    return _ffi_api.tensor_to_shape(expr)  # type: ignore # pylint: disable=no-member

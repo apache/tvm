@@ -21,6 +21,7 @@
 
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/nn.h>
+#include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
 
 #include "utils.h"
@@ -110,21 +111,63 @@ class NormInferenceSimplifier : public ExprMutator {
   Map<Expr, Expr> batch_norm_map_;
 };
 
+class OpDecomposer : public ExprMutator {
+ public:
+  static Expr Decompose(Expr expr) { return OpDecomposer()(expr); }
+
+ private:
+  using ExprMutator::VisitExpr_;
+  Expr TensorToShape(const Call& call_node) {
+    ICHECK(call_node->struct_info_.defined());
+    Expr expr = call_node->args[0];
+    const ShapeStructInfoNode* sinfo = GetStructInfoAs<ShapeStructInfoNode>(call_node);
+    ICHECK(sinfo);
+    // call builtin function that converts tensor to shape tuple
+    // TODO(@sunggg): Register operator for "vm.builtin.tensor_to_shape"
+    Var call = builder_->Emit(Call(ExternFunc("vm.builtin.tensor_to_shape"), {expr}, {},
+                                   {GetRef<ShapeStructInfo>(sinfo)}));
+
+    // Operators like reshape take the output of `TensorToShape` as their output shape.
+    // Because TOPI expects to have such output shape in symbolic shape at least (i.e.,
+    // Array<PrimExpr>), we define symbolic variables and returns them as a ShapeExpr.
+    Array<PrimExpr> shape_var;
+    for (int i = 0; i < sinfo->ndim; i++) {
+      shape_var.push_back(tir::Var("x", DataType::Int(64)));
+    }
+    // bind symbolic variables to the shape tuple
+    relax::Var var("y", ShapeStructInfo(shape_var));
+    builder_->EmitNormalized(MatchCast(var, call, ShapeStructInfo(shape_var)));
+    return ShapeExpr(shape_var);
+  }
+
+  Expr VisitExpr_(const CallNode* call_node) final {
+    Call call = Downcast<Call>(VisitExprPostOrder_(call_node));
+    if (call->op == tensor_to_shape_op_) {
+      return TensorToShape(call);
+    } else {
+      return call;
+    }
+  }
+
+  const Op& tensor_to_shape_op_ = Op::Get("relax.tensor_to_shape");
+};
+
 namespace transform {
-Pass SimplifyNormInference() {
+Pass DecomposeCompositeOps() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
         f = Downcast<Function>(NormInferenceSimplifier::Simplify(f));
-        // Remove original batch_norm op if it's not used.
+        f = Downcast<Function>(OpDecomposer::Decompose(f));
+        // Remove original ops if it's not used.
         return RemoveAllUnused(f);
       };
   return CreateFunctionPass(/*pass_function=*/pass_func,            //
                             /*opt_level=*/0,                        //
-                            /*pass_name=*/"SimplifyNormInference",  //
+                            /*pass_name=*/"DecomposeCompositeOps",  //
                             /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.SimplifyNormInference").set_body_typed(SimplifyNormInference);
+TVM_REGISTER_GLOBAL("relax.transform.DecomposeCompositeOps").set_body_typed(DecomposeCompositeOps);
 
 }  // namespace transform
 }  // namespace relax

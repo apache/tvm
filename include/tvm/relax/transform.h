@@ -372,12 +372,13 @@ TVM_DLL Pass RunCodegen(Optional<Map<String, Map<String, ObjectRef>>> target_opt
                         Array<runtime::String> entry_functions);
 
 /*!
- * \brief Simplify normalization operators during inference. For example, the result
+ * \brief Decompose composite operators during inference. For example, the result
  * of a batch norm which is indexed at tuple index 0 will be unpacked into a
- * number of simplified operators.
+ * number of simplified operators. Operators like Attention, Erf, etc. can be also
+ * simplified into several operators as well.
  * \return The Pass.
  */
-TVM_DLL Pass SimplifyNormInference();
+TVM_DLL Pass DecomposeCompositeOperator();
 
 /*!
  * \brief Returns a pass which replaces PrimFuncs which have matching kOperatorName attribute in \p
