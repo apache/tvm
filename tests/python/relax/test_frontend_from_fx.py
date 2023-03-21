@@ -37,9 +37,7 @@ def verify_model(torch_model, input_info, binding, expected, use_dynamo=False):
         graph_model = dynamo.export(torch_model, *args)[0]
     else:
         graph_model = fx.symbolic_trace(torch_model)
-    print(graph_model.code)
     mod = from_fx(graph_model, input_info, unwrap_unit_return_tuple=True)
-    print(mod.script())
     binding = {k: tvm.nd.array(v) for k, v in binding.items()}
     expected = relax.transform.BindParams("main", binding)(expected)
     tvm.ir.assert_structural_equal(mod, expected)
