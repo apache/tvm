@@ -1251,6 +1251,9 @@ class PyTorchOpConverter:
         if len(kernel_size) == 3:
             data_layout = "NCDHW"
             kernel_layout = "OIDHW"
+            if use_transpose:
+                # Transposed convolutions have IODHW layout.
+                kernel_layout = "IODHW"
         elif len(kernel_size) == 2:
             data_layout = "NCHW"
             kernel_layout = "OIHW"
