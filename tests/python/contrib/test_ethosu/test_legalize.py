@@ -1536,31 +1536,31 @@ def test_tflite_tanh_legalize():
 
 
 @pytest.mark.parametrize(
-    "ifm_shape, axis, keep_dims, use_same_quantization",
+    "ifm_shape, axis, keep_dims, use_same_quantization, ifm_dtype",
     [
         # mean to depthwise + multiply
-        [(1, 8, 16, 16), (1, 2), True, False],
-        [(1, 8, 16, 16), (2, 1), True, False],
-        [(1, 3, 4), (0, 1), True, False],
-        [(8, 5), (1, 0), True, False],
-        [(1, 65, 2, 1), (1, 2), True, False],  # special case when h > 64
+        [(1, 8, 16, 16), (1, 2), True, False, "int8"],
+        [(1, 8, 16, 16), (1, 2), True, True, "uint8"],
+        [(1, 8, 16, 16), (2, 1), True, False, "int8"],
+        [(1, 3, 4), (0, 1), True, False, "int8"],
+        [(8, 5), (1, 0), True, False, "int8"],
+        [(1, 65, 2, 1), (1, 2), True, False, "int8"],  # special case when h > 64
         # mean to average pool
-        [(1, 8, 16, 16), (1,), True, True],
-        [(1, 8, 16, 16), (2,), False, True],
-        [(1, 8, 16, 16), (1, 2), False, True],
-        [(3, 3, 4), (0,), True, True],
-        [(3, 3, 4), (1,), False, True],
-        [(8, 5), (0,), False, True],
-        [(8, 5), (1,), True, True],
+        [(1, 8, 16, 16), (1,), True, True, "int8"],
+        [(1, 8, 16, 16), (2,), False, True, "int8"],
+        [(1, 8, 16, 16), (1, 2), False, True, "int8"],
+        [(3, 3, 4), (0,), True, True, "int8"],
+        [(3, 3, 4), (1,), False, True, "int8"],
+        [(8, 5), (0,), False, True, "int8"],
+        [(8, 5), (1,), True, True, "int8"],
         # mean to depthwise
-        [(1, 8, 16, 16), (1,), True, False],
-        [(1, 8, 16, 16), (2,), True, False],
-        [(1, 8, 16, 16), (1, 2), False, False],
-        [(8, 4), (0,), False, False],
+        [(1, 8, 16, 16), (1,), True, False, "int8"],
+        [(1, 8, 16, 16), (2,), True, False, "int8"],
+        [(1, 8, 16, 16), (1, 2), False, False, "int8"],
+        [(8, 4), (0,), False, False, "int8"],
     ],
 )
-def test_mean(ifm_shape, axis, keep_dims, use_same_quantization):
-    dtype = "int8"
+def test_mean(ifm_shape, axis, keep_dims, use_same_quantization, ifm_dtype):
 
     def create_tflite_graph():
         class Model(tf.Module):
@@ -1592,12 +1592,12 @@ def test_mean(ifm_shape, axis, keep_dims, use_same_quantization):
         mod, _ = relay.frontend.from_tflite(
             tflite_model,
             shape_dict={"input": ifm_shape},
-            dtype_dict={"input": dtype},
+            dtype_dict={"input": ifm_dtype},
         )
         return mod
 
     def create_relay_graph_with_same_quantization():
-        ifm = relay.var("input", shape=ifm_shape, dtype=dtype)
+        ifm = relay.var("input", shape=ifm_shape, dtype=ifm_dtype)
         cast = relay.cast(ifm, dtype="int32")
         mean = relay.mean(cast, axis=axis, keepdims=keep_dims)
         requantize = relay.qnn.op.requantize(
@@ -1654,16 +1654,19 @@ def test_mean(ifm_shape, axis, keep_dims, use_same_quantization):
 
         # check IFM
         assert tuple(in_var.checked_type.shape) == ifm_shape
-        assert in_var.checked_type.dtype == dtype
+        assert in_var.checked_type.dtype == ifm_dtype
 
         # check OFM
         assert tuple(out_var.checked_type.shape) == out_shape
-        assert out_var.checked_type.dtype == dtype
+        assert out_var.checked_type.dtype == "int8"
 
         # check expected legalization case
-        if axis in [(1, 2), (2, 1), (0, 1), (1, 0)] and keep_dims and dtype == "int8":
+        if axis in [(1, 2), (2, 1), (0, 1), (1, 0)] and keep_dims and ifm_dtype == "int8":
             assert depthwise_op and mul_op
-            assert mul_op.attrs.operator_type == "MUL"
+            assert mul_op.attrs.operator_type == "MUL" and mul_op.attrs.rounding_mode == "NATURAL"
+        elif axis == (1, 2) and keep_dims and ifm_dtype == "uint8":
+            assert depthwise_op and mul_op
+            assert mul_op.attrs.operator_type == "MUL" and mul_op.attrs.rounding_mode == "TRUNCATE"
         elif pooling_op:
             attrs = pooling_op.attrs
             assert (

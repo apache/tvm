@@ -1336,10 +1336,12 @@ class MeanParams:
                 return axis in ([0], [1], [0, 1])
             return axis in ([1], [2], [1, 2])
 
-        tensor_params = [self.ifm, self.ofm]
-        if not check_valid_dtypes(tensor_params, supported_dtypes=[np.int8]):
+        if not check_valid_dtypes([self.ifm], [np.int8, np.uint8]):
             return False
-        if self.ifm.dtype != self.ofm.dtype:
+        if not check_valid_dtypes([self.ofm], [np.int8]):
+            return False
+        # ifm dtype uint8 is only supported for conv2d + mul case
+        if self.ifm.dtype == "uint8" and not (self.axis == [1, 2] and self.keepdims):
             return False
         if not len(self.ifm.shape) in [2, 3, 4]:
             return False
@@ -1355,7 +1357,12 @@ class MeanParams:
             or self.ifm.q_params.zero_point != self.ofm.q_params.zero_point
         ) and input_size > 4096:
             return False
-        if self.axis == [1, 2] and self.keepdims and self.ifm.dtype == "int8" and input_size > 256:
+        if (
+            self.axis == [1, 2]
+            and self.keepdims
+            and (self.ifm.dtype == "int8" or self.ifm.dtype == "uint8")
+            and input_size > 256
+        ):
             return False
         # Large kernel height reshape only when axis is [1, 2]
         if self.axis != [1, 2] and self.height > 64:

@@ -1052,6 +1052,7 @@ class MeanRewriter(DFPatternCallback):
             eps = 1 / (256 * (n + 1)) if n % 2 == 0 else 0
 
             scalar_tensor = relay.const(np.ones([1, 1, 1, 1], dtype="int16"), dtype="int16")
+            rounding_mode = "TRUNCATE" if params.ifm.dtype == "uint8" else "NATURAL"
 
             reduced_op = ethosu_ops.ethosu_binary_elementwise(
                 ifm=reduced_op,
@@ -1068,7 +1069,7 @@ class MeanRewriter(DFPatternCallback):
                 ifm2_channels=out_channels,
                 reversed_operands=False,
                 ofm_dtype="int8",
-                rounding_mode="NATURAL",
+                rounding_mode=rounding_mode,
             )
         elif (
             params.ifm.q_params.scale_f32 == params.ofm.q_params.scale_f32

@@ -397,25 +397,25 @@ def test_binary_add_with_non_4d_shapes(
     ACCEL_TYPES,
 )
 @pytest.mark.parametrize(
-    "ifm_shape, axis, keep_dims, use_same_quantization",
+    "ifm_shape, axis, keep_dims, use_same_quantization, ifm_dtype",
     [
         # mean to depthwise + multiply
-        [(1, 8, 16, 16), (1, 2), True, False],
-        [(1, 3, 4), (0, 1), True, False],
-        [(1, 65, 2, 1), (1, 2), True, False],  # special case when h > 64
+        [(1, 8, 16, 16), (1, 2), True, False, "int8"],
+        [(1, 8, 16, 16), (1, 2), True, True, "uint8"],
+        [(1, 3, 4), (0, 1), True, False, "int8"],
+        [(1, 65, 2, 1), (1, 2), True, False, "int8"],  # special case when h > 64
         # mean to average pool
-        [(1, 8, 16, 16), (2,), False, True],
-        [(3, 3, 4), (0,), True, True],
-        [(8, 5), (0,), False, True],
+        [(1, 8, 16, 16), (2,), False, True, "int8"],
+        [(3, 3, 4), (0,), True, True, "int8"],
+        [(8, 5), (0,), False, True, "int8"],
         # mean to depthwise
-        [(1, 8, 16, 16), (2,), True, False],
-        [(1, 8, 16, 16), (2, 1), False, False],
-        [(8, 4), (0,), False, False],
+        [(1, 8, 16, 16), (2,), True, False, "int8"],
+        [(1, 8, 16, 16), (2, 1), False, False, "int8"],
+        [(8, 4), (0,), False, False, "int8"],
     ],
 )
-def test_mean(accel_type, ifm_shape, axis, keep_dims, use_same_quantization):
+def test_mean(accel_type, ifm_shape, axis, keep_dims, use_same_quantization, ifm_dtype):
     np.random.seed(0)
-    dtype = "int8"
 
     def create_mod_from_tflite():
         class Model(tf.Module):
@@ -447,13 +447,13 @@ def test_mean(accel_type, ifm_shape, axis, keep_dims, use_same_quantization):
         mod, _ = relay.frontend.from_tflite(
             tflite_model,
             shape_dict={"ifm": ifm_shape},
-            dtype_dict={"ifm": dtype},
+            dtype_dict={"ifm": ifm_dtype},
         )
         input_data, output_data = infra.generate_ref_data_tflite(tflite_graph)
         return mod, input_data, output_data
 
     def create_mod_from_relay():
-        ifm = relay.var("input", shape=ifm_shape, dtype=dtype)
+        ifm = relay.var("input", shape=ifm_shape, dtype=ifm_dtype)
         cast = relay.cast(ifm, dtype="int32")
         mean = relay.mean(cast, axis=axis, keepdims=keep_dims)
         requantize = relay.qnn.op.requantize(
@@ -467,7 +467,10 @@ def test_mean(accel_type, ifm_shape, axis, keep_dims, use_same_quantization):
         func = relay.Function(relay.analysis.free_vars(requantize), requantize)
         mod = tvm.IRModule.from_expr(func)
 
-        input_data = {"input": np.random.randint(low=-127, high=128, size=ifm_shape, dtype=dtype)}
+        low, high = (0, 256) if ifm_dtype == "uint8" else (-127, 128)
+        input_data = {
+            "input": np.random.randint(low=low, high=high, size=ifm_shape, dtype=ifm_dtype)
+        }
         output_data = generate_ref_data(mod, input_data)
         return mod, input_data, output_data
 
