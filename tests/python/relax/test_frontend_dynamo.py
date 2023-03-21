@@ -193,6 +193,42 @@ def test_subgraph_capture():
     mod = dynamo_capture_subgraphs(Input2, torch.randn(10), torch.ones(10))
     tvm.ir.assert_structural_equal(mod, Expected2)
 
+    class Input3(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.lin = torch.nn.Linear(100, 10)
+
+        def forward(self, x, add_one=False):
+            if add_one:
+                x = x + 1
+            return torch.nn.functional.relu(self.lin(x))
+
+    @tvm.script.ir_module
+    class Expected3:
+        @R.function
+        def subgraph_0(
+            inp_0: R.Tensor((10, 100), dtype="float32"),
+            w0: R.Tensor((10, 100), dtype="float32"),
+            w1: R.Tensor((10,), dtype="float32"),
+        ) -> R.Tensor((10, 10), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv0 = R.add(inp_0, R.const(1, "float32"))
+                lv: R.Tensor((100, 10), dtype="float32") = R.permute_dims(w0, axes=None)
+                lv1: R.Tensor((10, 10), dtype="float32") = R.matmul(lv0, lv, out_dtype="float32")
+                lv2: R.Tensor((10, 10), dtype="float32") = R.add(lv1, w1)
+                lv3: R.Tensor((10, 10), dtype="float32") = R.nn.relu(lv2)
+                gv: R.Tensor((10, 10), dtype="float32") = lv3
+                R.output(gv)
+            return gv
+
+    model = Input3()
+    mod = dynamo_capture_subgraphs(model, torch.randn(10, 100), add_one=True)
+    binding = {"w0": model.lin.weight.detach().numpy(), "w1": model.lin.bias.detach().numpy()}
+    binding = {k: tvm.nd.array(v) for k, v in binding.items()}
+    expected = relax.transform.BindParams("subgraph_0", binding)(Expected3)
+    tvm.ir.assert_structural_equal(mod, expected)
+
 
 if __name__ == "__main__":
     tvm.testing.main()

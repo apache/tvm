@@ -142,7 +142,7 @@ def dynamo_capture_subgraphs(model, *params, **kwargs) -> tvm.IRModule:
     from torch import _dynamo as dynamo  # type: ignore[import]
 
     keep_params_as_input = "keep_params_as_input" in kwargs and kwargs["keep_params_as_input"]
-
+    kwargs.pop("keep_params_as_input", None)
     mod = tvm.IRModule()
 
     def _capture(graph_module: fx.GraphModule, example_inputs):
@@ -159,7 +159,7 @@ def dynamo_capture_subgraphs(model, *params, **kwargs) -> tvm.IRModule:
 
     dynamo.reset()
     compiled_model = torch.compile(model, backend=_capture)
-    compiled_model(*params)
+    compiled_model(*params, **kwargs)
     return mod
 
 
