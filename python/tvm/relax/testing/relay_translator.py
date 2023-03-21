@@ -38,6 +38,7 @@ def from_relay(
     pass_config: Optional[Dict[str, Any]] = None,
     disabled_pass: Optional[List[str]] = None,
     translate_op_with_tir: Optional[Dict[str, tvm.tir.PrimFunc]] = None,
+    append_op_attrs: bool = False,
 ) -> IRModule:
     """Convert a Relay function into a Relax program.
 
@@ -64,6 +65,9 @@ def from_relay(
     translate_op_with_tir: Optional[Dict[str, tvm.tir.PrimFunc]]
         Dict that maps op names to user-defined PrimFuncs.
         Takes relay operator names and forces them to user-defined PrimFuncs during translation.
+
+    append_op_attrs: bool
+        Append relay op attrs to generated prim_funcs
 
     Returns
     -------
@@ -167,6 +171,15 @@ def from_relay(
             attrs = node.attrs
             out_type = node.checked_type
 
+            op_attrs_map = {}
+            if append_op_attrs:
+                func_attr_map = {"op_name": op_name}
+                if attrs:
+                    for attr in attrs.keys():
+                        func_attr_map[attr] = attrs[attr]
+
+                op_attrs_map["op_attrs"] = func_attr_map
+
             if translate_op_with_tir and op_name in translate_op_with_tir:
                 tir_gvar = bb.add_func(translate_op_with_tir[op_name], op_name)
                 call = relax.call_tir(
@@ -191,6 +204,7 @@ def from_relay(
                         new_args,
                         node.checked_type,
                         primfunc_name_hint=name_hint,
+                        primfunc_attrs=op_attrs_map,
                     )
 
             output_var = var
