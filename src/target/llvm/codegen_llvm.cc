@@ -1781,9 +1781,19 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
       VLOG(2) << "CreateIntrinsic done";
       return x;
     }
+  } else if (auto* ptr_gvar = op->op.as<GlobalVarNode>()) {
+    auto gvar = GetRef<GlobalVar>(ptr_gvar);
+    auto it = functions_.find(ptr_gvar);
+    ICHECK(it != functions_.end()) << "Call to undefined GlobalVar \"" << gvar << "\"";
+    llvm::Function* callee = it->second;
+    std::vector<llvm::Value*> arg_value;
+    for (const auto& arg : op->args) {
+      arg_value.push_back(MakeValue(arg));
+    }
+    return builder_->CreateCall(callee, arg_value);
+
   } else {
-    ICHECK(op->op.as<GlobalVarNode>());
-    LOG(FATAL) << "Do not yet support cross function call";
+    LOG(FATAL) << "Unsupported operation in CallNode: " << op->op;
   }
 }
 
