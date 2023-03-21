@@ -39,7 +39,6 @@ Optional<Integer> ParseThreadBinding(const Schedule& sch, const Instruction& ins
   if (thread_axis != axis) {
     return NullOpt;
   }
-
   return Downcast<Integer>(sch->Get(Downcast<LoopRV>(inst->inputs[0]))->extent);
 }
 
