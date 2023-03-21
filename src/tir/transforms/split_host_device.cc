@@ -249,15 +249,13 @@ class HostDeviceSplitter : public StmtMutator {
   std::unordered_map<const VarNode*, PrimExpr> handle_data_type_;
 };
 
-PrimFunc SplitHostDevice(PrimFunc&& func, IRModule* device_mod) {
+PrimFunc SplitHostDevice(PrimFunc&& func, IRModule* device_mod, const GlobalVar& gvar) {
   auto target = func->GetAttr<Target>(tvm::attr::kTarget);
   ICHECK(target.defined()) << "SplitHostDevice: Require the target attribute";
   auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  ICHECK(global_symbol.defined())
-      << "SplitHostDevice: Expect PrimFunc to have the global_symbol attribute";
+  auto name_prefix = global_symbol.value_or(gvar->name_hint);
 
-  HostDeviceSplitter splitter(device_mod, target.value(),
-                              static_cast<std::string>(global_symbol.value()));
+  HostDeviceSplitter splitter(device_mod, target.value(), name_prefix);
 
   auto* n = func.CopyOnWrite();
   n->body = splitter(std::move(n->body));
@@ -275,10 +273,12 @@ Pass SplitHostDevice() {
     IRModule device_mod = IRModule(Map<GlobalVar, BaseFunc>({}));
 
     for (auto& kv : *func_dict) {
-      if (kv.second->IsInstance<PrimFuncNode>()) {
-        PrimFunc func = Downcast<PrimFunc>(std::move(kv.second));
+      auto gvar = Downcast<GlobalVar>(kv.first);
+      auto& base_func = kv.second;
+      if (base_func->IsInstance<PrimFuncNode>()) {
+        PrimFunc func = Downcast<PrimFunc>(std::move(base_func));
         ICHECK(device_mod.defined()) << "The device module must be defined.";
-        kv.second = SplitHostDevice(std::move(func), &device_mod);
+        base_func = SplitHostDevice(std::move(func), &device_mod, gvar);
       }
     }
     mod->Update(device_mod);
