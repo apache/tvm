@@ -451,8 +451,10 @@ class BufferCompactor : public StmtExprMutator {
       if (buffer_alias_cnt.at(buffer->data) > 1) {
         continue;
       }
+
+      // set dim alignment info
       Region region = kv.second;
-      BufferAllocInfo buffer_alloc_info(std::move(region));
+      BufferAllocInfo alloc_info;
       auto it = storage_align.find(buffer->data);
       if (it != storage_align.end()) {
         std::vector<DimAlignInfo> dim_aligns(buffer->shape.size());
@@ -463,9 +465,33 @@ class BufferCompactor : public StmtExprMutator {
           int offset = dim_align[3]->value;
           dim_aligns.at(dim) = {factor, offset};
         }
-        buffer_alloc_info.dim_aligns = std::move(dim_aligns);
+        alloc_info.dim_aligns = std::move(dim_aligns);
       }
-      buffer_info.emplace(buffer->data, std::move(buffer_alloc_info));
+
+      // prepare new buffer
+      Array<PrimExpr> shape = region.Map([](const Range& range) { return range->extent; });
+      Array<PrimExpr> strides;
+      if (alloc_info.dim_aligns.size()) {
+        ICHECK(alloc_info.dim_aligns.size() == shape.size());
+        strides.resize(shape.size());
+        PrimExpr stride = make_const(shape[0].dtype(), 1);
+        for (size_t i = shape.size(); i != 0; --i) {
+          size_t dim = i - 1;
+          if (alloc_info.dim_aligns[dim].align_factor != 0) {
+            PrimExpr factor = make_const(stride.dtype(), alloc_info.dim_aligns[dim].align_factor);
+            PrimExpr offset = make_const(stride.dtype(), alloc_info.dim_aligns[dim].align_offset);
+            stride = stride + indexmod(factor + offset - indexmod(stride, factor), factor);
+          }
+          strides.Set(dim, stride);
+          stride = stride * shape[dim];
+        }
+      }
+      ObjectPtr<BufferNode> n = make_object<BufferNode>(*buffer.get());
+      n->shape = std::move(shape);
+      n->strides = std::move(strides);
+      alloc_info.new_buffer = Buffer(std::move(n));
+      alloc_info.region = region;
+      buffer_info.emplace(buffer->data, std::move(alloc_info));
     }
     BufferCompactor compactor(std::move(buffer_info));
     Stmt stmt = compactor(f->body);
@@ -491,8 +517,6 @@ class BufferCompactor : public StmtExprMutator {
      * \note The value if NullOpt if the buffer do not need reallocate (e.g parameter buffer).
      */
     Buffer new_buffer;
-
-    explicit BufferAllocInfo(Region region) : region(std::move(region)) {}
   };
 
   explicit BufferCompactor(
@@ -556,36 +580,10 @@ class BufferCompactor : public StmtExprMutator {
 
   Buffer RewriteAllocBuffer(const Buffer& buffer) {
     auto it = buffer_info_.find(buffer->data);
-    if (it == buffer_info_.end()) {
-      return buffer;
+    if (it != buffer_info_.end()) {
+      return it->second.new_buffer;
     }
-    BufferAllocInfo& info = it->second;
-    Array<PrimExpr> shape;
-    shape.reserve(info.region.size());
-    for (const Range& range : info.region) {
-      shape.push_back(range->extent);
-    }
-    Array<PrimExpr> strides;
-    if (info.dim_aligns.size()) {
-      ICHECK(info.dim_aligns.size() == shape.size());
-      strides.resize(shape.size());
-      PrimExpr stride = make_const(shape[0].dtype(), 1);
-      for (size_t i = shape.size(); i != 0; --i) {
-        size_t dim = i - 1;
-        if (info.dim_aligns[dim].align_factor != 0) {
-          PrimExpr factor = make_const(stride.dtype(), info.dim_aligns[dim].align_factor);
-          PrimExpr offset = make_const(stride.dtype(), info.dim_aligns[dim].align_offset);
-          stride = stride + indexmod(factor + offset - indexmod(stride, factor), factor);
-        }
-        strides.Set(dim, stride);
-        stride = stride * shape[dim];
-      }
-    }
-    ObjectPtr<BufferNode> n = make_object<BufferNode>(*buffer.get());
-    n->shape = std::move(shape);
-    n->strides = std::move(strides);
-    info.new_buffer = Buffer(std::move(n));
-    return info.new_buffer;
+    return buffer;
   }
 
   void RewriteBufferAccess(Buffer* buffer, Array<PrimExpr>* indices) const {
