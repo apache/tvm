@@ -349,6 +349,43 @@ def test_do_not_fold_ops_outside_dataflow():
     tvm.ir.assert_structural_equal(after, before)
 
 
+def test_fold_multiple_relax_ops_with_data_dependent_reshape():
+    @tvm.script.ir_module
+    class Module:
+        @R.function
+        def before(
+            data: R.Tensor((256,), "float32"),
+            c0: R.Tensor((2,), "int64"),
+            c1: R.Tensor((2,), "int64"),
+        ):
+            with R.dataflow():
+                lv0 = R.add(c0, c0)
+                target_shape = R.multiply(lv0, c1)
+                lv2: R.Shape(ndim=2) = R.tensor_to_shape(target_shape)
+                gv: R.Tensor(ndim=2, dtype="float32") = R.reshape(data, lv2)
+                R.output(gv)
+            return gv
+
+        @R.function
+        def expected(data: R.Tensor((256,), "float32")) -> R.Tensor((16, 16), dtype="float32"):
+            R.func_attr({"global_symbol": "main"})
+            with R.dataflow():
+                gv: R.Tensor((16, 16), dtype="float32") = R.reshape(data, R.shape([16, 16]))
+                R.output(gv)
+            return gv
+
+    c0_np = [8, 8]
+    c1_np = [1, 1]
+    before = gen_mod(Module, "before", {"c0": c0_np, "c1": c1_np})
+    assert relax.analysis.well_formed(before)
+
+    c2_np = np.multiply(np.add(c0_np, c0_np), c1_np)
+    expected = gen_mod(Module, "expected", {"c2": c2_np})
+
+    after = relax.transform.FoldConstant()(before)
+    tvm.ir.assert_structural_equal(after, expected)
+
+
 def test_unsupported_fold_ops_legalized_to_multiple_calls():
     @tvm.script.ir_module
     class Module:

@@ -129,9 +129,23 @@ class VMBuiltinLowerMutator : public ExprMutator {
   Expr Reshape(const Call& call_node) {
     ICHECK(call_node->args.size() == 2);
     ICHECK(call_node->struct_info_.defined());
-    CHECK(call_node->args[1]->IsInstance<ShapeExprNode>())
-        << "VMBuiltinLower expects the shape arg of reshape op to be a ShapeExpr";
-    return Call(builtin_reshape_, call_node->args, Attrs(), {GetStructInfo(call_node)});
+    auto arg = call_node->args[1];
+    CHECK(arg->IsInstance<ShapeExprNode>() || arg->IsInstance<VarNode>())
+        << "VMBuiltinLower expects the shape arg of reshape op to be a ShapeExpr or VarNode bound "
+           "to a ShapeExpr";
+
+    if (arg->IsInstance<ShapeExprNode>()) {
+      return Call(builtin_reshape_, call_node->args, Attrs(), {GetStructInfo(call_node)});
+    } else {
+      // Handling the case when arg is VarNode
+      Optional<Expr> _bound_val = LookupBinding(Downcast<Var>(arg));
+      ICHECK(_bound_val.defined());
+      Expr bound_val = _bound_val.value();
+      CHECK(bound_val->IsInstance<ShapeExprNode>())
+          << "VMBuiltinLower expects bound value to be a ShapeExpr";
+      return Call(builtin_reshape_, {call_node->args[0], bound_val}, Attrs(),
+                  {GetStructInfo(call_node)});
+    }
   }
 
   Expr ShapeOf(const Call& call_node) {

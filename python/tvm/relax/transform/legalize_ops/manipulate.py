@@ -23,7 +23,7 @@ import tvm
 from tvm import topi, tir, relax, te
 from tvm.tir.expr import IntImm
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr, Var, Tuple, TupleGetItem
+from ...expr import Call, Expr, Var, Tuple, TupleGetItem, ShapeExpr
 from .common import TEFunc, LegalizeFunc, register_legalize
 
 
@@ -32,6 +32,10 @@ def _reshape(
 ) -> LegalizeFunc:
     def reshape_call_te(bb: BlockBuilder, call: Call):
         tgt_shape = call.args[1].struct_info.shape if is_collapse_sum_like else call.args[1]
+        # If target shape is Var, pass its bound expr only when it is ShapeExpr
+        if isinstance(tgt_shape, Var):
+            tgt_shape = bb.lookup_binding(tgt_shape)
+            assert isinstance(tgt_shape, ShapeExpr)
         return bb.call_te(te_func, call.args[0], tgt_shape, primfunc_name_hint=primfunc_name)
 
     return reshape_call_te

@@ -315,6 +315,32 @@ Expr MakeShapeOf(Expr expr) {
 
 TVM_REGISTER_GLOBAL("relax.op.shape_of").set_body_typed(MakeShapeOf);
 
+// tensor_to_shape
+
+StructInfo ReturnTensorToShapeStructInfo(const Call& call, const BlockBuilder& ctx) {
+  ICHECK(call->args.size() == 1);
+  ICHECK(call->args[0]->struct_info_.defined());
+  const auto* tsinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  ICHECK(tsinfo && tsinfo->shape.defined());
+  ShapeExpr shape_expr = Downcast<ShapeExpr>(tsinfo->shape.value());
+  ICHECK(shape_expr->values.size() == 1);
+  const IntImmNode* ndim = shape_expr->values[0].as<IntImmNode>();
+  ICHECK(ndim);
+  return ShapeStructInfo(ndim->value);
+}
+
+RELAY_REGISTER_OP("relax.tensor_to_shape")
+    .set_num_inputs(1)
+    .add_argument("input", "Expr", "The input expression")
+    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnTensorToShapeStructInfo);
+
+Expr MakeTensorToShape(Expr expr) {
+  static const Op& op = Op::Get("relax.tensor_to_shape");
+  return Call(op, {expr}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.tensor_to_shape").set_body_typed(MakeTensorToShape);
+
 // alloc_tensor
 
 StructInfo InferStructInfoAllocateTensor(const Call& call, const BlockBuilder& ctx) {

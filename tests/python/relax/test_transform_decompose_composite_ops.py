@@ -22,7 +22,7 @@ import tvm.script
 import tvm.testing
 from tvm import IRModule, relax
 from tvm.relax import Function
-from tvm.script import relax as R
+from tvm.script import relax as R, tir as T
 
 
 def _check(before: Union[Function, IRModule], expected: Union[Function, IRModule]):
@@ -30,7 +30,7 @@ def _check(before: Union[Function, IRModule], expected: Union[Function, IRModule
         before = IRModule({"main": before})
     if isinstance(expected, Function):
         expected = IRModule({"main": expected})
-    after = relax.transform.SimplifyNormInference()(before)
+    after = relax.transform.DecomposeCompositeOps()(before)
     tvm.ir.assert_structural_equal(expected, after)
 
 
@@ -145,6 +145,27 @@ def test_batch_norm_complex():
             gv1 = bn[1]
             R.output(out, gv1)
         return out, gv1
+
+    _check(before, expected)
+
+
+def test_op_tensor_to_shape():
+    @R.function
+    def before(t: R.Tensor(ndim=1, dtype="int64")):
+        gv: R.Shape(ndim=3) = R.tensor_to_shape(t)
+        return gv
+
+    @R.function
+    def expected(t: R.Tensor(dtype="int64", ndim=1)) -> R.Shape(ndim=3):
+        x = T.int64()
+        x_1 = T.int64()
+        x_2 = T.int64()
+        gv: R.Shape(ndim=3) = R.call_packed(
+            "vm.builtin.tensor_to_shape", t, sinfo_args=(R.Shape(ndim=3),)
+        )
+        y: R.Shape([x, x_1, x_2]) = R.match_cast(gv, R.Shape([x, x_1, x_2]))
+        gv_1: R.Shape([x, x_1, x_2]) = R.shape([x, x_1, x_2])
+        return gv_1
 
     _check(before, expected)
 
