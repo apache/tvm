@@ -24,7 +24,9 @@ from tvm.script import relax as R
 from tvm.script import tir as T
 
 
-def verify_model(torch_model, input_info, binding, expected, use_dynamo=False):
+def verify_model(
+    torch_model, input_info, binding, expected, use_dynamo=False, unwrap_unit_return_tuple=False
+):
     import torch
     import torch._dynamo as dynamo
     from torch import fx
@@ -37,7 +39,7 @@ def verify_model(torch_model, input_info, binding, expected, use_dynamo=False):
         graph_model = dynamo.export(torch_model, *args)[0]
     else:
         graph_model = fx.symbolic_trace(torch_model)
-    mod = from_fx(graph_model, input_info, unwrap_unit_return_tuple=True)
+    mod = from_fx(graph_model, input_info, unwrap_unit_return_tuple=unwrap_unit_return_tuple)
     binding = {k: tvm.nd.array(v) for k, v in binding.items()}
     expected = relax.transform.BindParams("main", binding)(expected)
     tvm.ir.assert_structural_equal(mod, expected)
@@ -2593,7 +2595,14 @@ def test_ones():
                 R.output(gv)
             return gv
 
-    verify_model(Ones(), [([256, 256], "float32")], {}, Expected1, use_dynamo=True)
+    verify_model(
+        Ones(),
+        [([256, 256], "float32")],
+        {},
+        Expected1,
+        use_dynamo=True,
+        unwrap_unit_return_tuple=True,
+    )
 
 
 @tvm.testing.requires_gpu
@@ -2619,7 +2628,14 @@ def test_full():
                 R.output(gv)
             return gv
 
-    verify_model(Full(), [([256, 256], "float32")], {}, Expected1, use_dynamo=True)
+    verify_model(
+        Full(),
+        [([256, 256], "float32")],
+        {},
+        Expected1,
+        use_dynamo=True,
+        unwrap_unit_return_tuple=True,
+    )
 
 
 @tvm.testing.requires_gpu
@@ -2657,13 +2673,14 @@ def test_masked_fill():
         {},
         Expected1,
         use_dynamo=True,
+        unwrap_unit_return_tuple=True,
     )
     verify_model(
         InplaceMaskedFill(),
         [([256, 256], "bool"), ([256, 256], "float32")],
         {},
         Expected1,
-        use_dynamo=True,
+        unwrap_unit_return_tuple=True,
     )
 
 
