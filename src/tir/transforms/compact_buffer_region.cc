@@ -243,10 +243,14 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
       IterVar iter = Downcast<IterVar>(op->node);
       ancestor_iters_.push_back(iter);
-      dom_analyzer_.Bind(iter->var, iter->dom);
-      dom_map_.emplace(iter->var.get(), arith::IntSet::FromRange(iter->dom));
+      if (iter->dom.defined()) {
+        dom_analyzer_.Bind(iter->var, iter->dom);
+        dom_map_.emplace(iter->var.get(), arith::IntSet::FromRange(iter->dom));
+      }
       StmtExprVisitor::VisitStmt_(op);
-      dom_map_.erase(iter->var.get());
+      if (iter->dom.defined()) {
+        dom_map_.erase(iter->var.get());
+      }
       ancestor_iters_.pop_back();
       return;
     }
