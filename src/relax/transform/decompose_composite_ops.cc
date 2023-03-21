@@ -126,7 +126,10 @@ class OpDecomposer : public ExprMutator {
     static const Op& tensor_to_shape_op = Op::Get("relax.builtin.tensor_to_shape");
     Var call =
         builder_->Emit(Call(tensor_to_shape_op, {expr}, {}, {GetRef<ShapeStructInfo>(sinfo)}));
-    // define symbolic variables
+
+    // Operators like reshape take the output of `TensorToShape` as their output shape.
+    // Because TOPI expects to have such output shape in symbolic shape at least (i.e.,
+    // Array<PrimExpr>), we define symbolic variables and returns them as a ShapeExpr.
     Array<PrimExpr> shape_var;
     for (int i = 0; i < sinfo->ndim; i++) {
       shape_var.push_back(tir::Var("x", DataType::Int(64)));
