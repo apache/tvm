@@ -296,5 +296,17 @@ def test_translate_tuple_arg():
     assert_structural_equal(relax_mod, bb.get())
 
 
+def test_append_op_attrs():
+    x = relay.var("x", shape=(10, 16))
+    y = relay.var("y", shape=(10, 16))
+    relay_mod = tvm.IRModule.from_expr(relay.Function([x, y], relay.concatenate((x, y), axis=-1)))
+    relax_mod_wo_attrs = relay_translator.from_relay(relay_mod["main"], target="llvm")
+    relax_mod_with_attrs = relay_translator.from_relay(
+        relay_mod["main"], target="llvm", append_op_attrs=True
+    )
+    assert "op_attrs" in relax_mod_with_attrs["concatenate"].attrs
+    assert "op_attrs" not in relax_mod_wo_attrs["concatenate"].attrs
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
