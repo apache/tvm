@@ -405,7 +405,9 @@ def convert_conv3d_transpose(attrs, inputs, tinfos, desired_layouts):
     """
     data, weight = inputs
     new_attrs = dict(attrs)
-    assert len(desired_layouts) == 2, "A desired layout is expected for both of nn.conv3d_transpose's inputs"
+    assert (
+        len(desired_layouts) == 2
+    ), "A desired layout is expected for both of nn.conv3d_transpose's inputs"
     desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
     assert desired_data_layout != "default", "Data layout cannot be default"
     new_attrs["data_layout"] = desired_data_layout
