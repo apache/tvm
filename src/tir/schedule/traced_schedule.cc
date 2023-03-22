@@ -504,6 +504,17 @@ void TracedScheduleNode::SetScope(const BlockRV& block_rv, int buffer_index,
       /*outputs=*/{}));
 }
 
+void TracedScheduleNode::UnsafeSetDType(const BlockRV& block_rv, int buffer_index,
+                                        const String& dtype) {
+  ConcreteScheduleNode::UnsafeSetDType(block_rv, buffer_index, dtype);
+  static const InstructionKind& kind = InstructionKind::Get("UnsafeSetDType");
+  trace_->Append(/*inst=*/Instruction(
+      /*kind=*/kind,
+      /*inputs=*/{block_rv},
+      /*attrs=*/{Integer(buffer_index), dtype},
+      /*outputs=*/{}));
+}
+
 /******** Schedule: Blockize & Tensorize ********/
 
 BlockRV TracedScheduleNode::Blockize(const LoopRV& loop_rv, bool preserve_unit_iters) {

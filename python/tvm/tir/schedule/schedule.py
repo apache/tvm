@@ -2369,7 +2369,7 @@ class Schedule(Object):
         self, block: Union[BlockRV, str], buffer_index: Union[int, str, Buffer], storage_scope: str
     ) -> None:
         """Set the storage scope of a buffer, where the buffer is
-        specified by the a block and a write-index
+        specified by the a block and a write-index.
 
         Parameters
         ----------
@@ -2431,7 +2431,7 @@ class Schedule(Object):
 
         Note
         ----
-        Set_scope requires the buffer to be an intermediate buffer defined via `alloc_buffer`.
+        `set_scope` requires the buffer to be an intermediate buffer defined via `alloc_buffer`.
         """
         block = self._normalize_block_arg(block)
         if not isinstance(buffer_index, int):
@@ -2440,6 +2440,81 @@ class Schedule(Object):
             )
         _ffi_api.ScheduleSetScope(  # type: ignore # pylint: disable=no-member
             self, block, buffer_index, storage_scope
+        )
+
+    @type_checked
+    def unsafe_set_dtype(self, block: Union[BlockRV, str], buffer_index: int, dtype: str) -> None:
+        """Set the data type of a buffer, where the buffer is
+        specified by the a block and write-index.
+
+        This schedule primitive is unsafe and may change the correctness of program because of
+        type conversion, please use with caution.
+
+        Parameters
+        ----------
+        block : Union[BlockRV, str]
+            The producer block of the buffer
+        buffer_index : int
+            The index of the buffer in block's write region
+        dtype : str
+            The data type to be set
+
+        Examples
+        --------
+
+        Before set_dtype, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_set_dtype(
+                A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+            ) -> None:
+                B = T.alloc_buffer((128, 128), dtype="float32")
+
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+                for i, j in T.grid(128, 128):
+                    with T.block("C"):
+                        vi, vj = T.axis.remap("SS", [i, j]
+                        C[vi, vj] = B[vi, vj] + 1.0
+
+        Create the schedule and do set_dtype:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_set_dtype)
+            sch.set_dtype("B", buffer_index=0, dtype="float16")
+            print(sch.mod["main"].script())
+
+        After applying set_dtype, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_set_dtype(
+                A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+            ) -> None:
+                B = T.alloc_buffer((128, 128), dtype="float16")
+
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = T.cast(A[vi, vj] * 2.0, "float16")
+                for i, j in T.grid(128, 128):
+                    with T.block("C"):
+                        vi, vj = T.axis.remap("SS", [i, j]
+                        C[vi, vj] = T.cast(B[vi, vj], "float32") + 1.0
+
+        Note
+        ----
+        `set_dtype` requires the buffer to be an intermediate buffer defined via `alloc_buffer`.
+        """
+        block = self._normalize_block_arg(block)
+        _ffi_api.ScheduleUnsafeSetDType(  # type: ignore # pylint: disable=no-member
+            self, block, buffer_index, dtype
         )
 
     ########## Schedule: Blockize & Tensorize ##########

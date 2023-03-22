@@ -727,6 +727,14 @@ void ConcreteScheduleNode::SetScope(const BlockRV& block_rv, int buffer_index,
   this->state_->DebugVerify();
 }
 
+void ConcreteScheduleNode::UnsafeSetDType(const BlockRV& block_rv, int buffer_index,
+                                          const String& dtype) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::UnsafeSetDType(state_, this->GetSRef(block_rv), buffer_index, dtype);
+  TVM_TIR_SCHEDULE_END("set-dtype", this->error_render_level_);
+  this->state_->DebugVerify();
+}
+
 /******** Schedule: Reduction ********/
 
 BlockRV ConcreteScheduleNode::DecomposeReduction(const BlockRV& block_rv, const LoopRV& loop_rv) {

@@ -43,6 +43,16 @@ Buffer WithScope(const Buffer& buffer, const String& scope) {
   return Buffer(new_buffer);
 }
 
+Buffer WithDType(const Buffer& buffer, const DataType& dtype) {
+  ObjectPtr<BufferNode> new_buffer = make_object<BufferNode>(*buffer.get());
+  new_buffer->dtype = dtype;
+  const auto* ptr_type = TVM_TYPE_AS(buffer->data->type_annotation, PointerTypeNode);
+  new_buffer->data =
+      Var(buffer->data->name_hint, PointerType(PrimType(dtype), ptr_type->storage_scope));
+  new_buffer->name = buffer->name;
+  return Buffer(new_buffer);
+}
+
 Array<BufferRegion> ReplaceBuffer(Array<BufferRegion> regions, const Buffer& source,
                                   const Buffer& target) {
   regions.MutateByApply([&source, &target](BufferRegion region) -> BufferRegion {
