@@ -449,8 +449,9 @@ Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct
     ret_struct_info = body_sinfo;
   }
 
-  // TODO use annotations for purity
-  FuncStructInfo func_sinfo(param_sinfo, ret_struct_info.value());
+  // if unannotated, we assume the function is pure
+  bool purity = attrs.GetAttr<Bool>(relax::attr::kIsPure).value_or(Bool(true))->value;
+  FuncStructInfo func_sinfo(param_sinfo, ret_struct_info.value(), purity);
 
   // set the fields
   ObjectPtr<FunctionNode> n = make_object<FunctionNode>();

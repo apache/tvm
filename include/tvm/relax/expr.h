@@ -985,6 +985,11 @@ constexpr const char* kComposite = "Composite";
 constexpr const char* kPartitionedFromPattern = "PartitionedFromPattern";
 /*! \brief The required workspace for an external function. */
 constexpr const char* kWorkspaceSize = "WorkspaceSize";
+/*! \brief Indicate whether the function is pure (has no visible side effects for any input). */
+constexpr const char* kIsPure = "IsPure";
+/*! \brief Indicate whether the function should be considered pure even if it contains
+ * an impure call. */
+constexpr const char* kForcePure = "ForcePure";
 }  // namespace attr
 
 /*! \brief The extern function, which can represent packed function. */
