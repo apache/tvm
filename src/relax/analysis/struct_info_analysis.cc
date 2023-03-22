@@ -364,7 +364,7 @@ class StructInfoBaseChecker
     }
 
     // Check purity: Pure functions are a subtype of impure functions
-    if (lhs->pure && !rhs->pure) {
+    if (lhs->purity && !rhs->purity) {
       return BaseCheckResult::kFailL0;
     }
 
@@ -781,7 +781,7 @@ class StructInfoLCAFinder
     if (rhs == nullptr) return ObjectStructInfo(lhs->span);
 
     // the unified function is pure only if both are pure
-    bool purity = lhs->pure && rhs->pure;
+    bool purity = lhs->purity && rhs->purity;
 
     // lhs opaque handling
     if (lhs->IsOpaque()) {

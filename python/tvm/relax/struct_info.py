@@ -150,7 +150,7 @@ class FuncStructInfo(StructInfo):
     ret: StructInfo
         The struct info of return value
 
-    pure: bool
+    purity: bool
         Whether the function is pure (has no visible side effects).
         Note: We consider a function to be pure only if it is pure on all inputs.
         If a function can have visible side effects only in some cases,
@@ -160,14 +160,14 @@ class FuncStructInfo(StructInfo):
     params: Optional[List[StructInfo]]
     ret: StructInfo
     derive_func: Optional[EnvFunc]
-    pure: bool
+    purity: bool
     span: Span
 
     def __init__(
-        self, params: List[StructInfo], ret: StructInfo, pure: bool = True, span: Span = None
+        self, params: List[StructInfo], ret: StructInfo, purity: bool = True, span: Span = None
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.FuncStructInfo, params, ret, pure, span  # type: ignore
+            _ffi_api.FuncStructInfo, params, ret, purity, span  # type: ignore
         )
 
     @staticmethod
@@ -175,7 +175,7 @@ class FuncStructInfo(StructInfo):
         *,
         ret: Optional[StructInfo] = None,
         derive_func: Optional[EnvFunc] = None,
-        pure: bool = False,
+        purity: bool = False,
         span: Span = None,
     ) -> "FuncStructInfo":
         """
@@ -193,7 +193,7 @@ class FuncStructInfo(StructInfo):
         derive_func: Optional[EnvFunc]
            The environment function used for derivation
 
-        pure: bool
+        purity: bool
            Whether the function is pure (false by default, as most opaque functions are not pure)
 
         span: Optional[Span]
@@ -207,4 +207,4 @@ class FuncStructInfo(StructInfo):
         ----
         We cannot specify ret and derive_func simultaneously.
         """
-        return _ffi_api.FuncStructInfoOpaqueFunc(ret, derive_func, pure, span)  # type: ignore
+        return _ffi_api.FuncStructInfoOpaqueFunc(ret, derive_func, purity, span)  # type: ignore
