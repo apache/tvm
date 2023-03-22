@@ -144,6 +144,8 @@ class TransformParamsFuncBuilder : public ExprMutator {
  */
 class LiftTransformParamsPlanner : public ExprVisitor {
  public:
+  explicit LiftTransformParamsPlanner(IRModule mod) : mod_(mod) {}
+
   LiftTransformParamsInfoPlan Plan(const Function& function, int num_inputs) {
     for (int i = num_inputs; i < static_cast<int>(function->params.size()); ++i) {
       builder_.AddInput(function->params[i]);
@@ -167,6 +169,18 @@ class LiftTransformParamsPlanner : public ExprVisitor {
     bool can_lift = true;
     if (!is_in_dataflow_block_) {
       can_lift = false;
+    }
+    if (const auto* call = binding->value.as<CallNode>()) {
+      static const Op& call_tir_op_ = Op::Get("relax.call_tir");
+      if (call->op.same_as(call_tir_op_)) {
+        if (const auto* gv = call->args[0].as<GlobalVarNode>()) {
+          if (const auto* prim_func = mod_->Lookup(GetRef<GlobalVar>(gv)).as<tir::PrimFuncNode>()) {
+            if (prim_func->HasNonzeroAttr(attr::kStopLifting)) {
+              can_lift = false;
+            }
+          }
+        }
+      }
     }
 
     PostOrderVisit(binding->value, [&](const ObjectRef& obj) {
@@ -195,6 +209,8 @@ class LiftTransformParamsPlanner : public ExprVisitor {
   TransformParamsFuncBuilder builder_;
   // Whether we are in a dataflow block
   bool is_in_dataflow_block_{false};
+  // The module
+  IRModule mod_;
 };
 
 /*!
@@ -203,7 +219,7 @@ class LiftTransformParamsPlanner : public ExprVisitor {
  */
 class TransformParamsLifter : public ExprMutator {
  public:
-  explicit TransformParamsLifter(const IRModule& module) : ExprMutator(module) {}
+  explicit TransformParamsLifter(const IRModule& module) : ExprMutator(module), mod_(module) {}
 
   IRModule Lift() {
     auto mod = builder_->GetContextIRModule();
@@ -228,7 +244,7 @@ class TransformParamsLifter : public ExprMutator {
 
  private:
   Function RewriteFunc(const Function& func, int num_input, String new_func_name) {
-    LiftTransformParamsPlanner planner;
+    LiftTransformParamsPlanner planner(mod_);
 
     // Step 1: Create the plan of lifting transform params
     lift_plan_ = planner.Plan(func, num_input);
@@ -288,6 +304,8 @@ class TransformParamsLifter : public ExprMutator {
   std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> param_remap_;
   // The plan of lifting the transform params
   LiftTransformParamsInfoPlan lift_plan_;
+  // The module
+  IRModule mod_;
 };
 
 namespace transform {

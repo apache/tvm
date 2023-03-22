@@ -983,6 +983,8 @@ constexpr const char* kCodegen = "Codegen";
 constexpr const char* kComposite = "Composite";
 /*! \brief Indicate the function was created by the Pattern Partitioning Pass. */
 constexpr const char* kPartitionedFromPattern = "PartitionedFromPattern";
+/*! \brief Indicate the function cannot be lifted to transform_params*/
+constexpr const char* kStopLifting = "StopLifting";
 }  // namespace attr
 
 /*! \brief The extern function, which can represent packed function. */

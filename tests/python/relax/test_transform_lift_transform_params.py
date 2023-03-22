@@ -392,5 +392,106 @@ def test_multiple_functions():
     tvm.ir.assert_structural_equal(after, Expected)
 
 
+def test_stop_lifting():
+    @tvm.script.ir_module
+    class Before:
+        @R.function
+        def func1(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                w1_t = R.permute_dims(w1, [1, 0])
+                w1_add = R.add(w1_t, R.const(1, "float32"))
+                y = R.matmul(x, w1_add)
+                R.output(y)
+            return y
+
+    mod = relax.transform.LegalizeOps()(Before)
+    mod["add"] = mod["add"].with_attr("StopLifting", True)
+    after = relax.transform.LiftTransformParams()(mod)
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def add(
+            rxplaceholder: T.Buffer((T.int64(256), T.int64(256)), "float32"),
+            T_add: T.Buffer((T.int64(256), T.int64(256)), "float32"),
+        ):
+            T.func_attr({"StopLifting": True, "tir.noalias": True})
+            # with T.block("root"):
+            for ax0, ax1 in T.grid(T.int64(256), T.int64(256)):
+                with T.block("T_add"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(rxplaceholder[v_ax0, v_ax1])
+                    T.writes(T_add[v_ax0, v_ax1])
+                    T_add[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1] + T.float32(1)
+
+        @T.prim_func
+        def matmul(
+            rxplaceholder: T.Buffer((T.int64(256), T.int64(256)), "float32"),
+            rxplaceholder_1: T.Buffer((T.int64(256), T.int64(256)), "float32"),
+            matmul_1: T.Buffer((T.int64(256), T.int64(256)), "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            # with T.block("root"):
+            for i0, i1, k in T.grid(T.int64(256), T.int64(256), T.int64(256)):
+                with T.block("matmul"):
+                    v_i0, v_i1, v_k = T.axis.remap("SSR", [i0, i1, k])
+                    T.reads(rxplaceholder[v_i0, v_k], rxplaceholder_1[v_k, v_i1])
+                    T.writes(matmul_1[v_i0, v_i1])
+                    with T.init():
+                        matmul_1[v_i0, v_i1] = T.float32(0)
+                    matmul_1[v_i0, v_i1] = (
+                        matmul_1[v_i0, v_i1] + rxplaceholder[v_i0, v_k] * rxplaceholder_1[v_k, v_i1]
+                    )
+
+        @T.prim_func
+        def transpose(
+            rxplaceholder: T.Buffer((T.int64(256), T.int64(256)), "float32"),
+            T_transpose: T.Buffer((T.int64(256), T.int64(256)), "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            # with T.block("root"):
+            for ax0, ax1 in T.grid(T.int64(256), T.int64(256)):
+                with T.block("T_transpose"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(rxplaceholder[v_ax1, v_ax0])
+                    T.writes(T_transpose[v_ax0, v_ax1])
+                    T_transpose[v_ax0, v_ax1] = rxplaceholder[v_ax1, v_ax0]
+
+        @R.function
+        def func1(
+            x: R.Tensor((256, 256), dtype="float32"),
+            params: R.Tuple(R.Tensor((256, 256), dtype="float32")),
+        ) -> R.Tensor((256, 256), dtype="float32"):
+            cls = Expected
+            with R.dataflow():
+                lv: R.Tensor((256, 256), dtype="float32") = params[0]
+                w1_add = R.call_tir(cls.add, (lv,), out_sinfo=R.Tensor((256, 256), dtype="float32"))
+                y = R.call_tir(
+                    cls.matmul, (x, w1_add), out_sinfo=R.Tensor((256, 256), dtype="float32")
+                )
+                R.output(y)
+            return y
+
+        @R.function
+        def func1_transform_params(
+            params: R.Tuple(R.Tensor((256, 256), dtype="float32"))
+        ) -> R.Tuple(R.Tensor((256, 256), dtype="float32")):
+            cls = Expected
+            with R.dataflow():
+                lv: R.Tensor((256, 256), dtype="float32") = params[0]
+                lv1 = R.call_tir(
+                    cls.transpose, (lv,), out_sinfo=R.Tensor((256, 256), dtype="float32")
+                )
+                gv: R.Tuple(R.Tensor((256, 256), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
