@@ -53,7 +53,7 @@ int FindAxis(const Layout& dst, int axis) {
 }
 
 Layout InitialLayout(int ndim) {
-  ICHECK(ndim > 0 && ndim <= 26) << "Only support up to 26 dimensions";
+  ICHECK(ndim >= 0 && ndim <= 26) << "Only support up to 26 dimensions, but got " << ndim;
   return Layout("ABCDEFGHIJKLMNOPQRSTUVWXYZ").SubLayout(0, ndim);
 }
 
@@ -61,7 +61,7 @@ LayoutDecision InitialLayoutDecision(int ndim) {
   if (ndim == kUnknownNDim) {
     return LayoutDecision::InitUnknownDim();
   }
-  ICHECK(ndim >= 0 && ndim <= 26) << "Only support up to 26 dimensions";
+  ICHECK(ndim >= 0 && ndim <= 26) << "Only support up to 26 dimensions, but got " << ndim;
   return Layout("ABCDEFGHIJKLMNOPQRSTUVWXYZ").SubLayout(0, ndim);
 }
 
