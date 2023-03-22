@@ -135,6 +135,47 @@ Stmt RewriteReturn(Stmt body, Var ret_var, Var ret_tcode) {
   return rewriter(body);
 }
 
+class SubroutineCallRewriter : public StmtExprMutator {
+ public:
+  static Optional<Stmt> Apply(const Map<GlobalVar, String>& external_methods, Stmt stmt) {
+    SubroutineCallRewriter rewriter(external_methods);
+    stmt = rewriter.VisitStmt(std::move(stmt));
+    if (rewriter.made_change_) {
+      return stmt;
+    } else {
+      return NullOpt;
+    }
+  }
+
+ private:
+  explicit SubroutineCallRewriter(const Map<GlobalVar, String>& external_methods)
+      : external_methods_(external_methods) {}
+
+  PrimExpr VisitExpr_(const CallNode* op) override {
+    auto node = Downcast<Call>(StmtExprMutator::VisitExpr_(op));
+
+    if (auto* gvar_ptr = node->op.as<GlobalVarNode>()) {
+      auto gvar = GetRef<GlobalVar>(gvar_ptr);
+      if (auto symbol = external_methods_.Get(gvar)) {
+        Array<PrimExpr> cpacked_args;
+        cpacked_args.push_back(tir::StringImm(symbol.value()));
+        for (auto arg : node->args) {
+          cpacked_args.push_back(arg);
+        }
+
+        // push an empty handle to be compatible with current cpacked convention
+        cpacked_args.push_back(tir::make_zero(DataType::Handle()));
+        made_change_ = true;
+        return tir::Call(node->dtype, tir::builtin::tvm_call_cpacked(), cpacked_args);
+      }
+    }
+
+    return node;
+  }
+  const Map<GlobalVar, String>& external_methods_;
+  bool made_change_{false};
+};
+
 inline Stmt MakeAssertEQ(PrimExpr lhs, PrimExpr rhs, std::string msg) {
   return AssertStmt(lhs == rhs, tvm::tir::StringImm(msg), Evaluate(0));
 }
@@ -148,7 +189,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
     }
   }
 
-  // An internal subroutine does not require the PackedFunc API.
+  // Internal function calls do not need the PackedFunc API
   auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
   if (!global_symbol.defined()) {
     return func;
@@ -320,25 +361,40 @@ PrimFunc MakePackedAPI(PrimFunc func) {
 namespace transform {
 
 Pass MakePackedAPI() {
-  auto pass_func = [](IRModule m, PassContext ctx) {
-    IRModuleNode* mptr = m.CopyOnWrite();
-    std::vector<std::pair<GlobalVar, PrimFunc>> updates;
-
-    for (const auto& kv : mptr->functions) {
-      if (auto opt = kv.second.as<PrimFunc>()) {
-        auto func = opt.value();
-        if (func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
-            CallingConv::kDefault) {
-          auto updated_func = MakePackedAPI(std::move(func));
-          updates.push_back({kv.first, updated_func});
+  auto pass_func = [](IRModule mod, PassContext ctx) {
+    Map<GlobalVar, String> external_methods;
+    for (const auto& [gvar, base_func] : mod->functions) {
+      if (auto* prim_func = base_func.as<PrimFuncNode>()) {
+        if (auto global_symbol = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+          external_methods.Set(gvar, global_symbol.value());
         }
       }
     }
 
-    for (const auto& pair : updates) {
-      mptr->AddUnchecked(pair.first, pair.second);
+    IRModuleNode* mptr = mod.CopyOnWrite();
+    IRModule updates;
+
+    for (const auto& [gvar, base_func] : mptr->functions) {
+      if (auto opt = base_func.as<PrimFunc>()) {
+        auto func = opt.value();
+        auto orig_func = func;
+
+        if (auto body = SubroutineCallRewriter::Apply(external_methods, func->body)) {
+          func.CopyOnWrite()->body = body.value();
+        }
+
+        func = MakePackedAPI(std::move(func));
+
+        if (!func.same_as(orig_func)) {
+          updates->Add(gvar, func);
+        }
+      }
     }
-    return m;
+
+    if (updates->functions.size()) {
+      mod.CopyOnWrite()->Update(updates);
+    }
+    return mod;
   };
 
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.MakePackedAPI", {});

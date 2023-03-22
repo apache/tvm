@@ -212,5 +212,43 @@ def test_internal_subroutine_call():
     )
 
 
+def test_subroutine_call_to_externally_visible_subroutine():
+    """Externally-visible subroutines should use the PackedFunc API
+
+    Because the subroutine may be called directly by a user, it must
+    use the PackedFunc API.  Its signature should be updated to the
+    PackedFunc signature, and call sites should be updated to use
+    `T.tvm_call_cpacked`.
+    """
+
+    @I.ir_module
+    class before:
+        @T.prim_func
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"global_symbol": "main", "target": T.target("llvm")})
+            before.subroutine(A.data)
+
+        @T.prim_func
+        def subroutine(A_data: T.handle("float32")):
+            T.func_attr({"global_symbol": "subroutine", "target": T.target("llvm")})
+            T.evaluate(A_data)
+
+    after = tvm.tir.transform.MakePackedAPI()(before)
+
+    main_compute_scope = _find_compute_scope(after["main"])
+    assert main_compute_scope is not None
+    subroutine_compute_scope = _find_compute_scope(after["subroutine"])
+    assert subroutine_compute_scope is not None
+
+    subroutine_call_op = main_compute_scope.body.value.op
+    assert (
+        isinstance(subroutine_call_op, tvm.ir.Op)
+        and subroutine_call_op.name == "tir.tvm_call_cpacked"
+    ), (
+        f"The main function's CallNode should be lowered to the builtin 'tir.tvm_call_cpacked', "
+        f"but instead has an operation of type {subroutine_call_op}"
+    )
+
+
 if __name__ == "__main__":
     test_makeapi()
