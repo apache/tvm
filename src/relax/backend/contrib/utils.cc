@@ -22,6 +22,8 @@
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/expr.h>
 
+#include <optional>
+
 #include "../pattern_registry.h"
 
 namespace tvm {
@@ -38,20 +40,22 @@ Map<String, IntImm> ExtractArgIdx(String pattern_name, Function f) {
   auto matched_expr = relax::ExtractMatchedExpr(pattern.value()->pattern, inner_body, bindings);
   ICHECK(matched_expr);
 
-  auto find_index = [](const Array<Var>& params, Var v) {
+  auto find_index = [](const Array<Var>& params, Var v) -> std::optional<size_t> {
     for (size_t i = 0; i < params.size(); ++i) {
       if (params[i] == v) {
         return i;
       }
     }
-    LOG(FATAL) << "Variable not found " << v;
-    return size_t(0);
+    return std::nullopt;
   };
 
-  for (const auto& [name, pat] : pattern.value()->arg_patterns) {
-    auto arg_var = matched_expr.value()[pat];
-    auto idx = find_index(f->params, Downcast<Var>(arg_var));
-    arg_idx.Set(name, IntImm(DataType::Int(64), idx));
+  for (const auto& [name, pat] : pattern.value()->annotation_patterns) {
+    auto exp = matched_expr.value()[pat];
+    if (auto arg_var = exp.as<VarNode>()) {
+      if (auto idx = find_index(f->params, GetRef<Var>(arg_var))) {
+        arg_idx.Set(name, IntImm(DataType::Int(64), *idx));
+      }
+    }
   }
 
   return arg_idx;

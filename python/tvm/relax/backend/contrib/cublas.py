@@ -19,14 +19,12 @@
 import operator
 from functools import reduce
 
-from typing import Mapping
-
 import tvm
-from tvm.relax import Call, Expr, transform
-from tvm.relax.dpl import CallPattern, DFPattern
+from tvm.relax import transform
 
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
 from ..patterns import make_matmul_pattern
+from tvm.relax.transform import PatternCheckContext
 
 
 def _is_supported_dtype(lhs_dtype, rhs_dtype):
@@ -36,23 +34,9 @@ def _is_supported_dtype(lhs_dtype, rhs_dtype):
     )
 
 
-def _check_matmul(
-    match_result: Mapping[DFPattern, Expr],
-    _: Expr,
-) -> bool:
-    matmul_call: Call = None
-    for pattern, expr in match_result.items():
-        if (
-            isinstance(expr, Call)
-            and isinstance(pattern, CallPattern)
-            and isinstance(expr.op, tvm.ir.Op)
-            and expr.op.name == "relax.matmul"
-        ):
-            matmul_call = expr
-    if matmul_call is None:
-        raise ValueError("Cannot find call to matmul from match_result.")
-
-    lhs, rhs, *_ = matmul_call.args
+def _check_matmul(context: PatternCheckContext) -> bool:
+    lhs = context.annotated_expr["lhs"]
+    rhs = context.annotated_expr["rhs"]
 
     lhs_dtype = lhs.struct_info.dtype
     rhs_dtype = rhs.struct_info.dtype
@@ -166,6 +150,5 @@ def partition_for_cublas(mod):
         offloaded to the cuBLAS backend.
     """
 
-    cublas_pattern_entries = get_patterns_with_prefix("cublas")
-    patterns = [(e.name, e.pattern, e.check) for e in cublas_pattern_entries]
+    patterns = get_patterns_with_prefix("cublas")
     return transform.FuseOpsByPattern(patterns, bind_constants=False, annotate_codegen=True)(mod)

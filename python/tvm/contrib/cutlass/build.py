@@ -560,24 +560,6 @@ def _extract_relax_function_signature(f):
 
 
 def _extract_arg_idx(pattern_name, f):
-    pattern_entry = relax.backend.get_pattern(pattern_name)
-    if pattern_entry is None:
-        raise ValueError(f"Unsupported op_type {pattern_name}")
-    var2val = relax.analysis.get_var2val(f)
-    matched_expr = pattern_entry.pattern.extract_matched_expr(f.body.body, var2val)
-
-    func_args = list(f.params)
-
-    arg_idx = {}
-    for name, annotation_pattern in pattern_entry.annotation_patterns.items():
-        arg_expr = matched_expr[annotation_pattern]
-        if arg_expr not in func_args:
-            continue
-        arg_idx[name] = func_args.index(arg_expr)
-
-#    return arg_idx
-
-    # TODO fix
     extract_func = tvm.get_global_func("relax.contrib.extract_arg_idx")
     arg_indices = extract_func(pattern_name, f)
     return {k: int(v) for k, v in arg_indices.items()}
