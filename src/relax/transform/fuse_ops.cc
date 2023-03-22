@@ -449,22 +449,28 @@ class FunctionCreator : public ExprMutator {
         var_remap_[var_binding->var->vid] = output_var;
         outputs.Set(*output_idx, output_var);
       } else {
-        // Case 2. It is an internel binding, add it to the binding list.
+        // Case 2. It is an internal binding, add it to the binding list.
         VisitBinding(binding);
       }
     }
 
     // Step 3. Finish constructing the new block.
     BindingBlock new_block = builder_->EndBlock();
-    ICHECK(!outputs.empty()) << "At least one output is required.";
-    Expr body = outputs.size() == 1 ? outputs[0] : Tuple(outputs);
-    body = builder_->Normalize(body);
-    body = builder_->Normalize(SeqExpr({new_block}, body));
-    group_attrs.Set(tvm::relax::attr::kPrimitive, Integer(1));
-    function_ = Function(/*params=*/params_,           //
-                         /*body=*/body,                //
-                         /*ret_struct_info=*/NullOpt,  //
-                         /*attrs=*/DictAttrs(group_attrs));
+    if (outputs.empty()) {
+      // If the result is not used outside
+      LOG(WARNING) << "There are dead codes in the current IRModule, please run the "
+                      "DeadCodeElimination Pass before FuseOps";
+      function_ = NullOpt;
+    } else {
+      Expr body = outputs.size() == 1 ? outputs[0] : Tuple(outputs);
+      body = builder_->Normalize(body);
+      body = builder_->Normalize(SeqExpr({new_block}, body));
+      group_attrs.Set(tvm::relax::attr::kPrimitive, Integer(1));
+      function_ = Function(/*params=*/params_,           //
+                           /*body=*/body,                //
+                           /*ret_struct_info=*/NullOpt,  //
+                           /*attrs=*/DictAttrs(group_attrs));
+    }
   }
 
   /*! \brief The original bindings of the function */
@@ -476,7 +482,7 @@ class FunctionCreator : public ExprMutator {
   /*! \brief The name for the fused function */
   String name_hint_ = "fused";
   /*! \brief The constructed Relax function */
-  Function function_{nullptr};
+  Optional<Function> function_ = NullOpt;
 
  private:
   std::optional<size_t> GetOutputIndex(Var v) {
@@ -648,7 +654,7 @@ class OperatorFusor : public ExprMutator {
     std::unordered_map<Group*, std::vector<Var>> pending_tuple_get;
 
     // A grouped function which returns a tuple requires attaching TupleGetItem to each element and
-    // remapping variables in earlier bindings approriately. Thus, a binding whose value depends on
+    // remapping variables in earlier bindings appropriately. Thus, a binding whose value depends on
     // some elements of a tuple from other group's function must be emitted after a call to the
     // tuple-producing function is emitted and remapping is done.
     // To guarantee this, we process bindings in the order of the topological sort of the group
@@ -666,10 +672,16 @@ class OperatorFusor : public ExprMutator {
       ICHECK(it_creator != group2func_.end());
       const FunctionCreator& func_info = it_creator->second;
 
+      if (!func_info.function_.defined()) {
+        // The function is not created yet, so we skip the binding.
+        continue;
+      }
+      const Function& func = func_info.function_.value();
+
       // If this binding belongs to a group whose output is a tuple, the original bound variable
       // needs to be remapped to the output of TupleGetItem after the corresponding tuple is
       // emitted.
-      if (IsTupleOutput(func_info.function_) && tuple_get_indices_.count(binding->var.get())) {
+      if (IsTupleOutput(func) && tuple_get_indices_.count(binding->var.get())) {
         pending_tuple_get[group].push_back(binding->var);
       }
 
@@ -684,7 +696,7 @@ class OperatorFusor : public ExprMutator {
                                         "is supposed to be a variable binding";
 
       // Step a. Add the grouped function to the IRModule
-      GlobalVar gv = builder_->AddFunction(func_info.function_, func_info.name_hint_);
+      GlobalVar gv = builder_->AddFunction(func, func_info.name_hint_);
 
       // Step b. Create the call to the deduplicated function, and then emit the call.
       //  - If this binding is an output binding, emit an output variable.
@@ -699,7 +711,7 @@ class OperatorFusor : public ExprMutator {
       }
 
       // Step c. Update the mapping used for the remapping of the binding variables.
-      if (IsTupleOutput(func_info.function_)) {
+      if (IsTupleOutput(func)) {
         // If the output is a tuple, attach TupleGetItem to all tuple elements, and
         // remap variables approriately.
         // The variables that need to be remapped and the corresponding tuple indices are
