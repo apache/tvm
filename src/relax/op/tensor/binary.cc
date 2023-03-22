@@ -118,5 +118,10 @@ RELAX_REGISTER_CMP_OP_AND_IMPL(less);
 RELAX_REGISTER_CMP_OP_AND_IMPL(less_equal);
 RELAX_REGISTER_CMP_OP_AND_IMPL(not_equal);
 
+/***************** Min/Max operators *****************/
+
+RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(minimum);
+RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(maximum);
+
 }  // namespace relax
 }  // namespace tvm

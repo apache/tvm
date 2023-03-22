@@ -19,10 +19,13 @@ import pytest
 import tvm
 from tvm import relax
 import tvm.testing
-from tvm.script.parser import ir as I, relax as R, tir as T
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def verify_model(torch_model, input_info, binding, expected):
+    import torch
     from torch import fx
     from tvm.relax.frontend.torch import from_fx
 
@@ -831,6 +834,10 @@ def test_silu():
         def forward(self, input):
             return self.silu(input)
 
+    class SiLU2(Module):
+        def forward(self, input):
+            return torch.nn.functional.silu(input)
+
     @tvm.script.ir_module
     class expected1:
         @R.function
@@ -845,6 +852,7 @@ def test_silu():
             return gv
 
     verify_model(SiLU(), input_info, {}, expected1)
+    verify_model(SiLU2(), input_info, {}, expected1)
 
 
 @tvm.testing.requires_gpu
@@ -2494,6 +2502,159 @@ def test_argmin():
 
     verify_model(Argmin1(), [([256, 256], "float32")], {}, Expected1)
     verify_model(Argmin2(), [([256, 256], "float32")], {}, Expected2)
+
+
+@tvm.testing.requires_gpu
+def test_to():
+    import torch
+    from torch.nn import Module
+
+    class To1(Module):
+        def forward(self, input):
+            return input.to(torch.float16)
+
+    class To2(Module):
+        def forward(self, input):
+            return input.to("cpu")
+
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32")
+        ) -> R.Tensor((256, 256), dtype="float16"):
+            with R.dataflow():
+                lv: R.Tensor((256, 256), dtype="float16") = R.astype(inp_0, dtype="float16")
+                gv: R.Tensor((256, 256), dtype="float16") = lv
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32")
+        ) -> R.Tensor((256, 256), dtype="float32"):
+            with R.dataflow():
+                gv: R.Tensor((256, 256), dtype="float32") = inp_0
+                R.output(gv)
+            return gv
+
+    verify_model(To1(), [([256, 256], "float32")], {}, Expected1)
+    verify_model(To2(), [([256, 256], "float32")], {}, Expected2)
+
+
+@tvm.testing.requires_gpu
+def test_mean():
+    import torch
+    from torch.nn import Module
+
+    class Mean(Module):
+        def forward(self, input):
+            return input.mean(-1)
+
+    class MeanKeepDim(Module):
+        def forward(self, input):
+            return input.mean(-1, keepdim=True)
+
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def main(inp_0: R.Tensor((256, 256), dtype="float32")) -> R.Tensor((256,), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((256,), dtype="float32") = R.mean(inp_0, axis=[-1], keepdims=False)
+                gv: R.Tensor((256,), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32")
+        ) -> R.Tensor((256, 1), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((256, 1), dtype="float32") = R.mean(inp_0, axis=[-1], keepdims=True)
+                gv: R.Tensor((256, 1), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Mean(), [([256, 256], "float32")], {}, Expected1)
+    verify_model(MeanKeepDim(), [([256, 256], "float32")], {}, Expected2)
+
+
+@tvm.testing.requires_gpu
+def test_rsqrt():
+    import torch
+    from torch.nn import Module
+
+    class Rsqrt(Module):
+        def forward(self, input):
+            return torch.rsqrt(input)
+
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32")
+        ) -> R.Tensor((256, 256), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((256, 256), dtype="float32") = R.sqrt(inp_0)
+                lv1: R.Tensor((256, 256), dtype="float32") = R.divide(R.const(1, "float32"), lv)
+                gv: R.Tensor((256, 256), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    verify_model(Rsqrt(), [([256, 256], "float32")], {}, Expected1)
+
+
+@tvm.testing.requires_gpu
+def test_neg():
+    import torch
+    from torch.nn import Module
+
+    class Neg(Module):
+        def forward(self, input):
+            return -input
+
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32")
+        ) -> R.Tensor((256, 256), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((256, 256), dtype="float32") = R.negative(inp_0)
+                gv: R.Tensor((256, 256), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Neg(), [([256, 256], "float32")], {}, Expected1)
+
+
+@tvm.testing.requires_gpu
+def test_max():
+    import torch
+    from torch.nn import Module
+
+    class Max(Module):
+        def forward(self, x, y):
+            return torch.max(x, y)
+
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32"),
+            inp_1: R.Tensor((256, 256), dtype="float32"),
+        ) -> R.Tensor((256, 256), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((256, 256), dtype="float32") = R.maximum(inp_0, inp_1)
+                gv: R.Tensor((256, 256), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Max(), [([256, 256], "float32"), ([256, 256], "float32")], {}, Expected1)
 
 
 if __name__ == "__main__":

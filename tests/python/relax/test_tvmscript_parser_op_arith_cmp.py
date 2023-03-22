@@ -106,6 +106,8 @@ def test_unary_check(unary_check_op: Callable):
     (relax.op.multiply,),
     (relax.op.power,),
     (relax.op.subtract,),
+    (relax.op.maximum,),
+    (relax.op.minimum,),
 )
 
 

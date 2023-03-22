@@ -54,3 +54,6 @@ register_legalize("relax.greater_equal", _binary(topi.greater_equal))
 register_legalize("relax.less", _binary(topi.less))
 register_legalize("relax.less_equal", _binary(topi.less_equal))
 register_legalize("relax.not_equal", _binary(topi.not_equal))
+
+register_legalize("relax.maximum", _binary(topi.maximum))
+register_legalize("relax.minimum", _binary(topi.minimum))

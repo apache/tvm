@@ -25,7 +25,9 @@ import tvm.testing
 import torch
 import torch._dynamo as dynamo
 from tvm.relax.frontend.torch import relax_dynamo
-from tvm.script.parser import relax as R, tir as T
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_relax_dynamo():
@@ -228,6 +230,139 @@ def test_subgraph_capture():
     binding = {k: tvm.nd.array(v) for k, v in binding.items()}
     expected = relax.transform.BindParams("subgraph_0", binding)(Expected3)
     tvm.ir.assert_structural_equal(mod, expected)
+
+
+def verify_dynamo_model(torch_model, input_info, binding, expected):
+    import torch
+    import torch._dynamo as dynamo
+    from tvm.relax.frontend.torch import from_fx
+
+    args = []
+    for info in input_info:
+        args.append(torch.zeros(*info[0], dtype=_convert_data_type(info[1])))
+    graph_model = dynamo.export(torch_model, *args)[0]
+    mod = from_fx(graph_model, input_info, unwrap_unit_return_tuple=True)
+    binding = {k: tvm.nd.array(v) for k, v in binding.items()}
+    expected = relax.transform.BindParams("main", binding)(expected)
+    tvm.ir.assert_structural_equal(mod, expected)
+
+
+def _convert_data_type(input_type):
+    """converts the PyTorch scalar type input_type to a TVM dtype."""
+    import torch  # type: ignore
+
+    input_type = input_type.lower() if isinstance(input_type, str) else input_type
+    if input_type == "float32":
+        return torch.float32
+    elif input_type == "float16":
+        return torch.float16
+    elif input_type == "int64":
+        return torch.int64
+    elif input_type == "int32":
+        return torch.int32
+    elif input_type == "bool":
+        return torch.bool
+    else:
+        raise NotImplementedError("input_type {} is not handled yet".format(input_type))
+
+
+@tvm.testing.requires_gpu
+def test_ones():
+    import torch
+    from torch.nn import Module
+
+    class Ones(Module):
+        def forward(self, input):
+            return torch.ones((10, 10), dtype=torch.float32)
+
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32")
+        ) -> R.Tensor((10, 10), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="float32") = R.full(
+                    R.shape([10, 10]), R.const(1, "float32"), dtype="float32"
+                )
+                gv: R.Tensor((10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_dynamo_model(
+        Ones(),
+        [([256, 256], "float32")],
+        {},
+        Expected1,
+    )
+
+
+@tvm.testing.requires_gpu
+def test_full():
+    import torch
+    from torch.nn import Module
+
+    class Full(Module):
+        def forward(self, input):
+            return torch.full((10, 10), 1, dtype=torch.float32)
+
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32")
+        ) -> R.Tensor((10, 10), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="float32") = R.full(
+                    R.shape([10, 10]), R.const(1, "float32"), dtype="float32"
+                )
+                gv: R.Tensor((10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_dynamo_model(
+        Full(),
+        [([256, 256], "float32")],
+        {},
+        Expected1,
+    )
+
+
+@tvm.testing.requires_gpu
+def test_masked_fill():
+    import torch
+    from torch.nn import Module
+
+    class MaskedFill(Module):
+        def forward(self, mask, input):
+            return input.masked_fill(mask, 0)
+
+    class InplaceMaskedFill(Module):
+        def forward(self, mask, input):
+            input.masked_fill_(mask, 0)
+            return input
+
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="bool"), inp_1: R.Tensor((256, 256), dtype="float32")
+        ) -> R.Tensor((256, 256), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((256, 256), dtype="float32") = R.full_like(
+                    inp_1, R.const(0, "int32"), dtype="void"
+                )
+                lv1: R.Tensor((256, 256), dtype="float32") = R.where(inp_0, lv, inp_1)
+                gv: R.Tensor((256, 256), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    verify_dynamo_model(
+        MaskedFill(), [([256, 256], "bool"), ([256, 256], "float32")], {}, Expected1
+    )
+    verify_dynamo_model(
+        InplaceMaskedFill(), [([256, 256], "bool"), ([256, 256], "float32")], {}, Expected1
+    )
 
 
 if __name__ == "__main__":

@@ -248,3 +248,40 @@ def not_equal(x1: Expr, x2: Expr) -> Expr:
         The computed result.
     """
     return _ffi_api.not_equal(x1, x2)  # type: ignore
+
+
+###################### Comparison operators ######################
+
+
+def maximum(x1: Expr, x2: Expr) -> Expr:
+    """Element-wise maximum
+    Parameters
+    ----------
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.maximum(x1, x2)
+
+
+def minimum(x1: Expr, x2: Expr) -> Expr:
+    """Element-wise minimum
+    Parameters
+    ----------
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.minimum(x1, x2)

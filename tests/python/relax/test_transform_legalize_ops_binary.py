@@ -1327,5 +1327,285 @@ def test_not_equal_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_maximum():
+    # fmt: off
+    @tvm.script.ir_module
+    class Maximum:
+        @R.function
+        def main(x: R.Tensor((1, 2, 3), "float32"), y: R.Tensor((4, 3, 2, 1), "float32")) -> R.Tensor((4, 3, 2, 3), "float32"):
+            gv: R.Tensor((4, 3, 2, 3), "float32") = R.maximum(x, y)
+            return gv
+
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((1, 2, 3), "float32"), y: R.Tensor((4, 3, 2, 1), "float32")) -> R.Tensor((4, 3, 2, 3), "float32"):
+            gv = R.call_tir(Expected.maximum, (x, y), R.Tensor((4, 3, 2, 3), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def maximum(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_maximum: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
+            T.func_attr({"tir.noalias": True})
+            for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
+                with T.block("T_maximum"):
+                    ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    T.reads(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])
+                    T.writes(T_maximum[ax0, ax1, ax2, ax3])
+                    T_maximum[ax0, ax1, ax2, ax3] = T.max(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])
+    # fmt: on
+
+    mod = LegalizeOps()(Maximum)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_maximum_with_arg0_constant_scalar():
+    # fmt: off
+    @tvm.script.ir_module
+    class Maximum:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
+            gv: R.Tensor((2, 3), dtype="float32") = R.maximum(x, R.const(1, "float32"))
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
+            gv = R.call_tir(Expected.maximum, (x,), R.Tensor((2, 3), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def maximum(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_maximum: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+            T.func_attr({"tir.noalias": True})
+            for i0, i1 in T.grid(T.int64(2), T.int64(3)):
+                with T.block("T_maximum"):
+                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(rxplaceholder[ax0, ax1])
+                    T.writes(T_maximum[ax0, ax1])
+                    T_maximum[ax0, ax1] = T.max(rxplaceholder[ax0, ax1], T.float32(1))
+    # fmt: on
+
+    mod = LegalizeOps()(Maximum)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_maximum_with_arg1_constant_scalar():
+    # fmt: off
+    @tvm.script.ir_module
+    class Maximum:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
+            gv: R.Tensor((2, 3), dtype="float32") = R.maximum(R.const(1, "float32"), x)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
+            gv = R.call_tir(Expected.maximum, (x,), R.Tensor((2, 3), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def maximum(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_maximum: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+            T.func_attr({"tir.noalias": True})
+            for i0, i1 in T.grid(T.int64(2), T.int64(3)):
+                with T.block("T_maximum"):
+                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(rxplaceholder[ax0, ax1])
+                    T.writes(T_maximum[ax0, ax1])
+                    T_maximum[ax0, ax1] = T.max(T.float32(1), rxplaceholder[ax0, ax1])
+    # fmt: on
+
+    mod = LegalizeOps()(Maximum)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_maximum_symbolic():
+    # fmt: off
+    @tvm.script.ir_module
+    class Maximum:
+        @R.function
+        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
+            gv: R.Tensor((a, b, c, d), "float32") = R.maximum(x, y)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
+            gv = R.call_tir(Expected.maximum, (x, y), R.Tensor((a, b, c, d), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def maximum(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_maximum: T.handle):
+            T.func_attr({"tir.noalias": True})
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
+            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c, d], dtype="float32")
+            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b, c, T.int64(1)], dtype="float32")
+            T_maximum = T.match_buffer(var_T_maximum, [a, b, c, d], dtype="float32")
+            for i0, i1, i2, i3 in T.grid(a, b, c, d):
+                with T.block("T_maximum"):
+                    ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    T.reads(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])
+                    T.writes(T_maximum[ax0, ax1, ax2, ax3])
+                    T_maximum[ax0, ax1, ax2, ax3] = T.max(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])
+    # fmt: on
+
+    mod = LegalizeOps()(Maximum)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_minimum():
+    # fmt: off
+    @tvm.script.ir_module
+    class Minimum:
+        @R.function
+        def main(x: R.Tensor((1, 2, 3), "float32"), y: R.Tensor((4, 3, 2, 1), "float32")) -> R.Tensor((4, 3, 2, 3), "float32"):
+            gv: R.Tensor((4, 3, 2, 3), "float32") = R.minimum(x, y)
+            return gv
+
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((1, 2, 3), "float32"), y: R.Tensor((4, 3, 2, 1), "float32")) -> R.Tensor((4, 3, 2, 3), "float32"):
+            gv = R.call_tir(Expected.minimum, (x, y), R.Tensor((4, 3, 2, 3), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def minimum(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_minimum: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
+            T.func_attr({"tir.noalias": True})
+            for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
+                with T.block("T_minimum"):
+                    ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    T.reads(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])
+                    T.writes(T_minimum[ax0, ax1, ax2, ax3])
+                    T_minimum[ax0, ax1, ax2, ax3] = T.min(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])
+    # fmt: on
+
+    mod = LegalizeOps()(Minimum)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_minimum_with_arg0_constant_scalar():
+    # fmt: off
+    @tvm.script.ir_module
+    class Minimum:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
+            gv: R.Tensor((2, 3), dtype="float32") = R.minimum(x, R.const(1, "float32"))
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
+            gv = R.call_tir(Expected.minimum, (x,), R.Tensor((2, 3), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def minimum(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_minimum: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+            T.func_attr({"tir.noalias": True})
+            for i0, i1 in T.grid(T.int64(2), T.int64(3)):
+                with T.block("T_minimum"):
+                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(rxplaceholder[ax0, ax1])
+                    T.writes(T_minimum[ax0, ax1])
+                    T_minimum[ax0, ax1] = T.min(rxplaceholder[ax0, ax1], T.float32(1))
+    # fmt: on
+
+    mod = LegalizeOps()(Minimum)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_minimum_with_arg1_constant_scalar():
+    # fmt: off
+    @tvm.script.ir_module
+    class Minimum:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
+            gv: R.Tensor((2, 3), dtype="float32") = R.minimum(R.const(1, "float32"), x)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
+            gv = R.call_tir(Expected.minimum, (x,), R.Tensor((2, 3), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def minimum(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_minimum: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+            T.func_attr({"tir.noalias": True})
+            for i0, i1 in T.grid(T.int64(2), T.int64(3)):
+                with T.block("T_minimum"):
+                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(rxplaceholder[ax0, ax1])
+                    T.writes(T_minimum[ax0, ax1])
+                    T_minimum[ax0, ax1] = T.min(T.float32(1), rxplaceholder[ax0, ax1])
+    # fmt: on
+
+    mod = LegalizeOps()(Minimum)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_minimum_symbolic():
+    # fmt: off
+    @tvm.script.ir_module
+    class Minimum:
+        @R.function
+        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
+            gv: R.Tensor((a, b, c, d), "float32") = R.minimum(x, y)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
+            gv = R.call_tir(Expected.minimum, (x, y), R.Tensor((a, b, c, d), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def minimum(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_minimum: T.handle):
+            T.func_attr({"tir.noalias": True})
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
+            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c, d], dtype="float32")
+            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b, c, T.int64(1)], dtype="float32")
+            T_minimum = T.match_buffer(var_T_minimum, [a, b, c, d], dtype="float32")
+            for i0, i1, i2, i3 in T.grid(a, b, c, d):
+                with T.block("T_minimum"):
+                    ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    T.reads(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])
+                    T.writes(T_minimum[ax0, ax1, ax2, ax3])
+                    T_minimum[ax0, ax1, ax2, ax3] = T.min(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])
+    # fmt: on
+
+    mod = LegalizeOps()(Minimum)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

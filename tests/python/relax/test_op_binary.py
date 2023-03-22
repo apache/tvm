@@ -54,6 +54,8 @@ def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: r
     (relax.op.multiply,),
     (relax.op.power,),
     (relax.op.subtract,),
+    (relax.op.maximum,),
+    (relax.op.minimum,),
 )
 
 

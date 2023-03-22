@@ -98,6 +98,14 @@ Expr less_equal(Expr x1, Expr x2);
 /*! \brief Broadcasted element-wise test for (lhs != rhs). */
 Expr not_equal(Expr x1, Expr x2);
 
+/***************** Min/Max *****************/
+
+/*! \brief Element-wise minimum */
+Expr minimum(Expr x1, Expr x2);
+
+/*! \brief Element-wise maximum */
+Expr maximum(Expr x1, Expr x2);
+
 }  // namespace relax
 }  // namespace tvm
 

@@ -75,6 +75,8 @@ class TorchFXImporter:
             return "int64"
         elif input_type in ["int32", "torch.int32", torch.int32]:
             return "int32"
+        elif input_type in ["bool", "torch.bool", torch.bool]:
+            return "bool"
         else:
             raise NotImplementedError("input_type {} is not handled yet".format(input_type))
 
@@ -151,6 +153,15 @@ class TorchFXImporter:
             arg = relax.const(arg, "float32")
         return self.block_builder.emit(relax.op.sqrt(arg))
 
+    def _rsqrt(self, node: fx.node.Node) -> relax.Expr:
+        arg = self.env[node.args[0]]
+        if isinstance(arg, (int, float)):
+            arg = relax.const(arg, "float32")
+        sqrt = self.block_builder.emit(relax.op.sqrt(arg))
+        return self.block_builder.emit(
+            relax.op.divide(relax.const(1, sqrt.struct_info.dtype), sqrt)
+        )
+
     def _round(self, node: fx.node.Node) -> relax.Expr:
         if "decimals" in node.kwargs and node.kwargs["decimals"] != 0:
             raise ValueError("specifying decimals for round is not supported yet")
@@ -161,7 +172,20 @@ class TorchFXImporter:
         lhs, rhs = self.retrieve_args(node)
         if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
             return self._call_binary_op(relax.op.add, lhs, rhs)
+        elif isinstance(lhs, relax.expr.Constant):
+            return self._call_binary_op(
+                relax.op.add, lhs, relax.const(rhs, dtype=lhs.struct_info.dtype)
+            )
+        elif isinstance(rhs, relax.expr.Constant):
+            return self._call_binary_op(
+                relax.op.add, relax.const(lhs, dtype=rhs.struct_info.dtype), rhs
+            )
         return lhs + rhs
+
+    def _max(self, node: fx.node.Node) -> relax.Expr:
+        lhs, rhs = self.retrieve_args(node)
+        if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
+            return self._call_binary_op(relax.op.maximum, lhs, rhs)
 
     def _floordiv(self, node: fx.node.Node) -> relax.Expr:
         lhs, rhs = self.retrieve_args(node)
@@ -180,6 +204,10 @@ class TorchFXImporter:
         if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
             return self._call_binary_op(relax.op.power, lhs, rhs)
         return lhs**rhs
+
+    def _neg(self, node: fx.node.Node) -> relax.Expr:
+        x = self.env[node.args[0]]
+        return self.block_builder.emit(relax.op.negative(x))
 
     def _sub(self, node: fx.node.Node) -> relax.Expr:
         lhs, rhs = self.retrieve_args(node)
@@ -279,7 +307,7 @@ class TorchFXImporter:
     def _tensor(self, node: fx.node.Node) -> relax.Var:
         dtype = node.kwargs["dtype"] if "dtype" in node.kwargs else None
         if isinstance(node.args[0], float):
-            return relax.const(node.args[0], dtype if dtype is not None else "float64")
+            return relax.const(node.args[0], dtype if dtype is not None else "float32")
         elif isinstance(node.args[0], int):
             return relax.const(node.args[0], dtype if dtype is not None else "int64")
         raise ValueError("torch.tensor with value not a float or int is not accepted")
@@ -324,13 +352,64 @@ class TorchFXImporter:
             )
         )
 
+    def _ones(self, node: fx.node.Node) -> relax.Var:
+        import torch
+
+        args = self.retrieve_args(node)
+        size = args[0]
+        if not isinstance(size, (list, tuple)):
+            size = (size,)
+        size = relax.ShapeExpr(size)
+        dtype = (
+            TorchFXImporter._convert_data_type(str(node.kwargs["dtype"]), self.env)
+            if "dtype" in node.kwargs
+            else TorchFXImporter._convert_data_type(torch.get_default_dtype(), self.env)
+        )
+        return self.block_builder.emit(
+            relax.op.full(
+                size,
+                relax.const(1, dtype),
+                dtype,
+            )
+        )
+
+    def _full(self, node: fx.node.Node) -> relax.Var:
+        import torch
+
+        args = self.retrieve_args(node)
+        size = args[0]
+        if not isinstance(size, (list, tuple)):
+            size = (size,)
+        size = relax.ShapeExpr(size)
+        dtype = (
+            TorchFXImporter._convert_data_type(str(node.kwargs["dtype"]), self.env)
+            if "dtype" in node.kwargs
+            else TorchFXImporter._convert_data_type(torch.get_default_dtype(), self.env)
+        )
+        value = args[1] if isinstance(args[1], relax.expr.Constant) else relax.const(args[1], dtype)
+        return self.block_builder.emit(
+            relax.op.full(
+                size,
+                value,
+                dtype,
+            )
+        )
+
     ########## Statistical ##########
 
     def _sum(self, node: fx.node.Node) -> relax.Var:
         args = self.retrieve_args(node)
+        keepdim = node.kwargs["keepdim"] if "keepdim" in node.kwargs else False
         if len(args) == 1:
-            return self.block_builder.emit(relax.op.sum(args[0]))
+            return self.block_builder.emit(relax.op.sum(args[0], keepdims=keepdim))
         return self.block_builder.emit(relax.op.sum(args[0], args[1]))
+
+    def _mean(self, node: fx.node.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        keepdim = node.kwargs["keepdim"] if "keepdim" in node.kwargs else False
+        if len(args) == 1:
+            return self.block_builder.emit(relax.op.mean(args[0], keepdims=keepdim))
+        return self.block_builder.emit(relax.op.mean(args[0], args[1], keepdims=keepdim))
 
     ########## DataType ##########
 
@@ -344,6 +423,19 @@ class TorchFXImporter:
         x = self.env[node.args[0]]
         dtype = TorchFXImporter._convert_data_type(node.args[1], self.env)
         return self.block_builder.emit(relax.op.astype(x, dtype))
+
+    def _to(self, node: fx.node.Node) -> relax.Var:
+        import torch
+
+        x = self.env[node.args[0]]
+        if len(node.args) == 2:
+            if isinstance(node.args[1], torch.dtype):
+                dtype = TorchFXImporter._convert_data_type(node.args[1], self.env)
+                return self.block_builder.emit(relax.op.astype(x, dtype))
+        elif "dtype" in node.kwargs:
+            dtype = TorchFXImporter._convert_data_type(node.kwargs["dtype"], self.env)
+            return self.block_builder.emit(relax.op.astype(x, dtype))
+        return x
 
     ########## Linear Algebra ##########
 
@@ -499,6 +591,16 @@ class TorchFXImporter:
         rx_value = relax.const(value)
         values = self.block_builder.emit(relax.op.full_like(x, rx_value))
         return self.block_builder.emit(relax.op.where(mask, values, x))
+
+    def _inplace_masked_fill(self, node: fx.node.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        mask = self.env[node.args[1]]
+        value = node.args[2]
+        rx_value = relax.const(value)
+        values = self.block_builder.emit(relax.op.full_like(x, rx_value))
+        output = self.block_builder.emit(relax.op.where(mask, values, x))
+        self.env[node.args[0]] = output
+        return output
 
     ########## Search ##########
 
@@ -847,6 +949,10 @@ class TorchFXImporter:
             expand_dim = []
             i = 0
             shape = self.shape_of(x)
+            non_ellipsis_cnt = 0
+            for index in node.args[1]:
+                if isinstance(index, (int, slice)):
+                    non_ellipsis_cnt += 1
             for index in node.args[1]:
                 if isinstance(index, int):
                     begin.append(index)
@@ -862,6 +968,13 @@ class TorchFXImporter:
                     i = i + 1
                 elif index is None:
                     expand_dim.append(len(axes) + len(expand_dim))
+                elif index is Ellipsis:
+                    for _ in range(len(shape) - non_ellipsis_cnt):
+                        begin.append(0)
+                        end.append(shape[i])
+                        stride.append(1)
+                        axes.append(i)
+                        i += 1
                 else:
                     raise ValueError("Unsupported index type: " + str(type(index)))
             while i < len(shape):
@@ -869,7 +982,7 @@ class TorchFXImporter:
                 end.append(shape[i])
                 stride.append(1)
                 axes.append(i)
-                i = i + 1
+                i += 1
             sliced = self.block_builder.emit(relax.op.strided_slice(x, axes, begin, end, stride))
             sliced_shape = list(self.shape_of(sliced))
             for i in expand_dim:
@@ -957,17 +1070,25 @@ class TorchFXImporter:
             "clamp": self._clamp,
             "relu": lambda node: self.block_builder.emit(relax.op.nn.relu(self.env[node.args[0]])),
             "gelu": lambda node: self.block_builder.emit(relax.op.nn.gelu(self.env[node.args[0]])),
+            "silu": lambda node: self.block_builder.emit(relax.op.nn.silu(self.env[node.args[0]])),
             "tanh": lambda node: self.block_builder.emit(relax.op.tanh(self.env[node.args[0]])),
             "interpolate": self._interpolate,
             "size": self._size,
             "getattr": self._getattr,
             "getitem": self._getitem,
             "contiguous": lambda node: self.env[node.args[0]],
-            "to": lambda node: self.env[node.args[0]],
+            "to": self._to,
             "adaptive_avg_pool2d": self._adaptive_avg_pool2d(is_module=False),
             "layer_norm": self._layer_norm,
             "index_select": self._index_select,
             "masked_fill": self._masked_fill,
+            "ones": self._ones,
+            "full": self._full,
+            "masked_fill_": self._inplace_masked_fill,
+            "mean": self._mean,
+            "rsqrt": self._rsqrt,
+            "neg": self._neg,
+            "max": self._max,
         }
 
     def from_fx(
@@ -1029,7 +1150,7 @@ class TorchFXImporter:
                         assert len(args) == 1
                         if (
                             unwrap_unit_return_tuple
-                            and isinstance(args[0], (tuple, relax.Tuple))
+                            and isinstance(args[0], (tuple, list, relax.Tuple))
                             and len(args[0]) == 1
                         ):
                             output = self.block_builder.emit_output(args[0][0])
