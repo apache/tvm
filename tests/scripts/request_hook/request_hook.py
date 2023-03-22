@@ -109,6 +109,7 @@ URL_MAP = {
     "https://github.com/dmlc/web-data/raw/main/gluoncv/detection/street_small.jpg": f"{BASE}/2022-10-05/gluon-small-stree.jpg",
     "https://github.com/dmlc/web-data/raw/main/tensorflow/models/Custom/placeholder.pb": f"{BASE}/dmlc/web-data/raw/main/tensorflow/models/Custom/placeholder.pb",
     "https://github.com/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/classify_image_graph_def-with_shapes.pb": f"{BASE}/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/classify_image_graph_def-with_shapes.pb",
+    "https://github.com/dmlc/web-data/raw/main/tensorflow/models/ResnetV2/resnet-20180601_resnet_v2_imagenet-shapes.pb": f"{BASE}/dmlc/web-data/raw/main/tensorflow/models/ResnetV2/resnet-20180601_resnet_v2_imagenet-shapes.pb",
     "https://github.com/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/elephant-299.jpg": f"{BASE}/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/elephant-299.jpg",
     "https://github.com/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/imagenet_2012_challenge_label_map_proto.pbtxt": f"{BASE}/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/imagenet_2012_challenge_label_map_proto.pbtxt",
     "https://github.com/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/imagenet_synset_to_human_label_map.txt": f"{BASE}/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/imagenet_synset_to_human_label_map.txt",
