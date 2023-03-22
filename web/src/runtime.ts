@@ -25,7 +25,7 @@ import { Disposable } from "./types";
 import { Memory, CachedCallStack } from "./memory";
 import { assert, StringToUint8Array } from "./support";
 import { Environment } from "./environment";
-import { WebGPUContext } from "./webgpu";
+import { FunctionInfo, WebGPUContext } from "./webgpu";
 
 import * as compact from "./compact";
 import * as ctypes from "./ctypes";
@@ -686,9 +686,10 @@ export class Module implements Disposable {
   /**
    * Get a function in the module.
    * @param name The name of the function.
+   * @param queryImports Whether to also query imports
    * @returns The result function.
    */
-  getFunction(name: string): PackedFunc {
+  getFunction(name: string, queryImports: boolean = true): PackedFunc {
     if (this.handle == 0) {
       throw Error("Module has already been disposed");
     }
@@ -705,7 +706,7 @@ export class Module implements Disposable {
       (this.lib.exports.TVMModGetFunction as ctypes.FTVMModGetFunction)(
         this.getHandle(),
         stack.ptrFromOffset(nameOffset),
-        1,
+        queryImports? 1 : 0,
         outPtr
       )
     );
@@ -883,6 +884,13 @@ export class VirtualMachine implements Disposable {
   getFunction(name: string): PackedFunc {
     return this.mod.getFunction(name);
   }
+
+  /**
+   * Get the internal module.
+   */
+  getInternalModule(): Module {
+    return this.mod;
+  }
 }
 
 /** Code used as the first argument of the async callback. */
@@ -906,14 +914,13 @@ export interface NDArrayShardEntry {
   records: Array<NDArrayCacheEntry>;
 }
 
-export interface FetchProgressReport {
-  fetchedBytes: number;
-  totalBytes: number;
+export interface InitProgressReport {
+  progress: number;
   timeElapsed: number;
   text: string;
 }
 
-export type FetchProgressCallback = (report: FetchProgressReport) => void;
+export type InitProgressCallback = (report: InitProgressReport) => void;
 
 /**
  * TVM runtime instance.
@@ -940,7 +947,7 @@ export class Instance implements Disposable {
   private env: Environment;
   private objFactory: Map<number, FObjectConstructor>;
   private ctx: RuntimeContext;
-  private fetchProgressCallback: Array<FetchProgressCallback> = [];
+  private initProgressCallback: Array<InitProgressCallback> = [];
 
   /**
    * Internal function(registered by the runtime)
@@ -1281,8 +1288,8 @@ export class Instance implements Disposable {
   *
    * @param cb the fetch progress callback.
    */
-  registerFetchProgressCallback(cb: FetchProgressCallback) {
-    this.fetchProgressCallback.push(cb);
+  registerInitProgressCallback(cb: InitProgressCallback) {
+    this.initProgressCallback.push(cb);
   }
 
   /**
@@ -1374,26 +1381,24 @@ export class Instance implements Disposable {
 
     const reportCallback = (iter: number)=> {
       // report
-      for (let j = 0; j < this.fetchProgressCallback.length; ++j) {
+      for (let j = 0; j < this.initProgressCallback.length; ++j) {
         let text = "Fetching param cache[" + iter + "/" + list.length+ "]: ";
         text += Math.ceil(fetchedBytes / (1024 * 1024)).toString() + "MB fetched. "
         text += Math.floor(fetchedBytes * 100 / totalBytes).toString() + "% completed, "
         text += timeElapsed + " secs elapsed.";
         text += " It can take a while when we first visit this page to populate the cache."
         text += " Later refreshes will become faster.";
-        this.fetchProgressCallback[j]({
-          fetchedBytes: fetchedBytes,
-          totalBytes: totalBytes,
+        this.initProgressCallback[j]({
+          progress: fetchedBytes / totalBytes,
           timeElapsed: timeElapsed,
           text: text
         });
       }
     };
 
-    for (let j = 0; j < this.fetchProgressCallback.length; ++j) {
-      this.fetchProgressCallback[j]({
-        fetchedBytes: 0,
-        totalBytes: totalBytes,
+    for (let j = 0; j < this.initProgressCallback.length; ++j) {
+      this.initProgressCallback[j]({
+        progress: fetchedBytes / totalBytes,
         timeElapsed: 0,
         text: "Start to fetch params",
       });
@@ -1737,6 +1742,71 @@ export class Instance implements Disposable {
   }
 
   /**
+   * Asynchrously load webgpu pipelines when possible.
+   * @param mod The input module.
+   */
+  async asyncLoadWebGPUPiplines(mod: Module): Promise<void> {
+    if (this.lib.webGPUContext == undefined) throw Error("WebGPU not initialied");
+    const webgpuContext = this.lib.webGPUContext;
+
+    this.beginScope();
+    const fmap_str = mod.getFunction("webgpu.get_fmap", true)() as string;
+    let fmap: Record<string, FunctionInfo> = JSON.parse(fmap_str);
+    const totalFuncs = fmap.length;
+    const fGetShader = this.detachFromCurrentScope(
+      mod.getFunction("webgpu.get_shader")
+    );
+    const fUpdatePrebuild = this.detachFromCurrentScope(
+      mod.getFunction("webgpu.update_prebuild")
+    );
+    this.endScope();
+
+    const perf = compact.getPerformance();
+    const tstart = perf.now();
+    let tlastReport = tstart;
+    let finishCounter = 0;
+    const fmapEntries = Object.entries(fmap);
+
+    let allEvents = Promise.resolve();
+
+    for (const [key, finfo] of fmapEntries) {
+      const code = fGetShader(key);
+      assert(key == finfo.name);
+      const event = webgpuContext.createShaderAsync(finfo, code).then((func: Function) => {
+        this.beginScope();
+        fUpdatePrebuild(key, func);
+        this.endScope();
+
+      }).then(() => {
+        finishCounter += 1;
+        const tend = perf.now();
+        const timeReportGap = 1000;
+        // skip report if gap is smaller than 1000
+        if ((tend - tlastReport) < 1000 && finishCounter != fmapEntries.length) {
+          return;
+        }
+        tlastReport = tend;
+        const timeElapsed = Math.ceil((perf.now() - tstart) / 1000);
+        // report
+        for (let j = 0; j < this.initProgressCallback.length; ++j) {
+          const progress = finishCounter / fmapEntries.length;
+          let text = "Loading GPU shader modules[" + finishCounter + "/" + fmapEntries.length+ "]: ";
+          text += Math.floor(progress * 100).toString() + "% completed, "
+          text += timeElapsed + " secs elapsed.";
+          this.initProgressCallback[j]({
+            progress: progress,
+            timeElapsed: timeElapsed,
+            text: text
+          });
+        }
+      });
+      allEvents = Promise.all([allEvents, event]).then(()=>{});
+    }
+    await allEvents;
+    assert(finishCounter == fmapEntries.length);
+  }
+
+  /**
    * Initialize webgpu in the runtime.
    * @param device The given GPU device.
    */
@@ -1748,7 +1818,8 @@ export class Instance implements Disposable {
       return webGPUContext.getDeviceAPI(name);
     });
     this.registerFunc("wasm.WebGPUCreateShader", (info: string, code: string) => {
-      return webGPUContext.createShader(info, code);
+      const finfo = JSON.parse(info) as FunctionInfo;
+      return webGPUContext.createShader(finfo, code);
     });
     this.registerAsyncServerFunc("wasm.WebGPUWaitForTasks", async () => {
       await webGPUContext.sync();

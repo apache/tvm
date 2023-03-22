@@ -43,9 +43,9 @@
       }
     }
 
-    function fetchProgressCallback(report) {
+    function initProgressCallback(report) {
       document.getElementById("rpc-progress-tracker-label").innerHTML = report.text;
-      document.getElementById("rpc-progress-tracker-progress").value = (report.fetchedBytes / report.totalBytes) * 100;
+      document.getElementById("rpc-progress-tracker-progress").value = report.progress * 100;
     }
 
     function connectRPC() {
@@ -66,7 +66,7 @@
 
       new tvmjs.RPCServer(
         proxyUrl, key, getImports, customLog,
-        ndarrayCacheUrl, ndarrayCacheDevice, fetchProgressCallback,
+        ndarrayCacheUrl, ndarrayCacheDevice, initProgressCallback,
         tvmjsGlobalEnv.asyncOnRPCServerLoad);
     }
 

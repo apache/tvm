@@ -83,7 +83,7 @@ export class RPCServer {
   getImports: () => Record<string, unknown>;
   private ndarrayCacheUrl: string;
   private ndarrayCacheDevice: string;
-  private fetchProgressCallback?: runtime.FetchProgressCallback;
+  private initProgressCallback?: runtime.InitProgressCallback;
   private asyncOnServerLoad?: (inst: runtime.Instance) => Promise<void>;
   private pendingSend: Promise<void> = Promise.resolve();
   private name: string;
@@ -104,7 +104,7 @@ export class RPCServer {
     logger: (msg: string) => void = console.log,
     ndarrayCacheUrl: string = "",
     ndarrayCacheDevice: string = "cpu",
-    fetchProgressCallback: runtime.FetchProgressCallback | undefined = undefined,
+    initProgressCallback: runtime.InitProgressCallback | undefined = undefined,
     asyncOnServerLoad: ((inst: runtime.Instance) => Promise<void>) | undefined = undefined,
   ) {
     this.url = url;
@@ -114,7 +114,7 @@ export class RPCServer {
     this.logger = logger;
     this.ndarrayCacheUrl = ndarrayCacheUrl;
     this.ndarrayCacheDevice = ndarrayCacheDevice;
-    this.fetchProgressCallback = fetchProgressCallback;
+    this.initProgressCallback = initProgressCallback;
     this.asyncOnServerLoad = asyncOnServerLoad;
     this.checkLittleEndian();
     this.socket = compact.createWebSocket(url);
@@ -146,7 +146,7 @@ export class RPCServer {
       new RPCServer(
         this.url, this.key, this.getImports, this.logger,
         this.ndarrayCacheUrl, this.ndarrayCacheDevice,
-        this.fetchProgressCallback, this.asyncOnServerLoad);
+        this.initProgressCallback, this.asyncOnServerLoad);
     } else {
       this.log("Closing the server, final state=" + this.state);
     }
@@ -288,8 +288,8 @@ export class RPCServer {
       this.inst = inst;
       // begin scope to allow handling of objects
       this.inst.beginScope();
-      if (this.fetchProgressCallback !== undefined) {
-        this.inst.registerFetchProgressCallback(this.fetchProgressCallback);
+      if (this.initProgressCallback !== undefined) {
+        this.inst.registerInitProgressCallback(this.initProgressCallback);
       }
 
       if (this.ndarrayCacheUrl.length != 0) {
