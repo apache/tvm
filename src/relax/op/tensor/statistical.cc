@@ -107,7 +107,7 @@ InferLayoutOutput InferLayoutStatistical(const Call& call,
 
   std::string axis_str(ndim, '0');
   for (const auto& iter : axis) {
-    axis_str[iter->value] = '1';
+    axis_str[(iter->value + ndim) % ndim] = '1';
   }
   for (int i = 0, j = 0; i < ndim; ++i) {
     if (axis_str[i] != '1') {
