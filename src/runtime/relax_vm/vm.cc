@@ -188,7 +188,9 @@ class VirtualMachineImpl : public VirtualMachine {
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override;
 
-  VMClosure GetClosure(const String& func_name) final;
+  VMClosure GetClosure(const String& func_name) final {
+    return this->GetClosureInternal(func_name, false).value();
+  }
 
   void InvokeClosurePacked(const ObjectRef& closure_or_packedfunc, TVMArgs args,
                            TVMRetValue* rv) final;
@@ -198,6 +200,14 @@ class VirtualMachineImpl : public VirtualMachine {
   //--------------------------------------------------
   // Additional support arguments functions for VM
   //--------------------------------------------------
+  /*!
+   * \brief Internal implementation of GetClosure which also allow none.
+   * \param func_name The name of the function.
+   * \param allow_missing Whether none is allowed.
+   * \return The result
+   */
+  Optional<VMClosure> GetClosureInternal(const String& func_name, bool allow_missing);
+
   /*!
    * \brief Set inputs to a function.
    * \param func_name The function name.
@@ -550,10 +560,14 @@ PackedFunc VirtualMachineImpl::GetFunction(const std::string& name,
     });
   } else {
     // default case, look up closure in VM.
-    VMClosure clo = this->GetClosure(name);
-    return PackedFunc([sptr_to_self, this, clo](TVMArgs args, TVMRetValue* rv) {
-      this->InvokeClosurePacked(clo, args, rv);
-    });
+    if (Optional<VMClosure> opt = this->GetClosureInternal(name, true)) {
+      auto clo = opt.value();
+      return PackedFunc([sptr_to_self, this, clo](TVMArgs args, TVMRetValue* rv) {
+        this->InvokeClosurePacked(clo, args, rv);
+      });
+    } else {
+      return PackedFunc(nullptr);
+    }
   }
 }
 
@@ -653,14 +667,18 @@ void VirtualMachineImpl::SaveClosure(const String& func_name, const String& save
   saved_closures_[save_name] = VMClosure(save_name, impl);
 }
 
-VMClosure VirtualMachineImpl::GetClosure(const String& func_name) {
+Optional<VMClosure> VirtualMachineImpl::GetClosureInternal(const String& func_name,
+                                                           bool allow_missing) {
   // look up saved closures.
   auto saved_it = saved_closures_.find(func_name);
   if (saved_it != saved_closures_.end()) {
     return saved_it->second;
   }
   auto it = exec_->func_map.find(func_name);
-  CHECK(it != exec_->func_map.end()) << "ValueError: Unknown function: " << func_name;
+  if (it == exec_->func_map.end()) {
+    if (allow_missing) return NullOpt;
+    LOG(FATAL) << "ValueError: Unknown function: " << func_name;
+  }
 
   Index gf_idx = it->second;
   const VMFuncInfo& finfo = exec_->func_table[gf_idx];
