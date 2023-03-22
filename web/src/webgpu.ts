@@ -58,12 +58,6 @@ export async function detectGPUDevice(): Promise<GPUDeviceDetectOutput | undefin
   }
 }
 
-interface FunctionInfo {
-  name: string;
-  arg_types: Array<string>;
-  launch_param_tags: Array<string>;
-}
-
 const canvasRenderWGSL =`
 @group(0) @binding(0) var my_sampler : sampler;
 @group(0) @binding(1) var my_texture : texture_2d<f32>;
@@ -272,6 +266,14 @@ class CanvaRenderManager implements Disposable {
   }
 }
 
+/**
+ * Function info from the API
+ */
+export interface FunctionInfo {
+  name: string;
+  arg_types: Array<string>;
+  launch_param_tags: Array<string>;
+}
 
 /**
  * WebGPU context
@@ -382,12 +384,41 @@ export class WebGPUContext {
 
   /**
    * Create a PackedFunc that runs the given shader
+   * via createComputePipeline
    *
-   * @param info The function information in json.
+   * @param info The function information already parsed as a record.
    * @param code The shader data(in WGSL)
+   * @returns The shader
    */
-  createShader(info: string, code: string): Function {
-    const finfo = JSON.parse(info);
+  createShader(finfo: FunctionInfo, code: string) : Function {
+    return this.createShadeInternl(finfo, code, false) as Function;
+  }
+
+  /**
+   * Create a PackedFunc that runs the given shader asynchrously
+   * via createComputePipelineAsync
+   *
+   * @param info The function information already parsed as a record.
+   * @param code The shader data(in WGSL)
+   * @returns The shader
+   */
+  async createShaderAsync(finfo: FunctionInfo, code: string) : Promise<Function> {
+    return await (this.createShadeInternl(finfo, code, true) as Promise<Function>);
+  }
+
+  /**
+   * Internal impl of createShader for both async and sync mode.
+   *
+   * @param info The function information already parsed as a record.
+   * @param code The shader data(in WGSL)
+   * @param asyncMode Whether use async mode.
+   * @returns The shader function or promise of shader func.
+   */
+  private createShadeInternl(
+    finfo: FunctionInfo,
+    code: string,
+    asyncMode: boolean
+  ): Function | Promise<Function> {
     const dispatchToDim: Array<number> = [];
     let paramWriteAccess: Array<number> = [];
 
@@ -432,86 +463,103 @@ export class WebGPUContext {
       bindGroupLayouts: [ bindGroupLayout ]
     });
 
-    const pipeline = this.device.createComputePipeline({
-      layout: pipelineLayout,
-      compute: {
-        module: this.device.createShaderModule({
-          code: code,
-          hints: {
-            main: {
-              layout: pipelineLayout
+    // Function to create the pipeline.
+    const createShaderFunc =  (pipeline: GPUComputePipeline): Function => {
+      const submitShader = (...args: Array<GPUPointer | number>): void => {
+        if (this.debugShaderSubmitLimit != -1 &&
+            this.shaderSubmitCounter >= this.debugShaderSubmitLimit) {
+          this.shaderSubmitCounter += 1;
+          return;
+        }
+
+        const commandEncoder = this.device.createCommandEncoder();
+        const compute = commandEncoder.beginComputePass();
+        compute.setPipeline(pipeline);
+        const bindGroupEntries: Array<GPUBindGroupEntry> = [];
+        assert(args.length == layoutEntries.length + dispatchToDim.length);
+
+        for (let i = 0; i < layoutEntries.length; ++i) {
+          bindGroupEntries.push({
+            binding: i,
+            resource: {
+              buffer: this.gpuBufferFromPtr(args[i])
             }
+          });
+        }
+
+        compute.setBindGroup(0, this.device.createBindGroup({
+          layout: bindGroupLayout,
+          entries: bindGroupEntries
+        }));
+        const wl: Array<number> = [1, 1, 1, 1, 1, 1];
+        for (let i = 0; i < dispatchToDim.length; ++i) {
+          wl[dispatchToDim[i]] = args[layoutEntries.length + i];
+        }
+
+        // get around 65535 restriction of blockIdx.x
+        if (wl[2] != 1) {
+          throw Error("WebGPU: blockIdx.z is reserved for internal use");
+        }
+        // spread thinsg out into blockIdx.z
+        if (wl[0] >= (1 << 16)) {
+          let wl_x = wl[0];
+          let wl_z = wl[2];
+
+          while (wl_x >= (1 << 16)) {
+            if (wl_x % 2 != 0) {
+              throw Error("WebGPU: cannot factorize big gridDim.x=" + wl[0].toString());
+            }
+            wl_x /= 2;
+            wl_z *= 2;
           }
-        }),
-        entryPoint: finfo.name
+          wl[0] = wl_x;
+          wl[2] = wl_z;
+        }
+        compute.dispatchWorkgroups(wl[0], wl[1], wl[2])
+        compute.end()
+        const command = commandEncoder.finish();
+        this.device.queue.submit([command]);
+
+        if (this.debugLogFinish) {
+          const currCounter = this.shaderSubmitCounter;
+          this.device.queue.onSubmittedWorkDone().then(()=> {
+            console.log("["+ currCounter + "][Debug] finish shader" + finfo.name);
+          });
+        }
+        this.shaderSubmitCounter += 1;
+      };
+      return submitShader;
+    };
+
+    const shaderModule = this.device.createShaderModule({
+      code: code,
+      hints: {
+        main: {
+          layout: pipelineLayout
+        }
       }
     });
 
-    const submitShader = (...args: Array<GPUPointer | number>): void => {
-      if (this.debugShaderSubmitLimit != -1 &&
-          this.shaderSubmitCounter >= this.debugShaderSubmitLimit) {
-        this.shaderSubmitCounter += 1;
-        return;
-      }
-
-      const commandEncoder = this.device.createCommandEncoder();
-      const compute = commandEncoder.beginComputePass();
-      compute.setPipeline(pipeline);
-      const bindGroupEntries: Array<GPUBindGroupEntry> = [];
-      assert(args.length == layoutEntries.length + dispatchToDim.length);
-
-      for (let i = 0; i < layoutEntries.length; ++i) {
-        bindGroupEntries.push({
-          binding: i,
-          resource: {
-            buffer: this.gpuBufferFromPtr(args[i])
-          }
-        });
-      }
-
-      compute.setBindGroup(0, this.device.createBindGroup({
-        layout: bindGroupLayout,
-        entries: bindGroupEntries
-      }));
-      const wl: Array<number> = [1, 1, 1, 1, 1, 1];
-      for (let i = 0; i < dispatchToDim.length; ++i) {
-        wl[dispatchToDim[i]] = args[layoutEntries.length + i];
-      }
-
-      // get around 65535 restriction of blockIdx.x
-      if (wl[2] != 1) {
-        throw Error("WebGPU: blockIdx.z is reserved for internal use");
-      }
-      // spread thinsg out into blockIdx.z
-      if (wl[0] >= (1 << 16)) {
-        let wl_x = wl[0];
-        let wl_z = wl[2];
-
-        while (wl_x >= (1 << 16)) {
-          if (wl_x % 2 != 0) {
-            throw Error("WebGPU: cannot factorize big gridDim.x=" + wl[0].toString());
-          }
-          wl_x /= 2;
-          wl_z *= 2;
+    if (asyncMode) {
+      return this.device.createComputePipelineAsync({
+        layout: pipelineLayout,
+        compute: {
+          module: shaderModule,
+          entryPoint: finfo.name
         }
-        wl[0] = wl_x;
-        wl[2] = wl_z;
-      }
-      compute.dispatchWorkgroups(wl[0], wl[1], wl[2])
-      compute.end()
-      const command = commandEncoder.finish();
-      this.device.queue.submit([command]);
-
-      if (this.debugLogFinish) {
-        const currCounter = this.shaderSubmitCounter;
-        this.device.queue.onSubmittedWorkDone().then(()=> {
-          console.log("["+ currCounter + "][Debug] finish shader" + finfo.name);
-        });
-      }
-      this.shaderSubmitCounter += 1;
-    };
-
-    return submitShader;
+      }).then((pipeline: GPUComputePipeline) => {
+        return createShaderFunc(pipeline);
+      });
+    } else {
+      const pipeline = this.device.createComputePipeline({
+        layout: pipelineLayout,
+        compute: {
+          module: shaderModule,
+          entryPoint: finfo.name
+        }
+      });
+      return createShaderFunc(pipeline);
+    }
   }
 
   /**
