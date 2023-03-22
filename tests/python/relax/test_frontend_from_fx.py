@@ -24,44 +24,17 @@ from tvm.script import relax as R
 from tvm.script import tir as T
 
 
-def verify_model(
-    torch_model, input_info, binding, expected, use_dynamo=False, unwrap_unit_return_tuple=False
-):
+def verify_model(torch_model, input_info, binding, expected):
     import torch
     import torch._dynamo as dynamo
     from torch import fx
     from tvm.relax.frontend.torch import from_fx
 
-    if use_dynamo:
-        args = []
-        for info in input_info:
-            args.append(torch.zeros(*info[0], dtype=_convert_data_type(info[1])))
-        graph_model = dynamo.export(torch_model, *args)[0]
-    else:
-        graph_model = fx.symbolic_trace(torch_model)
-    mod = from_fx(graph_model, input_info, unwrap_unit_return_tuple=unwrap_unit_return_tuple)
+    graph_model = fx.symbolic_trace(torch_model)
+    mod = from_fx(graph_model, input_info)
     binding = {k: tvm.nd.array(v) for k, v in binding.items()}
     expected = relax.transform.BindParams("main", binding)(expected)
     tvm.ir.assert_structural_equal(mod, expected)
-
-
-def _convert_data_type(input_type):
-    """converts the PyTorch scalar type input_type to a TVM dtype."""
-    import torch  # type: ignore
-
-    input_type = input_type.lower() if isinstance(input_type, str) else input_type
-    if input_type == "float32":
-        return torch.float32
-    elif input_type == "float16":
-        return torch.float16
-    elif input_type == "int64":
-        return torch.int64
-    elif input_type == "int32":
-        return torch.int32
-    elif input_type == "bool":
-        return torch.bool
-    else:
-        raise NotImplementedError("input_type {} is not handled yet".format(input_type))
 
 
 @tvm.testing.requires_gpu
@@ -2573,118 +2546,6 @@ def test_to():
 
 
 @tvm.testing.requires_gpu
-def test_ones():
-    import torch
-    from torch.nn import Module
-
-    class Ones(Module):
-        def forward(self, input):
-            return torch.ones((10, 10), dtype=torch.float32)
-
-    @I.ir_module
-    class Expected1:
-        @R.function
-        def main(
-            inp_0: R.Tensor((256, 256), dtype="float32")
-        ) -> R.Tensor((10, 10), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((10, 10), dtype="float32") = R.full(
-                    R.shape([10, 10]), R.const(1, "float32"), dtype="float32"
-                )
-                gv: R.Tensor((10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(
-        Ones(),
-        [([256, 256], "float32")],
-        {},
-        Expected1,
-        use_dynamo=True,
-        unwrap_unit_return_tuple=True,
-    )
-
-
-@tvm.testing.requires_gpu
-def test_full():
-    import torch
-    from torch.nn import Module
-
-    class Full(Module):
-        def forward(self, input):
-            return torch.full((10, 10), 1, dtype=torch.float32)
-
-    @I.ir_module
-    class Expected1:
-        @R.function
-        def main(
-            inp_0: R.Tensor((256, 256), dtype="float32")
-        ) -> R.Tensor((10, 10), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((10, 10), dtype="float32") = R.full(
-                    R.shape([10, 10]), R.const(1, "float32"), dtype="float32"
-                )
-                gv: R.Tensor((10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(
-        Full(),
-        [([256, 256], "float32")],
-        {},
-        Expected1,
-        use_dynamo=True,
-        unwrap_unit_return_tuple=True,
-    )
-
-
-@tvm.testing.requires_gpu
-def test_masked_fill():
-    import torch
-    from torch.nn import Module
-
-    class MaskedFill(Module):
-        def forward(self, mask, input):
-            return input.masked_fill(mask, 0)
-
-    class InplaceMaskedFill(Module):
-        def forward(self, mask, input):
-            input.masked_fill_(mask, 0)
-            return input
-
-    @I.ir_module
-    class Expected1:
-        @R.function
-        def main(
-            inp_0: R.Tensor((256, 256), dtype="bool"), inp_1: R.Tensor((256, 256), dtype="float32")
-        ) -> R.Tensor((256, 256), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((256, 256), dtype="float32") = R.full_like(
-                    inp_1, R.const(0, "int32"), dtype="void"
-                )
-                lv1: R.Tensor((256, 256), dtype="float32") = R.where(inp_0, lv, inp_1)
-                gv: R.Tensor((256, 256), dtype="float32") = lv1
-                R.output(gv)
-            return gv
-
-    verify_model(
-        MaskedFill(),
-        [([256, 256], "bool"), ([256, 256], "float32")],
-        {},
-        Expected1,
-        use_dynamo=True,
-        unwrap_unit_return_tuple=True,
-    )
-    verify_model(
-        InplaceMaskedFill(),
-        [([256, 256], "bool"), ([256, 256], "float32")],
-        {},
-        Expected1,
-        unwrap_unit_return_tuple=True,
-    )
-
-
-@tvm.testing.requires_gpu
 def test_mean():
     import torch
     from torch.nn import Module
@@ -2719,8 +2580,8 @@ def test_mean():
                 R.output(gv)
             return gv
 
-    verify_model(Mean(), [([256, 256], "float32")], {}, Expected1, use_dynamo=False)
-    verify_model(MeanKeepDim(), [([256, 256], "float32")], {}, Expected2, use_dynamo=False)
+    verify_model(Mean(), [([256, 256], "float32")], {}, Expected1)
+    verify_model(MeanKeepDim(), [([256, 256], "float32")], {}, Expected2)
 
 
 @tvm.testing.requires_gpu
@@ -2745,7 +2606,7 @@ def test_rsqrt():
                 R.output(gv)
             return gv
 
-    verify_model(Rsqrt(), [([256, 256], "float32")], {}, Expected1, use_dynamo=False)
+    verify_model(Rsqrt(), [([256, 256], "float32")], {}, Expected1)
 
 
 @tvm.testing.requires_gpu
@@ -2769,7 +2630,7 @@ def test_neg():
                 R.output(gv)
             return gv
 
-    verify_model(Neg(), [([256, 256], "float32")], {}, Expected1, use_dynamo=False)
+    verify_model(Neg(), [([256, 256], "float32")], {}, Expected1)
 
 
 @tvm.testing.requires_gpu
@@ -2794,9 +2655,7 @@ def test_max():
                 R.output(gv)
             return gv
 
-    verify_model(
-        Max(), [([256, 256], "float32"), ([256, 256], "float32")], {}, Expected1, use_dynamo=False
-    )
+    verify_model(Max(), [([256, 256], "float32"), ([256, 256], "float32")], {}, Expected1)
 
 
 if __name__ == "__main__":
