@@ -26,7 +26,6 @@ from tvm.script import tir as T
 
 def verify_model(torch_model, input_info, binding, expected):
     import torch
-    import torch._dynamo as dynamo
     from torch import fx
     from tvm.relax.frontend.torch import from_fx
 

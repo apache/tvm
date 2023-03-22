@@ -235,7 +235,6 @@ def test_subgraph_capture():
 def verify_dynamo_model(torch_model, input_info, binding, expected):
     import torch
     import torch._dynamo as dynamo
-    from torch import fx
     from tvm.relax.frontend.torch import from_fx
 
     args = []
