@@ -989,7 +989,8 @@ void BuildDependencyGraph(
 class PipelineInjector : private StmtExprMutator {
  public:
   static Stmt Inject(const PrimFunc& func) {
-    PipelineInjector injector;
+    auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+    PipelineInjector injector(global_symbol);
     for (const auto& kv : func->buffer_map) {
       const Buffer& buffer = kv.second;
       injector.buffer_data_to_buffer_.Set(buffer->data, buffer);
@@ -999,7 +1000,7 @@ class PipelineInjector : private StmtExprMutator {
   }
 
  private:
-  PipelineInjector() {}
+  explicit PipelineInjector(Optional<String> global_symbol) : global_symbol_(global_symbol) {}
 
   /*!
    * \brief Check the pipeline satisfies the following conditions:
@@ -1103,8 +1104,14 @@ class PipelineInjector : private StmtExprMutator {
         Downcast<Array<Integer>>(op->annotations.at(attr::software_pipeline_stage));
     auto pipeline_orders =
         Downcast<Array<Integer>>(op->annotations.at(attr::software_pipeline_order));
-    CHECK_EQ(pipeline_stages.size(), original_order.size());
-    CHECK_EQ(pipeline_orders.size(), original_order.size());
+    CHECK_EQ(pipeline_stages.size(), original_order.size())
+        << "PrimFunc " << global_symbol_ << " has original order "
+        << original_order.Map([](const auto& block) { return block->name_hint; })
+        << ", but pipeline annotation is " << pipeline_stages << " with different size";
+    CHECK_EQ(pipeline_orders.size(), original_order.size())
+        << "PrimFunc " << global_symbol_ << " has original order "
+        << original_order.Map([](const auto& block) { return block->name_hint; })
+        << ", but pipeline annotation is " << pipeline_orders << " with different size";
 
     std::unordered_set<int> pipeline_async_stages;
     if (auto annot = op->annotations.Get(attr::software_pipeline_async_stages)) {
@@ -1205,6 +1212,7 @@ class PipelineInjector : private StmtExprMutator {
   Map<Var, Buffer> buffer_data_to_buffer_;
   std::unordered_map<const VarNode*, FragmentInfo> fragment_info_;
   std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> double_buffers;
+  Optional<String> global_symbol_;
 };
 
 }  // namespace software_pipeline
