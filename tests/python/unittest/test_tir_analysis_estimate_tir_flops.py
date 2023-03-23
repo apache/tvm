@@ -85,14 +85,10 @@ def flops_with_forloop_as_expression(A: T.Buffer(1)):
 
 
 @T.prim_func
-def flops_override(a: T.Buffer(16, "float32"), b: T.Buffer(16, "float32")):
+def flops_override(A: T.Buffer(16, "float32")):
     T.func_attr({"estimated_flops": 32})
     for i in range(16):
-        if i % 2 == 0:
-            a[i] = b[i]
-        else:
-            if i % 3 == 0:
-                a[i] = b[i - 1] + b[i - 2]
+        A[0] = A[0] + 1
 
 
 def test_estimate_flops_forloop_as_experssion():
