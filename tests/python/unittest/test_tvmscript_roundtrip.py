@@ -3444,7 +3444,9 @@ def bool_primitive():
 def bool_cast():
     @T.prim_func
     def func() -> None:
+        a = T.bool()
         T.evaluate(T.bool(T.int32(0)))
+        T.evaluate(a == T.bool(False))
 
     return func
 
