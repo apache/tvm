@@ -101,9 +101,7 @@ def test_fuse_const():
         y = relax.const(1, "float32")
         with bb.function("main", [x]):
             with bb.dataflow():
-                gv = bb.emit_output(
-                    relax.Call(fused_add_exp_squeeze, [x, y])
-                )
+                gv = bb.emit_output(relax.Call(fused_add_exp_squeeze, [x, y]))
             bb.emit_func_output(gv)
 
         return bb.get()
