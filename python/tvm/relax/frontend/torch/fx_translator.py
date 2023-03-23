@@ -637,6 +637,34 @@ class TorchFXImporter:
         bias = None if module.bias is None else self.params[module.bias]
         return self.block_builder.emit(relax.op.linear(x, weight, bias, "float32"))
 
+    def _conv1d(self, node: fx.node.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        weight = self.params[module.weight]
+
+        conv1d = self.block_builder.emit(
+            relax.op.nn.conv1d(
+                x,
+                weight,
+                strides=module.stride,
+                padding=module.padding,
+                dilation=module.dilation,
+                groups=module.groups,
+                data_layout="NCW",
+                kernel_layout="OIW",
+                out_dtype="float32",
+            )
+        )
+
+        if module.bias is None:
+            return conv1d
+
+        bias = self.params[module.bias]
+        assert len(self.shape_of(bias)) == 1
+        bias = relax.op.reshape(bias, (1, -1, 1))
+
+        return self.block_builder.emit(relax.op.add(conv1d, bias))
+
     def _conv2d(self, node: fx.node.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
@@ -1001,6 +1029,7 @@ class TorchFXImporter:
         self.convert_map: Dict[Union[nn.Module, str], Callable[[fx.node.Node], relax.Var]] = {
             # call_module
             nn.Linear: self._linear,
+            nn.Conv1d: self._conv1d,
             nn.Conv2d: self._conv2d,
             nn.MaxPool2d: self._max_pool2d,
             nn.AdaptiveAvgPool2d: self._adaptive_avg_pool2d(is_module=True),

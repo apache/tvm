@@ -37,7 +37,93 @@ def verify_model(torch_model, input_info, binding, expected):
 
 
 @tvm.testing.requires_gpu
-def test_conv():
+def test_conv1d():
+    import torch
+    from torch.nn import Module
+
+    torch.set_grad_enabled(False)
+    torch.random.manual_seed(0)
+
+    class Conv1D1(Module):
+        def __init__(self):
+            super().__init__()
+            self.conv = torch.nn.Conv1d(3, 6, 7, bias=True)
+
+        def forward(self, input):
+            return self.conv(input)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10), dtype="float32"),
+            w1: R.Tensor((6, 3, 7), dtype="float32"),
+            w2: R.Tensor((6,), dtype="float32"),
+        ) -> R.Tensor((1, 6, 4), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv1: R.Tensor((1, 6, 4), dtype="float32") = R.nn.conv1d(
+                    input_1,
+                    w1,
+                    strides=[1],
+                    padding=[0, 0],
+                    dilation=[1],
+                    data_layout="NCW",
+                    kernel_layout="OIW",
+                    out_layout="NCW",
+                    out_dtype="float32",
+                )
+                lv2: R.Tensor((1, 6, 1)) = R.reshape(w2, [1, 6, 1])
+                lv3: R.Tensor((1, 6, 4), dtype="float32") = R.add(lv1, lv2)
+                gv: R.Tensor((1, 6, 4), dtype="float32") = lv3
+                R.output(gv)
+            return gv
+
+    class Conv1D2(Module):
+        def __init__(self):
+            super().__init__()
+            self.conv = torch.nn.Conv1d(3, 6, 7, bias=False)
+
+        def forward(self, input):
+            return self.conv(input)
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10), dtype="float32"),
+            w1: R.Tensor((6, 3, 7), dtype="float32"),
+        ) -> R.Tensor((1, 6, 4), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv1: R.Tensor((1, 6, 4), dtype="float32") = R.nn.conv1d(
+                    input_1,
+                    w1,
+                    strides=[1],
+                    padding=[0, 0],
+                    dilation=[1],
+                    data_layout="NCW",
+                    kernel_layout="OIW",
+                    out_layout="NCW",
+                    out_dtype="float32",
+                )
+                gv: R.Tensor((1, 6, 4), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    input_info = [([1, 3, 10], "float32")]
+
+    model = Conv1D1()
+    binding = {"w1": model.conv.weight.numpy(), "w2": model.conv.bias.numpy()}
+    verify_model(model, input_info, binding, expected1)
+
+    model = Conv1D2()
+    binding = {"w1": model.conv.weight.numpy()}
+    verify_model(model, input_info, binding, expected2)
+
+
+@tvm.testing.requires_gpu
+def test_conv2d():
     import torch
     from torch.nn import Module
 
