@@ -96,21 +96,39 @@ bool VerifyVTCMLimit(const PrimFunc& func, Integer limit) {
   return true;
 }
 
+int64_t GetVTCMCapacity(Target target, const transform::PassContext& pass_ctx) {
+  if (!target.defined()) target = Target::Current(/*allow_not_defined=*/true);
+  if (target.defined() && target->kind->name == "hexagon") {
+    auto value = Downcast<Integer>(target->attrs.at("vtcm-capacity"))->value;
+    if (value > 0) return value;
+  }
+  return pass_ctx->GetConfig<Integer>("tir.vtcm_capacity", Integer(0)).value()->value;
+}
+
 namespace transform {
 
-Pass VerifyVTCMLimit(const Integer& limit) {
+Pass VerifyVTCMLimit(Optional<Target> default_target) {
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     for (auto kv : mod->functions) {
       if (auto* n = kv.second.as<PrimFuncNode>()) {
         auto func = GetRef<PrimFunc>(n);
-        auto sizes = CalculateAllocatedBytes(func);
-        const auto vtcm_allocated = sizes.Get("global.vtcm").value_or(0);
-        if (limit.IntValue() > 0 && vtcm_allocated.IntValue() > limit.IntValue()) {
-          LOG(FATAL) << "RuntimeError: The global.vtcm memory allocation limit has been "
-                        "exceeded(allocated: "
-                     << vtcm_allocated << ", limit: " << limit << ").\n"
-                     << "In function\n"
-                     << func;
+
+        std::optional<int64_t> limit = std::nullopt;
+        if (auto func_target = func->GetAttr<Target>(tvm::attr::kTarget)) {
+          limit = GetVTCMCapacity(func_target.value(), ctx);
+        } else if (default_target) {
+          limit = GetVTCMCapacity(default_target.value(), ctx);
+        }
+
+        if (limit.has_value() && limit.value() > 0) {
+          auto sizes = CalculateAllocatedBytes(func);
+          const auto vtcm_allocated = sizes.Get("global.vtcm").value_or(0);
+          if (vtcm_allocated.IntValue() > limit.value()) {
+            LOG(FATAL) << "RuntimeError: The global.vtcm memory allocation limit has been exceeded "
+                       << "(allocated: " << vtcm_allocated << ", limit: " << limit.value() << ").\n"
+                       << "In function\n"
+                       << func;
+          }
         }
       }
     }
