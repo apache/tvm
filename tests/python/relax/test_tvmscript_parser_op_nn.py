@@ -35,6 +35,24 @@ def _check(
         tvm.ir.assert_structural_equal(parsed, expect)
 
 
+def test_conv1d():
+    @R.function
+    def foo(
+        x: R.Tensor((2, 3, 228), "float32"), w: R.Tensor((16, 3, 5), "float32")
+    ) -> R.Tensor((2, 16, 224), "float16"):
+        gv: R.Tensor((2, 16, 224), "float16") = R.nn.conv1d(x, w, out_dtype="float16")
+        return gv
+
+    x = relax.Var("x", R.Tensor([2, 3, 228], "float32"))
+    w = relax.Var("w", R.Tensor([16, 3, 5], "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", [x, w]):
+        gv = bb.emit(relax.op.nn.conv1d(x, w, out_dtype="float16"))
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
 def test_conv2d():
     @R.function
     def foo(

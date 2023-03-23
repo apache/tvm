@@ -23,6 +23,104 @@ from . import _ffi_api
 from ...expr import Expr
 
 
+def conv1d(
+    data: Expr,
+    weight: Expr,
+    strides: Union[int, Tuple[int]] = 1,
+    padding: Union[int, Tuple[int, ...]] = 0,
+    dilation: Union[int, Tuple[int]] = 1,
+    groups: int = 1,
+    data_layout: str = "NCW",
+    kernel_layout: str = "OIW",
+    out_layout: Optional[str] = None,
+    out_dtype: Optional[Union[str, DataType]] = None,
+) -> Expr:
+    r"""1D convolution.
+
+    This operator takes the weight as the 1D convolution kernel
+    and convolves it with data to produce an output.
+
+
+    In the default case, where the data_layout is `NCW`
+    and kernel_layout is `OIW`, conv1d takes in
+    a data Tensor with shape `(batch_size, in_channels, width)`,
+    and a weight Tensor with shape `(channels, in_channels, kernel_w)`,
+    where `kernel_w` is the length of the `W` kernel dimension,
+    to produce an output Tensor with the following rule:
+
+    .. math::
+
+        \mbox{out}[b, c, x] = \sum_{dx, k}
+           \mbox{data}[b, k, \mbox{strides} * x + dx] *
+           \mbox{weight}[c, k, dx]
+
+    Padding and dilation are applied to data and weight respectively before the computation.
+    This operator accepts data layout specification.
+    Semantically, the operator will convert the layout to the canonical layout
+    (`NCW` for data and `OIW` for weight), perform the computation,
+    then convert to the out_layout.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data to the operator.
+
+    weight : relax.Expr
+        The weight expressions.
+
+    strides : Union[int, Tuple[int]]
+        The strides of convolution. It is required to have length 1.
+
+    padding : Union[int, Tuple[int, ...]]
+        The padding of convolution on both sides of inputs before convolution.
+        It is required to have length either 1 or 2.
+
+    dilation : Union[int, Tuple[int, int]]
+        Specifies the dilation rate to be used for dilated convolution.
+        It is required to have length 1.
+
+    groups : int
+        Number of groups to split the input into for grouped convolution.
+        The number of input and output channels should be divisible by the number of groups.
+
+    data_layout : str
+        Layout of the input.
+
+    kernel_layout : str
+        Layout of the weight.
+
+    out_layout : Optional[str]
+        Layout of the output. If not specified, it is the same as data_layout
+
+    out_dtype : Optional[Union[str, DataType]]
+        Specifies the output data type for mixed precision conv1d.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    if isinstance(strides, int):
+        strides = (strides,)
+    if isinstance(dilation, int):
+        dilation = (dilation,)
+    if isinstance(padding, int):
+        padding = (padding, padding)
+
+    return _ffi_api.conv1d(  # type: ignore
+        data,
+        weight,
+        strides,
+        padding,
+        dilation,
+        groups,
+        data_layout,
+        kernel_layout,
+        out_layout,
+        out_dtype,
+    )
+
+
 def conv2d(
     data: Expr,
     weight: Expr,
