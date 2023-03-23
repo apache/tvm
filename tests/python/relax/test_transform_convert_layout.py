@@ -708,6 +708,19 @@ def test_conv2d_transpose():
     verify(Input, Expected)
 
 
+def test_expand_dims_scalar():
+    @I.ir_module
+    class Input:
+        @R.function
+        def main() -> R.Tensor((1,), dtype="int64"):
+            with R.dataflow():
+                gv: R.Tensor((1,), dtype="int64") = R.expand_dims(R.const(0, "int64"), axis=[0])
+                R.output(gv)
+            return gv
+
+    verify(Input, Input)
+
+
 def test_conv2d_expand_dims():
     @I.ir_module
     class Input:

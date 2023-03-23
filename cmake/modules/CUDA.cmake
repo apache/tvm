@@ -92,6 +92,10 @@ if(USE_CUDA)
     tvm_file_glob(GLOB RUNTIME_CUDA_GRAPH_SRCS src/runtime/graph_executor/cuda_graph/*.cc)
     list(APPEND RUNTIME_SRCS ${RUNTIME_CUDA_GRAPH_SRCS})
   endif()
+
+  # Add CUDA builtins to RelaxVM
+  tvm_file_glob(GLOB RELAX_VM_CUDA_BUILTIN_SRC_CC src/runtime/relax_vm/cuda/*.cc)
+  list(APPEND RUNTIME_SRCS ${RELAX_VM_CUDA_BUILTIN_SRC_CC})
 else(USE_CUDA)
   list(APPEND COMPILER_SRCS src/target/opt/build_cuda_off.cc)
 endif(USE_CUDA)

@@ -25,6 +25,7 @@
 #include <tvm/tir/expr.h>
 
 #include <algorithm>
+#include <array>
 #include <cstring>
 #include <functional>
 #include <iterator>
