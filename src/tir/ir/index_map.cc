@@ -314,7 +314,7 @@ runtime::NDArray IndexMapNode::MapNDArray(runtime::NDArray arr_src) const {
 IndexMap IndexMap::RenameVariables(
     const std::function<Optional<String>(const Var& var)>& f_name_map) const {
   std::unordered_set<std::string> used_names;
-  Map<Var, PrimExpr> var_remap;
+  Map<Var, Var> var_remap;
   NameSupply name_supply{""};
   const IndexMapNode* n = this->get();
   if (f_name_map != nullptr) {
