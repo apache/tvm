@@ -731,66 +731,6 @@ class ProducerLoad : public PrimExpr {
 };
 
 /*!
- * \brief Load the value from buffer_var.
- *
- *  Equivalent to ((DType*)buffer_var)[index]
- *  where DType is the type specified by type().element_of().
- *
- *  For example, if type = float32x3, then the load will corresponds to
- *
- * \code
- *
- *  auto buffer = static_cast<float*>(buffer_var);
- *  auto loaded_val = float32x3(buffer[index.v0], buffer[index.v1], buffer[index.v2]);
- *
- * \endcode
- */
-class LoadNode : public PrimExprNode {
- public:
-  /*! \brief The buffer variable. */
-  Var buffer_var;
-  /*! \brief The index locations to be loaded. */
-  PrimExpr index;
-  /*! \brief The predicate to mask which lanes would be loaded. */
-  PrimExpr predicate;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("buffer_var", &buffer_var);
-    v->Visit("index", &index);
-    v->Visit("predicate", &predicate);
-    v->Visit("span", &span);
-  }
-
-  bool SEqualReduce(const LoadNode* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype) && equal(buffer_var, other->buffer_var) &&
-           equal(index, other->index) && equal(predicate, other->predicate);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dtype);
-    hash_reduce(buffer_var);
-    hash_reduce(index);
-    hash_reduce(predicate);
-  }
-
-  static constexpr const char* _type_key = "tir.Load";
-  TVM_DECLARE_FINAL_OBJECT_INFO(LoadNode, PrimExprNode);
-};
-
-/*!
- * \brief Managed reference to LoadNode
- * \sa LoadNode
- */
-class Load : public PrimExpr {
- public:
-  TVM_DLL Load(DataType dtype, Var buffer_var, PrimExpr index, PrimExpr predicate,
-               Span span = Span());
-  TVM_DEFINE_OBJECT_REF_METHODS(Load, PrimExpr, LoadNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(LoadNode);
-};
-
-/*!
  * \brief Construct a vector with lanes elements
  *        where its i-th element equals base + i * stride.
  *  This is useful to construct a index for a continuous vector load.

@@ -379,16 +379,6 @@ Doc TIRTextPrinter::VisitExpr_(const ProducerLoadNode* op) {
   return doc;
 }
 
-Doc TIRTextPrinter::VisitExpr_(const LoadNode* op) {
-  Doc doc;
-  doc << "(" << PrintDType(op->dtype) << "*)" << Print(op->buffer_var) << "[" << Print(op->index)
-      << "]";
-  if (!is_one(op->predicate)) {
-    doc << " if " << Print(op->predicate);
-  }
-  return doc;
-}
-
 Doc TIRTextPrinter::VisitExpr_(const RampNode* op) {
   Doc doc;
   doc << "ramp(" << Print(op->base) << ", " << Print(op->stride) << ", " << op->lanes << ")";
@@ -474,15 +464,6 @@ Doc TIRTextPrinter::VisitStmt_(const AssertStmtNode* op) {
   Doc doc;
   doc << "assert(" << Print(op->condition) << ", " << Print(op->message) << ")" << NewLine()
       << Print(op->body);
-  return doc;
-}
-
-Doc TIRTextPrinter::VisitStmt_(const StoreNode* op) {
-  Doc doc;
-  doc << Print(op->buffer_var) << "[" << Print(op->index) << "] = " << Print(op->value);
-  if (!is_one(op->predicate)) {
-    doc << " if " << Print(op->predicate);
-  }
   return doc;
 }
 

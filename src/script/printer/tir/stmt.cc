@@ -419,12 +419,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return DoConciseScoping(lhs, rhs.value(), &(*f)->stmts, concise);
         });
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::Store>(  //
-        "", [](tir::Store stmt, ObjectPath p, IRDocsifier d) -> Doc {
-          LOG(FATAL) << "ValueError: Store has been deprecated for BufferStore: " << stmt;
-        });
-
 TVM_SCRIPT_REPR(tir::LetStmtNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::AttrStmtNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::AssertStmtNode, ReprPrintTIR);
@@ -437,7 +431,6 @@ TVM_SCRIPT_REPR(tir::SeqStmtNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::IfThenElseNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::EvaluateNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::BufferRealizeNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tir::StoreNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script

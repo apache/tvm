@@ -34,7 +34,7 @@
 namespace tvm {
 namespace tir {
 
-// This pass narrows indexing expressions (like StoreNode::Index)
+// This pass narrows indexing expressions (like BufferStoreNode::indices)
 // that trivially fit into i32/i16 (denoted by `target_bits_`) to
 // i32/i16. Considering that i32/i16 indices may be more
 // efficient on some backends (while i64 may be more efficient
@@ -222,14 +222,6 @@ class NarrowDataTypeRewriter : public IndexDataTypeRewriter {
   // (Discussed further in https://github.com/apache/tvm/pull/13267)
   using Parent::VisitExpr_;
   using Parent::VisitStmt_;
-
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
 
   PrimExpr VisitExpr_(const VarNode* op) final {
     if (auto it = visitor_.vmap.find(op); !var_remap_.count(op) && it != visitor_.vmap.end()) {
