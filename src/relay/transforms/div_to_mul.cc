@@ -68,7 +68,8 @@ class DivToMulRewrite : public MixedModeMutator {
               const_has_zero_flag = const_has_values<double>(num_ele, rhs, {0.});
           } else if (dtype == "float16") {
               static_cast<uint16_t*>(one->data)[0] = __gnu_f2h_ieee(1.);
-              const_has_zero_flag = const_has_values<uint16_t>(num_ele, rhs, {0});
+              // have to handle both + and - zero semantics manually here
+              const_has_zero_flag = const_has_values<uint16_t>(num_ele, rhs, {0x00, 0x80});
           } else {
               LOG(WARNING) << "Unknown dtype not handled for div_to_mull: " << rhs->data.DataType(); 
               return post;
@@ -77,7 +78,7 @@ class DivToMulRewrite : public MixedModeMutator {
           if (const_has_zero_flag) {
             return post;
           }
-          
+
           // rely on constant folding to fold things 
           return Multiply(call_node->args[0], Divide(Constant(one), call_node->args[1]));
         }
