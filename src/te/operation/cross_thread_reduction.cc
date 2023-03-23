@@ -22,6 +22,7 @@
  * \file cross_thread_reduction.cc
  */
 #include <tvm/tir/builtin.h>
+#include <tvm/tir/stmt_functor.h>
 
 #include "compute_op.h"
 #include "op_utils.h"

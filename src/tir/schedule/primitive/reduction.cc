@@ -210,7 +210,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   init_realize->block = Block(init_block);
   // Step 1. Create new block vars and their bindings
   // Maps an old block var to the new corresponding block var
-  std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> block_var_map;
+  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> block_var_map;
   block_var_map.reserve(block->iter_vars.size());
   for (int i = 0, n = block->iter_vars.size(); i < n; ++i) {
     const IterVar& iter_var = block->iter_vars[i];
@@ -263,7 +263,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   //         We discard predicate that is related to discarded loops
   init_realize->predicate = RemakePredicate(realize->predicate, discarded_loops);
   // Step 5. Create new loops above init block
-  std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> loop_var_map;
+  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> loop_var_map;
   Stmt body = BlockRealize(init_realize);
   for (int i : chosen_loops) {
     const ForNode* old_loop = TVM_SREF_TO_FOR(loops[i]);
@@ -938,7 +938,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
    * substitute the loop vars which appear in the bindings of some old block iters with the new
    * created block iters
    */
-  std::unordered_map<const VarNode*, PrimExpr> loop_var2block_binding_;
+  std::unordered_map<const VarNode*, Var> loop_var2block_binding_;
 };
 
 /*!
@@ -1030,7 +1030,7 @@ Stmt CreateLoopOutsideRfactorBlock(BlockRealize rf_block_realize, const Array<Fo
 
   // Step 1. Create new loop vars.
   Array<For> new_loops;
-  std::unordered_map<const VarNode*, PrimExpr> new_loop_var_map;
+  std::unordered_map<const VarNode*, Var> new_loop_var_map;
   new_loops.reserve(n_loops);
   new_loop_var_map.reserve(n_loops);
   for (const For& old_loop : loops) {

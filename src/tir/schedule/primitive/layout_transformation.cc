@@ -223,7 +223,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
                         Map<Block, Block>* new_block_to_old)
         : info(info),
           new_buffer(new_buffer),
-          new_indices(inverse->initial_indices.Map([](const Var& var) -> PrimExpr { return var; })),
+          new_indices(inverse->initial_indices),
           padding_predicate(padding_predicate),
           inverse(inverse),
           pad_value(pad_value),
@@ -286,13 +286,13 @@ class TransformLayoutPlanner : private StmtExprVisitor {
       // Therefore, generate new virtual indices for iterating over
       // the post-transform buffer.
 
-      new_indices = inverse->initial_indices.Map([](Var var) -> PrimExpr {
+      new_indices = inverse->initial_indices.Map([](Var var) {
         std::stringstream ss;
         ss << "v_" << var->name_hint;
         return Var(ss.str(), var.dtype());
       });
 
-      Map<Var, PrimExpr>
+      Map<Var, Var>
           loop_var_to_virtual_var;  // For updating padding_predicate in terms of the new indices
       Array<PrimExpr> new_iter_values;  // For BlockRealize
       Array<IterVar> new_iter_vars;     // For Block
@@ -305,7 +305,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
       ICHECK_EQ(new_indices.size(), new_buffer->shape.size());
       for (size_t i = 0; i < new_indices.size(); i++) {
         Var var = inverse->initial_indices[i];
-        Var virtual_var = Downcast<Var>(new_indices[i]);
+        Var virtual_var = new_indices[i];
         PrimExpr dim = new_buffer->shape[i];
         new_iter_values.push_back(var);
         new_iter_vars.push_back(
@@ -351,10 +351,12 @@ class TransformLayoutPlanner : private StmtExprVisitor {
 
       BufferStore store = GetRef<BufferStore>(op);
       if (can_replace) {
-        PrimExpr pad_value_at_index = pad_value.value()->MapIndices(new_indices)[0];
+        Array<PrimExpr> new_index_exprs =
+            new_indices.Map([](const auto& var) -> PrimExpr { return var; });
+        PrimExpr pad_value_at_index = pad_value.value()->MapIndices(new_index_exprs)[0];
         store =
             BufferStore(new_buffer, if_then_else(padding_predicate, pad_value_at_index, op->value),
-                        new_indices);
+                        new_index_exprs);
       } else {
         all_stores_replaced = false;
       }
@@ -419,7 +421,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
 
     const WriteInfo& info;
     const Buffer& new_buffer;
-    Array<PrimExpr> new_indices;
+    Array<Var> new_indices;
     Array<IterVar> new_iter_vars;
     Array<PrimExpr> new_iter_values;
     PrimExpr padding_predicate;
@@ -460,7 +462,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     Array<IterVar> iter_vars;
     Array<PrimExpr> iter_values;
     Array<PrimExpr> indices;
-    Map<Var, PrimExpr> loop_indices_to_block_indices;
+    Map<Var, Var> loop_indices_to_block_indices;
     ICHECK_EQ(inverse->initial_indices.size(), new_buffer->shape.size());
     for (size_t i = 0; i < inverse->initial_indices.size(); i++) {
       const auto& loop_var = inverse->initial_indices[i];

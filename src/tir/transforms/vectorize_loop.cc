@@ -560,8 +560,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   // scalarize the statment
   Stmt Scalarize(Stmt stmt) {
     Var idx(var_->name_hint + ".s", var_->dtype);
-    Map<Var, PrimExpr> values{{var_, idx}};
-    stmt = Substitute(stmt, values);
+    stmt = Substitute(stmt, {{var_, idx}});
     return For(idx, IntImm(var_->dtype, 0), IntImm(var_->dtype, var_lanes_), ForKind::kSerial,
                stmt);
   }
