@@ -44,6 +44,9 @@ def is_relax_constant(expr):
 
 # Return True if given expression is scalar constant value.
 def is_scalar(expr):
+    """
+    Return True if given expression is scalar constant value.
+    """
     if isinstance(expr, te.Tensor):
         if is_relax_constant(expr):
             shape = expr.op.value.data.shape
