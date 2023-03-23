@@ -520,7 +520,7 @@ class FuseMutator : private MixedModeMutator {
       auto* arg_group = gmap_.at(arg.get())->FindRoot();
       auto type = arg->checked_type();
       Expr new_arg = this->Mutate(arg);
-      if (current_group != arg_group) {
+      if (current_group != arg_group && new_arg.as<ConstantNode>() == nullptr) {
         if (!link_params_ || new_arg.as<ConstantNode>() == nullptr) {
           Var param = ginfo_[current_group].GetOrAllocParam(new_arg, type);
           new_args.push_back(param);
