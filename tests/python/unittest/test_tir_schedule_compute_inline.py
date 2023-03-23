@@ -1154,7 +1154,7 @@ def test_reverse_compute_inline_producer_predicate_disallowed():
         sch.reverse_compute_inline(sch.get_block("compute_4"))
 
     assert (
-        "that cannot be implied by the synthesized predicate True of the new inlined block"
+        "that cannot be implied by the synthesized predicate T.bool(True) of the new inlined block"
         in str(e)
     )
 
