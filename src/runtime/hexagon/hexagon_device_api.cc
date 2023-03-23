@@ -52,7 +52,7 @@ void HexagonDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv)
 // DataSpace: static allocations for Hexagon
 void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
                                        Optional<String> mem_scope) {
-  CHECK(shape) << "shape array is null";
+  CHECK(shape || ndim == 0) << "shape array is null for a non-scalar tensor, ndim = " << ndim;
   CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
 
   // IMPORTANT NOTE!
