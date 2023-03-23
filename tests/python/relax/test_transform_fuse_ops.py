@@ -87,7 +87,6 @@ def test_fuse_const():
     def expected():
         bb = relax.BlockBuilder()
         x = relax.Var("x", R.Tensor([10, 20], "float32"))
-        y = relax.const(1, "float32")
         p0 = relax.Var("p0", R.Tensor((), "float32"))
 
         with bb.function("fused_add_exp_squeeze", [x, p0], attrs={"Primitive": 1}):
@@ -99,6 +98,7 @@ def test_fuse_const():
         fused_add_exp_squeeze = bb.get().get_global_var("fused_add_exp_squeeze")
 
         x = relax.Var("x", R.Tensor([10, 20], "float32"))
+        y = relax.const(1, "float32")
         with bb.function("main", [x]):
             with bb.dataflow():
                 gv = bb.emit_output(
