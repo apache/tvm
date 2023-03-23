@@ -171,15 +171,9 @@ class LiftTransformParamsPlanner : public ExprVisitor {
       can_lift = false;
     }
     if (const auto* call = binding->value.as<CallNode>()) {
-      static const Op& call_tir_op_ = Op::Get("relax.call_tir");
-      if (call->op.same_as(call_tir_op_)) {
-        if (const auto* gv = call->args[0].as<GlobalVarNode>()) {
-          if (const auto* prim_func = mod_->Lookup(GetRef<GlobalVar>(gv)).as<tir::PrimFuncNode>()) {
-            if (prim_func->HasNonzeroAttr(attr::kStopLifting)) {
-              can_lift = false;
-            }
-          }
-        }
+      static const Op& stop_lift_params_op = Op::Get("relax.stop_lift_params");
+      if (call->op.same_as(stop_lift_params_op)) {
+        can_lift = false;
       }
     }
 
@@ -283,6 +277,13 @@ class TransformParamsLifter : public ExprMutator {
   void VisitBinding_(const VarBindingNode* binding) final {
     if (lift_plan_.lifted_bindings.count(binding->var)) {
       return;
+    }
+    if (const auto* call = binding->value.as<CallNode>()) {
+      static const Op& stop_lift_params_op = Op::Get("relax.stop_lift_params");
+      if (call->op.same_as(stop_lift_params_op)) {
+        var_remap_[binding->var->vid] = Downcast<Var>(VisitExpr(call->args[0]));
+        return;
+      }
     }
     ExprMutator::VisitBinding_(binding);
   }

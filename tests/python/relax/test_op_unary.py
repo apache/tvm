@@ -83,6 +83,7 @@ unary_arith_op, require_float_dtype = tvm.testing.parameters(
     (relax.op.sqrt, True),
     (relax.op.tan, True),
     (relax.op.tanh, True),
+    (relax.op.stop_lift_params, False),
 )
 
 
