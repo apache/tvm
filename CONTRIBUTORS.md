@@ -170,6 +170,7 @@ We do encourage everyone to work anything they are interested in.
 - [Gustavo Romero](https://github.com/gromero): @gromero
 - [Giuseppe Rossini](https://github.com/giuseros): @giuseros
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel
+- [Janet Schneider](https://github.com/janetsc): @janetsc
 - [Junru Shao](https://github.com/junrushao): @junrushao
 - [Haichen Shen](https://github.com/icemelon): @icemelon
 - [Xingjian Shi](https://github.com/sxjscience): @sxjscience

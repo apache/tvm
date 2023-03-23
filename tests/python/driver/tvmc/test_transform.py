@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
 from unittest.mock import MagicMock
 
 import tvm
@@ -23,6 +24,7 @@ from tvm.relay import testing
 from tvm.relay.expr_functor import ExprMutator
 from tvm.ir.instrument import pass_instrument
 from tvm.driver.tvmc.transform import apply_graph_transforms
+from tvm.driver.tvmc.model import TVMCException
 
 
 def test_layout_transform_fold_constant(relay_conv2d):
@@ -41,7 +43,7 @@ def test_layout_transform_fold_constant(relay_conv2d):
 
     pass_names = CollectPassNames()
     with tvm.transform.PassContext(opt_level=3, instruments=[pass_names]):
-        apply_graph_transforms(relay_conv2d, {"desired_layout": desired_layout})
+        apply_graph_transforms(relay_conv2d, {"desired_layout": [desired_layout]})
 
     names = pass_names.names
     assert "ConvertLayout" in names
@@ -61,7 +63,7 @@ def test_layout_transform_convert_layout_pass_args(relay_conv2d, monkeypatch):
     monkeypatch.setattr(relay.transform, "ConvertLayout", mock_convert_layout)
 
     with tvm.transform.PassContext(opt_level=3):
-        apply_graph_transforms(relay_conv2d, {"desired_layout": desired_layout})
+        apply_graph_transforms(relay_conv2d, {"desired_layout": [desired_layout]})
 
     mock_convert_layout.assert_called_once_with(
         {
@@ -70,6 +72,86 @@ def test_layout_transform_convert_layout_pass_args(relay_conv2d, monkeypatch):
             "qnn.conv2d": ["NHWC", "default"],
         }
     )
+
+
+def test_layout_transform_convert_kernel_layout_pass_args(relay_conv2d, monkeypatch):
+    """
+    Check the convert layout desired layouts arugment is what is expected when
+    a non-default kernel layout is provided.
+    """
+    desired_layout = "NHWC:HWIO"
+    desired_layout_ops = ["nn.conv2d"]
+
+    mock_convert_layout = MagicMock()
+    mock_convert_layout.return_value = relay.transform.ConvertLayout({})
+    monkeypatch.setattr(relay.transform, "ConvertLayout", mock_convert_layout)
+
+    with tvm.transform.PassContext(opt_level=3):
+        apply_graph_transforms(
+            relay_conv2d,
+            {"desired_layout": [desired_layout], "desired_layout_ops": desired_layout_ops},
+        )
+
+    mock_convert_layout.assert_called_once_with(
+        {
+            "nn.conv2d": ["NHWC", "HWIO"],
+        }
+    )
+
+
+def test_layout_transform_convert_layout_pass_args_multiple(relay_conv2d, monkeypatch):
+    """
+    Check the convert layout desired layouts arugment is what is expected when
+    a multiple desired layouts are provided.
+    """
+    desired_layout = ["NHWC", "NCHW"]
+    desired_layout_ops = ["nn.max_pool2d", "qnn.conv2d"]
+
+    mock_convert_layout = MagicMock()
+    mock_convert_layout.return_value = relay.transform.ConvertLayout({})
+    monkeypatch.setattr(relay.transform, "ConvertLayout", mock_convert_layout)
+
+    with tvm.transform.PassContext(opt_level=3):
+        apply_graph_transforms(
+            relay_conv2d,
+            {"desired_layout": desired_layout, "desired_layout_ops": desired_layout_ops},
+        )
+
+    mock_convert_layout.assert_called_once_with(
+        {
+            "nn.max_pool2d": ["NHWC", "default"],
+            "qnn.conv2d": ["NCHW", "default"],
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "desired",
+    [
+        (["NHWC", "NCHW"], ["nn.max_pool2d"]),
+        (["NHWC", "NCHW"], None),
+    ],
+)
+def test_layout_transform_convert_layout_pass_args_multiple_invalid(
+    relay_conv2d,
+    monkeypatch,
+    desired,
+):
+    """
+    Check invalid cases when passing multiple values to the desired layouts argument.
+    """
+    desired_layout, desired_layout_ops = desired
+
+    mock_convert_layout = MagicMock()
+    mock_convert_layout.return_value = relay.transform.ConvertLayout({})
+    monkeypatch.setattr(relay.transform, "ConvertLayout", mock_convert_layout)
+
+    with pytest.raises(TVMCException):
+        with tvm.transform.PassContext(opt_level=3):
+            apply_graph_transforms(
+                relay_conv2d,
+                {"desired_layout": desired_layout, "desired_layout_ops": desired_layout_ops},
+            )
 
 
 def test_layout_transform_to_mixed_precision_pass_args_mock(relay_conv2d, monkeypatch):

@@ -39,6 +39,7 @@ from tvm.script import tir as T
 from tvm.tir.stmt_functor import pre_order_visit
 from tvm.meta_schedule.testing import te_workload
 from tvm.te import create_prim_func
+from tvm.tir.schedule.analysis import is_output_block
 
 
 def _make_vars(*args: str) -> List[Var]:
@@ -394,6 +395,26 @@ def test_get_auto_tensorize_mapping_info_batch_matmul(b, m, n, k):
 def test_get_auto_tensorize_mapping_info_matmul(n, m, k, expected):
     matmul = create_prim_func(te_workload.matmul(n, m, k, in_dtype="float16", out_dtype="float32"))
     check_index_map(matmul, "C", WMMA_SYNC_16x16x16_f16f16f32_INTRIN, expected)
+
+
+def test_is_output_block():
+    @T.prim_func
+    def two_elementwise(a: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, (128, 128), "float32")
+        B = T.alloc_buffer((128, 128), "float32")
+        C = T.match_buffer(c, (128, 128), "float32")
+        for i, j in T.grid(128, 128):
+            with T.block("B"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                B[vi, vj] = A[vi, vj] * 2.0
+        for i, j in T.grid(128, 128):
+            with T.block("C"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                C[vi, vj] = B[vi, vj] + 1.0
+
+    sch = tvm.tir.Schedule(two_elementwise)
+    block_rv = sch.get_block("C")
+    assert is_output_block(sch, block_rv)
 
 
 if __name__ == "__main__":

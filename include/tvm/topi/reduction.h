@@ -325,7 +325,11 @@ inline PrimExpr ProdOp(PrimExpr source, Array<IterVar> axis, Array<PrimExpr> ini
  */
 inline Tensor sum(const Tensor& data, const Array<Integer>& axis, bool keepdims = false,
                   bool atleast1d = false) {
-  return CommReduce(data, axis, tvm::sum, keepdims, atleast1d);
+  if (data->dtype.is_bool()) {
+    return CommReduce(data, axis, tvm::any, keepdims, atleast1d);
+  } else {
+    return CommReduce(data, axis, tvm::sum, keepdims, atleast1d);
+  }
 }
 
 inline Tensor collapse_sum(const Tensor& data, Array<PrimExpr> target_shape) {

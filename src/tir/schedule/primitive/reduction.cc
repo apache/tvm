@@ -188,17 +188,19 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   // Get the outer loops from high to low
   Array<StmtSRef> loops = GetLoops(block_sref);
   const BlockRealizeNode* realize = GetBlockRealize(self, block_sref).get();
-  // Cond 0. Check loop_sref is an ancestor of block_sref
-  if (std::find(loops.begin(), loops.end(), loop_sref) == loops.end()) {
-    throw LoopPositionError(self->mod, GetRef<For>(loop), GetRef<Block>(block),
-                            "decompose_reduction");
-  }
-  // Cond 1. Check block is reduction
   StmtSRef scope_root_sref = GetScopeRoot(self, block_sref,
                                           /*require_stage_pipeline=*/false);
-  CheckReductionBlock(self, block_sref, scope_root_sref);
-  // Cond 2. Check 'loop' is higher than all the loops related to block var of type reduction
-  LoopHeightError::CheckLoopHigherThanReduceLoops(self->mod, block, realize, loops, loop_sref);
+  if (self->enable_check) {
+    // Cond 0. Check loop_sref is an ancestor of block_sref
+    if (std::find(loops.begin(), loops.end(), loop_sref) == loops.end()) {
+      throw LoopPositionError(self->mod, GetRef<For>(loop), GetRef<Block>(block),
+                              "decompose_reduction");
+    }
+    // Cond 1. Check block is reduction
+    CheckReductionBlock(self, block_sref, scope_root_sref);
+    // Cond 2. Check 'loop' is higher than all the loops related to block var of type reduction
+    LoopHeightError::CheckLoopHigherThanReduceLoops(self->mod, block, realize, loops, loop_sref);
+  }
   // IR Manipulation
   ObjectPtr<BlockNode> init_block = make_object<BlockNode>();
   ObjectPtr<BlockRealizeNode> init_realize = make_object<BlockRealizeNode>();
@@ -1176,7 +1178,9 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   const Block& block = block_realize->block;
   StmtSRef scope_root = GetScopeRoot(self, block_sref,  //
                                      /*require_stage_pipeline=*/true);
-  CheckReductionBlock(self, block_sref, scope_root);
+  if (self->enable_check) {
+    CheckReductionBlock(self, block_sref, scope_root);
+  }
   const ForNode* rf_loop = TVM_SREF_TO_FOR(rf_loop_sref);
   if (rf_loop->kind != ForKind::kSerial) {
     throw NotSerialLoopKindError(self->mod, GetRef<For>(rf_loop));
@@ -1199,8 +1203,10 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   // - the outermost loop should have the reduction block as its first child block;
   // - the outermost loop that is touched by some reduction block iters can only have one child
   // block.
-  LoopPropertyError::CheckLoopProperty(self, loops, rf_loop, block, data_par_loop_vars,
-                                       reduce_loop_vars);
+  if (self->enable_check) {
+    LoopPropertyError::CheckLoopProperty(self, loops, rf_loop, block, data_par_loop_vars,
+                                         reduce_loop_vars);
+  }
 
   // Step 5. Get the `init` identity and the `update` combiner of the reduction. Extract the
   // commutative reducer, combiner lhs and combiner rhs from the reduction identity and the

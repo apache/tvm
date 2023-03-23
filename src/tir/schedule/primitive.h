@@ -339,6 +339,15 @@ TVM_DLL Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sre
  */
 TVM_DLL StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                          BufferIndexType buffer_index_type);
+
+/******** Schedule: Data movement ********/
+
+TVM_DLL StmtSRef ReadAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
+                        int read_buffer_index, const String& storage_scope);
+
+TVM_DLL StmtSRef WriteAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
+                         int write_buffer_index, const String& storage_scope);
+
 /******** Schedule: Compute location ********/
 /*!
  * \brief Move a producer block under the specific loop, and regenerate the
@@ -470,6 +479,18 @@ TVM_DLL void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int bu
  */
 TVM_DLL void SetScope(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                       const String& storage_scope);
+/*!
+ * \brief Set the data type of a buffer, where the buffer is specified by a block and a
+ * write-index
+ * \note This schedule primitive is unsafe and may change correctness of program because of
+ *   type conversion, please use with caution.
+ * \param self The state of the schedule
+ * \param block_sref The sref of the producer block of the buffer
+ * \param buffer_index The index of the buffer in block's write region
+ * \param dtype The data type to be set
+ */
+TVM_DLL void UnsafeSetDType(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
+                            const String& dtype);
 /*!
  * \brief Set the axis separator of a buffer, where the buffer is specified by a block and a read
  * or write index

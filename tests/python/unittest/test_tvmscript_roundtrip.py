@@ -3636,6 +3636,60 @@ def if_then_else_var():
     return main
 
 
+def tvm_shfl_builtins():
+    @T.prim_func
+    def func(
+        A: T.handle("float32"),
+        B: T.handle("float32"),
+        C: T.handle("float32"),
+    ):
+        blockIdx_x = T.launch_thread("blockIdx.x", 1)
+        threadIdx_x = T.launch_thread("threadIdx.x", 32)
+        A_warp = T.allocate([1], "float32", "local")
+        B_warp = T.allocate([1], "float32", "local")
+        red_buf0 = T.allocate([1], "float32", "local")
+        A_warp_1 = T.Buffer((32,), data=A_warp, scope="local")
+        A_1 = T.Buffer((32,), data=A)
+        A_warp_1[0] = A_1[threadIdx_x]
+        B_warp_1 = T.Buffer((32,), data=B_warp, scope="local")
+        T.tvm_storage_sync("warp")
+        B_warp_1[0] = T.tvm_warp_shuffle(
+            T.tvm_warp_activemask(), A_warp_1[0], threadIdx_x % 4 * 8 + threadIdx_x // 4, 32, 32
+        ) + T.float32(1)
+        red_buf0_1 = T.Buffer((1,), data=red_buf0, scope="local")
+        with T.attr(
+            T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
+            "reduce_scope",
+            T.reinterpret("handle", T.uint64(0)),
+        ):
+            mask = T.allocate([1], "uint32", "local")
+            t0 = T.allocate([1], "float32", "local")
+            red_buf0_1[0] = A_warp_1[0]
+            mask_1 = T.Buffer((1,), "uint32", data=mask, scope="local")
+            mask_1[0] = T.tvm_warp_activemask()
+            t0_1 = T.Buffer((1,), data=t0, scope="local")
+            t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 16, 32, 32)
+            red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
+            t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 8, 32, 32)
+            red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
+            t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 4, 32, 32)
+            red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
+            t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 2, 32, 32)
+            red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
+            t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 1, 32, 32)
+            red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
+            red_buf0_1[0] = T.tvm_warp_shuffle(mask_1[0], red_buf0_1[0], 0, 32, 32)
+            # NOTE(Zihao): test tvm_warp_shuffle_up
+            red_buf0_1[0] = T.tvm_warp_shuffle_up(mask_1[0], red_buf0_1[0], 0, 32, 32)
+        if threadIdx_x == 0:
+            C_1 = T.Buffer((1,), data=C)
+            C_1[0] = red_buf0_1[0]
+        B_1 = T.Buffer((32,), data=B)
+        B_1[threadIdx_x] = B_warp_1[0]
+
+    return func
+
+
 ir_generator = tvm.testing.parameter(
     launch_env_thread,
     opt_gemm_normalize,
@@ -3700,6 +3754,7 @@ ir_generator = tvm.testing.parameter(
     string_stride,
     merge_shape_var_def,
     if_then_else_var,
+    tvm_shfl_builtins,
 )
 
 

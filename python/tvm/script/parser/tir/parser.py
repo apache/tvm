@@ -145,6 +145,7 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
     elif isinstance(value, PrimExpr):
         frame = T.LetStmt(value)
         var = frame.var
+        IRBuilder.name(var_name, var)
         frame.add_callback(partial(frame.__exit__, None, None, None))
         frame.__enter__()
         return var

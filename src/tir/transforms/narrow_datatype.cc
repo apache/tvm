@@ -258,6 +258,44 @@ class NarrowDataTypeRewriter : public IndexDataTypeRewriter {
     return Parent::VisitExpr_(op);
   }
 
+#define TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)             \
+  PrimExpr VisitExpr_(const OP* op) {                                     \
+    PrimExpr a = this->VisitExpr(op->a);                                  \
+    PrimExpr b = this->VisitExpr(op->b);                                  \
+    if (op->a.same_as(a) && op->b.same_as(b) && a.dtype() == b.dtype()) { \
+      return GetRef<PrimExpr>(op);                                        \
+    } else {                                                              \
+      if (a.dtype() != b.dtype()) {                                       \
+        bool is_enabled = is_enabled_;                                    \
+        is_enabled_ = true;                                               \
+        PrimExpr lhs = this->VisitExpr(op->a);                            \
+        PrimExpr rhs = this->VisitExpr(op->b);                            \
+        is_enabled_ = is_enabled;                                         \
+        return FUNC(lhs, rhs);                                            \
+      } else {                                                            \
+        return FUNC(a, b);                                                \
+      }                                                                   \
+    }                                                                     \
+  }
+
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(AddNode, operator+);
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(SubNode, operator-);
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MulNode, operator*);
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(DivNode, div);
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(ModNode, truncmod);
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(FloorDivNode, floordiv);
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(FloorModNode, floormod);
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MinNode, min);
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MaxNode, max);
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(EQNode, operator==);
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(NENode, operator!=);
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LENode, operator<=);
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LTNode, operator<);  // NOLINT(*)
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GTNode, operator>);  // NOLINT(*)
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=);
+
+#undef TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH
+
  private:
   // the internal visitor to deduce the narrowed dtype
   DataTypeVisitor visitor_;

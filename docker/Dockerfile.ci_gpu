@@ -17,7 +17,7 @@
 
 # CI docker GPU env
 # tag: v0.60
-FROM nvidia/cuda:11.0.3-cudnn8-devel-ubuntu18.04
+FROM nvidia/cuda:11.7.1-cudnn8-devel-ubuntu18.04
 
 COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
 

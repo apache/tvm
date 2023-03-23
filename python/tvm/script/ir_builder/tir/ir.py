@@ -29,7 +29,8 @@ from typing_extensions import Literal
 import numpy as np  # type: ignore
 
 from tvm import tir
-from tvm.ir import Range, Type
+from tvm import ir
+from tvm.ir import Type
 from tvm.ir.base import deprecated
 from tvm.runtime import String, convert, ndarray
 from tvm.target import Target
@@ -496,7 +497,7 @@ def alloc_buffer(
     )
 
 
-def _as_range(dom: Union[Range, List[PrimExpr]]) -> Range:
+def _as_range(dom: Union[ir.Range, List[PrimExpr]]) -> ir.Range:
     """The range constructor.
 
     Parameters
@@ -509,13 +510,13 @@ def _as_range(dom: Union[Range, List[PrimExpr]]) -> Range:
     res : Range
         The Range.
     """
-    if isinstance(dom, Range):
+    if isinstance(dom, ir.Range):
         return dom
     if isinstance(dom, (list, tuple)):
-        return Range(dom[0], dom[1])
+        return ir.Range(dom[0], dom[1])
     if hasattr(dom, "dtype"):
-        return Range(IntImm(dom.dtype, 0), dom)
-    return Range(0, dom)
+        return ir.Range(IntImm(dom.dtype, 0), dom)
+    return ir.Range(0, dom)
 
 
 class axis:  # pylint: disable=invalid-name
@@ -523,7 +524,7 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def spatial(
-        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]],
+        dom: Union[ir.Range, List[PrimExpr], Tuple[PrimExpr]],
         binding: PrimExpr,
         dtype: str = "int32",
     ) -> Var:
@@ -551,7 +552,7 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def reduce(
-        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]],
+        dom: Union[ir.Range, List[PrimExpr], Tuple[PrimExpr]],
         binding: PrimExpr,
         dtype: str = "int32",
     ) -> Var:
@@ -579,7 +580,7 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def scan(
-        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]],
+        dom: Union[ir.Range, List[PrimExpr], Tuple[PrimExpr]],
         binding: PrimExpr,
         dtype: str = "int32",
     ) -> Var:
@@ -607,7 +608,7 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def opaque(
-        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]],
+        dom: Union[ir.Range, List[PrimExpr], Tuple[PrimExpr]],
         binding: PrimExpr,
         dtype: str = "int32",
     ) -> Var:
@@ -1288,7 +1289,7 @@ def buffer_store(
 
 def prefetch(
     buffer: Buffer,  # pylint: disable=redefined-outer-name
-    bounds: List[Range],
+    bounds: List[ir.Range],
 ) -> None:
     """The prefetch hint for a buffer.
 
@@ -1579,7 +1580,7 @@ def max(a: PrimExpr, b: PrimExpr) -> PrimExpr:  # pylint: disable=redefined-buil
     return _ffi_api.max(a, b)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def iter_var(v: Union[Var, str], dom: Range, iter_type: str, thread_tag: str) -> IterVar:
+def iter_var(v: Union[Var, str], dom: ir.Range, iter_type: str, thread_tag: str) -> IterVar:
     """The iteration variable.
 
     Parameters
@@ -1664,6 +1665,21 @@ def target(target_config: Union[Dict, str]) -> Target:
             f"T.target expected a config dict or string, but got {type(target_config)}"
         )
     return Target(target_config)
+
+
+def Range(begin: PrimExpr, end: PrimExpr) -> ir.Range:  # pylint: disable=invalid-name
+    """
+    Create a Range object.
+
+    Parameters
+    ----------
+    begin : PrimExpr
+        The begin value of the range.
+
+    end : Optional[PrimExpr]
+        The end value of the range.
+    """
+    return ir.Range(begin, end)
 
 
 class meta_var:  # pylint: disable=invalid-name
@@ -1782,6 +1798,11 @@ tvm_mma_sync = _op_wrapper(_tir_op.tvm_mma_sync)
 tvm_bmma_sync = _op_wrapper(_tir_op.tvm_bmma_sync)
 tvm_fill_fragment = _op_wrapper(_tir_op.tvm_fill_fragment)
 tvm_store_matrix_sync = _op_wrapper(_tir_op.tvm_store_matrix_sync)
+tvm_storage_sync = _tir_op.tvm_storage_sync
+tvm_warp_shuffle = _tir_op.tvm_warp_shuffle
+tvm_warp_shuffle_up = _tir_op.tvm_warp_shuffle_up
+tvm_warp_shuffle_down = _tir_op.tvm_warp_shuffle_down
+tvm_warp_activemask = _tir_op.tvm_warp_activemask
 ptx_wait_group = _op_wrapper(_tir_op.ptx_wait_group)
 ptx_commit_group = _op_wrapper(_tir_op.ptx_commit_group)
 assume = _op_wrapper(_tir_op.assume)
@@ -2042,6 +2063,11 @@ __all__ = [
     "tvm_bmma_sync",
     "tvm_fill_fragment",
     "tvm_store_matrix_sync",
+    "tvm_storage_sync",
+    "tvm_warp_shuffle",
+    "tvm_warp_shuffle_up",
+    "tvm_warp_shuffle_down",
+    "tvm_warp_activemask",
     "ptx_mma",
     "ptx_mma_sp",
     "ptx_ldmatrix",
@@ -2109,4 +2135,5 @@ __all__ = [
     "Let",
     "IterVar",
     "CommReducer",
+    "Range",
 ]

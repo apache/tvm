@@ -145,9 +145,6 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
           pass_list.push_back(tir::transform::InjectDoubleBuffer());
           pass_list.push_back(tir::transform::VectorizeLoop(true));
           pass_list.push_back(tir::transform::StorageRewrite());
-          transform::PassContext pass_ctx = transform::PassContext::Current();
-          pass_ctx->config.Set("tir.merge_async_commit_queue_scope",
-                               Bool(merge_async_commit_queue_scope));
           tir::PrimFunc f = WithAttr(GetRef<tir::PrimFunc>(prim_func), "global_symbol",
                                      runtime::String(g_var->name_hint));
           IRModule mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(g_var->name_hint), f}}));
@@ -169,15 +166,12 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
     return Postproc(n);
   }
 
-  bool merge_async_commit_queue_scope = true;
-
   static constexpr const char* _type_key = "meta_schedule.DisallowAsyncStridedMemCopy";
   TVM_DECLARE_FINAL_OBJECT_INFO(DisallowAsyncStridedMemCopyNode, PostprocNode);
 };
 
-Postproc Postproc::DisallowAsyncStridedMemCopy(bool merge_async_commit_queue_scope) {
+Postproc Postproc::DisallowAsyncStridedMemCopy() {
   ObjectPtr<DisallowAsyncStridedMemCopyNode> n = make_object<DisallowAsyncStridedMemCopyNode>();
-  n->merge_async_commit_queue_scope = merge_async_commit_queue_scope;
   return Postproc(n);
 }
 

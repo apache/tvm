@@ -865,6 +865,7 @@ IntSet UnionLowerBound(const Array<IntSet>& sets) {
   PrimExpr min_inclusive{nullptr};
   PrimExpr max_inclusive(nullptr);
   for (const IntSet& int_set : sets) {
+    if (int_set.IsNothing()) continue;
     if (const auto* interval_set = int_set.as<IntervalSetNode>()) {
       PrimExpr new_min_inclusive = interval_set->min_value;
       PrimExpr new_max_inclusive = interval_set->max_value;
