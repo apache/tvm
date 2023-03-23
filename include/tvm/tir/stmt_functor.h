@@ -397,7 +397,7 @@ inline Range Substitute(const Range& range,
  *
  * \param obj The object in which TIR variables should be substituted
  * \param vmap Map defining the TIR variables to be replaced
- * \return The modified Range.
+ * \return The modified object.
  */
 template <typename Obj>
 auto Substitute(Obj&& obj, const Map<Var, PrimExpr>& vmap) {
@@ -412,7 +412,7 @@ auto Substitute(Obj&& obj, const Map<Var, PrimExpr>& vmap) {
  *
  * \param obj The object in which TIR variables should be substituted
  * \param vmap Map defining the TIR variables to be replaced
- * \return The modified Range.
+ * \return The modified object.
  */
 template <typename Obj, typename Expr,
           typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr>>>
@@ -434,7 +434,7 @@ auto Substitute(Obj&& obj, const Map<Var, Expr>& vmap) {
  *
  * \param obj The object in which TIR variables should be substituted
  * \param vmap Map defining the TIR variables to be replaced
- * \return The modified Range.
+ * \return The modified object.
  */
 template <typename Obj, typename Expr,
           typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr>>>
@@ -456,7 +456,7 @@ auto Substitute(Obj&& obj, const std::unordered_map<const VarNode*, Expr>& vmap)
  *
  * \param obj The object in which TIR variables should be substituted
  * \param vmap Map defining the TIR variables to be replaced
- * \return The modified Range.
+ * \return The modified object.
  */
 template <typename Obj, typename Expr, typename Hasher, typename EqualityChecker,
           typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr>>>
@@ -478,7 +478,7 @@ auto Substitute(Obj&& obj, const std::unordered_map<Var, Expr, Hasher, EqualityC
  *
  * \param obj The object in which TIR variables should be substituted
  * \param iter_vmap Map defining the TIR variables to be replaced
- * \return The modified Range.
+ * \return The modified object.
  */
 template <typename Obj, typename Expr,
           typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr>>>
