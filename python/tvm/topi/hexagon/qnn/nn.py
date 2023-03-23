@@ -39,9 +39,9 @@ def clip_cast(val, dtype):
 
 
 def is_relax_constant(expr):
-     return hasattr(expr.op, "value") and isinstance(expr.op.value, tvm.relax.expr.Constant)
- 
- 
+    return hasattr(expr.op, "value") and isinstance(expr.op.value, tvm.relax.expr.Constant)
+
+
 # Return True if given expression is scalar constant value.
 def is_scalar(expr):
     if isinstance(expr, te.Tensor):
@@ -50,14 +50,16 @@ def is_scalar(expr):
             dtype = expr.op.value.data.dtype
             return len(shape) == 0 and ("float" in dtype or "int" in dtype)
         else:
-            return expr.ndim == 0 and (isinstance(expr.op.body[0], (tvm.tir.FloatImm, tvm.tir.IntImm)))
+            return expr.ndim == 0 and (
+                isinstance(expr.op.body[0], (tvm.tir.FloatImm, tvm.tir.IntImm))
+            )
     return isinstance(expr, (tvm.tir.FloatImm, tvm.tir.IntImm))
 
 
 def get_relax_scalar_const_value(expr):
-     assert len(expr.op.value.data.shape) == 0
-     return expr.op.value.data.numpy()[()]
- 
+    assert len(expr.op.value.data.shape) == 0
+    return expr.op.value.data.numpy()[()]
+
 
 def get_const_int_value(expr):
     if isinstance(expr, te.Tensor):
@@ -426,7 +428,9 @@ def qnn_mul(
     if is_scalar(lhs_scale) and is_scalar(rhs_scale):
         assert isinstance(lhs_scale, te.Tensor)
         assert isinstance(rhs_scale, te.Tensor)
-        iscale = get_const_float_value(lhs_scale.op.body[0]) * get_const_float_value(rhs_scale.op.body[0])
+        iscale = get_const_float_value(lhs_scale.op.body[0]) * get_const_float_value(
+            rhs_scale.op.body[0]
+        )
     else:
         iscale = lhs_scale * rhs_scale
 
