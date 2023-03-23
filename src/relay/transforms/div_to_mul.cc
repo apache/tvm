@@ -69,7 +69,7 @@ class DivToMulRewrite : public MixedModeMutator {
           } else if (dtype == "float16") {
             static_cast<uint16_t*>(one->data)[0] = __gnu_f2h_ieee(1.);
             // have to handle both + and - zero semantics manually here
-            const_has_zero_flag = const_has_values<uint16_t>(num_ele, rhs, {0x00, 0x80});
+            const_has_zero_flag = const_has_values<uint16_t>(num_ele, rhs, {0x0000, 0x8000});
           } else {
             LOG(WARNING) << "Unknown dtype not handled for div_to_mull: " << rhs->data.DataType();
             return post;
