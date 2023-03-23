@@ -373,7 +373,7 @@ class TestManualCases:
                                 T.writes(T_layout_trans[v_ax0, v_ax1, v_ax2, v_ax3])
                                 T.block_attr({"dst_layout": "NHWC", "input_shape": [1, 32, 32, 32], "schedule_rule": "layout_transform", "src_layout": "NCHW"})
                                 T_layout_trans[v_ax0, v_ax1, v_ax2, v_ax3] = T.if_then_else(v_ax0 < T.int64(1) and v_ax3 < T.int64(32) and v_ax1 < T.int64(32) and v_ax2 < T.int64(32), p0_shared[v_ax0, v_ax3, v_ax1, v_ax2], T.float16(0))
-        
+
         self.assert_extracted_equals_expected(mod, ExpectedModule, 16)
 
     def test_simple_implicit_reshape(self):
