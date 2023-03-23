@@ -212,8 +212,7 @@ double EstimateTIRFlops(const IRModule& mod) {
   VisitPrimFuncs(mod, [&result, &counter, &cached_result](const PrimFuncNode* f) {
     if (auto cached = f->attrs.GetAttr<Integer>("estimated_flops")) {
       cached_result += cached.value()->value;
-    }
-    else {
+    } else {
       result += counter.VisitStmt(f->body);  //
     }
   });
