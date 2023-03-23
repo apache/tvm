@@ -638,7 +638,7 @@ def run_module(
                 times = []
 
             # Special handling if the output only has a single value
-            if not isinstance(exe_outputs, list):
+            if not isinstance(exe_outputs, (list, tvm.runtime.container.ADT)):
                 exe_outputs = [exe_outputs]
 
             outputs = {}
