@@ -441,5 +441,4 @@ def test_stop_lifting():
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_stop_lifting()
+    tvm.testing.main()
