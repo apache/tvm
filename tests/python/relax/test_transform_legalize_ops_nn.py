@@ -25,6 +25,183 @@ import tvm.testing
 ##################### Neural network #####################
 
 
+def test_conv1d():
+    # fmt: off
+    @tvm.script.ir_module
+    class Conv1d:
+        @R.function
+        def main(x: R.Tensor((2, 128, 28), "float32"), w: R.Tensor((64, 16, 3), "float32")) -> R.Tensor((2, 64, 13), "float32"):
+            gv: R.Tensor((2, 4, 13), "float32") = R.nn.conv1d(x, w, strides=(2,), padding=(1,), dilation=(2,), groups=8)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 128, 28), dtype="float32"), w: R.Tensor((64, 16, 3), dtype="float32")) -> R.Tensor((2, 64, 13), dtype="float32"):
+            gv = R.call_tir(Expected.conv1d, (x, w), out_sinfo=R.Tensor((2, 64, 13), dtype="float32"))
+            return gv
+        
+        @T.prim_func
+        def conv1d(rxplaceholder: T.Buffer((T.int64(2), T.int64(128), T.int64(28)), "float32"), rxplaceholder_1: T.Buffer((T.int64(64), T.int64(16), T.int64(3)), "float32"), conv1d_ncw: T.Buffer((T.int64(2), T.int64(64), T.int64(13)), "float32")):
+            T.func_attr({"tir.noalias": True})
+            pad_temp = T.alloc_buffer((T.int64(2), T.int64(128), T.int64(30)))
+            for i0, i1, i2 in T.grid(T.int64(2), T.int64(128), T.int64(30)):
+                with T.block("pad_temp"):
+                    v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+                    T.reads(rxplaceholder[v_i0, v_i1, v_i2 - T.int64(1)])
+                    T.writes(pad_temp[v_i0, v_i1, v_i2])
+                    pad_temp[v_i0, v_i1, v_i2] = T.if_then_else(T.int64(1) <= v_i2 and v_i2 < T.int64(29), rxplaceholder[v_i0, v_i1, v_i2 - T.int64(1)], T.float32(0))
+            for nn, ff, yy, rc, ry in T.grid(T.int64(2), T.int64(64), T.int64(13), T.int64(128), T.int64(3)):
+                with T.block("conv1d_ncw"):
+                    v_nn, v_ff, v_yy, v_rc, v_ry = T.axis.remap("SSSRR", [nn, ff, yy, rc, ry])
+                    T.reads(pad_temp[v_nn, v_rc, v_yy * T.int64(2) + v_ry * T.int64(2)], rxplaceholder_1[v_ff, v_rc, v_ry])
+                    T.writes(conv1d_ncw[v_nn, v_ff, v_yy])
+                    with T.init():
+                        conv1d_ncw[v_nn, v_ff, v_yy] = T.float32(0)
+                    conv1d_ncw[v_nn, v_ff, v_yy] = conv1d_ncw[v_nn, v_ff, v_yy] + pad_temp[v_nn, v_rc, v_yy * T.int64(2) + v_ry * T.int64(2)] * rxplaceholder_1[v_ff, v_rc, v_ry]
+    # fmt: on
+
+    mod = LegalizeOps()(Conv1d)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_conv1d_with_out_dtype():
+    # fmt: off
+    @tvm.script.ir_module
+    class Conv1d:
+        @R.function
+        def main(x: R.Tensor((2, 3, 28), "float32"), w: R.Tensor((4, 3, 3), "float32")) -> R.Tensor((2, 4, 26), "float16"):
+            gv: R.Tensor((2, 4, 26), "float16") = R.nn.conv1d(x, w, out_dtype="float16")
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3, 28), dtype="float32"), w: R.Tensor((4, 3, 3), dtype="float32")) -> R.Tensor((2, 4, 26), dtype="float16"):
+            gv = R.call_tir(Expected.conv1d, (x, w), out_sinfo=R.Tensor((2, 4, 26), dtype="float16"))
+            return gv
+        
+        @T.prim_func
+        def conv1d(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(28)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(3)), "float32"), conv1d_ncw: T.Buffer((T.int64(2), T.int64(4), T.int64(26)), "float16")):
+            T.func_attr({"tir.noalias": True})
+            # with T.block("root"):
+            pad_temp = T.alloc_buffer((T.int64(2), T.int64(3), T.int64(28)))
+            for i0, i1, i2 in T.grid(T.int64(2), T.int64(3), T.int64(28)):
+                with T.block("pad_temp"):
+                    v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+                    T.reads(rxplaceholder[v_i0, v_i1, v_i2])
+                    T.writes(pad_temp[v_i0, v_i1, v_i2])
+                    pad_temp[v_i0, v_i1, v_i2] = rxplaceholder[v_i0, v_i1, v_i2]
+            for nn, ff, yy, rc, ry in T.grid(T.int64(2), T.int64(4), T.int64(26), T.int64(3), T.int64(3)):
+                with T.block("conv1d_ncw"):
+                    v_nn, v_ff, v_yy, v_rc, v_ry = T.axis.remap("SSSRR", [nn, ff, yy, rc, ry])
+                    T.reads(pad_temp[v_nn, v_rc, v_yy + v_ry], rxplaceholder_1[v_ff, v_rc, v_ry])
+                    T.writes(conv1d_ncw[v_nn, v_ff, v_yy])
+                    with T.init():
+                        conv1d_ncw[v_nn, v_ff, v_yy] = T.float16(0)
+                    conv1d_ncw[v_nn, v_ff, v_yy] = conv1d_ncw[v_nn, v_ff, v_yy] + T.Cast("float16", pad_temp[v_nn, v_rc, v_yy + v_ry]) * T.Cast("float16", rxplaceholder_1[v_ff, v_rc, v_ry])
+    # fmt: on
+
+    mod = LegalizeOps()(Conv1d)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_conv1d_nwc():
+    # fmt: off
+    @tvm.script.ir_module
+    class Conv1d:
+        @R.function
+        def main(x: R.Tensor((2, 28, 128), "float32"), w: R.Tensor((64, 128, 3), "float32")) -> R.Tensor((2, 26, 64), "float32"):
+            gv: R.Tensor((2, 26, 64), "float32") = R.nn.conv1d(x, w, data_layout="NWC")
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 28, 128), dtype="float32"), w: R.Tensor((64, 128, 3), dtype="float32")) -> R.Tensor((2, 26, 64), dtype="float32"):
+            gv = R.call_tir(Expected.conv1d, (x, w), out_sinfo=R.Tensor((2, 26, 64), dtype="float32"))
+            return gv
+        
+        @T.prim_func
+        def conv1d(rxplaceholder: T.Buffer((T.int64(2), T.int64(28), T.int64(128)), "float32"), rxplaceholder_1: T.Buffer((T.int64(64), T.int64(128), T.int64(3)), "float32"), conv1d_nwc: T.Buffer((T.int64(2), T.int64(26), T.int64(64)), "float32")):
+            T.func_attr({"tir.noalias": True})
+            # with T.block("root"):
+            pad_temp = T.alloc_buffer((T.int64(2), T.int64(28), T.int64(128)))
+            for i0, i1, i2 in T.grid(T.int64(2), T.int64(28), T.int64(128)):
+                with T.block("pad_temp"):
+                    v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+                    T.reads(rxplaceholder[v_i0, v_i1, v_i2])
+                    T.writes(pad_temp[v_i0, v_i1, v_i2])
+                    pad_temp[v_i0, v_i1, v_i2] = rxplaceholder[v_i0, v_i1, v_i2]
+            for nn, yy, ff, ry, rc in T.grid(T.int64(2), T.int64(26), T.int64(64), T.int64(3), T.int64(128)):
+                with T.block("conv1d_nwc"):
+                    v_nn, v_yy, v_ff, v_ry, v_rc = T.axis.remap("SSSRR", [nn, yy, ff, ry, rc])
+                    T.reads(pad_temp[v_nn, v_yy + v_ry, v_rc], rxplaceholder_1[v_ff, v_rc, v_ry])
+                    T.writes(conv1d_nwc[v_nn, v_yy, v_ff])
+                    with T.init():
+                        conv1d_nwc[v_nn, v_yy, v_ff] = T.float32(0)
+                    conv1d_nwc[v_nn, v_yy, v_ff] = conv1d_nwc[v_nn, v_yy, v_ff] + pad_temp[v_nn, v_yy + v_ry, v_rc] * rxplaceholder_1[v_ff, v_rc, v_ry]
+    # fmt: on
+
+    mod = LegalizeOps()(Conv1d)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_conv1d_symbolic():
+    # fmt: off
+    @tvm.script.ir_module
+    class Conv1d:
+        @R.function
+        def main(x: R.Tensor(("n", "c", "w"), "float32"), kernel: R.Tensor(("f", "c", "kw"), "float32")) -> R.Tensor(("n", "f", "w - kw + 1"), "float32"):
+            n = T.int64()
+            w = T.int64()
+            f = T.int64()
+            kw = T.int64()
+            gv: R.Tensor((n, f, w - kw + 1), "float32") = R.nn.conv1d(x, kernel)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor(("n", "c", "w"), dtype="float32"), kernel: R.Tensor(("f", "c", "kw"), dtype="float32")) -> R.Tensor(("n", "f", "w - kw + 1"), dtype="float32"):
+            n = T.int64()
+            f = T.int64()
+            w = T.int64()
+            kw = T.int64()
+            c = T.int64()
+            gv = R.call_tir(Expected.conv1d, (x, kernel), out_sinfo=R.Tensor((n, f, w - kw + 1), dtype="float32"))
+            return gv
+        
+        @T.prim_func
+        def conv1d(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_conv1d_ncw: T.handle):
+            T.func_attr({"tir.noalias": True})
+            n, c, w = T.int64(), T.int64(), T.int64()
+            rxplaceholder = T.match_buffer(var_rxplaceholder, (n, c, w))
+            f, kw = T.int64(), T.int64()
+            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (f, c, kw))
+            conv1d_ncw = T.match_buffer(var_conv1d_ncw, (n, f, w - kw + T.int64(1)))
+            # with T.block("root"):
+            pad_temp = T.alloc_buffer((n, c, w))
+            for i0, i1, i2 in T.grid(n, c, w):
+                with T.block("pad_temp"):
+                    v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+                    T.reads(rxplaceholder[v_i0, v_i1, v_i2])
+                    T.writes(pad_temp[v_i0, v_i1, v_i2])
+                    pad_temp[v_i0, v_i1, v_i2] = rxplaceholder[v_i0, v_i1, v_i2]
+            for nn, ff, yy, rc, ry in T.grid(n, f, w + T.int64(1) - kw, c, kw):
+                with T.block("conv1d_ncw"):
+                    v_nn, v_ff, v_yy, v_rc, v_ry = T.axis.remap("SSSRR", [nn, ff, yy, rc, ry])
+                    T.reads(pad_temp[v_nn, v_rc, v_yy + v_ry], rxplaceholder_1[v_ff, v_rc, v_ry])
+                    T.writes(conv1d_ncw[v_nn, v_ff, v_yy])
+                    with T.init():
+                        conv1d_ncw[v_nn, v_ff, v_yy] = T.float32(0)
+                    conv1d_ncw[v_nn, v_ff, v_yy] = conv1d_ncw[v_nn, v_ff, v_yy] + pad_temp[v_nn, v_rc, v_yy + v_ry] * rxplaceholder_1[v_ff, v_rc, v_ry]
+    # fmt: on
+
+    mod = LegalizeOps()(Conv1d)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 def test_conv2d():
     # fmt: off
     @tvm.script.ir_module

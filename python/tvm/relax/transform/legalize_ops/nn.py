@@ -24,6 +24,46 @@ from ...expr import Call, Expr
 from .common import register_legalize, _call_topi_without_attr
 
 
+@register_legalize("relax.nn.conv1d")
+def _nn_conv1d(bb: BlockBuilder, call: Call) -> Expr:
+    if call.attrs.out_layout != call.attrs.data_layout:
+        logging.info(
+            "TOPI conv1d does not support different input-output "
+            "layouts, and thus cannot be legalized by TOPI"
+        )
+        return call
+    if len(call.attrs.data_layout) != 3 or len(call.attrs.kernel_layout) != 3:
+        logging.info(
+            "Conv1D where data layout or kernel layout have channel chunk "
+            "cannot be legalized by TOPI at this moment."
+        )
+        return call
+    if call.attrs.groups != 1:
+        data_layout = tir.layout(call.attrs.data_layout)
+        kernel_layout = tir.layout(call.attrs.kernel_layout)
+        ic = call.args[0].struct_info.shape.values[data_layout.index_of("C")]
+        oc = call.args[1].struct_info.shape.values[kernel_layout.index_of("O")]
+        if not isinstance(ic, tir.IntImm) or not isinstance(oc, tir.IntImm):
+            logging.info(
+                "Conv1D where number of groups is more than one and input or output "
+                "channel size is symbolic cannot be legalized by TOPI at this moment."
+            )
+            return call
+
+    return bb.call_te(
+        topi.nn.conv1d,
+        data=call.args[0],
+        kernel=call.args[1],
+        strides=call.attrs.strides,
+        padding=call.attrs.padding,
+        dilation=call.attrs.dilation,
+        data_layout=call.attrs.data_layout,
+        kernel_layout=call.attrs.kernel_layout,
+        out_dtype=call.attrs.out_dtype if call.attrs.out_dtype != "" else None,
+        primfunc_name_hint="conv1d",
+    )
+
+
 @register_legalize("relax.nn.conv2d")
 def _nn_conv2d(bb: BlockBuilder, call: Call) -> Expr:
     if call.attrs.out_layout != call.attrs.data_layout:
