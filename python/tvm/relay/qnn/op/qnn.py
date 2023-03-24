@@ -1249,3 +1249,69 @@ def leaky_relu(x, alpha, input_scale, input_zero_point, output_scale, output_zer
 
 def softmax(x, scale, zero_point, output_scale, output_zero_point, axis=-1):
     return _make.softmax(x, axis, scale, zero_point, output_scale, output_zero_point)
+
+
+def avg_pool2d(
+    data,
+    input_scale,
+    input_zero_point,
+    output_scale,
+    output_zero_point,
+    pool_size,
+    strides,
+    padding,
+    dilation,
+    ceil_mode=False,
+    count_include_pad=True,
+    layout="NHWC",
+    out_layout="",
+):
+
+    """Quantized avg_pool2d
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The quantized input tensor.
+    input_scale: float
+        The scale of the input quantized expr.
+    input_zero_point: int
+        The zero point of input quantized expr.
+    output_scale: flaot
+        The scale of the output quantized expr.
+    output_zero_point: int
+       The zero point of output quantized expr.
+    pool_size : relay.Expr
+        The pool_size
+    strides : relay.Expr
+        The strides
+    padding : relay.Expr
+        The padding size
+    dilation : relay.Expr
+        The dilation size
+    ceil_mode : bool, optional
+        Whether to use ceil or floor for calculating the output shape
+    count_include_pad : bool, optional
+        Determines if padding should be taken into account in the computation
+    layout: string, optinal
+    out_layout: string, optional
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.avg_pool2d(
+        data,
+        input_scale,
+        input_zero_point,
+        output_scale,
+        output_zero_point,
+        pool_size,
+        strides,
+        padding,
+        dilation,
+        ceil_mode,
+        count_include_pad,
+        layout,
+        out_layout,
+    )
