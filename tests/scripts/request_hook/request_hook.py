@@ -109,6 +109,7 @@ URL_MAP = {
     "https://github.com/dmlc/web-data/raw/main/gluoncv/detection/street_small.jpg": f"{BASE}/2022-10-05/gluon-small-stree.jpg",
     "https://github.com/dmlc/web-data/raw/main/tensorflow/models/Custom/placeholder.pb": f"{BASE}/dmlc/web-data/raw/main/tensorflow/models/Custom/placeholder.pb",
     "https://github.com/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/classify_image_graph_def-with_shapes.pb": f"{BASE}/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/classify_image_graph_def-with_shapes.pb",
+    "https://github.com/dmlc/web-data/raw/main/tensorflow/models/ResnetV2/resnet-20180601_resnet_v2_imagenet-shapes.pb": f"{BASE}/dmlc/web-data/raw/main/tensorflow/models/ResnetV2/resnet-20180601_resnet_v2_imagenet-shapes.pb",
     "https://github.com/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/elephant-299.jpg": f"{BASE}/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/elephant-299.jpg",
     "https://github.com/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/imagenet_2012_challenge_label_map_proto.pbtxt": f"{BASE}/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/imagenet_2012_challenge_label_map_proto.pbtxt",
     "https://github.com/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/imagenet_synset_to_human_label_map.txt": f"{BASE}/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/imagenet_synset_to_human_label_map.txt",
@@ -210,6 +211,8 @@ URL_MAP = {
     "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/visual_wake_word_int8_1.npy": f"{BASE}/tlc-pack/web-data/raw/main/testdata/microTVM/data/visual_wake_word_int8_1.npy",
     "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/anomaly_detection_normal_id_01.npy": f"{BASE}/tlc-pack/web-data/raw/main/testdata/microTVM/data/anomaly_detection_normal_id_01.npy",
     "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/image_classification_int8_0.npy": f"{BASE}/tlc-pack/web-data/raw/main/testdata/microTVM/data/image_classification_int8_0.npy",
+    "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/vww_sample_person.jpg": f"{BASE}/tlc-pack/web-data/testdata/microTVM/data/vww_sample_person.jpg",
+    "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/vww_sample_not_person.jpg": f"{BASE}/tlc-pack/web-data/testdata/microTVM/data/vww_sample_not_person.jpg",
 }
 
 

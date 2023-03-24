@@ -391,81 +391,163 @@ void RelaxBufferRegions(const Map<Var, PrimExpr>& binding,
  * domain
  * \param provided The provided integer set to cover the required domain
  * \param required The required domain to be covered
+ * \param dim_max The maximum index bound by the buffer shape
  * \param analyzer The arithmetic analyzer
  */
-std::pair<Var, arith::IntSet> SolveBlockVarDomain(const arith::IntSet& provided,
-                                                  const arith::IntSet& required,
-                                                  arith::Analyzer* analyzer) {
+std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const arith::IntSet& provided,
+                                                       const arith::IntSet& required,
+                                                       PrimExpr dim_max,
+                                                       arith::Analyzer* analyzer) {
   PrimExpr provided_min = analyzer->Simplify(provided.min());
   PrimExpr provided_max = analyzer->Simplify(provided.max());
   PrimExpr required_min = analyzer->Simplify(required.min());
   PrimExpr required_max = analyzer->Simplify(required.max());
-  PrimExpr dom_min{nullptr}, dom_max{nullptr};
-  Var dom_var{ObjectPtr<VarNode>{nullptr}};
+  arith::IntSet var_dom, var_bound;
+  Optional<Var> var;
   arith::PVar<Var> p_v;
   arith::PVar<PrimExpr> p_e;
   if ((p_v * p_e).Match(provided_min) || (p_e * p_v).Match(provided_min)) {
     PrimExpr e = p_e.Eval();
-    dom_var = p_v.Eval();
-    dom_min = floordiv(required_min, e);
-    dom_max = floordiv(required_max, e);
+    var = p_v.Eval();
+    var_dom = arith::IntSet::Interval(floordiv(required_min, e), floordiv(required_max, e));
+    var_bound = arith::IntSet::Interval(0, floordiv(dim_max, e));
   } else if (analyzer->CanProveEqual(provided_min, provided_max)) {
     if (p_v.Match(provided_min)) {
-      dom_var = p_v.Eval();
-      dom_min = required_min;
-      dom_max = required_max;
+      var = p_v.Eval();
+      var_dom = arith::IntSet::Interval(required_min, required_max);
+      var_bound = arith::IntSet::Interval(0, dim_max);
     } else {
       arith::PVar<PrimExpr> p_f;
       if ((floordiv(p_v, p_f)).Match(provided_min)) {
         // a <= (x // factor) <= b, fac > 0 ==> (a * fac) <= x <= (b * fac + fac - 1)
         PrimExpr fac = p_f.Eval();
         if (analyzer->CanProveGreaterEqual(fac, 1)) {
-          dom_var = p_v.Eval();
-          dom_min = required_min * fac;
-          dom_max = analyzer->Simplify(required_max * fac + fac - 1);
+          var = p_v.Eval();
+          var_dom = arith::IntSet::Interval(required_min * fac,
+                                            analyzer->Simplify(required_max * fac + fac - 1));
+          var_bound = arith::IntSet::Interval(0, analyzer->Simplify(dim_max * fac + fac - 1));
         }
       } else if ((floormod(p_v, p_f).Match(provided_min))) {
         // generally domain of (x % fac) enforce no constraints to domain of x
-        dom_var = p_v.Eval();
-        return std::make_pair(dom_var, arith::IntSet::Nothing());
+        return {p_v.Eval(), BlockVarDomainInfo()};
       }
     }
   }
-  ICHECK(dom_var.defined()) << "ValueError: BufferRegion pattern match failed: " << provided_min;
-  return std::make_pair(dom_var, arith::IntSet::Interval(dom_min, dom_max));
+  ICHECK(var.defined()) << "ValueError: BufferRegion pattern match failed: " << provided_min;
+  return {var.value(), BlockVarDomainInfo{var_dom, var_bound}};
+}
+
+/*!
+ * \brief Calculate and update the iteration domain info to fully cover the required domain in
+ * dimension-wise fashion. The region relation on each buffer dimension is independently estimated.
+ * \param buffer The accessed buffer
+ * \param provided_region The provided NDIntSet to cover the required domain
+ * \param required_region The required NDIntSet domain to be covered
+ * \param analyzer The arithmetic analyzer
+ * \param iter_doms The result iteration domains to be updated
+ */
+void UpdateBlockVarDomainDimwise(
+    const BufferNode* buffer, const NDIntSet& provided_region, const NDIntSet& required_region,
+    arith::Analyzer* analyzer, std::unordered_map<const VarNode*, BlockVarDomainInfo>* iter_doms) {
+  size_t ndim = buffer->shape.size();
+  for (size_t i = 0; i < ndim; ++i) {
+    arith::IntSet provided = provided_region[i];
+    arith::IntSet required = required_region[i];
+    PrimExpr dim_max = max(buffer->shape[i] - 1, 0);
+
+    if (provided.IsSinglePoint() && is_const_int(provided.min())) {
+      ICHECK(required.IsSinglePoint() && analyzer->CanProveEqual(provided.min(), required.min()));
+      continue;
+    }
+
+    auto [var, dom_info] = SolveBlockVarDomain(provided, required, dim_max, analyzer);
+    auto it = iter_doms->find(var.get());
+    if (it != iter_doms->end()) {
+      it->second.Union(dom_info);
+    } else {
+      ICHECK(analyzer->CanProveEqual(provided.min(), required.min()));
+      ICHECK(analyzer->CanProveEqual(provided.max(), required.max()));
+    }
+  }
+}
+
+/*! \brief Helper function to implement intset version of `InverseAffineIterMap`. */
+Map<Var, arith::IntSet> InverseAffineIterMap(const Array<arith::IterSumExpr>& iter_map,
+                                             const NDIntSet& outputs, arith::Analyzer* analyzer) {
+  Array<PrimExpr> min_point, max_point;
+  min_point.reserve(outputs.size());
+  max_point.reserve(outputs.size());
+  for (const auto& intset : outputs) {
+    ICHECK(intset.HasLowerBound() && intset.HasUpperBound());
+    min_point.push_back(intset.min());
+    max_point.push_back(intset.max());
+  }
+  auto rev_min = InverseAffineIterMap(iter_map, min_point);
+  auto rev_max = InverseAffineIterMap(iter_map, max_point);
+  Map<Var, arith::IntSet> dom_map;
+  for (const auto& kv : rev_min) {
+    const Var& var = kv.first;
+    auto it = rev_max.find(var);
+    ICHECK(it != rev_max.end());  // InverseAffineIterMap's result vars are assumed stable
+    const PrimExpr& rev_min_point = kv.second;
+    const PrimExpr& rev_max_point = (*it).second;
+    dom_map.Set(var,
+                arith::IntSet::Interval(analyzer->Simplify(min(rev_min_point, rev_max_point)),
+                                        analyzer->Simplify(max(rev_min_point, rev_max_point))));
+  }
+  return dom_map;
 }
 
 /*!
  * \brief Calculate and update the iteration domain info to fully cover the required domain
- * \param provided The provided integer set to cover the required domain
- * \param required The required domain to be covered
- * \param required_bound The additional region bound of the required domain to be covered
- * \param iter_doms The result iteration domains to be updated
+ * with affine analysis. It requires bijective mapping of block var to provided region points.
+ * \param buffer The accessed buffer
+ * \param iter_vars The list of block vars to cover the required region
+ * \param provided_region The provided NDIntSet to cover the required domain
+ * \param required_region The required NDIntSet domain to be covered
  * \param analyzer The arithmetic analyzer
+ * \param iter_doms The result iteration domains to be updated
+ * \returns bool. Denotes whether update success
  */
-void UpdateBlockVarDomain(const arith::IntSet& provided, const arith::IntSet& required,
-                          const arith::IntSet& required_bound,
-                          std::unordered_map<const VarNode*, BlockVarDomainInfo>* iter_doms,
-                          arith::Analyzer* analyzer) {
-  if (provided.IsSinglePoint() && is_const_int(provided.min())) {
-    ICHECK(required.IsSinglePoint() && analyzer->CanProveEqual(provided.min(), required.min()));
-    ICHECK(required_bound.IsSinglePoint() &&
-           analyzer->CanProveEqual(provided.min(), required_bound.min()));
-    return;
+bool UpdateBlockVarDomainAffine(const BufferNode* buffer, const Array<IterVar>& iter_vars,
+                                const NDIntSet& provided_region, const NDIntSet& required_region,
+                                arith::Analyzer* analyzer,
+                                std::unordered_map<const VarNode*, BlockVarDomainInfo>* iter_doms) {
+  // we only support single point provided region now, which could cover most cases
+  for (const auto& intset : provided_region) {
+    if (!intset.IsSinglePoint()) return false;
   }
-  auto var_with_dom = SolveBlockVarDomain(provided, required, analyzer);
-  auto var_with_bound = SolveBlockVarDomain(provided, required_bound, analyzer);
-  const Var& var = var_with_dom.first;
-  const auto& var_dom = var_with_dom.second;
-  const auto& var_bound = var_with_bound.second;
-  ICHECK(var.same_as(var_with_bound.first));
-  auto it = iter_doms->find(var.get());
-  if (it != iter_doms->end()) {
-    it->second.Union({var_dom, var_bound});
-  } else {
-    ICHECK(analyzer->CanProveEqual(provided.min(), required.min()));
-    ICHECK(analyzer->CanProveEqual(provided.max(), required.max()));
+  // calculate forward mapping (block vars -> provided region point)
+  Map<Var, Range> dom_map;
+  for (const IterVar& iter_var : iter_vars) {
+    dom_map.Set(iter_var->var, iter_var->dom);
   }
+  size_t ndim = buffer->shape.size();
+  Array<PrimExpr> provide_indices;
+  provide_indices.reserve(ndim);
+  for (size_t i = 0; i < ndim; ++i) {
+    provide_indices.push_back(provided_region[i].min());
+  }
+  auto res = arith::DetectIterMap(provide_indices, dom_map, const_true(),
+                                  arith::IterMapLevel::Bijective, analyzer, false);
+  if (res->indices.empty()) {
+    return false;
+  }
+  // calculate backward mapping (required region point -> block vars)
+  NDIntSet required_bound;
+  for (size_t i = 0; i < ndim; ++i) {
+    required_bound.push_back(
+        arith::IntSet::Interval(make_zero(buffer->shape[i]->dtype), max(buffer->shape[i] - 1, 0)));
+  }
+  Map<Var, arith::IntSet> var_dom = InverseAffineIterMap(res->indices, required_region, analyzer);
+  Map<Var, arith::IntSet> var_bound = InverseAffineIterMap(res->indices, required_bound, analyzer);
+  for (const auto& kv : var_dom) {
+    const Var& var = kv.first;
+    auto it = var_bound.find(var);
+    ICHECK(it != var_bound.end());  // InverseAffineIterMap's result vars are assumed stable
+    (*iter_doms)[var.get()].Union(BlockVarDomainInfo{kv.second, (*it).second});
+  }
+  return true;
 }
 
 /*!
@@ -501,13 +583,10 @@ std::vector<BlockVarDomainInfo> CalculateBlockVarDomain(
     NDIntSet provided_region = support::NDIntSetUnion(many_provided_regions);
     ICHECK_EQ(provided_region.size(), buffer->shape.size());
     ICHECK_EQ(required_region.size(), buffer->shape.size());
-    // For each dimension, update the iteration domain
-    int ndim = buffer->shape.size();
-    for (int i = 0; i < ndim; ++i) {
-      arith::IntSet provided = provided_region[i];
-      arith::IntSet required = required_region[i];
-      arith::IntSet required_bound = arith::IntSet::FromMinExtent(Integer(0), buffer->shape[i]);
-      UpdateBlockVarDomain(provided, required, required_bound, &iter_doms, analyzer);
+    // Try update iter var domains with current required and provided region pair.
+    if (!UpdateBlockVarDomainAffine(buffer, iter_vars, provided_region, required_region, analyzer,
+                                    &iter_doms)) {
+      UpdateBlockVarDomainDimwise(buffer, provided_region, required_region, analyzer, &iter_doms);
     }
   }
   // Union the iter var domains, put them in the same order of block vars, and return

@@ -454,12 +454,7 @@ void BufferInfoExtractor::UpdateAliases(const Array<PrimExpr>& args, const PrimF
     // If tir.allocates are passed in to functions
     // The function params are re-directed to point
     // to the original allocate
-    if (arg->IsInstance<LoadNode>()) {
-      auto load = Downcast<Load>(arg);
-      if (allocate_infos.count(load->buffer_var)) {
-        allocate_infos[param_buf] = allocate_infos[load->buffer_var];
-      }
-    } else if (arg->IsInstance<VarNode>()) {
+    if (arg->IsInstance<VarNode>()) {
       auto var = Downcast<Var>(arg);
       if (allocate_infos.count(var)) {
         allocate_infos[param_buf] = allocate_infos[var];

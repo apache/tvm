@@ -20,6 +20,7 @@ from typing import List
 
 import numpy as np
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import IRModule
@@ -420,6 +421,7 @@ def test_meta_schedule_te2primfunc_argument_order_and_lowering():
                     ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                     T.reads(placeholder[ax0, ax1 * T.int64(3) + ax4, ax2, ax3])
                     T.writes(T_layout_trans[ax0, ax1, ax2, ax3, ax4])
+                    T.block_attr({"dst_layout": "NCHW3c", "input_shape": [1, 3, 16, 16], "schedule_rule": "None", "src_layout": "NCHW"})
                     T_layout_trans[ax0, ax1, ax2, ax3, ax4] = T.if_then_else(
                         ax0 < T.int64(1) and ax1 * T.int64(3) + ax4 < T.int64(3) and ax2 < T.int64(16) and ax3 < T.int64(16), # type: ignore
                         placeholder[ax0, ax1 * T.int64(3) + ax4, ax2, ax3],
@@ -440,6 +442,7 @@ def test_meta_schedule_te2primfunc_argument_order_and_lowering():
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                     T.reads(placeholder[ax0, ax1 // T.int64(4), ax2, ax3, ax1 % T.int64(4)]) # type: ignore
                     T.writes(T_layout_trans[ax0, ax1, ax2, ax3])
+                    T.block_attr({"dst_layout": "NCHW", "input_shape": [1, 2, 16, 16, 4], "schedule_rule": "None", "src_layout": "NCHW4c"})
                     T_layout_trans[ax0, ax1, ax2, ax3] = T.if_then_else(ax0 < T.int64(1) and ax1 < T.int64(8) and ax2 < T.int64(16) and ax3 < T.int64(16), placeholder[ax0, ax1 // T.int64(4), ax2, ax3, ax1 % T.int64(4)], T.float32(0), dtype="float32") # type: ignore
 
     @tvm.script.ir_module

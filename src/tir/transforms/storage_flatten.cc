@@ -846,14 +846,6 @@ class BufferBindUnwrapper : public StmtExprMutator {
     return output;
   }
 
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
-
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     ICHECK_NE(op->attr_key, attr::buffer_dim_align)
         << "BufferBindUnwrapper assumes that all buffers have accurate strides, "
@@ -1384,14 +1376,6 @@ class StorageFlattener : public StmtExprMutator {
       buf_map_[kv.second] = e;
     }
     cache_line_size_ = cache_line_size;
-  }
-
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {

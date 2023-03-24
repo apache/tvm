@@ -166,7 +166,7 @@ class HostDeviceSplitter : public StmtMutator {
 
     Array<Var> params;
     Array<PrimExpr> arguments;
-    Map<tir::Var, PrimExpr> remap_vars;
+    Map<tir::Var, tir::Var> remap_vars;
 
     // Strictly order the arguments: Var pointers, positional arguments.
     for (Var var : use_def.undefined_) {

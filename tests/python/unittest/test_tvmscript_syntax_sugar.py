@@ -424,5 +424,18 @@ def test_preserve_parameter_name():
     assert param_name == "i"
 
 
+def test_preserve_variable_name():
+    """Use variable name when generating tir::LetStmt"""
+
+    @T.prim_func
+    def func():
+        for i in T.serial(16):
+            j = i // 4
+            T.evaluate(j)
+
+    var_name = func.body.body.var.name
+    assert var_name == "j"
+
+
 if __name__ == "__main__":
     tvm.testing.main()

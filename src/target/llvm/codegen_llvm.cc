@@ -398,7 +398,11 @@ void CodeGenLLVM::Optimize() {
   }
 
   llvm::StandardInstrumentations si(*llvm_target_->GetContext(), debug_logging, verify_each);
+#if LLVM_VERSION_MAJOR >= 17
+  si.registerCallbacks(pic, &mam);
+#else
   si.registerCallbacks(pic, &fam);
+#endif
   llvm::ModulePassManager mpass;
   if (verify_each) {
     mpass.addPass(llvm::VerifierPass());
@@ -1387,6 +1391,9 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
              op->op.same_as(builtin::end_profile_intrinsic())) {
     LOG(INFO) << "Ignoring profile_intrinsic ... " << op->op;
     return nullptr;
+  } else if (op->op.same_as(builtin::assume())) {
+    llvm::Value* cond = MakeValue(op->args[0]);
+    return builder_->CreateAssumption(cond);
   } else {
     LOG(FATAL) << "unknown intrinsic " << op->op;
   }
@@ -1557,10 +1564,6 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const LetNode* op) {
   var_value->setName(op->var->name_hint.c_str());
   analyzer_->Bind(op->var, op->value);
   return MakeValue(op->body);
-}
-
-llvm::Value* CodeGenLLVM::VisitExpr_(const LoadNode* op) {
-  LOG(FATAL) << "Unexpected deprecated LoadNode.  Use BufferLoadNode instead.";
 }
 
 bool CodeGenLLVM::HasAlignmentPadding(DataType dtype) {
@@ -1757,10 +1760,6 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const ShuffleNode* op) {
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const BroadcastNode* op) {
   return CreateBroadcast(MakeValue(op->value), op->lanes);
-}
-
-void CodeGenLLVM::VisitStmt_(const StoreNode* op) {
-  LOG(FATAL) << "Unexpected deprecated StoreNode.  Use BufferStoreNode instead.";
 }
 
 void CodeGenLLVM::VisitStmt_(const BufferStoreNode* op) {

@@ -242,11 +242,11 @@ def test_storage_combine_with_vectorization():
         # find add op
         if (
             isinstance(v, tvm.tir.Add)
-            and isinstance(v.a, tvm.tir.Load)
-            and isinstance(v.b, tvm.tir.Load)
+            and isinstance(v.a, tvm.tir.BufferLoad)
+            and isinstance(v.b, tvm.tir.BufferLoad)
         ):
-            lhs_ramp = v.a.index
-            rhs_ramp = v.b.index
+            lhs_ramp = v.a.indices[0]
+            rhs_ramp = v.b.indices[0]
             # these two ramp load should not overlap
             assert lhs_ramp.lanes == n
             assert rhs_ramp.lanes == n

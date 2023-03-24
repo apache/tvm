@@ -110,14 +110,6 @@ class IRConvertSSA final : public StmtExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
-
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
     auto output = VisitBufferAccess(std::move(node));

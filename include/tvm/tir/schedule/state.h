@@ -81,6 +81,7 @@ enum ScheduleDebugMask : uint32_t {
  * 3) The dependency information of each block scope (block_info)
  * 4) A reverse mapping from the AST nodes to that in the sref tree (stmt2ref)
  * 5) A debug flag, if set, extra checking is enabled (debug_mask)
+ * 6) A check flag, if set, enable prequisite check for schedule primitives (enable_check)
  */
 class ScheduleStateNode : public Object {
  public:
@@ -100,12 +101,17 @@ class ScheduleStateNode : public Object {
    * \sa ScheduleDebugMask
    */
   int debug_mask;
+  /*!
+   * \brief Whether to enable prequisite checks for schedule primitives.
+   */
+  bool enable_check;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("mod", &mod);
     // `block_info` is not visited
     // `stmt2ref` is not visited
     v->Visit("debug_mask", &debug_mask);
+    v->Visit("enable_check", &enable_check);
   }
   /*!
    * \brief Replace the part of the AST, as being pointed to by `src_sref`,
@@ -194,8 +200,9 @@ class ScheduleState : public ObjectRef {
    * \param mod The IRModule to be scheduled
    * \param debug_mask Do extra correctness checking after the class creation
    * and each time after calling the Replace method.
+   * \param enable_check Whether enables prerequisite checks for schedule primitives.
    */
-  TVM_DLL explicit ScheduleState(IRModule mod, int debug_mask = 0);
+  TVM_DLL explicit ScheduleState(IRModule mod, int debug_mask = 0, bool enable_check = true);
 
   /*! \return The mutable pointer to the ScheduleStateNode */
   ScheduleStateNode* get() const { return static_cast<ScheduleStateNode*>(data_.get()); }

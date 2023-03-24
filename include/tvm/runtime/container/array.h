@@ -829,6 +829,12 @@ class Array : public ObjectRef {
   }
 };
 
+template <typename T>
+inline constexpr bool is_tvm_array = false;
+
+template <typename T>
+inline constexpr bool is_tvm_array<Array<T>> = true;
+
 /*!
  * \brief Concat two Arrays.
  * \param lhs first Array to be concatenated.

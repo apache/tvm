@@ -422,73 +422,6 @@ TVM_REGISTER_GLOBAL("tir.Select")
 
 TVM_REGISTER_NODE_TYPE(SelectNode);
 
-// Load
-Load::Load(DataType dtype, Var buffer_var, PrimExpr index, PrimExpr predicate, Span span) {
-  LOG(FATAL) << "Unexpected use of deprecated Store node for buffer " << buffer_var->name_hint
-             << ".  Use BufferStore instead.";
-  ICHECK(buffer_var.defined());
-  ICHECK(predicate.defined());
-  ICHECK(index.defined());
-
-  // Assume that the array elements have 1 lane, unless a type
-  // annotation tells us otherwise.
-  int element_lanes = 1;
-  auto pointer_type = tir::GetPointerType(buffer_var->type_annotation);
-  if (pointer_type.has_value()) {
-    // Cannot check element type of array, as it may be different than
-    // the loaded type in some cases.
-    //
-    // 1. Booleans use DataType::Int(8) while stored, and the codegens
-    // handle cast to boolean.
-    //
-    // 2. The StorageRewrite pass can merge multiple allocations at
-    // the same scope, regardless of element type.  The codegen is
-    // then responsible for casting to the output type.
-
-    // TODO(Lunderberg): Uncomment this check once it can be applied.
-    // See https://discuss.tvm.apache.org/t/pre-rfc-vectorized-tir-buffers/10615
-    // for discussion.
-
-    // ICHECK(dtype.element_of() == pointer_type->element_of())
-    //     << "Type mismatch, cannot load type " << dtype << " from buffer " <<
-    //     buffer_var->name_hint
-    //     << " of type " << pointer_type.value();
-    element_lanes = pointer_type->lanes();
-  }
-
-  // The C-based codegens assume that all loads occur on a array with
-  // non-vectorized elements, and cast between
-  // vectorized/non-vectorized arrays as needed.  Ideally, these
-  // should be changed to explicit casts in the TIR graph, rather than
-  // being handled at the code-gen level.
-  ICHECK((dtype.lanes() == element_lanes * index.dtype().lanes()) ||
-         (dtype.lanes() == index.dtype().lanes()));
-  ICHECK((dtype.lanes() == element_lanes * predicate.dtype().lanes()) ||
-         (dtype.lanes() == index.dtype().lanes()));
-
-  ObjectPtr<LoadNode> node = make_object<LoadNode>();
-  node->dtype = dtype;
-  node->buffer_var = std::move(buffer_var);
-  node->index = std::move(index);
-  node->predicate = std::move(predicate);
-  node->span = std::move(span);
-
-  data_ = std::move(node);
-}
-
-TVM_REGISTER_GLOBAL("tir.Load").set_body([](TVMArgs args, TVMRetValue* ret) {
-  DataType t = args[0];
-  if (args.size() == 3) {
-    *ret = Load(t, args[1], args[2], const_true(t.lanes()), Span());
-  } else if (args.size() == 4) {
-    *ret = Load(t, args[1], args[2], args[3], Span());
-  } else {
-    *ret = Load(t, args[1], args[2], args[3], args[4]);
-  }
-});
-
-TVM_REGISTER_NODE_TYPE(LoadNode);
-
 // Ramp
 Ramp::Ramp(PrimExpr base, PrimExpr stride, int lanes, Span span) {
   ICHECK(base.defined());
@@ -701,8 +634,7 @@ Array<PrimExpr> CommReducerNode::operator()(Array<PrimExpr> a, Array<PrimExpr> b
     value_map.Set(lhs[i], a[i]);
     value_map.Set(rhs[i], b[i]);
   }
-  auto ret = this->result.Map([&value_map](const PrimExpr& e) { return Substitute(e, value_map); });
-  return ret;
+  return Substitute(this->result, value_map);
 }
 
 TVM_REGISTER_GLOBAL("tir.CommReducer")

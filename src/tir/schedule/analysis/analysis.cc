@@ -103,7 +103,7 @@ Definition of a scope that is a stage pipeline:
     }
   }
   // Step 2. Handle `require_stage_pipeline`
-  if (require_stage_pipeline) {
+  if (require_stage_pipeline && self->enable_check) {
     bool stage_pipeline = self->GetBlockInfo(scope_root_sref).scope->stage_pipeline;
     if (stage_pipeline == false) {
       const BlockNode* block = TVM_SREF_TO_BLOCK(scope_root_sref);
@@ -2071,6 +2071,11 @@ TVM_REGISTER_GLOBAL("tir.schedule.GetAutoTensorizeMappingInfo")
     });
 
 TVM_REGISTER_GLOBAL("tir.schedule.HasBlock").set_body_typed(HasBlock);
+TVM_REGISTER_GLOBAL("tir.schedule.IsOutputBlock").set_body_typed([](Schedule sch, BlockRV block) {
+  auto state = sch->state();
+  auto block_sref = sch->GetSRef(block);
+  return IsOutputBlock(state, block_sref, GetScopeRoot(state, block_sref, false));
+});
 
 }  // namespace tir
 }  // namespace tvm

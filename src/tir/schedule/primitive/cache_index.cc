@@ -272,7 +272,7 @@ Array<Block> MakeIndexCacheStage(IndexInfo* info, const String& storage_scope) {
 
     // Create loop vars and block vars' binding_value
     std::vector<Var> loop_vars;
-    Map<Var, PrimExpr> replace_table;
+    Map<Var, Var> replace_table;
     for (const Var& it : iter_vars) {
       DataType data_type = DetermineDatatype(arith::IntSet::FromRange(info->range_map.at(it)));
       Var loop_var("ax" + std::to_string(replace_table.size()), data_type);
@@ -290,7 +290,7 @@ Array<Block> MakeIndexCacheStage(IndexInfo* info, const String& storage_scope) {
     Region access_region;
     // indices used in block body
     Array<PrimExpr> access_indices;
-    Map<Var, PrimExpr> block_var_map;
+    Map<Var, Var> block_var_map;
     // Create block vars, block's accessed region and accessing indices
     for (size_t i = 0; i < info->origin_block_vars[expr_index].size(); i++) {
       const Var& block_var = info->origin_block_vars[expr_index][i];
@@ -423,10 +423,6 @@ class CacheIndexRewriter : public StmtExprMutator {
       }
     }
     return ret_stmt;
-  }
-
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
   }
 
  private:

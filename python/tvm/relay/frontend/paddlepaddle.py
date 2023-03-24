@@ -400,6 +400,60 @@ def convert_conv2d_transpose(g, op, block):
     g.add_node(op.output("Output")[0], out)
 
 
+def convert_conv3d(g, op, block):
+    """Operator converter for conv3d."""
+
+    dilations = op.attr("dilations")
+    groups = op.attr("groups")
+    paddings = op.attr("paddings")
+    padding_algorithm = op.attr("padding_algorithm")
+    strides = op.attr("strides")
+
+    kernel = g.get_node(op.input("Filter")[0])
+    input_x = g.get_node(op.input("Input")[0])
+    out_channels, _, k_d, k_h, k_w = infer_shape(kernel)
+    if padding_algorithm == "VALID":
+        paddings = [0, 0, 0]
+    elif padding_algorithm == "SAME":
+        dilations = [1, 1, 1]
+        input_x = autopad(input_x, strides, [k_d, k_h, k_w], dilations)
+        paddings = [0, 0, 0]
+    elif padding_algorithm == "EXPLICIT":
+        if len(paddings) == 3:
+            paddings = [
+                paddings[0],
+                paddings[1],
+                paddings[2],
+                paddings[0],
+                paddings[1],
+                paddings[2],
+            ]
+        elif len(paddings) == 6:
+            paddings = [
+                paddings[0],
+                paddings[3],
+                paddings[1],
+                paddings[4],
+                paddings[2],
+                paddings[5],
+            ]
+    else:
+        msg = 'Value {} in attribute "padding" of operator Conv is not "valid."'
+        raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
+
+    out = _op.nn.conv3d(
+        input_x,
+        kernel,
+        strides=strides,
+        padding=paddings,
+        dilation=dilations,
+        groups=groups,
+        channels=out_channels,
+        kernel_size=[k_d, k_h, k_w],
+    )
+    g.add_node(op.output("Output")[0], out)
+
+
 def convert_dist(g, op, block):
     """Operator converter for dist."""
 
@@ -409,11 +463,11 @@ def convert_dist(g, op, block):
     dtype = infer_type(x).checked_type.dtype
     p = op.attr("p")
     if p == np.inf:
-        out = _op.reduce.max(_op.abs(z))
+        out = _op.reduce.max(z)
     elif p == np.NINF:
-        out = _op.reduce.min(_op.abs(z))
+        out = _op.reduce.min(z)
     elif p == 0.0:
-        out = _op.reduce.sum(_op.sign(_op.abs(z)))
+        out = _op.reduce.sum(_op.sign(z))
     else:
         inv_p = _expr.const(1.0 / p, dtype=dtype)
         p = _expr.const(p, dtype=dtype)
@@ -576,6 +630,8 @@ def convert_eye(g, op, block):
 
     num_rows = op.attr("num_rows")
     num_columns = op.attr("num_columns")
+    if num_columns == -1:
+        num_columns = num_rows
     one_nums = min(num_rows, num_columns)
     dtype = op.attr("dtype")
     dtype = _convert_dtype_value(dtype)
@@ -2414,6 +2470,7 @@ _convert_map = {
     "concat": convert_concat,
     "conv2d": convert_conv2d,
     "conv2d_transpose": convert_conv2d_transpose,
+    "conv3d": convert_conv3d,
     "cos": convert_unary_op,
     "cosh": convert_unary_op,
     "cumsum": convert_cumsum,

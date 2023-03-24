@@ -27,26 +27,25 @@ from tvm.relay.op import register_mixed_precision_conversion
 from utils.adreno_utils import build_run_compare, get_model, gpu_preprocess
 
 
-def convert_to_fp16(mod, dtype):
-    from tvm.ir import IRModule
-
-    mod = IRModule.from_expr(mod)
-    seq = tvm.transform.Sequential(
-        [relay.transform.InferType(), relay.transform.ToMixedPrecision()]
-    )
-    with tvm.transform.PassContext(opt_level=3):
-        mod = seq(mod)
-        return mod
-
-
-def _test_mobilenet_v1(remote, target, dtype):
+def _test_mobilenet_v1(remote, target, calc_dtype, acc_dtype):
     mod, params, inputs, dtypes = get_model(
         "https://github.com/mlcommons/mobile_models/raw/main/v0_7/tflite/mobilenet_edgetpu_224_1.0_float.tflite",
         "mobilenet_edgetpu_224_1.0_float.tflite",
         "tflite",
     )
-    if dtype == "float16":
-        mod = convert_to_fp16(mod["main"], dtype)
+    if calc_dtype == "float16":
+        from tvm.driver.tvmc.transform import apply_graph_transforms
+
+        mod = apply_graph_transforms(
+            mod,
+            {
+                "mixed_precision": True,
+                "mixed_precision_ops": ["nn.conv2d", "nn.dense"],
+                "mixed_precision_calculation_type": calc_dtype,
+                "mixed_precision_acc_type": acc_dtype,
+            },
+        )
+
     build_run_compare(remote, mod, params, inputs, dtypes, target, [])
 
 
@@ -55,14 +54,21 @@ def _test_mobilenet_v1(remote, target, dtype):
 @tvm.testing.parametrize_targets("opencl -device=adreno")
 @pytest.mark.skipif(tvm.testing.utils.IS_IN_CI, reason="CI doesn't support fp16(half datatypes)")
 def test_mobilenet_v1_fp16(remote, target):
-    _test_mobilenet_v1(remote, target, "float16")
+    _test_mobilenet_v1(remote, target, "float16", "float16")
 
 
 @pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/13443")
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
 def test_mobilenet_v1_fp32(remote, target):
-    _test_mobilenet_v1(remote, target, "float32")
+    _test_mobilenet_v1(remote, target, "float32", "float32")
+
+
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/13443")
+@tvm.testing.requires_opencl
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_mobilenet_v1_fp16_acc32(remote, target):
+    _test_mobilenet_v1(remote, target, "float16", "float32")
 
 
 if __name__ == "__main__":

@@ -3444,7 +3444,9 @@ def bool_primitive():
 def bool_cast():
     @T.prim_func
     def func() -> None:
+        a = T.bool()
         T.evaluate(T.bool(T.int32(0)))
+        T.evaluate(a == T.bool(False))
 
     return func
 
@@ -3623,6 +3625,19 @@ def merge_shape_var_def():
     return main
 
 
+def if_then_else_var():
+    @T.prim_func
+    def main(n: T.int32):
+        if n == 0:
+            x = 5
+            T.evaluate(x)
+        else:
+            x = 10
+            T.evaluate(x)
+
+    return main
+
+
 def tvm_shfl_builtins():
     @T.prim_func
     def func(
@@ -3740,6 +3755,7 @@ ir_generator = tvm.testing.parameter(
     let_stmt_value,
     string_stride,
     merge_shape_var_def,
+    if_then_else_var,
     tvm_shfl_builtins,
 )
 

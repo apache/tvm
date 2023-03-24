@@ -261,14 +261,6 @@ class BaseInliner : public StmtExprMutator {
     return StmtExprMutator::VisitExpr_(var);
   }
 
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
-
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
   Stmt VisitStmt_(const ForNode* loop) final {
     if (src_stmt.get() == loop) {
       loop = tgt_stmt.as<ForNode>();
