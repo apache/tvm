@@ -54,7 +54,8 @@ using tvm::transform::Pass;
  * \param target The device Target.
  * \return The composite Pass for the fused module.
 //  */
-TVM_DLL transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target);
+TVM_DLL transform::Sequential MixedModulePassManager(IRModule mixed_mod,
+                                                     Optional<Target> target = NullOpt);
 
 /*!
  * \brief Configures and returns the composite Pass for the device Target after device/host from

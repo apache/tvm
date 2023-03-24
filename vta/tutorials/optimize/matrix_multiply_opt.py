@@ -314,9 +314,9 @@ my_gemm = vta.build(
     s, [data, weight, res], tvm.target.Target("ext_dev", host=env.target_host), name="my_gemm"
 )
 temp = utils.tempdir()
-my_gemm.save(temp.relpath("gemm.o"))
-remote.upload(temp.relpath("gemm.o"))
-f = remote.load_module("gemm.o")
+my_gemm.export_library(temp.relpath("gemm.so"))
+remote.upload(temp.relpath("gemm.so"))
+f = remote.load_module("gemm.so")
 
 # Get the remote device context
 ctx = remote.ext_dev(0)

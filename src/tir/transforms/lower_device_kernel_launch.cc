@@ -260,7 +260,9 @@ class DeviceKernelMutator : public StmtExprMutator {
 
     bool same_device_type =
         caller_target->GetTargetDeviceType() == callee_target->GetTargetDeviceType();
-    if (same_device_type) {
+    bool linkable_module = (caller_target->GetTargetDeviceType() == kDLCPU) &&
+                           (callee_target->GetTargetDeviceType() == kDLExtDev);
+    if (same_device_type || linkable_module) {
       // Calls to another target using the same device (e.g. LLVM
       // calling a custom TIRToRuntime target) do not require a kernel
       // launch, but need to be replaced with call_extern.

@@ -327,17 +327,17 @@ my_vadd = vta.build(
 
 # Write the compiled module into an object file.
 temp = utils.tempdir()
-my_vadd.save(temp.relpath("vadd.o"))
+my_vadd.export_library(temp.relpath("vadd.so"))
 
 # Send the executable over RPC
-remote.upload(temp.relpath("vadd.o"))
+remote.upload(temp.relpath("vadd.so"))
 
 ######################################################################
 # Loading the Module
 # ~~~~~~~~~~~~~~~~~~
 # We can load the compiled module from the file system to run the code.
 
-f = remote.load_module("vadd.o")
+f = remote.load_module("vadd.so")
 
 ######################################################################
 # Running the Function

@@ -39,7 +39,7 @@ def test_ext_dev():
     def check_llvm():
         if not tvm.testing.device_enabled("llvm"):
             return
-        f = tvm.build(s, [A, B], "ext_dev", "llvm")
+        f = tvm.build(s, [A, B], "ext_dev", "ext_dev")
         dev = tvm.ext_dev(0)
         # launch the kernel.
         a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)

@@ -90,7 +90,15 @@ class CodeGenCHost : public CodeGenC {
   Array<String> function_names_;
   /*! \brief whether to emit asserts in the resulting C code */
   bool emit_asserts_;
-  /*! \brief whether to emit forwared function declarations in the resulting C code */
+  /*! \brief whether to emit forwared function declarations in the resulting C code
+   *
+   * Determines the behavior when encountering an unknown symbol as
+   * the callee in a `CallNode` whose operation is
+   * `builtin::call_extern`.  If true, the unknown symbol will be
+   * forward-declared as a function, derived from the TIR types of
+   * CallNode's argument/return value.  If false, the forward
+   * declaration is omitted.
+   */
   bool emit_fwd_func_decl_;
 
   FunctionInfo GetFunctionInfo(const CallNode* op, bool has_resource_handle);

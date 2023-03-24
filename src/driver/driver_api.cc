@@ -281,17 +281,6 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   return pass_list;
 }
 
-IRModule LowerWithPassList(IRModule mod, Array<tvm::transform::Pass> pass_list) {
-  auto optimize = tvm::transform::Sequential(pass_list);
-  mod = optimize(std::move(mod));
-  return mod;
-}
-
-IRModule ApplyPasses(IRModule mod, transform::Sequential seq) {
-  mod = seq(std::move(mod));
-  return mod;
-}
-
 // Convert te schedule to IRModule
 IRModule ScheduleToModule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
                           const std::unordered_map<te::Tensor, tir::Buffer>& binds,
@@ -343,7 +332,8 @@ TVM_REGISTER_GLOBAL("driver.schedule_to_module")
 
 IRModule LowerModule(IRModule mod, bool simple_mode) {
   Array<transform::Pass> pass_list = CreatePassList(simple_mode);
-  return LowerWithPassList(std::move(mod), pass_list);
+  tvm::transform::Sequential optimize(pass_list, "tvm.lower");
+  return optimize(std::move(mod));
 }
 
 TVM_REGISTER_GLOBAL("driver.lower_module").set_body_typed([](IRModule mod, bool simple_mode) {
@@ -360,10 +350,7 @@ IRModule LowerPrimFunc(tir::PrimFunc func, const std::string& name, bool simple_
     f = WithAttr(std::move(f), "tir.noalias", Bool(true));
   }
   IRModule mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(name), f}}));
-
-  // Get the pass list
-  Array<transform::Pass> pass_list = CreatePassList(simple_mode);
-  return LowerWithPassList(std::move(mod), pass_list);
+  return LowerModule(mod, simple_mode);
 }
 
 TVM_REGISTER_GLOBAL("driver.lower_primfunc")
@@ -385,9 +372,7 @@ IRModule LowerSchedule(te::Schedule sch, const Array<ObjectRef>& args, const std
                        const std::unordered_map<te::Tensor, tir::Buffer>& binds,
                        GlobalVarSupply global_var_supply, bool simple_mode) {
   IRModule mod = ScheduleToModule(std::move(sch), args, name, binds, global_var_supply);
-  // Get the legacy TE pass list
-  Array<transform::Pass> pass_list = CreatePassList(simple_mode);
-  return LowerWithPassList(mod, pass_list);
+  return LowerModule(mod, simple_mode);
 }
 
 TVM_REGISTER_GLOBAL("driver.lower_schedule")
@@ -403,35 +388,42 @@ TVM_REGISTER_GLOBAL("driver.lower_schedule")
       return LowerSchedule(std::move(sch), args, name, c_binds, GlobalVarSupply(), simple_mode);
     });
 
-/**
- * This function takes the input module that contains both the device and host opts.
- * Then, it applies transformation on the original module before splitting into separate modules for
- * device and host. Then it also applies transformations on the new splitted modules.
- */
-std::pair<IRModule, IRModule> SplitMixedModule(IRModule mod_mixed, const Target& target_arg,
-                                               const Target& target_host_arg) {
-  Target target = target_arg, target_host = target_host_arg;
-  CheckAndUpdateHostConsistency(&target, &target_host);
-
-  ICHECK(mod_mixed.defined()) << "This module must be defined";
-
-  mod_mixed = ApplyPasses(mod_mixed, MixedModulePassManager(mod_mixed, target));
-
-  IRModule host_mod = ApplyPasses(mod_mixed, HostModulePassManager(mod_mixed, target_host));
-
-  IRModule device_mod = ApplyPasses(mod_mixed, DeviceModulePassManager(mod_mixed, target));
-
-  auto keys = target->GetKeys();
-
-  CheckAndUpdateHostConsistency(&target, &target_host);
-
-  bool target_is_gpu = std::find(keys.begin(), keys.end(), "gpu") != keys.end();
-  if (target_is_gpu && device_mod->functions.size() == 0) {
-    DLOG(WARNING) << "Specified target " << target->str()
-                  << " but cannot find device code. Did you forget to bind?";
+IRModule MergeModules(const Map<Target, IRModule>& inputs) {
+  if (inputs.size() == 1) {
+    auto [target, mod] = *inputs.begin();
+    return tir::transform::BindTarget(target)(mod);
   }
 
-  return {host_mod, device_mod};
+  // Take the attrs from the first module so the eventual modules have them.
+  IRModule first_module = (*inputs.begin()).second;
+  IRModule merged = IRModule(Map<GlobalVar, BaseFunc>(), {}, {}, {}, first_module->attrs);
+
+  for (auto [target, mod] : inputs) {
+    mod = tir::transform::BindTarget(target)(mod);
+    merged->Update(mod);
+  }
+
+  return merged;
+}
+
+Map<Target, IRModule> SplitModule(const IRModule& module) {
+  Map<String, IRModule> split;
+
+  for (auto [gvar, base_func] : module->functions) {
+    auto target_str = base_func->GetAttr<Target>(tvm::attr::kTarget).value()->str();
+    if (auto it = split.find(target_str); it != split.end()) {
+      (*it).second->Add(gvar, base_func);
+    } else {
+      split.Set(target_str, IRModule({{gvar, base_func}}, {}, {}, {}, module->attrs));
+    }
+  }
+
+  Map<Target, IRModule> out;
+  for (auto [str, mod] : split) {
+    out.Set(Target(str), mod);
+  }
+
+  return out;
 }
 
 /*!
@@ -478,52 +470,86 @@ runtime::Module TIRToRuntime(const Map<Target, IRModule>& inputs_arg,
   // Update target host for all targets
   CheckAndUpdateHostConsistency(&inputs, &target_host);
 
-  // Take the attrs from the first module so the eventual modules have them.
-  // Ideally this would just be one unified module all the way through;
-  IRModule first_module = (*inputs.begin()).second;
-  IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>(), {}, {}, {}, first_module->attrs);
-
-  ICHECK(mhost_all.defined()) << "The host module must be defined";
-
-  for (const auto& it : inputs) {
-    if (it.second.defined()) {
-      const Target& target = it.first;
-      const IRModule& ir_module = it.second;
-      auto pair = SplitMixedModule(ir_module, target, target_host);
-      auto& host_mod = pair.first;
-      auto& device_mod = pair.second;
-
-      ICHECK(host_mod.defined()) << "The split host module must be defined";
-
-      ICHECK(mhost_all.defined()) << "The host module must be defined";
-
-      // We don't want library modules going back into host codegen
-      // unless they're supposed to. Here if we overrode the target host
-      // to allow lowering previously we check that it's meant to be placed
-      // back into the host Module.
-      bool overrides_host_target =
-          target->GetTargetDeviceType() == target_host->GetTargetDeviceType();
-      bool non_host_target_kind = target->kind != target_host->kind;
-      if (overrides_host_target && non_host_target_kind) {
-        device_modules.push_back(codegen::Build(host_mod, it.first));
-      } else {
-        mhost_all->Update(host_mod);
-      }
-
-      if (device_mod->functions.size() != 0) {
-        device_modules.push_back(codegen::Build(device_mod, it.first));
+  auto has_gpu_function = [](const IRModule& mod) -> bool {
+    for (const auto& [gvar, func] : mod->functions) {
+      if (auto target = func->GetAttr<Target>(tvm::attr::kTarget)) {
+        if (target.value()->HasKey("gpu")) {
+          return true;
+        }
       }
     }
+    return false;
+  };
+
+  IRModule merged = MergeModules(inputs);
+
+  bool contains_gpu_function_pre = has_gpu_function(merged);
+  merged = MixedModulePassManager(merged)(merged);
+  bool contains_gpu_function_post = has_gpu_function(merged);
+  if (contains_gpu_function_pre && !contains_gpu_function_post) {
+    DLOG(WARNING) << "Specified GPU targets, "
+                  << "but cannot find device code. Did you forget to bind?";
   }
 
-  runtime::Module mhost = codegen::Build(mhost_all, target_host);
-  for (const auto& it : device_modules) {
-    if (it.operator->()) {
-      mhost.Import(it);
+  Map<Target, IRModule> split = SplitModule(merged);
+
+  Map<Target, runtime::Module> built;
+  for (const auto& [target, mod] : split) {
+    built.Set(target, codegen::Build(mod, target));
+  }
+
+  auto host_target = [&]() -> Target {
+    // All targets that contain a kIsEntryFunc=True function
+    Array<Target> targets_with_entry_func;
+
+    // All targets that can run on the CPU and contain at least one
+    // function without kIsEntryFunc=False.
+    Array<Target> cpu_targets;
+    for (const auto& [target, mod] : split) {
+      bool contains_entry_func = false;
+      bool may_contain_entry_func = false;
+      for (const auto& [gvar, func] : mod->functions) {
+        Optional<Bool> is_entry_func = func->attrs.GetAttr<Bool>(tvm::tir::attr::kIsEntryFunc);
+        if (is_entry_func.defined() && is_entry_func.value()->value) {
+          contains_entry_func = true;
+        } else if (!is_entry_func.defined()) {
+          may_contain_entry_func = true;
+        }
+      }
+
+      if (contains_entry_func) {
+        targets_with_entry_func.push_back(target);
+      }
+
+      if (may_contain_entry_func && target->HasKey("cpu")) {
+        cpu_targets.push_back(target);
+      }
+    }
+
+    if (targets_with_entry_func.size()) {
+      ICHECK_EQ(targets_with_entry_func.size(), 1)
+          << "Expected at most one function "
+          << "annotated with tvm::tir::attr::kIsEntryFunc "
+          << "(\"" << tvm::tir::attr::kIsEntryFunc << "\"), "
+          << "but found: " << targets_with_entry_func;
+      return targets_with_entry_func[0];
+    } else if (cpu_targets.size() == 1) {
+      return cpu_targets[0];
+    } else {
+      LOG(FATAL) << "Could not determine which target is the host.  "
+                 << "No function was annotated with tvm::tir::attr::kIsEntryFunc (\""
+                 << tvm::tir::attr::kIsEntryFunc << "\"), "
+                 << "and " << cpu_targets.size() << " targets have the 'cpu' key";
+    }
+  }();
+
+  auto runtime_module = built[host_target];
+  for (const auto& [target, mod] : built) {
+    if (!mod.same_as(runtime_module)) {
+      runtime_module.Import(mod);
     }
   }
-
-  return mhost;
+  return runtime_module;
 }
 
 TVM_REGISTER_GLOBAL("driver.tir_to_runtime")
@@ -564,13 +590,16 @@ runtime::Module build(const IRModule& funcs, const Target& target_arg,
   return TIRToRuntime(inputs, target_host);
 }
 
-transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) {
+transform::Sequential MixedModulePassManager(IRModule mixed_mod, Optional<Target> target) {
   transform::PassContext pass_ctx = transform::PassContext::Current();
 
   Array<Pass> mixed_pass_list;
 
-  // FPComputeLegalize uses the target attrs added by BindTarget, so it must come first
-  mixed_pass_list.push_back(tir::transform::BindTarget(target));
+  // FPComputeLegalize uses the target attrs added by BindTarget, so
+  // BindTarget must come first.
+  if (target) {
+    mixed_pass_list.push_back(tir::transform::BindTarget(target.value()));
+  }
   mixed_pass_list.push_back(tir::transform::FP8ComputeLegalize());
 
   // VerifyVTCMLimit must occur before LowerVtcmAlloc
@@ -625,7 +654,28 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
 
   mixed_pass_list.push_back(tir::transform::LowerDeviceKernelLaunch());
 
-  return transform::Sequential(mixed_pass_list);
+  // Only applies to the device functions, identified by inspection of
+  // each function's tvm::attr::kTarget attribute.
+  mixed_pass_list.push_back(tir::transform::LowerWarpMemory());
+
+  // Only applies to the host functions, identified by inspection of
+  // each function's tvm::attr::kTarget attribute.
+  mixed_pass_list.push_back(tir::transform::LowerTVMBuiltin());
+
+  // Apply to both host and device functions
+  mixed_pass_list.push_back(tir::transform::Simplify());
+  mixed_pass_list.push_back(tir::transform::LowerCustomDatatypes());
+  mixed_pass_list.push_back(tir::transform::LowerIntrin());
+  mixed_pass_list.push_back(tir::transform::LowerDeviceStorageAccessInfo());
+
+  // Only applies to the host functions, identified by inspection of
+  // each function's tvm::attr::kTarget attribute.
+  mixed_pass_list.push_back(tir::transform::CombineContextCall());
+  if (pass_ctx->GetConfig<Bool>("tir.enable_debug", Bool(false)).value()) {
+    mixed_pass_list.push_back(tir::transform::InstallDebugSpans());
+  }
+
+  return transform::Sequential(mixed_pass_list, "tvm.build");
 }
 
 TVM_REGISTER_GLOBAL("driver.mixed_mod_passes")
@@ -634,6 +684,10 @@ TVM_REGISTER_GLOBAL("driver.mixed_mod_passes")
     });
 
 transform::Sequential HostModulePassManager(IRModule mixed_mod, Target target_host) {
+  LOG(WARNING) << "Use of driver.host_mod_passes is deprecated.  "
+               << "All lowering passes are now included "
+               << "as part of driver.mixed_mod_passes.";
+
   transform::PassContext pass_ctx = transform::PassContext::Current();
   bool enable_debug = pass_ctx->GetConfig<Bool>("tir.enable_debug", Bool(false)).value();
 
@@ -659,7 +713,7 @@ transform::Sequential HostModulePassManager(IRModule mixed_mod, Target target_ho
     host_pass_list.push_back(tir::transform::InstallDebugSpans());
   }
 
-  return transform::Sequential(host_pass_list);
+  return transform::Sequential(host_pass_list, "tir.host_mod_passes");
 }
 
 TVM_REGISTER_GLOBAL("driver.host_mod_passes")
@@ -668,6 +722,10 @@ TVM_REGISTER_GLOBAL("driver.host_mod_passes")
     });
 
 transform::Sequential DeviceModulePassManager(IRModule mixed_mod, Target target) {
+  LOG(WARNING) << "Use of driver.device_mod_passes is deprecated.  "
+               << "All lowering passes are now included "
+               << "as part of driver.mixed_mod_passes.";
+
   Array<Pass> device_pass_list;
   runtime::TypedPackedFunc<bool(tir::PrimFunc)> fcond = [](const tir::PrimFunc& f) {
     return f->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
@@ -683,7 +741,7 @@ transform::Sequential DeviceModulePassManager(IRModule mixed_mod, Target target)
   device_pass_list.push_back(tir::transform::LowerDeviceStorageAccessInfo());
   device_pass_list.push_back(tir::transform::LowerIntrin());
 
-  return transform::Sequential(device_pass_list);
+  return transform::Sequential(device_pass_list, "tir.device_mod_passes");
 }
 
 TVM_REGISTER_GLOBAL("driver.device_mod_passes")

@@ -97,6 +97,11 @@ Type GetType(const PrimExpr& expr) {
       return PointerType(PrimType(address->dtype));
     }
   }
+
+  if (expr.as<tir::StringImmNode>()) {
+    return PointerType(PrimType(DataType::Int(8)));
+  }
+
   // Default: return the type indicated by the dtype.
   runtime::DataType dtype = expr.dtype();
   return GetTypeFromRuntimeDataType(dtype);
