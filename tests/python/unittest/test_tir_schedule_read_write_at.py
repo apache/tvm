@@ -218,4 +218,4 @@ def test_read_at_local_to_shared_c():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()
