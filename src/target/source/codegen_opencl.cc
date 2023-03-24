@@ -382,10 +382,6 @@ std::string CodeGenOpenCL::CastTo(std::string value, DataType target) {
   return os.str();
 }
 
-void CodeGenOpenCL::VisitStmt_(const StoreNode* op) {
-  LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-}
-
 void CodeGenOpenCL::VisitStmt_(const BufferStoreNode* op) {
   if (auto call = op->value.as<CallNode>()) {
     if (call->op.same_as(builtin::texture2d_load())) {

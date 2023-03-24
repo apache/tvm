@@ -288,11 +288,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       LOG(FATAL) << "ValueError: Reduce should never exist in TIR: " << r;
     });
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::Load>("", [](tir::Load load, ObjectPath p, IRDocsifier d) -> Doc {
-      LOG(FATAL) << "ValueError: Load has been deprecated for BufferLoad: " << load;
-    });
-
 #define TVM_SCRIPT_PRINTER_DEF_BINARY(NodeType, OpString)                                       \
   TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)                                                    \
       .set_dispatch<tir::NodeType>("",                                                          \
@@ -393,7 +388,6 @@ TVM_SCRIPT_REPR(tir::CommReducerNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::IndexMapNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::AnyNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::ReduceNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tir::LoadNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script

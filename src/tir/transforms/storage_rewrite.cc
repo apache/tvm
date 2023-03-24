@@ -100,10 +100,6 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
   void VisitStmt_(const BufferStoreNode* op) final {
     scope_.push_back(StmtEntry());
     // visit subexpr
@@ -127,10 +123,6 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
       e.stmt = op;
       linear_seq_.push_back(e);
     }
-  }
-
-  void VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
@@ -280,8 +272,6 @@ class InplaceOpVerifier : public StmtExprVisitor {
       VisitStmt_(static_cast<const IfThenElseNode*>(stmt));
     } else if (stmt->IsInstance<WhileNode>()) {
       VisitStmt_(static_cast<const WhileNode*>(stmt));
-    } else if (stmt->IsInstance<StoreNode>()) {
-      VisitStmt_(static_cast<const StoreNode*>(stmt));
     } else if (stmt->IsInstance<BufferStoreNode>()) {
       VisitStmt_(static_cast<const BufferStoreNode*>(stmt));
     } else {
@@ -309,10 +299,6 @@ class InplaceOpVerifier : public StmtExprVisitor {
     }
   }
 
-  void VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
   void VisitStmt_(const BufferStoreNode* op) final {
     ++mem_nest_;
     for (const auto& index : op->indices) {
@@ -335,10 +321,6 @@ class InplaceOpVerifier : public StmtExprVisitor {
       return;
     }
     StmtExprVisitor::VisitStmt_(op);
-  }
-
-  void VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
@@ -414,14 +396,6 @@ class StoragePlanRewriter : public StmtExprMutator {
       return MakeAttach(attach_map_.at(nullptr), stmt);
     }
     return stmt;
-  }
-
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
   }
 
   template <typename Node>
@@ -1149,14 +1123,6 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     }
   }
 
-  void VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
-
-  void VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
   void VisitExpr_(const BufferLoadNode* op) final {
     OnArrayAccess(op->dtype, op->buffer->data.get(), op->indices);
     StmtExprVisitor::VisitExpr_(op);
@@ -1412,14 +1378,6 @@ class VectorTypeRewriter : public StmtExprMutator {
                                             preferred};
       }
     }
-  }
-
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
-
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
   }
 
   template <typename Node>

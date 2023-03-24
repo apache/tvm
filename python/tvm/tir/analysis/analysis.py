@@ -219,7 +219,8 @@ def calculate_allocated_bytes(func: PrimFunc) -> Dict[str, int]:
 
 def detect_buffer_access_lca(func: PrimFunc) -> Dict[Buffer, Stmt]:
     """Detect the lowest common ancestor(LCA) of buffer access, including both high-level
-    access(BufferLoad, BufferStore) and low-level access(Load, Store and opaque access).
+    access (BufferLoad, BufferStore) and low-level access (BufferLoad, BufferStore and opaque
+    access).
     The LCA may be a For loop or a Block.
 
     Parameters
