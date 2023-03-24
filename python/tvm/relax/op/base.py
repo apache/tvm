@@ -466,3 +466,34 @@ def shape_to_tensor(expr: Expr) -> Expr:
         A relax Call, which transforms the shape values to the tensor
     """
     return _ffi_api.shape_to_tensor(expr)  # type: ignore # pylint: disable=no-member
+
+
+def call_pure(inner_call: Call) -> Expr:
+    """
+    Indicate to the compiler that the given Call node should be treated as pure,
+    even if the callee is not pure according to the StructInfo system.
+
+    The resulting call will have the same semantics as invoking the Call directly.
+
+    Note: This should be used for cases when the user knows that calling the callee
+    with these arguments will _in reality_ not cause any side effects.
+    If it is used for a call that _does_ result in side effects, then the compiler
+    may end up removing, reordering, or repeating that call, with no guarantees
+    made about any side effects from the callee.
+
+    Parameters
+    ----------
+    inner_call : Call
+      A call that should be treated as pure
+
+    Returns
+    -------
+    result : Expr
+      A Relax call, corresponding to `call_pure(inner_call.op, inner_call.args)`
+    """
+    if not isinstance(inner_call, Call):
+        raise ValueError(
+            "call_pure must take a Call node directly "
+            "in order to transfer over attrs and StructInfo args"
+        )
+    return _ffi_api.call_pure(inner_call)  # type: ignore # pylint: disable=no-member

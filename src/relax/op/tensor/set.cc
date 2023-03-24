@@ -133,7 +133,8 @@ TVM_REGISTER_OP("relax.unique")
         "The dimension to apply unique. If it is NullOpt, the unique values of the flattened input "
         "are returned.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoUnique)
-    .set_attr<FCallPacked>("FCallPacked", "relax.run.unique");
+    .set_attr<FCallPacked>("FCallPacked", "relax.run.unique")
+    .set_attr<Bool>("FPurity", Bool(true));
 
 }  // namespace relax
 }  // namespace tvm

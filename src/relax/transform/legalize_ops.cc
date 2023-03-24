@@ -78,6 +78,8 @@ class LegalizeMutator : public ExprMutator {
   Expr VisitExpr_(const CallNode* call) final {
     Call visited_call = Downcast<Call>(this->VisitExprPostOrder_(call));
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
+    static const auto& purity_map = Op::GetAttrMap<Bool>("FPurity");
+    static const Op& call_pure_op = Op::Get("relax.call_pure");
     static const Op& call_tir_op = Op::Get("relax.call_tir");
     static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
     auto* op_node = visited_call->op.as<OpNode>();
@@ -100,14 +102,35 @@ class LegalizeMutator : public ExprMutator {
       return visited_call;
     }
 
+    auto op = GetRef<Op>(op_node);
+    // for call_pure, legalize the inner call
+    if (op == call_pure_op) {
+      auto inner_call = Call(call->args[0], Array<Expr>(call->args.begin() + 1, call->args.end()),
+                             call->attrs, call->sinfo_args);
+      auto res = VisitExpr_(inner_call.as<CallNode>());
+      if (res.as<CallNode>()) {
+        return WrapCallPure(Downcast<Call>(res));
+      }
+      return res;
+    }
+
     // Priority: customize > default.
     // Check if it has customize legalization registered.
     if (cmap_.defined() && cmap_.value().count(op->name)) {
-      return cmap_.value()[op->name](this->builder_, visited_call);
+      auto ret = cmap_.value()[op->name](this->builder_, visited_call);
+      if (ret.IsObjectRef<Expr>() && ret.AsObjectRef<Expr>().as<CallNode>() &&
+          purity_map.count(op) && purity_map[op]->value) {
+        return WrapCallPure(Downcast<Call>(ret.AsObjectRef<Expr>()));
+      }
+      return ret;
     }
     // Check if it has default legalization registered.
     if (legalize_map.count(op)) {
-      return legalize_map[op](this->builder_, visited_call);
+      auto ret = legalize_map[op](this->builder_, visited_call);
+      if (ret.as<CallNode>() && purity_map.count(op) && purity_map[op]->value) {
+        return WrapCallPure(Downcast<Call>(ret));
+      }
+      return ret;
     }
 
     // No legalization.

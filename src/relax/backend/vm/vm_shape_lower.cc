@@ -320,7 +320,9 @@ class VMShapeLowerMutator
       Call call(call_builtin_with_ctx_op_,
                 {builtin_alloc_shape_heap_, Tuple({PrimValue(heap_size)})}, Attrs(), {heap_sinfo});
       UpdateStructInfo(call, heap_sinfo);
-      return VarBinding(var, call);
+      auto ret = WrapCallPure(call);
+      UpdateStructInfo(ret, heap_sinfo);
+      return VarBinding(var, ret);
     } else {
       Var var("shape_heap", ObjectStructInfo());
       Call call(null_value_op_, {});
@@ -463,7 +465,7 @@ class VMShapeLowerMutator
       args.push_back(GetErrContext(item.err_ctx));
       if (!all_nop) {
         Call call(builtin_match_shape_, args, Attrs(), {void_sinfo_});
-        builder_->Emit(call, "_");
+        builder_->Emit(WrapCallPure(call), "_");
       }
     }
     return std::move(outstanding_todos);
@@ -591,7 +593,7 @@ class VMShapeLowerMutator
       Call call(builtin_check_shape_info_,
                 {value, PrimValue::Int64(op->ndim), GetErrContext(err_ctx)}, Attrs(),
                 {void_sinfo_});
-      builder_->Emit(call, "_");
+      builder_->Emit(WrapCallPure(call), "_");
     }
     if (op->values.defined()) {
       MatchShapeTodoItem item;
@@ -610,7 +612,7 @@ class VMShapeLowerMutator
       Call call(builtin_check_tensor_info_,
                 {value, PrimValue::Int64(op->ndim), DataTypeImm(op->dtype), GetErrContext(err_ctx)},
                 Attrs(), {void_sinfo_});
-      builder_->Emit(call, "_");
+      builder_->Emit(WrapCallPure(call), "_");
     }
 
     if (auto* shape_expr = op->shape.as<ShapeExprNode>()) {
@@ -643,7 +645,7 @@ class VMShapeLowerMutator
       // call runtime tuple get item, and return a object.
       Call call(builtin_tuple_getitem_, {value, PrimValue::Int64(index)}, Attrs(), {object_sinfo_});
       UpdateStructInfo(call, ObjectStructInfo());
-      return call;
+      return WrapCallPure(call);
     }
   }
 
@@ -660,7 +662,7 @@ class VMShapeLowerMutator
                 {value, PrimValue::Int64(static_cast<int64_t>(op->fields.size())),
                  GetErrContext(err_ctx)},
                 Attrs(), {void_sinfo_});
-      builder_->Emit(call, "_");
+      builder_->Emit(WrapCallPure(call), "_");
     }
     // recursively visit each sub-field and run matching
     for (size_t i = 0; i < op->fields.size(); ++i) {
@@ -675,7 +677,7 @@ class VMShapeLowerMutator
     if (!always_check && MatchStructInfo<FuncStructInfo>(value)) return;
     // check_func_info(value, err_ctx)
     Call call(builtin_check_func_info_, {value, GetErrContext(err_ctx)}, Attrs(), {void_sinfo_});
-    builder_->Emit(call, "_");
+    builder_->Emit(WrapCallPure(call), "_");
   }
 
   //-------------------------------------------------------

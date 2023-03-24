@@ -21,7 +21,7 @@ This file contains the set of passes for Relax, which exposes an interface for
 configuring the passes and scripting them in Python.
 """
 
-from typing import Dict, List, Union, Callable
+from typing import Dict, List, Optional, Union, Callable
 from enum import IntEnum
 
 import tvm
@@ -325,6 +325,34 @@ def has_reshape_pattern(func: tir.PrimFunc) -> bool:
     of this function.
     """
     return _ffi_api.has_reshape_pattern(func)  # type: ignore
+
+
+def contains_impure_call(expr: Expr, own_name: Optional[Union[Var, GlobalVar]] = None) -> bool:
+    """
+        Check if the given expression (likely a function body) contains any impure calls.
+
+        Parameter
+        ---------
+        expr : Expr
+            The expression to be examined. If expr is a function, we check the body.
+        
+        own_name : Var or GlobalVar (optional)
+            For a recursive function, the analysis can ignore the self-calls
+            for checking purity.
+
+        Returns
+        -------
+        ret : bool
+            True if there is an impure call 
+            (call to a function that may have visible side effects).
+
+    Notes
+    -----
+    Relies on StructInfo annotations, so ensure that the module has been normalized first.
+    Also, an impure call in a *nested* function does *not* mean that the outer expression contains
+    an impure call--it only does if the nested function is *later called*.
+    """
+    return _ffi_api.contains_impure_call(expr, own_name)
 
 
 def get_var2val(func: Function) -> Dict[Var, Expr]:

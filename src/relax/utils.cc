@@ -19,6 +19,7 @@
 
 #include "transform/utils.h"
 
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 
 namespace tvm {
@@ -54,6 +55,7 @@ class ExprBinder : public ExprMutator {
     if (all_params_unchanged && body.same_as(op->body)) {
       return GetRef<Expr>(op);
     } else {
+      // purity won't be affected, no need to update annotation
       return Function(params, body, VisitExprDepStructInfoField(op->ret_struct_info), op->attrs);
     }
   }
@@ -110,6 +112,53 @@ bool IsLeafOrTuple(const Expr& expr) {
   return expr.as<LeafExprNode>() || expr.as<GlobalVarNode>() || expr.as<ExternFuncNode>() ||
          expr.as<OpNode>() || expr.as<TupleNode>();
 }
+
+bool IsImpureCall(const Call& call) {
+  if (auto op_ptr = call->op.as<OpNode>()) {
+    auto op = GetRef<Op>(op_ptr);
+    auto purity_map = Op::GetAttrMap<Bool>("FPurity");
+    ICHECK(purity_map.count(op)) << "Cannot find the registered purity of this op: " << op->name;
+    return !(purity_map[op]->value);
+  }
+  // the StructInfo must be FuncStructInfo
+  auto func_struct_info = GetStructInfoAs<FuncStructInfoNode>(call->op);
+  return !func_struct_info->purity;
+}
+
+Call WrapCallPure(const Call& call) {
+  Array<Expr> call_pure_args = {call->op};
+  for (auto arg : call->args) {
+    call_pure_args.push_back(arg);
+  }
+  return Call(Op::Get("relax.call_pure"), call_pure_args, call->attrs, call->sinfo_args);
+}
+
+/*! \brief Helper to implement CopyWithNewVars.*/
+class FunctionCopier : public ExprMutator {
+ public:
+  static Function Transform(Function func) {
+    FunctionCopier copier;
+    // All variables that are bound inside the original function would be copied
+    // to satisfy the restriction in the well-formed check: Variables in Relax
+    // must be bound exactly once.
+    auto new_func = Downcast<Function>(copier.VisitExpr(func));
+    return SymbolicVarRenewMutator::Renew(new_func);
+  }
+
+  Var VisitVarDef_(const DataflowVarNode* var) override {
+    Var new_var = ExprMutator::VisitVarDef_(var);
+    Var copied_var = DataflowVar(new_var->name_hint(), GetStructInfo(new_var), new_var->span);
+    var_remap_[var->vid] = copied_var;
+    return copied_var;
+  }
+
+  Var VisitVarDef_(const VarNode* var) override {
+    Var new_var = ExprMutator::VisitVarDef_(var);
+    Var copied_var = Var(new_var->name_hint(), GetStructInfo(new_var), new_var->span);
+    var_remap_[var->vid] = copied_var;
+    return copied_var;
+  }
+};
 
 /*!
  * \brief Copy a new Relax function with new remapped vars and symbolic vars.

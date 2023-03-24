@@ -148,28 +148,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     // allocate dst register.
     RegName dst_reg = HasVoidStructInfo(call) ? Instruction::kVoidRegister : NewRegister();
     if (call->op.as<OpNode>()) {
-      // special case generate for the intrinsics whose attribute fields
-      // cannot be represented by args in the CallNode
-      FCallPacked name = GetPackedFuncName(call);
-      if (!name.empty()) {
-        // If the operator has a registered packed function implementation, emit call to that packed
-        // function.
-        EmitPackedFuncCall(call, name, dst_reg);
-      } else if (call_node->op == call_builtin_with_ctx_op_) {
-        // TODO(relax-team) migrate most handling of op to
-        // directly map to call_builtin_with_ctx before codegen and simplify vm codegen.
-        EmitCallBuiltinWithCtx(call, dst_reg);
-      } else if (call_node->op == alloc_storage_op_) {
-        EmitAllocStorage(call, dst_reg);
-      } else if (call_node->op == alloc_tensor_op_) {
-        EmitAllocTensor(call, dst_reg);
-      } else if (call_node->op == kill_object_op_) {
-        dst_reg = EmitKillObject(call);
-      } else {
-        // every "normal" operator is lowered to a global var in the IRModule. The Attrs for those
-        // ops are handled in a pass when lowering them to TIR.
-        LOG(FATAL) << "CodeGenVM cannot handle this intrinsic now:\n" << call_node->op;
-      }
+      ProcessOperator(call, dst_reg);
     } else {
       EmitNormalCall(call, dst_reg);
     }
@@ -332,6 +311,31 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     return builder_->GetFunction(op->global_symbol);
   }
 
+  void ProcessOperator(const Call& call, RegName dst_reg) {
+    // special case generate for the intrinsics whose attribute fields
+    // cannot be represented by args in the CallNode
+    FCallPacked name = GetPackedFuncName(call);
+    if (!name.empty()) {
+      // If the operator has a registered packed function implementation, emit call to that packed
+      // function.
+      EmitPackedFuncCall(call, name, dst_reg);
+    } else if (call->op == call_builtin_with_ctx_op_) {
+      // TODO(relax-team) migrate most handling of op to
+      // directly map to call_builtin_with_ctx before codegen and simplify vm codegen.
+      EmitCallBuiltinWithCtx(call, dst_reg);
+    } else if (call->op == call_pure_op_) {
+      EmitCallPure(call, dst_reg);
+    } else if (call->op == alloc_storage_op_) {
+      EmitAllocStorage(call, dst_reg);
+    } else if (call->op == alloc_tensor_op_) {
+      EmitAllocTensor(call, dst_reg);
+    } else {
+      // every "normal" operator is lowered to a global var in the IRModule. The Attrs for those
+      // ops are handled in a pass when lowering them to TIR.
+      LOG(FATAL) << "CodeGenVM cannot handle this intrinsic now:\n" << call->op;
+    }
+  }
+
   void EmitAllocStorage(const Call& call_node, RegName dst_reg) {
     ICHECK_EQ(call_node->args.size(), 3);
     // Handle args of the call
@@ -361,6 +365,19 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     RegName dst_reg = arg.value();
     builder_->EmitCall("vm.builtin.null_value", {}, dst_reg);
     return dst_reg;
+  }
+  
+  void EmitCallPure(const Call& call_node, RegName dst_reg) {
+    // treat it as a call of the inner args
+    auto callee = call_node->args[0];
+    auto inner_args = Array<Expr>(call_node->args.begin() + 1, call_node->args.end());
+    auto inner_call = Call(callee, inner_args, call_node->attrs, call_node->sinfo_args);
+    LOG(INFO) << inner_call;
+    if (callee.as<OpNode>()) {
+      ProcessOperator(inner_call, dst_reg);
+    } else {
+      EmitNormalCall(inner_call, dst_reg);
+    }
   }
 
   void EmitCallBuiltinWithCtx(const Call& call_node, RegName dst_reg) {
@@ -414,6 +431,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   const Op& alloc_tensor_op_ = Op::Get("relax.vm.alloc_tensor");
   const Op& kill_object_op_ = Op::Get("relax.vm.kill_object");
   const Op& call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
+  const Op& call_pure_op_ = Op::Get("relax.call_pure");
   const Op& null_value_op_ = Op::Get("relax.null_value");
 };
 

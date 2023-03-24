@@ -60,6 +60,7 @@ def test_unique():
 class PrintTest:
     @R.function
     def foo(x: R.Tensor((), "int32")):
+        R.func_attr({"IsPure": False})
         # results have to be bound, but we don't use them
         # TODO: We should allow calls whose results are not bound for side effects;
         #       it would be easy syntactic sugar to add.
@@ -91,32 +92,38 @@ def test_print():
 class AssertOpTest:
     @R.function
     def passes(x: R.Tensor((), "int32")):
+        R.func_attr({"IsPure": False})
         p1 = R.assert_op(relax.const(True))
         return x
 
     @R.function
     def pass_with_args(x: R.Tensor((), "int32")):
+        R.func_attr({"IsPure": False})
         p1 = R.assert_op(relax.const(True), x, format="You won't see me")
         return x
 
     @R.function
     def simple_fail(x: R.Tensor((), "int32")):
+        R.func_attr({"IsPure": False})
         p1 = R.assert_op(relax.const(False))
         return x
 
     @R.function
     def fail_with_message(x: R.Tensor((), "int32")):
+        R.func_attr({"IsPure": False})
         p1 = R.assert_op(relax.const(False), format="I failed...")
         return x
 
     @R.function
     def fail_with_args(x: R.Tensor((), "int32")):
+        R.func_attr({"IsPure": False})
         # no format
         p1 = R.assert_op(relax.const(False), [x, x])
         return x
 
     @R.function
     def fail_with_formatted_message(x: R.Tensor((), "int32")):
+        R.func_attr({"IsPure": False})
         p1 = R.assert_op(relax.const(False), x, format="Number: {}")
         return x
 
@@ -229,6 +236,53 @@ def test_op_shape_to_tensor():
     outs = run_cpu(ShapeToTensorTest, "symbolic_shape", tvm.runtime.ShapeTuple([3, 2]))
     assert isinstance(outs, tvm.runtime.ndarray.NDArray)
     assert np.array_equal(outs.numpy(), np.array([3, 2]))
+
+
+def test_op_call_pure():
+    @tvm.script.ir_module
+    class CallPureTest:
+        @R.function
+        def pure_copy(x: R.Tensor((3, 4), "float32")):
+            z = R.call_pure(
+                R.call_packed("vm.builtin.copy", x, sinfo_args=(R.Tensor((3, 4), dtype="float32")))
+            )
+            return z
+
+        @R.function
+        def pure_assert(x: R.Tensor((), "bool")):
+            # this is not actually pure and so not recommended, but this shows that the op works
+            with R.dataflow():
+                y = R.call_pure(R.assert_op(x))
+                R.output(y)
+            return x
+
+        @R.function
+        def plus_one(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            y = R.add(x, R.const(1, "int32"))
+            return y
+
+        @R.function
+        def nested_call_pure(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            z = CallPureTest.plus_one(x)  # R.call_pure(R.call_pure(CallPureTest.plus_one(x)))
+            return z
+
+    # need to legalize to have the increment
+    mod = relax.transform.LegalizeOps()(CallPureTest)
+
+    np.random.seed(0)  # to avoid flakiness
+    arr = np.random.rand(3, 4).astype("float32")
+    copy_found = run_cpu(mod, "pure_copy", tvm.nd.array(arr))
+    assert (copy_found.numpy() == arr).all()
+
+    inc = run_cpu(mod, "nested_call_pure", tvm.nd.array(np.array(1, dtype="int32")))
+    assert int(inc.numpy()) == 2
+
+    _ = run_cpu(mod, "pure_assert", tvm.nd.array(True))
+    try:
+        _ = run_cpu(mod, "pure_assert", tvm.nd.array(False))
+        assert False
+    except TVMError:
+        pass
 
 
 if __name__ == "__main__":
