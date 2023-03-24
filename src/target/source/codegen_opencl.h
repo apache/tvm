@@ -68,7 +68,6 @@ class CodeGenOpenCL final : public CodeGenC {
   void VisitExpr_(const CallNode* op, std::ostream& os) final;       // NOLINT(*)
   void VisitExpr_(const CastNode* op, std::ostream& os) final;       // NOLINT(*)
   void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;   // NOLINT(*)
-  void VisitStmt_(const StoreNode* op) final;                        // NOLINT(*)
   void VisitStmt_(const BufferStoreNode* op) final;                  // NOLINT(*)
 
   // overload min and max to avoid ambiguous call errors
