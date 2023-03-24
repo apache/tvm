@@ -85,7 +85,7 @@ class _SuffixTagger(ExprMutator):
 
 def tag_suffixes(mod):
     """Traverses the Relay graph to add suffix to the call's span fields.
-    That making span as an unique indicator of a Relay line and we can use it to
+    That making span as an unique indicator of a Relay call and we can use it to
     obtain the mapping between the offloaded result and the frontend operators.
 
     Parameters
