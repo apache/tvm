@@ -144,8 +144,6 @@ class TransformParamsFuncBuilder : public ExprMutator {
  */
 class LiftTransformParamsPlanner : public ExprVisitor {
  public:
-  explicit LiftTransformParamsPlanner(IRModule mod) : mod_(mod) {}
-
   LiftTransformParamsInfoPlan Plan(const Function& function, int num_inputs) {
     for (int i = num_inputs; i < static_cast<int>(function->params.size()); ++i) {
       builder_.AddInput(function->params[i]);
@@ -203,8 +201,6 @@ class LiftTransformParamsPlanner : public ExprVisitor {
   TransformParamsFuncBuilder builder_;
   // Whether we are in a dataflow block
   bool is_in_dataflow_block_{false};
-  // The module
-  IRModule mod_;
 };
 
 /*!
@@ -213,7 +209,7 @@ class LiftTransformParamsPlanner : public ExprVisitor {
  */
 class TransformParamsLifter : public ExprMutator {
  public:
-  explicit TransformParamsLifter(const IRModule& module) : ExprMutator(module), mod_(module) {}
+  explicit TransformParamsLifter(const IRModule& module) : ExprMutator(module) {}
 
   IRModule Lift() {
     auto mod = builder_->GetContextIRModule();
@@ -238,7 +234,7 @@ class TransformParamsLifter : public ExprMutator {
 
  private:
   Function RewriteFunc(const Function& func, int num_input, String new_func_name) {
-    LiftTransformParamsPlanner planner(mod_);
+    LiftTransformParamsPlanner planner;
 
     // Step 1: Create the plan of lifting transform params
     lift_plan_ = planner.Plan(func, num_input);
@@ -305,8 +301,6 @@ class TransformParamsLifter : public ExprMutator {
   std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> param_remap_;
   // The plan of lifting the transform params
   LiftTransformParamsInfoPlan lift_plan_;
-  // The module
-  IRModule mod_;
 };
 
 namespace transform {
