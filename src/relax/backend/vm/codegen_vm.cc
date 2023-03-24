@@ -315,6 +315,17 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   }
 
   Instruction::Arg VisitExpr_(const ExternFuncNode* op) final {
+    static const constexpr char* kCSource = "c_source";
+    static const constexpr char* kCSourceFmt = "c_source_fmt";
+    if (Optional<String> opt_code = op->attrs.GetAttr<String>(kCSource)) {
+      String sym = op->global_symbol;
+      String fmt = op->attrs.GetAttr<String>(kCSourceFmt).value_or("c");
+      String code = opt_code.value();
+      Module c_source_module =
+          codegen::CSourceModuleCreate(/*code=*/code, /*fmt=*/fmt, /*func_names=*/{sym},
+                                       /*const_vars=*/{});
+      builder_->exec()->Import(c_source_module);
+    }
     builder_->DeclareFunction(op->global_symbol, VMFuncInfo::FuncKind::kPackedFunc);
     return builder_->GetFunction(op->global_symbol);
   }
