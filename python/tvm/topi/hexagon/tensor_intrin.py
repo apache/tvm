@@ -38,29 +38,30 @@ def is_power_of_2(n: int):
     return (n & (n - 1) == 0) and n != 0
 
 
-def _adopt_to_highest_lanes(*args, intrinsic=None, intrinsic_lanes: int = 0):
-    """Enhance original lowering intrinsic to high vector lanes.
-    Will accept vector lanes equal orig_vec_lanes * 2**n for n in [0,1,2...]
+def _adapt_to_highest_lanes(*args, intrinsic=None, intrinsic_lanes: int = 0):
+    """Apply provided lowering intrinsic to arguments with longer vector data type.
 
-    Ada is equivalent of splitting input args to chunk with lanes equal orig_vec_lanes,
-    execution provided low_intrinsic for each of them and concatenate back.
+    This wrapper will do next actions:
+      * Split each argument into chunks with size equal intrinsic_lanes
+      * Apply provided intrinsic for each argument chunk
+      * Concatenate results
 
     Parameters
     ----------
     args: List[PrimExpr]
-        Args to adapt to
+        List of arguments. Each arg expression should have vector type with lanes
+        equal `intrinsic_lanes * 2**n`.
 
     intrinsic: callable
-        Intrinsic implementation to adapt
+        Intrinsic implementation to apply.
 
     intrinsic_lanes: int
-        Args lanes supported by provided intrinsic
+        Vector length required by intrinsic implementation.
 
     Returns
     -------
     res : PrimExpr
-        Resulting expression
-
+        Resulting expression.
     """
 
     def split_args(args_set):
@@ -179,7 +180,7 @@ def _q_multiply_shift_hexagon(op):
         # Select depending on the shift
         return tvm.tir.Select(shift < 0, out_negative_shift, mul_o_2)
 
-    return _adopt_to_highest_lanes(*op.args, intrinsic=intrinsic_lowering_32, intrinsic_lanes=32)
+    return _adapt_to_highest_lanes(*op.args, intrinsic=intrinsic_lowering_32, intrinsic_lanes=32)
 
 
 register_intrin_lowering(
@@ -272,7 +273,7 @@ def _q_multiply_shift_per_axis_hexagon(op):
             tvm.tir.Select(is_lshift_required, left_shift_out, right_shift_out),
         )
 
-    return _adopt_to_highest_lanes(*op.args, intrinsic=intrinsic_impl_32, intrinsic_lanes=32)
+    return _adapt_to_highest_lanes(*op.args, intrinsic=intrinsic_impl_32, intrinsic_lanes=32)
 
 
 register_intrin_lowering(
