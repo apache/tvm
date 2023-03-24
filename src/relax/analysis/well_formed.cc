@@ -402,6 +402,18 @@ class WellFormedChecker : public relax::ExprVisitor,
     }
   }
 
+  void VisitStructInfo_(const FuncStructInfoNode* op) final {
+    if (op->params.defined()) {
+      WithMode(VisitMode::kMatchVarDef, [&]() {
+        ICHECK(mode_ == VisitMode::kMatchVarDef);
+        for (StructInfo param : op->params.value()) {
+          this->VisitStructInfo(param);
+        }
+      });
+    }
+    this->VisitStructInfo(op->ret);
+  }
+
   void VisitStructInfoExprField(const Expr& expr) final {
     if (mode_ == VisitMode::kMatchVarDef) {
       // populate symbolic var in first occurrence

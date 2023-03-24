@@ -520,5 +520,18 @@ def test_sinfo_erase_to_well_formed():
     assert not rx.analysis.well_formed(mod)
 
 
+def test_func_sinfo_well_formed():
+    @R.function
+    def foo():
+        @R.function
+        def local(x: R.Tensor(["m", "n"], "float32")):
+            return x
+
+        return local
+
+    mod = rx.transform.Normalize()(tvm.IRModule.from_expr(foo))
+    assert rx.analysis.well_formed(mod)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
