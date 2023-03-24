@@ -209,7 +209,9 @@ class LowerToTIR:
         primfunc = tir_mod["main"]
         primfunc = primfunc.with_attr("global_symbol", func.attrs["global_symbol"])
         primfunc = primfunc.with_attr("ethos-u.constants", const_dict)
-        primfunc = primfunc.with_attr("target", tvm.target.Target(compiler_name))
+        primfunc = primfunc.with_attr(
+            "target", tvm.target.Target(compiler_name, host=compiler_name)
+        )
         return primfunc
 
     def __call__(self, *args, **kwargs):
