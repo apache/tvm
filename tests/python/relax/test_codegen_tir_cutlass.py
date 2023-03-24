@@ -64,6 +64,16 @@ def build(mod):
     return rt_mod
 
 
+def build_and_run_reference(mod, inputs_np):
+    mod = relax.transform.LegalizeOps()(mod)
+    dev = tvm.device("llvm", 0)
+    ex = relax.build(mod, "llvm")
+    vm = relax.VirtualMachine(ex, dev)
+    f = vm["main"]
+    inputs = [tvm.nd.array(inp, dev) for inp in inputs_np]
+    return f(*inputs).numpy()
+
+
 def constructGEMM(M, N, K):
     with IRBuilder() as ib:  # pylint: disable=invalid-name
         with I.ir_module() as frame:
@@ -523,17 +533,13 @@ def constructConv2D(N, C, H, W, KH, KW, O, strides, padding, dilation):
 
 @tvm.testing.requires_cutlass
 def test_cutlass_conv2d():
-    import torch
-
     n, c, h, w = 1, 3, 224, 224
     kh, kw, o = 3, 3, 64
-    counter = 0
     for strides in [(1, 1), (2, 2)]:
         for padding in [(0, 0), (3, 3)]:
             for dilation in [(1, 1), (4, 4)]:
-                executable = build(
-                    constructConv2D(n, c, h, w, kh, kw, o, strides, padding, dilation)
-                )
+                mod = constructConv2D(n, c, h, w, kh, kw, o, strides, padding, dilation)
+                executable = build(mod)
                 dev = tvm.cuda()
                 np.random.seed(0)
                 A = np.random.randn(n, h, w, c).astype("float16")
@@ -541,22 +547,13 @@ def test_cutlass_conv2d():
                 A_tvm = tvm.nd.array(A, dev)
                 B_tvm = tvm.nd.array(B, dev)
                 result = f_run(executable, dev, A_tvm, B_tvm)
-                A_torch = torch.from_numpy(np.transpose(A, (0, 3, 1, 2))).to(
-                    torch.float32
-                )  # .cuda()
-                B_torch = torch.from_numpy(np.transpose(B, (0, 3, 1, 2))).to(
-                    torch.float32
-                )  # .cuda()
-                C_torch = torch.nn.functional.conv2d(
-                    A_torch, B_torch, stride=strides, padding=padding, dilation=dilation
-                )
+                result_ref = build_and_run_reference(mod, [A, B])
                 np.testing.assert_allclose(
-                    np.transpose(result.numpy(), (0, 3, 1, 2)),
-                    C_torch.cpu().numpy(),
+                    result.numpy(),
+                    result_ref,
                     rtol=5e-2,
                     atol=5e-2,
                 )
-                counter += 1
 
 
 def constructConv2D_bias(N, C, H, W, KH, KW, O, strides, padding, dilation):
@@ -603,50 +600,30 @@ def constructConv2D_bias(N, C, H, W, KH, KW, O, strides, padding, dilation):
 
 @tvm.testing.requires_cutlass
 def test_cutlass_conv2d_bias():
-    import torch
-
     c, h, w = 3, 224, 224
     kh, kw, o = 3, 3, 64
-    counter = 0
     for n in [1, 2]:
         for strides in [(1, 1), (2, 2)]:
             for padding in [(0, 0), (3, 3)]:
                 for dilation in [(1, 1), (4, 4)]:
-                    filename = "/tmp/" + "test_transform_cutlass_codegen" + str(counter) + ".so"
-                    executable = build(
-                        constructConv2D_bias(n, c, h, w, kh, kw, o, strides, padding, dilation),
-                    )
+                    mod = constructConv2D_bias(n, c, h, w, kh, kw, o, strides, padding, dilation)
+                    executable = build(mod)
                     dev = tvm.cuda()
                     np.random.seed(0)
                     A = np.random.randn(n, h, w, c).astype("float16")
                     B = np.random.randn(o, kh, kw, c).astype("float16")
-                    bias = np.random.randn(o).astype("float16")
+                    bias = np.random.randn(1, 1, 1, o).astype("float16")
                     A_tvm = tvm.nd.array(A, dev)
                     B_tvm = tvm.nd.array(B, dev)
-                    bias_tvm = tvm.nd.array(bias.reshape(1, 1, 1, o), dev)
+                    bias_tvm = tvm.nd.array(bias, dev)
                     result = f_run(executable, dev, A_tvm, B_tvm, bias_tvm)
-                    A_torch = torch.from_numpy(np.transpose(A, (0, 3, 1, 2))).to(
-                        torch.float32
-                    )  # .cuda()
-                    B_torch = torch.from_numpy(np.transpose(B, (0, 3, 1, 2))).to(
-                        torch.float32
-                    )  # .cuda()
-                    bias_torch = torch.from_numpy(bias).to(torch.float32)  # .cuda()
-                    C_torch = torch.nn.functional.conv2d(
-                        A_torch,
-                        B_torch,
-                        bias=bias_torch,
-                        stride=strides,
-                        padding=padding,
-                        dilation=dilation,
-                    )
+                    result_ref = build_and_run_reference(mod, [A, B, bias])
                     np.testing.assert_allclose(
-                        np.transpose(result.numpy(), (0, 3, 1, 2)),
-                        C_torch.cpu().numpy(),
+                        result.numpy(),
+                        result_ref,
                         rtol=5e-2,
                         atol=5e-2,
                     )
-                    counter += 1
 
 
 def constructConv2D_bias_add(N, C, H, W, KH, KW, O, OH, OW, strides, padding, dilation):
@@ -697,58 +674,35 @@ def constructConv2D_bias_add(N, C, H, W, KH, KW, O, OH, OW, strides, padding, di
 
 @tvm.testing.requires_cutlass
 def test_cutlass_conv2d_bias_add():
-    import torch
-
     n, c, h, w = 2, 3, 224, 224
     kh, kw, o = 3, 3, 64
-    counter = 0
     for strides in [(1, 1), (2, 2)]:
         for padding in [(0, 0), (3, 3)]:
             for dilation in [(1, 1), (4, 4)]:
                 oh = (h + 2 * padding[0] - dilation[0] * (kh - 1) - 1) // strides[0] + 1
                 ow = (w + 2 * padding[1] - dilation[1] * (kw - 1) - 1) // strides[1] + 1
-                executable = build(
-                    constructConv2D_bias_add(
-                        n, c, h, w, kh, kw, o, oh, ow, strides, padding, dilation
-                    )
+                mod = constructConv2D_bias_add(
+                    n, c, h, w, kh, kw, o, oh, ow, strides, padding, dilation
                 )
+                executable = build(mod)
                 dev = tvm.cuda()
                 np.random.seed(0)
                 A = np.random.randn(n, h, w, c).astype("float16")
                 B = np.random.randn(o, kh, kw, c).astype("float16")
-                bias = np.random.randn(o).astype("float16")
+                bias = np.random.randn(1, 1, 1, o).astype("float16")
                 res = np.random.randn(n, oh, ow, o).astype("float16")
                 A_tvm = tvm.nd.array(A, dev)
                 B_tvm = tvm.nd.array(B, dev)
-                bias_tvm = tvm.nd.array(bias.reshape(1, 1, 1, o), dev)
+                bias_tvm = tvm.nd.array(bias, dev)
                 res_tvm = tvm.nd.array(res, dev)
                 result = f_run(executable, dev, A_tvm, B_tvm, bias_tvm, res_tvm)
-                A_torch = torch.from_numpy(np.transpose(A, (0, 3, 1, 2))).to(
-                    torch.float32
-                )  # .cuda()
-                B_torch = torch.from_numpy(np.transpose(B, (0, 3, 1, 2))).to(
-                    torch.float32
-                )  # .cuda()
-                bias_torch = torch.from_numpy(bias).to(torch.float32)  # .cuda()
-                res_torch = torch.from_numpy(np.transpose(res, (0, 3, 1, 2))).to(
-                    torch.float32
-                )  # .cuda()
-                C_torch = torch.nn.functional.conv2d(
-                    A_torch,
-                    B_torch,
-                    bias=bias_torch,
-                    stride=strides,
-                    padding=padding,
-                    dilation=dilation,
-                )
-                D_torch = C_torch + res_torch
+                result_ref = build_and_run_reference(mod, [A, B, bias, res])
                 np.testing.assert_allclose(
-                    np.transpose(result.numpy(), (0, 3, 1, 2)),
-                    D_torch.cpu().numpy(),
+                    result.numpy(),
+                    result_ref,
                     rtol=5e-2,
                     atol=5e-2,
                 )
-                counter += 1
 
 
 if __name__ == "__main__":
