@@ -1397,5 +1397,121 @@ class TestDepthwiseConv2dNCHWcKCRSk(BaseConv2DValidator):
     test_func = tvm.testing.parameter(depthwise_conv2d_NCHWc_KCRSk_acc32)
 
 
+def simple_texture_to_scalar_common(target, input_info, output_info, find_patterns, dtype, cast_type):
+    def _compute():
+        p0 = te.placeholder(input_info[1], name="p0", dtype=dtype)
+        p0_comp = te.compute(input_info[1], lambda *i: p0(*i), name="p0_comp")
+        if len(output_info[1]) == 4 and len(input_info[1]) == 5:
+            out = te.compute(
+                output_info[1],
+                lambda n, c, h, w: p0_comp[n][c // 4][h][w][c % 4].astype(cast_type),
+                name="out"
+            )
+        elif len(output_info[1]) == 5 and len(input_info[1]) == 5:
+            out = te.compute(
+                output_info[1],
+                lambda n, c, h, w, cb: p0_comp[n][c][h][w][cb].astype(cast_type),
+                name="out"
+            )
+        else:
+            raise Exception("Impossible case")
+        dummy_out = te.compute(output_info[1], lambda *i: out(*i), name="dummy_out")
+        return p0, dummy_out
+
+    def _schedule(dummy_out):
+        from tvm.topi.adreno.utils import bind_data_copy
+        s = te.create_schedule(dummy_out.op)
+        out = s[dummy_out].op.input_tensors[0]
+        p0_comp = s[out].op.input_tensors[0]
+        s[p0_comp].set_scope(input_info[0])
+        bind_data_copy(s[p0_comp])
+        s[out].set_scope(output_info[0])
+        bind_data_copy(s[out])
+        bind_data_copy(s[dummy_out])
+        return s
+
+    p0, dummy_out = _compute()
+    s = _schedule(dummy_out)
+
+    fun = tvm.build(s, [p0, dummy_out], target)
+    dev = tvm.device(target, 0)
+    opencl_source = fun.imported_modules[0].get_source()
+    for pattern in find_patterns:
+        assert opencl_source.find(pattern) > -1
+
+    # Doesn't check accuracy for FP16 because GPUs in CI don't support FP16 inference
+    # For output len == 5 it makes no sense to check the accuracy
+    if cast_type == "float32" and len(output_info[1]) == 4:
+        input_np = np.random.uniform(size=[i for i in input_info[1]]).astype(dtype)
+        input_tvm = tvm.nd.array(input_np, dev)
+        c = tvm.nd.empty(output_info[1], dtype, dev)
+        fun(input_tvm, c)
+        np_result = input_np.transpose(0, 2, 3, 1, 4)  # NCHW4c -> NHWC4c
+        np_result = np.squeeze(np_result, axis=3)
+        np_result = np_result.transpose(0, 3, 1, 2)  # NHWC -> NCHW
+        np.testing.assert_allclose(c.asnumpy(), np_result, rtol=1e-2, atol=1e-2)
+
+
+class TestSimpleTextureToScalarFP16():
+    target = "opencl"
+    # (input [scope, shape], output [scope, shape], [find_patterns])
+    input_info, output_info, find_patterns = tvm.testing.parameters(
+        # 1. Texture (NCHW4c) -> Cast(FP16) -> Buffer (NCHW)
+        (
+            ["global.texture", (1, 1, 40, 40, 4)],
+            ["", (1, 4, 40, 40)],
+            [
+                "float4 v_ = READ_IMAGEF(p0_comp, image_sampler, ((int2)((((int)get_local_id(0)) % 40), (((((int)get_group_id(0)) & 1) * 20) + (((int)get_local_id(0)) / 40)))));",
+                "out[((((int)get_group_id(0)) * 800) + ((int)get_local_id(0)))] = ((half)((float*)&v_)[(((int)get_group_id(0)) >> 1)]);",
+            ],
+        ),
+        # 2. Buffer (NCHW4c) -> Cast(FP16) -> Buffer (NCHW)
+        (
+            ["", (1, 1, 40, 40, 4)],
+            ["", (1, 4, 40, 40)],
+            ["out[((((int)get_group_id(0)) * 800) + ((int)get_local_id(0)))] = ((half)p0_comp[((((((int)get_group_id(0)) & 1) * 3200) + (((int)get_local_id(0)) * 4)) + (((int)get_group_id(0)) >> 1))]);"],
+        ),
+        # 3. Texture (NCHW4c) -> Cast(FP16) -> Texture (NCHW4c)
+        (
+            ["global.texture", (1, 1, 40, 40, 4)],
+            ["global.texture", (1, 1, 40, 40, 4)],
+            [
+                "float4 v_ = READ_IMAGEF(p0_comp, image_sampler, ((int2)((((((int)get_group_id(0)) * 24) + ((int)get_local_id(0))) % 40), (((((int)get_group_id(0)) * 8) + (((int)get_local_id(0)) >> 3)) / 5))));",
+                "write_imageh(out, (int2)((((((int)get_group_id(0)) * 24) + ((int)get_local_id(0))) % 40), (((((int)get_group_id(0)) * 8) + (((int)get_local_id(0)) >> 3)) / 5)), (convert_half4(v_)));",
+            ],
+        ),
+    )
+    dtype = tvm.testing.parameter("float32")
+
+    def test_simple_texture_to_scalar_fp16(self, input_info, output_info, find_patterns, dtype):
+        simple_texture_to_scalar_common(self.target, input_info, output_info, find_patterns, dtype, "float16")
+
+
+class TestSimpleTextureToScalarFP32():
+    target = "opencl"
+    # (input [scope, shape], output [scope, shape], [find_patterns])
+    input_info, output_info, find_patterns = tvm.testing.parameters(
+        # 1. Texture (NCHW4c) -> Buffer (NCHW)
+        (
+            ["global.texture", (1, 1, 40, 40, 4)],
+            ["", (1, 4, 40, 40)],
+            [
+                "float4 v_ = READ_IMAGEF(p0_comp, image_sampler, ((int2)((((int)get_local_id(0)) % 40), (((((int)get_group_id(0)) & 1) * 20) + (((int)get_local_id(0)) / 40)))));",
+                "out[((((int)get_group_id(0)) * 800) + ((int)get_local_id(0)))] = ((float*)&v_)[(((int)get_group_id(0)) >> 1)];",
+            ],
+        ),
+        # 2. Buffer (NCHW4c) -> Buffer (NCHW)
+        (
+            ["", (1, 1, 40, 40, 4)],
+            ["", (1, 4, 40, 40)],
+            ["out[((((int)get_group_id(0)) * 800) + ((int)get_local_id(0)))] = p0_comp[((((((int)get_group_id(0)) & 1) * 3200) + (((int)get_local_id(0)) * 4)) + (((int)get_group_id(0)) >> 1))];"],
+        ),
+    )
+    dtype = tvm.testing.parameter("float32")
+
+    def test_simple_texture_to_scalar_fp32(self, input_info, output_info, find_patterns, dtype):
+        simple_texture_to_scalar_common(self.target, input_info, output_info, find_patterns, dtype, "float32")
+
+
 if __name__ == "__main__":
     tvm.testing.main()
