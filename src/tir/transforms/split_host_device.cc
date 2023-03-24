@@ -112,7 +112,8 @@ PrimFunc SplitHostDevice(PrimFunc func, IRModule* device_mod, const GlobalVar& g
 
   if (!body.same_as(func->body)) {
     func.CopyOnWrite()->body = body;
-    func = WithAttr(std::move(func), tvm::tir::attr::kIsHostFunc, Bool(true));
+    auto target_host = target->GetHost().value_or(Target("llvm"));
+    func = WithAttr(std::move(func), tvm::attr::kTarget, target_host);
   }
 
   return func;
