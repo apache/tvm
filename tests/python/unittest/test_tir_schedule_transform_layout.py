@@ -1049,5 +1049,41 @@ def test_index_map_dtype_legalize():
     )
 
 
+def test_index_map_dtype_legalize_with_constant():
+    """Legalization of inverse containing a constant output
+
+    The index map `lambda i,j: [i, j//8, j % 8]` has an inverse `lambda i,j,k: [i, 8*j+k]`.
+    """
+
+    @T.prim_func
+    def func(A: T.Buffer(T.int64(16), "int32")):
+        for i in T.grid(T.int64(16)):
+            with T.block("block"):
+                vi = T.axis.remap("S", [i])
+                A[vi] = 0
+
+    sch = tir.Schedule(func)
+
+    # Triggering the error requires an IndexMap that introduces padding
+    func = lambda i: [
+        # And a constant to be one of the output indices.
+        tir.const(0, i.dtype),
+        (i + 1) // 8,
+        (i + 1) % 8,
+    ]
+
+    # Previously, the legalization was only handled by propagating the
+    # dtype of the indices to the transformed indices.  As a result,
+    # output indices whose value did not depend on the input index
+    # would be left with the incorrect dtype.
+
+    # Prior to the bugfix, this resulted in the following error is
+    # raised from the IterVar constructor.
+    #
+    # TVMError: Check failed: dom->extent.dtype() == var.dtype() (int64 vs. int32) :
+    # The dtype of the extent of an IterVar (int64) must match its associated Var's dtype (int32)
+    sch.transform_layout(block="block", buffer="A", index_map=func, pad_value=0)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
