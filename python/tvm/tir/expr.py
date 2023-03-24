@@ -1013,36 +1013,6 @@ class Select(PrimExprWithOp):
         )
 
 
-@tvm._ffi.register_object("tir.Load")
-class Load(PrimExprWithOp):
-    """Load node.
-
-    Parameters
-    ----------
-    dtype : str
-        The data type.
-
-    buffer_var : Var
-        The buffer variable in the load expression.
-
-    index : PrimExpr
-        The index in the load.
-
-    predicate : PrimExpr
-        The load predicate.
-
-    span : Optional[Span]
-        The location of this itervar in the source code.
-    """
-
-    def __init__(self, dtype, buffer_var, index, predicate=None, span=None):
-        if predicate is None:
-            predicate = _ffi_api.const_true(dtype, span)  # type: ignore
-        self.__init_handle_by_constructor__(
-            _ffi_api.Load, dtype, buffer_var, index, predicate, span  # type: ignore
-        )
-
-
 @tvm._ffi.register_object("tir.BufferLoad")
 class BufferLoad(PrimExprWithOp):
     """Buffer load node.

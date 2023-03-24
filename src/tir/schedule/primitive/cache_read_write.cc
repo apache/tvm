@@ -843,10 +843,6 @@ class CacheReadRewriter : public StmtExprMutator {
     return ExprMutator::VisitExpr_(load);
   }
 
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
-
   PrimExpr VisitExpr_(const VarNode* op) final {
     if (op == info_->read_buffer->data.get()) {
       return info_->write_buffer->data;
@@ -1065,14 +1061,6 @@ class CacheWriteRewriter : public StmtExprMutator {
       return PrimExpr(n);
     }
     return ExprMutator::VisitExpr_(load);
-  }
-
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
-
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
   }
 
   PrimExpr VisitExpr_(const VarNode* op) final {

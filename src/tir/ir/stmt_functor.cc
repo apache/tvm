@@ -66,10 +66,6 @@ void StmtVisitor::VisitStmt_(const AllocateConstNode* op) {
 
 void StmtVisitor::VisitStmt_(const DeclBufferNode* op) { this->VisitStmt(op->body); }
 
-void StmtVisitor::VisitStmt_(const StoreNode* op) {
-  LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-}
-
 void StmtVisitor::VisitStmt_(const BufferStoreNode* op) {
   this->VisitExpr(op->value);
   VisitArray(op->indices, [this](const PrimExpr& e) { this->VisitExpr(e); });
@@ -367,10 +363,6 @@ Stmt StmtMutator::VisitStmt_(const IfThenElseNode* op) {
     n->else_case = std::move(else_case);
     return Stmt(n);
   }
-}
-
-Stmt StmtMutator::VisitStmt_(const StoreNode* op) {
-  LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
 }
 
 Stmt StmtMutator::VisitStmt_(const BufferStoreNode* op) {
@@ -671,14 +663,6 @@ class IRSubstitute : public StmtExprMutator {
       return ret.value();
     }
     return std::move(var);
-  }
-
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
-
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {

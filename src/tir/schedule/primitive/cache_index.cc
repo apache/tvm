@@ -425,10 +425,6 @@ class CacheIndexRewriter : public StmtExprMutator {
     return ret_stmt;
   }
 
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
-
  private:
   /*! \brief The parent scope of the insertion */
   const StmtSRef& scope_sref_;
