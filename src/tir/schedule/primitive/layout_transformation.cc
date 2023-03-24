@@ -1095,8 +1095,17 @@ IndexMap LegalizeIndexMapDType(const IndexMap& index_map, const Array<PrimExpr>&
 
   Array<Var> initial_indices;
   Map<Var, PrimExpr> var_map;
+  std::optional<DataType> index_dtype = std::nullopt;
 
   for (size_t i = 0; i < args.size(); ++i) {
+    if (index_dtype.has_value()) {
+      ICHECK_EQ(*index_dtype, args[i]->dtype)
+          << "Buffer index " << args[i] << " has dtype " << args[i]->dtype
+          << ", but previous index for the same buffer access used index type " << *index_dtype;
+    } else {
+      index_dtype = args[i]->dtype;
+    }
+
     if (args[i]->dtype != initial_indices_orig[i].dtype()) {
       auto new_idx = Var(initial_indices_orig[i]->name_hint, args[i]->dtype);
       initial_indices.push_back(new_idx);
@@ -1108,8 +1117,13 @@ IndexMap LegalizeIndexMapDType(const IndexMap& index_map, const Array<PrimExpr>&
 
   if (!var_map.empty()) {
     auto final_indices = index_map->final_indices.Map([&](PrimExpr index) {
-      return SubstituteWithDataTypeLegalization(index,
-                                                [&](const Var& var) { return var_map.Get(var); });
+      if (auto* ptr = index.as<IntImmNode>()) {
+        ICHECK(index_dtype.has_value());
+        return tir::make_const(*index_dtype, ptr->value);
+      } else {
+        return SubstituteWithDataTypeLegalization(index,
+                                                  [&](const Var& var) { return var_map.Get(var); });
+      }
     });
     Optional<IndexMap> opt_inverse_index_map =
         Downcast<Optional<IndexMap>>(index_map->inverse_index_map);
