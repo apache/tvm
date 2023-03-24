@@ -33,6 +33,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
+#include <tvm/tir/expr_functor.h>
 #include <tvm/tir/function.h>
 
 #include <optional>
@@ -345,6 +346,45 @@ class GraphCreator : public ExprVisitor {
 };
 
 /*!
+ * \brief Renew the definition of symbolic vars in Relax.
+ * \details This mutator is used to prevent the same symbolic var from being used in different
+ *          functions, which is malformed.
+ */
+class SymbolicVarRenewMutator : public ExprMutator, tir::ExprMutator {
+ public:
+  static Function Renew(const Function& function) {
+    SymbolicVarRenewMutator mutator;
+    return Downcast<Function>(mutator.VisitExpr(function));
+  }
+
+ private:
+  SymbolicVarRenewMutator() = default;
+  using relax::ExprMutator::VisitExpr;
+  using relax::ExprMutator::VisitExpr_;
+  using tir::ExprMutator::VisitExpr_;
+
+  PrimExpr VisitPrimExpr(const PrimExpr& expr) final { return tir::ExprMutator::VisitExpr(expr); }
+
+  // TODO(Siyuan): enhance the method to the following steps:
+  // 1. Visit and replace all tir::Vars at the definition point
+  // 2. Revisit the function again and update the use side.
+  PrimExpr VisitExpr_(const tir::VarNode* op) final {
+    auto it = var_map_.find(GetRef<tir::Var>(op));
+    if (it != var_map_.end()) {
+      return (*it).second;
+    } else {
+      auto n = make_object<tir::VarNode>(*op);
+      tir::Var v(n);
+      var_map_.Set(GetRef<tir::Var>(op), v);
+      return v;
+    }
+  }
+
+ private:
+  Map<tir::Var, tir::Var> var_map_;
+};
+
+/*!
  * \brief The ExprMutator used to create a new grouped function
  * \details The workflow of this ExprMutator is:
  *  - The bindings in the function will be added by OperatorFusor via `AppendBinding(...)`.
@@ -466,10 +506,10 @@ class FunctionCreator : public ExprMutator {
       body = builder_->Normalize(body);
       body = builder_->Normalize(SeqExpr({new_block}, body));
       group_attrs.Set(tvm::relax::attr::kPrimitive, Integer(1));
-      function_ = Function(/*params=*/params_,           //
-                           /*body=*/body,                //
-                           /*ret_struct_info=*/NullOpt,  //
-                           /*attrs=*/DictAttrs(group_attrs));
+      function_ = SymbolicVarRenewMutator::Renew(Function(/*params=*/params_,           //
+                                                          /*body=*/body,                //
+                                                          /*ret_struct_info=*/NullOpt,  //
+                                                          /*attrs=*/DictAttrs(group_attrs)));
     }
   }
 
