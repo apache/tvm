@@ -176,6 +176,16 @@ Array<BlockRV> TracedScheduleNode::GetConsumers(const BlockRV& block_rv) {
 
 /******** Schedule: Transform loops ********/
 
+LoopRV TracedScheduleNode::Merge(const Array<LoopRV>& loop_rvs) {
+  LoopRV result = ConcreteScheduleNode::Merge(loop_rvs);
+  static const InstructionKind& kind = InstructionKind::Get("Merge");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{loop_rvs.begin(), loop_rvs.end()},
+                                      /*attrs=*/{},
+                                      /*outputs=*/{result}));
+  return result;
+}
+
 LoopRV TracedScheduleNode::Fuse(const Array<LoopRV>& loop_rvs, bool preserve_unit_loops) {
   LoopRV result = ConcreteScheduleNode::Fuse(loop_rvs, preserve_unit_loops);
 
