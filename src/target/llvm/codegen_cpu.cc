@@ -55,6 +55,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -285,12 +286,7 @@ llvm::DIType* CodeGenCPU::GetDebugType(const Type& ty_tir) {
 llvm::DIType* CodeGenCPU::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm) {
   if (ty_llvm == t_void_) {
     return nullptr;
-  } else if (ty_llvm == llvm::Type::getFloatTy(*llvm_target_->GetContext())) {
-    return dbg_info_->di_builder_->createBasicType("float", 32, llvm::dwarf::DW_ATE_float);
-  } else if (ty_llvm == t_int8_) {
-    return dbg_info_->di_builder_->createBasicType("int8", 8, llvm::dwarf::DW_ATE_signed);
-  } else if (ty_llvm == t_int32_) {
-    return dbg_info_->di_builder_->createBasicType("int32", 32, llvm::dwarf::DW_ATE_signed);
+
   } else if (ty_llvm->isPointerTy()) {
     auto* ptr_type = ty_tir.as<PointerTypeNode>();
     ICHECK(ptr_type != nullptr || GetRuntimeDataType(ty_tir).is_handle())
@@ -300,6 +296,36 @@ llvm::DIType* CodeGenCPU::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm) 
                                              : nullptr;
     return dbg_info_->di_builder_->createPointerType(pointee_type,
                                                      ty_llvm->getPrimitiveSizeInBits());
+
+  } else if (auto* prim_type = ty_tir.as<PrimTypeNode>()) {
+    DataType dtype = prim_type->dtype;
+    auto [name, dwarf_type] = [&]() -> std::tuple<const char*, llvm::dwarf::TypeKind> {
+      if (dtype.is_bool()) {
+        return {"bool", llvm::dwarf::DW_ATE_boolean};
+      } else if (dtype.is_float()) {
+        return {"float", llvm::dwarf::DW_ATE_float};
+      } else if (dtype.is_int()) {
+        return {"int", llvm::dwarf::DW_ATE_signed};
+      } else if (dtype.is_uint()) {
+        return {"uint", llvm::dwarf::DW_ATE_unsigned};
+      } else {
+        LOG(FATAL) << "No DWARF representation for TIR type " << dtype;
+      }
+    }();
+
+    std::stringstream ss;
+    ss << name;
+
+    if (!dtype.is_bool()) {
+      ss << dtype.bits();
+    }
+    if (dtype.lanes() > 1) {
+      ss << "x" << dtype.lanes();
+    }
+
+    return dbg_info_->di_builder_->createBasicType(ss.str(), dtype.bits() * dtype.lanes(),
+                                                   dwarf_type);
+
   } else {
     std::string type_str;
     llvm::raw_string_ostream rso(type_str);
