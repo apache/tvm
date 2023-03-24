@@ -1397,7 +1397,9 @@ class TestDepthwiseConv2dNCHWcKCRSk(BaseConv2DValidator):
     test_func = tvm.testing.parameter(depthwise_conv2d_NCHWc_KCRSk_acc32)
 
 
-def simple_texture_to_scalar_common(target, input_info, output_info, find_patterns, dtype, cast_type):
+def simple_texture_to_scalar_common(
+    target, input_info, output_info, find_patterns, dtype, cast_type
+):
     def _compute():
         p0 = te.placeholder(input_info[1], name="p0", dtype=dtype)
         p0_comp = te.compute(input_info[1], lambda *i: p0(*i), name="p0_comp")
@@ -1405,13 +1407,13 @@ def simple_texture_to_scalar_common(target, input_info, output_info, find_patter
             out = te.compute(
                 output_info[1],
                 lambda n, c, h, w: p0_comp[n][c // 4][h][w][c % 4].astype(cast_type),
-                name="out"
+                name="out",
             )
         elif len(output_info[1]) == 5 and len(input_info[1]) == 5:
             out = te.compute(
                 output_info[1],
                 lambda n, c, h, w, cb: p0_comp[n][c][h][w][cb].astype(cast_type),
-                name="out"
+                name="out",
             )
         else:
             raise Exception("Impossible case")
@@ -1420,6 +1422,7 @@ def simple_texture_to_scalar_common(target, input_info, output_info, find_patter
 
     def _schedule(dummy_out):
         from tvm.topi.adreno.utils import bind_data_copy
+
         s = te.create_schedule(dummy_out.op)
         out = s[dummy_out].op.input_tensors[0]
         p0_comp = s[out].op.input_tensors[0]
@@ -1452,8 +1455,7 @@ def simple_texture_to_scalar_common(target, input_info, output_info, find_patter
         np.testing.assert_allclose(c.asnumpy(), np_result, rtol=1e-2, atol=1e-2)
 
 
-class TestSimpleTextureToScalarFP16():
-    target = "opencl"
+class TestSimpleTextureToScalarFP16:
     # (input [scope, shape], output [scope, shape], [find_patterns])
     input_info, output_info, find_patterns = tvm.testing.parameters(
         # 1. Texture (NCHW4c) -> Cast(FP16) -> Buffer (NCHW)
@@ -1469,7 +1471,9 @@ class TestSimpleTextureToScalarFP16():
         (
             ["", (1, 1, 40, 40, 4)],
             ["", (1, 4, 40, 40)],
-            ["out[((((int)get_group_id(0)) * 800) + ((int)get_local_id(0)))] = ((half)p0_comp[((((((int)get_group_id(0)) & 1) * 3200) + (((int)get_local_id(0)) * 4)) + (((int)get_group_id(0)) >> 1))]);"],
+            [
+                "out[((((int)get_group_id(0)) * 800) + ((int)get_local_id(0)))] = ((half)p0_comp[((((((int)get_group_id(0)) & 1) * 3200) + (((int)get_local_id(0)) * 4)) + (((int)get_group_id(0)) >> 1))]);"
+            ],
         ),
         # 3. Texture (NCHW4c) -> Cast(FP16) -> Texture (NCHW4c)
         (
@@ -1483,12 +1487,16 @@ class TestSimpleTextureToScalarFP16():
     )
     dtype = tvm.testing.parameter("float32")
 
-    def test_simple_texture_to_scalar_fp16(self, input_info, output_info, find_patterns, dtype):
-        simple_texture_to_scalar_common(self.target, input_info, output_info, find_patterns, dtype, "float16")
+    @tvm.testing.parametrize_targets("opencl")
+    def test_simple_texture_to_scalar_fp16(
+        self, input_info, output_info, find_patterns, dtype, target
+    ):
+        simple_texture_to_scalar_common(
+            target, input_info, output_info, find_patterns, dtype, "float16"
+        )
 
 
-class TestSimpleTextureToScalarFP32():
-    target = "opencl"
+class TestSimpleTextureToScalarFP32:
     # (input [scope, shape], output [scope, shape], [find_patterns])
     input_info, output_info, find_patterns = tvm.testing.parameters(
         # 1. Texture (NCHW4c) -> Buffer (NCHW)
@@ -1504,13 +1512,20 @@ class TestSimpleTextureToScalarFP32():
         (
             ["", (1, 1, 40, 40, 4)],
             ["", (1, 4, 40, 40)],
-            ["out[((((int)get_group_id(0)) * 800) + ((int)get_local_id(0)))] = p0_comp[((((((int)get_group_id(0)) & 1) * 3200) + (((int)get_local_id(0)) * 4)) + (((int)get_group_id(0)) >> 1))];"],
+            [
+                "out[((((int)get_group_id(0)) * 800) + ((int)get_local_id(0)))] = p0_comp[((((((int)get_group_id(0)) & 1) * 3200) + (((int)get_local_id(0)) * 4)) + (((int)get_group_id(0)) >> 1))];"
+            ],
         ),
     )
     dtype = tvm.testing.parameter("float32")
 
-    def test_simple_texture_to_scalar_fp32(self, input_info, output_info, find_patterns, dtype):
-        simple_texture_to_scalar_common(self.target, input_info, output_info, find_patterns, dtype, "float32")
+    @tvm.testing.parametrize_targets("opencl")
+    def test_simple_texture_to_scalar_fp32(
+        self, input_info, output_info, find_patterns, dtype, target
+    ):
+        simple_texture_to_scalar_common(
+            target, input_info, output_info, find_patterns, dtype, "float32"
+        )
 
 
 if __name__ == "__main__":
