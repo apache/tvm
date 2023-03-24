@@ -1671,7 +1671,18 @@ class Resize2dParams:
             return False
         if self.method not in ("nearest_neighbor", "linear"):
             return False
-        if self.coordinate_transformation_mode not in ("asymmetric", "align_corners"):
+        if self.coordinate_transformation_mode not in (
+            "asymmetric",
+            "align_corners",
+            "half_pixel",
+        ):
+            return False
+        if (
+            self.coordinate_transformation_mode == "half_pixel"
+            and self.rounding_method != "round_prefer_ceil"
+        ):
+            return False
+        if self.coordinate_transformation_mode != "half_pixel" and self.rounding_method != "":
             return False
         if not check_compatible_size(
             self.coordinate_transformation_mode,
@@ -1679,8 +1690,6 @@ class Resize2dParams:
             self.size,
             self.ifm.shape[1:3],
         ):
-            return False
-        if self.rounding_method != "":
             return False
         if self.out_dtype and self.out_dtype != "int8":
             return False

@@ -2341,15 +2341,17 @@ def test_tflite_squeeze(ifm_shape, axis):
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
+@pytest.mark.parametrize("half_pixel", [False, True])
 @pytest.mark.parametrize(
     "ifm_shape,size",
     [
         [(1, 2, 2, 1), (4, 4)],
         [(1, 4, 7, 3), (8, 14)],
         [(1, 3, 5, 3), (3, 5)],
+        [(1, 6, 6, 96), (12, 12)],
     ],
 )
-def test_tflite_resize2d_nearest_neighbor(ifm_shape, size):
+def test_tflite_resize2d_nearest_neighbor(ifm_shape, size, half_pixel):
     align_corners = False
     dtype = "int8"
 
@@ -2357,7 +2359,7 @@ def test_tflite_resize2d_nearest_neighbor(ifm_shape, size):
         @tf.function
         def resize_model(x):
             return tf.compat.v1.image.resize_nearest_neighbor(
-                x, size, align_corners=align_corners, half_pixel_centers=False
+                x, size, align_corners=align_corners, half_pixel_centers=half_pixel,
             )
 
         concrete_func = resize_model.get_concrete_function(
