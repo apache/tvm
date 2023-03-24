@@ -404,7 +404,7 @@ def test_stop_lifting():
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 w1_t = R.permute_dims(w1, [1, 0])
-                w1_t1 = R.stop_lift_params(w1_t)
+                w1_t1 = R.builtin.stop_lift_params(w1_t)
                 w1_add = R.add(w1_t1, R.const(1, "float32"))
                 y = R.matmul(x, w1_add)
                 R.output(y)

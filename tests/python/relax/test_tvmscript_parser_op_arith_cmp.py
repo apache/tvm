@@ -59,7 +59,6 @@ def _check(
     (relax.op.sqrt,),
     (relax.op.tan,),
     (relax.op.tanh,),
-    (relax.op.stop_lift_params,),
 )
 
 

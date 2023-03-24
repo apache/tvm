@@ -87,8 +87,5 @@ RELAX_REGISTER_UNARY_CHECK_OP_AND_IMPL(isfinite);
 RELAX_REGISTER_UNARY_CHECK_OP_AND_IMPL(isinf);
 RELAX_REGISTER_UNARY_CHECK_OP_AND_IMPL(isnan);
 
-/***************** Indicator operators *****************/
-RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(stop_lift_params, /*require_float_dtype=*/false);
-
 }  // namespace relax
 }  // namespace tvm

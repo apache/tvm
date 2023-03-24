@@ -115,7 +115,6 @@ from tvm.relax.op import (
     square,
     squeeze,
     sqrt,
-    stop_lift_params,
     subtract,
     tan,
     tanh,
@@ -130,6 +129,7 @@ from tvm.relax.op import (
     zeros_like,
     nn,
 )
+from tvm.relax.op.builtin import stop_lift_params
 from tvm.relax.struct_info import StructInfo
 from tvm.relax.utils import args_converter
 from tvm.runtime import Object as tvm_Object

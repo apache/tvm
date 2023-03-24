@@ -138,10 +138,6 @@ Expr isinf(Expr x);
 /*! \brief Check if input value is Nan. */
 Expr isnan(Expr x);
 
-/***************** Indicator operators *****************/
-/*! \brief An indicator that the consumers of input tensor should not be lifted to transform_params
- * function*/
-Expr stop_lift_params(Expr x);
 }  // namespace relax
 }  // namespace tvm
 

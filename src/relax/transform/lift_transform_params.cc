@@ -171,7 +171,7 @@ class LiftTransformParamsPlanner : public ExprVisitor {
       can_lift = false;
     }
     if (const auto* call = binding->value.as<CallNode>()) {
-      static const Op& stop_lift_params_op = Op::Get("relax.stop_lift_params");
+      static const Op& stop_lift_params_op = Op::Get("relax.builtin.stop_lift_params");
       if (call->op.same_as(stop_lift_params_op)) {
         can_lift = false;
       }
@@ -279,7 +279,7 @@ class TransformParamsLifter : public ExprMutator {
       return;
     }
     if (const auto* call = binding->value.as<CallNode>()) {
-      static const Op& stop_lift_params_op = Op::Get("relax.stop_lift_params");
+      static const Op& stop_lift_params_op = Op::Get("relax.builtin.stop_lift_params");
       if (call->op.same_as(stop_lift_params_op)) {
         var_remap_[binding->var->vid] = Downcast<Var>(VisitExpr(call->args[0]));
         return;

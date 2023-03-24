@@ -527,23 +527,3 @@ def isnan(x: Expr) -> Expr:
         The computed result.
     """
     return _ffi_api.isnan(x)  # type: ignore
-
-
-###################### Indicator operators ######################
-
-
-def stop_lift_params(x: Expr) -> Expr:
-    """
-    An indicator that the consumers of input tensor should not be lifted to transform_params function
-
-    Parameters
-    ----------
-    x: relax.Expr
-        The input data
-
-    Returns
-    -------
-    result : relax.Expr
-        The result tensor that is the same as input tensor
-    """
-    return _ffi_api.stop_lift_params(x)  # type: ignore
