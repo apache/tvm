@@ -186,10 +186,11 @@ class VarTable:
         res : bool
             The existence of the value.
         """
-        for value_stack in self.name2value.values():
-            if value in value_stack:
-                return True
-        return False
+        return any(
+            value.same_as(known_value)
+            for known_value_stack in self.name2value.values()
+            for known_value in known_value_stack
+        )
 
 
 def _dispatch_wrapper(func: dispatch.ParseMethod) -> dispatch.ParseMethod:
