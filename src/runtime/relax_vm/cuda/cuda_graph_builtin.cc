@@ -76,11 +76,11 @@ class CUDAGraphCache : public Object {
 
   /*!
    * \brief Launch the cuda graph if it has been cached, otherwise execute it in capture mode.
-   * \param vm The virutal machine.
+   * \param vm The virtual machine.
    * \param capture_func The function of type (args...) -> Tuple[ObjectRef], where 'args' are the
    * static arguments that are the same for all invocations of the capture function, the returned
    * tuple contains the intermediate tensors that will be used outside the capture function.
-   * \params args The static arguments of the capture function
+   * \param args The static arguments of the capture function
    * \param entry_index The unique index of the capture function used for lookup.
    * \return The return value of the capture function.
    */

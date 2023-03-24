@@ -577,7 +577,10 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
   for (Var param : op->params) {
     Var new_param = this->VisitVarDef(param);
     params.push_back(new_param);
-    all_params_unchanged &= param.same_as(new_param);
+    if (!param.same_as(new_param)) {
+      var_remap_[param->vid] = new_param;
+      all_params_unchanged = false;
+    }
   }
 
   Expr body = this->VisitWithNewScope(op->body, params);

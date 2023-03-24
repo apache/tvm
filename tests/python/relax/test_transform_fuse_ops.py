@@ -1254,5 +1254,42 @@ def test_dead_group():
     _check(mod, Expected)
 
 
+def test_symbolic_shape_aware_fuse():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor(["n", "m"], "float32")):
+            with R.dataflow():
+                lv0 = R.emit_te(topi.add, x, R.const(1, "float32"))
+                lv1 = R.emit_te(topi.exp, lv0)
+                gv = R.emit_te(topi.squeeze, lv1)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def fused_add_exp_squeeze(
+            x: R.Tensor(["n", "m"], "float32"), p0: R.Tensor([], "float32")
+        ) -> R.Tensor(["n", "m"], dtype="float32"):
+            R.func_attr({"Primitive": 1})
+            with R.dataflow():
+                lv0 = R.emit_te(topi.add, x, p0)
+                lv1 = R.emit_te(topi.exp, lv0)
+                gv = R.emit_te(topi.squeeze, lv1)
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(x: R.Tensor(["n", "m"], "float32")) -> R.Tensor(["n", "m"], dtype="float32"):
+            cls = Expected
+            with R.dataflow():
+                gv = cls.fused_add_exp_squeeze(x, R.const(1, "float32"))
+                R.output(gv)
+            return gv
+
+    _check(Before, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
