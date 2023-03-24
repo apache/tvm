@@ -245,7 +245,7 @@ def get_mma_intrin(k_dim, out_dtype, b_transposed):
             for i, j, k in T.grid(M_DIM, N_DIM, k_dim):
                 with T.block("C"):
                     i, j, k = T.axis.remap("SSR", [i, j, k])
-                    b_row_ind, b_col_ind = maybe_swap(k, j)
+                    b_row_ind, b_col_ind = T.meta_var(maybe_swap(k, j))
 
                     thread_id_C, local_id_C = T.meta_var(index_map_C(i, j))
                     thread_id_A, local_id_A = T.meta_var(index_map_A(i, k))
@@ -719,7 +719,7 @@ def get_wmma_sync_intrin(
             for i, j, k in T.grid(m_dim, n_dim, k_dim):
                 with T.block(""):
                     vii, vjj, vkk = T.axis.remap("SSR", [i, j, k])
-                    B_index_0, B_index_1 = maybe_swap(vkk, vjj)
+                    B_index_0, B_index_1 = T.meta_var(maybe_swap(vkk, vjj))
                     C[vii, vjj] = C[vii, vjj] + maybe_cast(A[vii, vkk]) * maybe_cast(
                         B[B_index_0, B_index_1]
                     )
