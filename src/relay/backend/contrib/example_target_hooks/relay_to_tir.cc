@@ -64,7 +64,7 @@ class ConvertAddToSubtract : public MixedModeMutator {
   explicit ConvertAddToSubtract(IRModule ir_module, Target host_target)
       : ir_module_(ir_module),
         host_target_(host_target),
-        custom_target_(Target("example_target_hook")) {}
+        custom_target_(Target(Target("example_target_hook"), Target("example_target_hook"))) {}
 
   IRModule Mutate() {
     GlobalVar main_global_var = ir_module_->GetGlobalVar("main");
