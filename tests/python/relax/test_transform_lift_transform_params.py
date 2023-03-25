@@ -19,6 +19,7 @@ import tvm
 import tvm.testing
 from tvm import relax
 from tvm.script import relax as R, tir as T
+from tvm.script import ir as I
 import numpy as np
 import tvm.topi.testing
 
@@ -386,6 +387,53 @@ def test_multiple_functions():
                 y: R.Tensor((256, 256), dtype="float32") = R.matmul(x, w1_t, out_dtype="void")
                 R.output(y)
             return y
+
+    mod = Before
+    after = relax.transform.LiftTransformParams()(mod)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+def test_stop_lifting():
+    @tvm.script.ir_module
+    class Before:
+        @R.function
+        def func1(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                w1_t = R.permute_dims(w1, [1, 0])
+                w1_t1 = R.builtin.stop_lift_params(w1_t)
+                w1_add = R.add(w1_t1, R.const(1, "float32"))
+                y = R.matmul(x, w1_add)
+                R.output(y)
+            return y
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def func1(
+            x: R.Tensor((256, 256), dtype="float32"),
+            params: R.Tuple(R.Tensor((256, 256), dtype="float32")),
+        ) -> R.Tensor((256, 256), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((256, 256), dtype="float32") = params[0]
+                w1_add: R.Tensor((256, 256), dtype="float32") = R.add(lv, R.const(1, "float32"))
+                y: R.Tensor((256, 256), dtype="float32") = R.matmul(x, w1_add, out_dtype="void")
+                R.output(y)
+            return y
+
+        @R.function
+        def func1_transform_params(
+            params: R.Tuple(R.Tensor((256, 256), dtype="float32"))
+        ) -> R.Tuple(R.Tensor((256, 256), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((256, 256), dtype="float32") = params[0]
+                lv1: R.Tensor((256, 256), dtype="float32") = R.permute_dims(lv, axes=[1, 0])
+                gv: R.Tuple(R.Tensor((256, 256), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
 
     mod = Before
     after = relax.transform.LiftTransformParams()(mod)

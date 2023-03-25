@@ -50,3 +50,21 @@ def alloc_tensor(
         runtime_device_index = PrimValue(runtime_device_index)
 
     return _ffi_api.alloc_tensor(shape, dtype, runtime_device_index)  # type: ignore
+
+
+def stop_lift_params(x: Expr) -> Expr:
+    """
+    An indicator that the consumers of input tensor should not be
+    lifted to transform_params function
+
+    Parameters
+    ----------
+    x: relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The result tensor that is the same as input tensor
+    """
+    return _ffi_api.stop_lift_params(x)  # type: ignore

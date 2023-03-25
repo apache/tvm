@@ -168,6 +168,12 @@ class LiftTransformParamsPlanner : public ExprVisitor {
     if (!is_in_dataflow_block_) {
       can_lift = false;
     }
+    if (const auto* call = binding->value.as<CallNode>()) {
+      static const Op& stop_lift_params_op = Op::Get("relax.builtin.stop_lift_params");
+      if (call->op.same_as(stop_lift_params_op)) {
+        can_lift = false;
+      }
+    }
 
     PostOrderVisit(binding->value, [&](const ObjectRef& obj) {
       if (const VarNode* var = obj.as<VarNode>()) {
@@ -267,6 +273,13 @@ class TransformParamsLifter : public ExprMutator {
   void VisitBinding_(const VarBindingNode* binding) final {
     if (lift_plan_.lifted_bindings.count(binding->var)) {
       return;
+    }
+    if (const auto* call = binding->value.as<CallNode>()) {
+      static const Op& stop_lift_params_op = Op::Get("relax.builtin.stop_lift_params");
+      if (call->op.same_as(stop_lift_params_op)) {
+        var_remap_[binding->var->vid] = Downcast<Var>(VisitExpr(call->args[0]));
+        return;
+      }
     }
     ExprMutator::VisitBinding_(binding);
   }
