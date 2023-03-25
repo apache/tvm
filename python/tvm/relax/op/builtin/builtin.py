@@ -54,7 +54,8 @@ def alloc_tensor(
 
 def stop_lift_params(x: Expr) -> Expr:
     """
-    An indicator that the consumers of input tensor should not be lifted to transform_params function
+    An indicator that the consumers of input tensor should not be
+    lifted to transform_params function
 
     Parameters
     ----------
