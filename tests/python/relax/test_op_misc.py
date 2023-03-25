@@ -103,5 +103,13 @@ def test_vm_alloc_tensor():
     tvm.ir.assert_structural_equal(alloc.struct_info, R.Tensor([4, 5], "float32"))
 
 
+def test_builtin_stop_lift_params():
+    bb = rx.BlockBuilder()
+    x = rx.Var("x", rx.TensorStructInfo(shape=[4, 5], dtype="float32"))
+    x1 = rx.op.builtin.stop_lift_params(x)
+    x1 = bb.normalize(x1)
+    tvm.ir.assert_structural_equal(x1.struct_info, R.Tensor([4, 5], "float32"))
+
+
 if __name__ == "__main__":
     tvm.testing.main()

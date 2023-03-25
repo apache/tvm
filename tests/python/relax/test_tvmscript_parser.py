@@ -1199,6 +1199,16 @@ def test_vm_ops():
     _check(foo)
 
 
+def test_builtin_ops():
+    @R.function
+    def foo(x: R.Tensor(("m", "n"), dtype="float32")):
+        tensor = R.builtin.stop_lift_params(x)
+        gv = tensor
+        return gv
+
+    _check(foo)
+
+
 def test_prim_value():
     @R.function
     def foo():

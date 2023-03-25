@@ -513,5 +513,22 @@ Expr MakeCallTIRDyn(Expr func, Tuple args) {
 
 TVM_REGISTER_GLOBAL("relax.op.vm.call_tir_dyn").set_body_typed(MakeCallTIRDyn);
 
+// builtin stop_lift_params
+StructInfo InferStructInfoStopLiftParams(const Call& call, const BlockBuilder& ctx) {
+  return InferStructInfoUnaryArith<false>(call, ctx);
+}
+
+RELAY_REGISTER_OP("relax.builtin.stop_lift_params")
+    .set_num_inputs(1)
+    .add_argument("x", "Expr", "The input data")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStopLiftParams);
+
+Expr MakeStopLiftParams(Expr x) {
+  static const Op& op = Op::Get("relax.builtin.stop_lift_params");
+  return Call(op, {x}, Attrs(), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.builtin.stop_lift_params").set_body_typed(MakeStopLiftParams);
+
 }  // namespace relax
 }  // namespace tvm
