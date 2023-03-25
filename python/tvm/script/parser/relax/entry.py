@@ -91,16 +91,15 @@ class TensorProxy(StructInfoProxy):
         ndim: int = -1,
     ) -> None:
         if isinstance(shape, Expr):
-            if isinstance(shape, Var):
-                if not isinstance(shape.struct_info, ShapeStructInfo):
-                    raise ValueError(
-                        "When the shape is a Var, it must have shape struct_info. But got "
-                        f"{shape} with struct_info: {shape.struct_info}"
-                    )
-            elif not isinstance(shape, ShapeExpr):
+            if not isinstance(shape, (ShapeExpr, Var)):
                 raise ValueError(
                     "When the shape is an Expr, it must be a ShapeExpr or a Var with ShapeExpr "
                     f"value. But got: {shape} with type: {type(shape)}"
+                )
+            if isinstance(shape, Var) and not isinstance(shape.struct_info, ShapeStructInfo):
+                raise ValueError(
+                    "When the shape is a Var, it must have shape struct_info. But got "
+                    f"{shape} with struct_info: {shape.struct_info}"
                 )
         self.shape = shape
         self.dtype = dtype
