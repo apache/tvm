@@ -478,7 +478,9 @@ Function Function::CreateEmpty(Array<Var> params, StructInfo ret_struct_info, Di
         << "relax.Function requires params to contain checked_type_.";
     param_sinfo.push_back(GetStructInfo(param));
   }
-  FuncStructInfo finfo(param_sinfo, ret_struct_info);
+  // if unannotated, we assume the function is pure
+  bool purity = attrs.GetAttr<Bool>(relax::attr::kIsPure).value_or(Bool(true))->value;
+  FuncStructInfo finfo(param_sinfo, ret_struct_info, purity);
 
   // set the fields
   ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
