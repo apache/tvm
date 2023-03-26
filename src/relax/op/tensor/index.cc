@@ -95,7 +95,8 @@ TVM_REGISTER_OP("relax.take")
     .set_num_inputs(2)
     .add_argument("x", "Tensor", "The source tensor.")
     .add_argument("indices", "Tensor", "The indices of the values to extract.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTake);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTake)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.strided_slice */
 TVM_REGISTER_NODE_TYPE(StridedSliceAttrs);
@@ -237,7 +238,8 @@ TVM_REGISTER_OP("relax.strided_slice")
     .add_argument("x", "Tensor", "The source tensor to be sliced.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStridedSlice)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStridedSlice)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.dynamic_strided_slice */
 Expr dynamic_strided_slice(Expr x,      //

@@ -126,7 +126,8 @@ TVM_REGISTER_OP("relax.matmul")
     .add_argument("x2", "Tensor", "The second input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMatmul)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionMatmul);
+    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionMatmul)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.einsum */
 TVM_REGISTER_NODE_TYPE(EinsumAttrs);
