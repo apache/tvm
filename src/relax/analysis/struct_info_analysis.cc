@@ -95,7 +95,7 @@ StructInfo StructInfoFromType(const Type& type) {
     Array<StructInfo> params =
         func_type->arg_types.Map([](const Type& param) { return StructInfoFromType(param); });
     StructInfo ret = StructInfoFromType(func_type->ret_type);
-    // TODO: Maybe add purity into the type as well
+    // TODO(relax-team): Maybe add purity into the type as well
     return FuncStructInfo(params, ret, true, func_type->span);
   } else {
     LOG(FATAL) << "Unsupported type: " << type;
