@@ -130,7 +130,7 @@ class CSourceModuleNode : public runtime::ModuleNode {
     }
   }
 
-  bool IsDSOExportable() const final { return true; }
+  uint8_t GetProperty() const { return runtime::property::kDSOExportable; }
 
   bool ImplementsFunction(const String& name, bool query_imports) final {
     return std::find(func_names_.begin(), func_names_.end(), name) != func_names_.end();
@@ -200,7 +200,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     }
   }
 
-  bool IsDSOExportable() const final { return true; }
+  uint8_t GetProperty() const { return runtime::property::kDSOExportable; }
 
   bool ImplementsFunction(const String& name, bool query_imports) final {
     return std::find(func_names_.begin(), func_names_.end(), name) != func_names_.end();
@@ -1009,6 +1009,8 @@ class DeviceSourceModuleNode final : public runtime::ModuleNode {
   }
 
   const char* type_key() const final { return type_key_.c_str(); }
+  /*! \brief Get the property of the runtime module .*/
+  uint8_t GetProperty() const final { return runtime::property::kBinarySerializable; }
 
   void SaveToFile(const std::string& file_name, const std::string& format) final {
     std::string fmt = GetFileFormat(file_name, format);

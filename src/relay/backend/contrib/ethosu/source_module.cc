@@ -121,7 +121,7 @@ class EthosUModuleNode : public ModuleNode {
     return Module(n);
   }
 
-  bool IsDSOExportable() const final { return true; }
+  uint8_t GetProperty() const { return property::kDSOExportable; }
 
   bool ImplementsFunction(const String& name, bool query_imports) final {
     return std::find_if(compilation_artifacts_.begin(), compilation_artifacts_.end(),

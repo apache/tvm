@@ -88,6 +88,8 @@ class TorchModuleNode : public ModuleNode {
       : symbol_name_(symbol_name), module_(module) {}
 
   const char* type_key() const { return "torch"; }
+  /*! \brief Get the property of the runtime module .*/
+  uint8_t GetProperty() const final { return property::kBinaryExportable; };
 
   /*!
    * \brief Get a packed function.

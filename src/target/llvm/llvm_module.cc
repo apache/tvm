@@ -100,7 +100,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   void Init(const IRModule& mod, const Target& target);
   void Init(std::unique_ptr<llvm::Module> module, std::unique_ptr<LLVMInstance> llvm_instance);
   void LoadIR(const std::string& file_name);
-  bool IsDSOExportable() const final { return true; }
+  uint8_t GetProperty() const { return runtime::property::kDSOExportable; }
 
   bool ImplementsFunction(const String& name, bool query_imports) final;
 

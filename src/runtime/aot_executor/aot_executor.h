@@ -51,6 +51,9 @@ class TVM_DLL AotExecutor : public ModuleNode {
    */
   const char* type_key() const final { return "AotExecutor"; }
 
+  /*! \brief Get the property of the runtime module .*/
+  uint8_t GetProperty() const final { return property::kRunnable; }
+
   void Run();
 
   /*!

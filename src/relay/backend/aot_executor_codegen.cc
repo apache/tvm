@@ -1357,6 +1357,8 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
   }
 
   const char* type_key() const final { return "RelayGraphRuntimeCodegenModule"; }
+  /*! \brief Get the property of the runtime module .*/
+  uint8_t GetProperty() const final { return runtime::property::kRunnable; }
 
  private:
   void init(void* mod, const Array<Target>& targets) {

@@ -175,6 +175,8 @@ class RPCModuleNode final : public ModuleNode {
   }
 
   const char* type_key() const final { return "rpc"; }
+  /*! \brief Get the property of the runtime module .*/
+  uint8_t GetProperty() const final { return property::kRunnable; }
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "CloseRPCConnection") {

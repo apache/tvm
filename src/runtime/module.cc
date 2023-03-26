@@ -132,8 +132,6 @@ std::string ModuleNode::GetFormat() {
   LOG(FATAL) << "Module[" << type_key() << "] does not support GetFormat";
 }
 
-bool ModuleNode::IsDSOExportable() const { return false; }
-
 bool ModuleNode::ImplementsFunction(const String& name, bool query_imports) {
   return GetFunction(name, query_imports) != nullptr;
 }

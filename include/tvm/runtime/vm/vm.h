@@ -178,6 +178,9 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
    */
   virtual void LoadExecutable(const ObjectPtr<Executable>& exec);
 
+  /*! \brief Get the property of the runtime module .*/
+  uint8_t GetProperty() const final { return property::kRunnable; }
+
  protected:
   /*! \brief Push a call frame on to the call stack. */
   void PushFrame(Index arg_count, Index ret_pc, const VMFunction& vm_func);

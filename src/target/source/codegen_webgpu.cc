@@ -489,6 +489,8 @@ class WebGPUSourceModuleNode final : public runtime::ModuleNode {
       : smap_(smap), fmap_(fmap) {}
 
   const char* type_key() const final { return "webgpu"; }
+  /*! \brief Get the property of the runtime module .*/
+  uint8_t GetProperty() const final { return runtime::property::kBinarySerializable; }
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     LOG(FATAL) << "WebGPUSourceModule is not directly runnable, export and run through tvmjs";

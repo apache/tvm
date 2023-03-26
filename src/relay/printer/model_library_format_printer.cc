@@ -37,6 +37,9 @@ class ModelLibraryFormatPrinter : public ::tvm::runtime::ModuleNode {
 
   const char* type_key() const final { return "model_library_format_printer"; }
 
+  /*! \brief Get the property of the runtime module .*/
+  uint8_t GetProperty() const final { return runtime::property::kRunnable; }
+
   std::string Print(const ObjectRef& node) {
     std::ostringstream oss;
     oss << node;

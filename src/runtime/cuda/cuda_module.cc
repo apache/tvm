@@ -65,6 +65,9 @@ class CUDAModuleNode : public runtime::ModuleNode {
 
   const char* type_key() const final { return "cuda"; }
 
+  /*! \brief Get the property of the runtime module .*/
+  uint8_t GetProperty() const final { return property::kBinaryExportable; }
+
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
 
   void SaveToFile(const std::string& file_name, const std::string& format) final {
