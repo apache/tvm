@@ -228,10 +228,10 @@ class TVM_DLL ModuleNode : public Object {
    * By default, none of the property is set. Derived class can override this function and set its
    * own property.
    */
-  virtual uint8_t GetProperty() const { return 0x000; };
+  virtual uint8_t GetProperty() const { return 0x000; }
 
   /*! \brief Returns true if this module is 'DSO exportable'. */
-  virtual bool IsDSOExportable() const final { return GetProperty() == property::kDSOExportable; };
+  bool IsDSOExportable() const { return GetProperty() == property::kDSOExportable; };
 
   /*!
    * \brief Returns true if this module has a definition for a function of \p name. If
