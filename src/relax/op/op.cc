@@ -229,7 +229,7 @@ TVM_REGISTER_OP("relax.call_builtin_with_ctx")
     .add_argument("func", "Expr", "The builtin packed func.")
     .add_argument("args", "Tuple", "The input arguments.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallBuiltinWithCtx)
-    // TODO: Please verify if these are normally impure or not
+    // TODO(relax-team): Please verify if these are normally impure or not
     .set_attr<Bool>("FPurity", Bool(false));
 
 Expr MakeCallBuiltinWithCtx(Expr func, Tuple args, Array<StructInfo> sinfo_args) {
@@ -350,8 +350,8 @@ RELAY_REGISTER_OP("relax.invoke_closure")
     .add_argument("closure", "Expr", "The VMClosure.")
     .add_argument("args", "Tuple", "The captured variables.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoInvokeClosure)
-    // TODO: This might be another case where we would want a macro or even use an attr.
-    // It may depend on the particulars of the closure
+    // TODO(relax-team): This might be another case where we would want a macro instead of a bool.
+    // The purity may depend on the particulars of the closure
     .set_attr<Bool>("FPurity", Bool(false));
 
 Expr InvokeClosure(Expr closure, Tuple args, Array<StructInfo> sinfo_args) {

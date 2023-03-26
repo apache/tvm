@@ -154,7 +154,8 @@ FuncStructInfo::FuncStructInfo(Array<StructInfo> params, StructInfo ret, bool pu
   data_ = std::move(n);
 }
 
-FuncStructInfo FuncStructInfo::OpaqueFunc(StructInfoDeriveFunc derive_func, bool purity, Span span) {
+FuncStructInfo FuncStructInfo::OpaqueFunc(StructInfoDeriveFunc derive_func, bool purity,
+                                          Span span) {
   ObjectPtr<FuncStructInfoNode> n = make_object<FuncStructInfoNode>();
   n->derive_func = std::move(derive_func);
   n->ret = ObjectStructInfo();
