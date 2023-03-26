@@ -82,12 +82,12 @@ TVM_DLL bool IsBoolStructInfo(const StructInfo& sinfo, bool permit_unknown_rank 
 TVM_DLL bool IsLeafOrTuple(const Expr& expr);
 
 /*!
- * \brief Check if the given Call node is an impure operation. If the callee is a general expression,
- * this simply requires checking the purity field of the FuncStructInfo. If it is an Op, then this checks
- * the `fPurity` field.
- * 
+ * \brief Check if the given Call node is an impure operation. If the callee is a general
+ * expression, this simply requires checking the purity field of the FuncStructInfo. If it is an Op,
+ * then this checks the `fPurity` field.
+ *
  * \param call The input call
- * 
+ *
  * \return True iff the call is impure (definitely or possibly results in a visible side effect).
  *   That is, a call is considered pure only if definitely does not result in a visible side effect.
  */
@@ -97,11 +97,10 @@ TVM_DLL bool IsImpureCall(const Call& call);
  * \brief Wrap the Call node in the call_pure op, transferring over the attributes and sinfo_args.
  *
  * \param call The input call
- * 
+ *
  * \return A Call to the call_pure op that wraps the original call.
  */
 TVM_DLL Call WrapCallPure(const Call& call);
-// implementation is in op.cc
 
 /*!
  * \brief Copy the given function. All variables that are bound inside the original function
