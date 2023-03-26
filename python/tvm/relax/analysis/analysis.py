@@ -335,7 +335,7 @@ def contains_impure_call(expr: Expr, own_name: Optional[Union[Var, GlobalVar]] =
         ---------
         expr : Expr
             The expression to be examined. If expr is a function, we check the body.
-        
+
         own_name : Var or GlobalVar (optional)
             For a recursive function, the analysis can ignore the self-calls
             for checking purity.
@@ -343,7 +343,7 @@ def contains_impure_call(expr: Expr, own_name: Optional[Union[Var, GlobalVar]] =
         Returns
         -------
         ret : bool
-            True if there is an impure call 
+            True if there is an impure call
             (call to a function that may have visible side effects).
 
     Notes
