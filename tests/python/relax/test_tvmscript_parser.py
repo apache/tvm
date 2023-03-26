@@ -747,6 +747,7 @@ def test_annotation():
         q: R.Tensor(ndim=2) = R.add(w, w)
         t = R.add(w, z)
         sh: R.Shape = R.call_packed("shape_of", x, sinfo_args=R.Shape)
+        lv: R.Tensor(sh, dtype="float32") = R.reshape(x, sh)
         o: R.Object = R.call_packed("contrib.tensor_array_stack", x, y, sinfo_args=R.Object)
         return o
 
@@ -759,13 +760,15 @@ def test_annotation():
     assert isinstance(foo.ret_struct_info, relax.ObjectStructInfo)
     m = relax.get_shape_of(foo.params[0])[1]
     bindings = foo.body.blocks[0].bindings
+    sh = bindings[4].var
 
     _check_struct_info(bindings[0], relax.TensorStructInfo([32, m], "float32"))
     _check_struct_info(bindings[1], relax.TensorStructInfo(dtype="", ndim=-1))
     _check_struct_info(bindings[2], relax.TensorStructInfo(dtype="", ndim=2))
     _check_struct_info(bindings[3], relax.TensorStructInfo(dtype="", ndim=-1))
     _check_struct_info(bindings[4], relax.ShapeStructInfo(ndim=-1))
-    _check_struct_info(bindings[5], relax.ObjectStructInfo())
+    _check_struct_info(bindings[5], relax.TensorStructInfo(sh))
+    _check_struct_info(bindings[6], relax.ObjectStructInfo())
 
 
 def test_annotate_override():
