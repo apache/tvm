@@ -32,6 +32,7 @@ from tvm.relax import (
     TensorStructInfo,
     TupleStructInfo,
 )
+from tvm.relax.expr import Var
 from tvm.runtime import ObjectGeneric
 from tvm.tir import PrimExpr
 
@@ -89,15 +90,20 @@ class TensorProxy(StructInfoProxy):
         dtype: Optional[str] = None,
         ndim: int = -1,
     ) -> None:
+        if isinstance(shape, Expr):
+            if not isinstance(shape, (ShapeExpr, Var)):
+                raise ValueError(
+                    "When the shape is an Expr, it must be a ShapeExpr or a Var with ShapeExpr "
+                    f"value. But got: {shape} with type: {type(shape)}"
+                )
+            if isinstance(shape, Var) and not isinstance(shape.struct_info, ShapeStructInfo):
+                raise ValueError(
+                    "When the shape is a Var, it must have shape struct_info. But got "
+                    f"{shape} with struct_info: {shape.struct_info}"
+                )
         self.shape = shape
-        if isinstance(shape, Expr) and not isinstance(shape, ShapeExpr):
-            raise ValueError(
-                "Only ShapeExpr is allowed as shape expr, but got: "
-                f"{shape} with type: {type(shape)}"
-            )
         self.dtype = dtype
         self.ndim = ndim
-        super().__init__()
 
     def get_symbolic_vars(self) -> Set[str]:
         if self.shape is None or isinstance(self.shape, Expr):
@@ -108,7 +114,7 @@ class TensorProxy(StructInfoProxy):
     def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> TensorStructInfo:
         if self.shape is None:
             return TensorStructInfo(None, self.dtype, self.ndim)
-        elif isinstance(self.shape, ShapeExpr):
+        elif isinstance(self.shape, (ShapeExpr, Var)):
             return TensorStructInfo(self.shape, self.dtype, self.ndim)
         else:
             if dict_globals is None and any([isinstance(s, str) for s in self.shape]):
@@ -121,23 +127,19 @@ class TensorProxy(StructInfoProxy):
 
 
 def Tensor(
-    shape: Optional[Union[List[Union[PrimExpr, str]], ShapeExpr]] = None,
+    shape: Optional[Union[List[Union[PrimExpr, str]], Expr]] = None,
     dtype: Optional[str] = None,
     ndim: int = -1,
 ) -> TensorProxy:
     # scalar tensor case
-    if shape is not None and len(shape) == 0:
+    if shape is not None and not isinstance(shape, Var) and len(shape) == 0:
         shape = []
     if isinstance(shape, str) and dtype is None:
         dtype = shape
         shape = None
 
-    if (
-        shape is not None
-        and not isinstance(shape, (tuple, list))
-        and not isinstance(shape, ShapeExpr)
-    ):
-        raise ValueError(f"shape must be a list/tuple or a ShapeExpr, but got: {shape}")
+    if shape is not None and not isinstance(shape, (tuple, list)) and not isinstance(shape, Expr):
+        raise ValueError(f"shape must be a list/tuple or an Expr, but got: {shape}")
     return TensorProxy(shape, dtype, ndim)
 
 
