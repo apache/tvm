@@ -432,7 +432,7 @@ class OpenCLModuleNode : public ModuleNode {
   const char* type_key() const final { return workspace_->type_key.c_str(); }
 
   /*! \brief Get the property of the runtime module .*/
-  uint8_t GetProperty() const final { return property::kBinaryExportable; }
+  uint8_t GetProperty() const final { return property::kBinarySerializable | property::kRunnable; }
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
   void SaveToFile(const std::string& file_name, const std::string& format) final;

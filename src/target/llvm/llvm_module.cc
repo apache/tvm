@@ -92,7 +92,10 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   const char* type_key() const final { return "llvm"; }
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
-
+  virtual uint8_t GetProperty() const {
+    return runtime::property::kBinarySerializable | runtime::property::kRunnable |
+           runtime::property::kDSOExportable;
+  };
   void SaveToFile(const std::string& file_name, const std::string& format) final;
   void SaveToBinary(dmlc::Stream* stream) final;
   std::string GetSource(const std::string& format) final;
@@ -100,7 +103,6 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   void Init(const IRModule& mod, const Target& target);
   void Init(std::unique_ptr<llvm::Module> module, std::unique_ptr<LLVMInstance> llvm_instance);
   void LoadIR(const std::string& file_name);
-  uint8_t GetProperty() const { return runtime::property::kDSOExportable; }
 
   bool ImplementsFunction(const String& name, bool query_imports) final;
 

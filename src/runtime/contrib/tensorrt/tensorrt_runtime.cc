@@ -98,7 +98,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
   const char* type_key() const final { return "tensorrt"; }
 
   /*! \brief Get the property of the runtime module .*/
-  uint8_t GetProperty() const final { return property::kBinaryExportable; }
+  uint8_t GetProperty() const final { return property::kBinarySerializable | property::kRunnable; }
 
   /*!
    * \brief Initialize runtime. Create TensorRT layer from JSON

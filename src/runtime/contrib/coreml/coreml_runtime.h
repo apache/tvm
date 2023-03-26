@@ -106,7 +106,7 @@ class CoreMLRuntime : public ModuleNode {
   virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
 
   /*! \brief Get the property of the runtime module .*/
-  uint8_t GetProperty() const final { return property::kBinaryExportable; };
+  uint8_t GetProperty() const final { return property::kBinarySerializable | property::kRunnable; };
 
   /*!
    * \brief Serialize the content of the mlmodelc directory and save it to

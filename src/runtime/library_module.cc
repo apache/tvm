@@ -41,7 +41,7 @@ class LibraryModuleNode final : public ModuleNode {
       : lib_(lib), packed_func_wrapper_(wrapper) {}
 
   const char* type_key() const final { return "library"; }
-  uint8_t GetProperty() const final { return property::kBinaryExportable; };
+  uint8_t GetProperty() const final { return property::kBinarySerializable | property::kRunnable; };
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     TVMBackendPackedCFunc faddr;
