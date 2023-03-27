@@ -15,11 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-argument, ungrouped-imports
-"""
-Namespace for the supported Relay operators on Gemmini
-=====================
-**Author**: `Federico Peccia <https://fPecc.github.io/>`_
-"""
 
 from __future__ import absolute_import as _abs
 

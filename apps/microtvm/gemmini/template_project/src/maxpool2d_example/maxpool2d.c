@@ -25,14 +25,14 @@
 #ifndef BAREMETAL
 #include "sys/mman.h"
 #endif
-#include "model/inputs.h"
-#include "model/outputs.h"
+#include "input.h"
+#include "output.h"
 #include "model/tvmgen_default.h"
 
-int8_t output_add[output_len];
+int8_t output_maxpool2d[OUTPUT_LEN];
 
 int main() {
-  printf("Starting add test...\r\n");
+  printf("Starting max pooling 2D test...\r\n");
 #ifndef BAREMETAL
   if (mlockall(MCL_CURRENT | MCL_FUTURE) != 0) {
     perror("mlockall failed");
@@ -41,29 +41,27 @@ int main() {
 #endif
 
   struct tvmgen_default_inputs inputs;
-  inputs.serving_default_x_0 = input_1;
-  inputs.serving_default_y_0 = input_2;
+  inputs.serving_default_x_0 = input;
   struct tvmgen_default_outputs outputs;
-  outputs.PartitionedCall_0 = output_add;
+  outputs.PartitionedCall_0 = output_maxpool2d;
   int error_counter = 0;
 
   tvmgen_default_run(&inputs, &outputs);
 
   // Look for errors!
-  for (int i = 0; i < output_len; i++) {
-    if (output_add[i] != output[i]) {
+  for (int i = 0; i < OUTPUT_LEN; i++) {
+    if (output_maxpool2d[i] != output[i]) {
       error_counter += 1;
-      printf("ERROR IN ADD EXAMPLE! output_add[%d] (%d) != output[%d] (%d)\r\n", i, output_add[i],
-             i, output[i]);
+      printf("ERROR IN MAX POOL 2D EXAMPLE! output_maxpool2d[%d] (%d) != output[%d] (%d)\r\n", i,
+             output_maxpool2d[i], i, output[i]);
       // exit(1);
     }
   }
 
   // We allow for a very small percentage of errors, this could be related to rounding errors
-  float error_perc = ((float)(error_counter / output_len) * 100);
-  if (error_perc < 1)
-    printf("SUCCESS! (error_counter = %d)\r\n", error_counter);
+  if (((float)(error_counter / OUTPUT_LEN) * 100) < 1)
+    printf("SUCCESS!\r\n");
   else
-    printf("FAIL! (error_counter = %d)\r\n", error_counter);
+    printf("FAIL!\r\n");
   exit(0);
 }

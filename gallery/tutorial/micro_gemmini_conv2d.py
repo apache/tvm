@@ -26,12 +26,16 @@ This tutorials shows how a quantized 2d convolution layer can be compiled to be 
 
 import tensorflow as tf
 from tensorflow import keras
+import tarfile
+import tempfile
+import pathlib
 from tensorflow.keras import layers
 import numpy as np
 import os
 import tvm.contrib.gemmini as gemmini
 from tvm import relay
 import tvm
+from tvm.micro.testing.utils import create_header_file
 
 ##################################
 # Pre-requisites
@@ -116,19 +120,20 @@ converter._experimental_disable_per_channel = True
 tflite_model = converter.convert()
 
 # Save the model.
-with open("conv.tflite", "wb") as f:
+tmpdir = tvm.contrib.utils.tempdir()
+tflite_file = tmpdir / "conv.tflite"
+with open(tflite_file, "wb") as f:
     f.write(tflite_model)
 
 # Now that we have created the model, we import the model and run it. We store the output, in order to compare it with the output that will be later obtained from the Gemmini accelerator.
 
-os.system("rm -rf model.tar dev/ include/ generated-project/")
+os.system("rm -rf generated-project/")
 
-tflite_file = "./conv.tflite"
 tflite_model_buf = open(tflite_file, "rb").read()
 input_tensor = "layer1_input"
 input_dtype = "uint8"
 
-os.system("mkdir -p include")
+# os.system("mkdir -p include")
 
 try:
     import tflite
@@ -140,7 +145,7 @@ except AttributeError:
     tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
 
 # Load the TFLite model and allocate tensors.
-interpreter = tf.lite.Interpreter(model_path="./conv.tflite")
+interpreter = tf.lite.Interpreter(model_path=str(tflite_file))
 interpreter.allocate_tensors()
 input_details = interpreter.get_input_details()
 output_details = interpreter.get_output_details()
@@ -150,10 +155,6 @@ input_matrix = np.random.randint(
 interpreter.set_tensor(input_details[0]["index"], input_matrix)
 interpreter.invoke()
 expected_output = interpreter.get_tensor(output_details[0]["index"])
-
-# Here, we create C files and headers with the inputs and expected output, so that we can then execute the same operation on the Gemmini accelerator, and compare the expected output with the actual predicted one.
-gemmini.create_header_file("inputs", "data", "input", input_matrix, "./include")
-gemmini.create_header_file("outputs", "data", "output", expected_output, "./include")
 
 ##################################
 # Compiling the model with TVM
@@ -191,27 +192,22 @@ with gemmini.build_config(usmp_alg="hill_climb", opt_level=3, disabled_pass=["Al
 #
 # In this section, we will export the model using one of the provided example microTVM projects, we will compile it using the Chipyard tool, and then test the generated baremetal code on the Spike simulator.
 
-# The builded model is exported to the model library format. This will be used in the next steps to generate the baremetal project.
-import pathlib
+tmpdir = tvm.contrib.utils.tempdir()
+model_library_format_tar_path = tvm.micro.export_model_library_format(module, tmpdir / "model.tar")
+with tempfile.NamedTemporaryFile() as tar_temp_file:
+    with tarfile.open(tar_temp_file.name, "w:gz") as tar_file:
+        # Here, we create headers with the inputs and expected output, so that we can then execute the same operation on the Gemmini accelerator, and compare the expected output with the actual predicted one.
+        create_header_file("input", input_matrix, "include/tvm", tar_file)
+        create_header_file("output", expected_output, "include/tvm", tar_file)
 
-os.system("mkdir dev")
-model_library_format_tar_path = pathlib.Path(pathlib.Path.cwd(), "dev/model.tar")
-tvm.micro.export_model_library_format(module, model_library_format_tar_path)
+    # Here, we create the test project, using the example project provided for this tutorial in the Gemmini microTVM template projects.
+    template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("gemmini"))
+    project_options = {"project_type": "conv2d_example", "extra_files_tar": tar_temp_file.name}
 
-import tarfile
-
-with tarfile.open(model_library_format_tar_path, "r:*") as tar_f:
-    print("\n".join(f" - {m.name}" for m in tar_f.getmembers()))
-
-# Here, we create the test project, using the example project provided for this tutorial in the Gemmini microTVM template projects.
-
-template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("gemmini"))
-project_options = {"project_type": "conv2d_example"}
-
-generated_project_dir = pathlib.Path(pathlib.Path.cwd(), "generated-project")
-generated_project = tvm.micro.generate_project(
-    template_project_path, module, generated_project_dir, project_options
-)
+    generated_project_dir = pathlib.Path(pathlib.Path.cwd(), "generated-project")
+    generated_project = tvm.micro.generate_project(
+        template_project_path, module, generated_project_dir, project_options
+    )
 
 # We build the project. This will generate an executable we can run on the Spike simulator.
 generated_project.build()

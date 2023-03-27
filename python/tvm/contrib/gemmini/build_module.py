@@ -14,11 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-Helpers and functions related to the build process to generate code for the Gemmini accelerator
-=====================
-**Author**: `Federico Peccia <https://fPecc.github.io/>`_
-"""
 
 import tvm
 from tvm import relay

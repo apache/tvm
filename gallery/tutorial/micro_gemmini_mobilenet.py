@@ -27,10 +27,13 @@ import numpy as np
 import tensorflow as tf
 import os
 import tvm.contrib.gemmini as gemmini
+import tarfile
+import tempfile
+import pathlib
 from tvm import relay
 import tvm
-from mobilenet_utils import generate_mobilenet_tflite_model, get_real_image, run_tflite_model
 from tvm.contrib.download import download_testdata
+from tvm.micro.testing.utils import create_header_file
 
 ##################################
 # Pre-requisites
@@ -170,8 +173,7 @@ def generate_mobilenet_tflite_model():
 # In this section, we will generate the baseline input and expected output, which we are going to use to compare with the actual obtained output after running on the Gemmini accelerator.
 
 # We clean and prepare the workspace
-os.system("rm -rf model.tar dev/ include/ generated-project/")
-os.system("mkdir -p include")
+os.system("rm -rf generated-project/")
 
 # We will generate a prequantized TFLite model, because for now the Gemmini integration only supports models that were quantized with specific flags as input.
 tflite_model_dir = generate_mobilenet_tflite_model()
@@ -196,10 +198,6 @@ tflite_pred = np.squeeze(tflite_res).argsort()[-5:][::-1]
 print("Expected argmax = %i" % (tflite_pred[0],))
 print("Expected max labels = %s" % (tflite_pred,))
 
-# Here, we create C files and headers with the inputs and expected output, so that we can then execute the same operation on the Gemmini accelerator, and compare the expected output with the actual predicted one.
-gemmini.create_header_file("inputs", "data", "input", input_image, "./include")
-gemmini.create_header_file("outputs", "data", "output", tflite_pred.astype(np.uint32), "./include")
-
 ##################################
 # Compiling the model with TVM
 # --------------------------------
@@ -215,11 +213,9 @@ shape_dict = {"input": input_image.shape}
 
 mod, params = relay.frontend.from_tflite(tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict)
 mod = relay.transform.InferType()(mod)
-mod["main"]
 
 # In order to be able to build a model for the Gemmini accelerator, we need to replace all supported layers by the Gemmini specific operators. This is done using the gemmini.preprocess pass. Notice the changes in the "main" function after running the preprocess pass.
 mod = gemmini.preprocess_pass(mod)
-mod["main"]
 
 # Now, we build the Relay Graph. Notice that we are using the CRT runtime, the target is C because we want to generate C code (but the device is Gemmini), and we use the AOT executor and the USMP feature in order to get a complete bare metal C code, without calls to memory allocator APIs.
 # The gemmini.build_config function returns a PassContext object containing the specific parameters needed to correctly build the model for the Gemmini accelerator.
@@ -234,28 +230,24 @@ with gemmini.build_config(usmp_alg="hill_climb", opt_level=3, disabled_pass=["Al
 # Exporting and testing the model using microTVM
 # -----------------------------------------------
 #
-# In this section, we will export the model using one of the provided example microTVM projects, we will compile it using the Chipyard tool, and then test the generated baremetal code on the Spike simulator.
+# In this section, we will export the model using one of the provided example microTVM projects, we will compile it using the Chipyard tool, and then test the generated baremetal code on the Spike simulator
 
-# The builded model is exported to the model library format. This will be used in the next steps to generate the baremetal project.
-import pathlib
+tmpdir = tvm.contrib.utils.tempdir()
+model_library_format_tar_path = tvm.micro.export_model_library_format(module, tmpdir / "model.tar")
+with tempfile.NamedTemporaryFile() as tar_temp_file:
+    with tarfile.open(tar_temp_file.name, "w:gz") as tar_file:
+        # Here, we create headers with the inputs and expected output, so that we can then execute the same operation on the Gemmini accelerator, and compare the expected output with the actual predicted one.
+        create_header_file("input", input_image, "include/tvm", tar_file)
+        create_header_file("output", tflite_pred.astype(np.int32), "include/tvm", tar_file)
 
-os.system("mkdir dev")
-model_library_format_tar_path = pathlib.Path(pathlib.Path.cwd(), "dev/model.tar")
-tvm.micro.export_model_library_format(module, model_library_format_tar_path)
+    # Here, we create the test project, using the example project provided for this tutorial in the Gemmini microTVM template projects.
+    template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("gemmini"))
+    project_options = {"project_type": "mobilenet_example", "extra_files_tar": tar_temp_file.name}
 
-import tarfile
-
-with tarfile.open(model_library_format_tar_path, "r:*") as tar_f:
-    print("\n".join(f" - {m.name}" for m in tar_f.getmembers()))
-
-# Here, we create the test project, using the example project provided for this tutorial in the Gemmini microTVM template projects.
-template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("gemmini"))
-project_options = {"project_type": "mobilenet_example"}
-
-generated_project_dir = pathlib.Path(pathlib.Path.cwd(), "generated-project")
-generated_project = tvm.micro.generate_project(
-    template_project_path, module, generated_project_dir, project_options
-)
+    generated_project_dir = pathlib.Path(pathlib.Path.cwd(), "generated-project")
+    generated_project = tvm.micro.generate_project(
+        template_project_path, module, generated_project_dir, project_options
+    )
 
 # We build the project. This will generate an executable we can run on the Spike simulator.
 generated_project.build()

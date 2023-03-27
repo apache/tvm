@@ -15,11 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-argument
-"""
-Add operator declaration and schedule registration for Gemmini
-=====================
-**Author**: `Federico Peccia <https://fPecc.github.io/>`_
-"""
 
 import numpy as np
 import tvm

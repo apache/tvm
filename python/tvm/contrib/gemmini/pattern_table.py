@@ -14,11 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-Pattern table declaring the supported Gemmini operators
-=====================
-**Author**: `Federico Peccia <https://fPecc.github.io/>`_
-"""
 
 from typing import Callable, List, Tuple
 
@@ -191,7 +186,7 @@ class CONV2DParams:
             and self.data.op.name == "nn.pad"
         ):
             padding = self.data.attrs.pad_width
-            self.padding = [padding[1][0], padding[1][1], padding[2][0], padding[2][1]]
+            self.padding = [padding[1][0], padding[2][0], padding[1][1], padding[2][1]]
             self.has_external_pad = True
         self.weights = conv2d_op.args[1]
         self.weights_shape = _infer_shape(self.weights)

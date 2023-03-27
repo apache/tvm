@@ -15,11 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-argument
-"""
-Dense (GEMM) operator declaration and schedule registration for Gemmini's intrinsic instructions
-=====================
-**Author**: `Federico Peccia <https://fPecc.github.io/>`_
-"""
 
 import numpy as np
 import tvm

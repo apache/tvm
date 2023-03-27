@@ -25,11 +25,11 @@
 #ifndef BAREMETAL
 #include "sys/mman.h"
 #endif
-#include "model/inputs.h"
-#include "model/outputs.h"
+#include "input.h"
+#include "output.h"
 #include "model/tvmgen_default.h"
 
-int8_t output_conv[output_len];
+int8_t output_conv[OUTPUT_LEN];
 
 int main() {
   printf("Starting conv2d test...\r\n");
@@ -49,7 +49,7 @@ int main() {
   tvmgen_default_run(&inputs, &outputs);
 
   // Look for errors!
-  for (int i = 0; i < output_len; i++) {
+  for (int i = 0; i < OUTPUT_LEN; i++) {
     if (output_conv[i] != output[i]) {
       error_counter += 1;
       printf("ERROR IN CONV2D EXAMPLE! output_conv[%d] (%d) != output[%d] (%d)\r\n", i,
@@ -59,7 +59,7 @@ int main() {
   }
 
   // We allow for a very small percentage of errors, this could be related to rounding errors
-  if (((float)(error_counter / output_len) * 100) < 1)
+  if (((float)(error_counter / OUTPUT_LEN) * 100) < 1)
     printf("SUCCESS!\r\n");
   else
     printf("FAIL!\r\n");

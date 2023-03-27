@@ -14,20 +14,5 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-<<<<<<<< HEAD:python/tvm/relay/backend/contrib/gemmini/__init__.py
-"""
-Gemmini operators compute and schedule declarations
-=====================
-**Author**: `Federico Peccia <https://fPecc.github.io/>`_
-"""
 
 from . import op
-========
-
-if(USE_AMX)
-    file(GLOB AMX_RUNTIME_CONFIG src/runtime/contrib/amx/amx_config.cc)
-    list(APPEND COMPILER_SRCS ${AMX_RUNTIME_CONFIG})
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=sapphirerapids")
-    message(STATUS "Build with Intel AMX support...")
-endif()
->>>>>>>> upstream/main:cmake/modules/contrib/AMX.cmake

@@ -14,18 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-Gemmini package is a TVM backend extension to support the Gemmini hardware accelerator
-=====================
-**Author**: `Federico Peccia <https://fPecc.github.io/>`_
-"""
 
 import tvm._ffi.base
 
 from tvm.relay.backend.contrib.gemmini import *
 from .environment import Environment
 from .build_module import build_config, lower, build, preprocess_pass
-from .helpers import create_header_file
 from .utils import *
-
-__version__ = "0.1.0"

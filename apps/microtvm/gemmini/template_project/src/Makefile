@@ -31,6 +31,7 @@ RISCV_TESTS = ${TVM_HOME}/3rdparty/gemmini/software/gemmini-rocc-tests/riscv-tes
 BENCH_COMMON = ${RISCV_TESTS}/benchmarks/common
 GEMMINI_HEADERS = $(abs_top_srcdir)/include/gemmini.h $(abs_top_srcdir)/include/gemmini_params.h $(abs_top_srcdir)/include/gemmini_testutils.h
 STANDALONE_CRT = $(abs_top_srcdir)/standalone_crt
+DEBUG_DATA_HEADERS = $(abs_top_srcdir)/../include/tvm
 
 CFLAGS := $(CFLAGS) \
 	-DPREALLOCATE=1 \
@@ -48,6 +49,7 @@ CFLAGS := $(CFLAGS) \
 	-I$(abs_top_srcdir) \
 	-I$(abs_top_srcdir)/include \
 	-I$(BENCH_COMMON) \
+	-I$(DEBUG_DATA_HEADERS) \
 	-DID_STRING=$(ID_STRING) \
 	-DPRINT_TILE=0 \
 

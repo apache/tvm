@@ -14,11 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-MicroTVM API Server for Gemmini baremetal tests on the Spike simulator
-=====================
-**Author**: `Federico Peccia <https://fPecc.github.io/>`_
-"""
 
 import atexit
 import collections
@@ -56,15 +51,28 @@ MODEL_LIBRARY_FORMAT_PATH = API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH
 
 IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 
-PROJECT_TYPES = [
-    "dense_example",
-    "conv2d_example",
-    "dwconv2d_example",
-    "add_example",
-    "maxpool2d_example",
-    "mobilenet_example",
-]
+# PROJECT_TYPES = [
+#    "dense_example",
+#    "conv2d_example",
+#    "dwconv2d_example",
+#    "add_example",
+#    "maxpool2d_example",
+#    "mobilenet_example",
+# ]
 
+PROJECT_TYPES = []
+if IS_TEMPLATE:
+    for d in (API_SERVER_DIR / "src").iterdir():
+        if d.is_dir():
+            PROJECT_TYPES.append(d.name)
+
+PROJECT_OPTIONS = server.default_project_options(
+    project_type={"choices": tuple(PROJECT_TYPES)},
+    board={"choices": "", "optional": ["flash", "open_transport"]},
+    warning_as_error={"optional": ["build", "flash"]},
+)
+
+"""
 PROJECT_OPTIONS = [
     server.ProjectOption(
         "project_type",
@@ -74,6 +82,7 @@ PROJECT_OPTIONS = [
         help="Type of project to generate.",
     )
 ]
+"""
 
 
 class Handler(server.ProjectAPIHandler):
@@ -232,6 +241,7 @@ class Handler(server.ProjectAPIHandler):
         project_dir.mkdir()
         source_dir = project_dir / "src"
         source_dir.mkdir()
+        extra_files_tar = options.get("extra_files_tar")
 
         # Copies files from the template folder to project_dir
         shutil.copy2(API_SERVER_DIR / "microtvm_api_server.py", project_dir)
@@ -251,7 +261,19 @@ class Handler(server.ProjectAPIHandler):
         metadata = self._disassemble_mlf(model_library_format_path, source_dir)
         shutil.copy2(model_library_format_path, project_dir / MODEL_LIBRARY_FORMAT_RELPATH)
 
-        self._copy_debug_data_files(project_dir)
+        # self._copy_debug_data_files(project_dir)
+        if extra_files_tar:
+            with tarfile.open(extra_files_tar, mode="r:*") as tf:
+                tf.extractall(project_dir)
+                for filename in project_dir.rglob(f"include/tvm/*.h"):
+                    with filename.open("rb") as src_file:
+                        lines = src_file.readlines()
+                    new_lines = []
+                    for line in lines:
+                        if "dlpack" not in str(line):
+                            new_lines.append(line)
+                    with filename.open("wb") as dst_file:
+                        dst_file.writelines(new_lines)
 
         # Recursively change includes
         self._convert_includes(project_dir, source_dir)
