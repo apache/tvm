@@ -83,8 +83,7 @@ StructInfo InferStructInfoCallPure(const Call& call, const BlockBuilder& ctx) {
 
   // derives the struct info of the result as it would for a call to the inner args
   auto callee = call->args[0];
-  auto new_args = Array<Expr>(call->args.begin() + 1, call->args.end());
-  auto hypothetical_call = Call(callee, new_args, call->attrs, call->sinfo_args);
+  auto hypothetical_call = UnwrapCallPure(call);
 
   // This is copied over from BlockBuilder::InferStructInfo.
   // We can factor that out or expose it if we anticipate it will change
