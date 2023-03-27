@@ -226,7 +226,8 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
     attrs = None
     for item in node.body:
         if (
-            isinstance(item.value, doc.Call)
+            isinstance(item, doc.Expr)
+            and isinstance(item.value, doc.Call)
             and isinstance(item.value.func, doc.Attribute)
             and item.value.func.attr == "func_attr"
             and len(item.value.args) == 1
