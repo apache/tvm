@@ -21,6 +21,7 @@ import numpy as np
 
 import tvm.testing
 from tvm import relay
+from tvm import te
 from tvm.relay.backend import Executor
 from tvm.contrib.hexagon.session import Session
 from tvm.contrib.hexagon.pytest_plugin import HEXAGON_AOT_LLVM_TARGET
@@ -100,7 +101,7 @@ class TestFixedPointMultiply:
     )
 
     @tvm.testing.requires_hexagon
-    def test_fixed_point_multiply(self, hexagon_session: Session, multiplier: int, shift: int):
+    def test_per_tensor(self, hexagon_session: Session, multiplier: int, shift: int):
         """Fixed point multiply test."""
         ishape = (6, 32)
         a = relay.var("a", relay.TensorType(ishape, "int32"))
@@ -168,6 +169,141 @@ class TestFixedPointMultiply:
         expected_output = run_module(llvm_mod, inputs)
 
         tvm.testing.assert_allclose(hexagon_output, expected_output)
+
+    vector_size = tvm.testing.parameter(32, 64, 128, 256)
+
+    def test_per_tensor_with_lanes(self, hexagon_session: Session, vector_size):
+        """Test fixed point multiply with vectorization.
+        Vectorization size is more than hw vector length"""
+        ishape = [2, 256, 16]
+
+        def q_mul_shift(shape):
+            x = te.placeholder(shape, name="X", dtype="int32")
+            out = te.compute(
+                shape,
+                lambda i, j, k: tvm.tir.q_multiply_shift(
+                    x[i, j, k],
+                    tvm.tir.const(1395864320, "int32"),
+                    tvm.tir.const(31, "int32"),
+                    tvm.tir.const(1, "int32"),
+                ),
+                name="compute",
+            )
+            return te.create_prim_func([x, out])
+
+        mod = q_mul_shift(ishape)
+
+        # Schedule with vectorization
+        sch = tvm.tir.Schedule(mod)
+        b00 = sch.get_block(name="compute", func_name="main")
+        fused = sch.fuse(*sch.get_loops(block=b00))
+        _, v = sch.split(loop=fused, factors=[None, vector_size])
+        sch.vectorize(v)
+
+        with tvm.transform.PassContext(opt_level=3):
+            hex_lib = tvm.build(sch.mod["main"], target=get_hexagon_target("v68"))
+            host_lib = tvm.build(mod, target=tvm.target.Target("llvm"))
+
+        asm = hex_lib.get_source("asm")
+
+        # Check that 'vmpye' instruction was generated in asm file.
+        vmpye_regex = re.compile(r"v\d{1,2}.w = vmpye\(v\d{1,2}.w,v\d{1,2}.uh\)")
+        assert vmpye_regex.search(asm) is not None
+
+        # Check that 'vmpyo' instruction was generated in asm file.
+        vmpyo_regex = re.compile(r"v\d{1,2}.w \+= vmpyo\(v\d{1,2}.w,v\d{1,2}.h\):<<1:rnd:sat:shift")
+        assert vmpyo_regex.search(asm) is not None
+
+        # Verify accuracy
+        a_np = np.random.randint(-1000, 1000, size=np.prod(ishape)).reshape(ishape).astype("int32")
+        b_np = np.random.randint(-1000, 1000, size=np.prod(ishape)).reshape(ishape).astype("int32")
+        hex_args = [
+            tvm.runtime.ndarray.array(arg, device=hexagon_session.device, mem_scope="global")
+            for arg in [a_np, b_np]
+        ]
+        host_args = [tvm.runtime.ndarray.array(arg) for arg in [a_np, b_np]]
+
+        hex_rt = hexagon_session.load_module(hex_lib)
+        hex_rt(*hex_args)
+        host_lib(*host_args)
+
+        assert np.allclose(hex_args[1].numpy(), host_args[1].numpy())
+
+    def test_per_channel_with_lanes(self, hexagon_session: Session, vector_size):
+        """Test fixed point multiply with vectorization.
+        Vectorization size is more than hw vector length"""
+        a_shape = [2, 256, 16]
+        b_shape = [256]
+
+        def q_mul_shift(shape):
+            shift_shape = [shape[1]]
+            x = te.placeholder(shape, name="X", dtype="int32")
+            y = te.placeholder(shift_shape, name="X", dtype="int32")
+            l_shift = te.placeholder(shift_shape, name="X", dtype="int32")
+            r_shift = te.placeholder(shift_shape, name="X", dtype="int32")
+
+            out = te.compute(
+                shape,
+                lambda i, j, k: tvm.tir.q_multiply_shift_per_axis(
+                    x[i, j, k],
+                    y[j],
+                    l_shift[j],
+                    r_shift[j],
+                    tvm.tir.const(31, "int32"),
+                    tvm.tir.const(1, "bool"),
+                    tvm.tir.const(0, "bool"),
+                ),
+                name="compute",
+            )
+            return te.create_prim_func([x, y, l_shift, r_shift, out])
+
+        mod = q_mul_shift(a_shape)
+
+        # Schedule with vectorization
+        sch = tvm.tir.Schedule(mod)
+        b00 = sch.get_block(name="compute", func_name="main")
+        fused = sch.fuse(*sch.get_loops(block=b00))
+        _, v = sch.split(loop=fused, factors=[None, vector_size])
+        sch.vectorize(v)
+
+        with tvm.transform.PassContext(opt_level=3):
+            hex_lib = tvm.build(sch.mod["main"], target=get_hexagon_target("v68"))
+            host_lib = tvm.build(mod, target=tvm.target.Target("llvm"))
+
+        asm = hex_lib.get_source("asm")
+
+        # Check that 'vmpye' instruction was generated in asm file.
+        vmpye_regex = re.compile(r"v\d{1,2}.w = vmpye\(v\d{1,2}.w,v\d{1,2}.uh\)")
+        assert vmpye_regex.search(asm) is not None
+
+        # Check that 'vmpyo' instruction was generated in asm file.
+        vmpyo_regex = re.compile(r"v\d{1,2}.w \+= vmpyo\(v\d{1,2}.w,v\d{1,2}.h\):<<1:rnd:sat:shift")
+        assert vmpyo_regex.search(asm) is not None
+
+        # Verify accuracy
+        x_np = (
+            np.random.randint(-1000, 1000, size=np.prod(a_shape)).reshape(a_shape).astype("int32")
+        )
+        y_np = (
+            np.random.randint(-1000, 1000, size=np.prod(b_shape)).reshape(b_shape).astype("int32")
+        )
+        lsh_np = np.random.randint(0, 10, size=np.prod(b_shape)).reshape(b_shape).astype("int32")
+        rsh_np = np.random.randint(0, 10, size=np.prod(b_shape)).reshape(b_shape).astype("int32")
+        b_np = (
+            np.random.randint(-1000, 1000, size=np.prod(a_shape)).reshape(a_shape).astype("int32")
+        )
+        np_args = [x_np, y_np, lsh_np, rsh_np, b_np]
+        hex_args = [
+            tvm.runtime.ndarray.array(arg, device=hexagon_session.device, mem_scope="global")
+            for arg in np_args
+        ]
+        host_args = [tvm.runtime.ndarray.array(arg) for arg in np_args]
+
+        hex_rt = hexagon_session.load_module(hex_lib)
+        hex_rt(*hex_args)
+        host_lib(*host_args)
+
+        assert np.allclose(hex_args[4].numpy(), host_args[4].numpy())
 
 
 if __name__ == "__main__":
