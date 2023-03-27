@@ -347,6 +347,13 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
   void VisitExpr_(const CallNode* call) final {
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
     static const Op& call_tir_dyn_op = Op::Get("relax.vm.call_tir_dyn");
+    static const Op& call_pure_op = Op::Get("relax.call_pure");
+    if (call->op == call_pure_op) {
+      auto inner_call = UnwrapCallPure(GetRef<Call>(call));
+      VisitExpr_(inner_call.as<CallNode>());
+      return;
+    }
+
     if (call->op == alloc_tensor_op) {
       // Create a storage token for builtin alloc_tensor.
       this->CreateToken(call);
@@ -598,6 +605,12 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
 
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call) final {
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
+    static const Op& call_pure_op = Op::Get("relax.call_pure");
+    if (call->op == call_pure_op) {
+      auto inner_call = UnwrapCallPure(GetRef<Call>(call));
+      VisitBinding_(binding, inner_call.as<CallNode>());
+      return;
+    }
     if (call->op == alloc_tensor_op) {
       auto it = token_map_.find(call);
       ICHECK(it != token_map_.end());
