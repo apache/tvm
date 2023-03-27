@@ -241,6 +241,26 @@ inline Array<IntImm> ConvertIntImmToInt64(const Array<IntImm>& int_imms) {
 /************ Utilities for NN operators ************/
 
 /*!
+ * \brief Complete the padding to a 2-length array.
+ * - If the padding length is 1, the same padding is used on all left/right sides
+ * - If the padding length is 2, padding is in the order of (left, right)
+ * \param padding The given padding to be completed
+ * \return The completed padding.
+ * \throws Throws error if the input padding length is neither 1 or 2.
+ */
+inline Array<IntImm> GetCompletePadding1D(Array<IntImm> padding) {
+  if (padding.size() == 1) {
+    return {padding[0], padding[0]};
+  } else if (padding.size() == 2) {
+    return padding;
+  }
+  LOG(FATAL) << "The input padding length is expected to be either 1 or 2. However, the given "
+                "padding is "
+             << padding;
+  throw;
+}
+
+/*!
  * \brief Complete the padding to a 4-length array.
  * - If the padding length is 1, the same padding is used on all top/left/bottom/right sides
  * - If the padding length is 2, top/bottom sides use padding[0] and left/right use padding[1]
