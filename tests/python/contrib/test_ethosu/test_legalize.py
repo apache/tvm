@@ -2359,7 +2359,10 @@ def test_tflite_resize2d_nearest_neighbor(ifm_shape, size, half_pixel):
         @tf.function
         def resize_model(x):
             return tf.compat.v1.image.resize_nearest_neighbor(
-                x, size, align_corners=align_corners, half_pixel_centers=half_pixel,
+                x,
+                size,
+                align_corners=align_corners,
+                half_pixel_centers=half_pixel,
             )
 
         concrete_func = resize_model.get_concrete_function(

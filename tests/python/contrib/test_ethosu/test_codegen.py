@@ -1101,7 +1101,10 @@ def test_tflite_resize2d_nearest_neighbor(accel_type, ifm_shape, size, half_pixe
     @tf.function
     def resize_model(x):
         return tf.compat.v1.image.resize_nearest_neighbor(
-            x, size, align_corners=align_corners, half_pixel_centers=half_pixel,
+            x,
+            size,
+            align_corners=align_corners,
+            half_pixel_centers=half_pixel,
         )
 
     infra.compare_tvm_with_tflite(
