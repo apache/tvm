@@ -473,8 +473,7 @@ class TestQnnOp:
         np.testing.assert_equal(hexagon_output, llvm_output)
 
 
-@tvm.testing.requires_hexagon
-def test_qnn_conv2d_is_scalar_relax(hexagon_session: Session):
+def test_qnn_conv2d_is_scalar_relax():
     """Test to check if the input scale and output scale is constant,
     qnn.requantize will compute with fixed_point_value."""
 
@@ -488,8 +487,6 @@ def test_qnn_conv2d_is_scalar_relax(hexagon_session: Session):
     kernel = relay.var("kernel", shape=kernel_shape, dtype=kernel_dtype)
     azp = np.array([0]).astype("int32")
     wzp = np.array([0]).astype("int32")  # assumed zero
-    asc = np.array([1]).astype("float32")
-    wsc = np.array([1]).astype("float32")
     bias = (np.zeros((1, 512, 1, 1), dtype="uint32") * -12).astype("int32")
     rqsci = np.array([1]).astype("float32")
     rqzpi = np.array([0]).astype("int32")
