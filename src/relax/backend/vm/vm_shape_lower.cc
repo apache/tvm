@@ -368,7 +368,7 @@ class VMShapeLowerMutator
     // make_shape(heap, n, c[0], r[0], c[1], r[1] ..., c[n], r[n])
     Call call(builtin_make_shape_, args, Attrs(),
               {ShapeStructInfo(static_cast<int>(op->values.size()))});
-    return call;
+    return WrapCallPure(call);
   }
 
   void VisitBinding_(const MatchCastNode* binding) final {
@@ -539,7 +539,8 @@ class VMShapeLowerMutator
           WithAttr<tir::PrimFunc>(std::move(shape_func), tvm::tir::attr::kIsHostFunc, Integer(1));
     }
     GlobalVar shape_func_var = builder_->AddFunction(shape_func, "shape_func");
-    builder_->Emit(Call(shape_func_var, {shape_heap_}), "_");
+    // TODO(relax-team): Is this actually pure?
+    builder_->Emit(WrapCallPure(Call(shape_func_var, {shape_heap_})), "_");
     return to_compute.size();
   }
   //-------------------------------------------------------
