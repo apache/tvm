@@ -138,6 +138,15 @@ TVM_DLL Pass Normalize();
 TVM_DLL Pass CanonicalizeBindings();
 
 /*!
+ * Eliminate common subexpressions within dataflow blocks.
+ * \return The pass that eliminates common subexpressions.
+ *
+ * \note For functions local to dataflow blocks, this pass performs
+ * CSE *within* those functions.
+ */
+TVM_DLL Pass EliminateCommonSubexpr();
+
+/*!
  * \brief Bind params of function of the module to constant tensors.
  *
  * \param func_name The name of the function to bind parameters.
