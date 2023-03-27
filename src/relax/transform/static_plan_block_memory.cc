@@ -773,6 +773,12 @@ class StorageAllocationRewriter : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* call) final {
+    static const Op& call_pure_op = Op::Get("relax.call_pure");
+    if (call->op == call_pure_op) {
+      auto inner_call = UnwrapCallPure(GetRef<Call>(call));
+      return VisitExpr_(inner_call.as<CallNode>());
+    }
+
     auto it = alloc_tensor2token_.find(call);
     if (it != alloc_tensor2token_.end()) {
       const auto* sinfo = call->struct_info_.as<TensorStructInfoNode>();
