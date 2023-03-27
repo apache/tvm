@@ -249,7 +249,7 @@ def qnn_requantize(
             # Add output zero point + clip + cast:
             return saturate(te.add(mul, output_zp), out_dtype).astype(out_dtype)
 
-        return te.compute(data.shape, _compute, name="requantize")
+        return te.compute(data.shape, _compute, name="requantize_scalar")
 
     else:
 
