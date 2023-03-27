@@ -57,14 +57,12 @@ namespace runtime {
  * library) by compilation and/or linking using the external compiler (llvm, nvcc, etc). DSO
  * exportable modules must implement SaveToFile.
  */
-namespace property {
-/*! \brief Binary serializable runtime module */
-constexpr const uint8_t kBinarySerializable = 0b001;
-/*! \brief Runnable runtime module */
-constexpr const uint8_t kRunnable = 0b010;
-/*! \brief DSO exportable runtime module */
-constexpr const uint8_t kDSOExportable = 0b100;
-};  // namespace property
+
+enum ModulePropertyMask : int {
+  kBinarySerializable = 0b001,
+  kRunnable = 0b010,
+  kDSOExportable = 0b100
+};
 
 class ModuleNode;
 class PackedFunc;
@@ -222,10 +220,10 @@ class TVM_DLL ModuleNode : public Object {
    * By default, none of the property is set. Derived class can override this function and set its
    * own property.
    */
-  virtual uint8_t GetProperty() const { return 0x000; }
+  virtual int GetProperty() const { return 0b000; }
 
   /*! \brief Returns true if this module is 'DSO exportable'. */
-  bool IsDSOExportable() const { return GetProperty() == property::kDSOExportable; };
+  bool IsDSOExportable() const { return GetProperty() == ModulePropertyMask::kDSOExportable; };
 
   /*!
    * \brief Returns true if this module has a definition for a function of \p name. If

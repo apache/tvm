@@ -100,7 +100,8 @@ class ConstLoaderModuleNode : public ModuleNode {
 
   const char* type_key() const final { return "const_loader"; }
 
-  uint8_t GetProperty() const final { return property::kBinarySerializable; };
+  /*! \brief Get the property of the runtime module .*/
+  int GetProperty() const final { return ModulePropertyMask::kBinarySerializable; };
 
   /*!
    * \brief Get the list of constants that is required by the given module.

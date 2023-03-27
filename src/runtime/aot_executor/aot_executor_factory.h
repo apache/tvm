@@ -66,7 +66,7 @@ class TVM_DLL AotExecutorFactory : public runtime::ModuleNode {
   const char* type_key() const final { return "AotExecutorFactory"; }
 
   /*! \brief Get the property of the runtime module .*/
-  uint8_t GetProperty() const final { return property::kBinarySerializable; }
+  int GetProperty() const final { return ModulePropertyMask::kBinarySerializable; }
 
   /*!
    * \brief Save the module to binary stream.

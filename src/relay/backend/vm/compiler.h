@@ -94,7 +94,7 @@ class VMCompiler : public runtime::ModuleNode {
   const char* type_key() const final { return "VMCompiler"; }
 
   /*! \brief Get the property of the runtime module .*/
-  uint8_t GetProperty() const final { return property::kRunnable; }
+  int GetProperty() const final { return ModulePropertyMask::kRunnable; }
 
   /*!
    * \brief Set the parameters

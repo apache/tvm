@@ -87,7 +87,9 @@ class VitisAIRuntime : public ModuleNode {
   const char* type_key() const { return "VitisAIRuntime"; }
 
   /*! \brief Get the property of the runtime module .*/
-  uint8_t GetProperty() const final { return property::kBinarySerializable | property::kRunnable; };
+  int GetProperty() const final {
+    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+  };
 
   /*!
    * \brief Serialize the content of the pyxir directory and save it to
