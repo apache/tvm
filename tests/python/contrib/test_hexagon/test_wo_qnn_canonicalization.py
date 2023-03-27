@@ -24,6 +24,8 @@ from tvm.contrib.hexagon.session import Session
 from tvm.contrib.hexagon.pytest_plugin import HEXAGON_AOT_LLVM_TARGET
 from tvm.relay.backend import Executor
 from tvm.relay.testing import run_opt_pass, run_infer_type
+from tvm.relax.testing import relay_translator
+from .infrastructure import get_hexagon_target
 
 
 @tvm.testing.requires_hexagon
@@ -469,6 +471,74 @@ class TestQnnOp:
         llvm_output = execute(llvm_m, inputs)
 
         np.testing.assert_equal(hexagon_output, llvm_output)
+
+
+def test_qnn_conv2d_is_scalar_relax():
+    """Test to check if the input scale and output scale is constant,
+    qnn.requantize will compute with fixed_point_value."""
+
+    data_shape = (1, 64, 56, 56)
+    kernel_shape = (128, 64, 3, 3)
+
+    data_dtype = "uint8"
+    in_data = relay.var("data", shape=data_shape, dtype=data_dtype)
+
+    kernel_dtype = "int8"
+    kernel = relay.var("kernel", shape=kernel_shape, dtype=kernel_dtype)
+    azp = np.array([0]).astype("int32")
+    wzp = np.array([0]).astype("int32")  # assumed zero
+    bias = (np.zeros((1, 512, 1, 1), dtype="uint32") * -12).astype("int32")
+    rqsci = np.array([1]).astype("float32")
+    rqzpi = np.array([0]).astype("int32")
+    rqsco = np.array([1]).astype("float32")
+    rqzpo = np.array([0]).astype("int32")
+    strides = (1, 1)
+
+    input_zero_point = relay.const(azp[0], dtype="int32")
+    kernel_zero_point = relay.const(wzp[0], dtype="int32")
+
+    input_scale = relay.const(1.0, dtype="float32")
+    kernel_scale = relay.const(1.0, dtype="float32")
+
+    conv_op = relay.qnn.op.conv2d(
+        in_data,
+        kernel,
+        input_zero_point=input_zero_point,
+        kernel_zero_point=kernel_zero_point,
+        input_scale=input_scale,
+        kernel_scale=kernel_scale,
+        kernel_size=(kernel_shape[2], kernel_shape[3]),
+        channels=kernel_shape[0],
+        strides=strides,
+        data_layout="NCHW",
+        kernel_layout="OIHW",
+        out_dtype="int32",
+    )
+
+    bias = relay.var("bias", shape=(kernel_shape[0],), dtype="int32")
+    bias_op = relay.nn.bias_add(conv_op, bias, axis=1)
+
+    requant_op = relay.qnn.op.requantize(
+        bias_op,
+        input_scale=relay.const(rqsci[0]),
+        input_zero_point=relay.const(rqzpi[0]),
+        output_scale=relay.const(rqsco[0]),
+        output_zero_point=relay.const(rqzpo[0]),
+        out_dtype="int32",
+    )
+
+    clip_op = relay.op.clip(requant_op, 0.0, 255.0)
+    cast_op = relay.op.cast(clip_op, "uint8")
+
+    func = relay.Function([in_data, kernel, bias], cast_op)
+
+    mod = tvm.IRModule.from_expr(func)
+    target_hexagon = get_hexagon_target("v69")
+    relax_mod = relay_translator.from_relay(
+        mod["main"], target_hexagon, disabled_pass=["qnn.Legalize"]
+    )
+
+    assert "requantize_scalar" in relax_mod.astext(show_meta_data=False)
 
 
 if __name__ == "__main__":
