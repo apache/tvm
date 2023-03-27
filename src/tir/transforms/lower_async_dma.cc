@@ -75,12 +75,6 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
               dst_extent * src->dtype.bytes(), dma_bypass_cache_}));
   }
 
-  // Create member statement to track a mapping from iter var to iter range
-  Stmt VisitStmt_(const ForNode* op) final {
-    input_iters.Set(op->loop_var, Range(op->min, op->extent));
-    return StmtExprMutator::VisitStmt_(op);
-  }
-
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     // populate analyzer knowledge of loop iterators
     auto previsit = arith::IRMutatorWithAnalyzer::VisitStmt_(op);
