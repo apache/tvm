@@ -92,11 +92,13 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   const char* type_key() const final { return "llvm"; }
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
+
   /*! \brief Get the property of the runtime module .*/
+  // TODO(tvm-team): Make it serializable
   int GetProperty() const {
-    return runtime::ModulePropertyMask::kBinarySerializable |
-           runtime::ModulePropertyMask::kRunnable | runtime::ModulePropertyMask::kDSOExportable;
+    return runtime::ModulePropertyMask::kRunnable | runtime::ModulePropertyMask::kDSOExportable;
   };
+
   void SaveToFile(const std::string& file_name, const std::string& format) final;
   void SaveToBinary(dmlc::Stream* stream) final;
   std::string GetSource(const std::string& format) final;

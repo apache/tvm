@@ -223,7 +223,7 @@ class TVM_DLL ModuleNode : public Object {
   virtual int GetProperty() const { return 0b000; }
 
   /*! \brief Returns true if this module is 'DSO exportable'. */
-  bool IsDSOExportable() const { return GetProperty() == ModulePropertyMask::kDSOExportable; };
+  bool IsDSOExportable() const { return GetProperty() & ModulePropertyMask::kDSOExportable; };
 
   /*!
    * \brief Returns true if this module has a definition for a function of \p name. If
