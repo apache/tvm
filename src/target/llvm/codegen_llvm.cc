@@ -1952,6 +1952,22 @@ void CodeGenLLVM::VisitStmt_(const LetStmtNode* op) {
     }
   }
   llvm::Value* value = MakeValue(op->value);
+
+  // TIR has type-annotations on variables, but not on each PrimExpr.
+  // Therefore, to have the correct LLVM type for pointers, we may
+  // need to introduce a pointer-cast, even though pointer-to-pointer
+  // casts are not expressible with the `tir::CastNode`.
+  if (v->dtype.is_handle() && v->type_annotation.defined()) {
+    CHECK(op->value->dtype.is_handle())
+        << "Variable " << op->var << " is a pointer with type " << op->value
+        << ", but is being bound to expression with type " << op->value->dtype;
+    auto* llvm_type = GetLLVMType(v->type_annotation);
+    if (llvm_type != value->getType()) {
+      value->setName((v->name_hint + "_void_ptr").c_str());
+      value = builder_->CreatePointerCast(value, llvm_type);
+    }
+  }
+
   value->setName(v->name_hint.c_str());
   var_map_[v] = value;
   analyzer_->Bind(op->var, op->value);
