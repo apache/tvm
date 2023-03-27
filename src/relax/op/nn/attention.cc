@@ -121,7 +121,8 @@ TVM_REGISTER_OP("relax.nn.attention")
     .add_argument("value", "Tensor", "The input values tensor.")
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 TVM_REGISTER_OP("relax.nn.attention_bias")
     .set_attrs_type<AttentionAttrs>()
@@ -132,7 +133,8 @@ TVM_REGISTER_OP("relax.nn.attention_bias")
     .add_argument("bias", "Tensor", "The input bias tensor.")
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 }  // namespace relax
 }  // namespace tvm
