@@ -319,7 +319,6 @@ class VMShapeLowerMutator
       // set up the builtin func.
       Call call(call_builtin_with_ctx_op_,
                 {builtin_alloc_shape_heap_, Tuple({PrimValue(heap_size)})}, Attrs(), {heap_sinfo});
-      UpdateStructInfo(call, heap_sinfo);
       auto ret = WrapCallPure(call);
       UpdateStructInfo(ret, heap_sinfo);
       return VarBinding(var, ret);
@@ -571,6 +570,13 @@ class VMShapeLowerMutator
                        const String& err_ctx, std::vector<MatchShapeTodoItem>* match_todos) final {
     // short-cut, if the struct info already satisfies the
     // constraint during match cast, we can skip matching
+    if (value.as<OpNode>()) {
+      return;
+    }
+    if (!value->struct_info_) {
+      std::cout << value << std::endl;
+      std::cout << std::endl;
+    }
     if (!always_check && IsBaseOf(struct_info, GetStructInfo(value))) return;
     return StructInfoFunctor::VisitStructInfo(struct_info, value, always_check, err_ctx,
                                               match_todos);

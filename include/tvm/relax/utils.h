@@ -99,6 +99,8 @@ TVM_DLL bool IsImpureCall(const Call& call);
  * \param call The input call
  *
  * \return A Call to the call_pure op that wraps the original call.
+ *
+ * \note Transfers over StructInfo from the input to the return value.
  */
 TVM_DLL Call WrapCallPure(const Call& call);
 
@@ -110,6 +112,8 @@ TVM_DLL Call WrapCallPure(const Call& call);
  * \param call The input call.
  *
  * \return A call to the inner call_pure op.
+ *
+ * \note Transfers over StructInfo from the input to the return value.
  */
 TVM_DLL Call UnwrapCallPure(const Call& call);
 

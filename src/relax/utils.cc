@@ -131,15 +131,25 @@ Call WrapCallPure(const Call& call) {
   for (auto arg : call->args) {
     call_pure_args.push_back(arg);
   }
-  return Call(call_pure_op, call_pure_args, call->attrs, call->sinfo_args);
+  auto ret = Call(call_pure_op, call_pure_args, call->attrs, call->sinfo_args);
+  // transfer over struct info if we can
+  if (call->struct_info_) {
+    UpdateStructInfo(ret, GetStructInfo(call));
+  }
+  return ret;
 }
 
 Call UnwrapCallPure(const Call& call) {
   static const Op& call_pure_op = Op::Get("relax.call_pure");
   ICHECK(call->op == call_pure_op) << "UnwrapCallPure must be used with calls to call_pure";
   ICHECK(call->args.size() >= 1) << "call_pure must be called with at least one arg";
-  return Call(call->args[0], Array<Expr>(call->args.begin() + 1, call->args.end()), call->attrs,
-              call->sinfo_args);
+  auto ret = Call(call->args[0], Array<Expr>(call->args.begin() + 1, call->args.end()), call->attrs,
+                  call->sinfo_args);
+  // transfer over struct info if we can
+  if (call->struct_info_) {
+    UpdateStructInfo(ret, GetStructInfo(call));
+  }
+  return ret;
 }
 
 /*! \brief Helper to implement CopyWithNewVars.*/
