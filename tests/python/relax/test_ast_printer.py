@@ -350,7 +350,7 @@ def test_struct_info():
     simple_func = rx.FuncStructInfo([], rx.ObjectStructInfo())
     assert (
         strip_whitespace(printer.visit_struct_info_(simple_func))
-        == "FuncStructInfo(params=[],ret=ObjectStructInfo())"
+        == "FuncStructInfo(params=[],ret=ObjectStructInfo(),purity=True)"
     )
 
 
@@ -362,6 +362,7 @@ def test_call_packed():
         y: R.Tensor(("m",), "float32"),
         r: R.Tensor(dtype="int64"),
     ) -> R.Object:
+        R.func_attr({"IsPure": False})
         m = T.int64()
         z: R.Tensor((32, m), "float32") = R.multiply(x, y)
         w: R.Tensor = R.multiply(z, z)
@@ -385,6 +386,8 @@ def test_call_packed():
 
     # the function has an annotated return type
     assert "ret_struct_info=ObjectStructInfo()" in f_str
+    # the purity attribute is set to false
+    assert 'attrs={"IsPure": "0"}'
 
     assert isinstance(f.body, rx.SeqExpr)
     extern_call = f.body.blocks[0].bindings[-1].value
