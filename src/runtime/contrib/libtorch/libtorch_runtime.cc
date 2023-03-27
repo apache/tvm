@@ -89,7 +89,9 @@ class TorchModuleNode : public ModuleNode {
 
   const char* type_key() const { return "torch"; }
   /*! \brief Get the property of the runtime module .*/
-  int GetProperty() const final { return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable; };
+  int GetPropertyMask() const final {
+    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+  }
 
   /*!
    * \brief Get a packed function.

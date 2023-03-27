@@ -68,7 +68,7 @@ class TVM_DLL GraphExecutorFactory : public runtime::ModuleNode {
   const char* type_key() const final { return "GraphExecutorFactory"; }
 
   /*! \brief Get the property of the runtime module .*/
-  int GetProperty() const final { return ModulePropertyMask::kBinarySerializable; }
+  int GetPropertyMask() const final { return ModulePropertyMask::kBinarySerializable; }
 
   /*!
    * \brief Save the module to binary stream.

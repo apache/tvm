@@ -122,7 +122,7 @@ class EthosUModuleNode : public ModuleNode {
   }
 
   /*! \brief Get the property of the runtime module .*/
-  int GetProperty() const { return ModulePropertyMask::kDSOExportable; }
+  int GetPropertyMask() const { return ModulePropertyMask::kDSOExportable; }
 
   bool ImplementsFunction(const String& name, bool query_imports) final {
     return std::find_if(compilation_artifacts_.begin(), compilation_artifacts_.end(),

@@ -64,7 +64,7 @@ class StaticLibraryNode final : public runtime::ModuleNode {
 
   // TODO(tvm-team): Make this module serializable
   /*! \brief Get the property of the runtime module .*/
-  int GetProperty() const { return ModulePropertyMask::kDSOExportable; }
+  int GetPropertyMask() const { return ModulePropertyMask::kDSOExportable; }
 
   bool ImplementsFunction(const String& name, bool query_imports) final {
     return std::find(func_names_.begin(), func_names_.end(), name) != func_names_.end();

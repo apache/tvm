@@ -61,7 +61,7 @@ class TFLiteRuntime : public ModuleNode {
   const char* type_key() const { return "TFLiteRuntime"; }
 
   /*! \brief Get the property of the runtime module .*/
-  int GetProperty() const final { return ModulePropertyMask::kRunnable; };
+  int GetPropertyMask() const final { return ModulePropertyMask::kRunnable; };
 
   /*!
    * \brief Invoke the internal tflite interpreter and run the whole model in

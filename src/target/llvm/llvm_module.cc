@@ -95,9 +95,9 @@ class LLVMModuleNode final : public runtime::ModuleNode {
 
   /*! \brief Get the property of the runtime module .*/
   // TODO(tvm-team): Make it serializable
-  int GetProperty() const {
+  int GetPropertyMask() const {
     return runtime::ModulePropertyMask::kRunnable | runtime::ModulePropertyMask::kDSOExportable;
-  };
+  }
 
   void SaveToFile(const std::string& file_name, const std::string& format) final;
   void SaveToBinary(dmlc::Stream* stream) final;

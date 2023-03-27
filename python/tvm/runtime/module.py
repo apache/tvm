@@ -96,6 +96,14 @@ class BenchmarkResult:
         )
 
 
+class ModulePropertyMask(object):
+    """Runtime Module Property Mask."""
+
+    BINARY_SERIALIZABLE = 0b001
+    RUNNABLE = 0b010
+    DSO_EXPORTABLE = 0b100
+
+
 class Module(object):
     """Runtime Module."""
 
@@ -239,6 +247,40 @@ class Module(object):
         nmod = _ffi_api.ModuleImportsSize(self)
         return [_ffi_api.ModuleGetImport(self, i) for i in range(nmod)]
 
+    def get_property_mask(self):
+        """Get the runtime module property mask. The mapping is stated in ModulePropertyMask.
+
+        Returns
+        -------
+        mask : int
+            Bitmask of runtime module property
+        """
+        return _ffi_api.ModuleGetPropertyMask(self)
+
+    @property
+    def is_binary_serializable(self):
+        """Returns true if module is 'binary serializable', ie can be serialzed into binary
+         stream and loaded back to the runtime module.
+
+        Returns
+        -------
+        b : Bool
+            True if the module is binary serializable.
+        """
+        return (self.get_property_mask() & ModulePropertyMask.BINARY_SERIALIZABLE) != 0
+
+    @property
+    def is_runnable(self):
+        """Returns true if module is 'runnable'. ie can be executed without any extra
+        compilation/linking steps.
+
+        Returns
+        -------
+        b : Bool
+            True if the module is runnable.
+        """
+        return (self.get_property_mask() & ModulePropertyMask.RUNNABLE) != 0
+
     @property
     def is_dso_exportable(self):
         """Returns true if module is 'DSO exportable', ie can be included in result of
@@ -249,7 +291,7 @@ class Module(object):
         b : Bool
             True if the module is DSO exportable.
         """
-        return _ffi_api.ModuleIsDSOExportable(self)
+        return (self.get_property_mask() & ModulePropertyMask.DSO_EXPORTABLE) != 0
 
     def save(self, file_name, fmt=""):
         """Save the module to file.
@@ -383,6 +425,8 @@ class Module(object):
         stack.append(self)
         while stack:
             module = stack.pop()
+            assert module.is_dso_exportable or module.is_binary_serializable
+
             if filter_func(module):
                 dso_modules.append(module)
             for m in module.imported_modules:

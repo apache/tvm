@@ -179,7 +179,7 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
   virtual void LoadExecutable(const ObjectPtr<Executable>& exec);
 
   /*! \brief Get the property of the runtime module .*/
-  int GetProperty() const final { return ModulePropertyMask::kRunnable; }
+  int GetPropertyMask() const final { return ModulePropertyMask::kRunnable; }
 
  protected:
   /*! \brief Push a call frame on to the call stack. */

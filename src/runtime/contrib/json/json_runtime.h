@@ -59,7 +59,9 @@ class JSONRuntimeBase : public ModuleNode {
   const char* type_key() const override { return "json"; }  // May be overridden
 
   /*! \brief Get the property of the runtime module .*/
-  int GetProperty() const { return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable; }
+  int GetPropertyMask() const {
+    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+  }
 
   /*! \brief Initialize a specific json runtime. */
   virtual void Init(const Array<NDArray>& consts) = 0;

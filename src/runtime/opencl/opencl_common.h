@@ -432,7 +432,7 @@ class OpenCLModuleNode : public ModuleNode {
   const char* type_key() const final { return workspace_->type_key.c_str(); }
 
   /*! \brief Get the property of the runtime module .*/
-  int GetProperty() const final {
+  int GetPropertyMask() const final {
     return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
   }
 

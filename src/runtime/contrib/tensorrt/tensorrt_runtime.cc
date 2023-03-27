@@ -98,7 +98,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
   const char* type_key() const final { return "tensorrt"; }
 
   /*! \brief Get the property of the runtime module .*/
-  int GetProperty() const final {
+  int GetPropertyMask() const final {
     return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
   }
 
