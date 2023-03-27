@@ -473,15 +473,14 @@ class TestQnnOp:
         np.testing.assert_equal(hexagon_output, llvm_output)
 
 
-
 @tvm.testing.requires_hexagon
 def test_qnn_conv2d_is_scalar_relax(hexagon_session: Session):
-    """Test to check if the input scale and output scale is constant, 
+    """Test to check if the input scale and output scale is constant,
     qnn.requantize will compute with fixed_point_value."""
-    
+
     data_shape = (1, 64, 56, 56)
     kernel_shape = (128, 64, 3, 3)
-    
+
     data_dtype = "uint8"
     in_data = relay.var("data", shape=data_shape, dtype=data_dtype)
 
@@ -496,8 +495,8 @@ def test_qnn_conv2d_is_scalar_relax(hexagon_session: Session):
     rqzpi = np.array([0]).astype("int32")
     rqsco = np.array([1]).astype("float32")
     rqzpo = np.array([0]).astype("int32")
-    strides=(1, 1)
-    
+    strides = (1, 1)
+
     input_zero_point = relay.const(azp[0], dtype="int32")
     kernel_zero_point = relay.const(wzp[0], dtype="int32")
 
@@ -538,8 +537,10 @@ def test_qnn_conv2d_is_scalar_relax(hexagon_session: Session):
 
     mod = tvm.IRModule.from_expr(func)
     target_hexagon = get_hexagon_target("v69")
-    relax_mod = relay_translator.from_relay(mod["main"],target_hexagon, disabled_pass=["qnn.Legalize"])
-    
+    relax_mod = relay_translator.from_relay(
+        mod["main"], target_hexagon, disabled_pass=["qnn.Legalize"]
+    )
+
     assert "requantize_scalar" in relax_mod.astext(show_meta_data=False)
 
 
