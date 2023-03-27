@@ -63,13 +63,6 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tir.ptx_ldg32", Bool);
 // the "experimental" notation for this feature.
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.experimental_dma_bypass_cache", Bool);
 
-// WARNING: May cause coherency issues resulting data miscompares
-// Experimental feature that, when enabled by the runtime, bypasses the cache when using DMA. When
-// bypassing the cache TVM must manage cache coherency in software. Software managed cache coherency
-// can be tricky e.g. it is yet to be proven out in the Hexagon runtime. Hence the warning above and
-// the "experimental" notation for this feature.
-TVM_REGISTER_PASS_CONFIG_OPTION("tir.experimental_dma_bypass_cache", Bool);
-
 using tvm::Array;
 using tvm::transform::Pass;
 

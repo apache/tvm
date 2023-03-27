@@ -574,11 +574,6 @@ BlockRV ConcreteScheduleNode::ReindexCacheRead(const BlockRV& block_rv, int read
                                                const String& storage_scope,
                                                const IndexMap& index_map) {
   StmtSRef result{nullptr};
-  // Create a new array of SRefs from the consumer block list.
-  Array<StmtSRef> consumer_block_refs = {};
-  for (BlockRV block : consumer_blocks) {
-    consumer_block_refs.push_back(this->GetSRef(block));
-  }
   TVM_TIR_SCHEDULE_BEGIN();
   result = tir::ReindexCacheRead(state_, this->GetSRef(block_rv), read_buffer_index, storage_scope,
                                  index_map);

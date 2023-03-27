@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-<<<<<<<< HEAD:cmake/modules/contrib/AMX.cmake
 
 if(USE_AMX)
     file(GLOB AMX_RUNTIME_CONFIG src/runtime/contrib/amx/amx_config.cc)
@@ -22,9 +21,3 @@ if(USE_AMX)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=sapphirerapids")
     message(STATUS "Build with Intel AMX support...")
 endif()
-========
-"""FFI API for CUTLASS BYOC."""
-import tvm._ffi
-
-tvm._ffi._init_api("contrib.cutlass", __name__)
->>>>>>>> upstream/main:python/tvm/contrib/cutlass/_ffi_api.py

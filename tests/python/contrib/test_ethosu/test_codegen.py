@@ -1343,8 +1343,6 @@ def test_tflite_fully_connected(
     )
 
 
-<<<<<<< HEAD
-=======
 @pytest.mark.parametrize("accel_type", ["ethos-u55-256", "ethos-u65-256"])
 def test_tflite_subtract_sigmoid(accel_type):
     np.random.seed(0)
@@ -1364,6 +1362,5 @@ def test_tflite_subtract_sigmoid(accel_type):
     )
 
 
->>>>>>> upstream/main
 if __name__ == "__main__":
     tvm.testing.main()
