@@ -27,7 +27,7 @@ from tvm.target import Target
 
 
 def _target():
-    return Target("nvidia/geforce-rtx-3070")
+    return Target("nvidia/geforce-rtx-2080")  # disable async trace using sm75
 
 
 def _design_space(mod):
@@ -42,7 +42,7 @@ def _design_space(mod):
 def test_cuda_nhwc():
     # fmt: off
     @T.prim_func
-    def cuda_nhwc_0(data: T.Buffer[(1, 14, 14, 128), "float32"], weight: T.Buffer[(6, 6, 128, 128), "float32"], conv2d_winograd: T.Buffer[(1, 12, 12, 128), "float32"]) -> None:
+    def cuda_nhwc_0(data: T.Buffer((1, 14, 14, 128), "float32"), weight: T.Buffer((6, 6, 128, 128), "float32"), conv2d_winograd: T.Buffer((1, 12, 12, 128), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
         # body
@@ -200,7 +200,7 @@ def test_cuda_nhwc():
 def test_cuda_nchw():
     # fmt: off
     @T.prim_func
-    def cuda_nchw_0(data: T.Buffer[(1, 64, 56, 56), "float32"], weight: T.Buffer[(6, 6, 64, 64), "float32"], conv2d_winograd: T.Buffer[(1, 64, 56, 56), "float32"]) -> None:
+    def cuda_nchw_0(data: T.Buffer((1, 64, 56, 56), "float32"), weight: T.Buffer((6, 6, 64, 64), "float32"), conv2d_winograd: T.Buffer((1, 64, 56, 56), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
         # body
@@ -353,7 +353,7 @@ def test_cuda_nchw():
 def test_cuda_nchw_add_relu():
     # fmt: off
     @T.prim_func
-    def nchw_add_relu(p0: T.Buffer[(2, 2048, 50, 75), "float32"], p1: T.Buffer[(4, 4, 2048, 2048), "float32"], p2: T.Buffer[(1, 2048, 1, 1), "float32"], T_relu: T.Buffer[(2, 2048, 50, 75), "float32"]):
+    def nchw_add_relu(p0: T.Buffer((2, 2048, 50, 75), "float32"), p1: T.Buffer((4, 4, 2048, 2048), "float32"), p2: T.Buffer((1, 2048, 1, 1), "float32"), T_relu: T.Buffer((2, 2048, 50, 75), "float32")):
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
         # body
@@ -440,7 +440,7 @@ def test_cuda_nchw_add_relu():
                 T_relu[ax0, ax1, ax2, ax3] = T.max(T_add[ax0, ax1, ax2, ax3], T.float32(0))
 
     @T.prim_func
-    def nchw_add_relu_scheduled(p0: T.Buffer[(2, 2048, 50, 75), "float32"], p1: T.Buffer[(4, 4, 2048, 2048), "float32"], p2: T.Buffer[(1, 2048, 1, 1), "float32"], T_relu: T.Buffer[(2, 2048, 50, 75), "float32"]):
+    def nchw_add_relu_scheduled(p0: T.Buffer((2, 2048, 50, 75), "float32"), p1: T.Buffer((4, 4, 2048, 2048), "float32"), p2: T.Buffer((1, 2048, 1, 1), "float32"), T_relu: T.Buffer((2, 2048, 50, 75), "float32")):
         # function attr dict
         T.func_attr({"layout_free_buffers": [1], "tir.noalias": True, "global_symbol": "main"})
         # body

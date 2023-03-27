@@ -403,7 +403,6 @@ def assign_addresses(buffer_info, npu_ops, scratch_region_map):
         The key is the buffer name to BufferInfo
     npu_ops : list
         A list of Vela NpuOps with tir.BufferLoads for addresses
-        A list of Vela NpuOps with tir.Loads for addresses
     scratch_region_map : Dict[tvm.tir.Var, RegionOffset]
         A buffer_var to region and offset map.
     Returns
@@ -822,7 +821,10 @@ def _create_npu_quantization(
     """This is a helper function to capture a list
     of arguments to create Vela NpuQuantization object.
     """
-    return vapi.NpuQuantization(scale_f32=float(scale), zero_point=int(zero_point))
+    scale = float(scale)
+    if scale == 0.0:
+        scale = None
+    return vapi.NpuQuantization(scale_f32=scale, zero_point=int(zero_point))
 
 
 def _create_npu_weights_zero_point(
@@ -960,6 +962,8 @@ def _create_npu_op_pooling(serial_pooling: spec.SerialPooling):
         npu_pooling_op = vapi.NpuPoolingOp.AVERAGE
     elif pooling_type == "MAX":
         npu_pooling_op = vapi.NpuPoolingOp.MAX
+    elif pooling_type == "SUM":
+        npu_pooling_op = vapi.NpuPoolingOp.REDUCE_SUM
 
     npu_pooling_op = vapi.NpuPoolingOperation(npu_pooling_op)
     npu_pooling_op.ifm = _create_npu_feature_map(serial_pooling.ifm)
@@ -1032,6 +1036,11 @@ def _create_npu_op_binary_elementwise(serial_binary_elementwise: spec.SerialBina
     npu_binary_elementwise_op.ifm2 = _create_npu_feature_map(serial_binary_elementwise.ifm2)
     npu_binary_elementwise_op.ofm = _create_npu_feature_map(serial_binary_elementwise.ofm)
     npu_binary_elementwise_op.reversed_operands = serial_binary_elementwise.reversed_operands
+    if serial_binary_elementwise.rescale_config.use_rescale:
+        npu_binary_elementwise_op.rescale = (
+            serial_binary_elementwise.rescale_config.scale.value,
+            serial_binary_elementwise.rescale_config.shift.value,
+        )
 
     npu_binary_elementwise_op.activation = _create_npu_activation(
         serial_binary_elementwise.activation

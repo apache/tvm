@@ -525,7 +525,7 @@ def test_llvm_div():
     ]:
         for dstart, dend in [
             (-11, -1),
-            (-11, 0),
+            (-11, 1),
             (-4, -4),
             (-2, -2),
             (1, 11),
@@ -534,7 +534,7 @@ def test_llvm_div():
             (2, 2),
             (-11, 11),
         ]:
-            if end < start or dend < dstart or (dend == 0 and dstart == 0):
+            if end < start or dend < dstart or (dend == 0 and dstart == 0) or dend == 0:
                 continue
             check(start, end, dstart, dend, "int32", floor_div=False)
             check(start, end, dstart, dend, "int32", floor_div=True)
@@ -920,7 +920,7 @@ def test_llvm_scalar_concat():
 def test_raise_exception_during_codegen():
     @T.prim_func
     def threadpool_nested_parallel_loop(
-        A: T.Buffer[(4, 4), "float32"], B: T.Buffer[(4, 4), "float32"]
+        A: T.Buffer((4, 4), "float32"), B: T.Buffer((4, 4), "float32")
     ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         for i in T.parallel(4):
@@ -976,6 +976,30 @@ def test_llvm_target_attributes():
     expected_functions = ["test_func", "test_func_compute_", "__tvm_parallel_lambda"]
     for n in expected_functions:
         assert n in functions_with_target
+
+
+@tvm.testing.requires_llvm
+def test_llvm_assume():
+    """
+    Check that LLVM does not error out when generating code with tir.assume.
+    Verifying for llvm.assume being generated is not easy as the intrinsic and its
+    related instructions get removed during optimizations
+    """
+
+    @T.prim_func
+    def tir_assume_func(A: T.Buffer((4, 4), "int32"), B: T.Buffer((14,), "int32")):
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        A_1 = T.Buffer((16,), "int32", data=A.data)
+        for axis0, axis1 in T.grid(4, 4):
+            T.assume(axis0 < 3 or axis1 < 2 or A_1[axis0 * 4 + axis1] == 0)
+        for i in range(14):
+            B_1 = T.Buffer((14,), "int32", data=B.data)
+            B_1[i] = A_1[i] * 2
+
+    mod = tvm.IRModule.from_expr(tir_assume_func)
+    inp = te.placeholder((4, 4), name="A", dtype="int32")
+    out = te.placeholder((14,), name="B", dtype="int32")
+    m = tvm.build(mod, [inp, out], target="llvm")
 
 
 if __name__ == "__main__":

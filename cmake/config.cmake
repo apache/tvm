@@ -382,6 +382,21 @@ set(BUILD_STATIC_RUNTIME OFF)
 # - /path/to/ccache: use specific path to ccache
 set(USE_CCACHE AUTO)
 
+# Whether to use libbacktrace to supply linenumbers on stack traces.
+# Possible values:
+# - ON: Find libbacktrace from system paths. Report an error if not found.
+# - OFF: Don't use libbacktrace.
+# - /path/to/libbacktrace: Looking for the libbacktrace header and static lib from a user-provided path. Report error if not found.
+# - COMPILE: Build and link to libbacktrace from 3rdparty/libbacktrace.
+# - AUTO:
+#   - Find libbacktrace from system paths.
+#   - If not found, fallback to COMPILE on Linux or MacOS, fallback to OFF on Windows or other platforms.
+set(USE_LIBBACKTRACE AUTO)
+
+# Whether to install a signal handler to print a backtrace on segfault.
+# Need to have USE_LIBBACKTRACE enabled.
+set(BACKTRACE_ON_SEGFAULT OFF)
+
 # Whether to enable PAPI support in profiling. PAPI provides access to hardware
 # counters while profiling.
 # Possible values:

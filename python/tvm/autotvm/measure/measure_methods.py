@@ -553,7 +553,7 @@ def _build_func_common(measure_input, runtime=None, checks=None, build_option=No
                 instruments=current_pass_context.instruments,
                 config=current_config,
             ):
-                func = build(s, args, target_host=task.target_host, runtime=runtime)
+                func = build(s, args, target=target, runtime=runtime)
     return func, tuple((get_const_tuple(x.shape), x.dtype) for x in args)
 
 

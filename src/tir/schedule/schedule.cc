@@ -65,15 +65,17 @@ TVM_REGISTER_GLOBAL("tir.schedule.BlockRV").set_body_typed([]() { return BlockRV
 TVM_REGISTER_GLOBAL("tir.schedule.LoopRV").set_body_typed([]() { return LoopRV(); });
 TVM_REGISTER_GLOBAL("tir.schedule.ConcreteSchedule")
     .set_body_typed([](IRModule mod, support::LinearCongruentialEngine::TRandState seed,
-                       int debug_mask, int error_render_level) -> Schedule {
+                       int debug_mask, int error_render_level, bool enable_check) -> Schedule {
       return Schedule::Concrete(mod, debug_mask, seed,
-                                static_cast<ScheduleErrorRenderLevel>(error_render_level));
+                                static_cast<ScheduleErrorRenderLevel>(error_render_level),
+                                enable_check);
     });
 TVM_REGISTER_GLOBAL("tir.schedule.TracedSchedule")
     .set_body_typed([](IRModule mod, support::LinearCongruentialEngine::TRandState seed,
-                       int debug_mask, int error_render_level) -> Schedule {
+                       int debug_mask, int error_render_level, bool enable_check) -> Schedule {
       return Schedule::Traced(mod, seed, debug_mask,
-                              static_cast<ScheduleErrorRenderLevel>(error_render_level));
+                              static_cast<ScheduleErrorRenderLevel>(error_render_level),
+                              enable_check);
     });
 
 /******** (FFI) Lookup random variables ********/
@@ -179,6 +181,10 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheRead")
     .set_body_method<Schedule>(&ScheduleNode::CacheRead);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheWrite")
     .set_body_method<Schedule>(&ScheduleNode::CacheWrite);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReindexCacheRead")
+    .set_body_method<Schedule>(&ScheduleNode::ReindexCacheRead);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReindexCacheWrite")
+    .set_body_method<Schedule>(&ScheduleNode::ReindexCacheWrite);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheInplace")
     .set_body_method<Schedule>(&ScheduleNode::CacheInplace);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheIndex")
@@ -188,6 +194,10 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReIndex")
                        int buffer_index_type) {
       return self->ReIndex(block_rv, buffer_index, static_cast<BufferIndexType>(buffer_index_type));
     });
+/******** (FFI) Data movement ********/
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReadAt").set_body_method<Schedule>(&ScheduleNode::ReadAt);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleWriteAt")
+    .set_body_method<Schedule>(&ScheduleNode::WriteAt);
 /******** (FFI) Compute location ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleComputeAt")
     .set_body_method<Schedule>(&ScheduleNode::ComputeAt);
@@ -207,6 +217,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleStorageAlign")
     .set_body_method<Schedule>(&ScheduleNode::StorageAlign);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSetScope")
     .set_body_method<Schedule>(&ScheduleNode::SetScope);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleUnsafeSetDType")
+    .set_body_method<Schedule>(&ScheduleNode::UnsafeSetDType);
 /******** (FFI) Blockize & Tensorize ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleBlockize")
     .set_body_method<Schedule>(&ScheduleNode::Blockize);
@@ -253,10 +265,10 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleUnannotate")
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleTransformLayout")
     .set_body_typed([](Schedule self, const BlockRV& block_rv, int buffer_index,
                        int buffer_index_type, const IndexMap& index_map,
-                       const Optional<IndexMap>& pad_value) {
+                       const Optional<IndexMap>& pad_value, bool assume_injective_transform) {
       return self->TransformLayout(block_rv, buffer_index,
                                    static_cast<BufferIndexType>(buffer_index_type), index_map,
-                                   pad_value);
+                                   pad_value, assume_injective_transform);
     });
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleTransformBlockLayout")
     .set_body_method<Schedule>(&ScheduleNode::TransformBlockLayout);

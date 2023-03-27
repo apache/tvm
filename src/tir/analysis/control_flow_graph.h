@@ -315,7 +315,7 @@ class BufferState {
  *
  * \code{.py}
  * @T.prim_func
- * def func(T.Buffer[16, "float32"]):
+ * def func(T.Buffer(16, "float32")):
  *     for i in T.serial(16):
  *         if i < 8:
  *              B[i] = i

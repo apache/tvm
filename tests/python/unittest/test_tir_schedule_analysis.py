@@ -39,6 +39,7 @@ from tvm.script import tir as T
 from tvm.tir.stmt_functor import pre_order_visit
 from tvm.meta_schedule.testing import te_workload
 from tvm.te import create_prim_func
+from tvm.tir.schedule.analysis import is_output_block
 
 
 def _make_vars(*args: str) -> List[Var]:
@@ -126,7 +127,7 @@ def test_suggest_index_map_winograd():
             floordiv(i0, 2),
             floordiv(i1, 2),
             floormod(i0, 2),
-            floormod(((i1 * 4) + floordiv(i2, 32)), 8),
+            floormod(i1, 2) * 4 + floordiv(i2, 32),
             floormod(i2, 32),
             floordiv(i3, 32),
             floormod(i3, 32),
@@ -137,8 +138,8 @@ def test_suggest_index_map_winograd():
     expected_inverse_index_map = IndexMap.from_func(
         lambda i0, i1, i2, i3, i4, i5, i6: (
             ((i0 * 2) + i2),
-            ((i1 * 2) + floordiv(((i3 * 32) + i4), 128)),
-            floormod(((i3 * 32) + i4), 128),
+            i1 * 2 + floordiv(i3, 4),
+            floormod(i3, 4) * 32 + i4,
             ((i5 * 32) + i6),
         )
     )
@@ -149,9 +150,9 @@ def test_suggest_index_map_winograd():
 class DenseTIRModule:
     @T.prim_func
     def main(
-        placeholder: T.Buffer[(1024, 1024), "uint8"],
-        placeholder_1: T.Buffer[(64, 256, 16, 4), "int8"],
-        compute: T.Buffer[(1024, 1024), "int32"],
+        placeholder: T.Buffer((1024, 1024), "uint8"),
+        placeholder_1: T.Buffer((64, 256, 16, 4), "int8"),
+        compute: T.Buffer((1024, 1024), "int32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         with T.block("root"):
@@ -173,9 +174,9 @@ class DenseTIRModule:
 class Conv2dNCHWcTIRModule:
     @T.prim_func
     def main(
-        placeholder: T.Buffer[(1, 4, 56, 56, 16), "uint8"],
-        placeholder_1: T.Buffer[(16, 4, 1, 1, 4, 16, 4), "int8"],
-        conv2d_NCHWc_int8: T.Buffer[(1, 16, 56, 56, 16), "int32"],
+        placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"),
+        placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"),
+        conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         for i0, i1, i2, i3, i4, i5, i6, i7, i8, i9 in T.grid(1, 16, 56, 56, 16, 1, 1, 4, 4, 4):
@@ -394,6 +395,26 @@ def test_get_auto_tensorize_mapping_info_batch_matmul(b, m, n, k):
 def test_get_auto_tensorize_mapping_info_matmul(n, m, k, expected):
     matmul = create_prim_func(te_workload.matmul(n, m, k, in_dtype="float16", out_dtype="float32"))
     check_index_map(matmul, "C", WMMA_SYNC_16x16x16_f16f16f32_INTRIN, expected)
+
+
+def test_is_output_block():
+    @T.prim_func
+    def two_elementwise(a: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, (128, 128), "float32")
+        B = T.alloc_buffer((128, 128), "float32")
+        C = T.match_buffer(c, (128, 128), "float32")
+        for i, j in T.grid(128, 128):
+            with T.block("B"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                B[vi, vj] = A[vi, vj] * 2.0
+        for i, j in T.grid(128, 128):
+            with T.block("C"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                C[vi, vj] = B[vi, vj] + 1.0
+
+    sch = tvm.tir.Schedule(two_elementwise)
+    block_rv = sch.get_block("C")
+    assert is_output_block(sch, block_rv)
 
 
 if __name__ == "__main__":

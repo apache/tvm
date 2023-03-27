@@ -55,7 +55,7 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
   // clear previous generated state.
   this->InitFuncState(f);
   // skip the first underscore, so SSA variable starts from _1
-  name_supply_->FreshName("_");
+  name_supply_->FreshName("v_");
 
   // add to alloc buffer type.
   auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
@@ -358,7 +358,11 @@ runtime::Module BuildMetal(IRModule mod, Target target) {
     code << fsource;
   }
 
-  return MetalModuleCreate(code.str(), fmt, ExtractFuncInfo(mod), source.str());
+  std::string code_str = code.str();
+  if (const auto* f = Registry::Get("tvm_callback_metal_postproc")) {
+    code_str = (*f)(code_str).operator std::string();
+  }
+  return MetalModuleCreate(code_str, fmt, ExtractFuncInfo(mod), source.str());
 }
 
 TVM_REGISTER_GLOBAL("target.build.metal").set_body_typed(BuildMetal);

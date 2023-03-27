@@ -521,7 +521,6 @@ def test_async_dma_resnet50(hexagon_launcher):
 
     pass_config = {
         "tir.use_async_copy": 1,
-        "tir.merge_async_commit_queue_scope": False,
         "relay.backend.use_meta_schedule": True,
         "relay.backend.tir_converter": "default",
     }

@@ -29,12 +29,7 @@ from tvm.relay.op.contrib.cutlass import partition_for_cutlass
 from tvm import relay
 from tvm.relay import testing
 import tvm.testing
-from tvm.contrib.cutlass import (
-    has_cutlass,
-    num_cutlass_partitions,
-    finalize_modules,
-    finalize_modules_vm,
-)
+from tvm.contrib.cutlass import finalize_modules
 
 img_size = 8
 #######################################################################
@@ -50,7 +45,6 @@ def get_network():
         "dweight", relay.TensorType((batch_size, 16 * img_size * img_size), "float16")
     )
     weight = relay.var("weight")
-    second_weight = relay.var("second_weight")
     bn_gamma = relay.var("bn_gamma")
     bn_beta = relay.var("bn_beta")
     bn_mmean = relay.var("bn_mean")

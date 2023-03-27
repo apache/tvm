@@ -56,7 +56,7 @@ class ConcreteScheduleNode : public ScheduleNode {
     // `error_render_level_` is not visited
     // `symbol_table_` is not visited
     // `analyzer_` is not visited
-    // `rgnd_state_` is not visited
+    // `rand_state_` is not visited
   }
 
   virtual ~ConcreteScheduleNode() = default;
@@ -116,12 +116,21 @@ class ConcreteScheduleNode : public ScheduleNode {
                     const Array<BlockRV> consumer_blocks = {}) override;
   BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index, const String& storage_scope,
                      const Array<BlockRV> consumer_blocks = {}) override;
+  BlockRV ReindexCacheRead(const BlockRV& block_rv, int read_buffer_index,
+                           const String& storage_scope, const IndexMap& index_map) override;
+  BlockRV ReindexCacheWrite(const BlockRV& block_rv, int write_buffer_index,
+                            const String& storage_scope, const IndexMap& index_map) override;
   Array<BlockRV> CacheInplace(const BlockRV& block_rv, int read_buffer_index,
                               const String& storage_scope) override;
   Array<BlockRV> CacheIndex(const BlockRV& block_rv, const String& storage_scope,
                             int cse_thresh) override;
   BlockRV ReIndex(const BlockRV& block_rv, int buffer_index,
                   BufferIndexType buffer_index_type) override;
+  /******** Schedule: Data movement ********/
+  BlockRV ReadAt(const LoopRV& loop_rv, const BlockRV& block_rv, int read_buffer_index,
+                 const String& storage_scope) override;
+  BlockRV WriteAt(const LoopRV& loop_rv, const BlockRV& block_rv, int write_buffer_index,
+                  const String& storage_scope) override;
   /******** Schedule: Compute location ********/
   void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
                  int index = -1) override;
@@ -137,6 +146,7 @@ class ConcreteScheduleNode : public ScheduleNode {
   void StorageAlign(const BlockRV& block_rv, int buffer_index, int axis, int factor,
                     int offset) override;
   void SetScope(const BlockRV& block_rv, int buffer_index, const String& storage_scope) override;
+  void UnsafeSetDType(const BlockRV& block_rv, int buffer_index, const String& dtype) override;
   /******** Schedule: Blockize & Tensorize ********/
   BlockRV Blockize(const LoopRV& loop_rv, bool preserve_unit_iters) override;
   void Tensorize(const BlockRV& block_rv, const String& intrin, bool preserve_unit_iters) override;
@@ -148,7 +158,8 @@ class ConcreteScheduleNode : public ScheduleNode {
   void Unannotate(const BlockRV& block_rv, const String& ann_key) override;
   /******** Schedule: Layout transformation ********/
   void TransformLayout(const BlockRV& block_rv, int buffer_index, BufferIndexType buffer_index_type,
-                       const IndexMap& index_map, const Optional<IndexMap>& pad_value) override;
+                       const IndexMap& index_map, const Optional<IndexMap>& pad_value,
+                       bool assume_injective_transform = false) override;
   void TransformBlockLayout(const BlockRV& block_rv, const IndexMap& index_map) override;
   void SetAxisSeparator(const BlockRV& block_rv, int buffer_index,
                         BufferIndexType buffer_index_type,

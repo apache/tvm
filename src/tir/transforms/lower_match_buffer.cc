@@ -117,20 +117,6 @@ class MatchBufferLower : public StmtExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    CHECK(var_map_.find(op->buffer_var) == var_map_.end())
-        << "Load from buffer created by match_buffer is not allowed, but got: " << expr;
-    return expr;
-  }
-
-  Stmt VisitStmt_(const StoreNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    CHECK(var_map_.find(op->buffer_var) == var_map_.end())
-        << "Store from buffer created by match_buffer is not allowed, but got: " << stmt;
-    return stmt;
-  }
-
   BufferRegion VisitBufferRegion(const BufferRegion& buffer_region) {
     const Buffer& buffer = buffer_region->buffer;
     auto it = match_buffers_.find(buffer);

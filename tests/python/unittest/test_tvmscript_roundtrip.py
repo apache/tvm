@@ -171,6 +171,16 @@ def opt_gemm_lower():
     return Module
 
 
+def launch_env_thread():
+    @T.prim_func
+    def main(inputs: T.Buffer((64, 2, 4), "float32")) -> None:
+        bx = T.launch_thread("blockIdx.x", 64)
+        for i, j in T.grid(2, 4):
+            T.evaluate(inputs[bx, i, j])
+
+    return main
+
+
 def opt_gemm_mod_host():
     @tvm.script.ir_module
     class Module:
@@ -193,12 +203,8 @@ def opt_gemm_mod_host():
             )
             # buffer definition
             buf_type_ids = T.match_buffer(arg_type_ids, [3], dtype="int32")
-
             packedB = T.Buffer([32768], dtype="float32")
             C_global = T.Buffer([1024], dtype="float32")
-            # var definition
-            # C_global = T.buffer_var("float32", "global")
-            # packedB = T.buffer_var("float32", "global")
             # body
             assert num_args == 3, "mmult: num_args should be 3"
             arg0: T.handle = T.tvm_struct_get(args, 0, 12, dtype="handle")
@@ -208,30 +214,30 @@ def opt_gemm_mod_host():
             arg2: T.handle = T.tvm_struct_get(args, 2, 12, dtype="handle")
             arg2_code: T.int32 = buf_type_ids[2]
 
-            A_data: T.Ptr[T.int32] = T.tvm_struct_get(arg0, 0, 1, dtype="handle")
+            A_data: T.handle("int32") = T.tvm_struct_get(arg0, 0, 1, dtype="handle")
             T.attr(A_data, "storage_alignment", 128)
             A = T.Buffer([1024 * 1024], dtype="int32", data=A_data)
-            buf0_shape_data: T.Ptr[T.int32] = T.tvm_struct_get(arg0, 0, 2, dtype="handle")
+            buf0_shape_data: T.handle("int32") = T.tvm_struct_get(arg0, 0, 2, dtype="handle")
             buf0_shape = T.Buffer([2], dtype="int32", data=buf0_shape_data)
-            buf0_strides_data: T.Ptr[T.int32] = T.tvm_struct_get(arg0, 0, 3, dtype="handle")
+            buf0_strides_data: T.handle("int32") = T.tvm_struct_get(arg0, 0, 3, dtype="handle")
             buf0_strides = T.Buffer([2], dtype="int32", data=buf0_strides_data)
 
             dev_id: T.int32 = T.tvm_struct_get(arg0, 0, 9, dtype="int32")
 
-            B_data: T.Ptr[T.int32] = T.tvm_struct_get(arg1, 0, 1, dtype="handle")
+            B_data: T.handle("int32") = T.tvm_struct_get(arg1, 0, 1, dtype="handle")
             T.attr(B_data, "storage_alignment", 128)
             B = T.Buffer([1024 * 1024], dtype="int32", data=B_data)
-            buf1_shape_data: T.Ptr[T.int32] = T.tvm_struct_get(arg1, 0, 2, dtype="handle")
+            buf1_shape_data: T.handle("int32") = T.tvm_struct_get(arg1, 0, 2, dtype="handle")
             buf1_shape = T.Buffer([2], dtype="int32", data=buf1_shape_data)
-            buf1_strides_data: T.Ptr[T.int32] = T.tvm_struct_get(arg1, 0, 3, dtype="handle")
+            buf1_strides_data: T.handle("int32") = T.tvm_struct_get(arg1, 0, 3, dtype="handle")
             buf1_strides = T.Buffer([2], dtype="int32", data=buf1_strides_data)
 
-            C_data: T.Ptr[T.int32] = T.tvm_struct_get(arg2, 0, 1, dtype="handle")
+            C_data: T.handle("int32") = T.tvm_struct_get(arg2, 0, 1, dtype="handle")
             T.attr(C_data, "storage_alignment", 128)
             C = T.Buffer([1024 * 1024], dtype="int32", data=C_data)
-            buf2_shape_data: T.Ptr[T.int32] = T.tvm_struct_get(arg2, 0, 2, dtype="handle")
+            buf2_shape_data: T.handle("int32") = T.tvm_struct_get(arg2, 0, 2, dtype="handle")
             buf2_shape = T.Buffer([2], dtype="int32", data=buf2_shape_data)
-            buf2_strides_data: T.Ptr[T.int32] = T.tvm_struct_get(arg2, 0, 3, dtype="handle")
+            buf2_strides_data: T.handle("int32") = T.tvm_struct_get(arg2, 0, 3, dtype="handle")
             buf2_strides = T.Buffer([2], dtype="int32", data=buf2_strides_data)
 
             assert (((arg0_code == 3) or (arg0_code == 13)) or (arg0_code == 7)) or (
@@ -339,9 +345,9 @@ def opt_gemm_mod_host():
             T.attr(0, "compute_scope", "mmult_compute_")
             T.attr(packedB.data, "storage_scope", "global")
             T.attr(packedB.data, "storage_alignment", 128)
-            with T.let(
-                packedB.data,
+            with T.LetStmt(
                 T.TVMBackendAllocWorkspace(1, dev_id, T.uint64(4194304), 2, 32, dtype="handle"),
+                var=packedB.data,
             ):
                 if T.isnullptr(packedB.data, dtype="bool"):
                     T.evaluate(T.tvm_throw_last_error(dtype="int32"))
@@ -353,11 +359,11 @@ def opt_gemm_mod_host():
                 for x_outer in T.parallel(0, 32):
                     T.attr(C_global.data, "storage_scope", "global")
                     T.attr(C_global.data, "storage_alignment", 128)
-                    with T.let(
-                        C_global.data,
+                    with T.LetStmt(
                         T.TVMBackendAllocWorkspace(
                             1, dev_id, T.uint64(4096), 2, 32, dtype="handle"
                         ),
+                        var=C_global.data,
                     ):
                         if T.isnullptr(C_global.data, dtype="bool"):
                             T.evaluate(T.tvm_throw_last_error(dtype="int32"))
@@ -932,9 +938,9 @@ def opt_conv_tensorcore_normalize():
 def opt_conv_tensorcore_lower():
     @T.prim_func
     def func(
-        A: T.Buffer[(16, 14, 14, 16, 16, 16), "float16"],
-        W: T.Buffer[(3, 3, 16, 32, 16, 16), "float16"],
-        Conv: T.Buffer[(16, 14, 14, 32, 16, 16), "float32"],
+        A: T.Buffer((16, 14, 14, 16, 16, 16), "float16"),
+        W: T.Buffer((3, 3, 16, 32, 16, 16), "float16"),
+        Conv: T.Buffer((16, 14, 14, 32, 16, 16), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "default_function", "tir.noalias": True})
@@ -2226,7 +2232,7 @@ def opt_conv_tensorcore_mod_host():
     @T.prim_func
     def opt_conv_tensorcore_mod_host(
         args: T.handle,
-        arg_type_ids: T.Buffer[(3,), "int32"],
+        arg_type_ids: T.Buffer((3,), "int32"),
         num_args: T.int32,
         out_ret_value: T.handle,
         out_ret_tcode: T.handle,
@@ -2242,7 +2248,7 @@ def opt_conv_tensorcore_mod_host():
             }
         )
         # body
-        stack_tcode_data: T.Ptr[T.int32] = T.tvm_stack_alloca("arg_tcode", 10, dtype="handle")
+        stack_tcode_data: T.handle("int32") = T.tvm_stack_alloca("arg_tcode", 10, dtype="handle")
         stack_tcode = T.Buffer([9], "int32", data=stack_tcode_data)
         stack_value: T.handle = T.tvm_stack_alloca("arg_value", 10, dtype="handle")
         assert num_args == 3, "default_function: num_args should be 3"
@@ -2255,25 +2261,25 @@ def opt_conv_tensorcore_mod_host():
 
         A: T.handle = T.tvm_struct_get(arg0, 0, 1, dtype="handle")
         T.attr(A, "storage_alignment", 128)
-        arg0_shape_data: T.Ptr[T.int64] = T.tvm_struct_get(arg0, 0, 2, dtype="handle")
+        arg0_shape_data: T.handle("int64") = T.tvm_struct_get(arg0, 0, 2, dtype="handle")
         arg0_shape = T.Buffer([6], "int64", data=arg0_shape_data)
-        arg0_strides_data: T.Ptr[T.int64] = T.tvm_struct_get(arg0, 0, 3, dtype="handle")
+        arg0_strides_data: T.handle("int64") = T.tvm_struct_get(arg0, 0, 3, dtype="handle")
         arg0_strides = T.Buffer([6], "int64", data=arg0_strides_data)
 
         dev_id: T.int32 = T.tvm_struct_get(arg0, 0, 9, dtype="int32")
 
         W: T.handle = T.tvm_struct_get(arg1, 0, 1, dtype="handle")
         T.attr(W, "storage_alignment", 128)
-        arg1_shape_data: T.Ptr[T.int64] = T.tvm_struct_get(arg1, 0, 2, dtype="handle")
+        arg1_shape_data: T.handle("int64") = T.tvm_struct_get(arg1, 0, 2, dtype="handle")
         arg1_shape = T.Buffer([6], "int64", data=arg1_shape_data)
-        arg1_strides_data: T.Ptr[T.int64] = T.tvm_struct_get(arg1, 0, 3, dtype="handle")
+        arg1_strides_data: T.handle("int64") = T.tvm_struct_get(arg1, 0, 3, dtype="handle")
         arg1_strides = T.Buffer([6], "int64", data=arg1_strides_data)
 
         Conv: T.handle = T.tvm_struct_get(arg2, 0, 1, dtype="handle")
         T.attr(Conv, "storage_alignment", 128)
-        arg2_shape_data: T.Ptr[T.int64] = T.tvm_struct_get(arg2, 0, 2, dtype="handle")
+        arg2_shape_data: T.handle("int64") = T.tvm_struct_get(arg2, 0, 2, dtype="handle")
         arg2_shape = T.Buffer([6], "int64", data=arg2_shape_data)
-        arg2_strides_data: T.Ptr[T.int64] = T.tvm_struct_get(arg2, 0, 3, dtype="handle")
+        arg2_strides_data: T.handle("int64") = T.tvm_struct_get(arg2, 0, 3, dtype="handle")
         arg2_strides = T.Buffer([6], "int64", data=arg2_strides_data)
 
         assert (((arg0_code == 3) or (arg0_code == 13)) or (arg0_code == 7)) or (
@@ -2908,10 +2914,10 @@ def constant_folding():
 def simplify_bracket():
     @T.prim_func
     def simplify_bracket() -> None:
-        a = T.var("int32")
-        b = T.var("int32")
-        c = T.var("int32")
-        d = T.var("int32")
+        a = T.int32()
+        b = T.int32()
+        c = T.int32()
+        d = T.int32()
         T.evaluate(a + b * (c + d))
 
     return simplify_bracket
@@ -3043,8 +3049,8 @@ def multiple_commreducer():
 def func_div_mod():
     @T.prim_func
     def func_div_mod():
-        a = T.var("int32")
-        b = T.var("int32")
+        a = T.int32()
+        b = T.int32()
         T.evaluate(a // b)
         T.evaluate(a % b)
         T.evaluate(T.truncmod(a, b))
@@ -3129,7 +3135,7 @@ def func_root_attr():
 
 def func_trivial_root_block():
     @T.prim_func
-    def func(A: T.Buffer[1, "int32"]):
+    def func(A: T.Buffer(1, "int32")):
         with T.block("root"):
             A[0] = 0
 
@@ -3138,7 +3144,7 @@ def func_trivial_root_block():
 
 def func_nested_root_block():
     @T.prim_func
-    def func(A: T.Buffer[1, "int32"]):
+    def func(A: T.Buffer(1, "int32")):
         with T.block("root"):
             with T.block("block"):
                 A[0] = 0
@@ -3149,7 +3155,7 @@ def func_nested_root_block():
 def func_T_ptr_let_statement():
     @T.prim_func
     def func_T_ptr_let_statement(
-        args: T.handle, arg_type_ids_handle: T.Ptr[T.int32], num_args: T.int32
+        args: T.handle, arg_type_ids_handle: T.handle("int32"), num_args: T.int32
     ) -> None:
         # The T.Ptr declaration in the parameter list should parse
         # correctly, and should be usable as the data pointer in a buffer.
@@ -3161,14 +3167,14 @@ def func_T_ptr_let_statement():
         # Functions that return a "handle" can be assigned to a T.Ptr
         # variable.  A variable annotated with T.Ptr still has dtype of
         # T.handle, but has type annotation as a pointer type.
-        A_data: T.Ptr[T.float32] = T.tvm_struct_get(arg0, 0, 1, dtype="handle")
+        A_data: T.handle("float32") = T.tvm_struct_get(arg0, 0, 1, dtype="handle")
 
         # The buffer declaration has a data pointer defined earlier in
         # this function.  It should only be defined after the data pointer
         # has been defined, and should not be hoisted into the header of
         # the function as other buffer_decl statements can be.
         A = T.Buffer([1024], dtype="float32", data=A_data)
-        B_data: T.Ptr[T.float32] = T.tvm_struct_get(arg1, 0, 1, dtype="handle")
+        B_data: T.handle("float32") = T.tvm_struct_get(arg1, 0, 1, dtype="handle")
         B = T.Buffer([1024], dtype="float32", data=B_data)
 
         B[0] = A[0]
@@ -3188,7 +3194,7 @@ def func_T_ptr_allocate():
 
 def llvm_intrin_call():
     @T.prim_func
-    def ctpop(A: T.Buffer[(16,), "uint8"], B: T.Buffer[(16,), "uint8"]) -> None:
+    def ctpop(A: T.Buffer((16,), "uint8"), B: T.Buffer((16,), "uint8")) -> None:
         for i in range(0, 16):
             with T.block("A"):
                 vi = T.axis.remap(
@@ -3270,13 +3276,13 @@ def string_annotation_escaping():
 
 def pointer_type():
     @T.prim_func
-    def func_with_ptr_type_annotations(x: T.Ptr[T.int32], y: T.Ptr[T.int32, "shared"]):
+    def func_with_ptr_type_annotations(x: T.handle("int32"), y: T.handle("int32", "shared")):
         xx_data = T.allocate([16], "int32", "global")
         xx = T.Buffer(shape=[16], dtype="int32", scope="global", data=xx_data)
         yy_data = T.allocate([16], "int32", "shared")
         yy = T.Buffer(shape=[16], dtype="int32", scope="shared", data=yy_data)
-        a: T.Ptr[T.int32] = T.address_of(xx[0], dtype="handle")
-        b: T.Ptr[T.int32, "shared"] = T.address_of(yy[0], dtype="handle")
+        a: T.handle("int32") = T.address_of(xx[0], dtype="handle")
+        b: T.handle("int32", "shared") = T.address_of(yy[0], dtype="handle")
         T.evaluate(T.call_extern("copy", a, b, dtype=""))
 
     return func_with_ptr_type_annotations
@@ -3320,15 +3326,15 @@ def buffer_ramp_access_as_slice_index():
 def let_expression():
     @T.prim_func
     def func():
-        x = T.var("int32")
-        T.evaluate(T.let(x, 1, x + 1))
+        x = T.int32()
+        T.evaluate(T.Let(x + 1, where={x: 1}))
 
     return func
 
 
 def void_ptr():
     @T.prim_func
-    def func(out_ret_value: T.Ptr[T.void]):
+    def func(out_ret_value: T.handle("void")):
         T.evaluate(out_ret_value)
 
     return func
@@ -3336,7 +3342,7 @@ def void_ptr():
 
 def decl_buffer():
     @T.prim_func
-    def func(A: T.Buffer[(16, 16), "float32"], B: T.Buffer[(16, 16), "float32"]) -> None:
+    def func(A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")) -> None:
         A_flattened = T.decl_buffer(data=A.data, shape=(256,), dtype="float32")
         B_flattened = T.decl_buffer(data=B.data, shape=(256,), dtype="float32")
         C_alias = T.decl_buffer(data=A_flattened.data, shape=(256,), dtype="float32")
@@ -3348,7 +3354,7 @@ def decl_buffer():
 
 def allocate_and_decl_buffer():
     @T.prim_func
-    def func(A: T.Buffer[(16,), "float32"], B: T.Buffer[(16,), "float32"]) -> None:
+    def func(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")) -> None:
         D_data = T.allocate((16,), "float32", "global")
         D = T.decl_buffer((16,), "float32", data=D_data)
         for i in range(4):
@@ -3367,7 +3373,7 @@ def allocate_and_decl_buffer():
 def float_infinity():
     @T.prim_func
     def func(
-        placeholder: T.Buffer[(1, 512, 768), "float32"], T_isinf: T.Buffer[(1, 512, 768), "bool"]
+        placeholder: T.Buffer((1, 512, 768), "float32"), T_isinf: T.Buffer((1, 512, 768), "bool")
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -3438,14 +3444,16 @@ def bool_primitive():
 def bool_cast():
     @T.prim_func
     def func() -> None:
+        a = T.bool()
         T.evaluate(T.bool(T.int32(0)))
+        T.evaluate(a == T.bool(False))
 
     return func
 
 
 def implicit_evaluate():
     @T.prim_func
-    def func(A: T.Buffer[1, "int32"]):
+    def func(A: T.Buffer(1, "int32")):
         T.evaluate(T.assume(A[0] == 5))
         A[0] = 10
 
@@ -3508,7 +3516,7 @@ def nested_boolean_expressions():
     def make_ir_generator(name, expression):
         def inner():
             @T.prim_func
-            def func(A: T.Buffer[1, "bool"], i: T.bool, j: T.bool, k: T.bool):
+            def func(A: T.Buffer(1, "bool"), i: T.bool, j: T.bool, k: T.bool):
                 A[0] = expression(i, j, k)
 
             return func
@@ -3524,7 +3532,7 @@ def nested_boolean_expressions():
 
 def multi_env_threads():
     @T.prim_func
-    def func(A: T.Buffer[128, "float32"], C: T.Buffer[128, "float32"]):
+    def func(A: T.Buffer(128, "float32"), C: T.Buffer(128, "float32")):
         B = T.alloc_buffer([128], dtype="float32")
         for i in T.thread_binding(128, thread="threadIdx.x"):
             B[i] = A[i] + 1.0
@@ -3543,7 +3551,149 @@ def intrinsic_pow():
     return func
 
 
+def let_stmt_var():
+    @T.prim_func
+    def func():
+        with T.LetStmt(0) as x:
+            with T.LetStmt(0) as y:
+                T.evaluate(0)
+        T.evaluate(0)
+
+    return func
+
+
+def let_stmt_value():
+    @T.prim_func
+    def func():
+        y = T.int32()
+        with T.LetStmt(y) as x:
+            with T.LetStmt(0, var=y):
+                T.evaluate(0)
+        T.evaluate(0)
+
+    return func
+
+
+def string_stride():
+    @T.prim_func
+    def main(a: T.handle, b: T.handle):
+        T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+        n = T.int32()
+        A = T.match_buffer(a, (n,), strides=("A_s0",), buffer_type="auto")
+        B = T.match_buffer(b, (n,), strides=("B_s0",), buffer_type="auto")
+        blockIdx_x = T.launch_thread("blockIdx.x", (n + 63) // 64)
+        threadIdx_x = T.launch_thread("threadIdx.x", 64)
+        if T.likely(blockIdx_x * 64 + threadIdx_x < n):
+            B2 = T.Buffer((B.strides[0] * n,), data=B.data)
+            A2 = T.Buffer((A.strides[0] * n,), data=A.data)
+            B2[(blockIdx_x * 64 + threadIdx_x) * B.strides[0]] = A2[
+                (blockIdx_x * 64 + threadIdx_x) * A.strides[0]
+            ] * T.float32(2)
+
+    return main
+
+
+def merge_shape_var_def():
+    @T.prim_func
+    def main(A: T.handle, B: T.handle):
+        T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+        m, n = T.int32(), T.int32()
+        A_1 = T.match_buffer(A, (m, n), strides=("A_1_s0", "A_1_s1"), buffer_type="auto")
+        B_1 = T.match_buffer(B, (m, n), strides=("B_1_s0", "B_1_s1"), buffer_type="auto")
+        for i_outer, j_outer, i_inner in T.grid((m + 9) // 10, (n + 4) // 5, 10):
+            if T.likely(i_outer * 10 + i_inner < m):
+                for j_inner in range(5):
+                    if T.likely(j_outer * 5 + j_inner < n):
+                        cse_var_2: T.int32 = j_outer * 5 + j_inner
+                        cse_var_1: T.int32 = i_outer * 10 + i_inner
+                        B_2 = T.Buffer(
+                            (B_1.strides[0] * m,),
+                            data=B_1.data,
+                            strides=("B_2_s0",),
+                            buffer_type="auto",
+                        )
+                        A_2 = T.Buffer(
+                            (A_1.strides[0] * m,),
+                            data=A_1.data,
+                            strides=("A_2_s0",),
+                            buffer_type="auto",
+                        )
+                        B_2[cse_var_1 * B_1.strides[0] + cse_var_2 * B_1.strides[1]] = A_2[
+                            cse_var_1 * A_1.strides[0] + cse_var_2 * A_1.strides[1]
+                        ]
+
+    return main
+
+
+def if_then_else_var():
+    @T.prim_func
+    def main(n: T.int32):
+        if n == 0:
+            x = 5
+            T.evaluate(x)
+        else:
+            x = 10
+            T.evaluate(x)
+
+    return main
+
+
+def tvm_shfl_builtins():
+    @T.prim_func
+    def func(
+        A: T.handle("float32"),
+        B: T.handle("float32"),
+        C: T.handle("float32"),
+    ):
+        blockIdx_x = T.launch_thread("blockIdx.x", 1)
+        threadIdx_x = T.launch_thread("threadIdx.x", 32)
+        A_warp = T.allocate([1], "float32", "local")
+        B_warp = T.allocate([1], "float32", "local")
+        red_buf0 = T.allocate([1], "float32", "local")
+        A_warp_1 = T.Buffer((32,), data=A_warp, scope="local")
+        A_1 = T.Buffer((32,), data=A)
+        A_warp_1[0] = A_1[threadIdx_x]
+        B_warp_1 = T.Buffer((32,), data=B_warp, scope="local")
+        T.tvm_storage_sync("warp")
+        B_warp_1[0] = T.tvm_warp_shuffle(
+            T.tvm_warp_activemask(), A_warp_1[0], threadIdx_x % 4 * 8 + threadIdx_x // 4, 32, 32
+        ) + T.float32(1)
+        red_buf0_1 = T.Buffer((1,), data=red_buf0, scope="local")
+        with T.attr(
+            T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
+            "reduce_scope",
+            T.reinterpret("handle", T.uint64(0)),
+        ):
+            mask = T.allocate([1], "uint32", "local")
+            t0 = T.allocate([1], "float32", "local")
+            red_buf0_1[0] = A_warp_1[0]
+            mask_1 = T.Buffer((1,), "uint32", data=mask, scope="local")
+            mask_1[0] = T.tvm_warp_activemask()
+            t0_1 = T.Buffer((1,), data=t0, scope="local")
+            t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 16, 32, 32)
+            red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
+            t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 8, 32, 32)
+            red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
+            t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 4, 32, 32)
+            red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
+            t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 2, 32, 32)
+            red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
+            t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 1, 32, 32)
+            red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
+            red_buf0_1[0] = T.tvm_warp_shuffle(mask_1[0], red_buf0_1[0], 0, 32, 32)
+            # NOTE(Zihao): test tvm_warp_shuffle_up
+            red_buf0_1[0] = T.tvm_warp_shuffle_up(mask_1[0], red_buf0_1[0], 0, 32, 32)
+        if threadIdx_x == 0:
+            C_1 = T.Buffer((1,), data=C)
+            C_1[0] = red_buf0_1[0]
+        B_1 = T.Buffer((32,), data=B)
+        B_1[threadIdx_x] = B_warp_1[0]
+
+    return func
+
+
 ir_generator = tvm.testing.parameter(
+    launch_env_thread,
     opt_gemm_normalize,
     opt_gemm_lower,
     opt_gemm_mod_host,
@@ -3601,6 +3751,12 @@ ir_generator = tvm.testing.parameter(
     *nested_boolean_expressions(),
     multi_env_threads,
     intrinsic_pow,
+    let_stmt_var,
+    let_stmt_value,
+    string_stride,
+    merge_shape_var_def,
+    if_then_else_var,
+    tvm_shfl_builtins,
 )
 
 

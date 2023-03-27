@@ -19,6 +19,7 @@ set -euxo pipefail
 
 python3 -m pylint python/tvm --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint vta/python/vta --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/unittest/test_crt.py --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/unittest/test_tvmscript_type.py --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/contrib/test_cmsisnn --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/contrib/test_ethosn --rcfile="$(dirname "$0")"/pylintrc

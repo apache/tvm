@@ -48,8 +48,8 @@ def @main(%data : Tensor[(16, 29), int8]) -> Tensor[(16, 29), int8] {
   %1
 }
 """
-    orig_mod = tvm.parser.fromtext(original_model)
-    cmsisnn_mod = tvm.parser.fromtext(cmsisnn_model)
+    orig_mod = tvm.relay.fromtext(original_model)
+    cmsisnn_mod = tvm.relay.fromtext(cmsisnn_model)
     params = {}
 
     # validate the output

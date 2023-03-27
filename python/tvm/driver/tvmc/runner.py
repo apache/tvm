@@ -109,6 +109,7 @@ def add_run_parser(subparsers, main_parser, json_params):
         "Profiling may also have an impact on inference time, "
         "making it take longer to be generated. (non-micro devices only)",
     )
+    parser.add_argument("-v", "--verbose", action="count", default=0, help="increase verbosity.")
     parser.add_argument(
         "--end-to-end",
         action="store_true",
@@ -652,13 +653,17 @@ def run_module(
             else:
                 if device == "micro":
                     logger.debug("Creating runtime (micro) with profiling disabled.")
-                    module = tvm.micro.create_local_graph_executor(tvmc_package.graph, lib, dev)
+                    if tvmc_package.executor_type == "aot":
+                        module = tvm.micro.create_local_aot_executor(session)
+                    else:
+                        module = tvm.micro.create_local_graph_executor(tvmc_package.graph, lib, dev)
                 else:
                     logger.debug("Creating runtime with profiling disabled.")
                     module = executor.create(tvmc_package.graph, lib, dev)
 
-            logger.debug("Loading params into the runtime module.")
-            module.load_params(tvmc_package.params)
+            if tvmc_package.executor_type == "graph":
+                logger.debug("Loading params into the runtime module.")
+                module.load_params(tvmc_package.params)
 
             logger.debug("Collecting graph input shape and type:")
 

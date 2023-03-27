@@ -20,6 +20,7 @@ from typing import List
 
 import numpy as np
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import IRModule
@@ -408,8 +409,8 @@ def test_meta_schedule_te2primfunc_argument_order_and_lowering():
     class _fused_layout_transform:
         @T.prim_func
         def main( # type: ignore
-            placeholder: T.Buffer[(T.int64(1), T.int64(3), T.int64(16), T.int64(16)), "float32"], # type: ignore
-            T_layout_trans: T.Buffer[(T.int64(1), T.int64(1), T.int64(16), T.int64(16), T.int64(3)), "float32"], # type: ignore
+            placeholder: T.Buffer((T.int64(1), T.int64(3), T.int64(16), T.int64(16)), "float32"), # type: ignore
+            T_layout_trans: T.Buffer((T.int64(1), T.int64(1), T.int64(16), T.int64(16), T.int64(3)), "float32"), # type: ignore
         ) -> None: # type: ignore
             # function attr dict
             T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -420,6 +421,7 @@ def test_meta_schedule_te2primfunc_argument_order_and_lowering():
                     ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                     T.reads(placeholder[ax0, ax1 * T.int64(3) + ax4, ax2, ax3])
                     T.writes(T_layout_trans[ax0, ax1, ax2, ax3, ax4])
+                    T.block_attr({"dst_layout": "NCHW3c", "input_shape": [1, 3, 16, 16], "schedule_rule": "None", "src_layout": "NCHW"})
                     T_layout_trans[ax0, ax1, ax2, ax3, ax4] = T.if_then_else(
                         ax0 < T.int64(1) and ax1 * T.int64(3) + ax4 < T.int64(3) and ax2 < T.int64(16) and ax3 < T.int64(16), # type: ignore
                         placeholder[ax0, ax1 * T.int64(3) + ax4, ax2, ax3],
@@ -430,7 +432,7 @@ def test_meta_schedule_te2primfunc_argument_order_and_lowering():
     @tvm.script.ir_module
     class _fused_layout_transform_1:
         @T.prim_func
-        def main(placeholder: T.Buffer[(T.int64(1), T.int64(2), T.int64(16), T.int64(16), T.int64(4)), "float32"], T_layout_trans: T.Buffer[(T.int64(1), T.int64(8), T.int64(16), T.int64(16)), "float32"]) -> None: # type: ignore
+        def main(placeholder: T.Buffer((T.int64(1), T.int64(2), T.int64(16), T.int64(16), T.int64(4)), "float32"), T_layout_trans: T.Buffer((T.int64(1), T.int64(8), T.int64(16), T.int64(16)), "float32")) -> None: # type: ignore
             # function attr dict
             T.func_attr({"global_symbol": "main", "tir.noalias": True})
             # body
@@ -440,12 +442,13 @@ def test_meta_schedule_te2primfunc_argument_order_and_lowering():
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                     T.reads(placeholder[ax0, ax1 // T.int64(4), ax2, ax3, ax1 % T.int64(4)]) # type: ignore
                     T.writes(T_layout_trans[ax0, ax1, ax2, ax3])
+                    T.block_attr({"dst_layout": "NCHW", "input_shape": [1, 2, 16, 16, 4], "schedule_rule": "None", "src_layout": "NCHW4c"})
                     T_layout_trans[ax0, ax1, ax2, ax3] = T.if_then_else(ax0 < T.int64(1) and ax1 < T.int64(8) and ax2 < T.int64(16) and ax3 < T.int64(16), placeholder[ax0, ax1 // T.int64(4), ax2, ax3, ax1 % T.int64(4)], T.float32(0), dtype="float32") # type: ignore
 
     @tvm.script.ir_module
     class _fused_nn_contrib_conv2d_NCHWc:
         @T.prim_func
-        def main(placeholder: T.Buffer[(T.int64(1), T.int64(1), T.int64(16), T.int64(16), T.int64(3)), "float32"], placeholder_1: T.Buffer[(T.int64(2), T.int64(1), T.int64(5), T.int64(5), T.int64(3), T.int64(4)), "float32"], conv2d_NCHWc: T.Buffer[(T.int64(1), T.int64(2), T.int64(16), T.int64(16), T.int64(4)), "float32"]) -> None: # type: ignore
+        def main(placeholder: T.Buffer((T.int64(1), T.int64(1), T.int64(16), T.int64(16), T.int64(3)), "float32"), placeholder_1: T.Buffer((T.int64(2), T.int64(1), T.int64(5), T.int64(5), T.int64(3), T.int64(4)), "float32"), conv2d_NCHWc: T.Buffer((T.int64(1), T.int64(2), T.int64(16), T.int64(16), T.int64(4)), "float32")) -> None: # type: ignore
             # function attr dict
             T.func_attr({"global_symbol": "main", "tir.noalias": True})
             # body
@@ -724,7 +727,7 @@ def test_module_equality_ignore_ndarray():
     np.testing.assert_allclose(ref, out, rtol=1e-4, atol=1e-4)
 
 
-def _test_anchor_tuning(target):
+def _test_anchor_tuning(target, space):
     data_shape = (128, 128)
     weight_shape1 = (128, 128)
     weight_shape2 = (128, 128)
@@ -756,6 +759,7 @@ def _test_anchor_tuning(target):
             target=target,
             params=params,
             work_dir=work_dir,
+            space=space,
             max_trials_global=4,
             strategy="replay-trace",
             module_equality=module_equality,
@@ -779,8 +783,15 @@ def _test_anchor_tuning(target):
     np.testing.assert_allclose(ref, out, atol=1e-3)
 
 
-def test_anchor_tuning_cpu():
-    _test_anchor_tuning("llvm --num-cores=4")
+@pytest.mark.parametrize(
+    "space",
+    [
+        ms.space_generator.PostOrderApply(),
+        ms.space_generator.PostOrderApply(sch_rules=[], postprocs=[], mutator_probs={}),
+    ],
+)
+def test_anchor_tuning_cpu(space):
+    _test_anchor_tuning("llvm --num-cores=4", space)
 
 
 def test_anchor_tuning_cpu_link_params():

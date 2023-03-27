@@ -63,14 +63,6 @@ class VecAllocAccess : public StmtExprMutator {
   VecAllocAccess(const VarNode* buf, Var var, int var_lanes)
       : buf_(buf), var_(var), var_lanes_(var_lanes) {}
 
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
-
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     auto load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
     return UpdateBufferAccess(load);
@@ -367,10 +359,6 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       }
     }
   }
-  // Load
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
   // BufferLoad
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     auto load = GetRef<BufferLoad>(op);
@@ -413,10 +401,6 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
         return Let(op->var, value, body);
       }
     }
-  }
-  // Store
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
   }
   // BufferStore
   Stmt VisitStmt_(const BufferStoreNode* op) final {
@@ -560,8 +544,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   // scalarize the statment
   Stmt Scalarize(Stmt stmt) {
     Var idx(var_->name_hint + ".s", var_->dtype);
-    Map<Var, PrimExpr> values{{var_, idx}};
-    stmt = Substitute(stmt, values);
+    stmt = Substitute(stmt, {{var_, idx}});
     return For(idx, IntImm(var_->dtype, 0), IntImm(var_->dtype, var_lanes_), ForKind::kSerial,
                stmt);
   }

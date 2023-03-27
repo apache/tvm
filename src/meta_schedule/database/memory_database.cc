@@ -68,14 +68,7 @@ class MemoryDatabaseNode : public DatabaseNode {
     std::vector<TuningRecord> results;
     results.reserve(records.size());
     for (const TuningRecord& record : records) {
-      auto run_secs = record->run_secs;
-      if (!run_secs.defined() || run_secs.value().empty() ||
-          std::all_of(run_secs.value().begin(), run_secs.value().end(),
-                      // kMaxMeanTime(1e10) is used as a stub for undefined measurement times.
-                      [](tvm::FloatImm v) {
-                        return v.defined() &&
-                               v->value == SortTuningRecordByMeanRunSecs::kMaxMeanTime;
-                      })) {
+      if (!record->IsValid()) {
         continue;
       }
       if (record->workload.same_as(workload) ||
@@ -85,11 +78,11 @@ class MemoryDatabaseNode : public DatabaseNode {
     }
     std::stable_sort(results.begin(), results.end(), SortTuningRecordByMeanRunSecs());
     if (results.size() > static_cast<size_t>(top_k)) {
-      return {results.begin(), results.end() + top_k};
+      return {results.begin(), results.begin() + top_k};
     } else {
       if (results.size() < static_cast<size_t>(top_k)) {
-        LOG(WARNING) << "The size of the GetTopK result is smaller than requested. There are not "
-                        "enough valid records in the database for this workload.";
+        LOG(WARNING) << "Returned tuning records less than requested(" << results.size() << " of "
+                     << top_k << " asked).";
       }
       return results;
     }

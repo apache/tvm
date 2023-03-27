@@ -25,6 +25,7 @@
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
+#include <tvm/tir/var.h>
 
 #include "ir_utils.h"
 
@@ -110,6 +111,12 @@ class BufferAllocationLocator : public StmtExprMutator {
     CollectUnmanagedAllocations collector;
     collector(func->body);
     unmanaged_allocations_ = collector.unmanaged_allocations;
+
+    for (const Var& param : func->params) {
+      if (param->type_annotation.defined() && param->type_annotation.as<PointerTypeNode>()) {
+        unmanaged_allocations_.insert(param.get());
+      }
+    }
 
     for (const auto& kv : func->buffer_map) {
       const Buffer& buffer = kv.second;

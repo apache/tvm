@@ -156,7 +156,8 @@ ALLOW_SPECIFIC_FILE = {
     # microTVM Arduino runtime
     "apps/microtvm/arduino/template_project/Makefile.template",
     # microTVM CRT
-    "src/runtime/crt/host/Makefile.template",
+    "src/runtime/crt/crt_config.h.template",
+    "src/runtime/crt/host/CMakeLists.txt.template",
     # microTVM Virtual Machines
     "apps/microtvm/poetry.lock",
     "apps/microtvm/reference-vm/Vagrantfile",

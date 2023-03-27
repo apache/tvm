@@ -26,7 +26,7 @@ import pytest
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 
 @T.prim_func
-def single_elementwise(A: T.Buffer[(128, 128), "float32"], B: T.Buffer[(128, 128), "float32"]):
+def single_elementwise(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")):
     for i, j in T.grid(128, 128):
         with T.block("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -39,8 +39,8 @@ def single_elementwise(A: T.Buffer[(128, 128), "float32"], B: T.Buffer[(128, 128
 def test_blockize_outer():
     @T.prim_func
     def after_blockize_outer(
-        A: T.Buffer[(128, 128), "float32"],
-        B: T.Buffer[(128, 128), "float32"],
+        A: T.Buffer((128, 128), "float32"),
+        B: T.Buffer((128, 128), "float32"),
     ) -> None:
         with T.block("blockized_B"):
             vio = T.axis.spatial(1, 0)
@@ -61,8 +61,8 @@ def test_blockize_outer():
 def test_blockize_inner():
     @T.prim_func
     def after_blockize_inner(
-        A: T.Buffer[(128, 128), "float32"],
-        B: T.Buffer[(128, 128), "float32"],
+        A: T.Buffer((128, 128), "float32"),
+        B: T.Buffer((128, 128), "float32"),
     ) -> None:
         for i in T.serial(128):
             with T.block("blockized_B"):
@@ -84,8 +84,8 @@ def test_blockize_inner():
 def test_two_elementwise_blockize_reverse_compute_at():
     @T.prim_func
     def before_blockize_rca(
-        A: T.Buffer[(128, 128), "float32"],
-        C: T.Buffer[(128, 128), "float32"],
+        A: T.Buffer((128, 128), "float32"),
+        C: T.Buffer((128, 128), "float32"),
     ) -> None:
         B = T.alloc_buffer([128, 128], dtype="float32")
         for i, j in T.grid(8, 8):
@@ -109,8 +109,8 @@ def test_two_elementwise_blockize_reverse_compute_at():
 
     @T.prim_func
     def after_blockize_rca(
-        A: T.Buffer[(128, 128), "float32"],
-        C: T.Buffer[(128, 128), "float32"],
+        A: T.Buffer((128, 128), "float32"),
+        C: T.Buffer((128, 128), "float32"),
     ) -> None:
         B = T.alloc_buffer([128, 128], dtype="float32")
         for i, j in T.grid(8, 8):
@@ -146,8 +146,8 @@ def test_two_elementwise_blockize_reverse_compute_at():
 def test_two_elementwise_blockize_compute_at():
     @T.prim_func
     def before_blockize_compute_at(
-        A: T.Buffer[(128, 128), "float32"],
-        C: T.Buffer[(128, 128), "float32"],
+        A: T.Buffer((128, 128), "float32"),
+        C: T.Buffer((128, 128), "float32"),
     ) -> None:
         # body
         # with T.block("root")
@@ -175,8 +175,8 @@ def test_two_elementwise_blockize_compute_at():
 
     @T.prim_func
     def after_blockize_compute_at(
-        A: T.Buffer[(128, 128), "float32"],
-        C: T.Buffer[(128, 128), "float32"],
+        A: T.Buffer((128, 128), "float32"),
+        C: T.Buffer((128, 128), "float32"),
     ) -> None:
         B = T.alloc_buffer([128, 128], dtype="float32")
         for i_0, j_0 in T.grid(8, 8):
@@ -215,7 +215,7 @@ def test_two_elementwise_blockize_compute_at():
 
 def test_blockize_init_loops():
     @T.prim_func
-    def rowsum(A: T.Buffer[(128, 128), "float32"], B: T.Buffer[(128,), "float32"]) -> None:
+    def rowsum(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128,), "float32")) -> None:
         for k, i in T.grid(128, 128):
             with T.block("B"):
                 vk, vi = T.axis.remap("RS", [k, i])
@@ -225,8 +225,8 @@ def test_blockize_init_loops():
 
     @T.prim_func
     def after_rowsum_blockize(
-        A: T.Buffer[(128, 128), "float32"],
-        B: T.Buffer[(128,), "float32"],
+        A: T.Buffer((128, 128), "float32"),
+        B: T.Buffer((128,), "float32"),
     ) -> None:
         with T.block("blockized_B"):
             vko = T.axis.R(1, 0)
@@ -252,8 +252,8 @@ def test_blockize_init_loops():
 def test_blockize_outer_int64_shape(preserve_unit_iters):
     @T.prim_func
     def single_elementwise_int64(
-        A: T.Buffer[(T.int64(16), T.int64(128)), "float32"],
-        B: T.Buffer[(T.int64(16), T.int64(128)), "float32"],
+        A: T.Buffer((T.int64(16), T.int64(128)), "float32"),
+        B: T.Buffer((T.int64(16), T.int64(128)), "float32"),
     ) -> None:
         for i0, j0, i1, j1 in T.grid(T.int64(1), T.int64(8), T.int64(16), T.int64(16)):
             with T.block("B"):
@@ -263,8 +263,8 @@ def test_blockize_outer_int64_shape(preserve_unit_iters):
 
     @T.prim_func
     def after_single_elementwise_int64_blockize(
-        A: T.Buffer[(T.int64(16), T.int64(128)), "float32"],
-        B: T.Buffer[(T.int64(16), T.int64(128)), "float32"],
+        A: T.Buffer((T.int64(16), T.int64(128)), "float32"),
+        B: T.Buffer((T.int64(16), T.int64(128)), "float32"),
     ) -> None:
         for i0, j0 in T.grid(T.int64(1), T.int64(8)):
             with T.block("B_o"):
@@ -279,8 +279,8 @@ def test_blockize_outer_int64_shape(preserve_unit_iters):
 
     @T.prim_func
     def after_single_elementwise_int64_blockize_preserve_unit_iters(
-        A: T.Buffer[(T.int64(16), T.int64(128)), "float32"],
-        B: T.Buffer[(T.int64(16), T.int64(128)), "float32"],
+        A: T.Buffer((T.int64(16), T.int64(128)), "float32"),
+        B: T.Buffer((T.int64(16), T.int64(128)), "float32"),
     ) -> None:
         for i0, j0 in T.grid(T.int64(1), T.int64(8)):
             with T.block("B_o"):

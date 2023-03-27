@@ -26,7 +26,7 @@ import tarfile
 import typing
 
 import tvm
-from tvm.micro import get_standalone_crt_dir
+from tvm.micro import get_standalone_crt_dir, get_microtvm_template_projects
 
 from .._ffi import get_global_func
 from ..contrib import utils
@@ -39,6 +39,7 @@ from ..tir import expr
 # This should be kept identical to runtime::symbol::tvm_module_main
 MAIN_FUNC_NAME_STR = "__tvm_main__"
 STANDALONE_CRT_URL = "./runtime"
+CRT_TEMPLATE_FILES_URL = "./templates"
 METADATA_FILE = "metadata.json"
 
 
@@ -373,7 +374,18 @@ def _make_tar(source_dir, tar_file_path, modules):
         for mod in modules:
             is_aot = isinstance(mod, executor_factory.AOTExecutorFactoryModule)
             if is_aot and str(mod.runtime) == "crt":
+                crt_template_path = pathlib.Path(get_microtvm_template_projects("crt"))
                 tar_f.add(get_standalone_crt_dir(), arcname=STANDALONE_CRT_URL)
+
+                # Add template files from CRT template project
+                for file in [
+                    "templates/crt_config.h.template",
+                    "templates/platform.c.template",
+                ]:
+                    tar_f.add(
+                        crt_template_path / pathlib.Path(file),
+                        arcname=f"{CRT_TEMPLATE_FILES_URL}/{pathlib.Path(file).name}",
+                    )
                 break
 
 

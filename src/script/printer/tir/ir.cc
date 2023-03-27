@@ -32,7 +32,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       if (dtype == d->cfg->int_dtype) {
         return LiteralDoc::Int(imm->value, imm_p->Attr("value"));
       } else if (dtype == DataType::Bool()) {
-        return LiteralDoc::Boolean(imm->value, imm_p->Attr("value"));
+        return TIR(d, DType2Str(dtype))
+            ->Call({LiteralDoc::Boolean(imm->value, imm_p->Attr("value"))});
       } else {
         return TIR(d, DType2Str(dtype))->Call({LiteralDoc::Int(imm->value, imm_p->Attr("value"))});
       }
@@ -73,10 +74,10 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         element_type = d->AsDoc<ExprDoc>(ty->element_type, ty_p->Attr("element_type"));
       }
       if (ty->storage_scope == "") {
-        return TIR(d, "Ptr")->Call({element_type});
+        return TIR(d, "handle")->Call({element_type});
       } else {
-        return TIR(d, "Ptr")->Call(
-            {element_type, LiteralDoc::Str(ty->storage_scope, ty_p->Attr("storage_scope"))});
+        return TIR(d, "handle")
+            ->Call({element_type, LiteralDoc::Str(ty->storage_scope, ty_p->Attr("storage_scope"))});
       }
     });
 

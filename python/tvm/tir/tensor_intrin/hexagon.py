@@ -47,20 +47,27 @@ def generate_dma_load_intrin(
             T.writes(C[0:size])
             T.evaluate(
                 T.tvm_call_packed(
-                    "device_api.hexagon.dma_copy",
-                    -1,  # Use QueueId of -1 to not interfere with async copies.
-                    T.address_of(C[0], dtype="handle"),
-                    T.address_of(A[0], dtype="handle"),
-                    size,
-                    0,  # Do not use experimental bypass mode.
-                    dtype="int32",
-                )
-            )
-            T.evaluate(
-                T.tvm_call_packed(
-                    "device_api.hexagon.dma_wait",
-                    -1,
-                    0,  # Wait for the sync queue (-1) to have 0 messages.
+                    "device_api.hexagon.dma_copy_dltensor",
+                    T.tvm_stack_make_array(
+                        T.address_of(C[0], dtype="handle"),
+                        T.tvm_stack_make_shape(size, dtype="handle"),
+                        0,
+                        1,
+                        C.dtype,
+                        0,
+                        dtype="handle",
+                    ),
+                    T.tvm_stack_make_array(
+                        T.address_of(A[0], dtype="handle"),
+                        T.tvm_stack_make_shape(size, dtype="handle"),
+                        0,
+                        1,
+                        A.dtype,
+                        0,
+                        dtype="handle",
+                    ),
+                    T.cast(size, dtype="int"),
+                    False,  # Do not use experimental bypass mode.
                     dtype="int32",
                 )
             )

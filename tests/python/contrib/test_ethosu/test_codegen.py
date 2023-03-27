@@ -490,6 +490,36 @@ def test_mean(accel_type, ifm_shape, axis, keep_dims, use_same_quantization):
     infra.verify_source(compiled_models, test_runner)
 
 
+@pytest.mark.parametrize(
+    "accel_type",
+    ACCEL_TYPES,
+)
+@pytest.mark.parametrize(
+    "ifm_shape, axis, keepdims, relu",
+    [
+        [(1, 4, 2, 8), 3, False, False],
+        [(1, 4, 4, 1), 3, False, True],
+        [(3, 5, 7), 2, False, True],
+        [(1, 4, 2, 8), 3, True, False],
+        [(3, 5, 7), 2, True, False],
+    ],
+)
+def test_ethosu_sum(accel_type, ifm_shape, axis, keepdims, relu):
+    np.random.seed(0)
+
+    @tf.function
+    def sum_func(x):
+        op = tf.math.reduce_sum(x, axis=axis, keepdims=keepdims)
+        return tf.nn.relu(op) if relu else op
+
+    infra.compare_tvm_with_tflite(
+        sum_func,
+        [ifm_shape],
+        accel_type,
+        enable_cascader=is_u55_accel_type(accel_type),
+    )
+
+
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize("dtype", ["int8", "uint8"])
 @pytest.mark.parametrize("constant", [np.ones((1, 1, 1, 1)), np.array(1)])
@@ -615,6 +645,71 @@ def test_ethosu_right_shift_binary_elemwise(
     in_min, in_max = 18, 19
     lhs = np.random.randint(in_min, high=in_max, size=ifm_shape, dtype=dtype)
     rhs = np.random.randint(1, high=2, size=ifm2_shape, dtype=dtype)
+    input_data = {
+        "ifm": lhs,
+        "ifm2": rhs,
+    }
+    output_data = {"output": generate_output_data(input_data)[0]}
+    ethosu_mod = infra.create_ethosu_partition(cpu_mod)
+
+    infra.compare_ethosu_with_reference(ethosu_mod, input_data, output_data, accel_type)
+
+
+@pytest.mark.parametrize("accel_type", ["ethos-u55-256", "ethos-u65-256"])
+@pytest.mark.parametrize(
+    "ifm_shape, ifm2_shape, scale, shift, dtype",
+    [
+        ([1, 1, 1, 16], [1, 1, 1, 16], 5, 2, "int8"),
+        ([1, 2, 3, 1], [1, 1, 3, 1], 2, 1, "int8"),
+        ([1, 5, 1, 8], [1, 1, 1, 8], 1, 2, "int32"),
+    ],
+)
+def test_ethosu_rescale_mul_binary_elemwise(ifm_shape, ifm2_shape, scale, shift, accel_type, dtype):
+    np.random.seed(0)
+
+    def create_model():
+        ifm = relay.var("ifm", shape=ifm_shape, dtype=dtype)
+        ifm2 = relay.var("ifm2", shape=ifm2_shape, dtype=dtype)
+        rescale_mul_op = infra.make_ethosu_binary_elementwise(
+            ifm,
+            ifm2,
+            ifm_shape[3],
+            ifm2_shape[3],
+            "MUL",
+            dtype,
+            use_rescale=True,
+            rescale_scale=scale,
+            rescale_shift=shift,
+        )
+        return tvm.IRModule.from_expr(relay.Function([ifm, ifm2], rescale_mul_op))
+
+    def generate_output_data(input_data):
+        lhs = input_data["ifm"]
+        rhs = input_data["ifm2"]
+        rhs = np.broadcast_to(rhs, ifm_shape)
+
+        def rounding_right_shift(lhs, shift):
+            r = 1 << (shift - 1)
+            return (lhs + r) >> shift
+
+        def apply_scale(lhs, scale):
+            if dtype == "int32":
+                # For 32-bit operations scale is not applied but shift is
+                return lhs
+            else:
+                return lhs * scale
+
+        return [
+            rounding_right_shift(
+                apply_scale(np.multiply(lhs.astype("int32"), rhs.astype("int32")), scale), shift
+            ).astype(dtype)
+        ]
+
+    cpu_mod = create_model()
+
+    # Generate reference data
+    lhs = np.random.randint(low=-10, high=15, size=ifm_shape, dtype=dtype)
+    rhs = np.random.randint(low=1, high=5, size=ifm2_shape, dtype=dtype)
     input_data = {
         "ifm": lhs,
         "ifm2": rhs,
@@ -1248,5 +1343,27 @@ def test_tflite_fully_connected(
     )
 
 
+<<<<<<< HEAD
+=======
+@pytest.mark.parametrize("accel_type", ["ethos-u55-256", "ethos-u65-256"])
+def test_tflite_subtract_sigmoid(accel_type):
+    np.random.seed(0)
+    ifm_shape = [1, 6, 8, 4]
+
+    @tf.function
+    def subtract_sigmoid_function(lhs, rhs):
+        op = tf.math.subtract(lhs, rhs)
+        op = tf.nn.sigmoid(op)
+        return op
+
+    infra.compare_tvm_with_tflite(
+        subtract_sigmoid_function,
+        [ifm_shape, ifm_shape],
+        accel_type,
+        enable_cascader=is_u55_accel_type(accel_type),
+    )
+
+
+>>>>>>> upstream/main
 if __name__ == "__main__":
     tvm.testing.main()

@@ -63,9 +63,9 @@ def astext(program, unify_free_vars=False):
     """check that program is parsable in text format"""
     text = program.astext()
     if isinstance(program, relay.Expr):
-        roundtrip_program = tvm.parser.parse_expr(text)
+        roundtrip_program = tvm.relay.parse_expr(text)
     else:
-        roundtrip_program = tvm.parser.fromtext(text)
+        roundtrip_program = tvm.relay.fromtext(text)
 
     tvm.ir.assert_structural_equal(roundtrip_program, program, map_free_vars=True)
 

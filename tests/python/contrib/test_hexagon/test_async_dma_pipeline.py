@@ -28,14 +28,14 @@ VRMPY_SIZE_INT32 = 32
 # pylint: disable=invalid-name
 @T.prim_func
 def conv2d_async_non_contig(
-    p0: T.Buffer[(T.int64(1), T.int64(1), T.int64(56), T.int64(56), T.int64(4)), "uint8"],
-    fused_constant_1: T.Buffer[
+    p0: T.Buffer((T.int64(1), T.int64(1), T.int64(56), T.int64(56), T.int64(4)), "uint8"),
+    fused_constant_1: T.Buffer(
         (T.int64(1), T.int64(1), T.int64(3), T.int64(3), T.int64(1), T.int64(32), T.int64(4)),
         "uint8",
-    ],
-    conv2d_NCHWc_int8: T.Buffer[
+    ),
+    conv2d_NCHWc_int8: T.Buffer(
         (T.int64(1), T.int64(1), T.int64(54), T.int64(54), T.int64(32)), "int32"
-    ],
+    ),
 ):
     """Non contiguous memory access is used in this conv2d taken from MS."""
     # pylint: disable=no-self-argument
@@ -268,7 +268,6 @@ def evaluate(
     c_data,
     expected_output=None,
     use_async_copy=0,
-    merge_async_commit_queue_scope=False,
 ):
     """Evaluate function."""
     target_hexagon = tvm.target.hexagon("v68", link_params=True)
@@ -276,7 +275,6 @@ def evaluate(
         config={
             "tir.use_async_copy": use_async_copy,
             "tir.experimental_dma_bypass_cache": 1,
-            "tir.merge_async_commit_queue_scope": merge_async_commit_queue_scope,
         }
     ):
         func_tir = tvm.build(
@@ -485,7 +483,6 @@ class TestAsyncDMAPipeline:
             np.zeros(expected_output.shape, "int32"),
             expected_output,
             use_async_copy=1,
-            merge_async_commit_queue_scope=False,
         )
 
         sch = get_fake_conv_vtcm_schedule(size_a, size_w)
@@ -538,9 +535,9 @@ class ModulePipelined:
     # pylint: disable=no-self-argument
     @T.prim_func
     def main(
-        p0_buffer: T.Buffer[(1, 1, 230, 230, 4), "uint8"],
-        p1_buffer: T.Buffer[(2, 1, 7, 7, 1, 32, 4), "int8"],
-        t_cast: T.Buffer[(1, 2, 112, 112, 32), "int32"],
+        p0_buffer: T.Buffer((1, 1, 230, 230, 4), "uint8"),
+        p1_buffer: T.Buffer((2, 1, 7, 7, 1, 32, 4), "int8"),
+        t_cast: T.Buffer((1, 2, 112, 112, 32), "int32"),
     ) -> None:
         # pylint: disable=missing-function-docstring
         # function attr dict
@@ -690,9 +687,9 @@ class ModuleBase:
     # pylint: disable=no-self-argument
     @T.prim_func
     def main(
-        p0_buffer: T.Buffer[(1, 1, 230, 230, 4), "uint8"],
-        p1_buffer: T.Buffer[(2, 1, 7, 7, 1, 32, 4), "int8"],
-        t_cast: T.Buffer[(1, 2, 112, 112, 32), "int32"],
+        p0_buffer: T.Buffer((1, 1, 230, 230, 4), "uint8"),
+        p1_buffer: T.Buffer((2, 1, 7, 7, 1, 32, 4), "int8"),
+        t_cast: T.Buffer((1, 2, 112, 112, 32), "int32"),
     ) -> None:
         # pylint: disable=missing-function-docstring
         # function attr dict
@@ -886,14 +883,13 @@ def test_non_contiguous():
     """Test Non Contiguous memory lowering."""
     sch = tvm.tir.Schedule(conv2d_async_non_contig)
     target_hexagon = tvm.target.hexagon("v68", link_params=True)
-    err_rgx = r"Unable to lower async dma for non contiguous memory access with load index: "
+    err_rgx = r"Unable to lower async dma due to non contiguous memory access"
     # Currently we do not support non contiguous memory access being lowered to
     # async dma so we throw an error.
     with pytest.raises(tvm.TVMError, match=err_rgx):
         with tvm.transform.PassContext(
             config={
                 "tir.use_async_copy": 1,
-                "tir.merge_async_commit_queue_scope": 0,
             }
         ):
             tvm.build(

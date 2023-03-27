@@ -52,7 +52,7 @@ def matmul(M: int, N: int, K: int, dtype: str):
 @tvm.script.ir_module
 class ModuleGPU:
     @T.prim_func
-    def main(A: T.Buffer[8, "float32"], B: T.Buffer[8, "float32"]) -> None:
+    def main(A: T.Buffer(8, "float32"), B: T.Buffer(8, "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         for i_0 in T.thread_binding(2, thread="blockIdx.x"):
             for i_2 in T.thread_binding(2, thread="threadIdx.x"):

@@ -44,7 +44,7 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, ObjectPath block_p,  //
 
   std::vector<int> remap_vars_indices;
   auto add_remapped_iter_var = [&](int i) -> bool {
-    if (realize) {
+    if (realize && d->cfg->syntax_sugar) {
       tir::ExprDeepEqual expr_equal;
       tir::IterVar iter_var = block->iter_vars[i];
       PrimExpr value = realize->iter_values[i];
@@ -215,7 +215,11 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, ObjectPath block_p,  //
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::BlockRealize>(
         "", [](tir::BlockRealize realize, ObjectPath p, IRDocsifier d) -> Doc {
-          return PrintBlock(d, realize->block, p->Attr("block"), realize, p);
+          Doc doc = PrintBlock(d, realize->block, p->Attr("block"), realize, p);
+          // since we do not have d->AsDoc for realize->block,
+          // we should add possible doc decoration manually.
+          AddDocDecoration<ScopeDoc>(doc, realize->block, p->Attr("block"), d->cfg);
+          return doc;
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)

@@ -16,6 +16,7 @@
 # under the License.
 """Batch normalization."""
 import typing
+from functools import reduce
 
 from tvm import te
 from tvm import topi
@@ -31,6 +32,8 @@ def batch_norm(
     epsilon: typing.Optional[float] = None,
     center: typing.Optional[bool] = None,
     scale: typing.Optional[bool] = None,
+    training: typing.Optional[bool] = None,
+    momentum: typing.Optional[float] = None,
 ) -> typing.List[te.Tensor]:
     """Batch normalization layer (Ioffe and Szegedy, 2014).
 
@@ -69,6 +72,13 @@ def batch_norm(
         If True, scale normalized tensor by gamma. If False, gamma
         is ignored.
 
+    training : bool, optional, defualt=False
+        Indicating whether it is in training mode. If True, update
+        moving_mean and moving_var.
+
+    momentum : float, optional, default=0.1
+        The value used for the moving_mean and moving_var update.
+
     Returns
     -------
     output : list of tvm.te.Tensor
@@ -92,18 +102,46 @@ def batch_norm(
     if scale is None:
         scale = True
 
+    if training is None:
+        training = False
+
+    if momentum is None:
+        momentum = 0.1
+
     shape = [1] * len(data.shape)
     shape[axis] = data.shape[axis]
 
-    moving_mean_rs = topi.reshape(moving_mean, shape)
-    moving_var_rs = topi.reshape(moving_var, shape)
-
-    out = (data - moving_mean_rs) / topi.math.sqrt(moving_var_rs + epsilon)
+    if training:
+        reduce_axes = list(range(len(data.shape)))
+        reduce_axes.remove(axis)
+        shape_prod = reduce(lambda x, y: x * y, [data.shape[ax] for ax in reduce_axes], 1)
+        data_mean = topi.sum(data, axis=reduce_axes) / shape_prod
+        data_mean_rs = topi.reshape(data_mean, shape)
+        data_var = (
+            topi.sum((data - data_mean_rs) * (data - data_mean_rs), axis=reduce_axes) / shape_prod
+        )
+        data_var_rs = topi.reshape(data_var, shape)
+        out = (data - data_mean_rs) / topi.math.sqrt(data_var_rs + epsilon)
+    else:
+        moving_mean_rs = topi.reshape(moving_mean, shape)
+        moving_var_rs = topi.reshape(moving_var, shape)
+        out = (data - moving_mean_rs) / topi.math.sqrt(moving_var_rs + epsilon)
 
     if scale:
         out = out * topi.reshape(gamma, shape)
     if center:
         out = out + topi.reshape(beta, shape)
+
+    if training:
+        assert 0 <= momentum <= 1, "the valid momentum range is [0, 1]."
+        data_var = (
+            topi.sum((data - data_mean_rs) * (data - data_mean_rs), axis=reduce_axes) / shape_prod
+        )
+        return [
+            out,
+            (1 - momentum) * moving_mean + momentum * data_mean,
+            (1 - momentum) * moving_var + momentum * data_var,
+        ]
 
     # Moving mean and var aren't updated during test. To avoid
     # placeholder reuse, we multiply by 1 and return them.

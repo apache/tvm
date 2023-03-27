@@ -267,6 +267,12 @@ def qnn_dense_strategy(attrs, inputs, out_type, target):
     )
 
 
+@override_native_generic_func("qnn_dense_pack_strategy")
+def qnn_dense_pack_strategy(attrs, inputs, out_type, target):
+    """qnn.contrib_dense_pack generic strategy"""
+    raise RuntimeError("qnn.contrib_dense_pack is currently only supported with Hexagon. ")
+
+
 @override_native_generic_func("qnn_batch_matmul_strategy")
 def qnn_batch_matmul_strategy(attrs, inputs, out_type, target):
     """qnn.batch_matmul generic strategy"""

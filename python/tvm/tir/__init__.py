@@ -24,14 +24,13 @@ from .data_layout import Layout, BijectiveLayout, bijective_layout, layout
 from .expr import Var, SizeVar, Reduce, FloatImm, IntImm, StringImm, Cast
 from .expr import Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod
 from .expr import Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not
-from .expr import Select, BufferLoad, ProducerLoad, Load, Ramp, Broadcast, Shuffle
+from .expr import Select, BufferLoad, ProducerLoad, Ramp, Broadcast, Shuffle
 from .expr import Call, CallEffectKind, Let, IterVar, CommReducer, Any
 
 from .stmt import Stmt, LetStmt, AssertStmt, ForKind, For, While
 from .stmt import (
     BufferStore,
     BufferRealize,
-    Store,
     ProducerStore,
     Allocate,
     AllocateConst,
@@ -68,6 +67,7 @@ from .op import exp, exp2, exp10, log, log2, log10, log1p, ldexp, clz
 from .op import sin, sinh, asin, asinh
 from .op import cos, cosh, acos, acosh
 from .op import tan, tanh, atan, atan2, atanh
+from .op import bitwise_and, bitwise_not, bitwise_or, bitwise_xor
 from .op import erf, sigmoid, sqrt, rsqrt, floor, ceil, hypot
 from .op import trunc, abs, round, nextafter, nearbyint, power, pow, popcount, fmod, if_then_else
 from .op import likely, isnan, isnullptr, isfinite, isinf, copysign

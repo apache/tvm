@@ -79,9 +79,9 @@ export class WebGPUContext {
    * Create a PackedFunc that runs the given shader
    *
    * @param info The function information in json.
-   * @param data The shader data(in SPIRV)
+   * @param code The shader data(in WGSL)
    */
-  createShader(info: string, data: Uint8Array): Function {
+  createShader(info: string, code: string): Function {
     const finfo = JSON.parse(info);
     const layoutEntries: Array<GPUBindGroupLayoutEntry> = [];
     for (let i = 0; i < finfo.arg_types.length; ++i) {
@@ -89,7 +89,10 @@ export class WebGPUContext {
       if (dtype == "handle") {
         layoutEntries.push({
           binding: i,
-          visibility: GPUShaderStage.COMPUTE
+          visibility: GPUShaderStage.COMPUTE,
+          buffer :  {
+            type: "storage"
+          }
         });
       } else {
         throw new Error("Cannot handle argument type " + dtype + " in WebGPU shader");
@@ -108,7 +111,7 @@ export class WebGPUContext {
       }),
       compute: {
         module: this.device.createShaderModule({
-          code: codeString
+          code: code
         }),
         entryPoint: "main"
       }
@@ -287,8 +290,9 @@ export class WebGPUContext {
 
     this.numPendingReads += 1;
 
-    const readEvent = gpuTemp.mapAsync(GPUMapMode.READ).then((data: unknown) => {
-      this.memory.storeRawBytes(to, new Uint8Array(data as ArrayBuffer));
+    const readEvent = gpuTemp.mapAsync(GPUMapMode.READ).then(() => {
+      const data = gpuTemp.getMappedRange();
+      this.memory.storeRawBytes(to, new Uint8Array(data));
       this.numPendingReads -= 1;
       gpuTemp.destroy();
     });

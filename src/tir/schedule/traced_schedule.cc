@@ -22,9 +22,10 @@ namespace tvm {
 namespace tir {
 
 Schedule Schedule::Traced(IRModule mod, support::LinearCongruentialEngine::TRandState seed,
-                          int debug_mask, ScheduleErrorRenderLevel error_render_level) {
+                          int debug_mask, ScheduleErrorRenderLevel error_render_level,
+                          bool enable_check) {
   ObjectPtr<TracedScheduleNode> n = make_object<TracedScheduleNode>();
-  n->state_ = ScheduleState(mod, debug_mask);
+  n->state_ = ScheduleState(mod, debug_mask, enable_check);
   n->error_render_level_ = error_render_level;
   n->symbol_table_ = {};
   n->analyzer_ = std::make_unique<arith::Analyzer>();
@@ -309,6 +310,38 @@ BlockRV TracedScheduleNode::CacheWrite(const BlockRV& block_rv, int write_buffer
   return result;
 }
 
+BlockRV TracedScheduleNode::ReindexCacheRead(const BlockRV& block_rv, int read_buffer_index,
+                                             const String& storage_scope,
+                                             const IndexMap& index_map) {
+  BlockRV result =
+      ConcreteScheduleNode::ReindexCacheRead(block_rv, read_buffer_index, storage_scope, index_map);
+
+  static const InstructionKind& kind = InstructionKind::Get("ReindexCacheRead");
+  trace_->Append(
+      /*inst=*/Instruction(
+          /*kind=*/kind,
+          /*inputs=*/{block_rv, index_map},
+          /*attrs=*/{Integer(read_buffer_index), storage_scope},
+          /*outputs=*/{result}));
+  return result;
+}
+
+BlockRV TracedScheduleNode::ReindexCacheWrite(const BlockRV& block_rv, int write_buffer_index,
+                                              const String& storage_scope,
+                                              const IndexMap& index_map) {
+  BlockRV result = ConcreteScheduleNode::ReindexCacheWrite(block_rv, write_buffer_index,
+                                                           storage_scope, index_map);
+
+  static const InstructionKind& kind = InstructionKind::Get("ReindexCacheWrite");
+  trace_->Append(
+      /*inst=*/Instruction(
+          /*kind=*/kind,
+          /*inputs=*/{block_rv, index_map},
+          /*attrs=*/{Integer(write_buffer_index), storage_scope},
+          /*outputs=*/{result}));
+  return result;
+}
+
 Array<BlockRV> TracedScheduleNode::CacheInplace(const BlockRV& block_rv, int read_buffer_index,
                                                 const String& storage_scope) {
   Array<BlockRV> result =
@@ -348,6 +381,34 @@ BlockRV TracedScheduleNode::ReIndex(const BlockRV& block_rv, int buffer_index,
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
                                       /*inputs=*/{block_rv},
                                       /*attrs=*/{Integer(buffer_index), Integer(buffer_index_type)},
+                                      /*outputs=*/{result}));
+  return result;
+}
+
+/******** Schedule: Data movement ********/
+
+BlockRV TracedScheduleNode::ReadAt(const LoopRV& loop_rv, const BlockRV& block_rv,
+                                   int read_buffer_index, const String& storage_scope) {
+  BlockRV result =
+      ConcreteScheduleNode::ReadAt(loop_rv, block_rv, read_buffer_index, storage_scope);
+
+  static const InstructionKind& kind = InstructionKind::Get("ReadAt");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{loop_rv, block_rv},
+                                      /*attrs=*/{Integer(read_buffer_index), storage_scope},
+                                      /*outputs=*/{result}));
+  return result;
+}
+
+BlockRV TracedScheduleNode::WriteAt(const LoopRV& loop_rv, const BlockRV& block_rv,
+                                    int write_buffer_index, const String& storage_scope) {
+  BlockRV result =
+      ConcreteScheduleNode::WriteAt(loop_rv, block_rv, write_buffer_index, storage_scope);
+
+  static const InstructionKind& kind = InstructionKind::Get("WriteAt");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{loop_rv, block_rv},
+                                      /*attrs=*/{Integer(write_buffer_index), storage_scope},
                                       /*outputs=*/{result}));
   return result;
 }
@@ -443,6 +504,17 @@ void TracedScheduleNode::SetScope(const BlockRV& block_rv, int buffer_index,
       /*outputs=*/{}));
 }
 
+void TracedScheduleNode::UnsafeSetDType(const BlockRV& block_rv, int buffer_index,
+                                        const String& dtype) {
+  ConcreteScheduleNode::UnsafeSetDType(block_rv, buffer_index, dtype);
+  static const InstructionKind& kind = InstructionKind::Get("UnsafeSetDType");
+  trace_->Append(/*inst=*/Instruction(
+      /*kind=*/kind,
+      /*inputs=*/{block_rv},
+      /*attrs=*/{Integer(buffer_index), dtype},
+      /*outputs=*/{}));
+}
+
 /******** Schedule: Blockize & Tensorize ********/
 
 BlockRV TracedScheduleNode::Blockize(const LoopRV& loop_rv, bool preserve_unit_iters) {
@@ -523,15 +595,18 @@ void TracedScheduleNode::Unannotate(const BlockRV& block_rv, const String& ann_k
 void TracedScheduleNode::TransformLayout(const BlockRV& block_rv, int buffer_index,
                                          BufferIndexType buffer_index_type,
                                          const IndexMap& index_map,
-                                         const Optional<IndexMap>& pad_value) {
+                                         const Optional<IndexMap>& pad_value,
+                                         bool assume_injective_transform) {
   ConcreteScheduleNode::TransformLayout(block_rv, buffer_index, buffer_index_type, index_map,
-                                        pad_value);
+                                        pad_value, assume_injective_transform);
   static const InstructionKind& kind = InstructionKind::Get("TransformLayout");
   trace_->Append(
       /*inst=*/Instruction(
           /*kind=*/kind,
-          /*inputs=*/{block_rv},
-          /*attrs=*/{Integer(buffer_index), Integer(buffer_index_type), index_map, pad_value},
+          /*inputs=*/{block_rv, index_map},
+          /*attrs=*/
+          {Integer(buffer_index), Integer(buffer_index_type), pad_value,
+           Bool(assume_injective_transform)},
           /*outputs=*/{}));
 }
 

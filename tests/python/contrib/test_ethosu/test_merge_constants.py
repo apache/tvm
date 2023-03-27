@@ -38,7 +38,7 @@ def test_only_one_operator():
     @tvm.script.ir_module
     class InputModule:
         @T.prim_func
-        def main(buffer2: T.Buffer[(128,), "uint8"], buffer3: T.Buffer[(32,), "uint8"]) -> None:
+        def main(buffer2: T.Buffer((128,), "uint8"), buffer3: T.Buffer((32,), "uint8")) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
             buffer1 = T.Buffer([8192], "int8")
@@ -56,7 +56,7 @@ def test_only_one_operator():
     @tvm.script.ir_module
     class ReferenceModule:
         @T.prim_func
-        def main(buffer2: T.Buffer[(160,), "uint8"]) -> None:
+        def main(buffer2: T.Buffer((160,), "uint8")) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
             buffer1 = T.Buffer([8192], "int8")
@@ -83,7 +83,7 @@ def test_all_operators_with_weights():
     @tvm.script.ir_module
     class InputModule:
         @T.prim_func
-        def main(buffer2: T.Buffer[(128,), "uint8"], buffer3: T.Buffer[(32,), "uint8"], buffer4: T.Buffer[(112,), "uint8"], buffer5: T.Buffer[(32,), "uint8"], buffer6: T.Buffer[(112,), "uint8"], buffer7: T.Buffer[(32,), "uint8"], buffer8: T.Buffer[(112,), "uint8"], buffer9: T.Buffer[(32,), "uint8"]) -> None:
+        def main(buffer2: T.Buffer((128,), "uint8"), buffer3: T.Buffer((32,), "uint8"), buffer4: T.Buffer((112,), "uint8"), buffer5: T.Buffer((32,), "uint8"), buffer6: T.Buffer((112,), "uint8"), buffer7: T.Buffer((32,), "uint8"), buffer8: T.Buffer((112,), "uint8"), buffer9: T.Buffer((32,), "uint8")) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
             buffer1 = T.Buffer([8192], "int8")
@@ -122,7 +122,7 @@ def test_all_operators_with_weights():
     @tvm.script.ir_module
     class ReferenceModule:
         @T.prim_func
-        def main(buffer2: T.Buffer[(160,), "uint8"], buffer4: T.Buffer[(144,), "uint8"], buffer6: T.Buffer[(144,), "uint8"], buffer8: T.Buffer[(144,), "uint8"]) -> None:
+        def main(buffer2: T.Buffer((160,), "uint8"), buffer4: T.Buffer((144,), "uint8"), buffer6: T.Buffer((144,), "uint8"), buffer8: T.Buffer((144,), "uint8")) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
             buffer1 = T.Buffer([8192], "int8")
@@ -173,7 +173,7 @@ def test_operators_with_and_without_weights():
     @tvm.script.ir_module
     class InputModule:
         @T.prim_func
-        def main(buffer2: T.Buffer[(80,), "uint8"], buffer3: T.Buffer[(64,), "uint8"]) -> None:
+        def main(buffer2: T.Buffer((80,), "uint8"), buffer3: T.Buffer((64,), "uint8")) -> None:
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
             buffer0 = T.Buffer([390336], "int8")
             buffer1 = T.Buffer([97156], "int8")
@@ -192,7 +192,7 @@ def test_operators_with_and_without_weights():
     @tvm.script.ir_module
     class ReferenceModule:
         @T.prim_func
-        def main(buffer2: T.Buffer[(144,), "uint8"]) -> None:
+        def main(buffer2: T.Buffer((144,), "uint8")) -> None:
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
             buffer0 = T.Buffer([390336], "int8")
             buffer1 = T.Buffer([97156], "int8")
@@ -221,15 +221,15 @@ def test_copy_to_buffer_with_local_scope():
     @tvm.script.ir_module
     class InputModule:
         @T.prim_func
-        def main(buffer1: T.Buffer[(64,), "uint8"],
-        buffer2: T.Buffer[(48,), "uint8"],
-        buffer3: T.Buffer[(256,), "uint8"],
-        buffer4: T.Buffer[(256,), "uint8"],
-        buffer5: T.Buffer[(16,), "uint8"],
-        buffer6: T.Buffer[(48,), "uint8"],
-        buffer7: T.Buffer[(256,), "uint8"],
-        buffer8: T.Buffer[(64,), "uint8"],
-        buffer9: T.Buffer[(256,), "int8"],
+        def main(buffer1: T.Buffer((64,), "uint8"),
+        buffer2: T.Buffer((48,), "uint8"),
+        buffer3: T.Buffer((256,), "uint8"),
+        buffer4: T.Buffer((256,), "uint8"),
+        buffer5: T.Buffer((16,), "uint8"),
+        buffer6: T.Buffer((48,), "uint8"),
+        buffer7: T.Buffer((256,), "uint8"),
+        buffer8: T.Buffer((64,), "uint8"),
+        buffer9: T.Buffer((256,), "int8"),
         ) -> None:
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
             # body
@@ -258,13 +258,13 @@ def test_copy_to_buffer_with_local_scope():
     @tvm.script.ir_module
     class ReferenceModule:
         @T.prim_func
-        def main(buffer1: T.Buffer[(64,), "uint8"],
-            buffer2: T.Buffer[(96,), "uint8"],
-            buffer4: T.Buffer[(256,), "uint8"],
-            buffer5: T.Buffer[(64,), "uint8"],
-            buffer7: T.Buffer[(256,), "uint8"],
-            buffer8: T.Buffer[(64,), "uint8"],
-            buffer9: T.Buffer[(256,), "int8"],
+        def main(buffer1: T.Buffer((64,), "uint8"),
+            buffer2: T.Buffer((96,), "uint8"),
+            buffer4: T.Buffer((256,), "uint8"),
+            buffer5: T.Buffer((64,), "uint8"),
+            buffer7: T.Buffer((256,), "uint8"),
+            buffer8: T.Buffer((64,), "uint8"),
+            buffer9: T.Buffer((256,), "int8"),
             ) -> None:
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
             # body
@@ -348,7 +348,7 @@ def test_copies_to_the_same_buffer():
     @tvm.script.ir_module
     class InputModule:
         @T.prim_func
-        def main(buffer2: T.Buffer[(128,), "uint8"], buffer3: T.Buffer[(32,), "uint8"]) -> None:
+        def main(buffer2: T.Buffer((128,), "uint8"), buffer3: T.Buffer((32,), "uint8")) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
             buffer1 = T.Buffer([8192], "int8")
@@ -369,7 +369,7 @@ def test_copies_to_the_same_buffer():
     @tvm.script.ir_module
     class ReferenceModule:
         @T.prim_func
-        def main(buffer2: T.Buffer[(160,), "uint8"]) -> None:
+        def main(buffer2: T.Buffer((160,), "uint8")) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
             buffer1 = T.Buffer([8192], "int8")
@@ -399,7 +399,7 @@ def test_read_from_the_same_buffer():
     @tvm.script.ir_module
     class InputModule:
         @T.prim_func
-        def main(input_placeholder: T.Buffer[(1, 16, 16, 32), "int8"], buffer1: T.Buffer[(368,), "uint8"], buffer2: T.Buffer[(96,), "uint8"], input_ethosu_write: T.Buffer[(1, 16, 16, 8), "int8"]) -> None:
+        def main(input_placeholder: T.Buffer((1, 16, 16, 32), "int8"), buffer1: T.Buffer((368,), "uint8"), buffer2: T.Buffer((96,), "uint8"), input_ethosu_write: T.Buffer((1, 16, 16, 8), "int8")) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
             # buffer definition
@@ -419,7 +419,7 @@ def test_read_from_the_same_buffer():
     @tvm.script.ir_module
     class ReferenceModule:
         @T.prim_func
-        def main(input_placeholder: T.Buffer[(1,16,16,32), "int8"], buffer1: T.Buffer[(464,), "uint8"], input_ethosu_write: T.Buffer[(1,16,16,8), "int8"]) -> None:
+        def main(input_placeholder: T.Buffer((1,16,16,32), "int8"), buffer1: T.Buffer((464,), "uint8"), input_ethosu_write: T.Buffer((1,16,16,8), "int8")) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
             # buffer definition
@@ -449,7 +449,7 @@ def test_arbitrary_argument_order():
     @tvm.script.ir_module
     class InputModule:
         @T.prim_func
-        def main(input_placeholder: T.Buffer[(1,16,16,32), "int8"], buffer1: T.Buffer[(368,), "uint8"], buffer2: T.Buffer[(96,), "uint8"], input_ethosu_write: T.Buffer[(1,16,16,8), "int8"], buffer3: T.Buffer[(368,), "uint8"], buffer4: T.Buffer[(96,), "uint8"]) -> None:
+        def main(input_placeholder: T.Buffer((1,16,16,32), "int8"), buffer1: T.Buffer((368,), "uint8"), buffer2: T.Buffer((96,), "uint8"), input_ethosu_write: T.Buffer((1,16,16,8), "int8"), buffer3: T.Buffer((368,), "uint8"), buffer4: T.Buffer((96,), "uint8")) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
             # buffer definition
@@ -476,7 +476,7 @@ def test_arbitrary_argument_order():
     @tvm.script.ir_module
     class ReferenceModule:
         @T.prim_func
-        def main(input_placeholder: T.Buffer[(1,16,16,32), "int8"], buffer1: T.Buffer[(464,), "uint8"], input_ethosu_write: T.Buffer[(1,16,16,8), "int8"], buffer2: T.Buffer[(464,), "uint8"]) -> None:
+        def main(input_placeholder: T.Buffer((1,16,16,32), "int8"), buffer1: T.Buffer((464,), "uint8"), input_ethosu_write: T.Buffer((1,16,16,8), "int8"), buffer2: T.Buffer((464,), "uint8")) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
             # buffer definition
@@ -515,7 +515,7 @@ def test_arbitrary_argument_order_const_split():
     @tvm.script.ir_module
     class InputModule:
         @T.prim_func
-        def main(input_placeholder: T.Buffer[(1,16,16,32), "int8"], buffer1: T.Buffer[(368,), "uint8"], input_ethosu_write: T.Buffer[(1,16,16,8), "int8"], buffer2: T.Buffer[(96,), "uint8"], buffer3: T.Buffer[(368,), "uint8"], buffer4: T.Buffer[(96,), "uint8"]) -> None:
+        def main(input_placeholder: T.Buffer((1,16,16,32), "int8"), buffer1: T.Buffer((368,), "uint8"), input_ethosu_write: T.Buffer((1,16,16,8), "int8"), buffer2: T.Buffer((96,), "uint8"), buffer3: T.Buffer((368,), "uint8"), buffer4: T.Buffer((96,), "uint8")) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
             # buffer definition
@@ -542,7 +542,7 @@ def test_arbitrary_argument_order_const_split():
     @tvm.script.ir_module
     class ReferenceModule:
         @T.prim_func
-        def main(input_placeholder: T.Buffer[(1,16,16,32), "int8"], buffer1: T.Buffer[(464,), "uint8"], input_ethosu_write: T.Buffer[(1,16,16,8), "int8"], buffer2: T.Buffer[(464,), "uint8"]) -> None:
+        def main(input_placeholder: T.Buffer((1,16,16,32), "int8"), buffer1: T.Buffer((464,), "uint8"), input_ethosu_write: T.Buffer((1,16,16,8), "int8"), buffer2: T.Buffer((464,), "uint8")) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
             # buffer definition
@@ -581,7 +581,7 @@ def test_arbitrary_argument_order_const_split_mixed():
     @tvm.script.ir_module
     class InputModule:
         @T.prim_func
-        def main(input_placeholder: T.Buffer[(1,16,16,32), "int8"], buffer1: T.Buffer[(368,), "uint8"], buffer2: T.Buffer[(368,), "uint8"], input_ethosu_write: T.Buffer[(2,16,16,8), "int8"], buffer3: T.Buffer[(96,), "uint8"], buffer4: T.Buffer[(96,), "uint8"]) -> None:
+        def main(input_placeholder: T.Buffer((1,16,16,32), "int8"), buffer1: T.Buffer((368,), "uint8"), buffer2: T.Buffer((368,), "uint8"), input_ethosu_write: T.Buffer((2,16,16,8), "int8"), buffer3: T.Buffer((96,), "uint8"), buffer4: T.Buffer((96,), "uint8")) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
             # buffer definition
@@ -608,7 +608,7 @@ def test_arbitrary_argument_order_const_split_mixed():
     @tvm.script.ir_module
     class ReferenceModule:
         @T.prim_func
-        def main(input_placeholder: T.Buffer[(1,16,16,32), "int8"], buffer1: T.Buffer[(464,), "uint8"], buffer2: T.Buffer[(464,), "uint8"], input_ethosu_write: T.Buffer[(2,16,16,8), "int8"]) -> None:
+        def main(input_placeholder: T.Buffer((1,16,16,32), "int8"), buffer1: T.Buffer((464,), "uint8"), buffer2: T.Buffer((464,), "uint8"), input_ethosu_write: T.Buffer((2,16,16,8), "int8")) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
             # buffer definition
@@ -647,21 +647,21 @@ def test_cycle_count():
     @tvm.script.ir_module
     class InputModule:
         @T.prim_func
-        def main(buffer2: T.Buffer[(128,), "uint8"], buffer3: T.Buffer[(32,), "uint8"], buffer4: T.Buffer[(112,), "uint8"], buffer5: T.Buffer[(32,), "uint8"], buffer6: T.Buffer[(112,), "uint8"], buffer7: T.Buffer[(32,), "uint8"], buffer8: T.Buffer[(112,), "uint8"], buffer9: T.Buffer[(32,), "uint8"]) -> None:
+        def main(buffer2: T.Buffer((128,), "uint8"), buffer3: T.Buffer((32,), "uint8"), buffer4: T.Buffer((112,), "uint8"), buffer5: T.Buffer((32,), "uint8"), buffer6: T.Buffer((112,), "uint8"), buffer7: T.Buffer((32,), "uint8"), buffer8: T.Buffer((112,), "uint8"), buffer9: T.Buffer((32,), "uint8")) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-            v1a = T.var("int32")
-            v1b = T.var("int32")
-            v1c = T.var("int32")
-            v2a = T.var("int32")
-            v2b = T.var("int32")
-            v2c = T.var("int32")
-            v3a = T.var("int32")
-            v3b = T.var("int32")
-            v3c = T.var("int32")
-            v4a = T.var("int32")
-            v4b = T.var("int32")
-            v4c = T.var("int32")
+            v1a = T.int32()
+            v1b = T.int32()
+            v1c = T.int32()
+            v2a = T.int32()
+            v2b = T.int32()
+            v2c = T.int32()
+            v3a = T.int32()
+            v3b = T.int32()
+            v3c = T.int32()
+            v4a = T.int32()
+            v4b = T.int32()
+            v4c = T.int32()
             buffer1 = T.Buffer([8192], "int8")
             buffer10 = T.Buffer([2048], "int8")
             # body
@@ -710,17 +710,17 @@ def test_cycle_count():
     @tvm.script.ir_module
     class ReferenceModule:
         @T.prim_func
-        def main(buffer2: T.Buffer[(160,), "uint8"], buffer4: T.Buffer[(144,), "uint8"], buffer6: T.Buffer[(144,), "uint8"], buffer8: T.Buffer[(144,), "uint8"]) -> None:
+        def main(buffer2: T.Buffer((160,), "uint8"), buffer4: T.Buffer((144,), "uint8"), buffer6: T.Buffer((144,), "uint8"), buffer8: T.Buffer((144,), "uint8")) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-            v1a = T.var("int32")
-            v1c = T.var("int32")
-            v2a = T.var("int32")
-            v2c = T.var("int32")
-            v3a = T.var("int32")
-            v3c = T.var("int32")
-            v4a = T.var("int32")
-            v4c = T.var("int32")
+            v1a = T.int32()
+            v1c = T.int32()
+            v2a = T.int32()
+            v2c = T.int32()
+            v3a = T.int32()
+            v3c = T.int32()
+            v4a = T.int32()
+            v4c = T.int32()
             buffer1 = T.Buffer([8192], "int8")
             buffer10 = T.Buffer([2048], "int8")
             # body

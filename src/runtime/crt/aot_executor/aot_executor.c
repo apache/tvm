@@ -82,6 +82,12 @@ int TVMAotExecutor_GetInputIndex(TVMAotExecutor* executor, const char* name) {
   return rv;
 }
 
+int TVMAotExecutor_GetInputName(TVMAotExecutor* executor, int index, char** name) {
+  const TVMMetadata* md = executor->metadata;
+  *name = md->inputs[index].name;
+  return 0;
+}
+
 int TVMAotExecutor_Run(TVMAotExecutor* executor) {
   const char* tvm_main_suffix = "_run";
   char tvm_main_name[TVM_CRT_MAX_STRLEN_FUNCTION_NAME];

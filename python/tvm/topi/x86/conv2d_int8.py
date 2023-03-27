@@ -19,18 +19,17 @@
 """Conv2D int8 schedule on x86"""
 
 import tvm
-from tvm import te
-from tvm import autotvm
-from ..nn.conv2d import _get_workload as _get_conv2d_workload
-from .. import tag
+from tvm import autotvm, te
+from tvm.target.x86 import target_has_sse42
+
+from .. import nn, tag
 from ..generic import conv2d as conv2d_generic
-from ..nn.utils import get_pad_tuple
+from ..nn.conv2d import _get_workload as _get_conv2d_workload
 from ..nn.conv2d import unpack_NCHWc_to_nchw
 from ..nn.depthwise_conv2d import _get_workload as _get_depthwise_conv2d_workload
+from ..nn.utils import get_pad_tuple
 from ..utils import get_const_tuple, traverse_inline
-from .. import nn
 from . import conv2d_avx_1x1, conv2d_avx_common
-from .utils import target_has_sse42
 
 
 def _get_default_config_int8(

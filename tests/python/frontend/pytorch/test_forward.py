@@ -29,7 +29,8 @@ import tvm.testing
 from tvm import relay
 from tvm.contrib import graph_executor
 from tvm.contrib.nvcc import have_fp16
-from tvm.contrib import cudnn
+from tvm.contrib import cudnn, utils
+from relay.utils.tag_span import _create_span, _set_span, _verify_structural_equal_with_span
 
 import torch
 from torch.nn import Module
@@ -135,6 +136,7 @@ def verify_model(
     kind="graph",
     check_correctness=True,
     cpu_only=False,
+    validate_structural_equal=True,
 ):
     """Assert that the output of a compiled model matches with that of its
     baseline."""
@@ -175,7 +177,13 @@ def verify_model(
 
     input_names = [f"input{idx}" for idx, _ in enumerate(baseline_input)]
     input_shapes = list(zip(input_names, [inp.shape for inp in baseline_input]))
-    mod, params = relay.frontend.from_pytorch(trace, input_shapes, custom_convert_map)
+    with tvm.testing.disable_span_filling():
+        mod, params = relay.frontend.from_pytorch(trace, input_shapes, custom_convert_map)
+    if validate_structural_equal:
+        with tvm.testing.enable_span_filling():
+            mod_with_span, _ = relay.frontend.from_pytorch(trace, input_shapes, custom_convert_map)
+        assert tvm.ir.structural_equal(mod, mod_with_span, map_free_vars=True)
+
     for arg in mod["main"].params[: len(input_names)]:
         assert arg.name_hint in input_names
     compiled_input = dict(zip(input_names, [inp.clone().cpu().numpy() for inp in baseline_input]))
@@ -231,6 +239,7 @@ def verify_model_with_input(
     rtol=1e-5,
     atol=1e-5,
     assert_shape_only=False,
+    validate_structural_equal=True,
 ):
     """Generic function to generate and compare Pytorch and TVM output"""
     input_dict = input_dict or {}
@@ -239,7 +248,13 @@ def verify_model_with_input(
     trace = torch.jit.trace(test_func, [input.clone() for input in input_data])
     input_names = [f"input{idx}" for idx, _ in enumerate(input_data)]
     input_shapes = list(zip(input_names, [inp.shape for inp in input_data]))
-    mod, params = relay.frontend.from_pytorch(trace, input_shapes, custom_convert_map)
+    with tvm.testing.disable_span_filling():
+        mod, params = relay.frontend.from_pytorch(trace, input_shapes, custom_convert_map)
+    if validate_structural_equal:
+        with tvm.testing.enable_span_filling():
+            mod_with_span, _ = relay.frontend.from_pytorch(trace, input_shapes, custom_convert_map)
+        assert tvm.ir.structural_equal(mod, mod_with_span, map_free_vars=True)
+
     with tvm.transform.PassContext(opt_level=3):
         for target in ["llvm", "cuda"]:
             if not tvm.runtime.enabled(target):
@@ -255,6 +270,20 @@ def verify_model_with_input(
             assert_shapes_match(baseline_outputs, compiled_output)
             if assert_shape_only is False:
                 tvm.testing.assert_allclose(baseline_outputs, compiled_output, rtol=rtol, atol=atol)
+
+
+def gen_ir_module(model, inputs, use_parser_friendly_name=False):
+    """Helper function to generate IRModule with meaningful source information"""
+
+    trace = torch.jit.trace(model, inputs)
+    input_names = ["input{}".format(idx) for idx, _ in enumerate(inputs)]
+    input_shapes = list(zip(input_names, [inp.shape for inp in inputs]))
+    mod, _ = relay.frontend.from_pytorch(
+        trace,
+        input_shapes,
+        use_parser_friendly_name=use_parser_friendly_name,
+    )
+    return mod
 
 
 # Single operator tests
@@ -1830,15 +1859,17 @@ def test_forward_linear():
         def forward(self, inputs, weight):
             return F.linear(inputs, weight)
 
-    class LinearNested(torch.nn.Module):
+    class LinearNested(Module):
         def forward(self, x, y, z):
             return F.linear(x, F.linear(y, z))
 
+    input1d = torch.rand([2]).float()
     input2d = torch.rand([2, 2]).float()
     input3d = torch.rand([4, 3, 2]).float()
     weight1d = torch.rand([2]).float()
     weight2d = torch.rand([2, 2]).float()
     weight3x2 = torch.rand([3, 2]).float()
+    bias0d = torch.rand([]).float()
     bias1d = torch.rand([2]).float()
     bias2d = torch.rand([2, 2]).float()
     # 2D input, 2D weight, 1D bias
@@ -1858,11 +1889,14 @@ def test_forward_linear():
 
     verify_model(LinearNested(), input_data=[torch.randn(10, 10) for _ in range(3)])
 
-    # TODO: Add the following cases when matmul(1D, _) is supported by TVM
     # 1D input, 2D weight, 1D bias
+    verify_model(Linear(), input_data=[input1d, weight2d, bias1d])
     # 1D input, 2D weight, no bias
+    verify_model(LinearNoBias(), input_data=[input1d, weight2d])
     # 1D input, 1D weight, scalar bias
+    verify_model(Linear(), input_data=[input1d, weight1d, bias0d])
     # 1D input, 1D weight, no bias
+    verify_model(LinearNoBias(), input_data=[input1d, weight1d])
 
 
 @tvm.testing.uses_gpu
@@ -2591,7 +2625,11 @@ def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=None)
             input_data = [torch.randn(shape, dtype=idtype) for shape in ishapes]
 
     # Compile via VM
-    mod, params = relay.frontend.from_pytorch(input_model, input_shapes)
+    with tvm.testing.disable_span_filling():
+        mod, params = relay.frontend.from_pytorch(input_model, input_shapes)
+    with tvm.testing.enable_span_filling():
+        mod_with_span, _ = relay.frontend.from_pytorch(input_model, input_shapes)
+    assert tvm.ir.structural_equal(mod, mod_with_span, map_free_vars=True)
 
     for tgt in targets:
         if not tvm.testing.device_enabled(tgt):
@@ -3946,7 +3984,8 @@ def test_forward_dtypes():
 def test_weight_names():
     tm = torch.jit.trace(torch.nn.Linear(3, 4), [torch.randn(2, 3)])
     _, params = relay.frontend.from_pytorch(tm, [("input", (2, 3))])
-    assert set(params.keys()) == set(n for n, _ in tm.named_parameters())
+    keys = [key.split(".")[-1] for key in params.keys()]
+    assert set(keys) == set(n for n, p in tm.named_parameters())
 
 
 @tvm.testing.uses_gpu
@@ -3977,42 +4016,81 @@ def test_forward_matmul():
         def forward(self, *args):
             return torch.matmul(args[0], args[1])
 
-    # matrix x vector
-    tensor1 = torch.randn(3, 4)
-    tensor2 = torch.randn(4)
-    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
-
-    # vector x matrix
+    # vector x vector - 1D x 1D
     tensor1 = torch.randn(4)
-    tensor2 = torch.randn(4, 3)
-    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
-
-    # matrix x matrix
-    tensor1 = torch.randn(10, 4)
-    tensor2 = torch.randn(4, 10)
+    tensor2 = torch.randn(4)
     verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
 
-    # batched matrix x batched matrix
-    tensor1 = torch.randn(10, 3, 4)
-    tensor2 = torch.randn(10, 4, 5)
+    # vector x matrix - 1D x 2D
+    tensor1 = torch.randn(4)
+    tensor2 = torch.randn(4, 3)
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
+
+    # vector x batched_matrix - 1D x ND
+    tensor1 = torch.randn(5)
+    tensor2 = torch.randn(2, 3, 5, 4)
     verify_model(
         MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
     )
 
-    # batched matrix x broadcasted matrix
+    # matrix x vector - 2D - 1D
+    tensor1 = torch.randn(3, 4)
+    tensor2 = torch.randn(4)
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
+
+    # matrix x matrix - 2D x 2D
+    tensor1 = torch.randn(10, 4)
+    tensor2 = torch.randn(4, 10)
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
+
+    # broadcasted matrix x batched matrix - 2D x ND
+    tensor1 = torch.randn(10, 4)
+    tensor2 = torch.randn(2, 3, 4, 5)
+    verify_model(
+        MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
+    )
+
+    # batched matrix x vector - ND x 1D
+    tensor1 = torch.randn(2, 3, 4, 5)
+    tensor2 = torch.randn(5)
+    verify_model(
+        MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
+    )
+
+    # batched matrix x broadcasted matrix - ND x 2D
     tensor1 = torch.randn(10, 3, 4)
     tensor2 = torch.randn(4, 5)
-    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
+    verify_model(
+        MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
+    )
 
-    # broadcasted matrix x batched matrix
-    tensor1 = torch.randn(10, 4)
-    tensor2 = torch.randn(3, 4, 5)
-    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
+    # batched matrix x batched matrix - ND x ND
+    tensor1 = torch.randn(2, 10, 3, 4)
+    tensor2 = torch.randn(2, 10, 4, 5)
+    verify_model(
+        MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
+    )
 
-    # batched matrix x batched matrix
-    tensor1 = torch.randn(1, 12, 14, 64)
-    tensor2 = torch.randn(1, 12, 64, 14)
-    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
+    # batched matrix x broadcasted matrix - ND x ND
+    tensor1 = torch.randn(2, 5, 3, 4)
+    tensor2 = torch.randn(2, 1, 4, 5)
+    verify_model(
+        MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
+    )
+
+    # broadcasted matrix x batched matrix - ND x ND
+    tensor1 = torch.randn(2, 1, 5, 4)
+    tensor2 = torch.randn(2, 5, 4, 3)
+    verify_model(
+        MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
+    )
+
+    # broadcasted matrix x broadcasted matrix - ND x ND
+    tensor1 = torch.randn(3, 2, 3, 1, 5, 4)
+    tensor2 = torch.randn(2, 1, 5, 4, 3)
+    verify_model(
+        MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
+    )
 
 
 def test_forward_index():
@@ -4033,6 +4111,41 @@ def test_forward_index():
 
     input_data = torch.rand(input_shape).float()
     verify_model(Index1().eval(), input_data=input_data)
+
+    class Index2(Module):
+        def forward(self, x):
+            return x[None, [2, 2]]
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Index2().eval(), input_data=input_data)
+
+    class Index3(Module):
+        def forward(self, x):
+            return x[None, [0, 1, 2], 1, [2, 3, 4]]
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Index3().eval(), input_data=input_data)
+
+    class Index4(Module):
+        def forward(self, x):
+            return x[None, [0, 0], None, np.array([[0], [1], [2]]), None]
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Index4().eval(), input_data=input_data)
+
+    class Index5(Module):
+        def forward(self, x):
+            return x[None, None, [0, 0], np.array([[0], [1], [2]]), None]
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Index5().eval(), input_data=input_data)
+
+    class Index6(Module):
+        def forward(self, x):
+            return x[None, 1, None, [1, 2, 3]]
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Index6().eval(), input_data=input_data)
 
     def test_fn_bool_mask():
         return lambda data, mask: data[0, mask]
@@ -4153,6 +4266,41 @@ def test_forward_scatter():
     verify_trace_model(test_fn_scatter(1), [in_data, in_index, in_src], targets)
     verify_trace_model(test_fn_scatter_add(1), [in_data, in_index, in_src], targets)
 
+    # Check empty indices
+    in_data = torch.zeros(2, 4)
+    in_index = torch.empty((0,))
+    in_src = torch.rand(2, 1)
+    verify_trace_model(test_fn_scatter(0), [in_data, in_index, in_src], targets)
+    verify_trace_model(test_fn_scatter_add(0), [in_data, in_index, in_src], targets)
+
+    # Check scalar source
+    # TODO(vvchernov): Scalar source is supported on TVM side, but torch failes with
+    # input Tuple(Tensor, Tensor, float). What does scalar mean for torch in this case?
+
+
+def test_forward_scatter_reduce():
+    """test_forward_scatter_reduce"""
+    # integer cannot be traced
+    def test_fn_scatter_reduce(dim, reduce):
+        return lambda data, index, src: torch.scatter_reduce(
+            data, dim=dim, index=index, src=src, reduce=reduce
+        )
+
+    in_data = torch.rand(3, 5) - 1
+    in_index = torch.tensor([[0, 1, 2, 0, 0], [2, 0, 0, 1, 2]])
+    in_src = torch.rand(2, 5) - 1
+
+    targets = ["llvm", "cuda"]
+    for reduce in ["sum", "prod", "amin", "amax", "mean"]:
+        verify_trace_model(test_fn_scatter_reduce(0, reduce), [in_data, in_index, in_src], targets)
+
+    in_data = torch.rand(2, 4) - 1
+    in_index = torch.tensor([[2], [3]])
+    in_src = torch.rand(2, 1) - 1
+
+    for reduce in ["sum", "prod", "amin", "amax", "mean"]:
+        verify_trace_model(test_fn_scatter_reduce(1, reduce), [in_data, in_index, in_src], targets)
+
 
 def test_forward_index_put():
     """test_forward_index_put"""
@@ -4241,12 +4389,12 @@ def test_randn():
     def test_func():
         return torch.randn([1, 3, 10, 10])
 
-    verify_model_with_input(test_func, [], assert_shape_only=True)
+    verify_model_with_input(test_func, [], assert_shape_only=True, validate_structural_equal=False)
 
     def test_func1():
         return torch.randn(1, 3, 10, 10)
 
-    verify_model_with_input(test_func1, [], assert_shape_only=True)
+    verify_model_with_input(test_func1, [], assert_shape_only=True, validate_structural_equal=False)
 
 
 def test_forward_pretrained_bert_base_uncased():
@@ -5023,18 +5171,25 @@ def test_trilu():
 
 
 def test_multinomial():
+    """test_multinomial"""
+
     def _test_multinomial(num_samples):
         return lambda inp: torch.multinomial(inp, num_samples=num_samples, replacement=True)
 
     # Dont check output since it's random. Instead we'll just make sure shapes are right.
     verify_model(
-        _test_multinomial(2), [torch.rand(size=[3]).float()], cpu_only=True, check_correctness=False
+        _test_multinomial(2),
+        [torch.rand(size=[3]).float()],
+        cpu_only=True,
+        check_correctness=False,
+        validate_structural_equal=False,
     )
     verify_model(
         _test_multinomial(1),
         [torch.rand(size=[4, 5]).float()],
         cpu_only=True,
         check_correctness=False,
+        validate_structural_equal=False,
     )
 
 
@@ -5074,6 +5229,233 @@ def test_baddbmm():
     batch2 = torch.randn(10, 4, 5)
 
     verify_model(test_fn(0.5, 1.0), [M, batch1, batch2])
+
+
+def test_exporting_renamed_c_graph():
+    """test exproting model when export_renamed_model is set"""
+
+    # model definition
+    class Conv2D(Module):
+        def __init__(self):
+            super(Conv2D, self).__init__()
+            self.conv = torch.nn.Conv2d(3, 6, 3, bias=True)
+
+        def forward(self, *args):
+            return self.conv(args[0])
+
+    input_name, input_shape = "input", [1, 3, 10, 10]
+    shape_list = [(input_name, input_shape)]
+    temp_dir = utils.tempdir().path
+    script_module = torch.jit.trace(Conv2D(), [torch.rand(input_shape)])
+    _, _ = relay.frontend.from_pytorch(
+        script_module, shape_list, export_renamed_c_graph_path=temp_dir
+    )
+
+    exported_c_graph_name = os.listdir(temp_dir)[0]
+    assert "tvm_exported_c_graph_" in exported_c_graph_name
+
+    # make sure the renamed output variable presents in the restored _C.Graph
+    with open(f"{temp_dir}/{exported_c_graph_name}", "r") as f:
+        graph = f.read()
+        assert "%aten::_convolution_0" in graph
+
+
+class TestSetSpan:
+    """test structural equal between translated / hand-crafted relay IR with span tagged."""
+
+    def _verify(self, res_fptr, golden_fptr):
+        with tvm.testing.enable_span_filling():
+            with_span = res_fptr()
+        with tvm.testing.disable_span_filling():
+            without_span = res_fptr()
+        assert tvm.ir.structural_equal(with_span, without_span)
+        _verify_structural_equal_with_span(with_span, golden_fptr())
+
+    def test_conv2d_bias_add(self):
+        ker_sz, in_chs, out_chs = 7, 3, 6
+        input_shape = [1, 3, 10, 10]
+
+        def _res():
+            # model definition
+            class Conv2D(Module):
+                def __init__(self):
+                    super(Conv2D, self).__init__()
+                    self.conv = torch.nn.Conv2d(in_chs, out_chs, ker_sz, bias=True)
+
+                def forward(self, *args):
+                    return self.conv(args[0])
+
+            # get frontend model
+            mod = gen_ir_module(Conv2D(), [torch.rand(input_shape)])
+            return mod["main"]
+
+        def _golden():
+            conv_si = "aten::_convolution_0"
+            input_name = "input0"
+            input_0 = relay.var(
+                input_name,
+                shape=tuple(input_shape),
+                span=_create_span(f"{conv_si}.{input_name}"),
+            )
+            weight_name = f"{conv_si}.weight"
+            conv_weight = relay.var(
+                weight_name,
+                shape=(out_chs, in_chs, ker_sz, ker_sz),
+                span=_create_span(weight_name),
+            )
+            bias_name = f"{conv_si}.bias"
+            conv_bias = relay.var(
+                bias_name,
+                shape=(out_chs,),
+                span=_create_span(bias_name),
+            )
+            conv_out = _set_span(
+                relay.nn.conv2d(
+                    input_0,
+                    conv_weight,
+                    padding=[0] * 4,
+                    channels=out_chs,
+                    kernel_size=[ker_sz] * 2,
+                ),
+                conv_si,
+            )
+            bias_out = _set_span(relay.nn.bias_add(conv_out, conv_bias), conv_si)
+            return relay.Function([input_0, conv_weight, conv_bias], bias_out)
+
+        self._verify(_res, _golden)
+
+    def test_batchnorm_span(self):
+        features = 16
+        input_shape = [1, 16, 10, 10]
+
+        def _res():
+            # model definition
+            bn_2d = torch.nn.BatchNorm2d(features)
+
+            # get frontend model
+            mod = gen_ir_module(bn_2d, [torch.rand(input_shape)])
+            return mod["main"]
+
+        def _golden():
+            bn_si = "aten::batch_norm_0"
+            input_name = "input0"
+            input_0 = relay.var(
+                input_name,
+                shape=tuple(input_shape),
+                span=_create_span(f"{bn_si}.{input_name}"),
+            )
+            weight_name = f"{bn_si}.weight"
+            bn_weight = relay.var(
+                weight_name,
+                shape=(features,),
+                span=_create_span(weight_name),
+            )
+            bias_name = f"{bn_si}.bias"
+            bn_bias = relay.var(
+                bias_name,
+                shape=(features,),
+                span=_create_span(bias_name),
+            )
+            rm_name = f"{bn_si}.running_mean"
+            bn_rm = relay.var(
+                rm_name,
+                shape=(features,),
+                span=_create_span(rm_name),
+            )
+            rv_name = f"{bn_si}.running_var"
+            bn_rv = relay.var(
+                rv_name,
+                shape=(features,),
+                span=_create_span(rv_name),
+            )
+            bn_out = _set_span(
+                relay.nn.batch_norm(input_0, bn_weight, bn_bias, bn_rm, bn_rv),
+                bn_si,
+            )
+            bn_tuple_get_item = _set_span(relay.TupleGetItem(bn_out.tuple_value, 0), bn_si)
+            return relay.Function([input_0, bn_weight, bn_bias, bn_rm, bn_rv], bn_tuple_get_item)
+
+        self._verify(_res, _golden)
+
+    def test_reshape_span(self):
+        input_shape = [2, 1, 10, 1, 10]
+        new_shape = [2, 1, 10, 10]
+
+        def _res():
+            # model definition
+            class Reshape(Module):
+                def forward(self, *args):
+                    return args[0].reshape(new_shape)
+
+            # get frontend model
+            mod = gen_ir_module(Reshape(), [torch.rand(input_shape)])
+            return mod["main"]
+
+        def _golden():
+            reshape_si = "aten::reshape_0"
+            input_name = "input0"
+            input_0 = relay.var(
+                input_name,
+                shape=tuple(input_shape),
+                span=_create_span(f"{reshape_si}.{input_name}"),
+            )
+            reshape_out = _set_span(
+                relay.reshape(input_0, newshape=new_shape),
+                reshape_si,
+            )
+            return relay.Function([input_0], reshape_out)
+
+        self._verify(_res, _golden)
+
+    def test_dense_bias_add(self):
+        in_f, out_f = 10, 7
+        input_shape = [in_f, in_f]
+
+        def _res():
+            # model definition
+            class Dense(Module):
+                def __init__(self):
+                    super(Dense, self).__init__()
+                    self.linear = torch.nn.Linear(in_f, out_f, bias=True)
+
+                def forward(self, *args):
+                    return self.linear(args[0])
+
+            # get frontend model
+            mod = gen_ir_module(Dense(), [torch.rand(input_shape)])
+            return mod["main"]
+
+        def _golden():
+            dense_si = "aten::linear_0"
+            input_name = "input0"
+            input_0 = relay.var(
+                input_name,
+                shape=tuple(input_shape),
+                span=_create_span(f"{dense_si}.{input_name}"),
+            )
+            weight_name = f"{dense_si}.weight"
+            dense_weight = relay.var(
+                weight_name,
+                shape=(out_f, in_f),
+                span=_create_span(weight_name),
+            )
+            bias_name = f"{dense_si}.bias"
+            dense_bias = relay.var(
+                bias_name,
+                shape=(out_f,),
+                span=_create_span(bias_name),
+            )
+            dense_out = _set_span(
+                relay.nn.dense(input_0, dense_weight),
+                dense_si,
+            )
+            bias_out = _set_span(
+                relay.nn.bias_add(dense_out, dense_bias, axis=-1),
+                dense_si,
+            )
+            return relay.Function([input_0, dense_weight, dense_bias], bias_out)
+
+        self._verify(_res, _golden)
 
 
 if __name__ == "__main__":

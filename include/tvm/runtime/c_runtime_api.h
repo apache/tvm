@@ -53,6 +53,13 @@
 #define TVM_DLL EMSCRIPTEN_KEEPALIVE
 #endif
 
+// helper macro to suppress unused warning
+#if defined(__GNUC__)
+#define TVM_ATTRIBUTE_UNUSED __attribute__((unused))
+#else
+#define TVM_ATTRIBUTE_UNUSED
+#endif
+
 #ifndef TVM_DLL
 #ifdef _WIN32
 #ifdef TVM_EXPORTS
@@ -66,7 +73,7 @@
 #endif
 
 // TVM version
-#define TVM_VERSION "0.11.dev0"
+#define TVM_VERSION "0.12.dev0"
 
 // TVM Runtime is DLPack compatible.
 #include <dlpack/dlpack.h>

@@ -242,7 +242,6 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitExpr_(const StringImmNode* op, ExprPrecedence* out_precedence) override;
   Doc VisitExpr_(const ProducerLoadNode* op, ExprPrecedence* out_precedence) override;
   Doc VisitExpr_(const BufferLoadNode* op, ExprPrecedence* out_precedence) override;
-  Doc VisitExpr_(const LoadNode* op, ExprPrecedence* out_precedence) override;
   Doc VisitExpr_(const RampNode* op, ExprPrecedence* out_precedence) override;
   Doc VisitExpr_(const BroadcastNode* op, ExprPrecedence* out_precedence) override;
   Doc VisitExpr_(const tir::LetNode* op, ExprPrecedence* out_precedence) override;
@@ -254,7 +253,6 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitStmt_(const LetStmtNode* op) override;
   Doc VisitStmt_(const AttrStmtNode* op) override;
   Doc VisitStmt_(const AssertStmtNode* op) override;
-  Doc VisitStmt_(const StoreNode* op) override;
   Doc VisitStmt_(const BufferStoreNode* op) override;
   Doc VisitStmt_(const BufferRealizeNode* op) override;
   Doc VisitStmt_(const AllocateNode* op) override;
@@ -910,23 +908,6 @@ Doc TVMScriptPrinter::VisitExpr_(const BufferLoadNode* op, ExprPrecedence* out_p
   return doc;
 }
 
-Doc TVMScriptPrinter::VisitExpr_(const LoadNode* op, ExprPrecedence* out_precedence) {
-  *out_precedence = ExprPrecedence::kIdentity;
-  Doc doc;
-  if (op->dtype == DataType::Float(32) && is_one(op->predicate) &&
-      op->buffer_var->dtype == DataType::Float(32)) {
-    doc << Print(op->buffer_var) << "[" << Print(op->index) << "]";
-  } else {
-    doc << tir_prefix_ << ".load(" << PrintDType(op->dtype) << ", " << Print(op->buffer_var) << ", "
-        << Print(op->index);
-    if (!is_one(op->predicate) || op->dtype.lanes() != 1) {
-      doc << ", " << Print(op->predicate);
-    }
-    doc << ")";
-  }
-  return doc;
-}
-
 Doc TVMScriptPrinter::VisitExpr_(const RampNode* op, ExprPrecedence* out_precedence) {
   *out_precedence = ExprPrecedence::kIdentity;
   Doc doc;
@@ -1075,13 +1056,6 @@ Doc TVMScriptPrinter::VisitStmt_(const AssertStmtNode* op) {
     doc << "assert " << Print(op->condition) << ", " << Print(op->message);
     doc << Doc::NewLine() << PrintBody(op->body);
   }
-  return doc;
-}
-
-Doc TVMScriptPrinter::VisitStmt_(const StoreNode* op) {
-  Doc doc;
-  doc << tir_prefix_ << ".store(" << Print(op->buffer_var) << ", " << Print(op->index) << ", "
-      << Print(op->value) << ", " << Print(op->predicate) << ")";
   return doc;
 }
 

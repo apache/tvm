@@ -37,11 +37,6 @@ class ExprSideEffect : public ExprVisitor {
     ExprVisitor::VisitExpr(e);
   }
 
-  void VisitExpr_(const LoadNode* op) final {
-    this->UpdateEffect(CallEffectKind::kReadState);
-    ExprVisitor::VisitExpr_(op);
-  }
-
   void VisitExpr_(const BufferLoadNode* op) final {
     this->UpdateEffect(CallEffectKind::kReadState);
     ExprVisitor::VisitExpr_(op);

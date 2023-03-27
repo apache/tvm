@@ -27,6 +27,7 @@ from tvm.script.printer.doc import (
     StmtBlockDoc,
 )
 from tvm.script.printer.doc_printer import to_python_script
+from tvm.script import ir as I, tir as T
 
 
 def make_path(name: str) -> ObjectPath:
@@ -69,7 +70,7 @@ def test_underline_basic():
             ExprStmtDoc(make_id_doc("qux")),
         ]
     )
-    assert to_python_script(doc, path_to_underline=make_path("baz")) == format_script(
+    assert to_python_script(doc, path_to_underline=[make_path("baz")]) == format_script(
         """
         foo
         bar + baz
@@ -87,7 +88,7 @@ def test_underline_multiple_spans():
             ExprStmtDoc(OperationDoc(OperationKind.Add, [make_id_doc("foo"), make_id_doc("foo")])),
         ]
     )
-    assert to_python_script(doc, path_to_underline=make_path("foo")) == format_script(
+    assert to_python_script(doc, path_to_underline=[make_path("foo")]) == format_script(
         """
         foo
         ^^^
@@ -107,7 +108,7 @@ def test_underline_multiple_spans_with_line_numbers():
         ]
     )
     assert to_python_script(
-        doc, print_line_numbers=True, path_to_underline=make_path("foo")
+        doc, print_line_numbers=True, path_to_underline=[make_path("foo")]
     ) == format_script(
         """
         1 foo
@@ -128,7 +129,7 @@ def test_underline_multiline():
     )
     doc.source_paths = [make_path("whole_doc")]
 
-    assert to_python_script(doc, path_to_underline=make_path("whole_doc")) == format_script(
+    assert to_python_script(doc, path_to_underline=[make_path("whole_doc")]) == format_script(
         """
         foo
         ^^^
@@ -282,13 +283,13 @@ def test_print_two_context_lines(to_underline, expected_text):
     doc = StmtBlockDoc(
         [ExprStmtDoc(make_id_doc(f"x{i}", "yes" if i in to_underline else "no")) for i in range(10)]
     )
-    result = to_python_script(doc, num_context_lines=2, path_to_underline=make_path("yes"))
+    result = to_python_script(doc, num_context_lines=2, path_to_underline=[make_path("yes")])
     assert result == format_script(expected_text)
 
 
 def test_underline_and_print_line_numbers():
     doc = StmtBlockDoc([ExprStmtDoc(make_id_doc(f"line{i + 1}")) for i in range(12)])
-    result = to_python_script(doc, print_line_numbers=True, path_to_underline=make_path("line6"))
+    result = to_python_script(doc, print_line_numbers=True, path_to_underline=[make_path("line6")])
     assert (
         result.strip()
         == format_script(
@@ -311,10 +312,46 @@ def test_underline_and_print_line_numbers():
     )
 
 
+def test_underline_multi_object_paths():
+    doc = StmtBlockDoc([ExprStmtDoc(make_id_doc(f"line{i + 1}")) for i in range(10)])
+    result = to_python_script(
+        doc,
+        path_to_underline=[
+            make_path("line1"),
+            make_path("line3"),
+            make_path("line5"),
+            make_path("line7"),
+            make_path("line9"),
+        ],
+    )
+    assert (
+        result.strip()
+        == format_script(
+            """
+            line1
+            ^^^^^
+            line2
+            line3
+            ^^^^^
+            line4
+            line5
+            ^^^^^
+            line6
+            line7
+            ^^^^^
+            line8
+            line9
+            ^^^^^
+            line10
+    """
+        ).strip()
+    )
+
+
 def test_underline_and_print_line_numbers_with_context():
     doc = StmtBlockDoc([ExprStmtDoc(make_id_doc(f"line{i + 1}")) for i in range(12)])
     result = to_python_script(
-        doc, print_line_numbers=True, num_context_lines=2, path_to_underline=make_path("line8")
+        doc, print_line_numbers=True, num_context_lines=2, path_to_underline=[make_path("line8")]
     )
     assert result == format_script(
         """
@@ -332,7 +369,7 @@ def test_underline_and_print_line_numbers_with_context():
 
 def test_underline_based_on_path_prefix():
     doc = StmtBlockDoc([ExprStmtDoc(make_id_doc("foo")), ExprStmtDoc(make_id_doc("bar"))])
-    result = to_python_script(doc, path_to_underline=make_path("foo").attr("x").attr("y"))
+    result = to_python_script(doc, path_to_underline=[make_path("foo").attr("x").attr("y")])
     # There is no document that matches the desired path exactly,
     # but path of "foo" is a prefix of the desired path, and thus should be underlined.
     assert result == format_script(
@@ -351,7 +388,7 @@ def test_longer_prefix_must_win():
     doc = StmtBlockDoc(
         [ExprStmtDoc(make_id_doc("foo")), ExprStmtDoc(make_id_doc("bar")), ExprStmtDoc(foo_x)]
     )
-    result = to_python_script(doc, path_to_underline=make_path("foo").attr("x").attr("y"))
+    result = to_python_script(doc, path_to_underline=[make_path("foo").attr("x").attr("y")])
     # "foo" should not be underlined because there is a document with a more specific path prefix
     assert result == format_script(
         """
@@ -359,5 +396,161 @@ def test_longer_prefix_must_win():
         bar
         foo_x
         ^^^^^
+    """
+    )
+
+
+def test_underline_from_obj():
+    @T.prim_func
+    def func(a: T.int32, b: T.int32):
+        T.evaluate(a)
+        T.evaluate(b)
+        T.evaluate(a)
+        T.evaluate(b)
+        T.evaluate(a)
+        T.evaluate(b)
+
+    result = func.script(obj_to_underline=[func.params[0]])
+    assert result == format_script(
+        """
+        # from tvm.script import tir as T
+
+        @T.prim_func
+        def main(a: T.int32, b: T.int32):
+            T.evaluate(a)
+                       ^
+            T.evaluate(b)
+            T.evaluate(a)
+                       ^
+            T.evaluate(b)
+            T.evaluate(a)
+                       ^
+            T.evaluate(b)
+    """
+    )
+
+
+def test_underline_from_multi_obj():
+    @T.prim_func
+    def func():
+        T.evaluate(0)
+        T.evaluate(1)
+        T.evaluate(2)
+        T.evaluate(3)
+        T.evaluate(4)
+        T.evaluate(5)
+        T.evaluate(6)
+        T.evaluate(7)
+
+    result = func.script(
+        obj_to_underline=[
+            func.body.seq[1],
+            func.body.seq[3],
+            func.body.seq[5],
+            func.body.seq[7],
+        ]
+    )
+    assert result == format_script(
+        """
+        # from tvm.script import tir as T
+
+        @T.prim_func
+        def main():
+            T.evaluate(0)
+            T.evaluate(1)
+            ^^^^^^^^^^^^^
+            T.evaluate(2)
+            T.evaluate(3)
+            ^^^^^^^^^^^^^
+            T.evaluate(4)
+            T.evaluate(5)
+            ^^^^^^^^^^^^^
+            T.evaluate(6)
+            T.evaluate(7)
+            ^^^^^^^^^^^^^
+    """
+    )
+
+
+def test_underline_func():
+    @T.prim_func
+    def func():
+        T.evaluate(0)
+
+    result = func.script(
+        path_to_underline=[
+            ObjectPath.root(),
+        ]
+    )
+    assert result == format_script(
+        """
+        # from tvm.script import tir as T
+
+        @T.prim_func
+        ^^^^^^^^^^^^
+        def main():
+        ^^^^^^^^^^^
+            T.evaluate(0)
+            ^^^^^^^^^^^^^
+    """
+    )
+
+
+def test_underline_func_in_irmodule():
+    @I.ir_module
+    class irmodule:
+        @T.prim_func
+        def func():
+            T.evaluate(0)
+
+    result = irmodule.script(
+        path_to_underline=[
+            ObjectPath.root().attr("functions").map_value(irmodule.get_global_var("func")),
+        ]
+    )
+    assert result == format_script(
+        """
+        # from tvm.script import ir as I
+        # from tvm.script import tir as T
+
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            ^^^^^^^^^^^^
+            def func():
+            ^^^^^^^^^^^
+                T.evaluate(0)
+                ^^^^^^^^^^^^^
+    """
+    )
+
+
+def test_underline_irmodule():
+    @I.ir_module
+    class irmodule:
+        @T.prim_func
+        def func():
+            T.evaluate(0)
+
+    result = irmodule.script(
+        path_to_underline=[
+            ObjectPath.root(),
+        ]
+    )
+    assert result == format_script(
+        """
+        # from tvm.script import ir as I
+        # from tvm.script import tir as T
+
+        @I.ir_module
+        ^^^^^^^^^^^^
+        class Module:
+        ^^^^^^^^^^^^^
+            @T.prim_func
+            ^^^^^^^^^^^^
+            def func():
+            ^^^^^^^^^^^
+                T.evaluate(0)
+                ^^^^^^^^^^^^^
     """
     )

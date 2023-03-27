@@ -28,7 +28,6 @@ cd ${output_directory}
 
 cp ../cmake/config.cmake .
 
-echo set\(USE_MICRO OFF\) >> config.cmake
 if [ -f "${ADRENO_OPENCL}/CL/cl_qcom_ml_ops.h" ] ; then
 echo set\(USE_CLML "${ADRENO_OPENCL}"\) >> config.cmake
 echo set\(USE_CLML_GRAPH_EXECUTOR "${ADRENO_OPENCL}"\) >> config.cmake

@@ -64,3 +64,14 @@ def _visit_expr(_self: Parser, _node: doc.Expr) -> None:
     node : doc.ClassDef
         The doc AST expression node.
     """
+
+
+@dispatch.register(token="default", type_name="Assign")
+def visit_assign(self: Parser, node: doc.Assign) -> None:
+    if len(node.targets) != 1:
+        self.report_error(node, "Consequential assignments like 'a = b = c' are not supported.")
+    lhs = node.targets[0]
+    rhs = self.eval_expr(node.value)
+    self.eval_assign(
+        target=lhs, source=rhs, bind_value=lambda _a, _b, _c, value: value, allow_shadowing=True
+    )

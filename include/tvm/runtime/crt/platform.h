@@ -139,6 +139,15 @@ tvm_crt_error_t TVMPlatformAfterMeasurement();
  */
 tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes);
 
+/*! \brief Initialize TVM inference.
+ *
+ * Placeholder function for TVM inference initializations on a specific platform.
+ * A common use of this function is setting up workspace memory for TVM inference.
+ *
+ * \return kTvmErrorNoError if successful.
+ */
+tvm_crt_error_t TVMPlatformInitialize();
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif

@@ -106,7 +106,7 @@ def test_double_convolution():
     @tvm.script.ir_module
     class Module:
         @T.prim_func
-        def main(input_placeholder: T.Buffer[(1, 27, 42, 3), "int8"], input_placeholder_encoded: T.Buffer[(3, 3, 2, 3), "uint8"], input_placeholder_encoded_1: T.Buffer[(3, 10), "uint8"], input_placeholder_encoded_2: T.Buffer[(3, 3, 2, 3), "uint8"], input_placeholder_encoded_3: T.Buffer[(3, 10), "uint8"], input_ethosu_write: T.Buffer[(1, 27, 42, 3), "int8"]) -> None:
+        def main(input_placeholder: T.Buffer((1, 27, 42, 3), "int8"), input_placeholder_encoded: T.Buffer((3, 3, 2, 3), "uint8"), input_placeholder_encoded_1: T.Buffer((3, 10), "uint8"), input_placeholder_encoded_2: T.Buffer((3, 3, 2, 3), "uint8"), input_placeholder_encoded_3: T.Buffer((3, 10), "uint8"), input_ethosu_write: T.Buffer((1, 27, 42, 3), "int8")) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
             placeholder = T.Buffer([3402], dtype="int8", data=input_placeholder.data)
@@ -150,7 +150,7 @@ def test_identities():
     @tvm.script.ir_module
     class Module:
         @T.prim_func
-        def main(input_placeholder: T.Buffer[(1, 2, 3, 4), "int8"], T_concat: T.Buffer[(24,), "int8"]) -> None:
+        def main(input_placeholder: T.Buffer((1, 2, 3, 4), "int8"), T_concat: T.Buffer((24,), "int8")) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
             placeholder = T.Buffer([24], dtype="int8", data=input_placeholder.data)
@@ -187,7 +187,7 @@ def test_outer_seq_stmt():
     @tvm.script.ir_module
     class Module:
         @T.prim_func
-        def main(input_placeholder: T.Buffer[(1, 16, 16, 32), "int8"], input_ethosu_write: T.Buffer[(1, 16, 16, 8), "int8"], buffer_encoded: T.Buffer[(128,), "uint8"], buffer_encoded_1: T.Buffer[(32,), "uint8"], buffer_encoded_2: T.Buffer[(112,), "uint8"], buffer_encoded_3: T.Buffer[(32,), "uint8"], buffer_encoded_4: T.Buffer[(112,), "uint8"], buffer_encoded_5: T.Buffer[(32,), "uint8"], buffer_encoded_6: T.Buffer[(112,), "uint8"], buffer_encoded_7: T.Buffer[(32,), "uint8"]) -> None:
+        def main(input_placeholder: T.Buffer((1, 16, 16, 32), "int8"), input_ethosu_write: T.Buffer((1, 16, 16, 8), "int8"), buffer_encoded: T.Buffer((128,), "uint8"), buffer_encoded_1: T.Buffer((32,), "uint8"), buffer_encoded_2: T.Buffer((112,), "uint8"), buffer_encoded_3: T.Buffer((32,), "uint8"), buffer_encoded_4: T.Buffer((112,), "uint8"), buffer_encoded_5: T.Buffer((32,), "uint8"), buffer_encoded_6: T.Buffer((112,), "uint8"), buffer_encoded_7: T.Buffer((32,), "uint8")) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
             placeholder = T.Buffer([8192], dtype="int8", data=input_placeholder.data)
@@ -237,7 +237,7 @@ def test_allocate_without_seq_stmt():
     @tvm.script.ir_module
     class Module:
         @T.prim_func
-        def main(input_placeholder: T.Buffer[(1, 16, 16, 32), "int8"], input_ethosu_write: T.Buffer[(1, 16, 16, 8), "int8"], buffer_encoded: T.Buffer[(128,), "uint8"], buffer_encoded_1: T.Buffer[(32,), "uint8"], buffer_encoded_2: T.Buffer[(112,), "uint8"], buffer_encoded_3: T.Buffer[(32,), "uint8"], buffer_encoded_4: T.Buffer[(112,), "uint8"], buffer_encoded_5: T.Buffer[(32,), "uint8"], buffer_encoded_6: T.Buffer[(112,), "uint8"], buffer_encoded_7: T.Buffer[(32,), "uint8"]) -> None:
+        def main(input_placeholder: T.Buffer((1, 16, 16, 32), "int8"), input_ethosu_write: T.Buffer((1, 16, 16, 8), "int8"), buffer_encoded: T.Buffer((128,), "uint8"), buffer_encoded_1: T.Buffer((32,), "uint8"), buffer_encoded_2: T.Buffer((112,), "uint8"), buffer_encoded_3: T.Buffer((32,), "uint8"), buffer_encoded_4: T.Buffer((112,), "uint8"), buffer_encoded_5: T.Buffer((32,), "uint8"), buffer_encoded_6: T.Buffer((112,), "uint8"), buffer_encoded_7: T.Buffer((32,), "uint8")) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
             placeholder = T.Buffer([8192], dtype="int8", data=input_placeholder.data)

@@ -74,8 +74,8 @@ from tvm.contrib.download import download_testdata
 # **Note:** By default this tutorial runs on x86 CPU using CRT, if you would like to run on Zephyr platform
 # you need to export `TVM_MICRO_USE_HW` environment variable.
 #
-MODEL_URL = "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/model/keyword_spotting_quant.tflite"
-MODEL_PATH = download_testdata(MODEL_URL, "keyword_spotting_quant.tflite", module="model")
+MODEL_URL = "https://github.com/mlcommons/tiny/raw/bceb91c5ad2e2deb295547d81505721d3a87d578/benchmark/training/keyword_spotting/trained_models/kws_ref_model.tflite"
+MODEL_PATH = download_testdata(MODEL_URL, "kws_ref_model.tflite", module="model")
 SAMPLE_URL = "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/keyword_spotting_int8_6.pyc.npy"
 SAMPLE_PATH = download_testdata(SAMPLE_URL, "keyword_spotting_int8_6.pyc.npy", module="data")
 

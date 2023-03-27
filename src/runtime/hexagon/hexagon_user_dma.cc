@@ -32,7 +32,8 @@ unsigned int HexagonUserDMA::Init() {
   return status;
 }
 
-int HexagonUserDMA::Copy(int queue_id, void* dst, void* src, uint32_t length, bool bypass_cache) {
+int HexagonUserDMA::Copy(uint32_t queue_id, void* dst, void* src, uint32_t length,
+                         bool bypass_cache) {
   // length limited to 24 bits
   if (length > DESC_LENGTH_MASK) {
     return DMA_FAILURE;
@@ -103,15 +104,15 @@ int HexagonUserDMA::Copy(int queue_id, void* dst, void* src, uint32_t length, bo
   return DMA_SUCCESS;
 }
 
-void HexagonUserDMA::Wait(int queue_id, uint32_t max_dmas_in_flight) {
+void HexagonUserDMA::Wait(uint32_t queue_id, uint32_t max_dmas_in_flight) {
   // wait (forever) until max DMAs in flight <= actual DMAs in flight
-  while (DMAsInFlight(queue_id) > max_dmas_in_flight) {
+  while (DMAGroupsInFlight(queue_id) > max_dmas_in_flight) {
   }
 }
 
-uint32_t HexagonUserDMA::Poll(int queue_id) { return DMAsInFlight(queue_id); }
+uint32_t HexagonUserDMA::Poll(uint32_t queue_id) { return DMAGroupsInFlight(queue_id); }
 
-uint32_t HexagonUserDMA::DMAsInFlight(int queue_id) {
+uint32_t HexagonUserDMA::DMAGroupsInFlight(uint32_t queue_id) {
   dmpoll();  // update DMA engine status
   return descriptors_->InFlight(queue_id);
 }
@@ -125,7 +126,8 @@ HexagonUserDMA::HexagonUserDMA() {
     unsigned int done = dma_desc_get_done(dma_desc);
     return (done != DESC_DONE_COMPLETE);
   };
-  descriptors_ = new QueuedRingBuffer<dma_desc_2d_t>(MAX_DMA_DESCRIPTORS, desc_in_flight);
+  descriptors_ =
+      new QueuedRingBuffer<dma_desc_2d_t>(MAX_DMA_QUEUES, MAX_DMA_DESCRIPTORS, desc_in_flight);
 }
 
 HexagonUserDMA::~HexagonUserDMA() {

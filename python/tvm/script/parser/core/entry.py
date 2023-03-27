@@ -41,10 +41,12 @@ def parse(program: Union[doc.AST, Any, str], extra_vars: Dict[str, Any] = None) 
         The parsed TVMScript program.
     """
     if extra_vars is None:
+        import tvm  # pylint: disable=import-outside-toplevel
         from tvm.script.parser import ir  # pylint: disable=import-outside-toplevel
         from tvm.script.parser import tir  # pylint: disable=import-outside-toplevel
 
         extra_vars = {
+            "tvm": tvm,
             "I": ir,
             "ir": ir,
             "T": tir,

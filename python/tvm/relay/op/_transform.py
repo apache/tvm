@@ -94,7 +94,7 @@ def compute_strided_set(attrs, inputs, output_type):
 _reg.register_injective_schedule("strided_set")
 
 # layout_transform
-_reg.register_injective_schedule("layout_transform")
+_reg.register_strategy("layout_transform", strategy.layout_transform_strategy)
 _reg.register_pattern("layout_transform", OpPattern.INJECTIVE)
 _reg.register_injective_schedule("auto_scheduler_layout_transform")
 _reg.register_pattern("auto_scheduler_layout_transform", OpPattern.INJECTIVE)
@@ -103,15 +103,6 @@ _reg.register_pattern("meta_schedule_layout_transform", OpPattern.INJECTIVE)
 
 # argwhere
 _reg.register_strategy("argwhere", strategy.argwhere_strategy)
-
-# scatter
-@_reg.register_compute("scatter")
-def compute_scatter(attrs, inputs, output_type):
-    """Compute definition of scatter"""
-    return [topi.scatter(inputs[0], inputs[1], inputs[2], attrs.axis)]
-
-
-_reg.register_strategy("scatter", strategy.scatter_strategy)
 
 # sparse_fill_empty_rows
 @_reg.register_compute("sparse_fill_empty_rows")
@@ -191,18 +182,32 @@ def stft_shape_func(attrs, inputs, _):
     ]
 
 
+# DFT
+@_reg.register_compute("dft")
+def compute_dft(attrs, inputs, _):
+    """Compute definition of DFT"""
+    return topi.dft(
+        inputs[0],
+        inputs[1],
+        attrs.inverse,
+    )
+
+
+_reg.register_strategy("dft", strategy.dft_strategy)
+
+
 # trilu
 _reg.register_strategy("trilu", strategy.trilu_strategy)
 
 
-# scatter_add
-@_reg.register_compute("scatter_add")
-def compute_scatter_add(attrs, inputs, output_type):
-    """Compute definition of scatter_add"""
-    return [topi.scatter_add(inputs[0], inputs[1], inputs[2], attrs.axis)]
+# scatter_elements
+@_reg.register_compute("scatter_elements")
+def compute_scatter_elements(attrs, inputs, output_type):
+    """Compute definition of scatter_elements"""
+    return [topi.scatter_elements(inputs[0], inputs[1], inputs[2], attrs.axis, attrs.reduction)]
 
 
-_reg.register_strategy("scatter_add", strategy.scatter_add_strategy)
+_reg.register_strategy("scatter_elements", strategy.scatter_elements_strategy)
 
 # scatter_nd
 @_reg.register_compute("scatter_nd")
@@ -677,8 +682,7 @@ def argwhere_shape_func(attrs, inputs, out_ndims):
     return ValueError("Does not support rank higher than 5 in argwhere")
 
 
-_reg.register_shape_func("scatter", False, elemwise_shape_func)
-_reg.register_shape_func("scatter_add", False, elemwise_shape_func)
+_reg.register_shape_func("scatter_elements", False, elemwise_shape_func)
 _reg.register_shape_func("scatter_nd", False, elemwise_shape_func)
 
 
@@ -920,7 +924,9 @@ def squeeze_shape_func(attrs, inputs, _):
     keep_axes = []
     remove_axes = []
     if axis is not None:
-        for i in range(inputs[0].shape[0].value):
+        ndim = inputs[0].shape[0].value
+        axis = [i + ndim if i < 0 else i for i in axis]
+        for i in range(ndim):
             if i not in axis:
                 keep_axes.append(i)
             else:

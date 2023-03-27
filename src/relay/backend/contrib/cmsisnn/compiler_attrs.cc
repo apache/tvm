@@ -40,11 +40,13 @@ Target CreateTarget(const tvm::transform::PassContext& ctx) {
 
   String mcpu = cfg.value()->mcpu;
   Array<String> mattr = {cfg.value()->mattr};
+  Bool debug_last_error = cfg.value()->debug_last_error;
 
   Target cmsis_nn_target(TargetJSON{
       {"kind", String("cmsis-nn")},
       {"mcpu", mcpu},
       {"mattr", mattr},
+      {"debug_last_error", debug_last_error},
   });
 
   return cmsis_nn_target;

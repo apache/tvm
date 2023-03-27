@@ -31,7 +31,7 @@ def compute(comp_type, outer, inner, dtype):
 
         @T.prim_func
         def a_plus_1_primfunc(
-            a_buffer: T.Buffer[(outer, inner), dtype], out: T.Buffer[(outer, inner), dtype]
+            a_buffer: T.Buffer((outer, inner), dtype), out: T.Buffer((outer, inner), dtype)
         ):
             for i in T.serial(outer):
                 for j in T.serial(inner):
@@ -44,9 +44,9 @@ def compute(comp_type, outer, inner, dtype):
 
         @T.prim_func
         def a_plus_b_plus_1_primfunc(
-            a_buffer: T.Buffer[(outer, inner), dtype],
-            b_buffer: T.Buffer[(outer, inner), dtype],
-            out: T.Buffer[(outer, inner), dtype],
+            a_buffer: T.Buffer((outer, inner), dtype),
+            b_buffer: T.Buffer((outer, inner), dtype),
+            out: T.Buffer((outer, inner), dtype),
         ):
             for i in T.serial(outer):
                 for j in T.serial(inner):
@@ -181,7 +181,6 @@ class TestAsyncSoftwarePipeline:
             config={
                 "tir.use_async_copy": 1,
                 "tir.experimental_dma_bypass_cache": 1,
-                "tir.merge_async_commit_queue_scope": False,
             }
         ):
             # tvm.lower(schedule.mod["main"]).show()

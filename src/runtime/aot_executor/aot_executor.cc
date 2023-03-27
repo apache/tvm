@@ -156,6 +156,9 @@ PackedFunc AotExecutor::GetFunction(const std::string& name,
       CHECK(String::CanConvertFrom(args[0])) << "Input key is not a string";
       *rv = this->GetInputIndex(tvm::runtime::SanitizeName(args[0].operator String()));
     });
+  } else if (name == "get_input_name") {
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetInputName(args[0]); });
   } else {
     return PackedFunc();
   }
@@ -188,7 +191,12 @@ int AotExecutor::GetInputIndex(const std::string& name) {
       return i;
     }
   }
-  return -1;
+  ICHECK(false) << "Invalid input name.";
+}
+
+std::string AotExecutor::GetInputName(int index) {
+  auto inputs = metadata_->inputs();
+  return inputs[index]->name();
 }
 
 int AotExecutor::GetOutputIndex(const std::string& name) {

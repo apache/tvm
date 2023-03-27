@@ -258,10 +258,6 @@ class BF16LowerRewriter : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     PrimExpr ret = StmtExprMutator::VisitExpr_(op);
     op = ret.as<BufferLoadNode>();
@@ -272,10 +268,6 @@ class BF16LowerRewriter : public StmtExprMutator {
     } else {
       return BufferLoad(new_buf, op->indices);
     }
-  }
-
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
   }
 
   PrimExpr VisitExpr_(const FloatImmNode* op) final {

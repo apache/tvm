@@ -51,7 +51,7 @@ def test_te_workload(workload, flops):
 
 
 @T.prim_func
-def flops_with_let(a: T.Buffer[16, "float32"]):
+def flops_with_let(a: T.Buffer(16, "float32")):
     for i in range(8):
         j = i + 8
         a[j] = a[i]
@@ -63,7 +63,7 @@ def test_flops_with_let():
 
 
 @T.prim_func
-def flops_with_if(a: T.Buffer[16, "float32"], b: T.Buffer[16, "float32"]):
+def flops_with_if(a: T.Buffer(16, "float32"), b: T.Buffer(16, "float32")):
     for i in range(16):
         if i % 2 == 0:
             a[i] = b[i]
@@ -75,6 +75,36 @@ def flops_with_if(a: T.Buffer[16, "float32"], b: T.Buffer[16, "float32"]):
 def test_flops_with_if():
     flops = estimate_tir_flops(IRModule({"main": flops_with_if}))
     assert flops == 16
+
+
+@T.prim_func
+def flops_with_forloop_as_expression(A: T.Buffer(1)):
+    for i in T.serial(0, 16):
+        for k in T.serial(0, i):
+            A[0] = A[0] + 1
+
+
+@T.prim_func
+def flops_override(A: T.Buffer(16, "float32")):
+    T.func_attr({"estimated_flops": 32})
+    for i in range(16):
+        A[0] = A[0] + 1
+
+
+def test_estimate_flops_forloop_as_experssion():
+    flops = estimate_tir_flops(
+        IRModule({"main": flops_with_forloop_as_expression.with_attr("estimated_flops", 32)})
+    )
+    assert flops == 32
+
+    # test whether the user estimated flop would over ride
+    flops = estimate_tir_flops(IRModule({"main": flops_override}))
+    assert flops == 32
+
+
+def test_exception():
+    with pytest.raises(tvm.TVMError):
+        flops = estimate_tir_flops(IRModule({"main": flops_with_forloop_as_expression}))
 
 
 if __name__ == "__main__":

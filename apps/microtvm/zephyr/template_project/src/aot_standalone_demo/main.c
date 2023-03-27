@@ -19,29 +19,23 @@
 
 #include <assert.h>
 #include <float.h>
-#include <kernel.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/reboot.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/stack_allocator.h>
 #include <unistd.h>
-#include <zephyr.h>
+#include <zephyr/drivers/uart.h>
+#include <zephyr/kernel.h>
+#include <zephyr/sys/ring_buffer.h>
 
-#include "input_data.h"
-#include "output_data.h"
+#include "tvm/input_data.h"
+#include "tvm/output_data.h"
 #include "tvmgen_default.h"
-#include "zephyr_uart.h"
 
 #ifdef CONFIG_ARCH_POSIX
 #include "posix_board_if.h"
 #endif
-
-// WORKSPACE_SIZE defined in Project API Makefile
-
-static uint8_t g_aot_memory[WORKSPACE_SIZE];
-tvm_workspace_t app_workspace;
 
 // Transport Commands.
 // Commands on host end with `\n`
@@ -54,9 +48,71 @@ const unsigned char CMD_INFER[] = "infer";
 #define CMD_SIZE 80u
 #define CMD_TERMINATOR '%'
 
-size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const char* fmt,
-                                va_list args) {
-  return vsnprintk(out_buf, out_buf_size_bytes, fmt, args);
+static uint8_t main_rx_buf[128];
+static uint8_t g_cmd_buf[128];
+static size_t g_cmd_buf_ind;
+
+static const struct device* g_microtvm_uart;
+#define RING_BUF_SIZE_BYTES (TVM_CRT_MAX_PACKET_SIZE_BYTES + 100)
+
+// Ring buffer used to store data read from the UART on rx interrupt.
+RING_BUF_DECLARE(uart_rx_rbuf, RING_BUF_SIZE_BYTES);
+
+uint32_t UartTxWrite(const char* data, uint32_t size) {
+  for (uint32_t i = 0; i < size; i++) {
+    uart_poll_out(g_microtvm_uart, data[i]);
+  }
+  return size;
+}
+
+uint32_t UartRxRead(uint8_t* data, uint32_t data_size_bytes) {
+  unsigned int key = irq_lock();
+  uint32_t bytes_read = ring_buf_get(&uart_rx_rbuf, data, data_size_bytes);
+  irq_unlock(key);
+  return bytes_read;
+}
+
+// Initialize UART
+void UartInit() {
+  // Claim console device.
+  g_microtvm_uart = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
+  const struct uart_config config = {.baudrate = 115200,
+                                     .parity = UART_CFG_PARITY_NONE,
+                                     .stop_bits = UART_CFG_STOP_BITS_1,
+                                     .data_bits = UART_CFG_DATA_BITS_8,
+                                     .flow_ctrl = UART_CFG_FLOW_CTRL_NONE};
+  uart_configure(g_microtvm_uart, &config);
+  uart_rx_init(&uart_rx_rbuf, g_microtvm_uart);
+}
+
+static uint8_t uart_data[8];
+// UART interrupt callback.
+void uart_irq_cb(const struct device* dev, void* user_data) {
+  while (uart_irq_update(dev) && uart_irq_is_pending(dev)) {
+    struct ring_buf* rbuf = (struct ring_buf*)user_data;
+    if (uart_irq_rx_ready(dev) != 0) {
+      for (;;) {
+        // Read a small chunk of data from the UART.
+        int bytes_read = uart_fifo_read(dev, uart_data, sizeof(uart_data));
+        if (bytes_read < 0) {
+          TVMPlatformAbort((tvm_crt_error_t)(0xbeef1));
+        } else if (bytes_read == 0) {
+          break;
+        }
+        // Write it into the ring buffer.
+        int bytes_written = ring_buf_put(rbuf, uart_data, bytes_read);
+        if (bytes_read != bytes_written) {
+          TVMPlatformAbort((tvm_crt_error_t)(0xbeef2));
+        }
+      }
+    }
+  }
+}
+
+// Used to initialize the UART receiver.
+void uart_rx_init(struct ring_buf* rbuf, const struct device* dev) {
+  uart_irq_callback_user_data_set(dev, uart_irq_cb, (void*)rbuf);
+  uart_irq_rx_enable(dev);
 }
 
 void TVMLogf(const char* msg, ...) {
@@ -66,122 +122,16 @@ void TVMLogf(const char* msg, ...) {
   va_start(args, msg);
   size = vsprintf(buffer, msg, args);
   va_end(args);
-  TVMPlatformWriteSerial(buffer, (uint32_t)size);
+  UartTxWrite(buffer, (uint32_t)size);
 }
 
-void TVMPlatformAbort(tvm_crt_error_t error) {
-  TVMLogf("TVMPlatformAbort: %08x\n", error);
-  sys_reboot(SYS_REBOOT_COLD);
-  for (;;)
-    ;
-}
-
-tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
-  return StackMemoryManager_Allocate(&app_workspace, num_bytes, out_ptr);
-}
-
-tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
-  return StackMemoryManager_Free(&app_workspace, ptr);
-}
-
-void timer_expiry_function(struct k_timer* timer_id) { return; }
-
-#define MILLIS_TIL_EXPIRY 200
-#define TIME_TIL_EXPIRY (K_MSEC(MILLIS_TIL_EXPIRY))
-struct k_timer g_microtvm_timer;
-uint32_t g_microtvm_start_time;
-int g_microtvm_timer_running = 0;
-
-// Called to start system timer.
-tvm_crt_error_t TVMPlatformTimerStart() {
-  if (g_microtvm_timer_running) {
-    TVMLogf("timer already running");
-    return kTvmErrorPlatformTimerBadState;
-  }
-
-  k_timer_start(&g_microtvm_timer, TIME_TIL_EXPIRY, TIME_TIL_EXPIRY);
-  g_microtvm_start_time = k_cycle_get_32();
-  g_microtvm_timer_running = 1;
-  return kTvmErrorNoError;
-}
-
-// Called to stop system timer.
-tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
-  if (!g_microtvm_timer_running) {
-    TVMLogf("timer not running");
-    return kTvmErrorSystemErrorMask | 2;
-  }
-
-  uint32_t stop_time = k_cycle_get_32();
-
-  // compute how long the work took
-  uint32_t cycles_spent = stop_time - g_microtvm_start_time;
-  if (stop_time < g_microtvm_start_time) {
-    // we rolled over *at least* once, so correct the rollover it was *only*
-    // once, because we might still use this result
-    cycles_spent = ~((uint32_t)0) - (g_microtvm_start_time - stop_time);
-  }
-
-  uint32_t ns_spent = (uint32_t)k_cyc_to_ns_floor64(cycles_spent);
-  double hw_clock_res_us = ns_spent / 1000.0;
-
-  // need to grab time remaining *before* stopping. when stopped, this function
-  // always returns 0.
-  int32_t time_remaining_ms = k_timer_remaining_get(&g_microtvm_timer);
-  k_timer_stop(&g_microtvm_timer);
-  // check *after* stopping to prevent extra expiries on the happy path
-  if (time_remaining_ms < 0) {
-    return kTvmErrorSystemErrorMask | 3;
-  }
-  uint32_t num_expiries = k_timer_status_get(&g_microtvm_timer);
-  uint32_t timer_res_ms = ((num_expiries * MILLIS_TIL_EXPIRY) + time_remaining_ms);
-  double approx_num_cycles =
-      (double)k_ticks_to_cyc_floor32(1) * (double)k_ms_to_ticks_ceil32(timer_res_ms);
-  // if we approach the limits of the HW clock datatype (uint32_t), use the
-  // coarse-grained timer result instead
-  if (approx_num_cycles > (0.5 * (~((uint32_t)0)))) {
-    *elapsed_time_seconds = timer_res_ms / 1000.0;
-  } else {
-    *elapsed_time_seconds = hw_clock_res_us / 1e6;
-  }
-
-  g_microtvm_timer_running = 0;
-  return kTvmErrorNoError;
-}
-
-void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t nbytes, int dtype_code_hint,
-                               int dtype_bits_hint) {
-  tvm_crt_error_t err = kTvmErrorNoError;
-  void* ptr = 0;
-  DLDevice dev = {device_type, device_id};
-  assert(nbytes > 0);
-  err = TVMPlatformMemoryAllocate(nbytes, dev, &ptr);
-  CHECK_EQ(err, kTvmErrorNoError,
-           "TVMBackendAllocWorkspace(%d, %d, %" PRIu64 ", %d, %d) -> %" PRId32, device_type,
-           device_id, nbytes, dtype_code_hint, dtype_bits_hint, err);
-  return ptr;
-}
-
-int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
-  tvm_crt_error_t err = kTvmErrorNoError;
-  DLDevice dev = {device_type, device_id};
-  err = TVMPlatformMemoryFree(ptr, dev);
-  return err;
-}
-
-static uint8_t main_rx_buf[128];
-static uint8_t g_cmd_buf[128];
-static size_t g_cmd_buf_ind;
-
-void TVMInfer() {
+void Infer() {
   struct tvmgen_default_inputs inputs = {
       .input_1 = input_data,
   };
   struct tvmgen_default_outputs outputs = {
       .Identity = output_data,
   };
-
-  StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE);
 
   double elapsed_time = 0;
   TVMPlatformTimerStart();
@@ -207,11 +157,11 @@ void TVMInfer() {
 // Execute functions based on received command
 void command_ready(char* command) {
   if (strncmp(command, CMD_INIT, CMD_SIZE) == 0) {
-    TVMPlatformWriteSerial(CMD_WAKEUP, sizeof(CMD_WAKEUP));
+    UartTxWrite(CMD_WAKEUP, sizeof(CMD_WAKEUP));
   } else if (strncmp(command, CMD_INFER, CMD_SIZE) == 0) {
-    TVMInfer();
+    Infer();
   } else {
-    TVMPlatformWriteSerial(CMD_READY, sizeof(CMD_READY));
+    UartTxWrite(CMD_READY, sizeof(CMD_READY));
   }
 }
 
@@ -230,13 +180,13 @@ void serial_callback(char* message, int len_bytes) {
 }
 
 void main(void) {
+  TVMPlatformInitialize();
+  UartInit();
   g_cmd_buf_ind = 0;
   memset((char*)g_cmd_buf, 0, sizeof(g_cmd_buf));
-  TVMPlatformUARTInit();
-  k_timer_init(&g_microtvm_timer, NULL, NULL);
 
   while (true) {
-    int bytes_read = TVMPlatformUartRxRead(main_rx_buf, sizeof(main_rx_buf));
+    int bytes_read = UartRxRead(main_rx_buf, sizeof(main_rx_buf));
     if (bytes_read > 0) {
       serial_callback(main_rx_buf, bytes_read);
     }

@@ -14,189 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, too-many-arguments, too-many-nested-blocks
-"""Scatter operator"""
-from ..te import extern, hybrid
-from ..tir import decl_buffer, expr, ir_builder
-
-
-@hybrid.script
-def _scatter_1d(data, indices, updates):
-    out = output_tensor(data.shape, data.dtype)
-    for i in range(data.shape[0]):
-        out[i] = data[i]
-    for i in range(indices.shape[0]):
-        out[indices[i] if indices[i] >= 0 else indices[i] + data.shape[0]] = updates[i]
-    return out
-
-
-@hybrid.script
-def _scatter_2d(data, indices, updates, axis):
-    out = output_tensor(data.shape, data.dtype)
-    for i in range(data.shape[0]):
-        for j in range(data.shape[1]):
-            out[i, j] = data[i, j]
-    if axis == 0:
-        for i in range(indices.shape[0]):
-            for j in range(indices.shape[1]):
-                out[
-                    indices[i, j] if indices[i, j] >= 0 else indices[i, j] + data.shape[axis], j
-                ] = updates[i, j]
-    else:
-        for i in range(indices.shape[0]):
-            for j in range(indices.shape[1]):
-                out[
-                    i, indices[i, j] if indices[i, j] >= 0 else indices[i, j] + data.shape[axis]
-                ] = updates[i, j]
-
-    return out
-
-
-@hybrid.script
-def _scatter_3d(data, indices, updates, axis):
-    out = output_tensor(data.shape, data.dtype)
-    for i in range(data.shape[0]):
-        for j in range(data.shape[1]):
-            for k in range(data.shape[2]):
-                out[i, j, k] = data[i, j, k]
-    if axis == 0:
-        for i in range(indices.shape[0]):
-            for j in range(indices.shape[1]):
-                for k in range(indices.shape[2]):
-                    out[
-                        indices[i, j, k]
-                        if indices[i, j, k] >= 0
-                        else indices[i, j, k] + data.shape[axis],
-                        j,
-                        k,
-                    ] = updates[i, j, k]
-    elif axis == 1:
-        for i in range(indices.shape[0]):
-            for j in range(indices.shape[1]):
-                for k in range(indices.shape[2]):
-                    out[
-                        i,
-                        indices[i, j, k]
-                        if indices[i, j, k] >= 0
-                        else indices[i, j, k] + data.shape[axis],
-                        k,
-                    ] = updates[i, j, k]
-    else:
-        for i in range(indices.shape[0]):
-            for j in range(indices.shape[1]):
-                for k in range(indices.shape[2]):
-                    out[
-                        i,
-                        j,
-                        indices[i, j, k]
-                        if indices[i, j, k] >= 0
-                        else indices[i, j, k] + data.shape[axis],
-                    ] = updates[i, j, k]
-
-    return out
-
-
-@hybrid.script
-def _scatter_4d(data, indices, updates, axis):
-    out = output_tensor(data.shape, data.dtype)
-    for i in range(data.shape[0]):
-        for j in range(data.shape[1]):
-            for k in range(data.shape[2]):
-                for l in range(data.shape[3]):
-                    out[i, j, k, l] = data[i, j, k, l]
-
-    if axis == 0:
-        for i in range(indices.shape[0]):
-            for j in range(indices.shape[1]):
-                for k in range(indices.shape[2]):
-                    for l in range(indices.shape[3]):
-                        out[
-                            indices[i, j, k, l]
-                            if indices[i, j, k, l] >= 0
-                            else indices[i, j, k, l] + data.shape[axis],
-                            j,
-                            k,
-                            l,
-                        ] = updates[i, j, k, l]
-    elif axis == 1:
-        for i in range(indices.shape[0]):
-            for j in range(indices.shape[1]):
-                for k in range(indices.shape[2]):
-                    for l in range(indices.shape[3]):
-                        out[
-                            i,
-                            indices[i, j, k, l]
-                            if indices[i, j, k, l] >= 0
-                            else indices[i, j, k, l] + data.shape[axis],
-                            k,
-                            l,
-                        ] = updates[i, j, k, l]
-    elif axis == 2:
-        for i in range(indices.shape[0]):
-            for j in range(indices.shape[1]):
-                for k in range(indices.shape[2]):
-                    for l in range(indices.shape[3]):
-                        out[
-                            i,
-                            j,
-                            indices[i, j, k, l]
-                            if indices[i, j, k, l] >= 0
-                            else indices[i, j, k, l] + data.shape[axis],
-                            l,
-                        ] = updates[i, j, k, l]
-    else:
-        for i in range(indices.shape[0]):
-            for j in range(indices.shape[1]):
-                for k in range(indices.shape[2]):
-                    for l in range(indices.shape[3]):
-                        out[
-                            i,
-                            j,
-                            k,
-                            indices[i, j, k, l]
-                            if indices[i, j, k, l] >= 0
-                            else indices[i, j, k, l] + data.shape[axis],
-                        ] = updates[i, j, k, l]
-
-    return out
-
-
-def scatter(data, indices, updates, axis=0):
-    """Update data at positions defined by indices with values in updates
-
-    Parameters
-    ----------
-    data : relay.Expr
-        The input data to the operator.
-
-    indices : relay.Expr
-        The index locations to update.
-
-    updates : relay.Expr
-        The values to update.
-
-    axis : int
-        The axis to scatter on
-
-    Returns
-    -------
-    ret : relay.Expr
-        The computed result.
-    """
-    if axis < 0:
-        axis += len(data.shape)
-    assert axis >= 0
-    assert axis < len(data.shape)
-
-    if len(data.shape) == 1:
-        return _scatter_1d(data, indices, updates)
-    if len(data.shape) == 2:
-        return _scatter_2d(data, indices, updates, axis)
-    if len(data.shape) == 3:
-        return _scatter_3d(data, indices, updates, axis)
-    if len(data.shape) == 4:
-        return _scatter_4d(data, indices, updates, axis)
-    raise ValueError("scatter only support for 1-4 dimensions")
+# pylint: disable=invalid-name
+"""ScatterND operator"""
+from tvm import te, tir  # hide redefinition of min and max
+from tvm.tir import expr
 
 
 def _verify_scatter_nd_inputs(data, indices, updates):
@@ -269,7 +90,7 @@ def scatter_nd(data, indices, updates, mode):
 
     def gen_ir(data_ptr, indices_ptr, updates_ptr, out_ptr):
         # pylint: disable=invalid-name
-        ib = ir_builder.create()
+        ib = tir.ir_builder.create()
 
         data = ib.buffer_ptr(data_ptr)
         indices = ib.buffer_ptr(indices_ptr)
@@ -308,13 +129,21 @@ def scatter_nd(data, indices, updates, mode):
                     out[index] = updates[i * fused_updates_dimension + j]
                 elif mode == "add":
                     out[index] += updates[i * fused_updates_dimension + j]
+                elif mode == "mul":
+                    out[index] *= updates[i * fused_updates_dimension + j]
+                elif mode == "min":
+                    out[index] = tir.min(out[index], updates[i * fused_updates_dimension + j])
+                elif mode == "max":
+                    out[index] = tir.max(out[index], updates[i * fused_updates_dimension + j])
                 else:
-                    raise NotImplementedError("scatter_nd mode not in [update, add]:", mode)
+                    raise NotImplementedError(
+                        "scatter_nd mode not in [update, add, mul, min, max]:", mode
+                    )
 
         return ib.get()
 
-    out_buf = decl_buffer(data.shape, data.dtype, "out_buf")
-    return extern(
+    out_buf = tir.decl_buffer(data.shape, data.dtype, "out_buf")
+    return te.extern(
         [data.shape],
         [data, indices, updates],
         lambda ins, outs: gen_ir(ins[0], ins[1], ins[2], outs[0]),

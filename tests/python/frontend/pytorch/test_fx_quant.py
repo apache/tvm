@@ -23,6 +23,7 @@ from torch.quantization.quantize_fx import prepare_fx, convert_fx
 from torchvision.models.efficientnet import efficientnet_b4
 from torchvision.models.resnet import resnet50
 from tvm import relay
+import tvm.testing
 
 
 def quantize(model):
@@ -38,7 +39,11 @@ def quantize_and_build(model, in_size):
 
     with torch.no_grad():
         script_module = torch.jit.trace(qmodel, inp)
-        mod, _ = relay.frontend.from_pytorch(script_module, [(input_name, inp.shape)])
+        with tvm.testing.disable_span_filling():
+            mod, _ = relay.frontend.from_pytorch(script_module, [(input_name, inp.shape)])
+        with tvm.testing.enable_span_filling():
+            mod_with_span, _ = relay.frontend.from_pytorch(script_module, [(input_name, inp.shape)])
+        assert tvm.ir.structural_equal(mod, mod_with_span, map_free_vars=True)
         mod = relay.transform.InferType()(mod)
 
         # Make sure that the model is quantized
