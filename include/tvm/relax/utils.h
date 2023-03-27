@@ -103,6 +103,17 @@ TVM_DLL bool IsImpureCall(const Call& call);
 TVM_DLL Call WrapCallPure(const Call& call);
 
 /*!
+ * \brief Turn a call to call_pure into a call to the inner op.
+ * Call(call_pure, [op, arg1, arg2, ..., argn], attrs, sinfo_args)
+ * will become Call(op, [arg1, arg2, ..., argn], attrs, sinfo_args).
+ *
+ * \param call The input call.
+ *
+ * \return A call to the inner call_pure op.
+ */
+TVM_DLL Call UnwrapCallPure(const Call& call);
+
+/*!
  * \brief Copy the given function. All variables that are bound inside the original function
  *  would be copied to satisfy the restriction in the well-formed check: Variables in
  *  Relax must be bound exactly once. This also ensures that both the function and its copy

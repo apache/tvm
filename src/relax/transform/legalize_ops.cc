@@ -105,8 +105,7 @@ class LegalizeMutator : public ExprMutator {
     auto op = GetRef<Op>(op_node);
     // for call_pure, legalize the inner call
     if (op == call_pure_op) {
-      auto inner_call = Call(call->args[0], Array<Expr>(call->args.begin() + 1, call->args.end()),
-                             call->attrs, call->sinfo_args);
+      auto inner_call = UnwrapCallPure(GetRef<Call>(call));
       auto res = VisitExpr_(inner_call.as<CallNode>());
       if (res.as<CallNode>()) {
         return WrapCallPure(Downcast<Call>(res));

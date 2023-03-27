@@ -55,8 +55,7 @@ class CallTIRMutator : public ExprMutator {
     static const Op& call_tir_dyn_op = Op::Get("relax.vm.call_tir_dyn");
 
     if (call->op == call_pure_op) {
-      auto inner_call = Call(call->args[0], Array<Expr>(call->args.begin() + 1, call->args.end()),
-                             call->attrs, call->sinfo_args);
+      auto inner_call = UnwrapCallPure(GetRef<Call>(call));
       auto ret = VisitExpr_(inner_call.as<CallNode>());
       if (ret.as<CallNode>()) {
         return WrapCallPure(Downcast<Call>(ret));

@@ -116,7 +116,7 @@ bool IsLeafOrTuple(const Expr& expr) {
 bool IsImpureCall(const Call& call) {
   if (auto op_ptr = call->op.as<OpNode>()) {
     auto op = GetRef<Op>(op_ptr);
-    auto purity_map = Op::GetAttrMap<Bool>("FPurity");
+    static auto purity_map = Op::GetAttrMap<Bool>("FPurity");
     ICHECK(purity_map.count(op)) << "Cannot find the registered purity of this op: " << op->name;
     return !(purity_map[op]->value);
   }
@@ -126,11 +126,20 @@ bool IsImpureCall(const Call& call) {
 }
 
 Call WrapCallPure(const Call& call) {
+  static const Op& call_pure_op = Op::Get("relax.call_pure");
   Array<Expr> call_pure_args = {call->op};
   for (auto arg : call->args) {
     call_pure_args.push_back(arg);
   }
-  return Call(Op::Get("relax.call_pure"), call_pure_args, call->attrs, call->sinfo_args);
+  return Call(call_pure_op, call_pure_args, call->attrs, call->sinfo_args);
+}
+
+Call UnwrapCallPure(const Call& call) {
+  static const Op& call_pure_op = Op::Get("relax.call_pure");
+  ICHECK(call->op == call_pure_op) << "UnwrapCallPure must be used with calls to call_pure";
+  ICHECK(call->args.size() >= 1) << "call_pure must be called with at least one arg";
+  return Call(call->args[0], Array<Expr>(call->args.begin() + 1, call->args.end()), call->attrs,
+              call->sinfo_args);
 }
 
 /*! \brief Helper to implement CopyWithNewVars.*/

@@ -93,8 +93,7 @@ class VMBuiltinLowerMutator : public ExprMutator {
       if (op == call_tir_dyn_op_ || op == reshape_op_ || op == shape_of_op_ ||
           op == make_closure_op_ || op == alloc_tensor_op_ || op == mem_alloc_storage_op_ ||
           op == mem_alloc_tensor_op_) {
-        auto inner_call = Call(callee, Array<Expr>(call->args.begin() + 1, call->args.end()),
-                               call->attrs, call->sinfo_args);
+        auto inner_call = UnwrapCallPure(call);
         return WrapCallPure(Downcast<Call>(VisitExpr_(inner_call.as<CallNode>())));
       }
     }

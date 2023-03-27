@@ -369,11 +369,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   
   void EmitCallPure(const Call& call_node, RegName dst_reg) {
     // treat it as a call of the inner args
-    auto callee = call_node->args[0];
-    auto inner_args = Array<Expr>(call_node->args.begin() + 1, call_node->args.end());
-    auto inner_call = Call(callee, inner_args, call_node->attrs, call_node->sinfo_args);
-    LOG(INFO) << inner_call;
-    if (callee.as<OpNode>()) {
+    auto inner_call = UnwrapCallPure(call_node);
+    if (inner_call->op.as<OpNode>()) {
       ProcessOperator(inner_call, dst_reg);
     } else {
       EmitNormalCall(inner_call, dst_reg);

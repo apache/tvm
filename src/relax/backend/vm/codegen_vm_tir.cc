@@ -222,6 +222,10 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
       return tir::Call(DataType::Handle(), tir::builtin::reinterpret(),
                        {IntImm(DataType::Int(64), 0)});
     }
+    if (call_node->op == call_pure_op_) {
+      auto inner_call = UnwrapCallPure(GetRef<Call>(call_node));
+      return VisitExpr_(inner_call.as<CallNode>());
+    }
     int64_t dst_reg = HasVoidStructInfo(call) ? -1 : NewRegister();
     if (call->op.as<OpNode>()) {
       if (call_node->op == call_builtin_with_ctx_op_) {
@@ -507,6 +511,7 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
   /*! \brief the context module. */
   IRModule ctx_mod_;
   /*! \brief Cache ops that need to be frequently used later to reduce lookup overhead. */
+  const Op& call_pure_op_ = Op::Get("relax.call_pure");
   const Op& alloc_storage_op_ = Op::Get("relax.vm.alloc_storage");
   const Op& alloc_tensor_op_ = Op::Get("relax.vm.alloc_tensor");
   const Op& kill_object_op_ = Op::Get("relax.vm.kill_object");
