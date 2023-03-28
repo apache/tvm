@@ -64,7 +64,7 @@ def test_layout_transform_to_block_nhwc4c(remote, target, dtype):
     build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
 
 
-@pytest.mark.skip(reason="Skip because GPU in CI doesn't support FP16")
+@pytest.mark.skipif(tvm.testing.utils.IS_IN_CI, reason="Skip because GPU in CI doesn't support FP16")
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
 def test_layout_transform_to_block_nhwc(remote, target, dtype):
