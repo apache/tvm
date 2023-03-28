@@ -87,7 +87,7 @@ tvmc micro --help
 # For this tutorial we will be using the model in tflite format.
 #
 # bash
-wget https://github.com/tensorflow/tflite-micro/raw/1b68490dcfd087c308a1f8d14012ab1cb39c9ac0/tensorflow/lite/micro/examples/magic_wand/magic_wand.tflite
+wget https://github.com/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/examples/micro_speech/micro_speech.tflite
 # bash
 
 ############################################################
