@@ -28,7 +28,8 @@ from ..transform import layout_transform
 from ..utils import get_const_tuple, get_max_power2_factor, traverse_inline
 from .dense import dense_amx_int8_schedule, dense_int8_schedule
 from .injective import schedule_injective_from_existing
-from .utils import target_has_avx512, target_has_amx
+
+# from .utils import target_has_avx512, target_has_amx
 
 
 @autotvm.register_topi_compute("batch_matmul_int8.x86")
