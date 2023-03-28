@@ -23,15 +23,14 @@
  */
 #include "./aot_lower_main.h"
 
-#include <tvm/runtime/name_transforms.h>
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/transform.h>
-#include <tvm/relay/op_attr_types.h>
-
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
+#include <tvm/relay/op_attr_types.h>
+#include <tvm/runtime/name_transforms.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/op.h>
+#include <tvm/tir/transform.h>
 
 #include "../../../relay/backend/name_transforms.h"
 #include "../../../runtime/meta_data.h"
@@ -46,13 +45,13 @@ namespace aot {
  * \note Not all Relax expressions have a 1:1 correspondance with a TIR PrimExpr/Stmt. Because of
  * this, the translation approach taken lowers the Relax function on a per-Binding basis, with
  * special rules to handle each possible binding type.
- * 
+ *
  * A primary concept in the translation is the relax::Expr -> tir::Vars map. This associates all
  * the encountered relax::Vars and relax::Constants with a sequence of tir::Vars they translate to.
  * It is a one-to-many map to allow for the representation of tuple-types, which aren't explicitly
  * supported in TIR. So, if a relax::Var is bound to a relax::Tuple then it will translate to
  * a vector of tir::Vars with one tir::Var per tuple field.
- * 
+ *
  * Where a relax::Binding can be entirely represented by updating the Expr->Vars map, no explicit
  * binding (in the form of a tir::LetStmt) is emitted. This both avoids emitting unnecessary code
  * as well as allowing for tuple-types to propagate throughout the program without being explicitly
@@ -63,8 +62,7 @@ namespace aot {
 class AOTMainLowerer : public ExprVisitor {
  public:
   using ExprVisitor::VisitExpr_;
-  AOTMainLowerer(tvm::CompilationConfig config)
-      : config_(config) {}
+  AOTMainLowerer(tvm::CompilationConfig config) : config_(config) {}
 
   IRModule Lower(IRModule mod, String mod_name) {
     IRModule lowered_mod = GetRef<IRModule>(mod.CopyOnWrite());
@@ -125,7 +123,8 @@ class AOTMainLowerer : public ExprVisitor {
   /*! \brief The number of tensors in the program (used to name the tensor vars). */
   int tensor_count_;
 
-  tir::PrimFunc CreateMainFunc(String mod_name, Array<tir::Var> params, tir::Stmt body, const tvm::DictAttrs& attrs) {
+  tir::PrimFunc CreateMainFunc(String mod_name, Array<tir::Var> params, tir::Stmt body,
+                               const tvm::DictAttrs& attrs) {
     // Allocates
     for (const auto& buffer : allocs_) {
       body = tir::Allocate(buffer->data, buffer->dtype, buffer->shape, tir::const_true(), body);
@@ -133,10 +132,11 @@ class AOTMainLowerer : public ExprVisitor {
     // AllocateConsts
     for (const auto& it : alloc_constants_) {
       relay::Shape shape;
-      for (int i=0;i<it.second->data->ndim;i++) {
+      for (int i = 0; i < it.second->data->ndim; i++) {
         shape.push_back(Integer(it.second->data->shape[i]));
       }
-      body = tir::AllocateConst(it.first, DataType(it.second->data->dtype), shape, it.second->data, body);
+      body = tir::AllocateConst(it.first, DataType(it.second->data->dtype), shape, it.second->data,
+                                body);
     }
 
     // Define the PrimFunc attributes
@@ -161,14 +161,17 @@ class AOTMainLowerer : public ExprVisitor {
     auto tensor_shape = shape.as<ShapeExprNode>()->values;
     tir::Var buffer_var =
         tir::Var(name + "_buffer_var", PointerType(PrimType(elem_type), "global"));
-    tir::Buffer buffer = tir::Buffer(buffer_var, elem_type, tensor_shape, {}, IntImm(DataType::Int(64), 0),
-                                      name + "_buffer", 16, 1, tir::BufferType::kDefault);
+    tir::Buffer buffer =
+        tir::Buffer(buffer_var, elem_type, tensor_shape, {}, IntImm(DataType::Int(64), 0),
+                    name + "_buffer", 16, 1, tir::BufferType::kDefault);
     main_buffer_map_.Set(tvar, buffer);
     SetVar(var, buffer_var);
     return tvar;
   }
 
-  tir::PrimFunc UpdateParamTypeAttr_(const tir::PrimFunc& func, const Map<relax::Var, tir::Var>& param_map, const std::string& param_type) {
+  tir::PrimFunc UpdateParamTypeAttr_(const tir::PrimFunc& func,
+                                     const Map<relax::Var, tir::Var>& param_map,
+                                     const std::string& param_type) {
     auto param_type_attr = func->GetAttr<Array<relax::Var>>(param_type);
     ICHECK(param_type_attr.defined()) << "Main function is missing the " << param_type << " attr.";
     auto relax_vars = param_type_attr.value();
@@ -181,7 +184,7 @@ class AOTMainLowerer : public ExprVisitor {
 
   void VisitExpr_(const SeqExprNode* expr) override {
     tir::Stmt body{};
-    for(auto block_it = expr->blocks.rbegin(); block_it != expr->blocks.rend(); ++block_it) {
+    for (auto block_it = expr->blocks.rbegin(); block_it != expr->blocks.rend(); ++block_it) {
       auto block = *block_it;
       this->VisitBindingBlock(block);
       for (auto bind_it = block->bindings.rbegin(); bind_it != block->bindings.rend(); ++bind_it) {
@@ -244,11 +247,11 @@ class AOTMainLowerer : public ExprVisitor {
 
   /*!
    * \brief Make a BindingStmt from a relax::Var = relax::Constant binding.
-   * \note An empty BindingStmt is emitted and instead the binding is 
+   * \note An empty BindingStmt is emitted and instead the binding is
    * represented using SetVars to associate the relax::Var with the tir::Var
    * that the relax::Constant translates to (see the relax::ConstantNode* VisitExpr_
    * implementation for more detail).
-   * 
+   *
    * It would be possible to emit a tir::LetStmt to represent the binding explicitly,
    * but as relax::Constants are already translated to a function-scoped binding via
    * tir::AllocConstant, this would be unnecessary.
@@ -260,10 +263,10 @@ class AOTMainLowerer : public ExprVisitor {
 
   /*!
    * \brief Make a BindingStmt from a relax::Var = relax::Tuple binding.
-   * \note An empty BindingStmt is emitted and instead the binding is 
+   * \note An empty BindingStmt is emitted and instead the binding is
    * represented using SetVars to associate the relax::Var with the tir::Vars
    * that the relax::Tuple translates to.
-   * 
+   *
    * TIR has no way to represent tuples explicitly, so these bindings can't be
    * translated directly. Where the relax::Tuples are ultimately used as arguments,
    * they are flattened into the tir::Vars they translate to.
@@ -299,7 +302,8 @@ class AOTMainLowerer : public ExprVisitor {
       } else {
         alloc_size = static_cast<int64_t*>(value->args[0].as<ConstantNode>()->data->data)[0];
       }
-      auto buffer = tir::Buffer(buffer_var, dtype, {alloc_size}, {1}, 0, buffer_var->name_hint, 16, 1, tir::BufferType::kDefault);
+      auto buffer = tir::Buffer(buffer_var, dtype, {alloc_size}, {1}, 0, buffer_var->name_hint, 16,
+                                1, tir::BufferType::kDefault);
       allocs_.push_back(buffer);
       alloc_buffers_.Set(buffer_var, buffer);
       return BindingStmt{{}, {}};
@@ -320,17 +324,17 @@ class AOTMainLowerer : public ExprVisitor {
       auto address_of_load = tir::Call(DataType::Handle(), tir::builtin::address_of(), {load_node});
       return BindingStmt{{}, {tensor_var, address_of_load, tir::Evaluate(0)}};
     }
-    
+
     // TIR functions
     if (const auto* gv = value->op.as<GlobalVarNode>()) {
       return CreateFuncCall_(gv->name_hint, value->args);
     }
-    
+
     // External functions
-    if (const auto * ef = value->op.as<ExternFuncNode>()) {
+    if (const auto* ef = value->op.as<ExternFuncNode>()) {
       return CreateFuncCall_(ef->global_symbol, value->args);
     }
-    
+
     LOG(FATAL) << "Unsupported op";
     return BindingStmt{{}, {}};
   }
@@ -390,7 +394,7 @@ class AOTMainLowerer : public ExprVisitor {
    * \brief Get the tir::Var associated with a Relax expression.
    * \param expr The Relax expression to translate.
    * \return The tir::Var the Relax expression translates to.
-   * \note Will raise an error if the expression translates to multiple tir::Vars. 
+   * \note Will raise an error if the expression translates to multiple tir::Vars.
    */
   const tir::Var GetVar(const relax::ExprNode* expr) const {
     auto vars = GetVars(expr);
@@ -399,9 +403,7 @@ class AOTMainLowerer : public ExprVisitor {
   }
 
   /*! \brief Utility overload of GetVar. */
-  const tir::Var GetVar(const relax::Expr& expr) const {
-    return GetVar(expr.get());
-  }
+  const tir::Var GetVar(const relax::Expr& expr) const { return GetVar(expr.get()); }
 
   /*!
    * \brief Set the tir::Vars that a Relax expression translates to.
@@ -419,15 +421,10 @@ class AOTMainLowerer : public ExprVisitor {
    * \param expr The Relax expression to translate.
    * \param var The tir::Var the expression translates to.
    */
-  void SetVar(const relax::Expr& expr, const tir::Var& var) {
-    SetVar(expr.get(), var);
-  }
+  void SetVar(const relax::Expr& expr, const tir::Var& var) { SetVar(expr.get(), var); }
 
   /*! \brief Utility overload of SetVar. */
-  void SetVar(const relax::ExprNode* expr, const tir::Var& var) {
-    expr_var_map_[expr] = {var};
-  }
-
+  void SetVar(const relax::ExprNode* expr, const tir::Var& var) { expr_var_map_[expr] = {var}; }
 };
 
 transform::Pass AOTLowerMain(String mod_name, tvm::CompilationConfig config) {

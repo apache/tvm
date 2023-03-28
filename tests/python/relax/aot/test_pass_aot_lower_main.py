@@ -94,11 +94,15 @@ def test_two_calls():
         @R.function
         def main(a: R.Tensor((5, 7), "float32"), output: R.Tensor((5, 7), "float32")):
             R.func_attr({"input_vars": [a], "output_vars": [output]})
-            alloc_0 = R.memory.alloc_storage(R.shape([140]), virtual_device_index=0, storage_scope="global", dtype="uint8")
+            alloc_0 = R.memory.alloc_storage(
+                R.shape([140]), virtual_device_index=0, storage_scope="global", dtype="uint8"
+            )
             tid_0 = R.memory.alloc_tensor(alloc_0, offset=0, shape=R.shape([5, 7]), dtype="float32")
             _ = R.call_packed("identity", a, tid_0, sinfo_args=(R.Tensor(ndim=2, dtype="float32")))
             tid_1 = output
-            _ = R.call_packed("identity", tid_0, tid_1, sinfo_args=(R.Tensor(ndim=2, dtype="float32")))
+            _ = R.call_packed(
+                "identity", tid_0, tid_1, sinfo_args=(R.Tensor(ndim=2, dtype="float32"))
+            )
             return ()
 
     # fmt: off
@@ -234,15 +238,25 @@ def test_branch():
         @R.function
         def main(a: R.Tensor((5, 7), "float32"), output: R.Tensor((5, 7), "float32")):
             R.func_attr({"input_vars": [a], "output_vars": [output]})
-            alloc_0 = R.memory.alloc_storage(R.shape([140]), virtual_device_index=0, storage_scope="global", dtype="uint8")
+            alloc_0 = R.memory.alloc_storage(
+                R.shape([140]), virtual_device_index=0, storage_scope="global", dtype="uint8"
+            )
             tid_0 = R.memory.alloc_tensor(alloc_0, offset=0, shape=R.shape([5, 7]), dtype="float32")
             _ = R.call_packed("identity", a, tid_0, sinfo_args=(R.Tensor(ndim=2, dtype="float32")))
-            alloc_1 = R.memory.alloc_storage(R.shape([140]), virtual_device_index=0, storage_scope="global", dtype="uint8")
+            alloc_1 = R.memory.alloc_storage(
+                R.shape([140]), virtual_device_index=0, storage_scope="global", dtype="uint8"
+            )
             tid_1 = R.memory.alloc_tensor(alloc_1, offset=0, shape=R.shape([5, 7]), dtype="float32")
-            _ = R.call_packed("identity", tid_0, tid_1, sinfo_args=(R.Tensor(ndim=2, dtype="float32")))
-            alloc_2 = R.memory.alloc_storage(R.shape([140]), virtual_device_index=0, storage_scope="global", dtype="uint8")
+            _ = R.call_packed(
+                "identity", tid_0, tid_1, sinfo_args=(R.Tensor(ndim=2, dtype="float32"))
+            )
+            alloc_2 = R.memory.alloc_storage(
+                R.shape([140]), virtual_device_index=0, storage_scope="global", dtype="uint8"
+            )
             tid_2 = R.memory.alloc_tensor(alloc_2, offset=0, shape=R.shape([5, 7]), dtype="float32")
-            _ = R.call_packed("identity", tid_0, tid_2, sinfo_args=(R.Tensor(ndim=2, dtype="float32")))
+            _ = R.call_packed(
+                "identity", tid_0, tid_2, sinfo_args=(R.Tensor(ndim=2, dtype="float32"))
+            )
             tid_3 = output
             _ = R.call_packed(
                 "add", tid_1, tid_2, tid_3, sinfo_args=(R.Tensor(ndim=2, dtype="float32"))
