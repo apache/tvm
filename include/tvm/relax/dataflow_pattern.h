@@ -193,7 +193,7 @@ class PatternContextNode : public Object {
   // src node -> <dst node, constraint type> constraints.
   // Dst nodes are kept in a vector to keep them ordered.
   std::map<DFPattern, std::vector<std::pair<DFPattern, std::vector<PairCons>>>> constraints;
-  // Keep a seperate vector of patterns to process constraints in a fixed order
+  // Keep a separate vector of patterns to process constraints in a fixed order.
   std::vector<DFPattern> src_ordered;
 
   static constexpr const char* _type_key = "relax.dpl.PatternContext";
