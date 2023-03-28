@@ -18,6 +18,7 @@
 from typing import List, Optional, Tuple, Union
 
 from tvm import DataType
+from tvm.tir import FloatImm
 
 from . import _ffi_api
 from ...expr import Expr
@@ -913,7 +914,13 @@ def cross_entropy_with_logits(predictions: Expr, labels: Expr) -> Expr:
     return _ffi_api.cross_entropy_with_logits(predictions, labels)  # type: ignore
 
 
-def attention(query: Expr, key: Expr, value: Expr, bias: Optional[Expr] = None) -> Expr:
+def attention(
+    query: Expr,
+    key: Expr,
+    value: Expr,
+    bias: Optional[Expr] = None,
+    scale: Optional[FloatImm] = None,
+) -> Expr:
     r"""Computes fused multi head attention.
 
     All input tensors are of 4-D tensors with BSNH layout.
@@ -943,10 +950,13 @@ def attention(query: Expr, key: Expr, value: Expr, bias: Optional[Expr] = None) 
         (batch_size, num_head, seq_len, seq_len_kv),
         (batch_size, seq_len, seq_len_kv) or (batch_size, seq_len_kv).
 
+    scale: Optional[FloatImm]
+        The custom scale applied before the softmax. The default value is 1 / sqrt(head_dim).
+
     Returns
     -------
     result : relax.Expr
         The computed result. The layout of the output should be
         (batch_size, seq_len, num_head, head_dim_v).
     """
-    return _ffi_api.attention(query, key, value, bias)  # type: ignore
+    return _ffi_api.attention(query, key, value, bias, scale)  # type: ignore

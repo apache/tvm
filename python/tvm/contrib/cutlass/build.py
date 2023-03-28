@@ -785,7 +785,12 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
     def handle_attention(self, f, op_type):
         """Tune and annotate a dense op."""
         signature = _extract_relax_function_signature(f)
-
+        if _get_call_node(f.body, "relax.nn.attention") is not None:
+            op_attrs = _get_call_node(f.body, "relax.nn.attention").attrs
+        elif _get_call_node(f.body, "relax.nn.attention_bias") is not None:
+            op_attrs = _get_call_node(f.body, "relax.nn.attention_bias").attrs
+        else:
+            raise ValueError(f"Cannot find call node for attention")
         q_shape = signature["arg0_shape"]
         k_shape = signature["arg1_shape"]
         v_shape = signature["arg2_shape"]
@@ -797,6 +802,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         num_batches, num_queries, num_heads, head_dim = q_shape
         _, num_keys, _, _ = k_shape
         _, _, _, head_dim_value = v_shape
+        scale = op_attrs.scale
         bias = {}
         if "arg3_dtype" in signature:
             bias["arg3_dtype"] = signature["arg3_dtype"]
@@ -820,6 +826,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
                 "num_heads": num_heads,
                 "head_dim": head_dim,
                 "head_dim_value": head_dim_value,
+                "scale": scale,
                 "arch": self.options["sm"],
                 **bias,
             }
