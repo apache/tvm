@@ -99,6 +99,14 @@ def get_tvm_output_with_vm(
             freeze_params=freeze_params,
             convert_config=convert_config,
         )
+        # handle the bfloat16 so we explicitly allocate
+        # bfloat16 arrays as input
+        for i, param in enumerate(mod["main"].params):
+            if param.type_annotation.dtype == "bfloat16":
+                input_data[i] = tvm.nd.empty(input_data[i].shape, "bfloat16").copyfrom(
+                    input_data[i]
+                )
+
     if validate_structural_equal:
         with tvm.testing.enable_span_filling():
             mod_with_span, _ = relay.frontend.from_onnx(
