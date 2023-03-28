@@ -28,6 +28,7 @@ import tvm
 from tvm import relax, relay, runtime
 from tvm._ffi.registry import register_func
 from tvm.contrib.nvcc import get_cuda_version
+from tvm.topi.utils import get_const_tuple
 
 from .gen_conv2d import CutlassConv2DProfiler
 from .gen_gemm import CutlassGemmProfiler
@@ -545,7 +546,7 @@ def _extract_relax_function_signature(f):
 
     for i, arg in enumerate(f.params):
         sinfo = arg.struct_info
-        signature["arg%d_shape" % i] = list(sinfo.shape)
+        signature["arg%d_shape" % i] = get_const_tuple(sinfo.shape)
         signature["arg%d_dtype" % i] = sinfo.dtype
 
     ret_sinfo = f.ret_struct_info
