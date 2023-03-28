@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=line-too-long,missing-class-docstring,missing-module-docstring,missing-function-docstring,no-self-argument,unused-argument,invalid-name
 
 import tvm
 import tvm.testing
@@ -113,7 +112,7 @@ def test_two_calls():
         output_buffer = T.match_buffer(output, (T.int64(5), T.int64(7)), align=16)
         sid_0 = T.allocate([140], "uint8", "global")
         sid_0_1 = T.Buffer((140,), "uint8", data=sid_0, strides=(1,), align=16)
-        tid_1: T.handle("float32", "global") = T.address_of(sid_0_1[T.int64(0)])
+        tid_1: T.handle("float32", "global") = T.address_of(sid_0_1[T.int64(0)])  # noqa: F722
         T.call_cpacked("identity", a_buffer.data, tid_1, T.reinterpret("handle", T.uint64(0)))
         T.call_cpacked("identity", tid_1, output_buffer.data, T.reinterpret("handle", T.uint64(0)))
     # fmt: on
@@ -273,13 +272,13 @@ def test_branch():
         sid_1 = T.allocate([140], "uint8", "global")
         sid_0 = T.allocate([140], "uint8", "global")
         sid_0_1 = T.Buffer((140,), "uint8", data=sid_0, strides=(1,), align=16)
-        tid_1: T.handle("float32", "global") = T.address_of(sid_0_1[T.int64(0)])
+        tid_1: T.handle("float32", "global") = T.address_of(sid_0_1[T.int64(0)])  # noqa: F722
         T.call_cpacked("identity", a_buffer.data, tid_1, T.reinterpret("handle", T.uint64(0)))
         sid_1_1 = T.Buffer((140,), "uint8", data=sid_1, strides=(1,), align=16)
-        tid_2: T.handle("float32", "global") = T.address_of(sid_1_1[T.int64(0)])
+        tid_2: T.handle("float32", "global") = T.address_of(sid_1_1[T.int64(0)])  # noqa: F722
         T.call_cpacked("identity", tid_1, tid_2, T.reinterpret("handle", T.uint64(0)))
         sid_2_1 = T.Buffer((140,), "uint8", data=sid_2, strides=(1,), align=16)
-        tid_3: T.handle("float32", "global") = T.address_of(sid_2_1[T.int64(0)])
+        tid_3: T.handle("float32", "global") = T.address_of(sid_2_1[T.int64(0)])  # noqa: F722
         T.call_cpacked("identity", tid_1, tid_3, T.reinterpret("handle", T.uint64(0)))
         T.call_cpacked("add", tid_2, tid_3, output_buffer.data, T.reinterpret("handle", T.uint64(0)))
     # fmt: on

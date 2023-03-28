@@ -62,7 +62,7 @@ namespace aot {
 class AOTMainLowerer : public ExprVisitor {
  public:
   using ExprVisitor::VisitExpr_;
-  AOTMainLowerer(tvm::CompilationConfig config) : config_(config) {}
+  explicit AOTMainLowerer(tvm::CompilationConfig config) : config_(config) {}
 
   IRModule Lower(IRModule mod, String mod_name) {
     IRModule lowered_mod = GetRef<IRModule>(mod.CopyOnWrite());
