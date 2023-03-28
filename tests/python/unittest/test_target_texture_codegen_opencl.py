@@ -1545,7 +1545,8 @@ def texture_to_scalar_reuse_ssa_common(
             )
             out2 = te.compute(
                 output_info[1],
-                lambda n, c, h, w: out[n][c][h][w] + p0_comp[n][c // 4][h][w][c % 4].astype(cast_type),
+                lambda n, c, h, w: out[n][c][h][w]
+                + p0_comp[n][c // 4][h][w][c % 4].astype(cast_type),
                 name="out",
             )
         elif len(output_info[1]) == 5 and len(input_info[1]) == 5:
@@ -1556,7 +1557,8 @@ def texture_to_scalar_reuse_ssa_common(
             )
             out2 = te.compute(
                 output_info[1],
-                lambda n, c, h, w, cb: out[n][c][h][w][cb] + p0_comp[n][c][h][w][cb].astype(cast_type),
+                lambda n, c, h, w, cb: out[n][c][h][w][cb]
+                + p0_comp[n][c][h][w][cb].astype(cast_type),
                 name="out",
             )
         else:
@@ -1715,13 +1717,15 @@ class TestLocalArrayToTexture:
             rw = te.reduce_axis((0, KW), name="rw")
             rc = te.reduce_axis((0, IC), name="rc")
             rcb = te.reduce_axis((0, ICB), name="rcb")
-            out = te.compute(output_shape,
+            out = te.compute(
+                output_shape,
                 lambda n, c, h, w, cb: te.sum(
-                    (
-                        p1_comp[n, rc, h, w, rcb] * p2_comp[c, rc * ICB + rcb, rh, rw, cb]
-                    ).astype(dtype),
+                    (p1_comp[n, rc, h, w, rcb] * p2_comp[c, rc * ICB + rcb, rh, rw, cb]).astype(
+                        dtype
+                    ),
                     axis=[rh, rw, rc, rcb],
-                ), name="out",
+                ),
+                name="out",
             )
             dummy_out = te.compute(output_shape, lambda *i: out(*i), name="dummy_out")
             return p1, p2, dummy_out
