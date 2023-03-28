@@ -26,14 +26,18 @@ namespace tvm {
 namespace relax {
 
 /* relax.nn.attention */
-Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias) {
+TVM_REGISTER_NODE_TYPE(AttentionAttrs);
+
+Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias, Optional<FloatImm> scale) {
+  ObjectPtr<AttentionAttrs> attrs = make_object<AttentionAttrs>();
+  attrs->scale = scale;
   if (bias.defined()) {
     return Call(Op::Get("relax.nn.attention_bias"),
-                {std::move(query), std::move(key), std::move(value), std::move(bias.value())}, {},
-                {});
+                {std::move(query), std::move(key), std::move(value), std::move(bias.value())},
+                Attrs(attrs), {});
   }
   return Call(Op::Get("relax.nn.attention"), {std::move(query), std::move(key), std::move(value)},
-              {}, {});
+              Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.nn.attention").set_body_typed(attention);
@@ -105,6 +109,7 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
 }
 
 TVM_REGISTER_OP("relax.nn.attention")
+    .set_attrs_type<AttentionAttrs>()
     .set_num_inputs(3)
     .add_argument("query", "Tensor", "The input queries tensor.")
     .add_argument("key", "Tensor", "The input keys tensor.")
@@ -112,6 +117,7 @@ TVM_REGISTER_OP("relax.nn.attention")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention);
 
 TVM_REGISTER_OP("relax.nn.attention_bias")
+    .set_attrs_type<AttentionAttrs>()
     .set_num_inputs(4)
     .add_argument("query", "Tensor", "The input queries tensor.")
     .add_argument("key", "Tensor", "The input keys tensor.")

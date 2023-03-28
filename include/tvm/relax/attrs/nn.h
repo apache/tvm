@@ -295,6 +295,16 @@ struct DropoutAttrs : public tvm::AttrsNode<DropoutAttrs> {
   }
 };  // struct DropoutAttrs
 
+/*! \brief Attributes used in dropout operator */
+struct AttentionAttrs : public tvm::AttrsNode<AttentionAttrs> {
+  Optional<FloatImm> scale;
+
+  TVM_DECLARE_ATTRS(AttentionAttrs, "relax.attrs.AttentionAttrs") {
+    TVM_ATTR_FIELD(scale).describe(
+        "The custom scale applied before the softmax. The default value is 1 / sqrt(head_dim).");
+  }
+};  // struct AttentionAttrs
+
 }  // namespace relax
 }  // namespace tvm
 

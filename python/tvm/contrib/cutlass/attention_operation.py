@@ -90,7 +90,7 @@ def instantiate_attention_template(attrs, func_args):
   p.head_dim_value = ${head_dim_value}; // H'
   p.num_queries = ${num_queries}; // S
   p.num_keys = ${num_keys}; // S'
-  p.scale = 1.0f / sqrt(float(${head_dim}));
+  p.scale = ${scale};
 
   // stride for N
   p.q_strideH = p.head_dim; // H
@@ -123,12 +123,12 @@ def instantiate_attention_template(attrs, func_args):
   CHECK(Attention::check_supported(p));
   kernel_fn<<<p.getBlocksGrid(), p.getThreadsGrid(), smem_bytes>>>(p);
 """
-    if attrs["kSupportsBias"]:
-        template = substitute_template(
-            template, {"bias_template": bias_template[attrs["bias_layout"]]}
-        )
-    else:
-        template = substitute_template(template, {"bias_template": ""})
+
+    template = substitute_template(
+        template,
+        {"bias_template": bias_template[attrs["bias_layout"]] if "bias_layout" in attrs else ""},
+    )
+
     for i, arg in enumerate(func_args):
         attrs["arg{}".format(i)] = arg
     return substitute_template(template, attrs)
