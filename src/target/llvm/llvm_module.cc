@@ -325,7 +325,6 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
   if (tm->getTargetTriple().isOSDarwin()) {
     module_->addModuleFlag(llvm::Module::Override, "Dwarf Version", 2);
   }
-
   std::string verify_errors_storage;
   llvm::raw_string_ostream verify_errors(verify_errors_storage);
   LOG_IF(FATAL, llvm::verifyModule(*module_, &verify_errors))
