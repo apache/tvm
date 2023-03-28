@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name
 """Common functions and classes for CUTLASS GEMM and Conv2d geneator."""
 import logging
+import math
 import multiprocessing
 import os
 import re
@@ -722,6 +723,12 @@ def instantiate_template(func_name, annotations, func_args):
             attrs["kKeysPerBlock"] = 64
             attrs["kSingleValueIteration"] = True
         attrs["output_size"] = b * s * n * h_v
+        attrs["scale"] = (
+            float(1 / math.sqrt(h.value)) if annotations["scale"] is None else annotations["scale"]
+        )
+        assert (
+            attrs["scale"] > 0 or attrs["scale"] < 0
+        ), "Cutlass may generate nan occasionally when scale == 0.0"
         attrs["arch"] = "cutlass::arch::Sm{}".format(annotations["arch"])
         attrs["kSupportsDropout"] = False
         if len(func_args) > 3:
@@ -735,7 +742,9 @@ def instantiate_template(func_name, annotations, func_args):
             else:
                 raise NotImplementedError()
         else:
-            attrs["kSupportsBias"] = False
+            # To support negative scale in current Cutlass implementation,
+            # kSupportsBias should be set true, or there are nan's as result.
+            attrs["kSupportsBias"] = attrs["scale"] < 0
         code = instantiate_attention_template(attrs, func_args)
         return CodegenResult(code, headers)
 

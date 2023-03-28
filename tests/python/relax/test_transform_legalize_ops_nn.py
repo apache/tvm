@@ -2280,5 +2280,168 @@ def test_group_norm_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_attention():
+    # fmt: off
+    @tvm.script.ir_module
+    class Attention:
+        @R.function
+        def main(q: R.Tensor((4, 16, 32, 8), "float32"), k: R.Tensor((4, 8, 32, 8), "float32"), v: R.Tensor((4, 8, 32, 16), "float32"), bias: R.Tensor((4, 32, 16, 8), "float32")):
+            scale = T.FloatImm("float32", 0.1)
+            gv: R.Tensor((4, 16, 32, 16), "float32") = R.nn.attention(q, k, v, bias, scale)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def attention_bias(rxplaceholder: T.Buffer((T.int64(4), T.int64(16), T.int64(32), T.int64(8)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(8), T.int64(32), T.int64(8)), "float32"), rxplaceholder_2: T.Buffer((T.int64(4), T.int64(8), T.int64(32), T.int64(16)), "float32"), rxplaceholder_3: T.Buffer((T.int64(4), T.int64(32), T.int64(16), T.int64(8)), "float32"), T_transpose: T.Buffer((T.int64(4), T.int64(16), T.int64(32), T.int64(16)), "float32")):
+            T.func_attr({"tir.noalias": True})
+            # with T.block("root"):
+            T_transpose_1 = T.alloc_buffer((T.int64(4), T.int64(32), T.int64(16), T.int64(8)))
+            T_reshape = T.alloc_buffer((T.int64(128), T.int64(16), T.int64(8)))
+            T_transpose_2 = T.alloc_buffer((T.int64(4), T.int64(32), T.int64(8), T.int64(8)))
+            T_reshape_1 = T.alloc_buffer((T.int64(128), T.int64(8), T.int64(8)))
+            T_batch_matmul_NT = T.alloc_buffer((T.int64(128), T.int64(16), T.int64(8)))
+            T_multiply = T.alloc_buffer((T.int64(128), T.int64(16), T.int64(8)))
+            T_reshape_2 = T.alloc_buffer((T.int64(4), T.int64(32), T.int64(16), T.int64(8)))
+            T_add = T.alloc_buffer((T.int64(4), T.int64(32), T.int64(16), T.int64(8)))
+            T_reshape_3 = T.alloc_buffer((T.int64(128), T.int64(16), T.int64(8)))
+            T_softmax_maxelem = T.alloc_buffer((T.int64(128), T.int64(16)))
+            T_softmax_exp = T.alloc_buffer((T.int64(128), T.int64(16), T.int64(8)))
+            T_softmax_expsum = T.alloc_buffer((T.int64(128), T.int64(16)))
+            T_softmax_norm = T.alloc_buffer((T.int64(128), T.int64(16), T.int64(8)))
+            T_transpose_3 = T.alloc_buffer((T.int64(4), T.int64(32), T.int64(8), T.int64(16)))
+            T_reshape_4 = T.alloc_buffer((T.int64(128), T.int64(8), T.int64(16)))
+            T_batch_matmul_NN = T.alloc_buffer((T.int64(128), T.int64(16), T.int64(16)))
+            T_reshape_5 = T.alloc_buffer((T.int64(4), T.int64(32), T.int64(16), T.int64(16)))
+            for ax0, ax1, ax2, ax3 in T.grid(T.int64(4), T.int64(32), T.int64(16), T.int64(8)):
+                with T.block("T_transpose"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(rxplaceholder[v_ax0, v_ax2, v_ax1, v_ax3])
+                    T.writes(T_transpose_1[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T_transpose_1[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder[v_ax0, v_ax2, v_ax1, v_ax3]
+            for ax0, ax1, ax2 in T.grid(T.int64(128), T.int64(16), T.int64(8)):
+                with T.block("T_reshape"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(T_transpose_1[((v_ax2 // T.int64(8) + v_ax1) // T.int64(16) + v_ax0) % T.int64(128) // T.int64(32), ((v_ax2 // T.int64(8) + v_ax1) // T.int64(16) + v_ax0) % T.int64(32), (v_ax2 // T.int64(8) + v_ax1) % T.int64(16), v_ax2 % T.int64(8)])
+                    T.writes(T_reshape[v_ax0, v_ax1, v_ax2])
+                    T_reshape[v_ax0, v_ax1, v_ax2] = T_transpose_1[((v_ax2 // T.int64(8) + v_ax1) // T.int64(16) + v_ax0) % T.int64(128) // T.int64(32), ((v_ax2 // T.int64(8) + v_ax1) // T.int64(16) + v_ax0) % T.int64(32), (v_ax2 // T.int64(8) + v_ax1) % T.int64(16), v_ax2 % T.int64(8)]
+            for ax0, ax1, ax2, ax3 in T.grid(T.int64(4), T.int64(32), T.int64(8), T.int64(8)):
+                with T.block("T_transpose_1"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(rxplaceholder_1[v_ax0, v_ax2, v_ax1, v_ax3])
+                    T.writes(T_transpose_2[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T_transpose_2[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder_1[v_ax0, v_ax2, v_ax1, v_ax3]
+            for ax0, ax1, ax2 in T.grid(T.int64(128), T.int64(8), T.int64(8)):
+                with T.block("T_reshape_1"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(T_transpose_2[((v_ax2 // T.int64(8) + v_ax1) // T.int64(8) + v_ax0) % T.int64(128) // T.int64(32), ((v_ax2 // T.int64(8) + v_ax1) // T.int64(8) + v_ax0) % T.int64(32), (v_ax2 // T.int64(8) + v_ax1) % T.int64(8), v_ax2 % T.int64(8)])
+                    T.writes(T_reshape_1[v_ax0, v_ax1, v_ax2])
+                    T_reshape_1[v_ax0, v_ax1, v_ax2] = T_transpose_2[((v_ax2 // T.int64(8) + v_ax1) // T.int64(8) + v_ax0) % T.int64(128) // T.int64(32), ((v_ax2 // T.int64(8) + v_ax1) // T.int64(8) + v_ax0) % T.int64(32), (v_ax2 // T.int64(8) + v_ax1) % T.int64(8), v_ax2 % T.int64(8)]
+            for b, i, j, k in T.grid(T.int64(128), T.int64(16), T.int64(8), T.int64(8)):
+                with T.block("T_batch_matmul_NT"):
+                    v_b, v_i, v_j, v_k = T.axis.remap("SSSR", [b, i, j, k])
+                    T.reads(T_reshape[v_b, v_i, v_k], T_reshape_1[v_b, v_j, v_k])
+                    T.writes(T_batch_matmul_NT[v_b, v_i, v_j])
+                    T.block_attr({"layout_free_placeholders": [T_reshape_1]})
+                    with T.init():
+                        T_batch_matmul_NT[v_b, v_i, v_j] = T.float32(0)
+                    T_batch_matmul_NT[v_b, v_i, v_j] = T_batch_matmul_NT[v_b, v_i, v_j] + T_reshape[v_b, v_i, v_k] * T_reshape_1[v_b, v_j, v_k]
+            for ax0, ax1, ax2 in T.grid(T.int64(128), T.int64(16), T.int64(8)):
+                with T.block("T_multiply"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(T_batch_matmul_NT[v_ax0, v_ax1, v_ax2])
+                    T.writes(T_multiply[v_ax0, v_ax1, v_ax2])
+                    T_multiply[v_ax0, v_ax1, v_ax2] = T_batch_matmul_NT[v_ax0, v_ax1, v_ax2] * T.float32(0.10000000000000001)
+            for ax0, ax1, ax2, ax3 in T.grid(T.int64(4), T.int64(32), T.int64(16), T.int64(8)):
+                with T.block("T_reshape_2"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(T_multiply[(v_ax0 * T.int64(32) + (v_ax3 // T.int64(8) + v_ax2) // T.int64(16) + v_ax1) % T.int64(128), (v_ax3 // T.int64(8) + v_ax2) % T.int64(16), v_ax3 % T.int64(8)])
+                    T.writes(T_reshape_2[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T_reshape_2[v_ax0, v_ax1, v_ax2, v_ax3] = T_multiply[(v_ax0 * T.int64(32) + (v_ax3 // T.int64(8) + v_ax2) // T.int64(16) + v_ax1) % T.int64(128), (v_ax3 // T.int64(8) + v_ax2) % T.int64(16), v_ax3 % T.int64(8)]
+            for ax0, ax1, ax2, ax3 in T.grid(T.int64(4), T.int64(32), T.int64(16), T.int64(8)):
+                with T.block("T_add"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(T_reshape_2[v_ax0, v_ax1, v_ax2, v_ax3], rxplaceholder_3[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T.writes(T_add[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T_add[v_ax0, v_ax1, v_ax2, v_ax3] = T_reshape_2[v_ax0, v_ax1, v_ax2, v_ax3] + rxplaceholder_3[v_ax0, v_ax1, v_ax2, v_ax3]
+            for ax0, ax1, ax2 in T.grid(T.int64(128), T.int64(16), T.int64(8)):
+                with T.block("T_reshape_3"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(T_add[((v_ax2 // T.int64(8) + v_ax1) // T.int64(16) + v_ax0) % T.int64(128) // T.int64(32), ((v_ax2 // T.int64(8) + v_ax1) // T.int64(16) + v_ax0) % T.int64(32), (v_ax2 // T.int64(8) + v_ax1) % T.int64(16), v_ax2 % T.int64(8)])
+                    T.writes(T_reshape_3[v_ax0, v_ax1, v_ax2])
+                    T_reshape_3[v_ax0, v_ax1, v_ax2] = T_add[((v_ax2 // T.int64(8) + v_ax1) // T.int64(16) + v_ax0) % T.int64(128) // T.int64(32), ((v_ax2 // T.int64(8) + v_ax1) // T.int64(16) + v_ax0) % T.int64(32), (v_ax2 // T.int64(8) + v_ax1) % T.int64(16), v_ax2 % T.int64(8)]
+            for i0, i1, k in T.grid(T.int64(128), T.int64(16), T.int64(8)):
+                with T.block("T_softmax_maxelem"):
+                    v_i0, v_i1, v_k = T.axis.remap("SSR", [i0, i1, k])
+                    T.reads(T_reshape_3[v_i0, v_i1, v_k])
+                    T.writes(T_softmax_maxelem[v_i0, v_i1])
+                    with T.init():
+                        T_softmax_maxelem[v_i0, v_i1] = T.float32(-3.4028234663852886e+38)
+                    T_softmax_maxelem[v_i0, v_i1] = T.max(T_softmax_maxelem[v_i0, v_i1], T_reshape_3[v_i0, v_i1, v_k])
+            for i0, i1, i2 in T.grid(T.int64(128), T.int64(16), T.int64(8)):
+                with T.block("T_softmax_exp"):
+                    v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+                    T.reads(T_reshape_3[v_i0, v_i1, v_i2], T_softmax_maxelem[v_i0, v_i1])
+                    T.writes(T_softmax_exp[v_i0, v_i1, v_i2])
+                    T_softmax_exp[v_i0, v_i1, v_i2] = T.exp(T_reshape_3[v_i0, v_i1, v_i2] - T_softmax_maxelem[v_i0, v_i1])
+            for i0, i1, k in T.grid(T.int64(128), T.int64(16), T.int64(8)):
+                with T.block("T_softmax_expsum"):
+                    v_i0, v_i1, v_k = T.axis.remap("SSR", [i0, i1, k])
+                    T.reads(T_softmax_exp[v_i0, v_i1, v_k])
+                    T.writes(T_softmax_expsum[v_i0, v_i1])
+                    with T.init():
+                        T_softmax_expsum[v_i0, v_i1] = T.float32(0)
+                    T_softmax_expsum[v_i0, v_i1] = T_softmax_expsum[v_i0, v_i1] + T_softmax_exp[v_i0, v_i1, v_k]
+            for i0, i1, i2 in T.grid(T.int64(128), T.int64(16), T.int64(8)):
+                with T.block("T_softmax_norm"):
+                    v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+                    T.reads(T_softmax_exp[v_i0, v_i1, v_i2], T_softmax_expsum[v_i0, v_i1])
+                    T.writes(T_softmax_norm[v_i0, v_i1, v_i2])
+                    T.block_attr({"axis": 2})
+                    T_softmax_norm[v_i0, v_i1, v_i2] = T_softmax_exp[v_i0, v_i1, v_i2] / T_softmax_expsum[v_i0, v_i1]
+            for ax0, ax1, ax2, ax3 in T.grid(T.int64(4), T.int64(32), T.int64(8), T.int64(16)):
+                with T.block("T_transpose_2"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(rxplaceholder_2[v_ax0, v_ax2, v_ax1, v_ax3])
+                    T.writes(T_transpose_3[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T_transpose_3[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder_2[v_ax0, v_ax2, v_ax1, v_ax3]
+            for ax0, ax1, ax2 in T.grid(T.int64(128), T.int64(8), T.int64(16)):
+                with T.block("T_reshape_4"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(T_transpose_3[((v_ax2 // T.int64(16) + v_ax1) // T.int64(8) + v_ax0) % T.int64(128) // T.int64(32), ((v_ax2 // T.int64(16) + v_ax1) // T.int64(8) + v_ax0) % T.int64(32), (v_ax2 // T.int64(16) + v_ax1) % T.int64(8), v_ax2 % T.int64(16)])
+                    T.writes(T_reshape_4[v_ax0, v_ax1, v_ax2])
+                    T_reshape_4[v_ax0, v_ax1, v_ax2] = T_transpose_3[((v_ax2 // T.int64(16) + v_ax1) // T.int64(8) + v_ax0) % T.int64(128) // T.int64(32), ((v_ax2 // T.int64(16) + v_ax1) // T.int64(8) + v_ax0) % T.int64(32), (v_ax2 // T.int64(16) + v_ax1) % T.int64(8), v_ax2 % T.int64(16)]
+            for b, i, j, k in T.grid(T.int64(128), T.int64(16), T.int64(16), T.int64(8)):
+                with T.block("T_batch_matmul_NN"):
+                    v_b, v_i, v_j, v_k = T.axis.remap("SSSR", [b, i, j, k])
+                    T.reads(T_softmax_norm[v_b, v_i, v_k], T_reshape_4[v_b, v_k, v_j])
+                    T.writes(T_batch_matmul_NN[v_b, v_i, v_j])
+                    T.block_attr({"layout_free_placeholders": [T_reshape_4]})
+                    with T.init():
+                        T_batch_matmul_NN[v_b, v_i, v_j] = T.float32(0)
+                    T_batch_matmul_NN[v_b, v_i, v_j] = T_batch_matmul_NN[v_b, v_i, v_j] + T_softmax_norm[v_b, v_i, v_k] * T_reshape_4[v_b, v_k, v_j]
+            for ax0, ax1, ax2, ax3 in T.grid(T.int64(4), T.int64(32), T.int64(16), T.int64(16)):
+                with T.block("T_reshape_5"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(T_batch_matmul_NN[(v_ax0 * T.int64(32) + (v_ax3 // T.int64(16) + v_ax2) // T.int64(16) + v_ax1) % T.int64(128), (v_ax3 // T.int64(16) + v_ax2) % T.int64(16), v_ax3 % T.int64(16)])
+                    T.writes(T_reshape_5[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T_reshape_5[v_ax0, v_ax1, v_ax2, v_ax3] = T_batch_matmul_NN[(v_ax0 * T.int64(32) + (v_ax3 // T.int64(16) + v_ax2) // T.int64(16) + v_ax1) % T.int64(128), (v_ax3 // T.int64(16) + v_ax2) % T.int64(16), v_ax3 % T.int64(16)]
+            for ax0, ax1, ax2, ax3 in T.grid(T.int64(4), T.int64(16), T.int64(32), T.int64(16)):
+                with T.block("T_transpose_3"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(T_reshape_5[v_ax0, v_ax2, v_ax1, v_ax3])
+                    T.writes(T_transpose[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T_transpose[v_ax0, v_ax1, v_ax2, v_ax3] = T_reshape_5[v_ax0, v_ax2, v_ax1, v_ax3]
+
+        @R.function
+        def main(q: R.Tensor((4, 16, 32, 8), dtype="float32"), k: R.Tensor((4, 8, 32, 8), dtype="float32"), v: R.Tensor((4, 8, 32, 16), dtype="float32"), bias: R.Tensor((4, 32, 16, 8), dtype="float32")) -> R.Tensor((4, 16, 32, 16), dtype="float32"):
+            gv = R.call_tir(Expected.attention_bias, (q, k, v, bias), out_sinfo=R.Tensor((4, 16, 32, 16), dtype="float32"))
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(Attention)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

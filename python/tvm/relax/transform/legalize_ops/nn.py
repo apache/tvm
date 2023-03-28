@@ -312,3 +312,59 @@ def _nn_group_norm(bb: BlockBuilder, call: Call) -> Expr:
 def _nn_dropout(bb: BlockBuilder, call: Call) -> Expr:
     logging.info("Dropout is handled by frontend translator at this moment and is not legalized.")
     return call
+
+
+def _te_attention(
+    q: te.Tensor, k: te.Tensor, v: te.Tensor, bias: te.Tensor, scale: tir.FloatImm
+) -> te.Tensor:
+    batch_size, seq_len, num_head, head_dim = q.shape
+    _, seq_len_kv, _, head_dim_v = v.shape
+    q = topi.transpose(q, [0, 2, 1, 3])
+    k = topi.transpose(k, [0, 2, 1, 3])
+    v = topi.transpose(v, [0, 2, 1, 3])
+    q = topi.reshape(q, [batch_size * num_head, seq_len, head_dim])
+    k = topi.reshape(k, [batch_size * num_head, seq_len_kv, head_dim])
+    v = topi.reshape(v, [batch_size * num_head, seq_len_kv, head_dim_v])
+    p = topi.nn.batch_matmul(q, k)
+    if scale is not None:
+        p = topi.multiply(p, scale)
+    else:
+        p = topi.divide(p, tir.sqrt(tir.Cast(p.dtype, head_dim)))
+    if bias is not None:
+        p = topi.reshape(p, [batch_size, num_head, seq_len, seq_len_kv])
+        if len(bias.shape) == 2:
+            bias = topi.reshape(bias, [batch_size, 1, 1, seq_len_kv])
+        elif len(bias.shape) == 3:
+            bias = topi.reshape(bias, [batch_size, 1, seq_len, seq_len_kv])
+        p = topi.add(p, bias)
+        p = topi.reshape(p, [batch_size * num_head, seq_len, seq_len_kv])
+    s = topi.nn.softmax(p)
+    o = topi.nn.batch_matmul(s, v, transpose_b=False)
+    o = topi.reshape(o, [batch_size, num_head, seq_len, head_dim_v])
+    return topi.transpose(o, [0, 2, 1, 3])
+
+
+@register_legalize("relax.nn.attention")
+def _nn_attention(bb: BlockBuilder, call: Call) -> Expr:
+    return bb.call_te(
+        _te_attention,
+        call.args[0],
+        call.args[1],
+        call.args[2],
+        None,
+        call.attrs.scale,
+        primfunc_name_hint="attention",
+    )
+
+
+@register_legalize("relax.nn.attention_bias")
+def _nn_attention_bias(bb: BlockBuilder, call: Call) -> Expr:
+    return bb.call_te(
+        _te_attention,
+        call.args[0],
+        call.args[1],
+        call.args[2],
+        call.args[3],
+        call.attrs.scale,
+        primfunc_name_hint="attention_bias",
+    )
