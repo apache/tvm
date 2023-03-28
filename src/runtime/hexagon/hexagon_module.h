@@ -64,6 +64,7 @@ class HexagonModuleNode : public runtime::ModuleNode {
   const char* type_key() const final { return "hexagon"; }
   void SaveToFile(const std::string& file_name, const std::string& format) override;
   void SaveToBinary(dmlc::Stream* stream) override;
+  bool IsDSOExportable() const final { return true; }
 
  protected:
   std::string data_;
