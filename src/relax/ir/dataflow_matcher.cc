@@ -555,7 +555,7 @@ static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m,
       ICHECK_EQ(p->matched, r->ptr);
       return;
     }
-    ICHECK_EQ(r->matched, nullptr);
+    ICHECK(r->matched == nullptr);
     p->matched = r->ptr;
     r->matched = p->ptr;
     undo_stack.emplace(p, r);
