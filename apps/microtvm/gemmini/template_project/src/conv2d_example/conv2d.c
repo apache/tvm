@@ -26,8 +26,8 @@
 #include "sys/mman.h"
 #endif
 #include "input.h"
-#include "output.h"
 #include "model/tvmgen_default.h"
+#include "output.h"
 
 int8_t output_conv[OUTPUT_LEN];
 

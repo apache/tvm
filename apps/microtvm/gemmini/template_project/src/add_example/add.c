@@ -27,8 +27,8 @@
 #endif
 #include "input_1.h"
 #include "input_2.h"
-#include "output.h"
 #include "model/tvmgen_default.h"
+#include "output.h"
 
 int8_t output_add[OUTPUT_LEN];
 
