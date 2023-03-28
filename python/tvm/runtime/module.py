@@ -498,7 +498,7 @@ class Module(object):
                             object_format = "cu"
                     has_c_module = True
                 else:
-                    assert module.type_key == "llvm" or module.type_key == "static_library"
+                    assert module.is_dso_exportable
                     global_object_format = object_format = "o"
 
             path_obj = os.path.join(workspace_dir, f"lib{index}.{object_format}")
