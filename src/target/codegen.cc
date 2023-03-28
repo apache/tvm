@@ -46,7 +46,6 @@ runtime::Module Build(IRModule mod, Target target) {
           .value()) {
     mod = tir::transform::SkipAssert()(mod);
   }
-
   auto target_attr_map = tvm::TargetKind::GetAttrMap<FTVMTIRToRuntime>("TIRToRuntime");
   if (target_attr_map.count(target->kind)) {
     return target_attr_map[target->kind](mod, target);

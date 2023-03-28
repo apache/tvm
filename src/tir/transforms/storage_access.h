@@ -139,7 +139,6 @@ class StorageAccessVisitor : public StmtExprVisitor {
   // The involving threads
   Array<IterVar> env_threads_;
 };
-
 }  // namespace tir
 }  // namespace tvm
 #endif  // TVM_TIR_TRANSFORMS_STORAGE_ACCESS_H_
