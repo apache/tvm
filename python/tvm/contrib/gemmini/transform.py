@@ -15,6 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=len-as-condition, no-else-return, unused-argument, invalid-name
+"""
+Transformation passes for Gemmini
+=====================
+"""
 
 import ast
 from typing import Dict

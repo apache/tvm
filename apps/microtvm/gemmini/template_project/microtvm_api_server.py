@@ -14,6 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""
+MicroTVM API Server for Gemmini baremetal tests on the Spike simulator
+=====================
+"""
 
 import atexit
 import collections

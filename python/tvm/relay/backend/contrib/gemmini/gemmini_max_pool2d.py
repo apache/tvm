@@ -15,6 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-argument
+"""
+MaxPool2D operator declaration and schedule registration for Gemmini's CISC instructions
+=====================
+"""
 
 import tvm
 from tvm import te

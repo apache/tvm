@@ -15,6 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, exec-used
+"""
+Environment declaration. Contains Gemminis hardware parameters.
+=====================
+"""
 
 from __future__ import absolute_import as _abs
 import re
