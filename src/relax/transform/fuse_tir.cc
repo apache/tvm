@@ -835,6 +835,8 @@ class TIRFuseMutator : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* op) final {
     static const Op& call_tir_op_ = Op::Get("relax.call_tir");
+    static const Op& call_pure_op_ = Op::Get("relax.call_pure");
+
     Call call = Downcast<Call>(builder_->Normalize(ExprMutator::VisitExpr_(op)));
 
     if (call->op->IsInstance<GlobalVarNode>()) {
@@ -887,9 +889,14 @@ class TIRFuseMutator : public ExprMutator {
         new_args.Set(0, new_gv);
         return Call(call->op, new_args, call->attrs, call->sinfo_args, call->span);
       }
+    } else if (call->op == call_pure_op_) {
+      // Case 3. call_pure: Handle the inner call.
+      auto inner_call = UnwrapCallPure(call);
+      auto ret = VisitExpr_(inner_call.as<CallNode>());
+      return WrapCallPure(Downcast<Call>(ret));
     }
 
-    // Case 3. CallNode in other types. Leave it as it is.
+    // Case 4. CallNode in other types. Leave it as it is.
     return call;
   }
 
