@@ -353,24 +353,27 @@ def filter_tasks(
     return tasks, do_list
 
 
-def print_task_list(tasks, enable_autoscheduler):
-    print("Available Tasks for tuning:")
+def gen_task_list(tasks, enable_autoscheduler):
+    ret = "Available Tasks for tuning:\n"
 
     def _trunc_helper(text, length):
         return text if len(text) < length else text[: length - 3] + "..."
 
-    print(
-        "\n".join(
-            [
-                "  {}. {}".format(i, _trunc_helper(task.desc, 100))
-                if enable_autoscheduler
-                else "  {}. {} (len={})".format(
-                    i, _trunc_helper(str(task), 100), len(task.config_space)
-                )
-                for i, task in enumerate(tasks)
-            ]
-        )
+    ret += "\n".join(
+        [
+            "  {}. {}".format(
+                i, _trunc_helper("Unnamed" if len(task.desc) == 0 else task.desc, 100)
+            )
+            if enable_autoscheduler
+            else "  {}. {} (len={})".format(
+                i,
+                _trunc_helper(str(task), 100),
+                "?" if task.config_space is None else len(task.config_space),
+            )
+            for i, task in enumerate(tasks)
+        ]
     )
+    return ret
 
 
 def tune_model(
@@ -546,7 +549,6 @@ def tune_model(
                 runner = local_server
 
         if enable_autoscheduler:
-
             tasks, weights = autoscheduler_get_tuning_tasks(
                 mod=mod,
                 params=params,
@@ -556,7 +558,6 @@ def tune_model(
                 include_simple_tasks=include_simple_tasks,
             )
         else:
-
             tasks = autotvm_get_tuning_tasks(
                 mod=mod,
                 params=params,
@@ -568,7 +569,7 @@ def tune_model(
         if tasks_filter:
             tasks, do_list = filter_tasks(tasks, tasks_filter)
             if do_list:
-                print_task_list(tasks, enable_autoscheduler)
+                print(gen_task_list(tasks, enable_autoscheduler))
                 return None
         if len(tasks) == 0:
             logger.info("No tasks have been selected for tuning.")
@@ -590,7 +591,6 @@ def tune_model(
             # Schedule the tasks (i.e., produce a schedule for each task)
             schedule_tasks(tasks, weights, tuning_options, prior_records, log_estimated_latency)
         else:
-
             # In autotvm, trials is specified per task. We can convert the per-model input
             # provided to per-task trials by dividing by the number of tasks.
             trials = int(max(1, trials / max(len(tasks), 1)))
