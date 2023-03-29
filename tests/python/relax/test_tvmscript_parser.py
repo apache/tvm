@@ -1324,6 +1324,9 @@ def test_context_aware_parsing():
 
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
+            # slight hack: normally, we would prefer to use True, but the func attrs, when printed,
+            # will have it as 1, so it would fail roundtripping otherwise
+            R.func_attr({"ForcePure": 1})
             cls = Module
             alloc = R.builtin.alloc_tensor(R.shape([2, 4]), dtype="float32", runtime_device_index=0)
             _: R.Tuple() = cls.add(x, R.const(1, "float32"), alloc)
