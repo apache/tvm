@@ -6990,6 +6990,31 @@ def test_qlinearsigmoid(target, dev):
     verify_qlinearsigmoid([])
 
 
+@tvm.testing.parametrize_targets
+def test_qlinearsoftmax(target, dev):
+    """test_qlinearsoftmax"""
+
+    def verify_qlinearsoftmax(a_shape):
+
+        _ = np.random.random(a_shape).astype("float32")
+
+        input_nodes = [helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape))]
+
+        node = helper.make_node("Softmax", ["a"], ["B"])
+        graph = helper.make_graph(
+            [node],
+            "qlinearsoftmax_test",
+            inputs=input_nodes,
+            outputs=[helper.make_tensor_value_info("B", TensorProto.FLOAT, list(a_shape))],
+        )
+        model = helper.make_model(graph, producer_name="qlinearsoftmax_test")
+        quantize_and_verify_with_ort(model, ["a"], [a_shape], target, dev)
+
+    verify_qlinearsoftmax([4, 2])
+    verify_qlinearsoftmax([5])
+    verify_qlinearsoftmax([3, 4, 5])
+
+
 @tvm.testing.parametrize_targets("llvm")
 def test_random_bernoulli(target, dev):
     """test_random_bernoulli"""

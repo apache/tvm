@@ -5715,6 +5715,26 @@ class QLinearSigmoid(OnnxOpConverter):
         return _qnn.op.quantize(out, y_scale, y_zero_point, out_dtype=dtype)
 
 
+class QLinearSoftmax(OnnxOpConverter):
+    """Operator converter for QLinearSoftmax from Microsoft onnxruntime contrib opset."""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        axis = attr["axis"]
+
+        x = inputs[0]
+        x_scale = get_scalar(inputs[1], params)
+        x_zero_point = get_scalar(inputs[2], params, "int32")
+        y_scale = fold_constant(get_scalar(inputs[3], params))
+        y_zero_point = get_scalar(inputs[4], params, "int32")
+
+        dtype = infer_type(x).checked_type.dtype
+
+        x = _qnn.op.dequantize(x, x_scale, x_zero_point)
+        out = _op.nn.softmax(x, axis)
+        return _qnn.op.quantize(out, y_scale, y_zero_point, out_dtype=dtype)
+
+
 class QLinearConcat(OnnxOpConverter):
     """Operator converter for QLinearConcat from Microsoft onnxruntime contrib opset."""
 
@@ -6812,6 +6832,7 @@ def _get_convert_map(opset):
         "QLinearMatMul": QLinearMatMul.get_converter(opset),
         "QLinearMul": QLinearMul.get_converter(opset),
         "QLinearSigmoid": QLinearSigmoid.get_converter(opset),
+        "QLinearSoftmax": QLinearSoftmax.get_converter(opset),
         "ConvInteger": ConvInteger.get_converter(opset),
         "QLinearAveragePool": QLinearAveragePool.get_converter(opset),
         "QLinearGlobalAveragePool": QLinearGlobalAveragePool.get_converter(opset),
