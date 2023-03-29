@@ -2985,7 +2985,6 @@ class OperatorConverter(object):
             raise ImportError("The tflite package must be installed")
 
         input_tensors = self.get_input_tensors(op)
-        output_tensor = self.get_output_tensors(op)
 
         assert len(input_tensors) == 2, "two input tensor arguments expected"
 
@@ -3037,8 +3036,6 @@ class OperatorConverter(object):
                 0,
             )
 
-            out_batch_shape = _fold_constant(out_batch)
-
             a_broadcasted_shape = _fold_constant(
                 _op.concatenate(
                     [
@@ -3067,7 +3064,7 @@ class OperatorConverter(object):
 
             if batch_matmul_options.AdjX():
                 input_a = _op.transpose(input_a, [0, 2, 1])
-            if batch_matmul_options.AdjY() == False:
+            if not batch_matmul_options.AdjY():
                 input_b = _op.transpose(input_b, [0, 2, 1])
 
             if self.is_quantized(op):
