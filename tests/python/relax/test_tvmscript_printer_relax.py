@@ -156,10 +156,9 @@ def test_func_struct_info():
     )
     _assert_print(
         obj,
-        """
-a = T.int64()
-R.Callable((R.Prim("float32"), R.Object, R.Shape([1, a, 3])), R.Tensor((1, 2, 3), dtype="float32"))
-""",
+        "a = T.int64()\n"
+        'R.Callable((R.Prim("float32"), R.Object, R.Shape([1, a, 3])), '
+        'R.Tensor((1, 2, 3), dtype="float32"), True)',
     )
 
 
