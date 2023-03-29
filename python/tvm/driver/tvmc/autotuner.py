@@ -353,7 +353,20 @@ def filter_tasks(
     return tasks, do_list
 
 
-def gen_task_list(tasks, enable_autoscheduler):
+def gen_task_list(
+    tasks: Union[List[auto_scheduler.SearchTask], List[autotvm.task.Task]],
+    enable_autoscheduler: bool,
+):
+    """Utility for printing a list of tasks (AutoTVM or AutoScheduler)
+    to the terminal.
+
+    Parameters
+    ----------
+    tasks: list
+        A list of extracted AutoTVM or AutoScheduler tasks.
+    enable_autoscheduler: bool
+        Wether the tasks are extracted with AutoScheduler or AutoTVM.
+    """
     ret = "Available Tasks for tuning:\n"
 
     def _trunc_helper(text, length):
