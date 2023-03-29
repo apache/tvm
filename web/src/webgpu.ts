@@ -102,9 +102,6 @@ export class WebGPUContext {
       entries: layoutEntries
     });
 
-    const textDecoder = new TextDecoder('utf-8')
-    const codeString = textDecoder.decode(data.buffer)
-
     const pipeline = this.device.createComputePipeline({
       layout: this.device.createPipelineLayout({
         bindGroupLayouts: [ bindGroupLayout ]
