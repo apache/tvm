@@ -392,7 +392,8 @@ StructInfo ReturnTensorToShapeStructInfo(const Call& call, const BlockBuilder& c
 RELAY_REGISTER_OP("relax.tensor_to_shape")
     .set_num_inputs(1)
     .add_argument("input", "Expr", "The input expression")
-    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnTensorToShapeStructInfo);
+    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnTensorToShapeStructInfo)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeTensorToShape(Expr expr) {
   static const Op& op = Op::Get("relax.tensor_to_shape");
