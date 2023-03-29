@@ -126,9 +126,6 @@ importer-mxnet = ["mxnet"]
 [tool.poetry.dev-dependencies]
 autodocsumm = "^0.1"
 black = "^19.10b0"
-sphinx = "^3.0"
-sphinx-gallery = { git = "https://github.com/sphinx-gallery/sphinx-gallery.git", rev = "6142f179" }
-sphinx-rtd-theme = "^0.4"
 matplotlib = "^3.2"
 Image = "^1.5"
 recommonmark = "^0.6"
