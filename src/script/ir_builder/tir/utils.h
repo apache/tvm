@@ -69,9 +69,15 @@ inline tvm::tir::Stmt AsStmt(const Array<tvm::tir::Stmt>& stmt) {
 inline PrimFuncFrame FindPrimFuncFrame(const String& method) {
   if (Optional<PrimFuncFrame> frame = IRBuilder::Current()->GetLastFrame<PrimFuncFrame>()) {
     return frame.value();
+  } else if (Optional<PrimFuncFrame> frame = IRBuilder::Current()->FindFrame<PrimFuncFrame>()) {
+    LOG(FATAL) << "ValueError: " << method << " must be called at the top of a PrimFunc.  "
+               << "While " << method << " did occur within the PrimFunc \"" << frame.value()->name
+               << "\", other frames (e.g. block/if/else/let) had been introduced since the "
+               << "PrimFunc's frame";
+  } else {
+    LOG(FATAL) << "ValueError: " << method << " must be called at the top of a PrimFunc, "
+               << "but " << method << " occurred outside of any T.prim_func() frame";
   }
-  LOG(FATAL) << "ValueError: PrimFunc frame not find. Please ensure '" << method
-             << "' is called under T.prim_func()";
   throw;
 }
 
@@ -83,9 +89,15 @@ inline PrimFuncFrame FindPrimFuncFrame(const String& method) {
 inline BlockFrame FindBlockFrame(const String& method) {
   if (Optional<BlockFrame> frame = IRBuilder::Current()->GetLastFrame<BlockFrame>()) {
     return frame.value();
+  } else if (Optional<BlockFrame> frame = IRBuilder::Current()->FindFrame<BlockFrame>()) {
+    LOG(FATAL) << "ValueError: " << method << " must be called at the top of a T.block().  "
+               << "While " << method << " did occur within the block \"" << frame.value()->name
+               << "\", other frames (e.g. if/else/let) had been introduced since the T.block(\""
+               << frame.value()->name << "\") frame";
+  } else {
+    LOG(FATAL) << "ValueError: " << method << " must be called at the top of a T.block(), "
+               << "but " << method << " occurred outside of any T.block() frame";
   }
-  LOG(FATAL) << "ValueError: Block frame not find. Please ensure '" << method
-             << "' is called under T.block()";
   throw;
 }
 
@@ -97,6 +109,12 @@ inline BlockFrame FindBlockFrame(const String& method) {
 inline IfFrame FindIfFrame(const String& method) {
   if (Optional<IfFrame> frame = IRBuilder::Current()->GetLastFrame<IfFrame>()) {
     return frame.value();
+  } else if (Optional<IfFrame> frame = IRBuilder::Current()->FindFrame<IfFrame>()) {
+    LOG(FATAL) << "ValueError: " << method << " must be called at the top of a T.if_().  "
+               << "While " << method << " did occur within the conditional based on ("
+               << frame.value()->condition
+               << "), other frames (e.g. if/else/let) had been introduced since the "
+               << "IfThenElse frame";
   } else {
     LOG(FATAL) << "ValueError: IfThenElse frame not find. Please ensure '" << method
                << "' is called under T.if_()";
