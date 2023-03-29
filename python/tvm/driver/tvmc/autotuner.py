@@ -331,6 +331,8 @@ def filter_tasks(
         else:
             do_filter = True
             if "-" in item:
+                assert item.count("-") == 1, "Malformed range expression"
+                assert len(item) > 1, "Missing lhs or rhs for range expression"
                 lhs, rhs = item.split("-")[:2]
                 lhs = int(lhs) if lhs else 0
                 rhs = int(rhs) if rhs else len(tasks) - 1
@@ -340,7 +342,7 @@ def filter_tasks(
             else:
                 assert isinstance(item, str)
                 idx = int(item)
-                assert 0 <= idx < len(tasks)
+                assert 0 <= idx < len(tasks), "Task index out of range"
                 selected.append(idx)
 
     if do_filter:
