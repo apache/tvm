@@ -1382,5 +1382,41 @@ def test_global_var_sinfo():
     _check(Module)
 
 
+def test_assert_op():
+    @I.ir_module
+    class AssertOp:
+        @R.function
+        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            R.func_attr({"IsPure": 0})
+            y = R.assert_op(R.const(False, dtype="bool"), x, format="x: {}")
+            return x
+
+    _check(AssertOp)
+
+
+def test_print():
+    @I.ir_module
+    class Print:
+        @R.function
+        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            R.func_attr({"IsPure": 0})
+            y = R.print(x, format="x: {}")
+            return x
+
+    _check(Print)
+
+
+def test_call_pure():
+    @I.ir_module
+    class CallPure:
+        @R.function
+        def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
+            y: R.Tensor((), dtype="int32") = R.add(x, x)
+            z: R.Tuple = R.call_pure(R.assert_op(R.const(True, "bool"), format="Ignore"))
+            return y
+
+    _check(CallPure)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

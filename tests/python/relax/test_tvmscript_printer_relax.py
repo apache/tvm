@@ -528,5 +528,83 @@ class Module:
     )
 
 
+def test_assert_op():
+    @I.ir_module
+    class AssertOpMod:
+        @R.function
+        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            R.func_attr({"IsPure": 0})
+            y = R.assert_op(R.const(False, dtype="bool"), x, format="x: {}")
+            return x
+
+    _assert_print(
+        AssertOpMod,
+        """
+# from tvm.script import ir as I
+# from tvm.script import relax as R
+
+@I.ir_module
+class Module:
+    @R.function
+    def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
+        R.func_attr({"IsPure": 0})
+        y: R.Tuple = R.assert_op(R.const(False, "bool"), x, format=R.str("x: {}"))
+        return x
+""",
+    )
+
+
+def test_print():
+    @I.ir_module
+    class PrintMod:
+        @R.function
+        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            R.func_attr({"IsPure": 0})
+            y = R.print(x, format="x: {}")
+            return x
+
+    _assert_print(
+        PrintMod,
+        """
+# from tvm.script import ir as I
+# from tvm.script import relax as R
+
+@I.ir_module
+class Module:
+    @R.function
+    def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
+        R.func_attr({"IsPure": 0})
+        y: R.Tuple = R.print(x, format=R.str("x: {}"))
+        return x
+""",
+    )
+
+
+def test_call_pure():
+    @I.ir_module
+    class CallPureMod:
+        @R.function
+        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            y = R.add(x, x)
+            z = R.call_pure(R.assert_op(R.const(True, dtype="bool"), format="Ignore"))
+            return y
+
+    _assert_print(
+        CallPureMod,
+        """
+# from tvm.script import ir as I
+# from tvm.script import relax as R
+
+@I.ir_module
+class Module:
+    @R.function
+    def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
+        y: R.Tensor((), dtype="int32") = R.add(x, x)
+        z: R.Tuple = R.call_pure(R.assert_op(R.const(True, "bool"), format=R.str("Ignore")))
+        return y
+""",
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()
