@@ -84,6 +84,19 @@ TVM_DLL Pass LambdaLift();
 TVM_DLL Pass ToNonDataflow();
 
 /*!
+ * \brief Activate ForcePure on all pure functions in the module
+ * and unwrap all uses of the call_pure op.
+ *
+ * This effectively means that there will be no more purity tracking,
+ * useful for low-level code generation.
+ *
+ * \return The Pass.
+ *
+ * \note Should be used after ToNonDataflow()
+ */
+TVM_DLL Pass RemovePurityChecking();
+
+/*!
  * \brief Perform explicit tensor allocation for call_tir and call_dps_packed.
  *
  * \return The Pass.
