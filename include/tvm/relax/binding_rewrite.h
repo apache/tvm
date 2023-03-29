@@ -60,7 +60,7 @@ class DataflowBlockRewriteNode : public Object {
   void RemoveAllUnused();
 
   /*! \brief The rewritten dataflow block. */
-  DataflowBlock MutatedDataflowBlock() { return dfb_.value(); }
+  DataflowBlock MutatedDataflowBlock() { return dfb_; }
   /*! \brief The rewritten function. */
   Function MutatedFunc() { return root_fn_.value(); }
   /*! \brief The rewritten IRModule. */
@@ -78,7 +78,7 @@ class DataflowBlockRewriteNode : public Object {
  protected:
   friend class DataflowBlockRewrite;
 
-  Optional<DataflowBlock> dfb_;          //!< The rewritten dataflow block.
+  DataflowBlock dfb_;                    //!< The rewritten dataflow block.
   Optional<Function> root_fn_;           //!< The rewritten function.
   const FunctionNode* original_fn_ptr_;  //!< Pointer to the original function.
   Map<Var, Array<Var>> to_users_;        //!< Map from variable to its users.
