@@ -361,7 +361,6 @@ class VirtualMachineImpl : public VirtualMachine {
 
   void ClearInputsFor(const std::string& func_name) { inputs_.erase(func_name); }
 
- private:
   //--------------------------------------------------------
   // Internal states for execution.
   //--------------------------------------------------------
@@ -983,15 +982,23 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
       auto f_name = GetFuncName(inst.func_idx);
       std::optional<Device> dev;
       std::vector<NDArray> arrs;
+
+      auto f_check_ndarray_arg = [&dev, &arrs](const RegType& arg) {
+        if (arg.type_code() == kTVMNDArrayHandle) {
+          NDArray arr = arg;
+          dev = arr->device;
+          arrs.push_back(arr);
+        }
+      };
+
       for (Index i = 0; i < inst.num_args; ++i) {
         Instruction::Arg arg = inst.args[i];
         if (arg.kind() == Instruction::ArgKind::kRegister) {
           auto reg = ReadRegister(curr_frame, arg.value());
-          if (reg.type_code() == kTVMNDArrayHandle) {
-            NDArray arr = reg;
-            dev = arr->device;
-            arrs.push_back(arr);
-          }
+          f_check_ndarray_arg(reg);
+        } else if (arg.kind() == Instruction::ArgKind::kConstIdx) {
+          const auto& const_val = this->const_pool_[arg.value()];
+          f_check_ndarray_arg(const_val);
         }
       }
 
