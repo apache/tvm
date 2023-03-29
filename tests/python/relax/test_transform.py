@@ -32,9 +32,25 @@ def test_to_non_dataflow():
         def foo(x: R.Tensor(("m", "n"), "float32")):
             m, n = T.int64(), T.int64()
             with R.dataflow():
-                lv0 = R.call_dps_packed("test.op.identity", (x,), R.Tensor((m, n), dtype="float32"))
-                gv0 = R.call_dps_packed(
-                    "test.op.identity", (lv0,), R.Tensor((m, n), dtype="float32")
+                lv0 = R.call_pure(
+                    R.call_dps_packed(
+                        "test.op.identity",
+                        (x,),
+                        R.Tensor(
+                            (m, n),
+                            dtype="float32",
+                        ),
+                    )
+                )
+                gv0 = R.call_pure(
+                    R.call_dps_packed(
+                        "test.op.identity",
+                        (lv0,),
+                        R.Tensor(
+                            (m, n),
+                            dtype="float32",
+                        ),
+                    )
                 )
                 R.output(gv0)
             return gv0
@@ -81,6 +97,8 @@ def test_call_tir_rewrite():
 
         @R.function
         def foo(x: R.Tensor(("m", "n"), "float32")):
+            # we expect RemovePurityChecking to have been used before this point
+            R.func_attr({"ForcePure": True})
             m, n = T.int64(), T.int64()
             gv0 = R.call_tir(TestCallTIRRewrite.exp, (x,), R.Tensor((m, n), dtype="float32"))
             return gv0
@@ -222,6 +240,8 @@ def test_call_dps_packed_rewrite():
     class TestCallDPSPackedRewrite:
         @R.function
         def foo(x: R.Tensor(("m", "n"), "float32")):
+            # we expect RemovePurityChecking to have been used before this point
+            R.func_attr({"ForcePure": True})
             m, n = T.int64(), T.int64()
             gv0 = R.call_dps_packed("test.op.identity", (x,), R.Tensor((m, n), dtype="float32"))
             return gv0
@@ -255,6 +275,8 @@ def test_vm_builtin_lower():
     class TestVMBuiltinLower:
         @R.function
         def foo(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor:
+            # we expected RemovePurityChecking to have been called first
+            R.func_attr({"ForcePure": True})
             m, n = T.int64(), T.int64()
             alloc = R.builtin.alloc_tensor(R.shape([m, n]), runtime_device_index=0, dtype="float32")
             _ = R.call_packed(
