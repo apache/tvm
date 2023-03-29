@@ -325,10 +325,12 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     }
 
     // - Increase the reference counters of the arguments when the callee is
-    // a PrimFunc of the context module.
+    // a PrimFunc of the context module or an external function via 'call_packed'.
+    // It assumes external function calls via 'call_packed' do not retain memory
+    // from the arguments.
     // - Otherwise, discard the tokens used by the arguments, as there might be
     // potential external reference.
-    if (IsPrimFuncGlobalVar(call->op)) {
+    if (IsPrimFuncGlobalVar(call->op) || call->op->IsInstance<ExternFuncNode>()) {
       ICHECK(!block_stack_.empty());
       for (const Expr& arg : call->args) {
         Tokens tokens = GetTokensWithAllocSiteCheck(arg, block_stack_.back());
