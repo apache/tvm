@@ -826,7 +826,9 @@ def test_skip_call_dps_packed():
         @R.function
         def main(x: R.Tensor((2, 3), "float32")):
             with R.dataflow():
-                y = R.call_dps_packed("func_packed_dps", x, R.Tensor((2, 3), "float32"))
+                y = R.call_pure(
+                    R.call_dps_packed("func_packed_dps", x, R.Tensor((2, 3), "float32"))
+                )
                 R.output(y)
             return y
 
@@ -843,7 +845,9 @@ def test_edge_with_call_dps_packed():
             with R.dataflow():
                 a = R.call_tir(cls.exp, (x,), out_sinfo=R.Tensor((2, 3), "float32"))
                 b = R.call_tir(cls.exp, (a,), out_sinfo=R.Tensor((2, 3), "float32"))
-                c = R.call_dps_packed("packed_dps", (a,), out_sinfo=R.Tensor((2, 3), "float32"))
+                c = R.call_pure(
+                    R.call_dps_packed("packed_dps", (a,), out_sinfo=R.Tensor((2, 3), "float32"))
+                )
                 R.output(b, c)
             return R.tuple(b, c)
 
