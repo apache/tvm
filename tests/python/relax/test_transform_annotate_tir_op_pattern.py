@@ -383,5 +383,24 @@ def test_sum_sqsum():
     assert new_mod["sum_sqsum"].attrs["op_pattern"] == OpPatternKind.kCommReduce
 
 
+def test_no_buffer_stores():
+    @tvm.script.ir_module
+    class Module:
+        @T.prim_func
+        def no_buffer_stores(A: T.Buffer((32, 64), "float32"), vsum: T.Buffer((32,), "float32")):
+            for ax0, k0 in T.grid(32, 64):
+                with T.block("block"):
+                    v_ax0, v_k0 = T.axis.remap("SR", [ax0, k0])
+                    T.reads(A[v_ax0, v_k0])
+                    T.writes(vsum[v_ax0])
+                    # absence of buffer stores usually happens when there is an external call for
+                    # computation. We assume opaque in all such cases.
+                    T.call_packed("some_func")
+
+    mod = Module
+    new_mod = relax.transform.AnnotateTIROpPattern()(mod)
+    assert new_mod["no_buffer_stores"].attrs["op_pattern"] == OpPatternKind.kOpaque
+
+
 if __name__ == "__main__":
     tvm.testing.main()
