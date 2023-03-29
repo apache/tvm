@@ -218,6 +218,9 @@ class Target : public ObjectRef {
    */
   static Target WithHost(const Target& target, const Target& host);
 
+  /*! \return The target with the host stripped out */
+  Target WithoutHost() const;
+
   /*!
    * \brief Returns true if \p this target represents an external codegen. If so,
    * \p this->kind->name can be used as the "Compiler" attribute on partitioned functions,
