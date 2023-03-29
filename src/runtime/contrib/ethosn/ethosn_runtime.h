@@ -104,6 +104,11 @@ class EthosnModule : public ModuleNode {
 
   const char* type_key() const override { return "ethos-n"; }
 
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final {
+    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+  };
+
  private:
   /*! \brief A map between ext_symbols (function names) and ordered compiled networks. */
   std::map<std::string, OrderedCompiledNetwork> network_map_;

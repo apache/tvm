@@ -425,7 +425,9 @@ class Module(object):
         stack.append(self)
         while stack:
             module = stack.pop()
-            assert module.is_dso_exportable or module.is_binary_serializable
+            assert (
+                module.is_dso_exportable or module.is_binary_serializable
+            ), f"Module {module.type_key} should be either dso exportable or binary serializable."
 
             if filter_func(module):
                 dso_modules.append(module)
