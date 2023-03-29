@@ -197,6 +197,6 @@ tvmc run \
 #      # INFO:__main__:b'[100%] [QEMU] CPU: qemu32,+nx,+pae\n'
 #      # remote: microTVM Zephyr runtime - running
 #      # INFO:__main__:b'[100%] Built target run\n'
-#      # [[3.         1.         2.         0.        ]
-#      # [113 -121 -120 -128]]
+#      # [[   3    2    1    0]
+#      #  [ 113 -120 -121 -128]]
 #
