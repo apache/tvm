@@ -263,7 +263,7 @@ def test_op_call_pure():
 
         @R.function
         def nested_call_pure(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            z = CallPureTest.plus_one(x)  # R.call_pure(R.call_pure(CallPureTest.plus_one(x)))
+            z = R.call_pure(R.call_pure(CallPureTest.plus_one(x)))
             return z
 
     # need to legalize to have the increment
