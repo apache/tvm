@@ -739,8 +739,8 @@ Map<DFPattern, Var> MatchGraph(const PatternContext& ctx, const DataflowBlock& d
 
   if (start_hint) {
     auto rnode_ptr = var2node.at(start_hint.value().get());
-    for (auto& [df_pattern, pattern_node] : pattern2node) {
-      if (try_match(&pattern_node, &rnode_ptr, &matcher, def2use, caller2callees)) {
+    for (auto& p_node : pattern2node) {
+      if (try_match(&p_node.second, &rnode_ptr, &matcher, def2use, caller2callees)) {
         for (const auto& [df_pattern, pattern_node] : pattern2node)
           ret.Set(GetRef<DFPattern>(df_pattern), GetRef<Var>(pattern_node.matched));
         return ret;
