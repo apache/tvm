@@ -292,8 +292,6 @@ def test_vm_emit_te_dtype_change(exec_mode):
 
     mod = bb.get()
 
-    new_mod = relax.transform.CallTIRRewrite()(mod)
-
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.build(mod, target, exec_mode=exec_mode)
 

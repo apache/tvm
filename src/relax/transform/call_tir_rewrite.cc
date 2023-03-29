@@ -49,19 +49,9 @@ class CallTIRMutator : public ExprMutator {
     call = expr.as<CallNode>();
 
     static const Op& call_tir_op = Op::Get("relax.call_tir");
-    static const Op& call_pure_op = Op::Get("relax.call_pure");
     static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
     static const Op& call_tir_dyn_op = Op::Get("relax.vm.call_tir_dyn");
-
-    if (call->op == call_pure_op) {
-      auto inner_call = UnwrapCallPure(GetRef<Call>(call));
-      auto ret = VisitExpr_(inner_call.as<CallNode>());
-      if (ret.as<CallNode>()) {
-        return WrapCallPure(Downcast<Call>(ret));
-      }
-      return ret;
-    }
 
     if (call->op == call_tir_op || call->op == call_dps_packed_op) {
       Array<Expr> outs;
@@ -108,7 +98,7 @@ class CallTIRMutator : public ExprMutator {
         args.insert(args.end(), outs.begin(), outs.end());
 
         if (call->args.size() == 2) {
-          builder_->Emit(WrapCallPure(Call(call->args[0], args)), "_");
+          builder_->Emit(Call(call->args[0], args), "_");
         } else {
           // unpack semantics
           args.push_back(call->args[2]);
@@ -117,7 +107,7 @@ class CallTIRMutator : public ExprMutator {
       } else {
         args = outs;
         args.insert(args.begin(), call->args[1]);
-        builder_->Emit(WrapCallPure(Call(call->args[0], args)), "_");
+        builder_->Emit(Call(call->args[0], args), "_");
       }
 
       if (outs.size() == 1) {
