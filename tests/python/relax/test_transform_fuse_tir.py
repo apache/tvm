@@ -47,7 +47,7 @@ def test_simple():
                 gv = bb.emit_output(relax.Call(fused_add_exp_squeeze, [x, p0]))
             bb.emit_func_output(gv)
 
-        return bb.get()
+        return bb.get().with_attrs({"foo": "bar"})
 
     def expected():
         def fused_add_exp_squeeze(x, p0):
@@ -63,7 +63,7 @@ def test_simple():
             with bb.dataflow():
                 gv = bb.emit_output(bb.call_te(fused_add_exp_squeeze, x, p0))
             bb.emit_func_output(gv)
-        return bb.get()
+        return bb.get().with_attrs({"foo": "bar"})
 
     _check(before(), expected())
 

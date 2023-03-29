@@ -604,7 +604,11 @@ class TIRFuseMutator : public ExprMutator {
         mutator.builder_->AddFunction(update_func, gv->name_hint);
       }
     }
-    return mutator.builder_->GetContextIRModule();
+
+    // Step 3. Copy over module attributes and return.
+    auto modified_mod = mutator.builder_->GetContextIRModule();
+    if (mod->attrs.defined()) modified_mod = WithAttrs(modified_mod, mod->attrs->dict);
+    return modified_mod;
   }
 
  private:
