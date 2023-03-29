@@ -87,8 +87,25 @@ class LambdaLifter : public ExprMutator {
         if (this->var_remap_.find(var->vid) != this->var_remap_.end()) {
           clo_arg = this->var_remap_.at(var->vid);
         }
-        return Call(invoke_closure_op_, {clo_arg, Tuple(call_node->args)}, {},
-                    {GetStructInfo(GetRef<Expr>(call_node))});
+
+        auto ret = Call(invoke_closure_op_, {clo_arg, Tuple(call_node->args)}, {},
+                        {GetStructInfo(GetRef<Expr>(call_node))});
+
+        // if the original op was pure, we will insert call_pure as well
+        Call orig_call = Downcast<Call>(val);
+        bool purity;
+        if (orig_call->op.as<OpNode>()) {
+          auto orig_op = Downcast<Op>(orig_call->op);
+          static const auto& purity_map = Op::GetAttrMap<Bool>("FPurity");
+          purity = purity_map.count(orig_op) && purity_map[orig_op]->value;
+        } else {
+          purity = GetStructInfoAs<FuncStructInfoNode>(orig_call->op)->purity;
+        }
+
+        if (purity) {
+          return WrapCallPure(ret);
+        }
+        return ret;
       }
       auto it = lambda_map_.find(var);
       if (it != lambda_map_.end()) {
