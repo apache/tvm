@@ -543,7 +543,7 @@ struct RNode {
 static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m,
                       const std::map<const VarNode*, std::vector<const VarNode*>>& def2use,
                       const std::map<const VarNode*, std::vector<const VarNode*>>& use2def) {
-  if (nullptr != p->matched && p->matched == r->ptr) return true;  // matched before.
+  if (p->matched != nullptr && p->matched == r->ptr) return true;  // matched before.
   if (!m->Match(GetRef<DFPattern>(p->ptr), GetRef<Var>(r->ptr))) return false;
 
   std::stack<std::pair<PNode*, RNode*>> undo_stack{};
@@ -585,15 +585,15 @@ static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m,
       // check edge constraints.
       bool cons_sat = true;
       for (const auto& cons : constraints) {
-        if (PairCons::kOnlyUsedBy == cons.type && uses.size() != 1) {
+        if (cons.type == PairCons::kOnlyUsedBy && uses.size() != 1) {
           cons_sat = false;
           break;
         }
 
-        if (-1 != cons.index) {
+        if (cons.index != -1) {
           const auto& callees = use2def.at(r->ptr);
-          if (static_cast<size_t>(cons.index) >= callees.size() ||
-              rparent->ptr != callees[cons.index]) {
+          if (callees.size() <= static_cast<size_t>(cons.index) ||
+              callees[cons.index] != rparent->ptr) {
             cons_sat = false;
             break;
           }
@@ -623,14 +623,14 @@ static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m,
       // check edge constraints.
       bool all_cons_pass = true;
       for (const auto& cons : constraints) {
-        if (PairCons::kOnlyUsedBy == cons.type && uses.size() != 1) {
+        if (cons.type == PairCons::kOnlyUsedBy && uses.size() != 1) {
           all_cons_pass = false;
           break;
         }
 
-        if (-1 != cons.index) {
+        if (cons.index != -1) {
           const auto& callees = use2def.at(rchild->ptr);
-          if (static_cast<size_t>(cons.index) >= callees.size() || r->ptr != callees[cons.index]) {
+          if (callees.size() <= static_cast<size_t>(cons.index) || callees[cons.index] != r->ptr) {
             all_cons_pass = false;
             break;
           }
@@ -737,13 +737,12 @@ Map<DFPattern, Var> MatchGraph(const PatternContext& ctx, const DataflowBlock& d
     }
   }
 
-  if (start_hint.defined()) {
-    Var v = start_hint.value();
-    auto rnode_ptr = var2node.find(v.get());
-    for (auto& ppair : pattern2node) {
-      if (try_match(&ppair.second, &rnode_ptr->second, &matcher, def2use, caller2callees)) {
-        for (auto ppair : pattern2node)
-          ret.Set(GetRef<DFPattern>(ppair.first), GetRef<Var>(ppair.second.matched));
+  if (start_hint) {
+    auto rnode_ptr = var2node.at(start_hint.value().get());
+    for (auto& [df_pattern, pattern_node] : pattern2node) {
+      if (try_match(&pattern_node, &rnode_ptr, &matcher, def2use, caller2callees)) {
+        for (const auto& [df_pattern, pattern_node] : pattern2node)
+          ret.Set(GetRef<DFPattern>(df_pattern), GetRef<Var>(pattern_node.matched));
         return ret;
       }
     }
