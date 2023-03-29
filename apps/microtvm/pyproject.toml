@@ -85,7 +85,7 @@ opencv-python = {version = "^4.2", optional = true}
 cffi = {version = "^1.14", optional = true}
 
 # Keras
-keras = {version = "==2.9", optional = true}
+keras = {version = "==2.11.0", optional = true}
 
 # MXNet frontend
 mxnet = {version = "==1.6.0", optional = true}
@@ -96,13 +96,13 @@ onnxoptimizer = { version = "==0.2.7", optional = true }
 onnxruntime = { version = "==1.12.1", optional = true }
 
 # Pytorch (also used by ONNX)
-torch = { version = "==1.11.0", optional = true }
+torch = { version = "==1.13.1", optional = true }
 torchvision = { version = "==0.12.0", optional = true }
 
 future = { version = "==*", optional = true }
 
 # Tensorflow frontend
-tensorflow = {version = "==2.9.1", optional = true}
+tensorflow = {version = "==2.11.1", optional = true}
 
 # TFLite frontend
 tflite = {version = "^2.1.0", optional = true}
@@ -119,7 +119,7 @@ importer-darknet = ["opencv-python"]
 importer-keras = ["keras"]
 importer-onnx = ["future", "onnx", "onnxoptimizer", "onnxruntime", "torch", "torchvision"]
 importer-pytorch = ["torch", "torchvision", "future"]
-importer-tensorflow = ["tensorflow"]
+importer-tensorflow = ["tensorflow", "keras"]
 importer-tflite = ["tflite", "tensorflow"]
 importer-mxnet = ["mxnet"]
 
