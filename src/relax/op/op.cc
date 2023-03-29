@@ -640,7 +640,8 @@ StructInfo InferStructInfoStopLiftParams(const Call& call, const BlockBuilder& c
 RELAY_REGISTER_OP("relax.builtin.stop_lift_params")
     .set_num_inputs(1)
     .add_argument("x", "Expr", "The input data")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStopLiftParams);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStopLiftParams)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeStopLiftParams(Expr x) {
   static const Op& op = Op::Get("relax.builtin.stop_lift_params");
