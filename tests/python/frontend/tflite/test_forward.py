@@ -804,7 +804,9 @@ def test_forward_batch_matmul(config):
         (3, 4, 5, 6), (3, 4, 6, 5), dtype=config[0], out_dtype=config[1], quantized=config[2]
     )
     # BatchMatMul doesn't support larger than 4D tensors
-    # _test_batch_matmul((2, 3, 4, 5, 6), (2, 3, 4, 6, 5), dtype=config[0], out_dtype=config[1], quantized=config[2])
+    # _test_batch_matmul(
+    #    (2, 3, 4, 5, 6), (2, 3, 4, 6, 5), dtype=config[0], out_dtype=config[1], quantized=config[2]
+    # )
 
 
 #######################################################################
