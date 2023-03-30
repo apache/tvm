@@ -1034,15 +1034,6 @@ def test_attention_qkv():
         matmul2 = is_op("relax.matmul")(inp_pat, K_weight_pat)
         matmul3 = is_op("relax.matmul")(inp_pat, V_weight_pat)
 
-        # TODO(masahi): Automate addition of used_by constraints during is_op
-        inp_pat.used_by(matmul1, 0)
-        inp_pat.used_by(matmul2, 0)
-        inp_pat.used_by(matmul3, 0)
-
-        Q_weight_pat.only_used_by(matmul1, 1)
-        K_weight_pat.only_used_by(matmul2, 1)
-        V_weight_pat.only_used_by(matmul3, 1)
-
         dfb = QKV_proj["main"].body.blocks[0]
         out = ctx.match_dfb(dfb)
 

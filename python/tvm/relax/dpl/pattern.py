@@ -52,7 +52,7 @@ def register_df_node(type_key=None):
 class DFPattern(Node):
     """Base class of all Patterns."""
 
-    def __call__(self, *args, varg_default_wildcard=False) -> "CallPattern":
+    def __call__(self, *args, varg_default_wildcard=False, add_constraint=True) -> "CallPattern":
         """
         Syntax sugar for creating a CallPattern with argument patterns
 
@@ -61,7 +61,7 @@ class DFPattern(Node):
         result: CallPattern
             The resulting CallPattern
         """
-        return CallPattern(self, args, varg_default_wildcard)
+        return CallPattern(self, args, varg_default_wildcard, add_constraint)
 
     def __or__(self, other: "DFPattern") -> "OrPattern":
         """
@@ -387,6 +387,9 @@ class CallPattern(DFPattern):
     varg_default_wildcard: bool
         If True, args can be fewer than actual provided arguments.
 
+    add_constraint: bool
+        If True, automatically add "used-by" constraints between caller and callee expressions.
+
     Note
     ----
     By setting varg_default_wildcard to True, we can only focus on the argument
@@ -400,10 +403,15 @@ class CallPattern(DFPattern):
         op: "DFPattern",
         args: Union[List["DFPattern"], typing.Tuple["DFPattern", ...]],
         varg_default_wildcard: bool = False,
+        add_constraint=True,
     ):
         self.__init_handle_by_constructor__(
             ffi.CallPattern, op, args, varg_default_wildcard  # type: ignore
         )
+
+        if add_constraint:
+            for i, arg in enumerate(args):
+                arg.used_by(self, i)
 
 
 @register_df_node
@@ -835,7 +843,7 @@ def _is_call_tir(
     elif isinstance(args, (list, tuple)):
         args = TuplePattern(args)
 
-    return is_op("relax.call_tir")(func_pattern, args)
+    return is_op("relax.call_tir")(func_pattern, args, add_constraint=False)
 
 
 # Todo(relax-team): Dataflow pattern for StructInfo, and match out_sinfo
@@ -871,7 +879,7 @@ def _is_call_dps_packed(
     elif isinstance(args, (list, tuple)):
         args = TuplePattern(args)
 
-    return is_op("relax.call_dps_packed")(func_pattern, args)
+    return is_op("relax.call_dps_packed")(func_pattern, args, add_constraint=False)
 
 
 def is_call_dps_packed(
@@ -915,7 +923,7 @@ def is_call_packed(
         The resulting CallPattern
     """
     if args is None:
-        return ExternFuncPattern(func_name)(varg_default_wildcard=True)
+        return ExternFuncPattern(func_name)(varg_default_wildcard=True, add_constraint=False)
     return ExternFuncPattern(func_name)(*args)
 
 
