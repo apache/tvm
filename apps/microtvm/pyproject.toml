@@ -59,10 +59,10 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.7, <3.11"
+python = ">=3.8, <3.11"
 attrs = "==22.2.0"
 decorator = "==5.1.1"
-numpy = "==1.21.3"
+numpy = "==1.22"
 psutil = "==5.9.4"
 scipy = "==1.7.3"
 tornado = "==6.2"
@@ -85,15 +85,15 @@ opencv-python = {version = "^4.2", optional = true}
 cffi = {version = "^1.14", optional = true}
 
 # Keras
-keras = {version = "==2.11.0", optional = true}
+keras = {version = "==2.12.0", optional = true}
 
 # MXNet frontend
-mxnet = {version = "==1.6.0", optional = true}
+mxnet = {version = "==1.9.1", optional = true}
 
 # ONNX frontend
-onnx = {version = "==1.12.0", optional = true}
-onnxoptimizer = { version = "==0.2.7", optional = true }
-onnxruntime = { version = "==1.12.1", optional = true }
+onnx = {version = "==1.13.0", optional = true}
+onnxoptimizer = { version = "==0.3.10", optional = true }
+onnxruntime = { version = "==1.14.1", optional = true }
 
 # Pytorch (also used by ONNX)
 torch = { version = "==1.13.1", optional = true }
@@ -102,10 +102,10 @@ torchvision = { version = "==0.12.0", optional = true }
 future = { version = ">=0.18.3", optional = true }
 
 # Tensorflow frontend
-tensorflow = {version = "==2.11.1", optional = true}
+tensorflow = {version = "^2.12.0", optional = true}
 
 # TFLite frontend
-tflite = {version = "^2.1.0", optional = true}
+tflite = {version = "^2.10.0", optional = true}
 wheel = "*"
 cloudpickle = "^1.6.0"
 pyusb = "^1.2.1"
@@ -116,10 +116,10 @@ xgboost = ["xgboost"]
 importer-caffe2 = ["torch"]
 importer-coreml = ["coremltools"]
 importer-darknet = ["opencv-python"]
-importer-keras = ["keras"]
+importer-keras = ["tensorflow"]
 importer-onnx = ["future", "onnx", "onnxoptimizer", "onnxruntime", "torch", "torchvision"]
 importer-pytorch = ["torch", "torchvision", "future"]
-importer-tensorflow = ["tensorflow", "keras"]
+importer-tensorflow = ["tensorflow"]
 importer-tflite = ["tflite", "tensorflow"]
 importer-mxnet = ["mxnet"]
 
@@ -129,7 +129,7 @@ black = "^19.10b0"
 matplotlib = "^3.2"
 Image = "^1.5"
 recommonmark = "^0.6"
-pillow = "==9.1.0"
+pillow = "==9.2.0"
 pyformat = "^0.7"
 pylint = "^2.4"
 pytest = "==7.2.1"
