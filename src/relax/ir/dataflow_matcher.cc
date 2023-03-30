@@ -541,15 +541,15 @@ struct RNode {
 /**
  * \brief This method try to match a real node and a pattern node along with its neighbors.
  */
-using UndoStack = std::stack<std::pair<PNode*, RNode*>>;
-static std::optional<UndoStack> try_match(
+using UndoItems = std::vector<std::pair<PNode*, RNode*>>;
+static std::optional<UndoItems> try_match(
     PNode* p, RNode* r, DFPatternMatcher* m,
     const std::map<const VarNode*, std::vector<const VarNode*>>& def2use,
     const std::map<const VarNode*, std::vector<const VarNode*>>& use2def) {
   if (p->matched != nullptr && p->matched == r->ptr) return {};  // matched before.
   if (!m->Match(GetRef<DFPattern>(p->ptr), GetRef<Var>(r->ptr))) return std::nullopt;
 
-  UndoStack undo;
+  UndoItems undo;
 
   const auto commit = [&undo](PNode* p, RNode* r) {
     // match with each other.
@@ -560,27 +560,20 @@ static std::optional<UndoStack> try_match(
     }
     p->matched = r->ptr;
     r->matched = p->ptr;
-    undo.emplace(p, r);
+    undo.emplace_back(p, r);
   };
 
   const auto quit = [&undo] {
-    while (!undo.empty()) {
-      const auto& [p_node, r_node] = undo.top();
+    for (auto& [p_node, r_node] : undo) {
       p_node->matched = nullptr;
       r_node->matched = nullptr;
-      undo.pop();
     }
     return std::nullopt;
   };
 
   const auto try_match_update_undo = [&](PNode* p, RNode* r) {
     if (auto undo_more = try_match(p, r, m, def2use, use2def)) {
-      while (!undo_more->empty()) {
-        auto& [p_node, r_node] = undo_more->top();
-        undo.emplace(p_node, r_node);
-        undo_more->pop();
-      }
-      return true;
+      undo.insert(undo.end(), undo_more->begin(), undo_more->end());
     }
     return false;
   };
