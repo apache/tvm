@@ -92,3 +92,5 @@ from . import frontend
 
 # VM
 from .vm_build import build, Executable
+
+from .binding_rewrite import DataflowBlockRewrite
