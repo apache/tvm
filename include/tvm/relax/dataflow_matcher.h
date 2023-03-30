@@ -65,15 +65,6 @@ TVM_DLL tvm::runtime::Map<DFPattern, Var> MatchGraph(const PatternContext& ctx,
                                                      Optional<Var> start_hint = NullOpt,
                                                      bool must_include_hint = false);
 
-/**
- * \brief Match a graph-wise pattern with the current context (PatternContext::Current()).
- */
-inline tvm::runtime::Map<DFPattern, Var> MatchGraphDefault(const DataflowBlock& dfb,
-                                                           Optional<Var> start_hint = NullOpt,
-                                                           bool must_include_hint = false) {
-  return MatchGraph(PatternContext::Current(), dfb, start_hint, must_include_hint);
-}
-
 }  // namespace relax
 }  // namespace tvm
 

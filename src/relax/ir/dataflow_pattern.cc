@@ -394,8 +394,8 @@ std::stack<PatternContext>& pattern_ctx_stack() {
   return graph_pattern_managers;
 }
 
-PatternContext PatternContext::Current() {
-  ICHECK(!pattern_ctx_stack().empty()) << "No active PatternContext found.";
+Optional<PatternContext> PatternContext::Current() {
+  if (pattern_ctx_stack().empty()) return NullOpt;
   return pattern_ctx_stack().top();
 }
 
@@ -419,7 +419,9 @@ void PatternContext::ExitWithScope() {
 }
 
 static void sync_graph_constraints(const DFPattern& lhs, const DFPattern& rhs, PairCons pcon) {
-  PatternContext::Current().add_constraint(lhs, rhs, pcon);
+  if (auto ctx = PatternContext::Current()) {
+    ctx.value().add_constraint(lhs, rhs, pcon);
+  }
 }
 
 TVM_REGISTER_NODE_TYPE(PatternSeqNode);
