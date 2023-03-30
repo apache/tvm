@@ -147,20 +147,19 @@ def conv3d_transpose_legalize(attrs, inputs, types):
         data, kernel = inputs
         kernel_layout = attrs["kernel_layout"]
         # Convert Kernel layout to IODHW
-        # kernel_layout is different from input kernel layout - IO is swapped
         if kernel_layout == "DHWIO":
             # input kernel layout is swapped to DHWOI
             # output kernel layout will be IODHW
-            kernel = relay.transpose(kernel, axes=(4, 3, 0, 1, 2))
+            kernel = relay.transpose(kernel, axes=(3, 4, 0, 1, 2))
         elif kernel_layout == "DHWOI":
             # input kernel layout is swapped to DHWIO
             # output kernel layout will be IODHW
-            kernel = relay.transpose(kernel, axes=(3, 4, 0, 1, 2))
-        elif kernel_layout == "IODHW":
+            kernel = relay.transpose(kernel, axes=(4, 3, 0, 1, 2))
+        elif kernel_layout == "OIDHW":
             # input kernel layout is swapped to OIDHW
             # output kernel layout will be IODHW
             kernel = relay.transpose(kernel, axes=(1, 0, 2, 3, 4))
-        elif kernel_layout == "OIDHW":
+        elif kernel_layout == "IODHW":
             # input kernel layout is swapped to IODHW
             # output kernel layout will be IODHW
             pass
@@ -172,7 +171,7 @@ def conv3d_transpose_legalize(attrs, inputs, types):
         new_attrs = {k: attrs[k] for k in attrs.keys()}
         new_attrs["data_layout"] = "NCDHW"
         # layout of kernel should be IODHW, but kernel_layout should be swapped - OIDHW
-        new_attrs["kernel_layout"] = "OIDHW"
+        new_attrs["kernel_layout"] = "IODHW"
 
         # Convert data to NCDHW.
         data = relay.transpose(data, axes=(0, 4, 1, 2, 3))

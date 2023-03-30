@@ -436,7 +436,7 @@ def conv3d_transpose(
     channels=None,
     kernel_size=None,
     data_layout="NCDHW",
-    kernel_layout="OIDHW",
+    kernel_layout="IODHW",
     out_layout="",
     output_padding=(0, 0, 0),
     out_dtype="",

@@ -450,6 +450,7 @@ def _convert_convolution(inexpr, keras_layer, etab, data_layout, input_shape=Non
 
 def _convert_convolution3d(inexpr, keras_layer, etab, data_layout, input_shape=None):
     _check_data_format(keras_layer)
+    is_deconv = type(keras_layer).__name__ == "Conv3DTranspose"
     weightList = keras_layer.get_weights()
     weight = weightList[0]
     if input_shape is None:
@@ -457,20 +458,22 @@ def _convert_convolution3d(inexpr, keras_layer, etab, data_layout, input_shape=N
 
     if data_layout == "NDHWC":
         kernel_layout = "DHWIO"
+        if is_deconv:
+            kernel_layout = "DHWOI"
     else:
         kernel_layout = "OIDHW"
+        if is_deconv:
+            kernel_layout = "IODHW"
         msg = (
             "Kernel layout with {} is not supported for operator Convolution3D "
             "in frontend Keras."
         )
         raise tvm.error.OpAttributeUnImplemented(msg.format(data_layout))
 
-    is_deconv = type(keras_layer).__name__ == "Conv3DTranspose"
-
     if is_deconv:
         kernel_d, kernel_h, kernel_w, n_filters, _ = weight.shape
-        if kernel_layout == "OIDHW":
-            weight = weight.transpose([4, 3, 2, 0, 1])
+        if kernel_layout == "IODHW":
+            weight = weight.transpose([4, 3, 0, 1, 2])
     else:
         kernel_d, kernel_h, kernel_w, _, n_filters = weight.shape
 
