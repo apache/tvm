@@ -671,10 +671,6 @@ void CodeGenC::VisitStmt_(const AllocateConstNode* op) {
 
 void CodeGenC::VisitStmt_(const DeclBufferNode* op) { this->PrintStmt(op->body); }
 
-void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
-  LOG(FATAL) << "Unexpected deprecated LoadNode.  Use BufferLoadNode instead.";
-}
-
 void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLINT(*)
   ICHECK_EQ(op->indices.size(), 1) << "Load from non-flat memory not supported.";
 
@@ -732,10 +728,6 @@ void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLI
       os << svalue_expr.str();
     }
   }
-}
-
-void CodeGenC::VisitStmt_(const StoreNode* op) {
-  LOG(FATAL) << "Unexpected deprecated StoreNode.  Use BufferStoreNode instead.";
 }
 
 void CodeGenC::VisitStmt_(const BufferStoreNode* op) {
@@ -807,15 +799,16 @@ void CodeGenC::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT(*)
 }
 
 void CodeGenC::VisitExpr_(const RampNode* op, std::ostream& os) {  // NOLINT(*)
-  // constraint of current logic
-  ICHECK_EQ(op->base.dtype(), DataType::Int(32));
-  os << "((int" << op->lanes << ")(";
+  // NOTE: C have comma expression so cannot use (int2)(v0, v1)
+  // instead should use int2(v0, v1)
+  PrintType(op->dtype, os);
+  os << "(";
   for (int i = 0; i < op->lanes; i++) {
     os << "(" << PrintExpr(op->base) << ")"
        << "+(" << PrintExpr(op->stride) << "*" << i << ")";
     if (i != op->lanes - 1) os << ", ";
   }
-  os << "))";
+  os << ")";
 }
 
 void CodeGenC::VisitExpr_(const ShuffleNode* op, std::ostream& os) {
@@ -1004,9 +997,11 @@ void CodeGenC::PrintVecElemLoadExpr(DataType t, int i, const std::string& value,
   }
 
   if (i == 0) {
-    os << "((";
+    // NOTE: C have comma expression so cannot use (float2)(v0, v1)
+    // instead should use float2(v0, v1)
+    os << "(";
     PrintType(t, os);
-    os << ")(";
+    os << "(";
   }
   os << value;
   if (i != t.lanes() - 1) {

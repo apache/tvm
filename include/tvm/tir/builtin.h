@@ -727,13 +727,48 @@ TVM_DLL const Op& texture2d_load();
 
 /*!
  * \brief Initiate a non-blocking DMA copy from source to destination
+ *
+ * The copy is launched immediately.
+ *
+ * If a `dma_start_group()` call is active, the copy will be added
+ * to the current group for tracking of in-flight group counts.
+ *
+ * If no `dma_start_group()` call is active, the copy will be tracked
+ * individually i.e. as a group with size 1.
  */
 TVM_DLL const Op& dma_copy();
 
 /*!
- * \brief Wait until the number of DMAs in flight is less than or equal to some maximum
+ * \brief Wait until the number of DMA groups in flight is less than
+ * or equal to some maximum
+ *
+ * Calling `dma_wait()` while a group is active is unsupported.
  */
 TVM_DLL const Op& dma_wait();
+
+/*!
+ * \brief Start a group of DMA copies
+ *
+ * Any call to `dma_copy()` that occurs after `dma_start_group()` will
+ * be added to the current group for tracking of in-flight group counts.
+ *
+ * Only one DMA group may be active at a given time.  Calling
+ * `dma_start_group()` while a group is active is unsupported.
+ */
+TVM_DLL const Op& dma_start_group();
+
+/*!
+ * \brief End a group of DMA copies
+ *
+ * Track all calls to `dma_copy()` that occurred since the preceding
+ * `dma_start_group()` as a single group in-flight.
+ *
+ * Calling `dma_end_group()` without an active group is unsupported.
+ *
+ * Note: A group of DMA calls may be empty, and will still contribute
+ * to the count of in-flight groups used by `dma_wait()`.
+ */
+TVM_DLL const Op& dma_end_group();
 
 /*!
  * \brief Provide a true statement that can be used for simplifications

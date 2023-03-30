@@ -52,7 +52,8 @@ class CodeGenMetal final : public CodeGenC {
   // overload visitor
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
   void VisitExpr_(const CallNode* op, std::ostream& os) final;       // NOLINT(*)
-  void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;
+  void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;   // NOLINT(*)
+
   // reuse parent's function.
   using CodeGenC::PrintType;
 

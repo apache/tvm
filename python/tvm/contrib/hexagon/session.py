@@ -403,6 +403,7 @@ class Session:
             elif target_type == "llvm":
                 module.export_library(
                     str(binary_path),
+                    fcompile=hexagon.create_shared,
                     cc=hexagon.hexagon_clang_plus(),
                 )
             else:

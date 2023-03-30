@@ -261,14 +261,6 @@ class BaseInliner : public StmtExprMutator {
     return StmtExprMutator::VisitExpr_(var);
   }
 
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
-
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
   Stmt VisitStmt_(const ForNode* loop) final {
     if (src_stmt.get() == loop) {
       loop = tgt_stmt.as<ForNode>();
@@ -844,9 +836,11 @@ void ReverseComputeInlineImpl(ScheduleState self, const StmtSRef& consumer_block
       NotSingleReadWriteBuffer::GetSingleRead(self, consumer_block, scope_root_sref);
   // Step 2. Check completeness
   CheckCompleteBlock(self, consumer_block_sref, scope_root_sref);
-  // Step 3. Check if the consumer has a single complete producer
+  // Step 3. Check if the consumer has a single complete producer, and the producer is not an output
+  // block
   StmtSRef producer_block_sref =
       NonSingleProducerError::Check(self, consumer_block_sref, scope_root_sref);
+  CheckNotOutputBlock(self, producer_block_sref, scope_root_sref);
   // Step 4. Analyze the block body
   ReverseComputeInliner inliner(inlined_buffer, producer_block_sref->StmtAs<BlockNode>(),
                                 consumer_block_realize, scope_root_sref, self->mod);

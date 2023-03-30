@@ -15,7 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 import os
+import re
+import logging
 from urllib.parse import urlparse
+import struct
 
 import pytest
 import tensorflow as tf
@@ -37,6 +40,7 @@ from tvm.micro.testing.utils import (
     create_header_file,
     mlf_extract_workspace_size_bytes,
 )
+from tvm.micro.testing.utils import aot_transport_find_message
 
 MLPERF_TINY_MODELS = {
     "kws": {
@@ -44,12 +48,14 @@ MLPERF_TINY_MODELS = {
         "index": 1,
         "url": "https://github.com/mlcommons/tiny/raw/bceb91c5ad2e2deb295547d81505721d3a87d578/benchmark/training/keyword_spotting/trained_models/kws_ref_model.tflite",
         "sample": "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/keyword_spotting_int8_6.pyc.npy",
+        "sample_label": 6,
     },
     "vww": {
         "name": "Visual Wake Words",
         "index": 2,
         "url": "https://github.com/mlcommons/tiny/raw/bceb91c5ad2e2deb295547d81505721d3a87d578/benchmark/training/visual_wake_words/trained_models/vww_96_int8.tflite",
         "sample": "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/visual_wake_word_int8_1.npy",
+        "sample_label": 1,
     },
     # Note: The reason we use quantized model with float32 I/O is
     # that TVM does not handle the int8 I/O correctly and accuracy
@@ -67,8 +73,13 @@ MLPERF_TINY_MODELS = {
         "index": 4,
         "url": "https://github.com/mlcommons/tiny/raw/bceb91c5ad2e2deb295547d81505721d3a87d578/benchmark/training/image_classification/trained_models/pretrainedResnet_quant.tflite",
         "sample": "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/image_classification_int8_0.npy",
+        "sample_label": 0,
     },
 }
+
+MLPERFTINY_READY_MSG = "m-ready"
+MLPERFTINY_RESULT_MSG = "m-results"
+MLPERFTINY_NAME_MSG = "m-name"
 
 
 def mlperftiny_get_module(model_name: str):
@@ -114,11 +125,17 @@ def mlperftiny_get_module(model_name: str):
     return relay_mod, params, model_info
 
 
-def get_test_data(model_name: str) -> list:
+def get_test_data(model_name: str, project_type: str) -> list:
     sample_url = MLPERF_TINY_MODELS[model_name]["sample"]
     url = urlparse(sample_url)
     sample_path = download_testdata(sample_url, os.path.basename(url.path), module="data")
-    return [np.load(sample_path)]
+    sample = np.load(sample_path)
+    if project_type == "mlperftiny" and model_name != "ad":
+        sample = sample.astype(np.uint8)
+    sample_label = None
+    if "sample_label" in MLPERF_TINY_MODELS[model_name].keys():
+        sample_label = MLPERF_TINY_MODELS[model_name]["sample_label"]
+    return [sample], [sample_label]
 
 
 def predict_ad_labels_aot(session, aot_executor, input_data, runs_per_sample=1):
@@ -148,6 +165,91 @@ def predict_ad_labels_aot(session, aot_executor, input_data, runs_per_sample=1):
         yield np.mean(errors), np.median(slice_runtimes)
 
 
+def _mlperftiny_get_name(device_transport) -> str:
+    """Get device name."""
+    device_transport.write(b"name%", timeout_sec=5)
+    name_message = aot_transport_find_message(device_transport, MLPERFTINY_NAME_MSG, timeout_sec=5)
+    m = re.search(r"\[([A-Za-z0-9_]+)\]", name_message)
+    return m.group(1)
+
+
+def _mlperftiny_infer(transport, warmup: int, infer: int, timeout: int):
+    """Send MLPerfTiny infer command."""
+    cmd = f"infer {warmup} {infer}%".encode("UTF-8")
+    transport.write(cmd, timeout_sec=timeout)
+
+
+def _mlperftiny_write_sample(device_transport, data: list, timeout: int):
+    """Write a sample with MLPerfTiny compatible format."""
+    cmd = f"db load {len(data)}%".encode("UTF-8")
+    logging.debug(f"transport write: {cmd}")
+    device_transport.write(cmd, timeout)
+    aot_transport_find_message(device_transport, MLPERFTINY_READY_MSG, timeout_sec=timeout)
+    for item in data:
+        if isinstance(item, float):
+            ba = bytearray(struct.pack("<f", item))
+            hex_array = ["%02x" % b for b in ba]
+        else:
+            hex_val = format(item, "x")
+            # make sure hex value is in HH format
+            if len(hex_val) < 2:
+                hex_val = "0" + hex_val
+            elif len(hex_val) > 2:
+                raise ValueError(f"Hex value not in HH format: {hex_val}")
+            hex_array = [hex_val]
+
+        for hex_val in hex_array:
+            cmd = f"db {hex_val}%".encode("UTF-8")
+            logging.debug(f"transport write: {cmd}")
+            device_transport.write(cmd, timeout)
+            aot_transport_find_message(device_transport, MLPERFTINY_READY_MSG, timeout_sec=timeout)
+
+
+def _mlperftiny_test_dataset(device_transport, dataset, timeout):
+    """Run test dataset compatible with MLPerfTiny format."""
+    num_correct = 0
+    total = 0
+    samples, labels = dataset
+    i_counter = 0
+    for sample in samples:
+        label = labels[i_counter]
+        logging.info(f"Writing Sample {i_counter}")
+        _mlperftiny_write_sample(device_transport, sample.flatten().tolist(), timeout)
+        _mlperftiny_infer(device_transport, 1, 0, timeout)
+        results = aot_transport_find_message(
+            device_transport, MLPERFTINY_RESULT_MSG, timeout_sec=timeout
+        )
+
+        m = re.search(r"m\-results\-\[([A-Za-z0-9_,.]+)\]", results)
+        results = m.group(1).split(",")
+        results_val = [float(x) for x in results]
+        results_val = np.array(results_val)
+
+        if np.argmax(results_val) == label:
+            num_correct += 1
+        total += 1
+        i_counter += 1
+    return float(num_correct / total)
+
+
+def _mlperftiny_test_dataset_ad(device_transport, dataset, timeout):
+    """Run test dataset compatible with MLPerfTiny format for AD model."""
+    samples, _ = dataset
+    result_output = np.zeros(samples[0].shape[0])
+
+    for slice in range(0, 40):
+        _mlperftiny_write_sample(device_transport, samples[0][slice, :].flatten().tolist(), timeout)
+        _mlperftiny_infer(device_transport, 1, 0, timeout)
+        results = aot_transport_find_message(
+            device_transport, MLPERFTINY_RESULT_MSG, timeout_sec=timeout
+        )
+        m = re.search(r"m\-results\-\[([A-Za-z0-9_,.]+)\]", results)
+        results = m.group(1).split(",")
+        results_val = [float(x) for x in results]
+        result_output[slice] = np.array(results_val)
+    return np.average(result_output)
+
+
 @pytest.mark.parametrize("model_name", ["kws", "vww", "ad", "ic"])
 @pytest.mark.parametrize("project_type", ["host_driven", "mlperftiny"])
 @tvm.testing.requires_micro
@@ -159,7 +261,7 @@ def test_mlperftiny_models(platform, board, workspace_dir, serial_number, model_
     Testing MLPerfTiny models using host_driven project. In this case one input sample is used
     to verify the end to end execution. Accuracy is not checked in this test.
 
-    Also, this test builds each model in standalone mode that can be used with EEMBC runner.
+    Also, this test builds each model in standalone mode that can be used for MLPerfTiny submissions.
     """
     if platform != "zephyr":
         pytest.skip(reason="Other platforms are not supported yet.")
@@ -177,6 +279,7 @@ def test_mlperftiny_models(platform, board, workspace_dir, serial_number, model_
     else:
         predictor = predict_labels_aot
 
+    samples, labels = get_test_data(model_name, project_type)
     if project_type == "host_driven":
         with create_aot_session(
             platform,
@@ -201,7 +304,7 @@ def test_mlperftiny_models(platform, board, workspace_dir, serial_number, model_
             args = {
                 "session": session,
                 "aot_executor": aot_executor,
-                "input_data": get_test_data(model_name),
+                "input_data": samples,
                 "runs_per_sample": 10,
             }
             predicted_labels, runtimes = zip(*predictor(**args))
@@ -267,6 +370,10 @@ def test_mlperftiny_models(platform, board, workspace_dir, serial_number, model_
         for i in range(len(input_shape)):
             input_total_size *= input_shape[i]
 
+        # float input
+        if model_name == "ad":
+            input_total_size *= 4
+
         template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects(platform))
         project_options.update(
             {
@@ -295,6 +402,21 @@ def test_mlperftiny_models(platform, board, workspace_dir, serial_number, model_
             template_project_path, workspace_dir / "project", model_tar_path, project_options
         )
         project.build()
+        project.flash()
+        with project.transport() as transport:
+            aot_transport_find_message(transport, MLPERFTINY_READY_MSG, timeout_sec=200)
+            print(f"Testing {model_name} on {_mlperftiny_get_name(transport)}.")
+            assert _mlperftiny_get_name(transport) == "microTVM"
+            if model_name != "ad":
+                accuracy = _mlperftiny_test_dataset(transport, [samples, labels], 100)
+                print(f"Model {model_name} accuracy: {accuracy}")
+            else:
+                mean_error = _mlperftiny_test_dataset_ad(transport, [samples, None], 100)
+                print(
+                    f"""Model {model_name} mean error: {mean_error}.
+                      Note that this is not the final accuracy number.
+                      To calculate that, you need to use sklearn.metrics.roc_auc_score function."""
+                )
 
 
 if __name__ == "__main__":

@@ -1251,6 +1251,9 @@ class PyTorchOpConverter:
         if len(kernel_size) == 3:
             data_layout = "NCDHW"
             kernel_layout = "OIDHW"
+            if use_transpose:
+                # Transposed convolutions have IODHW layout.
+                kernel_layout = "IODHW"
         elif len(kernel_size) == 2:
             data_layout = "NCHW"
             kernel_layout = "OIHW"
@@ -4493,7 +4496,7 @@ def _get_pytorch_value_type(typ, default_dtype="float32"):
         return "ListType"
     elif kind in ["IntType", "FloatType", "BoolType", "StringType", "OptionalType"]:
         pt_dtype = str(typ).lower()
-        dtype = pt_dtype if pt_dtype == "OptionalType" else _convert_data_type(pt_dtype)
+        dtype = pt_dtype if kind == "OptionalType" else _convert_data_type(pt_dtype)
         return dtype
     else:
         return "UnsupportedType"

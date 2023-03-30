@@ -24,9 +24,10 @@ namespace tvm {
 namespace tir {
 
 Schedule Schedule::Concrete(IRModule mod, support::LinearCongruentialEngine::TRandState seed,
-                            int debug_mask, ScheduleErrorRenderLevel error_render_level) {
+                            int debug_mask, ScheduleErrorRenderLevel error_render_level,
+                            bool enable_check) {
   ObjectPtr<ConcreteScheduleNode> n = make_object<ConcreteScheduleNode>();
-  n->state_ = ScheduleState(mod, debug_mask);
+  n->state_ = ScheduleState(mod, debug_mask, enable_check);
   n->error_render_level_ = error_render_level;
   n->symbol_table_ = {};
   n->analyzer_ = std::make_unique<arith::Analyzer>();
@@ -60,6 +61,7 @@ class ScheduleCopier {
     n->block_info = copier.Copy(src_state->block_info);
     n->stmt2ref = copier.Copy(src_state->stmt2ref);
     n->debug_mask = src_state->debug_mask;
+    n->enable_check = src_state->enable_check;
     *new_state = ScheduleState(std::move(n));
     *new_symbol_table = copier.Copy(self->symbol_table_);
   }
@@ -568,6 +570,30 @@ BlockRV ConcreteScheduleNode::CacheWrite(const BlockRV& block_rv, int write_buff
   return CreateRV<BlockRV>(result);
 }
 
+BlockRV ConcreteScheduleNode::ReindexCacheRead(const BlockRV& block_rv, int read_buffer_index,
+                                               const String& storage_scope,
+                                               const IndexMap& index_map) {
+  StmtSRef result{nullptr};
+  TVM_TIR_SCHEDULE_BEGIN();
+  result = tir::ReindexCacheRead(state_, this->GetSRef(block_rv), read_buffer_index, storage_scope,
+                                 index_map);
+  TVM_TIR_SCHEDULE_END("reverse-cache-read", this->error_render_level_);
+  this->state_->DebugVerify();
+  return CreateRV<BlockRV>(result);
+}
+
+BlockRV ConcreteScheduleNode::ReindexCacheWrite(const BlockRV& block_rv, int write_buffer_index,
+                                                const String& storage_scope,
+                                                const IndexMap& index_map) {
+  StmtSRef result{nullptr};
+  TVM_TIR_SCHEDULE_BEGIN();
+  result = tir::ReindexCacheWrite(state_, this->GetSRef(block_rv), write_buffer_index,
+                                  storage_scope, index_map);
+  TVM_TIR_SCHEDULE_END("reverse-cache-write", this->error_render_level_);
+  this->state_->DebugVerify();
+  return CreateRV<BlockRV>(result);
+}
+
 Array<BlockRV> ConcreteScheduleNode::CacheInplace(const BlockRV& block_rv, int write_buffer_index,
                                                   const String& storage_scope) {
   Array<StmtSRef> results;
@@ -601,6 +627,30 @@ BlockRV ConcreteScheduleNode::ReIndex(const BlockRV& block_rv, int buffer_index,
   TVM_TIR_SCHEDULE_BEGIN();
   result = tir::ReIndex(state_, this->GetSRef(block_rv), buffer_index, buffer_index_type);
   TVM_TIR_SCHEDULE_END("reindex", this->error_render_level_);
+  this->state_->DebugVerify();
+  return CreateRV<BlockRV>(result);
+}
+
+/******** Schedule: Data movement ********/
+
+BlockRV ConcreteScheduleNode::ReadAt(const LoopRV& loop_rv, const BlockRV& block_rv,
+                                     int read_buffer_index, const String& storage_scope) {
+  StmtSRef result{nullptr};
+  TVM_TIR_SCHEDULE_BEGIN();
+  result = tir::ReadAt(state_, this->GetSRef(loop_rv), this->GetSRef(block_rv), read_buffer_index,
+                       storage_scope);
+  TVM_TIR_SCHEDULE_END("read-at", this->error_render_level_);
+  this->state_->DebugVerify();
+  return CreateRV<BlockRV>(result);
+}
+
+BlockRV ConcreteScheduleNode::WriteAt(const LoopRV& loop_rv, const BlockRV& block_rv,
+                                      int write_buffer_index, const String& storage_scope) {
+  StmtSRef result{nullptr};
+  TVM_TIR_SCHEDULE_BEGIN();
+  result = tir::WriteAt(state_, this->GetSRef(loop_rv), this->GetSRef(block_rv), write_buffer_index,
+                        storage_scope);
+  TVM_TIR_SCHEDULE_END("write-at", this->error_render_level_);
   this->state_->DebugVerify();
   return CreateRV<BlockRV>(result);
 }
@@ -674,6 +724,14 @@ void ConcreteScheduleNode::SetScope(const BlockRV& block_rv, int buffer_index,
   TVM_TIR_SCHEDULE_BEGIN();
   tir::SetScope(state_, this->GetSRef(block_rv), buffer_index, storage_scope);
   TVM_TIR_SCHEDULE_END("set-scope", this->error_render_level_);
+  this->state_->DebugVerify();
+}
+
+void ConcreteScheduleNode::UnsafeSetDType(const BlockRV& block_rv, int buffer_index,
+                                          const String& dtype) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::UnsafeSetDType(state_, this->GetSRef(block_rv), buffer_index, dtype);
+  TVM_TIR_SCHEDULE_END("set-dtype", this->error_render_level_);
   this->state_->DebugVerify();
 }
 

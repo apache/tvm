@@ -76,12 +76,21 @@ class TracedScheduleNode : public ConcreteScheduleNode {
                     const Array<BlockRV> consumer_blocks = {}) final;
   BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index, const String& storage_scope,
                      const Array<BlockRV> consumer_blocks = {}) final;
+  BlockRV ReindexCacheRead(const BlockRV& block_rv, int read_buffer_index,
+                           const String& storage_scope, const IndexMap& index_map) final;
+  BlockRV ReindexCacheWrite(const BlockRV& block_rv, int write_buffer_index,
+                            const String& storage_scope, const IndexMap& index_map) final;
   Array<BlockRV> CacheInplace(const BlockRV& block_rv, int read_buffer_index,
                               const String& storage_scope) final;
   BlockRV ReIndex(const BlockRV& block_rv, int buffer_index,
                   BufferIndexType buffer_index_type) final;
   Array<BlockRV> CacheIndex(const BlockRV& block_rv, const String& storage_scope,
                             int cse_thresh) final;
+  /******** Schedule: Data movement ********/
+  BlockRV ReadAt(const LoopRV& loop_rv, const BlockRV& block_rv, int read_buffer_index,
+                 const String& storage_scope) final;
+  BlockRV WriteAt(const LoopRV& loop_rv, const BlockRV& block_rv, int write_buffer_index,
+                  const String& storage_scope) final;
   /******** Schedule: Compute location ********/
   void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
                  int index = -1) final;
@@ -96,6 +105,7 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   void StorageAlign(const BlockRV& block_rv, int buffer_index, int axis, int factor,
                     int offset) final;
   void SetScope(const BlockRV& block_rv, int buffer_index, const String& storage_scope) final;
+  void UnsafeSetDType(const BlockRV& block_rv, int buffer_index, const String& dtype) final;
   /******** Schedule: Blockize & Tensorize ********/
   BlockRV Blockize(const LoopRV& loop_rv, bool preserve_unit_iters) final;
   void Tensorize(const BlockRV& block_rv, const String& intrin, bool preserve_unit_iters) final;

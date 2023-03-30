@@ -164,7 +164,7 @@ class LinearStructurePlanned:
         slow_memory_7_buffer_var = T.match_buffer(slow_memory_7_var, [1418528], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         tensor_2_let = T.Buffer([200704], dtype="uint8")
-        with T.let(tensor_2_let.data, T.address_of(fast_memory_6_buffer_var[0], dtype="handle")):
+        with T.LetStmt(T.address_of(fast_memory_6_buffer_var[0], dtype="handle"), var=tensor_2_let.data):
             for ax0_ax1_fused_4, ax2_4 in T.grid(56, 56):
                 for ax3_init in T.serial(0, 64):
                     tensor_2_let[ax0_ax1_fused_4 * 3584 + ax2_4 * 64 + ax3_init] = T.uint8(0)
@@ -194,12 +194,12 @@ class LinearStructurePlanned:
         slow_memory_5_buffer_var = T.match_buffer(slow_memory_5_var, [1418528], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         PaddedInput_7_let = T.Buffer([157323], "int16")
-        with T.let(PaddedInput_7_let.data, T.address_of(slow_memory_5_buffer_var[802816], dtype="handle")):
+        with T.LetStmt(T.address_of(slow_memory_5_buffer_var[802816], dtype="handle"), var=PaddedInput_7_let.data):
             for i0_i1_fused_7, i2_7, i3_7 in T.grid(229, 229, 3):
                 PaddedInput_7_let[i0_i1_fused_7 * 687 + i2_7 * 3 + i3_7] = T.if_then_else(2 <= i0_i1_fused_7 and i0_i1_fused_7 < 226 and 2 <= i2_7 and i2_7 < 226, placeholder_65[i0_i1_fused_7 * 672 + i2_7 * 3 + i3_7 - 1350], T.int16(0), dtype="int16")
             for ax0_ax1_fused_ax2_fused_7 in T.serial(0, 12544):
                 Conv2dOutput_7_let = T.Buffer([64], "int32")
-                with T.let(Conv2dOutput_7_let.data, T.address_of(fast_memory_4_buffer_var[0], dtype="handle")):
+                with T.LetStmt(T.address_of(fast_memory_4_buffer_var[0], dtype="handle"), var=Conv2dOutput_7_let.data):
                     for ff_3 in T.serial(0, 64):
                         Conv2dOutput_7_let[ff_3] = 0
                         for ry_2, rx_2, rc_7 in T.grid(7, 7, 3):
@@ -399,12 +399,12 @@ class ResnetStructurePlanned:
         global_workspace_5_buffer_var = T.match_buffer(global_workspace_5_var, [7920256], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         PaddedInput_3_let = T.Buffer([360000], 'int16')
-        with T.let(PaddedInput_3_let.data, T.address_of(global_workspace_5_buffer_var[6480000], dtype="handle")):
+        with T.LetStmt(T.address_of(global_workspace_5_buffer_var[6480000], dtype="handle"), var=PaddedInput_3_let.data):
             for i0_i1_fused_3, i2_3, i3_3 in T.grid(75, 75, 64):
                 PaddedInput_3_let[i0_i1_fused_3 * 4800 + i2_3 * 64 + i3_3] = placeholder_29[i0_i1_fused_3 * 4800 + i2_3 * 64 + i3_3]
             for ax0_ax1_fused_ax2_fused_3 in T.serial(0, 5625):
                 Conv2dOutput_3_let = T.Buffer([64], 'int32')
-                with T.let(Conv2dOutput_3_let.data, T.address_of(global_workspace_5_buffer_var[7200000], dtype="handle")):
+                with T.LetStmt(T.address_of(global_workspace_5_buffer_var[7200000], dtype="handle"), var=Conv2dOutput_3_let.data):
                     for ax3_outer_2 in T.serial(0, 4):
                         for ff_3 in T.serial(0, 64):
                             Conv2dOutput_3_let[ff_3] = 0
@@ -422,12 +422,12 @@ class ResnetStructurePlanned:
         global_workspace_4_buffer_var = T.match_buffer(global_workspace_4_var, [7920256], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         PaddedInput_2_let = T.Buffer([360000], "int16")
-        with T.let(PaddedInput_2_let.data, T.address_of(global_workspace_4_buffer_var[7200000], dtype="handle")):
+        with T.LetStmt(T.address_of(global_workspace_4_buffer_var[7200000], dtype="handle"), var=PaddedInput_2_let.data):
             for i0_i1_fused_2, i2_2, i3_2 in T.grid(75, 75, 64):
                 PaddedInput_2_let[i0_i1_fused_2 * 4800 + i2_2 * 64 + i3_2] = placeholder_19[i0_i1_fused_2 * 4800 + i2_2 * 64 + i3_2]
             for ax0_ax1_fused_ax2_fused_2 in T.serial(0, 5625):
                 Conv2dOutput_2_let = T.Buffer([64], 'int32')
-                with T.let(Conv2dOutput_2_let.data, T.address_of(global_workspace_4_buffer_var[7920000], dtype="handle")):
+                with T.LetStmt(T.address_of(global_workspace_4_buffer_var[7920000], dtype="handle"), var=Conv2dOutput_2_let.data):
                     for ax3_outer_1 in T.serial(0, 4):
                         for ff_2 in T.serial(0, 64):
                             Conv2dOutput_2_let[ff_2] = 0
@@ -445,12 +445,12 @@ class ResnetStructurePlanned:
         global_workspace_2_buffer_var = T.match_buffer(global_workspace_2_var, [7920256], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         PaddedInput_let = T.Buffer([360000], "int16")
-        with T.let(PaddedInput_let.data, T.address_of(global_workspace_2_buffer_var[7200000], dtype="handle")):
+        with T.LetStmt(T.address_of(global_workspace_2_buffer_var[7200000], dtype="handle"), var=PaddedInput_let.data):
             for i0_i1_fused, i2, i3 in T.grid(75, 75, 64):
                 PaddedInput_let[i0_i1_fused * 4800 + i2 * 64 + i3] = placeholder_7[i0_i1_fused * 4800 + i2 * 64 + i3]
             for ax0_ax1_fused_ax2_fused in T.serial(0, 5625):
                 Conv2dOutput_let = T.Buffer([64], "int32")
-                with T.let(Conv2dOutput_let.data, T.address_of(global_workspace_2_buffer_var[7920000], dtype="handle")):
+                with T.LetStmt(T.address_of(global_workspace_2_buffer_var[7920000], dtype="handle"), var=Conv2dOutput_let.data):
                     for ff in T.serial(0, 64):
                         Conv2dOutput_let[ff] = 0
                         for rc in T.serial(0, 64):
@@ -467,12 +467,12 @@ class ResnetStructurePlanned:
         global_workspace_3_buffer_var = T.match_buffer(global_workspace_3_var, [7920256], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         PaddedInput_1_let = T.Buffer([379456], "int16")
-        with T.let(PaddedInput_1_let.data, T.address_of(global_workspace_3_buffer_var[0], dtype="handle")):
+        with T.LetStmt(T.address_of(global_workspace_3_buffer_var[0], dtype="handle"), var=PaddedInput_1_let.data):
             for i0_i1_fused_1, i2_1, i3_1 in T.grid(77, 77, 64):
                 PaddedInput_1_let[i0_i1_fused_1 * 4928 + i2_1 * 64 + i3_1] = T.if_then_else(1 <= i0_i1_fused_1 and i0_i1_fused_1 < 76 and 1 <= i2_1 and i2_1 < 76, placeholder_13[i0_i1_fused_1 * 4800 + i2_1 * 64 + i3_1 - 4864], T.int16(0), dtype="int16")
             for ax0_ax1_fused_ax2_fused_1 in T.serial(0, 5625):
                 Conv2dOutput_1_let = T.Buffer([64], "int32")
-                with T.let(Conv2dOutput_1_let.data, T.address_of(global_workspace_3_buffer_var[7200000], dtype="handle")):
+                with T.LetStmt(T.address_of(global_workspace_3_buffer_var[7200000], dtype="handle"), var=Conv2dOutput_1_let.data):
                     for ff_1 in T.serial(0, 64):
                         Conv2dOutput_1_let[ff_1] = 0
                         for ry, rx, rc_1 in T.grid(3, 3, 64):
@@ -562,7 +562,9 @@ class TensorIntrinStructurePlanned:
             global_workspace_1_var, [40], dtype="uint8", strides=[1], elem_offset=0, align=16
         )
         dense_let = T.Buffer([10], "int32")
-        with T.let(dense_let.data, T.address_of(global_workspace_1_buffer_var[0], dtype="handle")):
+        with T.LetStmt(
+            T.address_of(global_workspace_1_buffer_var[0], dtype="handle"), var=dense_let.data
+        ):
             T.evaluate(
                 T.call_extern(
                     "intrin_function",

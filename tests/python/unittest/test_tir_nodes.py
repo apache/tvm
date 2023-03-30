@@ -314,7 +314,7 @@ def test_isnan():
     y = te.var("y", "float16")
     assert str(tvm.tir.isnan(y)) == 'T.isnan(T.Cast("float32", y))'
     z = te.var("z", "int32")
-    assert str(tvm.tir.isnan(z)) == "False"
+    assert str(tvm.tir.isnan(z)) == "T.bool(False)"
     k = te.var("k", "int8x2")
     assert str(tvm.tir.isnan(k).dtype) == "uint1x2"
 

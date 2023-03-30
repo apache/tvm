@@ -1592,10 +1592,12 @@ inline Array<Tensor> meshgrid(const Array<Tensor>& inputs, const std::string& in
  * \param dst_layout the destination layout.
  * \param name output tensor name.
  * \param tag output tensor tag.
+ * \param schedule_rule name of specialized schedule rule to use.
  * \return A tensor with shape in \p dst_layout
  */
 inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
                                const std::string& dst_layout,
+                               const std::string schedule_rule = "None",
                                const std::string name = "T_layout_trans",
                                const std::string tag = kInjective) {
   Layout src_layout_struct(src_layout);
@@ -1614,6 +1616,12 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
 
   Array<PrimExpr> dst_shape = layout_converter.ForwardShape(src->shape);
 
+  Map<String, ObjectRef> attrs = {{"schedule_rule", String(schedule_rule)},
+                                  // Information about layouts needed for the schedule rule
+                                  {"src_layout", String(src_layout)},
+                                  {"dst_layout", String(dst_layout)},
+                                  {"input_shape", src->shape}};
+
   return compute(
       dst_shape,
       [&](const Array<Var>& dst_indices) {
@@ -1625,7 +1633,7 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
         }
         return if_then_else(in_range, src(src_indices), tvm::cast(src->dtype, PrimExpr(0)));
       },
-      name, tag);
+      name, tag, attrs);
 }
 
 /*! \brief Utility function for auto_scheduler_layout_transform */

@@ -700,7 +700,8 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
    */
   Expr MakeLoweredCall(const BaseFunc& original_function, const GlobalVar& prim_fn_var,
                        Array<Expr> args, Span span, const Target& target,
-                       const Map<GlobalVar, BaseFunc>& lowered_functions) {
+                       const Map<GlobalVar, BaseFunc>& lowered_functions,
+                       const te::Schedule& sch = {}) {
     auto opt_compiler = original_function->GetAttr<String>(attr::kCompiler);
 
     // Add some metadata on top of the *original function* and invoke the callback so it can
@@ -730,6 +731,10 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
       func_with_metadata = WithAttr(func_with_metadata, "prim_fn_var", prim_fn_var);
       func_with_metadata = WithAttr(func_with_metadata, "prim_funcs", prim_fns);
       func_with_metadata = WithAttr(func_with_metadata, tvm::attr::kTarget, target);
+      // Store generated Schedules of operator
+      if (sch.defined() && sch->keep_schedule_record) {
+        func_with_metadata = WithAttr(func_with_metadata, "schedule", sch);
+      }
       this->process_fn_(func_with_metadata);
     } else {
       const auto* function_node = original_function.as<FunctionNode>();
@@ -738,6 +743,10 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
       func_with_metadata = WithAttr(func_with_metadata, "prim_fn_var", prim_fn_var);
       func_with_metadata = WithAttr(func_with_metadata, "prim_funcs", prim_fns);
       func_with_metadata = WithAttr(func_with_metadata, tvm::attr::kTarget, target);
+      // Store generated Schedules of operator
+      if (sch.defined() && sch->keep_schedule_record) {
+        func_with_metadata = WithAttr(func_with_metadata, "schedule", sch);
+      }
       this->process_fn_(func_with_metadata);
     }
 
@@ -926,7 +935,7 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
       CachedFunc cfunc = compiler_->Lower(key);
       ICHECK(cfunc.defined());
       return MakeLoweredCall(primitive_func, cfunc->prim_fn_var, std::move(new_args),
-                             call_node->span, target, cfunc->funcs->functions);
+                             call_node->span, target, cfunc->funcs->functions, cfunc->schedule);
     }
   }
 

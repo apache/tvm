@@ -61,6 +61,7 @@ inline void RedirectedReprPrinterMethod(const ObjectRef& obj, ReprPrinter* p) {
 inline std::string Docsify(const ObjectRef& obj, const IRDocsifier& d, const Frame& f,
                            const PrinterConfig& cfg) {
   Doc doc = d->AsDoc(obj, ObjectPath::Root());
+  bool move_source_paths = false;
   if (const auto* expr_doc = doc.as<ExprDocNode>()) {
     if (!cfg->verbose_expr) {
       f->stmts.clear();
@@ -72,6 +73,7 @@ inline std::string Docsify(const ObjectRef& obj, const IRDocsifier& d, const Fra
     for (const StmtDoc& d : stmt_block->stmts) {
       f->stmts.push_back(d);
     }
+    move_source_paths = true;
   } else {
     LOG(FATAL) << "TypeError: Unexpected doc type: " << doc->GetTypeKey();
   }
@@ -87,7 +89,13 @@ inline std::string Docsify(const ObjectRef& obj, const IRDocsifier& d, const Fra
           CommentDoc("Metadata omitted. Use show_meta=True in script() method to show it."));
     }
   }
-  os << DocToPythonScript(StmtBlockDoc(f->stmts), cfg);
+  if (move_source_paths) {
+    StmtBlockDoc new_doc(f->stmts);
+    new_doc->source_paths = std::move(doc->source_paths);
+    os << DocToPythonScript(new_doc, cfg);
+  } else {
+    os << DocToPythonScript(StmtBlockDoc(f->stmts), cfg);
+  }
   return os.str();
 }
 

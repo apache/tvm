@@ -315,7 +315,7 @@ def test_cuda_cap():
                                 with T.block("PadInput_shared"):
                                     v0 = T.axis.spatial(1, 0)
                                     v1 = T.axis.spatial(18, i0_0_i1_0_i2_0_i3_0_i4_0_i5_0_fused // 64 * 4 + i6_0 + ax0_ax1_ax2_ax3_ax4_ax5_fused % 48 // 16)
-                                    v2 = T.axis.spatial(18, i0_0_i1_0_i2_0_i3_0_i4_0_i5_0_fused % 64 // 8 * 2 + i7_0 + 0)
+                                    v2 = T.axis.spatial(18, T.Add(i0_0_i1_0_i2_0_i3_0_i4_0_i5_0_fused % 64 // 8 * 2 + i7_0, 0))
                                     v3 = T.axis.spatial(4, i0_0_i1_0_i2_0_i3_0_i4_0_i5_0_fused % 8 // 4 * 2 + ax0_ax1_ax2_ax3_ax4_ax5_fused % 16 // 8)
                                     v4 = T.axis.spatial(4, i8_0 * 2 + ax0_ax1_ax2_ax3_ax4_ax5_fused % 8 // 4)
                                     v5 = T.axis.spatial(32, i9_0 * 4 + ax0_ax1_ax2_ax3_ax4_ax5_fused % 4)
@@ -493,9 +493,9 @@ def test_cuda_dil():
                             for ax0_ax1_ax2_ax3_fused in T.serial(217):
                                 with T.block("PadInput_shared"):
                                     v0 = T.axis.spatial(1, 0)
-                                    v1 = T.axis.spatial(230, i0_0_i1_0_i2_0_i3_0_fused // 2 * 2 + i4_0 * 2 + 0)
+                                    v1 = T.axis.spatial(230, T.Add(i0_0_i1_0_i2_0_i3_0_fused // 2 * 2 + i4_0 * 2, 0))
                                     v2 = T.axis.spatial(230, i5_0 * 2 + ax0_ax1_ax2_ax3_fused % 217)
-                                    v3 = T.axis.spatial(3, i6_0 + 0)
+                                    v3 = T.axis.spatial(3, T.Add(i6_0, 0))
                                     T.reads(inputs[v0, v1 - 3, v2 - 3, v3])
                                     T.writes(PadInput_shared[v0, v1, v2, v3])
                                     T.block_attr({"meta_schedule.cooperative_fetch":2})

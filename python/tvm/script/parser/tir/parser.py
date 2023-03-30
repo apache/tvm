@@ -143,9 +143,9 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
         IRBuilder.name(var_name, value)
         return value
     elif isinstance(value, PrimExpr):
-        var = Var("", value.dtype)
+        frame = T.LetStmt(value)
+        var = frame.var
         IRBuilder.name(var_name, var)
-        frame = T.let(var, value)
         frame.add_callback(partial(frame.__exit__, None, None, None))
         frame.__enter__()
         return var
@@ -294,7 +294,7 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
     if not isinstance(ann_var, Var):
         self.report_error(node.annotation, "Annotation should be Var")
     self.eval_assign(target=lhs, source=ann_var, bind_value=bind_assign_value)
-    frame = T.let(ann_var, rhs)
+    frame = T.LetStmt(rhs, var=ann_var)
     frame.add_callback(partial(frame.__exit__, None, None, None))
     frame.__enter__()
 
@@ -433,10 +433,12 @@ def visit_if(self: Parser, node: doc.If) -> None:
     with self.var_table.with_frame():
         with T.If(self.eval_expr(node.test)):
             with T.Then():
-                self.visit_body(node.body)
+                with self.var_table.with_frame():
+                    self.visit_body(node.body)
             if node.orelse:
                 with T.Else():
-                    self.visit_body(node.orelse)
+                    with self.var_table.with_frame():
+                        self.visit_body(node.orelse)
 
 
 @dispatch.register(token="tir", type_name="Assert")

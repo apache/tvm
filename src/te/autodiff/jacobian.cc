@@ -75,7 +75,6 @@ class JacobianMutator : public ExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const LoadNode* op) NOT_IMPLEMENTED;
   PrimExpr VisitExpr_(const LetNode* op) NOT_IMPLEMENTED;
 
   PrimExpr VisitExpr_(const ProducerLoadNode* op) final {

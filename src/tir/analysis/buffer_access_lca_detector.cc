@@ -237,15 +237,6 @@ class LCADetector : public StmtExprVisitor {
   // Works for Load/Store and opaque access.
   void VisitExpr_(const VarNode* op) final { VisitBufferVar(op); }
 
-  // Explict to visit buffer data in Load and Store node.
-  void VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
-
-  void VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
   void VisitBufferVar(const VarNode* op) {
     auto it = buffer_var_map_.find(op);
     if (it != buffer_var_map_.end()) {

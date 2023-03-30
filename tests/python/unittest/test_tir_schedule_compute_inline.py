@@ -504,6 +504,21 @@ def matmul_relu(var_A: T.handle, var_B: T.handle, var_compute: T.handle) -> None
 
 
 @T.prim_func
+def elementwise_output(a: T.handle, b: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.match_buffer(b, (128, 128))
+    C = T.match_buffer(c, (128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
+
+
+@T.prim_func
 def inline_block_with_init(
     A: T.Buffer((1, 512, 7, 7), "float32"),
     B: T.Buffer((1, 512, 1, 1), "float32"),
@@ -1027,6 +1042,15 @@ def test_output_block(use_block_name):
     with pytest.raises(tvm.tir.ScheduleError):
         sch.compute_inline(block)
 
+    sch = tir.Schedule(elementwise_output, debug_mask="all")
+    block = sch.get_block("B")
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.compute_inline(block)
+
+    block = sch.get_block("C")
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.reverse_compute_inline(block)
+
 
 def test_compute_inline_predicate(use_block_name):
     sch = tir.Schedule(elementwise_predicate, debug_mask="all")
@@ -1130,7 +1154,7 @@ def test_reverse_compute_inline_producer_predicate_disallowed():
         sch.reverse_compute_inline(sch.get_block("compute_4"))
 
     assert (
-        "that cannot be implied by the synthesized predicate True of the new inlined block"
+        "that cannot be implied by the synthesized predicate T.bool(True) of the new inlined block"
         in str(e)
     )
 

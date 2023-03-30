@@ -569,7 +569,8 @@ def lookup_param(param_name, span=None):
 
 
 def tvm_thread_allreduce(*freduce_args):
-    """
+    """Perform allreduce inside threadblock.
+
     Parameters
     ----------
     freduce_args : Expr
@@ -581,6 +582,111 @@ def tvm_thread_allreduce(*freduce_args):
         The call expression.
     """
     return call_intrin("handle", "tir.tvm_thread_allreduce", *freduce_args)
+
+
+def tvm_storage_sync(storage_scope):
+    """Perform synchronization in specified scope.
+
+    Parameters
+    ----------
+    storage_scope : str
+        The storage scope to perform synchronization.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.tvm_storage_sync", storage_scope)
+
+
+def tvm_warp_shuffle(mask, value, warp_id, width, warp_size):
+    """Exchange value between threads inside a warp.
+
+    Parameters
+    ----------
+    mask : PrimExpr
+        The warp mask indicates active threads inside warp.
+    value : PrimExpr
+        The value to exchange.
+    warp_id : PrimExpr
+        The source lane index to fetch value.
+    width : PrimExpr
+        The width of sub-sections to perform warp shuffle.
+    warp_size : PrimExpr
+        The warp size.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(value.dtype, "tir.tvm_warp_shuffle", mask, value, warp_id, width, warp_size)
+
+
+def tvm_warp_shuffle_up(mask, value, offset, width, warp_size):
+    """Copy value from a lane with lower (by offset) index relative to caller.
+
+    Parameters
+    ----------
+    mask : PrimExpr
+        The warp mask indicates active threads inside warp.
+    value : PrimExpr
+        The value to exchange.
+    offset : PrimExpr
+        The difference between source lane index and destination lane index:
+        `offset = dst_lane_idx - src_lane_idx`
+    width : PrimExpr
+        The width of sub-sections to perform warp shuffle.
+    warp_size : PrimExpr
+        The warp size.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        value.dtype, "tir.tvm_warp_shuffle_up", mask, value, offset, width, warp_size
+    )
+
+
+def tvm_warp_shuffle_down(mask, value, offset, width, warp_size):
+    """Copy value from a lane with higher (by offset) index relative to caller.
+
+    Parameters
+    ----------
+    mask : PrimExpr
+        The warp mask indicates active threads inside warp.
+    value : PrimExpr
+        The value to exchange.
+    offset : PrimExpr
+        The difference between source lane index and destination lane index:
+        `offset = src_lane_idx - dst_lane_idx`
+    width : PrimExpr
+        The width of sub-sections to perform warp shuffle.
+    warp_size : PrimExpr
+        The warp size.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        value.dtype, "tir.tvm_warp_shuffle_down", mask, value, offset, width, warp_size
+    )
+
+
+def tvm_warp_activemask():
+    """Return a 32-bit mask indicates currently active threads in a calling warp.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("uint32", "tir.tvm_warp_activemask")
 
 
 def type_annotation(dtype):

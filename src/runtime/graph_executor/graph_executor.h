@@ -89,6 +89,9 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   const char* type_key() const final { return "GraphExecutor"; }
   void Run();
 
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final { return ModulePropertyMask::kRunnable; }
+
   /*!
    * \brief Initialize the graph executor with graph and device.
    * \param graph_json The execution graph.

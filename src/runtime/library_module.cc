@@ -42,6 +42,11 @@ class LibraryModuleNode final : public ModuleNode {
 
   const char* type_key() const final { return "library"; }
 
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final {
+    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+  };
+
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     TVMBackendPackedCFunc faddr;
     if (name == runtime::symbol::tvm_module_main) {

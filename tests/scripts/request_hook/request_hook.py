@@ -109,6 +109,7 @@ URL_MAP = {
     "https://github.com/dmlc/web-data/raw/main/gluoncv/detection/street_small.jpg": f"{BASE}/2022-10-05/gluon-small-stree.jpg",
     "https://github.com/dmlc/web-data/raw/main/tensorflow/models/Custom/placeholder.pb": f"{BASE}/dmlc/web-data/raw/main/tensorflow/models/Custom/placeholder.pb",
     "https://github.com/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/classify_image_graph_def-with_shapes.pb": f"{BASE}/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/classify_image_graph_def-with_shapes.pb",
+    "https://github.com/dmlc/web-data/raw/main/tensorflow/models/ResnetV2/resnet-20180601_resnet_v2_imagenet-shapes.pb": f"{BASE}/dmlc/web-data/raw/main/tensorflow/models/ResnetV2/resnet-20180601_resnet_v2_imagenet-shapes.pb",
     "https://github.com/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/elephant-299.jpg": f"{BASE}/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/elephant-299.jpg",
     "https://github.com/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/imagenet_2012_challenge_label_map_proto.pbtxt": f"{BASE}/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/imagenet_2012_challenge_label_map_proto.pbtxt",
     "https://github.com/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/imagenet_synset_to_human_label_map.txt": f"{BASE}/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/imagenet_synset_to_human_label_map.txt",
@@ -141,7 +142,7 @@ URL_MAP = {
     "https://github.com/shicai/MobileNet-Caffe/blob/master/mobilenet_v2.caffemodel?raw=true": f"{BASE}/shicai/MobileNet-Caffe/blob/master/mobilenet_v2.caffemodel"
     + quote("?raw=true"),
     "https://github.com/shicai/MobileNet-Caffe/raw/master/mobilenet_v2_deploy.prototxt": f"{BASE}/shicai/MobileNet-Caffe/raw/master/mobilenet_v2_deploy.prototxt",
-    "https://github.com/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/examples/micro_speech/micro_speech.tflite": f"{BASE}/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/examples/micro_speech/micro_speech.tflite",
+    "https://github.com/tensorflow/tflite-micro/raw/a56087ffa2703b4d5632f024a8a4c899815c31bb/tensorflow/lite/micro/examples/micro_speech/micro_speech.tflite": f"{BASE}/tensorflow/tflite-micro/raw/a56087ffa2703b4d5632f024a8a4c899815c31bb/tensorflow/lite/micro/examples/micro_speech/micro_speech.tflite",
     "https://github.com/mlcommons/tiny/raw/v0.7/benchmark/training/visual_wake_words/trained_models/vww_96_int8.tflite": f"{BASE}/mlcommons/tiny/raw/v0.7/benchmark/training/visual_wake_words/trained_models/vww_96_int8.tflite",
     "https://github.com/uwsampl/web-data/raw/main/vta/models/synset.txt": f"{BASE}/2022-10-05/synset.txt",
     "https://homes.cs.washington.edu/~cyulin/media/gnn_model/gcn_cora.torch": f"{BASE}/gcn_cora.torch",
@@ -210,6 +211,8 @@ URL_MAP = {
     "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/visual_wake_word_int8_1.npy": f"{BASE}/tlc-pack/web-data/raw/main/testdata/microTVM/data/visual_wake_word_int8_1.npy",
     "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/anomaly_detection_normal_id_01.npy": f"{BASE}/tlc-pack/web-data/raw/main/testdata/microTVM/data/anomaly_detection_normal_id_01.npy",
     "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/image_classification_int8_0.npy": f"{BASE}/tlc-pack/web-data/raw/main/testdata/microTVM/data/image_classification_int8_0.npy",
+    "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/vww_sample_person.jpg": f"{BASE}/tlc-pack/web-data/testdata/microTVM/data/vww_sample_person.jpg",
+    "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/vww_sample_not_person.jpg": f"{BASE}/tlc-pack/web-data/testdata/microTVM/data/vww_sample_not_person.jpg",
 }
 
 

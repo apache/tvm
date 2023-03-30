@@ -387,6 +387,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
 
     TVM_TRY_REWRITE(matches_one_of(x - min(x + y, z), x - min(y + x, z)), max(0 - y, x - z));
     TVM_TRY_REWRITE(matches_one_of(x - min(z, x + y), x - min(z, y + x)), max(x - z, 0 - y));
+    TVM_TRY_REWRITE(matches_one_of(x - max(x + y, z), x - max(y + x, z)), min(0 - y, x - z));
+    TVM_TRY_REWRITE(matches_one_of(x - max(z, x + y), x - max(z, y + x)), min(x - z, 0 - y));
 
     TVM_TRY_REWRITE(min(x, y) - min(y, x), ZeroWithTypeLike(x));
     TVM_TRY_REWRITE(max(x, y) - max(y, x), ZeroWithTypeLike(x));

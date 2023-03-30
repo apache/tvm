@@ -404,5 +404,26 @@ def test_target_blocks_search_space():
     assert len(schs) == 8
 
 
+def test_meta_schedule_derived_object():
+    @derived_object
+    class RemoveBlock(PyScheduleRule):
+        @classmethod
+        def class_construct(cls):
+            return cls()
+
+        @staticmethod
+        def static_construct():
+            return RemoveBlock()
+
+    inst_by_init = RemoveBlock()
+    assert isinstance(inst_by_init, RemoveBlock)
+
+    inst_by_classmethod = RemoveBlock.class_construct()
+    assert isinstance(inst_by_classmethod, RemoveBlock)
+
+    inst_by_staticmethod = RemoveBlock.static_construct()
+    assert isinstance(inst_by_staticmethod, RemoveBlock)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

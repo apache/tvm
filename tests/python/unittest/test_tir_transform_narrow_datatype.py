@@ -346,5 +346,66 @@ def test_block():
     tvm.ir.assert_structural_equal(after, expected_after)
 
 
+def test_avg_pool2d():
+    @T.prim_func
+    def before(PSUM: T.Buffer((313600,), "int32"), PAVG: T.Buffer((313600,), "int32")):
+        for j in T.parallel(T.int64(0), T.int64(280)):
+            for i in T.serial(T.int64(0), T.int64(35)):
+                for vi in T.vectorized(T.int64(0), T.int64(32)):
+                    PAVG[(((j * T.int64(1120)) + (i * T.int64(32))) + vi)] = T.cast(
+                        T.Div(
+                            T.cast(PSUM[(((j * T.int64(1120)) + (i * T.int64(32))) + vi)], "int64"),
+                            T.max(
+                                (
+                                    (
+                                        (
+                                            T.min(
+                                                T.int64(1),
+                                                (T.int64(34) - T.floormod(j, T.int64(35))),
+                                            )
+                                            + T.int64(2)
+                                        )
+                                        - T.max(
+                                            (T.int64(1) - T.floormod(j, T.int64(35))), T.int64(0)
+                                        )
+                                    )
+                                    * (
+                                        (T.min(T.int64(1), (T.int64(34) - i)) + T.int64(2))
+                                        - T.max((T.int64(1) - i), T.int64(0))
+                                    )
+                                ),
+                                T.int64(1),
+                            ),
+                        ),
+                        "int32",
+                    )
+
+    @T.prim_func
+    def expected_after(PSUM: T.Buffer((313600,), "int32"), PAVG: T.Buffer((313600,), "int32")):
+        for j in T.parallel(T.int32(0), T.int32(280)):
+            for i in T.serial(T.int32(0), T.int32(35)):
+                for vi in T.vectorized(T.int32(0), T.int32(32)):
+                    PAVG[(((j * T.int32(1120)) + (i * T.int32(32))) + vi)] = T.Div(
+                        PSUM[(((j * T.int32(1120)) + (i * T.int32(32))) + vi)],
+                        (
+                            (
+                                (
+                                    T.min(T.int32(1), (T.int32(34) - T.floormod(j, T.int32(35))))
+                                    + T.int32(2)
+                                )
+                                - T.max((T.int32(1) - T.floormod(j, T.int32(35))), T.int32(0))
+                            )
+                            * (
+                                (T.min(T.int32(1), (T.int32(34) - i)) + T.int32(2))
+                                - T.max((T.int32(1) - i), T.int32(0))
+                            )
+                        ),
+                    )
+
+    after = tvm.tir.transform.NarrowDataType(32)(tvm.IRModule.from_expr(before))
+    after = tvm.tir.transform.Simplify()(after)
+    tvm.ir.assert_structural_equal(after["main"], expected_after)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

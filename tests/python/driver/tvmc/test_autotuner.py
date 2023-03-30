@@ -24,8 +24,10 @@ from os import path
 from pathlib import Path
 
 import tvm
-from tvm import autotvm
+import tvm.testing
+from tvm import autotvm, auto_scheduler
 from tvm.driver import tvmc
+from tvm.driver.tvmc.autotuner import filter_tasks, gen_task_list
 
 
 def _get_tasks(model):
@@ -207,3 +209,101 @@ def test_autotune_pass_context(mock_pc, onnx_mnist, tmpdir_factory):
     # AutoTVM overrides the pass context later in the pipeline to disable AlterOpLayout
     assert mock_pc.call_count == 2
     assert mock_pc.call_args_list[0][1]["opt_level"] == 3
+
+
+def test_filter_tasks_valid():
+    filter_tasks(list(range(10)), "list") == ([], True)
+    filter_tasks(list(range(10)), "help") == ([], True)
+    filter_tasks(list(range(10)), "all") == ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], False)
+    filter_tasks(list(range(10)), "5") == ([5], False)
+    filter_tasks(list(range(10)), "1-5") == ([1, 2, 3, 4, 5], False)
+    filter_tasks(list(range(10)), "-5") == ([0, 1, 2, 3, 4, 5], False)
+    filter_tasks(list(range(10)), "6-") == ([6, 7, 8, 9], False)
+    filter_tasks(list(range(10)), "0,1-3,all") == ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], False)
+    filter_tasks(list(range(10)), "0,4-5,9,list") == ([0, 4, 5, 9], True)
+
+
+@pytest.mark.parametrize(
+    "value,err_msg",
+    [
+        ("10", "Task index out of range"),
+        ("5,10", "Task index out of range"),
+        ("1-10", "Right-hand side expression out of range"),
+        ("-10", "Right-hand side expression out of range"),
+        ("-", "Missing lhs or rhs for range expression"),
+        ("-10-", "Malformed range expression"),
+        ("--", "Malformed range expression"),
+    ],
+)
+def test_filter_tasks_invalid(value, err_msg):
+    with pytest.raises(AssertionError, match=err_msg):
+        filter_tasks(list(range(10)), value)
+
+
+@pytest.mark.parametrize(
+    "enable_autoscheduler,expected",
+    [
+        (
+            False,
+            """Available Tasks for tuning:
+  0. Task(func_name=taskA, args=[], kwargs={}, workload=('taskA',)) (len=?)
+  1. Task(func_name=taskBtaskBtaskBtaskBtaskBtaskBtaskBtaskBtaskBtaskBtaskBtaskBtaskBtaskBtaskBtaskBta... (len=?)
+  2. Task(func_name=taskC, args=[], kwargs={}, workload=('taskC',)) (len=?)""",
+        ),
+        (
+            True,
+            """Available Tasks for tuning:
+  0. taskA
+  1. taskBtaskBtaskBtaskBtaskBtaskBtaskBtaskBtaskBtaskBtaskBtaskBtaskBtaskBtaskBtaskBtaskBtaskBtaskBta...
+  2. Unnamed""",
+        ),
+    ],
+)
+def test_print_task_list(enable_autoscheduler, expected):
+    if enable_autoscheduler:
+        auto_scheduler.search_task.TASK_INPUT_BUFFER_TABLE.clear()
+        N = 64
+        target = "llvm"
+        test_input_0 = tvm.runtime.ndarray.empty((64, 64))
+        test_input_1 = tvm.runtime.ndarray.empty((10, 20))
+        test_input_2 = tvm.runtime.ndarray.empty((30, 40, 50))
+        task_inputs = {
+            "test_input_0": test_input_0,
+            "test_input_1": test_input_1,
+            "test_input_2": test_input_2,
+        }
+        task1 = auto_scheduler.SearchTask(
+            func="matmul_auto_scheduler_test",
+            args=(N, N, N),
+            target=target,
+            task_inputs=task_inputs,
+            task_inputs_overwrite=True,
+            desc="taskA",
+        )
+        task2 = auto_scheduler.SearchTask(
+            func="matmul_auto_scheduler_test",
+            args=(N, N, N),
+            target=target,
+            task_inputs=task_inputs,
+            task_inputs_overwrite=True,
+            desc="taskB" * 20,  # very long name
+        )
+        task3 = auto_scheduler.SearchTask(
+            func="matmul_auto_scheduler_test",
+            args=(N, N, N),
+            target=target,
+            task_inputs=task_inputs,
+            task_inputs_overwrite=True,
+            # missing description
+        )
+    else:
+        task1 = autotvm.task.Task("taskA", [])
+        task2 = autotvm.task.Task("taskB" * 20, [])  # very long name
+        task3 = autotvm.task.Task("taskC", [])
+    tasks = [task1, task2, task3]
+    out = gen_task_list(tasks, enable_autoscheduler)
+    assert out == expected
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

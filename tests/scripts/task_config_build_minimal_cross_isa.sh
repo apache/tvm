@@ -46,5 +46,5 @@ if [ "$architecture_type" != "aarch64" ]; then
   echo set\(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY\) >> config.cmake
 else
   # This usually runs in the ci_arm docker image.
-  echo set\(USE_LLVM llvm-config-8\) >> config.cmake
+  echo -e 'find_program(LLVM_CONFIG "llvm-config")\nif (LLVM_CONFIG) \n\tset(USE_LLVM llvm-config) \nelse() \n\tset(USE_LLVM llvm-config-8)\nendif()' >> config.cmake
 fi

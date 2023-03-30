@@ -161,8 +161,8 @@ TargetJSON UpdateCUDAAttrs(TargetJSON target) {
     // Use the compute version of the first CUDA GPU instead
     TVMRetValue version;
     if (!DetectDeviceFlag({kDLCUDA, 0}, runtime::kComputeVersion, &version)) {
-      LOG(WARNING) << "Unable to detect CUDA version, default to \"-arch=sm_20\" instead";
-      archInt = 20;
+      LOG(WARNING) << "Unable to detect CUDA version, default to \"-arch=sm_50\" instead";
+      archInt = 50;
     } else {
       archInt = std::stod(version.operator std::string()) * 10 + 0.1;
     }
@@ -189,8 +189,8 @@ TargetJSON UpdateNVPTXAttrs(TargetJSON target) {
     // Use the compute version of the first CUDA GPU instead
     TVMRetValue version;
     if (!DetectDeviceFlag({kDLCUDA, 0}, runtime::kComputeVersion, &version)) {
-      LOG(WARNING) << "Unable to detect CUDA version, default to \"-mcpu=sm_20\" instead";
-      arch = 20;
+      LOG(WARNING) << "Unable to detect CUDA version, default to \"-mcpu=sm_50\" instead";
+      arch = 50;
     } else {
       arch = std::stod(version.operator std::string()) * 10 + 0.1;
     }

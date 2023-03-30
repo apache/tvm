@@ -195,59 +195,6 @@ TVM_REGISTER_GLOBAL("tir.While").set_body_typed([](PrimExpr condition, Stmt body
 
 TVM_REGISTER_NODE_TYPE(WhileNode);
 
-// Store
-Store::Store(Var buffer_var, PrimExpr value, PrimExpr index, PrimExpr predicate, Span span) {
-  LOG(FATAL) << "Unexpected use of deprecated Store node for buffer " << buffer_var->name_hint
-             << ".  Use BufferStore instead.";
-  ICHECK(value.defined());
-  ICHECK(index.defined());
-  ICHECK(predicate.defined());
-
-  // Assume that the array elements have 1 lane, unless a type
-  // annotation tells us otherwise.
-  int element_lanes = 1;
-  auto pointer_type = tir::GetPointerType(buffer_var->type_annotation);
-  if (pointer_type.has_value()) {
-    // Currently cannot check element type of array, see Load::Load
-    // for details.
-
-    // TODO(Lunderberg): Uncomment this check once it can be applied.
-    // See https://discuss.tvm.apache.org/t/pre-rfc-vectorized-tir-buffers/10615
-    // for discussion.
-
-    // ICHECK_EQ(value.dtype().element_of(), pointer_type->element_of())
-    //     << "Type mismatch, cannot store type " << value.dtype() << " into buffer "
-    //     << buffer_var->name_hint << " of type " << pointer_type.value();
-    element_lanes = pointer_type->lanes();
-  }
-
-  ICHECK((value.dtype().lanes() == element_lanes * index.dtype().lanes()) ||
-         (value.dtype().lanes() == index.dtype().lanes()));
-  ICHECK((value.dtype().lanes() == element_lanes * predicate.dtype().lanes()) ||
-         (value.dtype().lanes() == index.dtype().lanes()));
-
-  ObjectPtr<StoreNode> node = make_object<StoreNode>();
-  node->buffer_var = std::move(buffer_var);
-  node->value = std::move(value);
-  node->index = std::move(index);
-  node->predicate = std::move(predicate);
-  node->span = std::move(span);
-  data_ = std::move(node);
-}
-
-TVM_REGISTER_GLOBAL("tir.Store").set_body([](TVMArgs args, TVMRetValue* ret) {
-  PrimExpr value = args[1];
-  if (args.size() == 3) {
-    *ret = Store(args[0], value, args[2], const_true(value.dtype().lanes()), Span());
-  } else if (args.size() == 4) {
-    *ret = Store(args[0], value, args[2], args[3], Span());
-  } else {
-    *ret = Store(args[0], value, args[2], args[3], args[4]);
-  }
-});
-
-TVM_REGISTER_NODE_TYPE(StoreNode);
-
 // ProducerStore
 ProducerStore::ProducerStore(DataProducer producer, PrimExpr value, Array<PrimExpr> indices,
                              Span span) {

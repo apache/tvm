@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=unused-argument
 """
 Provides support to auto-tuning networks using AutoTVM.
 """
@@ -39,7 +40,7 @@ from .main import register_parser
 from .model import TVMCModel
 from .target import target_from_cli, generate_target_args, reconstruct_target_args
 from .shape_parser import parse_shape_string
-from .transform import convert_graph_layout
+from .transform import generate_transform_args, parse_graph_transform_args, apply_graph_transforms
 
 
 # pylint: disable=invalid-name
@@ -86,6 +87,7 @@ def add_tune_parser(subparsers, _, json_params):
         required=True,
         help="output file to store the tuning records for the tuning process",
     )
+    parser.add_argument("-v", "--verbose", action="count", default=0, help="increase verbosity.")
     parser.add_argument(
         "--parallel",
         default=4,
@@ -127,16 +129,16 @@ def add_tune_parser(subparsers, _, json_params):
         metavar="PATH",
         help="path to an auto-tuning log file by AutoTVM.",
     )
-    parser.add_argument(
-        "--desired-layout",
-        choices=["NCHW", "NHWC"],
-        default=None,
-        help="change the data layout of the whole graph",
-    )
+    generate_transform_args(parser)
     parser.add_argument(
         "--enable-autoscheduler",
         help="enable tuning the graph through the AutoScheduler tuner",
         action="store_true",
+    )
+    parser.add_argument(
+        "--tasks",
+        default="all",
+        help="which tasks should be tuned, i.e. 0 0,2 3-5 all list",
     )
 
     auto_scheduler_group = parser.add_argument_group(
@@ -269,6 +271,8 @@ def drive_tune(args):
         rpc_hostname = None
         rpc_port = None
 
+    transform_args = parse_graph_transform_args(args)
+
     tune_model(
         tvmc_model,
         args.target,
@@ -283,7 +287,6 @@ def drive_tune(args):
         tuner=args.tuner,
         min_repeat_ms=args.min_repeat_ms,
         early_stopping=args.early_stopping,
-        desired_layout=args.desired_layout,
         timeout=args.timeout,
         repeat=args.repeat,
         number=args.number,
@@ -292,7 +295,98 @@ def drive_tune(args):
         include_simple_tasks=args.include_simple_tasks,
         log_estimated_latency=args.log_estimated_latency,
         additional_target_options=reconstruct_target_args(args),
+        tasks_filter=args.tasks,
+        **transform_args,
     )
+
+
+def filter_tasks(
+    tasks: Union[List[auto_scheduler.SearchTask], List[autotvm.task.Task]],
+    expr: str,
+):
+    """Utility to filter a list of tasks (AutoTVM or AutoScheduler) based on
+    a user-supplied string expression.
+
+    Parameters
+    ----------
+    tasks: list
+        A list of extracted AutoTVM or AutoScheduler tasks.
+    expr: str
+        User-supplied expression to be used for filtering.
+    """
+    assert isinstance(expr, str), "Expected filter expression of string type"
+    assert len(expr) > 0, "Got empty filter expression"
+
+    # groups of keywords are comma-separated
+    splitted = expr.split(",")
+
+    do_list = False
+    do_filter = False
+    selected = []
+    for item in splitted:
+        if item in ["list", "help"]:
+            do_list = True
+        elif item in ["all"]:
+            selected = list(range(len(tasks)))
+        else:
+            do_filter = True
+            if "-" in item:
+                assert item.count("-") == 1, "Malformed range expression"
+                assert len(item) > 1, "Missing lhs or rhs for range expression"
+                lhs, rhs = item.split("-")[:2]
+                lhs = int(lhs) if lhs else 0
+                rhs = int(rhs) if rhs else len(tasks) - 1
+                assert 0 <= lhs < len(tasks), "Left-hand side expression out of range"
+                assert 0 <= rhs < len(tasks), "Right-hand side expression out of range"
+                selected.extend(list(range(lhs, rhs + 1)))
+            else:
+                assert isinstance(item, str)
+                idx = int(item)
+                assert 0 <= idx < len(tasks), "Task index out of range"
+                selected.append(idx)
+
+    if do_filter:
+        # remove duplicates
+        selected = list(set(selected))
+        tasks = [task for i, task in enumerate(tasks) if i in selected]
+
+    return tasks, do_list
+
+
+def gen_task_list(
+    tasks: Union[List[auto_scheduler.SearchTask], List[autotvm.task.Task]],
+    enable_autoscheduler: bool,
+):
+    """Utility for printing a list of tasks (AutoTVM or AutoScheduler)
+    to the terminal.
+
+    Parameters
+    ----------
+    tasks: list
+        A list of extracted AutoTVM or AutoScheduler tasks.
+    enable_autoscheduler: bool
+        Wether the tasks are extracted with AutoScheduler or AutoTVM.
+    """
+    ret = "Available Tasks for tuning:\n"
+
+    def _trunc_helper(text, length):
+        return text if len(text) < length else text[: length - 3] + "..."
+
+    ret += "\n".join(
+        [
+            "  {}. {}".format(
+                i, _trunc_helper("Unnamed" if len(task.desc) == 0 else task.desc, 100)
+            )
+            if enable_autoscheduler
+            else "  {}. {} (len={})".format(
+                i,
+                _trunc_helper(str(task), 100),
+                "?" if task.config_space is None else len(task.config_space),
+            )
+            for i, task in enumerate(tasks)
+        ]
+    )
+    return ret
 
 
 def tune_model(
@@ -309,7 +403,6 @@ def tune_model(
     tuner: str = "xgb",
     min_repeat_ms: Optional[int] = None,
     early_stopping: Optional[int] = None,
-    desired_layout: Optional[str] = None,
     timeout: int = 10,
     repeat: int = 1,
     number: int = 10,
@@ -318,6 +411,13 @@ def tune_model(
     include_simple_tasks: bool = False,
     log_estimated_latency: bool = False,
     additional_target_options: Optional[Dict[str, Dict[str, Any]]] = None,
+    tasks_filter: str = "all",
+    desired_layout: Optional[str] = None,
+    desired_layout_ops: Optional[List[str]] = None,
+    mixed_precision: bool = False,
+    mixed_precision_ops: Optional[List[str]] = None,
+    mixed_precision_calculation_type: Optional[str] = None,
+    mixed_precision_acc_type: Optional[str] = None,
 ):
     """Use tuning to automatically optimize the functions in a model.
 
@@ -354,10 +454,6 @@ def tune_model(
         Minimum time to run each trial. Defaults to 0 on x86 and 1000 on other targets.
     early_stopping : int, optional
         When specified, stop tuning after this number of trials if results aren't improving.
-    desired_layout : str, optional
-        Can be one of "NCHW" or "NHWC". When specified, compatible operations in the graph
-        will have their layout set to this format. Tasks will then be tuned using this
-        specified layout.
     timeout : int, optional,
         If a kernel trial lasts longer than this duration in seconds, it will be
         considered a failure.
@@ -376,12 +472,30 @@ def tune_model(
         If using the autoscheduler, write the estimated latency at each step of tuning to file.
     additional_target_options: Optional[Dict[str, Dict[str, Any]]]
         Additional target options in a dictionary to combine with initial Target arguments
+    tasks_filter : str, optional
+        Filter which tasks should be tuned or output a list of the extracted tasks.
+        Examples: 0 0,2 3-5 all list
+    desired_layout: str, optional
+        Can be one of "NCHW" or "NHWC". When specified, compatible operations in the graph
+        will have their layout set to this format. Tasks will then be tuned using this
+        specified layout.
+    desired_layout_ops: list[str], optional
+        The list of operators to be transformed with desired layout.
+    mixed_precision: bool
+        To enable mixed precision transformation.
+    mixed_precision_ops: list[str], optional
+        The list of operators to be converted to mixed precision.
+    mixed_precision_calculation_type: str
+        The calculation dtype to be used while mixed precision.
+    mixed_precision_acc_type: str
+        The accumulation data type to be used while mixed precision.
 
     Returns
     -------
     tuning_records : str
         The path to the produced tuning log file.
     """
+    transform_args = parse_graph_transform_args(locals())
     target, extra_targets = target_from_cli(target, additional_target_options)
     target, target_host = Target.canon_target_and_host(target, target_host)
     # TODO(jwfromm) Remove this deepcopy once AlterOpLayout bug that mutates source
@@ -448,16 +562,35 @@ def tune_model(
                 runner = local_server
 
         if enable_autoscheduler:
-
             tasks, weights = autoscheduler_get_tuning_tasks(
                 mod=mod,
                 params=params,
                 target=target,
-                alter_layout=desired_layout,
+                transform_args=transform_args,
                 hardware_params=hardware_params,
                 include_simple_tasks=include_simple_tasks,
             )
+        else:
+            tasks = autotvm_get_tuning_tasks(
+                mod=mod,
+                params=params,
+                target=target,
+                transform_args=transform_args,
+            )
 
+        # Filter extracted tasks by provided user expression
+        if tasks_filter:
+            tasks, do_list = filter_tasks(tasks, tasks_filter)
+            if do_list:
+                print(gen_task_list(tasks, enable_autoscheduler))
+                return None
+        if len(tasks) == 0:
+            logger.info("No tasks have been selected for tuning.")
+            return None
+        else:
+            logger.info("Selected %s tasks for tuning.", len(tasks))
+
+        if enable_autoscheduler:
             # Create the autoscheduler tuning options
             tuning_options = auto_scheduler.TuningOptions(
                 num_measure_trials=trials,
@@ -471,16 +604,9 @@ def tune_model(
             # Schedule the tasks (i.e., produce a schedule for each task)
             schedule_tasks(tasks, weights, tuning_options, prior_records, log_estimated_latency)
         else:
-            tasks = autotvm_get_tuning_tasks(
-                mod=mod,
-                params=params,
-                target=target,
-                alter_layout=desired_layout,
-            )
-
             # In autotvm, trials is specified per task. We can convert the per-model input
             # provided to per-task trials by dividing by the number of tasks.
-            trials = int(trials / max(len(tasks), 1))
+            trials = int(max(1, trials / max(len(tasks), 1)))
             logger.info("Autotuning with %d trials per task.", trials)
 
             tuning_options = {
@@ -504,7 +630,7 @@ def autotvm_get_tuning_tasks(
     params: Dict[str, tvm.nd.NDArray],
     target: str,
     target_host: Optional[str] = None,
-    alter_layout: Optional[str] = None,
+    transform_args: Optional[Dict[str, Any]] = None,
 ):
     """Get the autotvm tuning tasks for a given relay module.
 
@@ -518,10 +644,8 @@ def autotvm_get_tuning_tasks(
         The compilation target.
     target_host : str, optional
         The compilation target for the host.
-    alter_layout : str, optional
-        The layout to convert the graph to. Note, the convert layout
-        pass doesn't currently guarantee the whole of the graph will
-        be converted to the chosen layout.
+    transform_args: dict, optional
+        Graph transformation arguments that are applied to the relay module.
 
     Returns
     -------
@@ -530,8 +654,7 @@ def autotvm_get_tuning_tasks(
     """
     target, target_host = Target.canon_target_and_host(target, target_host)
 
-    if alter_layout:
-        mod = convert_graph_layout(mod, alter_layout)
+    mod = apply_graph_transforms(mod, transform_args)
 
     tasks = autotvm.task.extract_from_program(
         mod["main"],
@@ -547,7 +670,7 @@ def autoscheduler_get_tuning_tasks(
     params: Dict[str, tvm.nd.NDArray],
     target: str,
     target_host: Optional[str] = None,
-    alter_layout: Optional[str] = None,
+    transform_args: Optional[Dict[str, Any]] = None,
     hardware_params: Optional[HardwareParams] = None,
     include_simple_tasks: bool = False,
 ):
@@ -563,10 +686,8 @@ def autoscheduler_get_tuning_tasks(
         The compilation target.
     target_host : str, optional
         The compilation target for the host.
-    alter_layout : str, optional
-        The layout to convert the graph to. Note, the convert layout
-        pass doesn't currently guarantee the whole of the graph will
-        be converted to the chosen layout.
+    transform_args: dict, optional
+        Graph transformation arguments that are applied to the relay module.
     hardware_params : Optional[HardwareParams]
         Hardware parameters used for the search tasks
 
@@ -579,8 +700,7 @@ def autoscheduler_get_tuning_tasks(
     """
     target, target_host = Target.canon_target_and_host(target, target_host)
 
-    if alter_layout:
-        mod = convert_graph_layout(mod, alter_layout)
+    mod = apply_graph_transforms(mod, transform_args)
 
     # Extract the tasks
     tasks, task_weights = auto_scheduler.extract_tasks(
@@ -700,7 +820,7 @@ def tune_tasks(
             early_stopping=early_stopping,
             measure_option=measure_option,
             callbacks=[
-                autotvm.callback.progress_bar(trials, prefix=prefix),
+                autotvm.callback.progress_bar(min(trials, len(tsk.config_space)), prefix=prefix),
                 autotvm.callback.log_to_file(log_file),
             ],
         )

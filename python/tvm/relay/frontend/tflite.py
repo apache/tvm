@@ -32,7 +32,9 @@ from .. import function as _function
 from .. import op as _op
 from .. import qnn as _qnn
 from .common import ExprTable
+from .common import fold_constant as _fold_constant
 from .common import infer_shape as _infer_shape
+from .common import infer_type as _infer_type
 from .common import lstm_cell, to_int_list, shape_of, try_infer_value
 from .common import set_span
 from .tflite_flexbuffer import FlexBufferDecoder
@@ -80,6 +82,7 @@ class OperatorConverter(object):
             "ARG_MIN": self.convert_arg_min,
             "AVERAGE_POOL_2D": self.convert_average_pool2d,
             "BATCH_TO_SPACE_ND": self.convert_batch_to_space_nd,
+            "BATCH_MATMUL": self.convert_batch_matmul,
             "CAST": self.convert_cast,
             "CEIL": self.convert_ceil,
             "CONCATENATION": self.convert_concatenation,
@@ -491,6 +494,21 @@ class OperatorConverter(object):
         raise NotImplementedError(
             "Tensor type {} is currently not supported".format(str(tensor_type))
         )
+
+    def flatten_to_nd(self, x, x_shape, nd=3):
+        """Flatten input tensor to nd rank"""
+        ndims = _infer_shape(x_shape)[0]
+        if ndims == nd:
+            return x
+        newshape = _op.concatenate(
+            [
+                _expr.const([-1], dtype=_infer_type(x_shape).checked_type.dtype),
+                _op.strided_slice(x_shape, [ndims - nd + 1], [ndims]),
+            ],
+            0,
+        )
+        out = _op.reshape(x, _fold_constant(newshape))
+        return out
 
     def has_same_qnn_params(self, lhs_tensor, rhs_tensor):
         lhs_scale = lhs_tensor.qnn_params["scale"]
@@ -2958,6 +2976,135 @@ class OperatorConverter(object):
         out = _op.nn.batch_to_space_nd(in_expr, block_shape, crops)
 
         return out
+
+    def convert_batch_matmul(self, op):
+        """batch_matmul implementation."""
+        try:
+            from tflite.BatchMatMulOptions import BatchMatMulOptions
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        input_tensors = self.get_input_tensors(op)
+
+        assert len(input_tensors) == 2, "two input tensor arguments expected"
+
+        batch_matmul_options = BatchMatMulOptions()
+        op_options = op.BuiltinOptions()
+        batch_matmul_options.Init(op_options.Bytes, op_options.Pos)
+
+        input_a = self.get_expr(input_tensors[0].tensor_idx)
+        input_b = self.get_expr(input_tensors[1].tensor_idx)
+
+        shape_a = shape_of(input_a)
+        shape_b = shape_of(input_b)
+        rank_a = _infer_shape(shape_a)[0]
+        rank_b = _infer_shape(shape_b)[0]
+
+        if rank_a > 2 or rank_b > 2:
+            # Determine the output batch dimension
+            new_a_shape = shape_a
+            new_b_shape = shape_b
+            if rank_a > rank_b:
+                rank_diff = rank_a - rank_b
+                new_b_shape = _op.concatenate(
+                    [
+                        _expr.const([1] * rank_diff, dtype=_infer_type(b_shape).checked_type.dtype),
+                        shape_b,
+                    ],
+                    0,
+                )
+            elif rank_a < rank_b:
+                rank_diff = rank_b - rank_a
+                new_a_shape = _op.concatenate(
+                    [
+                        _expr.const([1] * rank_diff, dtype=_infer_type(a_shape).checked_type.dtype),
+                        shape_a,
+                    ],
+                    0,
+                )
+            else:
+                pass
+
+            out_batch = _op.concatenate(
+                [
+                    _op.maximum(
+                        _op.strided_slice(new_b_shape, [i], [i + 1]),
+                        _op.strided_slice(new_a_shape, [i], [i + 1]),
+                    )
+                    for i in range(max(rank_a, rank_b) - 2)
+                ],
+                0,
+            )
+
+            a_broadcasted_shape = _fold_constant(
+                _op.concatenate(
+                    [
+                        out_batch,
+                        _op.strided_slice(shape_a, [rank_a - 2], [rank_a]),
+                    ],
+                    0,
+                )
+            )
+            b_broadcasted_shape = _fold_constant(
+                _op.concatenate(
+                    [
+                        out_batch,
+                        _op.strided_slice(shape_b, [rank_b - 2], [rank_b]),
+                    ],
+                    0,
+                )
+            )
+            if not tvm.ir.structural_equal(shape_a, a_broadcasted_shape):
+                input_a = _op.transform.broadcast_to(a, a_broadcasted_shape)
+            if not tvm.ir.structural_equal(shape_b, b_broadcasted_shape):
+                input_b = _op.transform.broadcast_to(b, b_broadcasted_shape)
+
+            input_a = self.flatten_to_nd(input_a, shape_a, 3)
+            input_b = self.flatten_to_nd(input_b, shape_b, 3)
+
+            if batch_matmul_options.AdjX():
+                input_a = _op.transpose(input_a, [0, 2, 1])
+            if not batch_matmul_options.AdjY():
+                input_b = _op.transpose(input_b, [0, 2, 1])
+
+            if self.is_quantized(op):
+                output = _qnn.op.batch_matmul(
+                    input_a,
+                    input_b,
+                    relay.const(0, "int32"),
+                    relay.const(0, "int32"),
+                    relay.const(1.0, "float32"),
+                    relay.const(1.0, "float32"),
+                )
+            else:
+                output = _op.nn.batch_matmul(input_a, input_b)
+
+            # Reshape output to original dimensions.
+            output_shape = shape_of(output)
+
+            rank_out = _infer_shape(output_shape)[0]
+
+        final_shape = _op.concatenate(
+            [
+                _op.strided_slice(shape_a, [0], [rank_a - 2]),
+                _op.strided_slice(output_shape, [rank_out - 2], [rank_out]),
+            ],
+            0,
+        )
+
+        reshape = _op.reshape(output, _fold_constant(final_shape))
+        # qnn batch matmul returns a int32 tensor so we need to requantize
+        if self.is_quantized(op):
+            return _qnn.op.requantize(
+                reshape,
+                relay.const(1.0, "float32"),
+                relay.const(0, "int32"),
+                relay.const(1.0, "float32"),
+                relay.const(0, "int32"),
+                out_dtype="int8",
+            )
+        else:
+            return reshape
 
     def convert_space_to_batch_nd(self, op):
         """space_to_batch_nd implementation."""

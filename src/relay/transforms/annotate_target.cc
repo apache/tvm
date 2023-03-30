@@ -258,6 +258,7 @@ class AnnotateTargetRewriter : public ExprRewriter {
     Array<Expr> compiler_begins = std::get<1>(target_n_args);
     Call new_call = Call(post_call->op, compiler_begins, post_call->attrs);
     new_call->checked_type_ = pre->checked_type_;
+    new_call->span = pre->span;
 
     // Update the target map.
     op_expr_to_target_[new_call] = target;
