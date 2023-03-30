@@ -246,7 +246,7 @@ class PatternContext : public ObjectRef {
   }
 
   /*! \brief Get the pass context object on the top of the stack */
-  TVM_DLL static PatternContext Current();
+  TVM_DLL static Optional<PatternContext> Current();
 
   class Internal;
 
