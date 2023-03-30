@@ -321,10 +321,11 @@ def compare_tflite_with_tvm(
         # convert to tflite model
         converter = tf.lite.TFLiteConverter.from_session(sess, input_tensors, output_tensors)
 
-        if len(input_tensors[0].shape) <= 4 and len(input_tensors[1].shape) <= 4:
-            converter._experimental_disable_batchmatmul_unfold = True
-        else:
-            converter._experimental_disable_batchmatmul_unfold = False
+        if len(input_tensors) > 1:
+            if len(input_tensors[0].shape) <= 4 and len(input_tensors[1].shape) <= 4:
+                converter._experimental_disable_batchmatmul_unfold = True
+            else:
+                converter._experimental_disable_batchmatmul_unfold = False
 
         converter.experimental_new_converter = experimental_new_converter
         if quantized:
