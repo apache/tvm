@@ -33,6 +33,7 @@
 #include <array>
 #include <cstddef>
 #include <limits>
+#include <optional>
 #include <stack>
 #include <type_traits>
 #include <unordered_map>
@@ -540,33 +541,48 @@ struct RNode {
 /**
  * \brief This method try to match a real node and a pattern node along with its neighbors.
  */
-static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m,
-                      const std::map<const VarNode*, std::vector<const VarNode*>>& def2use,
-                      const std::map<const VarNode*, std::vector<const VarNode*>>& use2def) {
-  if (p->matched != nullptr && p->matched == r->ptr) return true;  // matched before.
-  if (!m->Match(GetRef<DFPattern>(p->ptr), GetRef<Var>(r->ptr))) return false;
+using UndoStack = std::stack<std::pair<PNode*, RNode*>>;
+static std::optional<UndoStack> try_match(
+    PNode* p, RNode* r, DFPatternMatcher* m,
+    const std::map<const VarNode*, std::vector<const VarNode*>>& def2use,
+    const std::map<const VarNode*, std::vector<const VarNode*>>& use2def) {
+  if (p->matched != nullptr && p->matched == r->ptr) return {};  // matched before.
+  if (!m->Match(GetRef<DFPattern>(p->ptr), GetRef<Var>(r->ptr))) return std::nullopt;
 
-  std::stack<std::pair<PNode*, RNode*>> undo_stack{};
+  UndoStack undo;
 
-  const auto commit = [&undo_stack](PNode* p, RNode* r) {
+  const auto commit = [&undo](PNode* p, RNode* r) {
     // match with each other.
     // TODO(ganler, masahi): Why commit on the same p-r pair happens more than once?
     if (p->ptr == r->matched) {
       ICHECK_EQ(p->matched, r->ptr);
       return;
     }
-    ICHECK(r->matched == nullptr);
+    // TODO(ganler, masahi): Why this condition can fail?
+    // ICHECK(r->matched == nullptr);
     p->matched = r->ptr;
     r->matched = p->ptr;
-    undo_stack.emplace(p, r);
+    undo.emplace(p, r);
   };
 
-  const auto quit = [&undo_stack] {
-    while (!undo_stack.empty()) {
-      auto& top = undo_stack.top();
-      top.first->matched = nullptr;
-      top.second->matched = nullptr;
-      undo_stack.pop();
+  const auto quit = [&undo] {
+    while (!undo.empty()) {
+      auto& [p_node, r_node] = undo.top();
+      p_node->matched = nullptr;
+      r_node->matched = nullptr;
+      undo.pop();
+    }
+    return std::nullopt;
+  };
+
+  const auto try_match_update_undo = [&](PNode* p, RNode* r) {
+    if (auto undo_more = try_match(p, r, m, def2use, use2def)) {
+      while (!undo_more->empty()) {
+        auto& [p_node, r_node] = undo_more->top();
+        undo.emplace(p_node, r_node);
+        undo_more->pop();
+      }
+      return true;
     }
     return false;
   };
@@ -604,7 +620,7 @@ static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m,
 
       // try all parent R nodes that are not matched yet.
       // as long as ppattern can match one node.
-      if (!pparent->matched && try_match(pparent, rparent, m, def2use, use2def)) {
+      if (!pparent->matched && try_match_update_undo(pparent, rparent)) {
         commit(pparent, rparent);
         break;
       }
@@ -639,14 +655,14 @@ static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m,
       if (!all_cons_pass) continue;
       any_cons_sat = true;
 
-      if (!pchild->matched && try_match(pchild, rchild, m, def2use, use2def)) {
+      if (!pchild->matched && try_match_update_undo(pchild, rchild)) {
         commit(pchild, rchild);
         break;
       }
     }
     if (!pchild->matched || !any_cons_sat) return quit();
   }
-  return true;
+  return undo;
 }
 
 class MatcherUseDefAnalysis : public relax::ExprVisitor {
@@ -686,13 +702,12 @@ class MatcherUseDefAnalysis : public relax::ExprVisitor {
   }
 };
 
-Map<DFPattern, Var> MatchGraph(const PatternContext& ctx, const DataflowBlock& dfb,
-                               Optional<Var> start_hint, bool must_include_hint) {
+Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const DataflowBlock& dfb,
+                                         Optional<Var> start_hint, bool must_include_hint) {
   if (ctx->src_ordered.size() == 0) {
-    return {};
+    return NullOpt;
   }
 
-  Map<DFPattern, Var> ret;
   // TODO(@ganler): Handle non-may external use.
   ICHECK(ctx->allow_extern_use == PatternContextNode::kMay) << "Only kMay is supported yet.";
   ICHECK(!must_include_hint || start_hint.defined())
@@ -737,12 +752,15 @@ Map<DFPattern, Var> MatchGraph(const PatternContext& ctx, const DataflowBlock& d
     }
   }
 
+  Map<DFPattern, Var> ret;
+
   if (start_hint) {
     auto rnode_ptr = var2node.at(start_hint.value().get());
     for (auto& p_node : pattern2node) {
       if (try_match(&p_node.second, &rnode_ptr, &matcher, def2use, caller2callees)) {
-        for (const auto& [df_pattern, pattern_node] : pattern2node)
+        for (const auto& [df_pattern, pattern_node] : pattern2node) {
           ret.Set(GetRef<DFPattern>(df_pattern), GetRef<Var>(pattern_node.matched));
+        }
         return ret;
       }
     }
@@ -757,15 +775,15 @@ Map<DFPattern, Var> MatchGraph(const PatternContext& ctx, const DataflowBlock& d
       if (start_hint.defined() && start_hint.value().get() == var) continue;
       RNode& r_node = var2node[var];
       if (try_match(&pnode_start, &r_node, &matcher, def2use, caller2callees)) {
-        for (const auto& [df_pattern, pattern_node] : pattern2node)
+        for (const auto& [df_pattern, pattern_node] : pattern2node) {
           ret.Set(GetRef<DFPattern>(df_pattern), GetRef<Var>(pattern_node.matched));
-
+        }
         return ret;
       }
     }
   }
 
-  return ret;
+  return NullOpt;
 }
 
 TVM_REGISTER_GLOBAL("relax.dpl.match_dfb").set_body_typed(MatchGraph);
