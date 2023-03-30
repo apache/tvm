@@ -72,8 +72,6 @@ def test_dnnl_offload():
 
     seq = tvm.transform.Sequential(
         [
-            relax.transform.ToNonDataflow(),
-            relax.transform.RemovePurityChecking(),
             relax.transform.FuseOpsByPattern([("dnnl.conv2d_relu", pat)]),
             relax.transform.MergeCompositeFunctions(),
             relax.transform.RunCodegen(),
