@@ -75,7 +75,7 @@ std::pair<runtime::Map<Var, runtime::Array<Var>>, runtime::Array<Var>> FunctionU
     uses.reserve(users.size());
     for (const auto& v : users) {
       if (v == nullptr &&
-          std::find(fn_outs.begin(), fn_outs.end(), GetRef<Var>(var)) == fn_outs.end() ) {
+          std::find(fn_outs.begin(), fn_outs.end(), GetRef<Var>(var)) == fn_outs.end()) {
         fn_outs.push_back(GetRef<Var>(var));
       } else {
         uses.push_back(GetRef<Var>(v));
