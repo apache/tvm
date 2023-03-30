@@ -34,7 +34,6 @@
 #include <cstddef>
 #include <limits>
 #include <optional>
-#include <stack>
 #include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
