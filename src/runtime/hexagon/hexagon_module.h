@@ -62,6 +62,10 @@ class HexagonModuleNode : public runtime::ModuleNode {
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override;
   std::string GetSource(const std::string& format) override;
   const char* type_key() const final { return "hexagon"; }
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const {
+    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+  }
   void SaveToFile(const std::string& file_name, const std::string& format) override;
   void SaveToBinary(dmlc::Stream* stream) override;
 

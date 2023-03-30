@@ -100,6 +100,9 @@ class ConstLoaderModuleNode : public ModuleNode {
 
   const char* type_key() const final { return "const_loader"; }
 
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final { return ModulePropertyMask::kBinarySerializable; };
+
   /*!
    * \brief Get the list of constants that is required by the given module.
    * \param symbol The symbol that is being queried.
