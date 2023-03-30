@@ -132,8 +132,6 @@ std::string ModuleNode::GetFormat() {
   LOG(FATAL) << "Module[" << type_key() << "] does not support GetFormat";
 }
 
-bool ModuleNode::IsDSOExportable() const { return false; }
-
 bool ModuleNode::ImplementsFunction(const String& name, bool query_imports) {
   return GetFunction(name, query_imports) != nullptr;
 }
@@ -199,8 +197,8 @@ TVM_REGISTER_GLOBAL("runtime.ModuleLoadFromFile").set_body_typed(Module::LoadFro
 TVM_REGISTER_GLOBAL("runtime.ModuleSaveToFile")
     .set_body_typed([](Module mod, String name, tvm::String fmt) { mod->SaveToFile(name, fmt); });
 
-TVM_REGISTER_GLOBAL("runtime.ModuleIsDSOExportable").set_body_typed([](Module mod) {
-  return mod->IsDSOExportable();
+TVM_REGISTER_GLOBAL("runtime.ModuleGetPropertyMask").set_body_typed([](Module mod) {
+  return mod->GetPropertyMask();
 });
 
 TVM_REGISTER_GLOBAL("runtime.ModuleImplementsFunction")
