@@ -245,15 +245,15 @@ class PatternContext : public ObjectRef {
     }
   }
 
-  /*! \brief Get the pass context object on the top of the stack */
+  /*! \brief Get the constraint context object on the top of the stack */
   TVM_DLL static Optional<PatternContext> Current();
 
   class Internal;
 
  private:
-  /*! \brief The RAII-like entry of a pass context scope */
+  /*! \brief The RAII-like entry of a constraint context scope */
   TVM_DLL void EnterWithScope();
-  /*! \brief The RAII-like exit of a pass context scope */
+  /*! \brief The RAII-like exit of a constraint context scope */
   TVM_DLL void ExitWithScope();
   friend class Internal;
   friend class With<PatternContext>;
