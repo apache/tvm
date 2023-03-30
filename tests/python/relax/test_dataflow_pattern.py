@@ -1006,5 +1006,50 @@ def test_rewrite_attention():
     tvm.ir.assert_structural_equal(rewritten, expected)
 
 
+def test_attention_qkv():
+    @tvm.script.ir_module
+    class QKV_proj:
+        @R.function
+        def main(
+            x: R.Tensor((2, 1024, 640), "float32"),
+            w0: R.Tensor((640, 640), "float32"),
+            w1: R.Tensor((640, 640), "float32"),
+            w2: R.Tensor((640, 640), "float32"),
+        ) -> R.Tensor:
+            with R.dataflow():
+                lv0 = R.matmul(x, w0)
+                lv1 = R.matmul(x, w1)
+                lv2 = R.matmul(x, w2)
+                out = (lv0, lv1, lv2)
+                R.output(out)
+            return out
+
+    with PatternContext() as ctx:
+        inp_pat = wildcard()
+        Q_weight_pat = wildcard()
+        K_weight_pat = wildcard()
+        V_weight_pat = wildcard()
+
+        matmul1 = is_op("relax.matmul")(inp_pat, Q_weight_pat)
+        matmul2 = is_op("relax.matmul")(inp_pat, K_weight_pat)
+        matmul3 = is_op("relax.matmul")(inp_pat, V_weight_pat)
+
+        # TODO(masahi): Automate addition of used_by constraints during is_op
+        inp_pat.used_by(matmul1, 0)
+        inp_pat.used_by(matmul2, 0)
+        inp_pat.used_by(matmul3, 0)
+
+        Q_weight_pat.only_used_by(matmul1, 1)
+        K_weight_pat.only_used_by(matmul2, 1)
+        V_weight_pat.only_used_by(matmul3, 1)
+
+        dfb = QKV_proj["main"].body.blocks[0]
+        out = ctx.match_dfb(dfb)
+
+        assert out[Q_weight_pat].name_hint == "w0"
+        assert out[K_weight_pat].name_hint == "w1"
+        assert out[V_weight_pat].name_hint == "w2"
+
+
 if __name__ == "__main__":
     tvm.testing.main()
