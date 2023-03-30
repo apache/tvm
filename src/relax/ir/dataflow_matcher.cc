@@ -558,8 +558,6 @@ static std::optional<UndoStack> try_match(
       ICHECK_EQ(p->matched, r->ptr);
       return;
     }
-    // TODO(ganler, masahi): Why this condition can fail?
-    // ICHECK(r->matched == nullptr);
     p->matched = r->ptr;
     r->matched = p->ptr;
     undo.emplace(p, r);
@@ -567,7 +565,7 @@ static std::optional<UndoStack> try_match(
 
   const auto quit = [&undo] {
     while (!undo.empty()) {
-      auto& [p_node, r_node] = undo.top();
+      const auto& [p_node, r_node] = undo.top();
       p_node->matched = nullptr;
       r_node->matched = nullptr;
       undo.pop();
