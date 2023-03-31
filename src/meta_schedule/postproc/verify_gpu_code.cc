@@ -164,11 +164,12 @@ class VerifyGPUCodeNode : public PostprocNode {
           pass_list.push_back(tir::transform::UnifyThreadBinding());
           pass_list.push_back(tir::transform::ManifestSharedMemoryLocalStage());
           pass_list.push_back(tir::transform::CompactBufferAllocation());
+          pass_list.push_back(tir::transform::LowerAutoCopy());
           pass_list.push_back(tir::transform::LowerMatchBuffer());
           pass_list.push_back(tir::transform::InjectSoftwarePipeline());
           pass_list.push_back(tir::transform::LowerOpaqueBlock());
           pass_list.push_back(tir::transform::FlattenBuffer());
-          pass_list.push_back(tir::transform::BF16Legalize());
+          pass_list.push_back(tir::transform::BF16ComputeLegalize());
           pass_list.push_back(tir::transform::NarrowDataType(32));
           pass_list.push_back(tir::transform::Simplify());
           // Phase 2

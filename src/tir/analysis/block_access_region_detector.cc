@@ -107,9 +107,7 @@ class BlockReadWriteDetector : public StmtExprVisitor {
   void VisitStmt_(const IfThenElseNode* op) override;
   void VisitStmt_(const BlockRealizeNode* op) override;
   void VisitStmt_(const BufferStoreNode* op) override;
-  void VisitStmt_(const StoreNode* op) override;
   void VisitExpr_(const BufferLoadNode* op) override;
-  void VisitExpr_(const LoadNode* op) override;
   void VisitExpr_(const VarNode* op) override;
   void VisitExpr_(const CallNode* op) override;
 };
@@ -143,10 +141,6 @@ Array<BufferRegion> BlockReadWriteDetector::CollectOpaques() {
 }
 
 void BlockReadWriteDetector::VisitExpr_(const VarNode* op) { UpdateOpaque(GetRef<Var>(op)); }
-
-void BlockReadWriteDetector::VisitExpr_(const LoadNode* op) {
-  LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-}
 
 void BlockReadWriteDetector::VisitExpr_(const BufferLoadNode* op) {
   std::vector<arith::IntSet> relaxed_region;
@@ -222,10 +216,6 @@ void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
     return;
   }
   StmtExprVisitor::VisitExpr_(op);
-}
-
-void BlockReadWriteDetector::VisitStmt_(const StoreNode* op) {
-  LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
 }
 
 void BlockReadWriteDetector::VisitStmt_(const BufferStoreNode* op) {

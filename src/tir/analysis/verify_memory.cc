@@ -88,14 +88,6 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
     }
   }
 
-  void VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
-
-  void VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
   void VisitExpr_(const BufferLoadNode* op) final {
     HandleLoadStoreToVariable(op->buffer->data);
     return StmtExprVisitor::VisitExpr_(op);

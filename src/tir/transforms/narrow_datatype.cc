@@ -34,7 +34,7 @@
 namespace tvm {
 namespace tir {
 
-// This pass narrows indexing expressions (like StoreNode::Index)
+// This pass narrows indexing expressions (like BufferStoreNode::indices)
 // that trivially fit into i32/i16 (denoted by `target_bits_`) to
 // i32/i16. Considering that i32/i16 indices may be more
 // efficient on some backends (while i64 may be more efficient
@@ -223,14 +223,6 @@ class NarrowDataTypeRewriter : public IndexDataTypeRewriter {
   using Parent::VisitExpr_;
   using Parent::VisitStmt_;
 
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
-
   PrimExpr VisitExpr_(const VarNode* op) final {
     if (auto it = visitor_.vmap.find(op); !var_remap_.count(op) && it != visitor_.vmap.end()) {
       var_remap_[op] = Var(op->name_hint, it->second);
@@ -257,6 +249,44 @@ class NarrowDataTypeRewriter : public IndexDataTypeRewriter {
     }
     return Parent::VisitExpr_(op);
   }
+
+#define TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)             \
+  PrimExpr VisitExpr_(const OP* op) {                                     \
+    PrimExpr a = this->VisitExpr(op->a);                                  \
+    PrimExpr b = this->VisitExpr(op->b);                                  \
+    if (op->a.same_as(a) && op->b.same_as(b) && a.dtype() == b.dtype()) { \
+      return GetRef<PrimExpr>(op);                                        \
+    } else {                                                              \
+      if (a.dtype() != b.dtype()) {                                       \
+        bool is_enabled = is_enabled_;                                    \
+        is_enabled_ = true;                                               \
+        PrimExpr lhs = this->VisitExpr(op->a);                            \
+        PrimExpr rhs = this->VisitExpr(op->b);                            \
+        is_enabled_ = is_enabled;                                         \
+        return FUNC(lhs, rhs);                                            \
+      } else {                                                            \
+        return FUNC(a, b);                                                \
+      }                                                                   \
+    }                                                                     \
+  }
+
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(AddNode, operator+);
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(SubNode, operator-);
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MulNode, operator*);
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(DivNode, div);
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(ModNode, truncmod);
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(FloorDivNode, floordiv);
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(FloorModNode, floormod);
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MinNode, min);
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MaxNode, max);
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(EQNode, operator==);
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(NENode, operator!=);
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LENode, operator<=);
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LTNode, operator<);  // NOLINT(*)
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GTNode, operator>);  // NOLINT(*)
+  TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=);
+
+#undef TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH
 
  private:
   // the internal visitor to deduce the narrowed dtype

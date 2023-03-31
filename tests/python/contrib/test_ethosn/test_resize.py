@@ -29,15 +29,11 @@ def _get_model(
     shape,
     dtype,
     size,
-    input_zp,
-    input_sc,
-    output_zp,
-    output_sc,
     coordinate_transformation_mode,
     rounding_method,
 ):
     x = relay.var("x", shape=shape, dtype=dtype)
-    resize = relay.image.resize2d(
+    return relay.image.resize2d(
         data=x,
         size=size,
         layout="NHWC",
@@ -45,15 +41,6 @@ def _get_model(
         coordinate_transformation_mode=coordinate_transformation_mode,
         rounding_method=rounding_method,
     )
-    model = relay.qnn.op.requantize(
-        resize,
-        input_scale=relay.const(input_sc, "float32"),
-        input_zero_point=relay.const(input_zp, "int32"),
-        output_scale=relay.const(output_sc, "float32"),
-        output_zero_point=relay.const(output_zp, "int32"),
-        out_dtype=dtype,
-    )
-    return model
 
 
 @requires_ethosn
@@ -82,10 +69,6 @@ def test_resize(dtype, shape, size, coordinate_transformation_mode, rounding_met
             shape=shape,
             dtype=dtype,
             size=size,
-            input_zp=zp_min + 128,
-            input_sc=0.0784314,
-            output_zp=zp_min + 128,
-            output_sc=0.0784314,
             coordinate_transformation_mode=coordinate_transformation_mode,
             rounding_method=rounding_method,
         )
@@ -113,16 +96,11 @@ def test_resize(dtype, shape, size, coordinate_transformation_mode, rounding_met
 def test_resize_failure(size, err_msg):
     """Check Resize error messages."""
     dtype = "int8"
-    zp_min = np.iinfo(dtype).min
 
     model = _get_model(
         shape=(1, 10, 10, 1),
         dtype=dtype,
         size=size,
-        input_zp=zp_min + 128,
-        input_sc=0.0784314,
-        output_zp=zp_min + 128,
-        output_sc=0.0784314,
         coordinate_transformation_mode="half_pixel",
         rounding_method="round_prefer_ceil",
     )

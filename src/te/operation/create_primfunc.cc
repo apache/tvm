@@ -186,7 +186,7 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
                                       arith::Analyzer* analyzer) {
   // Step 1. Push_back data_par axis and reduce_axis into block_vars.
   Array<IterVar> iter_vars;
-  std::unordered_map<const VarNode*, PrimExpr> var_map;
+  std::unordered_map<const VarNode*, Var> var_map;
   iter_vars.reserve(compute_op->axis.size() + compute_op->reduce_axis.size());
   auto f_push_block_vars = [&iter_vars, &var_map, &analyzer](const Array<IterVar>& iters) {
     for (IterVar iter_var : iters) {

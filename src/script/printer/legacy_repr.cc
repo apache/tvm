@@ -460,18 +460,6 @@ TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<LoadNode>([](const ObjectRef& node, ReprLegacyPrinter* p) {
-      auto* op = static_cast<const LoadNode*>(node.get());
-      (*p) << op->buffer_var << "[";
-      p->Print(op->index);
-      (*p) << "]";
-      if (!is_one(op->predicate)) {
-        (*p) << " if ";
-        p->Print(op->predicate);
-      }
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     .set_dispatch<RampNode>([](const ObjectRef& node, ReprLegacyPrinter* p) {
       auto* op = static_cast<const RampNode*>(node.get());
       (*p) << "ramp(";
@@ -662,21 +650,6 @@ TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
       p->indent -= 2;
       p->PrintIndent();
       (*p) << "}\n";
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<StoreNode>([](const ObjectRef& node, ReprLegacyPrinter* p) {
-      auto* op = static_cast<const StoreNode*>(node.get());
-      p->PrintIndent();
-      (*p) << op->buffer_var << "[";
-      p->Print(op->index);
-      (*p) << "] = ";
-      p->Print(op->value);
-      if (!is_one(op->predicate)) {
-        (*p) << " if ";
-        p->Print(op->predicate);
-      }
-      (*p) << '\n';
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)

@@ -430,10 +430,10 @@ struct Conv3DTransposeAttrs : public tvm::AttrsNode<Conv3DTransposeAttrs> {
             "dimensions respectively. Convolution is applied on the 'D', 'H' and"
             "'W' dimensions.");
     TVM_ATTR_FIELD(kernel_layout)
-        .set_default("OIDHW")
+        .set_default("IODHW")
         .describe(
-            "Dimension ordering of data and weight. Can be 'OIDHW', 'OIDHW16o16i', etc."
-            "'O', 'I', 'D', 'H', 'W' stands for num_filter, input_channel, depth, height, and width"
+            "Dimension ordering of data and weight. Can be 'IODHW', 'IODHW16i16o', etc."
+            "'I', 'O', 'D', 'H', 'W' stands for input_channel, num_filter, depth, height, and width"
             "dimensions respectively.");
     TVM_ATTR_FIELD(out_layout)
         .set_default("")
@@ -588,10 +588,10 @@ struct Conv2DTransposeAttrs : public tvm::AttrsNode<Conv2DTransposeAttrs> {
             "dimensions respectively. Convolution is applied on the 'H' and"
             "'W' dimensions.");
     TVM_ATTR_FIELD(kernel_layout)
-        .set_default("OIHW")
+        .set_default("IOHW")
         .describe(
-            "Dimension ordering of data and weight. Can be 'OIHW', 'OIHW16o16i', etc."
-            "'O', 'I', 'H', 'W' stands for num_filter, input_channel, height, and width"
+            "Dimension ordering of data and weight. Can be 'IOHW', 'OIHW16o16i', etc."
+            "'I', 'O', 'H', 'W' stands for input_channel, num_filter, height, and width"
             "dimensions respectively.");
     TVM_ATTR_FIELD(out_layout)
         .set_default("")

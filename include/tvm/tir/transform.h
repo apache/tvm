@@ -337,11 +337,17 @@ TVM_DLL Pass CombineContextCall();
 TVM_DLL Pass NarrowDataType(int target_bits);
 
 /*!
- * \brief Legalize bf16 typed Ops. Add a cast to fp32
+ * \brief Legalize bf16 compute Ops. Add a cast to fp32
  *   before Ops, then add a cast back to bf16.
  * \return The pass.
  */
-TVM_DLL Pass BF16Legalize();
+TVM_DLL Pass BF16ComputeLegalize();
+
+/*!
+ * \brief Legalize bf16 storage types to u16.
+ * \return The pass.
+ */
+TVM_DLL Pass BF16StorageLegalize();
 
 /*!
  * \brief Rewrite the pointer content type of arguments,
@@ -646,6 +652,12 @@ TVM_DLL Pass BindParams(const Array<runtime::NDArray>& constants);
  * \return The pass.
  */
 TVM_DLL Pass ExtractPrimFuncConstants();
+
+/*!
+ * \brief Automatically do memory optimizations for auto copy blocks
+ * \return The pass.
+ */
+TVM_DLL Pass LowerAutoCopy();
 
 /*!
  * \brief Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv())

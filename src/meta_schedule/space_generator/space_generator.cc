@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include "../../target/parsers/aprofile.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -37,6 +38,16 @@ String GetRuleKindFromTarget(const Target& target) {
           (*f_check_avx512)(target->GetAttr<String>("mcpu").value())) {
         return "avx512";
       }
+    }
+
+    TargetJSON target_json = target::parsers::aprofile::ParseTarget(target->Export());
+    TargetFeatures afeatures = Downcast<TargetFeatures>(target_json.at("features"));
+
+    if (Downcast<Bool>(afeatures.at("has_dotprod"))) {
+      return "dotprod";
+    }
+    if (Downcast<Bool>(afeatures.at("has_asimd"))) {
+      return "asimd";
     }
     return "llvm";
   }
@@ -110,6 +121,14 @@ void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
       default_sch_rules = ScheduleRule::DefaultMicro();
       default_postprocs = Postproc::DefaultMicro();
       default_mutator_probs = Mutator::DefaultMicro();
+    } else if (kind == "asimd") {
+      default_sch_rules = ScheduleRule::DefaultARM("neon");
+      default_postprocs = Postproc::DefaultCPUTensorization();
+      default_mutator_probs = Mutator::DefaultLLVM();
+    } else if (kind == "dotprod") {
+      default_sch_rules = ScheduleRule::DefaultARM("dotprod");
+      default_postprocs = Postproc::DefaultCPUTensorization();
+      default_mutator_probs = Mutator::DefaultLLVM();
     } else {
       LOG(FATAL) << "Unsupported kind: " << kind;
       throw;

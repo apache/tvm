@@ -300,6 +300,8 @@ class ScheduleRule : public runtime::ObjectRef {
   TVM_DLL static Array<ScheduleRule, void> DefaultHexagon();
   /*! \brief Create default schedule rules for Micro */
   TVM_DLL static Array<ScheduleRule, void> DefaultMicro();
+  /*! \brief Create default schedule rules for ARM CPU (NEON and DOTPROD) */
+  TVM_DLL static Array<ScheduleRule, void> DefaultARM(const String& type);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ScheduleRule, ObjectRef, ScheduleRuleNode);
 };

@@ -707,7 +707,7 @@ def np_float2tvm_bf16(arr):
     """Convert a numpy array of float to a TVM array
     of bf16"""
     nparr = np_float2np_bf16(arr)
-    return tvm.nd.empty(nparr.shape, "uint16").copyfrom(nparr)
+    return tvm.nd.empty(nparr.shape, "bfloat16").copyfrom(nparr)
 
 
 def np_bf162np_float(arr):
@@ -730,9 +730,9 @@ def test_llvm_bf16():
         B = te.placeholder((32,), dtype="bfloat16")
         d = te.compute((32,), lambda x: A[x] + B[x])
         sch = te.create_schedule(d.op)
-        print(tvm.lower(sch, [A, B, d]))
         if do_vectorize:
             sch[d].vectorize(d.op.axis[0])
+
         module = tvm.build(sch, [A, B, d])
         npa = np.random.rand(32).astype("float32")
         npb = np.random.rand(32).astype("float32")
@@ -741,7 +741,7 @@ def test_llvm_bf16():
         res = np_bf16_cast_and_cast_back(va + vb)
         a_ = np_float2tvm_bf16(npa)
         b_ = np_float2tvm_bf16(npb)
-        c_ = tvm.nd.empty((32,), "uint16")
+        c_ = tvm.nd.empty((32,), "bfloat16")
         module(a_, b_, c_)
         tvm.testing.assert_allclose(np_bf162np_float(c_.numpy()), res)
 
@@ -976,6 +976,30 @@ def test_llvm_target_attributes():
     expected_functions = ["test_func", "test_func_compute_", "__tvm_parallel_lambda"]
     for n in expected_functions:
         assert n in functions_with_target
+
+
+@tvm.testing.requires_llvm
+def test_llvm_assume():
+    """
+    Check that LLVM does not error out when generating code with tir.assume.
+    Verifying for llvm.assume being generated is not easy as the intrinsic and its
+    related instructions get removed during optimizations
+    """
+
+    @T.prim_func
+    def tir_assume_func(A: T.Buffer((4, 4), "int32"), B: T.Buffer((14,), "int32")):
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        A_1 = T.Buffer((16,), "int32", data=A.data)
+        for axis0, axis1 in T.grid(4, 4):
+            T.assume(axis0 < 3 or axis1 < 2 or A_1[axis0 * 4 + axis1] == 0)
+        for i in range(14):
+            B_1 = T.Buffer((14,), "int32", data=B.data)
+            B_1[i] = A_1[i] * 2
+
+    mod = tvm.IRModule.from_expr(tir_assume_func)
+    inp = te.placeholder((4, 4), name="A", dtype="int32")
+    out = te.placeholder((14,), name="B", dtype="int32")
+    m = tvm.build(mod, [inp, out], target="llvm")
 
 
 if __name__ == "__main__":

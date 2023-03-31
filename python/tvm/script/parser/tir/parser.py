@@ -145,6 +145,7 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
     elif isinstance(value, PrimExpr):
         frame = T.LetStmt(value)
         var = frame.var
+        IRBuilder.name(var_name, var)
         frame.add_callback(partial(frame.__exit__, None, None, None))
         frame.__enter__()
         return var
@@ -432,10 +433,12 @@ def visit_if(self: Parser, node: doc.If) -> None:
     with self.var_table.with_frame():
         with T.If(self.eval_expr(node.test)):
             with T.Then():
-                self.visit_body(node.body)
+                with self.var_table.with_frame():
+                    self.visit_body(node.body)
             if node.orelse:
                 with T.Else():
-                    self.visit_body(node.orelse)
+                    with self.var_table.with_frame():
+                        self.visit_body(node.orelse)
 
 
 @dispatch.register(token="tir", type_name="Assert")

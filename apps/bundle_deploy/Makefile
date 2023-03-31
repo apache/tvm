@@ -78,7 +78,7 @@ test_dynamic: $(build_dir)/test_dynamic $(build_dir)/test_bundle.so $(build_dir)
 demo_static: $(build_dir)/demo_static $(build_dir)/cat.bin
 	$(QUIET)TVM_NUM_THREADS=1 $(build_dir)/demo_static $(build_dir)/cat.bin
 
-test_static: $(build_dir)/test_static $(build_dir)/test_data_c.bin $(build_dir)/test_output_c.bin
+test_static: $(build_dir)/crt_config/crt_config.h $(build_dir)/test_static $(build_dir)/test_data_c.bin $(build_dir)/test_output_c.bin
 	$(QUIET)TVM_NUM_THREADS=1 $(build_dir)/test_static $(build_dir)/test_data_c.bin $(build_dir)/test_output_c.bin $(build_dir)/test_graph_c.json $(build_dir)/test_params_c.bin
 
 $(build_dir)/crt_config/crt_config.h:

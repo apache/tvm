@@ -41,6 +41,35 @@
 namespace tvm {
 namespace runtime {
 
+/*!
+ * \brief Property of runtime module
+ * We classify the property of runtime module into the following categories.
+ */
+enum ModulePropertyMask : int {
+  /*! \brief kBinarySerializable
+   *  we can serialize the module to the stream of bytes. CUDA/OpenCL/JSON
+   * runtime are representative examples. A binary exportable module can be integrated into final
+   * runtime artifact by being serialized as data into the artifact, then deserialized at runtime.
+   * This class of modules must implement SaveToBinary, and have a matching deserializer registered
+   * as 'runtime.module.loadbinary_<type_key>'.
+   */
+  kBinarySerializable = 0b001,
+  /*! \brief kRunnable
+   * we can run the module directly. LLVM/CUDA/JSON runtime, executors (e.g,
+   * virtual machine) runtimes are runnable. Non-runnable modules, such as CSourceModule, requires a
+   * few extra steps (e.g,. compilation, link) to make it runnable.
+   */
+  kRunnable = 0b010,
+  /*! \brief kDSOExportable
+   * we can export the module as DSO. A DSO exportable module (e.g., a
+   * CSourceModuleNode of type_key 'c') can be incorporated into the final runtime artifact (ie
+   * shared library) by compilation and/or linking using the external compiler (llvm, nvcc, etc).
+   * DSO exportable modules must implement SaveToFile. In general, DSO exportable modules are not
+   * runnable unless there is a special support like JIT for `LLVMModule`.
+   */
+  kDSOExportable = 0b100
+};
+
 class ModuleNode;
 class PackedFunc;
 
@@ -193,20 +222,16 @@ class TVM_DLL ModuleNode : public Object {
   const std::vector<Module>& imports() const { return imports_; }
 
   /*!
-   * \brief Returns true if this module is 'DSO exportable'.
-   *
-   * A DSO exportable module (eg a CSourceModuleNode of type_key 'c') can be incorporated into the
-   * final runtime artifact (ie shared library) by compilation and/or linking using the external
-   * compiler (llvm, nvcc, etc). DSO exportable modules must implement SaveToFile.
-   *
-   * By contrast, non-DSO exportable modules (eg CUDAModuleNode of type_key 'cuda') typically must
-   * be incorporated into the final runtime artifact by being serialized as data into the
-   * artifact, then deserialized at runtime. Non-DSO exportable modules must implement SaveToBinary,
-   * and have a matching deserializer registered as 'runtime.module.loadbinary_<type_key>'.
-   *
-   * The default implementation returns false.
+   * \brief Returns bitmap of property.
+   * By default, none of the property is set. Derived class can override this function and set its
+   * own property.
    */
-  virtual bool IsDSOExportable() const;
+  virtual int GetPropertyMask() const { return 0b000; }
+
+  /*! \brief Returns true if this module is 'DSO exportable'. */
+  bool IsDSOExportable() const {
+    return (GetPropertyMask() & ModulePropertyMask::kDSOExportable) != 0;
+  }
 
   /*!
    * \brief Returns true if this module has a definition for a function of \p name. If

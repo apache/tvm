@@ -47,7 +47,7 @@ class HexagonUserDMATest : public ::testing::Test {
  public:
   HexagonUserDMA* user_dma;
   int ret = 0;
-  int queue_id = 0;
+  uint32_t queue_id = 0;
   void* src = nullptr;
   void* dst = nullptr;
   char* src_char = nullptr;

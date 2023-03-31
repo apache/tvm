@@ -555,6 +555,49 @@ def test_forward_conv_transpose():
 
 
 @tvm.testing.uses_gpu
+def test_forward_conv3d():
+    class Conv3D(nn.Layer):
+        def __init__(self, stride=1, padding=0, dilation=1, groups=1, padding_mode="zeros"):
+            super(Conv3D, self).__init__()
+            self.conv = nn.Conv3D(
+                3,
+                6,
+                3,
+                stride=stride,
+                padding=padding,
+                dilation=dilation,
+                groups=groups,
+                padding_mode=padding_mode,
+            )
+            self.softmax = nn.Softmax()
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.softmax(self.conv(inputs))
+
+    input_shapes = [[1, 3, 10, 10, 10], [1, 3, 12, 12, 12]]
+
+    for input_shape in input_shapes:
+        input_data = paddle.rand(input_shape, dtype="float32")
+        verify_model(Conv3D(), input_data=input_data)
+        verify_model(Conv3D(stride=2, padding="VALID", dilation=3), input_data=input_data)
+        verify_model(Conv3D(stride=2, padding="SAME", dilation=3), input_data=input_data)
+        verify_model(
+            Conv3D(stride=2, padding=(3, 3, 4, 4, 2, 2), dilation=3),
+            input_data=input_data,
+        )
+        verify_model(
+            Conv3D(stride=2, padding=3, dilation=3, padding_mode="reflect"),
+            input_data=input_data,
+        )
+        verify_model(
+            Conv3D(stride=2, padding=3, dilation=3, padding_mode="replicate"),
+            input_data=input_data,
+        )
+        verify_model(Conv3D(stride=2, padding="SAME", dilation=2, groups=3), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_dot():
     class Dot(nn.Layer):
         @paddle.jit.to_static

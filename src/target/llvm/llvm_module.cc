@@ -93,6 +93,12 @@ class LLVMModuleNode final : public runtime::ModuleNode {
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
 
+  /*! \brief Get the property of the runtime module .*/
+  // TODO(tvm-team): Make it serializable
+  int GetPropertyMask() const {
+    return runtime::ModulePropertyMask::kRunnable | runtime::ModulePropertyMask::kDSOExportable;
+  }
+
   void SaveToFile(const std::string& file_name, const std::string& format) final;
   void SaveToBinary(dmlc::Stream* stream) final;
   std::string GetSource(const std::string& format) final;
@@ -100,7 +106,6 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   void Init(const IRModule& mod, const Target& target);
   void Init(std::unique_ptr<llvm::Module> module, std::unique_ptr<LLVMInstance> llvm_instance);
   void LoadIR(const std::string& file_name);
-  bool IsDSOExportable() const final { return true; }
 
   bool ImplementsFunction(const String& name, bool query_imports) final;
 
@@ -325,7 +330,6 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
   if (tm->getTargetTriple().isOSDarwin()) {
     module_->addModuleFlag(llvm::Module::Override, "Dwarf Version", 2);
   }
-
   std::string verify_errors_storage;
   llvm::raw_string_ostream verify_errors(verify_errors_storage);
   LOG_IF(FATAL, llvm::verifyModule(*module_, &verify_errors))

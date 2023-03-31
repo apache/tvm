@@ -283,6 +283,9 @@ class RelayBuildModule : public runtime::ModuleNode {
    */
   const char* type_key() const final { return "RelayBuildModule"; }
 
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final { return runtime::ModulePropertyMask::kRunnable; }
+
   /*!
    * \brief Build relay IRModule for graph executor
    *

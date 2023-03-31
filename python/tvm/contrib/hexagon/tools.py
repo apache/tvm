@@ -20,6 +20,9 @@
 import os
 import pathlib
 from typing import Union
+import sys
+import tarfile
+import io
 import numpy
 
 import tvm
@@ -43,6 +46,9 @@ from ..._ffi.registry import register_func
 
 HEXAGON_TOOLCHAIN = os.environ.get("HEXAGON_TOOLCHAIN", default="")  # pylint: disable=invalid-name
 HEXAGON_SDK_ROOT = os.environ.get("HEXAGON_SDK_ROOT", default="")  # pylint: disable=invalid-name
+HEXAGON_SDK_DOCKER_IMAGE = os.environ.get(
+    "HEXAGON_SDK_DOCKER_IMAGE", default=""
+)  # pylint: disable=invalid-name
 HEXAGON_LINK_MAIN = (
     pathlib.Path(HEXAGON_TOOLCHAIN) / "bin" / "hexagon-link"
 )  # pylint: disable=invalid-name
@@ -145,6 +151,74 @@ def link_shared(so_name, objs, extra_args=None):
     return 0
 
 
+def link_shared_macos(so_name, objs, extra_args=None):
+    """Link Hexagon shared library using docker container with proper tooling.
+
+    Parameters
+    ----------
+    so_name : str
+        Name of the shared library file.
+    objs : list[str,StringImm]
+    extra_args : dict (str->str) or Map<String,String>
+        Additional arguments:
+            'hex_arch' - Hexagon architecture, e.g. v66
+
+    Returns
+    -------
+    ret_val : int
+        This function returns 0 at the moment.
+    """
+    # The list of object files can be passed as built-in Python strings,
+    # or as tvm.tir.StringImm's.
+    def to_str(s):
+        if isinstance(s, tvm.tir.StringImm):
+            return s.value
+        assert isinstance(s, str), 'argument "' + str(s) + '" should be a string or StrImm'
+        return s
+
+    objs = [to_str(s) for s in objs]
+
+    if not extra_args:
+        extra_args = {}
+    hex_arch = extra_args.get("hex_arch") or "v66"
+
+    ses = ContainerSession(HEXAGON_SDK_DOCKER_IMAGE)
+
+    hexagon_sdk_tools_path = ses.get_env("HEXAGON_TOOLCHAIN")
+    libpath = os.path.join(hexagon_sdk_tools_path, "target", "hexagon", "lib", hex_arch, "G0")
+    linker = os.path.join(hexagon_sdk_tools_path, "bin", "hexagon-link")
+
+    # Copy input data to docker container
+    docker_objs = [ses.copy_to(obj) for obj in objs]
+    docker_so_name = ses.tmp_dir + "/" + os.path.basename(so_name)
+
+    link_cmd = [linker, "-shared", "-fPIC", "-o", docker_so_name]
+    link_cmd += docker_objs
+    link_cmd += [
+        "-Bdynamic",
+        "-export-dynamic",
+        "-L" + os.path.join(libpath, "pic"),
+        "-lgcc",
+    ]
+    ses.exec(link_cmd)
+
+    # Copy result back to host
+    ses.copy_from(docker_so_name, so_name)
+    return 0
+
+
+if sys.platform == "darwin":
+
+    def __create_shared_mac(so_name, objs, **kwargs):
+        return link_shared_macos(so_name, objs, kwargs)
+
+    create_shared = __create_shared_mac
+    register_func("tvm.contrib.hexagon.link_shared", f=link_shared_macos, override=True)
+else:  # Linux and Win32
+    create_shared = cc.create_shared
+    register_func("tvm.contrib.hexagon.link_shared", f=link_shared, override=True)
+
+
 def create_aot_shared(so_name: Union[str, pathlib.Path], files, hexagon_arch: str, options=None):
     """Export Hexagon AOT module."""
     options = options or []
@@ -242,3 +316,127 @@ def allocate_hexagon_array(
         arr.copyfrom(data.reshape(physical_shape))
 
     return arr._create_view(tensor_shape)
+
+
+class ContainerSession:
+    """Docker container session
+
+    Parameters
+    ----------
+    base_image_name : str
+        Docker image name to use. Empty string means to use default "tlcpack/ci-hexagon"
+        base image.
+    """
+
+    def __init__(self, base_image_name: str = ""):
+        self._client = None
+        self._container = None
+        self.tmp_dir = None
+
+        self._client = ContainerSession._get_docker_client()
+
+        if base_image_name == "":
+            base_image_name = ContainerSession._get_latest_ci_image(self._client)
+
+        self._container = ContainerSession._find_container_or_create(self._client, base_image_name)
+
+        exit_code, tmp_dir_b = self._container.exec_run("mktemp -d -t tvm-toolbox-XXXXXXXXXX")
+        assert exit_code == 0
+
+        self.tmp_dir = tmp_dir_b.decode("utf-8").rstrip()
+
+    def __del__(self):
+        self.close()
+
+    @staticmethod
+    def _get_latest_ci_image(client) -> str:
+        ci_images = client.images.list(name="tlcpack/ci-hexagon")
+        ci_images.sort(reverse=True, key=lambda img: img.tags[0])
+        return ci_images[0].tags[0]
+
+    @staticmethod
+    def _get_docker_client():
+        try:
+            # pylint: disable=import-outside-toplevel
+            from docker import from_env
+            from docker.errors import DockerException
+        except (ModuleNotFoundError, ImportError):
+            raise Exception("Docker SDK module is not installed. Please install it.")
+
+        try:
+            client = from_env()
+        except DockerException:
+            raise Exception(
+                "Docker server is not available. Please verify the docker is installed, "
+                "launched and available via command line ('dokcer ps' should works)."
+            )
+
+        return client
+
+    @staticmethod
+    def _find_container_or_create(client, image_name: str):
+        all_containers = client.containers.list(all=True)
+
+        filtered_containers = []
+        for container in all_containers:
+            tags: list = container.image.tags
+            img_name: str = tags[0]
+            if img_name.startswith(image_name) and container.name.startswith("tvm-hex-toolbox"):
+                filtered_containers.append(container)
+
+        if len(filtered_containers) == 0:
+            container = client.containers.run(
+                image=image_name, detach=True, tty=True, name="tvm-hex-toolbox"
+            )
+        else:
+            container = filtered_containers[0]
+
+        if container.status != "running":
+            container.start()
+
+        return container
+
+    def exec(self, cmd) -> str:
+        """Execute command inside docker container"""
+        exit_code, res = self._container.exec_run(cmd)
+        assert exit_code == 0
+        return res.decode("utf-8")
+
+    def get_env(self, key: str) -> str:
+        """Return env var value from docker container"""
+        res: str = self.exec(f"bash -c 'echo \"${key}\"'")
+        return res.rstrip(" \n")
+
+    def copy_to(self, host_file_path: str) -> str:
+        """Upload file to docker container"""
+        file_name = os.path.basename(host_file_path)
+
+        byte_stream = io.BytesIO()
+        with tarfile.open(fileobj=byte_stream, mode="w:gz") as tar:
+            tar.add(host_file_path, arcname=file_name)
+
+        self._container.put_archive(path=self.tmp_dir, data=byte_stream.getvalue())
+
+        return f"{self.tmp_dir}/{file_name}"
+
+    def copy_from(self, container_file_path: str, host_file_path: str):
+        """Download file from docker container"""
+        tar_bytes_gen, _ = self._container.get_archive(container_file_path)
+
+        # convert to bytes
+        tar_bytes = bytes()
+        for chunk in tar_bytes_gen:
+            tar_bytes += chunk
+
+        tar = tarfile.open(fileobj=io.BytesIO(initial_bytes=tar_bytes))
+        assert len(tar.getmembers()) == 1
+        tar_element_reader = tar.extractfile(tar.getmembers()[0])
+        with open(host_file_path, "wb") as host_file:
+            for chunk in tar_element_reader:
+                host_file.write(chunk)
+
+    def close(self):
+        """Close docker container session"""
+        if self.tmp_dir is not None:
+            exit_code, _ = self._container.exec_run(f"rm -rf {self.tmp_dir}")
+            assert exit_code == 0

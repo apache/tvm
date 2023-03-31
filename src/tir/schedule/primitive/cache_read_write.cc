@@ -156,7 +156,7 @@ Block MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStageI
   // bindings in block realize
   std::vector<PrimExpr> iter_values;
   // Create loop vars and block vars' binding_value
-  Map<Var, PrimExpr> var_map;
+  Map<Var, Var> var_map;
   for (size_t i = 0; i < info->loop_vars.size(); ++i) {
     Var original_var = info->loop_vars[i];
     Var loop_var(original_var->name_hint, original_var.dtype());
@@ -316,7 +316,7 @@ Block MakeReIndexStage(const Block& block, CacheStageInfo* info,
   // iters of the reindex block
   Array<IterVar> new_block_iters;
   // the substition map from the original block iter to the iters of the reindex block
-  std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectEqual> block_var_replace_map;
+  std::unordered_map<Var, Var, ObjectPtrHash, ObjectEqual> block_var_replace_map;
   // indices to access the reindex buffer and the target buffer
   Array<PrimExpr> reindex_indices, target_indices;
 
@@ -843,10 +843,6 @@ class CacheReadRewriter : public StmtExprMutator {
     return ExprMutator::VisitExpr_(load);
   }
 
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
-
   PrimExpr VisitExpr_(const VarNode* op) final {
     if (op == info_->read_buffer->data.get()) {
       return info_->write_buffer->data;
@@ -1065,14 +1061,6 @@ class CacheWriteRewriter : public StmtExprMutator {
       return PrimExpr(n);
     }
     return ExprMutator::VisitExpr_(load);
-  }
-
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
-
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
   }
 
   PrimExpr VisitExpr_(const VarNode* op) final {
