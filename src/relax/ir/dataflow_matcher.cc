@@ -780,18 +780,29 @@ Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const Datafl
 TVM_REGISTER_GLOBAL("relax.dpl.match_dfb").set_body_typed(MatchGraph);
 
 /*!
- * \brief Apply pattern matching to each call node and replace matching ones with the output of
- * a user-provided rewriter function.
+ * \brief Apply pattern matching to each call node and dataflow block, and replace matching ones
+ * with the output of a user-provided rewriter function.
  */
 class PatternRewriter : ExprMutator {
  public:
+  using ExprMutator::VisitBindingBlock_;
   using ExprMutator::VisitExpr_;
 
-  PatternRewriter(DFPattern pat, PackedFunc rewriter_func)
-      : pattern_(pat), rewriter_func_(rewriter_func) {}
+  PatternRewriter(DFPattern pat, PackedFunc rewriter_func,
+                  const std::unordered_set<const VarNode*>& params)
+      : pattern_(pat), rewriter_func_(rewriter_func), params_(params) {}
 
-  static Expr Run(DFPattern pat, PackedFunc rewriter_func, Function f) {
-    PatternRewriter rewriter(pat, rewriter_func);
+  PatternRewriter(const PatternContext& ctx, PackedFunc rewriter_func,
+                  const std::unordered_set<const VarNode*>& params)
+      : ctx_(ctx), rewriter_func_(rewriter_func), params_(params) {}
+
+  template <typename PatternType>
+  static Expr Run(PatternType pat, PackedFunc rewriter_func, Function f) {
+    std::unordered_set<const VarNode*> params;
+    for (const auto& p : f->params) {
+      params.insert(p.get());
+    }
+    PatternRewriter rewriter(pat, rewriter_func, params);
     return RemoveAllUnused(Downcast<Function>(rewriter.VisitExpr(f)));
   }
 
@@ -807,7 +818,9 @@ class PatternRewriter : ExprMutator {
 
   Expr VisitExpr_(const CallNode* call_node) final {
     auto call = ExprMutator::VisitExpr_(call_node);
-    if (auto matches_opt = ExtractMatchedExpr(pattern_, call, bindings_)) {
+    if (!pattern_) {
+      return call;
+    } else if (auto matches_opt = ExtractMatchedExpr(pattern_.value(), call, bindings_)) {
       auto rewriten_expr = rewriter_func_(call, matches_opt.value());
       memo_[call_node] = rewriten_expr;
       return rewriten_expr;
@@ -815,16 +828,98 @@ class PatternRewriter : ExprMutator {
     return call;
   }
 
+  BindingBlock VisitBindingBlock_(const DataflowBlockNode* block_node) final {
+    if (!ctx_) {
+      return ExprMutator::VisitBindingBlock_(block_node);
+    }
+    return RewriteDataflowBlockFixedPoint(GetRef<DataflowBlock>(block_node));
+  }
+
  private:
-  DFPattern pattern_;
+  void EmitUsedVars(Expr val, const Array<Binding>& pending_bindings,
+                    std::unordered_set<const VarNode*>* emitted_vars) {
+    std::unordered_set<const VarNode*> unemitted_vars;
+    PostOrderVisit(val, [=, &unemitted_vars](Expr e) {
+      if (auto v = e.as<VarNode>(); v && !emitted_vars->count(v)) {
+        unemitted_vars.insert(v);
+      }
+    });
+
+    if (unemitted_vars.empty()) {
+      return;
+    }
+
+    size_t num_unemitted = unemitted_vars.size();
+    for (const auto& binding : pending_bindings) {
+      if (auto var_bind = binding.as<VarBindingNode>();
+          var_bind && unemitted_vars.count(var_bind->var.get())) {
+        EmitUsedVars(var_bind->value, pending_bindings, emitted_vars);
+        this->VisitBinding(binding);
+        emitted_vars->insert(var_bind->var.get());
+        if (--num_unemitted == 0) {
+          return;
+        }
+      }
+    }
+  }
+
+  // Repeat until all matchable subsets of bindings are rewritten.
+  BindingBlock RewriteDataflowBlockFixedPoint(BindingBlock block) {
+    if (auto matches = MatchGraph(ctx_.value(), Downcast<DataflowBlock>(block))) {
+      builder_->BeginDataflowBlock();
+      Map<Var, Expr> replacements = rewriter_func_(matches.value());
+
+      std::unordered_set<const VarNode*> emitted_vars;
+
+      for (size_t i = 0; i < block->bindings.size(); ++i) {
+        const auto& binding = block->bindings[i];
+        if (auto var_bind = binding.as<VarBindingNode>()) {
+          if (replacements.count(var_bind->var)) {
+            auto new_val = replacements[var_bind->var];
+            Array<Binding> pending_bindings(block->bindings.begin() + i + 1, block->bindings.end());
+            // Make sure there is no unbound variable used in the new value before it is emitted
+            EmitUsedVars(new_val, pending_bindings, &emitted_vars);
+            this->ReEmitBinding(var_bind, builder_->Normalize(new_val));
+          } else if (!emitted_vars.count(var_bind->var.get())) {
+            this->VisitBinding(binding);
+            emitted_vars.insert(var_bind->var.get());
+          }
+        } else {
+          this->VisitBinding(binding);
+        }
+      }
+      return RewriteDataflowBlockFixedPoint(builder_->EndBlock());
+    }
+    return block;
+  }
+
+  /*! \brief The pattern for rewriting call nodes */
+  Optional<DFPattern> pattern_;
+  /*! \brief The pattern constraint contexts for rewriting dataflow blocks */
+  Optional<PatternContext> ctx_;
+  /*!
+   * \brief The user-provided rewriter function. Its signature and semantics are:
+   * - (Call, Map<DFPattern, Expr>) -> Call for call node rewriting. Given the matched
+   *    call node and the map of patterns and matched expressions, it should return a new call node
+   *    to replace the original one or the original matched call node as is.
+   * - Map<DFPattern, Var> -> Map<Var, Expr> for dataflow block rewriting. Given the map of patterns
+   *   and corresponding variables (bound variables or parameters), it should return a map that
+   *   specifies new values for matched bound variables.
+   */
   PackedFunc rewriter_func_;
+  std::unordered_set<const VarNode*> params_;
   Map<Var, Expr> bindings_;
   std::unordered_map<const Object*, Expr> memo_;
 };
 
-TVM_REGISTER_GLOBAL("relax.dpl.rewrite")
+TVM_REGISTER_GLOBAL("relax.dpl.rewrite_call")
     .set_body_typed([](DFPattern pat, PackedFunc rewriter, Function f) {
       return PatternRewriter::Run(pat, rewriter, f);
+    });
+
+TVM_REGISTER_GLOBAL("relax.dpl.rewrite_bindings")
+    .set_body_typed([](const PatternContext& ctx, PackedFunc rewriter, Function f) {
+      return PatternRewriter::Run(ctx, rewriter, f);
     });
 
 }  // namespace relax

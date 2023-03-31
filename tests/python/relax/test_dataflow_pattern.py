@@ -918,7 +918,7 @@ def test_rewrite_simple():
     def rewriter(_, matchings):
         return R.multiply(matchings[x], R.const(2, "float32"))
 
-    rewritten = rewrite(pattern, rewriter, main)
+    rewritten = rewrite_call(pattern, rewriter, main)
     tvm.ir.assert_structural_equal(rewritten, expected1)
 
     add1 = is_op("relax.add")(x, x)
@@ -927,14 +927,14 @@ def test_rewrite_simple():
     def rewriter(_, matchings):
         return R.multiply(matchings[x], R.const(4, "float32"))
 
-    rewritten = rewrite(pattern, rewriter, main)
+    rewritten = rewrite_call(pattern, rewriter, main)
     tvm.ir.assert_structural_equal(rewritten, expected2)
 
     # No rewriting, return the original call node as is
     def rewriter(orig, _):
         return orig
 
-    rewritten = rewrite(pattern, rewriter, main)
+    rewritten = rewrite_call(pattern, rewriter, main)
     tvm.ir.assert_structural_equal(rewritten, main)
 
 
@@ -1002,7 +1002,7 @@ def test_rewrite_attention():
     def rewriter(_, matchings):
         return R.nn.attention(matchings[Q], matchings[K], matchings[V])
 
-    rewritten = rewrite(pattern, rewriter, main)
+    rewritten = rewrite_call(pattern, rewriter, main)
     tvm.ir.assert_structural_equal(rewritten, expected)
 
 
@@ -1073,6 +1073,151 @@ def test_attention_fake_qkv():
 
         dfb = QKV_proj["main"].body.blocks[0]
         assert ctx.match_dfb(dfb) is None
+
+
+def get_qkv_proj_rewriter(
+    inp_pat, Q_weight_pat, K_weight_pat, V_weight_pat, matmul1, matmul2, matmul3
+):
+    def qkv_proj_rewriter(matchings):
+        inp = matchings[inp_pat]
+        Q_weight = matchings[Q_weight_pat]
+        K_weight = matchings[K_weight_pat]
+        V_weight = matchings[V_weight_pat]
+        width = Q_weight.struct_info.shape[1]
+
+        concat = R.concat([Q_weight, K_weight, V_weight], axis=1)
+        matmul = R.matmul(inp, concat)
+        Q = R.strided_slice(matmul, axes=[2], begin=[0], end=[width])
+        K = R.strided_slice(matmul, axes=[2], begin=[width], end=[width * 2])
+        V = R.strided_slice(matmul, axes=[2], begin=[width * 2], end=[width * 3])
+
+        return {matchings[matmul1]: Q, matchings[matmul2]: K, matchings[matmul3]: V}
+
+    return qkv_proj_rewriter
+
+
+def test_combine_matmul_twice():
+    @R.function
+    def qkv_x2(
+        x1: R.Tensor((2, 1024, 640), "float32"),
+        x2: R.Tensor((2, 1024, 640), "float32"),
+        w0: R.Tensor((640, 640), "float32"),
+        w1: R.Tensor((640, 640), "float32"),
+        w2: R.Tensor((640, 640), "float32"),
+        w3: R.Tensor((640, 640), "float32"),
+        w4: R.Tensor((640, 640), "float32"),
+        w5: R.Tensor((640, 640), "float32"),
+    ) -> R.Tensor:
+        with R.dataflow():
+            lv0 = R.matmul(x1, w0)
+            lv1 = R.matmul(x1, w1)
+            lv2 = R.matmul(x1, w2)
+            lv3 = R.matmul(x2, w3)
+            lv4 = R.matmul(x2, w4)
+            lv5 = R.matmul(x2, w5)
+            out = (lv0, lv1, lv2, lv3, lv4, lv5)
+            R.output(out)
+        return out
+
+    @R.function
+    def expected(
+        x1: R.Tensor((2, 1024, 640), "float32"),
+        x2: R.Tensor((2, 1024, 640), "float32"),
+        w0: R.Tensor((640, 640), "float32"),
+        w1: R.Tensor((640, 640), "float32"),
+        w2: R.Tensor((640, 640), "float32"),
+        w3: R.Tensor((640, 640), "float32"),
+        w4: R.Tensor((640, 640), "float32"),
+        w5: R.Tensor((640, 640), "float32"),
+    ) -> R.Tensor:
+        with R.dataflow():
+            lv = R.concat((w0, w1, w2), axis=1)
+            lv1 = R.matmul(x1, lv)
+            lv0 = R.strided_slice(lv1, axes=[2], begin=[0], end=[640])
+            lv1_1 = R.strided_slice(lv1, axes=[2], begin=[640], end=[1280])
+            lv2 = R.strided_slice(lv1, axes=[2], begin=[1280], end=[1920])
+            lv2_1 = R.concat((w3, w4, w5), axis=1)
+            lv3 = R.matmul(x2, lv2_1, out_dtype="void")
+            lv3_1 = R.strided_slice(lv3, axes=[2], begin=[0], end=[640])
+            lv4 = R.strided_slice(lv3, axes=[2], begin=[640], end=[1280])
+            lv5 = R.strided_slice(lv3, axes=[2], begin=[1280], end=[1920])
+            out = lv0, lv1_1, lv2, lv3_1, lv4, lv5
+            R.output(out)
+        return out
+
+    with PatternContext() as ctx:
+        inp_pat = wildcard()
+        Q_weight_pat = wildcard()
+        K_weight_pat = wildcard()
+        V_weight_pat = wildcard()
+
+        matmul1 = is_op("relax.matmul")(inp_pat, Q_weight_pat)
+        matmul2 = is_op("relax.matmul")(inp_pat, K_weight_pat)
+        matmul3 = is_op("relax.matmul")(inp_pat, V_weight_pat)
+
+        rewriter = get_qkv_proj_rewriter(
+            inp_pat, Q_weight_pat, K_weight_pat, V_weight_pat, matmul1, matmul2, matmul3
+        )
+        rewritten = rewrite_bindings(ctx, rewriter, qkv_x2)
+        tvm.ir.assert_structural_equal(rewritten, expected)
+
+
+def test_combine_matmul_emit_order():
+    @R.function
+    def main(
+        x1: R.Tensor((2, 1024, 640), "float32"),
+        w0: R.Tensor((640, 640), "float32"),
+        w1: R.Tensor((640, 640), "float32"),
+        w2: R.Tensor((640, 640), "float32"),
+    ) -> R.Tensor:
+        with R.dataflow():
+            w0_t = R.permute_dims(w0, axes=None)
+            lv0 = R.matmul(x1, w0_t)
+            w1_t = R.permute_dims(w1, axes=None)
+            w1_t_t = R.permute_dims(w1_t, axes=None)
+            lv1 = R.matmul(x1, w1_t_t)
+            w2_t = R.permute_dims(w2, axes=None)
+            lv2 = R.matmul(x1, w2_t)
+            out = (lv0, lv1, lv2)
+            R.output(out)
+        return out
+
+    @R.function
+    def expected(
+        x1: R.Tensor((2, 1024, 640), dtype="float32"),
+        w0: R.Tensor((640, 640), dtype="float32"),
+        w1: R.Tensor((640, 640), dtype="float32"),
+        w2: R.Tensor((640, 640), dtype="float32"),
+    ) -> R.Tensor:
+        with R.dataflow():
+            w0_t = R.permute_dims(w0, axes=None)
+            w1_t = R.permute_dims(w1, axes=None)
+            w1_t_t = R.permute_dims(w1_t, axes=None)
+            w2_t = R.permute_dims(w2, axes=None)
+            lv = R.concat((w0_t, w1_t_t, w2_t), axis=1)
+            lv1 = R.matmul(x1, lv, out_dtype="void")
+            lv0 = R.strided_slice(lv1, axes=[2], begin=[0], end=[640])
+            lv1_1 = R.strided_slice(lv1, axes=[2], begin=[640], end=[1280])
+            lv2 = R.strided_slice(lv1, axes=[2], begin=[1280], end=[1920])
+            out = lv0, lv1_1, lv2
+            R.output(out)
+        return out
+
+    with PatternContext() as ctx:
+        inp_pat = wildcard()
+        Q_weight_pat = wildcard()
+        K_weight_pat = wildcard()
+        V_weight_pat = wildcard()
+
+        matmul1 = is_op("relax.matmul")(inp_pat, Q_weight_pat)
+        matmul2 = is_op("relax.matmul")(inp_pat, K_weight_pat)
+        matmul3 = is_op("relax.matmul")(inp_pat, V_weight_pat)
+
+        rewriter = get_qkv_proj_rewriter(
+            inp_pat, Q_weight_pat, K_weight_pat, V_weight_pat, matmul1, matmul2, matmul3
+        )
+        rewritten = rewrite_bindings(ctx, rewriter, main)
+        tvm.ir.assert_structural_equal(rewritten, expected)
 
 
 if __name__ == "__main__":
