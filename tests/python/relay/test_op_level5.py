@@ -235,29 +235,24 @@ class TestCropAndResize:
             pytest.xfail("Known failing case for these parameters")
 
         extrapolation_value = 0.0
+
+        np.random.seed(0)
+
         eps = 1e-4
 
         if layout == "NHWC":
             img_shape = (10, 224, 224, 3)
-            boxes = np.array(
-                [
-                    [0.125 + eps, 0.25 + eps, 0.8125 - eps, 0.71875 - eps],
-                    [0.25 + eps, 0 + eps, 1 - eps, 0.625 - eps],
-                ]
-            ).astype("float32")
+            boxes = np.random.uniform(size=(2, 4)).astype("float32")
             box_indices = np.array([1, 0]).astype("int32")
             crop_size = np.array([20, 30]).astype("int32")
         elif layout == "NCHW":
             img_shape = (5, 3, 255, 255)
-            boxes = np.array(
-                [[0, 0, 1, 1], [0.25 + eps, 0.125 + eps, 1 - eps, 0.9375 - eps]]
-            ).astype("float32")
+            boxes = np.random.uniform(size=(2, 4)).astype("float32")
             box_indices = np.array([0, 1]).astype("int32")
             crop_size = np.array([30, 30]).astype("int32")
         else:
             raise ValueError(f"Unknown layout: {layout}")
 
-        np.random.seed(0)
         image_data = np.random.uniform(size=img_shape).astype("float32")
 
         ref_res = tvm.topi.testing.crop_and_resize_python(
