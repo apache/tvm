@@ -234,7 +234,7 @@ def transform_loc_pre(cls_prob, valid_count, temp_valid_count, temp_cls_id, temp
                     temp_valid_count[tid * num_anchors + k] += temp_valid_count[
                         tid * num_anchors + k - 1
                     ]
-            valid_count[i] = temp_valid_count[tid * num_anchors + num_anchors - 1]
+            valid_count[tid] = temp_valid_count[tid * num_anchors + num_anchors - 1]
 
     return ib.get()
 
@@ -342,7 +342,7 @@ def transform_loc_ir(
         j = idxm(tid, num_anchors)
 
         with ib.if_scope(cls_id[tid] > 0):
-            with ib.if_scope(tid == 0):
+            with ib.if_scope(j == 0):
                 out_base_idx = i * num_anchors * 6
                 out_loc[out_base_idx] = cls_id[tid] - 1.0
                 out_loc[out_base_idx + 1] = score[tid]
