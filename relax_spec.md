@@ -662,7 +662,7 @@ Let `Γ` be the `StructInfo` context for Relax variables and let `Σ` track whic
         1. Give an error if `Sf` is not `FuncStructInfo`.
         2. If the `derive_func` field of `Sf` is defined, then apply the `derive_func` macro to the call node to derive the structural information for the call node, ignoring the `ret` field of `Sf`.
         3. Otherwise, `params` must be defined. Give an error if the length of `params` does not match the number of call arguments. Let the members of params be `P1`, `P2`, ..., `Pn`.
-        4. Next, attempt to perform [beta-reduction](https://en.wikipedia.org/wiki/Lambda_calculus#%CE%B2-reduction) by matching unbound shape variables in `params` with the `Si`. Namely, get a shape var mapping `m` by applying `get_shape_var_mapping(params[i], Si)` for all `i` and taking the union of all resulting mappings. Replace all variables in `m` with their mapping in `Sf`.
+        4. Next, attempt to perform [beta-reduction](https://en.wikipedia.org/wiki/Lambda_calculus#%CE%B2-reduction) by matching unbound shape variables in `params` with the `Si`. Namely, get a shape var mapping `m` by applying `get_shape_var_mapping(params[i], Si)` for all `i` and taking the union of all resulting mappings. For each shape variable `v` that occurs in `Sf`, replace it with `m[v]` if `v` is in `m`.
         5. After the substitutions, give an error if `Pi <: Si` does not hold for some `i` (give a warning if it _possibly_ holds).
         6. Use `erase_to_well_defined(Sf.ret, Γ, Σ)` as the resulting structural information.
 15. For `Function(params=[v1, v2, ..., vn], body, ret_struct_info)`:
