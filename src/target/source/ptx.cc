@@ -645,8 +645,12 @@ std::string PrintCpAsyncAssembly(const std::string& shared_ptr,
       : "l"((void *)({smem_addr}))
     );
     __asm__ __volatile__(
-      "cp.async.{cg_or_ca}.shared.global [%0], [%1], %2;"
-       :: "r"(addr), "l"((void*)({global_ptr})), "n"({bytes})
+      #if TVM_ENABLE_L2_PREFETCH
+        "cp.async.{cg_or_ca}.shared.global.L2::128B [%0], [%1], %2;"
+      #else
+        "cp.async.{cg_or_ca}.shared.global [%0], [%1], %2;"
+      #endif
+        :: "r"(addr), "l"((void*)({global_ptr})), "n"({bytes})
     );
   }
 )";
@@ -665,26 +669,56 @@ std::string PrintPredicatedCpAsyncAssembly(const std::string& shared_ptr,
                                            const std::string& global_elem_offset,
                                            const std::string& bytes,
                                            const std::string& predicate_value) {
+  CHECK(bytes == "16" || bytes == "12" || bytes == "8" || bytes == "4" || bytes == "2" ||
+        bytes == "1")
+      << "Only support 16, 12, 8, 4, 2, 1 bytes for predicated cp.async";
   std::string predicated_asm_code = R"(
   {
     unsigned int addr;
     __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
+      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }"
       : "=r"(addr)
       : "l"((void *)({smem_addr}))
     );
-    int src_bytes = {pred_guard} ? {bytes} : 0;
+    int pred_guard = (int){pred_guard};
     __asm__ __volatile__(
-      "cp.async.{cg_or_ca}.shared.global [%0], [%1], %2, %3;"
-       :: "r"(addr), "l"((void*)({global_ptr})), "n"({bytes}), "r"(src_bytes)
+        "{  .reg .pred p;"
+        "  setp.ne.b32 p, %0, 0;"
+      #if TVM_ENABLE_L2_PREFETCH
+        " @p cp.async.{cg_or_ca}.shared.global.L2::128B [%1], [%2], %3;"
+      #else
+        " @p cp.async.{cg_or_ca}.shared.global [%1], [%2], %3;"
+      #endif
+      "  @!p {store_shared};}"
+        :: "r"(pred_guard), "r"(addr), "l"((void*)({global_ptr})), "n"({bytes}), {nopreg}
     );
   }
 )";
+  auto [store_shared, nopreg] = [](const std::string& bytes) {
+    if (bytes == "16")
+      return std::make_tuple("st.shared.v4.u32 [%1], {%4, %5, %6, %7}",
+                             "\"r\"(0), \"r\"(0), \"r\"(0),\"r\"(0)");
+    else if (bytes == "12")
+      return std::make_tuple("st.shared.v3.u32 [%1], {%4, %5, %6}", "\"r\"(0), \"r\"(0), \"r\"(0)");
+    else if (bytes == "8")
+      return std::make_tuple("st.shared.v2.u32 [%1], {%4, %5}", "\"r\"(0), \"r\"(0)");
+    else if (bytes == "4")
+      return std::make_tuple("st.shared.u32 [%1], {%4}", "\"r\"(0)");
+    else if (bytes == "2")
+      return std::make_tuple("st.shared.u16 [%1], {%4}", "\"r\"(0)");
+    else if (bytes == "1")
+      return std::make_tuple("st.shared.u8 [%1], {%4}", "\"r\"(0)");
+    else
+      return std::make_tuple("","");
+  }(bytes);
+
   Replacer replacer;
   replacer.register_rule("{smem_addr}", shared_ptr + " + " + shared_elem_offset);
   replacer.register_rule("{global_ptr}", global_ptr + " + " + global_elem_offset);
   replacer.register_rule("{bytes}", bytes);
   replacer.register_rule("{cg_or_ca}", bytes == "16" ? "cg" : "ca");
+  replacer.register_rule("{store_shared}", store_shared);
+  replacer.register_rule("{nopreg}", nopreg);
   replacer.register_rule("{pred_guard}", predicate_value);
   predicated_asm_code = replacer.rewrite(predicated_asm_code);
   return predicated_asm_code;
