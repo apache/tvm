@@ -573,6 +573,7 @@ static std::optional<UndoItems> try_match(
   const auto try_match_update_undo = [&](PNode* p, RNode* r) {
     if (auto undo_more = try_match(p, r, m, def2use, use2def)) {
       undo.insert(undo.end(), undo_more->begin(), undo_more->end());
+      return true;
     }
     return false;
   };
