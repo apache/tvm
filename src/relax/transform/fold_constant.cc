@@ -286,13 +286,13 @@ class ConstantFolder : public ExprMutator {
         ShapeExpr shape = Downcast<ShapeExpr>(arg);
         Array<PrimExpr> values = shape->values;
         Array<Integer> arr;
-        bool isKnown = true;
+        bool is_known = true;
         for (size_t i = 0; i < values.size(); i++) {
           PrimExpr val = values[i];
           arr.push_back(GetRef<IntImm>(val.as<IntImmNode>()));
-          isKnown &= (val.dtype() == DataType::Int(64));
+          is_known &= (val.dtype() == DataType::Int(64));
         }
-        if (isKnown) {
+        if (is_known) {
           const auto* func = tvm::runtime::Registry::Get("relax.run.shape_to_tensor");
           ICHECK(func != nullptr);
           runtime::NDArray vals = (*func)(arr);
