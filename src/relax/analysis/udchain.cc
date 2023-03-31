@@ -65,36 +65,36 @@ class UDChain : public relax::ExprVisitor {
 std::pair<runtime::Map<Var, runtime::Array<Var>>, runtime::Array<Var>> FunctionUseDef(
     const Function& fn) {
   UDChain udchain;
-  udchain.VisitExpr_(fn.get());
+  udchain.VisitExpr(fn);
 
   Map<Var, Array<Var>> user_map;
   Array<Var> fn_outs;
 
-  for (const auto& kv : udchain.to_users) {
+  for (const auto& [var, users] : udchain.to_users) {
     Array<Var> uses{};
-    uses.reserve(kv.second.size());
-    for (const auto& v : kv.second) {
-      if (nullptr == v &&
-          fn_outs.end() == std::find(fn_outs.begin(), fn_outs.end(), GetRef<Var>(kv.first))) {
-        fn_outs.push_back(GetRef<Var>(kv.first));
+    uses.reserve(users.size());
+    for (const auto& v : users) {
+      if (v == nullptr &&
+          std::find(fn_outs.begin(), fn_outs.end(), GetRef<Var>(var)) == fn_outs.end()) {
+        fn_outs.push_back(GetRef<Var>(var));
       } else {
         uses.push_back(GetRef<Var>(v));
       }
     }
-    user_map.Set(GetRef<Var>(kv.first), std::move(uses));
+    user_map.Set(GetRef<Var>(var), std::move(uses));
   }
   return std::make_pair(std::move(user_map), std::move(fn_outs));
 }
 
 runtime::Map<Var, Array<Var>> DataflowBlockUseDef(const DataflowBlock& dfb) {
   UDChain udchain;
-  udchain.VisitBindingBlock_(dfb.get());
+  udchain.VisitBindingBlock(dfb);
   runtime::Map<Var, Array<Var>> ret;
-  for (const auto& kv : udchain.to_users) {
+  for (const auto& [var, users] : udchain.to_users) {
     Array<Var> uses{};
-    uses.reserve(kv.second.size());
-    for (const auto& v : kv.second) uses.push_back(GetRef<Var>(v));
-    ret.Set(GetRef<Var>(kv.first), std::move(uses));
+    uses.reserve(users.size());
+    for (const auto& v : users) uses.push_back(GetRef<Var>(v));
+    ret.Set(GetRef<Var>(var), std::move(uses));
   }
   return ret;
 }

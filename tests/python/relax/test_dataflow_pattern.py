@@ -1042,5 +1042,38 @@ def test_attention_qkv():
         assert out[V_weight_pat].name_hint == "w2"
 
 
+def test_attention_fake_qkv():
+    @tvm.script.ir_module
+    class QKV_proj:
+        @R.function
+        def main(
+            x1: R.Tensor((2, 1024, 640), "float32"),
+            x2: R.Tensor((2, 1024, 640), "float32"),
+            w0: R.Tensor((640, 640), "float32"),
+            w1: R.Tensor((640, 640), "float32"),
+            w2: R.Tensor((640, 640), "float32"),
+        ) -> R.Tensor:
+            with R.dataflow():
+                lv0 = R.matmul(x1, w0)
+                lv1 = R.matmul(x2, w1)
+                lv2 = R.matmul(x2, w2)
+                out = (lv0, lv1, lv2)
+                R.output(out)
+            return out
+
+    with PatternContext() as ctx:
+        inp_pat = wildcard()
+        Q_weight_pat = wildcard()
+        K_weight_pat = wildcard()
+        V_weight_pat = wildcard()
+
+        matmul1 = is_op("relax.matmul")(inp_pat, Q_weight_pat)
+        matmul2 = is_op("relax.matmul")(inp_pat, K_weight_pat)
+        matmul3 = is_op("relax.matmul")(inp_pat, V_weight_pat)
+
+        dfb = QKV_proj["main"].body.blocks[0]
+        assert ctx.match_dfb(dfb) is None
+
+
 if __name__ == "__main__":
     tvm.testing.main()
