@@ -682,6 +682,72 @@ def test_max_pool2d_ceil_mode():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_max_pool2d_sym_batch():
+    # fmt: off
+    @tvm.script.ir_module
+    class MaxPool2D:
+        @R.function
+        def main(x: R.Tensor(("m", 112, 112, 6), "float32")) -> R.Tensor((4, 56, 56, 6), "float32"):
+            m = T.Var("m", "int64")
+            gv: R.Tensor((m, 56, 56, 6), "float32") = R.nn.max_pool2d(x, pool_size=[3, 3], strides=[2, 2], dilation=[1, 1], padding=[1, 1, 1, 1], layout="NHWC")
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def max_pool2d(var_rxplaceholder: T.handle, var_pool_max: T.handle):
+            T.func_attr({"tir.noalias": True})
+            m = T.int64()
+            rxplaceholder = T.match_buffer(var_rxplaceholder, (m, T.int64(112), T.int64(112), T.int64(6)))
+            pool_max = T.match_buffer(var_pool_max, (m, T.int64(56), T.int64(56), T.int64(6)))
+            with T.block("root"):
+                T.reads()
+                T.writes()
+                pad_temp = T.alloc_buffer((m, T.int64(114), T.int64(114), T.int64(6)))
+                for ax0 in range(m):
+                    for ax1 in range(T.int64(114)):
+                        for ax2 in range(T.int64(114)):
+                            for ax3 in range(T.int64(6)):
+                                with T.block("pad_temp"):
+                                    v_ax0 = T.axis.spatial(m, ax0)
+                                    v_ax1 = T.axis.spatial(T.int64(114), ax1)
+                                    v_ax2 = T.axis.spatial(T.int64(114), ax2)
+                                    v_ax3 = T.axis.spatial(T.int64(6), ax3)
+                                    T.reads(rxplaceholder[v_ax0, v_ax1 - T.int64(1), v_ax2 - T.int64(1), v_ax3])
+                                    T.writes(pad_temp[v_ax0, v_ax1, v_ax2, v_ax3])
+                                    pad_temp[v_ax0, v_ax1, v_ax2, v_ax3] = T.if_then_else(T.int64(1) <= v_ax1 and v_ax1 < T.int64(113) and T.int64(1) <= v_ax2 and v_ax2 < T.int64(113), rxplaceholder[v_ax0, v_ax1 - T.int64(1), v_ax2 - T.int64(1), v_ax3], T.float32(-3.4028234663852886e+38))
+                for ax0 in range(m):
+                    for ax1 in range(T.int64(56)):
+                        for ax2 in range(T.int64(56)):
+                            for ax3 in range(T.int64(6)):
+                                for rv0 in range(T.int64(3)):
+                                    for rv1 in range(T.int64(3)):
+                                        with T.block("pool_max"):
+                                            v_ax0 = T.axis.spatial(m, ax0)
+                                            v_ax1 = T.axis.spatial(T.int64(56), ax1)
+                                            v_ax2 = T.axis.spatial(T.int64(56), ax2)
+                                            v_ax3 = T.axis.spatial(T.int64(6), ax3)
+                                            v_rv0 = T.axis.reduce(T.int64(3), rv0)
+                                            v_rv1 = T.axis.reduce(T.int64(3), rv1)
+                                            T.reads(pad_temp[v_ax0, v_ax1 * T.int64(2) + v_rv0, v_ax2 * T.int64(2) + v_rv1, v_ax3])
+                                            T.writes(pool_max[v_ax0, v_ax1, v_ax2, v_ax3])
+                                            T.block_attr({"schedule_rule": "meta_schedule.pool_max"})
+                                            with T.init():
+                                                pool_max[v_ax0, v_ax1, v_ax2, v_ax3] = T.float32(-3.4028234663852886e+38)
+                                            pool_max[v_ax0, v_ax1, v_ax2, v_ax3] = T.max(pool_max[v_ax0, v_ax1, v_ax2, v_ax3], pad_temp[v_ax0, v_ax1 * T.int64(2) + v_rv0, v_ax2 * T.int64(2) + v_rv1, v_ax3])
+
+        @R.function
+        def main(x: R.Tensor(("m", 112, 112, 6), dtype="float32")) -> R.Tensor((4, 56, 56, 6), dtype="float32"):
+            m = T.int64()
+            cls = Expected
+            gv = R.call_tir(cls.max_pool2d, (x,), out_sinfo=R.Tensor((T.Cast("int64", T.Cast("int32", m)), 56, 56, 6), dtype="float32"))
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(MaxPool2D)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 @pytest.mark.skip("TOPI pooling casts every shape value to i32.")
 def test_max_pool2d_symbolic():
     # fmt: off
