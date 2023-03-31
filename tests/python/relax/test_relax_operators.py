@@ -23,7 +23,7 @@ import tvm
 import tvm.testing
 from tvm import relax
 from tvm._ffi.base import TVMError
-from tvm.script import relax as R
+from tvm.script import relax as R, tir as T
 
 
 @tvm.script.ir_module
@@ -191,6 +191,44 @@ def test_op_shape_of():
         ShapeOfTest, "get_constrained_shape", tvm.nd.array(np.zeros((1,)).astype("int32"))
     )
     assert constrained_shape == tvm.runtime.ShapeTuple([1])
+
+
+@tvm.script.ir_module
+class ShapeToTensorTest:
+    @R.function
+    def const_shape(shape: R.Shape(ndim=-1)) -> R.Tensor(ndim=-1):
+        return R.shape_to_tensor(shape)
+
+    @R.function
+    def symbolic_shape(shape: R.Shape(("m", "n"))) -> R.Tensor(ndim=-1):
+        m = T.int64()
+        n = T.int64()
+        return R.shape_to_tensor(shape)
+
+
+def test_op_shape_to_tensor():
+    # Check struct info
+    isinstance(ShapeToTensorTest["const_shape"].body.struct_info, tvm.relax.TensorStructInfo)
+    assert ShapeToTensorTest["const_shape"].body.struct_info.ndim == 1
+    isinstance(ShapeToTensorTest["symbolic_shape"].body.struct_info, tvm.relax.TensorStructInfo)
+    assert ShapeToTensorTest["symbolic_shape"].body.struct_info.ndim == 1
+
+    # Check its functionality
+    out2d = run_cpu(ShapeToTensorTest, "const_shape", tvm.runtime.ShapeTuple([3, 2]))
+    assert isinstance(out2d, tvm.runtime.ndarray.NDArray)
+    assert np.array_equal(out2d.numpy(), np.array([3, 2]))
+
+    out3d = run_cpu(ShapeToTensorTest, "const_shape", tvm.runtime.ShapeTuple([3, 3, 2]))
+    assert isinstance(out3d, tvm.runtime.ndarray.NDArray)
+    assert np.array_equal(out3d.numpy(), np.array([3, 3, 2]))
+
+    out4d = run_cpu(ShapeToTensorTest, "const_shape", tvm.runtime.ShapeTuple([3, 3, 2, 2]))
+    assert isinstance(out4d, tvm.runtime.ndarray.NDArray)
+    assert np.array_equal(out4d.numpy(), np.array([3, 3, 2, 2]))
+
+    outs = run_cpu(ShapeToTensorTest, "symbolic_shape", tvm.runtime.ShapeTuple([3, 2]))
+    assert isinstance(outs, tvm.runtime.ndarray.NDArray)
+    assert np.array_equal(outs.numpy(), np.array([3, 2]))
 
 
 if __name__ == "__main__":
