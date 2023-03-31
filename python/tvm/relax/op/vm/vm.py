@@ -88,12 +88,13 @@ def alloc_tensor(
 
 @args_converter.auto
 def call_tir_dyn(func: Expr, args: Tuple) -> Call:
-    """Construct a Call to kill a storage.
+    """Construct a Call to call_tir_dyn (invoke the given TIR PrimFunc)
+    consisting of the input tensors and the shape of the result.
 
     Parameters
     ----------
     func : Expr
-        The storage to be killed.
+        An expression evaluating to a TIR PrimFunc.
 
     args : Tuple
         The input args, includes a list of tensors, and a ShapeExpr.
