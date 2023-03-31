@@ -850,10 +850,13 @@ class PatternRewriter : ExprMutator {
     }
 
     size_t num_unemitted = unemitted_vars.size();
-    for (const auto& binding : pending_bindings) {
+    for (size_t i = 0; i < pending_bindings.size(); ++i) {
+      const auto& binding = pending_bindings[i];
       if (auto var_bind = binding.as<VarBindingNode>();
           var_bind && unemitted_vars.count(var_bind->var.get())) {
-        EmitUsedVars(var_bind->value, pending_bindings, emitted_vars);
+        // var_bind->value may also depend on other unemitted vars in this range
+        Array<Binding> prev_bindings(pending_bindings.begin(), pending_bindings.begin() + i);
+        EmitUsedVars(var_bind->value, prev_bindings, emitted_vars);
         this->VisitBinding(binding);
         emitted_vars->insert(var_bind->var.get());
         if (--num_unemitted == 0) {
