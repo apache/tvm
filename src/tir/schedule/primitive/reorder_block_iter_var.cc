@@ -91,9 +91,10 @@ void ReorderBlockIterVar(ScheduleState self, const StmtSRef& block_sref,
   std::set<int> ind_set(new_order_vec.begin(), new_order_vec.end());
   bool is_full = new_order_vec.size() == num_block_itervars;
   bool is_unique = (ind_set.size() == new_order_vec.size());
-  bool in_boundary = std::all_of(new_order_vec.begin(), new_order_vec.end(),
-                                 [&](int x) { return x >= 0 && x < num_block_itervars; });
-  if (!is_full || !is_unique || !in_boundary) {
+  bool is_within_boundary = std::all_of(new_order_vec.begin(), new_order_vec.end(), [&](int x) {
+    return x >= 0 && x < static_cast<int>(num_block_itervars);
+  });
+  if (!is_full || !is_unique || !is_within_boundary) {
     throw InvalidReorderIndex(self->mod, GetRef<Block>(block_n), new_order);
   }
 
