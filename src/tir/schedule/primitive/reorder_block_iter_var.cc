@@ -21,19 +21,30 @@
 namespace tvm {
 namespace tir {
 
-class WrongReorderIndex : public ScheduleError {
+/*!
+ * \brief The reorder index is not a valid permutation of
+ *   [0, 1, ..., n-1] where n is the number of block iter vars.
+ */
+class InvalidReorderIndex : public ScheduleError {
  public:
-  explicit WrongReorderIndex(IRModule mod) : mod_(mod) {}
+  explicit InvalidReorderIndex(IRModule mod, Block block, Array<Integer> new_order)
+      : mod_(mod), block_(block), new_order_(new_order) {}
   IRModule mod() const final { return mod_; }
   String FastErrorString() const final {
     return "ScheduleError: The specified reorder indices are invalid.";
   }
   String DetailRenderTemplate() const final {
-    return "reorder_block_iter_var requires the specified reorder indices to be a permutation of "
-           "{0, 1, ..., num_block_iter_vars - 1}.";
+    std::ostringstream os;
+    os << "The user provided block itervar index order " << new_order_
+       << " is not a valid permutation of [0, 1, ..., num_block_iter_vars-1] in block {0}.";
+    return String(os.str());
   }
-  Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+
+ private:
   IRModule mod_;
+  Block block_;
+  Array<Integer> new_order_;
 };
 
 class BlockIterVarRewriter : public StmtMutator {
@@ -76,14 +87,14 @@ void ReorderBlockIterVar(ScheduleState self, const StmtSRef& block_sref,
     new_order_vec.push_back(x->value);
   }
   // check whether new_order is valid or not;
-  int num_block_itervars = block_n->iter_vars.size();
+  size_t num_block_itervars = block_n->iter_vars.size();
   std::set<int> ind_set(new_order_vec.begin(), new_order_vec.end());
-  bool is_full = int(new_order_vec.size()) == num_block_itervars;
+  bool is_full = new_order_vec.size() == num_block_itervars;
   bool is_unique = (ind_set.size() == new_order_vec.size());
   bool in_boundary = std::all_of(new_order_vec.begin(), new_order_vec.end(),
                                  [&](int x) { return x >= 0 && x < num_block_itervars; });
   if (!is_full || !is_unique || !in_boundary) {
-    throw WrongReorderIndex(self->mod);
+    throw InvalidReorderIndex(self->mod, GetRef<Block>(block_n), new_order);
   }
 
   // find parent block
