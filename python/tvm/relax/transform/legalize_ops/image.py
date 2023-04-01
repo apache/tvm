@@ -17,12 +17,12 @@
 # pylint: disable=invalid-name
 """Default legalization function for image operators."""
 from tvm import topi
+
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
 from .common import register_legalize
 
 
-@register_legalize("relax.image.resize2d")
 def _image_resize2d(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(
         topi.image.resize2d,

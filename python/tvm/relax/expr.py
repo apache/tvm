@@ -40,9 +40,9 @@ from . import _ffi_api
 # It is a workaround for mypy: https://github.com/python/mypy/issues/7866#issuecomment-549454370
 # This feature is not supported until python 3.10:
 # https://docs.python.org/3.10/whatsnew/3.10.html#pep-613-typealias
-Expr = Union[tvm.ir.RelayExpr]
-Type = Union[tvm.ir.Type]
-GlobalVar = Union[tvm.ir.GlobalVar]
+Expr = Union[tvm.ir.RelayExpr]  # type: ignore
+Type = Union[tvm.ir.Type]  # type: ignore
+GlobalVar = Union[tvm.ir.GlobalVar]  # type: ignore
 
 
 @tvm._ffi.register_object("relax.Id")
@@ -452,7 +452,19 @@ class PrimValue(Expr, Scriptable):
     def __init__(self, value: Union[PrimExpr, int], span: Span = None) -> None:
         if isinstance(value, int):
             value = tvm.tir.IntImm("int64", value)
+        if isinstance(value, float):
+            value = tvm.tir.FloatImm("float64", value)
         self.__init_handle_by_constructor__(_ffi_api.PrimValue, value, span)  # type: ignore
+
+
+@tvm._ffi.register_object("relax.expr.AttrExpr")
+class AttrExpr(Expr, Scriptable):
+    """An opaque object in Relax compiler which will be dissolved in the lowering process."""
+
+    value: Object
+
+    def __init__(self, value: Object, span: Span = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.AttrExpr, value, span)
 
 
 @tvm._ffi.register_object("relax.expr.StringImm")

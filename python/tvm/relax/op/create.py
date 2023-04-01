@@ -13,197 +13,220 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
-# under the License.
-"""Creation operators."""
-from typing import Optional, Tuple, Union
+# pylint: disable=redefined-builtin
+"""Linear algebra operators."""
+from tvm import _ffi
 
-from tvm import DataType
-from tvm.ir.expr import PrimExpr
+from ..expr import Call
+from . import ty
+from . import ty_guard as tg
 
-from . import _ffi_api
-from ..expr import Expr, ShapeExpr
-
-PrimExprLike = Union[int, PrimExpr]
+# pylint: disable=invalid-name
 
 
+## (TVM-TOOL) py_op begin create/*
 def full(
-    shape: Union[Tuple[PrimExprLike], Expr],
-    fill_value: Expr,
-    dtype: Optional[Union[str, DataType]] = None,
-) -> Expr:
-    """Fill array with scalar value.
+    shape: ty.Shape,
+    fill_value: ty.Union[ty.PrimExpr, ty.Tensor],
+    dtype: ty.DType = None,
+) -> Call:
+    """TBD
 
     Parameters
     ----------
-    shape : Union[Tuple[PrimExprLike], Expr]
-        The shape of the created tensor.
-
-    fill_value : relax.Expr
-        The value to fill. Must be a scalar tensor.
-
-    dtype : Optional[Union[str, DataType]]
-        The data type of the created tensor.
-        If dtype is not given, it will by default use the dtype of fill_value.
+    shape : ty.Shape
+        The shape of the output tensor.
+    fill_value : ty.Union[ty.PrimExpr, ty.Tensor]
+        The value to fill the output tensor with.
+    dtype : ty.DType
+        The data type of the output tensor.
 
     Returns
     -------
-    result : relax.Expr
-        The result tensor.
+    ret : ty.Tensor
+        The output tensor.
     """
-    return _ffi_api.full(shape, fill_value, dtype)  # type: ignore
+    shape = tg.check(0, "shape", tg.Shape(), shape)
+    fill_value = tg.check(
+        1, "fill_value", tg.Union(tg.PrimExpr(), tg.Tensor([0])), fill_value
+    )
+    dtype = tg.check(2, "dtype", tg.DType(), dtype)
+    _ffi_func = _ffi.get_global_func("relax.op.full")
+    return _ffi_func(shape, fill_value, dtype)
 
 
-def full_like(x: Expr, fill_value: Expr, dtype: Optional[Union[str, DataType]] = None) -> Expr:
-    """Construct a tensor such that
-    - its shape is the same as the input data tensor's shape,
-    - its value is filled with the input scalar fill value.
+def full_like(
+    x: ty.Tensor,
+    fill_value: ty.Union[ty.PrimExpr, ty.Tensor],
+    dtype: ty.DType = None,
+) -> Call:
+    """TBD
 
     Parameters
     ----------
-    x : relax.Expr
-        The input tensor, which provides the shape, and dtype
-        when the `dtype` field is not specified.
-
-    fill_value : relax.Expr
-        The value to fill. Must be a scalar tensor.
-
-    dtype : Optional[Union[str, DataType]]
-        The data type of the created tensor.
-        If dtype is not given, it will by default use the dtype of the input tensor.
+    x : ty.Tensor
+        TODO(tvm-unity-team): add doc
+    fill_value : ty.Union[ty.PrimExpr, ty.Tensor]
+        TODO(tvm-unity-team): add doc
+    dtype : ty.DType
+        TODO(tvm-unity-team): add doc
 
     Returns
     -------
-    result : relax.Expr
-        The result tensor.
+    ret : ty.Tensor
+        TODO(tvm-unity-team): add doc
     """
-    return _ffi_api.full_like(x, fill_value, dtype)  # type: ignore
+    x = tg.check(0, "x", tg.Tensor([]), x)
+    fill_value = tg.check(
+        1, "fill_value", tg.Union(tg.PrimExpr(), tg.Tensor([0])), fill_value
+    )
+    dtype = tg.check(2, "dtype", tg.DType(), dtype)
+    _ffi_func = _ffi.get_global_func("relax.op.full_like")
+    return _ffi_func(x, fill_value, dtype)
 
 
-def ones(shape: Union[Tuple[PrimExprLike], Expr], dtype: Union[str, DataType]) -> Expr:
-    """Construct a tensor of all ones, with the input shape and dtype.
+def ones(
+    shape: ty.Shape,
+    dtype: ty.DType = None,
+) -> Call:
+    """TBD
 
     Parameters
     ----------
-    shape : Union[Tuple[PrimExprLike], Expr]
-        The shape of the created tensor.
-
-    dtype : Union[str, DataType]
-        The data type of the created tensor.
+    shape : ty.Shape
+        TODO(tvm-unity-team): add doc
+    dtype : ty.DType
+        TODO(tvm-unity-team): add doc
 
     Returns
     -------
-    result : relax.Expr
-        The result tensor.
+    ret : ty.Tensor
+        TODO(tvm-unity-team): add doc
     """
-    if isinstance(shape, (tuple, list)):
-        shape = ShapeExpr(shape)
-    return _ffi_api.ones(shape, dtype)  # type: ignore
+    shape = tg.check(0, "shape", tg.Shape(), shape)
+    dtype = tg.check(1, "dtype", tg.DType(), dtype)
+    _ffi_func = _ffi.get_global_func("relax.op.ones")
+    return _ffi_func(shape, dtype)
 
 
-def ones_like(x: Expr, dtype: Optional[Union[str, DataType]] = None) -> Expr:
-    """Construct a tensor with all ones, with shape of the input tensor shape.
+def ones_like(
+    x: ty.Tensor,
+    dtype: ty.DType = None,
+) -> Call:
+    """TBD
 
     Parameters
     ----------
-    x : relax.Expr
-        The input tensor, which provides the shape, and dtype
-        when the `dtype` field is not specified.
-
-    dtype : Optional[Union[str, DataType]]
-        The data type of the created tensor.
-        If dtype is not given, it will by default use the dtype of the input tensor.
+    x : ty.Tensor
+        TODO(tvm-unity-team): add doc
+    dtype : ty.DType
+        TODO(tvm-unity-team): add doc
 
     Returns
     -------
-    result : relax.Expr
-        The result tensor.
+    ret : ty.Tensor
+        TODO(tvm-unity-team): add doc
     """
-    return _ffi_api.ones_like(x, dtype)  # type: ignore
+    x = tg.check(0, "x", tg.Tensor([]), x)
+    dtype = tg.check(1, "dtype", tg.DType(), dtype)
+    _ffi_func = _ffi.get_global_func("relax.op.ones_like")
+    return _ffi_func(x, dtype)
 
 
-def zeros(shape: Union[Tuple[PrimExprLike], Expr], dtype: Union[str, DataType]) -> Expr:
-    """Construct a tensor of all zeros, with the input shape and dtype.
+def tril(
+    x: ty.Tensor,
+    k: ty.IntPrimExpr = 0,
+) -> Call:
+    """TBD
 
     Parameters
     ----------
-    shape : Union[Tuple[PrimExprLike], Expr]
-        The shape of the created tensor.
-
-    dtype : Union[str, DataType]
-        The data type of the created tensor.
+    x : ty.Tensor
+        TODO(tvm-unity-team): add doc
+    k : ty.IntPrimExpr
+        TODO(tvm-unity-team): add doc
 
     Returns
     -------
-    result : relax.Expr
-        The result tensor.
+    ret : ty.Tensor
+        TODO(tvm-unity-team): add doc
     """
-    if isinstance(shape, (tuple, list)):
-        shape = ShapeExpr(shape)
-    return _ffi_api.zeros(shape, dtype)  # type: ignore
+    x = tg.check(0, "x", tg.Tensor([]), x)
+    k = tg.check(1, "k", tg.IntPrimExpr(), k)
+    _ffi_func = _ffi.get_global_func("relax.op.tril")
+    return _ffi_func(x, k)
 
 
-def zeros_like(x: Expr, dtype: Optional[Union[str, DataType]] = None) -> Expr:
-    """Construct a tensor with all zeros, with shape of the input tensor shape.
+def triu(
+    x: ty.Tensor,
+    k: ty.IntPrimExpr = 0,
+) -> Call:
+    """TBD
 
     Parameters
     ----------
-    x : relax.Expr
-        The input tensor, which provides the shape, and dtype
-        when the `dtype` field is not specified.
-
-    dtype : Optional[Union[str, DataType]]
-        The data type of the created tensor.
-        If dtype is not given, it will by default use the dtype of the input tensor.
+    x : ty.Tensor
+        TODO(tvm-unity-team): add doc
+    k : ty.IntPrimExpr
+        TODO(tvm-unity-team): add doc
 
     Returns
     -------
-    result : relax.Expr
-        The result tensor.
+    ret : ty.Tensor
+        TODO(tvm-unity-team): add doc
     """
-    return _ffi_api.zeros_like(x, dtype)  # type: ignore
+    x = tg.check(0, "x", tg.Tensor([]), x)
+    k = tg.check(1, "k", tg.IntPrimExpr(), k)
+    _ffi_func = _ffi.get_global_func("relax.op.triu")
+    return _ffi_func(x, k)
 
 
-def tril(x: Expr, k: int = 0) -> Expr:
-    """Return the lower triangular part of a matrix or a batch of matrices.
+def zeros(
+    shape: ty.Shape,
+    dtype: ty.DType = None,
+) -> Call:
+    """TBD
 
     Parameters
     ----------
-    x : relax.Expr
-        The tensor that tril will be applied to.
-        It is required to have at least two dimensions.
-
-    k : int
-        The index indicating the diagonal above which to zero elements.
-        If k = 0, the diagonal is the main diagonal.
-        If k < 0, the diagonal is below the main diagonal.
-        If k > 0, the diagonal is above the main diagonal.
+    shape : ty.Shape
+        TODO(tvm-unity-team): add doc
+    dtype : ty.DType
+        TODO(tvm-unity-team): add doc
 
     Returns
     -------
-    ret : relax.Expr
-        The result tensor.
+    ret : ty.Tensor
+        TODO(tvm-unity-team): add doc
     """
-    return _ffi_api.tril(x, k)  # type: ignore
+    shape = tg.check(0, "shape", tg.Shape(), shape)
+    dtype = tg.check(1, "dtype", tg.DType(), dtype)
+    _ffi_func = _ffi.get_global_func("relax.op.zeros")
+    return _ffi_func(shape, dtype)
 
 
-def triu(x: Expr, k: int = 0) -> Expr:
-    """Return the upper triangular part of a matrix or a batch of matrices.
+def zeros_like(
+    x: ty.Tensor,
+    dtype: ty.DType = None,
+) -> Call:
+    """TBD
 
     Parameters
     ----------
-    x : relax.Expr
-        The tensor that triu will be applied to.
-        It is required to have at least two dimensions.
-
-    k : int
-        The index indicating the diagonal below which to zero elements.
-        If k = 0, the diagonal is the main diagonal.
-        If k < 0, the diagonal is below the main diagonal.
-        If k > 0, the diagonal is above the main diagonal.
+    x : ty.Tensor
+        TODO(tvm-unity-team): add doc
+    dtype : ty.DType
+        TODO(tvm-unity-team): add doc
 
     Returns
     -------
-    ret : relax.Expr
-        The result tensor.
+    ret : ty.Tensor
+        TODO(tvm-unity-team): add doc
     """
-    return _ffi_api.triu(x, k)  # type: ignore
+    x = tg.check(0, "x", tg.Tensor([]), x)
+    dtype = tg.check(1, "dtype", tg.DType(), dtype)
+    _ffi_func = _ffi.get_global_func("relax.op.zeros_like")
+    return _ffi_func(x, dtype)
+
+
+## (TVM-TOOL) py_op end create/*

@@ -45,7 +45,7 @@ Expr ExpandToMatchInput(Expr data, int ndim, Array<Integer> axes) {
       expand_axes.push_back(i);
     }
   }
-  return expand_dims(data, expand_axes);
+  return expand_dims(data, {expand_axes.begin(), expand_axes.end()});
 }
 
 Expr SimplifyBatchNorm(const CallNode* call) {

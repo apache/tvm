@@ -13,47 +13,40 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
-# under the License.
+# pylint: disable=redefined-builtin
 """Datatype operators."""
-from typing import Union
+from tvm import _ffi
 
-from tvm import DataType
+from ..expr import Call
+from . import ty
+from . import ty_guard as tg
 
-from . import _ffi_api
-from ..expr import Expr
+# pylint: disable=invalid-name
 
 
-def astype(x: Expr, dtype: Union[str, DataType]) -> Expr:
-    """Cast input tensor to the given data type.
+## (TVM-TOOL) py_op begin datatype/*
+def astype(
+    x: ty.Tensor,
+    dtype: ty.DType,
+) -> Call:
+    """TBD
 
     Parameters
     ----------
-    x : relax.Expr
-        The input data to the operator.
-
-    dtype: Union[str, DataType]
-        The target data type
+    x : ty.Tensor
+        TODO(tvm-unity-team): add doc
+    dtype : ty.DType
+        TODO(tvm-unity-team): add doc
 
     Returns
     -------
-    result : relax.Expr
-        The casted result.
+    ret : ty.Tensor
+        TODO(tvm-unity-team): add doc
     """
-    return _ffi_api.astype(x, dtype)  # type: ignore
+    x = tg.check(0, "x", tg.Tensor([]), x)
+    dtype = tg.check(1, "dtype", tg.DType(), dtype)
+    _ffi_func = _ffi.get_global_func("relax.op.astype")
+    return _ffi_func(x, dtype)
 
 
-def wrap_param(data: Expr, dtype: Union[str, DataType] = "float32") -> Expr:
-    """Cast input tensor which is model param to data type if the dtype of the input data is not
-    the same as the given dtype.
-    Parameters
-    ----------
-    data : relax.Expr
-        The input data to the operator.
-    dtype : Union[str, DataType]
-        The target data type
-    Returns
-    -------
-    result : relax.Expr
-        The casted result.
-    """
-    return _ffi_api.wrap_param(data, dtype)  # type: ignore
+## (TVM-TOOL) py_op end datatype/*

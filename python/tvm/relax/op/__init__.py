@@ -16,33 +16,18 @@
 # under the License.
 # pylint: disable=wildcard-import, redefined-builtin
 """Relax core operators."""
+# isort:skip_file
+###### Always import legacy first
+from .legacy import *
 
-# Operators
-from .base import *
-from .binary import *
-from .create import *
-from .datatype import *
-from .index import *
-from .linear_algebra import *
-from .manipulate import *
-from .op_attrs import *
-from .statistical import *
+######################
+
+from . import builtin, memory, vm, image
+from .elementwise import *
+from .basic import *
 from .search import *
-from .set import *
-from .ternary import *
-from .unary import *
-from . import builtin
-from . import image
-from . import memory
-from . import nn
-
-
-def _register_op_make():
-    # pylint: disable=import-outside-toplevel
-    from . import _ffi_api
-    from .. import expr
-
-    expr._op_ffi_api = _ffi_api  # type: ignore
-
-
-_register_op_make()
+from .datatype import *
+from .linear_algebra import *
+from .statistical import *
+from .create import *
+from .manipulate import *

@@ -529,7 +529,7 @@ def test_negative():
                     i0_1, i1_1 = T.axis.remap("SS", [i0, i1])
                     T.reads(rxplaceholder[i0_1, i1_1])
                     T.writes(compute[i0_1, i1_1])
-                    compute[i0_1, i1_1] = rxplaceholder[i0_1, i1_1] * T.float32(-1)
+                    compute[i0_1, i1_1] = T.Sub(T.float32(0), rxplaceholder[i0_1, i1_1])
     # fmt: on
 
     mod = LegalizeOps()(Negative)
@@ -568,7 +568,7 @@ def test_negative_symbolic():
                     i0_1, i1_1 = T.axis.remap("SS", [i0, i1])
                     T.reads(rxplaceholder[i0_1, i1_1])
                     T.writes(compute[i0_1, i1_1])
-                    compute[i0_1, i1_1] = rxplaceholder[i0_1, i1_1] * T.float32(-1)
+                    compute[i0_1, i1_1] = T.Sub(T.float32(0), rxplaceholder[i0_1, i1_1])
     # fmt: on
 
     mod = LegalizeOps()(Negative)

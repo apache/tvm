@@ -16,13 +16,13 @@
 # under the License.
 # pylint: disable=invalid-name
 """Default legalization function for datatype operators."""
-from tvm import topi, relax
+from tvm import relax, topi
+
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
 from .common import _try_convert_to_scalar_const, register_legalize
 
 
-@register_legalize("relax.astype")
 def _astype(bb: BlockBuilder, call: Call) -> Expr:
     arg = _try_convert_to_scalar_const(call.args[0], python_native=True)
     if isinstance(arg, Expr):  # type: ignore

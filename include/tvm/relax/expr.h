@@ -612,7 +612,6 @@ class PrimValue : public LeafExpr {
    * \param span The source span of the expression.
    */
   TVM_DLL explicit PrimValue(PrimExpr value, Span span = Span());
-
   /*!
    * \brief Create a int64 prim value.
    * \param value The input value.
@@ -620,9 +619,73 @@ class PrimValue : public LeafExpr {
    * \return The created prim value.
    */
   TVM_DLL static PrimValue Int64(int64_t value, Span span = Span());
+  /*!
+   * \brief Create a float64 prim value.
+   * \param value The input value.
+   * \param span The source span of the expression.
+   * \return The created prim value.
+   */
+  TVM_DLL static PrimValue Float32(double value, Span span = Span());
+  /*!
+   * \brief Create a float64 prim value.
+   * \param value The input value.
+   * \param span The source span of the expression.
+   * \return The created prim value.
+   */
+  TVM_DLL static PrimValue Float64(double value, Span span = Span());
+  /*!
+   * \brief Create a bool prim value.
+   * \param value The input value.
+   * \param span The source span of the expression.
+   * \return The created prim value.
+   */
+  TVM_DLL static PrimValue Bool(bool value, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(PrimValue, LeafExpr, PrimValueNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(PrimValueNode);
+};
+
+/*!
+ * \brief An opaque object in Relax compiler which will be dissolved in the lowering process.
+ */
+class AttrExprNode : public LeafExprNode {
+ public:
+  /*! \brief The opaque object. */
+  ObjectRef value;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("value", &value);
+    v->Visit("struct_info_", &struct_info_);
+    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const AttrExprNode* other, SEqualReducer equal) const {
+    // struct info can be deterministically derived from data.
+    return equal(value, other->value);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(value); }
+
+  static constexpr const char* _type_key = "relax.expr.AttrExpr";
+  TVM_DECLARE_FINAL_OBJECT_INFO(AttrExprNode, LeafExprNode);
+};
+
+/*!
+ * \brief Managed reference to AttrExprNode
+ * \sa AttrExprNode
+ */
+class AttrExpr : public LeafExpr {
+ public:
+  /*!
+   * \brief The constructor
+   * \param value The value input.
+   * \param span The source span of the expression.
+   */
+  TVM_DLL explicit AttrExpr(ObjectRef value, Span span = Span());
+
+  TVM_DEFINE_OBJECT_REF_METHODS(AttrExpr, LeafExpr, AttrExprNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(AttrExprNode);
 };
 
 /*!

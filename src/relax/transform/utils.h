@@ -28,6 +28,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op/manipulate.h>
 
 #include <algorithm>
 #include <string>
@@ -44,7 +45,6 @@
 #include "../op/tensor/datatype.h"
 #include "../op/tensor/index.h"
 #include "../op/tensor/linear_algebra.h"
-#include "../op/tensor/manipulate.h"
 #include "../op/tensor/search.h"
 #include "../op/tensor/set.h"
 #include "../op/tensor/statistical.h"

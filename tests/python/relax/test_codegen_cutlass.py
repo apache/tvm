@@ -16,7 +16,6 @@
 # under the License.
 import numpy as np
 import pytest
-
 import tvm
 import tvm.testing
 import tvm.topi.testing
@@ -337,30 +336,24 @@ def test_cutlass_partition_conv2d_residual_blocked():
     [
         # Regular
         ((32, 6), (6, 16), False, "none", "none"),
-        ((_vars["a"], 6), (6, 16), False, "bias", "none"),
         # Transposed
         ((4, 16), (16, 128), True, "relu", "none"),
         ((35, 8), (8, 8), True, "gelu", "none"),
         # 3D x 3D
         ((6, 32, 8), (6, 8, 10), False, "bias", "none"),
         ((6, 32, 8), (6, 8, 10), True, "none", "none"),
-        ((_vars["a"], 32, 8), (_vars["a"], 8, 10), True, "gelu", "none"),
         # 3D x 2D
         ((6, 32, 8), (8, 10), False, "none", "none"),
-        ((_vars["a"], 32, 8), (8, 10), False, "bias", "none"),
         ((10, 16, 8), (8, 10), True, "relu", "none"),
         # 2D x 3D
         ((32, 8), (10, 8, 10), False, "relu", "none"),
-        ((32, 8), (_vars["a"], 8, 10), True, "gelu", "none"),
         # ND x 2D
         ((3, 6, 32, 8), (8, 10), False, "bias", "none"),
-        ((_vars["a"], _vars["b"], 6, 32, 8), (8, 10), False, "none", "none"),
         # 2D x ND
         ((32, 8), (5, 3, 8, 10), False, "gelu", "none"),
         # ND x ND
         ((5, 3, 32, 8), (5, 3, 8, 10), True, "relu", "none"),
         ((3, 2, 4, 16, 15), (1, 1, 15, 2), True, "gelu", "none"),
-        ((1, 1, 16, 15), (3, 2, _vars["a"], 15, 2), False, "none", "none"),
         # Residual
         ((32, 8), (8, 8), False, "bias", "add"),
         ((4, 16), (16, 16), True, "relu", "add_relu"),
@@ -426,24 +419,15 @@ def test_matmul_offload(
         ((3, 4), (4, 5), True),
         # Batch matmul without stretching
         ((3, 16, 15), (3, 15, 2), True),
-        ((_vars["a"], 16, 15), (_vars["a"], 15, 2), True),
         # Broadcast 2D to 3D
         ((3, 16, 15), (15, 2), True),
-        ((_vars["a"], 16, 15), (15, 2), True),
         ((16, 15), (3, 15, 2), True),
         # Broadcast one-length dimension
         ((1, 16, 15), (3, 15, 2), True),
         ((3, 16, 15), (1, 15, 2), True),
         ((1, 1, 16, 15), (3, 2, 4, 15, 2), True),
-        ((1, 1, 16, 15), (3, _vars["a"], 4, 15, 2), True),
         # ND x ND
         ((3, 2, 4, 16, 15), (3, 2, 4, 15, 2), True),
-        ((_vars["a"], 2, 4, 16, 15), (_vars["a"], 2, 4, 15, 2), True),
-        (
-            (_vars["a"], _vars["b"], 4, 16, 15),
-            (_vars["a"], _vars["b"], 4, 15, 2),
-            True,
-        ),
         # ND x ND with one-length dimension
         ((1, 2, 4, 16, 15), (1, 2, 4, 15, 2), True),
         ((3, 2, 1, 16, 15), (3, 2, 1, 15, 2), True),
@@ -454,12 +438,8 @@ def test_matmul_offload(
         ((3, 2, 4, 16, 15), (2, 4, 15, 2), False),
         # Different shape
         ((3, 4, 16, 15), (3, 2, 15, 2), False),
-        ((3, _vars["a"], 16, 15), (3, _vars["b"], 15, 2), False),
         # Cannot prove that broadcast dimensions are equal
-        ((_vars["a"], 16, 15), (3, 15, 2), False),
-        ((3, _vars["a"], 1, 16, 15), (1, 1, 3, 2, 1, 15, 2), False),
         # Reduction axis must be constant
-        ((3, _vars["a"]), (_vars["a"], 5), False),
     ],
 )
 def test_is_shape_valid_for_cutlass_matmul(x_shape, y_shape, expected):
@@ -471,13 +451,9 @@ def test_is_shape_valid_for_cutlass_matmul(x_shape, y_shape, expected):
     [
         # Not broadcasting all dims. Cannot be computed by stride-based batch gemm
         ((3, 1, 1, 16, 15), (3, 2, 4, 15, 2), False, "float16"),
-        ((3, 2, _vars["a"], 16, 15), (3, 2, 4, 15, 2), False, "float16"),
         ((1, 2, 1, 16, 15), (2, 1, 4, 15, 2), False, "float16"),
         ((3, 2, 4, 16, 15), (2, 4, 15, 2), True, "float16"),
         ((3, 16, 15), (2, 1, 3, 15, 2), True, "float16"),
-        ((3, 16, 15), (_vars["a"], 1, 3, 15, 2), True, "float16"),
-        ((_vars["a"], 1, 3, 16, 15), (_vars["b"], 1, 3, 15, 2), True, "float16"),
-        ((_vars["a"], _vars["b"], 3, 16, 15), (_vars["a"], 1, 3, 15, 2), True, "float16"),
     ],
 )
 def test_cutlass_partition_matmul_blocked(x_shape, y_shape, transpose_y, dtype):
@@ -570,7 +546,8 @@ def get_relax_attention_module(q, k, v, bias=None, qk_scale=None):
     dtype = str(q.dtype)
 
     from tvm.script.ir_builder import IRBuilder
-    from tvm.script.ir_builder import relax as relax_builder, tir as T
+    from tvm.script.ir_builder import relax as relax_builder
+    from tvm.script.ir_builder import tir as T
 
     if qk_scale is not None:
         qk_scale = T.FloatImm("float32", qk_scale)

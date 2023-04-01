@@ -17,8 +17,7 @@
 import pytest
 import tvm
 import tvm.testing
-from tvm import relax, tir
-from tvm import TVMError
+from tvm import TVMError, relax, tir
 from tvm.ir import Op
 from tvm.script import relax as R
 
@@ -66,7 +65,11 @@ def test_statistical_infer_struct_info():
         relax.op.mean(x1, axis=[1, 2], keepdims=True),
         relax.TensorStructInfo(dtype="float32", ndim=4),
     )
-    _check_inference(bb, relax.op.mean(x1, axis=None), relax.TensorStructInfo((), "float32"))
+    _check_inference(
+        bb,
+        relax.op.mean(x1, axis=None),
+        relax.TensorStructInfo((), "float32"),
+    )
     _check_inference(
         bb,
         relax.op.mean(x1, axis=None, keepdims=True),
@@ -80,7 +83,11 @@ def test_statistical_infer_struct_info():
         relax.op.variance(x2, axis=[1, 2], keepdims=True),
         relax.TensorStructInfo(dtype="float32"),
     )
-    _check_inference(bb, relax.op.variance(x2, axis=None), relax.TensorStructInfo((), "float32"))
+    _check_inference(
+        bb,
+        relax.op.variance(x2, axis=None),
+        relax.TensorStructInfo((), "float32"),
+    )
     _check_inference(
         bb,
         relax.op.variance(x2, axis=None, keepdims=True),
@@ -177,15 +184,15 @@ def test_statistical_infer_struct_info_axis_out_of_range_repetitive():
     x0 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=4))
 
-    with pytest.raises(TVMError):
+    with pytest.raises((TVMError, ValueError)):
         bb.normalize(relax.op.mean(x0, axis=[4]))
-    with pytest.raises(TVMError):
+    with pytest.raises((TVMError, ValueError)):
         bb.normalize(relax.op.mean(x1, axis=[3, 3]))
-    with pytest.raises(TVMError):
+    with pytest.raises((TVMError, ValueError)):
         bb.normalize(relax.op.mean(x0, axis=[-1, 3]))
-    with pytest.raises(TVMError):
+    with pytest.raises((TVMError, ValueError)):
         bb.normalize(relax.op.mean(x1, axis=[-4, -4]))
-    with pytest.raises(TVMError):
+    with pytest.raises((TVMError, ValueError)):
         bb.normalize(relax.op.mean(x0, axis=[-5]))
 
 
@@ -194,9 +201,9 @@ def test_statistical_infer_struct_info_wrong_input_type():
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 4, 5)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 4, 5), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises((TVMError, TypeError, ValueError)):
         bb.normalize(relax.op.variance(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises((TVMError, TypeError, ValueError)):
         bb.normalize(relax.op.variance(x1))
 
 

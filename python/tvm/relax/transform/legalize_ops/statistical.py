@@ -17,10 +17,12 @@
 # pylint: disable=invalid-name
 """Default legalization function for statistical operators."""
 from typing import List
-from tvm import topi, tir, te
+
+from tvm import te, tir, topi
+
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
-from .common import TEFunc, LegalizeFunc, register_legalize
+from .common import LegalizeFunc, TEFunc, register_legalize
 
 
 def _statistical(te_func: TEFunc) -> LegalizeFunc:
@@ -49,14 +51,14 @@ def _te_variance(x: te.Tensor, axis: List[tir.IntImm], keepdims: bool) -> te.Ten
     return _te_mean(dev * dev, axis, keepdims)
 
 
-@register_legalize("relax.mean")
+# @register_legalize("relax.mean")
 def _mean(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(
         _te_mean, call.args[0], call.attrs.axis, call.attrs.keepdims, primfunc_name_hint="mean"
     )
 
 
-@register_legalize("relax.std")
+# @register_legalize("relax.std")
 def _std(bb: BlockBuilder, call: Call) -> Expr:
     def te_std(x: te.Tensor, axis: List[tir.IntImm], keepdims: bool) -> te.Tensor:
         return topi.sqrt(_te_variance(x, axis, keepdims))
@@ -66,7 +68,7 @@ def _std(bb: BlockBuilder, call: Call) -> Expr:
     )
 
 
-@register_legalize("relax.variance")
+# @register_legalize("relax.variance")
 def _variance(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(
         _te_variance,
@@ -77,7 +79,7 @@ def _variance(bb: BlockBuilder, call: Call) -> Expr:
     )
 
 
-register_legalize("relax.max", _statistical(topi.max))
-register_legalize("relax.min", _statistical(topi.min))
-register_legalize("relax.prod", _statistical(topi.prod))
-register_legalize("relax.sum", _statistical(topi.sum))
+# register_legalize("relax.max", _statistical(topi.max))
+# register_legalize("relax.min", _statistical(topi.min))
+# register_legalize("relax.prod", _statistical(topi.prod))
+# register_legalize("relax.sum", _statistical(topi.sum))

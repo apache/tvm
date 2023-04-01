@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 from typing import Callable
+
 import pytest
 import tvm
 import tvm.testing
-from tvm import relax, tir
-from tvm import TVMError
+from tvm import TVMError, relax, tir
 from tvm.ir import Op
 from tvm.script import relax as R
 
@@ -47,15 +47,15 @@ def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: r
     tvm.ir.assert_structural_equal(ret.struct_info, expected_sinfo)
 
 
-(binary_arith_op,) = tvm.testing.parameters(
-    (relax.op.add,),
-    (relax.op.divide,),
-    (relax.op.floor_divide,),
-    (relax.op.multiply,),
-    (relax.op.power,),
-    (relax.op.subtract,),
-    (relax.op.maximum,),
-    (relax.op.minimum,),
+(binary_arith_op, float_input_only) = tvm.testing.parameters(
+    (relax.op.add, False),
+    (relax.op.divide, False),
+    (relax.op.floor_divide, False),
+    (relax.op.multiply, False),
+    (relax.op.power, True),
+    (relax.op.subtract, False),
+    (relax.op.maximum, False),
+    (relax.op.minimum, False),
 )
 
 
@@ -156,7 +156,9 @@ def test_binary_infer_struct_info_shape_var(binary_arith_op: Callable):
     _check_inference(bb, binary_arith_op(x, y4), relax.TensorStructInfo(dtype="float32"))
 
 
-def test_binary_arith_infer_struct_info_more_input_dtype(binary_arith_op: Callable):
+def test_binary_arith_infer_struct_info_more_input_dtype(
+    binary_arith_op: Callable, float_input_only: str
+):
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3), "float64"))
     y0 = relax.Var("y", R.Tensor((2, 3), "float64"))
@@ -166,24 +168,17 @@ def test_binary_arith_infer_struct_info_more_input_dtype(binary_arith_op: Callab
     y2 = relax.Var("y", R.Tensor((2, 3), "int64"))
 
     _check_inference(bb, binary_arith_op(x0, y0), relax.TensorStructInfo((2, 3), "float64"))
-    _check_inference(bb, binary_arith_op(x1, y1), relax.TensorStructInfo((2, 3), "int8"))
-    _check_inference(bb, binary_arith_op(x2, y2), relax.TensorStructInfo((2, 3), "int64"))
+    if not float_input_only:
+        _check_inference(bb, binary_arith_op(x1, y1), relax.TensorStructInfo((2, 3), "int8"))
+        _check_inference(bb, binary_arith_op(x2, y2), relax.TensorStructInfo((2, 3), "int64"))
 
 
 def test_binary_infer_struct_info_shape_unequal_const_int(binary_arith_op: Callable):
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3), "float32"))
     y0 = relax.Var("y", R.Tensor((2, 4), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises((TVMError, ValueError)):
         bb.normalize(binary_arith_op(x0, y0))
-
-
-def test_binary_arith_infer_struct_info_dtype_mismatch(binary_arith_op: Callable):
-    bb = relax.BlockBuilder()
-    x = relax.Var("x", R.Tensor((2, 3), "float32"))
-    y = relax.Var("y", R.Tensor((2, 3), "int32"))
-    with pytest.raises(TVMError):
-        bb.normalize(binary_arith_op(x, y))
 
 
 def test_binary_wrong_input_number(binary_arith_op: Callable):

@@ -127,7 +127,7 @@ def test_simple_symbolic_shape():
             shape_heap = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
                 [R.prim_value(2)],
-                sinfo_args=[R.Tensor(ndim=1, dtype="int64")],
+                sinfo_args=R.Tensor(ndim=1, dtype="int64"),
             )
             _ = R.call_packed(
                 "vm.builtin.check_tensor_info", x, 3, R.dtype("float32"), "", sinfo_args=[R.Tuple()]
@@ -191,7 +191,7 @@ def test_symbolic_compute():
             shape_heap = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
                 [R.prim_value(4)],
-                sinfo_args=[R.Tensor(ndim=1, dtype="int64")],
+                sinfo_args=R.Tensor(ndim=1, dtype="int64"),
             )
             _ = R.call_packed(
                 "vm.builtin.check_tensor_info", x, 2, R.dtype("float32"), "", sinfo_args=[R.Tuple()]
@@ -290,7 +290,7 @@ def test_tuple_handling():
             shape_heap = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
                 [R.prim_value(3)],
-                sinfo_args=[R.Tensor(ndim=1, dtype="int64")],
+                sinfo_args=R.Tensor(ndim=1, dtype="int64"),
             )
             # recursively unpack tuple for static info check
             _ = R.call_packed("vm.builtin.check_tuple_info", x, 2, "", sinfo_args=[R.Tuple()])
@@ -376,7 +376,7 @@ def test_return_match_check():
             shape_heap = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
                 [R.prim_value(2)],
-                sinfo_args=[R.Tensor(ndim=1, dtype="int64")],
+                sinfo_args=R.Tensor(ndim=1, dtype="int64"),
             )
             _ = R.call_packed(
                 "vm.builtin.check_tensor_info", x, 2, R.dtype("float32"), "", sinfo_args=[R.Tuple()]

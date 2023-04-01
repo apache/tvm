@@ -20,35 +20,41 @@
 import builtins
 import functools
 import inspect
-from typing import Any, Dict, List, Optional, Tuple, Union, Callable
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import tvm
 from tvm import DataType, relax
 from tvm.ir import PrimExpr
-from ..ir import decl_function
-from tvm.relax import Call, Expr, ExternFunc, TupleGetItem, ShapeExpr, Var, VarBinding, const
-from tvm.relax.utils import gen_call_tir_inputs
-
+from tvm.relax import (
+    Call,
+    Expr,
+    ExternFunc,
+    ShapeExpr,
+    TupleGetItem,
+    Var,
+    VarBinding,
+    const,
+)
 
 ############################### Operators ###############################
 from tvm.relax.op import (
     abs,
     acos,
     acosh,
-    asin,
-    asinh,
-    atan,
-    atanh,
     add,
     argmax,
     argmin,
+    asin,
+    asinh,
     assert_op,
     astype,
+    atan,
+    atanh,
     broadcast_to,
     builtin,
     call_builtin_with_ctx,
-    call_tir,
     call_dps_packed,
+    call_tir,
     ceil,
     clip,
     collapse_sum_like,
@@ -89,52 +95,54 @@ from tvm.relax.op import (
     minimum,
     multiply,
     negative,
+    nn,
     not_equal,
     null_value,
     ones,
     ones_like,
     permute_dims,
+    pow,
     power,
     print,
     prod,
     repeat,
     reshape,
-    tensor_to_shape,
     round,
     shape_of,
-    std,
-    strided_slice,
-    sum,
-    take,
-    variance,
     sigmoid,
     sign,
     sin,
     sinh,
     split,
+    sqrt,
     square,
     squeeze,
-    sqrt,
+    std,
+    strided_slice,
     subtract,
+    sum,
+    take,
     tan,
     tanh,
+    tensor_to_shape,
     tile,
     tril,
     triu,
     unique,
+    variance,
     vm,
     where,
     wrap_param,
     zeros,
     zeros_like,
-    nn,
 )
 from tvm.relax.op.builtin import stop_lift_params
 from tvm.relax.struct_info import StructInfo
-from tvm.relax.utils import args_converter
+from tvm.relax.utils import args_converter, gen_call_tir_inputs
 from tvm.runtime import Object as tvm_Object
 from tvm.runtime import ObjectGeneric
 
+from ..ir import decl_function
 from . import _ffi_api, frame
 
 ##################### Python Native Function Alias ######################
@@ -371,6 +379,8 @@ def emit_te(func: Callable, *args: Any, **kwargs: Any) -> Call:
     """
     primfunc_name_hint = kwargs.pop("primfunc_name_hint", None)
     tir_func, call_args, out_sinfo, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
+    if len(out_sinfo) == 1:
+        out_sinfo = out_sinfo[0]
     if not primfunc_name_hint:
         primfunc_name_hint = func.__name__
     gvar = decl_function(primfunc_name_hint, tir_func)  # type: ignore
@@ -612,6 +622,7 @@ __all__ = [
     "ones_like",
     "output",
     "permute_dims",
+    "pow",
     "power",
     "prim_value",
     "print",

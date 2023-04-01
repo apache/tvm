@@ -20,10 +20,9 @@
 from typing import Mapping, Optional, Sequence, Tuple
 
 import tvm
-from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
-from tvm.relax import DataflowVar, ShapeExpr, Var, transform
-from tvm.relax.transform import PatternCheckContext
 
+from ...expr import DataflowVar, ShapeExpr, Var
+from ...transform import FuseOpsByPattern, PatternCheckContext
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
 from ..patterns import (
     make_attention_pattern,
@@ -126,6 +125,10 @@ def _check_conv2d(context: PatternCheckContext) -> bool:
 
 def _check_matmul(context: PatternCheckContext) -> bool:
     """Check if the given matmul workload can be offloaded to CUTLASS."""
+    from tvm.contrib.cutlass.build import (  # pylint: disable=import-outside-toplevel
+        is_shape_valid_for_cutlass_matmul,
+    )
+
     if _has_leaking_intermediate_variables(context):
         return False
 
@@ -290,6 +293,4 @@ def partition_for_cutlass(mod, annotate_codegen=True):
     """
 
     patterns = get_patterns_with_prefix("cutlass")
-    return transform.FuseOpsByPattern(
-        patterns, bind_constants=False, annotate_codegen=annotate_codegen
-    )(mod)
+    return FuseOpsByPattern(patterns, bind_constants=False, annotate_codegen=annotate_codegen)(mod)

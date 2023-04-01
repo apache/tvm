@@ -17,12 +17,12 @@
 # pylint: disable=invalid-name
 """Default legalization function for search operators."""
 from tvm import topi
+
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
-from .common import TEFunc, LegalizeFunc
-from .common import _call_topi_without_attr, register_legalize
+from .common import LegalizeFunc, TEFunc, _call_topi_without_attr, register_legalize
 
-register_legalize("relax.where", _call_topi_without_attr(topi.where))
+# register_legalize("relax.where", _call_topi_without_attr(topi.where))
 
 
 def _argmax_argmin(te_func: TEFunc) -> LegalizeFunc:
@@ -37,5 +37,5 @@ def _argmax_argmin(te_func: TEFunc) -> LegalizeFunc:
     return argmax_argmin_call_te
 
 
-register_legalize("relax.argmax", _argmax_argmin(topi.argmax))
-register_legalize("relax.argmin", _argmax_argmin(topi.argmin))
+# register_legalize("relax.argmax", _argmax_argmin(topi.argmax))
+# register_legalize("relax.argmin", _argmax_argmin(topi.argmin))

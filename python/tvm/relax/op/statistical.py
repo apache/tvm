@@ -13,206 +13,212 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
-# under the License.
 # pylint: disable=redefined-builtin
 """Statistical operators."""
-from typing import List, Optional, Union
+from tvm import _ffi
 
-from . import _ffi_api
-from ..expr import Expr
+from ..expr import Call
+from . import ty
+from . import ty_guard as tg
 
-
-def max(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False) -> Expr:
-    """Computes the max of tensor elements over given axes.
-
-    Parameters
-    ----------
-    x : relax.Expr
-        The input data tensor
-
-    axis : Optional[Union[int, List[int]]]
-        Axis or axes along which a max operation is performed.
-        The default, axis=None, will compute the max of all elements in the input tensor.
-        Negative indexing is supported.
-
-    keepdims : bool
-        If this is set to True, the axes which are reduced are left in the result as dimensions
-        with size one.
-        With this option, the result will broadcast correctly against the input tensor.
-
-    Returns
-    -------
-    result : relax.Expr
-        The computed result.
-    """
-    if isinstance(axis, int):
-        axis = [axis]
-    return _ffi_api.max(x, axis, keepdims)  # type: ignore
+# pylint: disable=invalid-name
 
 
-def mean(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False) -> Expr:
-    """Computes the mean of tensor elements over given axes.
+## (TVM-TOOL) py_op begin statistical/*
+def max(
+    x: ty.Tensor,
+    axis: ty.Axes = None,
+    keepdims: ty.Bool = False,
+) -> Call:
+    """TBD
 
     Parameters
     ----------
-    x : relax.Expr
-        The input data tensor
-
-    axis : Optional[Union[int, List[int]]]
-        Axis or axes along which a mean operation is performed.
-        The default, axis=None, will compute the mean of all elements in the input tensor.
-        Negative indexing is supported.
-
-    keepdims : bool
-        If this is set to True, the axes which are reduced are left in the result as dimensions
-        with size one.
-        With this option, the result will broadcast correctly against the input tensor.
+    x : ty.Tensor
+        TODO(tvm-unity-team): add doc
+    axis : ty.Axes
+        TODO(tvm-unity-team): add doc
+    keepdims : ty.Bool
+        TODO(tvm-unity-team): add doc
 
     Returns
     -------
-    result : relax.Expr
-        The computed result.
+    ret : ty.Tensor
+        TODO(tvm-unity-team): add doc
     """
-    if isinstance(axis, int):
-        axis = [axis]
-    return _ffi_api.mean(x, axis, keepdims)  # type: ignore
+    x = tg.check(0, "x", tg.Tensor([]), x)
+    axis = tg.check(1, "axis", tg.Axes(x, False, True), axis)
+    keepdims = tg.check(2, "keepdims", tg.Bool(), keepdims)
+    _ffi_func = _ffi.get_global_func("relax.op.max")
+    return _ffi_func(x, axis, keepdims)
 
 
-def min(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False) -> Expr:
-    """Computes the min of tensor elements over given axes.
+def mean(
+    x: ty.Tensor,
+    axis: ty.Axes = None,
+    keepdims: ty.Bool = False,
+) -> Call:
+    """TBD
 
     Parameters
     ----------
-    x : relax.Expr
-        The input data tensor
-
-    axis : Optional[Union[int, List[int]]]
-        Axis or axes along which a min operation is performed.
-        The default, axis=None, will compute the min of all elements in the input tensor.
-        Negative indexing is supported.
-
-    keepdims : bool
-        If this is set to True, the axes which are reduced are left in the result as dimensions
-        with size one.
-        With this option, the result will broadcast correctly against the input tensor.
+    x : ty.Tensor
+        TODO(tvm-unity-team): add doc
+    axis : ty.Axes
+        TODO(tvm-unity-team): add doc
+    keepdims : ty.Bool
+        TODO(tvm-unity-team): add doc
 
     Returns
     -------
-    result : relax.Expr
-        The computed result.
+    ret : ty.Tensor
+        TODO(tvm-unity-team): add doc
     """
-    if isinstance(axis, int):
-        axis = [axis]
-    return _ffi_api.min(x, axis, keepdims)  # type: ignore
+    x = tg.check(0, "x", tg.Tensor([]), x)
+    axis = tg.check(1, "axis", tg.Axes(x, False, True), axis)
+    keepdims = tg.check(2, "keepdims", tg.Bool(), keepdims)
+    _ffi_func = _ffi.get_global_func("relax.op.mean")
+    return _ffi_func(x, axis, keepdims)
 
 
-def prod(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False) -> Expr:
-    """Computes the product of tensor elements over given axes.
+def min(
+    x: ty.Tensor,
+    axis: ty.Axes = None,
+    keepdims: ty.Bool = False,
+) -> Call:
+    """TBD
 
     Parameters
     ----------
-    x : relax.Expr
-        The input data tensor
-
-    axis : Optional[Union[int, List[int]]]
-        Axis or axes along which a product is performed.
-        The default, axis=None, will compute the product of all elements of the input tensor.
-        Negative indexing is supported.
-
-    keepdims : bool
-        If this is set to True, the axes which are reduced are left in the result as
-        dimensions with size one.
-        With this option, the result will broadcast correctly against the input tensor.
+    x : ty.Tensor
+        TODO(tvm-unity-team): add doc
+    axis : ty.Axes
+        TODO(tvm-unity-team): add doc
+    keepdims : ty.Bool
+        TODO(tvm-unity-team): add doc
 
     Returns
     -------
-    result : relax.Expr
-        The computed result.
+    ret : ty.Tensor
+        TODO(tvm-unity-team): add doc
     """
-    if isinstance(axis, int):
-        axis = [axis]
-    return _ffi_api.prod(x, axis, keepdims)  # type: ignore
+    x = tg.check(0, "x", tg.Tensor([]), x)
+    axis = tg.check(1, "axis", tg.Axes(x, False, True), axis)
+    keepdims = tg.check(2, "keepdims", tg.Bool(), keepdims)
+    _ffi_func = _ffi.get_global_func("relax.op.min")
+    return _ffi_func(x, axis, keepdims)
 
 
-def std(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False) -> Expr:
-    """Computes the standard deviation of tensor elements over given axes.
+def prod(
+    x: ty.Tensor,
+    axis: ty.Axes = None,
+    keepdims: ty.Bool = False,
+) -> Call:
+    """TBD
 
     Parameters
     ----------
-    x : relax.Expr
-        The input data tensor
-
-    axis : Optional[Union[int, List[int]]]
-        Axis or axes along which a standard deviation is performed.
-        The default, axis=None, will compute the std of all elements of the input tensor.
-        Negative indexing is supported.
-
-    keepdims : bool
-        If this is set to True, the axes which are reduced are left in the result as
-        dimensions with size one.
-        With this option, the result will broadcast correctly against the input tensor.
+    x : ty.Tensor
+        TODO(tvm-unity-team): add doc
+    axis : ty.Axes
+        TODO(tvm-unity-team): add doc
+    keepdims : ty.Bool
+        TODO(tvm-unity-team): add doc
 
     Returns
     -------
-    result : relax.Expr
-        The computed result.
+    ret : ty.Tensor
+        TODO(tvm-unity-team): add doc
     """
-    if isinstance(axis, int):
-        axis = [axis]
-    return _ffi_api.std(x, axis, keepdims)  # type: ignore
+    x = tg.check(0, "x", tg.Tensor([]), x)
+    axis = tg.check(1, "axis", tg.Axes(x, False, True), axis)
+    keepdims = tg.check(2, "keepdims", tg.Bool(), keepdims)
+    _ffi_func = _ffi.get_global_func("relax.op.prod")
+    return _ffi_func(x, axis, keepdims)
 
 
-def sum(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False) -> Expr:
-    """Computes the sum of tensor elements over given axes.
+def std(
+    x: ty.Tensor,
+    axis: ty.Axes = None,
+    keepdims: ty.Bool = False,
+) -> Call:
+    """TBD
 
     Parameters
     ----------
-    x : relax.Expr
-        The input data tensor
-
-    axis : Optional[Union[int, List[int]]]
-        Axis or axes along which a sum is performed.
-        The default, axis=None, will sum all of the elements of the input tensor.
-        Negative indexing is supported.
-
-    keepdims : bool
-        If this is set to True, the axes which are reduced are left in the result as
-        dimensions with size one.
-        With this option, the result will broadcast correctly against the input tensor.
+    x : ty.Tensor
+        TODO(tvm-unity-team): add doc
+    axis : ty.Axes
+        TODO(tvm-unity-team): add doc
+    keepdims : ty.Bool
+        TODO(tvm-unity-team): add doc
 
     Returns
     -------
-    result : relax.Expr
-        The computed result.
+    ret : ty.Tensor
+        TODO(tvm-unity-team): add doc
     """
-    if isinstance(axis, int):
-        axis = [axis]
-    return _ffi_api.sum(x, axis, keepdims)  # type: ignore
+    x = tg.check(0, "x", tg.Tensor([]), x)
+    axis = tg.check(1, "axis", tg.Axes(x, False, True), axis)
+    keepdims = tg.check(2, "keepdims", tg.Bool(), keepdims)
+    _ffi_func = _ffi.get_global_func("relax.op.std")
+    return _ffi_func(x, axis, keepdims)
 
 
-def variance(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False) -> Expr:
-    """Computes the variance of tensor elements over given axes.
+def sum(
+    x: ty.Tensor,
+    axis: ty.Axes = None,
+    keepdims: ty.Bool = False,
+) -> Call:
+    """TBD
 
     Parameters
     ----------
-    x : relax.Expr
-        The input data tensor
-
-    axis : Optional[Union[int, List[int]]]
-        Axis or axes along which a variance operation is performed.
-        The default, axis=None, will compute the variance of all elements in the input tensor.
-        Negative indexing is supported.
-
-    keepdims : bool
-        If this is set to True, the axes which are reduced are left in the result as dimensions
-        with size one.
-        With this option, the result will broadcast correctly against the input tensor.
+    x : ty.Tensor
+        TODO(tvm-unity-team): add doc
+    axis : ty.Axes
+        TODO(tvm-unity-team): add doc
+    keepdims : ty.Bool
+        TODO(tvm-unity-team): add doc
 
     Returns
     -------
-    result : relax.Expr
-        The computed result.
+    ret : ty.Tensor
+        TODO(tvm-unity-team): add doc
     """
-    if isinstance(axis, int):
-        axis = [axis]
-    return _ffi_api.variance(x, axis, keepdims)  # type: ignore
+    x = tg.check(0, "x", tg.Tensor([]), x)
+    axis = tg.check(1, "axis", tg.Axes(x, False, True), axis)
+    keepdims = tg.check(2, "keepdims", tg.Bool(), keepdims)
+    _ffi_func = _ffi.get_global_func("relax.op.sum")
+    return _ffi_func(x, axis, keepdims)
+
+
+def variance(
+    x: ty.Tensor,
+    axis: ty.Axes = None,
+    keepdims: ty.Bool = False,
+) -> Call:
+    """TBD
+
+    Parameters
+    ----------
+    x : ty.Tensor
+        TODO(tvm-unity-team): add doc
+    axis : ty.Axes
+        TODO(tvm-unity-team): add doc
+    keepdims : ty.Bool
+        TODO(tvm-unity-team): add doc
+
+    Returns
+    -------
+    ret : ty.Tensor
+        TODO(tvm-unity-team): add doc
+    """
+    x = tg.check(0, "x", tg.Tensor([]), x)
+    axis = tg.check(1, "axis", tg.Axes(x, False, True), axis)
+    keepdims = tg.check(2, "keepdims", tg.Bool(), keepdims)
+    _ffi_func = _ffi.get_global_func("relax.op.variance")
+    return _ffi_func(x, axis, keepdims)
+
+
+## (TVM-TOOL) py_op end statistical/*

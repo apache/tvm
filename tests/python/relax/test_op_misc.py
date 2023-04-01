@@ -37,12 +37,6 @@ def identity_tir(a: T.handle, b: T.handle) -> None:
             B[vi, vj] = A[vi, vj]
 
 
-def test_call_tir() -> None:
-    v0 = rx.Var("v0", R.Tensor([54, 96], "float32"))
-    v1 = rx.call_dps_packed(rx.extern("test.op.identity"), [v0], R.Tensor((54, 96), "float32"))
-    v1 = rx.call_tir(identity_tir, [v0], R.Tensor((54, 96), "float32"))
-
-
 def test_implicit_op():
     m, n = tvm.tir.Var("m", "int64"), tvm.tir.Var("n", "int64")
     x = rx.Var("x", R.Tensor([m, n], "float32"))

@@ -22,9 +22,8 @@
  */
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op/manipulate.h>
 #include <tvm/relax/transform.h>
-
-#include "../op/tensor/manipulate.h"
 
 namespace tvm {
 namespace relax {

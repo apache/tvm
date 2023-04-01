@@ -73,3 +73,4 @@ from .utils import InvalidShapeError
 # because testing can have extra deps that are not necessary
 # we can import them from test cases explicitly
 # from . import testing
+from . import array_api

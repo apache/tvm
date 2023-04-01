@@ -19,78 +19,88 @@
 from tvm.runtime import relax_vm as vm
 from tvm.runtime.relax_vm import VirtualMachine, VMInstrumentReturnKind
 
-# Expr
-from .expr import (
-    Expr,
-    Span,
-    SourceName,
-    Id,
-    GlobalVar,
-    Var,
-    DataflowVar,
-    Binding,
-    MatchCast,
-    VarBinding,
-    BindingBlock,
-    DataflowBlock,
-    SeqExpr,
-    ShapeExpr,
-    Tuple,
-    TupleGetItem,
-    Function,
-    ExternFunc,
-    Call,
-    If,
-    Constant,
-    PrimValue,
-    DataTypeImm,
-    StringImm,
+# Import submodules in the last to avoid dependency
+from . import (
+    analysis,
+    backend,
+    block_builder,
+    exec_builder,
+    expr,
+    frontend,
+    op,
+    struct_info,
+    transform,
+    ty,
 )
-
-from .expr import const, extern, get_shape_of
-
-# Type
-from .ty import Type, ObjectType, ShapeType, DynTensorType, TupleType, FuncType, PackedFuncType
-
-# VM
-from .exec_builder import ExecBuilder
-
-# Operator
-from .op.base import call_tir, call_dps_packed
+from .binding_rewrite import DataflowBlockRewrite
 
 # BlockBuilder
 from .block_builder import BlockBuilder
 
-# ExprFunctor
-from .expr_functor import ExprFunctor, PyExprVisitor, PyExprMutator
+# VM
+from .exec_builder import ExecBuilder
 
-# StructInfo
-from .struct_info import (
-    StructInfo,
-    ObjectStructInfo,
-    PrimStructInfo,
-    ShapeStructInfo,
-    TensorStructInfo,
-    TupleStructInfo,
-    FuncStructInfo,
+# Expr
+from .expr import (
+    Binding,
+    BindingBlock,
+    Call,
+    Constant,
+    DataflowBlock,
+    DataflowVar,
+    DataTypeImm,
+    Expr,
+    ExternFunc,
+    Function,
+    GlobalVar,
+    Id,
+    If,
+    MatchCast,
+    PrimValue,
+    SeqExpr,
+    ShapeExpr,
+    SourceName,
+    Span,
+    StringImm,
+    Tuple,
+    TupleGetItem,
+    Var,
+    VarBinding,
+    const,
+    extern,
+    get_shape_of,
 )
+
+# ExprFunctor
+from .expr_functor import ExprFunctor, PyExprMutator, PyExprVisitor
+
+# Operator
+from .op import call_dps_packed, call_tir
 
 # pipeline
 from .pipeline import get_pipeline
 
-# Import submodules in the last to avoid dependency
-from . import exec_builder
-from . import expr
-from . import ty
-from . import analysis
-from . import transform
-from . import block_builder
-from . import op
-from . import struct_info
-from . import backend
-from . import frontend
+# StructInfo
+from .struct_info import (
+    FuncStructInfo,
+    ObjectStructInfo,
+    PrimStructInfo,
+    ShapeStructInfo,
+    StructInfo,
+    TensorStructInfo,
+    TupleStructInfo,
+)
+
+# Type
+from .ty import (
+    DynTensorType,
+    FuncType,
+    ObjectType,
+    PackedFuncType,
+    ShapeType,
+    TupleType,
+    Type,
+)
 
 # VM
-from .vm_build import build, Executable
-
-from .binding_rewrite import DataflowBlockRewrite
+from .vm_build import Executable, build

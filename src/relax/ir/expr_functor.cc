@@ -55,6 +55,7 @@
     RELAX_VISIT_BINDING_DISPATCH(PrimValueNode);                                     \
     RELAX_VISIT_BINDING_DISPATCH(StringImmNode);                                     \
     RELAX_VISIT_BINDING_DISPATCH(DataTypeImmNode);                                   \
+    RELAX_VISIT_BINDING_DISPATCH(AttrExprNode);                                      \
     return vtable;                                                                   \
   }                                                                                  \
   void Type::VisitBinding_(const VarBindingNode* binding) {                          \
@@ -232,6 +233,8 @@ void ExprVisitor::VisitExpr_(const StringImmNode* op) { this->VisitSpan(op->span
 
 void ExprVisitor::VisitExpr_(const DataTypeImmNode* op) { this->VisitSpan(op->span); }
 
+void ExprVisitor::VisitExpr_(const AttrExprNode* op) { this->VisitSpan(op->span); }
+
 void ExprVisitor::VisitSpan(const Span& span) {}
 
 void ExprVisitor::VisitPrimExpr(const PrimExpr& expr) {}
@@ -254,6 +257,7 @@ RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(TupleGetItemNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(PrimValueNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(StringImmNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(DataTypeImmNode);
+RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(AttrExprNode);
 
 void ExprVisitor::VisitBinding_(const MatchCastNode* binding) {
   this->VisitExpr(binding->value);
@@ -479,6 +483,8 @@ Expr ExprMutatorBase::VisitExpr_(const StringImmNode* op) { return GetRef<Expr>(
 
 Expr ExprMutatorBase::VisitExpr_(const DataTypeImmNode* op) { return GetRef<Expr>(op); }
 
+Expr ExprMutatorBase::VisitExpr_(const AttrExprNode* op) { return GetRef<Expr>(op); }
+
 Expr ExprMutatorBase::VisitExpr_(const ShapeExprNode* op) {
   auto values = op->values.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
 
@@ -650,6 +656,7 @@ RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(TupleGetItemNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(PrimValueNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(StringImmNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(DataTypeImmNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(AttrExprNode);
 
 void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
   Var new_var = this->VisitVarDef(binding->var);

@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 from typing import Callable
+
 import pytest
 import tvm
 import tvm.testing
-from tvm import relax, tir
-from tvm import TVMError
+from tvm import TVMError, relax, tir
 from tvm.ir import Op
 from tvm.script import relax as R
 
@@ -149,18 +149,18 @@ def test_unary_arith_infer_struct_info_invalid_input_dtype(
     x0 = relax.Var("x", R.Tensor((2, 3), "int8"))
     x1 = relax.Var("x", R.Tensor((2, 3), "int64"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises((TVMError, TypeError, ValueError)):
         bb.normalize(unary_arith_op(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises((TVMError, TypeError, ValueError)):
         bb.normalize(unary_arith_op(x1))
 
 
 def test_unary_arith_wrong_input_number(unary_arith_op: Callable):
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
 
-    with pytest.raises(TypeError):
+    with pytest.raises((TVMError, TypeError, ValueError)):
         unary_arith_op(x, x)
-    with pytest.raises(TypeError):
+    with pytest.raises((TVMError, TypeError, ValueError)):
         unary_arith_op(x, x, x)
 
 
@@ -169,9 +169,9 @@ def test_unary_arith_infer_struct_info_wrong_input_type(unary_arith_op: Callable
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises((TVMError, TypeError, ValueError)):
         bb.normalize(unary_arith_op(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises((TVMError, TypeError, ValueError)):
         bb.normalize(unary_arith_op(x1))
 
 

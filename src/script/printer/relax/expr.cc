@@ -108,6 +108,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return d->AddMetadata(n);
         });
 
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<relax::AttrExpr>(  //
+        "", [](relax::AttrExpr n, ObjectPath n_p, IRDocsifier d) -> Doc {
+          return d->AsDoc<ExprDoc>(n->value, n_p->Attr("value"));
+        });
+
 Doc PrintRelaxVar(relax::Var n, ObjectPath p, IRDocsifier d) {
   if (!d->IsVarDefined(n)) {
     ExprDoc ann = d->AsDoc<ExprDoc>(n->struct_info_, p->Attr("struct_info_"));

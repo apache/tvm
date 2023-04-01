@@ -13,50 +13,23 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
-# under the License.
+# pylint: disable=redefined-builtin
+"""Linear algebra operators."""
+from tvm import _ffi
+
+from ..expr import Call
+from . import ty
+from . import ty_guard as tg
+
 # pylint: disable=invalid-name
-"""Relax linear algebra operators"""
-from typing import Optional, Union
-
-from tvm import DataType
-
-from ..expr import Expr
-from . import _ffi_api
-from .manipulate import permute_dims
-
-
-def matmul(x1: Expr, x2: Expr, out_dtype: Optional[Union[str, DataType]] = None) -> Expr:
-    """General matrix multiplication of two tensors, with broadcasting on batched dimensions.
-
-    The semantics and output shape deduction rule is specified as
-    https://data-apis.org/array-api/latest/API_specification/generated/array_api.matmul.html.
-
-    Parameters
-    ----------
-    x1 : relax.Expr
-        The first input tensor.
-
-    x2 : relax.Expr
-        The second input tensor.
-
-    out_dtype: Optional[Union[str, DataType]]
-        The data type of the matmul result.
-        When it is not specified, the output dtype will be the the same as input dtype.
-
-    Returns
-    -------
-    result : relax.Expr
-        The computed result.
-    """
-    return _ffi_api.matmul(x1, x2, out_dtype)  # type: ignore
 
 
 def linear(
-    data: Expr,
-    weight: Expr,
-    bias: Optional[Expr] = None,
-    out_dtype: Optional[Union[str, DataType]] = None,
-) -> Expr:
+    data: ty.Tensor,
+    weight: ty.Tensor,
+    bias: ty.Optional[ty.Tensor] = None,
+    out_dtype: ty.DType = None,
+) -> Call:
     """Applies a linear transformation to the incoming data: y = xA^T + b
 
     Parameters
@@ -84,7 +57,40 @@ def linear(
     result : relax.Expr
         The computed result.
     """
+    from tvm.relax.op import permute_dims  # pylint: disable=import-outside-toplevel
 
     # Since weight can be 1D or 2D, we use `axes=None` to support both cases.
     x = matmul(data, permute_dims(weight, axes=None), out_dtype=out_dtype)
     return x + bias if bias is not None else x
+
+
+## (TVM-TOOL) py_op begin linear_algebra/*
+def matmul(
+    x1: ty.Tensor,
+    x2: ty.Tensor,
+    out_dtype: ty.DType = None,
+) -> Call:
+    """TBD
+
+    Parameters
+    ----------
+    x1 : ty.Tensor
+        TODO(tvm-unity-team): add doc
+    x2 : ty.Tensor
+        TODO(tvm-unity-team): add doc
+    out_dtype : ty.DType
+        TODO(tvm-unity-team): add doc
+
+    Returns
+    -------
+    ret : ty.Tensor
+        TODO(tvm-unity-team): add doc
+    """
+    x1 = tg.check(0, "x1", tg.Tensor([]), x1)
+    x2 = tg.check(1, "x2", tg.Tensor([]), x2)
+    out_dtype = tg.check(2, "out_dtype", tg.DType(), out_dtype)
+    _ffi_func = _ffi.get_global_func("relax.op.matmul")
+    return _ffi_func(x1, x2, out_dtype)
+
+
+## (TVM-TOOL) py_op end linear_algebra/*

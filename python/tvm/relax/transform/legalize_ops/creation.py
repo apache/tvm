@@ -18,10 +18,11 @@
 """Default legalization function for creation operators."""
 from typing import Optional
 
-from tvm import topi, tir
+from tvm import tir, topi
+
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
-from .common import LegalizeFunc, register_legalize, _try_convert_to_scalar_const
+from .common import LegalizeFunc, _try_convert_to_scalar_const, register_legalize
 
 
 def _full(is_like: bool, fill_value: Optional[float], primfunc_name: str) -> LegalizeFunc:
@@ -56,11 +57,11 @@ def _tril_triu(is_upper: bool, primfunc_name: str) -> LegalizeFunc:
     return tril_triu_call_te
 
 
-register_legalize("relax.full", _full(is_like=False, fill_value=None, primfunc_name="full"))
-register_legalize("relax.full_like", _full(is_like=True, fill_value=None, primfunc_name="full"))
-register_legalize("relax.ones", _full(is_like=False, fill_value=1.0, primfunc_name="ones"))
-register_legalize("relax.ones_like", _full(is_like=True, fill_value=1.0, primfunc_name="ones"))
-register_legalize("relax.zeros", _full(is_like=False, fill_value=0.0, primfunc_name="zeros"))
-register_legalize("relax.zeros_like", _full(is_like=True, fill_value=0.0, primfunc_name="zeros"))
-register_legalize("relax.tril", _tril_triu(is_upper=False, primfunc_name="tril"))
-register_legalize("relax.triu", _tril_triu(is_upper=True, primfunc_name="triu"))
+# register_legalize("relax.full", _full(is_like=False, fill_value=None, primfunc_name="full"))
+# register_legalize("relax.full_like", _full(is_like=True, fill_value=None, primfunc_name="full"))
+# register_legalize("relax.ones", _full(is_like=False, fill_value=1.0, primfunc_name="ones"))
+# register_legalize("relax.ones_like", _full(is_like=True, fill_value=1.0, primfunc_name="ones"))
+# register_legalize("relax.zeros", _full(is_like=False, fill_value=0.0, primfunc_name="zeros"))
+# register_legalize("relax.zeros_like", _full(is_like=True, fill_value=0.0, primfunc_name="zeros"))
+# register_legalize("relax.tril", _tril_triu(is_upper=False, primfunc_name="tril"))
+# register_legalize("relax.triu", _tril_triu(is_upper=True, primfunc_name="triu"))

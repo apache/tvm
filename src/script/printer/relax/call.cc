@@ -199,7 +199,11 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
                   d->AsDoc<ExprDoc>(n->sinfo_args[i], sinfo_args_p->ArrayIndex(i)));
             }
             kwargs_keys.push_back("sinfo_args");
-            kwargs_values.push_back(TupleDoc(sinfo_args));
+            if (sinfo_args.size() == 1) {
+              kwargs_values.push_back(sinfo_args[0]);
+            } else {
+              kwargs_values.push_back(TupleDoc(sinfo_args));
+            }
           }
           return prefix->Call(args, kwargs_keys, kwargs_values);
         });

@@ -500,6 +500,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   RELAX_EXPR_NORMALIZER_LEAF(PrimValueNode);
   RELAX_EXPR_NORMALIZER_LEAF(StringImmNode);
   RELAX_EXPR_NORMALIZER_LEAF(DataTypeImmNode);
+  RELAX_EXPR_NORMALIZER_LEAF(AttrExprNode);
 
   template <typename T>
   Expr VisitVar_(const typename T::ContainerType* var) {

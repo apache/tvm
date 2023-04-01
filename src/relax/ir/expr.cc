@@ -24,7 +24,6 @@
 namespace tvm {
 namespace relax {
 
-using tvm::ReprPrinter;
 using tvm::runtime::Optional;
 
 TVM_REGISTER_NODE_TYPE(IdNode);
@@ -303,10 +302,37 @@ PrimValue PrimValue::Int64(int64_t value, Span span) {
   return PrimValue(IntImm(DataType::Int(64), value), span);
 }
 
+PrimValue PrimValue::Float32(double value, Span span) {
+  return PrimValue(FloatImm(DataType::Float(32), value), span);
+}
+
+PrimValue PrimValue::Float64(double value, Span span) {
+  return PrimValue(FloatImm(DataType::Float(64), value), span);
+}
+
+PrimValue PrimValue::Bool(bool value, Span span) {
+  return PrimValue(value ? tvm::Bool(true) : tvm::Bool(false), span);
+}
+
 TVM_REGISTER_NODE_TYPE(PrimValueNode);
 
 TVM_REGISTER_GLOBAL("relax.PrimValue").set_body_typed([](PrimExpr value, Span span) {
   return PrimValue(value, span);
+});
+
+TVM_REGISTER_NODE_TYPE(AttrExprNode);
+
+AttrExpr::AttrExpr(ObjectRef value, Span span) {
+  ObjectPtr<AttrExprNode> n = make_object<AttrExprNode>();
+  n->value = std::move(value);
+  n->span = std::move(span);
+  n->checked_type_ = ObjectType();
+  n->struct_info_ = ObjectStructInfo();
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_GLOBAL("relax.AttrExpr").set_body_typed([](ObjectRef value, Span span) {
+  return AttrExpr(value, span);
 });
 
 StringImm::StringImm(String value, Span span) {

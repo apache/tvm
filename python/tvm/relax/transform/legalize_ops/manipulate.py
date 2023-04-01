@@ -20,11 +20,12 @@ import logging
 from typing import Optional
 
 import tvm
-from tvm import topi, tir, relax, te
+from tvm import relax, te, tir, topi
 from tvm.tir.expr import IntImm
+
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr, Var, Tuple, TupleGetItem, ShapeExpr
-from .common import TEFunc, LegalizeFunc, register_legalize
+from ...expr import Call, Expr, ShapeExpr, Tuple, TupleGetItem, Var
+from .common import LegalizeFunc, TEFunc, register_legalize
 
 
 def _reshape(
@@ -41,8 +42,8 @@ def _reshape(
     return reshape_call_te
 
 
-register_legalize("relax.broadcast_to", _reshape(topi.broadcast_to, "broadcast_to"))
-register_legalize("relax.reshape", _reshape(topi.reshape, "reshape"))
+# register_legalize("relax.broadcast_to", _reshape(topi.broadcast_to, "broadcast_to"))
+# register_legalize("relax.reshape", _reshape(topi.reshape, "reshape"))
 register_legalize(
     "relax.collapse_sum_like",
     _reshape(topi.collapse_sum, "collapse_sum", is_collapse_sum_like=True),
@@ -50,7 +51,7 @@ register_legalize(
 register_legalize("relax.collapse_sum_to", _reshape(topi.collapse_sum, "collapse_sum"))
 
 
-@register_legalize("relax.concat")
+# @register_legalize("relax.concat")
 def _concat(bb: BlockBuilder, call: Call) -> Expr:
     t = call.args[0]
     n_field = len(t.struct_info.fields)
@@ -69,7 +70,7 @@ def _concat(bb: BlockBuilder, call: Call) -> Expr:
     )
 
 
-@register_legalize("relax.expand_dims")
+# @register_legalize("relax.expand_dims")
 def _expand_dims(bb: BlockBuilder, call: Call) -> Expr:
     def te_expand_dims(data, axis):
         data_relax = relax.Var("data", relax.TensorStructInfo(data.shape))
@@ -92,17 +93,17 @@ def _expand_dims(bb: BlockBuilder, call: Call) -> Expr:
     )
 
 
-@register_legalize("relax.flatten")
+# @register_legalize("relax.flatten")
 def _flatten(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(topi.reshape, call.args[0], call.struct_info.shape.values)
 
 
-@register_legalize("relax.permute_dims")
+# @register_legalize("relax.permute_dims")
 def _permute_dims(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(topi.transpose, call.args[0], call.attrs.axes)
 
 
-@register_legalize("relax.split")
+# @register_legalize("relax.split")
 def _split(bb: BlockBuilder, call: Call) -> Expr:
     if isinstance(call.attrs.indices_or_sections, tir.IntImm):
         indices_or_sections = call.attrs.indices_or_sections.value
@@ -120,12 +121,12 @@ def _split(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(topi.split, call.args[0], indices_or_sections, call.attrs.axis)
 
 
-@register_legalize("relax.squeeze")
+# @register_legalize("relax.squeeze")
 def _squeeze(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(topi.squeeze, call.args[0], call.attrs.axis)
 
 
-@register_legalize("relax.repeat")
+# @register_legalize("relax.repeat")
 def _repeat(bb: BlockBuilder, call: Call) -> Expr:
     def te_repeat(data: te.Tensor, repeats: IntImm, axis: Optional[IntImm]):
         if axis is None:
@@ -143,7 +144,7 @@ def _repeat(bb: BlockBuilder, call: Call) -> Expr:
     )
 
 
-@register_legalize("relax.tile")
+# @register_legalize("relax.tile")
 def _tile(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(topi.tile, call.args[0], call.attrs.repeats)
 

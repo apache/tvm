@@ -16,13 +16,13 @@
 # under the License.
 # pylint: disable=invalid-name
 """Default legalization function for linear algebra operators."""
-from tvm import te, relax, tir
+from tvm import relax, te, tir
+
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
 from .common import register_legalize
 
 
-@register_legalize("relax.matmul")
 def _matmul(bb: BlockBuilder, call: Call) -> Expr:
     def te_matmul(a: te.Tensor, b: te.Tensor) -> te.Tensor:
         a_shape = list(a.shape)

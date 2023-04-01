@@ -23,10 +23,10 @@
 
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
+#include <tvm/relax/op/manipulate.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/transform.h>
 
-#include "../op/tensor/manipulate.h"
 #include "infer_layout_utils.h"
 #include "utils.h"
 
@@ -78,11 +78,11 @@ class LayoutConvertMutator : public ExprMutator {
       : desired_layouts_(desired_layouts) {}
 
  private:
-  Array<Integer> LayoutToIntegers(const Layout& layout) {
-    Array<Integer> ret;
+  Array<IntImm> LayoutToIntegers(const Layout& layout) {
+    Array<IntImm> ret;
     LayoutDecision src = InitialLayoutDecision(layout.ndim());
     for (size_t i = 0; i < layout.ndim(); ++i) {
-      ret.push_back(Integer(src->layout.IndexOf(layout[i])));
+      ret.push_back(IntImm(DataType::Int(64), src->layout.IndexOf(layout[i])));
     }
     return ret;
   }

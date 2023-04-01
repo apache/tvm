@@ -18,17 +18,20 @@
 """Utility functions for Relax"""
 import functools
 import inspect
+from typing import Any, Callable, Dict, List, Optional
 from typing import Tuple as typing_Tuple
-from typing import Any, Callable, List, Dict, Optional, TypeVar
+from typing import TypeVar
 
 from .. import tir
-from ..tir import PrimExpr
+from ..ir import Array, Attrs, Map, Type
 from ..runtime import String, convert_to_object
+from ..te import Tensor as te_Tensor
+from ..te import create_relax_prim_func
+from ..tir import PrimExpr
 from . import _ffi_api
+from .expr import Expr, Function, PrimValue, ShapeExpr, StringImm
 from .expr import Tuple as rx_Tuple
-from .expr import Expr, ShapeExpr, Function, PrimValue, StringImm, te_tensor
-from ..te import Tensor as te_Tensor, create_relax_prim_func
-from ..ir import Array, Attrs, Type, Map
+from .expr import te_tensor
 from .struct_info import PrimStructInfo, ShapeStructInfo, TensorStructInfo
 
 

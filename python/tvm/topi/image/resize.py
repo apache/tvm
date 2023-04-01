@@ -17,9 +17,11 @@
 # pylint: disable=invalid-name
 """TVM operator input resize compute."""
 from __future__ import absolute_import
+
 import tvm
 from tvm import te
 from tvm.topi.utils import nchw_pack_layout, nchw_xc_layout
+
 from .. import tag
 
 
@@ -848,6 +850,10 @@ def resize2d(
         or [batch, in_height*scale, in_width*scale, channel]
         or 5-D with shape [batch, channel-major, in_height*scale, in_width*scale, channel-minor]
     """
+    if len(size) == 1:
+        size = (size[0], size[0])
+    if len(size) != 2:
+        raise ValueError("size must be an integer or a tuple of two integers")
     method = method.lower()
     if layout == "NHWC":
         in_n, in_h, in_w, in_c = data.shape
