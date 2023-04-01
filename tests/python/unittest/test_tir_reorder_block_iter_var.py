@@ -23,7 +23,11 @@ from tvm.tir.schedule.testing import verify_trace_roundtrip
 
 
 @T.prim_func
-def matmul(A: T.Buffer[(128, 128), "float32"], B: T.Buffer[(128, 128), "float32"], C: T.Buffer[(128, 128), "float32"]) -> None:
+def matmul(
+    A: T.Buffer[(128, 128), "float32"],
+    B: T.Buffer[(128, 128), "float32"],
+    C: T.Buffer[(128, 128), "float32"],
+) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with T.block("C"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
@@ -31,8 +35,13 @@ def matmul(A: T.Buffer[(128, 128), "float32"], B: T.Buffer[(128, 128), "float32"
                 C[vi, vj] = 0.0
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
+
 @T.prim_func
-def matmul_after_reorder_block_iter_var(A: T.Buffer[(128, 128), "float32"], B: T.Buffer[(128, 128), "float32"], C: T.Buffer[(128, 128), "float32"]):
+def matmul_after_reorder_block_iter_var(
+    A: T.Buffer[(128, 128), "float32"],
+    B: T.Buffer[(128, 128), "float32"],
+    C: T.Buffer[(128, 128), "float32"],
+):
     for i, j, k in T.grid(128, 128, 128):
         with T.block("C"):
             vk, vj, vi = T.axis.remap("RSS", [k, j, i])

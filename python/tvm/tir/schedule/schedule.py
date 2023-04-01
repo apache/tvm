@@ -759,7 +759,7 @@ class Schedule(Object):
         Parameters
         ----------
         block : BlockRV
-            The block to be transformed. 
+            The block to be transformed.
         new_order : List[int]
             The new block itervar order.
         """
