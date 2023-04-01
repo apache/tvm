@@ -17,23 +17,27 @@
 # pylint: disable=no-else-return, invalid-name
 """Developer API of constructing Relax AST."""
 
-from typing import Dict, List, Optional, Union, Any, Callable
+from typing import Any, Callable, Dict, List, Optional, Union
+
+import tvm
+from tvm import relax as rx
+from tvm import tir
 from tvm.ir.module import IRModule
 from tvm.runtime import Object
-from tvm import relax as rx, tir
-import tvm
+
+from . import _ffi_api
 from .expr import (
-    Expr,
-    Var,
-    GlobalVar,
-    BindingBlock,
-    Tuple,
     BaseFunc,
     Binding,
+    BindingBlock,
+    Expr,
+    GlobalVar,
+    ShapeExpr,
+    Tuple,
+    Var,
 )
+from .op import call_tir
 from .struct_info import StructInfo
-from .op.base import call_tir
-from . import _ffi_api
 from .utils import gen_call_tir_inputs
 
 
@@ -317,6 +321,12 @@ class BlockBuilder(Object):
         if not primfunc_name:
             primfunc_name = func.__name__
         gvar = self.add_func(tir_func, primfunc_name)
+        if isinstance(call_args, (list, tuple)) and len(call_args) == 1:
+            call_args = call_args[0]
+        if isinstance(output_sinfo, (list, tuple)) and len(output_sinfo) == 1:
+            output_sinfo = output_sinfo[0]
+        if isinstance(tir_vars, ShapeExpr):
+            tir_vars = tir_vars.values
 
         return call_tir(gvar, call_args, output_sinfo, tir_vars)
 

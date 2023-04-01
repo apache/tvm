@@ -23,6 +23,7 @@
  */
 
 #ifndef TVM_RELAX_BINDING_REWRITE_H_
+#define TVM_RELAX_BINDING_REWRITE_H_
 
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
@@ -111,5 +112,4 @@ class DataflowBlockRewrite : public ObjectRef {
 }  // namespace relax
 }  // namespace tvm
 
-#define TVM_RELAX_BINDING_REWRITE_H_
 #endif  // TVM_RELAX_BINDING_REWRITE_H_

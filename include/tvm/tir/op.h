@@ -688,45 +688,48 @@ TVM_DLL PrimExpr q_multiply_shift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr s
 TVM_DLL PrimExpr fast_erf_float_expr(PrimExpr arg, int bits);
 
 // Intrinsic operators
-#define TVM_DECLARE_INTRIN_UNARY(OpName)                                \
-  inline PrimExpr OpName(PrimExpr x, Span span = Span()) {              \
-    static const Op& op = Op::Get("tir." #OpName);                      \
-    if (x.dtype().is_bfloat16()) {                                      \
-      DataType bf16_dtype = x.dtype();                                  \
-      DataType fp32_dtype(kDLFloat, 32, bf16_dtype.lanes());            \
-      PrimExpr x_fp32 = tir::Cast(fp32_dtype, {x}, span);               \
-      PrimExpr result_fp32 = tir::Call(fp32_dtype, op, {x_fp32}, span); \
-      return tir::Cast(bf16_dtype, {result_fp32}, span);                \
-    } else {                                                            \
-      return tir::Call(x.dtype(), op, {x}, span);                       \
-    }                                                                   \
+#define TVM_DECLARE_INTRIN_UNARY(OpName, RequireFloat)                                       \
+  inline PrimExpr OpName(PrimExpr x, Span span = Span()) {                                   \
+    static const Op& op = Op::Get("tir." #OpName);                                           \
+    if (x.dtype().is_bfloat16()) {                                                           \
+      DataType bf16_dtype = x.dtype();                                                       \
+      DataType fp32_dtype(kDLFloat, 32, bf16_dtype.lanes());                                 \
+      PrimExpr x_fp32 = tir::Cast(fp32_dtype, {x}, span);                                    \
+      PrimExpr result_fp32 = tir::Call(fp32_dtype, op, {x_fp32}, span);                      \
+      return tir::Cast(bf16_dtype, {result_fp32}, span);                                     \
+    } else if (!(RequireFloat) || x.dtype().is_float()) {                                    \
+      return tir::Call(x.dtype(), op, {x}, span);                                            \
+    } else {                                                                                 \
+      LOG(FATAL) << "TypeError: Input dtype is not supported by " #OpName ": " << x.dtype(); \
+    }                                                                                        \
   }
 
-TVM_DECLARE_INTRIN_UNARY(exp);
-TVM_DECLARE_INTRIN_UNARY(exp2);
-TVM_DECLARE_INTRIN_UNARY(exp10);
-TVM_DECLARE_INTRIN_UNARY(erf);
-TVM_DECLARE_INTRIN_UNARY(tanh);
-TVM_DECLARE_INTRIN_UNARY(sigmoid);
-TVM_DECLARE_INTRIN_UNARY(sqrt);
-TVM_DECLARE_INTRIN_UNARY(rsqrt);
-TVM_DECLARE_INTRIN_UNARY(log);
-TVM_DECLARE_INTRIN_UNARY(log2);
-TVM_DECLARE_INTRIN_UNARY(log10);
-TVM_DECLARE_INTRIN_UNARY(log1p);
-TVM_DECLARE_INTRIN_UNARY(popcount);
-TVM_DECLARE_INTRIN_UNARY(tan);
-TVM_DECLARE_INTRIN_UNARY(cos);
-TVM_DECLARE_INTRIN_UNARY(cosh);
-TVM_DECLARE_INTRIN_UNARY(sin);
-TVM_DECLARE_INTRIN_UNARY(sinh);
-TVM_DECLARE_INTRIN_UNARY(asin);
-TVM_DECLARE_INTRIN_UNARY(acos);
-TVM_DECLARE_INTRIN_UNARY(atan);
-TVM_DECLARE_INTRIN_UNARY(acosh);
-TVM_DECLARE_INTRIN_UNARY(asinh);
-TVM_DECLARE_INTRIN_UNARY(atanh);
-TVM_DECLARE_INTRIN_UNARY(clz);
+TVM_DECLARE_INTRIN_UNARY(exp, true);
+TVM_DECLARE_INTRIN_UNARY(exp2, true);
+TVM_DECLARE_INTRIN_UNARY(exp10, true);
+TVM_DECLARE_INTRIN_UNARY(erf, true);
+TVM_DECLARE_INTRIN_UNARY(tanh, true);
+TVM_DECLARE_INTRIN_UNARY(sigmoid, true);
+TVM_DECLARE_INTRIN_UNARY(sqrt, true);
+TVM_DECLARE_INTRIN_UNARY(rsqrt, true);
+TVM_DECLARE_INTRIN_UNARY(log, true);
+TVM_DECLARE_INTRIN_UNARY(log2, true);
+TVM_DECLARE_INTRIN_UNARY(log10, true);
+TVM_DECLARE_INTRIN_UNARY(log1p, true);
+TVM_DECLARE_INTRIN_UNARY(tan, true);
+TVM_DECLARE_INTRIN_UNARY(cos, true);
+TVM_DECLARE_INTRIN_UNARY(cosh, true);
+TVM_DECLARE_INTRIN_UNARY(sin, true);
+TVM_DECLARE_INTRIN_UNARY(sinh, true);
+TVM_DECLARE_INTRIN_UNARY(asin, true);
+TVM_DECLARE_INTRIN_UNARY(acos, true);
+TVM_DECLARE_INTRIN_UNARY(atan, true);
+TVM_DECLARE_INTRIN_UNARY(acosh, true);
+TVM_DECLARE_INTRIN_UNARY(asinh, true);
+TVM_DECLARE_INTRIN_UNARY(atanh, true);
+
+TVM_DECLARE_INTRIN_UNARY(popcount, false);  // TODO(@junrushao): revisit the dtype inference
+TVM_DECLARE_INTRIN_UNARY(clz, false);
 
 #define TVM_DECLARE_INTRIN_BINARY(OpName)                              \
   inline PrimExpr OpName(PrimExpr x, PrimExpr y, Span span = Span()) { \
