@@ -555,7 +555,6 @@ def test_vectorize_cp_async_in_if_then_else():
     mod = tvm.IRModule.from_expr(complex_compute)
     with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
         tvm.build(mod, target="cuda")
-    print(generated_code)
     # generated_code must contain "  setp.ne.b32 p, %0, 0;"
     assert "setp.ne.b32" in generated_code
     

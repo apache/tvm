@@ -44,37 +44,38 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
       : IRMutatorWithAnalyzer(analyzer), dma_bypass_cache_(dma_bypass_cache) {}
 
   // TODO: split lower async DMA support for CUDA and Hexagon Backend
-  // Stmt VisitStmt_(const ForNode* loop) final {
-  //   // if for loop is not within async_commit_queue_scope
-  //   if (!async_queue_id_.has_value()) {
-  //     return arith::IRMutatorWithAnalyzer::VisitStmt_(loop);
-  //   }
+  Stmt VisitStmt_(const ForNode* loop) final {
+    // if for loop is not within async_commit_queue_scope
+    if (!async_queue_id_.has_value()) {
+      return arith::IRMutatorWithAnalyzer::VisitStmt_(loop);
+    }
 
-  //   // if for loop is not a memcpy of a contiguous region
-  //   std::optional<tvm::tir::MemCpyDetails> mem_copy = IdentifyMemCpy(GetRef<For>(loop), analyzer_);
-  //   if (!mem_copy.has_value() || mem_copy->dest->region.size() != 1 ||
-  //       mem_copy->source->region.size() != 1) {
-  //     LOG(FATAL) << "Unable to lower async dma due to non contiguous memory access";
-  //   }
+    // if for loop is not a memcpy of a contiguous region
+    std::optional<tvm::tir::MemCpyDetails> mem_copy = IdentifyMemCpy(GetRef<For>(loop), analyzer_);
+    if (!mem_copy.has_value() || mem_copy->dest->region.size() != 1 ||
+        mem_copy->source->region.size() != 1) {
+      return arith::IRMutatorWithAnalyzer::VisitStmt_(loop);
+      // LOG(FATAL) << "Unable to lower async dma due to non contiguous memory access";
+    }
 
-  //   // now that we are about to perform the `copy` transform
-  //   // save queue ID for inspection in `wait` transform
-  //   // and, increment the number of DMA copies in the group
-  //   queue_ids_.insert(async_queue_id_.value());
-  //   dmas_in_group_++;
+    // now that we are about to perform the `copy` transform
+    // save queue ID for inspection in `wait` transform
+    // and, increment the number of DMA copies in the group
+    queue_ids_.insert(async_queue_id_.value());
+    dmas_in_group_++;
 
-  //   tvm::PrimExpr src_min = mem_copy->source->region[0]->min;
-  //   tvm::PrimExpr dst_min = mem_copy->dest->region[0]->min;
-  //   tvm::PrimExpr dst_extent = mem_copy->dest->region[0]->extent;
+    tvm::PrimExpr src_min = mem_copy->source->region[0]->min;
+    tvm::PrimExpr dst_min = mem_copy->dest->region[0]->min;
+    tvm::PrimExpr dst_extent = mem_copy->dest->region[0]->extent;
 
-  //   auto src = BufferLoad(mem_copy->source->buffer, {src_min});
-  //   auto dst = BufferLoad(mem_copy->dest->buffer, {dst_min});
-  //   return Evaluate(
-  //       Call(DataType::Int(32), builtin::dma_copy(),
-  //            {async_queue_id_.value(), Call(DataType::Handle(), builtin::address_of(), {dst}),
-  //             Call(DataType::Handle(), builtin::address_of(), {src}),
-  //             dst_extent * src->dtype.bytes(), dma_bypass_cache_}));
-  // }
+    auto src = BufferLoad(mem_copy->source->buffer, {src_min});
+    auto dst = BufferLoad(mem_copy->dest->buffer, {dst_min});
+    return Evaluate(
+        Call(DataType::Int(32), builtin::dma_copy(),
+             {async_queue_id_.value(), Call(DataType::Handle(), builtin::address_of(), {dst}),
+              Call(DataType::Handle(), builtin::address_of(), {src}),
+              dst_extent * src->dtype.bytes(), dma_bypass_cache_}));
+  }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     // populate analyzer knowledge of loop iterators
