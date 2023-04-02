@@ -95,7 +95,7 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
 
   Array<PrimExpr> data_shape = x->shape;
   for (size_t i = 0; i < data_shape.size(); ++i) {
-    data_shape.Set(i, cast(DataType::DataType::Int(32), data_shape[i]));
+    data_shape.Set(i, data_shape[i]);
   }
 
   Array<PrimExpr> out_shape = data_shape;
@@ -330,7 +330,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const Array<PrimExpr>& output_
 
   Array<PrimExpr> data_shape = x->shape;
   for (size_t i = 0; i < data_shape.size(); ++i) {
-    data_shape.Set(i, cast(DataType::DataType::Int(32), data_shape[i]));
+    data_shape.Set(i, data_shape[i]);
   }
   Array<PrimExpr> out_shape = data_shape;
   Array<PrimExpr> in_size, out_size;
@@ -533,7 +533,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
   Array<PrimExpr> pad_after(std::vector<PrimExpr>(x_size, 0));
   Array<PrimExpr> data_shape = x->shape;
   for (size_t i = 0; i < data_shape.size(); ++i) {
-    data_shape.Set(i, cast(DataType::DataType::Int(32), data_shape[i]));
+    data_shape.Set(i, data_shape[i]);
   }
   Array<PrimExpr> out_shape = data_shape;
 

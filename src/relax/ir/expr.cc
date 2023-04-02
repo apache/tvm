@@ -205,14 +205,8 @@ ShapeExpr::ShapeExpr(Array<PrimExpr> values, Span span) {
     if (value->IsInstance<IntImmNode>()) {
       return tvm::cast(DataType::Int(64), value);
     }
-    if (value->IsInstance<tir::CastNode>()) {
-      auto val_cast = Downcast<tir::Cast>(value);
-      if (val_cast.dtype() != DataType::Int(64)) {
-        return tvm::cast(DataType::Int(64), value);
-      }
-    }
     ICHECK(value.dtype() == DataType::Int(64))
-        << "the value in ShapeStructInfo can only have dtype of int64, but got " << value.dtype();
+        << "the value in ShapeStructInfo can only have dtype of int64";
     return value;
   });
   n->span = span;

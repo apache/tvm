@@ -740,7 +740,7 @@ def test_max_pool2d_sym_batch():
         def main(x: R.Tensor(("m", 112, 112, 6), dtype="float32")) -> R.Tensor((4, 56, 56, 6), dtype="float32"):
             m = T.int64()
             cls = Expected
-            gv = R.call_tir(cls.max_pool2d, (x,), out_sinfo=R.Tensor((T.Cast("int64", T.Cast("int32", m)), 56, 56, 6), dtype="float32"))
+            gv = R.call_tir(cls.max_pool2d, (x,), out_sinfo=R.Tensor((m, 56, 56, 6), dtype="float32"))
             return gv
     # fmt: on
 
