@@ -1325,5 +1325,27 @@ def test_context_aware_parsing():
     _check(Module)
 
 
+def test_unit_tuple_on_rhs_of_assign():
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(input: R.Tensor((5, 5))) -> R.Tuple(R.Tensor((5, 5))):
+            gv = (input,)
+            return gv
+
+    _check(Module)
+
+
+def test_empty_tuple_on_rhs_of_assign():
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(input: R.Tensor((5, 5))) -> R.Tuple():
+            gv = ()
+            return gv
+
+    _check(Module)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
