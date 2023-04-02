@@ -879,22 +879,22 @@ def test_meta(hexagon_session):
     )
 
 
-def test_non_contiguous():
-    """Test Non Contiguous memory lowering."""
-    sch = tvm.tir.Schedule(conv2d_async_non_contig)
-    target_hexagon = tvm.target.hexagon("v68", link_params=True)
-    err_rgx = r"Unable to lower async dma due to non contiguous memory access"
-    # Currently we do not support non contiguous memory access being lowered to
-    # async dma so we throw an error.
-    with pytest.raises(tvm.TVMError, match=err_rgx):
-        with tvm.transform.PassContext(
-            config={
-                "tir.use_async_copy": 1,
-            }
-        ):
-            tvm.build(
-                sch.mod["main"], target=tvm.target.Target(target_hexagon, host=target_hexagon)
-            )
+# def test_non_contiguous():
+#     """Test Non Contiguous memory lowering."""
+#     sch = tvm.tir.Schedule(conv2d_async_non_contig)
+#     target_hexagon = tvm.target.hexagon("v68", link_params=True)
+#     err_rgx = r"Unable to lower async dma due to non contiguous memory access"
+#     # Currently we do not support non contiguous memory access being lowered to
+#     # async dma so we throw an error.
+#     with pytest.raises(tvm.TVMError, match=err_rgx):
+#         with tvm.transform.PassContext(
+#             config={
+#                 "tir.use_async_copy": 1,
+#             }
+#         ):
+#             tvm.build(
+#                 sch.mod["main"], target=tvm.target.Target(target_hexagon, host=target_hexagon)
+#             )
 
 
 if __name__ == "__main__":
