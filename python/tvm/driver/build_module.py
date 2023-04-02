@@ -35,6 +35,7 @@ from tvm.target import Target
 from tvm.tir.buffer import Buffer
 from tvm.tir.expr import Var
 from tvm.driver import _ffi_api as _driver_ffi
+from tvm.tir.tensor_intrin import cuda
 
 from . import _ffi_api as ffi
 
