@@ -22,9 +22,8 @@ namespace tvm {
 namespace tir {
 
 static const char kErrBodyInline[] = R"(The body of the inlined block should be in form of
-    'A[i, j, k, ...] = f(i, j, k, ...)',
-where the indices on the left are distinct atomic variables,
-and there should be no variables other than the index variables)";
+    'A[f(i, j, k, ...)] = g(i, j, k, ...)',
+where the store indices mapping f on the left are bijective affine.)";
 
 static const char kErrBodyReverseInline[] = R"(The body of the inlined block should be in form of
     `B[...] = g(i, j, k, A[f(i, j, k, ...)] ...)`,
@@ -292,31 +291,6 @@ class BaseInliner : public StmtExprMutator {
     return std::move(tgt_block);
   }
 
-  /*!
-   * \brief Count the number of undefined variables that are not used
-   * as buffer objects.
-   *
-   * This is used to determine whether inlining or reverse inlining is
-   * possible.  The only undefined variables present should be the
-   * load/store indices, or buffer access based on those indices.
-   *
-   * \param stmt The statement in which to count undefined variables
-   */
-  static int GetNumUndefinedNonpointerVars(const Stmt& stmt) {
-    auto undefined_vars = UndefinedVars(stmt, {});
-    // Buffer pointers and the inlined indices are allowed, but no
-    // other variables may appear in the inlined block.
-    int num_nonpointer_vars = 0;
-    for (const auto& var : undefined_vars) {
-      bool is_pointer = var->dtype.is_handle() && var->type_annotation.defined() &&
-                        var->type_annotation.as<PointerTypeNode>();
-      if (!is_pointer) {
-        num_nonpointer_vars++;
-      }
-    }
-    return num_nonpointer_vars;
-  }
-
  private:
   /*!
    * \brief Add the buffers in the block signature to the `buffer_var_map_`,
@@ -414,7 +388,7 @@ class BaseInliner : public StmtExprMutator {
   /*! \brief Maps a buffer's data field to itself */
   Map<Var, Buffer> buffer_var_map_;
   /*! \brief The indices used for indexing the buffer to be inlined */
-  std::vector<const VarNode*> idx_vars_;
+  std::vector<Var> idx_vars_;
   /*! \brief The mapping to substitute index variables to PrimExprs */
   std::unordered_map<const VarNode*, PrimExpr> idx_sub_;
 
@@ -451,10 +425,62 @@ class ComputeInliner : public BaseInliner {
       return false;
     }
 
-    int n_vars = GetNumUndefinedNonpointerVars(GetRef<Stmt>(inlined_store_));
-    if (!UpdateAndCheckIndexVars(inlined_store_->indices, n_vars)) {
+    // Fast path on trivial case:
+    // Check the store indices are same with the block iters;
+    store_value_ = inlined_store_->value;
+    size_t num_iters = producer_block->iter_vars.size();
+    size_t buffer_ndim = inlined_store_->indices.size();
+    if (num_iters == buffer_ndim) {
+      std::vector<Var> idx_vars;
+      idx_vars.reserve(num_iters);
+      for (size_t i = 0; i < num_iters; ++i) {
+        const IterVar& iter = producer_block->iter_vars[i];
+        const PrimExpr& e = inlined_store_->indices[i];
+        if (e.same_as(iter->var) ||
+            (analyzer_.CanProveEqual(e, 0) && analyzer_.CanProveEqual(iter->dom->min, 0) &&
+             analyzer_.CanProveEqual(iter->dom->extent, 1))) {
+          idx_vars.push_back(iter->var);
+        } else {
+          break;
+        }
+      }
+      if (idx_vars.size() == num_iters) {
+        // match success
+        idx_vars_ = std::move(idx_vars);
+        return true;
+      }
+    }
+
+    // If the mapping for store indices is non-trivial
+    // check bijective mapping from producer iter var to store indices
+    Map<Var, Range> producer_iter_doms;
+    for (const auto& iter : producer_block->iter_vars) {
+      producer_iter_doms.Set(iter->var, iter->dom);
+    }
+    auto res = arith::DetectIterMap(
+        /*indices=*/inlined_store_->indices,
+        /*input_iters=*/producer_iter_doms,
+        /*predicate=*/true,
+        /*check_level=*/arith::IterMapLevel::Bijective,
+        /*analyzer=*/&analyzer_,
+        /*simplify_trivial_iterators=*/false);
+    if (res->indices.empty()) {
+      // Failure: indices of BufferStore are not bijective affine
       return false;
     }
+    idx_vars_.resize(buffer_ndim);
+    for (size_t i = 0; i < idx_vars_.size(); ++i) {
+      idx_vars_[i] = Var("ph_" + std::to_string(i), inlined_store_->indices[i].dtype());
+    }
+    auto inverse_iter_map = arith::InverseAffineIterMap(
+        res->indices, Array<PrimExpr>(idx_vars_.begin(), idx_vars_.end()));
+    for (const auto& iter : producer_block->iter_vars) {
+      if (is_const_int(iter->dom->min) && analyzer_.CanProveEqual(iter->dom->extent, 1)) {
+        // fallback mapping for constant iters
+        inverse_iter_map.Set(iter->var, iter->dom->min);
+      }
+    }
+    store_value_ = Substitute(store_value_, inverse_iter_map);
     return true;
   }
 
@@ -472,45 +498,7 @@ class ComputeInliner : public BaseInliner {
 
   PrimExpr ReplaceInlinedBuffer(BufferLoad load) {
     SetIndexSubstitution(load->indices);
-    return Substitute(inlined_store_->value, idx_sub_);
-  }
-
-  /*!
-   * \brief Check if the indices are atomic distinct variables and the access is n-dimensional.
-   * If so, set `self->idx_vars_` properly.
-   * \param indices The indices to be extracted
-   * \param expected_ndim The expected ndim of the access
-   * \return A boolean flag indicating if the check is successful
-   */
-  bool UpdateAndCheckIndexVars(const Array<PrimExpr>& indices, int expected_ndim) {
-    int n = indices.size();
-    if (n != expected_ndim) {
-      // Failure: dimension mismatch
-      return false;
-    }
-    std::vector<const VarNode*> result;
-    result.reserve(n);
-    for (const PrimExpr& i : indices) {
-      if (const auto* var = i.as<VarNode>()) {
-        result.push_back(var);
-      } else {
-        // Failure: indexing expression is not a variable
-        return false;
-      }
-    }
-    using DistinctSet = std::unordered_set<const VarNode*>;
-    int n_distinct = DistinctSet(result.begin(), result.end()).size();
-    if (n != n_distinct) {
-      // Failure: indexing variables are not distinct
-      return false;
-    }
-    if (idx_vars_.empty()) {
-      idx_vars_ = std::move(result);
-    } else if (!support::ArrayWithSameContent(idx_vars_, result)) {
-      // Failure: indexing variables are not consitent in different BufferLoads
-      return false;
-    }
-    return true;
+    return Substitute(store_value_, idx_sub_);
   }
 
   /*!
@@ -520,11 +508,17 @@ class ComputeInliner : public BaseInliner {
   void SetIndexSubstitution(const Array<PrimExpr>& indices) {
     ICHECK_EQ(indices.size(), idx_vars_.size());
     int n = idx_vars_.size();
-    idx_sub_.reserve(n);
     for (int i = 0; i < n; ++i) {
-      idx_sub_[idx_vars_[i]] = indices[i];
+      idx_sub_[idx_vars_[i].get()] = indices[i];
     }
   }
+
+  /*! \brief The arithmetic analyzer */
+  arith::Analyzer analyzer_;
+  /*! \brief The store value for inlinement. If the producer
+   store indices are trivial, it is wrt the producer block iter var,
+   otherwise it is wrt to the placeholder vars of store indices. */
+  PrimExpr store_value_;
 };
 
 /*!
