@@ -58,9 +58,6 @@ namespace relax {
  */
 Expr abs(Expr x);
 
-/*! \brief Compute element-wise arc cos of the input data. */
-Expr acos(Expr x);
-
 /*! \brief Compute element-wise arc cosh of the input data. */
 Expr acosh(Expr x);
 

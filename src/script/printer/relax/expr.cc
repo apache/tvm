@@ -108,6 +108,13 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return d->AddMetadata(n);
         });
 
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<relax::OpaqueObject>(  //
+        "", [](relax::OpaqueObject n, ObjectPath n_p, IRDocsifier d) -> Doc {
+          // TODO(@junrushao): revisit opaque object printing
+          return d->AddMetadata(n);
+        });
+
 Doc PrintRelaxVar(relax::Var n, ObjectPath p, IRDocsifier d) {
   if (!d->IsVarDefined(n)) {
     ExprDoc ann = d->AsDoc<ExprDoc>(n->struct_info_, p->Attr("struct_info_"));

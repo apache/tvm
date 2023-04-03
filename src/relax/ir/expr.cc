@@ -303,10 +303,29 @@ PrimValue PrimValue::Int64(int64_t value, Span span) {
   return PrimValue(IntImm(DataType::Int(64), value), span);
 }
 
+PrimValue PrimValue::Float64(double value, Span span) {
+  return PrimValue(FloatImm(DataType::Float(64), value), span);
+}
+
 TVM_REGISTER_NODE_TYPE(PrimValueNode);
 
 TVM_REGISTER_GLOBAL("relax.PrimValue").set_body_typed([](PrimExpr value, Span span) {
   return PrimValue(value, span);
+});
+
+TVM_REGISTER_NODE_TYPE(OpaqueObjectNode);
+
+OpaqueObject::OpaqueObject(ObjectRef value, Span span) {
+  ObjectPtr<OpaqueObjectNode> n = make_object<OpaqueObjectNode>();
+  n->value = std::move(value);
+  n->span = std::move(span);
+  n->checked_type_ = ObjectType();
+  n->struct_info_ = ObjectStructInfo();
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_GLOBAL("relax.OpaqueObject").set_body_typed([](ObjectRef value, Span span) {
+  return OpaqueObject(value, span);
 });
 
 StringImm::StringImm(String value, Span span) {

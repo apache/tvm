@@ -22,8 +22,9 @@ from typing import Optional
 import tvm
 import tvm._ffi
 from tvm.runtime import Object
-from . import Binding, DataflowBlock, Expr, Function, Var
+
 from . import _ffi_api
+from .expr import Binding, DataflowBlock, Expr, Function, Var
 
 
 @tvm._ffi.register_object("relax.DataflowBlockRewrite")

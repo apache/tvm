@@ -40,6 +40,8 @@
 namespace tvm {
 namespace relax {
 
+#define TVM_RELAX_REGISTER_OP(OpName) TVM_REGISTER_OP("relax." OpName)
+
 /************ Op input struct info getter ************/
 
 /*!

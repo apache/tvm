@@ -24,11 +24,11 @@ from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Uni
 import numpy as np  # type: ignore
 
 import tvm.ir
-from tvm.relax import Expr, Var
-from tvm.relax.dpl import DFPattern
 from tvm.runtime import NDArray, Object
 from tvm.tir import IndexMap, PrimFunc
 
+from ..dpl import DFPattern
+from ..expr import Expr, Var
 from . import _ffi_api
 from .legalize_ops.common import LegalizeFunc
 
