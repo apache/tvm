@@ -381,6 +381,8 @@ class Upsample(OneFlowOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attrs, params):
+        scales = attrs.get("scales")
+        
         data = inputs[0]
         input_shape = infer_shape(data)
         dims = len(input_shape)
