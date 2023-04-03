@@ -709,7 +709,7 @@ std::string PrintPredicatedCpAsyncAssembly(const std::string& shared_ptr,
     else if (bytes == "1")
       return std::make_tuple("st.shared.u8 [%1], {%4}", "\"r\"(0)");
     else
-      return std::make_tuple("","");
+      return std::make_tuple("", "");
   }(bytes);
 
   Replacer replacer;
