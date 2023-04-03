@@ -63,46 +63,46 @@ IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
 }
 
 bool IRModuleNode::SEqualReduce(const IRModuleNode* other, SEqualReducer equal) const {
-  if (!equal(this->attrs, other->attrs)) return false;
+  if (!equal(this->attrs, other->attrs, [](const auto& path) { return path->Attr("attrs"); })) {
+    return false;
+  }
 
-  if (functions.size() != other->functions.size()) return false;
-  // Update GlobalVar remap
+  if (equal.IsPathTracingEnabled()) {
+    if ((functions.size() != other->functions.size()) ||
+        (type_definitions.size() != other->type_definitions.size())) {
+      return false;
+    }
+  }
+
+  // Define remaps for GlobalVar and GlobalTypeVar based on their
+  // string name.  Early bail-out is only performed when path-tracing
+  // is disabled, as the later equality checks on the member variables
+  // will provide better error messages.
   for (const auto& gv : this->GetGlobalVars()) {
-    if (!other->ContainGlobalVar(gv->name_hint)) return false;
-    if (!equal.DefEqual(gv, other->GetGlobalVar(gv->name_hint))) return false;
+    if (other->ContainGlobalVar(gv->name_hint)) {
+      if (!equal.DefEqual(gv, other->GetGlobalVar(gv->name_hint))) return false;
+    } else if (!equal.IsPathTracingEnabled()) {
+      return false;
+    }
   }
-  // Checking functions
-  for (const auto& kv : this->functions) {
-    if (equal.IsPathTracingEnabled()) {
-      const ObjectPathPair& obj_path_pair = equal.GetCurrentObjectPaths();
-      ObjectPathPair func_paths = {obj_path_pair->lhs_path->Attr("functions")->MapValue(kv.first),
-                                   obj_path_pair->rhs_path->Attr("functions")
-                                       ->MapValue(other->GetGlobalVar(kv.first->name_hint))};
-      if (!equal(kv.second, other->Lookup(kv.first->name_hint), func_paths)) return false;
-    } else {
-      if (!equal(kv.second, other->Lookup(kv.first->name_hint))) return false;
+  for (const auto& gtv : this->GetGlobalTypeVars()) {
+    if (other->ContainGlobalTypeVar(gtv->name_hint)) {
+      if (!equal.DefEqual(gtv, other->GetGlobalTypeVar(gtv->name_hint))) return false;
+    } else if (!equal.IsPathTracingEnabled()) {
+      return false;
     }
   }
 
-  if (type_definitions.size() != other->type_definitions.size()) return false;
-  // Update GlobalTypeVar remap
-  for (const auto& gtv : this->GetGlobalTypeVars()) {
-    if (!other->ContainGlobalTypeVar(gtv->name_hint)) return false;
-    if (!equal.DefEqual(gtv, other->GetGlobalTypeVar(gtv->name_hint))) return false;
+  // Checking functions and type definitions
+  if (!equal(this->functions, other->functions,
+             [](const auto& path) { return path->Attr("functions"); })) {
+    return false;
   }
-  // Checking type_definitions
-  for (const auto& kv : this->type_definitions) {
-    if (equal.IsPathTracingEnabled()) {
-      const ObjectPathPair& obj_path_pair = equal.GetCurrentObjectPaths();
-      ObjectPathPair type_paths = {
-          obj_path_pair->lhs_path->Attr("type_definitions")->MapValue(kv.first),
-          obj_path_pair->rhs_path->Attr("type_definitions")
-              ->MapValue(other->GetGlobalTypeVar(kv.first->name_hint))};
-      if (!equal(kv.second, other->LookupTypeDef(kv.first->name_hint), type_paths)) return false;
-    } else {
-      if (!equal(kv.second, other->LookupTypeDef(kv.first->name_hint))) return false;
-    }
+  if (!equal(this->type_definitions, other->type_definitions,
+             [](const auto& path) { return path->Attr("type_definitions"); })) {
+    return false;
   }
+
   return true;
 }
 
