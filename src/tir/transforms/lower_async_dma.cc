@@ -43,7 +43,7 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
   explicit AsyncDMALowerer(bool dma_bypass_cache, arith::Analyzer* analyzer)
       : IRMutatorWithAnalyzer(analyzer), dma_bypass_cache_(dma_bypass_cache) {}
 
-  // TODO: split lower async DMA support for CUDA and Hexagon Backend
+  // TODO(leiwang1999): split lower async DMA support for CUDA and Hexagon Backend
   Stmt VisitStmt_(const ForNode* loop) final {
     // if for loop is not within async_commit_queue_scope
     if (!async_queue_id_.has_value()) {
