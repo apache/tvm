@@ -16,8 +16,9 @@
 # under the License.
 import numpy as np
 import tvm
+import tvm.testing
 from tvm import relax
-from tvm.script import relax as R
+from tvm.script import relax as R, tir as T
 
 
 def test_pipeline_compile():
@@ -43,3 +44,58 @@ def test_pipeline_compile():
     vm = relax.VirtualMachine(ex, tvm.cpu())
     z = vm["main"](x, y)
     tvm.testing.assert_allclose(z.numpy(), x_np + y_np, rtol=1e-7, atol=1e-7)
+
+
+def test_pipeline_with_kv_cache():
+    """A dummy pipline that simulates KV update."""
+    pipeline = relax.get_pipeline()
+
+    @tvm.script.ir_module
+    class Mod:
+        @R.function
+        def main(
+            x: R.Tensor((1, 4), "float32"),
+            y: R.Tensor((1, 4), "float32"),
+            shape: R.Shape(["L", 4]),
+            kv_cache: R.Object,
+        ):
+            L = T.int64()
+            # computation of the current value
+            curr_value = R.add(x, y)
+            # update cache
+            kv_cache = R.call_packed(
+                "vm.builtin.attention_kv_cache_append", kv_cache, curr_value, sinfo_args=[R.Object]
+            )
+            # return the updated cache view
+            kv = R.call_packed(
+                "vm.builtin.attention_kv_cache_view",
+                kv_cache,
+                shape,
+                sinfo_args=[R.Tensor((L, 4), "float32")],
+            )
+            return (kv, kv_cache)
+
+    mod = Mod
+    mod = pipeline(mod)
+
+    target = tvm.target.Target("llvm", host="llvm")
+
+    ex = relax.build(mod, target)
+
+    num_steps = 8
+    cache_np = np.empty((num_steps, 4), dtype="float32")
+
+    fcreate_cache = tvm.get_global_func("vm.builtin.attention_kv_cache_create")
+    kv_cache = fcreate_cache(tvm.nd.empty((2, 4), device=tvm.cpu(), dtype="float32"))
+
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    for i in range(num_steps):
+        x_np = np.random.rand(1, 4).astype(np.float32)
+        y_np = np.random.rand(1, 4).astype(np.float32)
+        x = tvm.nd.array(x_np)
+        y = tvm.nd.array(y_np)
+        np_shape = (i + 1, 4)
+        kv, kv_cache = vm["main"](x, y, tvm.runtime.ShapeTuple(np_shape), kv_cache)
+
+        cache_np[i, :] = x_np + y_np
+        tvm.testing.assert_allclose(kv.numpy(), cache_np[: np_shape[0], :], rtol=1e-7, atol=1e-7)

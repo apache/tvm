@@ -53,6 +53,7 @@
 #include "src/runtime/system_library.cc"
 #include "src/runtime/workspace_pool.cc"
 // relax setup
+#include "src/runtime/relax_vm/attention_kv_cache.cc"
 #include "src/runtime/relax_vm/builtin.cc"
 #include "src/runtime/relax_vm/bytecode.cc"
 #include "src/runtime/relax_vm/executable.cc"
