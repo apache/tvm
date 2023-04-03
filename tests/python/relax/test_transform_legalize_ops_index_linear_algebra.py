@@ -96,6 +96,109 @@ def test_take_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_gather():
+    # fmt: off
+    @tvm.script.ir_module
+    class Gather:
+        @R.function
+        def main(x: R.Tensor((2, 3, 4), "float32"), indices: R.Tensor((2,2), "int64")) -> R.Tensor((2,2,3,4), "float32"):
+            gv: R.Tensor((2,2,3,4),"float32") = R.gather(x, indices, axis=1)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def gather(
+            rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4)), "float32"),
+            rxplaceholder_1: T.Buffer((T.int64(2), T.int64(2)), "int64"),
+            T_gather: T.Buffer((T.int64(2), T.int64(2), T.int64(2), T.int64(4)), "float32"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            for ax0, ax1, ax2, ax3 in T.grid(
+                T.int64(2), T.int64(2), T.int64(2), T.int64(4)
+            ):
+                with T.block("T_gather"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(
+                        rxplaceholder[v_ax2, rxplaceholder_1[v_ax0, v_ax1], v_ax3],
+                        rxplaceholder_1[v_ax0, v_ax1],
+                    )
+                    T.writes(T_gather[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T_gather[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder[
+                        v_ax2, rxplaceholder_1[v_ax0, v_ax1], v_ax3
+                    ]
+
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 4), dtype="float32"),
+            indices: R.Tensor((2, 2), dtype="int64"),
+        ) -> R.Tensor((2, 2, 3, 4), dtype="float32"):
+            gv = R.call_tir(
+                Expected.gather, (x, indices), out_sinfo=R.Tensor((2, 2, 2, 4), dtype="float32")
+            )
+            return gv
+
+    # fmt: on
+
+    mod = LegalizeOps()(Gather)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_gather_symbolic():
+    # fmt: off
+    @tvm.script.ir_module
+    class Gather:
+        @R.function
+        def main(x: R.Tensor(("m", "n"), "float32"), indices: R.Tensor(("i",), "int64")) -> R.Tensor(("i", "n"), "float32"):
+            m = T.int64()
+            n = T.int64()
+            i = T.int64()
+            gv: R.Tensor((i, n),"float32") = R.gather(x, indices, axis=0)
+            return gv
+    
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def gather(
+            var_rxplaceholder: T.handle,
+            var_rxplaceholder_1: T.handle,
+            var_T_gather: T.handle,
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            m, n = T.int64(), T.int64()
+            rxplaceholder = T.match_buffer(var_rxplaceholder, (m, n))
+            i = T.int64()
+            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (i,), "int64")
+            T_gather = T.match_buffer(var_T_gather, (i, n))
+            # with T.block("root"):
+            for ax0, ax1 in T.grid(i, n):
+                with T.block("T_gather"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(
+                        rxplaceholder[rxplaceholder_1[v_ax0], v_ax1], rxplaceholder_1[v_ax0]
+                    )
+                    T.writes(T_gather[v_ax0, v_ax1])
+                    T_gather[v_ax0, v_ax1] = rxplaceholder[rxplaceholder_1[v_ax0], v_ax1]
+
+        @R.function
+        def main(
+            x: R.Tensor(("m", "n"), dtype="float32"),
+            indices: R.Tensor(("i",), dtype="int64"),
+        ) -> R.Tensor(("i", "n"), dtype="float32"):
+            i = T.int64()
+            n = T.int64()
+            m = T.int64()
+            gv = R.call_tir(
+                Expected.gather, (x, indices), out_sinfo=R.Tensor((i, n), dtype="float32")
+            )
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(Gather)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 def test_strided_slice():
     # fmt: off
     @tvm.script.ir_module

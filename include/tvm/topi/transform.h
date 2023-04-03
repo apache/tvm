@@ -1315,12 +1315,14 @@ inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
   size_t ndim_d = data->shape.size();
   size_t ndim_i = indices->shape.size();
   ICHECK_GE(ndim_d, 1) << "Cannot gather from a scalar.";
-  ICHECK_EQ(ndim_d, ndim_i);
+  // ICHECK_EQ(ndim_d, ndim_i);
   if (axis < 0) {
     axis += ndim_d;
   }
   ICHECK_GE(axis, 0);
   ICHECK_LT(axis, ndim_d);
+  size_t axis_ = static_cast<size_t>(axis);
+
   if (indices->shape[axis].as<IntImmNode>()) {
     size_t indices_dim_i = static_cast<size_t>(GetConstInt(indices->shape[axis]));
     ICHECK_GE(indices_dim_i, 1);
@@ -1331,6 +1333,9 @@ inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
   for (size_t i = 0; i < ndim_i; ++i) {
     out_shape.push_back(indices->shape[i]);
   }
+  for (size_t i = 0; i < ndim_d; ++i) {
+    if (i != axis_) out_shape.push_back(data->shape[i]);
+  }
 
   return compute(
       out_shape,
@@ -1339,12 +1344,15 @@ inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
         for (size_t i = 0; i < ndim_i; ++i) {
           indices_position.push_back(out_index[i]);
         }
+
         Array<PrimExpr> real_indices;
-        for (size_t i = 0; i < ndim_i; ++i) {
-          if (i == static_cast<size_t>(axis)) {
+        for (size_t i = 0; i < ndim_d; ++i) {
+          if (i == axis_) {
             real_indices.push_back(indices(indices_position));
+          } else if (i < axis_) {
+            real_indices.push_back(out_index[ndim_i + i]);
           } else {
-            real_indices.push_back(indices_position[i]);
+            real_indices.push_back(out_index[ndim_i + i - 1]);
           }
         }
         return data(real_indices);

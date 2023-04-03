@@ -92,6 +92,64 @@ TVM_REGISTER_OP("relax.take")
     .add_argument("indices", "Tensor", "The indices of the values to extract.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTake);
 
+/* relax.gather */
+TVM_REGISTER_NODE_TYPE(GatherAttrs);
+
+Expr gather(Expr x, Expr indices, Optional<Integer> axis) {
+  ObjectPtr<GatherAttrs> attrs = make_object<GatherAttrs>();
+  attrs->axis = std::move(axis);
+
+  static const Op& op = Op::Get("relax.gather");
+  return Call(op, {std::move(x), std::move(indices)}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.gather").set_body_typed(gather);
+
+StructInfo InferStructInfoGather(const Call& call, const BlockBuilder& ctx) {
+  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  TensorStructInfo data_sinfo = input_sinfo[0];
+  TensorStructInfo indices_sinfo = input_sinfo[1];
+
+  // Indice tensor should have int64 dtype.
+  ICHECK(indices_sinfo->dtype == DataType::Int(64));
+
+  // If either one has an unknown dimension, output shape dimension is unknown.
+  if (data_sinfo->IsUnknownNdim() || indices_sinfo->IsUnknownNdim()) {
+    return TensorStructInfo(data_sinfo->dtype, kUnknownNDim);
+  }
+
+  // If both data and indices have concrete shapes, we can deduce output shape.
+  if (data_sinfo->GetShape().defined() && indices_sinfo->GetShape().defined()) {
+    Array<PrimExpr> output_shape;
+    for (PrimExpr pv : indices_sinfo->GetShape().value()) {
+      output_shape.push_back(pv);
+    }
+
+    int axis = 0;
+    const auto* attrs = call->attrs.as<GatherAttrs>();
+    if (attrs->axis.defined()) {
+      axis = NormalizeAxes(call, ctx, data_sinfo->ndim, {attrs->axis.value()})[0];
+    }
+
+    for (int i = 0; i < (int)data_sinfo->GetShape().value().size(); i++) {
+      if (i == axis) continue;
+      output_shape.push_back(data_sinfo->GetShape().value()[i]);
+    }
+    return TensorStructInfo(ShapeExpr(output_shape), data_sinfo->dtype);
+  }
+
+  // Otherwise, we can deduce output shape dimension.
+  int out_dim = data_sinfo->ndim - 1 + indices_sinfo->ndim;
+  return TensorStructInfo(data_sinfo->dtype, out_dim);
+}
+
+TVM_REGISTER_OP("relax.gather")
+    .set_attrs_type<GatherAttrs>()
+    .set_num_inputs(2)
+    .add_argument("x", "Tensor", "The source tensor.")
+    .add_argument("indices", "Tensor", "The indices of the values to extract.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoGather);
+
 /* relax.strided_slice */
 TVM_REGISTER_NODE_TYPE(StridedSliceAttrs);
 

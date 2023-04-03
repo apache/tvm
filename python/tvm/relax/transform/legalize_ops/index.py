@@ -33,6 +33,11 @@ def _take(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(topi.take, call.args[0], call.args[1], call.attrs.axis, mode="fast")
 
 
+@register_legalize("relax.gather")
+def _gather(bb: BlockBuilder, call: Call) -> Expr:
+    return bb.call_te(topi.gather, call.args[0], int(call.attrs.axis), call.args[1])
+
+
 @register_legalize("relax.strided_slice")
 def _strided_slice(bb: BlockBuilder, call: Call) -> Expr:
     if not all(

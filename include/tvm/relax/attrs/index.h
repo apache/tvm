@@ -38,6 +38,15 @@ struct TakeAttrs : public tvm::AttrsNode<TakeAttrs> {
   }
 };  // struct TakeAttrs
 
+/*! \brief Attributes used in gather operator */
+struct GatherAttrs : public tvm::AttrsNode<GatherAttrs> {
+  Optional<Integer> axis;
+
+  TVM_DECLARE_ATTRS(GatherAttrs, "relax.attrs.GatherAttrs") {
+    TVM_ATTR_FIELD(axis).describe("The axis over which to select values.");
+  }
+};  // struct GatherAttrs
+
 /*! \brief Attributes used in strided_slice operator */
 struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
   Array<Integer> axes;

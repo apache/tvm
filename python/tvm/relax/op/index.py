@@ -49,6 +49,55 @@ def take(x: Expr, indices: Expr, axis: Optional[int] = None) -> Expr:
     return _ffi_api.take(x, indices, axis)  # type: ignore
 
 
+def gather(x: Expr, indices: Expr, axis: Optional[int] = None) -> Expr:
+    """Collect entires of the `axis` dimension of data tensor `x` indexed by `indices` tensor and concatenate them.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The source tensor.
+
+    indices : relax.Expr
+        The indices of the values to extract.
+        It can be a multi-dimensional tensor which has a integer dtype.
+
+    axis : Optional[int]
+        The axis over which to select values.
+        If it is none, axis = 0.
+
+    Returns
+    -------
+    ret : relax.Expr
+        The taken result.
+
+    Examle
+    -------
+    data = [
+        [1.0, 1.2],
+        [2.3, 3.4],
+        [4.5, 5.7],
+    ]
+    indices = [
+        [0, 1],
+        [1, 2],
+    ]
+    axis = 0
+
+    # Result of gather
+    output = [
+        [
+            [1.0, 1.2],
+            [2.3, 3.4],
+        ],
+        [
+            [2.3, 3.4],
+            [4.5, 5.7],
+        ],
+    ]
+    """
+    return _ffi_api.gather(x, indices, axis)  # type: ignore
+
+
 def strided_slice(
     x: Expr,
     axes: List[int],

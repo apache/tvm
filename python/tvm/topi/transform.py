@@ -470,8 +470,10 @@ def gather(data, axis, indices):
         out[i][j][k] = data[i][indices[i][j][k]][k]  # if axis == 1
         out[i][j][k] = data[i][j][indices[i][j][k]]  # if axis == 2
 
-    ``indices`` must have same shape as ``data``, except at dimension ``axis``
-    which must just be not null. Output will have same shape as ``indices``.
+    If data and indice have a shape of (i1, i2, ..., in) and (d1, d2, ..., dm),
+    output shape = (i1, i2, ..., in, d2, d3, ..., dm) # if axis == 0
+    output shape = (i1, i2, ..., in, d1, d3, ..., dm) # if axis == 1
+    ...
 
     Parameters
     ----------
