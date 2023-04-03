@@ -121,6 +121,44 @@ def test_single_convolution():
     _assert_structural_equal(a, b)
 
 
+@pytest.mark.parametrize("dtype", ["int8", "int32"])
+def test_add_reduce_sum(dtype):
+    """Test add with reduce sum to make sure the layouts remain
+    unaltered for int32 and altered for other types.
+    """
+
+    def get_graph(get_expected=False):
+        in_1 = relay.var("x", shape=(1, 2, 2, 2), dtype=dtype)
+        in_2 = relay.var("y", shape=(1, 2, 2, 2), dtype=dtype)
+        layout = "NHCWB16" if get_expected and dtype != "int32" else "NHWC"
+        add = infra.make_ethosu_binary_elementwise(
+            in_1,
+            in_2,
+            ifm_channels=2,
+            ifm2_channels=2,
+            operator_type="ADD",
+            ofm_dtype=dtype,
+            ifm_layout="NHWC",
+            ifm2_layout="NHWC",
+            ofm_layout=layout,
+        )
+        x = infra.make_ethosu_pooling(
+            ifm=add,
+            pooling_type="SUM",
+            pool_shape=(1, 1),
+            ofm_channels=1,
+            strides=(1, 1),
+            padding=(0, 0),
+            ifm_layout=layout,
+            ofm_layout="NHWC",
+        )
+        return relay.Function(relay.analysis.free_vars(x), x)
+
+    a = _optimize(get_graph())
+    b = _optimize(get_graph(get_expected=True), optimize=False)
+    _assert_structural_equal(a, b)
+
+
 def test_multiple_convolution():
     """Test layout optimization pass on linear chain of convolutions. I.e,
 
