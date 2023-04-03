@@ -337,6 +337,21 @@ def test_relax_base_op():
     _check(foo, bb.get()["foo"])
 
 
+def test_relax_shape_to_tensor():
+    @R.function
+    def foo(x: R.Shape((4, 4))):
+        tensor = R.shape_to_tensor(x)
+        return tensor
+
+    x = relax.Var("x", R.Shape((4, 4)))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x,)):
+        tensor = bb.emit(relax.op.shape_to_tensor(x))
+        bb.emit_func_output(tensor)
+
+    _check(foo, bb.get()["foo"])
+
+
 def test_symbolic_shape():
     @R.function
     def foo(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):

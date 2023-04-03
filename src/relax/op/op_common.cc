@@ -38,7 +38,7 @@ Array<TensorStructInfo> GetInputTensorStructInfo(const Call& call, const BlockBu
     if (sinfo == nullptr) {
       ctx->ReportFatal(Diagnostic::Error(call)
                        << op << " requires the input " << op->arguments[i]->name
-                       << " to be Tensor. However, the given one is "
+                       << " to be Tensor. However, the given one has a "
                        << call->args[i]->struct_info_->GetTypeKey());
     }
     input_tensor_sinfo.push_back(GetRef<TensorStructInfo>(sinfo));

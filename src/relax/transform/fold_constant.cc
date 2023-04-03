@@ -279,6 +279,25 @@ class ConstantFolder : public ExprMutator {
           }
           return ShapeExpr(shape_values);
         }
+      } else if (op->name == "relax.shape_to_tensor") {
+        // Special handling for "relax.shape_to_tensor" since it is implemented in PackedFunc.
+        // TODO(sunggg): revisit this when we extend ConstantFolding to fold PackedFunc.
+        Expr arg = post_call->args[0];
+        ShapeExpr shape = Downcast<ShapeExpr>(arg);
+        Array<PrimExpr> values = shape->values;
+        Array<Integer> arr;
+        bool is_known = true;
+        for (size_t i = 0; i < values.size(); i++) {
+          PrimExpr val = values[i];
+          arr.push_back(GetRef<IntImm>(val.as<IntImmNode>()));
+          is_known &= (val.dtype() == DataType::Int(64));
+        }
+        if (is_known) {
+          const auto* func = tvm::runtime::Registry::Get("relax.run.shape_to_tensor");
+          ICHECK(func != nullptr);
+          runtime::NDArray vals = (*func)(arr);
+          return Constant(vals);
+        }
       }
     }
 

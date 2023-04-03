@@ -20,7 +20,7 @@ from tvm import relax
 import numpy as np
 
 import tvm.script
-from tvm.script import tir as T, relax as R
+from tvm.script import ir as I, tir as T, relax as R
 
 
 def gen_mod(mod, name, binding):
@@ -368,7 +368,6 @@ def test_fold_multiple_relax_ops_with_data_dependent_reshape():
 
         @R.function
         def expected(data: R.Tensor((256,), "float32")) -> R.Tensor((16, 16), dtype="float32"):
-            R.func_attr({"global_symbol": "main"})
             with R.dataflow():
                 gv: R.Tensor((16, 16), dtype="float32") = R.reshape(data, R.shape([16, 16]))
                 R.output(gv)
@@ -418,6 +417,37 @@ def test_unsupported_fold_ops_legalized_to_multiple_calls():
     # revert to correct legalization of relu
     tvm.ir.Op.get("relax.nn.relu").reset_attr("FLegalize")
     register_legalize("relax.nn.relu", relu_legalize)
+
+
+def test_fold_shape_computation():
+    @I.ir_module
+    class Module:
+        @R.function
+        def before(
+            data: R.Tensor((5, 4, 3, 2), dtype="float32"),
+            indices: R.Tensor((1,), dtype="int64"),
+        ) -> R.Tensor((1, 1), dtype="int64"):
+            with R.dataflow():
+                lv: R.Tensor((4,), dtype="int64") = R.shape_to_tensor(R.shape([5, 4, 3, 2]))
+                lv1: R.Tensor((1,), dtype="int64") = R.take(lv, indices, axis=0)
+                lv2: R.Tensor((1, 1), dtype="int64") = R.expand_dims(lv1, axis=[0])
+                gv: R.Tensor((1, 1), dtype="int64") = R.concat((lv2,), axis=0)
+                R.output(gv)
+            return gv
+
+        @R.function
+        def expected(
+            data: R.Tensor((5, 4, 3, 2), dtype="float32"), new_shape: R.Tensor((1, 1), "int64")
+        ) -> R.Tensor((1, 1), dtype="int64"):
+            return new_shape
+
+    before = gen_mod(Module, "before", {"indices": tvm.nd.array(np.array([0]).astype("int64"))})
+    after = relax.transform.FoldConstant()(before)
+    np_take = np.take([5, 4, 3, 2], [0], axis=0)
+    np_expand = np.expand_dims(np_take, axis=[0])
+    np_concat = np.concatenate([np_expand], axis=0)
+    expected = gen_mod(Module, "expected", {"new_shape": tvm.nd.array(np_concat)})
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 if __name__ == "__main__":

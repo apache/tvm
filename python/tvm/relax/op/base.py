@@ -19,6 +19,7 @@ from typing import Union, List, Tuple, Optional
 
 
 import tvm
+import tvm.runtime
 from tvm.runtime.object import Object
 
 from . import _ffi_api
@@ -253,6 +254,19 @@ def render_object(val: tvm.Object) -> str:
     return str(val)
 
 
+@tvm.register_func("relax.run.shape_to_tensor")
+def relax_shape_to_tensor(shape_tuple: tvm.runtime.ShapeTuple) -> tvm.nd.NDArray:
+    """
+    Takes a ShapeTuple and convert it to NDArray.
+
+    Parameters
+    ----------
+    shape_tuple: tvm.runtime.ShapeTuple
+        Shape tuple that we want to convert to NDArray at runtime
+    """
+    return tvm.nd.array([int(v) for v in shape_tuple])
+
+
 @tvm.register_func("relax.run.print")
 def relax_print(format_str: str, *format_args: tvm.Object) -> None:
     """
@@ -416,3 +430,17 @@ def tensor_to_shape(expr: Expr) -> Expr:
         A relax Call, which transforms the tensor values to the shape
     """
     return _ffi_api.tensor_to_shape(expr)  # type: ignore # pylint: disable=no-member
+
+
+def shape_to_tensor(expr: Expr) -> Expr:
+    """Convert shape to tensor expr.
+    Parameters
+    ----------
+    expr : Expr
+        The input Expr
+    Returns
+    -------
+    result : Expr
+        A relax Call, which transforms the shape values to the tensor
+    """
+    return _ffi_api.shape_to_tensor(expr)  # type: ignore # pylint: disable=no-member
