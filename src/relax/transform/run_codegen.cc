@@ -93,7 +93,7 @@ class CodeGenRunner : ExprMutator {
         Expr new_func = VisitExpr(func);
 
         if (new_func->IsInstance<ExternFuncNode>()) {
-	  auto ret_sinfo = GetStructInfo(call);
+          auto ret_sinfo = GetStructInfo(call);
           extern_funcs_[gvar_node] = {new_func, ret_sinfo};
           // Remove the global symbol and codegen attributes from the function so that it can be
           // removed the module.
