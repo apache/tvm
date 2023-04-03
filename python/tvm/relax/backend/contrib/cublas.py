@@ -21,10 +21,10 @@ from functools import reduce
 
 import tvm
 from tvm.relax import transform
+from tvm.relax.transform import PatternCheckContext
 
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
 from ..patterns import make_matmul_pattern
-from tvm.relax.transform import PatternCheckContext
 
 
 def _is_supported_dtype(lhs_dtype, rhs_dtype):

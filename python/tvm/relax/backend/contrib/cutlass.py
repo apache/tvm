@@ -17,11 +17,10 @@
 
 """Pattern table for CUTLASS backend"""
 
-from typing import Mapping, Optional, Sequence, Tuple
+from typing import Mapping, Sequence
 
-import tvm
 from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
-from tvm.relax import DataflowVar, ShapeExpr, Var, transform
+from tvm.relax import DataflowVar, Var, transform
 from tvm.relax.transform import PatternCheckContext
 
 from ..pattern_registry import get_patterns_with_prefix, register_patterns

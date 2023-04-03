@@ -31,6 +31,7 @@ def get_relax_matmul_module(
     residual_bin_op=None,
     residual_activation=None,
 ):
+    """Create a matmul op followd by epilogue operations."""
     if transposed_y:
         n = y_shape[-2]
     else:
