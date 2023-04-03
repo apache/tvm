@@ -93,7 +93,8 @@ class CodeGenRunner : ExprMutator {
         Expr new_func = VisitExpr(func);
 
         if (new_func->IsInstance<ExternFuncNode>()) {
-          extern_funcs_[gvar_node] = {new_func, func->ret_struct_info};
+          auto ret_sinfo = GetStructInfo(call);
+          extern_funcs_[gvar_node] = {new_func, ret_sinfo};
           // Remove the global symbol and codegen attributes from the function so that it can be
           // removed the module.
           static const runtime::PackedFunc* RemoveFuncAttrFunc =
@@ -102,7 +103,7 @@ class CodeGenRunner : ExprMutator {
           func = (*RemoveFuncAttrFunc)(func, tvm::attr::kGlobalSymbol);
           func = (*RemoveFuncAttrFunc)(func, attr::kCodegen);
           builder_->UpdateFunction(gvar, func);
-          return create_call_dps_packed(new_func, func->ret_struct_info);
+          return create_call_dps_packed(new_func, ret_sinfo);
         }
       }
     }
