@@ -3692,6 +3692,17 @@ def tvm_shfl_builtins():
     return func
 
 
+def make_packed_api_result():
+    @T.prim_func
+    def func(A: T.Buffer(64, "float32")):
+        T.func_attr({"global_symbol": "main", "target": T.target("cuda")})
+        bx = T.launch_thread("blockIdx.x", 64)
+        T.evaluate(A[bx])
+
+    mod = tvm.IRModule.from_expr(func)
+    return tvm.tir.transform.MakePackedAPI()(mod)
+
+
 ir_generator = tvm.testing.parameter(
     launch_env_thread,
     opt_gemm_normalize,
@@ -3757,6 +3768,7 @@ ir_generator = tvm.testing.parameter(
     merge_shape_var_def,
     if_then_else_var,
     tvm_shfl_builtins,
+    make_packed_api_result,
 )
 
 
