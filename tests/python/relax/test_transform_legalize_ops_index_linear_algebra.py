@@ -156,7 +156,6 @@ def test_gather_symbolic():
             i = T.int64()
             gv: R.Tensor((i, n),"float32") = R.gather(x, indices, axis=0)
             return gv
-    
     @tvm.script.ir_module
     class Expected:
         @T.prim_func

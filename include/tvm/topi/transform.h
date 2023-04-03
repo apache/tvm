@@ -1315,7 +1315,6 @@ inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
   size_t ndim_d = data->shape.size();
   size_t ndim_i = indices->shape.size();
   ICHECK_GE(ndim_d, 1) << "Cannot gather from a scalar.";
-  
   if (axis < 0) {
     axis += ndim_d;
   }
