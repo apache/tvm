@@ -5014,6 +5014,17 @@ def from_pytorch(
             data_inputs.append(arg)
         else:
             func_args.append(arg)
+
+    # Ensures that the order of data_input is the same as the order of inputs specified in input_info.
+    _data_inputs = []
+    for input_info in input_infos:
+        _data_input = [di for di in data_inputs if di.name_hint == input_info[0]]
+        if len(_data_input) != 1:
+            msg = "Unexpected input name ({}) which is unreachable.".format(input_info[0])
+            raise RuntimeError(msg)
+        _data_inputs.append(_data_input[0])
+    data_inputs = _data_inputs
+                
     func_args = data_inputs + func_args
 
     mod["main"] = tvm.relay.Function(func_args, ret)
