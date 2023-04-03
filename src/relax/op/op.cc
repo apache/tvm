@@ -416,7 +416,8 @@ RELAY_REGISTER_OP("relax.shape_to_tensor")
     .set_num_inputs(1)
     .add_argument("input", "Expr", "The input expression")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnShapeToTensorStructInfo)
-    .set_attr<FCallPacked>("FCallPacked", "relax.run.shape_to_tensor");
+    .set_attr<FCallPacked>("FCallPacked", "relax.run.shape_to_tensor")
+    .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeShapeToTensor(Expr expr) {
   static const Op& op = Op::Get("relax.shape_to_tensor");

@@ -182,7 +182,8 @@ TVM_REGISTER_OP("relax.nn.conv1d")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConv1d)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv1d)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv1d);
+    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv1d)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.conv2d */
 TVM_REGISTER_NODE_TYPE(Conv2DAttrs);
