@@ -99,9 +99,7 @@ def run_tflite_model(tflite_model_buf, input_data):
 
 
 def download_model():
-    model_url = (
-        "http://download.tensorflow.org/models/tflite_11_05_08/mobilenet_v2_1.0_224.tgz"
-    )
+    model_url = "http://download.tensorflow.org/models/tflite_11_05_08/mobilenet_v2_1.0_224.tgz"
 
     # Download model tar file and extract it to get mobilenet_v2_1.0_224.tflite
     model_path = download_testdata(
