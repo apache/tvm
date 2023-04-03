@@ -22,16 +22,6 @@ from typing import Union, Tuple, List
 import pytest
 import numpy as np
 
-# jax packages
-import jax
-import jax.random as jrandom
-import jax.numpy as jnp
-
-# mlir and stablehlo from jaxlib
-import jaxlib
-from jaxlib.mlir.ir import *
-from flax import linen as nn
-
 import tvm
 import tvm.testing
 from tvm import relax
@@ -66,7 +56,7 @@ def generate_np_inputs(
     return out
 
 
-def np2jnp(inputs_np: Union[np.ndarray, List[np.ndarray]]) -> Union[jnp.ndarray, List[jnp.ndarray]]:
+def np2jnp(inputs_np: Union[np.ndarray, List[np.ndarray]]):
     """Convert data from numpy to jax.numpy
 
     Parameters
@@ -79,6 +69,8 @@ def np2jnp(inputs_np: Union[np.ndarray, List[np.ndarray]]) -> Union[jnp.ndarray,
     out: Union[jnp.ndarray, List[jnp.ndarray]]
         jax numpy data
     """
+    import jax.numpy as jnp
+
     # Use jnp.asarray to avoid unnecessary memory copies
     inputs_jnp = []
     if isinstance(inputs_np, (tuple, list)):
@@ -89,7 +81,7 @@ def np2jnp(inputs_np: Union[np.ndarray, List[np.ndarray]]) -> Union[jnp.ndarray,
 
 
 def check_correctness(
-    jax_jit_mod: jaxlib.xla_extension.CompiledFunction,
+    jax_jit_mod,
     input_shapes: Union[Tuple, List[Tuple]],
     dtype: str = "float32",
 ) -> None:
@@ -207,6 +199,8 @@ def test_add_dynamic():
 
 
 def test_unary():
+    import jax
+
     def _rsqrt(x):
         return jax.lax.rsqrt(x)
 
@@ -237,6 +231,8 @@ def test_unary():
 
 
 def test_binary():
+    import jax
+
     def fn(x, y):
         r1 = x + y
         r2 = r1 * r1
@@ -255,6 +251,8 @@ def test_binary():
 
 
 def test_const():
+    import jax
+
     def fn(x):
         return x + 1
 
@@ -262,6 +260,9 @@ def test_const():
 
 
 def test_maximum():
+    import jax
+    import jax.numpy as jnp
+
     def fn(x, y):
         return jnp.maximum(x, y)
 
@@ -269,6 +270,9 @@ def test_maximum():
 
 
 def test_minimum():
+    import jax
+    import jax.numpy as jnp
+
     def fn(x, y):
         return jnp.minimum(x, y)
 
@@ -276,6 +280,9 @@ def test_minimum():
 
 
 def test_reduce():
+    import jax
+    import jax.numpy as jnp
+
     def fn(x):
         return jnp.mean(x, axis=(1, 2))
 
@@ -283,6 +290,9 @@ def test_reduce():
 
 
 def test_reduce_window():
+    import jax
+    from flax import linen as nn
+
     def fn(x):
         return nn.max_pool(x, (3, 3), strides=(2, 2), padding="SAME")
 
@@ -290,6 +300,8 @@ def test_reduce_window():
 
 
 def test_dot_general():
+    import jax
+
     def fn(x, y):
         return jax.lax.dot_general(x, y, (([1], [0]), ([], [])))
 
@@ -298,6 +310,10 @@ def test_dot_general():
 
 
 def test_conv():
+    import jax
+    from flax import linen as nn
+    import jax.random as jrandom
+
     conv = nn.Conv(64, (7, 7), (2, 2), padding=[(3, 3), (3, 3)], name="conv_init")
     input_shape = (7, 7, 5, 64)
 

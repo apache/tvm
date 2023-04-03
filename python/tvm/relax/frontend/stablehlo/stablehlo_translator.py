@@ -21,9 +21,6 @@
 from typing import Callable, Dict, List, Tuple, Union, Any
 import numpy as np
 
-from jaxlib import mlir
-from jaxlib.mlir.dialects import stablehlo
-
 import tvm
 from tvm import relax, tir
 
@@ -31,7 +28,13 @@ from tvm import relax, tir
 class StableHLOImporter:
     """An importer from StableHLO to Relax."""
 
+    from jaxlib import mlir
+    from jaxlib.mlir.dialects import stablehlo
+
     def __init__(self) -> None:
+        from jaxlib import mlir
+        from jaxlib.mlir.dialects import stablehlo
+
         self._nodes: Dict[Union[str, mlir.ir.Operation], relax.Expr] = {}
         self.block_builder: relax.BlockBuilder = None
         self.create_convert_map()
@@ -39,6 +42,8 @@ class StableHLOImporter:
     @staticmethod
     def _convert_data_type(input_type: mlir.ir.Type):
         """converts the data type from mlir to tvm."""
+        from jaxlib import mlir
+
         if mlir.ir.ShapedType.isinstance(input_type):
             input_type = mlir.ir.ShapedType(input_type).element_type
 
@@ -71,6 +76,8 @@ class StableHLOImporter:
             raise NotImplementedError("input_type {} is not handled yet".format(input_type))
 
     def _attr2value(self, node: mlir.ir.Attribute) -> Union[Any, List[Any]]:
+        from jaxlib import mlir
+
         if mlir.ir.IntegerAttr.isinstance(node):
             int_attr = mlir.ir.IntegerAttr(node)
             return int_attr.value
@@ -94,6 +101,8 @@ class StableHLOImporter:
         return self._retrieve_operands(node.operands)
 
     def _retrieve_operands(self, node):
+        from jaxlib import mlir
+
         # the operand is one of the inputs of FuncOp
         if isinstance(node, mlir.ir.Operation):
             return self._nodes[node]
@@ -112,6 +121,8 @@ class StableHLOImporter:
 
     def get_shape(self, inpt_type: mlir.ir.ShapedType) -> List[Any]:
         """Get the shape from Type like tensor<?x?xf32>"""
+        from jaxlib import mlir
+
         shape_type = inpt_type
         if isinstance(shape_type, mlir.ir.Type):
             shape_type = mlir.ir.ShapedType(shape_type)
@@ -195,6 +206,8 @@ class StableHLOImporter:
         return self.block_builder.emit(relax.op.matmul(lhs, rhs))
 
     def _convolution(self, node: mlir.ir.Operation) -> relax.Expr:
+        from jaxlib import mlir
+
         x, weight = self.retrieve_operands(node)
         shaped_type = mlir.ir.ShapedType(node.result.type)
         out_dtype = self._convert_data_type(shaped_type.element_type)
@@ -277,16 +290,14 @@ class StableHLOImporter:
         return ret
 
     def _rsqrt(self, node: mlir.ir.Operation) -> relax.Expr:
-        # TODO (relax-team): Add rsqrt to Relax
         data = self.retrieve_operands(node)
-        return self.block_builder.emit(relax.op.power(data[0], relax.const(-0.5)))
+        return self.block_builder.emit(relax.op.rsqrt(data[0]))
 
     def _sin(self, node: mlir.ir.Operation) -> relax.Expr:
         data = self.retrieve_operands(node)
         return self.block_builder.emit(relax.op.sin(data[0]))
 
     def _sinh(self, node: mlir.ir.Operation) -> relax.Expr:
-        # TODO (relax-team): add relax.sinh to LegalizeOps
         data = self.retrieve_operands(node)
         return self.block_builder.emit(relax.op.sinh(data[0]))
 
@@ -315,6 +326,7 @@ class StableHLOImporter:
         return self.block_builder.emit_output(self.nodes[outputs])
 
     def create_convert_map(self):
+        from jaxlib import mlir
 
         self.convert_map: Dict[str, Callable[[mlir.ir.Operation], relax.Var]] = {
             "stablehlo.add": self._add,
@@ -343,11 +355,12 @@ class StableHLOImporter:
         }
 
     def from_stablehlo(
-        self,
-        model: Union[str, mlir.ir.Module],
-        input_info: List[Tuple[Tuple[int], str]]
+        self, model: Union[str, mlir.ir.Module], input_info: List[Tuple[Tuple[int], str]]
     ) -> tvm.IRModule:
         """Convert a StableHLO Module to a Relax program."""
+        from jaxlib import mlir
+        from jaxlib.mlir.dialects import stablehlo
+
         assert isinstance(model, mlir.ir.Module)
         block: mlir.ir.Block = model.body.operations[0].regions[0].blocks[0]
 
@@ -392,7 +405,7 @@ class StableHLOImporter:
 
 
 def from_stablehlo(
-    stablehlo_module: Union[str, mlir.ir.Module],
+    stablehlo_module,
     input_info: List[Tuple[Tuple[int], str]] = None,
 ) -> tvm.IRModule:
     """Convert a StableHLO Module to a Relax program
@@ -410,6 +423,9 @@ def from_stablehlo(
     output : tvm.IRModule
         The result IRModule with entry function "main"
     """
+    from jaxlib import mlir
+    from jaxlib.mlir.dialects import stablehlo
+
     if isinstance(stablehlo_module, str):
         # TODO (yongwww): support the serialized bytecode format of StableHLO
         # model using stablehlo.deserialize_portable_artifact(ir) if the python
