@@ -519,51 +519,6 @@ class CBRx2:
         return lv6
 
 
-def test_single_cbr():
-    with PatternContext() as ctx:
-        (
-            is_call_dps_packed("conv1x1")
-            >> is_call_dps_packed("bias_add")
-            >> is_call_dps_packed("my_relu")
-        )
-        dfb = CBRx2["main"].body.blocks[0]
-        matched = ctx.match_dfb(dfb)
-        assert matched
-
-    with PatternContext() as ctx:
-        chain = (
-            is_call_dps_packed("conv1x1")
-            >> is_call_dps_packed("bias_add")
-            >> is_call_dps_packed("my_relu")
-        )
-        dfb = CBRx2["main"].body.blocks[0]
-        # we want to specifically match the first CBR (lv0)
-        matched = ctx.match_dfb(dfb, start_hint=dfb.bindings[0].var)
-        assert matched
-        assert matched[chain[0]] == dfb.bindings[0].var
-        # we want to specifically match the second CBR (lv3)
-        matched = ctx.match_dfb(dfb, start_hint=dfb.bindings[3].var)
-        assert matched
-        assert matched[chain[0]] == dfb.bindings[3].var
-
-
-def test_counter_single_crb():
-    with PatternContext() as ctx:
-        (
-            is_call_dps_packed("conv1x1")
-            >> is_call_dps_packed("my_relu")
-            >> is_call_dps_packed("bias_add")
-        )
-        dfb = CBRx2["main"].body.blocks[0]
-        assert not ctx.match_dfb(dfb)
-        # Quickly fails unpromising matches by assuming `start_hint` must be matched by a pattern.
-        # This is usually faster than the full match:
-        # Full match: let one pattern to match -> all Var: complexity ~ #Var
-        # must_include_hint: let `start_hint` to match -> all patterns: complexity ~ #patterns
-        # Usually #patterns is much smaller than #Var, so this is faster.
-        assert not ctx.match_dfb(dfb, start_hint=dfb.bindings[0].var, must_include_hint=True)
-
-
 def test_nested_context():
     dfb = CBRx2["main"].body.blocks[0]
     with PatternContext() as ctx0:

@@ -63,8 +63,6 @@ class PatternContext(tvm.runtime.Object):
     def match_dfb(
         self,
         dfb: DataflowBlock,
-        start_hint: Optional[Var] = None,
-        must_include_hint: bool = False,
     ) -> Dict[DFPattern, Var]:
         """
         Match a DataflowBlock via a graph of DFPattern and corresponding constraints
@@ -73,14 +71,10 @@ class PatternContext(tvm.runtime.Object):
         ----------
         dfb : DataflowBlock
             The DataflowBlock to match
-        start_hint : Optional[Var], optional
-            Indicating the starting expression to match, by default None
-        must_include_hint : bool, optional
-            Whether the start_hint expression must be matched, by default False
 
         Returns
         -------
         Dict[DFPattern, Var]
             The mapping from DFPattern to matched expression
         """
-        return ffi.match_dfb(self, dfb, start_hint, must_include_hint)  # type: ignore
+        return ffi.match_dfb(self, dfb)  # type: ignore

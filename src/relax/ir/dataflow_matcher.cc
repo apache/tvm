@@ -693,16 +693,13 @@ class MatcherUseDefAnalysis : public relax::ExprVisitor {
   }
 };
 
-Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const DataflowBlock& dfb,
-                                         Optional<Var> start_hint, bool must_include_hint) {
+Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const DataflowBlock& dfb) {
   if (ctx->src_ordered.size() == 0) {
     return NullOpt;
   }
 
   // TODO(@ganler): Handle non-may external use.
   ICHECK(ctx->allow_extern_use == PatternContextNode::kMay) << "Only kMay is supported yet.";
-  ICHECK(!must_include_hint || start_hint.defined())
-      << "must_include_hint is only supported with start_hint.";
 
   const auto var2val = AnalyzeVar2Value(dfb);
   DFPatternMatcher matcher(var2val);
@@ -745,25 +742,10 @@ Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const Datafl
 
   Map<DFPattern, Var> ret;
 
-  if (start_hint) {
-    auto rnode_ptr = var2node.at(start_hint.value().get());
-    for (auto& p_node : pattern2node) {
-      if (try_match(&p_node.second, &rnode_ptr, &matcher, def2use, caller2callees)) {
-        for (const auto& [df_pattern, pattern_node] : pattern2node) {
-          ret.Set(GetRef<DFPattern>(df_pattern), GetRef<Var>(pattern_node.matched));
-        }
-        return ret;
-      }
-    }
-
-    if (must_include_hint) return ret;
-  }
-
   PNode& pnode_start = pattern2node[ctx->src_ordered[0].get()];
 
   if (!pnode_start.matched) {
     for (const auto& var : ud_analysis.vars) {
-      if (start_hint.defined() && start_hint.value().get() == var) continue;
       RNode& r_node = var2node[var];
       if (try_match(&pnode_start, &r_node, &matcher, def2use, caller2callees)) {
         for (const auto& [df_pattern, pattern_node] : pattern2node) {

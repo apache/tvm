@@ -51,19 +51,12 @@ Optional<Map<DFPattern, Expr>> ExtractMatchedExpr(
 
 /**
  * \brief Match a sub-graph in a DataflowBlock with a graph of patterns and return the mapping.
- * \note This algorithm returns the first matched sub-graph. Use `start_hint` to specify the
- * starting point of the matching so that we can distinguish multiple matches.
- *
  * \param ctx The graph-wise patterns.
  * \param dfb The function to match.
- * \param start_hint The starting point expression to match to distinguish multiple matches.
- * \param must_include_hint If start_hint is given, the return pattern must include start_hint.
  * \return Matched patterns and corresponding bound variables
  */
 TVM_DLL Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx,
-                                                 const DataflowBlock& dfb,
-                                                 Optional<Var> start_hint = NullOpt,
-                                                 bool must_include_hint = false);
+                                                 const DataflowBlock& dfb);
 
 }  // namespace relax
 }  // namespace tvm
