@@ -50,12 +50,11 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
       return arith::IRMutatorWithAnalyzer::VisitStmt_(loop);
     }
 
-    // if for loop is not a memcpy of a contiguous region
+    // if for loop is not a memcpy of a contiguous region, it might be a cuda cp.async behavior
     std::optional<tvm::tir::MemCpyDetails> mem_copy = IdentifyMemCpy(GetRef<For>(loop), analyzer_);
     if (!mem_copy.has_value() || mem_copy->dest->region.size() != 1 ||
         mem_copy->source->region.size() != 1) {
       return arith::IRMutatorWithAnalyzer::VisitStmt_(loop);
-      // LOG(FATAL) << "Unable to lower async dma due to non contiguous memory access";
     }
 
     // now that we are about to perform the `copy` transform
