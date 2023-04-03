@@ -21,7 +21,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import tir
-from tvm.script import tir as T
+from tvm.script import tir as T, ir as I
 
 import numpy as np
 
@@ -3692,6 +3692,39 @@ def tvm_shfl_builtins():
     return func
 
 
+def tvm_struct_set_generated_in_cpp():
+    """Ensure same dtype for tvm_struct_set in Python/C++
+
+    The TVMStructSet method in C++, used internally by
+    LowerTVMBuiltin, and the Python method `T.tvm_struct_set`, used
+    when parsing TVMScript should use the same dtype "int32".
+    """
+
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def tir_packed_call(A: T.Buffer(16)):
+            T.attr(0, "device_id", 0)
+            T.attr(0, "device_type", 0)
+            T.evaluate(
+                T.tvm_call_cpacked(
+                    "tvm_test_cpacked",
+                    T.tvm_stack_make_array(
+                        A.data,
+                        T.tvm_stack_make_shape(16, dtype="handle"),
+                        T.reinterpret(T.uint64(0), dtype="handle"),
+                        T.uint32(1),
+                        T.Cast("float32", 0),
+                        0,
+                        dtype="handle",
+                    ),
+                    dtype="int32",
+                )
+            )
+
+    return tvm.tir.transform.LowerTVMBuiltin()(Module)
+
+
 ir_generator = tvm.testing.parameter(
     launch_env_thread,
     opt_gemm_normalize,
@@ -3757,6 +3790,7 @@ ir_generator = tvm.testing.parameter(
     merge_shape_var_def,
     if_then_else_var,
     tvm_shfl_builtins,
+    tvm_struct_set_generated_in_cpp,
 )
 
 
