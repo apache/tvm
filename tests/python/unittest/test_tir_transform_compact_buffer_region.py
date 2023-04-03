@@ -629,7 +629,6 @@ class TestSparseReadCache(BaseCompactTest):
         A_data: T.Buffer((819,), "float32"),
         B: T.Buffer((128,), "float32"),
         A_indptr: T.Buffer((129,), "int32"),
-        A_indices: T.Buffer((819,), "int32"),
     ) -> None:
         for i in T.serial(128):
             with T.block("rowsum_outer"):
@@ -661,7 +660,6 @@ class TestSparseReadCache(BaseCompactTest):
         A_data: T.Buffer((819,), "float32"),
         B: T.Buffer((128,), "float32"),
         A_indptr: T.Buffer((129,), "int32"),
-        A_indices: T.Buffer((819,), "int32"),
     ) -> None:
         for i in T.serial(128):
             with T.block("rowsum_outer"):
@@ -687,6 +685,38 @@ class TestSparseReadCache(BaseCompactTest):
                             T.reads(B[i], A_indptr[i], A_data[A_indptr[i] + k])
                             T.writes(B[i])
                             B[i] = B[i] + A_data_local[T.min(A_indptr[i] + k, 0)]
+
+
+class TestDataDependentRegion(BaseCompactTest):
+    """Partial code of NMS, the `argsort_nms_cpu`'s region depends on inner allocated buffer
+    `nkeep`'s value, thus the buffer should not be compacted with data dependent region extent."""
+
+    @T.prim_func
+    def before(
+        p0: T.Buffer((30,), "float32"),
+        p1: T.Buffer((1,), "int32"),
+        hybrid_nms: T.Buffer((30,), "float32"),
+    ):
+        argsort_nms_cpu = T.decl_buffer([5], "int32", scope="global")
+        for i in range(1):
+            nkeep = T.decl_buffer([1], "int32", scope="global")
+            if 0 < p1[i]:
+                nkeep[0] = p1[i]
+                if 2 < nkeep[0]:
+                    nkeep[0] = 2
+                for j in T.parallel(nkeep[0]):
+                    for k in range(6):
+                        hybrid_nms[i * 30 + j * 6 + k] = p0[
+                            i * 30 + argsort_nms_cpu[i * 5 + j] * 6 + k
+                        ]
+                    hybrid_nms[i * 5 + j] = argsort_nms_cpu[i * 5 + j]
+                if 2 < p1[i]:
+                    for j in T.parallel(p1[i] - nkeep[0]):
+                        for k in range(6):
+                            hybrid_nms[i * 30 + j * 6 + nkeep[0] * 6 + k] = T.float32(-1)
+                        hybrid_nms[i * 5 + j + nkeep[0]] = -1
+
+    expected = before
 
 
 class TestNarrowShape(BaseCompactTest):

@@ -60,6 +60,44 @@ NDIntSet NDIntSetEval(Region region, PrimExpr predicate,
 }
 
 /*!
+ * \brief Collect buffer aliasing information.
+ */
+class Var2BufferCollector : public StmtExprVisitor {
+ public:
+  /*! \brief Map the buffer var to all aliased buffers. */
+  std::unordered_map<Var, std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual>, ObjectPtrHash,
+                     ObjectPtrEqual>
+      var2buffer_;
+
+ private:
+  void VisitStmt_(const BufferStoreNode* op) final {
+    var2buffer_[op->buffer->data].insert(op->buffer);
+    StmtExprVisitor::VisitStmt_(op);
+  }
+
+  void VisitExpr_(const BufferLoadNode* op) final {
+    var2buffer_[op->buffer->data].insert(op->buffer);
+    StmtExprVisitor::VisitExpr_(op);
+  }
+
+  void VisitStmt_(const BlockNode* op) final {
+    for (const Buffer& buffer : op->alloc_buffers) {
+      var2buffer_[buffer->data].insert(buffer);
+    }
+    for (const MatchBufferRegion& region : op->match_buffers) {
+      var2buffer_[region->buffer->data].insert(region->buffer);
+      var2buffer_[region->source->buffer->data].insert(region->source->buffer);
+    }
+    StmtExprVisitor::VisitStmt_(op);
+  }
+
+  void VisitStmt_(const DeclBufferNode* op) final {
+    var2buffer_[op->buffer->data].insert(op->buffer);
+    StmtExprVisitor::VisitStmt_(op);
+  }
+};
+
+/*!
  * \brief Collect the access region of each buffer.
  * \note The param buffer regions will not be collected.
  */
@@ -67,9 +105,16 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
  public:
   static std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual> Collect(
       const PrimFunc& f, bool collect_inbound) {
-    BufferAccessRegionCollector collector(collect_inbound);
-    collector(f->body);
-    return std::move(collector.buffer_access_region_);
+    BufferAccessRegionCollector region_collector(collect_inbound);
+
+    // collect buffer var to aliased buffer mapping
+    Var2BufferCollector var2buffer_collector;
+    var2buffer_collector(f->body);
+    std::swap(region_collector.var2buffer_, var2buffer_collector.var2buffer_);
+
+    // collect buffer access regions
+    region_collector(f->body);
+    return std::move(region_collector.buffer_access_region_);
   }
 
  private:
@@ -94,6 +139,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
   void VisitExpr_(const BufferLoadNode* op) final {
     VisitBufferAccess(BufferRegion::FromPoint(op->buffer, op->indices));
+    StmtExprVisitor::VisitExpr_(op);
   }
 
   void VisitExpr_(const VarNode* op) final { VisitBufferVar(GetRef<Var>(op)); }
@@ -101,9 +147,9 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   void VisitStmt_(const ForNode* op) final {
     Range loop_range = Range::FromMinExtent(op->min, op->extent);
     IterVar iter = op->kind == ForKind::kThreadBinding
-                       ? IterVar(loop_range, op->loop_var, IterVarType::kThreadIndex,
+                       ? IterVar(Range(), op->loop_var, IterVarType::kThreadIndex,
                                  op->thread_binding.value()->thread_tag)
-                       : IterVar(loop_range, op->loop_var, IterVarType::kDataPar);
+                       : IterVar(Range(), op->loop_var, IterVarType::kDataPar);
     ancestor_iters_.push_back(iter);
     dom_analyzer_.Bind(op->loop_var, loop_range);
     dom_map_.emplace(op->loop_var.get(), arith::IntSet::FromRange(loop_range));
@@ -194,7 +240,6 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     // Step 2. Record relax position of ancestor_loops_
     for (const Buffer& buffer : op->alloc_buffers) {
       VisitBufferDef(buffer->data);
-      var2buffer_[buffer->data].insert(buffer);
     }
     // Step 3. Visit match buffers
     for (const MatchBufferRegion& region : op->match_buffers) {
@@ -213,6 +258,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     }
     // Step 6. Update buffer_access_region_ from relaxed_accesses_ for inner buffers.
     for (const Buffer& buffer : op->alloc_buffers) {
+      ICHECK_EQ(var2buffer_[buffer->data].size(), 1)
+          << "Block allocation buffer shoud not be alised";
       SimplifyAndNarrowBufferRegionFromNDIntSet(buffer);
     }
   }
@@ -222,35 +269,34 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitStmt_(const DeclBufferNode* op) final {
-    const Buffer& buffer = op->buffer;
-    var2buffer_[buffer->data].insert(buffer);
-    StmtExprVisitor::VisitStmt_(op);
-  }
-
   void VisitStmt_(const AllocateNode* op) final {
+    auto it = var2buffer_.find(op->buffer_var);
+    if (it == var2buffer_.end() || it->second.size() > 1) {
+      // Skip alised buffer
+      StmtExprVisitor::VisitStmt_(op);
+      return;
+    }
     // Step 0. Record relax position of ancestor_loops_
+    const Buffer& buffer = *it->second.begin();
     VisitBufferDef(op->buffer_var);
     // Step 1. Visit block body recursively
     StmtExprVisitor::VisitStmt(op->body);
     // Step 2. Update buffer_access_region_ from relaxed_accesses_ for inner buffers.
-    for (const Buffer& buffer : var2buffer_[op->buffer_var]) {
-      SimplifyAndNarrowBufferRegionFromNDIntSet(buffer);
-    }
+    SimplifyAndNarrowBufferRegionFromNDIntSet(buffer);
   }
 
   void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
       IterVar iter = Downcast<IterVar>(op->node);
       ancestor_iters_.push_back(iter);
-      if (iter->dom.defined()) {
-        dom_analyzer_.Bind(iter->var, iter->dom);
-        dom_map_.emplace(iter->var.get(), arith::IntSet::FromRange(iter->dom));
+      Range dom = iter->dom;
+      if (!dom.defined()) {  // dom is empty for legacy te schedule
+        dom = Range::FromMinExtent(0, op->value);
       }
+      dom_analyzer_.Bind(iter->var, dom);
+      dom_map_.emplace(iter->var.get(), arith::IntSet::FromRange(dom));
       StmtExprVisitor::VisitStmt_(op);
-      if (iter->dom.defined()) {
-        dom_map_.erase(iter->var.get());
-      }
+      dom_map_.erase(iter->var.get());
       ancestor_iters_.pop_back();
       return;
     }
@@ -268,7 +314,6 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
   void VisitBufferAccess(const BufferRegion& buffer_region) {
     const Buffer& buffer = buffer_region->buffer;
-    var2buffer_[buffer->data].insert(buffer);
     auto it = buffer_scope_depth_.find(buffer->data);
     if (it != buffer_scope_depth_.end()) {
       size_t n_ancestor_loops = it->second;
@@ -288,11 +333,18 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
         dom_map_.erase(dom_it);
       }
       // Step 2. Relax the access region
+      auto normalize_pred = [](const PrimExpr& pred) {
+        if (pred->dtype.is_bool()) return pred;
+        return pred != make_zero(pred->dtype);
+      };
       PrimExpr predicate = dom_analyzer_.Simplify(
           std::accumulate(pending_conditions_.begin(), pending_conditions_.end(), const_true(),
-                          [](const PrimExpr& x, const PrimExpr& y) { return x && y; }));
+                          [normalize_pred](const PrimExpr& x, const PrimExpr& y) {
+                            return normalize_pred(x) && normalize_pred(y);
+                          }));
       NDIntSet nd_int_set =
           NDIntSetEval(buffer_region->region, predicate, dom_map_, &dom_analyzer_);
+
       // Step 3. Restore the non-relaxed ancestor loops domain
       for (size_t i = 0; i < n_ancestor_loops; ++i) {
         const VarNode* v = ancestor_iters_[i]->var.get();
@@ -354,9 +406,9 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
     for (size_t i = 0; i < nd_int_set.size(); ++i) {
       const arith::IntSet& int_set = nd_int_set[i];
-
-
-      Range range = int_set.CoverRange(Range(/*begin=*/0, /*end=*/original_shape[i]));
+      Range original =
+          Range(/*begin=*/make_zero(original_shape[i]->dtype), /*end=*/original_shape[i]);
+      Range range = int_set.CoverRange(original);
       PrimExpr min, extent;
       if (collect_inbound_) {
         min = dom_analyzer_.Simplify(tvm::max(0, range->min));
@@ -371,8 +423,13 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
         extent = dom_analyzer_.Simplify(range->extent);
       }
 
-      // Check the buffer region is not loop dependent, since loop dependent
-      // allocation is not supported yet.
+      // We check the buffer extent is pure and not loop dependent, since loop dependent
+      // or data dependent allocation is not supported yet. Otherwise we should
+      // fallback to use original buffer shape.
+      if (SideEffect(extent) > CallEffectKind::kPure) {
+        result_region.Set(i, original);
+        continue;
+      }
       auto is_loop_var = [this](const VarNode* v) {
         return std::any_of(ancestor_iters_.begin(), ancestor_iters_.end(),
                            [v](const IterVar& n) { return n->var.get() == v; });
@@ -383,9 +440,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
         if (upperbound != arith::ConstIntBound::kPosInf) {
           extent = make_const(extent->dtype, upperbound);
         } else {
-          // or else we have to fallback to full region
-          min = make_zero(original_shape[i]->dtype);
-          extent = original_shape[i];
+          result_region.Set(i, original);
+          continue;
         }
       }
       result_region.Set(i, Range::FromMinExtent(min, extent));
@@ -442,19 +498,10 @@ class BufferCompactor : public StmtExprMutator {
       const std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual>& regions,
       const std::unordered_map<Var, StorageAlignAnnotation, ObjectPtrHash, ObjectPtrEqual>&
           storage_align) {
-    // collect buffers count sharing the same allocated buffer var
-    std::unordered_map<Var, size_t, ObjectPtrHash, ObjectPtrEqual> buffer_alias_cnt;
-    for (const auto& kv : regions) {
-      buffer_alias_cnt[kv.first->data] += 1;
-    }
-
     // collect buffer allocation info for no-alias buffers
     std::unordered_map<Var, BufferAllocInfo, ObjectPtrHash, ObjectPtrEqual> buffer_info;
     for (const auto& kv : regions) {
       const Buffer& buffer = kv.first;
-      if (buffer_alias_cnt.at(buffer->data) > 1) {
-        continue;
-      }
 
       // set dim alignment info
       Region region = kv.second;
@@ -545,8 +592,8 @@ class BufferCompactor : public StmtExprMutator {
     // Step 0. Check there is no Init part.
     ICHECK(!op->init.defined());
     // Step 1. Reallocate and rewrite alloc_buffers, also update BufferAllocInfo.
-    Array<Buffer> alloc_buffers = op->alloc_buffers.Map(
-        std::bind(&BufferCompactor::RewriteAllocBuffer, this, std::placeholders::_1));
+    Array<Buffer> alloc_buffers =
+        op->alloc_buffers.Map([this](const Buffer& buf) { return RewriteAllocBuffer(buf); });
     // Step 2. Recursively rewrite BufferLoad/BufferStore.
     Block block = Downcast<Block>(StmtExprMutator::VisitStmt_(op));
     // Step 3. Update block signature.
@@ -572,12 +619,16 @@ class BufferCompactor : public StmtExprMutator {
     if (it == buffer_info_.end()) {
       return std::move(allocate);
     }
-    // Rewrite allocation shape if the corresponding buffer is compacted
+    // Rewrite allocation shape if the corresponding buffer is in the buffer_info_
+    // dict and the dtype is consistent, which denotes there are no buffer aliasing
+    // and the compaction is safe.
     const Buffer& new_buffer = it->second.new_buffer;
+    if (op->dtype != new_buffer->dtype) {
+      return std::move(allocate);
+    }
     Array<PrimExpr> new_shape = GetBufferAllocationShape(new_buffer);
     auto n = allocate.CopyOnWrite();
     ICHECK(n->buffer_var.same_as(new_buffer->data));
-    ICHECK(n->dtype == new_buffer->dtype);
     n->extents = new_shape;
     return std::move(allocate);
   }
