@@ -22,6 +22,7 @@ import tvm
 import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
+from tvm.ir.instrument import pass_instrument
 
 import numpy as np
 
@@ -179,6 +180,20 @@ def launch_env_thread():
             T.evaluate(inputs[bx, i, j])
 
     return main
+
+
+def copy_using_env_thread():
+    shape = (64, 2, 4)
+
+    @T.prim_func
+    def func(A: T.Buffer(shape), B: T.Buffer(shape)):
+        blocks, M, N = T.meta_var(shape)
+
+        bx = T.launch_thread("blockIdx.x", blocks)
+        for i, j in T.grid(M, N):
+            B[bx, i, j] = A[bx, i, j]
+
+    return func
 
 
 def opt_gemm_mod_host():
@@ -3770,6 +3785,36 @@ def test_return_none_no_trailing_type():
     func = return_none()
     script = func.script()
     assert "-> None" not in script
+
+
+@pass_instrument
+class ValidateTVMScriptRoundTrip:
+    def run_after_pass(self, mod, info):
+        after_roundtrip = tvm.script.from_source(mod.script(show_meta=True))
+        tvm.ir.assert_structural_equal(mod, after_roundtrip, True)
+
+
+@pytest.mark.parametrize(
+    "generator,target",
+    [
+        (matmul, "llvm"),
+        pytest.param(
+            launch_env_thread,
+            "cuda",
+            marks=tvm.testing.Feature("cuda").marks(support_required="compile-only"),
+        ),
+        pytest.param(
+            copy_using_env_thread,
+            "cuda",
+            marks=tvm.testing.Feature("cuda").marks(support_required="compile-only"),
+        ),
+    ],
+)
+def test_roundtrip_all_lowering_steps(generator, target):
+    func = generator()
+
+    with tvm.transform.PassContext(instruments=[ValidateTVMScriptRoundTrip()]):
+        tvm.build(func, target=target)
 
 
 if __name__ == "__main__":
