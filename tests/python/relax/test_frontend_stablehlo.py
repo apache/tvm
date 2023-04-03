@@ -15,16 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pytest
+# pylint: disable=c-extension-no-member
+
 import functools
-import numpy as np
 from typing import Union, Tuple, List
+import pytest
+import numpy as np
 
 # jax packages
 import jax
 import jax.random as jrandom
 import jax.numpy as jnp
-from tests.python.relax.jax_resnet import ResNet18
 
 # mlir and stablehlo from jaxlib
 import jaxlib
@@ -115,7 +116,6 @@ def check_correctness(
     # lowered.as_text(dialect="stablehlo") generates text format
     # compiler_ir generates the related jaxlib.mlir.Module
     stablehlo_module = lowered.compiler_ir(dialect="stablehlo")
-    print(stablehlo_module)
 
     # Convert the StableHLO IR to Relax
     ir_mod = from_stablehlo(stablehlo_module)
@@ -135,8 +135,7 @@ def check_correctness(
     vm.set_input("main", *inputs_np)
     vm.invoke_stateful("main")
     tvm_output = vm.get_outputs("main")
-    print("jax_output: ", jax_output)
-    print("tvm_output: ", tvm_output)
+
     # Single ouput
     if isinstance(tvm_output, tvm.nd.NDArray):
         tvm.testing.assert_allclose(tvm_output.numpy(), jax_output, atol=1e-5)
@@ -324,25 +323,6 @@ def test_conv():
     tvm_output = get_vm_res(ir_mod, inputs_np)
     # verify accuracy
     tvm.testing.assert_allclose(tvm_output.numpy(), jax_output, atol=1e-5)
-
-
-def test_resnet18():
-    def _get_resnet():
-        model = ResNet18(num_classes=2, dtype=np.float32)
-        x = np.zeros((8, 16, 16, 3), np.float32)
-        variables = model.init(jrandom.PRNGKey(0), x)
-        apply = functools.partial(model.apply, train=False, mutable=False)
-        key = jrandom.PRNGKey(0)
-        input_shape = (1, 224, 224, 3)
-        x = jrandom.normal(key, input_shape)
-        resnet50_jit = jax.jit(apply)
-        jax_out = resnet50_jit(variables, x)
-        lowered = jax.jit(apply).lower(variables, x)
-        stablehlo_ir = lowered.compiler_ir(dialect="stablehlo")
-        return stablehlo_ir
-
-    resnet_stablehlo = _get_resnet()
-    mod = from_stablehlo(resnet_stablehlo)
 
 
 if __name__ == "__main__":

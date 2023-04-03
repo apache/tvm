@@ -16,7 +16,7 @@
 # under the License.
 
 # pylint: disable=invalid-name, inconsistent-return-statements, unidiomatic-typecheck
-# pylint: disable=import-outside-toplevel
+# pylint: disable=import-outside-toplevel, unused-argument, no-member
 """StableHLO frontend of Relax."""
 from typing import Callable, Dict, List, Tuple, Union, Any
 import numpy as np
@@ -45,7 +45,7 @@ class StableHLOImporter:
         input_type = str(input_type)
         if input_type == "f16":
             return "float16"
-        if input_type in ["f32", "F32Type"]:
+        elif input_type in ["f32", "F32Type"]:
             return "float32"
         elif input_type in ["f64", "F64Type"]:
             return "float64"
@@ -69,24 +69,6 @@ class StableHLOImporter:
             return "uint64"
         else:
             raise NotImplementedError("input_type {} is not handled yet".format(input_type))
-
-    @staticmethod
-    def _convert_stablehlo_tensor_to_relax(tensor: mlir.ir.RankedTensorType) -> relax.Var:
-        tensor = tensor.detach().cpu()
-        dtype = StableHLOImporter._convert_data_type(str(tensor.data.dtype))
-        return relax.const(tensor.data.numpy(), dtype)
-
-    @staticmethod
-    def shape_of(tensor):
-        """Get the shape of a tensor."""
-
-        if isinstance(tensor, relax.Expr):
-            if not isinstance(tensor.struct_info, relax.TensorStructInfo):
-                raise TypeError("The input Expr of shape_of should be a Tensor")
-            return tensor.struct_info.shape
-        elif isinstance(tensor, mlir.ir.RankedTensorType):
-            return tensor.shape
-        raise ValueError("Unsupported type: {}".format(type(tensor)))
 
     def _attr2value(self, node: mlir.ir.Attribute) -> Union[Any, List[Any]]:
         if mlir.ir.IntegerAttr.isinstance(node):
@@ -133,7 +115,6 @@ class StableHLOImporter:
         shape_type = inpt_type
         if isinstance(shape_type, mlir.ir.Type):
             shape_type = mlir.ir.ShapedType(shape_type)
-        dtype = self._convert_data_type(shape_type.element_type)
         ret = []
         for i in range(shape_type.rank):
             # get_dim_size
@@ -149,10 +130,10 @@ class StableHLOImporter:
     def _promote_binary_op_args(lhs, rhs):
         if isinstance(lhs, relax.Expr) and isinstance(rhs, relax.Expr):
             return lhs, rhs
-        elif isinstance(lhs, relax.Expr):
+        if isinstance(lhs, relax.Expr):
             assert isinstance(lhs.struct_info, relax.TensorStructInfo)
             return lhs, relax.const(rhs, lhs.struct_info.dtype)
-        elif isinstance(rhs, relax.Expr):
+        if isinstance(rhs, relax.Expr):
             assert isinstance(rhs.struct_info, relax.TensorStructInfo)
             return relax.const(lhs, rhs.struct_info.dtype), rhs
         else:
@@ -226,7 +207,6 @@ class StableHLOImporter:
         if len(rhs_dilation) > 0:
             rhs_dilation = rhs_dilation[0]
         dilation = (lhs_dilation, rhs_dilation)
-        print("fuck padding: ", padding)
         groups = self._attr2value(node.attributes["batch_group_count"])
         conv2d = relax.op.nn.conv2d(
             x,
@@ -279,7 +259,7 @@ class StableHLOImporter:
                 dilated_window_size = (window_dim - 1) * window_dilations[i] + 1
                 pool_size.append(dilated_window_size)
         strides = self._attr2value(node.attributes["window_strides"])
-        padding = self._attr2value(node.attributes["padding"])
+        # padding = self._attr2value(node.attributes["padding"])
 
         # TODO (yongwww): Infer the layout automatically
         layout = "NHWC"
@@ -362,7 +342,11 @@ class StableHLOImporter:
             "stablehlo.return": self._return,
         }
 
-    def from_stablehlo(self, model, input_info: List[Tuple[Tuple[int], str]]) -> tvm.IRModule:
+    def from_stablehlo(
+        self,
+        model: Union[str, mlir.ir.Module],
+        input_info: List[Tuple[Tuple[int], str]]
+    ) -> tvm.IRModule:
         """Convert a StableHLO Module to a Relax program."""
         assert isinstance(model, mlir.ir.Module)
         block: mlir.ir.Block = model.body.operations[0].regions[0].blocks[0]
@@ -394,7 +378,7 @@ class StableHLOImporter:
                         output = self.block_builder.emit_output(self._nodes[operation])
                         break
 
-                    elif isinstance(operation, mlir.ir.OpView):
+                    if isinstance(operation, mlir.ir.OpView):
                         op_name = operation.operation.name
                         assert op_name in self.convert_map, f"Unsupported operation {op_name}"
                         self._nodes[operation] = self.convert_map[op_name](operation)
