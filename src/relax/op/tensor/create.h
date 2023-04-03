@@ -78,6 +78,9 @@ Expr zeros(Expr shape, DataType dtype);
 /*! \brief Construct a tensor with all zeros, with shape of the input tensor shape. */
 Expr zeros_like(Expr x, DataType dtype);
 
+/*! \brief Construct a tensor with evenly spaced elements. */
+Expr arange(PrimValue start, PrimValue stop, PrimValue step, DataType dtype);
+
 /*! \brief Return the lower triangular part of a matrix or a batch of matrices. */
 Expr tril(Expr x, int k);
 

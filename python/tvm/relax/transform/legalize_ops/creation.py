@@ -18,10 +18,13 @@
 """Default legalization function for creation operators."""
 from typing import Optional
 
-from tvm import topi, tir
+import numpy as np
+
+from tvm import tir, topi
+
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr
-from .common import LegalizeFunc, register_legalize, _try_convert_to_scalar_const
+from ...expr import Call, Expr, PrimValue, const
+from .common import LegalizeFunc, _try_convert_to_scalar_const, register_legalize
 
 
 def _full(is_like: bool, fill_value: Optional[float], primfunc_name: str) -> LegalizeFunc:
@@ -64,3 +67,19 @@ register_legalize("relax.zeros", _full(is_like=False, fill_value=0.0, primfunc_n
 register_legalize("relax.zeros_like", _full(is_like=True, fill_value=0.0, primfunc_name="zeros"))
 register_legalize("relax.tril", _tril_triu(is_upper=False, primfunc_name="tril"))
 register_legalize("relax.triu", _tril_triu(is_upper=True, primfunc_name="triu"))
+
+
+@register_legalize("relax.arange")
+def _arange(bb: BlockBuilder, call: Call) -> Expr:
+    assert len(call.args) == 3
+    assert all([isinstance(x, PrimValue) for x in call.args])
+    start, end, step = [x.value for x in call.args]
+    dtype = call.attrs.dtype
+
+    def is_const_scalar(x: PrimValue):
+        return isinstance(x.value, (tir.IntImm, tir.FloatImm))
+
+    if all([is_const_scalar(x) for x in call.args]):
+        return const(np.arange(start.value, end.value, step.value, dtype=dtype), dtype=dtype)
+    else:
+        return bb.call_te(topi.arange, start, end, step, dtype)

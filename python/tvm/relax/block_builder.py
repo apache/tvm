@@ -220,9 +220,7 @@ class BlockBuilder(Object):
         ret: FunctionScope
             A FunctionScope for building a Relax function node.
         """
-        if not params:
-            params = None
-        elif isinstance(params, rx.Var):
+        if isinstance(params, rx.Var):
             params = [params]
         elif isinstance(params, (list, tuple)):
             for param in params:

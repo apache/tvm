@@ -251,7 +251,6 @@ class TorchFXImporter:
 
     def _arange(self, node: fx.node.Node) -> relax.Var:
         import torch
-        import numpy as np
 
         start_end_step = [None, None, None]
         if "start" in node.kwargs:
@@ -288,8 +287,10 @@ class TorchFXImporter:
             dtype = TorchFXImporter._convert_data_type(torch.get_default_dtype())
         else:
             dtype = "int64"
-
-        return relax.const(np.arange(*start_end_step, dtype=dtype))
+        start_end_step = [
+            self.env[x] if isinstance(x, torch.fx.node.Node) else x for x in start_end_step
+        ]
+        return relax.op.arange(*start_end_step, dtype=dtype)
 
     def _empty(self, node: fx.node.Node) -> relax.Var:
         dtype = TorchFXImporter._convert_data_type(str(node.kwargs["dtype"]), self.env)

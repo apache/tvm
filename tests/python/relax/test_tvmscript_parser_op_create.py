@@ -128,6 +128,20 @@ def test_zeros_like():
     _check(foo, bb.get()["foo"])
 
 
+def test_arange():
+    @R.function
+    def foo():
+        gv = R.arange(1, 10, 2)
+        return gv
+
+    bb = relax.BlockBuilder()
+    with bb.function("foo", []):
+        gv = bb.emit(relax.op.arange(1, 10, 2))
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
 def test_tril():
     @R.function
     def foo(x: R.Tensor((2, 3, 4), "float32")) -> R.Tensor((2, 3, 4), "float32"):

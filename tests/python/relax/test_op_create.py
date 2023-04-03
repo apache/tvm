@@ -15,12 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+
 import tvm
 import tvm.testing
-from tvm import relax, tir
-from tvm import TVMError
+from tvm import TVMError, relax, tir
 from tvm.ir import Op
 from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_op_correctness():
@@ -32,6 +33,7 @@ def test_op_correctness():
     assert relax.op.ones_like(x).op == Op.get("relax.ones_like")
     assert relax.op.zeros((2, 3), "float32").op == Op.get("relax.zeros")
     assert relax.op.zeros_like(x).op == Op.get("relax.zeros_like")
+    assert relax.op.arange(3, 4, 1, "float32").op == Op.get("relax.arange")
     assert relax.op.tril(x).op == Op.get("relax.tril")
     assert relax.op.triu(x).op == Op.get("relax.triu")
 
@@ -532,6 +534,73 @@ def test_ones_like_zeros_like_infer_struct_info_wrong_input_type():
         bb.normalize(relax.op.ones_like(x0))
     with pytest.raises(TVMError):
         bb.normalize(relax.op.zeros_like(x1))
+
+
+def test_arange_infer_struct_info():
+    bb = relax.BlockBuilder()
+
+    _check_inference(bb, relax.op.arange(10), relax.TensorStructInfo((10,), "int64"))
+    _check_inference(bb, relax.op.arange(1, 10), relax.TensorStructInfo((9,), "int64"))
+    _check_inference(bb, relax.op.arange(0, 10, 2), relax.TensorStructInfo((5,), "int64"))
+    _check_inference(bb, relax.op.arange(1, 10, 2), relax.TensorStructInfo((5,), "int64"))
+
+    _check_inference(bb, relax.op.arange(10.0), relax.TensorStructInfo((10,), "float32"))
+    _check_inference(bb, relax.op.arange(1.0, 10), relax.TensorStructInfo((9,), "float32"))
+    _check_inference(bb, relax.op.arange(0, 20, 2.5), relax.TensorStructInfo((8,), "float32"))
+    _check_inference(bb, relax.op.arange(1, 10, 2.3), relax.TensorStructInfo((4,), "float32"))
+
+
+def test_arange_infer_struct_info_shape_var():
+    bb = relax.BlockBuilder()
+    start = tir.Var("start", "int64")
+    stop = tir.Var("stop", "int64")
+    step = tir.Var("step", "int64")
+
+    _check_inference(bb, relax.op.arange(stop), relax.TensorStructInfo((stop,), "int64"))
+    _check_inference(bb, relax.op.arange(1, stop), relax.TensorStructInfo((stop - 1,), "int64"))
+    _check_inference(
+        bb, relax.op.arange(start, stop), relax.TensorStructInfo((stop - start,), "int64")
+    )
+    _check_inference(
+        bb,
+        relax.op.arange(start, stop, 2),
+        relax.TensorStructInfo(((stop + 1 - start) // 2,), "int64"),
+    )
+    _check_inference(
+        bb,
+        relax.op.arange(start, stop, step),
+        relax.TensorStructInfo(((stop + step - start - 1) // step,), "int64"),
+    )
+
+    start = tir.Var("start", "float32")
+    stop = tir.Var("stop", "float32")
+    step = tir.Var("step", "float32")
+
+    _check_inference(
+        bb,
+        relax.op.arange(stop),
+        relax.TensorStructInfo((T.cast(T.ceil(stop), "int64"),), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.arange(1, stop),
+        relax.TensorStructInfo((T.cast(T.ceil(stop - 1.0), "int64"),), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.arange(start, stop),
+        relax.TensorStructInfo((T.cast(T.ceil(stop - start), "int64"),), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.arange(start, stop, 2),
+        relax.TensorStructInfo((T.cast(T.ceil((stop - start) * 0.5), "int64"),), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.arange(start, stop, step),
+        relax.TensorStructInfo((T.cast(T.ceil((stop - start) / step), "int64"),), "float32"),
+    )
 
 
 def test_tril_triu_infer_struct_info():

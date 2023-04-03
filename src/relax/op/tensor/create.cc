@@ -24,6 +24,9 @@
 
 #include "create.h"
 
+#include <tvm/arith/analyzer.h>
+
+#include <string>
 #include <utility>
 
 namespace tvm {
@@ -218,6 +221,57 @@ TVM_REGISTER_OP("relax.zeros_like")
     .set_num_inputs(1)
     .add_argument("x", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoOnesLikeZerosLike);
+
+/* relax.arange */
+Expr arange(PrimValue start, PrimValue stop, PrimValue step, DataType dtype) {
+  ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
+  attrs->dtype = dtype;
+  static const Op& op = Op::Get("relax.arange");
+  return Call(op, {std::move(start), std::move(stop), std::move(step)}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.arange").set_body_typed(arange);
+
+StructInfo InferStructInfoArange(const Call& call, const BlockBuilder& ctx) {
+  if (call->args.size() != 3) {
+    ctx->ReportFatal(
+        Diagnostic::Error(call)
+        << "Arange should have 3 arguments, which are `start`, `end` and `step`, but got "
+        << call->args.size() << " arguments");
+  }
+  // TODO(Siyuan): Support indirect prim_values
+  auto get_prim_value = [&ctx](const Expr& expr, std::string key) {
+    if (!expr->IsInstance<PrimValueNode>()) {
+      ctx->ReportFatal(Diagnostic::Error(expr)
+                       << "Arange expects the `" << key << "` to be a PrimValue, but got "
+                       << expr->GetTypeKey());
+    }
+    return expr.as<PrimValueNode>()->value;
+  };
+  PrimExpr start = get_prim_value(call->args[0], "start");
+  PrimExpr end = get_prim_value(call->args[1], "end");
+  PrimExpr step = get_prim_value(call->args[2], "step");
+  DataType dtype = call->attrs.as<InitAttrs>()->dtype;
+  PrimExpr num_elem;
+  if (start.dtype().is_int() && end.dtype().is_int() && step.dtype().is_int()) {
+    num_elem = tvm::floordiv((end - start + step - 1), step);
+  } else {
+    num_elem = tvm::cast(tvm::DataType::Int(64),
+                         tvm::ceil(tvm::cast(tvm::DataType::Float(32), end - start) / step));
+  }
+  arith::Analyzer analyzer;
+  num_elem = analyzer.Simplify(num_elem);
+  return TensorStructInfo(ShapeExpr({num_elem}), dtype);
+}
+
+TVM_REGISTER_OP("relax.arange")
+    .set_attrs_type<InitAttrs>()
+    .set_num_inputs(3)
+    .add_argument("start", "PrimValue", "The starting value for the set of points.")
+    .add_argument("end", "PrimValue", "The ending value for the set of points.")
+    .add_argument("step", "PrimValue", "The gap between each pair of adjacent points.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoArange)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
 
 /* relax.tril & relax.triu */
 TVM_REGISTER_NODE_TYPE(TriluAttrs);
