@@ -3692,6 +3692,30 @@ def tvm_shfl_builtins():
     return func
 
 
+def nested_seqstmt():
+    """Nested SeqStmt should be normalized to flat SeqStmt
+
+    Nested SeqStmt are representable in the TIR structures, but are
+    flattened when converted to TVMScript.  Previously, this could
+    cause failures to round-trip through TVMScript, including
+    erroneous use of TVMScript's concise-scoping rules.  This was
+    resolved by normalizing nested SeqStmt in TIR, such that the use
+    of `tir.SeqStmt` below results in a single flat `tir.SeqStmt`
+    containing the three `tir.Evaluate` calls.
+    """
+    func = tvm.tir.PrimFunc(
+        params=[],
+        body=tvm.tir.SeqStmt(
+            [
+                tvm.tir.SeqStmt([tvm.tir.Evaluate(0), tvm.tir.Evaluate(1)]),
+                tvm.tir.Evaluate(2),
+            ]
+        ),
+    )
+
+    return func
+
+
 ir_generator = tvm.testing.parameter(
     launch_env_thread,
     opt_gemm_normalize,
@@ -3757,6 +3781,7 @@ ir_generator = tvm.testing.parameter(
     merge_shape_var_def,
     if_then_else_var,
     tvm_shfl_builtins,
+    nested_seqstmt,
 )
 
 
