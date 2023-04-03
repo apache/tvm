@@ -157,6 +157,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleFuse").set_body_method<Schedule>(&Sche
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSplit").set_body_method<Schedule>(&ScheduleNode::Split);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReorder")
     .set_body_method<Schedule>(&ScheduleNode::Reorder);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReorderBlockIterVar")
+    .set_body_method<Schedule>(&ScheduleNode::ReorderBlockIterVar);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleAddUnitLoop")
     .set_body_typed([](Schedule self, ObjectRef rv) -> LoopRV {
       if (const auto* loop_rv = rv.as<LoopRVNode>()) {

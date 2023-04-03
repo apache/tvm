@@ -190,6 +190,15 @@ TVM_DLL StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs,
 TVM_DLL void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs);
 
 /*!
+ * \brief Reorder itervars inside a block.
+ * \param self The state of the schedule.
+ * \param block_sref The sref of block to be transformed.
+ * \param new_order The new itervar order.
+ */
+TVM_DLL void ReorderBlockIterVar(ScheduleState self, const StmtSRef& block_sref,
+                                 const Array<Integer>& new_order);
+
+/*!
  * \brief Create a new unit loop on top of the specific block or loop.
  * \param sref The block/loop above which the new thread_binding loop is created
  * \param extent The extent of the new thread_binding loop

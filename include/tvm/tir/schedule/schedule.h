@@ -329,6 +329,12 @@ class ScheduleNode : public runtime::Object {
    */
   virtual void Reorder(const Array<LoopRV>& ordered_loop_rvs) = 0;
   /*!
+   * \brief Reorder the itervars inside a block.
+   * \param block_rv The block to be transformed.
+   * \param new_order The new itervar order.
+   */
+  virtual void ReorderBlockIterVar(const BlockRV& block_rv, const Array<Integer> new_order) = 0;
+  /*!
    * \brief Create a new unit loop on top of the specific block.
    * \param block_rv The block above which the new loop is created
    * \return The new loop created
