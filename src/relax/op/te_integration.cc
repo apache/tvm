@@ -53,6 +53,7 @@ Array<PrimExpr> GetShape(const ShapeStructInfo& shape) {
 }
 
 Array<PrimExpr> GetShape(const TensorStructInfo& tensor) {
+  LOG(INFO) << "GetShape, tensor = " << tensor;
   CHECK(!tensor->IsUnknownNdim() && !tensor->IsUnknownDtype() && tensor->shape.defined());
   if (const auto* shape = tensor->shape.as<ShapeExprNode>()) {
     return shape->values;
@@ -104,7 +105,7 @@ runtime::TVMRetValue RelaxToTE(const relax::Expr& relax_obj,
   } else if (const auto* constant = relax_obj.as<relax::ConstantNode>()) {
     rv = constant->data;
   } else if (const auto* var = relax_obj.as<relax::VarNode>()) {
-    if (const auto* tensor = relax_obj.as<TensorStructInfoNode>()) {
+    if (const auto* tensor = relax_obj->struct_info_.as<TensorStructInfoNode>()) {
       Array<PrimExpr> shape = GetShape(GetRef<TensorStructInfo>(tensor));
       if (f_remap_tir) {
         int ndim = shape.size();
@@ -117,7 +118,7 @@ runtime::TVMRetValue RelaxToTE(const relax::Expr& relax_obj,
       te::Tensor te_tensor = te::placeholder(shape, dtype);
       f_mark_as_input(te_tensor);
       rv = te_tensor;
-    } else if (const auto* shape_info = relax_obj.as<ShapeStructInfoNode>()) {
+    } else if (const auto* shape_info = relax_obj->struct_info_.as<ShapeStructInfoNode>()) {
       Array<PrimExpr> shape = GetShape(GetRef<ShapeStructInfo>(shape_info));
       if (f_remap_tir) {
         int ndim = shape.size();
@@ -202,8 +203,10 @@ StructInfo TEToStructInfo(const ObjectRef& obj) {
 }
 
 FInferStructInfo InferStructInfoFromTE(std::string global_func_name) {
-  const auto* te_func = runtime::Registry::Get(global_func_name);
-  return [te_func](const Call& call, const BlockBuilder& ctx) -> StructInfo {
+  return [global_func_name = std::move(global_func_name)](const Call& call,
+                                                          const BlockBuilder& ctx) -> StructInfo {
+    const auto* te_func = runtime::Registry::Get(global_func_name);
+    ICHECK(te_func != nullptr) << "Cannot find function: " << global_func_name;
     using namespace tvm::runtime;
     int n_args = call->args.size();
     std::vector<TVMRetValue> inputs(n_args, TVMRetValue());
