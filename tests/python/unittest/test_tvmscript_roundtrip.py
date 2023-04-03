@@ -3772,6 +3772,30 @@ def tvm_struct_set_generated_in_cpp():
     return tvm.tir.transform.LowerTVMBuiltin()(Module)
 
 
+def nested_seqstmt():
+    """Nested SeqStmt should be normalized to flat SeqStmt
+
+    Nested SeqStmt are representable in the TIR structures, but are
+    flattened when converted to TVMScript.  Previously, this could
+    cause failures to round-trip through TVMScript, including
+    erroneous use of TVMScript's concise-scoping rules.  This was
+    resolved by normalizing nested SeqStmt in TIR, such that the use
+    of `tir.SeqStmt` below results in a single flat `tir.SeqStmt`
+    containing the three `tir.Evaluate` calls.
+    """
+    func = tvm.tir.PrimFunc(
+        params=[],
+        body=tvm.tir.SeqStmt(
+            [
+                tvm.tir.SeqStmt([tvm.tir.Evaluate(0), tvm.tir.Evaluate(1)]),
+                tvm.tir.Evaluate(2),
+            ]
+        ),
+    )
+
+    return func
+
+
 ir_generator = tvm.testing.parameter(
     launch_env_thread,
     opt_gemm_normalize,
@@ -3839,6 +3863,7 @@ ir_generator = tvm.testing.parameter(
     tvm_shfl_builtins,
     ir_module_with_attrs,
     tvm_struct_set_generated_in_cpp,
+    nested_seqstmt,
 )
 
 
