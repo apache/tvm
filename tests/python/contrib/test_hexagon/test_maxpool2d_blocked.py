@@ -151,6 +151,7 @@ class TestMaxPooling(BaseMaxPooling):
             padding=(pad, pad, pad, pad),
             dtype=dtype,
         )
+        assert all([output, ref_output])
 
 
 if __name__ == "__main__":
