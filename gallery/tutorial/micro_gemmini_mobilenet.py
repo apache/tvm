@@ -100,8 +100,7 @@ def run_tflite_model(tflite_model_buf, input_data):
 
 def download_model():
     model_url = (
-        "https://storage.googleapis.com/download.tensorflow.org/models/"
-        "tflite_11_05_08/mobilenet_v2_1.0_224.tgz"
+        "http://download.tensorflow.org/models/tflite_11_05_08/mobilenet_v2_1.0_224.tgz"
     )
 
     # Download model tar file and extract it to get mobilenet_v2_1.0_224.tflite
