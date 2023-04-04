@@ -690,6 +690,46 @@ class SeqStmtNode : public StmtNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(SeqStmtNode, StmtNode);
 };
 
+/*!
+ * \brief Evaluates an expression.
+ *  This is mostly used for putting a Call node into Stmt.
+ *
+ *  If value do not have side-effect, this node can be safely removed.
+ */
+class EvaluateNode : public StmtNode {
+ public:
+  /*! \brief The expression to be evaluated. */
+  PrimExpr value;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("value", &value);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const EvaluateNode* other, SEqualReducer equal) const {
+    return equal(value, other->value);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(value); }
+
+  static constexpr const char* _type_key = "tir.Evaluate";
+  TVM_DECLARE_FINAL_OBJECT_INFO(EvaluateNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to EvaluateNode.
+ * \sa EvaluateNode
+ */
+class Evaluate : public Stmt {
+ public:
+  TVM_DLL explicit Evaluate(PrimExpr value, Span span = Span());
+
+  explicit Evaluate(int value, Span span = Span()) : Evaluate(PrimExpr(value), span) {}
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Evaluate, Stmt, EvaluateNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(EvaluateNode);
+};
+
 /*! \brief Sequence statement. */
 class SeqStmt : public Stmt {
  public:
@@ -726,8 +766,13 @@ class SeqStmt : public Stmt {
   static Stmt Flatten(Args&&... seq_args) {
     Array<Stmt> seq;
     runtime::detail::for_each(Flattener(&seq), std::forward<Args>(seq_args)...);
-    if (seq.size() == 1) return seq[0];
-    return SeqStmt(seq);
+    if (seq.empty()) {
+      return Evaluate(0);
+    } else if (seq.size() == 1) {
+      return seq[0];
+    } else {
+      return SeqStmt(seq);
+    }
   }
   /*! \brief Helper class to flatten sequence of arguments into Array. */
   class Flattener {
@@ -738,9 +783,16 @@ class SeqStmt : public Stmt {
       if (!stmt.defined()) return;
       if (auto* op = stmt.as<SeqStmtNode>()) {
         operator()(0, op->seq);
-      } else {
-        seq_->push_back(stmt);
+        return;
       }
+
+      if (auto* op = stmt.as<EvaluateNode>()) {
+        if (auto* as_int = op->value.as<IntImmNode>(); as_int && as_int->value == 0) {
+          return;
+        }
+      }
+
+      seq_->push_back(stmt);
     }
 
     template <typename T>
@@ -803,46 +855,6 @@ class IfThenElse : public Stmt {
 
   TVM_DEFINE_OBJECT_REF_METHODS(IfThenElse, Stmt, IfThenElseNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IfThenElseNode);
-};
-
-/*!
- * \brief Evaluates an expression.
- *  This is mostly used for putting a Call node into Stmt.
- *
- *  If value do not have side-effect, this node can be safely removed.
- */
-class EvaluateNode : public StmtNode {
- public:
-  /*! \brief The expression to be evaluated. */
-  PrimExpr value;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("value", &value);
-    v->Visit("span", &span);
-  }
-
-  bool SEqualReduce(const EvaluateNode* other, SEqualReducer equal) const {
-    return equal(value, other->value);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(value); }
-
-  static constexpr const char* _type_key = "tir.Evaluate";
-  TVM_DECLARE_FINAL_OBJECT_INFO(EvaluateNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to EvaluateNode.
- * \sa EvaluateNode
- */
-class Evaluate : public Stmt {
- public:
-  TVM_DLL explicit Evaluate(PrimExpr value, Span span = Span());
-
-  explicit Evaluate(int value, Span span = Span()) : Evaluate(PrimExpr(value), span) {}
-
-  TVM_DEFINE_OBJECT_REF_METHODS(Evaluate, Stmt, EvaluateNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(EvaluateNode);
 };
 
 /*!

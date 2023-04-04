@@ -439,7 +439,7 @@ Stmt StmtMutator::VisitStmt_(const SeqStmtNode* op) {
   if (seq.same_as(op->seq)) {
     return GetRef<Stmt>(op);
   } else {
-    return SeqStmt(seq);
+    return SeqStmt::Flatten(seq);
   }
 }
 
