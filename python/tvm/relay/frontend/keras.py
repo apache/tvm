@@ -282,6 +282,8 @@ def _convert_dense(
 
 
 def _convert_convolution1d(inexpr, keras_layer, etab, data_layout, input_shape=None):
+    is_deconv = type(keras_layer).__name__ == "Conv1DTranspose"
+
     if input_shape is None:
         input_shape = keras_layer.input_shape
     _check_data_format(keras_layer)
@@ -290,19 +292,21 @@ def _convert_convolution1d(inexpr, keras_layer, etab, data_layout, input_shape=N
 
     if data_layout == "NWC":
         kernel_layout = "WIO"
+        if is_deconv:
+            kernel_layout = "WOI"
     else:
         kernel_layout = "OIW"
+        if is_deconv:
+            kernel_layout = "IOW"
         msg = (
             "Kernel layout with {} is not supported for operator Convolution1D "
             "in frontend Keras."
         )
         raise tvm.error.OpAttributeUnImplemented(msg.format(data_layout))
 
-    is_deconv = type(keras_layer).__name__ == "Conv1DTranspose"
-
     if is_deconv:
-        if kernel_layout == "OIW":
-            weight = weight.transpose([2, 0, 1])
+        if kernel_layout == "IOW":
+            weight = weight.transpose([2, 1, 0])
         kernel_w, n_filters, _ = weight.shape
     else:
         kernel_w, _, n_filters = weight.shape
