@@ -440,5 +440,101 @@ def test_stop_lifting():
     tvm.ir.assert_structural_equal(after, Expected)
 
 
+def test_symbolic_var():
+    @tvm.script.ir_module
+    class Before1:
+        @R.function
+        def main(shape: R.Shape(["n"])):
+            R.func_attr({"num_input": 1})
+            n = T.int64()
+            with R.dataflow():
+                zeros = R.zeros((n, n), "float32")
+            return shape
+
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def main_transform_params(params: R.Tuple) -> R.Tuple:
+            with R.dataflow():
+                gv: R.Tuple = R.tuple()
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(shape: R.Shape(["n"]), params: R.Tuple) -> R.Shape(["n"]):
+            n = T.int64()
+            with R.dataflow():
+                zeros: R.Tensor((n, n), dtype="float32") = R.zeros(R.shape([n, n]), dtype="float32")
+                R.output()
+            return shape
+
+    @I.ir_module
+    class Before2:
+        @T.prim_func
+        def zeros(var_T_full: T.handle):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            n = T.int64()
+            T_full = T.match_buffer(var_T_full, (n, n))
+            for ax0, ax1 in T.grid(n, n):
+                with T.block("T_full"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads()
+                    T.writes(T_full[v_ax0, v_ax1])
+                    T_full[v_ax0, v_ax1] = T.float32(0)
+
+        @R.function
+        def main(shape: R.Shape(["n"])) -> R.Shape(["n"]):
+            n = T.int64()
+            R.func_attr({"num_input": 1})
+            cls = Before2
+            with R.dataflow():
+                zeros = R.call_tir(
+                    cls.zeros, R.tuple(), out_sinfo=R.Tensor((n, n), dtype="float32")
+                )
+                R.output()
+            return shape
+
+    @I.ir_module
+    class Expected2:
+        @T.prim_func
+        def zeros(var_T_full: T.handle):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            n = T.int64()
+            T_full = T.match_buffer(var_T_full, (n, n))
+            # with T.block("root"):
+            for ax0, ax1 in T.grid(n, n):
+                with T.block("T_full"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads()
+                    T.writes(T_full[v_ax0, v_ax1])
+                    T_full[v_ax0, v_ax1] = T.float32(0)
+
+        @R.function
+        def main_transform_params(params: R.Tuple) -> R.Tuple:
+            with R.dataflow():
+                gv: R.Tuple = R.tuple()
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(shape: R.Shape(["n"]), params: R.Tuple) -> R.Shape(["n"]):
+            n = T.int64()
+            cls = Expected2
+            with R.dataflow():
+                zeros = R.call_tir(
+                    cls.zeros, R.tuple(), out_sinfo=R.Tensor((n, n), dtype="float32")
+                )
+                R.output()
+            return shape
+
+    mod = Before1
+    after = relax.transform.LiftTransformParams()(mod)
+    tvm.ir.assert_structural_equal(after, Expected1)
+
+    mod = Before2
+    after = relax.transform.LiftTransformParams()(mod)
+    tvm.ir.assert_structural_equal(after, Expected2)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
