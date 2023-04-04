@@ -27,7 +27,8 @@ PrimExprLike = Union[int, PrimExpr]
 
 def take(x: Expr, indices: Expr, axis: Optional[int] = None) -> Expr:
     """Take elements from a tensor along an axis.
-    Its semantic is mostly similar to `numpy.take` (https://numpy.org/doc/stable/reference/generated/numpy.take.html),
+    Its semantic is mostly similar to `numpy.take`
+    (https://numpy.org/doc/stable/reference/generated/numpy.take.html),
     which can cover `torch.take` (https://pytorch.org/docs/stable/generated/torch.take.html) and
     `onnx.gather` (https://github.com/onnx/onnx/blob/main/docs/Changelog.md#Gather-13).
 
