@@ -1463,7 +1463,7 @@ def test_scatter_elements_symbolic():
         def main(x: R.Tensor(("a", "b"), "float32"), indices:R.Tensor(("m", "n"), "int64"), updates:R.Tensor(("m","n"), "float32")):
             gv = R.scatter_elements(x, indices, updates, axis=1)
             return gv
-    @I.ir_module    
+    @I.ir_module
     class Expected:
         @T.prim_func
         def scatter_elements(
