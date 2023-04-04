@@ -1263,6 +1263,9 @@ class PyTorchOpConverter:
         else:
             data_layout = "NCW"
             kernel_layout = "OIW"
+            if use_transpose:
+                # Transposed convolutions have IOW layout.
+                kernel_layout = "IOW"
 
         # Conv1d does not currently support grouped convolution so we convert it to conv2d
         is_grouped_conv1d = False
