@@ -406,6 +406,7 @@ PatternContext::PatternContext(bool incremental) {
         << "Incremental context needs to be built inside a existing context.";
     n->allow_extern_use = pattern_ctx_stack().top()->allow_extern_use;
     n->constraints = pattern_ctx_stack().top()->constraints;
+    n->src_ordered = pattern_ctx_stack().top()->src_ordered;
   }
 
   data_ = std::move(n);

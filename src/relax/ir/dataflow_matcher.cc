@@ -523,139 +523,6 @@ bool MatchExpr(DFPattern pattern, Expr expr, Optional<Map<Var, Expr>> bindings_o
 
 TVM_REGISTER_GLOBAL("relax.dpl.match_expr").set_body_typed(MatchExpr);
 
-struct PNode {
-  const DFPatternNode* ptr;
-  const VarNode* matched = nullptr;
-  std::vector<std::pair<PNode*, const std::vector<PairCons>&>> children;
-  std::vector<std::pair<PNode*, const std::vector<PairCons>&>> parents;
-};
-
-struct RNode {
-  const VarNode* ptr;
-  const DFPatternNode* matched = nullptr;
-  std::vector<RNode*> children;
-  std::vector<RNode*> parents;
-};
-
-/**
- * \brief This method try to match a real node and a pattern node along with its neighbors.
- */
-using UndoItems = std::vector<std::pair<PNode*, RNode*>>;
-static std::optional<UndoItems> try_match(
-    PNode* p, RNode* r, DFPatternMatcher* m,
-    const std::map<const VarNode*, std::vector<const VarNode*>>& def2use,
-    const std::map<const VarNode*, std::vector<const VarNode*>>& use2def) {
-  if (p->matched != nullptr && p->matched == r->ptr) return {};  // matched before.
-  if (!m->Match(GetRef<DFPattern>(p->ptr), GetRef<Var>(r->ptr))) return std::nullopt;
-
-  UndoItems undo;
-
-  const auto commit = [&undo](PNode* p, RNode* r) {
-    // match with each other.
-    // TODO(ganler, masahi): Why commit on the same p-r pair happens more than once?
-    if (p->ptr == r->matched) {
-      ICHECK_EQ(p->matched, r->ptr);
-      return;
-    }
-    p->matched = r->ptr;
-    r->matched = p->ptr;
-    undo.emplace_back(p, r);
-  };
-
-  const auto quit = [&undo] {
-    for (auto& [p_node, r_node] : undo) {
-      p_node->matched = nullptr;
-      r_node->matched = nullptr;
-    }
-    return std::nullopt;
-  };
-
-  const auto try_match_update_undo = [&](PNode* p, RNode* r) {
-    if (auto undo_more = try_match(p, r, m, def2use, use2def)) {
-      undo.insert(undo.end(), undo_more->begin(), undo_more->end());
-      return true;
-    }
-    return false;
-  };
-
-  commit(p, r);
-
-  // match parent patterns.
-  for (auto& [pparent, constraints] : p->parents) {
-    bool any_cons_sat = false;
-    for (auto& rparent : r->parents) {
-      // skip if mismatch.
-      if (rparent->matched && rparent->matched != pparent->ptr) continue;
-
-      const auto& uses = def2use.at(rparent->ptr);
-
-      // check edge constraints.
-      bool cons_sat = true;
-      for (const auto& cons : constraints) {
-        if (cons.type == PairCons::kOnlyUsedBy && uses.size() != 1) {
-          cons_sat = false;
-          break;
-        }
-
-        if (cons.index != -1) {
-          const auto& callees = use2def.at(r->ptr);
-          if (callees.size() <= static_cast<size_t>(cons.index) ||
-              callees[cons.index] != rparent->ptr) {
-            cons_sat = false;
-            break;
-          }
-        }
-      }
-      if (!cons_sat) continue;
-      any_cons_sat = true;
-
-      // try all parent R nodes that are not matched yet.
-      // as long as ppattern can match one node.
-      if (!pparent->matched && try_match_update_undo(pparent, rparent)) {
-        commit(pparent, rparent);
-        break;
-      }
-    }
-    if (!pparent->matched || !any_cons_sat) return quit();
-  }
-
-  // forward matching;
-  for (auto& [pchild, constraints] : p->children) {
-    bool any_cons_sat = false;
-    for (auto& rchild : r->children) {
-      if (rchild->matched && rchild->matched != pchild->ptr) continue;
-
-      const auto& uses = def2use.at(r->ptr);
-
-      // check edge constraints.
-      bool all_cons_pass = true;
-      for (const auto& cons : constraints) {
-        if (cons.type == PairCons::kOnlyUsedBy && uses.size() != 1) {
-          all_cons_pass = false;
-          break;
-        }
-
-        if (cons.index != -1) {
-          const auto& callees = use2def.at(rchild->ptr);
-          if (callees.size() <= static_cast<size_t>(cons.index) || callees[cons.index] != r->ptr) {
-            all_cons_pass = false;
-            break;
-          }
-        }
-      }
-      if (!all_cons_pass) continue;
-      any_cons_sat = true;
-
-      if (!pchild->matched && try_match_update_undo(pchild, rchild)) {
-        commit(pchild, rchild);
-        break;
-      }
-    }
-    if (!pchild->matched || !any_cons_sat) return quit();
-  }
-  return undo;
-}
-
 class MatcherUseDefAnalysis : public relax::ExprVisitor {
  public:
   std::vector<const VarNode*> vars;
@@ -693,6 +560,145 @@ class MatcherUseDefAnalysis : public relax::ExprVisitor {
   }
 };
 
+struct PNode {
+  const DFPatternNode* ptr;
+  const VarNode* matched = nullptr;
+  std::vector<std::pair<PNode*, const std::vector<PairCons>&>> children;
+  std::vector<std::pair<PNode*, const std::vector<PairCons>&>> parents;
+};
+
+struct RNode {
+  const VarNode* ptr;
+  const DFPatternNode* matched = nullptr;
+  std::vector<RNode*> children;
+  std::vector<RNode*> parents;
+};
+
+/**
+ * \brief This method try to match a real node and a pattern node along with its neighbors.
+ */
+using UndoItems = std::vector<std::pair<PNode*, RNode*>>;
+
+static std::optional<UndoItems> TryMatch(PNode* p, RNode* r, DFPatternMatcher* m,
+                                         const MatcherUseDefAnalysis& ud_analysis) {
+  if (r->matched != nullptr && p->matched != r->ptr) return std::nullopt;
+  if (!m->Match(GetRef<DFPattern>(p->ptr), GetRef<Var>(r->ptr))) return std::nullopt;
+
+  UndoItems undo;
+
+  const auto commit = [&undo](PNode* p, RNode* r) {
+    // match with each other.
+    if (p->ptr == r->matched) {
+      ICHECK_EQ(p->matched, r->ptr);
+      return;
+    }
+    p->matched = r->ptr;
+    r->matched = p->ptr;
+    undo.emplace_back(p, r);
+  };
+
+  const auto quit = [&undo] {
+    for (auto& [p_node, r_node] : undo) {
+      p_node->matched = nullptr;
+      r_node->matched = nullptr;
+    }
+    return std::nullopt;
+  };
+
+  const auto try_match_update_undo = [&](PNode* p, RNode* r) {
+    if (auto undo_more = TryMatch(p, r, m, ud_analysis)) {
+      undo.insert(undo.end(), undo_more->begin(), undo_more->end());
+      return true;
+    }
+    return false;
+  };
+
+  for (size_t i = 0; i < p->parents.size(); ++i) {
+    auto p_node_parent = p->parents[i].first;
+    if (p_node_parent->ptr->IsInstance<WildcardPatternNode>()) {
+      if (p_node_parent->matched && p_node_parent->matched != r->parents[i]->ptr) {
+        return std::nullopt;
+      }
+      commit(p_node_parent, r->parents[i]);
+    }
+  }
+
+  commit(p, r);
+
+  // forward matching;
+  for (auto& [pchild, constraints] : p->children) {
+    bool any_cons_sat = false;
+    for (auto& rchild : r->children) {
+      if (rchild->matched && rchild->matched != pchild->ptr) continue;
+
+      const auto& uses = ud_analysis.def2use.at(r->ptr);
+
+      // check edge constraints.
+      bool all_cons_pass = true;
+      for (const auto& cons : constraints) {
+        if (cons.type == PairCons::kOnlyUsedBy && uses.size() != 1) {
+          all_cons_pass = false;
+          break;
+        }
+
+        if (cons.index != -1) {
+          const auto& callees = ud_analysis.caller2callees.at(rchild->ptr);
+          if (callees.size() <= static_cast<size_t>(cons.index) || callees[cons.index] != r->ptr) {
+            all_cons_pass = false;
+            break;
+          }
+        }
+      }
+      if (!all_cons_pass) continue;
+      any_cons_sat = true;
+
+      if (!pchild->matched && try_match_update_undo(pchild, rchild)) {
+        commit(pchild, rchild);
+        break;
+      }
+    }
+    if (!pchild->matched || !any_cons_sat) return quit();
+  }
+
+  return undo;
+}
+
+static bool MatchTree(int current_root_idx,
+                      std::unordered_map<const DFPatternNode*, PNode>& pattern2node,
+                      std::unordered_map<const VarNode*, RNode>& var2node,
+                      DFPatternMatcher* matcher, const std::vector<DFPattern>& roots,
+                      const MatcherUseDefAnalysis& ud_analysis) {
+  PNode* root = nullptr;
+  for (; current_root_idx < roots.size(); ++current_root_idx) {
+    root = &pattern2node[roots[current_root_idx].get()];
+    if (!root->matched) {
+      break;
+    }
+  }
+
+  if (root == nullptr || root->matched) {
+    return true;
+  }
+
+  for (const auto& var : ud_analysis.vars) {
+    RNode& r_node = var2node[var];
+    if (r_node.matched) continue;
+    if (auto undo_items = TryMatch(root, &r_node, matcher, ud_analysis)) {
+      if (MatchTree(current_root_idx + 1, pattern2node, var2node, matcher, roots, ud_analysis)) {
+        return true;
+      }
+      // clean up undo stack and backtrack
+      for (auto& [p_node, r_node] : *undo_items) {
+        p_node->matched = nullptr;
+        r_node->matched = nullptr;
+      }
+      continue;
+    }
+  }
+
+  return false;
+}
+
 Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const DataflowBlock& dfb) {
   if (ctx->src_ordered.size() == 0) {
     return NullOpt;
@@ -706,15 +712,13 @@ Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const Datafl
 
   MatcherUseDefAnalysis ud_analysis;
   ud_analysis.VisitBindingBlock_(dfb.get());
-  const auto& def2use = ud_analysis.def2use;
-  const auto& caller2callees = ud_analysis.caller2callees;
 
   // First construct a graph of PNode and RNode.
   std::unordered_map<const VarNode*, RNode> var2node;
   var2node.reserve(dfb->bindings.size());
 
   for (const VarNode* cur_var : ud_analysis.vars) {
-    const auto& uses = def2use.at(cur_var);
+    const auto& uses = ud_analysis.def2use.at(cur_var);
     RNode& cur_node = var2node[cur_var];
     cur_node.ptr = cur_var;
     for (const VarNode* use : uses) {
@@ -728,8 +732,9 @@ Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const Datafl
   std::unordered_map<const DFPatternNode*, PNode> pattern2node;
   pattern2node.reserve(ctx->constraints.size());
 
-  for (const auto& [def_pattern, uses] : ctx->constraints) {
+  for (const auto& def_pattern : ctx->src_ordered) {
     PNode& def_node = pattern2node[def_pattern.get()];
+    const auto& uses = ctx->constraints.at(def_pattern);
     def_node.ptr = def_pattern.get();
     def_node.children.reserve(uses.size());
     for (const auto& [use_pattern, cons] : uses) {
@@ -740,20 +745,22 @@ Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const Datafl
     }
   }
 
-  Map<DFPattern, Var> ret;
-
-  PNode& pnode_start = pattern2node[ctx->src_ordered[0].get()];
-
-  if (!pnode_start.matched) {
-    for (const auto& var : ud_analysis.vars) {
-      RNode& r_node = var2node[var];
-      if (try_match(&pnode_start, &r_node, &matcher, def2use, caller2callees)) {
-        for (const auto& [df_pattern, pattern_node] : pattern2node) {
-          ret.Set(GetRef<DFPattern>(df_pattern), GetRef<Var>(pattern_node.matched));
-        }
-        return ret;
-      }
+  std::vector<DFPattern> roots;
+  for (const auto& pat : ctx->src_ordered) {
+    if (pattern2node[pat.get()].parents.empty()) {
+      roots.push_back(pat);
     }
+  }
+
+  ICHECK_GT(roots.size(), 0);
+
+  if (MatchTree(0, pattern2node, var2node, &matcher, roots, ud_analysis)) {
+    Map<DFPattern, Var> ret;
+    for (const auto& [df_pattern, pattern_node] : pattern2node) {
+      ICHECK(pattern_node.matched);
+      ret.Set(GetRef<DFPattern>(df_pattern), GetRef<Var>(pattern_node.matched));
+    }
+    return ret;
   }
 
   return NullOpt;
