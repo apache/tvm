@@ -17,11 +17,11 @@
 """Creation operators."""
 from typing import Optional, Tuple, Union
 
-from tvm import DataType
+from tvm import DataType, DataTypeCode
 from tvm.ir.expr import PrimExpr
 
 from . import _ffi_api
-from ..expr import Expr, ShapeExpr
+from ..expr import Expr, PrimValue, ShapeExpr
 
 PrimExprLike = Union[int, PrimExpr]
 
@@ -161,6 +161,58 @@ def zeros_like(x: Expr, dtype: Optional[Union[str, DataType]] = None) -> Expr:
         The result tensor.
     """
     return _ffi_api.zeros_like(x, dtype)  # type: ignore
+
+
+def arange(
+    start: Union[PrimExprLike, PrimValue],
+    end: Optional[Union[PrimExprLike, PrimValue]] = None,
+    step: Union[PrimExprLike, PrimValue] = 1,
+    dtype: Optional[Union[str, DataType]] = None,
+) -> Expr:
+    """Construct a tensor with evenly spaced elements.
+
+    Parameters
+    ----------
+    start : Union[PrimExprLike,PrimValue]
+        The start of the interval.
+
+    end : Optional[Union[PrimExprLike,PrimValue]]
+        The end of the interval. If not given, it will be set to start,
+        and start will be set to 0.
+
+    step : Union[PrimExprLike,PrimValue]
+        The step size.
+
+    dtype : Optional[Union[str, DataType]]
+        The data type of the created tensor.
+
+    Returns
+    -------
+    result : relax.Expr
+        The result tensor.
+    """
+    if end is None:
+        end = start
+        start = 0
+
+    def is_int(expr):
+        if isinstance(expr, int):
+            return True
+        if isinstance(expr, PrimValue):
+            expr = expr.value
+        return (
+            isinstance(expr, PrimExpr) and DataType(expr.dtype).type_code == DataTypeCode.INT
+        )  # type: ignore
+
+    if dtype is None:
+        args = (start, end, step)
+        integer_args = all(is_int(arg) for arg in args)
+        dtype = "int64" if integer_args else "float32"
+
+    start = start if isinstance(start, PrimValue) else PrimValue(start)
+    end = end if isinstance(end, PrimValue) else PrimValue(end)
+    step = step if isinstance(step, PrimValue) else PrimValue(step)
+    return _ffi_api.arange(start, end, step, dtype)  # type: ignore
 
 
 def tril(x: Expr, k: int = 0) -> Expr:

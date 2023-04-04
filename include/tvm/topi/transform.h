@@ -1540,9 +1540,18 @@ inline Tensor tensordot(const Tensor& A, const tvm::te::Tensor& B, Array<PrimExp
 
 inline Tensor arange(const PrimExpr& start, const PrimExpr& stop, const PrimExpr& step,
                      DataType dtype, std::string name = "T_arange", std::string tag = kInjective) {
-  PrimExpr num_elem = tvm::cast(
-      tvm::DataType::Int(32), tvm::ceil(tvm::cast(tvm::DataType::Float(32), stop - start) / step));
-  Array<PrimExpr> shape;
+  PrimExpr num_elem;
+  if (start.dtype().is_int() && stop.dtype().is_int() && step.dtype().is_int()) {
+    // fast path for integer arange
+    num_elem = tvm::floordiv((stop - start + step - 1), step);
+  } else {
+    num_elem = tvm::cast(DefaultIndexType(),
+                         tvm::ceil(tvm::cast(tvm::DataType::Float(32), stop - start) / step));
+  }
+
+  arith::Analyzer analyzer;
+  num_elem = analyzer.Simplify(num_elem);
+
   return compute(
       {num_elem},
       [&](const Array<Var>& indices) { return tvm::cast(dtype, start + step * indices[0]); }, name,

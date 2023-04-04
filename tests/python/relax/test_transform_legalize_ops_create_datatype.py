@@ -562,6 +562,60 @@ def test_zeros_like_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_arange_const():
+    # fmt: off
+    @tvm.script.ir_module
+    class Arange:
+        @R.function
+        def main():
+            gv = R.arange(1, 10, 2)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main():
+            gv = R.const([1, 3, 5, 7, 9], dtype="int64")
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(Arange)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_arange_symbolic():
+    # fmt: off
+    @tvm.script.ir_module
+    class Arange:
+        @R.function
+        def main(x: R.Tensor(["n"], "float32")):
+            n = T.int64()
+            gv = R.arange(1, R.prim_value(n), 2)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor(["n"], "float32")):
+            cls = Expected
+            n = T.int64()
+            gv = R.call_tir(cls.arange, R.tuple(), out_sinfo=R.Tensor((n // 2,), dtype="int64"), tir_vars=R.shape([n]))
+            return gv
+
+        @T.prim_func
+        def arange(var_T_arange: T.handle, n: T.int64):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            T_arange = T.match_buffer(var_T_arange, (n // T.int64(2),), "int64")
+            for ax0 in range(n // T.int64(2)):
+                with T.block("T_arange"):
+                    v_ax0 = T.axis.spatial(n // T.int64(2), ax0)
+                    T_arange[v_ax0] = v_ax0 * T.int64(2) + T.int64(1)
+    # fmt: on
+
+    mod = LegalizeOps()(Arange)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 def test_tril():
     # fmt: off
     @tvm.script.ir_module
