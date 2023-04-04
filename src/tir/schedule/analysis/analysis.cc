@@ -1052,7 +1052,8 @@ Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const PrimFuncNode* f
       ICHECK(it != self_->stmt2ref.end());
       auto block_sref = it->second;
       if (block_sref->parent != nullptr) {
-        StmtSRef scope_root_sref = GetScopeRoot(self_, block_sref, /*require_stage_pipeline=*/false);
+        StmtSRef scope_root_sref =
+            GetScopeRoot(self_, block_sref, /*require_stage_pipeline=*/false);
         if (IsOutputBlock(self_, block_sref, scope_root_sref)) {
           results_.push_back(block_sref);
         }
