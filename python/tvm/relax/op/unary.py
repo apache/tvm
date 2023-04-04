@@ -303,6 +303,30 @@ def round(x: Expr) -> Expr:
     return _ffi_api.round(x)  # type: ignore
 
 
+def rsqrt(x: Expr) -> Expr:
+    """Compute element-wise reciprocal square root of the input data.
+
+    .. math::
+
+      1/sqrt(x)
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return _ffi_api.rsqrt(x)  # type: ignore
+
+
 def sigmoid(x: Expr) -> Expr:
     """Compute element-wise sigmoid of the input data.
 

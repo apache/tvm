@@ -2685,9 +2685,8 @@ def test_rsqrt():
             inp_0: R.Tensor((256, 256), dtype="float32")
         ) -> R.Tensor((256, 256), dtype="float32"):
             with R.dataflow():
-                lv: R.Tensor((256, 256), dtype="float32") = R.sqrt(inp_0)
-                lv1: R.Tensor((256, 256), dtype="float32") = R.divide(R.const(1, "float32"), lv)
-                gv: R.Tensor((256, 256), dtype="float32") = lv1
+                lv: R.Tensor((256, 256), dtype="float32") = R.rsqrt(inp_0)
+                gv: R.Tensor((256, 256), dtype="float32") = lv
                 R.output(gv)
             return gv
 

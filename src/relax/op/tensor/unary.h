@@ -100,6 +100,9 @@ Expr negative(Expr x);
 /*! \brief Rounds each element of the input data to nearest integer. */
 Expr round(Expr x);
 
+/*! \brief Compute element-wise reciprocal square root of data. */
+Expr rsqrt(Expr x);
+
 /*! \brief Compute element-wise sigmoid of data. */
 Expr sigmoid(Expr x);
 
