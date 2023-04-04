@@ -886,10 +886,10 @@ def test_reinterpret():
         (1000,), "int16", "uint16", lambda shape: np.random.randint(-1000, 1000, size=shape)
     )
     verify_reinterpret(
-        (1000,), "uint32", "int32", lambda shape: np.random.randint(0, 2**32 - 1, size=shape)
+        (1000,), "uint32", "int32", lambda shape: np.random.randint(0, 2 ** 32 - 1, size=shape)
     )
     verify_reinterpret(
-        (1000,), "uint32", "int32", lambda shape: np.random.randint(0, 2**32 - 1, size=shape)
+        (1000,), "uint32", "int32", lambda shape: np.random.randint(0, 2 ** 32 - 1, size=shape)
     )
 
 
@@ -1026,6 +1026,9 @@ def test_take():
     verify_take((3, 3, 3), [[11, 25]], mode="fast")
     verify_take((3, 4), [0, 2], axis=0, mode="fast")
     verify_take((3, 4), [0, 2], axis=1, mode="fast")
+    verify_take((3, 5, 7), [[0, 2], [0, 2], [0, 2], [0, 2]], axis=0, mode="fast")
+    verify_take((3, 5, 7), [[0, 2], [0, 2], [0, 2], [0, 2]], axis=1, mode="fast")
+    verify_take((3, 5, 7), [[0, 2], [0, 2], [0, 2], [0, 2]], axis=2, mode="fast")
     verify_take((3, 4), [1, 2], axis=1, indices_dtype="uint32")
     verify_take((3, 4), [1, 2], axis=1, mode="wrap", indices_dtype="uint16")
     verify_take((3, 3, 3), [[11, 20]], mode="fast", indices_dtype="uint8")
