@@ -134,6 +134,13 @@ std::string CodeGenCUDA::Finish() {
     decl_stream << "#include <mma.h>\n";
   }
 
+  decl_stream << "\n#if (((__CUDACC_VER_MAJOR__ == 11) && (__CUDACC_VER_MINOR__ >= 4)) || \\\n";
+  decl_stream << "     (__CUDACC_VER_MAJOR__ > 11))\n";
+  decl_stream << "#define TVM_ENABLE_L2_PREFETCH 1\n";
+  decl_stream << "#else\n";
+  decl_stream << "#define TVM_ENABLE_L2_PREFETCH 0\n";
+  decl_stream << "#endif\n";
+
   decl_stream << "\n#ifdef _WIN32\n";
   decl_stream << "  using uint = unsigned int;\n";
   decl_stream << "  using uchar = unsigned char;\n";
