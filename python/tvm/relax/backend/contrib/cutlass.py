@@ -17,11 +17,10 @@
 
 """Pattern table for CUTLASS backend"""
 
-from typing import Mapping, Optional, Sequence, Tuple
+from typing import Mapping, Sequence
 
-import tvm
 from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
-from tvm.relax import DataflowVar, ShapeExpr, Var, transform
+from tvm.relax import DataflowVar, Var, transform
 from tvm.relax.transform import PatternCheckContext
 
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
@@ -31,16 +30,6 @@ from ..patterns import (
     make_matmul_pattern,
     make_residual_block_pattern,
 )
-
-
-def _get_static_shape(shape: ShapeExpr) -> Optional[Tuple[int]]:
-    result = []
-    for dim in shape.values:
-        if isinstance(dim, tvm.tir.expr.IntImm):
-            result.append(int(dim))
-        else:
-            return None
-    return result
 
 
 def _is_supported_dtype(lhs_dtype, rhs_dtype):

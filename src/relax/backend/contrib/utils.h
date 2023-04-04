@@ -120,6 +120,19 @@ inline const CallNode* GetOpInFunction(Function f, const std::string& op_name) {
   return nullptr;
 }
 
+/*!
+ * \brief Extract indices of the argument patterns in the function parameter list.
+ * Each composite function pattern can register a mapping between variable names and the
+ * corresponding patterns. This function tells at which index a given parameter
+ * in the function pattern, identified by its name, appears in the partitioned function parameter
+ * list.
+ * \param pattern_name The name the composite function pattern.
+ * \param f The function partitioned according to the function pattern.
+ * \return A mapping between variable pattern names and their positions in the partitioned
+ * function parameter list.
+ */
+Map<String, IntImm> ExtractArgIdx(String pattern_name, Function f);
+
 }  // namespace backend
 }  // namespace relax
 }  // namespace tvm
