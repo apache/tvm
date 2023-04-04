@@ -26,6 +26,10 @@ import tvm
 from tvm import relax, topi, tir
 
 
+def emit(expr: relax.Expr) -> relax.Var:
+    return relax.BlockBuilder.current().emit(expr)
+
+
 def emit_te(func: Callable, *args: Any, **kwargs: Any) -> relax.Var:
     return relax.BlockBuilder.current().emit_te(func, *args, **kwargs)
 
@@ -112,9 +116,7 @@ def _unpack_params(value: object) -> List[relax.Var]:
         for v in value:
             params += _unpack_params(v)
         return params
-    if value is None or isinstance(value, (int, float, str)):
-        return []
-    raise TypeError("not supported type when unpacking parameters: {}".format(type(value)))
+    return []
 
 
 def init_params(mod: tvm.IRModule) -> List[tvm.nd.array]:
