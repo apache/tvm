@@ -233,9 +233,7 @@ struct GetOutputBlocksTraits : public UnpackedInstTraits<GetOutputBlocksTraits> 
   static constexpr size_t kNumAttrs = 0;
   static constexpr size_t kNumDecisions = 0;
 
-  static Array<BlockRV> UnpackedApplyToSchedule(Schedule sch) {
-    return sch->GetOutputBlocks();
-  }
+  static Array<BlockRV> UnpackedApplyToSchedule(Schedule sch) { return sch->GetOutputBlocks(); }
 
   static String UnpackedAsPython(Array<String> outputs) {
     PythonAPICall py("get_output_blocks");
