@@ -191,8 +191,17 @@ class SEqualReducer {
 
   /*!
    * \brief Reduce condition to comparison of two attribute values.
+   *
    * \param lhs The left operand.
+   *
    * \param rhs The right operand.
+   *
+   * \param paths The paths to the LHS and RHS operands.  If
+   * unspecified, will attempt to identify the attribute's address
+   * within the most recent ObjectRef.  In general, the paths only
+   * require explicit handling for computed parameters
+   * (e.g. `array.size()`)
+   *
    * \return the immediate check result.
    */
   bool operator()(const double& lhs, const double& rhs,
