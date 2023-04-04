@@ -174,6 +174,17 @@ Array<BlockRV> TracedScheduleNode::GetConsumers(const BlockRV& block_rv) {
   return results;
 }
 
+Array<BlockRV> TracedScheduleNode::GetOutputBlocks(const Optional<String>& func_name) {
+  Array<BlockRV> results = ConcreteScheduleNode::GetOutputBlocks(func_name);
+
+  static const InstructionKind& kind = InstructionKind::Get("GetOutputBlocks");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,  //
+                                      /*inputs=*/{},
+                                      /*attrs=*/{},
+                                      /*outputs=*/{results.begin(), results.end()}));
+  return results;
+}
+
 /******** Schedule: Transform loops ********/
 
 LoopRV TracedScheduleNode::Merge(const Array<LoopRV>& loop_rvs) {

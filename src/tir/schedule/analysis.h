@@ -386,6 +386,15 @@ Array<StmtSRef> GetProducers(const StmtSRef& block_sref, const BlockScope& scope
 Array<StmtSRef> GetConsumers(const StmtSRef& block_sref, const BlockScope& scope);
 
 /*!
+ * \brief Get the list of output blocks
+ * An output block is a block which has atleast one buffer being written
+ * to, but is not allocated within the PrimFunc
+ * \return A list of all blocks that write to some output buffer
+ * block
+ */
+Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const PrimFuncNode* func);
+
+/*!
  * \brief A solution to split a ordered list of subtrees into two parts,
  * where producers are on the LHS and consumers are on the RHS.
  * For example, subtree[0, 3) are on the LHS, and subtree[3, 6) are on the RHS.

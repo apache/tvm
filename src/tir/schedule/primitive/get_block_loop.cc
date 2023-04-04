@@ -88,6 +88,12 @@ Array<StmtSRef> GetConsumers(const ScheduleState& self, const StmtSRef& block_sr
   return tir::GetConsumers(block_sref, self->GetBlockScope(scope_root));
 }
 
+Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const GlobalVar& gv) {
+  BaseFunc func = self->mod->Lookup(gv);
+  const auto* prim_func = TVM_TYPE_AS(func, PrimFuncNode);
+  return tir::GetOutputBlocks(self, prim_func);
+}
+
 /******** InstructionKind Registration ********/
 
 struct GetBlockTraits : public UnpackedInstTraits<GetBlockTraits> {
@@ -218,11 +224,35 @@ struct GetConsumersTraits : public UnpackedInstTraits<GetConsumersTraits> {
   friend struct ::tvm::tir::UnpackedInstTraits;
 };
 
+struct GetOutputBlocksTraits : public UnpackedInstTraits<GetOutputBlocksTraits> {
+  static constexpr const char* kName = "GetOutputBlocks";
+  static constexpr bool kIsPure = true;
+
+ private:
+  static constexpr size_t kNumInputs = 0;
+  static constexpr size_t kNumAttrs = 0;
+  static constexpr size_t kNumDecisions = 0;
+
+  static Array<BlockRV> UnpackedApplyToSchedule(Schedule sch) {
+    return sch->GetOutputBlocks();
+  }
+
+  static String UnpackedAsPython(Array<String> outputs) {
+    PythonAPICall py("get_output_blocks");
+    py.OutputList(outputs);
+    return py.Str();
+  }
+
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
+};
+
 TVM_REGISTER_INST_KIND_TRAITS(GetBlockTraits);
 TVM_REGISTER_INST_KIND_TRAITS(GetLoopsTraits);
 TVM_REGISTER_INST_KIND_TRAITS(GetChildBlocksTraits);
 TVM_REGISTER_INST_KIND_TRAITS(GetProducersTraits);
 TVM_REGISTER_INST_KIND_TRAITS(GetConsumersTraits);
+TVM_REGISTER_INST_KIND_TRAITS(GetOutputBlocksTraits);
 
 }  // namespace tir
 }  // namespace tvm
