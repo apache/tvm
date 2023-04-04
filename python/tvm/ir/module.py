@@ -37,7 +37,7 @@ class IRModule(Node, Scriptable):
         Map of global var to BaseFunc
     """
 
-    def __init__(self, functions=None, type_definitions=None):
+    def __init__(self, functions=None, type_definitions=None, attrs=None):
         if functions is None:
             functions = {}
         elif isinstance(functions, dict):
@@ -60,7 +60,17 @@ class IRModule(Node, Scriptable):
                     raise TypeError("Expect type_definitions to be Dict[GlobalTypeVar, Type]")
                 mapped_type_defs[k] = v
             type_definitions = mapped_type_defs
-        self.__init_handle_by_constructor__(_ffi_api.IRModule, functions, type_definitions)
+
+        attrs = None if not attrs else attrs
+        if attrs is not None:
+            attrs = ast.literal_eval(str(attrs))
+            attrs = tvm.ir.make_node("DictAttrs", **attrs)
+        self.__init_handle_by_constructor__(
+            _ffi_api.IRModule,
+            functions,
+            type_definitions,
+            attrs,
+        )
 
     def __setitem__(self, var, val):
         """Add a mapping to the module.

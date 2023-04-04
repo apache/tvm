@@ -266,7 +266,7 @@ PrimFunc MakePackedAPI(PrimFunc&& func) {
                   StringImm(name_hint + "_compute_"), body);
   // Set device context
   if (vmap.count(device_id.get())) {
-    PrimExpr node = StringImm("default");
+    ObjectRef node = String("default");
     seq_check.push_back(AttrStmt(node, attr::device_id, device_id, nop));
     seq_check.push_back(AttrStmt(node, attr::device_type, device_type, nop));
 

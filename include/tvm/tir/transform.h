@@ -177,6 +177,19 @@ TVM_DLL Pass RewriteUnsafeSelect();
 TVM_DLL Pass Simplify();
 
 /*!
+ * \brief Convert an IRModule to be SSA form.
+ *
+ * This pass handles cases where the same tir::Var appears in
+ * multiple functions within the same module.  For example, after
+ * extracting a fragment from one function into another, where the
+ * same `tir::Var` may be defined both as within the body of the
+ * original function, and as a parameter within the hoisted function.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass ConvertSSA();
+
+/*!
  * \brief Instruments bound checkers.
  *
  * \return The pass.

@@ -87,7 +87,7 @@ inline PrimFuncFrame FindPrimFuncFrame(const String& method) {
  * \return The top frame of BlockFrame.
  */
 inline BlockFrame FindBlockFrame(const String& method) {
-  if (Optional<BlockFrame> frame = IRBuilder::Current()->GetLastFrame<BlockFrame>()) {
+  if (Optional<BlockFrame> frame = IRBuilder::Current()->FindFrame<BlockFrame>()) {
     return frame.value();
   } else if (Optional<BlockFrame> frame = IRBuilder::Current()->FindFrame<BlockFrame>()) {
     LOG(FATAL) << "ValueError: " << method << " must be called at the top of a T.block().  "

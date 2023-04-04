@@ -130,12 +130,14 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
   ICHECK_EQ(name_supply_->FreshName("threadIdx"), "threadIdx");
   ICHECK_EQ(name_supply_->FreshName("blockIdx"), "blockIdx");
   int work_dim = 0;
-  auto thread_axis = f->GetAttr<Array<tir::IterVar>>(tir::attr::kDeviceThreadAxis).value();
-
-  for (IterVar iv : thread_axis) {
-    runtime::ThreadScope scope = runtime::ThreadScope::Create(iv->thread_tag);
-    work_dim = std::max(work_dim, scope.dim_index + 1);
+  auto launch_params = f->GetAttr<Array<String>>(tir::attr::kKernelLaunchParams).value();
+  for (const auto& tag : launch_params) {
+    if (tag != runtime::launch_param::kUseDynamicSharedMemoryTag) {
+      runtime::ThreadScope scope = runtime::ThreadScope::Create(tag);
+      work_dim = std::max(work_dim, scope.dim_index + 1);
+    }
   }
+
   if (work_dim != 0) {
     // use ushort by default for now
     stream << "  ";
@@ -144,16 +146,6 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
     stream << "  ";
     PrintType(DataType::UInt(thread_index_bits_, work_dim), stream);
     stream << " threadIdx [[thread_position_in_threadgroup]]\n";
-  }
-  // bind thread axis
-  for (IterVar iv : thread_axis) {
-    ICHECK(!var_idmap_.count(iv->var.get()));
-    std::string vname = iv->thread_tag;
-    if (work_dim <= 1) {
-      vname = vname.substr(0, iv->thread_tag.length() - 2);
-    }
-    var_idmap_[iv->var.get()] =
-        CastFromTo(vname, DataType::UInt(thread_index_bits_), iv->var.dtype());
   }
   // the function scope.
   stream << ") {\n";

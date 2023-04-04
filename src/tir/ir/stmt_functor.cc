@@ -439,9 +439,7 @@ Stmt StmtMutator::VisitStmt_(const SeqStmtNode* op) {
   if (seq.same_as(op->seq)) {
     return GetRef<Stmt>(op);
   } else {
-    auto n = CopyOnWrite(op);
-    n->seq = std::move(seq);
-    return Stmt(n);
+    return SeqStmt(seq);
   }
 }
 

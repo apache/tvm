@@ -220,7 +220,7 @@ class Diagnostics:
         level : diagnostics.DiagnosticLevel
             The diagnostic level.
         """
-        lineno = node.lineno or self.source.start_line
+        lineno = node.lineno or 1
         col_offset = node.col_offset or self.source.start_column
         end_lineno = node.end_lineno or lineno
         end_col_offset = node.end_col_offset or col_offset

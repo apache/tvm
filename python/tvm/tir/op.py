@@ -527,7 +527,7 @@ def tvm_struct_set(arr, index, field, value):
     call : PrimExpr
         The call expression.
     """
-    return call_intrin("handle", "tir.tvm_struct_set", arr, index, field, value)
+    return call_intrin("int32", "tir.tvm_struct_set", arr, index, field, value)
 
 
 def address_of(buffer_load, span=None):

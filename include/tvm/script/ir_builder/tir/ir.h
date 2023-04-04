@@ -435,9 +435,9 @@ void Evaluate(PrimExpr value);
  */
 inline Var Handle(runtime::DataType dtype = runtime::DataType::Void(),  //
                   String storage_scope = "global",                      //
-                  bool is_size_var = false) {
+                  bool is_size_var = false, bool is_unknown_type = false) {
   Type type_annotation{nullptr};
-  if (dtype.is_void() && storage_scope == "global") {
+  if (is_unknown_type && storage_scope == "global") {
     type_annotation = PrimType(runtime::DataType::Handle());
   } else {
     type_annotation = PointerType(PrimType(dtype), storage_scope);

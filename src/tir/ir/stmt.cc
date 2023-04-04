@@ -387,6 +387,18 @@ TVM_REGISTER_NODE_TYPE(PrefetchNode);
 
 // SeqStmt
 SeqStmt::SeqStmt(Array<Stmt> seq, Span span) {
+  bool requires_flattening = std::any_of(
+      seq.begin(), seq.end(), [](const Stmt& stmt) { return stmt->IsInstance<SeqStmtNode>(); });
+
+  if (requires_flattening) {
+    auto flattened = SeqStmt::Flatten(seq);
+    if (auto* ptr = flattened.as<SeqStmtNode>()) {
+      seq = ptr->seq;
+    } else {
+      seq = {flattened};
+    }
+  }
+
   auto node = make_object<SeqStmtNode>();
   node->seq = std::move(seq);
   node->span = std::move(span);

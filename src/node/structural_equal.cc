@@ -109,51 +109,72 @@ bool SEqualReducer::DefEqual(const ObjectRef& lhs, const ObjectRef& rhs) {
 
 template <typename T>
 /* static */ bool SEqualReducer::CompareAttributeValues(const T& lhs, const T& rhs,
-                                                        const PathTracingData* tracing_data) {
+                                                        const PathTracingData* tracing_data,
+                                                        Optional<ObjectPathPair> paths) {
   if (BaseValueEqual()(lhs, rhs)) {
     return true;
-  } else {
-    GetPathsFromAttrAddressesAndStoreMismatch(&lhs, &rhs, tracing_data);
-    return false;
   }
+
+  if (tracing_data && !tracing_data->first_mismatch->defined()) {
+    if (paths) {
+      *tracing_data->first_mismatch = paths.value();
+    } else {
+      GetPathsFromAttrAddressesAndStoreMismatch(&lhs, &rhs, tracing_data);
+    }
+  }
+  return false;
 }
 
-bool SEqualReducer::operator()(const double& lhs, const double& rhs) const {
+bool SEqualReducer::operator()(const double& lhs, const double& rhs,
+                               Optional<ObjectPathPair> paths) const {
   return CompareAttributeValues(lhs, rhs, tracing_data_);
 }
 
-bool SEqualReducer::operator()(const int64_t& lhs, const int64_t& rhs) const {
+bool SEqualReducer::operator()(const int64_t& lhs, const int64_t& rhs,
+                               Optional<ObjectPathPair> paths) const {
   return CompareAttributeValues(lhs, rhs, tracing_data_);
 }
 
-bool SEqualReducer::operator()(const uint64_t& lhs, const uint64_t& rhs) const {
+bool SEqualReducer::operator()(const uint64_t& lhs, const uint64_t& rhs,
+                               Optional<ObjectPathPair> paths) const {
   return CompareAttributeValues(lhs, rhs, tracing_data_);
 }
 
-bool SEqualReducer::operator()(const int& lhs, const int& rhs) const {
+bool SEqualReducer::operator()(const int& lhs, const int& rhs,
+                               Optional<ObjectPathPair> paths) const {
   return CompareAttributeValues(lhs, rhs, tracing_data_);
 }
 
-bool SEqualReducer::operator()(const bool& lhs, const bool& rhs) const {
+bool SEqualReducer::operator()(const bool& lhs, const bool& rhs,
+                               Optional<ObjectPathPair> paths) const {
   return CompareAttributeValues(lhs, rhs, tracing_data_);
 }
 
-bool SEqualReducer::operator()(const std::string& lhs, const std::string& rhs) const {
+bool SEqualReducer::operator()(const std::string& lhs, const std::string& rhs,
+                               Optional<ObjectPathPair> paths) const {
   return CompareAttributeValues(lhs, rhs, tracing_data_);
 }
 
-bool SEqualReducer::operator()(const DataType& lhs, const DataType& rhs) const {
+bool SEqualReducer::operator()(const DataType& lhs, const DataType& rhs,
+                               Optional<ObjectPathPair> paths) const {
   return CompareAttributeValues(lhs, rhs, tracing_data_);
 }
 
 bool SEqualReducer::EnumAttrsEqual(int lhs, int rhs, const void* lhs_address,
-                                   const void* rhs_address) const {
+                                   const void* rhs_address, Optional<ObjectPathPair> paths) const {
   if (lhs == rhs) {
     return true;
-  } else {
-    GetPathsFromAttrAddressesAndStoreMismatch(lhs_address, rhs_address, tracing_data_);
-    return false;
   }
+
+  if (tracing_data_ && !tracing_data_->first_mismatch->defined()) {
+    if (paths) {
+      *tracing_data_->first_mismatch = paths.value();
+    } else {
+      GetPathsFromAttrAddressesAndStoreMismatch(&lhs, &rhs, tracing_data_);
+    }
+  }
+
+  return false;
 }
 
 const ObjectPathPair& SEqualReducer::GetCurrentObjectPaths() const {

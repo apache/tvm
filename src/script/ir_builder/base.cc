@@ -77,6 +77,11 @@ IRBuilder IRBuilder::Current() {
   return stack->back();
 }
 
+bool IRBuilder::IsInScope() {
+  std::vector<IRBuilder>* stack = ThreadLocalBuilderStack();
+  return !stack->empty();
+}
+
 namespace details {
 
 Namer::FType& Namer::vtable() {
@@ -106,6 +111,7 @@ TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilder").set_body_typed([]() { return 
 TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilderEnter").set_body_method(&IRBuilder::EnterWithScope);
 TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilderExit").set_body_method(&IRBuilder::ExitWithScope);
 TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilderCurrent").set_body_typed(IRBuilder::Current);
+TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilderIsInScope").set_body_typed(IRBuilder::IsInScope);
 TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilderGet")
     .set_body_method<IRBuilder>(&IRBuilderNode::Get<ObjectRef>);
 TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilderName").set_body_typed(IRBuilder::Name<ObjectRef>);

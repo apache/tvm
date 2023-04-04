@@ -69,26 +69,29 @@ class ThreadAxisRewriter : private StmtExprMutator {
   std::unordered_map<const VarNode*, Var> vmap_;
 };
 
-PrimFunc RemapThreadAxis(PrimFunc&& f, Map<runtime::String, IterVar> thread_map) {
+PrimFunc RemapThreadAxis(PrimFunc func, Map<runtime::String, IterVar> thread_map) {
   std::unordered_map<std::string, IterVar> tmap;
   for (const auto& kv : thread_map) {
     tmap[kv.first] = kv.second;
   }
 
-  auto opt_thread_axis = f->GetAttr<Array<IterVar>>(tir::attr::kDeviceThreadAxis);
-  ICHECK(opt_thread_axis != nullptr) << "Require attribute " << tir::attr::kDeviceThreadAxis;
-  auto thread_axis = opt_thread_axis.value();
-  auto* n = f.CopyOnWrite();
-
-  // replace the thread axis
-  for (size_t i = 0; i < thread_axis.size(); ++i) {
-    auto it = tmap.find(thread_axis[i]->thread_tag);
-    if (it != tmap.end()) {
-      thread_axis.Set(i, it->second);
+  if (auto opt = func->GetAttr<Array<IterVar>>(tir::attr::kKernelLaunchParams)) {
+    ICHECK(opt != nullptr) << "Require attribute " << tir::attr::kKernelLaunchParams;
+    auto launch_params = opt.value();
+    // replace the thread axis attribute
+    for (size_t i = 0; i < launch_params.size(); ++i) {
+      auto it = tmap.find(launch_params[i]->thread_tag);
+      if (it != tmap.end()) {
+        launch_params.Set(i, it->second);
+      }
     }
+
+    func = WithAttr(std::move(func), tir::attr::kKernelLaunchParams, launch_params);
   }
+
+  auto* n = func.CopyOnWrite();
   n->body = ThreadAxisRewriter(tmap).Rewrite(std::move(n->body));
-  return WithAttr(std::move(f), tir::attr::kDeviceThreadAxis, thread_axis);
+  return func;
 }
 
 namespace transform {
