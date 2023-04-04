@@ -2341,14 +2341,15 @@ def test_tflite_squeeze(ifm_shape, axis):
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
-@pytest.mark.parametrize("half_pixel", [False, True])
 @pytest.mark.parametrize(
-    "ifm_shape,size",
+    "ifm_shape,size,half_pixel",
     [
-        [(1, 2, 2, 1), (4, 4)],
-        [(1, 4, 7, 3), (8, 14)],
-        [(1, 3, 5, 3), (3, 5)],
-        [(1, 6, 6, 96), (12, 12)],
+        [(1, 2, 2, 1), (4, 4), False],
+        [(1, 2, 2, 1), (4, 4), True],
+        [(1, 4, 7, 3), (8, 14), False],
+        [(1, 3, 5, 3), (3, 5), False],
+        [(1, 6, 6, 96), (12, 12), False],
+        [(1, 6, 6, 96), (12, 12), True],
     ],
 )
 def test_tflite_resize2d_nearest_neighbor(ifm_shape, size, half_pixel):

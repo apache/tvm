@@ -1680,9 +1680,9 @@ class Resize2dParams:
         if (
             self.coordinate_transformation_mode == "half_pixel"
             and self.rounding_method != "round_prefer_ceil"
+            or self.coordinate_transformation_mode != "half_pixel"
+            and self.rounding_method != ""
         ):
-            return False
-        if self.coordinate_transformation_mode != "half_pixel" and self.rounding_method != "":
             return False
         if not check_compatible_size(
             self.coordinate_transformation_mode,
