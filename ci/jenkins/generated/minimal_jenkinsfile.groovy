@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-02-02T20:12:16.540335
+// Generated at 2023-04-04T14:08:10.261714
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -540,10 +540,10 @@ def micro_cpp_unittest(image) {
 cancel_previous_build()
 
 prepare()
-def build() {
+def build(node_type) {
   stage('Build') {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU-SMALL') {
+      node(node_type) {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-cpu-minimal") {
           init_git()
           docker_init(ci_minimal)
@@ -567,14 +567,18 @@ def build() {
     }
   }
 }
-build()
+try {
+    build('CPU-SMALL-SPOT')
+} Exception (ex) {
+    build('CPU-SMALL')
+}
 
 
 
 
-def shard_run_unittest_CPU_MINIMAL_1_of_1() {
+def shard_run_unittest_CPU_MINIMAL_1_of_1(node_type) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-cpu-minimal") {
         try {
           init_git()
@@ -623,7 +627,11 @@ def test() {
     }
     parallel(
     'unittest: CPU MINIMAL 1 of 1': {
+      try {
       shard_run_unittest_CPU_MINIMAL_1_of_1()
+      } catch(Exception ex) {
+        shard_run_unittest_CPU_MINIMAL_1_of_1()
+      }
     },
     )
   }

@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-02-02T20:12:16.672484
+// Generated at 2023-04-04T14:08:10.339442
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -540,10 +540,10 @@ def micro_cpp_unittest(image) {
 cancel_previous_build()
 
 prepare()
-def build() {
+def build(node_type) {
   stage('Build') {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('ARM-SMALL') {
+      node(node_type) {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-arm") {
           init_git()
           docker_init(ci_arm)
@@ -567,13 +567,17 @@ def build() {
     }
   }
 }
-build()
+try {
+    build('ARM-SMALL-SPOT')
+} Exception (ex) {
+    build('ARM-SMALL')
+}
 
 
 
-def shard_run_integration_aarch64_1_of_4() {
+def shard_run_integration_aarch64_1_of_4(node_type) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('ARM-SMALL') {
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
           init_git()
@@ -617,9 +621,9 @@ def shard_run_integration_aarch64_1_of_4() {
   }
 }
 
-def shard_run_integration_aarch64_2_of_4() {
+def shard_run_integration_aarch64_2_of_4(node_type) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('ARM-SMALL') {
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
           init_git()
@@ -663,9 +667,9 @@ def shard_run_integration_aarch64_2_of_4() {
   }
 }
 
-def shard_run_integration_aarch64_3_of_4() {
+def shard_run_integration_aarch64_3_of_4(node_type) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('ARM-SMALL') {
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
           init_git()
@@ -709,9 +713,9 @@ def shard_run_integration_aarch64_3_of_4() {
   }
 }
 
-def shard_run_integration_aarch64_4_of_4() {
+def shard_run_integration_aarch64_4_of_4(node_type) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('ARM-SMALL') {
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
           init_git()
@@ -757,9 +761,9 @@ def shard_run_integration_aarch64_4_of_4() {
 
 
 
-def shard_run_topi_aarch64_1_of_2() {
+def shard_run_topi_aarch64_1_of_2(node_type) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('ARM-SMALL') {
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
           init_git()
@@ -808,9 +812,9 @@ def shard_run_topi_aarch64_1_of_2() {
   }
 }
 
-def shard_run_topi_aarch64_2_of_2() {
+def shard_run_topi_aarch64_2_of_2(node_type) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('ARM-SMALL') {
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
           init_git()
@@ -859,9 +863,9 @@ def shard_run_topi_aarch64_2_of_2() {
 
 
 
-def shard_run_frontend_aarch64_1_of_2() {
+def shard_run_frontend_aarch64_1_of_2(node_type) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('ARM-SMALL') {
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-arm") {
         try {
           init_git()
@@ -904,9 +908,9 @@ def shard_run_frontend_aarch64_1_of_2() {
   }
 }
 
-def shard_run_frontend_aarch64_2_of_2() {
+def shard_run_frontend_aarch64_2_of_2(node_type) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('ARM-SMALL') {
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-arm") {
         try {
           init_git()
@@ -957,28 +961,60 @@ def test() {
     }
     parallel(
     'integration: aarch64 1 of 4': {
+      try {
       shard_run_integration_aarch64_1_of_4()
+      } catch(Exception ex) {
+        shard_run_integration_aarch64_1_of_4()
+      }
     },
     'integration: aarch64 2 of 4': {
+      try {
       shard_run_integration_aarch64_2_of_4()
+      } catch(Exception ex) {
+        shard_run_integration_aarch64_2_of_4()
+      }
     },
     'integration: aarch64 3 of 4': {
+      try {
       shard_run_integration_aarch64_3_of_4()
+      } catch(Exception ex) {
+        shard_run_integration_aarch64_3_of_4()
+      }
     },
     'integration: aarch64 4 of 4': {
+      try {
       shard_run_integration_aarch64_4_of_4()
+      } catch(Exception ex) {
+        shard_run_integration_aarch64_4_of_4()
+      }
     },
     'topi: aarch64 1 of 2': {
+      try {
       shard_run_topi_aarch64_1_of_2()
+      } catch(Exception ex) {
+        shard_run_topi_aarch64_1_of_2()
+      }
     },
     'topi: aarch64 2 of 2': {
+      try {
       shard_run_topi_aarch64_2_of_2()
+      } catch(Exception ex) {
+        shard_run_topi_aarch64_2_of_2()
+      }
     },
     'frontend: aarch64 1 of 2': {
+      try {
       shard_run_frontend_aarch64_1_of_2()
+      } catch(Exception ex) {
+        shard_run_frontend_aarch64_1_of_2()
+      }
     },
     'frontend: aarch64 2 of 2': {
+      try {
       shard_run_frontend_aarch64_2_of_2()
+      } catch(Exception ex) {
+        shard_run_frontend_aarch64_2_of_2()
+      }
     },
     )
   }
