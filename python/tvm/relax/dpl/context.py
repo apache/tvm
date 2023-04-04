@@ -17,7 +17,7 @@
 
 """The Graph Matching Context Manager for Dataflow Pattern Language."""
 
-from typing import Optional, Dict
+from typing import Dict
 
 import tvm
 from ..expr import DataflowBlock, Var
