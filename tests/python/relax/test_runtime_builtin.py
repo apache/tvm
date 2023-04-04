@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 import pytest
 import numpy as np
 
@@ -147,6 +148,22 @@ def test_tuple_getitem():
 
     assert tuple_getitem(t, 0) == x
     assert tuple_getitem(t, 1) == y
+
+
+def test_attention_kv_cache():
+    fcreate = tvm.get_global_func("vm.builtin.attention_kv_cache_create")
+    fappend = tvm.get_global_func("vm.builtin.attention_kv_cache_append")
+    fview = tvm.get_global_func("vm.builtin.attention_kv_cache_view")
+
+    cache = fcreate(tvm.nd.empty((2, 2), dtype="int32"))
+    num_steps = 0
+    for i in range(num_steps):
+        cache = fappend(cache, tvm.nd.array(i * np.ones((1, 2).astype("int32"))))
+
+    res = fview(cache, tvm.runtime.ShapeTuple((num_steps, 2))).numpy()
+    for i in range(num_steps):
+        assert res[i][0] == i
+        assert res[i][1] == i
 
 
 if __name__ == "__main__":
