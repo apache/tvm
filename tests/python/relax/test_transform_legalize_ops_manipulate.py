@@ -1353,5 +1353,203 @@ def test_cumsum_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_scatter_elements():
+    # fmt: off
+    @I.ir_module
+    class ScatterElements:
+        @R.function
+        def main(x: R.Tensor((4,4), "float32"), indices: R.Tensor((2,2), "int64"), updates: R.Tensor((2,2), "float32")):
+            gv = R.scatter_elements(x, indices, updates, axis=1)
+            return gv
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def scatter_elements(
+            var_rxplaceholder: T.handle,
+            var_rxplaceholder_1: T.handle,
+            var_rxplaceholder_2: T.handle,
+            out_buf: T.Buffer((T.int64(4), T.int64(4)), "float32"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            rxplaceholder = T.match_buffer(
+                var_rxplaceholder, (T.int64(4), T.int64(4)), offset_factor=1
+            )
+            rxplaceholder_1 = T.match_buffer(
+                var_rxplaceholder_1, (T.int64(2), T.int64(2)), "int64", offset_factor=1
+            )
+            rxplaceholder_2 = T.match_buffer(
+                var_rxplaceholder_2, (T.int64(2), T.int64(2)), offset_factor=1
+            )
+            with T.block("scatter_elements_generic"):
+                T.reads(
+                    rxplaceholder[T.int64(0) : T.int64(4), T.int64(0) : T.int64(4)],
+                    rxplaceholder_1[T.int64(0) : T.int64(2), T.int64(0) : T.int64(2)],
+                    rxplaceholder_2[T.int64(0) : T.int64(2), T.int64(0) : T.int64(2)],
+                )
+                T.writes(out_buf[T.int64(0) : T.int64(4), T.int64(0) : T.int64(4)])
+                for i in T.parallel(T.int64(16)):
+                    out_buf[i // T.int64(4), i % T.int64(4)] = rxplaceholder[
+                        i // T.int64(4), i % T.int64(4)
+                    ]
+                for fused in T.parallel(T.int64(2)):
+                    for k in range(T.int64(2)):
+                        out_buf[
+                            (
+                                fused * T.int64(4)
+                                + (
+                                    rxplaceholder_1[
+                                        (fused * T.int64(2) + k) // T.int64(2),
+                                        (fused * T.int64(2) + k) % T.int64(2),
+                                    ]
+                                    + T.Cast(
+                                        "int64",
+                                        rxplaceholder_1[
+                                            (fused * T.int64(2) + k) // T.int64(2),
+                                            (fused * T.int64(2) + k) % T.int64(2),
+                                        ]
+                                        < T.int64(0),
+                                    )
+                                    * T.int64(4)
+                                )
+                            )
+                            // T.int64(4),
+                            (
+                                fused * T.int64(4)
+                                + (
+                                    rxplaceholder_1[
+                                        (fused * T.int64(2) + k) // T.int64(2),
+                                        (fused * T.int64(2) + k) % T.int64(2),
+                                    ]
+                                    + T.Cast(
+                                        "int64",
+                                        rxplaceholder_1[
+                                            (fused * T.int64(2) + k) // T.int64(2),
+                                            (fused * T.int64(2) + k) % T.int64(2),
+                                        ]
+                                        < T.int64(0),
+                                    )
+                                    * T.int64(4)
+                                )
+                            )
+                            % T.int64(4),
+                        ] = rxplaceholder_2[
+                            (fused * T.int64(2) + k) // T.int64(2),
+                            (fused * T.int64(2) + k) % T.int64(2),
+                        ]
+
+        @R.function
+        def main(
+            x: R.Tensor((4, 4), dtype="float32"),
+            indices: R.Tensor((2, 2), dtype="int64"),
+            updates: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tensor((4, 4), dtype="float32"):
+            gv = R.call_tir(
+                Expected.scatter_elements,
+                (x, indices, updates),
+                out_sinfo=R.Tensor((4, 4), dtype="float32"),
+            )
+            return gv
+
+    # fmt: on
+    mod = LegalizeOps()(ScatterElements)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_scatter_elements_symbolic():
+    # fmt: off
+    @I.ir_module
+    class ScatterElements:
+        @R.function
+        def main(x: R.Tensor(("a", "b"), "float32"), indices:R.Tensor(("m", "n"), "int64"), updates:R.Tensor(("m","n"), "float32")):
+            gv = R.scatter_elements(x, indices, updates, axis=1)
+            return gv
+    @I.ir_module    
+    class Expected:
+        @T.prim_func
+        def scatter_elements(
+            var_rxplaceholder: T.handle,
+            var_rxplaceholder_1: T.handle,
+            var_rxplaceholder_2: T.handle,
+            var_scatter_elements_generic: T.handle,
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            a, b = T.int64(), T.int64()
+            rxplaceholder = T.match_buffer(var_rxplaceholder, (a, b), offset_factor=1)
+            m, n = T.int64(), T.int64()
+            rxplaceholder_1 = T.match_buffer(
+                var_rxplaceholder_1, (m, n), "int64", offset_factor=1
+            )
+            rxplaceholder_2 = T.match_buffer(var_rxplaceholder_2, (m, n), offset_factor=1)
+            out_buf = T.match_buffer(var_scatter_elements_generic, (a, b))
+            with T.block("scatter_elements_generic"):
+                T.reads(
+                    rxplaceholder[T.int64(0) : a, T.int64(0) : b],
+                    rxplaceholder_1[T.int64(0) : m, T.int64(0) : n],
+                    rxplaceholder_2[T.int64(0) : m, T.int64(0) : n],
+                )
+                T.writes(out_buf[T.int64(0) : a, T.int64(0) : b])
+                for i in T.parallel(a * b):
+                    out_buf[i // b, i % b] = rxplaceholder[i // b, i % b]
+                for fused in T.parallel(m):
+                    for k in range(n):
+                        out_buf[
+                            (
+                                fused * b
+                                + (
+                                    rxplaceholder_1[
+                                        (fused * n + k) // n, (fused * n + k) % n
+                                    ]
+                                    + T.Cast(
+                                        "int64",
+                                        rxplaceholder_1[
+                                            (fused * n + k) // n, (fused * n + k) % n
+                                        ]
+                                        < T.int64(0),
+                                    )
+                                    * b
+                                )
+                            )
+                            // b,
+                            (
+                                fused * b
+                                + (
+                                    rxplaceholder_1[
+                                        (fused * n + k) // n, (fused * n + k) % n
+                                    ]
+                                    + T.Cast(
+                                        "int64",
+                                        rxplaceholder_1[
+                                            (fused * n + k) // n, (fused * n + k) % n
+                                        ]
+                                        < T.int64(0),
+                                    )
+                                    * b
+                                )
+                            )
+                            % b,
+                        ] = rxplaceholder_2[(fused * n + k) // n, (fused * n + k) % n]
+
+        @R.function
+        def main(
+            x: R.Tensor(("a", "b"), dtype="float32"),
+            indices: R.Tensor(("m", "n"), dtype="int64"),
+            updates: R.Tensor(("m", "n"), dtype="float32"),
+        ) -> R.Tensor(("a", "b"), dtype="float32"):
+            a = T.int64()
+            b = T.int64()
+            m = T.int64()
+            n = T.int64()
+            gv = R.call_tir(
+                Expected.scatter_elements,
+                (x, indices, updates),
+                out_sinfo=R.Tensor((a, b), dtype="float32"),
+            )
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(ScatterElements)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

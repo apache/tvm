@@ -151,3 +151,15 @@ def _tile(bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.cumsum")
 def _cumsum(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(topi.cumsum, call.args[0], call.attrs.axis, call.attrs.dtype)
+
+
+@register_legalize("relax.scatter_elements")
+def _scatter_elements(bb: BlockBuilder, call: Call) -> Expr:
+    return bb.call_te(
+        topi.scatter_elements,
+        call.args[0],
+        call.args[1],
+        call.args[2],
+        call.attrs.axis,
+        call.attrs.reduction,
+    )

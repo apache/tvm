@@ -140,6 +140,18 @@ struct CumsumAttrs : public tvm::AttrsNode<CumsumAttrs> {
   }
 };  // struct CumsumAttrs
 
+/*! \brief Attributes used in scatter_elements operators */
+struct ScatterElementsAttrs : public tvm::AttrsNode<ScatterElementsAttrs> {
+  Integer axis;
+  String reduction;
+
+  TVM_DECLARE_ATTRS(ScatterElementsAttrs, "relax.attrs.ScatterElementsAttrs") {
+    TVM_ATTR_FIELD(axis).set_default(0).describe("The axis over which to select values.");
+    TVM_ATTR_FIELD(reduction).set_default("update").describe(
+        "Reduction mode of the scatter elements, "
+        "either \"update\", \"add\", \"mul\", \"mean\", \"min\" or \"max\".");
+  }
+};  // struct ScatterElementsAttrs
 }  // namespace relax
 }  // namespace tvm
 

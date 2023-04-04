@@ -1359,5 +1359,119 @@ TVM_REGISTER_OP("relax.cumsum")
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCumsum);
 
+/* relax.scatter_elements */
+TVM_REGISTER_NODE_TYPE(ScatterElementsAttrs);
+
+Expr scatter_elements(Expr data, Expr indices, Expr updates, int axis, String reduction) {
+  auto attrs = make_object<ScatterElementsAttrs>();
+  attrs->axis = std::move(axis);
+  attrs->reduction = std::move(reduction);
+  static const Op& op = Op::Get("relax.scatter_elements");
+  return Call(op, {data, indices, updates}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.scatter_elements").set_body_typed(scatter_elements);
+
+StructInfo InferStructInfoScatterElements(const Call& call, const BlockBuilder& ctx) {
+  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* indices_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+  const auto* updates_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[2]);
+
+  auto diag_def = [&](const TensorStructInfoNode* sinfo, String name, String type_key) {
+    if (sinfo == nullptr) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "ScatterEelemtns requires the input " << name
+                       << " to be a Tensor. However, the given one is " << type_key);
+    }
+  };
+
+  diag_def(data_sinfo, "data", call->args[0]->struct_info_->GetTypeKey());
+  diag_def(indices_sinfo, "indices", call->args[1]->struct_info_->GetTypeKey());
+  diag_def(updates_sinfo, "updates", call->args[2]->struct_info_->GetTypeKey());
+
+  if (data_sinfo->IsUnknownNdim()) {
+    // When `data` has unknown rank, assume rest of arguments are correct and proceed.
+    // If the assumption turns out to be wrong, runtime error will be triggered.
+    return TensorStructInfo(data_sinfo->dtype, kUnknownNDim);
+  }
+
+  if (!indices_sinfo->IsUnknownNdim() && !updates_sinfo->IsUnknownNdim()) {
+    if (data_sinfo->ndim != indices_sinfo->ndim) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "ScatterElements op requires the data tensor to have the same rank with "
+                          "indices tensor. However, the given dimensions are "
+                       << "indices: " << indices_sinfo->ndim << ", data: " << data_sinfo->ndim);
+    }
+
+    if (indices_sinfo->ndim != updates_sinfo->ndim) {
+      ctx->ReportFatal(
+          Diagnostic::Error(call)
+          << "ScatterElements op requires the indices tensor to have the same rank with "
+             "updates tensor. However, the given dimensions are "
+          << "indices: " << indices_sinfo->ndim << ", updates: " << updates_sinfo->ndim);
+    }
+  }
+
+  if (data_sinfo->IsUnknownDtype() || updates_sinfo->IsUnknownDtype()) {
+    auto diag_dtype = [&](const TensorStructInfoNode* sinfo, String name) {
+      if (sinfo->IsUnknownDtype()) {
+        // TODO(tvm-team): Do we have an equivalent of `ctx->ReportFatal` for warning?
+        LOG(WARNING) << "Data type of " << name
+                     << " has not been specified. Assume it has an integer type.";
+      }
+    };
+    diag_dtype(data_sinfo, "data");
+    diag_dtype(data_sinfo, "updates");
+  } else {
+    if (data_sinfo->dtype != updates_sinfo->dtype) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "ScatterElements op requires the input data to have same type with "
+                          "updates. However, the given types are "
+                       << "data: " << data_sinfo->dtype << ", updates: " << updates_sinfo->dtype);
+    }
+  }
+
+  if (indices_sinfo->IsUnknownDtype()) {
+    // TODO(tvm-team): Do we have an equivalent of `ctx->ReportFatal` for warning?
+    LOG(WARNING) << "Data type of indice has not been specified. Assume it has an integer type.";
+  } else if (!(indices_sinfo->dtype.is_int() || indices_sinfo->dtype.is_uint())) {
+    ctx->ReportFatal(
+        Diagnostic::Error(call)
+        << "ScatterElements op requires the input indices to have integer dtype. However, the "
+           "given indices dtype is "
+        << indices_sinfo->dtype);
+  }
+
+  const auto* indices_shape = indices_sinfo->shape.as<ShapeExprNode>();
+  const auto* updates_shape = updates_sinfo->shape.as<ShapeExprNode>();
+  if (indices_shape && updates_shape) {
+    for (int i = 0; i < indices_sinfo->ndim; i++) {
+      if (analyzer->CanProve(indices_shape->values[i] != updates_shape->values[i])) {
+        ctx->ReportFatal(
+            Diagnostic::Error(call)
+            << "ScatterElements op requires the indices tensor to have the same shape with "
+               "updates tensor. However, the given shapes are "
+            << "indices: " << ShapeExpr(indices_shape->values)
+            << ", updates: " << ShapeExpr(updates_shape->values));
+      }
+    }
+  }
+  const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
+  if (data_shape) {
+    return TensorStructInfo(ShapeExpr(data_shape->values), data_sinfo->dtype);
+  }
+  return TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim);
+}
+
+// TODO(relax-team): implement FRelaxInferLayout for scatter_elements
+TVM_REGISTER_OP("relax.scatter_elements")
+    .set_attrs_type<ScatterElementsAttrs>()
+    .set_num_inputs(3)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("indices", "Tensor", "The indices tensor.")
+    .add_argument("updates", "Tensor", "The input tensor of updates.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoScatterElements);
+
 }  // namespace relax
 }  // namespace tvm
