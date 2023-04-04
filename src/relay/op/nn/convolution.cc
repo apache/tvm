@@ -985,7 +985,9 @@ bool Conv1DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
     if (param->channels.defined()) {
       ICHECK(reporter->AssertEQ(indexdiv(param->channels, param->groups), wshape[1]))
           << "Conv1DTraspose: shape of weight is inconsistent with channels, "
-          << " channels=" << param->channels << " wshape=" << Array<IndexExpr>(wshape);
+          << " out_channels // groups != weight.shape[1] "
+          << " out_channels=" << param->channels << " groups=" << param->groups
+          << " wshape=" << Array<IndexExpr>(wshape);
     }
     if (!dshape_ncw[1].as<tir::AnyNode>() && !wshape[0].as<tir::AnyNode>()) {
       ICHECK(reporter->AssertEQ(dshape_ncw[1], wshape[0]));
