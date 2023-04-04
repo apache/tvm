@@ -44,6 +44,7 @@ def test_op_correctness():
     assert relax.op.log(x).op == Op.get("relax.log")
     assert relax.op.negative(x).op == Op.get("relax.negative")
     assert relax.op.round(x).op == Op.get("relax.round")
+    assert relax.op.rsqrt(x).op == Op.get("relax.rsqrt")
     assert relax.op.sigmoid(x).op == Op.get("relax.sigmoid")
     assert relax.op.sin(x).op == Op.get("relax.sin")
     assert relax.op.sinh(x).op == Op.get("relax.sinh")
@@ -75,6 +76,7 @@ unary_arith_op, require_float_dtype = tvm.testing.parameters(
     (relax.op.log, True),
     (relax.op.negative, False),
     (relax.op.round, False),
+    (relax.op.rsqrt, True),
     (relax.op.sigmoid, True),
     (relax.op.sign, False),
     (relax.op.sin, True),

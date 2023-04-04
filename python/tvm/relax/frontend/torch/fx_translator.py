@@ -157,10 +157,7 @@ class TorchFXImporter:
         arg = self.env[node.args[0]]
         if isinstance(arg, (int, float)):
             arg = relax.const(arg, "float32")
-        sqrt = self.block_builder.emit(relax.op.sqrt(arg))
-        return self.block_builder.emit(
-            relax.op.divide(relax.const(1, sqrt.struct_info.dtype), sqrt)
-        )
+        return self.block_builder.emit(relax.op.rsqrt(arg))
 
     def _round(self, node: fx.node.Node) -> relax.Expr:
         if "decimals" in node.kwargs and node.kwargs["decimals"] != 0:

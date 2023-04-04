@@ -676,6 +676,76 @@ def test_round_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_rsqrt():
+    # fmt: off
+    @tvm.script.ir_module
+    class Rsqrt:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
+            gv: R.Tensor((2, 3), "float32") = R.rsqrt(x)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
+            gv = R.call_tir(Expected.tir_rsqrt, (x,), R.Tensor((2, 3), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def tir_rsqrt(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), compute: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+            T.func_attr({"tir.noalias": True})
+            for i0, i1 in T.grid(T.int64(2), T.int64(3)):
+                with T.block("compute"):
+                    i0_1, i1_1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(rxplaceholder[i0_1, i1_1])
+                    T.writes(compute[i0_1, i1_1])
+                    compute[i0_1, i1_1] = T.rsqrt(rxplaceholder[i0_1, i1_1])
+    # fmt: on
+
+    mod = LegalizeOps()(Rsqrt)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_rsqrt_symbolic():
+    # fmt: off
+    @tvm.script.ir_module
+    class Rsqrt:
+        @R.function
+        def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
+            m = T.int64()
+            n = T.int64()
+            gv: R.Tensor((m, n), "float32") = R.rsqrt(x)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
+            m = T.int64()
+            n = T.int64()
+            gv = R.call_tir(Expected.tir_rsqrt, (x,), R.Tensor((m, n), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def tir_rsqrt(var_rxplaceholder: T.handle, var_compute: T.handle):
+            T.func_attr({"tir.noalias": True})
+            m = T.int64()
+            n = T.int64()
+            rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n], dtype="float32")
+            compute = T.match_buffer(var_compute, [m, n], dtype="float32")
+            for i0, i1 in T.grid(m, n):
+                with T.block("compute"):
+                    i0_1, i1_1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(rxplaceholder[i0_1, i1_1])
+                    T.writes(compute[i0_1, i1_1])
+                    compute[i0_1, i1_1] = T.rsqrt(rxplaceholder[i0_1, i1_1])
+    # fmt: on
+
+    mod = LegalizeOps()(Rsqrt)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 def test_sigmoid():
     # fmt: off
     @tvm.script.ir_module
@@ -914,6 +984,82 @@ def test_sin_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Sin)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_sinh():
+    # fmt: off
+    @tvm.script.ir_module
+    class Sinh:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
+            gv: R.Tensor((2, 3), "float32") = R.sinh(x)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
+            cls = Expected
+            gv = R.call_tir(cls.tir_sinh, (x,), out_sinfo=R.Tensor((2, 3), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def tir_sinh(
+            rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+            compute: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for i0, i1 in T.grid(T.int64(2), T.int64(3)):
+                with T.block("compute"):
+                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(rxplaceholder[v_i0, v_i1])
+                    T.writes(compute[v_i0, v_i1])
+                    compute[v_i0, v_i1] = T.sinh(rxplaceholder[v_i0, v_i1])
+    # fmt: on
+
+    mod = LegalizeOps()(Sinh)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_sinh_symbolic():
+    # fmt: off
+    @tvm.script.ir_module
+    class Sinh:
+        @R.function
+        def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
+            m = T.int64()
+            n = T.int64()
+            gv: R.Tensor((m, n), "float32") = R.sinh(x)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor(("m", "n"), dtype="float32")
+        ) -> R.Tensor(("m", "n"), dtype="float32"):
+            m = T.int64()
+            n = T.int64()
+            cls = Expected
+            gv = R.call_tir(cls.tir_sinh, (x,), out_sinfo=R.Tensor((m, n), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def tir_sinh(var_rxplaceholder: T.handle, var_compute: T.handle):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            m, n = T.int64(), T.int64()
+            rxplaceholder = T.match_buffer(var_rxplaceholder, (m, n))
+            compute = T.match_buffer(var_compute, (m, n))
+            for i0, i1 in T.grid(m, n):
+                with T.block("compute"):
+                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(rxplaceholder[v_i0, v_i1])
+                    T.writes(compute[v_i0, v_i1])
+                    compute[v_i0, v_i1] = T.sinh(rxplaceholder[v_i0, v_i1])
+    # fmt: on
+
+    mod = LegalizeOps()(Sinh)
     tvm.ir.assert_structural_equal(mod, Expected)
 
 

@@ -51,6 +51,7 @@ def _check(
     (relax.op.log,),
     (relax.op.negative,),
     (relax.op.round,),
+    (relax.op.rsqrt,),
     (relax.op.sigmoid,),
     (relax.op.sign,),
     (relax.op.sin,),
