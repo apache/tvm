@@ -5016,14 +5016,13 @@ def from_pytorch(
             func_args.append(arg)
 
     # Ensures the order of data_input is the same as the order of inputs specified in input_info.
-    _data_inputs = []
-    for input_info in input_infos:
-        _data_input = [di for di in data_inputs if di.name_hint == input_info[0]]
-        if len(_data_input) != 1:
-            msg = "Unexpected input name ({}) which is unreachable.".format(input_info[0])
-            raise RuntimeError(msg)
-        _data_inputs.append(_data_input[0])
-    data_inputs = _data_inputs
+    order_input_infos = {input_info[0]: idx for idx, input_info in enumerate(input_infos)}
+    data_inputs = sorted(
+        data_inputs,
+        key=lambda data_input: order_input_infos[data_input.name_hint]
+        if data_input.name_hint in order_input_infos
+        else -1,
+    )
 
     func_args = data_inputs + func_args
 
