@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-04-05T10:35:58.735141
+// Generated at 2023-04-05T14:40:31.677080
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -576,7 +576,7 @@ def build(node_type) {
 }
 try {
     build('CPU-SMALL-SPOT')
-} Exception (ex) {
+} catch Exception (ex) {
     build('CPU-SMALL')
 }
 
@@ -978,56 +978,56 @@ def test() {
     'test: Hexagon 1 of 8': {
       try {
       shard_run_test_Hexagon_1_of_8()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_test_Hexagon_1_of_8(on_demand = true)
       }
     },
     'test: Hexagon 2 of 8': {
       try {
       shard_run_test_Hexagon_2_of_8()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_test_Hexagon_2_of_8(on_demand = true)
       }
     },
     'test: Hexagon 3 of 8': {
       try {
       shard_run_test_Hexagon_3_of_8()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_test_Hexagon_3_of_8(on_demand = true)
       }
     },
     'test: Hexagon 4 of 8': {
       try {
       shard_run_test_Hexagon_4_of_8()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_test_Hexagon_4_of_8(on_demand = true)
       }
     },
     'test: Hexagon 5 of 8': {
       try {
       shard_run_test_Hexagon_5_of_8()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_test_Hexagon_5_of_8(on_demand = true)
       }
     },
     'test: Hexagon 6 of 8': {
       try {
       shard_run_test_Hexagon_6_of_8()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_test_Hexagon_6_of_8(on_demand = true)
       }
     },
     'test: Hexagon 7 of 8': {
       try {
       shard_run_test_Hexagon_7_of_8()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_test_Hexagon_7_of_8(on_demand = true)
       }
     },
     'test: Hexagon 8 of 8': {
       try {
       shard_run_test_Hexagon_8_of_8()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_test_Hexagon_8_of_8(on_demand = true)
       }
     },

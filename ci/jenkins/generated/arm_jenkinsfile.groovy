@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-04-05T10:35:58.748682
+// Generated at 2023-04-05T14:40:31.690220
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -573,7 +573,7 @@ def build(node_type) {
 }
 try {
     build('ARM-SMALL-SPOT')
-} Exception (ex) {
+} catch Exception (ex) {
     build('ARM-SMALL')
 }
 
@@ -991,56 +991,56 @@ def test() {
     'integration: aarch64 1 of 4': {
       try {
       shard_run_integration_aarch64_1_of_4()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_integration_aarch64_1_of_4(on_demand = true)
       }
     },
     'integration: aarch64 2 of 4': {
       try {
       shard_run_integration_aarch64_2_of_4()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_integration_aarch64_2_of_4(on_demand = true)
       }
     },
     'integration: aarch64 3 of 4': {
       try {
       shard_run_integration_aarch64_3_of_4()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_integration_aarch64_3_of_4(on_demand = true)
       }
     },
     'integration: aarch64 4 of 4': {
       try {
       shard_run_integration_aarch64_4_of_4()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_integration_aarch64_4_of_4(on_demand = true)
       }
     },
     'topi: aarch64 1 of 2': {
       try {
       shard_run_topi_aarch64_1_of_2()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_topi_aarch64_1_of_2(on_demand = true)
       }
     },
     'topi: aarch64 2 of 2': {
       try {
       shard_run_topi_aarch64_2_of_2()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_topi_aarch64_2_of_2(on_demand = true)
       }
     },
     'frontend: aarch64 1 of 2': {
       try {
       shard_run_frontend_aarch64_1_of_2()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_frontend_aarch64_1_of_2(on_demand = true)
       }
     },
     'frontend: aarch64 2 of 2': {
       try {
       shard_run_frontend_aarch64_2_of_2()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_frontend_aarch64_2_of_2(on_demand = true)
       }
     },

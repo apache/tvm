@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-04-05T10:35:58.763459
+// Generated at 2023-04-05T14:40:31.704419
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -578,7 +578,7 @@ def build(node_type) {
 }
 try {
     build('CPU-SMALL-SPOT')
-} Exception (ex) {
+} catch Exception (ex) {
     build('CPU-SMALL')
 }
 
@@ -889,42 +889,42 @@ def test() {
     'integration: CPU 1 of 4': {
       try {
       shard_run_integration_CPU_1_of_4()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_integration_CPU_1_of_4(on_demand = true)
       }
     },
     'integration: CPU 2 of 4': {
       try {
       shard_run_integration_CPU_2_of_4()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_integration_CPU_2_of_4(on_demand = true)
       }
     },
     'integration: CPU 3 of 4': {
       try {
       shard_run_integration_CPU_3_of_4()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_integration_CPU_3_of_4(on_demand = true)
       }
     },
     'integration: CPU 4 of 4': {
       try {
       shard_run_integration_CPU_4_of_4()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_integration_CPU_4_of_4(on_demand = true)
       }
     },
     'unittest: CPU 1 of 1': {
       try {
       shard_run_unittest_CPU_1_of_1()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_unittest_CPU_1_of_1(on_demand = true)
       }
     },
     'frontend: CPU 1 of 1': {
       try {
       shard_run_frontend_CPU_1_of_1()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_frontend_CPU_1_of_1(on_demand = true)
       }
     },

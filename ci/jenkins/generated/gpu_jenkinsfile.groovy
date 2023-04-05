@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-04-05T14:27:34.258734
+// Generated at 2023-04-05T14:40:31.742278
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -580,7 +580,7 @@ def build(node_type) {
 }
 try {
     build('CPU-SMALL-SPOT')
-} Exception (ex) {
+} catch Exception (ex) {
     build('CPU-SMALL')
 }
 
@@ -1277,91 +1277,91 @@ def test() {
     'unittest: GPU 1 of 3': {
       try {
       shard_run_unittest_GPU_1_of_3()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_unittest_GPU_1_of_3(on_demand = true)
       }
     },
     'unittest: GPU 2 of 3': {
       try {
       shard_run_unittest_GPU_2_of_3()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_unittest_GPU_2_of_3(on_demand = true)
       }
     },
     'unittest: GPU 3 of 3': {
       try {
       shard_run_unittest_GPU_3_of_3()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_unittest_GPU_3_of_3(on_demand = true)
       }
     },
     'topi: GPU 1 of 3': {
       try {
       shard_run_topi_GPU_1_of_3()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_topi_GPU_1_of_3(on_demand = true)
       }
     },
     'topi: GPU 2 of 3': {
       try {
       shard_run_topi_GPU_2_of_3()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_topi_GPU_2_of_3(on_demand = true)
       }
     },
     'topi: GPU 3 of 3': {
       try {
       shard_run_topi_GPU_3_of_3()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_topi_GPU_3_of_3(on_demand = true)
       }
     },
     'frontend: GPU 1 of 6': {
       try {
       shard_run_frontend_GPU_1_of_6()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_frontend_GPU_1_of_6(on_demand = true)
       }
     },
     'frontend: GPU 2 of 6': {
       try {
       shard_run_frontend_GPU_2_of_6()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_frontend_GPU_2_of_6(on_demand = true)
       }
     },
     'frontend: GPU 3 of 6': {
       try {
       shard_run_frontend_GPU_3_of_6()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_frontend_GPU_3_of_6(on_demand = true)
       }
     },
     'frontend: GPU 4 of 6': {
       try {
       shard_run_frontend_GPU_4_of_6()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_frontend_GPU_4_of_6(on_demand = true)
       }
     },
     'frontend: GPU 5 of 6': {
       try {
       shard_run_frontend_GPU_5_of_6()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_frontend_GPU_5_of_6(on_demand = true)
       }
     },
     'frontend: GPU 6 of 6': {
       try {
       shard_run_frontend_GPU_6_of_6()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_frontend_GPU_6_of_6(on_demand = true)
       }
     },
     'docs: GPU 1 of 1': {
       try {
       shard_run_docs_GPU_1_of_1()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_docs_GPU_1_of_1(on_demand = true)
       }
     },

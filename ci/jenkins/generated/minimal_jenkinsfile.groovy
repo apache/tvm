@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-04-05T10:35:58.670564
+// Generated at 2023-04-05T14:40:31.614270
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -573,7 +573,7 @@ def build(node_type) {
 }
 try {
     build('CPU-SMALL-SPOT')
-} Exception (ex) {
+} catch Exception (ex) {
     build('CPU-SMALL')
 }
 
@@ -636,7 +636,7 @@ def test() {
     'unittest: CPU MINIMAL 1 of 1': {
       try {
       shard_run_unittest_CPU_MINIMAL_1_of_1()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_unittest_CPU_MINIMAL_1_of_1(on_demand = true)
       }
     },

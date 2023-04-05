@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-04-05T10:35:58.651591
+// Generated at 2023-04-05T14:40:31.597660
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -573,7 +573,7 @@ def build(node_type) {
 }
 try {
     build('CPU-SMALL-SPOT')
-} Exception (ex) {
+} catch Exception (ex) {
     build('CPU-SMALL')
 }
 
@@ -1171,84 +1171,84 @@ def test() {
     'test: Cortex-M 1 of 12': {
       try {
       shard_run_test_Cortex_M_1_of_12()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_test_Cortex_M_1_of_12(on_demand = true)
       }
     },
     'test: Cortex-M 2 of 12': {
       try {
       shard_run_test_Cortex_M_2_of_12()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_test_Cortex_M_2_of_12(on_demand = true)
       }
     },
     'test: Cortex-M 3 of 12': {
       try {
       shard_run_test_Cortex_M_3_of_12()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_test_Cortex_M_3_of_12(on_demand = true)
       }
     },
     'test: Cortex-M 4 of 12': {
       try {
       shard_run_test_Cortex_M_4_of_12()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_test_Cortex_M_4_of_12(on_demand = true)
       }
     },
     'test: Cortex-M 5 of 12': {
       try {
       shard_run_test_Cortex_M_5_of_12()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_test_Cortex_M_5_of_12(on_demand = true)
       }
     },
     'test: Cortex-M 6 of 12': {
       try {
       shard_run_test_Cortex_M_6_of_12()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_test_Cortex_M_6_of_12(on_demand = true)
       }
     },
     'test: Cortex-M 7 of 12': {
       try {
       shard_run_test_Cortex_M_7_of_12()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_test_Cortex_M_7_of_12(on_demand = true)
       }
     },
     'test: Cortex-M 8 of 12': {
       try {
       shard_run_test_Cortex_M_8_of_12()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_test_Cortex_M_8_of_12(on_demand = true)
       }
     },
     'test: Cortex-M 9 of 12': {
       try {
       shard_run_test_Cortex_M_9_of_12()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_test_Cortex_M_9_of_12(on_demand = true)
       }
     },
     'test: Cortex-M 10 of 12': {
       try {
       shard_run_test_Cortex_M_10_of_12()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_test_Cortex_M_10_of_12(on_demand = true)
       }
     },
     'test: Cortex-M 11 of 12': {
       try {
       shard_run_test_Cortex_M_11_of_12()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_test_Cortex_M_11_of_12(on_demand = true)
       }
     },
     'test: Cortex-M 12 of 12': {
       try {
       shard_run_test_Cortex_M_12_of_12()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         shard_run_test_Cortex_M_12_of_12(on_demand = true)
       }
     },

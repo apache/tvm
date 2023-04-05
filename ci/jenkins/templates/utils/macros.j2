@@ -90,7 +90,7 @@ def build(node_type) {
 }
 try {
     build('{{ node }}-SPOT')
-} Exception (ex) {
+} catch Exception (ex) {
     build('{{ node }}')
 }
 {% endmacro %}
@@ -106,7 +106,7 @@ def test() {
     '{{ stage_name }}': {
       try {
       {{ method_name }}()
-      } catch(Exception ex) {
+      } catch (Exception ex) {
         {{ method_name }}(on_demand = true)
       }
     },
