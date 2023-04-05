@@ -950,6 +950,17 @@ def CombineParallelMatmul():
     return _ffi_api.CombineParallelMatmul()  # type: ignore
 
 
+def RewriteCUDAGraph() -> tvm.ir.transform.Pass:
+    """Rewrite a Relax module for executing with CUDA graph. This pass identifies the regions that
+    can be executed with CUDA graph and lifts them into new functions for runtime graph capturing.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.RewriteCUDAGraph()  # type: ignore
+
+
 def _wrap_class_function_pass(pass_cls, pass_info):
     """Wrap a python class as function pass."""
 

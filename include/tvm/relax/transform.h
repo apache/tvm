@@ -481,6 +481,13 @@ TVM_DLL Pass DeadCodeElimination(Array<runtime::String> entry_functions);
  */
 TVM_DLL Pass ToMixedPrecision(const DataType& out_dtype);
 
+/*!
+ * \brief Rewrite a Relax module for executing with CUDA graph. This pass identifies
+ * the regions that can be executed with CUDA graph and lifts them into new functions for runtime
+ * graph capturing.
+ */
+TVM_DLL Pass RewriteCUDAGraph();
+
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm
