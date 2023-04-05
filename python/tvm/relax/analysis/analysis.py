@@ -167,6 +167,23 @@ def struct_info_lca(lhs: StructInfo, rhs: StructInfo) -> StructInfo:
     return _ffi_api.StructInfoLCA(lhs, rhs)  # type: ignore
 
 
+def tir_vars_in_struct_info(sinfo: StructInfo) -> List[tir.Var]:
+    """Get the TIR variables that appear in the input struct info.
+    The returned list is deduplicated - each TIR variable will appear at most once.
+
+    Parameters
+    ----------
+    sinfo : StructInfo
+        The struct info object to be analyzed.
+
+    Returns
+    -------
+    ret : List[tir.Var]
+        The list of TIR variables that appear in the input struct info.
+    """
+    return _ffi_api.TIRVarsInStructInfo(sinfo)  # type: ignore
+
+
 def bound_vars(expr: Expr) -> List[Var]:
     """
     Return all bound variables from expression expr.

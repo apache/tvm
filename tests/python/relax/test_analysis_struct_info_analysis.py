@@ -557,5 +557,22 @@ def test_struct_info_lca():
     _check_lca(fopaque2(), fn_info_shape(1), fopaque2())
 
 
+def test_tir_vars_in_struct_info():
+    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    shape0 = rx.ShapeStructInfo([1, n, 3])
+    shape1 = rx.ShapeStructInfo([1, 2 * n, n, m])
+    tensor0 = rx.TensorStructInfo([1, n, 3], "int32")
+    tensor1 = rx.TensorStructInfo([1, 2 * n, n, m], "int32")
+    func = rx.FuncStructInfo(
+        [rx.TensorStructInfo([1, 2 * n, n, m], "int32")], rx.TensorStructInfo([1, n, 3], "int32")
+    )
+
+    tvm.ir.assert_structural_equal(rx.analysis.tir_vars_in_struct_info(shape0), [n])
+    tvm.ir.assert_structural_equal(rx.analysis.tir_vars_in_struct_info(shape1), [n, m])
+    tvm.ir.assert_structural_equal(rx.analysis.tir_vars_in_struct_info(tensor0), [n])
+    tvm.ir.assert_structural_equal(rx.analysis.tir_vars_in_struct_info(tensor1), [n, m])
+    tvm.ir.assert_structural_equal(rx.analysis.tir_vars_in_struct_info(func), [n, m])
+
+
 if __name__ == "__main__":
     tvm.testing.main()

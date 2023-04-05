@@ -132,46 +132,6 @@ class TransformParamsFuncBuilder : public ExprMutator {
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> outputs_;
 };
 
-bool SInfoContainsSymVar(StructInfo sinfo) {
-  struct SymVarDetector : public StructInfoVisitor {
-    void VisitStructInfo(const StructInfo& sinfo) final {
-      if (contains_sym_var) {
-        return;
-      }
-      StructInfoVisitor::VisitStructInfo(sinfo);
-    }
-
-    bool CheckShape(Array<PrimExpr> shape) {
-      for (const PrimExpr& value : shape) {
-        const auto* int_imm = value.as<IntImmNode>();
-        if (int_imm == nullptr) {
-          contains_sym_var = true;
-          return false;
-        }
-      }
-      return true;
-    }
-
-    void VisitStructInfo_(const ShapeStructInfoNode* shape_sinfo) final {
-      if (shape_sinfo->values.defined()) {
-        CheckShape(shape_sinfo->values.value());
-      }
-    }
-
-    void VisitStructInfo_(const TensorStructInfoNode* tensor_sinfo) final {
-      if (tensor_sinfo->shape.defined()) {
-        VisitStructInfo(GetStructInfo(tensor_sinfo->shape.value()));
-      }
-    }
-
-    bool contains_sym_var = false;
-  };
-
-  SymVarDetector detector;
-  detector(sinfo);
-  return detector.contains_sym_var;
-}
-
 /*!
  * \brief Visitor that creates the plan of lifting transform params.
  *
@@ -230,7 +190,7 @@ class LiftTransformParamsPlanner : public ExprVisitor {
     });
 
     // Cond 4. Do not lift when its struct info contains symbolic variables.
-    if (SInfoContainsSymVar(GetStructInfo(binding->var))) {
+    if (!TIRVarsInStructInfo(GetStructInfo(binding->var)).empty()) {
       can_lift = false;
     }
 

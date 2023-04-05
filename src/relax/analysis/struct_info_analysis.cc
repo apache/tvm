@@ -26,6 +26,7 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info_functor.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/expr_functor.h>
 
 namespace tvm {
@@ -860,6 +861,48 @@ TVM_REGISTER_GLOBAL("relax.analysis.StructInfoLCA")
     .set_body_typed([](const StructInfo& lhs, const StructInfo& rhs) {
       return StructInfoLCA(lhs, rhs);
     });
+
+//--------------------------
+// TIRVarsInStructInfo
+//--------------------------
+
+Array<tir::Var> TIRVarsInStructInfo(const StructInfo& sinfo) {
+  struct TIRVarsDetector : public StructInfoVisitor {
+    void VisitShape(Array<PrimExpr> shape) {
+      for (const PrimExpr& value : shape) {
+        Array<tir::Var> vars = tir::UndefinedVars(value);
+        for (const tir::Var& var : vars) {
+          auto insert_res = tir_vars_dedup_set.insert(var.get());
+          if (insert_res.second) {
+            tir_vars.push_back(var);
+          }
+        }
+      }
+    }
+
+    void VisitStructInfo_(const ShapeStructInfoNode* shape_sinfo) final {
+      if (shape_sinfo->values.defined()) {
+        VisitShape(shape_sinfo->values.value());
+      }
+    }
+
+    void VisitStructInfo_(const TensorStructInfoNode* tensor_sinfo) final {
+      if (tensor_sinfo->shape.defined()) {
+        VisitStructInfo(GetStructInfo(tensor_sinfo->shape.value()));
+      }
+    }
+
+    Array<tir::Var> tir_vars;
+    std::unordered_set<const tir::VarNode*> tir_vars_dedup_set;
+  };
+
+  TIRVarsDetector detector;
+  detector(sinfo);
+  return detector.tir_vars;
+}
+
+TVM_REGISTER_GLOBAL("relax.analysis.TIRVarsInStructInfo")
+    .set_body_typed([](const StructInfo& sinfo) { return TIRVarsInStructInfo(sinfo); });
 
 }  // namespace relax
 }  // namespace tvm
