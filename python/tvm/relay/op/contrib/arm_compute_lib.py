@@ -359,6 +359,10 @@ def qnn_conv2d(expr):
     kernel_typ = args[1].checked_type
     if len(kernel_typ.shape) != 4 or kernel_typ.dtype not in qnn_dtypes:
         return False
+    if is_per_channel_quantization(
+        zero_point=args[2], scale=args[4]
+    ) or is_per_channel_quantization(zero_point=args[3], scale=args[5]):
+        return False
     is_depthwise = is_depthwise_conv2d(
         data_typ.shape,
         attrs["data_layout"],
@@ -421,6 +425,10 @@ def qnn_dense(expr):
     if len(kernel_typ.shape) != 2 or kernel_typ.dtype not in ("uint8", "int8"):
         return False
     if attrs.out_dtype != "int32":
+        return False
+    if is_per_channel_quantization(
+        zero_point=args[2], scale=args[4]
+    ) or is_per_channel_quantization(zero_point=args[3], scale=args[5]):
         return False
     return True
 
@@ -514,8 +522,22 @@ def qnn_add(expr):
     for typ in [args[0].checked_type, args[1].checked_type]:
         if typ.dtype not in ["int8", "uint8"]:
             return False
-
+    if (
+        is_per_channel_quantization(zero_point=args[3], scale=args[2])
+        or is_per_channel_quantization(zero_point=args[5], scale=args[4])
+        or is_per_channel_quantization(zero_point=args[7], scale=args[6])
+    ):
+        return False
     return True
+
+
+def is_per_channel_quantization(zero_point, scale):
+    """Check if the quantization is per-channel"""
+    for value in [zero_point, scale]:
+        shape = value.checked_type.shape
+        if len(shape) != 0 and shape[0] != 1:
+            return True
+    return False
 
 
 class OpAttrContext(object):
