@@ -120,7 +120,7 @@ test()
 {% macro deploy_step(name, feature_flag, ws) %}
   '{{ name }}': {
     if ({{ feature_flag }}) {
-      node('CPU-SPOT') {
+      node(node_type) {
         ws({{ per_exec_ws(ws) }}) {
           timeout(time: max_time, unit: 'MINUTES') {
             {{ caller() | indent(width=10) | trim }}
