@@ -43,8 +43,8 @@ DataflowBlockRewrite::DataflowBlockRewrite(DataflowBlock dfb, Function root_fn) 
   auto p = FunctionUseDef(root_fn);
   n->to_users_ = std::move(p.first);
   n->fn_outputs_ = std::move(p.second);
-  n->name_table_ = NameTable(n->to_users_.begin(), n->to_users_.end(),
-                             [](const auto& p) { return p.first->name_hint(); });
+  n->name_supply_ = NameSupply(n->to_users_.begin(), n->to_users_.end(),
+                               [](const auto& p) { return p.first->name_hint(); });
 
   data_ = std::move(n);
 }
