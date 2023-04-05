@@ -612,8 +612,9 @@ static std::optional<MatchState> TryMatch(const PNode& p, const RNode& r, DFPatt
   MatchState result;
 
   for (size_t i = 0; i < p.parents.size(); ++i) {
-    auto p_node_parent = p.parents[i].first;
+    const auto p_node_parent = p.parents[i].first;
     if (p_node_parent->ptr->IsInstance<WildcardPatternNode>()) {
+      ICHECK_EQ(p.parents.size(), r.parents.size());
       if (auto v = result.matched(p_node_parent); v && v != r.parents[i]->ptr) {
         // A parent wildcard pattern is already matched to other variable.
         return std::nullopt;
@@ -625,9 +626,9 @@ static std::optional<MatchState> TryMatch(const PNode& p, const RNode& r, DFPatt
   result.add(&p, &r);
 
   // forward matching;
-  for (auto& [pchild, constraints] : p.children) {
+  for (const auto& [pchild, constraints] : p.children) {
     bool any_cons_sat = false;
-    for (auto& rchild : r.children) {
+    for (const auto& rchild : r.children) {
       if (auto p = result.matched(rchild); p && p != pchild->ptr) continue;
 
       const auto& uses = ud_analysis.def2use.at(r.ptr);
