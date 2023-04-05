@@ -360,7 +360,7 @@ def test_annotate_unannotate_block():
 
 def test_get_output_blocks_single_output():
     sch = tir.Schedule(mod=matmul_relu, debug_mask="all")
-    output_blocks = sch.get_output_blocks()
+    output_blocks = sch.get_output_blocks("root")
     assert len(output_blocks) == 1, "Unexpected number of blocks when 1 was expected"
     block = sch.get(output_blocks[0])
     assert block.name_hint == "relu"
@@ -370,7 +370,7 @@ def test_get_output_blocks_single_output():
 
 def test_get_output_blocks_multiple_outputs():
     sch = tir.Schedule(mod=matmul, debug_mask="all")
-    output_blocks = sch.get_output_blocks()
+    output_blocks = sch.get_output_blocks("root")
     assert len(output_blocks) == 2, "Unexpected number of blocks when 2 were expected"
     block_1 = sch.get(output_blocks[0])
     assert block_1.name_hint == "init"
@@ -397,7 +397,7 @@ def test_get_output_blocks_nested():
                     B[vi, vj] = A[vi, vj] * 2.0
 
     sch = tir.Schedule(mod=blockized, debug_mask="all")
-    output_blocks = sch.get_output_blocks()
+    output_blocks = sch.get_output_blocks("root")
     assert len(output_blocks) == 2, "Unexpected number of blocks when 2 were expected"
     block_1 = sch.get(output_blocks[0])
     assert block_1.name_hint == "blockized_B"
@@ -407,6 +407,14 @@ def test_get_output_blocks_nested():
     assert sch.get(blockized_block).same_as(block_1)
     b_block = sch.get_block("B")
     assert sch.get(b_block).same_as(block_2)
+
+    sch = tir.Schedule(mod=blockized, debug_mask="all")
+    output_blocks = sch.get_output_blocks("blockized_B")
+    assert len(output_blocks) == 1, "Unexpected number of blocks when 1 were expected"
+    block = sch.get(output_blocks[0])
+    assert block.name_hint == "B"
+    b_block = sch.get_block("B")
+    assert sch.get(b_block).same_as(block)
 
 
 if __name__ == "__main__":

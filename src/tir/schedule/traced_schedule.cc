@@ -174,12 +174,12 @@ Array<BlockRV> TracedScheduleNode::GetConsumers(const BlockRV& block_rv) {
   return results;
 }
 
-Array<BlockRV> TracedScheduleNode::GetOutputBlocks(const Optional<String>& func_name) {
-  Array<BlockRV> results = ConcreteScheduleNode::GetOutputBlocks(func_name);
+Array<BlockRV> TracedScheduleNode::GetOutputBlocks(const BlockRV& scope_block_rv) {
+  Array<BlockRV> results = ConcreteScheduleNode::GetOutputBlocks(scope_block_rv);
 
   static const InstructionKind& kind = InstructionKind::Get("GetOutputBlocks");
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,  //
-                                      /*inputs=*/{},
+                                      /*inputs=*/{scope_block_rv},
                                       /*attrs=*/{},
                                       /*outputs=*/{results.begin(), results.end()}));
   return results;

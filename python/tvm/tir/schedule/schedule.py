@@ -543,11 +543,16 @@ class Schedule(Object):
     @type_checked
     def get_output_blocks(
         self,
-        func_name: Optional[str] = None,
+        scope_block: Union[BlockRV, str],
     ) -> List[BlockRV]:
-        """Get the list of output blocks
+        """Get the list of output blocks within the given scope
         An output block is a block which has atleast one buffer being written
         to, but is not allocated within the PrimFunc
+
+        Parameters
+        ----------
+        scope_block : Union[BlockRV, str],
+            The scope block from which output blocks are collected
 
         Returns
         -------
@@ -555,7 +560,8 @@ class Schedule(Object):
             A list of all blocks that write to some output buffer
 
         """
-        return list(_ffi_api.ScheduleGetOutputBlocks(self, func_name))  # type: ignore # pylint: disable=no-member
+        scope_block = self._normalize_block_arg(scope_block)
+        return list(_ffi_api.ScheduleGetOutputBlocks(self, scope_block))  # type: ignore # pylint: disable=no-member
 
     ########## Schedule: Transform loops ##########
     @type_checked

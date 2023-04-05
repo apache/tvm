@@ -354,20 +354,9 @@ Array<BlockRV> ConcreteScheduleNode::GetConsumers(const BlockRV& block_rv) {
   throw;
 }
 
-Array<BlockRV> ConcreteScheduleNode::GetOutputBlocks(const Optional<String>& func_name) {
+Array<BlockRV> ConcreteScheduleNode::GetOutputBlocks(const BlockRV& scope_block_rv) {
   TVM_TIR_SCHEDULE_BEGIN();
-  GlobalVar gv = NullValue<GlobalVar>();
-  if (func_name.defined()) {
-    gv = state_->mod->GetGlobalVar(func_name.value());
-  } else if (func_working_on_.defined()) {
-    gv = this->func_working_on_.value();
-  } else {
-    LOG(FATAL)
-        << "ValueError: `get_output_blocks` does not know which function to be working on. Please "
-           "specify the function name explicitly, or call `work_on` to specify the function "
-           "before using `get_output_blocks`.";
-  }
-  return CreateRV<BlockRV>(tir::GetOutputBlocks(state_, gv));
+  return CreateRV<BlockRV>(tir::GetOutputBlocks(state_, this->GetSRef(scope_block_rv)));
   TVM_TIR_SCHEDULE_END("get-output-blocks", this->error_render_level_);
   throw;
 }

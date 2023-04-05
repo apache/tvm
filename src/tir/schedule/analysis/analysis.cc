@@ -1043,7 +1043,7 @@ Array<StmtSRef> GetConsumers(const StmtSRef& block_sref, const BlockScope& scope
   return results;
 }
 
-Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const PrimFuncNode* func) {
+Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const BlockNode* scope_block) {
   struct OutputBlockCollector : public StmtVisitor {
     explicit OutputBlockCollector(const ScheduleState& self) : self_(self) {}
 
@@ -1065,7 +1065,7 @@ Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const PrimFuncNode* f
     Array<StmtSRef> results_;
   };
   OutputBlockCollector collector(self);
-  collector(func->body);
+  collector(scope_block->body);
   auto results = collector.results_;
   return results;
 }

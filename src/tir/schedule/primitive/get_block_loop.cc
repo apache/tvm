@@ -88,10 +88,9 @@ Array<StmtSRef> GetConsumers(const ScheduleState& self, const StmtSRef& block_sr
   return tir::GetConsumers(block_sref, self->GetBlockScope(scope_root));
 }
 
-Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const GlobalVar& gv) {
-  BaseFunc func = self->mod->Lookup(gv);
-  const auto* prim_func = TVM_TYPE_AS(func, PrimFuncNode);
-  return tir::GetOutputBlocks(self, prim_func);
+Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const StmtSRef& scope_sref) {
+  const auto* scope_block = TVM_SREF_TO_BLOCK(scope_sref);
+  return tir::GetOutputBlocks(self, scope_block);
 }
 
 /******** InstructionKind Registration ********/
@@ -229,14 +228,17 @@ struct GetOutputBlocksTraits : public UnpackedInstTraits<GetOutputBlocksTraits> 
   static constexpr bool kIsPure = true;
 
  private:
-  static constexpr size_t kNumInputs = 0;
+  static constexpr size_t kNumInputs = 1;
   static constexpr size_t kNumAttrs = 0;
   static constexpr size_t kNumDecisions = 0;
 
-  static Array<BlockRV> UnpackedApplyToSchedule(Schedule sch) { return sch->GetOutputBlocks(); }
+  static Array<BlockRV> UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv) {
+    return sch->GetOutputBlocks(block_rv);
+  }
 
-  static String UnpackedAsPython(Array<String> outputs) {
+  static String UnpackedAsPython(Array<String> outputs, String block_rv) {
     PythonAPICall py("get_output_blocks");
+    py.Input("block", block_rv);
     py.OutputList(outputs);
     return py.Str();
   }
