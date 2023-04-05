@@ -5016,12 +5016,15 @@ def from_pytorch(
             func_args.append(arg)
 
     # Ensures the order of data_input is the same as the order of inputs specified in input_info.
-    order_input_infos = {input_info[0]: idx for idx, input_info in enumerate(input_infos)}
+    order_input_infos = {
+        input_info[0]: len(input_infos) - idx for idx, input_info in enumerate(input_infos)
+    }
     data_inputs = sorted(
         data_inputs,
         key=lambda data_input: order_input_infos[data_input.name_hint]
         if data_input.name_hint in order_input_infos
         else -1,
+        reverse=True,
     )
 
     func_args = data_inputs + func_args
