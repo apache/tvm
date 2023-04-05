@@ -28,12 +28,6 @@
 #include <tvm/ir/name_supply.h>
 #include <tvm/runtime/logging.h>
 
-#include <algorithm>
-#include <cctype>
-#include <string>
-#include <type_traits>
-#include <unordered_map>
-
 namespace tvm {
 namespace relax {
 

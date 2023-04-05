@@ -24,6 +24,7 @@
 #ifndef TVM_IR_NAME_SUPPLY_H_
 #define TVM_IR_NAME_SUPPLY_H_
 
+#include <algorithm>
 #include <string>
 #include <unordered_map>
 #include <utility>
