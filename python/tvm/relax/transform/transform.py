@@ -602,11 +602,35 @@ def MetaScheduleTuneIRMod(
     return _ffi_api.MetaScheduleTuneIRMod(params, work_dir, max_trials_global)  # type: ignore
 
 
-def DecomposeCompositeOps() -> tvm.ir.transform.Pass:
+def DecomposeOpsForInference(func_name: Optional[str] = None) -> tvm.ir.transform.Pass:
     """Decompose composite operators that are composed by other operators during inference.
-    For example, the result of a batch norm which is indexed at tuple index 0 will be unpacked
-    into a number of simplified operators. Attention, tensor_to_shape, etc. can be also
-    decomposed into a number of simplified operators as well.
+    For example, the result of batch norm (a triple) will be simplified. Attention, tensor_to_shape,
+    etc. can be also decomposed into a number of simplified operators as well.
+
+    Parameters
+    ----------
+    func_name: Optional[str]
+        The name of the specified function. If not specified, the pass will run in
+        all functions.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass
+    """
+    return _ffi_api.DecomposeOpsForInference(func_name)  # type: ignore
+
+
+def DecomposeOpsForTraining(func_name: Optional[str] = None) -> tvm.ir.transform.Pass:
+    """Decompose composite operators that are composed by other operators during training.
+    For example, the result of batch norm (a triple) will be simplified. Attention, tensor_to_shape,
+    etc. can be also decomposed into a number of simplified operators as well.
+
+    Parameters
+    ----------
+    func_name: Optional[str]
+        The name of the specified function. If not specified, the pass will run in
+        all functions.
 
     Returns
     -------
