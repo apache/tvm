@@ -383,7 +383,21 @@ TVM_REGISTER_NODE_TYPE(IRModuleNode);
 
 TVM_REGISTER_GLOBAL("ir.IRModule")
     .set_body_typed([](tvm::Map<GlobalVar, BaseFunc> funcs, tvm::Map<GlobalTypeVar, TypeData> types,
-                       tvm::DictAttrs attrs) { return IRModule(funcs, types, {}, {}, attrs); });
+                       tvm::ObjectRef attrs) {
+      auto dict_attrs = [&attrs]() {
+        if (!attrs.defined()) {
+          return DictAttrs();
+        } else if (auto* as_dict_attrs = attrs.as<tvm::DictAttrsNode>()) {
+          return GetRef<tvm::DictAttrs>(as_dict_attrs);
+        } else if (attrs.as<tvm::MapNode>()) {
+          return tvm::DictAttrs(Downcast<Map<String, ObjectRef>>(attrs));
+        } else {
+          LOG(FATAL) << "Expected attrs argument to be either DictAttrs or Map<String,ObjectRef>";
+        }
+      }();
+
+      return IRModule(funcs, types, {}, {}, dict_attrs);
+    });
 
 TVM_REGISTER_GLOBAL("ir.Module_Add")
     .set_body_typed([](IRModule mod, GlobalVar var, ObjectRef val, bool update) -> IRModule {
