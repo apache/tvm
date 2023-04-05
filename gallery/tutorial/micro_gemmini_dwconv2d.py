@@ -24,7 +24,6 @@ This tutorials shows how a quantized 2D depthwise convolution layer can be compi
 """
 
 import itertools
-from pyrsistent import v
 import tensorflow as tf
 from tensorflow import keras
 import tarfile
