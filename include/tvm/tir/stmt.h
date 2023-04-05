@@ -734,19 +734,33 @@ class SeqStmt : public Stmt {
    public:
     explicit Flattener(Array<Stmt>* seq) : seq_(seq) {}
 
-    void operator()(size_t i, const Stmt& stmt) const {
-      if (!stmt.defined()) return;
-      if (auto* op = stmt.as<SeqStmtNode>()) {
-        operator()(0, op->seq);
-      } else {
-        seq_->push_back(stmt);
-      }
-    }
-
     template <typename T>
-    void operator()(size_t i, const T& seq) const {
-      for (auto v : seq) {
-        this->operator()(0, v);
+    void operator()(size_t i, const T& stmt_or_seq) const {
+      if constexpr (std::is_base_of_v<ObjectRef, T>) {
+        // Early bail-out, applicable to any ObjectRef
+        if (!stmt_or_seq.defined()) return;
+      }
+
+      if constexpr (std::is_same_v<T, SeqStmt>) {
+        // No need for dynamic type-checking if the static type is a
+        // SeqStmt.
+        (*this)(0, stmt_or_seq->seq);
+      } else if constexpr (std::is_base_of_v<T, SeqStmt>) {
+        // Dynamic type-checking for a SeqStmt that could be
+        // flattened.
+        if (auto* op = stmt_or_seq.template as<SeqStmtNode>()) {
+          operator()(0, op->seq);
+        } else {
+          seq_->push_back(stmt_or_seq);
+        }
+      } else if constexpr (std::is_base_of_v<Stmt, T>) {
+        // Any other Stmt type just gets appended.
+        seq_->push_back(stmt_or_seq);
+      } else {
+        // Anything else is treated as an iterable of Stmt.
+        for (auto v : stmt_or_seq) {
+          this->operator()(0, v);
+        }
       }
     }
 
