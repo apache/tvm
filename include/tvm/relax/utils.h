@@ -25,7 +25,6 @@
 #define TVM_RELAX_UTILS_H_
 
 #include <tvm/ir/module.h>
-#include <tvm/ir/name_supply.h>
 #include <tvm/runtime/logging.h>
 
 namespace tvm {
