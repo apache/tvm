@@ -840,7 +840,7 @@ class Schedule(Object):
             The block to be transformed.
         new_order : List[int]
             The new block itervar order.
-        
+
         Examples
         --------
 
@@ -860,7 +860,7 @@ class Schedule(Object):
                         with T.init():
                             C[vi, vj] = 0.0
                         C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
-        
+
         Create the schedule and do reorder_block_iter_var:
 
         .. code-block:: python
@@ -868,7 +868,7 @@ class Schedule(Object):
             sch = tir.Schedule(matmul)
             C = sch.get_block("C")
             sch.reorder_block_iter_var(C, [2, 1, 0])
-        
+
         After applying reorder_block_iter_var, the IR becomes:
 
         .. code-block:: python
