@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-04-05T09:41:25.435788
+// Generated at 2023-04-05T10:35:58.697261
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -580,8 +580,11 @@ try {
 
 
 
-def shard_run_python_i386_1_of_3(node_type) {
+def shard_run_python_i386_1_of_3(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
+    if (on_demand==true) {
+        node_type = 'CPU-SMALL'
+    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
         try {
@@ -628,8 +631,11 @@ def shard_run_python_i386_1_of_3(node_type) {
   }
 }
 
-def shard_run_python_i386_2_of_3(node_type) {
+def shard_run_python_i386_2_of_3(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
+    if (on_demand==true) {
+        node_type = 'CPU-SMALL'
+    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
         try {
@@ -675,8 +681,11 @@ def shard_run_python_i386_2_of_3(node_type) {
   }
 }
 
-def shard_run_python_i386_3_of_3(node_type) {
+def shard_run_python_i386_3_of_3(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
+    if (on_demand==true) {
+        node_type = 'CPU-SMALL'
+    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
         try {
@@ -732,21 +741,21 @@ def test() {
       try {
       shard_run_python_i386_1_of_3()
       } catch(Exception ex) {
-        shard_run_python_i386_1_of_3()
+        shard_run_python_i386_1_of_3(on_demand = true)
       }
     },
     'python: i386 2 of 3': {
       try {
       shard_run_python_i386_2_of_3()
       } catch(Exception ex) {
-        shard_run_python_i386_2_of_3()
+        shard_run_python_i386_2_of_3(on_demand = true)
       }
     },
     'python: i386 3 of 3': {
       try {
       shard_run_python_i386_3_of_3()
       } catch(Exception ex) {
-        shard_run_python_i386_3_of_3()
+        shard_run_python_i386_3_of_3(on_demand = true)
       }
     },
     )

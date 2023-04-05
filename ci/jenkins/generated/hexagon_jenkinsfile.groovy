@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-04-05T09:41:25.473333
+// Generated at 2023-04-05T10:35:58.735141
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -583,8 +583,11 @@ try {
 
 
 
-def shard_run_test_Hexagon_1_of_8(node_type) {
+def shard_run_test_Hexagon_1_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
+    if (on_demand==true) {
+        node_type = 'CPU-SMALL'
+    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
         try {
@@ -629,8 +632,11 @@ def shard_run_test_Hexagon_1_of_8(node_type) {
   }
 }
 
-def shard_run_test_Hexagon_2_of_8(node_type) {
+def shard_run_test_Hexagon_2_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
+    if (on_demand==true) {
+        node_type = 'CPU-SMALL'
+    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
         try {
@@ -674,8 +680,11 @@ def shard_run_test_Hexagon_2_of_8(node_type) {
   }
 }
 
-def shard_run_test_Hexagon_3_of_8(node_type) {
+def shard_run_test_Hexagon_3_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
+    if (on_demand==true) {
+        node_type = 'CPU-SMALL'
+    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
         try {
@@ -719,8 +728,11 @@ def shard_run_test_Hexagon_3_of_8(node_type) {
   }
 }
 
-def shard_run_test_Hexagon_4_of_8(node_type) {
+def shard_run_test_Hexagon_4_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
+    if (on_demand==true) {
+        node_type = 'CPU-SMALL'
+    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
         try {
@@ -764,8 +776,11 @@ def shard_run_test_Hexagon_4_of_8(node_type) {
   }
 }
 
-def shard_run_test_Hexagon_5_of_8(node_type) {
+def shard_run_test_Hexagon_5_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
+    if (on_demand==true) {
+        node_type = 'CPU-SMALL'
+    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
         try {
@@ -809,8 +824,11 @@ def shard_run_test_Hexagon_5_of_8(node_type) {
   }
 }
 
-def shard_run_test_Hexagon_6_of_8(node_type) {
+def shard_run_test_Hexagon_6_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
+    if (on_demand==true) {
+        node_type = 'CPU-SMALL'
+    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
         try {
@@ -854,8 +872,11 @@ def shard_run_test_Hexagon_6_of_8(node_type) {
   }
 }
 
-def shard_run_test_Hexagon_7_of_8(node_type) {
+def shard_run_test_Hexagon_7_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
+    if (on_demand==true) {
+        node_type = 'CPU-SMALL'
+    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
         try {
@@ -899,8 +920,11 @@ def shard_run_test_Hexagon_7_of_8(node_type) {
   }
 }
 
-def shard_run_test_Hexagon_8_of_8(node_type) {
+def shard_run_test_Hexagon_8_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
+    if (on_demand==true) {
+        node_type = 'CPU-SMALL'
+    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
         try {
@@ -955,56 +979,56 @@ def test() {
       try {
       shard_run_test_Hexagon_1_of_8()
       } catch(Exception ex) {
-        shard_run_test_Hexagon_1_of_8()
+        shard_run_test_Hexagon_1_of_8(on_demand = true)
       }
     },
     'test: Hexagon 2 of 8': {
       try {
       shard_run_test_Hexagon_2_of_8()
       } catch(Exception ex) {
-        shard_run_test_Hexagon_2_of_8()
+        shard_run_test_Hexagon_2_of_8(on_demand = true)
       }
     },
     'test: Hexagon 3 of 8': {
       try {
       shard_run_test_Hexagon_3_of_8()
       } catch(Exception ex) {
-        shard_run_test_Hexagon_3_of_8()
+        shard_run_test_Hexagon_3_of_8(on_demand = true)
       }
     },
     'test: Hexagon 4 of 8': {
       try {
       shard_run_test_Hexagon_4_of_8()
       } catch(Exception ex) {
-        shard_run_test_Hexagon_4_of_8()
+        shard_run_test_Hexagon_4_of_8(on_demand = true)
       }
     },
     'test: Hexagon 5 of 8': {
       try {
       shard_run_test_Hexagon_5_of_8()
       } catch(Exception ex) {
-        shard_run_test_Hexagon_5_of_8()
+        shard_run_test_Hexagon_5_of_8(on_demand = true)
       }
     },
     'test: Hexagon 6 of 8': {
       try {
       shard_run_test_Hexagon_6_of_8()
       } catch(Exception ex) {
-        shard_run_test_Hexagon_6_of_8()
+        shard_run_test_Hexagon_6_of_8(on_demand = true)
       }
     },
     'test: Hexagon 7 of 8': {
       try {
       shard_run_test_Hexagon_7_of_8()
       } catch(Exception ex) {
-        shard_run_test_Hexagon_7_of_8()
+        shard_run_test_Hexagon_7_of_8(on_demand = true)
       }
     },
     'test: Hexagon 8 of 8': {
       try {
       shard_run_test_Hexagon_8_of_8()
       } catch(Exception ex) {
-        shard_run_test_Hexagon_8_of_8()
+        shard_run_test_Hexagon_8_of_8(on_demand = true)
       }
     },
     )

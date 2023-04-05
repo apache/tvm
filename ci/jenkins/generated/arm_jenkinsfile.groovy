@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-04-05T09:41:25.486079
+// Generated at 2023-04-05T10:35:58.748682
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -579,8 +579,11 @@ try {
 
 
 
-def shard_run_integration_aarch64_1_of_4(node_type) {
+def shard_run_integration_aarch64_1_of_4(node_type='ARM-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
+    if (on_demand==true) {
+        node_type = 'ARM-SMALL'
+    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
@@ -625,8 +628,11 @@ def shard_run_integration_aarch64_1_of_4(node_type) {
   }
 }
 
-def shard_run_integration_aarch64_2_of_4(node_type) {
+def shard_run_integration_aarch64_2_of_4(node_type='ARM-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
+    if (on_demand==true) {
+        node_type = 'ARM-SMALL'
+    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
@@ -671,8 +677,11 @@ def shard_run_integration_aarch64_2_of_4(node_type) {
   }
 }
 
-def shard_run_integration_aarch64_3_of_4(node_type) {
+def shard_run_integration_aarch64_3_of_4(node_type='ARM-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
+    if (on_demand==true) {
+        node_type = 'ARM-SMALL'
+    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
@@ -717,8 +726,11 @@ def shard_run_integration_aarch64_3_of_4(node_type) {
   }
 }
 
-def shard_run_integration_aarch64_4_of_4(node_type) {
+def shard_run_integration_aarch64_4_of_4(node_type='ARM-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
+    if (on_demand==true) {
+        node_type = 'ARM-SMALL'
+    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
@@ -765,8 +777,11 @@ def shard_run_integration_aarch64_4_of_4(node_type) {
 
 
 
-def shard_run_topi_aarch64_1_of_2(node_type) {
+def shard_run_topi_aarch64_1_of_2(node_type='ARM-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
+    if (on_demand==true) {
+        node_type = 'ARM-SMALL'
+    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
@@ -816,8 +831,11 @@ def shard_run_topi_aarch64_1_of_2(node_type) {
   }
 }
 
-def shard_run_topi_aarch64_2_of_2(node_type) {
+def shard_run_topi_aarch64_2_of_2(node_type='ARM-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
+    if (on_demand==true) {
+        node_type = 'ARM-SMALL'
+    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
@@ -867,8 +885,11 @@ def shard_run_topi_aarch64_2_of_2(node_type) {
 
 
 
-def shard_run_frontend_aarch64_1_of_2(node_type) {
+def shard_run_frontend_aarch64_1_of_2(node_type='ARM-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
+    if (on_demand==true) {
+        node_type = 'ARM-SMALL'
+    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-arm") {
         try {
@@ -912,8 +933,11 @@ def shard_run_frontend_aarch64_1_of_2(node_type) {
   }
 }
 
-def shard_run_frontend_aarch64_2_of_2(node_type) {
+def shard_run_frontend_aarch64_2_of_2(node_type='ARM-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
+    if (on_demand==true) {
+        node_type = 'ARM-SMALL'
+    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-arm") {
         try {
@@ -968,56 +992,56 @@ def test() {
       try {
       shard_run_integration_aarch64_1_of_4()
       } catch(Exception ex) {
-        shard_run_integration_aarch64_1_of_4()
+        shard_run_integration_aarch64_1_of_4(on_demand = true)
       }
     },
     'integration: aarch64 2 of 4': {
       try {
       shard_run_integration_aarch64_2_of_4()
       } catch(Exception ex) {
-        shard_run_integration_aarch64_2_of_4()
+        shard_run_integration_aarch64_2_of_4(on_demand = true)
       }
     },
     'integration: aarch64 3 of 4': {
       try {
       shard_run_integration_aarch64_3_of_4()
       } catch(Exception ex) {
-        shard_run_integration_aarch64_3_of_4()
+        shard_run_integration_aarch64_3_of_4(on_demand = true)
       }
     },
     'integration: aarch64 4 of 4': {
       try {
       shard_run_integration_aarch64_4_of_4()
       } catch(Exception ex) {
-        shard_run_integration_aarch64_4_of_4()
+        shard_run_integration_aarch64_4_of_4(on_demand = true)
       }
     },
     'topi: aarch64 1 of 2': {
       try {
       shard_run_topi_aarch64_1_of_2()
       } catch(Exception ex) {
-        shard_run_topi_aarch64_1_of_2()
+        shard_run_topi_aarch64_1_of_2(on_demand = true)
       }
     },
     'topi: aarch64 2 of 2': {
       try {
       shard_run_topi_aarch64_2_of_2()
       } catch(Exception ex) {
-        shard_run_topi_aarch64_2_of_2()
+        shard_run_topi_aarch64_2_of_2(on_demand = true)
       }
     },
     'frontend: aarch64 1 of 2': {
       try {
       shard_run_frontend_aarch64_1_of_2()
       } catch(Exception ex) {
-        shard_run_frontend_aarch64_1_of_2()
+        shard_run_frontend_aarch64_1_of_2(on_demand = true)
       }
     },
     'frontend: aarch64 2 of 2': {
       try {
       shard_run_frontend_aarch64_2_of_2()
       } catch(Exception ex) {
-        shard_run_frontend_aarch64_2_of_2()
+        shard_run_frontend_aarch64_2_of_2(on_demand = true)
       }
     },
     )
