@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include "../../analysis/var_use_def_analysis.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -295,7 +296,15 @@ class BaseInliner : public StmtExprMutator {
    * \param stmt The statement in which to count undefined variables
    */
   static int GetNumUndefinedNonpointerVars(const Stmt& stmt) {
-    auto undefined_vars = UndefinedVars(stmt, {});
+    // exclude variables appeared in Buffer shape/strides.
+    VarUseDefAnalyzer buffer_vars_analyzer({}, false);
+    for (const PrimExpr& expr : Downcast<BufferStore>(stmt)->buffer->shape) {
+      buffer_vars_analyzer(expr);
+    }
+    for (const PrimExpr& expr : Downcast<BufferStore>(stmt)->buffer->strides) {
+      buffer_vars_analyzer(expr);
+    }
+    auto undefined_vars = UndefinedVars(stmt, buffer_vars_analyzer.undefined_);
     // Buffer pointers and the inlined indices are allowed, but no
     // other variables may appear in the inlined block.
     int num_nonpointer_vars = 0;
@@ -499,7 +508,7 @@ class ComputeInliner : public BaseInliner {
     if (idx_vars_.empty()) {
       idx_vars_ = std::move(result);
     } else if (!support::ArrayWithSameContent(idx_vars_, result)) {
-      // Failure: indexing variables are not consitent in different BufferLoads
+      // Failure: indexing variables are not consistent in different BufferLoads
       return false;
     }
     return true;

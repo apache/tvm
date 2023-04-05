@@ -724,6 +724,36 @@ def elementwise_predicate_producer_inlined(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = A[vi, vj] * T.float32(2) + T.float32(1)
 
 
+@T.prim_func
+def symbolic_shape(a: T.handle, b: T.handle):
+    N = T.int32()
+    A = T.match_buffer(a, (N, 32), "float32")
+    temp = T.alloc_buffer((N, 32), "float32", scope="local")
+    B = T.match_buffer(b, (N, 32), "float32")
+    for i in range(N):
+        for j in range(32):
+            with T.block("T"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                temp[vi, vj] = A[vi, vj] + 1
+        for j in range(32):
+            with T.block("B"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                B[vi, vj] = temp[vi, vj] * A[vi, vj]
+
+
+@T.prim_func
+def symbolic_shape_inlined(a: T.handle, b: T.handle):
+    N = T.int32()
+    A = T.match_buffer(a, (N, 32))
+    B = T.match_buffer(b, (N, 32))
+    for i, j in T.grid(N, 32):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(A[vi, vj])
+            T.writes(B[vi, vj])
+            B[vi, vj] = (A[vi, vj] + T.float32(1)) * A[vi, vj]
+
+
 # fmt: off
 @tvm.script.ir_module
 class Conv2dInt8_TensorCore_with_predicate:
@@ -1157,6 +1187,18 @@ def test_reverse_compute_inline_producer_predicate_disallowed():
         "that cannot be implied by the synthesized predicate T.bool(True) of the new inlined block"
         in str(e)
     )
+
+
+def test_compute_inline_symbolic_shape():
+    """Test compute inline in the case that buffer has symbolic shape"""
+
+    sch = tvm.tir.Schedule(symbolic_shape)
+    T = sch.get_block("T")
+    B = sch.get_block("B")
+    j = sch.get_loops(B)[-1]
+    sch.compute_inline(T)
+    tvm.ir.assert_structural_equal(symbolic_shape_inlined, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=symbolic_shape)
 
 
 if __name__ == "__main__":
