@@ -132,6 +132,46 @@ class TransformParamsFuncBuilder : public ExprMutator {
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> outputs_;
 };
 
+bool SInfoContainsSymVar(StructInfo sinfo) {
+  struct SymVarDetector : public StructInfoVisitor {
+    void VisitStructInfo(const StructInfo& sinfo) final {
+      if (contains_sym_var) {
+        return;
+      }
+      StructInfoVisitor::VisitStructInfo(sinfo);
+    }
+
+    bool CheckShape(Array<PrimExpr> shape) {
+      for (const PrimExpr& value : shape) {
+        const auto* int_imm = value.as<IntImmNode>();
+        if (int_imm == nullptr) {
+          contains_sym_var = true;
+          return false;
+        }
+      }
+      return true;
+    }
+
+    void VisitStructInfo_(const ShapeStructInfoNode* shape_sinfo) final {
+      if (shape_sinfo->values.defined()) {
+        CheckShape(shape_sinfo->values.value());
+      }
+    }
+
+    void VisitStructInfo_(const TensorStructInfoNode* tensor_sinfo) final {
+      if (tensor_sinfo->shape.defined()) {
+        VisitStructInfo(GetStructInfo(tensor_sinfo->shape.value()));
+      }
+    }
+
+    bool contains_sym_var = false;
+  };
+
+  SymVarDetector detector;
+  detector(sinfo);
+  return detector.contains_sym_var;
+}
+
 /*!
  * \brief Visitor that creates the plan of lifting transform params.
  *
@@ -165,9 +205,13 @@ class LiftTransformParamsPlanner : public ExprVisitor {
   void VisitBinding_(const VarBindingNode* binding) final {
     std::vector<const VarNode*> producers;
     bool can_lift = true;
+
+    // Cond 1. Do not lift bindings outside dataflow blocks.
     if (!is_in_dataflow_block_) {
       can_lift = false;
     }
+
+    // Cond 2. Do not lift regarding the "builtin.stop_lift_params" op.
     if (const auto* call = binding->value.as<CallNode>()) {
       static const Op& stop_lift_params_op = Op::Get("relax.builtin.stop_lift_params");
       if (call->op.same_as(stop_lift_params_op)) {
@@ -175,6 +219,7 @@ class LiftTransformParamsPlanner : public ExprVisitor {
       }
     }
 
+    // Cond 3. Do not lift when involving Vars that are not liftable.
     PostOrderVisit(binding->value, [&](const ObjectRef& obj) {
       if (const VarNode* var = obj.as<VarNode>()) {
         producers.push_back(var);
@@ -183,6 +228,12 @@ class LiftTransformParamsPlanner : public ExprVisitor {
         }
       }
     });
+
+    // Cond 4. Do not lift when its struct info contains symbolic variables.
+    if (SInfoContainsSymVar(GetStructInfo(binding->var))) {
+      can_lift = false;
+    }
+
     if (can_lift) {
       lifted_bindings_.insert(binding->var);
       builder_.AddBinding(GetRef<VarBinding>(binding));
@@ -256,7 +307,7 @@ class TransformParamsLifter : public ExprMutator {
     for (const auto& [var, index] : lift_plan_.output_to_index) {
       param_remap_[var] = TupleGetItem(params, index);
     }
-    auto new_body = VisitExpr(func->body);
+    auto new_body = VisitWithNewScope(func->body, new_params);
 
     // Step 3.3: Remove function attributes that are not needed
     auto new_attrs = func->attrs;
