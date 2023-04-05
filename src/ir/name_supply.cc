@@ -81,7 +81,7 @@ std::string NameSupplyNode::GetUniqueName(std::string name, bool add_underscore)
     auto new_name = name;
     while (!name_map.insert({new_name, 0}).second) {
       std::ostringstream os;
-      os << name << (add_underscore? "_" : "") << (++it->second);
+      os << name << (add_underscore ? "_" : "") << (++it->second);
       new_name = os.str();
     }
     return new_name;

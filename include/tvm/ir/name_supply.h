@@ -54,7 +54,9 @@ class NameSupplyNode : public Object {
    * \brief Generates a unique name from this NameSupply.
    * \param name The name from which the generated name is derived.
    * \param add_prefix If set to true, then the prefix of this NameSupply will be prepended to the
-   * name. \return A unique name.
+   * name.
+   * \param add_underscore If set to true, add '_' between prefix and a digit.
+   * \return A unique name.
    */
   String FreshName(const String& name, bool add_prefix = true, bool add_underscore = true);
 
@@ -93,6 +95,7 @@ class NameSupplyNode : public Object {
   /*!
    * \brief Function that will generate a unique name.
    * \param name The name to be used as a base.
+   * \param add_underscore If set to true, add '_' between prefix and a digit.
    * \return A unique name.
    */
   std::string GetUniqueName(std::string name, bool add_underscore = true);
@@ -115,6 +118,12 @@ class NameSupply : public ObjectRef {
   TVM_DLL explicit NameSupply(const String& prefix,
                               std::unordered_map<std::string, int> name_map = {});
 
+  /*!
+   * \brief Construct NameSupply with a name map created from the given iterator range and
+   * the functor.
+   *
+   * The functor should return the name of the dereferenced object.
+   */
   template <typename Iter, typename Lambda>
   TVM_DLL explicit NameSupply(Iter begin, Iter end, Lambda f)
       : NameSupply("", GetNameMap(begin, end, f)) {}
