@@ -151,15 +151,13 @@ void VarUseDefAnalyzer::HandleUse(const VarNode* v) {
   }
 }
 
-Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& args,
-                         bool visit_buffer) {
+Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& args, bool visit_buffer) {
   VarUseDefAnalyzer m(args, true, visit_buffer);
   m(stmt);
   return m.undefined_;
 }
 
-Array<Var> UndefinedVars(const PrimExpr& expr, const Array<Var>& args,
-                         bool visit_buffer) {
+Array<Var> UndefinedVars(const PrimExpr& expr, const Array<Var>& args, bool visit_buffer) {
   VarUseDefAnalyzer m(args, true, visit_buffer);
   m(expr);
   return m.undefined_;
