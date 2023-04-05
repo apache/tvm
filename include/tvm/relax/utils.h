@@ -54,35 +54,7 @@ class NameTable {
   NameTable() : name_sup("") {}
 
   template <typename Iter, typename Lambda>
-  explicit NameTable(Iter begin, Iter end, Lambda f) {
-    // static_assert is more reader-friendly than SFINAE when template specialization is not needed.
-    static_assert(std::is_convertible<decltype(f(*begin)), std::string>::value,
-                  "Lambda f must has a signature of [?](*it) -> string {}");
-    std::unordered_map<std::string, int> alloc_map_;
-    for (auto it = begin; it != end; ++it) {
-      const std::string& name = f(*it);
-      const size_t idx_last_first_num = std::distance(
-          std::find_if(name.rbegin(), name.rend(), [](char c) { return !std::isdigit(c); }),
-          name.rend());
-      // name = {O = others}{D = consecutive digits}
-      // let O -> prefix;
-      std::string prefix = name.substr(0, idx_last_first_num);
-      ICHECK(prefix.size() > 0 && std::isalpha(prefix[0])) << "Invalid variable name: " << name;
-      if (0 == alloc_map_.count(prefix)) alloc_map_[prefix] = 0;
-      if (idx_last_first_num < name.size()) {  // has some digits.
-                                               // let D's nearest natural number -> idx;
-                                               // note: stoul("000123") = 123;
-        alloc_map_[prefix] =
-            std::max(alloc_map_[prefix], std::stoi(name.substr(idx_last_first_num)));
-      }
-    }
-
-    name_sup = NameSupply("", alloc_map_);
-  }
-
-  template <typename Iter>
-  explicit NameTable(Iter begin, Iter end)
-      : NameTable(begin, end, [](const decltype(*begin)& v) { return v; }) {}
+  explicit NameTable(Iter begin, Iter end, Lambda f) : name_sup(begin, end, f) {}
 
  private:
   NameSupply name_sup;

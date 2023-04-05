@@ -115,7 +115,37 @@ class NameSupply : public ObjectRef {
   TVM_DLL explicit NameSupply(const String& prefix,
                               std::unordered_map<std::string, int> name_map = {});
 
+  template <typename Iter, typename Lambda>
+  TVM_DLL explicit NameSupply(Iter begin, Iter end, Lambda f)
+      : NameSupply("", GetNameMap(begin, end, f)) {}
+
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(NameSupply, ObjectRef, NameSupplyNode);
+
+ private:
+  template <typename Iter, typename Lambda>
+  static std::unordered_map<std::string, int> GetNameMap(Iter begin, Iter end, Lambda f) {
+    // static_assert is more reader-friendly than SFINAE when template specialization is not needed.
+    static_assert(std::is_convertible<decltype(f(*begin)), std::string>::value,
+                  "Lambda f must has a signature of [?](*it) -> string {}");
+    std::unordered_map<std::string, int> name_map;
+    for (auto it = begin; it != end; ++it) {
+      const std::string& name = f(*it);
+      const size_t idx_last_first_num = std::distance(
+          std::find_if(name.rbegin(), name.rend(), [](char c) { return !std::isdigit(c); }),
+          name.rend());
+      // name = {O = others}{D = consecutive digits}
+      // let O -> prefix;
+      std::string prefix = name.substr(0, idx_last_first_num);
+      ICHECK(prefix.size() > 0 && std::isalpha(prefix[0])) << "Invalid variable name: " << name;
+      if (0 == name_map.count(prefix)) name_map[prefix] = 0;
+      if (idx_last_first_num < name.size()) {  // has some digits.
+                                               // let D's nearest natural number -> idx;
+                                               // note: stoul("000123") = 123;
+        name_map[prefix] = std::max(name_map[prefix], std::stoi(name.substr(idx_last_first_num)));
+      }
+    }
+    return name_map;
+  }
 };
 
 }  // namespace tvm
