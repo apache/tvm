@@ -48,11 +48,26 @@
  * - insert kill_storage at the end of each binding block, for all the storage
  * tokens that are allocated inside the binding block, as the memory planning
  * only works on block level.
+ *
+ * The memory planning pass "supports" dynamic shape in the way of TIR variable
+ * upper bound annotation. To be more specific, we can annotate the attribute
+ * "tir_var_upper_bound" to Relax functions. The attribute value is a dict from
+ * strings to integers, denoting the name of TIR variables to the upper bound
+ * values of the TIR vars. **The annotated upper bound attribute only applies
+ * to TIR vars in the function signature for clarity.**
+ *
+ * For example, we can annotate a Relax function with
+ *   `R.func_attr({"tir_var_upper_bound": {"n": 1024}})`.
+ * It means the maximum value of variable that names "n" in the function
+ * signature will have upper bound 1024. And we will use 1024 as its value
+ * during memory planning.
  */
+#include <tvm/arith/analyzer.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/transform.h>
+#include <tvm/tir/stmt_functor.h>
 
 #include <map>
 #include <set>
@@ -306,6 +321,23 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
   explicit StorageAllocatorInit(const IRModule& ctx_mod) : ctx_mod_(ctx_mod) {}
 
   void VisitExpr_(const FunctionNode* func) final {
+    // Use the attribute-annotated TIR var upper bounds as the TIR var values for
+    // memory planning.
+    // NOTE: we only apply the annotated upper bounds to the TIR variables that
+    // appear in the **function signature**.
+    Map<String, IntImm> var_upper_bound_attr =
+        func->GetAttr<Map<String, IntImm>>("tir_var_upper_bound").value_or(Map<String, IntImm>());
+    Array<tir::Var> var_in_signature = TIRVarsInStructInfo(GetStructInfo(GetRef<Function>(func)));
+    var_upper_bound_.clear();
+    for (const tir::Var& tir_var : var_in_signature) {
+      auto it = var_upper_bound_attr.find(tir_var->name_hint);
+      if (it != var_upper_bound_attr.end()) {
+        ana_.Bind(tir_var, tvm::Range::FromMinExtent(
+                               tvm::IntImm(DataType::Int(64), 0),
+                               tvm::IntImm(DataType::Int(64), (*it).second->value + 1)));
+      }
+    }
+
     // Recurse into the function to get its tokens.
     Tokens body_tokens = GetTokens(func->body);
     // Discard the tokens used by the function return value, as they are external referenced.
@@ -401,8 +433,20 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     ICHECK(sinfo->dtype == Downcast<DataTypeImm>(call->args[1])->value);
     ICHECK(!token_map_.count(call));
 
-    // No support for symbolic shape at this moment.
+    // Use the upper bounds of TIR vars as their values.
+    Array<PrimExpr> upper_bounded_shape;
+    upper_bounded_shape.reserve(shape->values.size());
     for (const PrimExpr& dim_len : shape->values) {
+      int64_t max_bound = ana_.const_int_bound(dim_len)->max_value;
+      if (max_bound == std::numeric_limits<int64_t>::max()) {
+        upper_bounded_shape.push_back(dim_len);
+      } else {
+        upper_bounded_shape.push_back(tvm::IntImm(DataType::Int(64), max_bound));
+      }
+    }
+
+    // No support for TIR vars that are not bounded.
+    for (const PrimExpr& dim_len : upper_bounded_shape) {
       const auto* int_len = dim_len.as<IntImmNode>();
       if (!int_len) {
         token_map_[call] = Tokens();
@@ -411,7 +455,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     }
 
     // Create and set token.
-    StorageToken token(shape->values, sinfo->dtype);
+    StorageToken token(upper_bounded_shape, sinfo->dtype);
 
     Tokens tokens(token);
     SetTokens(call, tokens);
@@ -476,11 +520,15 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     token2block_.erase(token_to_discard.get());
   }
 
+  /*! \brief The arithmetic analyzer. */
+  arith::Analyzer ana_;
   /*!
    * \brief The context IRModule, used for checking if a callee function is
    * a PrimFunc inside the IRModule.
    */
   const IRModule& ctx_mod_;
+  /*! \brief The mapping from TIR variables to their respective upper bound values. */
+  std::unordered_map<tir::Var, IntImm, ObjectPtrHash, ObjectPtrEqual> var_upper_bound_;
   /*! \brief The mapping from each token to the binding block where it is created. */
   std::unordered_map<const StorageTokenNode*, const BindingBlockNode*> token2block_;
   /*! \brief The mapping from each token to the Exprs that are using this token. */

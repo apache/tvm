@@ -153,9 +153,10 @@ def estimate_memory_usage(mod: Union[IRModule, Function]) -> str:
                 "memory allocation(s) with total size "
                 "{0:.4} GB.\n".format(self.planned_alloc_mem / 2**30)
             )
-            est += " * Memory planning reduces constant memory size to " "{0:.1%}.".format(
-                self.planned_alloc_mem / self.total_alloc_tensor_mem
-            )
+            if self.total_alloc_tensor_mem != 0:
+                est += " * Memory planning reduces constant memory size to " "{0:.1%}.".format(
+                    self.planned_alloc_mem / self.total_alloc_tensor_mem
+                )
             return "- Function " + func_name + ":\n" + est
 
     if isinstance(mod, Function):
