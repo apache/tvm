@@ -56,7 +56,7 @@ class NameSupplyNode : public Object {
    * \param add_prefix If set to true, then the prefix of this NameSupply will be prepended to the
    * name. \return A unique name.
    */
-  String FreshName(const String& name, bool add_prefix = true);
+  String FreshName(const String& name, bool add_prefix = true, bool add_underscore = true);
 
   /*!
    * \brief Reserves an existing name with this NameSupply.
@@ -95,7 +95,7 @@ class NameSupplyNode : public Object {
    * \param name The name to be used as a base.
    * \return A unique name.
    */
-  std::string GetUniqueName(std::string name);
+  std::string GetUniqueName(std::string name, bool add_underscore = true);
 
   /*! \brief A map that is used to generate unique names. */
   std::unordered_map<std::string, int> name_map;

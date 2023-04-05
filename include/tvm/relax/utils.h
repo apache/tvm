@@ -25,6 +25,7 @@
 #define TVM_RELAX_UTILS_H_
 
 #include <tvm/ir/module.h>
+#include <tvm/ir/name_supply.h>
 #include <tvm/runtime/logging.h>
 
 #include <algorithm>
@@ -47,24 +48,17 @@ class NameTable {
    * \return The generated name.
    */
   inline std::string GetUniqueName(std::string prefix) {
-    std::replace(prefix.begin(), prefix.end(), '.', '_');
-    std::string unique_prefix = prefix;
-    auto it = alloc_map_.find(prefix);
-    if (it != alloc_map_.end()) {
-      while (alloc_map_.count(unique_prefix = prefix + std::to_string(++it->second)) > 0) {
-      }
-    }
-    alloc_map_[unique_prefix] = 0;
-    return unique_prefix;
+    return name_sup->FreshName(prefix, /*add_prefix*/ false, /*add_underscore*/ false);
   }
 
-  NameTable() = default;
+  NameTable() : name_sup("") {}
 
   template <typename Iter, typename Lambda>
   explicit NameTable(Iter begin, Iter end, Lambda f) {
     // static_assert is more reader-friendly than SFINAE when template specialization is not needed.
     static_assert(std::is_convertible<decltype(f(*begin)), std::string>::value,
                   "Lambda f must has a signature of [?](*it) -> string {}");
+    std::unordered_map<std::string, int> alloc_map_;
     for (auto it = begin; it != end; ++it) {
       const std::string& name = f(*it);
       const size_t idx_last_first_num = std::distance(
@@ -82,6 +76,8 @@ class NameTable {
             std::max(alloc_map_[prefix], std::stoi(name.substr(idx_last_first_num)));
       }
     }
+
+    name_sup = NameSupply("", alloc_map_);
   }
 
   template <typename Iter>
@@ -89,7 +85,7 @@ class NameTable {
       : NameTable(begin, end, [](const decltype(*begin)& v) { return v; }) {}
 
  private:
-  std::unordered_map<std::string, int> alloc_map_;
+  NameSupply name_sup;
 };
 
 /*!
