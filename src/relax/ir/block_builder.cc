@@ -28,7 +28,6 @@
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/struct_info_functor.h>
 #include <tvm/relax/type.h>
-#include <tvm/relax/utils.h>
 #include <tvm/relay/op.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/function.h>
@@ -55,7 +54,8 @@ namespace relax {
 //---------------------------------------
 class BlockBuilderImpl : public BlockBuilderNode {
  public:
-  explicit BlockBuilderImpl(IRModule context_mod) : context_mod_(std::move(context_mod)) {}
+  explicit BlockBuilderImpl(IRModule context_mod)
+      : name_supply_(""), context_mod_(std::move(context_mod)) {}
 
   ~BlockBuilderImpl() {
     if (!block_stack_.empty()) {
@@ -66,7 +66,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   //-------------------------------
   // Global Context management
   //-------------------------------
-  NameTable* name_table() final { return name_table_.get(); }
+  NameSupply name_supply() final { return name_supply_; }
 
   IRModule GetContextIRModule() const final { return context_mod_; }
 
@@ -76,9 +76,9 @@ class BlockBuilderImpl : public BlockBuilderNode {
     if (it == ctx_func_dedup_map_->end()) {
       context_mod_.CopyOnWrite();
 
-      String func_name = name_table_->GetUniqueName(func_name_hint);
+      String func_name = GetUniqueName(func_name_hint);
       while (context_mod_->ContainGlobalVar(func_name)) {
-        func_name = name_table_->GetUniqueName(func_name_hint);
+        func_name = GetUniqueName(func_name_hint);
       }
       GlobalVar gvar = GlobalVar(func_name);
 
@@ -300,8 +300,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
   /*! \brief A binding table that maps var to value. */
   std::unordered_map<Id, Expr, ObjectPtrHash, ObjectPtrEqual> binding_table_;
 
-  /*! \brief A name table to get unique names for IR construction. */
-  std::unique_ptr<NameTable> name_table_ = std::make_unique<NameTable>();
+  /*! \brief A name supply to get unique names for IR construction. */
+  NameSupply name_supply_;
 
   /*! \brief The IRModule being built by the BlockBuilder. */
   IRModule context_mod_;
@@ -364,12 +364,16 @@ class BlockBuilderImpl : public BlockBuilderNode {
     if (name_hint.empty()) {
       name_hint = is_dataflow ? "lv" : "gv";
     }
-    Id vid = Id(name_table_->GetUniqueName(name_hint));
+    Id vid = Id(GetUniqueName(name_hint));
     return is_dataflow ? DataflowVar(vid, /*struct_info_annotation=*/NullOpt)
                        : Var(vid, /*struct_info_annotation=*/NullOpt);
   }
 
  private:
+  std::string GetUniqueName(const std::string& prefix) {
+    return name_supply_->FreshName(prefix, /*add_prefix*/ false, /*add_underscore*/ false);
+  }
+
   /*!
    * \brief A hashmap to store the mapping of Relax functions and TIR PrimFuncs
    * in context_mod to their GlobalVar to avoid generating duplicated functions.
@@ -921,7 +925,8 @@ TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitNormalized")
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderGetUniqueName")
     .set_body_typed([](BlockBuilder builder, String name_hint) {
-      return builder->name_table()->GetUniqueName(name_hint);
+      return builder->name_supply()->FreshName(name_hint, /*add_prefix*/ false,
+                                               /*add_underscore*/ false);
     });
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderAddFunction")

@@ -24,6 +24,7 @@
 #ifndef TVM_IR_NAME_SUPPLY_H_
 #define TVM_IR_NAME_SUPPLY_H_
 
+#include <algorithm>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -54,9 +55,11 @@ class NameSupplyNode : public Object {
    * \brief Generates a unique name from this NameSupply.
    * \param name The name from which the generated name is derived.
    * \param add_prefix If set to true, then the prefix of this NameSupply will be prepended to the
-   * name. \return A unique name.
+   * name.
+   * \param add_underscore If set to true, add '_' between prefix and a digit.
+   * \return A unique name.
    */
-  String FreshName(const String& name, bool add_prefix = true);
+  String FreshName(const String& name, bool add_prefix = true, bool add_underscore = true);
 
   /*!
    * \brief Reserves an existing name with this NameSupply.
@@ -93,9 +96,10 @@ class NameSupplyNode : public Object {
   /*!
    * \brief Function that will generate a unique name.
    * \param name The name to be used as a base.
+   * \param add_underscore If set to true, add '_' between prefix and a digit.
    * \return A unique name.
    */
-  std::string GetUniqueName(std::string name);
+  std::string GetUniqueName(std::string name, bool add_underscore = true);
 
   /*! \brief A map that is used to generate unique names. */
   std::unordered_map<std::string, int> name_map;
@@ -115,7 +119,43 @@ class NameSupply : public ObjectRef {
   TVM_DLL explicit NameSupply(const String& prefix,
                               std::unordered_map<std::string, int> name_map = {});
 
+  /*!
+   * \brief Construct NameSupply with a name map created from the given iterator range and
+   * the functor.
+   *
+   * The functor should return the name of the dereferenced object.
+   */
+  template <typename Iter, typename Lambda>
+  TVM_DLL explicit NameSupply(Iter begin, Iter end, Lambda f)
+      : NameSupply("", GetNameMap(begin, end, f)) {}
+
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(NameSupply, ObjectRef, NameSupplyNode);
+
+ private:
+  template <typename Iter, typename Lambda>
+  static std::unordered_map<std::string, int> GetNameMap(Iter begin, Iter end, Lambda f) {
+    // static_assert is more reader-friendly than SFINAE when template specialization is not needed.
+    static_assert(std::is_convertible<decltype(f(*begin)), std::string>::value,
+                  "Lambda f must has a signature of [?](*it) -> string {}");
+    std::unordered_map<std::string, int> name_map;
+    for (auto it = begin; it != end; ++it) {
+      const std::string& name = f(*it);
+      const size_t idx_last_first_num = std::distance(
+          std::find_if(name.rbegin(), name.rend(), [](char c) { return !std::isdigit(c); }),
+          name.rend());
+      // name = {O = others}{D = consecutive digits}
+      // let O -> prefix;
+      std::string prefix = name.substr(0, idx_last_first_num);
+      ICHECK(prefix.size() > 0 && std::isalpha(prefix[0])) << "Invalid variable name: " << name;
+      if (0 == name_map.count(prefix)) name_map[prefix] = 0;
+      if (idx_last_first_num < name.size()) {  // has some digits.
+                                               // let D's nearest natural number -> idx;
+                                               // note: stoul("000123") = 123;
+        name_map[prefix] = std::max(name_map[prefix], std::stoi(name.substr(idx_last_first_num)));
+      }
+    }
+    return name_map;
+  }
 };
 
 }  // namespace tvm
