@@ -791,7 +791,7 @@ class PatternRewriter : ExprMutator {
       : ctx_(ctx), rewriter_func_(rewriter_func), params_(params) {}
 
   template <typename PatternType>
-  static Expr Run(PatternType pat, PackedFunc rewriter_func, Function f) {
+  static Function Run(PatternType pat, PackedFunc rewriter_func, Function f) {
     std::unordered_set<const VarNode*> params;
     for (const auto& p : f->params) {
       params.insert(p.get());
@@ -909,15 +909,16 @@ class PatternRewriter : ExprMutator {
   std::unordered_map<const Object*, Expr> memo_;
 };
 
+Function RewriteBindings(const PatternContext& ctx, PackedFunc rewriter, Function f) {
+  return PatternRewriter::Run(ctx, rewriter, f);
+}
+
 TVM_REGISTER_GLOBAL("relax.dpl.rewrite_call")
     .set_body_typed([](DFPattern pat, PackedFunc rewriter, Function f) {
       return PatternRewriter::Run(pat, rewriter, f);
     });
 
-TVM_REGISTER_GLOBAL("relax.dpl.rewrite_bindings")
-    .set_body_typed([](const PatternContext& ctx, PackedFunc rewriter, Function f) {
-      return PatternRewriter::Run(ctx, rewriter, f);
-    });
+TVM_REGISTER_GLOBAL("relax.dpl.rewrite_bindings").set_body_typed(RewriteBindings);
 
 }  // namespace relax
 }  // namespace tvm

@@ -58,6 +58,7 @@ Optional<Map<DFPattern, Expr>> ExtractMatchedExpr(
 TVM_DLL Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx,
                                                  const DataflowBlock& dfb);
 
+TVM_DLL Function RewriteBindings(const PatternContext& ctx, PackedFunc rewriter, Function f);
 }  // namespace relax
 }  // namespace tvm
 
