@@ -33,14 +33,28 @@ namespace relax {
 using runtime::Map;
 
 Function CombineParallelMatmul(Function f) {
+  const int num_branches = 32;
   PatternContext ctx;
-  WildcardPattern input_pattern;
+
+  ctx.EnterWithScope();
+
+  auto input_pattern = Wildcard();
   std::vector<WildcardPattern> weight_patterns;
   std::vector<CallPattern> matmul_patterns;
-  const int num_branches = 32;
+  auto matmul_op = Op::Get("relax.matmul");
+
+  for (int i = 0; i < 32; ++i) {
+    auto w_pat = Wildcard();
+    CallPattern matmul_pat{ExprPattern(matmul_op), {input_pattern, w_pat}};
+    weight_patterns.push_back(w_pat);
+    matmul_patterns.push_back(matmul_pat);
+    ctx.add_constraint(input_pattern, matmul_pat, PairCons(PairCons::kUsedBy, 0));
+    ctx.add_constraint(w_pat, matmul_pat, PairCons(PairCons::kUsedBy, 1));
+  }
 
   runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>)> rewriter =
       [=](Map<DFPattern, Var> matchings) {
+        LOG(INFO) << "matched";
         auto inp = matchings[input_pattern];
 
         Array<Expr> weights;
@@ -49,11 +63,11 @@ Function CombineParallelMatmul(Function f) {
         }
 
         auto concat_weights = concat(Tuple(weights), Integer(1));
-        auto matmul_combined = matmul(inp, concat_weights, DataType::Float(16));
+        auto matmul_combined = matmul(inp, concat_weights, DataType::Float(16));  // TODO dtype
 
         Map<Var, Expr> replacements;
         PrimExpr begin{0};
-        int slice_axis = 2;
+        int slice_axis = 2;  // TODO
         Array<PrimExpr> strides{1};
 
         for (size_t i = 0; i < num_branches; ++i) {
@@ -68,7 +82,10 @@ Function CombineParallelMatmul(Function f) {
 
         return replacements;
       };
-  return RewriteBindings(ctx, rewriter, f);
+
+  auto rewritten = RewriteBindings(ctx, rewriter, f);
+  ctx.ExitWithScope();
+  return rewritten;
 }
 
 namespace transform {
@@ -81,6 +98,8 @@ Pass CombineParallelMatmul() {
                             /*pass_name=*/"CombineParallelMatmul",  //
                             /*required=*/{});
 }
+
+TVM_REGISTER_GLOBAL("relax.transform.CombineParallelMatmul").set_body_typed(CombineParallelMatmul);
 
 }  // namespace transform
 
