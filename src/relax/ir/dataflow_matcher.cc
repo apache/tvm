@@ -666,11 +666,11 @@ static std::optional<MatchState> TryMatch(const PNode& p, const RNode& r, DFPatt
 }
 
 static std::optional<MatchState> MatchTree(
-    const MatchState& current_matches, int current_root_idx,
+    const MatchState& current_matches, size_t current_root_idx,
     const std::unordered_map<const DFPatternNode*, PNode>& pattern2node,
     const std::unordered_map<const VarNode*, RNode>& var2node, DFPatternMatcher* matcher,
     const std::vector<DFPattern>& roots, const MatcherUseDefAnalysis& ud_analysis) {
-  auto get_next_root = [&](int root_idx) -> const PNode* {
+  auto get_next_root = [&](size_t root_idx) -> const PNode* {
     // Look for the next unmatched root node.
     for (; root_idx < roots.size(); ++root_idx) {
       const auto& root = pattern2node.at(roots[root_idx].get());
