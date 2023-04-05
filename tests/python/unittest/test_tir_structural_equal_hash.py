@@ -416,7 +416,7 @@ def test_ir_module_equal():
     with pytest.raises(ValueError) as err:
         tvm.ir.assert_structural_equal(generate(16), generate(32))
 
-    assert '<root>.functions[I.GlobalVar("func")].body.extent.value' in err.value
+    assert '<root>.functions[I.GlobalVar("func")].body.extent.value' in err.value.args[0]
 
 
 if __name__ == "__main__":
