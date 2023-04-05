@@ -272,10 +272,11 @@ PrimFunc Specialize(PrimFunc func, const Map<Var, ObjectRef>& param_map);
  * \sa tvm::attr
  */
 namespace attr {
+
 /*!
  * \brief List of thread IterVar that a DeviceLaunch function corresponds to.
  *
- * Type: Array<tir::IterVar>
+ * Type: Array<String>
  *
  * We call a device kernel launch function f using the following convention:
  *
@@ -283,23 +284,42 @@ namespace attr {
  *      [arg1, arg2, ..., arg_n,
  *       work_size_1, work_size_2, ... work_size_m, dyn_shmem_size])
  *
- * Here n = len(arg), m = len(work_size) = len(device_thread_axis).
+ * Here n = len(arg), m = len(work_size) = len(launch_params)-1.
  *
- * When kDeviceUseDynSharedMemory is not set, dyn_shmem_size argument is omitted.
+ * The list of kernel launch params indicates which additional
+ * parameters will be provided to the PackedFunc by the calling
+ * scope.
  *
- * The list of device_thread_axis indicates how can be bind the
- * work_size arguments to the corresponding threads.
+ * - "threadIdx.x", "threadIdx.y", "threadIdx.z"
+ *
+ *   The extent of the thread count in x/y/z, to be used when
+ *   launching the compute kernel on the device.  For example, the
+ *   gridDimX/Y/Z parameters passed to cuLaunchKernel when launching a
+ *   CUDA kernel, or the groupCountX/Y/Z parameters passed to
+ *   vkCmdDispatch when dispatching a compute pipeline to Vulkan.
+ *
+ * - "blockIdx.x", "blockIdx.y", "blockIdx.z"
+ *
+ *   The extent of the block iterators, to be used when launching the
+ *   compute kernel on the device.  For example, the blockDimX/Y/Z
+ *   parameters passed to cuLaunchKernel when launching a CUDA kernel.
+ *   For runtimes that do not require the block to be provided
+ *   externally, this parameter is ignored.  For example, the
+ *   spv::ExecutionModeLocalSize for SPIR-V shaders on Vulkan, where
+ *   this parameter is defined in the shader.
+ *
+ * - tvm::runtime::launch_param::kUseDynamicSharedMemoryTag
+ *
+ *   The size of the shared memory that may be allocated internally by
+ *   the kernel.  For example, exposed as the
+ *   CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES attribute in
+ *   cuda.
+ *
+ *   Defined as "tir.use_dyn_shared_memory".
  *
  * \sa tvm::CallingConv::kDeviceKernelLaunch
  */
-constexpr const char* kDeviceThreadAxis = "tir.device_thread_axis";
-
-/*!
- * \brief Whether or not use dynamic shared memory.
- *
- * Type: Integer
- */
-constexpr const char* kDeviceUseDynSharedMemory = "tir.device_use_dyn_shared_memory";
+constexpr const char* kKernelLaunchParams = "tir.kernel_launch_params";
 
 /*!
  * \brief Whether to set noalias rule on the function arguments.
