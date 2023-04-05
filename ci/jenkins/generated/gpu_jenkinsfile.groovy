@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-04-05T10:53:33.957208
+// Generated at 2023-04-05T14:27:34.258734
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -1412,10 +1412,7 @@ def deploy_docs() {
   }
 }
 
-def deploy(node_type="CPU-SPOT", on_demand=false) {
-  if (on_demand==true) {
-      node_type="CPU"
-  }
+def deploy() {
   stage('Deploy') {
     if (env.BRANCH_NAME == 'main') {
       parallel(
@@ -1442,8 +1439,4 @@ def deploy(node_type="CPU-SPOT", on_demand=false) {
   }
 }
 
-try {
-    deploy()
-} catch(Exception ex) {
-    deploy(on_demand=true)
-}
+deploy()

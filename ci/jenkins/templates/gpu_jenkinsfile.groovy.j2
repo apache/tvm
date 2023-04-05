@@ -193,10 +193,7 @@ def deploy_docs() {
   }
 }
 
-def deploy(node_type="CPU-SPOT", on_demand=false) {
-  if (on_demand==true) {
-      node_type="CPU"
-  }
+def deploy() {
   stage('Deploy') {
     if (env.BRANCH_NAME == 'main') {
       parallel(
@@ -217,8 +214,4 @@ def deploy(node_type="CPU-SPOT", on_demand=false) {
   }
 }
 
-try {
-    deploy()
-} catch(Exception ex) {
-    deploy(on_demand=true)
-}
+deploy()
