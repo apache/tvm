@@ -501,6 +501,12 @@ StructInfo InferStructInfoVMAllocTensor(const Call& call, const BlockBuilder& ct
   }
   if (const auto* output_shape = call->args[2].as<ShapeExprNode>()) {
     return TensorStructInfo(GetRef<Expr>(output_shape), out_dtype);
+  } else if (const auto* shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[2])) {
+    if (shape_sinfo->values.defined()) {
+      return TensorStructInfo(ShapeExpr(shape_sinfo->values.value()), out_dtype);
+    } else {
+      return TensorStructInfo(out_dtype, shape_sinfo->ndim);
+    }
   }
   return TensorStructInfo(out_dtype, kUnknownNDim);
 }
