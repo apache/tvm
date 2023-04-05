@@ -76,7 +76,7 @@ class SourceModuleNode : public runtime::ModuleNode {
 
   std::string GetSource(const std::string& format) final { return code_; }
 
-  std::string GetFormat() { return fmt_; }
+  std::string GetFormat() override { return fmt_; }
 
  protected:
   std::string code_;
@@ -117,7 +117,7 @@ class CSourceModuleNode : public runtime::ModuleNode {
 
   std::string GetSource(const std::string& format) final { return code_; }
 
-  std::string GetFormat() { return fmt_; }
+  std::string GetFormat() override { return fmt_; }
 
   void SaveToFile(const std::string& file_name, const std::string& format) final {
     std::string fmt = GetFileFormat(file_name, format);
@@ -130,7 +130,7 @@ class CSourceModuleNode : public runtime::ModuleNode {
     }
   }
 
-  int GetPropertyMask() const { return runtime::ModulePropertyMask::kDSOExportable; }
+  int GetPropertyMask() const override { return runtime::ModulePropertyMask::kDSOExportable; }
 
   bool ImplementsFunction(const String& name, bool query_imports) final {
     return std::find(func_names_.begin(), func_names_.end(), name) != func_names_.end();
@@ -183,7 +183,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
 
   std::string GetSource(const std::string& format) final { return code_.str(); }
 
-  std::string GetFormat() { return fmt_; }
+  std::string GetFormat() override { return fmt_; }
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     return PackedFunc();
   }
@@ -200,7 +200,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     }
   }
 
-  int GetPropertyMask() const { return runtime::ModulePropertyMask::kDSOExportable; }
+  int GetPropertyMask() const override { return runtime::ModulePropertyMask::kDSOExportable; }
 
   bool ImplementsFunction(const String& name, bool query_imports) final {
     return std::find(func_names_.begin(), func_names_.end(), name) != func_names_.end();
