@@ -615,6 +615,7 @@ static std::optional<MatchState> TryMatch(const PNode& p, const RNode& r, DFPatt
     auto p_node_parent = p.parents[i].first;
     if (p_node_parent->ptr->IsInstance<WildcardPatternNode>()) {
       if (auto v = result.matched(p_node_parent); v && v != r.parents[i]->ptr) {
+        // A parent wildcard pattern is already matched to other variable.
         return std::nullopt;
       }
       result.add(p_node_parent, r.parents[i]);
@@ -667,6 +668,7 @@ static std::optional<MatchState> MatchTree(
     const std::unordered_map<const VarNode*, RNode>& var2node, DFPatternMatcher* matcher,
     const std::vector<DFPattern>& roots, const MatcherUseDefAnalysis& ud_analysis) {
   auto get_next_root = [&](int root_idx) -> const PNode* {
+    // Look for the next unmatched root node.
     for (; root_idx < roots.size(); ++root_idx) {
       const auto& root = pattern2node.at(roots[root_idx].get());
       if (!current_matches.matched(root)) {
@@ -678,7 +680,8 @@ static std::optional<MatchState> MatchTree(
 
   const auto root = get_next_root(current_root_idx);
 
-  if (!root || current_matches.matched(root)) {
+  if (!root) {
+    // All root nodes have been matched
     return current_matches;
   }
 
@@ -686,11 +689,14 @@ static std::optional<MatchState> MatchTree(
     const RNode& r_node = var2node.at(var);
     if (current_matches.matched(r_node)) continue;
     if (auto matches = TryMatch(*root, r_node, matcher, ud_analysis)) {
+      // Recursivly try to match the next subtree.
       if (auto matches_rec = MatchTree(*matches, current_root_idx + 1, pattern2node, var2node,
                                        matcher, roots, ud_analysis)) {
         matches->add(*matches_rec);
         return matches;
       }
+      // Recursive matching has failed, backtrack.
+      continue;
     }
   }
 
