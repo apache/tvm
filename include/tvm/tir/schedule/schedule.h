@@ -293,6 +293,16 @@ class ScheduleNode : public runtime::Object {
   virtual Array<BlockRV> GetConsumers(const BlockRV& block_rv) = 0;
   /******** Schedule: Transform loops ********/
   /*!
+   * \brief Merge a list of loops into one. The loops under their LCA requires:
+   * 1) Under the same scope
+   * 2) Can't have annotations or thread bindings
+   * 3) Start with 0 and have same extent and same nesting depth
+   * 4) From target loop to their LCA, the inner loop must be the only child of the outer loop
+   * \param loop_rvs The loops to be merged
+   * \return The new loop after merge
+   */
+  virtual LoopRV Merge(const Array<LoopRV>& loop_rvs) = 0;
+  /*!
    * \brief Fuse a list of consecutive loops into one. It requires:
    * 1) The loops can't have annotations or thread bindings.
    * 2) The (i+1)-th loop must be the only child of the i-th loop.
@@ -328,6 +338,12 @@ class ScheduleNode : public runtime::Object {
    * \param ordered_loop_rvs The loops in the new order
    */
   virtual void Reorder(const Array<LoopRV>& ordered_loop_rvs) = 0;
+  /*!
+   * \brief Reorder the itervars inside a block.
+   * \param block_rv The block to be transformed.
+   * \param new_order The new itervar order.
+   */
+  virtual void ReorderBlockIterVar(const BlockRV& block_rv, const Array<Integer> new_order) = 0;
   /*!
    * \brief Create a new unit loop on top of the specific block.
    * \param block_rv The block above which the new loop is created

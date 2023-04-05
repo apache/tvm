@@ -176,6 +176,16 @@ Array<BlockRV> TracedScheduleNode::GetConsumers(const BlockRV& block_rv) {
 
 /******** Schedule: Transform loops ********/
 
+LoopRV TracedScheduleNode::Merge(const Array<LoopRV>& loop_rvs) {
+  LoopRV result = ConcreteScheduleNode::Merge(loop_rvs);
+  static const InstructionKind& kind = InstructionKind::Get("Merge");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{loop_rvs.begin(), loop_rvs.end()},
+                                      /*attrs=*/{},
+                                      /*outputs=*/{result}));
+  return result;
+}
+
 LoopRV TracedScheduleNode::Fuse(const Array<LoopRV>& loop_rvs, bool preserve_unit_loops) {
   LoopRV result = ConcreteScheduleNode::Fuse(loop_rvs, preserve_unit_loops);
 
@@ -214,6 +224,15 @@ void TracedScheduleNode::Reorder(const Array<LoopRV>& ordered_loop_rvs) {
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
                                       /*inputs=*/{ordered_loop_rvs.begin(), ordered_loop_rvs.end()},
                                       /*attrs=*/{},
+                                      /*outputs=*/{}));
+}
+
+void TracedScheduleNode::ReorderBlockIterVar(const BlockRV& block_rv,
+                                             const Array<Integer> new_order) {
+  ConcreteScheduleNode::ReorderBlockIterVar(block_rv, new_order);
+  static const InstructionKind& kind = InstructionKind::Get("ReorderBlockIterVar");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{block_rv, new_order}, /*attrs=*/{},
                                       /*outputs=*/{}));
 }
 
