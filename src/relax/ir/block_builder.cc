@@ -252,10 +252,6 @@ class BlockBuilderImpl : public BlockBuilderNode {
 
   arith::Analyzer* GetAnalyzer() final { return &analyzer_; }
 
-  std::string GetUniqueName(const std::string& prefix) {
-    return name_supply_->FreshName(prefix, /*add_prefix*/ false, /*add_underscore*/ false);
-  }
-
  protected:
   /*!
    * \brief A representation of a block frame.
@@ -374,6 +370,10 @@ class BlockBuilderImpl : public BlockBuilderNode {
   }
 
  private:
+  std::string GetUniqueName(const std::string& prefix) {
+    return name_supply_->FreshName(prefix, /*add_prefix*/ false, /*add_underscore*/ false);
+  }
+
   /*!
    * \brief A hashmap to store the mapping of Relax functions and TIR PrimFuncs
    * in context_mod to their GlobalVar to avoid generating duplicated functions.
