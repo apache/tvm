@@ -260,6 +260,14 @@ TVM_DLL bool IsBaseOf(const StructInfo& base, const StructInfo& derived,
 TVM_DLL StructInfo StructInfoLCA(const StructInfo& lhs, const StructInfo& rhs,
                                  arith::Analyzer* ana = nullptr);
 
+/*!
+ * \brief Get the TIR variables that appear in the input struct info.
+ * The returned list is deduplicated - each TIR variable will appear at most once.
+ * \param sinfo The struct info object to be analyzed.
+ * \return The list of TIR variables that appear in the input struct info.
+ */
+TVM_DLL Array<tir::Var> TIRVarsInStructInfo(const StructInfo& sinfo);
+
 //-----------------------------------
 // General IR analysis
 //-----------------------------------
