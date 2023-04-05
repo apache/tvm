@@ -52,8 +52,7 @@ class DataflowBlockRewriteNode : public Object {
   }
   /*! \brief Insert an expression as VarBinding with automatic variable name. */
   void Add(Expr expr, bool is_dfvar = false) {
-    Add(name_supply_->FreshName("tmp", /*add_prefix*/ false, /*add_underscore*/ false), expr,
-        is_dfvar);
+    Add(name_supply_->FreshName("tmp"), expr, is_dfvar);
   }
   /*! \brief Remove the definition statement of an unused variable. */
   void RemoveUnused(Var unused, bool allow_undef = false);

@@ -38,29 +38,6 @@ namespace tvm {
 namespace relax {
 
 /*!
- * \brief Utility data structure for generating unique names for IR construction.
- */
-class NameTable {
- public:
-  /*!
-   * \brief Generate a unique name with a specified prefix.
-   * \param prefix The name prefix.
-   * \return The generated name.
-   */
-  inline std::string GetUniqueName(std::string prefix) {
-    return name_sup->FreshName(prefix, /*add_prefix*/ false, /*add_underscore*/ false);
-  }
-
-  NameTable() : name_sup("") {}
-
-  template <typename Iter, typename Lambda>
-  explicit NameTable(Iter begin, Iter end, Lambda f) : name_sup(begin, end, f) {}
-
- private:
-  NameSupply name_sup;
-};
-
-/*!
  * \brief Bind the variables to a Relax expression. This is a helper
  * function usually called by other pass functions to help optimizations.
  * If any free variables are introduced into a function, those are added
