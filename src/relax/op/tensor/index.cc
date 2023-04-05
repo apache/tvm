@@ -47,13 +47,11 @@ StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
   TensorStructInfo data_sinfo = input_sinfo[0];
   TensorStructInfo indices_sinfo = input_sinfo[1];
-  if (indices_sinfo->ndim != 1) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Take op requires the input indices to be 1-dimensional tensor. However, "
-                        "the given indices ndim is "
-                     << indices_sinfo->ndim);
-  } else if (!indices_sinfo->IsUnknownDtype() &&
-             !(indices_sinfo->dtype.is_int() || indices_sinfo->dtype.is_uint())) {
+
+  if (indices_sinfo->IsUnknownDtype()) {
+    // TODO(tvm-team): Do we have an equivalent of `ctx->ReportFatal` for warning?
+    LOG(WARNING) << "Data type of indice has not been specified. Assume it has an integer type.";
+  } else if (!(indices_sinfo->dtype.is_int() || indices_sinfo->dtype.is_uint())) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Take op requires the input indices to have integer dtype. However, the "
                         "given indices dtype is "
@@ -67,7 +65,7 @@ StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
                         "is not specified. However, the given data tensor has ndim "
                      << data_sinfo->ndim);
   }
-  if (data_sinfo->IsUnknownNdim()) {
+  if (data_sinfo->IsUnknownNdim() || indices_sinfo->IsUnknownNdim()) {
     return TensorStructInfo(data_sinfo->dtype, kUnknownNDim);
   }
 
@@ -77,11 +75,18 @@ StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
   const auto* indices_shape = indices_sinfo->shape.as<ShapeExprNode>();
   if (data_shape == nullptr || indices_shape == nullptr) {
-    return TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim);
+    return TensorStructInfo(data_sinfo->dtype, indices_sinfo->ndim + data_sinfo->ndim - 1);
   }
 
-  Array<PrimExpr> output_shape = data_shape->values;
-  output_shape.Set(axis, indices_shape->values[0]);
+  Array<PrimExpr> output_shape;
+  for (int i = 0; i < data_sinfo->ndim; i++) {
+    if (i == axis) {
+      for (int j = 0; j < indices_sinfo->ndim; j++)
+        output_shape.push_back(indices_shape->values[j]);
+    } else {
+      output_shape.push_back(data_shape->values[i]);
+    }
+  }
   return TensorStructInfo(ShapeExpr(output_shape), data_sinfo->dtype);
 }
 

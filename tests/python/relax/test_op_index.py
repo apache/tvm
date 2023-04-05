@@ -53,6 +53,10 @@ def test_take_infer_struct_info():
     idx1 = relax.Var("idx", R.Tensor("int64", ndim=1))
     idx2 = relax.Var("idx", R.Tensor((6,)))
     idx3 = relax.Var("idx", R.Tensor(ndim=1))
+    idx4 = relax.Var("idx", R.Tensor((6, 4), "int64"))
+    idx5 = relax.Var("idx", R.Tensor("int64", ndim=2))
+    idx6 = relax.Var("idx", R.Tensor((6, 4)))
+    idx7 = relax.Var("idx", R.Tensor(ndim=2))
 
     _check_inference(bb, relax.op.take(x0, idx0, axis=1), relax.TensorStructInfo((4, 6), "float32"))
     _check_inference(
@@ -93,6 +97,62 @@ def test_take_infer_struct_info():
     _check_inference(bb, relax.op.take(x3, idx3, axis=1), relax.TensorStructInfo(dtype="", ndim=2))
     _check_inference(bb, relax.op.take(x4, idx3, axis=1), relax.TensorStructInfo(dtype="", ndim=2))
     _check_inference(bb, relax.op.take(x5, idx3, axis=1), relax.TensorStructInfo(dtype=""))
+    _check_inference(
+        bb, relax.op.take(x0, idx4, axis=0), relax.TensorStructInfo((6, 4, 10), dtype="float32")
+    )
+    _check_inference(
+        bb, relax.op.take(x0, idx4, axis=1), relax.TensorStructInfo((4, 6, 4), dtype="float32")
+    )
+    _check_inference(
+        bb, relax.op.take(x1, idx4, axis=1), relax.TensorStructInfo(dtype="float32", ndim=3)
+    )
+    _check_inference(bb, relax.op.take(x2, idx4, axis=1), relax.TensorStructInfo(dtype="float32"))
+    _check_inference(
+        bb, relax.op.take(x3, idx4, axis=1), relax.TensorStructInfo((4, 6, 4), dtype="")
+    )
+    _check_inference(bb, relax.op.take(x4, idx4, axis=1), relax.TensorStructInfo(dtype="", ndim=3))
+    _check_inference(bb, relax.op.take(x5, idx4, axis=1), relax.TensorStructInfo(dtype=""))
+    _check_inference(
+        bb, relax.op.take(x0, idx5, axis=0), relax.TensorStructInfo(dtype="float32", ndim=3)
+    )
+    _check_inference(
+        bb, relax.op.take(x0, idx5, axis=1), relax.TensorStructInfo(dtype="float32", ndim=3)
+    )
+    _check_inference(
+        bb, relax.op.take(x1, idx5, axis=1), relax.TensorStructInfo(dtype="float32", ndim=3)
+    )
+    _check_inference(bb, relax.op.take(x2, idx5, axis=1), relax.TensorStructInfo(dtype="float32"))
+    _check_inference(bb, relax.op.take(x3, idx5, axis=1), relax.TensorStructInfo(dtype="", ndim=3))
+    _check_inference(bb, relax.op.take(x4, idx5, axis=1), relax.TensorStructInfo(dtype="", ndim=3))
+    _check_inference(bb, relax.op.take(x5, idx5, axis=1), relax.TensorStructInfo(dtype=""))
+    _check_inference(
+        bb, relax.op.take(x0, idx6, axis=0), relax.TensorStructInfo((6, 4, 10), dtype="float32")
+    )
+    _check_inference(
+        bb, relax.op.take(x0, idx6, axis=1), relax.TensorStructInfo((4, 6, 4), dtype="float32")
+    )
+    _check_inference(
+        bb, relax.op.take(x1, idx6, axis=1), relax.TensorStructInfo(dtype="float32", ndim=3)
+    )
+    _check_inference(bb, relax.op.take(x2, idx6, axis=1), relax.TensorStructInfo(dtype="float32"))
+    _check_inference(
+        bb, relax.op.take(x3, idx6, axis=1), relax.TensorStructInfo((4, 6, 4), dtype="")
+    )
+    _check_inference(bb, relax.op.take(x4, idx6, axis=1), relax.TensorStructInfo(dtype="", ndim=3))
+    _check_inference(bb, relax.op.take(x5, idx6, axis=1), relax.TensorStructInfo(dtype=""))
+    _check_inference(
+        bb, relax.op.take(x0, idx7, axis=0), relax.TensorStructInfo(dtype="float32", ndim=3)
+    )
+    _check_inference(
+        bb, relax.op.take(x0, idx7, axis=1), relax.TensorStructInfo(dtype="float32", ndim=3)
+    )
+    _check_inference(
+        bb, relax.op.take(x1, idx7, axis=1), relax.TensorStructInfo(dtype="float32", ndim=3)
+    )
+    _check_inference(bb, relax.op.take(x2, idx7, axis=1), relax.TensorStructInfo(dtype="float32"))
+    _check_inference(bb, relax.op.take(x3, idx7, axis=1), relax.TensorStructInfo(dtype="", ndim=3))
+    _check_inference(bb, relax.op.take(x4, idx7, axis=1), relax.TensorStructInfo(dtype="", ndim=3))
+    _check_inference(bb, relax.op.take(x5, idx7, axis=1), relax.TensorStructInfo(dtype=""))
     _check_inference(bb, relax.op.take(y0, idx0), relax.TensorStructInfo((6,), "float32"))
     _check_inference(bb, relax.op.take(y1, idx0), relax.TensorStructInfo(dtype="float32", ndim=1))
     _check_inference(bb, relax.op.take(y2, idx0), relax.TensorStructInfo((6,), dtype=""))
@@ -109,6 +169,22 @@ def test_take_infer_struct_info():
     _check_inference(bb, relax.op.take(y1, idx3), relax.TensorStructInfo(dtype="float32", ndim=1))
     _check_inference(bb, relax.op.take(y2, idx3), relax.TensorStructInfo(dtype="", ndim=1))
     _check_inference(bb, relax.op.take(y3, idx3), relax.TensorStructInfo(dtype="", ndim=1))
+    _check_inference(bb, relax.op.take(y0, idx4), relax.TensorStructInfo((6, 4), "float32"))
+    _check_inference(bb, relax.op.take(y1, idx4), relax.TensorStructInfo(dtype="float32", ndim=2))
+    _check_inference(bb, relax.op.take(y2, idx4), relax.TensorStructInfo((6, 4), dtype=""))
+    _check_inference(bb, relax.op.take(y3, idx4), relax.TensorStructInfo(dtype="", ndim=2))
+    _check_inference(bb, relax.op.take(y0, idx5), relax.TensorStructInfo(dtype="float32", ndim=2))
+    _check_inference(bb, relax.op.take(y1, idx5), relax.TensorStructInfo(dtype="float32", ndim=2))
+    _check_inference(bb, relax.op.take(y2, idx5), relax.TensorStructInfo(dtype="", ndim=2))
+    _check_inference(bb, relax.op.take(y3, idx5), relax.TensorStructInfo(dtype="", ndim=2))
+    _check_inference(bb, relax.op.take(y0, idx6), relax.TensorStructInfo((6, 4), "float32"))
+    _check_inference(bb, relax.op.take(y1, idx6), relax.TensorStructInfo(dtype="float32", ndim=2))
+    _check_inference(bb, relax.op.take(y2, idx6), relax.TensorStructInfo((6, 4), dtype=""))
+    _check_inference(bb, relax.op.take(y3, idx6), relax.TensorStructInfo(dtype="", ndim=2))
+    _check_inference(bb, relax.op.take(y0, idx7), relax.TensorStructInfo(dtype="float32", ndim=2))
+    _check_inference(bb, relax.op.take(y1, idx7), relax.TensorStructInfo(dtype="float32", ndim=2))
+    _check_inference(bb, relax.op.take(y2, idx7), relax.TensorStructInfo(dtype="", ndim=2))
+    _check_inference(bb, relax.op.take(y3, idx7), relax.TensorStructInfo(dtype="", ndim=2))
 
 
 def test_take_infer_struct_info_shape_symbolic():
@@ -116,6 +192,8 @@ def test_take_infer_struct_info_shape_symbolic():
     m = tir.Var("m", "int64")
     n = tir.Var("n", "int64")
     i = tir.Var("i", "int64")
+    j = tir.Var("j", "int64")
+    k = tir.Var("k", "int64")
     x0 = relax.Var("x", R.Tensor((m, n), "float32"))
     x1 = relax.Var("x", R.Tensor((m, n)))
     y0 = relax.Var("y", R.Tensor((n,), "float32"))
@@ -127,15 +205,29 @@ def test_take_infer_struct_info_shape_symbolic():
             (i,),
         ),
     )
+    idx2 = relax.Var(
+        "idx",
+        R.Tensor(
+            (i, j, k),
+        ),
+    )
 
     _check_inference(bb, relax.op.take(x0, idx0, axis=1), relax.TensorStructInfo((m, i), "float32"))
     _check_inference(bb, relax.op.take(x1, idx0, axis=1), relax.TensorStructInfo((m, i), dtype=""))
     _check_inference(bb, relax.op.take(x0, idx1, axis=1), relax.TensorStructInfo((m, i), "float32"))
     _check_inference(bb, relax.op.take(x1, idx1, axis=1), relax.TensorStructInfo((m, i), dtype=""))
+    _check_inference(
+        bb, relax.op.take(x1, idx2, axis=1), relax.TensorStructInfo((m, i, j, k), dtype="")
+    )
+    _check_inference(
+        bb, relax.op.take(x1, idx2, axis=1), relax.TensorStructInfo((m, i, j, k), dtype="")
+    )
     _check_inference(bb, relax.op.take(y0, idx0), relax.TensorStructInfo((i,), "float32"))
     _check_inference(bb, relax.op.take(y1, idx0), relax.TensorStructInfo((i,), dtype=""))
     _check_inference(bb, relax.op.take(y0, idx1), relax.TensorStructInfo((i,), "float32"))
     _check_inference(bb, relax.op.take(y1, idx1), relax.TensorStructInfo((i,), dtype=""))
+    _check_inference(bb, relax.op.take(y0, idx2), relax.TensorStructInfo((i, j, k), "float32"))
+    _check_inference(bb, relax.op.take(y1, idx2), relax.TensorStructInfo((i, j, k), dtype=""))
 
 
 def test_take_infer_struct_info_shape_var():
@@ -200,47 +292,6 @@ def test_take_infer_struct_info_more_input_dtype():
     _check_inference(bb, relax.op.take(x0, idx2, axis=1), relax.TensorStructInfo((4, 6), "float16"))
     _check_inference(bb, relax.op.take(x1, idx2, axis=1), relax.TensorStructInfo((4, 6), "int16"))
     _check_inference(bb, relax.op.take(x2, idx2, axis=1), relax.TensorStructInfo((4, 6), "int32"))
-
-
-def test_take_infer_struct_info_indices_not_one_dimensional():
-    bb = relax.BlockBuilder()
-    sidx0 = relax.Var("sidx", relax.ShapeStructInfo((6, 6)))
-    sidx1 = relax.Var("sidx", relax.ShapeStructInfo(()))
-    sidx2 = relax.Var("sidx", relax.ShapeStructInfo(ndim=2))
-    sidx3 = relax.Var("sidx", relax.ShapeStructInfo(ndim=0))
-    sidx4 = relax.Var("sidx", relax.ShapeStructInfo())
-    x = relax.Var("x", R.Tensor((4, 10), "float32"))
-    idx0 = relax.Var("idx", R.Tensor((6, 6), "int64"))
-    idx1 = relax.Var("idx", R.Tensor((), "int64"))
-    idx2 = relax.Var("idx", R.Tensor("int64", ndim=2))
-    idx3 = relax.Var("idx", R.Tensor("int64", ndim=0))
-    idx4 = relax.Var("idx", R.Tensor("int64"))
-    idx5 = relax.Var("idx", relax.TensorStructInfo(sidx0, "int64"))
-    idx6 = relax.Var("idx", relax.TensorStructInfo(sidx1, "int64"))
-    idx7 = relax.Var("idx", relax.TensorStructInfo(sidx2, "int64"))
-    idx8 = relax.Var("idx", relax.TensorStructInfo(sidx3, "int64"))
-    idx9 = relax.Var("idx", relax.TensorStructInfo(sidx4, "int64"))
-
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.take(x, idx0, axis=1))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.take(x, idx1, axis=1))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.take(x, idx2, axis=1))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.take(x, idx3, axis=1))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.take(x, idx4, axis=1))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.take(x, idx5, axis=1))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.take(x, idx6, axis=1))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.take(x, idx7, axis=1))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.take(x, idx8, axis=1))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.take(x, idx9, axis=1))
 
 
 def test_take_infer_struct_info_indices_not_integer_dtype():
