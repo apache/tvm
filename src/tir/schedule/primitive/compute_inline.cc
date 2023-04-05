@@ -296,7 +296,7 @@ class BaseInliner : public StmtExprMutator {
    */
   static int GetNumUndefinedNonpointerVars(const Stmt& stmt) {
     // Do not visit buffer shape/strides.
-    auto undefined_vars = UndefinedVars(stmt, {}, false);
+    auto undefined_vars = UndefinedVars(/*stmt=*/stmt, /*defs=*/{}, /*visit_buffer=*/false);
     // Buffer pointers and the inlined indices are allowed, but no
     // other variables may appear in the inlined block.
     int num_nonpointer_vars = 0;
