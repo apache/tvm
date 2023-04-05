@@ -629,7 +629,9 @@ static std::optional<MatchState> TryMatch(const PNode& p, const RNode& r, DFPatt
   for (const auto& [pchild, constraints] : p.children) {
     bool any_cons_sat = false;
     for (const auto& rchild : r.children) {
-      if (auto p = result.matched(rchild); p && p != pchild->ptr) continue;
+      if (auto p = result.matched(rchild); p && p != pchild->ptr) {
+        continue;
+      }
 
       const auto& uses = ud_analysis.def2use.at(r.ptr);
 
