@@ -25,8 +25,9 @@
 namespace tvm {
 namespace tir {
 
-VarUseDefAnalyzer::VarUseDefAnalyzer(const Array<Var>& defined_vars, bool visit_thread_extent)
-    : visit_thread_extent_(visit_thread_extent) {
+VarUseDefAnalyzer::VarUseDefAnalyzer(const Array<Var>& defined_vars, bool visit_thread_extent,
+                                     bool visit_buffer)
+    : visit_thread_extent_(visit_thread_extent), visit_buffer_(visit_buffer) {
   for (const Var v : defined_vars) {
     use_count_[v.get()] = 0;
   }
@@ -73,7 +74,9 @@ void VarUseDefAnalyzer::VisitStmt_(const AllocateConstNode* op) {
 }
 
 void VarUseDefAnalyzer::VisitStmt_(const BufferStoreNode* op) {
-  VisitBuffer(op->buffer);
+  if (visit_buffer_) {
+    VisitBuffer(op->buffer);
+  }
   StmtExprVisitor::VisitStmt_(op);
 }
 
@@ -109,7 +112,9 @@ void VarUseDefAnalyzer::VisitExpr_(const ReduceNode* op) {
 }
 
 void VarUseDefAnalyzer::VisitExpr_(const BufferLoadNode* op) {
-  VisitBuffer(op->buffer);
+  if (visit_buffer_) {
+    VisitBuffer(op->buffer);
+  }
   StmtExprVisitor::VisitExpr_(op);
 }
 
@@ -146,20 +151,16 @@ void VarUseDefAnalyzer::HandleUse(const VarNode* v) {
   }
 }
 
-Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& args) {
-  VarUseDefAnalyzer m(args);
+Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& args,
+                         bool visit_buffer) {
+  VarUseDefAnalyzer m(args, true, visit_buffer);
   m(stmt);
   return m.undefined_;
 }
 
-Array<Var> UndefinedVars(const PrimExpr& expr) {
-  VarUseDefAnalyzer m({});
-  m(expr);
-  return m.undefined_;
-}
-
-Array<Var> UndefinedVars(const PrimExpr& expr, const Array<Var>& args) {
-  VarUseDefAnalyzer m(args);
+Array<Var> UndefinedVars(const PrimExpr& expr, const Array<Var>& args,
+                         bool visit_buffer) {
+  VarUseDefAnalyzer m(args, true, visit_buffer);
   m(expr);
   return m.undefined_;
 }

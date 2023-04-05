@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "../../analysis/var_use_def_analysis.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -296,15 +295,8 @@ class BaseInliner : public StmtExprMutator {
    * \param stmt The statement in which to count undefined variables
    */
   static int GetNumUndefinedNonpointerVars(const Stmt& stmt) {
-    // exclude variables appeared in Buffer shape/strides.
-    VarUseDefAnalyzer buffer_vars_analyzer({}, false);
-    for (const PrimExpr& expr : Downcast<BufferStore>(stmt)->buffer->shape) {
-      buffer_vars_analyzer(expr);
-    }
-    for (const PrimExpr& expr : Downcast<BufferStore>(stmt)->buffer->strides) {
-      buffer_vars_analyzer(expr);
-    }
-    auto undefined_vars = UndefinedVars(stmt, buffer_vars_analyzer.undefined_);
+    // Do not visit buffer shape/strides.
+    auto undefined_vars = UndefinedVars(stmt, {}, false);
     // Buffer pointers and the inlined indices are allowed, but no
     // other variables may appear in the inlined block.
     int num_nonpointer_vars = 0;

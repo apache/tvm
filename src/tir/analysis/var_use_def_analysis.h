@@ -36,14 +36,17 @@ namespace tir {
  * \brief Visitor class to perform use/def analysis, also delete unreferenced lets.
  * \param defined_vars Variables that have been defined.
  * \param visit_thread_extent Whether enters thread extent expressions or not.
+ * \param visit_buffer Whether enters buffer node or not.
  * \sa UndefinedVars
  */
 class VarUseDefAnalyzer : public StmtExprVisitor {
  public:
-  explicit VarUseDefAnalyzer(const Array<Var>& defined_vars, bool visit_thread_extent = true);
+  explicit VarUseDefAnalyzer(const Array<Var>& defined_vars, bool visit_thread_extent = true,
+                             bool visit_buffer = true);
   // The fields are publically readible to
   // be accessible to the users.
-  bool visit_thread_extent_{true};
+  bool visit_thread_extent_;
+  bool visit_buffer_;
   Array<Var> undefined_;
 
   std::unordered_map<const VarNode*, int> use_count_;
