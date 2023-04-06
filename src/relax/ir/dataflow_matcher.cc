@@ -608,31 +608,25 @@ struct MatchState {
 /**
  * \brief This method try to match a real node and a pattern node along with its neighbors.
  */
-static std::optional<MatchState> TryMatch(const PNode& p, const RNode& r, DFPatternMatcher* m,
+static std::optional<MatchState> TryMatch(const PNode& p, const RNode& r,
+                                          const MatchState& current_match, DFPatternMatcher* m,
                                           const MatcherUseDefAnalysis& ud_analysis) {
   if (!m->Match(GetRef<DFPattern>(p.ptr), GetRef<Var>(r.ptr))) return std::nullopt;
 
-  MatchState result;
+  MatchState new_match;
 
-  for (size_t i = 0; i < p.parents.size(); ++i) {
-    const auto p_node_parent = p.parents[i].first;
-    if (auto v = result.matched(p_node_parent); v && v != r.parents[i]->ptr) {
-      // A parent pattern is already matched to other variable.
-      return std::nullopt;
-    }
-    if (p_node_parent->ptr->IsInstance<WildcardPatternNode>()) {
-      ICHECK_EQ(p.parents.size(), r.parents.size());
-      result.add(p_node_parent, r.parents[i]);
-    }
-  }
-
-  result.add(&p, &r);
+  new_match.add(&p, &r);
 
   // forward matching;
   for (const auto& [pchild, constraints] : p.children) {
     bool any_cons_sat = false;
     for (const auto& rchild : r.children) {
-      if (auto p = result.matched(rchild); p && p != pchild->ptr) {
+      if (new_match.matched(rchild)) {
+        // The child variable is already matched to other child pattern in a previous iteration.
+        continue;
+      }
+      if (auto v = current_match.matched(pchild); v && v != rchild->ptr) {
+        // The child pattern is already matched to other variable in a earlier call to TryMatch.
         continue;
       }
 
@@ -654,22 +648,22 @@ static std::optional<MatchState> TryMatch(const PNode& p, const RNode& r, DFPatt
           }
         }
       }
-      if (!all_cons_pass || result.matched(pchild)) continue;
+      if (!all_cons_pass || new_match.matched(pchild)) continue;
       any_cons_sat = true;
 
-      if (auto match_rec = TryMatch(*pchild, *rchild, m, ud_analysis)) {
-        result.add(pchild, rchild);
-        result.add(std::move(*match_rec));
+      if (auto match_rec = TryMatch(*pchild, *rchild, current_match, m, ud_analysis)) {
+        new_match.add(pchild, rchild);
+        new_match.add(std::move(*match_rec));
       }
     }
-    if (!result.matched(pchild) || !any_cons_sat) return std::nullopt;
+    if (!new_match.matched(pchild) || !any_cons_sat) return std::nullopt;
   }
 
-  return result;
+  return new_match;
 }
 
 static std::optional<MatchState> MatchTree(
-    const MatchState& current_matches, size_t current_root_idx,
+    const MatchState& current_match, size_t current_root_idx,
     const std::unordered_map<const DFPatternNode*, PNode>& pattern2node,
     const std::unordered_map<const VarNode*, RNode>& var2node, DFPatternMatcher* matcher,
     const std::vector<DFPattern>& roots, const MatcherUseDefAnalysis& ud_analysis) {
@@ -677,7 +671,7 @@ static std::optional<MatchState> MatchTree(
     // Look for the next unmatched root node.
     for (; root_idx < roots.size(); ++root_idx) {
       const auto& root = pattern2node.at(roots[root_idx].get());
-      if (!current_matches.matched(root)) {
+      if (!current_match.matched(root)) {
         return &root;
       }
     }
@@ -688,18 +682,21 @@ static std::optional<MatchState> MatchTree(
 
   if (!root) {
     // All root nodes have been matched
-    return current_matches;
+    return current_match;
   }
+
+  MatchState new_match = current_match;
 
   for (const auto& var : ud_analysis.vars) {
     const RNode& r_node = var2node.at(var);
-    if (current_matches.matched(r_node)) continue;
-    if (auto matches = TryMatch(*root, r_node, matcher, ud_analysis)) {
+    if (new_match.matched(r_node)) continue;
+    if (auto match = TryMatch(*root, r_node, new_match, matcher, ud_analysis)) {
       // Recursivly try to match the next subtree.
-      if (auto matches_rec = MatchTree(*matches, current_root_idx + 1, pattern2node, var2node,
-                                       matcher, roots, ud_analysis)) {
-        matches->add(std::move(*matches_rec));
-        return matches;
+      new_match.add(std::move(*match));
+      if (auto match_rec = MatchTree(new_match, current_root_idx + 1, pattern2node, var2node,
+                                     matcher, roots, ud_analysis)) {
+        new_match.add(std::move(*match_rec));
+        return new_match;
       }
       // Recursive matching has failed, backtrack.
       continue;
