@@ -49,6 +49,11 @@ class MetalModuleNode final : public runtime::ModuleNode {
   }
   const char* type_key() const final { return "metal"; }
 
+  /*! \brief Get the property of the runtime module. */
+  int GetPropertyMask() const final {
+    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+  }
+
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
 
   void SaveToFile(const std::string& file_name, const std::string& format) final {
