@@ -206,13 +206,6 @@ def hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor, clip, threshold, v
     batch_size = cls_prob.shape[0]
     num_classes = cls_prob.shape[1]
     num_anchors = cls_prob.shape[2]
-    box_coord = allocate(
-        (
-            batch_size,
-            4,
-        ),
-        loc_pred.dtype,
-    )
     pred_coord = allocate(
         (
             batch_size,
