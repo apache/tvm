@@ -25,6 +25,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "../op/nn/nn.h"
+#include "../op/tensor/binary.h"
 #include "../op/tensor/index.h"
 #include "../op/tensor/linear_algebra.h"
 #include "../op/tensor/manipulate.h"
@@ -83,7 +85,6 @@ Function Rewrite(Function f, const BranchInfo& branch_info) {
     if (branch_info.activation) {
       activation_patterns.push_back(IsOp(*branch_info.activation)(matmul_out));
     }
-
   }
 
   runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>)> rewriter =
@@ -105,13 +106,39 @@ Function Rewrite(Function f, const BranchInfo& branch_info) {
           if (indices.size() == 1) continue;
 
           Array<Expr> rhs;
+          Array<Expr> bias;
           for (auto ind : indices) {
             rhs.push_back(matchings[rhs_patterns[ind]]);
+            if (branch_info.has_bias) {
+              bias.push_back(matchings[bias_patterns[ind]]);
+            }
           }
 
           auto concat_rhs = concat(Tuple(rhs), Integer(rhs_dim - 1));
           auto out_dtype = GetTensorSInfo(matchings[matmul_patterns[indices[0]]])->dtype;
           auto matmul_combined = matmul(inp, concat_rhs, out_dtype);
+
+          auto pattern_to_replace = &matmul_patterns;
+
+          if (branch_info.has_bias) {
+            auto bias_dim = GetTensorSInfo(bias[0])->ndim;
+            auto concat_bias = concat(Tuple(bias), Integer(bias_dim - 1));
+            matmul_combined = add(matmul_combined, concat_bias);
+            pattern_to_replace = &bias_add_patterns;
+          }
+
+          if (branch_info.activation) {
+            pattern_to_replace = &activation_patterns;
+            if (*branch_info.activation == "relu") {
+              matmul_combined = relu(matmul_combined);
+            } else if (*branch_info.activation == "gelu") {
+              matmul_combined = gelu(matmul_combined);
+            } else if (*branch_info.activation == "silu") {
+              matmul_combined = silu(matmul_combined);
+            } else {
+              LOG(INFO) << "Unsupported activation: " << *branch_info.activation;
+            }
+          }
 
           PrimExpr begin{0};
           Array<PrimExpr> strides{1};
@@ -119,7 +146,7 @@ Function Rewrite(Function f, const BranchInfo& branch_info) {
 
           for (size_t i = 0; i < indices.size(); ++i) {
             auto width = GetTensorSInfo(rhs[i])->GetShape().value()[rhs_dim - 1];
-            auto bound_var = matchings[matmul_patterns[indices[i]]];
+            auto bound_var = matchings[(*pattern_to_replace)[indices[i]]];
             auto slice =
                 strided_slice(matmul_combined, {slice_axis}, {begin}, {begin + width}, strides);
             replacements.Set(bound_var, slice);
