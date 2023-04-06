@@ -436,11 +436,8 @@ Stmt StmtMutator::VisitStmt_(const PrefetchNode* op) {
 
 Stmt StmtMutator::VisitStmt_(const SeqStmtNode* op) {
   Array<Stmt> seq = Internal::Mutate(this, op->seq);
-  if (seq.same_as(op->seq)) {
-    return GetRef<Stmt>(op);
-  } else {
-    return SeqStmt::Flatten(seq);
-  }
+  Stmt stmt = seq.same_as(op->seq) ? GetRef<Stmt>(op) : SeqStmt(seq);
+  return SeqStmt::Flatten(seq);
 }
 
 // advanced visit function for seqstmt.
