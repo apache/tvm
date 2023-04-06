@@ -578,9 +578,9 @@ struct MatchState {
     match_r_p[r] = p;
   }
 
-  void add(const MatchState& other) {
-    match_p_r.insert(other.match_p_r.cbegin(), other.match_p_r.cend());
-    match_r_p.insert(other.match_r_p.cbegin(), other.match_r_p.cend());
+  void add(MatchState&& other) {
+    match_p_r.merge(std::move(other.match_p_r));
+    match_r_p.merge(std::move(other.match_r_p));
   }
 
   const VarNode* matched(const PNode* p) const {
@@ -655,7 +655,7 @@ static std::optional<MatchState> TryMatch(const PNode& p, const RNode& r, DFPatt
 
       if (auto match_rec = TryMatch(*pchild, *rchild, m, ud_analysis)) {
         result.add(pchild, rchild);
-        result.add(*match_rec);
+        result.add(std::move(*match_rec));
       }
     }
     if (!result.matched(pchild) || !any_cons_sat) return std::nullopt;
@@ -694,7 +694,7 @@ static std::optional<MatchState> MatchTree(
       // Recursivly try to match the next subtree.
       if (auto matches_rec = MatchTree(*matches, current_root_idx + 1, pattern2node, var2node,
                                        matcher, roots, ud_analysis)) {
-        matches->add(*matches_rec);
+        matches->add(std::move(*matches_rec));
         return matches;
       }
       // Recursive matching has failed, backtrack.
