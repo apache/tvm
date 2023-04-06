@@ -22,6 +22,7 @@
  * \brief The dataflow pattern matcher for Relax.
  */
 
+#include <tvm/node/structural_equal.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
@@ -865,21 +866,20 @@ class PatternRewriter : ExprMutator {
     if (auto matches = MatchGraph(ctx_.value(), Downcast<DataflowBlock>(block))) {
       builder_->BeginDataflowBlock();
       Map<Var, Expr> replacements = rewriter_func_(matches.value());
-      if (replacements.empty()) {
-	return block;
-      }
 
       std::unordered_set<const VarNode*> emitted_vars;
 
+      bool changed = false;
       for (size_t i = 0; i < block->bindings.size(); ++i) {
         const auto& binding = block->bindings[i];
         if (auto var_bind = binding.as<VarBindingNode>()) {
-          if (replacements.count(var_bind->var)) {
-            auto new_val = replacements[var_bind->var];
+          if (auto new_val = replacements.Get(var_bind->var).value_or(var_bind->value);
+              !StructuralEqual()(var_bind->value, new_val)) {
             Array<Binding> pending_bindings(block->bindings.begin() + i + 1, block->bindings.end());
             // Make sure there is no unbound variable used in the new value before it is emitted
             EmitUsedVars(new_val, pending_bindings, &emitted_vars);
             this->ReEmitBinding(var_bind, builder_->Normalize(new_val));
+            changed = true;
           } else if (!emitted_vars.count(var_bind->var.get())) {
             this->VisitBinding(binding);
             emitted_vars.insert(var_bind->var.get());
@@ -888,7 +888,11 @@ class PatternRewriter : ExprMutator {
           this->VisitBinding(binding);
         }
       }
-      return RewriteDataflowBlockFixedPoint(builder_->EndBlock());
+
+      auto new_block = builder_->EndBlock();
+
+      if (!changed) return new_block;
+      return RewriteDataflowBlockFixedPoint(new_block);
     }
     return block;
   }
