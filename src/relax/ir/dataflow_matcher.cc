@@ -579,9 +579,8 @@ struct MatchState {
   }
 
   void add(const MatchState& other) {
-    for (const auto& [p, r] : other.match_p_r) {
-      add(p, r);
-    }
+    match_p_r.insert(other.match_p_r.cbegin(), other.match_p_r.cend());
+    match_r_p.insert(other.match_r_p.cbegin(), other.match_r_p.cend());
   }
 
   const VarNode* matched(const PNode* p) const {
