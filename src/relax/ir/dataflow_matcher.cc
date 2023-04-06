@@ -612,12 +612,12 @@ static std::optional<MatchState> TryMatch(const PNode& p, const RNode& r, DFPatt
 
   for (size_t i = 0; i < p.parents.size(); ++i) {
     const auto p_node_parent = p.parents[i].first;
+    if (auto v = result.matched(p_node_parent); v && v != r.parents[i]->ptr) {
+      // A parent pattern is already matched to other variable.
+      return std::nullopt;
+    }
     if (p_node_parent->ptr->IsInstance<WildcardPatternNode>()) {
       ICHECK_EQ(p.parents.size(), r.parents.size());
-      if (auto v = result.matched(p_node_parent); v && v != r.parents[i]->ptr) {
-        // A parent wildcard pattern is already matched to other variable.
-        return std::nullopt;
-      }
       result.add(p_node_parent, r.parents[i]);
     }
   }
