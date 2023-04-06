@@ -291,6 +291,15 @@ class ScheduleNode : public runtime::Object {
    * block
    */
   virtual Array<BlockRV> GetConsumers(const BlockRV& block_rv) = 0;
+  /*!
+   * \brief Get the list of output blocks within the given scope
+   * An output block is a block which has atleast one buffer being written
+   * to, but is not allocated within the PrimFunc
+   * \param scope_block_rv The scope block from which output blocks are collected
+   * \return A list of all blocks that write to some output buffer
+   * block
+   */
+  virtual Array<BlockRV> GetOutputBlocks(const BlockRV& scope_block_rv) = 0;
   /******** Schedule: Transform loops ********/
   /*!
    * \brief Merge a list of loops into one. The loops under their LCA requires:

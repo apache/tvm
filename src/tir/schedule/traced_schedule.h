@@ -59,6 +59,7 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   Array<BlockRV> GetChildBlocks(const LoopRV& loop_rv) final;
   Array<BlockRV> GetProducers(const BlockRV& block_rv) final;
   Array<BlockRV> GetConsumers(const BlockRV& block_rv) final;
+  Array<BlockRV> GetOutputBlocks(const BlockRV& scope_block_rv) final;
   /******** Schedule: Transform loops ********/
   LoopRV Fuse(const Array<LoopRV>& loop_rvs, bool preserve_unit_iters) final;
   LoopRV Merge(const Array<LoopRV>& loop_rvs) final;
