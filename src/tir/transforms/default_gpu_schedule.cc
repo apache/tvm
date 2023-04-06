@@ -83,6 +83,8 @@ IRModule MarkScheduled(const IRModule& mod) {
       tir::PrimFunc new_prim_func =
           WithAttr(std::move(prim_func), tir::attr::kIsScheduled, Bool(true));
       result.Set(gv, new_prim_func);
+    } else {
+      result.Set(gv, base_func);
     }
   }
 

@@ -120,7 +120,7 @@ class DefaultScheduledModule:
         B: T.Buffer((32, 32), "float32"),
         C: T.Buffer((32, 32), "float32"),
     ):
-        T.func_attr({"global_symbol": "tir_matmul"})
+        T.func_attr({"global_symbol": "tir_matmul", "tir.is_scheduled": True})
         # with T.block("root"):
         for i0_j0_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
             for i0_j0_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
@@ -137,7 +137,7 @@ class DefaultScheduledModule:
 
     @T.prim_func
     def tir_relu(A: T.Buffer((32, 32), "float32"), B: T.Buffer((32, 32), "float32")):
-        T.func_attr({"global_symbol": "tir_relu"})
+        T.func_attr({"global_symbol": "tir_relu", "tir.is_scheduled": True})
         # with T.block("root"):
         for i_j_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
             for i_j_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
