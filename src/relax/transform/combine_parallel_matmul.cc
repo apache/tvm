@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
+#include <tvm/arith/analyzer.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr_functor.h>
@@ -95,18 +97,34 @@ Function Rewrite(Function f, const BranchInfo& branch_info) {
         std::vector<Array<PrimExpr>> rhs_shapes;
         for (const auto& rhs_pat : rhs_patterns) {
           auto r = matchings[rhs_pat];
-          rhs_shapes.push_back(GetTensorSInfo(r)->GetShape().value());
+          auto rhs_shape_opt = GetTensorSInfo(r)->GetShape();
+          if (!rhs_shape_opt) {
+            return Map<Var, Expr>{};
+          }
+          rhs_shapes.push_back(rhs_shape_opt.value());
         }
 
-        auto shape_groups = GroupShapes(rhs_shapes);
+        auto batch_dims_compatible = [&rhs_shapes](int rhs_dim,
+                                                   const std::vector<size_t>& indices) {
+          arith::Analyzer ana;
+          for (auto ind : indices) {
+            ICHECK_EQ(static_cast<int>(rhs_shapes[ind].size()), rhs_dim);
+            // -2 for reduction and concat axes
+            for (size_t i = 0; i < rhs_dim - 2; ++i) {
+              if (!ana.CanProve(rhs_shapes[indices[0]][i] == rhs_shapes[ind][i])) {
+                return false;
+              }
+            }
+          }
+          return true;
+        };
 
         Map<Var, Expr> replacements;
 
-        for (const auto& [rhs_dim, indices] : shape_groups) {
-          if (indices.size() == 1) continue;
+        for (const auto& [rhs_dim, indices] : GroupShapes(rhs_shapes)) {
+          if (indices.size() == 1 || !batch_dims_compatible(rhs_dim, indices)) continue;
 
-          Array<Expr> rhs;
-          Array<Expr> bias;
+          Array<Expr> rhs, bias;
           for (auto ind : indices) {
             rhs.push_back(matchings[rhs_patterns[ind]]);
             if (branch_info.has_bias) {
@@ -122,6 +140,9 @@ Function Rewrite(Function f, const BranchInfo& branch_info) {
 
           if (branch_info.has_bias) {
             auto bias_dim = GetTensorSInfo(bias[0])->ndim;
+            for (auto b : bias) {
+              ICHECK(GetTensorSInfo(b)->ndim == bias_dim);
+            }
             auto concat_bias = concat(Tuple(bias), Integer(bias_dim - 1));
             matmul_combined = add(matmul_combined, concat_bias);
             pattern_to_replace = &bias_add_patterns;
