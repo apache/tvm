@@ -150,6 +150,12 @@ CompareResult RewriteSimplifier::Impl::TryCompareUsingKnownInequalities(const Pr
 
 // try to prove x equals val
 CompareResult RewriteSimplifier::Impl::TryCompare(const PrimExpr& x, int64_t val) {
+  // NOTE on implementation: this function can be called many times and can be a bottleneck,
+  // As a result, we keep comparison here lightweight.
+  // We only do constant int bound analysis here.
+  //
+  // For stronger comparison proof that is out of the recursive simplifcation
+  // consider look at analyzer::CanProveStrong
   PrimExpr diff = this->VisitExpr(x);
   if (const auto* ptr = diff.as<IntImmNode>()) {
     if (ptr->value == val) {
@@ -176,6 +182,8 @@ CompareResult RewriteSimplifier::Impl::TryCompare(const PrimExpr& x, int64_t val
   if (dbound->max_value <= val) {
     return CompareResult::kLE;
   }
+
+  // modular analysis
   if (val == 0) {
     ModularSet dmod = analyzer_->modular_set(diff);
     if (dmod->base != 0) {
