@@ -117,12 +117,6 @@ class SymbolicMatcher : ExprFunctor<bool(const PrimExpr& n, const PrimExpr& othe
  */
 class FuseTIRBufferSubstitor : private StmtExprMutator {
  public:
-  static Stmt Substitute(const Map<Buffer, Buffer>& buffer_map, const Map<Var, Var>& var_map,
-                         Stmt stmt) {
-    return FuseTIRBufferSubstitor(buffer_map, var_map)(std::move(stmt));
-  }
-
- private:
   explicit FuseTIRBufferSubstitor(const Map<Buffer, Buffer>& buffer_map,
                                   const Map<Var, Var>& var_map) {
     buffer_remap_ = buffer_map;
@@ -134,6 +128,30 @@ class FuseTIRBufferSubstitor : private StmtExprMutator {
     }
   }
 
+  Stmt Substitute(Stmt stmt) { return this->VisitStmt(std::move(stmt)); }
+
+  Buffer SubstituteAllocatedBuffer(Buffer buffer) {
+    ICHECK(buffer_remap_.find(buffer) == buffer_remap_.end());
+    Array<PrimExpr> shape =
+        MutateArray(buffer->shape, [this](const PrimExpr& expr) { return this->VisitExpr(expr); });
+    Array<PrimExpr> strides = MutateArray(
+        buffer->strides, [this](const PrimExpr& expr) { return this->VisitExpr(expr); });
+    PrimExpr elem_offset = this->VisitExpr(buffer->elem_offset);
+    if (shape.same_as(buffer->shape) && strides.same_as(buffer->strides) &&
+        elem_offset.same_as(buffer->elem_offset)) {
+      return buffer;
+    } else {
+      auto n = make_object<BufferNode>(*buffer.get());
+      n->shape = std::move(shape);
+      n->strides = std::move(strides);
+      n->elem_offset = std::move(elem_offset);
+      Buffer new_buffer(n);
+      this->buffer_remap_.Set(buffer, new_buffer);
+      return new_buffer;
+    }
+  }
+
+ private:
   PrimExpr VisitExpr_(const VarNode* _op) final {
     auto it = var_remap_.find(GetRef<Var>(_op));
     if (it != var_remap_.end()) {
@@ -145,25 +163,25 @@ class FuseTIRBufferSubstitor : private StmtExprMutator {
 
   PrimExpr VisitExpr_(const BufferLoadNode* _op) final {
     BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(_op));
-    auto it = buffer_remap_.find(load->buffer);
-    if (it != buffer_remap_.end()) {
-      auto n = make_object<BufferLoadNode>(*load.get());
-      n->buffer = (*it).second;
-      return BufferLoad(n);
-    } else {
+    const Buffer& buffer = SubstituteBuffer(load->buffer);
+    if (buffer.same_as(load->buffer)) {
       return std::move(load);
+    } else {
+      auto n = make_object<BufferLoadNode>(*load.get());
+      n->buffer = buffer;
+      return BufferLoad(n);
     }
   }
 
   Stmt VisitStmt_(const BufferStoreNode* _op) final {
     BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(_op));
-    auto it = buffer_remap_.find(store->buffer);
-    if (it != buffer_remap_.end()) {
-      auto n = CopyOnWrite(store.get());
-      n->buffer = (*it).second;
-      return BufferStore(n);
-    } else {
+    const Buffer& buffer = SubstituteBuffer(store->buffer);
+    if (buffer.same_as(store->buffer)) {
       return std::move(store);
+    } else {
+      auto n = make_object<BufferStoreNode>(*store.get());
+      n->buffer = buffer;
+      return BufferStore(n);
     }
   }
 
@@ -171,14 +189,18 @@ class FuseTIRBufferSubstitor : private StmtExprMutator {
     Block block = Downcast<Block>(StmtMutator::VisitStmt_(_op));
 
     // Define the mutation functions.
+
     auto f_mutate_match_buffers = [this](const MatchBufferRegion& match_buffer) {
-      const Buffer& src_buffer = match_buffer->source->buffer;
-      auto it = buffer_remap_.find(src_buffer);
-      if (it != buffer_remap_.end()) {
-        return MatchBufferRegion(match_buffer->buffer,
-                                 BufferRegion((*it).second, match_buffer->source->region));
-      } else {
+      const Buffer& src_buffer = SubstituteBuffer(match_buffer->source->buffer);
+      const Buffer& tgt_buffer = SubstituteAllocatedBuffer(match_buffer->buffer);
+      if (src_buffer.same_as(match_buffer->source->buffer) &&
+          tgt_buffer.same_as(match_buffer->buffer)) {
         return match_buffer;
+      } else {
+        auto n = make_object<MatchBufferRegionNode>(*match_buffer.get());
+        n->buffer = tgt_buffer;
+        n->source = BufferRegion(src_buffer, match_buffer->source->region);
+        return MatchBufferRegion(n);
       }
     };
 
@@ -194,19 +216,25 @@ class FuseTIRBufferSubstitor : private StmtExprMutator {
     // Step 2. Mutate the read/write region.
     Array<BufferRegion> reads = MutateArray(block->reads, f_mutate_read_write_region);
     Array<BufferRegion> writes = MutateArray(block->writes, f_mutate_read_write_region);
+    // Step 3. Mutate the Allocate Buffers.
+    Array<Buffer> alloc_buffers = MutateArray(block->alloc_buffers, [this](const Buffer& buffer) {
+      return SubstituteAllocatedBuffer(buffer);
+    });
 
     reads = UnionAccessRegion(reads);
     writes = UnionAccessRegion(writes);
 
     if (reads.same_as(block->reads) &&    //
         writes.same_as(block->writes) &&  //
-        match_buffers.same_as(block->match_buffers)) {
+        match_buffers.same_as(block->match_buffers) &&
+        alloc_buffers.same_as(block->alloc_buffers)) {
       return std::move(block);
     } else {
       auto n = CopyOnWrite(block.get());
       n->reads = std::move(reads);
       n->writes = std::move(writes);
       n->match_buffers = std::move(match_buffers);
+      n->alloc_buffers = std::move(alloc_buffers);
       return Block(n);
     }
   }
@@ -241,6 +269,15 @@ class FuseTIRBufferSubstitor : private StmtExprMutator {
       return regions;
     } else {
       return ret;
+    }
+  }
+
+  inline Buffer SubstituteBuffer(const Buffer& buffer) const {
+    auto it = buffer_remap_.find(buffer);
+    if (it != buffer_remap_.end()) {
+      return (*it).second;
+    } else {
+      return buffer;
     }
   }
 };
@@ -593,17 +630,19 @@ class FusedTIRConstructor : public ExprVisitor {
   tir::PrimFunc ConstructFunc() {
     Map<String, ObjectRef> attr_map;
     attr_map.Set("tir.noalias", tir::const_true());
+    tir::FuseTIRBufferSubstitor substitor(func_info_.buffer_subst_map,
+                                          func_info_.symbolic_var_matcher.var_remap);
     ICHECK(func_info_.global_name != "fused");
     // Remove output buffers from func_info_.alloc_buffers
     Array<tir::Buffer> alloc_buffers;
     for (const tir::Buffer& buf : func_info_.alloc_buffers) {
       if (func_info_.output_buffers.count(buf.get()) == 0) {
-        alloc_buffers.push_back(buf);
+        alloc_buffers.push_back(substitor.SubstituteAllocatedBuffer(buf));
       }
     }
     tir::Stmt body = tir::BlockNameDeduplicator()(tir::SeqStmt::Flatten(func_info_.bodies));
-    body = tir::FuseTIRBufferSubstitor::Substitute(func_info_.buffer_subst_map,
-                                                   func_info_.symbolic_var_matcher.var_remap, body);
+
+    body = substitor.Substitute(body);
     body = tir::Block({}, {}, {}, "root", std::move(body), NullOpt, alloc_buffers);
     body = tir::BlockRealize({}, Bool(true), Downcast<tir::Block>(body));
     tir::PrimFunc func(func_info_.params, body, VoidType(), func_info_.buffer_map,
