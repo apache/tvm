@@ -18,6 +18,7 @@
  */
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
+#include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
 
@@ -61,7 +62,8 @@ Function Rewrite(Function f, int num_branches, int slice_axis) {
           weights.push_back(matchings[weight_pat]);
         }
 
-        auto concat_weights = concat(Tuple(weights), Integer(1));  // TODO: axis
+	auto concat_axis = Downcast<TensorStructInfo>(GetStructInfo(weights[0]))->ndim - 1;
+        auto concat_weights = concat(Tuple(weights), Integer(concat_axis));
         auto out_dtype =
             Downcast<TensorStructInfo>(GetStructInfo(matchings[matmul_patterns[0]]))->dtype;
         auto matmul_combined = matmul(inp, concat_weights, out_dtype);
