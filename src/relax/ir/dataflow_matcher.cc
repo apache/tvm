@@ -865,6 +865,9 @@ class PatternRewriter : ExprMutator {
     if (auto matches = MatchGraph(ctx_.value(), Downcast<DataflowBlock>(block))) {
       builder_->BeginDataflowBlock();
       Map<Var, Expr> replacements = rewriter_func_(matches.value());
+      if (replacements.empty()) {
+	return block;
+      }
 
       std::unordered_set<const VarNode*> emitted_vars;
 

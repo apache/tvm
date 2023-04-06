@@ -36,18 +36,31 @@ using runtime::Map;
 
 static auto matmul_op = Op::Get("relax.matmul");
 
-Function Rewrite(Function f, int num_branches, int slice_axis) {
+std::unordered_map<size_t, std::vector<size_t>> GroupShapes(
+    const std::vector<Array<PrimExpr>>& shapes) {
+  std::unordered_map<size_t, std::vector<size_t>> indices_map;
+  for (size_t i = 0; i < shapes.size(); ++i) {
+    indices_map[shapes[i].size()].push_back(i);
+  }
+  return indices_map;
+}
+
+inline TensorStructInfo GetTensorSInfo(Expr e) {
+  return Downcast<TensorStructInfo>(GetStructInfo(e));
+}
+
+Function Rewrite(Function f, int num_branches) {
   PatternContext ctx;
   ctx.EnterWithScope();
 
   auto input_pattern = Wildcard();
-  std::vector<WildcardPattern> weight_patterns;
+  std::vector<WildcardPattern> rhs_patterns;
   std::vector<CallPattern> matmul_patterns;
 
   for (int i = 0; i < num_branches; ++i) {
     auto w_pat = Wildcard();
     CallPattern matmul_pat{ExprPattern(matmul_op), {input_pattern, w_pat}};
-    weight_patterns.push_back(w_pat);
+    rhs_patterns.push_back(w_pat);
     matmul_patterns.push_back(matmul_pat);
     ctx.add_constraint(input_pattern, matmul_pat, PairCons(PairCons::kUsedBy, 0));
     ctx.add_constraint(w_pat, matmul_pat, PairCons(PairCons::kUsedBy, 1));
@@ -56,30 +69,42 @@ Function Rewrite(Function f, int num_branches, int slice_axis) {
   runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>)> rewriter =
       [=](Map<DFPattern, Var> matchings) {
         auto inp = matchings[input_pattern];
+        auto lhs_dim = GetTensorSInfo(inp)->ndim;
 
-        Array<Expr> weights;
-        for (const auto& weight_pat : weight_patterns) {
-          weights.push_back(matchings[weight_pat]);
+        std::vector<Array<PrimExpr>> rhs_shapes;
+        for (const auto& rhs_pat : rhs_patterns) {
+          auto r = matchings[rhs_pat];
+          rhs_shapes.push_back(GetTensorSInfo(r)->GetShape().value());
         }
 
-	auto concat_axis = Downcast<TensorStructInfo>(GetStructInfo(weights[0]))->ndim - 1;
-        auto concat_weights = concat(Tuple(weights), Integer(concat_axis));
-        auto out_dtype =
-            Downcast<TensorStructInfo>(GetStructInfo(matchings[matmul_patterns[0]]))->dtype;
-        auto matmul_combined = matmul(inp, concat_weights, out_dtype);
+        auto shape_groups = GroupShapes(rhs_shapes);
 
         Map<Var, Expr> replacements;
-        PrimExpr begin{0};
-        Array<PrimExpr> strides{1};
 
-        for (size_t i = 0; i < num_branches; ++i) {
-          auto sinfo = GetStructInfo(weights[i]);
-          auto width = Downcast<TensorStructInfo>(sinfo)->GetShape().value()[1];
-          auto bound_var = matchings[matmul_patterns[i]];
-          auto slice =
-              strided_slice(matmul_combined, {slice_axis}, {begin}, {begin + width}, strides);
-          replacements.Set(bound_var, slice);
-          begin += width;
+        for (const auto& [rhs_dim, indices] : shape_groups) {
+          if (indices.size() == 1) continue;
+
+          Array<Expr> rhs;
+          for (auto ind : indices) {
+            rhs.push_back(matchings[rhs_patterns[ind]]);
+          }
+
+          auto concat_rhs = concat(Tuple(rhs), Integer(rhs_dim - 1));
+          auto out_dtype = GetTensorSInfo(matchings[matmul_patterns[indices[0]]])->dtype;
+          auto matmul_combined = matmul(inp, concat_rhs, out_dtype);
+
+          PrimExpr begin{0};
+          Array<PrimExpr> strides{1};
+          int slice_axis = std::max<int>(lhs_dim, rhs_dim) - 1;
+
+          for (size_t i = 0; i < indices.size(); ++i) {
+            auto width = GetTensorSInfo(rhs[i])->GetShape().value()[rhs_dim - 1];
+            auto bound_var = matchings[matmul_patterns[indices[i]]];
+            auto slice =
+                strided_slice(matmul_combined, {slice_axis}, {begin}, {begin + width}, strides);
+            replacements.Set(bound_var, slice);
+            begin += width;
+          }
         }
 
         return replacements;
@@ -92,7 +117,6 @@ Function Rewrite(Function f, int num_branches, int slice_axis) {
 
 struct BranchInfo {
   int num_branches;
-  int slice_axis;
 };
 
 std::vector<BranchInfo> GetBranchInfo(Function f) {
@@ -101,9 +125,7 @@ std::vector<BranchInfo> GetBranchInfo(Function f) {
     if (auto call = e.as<CallNode>(); call && call->op.same_as(matmul_op)) {
       auto lhs = Downcast<Var>(call->args[0]);
       if (auto it = groups.find(lhs.get()); it == groups.end()) {
-        auto sinfo = GetStructInfo(e);
-        auto slice_axis = Downcast<TensorStructInfo>(sinfo)->ndim - 1;
-        groups[lhs.get()] = {1, slice_axis};
+        groups[lhs.get()] = {1};
       } else {
         it->second.num_branches += 1;
       }
@@ -127,7 +149,7 @@ std::vector<BranchInfo> GetBranchInfo(Function f) {
 Function CombineParallelMatmul(Function f) {
   auto branches = GetBranchInfo(f);
   for (const auto& branch : branches) {
-    f = Rewrite(f, branch.num_branches, branch.slice_axis);
+    f = Rewrite(f, branch.num_branches);
   }
   return f;
 }
