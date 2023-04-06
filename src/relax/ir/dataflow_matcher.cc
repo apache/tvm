@@ -585,8 +585,8 @@ struct MatchState {
   }
 
   const VarNode* matched(const PNode* p) const {
-    if (!match_p_r.count(p)) return nullptr;
-    return match_p_r.at(p)->ptr;
+    if (auto it = match_p_r.find(p); it != match_p_r.end()) return it->ptr;
+    return nullptr;
   }
 
   const DFPatternNode* matched(const RNode* r) const {
