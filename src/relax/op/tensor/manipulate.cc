@@ -1381,7 +1381,7 @@ StructInfo InferStructInfoScatterElements(const Call& call, const BlockBuilder& 
   auto diag_def = [&](const TensorStructInfoNode* sinfo, String name, String type_key) {
     if (sinfo == nullptr) {
       ctx->ReportFatal(Diagnostic::Error(call)
-                       << "ScatterEelemtns requires the input " << name
+                       << "ScatterElements requires the input " << name
                        << " to be a Tensor. However, the given one is " << type_key);
     }
   };
