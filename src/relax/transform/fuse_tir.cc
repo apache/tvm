@@ -31,27 +31,113 @@ namespace tir {
 
 // TODO(Siyuan): move it to somewhere under tir folder
 /*!
+ * \brief Match symbolic vars according to the given PrimExpr, and update the var_remap.
+ * Will throw errors if there is a mismatch.
+ */
+class SymbolicMatcher : ExprFunctor<bool(const PrimExpr& n, const PrimExpr& other)> {
+ public:
+  void Match(const Array<PrimExpr>& lhs, const Array<PrimExpr>& rhs) {
+    CHECK_EQ(lhs.size(), rhs.size());
+    for (size_t i = 0; i < lhs.size(); ++i) {
+      Match(lhs[i], rhs[i]);
+    }
+  }
+  void Match(const PrimExpr& lhs, const PrimExpr& rhs) {
+    if (!VisitExpr(lhs, rhs)) {
+      LOG(FATAL) << "Failed to match PrimExpr " << lhs << " with " << rhs;
+    }
+  }
+
+  Map<tir::Var, tir::Var> var_remap;
+
+ private:
+  bool VisitExpr(const PrimExpr& n, const PrimExpr& other) {
+    bool matched = n.same_as(other) || ((n->type_index() == other->type_index()) &&
+                                        n.dtype().code() == other.dtype().code());
+    return matched && ExprFunctor::VisitExpr(n, other);
+  }
+
+#define TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(OpName)               \
+  bool VisitExpr_(const OpName* op, const PrimExpr& other) {     \
+    const auto* rhs = other.as<OpName>();                        \
+    ICHECK(rhs);                                                 \
+    return VisitExpr(op->a, rhs->a) && VisitExpr(op->b, rhs->b); \
+  }
+
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(AddNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(SubNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(MulNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(DivNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(ModNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(EQNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(NENode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(LTNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(LENode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(GTNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(GENode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(AndNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(OrNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(MinNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(MaxNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(FloorDivNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(FloorModNode);
+
+  bool VisitExpr_(const IntImmNode* op, const PrimExpr& other) {
+    const auto* rhs = other.as<IntImmNode>();
+    return op->value == rhs->value;
+  }
+
+  bool VisitExpr_(const FloatImmNode* op, const PrimExpr& other) {
+    const auto* rhs = other.as<FloatImmNode>();
+    return op->value == rhs->value;
+  }
+
+  bool VisitExpr_(const CastNode* op, const PrimExpr& other) {
+    const auto* rhs = other.as<CastNode>();
+    return VisitExpr(op->value, rhs->value);
+  }
+
+  bool VisitExpr_(const VarNode* op, const PrimExpr& other) {
+    const auto* rhs = other.as<VarNode>();
+    auto lhs = GetRef<Var>(op);
+    if (lhs.same_as(other)) return true;
+    if (op->dtype.code() != rhs->dtype.code()) return false;
+    auto it = var_remap.find(lhs);
+    if (it == var_remap.end()) {
+      var_remap.Set(lhs, GetRef<Var>(rhs));
+      return true;
+    } else {
+      return (*it).second.same_as(other);
+    }
+  }
+};
+
+/*!
  * \brief Substitute a given source buffer with a given target buffer in statements or expressions.
  */
 class FuseTIRBufferSubstitor : private StmtExprMutator {
  public:
-  static Stmt Substitute(const Map<Buffer, Buffer>& buffer_map, Stmt stmt) {
-    return FuseTIRBufferSubstitor(buffer_map)(std::move(stmt));
+  static Stmt Substitute(const Map<Buffer, Buffer>& buffer_map, const Map<Var, Var>& var_map,
+                         Stmt stmt) {
+    return FuseTIRBufferSubstitor(buffer_map, var_map)(std::move(stmt));
   }
 
  private:
-  explicit FuseTIRBufferSubstitor(const Map<Buffer, Buffer>& buffer_map) {
+  explicit FuseTIRBufferSubstitor(const Map<Buffer, Buffer>& buffer_map,
+                                  const Map<Var, Var>& var_map) {
+    buffer_remap_ = buffer_map;
+    var_remap_ = var_map;
     for (const auto& kv : buffer_map) {
       const Buffer& src = kv.first;
       const Buffer& tgt = kv.second;
-      buffer_var_map_[src->data.get()] = tgt;
+      var_remap_.Set(src->data, tgt->data);
     }
   }
 
   PrimExpr VisitExpr_(const VarNode* _op) final {
-    auto it = buffer_var_map_.find(_op);
-    if (it != buffer_var_map_.end()) {
-      return it->second->data;
+    auto it = var_remap_.find(GetRef<Var>(_op));
+    if (it != var_remap_.end()) {
+      return (*it).second;
     } else {
       return GetRef<PrimExpr>(_op);
     }
@@ -59,10 +145,10 @@ class FuseTIRBufferSubstitor : private StmtExprMutator {
 
   PrimExpr VisitExpr_(const BufferLoadNode* _op) final {
     BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(_op));
-    auto it = buffer_var_map_.find(load->buffer->data.get());
-    if (it != buffer_var_map_.end()) {
+    auto it = buffer_remap_.find(load->buffer);
+    if (it != buffer_remap_.end()) {
       auto n = make_object<BufferLoadNode>(*load.get());
-      n->buffer = it->second;
+      n->buffer = (*it).second;
       return BufferLoad(n);
     } else {
       return std::move(load);
@@ -71,10 +157,10 @@ class FuseTIRBufferSubstitor : private StmtExprMutator {
 
   Stmt VisitStmt_(const BufferStoreNode* _op) final {
     BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(_op));
-    auto it = buffer_var_map_.find(store->buffer->data.get());
-    if (it != buffer_var_map_.end()) {
+    auto it = buffer_remap_.find(store->buffer);
+    if (it != buffer_remap_.end()) {
       auto n = CopyOnWrite(store.get());
-      n->buffer = it->second;
+      n->buffer = (*it).second;
       return BufferStore(n);
     } else {
       return std::move(store);
@@ -87,19 +173,19 @@ class FuseTIRBufferSubstitor : private StmtExprMutator {
     // Define the mutation functions.
     auto f_mutate_match_buffers = [this](const MatchBufferRegion& match_buffer) {
       const Buffer& src_buffer = match_buffer->source->buffer;
-      auto it = buffer_var_map_.find(src_buffer->data.get());
-      if (it != buffer_var_map_.end()) {
+      auto it = buffer_remap_.find(src_buffer);
+      if (it != buffer_remap_.end()) {
         return MatchBufferRegion(match_buffer->buffer,
-                                 BufferRegion(it->second, match_buffer->source->region));
+                                 BufferRegion((*it).second, match_buffer->source->region));
       } else {
         return match_buffer;
       }
     };
 
     auto f_mutate_read_write_region = [this](const BufferRegion& buffer_region) {
-      auto it = buffer_var_map_.find(buffer_region->buffer->data.get());
-      return it == buffer_var_map_.end() ? buffer_region
-                                         : BufferRegion(it->second, buffer_region->region);
+      auto it = buffer_remap_.find(buffer_region->buffer);
+      return it == buffer_remap_.end() ? buffer_region
+                                       : BufferRegion((*it).second, buffer_region->region);
     };
 
     // Step 1. Mutate `match_buffers`.
@@ -126,8 +212,10 @@ class FuseTIRBufferSubstitor : private StmtExprMutator {
   }
 
  private:
-  /*! \brief Mapping from src buffer.data to tgt buffer. */
-  std::unordered_map<const tir::VarNode*, tir::Buffer> buffer_var_map_;
+  /*! \brief Mapping from src buffer to tgt buffer. */
+  Map<tir::Buffer, tir::Buffer> buffer_remap_;
+  /*! \brief Mapping from src tir var to tgt var. */
+  Map<tir::Var, tir::Var> var_remap_;
   /*! \brief The structural equality checker */
   StructuralEqual structural_equal_;
 
@@ -298,8 +386,8 @@ class FusedTIRConstructor : public ExprVisitor {
 
     // Step 5. Map input arguments to buffer
     MapInputBuffer(prim_func, call->args[1]);
-    size_t num_output_buffers = GetCallTIROutputSize(call);
-    AllocateIntermediateBuffer(GetRef<Expr>(call), prim_func, num_output_buffers);
+    const Array<Array<PrimExpr>>& output_buffer_shapes = GetCallTIROutputShapes(call);
+    AllocateIntermediateBuffer(GetRef<Expr>(call), prim_func, output_buffer_shapes);
     // Update fused func name
     func_info_.global_name += "_" + gv->name_hint;
   }
@@ -343,14 +431,32 @@ class FusedTIRConstructor : public ExprVisitor {
    * \brief Get the number of outputs for a call_tir node.
    * \return The number of outputs.
    */
-  static size_t GetCallTIROutputSize(const CallNode* call) {
+  static Array<Array<PrimExpr>> GetCallTIROutputShapes(const CallNode* call) {
     static const Op& call_tir_op_ = Op::Get("relax.call_tir");
     ICHECK(call->op.same_as(call_tir_op_));
     ICHECK_EQ(call->sinfo_args.size(), 1);
+    auto get_tensor_shape = [](const TensorStructInfoNode* sinfo) {
+      const auto* shape_expr = sinfo->shape.as<ShapeExprNode>();
+      CHECK(shape_expr) << "FuseTIR expects all parameters are Tensors with symbolic shape.";
+      return shape_expr->values;
+    };
     if (const auto* tuple_sinfo = call->sinfo_args[0].as<TupleStructInfoNode>()) {
-      return tuple_sinfo->fields.size();
+      Array<Array<PrimExpr>> shapes;
+      for (const StructInfo& field : tuple_sinfo->fields) {
+        const auto* tensor_sinfo = field.as<TensorStructInfoNode>();
+        CHECK(tensor_sinfo) << "CallTIR sinfo_args are expected to be TensorStructInfo or Tuple of "
+                               "TensorStructInfo, but got "
+                            << call->sinfo_args[0];
+        shapes.push_back(get_tensor_shape(tensor_sinfo));
+      }
+      return shapes;
+    } else if (const auto* tensor_sinfo = call->sinfo_args[0].as<TensorStructInfoNode>()) {
+      return {get_tensor_shape(tensor_sinfo)};
     } else {
-      return 1;
+      CHECK(tensor_sinfo) << "CallTIR sinfo_args are expected to be TensorStructInfo or Tuple of "
+                             "TensorStructInfo, but got "
+                          << call->sinfo_args[0];
+      throw;
     }
   }
 
@@ -365,17 +471,14 @@ class FusedTIRConstructor : public ExprVisitor {
           for (const tir::Buffer& target_buffer : (*it).second) {
             ICHECK_LT(buffer_idx, buffers.size());
             const tir::Buffer& buffer = buffers[buffer_idx];
-            // TODO(relax-team): Add support for symbolic shape fusion
-            for (const PrimExpr& shape_expr : buffer->shape) {
-              ICHECK(shape_expr.as<IntImmNode>()) << "Only support constant shape fusion for now";
-            }
+            func_info_.symbolic_var_matcher.Match(buffer->shape, target_buffer->shape);
             func_info_.buffer_subst_map.Set(buffer, target_buffer);
             buffer_idx++;
           }
         }
       }
     }
-    // Make sure every buffers are maped.
+    // Make sure every buffers are mapped.
     ICHECK_EQ(buffer_idx, buffers.size());
   }
 
@@ -408,18 +511,30 @@ class FusedTIRConstructor : public ExprVisitor {
    * intermediate results.
    * \param expr The relax Expr, which can be binding vars or binding values.
    * \param func The old TIR PrimFunc
-   * \param output_size The number of output params. All output params are at the end of param list.
+   * \param output_shapes The shape of output params.
    */
-  void AllocateIntermediateBuffer(const Expr& expr, const tir::PrimFunc& func, size_t output_size) {
+  void AllocateIntermediateBuffer(const Expr& expr, const tir::PrimFunc& func,
+                                  const Array<Array<PrimExpr>>& output_shapes) {
     size_t n = func->params.size();
+    size_t output_size = output_shapes.size();
     ICHECK_GE(n, output_size);
     // Allocate intermediate buffer
     Array<tir::Buffer> alloc_buffers;
     for (size_t i = 0; i < output_size; ++i) {
       const tir::Var& param = func->params[n - output_size + i];
       const tir::Buffer& buffer = func->buffer_map.at(param);
-      func_info_.alloc_buffers.push_back(buffer);
-      alloc_buffers.push_back(buffer);
+
+      // Update buffer with new symbolic shape according to the sinfo
+      auto n = make_object<tir::BufferNode>(*buffer.get());
+      n->shape = output_shapes[i];
+      n->name = param->name_hint + "_intermediate";
+      tir::Buffer new_buffer(n);
+      func_info_.alloc_buffers.push_back(new_buffer);
+      alloc_buffers.push_back(new_buffer);
+
+      // Match the shape of the output buffer with the shape
+      func_info_.symbolic_var_matcher.Match(buffer->shape, n->shape);
+      func_info_.buffer_subst_map.Set(buffer, new_buffer);
     }
     // Update expr2buffers
     func_info_.expr2buffers.Set(expr, alloc_buffers);
@@ -438,7 +553,7 @@ class FusedTIRConstructor : public ExprVisitor {
     Array<tir::Var> params;
     Array<tir::Buffer> buffers;
     if (const auto* tensor = struct_info.as<TensorStructInfoNode>()) {
-      // Case 1. the relax param is a DynTensor, we directly create a tir var and buffer
+      // Case 1. the relax param is a Tensor, we directly create a tir var and buffer
       const auto* shape_expr = tensor->shape.as<ShapeExprNode>();
       ICHECK(shape_expr) << "FuseTIR expects all parameters are Tensors with symbolic shape.";
 
@@ -452,7 +567,7 @@ class FusedTIRConstructor : public ExprVisitor {
       params.push_back(std::move(param));
       buffers.push_back(std::move(buffer));
     } else if (const auto* tuple = struct_info.as<TupleStructInfoNode>()) {
-      // Case 2. the relax param is a Tuple, we recursively visit each field until it's a DynTensor
+      // Case 2. the relax param is a Tuple, we recursively visit each field until it's a Tensor
       // Enable postfix
       if (index == -1) index = 0;
       for (size_t i = 0; i < tuple->fields.size(); ++i) {
@@ -487,12 +602,14 @@ class FusedTIRConstructor : public ExprVisitor {
       }
     }
     tir::Stmt body = tir::BlockNameDeduplicator()(tir::SeqStmt::Flatten(func_info_.bodies));
-    body = tir::FuseTIRBufferSubstitor::Substitute(func_info_.buffer_subst_map, body);
+    body = tir::FuseTIRBufferSubstitor::Substitute(func_info_.buffer_subst_map,
+                                                   func_info_.symbolic_var_matcher.var_remap, body);
     body = tir::Block({}, {}, {}, "root", std::move(body), NullOpt, alloc_buffers);
     body = tir::BlockRealize({}, Bool(true), Downcast<tir::Block>(body));
     tir::PrimFunc func(func_info_.params, body, VoidType(), func_info_.buffer_map,
                        DictAttrs(attr_map));
-    return func;
+    // Renew function defs to prevent using the same symbolic vars in different functions
+    return tir::RenewDefs(func);
   }
 
   /*! \brief Get DynTensor numbers from recursive Tuples. */
@@ -539,6 +656,8 @@ class FusedTIRConstructor : public ExprVisitor {
     std::unordered_set<const tir::BufferNode*> output_buffers;
     /*! \brief The name of the fused function */
     std::string global_name = "fused";
+    /*! \brief The map from symbolic var to its corresponding var in the fused function */
+    tir::SymbolicMatcher symbolic_var_matcher;
   };
 
   /*! \brief The IRModule */
