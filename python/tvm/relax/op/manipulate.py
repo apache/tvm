@@ -439,3 +439,73 @@ def cumsum(data: Expr, axis: Optional[int] = None, dtype: Optional[Union[str, Da
         -> [1, 1, 2, 2, 3, 4, 4]
     """
     return _ffi_api.cumsum(data, axis, dtype)  # type: ignore
+
+
+def scatter_elements(
+    data: Expr, indices: Expr, updates: Expr, axis: int = 0, reduction: str = "update"
+):
+    """ONNX style scatter elements. This operation updates its value in `data` to values
+    specified by `updates` at specific index positions specified by `indices`.
+    For example, in 2D tensor, the update corresponding to the [i][j] entry is performed
+    as below:
+        output[indices[i][j]][j] = updates[i][j] if axis = 0
+        output[i][indices[i][j]] = updates[i][j] if axis = 1
+
+    When the `reduction` is set to some reduction function `f`, the update corresponding to
+    [i][j] entry is performed as below:
+        output[indices[i][j]][j] += f(output[indices[i][j]][j], updates[i][j]) if axis = 0
+        output[i][indices[i][j]] += f(output[i][indices[i][j]], updates[i][j]) if axis = 1
+    Where `f` is update, add, mul, mean, max, min.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data to the operator.
+
+    indices: relax.Expr
+        The index positions to update in `data`.
+
+    updates: relax.Expr
+        Values to replace to.
+
+    axis: int
+        Axis to scatter on.
+
+    reduction: str
+        Type of reduction to apply: update, add, mul, mean, max, min.
+        It is "update" by default.
+
+    Returns
+    -------
+    result : relax.Expr
+        The result has the same size as data, and the same shape as data
+
+    Examples
+    --------
+    .. code-block:: python
+       # inputs
+       data = [
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
+        ]
+        indices = [
+            [1, 0, 2],
+            [0, 2, 1],
+        ]
+        updates = [
+            [1.0, 1.1, 1.2],
+            [2.0, 2.1, 2.2],
+        ]
+        axis = 0
+        reduction = "update"
+
+        # output P
+        output = [
+            [2.0, 1.1, 0.0]
+            [1.0, 0.0, 2.2]
+            [0.0, 2.1, 1.2]
+        ]
+
+    """
+    return _ffi_api.scatter_elements(data, indices, updates, axis, reduction)  # type: ignore
