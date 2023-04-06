@@ -101,9 +101,8 @@ namespace transform {
 Pass VerifyVTCMLimit(const Integer& limit) {
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     for (auto kv : mod->functions) {
-      if (auto* n = kv.second.as<PrimFuncNode>()) {
-        auto func = GetRef<PrimFunc>(n);
-        auto sizes = CalculateAllocatedBytes(func);
+      if (auto func = kv.second.as<PrimFunc>()) {
+        auto sizes = CalculateAllocatedBytes(func.value());
         const auto vtcm_allocated = sizes.Get("global.vtcm").value_or(0);
         if (limit.IntValue() > 0 && vtcm_allocated.IntValue() > limit.IntValue()) {
           LOG(FATAL) << "RuntimeError: The global.vtcm memory allocation limit has been "

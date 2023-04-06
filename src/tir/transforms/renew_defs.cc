@@ -181,8 +181,8 @@ class RenewDefMutator : public StmtExprMutator {
       auto it = remap_.find(expr);
       if (it != remap_.end()) {
         return Downcast<PrimExpr>((*it).second);
-      } else if (const VarNode* var = expr.as<VarNode>()) {
-        return this->ReDefineVar(GetRef<Var>(var));
+      } else if (auto var = expr.as<Var>()) {
+        return this->ReDefineVar(var.value());
       } else {
         return ExprMutator::VisitExpr(expr);
       }

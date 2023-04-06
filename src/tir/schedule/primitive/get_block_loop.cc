@@ -149,11 +149,11 @@ struct GetChildBlocksTraits : public UnpackedInstTraits<GetChildBlocksTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static Array<BlockRV> UnpackedApplyToSchedule(Schedule sch, ObjectRef block_or_loop_rv) {
-    if (const auto* block = block_or_loop_rv.as<BlockRVNode>()) {
-      return sch->GetChildBlocks(GetRef<BlockRV>(block));
+    if (auto block = block_or_loop_rv.as<BlockRV>()) {
+      return sch->GetChildBlocks(block.value());
     }
-    if (const auto* loop = block_or_loop_rv.as<LoopRVNode>()) {
-      return sch->GetChildBlocks(GetRef<LoopRV>(loop));
+    if (auto loop = block_or_loop_rv.as<LoopRV>()) {
+      return sch->GetChildBlocks(loop.value());
     }
     LOG(FATAL) << "TypeError: Expected Block or Loop, but gets: " << block_or_loop_rv->GetTypeKey();
     throw;

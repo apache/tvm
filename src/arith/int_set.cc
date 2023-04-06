@@ -349,8 +349,8 @@ inline IntervalSet Combine<tir::Min>(Analyzer* analzyer, IntervalSet a, Interval
 
 // internal helper function to get an interval set
 IntervalSet ToIntervalSet(IntSet set) {
-  if (auto* node = set.as<IntervalSetNode>()) {
-    return GetRef<IntervalSet>(node);
+  if (auto node = set.as<IntervalSet>()) {
+    return node.value();
   }
   DLOG(INFO) << "cannot resolve int set " << set;
   return IntervalSet::Everything();
@@ -379,6 +379,7 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
     IntervalSet min_set = this->Eval(val->min_value);
     IntervalSet max_set = this->Eval(val->max_value);
     --recur_depth_;
+
     return IntervalSet(min_set->min_value, max_set->max_value);
   }
 

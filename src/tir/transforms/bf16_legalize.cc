@@ -304,13 +304,13 @@ class BF16ComputeLegalizer : public StmtExprMutator {
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<AttrStmtNode>();
 
-    if (auto* buffer = op->node.as<BufferNode>()) {
-      auto it = buffer_remap_.find(GetRef<Buffer>(buffer));
+    if (auto buffer = op->node.as<Buffer>()) {
+      auto it = buffer_remap_.find(buffer.value());
       if (it != buffer_remap_.end()) {
         return AttrStmt(it->second, op->attr_key, op->value, op->body);
       }
-    } else if (auto* var = op->node.as<VarNode>()) {
-      auto it = var_remap_.find(GetRef<Var>(var));
+    } else if (auto var = op->node.as<Var>()) {
+      auto it = var_remap_.find(var.value());
       if (it != var_remap_.end()) {
         return AttrStmt(it->second, op->attr_key, op->value, op->body);
       }
@@ -523,13 +523,13 @@ class BF16StorageLegalizer : public StmtExprMutator {
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<AttrStmtNode>();
 
-    if (auto* buffer = op->node.as<BufferNode>()) {
-      auto it = buffer_remap_.find(GetRef<Buffer>(buffer));
+    if (auto buffer = op->node.as<Buffer>()) {
+      auto it = buffer_remap_.find(buffer.value());
       if (it != buffer_remap_.end()) {
         return AttrStmt(it->second, op->attr_key, op->value, op->body);
       }
-    } else if (auto* var = op->node.as<VarNode>()) {
-      auto it = var_remap_.find(GetRef<Var>(var));
+    } else if (auto var = op->node.as<Var>()) {
+      auto it = var_remap_.find(var.value());
       if (it != var_remap_.end()) {
         return AttrStmt(it->second, op->attr_key, op->value, op->body);
       }

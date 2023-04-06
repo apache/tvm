@@ -322,8 +322,8 @@ std::pair<IRModule, GlobalVar> IRModule::FromExprInContext(
 
   // All global definitions must be functions.
   BaseFunc func;
-  if (auto* func_node = expr.as<BaseFuncNode>()) {
-    func = GetRef<BaseFunc>(func_node);
+  if (auto func_node = expr.as<BaseFunc>()) {
+    func = func_node.value();
     if (auto opt = func->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
       // Function literal has been annotated with it's required global symbol.
       gv_name = opt.value();

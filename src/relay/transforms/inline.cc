@@ -185,9 +185,8 @@ IRModule Inline(const IRModule& module) {
     // functions.
     if (it->empty() || (it->IsRecursive() && it->size() == 1)) continue;
     auto base_func = module->Lookup(it->GetNameHint());
-    if (const auto* fn = base_func.as<FunctionNode>()) {
-      auto func = GetRef<Function>(fn);
-      auto new_func = Inliner(it, cg.operator->()).Inline(func);
+    if (auto func = base_func.as<Function>()) {
+      auto new_func = Inliner(it, cg.operator->()).Inline(func.value());
       // TODO(zhiics) Maybe move this to CallGraph, but updating function from
       // CallGraph arbitarily may lead to incorrect CallGraph.
       cg->module->Update(it->GetGlobalVar(), new_func);
@@ -201,8 +200,7 @@ IRModule Inline(const IRModule& module) {
     if (cgn->IsRecursive() || original_entry.count(cgn)) continue;
     auto base_func = cg->GetGlobalFunction(cgn->GetGlobalVar());
     // Skip calls to PrimFuncs since they can't be inlined.
-    if (const auto* fn = base_func.as<FunctionNode>()) {
-      auto func = GetRef<Function>(fn);
+    if (const auto* func = base_func.as<FunctionNode>()) {
       if (func->HasNonzeroAttr(attr::kInline)) {
         ICHECK_EQ(cgn->GetRefCount(), 0U)
             << cgn->GetNameHint() << " is marked as inline but not inlined.";

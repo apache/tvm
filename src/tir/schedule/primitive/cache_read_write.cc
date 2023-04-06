@@ -2013,8 +2013,8 @@ StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_inde
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> covered;
   for (const PrimExpr& index : original_indices) {
     PreOrderVisit(index, [&](const ObjectRef& obj) -> bool {
-      if (const VarNode* var = obj.as<VarNode>()) {
-        covered.insert(GetRef<Var>(var));
+      if (auto var = obj.as<Var>()) {
+        covered.insert(var.value());
       }
       return true;
     });

@@ -651,8 +651,8 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
    * \return The transformed SplitExpr.
    */
   SplitExpr ToSplitExpr(PrimExpr expr) {
-    if (const auto* op = expr.as<SplitExprNode>()) {
-      return GetRef<SplitExpr>(op);
+    if (auto op = expr.as<SplitExpr>()) {
+      return op.value();
     }
     if (const auto* op = expr.as<SumExprNode>()) {
       if (op->base == 0 && op->args.size() == 1) return op->args[0];
@@ -694,8 +694,8 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
    * \return The transformed SumExpr.
    */
   SumExpr ToSumExpr(PrimExpr expr) {
-    if (const auto* op = expr.as<SumExprNode>()) {
-      return GetRef<SumExpr>(op);
+    if (auto op = expr.as<SumExpr>()) {
+      return op.value();
     }
     ObjectPtr<SumExprNode> n = make_object<SumExprNode>();
     n->dtype = expr.dtype();
@@ -727,8 +727,8 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const AddNode* op) {
 
   if (const auto* op = b.as<IntImmNode>()) {
     ret.CopyOnWrite()->AddToSelf(op->value);
-  } else if (const auto* op = b.as<SumExprNode>()) {
-    ret.CopyOnWrite()->AddToSelf(GetRef<SumExpr>(op), 1);
+  } else if (auto op = b.as<SumExpr>()) {
+    ret.CopyOnWrite()->AddToSelf(op.value(), 1);
   } else {
     ret.CopyOnWrite()->AddToSelf(ToSplitExpr(b), 1);
   }
@@ -751,8 +751,8 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const SubNode* op) {
 
   if (const auto* op = b.as<IntImmNode>()) {
     ret.CopyOnWrite()->AddToSelf(-op->value);
-  } else if (const auto* op = b.as<SumExprNode>()) {
-    ret.CopyOnWrite()->AddToSelf(GetRef<SumExpr>(op), -1);
+  } else if (auto op = b.as<SumExpr>()) {
+    ret.CopyOnWrite()->AddToSelf(op.value(), -1);
   } else {
     ret.CopyOnWrite()->AddToSelf(ToSplitExpr(b), -1);
   }

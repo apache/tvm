@@ -708,8 +708,8 @@ class IRSubstitute : public StmtExprMutator {
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<AttrStmtNode>();
     // remap var node in attr
-    if (const auto* var_node = op->node.as<VarNode>()) {
-      if (auto mapped_var = vmap_(GetRef<Var>(var_node))) {
+    if (auto var_node = op->node.as<Var>()) {
+      if (auto mapped_var = vmap_(var_node.value())) {
         return AttrStmt(mapped_var, op->attr_key, op->value, op->body);
       }
     }
@@ -770,10 +770,10 @@ void PreOrderVisit(const ObjectRef& stmt_or_expr,
   };
 
   PreOrderVisitor visitor(fvisit);
-  if (const auto* stmt = stmt_or_expr.as<StmtNode>()) {
-    visitor(GetRef<Stmt>(stmt));
-  } else if (const auto* expr = stmt_or_expr.as<PrimExprNode>()) {
-    visitor(GetRef<PrimExpr>(expr));
+  if (auto stmt = stmt_or_expr.as<Stmt>()) {
+    visitor(stmt.value());
+  } else if (auto expr = stmt_or_expr.as<PrimExpr>()) {
+    visitor(expr.value());
   } else {
     LOG(FATAL) << "InternalError: PreOrderVisit does not accept object with type: "
                << stmt_or_expr->GetTypeKey();
@@ -840,8 +840,8 @@ class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<AttrStmtNode>();
     // remap var node in attr
-    if (const auto* var_node = op->node.as<VarNode>()) {
-      if (auto mapped_var = vmap_(GetRef<Var>(var_node))) {
+    if (auto var_node = op->node.as<Var>()) {
+      if (auto mapped_var = vmap_(var_node.value())) {
         return AttrStmt(mapped_var, op->attr_key, op->value, op->body);
       }
     }

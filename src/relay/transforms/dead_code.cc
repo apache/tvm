@@ -549,8 +549,8 @@ Pass DeadCodeElimination(bool inline_once, bool ignore_impurity) {
     IRModule result(/*functions=*/{}, mod->type_definitions, mod->Imports(), mod->source_map,
                     mod->attrs);
     for (const auto& kv : mod->functions) {
-      if (const auto* function_node = kv.second.as<FunctionNode>()) {
-        auto function = GetRef<Function>(function_node);
+      if (auto opt = kv.second.as<Function>()) {
+        auto function = opt.value();
 
         VLOG(1) << "processing " << PrettyPrint(kv.first);
 
