@@ -37,9 +37,7 @@ def with_tvm(lam, shapes, ops, out_shape):
     out = lam(*pls)
     out_nd = tvm.nd.array(np.zeros(out_shape).astype(out.dtype), device=dev)
     s = te.create_schedule([out.op])
-    print(te.create_prim_func(pls + [out]))
     m = tvm.build(s, pls + [out], "llvm")
-    print(tvm.build(s, pls + [out], "c").get_source())
     m(*(vals_nd + [out_nd]))
     return out_nd.numpy()
 
