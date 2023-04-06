@@ -698,5 +698,100 @@ def test_skip_call_dps_packed():
     _check(Module, Module)
 
 
+def test_symbolic_shape_aware_fuse():
+    @I.ir_module
+    class Before:
+        @R.function
+        def fused_add_exp_squeeze(
+            x: R.Tensor(["n", "m"], "float32"), p0: R.Tensor([], "float32")
+        ) -> R.Tensor(["n", "m"], dtype="float32"):
+            R.func_attr({"Primitive": 1})
+            with R.dataflow():
+                lv0 = R.emit_te(topi.add, x, p0)
+                lv1 = R.emit_te(topi.exp, lv0)
+                gv = R.emit_te(topi.squeeze, lv1)
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(x: R.Tensor(["n", "m"], "float32")) -> R.Tensor(["n", "m"], dtype="float32"):
+            cls = Before
+            with R.dataflow():
+                gv = cls.fused_add_exp_squeeze(x, R.const(1, "float32"))
+                R.output(gv)
+            return gv
+
+    def fused_add_exp_squeeze(x, p0):
+        return topi.squeeze(topi.exp(topi.add(x, p0)))
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor(["n", "m"], "float32")) -> R.Tensor(["n", "m"], dtype="float32"):
+            with R.dataflow():
+                gv = R.emit_te(fused_add_exp_squeeze, x, R.const(1, "float32"))
+                R.output(gv)
+            return gv
+
+    _check(Before, Expected)
+
+
+def test_symbolic_shape_aware_fuse_with_allocation():
+    def te_mean(x, axis):
+        return topi.divide(topi.sum(x, axis, keepdims=True), 4096)
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def fused_mean_add_tir_sqrt_divide_multiply(
+            x: R.Tensor((1, "n", 4096), dtype="float32"),
+            y: R.Tensor((1, "n", 4096), dtype="float32"),
+            rms_norm_weight: R.Tensor((4096,), dtype="float32"),
+        ) -> R.Tensor((1, "n", 4096), dtype="float32"):
+            R.func_attr({"Primitive": 1})
+            with R.dataflow():
+                lv0 = R.emit_te(te_mean, x, axis=2)
+                lv1 = R.emit_te(topi.add, lv0, lv0)
+                lv2 = R.emit_te(topi.sqrt, lv1)
+                lv3 = R.emit_te(topi.divide, y, lv2)
+                gv = R.emit_te(topi.multiply, rms_norm_weight, lv3)
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(
+            x: R.Tensor((1, "n", 4096), dtype="float32"),
+            y: R.Tensor((1, "n", 4096), dtype="float32"),
+            rms_norm_weight: R.Tensor((4096,), dtype="float32"),
+        ) -> R.Tensor((1, "n", 4096), dtype="float32"):
+            cls = Before
+            with R.dataflow():
+                gv = cls.fused_mean_add_tir_sqrt_divide_multiply(x, y, rms_norm_weight)
+                R.output(gv)
+            return gv
+
+    def fused_mean_add_tir_sqrt_divide_multiply(x, y, rms_norm_weight):
+        lv0 = te_mean(x, axis=2)
+        lv1 = topi.add(lv0, lv0)
+        lv2 = topi.sqrt(lv1)
+        lv3 = topi.divide(y, lv2)
+        return topi.multiply(rms_norm_weight, lv3)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((1, "n", 4096), dtype="float32"),
+            y: R.Tensor((1, "n", 4096), dtype="float32"),
+            rms_norm_weight: R.Tensor((4096,), dtype="float32"),
+        ) -> R.Tensor((1, "n", 4096), dtype="float32"):
+            with R.dataflow():
+                gv = R.emit_te(fused_mean_add_tir_sqrt_divide_multiply, x, y, rms_norm_weight)
+                R.output(gv)
+            return gv
+
+    _check(Before, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
