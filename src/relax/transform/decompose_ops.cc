@@ -172,12 +172,12 @@ Expr TensorToShape(const Call& call_node, const BlockBuilder& builder) {
 
 class OpDecomposer : public ExprMutator {
  public:
-  constexpr static const char* kModeEval = "eval";
+  constexpr static const char* kModeInference = "inference";
   constexpr static const char* kModeTraining = "training";
 
   explicit OpDecomposer(String mode) : ExprMutator(), mode_(mode) {
-    CHECK(mode == kModeEval || mode == kModeTraining)
-        << "The argument mode must be one of the following values: \"eval\", \"training\".";
+    CHECK(mode == kModeInference || mode == kModeTraining)
+        << "The argument mode must be one of the following values: \"inference\", \"training\".";
   }
 
  private:
@@ -186,7 +186,7 @@ class OpDecomposer : public ExprMutator {
   Expr VisitExpr_(const CallNode* call_node) final {
     Call call = Downcast<Call>(VisitExprPostOrder_(call_node));
     if (call->op == batch_norm_op_) {
-      if (mode_ == kModeEval) {
+      if (mode_ == kModeInference) {
         return SimplifyBatchNormInference(call);
       } else {
         ICHECK_EQ(mode_, kModeTraining);
@@ -237,7 +237,7 @@ namespace transform {
 Pass DecomposeOpsForInference(Optional<String> func_name) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
                                                                             PassContext pc) {
-    return Decompose(mod, func_name, OpDecomposer::kModeEval);
+    return Decompose(mod, func_name, OpDecomposer::kModeInference);
   };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,

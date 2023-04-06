@@ -31,6 +31,7 @@ from tvm.tir import IndexMap, PrimFunc
 
 from . import _ffi_api
 from .legalize_ops.common import LegalizeFunc
+from ..expr import Var
 
 
 @tvm._ffi.register_object("relax.FunctionPass")
@@ -637,8 +638,7 @@ def DecomposeOpsForTraining(func_name: Optional[str] = None) -> tvm.ir.transform
     ret : tvm.transform.Pass
         The registered pass
     """
-
-    return _ffi_api.DecomposeCompositeOps()  # type: ignore
+    return _ffi_api.DecomposeOpsForTraining(func_name)  # type: ignore
 
 
 def AlterOpImpl(

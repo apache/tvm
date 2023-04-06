@@ -37,9 +37,9 @@ def test_op_correctness():
     beta = relax.Var("beta", R.Tensor((3,), "float32"))
     moving_mean = relax.Var("moving_mean", R.Tensor((3,), "float32"))
     moving_var = relax.Var("moving_var", R.Tensor((3,), "float32"))
-    assert relax.op.nn.batch_norm(x, gamma, beta, moving_mean, moving_var, axis=1).op == Op.get(
-        "relax.nn.batch_norm"
-    )
+    assert relax.op.nn.batch_norm(
+        x, gamma, beta, moving_mean, moving_var, axis=1, momentum=0.1
+    ).op == Op.get("relax.nn.batch_norm")
     assert relax.op.nn.layer_norm(x, gamma, beta, axes=1).op == Op.get("relax.nn.layer_norm")
 
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
@@ -272,7 +272,7 @@ def test_batch_norm_infer_struct_info():
 
     _check_inference(
         bb,
-        relax.op.nn.batch_norm(x0, gamma0, beta0, moving_mean0, moving_var0, axis=1),
+        relax.op.nn.batch_norm(x0, gamma0, beta0, moving_mean0, moving_var0, axis=1, momentum=0.1),
         relax.TupleStructInfo(
             [
                 relax.TensorStructInfo((2, 3, 28, 28), "float32"),
@@ -283,7 +283,7 @@ def test_batch_norm_infer_struct_info():
     )
     _check_inference(
         bb,
-        relax.op.nn.batch_norm(x0, gamma0, beta0, moving_mean0, moving_var0, axis=-3),
+        relax.op.nn.batch_norm(x0, gamma0, beta0, moving_mean0, moving_var0, axis=-3, momentum=0.1),
         relax.TupleStructInfo(
             [
                 relax.TensorStructInfo((2, 3, 28, 28), "float32"),
@@ -294,7 +294,7 @@ def test_batch_norm_infer_struct_info():
     )
     _check_inference(
         bb,
-        relax.op.nn.batch_norm(x1, gamma0, beta0, moving_mean0, moving_var0, axis=1),
+        relax.op.nn.batch_norm(x1, gamma0, beta0, moving_mean0, moving_var0, axis=1, momentum=0.1),
         relax.TupleStructInfo(
             [
                 relax.TensorStructInfo(dtype="float32", ndim=4),
@@ -305,7 +305,7 @@ def test_batch_norm_infer_struct_info():
     )
     _check_inference(
         bb,
-        relax.op.nn.batch_norm(x0, gamma1, beta0, moving_mean0, moving_var0, axis=1),
+        relax.op.nn.batch_norm(x0, gamma1, beta0, moving_mean0, moving_var0, axis=1, momentum=0.1),
         relax.TupleStructInfo(
             [
                 relax.TensorStructInfo((2, 3, 28, 28), "float32"),
@@ -316,7 +316,7 @@ def test_batch_norm_infer_struct_info():
     )
     _check_inference(
         bb,
-        relax.op.nn.batch_norm(x0, gamma0, beta0, moving_mean0, moving_var1, axis=1),
+        relax.op.nn.batch_norm(x0, gamma0, beta0, moving_mean0, moving_var1, axis=1, momentum=0.1),
         relax.TupleStructInfo(
             [
                 relax.TensorStructInfo((2, 3, 28, 28), "float32"),
@@ -327,7 +327,7 @@ def test_batch_norm_infer_struct_info():
     )
     _check_inference(
         bb,
-        relax.op.nn.batch_norm(x1, gamma1, beta0, moving_mean0, moving_var1, axis=1),
+        relax.op.nn.batch_norm(x1, gamma1, beta0, moving_mean0, moving_var1, axis=1, momentum=0.1),
         relax.TupleStructInfo(
             [
                 relax.TensorStructInfo(dtype="float32", ndim=4),
@@ -338,7 +338,7 @@ def test_batch_norm_infer_struct_info():
     )
     _check_inference(
         bb,
-        relax.op.nn.batch_norm(x2, gamma1, beta0, moving_mean0, moving_var1, axis=1),
+        relax.op.nn.batch_norm(x2, gamma1, beta0, moving_mean0, moving_var1, axis=1, momentum=0.1),
         relax.TupleStructInfo(
             [
                 relax.TensorStructInfo(dtype="float32"),
@@ -349,7 +349,7 @@ def test_batch_norm_infer_struct_info():
     )
     _check_inference(
         bb,
-        relax.op.nn.batch_norm(x3, gamma2, beta1, moving_mean1, moving_var2, axis=1),
+        relax.op.nn.batch_norm(x3, gamma2, beta1, moving_mean1, moving_var2, axis=1, momentum=0.1),
         relax.TupleStructInfo(
             [
                 relax.TensorStructInfo(ndim=4, dtype=""),
@@ -360,7 +360,7 @@ def test_batch_norm_infer_struct_info():
     )
     _check_inference(
         bb,
-        relax.op.nn.batch_norm(x4, gamma2, beta1, moving_mean1, moving_var2, axis=1),
+        relax.op.nn.batch_norm(x4, gamma2, beta1, moving_mean1, moving_var2, axis=1, momentum=0.1),
         relax.TupleStructInfo(
             [
                 relax.TensorStructInfo(dtype=""),
@@ -392,7 +392,7 @@ def test_batch_norm_infer_struct_info_shape_symbolic():
 
     _check_inference(
         bb,
-        relax.op.nn.batch_norm(x0, gamma0, beta, moving_mean, moving_var0, axis=1),
+        relax.op.nn.batch_norm(x0, gamma0, beta, moving_mean, moving_var0, axis=1, momentum=0.1),
         relax.TupleStructInfo(
             [
                 relax.TensorStructInfo((n, c0, h, w), "float32"),
@@ -403,7 +403,7 @@ def test_batch_norm_infer_struct_info_shape_symbolic():
     )
     _check_inference(
         bb,
-        relax.op.nn.batch_norm(x1, gamma0, beta, moving_mean, moving_var0, axis=1),
+        relax.op.nn.batch_norm(x1, gamma0, beta, moving_mean, moving_var0, axis=1, momentum=0.1),
         relax.TupleStructInfo(
             [
                 relax.TensorStructInfo(dtype="float32", ndim=4),
@@ -414,7 +414,7 @@ def test_batch_norm_infer_struct_info_shape_symbolic():
     )
     _check_inference(
         bb,
-        relax.op.nn.batch_norm(x2, gamma0, beta, moving_mean, moving_var0, axis=1),
+        relax.op.nn.batch_norm(x2, gamma0, beta, moving_mean, moving_var0, axis=1, momentum=0.1),
         relax.TupleStructInfo(
             [
                 relax.TensorStructInfo(dtype="float32", ndim=4),
@@ -425,7 +425,7 @@ def test_batch_norm_infer_struct_info_shape_symbolic():
     )
     _check_inference(
         bb,
-        relax.op.nn.batch_norm(x0, gamma1, beta, moving_mean, moving_var0, axis=1),
+        relax.op.nn.batch_norm(x0, gamma1, beta, moving_mean, moving_var0, axis=1, momentum=0.1),
         relax.TupleStructInfo(
             [
                 relax.TensorStructInfo(dtype="float32", ndim=4),
@@ -436,7 +436,7 @@ def test_batch_norm_infer_struct_info_shape_symbolic():
     )
     _check_inference(
         bb,
-        relax.op.nn.batch_norm(x0, gamma0, beta, moving_mean, moving_var1, axis=1),
+        relax.op.nn.batch_norm(x0, gamma0, beta, moving_mean, moving_var1, axis=1, momentum=0.1),
         relax.TupleStructInfo(
             [
                 relax.TensorStructInfo(dtype="float32", ndim=4),
@@ -447,7 +447,7 @@ def test_batch_norm_infer_struct_info_shape_symbolic():
     )
     _check_inference(
         bb,
-        relax.op.nn.batch_norm(x0, gamma2, beta, moving_mean, moving_var0, axis=1),
+        relax.op.nn.batch_norm(x0, gamma2, beta, moving_mean, moving_var0, axis=1, momentum=0.1),
         relax.TupleStructInfo(
             [
                 relax.TensorStructInfo((n, c0, h, w), "float32"),
@@ -458,7 +458,7 @@ def test_batch_norm_infer_struct_info_shape_symbolic():
     )
     _check_inference(
         bb,
-        relax.op.nn.batch_norm(x0, gamma0, beta, moving_mean, moving_var2, axis=1),
+        relax.op.nn.batch_norm(x0, gamma0, beta, moving_mean, moving_var2, axis=1, momentum=0.1),
         relax.TupleStructInfo(
             [
                 relax.TensorStructInfo((n, c0, h, w), "float32"),
@@ -484,7 +484,7 @@ def test_batch_norm_infer_struct_info_shape_var():
 
     _check_inference(
         bb,
-        relax.op.nn.batch_norm(x0, gamma, beta, moving_mean, moving_var, axis=1),
+        relax.op.nn.batch_norm(x0, gamma, beta, moving_mean, moving_var, axis=1, momentum=0.1),
         relax.TupleStructInfo(
             [
                 relax.TensorStructInfo(s0, "float32"),
@@ -495,7 +495,7 @@ def test_batch_norm_infer_struct_info_shape_var():
     )
     _check_inference(
         bb,
-        relax.op.nn.batch_norm(x1, gamma, beta, moving_mean, moving_var, axis=1),
+        relax.op.nn.batch_norm(x1, gamma, beta, moving_mean, moving_var, axis=1, momentum=0.1),
         relax.TupleStructInfo(
             [
                 relax.TensorStructInfo(s1, "float32"),
@@ -516,7 +516,7 @@ def test_batch_norm_infer_struct_info_more_input_dtype():
 
     _check_inference(
         bb,
-        relax.op.nn.batch_norm(x, gamma, beta, moving_mean, moving_var, axis=1),
+        relax.op.nn.batch_norm(x, gamma, beta, moving_mean, moving_var, axis=1, momentum=0.1),
         relax.TupleStructInfo(
             [
                 relax.TensorStructInfo((2, 3, 28, 28), "float16"),
@@ -541,9 +541,17 @@ def test_batch_norm_infer_struct_info_invalid_input_dtype():
     moving_var1 = relax.Var("moving_var", R.Tensor((3,), "int32"))
 
     with pytest.raises(TVMError):
-        bb.normalize(relax.op.nn.batch_norm(x0, gamma0, beta0, moving_mean0, moving_var0, axis=1))
+        bb.normalize(
+            relax.op.nn.batch_norm(
+                x0, gamma0, beta0, moving_mean0, moving_var0, axis=1, momentum=0.1
+            )
+        )
     with pytest.raises(TVMError):
-        bb.normalize(relax.op.nn.batch_norm(x1, gamma1, beta1, moving_mean1, moving_var1, axis=1))
+        bb.normalize(
+            relax.op.nn.batch_norm(
+                x1, gamma1, beta1, moving_mean1, moving_var1, axis=1, momentum=0.1
+            )
+        )
 
 
 def test_batch_norm_infer_struct_info_axis_out_of_range():
@@ -555,9 +563,13 @@ def test_batch_norm_infer_struct_info_axis_out_of_range():
     moving_var = relax.Var("moving_var", R.Tensor((3,), "float32"))
 
     with pytest.raises(TVMError):
-        bb.normalize(relax.op.nn.batch_norm(x, gamma, beta, moving_mean, moving_var, axis=4))
+        bb.normalize(
+            relax.op.nn.batch_norm(x, gamma, beta, moving_mean, moving_var, axis=4, momentum=0.1)
+        )
     with pytest.raises(TVMError):
-        bb.normalize(relax.op.nn.batch_norm(x, gamma, beta, moving_mean, moving_var, axis=-5))
+        bb.normalize(
+            relax.op.nn.batch_norm(x, gamma, beta, moving_mean, moving_var, axis=-5, momentum=0.1)
+        )
 
 
 def test_batch_norm_infer_struct_info_dtype_mismatch():
@@ -572,11 +584,17 @@ def test_batch_norm_infer_struct_info_dtype_mismatch():
     moving_var1 = relax.Var("moving_var", R.Tensor((3,), "float16"))
 
     with pytest.raises(TVMError):
-        bb.normalize(relax.op.nn.batch_norm(x1, gamma0, beta, moving_mean, moving_var0, axis=1))
+        bb.normalize(
+            relax.op.nn.batch_norm(x1, gamma0, beta, moving_mean, moving_var0, axis=1, momentum=0.1)
+        )
     with pytest.raises(TVMError):
-        bb.normalize(relax.op.nn.batch_norm(x0, gamma1, beta, moving_mean, moving_var0, axis=1))
+        bb.normalize(
+            relax.op.nn.batch_norm(x0, gamma1, beta, moving_mean, moving_var0, axis=1, momentum=0.1)
+        )
     with pytest.raises(TVMError):
-        bb.normalize(relax.op.nn.batch_norm(x0, gamma0, beta, moving_mean, moving_var1, axis=1))
+        bb.normalize(
+            relax.op.nn.batch_norm(x0, gamma0, beta, moving_mean, moving_var1, axis=1, momentum=0.1)
+        )
 
 
 def test_batch_norm_infer_struct_info_ndim_mismatch():
@@ -590,9 +608,13 @@ def test_batch_norm_infer_struct_info_ndim_mismatch():
     moving_var1 = relax.Var("moving_var", R.Tensor((1, 3), "float32"))
 
     with pytest.raises(TVMError):
-        bb.normalize(relax.op.nn.batch_norm(x, gamma1, beta, moving_mean, moving_var0, axis=1))
+        bb.normalize(
+            relax.op.nn.batch_norm(x, gamma1, beta, moving_mean, moving_var0, axis=1, momentum=0.1)
+        )
     with pytest.raises(TVMError):
-        bb.normalize(relax.op.nn.batch_norm(x, gamma0, beta, moving_mean, moving_var1, axis=1))
+        bb.normalize(
+            relax.op.nn.batch_norm(x, gamma0, beta, moving_mean, moving_var1, axis=1, momentum=0.1)
+        )
 
 
 def test_batch_norm_infer_struct_info_shape_mismatch():
@@ -612,11 +634,23 @@ def test_batch_norm_infer_struct_info_shape_mismatch():
     moving_var2 = relax.Var("moving_var", R.Tensor((c,), "float32"))
 
     with pytest.raises(TVMError):
-        bb.normalize(relax.op.nn.batch_norm(x0, gamma1, beta0, moving_mean0, moving_var0, axis=1))
+        bb.normalize(
+            relax.op.nn.batch_norm(
+                x0, gamma1, beta0, moving_mean0, moving_var0, axis=1, momentum=0.1
+            )
+        )
     with pytest.raises(TVMError):
-        bb.normalize(relax.op.nn.batch_norm(x0, gamma0, beta0, moving_mean0, moving_var1, axis=1))
+        bb.normalize(
+            relax.op.nn.batch_norm(
+                x0, gamma0, beta0, moving_mean0, moving_var1, axis=1, momentum=0.1
+            )
+        )
     with pytest.raises(TVMError):
-        bb.normalize(relax.op.nn.batch_norm(x1, gamma2, beta1, moving_mean1, moving_var2, axis=1))
+        bb.normalize(
+            relax.op.nn.batch_norm(
+                x1, gamma2, beta1, moving_mean1, moving_var2, axis=1, momentum=0.1
+            )
+        )
 
 
 def test_batch_norm_infer_struct_info_wrong_input_type():
@@ -630,9 +664,13 @@ def test_batch_norm_infer_struct_info_wrong_input_type():
     moving_var = relax.Var("moving_var", R.Tensor((3,), "float32"))
 
     with pytest.raises(TVMError):
-        bb.normalize(relax.op.nn.batch_norm(x1, gamma0, beta, moving_mean, moving_var, axis=1))
+        bb.normalize(
+            relax.op.nn.batch_norm(x1, gamma0, beta, moving_mean, moving_var, axis=1, momentum=0.1)
+        )
     with pytest.raises(TVMError):
-        bb.normalize(relax.op.nn.batch_norm(x0, gamma1, beta, moving_mean, moving_var, axis=1))
+        bb.normalize(
+            relax.op.nn.batch_norm(x0, gamma1, beta, moving_mean, moving_var, axis=1, momentum=0.1)
+        )
 
 
 def test_layer_norm_infer_struct_info():

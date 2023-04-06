@@ -663,6 +663,7 @@ def batch_norm(
     epsilon: float = 1e-5,
     center: bool = True,
     scale: bool = True,
+    momentum: float = 0.1,
 ) -> Expr:
     r"""
     Batch normalization layer (Ioffe and Szegedy, 2014).
@@ -733,13 +734,16 @@ def batch_norm(
     scale : bool
         Indicating if the gamma scale will be multiplied.
 
+    momentum : float
+        The value used for the moving_mean and moving_var update.
+
     Returns
     -------
     result : relax.Expr
         The computed result.
     """
     return _ffi_api.batch_norm(  # type: ignore
-        data, gamma, beta, moving_mean, moving_var, axis, epsilon, center, scale
+        data, gamma, beta, moving_mean, moving_var, axis, epsilon, center, scale, momentum
     )
 
 
