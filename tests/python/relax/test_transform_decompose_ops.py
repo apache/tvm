@@ -357,7 +357,7 @@ def test_layer_norm():
                 R.output(ln)
             return ln
 
-    After = relax.transform.DecomposeOpsForInference()(Before)
+    After = relax.transform.DecomposeOpsForTraining()(Before)
     tvm.ir.assert_structural_equal(Expected, After)
 
 

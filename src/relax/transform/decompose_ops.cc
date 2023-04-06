@@ -192,7 +192,9 @@ class OpDecomposer : public ExprMutator {
         ICHECK_EQ(mode_, kModeTraining);
         return SimplifyBatchNormTraining(call);
       }
-    } else if (call->op == layer_norm_op_) {
+    } else if (call->op == layer_norm_op_ && mode_ == kModeTraining) {
+      // Here we only decompose LayerNorm in training because it is more efficient as a single op.
+      // In the future maybe we can also remove this decomposition during training.
       return SimplifyLayerNorm(call);
     } else if (call->op == tensor_to_shape_op_) {
       return TensorToShape(call, builder_);
