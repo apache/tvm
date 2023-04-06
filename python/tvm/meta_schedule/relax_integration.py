@@ -16,6 +16,7 @@
 # under the License.
 """Meta schedule integration with high-level IR"""
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
+import warnings
 
 # isort: off
 from typing_extensions import Literal
@@ -124,6 +125,9 @@ def extracted_tasks_to_tune_contexts(
         get_loggers_from_work_dir(work_dir, [t.task_name for t in extracted_tasks]),
         fork_seed(seed, n=len(extracted_tasks)),
     ):
+        if task.mod.attrs.get("tir.is_scheduled", False):
+            warnings.warn("The task {task.task_name} is already scheduled, skipping it.")
+            continue
         tasks.append(
             TuneContext(
                 mod=task.dispatched[0],

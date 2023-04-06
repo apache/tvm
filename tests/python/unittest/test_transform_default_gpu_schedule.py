@@ -50,7 +50,7 @@ def test_broadcast_to_symbolic():
             rxplaceholder: T.Buffer((T.int64(3), T.int64(1)), "float32"),
             var_T_broadcast_to: T.handle,
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tir.noalias": True, "tir.is_scheduled": True})
             x_0 = T.int64()
             x_1 = T.int64()
             T_broadcast_to = T.match_buffer(var_T_broadcast_to, (x_0, x_1))
@@ -128,7 +128,7 @@ def test_matmul():
             B: T.Buffer((32, 32), "float16"),
             C: T.Buffer((32, 32), "float16"),
         ):
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+            T.func_attr({"tir.is_scheduled": True, "global_symbol": "main", "tir.noalias": True})
             # with T.block("root"):
             for i_j_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
                 for i_j_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
@@ -179,7 +179,7 @@ def test_add():
             ),
             T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tir.is_scheduled": True,  "tir.noalias": True})
             # with T.block("root"):
             for i0_i1_i2_i3_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_i2_i3_fused_1 in T.thread_binding(
@@ -248,7 +248,7 @@ def test_full():
             rxplaceholder: T.Buffer((), "int32"),
             T_full: T.Buffer((T.int64(2), T.int64(3)), "int32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
             # with T.block("root"):
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_fused_1 in T.thread_binding(T.int64(6), thread="threadIdx.x"):
@@ -284,7 +284,7 @@ def test_scheduled():
             rxplaceholder: T.Buffer((), "int32"),
             T_full: T.Buffer((T.int64(2), T.int64(3)), "int32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
             # with T.block("root"):
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_fused_1 in T.thread_binding(T.int64(6), thread="threadIdx.x"):
@@ -345,7 +345,7 @@ def test_multiple():
             ),
             T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
             # with T.block("root"):
             for i0_i1_i2_i3_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_i2_i3_fused_1 in T.thread_binding(
@@ -389,7 +389,7 @@ def test_multiple():
             rxplaceholder: T.Buffer((), "int32"),
             T_full: T.Buffer((T.int64(2), T.int64(3)), "int32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
             # with T.block("root"):
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_fused_1 in T.thread_binding(T.int64(6), thread="threadIdx.x"):
