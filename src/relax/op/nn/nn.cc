@@ -170,12 +170,13 @@ bool NormCheckDtypeAndShape(const Call& call, const BlockBuilder& ctx,
 TVM_REGISTER_NODE_TYPE(BatchNormAttrs);
 
 Expr batch_norm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_var,  //
-                int axis, double epsilon, bool center, bool scale) {
+                int axis, double epsilon, bool center, bool scale, double momentum) {
   ObjectPtr<BatchNormAttrs> attrs = make_object<BatchNormAttrs>();
   attrs->axis = axis;
   attrs->epsilon = epsilon;
   attrs->center = center;
   attrs->scale = scale;
+  attrs->momentum = momentum;
 
   static const Op& op = Op::Get("relax.nn.batch_norm");
   return Call(op,

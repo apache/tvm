@@ -198,7 +198,7 @@ class ConstantFolder : public ExprMutator {
 
   // TODO(@sunggg):
   // Next PR will support fold with PackedFunc and MatchCast
-  // Until then, DecomposeCompositeOps() should be applied after
+  // Until then, DecomposeOps() should be applied after
   // this pass to fold `tensor_to_shape` op.
   Expr VisitExpr_(const CallNode* call) final {
     // post-order mutation

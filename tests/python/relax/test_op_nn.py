@@ -338,7 +338,7 @@ def test_batch_norm_infer_struct_info():
     )
     _check_inference(
         bb,
-        relax.op.nn.batch_norm(x2, gamma1, beta0, moving_mean0, moving_var1, axis=1),
+        relax.op.nn.batch_norm(x2, gamma1, beta0, moving_mean0, moving_var1, axis=1, momentum=0.1),
         relax.TupleStructInfo(
             [
                 relax.TensorStructInfo(dtype="float32"),
@@ -349,7 +349,7 @@ def test_batch_norm_infer_struct_info():
     )
     _check_inference(
         bb,
-        relax.op.nn.batch_norm(x3, gamma2, beta1, moving_mean1, moving_var2, axis=1),
+        relax.op.nn.batch_norm(x3, gamma2, beta1, moving_mean1, moving_var2, axis=1, momentum=0.1),
         relax.TupleStructInfo(
             [
                 relax.TensorStructInfo(ndim=4, dtype=""),
@@ -360,7 +360,7 @@ def test_batch_norm_infer_struct_info():
     )
     _check_inference(
         bb,
-        relax.op.nn.batch_norm(x4, gamma2, beta1, moving_mean1, moving_var2, axis=1),
+        relax.op.nn.batch_norm(x4, gamma2, beta1, moving_mean1, moving_var2, axis=1, momentum=0.1),
         relax.TupleStructInfo(
             [
                 relax.TensorStructInfo(dtype=""),
