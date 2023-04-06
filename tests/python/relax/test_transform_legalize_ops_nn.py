@@ -2443,5 +2443,262 @@ def test_attention():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_nll_loss():
+    # fmt: off
+    @tvm.script.ir_module
+    class NLLLoss:
+        @R.function
+        def main(predictions: R.Tensor((2, 3, 4, 5), "float32"), targets: R.Tensor((2, 4, 5), "int64"), weights: R.Tensor((4,), "float32")) -> R.Tensor((), "float32"):
+            gv: R.Tensor((), "float32") = R.nn.nll_loss(predictions, targets, weights, reduction="mean", ignore_index=-1)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(predictions: R.Tensor((2, 3, 4, 5), dtype="float32"), targets: R.Tensor((2, 4, 5), dtype="int64"), weights: R.Tensor((4,), dtype="float32"),) -> R.Tensor((), dtype="float32"):
+            # block 0
+            gv = R.call_tir(Expected.nll_loss, (predictions, targets, weights), R.Tensor((), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def nll_loss(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_1: T.Buffer((T.int64(2), T.int64(4), T.int64(5)), "int64"), rxplaceholder_2: T.Buffer(T.int64(4), "float32"), T_divide: T.Buffer((), "float32"),):
+            # function attr dict
+            T.func_attr({"tir.noalias": True})
+            # body
+            # with T.block("root")
+            nll_loss = T.alloc_buffer([T.int64(2), T.int64(4), T.int64(5)], dtype="float32")
+            nll_loss_red = T.alloc_buffer([], dtype="float32")
+            nll_loss_1 = T.alloc_buffer([T.int64(2), T.int64(4), T.int64(5)], dtype="float32")
+            nll_loss_red_1 = T.alloc_buffer([], dtype="float32")
+            for ax0, ax1, ax2 in T.grid(T.int64(2), T.int64(4), T.int64(5)):
+                with T.block("nll_loss"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(rxplaceholder_1[v_ax0, v_ax1, v_ax2], rxplaceholder[v_ax0, rxplaceholder_1[v_ax0, v_ax1, v_ax2], v_ax1, v_ax2], rxplaceholder_2[rxplaceholder_1[v_ax0, v_ax1, v_ax2]])
+                    T.writes(nll_loss[v_ax0, v_ax1, v_ax2])
+                    nll_loss[v_ax0, v_ax1, v_ax2] = T.Select(rxplaceholder_1[v_ax0, v_ax1, v_ax2] != T.int64(-1), (T.float32(0) - rxplaceholder[v_ax0, rxplaceholder_1[v_ax0, v_ax1, v_ax2], v_ax1, v_ax2]) * rxplaceholder_2[rxplaceholder_1[v_ax0, v_ax1, v_ax2]], T.float32(0))
+            for k0, k1, k2 in T.grid(T.int64(2), T.int64(4), T.int64(5)):
+                with T.block("nll_loss_red"):
+                    v_k0, v_k1, v_k2 = T.axis.remap("RRR", [k0, k1, k2])
+                    T.reads(nll_loss[v_k0, v_k1, v_k2])
+                    T.writes(nll_loss_red[()])
+                    with T.init():
+                        nll_loss_red[()] = T.float32(0)
+                    nll_loss_red[()] = nll_loss_red[()] + nll_loss[v_k0, v_k1, v_k2]
+            for ax0, ax1, ax2 in T.grid(T.int64(2), T.int64(4), T.int64(5)):
+                with T.block("nll_loss_1"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(rxplaceholder_1[v_ax0, v_ax1, v_ax2], rxplaceholder_2[rxplaceholder_1[v_ax0, v_ax1, v_ax2]])
+                    T.writes(nll_loss_1[v_ax0, v_ax1, v_ax2])
+                    nll_loss_1[v_ax0, v_ax1, v_ax2] = T.Select(rxplaceholder_1[v_ax0, v_ax1, v_ax2] != T.int64(-1), rxplaceholder_2[rxplaceholder_1[v_ax0, v_ax1, v_ax2]], T.float32(0))
+            for k0, k1, k2 in T.grid(T.int64(2), T.int64(4), T.int64(5)):
+                with T.block("nll_loss_red_1"):
+                    v_k0, v_k1, v_k2 = T.axis.remap("RRR", [k0, k1, k2])
+                    T.reads(nll_loss_1[v_k0, v_k1, v_k2])
+                    T.writes(nll_loss_red_1[()])
+                    with T.init():
+                        nll_loss_red_1[()] = T.float32(0)
+                    nll_loss_red_1[()] = nll_loss_red_1[()] + nll_loss_1[v_k0, v_k1, v_k2]
+            with T.block("T_divide"):
+                vi = T.axis.spatial(1, T.int64(0))
+                T.reads(nll_loss_red[()], nll_loss_red_1[()])
+                T.writes(T_divide[()])
+                T_divide[()] = nll_loss_red[()] / nll_loss_red_1[()]
+    # fmt: on
+    mod = LegalizeOps()(NLLLoss)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_nll_no_weight():
+    # fmt: off
+    @tvm.script.ir_module
+    class NLLLoss:
+        @R.function
+        def main(predictions: R.Tensor((2, 3, 4, 5), "float32"), targets: R.Tensor((2, 4, 5), "int64")) -> R.Tensor((), "float32"):
+            gv: R.Tensor((), "float32") = R.nn.nll_loss(predictions, targets, reduction="mean", ignore_index=-1)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(predictions: R.Tensor((2, 3, 4, 5), dtype="float32"), targets: R.Tensor((2, 4, 5), dtype="int64"),) -> R.Tensor((), dtype="float32"):
+            # block 0
+            gv = R.call_tir(Expected.nll_loss_without_weight, (predictions, targets), R.Tensor((), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def nll_loss_without_weight(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_1: T.Buffer((T.int64(2), T.int64(4), T.int64(5)), "int64"), T_divide: T.Buffer((), "float32"),):
+            # function attr dict
+            T.func_attr({"tir.noalias": True})
+            # body
+            # with T.block("root")
+            T_full = T.alloc_buffer([T.int64(3)], dtype="float32")
+            nll_loss = T.alloc_buffer([T.int64(2), T.int64(4), T.int64(5)], dtype="float32")
+            nll_loss_red = T.alloc_buffer([], dtype="float32")
+            nll_loss_1 = T.alloc_buffer([T.int64(2), T.int64(4), T.int64(5)], dtype="float32")
+            nll_loss_red_1 = T.alloc_buffer([], dtype="float32")
+            for ax0 in T.serial(T.int64(3)):
+                with T.block("T_full"):
+                    v_ax0 = T.axis.spatial(T.int64(3), ax0)
+                    T.reads()
+                    T.writes(T_full[v_ax0])
+                    T_full[v_ax0] = T.float32(1)
+            for ax0, ax1, ax2 in T.grid(T.int64(2), T.int64(4), T.int64(5)):
+                with T.block("nll_loss"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(rxplaceholder_1[v_ax0, v_ax1, v_ax2], rxplaceholder[v_ax0, rxplaceholder_1[v_ax0, v_ax1, v_ax2], v_ax1, v_ax2], T_full[rxplaceholder_1[v_ax0, v_ax1, v_ax2]])
+                    T.writes(nll_loss[v_ax0, v_ax1, v_ax2])
+                    nll_loss[v_ax0, v_ax1, v_ax2] = T.Select(rxplaceholder_1[v_ax0, v_ax1, v_ax2] != T.int64(-1), (T.float32(0) - rxplaceholder[v_ax0, rxplaceholder_1[v_ax0, v_ax1, v_ax2], v_ax1, v_ax2]) * T_full[rxplaceholder_1[v_ax0, v_ax1, v_ax2]], T.float32(0))
+            for k0, k1, k2 in T.grid(T.int64(2), T.int64(4), T.int64(5)):
+                with T.block("nll_loss_red"):
+                    v_k0, v_k1, v_k2 = T.axis.remap("RRR", [k0, k1, k2])
+                    T.reads(nll_loss[v_k0, v_k1, v_k2])
+                    T.writes(nll_loss_red[()])
+                    with T.init():
+                        nll_loss_red[()] = T.float32(0)
+                    nll_loss_red[()] = nll_loss_red[()] + nll_loss[v_k0, v_k1, v_k2]
+            for ax0, ax1, ax2 in T.grid(T.int64(2), T.int64(4), T.int64(5)):
+                with T.block("nll_loss_1"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(rxplaceholder_1[v_ax0, v_ax1, v_ax2], T_full[rxplaceholder_1[v_ax0, v_ax1, v_ax2]])
+                    T.writes(nll_loss_1[v_ax0, v_ax1, v_ax2])
+                    nll_loss_1[v_ax0, v_ax1, v_ax2] = T.Select(rxplaceholder_1[v_ax0, v_ax1, v_ax2] != T.int64(-1), T_full[rxplaceholder_1[v_ax0, v_ax1, v_ax2]], T.float32(0))
+            for k0, k1, k2 in T.grid(T.int64(2), T.int64(4), T.int64(5)):
+                with T.block("nll_loss_red_1"):
+                    v_k0, v_k1, v_k2 = T.axis.remap("RRR", [k0, k1, k2])
+                    T.reads(nll_loss_1[v_k0, v_k1, v_k2])
+                    T.writes(nll_loss_red_1[()])
+                    with T.init():
+                        nll_loss_red_1[()] = T.float32(0)
+                    nll_loss_red_1[()] = nll_loss_red_1[()] + nll_loss_1[v_k0, v_k1, v_k2]
+            with T.block("T_divide"):
+                vi = T.axis.spatial(1, T.int64(0))
+                T.reads(nll_loss_red[()], nll_loss_red_1[()])
+                T.writes(T_divide[()])
+                T_divide[()] = nll_loss_red[()] / nll_loss_red_1[()]
+    # fmt: on
+
+    mod = LegalizeOps()(NLLLoss)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_nll_no_batch():
+    # fmt: off
+    @tvm.script.ir_module
+    class NLLLoss:
+        @R.function
+        def main(predictions: R.Tensor(("C",), "float32"), targets: R.Tensor((), "int64"), weights: R.Tensor(("C",), "float32")) -> R.Tensor((), "float32"):
+            gv = R.nn.nll_loss(predictions, targets, weights, reduction="mean", ignore_index=1)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(predictions: R.Tensor(("C",), dtype="float32"), targets: R.Tensor((), dtype="int64"), weights: R.Tensor(("C",), dtype="float32")) -> R.Tensor((), dtype="float32"):
+            C = T.int64()
+            gv = R.call_tir(Expected.nll_loss, (predictions, targets, weights), out_sinfo=R.Tensor((), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def nll_loss(var_rxplaceholder: T.handle, rxplaceholder: T.Buffer((), "int64"), var_rxplaceholder_1: T.handle, T_divide: T.Buffer((), "float32")):
+            T.func_attr({"tir.noalias": True})
+            C = T.int64()
+            rxplaceholder_1 = T.match_buffer(var_rxplaceholder, (C,))
+            rxplaceholder_2 = T.match_buffer(var_rxplaceholder_1, (C,))
+            # with T.block("root"):
+            nll_loss = T.alloc_buffer(())
+            nll_loss_1 = T.alloc_buffer(())
+            with T.block("nll_loss"):
+                vi = T.axis.spatial(T.int64(1), T.int64(0))
+                T.reads(rxplaceholder[()], rxplaceholder_1[rxplaceholder[()]], rxplaceholder_2[rxplaceholder[()]])
+                T.writes(nll_loss[()])
+                nll_loss[()] = T.Select(rxplaceholder[()] != T.int64(1), (T.float32(0) - rxplaceholder_1[rxplaceholder[()]]) * rxplaceholder_2[rxplaceholder[()]], T.float32(0))
+            with T.block("nll_loss_1"):
+                vi = T.axis.spatial(T.int64(1), T.int64(0))
+                T.reads(rxplaceholder[()], rxplaceholder_2[rxplaceholder[()]])
+                T.writes(nll_loss_1[()])
+                nll_loss_1[()] = T.Select(rxplaceholder[()] != T.int64(1), rxplaceholder_2[rxplaceholder[()]], T.float32(0))
+            with T.block("T_divide"):
+                vi = T.axis.spatial(1, T.int64(0))
+                T.reads(nll_loss[()], nll_loss_1[()])
+                T.writes(T_divide[()])
+                T_divide[()] = nll_loss[()] / nll_loss_1[()]
+    # fmt: on
+
+    mod = LegalizeOps()(NLLLoss)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_nll_loss_symbolic():
+    # fmt: off
+    @tvm.script.ir_module
+    class NLLLoss:
+        @R.function
+        def main(predictions: R.Tensor(("N", "C", "d1", "d2"), "float32"), targets: R.Tensor(("N", "d1", "d2"), "int64"), weights: R.Tensor(("C",), "float32")) -> R.Tensor((), "float32"):
+            gv: R.Tensor((), "float32") = R.nn.nll_loss(predictions, targets, weights, reduction="mean", ignore_index=-1)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(predictions: R.Tensor(("N", "C", "d1", "d2"), dtype="float32"), targets: R.Tensor(("N", "d1", "d2"), dtype="int64"), weights: R.Tensor(("C",), dtype="float32")) -> R.Tensor((), dtype="float32"):
+            # block 0
+            gv = R.call_tir(Expected.nll_loss, (predictions, targets, weights), R.Tensor((), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def nll_loss(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_rxplaceholder_2: T.handle, T_divide: T.Buffer((), "float32"),):
+            # function attr dict
+            T.func_attr({"tir.noalias": True})
+            C = T.int64()
+            N = T.int64()
+            d1 = T.int64()
+            d2 = T.int64()
+            rxplaceholder = T.match_buffer(var_rxplaceholder, [N, C, d1, d2], dtype="float32")
+            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [N, d1, d2], dtype="int64")
+            rxplaceholder_2 = T.match_buffer(var_rxplaceholder_2, [C], dtype="float32")
+            # body
+            # with T.block("root")
+            nll_loss = T.alloc_buffer([N, d1, d2], dtype="float32")
+            nll_loss_red = T.alloc_buffer([], dtype="float32")
+            nll_loss_1 = T.alloc_buffer([N, d1, d2], dtype="float32")
+            nll_loss_red_1 = T.alloc_buffer([], dtype="float32")
+            for ax0, ax1, ax2 in T.grid(N, d1, d2):
+                with T.block("nll_loss"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(rxplaceholder_1[v_ax0, v_ax1, v_ax2], rxplaceholder[v_ax0, rxplaceholder_1[v_ax0, v_ax1, v_ax2], v_ax1, v_ax2],rxplaceholder_2[rxplaceholder_1[v_ax0, v_ax1, v_ax2]],)
+                    T.writes(nll_loss[v_ax0, v_ax1, v_ax2])
+                    nll_loss[v_ax0, v_ax1, v_ax2] = T.Select(rxplaceholder_1[v_ax0, v_ax1, v_ax2] != T.int64(-1), (T.float32(0) - rxplaceholder[v_ax0, rxplaceholder_1[v_ax0, v_ax1, v_ax2], v_ax1, v_ax2]) * rxplaceholder_2[rxplaceholder_1[v_ax0, v_ax1, v_ax2]], T.float32(0),)
+            for k0, k1, k2 in T.grid(N, d1, d2):
+                with T.block("nll_loss_red"):
+                    v_k0, v_k1, v_k2 = T.axis.remap("RRR", [k0, k1, k2])
+                    T.reads(nll_loss[v_k0, v_k1, v_k2])
+                    T.writes(nll_loss_red[()])
+                    with T.init():
+                        nll_loss_red[()] = T.float32(0)
+                    nll_loss_red[()] = nll_loss_red[()] + nll_loss[v_k0, v_k1, v_k2]
+            for ax0, ax1, ax2 in T.grid(N, d1, d2):
+                with T.block("nll_loss_1"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(rxplaceholder_1[v_ax0, v_ax1, v_ax2], rxplaceholder_2[rxplaceholder_1[v_ax0, v_ax1, v_ax2]],)
+                    T.writes(nll_loss_1[v_ax0, v_ax1, v_ax2])
+                    nll_loss_1[v_ax0, v_ax1, v_ax2] = T.Select(rxplaceholder_1[v_ax0, v_ax1, v_ax2] != T.int64(-1), rxplaceholder_2[rxplaceholder_1[v_ax0, v_ax1, v_ax2]], T.float32(0),)
+            for k0, k1, k2 in T.grid(N, d1, d2):
+                with T.block("nll_loss_red_1"):
+                    v_k0, v_k1, v_k2 = T.axis.remap("RRR", [k0, k1, k2])
+                    T.reads(nll_loss_1[v_k0, v_k1, v_k2])
+                    T.writes(nll_loss_red_1[()])
+                    with T.init():
+                        nll_loss_red_1[()] = T.float32(0)
+                    nll_loss_red_1[()] = nll_loss_red_1[()] + nll_loss_1[v_k0, v_k1, v_k2]
+            with T.block("T_divide"):
+                vi = T.axis.spatial(1, T.int64(0))
+                T.reads(nll_loss_red[()], nll_loss_red_1[()])
+                T.writes(T_divide[()])
+                T_divide[()] = nll_loss_red[()] / nll_loss_red_1[()]
+    # fmt: on
+    mod = LegalizeOps()(NLLLoss)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

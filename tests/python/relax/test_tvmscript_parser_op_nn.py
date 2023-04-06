@@ -302,5 +302,49 @@ def test_cross_entropy_with_logits():
     _check(foo, bb.get()["foo"])
 
 
+def test_nll_loss():
+    @R.function
+    def foo(
+        predictions: R.Tensor((3, 5, 10, 10), dtype="float32"),
+        targets: R.Tensor((3, 10, 10), dtype="int64"),
+        weights: R.Tensor((5,), dtype="float32"),
+    ) -> R.Tensor((), dtype="float32"):
+        gv: R.Tensor((), dtype="float32") = R.nn.nll_loss(predictions, targets, weights, "mean", -1)
+        return gv
+
+    predictions = relax.Var("predictions", R.Tensor((3, 5, 10, 10), "float32"))
+    targets = relax.Var("targets", R.Tensor((3, 10, 10), "int64"))
+    weights = relax.Var("weights", R.Tensor((5,), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", [predictions, targets, weights]):
+        gv = bb.emit(
+            relax.op.nn.nll_loss(predictions, targets, weights, reduction="mean", ignore_index=-1)
+        )
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
+def test_nll_loss_no_weights():
+    @R.function
+    def foo(
+        predictions: R.Tensor((3, 5, 10, 10), dtype="float32"),
+        targets: R.Tensor((3, 10, 10), dtype="int64"),
+    ) -> R.Tensor((), dtype="float32"):
+        gv: R.Tensor((), dtype="float32") = R.nn.nll_loss(
+            predictions, targets, reduction="mean", ignore_index=-1
+        )
+        return gv
+
+    predictions = relax.Var("predictions", R.Tensor((3, 5, 10, 10), "float32"))
+    targets = relax.Var("targets", R.Tensor((3, 10, 10), "int64"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", [predictions, targets]):
+        gv = bb.emit(relax.op.nn.nll_loss(predictions, targets, reduction="mean", ignore_index=-1))
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
 if __name__ == "__main__":
     tvm.testing.main()

@@ -1320,5 +1320,442 @@ def test_cross_entropy_infer_struct_info_wrong_input_type():
         bb.normalize(relax.op.nn.cross_entropy_with_logits(x1, y))
 
 
+def test_nll_loss_infer_struct_info():
+    bb = relax.BlockBuilder()
+
+    x0 = relax.Var("x", R.Tensor((3, 5, 10, 10), "float32"))
+    x1 = relax.Var("x", R.Tensor("float32", ndim=4))
+    x2 = relax.Var("x", R.Tensor("float32"))
+    x3 = relax.Var("x", R.Tensor((3, 5, 10, 10)))
+    x4 = relax.Var("x", R.Tensor((3, 5), "float32"))  # (N, C)
+    x5 = relax.Var("x", R.Tensor((5,), "float32"))  # (C,)
+
+    y0 = relax.Var("y", R.Tensor((3, 10, 10), "int64"))
+    y1 = relax.Var("y", R.Tensor("int64", ndim=3))
+    y2 = relax.Var("y", R.Tensor("int64"))
+    y3 = relax.Var("y", R.Tensor((3, 10, 10)))
+    y4 = relax.Var("y", R.Tensor((3,)))  # (N,)
+    y5 = relax.Var("y", R.Tensor(()))  # ()
+
+    w0 = relax.Var("w", R.Tensor((5,), "float32"))
+    w1 = relax.Var("w", R.Tensor("float32", ndim=1))
+    w2 = relax.Var("w", R.Tensor("float32"))
+    w3 = relax.Var("w", R.Tensor((5,)))
+
+    # reduction = mean
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x0, y0, w0, reduction="mean"),
+        relax.TensorStructInfo((), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x1, y0, w0, reduction="mean"),
+        relax.TensorStructInfo((), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x2, y0, w0, reduction="mean"),
+        relax.TensorStructInfo((), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x3, y0, w0, reduction="mean"),
+        relax.TensorStructInfo((), ""),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x0, y1, w0, reduction="mean"),
+        relax.TensorStructInfo((), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x0, y2, w0, reduction="mean"),
+        relax.TensorStructInfo((), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x0, y3, w0, reduction="mean"),
+        relax.TensorStructInfo((), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x0, y0, w1, reduction="mean"),
+        relax.TensorStructInfo((), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x0, y0, w2, reduction="mean"),
+        relax.TensorStructInfo((), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x0, y0, w3, reduction="mean"),
+        relax.TensorStructInfo((), ""),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x4, y4, w0, reduction="mean"),
+        relax.TensorStructInfo((), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x5, y5, w0, reduction="mean"),
+        relax.TensorStructInfo((), "float32"),
+    )
+
+    # reduction=sum is totally the same as mean. Just need one test to ensure they behave the same
+    _check_inference(
+        bb, relax.op.nn.nll_loss(x0, y0, w0, reduction="sum"), relax.TensorStructInfo((), "float32")
+    )
+
+    # reduction=none
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x0, y0, w0, reduction="none"),
+        relax.TensorStructInfo((3, 10, 10), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x1, y0, w0, reduction="none"),
+        relax.TensorStructInfo(dtype="float32", ndim=3),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x2, y0, w0, reduction="none"),
+        relax.TensorStructInfo(dtype="float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x3, y0, w0, reduction="none"),
+        relax.TensorStructInfo((3, 10, 10), ""),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x0, y1, w0, reduction="none"),
+        relax.TensorStructInfo((3, 10, 10), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x0, y2, w0, reduction="none"),
+        relax.TensorStructInfo((3, 10, 10), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x0, y3, w0, reduction="none"),
+        relax.TensorStructInfo((3, 10, 10), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x0, y0, w1, reduction="none"),
+        relax.TensorStructInfo((3, 10, 10), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x0, y0, w2, reduction="none"),
+        relax.TensorStructInfo((3, 10, 10), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x0, y0, w3, reduction="none"),
+        relax.TensorStructInfo((3, 10, 10), ""),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x4, y4, w0, reduction="none"),
+        relax.TensorStructInfo((3,), "float32"),  # (N,)
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x5, y5, w0, reduction="none"),
+        relax.TensorStructInfo((), "float32"),  # ()
+    )
+
+
+def test_nll_loss_infer_struct_info_shape_symbolic():
+    bb = relax.BlockBuilder()
+    N = tir.Var("N", "int64")
+    C = tir.Var("C", "int64")
+    d1 = tir.Var("d", "int64")
+    d2 = tir.Var("d", "int64")
+    x0 = relax.Var("x", R.Tensor((N, C, d1, d2), "float32"))
+    x1 = relax.Var("x", R.Tensor((N, C), "float32"))
+    x2 = relax.Var("x", R.Tensor((C,), "float32"))
+    x3 = relax.Var("x", R.Tensor((3, C, d1, 2), "float32"))
+    y0 = relax.Var("y", R.Tensor((N, d1, d2), "int64"))
+    y1 = relax.Var("y", R.Tensor((N,), "int64"))
+    y2 = relax.Var("y", R.Tensor((), "int64"))
+    y3 = relax.Var("y", R.Tensor((3, d1, 2), "int64"))
+    w0 = relax.Var("w", R.Tensor((C,), "float32"))
+    w1 = relax.Var("w", R.Tensor((5,), "float32"))
+
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x0, y0, w0, reduction="mean"),
+        relax.TensorStructInfo((), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x0, y0, w0, reduction="none"),
+        relax.TensorStructInfo((N, d1, d2), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x1, y1, w0, reduction="none"),
+        relax.TensorStructInfo((N,), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x2, y2, w0, reduction="none"),
+        relax.TensorStructInfo((), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x3, y3, w0, reduction="none"),
+        relax.TensorStructInfo((3, d1, 2), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x3, y3, w1, reduction="none"),
+        relax.TensorStructInfo((3, d1, 2), "float32"),
+    )
+
+
+def test_nll_loss_infer_struct_info_shape_var():
+    bb = relax.BlockBuilder()
+
+    s0 = relax.Var("s0", relax.ShapeStructInfo((3, 5, 10, 10)))
+    s1 = relax.Var("s1", relax.ShapeStructInfo(ndim=4))
+    s2 = relax.Var("s2", relax.ShapeStructInfo())
+    s3 = relax.Var("s3", relax.ShapeStructInfo((3, 10, 10)))
+    s4 = relax.Var("s4", relax.ShapeStructInfo(ndim=3))
+    s5 = relax.Var("s5", relax.ShapeStructInfo((5,)))
+    s6 = relax.Var("s6", relax.ShapeStructInfo(ndim=1))
+
+    x0 = relax.Var("x", relax.TensorStructInfo(s0, "float32"))
+    x1 = relax.Var("x", relax.TensorStructInfo(s1, "float32"))
+    x2 = relax.Var("x", relax.TensorStructInfo(s2, "float32"))
+    y0 = relax.Var("y", relax.TensorStructInfo(s3, "int64"))
+    y1 = relax.Var("y", relax.TensorStructInfo(s4, "int64"))
+    w0 = relax.Var("w", relax.TensorStructInfo(s5, "float32"))
+    w1 = relax.Var("w", relax.TensorStructInfo(s6, "float32"))
+
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x0, y0, w0, reduction="mean"),
+        relax.TensorStructInfo((), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x0, y0, w0, reduction="none"),
+        relax.TensorStructInfo(dtype="float32", ndim=3),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x1, y0, w0, reduction="none"),
+        relax.TensorStructInfo(dtype="float32", ndim=3),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x2, y0, w0, reduction="none"),
+        relax.TensorStructInfo(dtype="float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x0, y1, w0, reduction="none"),
+        relax.TensorStructInfo(dtype="float32", ndim=3),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x0, y0, w1, reduction="none"),
+        relax.TensorStructInfo(dtype="float32", ndim=3),
+    )
+
+
+def test_nll_loss_infer_struct_info_no_weights():
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((3, 5, 10, 10), "float32"))
+    y = relax.Var("x", R.Tensor((3, 10, 10), "int64"))
+
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x, y, reduction="mean"),
+        relax.TensorStructInfo((), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x, y, reduction="none"),
+        relax.TensorStructInfo((3, 10, 10), "float32"),
+    )
+
+
+def test_nll_loss_infer_struct_info_no_weights_symbolic():
+    N = tir.Var("N", "int64")
+    C = tir.Var("C", "int64")
+    d1 = tir.Var("d", "int64")
+    d2 = tir.Var("d", "int64")
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((N, C, d1, d2), "float32"))
+    y = relax.Var("y", R.Tensor((N, d1, d2), "int64"))
+
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x, y, reduction="mean"),
+        relax.TensorStructInfo((), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x, y, reduction="none"),
+        relax.TensorStructInfo((N, d1, d2), "float32"),
+    )
+
+
+def test_nll_loss_infer_struct_info_wrong_input_type():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((3, 5, 10, 10), "float32"))
+    x1 = relax.Var("x", relax.ShapeStructInfo((2, 3)))
+    x2 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3), "float32")))
+    y0 = relax.Var("y", R.Tensor((3, 10, 10), "int64"))
+    y1 = relax.Var("y", relax.ShapeStructInfo((2, 3)))
+    y2 = relax.Var("y", relax.FuncStructInfo([], R.Tensor((2, 3), "float32")))
+    w0 = relax.Var("w", R.Tensor((5,), "float32"))
+    w1 = relax.Var("w", relax.ShapeStructInfo((2, 3)))
+    w2 = relax.Var("w", relax.FuncStructInfo([], R.Tensor((2, 3), "float32")))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.nll_loss(x1, y0, w0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.nll_loss(x2, y0, w0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.nll_loss(x0, y1, w0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.nll_loss(x0, y2, w0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.nll_loss(x0, y0, w1))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.nll_loss(x0, y0, w2))
+
+
+def test_nll_loss_infer_struct_info_more_input_dtype():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((3, 5, 10, 10), "float16"))
+    x1 = relax.Var("x", R.Tensor((3, 5, 10, 10), "int8"))
+    x2 = relax.Var("x", R.Tensor((3, 5, 10, 10), "int32"))
+    x3 = relax.Var("x", R.Tensor((3, 5, 10, 10), "float64"))
+    y0 = relax.Var("y", R.Tensor((3, 10, 10), "int8"))
+    w0 = relax.Var("y", R.Tensor((5,), "float16"))
+    w1 = relax.Var("y", R.Tensor((5,), "int8"))
+    w2 = relax.Var("y", R.Tensor((5,), "int32"))
+    w3 = relax.Var("y", R.Tensor((5,), "float64"))
+
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x0, y0, w0, reduction="mean"),
+        relax.TensorStructInfo((), "float16"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x1, y0, w1, reduction="mean"),
+        relax.TensorStructInfo((), "int8"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x2, y0, w2, reduction="mean"),
+        relax.TensorStructInfo((), "int32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.nll_loss(x3, y0, w3, reduction="mean"),
+        relax.TensorStructInfo((), "float64"),
+    )
+
+
+def test_nll_loss_infer_struct_info_targets_dtype():
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((3, 5, 10, 10), "float32"))
+    w = relax.Var("w", R.Tensor((5,), "float32"))
+    targets0 = relax.Var("targets", R.Tensor((3, 10, 10), "float32"))
+    targets1 = relax.Var("targets", R.Tensor((3, 10, 10), "float64"))
+    targets2 = relax.Var("targets", R.Tensor((3, 10, 10), "bool"))
+    targets3 = relax.Var("targets", R.Tensor((3, 10, 10), "int32"))
+    targets4 = relax.Var("targets", R.Tensor((3, 10, 10), "int64"))
+    targets5 = relax.Var("targets", R.Tensor((3, 10, 10), "uint32"))
+    targets6 = relax.Var("targets", R.Tensor((3, 10, 10), ""))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.nll_loss(x, targets0, w))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.nll_loss(x, targets1, w))
+
+    # correct cases
+    bb.normalize(relax.op.nn.nll_loss(x, targets2, w))  # bool is uint1
+    bb.normalize(relax.op.nn.nll_loss(x, targets3, w))
+    bb.normalize(relax.op.nn.nll_loss(x, targets4, w))
+    bb.normalize(relax.op.nn.nll_loss(x, targets5, w))
+    bb.normalize(relax.op.nn.nll_loss(x, targets6, w))  # unknwon dtype
+
+
+def test_nll_loss_infer_struct_info_ndim_mismatch():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((3, 5, 10, 10), "float32"))
+    x1 = relax.Var("x", R.Tensor((3, 5, 10, 10, 10), "float32"))
+    x2 = relax.Var("x", R.Tensor((3, 5, 10), "float32"))
+    y0 = relax.Var("x", R.Tensor((3, 10, 10), "int64"))
+    y1 = relax.Var("x", R.Tensor((3, 10, 10, 10), "int64"))
+    y2 = relax.Var("x", R.Tensor((3, 10), "int64"))
+    w0 = relax.Var("w", R.Tensor((5,), "float32"))
+    w1 = relax.Var("w", R.Tensor((5, 5), "float32"))
+    w2 = relax.Var("w", R.Tensor((), "float32"))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.nll_loss(x1, y0, w0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.nll_loss(x2, y0, w0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.nll_loss(x0, y1, w0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.nll_loss(x0, y2, w0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.nll_loss(x0, y0, w1))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.nll_loss(x0, y0, w2))
+
+
+def test_nll_loss_infer_struct_info_shape_mismatch():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((3, 5, 10, 10), "float32"))
+    x1 = relax.Var("x", R.Tensor((3, 6, 10, 10), "float32"))
+    x2 = relax.Var("x", R.Tensor((4, 5, 10, 10), "float32"))
+    x3 = relax.Var("x", R.Tensor((3, 5, 11, 10), "float32"))
+    y0 = relax.Var("x", R.Tensor((3, 10, 10), "int64"))
+    y1 = relax.Var("x", R.Tensor((4, 10, 10), "int64"))
+    y2 = relax.Var("x", R.Tensor((3, 11, 10), "int64"))
+    w0 = relax.Var("w", R.Tensor((5,), "float32"))
+    w1 = relax.Var("w", R.Tensor((4,), "float32"))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.nll_loss(x1, y0, w0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.nll_loss(x2, y0, w0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.nll_loss(x3, y0, w0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.nll_loss(x0, y1, w0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.nll_loss(x0, y2, w0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.nll_loss(x0, y0, w1))
+
+
+def test_nll_loss_infer_struct_info_wrong_reduction():
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((3, 5, 10, 10), "float32"))
+    y = relax.Var("x", R.Tensor((3, 10, 10), "int64"))
+    w = relax.Var("w", R.Tensor((5,), "float32"))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.nll_loss(x, y, w, reduction="foo"))
+
+
 if __name__ == "__main__":
     tvm.testing.main()
