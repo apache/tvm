@@ -34,8 +34,6 @@ namespace relax {
 
 using runtime::Map;
 
-static auto matmul_op = Op::Get("relax.matmul");
-
 std::unordered_map<size_t, std::vector<size_t>> GroupShapes(
     const std::vector<Array<PrimExpr>>& shapes) {
   std::unordered_map<size_t, std::vector<size_t>> indices_map;
@@ -49,21 +47,43 @@ inline TensorStructInfo GetTensorSInfo(Expr e) {
   return Downcast<TensorStructInfo>(GetStructInfo(e));
 }
 
-Function Rewrite(Function f, int num_branches) {
+struct BranchInfo {
+  int num_branches;
+  bool has_bias;
+  std::optional<std::string> activation;
+};
+
+Function Rewrite(Function f, const BranchInfo& branch_info) {
   PatternContext ctx;
   ctx.EnterWithScope();
 
   auto input_pattern = Wildcard();
   std::vector<WildcardPattern> rhs_patterns;
-  std::vector<CallPattern> matmul_patterns;
+  std::vector<WildcardPattern> bias_patterns;
+  std::vector<CallPattern> matmul_patterns, bias_add_patterns, activation_patterns;
 
-  for (int i = 0; i < num_branches; ++i) {
+  for (int i = 0; i < branch_info.num_branches; ++i) {
     auto w_pat = Wildcard();
-    CallPattern matmul_pat{ExprPattern(matmul_op), {input_pattern, w_pat}};
     rhs_patterns.push_back(w_pat);
+    auto matmul_pat = IsOp("relax.matmul")(input_pattern, w_pat);
     matmul_patterns.push_back(matmul_pat);
     ctx.add_constraint(input_pattern, matmul_pat, PairCons(PairCons::kUsedBy, 0));
     ctx.add_constraint(w_pat, matmul_pat, PairCons(PairCons::kUsedBy, 1));
+
+    CallPattern matmul_out = matmul_pat;
+
+    if (branch_info.has_bias) {
+      auto bias_pat = Wildcard();
+      bias_patterns.push_back(bias_pat);
+      auto bias_add = IsOp("relax.add")(matmul_pat, bias_pat);
+      bias_add_patterns.push_back(bias_add);
+      matmul_out = bias_add;
+    }
+
+    if (branch_info.activation) {
+      activation_patterns.push_back(IsOp(*branch_info.activation)(matmul_out));
+    }
+
   }
 
   runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>)> rewriter =
@@ -115,17 +135,15 @@ Function Rewrite(Function f, int num_branches) {
   return rewritten;
 }
 
-struct BranchInfo {
-  int num_branches;
-};
-
 std::vector<BranchInfo> GetBranchInfo(Function f) {
   std::unordered_map<const VarNode*, BranchInfo> groups;
+  static auto matmul_op = Op::Get("relax.matmul");
+
   PostOrderVisit(f, [&](const Expr& e) {
     if (auto call = e.as<CallNode>(); call && call->op.same_as(matmul_op)) {
       auto lhs = Downcast<Var>(call->args[0]);
       if (auto it = groups.find(lhs.get()); it == groups.end()) {
-        groups[lhs.get()] = {1};
+        groups[lhs.get()] = {1, false, std::nullopt};
       } else {
         it->second.num_branches += 1;
       }
@@ -149,7 +167,7 @@ std::vector<BranchInfo> GetBranchInfo(Function f) {
 Function CombineParallelMatmul(Function f) {
   auto branches = GetBranchInfo(f);
   for (const auto& branch : branches) {
-    f = Rewrite(f, branch.num_branches);
+    f = Rewrite(f, branch);
   }
   return f;
 }
