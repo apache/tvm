@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-04-05T14:40:31.664961
+// Generated at 2023-04-06T08:57:34.965999
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -571,7 +571,7 @@ def build(node_type) {
 }
 try {
     build('CPU-SMALL-SPOT')
-} catch Exception (ex) {
+} catch (Exception ex) {
     build('CPU-SMALL')
 }
 
