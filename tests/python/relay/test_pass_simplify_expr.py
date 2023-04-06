@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from math import sqrt
 import pytest
 import tvm
 from tvm import relay
@@ -742,6 +743,100 @@ def test_simplify_add():
     opt = run_opt_pass(before(), transform.SimplifyExpr())
     ref = run_infer_type(expected())
     assert tvm.ir.structural_equal(opt, ref)
+
+
+def test_binomials():
+    def check_simple_fold(origin_exprs, expect_exprs):
+        for origin_expr in origin_exprs:
+            simple_expr = run_opt_pass(origin_expr, transform.SimplifyExpr())
+            match = False
+            for expected in expect_exprs:
+                e = run_opt_pass(expected, transform.EliminateCommonSubexpr())
+                match = match or tvm.ir.structural_equal(simple_expr, e)
+                if match:
+                    break
+            assert match
+
+    def gen_expected_expressions(x, y, a, b, c, dtype):
+        if c == 1 and a > 1:
+            swap = a
+            a = c
+            c = swap
+            swap = x
+            x = y
+            y = swap
+
+        det = b * b - 4 * a * c
+        if det < 0:
+            return gen_expressions(x, y, a, b, c)
+
+        p_val = (b + sqrt(det)) / (2 * a)
+        q_val = (b - sqrt(det)) / (2 * a)
+        p = relay.const(p_val, dtype=dtype)
+        q = relay.const(q_val, dtype=dtype)
+        first_exp = [x + y, y + x] if p_val == 1 else [x + p * y, p * y + x, x + y * p, y * p + x]
+        second_exp = [x + y, y + x] if q_val == 1 else [x + q * y, q * y + x, x + y * q, y * q + x]
+        final_exp = []
+        for f in first_exp:
+            for s in second_exp:
+                final_exp.append(f * s)
+                if not p_val == q_val:
+                    final_exp.append(s * f)
+        return final_exp
+
+    def gen_expressions(x, y, a, b, c):
+        first_exp = [x * x] if a == 1 else [a * x * x, x * a * x, x * x * a]
+        second_exp = (
+            [x * y, y * x]
+            if b == 1
+            else [b * x * y, x * b * y, x * y * b, b * y * x, y * b * x, y * x * b]
+        )
+        third_exp = [y * y] if c == 1 else [c * y * y, y * c * y, y * y * c]
+        final_exp = []
+        for f in first_exp:
+            for s in second_exp:
+                for t in third_exp:
+                    final_exp.append(f + s + t)
+                    final_exp.append(f + t + s)
+                    final_exp.append(s + f + t)
+                    final_exp.append(s + t + f)
+                    final_exp.append(t + f + s)
+                    final_exp.append(t + s + f)
+        return final_exp
+
+    n = 5
+    dtypes = ["int32", "float32", "float64"]
+    for dtype in dtypes:
+        x = relay.var("x", shape=(n,), dtype=dtype)
+        y = relay.var("y", shape=(n,), dtype=dtype)
+
+        a = relay.const(1, dtype=dtype)
+        b = relay.const(2, dtype=dtype)
+        c = relay.const(1, dtype=dtype)
+        origin_exprs = gen_expressions(x, y, a, b, c)
+        expect_expr = gen_expected_expressions(x, y, 1, 2, 1, dtype)
+        check_simple_fold(origin_exprs, expect_expr)
+
+        a = relay.const(6, dtype=dtype)
+        b = relay.const(5, dtype=dtype)
+        c = relay.const(1, dtype=dtype)
+        origin_exprs = gen_expressions(x, y, a, b, c)
+        expect_expr = gen_expected_expressions(x, y, 6, 5, 1, dtype)
+        check_simple_fold(origin_exprs, expect_expr)
+
+        a = relay.const(1, dtype=dtype)
+        b = relay.const(1, dtype=dtype)
+        c = relay.const(1, dtype=dtype)
+        origin_exprs = gen_expressions(x, y, a, b, c)
+        expect_expr = gen_expected_expressions(x, y, 1, 1, 1, dtype)
+        check_simple_fold(origin_exprs, expect_expr)
+
+        a = relay.const(1, dtype=dtype)
+        b = relay.const(4, dtype=dtype)
+        c = relay.const(4, dtype=dtype)
+        origin_exprs = gen_expressions(x, y, a, b, c)
+        expect_expr = gen_expected_expressions(x, y, 1, 4, 4, dtype)
+        check_simple_fold(origin_exprs, expect_expr)
 
 
 if __name__ == "__main__":

@@ -941,6 +941,87 @@ class SimplifyDQArgSort : public SimplifyDQArgFunc {
   SimplifyDQArgSort() : SimplifyDQArgFunc("argsort") {}
 };
 
+/*! \brief Simplifying a * x * x + b * x * y + c * y * y to a * (x + p) * (y + q) */
+class SimplifyBinomial : public DFPatternRewrite {
+ public:
+  SimplifyBinomial() {
+    x_ = IsWildcard();
+    y_ = IsWildcard();
+    a_ = IsConstant();
+    b_ = IsConstant();
+    c_ = IsConstant();
+    DFPattern add = IsOp("add");
+    DFPattern mul = IsOp("multiply");
+    DFPattern x_sq = mul({a_, mul({x_, x_})}) || mul({x_, mul({a_, x_})}) || mul({x_, x_});
+    DFPattern xy = mul({b_, mul({x_, y_})}) || mul({x_, mul({b_, y_})}) ||
+                   mul({y_, mul({b_, x_})}) || mul({x_, y_});
+    DFPattern y_sq = mul({c_, mul({y_, y_})}) || mul({y_, mul({c_, y_})}) || mul({y_, y_});
+
+    pattern_ = add({add({xy, x_sq}), y_sq}) || add({add({xy, y_sq}), x_sq}) ||
+               add({add({x_sq, y_sq}), xy});
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    Type pre_type = pre->checked_type_;
+    auto dtype = pre_type.as<TensorTypeNode>()->dtype;
+    auto x = node_map[x_][0];
+    auto y = node_map[y_][0];
+    double a_val = 1;
+    double b_val = 1;
+    double c_val = 1;
+    double* vals[] = {&a_val, &b_val, &c_val};
+    DFPattern nodes[] = {a_, b_, c_};
+    for (int i = 0; i < 3; i++) {
+      if (node_map.count(nodes[i]) > 0) {
+        if (dtype == DataType::Int(32, 1))
+          *vals[i] = static_cast<int*>(
+              transform::FoldConstantExpr(node_map[nodes[i]][0]).as<ConstantNode>()->data->data)[0];
+        else if (dtype == DataType::Float(32, 1))
+          *vals[i] = static_cast<float*>(
+              transform::FoldConstantExpr(node_map[nodes[i]][0]).as<ConstantNode>()->data->data)[0];
+        else if (dtype == DataType::Float(64, 1))
+          *vals[i] = static_cast<double*>(
+              transform::FoldConstantExpr(node_map[nodes[i]][0]).as<ConstantNode>()->data->data)[0];
+      }
+    }
+    if (c_val == 1 && a_val > 1) {
+      auto temp_exp = x;
+      x = y;
+      y = temp_exp;
+      float temp_val = a_val;
+      a_val = c_val;
+      c_val = temp_val;
+    }
+
+    double sub_value = b_val * b_val - 4 * a_val * c_val;
+    if (sub_value < 0) return pre;
+    bool same_multiplicands = sub_value < 10e-5;
+
+    double discriminant = std::sqrt(sub_value);
+    Expr first_val = MakeConstantScalar(dtype, (b_val + discriminant) / (2 * a_val));
+    Expr second_val = same_multiplicands
+                          ? first_val
+                          : MakeConstantScalar(dtype, (b_val - discriminant) / (2 * a_val));
+
+    Expr first_multiplicand = Call(Op::Get("add"), {x, Call(Op::Get("multiply"), {y, first_val})});
+    Expr second_multiplicand =
+        same_multiplicands ? first_multiplicand
+                           : Call(Op::Get("add"), {x, Call(Op::Get("multiply"), {y, second_val})});
+    Expr a = MakeConstantScalar(dtype, a_val);
+    return Call(Op::Get("multiply"),
+                {a, Call(Op::Get("multiply"), {first_multiplicand, second_multiplicand})});
+  }
+
+ private:
+  /*! \brief Pattern input */
+  DFPattern a_;
+  DFPattern b_;
+  DFPattern c_;
+  DFPattern x_;
+  DFPattern y_;
+};
+
 Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   // the rewrites will be applied in the given order, and repeated until fixed point
   DFPatternRewriteComposer composer;
@@ -966,6 +1047,7 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<SimplifyDQArgSort>();
   composer.AddRewrite<SimplifyClipAndConsecutiveCast>();
   composer.AddRewrite<SimplifyCastClip>();
+  composer.AddRewrite<SimplifyBinomial>();
   return RewritePatterns(composer.MakeCallbacks(), expr, mod);
 }
 
