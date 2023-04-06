@@ -951,11 +951,10 @@ def nll_loss(
     ignore_index : int
       The target value to ignore.
 
-      The computed result.
-
     Returns
     -------
     result : relax.Expr
+      The computed result.
     """
     return _ffi_api.nll_loss(predictions, targets, weights, reduction, ignore_index)  # type: ignore
 

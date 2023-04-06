@@ -532,7 +532,7 @@ StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
       ctx->ReportFatal(
           Diagnostic::Error(call)
           << "NLLLoss requires the argument weights to be Tensor. However, the given one is "
-          << call->args[1]->struct_info_->GetTypeKey());
+          << call->args[2]->struct_info_->GetTypeKey());
     }
   }
 
@@ -546,7 +546,7 @@ StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
     ctx->ReportFatal(
         Diagnostic::Error(call)
         << "NLLLoss requires the argument targets to be Tensor. However, the given one is "
-        << call->args[2]->struct_info_->GetTypeKey());
+        << call->args[1]->struct_info_->GetTypeKey());
   }
 
   // infer dtype
