@@ -21,6 +21,7 @@
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
 
+#include <unordered_map>
 #include <vector>
 
 #include "../op/tensor/index.h"
@@ -32,18 +33,17 @@ namespace relax {
 
 using runtime::Map;
 
-Function CombineParallelMatmul(Function f) {
-  const int num_branches = 32;
-  PatternContext ctx;
+static auto matmul_op = Op::Get("relax.matmul");
 
+Function Rewrite(Function f, int num_branches, int slice_axis) {
+  PatternContext ctx;
   ctx.EnterWithScope();
 
   auto input_pattern = Wildcard();
   std::vector<WildcardPattern> weight_patterns;
   std::vector<CallPattern> matmul_patterns;
-  auto matmul_op = Op::Get("relax.matmul");
 
-  for (int i = 0; i < 32; ++i) {
+  for (int i = 0; i < num_branches; ++i) {
     auto w_pat = Wildcard();
     CallPattern matmul_pat{ExprPattern(matmul_op), {input_pattern, w_pat}};
     weight_patterns.push_back(w_pat);
@@ -54,7 +54,6 @@ Function CombineParallelMatmul(Function f) {
 
   runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>)> rewriter =
       [=](Map<DFPattern, Var> matchings) {
-        LOG(INFO) << "matched";
         auto inp = matchings[input_pattern];
 
         Array<Expr> weights;
@@ -62,12 +61,13 @@ Function CombineParallelMatmul(Function f) {
           weights.push_back(matchings[weight_pat]);
         }
 
-        auto concat_weights = concat(Tuple(weights), Integer(1));
-        auto matmul_combined = matmul(inp, concat_weights, DataType::Float(16));  // TODO dtype
+        auto concat_weights = concat(Tuple(weights), Integer(1));  // TODO: axis
+        auto out_dtype =
+            Downcast<TensorStructInfo>(GetStructInfo(matchings[matmul_patterns[0]]))->dtype;
+        auto matmul_combined = matmul(inp, concat_weights, out_dtype);
 
         Map<Var, Expr> replacements;
         PrimExpr begin{0};
-        int slice_axis = 2;  // TODO
         Array<PrimExpr> strides{1};
 
         for (size_t i = 0; i < num_branches; ++i) {
@@ -86,6 +86,48 @@ Function CombineParallelMatmul(Function f) {
   auto rewritten = RewriteBindings(ctx, rewriter, f);
   ctx.ExitWithScope();
   return rewritten;
+}
+
+struct BranchInfo {
+  int num_branches;
+  int slice_axis;
+};
+
+std::vector<BranchInfo> GetBranchInfo(Function f) {
+  std::unordered_map<const VarNode*, BranchInfo> groups;
+  PostOrderVisit(f, [&](const Expr& e) {
+    if (auto call = e.as<CallNode>(); call && call->op.same_as(matmul_op)) {
+      auto lhs = Downcast<Var>(call->args[0]);
+      if (auto it = groups.find(lhs.get()); it == groups.end()) {
+        auto sinfo = GetStructInfo(e);
+        auto slice_axis = Downcast<TensorStructInfo>(sinfo)->ndim - 1;
+        groups[lhs.get()] = {1, slice_axis};
+      } else {
+        it->second.num_branches += 1;
+      }
+    }
+  });
+
+  std::vector<BranchInfo> info;
+
+  for (const auto& group : groups) {
+    if (group.second.num_branches > 1) {
+      info.push_back(group.second);
+    }
+  }
+
+  std::sort(info.begin(), info.end(),
+            [](const auto& b1, const auto& b2) { return b1.num_branches > b2.num_branches; });
+
+  return info;
+}
+
+Function CombineParallelMatmul(Function f) {
+  auto branches = GetBranchInfo(f);
+  for (const auto& branch : branches) {
+    f = Rewrite(f, branch.num_branches, branch.slice_axis);
+  }
+  return f;
 }
 
 namespace transform {
