@@ -285,6 +285,19 @@ struct GroupNormAttrs : public tvm::AttrsNode<GroupNormAttrs> {
   }
 };  // struct GroupNormAttrs
 
+/*! \brief Attributes used in nll_loss operator */
+struct NLLLossAttrs : public tvm::AttrsNode<NLLLossAttrs> {
+  String reduction;
+  int ignore_index;
+
+  TVM_DECLARE_ATTRS(NLLLossAttrs, "relax.attrs.NLLLossAttrs") {
+    TVM_ATTR_FIELD(reduction).set_default("mean").describe(
+        "The reduction method to apply to the output. Can be"
+        "'none', 'mean' or 'sum'.");
+    TVM_ATTR_FIELD(ignore_index).describe("The target value to ignore.");
+  }
+};  // struct NLLLossAttrs
+
 /*! \brief Attributes used in dropout operator */
 struct DropoutAttrs : public tvm::AttrsNode<DropoutAttrs> {
   double rate;

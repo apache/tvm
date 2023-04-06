@@ -914,6 +914,52 @@ def cross_entropy_with_logits(predictions: Expr, labels: Expr) -> Expr:
     return _ffi_api.cross_entropy_with_logits(predictions, labels)  # type: ignore
 
 
+def nll_loss(
+    predictions: Expr,
+    targets: Expr,
+    weights: Optional[Expr] = None,
+    reduction: str = "mean",
+    ignore_index: int = -100,
+) -> Expr:
+    """Negative log likelihood loss.
+
+    `output[n, i_1, i_2, ..., i_k] = -p * w`, where
+    - `p = predictions[n, t, i_1, i_2, i_k]`,
+    - `t = targets[n, i_1, i_2, ..., i_k]`,
+    - `w = weights[t] if t != ignore_index else 0`
+
+    result = reduction(output)
+
+    Parameters
+    ----------
+    predictions : relax.Expr
+      The predictions. Should be a `(k+2)-D` Tensor with shape `(N, C, d_1, d_2, ..., d_k)` where C
+      is the number of target classes.
+
+    targets : relax.Expr
+      The target value of each prediction. Should be a `(k+1)-D` Tensor with shape
+      `(N, d_1, d_2, ..., d_k)`. Must be of int dtype.
+
+    weights : Optional[relax.Expr]
+      The weight of each target value. Should be a `1-D` Tensor with shape `(C,)`.
+      If not specified, it is treated as if having all ones.
+
+    reduction : str
+      The reduction method to apply to the output.
+      Possible values are "mean", "sum" and "none".
+
+    ignore_index : int
+      The target value to ignore.
+
+      The computed result.
+
+    Returns
+    -------
+    result : relax.Expr
+    """
+    return _ffi_api.nll_loss(predictions, targets, weights, reduction, ignore_index)  # type: ignore
+
+
 def attention(
     query: Expr,
     key: Expr,
