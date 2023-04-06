@@ -18,12 +18,14 @@
  */
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
 
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -53,7 +55,7 @@ inline TensorStructInfo GetTensorSInfo(Expr e) {
 
 struct BranchInfo {
   int num_branches;
-  bool has_bias;
+  std::optional<int> bias_dim;
   std::optional<std::string> activation;
 };
 
@@ -76,10 +78,12 @@ Function Rewrite(Function f, const BranchInfo& branch_info) {
 
     CallPattern matmul_out = matmul_pat;
 
-    if (branch_info.has_bias) {
+    if (branch_info.bias_dim) {
       auto bias_pat = Wildcard();
       bias_patterns.push_back(bias_pat);
       auto bias_add = IsOp("relax.add")(matmul_pat, bias_pat);
+      ctx.add_constraint(matmul_pat, bias_add, PairCons(PairCons::kUsedBy, 0));
+      ctx.add_constraint(bias_pat, bias_add, PairCons(PairCons::kUsedBy, 1));
       bias_add_patterns.push_back(bias_add);
       matmul_out = bias_add;
     }
@@ -127,7 +131,8 @@ Function Rewrite(Function f, const BranchInfo& branch_info) {
           Array<Expr> rhs, bias;
           for (auto ind : indices) {
             rhs.push_back(matchings[rhs_patterns[ind]]);
-            if (branch_info.has_bias) {
+            if (branch_info.bias_dim) {
+              ICHECK(matchings.count(bias_patterns[ind]));
               bias.push_back(matchings[bias_patterns[ind]]);
             }
           }
@@ -138,7 +143,7 @@ Function Rewrite(Function f, const BranchInfo& branch_info) {
 
           auto pattern_to_replace = &matmul_patterns;
 
-          if (branch_info.has_bias) {
+          if (branch_info.bias_dim) {
             auto bias_dim = GetTensorSInfo(bias[0])->ndim;
             for (auto b : bias) {
               ICHECK(GetTensorSInfo(b)->ndim == bias_dim);
@@ -157,7 +162,7 @@ Function Rewrite(Function f, const BranchInfo& branch_info) {
             } else if (*branch_info.activation == "silu") {
               matmul_combined = silu(matmul_combined);
             } else {
-              LOG(INFO) << "Unsupported activation: " << *branch_info.activation;
+              LOG(FATAL) << "Unsupported activation: " << *branch_info.activation;
             }
           }
 
@@ -184,25 +189,104 @@ Function Rewrite(Function f, const BranchInfo& branch_info) {
 }
 
 std::vector<BranchInfo> GetBranchInfo(Function f) {
-  std::unordered_map<const VarNode*, BranchInfo> groups;
-  static auto matmul_op = Op::Get("relax.matmul");
+  auto lhs_pat = Wildcard();
+  auto rhs_pat = Wildcard();
+  auto bias_pat = Wildcard();
+
+  auto matmul_pat = IsOp("relax.matmul")(lhs_pat, rhs_pat);
+  auto bias_add_pat = IsOp("relax.add")(matmul_pat, bias_pat);
+
+  std::vector<std::string> activations{"relax.nn.relu", "relax.nn.gelu", "relax.nn.silu"};
+
+  std::vector<DFPattern> activation_pat, bias_activation_pat;
+  for (const auto& act : activations) {
+    activation_pat.push_back(IsOp(act)(matmul_pat));
+    bias_activation_pat.push_back(IsOp(act)(bias_add_pat));
+  }
+
+  auto bindings = AnalyzeVar2Value(f);
+
+  std::unordered_map<const VarNode*, BranchInfo> groups_activation, groups_bias, groups_matmul;
 
   PostOrderVisit(f, [&](const Expr& e) {
-    if (auto call = e.as<CallNode>(); call && call->op.same_as(matmul_op)) {
-      auto lhs = Downcast<Var>(call->args[0]);
-      if (auto it = groups.find(lhs.get()); it == groups.end()) {
-        groups[lhs.get()] = {1, false, std::nullopt};
+    if (!e->IsInstance<CallNode>()) return;
+    if (auto match = ExtractMatchedExpr(bias_add_pat, e, bindings)) {
+      auto matmul_call = Downcast<Call>(match.value()[matmul_pat]);
+      auto matmul_lhs = Downcast<Var>(matmul_call->args[0]);
+      auto bias_dim = GetTensorSInfo(match.value()[bias_pat])->ndim;
+      if (auto it = groups_bias.find(matmul_lhs.get()); it == groups_bias.end()) {
+        groups_bias[matmul_lhs.get()] = {1, bias_dim, std::nullopt};
       } else {
         it->second.num_branches += 1;
+        if (it->second.bias_dim && *it->second.bias_dim != bias_dim) {
+          it->second.bias_dim = std::nullopt;
+        }
       }
+      return;
     }
   });
 
+  PostOrderVisit(f, [&](const Expr& e) {
+    if (!e->IsInstance<CallNode>()) return;
+    if (auto match = ExtractMatchedExpr(matmul_pat, e, bindings)) {
+      auto matmul_call = Downcast<Call>(match.value()[matmul_pat]);
+      auto matmul_lhs = Downcast<Var>(matmul_call->args[0]);
+      if (groups_bias.count(matmul_lhs.get()) || groups_activation.count(matmul_lhs.get())) return;
+      if (auto it = groups_matmul.find(matmul_lhs.get()); it == groups_matmul.end()) {
+        groups_matmul[matmul_lhs.get()] = {1, std::nullopt, std::nullopt};
+      } else {
+        it->second.num_branches += 1;
+      }
+      return;
+    }
+  });
+
+  // for (size_t i = 0; i < activations.size(); ++i) {
+  //   if (auto match = ExtractMatchedExpr(bias_activation_pat[i], e, bindings)) {
+  //     auto matmul_lhs = Downcast<Var>(match.value()[lhs_pat]);
+  //     auto bias_dim = GetTensorSInfo(match.value()[bias_pat])->ndim;
+  //     if (auto it = groups.find(matmul_lhs.get()); it == groups.end()) {
+  //       groups[matmul_lhs.get()] = {1, bias_dim, activations[i]};
+  //     } else {
+  //       it->second.num_branches += 1;
+
+  //       if (it->second.bias_dim != bias_dim) {
+  //         it->second.bias_dim = std::nullopt;
+  //       }
+
+  //       if (!it->second.activation || (*it->second.activation != activations[i])) {
+  //         it->second.activation = std::nullopt;
+  //       }
+  //     }
+
+  //     for (auto pat : {matmul_pat, bias_add_pat}) {
+  //       seen.insert(match.value()[pat].get());
+  //     }
+  //     return;
+  //   }
+  //   if (auto match = ExtractMatchedExpr(activation_pat[i], e, bindings)) {
+  //     auto matmul = match.value()[matmul_pat];
+  //     auto matmul_lhs = Downcast<Var>(match.value()[lhs_pat]);
+  //     if (auto it = groups.find(matmul_lhs.get()); it == groups.end()) {
+  //       groups[matmul_lhs.get()] = {1, std::nullopt, activations[i]};
+  //     } else {
+  //       it->second.num_branches += 1;
+
+  //       if (!it->second.activation || (*it->second.activation != activations[i])) {
+  //         it->second.activation = std::nullopt;
+  //       }
+  //     }
+  //     return;
+  //   }
+  // }
+
   std::vector<BranchInfo> info;
 
-  for (const auto& group : groups) {
-    if (group.second.num_branches > 1) {
-      info.push_back(group.second);
+  for (auto groups : {groups_matmul, groups_activation, groups_bias}) {
+    for (const auto& group : groups) {
+      if (group.second.num_branches > 1) {
+        info.push_back(group.second);
+      }
     }
   }
 
