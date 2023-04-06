@@ -79,7 +79,7 @@ def get_slice(
     kernel: Tuple[int],
     strides: Tuple[int],
     dilation: Tuple[int],
-) -> List[slice]:
+) -> Tuple[slice]:
     """
     Programmatically create a slice object of the right dimensions for pad_np.
 
@@ -100,7 +100,7 @@ def get_slice(
     # Add back batch and channel dimensions
     slices = [slice(None), slice(None)] + slices
 
-    return slices
+    return tuple(slices)
 
 
 def pad_tensor(
@@ -189,7 +189,7 @@ def poolnd_python(
             dilation=dilation,
         )
 
-        output_slice = [slice(None), slice(None)] + list(coordinate)
+        output_slice = (slice(None), slice(None)) + tuple(coordinate)
         reduction_axis = tuple(range(2, len(np_data.shape)))
         if pool_type == "avg":
             count_non_padded = (

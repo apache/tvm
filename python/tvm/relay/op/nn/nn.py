@@ -604,7 +604,7 @@ def conv1d_transpose(
     channels=None,
     kernel_size=None,
     data_layout="NCW",
-    kernel_layout="OIW",
+    kernel_layout="IOW",
     out_layout="",
     output_padding=(0,),
     out_dtype="",

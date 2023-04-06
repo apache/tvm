@@ -542,6 +542,84 @@ class Schedule(Object):
 
     ########## Schedule: Transform loops ##########
     @type_checked
+    def merge(
+        self,
+        *loops: List[LoopRV],
+    ) -> LoopRV:
+        """Merge a list of loops into one. The loops under their LCA requires:
+        1) Under the same scope.
+        2) Can't have annotations or thread bindings.
+        3) Start with 0 and have same extent and same nesting depth.
+        4) From target loop to their LCA, The inner loop must be the only child of the outer loop.
+
+        Parameters
+        ----------
+        *loops : List[LoopRV]
+            The loops to be merged
+
+        Returns
+        -------
+        fused_loop : LoopRV
+            The new loop after merge
+
+        Examples
+        --------
+
+        Before applying merge, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_merge(a: T.handle, b: T.handle, c: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                C = T.match_buffer(c, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+                for i, j in T.grid(128, 128):
+                    with T.block("C"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        C[vi, vj] = A[vi, vj] * 2.0
+
+        Create the schedule and do fuse:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_fuse)
+            i1, _ = sch.get_loops(sch.get_block("B"))
+            i2, _ = sch.get_loops(sch.get_block("C"))
+            sch.merge(i1, i2)
+            print(sch.mod["main"].script())
+
+        After applying fuse, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_fuse(a: T.handle, b: T.handle, c: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                C = T.match_buffer(c, (128, 128))
+                # the 2 loops are merged into 1
+                for i_m in range(128):
+                    for j in range(128):
+                        with T.block("B"):
+                            vi, vj = T.axis.remap("SS", [i_m, j])
+                            T.reads(A[vi, vj])
+                            T.writes(B[vi, vj])
+                            B[vi, vj] = A[vi, vj] * T.float32(2)
+                    for j in range(128):
+                        with T.block("C"):
+                            vi, vj = T.axis.remap("SS", [i_m, j])
+                            T.reads(A[vi, vj])
+                            T.writes(C[vi, vj])
+                            C[vi, vj] = A[vi, vj] * T.float32(2)
+        """
+        return _ffi_api.ScheduleMerge(self, loops)  # type: ignore # pylint: disable=no-member
+
+    @type_checked
     def fuse(
         self,
         *loops: List[LoopRV],
@@ -751,6 +829,19 @@ class Schedule(Object):
 
         """
         _ffi_api.ScheduleReorder(self, ordered_loops)  # type: ignore # pylint: disable=no-member
+
+    @type_checked
+    def reorder_block_iter_var(self, block: BlockRV, new_order: List[int]) -> None:
+        """Reorder the itervars inside a given block.
+
+        Parameters
+        ----------
+        block : BlockRV
+            The block to be transformed.
+        new_order : List[int]
+            The new block itervar order.
+        """
+        _ffi_api.ScheduleReorderBlockIterVar(self, block, new_order)  # type: ignore # pylint: disable=no-member
 
     @type_checked
     def add_unit_loop(self, block_or_loop: Union[LoopRV, BlockRV]) -> LoopRV:

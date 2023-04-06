@@ -671,10 +671,10 @@ struct Conv1DTransposeAttrs : public tvm::AttrsNode<Conv1DTransposeAttrs> {
             "dimensions respectively. Convolution is applied on the"
             "'W' dimension.");
     TVM_ATTR_FIELD(kernel_layout)
-        .set_default("OIW")
+        .set_default("IOW")
         .describe(
-            "Dimension ordering of data and weight. Can be 'OIW', 'OIW16o16i', etc."
-            "'O', 'I', 'W' stands for num_filter, input_channel, and width"
+            "Dimension ordering of data and weight. Can be 'IOW', 'IOW16o16i', etc."
+            "'I', 'O', 'W' stands for input_channel, num_filter and width"
             "dimensions respectively.");
     TVM_ATTR_FIELD(out_layout)
         .set_default("")

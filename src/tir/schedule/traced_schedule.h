@@ -61,9 +61,11 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   Array<BlockRV> GetConsumers(const BlockRV& block_rv) final;
   /******** Schedule: Transform loops ********/
   LoopRV Fuse(const Array<LoopRV>& loop_rvs, bool preserve_unit_iters) final;
+  LoopRV Merge(const Array<LoopRV>& loop_rvs) final;
   Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factor_rvs,
                       bool preserve_unit_iters) final;
   void Reorder(const Array<LoopRV>& ordered_loop_rvs) final;
+  void ReorderBlockIterVar(const BlockRV& block_rv, const Array<Integer> new_order) final;
   LoopRV AddUnitLoop(const BlockRV& block_rv) final;
   LoopRV AddUnitLoop(const LoopRV& loop_rv) final;
   /******** Schedule: Manipulate ForKind ********/
