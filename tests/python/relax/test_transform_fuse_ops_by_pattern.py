@@ -19,7 +19,12 @@ import pytest
 
 import tvm
 from tvm import relax
-from tvm.relax.dpl.pattern import is_op, make_fused_bias_activation_pattern, wildcard
+from tvm.relax.dpl.pattern import (
+    is_op,
+    make_fused_bias_activation_pattern,
+    wildcard,
+    is_tuple_get_item,
+)
 from tvm.relax.transform import PatternCheckContext
 from tvm.script import ir as I
 from tvm.script import relax as R
@@ -669,6 +674,78 @@ def test_bind_constants():
         Conv2dWithConstantWeight_partitioned,
         bind_constants=False,
     )
+
+
+def test_split():
+    @R.function
+    def func(inp: R.Tensor((16, 32), "float32")):
+        with R.dataflow():
+            tup = R.split(inp, [16], axis=1)
+            out = R.add(tup[0], tup[1])
+            R.output(out)
+        return out
+
+    @tvm.script.ir_module
+    class Expected1:
+        @R.function
+        def fused_relax_split(
+            inp: R.Tensor((16, 32), dtype="float32")
+        ) -> R.Tuple(R.Tensor((16, 16), dtype="float32"), R.Tensor((16, 16), dtype="float32")):
+            R.func_attr({"Composite": "x.split", "Primitive": 1})
+            with R.dataflow():
+                gv: R.Tuple(
+                    R.Tensor((16, 16), dtype="float32"), R.Tensor((16, 16), dtype="float32")
+                ) = R.split(inp, indices_or_sections=[16], axis=1)
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(inp: R.Tensor((16, 32), dtype="float32")) -> R.Tensor((16, 16), dtype="float32"):
+            cls = Expected1
+            with R.dataflow():
+                lv: R.Tuple(
+                    R.Tensor((16, 16), dtype="float32"), R.Tensor((16, 16), dtype="float32")
+                ) = cls.fused_relax_split(inp)
+                lv1: R.Tensor((16, 16), dtype="float32") = lv[0]
+                lv2: R.Tensor((16, 16), dtype="float32") = lv[1]
+                out: R.Tensor((16, 16), dtype="float32") = R.add(lv1, lv2)
+                R.output(out)
+            return out
+
+    @I.ir_module
+    class Expected2:
+        @R.function
+        def fused_relax_split_relax_add(
+            inp: R.Tensor((16, 32), dtype="float32")
+        ) -> R.Tensor((16, 16), dtype="float32"):
+            R.func_attr({"Composite": "x.split", "Primitive": 1})
+            with R.dataflow():
+                tup: R.Tuple(
+                    R.Tensor((16, 16), dtype="float32"), R.Tensor((16, 16), dtype="float32")
+                ) = R.split(inp, indices_or_sections=[16], axis=1)
+                lv1: R.Tensor((16, 16), dtype="float32") = tup[0]
+                lv2: R.Tensor((16, 16), dtype="float32") = tup[1]
+                gv: R.Tensor((16, 16), dtype="float32") = R.add(lv1, lv2)
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(inp: R.Tensor((16, 32), dtype="float32")) -> R.Tensor((16, 16), dtype="float32"):
+            cls = Expected2
+            with R.dataflow():
+                gv: R.Tensor((16, 16), dtype="float32") = cls.fused_relax_split_relax_add(inp)
+                R.output(gv)
+            return gv
+
+    mod = tvm.IRModule({"main": func})
+
+    split = is_op("relax.split")(wildcard())
+    it1 = is_tuple_get_item(split, 0)
+    it2 = is_tuple_get_item(split, 1)
+    add = is_op("relax.add")(it1, it2)
+
+    check(mod, [("x.split", split)], Expected1)
+    check(mod, [("x.split", add)], Expected2)
 
 
 if __name__ == "__main__":

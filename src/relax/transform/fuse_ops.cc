@@ -751,7 +751,7 @@ class OperatorFusor : public ExprMutator {
       }
 
       // Step c. Update the mapping used for the remapping of the binding variables.
-      if (IsTupleOutput(func)) {
+      if (IsTupleOutput(func) && !pending_tuple_get.empty()) {
         // If the output is a tuple, attach TupleGetItem to all tuple elements, and
         // remap variables approriately.
         // The variables that need to be remapped and the corresponding tuple indices are
@@ -817,7 +817,11 @@ class OperatorFusor : public ExprMutator {
           if (auto producer = group2func_.find(producer_group);
               producer_group != cur_group && producer != group2func_.end()) {
             auto output_index = producer->second.AppendOutput(used_var);
-            tuple_get_indices_[used_var.get()] = output_index;
+            if (!GetStructInfo(used_var)->IsInstance<TupleStructInfoNode>()) {
+              // When used_var itself is a tuple, we do not need to remap this variable to the
+              // output of TupleGetItem after fusion.
+              tuple_get_indices_[used_var.get()] = output_index;
+            }
           }
         }
       };
@@ -1018,8 +1022,13 @@ class PatternBasedPartitioner : ExprVisitor {
       ICHECK(parent_group);
       parent_group->attrs.Set(attr::kComposite, pat_name_);
       for (const auto& [pat, match] : matches_opt.value()) {
-        // Put all matching call nodes into the parent group.
-        if (pat->IsInstance<CallPatternNode>() && match != GetRef<Call>(call)) {
+        // Put all matching expressions into the parent group. But we need to be careful not to
+        // merge expressions matched by a wildcard pattern, since a wildcard can match the output of
+        // the previous group. For example, when there are two back-to-back conv2d ops, the output
+        // of the first conv2d is matched to the input of the second conv2d via a wildcard pattern.
+        // But we must avoid merging the first conv2d into the group of the second conv2d.
+        if ((pat->IsInstance<CallPatternNode>() && match != GetRef<Call>(call)) ||
+            pat->IsInstance<TupleGetItemPatternNode>()) {
           // Put the bound variable on the LHS into the same parent group.
           AddToGroup(value_to_bound_var_[match], parent_group);
         }
