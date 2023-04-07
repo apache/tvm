@@ -87,6 +87,8 @@ class Analyzer:
         self._modular_set = _mod("modular_set")
         self._simplify = _mod("Simplify")
         self._rewrite_simplify = _mod("rewrite_simplify")
+        self._get_rewrite_simplify_stats = _mod("get_rewrite_simplify_stats")
+        self._reset_rewrite_simplify_stats = _mod("reset_rewrite_simplify_stats")
         self._canonical_simplify = _mod("canonical_simplify")
         self._int_set = _mod("int_set")
         self._enter_constraint_context = _mod("enter_constraint_context")
@@ -156,6 +158,13 @@ class Analyzer:
             The result.
         """
         return self._rewrite_simplify(expr)
+
+    @property
+    def rewrite_simplify_stats(self):
+        return self._get_rewrite_simplify_stats()
+
+    def reset_rewrite_simplify_stats(self):
+        self._reset_rewrite_simplify_stats()
 
     def canonical_simplify(self, expr):
         """Simplify expression via canonicalization.

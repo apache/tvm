@@ -58,25 +58,33 @@ using namespace tir;
 
 // macro for doing simple rewrite
 #define TVM_TRY_REWRITE(SrcExpr, ResExpr) \
+  RecordAttemptedRewrite();               \
   if ((SrcExpr).Match(ret)) {             \
+    RecordRewrite();                      \
     return (ResExpr).Eval();              \
   }
 
 // macro for rewrite + recursively rewrite ResExpr
 #define TVM_TRY_RECURSIVE_REWRITE(SrcExpr, ResExpr) \
+  RecordAttemptedRewrite();                         \
   if ((SrcExpr).Match(ret)) {                       \
+    RecordRewrite();                                \
     return RecursiveRewrite((ResExpr).Eval());      \
   }
 
 // macro rewrite only if CondExor is true after match.
 #define TVM_TRY_REWRITE_IF(SrcExpr, ResExpr, CondExpr)      \
+  RecordAttemptedRewrite();                                 \
   if ((SrcExpr).Match(ret, [&]() { return (CondExpr); })) { \
+    RecordRewrite();                                        \
     return (ResExpr).Eval();                                \
   }
 
 // macro rewrite + recursive_rewrite only if CondExor is true after match.
 #define TVM_TRY_RECURSIVE_REWRITE_IF(SrcExpr, ResExpr, CondExpr) \
+  RecordAttemptedRewrite();                                      \
   if ((SrcExpr).Match(ret, [&]() { return (CondExpr); })) {      \
+    RecordRewrite();                                             \
     return RecursiveRewrite((ResExpr).Eval());                   \
   }
 
@@ -201,6 +209,11 @@ CompareResult RewriteSimplifier::Impl::TryCompare(const PrimExpr& x, int64_t val
     }
   }
   return CompareResult::kUnknown;
+}
+
+PrimExpr RewriteSimplifier::Impl::VisitExpr(const PrimExpr& e) {
+  stats_.nodes_visited++;
+  return IRMutatorWithAnalyzer::VisitExpr(e);
 }
 
 void RewriteSimplifier::Impl::Update(const Var& var, const PrimExpr& info, bool can_override) {
@@ -342,6 +355,7 @@ std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const PrimExpr& c
       literal_constraints_.push_back(Not(negation));
     }
   }
+  stats_.constraints_entered++;
   size_t new_literal_size = literal_constraints_.size();
   auto frecover = [old_literal_size, new_literal_size, this]() {
     ICHECK_EQ(literal_constraints_.size(), new_literal_size);
@@ -2133,9 +2147,30 @@ RewriteSimplifier::Extension RewriteSimplifier::GetEnabledExtensions() const {
   return impl_->GetEnabledExtensions();
 }
 
+ObjectRef RewriteSimplifier::GetStatsCounters() const { return impl_->GetStatsCounters(); }
+
+void RewriteSimplifier::ResetStatsCounters() { impl_->ResetStatsCounters(); }
+
+void RewriteSimplifier::SetMaximumRewriteSteps(int maximum) {
+  impl_->SetMaximumRewriteSteps(maximum);
+}
+
 RewriteSimplifier::RewriteSimplifier(Analyzer* parent) : impl_(new Impl(parent)) {}
 
 RewriteSimplifier::~RewriteSimplifier() { delete impl_; }
+
+TVM_REGISTER_NODE_TYPE(RewriteSimplifierStatsNode);
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<RewriteSimplifierStatsNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* ptr = node.as<RewriteSimplifierStatsNode>();
+      p->stream << "RewriteSimplifierStats(nodes_visited = " << ptr->nodes_visited
+                << ", constraints_entered = " << ptr->constraints_entered
+                << ", rewrites_attempted = " << ptr->rewrites_attempted
+                << ", rewrites_performed = " << ptr->rewrites_performed
+                << ", max_recursive_depth = " << ptr->max_recursive_depth
+                << ", num_recursive_rewrites = " << ptr->num_recursive_rewrites << ")";
+    });
 
 }  // namespace arith
 }  // namespace tvm

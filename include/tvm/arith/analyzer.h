@@ -330,6 +330,14 @@ class RewriteSimplifier {
   /*! \brief Return the currently enabled extensions */
   TVM_DLL Extension GetEnabledExtensions() const;
 
+  /*! \brief Return the statistics counters */
+  TVM_DLL ObjectRef GetStatsCounters() const;
+
+  /*! \brief Reset the statistics counters */
+  TVM_DLL void ResetStatsCounters();
+
+  TVM_DLL void SetMaximumRewriteSteps(int maximum);
+
  private:
   friend class Analyzer;
   friend class ConstraintContext;
