@@ -57,7 +57,7 @@ def strided_slice(
     axes: List[int],
     begin: List[PrimExprLike],
     end: List[PrimExprLike],
-    strides: Optional[List[PrimExprLike]] = None,
+    stride: Optional[List[PrimExprLike]] = None,
 ) -> Expr:
     """Strided slice of a tensor.
 
@@ -75,7 +75,7 @@ def strided_slice(
     end : List[PrimExprLike]
         The indices indicating end of the slice, exclusive.
 
-    strides : Optional[List[PrimExprLike]]
+    stride : Optional[List[PrimExprLike]]
         Specifies the stride values, it can be negative in that case,
         the input tensor will be reversed in that particular axis.
         If not specified, it by default is an list of ones of the same length as `axes`.
@@ -87,7 +87,44 @@ def strided_slice(
 
     Note
     ----
-    strided_slice require the input `begin`, `end` and `strides` to have the
+    strided_slice require the input `begin`, `end` and `stride` to have the
     same length as `axes`.
     """
-    return _ffi_api.strided_slice(x, axes, begin, end, strides)  # type: ignore
+    return _ffi_api.strided_slice(x, axes, begin, end, stride)  # type: ignore
+
+
+def dyn_strided_slice(
+    x: Expr,
+    begin: Expr,
+    end: Expr,
+    stride: Expr,
+) -> Expr:
+    """Dynamic strided slice of a tensor. `begin`, `end`, `stride` can be computed at runtime.
+
+    Parameters
+    ----------
+    x : Expr
+        The source tensor to be sliced.
+
+    begin : Expr
+        The indices to begin with in the slicing, inclusive.
+
+    end : Expr
+        The indices indicating end of the slice, exclusive.
+
+    stride : Expr
+        Specifies the stride values, it can be negative in that case,
+        the input tensor will be reversed in that particular axis.
+        If not specified, it by default is an list of ones of the same length as `axes`.
+
+    Returns
+    -------
+    ret : relax.Expr
+        The sliced result.
+
+    Note
+    ----
+    dyn_strided_slice require the input `begin`, `end` and `stride` to have the
+    same length as rank of `data` tensor.
+    """
+    return _ffi_api.dyn_strided_slice(x, begin, end, stride)  # type: ignore

@@ -30,6 +30,7 @@ def test_op_correctness():
     assert relax.op.strided_slice(x, axes=[0], begin=[0], end=[2]).op == Op.get(
         "relax.strided_slice"
     )
+    assert relax.op.dyn_strided_slice(x, x, x, x).op == Op.get("relax.dyn_strided_slice")
 
 
 def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: relax.StructInfo):
@@ -364,49 +365,49 @@ def test_strided_slice_infer_struct_info():
     _check_inference(
         bb,
         relax.op.strided_slice(
-            x0, axes=[0, 1, 3], begin=[1, 0, 8], end=[8, 9, 0], strides=[2, 1, -3]
+            x0, axes=[0, 1, 3], begin=[1, 0, 8], end=[8, 9, 0], stride=[2, 1, -3]
         ),
         relax.TensorStructInfo((4, 9, 10, 3), "float32"),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(
-            x1, axes=[0, 1, 3], begin=[1, 0, 8], end=[8, 9, 0], strides=[2, 1, -3]
+            x1, axes=[0, 1, 3], begin=[1, 0, 8], end=[8, 9, 0], stride=[2, 1, -3]
         ),
         relax.TensorStructInfo(dtype="float32", ndim=4),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(
-            x2, axes=[0, 1, 3], begin=[1, 0, 8], end=[8, 9, 0], strides=[2, 1, -3]
+            x2, axes=[0, 1, 3], begin=[1, 0, 8], end=[8, 9, 0], stride=[2, 1, -3]
         ),
         relax.TensorStructInfo(dtype="float32"),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(
-            x3, axes=[0, 1, 3], begin=[1, 0, 8], end=[8, 9, 0], strides=[2, 1, -3]
+            x3, axes=[0, 1, 3], begin=[1, 0, 8], end=[8, 9, 0], stride=[2, 1, -3]
         ),
         relax.TensorStructInfo((4, 9, 10, 3), dtype=""),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(
-            x4, axes=[0, 1, 3], begin=[1, 0, 8], end=[8, 9, 0], strides=[2, 1, -3]
+            x4, axes=[0, 1, 3], begin=[1, 0, 8], end=[8, 9, 0], stride=[2, 1, -3]
         ),
         relax.TensorStructInfo(dtype="", ndim=4),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(
-            x5, axes=[0, 1, 3], begin=[1, 0, 8], end=[8, 9, 0], strides=[2, 1, -3]
+            x5, axes=[0, 1, 3], begin=[1, 0, 8], end=[8, 9, 0], stride=[2, 1, -3]
         ),
         relax.TensorStructInfo(dtype=""),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(
-            x0, axes=[-1, -3, -4], begin=[8, 0, 1], end=[0, 9, 8], strides=[-3, 1, 2]
+            x0, axes=[-1, -3, -4], begin=[8, 0, 1], end=[0, 9, 8], stride=[-3, 1, 2]
         ),
         relax.TensorStructInfo((4, 9, 10, 3), "float32"),
     )
@@ -423,28 +424,28 @@ def test_strided_slice_infer_struct_info_shape_out_of_range():
     _check_inference(
         bb,
         relax.op.strided_slice(
-            x0, axes=[0, 1, 2], begin=[20, 10, 4], end=[0, 0, 1], strides=[-1, -3, -2]
+            x0, axes=[0, 1, 2], begin=[20, 10, 4], end=[0, 0, 1], stride=[-1, -3, -2]
         ),
         relax.TensorStructInfo((19, 3, 2), "float32"),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(
-            x0, axes=[0, 1, 2], begin=[200, 10, 4], end=[0, 0, 1], strides=[-1, -3, -2]
+            x0, axes=[0, 1, 2], begin=[200, 10, 4], end=[0, 0, 1], stride=[-1, -3, -2]
         ),
         relax.TensorStructInfo((19, 3, 2), "float32"),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(
-            x0, axes=[0, 1, 2], begin=[200, 10, 100], end=[0, 0, 1], strides=[-1, -3, -5]
+            x0, axes=[0, 1, 2], begin=[200, 10, 100], end=[0, 0, 1], stride=[-1, -3, -5]
         ),
         relax.TensorStructInfo((19, 3, 1), "float32"),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(
-            x0, axes=[0, 1, 2], begin=[-21, -11, -6], end=[1, 1, 1], strides=[1000, 1000, 1000]
+            x0, axes=[0, 1, 2], begin=[-21, -11, -6], end=[1, 1, 1], stride=[1000, 1000, 1000]
         ),
         relax.TensorStructInfo((1, 1, 1), "float32"),
     )
@@ -464,7 +465,7 @@ def test_strided_slice_infer_struct_info_shape_symbolic():
     )
     _check_inference(
         bb,
-        relax.op.strided_slice(x0, axes=[0], begin=[1], end=[8], strides=[3]),
+        relax.op.strided_slice(x0, axes=[0], begin=[1], end=[8], stride=[3]),
         relax.TensorStructInfo(((tir.min(8, m) - tir.min(1, m) + 3 - 1) // 3, n), "float32"),
     )
     _check_inference(
@@ -474,7 +475,7 @@ def test_strided_slice_infer_struct_info_shape_symbolic():
     )
     _check_inference(
         bb,
-        relax.op.strided_slice(x1, axes=[0], begin=[1], end=[8], strides=[3]),
+        relax.op.strided_slice(x1, axes=[0], begin=[1], end=[8], stride=[3]),
         relax.TensorStructInfo(((tir.min(8, m) - tir.min(1, m) + 3 - 1) // 3, n), dtype=""),
     )
 
@@ -546,7 +547,7 @@ def test_strided_slice_infer_struct_info_more_input_dtype():
     )
 
 
-def test_strided_slice_infer_struct_info_symbolic_begin_end_strides():
+def test_strided_slice_infer_struct_info_symbolic_begin_end_stride():
     bb = relax.BlockBuilder()
     a = tir.Var("a", "int64")
     x = relax.Var("x", R.Tensor((8, 9), "float32"))
@@ -563,7 +564,7 @@ def test_strided_slice_infer_struct_info_symbolic_begin_end_strides():
     )
     _check_inference(
         bb,
-        relax.op.strided_slice(x, axes=[0], begin=[0], end=[8], strides=[a]),
+        relax.op.strided_slice(x, axes=[0], begin=[0], end=[8], stride=[a]),
         relax.TensorStructInfo(dtype="float32", ndim=2),
     )
 
@@ -614,10 +615,10 @@ def test_strided_slice_infer_struct_info_no_axis():
     )
 
 
-def test_strided_slice_begin_end_strides_int64():
+def test_strided_slice_begin_end_stride_int64():
     x = relax.Var("x", R.Tensor((8, 9, 10, 10), "float32"))
     strided_slice = relax.op.strided_slice(
-        x, axes=[0, 1, 3], begin=[1, 0, 8], end=[8, 9, 0], strides=[2, 1, -3]
+        x, axes=[0, 1, 3], begin=[1, 0, 8], end=[8, 9, 0], stride=[2, 1, -3]
     )
 
     assert strided_slice.attrs.begin[0].dtype == "int64"
@@ -626,12 +627,12 @@ def test_strided_slice_begin_end_strides_int64():
     assert strided_slice.attrs.end[0].dtype == "int64"
     assert strided_slice.attrs.end[1].dtype == "int64"
     assert strided_slice.attrs.end[2].dtype == "int64"
-    assert strided_slice.attrs.strides[0].dtype == "int64"
-    assert strided_slice.attrs.strides[1].dtype == "int64"
-    assert strided_slice.attrs.strides[2].dtype == "int64"
+    assert strided_slice.attrs.stride[0].dtype == "int64"
+    assert strided_slice.attrs.stride[1].dtype == "int64"
+    assert strided_slice.attrs.stride[2].dtype == "int64"
 
 
-def test_strided_slice_inconsistent_axes_begin_end_strides_length():
+def test_strided_slice_inconsistent_axes_begin_end_stride_length():
     x = relax.Var("x", R.Tensor((8, 9), "float32"))
 
     with pytest.raises(TVMError):
@@ -639,7 +640,7 @@ def test_strided_slice_inconsistent_axes_begin_end_strides_length():
     with pytest.raises(TVMError):
         relax.op.strided_slice(x, axes=[1], begin=[0], end=[])
     with pytest.raises(TVMError):
-        relax.op.strided_slice(x, axes=[1], begin=[0], end=[9], strides=[])
+        relax.op.strided_slice(x, axes=[1], begin=[0], end=[9], stride=[])
 
 
 def test_strided_slice_infer_struct_info_repetitive_axes():
@@ -671,6 +672,202 @@ def test_strided_slice_infer_struct_info_wrong_input_type():
         bb.normalize(relax.op.strided_slice(x0, axes=[0], begin=[0], end=[8]))
     with pytest.raises(TVMError):
         bb.normalize(relax.op.strided_slice(x1, axes=[0], begin=[0], end=[8]))
+
+
+def test_dyn_strided_slice_infer_struct_info():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((8, 9, 10, 10), "float32"))
+    x1 = relax.Var("x", R.Tensor("float32", ndim=4))
+    x2 = relax.Var("x", R.Tensor("float32"))
+    x3 = relax.Var("x", R.Tensor((8, 9, 10, 10)))
+    x4 = relax.Var("x", R.Tensor(ndim=4))
+    x5 = relax.Var("x", R.Tensor())
+
+    b0 = relax.Var("begin", R.Tensor((4,), "int64"))
+    e0 = relax.Var("end", R.Tensor((4,), "int64"))
+    s0 = relax.Var("stride", R.Tensor((4,), "int64"))
+    b1 = relax.Var("begin", R.Tensor((4,)))
+    e1 = relax.Var("end", R.Tensor((4,)))
+    s1 = relax.Var("stride", R.Tensor((4,)))
+
+    _check_inference(
+        bb,
+        relax.op.dyn_strided_slice(x0, b0, e0, s0),
+        R.Tensor("float32", ndim=4),
+    )
+    _check_inference(
+        bb,
+        relax.op.dyn_strided_slice(x1, b0, e0, s0),
+        R.Tensor("float32", ndim=4),
+    )
+    _check_inference(
+        bb,
+        relax.op.dyn_strided_slice(x2, b0, e0, s0),
+        R.Tensor("float32", ndim=-1),
+    )
+    _check_inference(
+        bb,
+        relax.op.dyn_strided_slice(x3, b0, e0, s0),
+        R.Tensor(ndim=4),
+    )
+    _check_inference(
+        bb,
+        relax.op.dyn_strided_slice(x4, b0, e0, s0),
+        R.Tensor(ndim=4),
+    )
+    _check_inference(
+        bb,
+        relax.op.dyn_strided_slice(x5, b0, e0, s0),
+        R.Tensor(ndim=-1),
+    )
+
+    _check_inference(
+        bb,
+        relax.op.dyn_strided_slice(x0, b1, e1, s1),
+        R.Tensor("float32", ndim=4),
+    )
+    _check_inference(
+        bb,
+        relax.op.dyn_strided_slice(x1, b1, e1, s1),
+        R.Tensor("float32", ndim=4),
+    )
+    _check_inference(
+        bb,
+        relax.op.dyn_strided_slice(x2, b1, e1, s1),
+        R.Tensor("float32", ndim=-1),
+    )
+    _check_inference(
+        bb,
+        relax.op.dyn_strided_slice(x3, b1, e1, s1),
+        R.Tensor(ndim=4),
+    )
+    _check_inference(
+        bb,
+        relax.op.dyn_strided_slice(x4, b1, e1, s1),
+        R.Tensor(ndim=4),
+    )
+    _check_inference(
+        bb,
+        relax.op.dyn_strided_slice(x5, b1, e1, s1),
+        R.Tensor(ndim=-1),
+    )
+
+
+def test_dyn_strided_slice_infer_struct_info_symbolic():
+    bb = relax.BlockBuilder()
+    i = tir.Var("i", "int64")
+    j = tir.Var("j", "int64")
+    k = tir.Var("k", "int64")
+    l = tir.Var("l", "int64")
+    x0 = relax.Var("x", R.Tensor((i, j, k, l), "float32"))
+    x1 = relax.Var("x", R.Tensor("float32", ndim=4))
+    x2 = relax.Var("x", R.Tensor("float32"))
+    x3 = relax.Var("x", R.Tensor((i, j, k, l)))
+    x4 = relax.Var("x", R.Tensor(ndim=4))
+    x5 = relax.Var("x", R.Tensor())
+
+    b0 = relax.Var("begin", R.Tensor((4,), "int64"))
+    e0 = relax.Var("end", R.Tensor((4,), "int64"))
+    s0 = relax.Var("stride", R.Tensor((4,), "int64"))
+    b1 = relax.Var("begin", R.Tensor((4,)))
+    e1 = relax.Var("end", R.Tensor((4,)))
+    s1 = relax.Var("stride", R.Tensor((4,)))
+
+    _check_inference(
+        bb,
+        relax.op.dyn_strided_slice(x0, b0, e0, s0),
+        R.Tensor("float32", ndim=4),
+    )
+    _check_inference(
+        bb,
+        relax.op.dyn_strided_slice(x1, b0, e0, s0),
+        R.Tensor("float32", ndim=4),
+    )
+    _check_inference(
+        bb,
+        relax.op.dyn_strided_slice(x2, b0, e0, s0),
+        R.Tensor("float32", ndim=-1),
+    )
+    _check_inference(
+        bb,
+        relax.op.dyn_strided_slice(x3, b0, e0, s0),
+        R.Tensor(ndim=4),
+    )
+    _check_inference(
+        bb,
+        relax.op.dyn_strided_slice(x4, b0, e0, s0),
+        R.Tensor(ndim=4),
+    )
+    _check_inference(
+        bb,
+        relax.op.dyn_strided_slice(x5, b0, e0, s0),
+        R.Tensor(ndim=-1),
+    )
+
+    _check_inference(
+        bb,
+        relax.op.dyn_strided_slice(x0, b1, e1, s1),
+        R.Tensor("float32", ndim=4),
+    )
+    _check_inference(
+        bb,
+        relax.op.dyn_strided_slice(x1, b1, e1, s1),
+        R.Tensor("float32", ndim=4),
+    )
+    _check_inference(
+        bb,
+        relax.op.dyn_strided_slice(x2, b1, e1, s1),
+        R.Tensor("float32", ndim=-1),
+    )
+    _check_inference(
+        bb,
+        relax.op.dyn_strided_slice(x3, b1, e1, s1),
+        R.Tensor(ndim=4),
+    )
+    _check_inference(
+        bb,
+        relax.op.dyn_strided_slice(x4, b1, e1, s1),
+        R.Tensor(ndim=4),
+    )
+    _check_inference(
+        bb,
+        relax.op.dyn_strided_slice(x5, b1, e1, s1),
+        R.Tensor(ndim=-1),
+    )
+
+
+def test_dyn_strided_slice_infer_struct_info_arg_wrong_dtype():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((8, 9, 10, 10), "float32"))
+    b0 = relax.Var("begin", R.Tensor((4,), "float32"))
+    e0 = relax.Var("end", R.Tensor((4,), "float32"))
+    s0 = relax.Var("stride", R.Tensor((4,), "float32"))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.strided_slice(x0, b0, e0, s0))
+
+
+def test_dyn_strided_slice_infer_struct_info_arg_wrong_shape_info():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((8, 9, 10, 10), "float32"))
+    m = tir.Var("m", "int64")
+    # invalid arg
+    b0 = relax.Var("begin", R.Tensor("int64", ndim=2))
+    b1 = relax.Var("begin", R.Tensor((1,), "int64"))
+    b2 = relax.Var("begin", R.Tensor((2, 2), "int64"))
+    b3 = relax.Var("begin", R.Tensor((m,), "int64"))
+    # valid args
+    e0 = relax.Var("end", R.Tensor((4,), "int64"))
+    s0 = relax.Var("stride", R.Tensor((4,), "int64"))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.strided_slice(x0, b0, e0, s0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.strided_slice(x0, b1, e0, s0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.strided_slice(x0, b2, e0, s0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.strided_slice(x0, b3, e0, s0))
 
 
 if __name__ == "__main__":
