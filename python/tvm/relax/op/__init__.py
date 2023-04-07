@@ -32,9 +32,13 @@ from .set import *
 from .ternary import *
 from .unary import *
 from . import builtin
+from . import grad
 from . import image
 from . import memory
 from . import nn
+
+# Operator gradient functions
+from . import _op_gradient
 
 
 def _register_op_make():

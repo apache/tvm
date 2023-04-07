@@ -45,7 +45,7 @@ def _te_mean(x: te.Tensor, axis: List[tir.IntImm], keepdims: bool) -> te.Tensor:
 
 
 def _te_variance(x: te.Tensor, axis: List[tir.IntImm], keepdims: bool) -> te.Tensor:
-    dev = x - _te_mean(x, axis, keepdims)
+    dev = x - _te_mean(x, axis, True)
     return _te_mean(dev * dev, axis, keepdims)
 
 

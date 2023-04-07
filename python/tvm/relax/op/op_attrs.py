@@ -142,3 +142,8 @@ class RepeatAttrs(Attrs):
 @tvm._ffi.register_object("relax.attrs.TileAttrs")
 class TileAttrs(Attrs):
     """Attributes for tile operator"""
+
+
+@tvm._ffi.register_object("relax.attrs.CumsumAttrs")
+class CumsumAttrs(Attrs):
+    """Attributes for cumsum operator"""
