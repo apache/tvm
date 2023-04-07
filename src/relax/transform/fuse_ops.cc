@@ -766,7 +766,7 @@ class OperatorFusor : public ExprMutator {
       }
 
       // Step c. Update the mapping used for the remapping of the binding variables.
-      if (!pending_tuple_get.empty()) {
+      if (IsTupleOutput(func) && !pending_tuple_get.empty()) {
         // If the output is a tuple, attach TupleGetItem to all tuple elements, and
         // remap variables approriately.
         // The variables that need to be remapped and the corresponding tuple indices are
