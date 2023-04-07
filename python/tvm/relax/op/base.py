@@ -44,9 +44,11 @@ def register_gradient(
     ----------
     op_name: str
         The name of the op.
+
     fgradient: function (orig_var: Var, orig_call: Call, output_grad: Var, ctx: BlockBuilder)
          -> partials: List[Expr]
         The gradient function being used.
+
     level: int
         The priority level
     """

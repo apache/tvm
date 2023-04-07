@@ -566,7 +566,7 @@ def mean_grad(
     output_grad: Var,
     ctx: BlockBuilder,
 ) -> List[Expr]:
-    """Gradient of sum.
+    """Gradient of mean.
 
     Forward Form:
         `y = relax.mean(x, axis, keepdims)`
@@ -574,7 +574,7 @@ def mean_grad(
     Backward:
         Returns `[broadcast_to(y_output_grad, x.shape) / prod(x.shape[i] for i in axis)]`.
 
-        If `keepdims=False`, the summed axis will be added back.
+        If `keepdims=False`, the meaned axis will be added back.
     """
     axis = orig_call.attrs.axis
     keepdims = orig_call.attrs.keepdims
