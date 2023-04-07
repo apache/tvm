@@ -109,7 +109,12 @@ std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_l
     auto* tvm_dev_mblob_reg = new llvm::GlobalVariable(
         *module, int32_ty, false, llvm::GlobalValue::InternalLinkage, constant_zero,
         std::string(runtime::symbol::tvm_dev_mblob) + "_reg_");
-    auto tvm_dev_mblob_reg_alignment = module->getDataLayout().getABITypeAlignment(int32_ty);
+    auto tvm_dev_mblob_reg_alignment =
+#if TVM_LLVM_VERSION >= 110
+        module->getDataLayout().getABITypeAlign(int32_ty);
+#else
+        module->getDataLayout().getABITypeAlignment(int32_ty);
+#endif
 #if TVM_LLVM_VERSION >= 100
     tvm_dev_mblob_reg->setAlignment(llvm::Align(tvm_dev_mblob_reg_alignment));
 #else
