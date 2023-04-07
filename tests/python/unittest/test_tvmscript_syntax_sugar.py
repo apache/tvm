@@ -253,8 +253,8 @@ def test_letstmt_bufferload_without_type_annotation():
 def test_letstmt_bind_with_constant():
     @T.prim_func
     def constant_binds():
-        x = 1
-        y = 42.0
+        x = T.meta_var(1)
+        y = T.meta_var(42.0)
         T.evaluate(T.cast(x, "float32") + y)
 
     @T.prim_func
