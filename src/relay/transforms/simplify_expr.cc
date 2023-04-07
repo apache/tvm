@@ -941,7 +941,7 @@ class SimplifyDQArgSort : public SimplifyDQArgFunc {
   SimplifyDQArgSort() : SimplifyDQArgFunc("argsort") {}
 };
 
-/*! \brief Simplifying a * x * x + b * x * y + c * y * y to a * (x + p) * (y + q) */
+/*! \brief Simplifying a * x * x + b * x * y + c * y * y to a * (x + p * y) * (x + q * y) */
 class SimplifyBinomial : public DFPatternRewrite {
  public:
   SimplifyBinomial() {
