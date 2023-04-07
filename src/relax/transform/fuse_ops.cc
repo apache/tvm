@@ -659,6 +659,16 @@ class OperatorFusor : public ExprMutator {
     return sinfo->ret->IsInstance<TupleStructInfoNode>();
   }
 
+  bool IsNestedTupleOutput(Function f) {
+    if (!IsTupleOutput(f)) return false;
+
+    auto tup = GetStructInfo(f).as<FuncStructInfoNode>()->ret.as<TupleStructInfoNode>();
+    for (const auto& field : tup->fields) {
+      if (field->IsInstance<TupleStructInfoNode>()) return true;
+    }
+    return false;
+  }
+
   BindingBlock VisitBindingBlock(const BindingBlock& block) final {
     if (const auto* df_block = block.as<DataflowBlockNode>()) {
       return VisitBindingBlock_(df_block);
@@ -722,7 +732,12 @@ class OperatorFusor : public ExprMutator {
       // needs to be remapped to the output of TupleGetItem after the corresponding tuple is
       // emitted.
       if (IsTupleOutput(func) && tuple_get_indices_.count(binding->var.get())) {
-        pending_tuple_get[group].push_back(binding->var);
+        if (!GetStructInfo(binding->var)->IsInstance<TupleStructInfoNode>() ||
+            IsNestedTupleOutput(func)) {
+          // When binding_var itself is a tuple, we do not need to remap this variable to the
+          // output of TupleGetItem unless the output is a nested tuple.
+          pending_tuple_get[group].push_back(binding->var);
+        }
       }
 
       // Case 2. If the binding is not the last binding of the group, we skip it.
@@ -751,7 +766,7 @@ class OperatorFusor : public ExprMutator {
       }
 
       // Step c. Update the mapping used for the remapping of the binding variables.
-      if (IsTupleOutput(func) && !pending_tuple_get.empty()) {
+      if (!pending_tuple_get.empty()) {
         // If the output is a tuple, attach TupleGetItem to all tuple elements, and
         // remap variables approriately.
         // The variables that need to be remapped and the corresponding tuple indices are
@@ -817,11 +832,7 @@ class OperatorFusor : public ExprMutator {
           if (auto producer = group2func_.find(producer_group);
               producer_group != cur_group && producer != group2func_.end()) {
             auto output_index = producer->second.AppendOutput(used_var);
-            if (!GetStructInfo(used_var)->IsInstance<TupleStructInfoNode>()) {
-              // When used_var itself is a tuple, we do not need to remap this variable to the
-              // output of TupleGetItem after fusion.
-              tuple_get_indices_[used_var.get()] = output_index;
-            }
+            tuple_get_indices_[used_var.get()] = output_index;
           }
         }
       };
