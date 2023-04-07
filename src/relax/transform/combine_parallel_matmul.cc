@@ -59,141 +59,147 @@ struct BranchInfo {
   std::optional<std::string> activation;
 };
 
-Function Rewrite(Function f, const BranchInfo& branch_info) {
-  PatternContext ctx;
-  ctx.EnterWithScope();
+struct Patterns {
+  Patterns() : input(Wildcard()) { ctx.EnterWithScope(); }
 
-  auto input_pattern = Wildcard();
-  std::vector<WildcardPattern> rhs_patterns;
-  std::vector<WildcardPattern> bias_patterns;
-  std::vector<CallPattern> matmul_patterns, bias_add_patterns, activation_patterns;
+  PatternContext ctx;
+  WildcardPattern input;
+  std::vector<WildcardPattern> rhs;
+  std::vector<WildcardPattern> bias;
+  std::vector<CallPattern> matmul, bias_add, activation;
+};
+
+Patterns CreatePatterns(const BranchInfo& branch_info) {
+  Patterns patterns;
 
   for (int i = 0; i < branch_info.num_branches; ++i) {
     auto w_pat = Wildcard();
-    rhs_patterns.push_back(w_pat);
-    auto matmul_pat = IsOp("relax.matmul")(input_pattern, w_pat);
-    matmul_patterns.push_back(matmul_pat);
-    ctx.add_constraint(input_pattern, matmul_pat, PairCons(PairCons::kUsedBy, 0));
-    ctx.add_constraint(w_pat, matmul_pat, PairCons(PairCons::kUsedBy, 1));
+    auto matmul_pat = IsOp("relax.matmul")(patterns.input, w_pat);
+    patterns.rhs.push_back(w_pat);
+    patterns.matmul.push_back(matmul_pat);
+    patterns.ctx.add_constraint(patterns.input, matmul_pat, PairCons(PairCons::kUsedBy, 0));
+    patterns.ctx.add_constraint(w_pat, matmul_pat, PairCons(PairCons::kUsedBy, 1));
 
     CallPattern matmul_out = matmul_pat;
 
     if (branch_info.bias_dim) {
       auto bias_pat = Wildcard();
-      bias_patterns.push_back(bias_pat);
-      auto bias_add = IsOp("relax.add")(matmul_pat, bias_pat);
-      ctx.add_constraint(matmul_pat, bias_add, PairCons(PairCons::kUsedBy, 0));
-      ctx.add_constraint(bias_pat, bias_add, PairCons(PairCons::kUsedBy, 1));
-      bias_add_patterns.push_back(bias_add);
-      matmul_out = bias_add;
+      auto bias_add_pat = IsOp("relax.add")(matmul_pat, bias_pat);
+      patterns.bias.push_back(bias_pat);
+      patterns.bias_add.push_back(bias_add_pat);
+      patterns.ctx.add_constraint(matmul_pat, bias_add_pat, PairCons(PairCons::kUsedBy, 0));
+      patterns.ctx.add_constraint(bias_pat, bias_add_pat, PairCons(PairCons::kUsedBy, 1));
+      matmul_out = bias_add_pat;
     }
 
     if (branch_info.activation) {
-      activation_patterns.push_back(IsOp(*branch_info.activation)(matmul_out));
+      auto act_pat = IsOp(*branch_info.activation)(matmul_out);
+      patterns.activation.push_back(act_pat);
+      patterns.ctx.add_constraint(matmul_out, act_pat, PairCons(PairCons::kUsedBy, 0));
     }
   }
 
-  runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>)> rewriter =
-      [=](Map<DFPattern, Var> matchings) {
-        auto inp = matchings[input_pattern];
-        auto lhs_dim = GetTensorSInfo(inp)->ndim;
+  return patterns;
+}
 
-        std::vector<Array<PrimExpr>> rhs_shapes;
-        for (const auto& rhs_pat : rhs_patterns) {
-          auto r = matchings[rhs_pat];
-          auto rhs_shape_opt = GetTensorSInfo(r)->GetShape();
-          if (!rhs_shape_opt) {
-            return Map<Var, Expr>{};
-          }
-          rhs_shapes.push_back(rhs_shape_opt.value());
+runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>)> GetRewriter(
+    const Patterns& patterns, const BranchInfo& branch_info) {
+  auto batch_dims_compatible = [](int rhs_dim, const std::vector<size_t>& indices,
+                                  const std::vector<Array<PrimExpr>>& rhs_shapes) {
+    arith::Analyzer ana;
+    for (auto ind : indices) {
+      ICHECK_EQ(static_cast<int>(rhs_shapes[ind].size()), rhs_dim);
+      // -2 for reduction and concat axes
+      for (size_t i = 0; i < rhs_dim - 2; ++i) {
+        if (!ana.CanProve(rhs_shapes[indices[0]][i] == rhs_shapes[ind][i])) {
+          return false;
         }
+      }
+    }
+    return true;
+  };
 
-        auto batch_dims_compatible = [&rhs_shapes](int rhs_dim,
-                                                   const std::vector<size_t>& indices) {
-          arith::Analyzer ana;
-          for (auto ind : indices) {
-            ICHECK_EQ(static_cast<int>(rhs_shapes[ind].size()), rhs_dim);
-            // -2 for reduction and concat axes
-            for (size_t i = 0; i < rhs_dim - 2; ++i) {
-              if (!ana.CanProve(rhs_shapes[indices[0]][i] == rhs_shapes[ind][i])) {
-                return false;
-              }
-            }
-          }
-          return true;
-        };
+  return [=](Map<DFPattern, Var> matchings) {
+    std::vector<Array<PrimExpr>> rhs_shapes;
+    for (const auto& rhs_pat : patterns.rhs) {
+      auto rhs_shape_opt = GetTensorSInfo(matchings[rhs_pat])->GetShape();
+      if (!rhs_shape_opt) {
+        return Map<Var, Expr>{};
+      }
+      rhs_shapes.push_back(rhs_shape_opt.value());
+    }
 
-        Map<Var, Expr> replacements;
+    Map<Var, Expr> replacements;
 
-        for (const auto& [rhs_dim, indices] : GroupShapes(rhs_shapes)) {
-          if (indices.size() == 1 || !batch_dims_compatible(rhs_dim, indices)) continue;
+    for (const auto& [rhs_dim, indices] : GroupShapes(rhs_shapes)) {
+      if (indices.size() == 1 || !batch_dims_compatible(rhs_dim, indices, rhs_shapes)) continue;
 
-          Array<Expr> rhs, bias;
-          for (auto ind : indices) {
-            rhs.push_back(matchings[rhs_patterns[ind]]);
-            if (branch_info.bias_dim) {
-              ICHECK(matchings.count(bias_patterns[ind]));
-              bias.push_back(matchings[bias_patterns[ind]]);
-            }
-          }
-
-          auto concat_rhs = concat(Tuple(rhs), Integer(rhs_dim - 1));
-          auto out_dtype = GetTensorSInfo(matchings[matmul_patterns[indices[0]]])->dtype;
-          auto matmul_combined = matmul(inp, concat_rhs, out_dtype);
-
-          auto pattern_to_replace = &matmul_patterns;
-
-          if (branch_info.bias_dim) {
-            auto bias_dim = GetTensorSInfo(bias[0])->ndim;
-            for (auto b : bias) {
-              ICHECK(GetTensorSInfo(b)->ndim == bias_dim);
-            }
-            auto concat_bias = concat(Tuple(bias), Integer(bias_dim - 1));
-            matmul_combined = add(matmul_combined, concat_bias);
-            pattern_to_replace = &bias_add_patterns;
-          }
-
-          if (branch_info.activation) {
-            pattern_to_replace = &activation_patterns;
-            if (*branch_info.activation == "relu") {
-              matmul_combined = relu(matmul_combined);
-            } else if (*branch_info.activation == "gelu") {
-              matmul_combined = gelu(matmul_combined);
-            } else if (*branch_info.activation == "silu") {
-              matmul_combined = silu(matmul_combined);
-            } else {
-              LOG(FATAL) << "Unsupported activation: " << *branch_info.activation;
-            }
-          }
-
-          PrimExpr begin{0};
-          Array<PrimExpr> strides{1};
-          int slice_axis = std::max<int>(lhs_dim, rhs_dim) - 1;
-
-          for (size_t i = 0; i < indices.size(); ++i) {
-            auto width = GetTensorSInfo(rhs[i])->GetShape().value()[rhs_dim - 1];
-            auto bound_var = matchings[(*pattern_to_replace)[indices[i]]];
-            auto slice =
-                strided_slice(matmul_combined, {slice_axis}, {begin}, {begin + width}, strides);
-            replacements.Set(bound_var, slice);
-            begin += width;
-          }
+      Array<Expr> rhs, bias;
+      for (auto ind : indices) {
+        rhs.push_back(matchings[patterns.rhs[ind]]);
+        if (branch_info.bias_dim) {
+          ICHECK(matchings.count(patterns.bias[ind]));
+          bias.push_back(matchings[patterns.bias[ind]]);
         }
+      }
 
-        return replacements;
-      };
+      auto inp = matchings[patterns.input];
+      auto concat_rhs = concat(Tuple(rhs), Integer(rhs_dim - 1));
+      auto out_dtype = GetTensorSInfo(matchings[patterns.matmul[indices[0]]])->dtype;
+      auto matmul_combined = matmul(inp, concat_rhs, out_dtype);
 
-  auto rewritten = RewriteBindings(ctx, rewriter, f);
-  ctx.ExitWithScope();
-  return rewritten;
+      const auto& pattern_to_replace = [&patterns, &branch_info]() {
+        if (branch_info.activation) return patterns.activation;
+        if (branch_info.bias_dim) return patterns.bias_add;
+        return patterns.matmul;
+      }();
+
+      if (branch_info.bias_dim) {
+        auto bias_dim = GetTensorSInfo(bias[0])->ndim;
+        auto concat_bias = concat(Tuple(bias), Integer(bias_dim - 1));
+        matmul_combined = add(matmul_combined, concat_bias);
+      }
+
+      if (branch_info.activation) {
+        if (*branch_info.activation == "relu") {
+          matmul_combined = relu(matmul_combined);
+        } else if (*branch_info.activation == "gelu") {
+          matmul_combined = gelu(matmul_combined);
+        } else if (*branch_info.activation == "silu") {
+          matmul_combined = silu(matmul_combined);
+        } else {
+          LOG(FATAL) << "Unsupported activation: " << *branch_info.activation;
+        }
+      }
+
+      PrimExpr begin{0};
+      Array<PrimExpr> strides{1};
+      int lhs_dim = GetTensorSInfo(inp)->ndim;
+      int slice_axis = std::max<int>(lhs_dim, rhs_dim) - 1;
+
+      for (size_t i = 0; i < indices.size(); ++i) {
+        auto width = GetTensorSInfo(rhs[i])->GetShape().value()[rhs_dim - 1];
+        auto bound_var = matchings[pattern_to_replace[indices[i]]];
+        auto slice =
+            strided_slice(matmul_combined, {slice_axis}, {begin}, {begin + width}, strides);
+        replacements.Set(bound_var, slice);
+        begin += width;
+      }
+    }
+
+    return replacements;
+  };
+}
+
+Function Rewrite(Function f, const BranchInfo& branch_info) {
+  auto patterns = CreatePatterns(branch_info);
+  auto rewriter = GetRewriter(patterns, branch_info);
+  return RewriteBindings(patterns.ctx, rewriter, f);
 }
 
 std::vector<BranchInfo> GetBranchInfo(Function f) {
-  auto lhs_pat = Wildcard();
-  auto rhs_pat = Wildcard();
   auto bias_pat = Wildcard();
-
-  auto matmul_pat = IsOp("relax.matmul")(lhs_pat, rhs_pat);
+  auto matmul_pat = IsOp("relax.matmul")(Wildcard(), Wildcard());
   auto bias_add_pat = IsOp("relax.add")(matmul_pat, bias_pat);
 
   std::vector<std::string> activations{"relax.nn.relu", "relax.nn.gelu", "relax.nn.silu"};
@@ -206,79 +212,68 @@ std::vector<BranchInfo> GetBranchInfo(Function f) {
 
   auto bindings = AnalyzeVar2Value(f);
 
-  std::unordered_map<const VarNode*, BranchInfo> groups_activation, groups_bias, groups_matmul;
+  using BranchGroups = std::unordered_map<const VarNode*, BranchInfo>;
 
-  PostOrderVisit(f, [&](const Expr& e) {
-    if (!e->IsInstance<CallNode>()) return;
-    if (auto match = ExtractMatchedExpr(bias_add_pat, e, bindings)) {
-      auto matmul_call = Downcast<Call>(match.value()[matmul_pat]);
-      auto matmul_lhs = Downcast<Var>(matmul_call->args[0]);
-      auto bias_dim = GetTensorSInfo(match.value()[bias_pat])->ndim;
-      if (auto it = groups_bias.find(matmul_lhs.get()); it == groups_bias.end()) {
-        groups_bias[matmul_lhs.get()] = {1, bias_dim, std::nullopt};
-      } else {
-        it->second.num_branches += 1;
-        if (it->second.bias_dim && *it->second.bias_dim != bias_dim) {
-          it->second.bias_dim = std::nullopt;
+  auto create_group = [&](DFPattern pat, const std::vector<BranchGroups>& ignore_groups) {
+    BranchGroups groups;
+
+    PostOrderVisit(f, [&](const Expr& e) {
+      if (!e->IsInstance<CallNode>()) return;
+      if (auto match = ExtractMatchedExpr(pat, e, bindings)) {
+        auto matmul_call = Downcast<Call>(match.value()[matmul_pat]);
+        auto matmul_lhs = Downcast<Var>(matmul_call->args[0]);
+
+        for (const auto& prev_group : ignore_groups) {
+          if (prev_group.count(matmul_lhs.get())) return;
         }
-      }
-      return;
-    }
-  });
 
-  PostOrderVisit(f, [&](const Expr& e) {
-    if (!e->IsInstance<CallNode>()) return;
-    if (auto match = ExtractMatchedExpr(matmul_pat, e, bindings)) {
-      auto matmul_call = Downcast<Call>(match.value()[matmul_pat]);
-      auto matmul_lhs = Downcast<Var>(matmul_call->args[0]);
-      if (groups_bias.count(matmul_lhs.get()) || groups_activation.count(matmul_lhs.get())) return;
-      if (auto it = groups_matmul.find(matmul_lhs.get()); it == groups_matmul.end()) {
-        groups_matmul[matmul_lhs.get()] = {1, std::nullopt, std::nullopt};
-      } else {
-        it->second.num_branches += 1;
-      }
-      return;
-    }
-  });
+        auto it = groups.find(matmul_lhs.get());
+        BranchInfo* branch = it != groups.end() ? &it->second : nullptr;
+        std::optional<int> bias_dim = std::nullopt;
+        std::optional<std::string> activation = std::nullopt;
 
+        if (match.value().count(bias_pat)) {
+          bias_dim = GetTensorSInfo(match.value()[bias_pat])->ndim;
+        }
+
+        for (size_t i = 0; i < activations.size(); ++i) {
+          if (match.value().count(activation_pat[i])) {
+            activation = activations[i];
+          }
+        }
+
+        if (!branch) {
+          groups[matmul_lhs.get()] = {1, bias_dim, activation};
+        } else {
+          branch->num_branches += 1;
+
+          if (branch->bias_dim && branch->bias_dim != bias_dim) {
+            branch->bias_dim = std::nullopt;
+          }
+
+          if ((branch->activation && activation) && *branch->activation != *activation) {
+            branch->activation = std::nullopt;
+          }
+        }
+        return;
+      }
+    });
+
+    return groups;
+  };
+
+  BranchGroups groups_activation;
   // for (size_t i = 0; i < activations.size(); ++i) {
-  //   if (auto match = ExtractMatchedExpr(bias_activation_pat[i], e, bindings)) {
-  //     auto matmul_lhs = Downcast<Var>(match.value()[lhs_pat]);
-  //     auto bias_dim = GetTensorSInfo(match.value()[bias_pat])->ndim;
-  //     if (auto it = groups.find(matmul_lhs.get()); it == groups.end()) {
-  //       groups[matmul_lhs.get()] = {1, bias_dim, activations[i]};
-  //     } else {
-  //       it->second.num_branches += 1;
-
-  //       if (it->second.bias_dim != bias_dim) {
-  //         it->second.bias_dim = std::nullopt;
-  //       }
-
-  //       if (!it->second.activation || (*it->second.activation != activations[i])) {
-  //         it->second.activation = std::nullopt;
-  //       }
-  //     }
-
-  //     for (auto pat : {matmul_pat, bias_add_pat}) {
-  //       seen.insert(match.value()[pat].get());
-  //     }
-  //     return;
-  //   }
-  //   if (auto match = ExtractMatchedExpr(activation_pat[i], e, bindings)) {
-  //     auto matmul = match.value()[matmul_pat];
-  //     auto matmul_lhs = Downcast<Var>(match.value()[lhs_pat]);
-  //     if (auto it = groups.find(matmul_lhs.get()); it == groups.end()) {
-  //       groups[matmul_lhs.get()] = {1, std::nullopt, activations[i]};
-  //     } else {
-  //       it->second.num_branches += 1;
-
-  //       if (!it->second.activation || (*it->second.activation != activations[i])) {
-  //         it->second.activation = std::nullopt;
-  //       }
-  //     }
-  //     return;
-  //   }
+  //   auto groups = create_group(bias_activation_pat[i], {});
+  //   groups_activation.merge(std::move(groups));
   // }
+  // for (size_t i = 0; i < activations.size(); ++i) {
+  //   auto groups = create_group(activation_pat[i], {});
+  //   groups_activation.merge(std::move(groups));
+  // }
+
+  auto groups_bias = create_group(bias_add_pat, {groups_activation});
+  auto groups_matmul = create_group(matmul_pat, {groups_activation, groups_bias});
 
   std::vector<BranchInfo> info;
 
