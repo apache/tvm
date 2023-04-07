@@ -734,7 +734,7 @@ class OperatorFusor : public ExprMutator {
       if (IsTupleOutput(func) && tuple_get_indices_.count(binding->var.get())) {
         if (!GetStructInfo(binding->var)->IsInstance<TupleStructInfoNode>() ||
             IsNestedTupleOutput(func)) {
-          // When binding_var itself is a tuple, we do not need to remap this variable to the
+          // When binding->var itself is a tuple, we do not need to remap this variable to the
           // output of TupleGetItem unless the output is a nested tuple.
           pending_tuple_get[group].push_back(binding->var);
         }
@@ -1034,7 +1034,7 @@ class PatternBasedPartitioner : ExprVisitor {
       parent_group->attrs.Set(attr::kComposite, pat_name_);
       for (const auto& [pat, match] : matches_opt.value()) {
         // Put all matching expressions into the parent group. But we need to be careful not to
-        // merge expressions matched by a wildcard pattern, since a wildcard can match the output of
+        // merge expressions matched by a wildcard pattern, since a wildcard can match an output of
         // the previous group. For example, when there are two back-to-back conv2d ops, the output
         // of the first conv2d is matched to the input of the second conv2d via a wildcard pattern.
         // But we must avoid merging the first conv2d into the group of the second conv2d.
