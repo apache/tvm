@@ -58,6 +58,18 @@ using FCallPacked = String;
  */
 using FLegalize = runtime::TypedPackedFunc<Expr(const BlockBuilder& bb, const Call& call)>;
 
+/*!
+ * \brief Gradient for a specific op.
+ *
+ * \param orig_var the original var corresponding to orig_call.
+ * \param orig_call the original Call(op) expr.
+ * \param output_grad the gradient of the Expr.
+ * \param ctx the current block builder context.
+ * \return the gradient for each parameter.
+ */
+using FPrimalGradient = runtime::TypedPackedFunc<tvm::Array<Expr>(
+    const Var& orig_var, const Call& orig_call, const Var& output_grad, const BlockBuilder& ctx)>;
+
 }  // namespace relax
 }  // namespace tvm
 #endif  // TVM_RELAX_OP_ATTR_TYPES_H_

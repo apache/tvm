@@ -33,7 +33,9 @@ py_print = print  # pylint: disable=invalid-name
 
 
 def register_gradient(
-    op_name: str, fgradient: Callable[[Call, Var], List[Expr]] = None, level: int = 10
+    op_name: str,
+    fgradient: Callable[[Var, Call, Var, "BlockBuilder"], List[Expr]] = None,
+    level: int = 10,
 ):
     """Register operator gradient function for a relax operator.
 
