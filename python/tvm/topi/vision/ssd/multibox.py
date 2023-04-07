@@ -137,17 +137,17 @@ def multibox_prior(data, sizes=(1,), ratios=(1,), steps=(-1, -1), offsets=(0.5, 
 
 
 @hybrid.script
-def _hybridy_transform_loc(box, pred_loc, variance, clip):
+def _hybridy_transform_loc(anchor, pred_loc, variance, clip, batch_idx, anchor_idx):
     """Transform prior anchor box to output box through location predictions."""
-    al = box[0]
-    at = box[1]
-    ar = box[2]
-    ab = box[3]
+    al = anchor[0, anchor_idx, 0]
+    at = anchor[0, anchor_idx, 1]
+    ar = anchor[0, anchor_idx, 2]
+    ab = anchor[0, anchor_idx, 3]
 
-    px = pred_loc[0]
-    py = pred_loc[1]
-    pw = pred_loc[2]
-    ph = pred_loc[3]
+    px = pred_loc[batch_idx, 0]
+    py = pred_loc[batch_idx, 1]
+    pw = pred_loc[batch_idx, 2]
+    ph = pred_loc[batch_idx, 3]
 
     vx = variance[0]
     vy = variance[1]
@@ -206,8 +206,13 @@ def hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor, clip, threshold, v
     batch_size = cls_prob.shape[0]
     num_classes = cls_prob.shape[1]
     num_anchors = cls_prob.shape[2]
-    box_coord = allocate((4,), loc_pred.dtype)
-    pred_coord = allocate((4,), loc_pred.dtype)
+    pred_coord = allocate(
+        (
+            batch_size,
+            4,
+        ),
+        loc_pred.dtype,
+    )
     out_loc = output_tensor((batch_size, num_anchors, 6), loc_pred.dtype)
     valid_count = output_tensor((batch_size,), "int32")
 
@@ -230,9 +235,8 @@ def hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor, clip, threshold, v
                 out_loc[i, valid_count[i], 0] = cls_id - 1.0
                 out_loc[i, valid_count[i], 1] = score
                 for l in range(4):
-                    box_coord[l] = anchor[0, j, l]
-                    pred_coord[l] = loc_pred[i, j * 4 + l]
-                out_coord = _hybridy_transform_loc(box_coord, pred_coord, variances, clip)
+                    pred_coord[i, l] = loc_pred[i, j * 4 + l]
+                out_coord = _hybridy_transform_loc(anchor, pred_coord, variances, clip, i, j)
                 out_loc[i, valid_count[i], 2] = out_coord[0]
                 out_loc[i, valid_count[i], 3] = out_coord[1]
                 out_loc[i, valid_count[i], 4] = out_coord[2]
