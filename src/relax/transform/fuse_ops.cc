@@ -659,6 +659,16 @@ class OperatorFusor : public ExprMutator {
     return sinfo->ret->IsInstance<TupleStructInfoNode>();
   }
 
+  bool IsNestedTupleOutput(Function f) {
+    if (!IsTupleOutput(f)) return false;
+
+    auto tup = GetStructInfo(f).as<FuncStructInfoNode>()->ret.as<TupleStructInfoNode>();
+    for (const auto& field : tup->fields) {
+      if (field->IsInstance<TupleStructInfoNode>()) return true;
+    }
+    return false;
+  }
+
   BindingBlock VisitBindingBlock(const BindingBlock& block) final {
     if (const auto* df_block = block.as<DataflowBlockNode>()) {
       return VisitBindingBlock_(df_block);
@@ -722,7 +732,12 @@ class OperatorFusor : public ExprMutator {
       // needs to be remapped to the output of TupleGetItem after the corresponding tuple is
       // emitted.
       if (IsTupleOutput(func) && tuple_get_indices_.count(binding->var.get())) {
-        pending_tuple_get[group].push_back(binding->var);
+        if (!GetStructInfo(binding->var)->IsInstance<TupleStructInfoNode>() ||
+            IsNestedTupleOutput(func)) {
+          // When binding->var itself is a tuple, we do not need to remap this variable to the
+          // output of TupleGetItem unless the output is a nested tuple.
+          pending_tuple_get[group].push_back(binding->var);
+        }
       }
 
       // Case 2. If the binding is not the last binding of the group, we skip it.
@@ -751,7 +766,7 @@ class OperatorFusor : public ExprMutator {
       }
 
       // Step c. Update the mapping used for the remapping of the binding variables.
-      if (IsTupleOutput(func)) {
+      if (IsTupleOutput(func) && !pending_tuple_get.empty()) {
         // If the output is a tuple, attach TupleGetItem to all tuple elements, and
         // remap variables approriately.
         // The variables that need to be remapped and the corresponding tuple indices are
@@ -1018,8 +1033,13 @@ class PatternBasedPartitioner : ExprVisitor {
       ICHECK(parent_group);
       parent_group->attrs.Set(attr::kComposite, pat_name_);
       for (const auto& [pat, match] : matches_opt.value()) {
-        // Put all matching call nodes into the parent group.
-        if (pat->IsInstance<CallPatternNode>() && match != GetRef<Call>(call)) {
+        // Put all matching expressions into the parent group. But we need to be careful not to
+        // merge expressions matched by a wildcard pattern, since a wildcard can match an output of
+        // the previous group. For example, when there are two back-to-back conv2d ops, the output
+        // of the first conv2d is matched to the input of the second conv2d via a wildcard pattern.
+        // But we must avoid merging the first conv2d into the group of the second conv2d.
+        if ((pat->IsInstance<CallPatternNode>() && match != GetRef<Call>(call)) ||
+            pat->IsInstance<TupleGetItemPatternNode>()) {
           // Put the bound variable on the LHS into the same parent group.
           AddToGroup(value_to_bound_var_[match], parent_group);
         }
