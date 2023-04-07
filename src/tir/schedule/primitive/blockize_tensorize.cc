@@ -200,7 +200,13 @@ Array<Array<arith::IterMark>> SubspaceDivide(const BlockRealize& realize,
  * \param inner_iter_vars The inner block iterators.
  * \param inner_bindings The inner block bindings.
  * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
+ * \param reuse_outer A boolean indicating if to check consistency with previously
+ *        derived outer bindings.
+ * \param iter_idx_map The mapping from block iter indices of the block to be
+ *        blockized to the block iter indices of the derived outer block.
  * \return A substitution plan to the iterators in the original inner block.
+ * \note `reuse_outer` being true and `iter_idx_map` being not null can only
+ *        happen when blockizing for multiple blocks.
  */
 Map<Var, PrimExpr> DeriveBlockBinding(const Array<IterVar>& iter_vars,                //
                                       const Array<Array<arith::IterMark>>& division,  //
@@ -208,10 +214,16 @@ Map<Var, PrimExpr> DeriveBlockBinding(const Array<IterVar>& iter_vars,          
                                       Array<PrimExpr>* outer_bindings,                //
                                       Array<IterVar>* inner_iter_vars,                //
                                       Array<PrimExpr>* inner_bindings,                //
-                                      bool preserve_unit_iters, bool reuse_outer = false) {
+                                      bool preserve_unit_iters,                       //
+                                      bool reuse_outer = false,                       //
+                                      std::unordered_map<int, int>* iter_idx_map = nullptr) {
   using arith::IterMapExpr;
   using arith::IterMapExprNode;
   using arith::NormalizeIterMapToExpr;
+  if (reuse_outer) {
+    ICHECK_NOTNULL(iter_idx_map);
+  }
+
   Map<Var, PrimExpr> block_var_subst;
   ICHECK_EQ(iter_vars.size() + 1, division.size());
   arith::Analyzer ana;
@@ -229,17 +241,26 @@ Map<Var, PrimExpr> DeriveBlockBinding(const Array<IterVar>& iter_vars,          
     // base == iter_outer * iter_inner_extent
     // create iter var for the outer block
     IterVar outer_iter;
-    if (reuse_outer) {
-      outer_iter = outer_iter_vars->operator[](i);
-      ICHECK(ana.CanProveEqual(outer_iter->dom->extent, outer_mark->extent));
-      ICHECK(
-          ana.CanProveEqual(outer_bindings->operator[](i), NormalizeIterMapToExpr(outer_binding)));
-    } else {
-      outer_iter = IterVar(/*dom=*/RangeFromExtent(outer_mark->extent),
-                           /*var=*/iter_var->var.copy_with_suffix("_o"),
-                           /*iter_type=*/iter_var->iter_type);
-      outer_bindings->push_back(NormalizeIterMapToExpr(outer_binding));
-      outer_iter_vars->push_back(outer_iter);
+    if (!is_one(outer_mark->extent)) {
+      if (reuse_outer) {
+        auto idx_it = iter_idx_map->find(i);
+        ICHECK(idx_it != iter_idx_map->end());
+        outer_iter = outer_iter_vars->operator[](idx_it->second);
+        ICHECK(ana.CanProveEqual(outer_iter->dom->extent, outer_mark->extent));
+        ICHECK(ana.CanProveEqual(outer_bindings->operator[](idx_it->second),
+                                 NormalizeIterMapToExpr(outer_binding)));
+      } else {
+        outer_iter = IterVar(/*dom=*/RangeFromExtent(outer_mark->extent),
+                             /*var=*/iter_var->var.copy_with_suffix("_o"),
+                             /*iter_type=*/iter_var->iter_type);
+        if (iter_idx_map != nullptr) {
+          iter_idx_map->emplace(i, outer_iter_vars->size());
+        }
+        outer_bindings->push_back(NormalizeIterMapToExpr(outer_binding));
+        outer_iter_vars->push_back(outer_iter);
+      }
+    } else if (iter_idx_map != nullptr) {
+      ICHECK(iter_idx_map->find(i) == iter_idx_map->end());
     }
     PrimExpr sub{nullptr};
     if (is_one(inner_mark->extent)) {
@@ -287,7 +308,7 @@ BlockRealize GenerateInner(bool is_write_reduction,
                            Block block) {
   BlockNode* n = block.CopyOnWrite();
   n->iter_vars = iter_vars;
-  n->init = NullOpt;
+  n->init = is_write_reduction ? NullOpt : std::move(block->init);
   if (is_write_reduction) {
     Array<BufferRegion> reads;
     reads.reserve(block->writes.size() + block->reads.size());
@@ -545,7 +566,7 @@ BlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
             /*name_hint=*/block_subst->name_hint + "_o",
             /*body=*/MakeLoopNest(inner_realize, loops),
             /*init=*/
-            block_subst->init.defined()  //
+            block_subst->init.defined() && has_outer_reduction  //
                 ? GenerateOuterInit(block_subst->init.value(), inner_realize, loops,
                                     block_subst->name_hint + "_init")
                 : Optional<Stmt>(NullOpt)));
@@ -570,8 +591,8 @@ BlockRealize BlockizeBlocks(const ScheduleState& self, const Array<StmtSRef>& bl
                             bool preserve_unit_iters) {
   Array<Stmt> seq_body;
   PrimExpr outer_predicate{nullptr};
-  Array<IterVar> outer_iter_vars{nullptr};
-  Array<PrimExpr> outer_bindings{nullptr};
+  Array<IterVar> outer_iter_vars;
+  Array<PrimExpr> outer_bindings;
   Array<BufferRegion> read_regions;
   Array<BufferRegion> write_regions;
   std::string outer_block_name = "outer_";
@@ -592,11 +613,13 @@ BlockRealize BlockizeBlocks(const ScheduleState& self, const Array<StmtSRef>& bl
     // Step 2. Derive block bindings for both outer and inner block.
     Array<IterVar> inner_iter_vars;
     Array<PrimExpr> inner_bindings;
+    std::unordered_map<int, int> iter_idx_map;
     Map<Var, PrimExpr> block_var_subst =                       //
         DeriveBlockBinding(block->iter_vars, division,         //
                            &outer_iter_vars, &outer_bindings,  //
                            &inner_iter_vars, &inner_bindings,  //
-                           preserve_unit_iters, outer_iter_vars.defined());
+                           preserve_unit_iters,                //
+                           !block_sref.same_as(block_srefs[0]), &iter_idx_map);
     // Step 3: Do var substitution to adjust to the new block bindings
     for (size_t i = 0; i < outer_iter_vars.size(); ++i) {
       if (outer_bindings[i].as<Var>()) {

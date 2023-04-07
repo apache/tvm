@@ -42,13 +42,14 @@ def test_blockize_outer():
         A: T.Buffer((128, 128), "float32"),
         B: T.Buffer((128, 128), "float32"),
     ) -> None:
-        with T.block("blockized_B"):
-            vio = T.axis.spatial(1, 0)
-            vjo = T.axis.spatial(1, 0)
-            for i, j in T.grid(128, 128):
-                with T.block("B"):
-                    vi, vj = T.axis.remap("SS", [i, j])
-                    B[vi, vj] = A[vi, vj] * 2.0
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            with T.block("blockized_B"):
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
 
     func = single_elementwise
     s = tir.Schedule(func, debug_mask="all")
@@ -67,7 +68,6 @@ def test_blockize_inner():
         for i in T.serial(128):
             with T.block("blockized_B"):
                 vi = T.axis.spatial(128, i)
-                vjo = T.axis.spatial(1, 0)
                 for j in T.serial(128):
                     with T.block("B"):
                         vj = T.axis.remap("S", [j])
@@ -228,18 +228,16 @@ def test_blockize_init_loops():
         A: T.Buffer((128, 128), "float32"),
         B: T.Buffer((128,), "float32"),
     ) -> None:
-        with T.block("blockized_B"):
-            vko = T.axis.R(1, 0)
-            vio = T.axis.S(1, 0)
-            with T.init():
-                for i1 in T.serial(0, 128):
-                    with T.block("B_init"):
-                        vi_init = T.axis.S(128, i1)
-                        B[vi_init] = T.float32(0)
-            for i0, i1_1 in T.grid(128, 128):
-                with T.block("B"):
-                    vk, vi = T.axis.remap("RS", [i0, i1_1])
-                    B[vi] = B[vi] + A[vi, vk]
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            with T.block("blockized_B"):
+                for i0, i1_1 in T.grid(128, 128):
+                    with T.block("B"):
+                        vk, vi = T.axis.remap("RS", [i0, i1_1])
+                        with T.init():
+                            B[vi] = T.float32(0)
+                        B[vi] = B[vi] + A[vi, vk]
 
     s = tir.Schedule(rowsum, debug_mask="all")
     k, _ = s.get_loops(s.get_block("B"))
@@ -255,9 +253,11 @@ def test_blockize_outer_int64_shape(preserve_unit_iters):
         A: T.Buffer((T.int64(16), T.int64(128)), "float32"),
         B: T.Buffer((T.int64(16), T.int64(128)), "float32"),
     ) -> None:
-        for i0, j0, i1, j1 in T.grid(T.int64(1), T.int64(8), T.int64(16), T.int64(16)):
+        for i0_0, i0_1, j0, i1, j1 in T.grid(
+            T.int64(1), T.int64(4), T.int64(8), T.int64(4), T.int64(16)
+        ):
             with T.block("B"):
-                vi = T.axis.S(T.int64(16), i0 * T.int64(16) + i1)
+                vi = T.axis.S(T.int64(16), i0_0 * T.int64(16) + i0_1 * T.int64(4) + i1)
                 vj = T.axis.S(T.int64(128), j0 * T.int64(16) + j1)
                 B[vi, vj] = A[vi, vj] + 1.0
 
@@ -266,15 +266,15 @@ def test_blockize_outer_int64_shape(preserve_unit_iters):
         A: T.Buffer((T.int64(16), T.int64(128)), "float32"),
         B: T.Buffer((T.int64(16), T.int64(128)), "float32"),
     ) -> None:
-        for i0, j0 in T.grid(T.int64(1), T.int64(8)):
+        for i0_0, i0_1, j0 in T.grid(T.int64(1), T.int64(4), T.int64(8)):
             with T.block("B_o"):
-                vi_o = T.axis.spatial(T.int64(1), T.int64(0))
+                vi_o = T.axis.spatial(T.int64(4), i0_1)
                 vj_o = T.axis.spatial(T.int64(8), j0)
-                for i1, j1 in T.grid(T.int64(16), T.int64(16)):
+                for i1, j1 in T.grid(T.int64(4), T.int64(16)):
                     with T.block("B"):
                         vi_i, vj_i = T.axis.remap("SS", [i1, j1])
-                        B[vi_i, vj_o * T.int64(16) + vj_i] = A[
-                            vi_i, vj_o * T.int64(16) + vj_i
+                        B[vi_o * T.int64(4) + vi_i, vj_o * T.int64(16) + vj_i] = A[
+                            vi_o * T.int64(4) + vi_i, vj_o * T.int64(16) + vj_i
                         ] + T.float32(1)
 
     @T.prim_func
@@ -282,19 +282,19 @@ def test_blockize_outer_int64_shape(preserve_unit_iters):
         A: T.Buffer((T.int64(16), T.int64(128)), "float32"),
         B: T.Buffer((T.int64(16), T.int64(128)), "float32"),
     ) -> None:
-        for i0, j0 in T.grid(T.int64(1), T.int64(8)):
+        for i0_0, i0_1, j0 in T.grid(T.int64(1), T.int64(4), T.int64(8)):
             with T.block("B_o"):
-                vi_o = T.axis.spatial(T.int64(1), i0)
+                vi_o = T.axis.spatial(T.int64(4), i0_0 * T.int64(4) + i0_1)
                 vj_o = T.axis.spatial(T.int64(8), j0)
-                for i1, j1 in T.grid(T.int64(16), T.int64(16)):
+                for i1, j1 in T.grid(T.int64(4), T.int64(16)):
                     with T.block("B"):
                         vi_i, vj_i = T.axis.remap("SS", [i1, j1])
-                        B[vi_i, vj_o * T.int64(16) + vj_i] = A[
-                            vi_i, vj_o * T.int64(16) + vj_i
+                        B[vi_o * T.int64(4) + vi_i, vj_o * T.int64(16) + vj_i] = A[
+                            vi_o * T.int64(4) + vi_i, vj_o * T.int64(16) + vj_i
                         ] + T.float32(1)
 
     s = tir.Schedule(single_elementwise_int64, debug_mask="all")
-    _, _, i1, _ = s.get_loops(s.get_block("B"))
+    _, _, _, i1, _ = s.get_loops(s.get_block("B"))
     s.blockize(i1, preserve_unit_iters=preserve_unit_iters)
     expected = (
         after_single_elementwise_int64_blockize_preserve_unit_iters
@@ -329,8 +329,6 @@ def test_blockize_blocks():
     ) -> None:
         for m in range(6):
             with T.block("outer_B_C_"):
-                vi_o = T.axis.spatial(1, 0)
-                vj_o = T.axis.spatial(1, 0)
                 T.reads(A[0:128, 0:128])
                 T.writes(B[0:128, 0:128])
                 for i, j in T.grid(3, 1):
@@ -355,4 +353,5 @@ def test_blockize_blocks():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    test_blockize_outer()
+    # tvm.testing.main()
