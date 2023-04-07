@@ -1535,29 +1535,24 @@ def test_tflite_tanh_legalize():
     assert tuple(func_body.args[1].checked_type.shape) == (256,)
 
 
+@pytest.mark.parametrize("ifm_dtype", ["int8", "uint8"])
 @pytest.mark.parametrize(
-    "ifm_shape, axis, keep_dims, use_same_quantization, ifm_dtype",
+    "ifm_shape, axis, keep_dims, use_same_quantization",
     [
-        # mean to depthwise + multiply
-        [(1, 8, 16, 16), (1, 2), True, False, "int8"],
-        [(1, 8, 16, 16), (1, 2), True, True, "uint8"],
-        [(1, 8, 16, 16), (2, 1), True, False, "int8"],
-        [(1, 3, 4), (0, 1), True, False, "int8"],
-        [(8, 5), (1, 0), True, False, "int8"],
-        [(1, 65, 2, 1), (1, 2), True, False, "int8"],  # special case when h > 64
         # mean to average pool
-        [(1, 8, 16, 16), (1,), True, True, "int8"],
-        [(1, 8, 16, 16), (2,), False, True, "int8"],
-        [(1, 8, 16, 16), (1, 2), False, True, "int8"],
-        [(3, 3, 4), (0,), True, True, "int8"],
-        [(3, 3, 4), (1,), False, True, "int8"],
-        [(8, 5), (0,), False, True, "int8"],
-        [(8, 5), (1,), True, True, "int8"],
+        [(1, 8, 16, 16), (1,), True, True],
+        [(1, 8, 16, 16), (2,), False, True],
+        [(1, 8, 16, 16), (1, 2), False, True],
+        [(3, 3, 4), (0,), True, True],
+        [(3, 3, 4), (1,), False, True],
+        [(8, 5), (0,), False, True],
+        [(8, 5), (1,), True, True],
         # mean to depthwise
-        [(1, 8, 16, 16), (1,), True, False, "int8"],
-        [(1, 8, 16, 16), (2,), True, False, "int8"],
-        [(1, 8, 16, 16), (1, 2), False, False, "int8"],
-        [(8, 4), (0,), False, False, "int8"],
+        [(1, 8, 16, 16), (1,), True, False],
+        [(1, 8, 16, 16), (2,), True, False],
+        [(1, 8, 16, 16), (1, 2), False, False],
+        [(8, 4), (0,), False, False],
+        [(1, 65, 2, 1), (1, 2), True, False],  # special case when h > 64
     ],
 )
 def test_mean(ifm_shape, axis, keep_dims, use_same_quantization, ifm_dtype):
@@ -1583,7 +1578,7 @@ def test_mean(ifm_shape, axis, keep_dims, use_same_quantization, ifm_dtype):
         converter.optimizations = [tf.lite.Optimize.DEFAULT]
         converter.representative_dataset = representative_dataset
         converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
-        converter.inference_input_type = tf.int8
+        converter.inference_input_type = tf.uint8 if ifm_dtype == "uint8" else tf.int8
         converter.inference_output_type = tf.int8
         tflite_model = converter.convert()
         tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model, 0)
@@ -1615,7 +1610,6 @@ def test_mean(ifm_shape, axis, keep_dims, use_same_quantization, ifm_dtype):
         out_var = ext_func.body
 
         next_op = out_var
-        mul_op = None
         pooling_op = None
         depthwise_op = None
         if (
@@ -1623,9 +1617,6 @@ def test_mean(ifm_shape, axis, keep_dims, use_same_quantization, ifm_dtype):
             and isinstance(next_op.op, tvm.ir.op.Op)
             and next_op.op.name == "reshape"
         ):
-            next_op = next_op.args[0]
-        if util.is_named_ethosu_op(next_op, "binary_elementwise"):
-            mul_op = next_op
             next_op = next_op.args[0]
         if util.is_named_ethosu_op(next_op, "pooling"):
             pooling_op = next_op
@@ -1653,27 +1644,29 @@ def test_mean(ifm_shape, axis, keep_dims, use_same_quantization, ifm_dtype):
 
         # check IFM
         assert tuple(in_var.checked_type.shape) == ifm_shape
-        assert in_var.checked_type.dtype == ifm_dtype
+
+        if use_same_quantization:
+            assert in_var.checked_type.dtype == ifm_dtype
+        else:
+            # depthwise case's partition makes in_var's dtype equal to int8
+            assert in_var.checked_type.dtype == "int8"
 
         # check OFM
         assert tuple(out_var.checked_type.shape) == out_shape
         assert out_var.checked_type.dtype == "int8"
 
         # check expected legalization case
-        if axis in [(1, 2), (2, 1), (0, 1), (1, 0)] and keep_dims and ifm_dtype == "int8":
-            assert depthwise_op and mul_op
-            assert mul_op.attrs.operator_type == "MUL" and mul_op.attrs.rounding_mode == "NATURAL"
-        elif axis == (1, 2) and keep_dims and ifm_dtype == "uint8":
-            assert depthwise_op and mul_op
-            assert mul_op.attrs.operator_type == "MUL" and mul_op.attrs.rounding_mode == "TRUNCATE"
-        elif pooling_op:
+        if pooling_op:
             attrs = pooling_op.attrs
             assert (
                 attrs.ifm_scale == attrs.ofm_scale and attrs.ifm_zero_point == attrs.ofm_zero_point
             )
         else:
             assert depthwise_op
-            assert not mul_op
+            attrs = depthwise_op.attrs
+            assert (
+                attrs.ifm_scale != attrs.ofm_scale or attrs.ifm_zero_point != attrs.ofm_zero_point
+            )
 
     rewriter = legalize.MeanRewriter()
     pattern_table = [
