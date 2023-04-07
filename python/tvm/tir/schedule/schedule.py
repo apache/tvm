@@ -540,6 +540,29 @@ class Schedule(Object):
         block = self._normalize_block_arg(block)
         return list(_ffi_api.ScheduleGetConsumers(self, block))  # type: ignore # pylint: disable=no-member
 
+    @type_checked
+    def get_output_blocks(
+        self,
+        scope_block: Union[BlockRV, str],
+    ) -> List[BlockRV]:
+        """Get the list of output blocks within the given scope
+        An output block is a block which has atleast one buffer being written
+        to, but is not allocated within the PrimFunc
+
+        Parameters
+        ----------
+        scope_block : Union[BlockRV, str],
+            The scope block from which output blocks are collected
+
+        Returns
+        -------
+        output_blocks : List[BlockRV]
+            A list of all blocks that write to some output buffer
+
+        """
+        scope_block = self._normalize_block_arg(scope_block)
+        return list(_ffi_api.ScheduleGetOutputBlocks(self, scope_block))  # type: ignore # pylint: disable=no-member
+
     ########## Schedule: Transform loops ##########
     @type_checked
     def merge(

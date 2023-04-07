@@ -1043,6 +1043,33 @@ Array<StmtSRef> GetConsumers(const StmtSRef& block_sref, const BlockScope& scope
   return results;
 }
 
+Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const BlockNode* scope_block) {
+  struct OutputBlockCollector : public StmtVisitor {
+    explicit OutputBlockCollector(const ScheduleState& self) : self_(self) {}
+
+    void VisitStmt_(const BlockNode* block) override {
+      auto it = self_->stmt2ref.find(block);
+      ICHECK(it != self_->stmt2ref.end());
+      auto block_sref = it->second;
+      if (block_sref->parent != nullptr) {
+        StmtSRef scope_root_sref =
+            GetScopeRoot(self_, block_sref, /*require_stage_pipeline=*/false);
+        if (IsOutputBlock(self_, block_sref, scope_root_sref)) {
+          results_.push_back(block_sref);
+        }
+      }
+      StmtVisitor::VisitStmt_(block);
+    }
+
+    const ScheduleState& self_;
+    Array<StmtSRef> results_;
+  };
+  OutputBlockCollector collector(self);
+  collector(scope_block->body);
+  auto results = collector.results_;
+  return results;
+}
+
 ProducerConsumerSplit ProducerConsumerSplit::Find(
     const ScheduleState& self, const Array<Stmt>& subtrees,
     const Array<StmtSRef>& producer_block_srefs, const Array<StmtSRef>& consumer_block_srefs,

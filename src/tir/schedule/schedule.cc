@@ -152,6 +152,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetProducers")
     .set_body_method<Schedule>(&ScheduleNode::GetProducers);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetConsumers")
     .set_body_method<Schedule>(&ScheduleNode::GetConsumers);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetOutputBlocks")
+    .set_body_method<Schedule>(&ScheduleNode::GetOutputBlocks);
 /******** (FFI) Transform loops ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleMerge").set_body_method<Schedule>(&ScheduleNode::Merge);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleFuse").set_body_method<Schedule>(&ScheduleNode::Fuse);
