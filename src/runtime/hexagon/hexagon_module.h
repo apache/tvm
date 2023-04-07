@@ -64,8 +64,7 @@ class HexagonModuleNode : public runtime::ModuleNode {
   const char* type_key() const final { return "hexagon"; }
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const override {
-    return ModulePropertyMask::kBinarySerializable |
-           ModulePropertyMask::kDSOExportable |
+    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kDSOExportable |
            ModulePropertyMask::kRunnable;
   }
   void SaveToFile(const std::string& file_name, const std::string& format) override;
