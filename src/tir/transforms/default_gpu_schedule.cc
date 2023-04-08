@@ -80,10 +80,6 @@ Pass DefaultGPUSchedule() {
         // get the target from context.
         tvm::Target target = tvm::Target::Current();
         ICHECK(target.defined()) << "Target is not set in current context";
-        // skip non-cuda targets.
-        if (target->kind->name != "cuda") {
-          return m;
-        }
         // get the max thread per block from target.
         Optional<Integer> opt_max_thread_per_block = target->GetAttr<Integer>("max_num_threads");
         ICHECK(opt_max_thread_per_block.defined())
