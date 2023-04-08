@@ -92,7 +92,7 @@ TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-xavier")
                  {"host", Map<String, ObjectRef>{{"kind", String("llvm")},
                                                  {"mtriple", String("aarch64-linux-gnu")},
                                                  {"mcpu", String("carmel")},
-                                                 {"num-cores", Integer(4)}}}});
+                                                 {"num-cores", Integer(8)}}}});
 
 #define TVM_REGISTER_CUDA_TAG(Name, Arch, SharedMem, RegPerBlock) \
   TVM_REGISTER_TARGET_TAG(Name).set_config({                      \
