@@ -1013,7 +1013,6 @@ def test_collapse_sum_like():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-# @pytest.mark.skip("TOPI collapse_sum not support symbolic now")
 def test_collapse_sum_like_symbolic():
     # fmt: off
     @tvm.script.ir_module
