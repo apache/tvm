@@ -27,6 +27,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/op.h>
 
+#include <algorithm>
 #include <unordered_map>
 #include <vector>
 
@@ -61,7 +62,7 @@ struct RewriteSimplifierStatsNode : Object {
 };
 
 struct RewriteSimplifierStats : ObjectRef {
-  RewriteSimplifierStats(RewriteSimplifierStatsNode data) {
+  explicit RewriteSimplifierStats(RewriteSimplifierStatsNode data) {
     data_ = make_object<RewriteSimplifierStatsNode>(data);
   }
 
@@ -123,7 +124,7 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
 
   void ResetStatsCounters() { stats_ = {}; }
 
-  void SetMaximumRewriteSteps(int maximum) { maximum_rewrite_steps_ = maximum; };
+  void SetMaximumRewriteSteps(int maximum) { maximum_rewrite_steps_ = maximum; }
 
  protected:
   int maximum_rewrite_steps_{0};
