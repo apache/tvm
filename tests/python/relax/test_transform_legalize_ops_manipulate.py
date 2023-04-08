@@ -1013,7 +1013,7 @@ def test_collapse_sum_like():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-@pytest.mark.skip("TOPI collapse_sum not support symbolic now")
+# @pytest.mark.skip("TOPI collapse_sum not support symbolic now")
 def test_collapse_sum_like_symbolic():
     # fmt: off
     @tvm.script.ir_module
@@ -1024,6 +1024,36 @@ def test_collapse_sum_like_symbolic():
             gv: R.Tensor((b, 1), "float32") = R.collapse_sum_like(x, y)
             return gv
 
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def collapse_sum(var_rxplaceholder: T.handle, var_rxplaceholder_red: T.handle):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            a, b = T.int64(), T.int64()
+            rxplaceholder = T.match_buffer(var_rxplaceholder, (a, b, a))
+            rxplaceholder_red = T.match_buffer(var_rxplaceholder_red, (b, T.int64(1)))
+            # with T.block("root"):
+            for ax0, ax1, k0, k2 in T.grid(b, T.int64(1), a, a):
+                with T.block("rxplaceholder_red"):
+                    v_ax0, v_ax1, v_k0, v_k2 = T.axis.remap("SSRR", [ax0, ax1, k0, k2])
+                    T.reads(rxplaceholder[v_k0, v_ax0, v_k2])
+                    T.writes(rxplaceholder_red[v_ax0, v_ax1])
+                    with T.init():
+                        rxplaceholder_red[v_ax0, v_ax1] = T.float32(0)
+                    rxplaceholder_red[v_ax0, v_ax1] = (rxplaceholder_red[v_ax0, v_ax1] + rxplaceholder[v_k0, v_ax0, v_k2])
+
+        @R.function
+        def main(
+            x: R.Tensor(("a", "b", "a"), dtype="float32"),
+            y: R.Tensor(("b", 1), dtype="float32"),
+        ) -> R.Tensor(("b", 1), dtype="float32"):
+            b = T.int64()
+            a = T.int64()
+            cls = Expected
+            gv = R.call_tir(
+                cls.collapse_sum, (x,), out_sinfo=R.Tensor((b, 1), dtype="float32")
+            )
+            return gv
     # fmt: on
 
     mod = LegalizeOps()(CollapseSumLike)
@@ -1066,7 +1096,6 @@ def test_collapse_sum_to():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-@pytest.mark.skip("TOPI collapse_sum not support symbolic now")
 def test_collapse_sum_to_symbolic():
     # fmt: off
     @tvm.script.ir_module
@@ -1077,6 +1106,38 @@ def test_collapse_sum_to_symbolic():
             gv: R.Tensor((b, 1), "float32") = R.collapse_sum_to(x, (b, 1))
             return gv
 
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def collapse_sum(var_rxplaceholder: T.handle, var_rxplaceholder_red: T.handle):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            a, b, c = T.int64(), T.int64(), T.int64()
+            rxplaceholder = T.match_buffer(var_rxplaceholder, (a, b, c))
+            rxplaceholder_red = T.match_buffer(var_rxplaceholder_red, (b, T.int64(1)))
+            # with T.block("root"):
+            for ax0, ax1, k0, k2 in T.grid(b, T.int64(1), a, c):
+                with T.block("rxplaceholder_red"):
+                    v_ax0, v_ax1, v_k0, v_k2 = T.axis.remap("SSRR", [ax0, ax1, k0, k2])
+                    T.reads(rxplaceholder[v_k0, v_ax0, v_k2])
+                    T.writes(rxplaceholder_red[v_ax0, v_ax1])
+                    with T.init():
+                        rxplaceholder_red[v_ax0, v_ax1] = T.float32(0)
+                    rxplaceholder_red[v_ax0, v_ax1] = (
+                        rxplaceholder_red[v_ax0, v_ax1] + rxplaceholder[v_k0, v_ax0, v_k2]
+                    )
+
+        @R.function
+        def main(
+            x: R.Tensor(("a", "b", "c"), dtype="float32")
+        ) -> R.Tensor(("b", 1), dtype="float32"):
+            b = T.int64()
+            a = T.int64()
+            c = T.int64()
+            cls = Expected
+            gv = R.call_tir(
+                cls.collapse_sum, (x,), out_sinfo=R.Tensor((b, 1), dtype="float32")
+            )
+            return gv
     # fmt: on
 
     mod = LegalizeOps()(CollapseSumTo)

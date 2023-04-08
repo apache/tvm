@@ -333,21 +333,28 @@ inline Tensor sum(const Tensor& data, const Array<Integer>& axis, bool keepdims 
 }
 
 inline Tensor collapse_sum(const Tensor& data, Array<PrimExpr> target_shape) {
-  ICHECK_GE(data->shape.size(), target_shape.size());
-  auto ishape = detail::GetConstIntValues(data->shape, "ishape");
-  auto oshape = detail::GetConstIntValues(target_shape, "oshape");
+  const auto& ishape = data->shape;
+  const auto& oshape = target_shape;
+  int isize = data->shape.size();
+  int osize = target_shape.size();
+
+  ICHECK_GE(isize, osize)
+      << "Invalid collapse: input dimensionality smaller than output dimensionality.\ninput shape: "
+      << data->shape << "\nvs\noutput shape: " << target_shape;
 
   std::vector<int> reduce_axes;
   std::vector<int> squeeze_axes;
-  for (int i_ax = ishape.size() - 1, o_ax = oshape.size() - 1; i_ax >= 0; --i_ax) {
-    if (o_ax >= 0 && ishape[i_ax] == oshape[o_ax]) {
+  tvm::PrimExpr one(1);
+
+  for (int i_ax = isize - 1, o_ax = osize - 1; i_ax >= 0; --i_ax) {
+    if (o_ax >= 0 && topi::detail::EqualCheck(ishape[i_ax], oshape[o_ax])) {
       --o_ax;
       continue;
     }
     reduce_axes.push_back(i_ax);
     if (o_ax < 0) {  // squeeze o_ax if was added during expansion
       squeeze_axes.push_back(i_ax);
-    } else if (oshape[o_ax] == 1) {
+    } else if (topi::detail::EqualCheck(one, oshape[o_ax])) {
       --o_ax;
     }
   }

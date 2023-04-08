@@ -25,7 +25,7 @@ import tvm
 import tvm.testing
 import tvm.topi.testing
 
-from tvm import te, topi
+from tvm import te, topi, tir
 from tvm.topi.utils import get_const_tuple
 
 in_shape, axis, keepdims, reduce_type, dtype = tvm.testing.parameters(
@@ -192,10 +192,15 @@ def test_complex_reduce(target, dev):
     tvm.testing.assert_allclose(out_tvm.numpy(), out_npy, 1e-3, 1e-3)
 
 
+n = tir.Var("n", "int32")
+m = tir.Var("m", "int32")
+true_value_map = {n: 3, m: 5}
+
 data_shape, target_shape = tvm.testing.parameters(
     ((2, 3), (3,)),
     ((2, 3, 4), (2, 1, 4)),
     ((2, 3, 4, 5), (3, 1, 5)),
+    ((2, n, 4, m), (n, 1, m)),
 )
 
 
@@ -218,11 +223,16 @@ def test_collapse_sum(data_shape, target_shape):
     B = topi.collapse_sum(A, target_shape)
     s = te.create_schedule([B.op])
 
-    a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
-    b_np = _my_npy_collapse_sum(a_np, target_shape)
+    data_shape_const = [int(s) if s not in true_value_map else true_value_map[s] for s in A.shape]
+    target_shape_const = [
+        int(s) if s not in true_value_map else true_value_map[s] for s in target_shape
+    ]
+    a_np = np.random.uniform(size=data_shape_const).astype(A.dtype)
+    b_np = _my_npy_collapse_sum(a_np, target_shape_const)
     dev = tvm.cpu(0)
     a = tvm.nd.array(a_np, dev)
-    b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
+    B_shape_const = [int(s) if s not in true_value_map else true_value_map[s] for s in B.shape]
+    b = tvm.nd.array(np.zeros(B_shape_const, dtype=B.dtype), dev)
     # Building with the CSE pass disabled
     with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
         foo = tvm.build(s, [A, B], "llvm", name="collapse_sum")
