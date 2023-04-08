@@ -60,6 +60,22 @@ enum DivMode {
 };
 
 /*!
+ * \brief The strength used in top-level condition proves
+ * \note The higher, the more time consuming it can be.
+ *
+ * Do not use level beyond kDefault in internal recursive rewriting in arith
+ * analysis and only use it at top-level simplification to avoid speed issues.
+ */
+enum class ProofStrength : int {
+  /*! \brief default strength, can be used in. */
+  kDefault = 0,
+  /*!
+   * \brief Prove using symbolic bound analysis
+   */
+  kSymbolicBound = 1
+};
+
+/*!
  * \brief Constant integer up and lower bound(inclusive).
  *  Useful for value bound analysis.
  *
@@ -656,11 +672,16 @@ class TVM_DLL Analyzer {
    * \brief Whether can we prove condition.
    *
    * \param cond The expression to be proved.
+   * \param strength the strength of the prove.
+   *
    * \return The result.
    *
    * \note Analyzer will call into sub-analyzers to get the result.
+   * Do not use strength beyond default in sub-analyzers and
+   * only use it in top-level predicate analysis.
    */
-  bool CanProve(const PrimExpr& cond);
+  bool CanProve(const PrimExpr& cond, ProofStrength strength = ProofStrength::kDefault);
+
   /*!
    * \brief Simplify expr.
    *

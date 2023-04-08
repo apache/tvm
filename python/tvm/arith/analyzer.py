@@ -15,9 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 """Arithmetic data structure and utility"""
+from enum import IntEnum
 import tvm._ffi
 from tvm.runtime import Object
 from . import _ffi_api
+
+
+class ProofStrength(IntEnum):
+    """Proof strength of the analysis"""
+
+    DEFAULT = 0
+    SYMBOLIC_BOUND = 1
 
 
 @tvm._ffi.register_object("arith.ModularSet")
@@ -91,6 +99,7 @@ class Analyzer:
         self._int_set = _mod("int_set")
         self._enter_constraint_context = _mod("enter_constraint_context")
         self._can_prove_equal = _mod("can_prove_equal")
+        self._can_prove = _mod("can_prove")
 
     def const_int_bound(self, expr):
         """Find constant integer bound for expr.
@@ -189,6 +198,24 @@ class Analyzer:
             The result.
         """
         return self._int_set(expr, dom_map)
+
+    def can_prove(self, expr, strength=ProofStrength.DEFAULT):
+        """Check whether we can prove expr to be true.
+
+        Parameters
+        ----------
+        expr : PrimExpr
+            The expression.
+
+        strength: ProofStrength
+            The proof strength
+
+        Returns
+        -------
+        result : Expr
+            The result.
+        """
+        return self._can_prove(expr, strength)
 
     def bind(self, var, expr):
         """Bind a variable to the expression.

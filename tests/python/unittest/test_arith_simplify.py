@@ -34,5 +34,36 @@ def test_simplify_reshape_flattened_index():
     )
 
 
+def test_simplify_symbolic_comparison():
+    ana = tvm.arith.Analyzer()
+
+    i0 = tir.Var("i0", "int64")
+    i1 = tir.Var("i1", "int64")
+    n, m = tvm.tir.SizeVar("n", "int64"), tvm.tir.SizeVar("m", "int64")
+    outer = (n + 31) // 32
+    ana.bind(i0, tvm.ir.Range(0, outer))
+    ana.bind(i1, tvm.ir.Range(0, 32))
+    PS = tvm.arith.ProofStrength
+
+    assert not ana.can_prove(i0 * 32 + i1 < (n + 31) // 32 * 32, PS.DEFAULT)
+    assert ana.can_prove(i0 * 32 + i1 < (n + 31) // 32 * 32, PS.SYMBOLIC_BOUND)
+    assert ana.can_prove(i0 * 32 + i1 < (n + 31) // 32 * 32 + m, PS.SYMBOLIC_BOUND)
+    assert ana.can_prove(i0 * 32 + i1 + 1 <= (n + 31) // 32 * 32, PS.SYMBOLIC_BOUND)
+    assert ana.can_prove((n + 31) // 32 * 32 >= i0 * 32 + i1 + 1, PS.SYMBOLIC_BOUND)
+    assert ana.can_prove((n + 31) // 32 * 32 >= i0 * 32 + i1, PS.SYMBOLIC_BOUND)
+
+
+def test_regression_simplify_inf_recursion():
+    ana = tvm.arith.Analyzer()
+    cond = tir.Var("cond", "int32")
+
+    res = (tvm.tir.NE(cond, 0).astype("int8") - tvm.tir.NE(cond, 0).astype("int8")).astype(
+        "int32"
+    ) == 0
+    # regression in a previous case
+    # try compare and int set recursive call can cause infinite loop
+    ana.rewrite_simplify(res)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
