@@ -1304,3 +1304,7 @@ def leaky_relu(x, alpha, input_scale, input_zero_point, output_scale, output_zer
         output_scale,
         output_zero_point,
     )
+
+
+def softmax(x, scale, zero_point, output_scale, output_zero_point, axis=-1):
+    return _make.softmax(x, axis, scale, zero_point, output_scale, output_zero_point)

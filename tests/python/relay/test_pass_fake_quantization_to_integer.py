@@ -1114,5 +1114,36 @@ def test_fake_quantize_take():
     compare_fq_to_int(op, [x_np])
 
 
+def test_fake_quantize_softmax():
+    shape = [50, 10]
+    x = relay.var("x", shape=shape, dtype="int8")
+
+    x = relay.qnn.op.dequantize(x, relay.const(0.08), relay.const(-48))
+    op = relay.op.nn.softmax(x, axis=1)
+    op = relay.qnn.op.quantize(op, relay.const(0.0039), relay.const(-128), out_dtype="int8")
+    op = relay.qnn.op.dequantize(op, relay.const(0.0039), relay.const(-128))
+
+    x_np = np.random.randint(-128, 127, size=shape, dtype="int8")
+    args = [x_np]
+
+    mod = tvm.IRModule.from_expr(op)
+    mod = tvm.relay.transform.InferType()(mod)
+    mod_int = tvm.relay.transform.FakeQuantizationToInteger(hard_fail=True)(mod)
+    assert not tvm.ir.structural_equal(mod, mod_int)
+
+    result = (
+        relay.create_executor("vm", mod=mod, device=tvm.cpu(), target="llvm")
+        .evaluate()(*args)
+        .numpy()
+    )
+    result_int = (
+        relay.create_executor("vm", mod=mod_int, device=tvm.cpu(), target="llvm")
+        .evaluate()(*args)
+        .numpy()
+    )
+
+    assert np.allclose(result_int, result, atol=0.05)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

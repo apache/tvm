@@ -633,3 +633,16 @@ def take(expr, type_map):
 
     out = relay.op.take(arg, indices, **expr.attrs)
     return [out, t]
+
+
+@register_fake_quantization_to_integer("nn.softmax")
+def softmax(expr, type_map):
+    """Rewrite a softmax op"""
+    arg = expr.args[0]
+    arg_t = type_map[arg]
+    out_t = type_map[expr]
+
+    out = relay.qnn.op.softmax(
+        arg, arg_t.scale, arg_t.zero_point, out_t.scale, out_t.zero_point, **expr.attrs
+    )
+    return [out, out_t]
