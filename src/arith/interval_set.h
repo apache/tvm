@@ -60,12 +60,11 @@ class IntervalSetNode : public IntSetNode {
   bool HasLowerBound() const { return !is_neg_inf(min_value) && !IsEmpty(); }
   /*! \return Whether the interval is a single point. */
   bool IsSinglePoint() const {
-    if (min_value.same_as(max_value)) {
-      return true;
-    }
-    Analyzer analyzer;
-    return analyzer.CanProveEqual(min_value, max_value);
+    // NOTE: we are only doing cheap check as this is a frequently called routine,
+    // do manual prove of min and max for stronger single point check.
+    return min_value.same_as(max_value);
   }
+
   /*! \return whether interval represent nothing */
   bool IsEmpty() const {
     // during computations, either extreme could occur.
