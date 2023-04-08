@@ -388,6 +388,7 @@ TVM_REGISTER_TAG_AWS_C5("aws/cpu/c5.24xlarge", 48, "cascadelake");
                                        {"mcpu", String("apple-latest")}}}});
 
 TVM_REGISTER_METAL_GPU_TAG("apple/m1-gpu", 1024, 32768, 32);
+TVM_REGISTER_METAL_GPU_TAG("apple/m1-gpu-restricted", 256, 32768, 32);
 TVM_REGISTER_METAL_GPU_TAG("apple/m2-gpu", 1024, 32768, 32);
 
 #undef TVM_REGISTER_METAL_TAG
