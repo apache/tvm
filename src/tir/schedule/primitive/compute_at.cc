@@ -455,8 +455,9 @@ void UpdateBlockVarDomainDimwise(
     arith::IntSet required = required_region[i];
     PrimExpr dim_max = max(buffer->shape[i] - 1, 0);
 
-    if (provided.IsSinglePoint() && is_const_int(provided.min())) {
-      ICHECK(required.IsSinglePoint() && analyzer->CanProveEqual(provided.min(), required.min()));
+    if (provided.CanProveSinglePoint(analyzer) && is_const_int(provided.min())) {
+      ICHECK(required.CanProveSinglePoint(analyzer) &&
+             analyzer->CanProveEqual(provided.min(), required.min()));
       continue;
     }
 
@@ -515,7 +516,7 @@ bool UpdateBlockVarDomainAffine(const BufferNode* buffer, const Array<IterVar>& 
                                 std::unordered_map<const VarNode*, BlockVarDomainInfo>* iter_doms) {
   // we only support single point provided region now, which could cover most cases
   for (const auto& intset : provided_region) {
-    if (!intset.IsSinglePoint()) return false;
+    if (!intset.CanProveSinglePoint(analyzer)) return false;
   }
   // calculate forward mapping (block vars -> provided region point)
   Map<Var, Range> dom_map;
