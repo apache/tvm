@@ -115,6 +115,7 @@ TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a100", "sm_80", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a40", "sm_86", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a30", "sm_80", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a10", "sm_86", 49152, 65536);
+TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a10g", "sm_86", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a16", "sm_86", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a2", "sm_86", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-t4", "sm_75", 49152, 65536);
