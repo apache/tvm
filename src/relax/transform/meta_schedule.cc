@@ -26,6 +26,9 @@
 #include <tvm/relax/tuning_api.h>
 #include <tvm/tir/transform.h>
 
+#include "../src/meta_schedule/module_equality.h"
+#include "../src/meta_schedule/trace_apply.h"
+
 namespace tvm {
 namespace relax {
 namespace transform {
@@ -105,6 +108,7 @@ Pass MetaScheduleApplyDatabase(Optional<String> work_dir) {
     }
 
     Map<GlobalVar, BaseFunc> result;
+    auto mod_eq_structural = meta_schedule::ModuleEquality::Create("ignore-ndarray");
     for (const auto& iter : mod->functions) {
       GlobalVar gv = iter.first;
       BaseFunc base_func = iter.second;
@@ -112,8 +116,21 @@ Pass MetaScheduleApplyDatabase(Optional<String> work_dir) {
         tir::PrimFunc prim_func = GetRef<tir::PrimFunc>(prim_func_node);
 
         IRModule tir_mod = (*normalize_mod_func_)(prim_func);
-        if (Optional<tir::Schedule> sch = database->QuerySchedule(tir_mod, target, gv->name_hint)) {
-          IRModule new_mod = sch.value()->mod();
+        if (Optional<meta_schedule::TuningRecord> opt_record =
+                database->QueryTuningRecord(tir_mod, target, gv->name_hint)) {
+          meta_schedule::TuningRecord record = opt_record.value();
+          tir::Schedule sch =
+              tir::Schedule::Traced(tir_mod, /*seed=*/-1, /*debug_mask=*/0,
+                                    /*error_render_level=*/tir::ScheduleErrorRenderLevel::kDetail);
+          if (!mod_eq_structural->Equal(tir_mod, record->workload->mod)) {
+            // When the database lookup succeeds while structural equality check fails,
+            // it implies that the anchor block based equality has been used during tuning.
+            // The trace in the record cannot directly be applied to this query module.
+            meta_schedule::ScheduleUsingAnchorTrace(sch, record->trace, target);
+          } else {
+            record->trace->ApplyToSchedule(sch, /*remove_postproc=*/false);
+          }
+          IRModule new_mod = sch->mod();
           ICHECK_EQ(new_mod->functions.size(), 1);
           BaseFunc new_base_func = (*new_mod->functions.begin()).second;
           ICHECK(new_base_func->IsInstance<tir::PrimFuncNode>());
