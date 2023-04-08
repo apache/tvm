@@ -14,16 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Legalize high-level operator calls in Relax functions to call_tir."""
-from . import binary
-from . import creation
-from . import datatype
-from . import grad
-from . import image
-from . import index
-from . import linear_algebra
-from . import manipulate
-from . import nn
-from . import search
-from . import statistical
-from . import unary
+"""FFI APIs for tvm.relax.op.grad"""
+import tvm._ffi
+
+tvm._ffi._init_api("relax.op.grad", __name__)

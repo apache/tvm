@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # pylint: disable=redefined-builtin
 """The base Relax operators."""
-from typing import Union, List, Tuple, Optional
+from typing import Union, List, Tuple, Optional, Callable
 
 
 import tvm
@@ -23,7 +23,7 @@ import tvm.runtime
 from tvm.runtime.object import Object
 
 from . import _ffi_api
-from ..expr import Expr, StringImm, ShapeExpr, Call, ExternFunc, GlobalVar
+from ..expr import Expr, StringImm, ShapeExpr, Call, ExternFunc, GlobalVar, Var
 from ..expr import Tuple as RxTuple
 from ..struct_info import StructInfo, TensorStructInfo
 from ...ir import PrimExpr
@@ -31,6 +31,28 @@ from ..utils import args_converter
 
 
 py_print = print  # pylint: disable=invalid-name
+
+
+def register_gradient(
+    op_name: str,
+    fgradient: Callable[[Var, Call, Var, "BlockBuilder"], List[Expr]] = None,
+    level: int = 10,
+):
+    """Register operator gradient function for a relax operator.
+
+    Parameters
+    ----------
+    op_name: str
+        The name of the op.
+
+    fgradient: function (orig_var: Var, orig_call: Call, output_grad: Var, ctx: BlockBuilder)
+         -> partials: List[Expr]
+        The gradient function being used.
+
+    level: int
+        The priority level
+    """
+    return tvm.ir.register_op_attr(op_name, "FPrimalGradient", fgradient, level)
 
 
 def null_value() -> Call:
