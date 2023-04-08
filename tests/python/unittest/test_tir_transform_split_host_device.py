@@ -17,6 +17,7 @@
 import tvm
 from tvm import te
 import tvm.testing
+from tvm.script import tir as T, ir as I
 
 
 @tvm.testing.requires_cuda
@@ -46,6 +47,30 @@ def test_split_host_device_func_attr():
     assert fdevice.attrs["calling_conv"].value == 2
     assert fdevice.attrs["target"] == cuda_target
     assert fdevice.attrs["tir.is_global_func"].value
+
+
+def test_ssa_across_entire_module():
+    """The host and device functions should not share TIR vars
+
+    Any arguments that are passed from the host to the device should
+    be in terms of independent TIR variables.
+    """
+
+    @I.ir_module
+    class before:
+        @T.prim_func
+        def main():
+            T.func_attr({"global_symbol": "main", "target": T.target("cuda")})
+            for i in range(16):
+                T.attr(0, "device_scope", 0)
+                for j in range(16):
+                    T.evaluate(i)
+
+    after = tvm.tir.transform.SplitHostDevice()(before)
+    loop_var = after["main"].body.loop_var
+    param_var = after["main_kernel0"].params[0]
+
+    assert not loop_var.same_as(param_var)
 
 
 if __name__ == "__main__":
