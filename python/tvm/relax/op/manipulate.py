@@ -460,7 +460,7 @@ def einsum(operands, subscripts):
     if isinstance(operands, (list, tuple)):
         operands = RxTuple(operands)
 
-    return _ffi_api.einsum(operands, subscripts) # type: ignore
+    return _ffi_api.einsum(operands, subscripts)  # type: ignore
 
 
 def flip(data, axis):
@@ -488,7 +488,7 @@ def flip(data, axis):
 
         relax.flip(x, axis=1) = [[2., 1.], [4., 3.]]
     """
-    return _ffi_api.flip(data, axis) # type: ignore
+    return _ffi_api.flip(data, axis)  # type: ignore
 
 
 def scatter_elements(

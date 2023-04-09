@@ -21,7 +21,6 @@ from tvm import relax, tir
 from tvm import TVMError
 from tvm.ir import Op
 from tvm.script import relax as R
-from tvm.tir.expr import FloatImm, IntImm
 
 
 def test_op_correctness():
@@ -3047,15 +3046,39 @@ def test_einsum_infer_struct_info():
     _check_inference(bb, relax.op.einsum((x2,), "ii"), relax.TensorStructInfo((), "int32"))
     _check_inference(bb, relax.op.einsum((x2,), "ii->i"), relax.TensorStructInfo((5,), "int32"))
     _check_inference(bb, relax.op.einsum([x2], "...j->..."), relax.TensorStructInfo((5,), "int32"))
-    _check_inference(bb, relax.op.einsum((x2, x1), "...j, j"), relax.TensorStructInfo((5,), "int32"))
-    _check_inference(bb, relax.op.einsum((x0, x5), "..., ..."), relax.TensorStructInfo((2, 3), "float32"))
-    _check_inference(bb, relax.op.einsum((x5, x6), "ij,jk->ik"), relax.TensorStructInfo((2, 4), "float32"))
-    _check_inference(bb, relax.op.einsum((x5, x6, x8), "ij,jk,km->im"), relax.TensorStructInfo((2, 5), "float32"))
-    _check_inference(bb, relax.op.einsum((x9, x10), "ijk, jil->kl"), relax.TensorStructInfo((5, 2), "float32"))
-    _check_inference(bb, relax.op.einsum((x3, x4), "ij, ij -> i"), relax.TensorStructInfo((2,), "float32"))
-    _check_inference(bb, relax.op.einsum((x3, x7), "...ij, ...jk -> ...ik"), relax.TensorStructInfo((1, 2), "float32"))
-    _check_inference(bb, relax.op.einsum((x12, x13), "...ij, ...ik -> ...jk"), relax.TensorStructInfo((1, 1, 4, 3), "float16"))
-    _check_inference(bb, relax.op.einsum((x11, x14, x15), "...ik, ...jk, ...hk -> i...jh"), relax.TensorStructInfo((4, 2, 5, 3, 8, 6), "float32"))
+    _check_inference(
+        bb, relax.op.einsum((x2, x1), "...j, j"), relax.TensorStructInfo((5,), "int32")
+    )
+    _check_inference(
+        bb, relax.op.einsum((x0, x5), "..., ..."), relax.TensorStructInfo((2, 3), "float32")
+    )
+    _check_inference(
+        bb, relax.op.einsum((x5, x6), "ij,jk->ik"), relax.TensorStructInfo((2, 4), "float32")
+    )
+    _check_inference(
+        bb, relax.op.einsum((x5, x6, x8), "ij,jk,km->im"), relax.TensorStructInfo((2, 5), "float32")
+    )
+    _check_inference(
+        bb, relax.op.einsum((x9, x10), "ijk, jil->kl"), relax.TensorStructInfo((5, 2), "float32")
+    )
+    _check_inference(
+        bb, relax.op.einsum((x3, x4), "ij, ij -> i"), relax.TensorStructInfo((2,), "float32")
+    )
+    _check_inference(
+        bb,
+        relax.op.einsum((x3, x7), "...ij, ...jk -> ...ik"),
+        relax.TensorStructInfo((1, 2), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.einsum((x12, x13), "...ij, ...ik -> ...jk"),
+        relax.TensorStructInfo((1, 1, 4, 3), "float16"),
+    )
+    _check_inference(
+        bb,
+        relax.op.einsum((x11, x14, x15), "...ik, ...jk, ...hk -> i...jh"),
+        relax.TensorStructInfo((4, 2, 5, 3, 8, 6), "float32"),
+    )
 
 
 def test_einsum_infer_struct_info_shape_symbolic():
@@ -3067,8 +3090,10 @@ def test_einsum_infer_struct_info_shape_symbolic():
     y = relax.Var("y", R.Tensor((b, c), "float32"))
     z = relax.Var("z", R.Tensor((a, a), "float32"))
 
-    _check_inference(bb, relax.op.einsum((x, y), "ij,jk->ik"), relax.TensorStructInfo((a, c), "float32"))
     _check_inference(bb, relax.op.einsum((z,), "ii->i"), relax.TensorStructInfo((a,), "float32"))
+    _check_inference(
+        bb, relax.op.einsum((x, y), "ij,jk->ik"), relax.TensorStructInfo((a, c), "float32")
+    )
 
 
 def test_einsum_infer_struct_info_wrong_inputs():
