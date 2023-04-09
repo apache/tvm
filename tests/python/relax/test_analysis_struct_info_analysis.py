@@ -18,9 +18,11 @@
 """Tests analysis functions of struct info"""
 
 import pytest
+
 import tvm
 import tvm.testing
-from tvm import relax as rx, TVMError
+from tvm import TVMError
+from tvm import relax as rx
 from tvm import tir
 
 
@@ -572,6 +574,28 @@ def test_tir_vars_in_struct_info():
     tvm.ir.assert_structural_equal(rx.analysis.tir_vars_in_struct_info(tensor0), [n])
     tvm.ir.assert_structural_equal(rx.analysis.tir_vars_in_struct_info(tensor1), [n, m])
     tvm.ir.assert_structural_equal(rx.analysis.tir_vars_in_struct_info(func), [n, m])
+
+
+def test_symbolic_var_collector():
+    n, m, k, q, p = (
+        tir.Var("n", "int64"),
+        tir.Var("m", "int64"),
+        tir.Var("k", "int64"),
+        tir.Var("q", "int64"),
+        tir.Var("p", "int64"),
+    )
+    bb = rx.BlockBuilder()
+    x = rx.Var("x", rx.TensorStructInfo([m, m + n], "float32"))
+    with bb.function("main", [x]):
+        v0 = bb.match_cast(x, rx.TensorStructInfo([m, k], "float32"))
+        v1 = bb.emit(rx.call_dps_packed("test", x, rx.TensorStructInfo([p, q], "float32")))
+        bb.emit_func_output(rx.const(1))
+    func = bb.get()["main"]
+
+    defined_vars = set(rx.analysis.defined_symbolic_vars(func))
+    free_vars = set(rx.analysis.free_symbolic_vars(func))
+    assert defined_vars == {m, k}
+    assert free_vars == {n, p, q}
 
 
 if __name__ == "__main__":

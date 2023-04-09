@@ -506,10 +506,21 @@ class FunctionCreator : public ExprMutator {
       body = builder_->Normalize(body);
       body = builder_->Normalize(SeqExpr({new_block}, body));
       group_attrs.Set(tvm::relax::attr::kPrimitive, Integer(1));
-      function_ = SymbolicVarRenewMutator::Renew(Function(/*params=*/params_,           //
-                                                          /*body=*/body,                //
-                                                          /*ret_struct_info=*/NullOpt,  //
-                                                          /*attrs=*/DictAttrs(group_attrs)));
+      Function function = Function(/*params=*/params_,           //
+                                   /*body=*/body,                //
+                                   /*ret_struct_info=*/NullOpt,  //
+                                   /*attrs=*/DictAttrs(group_attrs));
+      Array<PrimExpr> free_vars =
+          FreeSymbolicVars(function).Map([](const tir::Var& var) -> PrimExpr { return var; });
+      if (!free_vars.empty()) {
+        params_.push_back(Var("tir_vars", ShapeStructInfo(free_vars)));
+        arguments_.push_back(ShapeExpr(free_vars));
+        function = Function(/*params=*/params_,           //
+                            /*body=*/body,                //
+                            /*ret_struct_info=*/NullOpt,  //
+                            /*attrs=*/DictAttrs(group_attrs));
+      }
+      function_ = SymbolicVarRenewMutator::Renew(function);
     }
   }
 

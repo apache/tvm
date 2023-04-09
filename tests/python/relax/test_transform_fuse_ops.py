@@ -1291,5 +1291,47 @@ def test_symbolic_shape_aware_fuse():
     _check(Before, Expected)
 
 
+def test_symbolic_shape_aware_fuse_2():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(s: R.Shape(["n"])):
+            n = T.int64()
+            with R.dataflow():
+                lv0 = R.emit_te(topi.full, [n, n], "float32", 0)
+                lv1 = R.emit_te(topi.trilu, lv0, tvm.tir.const(1, "int32"), upper=True)
+                gv = R.emit_te(topi.broadcast_to, lv1, [1, 1, n, n])
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def fused_full_trilu_broadcast_to(
+            s: R.Shape(["n"]),
+        ) -> R.Tensor([1, 1, "n", "n"], "float32"):
+            R.func_attr({"Primitive": 1})
+            n = T.int64()
+            with R.dataflow():
+                lv0 = R.emit_te(topi.full, [n, n], "float32", 0)
+                lv1 = R.emit_te(topi.trilu, lv0, tvm.tir.const(1, "int32"), upper=True)
+                gv = R.emit_te(topi.broadcast_to, lv1, [1, 1, n, n])
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(s: R.Shape(["n"])) -> R.Tensor((1, 1, "n", "n"), dtype="float32"):
+            cls = Expected
+            n = T.int64()
+            with R.dataflow():
+                gv: R.Tensor([1, 1, n, n], "float32") = cls.fused_full_trilu_broadcast_to(
+                    R.shape([n])
+                )
+                R.output(gv)
+            return gv
+
+    _check(Before, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

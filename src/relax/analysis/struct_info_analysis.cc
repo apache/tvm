@@ -904,5 +904,124 @@ Array<tir::Var> TIRVarsInStructInfo(const StructInfo& sinfo) {
 TVM_REGISTER_GLOBAL("relax.analysis.TIRVarsInStructInfo")
     .set_body_typed([](const StructInfo& sinfo) { return TIRVarsInStructInfo(sinfo); });
 
+class SymbolicVarCollector : public relax::ExprVisitor,
+                             public relax::StructInfoVisitor,
+                             public tir::ExprVisitor {
+ public:
+  static Array<tir::Var> Free(const Function& func) {
+    SymbolicVarCollector collector;
+    collector.VisitExpr(func);
+    Array<tir::Var> ret{collector.free_symbolic_var_.begin(), collector.free_symbolic_var_.end()};
+    return ret;
+  }
+
+  static Array<tir::Var> Defined(const Function& func) {
+    SymbolicVarCollector collector;
+    collector.VisitExpr(func);
+    Array<tir::Var> ret{collector.defined_symbolic_var_.begin(),
+                        collector.defined_symbolic_var_.end()};
+    return ret;
+  }
+
+ private:
+  using relax::ExprVisitor::VisitExpr;
+  using relax::ExprVisitor::VisitExpr_;
+  using tir::ExprVisitor::VisitExpr;
+  using tir::ExprVisitor::VisitExpr_;
+
+  // Possible mode of visitor
+  enum class VisitMode {
+    /*! \brief Check all vars are well-defined. */
+    kDefault,
+    /*! \brief Match define the vars on first occurrence. */
+    kMatchVarDef,
+  };
+
+  void VisitExpr_(const FunctionNode* op) final {
+    WithMode(VisitMode::kMatchVarDef, [&]() {
+      ICHECK(mode_ == VisitMode::kMatchVarDef);
+      for (Var param : op->params) {
+        relax::StructInfoVisitor::VisitStructInfo(GetStructInfo(param));
+      }
+    });
+
+    relax::ExprVisitor::VisitExpr_(op);
+  }
+
+  void VisitBinding_(const MatchCastNode* binding) final {
+    WithMode(VisitMode::kMatchVarDef, [&]() { this->VisitStructInfo(binding->struct_info); });
+
+    relax::ExprVisitor::VisitBinding_(binding);
+  }
+
+  void VisitExprDepStructInfoField(const StructInfo& struct_info) {
+    return this->VisitStructInfo(struct_info);
+  }
+
+  void VisitStructInfo_(const FuncStructInfoNode* op) final {
+    if (op->params.defined()) {
+      WithMode(VisitMode::kMatchVarDef, [&]() {
+        ICHECK(mode_ == VisitMode::kMatchVarDef);
+        for (StructInfo param : op->params.value()) {
+          this->VisitStructInfo(param);
+        }
+      });
+    }
+    this->VisitStructInfo(op->ret);
+  }
+
+  void VisitStructInfoExprField(const Expr& expr) final {
+    relax::ExprVisitor::VisitExpr(expr);
+    if (auto* shape = expr.as<relax::ShapeExprNode>()) {
+      for (const auto& val : shape->values) {
+        this->VisitStructInfoExprField(val);
+      }
+    }
+  }
+
+  void VisitStructInfoExprField(const PrimExpr& expr) final {
+    if (mode_ == VisitMode::kMatchVarDef && expr->IsInstance<tir::VarNode>()) {
+      // populate symbolic var in first occurrence
+      const auto& var = Downcast<tir::Var>(expr);
+      if (defined_symbolic_var_.count(var) == 0) {
+        defined_symbolic_var_.insert(var);
+      }
+    }
+    tir::ExprVisitor::VisitExpr(expr);
+  }
+
+  void VisitExpr_(const tir::VarNode* op) final {
+    tir::Var var = GetRef<tir::Var>(op);
+    // default mode, check defined.
+    if (defined_symbolic_var_.count(var) == 0) {
+      free_symbolic_var_.insert(var);
+    }
+  }
+
+  // Run callback with mode.
+  template <typename FType>
+  void WithMode(VisitMode mode, FType callback) {
+    std::swap(mode_, mode);
+    callback();
+    std::swap(mode_, mode);
+  }
+
+  /*! \brief The current visit mode. */
+  VisitMode mode_ = VisitMode::kDefault;
+  /*! \brief The set of defined symbolic vars. */
+  std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> defined_symbolic_var_;
+  /*! \brief The set of free/undefined symbolic vars. */
+  std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> free_symbolic_var_;
+};
+
+Array<tir::Var> DefinedSymbolicVars(const Function& func) {
+  return SymbolicVarCollector::Defined(func);
+}
+Array<tir::Var> FreeSymbolicVars(const Function& func) { return SymbolicVarCollector::Free(func); }
+
+TVM_REGISTER_GLOBAL("relax.analysis.DefinedSymbolicVars").set_body_typed(DefinedSymbolicVars);
+
+TVM_REGISTER_GLOBAL("relax.analysis.FreeSymbolicVars").set_body_typed(FreeSymbolicVars);
+
 }  // namespace relax
 }  // namespace tvm

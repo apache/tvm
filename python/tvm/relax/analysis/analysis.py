@@ -184,6 +184,40 @@ def tir_vars_in_struct_info(sinfo: StructInfo) -> List[tir.Var]:
     return _ffi_api.TIRVarsInStructInfo(sinfo)  # type: ignore
 
 
+def defined_symbolic_vars(func: Function) -> List[Var]:
+    """Get the TIR variables that defined in the input function.
+    The returned list is deduplicated - each TIR variable will appear at most once.
+
+    Parameters
+    ----------
+    func : Function
+        The function object to be analyzed.
+
+    Returns
+    -------
+    ret : List[Var]
+        The list of symbolic variables that are defined in the input function.
+    """
+    return _ffi_api.DefinedSymbolicVars(func)  # type: ignore
+
+
+def free_symbolic_vars(func: Function) -> List[Var]:
+    """Get the TIR variables that are used but not defined in the input function.
+    The returned list is deduplicated - each TIR variable will appear at most once.
+
+    Parameters
+    ----------
+    func : Function
+        The function object to be analyzed.
+
+    Returns
+    -------
+    ret : List[Var]
+        The list of symbolic variables that are used but not defined in the input function.
+    """
+    return _ffi_api.FreeSymbolicVars(func)  # type: ignore
+
+
 def bound_vars(expr: Expr) -> List[Var]:
     """
     Return all bound variables from expression expr.
