@@ -140,6 +140,25 @@ struct CumsumAttrs : public tvm::AttrsNode<CumsumAttrs> {
   }
 };  // struct CumsumAttrs
 
+/*! \brief Attributes used in einsum operator */
+struct EinsumAttrs : public tvm::AttrsNode<EinsumAttrs> {
+  String subscripts;
+
+  TVM_DECLARE_ATTRS(EinsumAttrs, "relax.attrs.EinsumAttrs") {
+    TVM_ATTR_FIELD(subscripts).describe("The einsum expression string");
+  }
+};  // struct EinsumAttrs
+
+/*! \brief Attributes used in flip operators */
+struct FlipAttrs : public tvm::AttrsNode<FlipAttrs> {
+  Integer axis;
+  TVM_DECLARE_ATTRS(FlipAttrs, "relax.attrs.FlipAttrs") {
+    TVM_ATTR_FIELD(axis)
+        .set_default(NullValue<Integer>())
+        .describe("The axis along which to flip over.");
+  }
+};  // struct FlipAttrs
+
 /*! \brief Attributes used in scatter_elements operators */
 struct ScatterElementsAttrs : public tvm::AttrsNode<ScatterElementsAttrs> {
   Integer axis;

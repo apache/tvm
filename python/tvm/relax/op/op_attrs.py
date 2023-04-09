@@ -147,3 +147,13 @@ class TileAttrs(Attrs):
 @tvm._ffi.register_object("relax.attrs.CumsumAttrs")
 class CumsumAttrs(Attrs):
     """Attributes for cumsum operator"""
+
+
+@tvm._ffi.register_object("relax.attrs.EinsumAttrs")
+class EinsumAttrs(Attrs):
+    """Attributes for einsum operator"""
+
+
+@tvm._ffi.register_object("relax.attrs.FlipAttrs")
+class FlipAttrs(Attrs):
+    """Attributes for flip operator"""

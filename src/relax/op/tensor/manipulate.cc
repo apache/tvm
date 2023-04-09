@@ -24,6 +24,8 @@
 
 #include "manipulate.h"
 
+#include <tvm/topi/einsum.h>
+
 #include <algorithm>
 #include <numeric>
 #include <string>
@@ -1358,6 +1360,103 @@ TVM_REGISTER_OP("relax.cumsum")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCumsum);
+
+/* relax.einsum */
+TVM_REGISTER_NODE_TYPE(EinsumAttrs);
+
+Expr einsum(Expr operands, String subscripts) {
+  ObjectPtr<EinsumAttrs> attrs = make_object<EinsumAttrs>();
+  attrs->subscripts = std::move(subscripts);
+
+  static const Op& op = Op::Get("relax.einsum");
+  return Call(op, {std::move(operands)}, Attrs{attrs}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.einsum").set_body_typed(einsum);
+
+StructInfo InferStructInfoEinsum(const Call& call, const BlockBuilder& ctx) {
+  if (call->args.size() != 1) {
+    ctx->ReportFatal(Diagnostic::Error(call) << "Einsum op should take 1 argument");
+  }
+  Array<TensorStructInfo> operands_tensor_sinfo = GetTensorSInfoFromTuple(call, ctx, call->args[0]);
+  if (operands_tensor_sinfo.empty()) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Einsum op expects at least one tensor in the input Tuple. However, the "
+                        "given input Tuple is empty.");
+  }
+
+  const auto* attrs = call->attrs.as<EinsumAttrs>();
+
+  String subscripts = attrs->subscripts;
+
+  DataType operand_dtype = operands_tensor_sinfo[0]->dtype;
+  std::vector<Array<PrimExpr>> input_shapes;
+  input_shapes.reserve(operands_tensor_sinfo.size());
+
+  for (TensorStructInfo tensor_sinfo : operands_tensor_sinfo) {
+    // Check the input tuple consists of tensors with same dtype
+    if (tensor_sinfo->dtype != operand_dtype) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "Einsum expects all input tensors to have the same dtype. However, the "
+                          "input contains tensors with dtype "
+                       << operand_dtype << " and " << tensor_sinfo->dtype);
+    }
+
+    // Get input shapes
+    const auto* shape_expr = tensor_sinfo->shape.as<ShapeExprNode>();
+    if (shape_expr != nullptr) {
+      input_shapes.push_back(shape_expr->values);
+    } else {
+      return TensorStructInfo(operand_dtype, tensor_sinfo->ndim);
+    }
+  }
+  // Calculate output shape using InferEinsumShape in topi
+  Array<PrimExpr> oshape = topi::InferEinsumShape(subscripts, input_shapes);
+
+  return TensorStructInfo(ShapeExpr(oshape), operand_dtype);
+}
+
+TVM_REGISTER_OP("relax.einsum")
+    .set_attrs_type<EinsumAttrs>()
+    .set_num_inputs(1)
+    .add_argument("operands", "Tensor", "The input tensors.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoEinsum);
+
+/* relax.flip */
+TVM_REGISTER_NODE_TYPE(FlipAttrs);
+
+Expr flip(Expr data, Integer axis) {
+  auto attrs = make_object<FlipAttrs>();
+  attrs->axis = std::move(axis);
+  static const Op& op = Op::Get("relax.flip");
+  return Call(op, {std::move(data)}, Attrs{attrs}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.flip").set_body_typed(flip);
+
+StructInfo InferStructInfoFlip(const Call& call, const BlockBuilder& ctx) {
+  if (call->args.size() != 1) {
+    ctx->ReportFatal(Diagnostic::Error(call) << "Flip op should take 1 argument");
+  }
+  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+  const auto* attrs = call->attrs.as<FlipAttrs>();
+  int axis = attrs->axis.IntValue();
+  if (!data_sinfo->IsUnknownNdim()) {
+    int ndim = data_sinfo->ndim;
+    if (axis < -ndim || axis >= ndim) {
+      ctx->ReportFatal(Diagnostic::Error(call) << "Flip requires the input axis belongs range "
+                                                  "[-ndim, ndim - 1]. However, the input axis is "
+                                               << axis << ", while ndim is " << ndim);
+    }
+  }
+  return data_sinfo;
+}
+
+TVM_REGISTER_OP("relax.flip")
+    .set_attrs_type<FlipAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoFlip);
 
 /* relax.scatter_elements */
 TVM_REGISTER_NODE_TYPE(ScatterElementsAttrs);

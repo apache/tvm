@@ -441,6 +441,56 @@ def cumsum(data: Expr, axis: Optional[int] = None, dtype: Optional[Union[str, Da
     return _ffi_api.cumsum(data, axis, dtype)  # type: ignore
 
 
+def einsum(operands, subscripts):
+    """Evaluates the Einstein summation convention on data
+
+    Parameters
+    ----------
+    operands : Union(List[relax.Expr], Tuple[relax.Expr])
+        A list of expression.
+
+    subscripts : str
+        The einsum expression string.
+
+    Returns
+    -------
+    result : relax.Expr
+        The output from the einsum op.
+    """
+    if isinstance(operands, (list, tuple)):
+        operands = RxTuple(operands)
+
+    return _ffi_api.einsum(operands, subscripts) # type: ignore
+
+
+def flip(data, axis):
+    """Reverses the order of elements along given axis while preserving array shape.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data to the operator.
+
+    axis: int
+        axis to flip on
+
+    Returns
+    -------
+    ret : relax.Expr
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        x = [[1., 2.], [3., 4.]]
+        relax.flip(x, axis=0) = [[3., 4.], [1., 2.]]
+
+        relax.flip(x, axis=1) = [[2., 1.], [4., 3.]]
+    """
+    return _ffi_api.flip(data, axis) # type: ignore
+
+
 def scatter_elements(
     data: Expr, indices: Expr, updates: Expr, axis: int = 0, reduction: str = "update"
 ):

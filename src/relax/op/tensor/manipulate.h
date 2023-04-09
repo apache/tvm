@@ -172,6 +172,22 @@ Expr tile(Expr data, Array<Integer> repeats);
  */
 Expr cumsum(Expr data, Optional<Integer> axis = NullOpt, DataType dtype = DataType::Void());
 
+/*!
+ * \brief Einstein summation on the operands.
+ * \param operands The input tensors.
+ * \param subscripts The einsum expression string.
+ * \return The computed result.
+ */
+Expr einsum(Expr operands, String subscripts);
+
+/*!
+ * \brief Reverses the order of elements along given axis.
+ * \param data The input tensor.
+ * \param axis The axis to flip on
+ * \return The computed result.
+ */
+Expr flip(Expr data, Integer axis);
+
 }  // namespace relax
 }  // namespace tvm
 

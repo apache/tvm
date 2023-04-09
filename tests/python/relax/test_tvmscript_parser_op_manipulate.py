@@ -403,5 +403,36 @@ def test_cumsum():
     _check(foo, bb.get()["foo"])
 
 
+def test_einsum():
+    @R.function
+    def foo(x: R.Tensor((1, 4), "float32"), y: R.Tensor((2, 4), "float32")):
+        gv = R.einsum((x, y), "ij, ij -> i")
+        return gv
+
+    x = relax.Var("x", R.Tensor((1, 4), "float32"))
+    y = relax.Var("y", R.Tensor((2, 4), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", [x, y]):
+        gv = bb.emit(relax.op.einsum((x, y), "ij, ij -> i"))
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
+def test_flip():
+    @R.function
+    def foo(x: R.Tensor((2, 3, 4), "float32")):
+        gv = R.flip(x, axis=1)
+        return gv
+
+    x = relax.Var("x", R.Tensor((2, 3, 4), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", [x]):
+        gv = bb.emit(relax.op.flip(x, axis=1))
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
 if __name__ == "__main__":
     tvm.testing.main()

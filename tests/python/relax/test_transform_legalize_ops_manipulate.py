@@ -1353,6 +1353,181 @@ def test_cumsum_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_einsum():
+    # fmt: off
+    @I.ir_module
+    class Einsum:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32"), y: R.Tensor((3, 4), "float32")):
+            gv = R.einsum((x, y), subscripts="ij,jk->ik")
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((3, 4), dtype="float32")
+        ) -> R.Tensor((2, 4), dtype="float32"):
+            cls = Expected
+            gv = R.call_tir(cls.einsum, (x, y), out_sinfo=R.Tensor((2, 4), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def einsum(
+            rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+            rxplaceholder_1: T.Buffer((T.int64(3), T.int64(4)), "float32"),
+            T_einsum: T.Buffer((T.int64(2), T.int64(4)), "float32"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for ax0, ax1, j in T.grid(T.int64(2), T.int64(4), T.int64(3)):
+                with T.block("T_einsum"):
+                    v_ax0, v_ax1, v_j = T.axis.remap("SSR", [ax0, ax1, j])
+                    T.reads(rxplaceholder[v_ax0, v_j], rxplaceholder_1[v_j, v_ax1])
+                    T.writes(T_einsum[v_ax0, v_ax1])
+                    with T.init():
+                        T_einsum[v_ax0, v_ax1] = T.float32(0)
+                    T_einsum[v_ax0, v_ax1] = (
+                        T_einsum[v_ax0, v_ax1]
+                        + rxplaceholder[v_ax0, v_j] * rxplaceholder_1[v_j, v_ax1]
+                    )
+    # fmt: on
+
+    mod = LegalizeOps()(Einsum)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_einsum_symbolic():
+    # fmt: off
+    @I.ir_module
+    class Einsum:
+        @R.function
+        def main(x: R.Tensor(("a", "b"), "float32"), y: R.Tensor(("b", "c"), "float32")):
+            gv = R.einsum((x, y), subscripts="ij,jk->ik")
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor(("a", "b"), dtype="float32"),
+            y: R.Tensor(("b", "c"), dtype="float32"),
+        ) -> R.Tensor(("a", "c"), dtype="float32"):
+            a = T.int64()
+            c = T.int64()
+            b = T.int64()
+            cls = Expected
+            gv = R.call_tir(cls.einsum, (x, y), out_sinfo=R.Tensor((a, c), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def einsum(
+            var_rxplaceholder: T.handle,
+            var_rxplaceholder_1: T.handle,
+            var_T_einsum: T.handle,
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            a, b = T.int64(), T.int64()
+            rxplaceholder = T.match_buffer(var_rxplaceholder, (a, b))
+            c = T.int64()
+            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (b, c))
+            T_einsum = T.match_buffer(var_T_einsum, (a, c))
+            for ax0, ax1, j in T.grid(a, c, b):
+                with T.block("T_einsum"):
+                    v_ax0, v_ax1, v_j = T.axis.remap("SSR", [ax0, ax1, j])
+                    T.reads(rxplaceholder[v_ax0, v_j], rxplaceholder_1[v_j, v_ax1])
+                    T.writes(T_einsum[v_ax0, v_ax1])
+                    with T.init():
+                        T_einsum[v_ax0, v_ax1] = T.float32(0)
+                    T_einsum[v_ax0, v_ax1] = (
+                        T_einsum[v_ax0, v_ax1]
+                        + rxplaceholder[v_ax0, v_j] * rxplaceholder_1[v_j, v_ax1]
+                    )
+    # fmt: on
+
+    mod = LegalizeOps()(Einsum)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_flip():
+    # fmt: off
+    @I.ir_module
+    class Flip:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32")):
+            gv = R.flip(x, axis=0)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
+            cls = Expected
+            gv = R.call_tir(cls.flip, (x,), out_sinfo=R.Tensor((2, 3), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def flip(
+            rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+            T_reverse_sequence: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
+                with T.block("T_reverse_sequence"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(rxplaceholder[T.int64(1) - v_ax0, v_ax1])
+                    T.writes(T_reverse_sequence[v_ax0, v_ax1])
+                    T_reverse_sequence[v_ax0, v_ax1] = rxplaceholder[
+                        T.int64(1) - v_ax0, v_ax1
+                    ]
+
+    # fmt: on
+
+    mod = LegalizeOps()(Flip)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_flip_symbolic():
+    # fmt: off
+    @I.ir_module
+    class Flip:
+        @R.function
+        def main(x: R.Tensor(("a", "b"), "float32")):
+            gv = R.flip(x, axis=1)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor(("a", "b"), dtype="float32")
+        ) -> R.Tensor(("a", "b"), dtype="float32"):
+            a = T.int64()
+            b = T.int64()
+            cls = Expected
+            gv = R.call_tir(cls.flip, (x,), out_sinfo=R.Tensor((a, b), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def flip(var_rxplaceholder: T.handle, var_T_reverse_sequence: T.handle):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            a, b = T.int64(), T.int64()
+            rxplaceholder = T.match_buffer(var_rxplaceholder, (a, b))
+            T_reverse_sequence = T.match_buffer(var_T_reverse_sequence, (a, b))
+            for ax0, ax1 in T.grid(a, b):
+                with T.block("T_reverse_sequence"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(rxplaceholder[v_ax0, b - v_ax1 - T.int64(1)])
+                    T.writes(T_reverse_sequence[v_ax0, v_ax1])
+                    T_reverse_sequence[v_ax0, v_ax1] = rxplaceholder[
+                        v_ax0, b - v_ax1 - T.int64(1)
+                    ]
+
+    # fmt: on
+
+    mod = LegalizeOps()(Flip)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 def test_scatter_elements():
     # fmt: off
     @I.ir_module
