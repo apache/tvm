@@ -144,6 +144,22 @@ IRModule MakeGroupedFunctions(
     bool lift_constants = true);
 
 /*!
+ * \brief Check if the given StructInfo is a scalar tensor. The sinfo should be an instance of
+ * TensorStructInfo; its shape must be ShapeExpr.
+ * \param sinfo The StructInfo to be checked.
+ * \return true if the given StructInfo is a scalar tensor.
+ */
+bool IsScalarTensor(const StructInfo& sinfo);
+
+/*!
+ * \brief Check if the given expr is a scalar tensor. Now the shape of the tensor expr must be
+ * ShapeExpr.
+ * \param expr The expr to be checked.
+ * \return true if the given expr is a scalar tensor.
+ */
+bool IsScalarTensor(const Expr& expr);
+
+/*!
  * \brief Check if the given StructInfo is a nested tensor StructInfo satisfying the given
  * condition f_condition.
  * \param sinfo The StructInfo to be checked.

@@ -22,6 +22,19 @@
 namespace tvm {
 namespace relax {
 
+bool IsScalarTensor(const StructInfo& sinfo) {
+  if (!sinfo->IsInstance<TensorStructInfoNode>()) {
+    return false;
+  }
+  TensorStructInfo tensor_sinfo = Downcast<TensorStructInfo>(sinfo);
+  if (!tensor_sinfo->shape.defined() || !tensor_sinfo->shape->IsInstance<ShapeExprNode>()) {
+    return false;
+  }
+  return tensor_sinfo->shape.as<ShapeExprNode>()->values.size() == 0;
+}
+
+bool IsScalarTensor(const Expr& expr) { return IsScalarTensor(GetStructInfo(expr)); }
+
 bool IsNestedTensor(const StructInfo& sinfo) {
   return IsNestedTensorConditioned(sinfo, [](const TensorStructInfo& sinfo) { return true; });
 }

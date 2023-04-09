@@ -349,6 +349,32 @@ class PatternCheckContext : public ObjectRef {
 };
 
 /*!
+ * \brief Reverse-mode automatic differentiation.
+ *
+ * This pass will differentiate one function in the IRModule. Now the input function must have only
+ * one dataflow block.
+ *
+ * For a given function specified by `func_name`, it generates a new function with the name
+ * `func_name + "_adjoint"`. The new function computes the gradient of the **differentiation
+ * target** with respect to the arguments specified by `require_grads` of the original function.
+ *
+ * If the function has only one return value, the return value will be specified as target. If the
+ * function has more than one return values, the target will be specified as the target_index-th
+ * return value. The target must be a scalar (0-dim tensor).
+ *
+ * \param func_name The name of the specified function.
+ * \param require_grads The relax variables whose adjoints is needed. Must be parameters of the
+ * given function and should not be duplicate. If it is not specified, adjoints of all parameters
+ * would be computed.
+ * \param target_index If the specified function has more than one return values, specify the index
+ * of the return value as the target. If it is not specified, the first return value will be the
+ * target.
+ * \return The Pass.
+ */
+TVM_DLL Pass Gradient(String func_name, Optional<Array<Var>> require_grads = NullOpt,
+                      int target_index = 0);
+
+/*!
  * \brief Apply pattern matching to each function in the given module, and group matched
  * expressions into a new function. The end result is similar to FuseOps, but fusion is driven
  * completely by the provided patterns.
