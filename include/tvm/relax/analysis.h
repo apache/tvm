@@ -268,6 +268,21 @@ TVM_DLL StructInfo StructInfoLCA(const StructInfo& lhs, const StructInfo& rhs,
  */
 TVM_DLL Array<tir::Var> TIRVarsInStructInfo(const StructInfo& sinfo);
 
+/*!
+ * \brief Get the TIR variables that defined in the input function.
+ * The returned list is deduplicated - each TIR variable will appear at most once.
+ * \param func The function object to be analyzed.
+ * \return The list of TIR variables that are defined in the input function.
+ */
+TVM_DLL Array<tir::Var> DefinedSymbolicVars(const Function& func);
+
+/*!
+ * \brief Get the TIR variables that are used but not defined in the input function.
+ * The returned list is deduplicated - each TIR variable will appear at most once.
+ * \param func The function object to be analyzed.
+ * \return The list of TIR variables that are used but not defined in the input function.
+ */
+TVM_DLL Array<tir::Var> FreeSymbolicVars(const Function& func);
 //-----------------------------------
 // General IR analysis
 //-----------------------------------
