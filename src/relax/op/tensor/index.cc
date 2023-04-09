@@ -239,22 +239,23 @@ TVM_REGISTER_OP("relax.strided_slice")
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStridedSlice)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
 
-/* relax.dyn_strided_slice */
-Expr dyn_strided_slice(Expr x,      //
-                       Expr begin,  //
-                       Expr end,    //
-                       Expr strides) {
+/* relax.dynamic_strided_slice */
+Expr dynamic_strided_slice(Expr x,      //
+                           Expr begin,  //
+                           Expr end,    //
+                           Expr strides) {
   static const Op& op = Op::Get("relax.dynamic_strided_slice");
   return Call(op, {std::move(x), std::move(begin), std::move(end), std::move(strides)}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.dynamic_strided_slice").set_body_typed(dyn_strided_slice);
+TVM_REGISTER_GLOBAL("relax.op.dynamic_strided_slice").set_body_typed(dynamic_strided_slice);
 
 StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& ctx) {
   const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
   const auto* begin_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
   const auto* end_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[2]);
   const auto* strides_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[3]);
+
   ICHECK(data_sinfo);
   if (data_sinfo->IsUnknownNdim()) {
     LOG(WARNING) << "When data rank is unknown, dynamic strided slice assumes begin/end/stride "
@@ -298,6 +299,7 @@ StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& 
   diag_def(strides_sinfo, "stride");
 
   // The output shape will depend on the runtime value in begin/end/stride tensors.
+  // TODO(tvm-team): Extract more compile-time info when those tensors are constants.
   return TensorStructInfo(data_sinfo->dtype, n_axis);
 }  // namespace relax
 

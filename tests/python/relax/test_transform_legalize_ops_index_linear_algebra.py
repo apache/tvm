@@ -210,6 +210,519 @@ def test_strided_slice_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_dynamic_strided_slice():
+    # fmt: off
+    @tvm.script.ir_module
+    class DynamicStridedSlice:
+        @R.function
+        def main(x: R.Tensor((8, 9, 10, 10), "float32"), begin: R.Tensor((4,),"int64"), end: R.Tensor((4,),"int64"), strides: R.Tensor((4,),"int64")) -> R.Tensor("float32", ndim=4):
+            gv: R.Tensor("float32", ndim=4) = R.dynamic_strided_slice(x, begin, end, strides)
+            return gv
+        
+    
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def dynamic_strided_slice(
+            rxplaceholder: T.Buffer(
+                (T.int64(8), T.int64(9), T.int64(10), T.int64(10)), "float32"
+            ),
+            rxplaceholder_1: T.Buffer((T.int64(4),), "int64"),
+            rxplaceholder_2: T.Buffer((T.int64(4),), "int64"),
+            rxplaceholder_3: T.Buffer((T.int64(4),), "int64"),
+            var_T_strided_slice_dynamic: T.handle,
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            s, s_1, s_2, s_3 = T.int64(), T.int64(), T.int64(), T.int64()
+            T_strided_slice_dynamic = T.match_buffer(
+                var_T_strided_slice_dynamic, (s, s_1, s_2, s_3)
+            )
+            # with T.block("root"):
+            for ax0, ax1, ax2, ax3 in T.grid(s, s_1, s_2, s_3):
+                with T.block("T_strided_slice_dynamic"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(
+                        rxplaceholder[
+                            T.min(rxplaceholder_1[T.int64(0)], T.int64(7))
+                            + v_ax0 * rxplaceholder_3[T.int64(0)],
+                            T.min(rxplaceholder_1[T.int64(1)], T.int64(8))
+                            + v_ax1 * rxplaceholder_3[T.int64(1)],
+                            T.min(rxplaceholder_1[T.int64(2)], T.int64(9))
+                            + v_ax2 * rxplaceholder_3[T.int64(2)],
+                            T.min(rxplaceholder_1[T.int64(3)], T.int64(9))
+                            + v_ax3 * rxplaceholder_3[T.int64(3)],
+                        ],
+                        rxplaceholder_1[T.int64(0) : T.int64(4)],
+                        rxplaceholder_3[T.int64(0) : T.int64(4)],
+                    )
+                    T.writes(T_strided_slice_dynamic[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T_strided_slice_dynamic[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder[
+                        T.min(rxplaceholder_1[T.int64(0)], T.int64(7))
+                        + v_ax0 * rxplaceholder_3[T.int64(0)],
+                        T.min(rxplaceholder_1[T.int64(1)], T.int64(8))
+                        + v_ax1 * rxplaceholder_3[T.int64(1)],
+                        T.min(rxplaceholder_1[T.int64(2)], T.int64(9))
+                        + v_ax2 * rxplaceholder_3[T.int64(2)],
+                        T.min(rxplaceholder_1[T.int64(3)], T.int64(9))
+                        + v_ax3 * rxplaceholder_3[T.int64(3)],
+                    ]
+
+        @T.prim_func
+        def shape_func_dynamic_strided_slice(
+            rxplaceholder: T.Buffer(
+                (T.int64(8), T.int64(9), T.int64(10), T.int64(10)), "float32"
+            ),
+            rxplaceholder_1: T.Buffer((T.int64(4),), "int64"),
+            rxplaceholder_2: T.Buffer((T.int64(4),), "int64"),
+            rxplaceholder_3: T.Buffer((T.int64(4),), "int64"),
+            T_shape_func_strided_slice_dynamic: T.Buffer((T.int64(4),), "int64"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            for ax0 in range(T.int64(4)):
+                with T.block("T_shape_func_strided_slice_dynamic"):
+                    v_ax0 = T.axis.spatial(T.int64(4), ax0)
+                    T.reads(
+                        rxplaceholder_3[v_ax0],
+                        rxplaceholder_1[v_ax0],
+                        rxplaceholder_2[v_ax0],
+                    )
+                    T.writes(T_shape_func_strided_slice_dynamic[v_ax0])
+                    T_shape_func_strided_slice_dynamic[v_ax0] = T.if_then_else(
+                        rxplaceholder_3[v_ax0] < T.int64(0),
+                        (
+                            T.min(
+                                T.max(
+                                    T.if_then_else(
+                                        rxplaceholder_1[v_ax0] < T.int64(0),
+                                        rxplaceholder_1[v_ax0]
+                                        + T.if_then_else(
+                                            v_ax0 == T.int64(3),
+                                            T.int64(10),
+                                            T.if_then_else(
+                                                v_ax0 == T.int64(2),
+                                                T.int64(10),
+                                                T.if_then_else(
+                                                    v_ax0 == T.int64(1),
+                                                    T.int64(9),
+                                                    T.if_then_else(
+                                                        v_ax0 == T.int64(0),
+                                                        T.int64(8),
+                                                        T.int64(-1),
+                                                    ),
+                                                ),
+                                            ),
+                                        ),
+                                        rxplaceholder_1[v_ax0],
+                                    ),
+                                    T.int64(-1),
+                                ),
+                                T.if_then_else(
+                                    v_ax0 == T.int64(3),
+                                    T.int64(10),
+                                    T.if_then_else(
+                                        v_ax0 == T.int64(2),
+                                        T.int64(10),
+                                        T.if_then_else(
+                                            v_ax0 == T.int64(1),
+                                            T.int64(9),
+                                            T.if_then_else(
+                                                v_ax0 == T.int64(0), T.int64(8), T.int64(-1)
+                                            ),
+                                        ),
+                                    ),
+                                )
+                                - T.int64(1),
+                            )
+                            - T.min(
+                                T.max(
+                                    T.if_then_else(
+                                        rxplaceholder_2[v_ax0] < T.int64(0),
+                                        rxplaceholder_2[v_ax0]
+                                        + T.if_then_else(
+                                            v_ax0 == T.int64(3),
+                                            T.int64(10),
+                                            T.if_then_else(
+                                                v_ax0 == T.int64(2),
+                                                T.int64(10),
+                                                T.if_then_else(
+                                                    v_ax0 == T.int64(1),
+                                                    T.int64(9),
+                                                    T.if_then_else(
+                                                        v_ax0 == T.int64(0),
+                                                        T.int64(8),
+                                                        T.int64(-1),
+                                                    ),
+                                                ),
+                                            ),
+                                        ),
+                                        rxplaceholder_2[v_ax0],
+                                    ),
+                                    T.int64(-1),
+                                ),
+                                T.if_then_else(
+                                    v_ax0 == T.int64(3),
+                                    T.int64(10),
+                                    T.if_then_else(
+                                        v_ax0 == T.int64(2),
+                                        T.int64(10),
+                                        T.if_then_else(
+                                            v_ax0 == T.int64(1),
+                                            T.int64(9),
+                                            T.if_then_else(
+                                                v_ax0 == T.int64(0), T.int64(8), T.int64(-1)
+                                            ),
+                                        ),
+                                    ),
+                                )
+                                - T.int64(1),
+                            )
+                            - rxplaceholder_3[v_ax0]
+                            - T.int64(1)
+                        )
+                        // (T.int64(0) - rxplaceholder_3[v_ax0]),
+                        (
+                            T.min(
+                                T.max(
+                                    T.if_then_else(
+                                        rxplaceholder_2[v_ax0] < T.int64(0),
+                                        rxplaceholder_2[v_ax0]
+                                        + T.if_then_else(
+                                            v_ax0 == T.int64(3),
+                                            T.int64(10),
+                                            T.if_then_else(
+                                                v_ax0 == T.int64(2),
+                                                T.int64(10),
+                                                T.if_then_else(
+                                                    v_ax0 == T.int64(1),
+                                                    T.int64(9),
+                                                    T.if_then_else(
+                                                        v_ax0 == T.int64(0),
+                                                        T.int64(8),
+                                                        T.int64(-1),
+                                                    ),
+                                                ),
+                                            ),
+                                        ),
+                                        rxplaceholder_2[v_ax0],
+                                    ),
+                                    T.int64(0),
+                                ),
+                                T.if_then_else(
+                                    v_ax0 == T.int64(3),
+                                    T.int64(10),
+                                    T.if_then_else(
+                                        v_ax0 == T.int64(2),
+                                        T.int64(10),
+                                        T.if_then_else(
+                                            v_ax0 == T.int64(1),
+                                            T.int64(9),
+                                            T.if_then_else(
+                                                v_ax0 == T.int64(0), T.int64(8), T.int64(-1)
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                            )
+                            + rxplaceholder_3[v_ax0]
+                            - T.min(
+                                T.max(
+                                    T.if_then_else(
+                                        rxplaceholder_1[v_ax0] < T.int64(0),
+                                        rxplaceholder_1[v_ax0]
+                                        + T.if_then_else(
+                                            v_ax0 == T.int64(3),
+                                            T.int64(10),
+                                            T.if_then_else(
+                                                v_ax0 == T.int64(2),
+                                                T.int64(10),
+                                                T.if_then_else(
+                                                    v_ax0 == T.int64(1),
+                                                    T.int64(9),
+                                                    T.if_then_else(
+                                                        v_ax0 == T.int64(0),
+                                                        T.int64(8),
+                                                        T.int64(-1),
+                                                    ),
+                                                ),
+                                            ),
+                                        ),
+                                        rxplaceholder_1[v_ax0],
+                                    ),
+                                    T.int64(0),
+                                ),
+                                T.if_then_else(
+                                    v_ax0 == T.int64(3),
+                                    T.int64(10),
+                                    T.if_then_else(
+                                        v_ax0 == T.int64(2),
+                                        T.int64(10),
+                                        T.if_then_else(
+                                            v_ax0 == T.int64(1),
+                                            T.int64(9),
+                                            T.if_then_else(
+                                                v_ax0 == T.int64(0), T.int64(8), T.int64(-1)
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                            )
+                            - T.int64(1)
+                        )
+                        // rxplaceholder_3[v_ax0],
+                    )
+
+        @R.function
+        def main(
+            x: R.Tensor((8, 9, 10, 10), dtype="float32"),
+            begin: R.Tensor((4,), dtype="int64"),
+            end: R.Tensor((4,), dtype="int64"),
+            strides: R.Tensor((4,), dtype="int64"),
+        ) -> R.Tensor(dtype="float32", ndim=4):
+            s = T.int64()
+            s_1 = T.int64()
+            s_2 = T.int64()
+            s_3 = T.int64()
+            gv = R.call_tir(
+                Expected.shape_func_dynamic_strided_slice,
+                (x, begin, end, strides),
+                out_sinfo=R.Tensor((4,), dtype="int64"),
+            )
+            gv1: R.Shape(ndim=4) = R.call_packed(
+                "vm.builtin.tensor_to_shape", gv, sinfo_args=(R.Shape(ndim=4),)
+            )
+            gv2: R.Shape([s, s_1, s_2, s_3]) = R.match_cast(
+                gv1, R.Shape([s, s_1, s_2, s_3])
+            )
+            gv_1 = R.call_tir(
+                Expected.dynamic_strided_slice,
+                (x, begin, end, strides),
+                out_sinfo=R.Tensor((s, s_1, s_2, s_3), dtype="float32"),
+            )
+            return gv_1
+    # fmt: on
+    mod = LegalizeOps()(DynamicStridedSlice)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_dynamic_strided_slice_symbolic():
+    # fmt: off
+    @tvm.script.ir_module
+    class DynamicStridedSlice:
+        @R.function
+        def main(x: R.Tensor((10, "n"), "float32"), begin:R.Tensor((2,), "int64"), end:R.Tensor((2,), "int64"), strides:R.Tensor((2,), "int64")) -> R.Tensor("float32", ndim=2):
+            n = T.int64()
+            gv: R.Tensor("float32", ndim=2) = R.dynamic_strided_slice(x, begin, end, strides)
+            return gv
+        
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def dynamic_strided_slice(
+            var_rxplaceholder: T.handle,
+            rxplaceholder: T.Buffer((T.int64(2),), "int64"),
+            rxplaceholder_1: T.Buffer((T.int64(2),), "int64"),
+            rxplaceholder_2: T.Buffer((T.int64(2),), "int64"),
+            var_T_strided_slice_dynamic: T.handle,
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            n = T.int64()
+            rxplaceholder_3 = T.match_buffer(var_rxplaceholder, (T.int64(10), n))
+            s, s_1 = T.int64(), T.int64()
+            T_strided_slice_dynamic = T.match_buffer(var_T_strided_slice_dynamic, (s, s_1))
+            # with T.block("root"):
+            for ax0, ax1 in T.grid(s, s_1):
+                with T.block("T_strided_slice_dynamic"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(
+                        rxplaceholder_3[
+                            T.min(rxplaceholder[T.int64(0)], T.int64(9))
+                            + v_ax0 * rxplaceholder_2[T.int64(0)],
+                            T.min(rxplaceholder[T.int64(1)], n - T.int64(1))
+                            + v_ax1 * rxplaceholder_2[T.int64(1)],
+                        ],
+                        rxplaceholder[T.int64(0) : T.int64(2)],
+                        rxplaceholder_2[T.int64(0) : T.int64(2)],
+                    )
+                    T.writes(T_strided_slice_dynamic[v_ax0, v_ax1])
+                    T_strided_slice_dynamic[v_ax0, v_ax1] = rxplaceholder_3[
+                        T.min(rxplaceholder[T.int64(0)], T.int64(9))
+                        + v_ax0 * rxplaceholder_2[T.int64(0)],
+                        T.min(rxplaceholder[T.int64(1)], n - T.int64(1))
+                        + v_ax1 * rxplaceholder_2[T.int64(1)],
+                    ]
+
+        @T.prim_func
+        def shape_func_dynamic_strided_slice(
+            var_rxplaceholder: T.handle,
+            rxplaceholder: T.Buffer((T.int64(2),), "int64"),
+            rxplaceholder_1: T.Buffer((T.int64(2),), "int64"),
+            rxplaceholder_2: T.Buffer((T.int64(2),), "int64"),
+            T_shape_func_strided_slice_dynamic: T.Buffer((T.int64(2),), "int64"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            n = T.int64()
+            rxplaceholder_3 = T.match_buffer(var_rxplaceholder, (T.int64(10), n))
+            # with T.block("root"):
+            for ax0 in range(T.int64(2)):
+                with T.block("T_shape_func_strided_slice_dynamic"):
+                    v_ax0 = T.axis.spatial(T.int64(2), ax0)
+                    T.reads(
+                        rxplaceholder_2[v_ax0], rxplaceholder[v_ax0], rxplaceholder_1[v_ax0]
+                    )
+                    T.writes(T_shape_func_strided_slice_dynamic[v_ax0])
+                    T_shape_func_strided_slice_dynamic[v_ax0] = T.if_then_else(
+                        rxplaceholder_2[v_ax0] < T.int64(0),
+                        (
+                            T.min(
+                                T.max(
+                                    T.if_then_else(
+                                        rxplaceholder[v_ax0] < T.int64(0),
+                                        rxplaceholder[v_ax0]
+                                        + T.if_then_else(
+                                            v_ax0 == T.int64(1),
+                                            n,
+                                            T.if_then_else(
+                                                v_ax0 == T.int64(0),
+                                                T.int64(10),
+                                                T.int64(-1),
+                                            ),
+                                        ),
+                                        rxplaceholder[v_ax0],
+                                    ),
+                                    T.int64(-1),
+                                ),
+                                T.if_then_else(
+                                    v_ax0 == T.int64(1),
+                                    n,
+                                    T.if_then_else(
+                                        v_ax0 == T.int64(0), T.int64(10), T.int64(-1)
+                                    ),
+                                )
+                                - T.int64(1),
+                            )
+                            - T.min(
+                                T.max(
+                                    T.if_then_else(
+                                        rxplaceholder_1[v_ax0] < T.int64(0),
+                                        rxplaceholder_1[v_ax0]
+                                        + T.if_then_else(
+                                            v_ax0 == T.int64(1),
+                                            n,
+                                            T.if_then_else(
+                                                v_ax0 == T.int64(0),
+                                                T.int64(10),
+                                                T.int64(-1),
+                                            ),
+                                        ),
+                                        rxplaceholder_1[v_ax0],
+                                    ),
+                                    T.int64(-1),
+                                ),
+                                T.if_then_else(
+                                    v_ax0 == T.int64(1),
+                                    n,
+                                    T.if_then_else(
+                                        v_ax0 == T.int64(0), T.int64(10), T.int64(-1)
+                                    ),
+                                )
+                                - T.int64(1),
+                            )
+                            - rxplaceholder_2[v_ax0]
+                            - T.int64(1)
+                        )
+                        // (T.int64(0) - rxplaceholder_2[v_ax0]),
+                        (
+                            T.min(
+                                T.max(
+                                    T.if_then_else(
+                                        rxplaceholder_1[v_ax0] < T.int64(0),
+                                        rxplaceholder_1[v_ax0]
+                                        + T.if_then_else(
+                                            v_ax0 == T.int64(1),
+                                            n,
+                                            T.if_then_else(
+                                                v_ax0 == T.int64(0),
+                                                T.int64(10),
+                                                T.int64(-1),
+                                            ),
+                                        ),
+                                        rxplaceholder_1[v_ax0],
+                                    ),
+                                    T.int64(0),
+                                ),
+                                T.if_then_else(
+                                    v_ax0 == T.int64(1),
+                                    n,
+                                    T.if_then_else(
+                                        v_ax0 == T.int64(0), T.int64(10), T.int64(-1)
+                                    ),
+                                ),
+                            )
+                            + rxplaceholder_2[v_ax0]
+                            - T.min(
+                                T.max(
+                                    T.if_then_else(
+                                        rxplaceholder[v_ax0] < T.int64(0),
+                                        rxplaceholder[v_ax0]
+                                        + T.if_then_else(
+                                            v_ax0 == T.int64(1),
+                                            n,
+                                            T.if_then_else(
+                                                v_ax0 == T.int64(0),
+                                                T.int64(10),
+                                                T.int64(-1),
+                                            ),
+                                        ),
+                                        rxplaceholder[v_ax0],
+                                    ),
+                                    T.int64(0),
+                                ),
+                                T.if_then_else(
+                                    v_ax0 == T.int64(1),
+                                    n,
+                                    T.if_then_else(
+                                        v_ax0 == T.int64(0), T.int64(10), T.int64(-1)
+                                    ),
+                                ),
+                            )
+                            - T.int64(1)
+                        )
+                        // rxplaceholder_2[v_ax0],
+                    )
+
+        @R.function
+        def main(
+            x: R.Tensor((10, "n"), dtype="float32"),
+            begin: R.Tensor((2,), dtype="int64"),
+            end: R.Tensor((2,), dtype="int64"),
+            strides: R.Tensor((2,), dtype="int64"),
+        ) -> R.Tensor(dtype="float32", ndim=2):
+            n = T.int64()
+            s = T.int64()
+            s_1 = T.int64()
+            gv = R.call_tir(
+                Expected.shape_func_dynamic_strided_slice,
+                (x, begin, end, strides),
+                out_sinfo=R.Tensor((2,), dtype="int64"),
+            )
+            gv1: R.Shape(ndim=2) = R.call_packed(
+                "vm.builtin.tensor_to_shape", gv, sinfo_args=(R.Shape(ndim=2),)
+            )
+            gv2: R.Shape([s, s_1]) = R.match_cast(gv1, R.Shape([s, s_1]))
+            gv_1 = R.call_tir(
+                Expected.dynamic_strided_slice,
+                (x, begin, end, strides),
+                out_sinfo=R.Tensor((s, s_1), dtype="float32"),
+            )
+            return gv_1
+
+    # fmt: on
+
+    mod = LegalizeOps()(DynamicStridedSlice)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 ##################### Linear algebra #####################
 
 

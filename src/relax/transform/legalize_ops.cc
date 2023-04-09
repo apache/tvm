@@ -83,14 +83,18 @@ class LegalizeMutator : public ExprMutator {
       return visited_call;
     }
 
+    auto op = GetRef<Op>(op_node);
+    std::string op_name(op->name);
+    bool is_data_dependent_op = (op_name.find("dynamic") != std::string::npos);
     // Not all shape values are known
+    // Data-dependent ops are exception since their output shape will be identified at runtime.
+    // Legalizer will insert their shape functions, which are manually registered, and match cast
+    // to define symbolic output shape at compile time.
     if (!std::all_of(visited_call->args.begin(), visited_call->args.end(),
                      [](Expr arg) { return KnowAllShapeValues(GetStructInfo(arg)); }) ||
-        !KnowAllShapeValues(GetStructInfo(visited_call))) {
+        (!is_data_dependent_op && !KnowAllShapeValues(GetStructInfo(visited_call)))) {
       return visited_call;
     }
-
-    auto op = GetRef<Op>(op_node);
 
     // Priority: customize > default.
     // Check if it has customize legalization registered.
