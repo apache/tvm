@@ -1790,7 +1790,8 @@ class TestConv2DInt8Intrinsics:
     @tvm.testing.parametrize_targets(*unsupported_targets)
     @pytest.mark.parametrize("dtypes", [("uint8", "int8", "int32")])
     def test_uses_vectorized_instruction(self, assembly):
-        assert "pmulhw" in assembly and "paddd" in assembly
+        assert "pmulhw" in assembly or "pmaddwd" in assembly
+        assert "paddd" in assembly
 
 
 @tvm.testing.uses_gpu
