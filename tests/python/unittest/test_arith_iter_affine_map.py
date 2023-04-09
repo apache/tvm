@@ -84,6 +84,29 @@ def assert_iter_sum_pattern(
             tvm.ir.assert_structural_equal(sum_expr, expect_iter)
 
 
+def assert_iter_map_simplfy(
+    expect_dict, dom_map, predicate=True, check_level="surjective", simplify_trivial_iterators=True
+):
+    keys = list(expect_dict.keys())
+    imap = tvm.arith.detect_iter_map(
+        keys,
+        dom_map,
+        predicate=predicate,
+        check_level=check_level,
+        simplify_trivial_iterators=simplify_trivial_iterators,
+    )
+    res = tvm.arith.iter_map_simplify(
+        keys,
+        dom_map,
+        predicate=predicate,
+        check_level=check_level,
+        simplify_trivial_iterators=simplify_trivial_iterators,
+    )
+    for i, input_expr in enumerate(keys):
+        expected_expr = expect_dict[input_expr]
+        tvm.ir.assert_structural_equal(res[i], expected_expr)
+
+
 def assert_iter_sum_failure(iters, dom_map, predicate=True, check_level="surjective"):
     res = tvm.arith.detect_iter_map(
         list(iters), dom_map, predicate=predicate, check_level=check_level
@@ -1085,6 +1108,80 @@ def test_overlapped_fuse():
 
     # do not allow both strided and overlapped
     assert_iter_sum_failure([5 * x + 2 * y], var_dom([(x, 4), (y, 3)]), check_level="surjective")
+
+
+def test_iter_map_simplify_symbolic_case():
+    """Test itermap simplify"""
+    x = tvm.tir.Var("x", "int64")
+    y = tvm.tir.Var("y", "int64")
+    z = x * 32 + y
+
+    n = tvm.tir.SizeVar("n", "int64")
+
+    def simple_fuse0(x):
+        return (x // n) * n + x % n
+
+    assert_iter_map_simplfy({simple_fuse0(x): x}, var_dom([(x, n * 32)]))
+
+    assert_iter_map_simplfy({simple_fuse0(z): z}, var_dom([(x, n), (y, 32)]))
+
+    def fsymbolic_fuse0(x):
+        return ((x // (n * n)) % 32) * (n * n) + ((x // n) % n) * n + x % n
+
+    assert_iter_map_simplfy({fsymbolic_fuse0(x): x}, var_dom([(x, n * n * 32)]))
+
+    assert_iter_map_simplfy({fsymbolic_fuse0(z): z}, var_dom([(x, n * n), (y, 32)]))
+
+    def fsymbolic_fuse1(x):
+        return ((x % (n * n * 32)) // (n * n) * n + (x % (n * n) // n)) * n + x % n
+
+    assert_iter_map_simplfy({fsymbolic_fuse1(x): x}, var_dom([(x, n * n * 32)]))
+
+    assert_iter_map_simplfy({fsymbolic_fuse1(z): z}, var_dom([(x, n * n), (y, 32)]))
+
+    def fsymbolic_fuse2(i):
+        return (i // (n * n) * n + i % (n * n) // n) * n + i % n
+
+    assert_iter_map_simplfy({fsymbolic_fuse2(x): x}, var_dom([(x, n * n * 32)]))
+
+
+def test_iter_map_simplify_symbolic_predicate():
+    """Test itermap simplify"""
+    x = tvm.tir.Var("x", "int64")
+    y = tvm.tir.Var("y", "int64")
+
+    n = tvm.tir.SizeVar("n", "int64")
+
+    def simple_fuse0(x):
+        return (x // n) * n + x % n
+
+    z = x * 32 + y
+    assert_iter_map_simplfy(
+        {simple_fuse0(z): z}, var_dom([(x, (n + 1) // 2), (y, 32)]), predicate=(z < n * 16)
+    )
+
+    def fsymbolic_fuse2(i):
+        return (i // (n * n) * n + i % (n * n) // n) * n + i % n
+
+    z = x * 64 + y
+    assert_iter_map_simplfy(
+        {fsymbolic_fuse2(z): z},
+        var_dom([(x, (n * n + 1) // 2), (y, 64)]),
+        predicate=(z < n * n * 32),
+    )
+
+def test_iter_map_simplify_unit_loop_order():
+    """Test itermap simplify"""
+    x = tvm.tir.Var("x", "int64")
+    y = tvm.tir.Var("y", "int64")
+    z = tvm.tir.Var("y", "int64")
+
+    # trivial iterators can be found at any when comparing via scale
+    # ensure order unchange
+    assert_iter_map_simplfy(
+        {x+y+z: x+y+z}, var_dom([(x, 1), (y, 1), (z, 1)]),
+        simplify_trivial_iterators=False
+    )
 
 
 if __name__ == "__main__":
