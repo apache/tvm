@@ -104,14 +104,14 @@ Expr strided_slice(Expr x,                 //
                    Array<Integer> axes,    //
                    Array<PrimExpr> begin,  //
                    Array<PrimExpr> end,    //
-                   Optional<Array<PrimExpr>> stride) {
+                   Optional<Array<PrimExpr>> strides) {
   int n_axis = axes.size();
   CHECK_EQ(static_cast<int>(begin.size()), n_axis)
       << "StridedSlice requires the number of begin indices to equal the number of axes.";
   CHECK_EQ(static_cast<int>(end.size()), n_axis)
       << "StridedSlice requires the number of end indices to equal the number of axes.";
-  if (stride.defined()) {
-    CHECK_EQ(static_cast<int>(stride.value().size()), n_axis)
+  if (strides.defined()) {
+    CHECK_EQ(static_cast<int>(strides.value().size()), n_axis)
         << "StridedSlice requires the number of stride to equal the number of axes.";
   }
 
@@ -139,7 +139,7 @@ Expr strided_slice(Expr x,                 //
   attrs->axes = std::move(axes);
   attrs->begin = begin.Map(f_convert_to_int64);
   attrs->end = end.Map(f_convert_to_int64);
-  attrs->stride = stride.defined() ? stride.value().Map(f_convert_to_int64) : stride;
+  attrs->strides = strides.defined() ? strides.value().Map(f_convert_to_int64) : strides;
 
   static const Op& op = Op::Get("relax.strided_slice");
   return Call(op, {std::move(x)}, Attrs(attrs), {});
@@ -185,8 +185,8 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
   }
 
   int n_axis = axes.size();
-  Array<PrimExpr> stride = attrs->stride.defined()
-                               ? attrs->stride.value()
+  Array<PrimExpr> stride = attrs->strides.defined()
+                               ? attrs->strides.value()
                                : Array<PrimExpr>(n_axis, IntImm(DataType::Int(64), 1));
   std::vector<int64_t> int_strides;
   int_strides.reserve(n_axis);
@@ -243,18 +243,18 @@ TVM_REGISTER_OP("relax.strided_slice")
 Expr dyn_strided_slice(Expr x,      //
                        Expr begin,  //
                        Expr end,    //
-                       Expr stride) {
-  static const Op& op = Op::Get("relax.dyn_strided_slice");
-  return Call(op, {std::move(x), std::move(begin), std::move(end), std::move(stride)}, {});
+                       Expr strides) {
+  static const Op& op = Op::Get("relax.dynamic_strided_slice");
+  return Call(op, {std::move(x), std::move(begin), std::move(end), std::move(strides)}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.dyn_strided_slice").set_body_typed(dyn_strided_slice);
+TVM_REGISTER_GLOBAL("relax.op.dynamic_strided_slice").set_body_typed(dyn_strided_slice);
 
 StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& ctx) {
   const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
   const auto* begin_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
   const auto* end_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[2]);
-  const auto* stride_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[3]);
+  const auto* strides_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[3]);
   ICHECK(data_sinfo);
   if (data_sinfo->IsUnknownNdim()) {
     LOG(WARNING) << "When data rank is unknown, dynamic strided slice assumes begin/end/stride "
@@ -267,11 +267,6 @@ StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& 
                     "dtype. It could produce runtime error when this assumption "
                     "turns out to be wrong.";
   }
-
-  CHECK_EQ(end_sinfo->ndim, 1)
-      << "Dynamic strided slice requires end to be 1d tensor (list of values).";
-  CHECK_EQ(stride_sinfo->ndim, 1)
-      << "Dynamic strided slice requires stride to be 1d tensor (list of values).";
 
   int n_axis = data_sinfo->ndim;
   auto diag_def = [&](const TensorStructInfoNode* sinfo, String name) {
@@ -300,19 +295,19 @@ StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& 
   };
   diag_def(begin_sinfo, "begin");
   diag_def(end_sinfo, "end");
-  diag_def(stride_sinfo, "stride");
+  diag_def(strides_sinfo, "stride");
 
   // The output shape will depend on the runtime value in begin/end/stride tensors.
   return TensorStructInfo(data_sinfo->dtype, n_axis);
 }  // namespace relax
 
 // TODO(tvm-team): Register FRelaxInferLayout, TMixedPrecisionPolicy
-TVM_REGISTER_OP("relax.dyn_strided_slice")
+TVM_REGISTER_OP("relax.dynamic_strided_slice")
     .set_num_inputs(4)
     .add_argument("x", "Tensor", "The source tensor to be sliced.")
     .add_argument("begin", "Tensor", "The indices to begin with in the slicing.")
     .add_argument("end", "Tensor", "Indices indicating end of the slice.")
-    .add_argument("stride", "Tensor", "The stride values.")
+    .add_argument("strides", "Tensor", "The stride values.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoDynStridedSlice);
 
 }  // namespace relax

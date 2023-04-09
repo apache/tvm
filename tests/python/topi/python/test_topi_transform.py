@@ -457,6 +457,51 @@ def verify_dynamic_strided_slice(in_shape, begin, end, strides=None):
         check_device(target)
 
 
+def verify_relax_dynamic_strided_slice(in_shape, begin, end, strides, output_shape):
+    A = te.placeholder(shape=in_shape, name="A")
+    Begin = te.placeholder(shape=[len(in_shape)], name="begin", dtype="int64")
+    End = te.placeholder(shape=[len(in_shape)], name="end", dtype="int64")
+    Strides = te.placeholder(shape=[len(in_shape)], name="strides", dtype="int64")
+
+    B = topi.dynamic_strided_slice(A, Begin, End, Strides, output_shape) + 1
+
+    OutShape = topi.shape_func_dynamic_strided_slice(A, Begin, End, Strides)
+
+    def check_device(target):
+        dev = tvm.device(target, 0)
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
+            return
+        print("Running on target: %s" % target)
+        x_np = np.random.uniform(size=in_shape).astype(A.dtype)
+        out_npy = tvm.topi.testing.strided_slice_python(x_np, begin, end, strides) + 1
+        data_nd = tvm.nd.array(x_np, dev)
+        out_nd = tvm.nd.empty(out_npy.shape, device=dev, dtype=A.dtype)
+        begin_nd = tvm.nd.array(np.array(begin).astype("int64"), dev)
+        end_nd = tvm.nd.array(np.array(end).astype("int64"), dev)
+        strides_nd = tvm.nd.array(np.array(strides).astype("int64"), dev)
+
+        if target == "llvm":
+            # Check shape func
+            s = tvm.te.create_schedule(OutShape.op)
+            bar = tvm.build(
+                s, [A, Begin, End, Strides, OutShape], target, name="shape_func_stride_slice"
+            )
+            out_shape_nd = tvm.nd.empty((len(out_npy.shape),), device=dev, dtype="int64")
+            bar(data_nd, begin_nd, end_nd, strides_nd, out_shape_nd)
+
+            tvm.testing.assert_allclose(out_shape_nd.numpy(), output_shape)
+
+        with tvm.target.Target(target):
+            s = tvm.topi.testing.get_injective_schedule(target)(B)
+        foo = tvm.build(s, [A, Begin, End, Strides, B], target, name="stride_slice")
+        foo(data_nd, begin_nd, end_nd, strides_nd, out_nd)
+        tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
+
+    for target in ["llvm", "opencl", "sdaccel", "aocl_sw_emu"]:
+        check_device(target)
+
+
 def verify_strided_set(in_shape, v_shape, begin, end, strides=None):
     A = te.placeholder(shape=in_shape, name="A")
     V = te.placeholder(shape=v_shape, name="V")
@@ -860,6 +905,17 @@ def test_dynamic_strided_slice():
 
 
 @tvm.testing.uses_gpu
+def test_relax_dynamic_strided_slice():
+    # TODO(sunggg): understand the semantic.
+    # implement shape func
+    verify_relax_dynamic_strided_slice((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2], [3, 1, 2])
+    verify_relax_dynamic_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], [1, 3, 3])
+    verify_relax_dynamic_strided_slice((3, 4, 3), [1, 0, 0], [2, 2, 3], [1, 1, 2], [1, 2, 2])
+    verify_relax_dynamic_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3], [1, 1, 1], [2, 3, 3])
+    verify_relax_dynamic_strided_slice((3, 4, 3), [0, 2, 0], [1, 2, 3], [1, 1, 1], [1, 0, 3])
+
+
+@tvm.testing.uses_gpu
 def test_strided_set():
     verify_strided_set((3, 4, 3), (3, 2, 2), [0, 3, 0], [4, 1, 4], [1, -1, 2])
     verify_strided_set((3, 4, 3), (3, 1, 2), [0, 0, 0], [4, -5, 4], [1, -1, 2])
@@ -886,10 +942,10 @@ def test_reinterpret():
         (1000,), "int16", "uint16", lambda shape: np.random.randint(-1000, 1000, size=shape)
     )
     verify_reinterpret(
-        (1000,), "uint32", "int32", lambda shape: np.random.randint(0, 2**32 - 1, size=shape)
+        (1000,), "uint32", "int32", lambda shape: np.random.randint(0, 2 ** 32 - 1, size=shape)
     )
     verify_reinterpret(
-        (1000,), "uint32", "int32", lambda shape: np.random.randint(0, 2**32 - 1, size=shape)
+        (1000,), "uint32", "int32", lambda shape: np.random.randint(0, 2 ** 32 - 1, size=shape)
     )
 
 
