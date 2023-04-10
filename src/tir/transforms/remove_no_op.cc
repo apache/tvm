@@ -42,7 +42,7 @@ namespace tir {
 
 struct RemoveNoOpConfigNode : public tvm::AttrsNode<RemoveNoOpConfigNode> {
   bool use_dataflow_analysis;
-  int max_simplification_steps;
+  int64_t max_simplification_steps;
 
   TVM_DECLARE_ATTRS(RemoveNoOpConfigNode, "tir.transform.RemoveNoOpConfig") {
     TVM_ATTR_FIELD(use_dataflow_analysis)

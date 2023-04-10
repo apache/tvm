@@ -40,13 +40,18 @@ namespace arith {
 
 using namespace tir;
 
+/* Record of
+ *
+ * These are intended for debug and testing purposes, to ensure that
+ * PrimExpr simplifications and TIR passes do not require an excessive
+ */
 struct RewriteSimplifierStatsNode : Object {
-  int nodes_visited{0};
-  int constraints_entered{0};
-  int rewrites_attempted{0};
-  int rewrites_performed{0};
-  int max_recursive_depth{0};
-  int num_recursive_rewrites{0};
+  int64_t nodes_visited{0};
+  int64_t constraints_entered{0};
+  int64_t rewrites_attempted{0};
+  int64_t rewrites_performed{0};
+  int64_t max_recursive_depth{0};
+  int64_t num_recursive_rewrites{0};
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("nodes_visited", &nodes_visited);
@@ -124,10 +129,10 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
 
   void ResetStatsCounters() { stats_ = {}; }
 
-  void SetMaximumRewriteSteps(int maximum) { maximum_rewrite_steps_ = maximum; }
+  void SetMaximumRewriteSteps(int64_t maximum) { maximum_rewrite_steps_ = maximum; }
 
  protected:
-  int maximum_rewrite_steps_{0};
+  int64_t maximum_rewrite_steps_{0};
   RewriteSimplifierStatsNode stats_;
 
   void RecordAttemptedRewrite() { stats_.rewrites_attempted++; }

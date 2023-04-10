@@ -2151,7 +2151,7 @@ ObjectRef RewriteSimplifier::GetStatsCounters() const { return impl_->GetStatsCo
 
 void RewriteSimplifier::ResetStatsCounters() { impl_->ResetStatsCounters(); }
 
-void RewriteSimplifier::SetMaximumRewriteSteps(int maximum) {
+void RewriteSimplifier::SetMaximumRewriteSteps(int64_t maximum) {
   impl_->SetMaximumRewriteSteps(maximum);
 }
 
