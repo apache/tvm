@@ -71,13 +71,6 @@ bool LLVMEnabled() {
   return pf != nullptr;
 }
 
-bool ShouldAnnotateEntryFunc(const IRModule mod) {
-  Optional<tvm::relay::Executor> executor = mod->GetAttr<tvm::relay::Executor>("executor");
-  const bool aot_executor = executor.defined() && executor.value()->name == "aot";
-  const bool single_entry_func = (mod->functions.size() == 1);
-  return single_entry_func && !aot_executor;
-}
-
 /*! \return The default host target for a given device target */
 Target DefaultTargetHost(Target target) {
   if (target.defined() && target->GetTargetDeviceType() == kDLCPU) {
@@ -568,9 +561,7 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
 
   mixed_pass_list.push_back(tir::transform::VerifyMemory());
 
-  if (ShouldAnnotateEntryFunc(mixed_mod)) {
-    mixed_pass_list.push_back(tir::transform::AnnotateEntryFunc());
-  }
+  mixed_pass_list.push_back(tir::transform::AnnotateEntryFunc());
 
   bool detect_global_barrier =
       pass_ctx->GetConfig<Bool>("tir.detect_global_barrier", Bool(false)).value();

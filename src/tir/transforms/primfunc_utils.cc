@@ -23,6 +23,7 @@
  */
 
 #include <tvm/driver/driver_api.h>
+#include <tvm/relay/executor.h>
 #include <tvm/tir/transform.h>
 
 namespace tvm {
@@ -40,11 +41,33 @@ transform::Pass BindTarget(Target target) {
 }
 
 transform::Pass AnnotateEntryFunc() {
-  auto fpass = [](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
-    ICHECK(m->functions.size() == 1);
-    return WithAttr(std::move(f), tir::attr::kIsEntryFunc, Bool(true));
+  auto fpass = [](IRModule mod, transform::PassContext ctx) -> IRModule {
+    auto executor = mod->GetAttr<tvm::relay::Executor>("executor");
+    const bool is_aot_executor = executor.defined() && executor.value()->name == "aot";
+    if (is_aot_executor) {
+      return mod;
+    }
+
+    bool has_external_non_primfuncs = false;
+    IRModule with_annotations;
+    for (const auto& [gvar, base_func] : mod->functions) {
+      bool is_external = base_func->GetAttr<String>(tvm::attr::kGlobalSymbol).defined();
+      if (is_external) {
+        if (auto ptr = base_func.as<PrimFuncNode>()) {
+          with_annotations->Add(
+              gvar, WithAttr(GetRef<PrimFunc>(ptr), tir::attr::kIsEntryFunc, Bool(true)));
+        } else {
+          has_external_non_primfuncs = true;
+        }
+      }
+    }
+
+    if (with_annotations->functions.size() == 1 && !has_external_non_primfuncs) {
+      mod->Update(with_annotations);
+    }
+    return mod;
   };
-  return tir::transform::CreatePrimFuncPass(fpass, 0, "tir.AnnotateEntryFunc", {});
+  return tvm::transform::CreateModulePass(fpass, 0, "tir.AnnotateEntryFunc", {});
 }
 
 transform::Pass Filter(runtime::TypedPackedFunc<bool(PrimFunc)> fcond) {
