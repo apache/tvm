@@ -360,7 +360,7 @@ class IndexMap(Object):
         args = []
         var_arg_name = None
         kwargs = collections.OrderedDict()
-        default_index_dtype = "int32"
+        default_index_dtype = "int64"
 
         for name, param in params.items():
             if param.kind in [

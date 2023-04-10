@@ -48,7 +48,7 @@ IndexMap IndexMap::FromFunc(int ndim, runtime::TypedPackedFunc<Array<PrimExpr>(A
   Array<Var> initial_indices;
   initial_indices.reserve(ndim);
   for (int i = 0; i < ndim; ++i) {
-    initial_indices.push_back(Var("i" + std::to_string(i), DataType::Int(32)));
+    initial_indices.push_back(Var("i" + std::to_string(i), DataType::Int(64)));
   }
   return IndexMap(initial_indices, func(initial_indices), std::move(inverse_index_map));
 }

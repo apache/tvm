@@ -343,7 +343,7 @@ def decl_buffer(
         axis_separators = []
 
     if offset_factor != 0 and elem_offset is None:
-        shape_dtype = shape[0].dtype if shape and hasattr(shape[0], "dtype") else "int32"
+        shape_dtype = shape[0].dtype if shape and hasattr(shape[0], "dtype") else "int64"
         elem_offset = Var("%s_elem_offset" % name, shape_dtype)
     if data is None:
         # Bool is represented as uint1 in the IR, but stored as int8

@@ -46,7 +46,7 @@ class PrinterConfigNode : public Object {
   /*! \brief Default data type of TIR buffer */
   DataType buffer_dtype = DataType::Float(32);
   /*! \brief Default data type of integer literals */
-  DataType int_dtype = DataType::Int(32);
+  DataType int_dtype = DataType::Int(64);
   /*!
    * \brief Default data type of float literals. Right now we always print out the explicit type
    * of floating point values, so setting it to Void means we do not print without the

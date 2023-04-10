@@ -46,7 +46,11 @@ def dp4a_impl(
         T.writes(C[0])
 
         C[0] += T.call_pure_extern(
-            "__dp4a", A.vload([0], "int8x4"), B.vload([0], "int8x4"), T.int32(0), dtype="int32"
+            "__dp4a",
+            A.vload([T.int32(0)], "int8x4"),
+            B.vload([T.int32(0)], "int8x4"),
+            T.int32(0),
+            dtype="int32",
         )
 
 

@@ -511,7 +511,7 @@ PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lane
     extent = self->strides[highest_dim] * self->shape[highest_dim] - offset;
   } else {
     extent = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
-                   make_const(DataType::Int(32), 1), self->shape) -
+                   make_const(DataType::Int(64), 1), self->shape) -
              offset;
   }
   PrimExpr elem_offset = self->elem_offset + offset;
@@ -527,7 +527,7 @@ PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lane
     extent = input_extent.value();
   }
   Array<PrimExpr> acc_args{e_dtype, self->data, elem_offset, extent,
-                           make_const(DataType::Int(32), access_mask)};
+                           make_const(DataType::Int(64), access_mask)};
   return tir::Call(ptr_type, tir::builtin::tvm_access_ptr(), acc_args);
 }
 

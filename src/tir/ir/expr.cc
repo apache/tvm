@@ -567,7 +567,7 @@ PrimExpr Shuffle::Concat(Array<PrimExpr> vectors, Span span) {
   int index = 0;
   for (const PrimExpr& e : vectors) {
     for (int i = 0; i < e.dtype().lanes(); ++i) {
-      indices.push_back(IntImm(DataType::Int(32), index++));
+      indices.push_back(IntImm(DataType::Int(64), index++));
     }
   }
   return Shuffle(vectors, indices, span);
@@ -692,7 +692,7 @@ TVM_REGISTER_NODE_TYPE(ReduceNode);
 // Any
 Any::Any(Span span) {
   auto n = make_object<AnyNode>();
-  n->dtype = DataType::Int(32);
+  n->dtype = DataType::Int(64);
   n->span = std::move(span);
   data_ = std::move(n);
 }

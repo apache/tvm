@@ -291,14 +291,14 @@ with T.Assert(1, "assertion"):
 
 def test_while():
     with IRBuilder() as ib:
-        x = T.int32()
+        x = T.int64()
         with T.While(x < 10):
             T.evaluate(0)
     obj = ib.get()
     _assert_print(
         obj,
         """
-v = T.int32()
+v = T.int64()
 while v < 10:
     T.evaluate(0)
 """,
@@ -410,7 +410,7 @@ T.evaluate(1)
 
 def test_if_then_else():
     with IRBuilder() as ib:
-        with T.If(T.int32() == 1):
+        with T.If(T.int64() == 1):
             with T.Then():
                 T.evaluate(0)
 
@@ -418,7 +418,7 @@ def test_if_then_else():
     _assert_print(
         obj,
         """
-v = T.int32()
+v = T.int64()
 if v == 1:
     T.evaluate(0)
 """,
@@ -478,7 +478,7 @@ def test_iter_var():
     _assert_print(
         a,
         """
-a = T.int32()
+a = T.int64()
 T.iter_var(a, T.Range(0, 8), "DataPar", "")
 """,
     )
@@ -612,12 +612,12 @@ def test_select():
 
 
 def test_ramp():
-    a = tir.Var("a", "int32")
+    a = tir.Var("a", "int64")
     obj = tir.Ramp(a, 1, 32)
     _assert_print(
         obj,
         """
-a = T.int32()
+a = T.int64()
 T.Ramp(a, 1, 32)
 """,
     )
@@ -634,12 +634,12 @@ T.Broadcast(0, 4)
 
 
 def test_let_expr():
-    x = tir.Var("x", "int32")
+    x = tir.Var("x", "int64")
     obj = tir.Let(x, 1, x + 1)
     _assert_print(
         obj,
         """
-x = T.int32()
+x = T.int64()
 T.Let(x + 1, where={x: 1})
 """,
     )
@@ -757,7 +757,7 @@ def main():
             v4, v5 = T.axis.remap("RS", [i4, i5])
             T.reads()
             T.writes()
-            T.evaluate(0)"""
+            T.evaluate(T.int32(0))"""
     _assert_print(block_with_remap_explicitly, expected_output)
     _assert_print(block_with_remap_implicitly, expected_output)
 

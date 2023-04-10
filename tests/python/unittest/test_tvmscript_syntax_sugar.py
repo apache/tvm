@@ -375,12 +375,12 @@ def test_int64_loop():
 
 def test_implicit_evaluate_assume():
     @T.prim_func
-    def explicit(A: T.Buffer(1, "int32")):
+    def explicit(A: T.Buffer(1, "int64")):
         T.evaluate(T.assume(A[0] == 5))
         A[0] = 10
 
     @T.prim_func
-    def implicit(A: T.Buffer(1, "int32")):
+    def implicit(A: T.Buffer(1, "int64")):
         T.assume(A[0] == 5)
         A[0] = 10
 

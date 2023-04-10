@@ -206,7 +206,7 @@ def opt_gemm_mod_host():
             packedB = T.Buffer([32768], dtype="float32")
             C_global = T.Buffer([1024], dtype="float32")
             # body
-            assert num_args == 3, "mmult: num_args should be 3"
+            assert num_args == T.int32(3), "mmult: num_args should be 3"
             arg0: T.handle = T.tvm_struct_get(args, 0, 12, dtype="handle")
             arg0_code: T.int32 = buf_type_ids[0]
             arg1: T.handle = T.tvm_struct_get(args, 1, 12, dtype="handle")
@@ -240,19 +240,22 @@ def opt_gemm_mod_host():
             buf2_strides_data: T.handle("int32") = T.tvm_struct_get(arg2, 0, 3, dtype="handle")
             buf2_strides = T.Buffer([2], dtype="int32", data=buf2_strides_data)
 
-            assert (((arg0_code == 3) or (arg0_code == 13)) or (arg0_code == 7)) or (
-                arg0_code == 4
-            ), "mmult: Expect arg[0] to be pointer"
-            assert (((arg1_code == 3) or (arg1_code == 13)) or (arg1_code == 7)) or (
-                arg1_code == 4
-            ), "mmult: Expect arg[1] to be pointer"
-            assert (((arg2_code == 3) or (arg2_code == 13)) or (arg2_code == 7)) or (
-                arg2_code == 4
-            ), "mmult: Expect arg[2] to be pointer"
-            assert 2 == T.tvm_struct_get(
+            assert (
+                ((arg0_code == T.int32(3)) or (arg0_code == T.int32(13)))
+                or (arg0_code == T.int32(7))
+            ) or (arg0_code == T.int32(4)), "mmult: Expect arg[0] to be pointer"
+            assert (
+                ((arg1_code == T.int32(3)) or (arg1_code == T.int32(13)))
+                or (arg1_code == T.int32(7))
+            ) or (arg1_code == T.int32(4)), "mmult: Expect arg[1] to be pointer"
+            assert (
+                ((arg2_code == T.int32(3)) or (arg2_code == T.int32(13)))
+                or (arg2_code == T.int32(7))
+            ) or (arg2_code == T.int32(4)), "mmult: Expect arg[2] to be pointer"
+            assert T.int32(2) == T.tvm_struct_get(
                 arg0, 0, 4, dtype="int32"
             ), "arg0.ndim is expected to equal 2"
-            assert 2 == T.tvm_struct_get(
+            assert T.int32(2) == T.tvm_struct_get(
                 arg0, 0, 4, dtype="int32"
             ), "arg0.ndim is expected to equal 2"
             assert (
@@ -261,27 +264,27 @@ def opt_gemm_mod_host():
             ) and (
                 T.tvm_struct_get(arg0, 0, 7, dtype="uint16") == T.uint16(1)
             ), "arg0.dtype is expected to be float32"
-            assert 1024 == T.cast(
-                buf0_shape[0], "int32"
+            assert (
+                T.int32(1024) == buf0_shape[0]
             ), "Argument arg0.shape[0] has an unsatisfied constraint"
-            assert 1024 == T.cast(
-                buf0_shape[1], "int32"
+            assert (
+                T.int32(1024) == buf0_shape[1]
             ), "Argument arg0.shape[1] has an unsatisfied constraint"
             if not (T.isnullptr(buf0_strides.data, dtype="bool")):
-                assert (1 == T.cast(buf0_strides[1], "int32")) and (
-                    1024 == T.cast(buf0_strides[0], "int32")
+                assert (T.int32(1) == buf0_strides[1]) and (
+                    T.int32(1024) == buf0_strides[0]
                 ), "arg0.strides: expected to be compact array"
                 T.evaluate(0)
             assert T.uint64(0) == T.tvm_struct_get(
                 arg0, 0, 8, dtype="uint64"
             ), "Argument arg0.byte_offset has an unsatisfied constraint"
-            assert 1 == T.tvm_struct_get(
+            assert T.int32(1) == T.tvm_struct_get(
                 arg0, 0, 10, dtype="int32"
             ), "Argument arg0.device_type has an unsatisfied constraint"
-            assert 2 == T.tvm_struct_get(
+            assert T.int32(2) == T.tvm_struct_get(
                 arg1, 0, 4, dtype="int32"
             ), "arg1.ndim is expected to equal 2"
-            assert 2 == T.tvm_struct_get(
+            assert T.int32(2) == T.tvm_struct_get(
                 arg1, 0, 4, dtype="int32"
             ), "arg1.ndim is expected to equal 2"
             assert (
@@ -290,30 +293,30 @@ def opt_gemm_mod_host():
             ) and (
                 T.tvm_struct_get(arg1, 0, 7, dtype="uint16") == T.uint16(1)
             ), "arg1.dtype is expected to be float32"
-            assert 1024 == T.cast(
-                buf1_shape[0], "int32"
+            assert (
+                T.int32(1024) == buf1_shape[0]
             ), "Argument arg1.shape[0] has an unsatisfied constraint"
-            assert 1024 == T.cast(
-                buf1_shape[1], "int32"
+            assert (
+                T.int32(1024) == buf1_shape[1]
             ), "Argument arg1.shape[1] has an unsatisfied constraint"
             if not (T.isnullptr(buf1_strides.data, dtype="bool")):
-                assert (1 == T.cast(buf1_strides[1], "int32")) and (
-                    1024 == T.cast(buf1_strides[0], "int32")
+                assert (T.int32(1) == buf1_strides[1]) and (
+                    T.int32(1024) == buf1_strides[0]
                 ), "arg1.strides: expected to be compact array"
                 T.evaluate(0)
             assert T.uint64(0) == T.tvm_struct_get(
                 arg1, 0, 8, dtype="uint64"
             ), "Argument arg1.byte_offset has an unsatisfied constraint"
-            assert 1 == T.tvm_struct_get(
+            assert T.int32(1) == T.tvm_struct_get(
                 arg1, 0, 10, dtype="int32"
             ), "Argument arg1.device_type has an unsatisfied constraint"
             assert dev_id == T.tvm_struct_get(
                 arg1, 0, 9, dtype="int32"
             ), "Argument arg1.device_id has an unsatisfied constraint"
-            assert 2 == T.tvm_struct_get(
+            assert T.int32(2) == T.tvm_struct_get(
                 arg2, 0, 4, dtype="int32"
             ), "arg2.ndim is expected to equal 2"
-            assert 2 == T.tvm_struct_get(
+            assert T.int32(2) == T.tvm_struct_get(
                 arg2, 0, 4, dtype="int32"
             ), "arg2.ndim is expected to equal 2"
             assert (
@@ -322,21 +325,21 @@ def opt_gemm_mod_host():
             ) and (
                 T.tvm_struct_get(arg2, 0, 7, dtype="uint16") == T.uint16(1)
             ), "arg2.dtype is expected to be float32"
-            assert 1024 == T.cast(
-                buf2_shape[0], "int32"
+            assert (
+                T.int32(1024) == buf2_shape[0]
             ), "Argument arg2.shape[0] has an unsatisfied constraint"
-            assert 1024 == T.cast(
-                buf2_shape[1], "int32"
+            assert (
+                T.int32(1024) == buf2_shape[1]
             ), "Argument arg2.shape[1] has an unsatisfied constraint"
             if not (T.isnullptr(buf2_strides.data, dtype="bool")):
-                assert (1 == T.cast(buf2_strides[1], "int32")) and (
-                    1024 == T.cast(buf2_strides[0], "int32")
+                assert (T.int32(1) == buf2_strides[1]) and (
+                    T.int32(1024) == buf2_strides[0]
                 ), "arg2.strides: expected to be compact array"
                 T.evaluate(0)
             assert T.uint64(0) == T.tvm_struct_get(
                 arg2, 0, 8, dtype="uint64"
             ), "Argument arg2.byte_offset has an unsatisfied constraint"
-            assert 1 == T.tvm_struct_get(
+            assert T.int32(1) == T.tvm_struct_get(
                 arg2, 0, 10, dtype="int32"
             ), "Argument arg2.device_type has an unsatisfied constraint"
             assert dev_id == T.tvm_struct_get(
@@ -472,9 +475,11 @@ def opt_gemm_mod_host():
                                             + y_inner
                                         )
                                     ] = C_global[((x_inner * 32) + y_inner)]
-                    if T.TVMBackendFreeWorkspace(1, dev_id, C_global.data, dtype="int32") != 0:
+                    if T.TVMBackendFreeWorkspace(
+                        1, dev_id, C_global.data, dtype="int32"
+                    ) != T.int32(0):
                         T.evaluate(T.tvm_throw_last_error(dtype="int32"))
-            if T.TVMBackendFreeWorkspace(1, dev_id, packedB.data, dtype="int32") != 0:
+            if T.TVMBackendFreeWorkspace(1, dev_id, packedB.data, dtype="int32") != T.int32(0):
                 T.evaluate(T.tvm_throw_last_error(dtype="int32"))
 
     return Module
@@ -2251,7 +2256,7 @@ def opt_conv_tensorcore_mod_host():
         stack_tcode_data: T.handle("int32") = T.tvm_stack_alloca("arg_tcode", 10, dtype="handle")
         stack_tcode = T.Buffer([9], "int32", data=stack_tcode_data)
         stack_value: T.handle = T.tvm_stack_alloca("arg_value", 10, dtype="handle")
-        assert num_args == 3, "default_function: num_args should be 3"
+        assert num_args == T.int32(3), "default_function: num_args should be 3"
         arg0: T.handle = T.tvm_struct_get(args, 0, 12, dtype="handle")
         arg0_code: T.int32 = arg_type_ids[0]
         arg1: T.handle = T.tvm_struct_get(args, 1, 12, dtype="handle")
@@ -2282,163 +2287,124 @@ def opt_conv_tensorcore_mod_host():
         arg2_strides_data: T.handle("int64") = T.tvm_struct_get(arg2, 0, 3, dtype="handle")
         arg2_strides = T.Buffer([6], "int64", data=arg2_strides_data)
 
-        assert (((arg0_code == 3) or (arg0_code == 13)) or (arg0_code == 7)) or (
-            arg0_code == 4
-        ), "default_function: Expect arg[0] to be pointer"
-        assert (((arg1_code == 3) or (arg1_code == 13)) or (arg1_code == 7)) or (
-            arg1_code == 4
-        ), "default_function: Expect arg[1] to be pointer"
-        assert (((arg2_code == 3) or (arg2_code == 13)) or (arg2_code == 7)) or (
-            arg2_code == 4
-        ), "default_function: Expect arg[2] to be pointer"
-        assert 6 == T.tvm_struct_get(arg0, 0, 4, dtype="int32"), "arg0.ndim is expected to equal 6"
-        assert 6 == T.tvm_struct_get(arg0, 0, 4, dtype="int32"), "arg0.ndim is expected to equal 6"
+        assert (
+            ((arg0_code == T.int32(3)) or (arg0_code == T.int32(13))) or (arg0_code == T.int32(7))
+        ) or (arg0_code == T.int32(4)), "default_function: Expect arg[0] to be pointer"
+        assert (
+            ((arg1_code == T.int32(3)) or (arg1_code == T.int32(13))) or (arg1_code == T.int32(7))
+        ) or (arg1_code == T.int32(4)), "default_function: Expect arg[1] to be pointer"
+        assert (
+            ((arg2_code == T.int32(3)) or (arg2_code == T.int32(13))) or (arg2_code == T.int32(7))
+        ) or (arg2_code == T.int32(4)), "default_function: Expect arg[2] to be pointer"
+        assert T.int32(6) == T.tvm_struct_get(
+            arg0, 0, 4, dtype="int32"
+        ), "arg0.ndim is expected to equal 6"
+        assert T.int32(6) == T.tvm_struct_get(
+            arg0, 0, 4, dtype="int32"
+        ), "arg0.ndim is expected to equal 6"
         assert (
             (T.tvm_struct_get(arg0, 0, 5, dtype="uint8") == T.uint8(2))
             and (T.tvm_struct_get(arg0, 0, 6, dtype="uint8") == T.uint8(16))
         ) and (
             T.tvm_struct_get(arg0, 0, 7, dtype="uint16") == T.uint16(1)
         ), "arg0.dtype is expected to be float16"
-        assert 16 == T.cast(
-            arg0_shape[0], "int32"
-        ), "Argument arg0.shape[0] has an unsatisfied constraint"
-        assert 14 == T.cast(
-            arg0_shape[1], "int32"
-        ), "Argument arg0.shape[1] has an unsatisfied constraint"
-        assert 14 == T.cast(
-            arg0_shape[2], "int32"
-        ), "Argument arg0.shape[2] has an unsatisfied constraint"
-        assert 16 == T.cast(
-            arg0_shape[3], "int32"
-        ), "Argument arg0.shape[3] has an unsatisfied constraint"
-        assert 16 == T.cast(
-            arg0_shape[4], "int32"
-        ), "Argument arg0.shape[4] has an unsatisfied constraint"
-        assert 16 == T.cast(
-            arg0_shape[5], "int32"
-        ), "Argument arg0.shape[5] has an unsatisfied constraint"
+        assert 16 == arg0_shape[0], "Argument arg0.shape[0] has an unsatisfied constraint"
+        assert 14 == arg0_shape[1], "Argument arg0.shape[1] has an unsatisfied constraint"
+        assert 14 == arg0_shape[2], "Argument arg0.shape[2] has an unsatisfied constraint"
+        assert 16 == arg0_shape[3], "Argument arg0.shape[3] has an unsatisfied constraint"
+        assert 16 == arg0_shape[4], "Argument arg0.shape[4] has an unsatisfied constraint"
+        assert 16 == arg0_shape[5], "Argument arg0.shape[5] has an unsatisfied constraint"
         if not (T.isnullptr(arg0_strides.data, dtype="bool")):
             assert (
                 (
                     (
-                        (
-                            (1 == T.cast(arg0_strides[5], "int32"))
-                            and (16 == T.cast(arg0_strides[4], "int32"))
-                        )
-                        and (256 == T.cast(arg0_strides[3], "int32"))
+                        ((1 == arg0_strides[5]) and (16 == arg0_strides[4]))
+                        and (256 == arg0_strides[3])
                     )
-                    and (4096 == T.cast(arg0_strides[2], "int32"))
+                    and (4096 == arg0_strides[2])
                 )
-                and (57344 == T.cast(arg0_strides[1], "int32"))
-            ) and (
-                802816 == T.cast(arg0_strides[0], "int32")
-            ), "arg0.strides: expected to be compact array"
+                and (57344 == arg0_strides[1])
+            ) and (802816 == arg0_strides[0]), "arg0.strides: expected to be compact array"
             T.evaluate(0)
         assert T.uint64(0) == T.tvm_struct_get(
             arg0, 0, 8, dtype="uint64"
         ), "Argument arg0.byte_offset has an unsatisfied constraint"
-        assert 2 == T.tvm_struct_get(
+        assert T.int32(2) == T.tvm_struct_get(
             arg0, 0, 10, dtype="int32"
         ), "Argument arg0.device_type has an unsatisfied constraint"
-        assert 6 == T.tvm_struct_get(arg1, 0, 4, dtype="int32"), "arg1.ndim is expected to equal 6"
-        assert 6 == T.tvm_struct_get(arg1, 0, 4, dtype="int32"), "arg1.ndim is expected to equal 6"
+        assert T.int32(6) == T.tvm_struct_get(
+            arg1, 0, 4, dtype="int32"
+        ), "arg1.ndim is expected to equal 6"
+        assert T.int32(6) == T.tvm_struct_get(
+            arg1, 0, 4, dtype="int32"
+        ), "arg1.ndim is expected to equal 6"
         assert (
             (T.tvm_struct_get(arg1, 0, 5, dtype="uint8") == T.uint8(2))
             and (T.tvm_struct_get(arg1, 0, 6, dtype="uint8") == T.uint8(16))
         ) and (
             T.tvm_struct_get(arg1, 0, 7, dtype="uint16") == T.uint16(1)
         ), "arg1.dtype is expected to be float16"
-        assert 3 == T.cast(
-            arg1_shape[0], "int32"
-        ), "Argument arg1.shape[0] has an unsatisfied constraint"
-        assert 3 == T.cast(
-            arg1_shape[1], "int32"
-        ), "Argument arg1.shape[1] has an unsatisfied constraint"
-        assert 16 == T.cast(
-            arg1_shape[2], "int32"
-        ), "Argument arg1.shape[2] has an unsatisfied constraint"
-        assert 32 == T.cast(
-            arg1_shape[3], "int32"
-        ), "Argument arg1.shape[3] has an unsatisfied constraint"
-        assert 16 == T.cast(
-            arg1_shape[4], "int32"
-        ), "Argument arg1.shape[4] has an unsatisfied constraint"
-        assert 16 == T.cast(
-            arg1_shape[5], "int32"
-        ), "Argument arg1.shape[5] has an unsatisfied constraint"
+        assert 3 == arg1_shape[0], "Argument arg1.shape[0] has an unsatisfied constraint"
+        assert 3 == arg1_shape[1], "Argument arg1.shape[1] has an unsatisfied constraint"
+        assert 16 == arg1_shape[2], "Argument arg1.shape[2] has an unsatisfied constraint"
+        assert 32 == arg1_shape[3], "Argument arg1.shape[3] has an unsatisfied constraint"
+        assert 16 == arg1_shape[4], "Argument arg1.shape[4] has an unsatisfied constraint"
+        assert 16 == arg1_shape[5], "Argument arg1.shape[5] has an unsatisfied constraint"
         if not (T.isnullptr(arg1_strides.data, dtype="bool")):
             assert (
                 (
                     (
-                        (
-                            (1 == T.cast(arg1_strides[5], "int32"))
-                            and (16 == T.cast(arg1_strides[4], "int32"))
-                        )
-                        and (256 == T.cast(arg1_strides[3], "int32"))
+                        ((1 == arg1_strides[5]) and (16 == arg1_strides[4]))
+                        and (256 == arg1_strides[3])
                     )
-                    and (8192 == T.cast(arg1_strides[2], "int32"))
+                    and (8192 == arg1_strides[2])
                 )
-                and (131072 == T.cast(arg1_strides[1], "int32"))
-            ) and (
-                393216 == T.cast(arg1_strides[0], "int32")
-            ), "arg1.strides: expected to be compact array"
+                and (131072 == arg1_strides[1])
+            ) and (393216 == arg1_strides[0]), "arg1.strides: expected to be compact array"
             T.evaluate(0)
         assert T.uint64(0) == T.tvm_struct_get(
             arg1, 0, 8, dtype="uint64"
         ), "Argument arg1.byte_offset has an unsatisfied constraint"
-        assert 2 == T.tvm_struct_get(
+        assert T.int32(2) == T.tvm_struct_get(
             arg1, 0, 10, dtype="int32"
         ), "Argument arg1.device_type has an unsatisfied constraint"
         assert dev_id == T.tvm_struct_get(
             arg1, 0, 9, dtype="int32"
         ), "Argument arg1.device_id has an unsatisfied constraint"
-        assert 6 == T.tvm_struct_get(arg2, 0, 4, dtype="int32"), "arg2.ndim is expected to equal 6"
-        assert 6 == T.tvm_struct_get(arg2, 0, 4, dtype="int32"), "arg2.ndim is expected to equal 6"
+        assert T.int32(6) == T.tvm_struct_get(
+            arg2, 0, 4, dtype="int32"
+        ), "arg2.ndim is expected to equal 6"
+        assert T.int32(6) == T.tvm_struct_get(
+            arg2, 0, 4, dtype="int32"
+        ), "arg2.ndim is expected to equal 6"
         assert (
             (T.tvm_struct_get(arg2, 0, 5, dtype="uint8") == T.uint8(2))
             and (T.tvm_struct_get(arg2, 0, 6, dtype="uint8") == T.uint8(32))
         ) and (
             T.tvm_struct_get(arg2, 0, 7, dtype="uint16") == T.uint16(1)
         ), "arg2.dtype is expected to be float32"
-        assert 16 == T.cast(
-            arg2_shape[0], "int32"
-        ), "Argument arg2.shape[0] has an unsatisfied constraint"
-        assert 14 == T.cast(
-            arg2_shape[1], "int32"
-        ), "Argument arg2.shape[1] has an unsatisfied constraint"
-        assert 14 == T.cast(
-            arg2_shape[2], "int32"
-        ), "Argument arg2.shape[2] has an unsatisfied constraint"
-        assert 32 == T.cast(
-            arg2_shape[3], "int32"
-        ), "Argument arg2.shape[3] has an unsatisfied constraint"
-        assert 16 == T.cast(
-            arg2_shape[4], "int32"
-        ), "Argument arg2.shape[4] has an unsatisfied constraint"
-        assert 16 == T.cast(
-            arg2_shape[5], "int32"
-        ), "Argument arg2.shape[5] has an unsatisfied constraint"
+        assert 16 == arg2_shape[0], "Argument arg2.shape[0] has an unsatisfied constraint"
+        assert 14 == arg2_shape[1], "Argument arg2.shape[1] has an unsatisfied constraint"
+        assert 14 == arg2_shape[2], "Argument arg2.shape[2] has an unsatisfied constraint"
+        assert 32 == arg2_shape[3], "Argument arg2.shape[3] has an unsatisfied constraint"
+        assert 16 == arg2_shape[4], "Argument arg2.shape[4] has an unsatisfied constraint"
+        assert 16 == arg2_shape[5], "Argument arg2.shape[5] has an unsatisfied constraint"
         if not (T.isnullptr(arg2_strides.data, dtype="bool")):
             assert (
                 (
                     (
-                        (
-                            (1 == T.cast(arg2_strides[5], "int32"))
-                            and (16 == T.cast(arg2_strides[4], "int32"))
-                        )
-                        and (256 == T.cast(arg2_strides[3], "int32"))
+                        ((1 == arg2_strides[5]) and (16 == arg2_strides[4]))
+                        and (256 == arg2_strides[3])
                     )
-                    and (8192 == T.cast(arg2_strides[2], "int32"))
+                    and (8192 == arg2_strides[2])
                 )
-                and (114688 == T.cast(arg2_strides[1], "int32"))
-            ) and (
-                1605632 == T.cast(arg2_strides[0], "int32")
-            ), "arg2.strides: expected to be compact array"
+                and (114688 == arg2_strides[1])
+            ) and (1605632 == arg2_strides[0]), "arg2.strides: expected to be compact array"
             T.evaluate(0)
         assert T.uint64(0) == T.tvm_struct_get(
             arg2, 0, 8, dtype="uint64"
         ), "Argument arg2.byte_offset has an unsatisfied constraint"
-        assert 2 == T.tvm_struct_get(
+        assert T.int32(2) == T.tvm_struct_get(
             arg2, 0, 10, dtype="int32"
         ), "Argument arg2.device_type has an unsatisfied constraint"
         assert dev_id == T.tvm_struct_get(
@@ -2460,17 +2426,17 @@ def opt_conv_tensorcore_mod_host():
         stack_tcode[1] = 3
         T.evaluate(T.tvm_struct_set(stack_value, 2, 12, Conv, dtype="int32"))
         stack_tcode[2] = 3
-        T.evaluate(T.tvm_struct_set(stack_value, 3, 12, T.cast(196, "int64"), dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 3, 12, 196, dtype="int32"))
         stack_tcode[3] = 0
-        T.evaluate(T.tvm_struct_set(stack_value, 4, 12, T.cast(2, "int64"), dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 4, 12, 2, dtype="int32"))
         stack_tcode[4] = 0
-        T.evaluate(T.tvm_struct_set(stack_value, 5, 12, T.cast(4, "int64"), dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 5, 12, 4, dtype="int32"))
         stack_tcode[5] = 0
-        T.evaluate(T.tvm_struct_set(stack_value, 6, 12, T.cast(4, "int64"), dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 6, 12, 4, dtype="int32"))
         stack_tcode[6] = 0
-        T.evaluate(T.tvm_struct_set(stack_value, 7, 12, T.cast(2, "int64"), dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 7, 12, 2, dtype="int32"))
         stack_tcode[7] = 0
-        T.evaluate(T.tvm_struct_set(stack_value, 8, 12, T.cast(32, "int64"), dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 8, 12, 32, dtype="int32"))
         stack_tcode[8] = 0
         T.evaluate(
             T.tvm_call_packed_lowered(
@@ -2954,7 +2920,7 @@ def while_loop():
     def while_loop(a: T.handle, b: T.handle) -> None:
         A = T.match_buffer(a, (16,), "float32")
         B = T.match_buffer(b, (16,), "float32")
-        i = T.alloc_buffer((), "int32", scope="local")
+        i = T.alloc_buffer((), "int64", scope="local")
         for ii in range(16):
             with T.block():
                 vi = T.axis.S(16, ii)
@@ -3216,11 +3182,11 @@ def llvm_intrin_call():
 def parse_bufferslice_as_range_bound():
     @T.prim_func
     def segment_sum(
-        A_ptr: T.handle, B_ptr: T.handle, indptr_ptr: T.handle, n: T.int32, m: T.int32
+        A_ptr: T.handle, B_ptr: T.handle, indptr_ptr: T.handle, n: T.int64, m: T.int64
     ) -> None:
         A = T.match_buffer(A_ptr, [m], dtype="float32")
         B = T.match_buffer(B_ptr, [n], dtype="float32")
-        indptr = T.match_buffer(indptr_ptr, [n + 1], dtype="int32")
+        indptr = T.match_buffer(indptr_ptr, [n + 1], dtype="int64")
         for i in T.serial(n):
             with T.block("outer"):
                 vi = T.axis.spatial(n, i)
@@ -3326,7 +3292,7 @@ def buffer_ramp_access_as_slice_index():
 def let_expression():
     @T.prim_func
     def func():
-        x = T.int32()
+        x = T.int64()
         T.evaluate(T.Let(x + 1, where={x: 1}))
 
     return func
@@ -3453,7 +3419,7 @@ def bool_cast():
 
 def implicit_evaluate():
     @T.prim_func
-    def func(A: T.Buffer(1, "int32")):
+    def func(A: T.Buffer(1, "int64")):
         T.evaluate(T.assume(A[0] == 5))
         A[0] = 10
 
@@ -3473,7 +3439,7 @@ def if_true_else():
 
 def elif_chain_without_else():
     @T.prim_func
-    def func(i: T.int32) -> None:
+    def func(i: T.int64) -> None:
         if i == 0:
             T.evaluate(0)
         elif i == 1:
@@ -3486,7 +3452,7 @@ def elif_chain_without_else():
 
 def elif_chain_with_else():
     @T.prim_func
-    def func(i: T.int32) -> None:
+    def func(i: T.int64) -> None:
         if i == 0:
             T.evaluate(0)
         elif i == 1:
@@ -3565,7 +3531,7 @@ def let_stmt_var():
 def let_stmt_value():
     @T.prim_func
     def func():
-        y = T.int32()
+        y = T.int64()
         with T.LetStmt(y) as x:
             with T.LetStmt(0, var=y):
                 T.evaluate(0)
@@ -3578,7 +3544,7 @@ def string_stride():
     @T.prim_func
     def main(a: T.handle, b: T.handle):
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        n = T.int32()
+        n = T.int64()
         A = T.match_buffer(a, (n,), strides=("A_s0",), buffer_type="auto")
         B = T.match_buffer(b, (n,), strides=("B_s0",), buffer_type="auto")
         blockIdx_x = T.launch_thread("blockIdx.x", (n + 63) // 64)
@@ -3597,15 +3563,15 @@ def merge_shape_var_def():
     @T.prim_func
     def main(A: T.handle, B: T.handle):
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        m, n = T.int32(), T.int32()
+        m, n = T.int64(), T.int64()
         A_1 = T.match_buffer(A, (m, n), strides=("A_1_s0", "A_1_s1"), buffer_type="auto")
         B_1 = T.match_buffer(B, (m, n), strides=("B_1_s0", "B_1_s1"), buffer_type="auto")
         for i_outer, j_outer, i_inner in T.grid((m + 9) // 10, (n + 4) // 5, 10):
             if T.likely(i_outer * 10 + i_inner < m):
                 for j_inner in range(5):
                     if T.likely(j_outer * 5 + j_inner < n):
-                        cse_var_2: T.int32 = j_outer * 5 + j_inner
-                        cse_var_1: T.int32 = i_outer * 10 + i_inner
+                        cse_var_2: T.int64 = j_outer * 5 + j_inner
+                        cse_var_1: T.int64 = i_outer * 10 + i_inner
                         B_2 = T.Buffer(
                             (B_1.strides[0] * m,),
                             data=B_1.data,
@@ -3627,7 +3593,7 @@ def merge_shape_var_def():
 
 def if_then_else_var():
     @T.prim_func
-    def main(n: T.int32):
+    def main(n: T.int64):
         if n == 0:
             x = 5
             T.evaluate(x)

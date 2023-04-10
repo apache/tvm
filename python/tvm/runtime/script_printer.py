@@ -53,7 +53,7 @@ class PrinterConfig(Object):
         ir_prefix: str = "I",
         tir_prefix: str = "T",
         buffer_dtype: str = "float32",
-        int_dtype: str = "int32",
+        int_dtype: str = "int64",
         float_dtype: str = "void",
         verbose_expr: bool = False,
         indent_spaces: int = 4,
@@ -112,7 +112,7 @@ class Scriptable:
         ir_prefix: str = "I",
         tir_prefix: str = "T",
         buffer_dtype: str = "float32",
-        int_dtype: str = "int32",
+        int_dtype: str = "int64",
         float_dtype: str = "void",
         verbose_expr: bool = False,
         indent_spaces: int = 4,
@@ -139,7 +139,7 @@ class Scriptable:
 
         buffer_dtype : str = "float32"
             The default data type of buffer
-        int_dtype : str = "int32"
+        int_dtype : str = "int64"
             The default data type of integer
         float_dtype : str = "void"
             The default data type of float
@@ -199,7 +199,7 @@ class Scriptable:
         ir_prefix: str = "I",
         tir_prefix: str = "T",
         buffer_dtype: str = "float32",
-        int_dtype: str = "int32",
+        int_dtype: str = "int64",
         float_dtype: str = "void",
         verbose_expr: bool = False,
         indent_spaces: int = 4,
@@ -231,7 +231,7 @@ class Scriptable:
 
         buffer_dtype : str = "float32"
             The default data type of buffer
-        int_dtype : str = "int32"
+        int_dtype : str = "int64"
             The default data type of integer
         float_dtype : str = "void"
             The default data type of float

@@ -135,7 +135,7 @@ class BufferNode : public Object {
 
   /*! \return preferred index type for this buffer node */
   DataType DefaultIndexType() const {
-    return shape.size() != 0 ? shape[0].dtype() : DataType::Int(32);
+    return shape.size() != 0 ? shape[0].dtype() : DataType::Int(64);
   }
 
   /*! \brief Determine the offset in the buffer of the given index.
@@ -189,7 +189,7 @@ class Buffer : public ObjectRef {
    * \param input_extent The extent of ptr.
    */
   TVM_DLL PrimExpr access_ptr(int access_mask, DataType ptr_type = DataType::Handle(),
-                              int content_lanes = 1, PrimExpr offset = IntImm(DataType::Int(32), 0),
+                              int content_lanes = 1, PrimExpr offset = IntImm(DataType::Int(64), 0),
                               Optional<PrimExpr> input_extent = NullOpt) const;
   /*!
    * \brief Create an Expr that does a vector load at begin index.

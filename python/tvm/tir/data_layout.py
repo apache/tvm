@@ -163,7 +163,7 @@ class BijectiveLayout(Object):
         return _ffi_api.BijectiveLayoutBackwardShape(self, shape)  # type: ignore
 
 
-def layout(layout_str: str, dtype: str = "int32") -> Layout:
+def layout(layout_str: str, dtype: str = "int64") -> Layout:
     """Create a layout node from a string.
 
     Parameters

@@ -294,9 +294,11 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
     }
   }
   // device info.
-  Bind_(device_type, TVMArrayGet(DataType::Int(32), handle, builtin::kArrDeviceType),
+  Bind_(device_type,
+        cast(device_type->dtype, TVMArrayGet(DataType::Int(32), handle, builtin::kArrDeviceType)),
         arg_name + ".device_type", true);
-  Bind_(device_id, TVMArrayGet(DataType::Int(32), handle, builtin::kArrDeviceId),
+  Bind_(device_id,
+        cast(device_id->dtype, TVMArrayGet(DataType::Int(32), handle, builtin::kArrDeviceId)),
         arg_name + ".device_id", true);
 }
 

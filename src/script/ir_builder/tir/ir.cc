@@ -45,7 +45,7 @@ Buffer BufferDecl(Array<PrimExpr> shape, DataType dtype, String buffer_name, Opt
     buffer_data = data.value();
   }
   if (!elem_offset.defined() && offset_factor) {
-    DataType shape_dtype = shape.empty() ? DataType::Int(32) : shape[0]->dtype;
+    DataType shape_dtype = shape.empty() ? DataType::Int(64) : shape[0]->dtype;
     elem_offset = tvm::tir::Var("elem_offset", shape_dtype);
   }
   return Buffer(buffer_data, dtype, shape, strides.value_or(Array<PrimExpr>()),
@@ -344,7 +344,7 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, String thread,
   n->f_make_for_loop = [annotations, thread](Array<Var> vars, Array<Range> doms, Stmt body) -> For {
     ICHECK_EQ(vars.size(), 1);
     ICHECK_EQ(doms.size(), 1);
-    IterVar iter_var(Range(nullptr), Var("iter", DataType::Int(32)), IterVarType::kThreadIndex,
+    IterVar iter_var(Range(nullptr), Var("iter", DataType::Int(64)), IterVarType::kThreadIndex,
                      thread);
     return For(vars[0], doms[0]->min, doms[0]->extent, ForKind::kThreadBinding, body, iter_var,
                annotations.value_or(Map<String, ObjectRef>()));
@@ -418,7 +418,8 @@ LaunchThreadFrame LaunchThread(Var var, PrimExpr extent) {
   }
   ObjectPtr<LaunchThreadFrameNode> n = make_object<LaunchThreadFrameNode>();
   if (!iter_var->dom.defined()) {
-    const_cast<tvm::tir::IterVarNode*>(iter_var.get())->dom = Range(0, extent);
+    const_cast<tvm::tir::IterVarNode*>(iter_var.get())->dom =
+        Range(IntImm(extent->dtype, 0), extent);
   } else if (!arith::Analyzer().CanProveEqual(iter_var->dom->extent, extent)) {
     LOG(FATAL) << "ValueError: Inconsistent extents of environment thread. "
                << iter_var->dom->extent << " vs " << extent;
@@ -499,7 +500,7 @@ ElseFrame Else() {
 }
 
 Var EnvThread(String thread_tag) {
-  IterVar iter_var(Range{nullptr}, Var("", DataType::Int(32)), tvm::tir::IterVarType::kThreadIndex,
+  IterVar iter_var(Range{nullptr}, Var("", DataType::Int(64)), tvm::tir::IterVarType::kThreadIndex,
                    thread_tag);
   Var var = iter_var->var;
   if (Optional<PrimFuncFrame> opt_frame = IRBuilder::Current()->FindFrame<PrimFuncFrame>()) {

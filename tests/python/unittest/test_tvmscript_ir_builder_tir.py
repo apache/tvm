@@ -122,9 +122,9 @@ def test_ir_builder_tir_block_complete():
         a = T.int64()
         b = T.Buffer((128, 128), "float32")
         c = T.Buffer((128, 128), "float32")
-        d = T.int32()
+        d = T.int64()
         e = T.Buffer((128, 128), "float32")
-        f = T.int32()
+        f = T.int64()
         with T.block("block"):
             T.where(a > 1)
             T.reads(b[0:16, 0:16])
@@ -142,11 +142,11 @@ def test_ir_builder_tir_block_complete():
     var_a = tir.Var("a", "int64")
     buffer_b = tir.decl_buffer((128, 128), "float32", name="b")
     buffer_c = tir.decl_buffer((128, 128), "float32", name="c")
-    var_d = tir.Var("d", "int32")
+    var_d = tir.Var("d", "int64")
     buffer_e = tir.decl_buffer((128, 128), "float32", name="c")
-    var_f = tir.Var("f", "int32")
+    var_f = tir.Var("f", "int64")
     block_expected = tir.Block(
-        iter_vars=[tir.IterVar((0, 128), tir.Var("", "int32"), iter_type=tir.IterVar.DataPar)],
+        iter_vars=[tir.IterVar((0, 128), tir.Var("", "int64"), iter_type=tir.IterVar.DataPar)],
         reads=[buffer_b[0:16, 0:16]],
         writes=[buffer_c[var_d:128, var_d:128]],
         name_hint="block",
@@ -169,10 +169,10 @@ def test_ir_builder_tir_block_complete():
 
 def test_ir_builder_tir_axis():
     with IRBuilder() as ib:
-        a = T.int32()
-        b = T.int32()
-        c = T.int32()
-        d = T.int32()
+        a = T.int64()
+        b = T.int64()
+        c = T.int64()
+        d = T.int64()
         with T.block("block"):
             T.axis.spatial(8, a)
             T.axis.reduce(16, b)
@@ -184,16 +184,16 @@ def test_ir_builder_tir_axis():
     block_realize_actual = ib.get()
 
     # the expected block
-    var_a = tir.Var("a", "int32")
-    var_b = tir.Var("b", "int32")
-    var_c = tir.Var("c", "int32")
-    var_d = tir.Var("d", "int32")
+    var_a = tir.Var("a", "int64")
+    var_b = tir.Var("b", "int64")
+    var_c = tir.Var("c", "int64")
+    var_d = tir.Var("d", "int64")
     block_expected = tir.Block(
         iter_vars=[
-            tir.IterVar((0, 8), tir.Var("", "int32"), iter_type=tir.IterVar.DataPar),
-            tir.IterVar((0, 16), tir.Var("", "int32"), iter_type=tir.IterVar.CommReduce),
-            tir.IterVar((0, 32), tir.Var("", "int32"), iter_type=tir.IterVar.Ordered),
-            tir.IterVar((0, 64), tir.Var("", "int32"), iter_type=tir.IterVar.Opaque),
+            tir.IterVar((0, 8), tir.Var("", "int64"), iter_type=tir.IterVar.DataPar),
+            tir.IterVar((0, 16), tir.Var("", "int64"), iter_type=tir.IterVar.CommReduce),
+            tir.IterVar((0, 32), tir.Var("", "int64"), iter_type=tir.IterVar.Ordered),
+            tir.IterVar((0, 64), tir.Var("", "int64"), iter_type=tir.IterVar.Opaque),
         ],
         reads=[],
         writes=[],
@@ -225,38 +225,38 @@ def test_ir_builder_tir_for():
 
     # the expected for
     thread_binding_expected = tir.For(
-        loop_var=tir.Var("", "int32"),
+        loop_var=tir.Var("", "int64"),
         min_val=0,
         extent=8,
         kind=tir.ForKind.THREAD_BINDING,
         body=tir.Evaluate(0),
         thread_binding=tir.IterVar(
-            None, tir.Var("", "int32"), tir.IterVar.ThreadIndex, "threadIdx.x"
+            None, tir.Var("", "int64"), tir.IterVar.ThreadIndex, "threadIdx.x"
         ),
     )
     unroll_expected = tir.For(
-        loop_var=tir.Var("", "int32"),
+        loop_var=tir.Var("", "int64"),
         min_val=0,
         extent=16,
         kind=tir.ForKind.UNROLLED,
         body=thread_binding_expected,
     )
     vectorized_expected = tir.For(
-        loop_var=tir.Var("", "int32"),
+        loop_var=tir.Var("", "int64"),
         min_val=0,
         extent=32,
         kind=tir.ForKind.VECTORIZED,
         body=unroll_expected,
     )
     parallel_expected = tir.For(
-        loop_var=tir.Var("", "int32"),
+        loop_var=tir.Var("", "int64"),
         min_val=0,
         extent=64,
         kind=tir.ForKind.PARALLEL,
         body=vectorized_expected,
     )
     for_expected = tir.For(
-        loop_var=tir.Var("", "int32"),
+        loop_var=tir.Var("", "int64"),
         min_val=0,
         extent=128,
         kind=tir.ForKind.SERIAL,

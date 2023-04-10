@@ -44,7 +44,7 @@ def test_ir_module():
 class Module:
     @T.prim_func
     def foo():
-        T.evaluate(0)""",
+        T.evaluate(T.int32(0))""",
     )
 
 
