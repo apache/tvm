@@ -142,6 +142,20 @@ def test_symbolic_var():
     assert not rx.analysis.well_formed(mod, check_struct_info=False)
 
 
+def test_symbolic_var_across_functions():
+    # Error: Symbolic Var s presents across different functions
+    s = tir.Var("s", "int64")
+    v0 = rx.Var("v0", R.Tensor([5, s], "float32"))
+    v1 = rx.Var("v1", R.Tensor([s, 7], "float32"))
+    bb = rx.BlockBuilder()
+    with bb.function("func1", [v0]):
+        bb.emit_func_output(v0)
+    with bb.function("func2", [v1]):
+        bb.emit_func_output(v1)
+    mod = bb.get()
+    assert not rx.analysis.well_formed(mod, check_struct_info=False)
+
+
 def test_symbolic_var_invalid_type():
     with pytest.raises(
         tvm.TVMError, match="the value in ShapeStructInfo can only have dtype of int64"

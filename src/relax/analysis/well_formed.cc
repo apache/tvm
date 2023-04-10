@@ -30,16 +30,17 @@
  *    3. When a Function has a corresponding GlobalVar and a `global_symbol`
  *       attribute, the name of the GlobalVar must equal the value of the
  *       `global_symbol` attribute value.
- *    4. Any variable cannot used as different function parameters in the same IRModule
- *    5. Vars are defined before use.
- *    6. Vars are defined exactly once.
- *    7. Symbolic Vars are defined before use.
- *    8. DataflowVars cannot be defined inside BindingBlock.
- *    9. Vars defined in IfNode, except the return Var, are invisible
+ *    4. Any variable cannot used as different function parameters in the same IRModule.
+ *    5. Any symbolic var cannot present across different functions in the same IRModule.
+ *    6. Vars are defined before use.
+ *    7. Vars are defined exactly once.
+ *    8. Symbolic Vars are defined before use.
+ *    9. DataflowVars cannot be defined inside BindingBlock.
+ *    10. Vars defined in IfNode, except the return Var, are invisible
  *       out of the If body.(May change for new AST designs)
- *    10. SeqExpr only serves as function body, or in the true and
+ *    11. SeqExpr only serves as function body, or in the true and
  *       false branches in IfNode.
- *    11. The IR is in ANF:
+ *    12. The IR is in ANF:
  *       (a) Expressions cannot contain nested complex expressions.
  *           Here are the expressions that may be nested inside other expressions:
  *           Var, DataflowVar, GlobalVar, Constant, ShapeExpr,
@@ -54,7 +55,7 @@
  *           * The cond field of If nodes
  *           * The op or args fields of Call nodes
  *           * Inside the fields of Tuple nodes
- *    12. Expr always has checked_type_ (with the exception of Op).
+ *    13. Expr always has checked_type_ (with the exception of Op).
  */
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
@@ -92,7 +93,7 @@ class WellFormedChecker : public relax::ExprVisitor,
 
  private:
   explicit WellFormedChecker(IRModule mod, bool check_struct_info)
-      : mod_(std::move(mod)), check_struct_info_(check_struct_info) {}
+      : mod_(std::move(mod)), check_struct_info_(check_struct_info), cur_visited_func_(nullptr) {}
 
   using relax::ExprVisitor::VisitExpr_;
   using tir::ExprVisitor::VisitExpr;
@@ -196,6 +197,13 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   void VisitExpr_(const FunctionNode* op) final {
+    // set current visited function.
+    // for nested functions, we only set the outermost function.
+    if (cur_visited_func_ == nullptr) {
+      VLOG(2) << "new assignment";
+      cur_visited_func_ = op;
+    }
+
     // save the var_set_ for local function
     auto prev_var_set = var_set_;
     auto prev_dataflow_var_set = dataflow_var_set_;
@@ -223,7 +231,7 @@ class WellFormedChecker : public relax::ExprVisitor,
                   << "Relax variable " << param->name_hint()
                   << " is repeatedly used as parameters in function.");
       }
-      param_var_func_map_.insert({param, GetRef<Function>(op)});
+      param_var_func_map_.insert({param, cur_visited_func_});
     }
     // check function ret_struct_info
     if (op->ret_struct_info.defined()) {
@@ -242,6 +250,11 @@ class WellFormedChecker : public relax::ExprVisitor,
     dataflow_var_set_ = prev_dataflow_var_set;
     var_set_ = prev_var_set;
     symbolic_var_set_ = prev_symbolic_var_set;
+
+    if (cur_visited_func_ == op) {
+      VLOG(2) << "recycle";
+      cur_visited_func_ = nullptr;
+    }
   }
 
   void VisitExpr_(const CallNode* op) final {
@@ -400,6 +413,16 @@ class WellFormedChecker : public relax::ExprVisitor,
       this->Malformed(Diagnostic::Error(var)
                       << "Symbolic Var " << var->name_hint << " is not defined.");
     }
+    // check across functions presence
+    VLOG(2) << "cur visited" << cur_visited_func_ << std::endl;
+    auto it = symbolic_var_func_map_.find(var);
+    if (it != symbolic_var_func_map_.end() && it->second != cur_visited_func_) {
+      // TODO(relax-team): Complete this error info after we integrate printer
+      Malformed(Diagnostic::Error(var->span)
+                << "Symbolic Var " << var->name_hint
+                << " presents in different functions in the same Module.");
+    }
+    symbolic_var_func_map_.insert({var, cur_visited_func_});
   }
 
   void VisitStructInfo_(const FuncStructInfoNode* op) final {
@@ -473,6 +496,8 @@ class WellFormedChecker : public relax::ExprVisitor,
   const bool check_struct_info_;
   bool well_formed_ = true;
   bool is_dataflow_;
+  // Current visited function.
+  const FunctionNode* cur_visited_func_;
   // Current visit mode.
   VisitMode mode_ = VisitMode::kDefault;
   // set of context variables.
@@ -480,7 +505,9 @@ class WellFormedChecker : public relax::ExprVisitor,
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> recur_vars_;
   std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> dataflow_var_set_;
   std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> symbolic_var_set_;
-  std::unordered_map<Var, Function, ObjectPtrHash, ObjectPtrEqual> param_var_func_map_;
+  std::unordered_map<Var, const FunctionNode*, ObjectPtrHash, ObjectPtrEqual> param_var_func_map_;
+  std::unordered_map<tir::Var, const FunctionNode*, ObjectPtrHash, ObjectPtrEqual>
+      symbolic_var_func_map_;
 };
 
 bool WellFormed(IRModule m, bool check_struct_info) {
