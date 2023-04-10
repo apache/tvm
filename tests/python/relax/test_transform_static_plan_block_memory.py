@@ -951,7 +951,7 @@ def test_tir_var_upper_bound():
 
         @R.function
         def main(x: R.Tensor((2, "n"), dtype="float32")) -> R.Tensor(("2 * n + 2",), dtype="float32"):
-            R.func_attr({"tir_var_upper_bound": {"n": 4}})
+            R.func_attr({"tir_var_upper_bound": {"n": 4}, "ForcePure": True})
             n = T.int64()
             cls = Module
             alloc: R.Tensor((2, n), dtype="float32") = R.builtin.alloc_tensor(R.shape([2, n]), dtype="float32", runtime_device_index=0)
@@ -1001,7 +1001,7 @@ def test_tir_var_upper_bound():
         @R.function
         def main(x: R.Tensor((2, "n"), dtype="float32")) -> R.Tensor(("2 * n + 2",), dtype="float32"):
             n = T.int64()
-            R.func_attr({"tir_var_upper_bound": {"n": 4}})
+            R.func_attr({"tir_var_upper_bound": {"n": 4}, "ForcePure": True})
             cls = Expected
             storage: R.Object = R.memory.alloc_storage(R.shape([32]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc: R.Tensor((2, n), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([2, n]), R.dtype("float32"))
@@ -1047,7 +1047,7 @@ def test_tir_var_decreasing_monotone():
         def main(x: R.Tensor(("n", "m", "T.max(n - m, 1)"), dtype="float32")) -> R.Tensor(("n", "m", "T.max(n - m, 1)"), dtype="float32"):
             n = T.int64()
             m = T.int64()
-            R.func_attr({"tir_var_upper_bound": {"m": 5, "n": 20}})
+            R.func_attr({"tir_var_upper_bound": {"m": 5, "n": 20}, "ForcePure": True})
             cls = Module
             alloc: R.Tensor((n, m, T.max(n - m, 1)), dtype="float32") = R.builtin.alloc_tensor(R.shape([n, m, T.max(n - m, 1)]), R.dtype("float32"), R.prim_value(0))
             _: R.Tuple = cls.tir_exp(x, alloc)
@@ -1070,7 +1070,7 @@ def test_tir_var_decreasing_monotone():
         def main(x: R.Tensor(("n", "m", "T.max(n - m, 1)"), dtype="float32")) -> R.Tensor(("n", "m", "T.max(n - m, 1)"), dtype="float32"):
             n = T.int64()
             m = T.int64()
-            R.func_attr({"tir_var_upper_bound": {"m": 5, "n": 20}})
+            R.func_attr({"tir_var_upper_bound": {"m": 5, "n": 20}, "ForcePure": True})
             cls = Expected
             storage: R.Object = R.memory.alloc_storage(R.shape([8000]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc: R.Tensor((n, m, T.max(n - m, 1)), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([n, m, T.max(n - m, 1)]), R.dtype("float32"))

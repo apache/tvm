@@ -1347,11 +1347,13 @@ def test_shape_expr_arg():
                 lv0 = R.emit_te(topi.full, [n, n], "float32", 0)
                 lv1 = R.emit_te(topi.trilu, lv0, tvm.tir.const(1, "int32"), upper=True)
                 lv2 = R.emit_te(topi.broadcast_to, lv1, [1, 1, n, n])
-                gv = R.call_packed(
-                    "vm.builtin.attention_kv_cache_view",
-                    kv_cache,
-                    R.shape([1 + n, 32, 128]),
-                    sinfo_args=(R.Tensor((1 + n, 32, 128), dtype="float32"),),
+                gv = R.call_pure(
+                    R.call_packed(
+                        "vm.builtin.attention_kv_cache_view",
+                        kv_cache,
+                        R.shape([1 + n, 32, 128]),
+                        sinfo_args=(R.Tensor((1 + n, 32, 128), dtype="float32"),),
+                    )
                 )
                 R.output(gv, lv2)
             return gv, lv2
@@ -1379,11 +1381,13 @@ def test_shape_expr_arg():
                 lv: R.Tensor([1, 1, n, n], "float32") = cls.fused_full_trilu_broadcast_to(
                     R.shape([n])
                 )
-                gv = R.call_packed(
-                    "vm.builtin.attention_kv_cache_view",
-                    kv_cache,
-                    R.shape([1 + n, 32, 128]),
-                    sinfo_args=(R.Tensor((1 + n, 32, 128), dtype="float32"),),
+                gv = R.call_pure(
+                    R.call_packed(
+                        "vm.builtin.attention_kv_cache_view",
+                        kv_cache,
+                        R.shape([1 + n, 32, 128]),
+                        sinfo_args=(R.Tensor((1 + n, 32, 128), dtype="float32"),),
+                    )
                 )
                 R.output(gv, lv)
             return gv, lv

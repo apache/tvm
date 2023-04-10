@@ -723,7 +723,8 @@ TVM_REGISTER_OP("relax.nn.nll_loss")
     .add_argument("predictions", "Tensor", "The prediction tensor.")
     .add_argument("targets", "Tensor", "The target tensor.")
     .add_argument("weights", "Optional<Tensor>", "The weight of each target values.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNLLLoss);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNLLLoss)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 }  // namespace relax
 }  // namespace tvm

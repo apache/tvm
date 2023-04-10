@@ -73,6 +73,7 @@ def test_pipeline_with_kv_cache():
             shape: R.Shape(["L", 4]),
             kv_cache: R.Object,
         ):
+            R.func_attr({"IsPure": False})
             L = T.int64()
             # computation of the current value
             curr_value = R.add(x, y)

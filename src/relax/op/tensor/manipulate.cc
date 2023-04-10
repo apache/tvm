@@ -1334,7 +1334,8 @@ TVM_REGISTER_OP("relax.flip")
     .set_attrs_type<FlipAttrs>()
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoFlip);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoFlip)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.scatter_elements */
 TVM_REGISTER_NODE_TYPE(ScatterElementsAttrs);

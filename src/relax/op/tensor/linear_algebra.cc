@@ -189,7 +189,8 @@ TVM_REGISTER_OP("relax.einsum")
     .set_attrs_type<EinsumAttrs>()
     .set_num_inputs(1)
     .add_argument("operands", "Tensor", "The input tensors.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoEinsum);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoEinsum)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 }  // namespace relax
 }  // namespace tvm

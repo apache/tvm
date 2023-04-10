@@ -277,7 +277,8 @@ TVM_REGISTER_OP("relax.arange")
     .add_argument("end", "PrimValue", "The ending value for the set of points.")
     .add_argument("step", "PrimValue", "The gap between each pair of adjacent points.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoArange)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.tril & relax.triu */
 TVM_REGISTER_NODE_TYPE(TriluAttrs);
