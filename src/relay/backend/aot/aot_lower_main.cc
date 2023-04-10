@@ -674,7 +674,7 @@ class AOTMainLowerer : public MixedModeVisitor {
       }));
     }
 
-    tir::Stmt body = tir::SeqStmt({func_call});
+    tir::Stmt body = tir::SeqStmt::Flatten(func_call);
     stmts_.push_back(body);
   }
 
