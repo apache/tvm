@@ -1333,5 +1333,59 @@ def test_symbolic_shape_aware_fuse_2():
     _check(Before, Expected)
 
 
+def test_shape_expr_arg():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(s: R.Shape(["n"]), kv_cache: R.Object):
+            n = T.int64()
+            with R.dataflow():
+                lv0 = R.emit_te(topi.full, [n, n], "float32", 0)
+                lv1 = R.emit_te(topi.trilu, lv0, tvm.tir.const(1, "int32"), upper=True)
+                lv2 = R.emit_te(topi.broadcast_to, lv1, [1, 1, n, n])
+                gv = R.call_packed(
+                    "vm.builtin.attention_kv_cache_view",
+                    kv_cache,
+                    R.shape([1 + n, 32, 128]),
+                    sinfo_args=(R.Tensor((1 + n, 32, 128), dtype="float32"),),
+                )
+                R.output(gv, lv2)
+            return gv, lv2
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def fused_full_trilu_broadcast_to(
+            s: R.Shape(["n"]),
+        ) -> R.Tensor([1, 1, "n", "n"], "float32"):
+            R.func_attr({"Primitive": 1})
+            n = T.int64()
+            with R.dataflow():
+                lv0 = R.emit_te(topi.full, [n, n], "float32", 0)
+                lv1 = R.emit_te(topi.trilu, lv0, tvm.tir.const(1, "int32"), upper=True)
+                gv = R.emit_te(topi.broadcast_to, lv1, [1, 1, n, n])
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(s: R.Shape(["n"]), kv_cache: R.Object):
+            cls = Expected
+            n = T.int64()
+            with R.dataflow():
+                lv: R.Tensor([1, 1, n, n], "float32") = cls.fused_full_trilu_broadcast_to(
+                    R.shape([n])
+                )
+                gv = R.call_packed(
+                    "vm.builtin.attention_kv_cache_view",
+                    kv_cache,
+                    R.shape([1 + n, 32, 128]),
+                    sinfo_args=(R.Tensor((1 + n, 32, 128), dtype="float32"),),
+                )
+                R.output(gv, lv)
+            return gv, lv
+
+    _check(Before, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
