@@ -15,37 +15,9 @@
     specific language governing permissions and limitations
     under the License.
 
-Python API
-==========
-
-
-.. toctree::
-   :maxdepth: 2
-
-   runtime
-   ndarray
-   error
-   ir
-   target
-   tir
-   te
-   driver
-   relay/index
-   relay/frontend
-   relay/nn
-   relay/vision
-   relay/image
-   relay/transform
-   relay/analysis
-   relay/backend
-   relay/dataflow_pattern
-   relay/testing
-   autotvm
-   auto_scheduler
-   meta_schedule
-   rpc
-   micro
-   contrib
-   graph_executor
-   topi
-   vta/index
+tvm.meta_schedule
+------------------
+.. automodule:: tvm.meta_schedule
+   :members:
+   :imported-members:
+   :autosummary:

@@ -104,7 +104,6 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
 
   // maximum number of recursion allowed during a single pass.
   static const constexpr int kMaxRecurDepth = 5;
-
   /*!
    * \brief try to compare x against val.
    * \param x The expression to be evaluated.

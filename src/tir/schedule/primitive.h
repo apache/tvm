@@ -148,6 +148,15 @@ Array<StmtSRef> GetProducers(const ScheduleState& self, const StmtSRef& block_sr
  * \return A list of blocks, the consumers of the given block
  */
 Array<StmtSRef> GetConsumers(const ScheduleState& self, const StmtSRef& block_sref);
+/*!
+ * \brief Get the list of output blocks within the given scope
+ * An output block is a block which has atleast one buffer being written
+ * to, but is not allocated within the PrimFunc
+ * \param scope_block_rv The scope block from which output blocks are collected
+ * \return A list of all blocks that write to some output buffer
+ * block
+ */
+Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const StmtSRef& scope_sref);
 /******** Schedule: Transform loops ********/
 /*!
  * Split a loop into a list of consecutive loops. It requires:
