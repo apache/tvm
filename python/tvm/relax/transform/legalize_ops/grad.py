@@ -173,7 +173,7 @@ def _grad_take_backward(bb: BlockBuilder, call: Call) -> Expr:
                     elif i > axis:
                         fused_output_grad_shape_nxt *= output_grad_ptr.shape[i]
 
-                x_axis_len = x_ptr.shape[axis].value
+                x_axis_len = x_ptr.shape[axis]
 
                 with ib.for_range(
                     0, fused_output_grad_shape_pre * fused_output_grad_shape_nxt, "parallel"
