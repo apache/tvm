@@ -386,5 +386,34 @@ def test_simplify_normalize_min_value_expr():
     ck.verify(0 == x + te.min_value("int32"), False)
 
 
+def test_proddiv_simplify():
+    ck = CanonicalChecker()
+    flm = tvm.te.floormod
+    fld = tvm.te.floordiv
+    tdiv = tvm.te.truncdiv
+    tmod = tvm.te.truncmod
+
+    x, y, z = te.var("x"), te.var("y"), te.var("y")
+
+    ck.verify(flm(x * 32 * x, x), 0)
+    ck.verify(flm(z * x * 32 * x * y, x * z), 0)
+    ck.verify(flm(z * x * 32 * x * y, x * z * y * 8 * x), 0)
+    ck.verify(flm(z * x * 32 * (x * y), 6 * x * z), flm(x * y * 16, 3) * (x * z * 2))
+    ck.verify(flm(x * 32 * x, x * z), flm(x * 32, z) * x)
+
+    ck.verify(tmod(x * 32 * x, x), 0)
+    ck.verify(tmod(z * x * 32 * x * y, x * z), 0)
+    ck.verify(tmod(z * x * 32 * (x * y), 6 * x * z), tmod(x * y * 16, 3) * (x * z * 2))
+    ck.verify(tmod(x * 32 * x, x * z), tmod(x * 32, z) * x)
+
+    ck.verify(fld(x * 2 * x * z, 4 * x * x * x), fld(z, x * 2))
+    ck.verify(fld(x * (2 * y) * 3, 3 * y), x * 2)
+    ck.verify(fld(x * (2 * y) * 3, 3 * y * z), fld(x * 2, z))
+
+    ck.verify(tdiv(x * 2 * x * z, 4 * x * x * x), tdiv(z, x * 2))
+    ck.verify(tdiv(x * (2 * y) * 3, 3 * y), x * 2)
+    ck.verify(tdiv(x * (2 * y) * 3, 3 * y * z), tdiv(x * 2, z))
+
+
 if __name__ == "__main__":
     tvm.testing.main()

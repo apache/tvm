@@ -282,7 +282,7 @@ Pass SplitHostDevice() {
       }
     }
     mod->Update(device_mod);
-    return mod;
+    return ConvertSSA()(mod);
   };
 
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.SplitHostDevice", {});

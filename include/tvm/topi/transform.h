@@ -323,11 +323,7 @@ inline Tensor reshape(const Tensor& x, Array<PrimExpr> newshape, std::string nam
   Array<PrimExpr> target_shape;
 
   for (const auto& ele : newshape) {
-    if (ele.as<IntImmNode>()) {
-      target_shape.push_back(cast(DataType::Int(32), ele));
-    } else {
-      target_shape.push_back(ele);
-    }
+    target_shape.push_back(ele);
   }
 
   // If either the input shape or the target shape contains a zero, return an empty tensor.
