@@ -312,6 +312,7 @@ class BlockBuilder(Object):
 
         primfunc_name = kwargs.pop("primfunc_name_hint", None)
         tir_func, call_args, output_sinfo, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
+
         if not primfunc_name:
             primfunc_name = func.__name__
         gvar = self.add_func(tir_func, primfunc_name)

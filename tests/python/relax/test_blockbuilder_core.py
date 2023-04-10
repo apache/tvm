@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+"""Block builder unit test"""
+# The test here do not depend on tvmscript to cover most basic features
 import pytest
 import tvm
 import tvm.testing
