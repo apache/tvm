@@ -797,111 +797,39 @@ def test_symbolic_var_in_call_tir_args():
     @I.ir_module
     class Before:
         @T.prim_func
-        def rotary_embedding(
-            rxplaceholder: T.Buffer((T.int64(1), T.int64(1), T.int64(32), T.int64(128)), "float32"),
-            rxplaceholder_1: T.Buffer((T.int64(2048), T.int64(128)), "float32"),
-            rxplaceholder_2: T.Buffer((T.int64(2048), T.int64(128)), "float32"),
-            rotary: T.Buffer((T.int64(1), T.int64(1), T.int64(32), T.int64(128)), "float32"),
+        def foo(
+            rxplaceholder: T.Buffer((1, 1, 32, 128), "float32"),
+            rxplaceholder_1: T.Buffer((2048, 128), "float32"),
+            rotary: T.Buffer((1, 1, 32, 128), "float32"),
             m: T.int64,
         ):
-            T.func_attr(
-                {"op_pattern": 8, "tir.noalias": T.bool(True), "tir_var_upper_bound": {"m": 2048}}
-            )
             # with T.block("root"):
-            for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(1), T.int64(32), T.int64(128)):
+            for i0, i1, i2, i3 in T.grid(1, 1, 32, 128):
                 with T.block("rotary"):
                     v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                    T.reads(
-                        rxplaceholder_1[m + v_i1 - T.int64(1), v_i3],
-                        rxplaceholder[
-                            v_i0, v_i1, v_i2, v_i3 - T.int64(64) : v_i3 - T.int64(64) + T.int64(129)
-                        ],
-                        rxplaceholder_2[m + v_i1 - T.int64(1), v_i3],
-                    )
-                    T.writes(rotary[v_i0, v_i1, v_i2, v_i3])
-                    rotary[v_i0, v_i1, v_i2, v_i3] = rxplaceholder_1[
-                        m + v_i1 - T.int64(1), v_i3
-                    ] * rxplaceholder[v_i0, v_i1, v_i2, v_i3] + rxplaceholder_2[
-                        m + v_i1 - T.int64(1), v_i3
-                    ] * T.Select(
-                        T.int64(64) <= v_i3,
-                        rxplaceholder[v_i0, v_i1, v_i2, v_i3 - T.int64(64)],
-                        rxplaceholder[v_i0, v_i1, v_i2, v_i3 + T.int64(64)] * T.float32(-1),
+                    rotary[v_i0, v_i1, v_i2, v_i3] = (
+                        rxplaceholder_1[m + v_i1 - 1, v_i3] * rxplaceholder[v_i0, v_i1, v_i2, v_i3]
                     )
 
         @R.function
         def main(
             x: R.Tensor((1, 1, 32, 128), dtype="float32"),
-            sin: R.Tensor((2048, 128), dtype="float32"),
-            cos: R.Tensor((2048, 128), dtype="float32"),
+            y: R.Tensor((2048, 128), dtype="float32"),
             len: R.Shape(["m"]),
         ):
             m = T.int64()
             cls = Before
             with R.dataflow():
                 gv = R.call_tir(
-                    cls.rotary_embedding,
-                    [x, sin, cos],
+                    cls.foo,
+                    [x, y],
                     out_sinfo=R.Tensor((1, 1, 32, 128), dtype="float32"),
                     tir_vars=R.shape([m]),
                 )
                 R.output(gv)
             return gv
 
-    @I.ir_module
-    class Expected:
-        @T.prim_func
-        def rotary_embedding(
-            rxplaceholder: T.Buffer((T.int64(1), T.int64(1), T.int64(32), T.int64(128)), "float32"),
-            rxplaceholder_1: T.Buffer((T.int64(2048), T.int64(128)), "float32"),
-            rxplaceholder_2: T.Buffer((T.int64(2048), T.int64(128)), "float32"),
-            rotary: T.Buffer((T.int64(1), T.int64(1), T.int64(32), T.int64(128)), "float32"),
-            m: T.int64,
-        ):
-            T.func_attr(
-                {"op_pattern": 8, "tir.noalias": T.bool(True), "tir_var_upper_bound": {"m": 2048}}
-            )
-            # with T.block("root"):
-            for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(1), T.int64(32), T.int64(128)):
-                with T.block("rotary"):
-                    v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                    T.reads(
-                        rxplaceholder_1[m + v_i1 - T.int64(1), v_i3],
-                        rxplaceholder[
-                            v_i0, v_i1, v_i2, v_i3 - T.int64(64) : v_i3 - T.int64(64) + T.int64(129)
-                        ],
-                        rxplaceholder_2[m + v_i1 - T.int64(1), v_i3],
-                    )
-                    T.writes(rotary[v_i0, v_i1, v_i2, v_i3])
-                    rotary[v_i0, v_i1, v_i2, v_i3] = rxplaceholder_1[
-                        m + v_i1 - T.int64(1), v_i3
-                    ] * rxplaceholder[v_i0, v_i1, v_i2, v_i3] + rxplaceholder_2[
-                        m + v_i1 - T.int64(1), v_i3
-                    ] * T.Select(
-                        T.int64(64) <= v_i3,
-                        rxplaceholder[v_i0, v_i1, v_i2, v_i3 - T.int64(64)],
-                        rxplaceholder[v_i0, v_i1, v_i2, v_i3 + T.int64(64)] * T.float32(-1),
-                    )
-
-        @R.function
-        def main(
-            x: R.Tensor((1, 1, 32, 128), dtype="float32"),
-            sin: R.Tensor((2048, 128), dtype="float32"),
-            cos: R.Tensor((2048, 128), dtype="float32"),
-            len: R.Shape(["m"]),
-        ) -> R.Tensor((1, 1, 32, 128), dtype="float32"):
-            m = T.int64()
-            cls = Expected
-            with R.dataflow():
-                gv = R.call_tir(
-                    cls.rotary_embedding,
-                    (x, sin, cos),
-                    out_sinfo=R.Tensor((1, 1, 32, 128), dtype="float32"),
-                    tir_vars=R.shape([m]),
-                )
-                R.output(gv)
-            return gv
-
+    Expected = Before
     _check(Before, Expected)
 
 
