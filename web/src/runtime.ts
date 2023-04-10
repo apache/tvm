@@ -67,6 +67,7 @@ class FFILibrary implements Disposable {
     while (this.recycledCallStacks.length != 0) {
       (this.recycledCallStacks.pop() as Disposable).dispose();
     }
+    this.webGPUContext?.dispose();
   }
 
   sizeofPtr(): number {
@@ -1031,8 +1032,6 @@ export class Instance implements Disposable {
   }
 
   dispose(): void {
-    // dispose canvas resource
-    this.lib.webGPUContext?.disposeCanvas();
     // order matters
     // ctx release goes back into lib.
     this.ctx.dispose();

@@ -204,7 +204,8 @@ class WebSocketHandler(websocket.WebSocketHandler, ForwardHandler):
 
 
 MIME_MAP = {
-    "js": "application/javascript",
+    "js": "text/javascript",
+    "css": "text/css",
     "wasm": "application/wasm",
     "json": "application/json",
 }
