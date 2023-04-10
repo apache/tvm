@@ -3332,6 +3332,25 @@ def let_expression():
     return func
 
 
+def test_void_ptr_vs_handle():
+    """Distinguish between void* and handle
+
+    In the future, perhaps these should be de-duplicated by forbidding
+    one of the two C++ representations.
+    """
+    # Generates PointerType(PrimType(DataType::Void()))
+    @T.prim_func
+    def void_ptr(out_ret_value: T.handle("void")):
+        T.evaluate(out_ret_value)
+
+    # Generates PrimType(DataType::Handle())
+    @T.prim_func
+    def handle(out_ret_value: T.handle):
+        T.evaluate(out_ret_value)
+
+    assert not tvm.ir.structural_equal(void_ptr, handle)
+
+
 def void_ptr():
     @T.prim_func
     def func(out_ret_value: T.handle("void")):
