@@ -162,7 +162,8 @@ def _grad_take_backward(bb: BlockBuilder, call: Call) -> Expr:
             with ib.for_range(0, fused_shape) as i:
                 out[i] = tir.const(0, dtype=x_ptr.dtype)
 
-            indices_len = indices_ptr.shape[0].value  # must be 1-dim
+            assert len(indices_ptr.shape) == 1  # indices in take must be 1-dim Tensor
+            indices_len = indices_ptr.shape[0]
 
             if axis is not None:
                 fused_output_grad_shape_pre = 1
@@ -173,14 +174,14 @@ def _grad_take_backward(bb: BlockBuilder, call: Call) -> Expr:
                     elif i > axis:
                         fused_output_grad_shape_nxt *= output_grad_ptr.shape[i]
 
-                x_axis_len = x_ptr.shape[axis].value
+                x_axis_len = x_ptr.shape[axis]
 
                 with ib.for_range(
                     0, fused_output_grad_shape_pre * fused_output_grad_shape_nxt, "parallel"
                 ) as fused:
                     i = fused // fused_output_grad_shape_nxt
                     j = fused % fused_output_grad_shape_nxt
-                    for l in reversed(range(indices_len)):
+                    with ib.for_range(0, indices_len, "serial") as l:
                         out[
                             i * fused_output_grad_shape_nxt * x_axis_len
                             + indices[l] * fused_output_grad_shape_nxt
@@ -191,7 +192,7 @@ def _grad_take_backward(bb: BlockBuilder, call: Call) -> Expr:
                             + j
                         ]
             else:
-                for l in reversed(range(indices_len)):
+                with ib.for_range(0, indices_len, "serial") as l:
                     out[indices[l]] += output_grad[l]
 
             return ib.get()
