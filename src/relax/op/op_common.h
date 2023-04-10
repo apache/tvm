@@ -64,6 +64,17 @@ inline TensorStructInfo GetUnaryInputTensorStructInfo(const Call& call, const Bl
   return GetInputTensorStructInfo(call, ctx)[0];
 }
 
+/*!
+ * \brief Get the tensor struct info of tuple input.
+ * \param call The context Call to the operator.
+ * \param ctx The error reporting context.
+ * \param tup The input tuple.
+ * \return The tensor struct infos of tuple input.
+ * \throw Throw exception if input expression is not a tuple.
+ */
+Array<TensorStructInfo> GetTensorStructInfoFromTuple(const Call& call, const BlockBuilder& ctx,
+                                                     const Expr& tup);
+
 /************ Op registration macro ************/
 
 /*!

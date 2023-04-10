@@ -43,6 +43,14 @@ namespace relax {
  */
 Expr matmul(Expr x1, Expr x2, DataType out_dtype);
 
+/*!
+ * \brief Einstein summation on the operands.
+ * \param operands The input tensors.
+ * \param subscripts The einsum expression string.
+ * \return The computed result.
+ */
+Expr einsum(Expr operands, String subscripts);
+
 }  // namespace relax
 }  // namespace tvm
 

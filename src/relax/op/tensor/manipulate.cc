@@ -123,31 +123,6 @@ Expr concat(Expr tensors, Optional<Integer> axis) {
 
 TVM_REGISTER_GLOBAL("relax.op.concat").set_body_typed(concat);
 
-Array<TensorStructInfo> GetTensorSInfoFromTuple(const Call& call, const BlockBuilder& ctx,
-                                                const Expr& expr) {
-  const auto* tuple_sinfo = GetStructInfoAs<TupleStructInfoNode>(expr);
-  if (tuple_sinfo == nullptr) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << call->op
-                     << " expects the input to be a Tuple of Tensors. However, the given input is "
-                     << expr->struct_info_->GetTypeKey());
-  }
-
-  Array<TensorStructInfo> tensor_sinfo;
-  tensor_sinfo.reserve(tuple_sinfo->fields.size());
-  for (StructInfo field_sinfo : tuple_sinfo->fields) {
-    const auto* field_tensor_sinfo = field_sinfo.as<TensorStructInfoNode>();
-    if (field_tensor_sinfo == nullptr) {
-      ctx->ReportFatal(
-          Diagnostic::Error(call)
-          << call->op << " expects the input to be a Tuple of Tensors. However, the given input is "
-          << expr->struct_info_);
-    }
-    tensor_sinfo.push_back(GetRef<TensorStructInfo>(field_tensor_sinfo));
-  }
-  return tensor_sinfo;
-}
-
 Optional<Array<PrimExpr>> CheckConcatOutputShape(const Call& call, const BlockBuilder& ctx,
                                                  const std::vector<Array<PrimExpr>>& shape_values,
                                                  int axis) {
@@ -189,7 +164,7 @@ StructInfo InferStructInfoConcat(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {
     ctx->ReportFatal(Diagnostic::Error(call) << "Concat op should have 1 argument");
   }
-  Array<TensorStructInfo> tensor_sinfo = GetTensorSInfoFromTuple(call, ctx, call->args[0]);
+  Array<TensorStructInfo> tensor_sinfo = GetTensorStructInfoFromTuple(call, ctx, call->args[0]);
   if (tensor_sinfo.empty()) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Concat op expects at least one tensor in the input Tuple. However, the "
@@ -1312,52 +1287,41 @@ TVM_REGISTER_OP("relax.tile")
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTile);
 
-/* relax.cumsum */
-TVM_REGISTER_NODE_TYPE(CumsumAttrs);
+/* relax.flip */
+TVM_REGISTER_NODE_TYPE(FlipAttrs);
 
-Expr cumsum(Expr data, Optional<Integer> axis, DataType dtype) {
-  auto attrs = make_object<CumsumAttrs>();
+Expr flip(Expr data, Integer axis) {
+  auto attrs = make_object<FlipAttrs>();
   attrs->axis = std::move(axis);
-  attrs->dtype = std::move(dtype);
-
-  static const Op& op = Op::Get("relax.cumsum");
+  static const Op& op = Op::Get("relax.flip");
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.cumsum").set_body_typed(cumsum);
+TVM_REGISTER_GLOBAL("relax.op.flip").set_body_typed(flip);
 
-StructInfo InferStructInfoCumsum(const Call& call, const BlockBuilder& ctx) {
+StructInfo InferStructInfoFlip(const Call& call, const BlockBuilder& ctx) {
+  if (call->args.size() != 1) {
+    ctx->ReportFatal(Diagnostic::Error(call) << "Flip op should take 1 argument");
+  }
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
-  const auto* attrs = call->attrs.as<CumsumAttrs>();
-
-  DataType out_type = attrs->dtype.is_void() ? data_sinfo->dtype : attrs->dtype;
-
-  if (!attrs->axis.defined()) {
-    // flattened
-    const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
-    if (data_shape == nullptr) {
-      return TensorStructInfo(out_type, data_sinfo->ndim);
-    } else {
-      PrimExpr flattened_d = 1;
-      for (const auto v : data_shape->values) {
-        flattened_d *= v;
-      }
-      return TensorStructInfo(ShapeExpr(Array<PrimExpr>({flattened_d})), out_type);
+  const auto* attrs = call->attrs.as<FlipAttrs>();
+  int axis = attrs->axis.IntValue();
+  if (!data_sinfo->IsUnknownNdim()) {
+    int ndim = data_sinfo->ndim;
+    if (axis < -ndim || axis >= ndim) {
+      ctx->ReportFatal(Diagnostic::Error(call) << "Flip requires the input axis belongs range "
+                                                  "[-ndim, ndim - 1]. However, the input axis is "
+                                               << axis << ", while ndim is " << ndim);
     }
   }
-
-  if (data_sinfo->shape.defined()) {
-    return TensorStructInfo(data_sinfo->shape.value(), out_type);
-  } else {
-    return TensorStructInfo(out_type, data_sinfo->ndim);
-  }
+  return data_sinfo;
 }
 
-TVM_REGISTER_OP("relax.cumsum")
-    .set_attrs_type<CumsumAttrs>()
+TVM_REGISTER_OP("relax.flip")
+    .set_attrs_type<FlipAttrs>()
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCumsum);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoFlip);
 
 /* relax.scatter_elements */
 TVM_REGISTER_NODE_TYPE(ScatterElementsAttrs);

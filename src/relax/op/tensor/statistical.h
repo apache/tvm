@@ -84,6 +84,18 @@ Expr std(Expr x, Optional<Array<Integer>> axis, bool keepdims);
 /*! \brief Computes the sum of tensor elements over given axes. */
 Expr sum(Expr x, Optional<Array<Integer>> axis, bool keepdims);
 
+/*!
+ * \brief Numpy style cumsum op. Return the cumulative inclusive sum of the elements along
+ * a given axis.
+ * \param data The input tensor.
+ * \param axis Axis along which the cumulative sum is computed. The default (None) is to compute
+ * the cumsum over the flattened array.
+ * \param dtype Type of the returned array and of the accumulator in which the elements are summed.
+ * If dtype is not specified, it defaults to the dtype of data.
+ * \return The computed result.
+ */
+Expr cumsum(Expr data, Optional<Integer> axis = NullOpt, DataType dtype = DataType::Void());
+
 /*! \brief Computes the variance of tensor elements over given axes. */
 Expr variance(Expr x, Optional<Array<Integer>> axis, bool keepdims);
 

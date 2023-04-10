@@ -16,9 +16,9 @@
 # under the License.
 # pylint: disable=invalid-name
 """Default legalization function for linear algebra operators."""
-from tvm import te, relax, tir
+from tvm import topi, tir, relax, te
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr
+from ...expr import Call, Expr, Var, Tuple, TupleGetItem
 from .common import register_legalize
 
 
@@ -73,8 +73,7 @@ def _matmul(bb: BlockBuilder, call: Call) -> Expr:
                 dtype = call.attrs.out_dtype
                 if dtype != "":
                     return a(*a_indices).astype(dtype) * b(*b_indices).astype(dtype)
-                else:
-                    return a(*a_indices) * b(*b_indices)
+                return a(*a_indices) * b(*b_indices)
 
             return te.sum(multiply_compute(k), axis=k)
 
@@ -85,3 +84,20 @@ def _matmul(bb: BlockBuilder, call: Call) -> Expr:
         )
 
     return bb.call_te(te_matmul, call.args[0], call.args[1], primfunc_name_hint="matmul")
+
+
+@register_legalize("relax.einsum")
+def _einsum(bb: BlockBuilder, call: Call) -> Expr:
+    t = call.args[0]
+    n_field = len(t.struct_info.fields)
+    while isinstance(t, Var):
+        binding = bb.lookup_binding(t)
+        if not isinstance(binding, (Tuple, Var)):
+            break
+        t = binding
+
+    assert isinstance(t, (Tuple, Var))
+    fields = (
+        t.fields if isinstance(t, Tuple) else [bb.emit(TupleGetItem(t, i)) for i in range(n_field)]
+    )
+    return bb.call_te(topi.einsum, call.attrs.subscripts, *fields)

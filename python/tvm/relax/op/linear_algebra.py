@@ -20,8 +20,8 @@ from typing import Optional, Union
 
 from tvm import DataType
 
-from ..expr import Expr
 from . import _ffi_api
+from ..expr import Expr, Tuple as RxTuple
 from .manipulate import permute_dims
 
 
@@ -88,3 +88,25 @@ def linear(
     # Since weight can be 1D or 2D, we use `axes=None` to support both cases.
     x = matmul(data, permute_dims(weight, axes=None), out_dtype=out_dtype)
     return x + bias if bias is not None else x
+
+
+def einsum(operands, subscripts):
+    """Evaluates the Einstein summation convention on data
+
+    Parameters
+    ----------
+    operands : Union(List[relax.Expr], Tuple[relax.Expr])
+        A list of expression.
+
+    subscripts : str
+        The einsum expression string.
+
+    Returns
+    -------
+    result : relax.Expr
+        The output from the einsum op.
+    """
+    if isinstance(operands, (list, tuple)):
+        operands = RxTuple(operands)
+
+    return _ffi_api.einsum(operands, subscripts)  # type: ignore

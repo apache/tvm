@@ -125,20 +125,15 @@ struct TileAttrs : public tvm::AttrsNode<TileAttrs> {
   }
 };  // struct TileAttrs
 
-/*! \brief Attributes used in cumsum operators */
-struct CumsumAttrs : public tvm::AttrsNode<CumsumAttrs> {
-  Optional<Integer> axis;
-  DataType dtype;
-
-  TVM_DECLARE_ATTRS(CumsumAttrs, "relax.attrs.CumsumAttrs") {
-    TVM_ATTR_FIELD(axis).describe(
-        "Axis along which the cumulative sum is computed."
-        "The default (None) is to compute the cumsum over the flattened array.");
-    TVM_ATTR_FIELD(dtype).describe(
-        "Type of the returned array and of the accumulator in which the elements are summed."
-        "If dtype is not specified, it defaults to the dtype of data.");
+/*! \brief Attributes used in flip operators */
+struct FlipAttrs : public tvm::AttrsNode<FlipAttrs> {
+  Integer axis;
+  TVM_DECLARE_ATTRS(FlipAttrs, "relax.attrs.FlipAttrs") {
+    TVM_ATTR_FIELD(axis)
+        .set_default(NullValue<Integer>())
+        .describe("The axis along which to flip over.");
   }
-};  // struct CumsumAttrs
+};  // struct FlipAttrs
 
 /*! \brief Attributes used in scatter_elements operators */
 struct ScatterElementsAttrs : public tvm::AttrsNode<ScatterElementsAttrs> {
