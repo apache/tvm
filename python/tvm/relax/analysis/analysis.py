@@ -329,22 +329,22 @@ def has_reshape_pattern(func: tir.PrimFunc) -> bool:
 
 def contains_impure_call(expr: Expr, own_name: Optional[Union[Var, GlobalVar]] = None) -> bool:
     """
-        Check if the given expression (likely a function body) contains any impure calls.
+    Check if the given expression (likely a function body) contains any impure calls.
 
-        Parameter
-        ---------
-        expr : Expr
-            The expression to be examined. If expr is a function, we check the body.
+    Parameter
+    ---------
+    expr : Expr
+        The expression to be examined. If expr is a function, we check the body.
 
-        own_name : Var or GlobalVar (optional)
-            For a recursive function, the analysis can ignore the self-calls
-            for checking purity.
+    own_name : Var or GlobalVar (optional)
+        For a recursive function, the analysis can ignore the self-calls
+        for checking purity.
 
-        Returns
-        -------
-        ret : bool
-            True if there is an impure call
-            (call to a function that may have visible side effects).
+    Returns
+    -------
+    ret : bool
+        True if there is an impure call
+        (call to a function that may have visible side effects).
 
     Notes
     -----
