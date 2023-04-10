@@ -798,38 +798,88 @@ def test_symbolic_var_in_call_tir_args():
     class Before:
         @T.prim_func
         def foo(
-            rxplaceholder: T.Buffer((1, 1, 32, 128), "float32"),
-            rxplaceholder_1: T.Buffer((2048, 128), "float32"),
-            rotary: T.Buffer((1, 1, 32, 128), "float32"),
+            X: T.Buffer((T.int64(1), T.int64(1), T.int64(32), T.int64(128)), "float32"),
+            Y: T.Buffer((T.int64(2048), T.int64(128)), "float32"),
+            rotary: T.Buffer((T.int64(1), T.int64(1), T.int64(32), T.int64(128)), "float32"),
             m: T.int64,
         ):
-            # with T.block("root"):
-            for i0, i1, i2, i3 in T.grid(1, 1, 32, 128):
+            for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(1), T.int64(32), T.int64(128)):
                 with T.block("rotary"):
-                    v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                    rotary[v_i0, v_i1, v_i2, v_i3] = (
-                        rxplaceholder_1[m + v_i1 - 1, v_i3] * rxplaceholder[v_i0, v_i1, v_i2, v_i3]
-                    )
+                    v0, v1, v2, v3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    rotary[v0, v1, v2, v3] = Y[m + v1 - 1, v3] * X[v0, v1, v2, v3]
 
         @R.function
-        def main(
+        def fused(
             x: R.Tensor((1, 1, 32, 128), dtype="float32"),
             y: R.Tensor((2048, 128), dtype="float32"),
             len: R.Shape(["m"]),
-        ):
+        ) -> R.Tensor((1, 1, 32, 128), dtype="float32"):
+            R.func_attr({"Primitive": 1})
             m = T.int64()
             cls = Before
             with R.dataflow():
+                lv1 = R.emit_te(topi.add, x, x)
                 gv = R.call_tir(
                     cls.foo,
-                    [x, y],
+                    [lv1, y],
                     out_sinfo=R.Tensor((1, 1, 32, 128), dtype="float32"),
                     tir_vars=R.shape([m]),
                 )
                 R.output(gv)
             return gv
 
-    Expected = Before
+        @R.function
+        def main(
+            x: R.Tensor((1, 1, 32, 128), dtype="float32"),
+            y: R.Tensor((2048, 128), dtype="float32"),
+            len: R.Shape(["m"]),
+        ) -> R.Tensor((1, 1, 32, 128), dtype="float32"):
+            cls = Before
+            with R.dataflow():
+                gv = cls.fused(x, y, len)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def fused(
+            X: T.Buffer((T.int64(1), T.int64(1), T.int64(32), T.int64(128)), "float32"),
+            Y: T.Buffer((T.int64(2048), T.int64(128)), "float32"),
+            rotary: T.Buffer((T.int64(1), T.int64(1), T.int64(32), T.int64(128)), "float32"),
+            m: T.int64,
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            T_add = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(32), T.int64(128)))
+            for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(1), T.int64(32), T.int64(128)):
+                with T.block("T_add"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T_add[v_ax0, v_ax1, v_ax2, v_ax3] = (
+                        X[v_ax0, v_ax1, v_ax2, v_ax3] + X[v_ax0, v_ax1, v_ax2, v_ax3]
+                    )
+            for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(1), T.int64(32), T.int64(128)):
+                with T.block("rotary"):
+                    v0, v1, v2, v3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    rotary[v0, v1, v2, v3] = Y[m + v1 - T.int64(1), v3] * T_add[v0, v1, v2, v3]
+
+        @R.function
+        def main(
+            x: R.Tensor((1, 1, 32, 128), dtype="float32"),
+            y: R.Tensor((2048, 128), dtype="float32"),
+            len: R.Shape(["m"]),
+        ) -> R.Tensor((1, 1, 32, 128), dtype="float32"):
+            m = T.int64()
+            cls = Expected
+            with R.dataflow():
+                gv = R.call_tir(
+                    cls.fused,
+                    (x, y),
+                    out_sinfo=R.Tensor([1, 1, 32, 128], "float32"),
+                    tir_vars=R.shape([m]),
+                )
+                R.output(gv)
+            return gv
+
     _check(Before, Expected)
 
 

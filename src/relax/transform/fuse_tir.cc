@@ -36,6 +36,8 @@ namespace tir {
  */
 class SymbolicMatcher : ExprFunctor<bool(const PrimExpr& n, const PrimExpr& other)> {
  public:
+  explicit SymbolicMatcher(Map<tir::Var, tir::Var>* var_remap) : var_remap_(var_remap) {}
+
   void Match(const Array<PrimExpr>& lhs, const Array<PrimExpr>& rhs) {
     CHECK_EQ(lhs.size(), rhs.size());
     for (size_t i = 0; i < lhs.size(); ++i) {
@@ -47,8 +49,6 @@ class SymbolicMatcher : ExprFunctor<bool(const PrimExpr& n, const PrimExpr& othe
       LOG(FATAL) << "Failed to match PrimExpr " << lhs << " with " << rhs;
     }
   }
-
-  Map<tir::Var, tir::Var> var_remap;
 
  private:
   bool VisitExpr(const PrimExpr& n, const PrimExpr& other) {
@@ -102,14 +102,16 @@ class SymbolicMatcher : ExprFunctor<bool(const PrimExpr& n, const PrimExpr& othe
     auto lhs = GetRef<Var>(op);
     if (lhs.same_as(other)) return true;
     if (op->dtype.code() != rhs->dtype.code()) return false;
-    auto it = var_remap.find(lhs);
-    if (it == var_remap.end()) {
-      var_remap.Set(lhs, GetRef<Var>(rhs));
+    auto it = var_remap_->find(lhs);
+    if (it == var_remap_->end()) {
+      var_remap_->Set(lhs, GetRef<Var>(rhs));
       return true;
     } else {
       return (*it).second.same_as(other);
     }
   }
+
+  Map<tir::Var, tir::Var>* var_remap_;
 };
 
 /*!
@@ -251,7 +253,7 @@ class FuseTIRBufferSubstitor : private StmtExprMutator {
     // For now we only allow Buffer access the same elements.
     // e.g. `[A[vi, vj], A[vi, vj]]` is a legal pattern but need to union to `A[vi, vj]`
     // However, `A[vi, vj], A[vi, vj + 1]` is not allow for now.
-    // Note: the order of return region should remain the same as the first occurance of the region
+    // Note: the order of return region should remain the same as the first occurrence of the region
     Array<BufferRegion> ret;
     std::unordered_map<const BufferNode*, Region> buffer_region_set;
 
@@ -345,6 +347,10 @@ class FusedTIRConstructor : public ExprVisitor {
   void VisitExpr_(const FunctionNode* func) final {
     // Step 1. Create buffers for function params
     for (const Var& relax_param : func->params) {
+      if (GetStructInfo(relax_param)->IsInstance<ShapeStructInfoNode>()) {
+        // It's a symbolic shape var, no need to alloc Buffers.
+        continue;
+      }
       auto ret = CreateParamsAndBuffers(GetStructInfo(relax_param),  //
                                         relax_param->name_hint());
       const Array<tir::Var>& params = ret.first;
@@ -375,7 +381,20 @@ class FusedTIRConstructor : public ExprVisitor {
       func_info_.output_buffers.insert(buffers[i].get());
     }
 
-    // Step 4. Create PrimFunc
+    // Step 4. Append symbolic vars
+    const relax::Var& last_relax_param = func->params.back();
+    if (GetStructInfo(last_relax_param)->IsInstance<ShapeStructInfoNode>()) {
+      auto ret =
+          CreateParamsAndBuffers(GetStructInfo(last_relax_param), last_relax_param->name_hint());
+      const Array<tir::Var>& params = ret.first;
+      const Array<tir::Buffer>& buffers = ret.second;
+      ICHECK(buffers.empty());
+      for (size_t i = 0; i < params.size(); ++i) {
+        func_info_.params.push_back(params[i]);
+      }
+    }
+
+    // Step 5. Create PrimFunc
     fused_tir_ = ConstructFunc();
   }
 
@@ -425,6 +444,29 @@ class FusedTIRConstructor : public ExprVisitor {
     MapInputBuffer(prim_func, call->args[1]);
     const Array<Array<PrimExpr>>& output_buffer_shapes = GetCallTIROutputShapes(call);
     AllocateIntermediateBuffer(GetRef<Expr>(call), prim_func, output_buffer_shapes);
+
+    // Step 6. Update tir_vars
+    if (call->args.size() > 2) {
+      ICHECK(call->args.size() == 3);
+      const Expr& tir_vars = call->args[2];
+      if (const auto* shape_expr = tir_vars.as<ShapeExprNode>()) {
+        const Array<tir::Var> vars = shape_expr->values.Map([](const PrimExpr& expr) {
+          if (!expr->IsInstance<tir::VarNode>()) {
+            LOG(FATAL) << "Expected a single var, but got: " << expr;
+          }
+          return Downcast<tir::Var>(expr);
+        });
+        size_t num_params = prim_func->params.size();
+        ICHECK_GE(num_params, vars.size());
+        for (size_t i = 0; i < vars.size(); ++i) {
+          const tir::Var& param = prim_func->params[num_params - vars.size() + i];
+          ICHECK(!func_info_.symbolic_var_remap.count(param));
+          func_info_.symbolic_var_remap.Set(param, vars[i]);
+        }
+      } else {
+        LOG(FATAL) << "TIR vars should be a shape expr, but got: " << tir_vars->GetTypeKey();
+      }
+    }
     // Update fused func name
     func_info_.global_name += "_" + gv->name_hint;
   }
@@ -543,6 +585,30 @@ class FusedTIRConstructor : public ExprVisitor {
     MapArgsToBuffer(arg_list, buffer_list);
   }
 
+  static Array<tir::Var> GetPrimFuncOutputParams(const tir::PrimFunc& func, size_t output_size) {
+    size_t n = func->params.size();
+    int symbolic_var_index = -1;
+    ICHECK_GE(n, output_size);
+    for (size_t i = 0; i < n; ++i) {
+      const tir::Var& param = func->params[i];
+      if (param->dtype.is_int() || param->dtype.is_uint()) {
+        if (symbolic_var_index == -1) symbolic_var_index = i;
+      } else if (param->dtype.is_handle()) {
+        CHECK(symbolic_var_index == -1) << "The scalar input should be at the ending of the "
+                                           "parameter list.";
+      } else {
+        LOG(FATAL) << "The params of PrimFunc are expected to be Buffer handle or scalar, but got: "
+                   << param->dtype;
+      }
+    }
+    size_t end_index = symbolic_var_index == -1 ? n : symbolic_var_index;
+    ICHECK_GE(end_index, output_size);
+    size_t begin_index = end_index - output_size;
+    Array<tir::Var> output_params{func->params.begin() + begin_index,
+                                  func->params.begin() + end_index};
+    return output_params;
+  }
+
   /*!
    * \brief Allocate buffer(s) and update `func_info.expr2buffers` if the PrimFunc output(s) are
    * intermediate results.
@@ -557,8 +623,9 @@ class FusedTIRConstructor : public ExprVisitor {
     ICHECK_GE(n, output_size);
     // Allocate intermediate buffer
     Array<tir::Buffer> alloc_buffers;
+    Array<tir::Var> output_params = GetPrimFuncOutputParams(func, output_size);
     for (size_t i = 0; i < output_size; ++i) {
-      const tir::Var& param = func->params[n - output_size + i];
+      const tir::Var& param = output_params[i];
       const tir::Buffer& buffer = func->buffer_map.at(param);
 
       // Update buffer with new symbolic shape according to the sinfo
@@ -589,11 +656,15 @@ class FusedTIRConstructor : public ExprVisitor {
       StructInfo struct_info, const String& name_hint, int index = -1) {
     Array<tir::Var> params;
     Array<tir::Buffer> buffers;
+    // The symbolic shape params must be defined at the end of the param list.
+    bool symbolic_shape_param_started = false;
     if (const auto* tensor = struct_info.as<TensorStructInfoNode>()) {
       // Case 1. the relax param is a Tensor, we directly create a tir var and buffer
       const auto* shape_expr = tensor->shape.as<ShapeExprNode>();
       ICHECK(shape_expr) << "FuseTIR expects all parameters are Tensors with symbolic shape.";
-
+      CHECK(!symbolic_shape_param_started)
+          << "The symbolic shape params must be defined at the end of the param "
+             "list.";
       String name = index == -1 ? name_hint : name_hint + "_" + std::to_string(index);
       DataType dtype = tensor->dtype;
       tir::Buffer buffer = tir::decl_buffer(shape_expr->values, dtype, name);
@@ -606,6 +677,9 @@ class FusedTIRConstructor : public ExprVisitor {
     } else if (const auto* tuple = struct_info.as<TupleStructInfoNode>()) {
       // Case 2. the relax param is a Tuple, we recursively visit each field until it's a Tensor
       // Enable postfix
+      CHECK(!symbolic_shape_param_started)
+          << "The symbolic shape params must be defined at the end of the param "
+             "list.";
       if (index == -1) index = 0;
       for (size_t i = 0; i < tuple->fields.size(); ++i) {
         auto ret = CreateParamsAndBuffers(tuple->fields[i], name_hint, index);
@@ -617,8 +691,18 @@ class FusedTIRConstructor : public ExprVisitor {
         buffers.insert(buffers.end(), ret_buffers.begin(), ret_buffers.end());
         index += ret_params.size();
       }
+    } else if (const auto* shape_expr = struct_info.as<ShapeStructInfoNode>()) {
+      // Case 3. the relax param is a scalar, we directly create a tir var
+      symbolic_shape_param_started = true;
+      ICHECK(index == -1) << "TypeError: The ShapeExprNode should not be in a Tuple field.";
+      for (const auto& var : shape_expr->values.value()) {
+        ICHECK(var->IsInstance<tir::VarNode>());
+        params.push_back(Downcast<tir::Var>(var));
+      }
     } else {
-      ICHECK(false) << "shapes are expected to be ShapeExprNode or TupleNode";
+      ICHECK(false) << "TypeError: The param type of PrimFunc is expected to be Tensor, Tuple or "
+                       "ShapeExpr, but got "
+                    << struct_info->GetTypeKey();
     }
     return std::make_pair(params, buffers);
   }
@@ -631,7 +715,7 @@ class FusedTIRConstructor : public ExprVisitor {
     Map<String, ObjectRef> attr_map;
     attr_map.Set("tir.noalias", tir::const_true());
     tir::FuseTIRBufferSubstitor substitor(func_info_.buffer_subst_map,
-                                          func_info_.symbolic_var_matcher.var_remap);
+                                          func_info_.symbolic_var_remap);
     ICHECK(func_info_.global_name != "fused");
     // Remove output buffers from func_info_.alloc_buffers
     Array<tir::Buffer> alloc_buffers;
@@ -689,6 +773,8 @@ class FusedTIRConstructor : public ExprVisitor {
      * function
      */
     Map<tir::Buffer, tir::Buffer> buffer_subst_map;
+    /*! \brief The map from symbolic var to its corresponding var in the fused function */
+    Map<tir::Var, tir::Var> symbolic_var_remap;
     /*! \brief The `buffer_map` in the fused function*/
     Map<tir::Var, tir::Buffer> buffer_map;
     /*! \brief The output buffers in the function buffer_map*/
@@ -696,7 +782,7 @@ class FusedTIRConstructor : public ExprVisitor {
     /*! \brief The name of the fused function */
     std::string global_name = "fused";
     /*! \brief The map from symbolic var to its corresponding var in the fused function */
-    tir::SymbolicMatcher symbolic_var_matcher;
+    tir::SymbolicMatcher symbolic_var_matcher = tir::SymbolicMatcher(&symbolic_var_remap);
   };
 
   /*! \brief The IRModule */
@@ -778,12 +864,32 @@ class TIRFuseMutator : public ExprMutator {
         GlobalVar fused_tir_gv = this->builder_->AddFunction(fused_tir, old_gv->name_hint);
         // Step a. Flatten all args since call_tir does not support Tuple value.
         Array<Expr> arg_list;
+        Array<PrimExpr> tir_vars;
         for (const Expr& arg : call->args) {
           Array<Expr> flattened = FlattenArg(arg);
-          arg_list.insert(arg_list.end(), flattened.begin(), flattened.end());
+          for (const Expr& e : flattened) {
+            StructInfo sinfo = GetStructInfo(e);
+            if (sinfo->IsInstance<TensorStructInfoNode>()) {
+              arg_list.push_back(e);
+            } else if (const auto* shape = sinfo.as<ShapeStructInfoNode>()) {
+              CHECK(shape->values.defined())
+                  << "FuseTIR requires all shape input has struct_info value.";
+              for (const PrimExpr& prim_value : shape->values.value()) {
+                CHECK(prim_value->IsInstance<tir::VarNode>())
+                    << "All shape inputs are expected to be single tir var.";
+                tir_vars.push_back(prim_value);
+              }
+            } else {
+              LOG(FATAL) << "The flattened arg is expected to be either tensor or shape, but got "
+                         << sinfo->GetTypeKey();
+            }
+          }
         }
         // Step b. Create call_tir
         Array<Expr> call_args = {fused_tir_gv, Tuple(arg_list)};
+        if (!tir_vars.empty()) {
+          call_args.push_back(ShapeExpr(tir_vars));
+        }
         return Call(call_tir_op_, call_args, call->attrs, {GetStructInfo(call)});
       } else {
         // Case 1.2. The callee function is not primitive, nothing to do.
