@@ -428,16 +428,26 @@ void Evaluate(PrimExpr value);
 
 /*!
  * \brief Create a TIR var that represents a pointer
+ *
  * \param dtype The data type of the pointer.
+ *
  * \param storage_scope The storage scope of the pointer.
+ *
  * \param is_size_var Whether the pointer is a size var.
+ *
+ * \param is_unknown_type Used to distinguish between
+ * `PrimType(DataType::Handle())` and
+ * `PointerType(PrimType(DataType::Void()))`.  If true, resolve dtype
+ * of `Void()` as `PrimType`, and if false resolve dtype of `Void()`
+ * as a `PointerType`.
+ *
  * \return The pointer.
  */
-inline Var Handle(runtime::DataType dtype = runtime::DataType::Void(),  //
-                  String storage_scope = "global",                      //
-                  bool is_size_var = false) {
+inline Var Handle(runtime::DataType dtype = runtime::DataType::Void(),
+                  String storage_scope = "global", bool is_size_var = false,
+                  bool is_unknown_type = false) {
   Type type_annotation{nullptr};
-  if (dtype.is_void() && storage_scope == "global") {
+  if (is_unknown_type && storage_scope == "global") {
     type_annotation = PrimType(runtime::DataType::Handle());
   } else {
     type_annotation = PointerType(PrimType(dtype), storage_scope);
