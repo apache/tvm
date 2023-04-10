@@ -228,7 +228,7 @@ TVM_REGISTER_OP("relax.call_builtin_with_ctx")
     .add_argument("func", "Expr", "The builtin packed func.")
     .add_argument("args", "Tuple", "The input arguments.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallBuiltinWithCtx)
-    // TODO(relax-team): Please verify if these are normally impure or not
+    // Most builtins are pure, but some are not, like `vm.builtin.attention_kv_cache_append`
     .set_attr<Bool>("FPurity", Bool(false));
 
 Expr MakeCallBuiltinWithCtx(Expr func, Tuple args, Array<StructInfo> sinfo_args) {
