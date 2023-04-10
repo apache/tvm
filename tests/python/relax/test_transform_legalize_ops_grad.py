@@ -333,5 +333,19 @@ def test_take_backward():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_take_backward_symbolic():
+    # fmt: off
+    @tvm.script.ir_module
+    class TakeBackward:
+        @R.function
+        def main(output_grad: R.Tensor((3, 2, 4), "float32"), x: R.Tensor((3, 4, 5), "float32"), indices: R.Tensor((2,), "int32")):
+            gv = R.grad.take_backward(output_grad, x, indices)
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(TakeBackward)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
