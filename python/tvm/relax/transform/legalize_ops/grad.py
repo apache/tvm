@@ -162,7 +162,8 @@ def _grad_take_backward(bb: BlockBuilder, call: Call) -> Expr:
             with ib.for_range(0, fused_shape) as i:
                 out[i] = tir.const(0, dtype=x_ptr.dtype)
 
-            indices_len = indices_ptr.shape[0]  # must be 1-dim
+            assert len(indices_ptr.shape) == 1  # indices in take must be 1-dim Tensor
+            indices_len = indices_ptr.shape[0]
 
             if axis is not None:
                 fused_output_grad_shape_pre = 1
