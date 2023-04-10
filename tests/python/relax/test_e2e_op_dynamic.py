@@ -48,20 +48,20 @@ def test_dynamic_strided_slice(begin, end, strides):
         def main(x: R.Tensor((8, 9, 10, 10), "float32"), begin: R.Tensor((4,),"int64"), end: R.Tensor((4,),"int64"), strides: R.Tensor((4,),"int64")) -> R.Tensor("float32", ndim=4):
             gv: R.Tensor("float32", ndim=4) = R.dynamic_strided_slice(x, begin, end, strides)
             return gv
-    
+    # fmt: on
     mod = LegalizeOps()(DynamicStridedSlice)
     with tvm.target.Target(target):
         mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
     vm = build(mod)
 
-    x_np = np.random.rand(8,9,10,10).astype(np.float32)
+    x_np = np.random.rand(8, 9, 10, 10).astype(np.float32)
     data_nd = tvm.nd.array(x_np, dev)
     begin_nd = tvm.nd.array(np.array(begin).astype("int64"), dev)
     end_nd = tvm.nd.array(np.array(end).astype("int64"), dev)
     strides_nd = tvm.nd.array(np.array(strides).astype("int64"), dev)
 
     # Reference implementation
-    out_npy = tvm.topi.testing.strided_slice_python(x_np, begin, end, strides) 
+    out_npy = tvm.topi.testing.strided_slice_python(x_np, begin, end, strides)
     out_nd = vm["main"](data_nd, begin_nd, end_nd, strides_nd)
     tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
 
@@ -84,18 +84,18 @@ def test_dynamic_strided_slice_symbolic(begin, end, strides):
             n = T.int64()
             gv: R.Tensor("float32", ndim=4) = R.dynamic_strided_slice(x, begin, end, strides)
             return gv
-    
+    # fmt: on
     mod = LegalizeOps()(DynamicStridedSlice)
     vm = build(mod)
 
-    x_np = np.random.rand(8,9,10,10).astype(np.float32)
+    x_np = np.random.rand(8, 9, 10, 10).astype(np.float32)
     data_nd = tvm.nd.array(x_np, dev)
     begin_nd = tvm.nd.array(np.array(begin).astype("int64"), dev)
     end_nd = tvm.nd.array(np.array(end).astype("int64"), dev)
     strides_nd = tvm.nd.array(np.array(strides).astype("int64"), dev)
 
     # Reference implementation
-    out_npy = tvm.topi.testing.strided_slice_python(x_np, begin, end, strides) 
+    out_npy = tvm.topi.testing.strided_slice_python(x_np, begin, end, strides)
     out_nd = vm["main"](data_nd, begin_nd, end_nd, strides_nd)
     tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
 
