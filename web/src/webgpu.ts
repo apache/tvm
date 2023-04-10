@@ -285,7 +285,10 @@ export class WebGPUContext {
   // internal data
   private bufferTable: Array<GPUBuffer | undefined> = [undefined];
   private bufferTableFreeId: Array<number> = [];
+  private podArgStagingBuffers: Array<GPUBuffer> = [];
   private canvasRenderManager?: CanvaRenderManager = undefined;
+  // number of pod arg staging buffers
+  private maxNumPodArgsStagingBuffers: number = 2;
   // flags for debugging
   // stats of the runtime.
   // peak allocation
@@ -307,18 +310,25 @@ export class WebGPUContext {
   }
 
   /**
+   * Dispose context.
+   */
+  dispose() {
+    this.canvasRenderManager?.dispose();
+    this.bufferTableFreeId = [];
+    while (this.bufferTable.length != 0) {
+      this.bufferTable.pop()?.destroy();
+    }
+    while (this.podArgStagingBuffers.length != 0) {
+      this.podArgStagingBuffers.pop()?.destroy();
+    }
+    this.device.destroy();
+  }
+
+  /**
    * Wait for all pending GPU tasks to complete
    */
   async sync(): Promise<void> {
     await this.device.queue.onSubmittedWorkDone();
-  }
-
-  /**
-   * Dispose the binded canvas.
-   */
-  disposeCanvas() {
-    this.canvasRenderManager?.dispose();
-    this.canvasRenderManager = undefined;
   }
 
   /**
@@ -391,7 +401,7 @@ export class WebGPUContext {
    * @returns The shader
    */
   createShader(finfo: FunctionInfo, code: string) : Function {
-    return this.createShadeInternl(finfo, code, false) as Function;
+    return this.createShadeInternal(finfo, code, false) as Function;
   }
 
   /**
@@ -403,7 +413,41 @@ export class WebGPUContext {
    * @returns The shader
    */
   async createShaderAsync(finfo: FunctionInfo, code: string) : Promise<Function> {
-    return await (this.createShadeInternl(finfo, code, true) as Promise<Function>);
+    return await (this.createShadeInternal(finfo, code, true) as Promise<Function>);
+  }
+
+  /**
+   * Get the pod arg staging buffer
+   * \param nbytes The minimum size.
+   * \return The allocated buffer
+   */
+  private getPodArgsBuffer(nbytes: number) : GPUBuffer {
+    let buffer : GPUBuffer | undefined = undefined;
+    if (this.podArgStagingBuffers.length >= this.maxNumPodArgsStagingBuffers) {
+      buffer = this.podArgStagingBuffers.shift();
+    }
+    // minimum of 16 bytes
+    let allocSize = 16;
+    if (buffer !== undefined) {
+      allocSize = buffer.size;
+      if (buffer.size < nbytes) {
+        buffer.destroy();
+        buffer = undefined;
+      }
+    }
+    while (allocSize < nbytes) {
+      allocSize *= 2;
+    }
+
+    if (buffer == undefined) {
+      // create uniform buffer
+      buffer = this.device.createBuffer({
+        size: allocSize,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+    }
+    assert(nbytes <= buffer.size);
+    return buffer;
   }
 
   /**
@@ -414,7 +458,7 @@ export class WebGPUContext {
    * @param asyncMode Whether use async mode.
    * @returns The shader function or promise of shader func.
    */
-  private createShadeInternl(
+  private createShadeInternal(
     finfo: FunctionInfo,
     code: string,
     asyncMode: boolean
@@ -439,23 +483,41 @@ export class WebGPUContext {
       }
     }
 
-    assert(paramWriteAccess.length == finfo.arg_types.length);
 
     const layoutEntries: Array<GPUBindGroupLayoutEntry> = [];
+    const bufferArgIndices : Array<number> = [];
+    const podArgIndices : Array<number> = [];
+
     for (let i = 0; i < finfo.arg_types.length; ++i) {
       const dtype = finfo.arg_types[i];
       if (dtype == "handle") {
         layoutEntries.push({
-          binding: i,
+          binding: bufferArgIndices.length,
           visibility: GPUShaderStage.COMPUTE,
           buffer :  {
-            type: paramWriteAccess[i] ? "storage" : "read-only-storage"
+            type: paramWriteAccess[bufferArgIndices.length] ? "storage" : "read-only-storage"
           }
         });
+        bufferArgIndices.push(i);
+      } else if (dtype.startsWith("int") || dtype.startsWith("uint") || dtype.startsWith("float")) {
+        podArgIndices.push(i);
       } else {
         throw new Error("Cannot handle argument type " + dtype + " in WebGPU shader");
       }
     }
+
+    assert(paramWriteAccess.length == bufferArgIndices.length);
+    // POD arguments are pass in the end
+    if (podArgIndices.length != 0) {
+      layoutEntries.push({
+        binding: bufferArgIndices.length,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer :  {
+          type: "uniform"
+        }
+      });
+    }
+
     const bindGroupLayout = this.device.createBindGroupLayout({
       entries: layoutEntries
     });
@@ -476,13 +538,47 @@ export class WebGPUContext {
         const compute = commandEncoder.beginComputePass();
         compute.setPipeline(pipeline);
         const bindGroupEntries: Array<GPUBindGroupEntry> = [];
-        assert(args.length == layoutEntries.length + dispatchToDim.length);
+        const numBufferOrPodArgs = bufferArgIndices.length + podArgIndices.length;
 
-        for (let i = 0; i < layoutEntries.length; ++i) {
+        assert(args.length == numBufferOrPodArgs + dispatchToDim.length);
+
+        for (let i = 0; i < bufferArgIndices.length; ++i) {
           bindGroupEntries.push({
             binding: i,
             resource: {
-              buffer: this.gpuBufferFromPtr(args[i])
+              buffer: this.gpuBufferFromPtr(args[bufferArgIndices[i]])
+            }
+          });
+        }
+
+        // push pod buffer
+        if (podArgIndices.length != 0) {
+          const sizeOfI32 = 4;
+          const podArgBuffer = this.getPodArgsBuffer(podArgIndices.length * sizeOfI32);
+          const i32View = new Int32Array(podArgIndices.length);
+          const u32View = new Uint32Array(i32View.buffer);
+          const f32View = new Float32Array(i32View.buffer);
+
+          for (let i = 0; i < podArgIndices.length; ++i) {
+            const value = args[podArgIndices[i]];
+            const dtype = finfo.arg_types[podArgIndices[i]];
+            if (dtype.startsWith("int")) {
+              i32View[i] = value;
+            } else if (dtype.startsWith("uint")) {
+              u32View[i] = value;
+            } else if (dtype.startsWith("float")) {
+              f32View[i] = value;
+            } else {
+              throw Error("Unknown pod dtype " + dtype);
+            }
+          }
+          this.device.queue.writeBuffer(podArgBuffer, 0, i32View.buffer);
+
+          bindGroupEntries.push({
+            binding: bufferArgIndices.length,
+            resource: {
+              buffer: podArgBuffer,
+              size: i32View.buffer.byteLength
             }
           });
         }
@@ -493,7 +589,7 @@ export class WebGPUContext {
         }));
         const wl: Array<number> = [1, 1, 1, 1, 1, 1];
         for (let i = 0; i < dispatchToDim.length; ++i) {
-          wl[dispatchToDim[i]] = args[layoutEntries.length + i];
+          wl[dispatchToDim[i]] = args[numBufferOrPodArgs + i];
         }
 
         // get around 65535 restriction of blockIdx.x

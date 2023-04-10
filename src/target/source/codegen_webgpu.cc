@@ -146,8 +146,9 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
   // setup buffer argumemts
   for (Var arg : f->params) {
     DataType t = arg.dtype();
+    func_info.arg_types.push_back(t);
+
     if (t.is_handle()) {
-      func_info.arg_types.push_back(t);
       auto* ptr = arg->type_annotation.as<PointerTypeNode>();
       ICHECK(ptr) << "All handles passed to the CodeGenWebGPU must have a type_annotation as a "
                      "PointerType, "
@@ -184,6 +185,43 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
     }
   }
 
+  // Store all pod arguments in a single buffer of int32
+  // do bitcast to change to other data types
+  if (pod_args.size() != 0) {
+    std::string type_pod_args = name_supply_->FreshName("PODArgs");
+    std::string val_pod_args = name_supply_->FreshName("podArgs");
+
+    this->decl_stream << "\nstruct " << type_pod_args << " {\n";
+
+    for (size_t i = 0; i < pod_args.size(); ++i) {
+      Var v = pod_args[i];
+      ICHECK(!v.dtype().is_handle());
+      std::string vid = AllocVarID(v.get());
+
+      if (v.dtype() == DataType::Int(32)) {
+        this->decl_stream << "  " << vid << ": i32";
+      } else if (v.dtype() == DataType::UInt(32)) {
+        this->decl_stream << "  " << vid << ": u32";
+      } else if (v.dtype() == DataType::Float(32)) {
+        this->decl_stream << "  " << vid << ": f32";
+      } else {
+        LOG(FATAL) << "Do not support pod argument type " << v.dtype();
+      }
+      if (i + 1 != pod_args.size()) {
+        this->decl_stream << ",\n";
+      } else {
+        this->decl_stream << "\n}\n";
+      }
+      // value ref
+      std::ostringstream vref;
+      vref << val_pod_args << "." << vid;
+      var_idmap_[v.get()] = vref.str();
+    }
+
+    this->decl_stream << "@group(0) @binding(" << num_buffer++ << ") "
+                      << "var<uniform> " << val_pod_args << " : " << type_pod_args << ";\n\n";
+  }
+
   // setup thread tags and param access in launch param tags;
   if (auto opt = f->GetAttr<Array<tir::IterVar>>(tir::attr::kDeviceThreadAxis)) {
     auto thread_axis = opt.value();
@@ -193,12 +231,6 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
   }
   os_param_access << "]";
   func_info.launch_param_tags.push_back(os_param_access.str());
-
-  if (pod_args.size() != 0) {
-    // setup POD arguments
-    // TODO(tvm-team): store as a uniform, readonly buffer.
-    LOG(FATAL) << "Do not support pod arguments for now";
-  }
 
   ICHECK(!info.has_block_index_z)
       << "blockIdx.z is not supported in WebGPU to accomodate large blockIdx.x";
