@@ -1170,17 +1170,24 @@ def test_iter_map_simplify_symbolic_predicate():
         predicate=(z < n * n * 32),
     )
 
+
 def test_iter_map_simplify_unit_loop_order():
     """Test itermap simplify"""
     x = tvm.tir.Var("x", "int64")
     y = tvm.tir.Var("y", "int64")
-    z = tvm.tir.Var("y", "int64")
+    z = tvm.tir.Var("z", "int64")
 
     # trivial iterators can be found at any when comparing via scale
     # ensure order unchange
     assert_iter_map_simplfy(
-        {x+y+z: x+y+z}, var_dom([(x, 1), (y, 1), (z, 1)]),
-        simplify_trivial_iterators=False
+        {x + y + z: x + y + z}, var_dom([(x, 1), (y, 1), (z, 1)]), simplify_trivial_iterators=False
+    )
+
+    # Even with simplifcation, it should follow the original order
+    assert_iter_map_simplfy(
+        {x + y + (z // 4) * 4 + z % 4: x + y + z},
+        var_dom([(x, 1), (y, 1), (z, 32)]),
+        simplify_trivial_iterators=False,
     )
 
 

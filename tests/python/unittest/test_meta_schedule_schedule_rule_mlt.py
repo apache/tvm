@@ -527,58 +527,58 @@ def test_multi_level_tiling_hexagon():
         weight: T.Buffer((3, 3, 64, 64), "float16"),
         conv2d_nhwc: T.Buffer((1, 56, 56, 64), "float16"),
     ) -> None:
-        # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        # body
-        # with T.block("root")
-        PadInput = T.alloc_buffer([1, 58, 58, 64], dtype="float16")
+        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        PadInput = T.alloc_buffer((1, 58, 58, 64), "float16")
         for i0, i1, i2, i3 in T.grid(1, 58, 58, 64):
             with T.block("PadInput"):
-                i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                T.reads(inputs[i0_1, i1_1 - 1, i2_1 - 1, i3_1])
-                T.writes(PadInput[i0_1, i1_1, i2_1, i3_1])
-                PadInput[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(
-                    1 <= i1_1 and i1_1 < 57 and 1 <= i2_1 and i2_1 < 57,
-                    inputs[i0_1, i1_1 - 1, i2_1 - 1, i3_1],
+                v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                T.reads(inputs[v_i0, v_i1 - 1, v_i2 - 1, v_i3])
+                T.writes(PadInput[v_i0, v_i1, v_i2, v_i3])
+                PadInput[v_i0, v_i1, v_i2, v_i3] = T.if_then_else(
+                    1 <= v_i1 and v_i1 < 57 and 1 <= v_i2 and v_i2 < 57,
+                    inputs[v_i0, v_i1 - 1, v_i2 - 1, v_i3],
                     T.float16(0),
-                    dtype="float16",
                 )
         for (
-            i0_0,
-            i1_0,
-            i2_0,
-            i3_0,
-            i4_0,
-            i5_0,
-            i6_0,
-            i0_1_1,
-            i1_1_1,
-            i2_1_1,
-            i3_1_1,
-            i4_1,
-            i5_1,
-            i6_1,
-            i0_2,
-            i1_2,
-            i2_2,
-            i3_2,
+            n_0,
+            h_0,
+            w_0,
+            co_0,
+            rh_0,
+            rw_0,
+            rc_0,
+            n_1,
+            h_1,
+            w_1,
+            co_1,
+            rh_1,
+            rw_1,
+            rc_1,
+            n_2,
+            h_2,
+            w_2,
+            co_2,
         ) in T.grid(1, 1, 2, 1, 3, 3, 16, 1, 14, 2, 1, 1, 1, 4, 1, 4, 14, 64):
             with T.block("conv2d_nhwc"):
-                n = T.axis.spatial(1, i0_1_1 + i0_2 + i0_0)
-                h = T.axis.spatial(56, i1_0 * 56 + i1_1_1 * 4 + i1_2)
-                w = T.axis.spatial(56, i2_0 * 28 + i2_1_1 * 14 + i2_2)
-                co = T.axis.spatial(64, i3_0 * 64 + i3_1_1 * 64 + i3_2)
-                rh = T.axis.reduce(3, i4_1 + i4_0)
-                rw = T.axis.reduce(3, i5_0 + i5_1)
-                rc = T.axis.reduce(64, i6_0 * 4 + i6_1)
-                T.reads(PadInput[n, h + rh, w + rw, co // 64 * 64 + rc], weight[rh, rw, rc, co])
-                T.writes(conv2d_nhwc[n, h, w, co])
+                v_n = T.axis.spatial(1, n_0 + n_1 + n_2)
+                v_h = T.axis.spatial(56, h_0 * 56 + h_1 * 4 + h_2)
+                v_w = T.axis.spatial(56, w_0 * 28 + w_1 * 14 + w_2)
+                v_co = T.axis.spatial(64, co_0 * 64 + co_1 * 64 + co_2)
+                v_rh = T.axis.reduce(3, rh_0 + rh_1)
+                v_rw = T.axis.reduce(3, rw_0 + rw_1)
+                v_rc = T.axis.reduce(64, rc_0 * 4 + rc_1)
+                T.reads(
+                    PadInput[v_n, v_h + v_rh, v_w + v_rw, v_co // 64 * 64 + v_rc],
+                    weight[v_rh, v_rw, v_rc, v_co],
+                )
+                T.writes(conv2d_nhwc[v_n, v_h, v_w, v_co])
                 T.block_attr({"meta_schedule.tiling_structure": "SRSRS"})
                 with T.init():
-                    conv2d_nhwc[n, h, w, co] = T.float16(0)
-                conv2d_nhwc[n, h, w, co] = (
-                    conv2d_nhwc[n, h, w, co]
-                    + PadInput[n, h + rh, w + rw, co // 64 * 64 + rc] * weight[rh, rw, rc, co]
+                    conv2d_nhwc[v_n, v_h, v_w, v_co] = T.float16(0)
+                conv2d_nhwc[v_n, v_h, v_w, v_co] = (
+                    conv2d_nhwc[v_n, v_h, v_w, v_co]
+                    + PadInput[v_n, v_h + v_rh, v_w + v_rw, v_co // 64 * 64 + v_rc]
+                    * weight[v_rh, v_rw, v_rc, v_co]
                 )
 
     target_hexagon = target.hexagon("v69", num_cores=4)
@@ -741,11 +741,11 @@ def test_max_pool_blocked():
         X: T.Buffer((1, 2, 8, 8, 8, 8, 32), "uint8"),
         pool: T.Buffer((1, 2, 4, 4, 8, 8, 32), "uint8"),
     ):
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        pool_global = T.alloc_buffer([1, 2, 4, 4, 8, 8, 32], dtype="uint8")
-        X_global = T.alloc_buffer([1, 2, 8, 8, 8, 8, 32], dtype="uint8")
+        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        pool_global = T.alloc_buffer((1, 2, 4, 4, 8, 8, 32), "uint8")
+        X_global = T.alloc_buffer((1, 2, 8, 8, 8, 8, 32), "uint8")
         for b_0, c_o_0, h_o_0, w_o_0, h_i_0, w_i_0, c_i_0 in T.grid(1, 2, 4, 1, 8, 1, 4):
-            for ax0_ax1_ax2_ax3_ax4_ax5_ax6_fused in T.serial(896):
+            for ax0_ax1_ax2_ax3_ax4_ax5_ax6_fused in range(896):
                 with T.block("X_global"):
                     v0 = T.axis.spatial(1, 0)
                     v1 = T.axis.spatial(2, c_o_0)
@@ -763,11 +763,11 @@ def test_max_pool_blocked():
                 2, 2, 1, 1, 1, 4, 1, 8, 8
             ):
                 with T.block("pool"):
-                    v_b = T.axis.spatial(1, b_1 + b_0)
+                    v_b = T.axis.spatial(1, b_0 + b_1)
                     v_c_o = T.axis.spatial(2, c_o_0 + c_o_1)
-                    v_h_o = T.axis.spatial(4, h_o_1 + h_o_0)
+                    v_h_o = T.axis.spatial(4, h_o_0 + h_o_1)
                     v_w_o = T.axis.spatial(4, w_o_0 * 4 + w_o_1)
-                    v_h_i = T.axis.spatial(8, h_i_1 + h_i_0)
+                    v_h_i = T.axis.spatial(8, h_i_0 + h_i_1)
                     v_w_i = T.axis.spatial(8, w_i_0 * 8 + w_i_1)
                     v_c_i = T.axis.spatial(32, c_i_0 * 8 + c_i_1)
                     v_wh, v_ww = T.axis.remap("RR", [wh, ww])

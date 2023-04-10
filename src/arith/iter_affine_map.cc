@@ -879,7 +879,7 @@ class IterMapRewriter : public ExprMutator {
     if (!has_overlap) return NullOpt;
 
     std::vector<bool> visited(expr->args.size(), false);
-    Array<IterSplitExpr> reverse_flattened_iters;
+    std::vector<IterSplitExpr> reverse_flattened_iters;
 
     // Start eliminating the iterators
     for (int rend = static_cast<int>(expr->args.size()) - 1; rend >= 0;) {
@@ -940,21 +940,10 @@ class IterMapRewriter : public ExprMutator {
       reverse_flattened_iters.push_back(rhs_iter);
     }
 
-    // if we simplify to sum([iter_sum] * scale), fold to previous iter sum
-    if (reverse_flattened_iters.size() == 1 && is_zero(expr->base)) {
-      IterSplitExpr iter = reverse_flattened_iters[0];
-      if (is_one(iter->lower_factor) &&
-          analyzer_->CanProveEqual(iter->source->extent, iter->extent)) {
-        if (auto* ptr = iter->source->source.as<IterSumExprNode>()) {
-          IterSumExpr ref = GetRef<IterSumExpr>(ptr);
-          MulToLhs(ref.CopyOnWrite(), iter->scale);
-          return ref;
-        }
-      }
-    }
-
     IterSumExpr simplified_sum = expr;
-    simplified_sum.CopyOnWrite()->args = reverse_flattened_iters;
+    // flip the order so we preserve the original order
+    simplified_sum.CopyOnWrite()->args =
+        Array<IterSplitExpr>(reverse_flattened_iters.rbegin(), reverse_flattened_iters.rend());
     return simplified_sum;
   }
 
