@@ -100,6 +100,44 @@ TVM_DLL std::vector<int64_t> SamplePerfectTile(
     const tir::StmtSRef& loop_sref, int32_t n_split, int32_t max_innermost_factor,
     Optional<Array<Integer>>* decision);
 /*!
+ * \brief Sample the factors to a partitioned tile for a specific loop
+ *
+ *  The sampled tile size will be partitioned into two parts. The second part has a guarantee
+ *  that their extent's product have a factor of `innerpart_factor`. The first part is loops at
+ *  [0, partition_pos); the second part is loops at [partition_pos, n) and we will have
+ *  `innerpart_factor` | \prod_{l=partition_pos}^{n-1} l.extent
+ *
+ * \param rand_state The random state
+ * \param extent The loop extent to be tiled
+ * \param n_split The number of tiles to be sampled
+ * \param partition_pos The position to partition tiles to two parts
+ * \param innerpart_factor The factor of the second part\
+ * \return A list of length `n`, the random partitioned tile sizes sampled
+ */
+TVM_DLL std::vector<int64_t> SamplePartitionedTile(
+    support::LinearCongruentialEngine::TRandState* rand_state,  //
+    int32_t extent, int32_t n_split, int32_t partition_pos, int32_t innerpart_factor);
+/*!
+ * \brief Sample the factors to a partitioned tile for a specific loop
+ *
+ *  The sampled tile size will be partitioned into two parts. The second part has a guarantee
+ *  that their extent's product have a factor of `innerpart_factor`. The first part is loops at
+ *  [0, partition_pos); the second part is loops at [partition_pos, n) and we will have
+ *  `innerpart_factor` | \prod_{l=partition_pos}^{n-1} l.extent
+ *
+ * \param rand_state The random state
+ * \param loop_sref The loop to be tiled
+ * \param n_split The number of tiles to be sampled
+ * \param partition_pos The position to partition tiles to two parts
+ * \param innerpart_factor The factor of the second part
+ * \param decision The sampling decision
+ * \return A list of length `n`, the random partitioned tile sizes sampled
+ */
+TVM_DLL std::vector<int64_t> SamplePartitionedTile(
+    support::LinearCongruentialEngine::TRandState* rand_state,  //
+    const tir::StmtSRef& loop_sref, int32_t n_split, int32_t partition_pos,
+    int32_t innerpart_factor, Optional<Array<Integer>>* decision);
+/*!
  * \brief Sample a compute-at location of the given block
  * \param self The schedule state
  * \param rand_state The random state
