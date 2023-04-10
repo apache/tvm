@@ -1100,5 +1100,19 @@ def test_fq_qat_intermediate_infertype():
     compare_expected_fq_qat_to_int(expr, expected_expr, [x_np])
 
 
+def test_fake_quantize_take():
+    x = relay.var("x", shape=[33, 11], dtype="int8")
+    indices_np = np.random.randint(0, 33, size=[37], dtype="int32")
+    indices = relay.const(indices_np)
+
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), relay.const(114))
+    op = relay.op.take(x, indices, axis=0)
+    op = relay.qnn.op.quantize(op, relay.const(2.0), relay.const(114), out_dtype="uint8")
+
+    x_np = np.random.randint(-25, 25, size=[33, 11], dtype="int8")
+
+    compare_fq_to_int(op, [x_np])
+
+
 if __name__ == "__main__":
     tvm.testing.main()

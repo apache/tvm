@@ -564,6 +564,39 @@ class TestFloormodIndex(BaseCompare):
     )
 
 
+class TestFloorModTwo(BaseCompare):
+    """Special-case simplifications for FloorMod(expr,2)
+
+    Because FloorMod(expr,2) has only two possible values, it can be
+    simplified more aggressively than most FloorMod expressions.  Some
+    of these have analogues for other denominators (e.g. x%3 + (x+1)%3
+    + (x+2)%3 == 0 + 1 + 2), but they don't appear as often and
+    require identifying more related terms in order to apply.
+
+    (x + c1)//2 - (x+c2)//2 => (x%2)*( c1%2 - c1%2 ) + (c1//2 - c2//2)
+    """
+
+    x, y, z = te.var("x"), te.var("y"), te.var("z")
+    test_case = tvm.testing.parameter(
+        # Removing offsets from floormod
+        TestCase(flm(x + 1, 2), flm(x, 2) * (-1) + 1),
+        TestCase(flm(x + 5, 2), flm(x, 2) * (-1) + 1),
+        TestCase(flm(x, 2) + flm(x + 1, 2), 1),
+        TestCase(flm(x + 1, 2) + flm(x, 2), 1),
+        # Difference of floordiv yields floormod
+        TestCase(fld(x + 1, 2) - fld(x, 2), flm(x, 2)),
+        TestCase(fld(x, 2) - fld(x - 1, 2), flm(x, 2) * -1 + 1),
+        TestCase(fld(x + 5, 2) - fld(x - 2, 2), flm(x, 2) + 3),
+        TestCase(fld(x + 5, 2) - fld(x - 3, 2), 4),
+        TestCase(fld(flm(x, 2) + 1, 2), flm(x, 2)),
+        # Sum of floordiv and floormod to yield floordiv
+        TestCase(fld(x + 1, 2) - flm(x, 2), fld(x, 2)),
+        TestCase(fld(x, 2) + flm(x, 2), fld(x + 1, 2)),
+        # Removal of floormod where possible
+        TestCase(flm(x + 1, 2) * 8192, x * (-8192) + 8192, [x >= 0, x < 2]),
+    )
+
+
 class TestMinIndex(BaseCompare):
     x, y, z = te.var("x"), te.var("y"), te.var("z")
     test_case = tvm.testing.parameter(
@@ -717,6 +750,23 @@ class TestComparisons(BaseCompare):
         TestCase((x - 10).equal(0), x.equal(10)),
         TestCase((10 - x).equal(0), x.equal(10)),
         TestCase((x * y).equal(0), tvm.tir.Or(x.equal(0), y.equal(0))),
+        # Write LT as LE for integer arguments, if possible
+        TestCase(x - 1 < y, x <= y),
+        TestCase(x + (-1) < y, x <= y),
+        TestCase(x < y - (-1), x <= y),
+        TestCase(x < y + 1, x <= y),
+        TestCase(x + 2 < y + 3, x <= y),
+        TestCase(x - 3 < y - 2, x <= y),
+        TestCase(x - 3 < y + (-2), x <= y),
+        TestCase(x + (-3) < y - 2, x <= y),
+        # Merge constants on the LHS/RHS of a LT expression.
+        TestCase(x + 10 < y + 10, x < y),
+        TestCase(x + 5 < y + 10, x < y + 5),
+        TestCase(x + 10 < y + 5, x + 5 < y),
+        TestCase(x - 5 < y - 10, x + 5 < y),
+        TestCase(x - 10 < y - 5, x < y + 5),
+        TestCase(x < y - 10, x + 10 < y),
+        TestCase(x - 10 < y, x < y + 10),
         # cmp bound
         TestCase(x + y < x + z, y < z),
         TestCase(x + y < z + x, y < z),
@@ -782,7 +832,7 @@ class TestComparisons(BaseCompare):
         TestCase(tdiv(x, 4) * 4 < x - y, tvm.tir.LT(y, tmod(x, 4))),
         TestCase(tdiv(x + 2, 4) * 4 >= x, tvm.tir.LE(tmod(x + 2, 4), 2)),
         TestCase(tdiv(x + 2, 4) * 4 >= x + y, tvm.tir.LE(tmod(x + 2, 4) + y, 2)),
-        TestCase(tdiv(x + 2, 4) * 4 >= x - y, tvm.tir.LE(tmod(x + 2, 4) + (-2), y)),
+        TestCase(tdiv(x + 2, 4) * 4 >= x - y, tvm.tir.LE(tmod(x + 2, 4), y + 2)),
         # floor div
         TestCase(fld(x, 2) < 3, x < 6),
         TestCase(3 < fld(x, 2), tvm.tir.LT(7, x)),
@@ -800,7 +850,7 @@ class TestComparisons(BaseCompare):
         TestCase(fld(x, 4) * 4 < x - y, tvm.tir.LT(y, flm(x, 4))),
         TestCase(fld(x + 2, 4) * 4 >= x, tvm.tir.LE(flm(x + 2, 4), 2)),
         TestCase(fld(x + 2, 4) * 4 >= x + y, tvm.tir.LE(flm(x + 2, 4) + y, 2)),
-        TestCase(fld(x + 2, 4) * 4 >= x - y, tvm.tir.LE(flm(x + 2, 4) + (-2), y)),
+        TestCase(fld(x + 2, 4) * 4 >= x - y, tvm.tir.LE(flm(x + 2, 4), y + 2)),
         # End DivMod Rules
         # merging flm/fld into known value
         TestCase(tir.all(fld(x, 8) == 3, flm(x, 8) == 4), x == 28),

@@ -99,11 +99,14 @@ class ConcreteScheduleNode : public ScheduleNode {
   Array<BlockRV> GetChildBlocks(const LoopRV& loop_rv) override;
   Array<BlockRV> GetProducers(const BlockRV& block_rv) override;
   Array<BlockRV> GetConsumers(const BlockRV& block_rv) override;
+  Array<BlockRV> GetOutputBlocks(const BlockRV& scope_block_rv) override;
   /******** Schedule: Transform loops ********/
   LoopRV Fuse(const Array<LoopRV>& loop_rvs, bool preserve_unit_iters) override;
+  LoopRV Merge(const Array<LoopRV>& loop_rvs) override;
   Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors,
                       bool preserve_unit_iters) override;
   void Reorder(const Array<LoopRV>& ordered_loop_rvs) override;
+  void ReorderBlockIterVar(const BlockRV& block_rv, const Array<Integer> new_order) override;
   LoopRV AddUnitLoop(const BlockRV& block_rv) override;
   LoopRV AddUnitLoop(const LoopRV& loop_rv) override;
   /******** Schedule: Manipulate ForKind ********/

@@ -89,7 +89,7 @@ class EthosUModuleNode : public ModuleNode {
 
   std::string GetSource(const std::string& format) final { return c_source; }
 
-  std::string GetFormat() { return "c"; }
+  std::string GetFormat() override { return "c"; }
 
   Array<CompilationArtifact> GetArtifacts() { return compilation_artifacts_; }
 
@@ -122,7 +122,7 @@ class EthosUModuleNode : public ModuleNode {
   }
 
   /*! \brief Get the property of the runtime module .*/
-  int GetPropertyMask() const { return ModulePropertyMask::kDSOExportable; }
+  int GetPropertyMask() const override { return ModulePropertyMask::kDSOExportable; }
 
   bool ImplementsFunction(const String& name, bool query_imports) final {
     return std::find_if(compilation_artifacts_.begin(), compilation_artifacts_.end(),

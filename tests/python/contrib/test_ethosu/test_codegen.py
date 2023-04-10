@@ -1085,17 +1085,27 @@ def test_tflite_squeeze(accel_type, ifm_shape, axis):
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize(
-    "ifm_shape,size",
-    [[(1, 2, 2, 1), (4, 4)], [(1, 4, 7, 3), (8, 14)], [(1, 3, 5, 3), (3, 5)]],
+    "ifm_shape,size,half_pixel",
+    [
+        [(1, 2, 2, 1), (4, 4), False],
+        [(1, 2, 2, 1), (4, 4), True],
+        [(1, 4, 7, 3), (8, 14), False],
+        [(1, 3, 5, 3), (3, 5), False],
+        [(1, 6, 6, 96), (12, 12), False],
+        [(1, 6, 6, 96), (12, 12), True],
+    ],
 )
-def test_tflite_resize2d_nearest_neighbor(accel_type, ifm_shape, size):
+def test_tflite_resize2d_nearest_neighbor(accel_type, ifm_shape, size, half_pixel):
     np.random.seed(0)
     align_corners = False
 
     @tf.function
     def resize_model(x):
         return tf.compat.v1.image.resize_nearest_neighbor(
-            x, size, align_corners=align_corners, half_pixel_centers=False
+            x,
+            size,
+            align_corners=align_corners,
+            half_pixel_centers=half_pixel,
         )
 
     infra.compare_tvm_with_tflite(

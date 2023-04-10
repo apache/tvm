@@ -622,3 +622,14 @@ register_unary_qnn("hardswish", relay.qnn.op.hardswish)
 register_unary_qnn("tanh", relay.qnn.op.tanh)
 register_unary_qnn("abs", relay.qnn.op.abs)
 register_unary_qnn("log", relay.qnn.op.log)
+
+
+@register_fake_quantization_to_integer("take")
+def take(expr, type_map):
+    """Rewrite a take op"""
+    arg = expr.args[0]
+    indices = expr.args[1]
+    t = type_map[arg]
+
+    out = relay.op.take(arg, indices, **expr.attrs)
+    return [out, t]
