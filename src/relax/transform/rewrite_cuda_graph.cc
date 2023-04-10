@@ -418,7 +418,7 @@ class CUDAGraphRewriter : public ExprMutator {
     CUDAGraphRewritePlanner planner(builder_->GetContextIRModule());
     auto plans = planner.Plan();
     for (const auto& plan : plans) {
-      subgraph_launches[plan.launch_point] = plan;
+      subgraph_launches_[plan.launch_point] = plan;
     }
 
     for (const auto& [gv, func] : builder_->GetContextIRModule()->functions) {
@@ -446,7 +446,7 @@ class CUDAGraphRewriter : public ExprMutator {
       launch_subgraph =
           Call(call_builtin_with_ctx_op,
                {builtin_get_cached_alloc,
-                Tuple({gv_func, PrimValue(IntImm(DataType::Int(64), index_alloc++))})},
+                Tuple({gv_func, PrimValue(IntImm(DataType::Int(64), index_alloc_++))})},
                Attrs(), {plan.func->ret_struct_info});
     } else {
       Array<Expr> args;
@@ -456,7 +456,7 @@ class CUDAGraphRewriter : public ExprMutator {
       launch_subgraph = Call(
           call_builtin_with_ctx_op,
           {builtin_run_or_capture,
-           Tuple({gv_func, Tuple(args), PrimValue(IntImm(DataType::Int(64), index_capture++))})},
+           Tuple({gv_func, Tuple(args), PrimValue(IntImm(DataType::Int(64), index_capture_++))})},
           Attrs(), {plan.func->ret_struct_info});
     }
     Expr ret_value = builder_->Emit(launch_subgraph);
@@ -468,8 +468,8 @@ class CUDAGraphRewriter : public ExprMutator {
   }
 
   void VisitBinding_(const VarBindingNode* op) final {
-    if (subgraph_launches.count(op->var.get())) {
-      LaunchSubgraph(op, subgraph_launches[op->var.get()]);
+    if (subgraph_launches_.count(op->var.get())) {
+      LaunchSubgraph(op, subgraph_launches_[op->var.get()]);
     }
     if (auto it = var_redef_.find(op->var.get()); it != var_redef_.end()) {
       auto new_var = builder_->Emit(it->second, op->var->name_hint());
@@ -483,11 +483,11 @@ class CUDAGraphRewriter : public ExprMutator {
     ExprMutator::VisitBinding_(op);
   }
 
-  std::unordered_map<const VarNode*, LiftedFunctionRewritePlan> subgraph_launches;
+  std::unordered_map<const VarNode*, LiftedFunctionRewritePlan> subgraph_launches_;
   std::unordered_map<const VarNode*, Expr> var_redef_;
   std::unordered_set<const VarNode*> lifted_bindings_;
-  int index_alloc = 0;
-  int index_capture = 0;
+  int index_alloc_ = 0;
+  int index_capture_ = 0;
 };
 
 IRModule RewriteCUDAGraph(IRModule mod) {
