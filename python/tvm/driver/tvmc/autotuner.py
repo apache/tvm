@@ -210,7 +210,23 @@ def add_tune_parser(subparsers, _, json_params):
     )
     autotvm_group.add_argument(
         "--tuner",
-        choices=["ga", "gridsearch", "random", "xgb", "xgb_knob", "xgb-rank"],
+        choices=[
+            "ga",
+            "gridsearch",
+            "random",
+            "xgb",
+            "xgb_knob",
+            "xgb_itervar",
+            "xgb_curve",
+            "xgb_rank",
+            "xgb_rank_knob",
+            "xgb_rank_itervar",
+            "xgb_rank_curve",
+            "xgb_rank_binary",
+            "xgb_rank_binary_knob",
+            "xgb_rank_binary_itervar",
+            "xgb_rank_binary_curve",
+        ],
         default="xgb",
         help="type of tuner to use when tuning with autotvm.",
     )
@@ -449,7 +465,9 @@ def tune_model(
         trials.
     tuner : str, optional
         The type of tuner to use when tuning with autotvm. Can be one of
-        "ga", "gridsearch", "random", "xgb", "xgb_knob", and "xgb-rank".
+        "ga", "gridsearch", "random", "xgb", "xgb_knob", "xgb_itervar", "xgb_curve",
+        "xgb_rank", "xgb_rank_knob", "xgb_rank_itervar", "xgb_rank_binary", "xgb_rank_binary_knob",
+        "xgb_rank_binary_itervar" and "xgb_rank_binary_curve".
     min_repeat_ms : int, optional
         Minimum time to run each trial. Defaults to 0 on x86 and 1000 on other targets.
     early_stopping : int, optional
@@ -795,10 +813,30 @@ def tune_tasks(
         prefix = "[Task %2d/%2d] " % (i + 1, len(tasks))
 
         # Create a tuner
-        if tuner in ("xgb", "xgb-rank"):
-            tuner_obj = XGBTuner(tsk, loss_type="rank")
+        if tuner == "xgb":
+            tuner_obj = XGBTuner(tsk, loss_type="reg")
         elif tuner == "xgb_knob":
+            tuner_obj = XGBTuner(tsk, loss_type="reg", feature_type="knob")
+        elif tuner == "xgb_itervar":
+            tuner_obj = XGBTuner(tsk, loss_type="reg", feature_type="itervar")
+        elif tuner == "xgb_curve":
+            tuner_obj = XGBTuner(tsk, loss_type="reg", feature_type="curve")
+        elif tuner == "xgb_rank":
+            tuner_obj = XGBTuner(tsk, loss_type="rank")
+        elif tuner == "xgb_rank_knob":
             tuner_obj = XGBTuner(tsk, loss_type="rank", feature_type="knob")
+        elif tuner == "xgb_rank_itervar":
+            tuner_obj = XGBTuner(tsk, loss_type="rank", feature_type="itervar")
+        elif tuner == "xgb_rank_curve":
+            tuner_obj = XGBTuner(tsk, loss_type="rank", feature_type="curve")
+        elif tuner == "xgb_rank_binary":
+            tuner_obj = XGBTuner(tsk, loss_type="rank-binary")
+        elif tuner == "xgb_rank_binary_knob":
+            tuner_obj = XGBTuner(tsk, loss_type="rank-binary", feature_type="knob")
+        elif tuner == "xgb_rank_binary_itervar":
+            tuner_obj = XGBTuner(tsk, loss_type="rank-binary", feature_type="itervar")
+        elif tuner == "xgb_rank_binary_curve":
+            tuner_obj = XGBTuner(tsk, loss_type="rank-binary", feature_type="curve")
         elif tuner == "ga":
             tuner_obj = GATuner(tsk, pop_size=50)
         elif tuner == "random":
