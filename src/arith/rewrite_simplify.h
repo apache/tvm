@@ -147,7 +147,7 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
   bool is_currently_visiting_{false};
 
   // counter to record recursive rewrite depth.
-  int recur_depth_{0};
+  int64_t recur_depth_{0};
   // internal variable map
   std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> var_map_;
 
@@ -161,7 +161,7 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
   bool recursively_visiting_boolean_{false};
 
   // maximum number of recursion allowed during a single pass.
-  static const constexpr int kMaxRecurDepth = 5;
+  static const constexpr int64_t kMaxRecurDepth = 5;
   /*!
    * \brief try to compare x against val.
    * \param x The expression to be evaluated.
