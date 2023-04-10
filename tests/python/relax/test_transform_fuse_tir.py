@@ -793,5 +793,45 @@ def test_symbolic_shape_aware_fuse_with_allocation():
     _check(Before, Expected)
 
 
+def test_symbolic_var_in_call_tir_args():
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def foo(
+            rxplaceholder: T.Buffer((1, 1, 32, 128), "float32"),
+            rxplaceholder_1: T.Buffer((2048, 128), "float32"),
+            rotary: T.Buffer((1, 1, 32, 128), "float32"),
+            m: T.int64,
+        ):
+            # with T.block("root"):
+            for i0, i1, i2, i3 in T.grid(1, 1, 32, 128):
+                with T.block("rotary"):
+                    v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    rotary[v_i0, v_i1, v_i2, v_i3] = (
+                        rxplaceholder_1[m + v_i1 - 1, v_i3] * rxplaceholder[v_i0, v_i1, v_i2, v_i3]
+                    )
+
+        @R.function
+        def main(
+            x: R.Tensor((1, 1, 32, 128), dtype="float32"),
+            y: R.Tensor((2048, 128), dtype="float32"),
+            len: R.Shape(["m"]),
+        ):
+            m = T.int64()
+            cls = Before
+            with R.dataflow():
+                gv = R.call_tir(
+                    cls.foo,
+                    [x, y],
+                    out_sinfo=R.Tensor((1, 1, 32, 128), dtype="float32"),
+                    tir_vars=R.shape([m]),
+                )
+                R.output(gv)
+            return gv
+
+    Expected = Before
+    _check(Before, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

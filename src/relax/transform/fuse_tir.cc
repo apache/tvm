@@ -794,7 +794,9 @@ class TIRFuseMutator : public ExprMutator {
       if (const auto* gv = call->args[0].as<GlobalVarNode>()) {
         tir::PrimFunc func = Downcast<tir::PrimFunc>(mod_->Lookup(GetRef<GlobalVar>(gv)));
         GlobalVar new_gv = this->builder_->AddFunction(func, gv->name_hint);
-        return Call(call->op, {new_gv, call->args[1]}, call->attrs, call->sinfo_args, call->span);
+        Array<Expr> new_args = call->args;
+        new_args.Set(0, new_gv);
+        return Call(call->op, new_args, call->attrs, call->sinfo_args, call->span);
       }
     }
 
