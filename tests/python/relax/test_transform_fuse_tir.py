@@ -23,7 +23,6 @@ from tvm.script import ir as I, relax as R, tir as T
 
 def _check(mod_before, mod_expected):
     mod = relax.transform.FuseTIR()(mod_before)
-    print(mod)
     tvm.ir.assert_structural_equal(mod, mod_expected)
 
 
