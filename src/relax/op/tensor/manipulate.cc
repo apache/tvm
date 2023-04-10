@@ -24,8 +24,6 @@
 
 #include "manipulate.h"
 
-#include <tvm/topi/einsum.h>
-
 #include <algorithm>
 #include <numeric>
 #include <string>
@@ -125,31 +123,6 @@ Expr concat(Expr tensors, Optional<Integer> axis) {
 
 TVM_REGISTER_GLOBAL("relax.op.concat").set_body_typed(concat);
 
-Array<TensorStructInfo> GetTensorSInfoFromTuple(const Call& call, const BlockBuilder& ctx,
-                                                const Expr& expr) {
-  const auto* tuple_sinfo = GetStructInfoAs<TupleStructInfoNode>(expr);
-  if (tuple_sinfo == nullptr) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << call->op
-                     << " expects the input to be a Tuple of Tensors. However, the given input is "
-                     << expr->struct_info_->GetTypeKey());
-  }
-
-  Array<TensorStructInfo> tensor_sinfo;
-  tensor_sinfo.reserve(tuple_sinfo->fields.size());
-  for (StructInfo field_sinfo : tuple_sinfo->fields) {
-    const auto* field_tensor_sinfo = field_sinfo.as<TensorStructInfoNode>();
-    if (field_tensor_sinfo == nullptr) {
-      ctx->ReportFatal(
-          Diagnostic::Error(call)
-          << call->op << " expects the input to be a Tuple of Tensors. However, the given input is "
-          << expr->struct_info_);
-    }
-    tensor_sinfo.push_back(GetRef<TensorStructInfo>(field_tensor_sinfo));
-  }
-  return tensor_sinfo;
-}
-
 Optional<Array<PrimExpr>> CheckConcatOutputShape(const Call& call, const BlockBuilder& ctx,
                                                  const std::vector<Array<PrimExpr>>& shape_values,
                                                  int axis) {
@@ -191,7 +164,7 @@ StructInfo InferStructInfoConcat(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {
     ctx->ReportFatal(Diagnostic::Error(call) << "Concat op should have 1 argument");
   }
-  Array<TensorStructInfo> tensor_sinfo = GetTensorSInfoFromTuple(call, ctx, call->args[0]);
+  Array<TensorStructInfo> tensor_sinfo = GetTensorStructInfoFromTuple(call, ctx, call->args[0]);
   if (tensor_sinfo.empty()) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Concat op expects at least one tensor in the input Tuple. However, the "
@@ -1313,114 +1286,6 @@ TVM_REGISTER_OP("relax.tile")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTile);
-
-/* relax.cumsum */
-TVM_REGISTER_NODE_TYPE(CumsumAttrs);
-
-Expr cumsum(Expr data, Optional<Integer> axis, DataType dtype) {
-  auto attrs = make_object<CumsumAttrs>();
-  attrs->axis = std::move(axis);
-  attrs->dtype = std::move(dtype);
-
-  static const Op& op = Op::Get("relax.cumsum");
-  return Call(op, {std::move(data)}, Attrs{attrs}, {});
-}
-
-TVM_REGISTER_GLOBAL("relax.op.cumsum").set_body_typed(cumsum);
-
-StructInfo InferStructInfoCumsum(const Call& call, const BlockBuilder& ctx) {
-  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
-  const auto* attrs = call->attrs.as<CumsumAttrs>();
-
-  DataType out_type = attrs->dtype.is_void() ? data_sinfo->dtype : attrs->dtype;
-
-  if (!attrs->axis.defined()) {
-    // flattened
-    const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
-    if (data_shape == nullptr) {
-      return TensorStructInfo(out_type, data_sinfo->ndim);
-    } else {
-      PrimExpr flattened_d = 1;
-      for (const auto v : data_shape->values) {
-        flattened_d *= v;
-      }
-      return TensorStructInfo(ShapeExpr(Array<PrimExpr>({flattened_d})), out_type);
-    }
-  }
-
-  if (data_sinfo->shape.defined()) {
-    return TensorStructInfo(data_sinfo->shape.value(), out_type);
-  } else {
-    return TensorStructInfo(out_type, data_sinfo->ndim);
-  }
-}
-
-TVM_REGISTER_OP("relax.cumsum")
-    .set_attrs_type<CumsumAttrs>()
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCumsum);
-
-/* relax.einsum */
-TVM_REGISTER_NODE_TYPE(EinsumAttrs);
-
-Expr einsum(Expr operands, String subscripts) {
-  ObjectPtr<EinsumAttrs> attrs = make_object<EinsumAttrs>();
-  attrs->subscripts = std::move(subscripts);
-
-  static const Op& op = Op::Get("relax.einsum");
-  return Call(op, {std::move(operands)}, Attrs{attrs}, {});
-}
-
-TVM_REGISTER_GLOBAL("relax.op.einsum").set_body_typed(einsum);
-
-StructInfo InferStructInfoEinsum(const Call& call, const BlockBuilder& ctx) {
-  if (call->args.size() != 1) {
-    ctx->ReportFatal(Diagnostic::Error(call) << "Einsum op should take 1 argument");
-  }
-  Array<TensorStructInfo> operands_tensor_sinfo = GetTensorSInfoFromTuple(call, ctx, call->args[0]);
-  if (operands_tensor_sinfo.empty()) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Einsum op expects at least one tensor in the input Tuple. However, the "
-                        "given input Tuple is empty.");
-  }
-
-  const auto* attrs = call->attrs.as<EinsumAttrs>();
-
-  String subscripts = attrs->subscripts;
-
-  DataType operand_dtype = operands_tensor_sinfo[0]->dtype;
-  std::vector<Array<PrimExpr>> input_shapes;
-  input_shapes.reserve(operands_tensor_sinfo.size());
-
-  for (TensorStructInfo tensor_sinfo : operands_tensor_sinfo) {
-    // Check the input tuple consists of tensors with same dtype
-    if (tensor_sinfo->dtype != operand_dtype) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "Einsum expects all input tensors to have the same dtype. However, the "
-                          "input contains tensors with dtype "
-                       << operand_dtype << " and " << tensor_sinfo->dtype);
-    }
-
-    // Get input shapes
-    const auto* shape_expr = tensor_sinfo->shape.as<ShapeExprNode>();
-    if (shape_expr != nullptr) {
-      input_shapes.push_back(shape_expr->values);
-    } else {
-      return TensorStructInfo(operand_dtype, tensor_sinfo->ndim);
-    }
-  }
-  // Calculate output shape using InferEinsumShape in topi
-  Array<PrimExpr> oshape = topi::InferEinsumShape(subscripts, input_shapes);
-
-  return TensorStructInfo(ShapeExpr(oshape), operand_dtype);
-}
-
-TVM_REGISTER_OP("relax.einsum")
-    .set_attrs_type<EinsumAttrs>()
-    .set_num_inputs(1)
-    .add_argument("operands", "Tensor", "The input tensors.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoEinsum);
 
 /* relax.flip */
 TVM_REGISTER_NODE_TYPE(FlipAttrs);

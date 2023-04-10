@@ -38,6 +38,15 @@ struct MatmulAttrs : public tvm::AttrsNode<MatmulAttrs> {
   }
 };  // struct MatmulAttrs
 
+/*! \brief Attributes used in einsum operator */
+struct EinsumAttrs : public tvm::AttrsNode<EinsumAttrs> {
+  String subscripts;
+
+  TVM_DECLARE_ATTRS(EinsumAttrs, "relax.attrs.EinsumAttrs") {
+    TVM_ATTR_FIELD(subscripts).describe("The einsum expression string");
+  }
+};  // struct EinsumAttrs
+
 }  // namespace relax
 }  // namespace tvm
 

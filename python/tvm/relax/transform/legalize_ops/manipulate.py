@@ -148,28 +148,6 @@ def _tile(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(topi.tile, call.args[0], call.attrs.repeats)
 
 
-@register_legalize("relax.cumsum")
-def _cumsum(bb: BlockBuilder, call: Call) -> Expr:
-    return bb.call_te(topi.cumsum, call.args[0], call.attrs.axis, call.attrs.dtype)
-
-
-@register_legalize("relax.einsum")
-def _einsum(bb: BlockBuilder, call: Call) -> Expr:
-    t = call.args[0]
-    n_field = len(t.struct_info.fields)
-    while isinstance(t, Var):
-        binding = bb.lookup_binding(t)
-        if not isinstance(binding, (Tuple, Var)):
-            break
-        t = binding
-
-    assert isinstance(t, (Tuple, Var))
-    fields = (
-        t.fields if isinstance(t, Tuple) else [bb.emit(TupleGetItem(t, i)) for i in range(n_field)]
-    )
-    return bb.call_te(topi.einsum, call.attrs.subscripts, *fields)
-
-
 @register_legalize("relax.flip")
 def _flip(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(topi.flip, call.args[0], int(call.attrs.axis))

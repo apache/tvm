@@ -49,12 +49,11 @@ from .manipulate import (
     reshape,
     split,
     squeeze,
-    cumsum,
     flatten,
 )
 from .nn import conv2d_transpose, conv2d
 from .search import where
-from .statistical import sum
+from .statistical import sum, cumsum
 from .unary import cos, exp, log, sin, sqrt
 
 

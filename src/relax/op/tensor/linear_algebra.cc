@@ -24,8 +24,11 @@
 
 #include "linear_algebra.h"
 
+#include <tvm/topi/einsum.h>
+
 #include <algorithm>
 #include <utility>
+#include <vector>
 
 namespace tvm {
 namespace relax {
@@ -124,6 +127,68 @@ TVM_REGISTER_OP("relax.matmul")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMatmul)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionMatmul);
+
+/* relax.einsum */
+TVM_REGISTER_NODE_TYPE(EinsumAttrs);
+
+Expr einsum(Expr operands, String subscripts) {
+  ObjectPtr<EinsumAttrs> attrs = make_object<EinsumAttrs>();
+  attrs->subscripts = std::move(subscripts);
+
+  static const Op& op = Op::Get("relax.einsum");
+  return Call(op, {std::move(operands)}, Attrs{attrs}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.einsum").set_body_typed(einsum);
+
+StructInfo InferStructInfoEinsum(const Call& call, const BlockBuilder& ctx) {
+  if (call->args.size() != 1) {
+    ctx->ReportFatal(Diagnostic::Error(call) << "Einsum op should take 1 argument");
+  }
+  Array<TensorStructInfo> operands_tensor_sinfo =
+      GetTensorStructInfoFromTuple(call, ctx, call->args[0]);
+  if (operands_tensor_sinfo.empty()) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Einsum op expects at least one tensor in the input Tuple. However, the "
+                        "given input Tuple is empty.");
+  }
+
+  const auto* attrs = call->attrs.as<EinsumAttrs>();
+
+  String subscripts = attrs->subscripts;
+
+  DataType operand_dtype = operands_tensor_sinfo[0]->dtype;
+  std::vector<Array<PrimExpr>> input_shapes;
+  input_shapes.reserve(operands_tensor_sinfo.size());
+
+  for (TensorStructInfo tensor_sinfo : operands_tensor_sinfo) {
+    // Check the input tuple consists of tensors with same dtype
+    if (tensor_sinfo->dtype != operand_dtype) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "Einsum expects all input tensors to have the same dtype. However, the "
+                          "input contains tensors with dtype "
+                       << operand_dtype << " and " << tensor_sinfo->dtype);
+    }
+
+    // Get input shapes
+    const auto* shape_expr = tensor_sinfo->shape.as<ShapeExprNode>();
+    if (shape_expr != nullptr) {
+      input_shapes.push_back(shape_expr->values);
+    } else {
+      return TensorStructInfo(operand_dtype, tensor_sinfo->ndim);
+    }
+  }
+  // Calculate output shape using InferEinsumShape in topi
+  Array<PrimExpr> oshape = topi::InferEinsumShape(subscripts, input_shapes);
+
+  return TensorStructInfo(ShapeExpr(oshape), operand_dtype);
+}
+
+TVM_REGISTER_OP("relax.einsum")
+    .set_attrs_type<EinsumAttrs>()
+    .set_num_inputs(1)
+    .add_argument("operands", "Tensor", "The input tensors.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoEinsum);
 
 }  // namespace relax
 }  // namespace tvm

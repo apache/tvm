@@ -46,6 +46,31 @@ Array<TensorStructInfo> GetInputTensorStructInfo(const Call& call, const BlockBu
   return input_tensor_sinfo;
 }
 
+Array<TensorStructInfo> GetTensorStructInfoFromTuple(const Call& call, const BlockBuilder& ctx,
+                                                     const Expr& tup) {
+  const auto* tuple_sinfo = GetStructInfoAs<TupleStructInfoNode>(tup);
+  if (tuple_sinfo == nullptr) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << call->op
+                     << " expects the input to be a Tuple of Tensors. However, the given input is "
+                     << tup->struct_info_->GetTypeKey());
+  }
+
+  Array<TensorStructInfo> tensor_sinfo;
+  tensor_sinfo.reserve(tuple_sinfo->fields.size());
+  for (StructInfo field_sinfo : tuple_sinfo->fields) {
+    const auto* field_tensor_sinfo = field_sinfo.as<TensorStructInfoNode>();
+    if (field_tensor_sinfo == nullptr) {
+      ctx->ReportFatal(
+          Diagnostic::Error(call)
+          << call->op << " expects the input to be a Tuple of Tensors. However, the given input is "
+          << tup->struct_info_);
+    }
+    tensor_sinfo.push_back(GetRef<TensorStructInfo>(field_tensor_sinfo));
+  }
+  return tensor_sinfo;
+}
+
 Optional<Array<PrimExpr>> InferBinaryBroadcastShape(const Call& call, const BlockBuilder& ctx,
                                                     const Array<PrimExpr>& x1_shape,
                                                     const Array<PrimExpr>& x2_shape) {
