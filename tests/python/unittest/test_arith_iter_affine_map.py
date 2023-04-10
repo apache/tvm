@@ -1190,6 +1190,12 @@ def test_iter_map_simplify_unit_loop_order():
         simplify_trivial_iterators=False,
     )
 
+    assert_iter_map_simplfy(
+        {y + 64 - x % 2 * 64: y + 64 - x % 2 * 64},
+        var_dom([(x, 6), (y, 64)]),
+        simplify_trivial_iterators=False,
+    )
+
 
 if __name__ == "__main__":
     tvm.testing.main()
