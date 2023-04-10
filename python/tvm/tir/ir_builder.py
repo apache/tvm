@@ -243,17 +243,14 @@ class IRBuilder(object):
 
         # auto infer dtype when it's not specified
         def check_dtype(expr):
-            if isinstance(expr, _expr.PrimExpr):
-                if not expr.dtype.startswith("int"):
-                    raise NotImplementedError(
-                        f"Infer loop_var dtype failed:"
-                        f" unsupported dtype in loop begin or end {expr.dtype}"
-                    )
-                return expr.dtype
-            if not isinstance(expr, int):
+            if not (isinstance(expr, _expr.PrimExpr) and expr.dtype.startswith("int")):
                 raise NotImplementedError(
                     f"Infer loop_var dtype failed:"
                     f" unsupported dtype in loop begin or end {expr.dtype}"
+                )
+            if not isinstance(expr, int):
+                raise NotImplementedError(
+                    "Infer loop_var dtype failed: unsupported dtype in loop begin or end"
                 )
 
         if dtype is None:
