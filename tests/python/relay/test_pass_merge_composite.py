@@ -980,7 +980,7 @@ def test_type_check():
 
 
 def test_einsum_reshape_pattern():
-    r"""Test MergeComposite do not cause error for operators."""
+    """Test MergeComposite does not cause error with einsum operator."""
 
     def make_einsum_reshape_pattern():
         x = wildcard()
@@ -991,7 +991,12 @@ def test_einsum_reshape_pattern():
         r = is_op("reshape")(z) | z
         return r
 
-    pattern_table = [("einsum_reshape", make_einsum_reshape_pattern(), )]
+    pattern_table = [
+        (
+            "einsum_reshape",
+            make_einsum_reshape_pattern(),
+        )
+    ]
 
     def before():
         a = relay.var("a", shape=(10, 10))
