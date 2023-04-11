@@ -437,8 +437,8 @@ def test_mean(accel_type, ifm_shape, axis, keep_dims, use_same_quantization, dty
         converter.optimizations = [tf.lite.Optimize.DEFAULT]
         converter.representative_dataset = representative_dataset
         converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
-        converter.inference_input_type = tf.uint8 if dtype == "uint8" else tf.int8
-        converter.inference_output_type = tf.uint8 if dtype == "uint8" else tf.int8
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
         tflite_graph = converter.convert()
         tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
 

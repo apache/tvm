@@ -1535,7 +1535,7 @@ def test_tflite_tanh_legalize():
     assert tuple(func_body.args[1].checked_type.shape) == (256,)
 
 
-@pytest.mark.parametrize("ifm_dtype", ["int8", "uint8"])
+@pytest.mark.parametrize("dtype", ["int8", "uint8"])
 @pytest.mark.parametrize(
     "ifm_shape, axis, keep_dims, use_same_quantization",
     [
@@ -1555,7 +1555,7 @@ def test_tflite_tanh_legalize():
         [(1, 65, 2, 1), (1, 2), True, False],  # special case when h > 64
     ],
 )
-def test_mean(ifm_shape, axis, keep_dims, use_same_quantization, ifm_dtype):
+def test_mean(ifm_shape, axis, keep_dims, use_same_quantization, dtype):
     def create_tflite_graph():
         class Model(tf.Module):
             @tf.function
@@ -1578,7 +1578,7 @@ def test_mean(ifm_shape, axis, keep_dims, use_same_quantization, ifm_dtype):
         converter.optimizations = [tf.lite.Optimize.DEFAULT]
         converter.representative_dataset = representative_dataset
         converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
-        converter.inference_input_type = tf.uint8 if ifm_dtype == "uint8" else tf.int8
+        converter.inference_input_type = tf.int8
         converter.inference_output_type = tf.int8
         tflite_model = converter.convert()
         tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model, 0)
@@ -1586,12 +1586,12 @@ def test_mean(ifm_shape, axis, keep_dims, use_same_quantization, ifm_dtype):
         mod, _ = relay.frontend.from_tflite(
             tflite_model,
             shape_dict={"input": ifm_shape},
-            dtype_dict={"input": ifm_dtype},
+            dtype_dict={"input": dtype},
         )
         return mod
 
     def create_relay_graph_with_same_quantization():
-        ifm = relay.var("input", shape=ifm_shape, dtype=ifm_dtype)
+        ifm = relay.var("input", shape=ifm_shape, dtype=dtype)
         cast = relay.cast(ifm, dtype="int32")
         mean = relay.mean(cast, axis=axis, keepdims=keep_dims)
         requantize = relay.qnn.op.requantize(
@@ -1600,6 +1600,7 @@ def test_mean(ifm_shape, axis, keep_dims, use_same_quantization, ifm_dtype):
             input_zero_point=relay.const(0, dtype="int32"),
             output_scale=relay.const(1.0, dtype="float32"),
             output_zero_point=relay.const(0, dtype="int32"),
+            out_dtype=dtype,
         )
 
         func = relay.Function(relay.analysis.free_vars(requantize), requantize)
@@ -1646,14 +1647,18 @@ def test_mean(ifm_shape, axis, keep_dims, use_same_quantization, ifm_dtype):
         assert tuple(in_var.checked_type.shape) == ifm_shape
 
         if use_same_quantization:
-            assert in_var.checked_type.dtype == ifm_dtype
+            assert in_var.checked_type.dtype == dtype
         else:
-            # depthwise case's partition makes in_var's dtype equal to int8
+            # in_var's dtype is equal to int8 due to TFLite's requantize
             assert in_var.checked_type.dtype == "int8"
 
         # check OFM
         assert tuple(out_var.checked_type.shape) == out_shape
-        assert out_var.checked_type.dtype == "int8"
+        if use_same_quantization:
+            assert out_var.checked_type.dtype == dtype
+        else:
+            # out_var's dtype is equal to int8 due to TFLite's requantize
+            assert out_var.checked_type.dtype == "int8"
 
         # check expected legalization case
         if pooling_op:
