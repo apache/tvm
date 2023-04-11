@@ -213,8 +213,8 @@ class Partitioner : public MixedModeMutator {
   IRModule Partition() {
     auto glob_funcs = module_->functions;
     for (const auto& pair : glob_funcs) {
-      if (auto* fn = pair.second.as<FunctionNode>()) {
-        Function func = GetRef<Function>(fn);
+      if (auto opt = pair.second.as<Function>()) {
+        Function func = opt.value();
         func = WithFields(func, func->params, VisitExpr(func->body));
         module_->Update(pair.first, func);
         module_ = transform::InferType()(module_);
@@ -426,8 +426,8 @@ IRModule RemoveDefaultAnnotations(IRModule module) {
   // module is mutable, hence, we make a copy of it.
   module.CopyOnWrite();
   for (const auto& pair : glob_funcs) {
-    if (auto* fn = pair.second.as<FunctionNode>()) {
-      auto func = GetRef<Function>(fn);
+    if (auto opt = pair.second.as<Function>()) {
+      auto func = opt.value();
       DefaultRemover remover;
       auto removed = PostOrderRewrite(func->body, &remover);
       func = WithFields(func, func->params, removed);
@@ -482,8 +482,8 @@ IRModule FlattenTupleOutputs(IRModule module) {
   // module is mutable, hence, we make a copy of it.
   module.CopyOnWrite();
   for (const auto& pair : glob_funcs) {
-    if (auto* fn = pair.second.as<FunctionNode>()) {
-      Function func = GetRef<Function>(fn);
+    if (auto opt = pair.second.as<Function>()) {
+      Function func = opt.value();
       TupleOutFlattener to_flattener;
       auto removed = PostOrderRewrite(func->body, &to_flattener);
       func = WithFields(func, func->params, removed);
@@ -505,8 +505,8 @@ class NameMangleExtFuncs : public MixedModeMutator {
     // Collect function names to be mangled and create
     // global mangled variables
     for (const auto& pair : glob_funcs) {
-      if (auto* fn = pair.second.as<FunctionNode>()) {
-        auto func = GetRef<Function>(fn);
+      if (auto opt = pair.second.as<Function>()) {
+        auto func = opt.value();
         if (func->GetAttr<String>(attr::kCompiler).defined()) {
           auto fn_name_mangled = tvm::runtime::SanitizeName(mangle_fn_(pair.first->name_hint));
           GlobalVar gvar = GlobalVar(fn_name_mangled);
@@ -521,8 +521,8 @@ class NameMangleExtFuncs : public MixedModeMutator {
     new_module->functions = {};
 
     for (const auto& pair : glob_funcs) {
-      if (auto* fn = pair.second.as<FunctionNode>()) {
-        auto func = GetRef<Function>(fn);
+      if (auto opt = pair.second.as<Function>()) {
+        auto func = opt.value();
 
         if (func->GetAttr<String>(attr::kCompiler).defined()) {
           auto new_dict = func->attrs->dict;

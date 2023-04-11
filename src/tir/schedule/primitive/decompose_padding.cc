@@ -291,10 +291,10 @@ static std::pair<Stmt, BlockRealize> CreateInBoundBlock(const BlockRealizeNode* 
     repl_dict.Set(origin_itervar->var, new_var + info.in_bound_region[i]->min);
 
     // update new loop range
-    Var loop_var = GetRef<Var>(realize->iter_values[i].as<VarNode>());
-    if (loop_var.defined() && new_loop_ranges.count(loop_var)) {
+    if (auto opt = realize->iter_values[i].as<Var>(); opt && new_loop_ranges.count(opt.value())) {
       // if the block binding is the loop var with single child, mutate loop range
       // instead of insert extra block predicate
+      auto loop_var = opt.value();
       new_loop_ranges.Set(loop_var, new_range);
       new_iter_binding.push_back(realize->iter_values[i]);
       repl_dict.Set(loop_var, loop_var + info.in_bound_region[i]->min);

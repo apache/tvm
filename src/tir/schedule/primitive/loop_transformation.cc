@@ -1059,10 +1059,10 @@ struct AddUnitLoopTraits : public UnpackedInstTraits<AddUnitLoopTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static LoopRV UnpackedApplyToSchedule(Schedule sch, ObjectRef rv) {
-    if (const auto* block = rv.as<BlockRVNode>()) {
-      return sch->AddUnitLoop(GetRef<BlockRV>(block));
-    } else if (const auto* loop = rv.as<LoopRVNode>()) {
-      return sch->AddUnitLoop(GetRef<LoopRV>(loop));
+    if (auto block = rv.as<BlockRV>()) {
+      return sch->AddUnitLoop(block.value());
+    } else if (auto loop = rv.as<LoopRV>()) {
+      return sch->AddUnitLoop(loop.value());
     } else {
       LOG(FATAL) << "TypeError: AddUnitLoop expects a loop or block";
       throw;

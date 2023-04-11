@@ -723,10 +723,10 @@ class IterMapRewriter : public ExprMutator {
    * \return The transformed IterSumExpr.
    */
   static IterSumExpr ToIterSumExpr(const PrimExpr& expr) {
-    if (const auto* op = expr.as<IterSumExprNode>()) {
-      return GetRef<IterSumExpr>(op);
-    } else if (const auto* op = expr.as<IterSplitExprNode>()) {
-      return IterSumExpr({GetRef<IterSplitExpr>(op)}, make_zero(expr->dtype));
+    if (auto op = expr.as<IterSumExpr>()) {
+      return op.value();
+    } else if (auto op = expr.as<IterSplitExpr>()) {
+      return IterSumExpr({op.value()}, make_zero(expr->dtype));
     } else {
       ICHECK(!expr->IsInstance<IterMapExprNode>());
       return IterSumExpr({}, expr);
@@ -1066,14 +1066,15 @@ bool MatchBoundConstraints(PrimExpr pred, Map<Var, Range>* input_iters,
         }
       }
       // If it is a predicate for a single input iter
-      if (const auto* var_ptr = iter.as<VarNode>()) {
-        auto it = input_iters->find(GetRef<Var>(var_ptr));
+      if (auto opt = iter.as<Var>()) {
+        auto var = opt.value();
+        auto it = input_iters->find(var);
         if (it != input_iters->end()) {
           PrimExpr iter_min = (*it).second->min;
           PrimExpr iter_max = (*it).second->min + (*it).second->extent;
           if (lower_bound.defined()) iter_min = max(iter_min, lower_bound.value());
           if (upper_bound.defined()) iter_max = min(iter_max, upper_bound.value());
-          input_iters->Set(GetRef<Var>(var_ptr), Range(iter_min, iter_max));
+          input_iters->Set(var, Range(iter_min, iter_max));
         }
       } else {
         result->emplace_back(iter, lower_bound, upper_bound, 0);
@@ -1220,10 +1221,10 @@ PrimExpr IterMapRewriter::VisitExpr_(const AddNode* op) {
 
   if (!b->IsInstance<IterMapExprNode>()) {
     ret.CopyOnWrite()->base += b;
-  } else if (const auto* op = b.as<IterSumExprNode>()) {
-    AddToLhs(ret.CopyOnWrite(), GetRef<IterSumExpr>(op), 1);
-  } else if (const auto* op = b.as<IterSplitExprNode>()) {
-    AddToLhs(ret.CopyOnWrite(), GetRef<IterSplitExpr>(op), 1);
+  } else if (auto op = b.as<IterSumExpr>()) {
+    AddToLhs(ret.CopyOnWrite(), op.value(), 1);
+  } else if (auto op = b.as<IterSplitExpr>()) {
+    AddToLhs(ret.CopyOnWrite(), op.value(), 1);
   } else {
     AddToLhs(ret.CopyOnWrite(), ToIterSumExpr(b), 1);
   }
@@ -1255,10 +1256,10 @@ PrimExpr IterMapRewriter::VisitExpr_(const SubNode* op) {
 
   if (!b->IsInstance<IterMapExprNode>()) {
     ret.CopyOnWrite()->base -= b;
-  } else if (const auto* op = b.as<IterSumExprNode>()) {
-    AddToLhs(ret.CopyOnWrite(), GetRef<IterSumExpr>(op), -1);
-  } else if (const auto* op = b.as<IterSplitExprNode>()) {
-    AddToLhs(ret.CopyOnWrite(), GetRef<IterSplitExpr>(op), -1);
+  } else if (auto op = b.as<IterSumExpr>()) {
+    AddToLhs(ret.CopyOnWrite(), op.value(), -1);
+  } else if (auto op = b.as<IterSplitExpr>()) {
+    AddToLhs(ret.CopyOnWrite(), op.value(), -1);
   } else {
     AddToLhs(ret.CopyOnWrite(), ToIterSumExpr(b), -1);
   }
@@ -1692,10 +1693,10 @@ class IterMapToExprNormalizer : public ExprMutator {
  private:
   /*! \brief Override VisitExpr for iter expr type processing */
   PrimExpr VisitExpr(const PrimExpr& expr) override {
-    if (const auto* op = expr.as<IterSplitExprNode>()) {
-      return ConvertIterSplitExpr(GetRef<IterSplitExpr>(op));
-    } else if (const auto* op = expr.as<IterSumExprNode>()) {
-      return ConvertIterSumExpr(GetRef<IterSumExpr>(op));
+    if (auto op = expr.as<IterSplitExpr>()) {
+      return ConvertIterSplitExpr(op.value());
+    } else if (auto op = expr.as<IterSumExpr>()) {
+      return ConvertIterSumExpr(op.value());
     } else {
       return ExprMutator::VisitExpr(expr);
     }
@@ -1712,10 +1713,10 @@ class IterMapToExprNormalizer : public ExprMutator {
 
   PrimExpr ConvertIterSplitExpr(const IterSplitExpr& expr) {
     PrimExpr source;
-    if (const auto* op = expr->source->source.as<VarNode>()) {
-      source = GetRef<Var>(op);
-    } else if (const auto* op = expr->source->source.as<IterSumExprNode>()) {
-      source = ConvertIterSumExpr(GetRef<IterSumExpr>(op));
+    if (auto opt = expr->source->source.as<Var>()) {
+      source = opt.value();
+    } else if (auto opt = expr->source->source.as<IterSumExpr>()) {
+      source = ConvertIterSumExpr(opt.value());
     } else {
       source = VisitExpr(expr->source->source);
     }
@@ -1854,10 +1855,10 @@ class SubspaceDivider {
 
    private:
     static IterSplitExpr GetAsSplit(const IterMapExpr& expr, const PrimExpr& extent) {
-      if (const auto* op = expr.as<IterSplitExprNode>()) {
-        return GetRef<IterSplitExpr>(op);
-      } else if (const auto* op = expr.as<IterSumExprNode>()) {
-        return IterSplitExpr(IterMark(GetRef<IterSumExpr>(op), extent));
+      if (auto op = expr.as<IterSplitExpr>()) {
+        return op.value();
+      } else if (auto op = expr.as<IterSumExpr>()) {
+        return IterSplitExpr(IterMark(op.value(), extent));
       } else {
         LOG(FATAL) << "Unknown IterMapExpr type";
       }
@@ -1946,10 +1947,10 @@ class SubspaceDivider {
  private:
   DivisionResult AddBase(DivisionResult division, PrimExpr base) {
     DivisionResult res = division;
-    if (const auto* op = division.inner.as<IterSplitExprNode>()) {
-      res.inner = IterSumExpr({GetRef<IterSplitExpr>(op)}, base);
-    } else if (const auto* op = division.inner.as<IterSumExprNode>()) {
-      const auto& expr = GetRef<IterSumExpr>(op);
+    if (auto op = division.inner.as<IterSplitExpr>()) {
+      res.inner = IterSumExpr({op.value()}, base);
+    } else if (auto op = division.inner.as<IterSumExpr>()) {
+      const auto& expr = op.value();
       res.inner = IterSumExpr(expr->args, expr->base + base);
     }
     return res;
@@ -1976,9 +1977,9 @@ class SubspaceDivider {
       return it->second;
     }
     const Array<IterSplitExpr>& splits = collector_.mark2splits_.at(expr->source);
-    if (const auto* iter_ptr = expr->source->source.as<VarNode>()) {
+    if (auto iter_ptr = expr->source->source.as<Var>()) {
       // source is input_iter
-      bool inner = sub_iters_.count(GetRef<Var>(iter_ptr));
+      bool inner = sub_iters_.count(iter_ptr.value());
       for (const IterSplitExpr& split : splits) {
         if (inner) {
           // 0*E(split)+split
@@ -1988,7 +1989,7 @@ class SubspaceDivider {
           split_map_.emplace(split, DivisionResult::Outer(split, split->extent));
         }
       }
-    } else if (const auto* iter_ptr = expr->source->source.as<IterSumExprNode>()) {
+    } else if (auto iter_ptr = expr->source->source.as<IterSumExpr>()) {
       // source = Y*E+X
       // splits = [s1, s2, ..., sn]
       // we can divide if there exists i, such that extent(s1)extent(s2)...extent(si)=extent(Y)
@@ -2001,8 +2002,7 @@ class SubspaceDivider {
       // Case 2. splits = [s1, s2, s3] = [source / 4, (source / 2) % 2, source % 2],
       //         where extent(s1) = 3, extent(s2) = 2, extent(s3) = 2.
       //         It's impossible to rewrite s1, s2, s3 in the form of Y*E(X) + X.
-      DivisionResult mark_division =
-          DivideIterSumExpr(GetRef<IterSumExpr>(iter_ptr), expr->source->extent);
+      DivisionResult mark_division = DivideIterSumExpr(iter_ptr.value(), expr->source->extent);
       if (splits.size() == 1) {
         return mark_division;
       }
@@ -2186,8 +2186,8 @@ class InverseAffineIterMapTransformer {
       } else {
         const auto* split_expr = expr.as<IterSplitExprNode>();
         ICHECK(split_expr);
-        if (const auto* source = split_expr->source->source.as<IterMapExprNode>()) {
-          fvisit(GetRef<IterMapExpr>(source));
+        if (auto source = split_expr->source->source.as<IterMapExpr>()) {
+          fvisit(source.value());
         }
       }
       post_dfs_order.push_back(expr.get());

@@ -421,8 +421,9 @@ class StateCreator : private StmtVisitor {
     StateCreator creator(self);
     for (const auto& kv : n->mod->functions) {
       const BaseFunc& base_func = kv.second;
-      if (const auto* func = base_func.as<PrimFuncNode>()) {
-        VerifyWellFormed(GetRef<PrimFunc>(func));
+      if (auto opt = base_func.as<PrimFunc>()) {
+        auto func = opt.value();
+        VerifyWellFormed(func);
         creator.VisitStmt(func->body);
         BlockInfoCollector::Collect(self, func->body);
       }

@@ -404,19 +404,19 @@ class RelayToTIRVisitor : public MixedModeMutator {
 
   void EmitPool2D(const GlobalVar& global_var, const Expr& expr, const String pool_name) {
     Call clip, pool;
-    Call final_call = GetRef<Call>(expr.as<CallNode>());
-    Op final_op = GetRef<Op>(final_call->op.as<OpNode>());
+    Call final_call = Downcast<Call>(expr);
+    Op final_op = Downcast<Op>(final_call->op);
     if (final_op->name == "clip") {
       clip = final_call;
-      Call clip_input = GetRef<Call>(clip->args[0].as<CallNode>());
-      Op clip_input_op = GetRef<Op>(clip_input->op.as<OpNode>());
+      Call clip_input = Downcast<Call>(clip->args[0]);
+      Op clip_input_op = Downcast<Op>(clip_input->op);
       if (clip_input_op->name == "cast") {
-        pool = GetRef<Call>(clip_input->args[0].as<CallNode>());
+        pool = Downcast<Call>(clip_input->args[0]);
       } else {  // max_pool2d
         pool = clip_input;
       }
     } else if (final_op->name == "cast") {
-      pool = GetRef<Call>(final_call->args[0].as<CallNode>());
+      pool = Downcast<Call>(final_call->args[0]);
     } else {  // max_pool2d
       pool = final_call;
     }
@@ -556,11 +556,11 @@ class RelayToTIRVisitor : public MixedModeMutator {
 
   BinaryElementwiseClipPattern ParseBinaryElementwiseOpClipPattern(const Expr& expr) {
     BinaryElementwiseClipPattern pattern;
-    Call final_call = GetRef<Call>(expr.as<CallNode>());
+    Call final_call = Downcast<Call>(expr);
     const OpNode* final_op = final_call->op.as<OpNode>();
     if (final_op->name == "clip") {
       pattern.clip_op = final_call;
-      pattern.binary_op = GetRef<Call>(final_call->args[0].as<CallNode>());
+      pattern.binary_op = Downcast<Call>(final_call->args[0]);
     } else {
       pattern.binary_op = final_call;
       pattern.clip_op = Optional<Call>{nullptr};

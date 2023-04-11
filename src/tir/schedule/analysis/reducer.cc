@@ -437,20 +437,20 @@ std::pair<Array<PrimExpr>, Array<BufferStore>> GetInitValuesAndUpdatesFromReduct
   Array<BufferStore> updates;
 
   // Step 1. Extract the BufferStores serving as block inits.
-  if (const auto* init = block->init.as<BufferStoreNode>()) {
-    inits.push_back(GetRef<BufferStore>(init));
+  if (auto init = block->init.as<BufferStore>()) {
+    inits.push_back(init.value());
   } else if (const auto* seq_init = block->init.as<SeqStmtNode>()) {
     std::unordered_set<const BufferNode*> init_buffers;
     for (const Stmt& stmt : seq_init->seq) {
-      init = stmt.as<BufferStoreNode>();
-      if (init == nullptr) {
+      auto init = stmt.as<BufferStore>();
+      if (!init) {
         ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/1);
       }
-      auto insert_result = init_buffers.insert(init->buffer.get());
+      auto insert_result = init_buffers.insert(init.value()->buffer.get());
       if (!insert_result.second) {
         ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/2);
       }
-      inits.push_back(GetRef<BufferStore>(init));
+      inits.push_back(init.value());
     }
   } else {
     ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/1);

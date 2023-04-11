@@ -187,8 +187,8 @@ class IndexedForwardGraphCreator : private ExprVisitor {
     // Finally if the operator position is not a call node we will
     // need to call Update, as it may be an arbitrary expression.
     OpPatternKind op_pattern = kOpaque;
-    if (const OpNode* opnode = call->op.as<OpNode>()) {
-      auto op = GetRef<Op>(opnode);
+    if (auto optional = call->op.as<Op>()) {
+      auto op = optional.value();
       if (IsDynamic(call->checked_type()) && IsDataDependent(call)) {
         // output of a shape func can't be fed to a data-dependent shape func
         op_pattern = kOpaque;

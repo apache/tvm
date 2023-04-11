@@ -353,7 +353,7 @@ class ThreadSyncInserter : public StmtExprMutator {
       PrimExpr expr = StmtExprMutator::VisitExpr_(op);
       op = expr.as<CallNode>();
       ICHECK_EQ(op->args.size(), 5U);
-      Var buffer_var(GetRef<Var>(op->args[1].as<VarNode>()));
+      Var buffer_var(Downcast<Var>(op->args[1]));
       const IntImmNode* flag = op->args[4].as<IntImmNode>();
       if ((flag->value & 1) && sync_scope_.rank == StorageRank::kGlobal &&
           GetScope(buffer_var).rank == StorageRank::kGlobal) {
