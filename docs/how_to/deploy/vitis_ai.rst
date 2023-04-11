@@ -180,7 +180,7 @@ the Zynq board will first have to be set up and more information on that can be 
       chmod 600 /swapfile
       mkswap /swapfile
       swapon /swapfile
-      echo "/swapfile swap swap defaults 0 0" > /etc/fstab
+      echo "/swapfile swap swap defaults 0 0" >> /etc/fstab
 
 7. Install hdf5 dependency (will take between 30 min and 1 hour to finish)
 
