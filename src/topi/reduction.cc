@@ -64,5 +64,9 @@ TVM_REGISTER_GLOBAL("topi.any").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = topi::any(args[0], ArrayOrInt(args[1]), args[2]);
 });
 
+TVM_REGISTER_GLOBAL("topi.collapse_sum").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = topi::collapse_sum(args[0], args[1]);
+});
+
 }  // namespace topi
 }  // namespace tvm

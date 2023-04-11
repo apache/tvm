@@ -354,6 +354,13 @@ Array<BlockRV> ConcreteScheduleNode::GetConsumers(const BlockRV& block_rv) {
   throw;
 }
 
+Array<BlockRV> ConcreteScheduleNode::GetOutputBlocks(const BlockRV& scope_block_rv) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  return CreateRV<BlockRV>(tir::GetOutputBlocks(state_, this->GetSRef(scope_block_rv)));
+  TVM_TIR_SCHEDULE_END("get-output-blocks", this->error_render_level_);
+  throw;
+}
+
 /******** Schedule: Transform loops ********/
 
 LoopRV ConcreteScheduleNode::Merge(const Array<LoopRV>& loop_rvs) {

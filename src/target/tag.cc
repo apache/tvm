@@ -92,7 +92,7 @@ TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-xavier")
                  {"host", Map<String, ObjectRef>{{"kind", String("llvm")},
                                                  {"mtriple", String("aarch64-linux-gnu")},
                                                  {"mcpu", String("carmel")},
-                                                 {"num-cores", Integer(4)}}}});
+                                                 {"num-cores", Integer(8)}}}});
 
 #define TVM_REGISTER_CUDA_TAG(Name, Arch, SharedMem, RegPerBlock) \
   TVM_REGISTER_TARGET_TAG(Name).set_config({                      \
@@ -115,6 +115,7 @@ TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a100", "sm_80", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a40", "sm_86", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a30", "sm_80", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a10", "sm_86", 49152, 65536);
+TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a10g", "sm_86", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a16", "sm_86", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a2", "sm_86", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-t4", "sm_75", 49152, 65536);
@@ -387,6 +388,7 @@ TVM_REGISTER_TAG_AWS_C5("aws/cpu/c5.24xlarge", 48, "cascadelake");
                                        {"mcpu", String("apple-latest")}}}});
 
 TVM_REGISTER_METAL_GPU_TAG("apple/m1-gpu", 1024, 32768, 32);
+TVM_REGISTER_METAL_GPU_TAG("apple/m1-gpu-restricted", 256, 32768, 32);
 TVM_REGISTER_METAL_GPU_TAG("apple/m2-gpu", 1024, 32768, 32);
 
 #undef TVM_REGISTER_METAL_TAG
