@@ -25,25 +25,26 @@ from tvm.script.ir_builder import relax as relax_builder
 
 def get_parallel_matmul(
     num_branches,
+    lhs_shape=(640, 640),
+    rhs_shape=(640, 640),
     with_bias=False,
     activation=None,
 ):
-    shape = (640, 640)
     dtype = "float32"
 
     with IRBuilder() as builder:
         with relax_builder.function():
             R.func_name("main")
-            x = R.arg("x", R.Tensor(shape, dtype))
+            x = R.arg("x", R.Tensor(lhs_shape, dtype))
 
             rhs = []
             bias = []
 
             for _ in range(num_branches):
-                rhs.append(R.arg("y", R.Tensor(shape, dtype)))
+                rhs.append(R.arg("y", R.Tensor(rhs_shape, dtype)))
 
                 if with_bias:
-                    bias.append(R.arg("bias", R.Tensor((shape[1],), dtype)))
+                    bias.append(R.arg("bias", R.Tensor((rhs_shape[1],), dtype)))
 
             with R.dataflow() as frame:
                 branches = []
@@ -65,33 +66,61 @@ def get_parallel_matmul(
     return tvm.IRModule({"main": func})
 
 
-def test_attention_qkv():
-    @tvm.script.ir_module
-    class QKV_proj:
-        @R.function
-        def main(
-            x: R.Tensor((2, 1024, 640), "float32"),
-            w0: R.Tensor((640, 640), "float32"),
-            w1: R.Tensor((640, 640), "float32"),
-            w2: R.Tensor((640, 640), "float32"),
-        ) -> R.Tensor:
-            with R.dataflow():
-                lv0 = R.matmul(x, w0)
-                lv1 = R.matmul(x, w1)
-                lv2 = R.matmul(x, w2)
-                out = (lv0, lv1, lv2)
-                R.output(out)
-            return out
-
+def test_simple():
     mod = get_parallel_matmul(3)
-
-    # tvm.ir.assert_structural_equal(mod, QKV_proj)
     mod = CombineParallelMatmul()(mod)
 
+    @R.function
+    def expected1(
+        x: R.Tensor((640, 640), dtype="float32"),
+        y: R.Tensor((640, 640), dtype="float32"),
+        y_1: R.Tensor((640, 640), dtype="float32"),
+        y_2: R.Tensor((640, 640), dtype="float32"),
+    ) -> R.Tensor((640, 1920), dtype="float32"):
+        with R.dataflow():
+            lv = R.concat((y, y_1, y_2), axis=1)
+            lv1 = R.matmul(x, lv, out_dtype="float32")
+            lv_1 = R.strided_slice(lv1, axes=[1], begin=[0], end=[640], strides=[1])
+            lv1_1 = R.strided_slice(lv1, axes=[1], begin=[640], end=[1280], strides=[1])
+            lv2 = R.strided_slice(lv1, axes=[1], begin=[1280], end=[1920], strides=[1])
+            lv3 = R.concat((lv_1, lv1_1, lv2), axis=1)
+            R.output(lv3)
+        return lv3
+
+    tvm.ir.assert_structural_equal(mod["main"], expected1)
+
+    # Test a batched LHS case, slicing is done on the axis 2
+    mod = get_parallel_matmul(3, lhs_shape=(2, 1024, 640))
+    mod = CombineParallelMatmul()(mod)
+
+    @R.function
+    def expected2(
+        x: R.Tensor((2, 1024, 640), dtype="float32"),
+        y: R.Tensor((640, 640), dtype="float32"),
+        y_1: R.Tensor((640, 640), dtype="float32"),
+        y_2: R.Tensor((640, 640), dtype="float32"),
+    ) -> R.Tensor((2, 3072, 640), dtype="float32"):
+        with R.dataflow():
+            lv = R.concat((y, y_1, y_2), axis=1)
+            lv1 = R.matmul(x, lv, out_dtype="float32")
+            lv_1 = R.strided_slice(lv1, axes=[2], begin=[0], end=[640], strides=[1])
+            lv1_1 = R.strided_slice(lv1, axes=[2], begin=[640], end=[1280], strides=[1])
+            lv2 = R.strided_slice(lv1, axes=[2], begin=[1280], end=[1920], strides=[1])
+            lv3 = R.concat((lv_1, lv1_1, lv2), axis=1)
+            R.output(lv3)
+        return lv3
+
+    tvm.ir.assert_structural_equal(mod["main"], expected2)
+
+
+def test_bias():
+    mod = get_parallel_matmul(3, with_bias=True)
+    print(mod)
+    mod = CombineParallelMatmul()(mod)
 
     print(mod)
 
 
 if __name__ == "__main__":
     # tvm.testing.main()
-    test_attention_qkv()
+    test_simple()
