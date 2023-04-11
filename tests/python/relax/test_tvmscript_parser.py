@@ -1362,5 +1362,22 @@ def test_empty_tuple_on_rhs_of_assign():
     _check(Module)
 
 
+def test_global_var_sinfo():
+    @I.ir_module
+    class Module:
+        @R.function
+        def foo(x: R.Tensor((128, 128), "float32")):
+            gv0 = R.emit_te(topi.add, x, x)
+            return gv0
+
+    target_sinfo = R.Callable(
+        (R.Tensor((128, 128), dtype="float32"),), R.Tensor((128, 128), dtype="float32")
+    )
+    gv = Module.get_global_var("foo")
+    tvm.ir.assert_structural_equal(gv.struct_info, target_sinfo)
+    tvm.ir.assert_structural_equal(Module["foo"].struct_info, target_sinfo)
+    _check(Module)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
