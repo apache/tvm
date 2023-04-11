@@ -833,12 +833,20 @@ def convert_gelu(g, op, block):
     if approximate:
         out = x * (
             _expr.const(0.5, dtype="float32")
-            + (_op.tanh((_expr.const(0.7978846, dtype="float32")*(x+_expr.const(0.044715, dtype="float32")*x*x*x)))) * _expr.const(0.5, dtype="float32")
+            + (
+                _op.tanh(
+                    (
+                        _expr.const(0.7978846, dtype="float32")
+                        *(x + _expr.const(0.044715, dtype="float32")*x*x*x)
+                    )
+                )
+            ) * _expr.const(0.5, dtype="float32")
         )
-    else: 
+    else:
         out = x * (
             _expr.const(0.5, dtype="float32")
-            + _op.erf(x * _expr.const(0.5**0.5, dtype="float32")) * _expr.const(0.5, dtype="float32")
+            + _op.erf(x * _expr.const(0.5**0.5, dtype="float32")) 
+            * _expr.const(0.5, dtype="float32")
         )
     g.add_node(op.output("Out")[0], out)
 
