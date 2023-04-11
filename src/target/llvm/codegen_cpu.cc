@@ -299,32 +299,22 @@ llvm::DIType* CodeGenCPU::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm) 
 
   } else if (auto* prim_type = ty_tir.as<PrimTypeNode>()) {
     DataType dtype = prim_type->dtype;
-    auto [name, dwarf_type] = [&]() -> std::tuple<const char*, llvm::dwarf::TypeKind> {
+    auto dwarf_type = [&]() -> llvm::dwarf::TypeKind {
       if (dtype.is_bool()) {
-        return {"bool", llvm::dwarf::DW_ATE_boolean};
+        return llvm::dwarf::DW_ATE_boolean;
       } else if (dtype.is_float()) {
-        return {"float", llvm::dwarf::DW_ATE_float};
+        return llvm::dwarf::DW_ATE_float;
       } else if (dtype.is_int()) {
-        return {"int", llvm::dwarf::DW_ATE_signed};
+        return llvm::dwarf::DW_ATE_signed;
       } else if (dtype.is_uint()) {
-        return {"uint", llvm::dwarf::DW_ATE_unsigned};
+        return llvm::dwarf::DW_ATE_unsigned;
       } else {
         LOG(FATAL) << "No DWARF representation for TIR type " << dtype;
       }
     }();
 
-    std::stringstream ss;
-    ss << name;
-
-    if (!dtype.is_bool()) {
-      ss << dtype.bits();
-    }
-    if (dtype.lanes() > 1) {
-      ss << "x" << dtype.lanes();
-    }
-
-    return dbg_info_->di_builder_->createBasicType(ss.str(), dtype.bits() * dtype.lanes(),
-                                                   dwarf_type);
+    return dbg_info_->di_builder_->createBasicType(DLDataType2String(dtype),
+                                                   dtype.bits() * dtype.lanes(), dwarf_type);
 
   } else {
     std::string type_str;
