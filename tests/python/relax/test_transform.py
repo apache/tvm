@@ -32,25 +32,21 @@ def test_to_non_dataflow():
         def foo(x: R.Tensor(("m", "n"), "float32")):
             m, n = T.int64(), T.int64()
             with R.dataflow():
-                lv0 = R.call_pure(
-                    R.call_dps_packed(
-                        "test.op.identity",
-                        (x,),
-                        R.Tensor(
-                            (m, n),
-                            dtype="float32",
-                        ),
-                    )
+                lv0 = R.call_pure_dps_packed(
+                    "test.op.identity",
+                    (x,),
+                    R.Tensor(
+                        (m, n),
+                        dtype="float32",
+                    ),
                 )
-                gv0 = R.call_pure(
-                    R.call_dps_packed(
-                        "test.op.identity",
-                        (lv0,),
-                        R.Tensor(
-                            (m, n),
-                            dtype="float32",
-                        ),
-                    )
+                gv0 = R.call_pure_dps_packed(
+                    "test.op.identity",
+                    (lv0,),
+                    R.Tensor(
+                        (m, n),
+                        dtype="float32",
+                    ),
                 )
                 R.output(gv0)
             return gv0
@@ -138,26 +134,37 @@ def test_transform_remove_purity_checking():
             return z
 
         @R.function
-        def use_call_pure(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+        def use_call_pure_packed(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
             y = R.add(x, x)
-            z = R.call_pure(R.assert_op(R.const(True, dtype="bool"), format="Nothing"))
+            z = R.call_pure_packed("vm.builtin.copy", y, sinfo_args=(R.Tensor((), dtype="int32")))
+            return z
+
+        @R.function
+        def use_call_pure_dps_packed(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            y = R.call_pure_dps_packed("test.op.identity", (x,), R.Tensor((), dtype="float32"))
             return y
+
+        @R.function
+        def use_invoke_pure_closure(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            closure = R.make_closure(Before.base, ())
+            res = R.invoke_pure_closure(closure, (x,), sinfo_args=R.Tensor((), "int32"))
+            return res
 
         @R.function
         def impure_func() -> R.Object:
             R.func_attr({"IsPure": False})
             y = R.print(format="I am impure!")
-            # pointless but we'll test it
-            z = R.call_pure(R.print(format="This print is pure, huh?"))
-            return z
+            return y
 
         @R.function
         def nested_pure_func() -> R.Tensor((), "int32"):
             @R.function
             def nested(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
                 y = R.add(x, x)
-                q = R.call_pure(R.assert_op(R.const(True, dtype="bool"), format="ignore"))
-                return y
+                q = R.call_pure_packed(
+                    "vm.builtin.copy", y, sinfo_args=(R.Tensor((), dtype="int32"))
+                )
+                return q
 
             z = R.const(1, dtype="int32")
             w = nested(z)
@@ -171,7 +178,6 @@ def test_transform_remove_purity_checking():
             def nested() -> R.Object:
                 R.func_attr({"IsPure": False})
                 x = R.print(format="Oops!")
-                q = R.call_pure(R.assert_op(R.const(True, dtype="bool"), format="ignore"))
                 return x
 
             y = R.const(1, dtype="int32")
@@ -188,18 +194,30 @@ def test_transform_remove_purity_checking():
             return z
 
         @R.function
-        def use_call_pure(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+        def use_call_pure_packed(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
             R.func_attr({"ForcePure": True})
             y = R.add(x, x)
-            z = R.assert_op(R.const(True, dtype="bool"), format="Nothing")
+            z = R.call_packed("vm.builtin.copy", y, sinfo_args=(R.Tensor((), dtype="int32")))
+            return z
+
+        @R.function
+        def use_call_pure_dps_packed(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            R.func_attr({"ForcePure": True})
+            y = R.call_dps_packed("test.op.identity", (x,), R.Tensor((), dtype="float32"))
             return y
+
+        @R.function
+        def use_invoke_pure_closure(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            R.func_attr({"ForcePure": True})
+            closure = R.make_closure(Expected.base, ())
+            res = R.invoke_closure(closure, (x,), sinfo_args=R.Tensor((), "int32"))
+            return res
 
         @R.function
         def impure_func() -> R.Object:
             R.func_attr({"IsPure": False})
             y = R.print(format="I am impure!")
-            z = R.print(format="This print is pure, huh?")
-            return z
+            return y
 
         @R.function
         def nested_pure_func() -> R.Tensor((), "int32"):
@@ -209,8 +227,8 @@ def test_transform_remove_purity_checking():
             def nested(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
                 R.func_attr({"ForcePure": True})
                 y = R.add(x, x)
-                q = R.assert_op(R.const(True, dtype="bool"), format="ignore")
-                return y
+                q = R.call_packed("vm.builtin.copy", y, sinfo_args=(R.Tensor((), dtype="int32")))
+                return q
 
             z = R.const(1, dtype="int32")
             w = nested(z)
@@ -224,7 +242,6 @@ def test_transform_remove_purity_checking():
             def nested() -> R.Object:
                 R.func_attr({"IsPure": False})
                 x = R.print(format="Oops!")
-                q = R.assert_op(R.const(True, dtype="bool"), format="ignore")
                 return x
 
             y = R.const(1, dtype="int32")

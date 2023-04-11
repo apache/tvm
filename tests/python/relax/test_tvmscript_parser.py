@@ -1406,16 +1406,41 @@ def test_print():
     _check(Print)
 
 
-def test_call_pure():
-    @I.ir_module
-    class CallPure:
-        @R.function
-        def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
-            y: R.Tensor((), dtype="int32") = R.add(x, x)
-            z: R.Tuple = R.call_pure(R.assert_op(R.const(True, "bool"), format="Ignore"))
-            return y
+def test_call_pure_packed():
+    @R.function
+    def foo(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
+        z = R.call_pure_packed("vm.builtin.copy", x, sinfo_args=R.Tensor((32, 32), "float32"))
+        return z
 
-    _check(CallPure)
+    x = relax.Var("x", R.Tensor((32, 32), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x)):
+        z = bb.emit(
+            R.call_pure_packed("vm.builtin.copy", x, sinfo_args=[R.Tensor((32, 32), "float32")])
+        )
+        bb.emit_func_output(z)
+
+    _check(foo, bb.get()["foo"])
+
+
+def test_call_pure_dps_packed():
+    @R.function
+    def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor((128, 128), "float32"):
+        R.func_attr({"Primitive": 1})
+        gv0 = R.call_pure_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32"))
+        gv1 = R.call_pure_dps_packed("extern_dps_func", gv0, R.Tensor((128, 128), dtype="float32"))
+        return gv1
+
+    x = relax.Var("x", R.Tensor((128, 128), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x,), attrs={"Primitive": 1}):
+        y = bb.emit(R.call_pure_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32")))
+        out = bb.emit(
+            R.call_pure_dps_packed("extern_dps_func", y, R.Tensor((128, 128), dtype="float32"))
+        )
+        bb.emit_func_output(out)
+
+    _check(foo, bb.get()["foo"])
 
 
 if __name__ == "__main__":

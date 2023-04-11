@@ -301,6 +301,7 @@ def test_call():
     a = relax.Var("a", relax.TensorStructInfo([1, x, 3], "float32"))
     o0 = relax.call_tir(relax.GlobalVar("tir_func"), args=a, out_sinfo=a.struct_info, tir_vars=[x])
     o1 = relax.call_dps_packed("my_dps_func", args=a, out_sinfo=a.struct_info)
+    o2 = relax.call_pure_dps_packed("my_dps_func", args=a, out_sinfo=a.struct_info)
     _assert_print(
         o0,
         """
@@ -315,6 +316,14 @@ R.call_tir(tir_func, (a,), out_sinfo=R.Tensor((1, x, 3), dtype="float32"), tir_v
 x = T.int64()
 a: R.Tensor((1, x, 3), dtype="float32")
 R.call_dps_packed("my_dps_func", (a,), out_sinfo=R.Tensor((1, x, 3), dtype="float32"))
+""",
+    )
+    _assert_print(
+        o2,
+        """
+x = T.int64()
+a: R.Tensor((1, x, 3), dtype="float32")
+R.call_pure_dps_packed("my_dps_func", (a,), out_sinfo=R.Tensor((1, x, 3), dtype="float32"))
 """,
     )
 
@@ -576,32 +585,6 @@ class Module:
         R.func_attr({"IsPure": 0})
         y: R.Tuple = R.print(x, format=R.str("x: {}"))
         return x
-""",
-    )
-
-
-def test_call_pure():
-    @I.ir_module
-    class CallPureMod:
-        @R.function
-        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            y = R.add(x, x)
-            z = R.call_pure(R.assert_op(R.const(True, dtype="bool"), format="Ignore"))
-            return y
-
-    _assert_print(
-        CallPureMod,
-        """
-# from tvm.script import ir as I
-# from tvm.script import relax as R
-
-@I.ir_module
-class Module:
-    @R.function
-    def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
-        y: R.Tensor((), dtype="int32") = R.add(x, x)
-        z: R.Tuple = R.call_pure(R.assert_op(R.const(True, "bool"), format=R.str("Ignore")))
-        return y
 """,
     )
 

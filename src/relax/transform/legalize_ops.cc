@@ -91,7 +91,7 @@ class LegalizeMutator : public ExprMutator {
           return !purity_map[res_op]->value;
         }
       }
-      // simplest case: wrap if the original op was true and the result is somehow not
+      // simplest case: wrap if the original op was pure and the result is somehow not
       return true;
     }
     return false;
@@ -100,9 +100,10 @@ class LegalizeMutator : public ExprMutator {
   Expr VisitExpr_(const CallNode* call) final {
     Call visited_call = Downcast<Call>(this->VisitExprPostOrder_(call));
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
-    static const Op& call_pure_op = Op::Get("relax.call_pure");
+    static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
     static const Op& call_tir_op = Op::Get("relax.call_tir");
     static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
+    static const Op& call_pure_dps_packed_op = Op::Get("relax.call_pure_dps_packed");
     auto* op_node = visited_call->op.as<OpNode>();
 
     // Not an OpNode
@@ -124,15 +125,6 @@ class LegalizeMutator : public ExprMutator {
     }
 
     auto op = GetRef<Op>(op_node);
-    // for call_pure, legalize the inner call
-    if (op == call_pure_op) {
-      auto inner_call = UnwrapCallPure(GetRef<Call>(call));
-      auto res = VisitExpr_(inner_call.as<CallNode>());
-      if (res.as<CallNode>()) {
-        return WrapCallPure(Downcast<Call>(res));
-      }
-      return res;
-    }
 
     // Priority: customize > default.
     // Check if it has customize legalization registered.
@@ -153,7 +145,8 @@ class LegalizeMutator : public ExprMutator {
     }
 
     // No legalization.
-    if (enable_warning_ && op != call_tir_op && op != call_dps_packed_op) {
+    if (enable_warning_ && op != call_tir_op && op != call_dps_packed_op &&
+        op != call_pure_packed_op && op != call_pure_dps_packed_op) {
       LOG(WARNING) << "No legalization func for " << op->name << " is found.";
     }
     return visited_call;

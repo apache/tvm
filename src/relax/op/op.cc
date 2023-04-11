@@ -73,51 +73,39 @@ StructInfo InferStructInfoShapeOf(const Call& call, const BlockBuilder& ctx) {
   return ShapeStructInfo(tensor_shape->values);
 }
 
-// call_pure
+// call_pure_packed
 
-StructInfo InferStructInfoCallPure(const Call& call, const BlockBuilder& ctx) {
+StructInfo InferStructInfoCallPurePacked(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() < 1) {
     ctx->ReportFatal(Diagnostic::Error(call)
-                     << "call_pure must be called with at least one argument");
+                     << "call_pure_packed must be called with at least one argument");
   }
+
+  // the callee must be an opaque function
+  auto callee = call->args[0];
+  ICHECK(!callee.as<OpNode>()) << "call_pure_packed cannot be used with an op node";
+  auto opt = MatchStructInfo<FuncStructInfo>(callee);
+  ICHECK(opt) << "Callee must have a function struct info";
+  FuncStructInfo finfo = opt.value();
+  ICHECK(finfo->IsOpaque()) << "call_pure_packed must be called with an opaque function, but "
+                            << callee << " is not opaque";
 
   // derives the struct info of the result as it would for a call to the inner args
-  auto callee = call->args[0];
   auto hypothetical_call = UnwrapCallPure(call);
-
-  // This is copied over from BlockBuilder::InferStructInfo.
-  // We can factor that out or expose it if we anticipate it will change
-  // or be used in more places.
-  tvm::OpAttrMap<FInferStructInfo> op_map_infer_struct_info_ =
-      Op::GetAttrMap<FInferStructInfo>("FInferStructInfo");
-
-  if (auto* op_ptr = callee.as<OpNode>()) {
-    // For ops, use FInferStructInfo
-    Op op = GetRef<Op>(op_ptr);
-    ICHECK(op_map_infer_struct_info_.count(op))
-        << " Cannot find the FInferStructInfo attribute registered to op: " << op->name;
-    return op_map_infer_struct_info_[op](hypothetical_call, ctx);
-  } else {
-    // Otherwise use the callee's StructInfo to derive the result
-    ICHECK(callee->struct_info_.defined());
-    auto opt = MatchStructInfo<FuncStructInfo>(callee);
-    ICHECK(opt) << "Callee must contain a function struct info";
-    FuncStructInfo finfo = opt.value();
-    return DeriveCallRetStructInfo(finfo, hypothetical_call, ctx, ctx->GetAnalyzer());
-  }
+  return DeriveCallRetStructInfo(finfo, hypothetical_call, ctx, ctx->GetAnalyzer());
 }
 
-RELAY_REGISTER_OP("relax.call_pure")
+RELAY_REGISTER_OP("relax.call_pure_packed")
     .set_num_inputs(-1)
     .add_argument("args", "Array<Expr>",
-                  "The first argument is the op or function being called. The rest are the "
-                  "arguments to that op or function.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallPure)
+                  "The first argument is the function being called. The rest are the "
+                  "arguments to that function.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallPurePacked)
     .set_attr<Bool>("FPurity", Bool(true));
 
-Expr MakeCallPure(const Call& inner_call) { return WrapCallPure(inner_call); }
+Expr MakeCallPurePacked(const Call& inner_call) { return WrapCallPure(inner_call); }
 
-TVM_REGISTER_GLOBAL("relax.op.call_pure").set_body_typed(MakeCallPure);
+TVM_REGISTER_GLOBAL("relax.op.call_pure_packed").set_body_typed(MakeCallPurePacked);
 
 // call_tir
 
@@ -187,7 +175,8 @@ RELAY_REGISTER_OP("relax.call_dps_packed")
     .add_argument("args", "Tuple", "The input arguments.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallDPSPacked)
     // we could be smarter and set it to have the purity of the called PackedFunc,
-    // though we would need a more complicated interface than this to figure that out
+    // though we would need a more complicated interface than this to figure that out;
+    // call_pure_dps_packed is used for that case instead
     .set_attr<Bool>("FPurity", Bool(false));
 
 Expr MakeCallDPSPacked(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list) {
@@ -211,6 +200,22 @@ Expr MakeCallDPSPacked(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_
 }
 
 TVM_REGISTER_GLOBAL("relax.op.call_dps_packed").set_body_typed(MakeCallDPSPacked);
+
+// call_pure_dps_packed
+
+RELAY_REGISTER_OP("relax.call_pure_dps_packed")
+    .set_num_inputs(2)
+    .add_argument("func", "Expr", "The destination-passing-style function.")
+    .add_argument("args", "Tuple", "The input arguments.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallDPSPacked)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+Expr MakeCallPureDPSPacked(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list) {
+  auto inner_call = MakeCallDPSPacked(func, args, out_sinfo_list);
+  return WrapCallPure(Downcast<Call>(inner_call));
+}
+
+TVM_REGISTER_GLOBAL("relax.op.call_pure_dps_packed").set_body_typed(MakeCallPureDPSPacked);
 
 // call builtin
 StructInfo InferStructInfoCallBuiltinWithCtx(const Call& call, const BlockBuilder& ctx) {
@@ -349,8 +354,7 @@ RELAY_REGISTER_OP("relax.invoke_closure")
     .add_argument("closure", "Expr", "The VMClosure.")
     .add_argument("args", "Tuple", "The captured variables.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoInvokeClosure)
-    // TODO(relax-team): This might be another case where we would want a macro instead of a bool.
-    // The purity may depend on the particulars of the closure
+    // Not all closures are pure. Use invoke_pure_closure for specifying purity
     .set_attr<Bool>("FPurity", Bool(false));
 
 Expr InvokeClosure(Expr closure, Tuple args, Array<StructInfo> sinfo_args) {
@@ -359,6 +363,22 @@ Expr InvokeClosure(Expr closure, Tuple args, Array<StructInfo> sinfo_args) {
 }
 
 TVM_REGISTER_GLOBAL("relax.op.invoke_closure").set_body_typed(InvokeClosure);
+
+// invoke_pure_closure
+
+RELAY_REGISTER_OP("relax.invoke_pure_closure")
+    .set_num_inputs(2)
+    .add_argument("closure", "Expr", "The VMClosure.")
+    .add_argument("args", "Tuple", "The captured variables.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoInvokeClosure)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+Expr InvokePureClosure(Expr closure, Tuple args, Array<StructInfo> sinfo_args) {
+  static const Op& op = Op::Get("relax.invoke_pure_closure");
+  return Call(op, {closure, args}, {}, sinfo_args);
+}
+
+TVM_REGISTER_GLOBAL("relax.op.invoke_pure_closure").set_body_typed(InvokePureClosure);
 
 // shape_of
 

@@ -264,8 +264,8 @@ class WellFormedChecker : public relax::ExprVisitor,
         ContainsImpureCall(op->body)) {
       Malformed(Diagnostic::Error(op)
                 << "Function " << op << " is annotated as pure but contains an impure call; "
-                << "please use the ForcePure attribute or wrap the call with call_pure "
-                << "if it should be considered pure despite containing an impure call.");
+                << "please use the ForcePure attribute or a pure operator variant "
+                << "(e.g., call_pure_packed) if it is necessary to override this judgment.");
     }
 
     if (auto seq = op->body.as<SeqExprNode>()) {

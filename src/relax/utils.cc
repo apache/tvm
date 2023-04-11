@@ -126,12 +126,25 @@ bool IsImpureCall(const Call& call) {
 }
 
 Call WrapCallPure(const Call& call) {
-  static const Op& call_pure_op = Op::Get("relax.call_pure");
-  Array<Expr> call_pure_args = {call->op};
-  for (auto arg : call->args) {
-    call_pure_args.push_back(arg);
+  static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
+  static const Op& call_pure_dps_packed_op = Op::Get("relax.call_pure_dps_packed");
+  static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
+  static const Op& invoke_closure_op = Op::Get("relax.invoke_closure");
+  static const Op& invoke_pure_closure_op = Op::Get("relax.invoke_pure_closure");
+
+  Call ret;
+  if (call->op == call_dps_packed_op) {
+    ret = std::move(Call(call_pure_dps_packed_op, call->args, call->attrs, call->sinfo_args));
+  } else if (call->op == invoke_closure_op) {
+    ret = std::move(Call(invoke_pure_closure_op, call->args, call->attrs, call->sinfo_args));
+  } else {
+    Array<Expr> call_args = {call->op};
+    for (auto arg : call->args) {
+      call_args.push_back(arg);
+    }
+    ret = std::move(Call(call_pure_packed_op, call_args, call->attrs, call->sinfo_args));
   }
-  auto ret = Call(call_pure_op, call_pure_args, call->attrs, call->sinfo_args);
+
   // transfer over struct info if we can
   if (call->struct_info_) {
     UpdateStructInfo(ret, GetStructInfo(call));
@@ -140,11 +153,28 @@ Call WrapCallPure(const Call& call) {
 }
 
 Call UnwrapCallPure(const Call& call) {
-  static const Op& call_pure_op = Op::Get("relax.call_pure");
-  ICHECK(call->op == call_pure_op) << "UnwrapCallPure must be used with calls to call_pure";
-  ICHECK(call->args.size() >= 1) << "call_pure must be called with at least one arg";
-  auto ret = Call(call->args[0], Array<Expr>(call->args.begin() + 1, call->args.end()), call->attrs,
-                  call->sinfo_args);
+  static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
+  static const Op& call_pure_dps_packed_op = Op::Get("relax.call_pure_dps_packed");
+  static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
+  static const Op& invoke_pure_closure_op = Op::Get("relax.invoke_pure_closure");
+  static const Op& invoke_closure_op = Op::Get("relax.invoke_closure");
+
+  ICHECK(call->op == call_pure_packed_op || call->op == call_pure_dps_packed_op ||
+         call->op == invoke_pure_closure_op)
+      << "UnwrapCallPurePacked must be used with calls to call_pure_packed, call_pure_packed_dps, "
+         "or invoke_pure_closure";
+  ICHECK(call->args.size() >= 1)
+      << "call_pure_packed or call_pure_packed_dps must be called with at least one arg";
+  Call ret;
+  if (call->op == call_pure_dps_packed_op) {
+    ret = std::move(Call(call_dps_packed_op, call->args, call->attrs, call->sinfo_args));
+  } else if (call->op == invoke_pure_closure_op) {
+    ret = std::move(Call(invoke_closure_op, call->args, call->attrs, call->sinfo_args));
+  } else {
+    ret = std::move(Call(call->args[0], Array<Expr>(call->args.begin() + 1, call->args.end()),
+                         call->attrs, call->sinfo_args));
+  }
+
   // transfer over struct info if we can
   if (call->struct_info_) {
     UpdateStructInfo(ret, GetStructInfo(call));

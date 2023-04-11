@@ -91,7 +91,7 @@ class LambdaLifter : public ExprMutator {
         auto ret = Call(invoke_closure_op_, {clo_arg, Tuple(call_node->args)}, {},
                         {GetStructInfo(GetRef<Expr>(call_node))});
 
-        // if the original op was pure, we will insert call_pure as well
+        // if the original op was pure, we should use invoke_pure_closure
         Call orig_call = Downcast<Call>(val);
         bool purity;
         if (orig_call->op.as<OpNode>()) {

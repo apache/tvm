@@ -95,7 +95,9 @@ Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const ObjectPath& 
                                         const IRDocsifier& d) {
   static const Op& call_tir_op = Op::Get("relax.call_tir");
   static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
-  if (!n->op.same_as(call_tir_op) && !n->op.same_as(call_dps_packed_op)) {
+  static const Op& call_pure_dps_packed_op = Op::Get("relax.call_pure_dps_packed");
+  if (!n->op.same_as(call_tir_op) && !n->op.same_as(call_dps_packed_op) &&
+      !n->op.same_as(call_pure_dps_packed_op)) {
     return NullOpt;
   }
   ICHECK(n->args.size() == 2 || n->args.size() == 3);
@@ -123,6 +125,8 @@ Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const ObjectPath& 
   }
   if (n->op.same_as(call_dps_packed_op)) {
     return Relax(d, "call_dps_packed")->Call(args, kwargs_keys, kwargs_values);
+  } else if (n->op.same_as(call_pure_dps_packed_op)) {
+    return Relax(d, "call_pure_dps_packed")->Call(args, kwargs_keys, kwargs_values);
   }
   // Step 4. Print n->args[2], the tir variables
   if (n->args.size() == 3) {
@@ -130,18 +134,6 @@ Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const ObjectPath& 
     kwargs_values.push_back(d->AsDoc<ExprDoc>(n->args[2], n_p->Attr("args")->ArrayIndex(2)));
   }
   return Relax(d, "call_tir")->Call(args, kwargs_keys, kwargs_values);
-}
-
-Optional<ExprDoc> PrintCallPure(const relax::Call& n, const ObjectPath& n_p, const IRDocsifier& d) {
-  static const Op& call_pure_op = Op::Get("relax.call_pure");
-  if (!n->op.same_as(call_pure_op)) {
-    return NullOpt;
-  }
-  ICHECK(n->args.size() >= 1);
-  // just wrap R.call_pure around the inner call
-  auto inner_call = UnwrapCallPure(n);
-  auto inner_call_doc = d->AsDoc<ExprDoc>(inner_call, n_p->Attr("args")->ArrayIndex(0));
-  return Relax(d, "call_pure")->Call({inner_call_doc});
 }
 
 Optional<ExprDoc> PrintAssertOp(const relax::Call& n, const ObjectPath& n_p, const IRDocsifier& d) {
@@ -185,12 +177,8 @@ Optional<ExprDoc> PrintRelaxPrint(const relax::Call& n, const ObjectPath& n_p,
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::Call>(  //
         "", [](relax::Call n, ObjectPath n_p, IRDocsifier d) -> Doc {
-          // Special case: call_tir, call_dps_packed
+          // Special case: call_tir, call_dps_packed, call_pure_dps_packed
           if (Optional<ExprDoc> doc = PrintCallTIRDPSPacked(n, n_p, d)) {
-            return doc.value();
-          }
-          // Special case: call_pure
-          if (Optional<ExprDoc> doc = PrintCallPure(n, n_p, d)) {
             return doc.value();
           }
           // Special case: assert_op
