@@ -74,6 +74,27 @@ void ThreadBind(tir::Schedule sch, const tir::BlockRV& block, int64_t max_thread
   }
 }
 
+IRModule MarkScheduled(const IRModule& mod) {
+  Map<GlobalVar, BaseFunc> result;
+
+  for (const auto& [gv, base_func] : mod->functions) {
+    if (const auto* prim_func_node = base_func.as<tir::PrimFuncNode>()) {
+      tir::PrimFunc prim_func = GetRef<tir::PrimFunc>(prim_func_node);
+      tir::PrimFunc new_prim_func =
+          WithAttr(std::move(prim_func), tir::attr::kIsScheduled, Bool(true));
+      result.Set(gv, new_prim_func);
+    } else {
+      result.Set(gv, base_func);
+    }
+  }
+
+  return IRModule(result,                 // functions
+                  mod->type_definitions,  // type_definitions
+                  mod->import_set_,       // import_set
+                  mod->source_map,        // map
+                  mod->attrs);            // attrs);
+}
+
 Pass DefaultGPUSchedule() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
       [=](IRModule m, PassContext pc) {
@@ -96,7 +117,7 @@ Pass DefaultGPUSchedule() {
             }
           }
         }
-        return sch->mod();
+        return MarkScheduled(sch->mod());
       };
   return CreateModulePass(/*pass_function=*/pass_func,         //
                           /*opt_level=*/0,                     //
