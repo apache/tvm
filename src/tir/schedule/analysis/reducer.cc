@@ -540,6 +540,13 @@ bool ReductionIterNotIndexOutputBuffer(const Block& block) {
   for (const BufferRegion& write_region : block->writes) {
     buffer_written.insert(write_region->buffer.get());
   }
+
+  std::unordered_set<const BufferNode*> buffer_allocated;
+  buffer_allocated.reserve(block->alloc_buffers.size());
+  for (const Buffer& buffer : block->alloc_buffers) {
+    buffer_allocated.insert(buffer.get());
+  }
+
   auto f_uses_reduction_block_var = [&](const PrimExpr& expr) -> bool {
     return UsesVar(expr, [&](const VarNode* var) {  //
       return reduction_block_iters.count(var);
@@ -569,7 +576,8 @@ bool ReductionIterNotIndexOutputBuffer(const Block& block) {
     bool write_is_covered_by_match_buffer =
         match_buffer_sources.count(store->buffer.get()) &&
         buffer_written.count(match_buffer_sources.find(store->buffer.get())->second);
-    ICHECK(buffer_written.count(store->buffer.get()) || write_is_covered_by_match_buffer)
+    ICHECK(buffer_written.count(store->buffer.get()) || write_is_covered_by_match_buffer ||
+           buffer_allocated.count(store->buffer.get()))
         << "ValueError: The buffer \"" << store->buffer
         << "\" is written in the block but is not in the block's signature nor is it covered by "
            "a match_buffer";
