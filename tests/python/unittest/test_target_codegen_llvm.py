@@ -1002,5 +1002,25 @@ def test_llvm_assume():
     m = tvm.build(mod, [inp, out], target="llvm")
 
 
+@tvm.testing.requires_llvm
+def test_debug_symbol_for_float64():
+    """Check that LLVM can define DWARF debug type for float64
+
+    In previous versions, only specific data types could exist in the
+    function signature.  In this test, the "calling_conv" attribute
+    prevents lowering to the PackedFunc API.
+    """
+
+    @T.prim_func
+    def func(a: T.handle("float64"), b: T.handle("float64"), n: T.int64):
+        T.func_attr({"calling_conv": 2})
+        A = T.Buffer(16, "float64", data=a)
+        B = T.Buffer(16, "float64", data=b)
+        for i in range(n):
+            B[i] = A[i]
+
+    tvm.build(func, target="llvm")
+
+
 if __name__ == "__main__":
     tvm.testing.main()
