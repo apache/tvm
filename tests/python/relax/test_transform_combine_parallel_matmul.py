@@ -32,6 +32,8 @@ def get_parallel_matmul(
 ):
     dtype = "float32"
 
+    activation_map = {"relu": R.nn.relu, "gelu": R.nn.gelu}
+
     with IRBuilder() as builder:
         with relax_builder.function():
             R.func_name("main")
@@ -55,8 +57,8 @@ def get_parallel_matmul(
                     result = R.emit(R.matmul(x, r, out_dtype=dtype))
                     if bias[i]:
                         result = R.emit(result + bias[i])
-                    if activation is not None:
-                        result = R.emit(activation(result))
+                    if activation and activation[i]:
+                        result = R.emit(activation_map[activation[i]](result))
 
                     branches.append(result)
 
@@ -69,6 +71,11 @@ def get_parallel_matmul(
 
 
 def test_simple():
+    mod_orig = get_parallel_matmul(1)
+    mod = CombineParallelMatmul()(mod_orig)
+
+    tvm.ir.assert_structural_equal(mod, mod_orig)
+
     mod = get_parallel_matmul(3)
     mod = CombineParallelMatmul()(mod)
 
@@ -170,6 +177,293 @@ def test_bias():
     tvm.ir.assert_structural_equal(mod["main"], expected2)
 
 
+def test_activation():
+    mod = get_parallel_matmul(3, activation=["relu", "relu", "relu"])
+    mod = CombineParallelMatmul()(mod)
+
+    @R.function
+    def expected1(
+        x: R.Tensor((640, 640), dtype="float32"),
+        y: R.Tensor((640, 640), dtype="float32"),
+        y_1: R.Tensor((640, 640), dtype="float32"),
+        y_2: R.Tensor((640, 640), dtype="float32"),
+    ) -> R.Tensor((640, 1920), dtype="float32"):
+        with R.dataflow():
+            lv = R.concat((y, y_1, y_2), axis=1)
+            lv1 = R.matmul(x, lv, out_dtype="float32")
+            lv2 = R.nn.relu(lv1)
+            lv1_1 = R.strided_slice(lv2, axes=[1], begin=[0], end=[640], strides=[1])
+            lv3 = R.strided_slice(lv2, axes=[1], begin=[640], end=[1280], strides=[1])
+            lv5 = R.strided_slice(lv2, axes=[1], begin=[1280], end=[1920], strides=[1])
+            lv6 = R.concat((lv1_1, lv3, lv5), axis=1)
+            R.output(lv6)
+        return lv6
+
+    tvm.ir.assert_structural_equal(mod["main"], expected1)
+
+    mod = get_parallel_matmul(3, activation=["gelu", "relu", "relu"])
+    mod = CombineParallelMatmul()(mod)
+
+    @R.function
+    def expected2(
+        x: R.Tensor((640, 640), dtype="float32"),
+        y: R.Tensor((640, 640), dtype="float32"),
+        y_1: R.Tensor((640, 640), dtype="float32"),
+        y_2: R.Tensor((640, 640), dtype="float32"),
+    ) -> R.Tensor((640, 1920), dtype="float32"):
+        with R.dataflow():
+            lv = R.concat((y, y_1, y_2), axis=1)
+            lv1 = R.matmul(x, lv, out_dtype="float32")
+            lv_1 = R.strided_slice(lv1, axes=[1], begin=[0], end=[640], strides=[1])
+            lv1_1 = R.nn.gelu(lv_1)
+            lv2 = R.strided_slice(lv1, axes=[1], begin=[640], end=[1280], strides=[1])
+            lv3 = R.nn.relu(lv2)
+            lv4 = R.strided_slice(lv1, axes=[1], begin=[1280], end=[1920], strides=[1])
+            lv5 = R.nn.relu(lv4)
+            lv6 = R.concat((lv1_1, lv3, lv5), axis=1)
+            R.output(lv6)
+        return lv6
+
+    tvm.ir.assert_structural_equal(mod["main"], expected2)
+
+    mod = get_parallel_matmul(3, activation=["relu", None, None])
+    mod = CombineParallelMatmul()(mod)
+
+    @R.function
+    def expected3(
+        x: R.Tensor((640, 640), dtype="float32"),
+        y: R.Tensor((640, 640), dtype="float32"),
+        y_1: R.Tensor((640, 640), dtype="float32"),
+        y_2: R.Tensor((640, 640), dtype="float32"),
+    ) -> R.Tensor((640, 1920), dtype="float32"):
+        with R.dataflow():
+            lv = R.concat((y, y_1, y_2), axis=1)
+            lv1 = R.matmul(x, lv, out_dtype="float32")
+            lv_1 = R.strided_slice(lv1, axes=[1], begin=[0], end=[640], strides=[1])
+            lv1_1 = R.nn.relu(lv_1)
+            lv2 = R.strided_slice(lv1, axes=[1], begin=[640], end=[1280], strides=[1])
+            lv3 = R.strided_slice(lv1, axes=[1], begin=[1280], end=[1920], strides=[1])
+            lv4 = R.concat((lv1_1, lv2, lv3), axis=1)
+            R.output(lv4)
+        return lv4
+
+    tvm.ir.assert_structural_equal(mod["main"], expected3)
+
+
+def test_bias_activation():
+    mod = get_parallel_matmul(3, with_bias=[True, True, True], activation=["relu", "relu", "relu"])
+    mod = CombineParallelMatmul()(mod)
+
+    @R.function
+    def expected1(
+        x: R.Tensor((640, 640), dtype="float32"),
+        y: R.Tensor((640, 640), dtype="float32"),
+        bias: R.Tensor((640,), dtype="float32"),
+        y_1: R.Tensor((640, 640), dtype="float32"),
+        bias_1: R.Tensor((640,), dtype="float32"),
+        y_2: R.Tensor((640, 640), dtype="float32"),
+        bias_2: R.Tensor((640,), dtype="float32"),
+    ) -> R.Tensor((640, 1920), dtype="float32"):
+        with R.dataflow():
+            lv = R.concat((y, y_1, y_2), axis=1)
+            lv1 = R.matmul(x, lv, out_dtype="float32")
+            lv2 = R.concat((bias, bias_1, bias_2), axis=0)
+            lv3 = R.add(lv1, lv2)
+            lv4 = R.nn.relu(lv3)
+            lv2_1 = R.strided_slice(lv4, axes=[1], begin=[0], end=[640], strides=[1])
+            lv5 = R.strided_slice(lv4, axes=[1], begin=[640], end=[1280], strides=[1])
+            lv8 = R.strided_slice(lv4, axes=[1], begin=[1280], end=[1920], strides=[1])
+            lv9 = R.concat((lv2_1, lv5, lv8), axis=1)
+            R.output(lv9)
+        return lv9
+
+    tvm.ir.assert_structural_equal(mod["main"], expected1)
+
+    mod = get_parallel_matmul(3, with_bias=[True, True, True], activation=["relu", None, "relu"])
+    mod = CombineParallelMatmul()(mod)
+
+    @R.function
+    def expected2(
+        x: R.Tensor((640, 640), dtype="float32"),
+        y: R.Tensor((640, 640), dtype="float32"),
+        bias: R.Tensor((640,), dtype="float32"),
+        y_1: R.Tensor((640, 640), dtype="float32"),
+        bias_1: R.Tensor((640,), dtype="float32"),
+        y_2: R.Tensor((640, 640), dtype="float32"),
+        bias_2: R.Tensor((640,), dtype="float32"),
+    ) -> R.Tensor((640, 1920), dtype="float32"):
+        with R.dataflow():
+            lv = R.concat((y, y_1, y_2), axis=1)
+            lv1 = R.matmul(x, lv, out_dtype="float32")
+            lv2 = R.concat((bias, bias_1, bias_2), axis=0)
+            lv3 = R.add(lv1, lv2)
+            lv1_1 = R.strided_slice(lv3, axes=[1], begin=[0], end=[640], strides=[1])
+            lv2_1 = R.nn.relu(lv1_1)
+            lv4 = R.strided_slice(lv3, axes=[1], begin=[640], end=[1280], strides=[1])
+            lv6 = R.strided_slice(lv3, axes=[1], begin=[1280], end=[1920], strides=[1])
+            lv7 = R.nn.relu(lv6)
+            lv8 = R.concat((lv2_1, lv4, lv7), axis=1)
+            R.output(lv8)
+        return lv8
+
+    tvm.ir.assert_structural_equal(mod["main"], expected2)
+
+    mod = get_parallel_matmul(3, with_bias=[True, False, True], activation=["relu", None, "relu"])
+    mod = CombineParallelMatmul()(mod)
+
+    @R.function
+    def expected3(
+        x: R.Tensor((640, 640), dtype="float32"),
+        y: R.Tensor((640, 640), dtype="float32"),
+        bias: R.Tensor((640,), dtype="float32"),
+        y_1: R.Tensor((640, 640), dtype="float32"),
+        y_2: R.Tensor((640, 640), dtype="float32"),
+        bias_1: R.Tensor((640,), dtype="float32"),
+    ) -> R.Tensor((640, 1920), dtype="float32"):
+        with R.dataflow():
+            lv = R.concat((y, y_1, y_2), axis=1)
+            lv1 = R.matmul(x, lv, out_dtype="float32")
+            lv_1 = R.strided_slice(lv1, axes=[1], begin=[0], end=[640], strides=[1])
+            lv1_1 = R.add(lv_1, bias)
+            lv2 = R.nn.relu(lv1_1)
+            lv3 = R.strided_slice(lv1, axes=[1], begin=[640], end=[1280], strides=[1])
+            lv4 = R.strided_slice(lv1, axes=[1], begin=[1280], end=[1920], strides=[1])
+            lv5 = R.add(lv4, bias_1)
+            lv6 = R.nn.relu(lv5)
+            lv7 = R.concat((lv2, lv3, lv6), axis=1)
+            R.output(lv7)
+        return lv7
+
+    tvm.ir.assert_structural_equal(mod["main"], expected3)
+
+
+def test_rhs_batched():
+    @tvm.script.ir_module
+    class four_matmul:
+        @R.function
+        def main(
+            x: R.Tensor((1024, 640), "float32"),
+            w0: R.Tensor((2, 640, 640), "float32"),
+            w1: R.Tensor((640, 640), "float32"),
+            w2: R.Tensor((2, 640, 640), "float32"),
+            w3: R.Tensor((3, 4, 640, 640), "float32"),
+        ) -> R.Tensor:
+            with R.dataflow():
+                lv0 = R.matmul(x, w0)
+                lv1 = R.matmul(x, w1)
+                lv2 = R.matmul(x, w2)
+                lv3 = R.matmul(x, w3)
+                out = (lv0, lv1, lv2, lv3)
+                R.output(out)
+            return out
+
+    mod = CombineParallelMatmul()(four_matmul)
+
+    @R.function
+    def expected1(
+        x: R.Tensor((1024, 640), dtype="float32"),
+        w0: R.Tensor((2, 640, 640), dtype="float32"),
+        w1: R.Tensor((640, 640), dtype="float32"),
+        w2: R.Tensor((2, 640, 640), dtype="float32"),
+        w3: R.Tensor((3, 4, 640, 640), dtype="float32"),
+    ) -> R.Tensor:
+        with R.dataflow():
+            lv = R.concat((w0, w2), axis=2)
+            lv1 = R.matmul(x, lv, out_dtype="float32")
+            lv0 = R.strided_slice(lv1, axes=[2], begin=[0], end=[640], strides=[1])
+            lv1_1 = R.matmul(x, w1, out_dtype="void")
+            lv2 = R.strided_slice(lv1, axes=[2], begin=[640], end=[1280], strides=[1])
+            lv3 = R.matmul(x, w3, out_dtype="void")
+            out = lv0, lv1_1, lv2, lv3
+            R.output(out)
+        return out
+
+    tvm.ir.assert_structural_equal(mod["main"], expected1)
+
+    @tvm.script.ir_module
+    class four_matmul_incompatible_batches:
+        @R.function
+        def main(
+            x: R.Tensor((1024, 640), "float32"),
+            w0: R.Tensor((2, 640, 640), "float32"),
+            w1: R.Tensor((3, 640, 640), "float32"),
+            w2: R.Tensor((2, 640, 640), "float32"),
+            w3: R.Tensor((2, 640, 640), "float32"),
+        ) -> R.Tensor:
+            with R.dataflow():
+                lv0 = R.matmul(x, w0)
+                lv1 = R.matmul(x, w1)
+                lv2 = R.matmul(x, w2)
+                lv3 = R.matmul(x, w3)
+                out = (lv0, lv1, lv2, lv3)
+                R.output(out)
+            return out
+
+    mod = CombineParallelMatmul()(four_matmul_incompatible_batches)
+    # For now, when rhs matrices have the same rank but different batch sizes, we don't
+    # combine any of them.
+    tvm.ir.assert_structural_equal(mod, four_matmul_incompatible_batches)
+
+
+def test_multiple_combine():
+    @tvm.script.ir_module
+    class multiple_combine:
+        @R.function
+        def main(
+            x1: R.Tensor((2, 1024, 640), "float32"),
+            x2: R.Tensor((2, 1024, 640), "float32"),
+            w0: R.Tensor((640, 640), "float32"),
+            w1: R.Tensor((640, 640), "float32"),
+            w2: R.Tensor((640, 640), "float32"),
+            w3: R.Tensor((640, 640), "float32"),
+            w4: R.Tensor((640, 640), "float32"),
+            b0: R.Tensor((640,), "float32"),
+            b1: R.Tensor((640,), "float32"),
+        ) -> R.Tensor:
+            with R.dataflow():
+                lv0 = R.matmul(x1, w0)
+                lv3 = R.matmul(x2, w3)
+                lv1 = R.matmul(x1, w1)
+                lv5 = R.add(lv3, b0)
+                lv2 = R.matmul(x1, w2)
+                lv4 = R.matmul(x2, w4)
+                lv6 = R.add(lv4, b1)
+                out = (lv0, lv1, lv2, lv5, lv6)
+                R.output(out)
+            return out
+
+    mod = CombineParallelMatmul()(multiple_combine)
+
+    @R.function
+    def expected1(
+        x1: R.Tensor((2, 1024, 640), dtype="float32"),
+        x2: R.Tensor((2, 1024, 640), dtype="float32"),
+        w0: R.Tensor((640, 640), dtype="float32"),
+        w1: R.Tensor((640, 640), dtype="float32"),
+        w2: R.Tensor((640, 640), dtype="float32"),
+        w3: R.Tensor((640, 640), dtype="float32"),
+        w4: R.Tensor((640, 640), dtype="float32"),
+        b0: R.Tensor((640,), dtype="float32"),
+        b1: R.Tensor((640,), dtype="float32"),
+    ) -> R.Tensor:
+        with R.dataflow():
+            lv = R.concat((w0, w1, w2), axis=1)
+            lv1 = R.matmul(x1, lv, out_dtype="float32")
+            lv0 = R.strided_slice(lv1, axes=[2], begin=[0], end=[640], strides=[1])
+            lv1_1 = R.strided_slice(lv1, axes=[2], begin=[640], end=[1280], strides=[1])
+            lv_1 = R.concat((w3, w4), axis=1)
+            lv1_2 = R.matmul(x2, lv_1, out_dtype="float32")
+            lv2 = R.concat((b0, b1), axis=0)
+            lv3 = R.add(lv1_2, lv2)
+            lv5 = R.strided_slice(lv3, axes=[2], begin=[0], end=[640], strides=[1])
+            lv2_1 = R.strided_slice(lv1, axes=[2], begin=[1280], end=[1920], strides=[1])
+            lv6 = R.strided_slice(lv3, axes=[2], begin=[640], end=[1280], strides=[1])
+            out = lv0, lv1_1, lv2_1, lv5, lv6
+            R.output(out)
+        return out
+
+    tvm.ir.assert_structural_equal(mod["main"], expected1)
+
+
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_bias()
+    tvm.testing.main()

@@ -161,11 +161,11 @@ runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>)> GetRewriter(
       }
 
       if (branch_info.activation) {
-        if (*branch_info.activation == "relu") {
+        if (*branch_info.activation == "relax.nn.relu") {
           matmul_combined = relu(matmul_combined);
-        } else if (*branch_info.activation == "gelu") {
+        } else if (*branch_info.activation == "relax.nn.gelu") {
           matmul_combined = gelu(matmul_combined);
-        } else if (*branch_info.activation == "silu") {
+        } else if (*branch_info.activation == "relax.nn.silu") {
           matmul_combined = silu(matmul_combined);
         } else {
           LOG(FATAL) << "Unsupported activation: " << *branch_info.activation;
@@ -231,7 +231,8 @@ std::vector<BranchInfo> GetBranchInfo(Function f) {
         }
 
         for (size_t i = 0; i < activations.size(); ++i) {
-          if (match.value().count(activation_pat[i])) {
+          if (match.value().count(activation_pat[i]) ||
+              match.value().count(bias_activation_pat[i])) {
             activation = activations[i];
           }
         }
