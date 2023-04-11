@@ -957,6 +957,7 @@ def RewriteCUDAGraph() -> tvm.ir.transform.Pass:
     Returns
     -------
     ret: tvm.ir.transform.Pass
+        The registered pass for rewriting cuda graph
     """
     return _ffi_api.RewriteCUDAGraph()  # type: ignore
 
