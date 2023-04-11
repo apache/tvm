@@ -59,6 +59,8 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
       auto sinfo = GetStructInfo(arg);
       if (const auto* tensor_sinfo = sinfo.as<TensorStructInfoNode>()) {
         arg_types.emplace_back(backend::DType2String(tensor_sinfo->dtype));
+      } else if (const auto* shape_sinfo = sinfo.as<ShapeStructInfoNode>()) {
+        arg_types.emplace_back(backend::DType2String(shape_sinfo->values.value()[0]->dtype));
       } else {
         LOG(FATAL) << "Unimplemented";
       }

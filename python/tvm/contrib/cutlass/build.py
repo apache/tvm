@@ -546,12 +546,17 @@ def _extract_relax_function_signature(f):
 
     for i, arg in enumerate(f.params):
         sinfo = arg.struct_info
-        signature["arg%d_shape" % i] = get_const_tuple(sinfo.shape)
-        signature["arg%d_dtype" % i] = sinfo.dtype
+        if isinstance(sinfo, relax.TensorStructInfo):
+            signature["arg%d_shape" % i] = get_const_tuple(sinfo.shape)
+            signature["arg%d_dtype" % i] = sinfo.dtype
+        elif isinstance(sinfo, relax.ShapeStructInfo):
+            signature["arg%d_shape" % i] = get_const_tuple(sinfo.values)
+        else:
+            raise NotImplementedError()
 
     ret_sinfo = f.ret_struct_info
     if ret_sinfo.shape is not None:
-        signature["ret_shape"] = list(ret_sinfo.shape)
+        signature["ret_shape"] = get_const_tuple(ret_sinfo.shape)
     else:
         signature["ret_shape"] = None
     signature["ret_dtype"] = ret_sinfo.dtype
@@ -779,34 +784,42 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
             op_attrs = _get_call_node(f.body, "relax.nn.attention_bias").attrs
         else:
             raise ValueError(f"Cannot find call node for attention")
-        q_shape = signature["arg0_shape"]
-        k_shape = signature["arg1_shape"]
-        v_shape = signature["arg2_shape"]
+        arg = {}
+
+        if "stacked_attention" in op_type:
+            arg["arg0_shape"] = signature["arg0_shape"]
+            arg["arg0_dtype"] = signature["arg0_dtype"]
+            arg["arg1_shape"] = q_shape = signature["arg1_shape"]
+            arg["arg2_shape"] = k_shape = signature["arg2_shape"]
+            arg["arg3_shape"] = v_shape = signature["arg3_shape"]
+            if "arg4_dtype" in signature:
+                arg["bias_dtype"] = signature["arg4_dtype"]
+            if "arg4_shape" in signature:
+                arg["bias_shape"] = signature["arg4_shape"]
+            qkv_layout = "qkv_stacked"
+        else:
+            arg["arg0_shape"] = q_shape = signature["arg0_shape"]
+            arg["arg1_shape"] = k_shape = signature["arg1_shape"]
+            arg["arg2_shape"] = v_shape = signature["arg2_shape"]
+            arg["arg0_dtype"] = signature["arg0_dtype"]
+            arg["arg1_dtype"] = signature["arg1_dtype"]
+            arg["arg2_dtype"] = signature["arg2_dtype"]
+            if "arg3_dtype" in signature:
+                arg["bias_dtype"] = signature["arg3_dtype"]
+            if "arg3_shape" in signature:
+                arg["bias_shape"] = signature["arg3_shape"]
+            qkv_layout = "default"
         out_shape = signature["ret_shape"]
-        q_dtype = signature["arg0_dtype"]
-        k_dtype = signature["arg1_dtype"]
-        v_dtype = signature["arg2_dtype"]
         out_dtype = signature["ret_dtype"]
         num_batches, num_queries, num_heads, head_dim = q_shape
         _, num_keys, _, _ = k_shape
         _, _, _, head_dim_value = v_shape
         scale = op_attrs.scale
-        bias = {}
-        if "arg3_dtype" in signature:
-            bias["arg3_dtype"] = signature["arg3_dtype"]
-        if "arg3_shape" in signature:
-            bias["arg3_shape"] = signature["arg3_shape"]
 
         return f.with_attrs(
             {
                 "op_type": op_type,
-                "arg0_dtype": q_dtype,
-                "arg1_dtype": k_dtype,
-                "arg2_dtype": v_dtype,
                 "ret_dtype": out_dtype,
-                "arg0_shape": q_shape,
-                "arg1_shape": k_shape,
-                "arg2_shape": v_shape,
                 "ret_shape": out_shape,
                 "num_batches": num_batches,
                 "num_queries": num_queries,
@@ -816,7 +829,8 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
                 "head_dim_value": head_dim_value,
                 "scale": scale,
                 "arch": self.options["sm"],
-                **bias,
+                "qkv_layout": qkv_layout,
+                **arg,
             }
         )
 

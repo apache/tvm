@@ -29,6 +29,7 @@ from ..patterns import (
     make_fused_bias_activation_pattern,
     make_matmul_pattern,
     make_residual_block_pattern,
+    make_stacked_attention_pattern,
 )
 
 
@@ -243,6 +244,14 @@ def attention_patterns():
         (
             "cutlass.attention_bias",
             *make_attention_pattern(with_bias=True),
+        ),
+        (
+            "cutlass.stacked_attention",
+            *make_stacked_attention_pattern(),
+        ),
+        (
+            "cutlass.stacked_attention",
+            *make_stacked_attention_pattern(with_bias=True),
         ),
     ]
 
