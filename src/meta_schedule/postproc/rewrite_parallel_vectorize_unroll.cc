@@ -144,13 +144,40 @@ void RemoveParsedAnn(const Schedule& sch, const BlockRV& block_rv, const ParsedA
   }
 }
 
+int CalculateNumRewritableLoops(const Array<StmtSRef>& loop_srefs,
+                                const std::vector<int>& loop_types) {
+  int rw_loops_num = 0;
+  ICHECK_EQ(loop_srefs.size(), loop_types.size());
+  for (size_t i = 0; i < loop_srefs.size(); ++i) {
+    const StmtSRef& loop_sref = loop_srefs[i];
+    const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
+    if (HasAnnOrBinding(loop)) {
+      continue;
+    }
+    // Cannot vectorize reduce axis
+    if (loop_types[i] != IterVarType::kDataPar) {
+      continue;
+    }
+    // Cannot fuse with a loop with multiple children
+    if (!IsSingleStmt(loop->body)) {
+      continue;
+    }
+    // Check if the loop extent is valid
+    if (GetLoopIntExtent(loop_sref) == nullptr) {
+      continue;
+    }
+    ++rw_loops_num;
+  }
+  return rw_loops_num;
+}
+
 void AdjustParallelVectorize(const Schedule& sch, const BlockRV& block_rv,
                              const Array<LoopRV>& loop_rvs, ParsedAnnotation* parsed) {
   StmtSRef block_sref = sch->GetSRef(block_rv);
   if (parsed->max_parallel_extent == -1 && parsed->max_vectorize_extent == -1) {
     return;
   }
-  int n_loops = loop_rvs.size();
+  const int n_loops = loop_rvs.size();
   if (n_loops == 0) {
     parsed->max_parallel_extent = -1;
     parsed->max_vectorize_extent = -1;
@@ -226,6 +253,10 @@ void AdjustParallelVectorize(const Schedule& sch, const BlockRV& block_rv,
     }
     max_fusible = std::min(max_fusible, fusible);
   }
+
+  // Calculate how many loops are rewritable, i.e. valid for vectorization and parallelization.
+  int max_rw_loops = CalculateNumRewritableLoops(loop_srefs, loop_types);
+
   // Calculate the parallelize extent
   if (parsed->max_parallel_extent != -1) {
     int max_extent = parsed->max_parallel_extent;
@@ -290,10 +321,17 @@ void AdjustParallelVectorize(const Schedule& sch, const BlockRV& block_rv,
       num_fusible = -1;
     }
   }
-  // Prefer num_vectorize to num_parallel
+
   if (parsed->num_parallel_loops != -1 && parsed->num_vectorize_loops != -1) {
-    parsed->num_parallel_loops = std::min(parsed->num_parallel_loops,  //
-                                          n_loops - parsed->num_vectorize_loops);
+    if (max_rw_loops == n_loops && max_fusible == n_loops) {
+      // All loops can be fused, parallelized and vectorized
+      parsed->num_parallel_loops = n_loops;
+      parsed->num_vectorize_loops = n_loops;
+    } else {
+      // Prefer num_vectorize to num_parallel
+      parsed->num_parallel_loops =
+          std::min(parsed->num_parallel_loops, n_loops - parsed->num_vectorize_loops);
+    }
   }
 }
 
@@ -315,6 +353,21 @@ bool FindAnnotatedRootBlock(const Schedule& sch, ParsedAnnotation* parsed, Block
     }
   }
   return false;
+}
+
+void RewriteFuseSplitParallelVectorize(const Schedule& sch, Array<LoopRV>* loop_rvs, int vec_len) {
+  size_t n_loops = loop_rvs->size();
+  LoopRV fused = sch->Fuse({loop_rvs->begin(), loop_rvs->end()});
+  Array<LoopRV> split = sch->Split(fused, {NullOpt, Integer(vec_len)});
+  ICHECK_EQ(split.size(), 2);
+  const LoopRV& outer = split[0];
+  const LoopRV& inner = split[1];
+  sch->Parallel(outer);
+  sch->Vectorize(inner);
+  for (size_t i = 0; i < n_loops - 1; ++i) {
+    loop_rvs->Set(i, outer);
+  }
+  loop_rvs->Set(n_loops - 1, inner);
 }
 
 void RewriteParallel(const Schedule& sch, size_t n, Array<LoopRV>* loop_rvs) {
@@ -364,13 +417,19 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
         }
         tir::ParsedAnnotation parsed = parsed_root;
         tir::AdjustParallelVectorize(sch, block_rv, loop_rvs, &parsed);
-        // Parallel
-        if (parsed.num_parallel_loops > 0) {
-          tir::RewriteParallel(sch, parsed.num_parallel_loops, &loop_rvs);
-        }
-        // Vectorize
-        if (parsed.num_vectorize_loops > 0) {
-          tir::RewriteVectorize(sch, parsed.num_vectorize_loops, &loop_rvs);
+        const int loops_num = loop_rvs.size();
+        if (parsed.num_parallel_loops == loops_num && parsed.num_vectorize_loops == loops_num) {
+          // Fuse, split, vectorize and parallelize
+          tir::RewriteFuseSplitParallelVectorize(sch, &loop_rvs, parsed.max_vectorize_extent);
+        } else {
+          // Parallel
+          if (parsed.num_parallel_loops > 0) {
+            tir::RewriteParallel(sch, parsed.num_parallel_loops, &loop_rvs);
+          }
+          // Vectorize
+          if (parsed.num_vectorize_loops > 0) {
+            tir::RewriteVectorize(sch, parsed.num_vectorize_loops, &loop_rvs);
+          }
         }
         // AutoUnroll
         if (parsed.unroll_explicit != -1 || parsed.unroll_implicit != -1) {

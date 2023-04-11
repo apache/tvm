@@ -796,24 +796,35 @@ Expr PatternRewriter::Rewrite(const Array<DFPatternCallback>& callbacks, const E
   bool equal = true;
   static auto* structural_equal = runtime::Registry::Get("node.StructuralEqual");
   ICHECK(structural_equal) << "node.StructuralEqual is not registered.";
+  // Keep track of callbacks that have finished rewriting
+  std::unordered_map<DFPatternCallback, bool, ObjectPtrHash, ObjectPtrEqual> done;
   do {
     last = post;
     for (auto callback : callbacks) {
-      callback_ = callback;
-      if (callback_->require_type) {
-        post = InferTypeWithModule(post, mod_);
+      if (!done[callback]) {
+        auto before = post;
+        callback_ = callback;
+        if (callback_->require_type) {
+          post = InferTypeWithModule(post, mod_);
+        }
+        auto grouper = PatternGrouper();
+        groups_ = grouper.GroupMatches(callback_->pattern, post);
+        gid_assignments_ = grouper.GetGIDAssignments();
+        memo_.clear();
+        VLOG(1) << "pre rewritten:" << std::endl << PrettyPrint(pre);
+        post = this->VisitExpr(post);
+        VLOG(1) << "post rewritten:" << std::endl << PrettyPrint(post);
+        count++;
+        if (callback_->rewrite_once) {
+          bool current_equal = (*structural_equal)(before, post, false, true);
+          if (!current_equal) {
+            done[callback] = true;
+          }
+        }
       }
-      auto grouper = PatternGrouper();
-      groups_ = grouper.GroupMatches(callback_->pattern, post);
-      gid_assignments_ = grouper.GetGIDAssignments();
-      memo_.clear();
-      VLOG(1) << "pre rewritten:" << std::endl << PrettyPrint(pre);
-      post = this->VisitExpr(post);
-      VLOG(1) << "post rewritten:" << std::endl << PrettyPrint(post);
-      count++;
     }
     equal = (*structural_equal)(last, post, false, true);
-  } while (!equal && count < 100 && !callback_->rewrite_once);
+  } while (!equal && count < 100);
   if (count >= 100) {
     LOG(FATAL) << "Observed 100 rewrite passes, possible conflicting passes?";
   }

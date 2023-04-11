@@ -203,7 +203,7 @@ class ExprEvaluator:
             else:
                 value = self._eval_expr(node.__class__(**fields))
         except Exception as e:  # pylint: disable=broad-except,invalid-name
-            self.parser.report_error(node, str(e))
+            self.parser.report_error(node, e)
         return self._add_intermediate_result(value)
 
     def _eval_lambda(self, node: doc.Lambda) -> Any:

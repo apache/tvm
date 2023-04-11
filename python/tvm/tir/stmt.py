@@ -21,10 +21,10 @@ Each statement node have subfields that can be visited from python side.
 .. code-block:: python
 
     x = tvm.tir.Var("n", "int32")
-    a = tvm.tir.Var("array", "handle")
-    st = tvm.tir.stmt.Store(a, x + 1, 1)
-    assert isinstance(st, tvm.tir.stmt.Store)
-    assert(st.buffer_var == a)
+    buffer = tvm.tir.decl_buffer((16,), "float32")
+    st = tvm.tir.stmt.BufferStore(buffer, 1, (x,))
+    assert isinstance(st, tvm.tir.stmt.BufferStore)
+    assert(st.buffer == buffer)
 """
 from enum import IntEnum
 from typing import List, Mapping, Optional, Union
@@ -186,36 +186,6 @@ class While(Stmt):
             condition,
             body,
             span,
-        )
-
-
-@tvm._ffi.register_object("tir.Store")
-class Store(Stmt):
-    """Store node.
-
-    Parameters
-    ----------
-    buffer_var : Var
-        The buffer Variable.
-
-    value : PrimExpr
-        The value we want to store.
-
-    index : PrimExpr
-        The index in the store expression.
-
-    predicate : PrimExpr
-        The store predicate.
-
-    span : Optional[Span]
-        The location of this itervar in the source code.
-    """
-
-    def __init__(self, buffer_var, value, index, predicate=None, span=None):
-        if predicate is None:
-            predicate = _ffi_api.const_true(value.dtype, span)  # type: ignore
-        self.__init_handle_by_constructor__(
-            _ffi_api.Store, buffer_var, value, index, predicate, span  # type: ignore
         )
 
 

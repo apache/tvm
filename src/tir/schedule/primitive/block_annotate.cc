@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/tir/expr.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -297,6 +299,93 @@ void SetScope(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
   self->Replace(alloc_site_sref, new_block, block_reuse_map);
 }
 
+/*!
+ * \brief A helper mutator which recursively mutates the old buffer's data type, inserts data type
+ * conversions, and collecte the block sref reuse information for the following replacement.
+ */
+class DTypeMutator : private ReplaceBufferMutator {
+ public:
+  /*!
+   * \param allocate_site The block where `old_buffer` was allocated.
+   * \param old_buffer The old buffer
+   * \param target_dtype The data type to be set
+   * \param block_sref_reuse The block sref reuse map to be updated
+   * \return The new block after the mutation
+   */
+  static Block Mutate(const Block& allocate_site, const Buffer& old_buffer, const DataType& dtype,
+                      Map<Block, Block>* block_sref_reuse) {
+    Buffer new_buffer = WithDType(old_buffer, dtype);
+    DTypeMutator mutator(old_buffer, new_buffer, dtype, block_sref_reuse);
+    Stmt new_block = mutator.VisitStmt(allocate_site);
+    return Downcast<Block>(new_block);
+  }
+
+ private:
+  DTypeMutator(const Buffer& old_buffer, Buffer new_buffer, const DataType& dtype,
+               Map<Block, Block>* block_sref_reuse)
+      : ReplaceBufferMutator(old_buffer, std::move(new_buffer), block_sref_reuse),
+        src_dtype_(old_buffer->dtype),
+        tgt_dtype_(dtype) {}
+
+  MatchBufferRegion VisitMatchBufferRegion(const MatchBufferRegion& match_buffer) final {
+    auto it = buffer_var_map_.find(match_buffer->source->buffer->data.get());
+    if (it != buffer_var_map_.end()) {
+      Buffer new_target_buffer = WithDType(match_buffer->buffer, it->second->dtype);
+      buffer_var_map_[match_buffer->buffer->data.get()] = new_target_buffer;
+      return MatchBufferRegion(new_target_buffer,
+                               BufferRegion(it->second, match_buffer->source->region));
+    } else {
+      return match_buffer;
+    }
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    BufferStore node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    auto it = buffer_var_map_.find(node->buffer->data.get());
+    if (it != buffer_var_map_.end()) {
+      node.CopyOnWrite()->buffer = it->second;
+      node.CopyOnWrite()->value = Cast(tgt_dtype_, node->value);
+    }
+    return node;
+  }
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    BufferLoad node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    auto it = buffer_var_map_.find(node->buffer->data.get());
+    if (it != buffer_var_map_.end()) {
+      return Cast(src_dtype_, BufferLoad(it->second, node->indices));
+    }
+    return node;
+  }
+
+  DataType src_dtype_, tgt_dtype_;
+};
+
+void UnsafeSetDType(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
+                    const String& dtype) {
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
+  Buffer buffer =
+      GetNthAccessBuffer(self, GetRef<Block>(block), buffer_index, BufferIndexType::kWrite);
+  DataType target_dtype(runtime::String2DLDataType(dtype));
+
+  // Step 1. If `dtype` equals the original data type, just return.
+  if (buffer->dtype == target_dtype) {
+    return;
+  }
+
+  // Step 2. Get the allocation site of the target buffer.
+  StmtSRef alloc_site_sref =
+      NonAllocatedBufferError::CheckAndGetBufferAllocationSite(self->mod, block_sref, buffer);
+  const BlockNode* alloc_site = TVM_SREF_TO_BLOCK(alloc_site_sref);
+
+  // Step 3. Recursively replace old buffer to a new buffer, where the new buffer has the given
+  // dtype, and insert data type conversions.
+  Map<Block, Block> block_reuse_map;
+  Block new_block =
+      DTypeMutator::Mutate(GetRef<Block>(alloc_site), buffer, target_dtype, &block_reuse_map);
+  self->Replace(alloc_site_sref, new_block, block_reuse_map);
+}
+
 /******** InstructionKind Registration ********/
 
 struct StorageAlignTraits : public UnpackedInstTraits<StorageAlignTraits> {
@@ -356,8 +445,36 @@ struct SetScopeTraits : public UnpackedInstTraits<SetScopeTraits> {
   friend struct ::tvm::tir::UnpackedInstTraits;
 };
 
+struct UnsafeSetDTypeTraits : public UnpackedInstTraits<UnsafeSetDTypeTraits> {
+  static constexpr const char* kName = "UnsafeSetDType";
+  static constexpr bool kIsPure = false;
+
+ private:
+  static constexpr size_t kNumInputs = 1;
+  static constexpr size_t kNumAttrs = 2;
+  static constexpr size_t kNumDecisions = 0;
+
+  static void UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv, Integer buffer_index,
+                                      String dtype) {
+    return sch->UnsafeSetDType(block_rv, buffer_index->value, dtype);
+  }
+
+  static String UnpackedAsPython(Array<String> outputs, String block_rv, Integer buffer_index,
+                                 String dtype) {
+    PythonAPICall py("unsafe_set_dtype");
+    py.Input("block", block_rv);
+    py.Input("buffer_index", buffer_index);
+    py.Input("dtype", dtype);
+    return py.Str();
+  }
+
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
+};
+
 TVM_REGISTER_INST_KIND_TRAITS(StorageAlignTraits);
 TVM_REGISTER_INST_KIND_TRAITS(SetScopeTraits);
+TVM_REGISTER_INST_KIND_TRAITS(UnsafeSetDTypeTraits);
 
 }  // namespace tir
 }  // namespace tvm

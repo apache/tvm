@@ -62,24 +62,6 @@ class PatternMatcher : public ExprVisitor {
     }
   }
 
-  void VisitExpr_(const LoadNode* op) final {
-    const auto* ptr = expr_to_match_.as<LoadNode>();
-    if (ptr == nullptr) {
-      match_success_ = false;
-    } else {
-      if (!op->buffer_var.same_as(ptr->buffer_var)) {
-        match_success_ = false;
-      } else {
-        PrimExpr tmp = expr_to_match_;
-        expr_to_match_ = ptr->predicate;
-        VisitExpr(op->predicate);
-        expr_to_match_ = ptr->index;
-        VisitExpr(op->index);
-        std::swap(expr_to_match_, tmp);
-      }
-    }
-  }
-
   void VisitExpr_(const LetNode* op) final {
     const auto* ptr = expr_to_match_.as<LetNode>();
     if (ptr == nullptr) {

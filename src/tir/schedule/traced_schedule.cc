@@ -174,7 +174,28 @@ Array<BlockRV> TracedScheduleNode::GetConsumers(const BlockRV& block_rv) {
   return results;
 }
 
+Array<BlockRV> TracedScheduleNode::GetOutputBlocks(const BlockRV& scope_block_rv) {
+  Array<BlockRV> results = ConcreteScheduleNode::GetOutputBlocks(scope_block_rv);
+
+  static const InstructionKind& kind = InstructionKind::Get("GetOutputBlocks");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,  //
+                                      /*inputs=*/{scope_block_rv},
+                                      /*attrs=*/{},
+                                      /*outputs=*/{results.begin(), results.end()}));
+  return results;
+}
+
 /******** Schedule: Transform loops ********/
+
+LoopRV TracedScheduleNode::Merge(const Array<LoopRV>& loop_rvs) {
+  LoopRV result = ConcreteScheduleNode::Merge(loop_rvs);
+  static const InstructionKind& kind = InstructionKind::Get("Merge");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{loop_rvs.begin(), loop_rvs.end()},
+                                      /*attrs=*/{},
+                                      /*outputs=*/{result}));
+  return result;
+}
 
 LoopRV TracedScheduleNode::Fuse(const Array<LoopRV>& loop_rvs, bool preserve_unit_loops) {
   LoopRV result = ConcreteScheduleNode::Fuse(loop_rvs, preserve_unit_loops);
@@ -214,6 +235,15 @@ void TracedScheduleNode::Reorder(const Array<LoopRV>& ordered_loop_rvs) {
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
                                       /*inputs=*/{ordered_loop_rvs.begin(), ordered_loop_rvs.end()},
                                       /*attrs=*/{},
+                                      /*outputs=*/{}));
+}
+
+void TracedScheduleNode::ReorderBlockIterVar(const BlockRV& block_rv,
+                                             const Array<Integer> new_order) {
+  ConcreteScheduleNode::ReorderBlockIterVar(block_rv, new_order);
+  static const InstructionKind& kind = InstructionKind::Get("ReorderBlockIterVar");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{block_rv, new_order}, /*attrs=*/{},
                                       /*outputs=*/{}));
 }
 
@@ -385,6 +415,34 @@ BlockRV TracedScheduleNode::ReIndex(const BlockRV& block_rv, int buffer_index,
   return result;
 }
 
+/******** Schedule: Data movement ********/
+
+BlockRV TracedScheduleNode::ReadAt(const LoopRV& loop_rv, const BlockRV& block_rv,
+                                   int read_buffer_index, const String& storage_scope) {
+  BlockRV result =
+      ConcreteScheduleNode::ReadAt(loop_rv, block_rv, read_buffer_index, storage_scope);
+
+  static const InstructionKind& kind = InstructionKind::Get("ReadAt");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{loop_rv, block_rv},
+                                      /*attrs=*/{Integer(read_buffer_index), storage_scope},
+                                      /*outputs=*/{result}));
+  return result;
+}
+
+BlockRV TracedScheduleNode::WriteAt(const LoopRV& loop_rv, const BlockRV& block_rv,
+                                    int write_buffer_index, const String& storage_scope) {
+  BlockRV result =
+      ConcreteScheduleNode::WriteAt(loop_rv, block_rv, write_buffer_index, storage_scope);
+
+  static const InstructionKind& kind = InstructionKind::Get("WriteAt");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{loop_rv, block_rv},
+                                      /*attrs=*/{Integer(write_buffer_index), storage_scope},
+                                      /*outputs=*/{result}));
+  return result;
+}
+
 /******** Schedule: Compute location ********/
 
 void TracedScheduleNode::ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
@@ -473,6 +531,17 @@ void TracedScheduleNode::SetScope(const BlockRV& block_rv, int buffer_index,
       /*kind=*/kind,
       /*inputs=*/{block_rv},
       /*attrs=*/{Integer(buffer_index), storage_scope},
+      /*outputs=*/{}));
+}
+
+void TracedScheduleNode::UnsafeSetDType(const BlockRV& block_rv, int buffer_index,
+                                        const String& dtype) {
+  ConcreteScheduleNode::UnsafeSetDType(block_rv, buffer_index, dtype);
+  static const InstructionKind& kind = InstructionKind::Get("UnsafeSetDType");
+  trace_->Append(/*inst=*/Instruction(
+      /*kind=*/kind,
+      /*inputs=*/{block_rv},
+      /*attrs=*/{Integer(buffer_index), dtype},
       /*outputs=*/{}));
 }
 

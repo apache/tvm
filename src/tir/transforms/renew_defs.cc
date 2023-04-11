@@ -157,14 +157,6 @@ class RenewDefMutator : public StmtExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
-
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
  private:
   Var ReDefineVar(const Var& var) {
     Var new_var = Var(make_object<VarNode>(*var.get()));

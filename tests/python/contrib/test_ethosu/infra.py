@@ -28,7 +28,6 @@ from typing import List
 import os
 import struct
 import numpy as np
-import tflite.Model
 import math
 from enum import IntEnum
 import tensorflow as tf
@@ -311,7 +310,15 @@ def get_tflite_graph(tf_func, shapes, ranges=None):
     converter.inference_output_type = tf.int8
     tflite_graph = converter.convert()
 
-    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+    # Get TFLite model from buffer
+    try:
+        import tflite
+
+        tflite_model = tflite.Model.GetRootAsModel(tflite_graph, 0)
+    except AttributeError:
+        import tflite.Model
+
+        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
 
     relay_module, params = relay.frontend.from_tflite(tflite_model)
     mod = partition_for_ethosu(relay_module, params)

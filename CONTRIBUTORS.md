@@ -87,6 +87,7 @@ We do encourage everyone to work anything they are interested in.
 - [Jian Weng](https://github.com/were): @were: - hybrid script
 - [Zhao Wu](https://github.com/FrozenGene): @FrozenGene - runtime, topi, frontends
 - [Eddie Yan](https://github.com/eqy) (PMC): @eqy - runtime, autotvm, rpc, topi
+- [Zihao Ye](https://github.com/yzh119): @yzh119 - tir
 - [Hao Yu](https://github.com/comaniac): @comaniac (PMC) - relay, byoc, auto_scheduler
 - [Lianmin Zheng](https://github.com/merrymercy) (PMC): @merrymercy - autotvm, auto_scheduler, topi, relay
 - [Xiyou Zhou](https://github.com/zxybazh): @zxybazh - relay
@@ -170,6 +171,7 @@ We do encourage everyone to work anything they are interested in.
 - [Gustavo Romero](https://github.com/gromero): @gromero
 - [Giuseppe Rossini](https://github.com/giuseros): @giuseros
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel
+- [Janet Schneider](https://github.com/janetsc): @janetsc
 - [Junru Shao](https://github.com/junrushao): @junrushao
 - [Haichen Shen](https://github.com/icemelon): @icemelon
 - [Xingjian Shi](https://github.com/sxjscience): @sxjscience

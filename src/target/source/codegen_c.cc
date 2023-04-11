@@ -666,10 +666,6 @@ void CodeGenC::VisitStmt_(const AllocateConstNode* op) {
 
 void CodeGenC::VisitStmt_(const DeclBufferNode* op) { this->PrintStmt(op->body); }
 
-void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
-  LOG(FATAL) << "Unexpected deprecated LoadNode.  Use BufferLoadNode instead.";
-}
-
 void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLINT(*)
   ICHECK_EQ(op->indices.size(), 1) << "Load from non-flat memory not supported.";
 
@@ -727,10 +723,6 @@ void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLI
       os << svalue_expr.str();
     }
   }
-}
-
-void CodeGenC::VisitStmt_(const StoreNode* op) {
-  LOG(FATAL) << "Unexpected deprecated StoreNode.  Use BufferStoreNode instead.";
 }
 
 void CodeGenC::VisitStmt_(const BufferStoreNode* op) {

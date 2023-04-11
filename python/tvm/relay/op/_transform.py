@@ -94,7 +94,7 @@ def compute_strided_set(attrs, inputs, output_type):
 _reg.register_injective_schedule("strided_set")
 
 # layout_transform
-_reg.register_injective_schedule("layout_transform")
+_reg.register_strategy("layout_transform", strategy.layout_transform_strategy)
 _reg.register_pattern("layout_transform", OpPattern.INJECTIVE)
 _reg.register_injective_schedule("auto_scheduler_layout_transform")
 _reg.register_pattern("auto_scheduler_layout_transform", OpPattern.INJECTIVE)

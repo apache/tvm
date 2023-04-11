@@ -83,7 +83,7 @@ class BufferProxy:
             return self(keys)
         if len(keys) >= 2 and not isinstance(keys[1], str):
             return self(keys)
-        return self(*keys)  # pylint: disable=no-member # type: ignore
+        return self(*keys)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 class PtrProxy:
@@ -93,7 +93,7 @@ class PtrProxy:
     def __call__(self, dtype, storage_scope="global"):
         if callable(dtype):
             dtype = dtype().dtype
-        return ptr(dtype, storage_scope)  # pylint: disable=no-member # type: ignore
+        return ptr(dtype, storage_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
 
     @deprecated("T.Ptr[...]", "T.handle(...)")
     def __getitem__(self, keys):

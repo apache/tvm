@@ -548,6 +548,8 @@ def verify_any_conv2d(
     data_layout="NCHW",
     kernel_layout="OIHW",
     use_cudnn=False,
+    targets=None,
+    disable_targets=None,
 ):
     mod = tvm.IRModule()
     dtype = "float32"
@@ -567,11 +569,17 @@ def verify_any_conv2d(
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
 
-    targets = None
     if use_cudnn and tvm.get_global_func("tvm.contrib.cudnn.conv2d.forward", True):
         targets = [("cuda -libs=cudnn", tvm.cuda(0))]
 
-    check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True, targets=targets)
+    check_result(
+        [data_np, kernel_np],
+        mod,
+        ref_out_shape,
+        assert_shape=True,
+        targets=targets,
+        disable_targets=disable_targets,
+    )
 
 
 # TODO(@kevinthesun): Support dynamic input height and width.
@@ -626,6 +634,26 @@ def test_any_conv2d():
         (2, 222, 222, 64),
         data_layout="NHWC",
         kernel_layout="HWIO",
+    )
+    verify_any_conv2d(
+        (relay.Any(), 64, relay.Any(), relay.Any()),
+        (64, 64, 3, 3),
+        (1, 1),
+        (1, 1),
+        (1, 1),
+        (1, 64, 224, 224),
+        (1, 64, 224, 224),
+        targets=[("llvm", tvm.cpu(0))],
+    )
+    verify_any_conv2d(
+        (relay.Any(), 64, relay.Any(), relay.Any()),
+        (64, 64, 1, 1),
+        (1, 1),
+        (0, 0),
+        (1, 1),
+        (1, 64, 224, 224),
+        (1, 64, 224, 224),
+        targets=[("llvm", tvm.cpu(0))],
     )
 
 

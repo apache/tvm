@@ -31,7 +31,7 @@ from tvm.contrib.download import download_testdata
 
 TVMC_COMMAND = [sys.executable, "-m", "tvm.driver.tvmc"]
 
-MODEL_URL = "https://github.com/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/examples/micro_speech/micro_speech.tflite"
+MODEL_URL = "https://github.com/tensorflow/tflite-micro/raw/a56087ffa2703b4d5632f024a8a4c899815c31bb/tensorflow/lite/micro/examples/micro_speech/micro_speech.tflite"
 MODEL_FILE = "micro_speech.tflite"
 
 executor = tvm.testing.parameter("aot", "graph")

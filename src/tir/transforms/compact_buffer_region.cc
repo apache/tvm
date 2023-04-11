@@ -134,14 +134,6 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
   void VisitExpr_(const VarNode* op) final { VisitBufferVar(GetRef<Var>(op)); }
 
-  void VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
-
-  void VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
   void VisitStmt_(const ForNode* op) final {
     ancestor_loops_.push_back(op);
     Range loop_range = Range::FromMinExtent(op->min, op->extent);

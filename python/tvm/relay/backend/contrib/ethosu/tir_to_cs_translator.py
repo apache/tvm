@@ -403,7 +403,6 @@ def assign_addresses(buffer_info, npu_ops, scratch_region_map):
         The key is the buffer name to BufferInfo
     npu_ops : list
         A list of Vela NpuOps with tir.BufferLoads for addresses
-        A list of Vela NpuOps with tir.Loads for addresses
     scratch_region_map : Dict[tvm.tir.Var, RegionOffset]
         A buffer_var to region and offset map.
     Returns

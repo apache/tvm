@@ -66,10 +66,7 @@ class CodeGenOpenCL final : public CodeGenC {
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
   void VisitExpr_(const RampNode* op, std::ostream& os) final;       // NOLINT(*)
   void VisitExpr_(const CallNode* op, std::ostream& os) final;       // NOLINT(*)
-  void VisitExpr_(const CastNode* op, std::ostream& os) final;       // NOLINT(*)
   void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;   // NOLINT(*)
-  void VisitStmt_(const StoreNode* op) final;                        // NOLINT(*)
-  void VisitStmt_(const BufferStoreNode* op) final;                  // NOLINT(*)
 
   // overload min and max to avoid ambiguous call errors
   void VisitExpr_(const MinNode* op, std::ostream& os) final;
@@ -87,9 +84,6 @@ class CodeGenOpenCL final : public CodeGenC {
   // Whether to enable sampler or sampler-less texture reads,
   // where the choice depends on the OpenCL version used.
   bool enable_compliant_texture_reads_{false};
-  // Key to disable use of texture SSA in certain scenarios. For example,
-  // when loaded value is stored directly to a user declared l-value buffer
-  bool need_texture_ssa_{true};
   // Mapping from buffer to allocation size.
   // Useful to track when a scalar store of a vectorized texture load is required.
   std::unordered_map<const Object*, size_t> allocation_size_;

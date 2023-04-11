@@ -250,12 +250,6 @@ void CodeGenHybrid::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLIN
   }
 }
 
-void CodeGenHybrid::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
-  LOG(FATAL) << "Phase 0 has no Load(s)!";
-}
-
-void CodeGenHybrid::VisitStmt_(const StoreNode* op) { LOG(FATAL) << "Phase 0 has no Store(s)!"; }
-
 void CodeGenHybrid::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLINT(*)
   LOG(FATAL) << "Phase 0 has no BufferLoad(s)!";
 }

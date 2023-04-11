@@ -61,6 +61,7 @@ from tensorflow.python.ops import image_ops
 from tensorflow.python.ops import gen_array_ops
 from tensorflow.python.ops import nn_impl
 from tensorflow.python.ops import variables
+from tensorflow import raw_ops
 
 try:
     from tensorflow import lite as interpreter_wrapper
@@ -319,6 +320,13 @@ def compare_tflite_with_tvm(
             sess.run(variables.global_variables_initializer())
         # convert to tflite model
         converter = tf.lite.TFLiteConverter.from_session(sess, input_tensors, output_tensors)
+
+        if len(input_tensors) > 1:
+            if len(input_tensors[0].shape) <= 4 and len(input_tensors[1].shape) <= 4:
+                converter._experimental_disable_batchmatmul_unfold = True
+            else:
+                converter._experimental_disable_batchmatmul_unfold = False
+
         converter.experimental_new_converter = experimental_new_converter
         if quantized:
             if int_quant_dtype == tf.int16:
@@ -734,24 +742,72 @@ def test_forward_cast():
 #######################################################################
 # Batch Mat Mul
 # ----
-def _test_batch_matmul(a_shape, b_shape, dtype, adjoint_a=False, adjoint_b=False):
+def _test_batch_matmul(
+    a_shape, b_shape, dtype, out_dtype, adjoint_a=False, adjoint_b=False, quantized=False
+):
     with tf.Graph().as_default():
         a = array_ops.placeholder(shape=a_shape, dtype=dtype, name="A")
         b = array_ops.placeholder(shape=b_shape, dtype=dtype, name="B")
-        result = math_ops.matmul(a, b, adjoint_a=adjoint_a, adjoint_b=adjoint_b, name="batchmatmul")
+        print(tf.__version__)
+
+        result = raw_ops.BatchMatMulV3(
+            x=a, y=b, Tout=out_dtype, adj_x=adjoint_a, adj_y=adjoint_b, name="batchmatmul"
+        )
+        input_range = {"A": (-100, 100), "B": (-100, 100)} if quantized else None
 
         a_np = np.random.uniform(high=5.0, size=a_shape).astype(dtype)
         b_np = np.random.uniform(high=5.0, size=b_shape).astype(dtype)
-        compare_tflite_with_tvm([a_np, b_np], [a.name, b.name], [a, b], [result])
+        compare_tflite_with_tvm(
+            [a_np, b_np],
+            [a.name, b.name],
+            [a, b],
+            [result],
+            experimental_new_converter=True,
+            quantized=quantized,
+            input_range=input_range,
+        )
 
 
-def test_forward_batch_matmul():
+@pytest.mark.parametrize("config", [("int8", "int32", True), ("float32", "float32", False)])
+def test_forward_batch_matmul(config):
     """BATCH_MAT_MUL"""
-    _test_batch_matmul((3, 5, 4), (3, 4, 5), "float32")
-    _test_batch_matmul((3, 5, 4), (3, 4, 5), "float32", True, True)
-    _test_batch_matmul((3, 5, 4), (3, 5, 4), "float32", True, False)
-    _test_batch_matmul((3, 5, 4), (3, 5, 4), "float32", False, True)
-    _test_batch_matmul((2, 3, 4, 5, 6), (2, 3, 4, 6, 5), "float32")
+    _test_batch_matmul(
+        (3, 5, 4), (3, 4, 5), dtype=config[0], out_dtype=config[1], quantized=config[2]
+    )
+    _test_batch_matmul(
+        (3, 5, 4),
+        (3, 4, 5),
+        dtype=config[0],
+        out_dtype=config[1],
+        adjoint_a=True,
+        adjoint_b=True,
+        quantized=config[2],
+    )
+    _test_batch_matmul(
+        (3, 5, 4),
+        (3, 5, 4),
+        dtype=config[0],
+        out_dtype=config[1],
+        adjoint_a=True,
+        adjoint_b=False,
+        quantized=config[2],
+    )
+    _test_batch_matmul(
+        (3, 5, 4),
+        (3, 5, 4),
+        dtype=config[0],
+        out_dtype=config[1],
+        adjoint_a=False,
+        adjoint_b=True,
+        quantized=config[2],
+    )
+    _test_batch_matmul(
+        (3, 4, 5, 6), (3, 4, 6, 5), dtype=config[0], out_dtype=config[1], quantized=config[2]
+    )
+    # BatchMatMul doesn't support larger than 4D tensors
+    # _test_batch_matmul(
+    #    (2, 3, 4, 5, 6), (2, 3, 4, 6, 5), dtype=config[0], out_dtype=config[1], quantized=config[2]
+    # )
 
 
 #######################################################################

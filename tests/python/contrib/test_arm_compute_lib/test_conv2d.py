@@ -615,8 +615,58 @@ def test_codegen_qnn_conv2d(trial, dtype):
     verify_codegen(func, exp_codegen, 1)
 
 
+@pytest.mark.parametrize(
+    "param",
+    ["kernel_sc", "kernel_zp"],
+)
+def test_codegen_qnn_conv2d_per_channel_quantization(param):
+    if skip_codegen_test():
+        return
+
+    dtype = "int8"
+    kernel_h = 2
+    kernel_w = 2
+    pad = (1, 1)
+    stride = (1, 1)
+    dilation = (1, 1)
+    out_channels = 4
+    shape = (1, 10, 10, 14)
+    composite = (False, False, False)
+    groups = 1
+    inputs = {"a"}
+
+    qnn_params = {
+        "input_zp": 1,
+        "input_sc": 1,
+        "kernel_zp": 1,
+        "kernel_sc": 1,
+        "output_zp": 1,
+        "output_sc": 1,
+    }
+    qnn_params[param] = [1, 1, 1, 1]
+
+    args = (shape, kernel_h, kernel_w, pad, stride, dilation, groups, dtype, out_channels)
+
+    func, params = _get_qnn_model(
+        *args,
+        input_zp=qnn_params["input_zp"],
+        input_sc=qnn_params["input_sc"],
+        kernel_zp=qnn_params["kernel_zp"],
+        kernel_sc=qnn_params["kernel_sc"],
+        output_zp=qnn_params["output_zp"],
+        output_sc=qnn_params["output_sc"],
+        var_names=iter(inputs),
+        has_pad=composite[0],
+        has_bias=composite[1],
+        has_activation=composite[2],
+    )
+    exp_codegen = _get_expected_codegen(*args, has_bias=composite[1], has_activation=composite[2])
+    verify_codegen(func, exp_codegen, num_acl_modules=0, tvm_ops=2)
+
+
 if __name__ == "__main__":
     test_conv2d()
     test_qnn_conv2d()
     test_codegen_conv2d()
     test_codegen_qnn_conv2d()
+    test_codegen_qnn_conv2d_per_channel_quantization()

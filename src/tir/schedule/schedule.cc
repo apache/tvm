@@ -152,11 +152,16 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetProducers")
     .set_body_method<Schedule>(&ScheduleNode::GetProducers);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetConsumers")
     .set_body_method<Schedule>(&ScheduleNode::GetConsumers);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetOutputBlocks")
+    .set_body_method<Schedule>(&ScheduleNode::GetOutputBlocks);
 /******** (FFI) Transform loops ********/
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleMerge").set_body_method<Schedule>(&ScheduleNode::Merge);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleFuse").set_body_method<Schedule>(&ScheduleNode::Fuse);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSplit").set_body_method<Schedule>(&ScheduleNode::Split);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReorder")
     .set_body_method<Schedule>(&ScheduleNode::Reorder);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReorderBlockIterVar")
+    .set_body_method<Schedule>(&ScheduleNode::ReorderBlockIterVar);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleAddUnitLoop")
     .set_body_typed([](Schedule self, ObjectRef rv) -> LoopRV {
       if (const auto* loop_rv = rv.as<LoopRVNode>()) {
@@ -194,6 +199,10 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReIndex")
                        int buffer_index_type) {
       return self->ReIndex(block_rv, buffer_index, static_cast<BufferIndexType>(buffer_index_type));
     });
+/******** (FFI) Data movement ********/
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReadAt").set_body_method<Schedule>(&ScheduleNode::ReadAt);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleWriteAt")
+    .set_body_method<Schedule>(&ScheduleNode::WriteAt);
 /******** (FFI) Compute location ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleComputeAt")
     .set_body_method<Schedule>(&ScheduleNode::ComputeAt);
@@ -213,6 +222,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleStorageAlign")
     .set_body_method<Schedule>(&ScheduleNode::StorageAlign);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSetScope")
     .set_body_method<Schedule>(&ScheduleNode::SetScope);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleUnsafeSetDType")
+    .set_body_method<Schedule>(&ScheduleNode::UnsafeSetDType);
 /******** (FFI) Blockize & Tensorize ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleBlockize")
     .set_body_method<Schedule>(&ScheduleNode::Blockize);

@@ -606,7 +606,7 @@ def test_select():
     obj = tir.Select(True, 0, 2)
     _assert_print(
         obj,
-        """T.Select(True, 0, 2)
+        """T.Select(T.bool(True), 0, 2)
 """,
     )
 

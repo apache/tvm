@@ -49,7 +49,7 @@ def RemoveZeroStores():
 
     def _ftransform(f, mod, ctx):
         return f.with_body(
-            tvm.tir.stmt_functor.ir_transform(f.body, _remove_zero_store, None, ["tir.Store"])
+            tvm.tir.stmt_functor.ir_transform(f.body, _remove_zero_store, None, ["tir.BufferStore"])
         )
 
     return tvm.tir.transform.prim_func_pass(

@@ -286,14 +286,8 @@ PrimFunc MakePackedAPI(PrimFunc&& func) {
   func_ptr->params = args;
 
   Array<Var> undefined = UndefinedVars(func_ptr->body, func_ptr->params);
-  if (undefined.size() != 0) {
-    std::ostringstream os;
-    for (Var v : undefined) {
-      os << " \'" << v->name_hint << "\' ";
-    }
-    os << " is not bound to any variables";
-    LOG(FATAL) << "Not all Vars are passed in api_args: " << os.str();
-  }
+  ICHECK_EQ(undefined.size(), 0) << "In PrimFunc " << global_symbol << " variables " << undefined
+                                 << " are used, but are not passed in as API arguments";
 
   func_ptr->buffer_map = Map<Var, Buffer>();
   func_ptr->checked_type_ = func_ptr->func_type_annotation();

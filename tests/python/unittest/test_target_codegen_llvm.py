@@ -707,7 +707,7 @@ def np_float2tvm_bf16(arr):
     """Convert a numpy array of float to a TVM array
     of bf16"""
     nparr = np_float2np_bf16(arr)
-    return tvm.nd.empty(nparr.shape, "uint16").copyfrom(nparr)
+    return tvm.nd.empty(nparr.shape, "bfloat16").copyfrom(nparr)
 
 
 def np_bf162np_float(arr):
@@ -730,9 +730,9 @@ def test_llvm_bf16():
         B = te.placeholder((32,), dtype="bfloat16")
         d = te.compute((32,), lambda x: A[x] + B[x])
         sch = te.create_schedule(d.op)
-        print(tvm.lower(sch, [A, B, d]))
         if do_vectorize:
             sch[d].vectorize(d.op.axis[0])
+
         module = tvm.build(sch, [A, B, d])
         npa = np.random.rand(32).astype("float32")
         npb = np.random.rand(32).astype("float32")
@@ -741,7 +741,7 @@ def test_llvm_bf16():
         res = np_bf16_cast_and_cast_back(va + vb)
         a_ = np_float2tvm_bf16(npa)
         b_ = np_float2tvm_bf16(npb)
-        c_ = tvm.nd.empty((32,), "uint16")
+        c_ = tvm.nd.empty((32,), "bfloat16")
         module(a_, b_, c_)
         tvm.testing.assert_allclose(np_bf162np_float(c_.numpy()), res)
 

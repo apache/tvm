@@ -382,37 +382,6 @@ std::string CodeGenOpenCL::CastTo(std::string value, DataType target) {
   return os.str();
 }
 
-void CodeGenOpenCL::VisitStmt_(const StoreNode* op) {
-  LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-}
-
-void CodeGenOpenCL::VisitStmt_(const BufferStoreNode* op) {
-  if (auto call = op->value.as<CallNode>()) {
-    if (call->op.same_as(builtin::texture2d_load())) {
-      need_texture_ssa_ = false;
-      // If storing a texture load into a buffer, don't use an
-      // intermediate local unless the buffer allocation is a
-      // single element selected from the texture read.
-      auto it = allocation_size_.find(op->buffer->data.get());
-      if (it != allocation_size_.end() && it->second == 1) {
-        need_texture_ssa_ = true;
-      }
-    }
-  }
-  CodeGenC::VisitStmt_(op);
-  need_texture_ssa_ = true;
-}
-
-void CodeGenOpenCL::VisitExpr_(const CastNode* op, std::ostream& os) {
-  if (auto call = op->value.as<CallNode>()) {
-    if (call->op.same_as(builtin::texture2d_load())) {
-      need_texture_ssa_ = false;
-    }
-  }
-  CodeGenC::VisitExpr_(op, os);
-  need_texture_ssa_ = true;
-}
-
 void CodeGenOpenCL::VisitStmt_(const AllocateNode* op) {
   allocation_size_.insert({op->buffer_var.get(), op->ConstantAllocationSize() * op->dtype.lanes()});
   CodeGenC::VisitStmt_(op);
@@ -476,20 +445,15 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     this->PrintExpr(op->args[2], ss);
     ss << ")))";
 
-    // Only use local SSA if texture is not already being stored
-    if (need_texture_ssa_) {
-      std::string rhs = SSAGetID(ss.str(), op->dtype.with_lanes(4));
-      if (op->args.back().as<RampNode>()) {
-        os << rhs;
-      } else {
-        os << "((";
-        this->PrintType(op->dtype.with_lanes(1), os);
-        os << "*)&" << rhs << ")[";
-        this->PrintExpr(op->args.back(), os);
-        os << "]";
-      }
+    std::string rhs = SSAGetID(ss.str(), op->dtype.with_lanes(4));
+    if (op->args.back().as<RampNode>()) {
+      os << rhs;
     } else {
-      os << ss.str();
+      os << "((";
+      this->PrintType(op->dtype.with_lanes(1), os);
+      os << "*)&" << rhs << ")[";
+      this->PrintExpr(op->args.back(), os);
+      os << "]";
     }
   } else if (op->op.same_as(builtin_call_extern_)) {
     auto func = Downcast<StringImm>(op->args[0]);

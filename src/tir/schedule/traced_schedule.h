@@ -59,11 +59,14 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   Array<BlockRV> GetChildBlocks(const LoopRV& loop_rv) final;
   Array<BlockRV> GetProducers(const BlockRV& block_rv) final;
   Array<BlockRV> GetConsumers(const BlockRV& block_rv) final;
+  Array<BlockRV> GetOutputBlocks(const BlockRV& scope_block_rv) final;
   /******** Schedule: Transform loops ********/
   LoopRV Fuse(const Array<LoopRV>& loop_rvs, bool preserve_unit_iters) final;
+  LoopRV Merge(const Array<LoopRV>& loop_rvs) final;
   Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factor_rvs,
                       bool preserve_unit_iters) final;
   void Reorder(const Array<LoopRV>& ordered_loop_rvs) final;
+  void ReorderBlockIterVar(const BlockRV& block_rv, const Array<Integer> new_order) final;
   LoopRV AddUnitLoop(const BlockRV& block_rv) final;
   LoopRV AddUnitLoop(const LoopRV& loop_rv) final;
   /******** Schedule: Manipulate ForKind ********/
@@ -86,6 +89,11 @@ class TracedScheduleNode : public ConcreteScheduleNode {
                   BufferIndexType buffer_index_type) final;
   Array<BlockRV> CacheIndex(const BlockRV& block_rv, const String& storage_scope,
                             int cse_thresh) final;
+  /******** Schedule: Data movement ********/
+  BlockRV ReadAt(const LoopRV& loop_rv, const BlockRV& block_rv, int read_buffer_index,
+                 const String& storage_scope) final;
+  BlockRV WriteAt(const LoopRV& loop_rv, const BlockRV& block_rv, int write_buffer_index,
+                  const String& storage_scope) final;
   /******** Schedule: Compute location ********/
   void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
                  int index = -1) final;
@@ -100,6 +108,7 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   void StorageAlign(const BlockRV& block_rv, int buffer_index, int axis, int factor,
                     int offset) final;
   void SetScope(const BlockRV& block_rv, int buffer_index, const String& storage_scope) final;
+  void UnsafeSetDType(const BlockRV& block_rv, int buffer_index, const String& dtype) final;
   /******** Schedule: Blockize & Tensorize ********/
   BlockRV Blockize(const LoopRV& loop_rv, bool preserve_unit_iters) final;
   void Tensorize(const BlockRV& block_rv, const String& intrin, bool preserve_unit_iters) final;

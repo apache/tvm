@@ -140,3 +140,22 @@ def has_block(sch: Schedule, block_name: str) -> bool:
         True if the given block exists in the schedule.
     """
     return _ffi_api.HasBlock(sch, block_name)  # type: ignore
+
+
+def is_output_block(sch: Schedule, block: BlockRV) -> bool:
+    """Check whether the given block is an output block
+
+    Parameters
+    ----------
+    sch : Schedule
+        The schedule object of the block
+    block : BlockRV
+        The blockRV to be checked
+
+    Returns
+    -------
+    yes/no : bool
+        True if the given block is an output block
+
+    """
+    return _ffi_api.IsOutputBlock(sch, block)  # type: ignore

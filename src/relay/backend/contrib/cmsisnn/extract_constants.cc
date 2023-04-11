@@ -206,6 +206,7 @@ class ExtractConstantsMutator : public MixedModeMutator {
       final_call = Call(new_func, new_args);
     }
 
+    final_call->span = call->span;
     return final_call;
   }
 
