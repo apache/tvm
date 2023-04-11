@@ -479,7 +479,14 @@ class XGBModel(PyCostModel):
             return float(np.median([float(s) for s in x.run_secs]))
 
         new_features = [_feature(x) for x in self.extractor.extract_from(context, candidates)]
-        new_mean_costs = np.array([_mean_cost(x) for x in results]).astype("float32")
+        new_mean_costs = [_mean_cost(x) for x in results]
+
+        # Filter instances with no features
+        new_mean_costs = [c for i, c in enumerate(new_mean_costs) if len(new_features[i]) != 0]
+        new_features = [f for f in new_features if len(f) != 0]
+        new_mean_costs = np.array(new_mean_costs).astype("float32")
+        if not new_features:
+            return
 
         # Steps 3. Run validation
         if group is not None and self.booster is not None:
