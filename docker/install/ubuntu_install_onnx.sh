@@ -36,6 +36,6 @@ pip3 install \
 pip3 install future
 
 pip3 install \
-    torch==1.12.0 \
-    torchvision==0.13.0 \
+    torch==2.0.0 \
+    torchvision==0.15.1 \
     --extra-index-url https://download.pytorch.org/whl/cpu
