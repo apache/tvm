@@ -271,13 +271,18 @@ class ScopeReconstructor : private StmtMutator {
       }
       const arith::IntSet& pred_bound = iter_doms[i].bound;
       if (!pred_bound.IsNothing()) {
+        // NOTE: Apply strong analyzer proofs to get rid of symbolic bound
         if (pred_bound.HasLowerBound()) {
           PrimExpr lower_bound = iter_values[i] >= pred_bound.min();
-          predicate = predicate && lower_bound;
+          if (!analyzer->CanProve(lower_bound, arith::ProofStrength::kSymbolicBound)) {
+            predicate = predicate && lower_bound;
+          }
         }
         if (pred_bound.HasUpperBound()) {
           PrimExpr upper_bound = iter_values[i] < pred_bound.max() + 1;
-          predicate = predicate && upper_bound;
+          if (!analyzer->CanProve(upper_bound, arith::ProofStrength::kSymbolicBound)) {
+            predicate = predicate && upper_bound;
+          }
         }
       }
     }
