@@ -306,6 +306,15 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
 
     TVM_TRY_RECURSIVE_REWRITE(floordiv(x, 2) + floormod(x, 2), floordiv(x + 1, 2));
 
+    // Simplify (x + 1) % 2 + x % 2 => 1
+    // NOTE: we should avoid simplifying (x + 1) %2 => 1 - x % 2 though
+    // mainly because introducing extra negative signs to expression can harm itertaor
+    // analysis which usually relies on positive itertator co-efficients.
+    TVM_TRY_REWRITE_IF(floormod(x + c1, 2) + floormod(x, 2), OneWithTypeLike(x),
+                       floormod(c1.Eval()->value, 2) == 1);
+    TVM_TRY_REWRITE_IF(floormod(x, 2) + floormod(x + c1, 2), OneWithTypeLike(x),
+                       floormod(c1.Eval()->value, 2) == 1);
+
     // canonicalization rule
     // will try rewrite again after canonicalization.
 
@@ -1018,10 +1027,10 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
     TVM_TRY_REWRITE_IF(floormod(x * c1 + y, c2), floormod(x * floormod(c1, c2) + y, c2),
                        c2.Eval()->value > 0);
 
-    TVM_TRY_RECURSIVE_REWRITE_IF(floormod(x + c1, 2), floormod(x, 2) * (-1) + 1,
-                                 floormod(c1.Eval()->value, 2) == 1);
-    TVM_TRY_REWRITE_IF(floormod(x + c1, c2), floormod(x, c2),
-                       c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
+    // (x + 5) % 2 -> (x + 1) %2,  (x + 3) % 3 => x
+    TVM_TRY_REWRITE_IF(
+        floormod(x + c1, c2), floormod(x + floormod(c1, c2), c2),
+        c2.Eval()->value > 0 && (c1.Eval()->value >= c2.Eval()->value || c1.Eval()->value < 0));
 
     TVM_TRY_REWRITE_IF(floormod(x + y * c1, c2), floormod(x + y * floormod(c1, c2), c2),
                        c2.Eval()->value > 0);
