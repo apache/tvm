@@ -343,10 +343,13 @@ void CodeGenLLVM::HandleImport(const std::string& code) {
 
   mlib->setTargetTriple(llvm_target_->GetTargetTriple());
   mlib->setDataLayout(llvm_target_->GetOrCreateTargetMachine()->createDataLayout());
-  // mark all the functions as force inline
+  // Mark all the functions as force inline, so long as the
+  // incompatible OptimizeNone is not already present.
   for (llvm::Function& f : mlib->functions()) {
-    f.removeFnAttr(llvm::Attribute::NoInline);
-    f.addFnAttr(llvm::Attribute::AlwaysInline);
+    if (!f.hasFnAttribute(llvm::Attribute::OptimizeNone)) {
+      f.removeFnAttr(llvm::Attribute::NoInline);
+      f.addFnAttr(llvm::Attribute::AlwaysInline);
+    }
     f.setLinkage(llvm::GlobalValue::AvailableExternallyLinkage);
   }
   // add to linker libraries.
