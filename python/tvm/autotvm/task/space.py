@@ -36,6 +36,7 @@ import numpy as np
 from tvm.te import schedule, thread_axis
 from tvm.tir import expr
 from tvm.autotvm.utils import get_const_int
+from tvm import tir
 
 Axis = namedtuple("Axis", ["space", "index"])
 
@@ -43,6 +44,40 @@ try:
     _long = long
 except NameError:
     _long = int
+
+
+def is_dynamic(values):
+    """return whether values has dynamic value(SizeVar or Var) or not
+
+    Parameters
+    ----------
+    values: numbers or Union[Object, Tuple[Object], List[Object]]
+        inputs
+
+    Returns
+    -------
+    result: bool
+        result
+    """
+    is_dynamic = False
+
+    def func_(x):
+        if isinstance(x, (tir.SizeVar, tir.Var)):
+            nonlocal is_dynamic
+            is_dynamic = True
+
+    if not isinstance(values, (list, tuple)):
+        values = [values]
+    for v in values:
+        if is_dynamic:
+            break
+        if isinstance(v, tir.IterVar):
+            tir.stmt_functor.post_order_visit(d.dom.min, func_)
+            tir.stmt_functor.post_order_visit(d.dom.extent, func_)
+        elif isinstance(v, tir.expr.PrimExprWithOp):
+            tir.stmt_functor.post_order_visit(d, func_)
+
+    return is_dynamic
 
 
 class InstantiationError(ValueError):
@@ -128,6 +163,9 @@ class VirtualAxis(TransformSpace):
             VirtualAxis.name_ct += 1
 
         self.name = name
+        if is_dynamic(var):
+            self.length = var
+            return
         if isinstance(var, (int, _long)):
             self.length = var
         elif isinstance(var, schedule.IterVar):
@@ -162,6 +200,8 @@ def get_factors(n):
     factors: list
         List of all factors
     """
+    if is_dynamic(n):
+        return [1]
     step = 2 if n % 2 else 1
     ret = list(
         set(
@@ -188,6 +228,8 @@ def get_pow2s(n):
     factors: list
         List of all power-of-two numbers
     """
+    if is_dynamic(n):
+        return [1]
     return [2**x for x in range(math.floor(math.log2(n)) + 1)]
 
 
@@ -238,6 +280,9 @@ class SplitSpace(TransformSpace):
     def _generate_space(self, now, tmp_stack, enforce_no_tail=False):
         """Generate space by DFS"""
         if now == self.num_output - 1:
+            if is_dynamic(self.product):
+                self.entities.append(SplitEntity([-1] + tmp_stack[::-1]))
+                return
             prod = functools.reduce(lambda x, y: x * y, tmp_stack)
             if prod > self.product:
                 return
@@ -797,6 +842,8 @@ class ConfigSpace(object):
         flop: int or float or IntImm or FloatImm
             number of float operations
         """
+        if is_dynamic(flop):
+            return
         if isinstance(flop, (expr.IntImm, expr.FloatImm)):
             flop = flop.value
         self.flop += float(flop)

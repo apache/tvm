@@ -67,12 +67,8 @@ def verify_batch_matmul(x_batch, y_batch, M, N, K, dynamic=False, debug=False):
         with tvm.target.Target(target):
             fcompute, fschedule = tvm.topi.testing.dispatch(target, _batch_matmul_implement)
             out = fcompute(x, y)
-            if not dynamic:
-                s = fschedule([out])
-                out_shape = out.shape
-            else:
-                s = te.create_schedule(out.op)
-                out_shape = (batch_size, M, N)
+            s = fschedule([out])
+            out_shape = (batch_size, M, N) if dynamic else out.shape
 
             if debug:
                 print(tvm.lower(s, [x, y, out], simple_mode=True))
