@@ -29,6 +29,7 @@
 #include <tvm/tir/op.h>
 
 #include <algorithm>
+#include <tuple>
 #include <utility>
 
 #include "../target/datatype/registry.h"
@@ -120,6 +121,23 @@ PrimExpr NormalizeBooleanOperators(PrimExpr expr) {
   }
 }
 
+std::tuple<PrimExpr, int64_t> ExtractConstantOffset(const PrimExpr& expr) {
+  PVar<PrimExpr> x;
+  PVar<IntImm> c1;
+
+  // Any (c1+x) terms are normalized into (x+c1), so we don't need to
+  // check for it.
+  if ((x + c1).Match(expr)) {
+    return {x.Eval(), c1.Eval()->value};
+  } else if ((x - c1).Match(expr)) {
+    return {x.Eval(), -c1.Eval()->value};
+  } else if ((c1 - x).Match(expr)) {
+    return {x.Eval(), c1.Eval()->value};
+  } else {
+    return {expr, 0};
+  }
+}
+
 CompareResult RewriteSimplifier::Impl::TryCompare(const PrimExpr& x, const PrimExpr& y) {
   CompareResult output = CompareResult::kUnknown;
 
@@ -150,6 +168,12 @@ CompareResult RewriteSimplifier::Impl::TryCompareUsingKnownInequalities(const Pr
 
 // try to prove x equals val
 CompareResult RewriteSimplifier::Impl::TryCompare(const PrimExpr& x, int64_t val) {
+  // NOTE on implementation: this function can be called many times and can be a bottleneck,
+  // As a result, we keep comparison here lightweight.
+  // We only do constant int bound analysis here.
+  //
+  // For stronger comparison proof that is out of the recursive simplifcation
+  // consider look at analyzer::CanProveStrong
   PrimExpr diff = this->VisitExpr(x);
   if (const auto* ptr = diff.as<IntImmNode>()) {
     if (ptr->value == val) {
@@ -176,6 +200,8 @@ CompareResult RewriteSimplifier::Impl::TryCompare(const PrimExpr& x, int64_t val
   if (dbound->max_value <= val) {
     return CompareResult::kLE;
   }
+
+  // modular analysis
   if (val == 0) {
     ModularSet dmod = analyzer_->modular_set(diff);
     if (dmod->base != 0) {
@@ -1664,20 +1690,28 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(LT ret) {
     TVM_TRY_RECURSIVE_REWRITE(x < c1 + y, x - y < c1);
     TVM_TRY_RECURSIVE_REWRITE(c1 + y < x, c1 < x - y);
 
-    if ((x + c1 < y + c2).Match(ret)) {
-      int64_t diff = c2.Eval()->value - c1.Eval()->value;
-      PrimExpr out = [&]() {
-        if (diff == 0) {
-          return (x < y).Eval();
-        } else if (diff == 1) {
-          return (x <= y).Eval();
-        } else if (diff < 0) {
-          return (x + (-diff) < y).Eval();
-        } else {
-          return (x < y + diff).Eval();
-        }
-      }();
-      return RecursiveRewrite(out);
+    auto merge_constants = [&]() -> Optional<PrimExpr> {
+      auto [lhs, lhs_offset] = ExtractConstantOffset(ret->a);
+      auto [rhs, rhs_offset] = ExtractConstantOffset(ret->b);
+      if (lhs_offset == 0 && rhs_offset == 0) {
+        return NullOpt;
+      }
+
+      int64_t diff = rhs_offset - lhs_offset;
+      if (diff == 0) {
+        return lhs < rhs;
+      } else if (diff == 1) {
+        return lhs <= rhs;
+      } else if (diff < 0 && rhs_offset != 0) {
+        return lhs + make_const(lhs.dtype(), -diff) < rhs;
+      } else if (diff > 0 && lhs_offset != 0) {
+        return lhs < rhs + make_const(rhs.dtype(), diff);
+      }
+
+      return NullOpt;
+    }();
+    if (merge_constants) {
+      return RecursiveRewrite(merge_constants.value());
     }
   }
   return std::move(ret);

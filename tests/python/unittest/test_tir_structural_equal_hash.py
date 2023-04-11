@@ -19,6 +19,7 @@ import numpy as np
 import pytest
 from tvm import te
 from tvm.runtime import ObjectPath
+from tvm.script import tir as T, ir as I
 
 
 def consistent_equal(x, y, map_free_vars=False):
@@ -394,13 +395,29 @@ def test_seq_length_mismatch():
     assert rhs_path == expected_rhs_path
 
 
+def test_ir_module_equal():
+    def generate(n: int):
+        @I.ir_module
+        class module:
+            @T.prim_func
+            def func(A: T.Buffer(1, "int32")):
+                for i in range(n):
+                    A[0] = A[0] + 1
+
+        return module
+
+    # Equivalent IRModules should compare as equivalent, even though
+    # they have distinct GlobalVars, and GlobalVars usually compare by
+    # reference equality.
+    tvm.ir.assert_structural_equal(generate(16), generate(16))
+
+    # When there is a difference, the location should include the
+    # function name that caused the failure.
+    with pytest.raises(ValueError) as err:
+        tvm.ir.assert_structural_equal(generate(16), generate(32))
+
+    assert '<root>.functions[I.GlobalVar("func")].body.extent.value' in err.value.args[0]
+
+
 if __name__ == "__main__":
-    test_exprs()
-    test_prim_func()
-    test_attrs()
-    test_array()
-    test_env_func()
-    test_stmt()
-    test_buffer_storage_scope()
-    test_buffer_load_store()
-    test_while()
+    tvm.testing.main()
