@@ -3711,6 +3711,30 @@ def tvm_shfl_builtins():
     return func
 
 
+def make_packed_api_result():
+    @T.prim_func
+    def func(A: T.Buffer(64, "float32")):
+        T.func_attr({"global_symbol": "main", "target": T.target("cuda")})
+        bx = T.launch_thread("blockIdx.x", 64)
+        T.evaluate(A[bx])
+
+    mod = tvm.IRModule.from_expr(func)
+    return tvm.tir.transform.MakePackedAPI()(mod)
+
+
+def ir_module_with_attrs():
+    @I.ir_module
+    class Module:
+        I.module_attrs({"attr": 10})
+
+        @T.prim_func
+        def tir_func(A: T.Buffer(16, "int32"), B: T.Buffer(16, "int32")):
+            for i in range(16):
+                B[i] = A[i]
+
+    return Module
+
+
 def tvm_struct_set_generated_in_cpp():
     """Ensure same dtype for tvm_struct_set in Python/C++
 
@@ -3742,19 +3766,6 @@ def tvm_struct_set_generated_in_cpp():
             )
 
     return tvm.tir.transform.LowerTVMBuiltin()(Module)
-
-
-def ir_module_with_attrs():
-    @I.ir_module
-    class Module:
-        I.module_attrs({"attr": 10})
-
-        @T.prim_func
-        def tir_func(A: T.Buffer(16, "int32"), B: T.Buffer(16, "int32")):
-            for i in range(16):
-                B[i] = A[i]
-
-    return Module
 
 
 ir_generator = tvm.testing.parameter(
@@ -3822,8 +3833,9 @@ ir_generator = tvm.testing.parameter(
     merge_shape_var_def,
     if_then_else_var,
     tvm_shfl_builtins,
-    tvm_struct_set_generated_in_cpp,
+    make_packed_api_result,
     ir_module_with_attrs,
+    tvm_struct_set_generated_in_cpp,
 )
 
 
