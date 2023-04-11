@@ -34,9 +34,9 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, ObjectPath block_p,  //
   std::unordered_map<const tir::VarNode*, tir::For> loop_vars;
   for (Frame f : d->frames) {
     if (const auto* tir_f = f.as<TIRFrameNode>()) {
-      if (const auto* for_loop = tir_f->tir.as<tir::ForNode>()) {
-        for (const tir::ForNode* l = for_loop; l != nullptr; l = l->body.as<tir::ForNode>()) {
-          loop_vars.insert(std::make_pair(l->loop_var.get(), GetRef<tir::For>(l)));
+      if (auto for_loop = tir_f->tir.as<tir::For>()) {
+        for (Optional<tir::For> loop = for_loop; loop; loop = loop.value()->body.as<tir::For>()) {
+          loop_vars.insert(std::make_pair(loop.value()->loop_var.get(), loop.value()));
         }
       }
     }

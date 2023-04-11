@@ -687,8 +687,8 @@ void CodeGenCUDA::PrintCallExtern(Type ret_type, String global_symbol, const Arr
 }
 
 void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
-  if (auto* ptr_op = op->op.as<OpNode>()) {
-    Op call_op = GetRef<Op>(ptr_op);
+  if (auto opt_call_opt = op->op.as<Op>()) {
+    Op call_op = opt_call_opt.value();
     // This is only for backward compatibility with __shfl_{up/down}.
     // A macro will be used to replace *_sync calls to legacy ones.
     if (op_need_warp_shuffle_.get(call_op, false)) {

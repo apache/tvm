@@ -305,8 +305,8 @@ Pass MakePackedAPI() {
     std::vector<std::pair<GlobalVar, PrimFunc>> updates;
 
     for (const auto& kv : mptr->functions) {
-      if (auto* n = kv.second.as<PrimFuncNode>()) {
-        PrimFunc func = GetRef<PrimFunc>(n);
+      if (auto opt = kv.second.as<PrimFunc>()) {
+        auto func = opt.value();
         if (func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
             CallingConv::kDefault) {
           auto updated_func = MakePackedAPI(std::move(func));

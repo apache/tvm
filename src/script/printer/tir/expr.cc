@@ -239,15 +239,16 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           Op::GetAttrMap<tir::TScriptDtypePrintLocation>("TScriptDtypePrintLocation");
       tir::ScriptDtypePrintLocation dtype_print_location = tir::ScriptDtypePrintLocation::kNone;
       ExprDoc prefix{nullptr};
-      if (const auto* op = call->op.as<OpNode>()) {
-        String name = op_names.get(GetRef<Op>(op), op->name);
-        if (op_names.count(GetRef<Op>(op)) == 0) {
+      if (auto optional_op = call->op.as<Op>()) {
+        auto op = optional_op.value();
+        String name = op_names.get(op, op->name);
+        if (op_names.count(op) == 0) {
           LOG(WARNING) << "No TScriptPrinterName attribute for " << op->name;
         }
         prefix = TIR(d, name);
-        if (dtype_locations.count(GetRef<Op>(op))) {
-          dtype_print_location = static_cast<tir::ScriptDtypePrintLocation>(
-              dtype_locations[GetRef<Op>(op)].IntValue());
+        if (dtype_locations.count(op)) {
+          dtype_print_location =
+              static_cast<tir::ScriptDtypePrintLocation>(dtype_locations[op].IntValue());
         }
       } else if (const auto* gv = call->op.as<GlobalVarNode>()) {
         prefix = LiteralDoc::Str(gv->name_hint, call_p->Attr("op"));
