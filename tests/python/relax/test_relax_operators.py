@@ -243,7 +243,9 @@ def test_op_call_pure_packed():
     class CallPureTest:
         @R.function
         def pure_copy(x: R.Tensor((3, 4), "float32")):
-            z = R.call_pure_packed("vm.builtin.copy", x, sinfo_args=(R.Tensor((3, 4), dtype="float32")))
+            z = R.call_pure_packed(
+                "vm.builtin.copy", x, sinfo_args=(R.Tensor((3, 4), dtype="float32"))
+            )
             return z
 
     np.random.seed(0)  # to avoid flakiness
