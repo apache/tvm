@@ -271,13 +271,18 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
   void VisitStmt_(const AllocateNode* op) final {
     auto it = var2buffer_.find(op->buffer_var);
+
+    // Do not make compaction when the buffer def and
+    // the allocation is not one-to-one with the same dtype.
     if (it == var2buffer_.end() || it->second.size() > 1) {
-      // Skip alised buffer
-      StmtExprVisitor::VisitStmt_(op);
-      return;
+      return StmtExprVisitor::VisitStmt_(op);
     }
-    // Step 0. Record relax position of ancestor_loops_
     const Buffer& buffer = *it->second.begin();
+    if (buffer->dtype != op->dtype) {
+      return StmtExprVisitor::VisitStmt_(op);
+    }
+
+    // Step 0. Record relax position of ancestor_loops_
     VisitBufferDef(op->buffer_var);
     // Step 1. Visit block body recursively
     StmtExprVisitor::VisitStmt(op->body);
@@ -705,11 +710,16 @@ class BufferCompactor : public StmtExprMutator {
 };
 
 PrimFunc CompactBufferAllocation(PrimFunc f, bool is_strict) {
-  PrimFuncNode* fptr = f.CopyOnWrite();
-  auto region = BufferAccessRegionCollector::Collect(f, /*collect_inbound=*/is_strict);
-  auto storage_align = CollectStorageAlignAnnotation(f->body);
-  fptr->body = BufferCompactor::Compact(f, region, storage_align);
-  return f;
+  // Only apply this pass to TIR that is not from TE schedules
+  if (!IsFromLegacyTESchedule(f)) {
+    PrimFuncNode* fptr = f.CopyOnWrite();
+    auto region = BufferAccessRegionCollector::Collect(f, /*collect_inbound=*/is_strict);
+    auto storage_align = CollectStorageAlignAnnotation(f->body);
+    fptr->body = BufferCompactor::Compact(f, region, storage_align);
+    return f;
+  } else {
+    return f;
+  }
 }
 
 namespace transform {

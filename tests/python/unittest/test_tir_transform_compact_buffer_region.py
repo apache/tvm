@@ -273,7 +273,7 @@ class TestSymbolic(BaseCompactTest):
             with T.block():
                 T.reads(A[i * 8 : i * 8 + 8])
                 T.writes(C[i * 8 : i * 8 + 8])
-                B = T.alloc_buffer((T.min(n, 1) * 8,), "float32")
+                B = T.alloc_buffer((8,), "float32")
                 for j in range(0, 8):
                     with T.block():
                         T.reads(A[i * 8 + j])
@@ -1241,6 +1241,45 @@ class TestNotCompactAliasBuffer(BaseCompactTest):
             B[i] = B[i] + T.float16(1)
 
     expected = before
+
+
+class TestNotCompactBufferWithDifferentDtype(BaseCompactTest):
+
+    # it is not testcase on block form
+    is_lower_order_free = False
+
+    @T.prim_func
+    def before():
+        """Partially accessed buffer, but should not compact
+        because existence of aliasing buffer B."""
+        data = T.allocate([1024], "int8")
+        A = T.decl_buffer([256], "int32", data)
+        for i in range(10):
+            A[i] = A[i] + 1
+
+    expected = before
+
+
+class TestNonBoolCondition(BaseCompactTest):
+
+    # it is not testcase on block form
+    is_lower_order_free = False
+
+    @T.prim_func
+    def before():
+        data = T.allocate([12], "int32")
+        A = T.Buffer([12], "int32", data)
+        for i in range(10):
+            if i:
+                A[i] = A[i] + 1
+
+    @T.prim_func
+    def expected():
+        data = T.allocate([9], "int32")
+        A = T.Buffer([9], "int32", data)
+        for i in range(10):
+            if i:
+                A[i - 1] = A[i - 1] + 1
 
 
 def test_lower_te():
