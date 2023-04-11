@@ -212,22 +212,14 @@ std::vector<BranchInfo> GetBranchInfo(Function f) {
 
   auto bindings = AnalyzeVar2Value(f);
 
-  using BranchGroups = std::unordered_map<const VarNode*, BranchInfo>;
-
-  auto create_group = [&](DFPattern pat, const std::vector<BranchGroups>& ignore_groups) {
-    BranchGroups groups;
+  auto create_group = [&](DFPattern pat) {
+    std::unordered_map<const VarNode*, BranchInfo> groups;
 
     PostOrderVisit(f, [&](const Expr& e) {
       if (!e->IsInstance<CallNode>()) return;
       if (auto match = ExtractMatchedExpr(pat, e, bindings)) {
         auto matmul_call = Downcast<Call>(match.value()[matmul_pat]);
         auto matmul_lhs = Downcast<Var>(matmul_call->args[0]);
-
-        for (const auto& prev_group : ignore_groups) {
-          if (auto it = prev_group.find(matmul_lhs.get());
-              it != prev_group.end() && it->second.num_branches > 1)
-            return;
-        }
 
         auto it = groups.find(matmul_lhs.get());
         BranchInfo* branch = it != groups.end() ? &it->second : nullptr;
@@ -249,11 +241,11 @@ std::vector<BranchInfo> GetBranchInfo(Function f) {
         } else {
           branch->num_branches += 1;
 
-          if (branch->bias_dim && branch->bias_dim != bias_dim) {
+          if (!bias_dim || (branch->bias_dim && *branch->bias_dim != *bias_dim)) {
             branch->bias_dim = std::nullopt;
           }
 
-          if ((branch->activation && activation) && *branch->activation != *activation) {
+          if (!activation || (branch->activation && *branch->activation != *activation)) {
             branch->activation = std::nullopt;
           }
         }
@@ -264,19 +256,31 @@ std::vector<BranchInfo> GetBranchInfo(Function f) {
     return groups;
   };
 
-  BranchGroups groups_activation;
+  std::unordered_map<const VarNode*, BranchInfo> groups_activation;
   for (size_t i = 0; i < activations.size(); ++i) {
-    auto groups = create_group(bias_activation_pat[i], {});
+    auto groups = create_group(bias_activation_pat[i]);
     groups_activation.merge(std::move(groups));
   }
 
   for (size_t i = 0; i < activations.size(); ++i) {
-    auto groups = create_group(activation_pat[i], {});
+    auto groups = create_group(activation_pat[i]);
     groups_activation.merge(std::move(groups));
   }
 
-  auto groups_bias = create_group(bias_add_pat, {groups_activation});
-  auto groups_matmul = create_group(matmul_pat, {groups_activation, groups_bias});
+  auto groups_bias = create_group(bias_add_pat);
+  auto groups_matmul = create_group(matmul_pat);
+
+  for (auto groups : {groups_bias, groups_activation}) {
+    for (const auto& [lhs, branch] : groups) {
+      // Prefer combining more matmuls than combining fewer ones and leaving additional uncombined
+      // matmuls followed by bias or activation So we combine matmuls + fused ops patterns only when
+      // all branches have the same fused ops.
+      if (auto it = groups_matmul.find(lhs);
+          it != groups_matmul.end() && it->second.num_branches == branch.num_branches) {
+        it->second = branch;
+      }
+    }
+  }
 
   std::vector<BranchInfo> info;
 

@@ -27,7 +27,7 @@ def get_parallel_matmul(
     num_branches,
     lhs_shape=(640, 640),
     rhs_shape=(640, 640),
-    with_bias=False,
+    with_bias=None,
     activation=None,
 ):
     dtype = "float32"
@@ -40,18 +40,20 @@ def get_parallel_matmul(
             rhs = []
             bias = []
 
-            for _ in range(num_branches):
+            for i in range(num_branches):
                 rhs.append(R.arg("y", R.Tensor(rhs_shape, dtype)))
 
-                if with_bias:
+                if with_bias and with_bias[i]:
                     bias.append(R.arg("bias", R.Tensor((rhs_shape[1],), dtype)))
+                else:
+                    bias.append(None)
 
             with R.dataflow() as frame:
                 branches = []
 
                 for i, r in enumerate(rhs):
                     result = R.emit(R.matmul(x, r, out_dtype=dtype))
-                    if with_bias:
+                    if bias[i]:
                         result = R.emit(result + bias[i])
                     if activation is not None:
                         result = R.emit(activation(result))
@@ -114,13 +116,60 @@ def test_simple():
 
 
 def test_bias():
-    mod = get_parallel_matmul(3, with_bias=True)
-    print(mod)
+    mod = get_parallel_matmul(3, with_bias=[True, True, True])
     mod = CombineParallelMatmul()(mod)
 
-    print(mod)
+    @R.function
+    def expected1(
+        x: R.Tensor((640, 640), dtype="float32"),
+        y: R.Tensor((640, 640), dtype="float32"),
+        bias: R.Tensor((640,), dtype="float32"),
+        y_1: R.Tensor((640, 640), dtype="float32"),
+        bias_1: R.Tensor((640,), dtype="float32"),
+        y_2: R.Tensor((640, 640), dtype="float32"),
+        bias_2: R.Tensor((640,), dtype="float32"),
+    ) -> R.Tensor((640, 1920), dtype="float32"):
+        with R.dataflow():
+            lv = R.concat((y, y_1, y_2), axis=1)
+            lv1 = R.matmul(x, lv, out_dtype="float32")
+            lv2 = R.concat((bias, bias_1, bias_2), axis=0)
+            lv3 = R.add(lv1, lv2)
+            lv1_1 = R.strided_slice(lv3, axes=[1], begin=[0], end=[640], strides=[1])
+            lv3_1 = R.strided_slice(lv3, axes=[1], begin=[640], end=[1280], strides=[1])
+            lv5 = R.strided_slice(lv3, axes=[1], begin=[1280], end=[1920], strides=[1])
+            lv6 = R.concat((lv1_1, lv3_1, lv5), axis=1)
+            R.output(lv6)
+        return lv6
+
+    tvm.ir.assert_structural_equal(mod["main"], expected1)
+
+    mod = get_parallel_matmul(3, with_bias=[True, False, True])
+    mod = CombineParallelMatmul()(mod)
+
+    @R.function
+    def expected2(
+        x: R.Tensor((640, 640), dtype="float32"),
+        y: R.Tensor((640, 640), dtype="float32"),
+        bias: R.Tensor((640,), dtype="float32"),
+        y_1: R.Tensor((640, 640), dtype="float32"),
+        y_2: R.Tensor((640, 640), dtype="float32"),
+        bias_1: R.Tensor((640,), dtype="float32"),
+    ) -> R.Tensor((640, 1920), dtype="float32"):
+        with R.dataflow():
+            lv = R.concat((y, y_1, y_2), axis=1)
+            lv1 = R.matmul(x, lv, out_dtype="float32")
+            lv_1 = R.strided_slice(lv1, axes=[1], begin=[0], end=[640], strides=[1])
+            lv1_1 = R.add(lv_1, bias)
+            lv2 = R.strided_slice(lv1, axes=[1], begin=[640], end=[1280], strides=[1])
+            lv3 = R.strided_slice(lv1, axes=[1], begin=[1280], end=[1920], strides=[1])
+            lv4 = R.add(lv3, bias_1)
+            lv5 = R.concat((lv1_1, lv2, lv4), axis=1)
+            R.output(lv5)
+        return lv5
+
+    tvm.ir.assert_structural_equal(mod["main"], expected2)
 
 
 if __name__ == "__main__":
     # tvm.testing.main()
-    test_simple()
+    test_bias()
