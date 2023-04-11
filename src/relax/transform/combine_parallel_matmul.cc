@@ -224,7 +224,9 @@ std::vector<BranchInfo> GetBranchInfo(Function f) {
         auto matmul_lhs = Downcast<Var>(matmul_call->args[0]);
 
         for (const auto& prev_group : ignore_groups) {
-          if (prev_group.count(matmul_lhs.get())) return;
+          if (auto it = prev_group.find(matmul_lhs.get());
+              it != prev_group.end() && it->second.num_branches > 1)
+            return;
         }
 
         auto it = groups.find(matmul_lhs.get());
@@ -263,14 +265,15 @@ std::vector<BranchInfo> GetBranchInfo(Function f) {
   };
 
   BranchGroups groups_activation;
-  // for (size_t i = 0; i < activations.size(); ++i) {
-  //   auto groups = create_group(bias_activation_pat[i], {});
-  //   groups_activation.merge(std::move(groups));
-  // }
-  // for (size_t i = 0; i < activations.size(); ++i) {
-  //   auto groups = create_group(activation_pat[i], {});
-  //   groups_activation.merge(std::move(groups));
-  // }
+  for (size_t i = 0; i < activations.size(); ++i) {
+    auto groups = create_group(bias_activation_pat[i], {});
+    groups_activation.merge(std::move(groups));
+  }
+
+  for (size_t i = 0; i < activations.size(); ++i) {
+    auto groups = create_group(activation_pat[i], {});
+    groups_activation.merge(std::move(groups));
+  }
 
   auto groups_bias = create_group(bias_add_pat, {groups_activation});
   auto groups_matmul = create_group(matmul_pat, {groups_activation, groups_bias});
