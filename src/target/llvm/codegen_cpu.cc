@@ -450,15 +450,25 @@ llvm::Value* CodeGenCPU::CreateCallExtern(Type ret_type, String global_symbol,
   // Check if it is available in global function table as injected function.
   auto it = gv_func_map_.find(global_symbol);
   if (it != gv_func_map_.end()) {
+    llvm::GlobalVariable* gv;
     if (it->second == nullptr) {
-      gv_func_map_[global_symbol] = InitContextPtr(ftype->getPointerTo(), "__" + global_symbol);
-      it = gv_func_map_.find(global_symbol);
+      gv = gv_func_map_[global_symbol] =
+          InitContextPtr(ftype->getPointerTo(), "__" + global_symbol);
+    } else {
+      gv = it->second;
     }
+    llvm::Value* callee = GetContextPtr(gv);
+
+    if (callee->getType() != ftype->getPointerTo()) {
+      callee = builder_->CreatePointerCast(callee, ftype->getPointerTo());
+    }
+
 #if TVM_LLVM_VERSION >= 90
-    auto ext_callee = llvm::FunctionCallee(ftype, GetContextPtr(it->second));
+    auto ext_callee = llvm::FunctionCallee(ftype, callee);
 #else
-    auto ext_callee = GetContextPtr(it->second);
+    auto ext_callee = callee;
 #endif
+
     return builder_->CreateCall(ext_callee, arg_values);
   } else {
     llvm::Function* f = module_->getFunction(MakeStringRef(global_symbol));
