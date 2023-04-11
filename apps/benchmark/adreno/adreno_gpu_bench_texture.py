@@ -115,6 +115,7 @@ def print_progress(msg):
 def tune_tasks(
     tasks,
     measure_option,
+    tuner="xgb",
     n_trial=1024,
     early_stopping=None,
     log_filename="tuning.log",
@@ -126,7 +127,40 @@ def tune_tasks(
     for i, tsk in enumerate(reversed(tasks)):
         print("Task: ", tsk)
         prefix = "[Task %2d/%2d] " % (i + 1, len(tasks))
-        tuner_obj = XGBTuner(tsk, loss_type="rank")
+
+        # create tuner
+        if tuner == "xgb":
+            tuner_obj = XGBTuner(tsk, loss_type="reg")
+        elif tuner == "xgb_knob":
+            tuner_obj = XGBTuner(tsk, loss_type="reg", feature_type="knob")
+        elif tuner == "xgb_itervar":
+            tuner_obj = XGBTuner(tsk, loss_type="reg", feature_type="itervar")
+        elif tuner == "xgb_curve":
+            tuner_obj = XGBTuner(tsk, loss_type="reg", feature_type="curve")
+        elif tuner == "xgb_rank":
+            tuner_obj = XGBTuner(tsk, loss_type="rank")
+        elif tuner == "xgb_rank_knob":
+            tuner_obj = XGBTuner(tsk, loss_type="rank", feature_type="knob")
+        elif tuner == "xgb_rank_itervar":
+            tuner_obj = XGBTuner(tsk, loss_type="rank", feature_type="itervar")
+        elif tuner == "xgb_rank_curve":
+            tuner_obj = XGBTuner(tsk, loss_type="rank", feature_type="curve")
+        elif tuner == "xgb_rank_binary":
+            tuner_obj = XGBTuner(tsk, loss_type="rank-binary")
+        elif tuner == "xgb_rank_binary_knob":
+            tuner_obj = XGBTuner(tsk, loss_type="rank-binary", feature_type="knob")
+        elif tuner == "xgb_rank_binary_itervar":
+            tuner_obj = XGBTuner(tsk, loss_type="rank-binary", feature_type="itervar")
+        elif tuner == "xgb_rank_binary_curve":
+            tuner_obj = XGBTuner(tsk, loss_type="rank-binary", feature_type="curve")
+        elif tuner == "ga":
+            tuner_obj = GATuner(tsk, pop_size=50)
+        elif tuner == "random":
+            tuner_obj = RandomTuner(tsk)
+        elif tuner == "gridsearch":
+            tuner_obj = GridSearchTuner(tsk)
+        else:
+            raise ValueError("Invalid tuner: " + tuner)
 
         tsk_trial = min(n_trial, len(tsk.config_space))
         tuner_obj.tune(
