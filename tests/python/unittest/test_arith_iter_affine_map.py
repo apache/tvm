@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from xml import dom
 import tvm
 import tvm.testing
 from tvm.tir import floormod, floordiv
@@ -1185,7 +1184,7 @@ def test_iter_map_simplify_unit_loop_order():
 
     # Even with simplifcation, it should follow the original order
     assert_iter_map_simplfy(
-        {x + y + (z // 4) * 4 + z % 4: x + y + z},
+        {x + y + (z // 4) * 4 + z % 4: z + x + y},
         var_dom([(x, 1), (y, 1), (z, 32)]),
         simplify_trivial_iterators=False,
     )
@@ -1193,6 +1192,14 @@ def test_iter_map_simplify_unit_loop_order():
     assert_iter_map_simplfy(
         {y + 64 - x % 2 * 64: y + 64 - x % 2 * 64},
         var_dom([(x, 6), (y, 64)]),
+        simplify_trivial_iterators=False,
+    )
+
+    # When we have iterators that have same scale but one of them come
+    # with unit extent, we should prioritize unit extent
+    assert_iter_map_simplfy(
+        {x // 128 + y + z: y + x // 128 + z},
+        var_dom([(x, 128), (y, 128), (z, 1)]),
         simplify_trivial_iterators=False,
     )
 

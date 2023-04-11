@@ -223,7 +223,7 @@ def compacted_symbolic_func(a: T.handle, c: T.handle, n: T.int32) -> None:
         with T.block():
             T.reads(A[i * 8 : i * 8 + 8])
             T.writes(C[i * 8 : i * 8 + 8])
-            B = T.alloc_buffer((T.min(n, 1) * 8,), "float32")
+            B = T.alloc_buffer((8,), "float32")
             for j in range(0, 8):
                 with T.block():
                     T.reads(A[i * 8 + j])
@@ -1007,6 +1007,89 @@ def test_compact_dependent_buffer_indices_of_packed_matmul():
                         ]
 
     _check(nonuniform_packed_matmul_write_cache, nonuniform_packed_matmul_write_cache_compacted)
+
+
+def test_compact_symbolic_bound0():
+    """Test symbolic bound that get compacted to constant"""
+
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(x: T.handle, y: T.handle, n: T.int64):
+            X = T.match_buffer(x, (T.int64(8), n * T.int64(32)))
+            Y = T.match_buffer(y, (T.int64(8), n * T.int64(32)))
+            for i, k_0 in T.grid(T.int64(8), n):
+                with T.block(""):
+                    X_global = T.alloc_buffer((T.int64(8), n * T.int64(32)))
+                    for ax0 in range(T.int64(32)):
+                        with T.block("X_global"):
+                            X_global[i, k_0 * T.int64(32) + ax0] = X[i, k_0 * T.int64(32) + ax0]
+                    for k_1 in range(T.int64(32)):
+                        with T.block("Y"):
+                            Y[i, k_0 * T.int64(32) + k_1] = X_global[i, k_0 * T.int64(32) + k_1]
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def main(x: T.handle, y: T.handle, n: T.int64):
+            X = T.match_buffer(x, (T.int64(8), n * T.int64(32)))
+            Y = T.match_buffer(y, (T.int64(8), n * T.int64(32)))
+            for i, k_0 in T.grid(T.int64(8), n):
+                with T.block(""):
+                    X_global = T.alloc_buffer((T.int64(1), T.int64(32)))
+                    for ax0 in range(T.int64(32)):
+                        with T.block("X_global"):
+                            X_global[T.int64(0), ax0] = X[i, k_0 * T.int64(32) + ax0]
+                    for k_1 in range(T.int64(32)):
+                        with T.block("Y"):
+                            Y[i, k_0 * T.int64(32) + k_1] = X_global[T.int64(0), k_1]
+
+    mod = Before
+    mod = tvm.tir.transform.CompactBufferAllocation()(mod)
+    after = tvm.tir.transform.Simplify()(mod)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+def test_compact_symbolic_bound1():
+    """Test symbolic bound that get compacted to constant"""
+
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(x: T.handle, y: T.handle, n: T.int64):
+            X = T.match_buffer(x, (T.int64(8), n * T.int64(32)))
+            Y = T.match_buffer(y, (T.int64(8), n * T.int64(32)))
+            for i, k_0 in T.grid(T.int64(8), n):
+                with T.block(""):
+                    X_global = T.alloc_buffer((T.int64(8), n * T.int64(32)))
+                    with T.block("X_global"):
+                        for x0 in range(T.int64(32)):
+                            X_global[i, k_0 * T.int64(32) + x0] = X[i, k_0 * T.int64(32) + x0]
+                    with T.block("Y"):
+                        for x1 in range(T.int64(32)):
+                            Y[i, k_0 * T.int64(32) + x1] = X_global[i, k_0 * T.int64(32) + x1]
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def main(x: T.handle, y: T.handle, n: T.int64):
+            X = T.match_buffer(x, (T.int64(8), n * T.int64(32)))
+            Y = T.match_buffer(y, (T.int64(8), n * T.int64(32)))
+            # with T.block("root"):
+            for i, k_0 in T.grid(T.int64(8), n):
+                with T.block(""):
+                    X_global = T.alloc_buffer((T.int64(1), T.int64(32)))
+                    with T.block("X_global"):
+                        for x0 in range(T.int64(32)):
+                            X_global[T.int64(0), x0] = X[i, k_0 * T.int64(32) + x0]
+                    with T.block("Y"):
+                        for x1 in range(T.int64(32)):
+                            Y[i, k_0 * T.int64(32) + x1] = X_global[T.int64(0), x1]
+
+    mod = Before
+    mod = tvm.tir.transform.CompactBufferAllocation()(mod)
+    after = tvm.tir.transform.Simplify()(mod)
+    tvm.ir.assert_structural_equal(after, Expected)
 
 
 if __name__ == "__main__":
