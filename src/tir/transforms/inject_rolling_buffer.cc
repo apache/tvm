@@ -213,7 +213,7 @@ class RollingBufferInjector : public StmtExprMutator {
     auto stmt{StmtExprMutator::VisitStmt_(op)};
     op = stmt.as<AttrStmtNode>();
 
-    if (rolling_buffers.count(Downcast<Buffer>(op->node))) {
+    if (auto opt = op->node.as<Buffer>(); opt && rolling_buffers.count(opt.value())) {
       // Remove the attribute statements attached to rolling buffers
       // because they will have been hoisted to the relevant rolling
       // scope
