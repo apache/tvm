@@ -566,16 +566,26 @@ class BlockCollector : public tir::StmtVisitor {
   /*! \brief Entry point */
   Array<tir::BlockRV> Run() {
     std::vector<tir::BlockRV> results;
-    for (const auto& [gv, base_func] : sch_->mod()->functions) {
-      // `gv->name_hint` is the name of the function
-      // `base_func` can be PrimFunc or relay::Function
-      if (const auto* func = base_func.as<tir::PrimFuncNode>()) {
-        func_name_ = gv->name_hint;
-        block_names_.clear();
-        blocks_to_collect_.clear();
-        VisitStmt(func->body);
-        for (const String& name : blocks_to_collect_) {
-          results.push_back(sch_->GetBlock(name, func_name_));
+    auto f_collect = [this, &results](tir::PrimFunc func, String func_name) {
+      func_name_ = func_name;
+      block_names_.clear();
+      blocks_to_collect_.clear();
+      VisitStmt(func->body);
+      for (const String& name : blocks_to_collect_) {
+        results.push_back(sch_->GetBlock(name, func_name_));
+      }
+    };
+
+    if (sch_->func_working_on().defined()) {
+      GlobalVar gv = sch_->func_working_on().value();
+      tir::PrimFunc func = Downcast<tir::PrimFunc>(sch_->mod()->functions[gv]);
+      f_collect(func, gv->name_hint);
+    } else {
+      for (const auto& [gv, base_func] : sch_->mod()->functions) {
+        // `gv->name_hint` is the name of the function
+        // `base_func` can be PrimFunc or relay::Function
+        if (const auto* func = base_func.as<tir::PrimFuncNode>()) {
+          f_collect(GetRef<tir::PrimFunc>(func), gv->name_hint);
         }
       }
     }
