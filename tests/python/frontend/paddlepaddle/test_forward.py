@@ -616,11 +616,15 @@ def test_forward_dropout():
     @paddle.jit.to_static
     def dropout(inputs):
         return nn.functional.dropout(inputs)
+    def dropout1(inputs):
+        return nn.functional.dropout(inputs, 0.1)
 
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(dropout, input_data=input_data[0, 0])
     verify_model(dropout, input_data=input_data)
+    verify_model(dropout1, input_data=input_data[0, 0])
+    verify_model(dropout1, input_data=input_data)
 
 
 def test_forward_elemwise():
@@ -996,10 +1000,13 @@ def test_forward_gelu():
     @paddle.jit.to_static
     def gelu(inputs):
         return nn.functional.gelu(inputs)
+    def gelu1(inputs):
+        return nn.functional.gelu(inputs, approximate=True)
 
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(gelu, input_data=input_data)
+    verify_model(gelu1, input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -1007,10 +1014,13 @@ def test_forward_hard_sigmoid():
     @paddle.jit.to_static
     def hard_sigmoid(inputs):
         return nn.functional.hardsigmoid(inputs)
+    def hard_sigmoid1(inputs):
+        return nn.functional.hardsigmoid(inputs, offset=0.6)
 
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(hard_sigmoid, input_data=input_data)
+    verify_model(hard_sigmoid1, input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -1781,9 +1791,9 @@ def test_forward_mv():
 @tvm.testing.uses_gpu
 def test_forward_pixel_shuffle():
     class PixelShuffle(nn.Layer):
-        def __init__(self, upscale_factor):
+        def __init__(self, upscale_factor, data_format="NCHW"):
             super(PixelShuffle, self).__init__()
-            self.pixel_shuffle = paddle.nn.PixelShuffle(upscale_factor)
+            self.pixel_shuffle = paddle.nn.PixelShuffle(upscale_factor, data_format)
 
         @paddle.jit.to_static
         def forward(self, x):
@@ -1793,6 +1803,11 @@ def test_forward_pixel_shuffle():
     for input_shape in input_shapes:
         x = paddle.rand(input_shape, dtype="float32")
         verify_model(PixelShuffle(2), x)
+
+    input_shapes = [[1, 3, 3, 4], [2, 2, 5, 8]]
+    for input_shape in input_shapes:
+        x = paddle.rand(input_shape, dtype="float32")
+        verify_model(PixelShuffle(2, data_format="NHWC"), x)
 
 
 @tvm.testing.uses_gpu
