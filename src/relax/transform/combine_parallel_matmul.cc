@@ -40,6 +40,9 @@ namespace relax {
 
 using runtime::Map;
 
+/*! \brief Group shapes of the RHS matrices by rank. Matrices in a group whose batch sizes
+  are compatible are combined.
+*/
 std::unordered_map<size_t, std::vector<size_t>> GroupShapes(
     const std::vector<Array<PrimExpr>>& shapes) {
   std::unordered_map<size_t, std::vector<size_t>> indices_map;
@@ -102,6 +105,7 @@ Patterns CreatePatterns(const BranchInfo& branch_info) {
   return patterns;
 }
 
+/*! \brief Create a rewriter for the given parallel matmul branches. */
 runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>)> GetRewriter(
     const Patterns& patterns, const BranchInfo& branch_info) {
   auto batch_dims_compatible = [](int rhs_dim, const std::vector<size_t>& indices,
@@ -197,6 +201,9 @@ Function Rewrite(Function f, const BranchInfo& branch_info) {
   return RewriteBindings(patterns.ctx, rewriter, f);
 }
 
+/*! \brief Look for subtrees with parallel matmul and return information about
+  them (the number of branches and the kind of fused ops)
+*/
 std::vector<BranchInfo> GetBranchInfo(Function f) {
   auto bias_pat = Wildcard();
   auto matmul_pat = IsOp("relax.matmul")(Wildcard(), Wildcard());
@@ -213,6 +220,7 @@ std::vector<BranchInfo> GetBranchInfo(Function f) {
   auto bindings = AnalyzeVar2Value(f);
 
   auto create_group = [&](DFPattern pat) {
+    // Maps a LHS matrix to consumer parallel matmuls
     std::unordered_map<const VarNode*, BranchInfo> groups;
 
     PostOrderVisit(f, [&](const Expr& e) {
@@ -238,8 +246,11 @@ std::vector<BranchInfo> GetBranchInfo(Function f) {
         }
 
         if (!branch) {
+          // Create a new subgraph with one matmul
           groups[matmul_lhs.get()] = {1, bias_dim, activation};
         } else {
+          // Create a new branch in the existing parallel matmul subtree, and
+          // invalidate bias and activation information when needed.
           branch->num_branches += 1;
 
           if (!bias_dim || (branch->bias_dim && *branch->bias_dim != *bias_dim)) {
@@ -271,11 +282,11 @@ std::vector<BranchInfo> GetBranchInfo(Function f) {
   auto groups_bias = create_group(bias_add_pat);
   auto groups_matmul = create_group(matmul_pat);
 
-  for (auto groups : {groups_bias, groups_activation}) {
+  for (const auto& groups : {groups_bias, groups_activation}) {
     for (const auto& [lhs, branch] : groups) {
       // Prefer combining more matmuls than combining fewer ones and leaving additional uncombined
-      // matmuls followed by bias or activation So we combine matmuls + fused ops patterns only when
-      // all branches have the same fused ops.
+      // matmuls followed by bias or activation. So we combine matmuls + fused ops patterns only
+      // when all branches have the same fused ops.
       if (auto it = groups_matmul.find(lhs);
           it != groups_matmul.end() && it->second.num_branches == branch.num_branches) {
         it->second = branch;
@@ -285,7 +296,7 @@ std::vector<BranchInfo> GetBranchInfo(Function f) {
 
   std::vector<BranchInfo> info;
 
-  for (auto groups : {groups_matmul, groups_activation, groups_bias}) {
+  for (const auto& groups : {groups_matmul, groups_activation, groups_bias}) {
     for (const auto& group : groups) {
       if (group.second.num_branches > 1) {
         info.push_back(group.second);
@@ -293,14 +304,14 @@ std::vector<BranchInfo> GetBranchInfo(Function f) {
     }
   }
 
-  std::sort(info.begin(), info.end(),
-            [](const auto& b1, const auto& b2) { return b1.num_branches > b2.num_branches; });
-
   return info;
 }
 
 Function CombineParallelMatmul(Function f) {
   auto branches = GetBranchInfo(f);
+  std::sort(branches.begin(), branches.end(),
+            [](const auto& b1, const auto& b2) { return b1.num_branches > b2.num_branches; });
+
   for (const auto& branch : branches) {
     f = Rewrite(f, branch);
   }
