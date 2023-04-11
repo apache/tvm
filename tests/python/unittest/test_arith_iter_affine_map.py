@@ -199,14 +199,14 @@ def test_compound():
     assert_iter_sum_pattern({z[0]: (18, 0, 1, sz), xi[0]: (5, 0)}, var_dom([(x, 10), (y, 9)]))
 
 
-def test_compound_floormod_two():
+def test_compound_floormod_two_regression():
     x = tvm.tir.Var("x", "int32")
     fld = tvm.tir.floordiv
     flm = tvm.tir.floormod
-
-    # extent of 2 are normalized to positive scale
-    assert_iter_sum_pattern(
-        expect_dict={fld(x, 2) * 2 - flm(x, 2) + 1: (8, 0, 1)},
+    # regression
+    # extent of 2 of negative scale cannot be normalized
+    assert_iter_sum_failure(
+        [fld(x, 2) * 2 - flm(x, 2) + 1],
         dom_map=var_dom([(x, 8)]),
     )
 
