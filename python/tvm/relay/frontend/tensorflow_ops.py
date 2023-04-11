@@ -464,8 +464,8 @@ def _conv(opname):
             if opname == "conv":
                 attr["kernel_layout"] = "HWIO" if attr["data_format"] == "NHWC" else "OIHW"
             elif opname == "conv_transpose":
-                # conv_transpose in TVM has weights be HWOI for NHWC and IOHW for NCHW
-                attr["kernel_layout"] = "HWOI" if attr["data_format"] == "NHWC" else "IOHW"
+                # conv_transpose in TVM has weights be IOHW, because the attr["data_format"] always be NCHW when opname='conv_transpose'.
+                attr["kernel_layout"] = "IOHW"
             else:
                 attr["kernel_layout"] = "HWOI" if attr["data_format"] == "NHWC" else "OIHW"
 
