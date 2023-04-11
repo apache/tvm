@@ -108,7 +108,7 @@ Patterns CreatePatterns(const BranchInfo& branch_info) {
 /*! \brief Create a rewriter for the given parallel matmul branches. */
 runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>)> GetRewriter(
     const Patterns& patterns, const BranchInfo& branch_info) {
-  auto batch_dims_compatible = [](int rhs_dim, const std::vector<size_t>& indices,
+  auto batch_dims_compatible = [](size_t rhs_dim, const std::vector<size_t>& indices,
                                   const std::vector<Array<PrimExpr>>& rhs_shapes) {
     arith::Analyzer ana;
     for (auto ind : indices) {
