@@ -35,19 +35,23 @@ IRModuleFrame IRModule() {
   return IRModuleFrame(n);
 }
 
+inline relax::StructInfo GetGlobalVarStructInfo(const BaseFunc& func) {
+  if (func->struct_info_.defined()) {
+    return tvm::relax::GetStructInfo(func);
+  } else if (const auto* prim_func = func.as<tvm::tir::PrimFuncNode>()) {
+    return tvm::relax::FuncStructInfo::OpaqueFunc(
+        tvm::relax::StructInfoFromType(prim_func->ret_type));
+  } else {
+    LOG(FATAL) << "Unsupported function type: " << func->GetTypeKey();
+  }
+}
+
 GlobalVar DeclFunction(const String& func_name, const BaseFunc& func_signature) {
   IRModuleFrame frame = FindModuleFrame();
   CHECK(!frame->global_var_map.count(func_name))
       << "ValueError: function " << func_name << " already exists";
   GlobalVar gv = GlobalVar(func_name);
-  if (func_signature->struct_info_.defined()) {
-    gv->struct_info_ = tvm::relax::GetStructInfo(func_signature);
-  } else if (const auto* prim_func = func_signature.as<tvm::tir::PrimFuncNode>()) {
-    gv->struct_info_ =
-        tvm::relax::FuncStructInfo::OpaqueFunc(tvm::relax::StructInfoFromType(prim_func->ret_type));
-  } else {
-    LOG(FATAL) << "Unsupported function type: " << func_signature->GetTypeKey();
-  }
+  gv->struct_info_ = GetGlobalVarStructInfo(func_signature);
   CHECK(frame->functions.find(gv) == frame->functions.end())
       << "ValueError: function " << func_name << " has already been defined.";
   frame->global_var_map.Set(func_name, gv);
@@ -68,6 +72,7 @@ void DefFunction(const String& func_name, const BaseFunc& func) {
   CHECK(func->checked_type_.defined())
       << "The checked_type_ of function must be defined, but it is not defined for function `"
       << func_name << "`.";
+  gv->struct_info_ = GetGlobalVarStructInfo(func);
   gv->checked_type_ = func->checked_type_;
 }
 
