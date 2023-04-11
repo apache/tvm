@@ -42,12 +42,26 @@ transform::Pass BindTarget(Target target) {
 
 transform::Pass AnnotateEntryFunc() {
   auto fpass = [](IRModule mod, transform::PassContext ctx) -> IRModule {
+    // AOT tracks the entry function, no annotation required
     auto executor = mod->GetAttr<tvm::relay::Executor>("executor");
     const bool is_aot_executor = executor.defined() && executor.value()->name == "aot";
     if (is_aot_executor) {
       return mod;
     }
 
+    // If only a single function exists, that function must be the entry
+    if (mod->functions.size() == 1) {
+      auto [gvar, base_func] = *mod->functions.begin();
+      if (!base_func->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
+        if (auto ptr = base_func.as<PrimFuncNode>()) {
+          mod->Update(gvar, WithAttr(GetRef<PrimFunc>(ptr), tir::attr::kIsEntryFunc, Bool(true)));
+        }
+      }
+      return mod;
+    }
+
+    // If the module has multiple functions, but only one is exposed
+    // externally, that function must be the entry.
     bool has_external_non_primfuncs = false;
     IRModule with_annotations;
     for (const auto& [gvar, base_func] : mod->functions) {
@@ -61,10 +75,12 @@ transform::Pass AnnotateEntryFunc() {
         }
       }
     }
-
     if (with_annotations->functions.size() == 1 && !has_external_non_primfuncs) {
       mod->Update(with_annotations);
+      return mod;
     }
+
+    // Default fallback, no annotations may be inferred.
     return mod;
   };
   return tvm::transform::CreateModulePass(fpass, 0, "tir.AnnotateEntryFunc", {});
