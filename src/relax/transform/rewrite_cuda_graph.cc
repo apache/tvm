@@ -28,7 +28,7 @@
  * The transformation is done in two steps:
  *
  * 1. Identify the regions that can be captured by CUDA graph and create the rewriting plan with
- * `CUDAGraphRewritePlaner`.
+ * `CUDAGraphRewritePlanner`.
  *
  * A region is a subgraph of the Relax function that are executed statically. A region is executed
  * statically if 1) it only depends on the memory allocated internally in the Relax function with
@@ -39,7 +39,7 @@
  * `R.memory.alloc_storage` and `R.memory.alloc_tensor`, while other tensors will be allocated via
  * `R.builtin.alloc_tensor`.
  *
- * `CUDAGraphRewritePlaner` is executed at the level of BindingBlock. It first identify all the
+ * `CUDAGraphRewritePlanner` is executed at the level of BindingBlock. It first identify all the
  * storage objects allocated with `R.memory.alloc_storage` within the BindingBlock, and then
  * identify the static regions by propagating starting from the storage objects.
  *
