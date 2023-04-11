@@ -135,10 +135,9 @@ void CheckOrSetAttr(Map<String, ObjectRef>* attrs, const String& name, const Str
   if (iter == attrs->end()) {
     attrs->Set(name, value);
   } else {
-    const auto* str = (*iter).second.as<StringObj>();
-    ICHECK(str != nullptr && GetRef<String>(str) == value)
-        << "ValueError: Expects \"" << name << "\" to be \"" << value
-        << "\", but gets: " << (*iter).second;
+    auto str = (*iter).second.as<String>();
+    ICHECK(str && str.value() == value) << "ValueError: Expects \"" << name << "\" to be \""
+                                        << value << "\", but gets: " << (*iter).second;
   }
 }
 

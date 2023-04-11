@@ -526,8 +526,8 @@ void CodeGenC::PrintCallExtern(Type ret_type, String global_symbol, const Array<
 }
 
 void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
-  if (auto* ptr_op = op->op.as<OpNode>()) {
-    auto call_op = GetRef<Op>(ptr_op);
+  if (auto opt_call_op = op->op.as<Op>()) {
+    auto call_op = opt_call_op.value();
 
     if (op->op.same_as(builtin::tvm_check_return())) {
       const CallNode* call = op->args[2].as<CallNode>();

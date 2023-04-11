@@ -173,10 +173,10 @@ void Reads(Array<ObjectRef> buffer_slices) {
   }
   Array<BufferRegion> reads;
   for (const ObjectRef& obj : buffer_slices) {
-    if (const auto* buffer_region = obj.as<BufferRegionNode>()) {
-      reads.push_back(GetRef<BufferRegion>(buffer_region));
-    } else if (const auto* buffer_load = obj.as<BufferLoadNode>()) {
-      reads.push_back(BufferRegionFromLoad(GetRef<BufferLoad>(buffer_load)));
+    if (auto buffer_region = obj.as<BufferRegion>()) {
+      reads.push_back(buffer_region.value());
+    } else if (auto buffer_load = obj.as<BufferLoad>()) {
+      reads.push_back(BufferRegionFromLoad(buffer_load.value()));
     } else {
       LOG(FATAL) << "Invalid type for buffer reads.";
     }
@@ -193,10 +193,10 @@ void Writes(Array<ObjectRef> buffer_slices) {
   }
   Array<BufferRegion> writes;
   for (const ObjectRef& obj : buffer_slices) {
-    if (const auto* buffer_region = obj.as<BufferRegionNode>()) {
-      writes.push_back(GetRef<BufferRegion>(buffer_region));
-    } else if (const auto* buffer_load = obj.as<BufferLoadNode>()) {
-      writes.push_back(BufferRegionFromLoad(GetRef<BufferLoad>(buffer_load)));
+    if (auto buffer_region = obj.as<BufferRegion>()) {
+      writes.push_back(buffer_region.value());
+    } else if (auto buffer_load = obj.as<BufferLoad>()) {
+      writes.push_back(BufferRegionFromLoad(buffer_load.value()));
     } else {
       LOG(FATAL) << "Invalid type for buffer writes.";
     }
@@ -576,8 +576,8 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
       int n = buffer->strides.size();
       for (int i = 0; i < n; ++i) {
         PrimExpr e = buffer->strides[i];
-        if (const tvm::tir::VarNode* v = e.as<tvm::tir::VarNode>()) {
-          Namer::Name(GetRef<tvm::tir::Var>(v), name + "_s" + std::to_string(i));
+        if (auto v = e.as<tvm::tir::Var>()) {
+          Namer::Name(v.value(), name + "_s" + std::to_string(i));
         }
       }
     });
@@ -608,11 +608,11 @@ TVM_REGISTER_GLOBAL("script.ir_builder.tir.PrimFunc").set_body_typed(PrimFunc);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Arg")
     .set_body_typed([](String name, ObjectRef obj) -> ObjectRef {
       using namespace tvm::tir;
-      if (const auto* var = obj.as<VarNode>()) {
-        return Arg(name, GetRef<tvm::tir::Var>(var));
+      if (auto var = obj.as<Var>()) {
+        return Arg(name, var.value());
       }
-      if (const auto* buffer = obj.as<BufferNode>()) {
-        return Arg(name, GetRef<Buffer>(buffer));
+      if (auto buffer = obj.as<Buffer>()) {
+        return Arg(name, buffer.value());
       }
       LOG(FATAL) << "ValueError: Unexpected type for TIR Arg: " << obj->GetTypeKey();
       throw;
@@ -657,10 +657,10 @@ TVM_REGISTER_GLOBAL("script.ir_builder.tir.Else").set_body_typed(Else);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.DeclBuffer").set_body_typed(DeclBuffer);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.LaunchThread")
     .set_body_typed([](ObjectRef thread_tag_or_var, PrimExpr extent) {
-      if (const auto* var = thread_tag_or_var.as<tvm::tir::VarNode>()) {
-        return LaunchThread(GetRef<tvm::tir::Var>(var), extent);
-      } else if (const auto* str = thread_tag_or_var.as<StringObj>()) {
-        return LaunchThread(GetRef<String>(str), extent);
+      if (auto var = thread_tag_or_var.as<tvm::tir::Var>()) {
+        return LaunchThread(var.value(), extent);
+      } else if (auto str = thread_tag_or_var.as<String>()) {
+        return LaunchThread(str.value(), extent);
       } else {
         LOG(FATAL) << "ValueError: Unexpected type for TIR LaunchThread: "
                    << thread_tag_or_var->GetTypeKey();
