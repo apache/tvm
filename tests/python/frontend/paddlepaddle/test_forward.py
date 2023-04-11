@@ -616,6 +616,7 @@ def test_forward_dropout():
     @paddle.jit.to_static
     def dropout(inputs):
         return nn.functional.dropout(inputs)
+
     def dropout1(inputs):
         return nn.functional.dropout(inputs, 0.1)
 
@@ -1000,6 +1001,7 @@ def test_forward_gelu():
     @paddle.jit.to_static
     def gelu(inputs):
         return nn.functional.gelu(inputs)
+
     def gelu1(inputs):
         return nn.functional.gelu(inputs, approximate=True)
 
@@ -1014,6 +1016,7 @@ def test_forward_hard_sigmoid():
     @paddle.jit.to_static
     def hard_sigmoid(inputs):
         return nn.functional.hardsigmoid(inputs)
+
     def hard_sigmoid1(inputs):
         return nn.functional.hardsigmoid(inputs, offset=0.6)
 
