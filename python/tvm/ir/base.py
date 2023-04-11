@@ -69,6 +69,20 @@ class Span(Object):
         )
 
 
+@register_object("SequentialSpan")
+class SequentialSpan(Object):
+    """Specifies a location in a source program.
+
+    Parameters
+    ----------
+    spans : Array
+        The array of spans.
+    """
+
+    def __init__(self, spans):
+        self.__init_handle_by_constructor__(_ffi_api.SequentialSpan, spans)
+
+
 @register_object
 class EnvFunc(Object):
     """Environment function.
