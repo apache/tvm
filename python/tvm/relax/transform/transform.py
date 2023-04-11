@@ -935,6 +935,18 @@ def SplitCallTIRByPattern(patterns, fcodegen) -> tvm.ir.transform.Pass:
 
 
 def CombineParallelMatmul():
+    """Combine multiple matmul operators sharing the same LHS matrix into one,
+    followed by slicing. When all matmul branches in a tree have the same set of fused ops,
+    the fused ops are applied to the combined matmul output before slicing.
+
+    Currently, only a limited set of fused ops is supported. It includes bias add,
+    relu, gelu, and silu activation.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The corresponding pass.
+    """
     return _ffi_api.CombineParallelMatmul()  # type: ignore
 
 
