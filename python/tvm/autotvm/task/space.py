@@ -72,10 +72,10 @@ def is_dynamic(values):
         if is_dynamic:
             break
         if isinstance(v, tir.IterVar):
-            tir.stmt_functor.post_order_visit(d.dom.min, func_)
-            tir.stmt_functor.post_order_visit(d.dom.extent, func_)
+            tir.stmt_functor.post_order_visit(v.dom.min, func_)
+            tir.stmt_functor.post_order_visit(v.dom.extent, func_)
         elif isinstance(v, tir.expr.PrimExprWithOp):
-            tir.stmt_functor.post_order_visit(d, func_)
+            tir.stmt_functor.post_order_visit(v, func_)
 
     return is_dynamic
 
