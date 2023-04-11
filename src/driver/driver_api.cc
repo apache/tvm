@@ -551,7 +551,7 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   Array<Pass> mixed_pass_list;
 
   // VerifyVTCMLimit must occur before LowerVtcmAlloc
-  mixed_pass_list.push_back(tir::transform::VerifyVTCMLimit());
+  mixed_pass_list.push_back(tir::transform::VerifyVTCMLimit(target));
   // LowerVtcmAlloc must occur after any transformations that modify memory allocation locations
   mixed_pass_list.push_back(tir::transform::LowerVtcmAlloc());
 
