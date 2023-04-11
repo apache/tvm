@@ -286,6 +286,31 @@ def test_implicit_block():
     _check(element_wise_implicit_block, unified_element_wise_implicit_block)
 
 
+def test_inner_binding_with_annotation():
+    @T.prim_func
+    def inner_binding_with_annotation(A: T.Buffer((64,), "float32"), B: T.Buffer((64,), "float32")):
+        for bx in T.thread_binding(32, "blockIdx.x"):
+            for tx in T.thread_binding(2, "threadIdx.x", annotations={"my_annotation": 1}):
+                with T.block("block"):
+                    v = T.axis.spatial(64, bx * 2 + tx)
+                    B[v] = A[v]
+
+    @T.prim_func
+    def unified_inner_binding_with_annotation(
+        A: T.Buffer((64,), "float32"), B: T.Buffer((64,), "float32")
+    ):
+        for blockIdx_x in T.thread_binding(32, thread="blockIdx.x"):
+            for threadIdx_x in T.thread_binding(2, thread="threadIdx.x"):
+                for var in T.serial(1, annotations={"my_annotation": 1}):
+                    with T.block("block"):
+                        v = T.axis.spatial(64, blockIdx_x * 2 + threadIdx_x)
+                        T.reads(A[v])
+                        T.writes(B[v])
+                        B[v] = A[v]
+
+    _check(inner_binding_with_annotation, unified_inner_binding_with_annotation)
+
+
 def test_lower_te():
     a = te.placeholder((32, 2, 2))
     b = te.compute((32, 2, 2), lambda i, j, k: a[i, j, k] * 2.0)
