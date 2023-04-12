@@ -40,6 +40,11 @@ NType NTypeMerge(const NType& a, const NType& b) {
   auto fcombine = [&](const String& a_str, const String& b_str) -> String {
     DataType a = DataType(String2DLDataType(a_str));
     DataType b = DataType(String2DLDataType(b_str));
+    if (a_str == "") {
+      return b_str;
+    } else if (b_str == "") {
+      return a_str;
+    }
     ICHECK_EQ(a.code(), b.code());
     ICHECK_EQ(a.lanes(), b.lanes());
     return a.bits() > b.bits() ? a_str : b_str;
