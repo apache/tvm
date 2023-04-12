@@ -19,7 +19,7 @@
 
 from typing import Dict, Mapping, Tuple, Union
 
-from tvm.relax.dpl.pattern import DFPattern, is_const, is_op, is_tuple, is_tuple_get_item, wildcard
+from tvm.relax.dpl.pattern import DFPattern, is_op, is_tuple_get_item, wildcard
 
 
 def _with_bias_activation_pattern(
@@ -168,6 +168,11 @@ def make_attention_pattern(with_bias: bool = False):
     """
     Create pattern for fused multi head attention.
 
+    Parameters
+    ----------
+    with_bias: bool
+        Whether or not to include bias addition
+
     Returns
     -------
     pattern: DFPattern
@@ -193,6 +198,24 @@ def make_attention_pattern(with_bias: bool = False):
 
 
 def make_stacked_attention_pattern(with_bias: bool = False):
+    """
+    Create pattern for fused multi head attention with stacked input.
+
+    Parameters
+    ----------
+    with_bias: bool
+        Whether or not to include bias addition
+
+    Returns
+    -------
+    pattern: DFPattern
+        The resulting pattern describing a fused multi head attention.
+
+    annotations: Mapping[str, DFPattern]
+        A mapping from name to sub pattern. It can be used to extract
+        important expressions from match result, to power the partition
+        check function and codegen.
+    """
     stacked_qkv = wildcard()
     qkv_tuple = is_op("relax.split")(stacked_qkv)
     query_reshape_list = wildcard()
