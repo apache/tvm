@@ -244,8 +244,6 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
   Map<tir::Buffer, tir::Buffer> buffer_remap_;
   /*! \brief Mapping from src tir var to tgt var. */
   Map<tir::Var, tir::Var> var_remap_;
-  /*! \brief The structural equality checker */
-  StructuralEqual structural_equal_;
 
   Array<tir::BufferRegion> UnionAccessRegion(const Array<BufferRegion>& regions) const {
     // For now we only allow Buffer access the same elements.
@@ -260,8 +258,6 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
       if (it == buffer_region_set.end()) {
         ret.push_back(region);
         buffer_region_set[region->buffer.get()] = region->region;
-      } else {
-        ICHECK(structural_equal_(region->region, it->second));
       }
     }
 
