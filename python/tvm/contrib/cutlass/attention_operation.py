@@ -86,13 +86,13 @@ def instantiate_attention_template(attrs):
   p.v_strideH = p.head_dim_value; // H'
 
   // stride for S
-  p.q_strideM = p.k_strideM = p.v_strideM = 
-    p.q_strideH * p.num_heads + 
-    p.k_strideH * p.num_heads + 
+  p.q_strideM = p.k_strideM = p.v_strideM =
+    p.q_strideH * p.num_heads +
+    p.k_strideH * p.num_heads +
     p.v_strideH * p.num_heads; // H * N + H * N + H * N'
 
   // stride for B
-  p.q_strideB = p.k_strideB = p.v_strideB = 
+  p.q_strideB = p.k_strideB = p.v_strideB =
     p.q_strideM * p.num_queries; // (H * N + H * N + H * N') * S
 """,
     }
