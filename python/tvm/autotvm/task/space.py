@@ -71,7 +71,7 @@ def is_dynamic(values):
     for v in values:
         if is_dynamic:
             break
-        if isinstance(v, tir.IterVar):
+        if isinstance(v, tir.IterVar) and v.dom is not None:
             tir.stmt_functor.post_order_visit(v.dom.min, func_)
             tir.stmt_functor.post_order_visit(v.dom.extent, func_)
         elif isinstance(v, tir.expr.PrimExprWithOp):
