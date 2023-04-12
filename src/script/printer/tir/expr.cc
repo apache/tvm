@@ -322,18 +322,20 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       return OperationDoc(OperationDocNode::Kind::kDiv, {a, b});
     });
 
-#define TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(NodeType, NodeObj, NodeFunc, OpString, OpKind)   \
-  TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)                                                      \
-      .set_dispatch<tir::NodeType>("",                                                            \
-                                   [](tir::NodeType node, ObjectPath p, IRDocsifier d) -> Doc {   \
-                                     ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));        \
-                                     ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));        \
-                                     PrimExpr ret = tvm::NodeFunc(node->a, node->b);              \
-                                     if (!ret->IsInstance<tir::NodeObj>()) {                      \
-                                       return TIR(d, OpString)->Call({a, b});                     \
-                                     }                                                            \
-                                     return OperationDoc(OperationDocNode::Kind::OpKind, {a, b}); \
-                                   });
+#define TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(NodeType, NodeObj, NodeFunc, OpString, OpKind) \
+  TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)                                                    \
+      .set_dispatch<tir::NodeType>(                                                             \
+          "", [](tir::NodeType node, ObjectPath p, IRDocsifier d) -> Doc {                      \
+            ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));                               \
+            ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));                               \
+            PrimExpr ret = tvm::NodeFunc(node->a, node->b);                                     \
+            if (const auto* ret_node = ret.as<tvm::tir::NodeObj>()) {                           \
+              if (ret_node->a.same_as(node->a) && ret_node->b.same_as(node->b)) {               \
+                return OperationDoc(OperationDocNode::Kind::OpKind, {a, b});                    \
+              }                                                                                 \
+            }                                                                                   \
+            return TIR(d, OpString)->Call({a, b});                                              \
+          });
 
 TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Add, AddNode, add, "Add", kAdd);
 TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Sub, SubNode, sub, "Sub", kSub);
