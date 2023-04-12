@@ -616,9 +616,14 @@ def test_forward_dropout():
     @paddle.jit.to_static
     def dropout(inputs):
         return nn.functional.dropout(inputs)
-
+    
+    @paddle.jit.to_static
     def dropout1(inputs):
         return nn.functional.dropout(inputs, 0.1)
+    
+    @paddle.jit.to_static
+    def dropout2(inputs):
+        return nn.functional.dropout(inputs, 0.1, mode="downscale_in_infer")
 
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
@@ -626,6 +631,8 @@ def test_forward_dropout():
     verify_model(dropout, input_data=input_data)
     verify_model(dropout1, input_data=input_data[0, 0])
     verify_model(dropout1, input_data=input_data)
+    verify_model(dropout2, input_data=input_data[0, 0])
+    verify_model(dropout2, input_data=input_data)
 
 
 def test_forward_elemwise():
