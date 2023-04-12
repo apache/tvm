@@ -59,17 +59,17 @@ def is_dynamic(values):
     result: bool
         result
     """
-    is_dynamic = False
+    dynamic_flag = False
 
     def func_(x):
         if isinstance(x, (tir.SizeVar, tir.Var)):
-            nonlocal is_dynamic
-            is_dynamic = True
+            nonlocal dynamic_flag
+            dynamic_flag = True
 
     if not isinstance(values, (list, tuple)):
         values = [values]
     for v in values:
-        if is_dynamic:
+        if dynamic_flag:
             break
         if isinstance(v, tir.IterVar) and v.dom is not None:
             tir.stmt_functor.post_order_visit(v.dom.min, func_)
@@ -77,7 +77,7 @@ def is_dynamic(values):
         elif isinstance(v, tir.expr.PrimExprWithOp):
             tir.stmt_functor.post_order_visit(v, func_)
 
-    return is_dynamic
+    return dynamic_flag
 
 
 class InstantiationError(ValueError):
