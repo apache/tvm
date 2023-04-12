@@ -72,7 +72,7 @@ enum class ProofStrength : int {
   /*!
    * \brief Prove using symbolic bound analysis
    */
-  kSymbolicBound = 1
+  kSymbolicBound = 1,
 };
 
 /*!
@@ -668,6 +668,23 @@ class TVM_DLL Analyzer {
    * \note Analyzer will call into sub-analyzers to get the result.
    */
   bool CanProveEqual(const PrimExpr& lhs, const PrimExpr& rhs);
+  /*!
+   * \brief Whether we can prove lhs is smaller than possibly symbolic shape.
+   *
+   * By calling this function, the caller gives an extra hint that shape > 0,
+   * because it appeared in buffer shape.
+   *
+   * This is useful to prove condition such as 32 <= 32 * n where the 32 * n
+   * is known to be a shape. Use this routine to reduce the symbolic comparisons
+   * in buffer compaction.
+   *
+   * The underlying analyzer will use the kSymbolicBound proof.
+   *
+   * \param lhs The input lhs.
+   * \param shape The symbolic shape.
+   * \return Whether we can prove lhs <= shape.
+   */
+  bool CanProveLessEqualThanSymbolicShapeValue(const PrimExpr& lhs, const PrimExpr& shape);
   /*!
    * \brief Whether can we prove condition.
    *
