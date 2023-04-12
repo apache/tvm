@@ -148,6 +148,51 @@ class TestSymbolic(BaseCompare):
                 C[i * m + j] = B[j] * 2.0
 
 
+class TestFusedSymbolic(BaseCompare):
+    """Dynamically-sized arrrays with fused iterator which can be flattened"""
+
+    def before(a: T.handle, b: T.handle, n: T.int32) -> None:
+        A = T.match_buffer(a, (32, n, n), "float32")
+        B = T.match_buffer(b, (32, n, n), "float32")
+
+        for i in range(0, n * n * 32):
+            B[i // (n * n), (i % (n * n)) // n, i % n] = A[i // (n * n), (i % (n * n)) // n, i % n]
+
+    def expected(a: T.handle, b: T.handle, n: T.int32) -> None:
+        input_A = T.match_buffer(a, (32, n, n), "float32")
+        input_B = T.match_buffer(b, (32, n, n), "float32")
+        A = T.Buffer(n * n * 32, "float32", data=input_A.data)
+        B = T.Buffer(n * n * 32, "float32", data=input_B.data)
+
+        for i in range(0, n * n * 32):
+            B[i] = A[i]
+
+
+class TestFusedSymbolicWithPredicate(BaseCompare):
+    """Dynamically-sized arrrays with fused iterator which can be flattened with extra predicate"""
+
+    def before(a: T.handle, b: T.handle, n: T.int32) -> None:
+        A = T.match_buffer(a, (32, n, n), "float32")
+        B = T.match_buffer(b, (32, n, n), "float32")
+        for bx, tx in T.grid((n * n + 1) // 2, 64):
+            if bx * 64 + tx < n * n * 32:
+                B[
+                    (bx * 64 + tx) // (n * n), ((bx * 64 + tx) % (n * n)) // n, (bx * 64 + tx) % n
+                ] = A[
+                    (bx * 64 + tx) // (n * n), ((bx * 64 + tx) % (n * n)) // n, (bx * 64 + tx) % n
+                ]
+
+    def expected(a: T.handle, b: T.handle, n: T.int32) -> None:
+        input_A = T.match_buffer(a, (32, n, n), "float32")
+        input_B = T.match_buffer(b, (32, n, n), "float32")
+        A = T.Buffer(n * n * 32, "float32", data=input_A.data)
+        B = T.Buffer(n * n * 32, "float32", data=input_B.data)
+
+        for bx, tx in T.grid((n * n + 1) // 2, 64):
+            if bx * 64 + tx < n * n * 32:
+                B[bx * 64 + tx] = A[bx * 64 + tx]
+
+
 class TestMultiAlloc(BaseCompare):
     """If multiple allocations occur, all are flattened."""
 

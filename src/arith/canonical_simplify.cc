@@ -27,6 +27,7 @@
 
 #include "const_fold.h"
 #include "pattern_match.h"
+#include "product_normal_form.h"
 #include "rewrite_simplify.h"
 
 namespace tvm {
@@ -808,12 +809,17 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const MulNode* op) {
   }
 
   // normal path.
+  // this only happens when b is symbolic
   a = Normalize(a);
   b = Normalize(b);
-  if (op->a.same_as(a) && op->b.same_as(b)) {
+
+  PrimExpr ret = MulAndNormalize(a, b);
+  const MulNode* mul = ret.as<MulNode>();
+
+  if (mul && mul->a.same_as(op->a) && mul->b.same_as(op->b)) {
     return GetRef<PrimExpr>(op);
   } else {
-    return Mul(a, b);
+    return ret;
   }
 }
 
