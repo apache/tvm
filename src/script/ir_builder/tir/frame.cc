@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/script/ir_builder/ir/ir.h>
 #include <tvm/script/ir_builder/tir/frame.h>
 #include <tvm/tir/function.h>
 
@@ -41,9 +42,17 @@ void PrimFuncFrameNode::ExitWithScope() {
     ICHECK(!builder->result.defined()) << "ValueError: Builder.result has already been set";
     builder->result = func;
   } else if (Optional<ir::IRModuleFrame> opt_frame = builder->FindFrame<ir::IRModuleFrame>()) {
-    ir::IRModuleFrame frame = opt_frame.value();
-    frame->global_vars.push_back(GlobalVar(name.value_or("")));
-    frame->functions.push_back(func);
+    CHECK(name.defined()) << "ValueError: The function name must be defined before exiting the "
+                             "function scope, if it's defined in a Module";
+    const ir::IRModuleFrame& frame = opt_frame.value();
+    const String& func_name = name.value_or("");
+    if (!frame->global_var_map.count(func_name)) {
+      // Case. First time visiting the function.
+      ir::DeclFunction(func_name, func);
+    }
+    // Define the function.
+    // Note we do checks to disallow redefinition of functions inside the `DefFunction`.
+    ir::DefFunction(func_name, func);
   } else {
     LOG(FATAL) << "ValueError: Cannot find where to insert PrimFunc";
   }

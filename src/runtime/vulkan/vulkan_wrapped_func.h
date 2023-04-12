@@ -89,6 +89,11 @@ class VulkanModuleNode final : public runtime::ModuleNode {
 
   const char* type_key() const final { return "vulkan"; }
 
+  /*! \brief Get the property of the runtime module. */
+  int GetPropertyMask() const final {
+    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+  }
+
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
 
   std::shared_ptr<VulkanPipeline> GetPipeline(size_t device_id, const std::string& func_name,

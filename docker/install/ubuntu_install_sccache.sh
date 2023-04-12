@@ -20,7 +20,7 @@ set -e
 set -u
 set -o pipefail
 
-cargo install sccache
+cargo install --version 0.3.3 sccache
 
 # The docs specifically recommend hard links: https://github.com/mozilla/sccache#known-caveats
 mkdir /opt/sccache
