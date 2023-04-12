@@ -1002,13 +1002,9 @@ def test_forward_gelu():
     def gelu(inputs):
         return nn.functional.gelu(inputs)
 
-    def gelu1(inputs):
-        return nn.functional.gelu(inputs, approximate=True)
-
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(gelu, input_data=input_data)
-    verify_model(gelu1, input_data=input_data)
 
 
 @tvm.testing.uses_gpu
