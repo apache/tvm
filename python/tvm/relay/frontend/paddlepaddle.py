@@ -829,26 +829,11 @@ def convert_gelu(g, op, block):
     """Operator converter for gelu."""
 
     x = g.get_node(op.input("X")[0])
-    approximate = op.attr("approximate")
-    if approximate:
-        out = x * (
-            _expr.const(0.5, dtype="float32")
-            + (
-                _op.tanh(
-                    (
-                        _expr.const(0.7978846, dtype="float32")
-                        * (x + _expr.const(0.044715, dtype="float32") * x * x * x)
-                    )
-                )
-            )
-            * _expr.const(0.5, dtype="float32")
-        )
-    else:
-        out = x * (
-            _expr.const(0.5, dtype="float32")
-            + _op.erf(x * _expr.const(0.5**0.5, dtype="float32"))
-            * _expr.const(0.5, dtype="float32")
-        )
+    out = x * (
+        _expr.const(0.5, dtype="float32")
+        + _op.erf(x * _expr.const(0.5**0.5, dtype="float32"))
+        * _expr.const(0.5, dtype="float32")
+    )
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1445,7 +1430,6 @@ def convert_pixel_shuffle(g, op, block):
     x = g.get_node(op.input("X")[0])
     upscale_factor = op.attr("upscale_factor")
     data_format = op.attr("data_format")
-    warnings.warn(str(op.attr("data_format")))
     out = _op.nn.depth_to_space(x, block_size=upscale_factor, layout=data_format, mode="CRD")
     g.add_node(op.output("Out")[0], out)
 
