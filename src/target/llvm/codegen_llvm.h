@@ -146,6 +146,12 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \return the created module.
    */
   virtual std::unique_ptr<llvm::Module> Finish();
+
+  /*!
+   * \brief Validate the generated module using llvm::verifyModule
+   */
+  void Verify() const;
+
   /*!
    * \brief Add functions from the (unordered) range to the current module in a deterministic order.
    *        The range consists of objects convertible to PrimFunc.
