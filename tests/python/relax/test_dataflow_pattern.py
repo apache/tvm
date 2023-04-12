@@ -18,7 +18,7 @@
 import pytest
 import tvm.testing
 
-from tvm import relay, relax
+from tvm import relay
 from tvm.relax.dpl import *
 from tvm.relax.analysis import get_var2val
 from tvm import relax as rx, tir
@@ -1177,9 +1177,9 @@ def test_combine_matmul_emit_order():
         # make sure it builds
         mod = tvm.IRModule()
         mod["main"] = rewritten
-        mod = relax.transform.LegalizeOps()(mod)
+        mod = rx.transform.LegalizeOps()(mod)
 
-        relax.build(mod, target="llvm")
+        rx.build(mod, target="llvm")
 
 
 if __name__ == "__main__":

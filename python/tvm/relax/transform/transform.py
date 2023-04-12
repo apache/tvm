@@ -934,6 +934,22 @@ def SplitCallTIRByPattern(patterns, fcodegen) -> tvm.ir.transform.Pass:
     return _ffi_api.SplitCallTIRByPattern(patterns, fcodegen)  # type: ignore
 
 
+def CombineParallelMatmul():
+    """Combine multiple matmul operators sharing the same LHS matrix into one,
+    followed by slicing. When all matmul branches in a tree have the same set of fused ops,
+    the fused ops are applied to the combined matmul output before slicing.
+
+    Currently, only a limited set of fused ops is supported. It includes bias add,
+    relu, gelu, and silu activation.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The corresponding pass.
+    """
+    return _ffi_api.CombineParallelMatmul()  # type: ignore
+
+
 def _wrap_class_function_pass(pass_cls, pass_info):
     """Wrap a python class as function pass."""
 

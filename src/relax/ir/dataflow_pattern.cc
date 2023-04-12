@@ -412,9 +412,9 @@ PatternContext::PatternContext(bool incremental) {
   data_ = std::move(n);
 }
 
-void PatternContext::EnterWithScope() { pattern_ctx_stack().push(*this); }
+void PatternContext::EnterWithScope() const { pattern_ctx_stack().push(*this); }
 
-void PatternContext::ExitWithScope() {
+void PatternContext::ExitWithScope() const {
   ICHECK(pattern_ctx_stack().top().same_as(*this));
   pattern_ctx_stack().pop();
 }
@@ -610,15 +610,13 @@ TVM_REGISTER_GLOBAL("relax.dpl.current_context").set_body_typed([] {
   return PatternContext::Current();
 });
 
-class PatternContext::Internal {
- public:
-  static void EnterScope(PatternContext pass_ctx) { pass_ctx.EnterWithScope(); }
-  static void ExitScope(PatternContext pass_ctx) { pass_ctx.ExitWithScope(); }
-};
+TVM_REGISTER_GLOBAL("relax.dpl.enter_context").set_body_typed([](const PatternContext& ctx) {
+  ctx.EnterWithScope();
+});
 
-TVM_REGISTER_GLOBAL("relax.dpl.enter_context").set_body_typed(PatternContext::Internal::EnterScope);
-
-TVM_REGISTER_GLOBAL("relax.dpl.exit_context").set_body_typed(PatternContext::Internal::ExitScope);
+TVM_REGISTER_GLOBAL("relax.dpl.exit_context").set_body_typed([](const PatternContext& ctx) {
+  ctx.ExitWithScope();
+});
 
 }  // namespace relax
 }  // namespace tvm
