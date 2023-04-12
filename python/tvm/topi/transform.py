@@ -262,36 +262,6 @@ def dynamic_strided_slice(a, begin, end, strides, output_shape):
     return cpp.relax_dynamic_strided_slice(a, begin, end, strides, output_shape)
 
 
-def shape_func_dynamic_strided_slice(data, begin, end, strides):
-    """Shape function of dynamic strided slice
-
-    Parameters
-    ----------
-    data : tvm.te.Tensor
-        The tensor to be sliced.
-
-    begin : tvm.te.Tensor
-        The indices to begin with in the slicing.
-
-    end : tvm.te.Tensor
-        Indices indicating end of the slice.
-
-    strides : tvm.te.Tensor
-        Specifies the stride values, it can be negative
-        in that case, the input tensor will be reversed
-        in that particular axis.
-
-    output_shape: list of PrimExpr
-        Specifies the output shape
-
-    Returns
-    -------
-    ret : tvm.te.Tensor
-        Output shape
-    """
-    return cpp.relax_shape_func_dynamic_strided_slice(data, begin, end, strides)
-
-
 @tvm.te.tag_scope(tag=tag.INJECTIVE + ",strided_set")
 def strided_set(a, v, begin, end, strides=None):
     """Set slice of an array.

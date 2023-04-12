@@ -299,7 +299,8 @@ StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& 
   diag_def(strides_sinfo, "stride");
 
   // The output shape will depend on the runtime value in begin/end/stride tensors.
-  // TODO(tvm-team): Extract more compile-time info when those tensors are constants.
+  // TODO(tvm-team): Currently, it is unable to express partially-static shape. Revisit when
+  // PrimValue lands.
   return TensorStructInfo(data_sinfo->dtype, n_axis);
 }  // namespace relax
 

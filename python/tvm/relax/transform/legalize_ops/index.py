@@ -18,7 +18,7 @@
 """Default legalization function for index operators."""
 import logging
 
-from tvm import topi, tir
+from tvm import topi, tir, te
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr, ExternFunc
 from ...struct_info import ShapeStructInfo
@@ -64,16 +64,43 @@ def _strided_slice(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.dynamic_strided_slice")
 def _dynamic_strided_slice(bb: BlockBuilder, call: Call) -> Expr:
+    assert len(call.args) == 4
+    data, begin, end, strides = call.args
+
     # 1. Insert shape function
+    def shape_func(data, begin, end, strides):
+        def _compute(i):
+            def canonicalize_index(index, extent, strides):
+                begin_range = tir.Select(strides < 0, tir.const(-1, "int64"), tir.const(0, "int64"))
+                end_range = tir.Select(strides < 0, extent - 1, extent)
+                index = tir.Select(index < 0, index + extent, index)
+                return tir.Min(tir.Max(index, begin_range), end_range)
+
+            def get_length(begin, end, strides, length):
+                begin = canonicalize_index(begin, length, strides)
+                end = canonicalize_index(end, length, strides)
+                len1 = tir.ceildiv(begin - end, -strides)
+                len2 = tir.ceildiv(end - begin, strides)
+                return tir.Select(strides < 0, len1, len2)
+
+            length = tir.const(-1, "int64")
+            for idx in range(data.ndim):
+                length = tir.Select(i == tir.const(idx, "int64"), data.shape[idx], length)
+
+            return get_length(begin[i], end[i], strides[i], length)
+
+        return te.compute((begin.shape[0],), _compute, name="T_shape_func_strided_slice_dynamic")
+
     output_shape = bb.normalize(
         bb.call_te(
-            topi.shape_func_dynamic_strided_slice,
-            call.args[0],
-            call.args[1],
-            call.args[2],
-            call.args[3],
+            shape_func,
+            data,
+            begin,
+            end,
+            strides,
         )
     )
+
     # 2. Convert tensor to shape and match cast with new symbolic vars
     # Get shape length
     ndim = int(output_shape.struct_info.shape[0])

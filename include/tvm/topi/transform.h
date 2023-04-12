@@ -2068,37 +2068,6 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
       name, tag);
 }
 
-inline te::Tensor shape_func_dynamic_strided_slice(
-    const te::Tensor& data, const te::Tensor& begin, const te::Tensor& end,
-    const te::Tensor& strides, std::string name = "T_shape_func_strided_slice_dynamic") {
-  return te::compute(
-      {begin->shape[0]},
-      [&](const Array<tvm::tir::Var>& indices) {
-        ICHECK(indices.size() == 1);
-        auto CanonicalizeIndex = [&](PrimExpr index, PrimExpr extent, PrimExpr stride) {
-          PrimExpr begin_range = if_then_else(stride < 0, -1, 0);
-          PrimExpr end_range = if_then_else(stride < 0, extent - 1, extent);
-          index = if_then_else(index < 0, index + extent, index);
-          return min(max(index, begin_range), end_range);
-        };
-
-        auto GetLength = [&](PrimExpr begin, PrimExpr end, PrimExpr stride, PrimExpr length) {
-          begin = CanonicalizeIndex(begin, length, stride);
-          end = CanonicalizeIndex(end, length, stride);
-          PrimExpr len1 = ceildiv(begin - end, -stride);
-          PrimExpr len2 = ceildiv(end - begin, stride);
-          return if_then_else(stride < 0, len1, len2);
-        };
-        PrimExpr length(-1);
-        int ndim = data.ndim();
-        for (int i = 0; i < ndim; i++) {
-          length = if_then_else(indices[0] == i, data->shape[i], length);
-        }
-        return GetLength(begin(indices), end(indices), strides(indices), length);
-      },
-      name);
-}
-
 }  // namespace relax
 
 }  // namespace topi
