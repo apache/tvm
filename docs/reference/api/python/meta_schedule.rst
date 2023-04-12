@@ -21,3 +21,96 @@ tvm.meta_schedule
    :members:
    :imported-members:
    :autosummary:
+
+tvm.meta_schedule.arg_info
+---------------------------
+.. automodule:: tvm.meta_schedule.arg_info
+   :members:
+   :imported-members:
+   :autosummary:
+
+tvm.meta_schedule.builder
+-------------------------
+.. automodule:: tvm.meta_schedule.builder
+   :members:
+   :imported-members:
+   :autosummary:
+
+tvm.meta_schedule.runner
+------------------------
+.. automodule:: tvm.meta_schedule.runner
+   :members:
+   :imported-members:
+   :autosummary:
+
+tvm.meta_schedule.database
+--------------------------
+.. automodule:: tvm.meta_schedule.database
+   :members:
+   :imported-members:
+   :autosummary:
+
+tvm.meta_schedule.cost_model
+----------------------------
+.. automodule:: tvm.meta_schedule.cost_model
+   :members:
+   :imported-members:
+   :autosummary:
+
+tvm.meta_schedule.feature_extractor
+-----------------------------------
+.. automodule:: tvm.meta_schedule.feature_extractor
+   :members:
+   :imported-members:
+   :autosummary:
+
+tvm.meta_schedule.measure_callback
+----------------------------------
+.. automodule:: tvm.meta_schedule.measure_callback
+   :members:
+   :imported-members:
+   :autosummary:
+
+tvm.meta_schedule.mutator
+-------------------------
+.. automodule:: tvm.meta_schedule.mutator
+   :members:
+   :imported-members:
+   :autosummary:
+
+tvm.meta_schedule.postproc
+--------------------------
+.. automodule:: tvm.meta_schedule.postproc
+   :members:
+   :imported-members:
+   :autosummary:
+
+tvm.meta_schedule.schedule_rule
+-------------------------------
+.. automodule:: tvm.meta_schedule.schedule_rule
+   :members:
+   :imported-members:
+   :autosummary:
+
+tvm.meta_schedule.search_strategy
+---------------------------------
+.. automodule:: tvm.meta_schedule.search_strategy
+   :members:
+   :imported-members:
+   :autosummary:
+
+tvm.meta_schedule.space_generator
+---------------------------------
+.. automodule:: tvm.meta_schedule.space_generator
+   :members:
+   :imported-members:
+   :autosummary:
+
+tvm.meta_schedule.task_scheduler
+--------------------------------
+.. automodule:: tvm.meta_schedule.task_scheduler
+   :members:
+   :imported-members:
+   :autosummary:
+
+
