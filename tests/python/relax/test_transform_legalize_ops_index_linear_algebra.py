@@ -510,7 +510,7 @@ def test_dynamic_strided_slice_symbolic():
             n = T.int64()
             gv: R.Tensor("float32", ndim=2) = R.dynamic_strided_slice(x, begin, end, strides)
             return gv
-    @tvm.script.ir_module   
+    @tvm.script.ir_module
     class Expected:
         @T.prim_func
         def dynamic_strided_slice(
