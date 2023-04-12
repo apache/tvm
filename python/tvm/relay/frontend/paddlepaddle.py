@@ -503,7 +503,11 @@ def convert_dropout(g, op, block):
 
     x = g.get_node(op.input("X")[0])
     dropout_prob = op.attr("dropout_prob")
-    out = _op.nn.dropout(x, dropout_prob)
+    dropout_implementation = op.attr("dropout_implementation")
+    if dropout_implementation == "downgrade_in_infer":
+        out = _op.nn.dropout(x, dropout_prob) * _expr.const(1 - dropout_prob, dtype="float32")
+    else:
+        out = _op.nn.dropout(x, dropout_prob)
     g.add_node(op.output("Out")[0], out)
 
 
