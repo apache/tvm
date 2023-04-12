@@ -121,7 +121,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
         ICHECK(storage_scope.rank == runtime::StorageRank::kShared)
             << "Can only allocate shared or local memory inside kernel";
         buf = AllocateSharedMemory(op->dtype, constant_size, 3, info.alignment,
-                                   llvm::GlobalValue::PrivateLinkage);
+                                   llvm::GlobalValue::ExternalLinkage);
       }
     }
 

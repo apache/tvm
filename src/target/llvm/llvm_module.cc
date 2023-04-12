@@ -39,7 +39,6 @@
 #include <llvm/IR/MDBuilder.h>
 #include <llvm/IR/Metadata.h>
 #include <llvm/IR/Module.h>
-#include <llvm/IR/Verifier.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/SourceMgr.h>
@@ -330,11 +329,6 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
   if (tm->getTargetTriple().isOSDarwin()) {
     module_->addModuleFlag(llvm::Module::Override, "Dwarf Version", 2);
   }
-  std::string verify_errors_storage;
-  llvm::raw_string_ostream verify_errors(verify_errors_storage);
-  LOG_IF(FATAL, llvm::verifyModule(*module_, &verify_errors))
-      << "LLVM module verification failed with the following errors: \n"
-      << verify_errors.str();
 }
 
 void LLVMModuleNode::Init(std::unique_ptr<llvm::Module> module,
@@ -514,12 +508,6 @@ runtime::Module CreateLLVMCppMetadataModule(runtime::metadata::Metadata metadata
     mod->addModuleFlag(llvm::Module::Override, "Dwarf Version", 2);
   }
 
-  std::string verify_errors_storage;
-  llvm::raw_string_ostream verify_errors(verify_errors_storage);
-  LOG_IF(FATAL, llvm::verifyModule(*mod, &verify_errors))
-      << "LLVM module verification failed with the following errors: \n"
-      << verify_errors.str();
-
   auto n = make_object<LLVMModuleNode>();
   n->Init(std::move(mod), std::move(llvm_instance));
 
@@ -559,12 +547,6 @@ runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& module
   if (llvm_target->GetOrCreateTargetMachine()->getTargetTriple().isOSDarwin()) {
     mod->addModuleFlag(llvm::Module::Override, "Dwarf Version", 2);
   }
-
-  std::string verify_errors_storage;
-  llvm::raw_string_ostream verify_errors(verify_errors_storage);
-  LOG_IF(FATAL, llvm::verifyModule(*mod, &verify_errors))
-      << "LLVM module verification failed with the following errors: \n"
-      << verify_errors.str();
 
   auto n = make_object<LLVMModuleNode>();
   n->Init(std::move(mod), std::move(llvm_instance));
