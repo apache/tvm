@@ -16,11 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name,missing-function-docstring
 """Intrinsics for tensorization on NVIDIA GPU."""
+import re
 from typing import Dict, Tuple
 
 from typing_extensions import Literal
 
-import re
 from tvm.script import tir as T
 from tvm.tir.function import PrimFunc
 
@@ -46,7 +46,7 @@ def shared_32x16_to_ldmatrix_32x16_layout(i, j):
 
 def get_tensor_core_load_offset_factor(dtype):
     """get offset factor for tensor core load intrin"""
-    bits = re.search("(\d+)", dtype).group(0)
+    bits = re.search(r"(\d+)", dtype).group(0)
     bits = int(bits)
     if bits <= 4:
         # sub-byte oeprations have different offset factor
