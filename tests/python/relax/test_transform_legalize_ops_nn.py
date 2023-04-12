@@ -1037,6 +1037,79 @@ def test_relu_symbolic():
     mod = LegalizeOps()(Relu)
     tvm.ir.assert_structural_equal(mod, Expected)
 
+def test_leakyrelu():
+    # fmt: off
+    @tvm.script.ir_module
+    class LeakyRelu:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
+            gv: R.Tensor((2, 3), "float32") = R.nn.leakyrelu(x, 0.02)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
+            gv = R.call_tir(Expected.leakyrelu, (x,), R.Tensor((2, 3), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def leakyrelu(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), compute: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+            T.func_attr({"tir.noalias": True})
+            for i0, i1 in T.grid(T.int64(2), T.int64(3)):
+                with T.block("compute"):
+                    i0_1, i1_1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(rxplaceholder[i0_1, i1_1])
+                    T.writes(compute[i0_1, i1_1])
+                    compute[i0_1, i1_1] = T.select(rxplaceholder[i0_1, i1_1] > T.float32(0), rxplaceholder[i0_1, i1_1], \
+                                                   rxplaceholder[i0_1, i1_1] * T.float32(0.02))
+    # fmt: on
+
+    mod = LegalizeOps()(LeakyRelu)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_leakyrelu_symbolic():
+    # fmt: off
+    @tvm.script.ir_module
+    class LeakyRelu:
+        @R.function
+        def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
+            m = T.int64()
+            n = T.int64()
+            alpha = T.float32()
+            gv: R.Tensor((m, n), "float32") = R.nn.leakyrelu(x, alpha)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
+            m = T.int64()
+            n = T.int64()
+            alpha = T.float32()
+            gv = R.call_tir(Expected.leakyrelu, (x,), R.Tensor((m, n), dtype="float32"))
+            return gv
+
+        @T.prim_func
+        def leakyrelu(var_rxplaceholder: T.handle, var_compute: T.handle):
+            T.func_attr({"tir.noalias": True})
+            m = T.int64()
+            n = T.int64()
+            alpha = T.float32()
+            rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n], dtype="float32")
+            compute = T.match_buffer(var_compute, [m, n], dtype="float32")
+            for i0, i1 in T.grid(m, n):
+                with T.block("compute"):
+                    i0_1, i1_1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(rxplaceholder[i0_1, i1_1])
+                    T.writes(compute[i0_1, i1_1])
+                    compute[i0_1, i1_1] = T.select(rxplaceholder[i0_1, i1_1] > T.float32(0), rxplaceholder[i0_1, i1_1], \
+                                                    rxplaceholder[i0_1, i1_1] * alpha)
+    # fmt: on
+
+    mod = LegalizeOps()(LeakyRelu)
+    tvm.ir.assert_structural_equal(mod, Expected)
 
 def test_gelu():
     # fmt: off
