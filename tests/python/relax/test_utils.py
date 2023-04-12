@@ -119,5 +119,4 @@ def test_copy_with_new_vars_on_ir_module_nested_function():
 
 
 if __name__ == "__main__":
-    # pytest.main([__file__])
-    test_copy_with_new_vars_copied_symbolic_vars()
+    pytest.main([__file__])
