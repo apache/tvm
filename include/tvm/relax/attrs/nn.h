@@ -232,6 +232,15 @@ struct SoftmaxAttrs : public tvm::AttrsNode<SoftmaxAttrs> {
   }
 };
 
+/*! \brief Attributes used in softmax operators */
+struct LeakyReluAttrs : public tvm::AttrsNode<LeakyReluAttrs> {
+  float alpha;
+
+  TVM_DECLARE_ATTRS(LeakyReluAttrs, "relax.attrs.LeakyReluAttrs") {
+    TVM_ATTR_FIELD(alpha).describe("The slope of the negative part.");
+  }
+};
+
 /*! \brief Attributes used in batch_norm operator */
 struct BatchNormAttrs : public tvm::AttrsNode<BatchNormAttrs> {
   int axis;

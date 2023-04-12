@@ -550,6 +550,29 @@ def relu(data: Expr) -> Expr:
     return _ffi_api.relu(data)  # type: ignore
 
 
+def leakyrelu(data: Expr, alpha: float = 0.01) -> Expr:
+    """Rectified linear unit.
+
+    .. math::
+        text{LeakyReLU, negative_slope}(x) = max(x, 0) + negative_slope * min(x, 0)
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data
+
+    alpha: float
+        Controls the angle of the negative slope, used for nagative inputs.
+        Default value is 0.01
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.leakyrelu(data, alpha)  # type: ignore
+
+
 def gelu(data: Expr) -> Expr:
     """Gaussian Error Linear Units function
 

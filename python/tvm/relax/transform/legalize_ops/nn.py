@@ -216,6 +216,9 @@ def _nn_adaptive_avg_pool2d(bb: BlockBuilder, call: Call) -> Expr:
 
 register_legalize("relax.nn.relu", _call_topi_without_attr(topi.nn.relu))
 
+@register_legalize("relax.nn.leakyrelu")
+def _nn_leakyrelu(bb: BlockBuilder, call: Call) -> Expr:
+    return bb.call_te(topi.nn.leaky_relu, call.args[0], call.attrs.alpha)
 
 @register_legalize("relax.nn.gelu")
 def _nn_gelu(bb: BlockBuilder, call: Call) -> Expr:
