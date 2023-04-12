@@ -102,8 +102,8 @@ class RollingBufferInjector : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (auto b = op->node.as<BufferNode>()) {
-      auto buffer = GetRef<Buffer>(b);
+    if (auto opt = op->node.as<Buffer>()) {
+      auto buffer = opt.value();
       // Keep a dictionary associating attribute statements with the buffers
       // they reference. We'll need this if the buffer gets hoisted and we
       // need to hoist all of its attributes at the same time.
@@ -213,7 +213,7 @@ class RollingBufferInjector : public StmtExprMutator {
     auto stmt{StmtExprMutator::VisitStmt_(op)};
     op = stmt.as<AttrStmtNode>();
 
-    if (rolling_buffers.count(GetRef<Buffer>(op->node.as<BufferNode>()))) {
+    if (auto opt = op->node.as<Buffer>(); opt && rolling_buffers.count(opt.value())) {
       // Remove the attribute statements attached to rolling buffers
       // because they will have been hoisted to the relevant rolling
       // scope

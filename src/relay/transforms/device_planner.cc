@@ -345,9 +345,9 @@ class RewriteOnDevices : public ExprMutator {
   Expr VisitExpr_(const LetNode* let_node) final {
     auto expr = GetRef<Expr>(let_node);
     std::vector<std::tuple<Let, Expr>> bindings;
-    while (const auto* inner_let_node = expr.as<LetNode>()) {
-      Let inner_let = GetRef<Let>(inner_let_node);
-      Expr value = VisitExpr(inner_let_node->value);
+    while (auto opt = expr.as<Let>()) {
+      auto inner_let = opt.value();
+      Expr value = VisitExpr(inner_let->value);
       OnDeviceProps props = GetOnDeviceProps(value);
       if (props.body.defined() && props.is_normal()) {
         VLOG(2) << "revising let-bound expression of let:" << std::endl
@@ -356,7 +356,7 @@ class RewriteOnDevices : public ExprMutator {
         value = MaybeOnDeviceFixed(props.body, props.virtual_device);
       }
       bindings.emplace_back(inner_let, value);
-      expr = inner_let_node->body;
+      expr = inner_let->body;
     }
     expr = VisitExpr(expr);
     for (auto itr = bindings.rbegin(); itr != bindings.rend(); ++itr) {
@@ -438,10 +438,9 @@ class DeviceAnalyzer : public MixedModeVisitor {
         VLOG(2) << "collecting constraints from Relay Function '" << kv.first->name_hint << "'";
         domains_->UnifyExprExact(kv.first, kv.second);
         VisitExpr(GetRef<Function>(function_node));
-      } else if (const auto* prim_func_node = kv.second.as<tir::PrimFuncNode>()) {
+      } else if (auto prim_func = kv.second.as<tir::PrimFunc>()) {
         VLOG(2) << "collecting constraints from TIR PrimFunc '" << kv.first->name_hint << "'";
-        domains_->UnifyExprExact(
-            kv.first, DomainForPrimFunc(kv.first, GetRef<tir::PrimFunc>(prim_func_node)));
+        domains_->UnifyExprExact(kv.first, DomainForPrimFunc(kv.first, prim_func.value()));
       } else {
         VLOG(2) << "skipping '" << kv.first->name_hint << "'";
       }
@@ -917,10 +916,9 @@ class DeviceCapturer : public ExprMutator {
       if (const auto* function_node = AsOptimizableFunctionNode(kv.second)) {
         VLOG(2) << "capturing devices for Relay Function '" << kv.first->name_hint << "'";
         result->Add(kv.first, Downcast<Function>(Mutate(GetRef<Function>(function_node))));
-      } else if (const auto* prim_func_node = kv.second.as<tir::PrimFuncNode>()) {
+      } else if (auto prim_func = kv.second.as<tir::PrimFunc>()) {
         VLOG(2) << "capturing devices for TIR PrimFunc '" << kv.first->name_hint << "'";
-        auto prim_func = GetRef<tir::PrimFunc>(prim_func_node);
-        tir::PrimFunc new_prim_func = UpdatePrimFunc(kv.first, prim_func);
+        tir::PrimFunc new_prim_func = UpdatePrimFunc(kv.first, prim_func.value());
         VLOG(2) << "Rewritten prim func:" << std::endl
                 << PrettyPrint(prim_func) << std::endl
                 << "to:" << std::endl
@@ -1111,9 +1109,8 @@ class DeviceCapturer : public ExprMutator {
     // Iterate through chained lets, provided they all agree on their device type.
     VirtualDevice let_virtual_device = GetVirtualDevice(expr);
     std::vector<std::tuple<Var, Expr, Span>> bindings;
-    while (const auto* inner_let_node = expr.as<LetNode>()) {
-      Expr inner_let = GetRef<Let>(inner_let_node);
-      if (GetVirtualDevice(inner_let) != let_virtual_device) {
+    while (const auto* inner_let = expr.as<LetNode>()) {
+      if (GetVirtualDevice(GetRef<Let>(inner_let)) != let_virtual_device) {
         // We have a device transition which needs to be handled.
         break;
       }
@@ -1121,12 +1118,12 @@ class DeviceCapturer : public ExprMutator {
       // By using the fully-unconstrained virtual device for the 'lexical' scope we'll force the
       // let-bound value to *always* be wrapped by an "on_device" (see introductory comment for
       // motivation.)
-      Expr value = VisitChild(/*lexical_virtual_device=*/VirtualDevice::FullyUnconstrained(),
-                              /*expected_virtual_device=*/GetVirtualDevice(inner_let_node->var),
-                              /*child_virtual_device=*/GetVirtualDevice(inner_let_node->value),
-                              inner_let_node->value);
-      bindings.emplace_back(inner_let_node->var, value, inner_let_node->span);
-      expr = inner_let_node->body;
+      Expr value =
+          VisitChild(/*lexical_virtual_device=*/VirtualDevice::FullyUnconstrained(),
+                     /*expected_virtual_device=*/GetVirtualDevice(inner_let->var),
+                     /*child_virtual_device=*/GetVirtualDevice(inner_let->value), inner_let->value);
+      bindings.emplace_back(inner_let->var, value, inner_let->span);
+      expr = inner_let->body;
     }
     Expr body = VisitChild(/*lexical_virtual_device=*/let_virtual_device,
                            /*expected_virtual_device=*/let_virtual_device,

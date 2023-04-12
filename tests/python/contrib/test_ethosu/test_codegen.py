@@ -520,6 +520,62 @@ def test_ethosu_sum(accel_type, ifm_shape, axis, keepdims, relu):
     )
 
 
+# Case to check reduce_sum operation with different input types.
+@pytest.mark.parametrize("dtype", ["int8", "int32"])
+def test_add_reduce_sum(dtype):
+    ifm_shape = (1, 2, 2, 4)
+    accel_type = "ethos-u55-256"
+    np.random.seed(0)
+
+    def create_model():
+        ifm = relay.var("ifm", shape=ifm_shape, dtype=dtype)
+        ifm2 = relay.var("ifm2", shape=ifm_shape, dtype=dtype)
+        ifm_scale = 0.0 if dtype == "int32" else 1.0
+        op = infra.make_ethosu_binary_elementwise(
+            ifm,
+            ifm2,
+            ifm_shape[3],
+            ifm_shape[3],
+            "ADD",
+            dtype,
+            ifm_scale=ifm_scale,
+            ifm2_scale=ifm_scale,
+        )
+        op = infra.make_ethosu_pooling(
+            ifm=op,
+            pooling_type="SUM",
+            pool_shape=(1, 1),
+            ofm_channels=1,
+            strides=(1, 1),
+            padding=(0, 0, 0, 0),
+            rounding_mode="NATURAL",
+        )
+        return tvm.IRModule.from_expr(relay.Function([ifm, ifm2], op))
+
+    def generate_output_data(input_data):
+        lhs = input_data["ifm"]
+        rhs = input_data["ifm2"]
+        # reduce_sum output type is int32.
+        output_dtype = "int32"
+        add = lhs + rhs
+        return [np.sum(add, axis=3).astype(output_dtype)]
+
+    cpu_mod = create_model()
+
+    # Generate reference data
+    in_min, in_max = -10, 19
+    lhs = np.random.randint(in_min, in_max, size=ifm_shape, dtype=dtype)
+    rhs = np.random.randint(in_min, in_max, size=ifm_shape, dtype=dtype)
+    input_data = {
+        "ifm": lhs,
+        "ifm2": rhs,
+    }
+    output_data = {"output": generate_output_data(input_data)[0]}
+    ethosu_mod = infra.create_ethosu_partition(cpu_mod)
+
+    infra.compare_ethosu_with_reference(ethosu_mod, input_data, output_data, accel_type)
+
+
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize("dtype", ["int8", "uint8"])
 @pytest.mark.parametrize("constant", [np.ones((1, 1, 1, 1)), np.array(1)])
@@ -1085,17 +1141,27 @@ def test_tflite_squeeze(accel_type, ifm_shape, axis):
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize(
-    "ifm_shape,size",
-    [[(1, 2, 2, 1), (4, 4)], [(1, 4, 7, 3), (8, 14)], [(1, 3, 5, 3), (3, 5)]],
+    "ifm_shape,size,half_pixel",
+    [
+        [(1, 2, 2, 1), (4, 4), False],
+        [(1, 2, 2, 1), (4, 4), True],
+        [(1, 4, 7, 3), (8, 14), False],
+        [(1, 3, 5, 3), (3, 5), False],
+        [(1, 6, 6, 96), (12, 12), False],
+        [(1, 6, 6, 96), (12, 12), True],
+    ],
 )
-def test_tflite_resize2d_nearest_neighbor(accel_type, ifm_shape, size):
+def test_tflite_resize2d_nearest_neighbor(accel_type, ifm_shape, size, half_pixel):
     np.random.seed(0)
     align_corners = False
 
     @tf.function
     def resize_model(x):
         return tf.compat.v1.image.resize_nearest_neighbor(
-            x, size, align_corners=align_corners, half_pixel_centers=False
+            x,
+            size,
+            align_corners=align_corners,
+            half_pixel_centers=half_pixel,
         )
 
     infra.compare_tvm_with_tflite(

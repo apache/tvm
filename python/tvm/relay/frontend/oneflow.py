@@ -84,8 +84,8 @@ def get_node_info(node):
     shape = tuple(node.input_conf.blob_conf.shape.dim)
     # get data type
     dtype = node.input_conf.blob_conf.data_type
-    if dtype in list(FLOW_2_NP_DTYPE.keys()):
-        data_type = FLOW_2_NP_DTYPE[dtype]
+    if dtype in list(FLOW_2_STR_DTYPE.keys()):
+        data_type = FLOW_2_STR_DTYPE[dtype]
     else:
         raise IndexError("Please check the data type of your node: %s" % node.name)
 

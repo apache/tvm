@@ -76,6 +76,8 @@ class BlockReadWriteDetector : public StmtExprVisitor {
   Map<Var, Buffer> buffer_var_map_;
   /*! \brief The target buffer var mapping to its matching */
   std::unordered_map<const VarNode*, MatchBufferRegion> match_buffers_;
+  /*!\ brief Internal analyzer. */
+  arith::Analyzer ana_;
 
   /*!
    * \brief Update read/write buffers and regions with provided buffer and region
@@ -318,7 +320,7 @@ Array<BufferRegion> BlockReadWriteDetector::CollectRegions(
     ICHECK_EQ(buffers[i]->shape.size(), regions[i].size());
     for (size_t j = 0; j < regions[i].size(); j++) {
       const tvm::arith::IntSet& range = regions[i][j];
-      if (range.IsSinglePoint()) {
+      if (range.CanProveSinglePoint(&ana_)) {
         PrimExpr min = range.min();
         region.push_back(Range::FromMinExtent(min, make_const(min.dtype(), 1)));
       } else {

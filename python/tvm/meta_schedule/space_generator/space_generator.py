@@ -80,7 +80,7 @@ class SpaceGenerator(Object):
 
         Returns
         -------
-        design_spaces : List[Schedule]
+        design_spaces : List[tvm.tir.Schedule]
             The generated design spaces, i.e., schedules.
         """
         return _ffi_api.SpaceGeneratorGenerateDesignSpace(self, mod)  # type: ignore # pylint: disable=no-member
@@ -248,7 +248,7 @@ class PySpaceGenerator:
 
         Returns
         -------
-        design_spaces : List[Schedule]
+        design_spaces : List[tvm.tir.Schedule]
             The generated design spaces, i.e., schedules.
         """
         raise NotImplementedError

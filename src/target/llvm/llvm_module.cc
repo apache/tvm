@@ -95,7 +95,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
 
   /*! \brief Get the property of the runtime module .*/
   // TODO(tvm-team): Make it serializable
-  int GetPropertyMask() const {
+  int GetPropertyMask() const override {
     return runtime::ModulePropertyMask::kRunnable | runtime::ModulePropertyMask::kDSOExportable;
   }
 

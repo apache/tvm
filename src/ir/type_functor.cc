@@ -115,8 +115,8 @@ Type TypeMutator::VisitType_(const FuncTypeNode* op) {
   for (auto type_param : op->type_params) {
     auto new_type_param = VisitType(type_param);
     changed = changed || !new_type_param.same_as(type_param);
-    if (const TypeVarNode* tin = new_type_param.as<TypeVarNode>()) {
-      type_params.push_back(GetRef<TypeVar>(tin));
+    if (auto tin = new_type_param.as<TypeVar>()) {
+      type_params.push_back(tin.value());
     } else {
       LOG(FATAL) << new_type_param;
     }
@@ -126,8 +126,8 @@ Type TypeMutator::VisitType_(const FuncTypeNode* op) {
   for (auto type_cs : op->type_constraints) {
     auto new_type_cs = VisitType(type_cs);
     changed = changed || !new_type_cs.same_as(type_cs);
-    if (const TypeConstraintNode* tin = new_type_cs.as<TypeConstraintNode>()) {
-      type_constraints.push_back(GetRef<TypeConstraint>(tin));
+    if (auto tin = new_type_cs.as<TypeConstraint>()) {
+      type_constraints.push_back(tin.value());
     } else {
       LOG(FATAL) << new_type_cs;
     }

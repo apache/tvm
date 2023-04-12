@@ -157,8 +157,8 @@ class LazyGradientInitializer : public ExprMutator, public TypeMutator {
   }
 
   Expr VisitExpr_(const CallNode* call_node) final {
-    if (auto* op = (call_node->op).as<OpNode>()) {
-      Expr op_expr = GetRef<Op>(op);
+    if (auto op = call_node->op.as<Op>()) {
+      Expr op_expr = op.value();
 
       if (op_expr == Op::Get("add")) {
         return CallGradCellFunction(call_node, module_->GetGlobalVar("AddGradCell"));

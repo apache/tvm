@@ -43,17 +43,18 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
   explicit AsyncDMALowerer(bool dma_bypass_cache, arith::Analyzer* analyzer)
       : IRMutatorWithAnalyzer(analyzer), dma_bypass_cache_(dma_bypass_cache) {}
 
+  // TODO(leiwang1999): split lower async DMA support for CUDA and Hexagon Backend
   Stmt VisitStmt_(const ForNode* loop) final {
     // if for loop is not within async_commit_queue_scope
     if (!async_queue_id_.has_value()) {
       return arith::IRMutatorWithAnalyzer::VisitStmt_(loop);
     }
 
-    // if for loop is not a memcpy of a contiguous region
+    // if for loop is not a memcpy of a contiguous region, it might be a cuda cp.async behavior
     std::optional<tvm::tir::MemCpyDetails> mem_copy = IdentifyMemCpy(GetRef<For>(loop), analyzer_);
     if (!mem_copy.has_value() || mem_copy->dest->region.size() != 1 ||
         mem_copy->source->region.size() != 1) {
-      LOG(FATAL) << "Unable to lower async dma due to non contiguous memory access";
+      return arith::IRMutatorWithAnalyzer::VisitStmt_(loop);
     }
 
     // now that we are about to perform the `copy` transform

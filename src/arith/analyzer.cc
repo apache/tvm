@@ -115,15 +115,47 @@ bool Analyzer::CanProveEqual(const PrimExpr& lhs, const PrimExpr& rhs) {
   return CanProve(lhs - rhs == 0);
 }
 
-bool Analyzer::CanProve(const PrimExpr& expr) {
+bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
   // Avoid potentially expensive simplification unless required.
   if (const auto* ptr = expr.as<IntImmNode>()) {
     return ptr->value != 0;
   }
-
   PrimExpr simplified = Simplify(expr);
   const int64_t* as_int = tir::as_const_int(simplified);
-  return as_int && *as_int;
+  if (as_int && *as_int) return true;
+  if (strength >= ProofStrength::kSymbolicBound) {
+    // NOTE: we intentionally only pattern match common bound predicate i < bound
+    // and put this implementation at the top-level.
+    // This is to avoid repeatitive calling of this function
+    // that causes speed issues.
+    // This strategy can only be called from top-level and not from sub-analyzers.
+    Optional<PrimExpr> pos_diff;
+    int lower_bound = 0;
+    if (const auto* ptr_lt = expr.as<tir::LTNode>()) {
+      pos_diff = ptr_lt->b - ptr_lt->a;
+      lower_bound = 1;
+    }
+    if (const auto* ptr_le = expr.as<tir::LENode>()) {
+      pos_diff = ptr_le->b - ptr_le->a;
+      lower_bound = 0;
+    }
+    if (const auto* ptr_gt = expr.as<tir::GTNode>()) {
+      pos_diff = ptr_gt->a - ptr_gt->b;
+      lower_bound = 1;
+    }
+    if (const auto* ptr_ge = expr.as<tir::GENode>()) {
+      pos_diff = ptr_ge->a - ptr_ge->b;
+      lower_bound = 0;
+    }
+    if (pos_diff) {
+      IntSet iset = this->int_set(this->Simplify(pos_diff.value()));
+      if (iset.HasLowerBound()) {
+        ConstIntBound relaxed_lower_bound = this->const_int_bound(this->Simplify(iset.min()));
+        if (relaxed_lower_bound->min_value >= lower_bound) return true;
+      }
+    }
+  }
+  return false;
 }
 
 PrimExpr Analyzer::Simplify(const PrimExpr& expr, int steps) {
@@ -188,6 +220,11 @@ TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body([](TVMArgs args, TVMRetValu
         } else {
           self->Bind(args[0], args[1].operator PrimExpr());
         }
+      });
+    } else if (name == "can_prove") {
+      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
+        int strength = args[1];
+        *ret = self->CanProve(args[0], static_cast<ProofStrength>(strength));
       });
     } else if (name == "enter_constraint_context") {
       return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {

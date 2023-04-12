@@ -266,7 +266,7 @@ PrimFunc MakePackedAPI(PrimFunc&& func) {
                   StringImm(name_hint + "_compute_"), body);
   // Set device context
   if (vmap.count(device_id.get())) {
-    PrimExpr node = StringImm("default");
+    ObjectRef node = String("default");
     seq_check.push_back(AttrStmt(node, attr::device_id, device_id, nop));
     seq_check.push_back(AttrStmt(node, attr::device_type, device_type, nop));
 
@@ -305,8 +305,8 @@ Pass MakePackedAPI() {
     std::vector<std::pair<GlobalVar, PrimFunc>> updates;
 
     for (const auto& kv : mptr->functions) {
-      if (auto* n = kv.second.as<PrimFuncNode>()) {
-        PrimFunc func = GetRef<PrimFunc>(n);
+      if (auto opt = kv.second.as<PrimFunc>()) {
+        auto func = opt.value();
         if (func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
             CallingConv::kDefault) {
           auto updated_func = MakePackedAPI(std::move(func));

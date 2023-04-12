@@ -37,8 +37,8 @@ class VerifyVTCMLimitNode : public PostprocNode {
 
   bool Verify(const IRModule& mod) const {
     for (const auto& kv : mod->functions) {
-      if (const auto* prim_func = kv.second.as<tir::PrimFuncNode>()) {
-        if (!tir::VerifyVTCMLimit(GetRef<tir::PrimFunc>(prim_func), vtcm_capacity)) {
+      if (auto prim_func = kv.second.as<tir::PrimFunc>()) {
+        if (!tir::VerifyVTCMLimit(prim_func.value(), vtcm_capacity)) {
           return false;
         }
       }

@@ -68,8 +68,8 @@ class EtaExpander : public ExprMutator {
   IRModule Expand() {
     for (GlobalVar global_var : mod_->GetGlobalVars()) {
       const BaseFunc base_func = mod_->Lookup(global_var);
-      if (auto* n = base_func.as<FunctionNode>()) {
-        const Function new_func = Downcast<Function>(VisitExpr(GetRef<Function>(n)));
+      if (auto func = base_func.as<Function>()) {
+        const Function new_func = Downcast<Function>(VisitExpr(func.value()));
         mod_->Update(global_var, new_func);
       }
     }
@@ -119,9 +119,9 @@ class EtaExpander : public ExprMutator {
       return std::move(gvar);
     }
     const auto base_func = mod_->Lookup(gvar);
-    if (auto* ptr = base_func.as<FunctionNode>()) {
+    if (auto opt = base_func.as<Function>()) {
       // handle relay function, skip external functions.
-      auto func = GetRef<Function>(ptr);
+      auto func = opt.value();
       tvm::Array<Expr> params;
       tvm::Array<Var> args;
       for (size_t i = 0; i < func->params.size(); ++i) {
