@@ -546,6 +546,7 @@ def test_add_reduce_sum(dtype):
             pooling_type="SUM",
             pool_shape=(1, 1),
             ofm_channels=1,
+            ofm_dtype="int32",
             strides=(1, 1),
             padding=(0, 0, 0, 0),
             rounding_mode="NATURAL",
