@@ -30,6 +30,16 @@ def test_root_path():
     assert root.parent is None
 
 
+def test_named_root_path():
+    root = ObjectPath.root("base_name")
+    assert isinstance(root, object_path.RootPath)
+    assert str(root) == "base_name"
+    assert len(root) == 1
+    assert root != ObjectPath.root()
+    assert root == ObjectPath.root("base_name")
+    assert root.parent is None
+
+
 def test_path_attr():
     path = ObjectPath.root().attr("foo")
     assert isinstance(path, object_path.AttributeAccessPath)
