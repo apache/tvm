@@ -872,6 +872,20 @@ class Array : public ObjectRef {
   }
 };
 
+/* Template deduction guide
+ *
+ * The default deduction guides are insufficient to determine the type
+ * parameter `T` in expressions such as `Array{vec.begin(),
+ * vec.end()}`.  If no type has been explicitly given, this guide
+ * prefers to generate an Array containing the same type as is
+ * produced by the iterator.
+ *
+ * That is, given `std::vector<PrimExpr> vec`, the expression
+ * `Array{vec.begin(), vec.end()}` should be of type `Array<PrimExpr>`.
+ */
+template <typename IterType>
+Array(IterType begin, IterType end) -> Array<std::decay_t<decltype(*begin)>>;
+
 template <typename T>
 inline constexpr bool is_tvm_array = false;
 
