@@ -50,6 +50,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetState")  //
     .set_body_method<Schedule>(&ScheduleNode::state);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetTrace")  //
     .set_body_method<Schedule>(&ScheduleNode::trace);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetFuncWorkingOn")  //
+    .set_body_method<Schedule>(&ScheduleNode::func_working_on);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCopy")  //
     .set_body_method<Schedule>(&ScheduleNode::Copy);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSeed")  //
