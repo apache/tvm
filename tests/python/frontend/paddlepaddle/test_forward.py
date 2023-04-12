@@ -616,11 +616,11 @@ def test_forward_dropout():
     @paddle.jit.to_static
     def dropout(inputs):
         return nn.functional.dropout(inputs)
-    
+
     @paddle.jit.to_static
     def dropout1(inputs):
         return nn.functional.dropout(inputs, 0.1)
-    
+
     @paddle.jit.to_static
     def dropout2(inputs):
         return nn.functional.dropout(inputs, 0.1, mode="downscale_in_infer")
