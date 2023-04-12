@@ -190,7 +190,7 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
                                 : Array<PrimExpr>(n_axis, IntImm(DataType::Int(64), 1));
   std::vector<int64_t> int_strides;
   int_strides.reserve(n_axis);
-  // Only do output shape inference when all the begin/end/stride values are integers.
+  // Only do output shape inference when all the begin/end/strides values are integers.
   for (int i = 0; i < n_axis; ++i) {
     const auto* int_begin = attrs->begin[i].as<IntImmNode>();
     const auto* int_end = attrs->end[i].as<IntImmNode>();
@@ -204,7 +204,7 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
   Array<PrimExpr> output_shape = data_shape->values;
   for (int i = 0; i < n_axis; ++i) {
     ICHECK_NE(int_strides[i], 0)
-        << "Strided slice requires stride to be non-zero but got 0 for axis " << axes[i] << ".";
+        << "Strided slice requires strides to be non-zero but got 0 for axis " << axes[i] << ".";
     output_shape.Set(axes[i], GetLength(attrs->begin[i], attrs->end[i], int_strides[i],
                                         data_shape->values[axes[i]]));
   }
@@ -238,6 +238,80 @@ TVM_REGISTER_OP("relax.strided_slice")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStridedSlice)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStridedSlice)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
+
+/* relax.dynamic_strided_slice */
+Expr dynamic_strided_slice(Expr x,      //
+                           Expr begin,  //
+                           Expr end,    //
+                           Expr strides) {
+  static const Op& op = Op::Get("relax.dynamic_strided_slice");
+  return Call(op, {std::move(x), std::move(begin), std::move(end), std::move(strides)}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.dynamic_strided_slice").set_body_typed(dynamic_strided_slice);
+
+StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& ctx) {
+  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* begin_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+  const auto* end_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[2]);
+  const auto* strides_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[3]);
+
+  ICHECK(data_sinfo);
+  if (data_sinfo->IsUnknownNdim()) {
+    LOG(WARNING) << "When data rank is unknown, dynamic strided slice assumes begin/end/strides "
+                    "tensors are well-formed. It could produce runtime error when this assumption "
+                    "turns out to be wrong.";
+    return TensorStructInfo(data_sinfo->dtype, kUnknownNDim);
+  }
+  if (data_sinfo->IsUnknownDtype()) {
+    LOG(WARNING) << "When data type is unknown, dynamic strided slice assumes to have a valid "
+                    "dtype. It could produce runtime error when this assumption "
+                    "turns out to be wrong.";
+  }
+
+  int n_axis = data_sinfo->ndim;
+  auto diag_def = [&](const TensorStructInfoNode* sinfo, String name) {
+    ICHECK(sinfo) << "Dynamic strided slice requires the input " << name
+                  << " to be have the struct info. Please try normalizing the inputs.";
+    CHECK_EQ(sinfo->ndim, 1) << "Dynamic strided slice requires " << name
+                             << " to be 1d tensor (list of values).";
+    const auto* shape = sinfo->shape.as<ShapeExprNode>();
+    ICHECK(shape) << "Dynamic strided slice requires the input " << name
+                  << " to have well-defined shape.";
+    // NOTE(tvm-team): This strong restriction seems necessary for now until we have a generic
+    // solution in converting 1d Tensor with unknown num_elem to Array<PrimExpr>.
+    const auto* num_elem = shape->values[0].as<IntImmNode>();
+    ICHECK(num_elem) << "Dynamic strided slice requires the input " << name
+                     << " to have a known integer shape value.";
+    CHECK_EQ(num_elem->value, n_axis) << "Dynamic strided slice requires the number of indices in "
+                                      << name << " to equal the number of axes.";
+    if (sinfo->IsUnknownDtype()) {
+      LOG(WARNING) << "Dynamic strided slice assumes " << name
+                   << " to be int64 when it is not specified.";
+    } else {
+      CHECK(sinfo->dtype == DataType::Int(64))
+          << "Dynamic strided_slice expects the input " << name
+          << "values to be all int64. However, " << name << " has dtype " << sinfo->dtype << ".";
+    }
+  };
+  diag_def(begin_sinfo, "begin");
+  diag_def(end_sinfo, "end");
+  diag_def(strides_sinfo, "strides");
+
+  // The output shape will depend on the runtime value in begin/end/strides tensors.
+  // TODO(tvm-team): Currently, it is unable to express partially-static shape. Revisit when
+  // PrimValue lands.
+  return TensorStructInfo(data_sinfo->dtype, n_axis);
+}  // namespace relax
+
+// TODO(tvm-team): Register FRelaxInferLayout, TMixedPrecisionPolicy
+TVM_REGISTER_OP("relax.dynamic_strided_slice")
+    .set_num_inputs(4)
+    .add_argument("x", "Tensor", "The source tensor to be sliced.")
+    .add_argument("begin", "Tensor", "The indices to begin with in the slicing.")
+    .add_argument("end", "Tensor", "Indices indicating end of the slice.")
+    .add_argument("strides", "Tensor", "The stride values.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoDynStridedSlice);
 
 }  // namespace relax
 }  // namespace tvm
