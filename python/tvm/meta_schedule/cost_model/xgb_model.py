@@ -483,8 +483,8 @@ class XGBModel(PyCostModel):
 
         # Filter instances with no features
         new_mean_costs = [c for i, c in enumerate(new_mean_costs) if len(new_features[i]) != 0]
+        new_mean_costs_np = np.array(new_mean_costs).astype("float32")
         new_features = [f for f in new_features if len(f) != 0]
-        new_mean_costs = np.array(new_mean_costs).astype("float32")
         if not new_features:
             return
 
@@ -496,7 +496,7 @@ class XGBModel(PyCostModel):
                     f"{key}: {score:.6f}"
                     for key, score in self._validate(
                         xs=new_features,
-                        ys=group.min_cost / new_mean_costs,
+                        ys=group.min_cost / new_mean_costs_np,
                     )
                 ),
             )
@@ -506,10 +506,10 @@ class XGBModel(PyCostModel):
             group = FeatureGroup(
                 group_hash=new_group_hash,
                 features=new_features,
-                costs=new_mean_costs,
+                costs=new_mean_costs_np,
             )
         else:
-            group.append(new_features, new_mean_costs)
+            group.append(new_features, new_mean_costs_np)
         self.data[new_group_hash] = group
         self.data_size += len(new_features)
 
