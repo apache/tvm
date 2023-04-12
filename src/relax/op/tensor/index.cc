@@ -112,7 +112,7 @@ Expr strided_slice(Expr x,                 //
       << "StridedSlice requires the number of end indices to equal the number of axes.";
   if (strides.defined()) {
     CHECK_EQ(static_cast<int>(strides.value().size()), n_axis)
-        << "StridedSlice requires the number of stride to equal the number of axes.";
+        << "StridedSlice requires the number of strides to equal the number of axes.";
   }
 
   // Todo(relax-team): We are going to support dynamic strided slice, where
@@ -185,16 +185,16 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
   }
 
   int n_axis = axes.size();
-  Array<PrimExpr> stride = attrs->strides.defined()
-                               ? attrs->strides.value()
-                               : Array<PrimExpr>(n_axis, IntImm(DataType::Int(64), 1));
+  Array<PrimExpr> strides = attrs->strides.defined()
+                                ? attrs->strides.value()
+                                : Array<PrimExpr>(n_axis, IntImm(DataType::Int(64), 1));
   std::vector<int64_t> int_strides;
   int_strides.reserve(n_axis);
-  // Only do output shape inference when all the begin/end/stride values are integers.
+  // Only do output shape inference when all the begin/end/strides values are integers.
   for (int i = 0; i < n_axis; ++i) {
     const auto* int_begin = attrs->begin[i].as<IntImmNode>();
     const auto* int_end = attrs->end[i].as<IntImmNode>();
-    const auto* int_stride = stride[i].as<IntImmNode>();
+    const auto* int_stride = strides[i].as<IntImmNode>();
     if (!int_begin || !int_end || !int_stride) {
       return TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim);
     }
@@ -204,7 +204,7 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
   Array<PrimExpr> output_shape = data_shape->values;
   for (int i = 0; i < n_axis; ++i) {
     ICHECK_NE(int_strides[i], 0)
-        << "Strided slice requires stride to be non-zero but got 0 for axis " << axes[i] << ".";
+        << "Strided slice requires strides to be non-zero but got 0 for axis " << axes[i] << ".";
     output_shape.Set(axes[i], GetLength(attrs->begin[i], attrs->end[i], int_strides[i],
                                         data_shape->values[axes[i]]));
   }
@@ -258,7 +258,7 @@ StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& 
 
   ICHECK(data_sinfo);
   if (data_sinfo->IsUnknownNdim()) {
-    LOG(WARNING) << "When data rank is unknown, dynamic strided slice assumes begin/end/stride "
+    LOG(WARNING) << "When data rank is unknown, dynamic strided slice assumes begin/end/strides "
                     "tensors are well-formed. It could produce runtime error when this assumption "
                     "turns out to be wrong.";
     return TensorStructInfo(data_sinfo->dtype, kUnknownNDim);
@@ -296,9 +296,9 @@ StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& 
   };
   diag_def(begin_sinfo, "begin");
   diag_def(end_sinfo, "end");
-  diag_def(strides_sinfo, "stride");
+  diag_def(strides_sinfo, "strides");
 
-  // The output shape will depend on the runtime value in begin/end/stride tensors.
+  // The output shape will depend on the runtime value in begin/end/strides tensors.
   // TODO(tvm-team): Currently, it is unable to express partially-static shape. Revisit when
   // PrimValue lands.
   return TensorStructInfo(data_sinfo->dtype, n_axis);

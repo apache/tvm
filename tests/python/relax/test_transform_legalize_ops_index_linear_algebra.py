@@ -266,7 +266,7 @@ def test_dynamic_strided_slice():
                     ]
 
         @T.prim_func
-        def shape_func_dynamic_strided_slice(
+        def shape_func(
             rxplaceholder: T.Buffer(
                 (T.int64(8), T.int64(9), T.int64(10), T.int64(10)), "float32"
             ),
@@ -277,55 +277,53 @@ def test_dynamic_strided_slice():
         ):
             T.func_attr({"tir.noalias": T.bool(True)})
             # with T.block("root"):
-            for ax0 in range(T.int64(4)):
+            for i in range(T.int64(4)):
                 with T.block("T_shape_func_strided_slice_dynamic"):
-                    v_ax0 = T.axis.spatial(T.int64(4), ax0)
+                    v_i = T.axis.spatial(T.int64(4), i)
                     T.reads(
-                        rxplaceholder_3[v_ax0],
-                        rxplaceholder_1[v_ax0],
-                        rxplaceholder_2[v_ax0],
+                        rxplaceholder_3[v_i], rxplaceholder_1[v_i], rxplaceholder_2[v_i]
                     )
-                    T.writes(T_shape_func_strided_slice_dynamic[v_ax0])
-                    T_shape_func_strided_slice_dynamic[v_ax0] = T.if_then_else(
-                        rxplaceholder_3[v_ax0] < T.int64(0),
+                    T.writes(T_shape_func_strided_slice_dynamic[v_i])
+                    T_shape_func_strided_slice_dynamic[v_i] = T.Select(
+                        rxplaceholder_3[v_i] < T.int64(0),
                         (
                             T.min(
                                 T.max(
-                                    T.if_then_else(
-                                        rxplaceholder_1[v_ax0] < T.int64(0),
-                                        rxplaceholder_1[v_ax0]
-                                        + T.if_then_else(
-                                            v_ax0 == T.int64(3),
+                                    T.Select(
+                                        rxplaceholder_1[v_i] < T.int64(0),
+                                        rxplaceholder_1[v_i]
+                                        + T.Select(
+                                            v_i == T.int64(3),
                                             T.int64(10),
-                                            T.if_then_else(
-                                                v_ax0 == T.int64(2),
+                                            T.Select(
+                                                v_i == T.int64(2),
                                                 T.int64(10),
-                                                T.if_then_else(
-                                                    v_ax0 == T.int64(1),
+                                                T.Select(
+                                                    v_i == T.int64(1),
                                                     T.int64(9),
-                                                    T.if_then_else(
-                                                        v_ax0 == T.int64(0),
+                                                    T.Select(
+                                                        v_i == T.int64(0),
                                                         T.int64(8),
                                                         T.int64(-1),
                                                     ),
                                                 ),
                                             ),
                                         ),
-                                        rxplaceholder_1[v_ax0],
+                                        rxplaceholder_1[v_i],
                                     ),
                                     T.int64(-1),
                                 ),
-                                T.if_then_else(
-                                    v_ax0 == T.int64(3),
+                                T.Select(
+                                    v_i == T.int64(3),
                                     T.int64(10),
-                                    T.if_then_else(
-                                        v_ax0 == T.int64(2),
+                                    T.Select(
+                                        v_i == T.int64(2),
                                         T.int64(10),
-                                        T.if_then_else(
-                                            v_ax0 == T.int64(1),
+                                        T.Select(
+                                            v_i == T.int64(1),
                                             T.int64(9),
-                                            T.if_then_else(
-                                                v_ax0 == T.int64(0), T.int64(8), T.int64(-1)
+                                            T.Select(
+                                                v_i == T.int64(0), T.int64(8), T.int64(-1)
                                             ),
                                         ),
                                     ),
@@ -334,132 +332,132 @@ def test_dynamic_strided_slice():
                             )
                             - T.min(
                                 T.max(
-                                    T.if_then_else(
-                                        rxplaceholder_2[v_ax0] < T.int64(0),
-                                        rxplaceholder_2[v_ax0]
-                                        + T.if_then_else(
-                                            v_ax0 == T.int64(3),
+                                    T.Select(
+                                        rxplaceholder_2[v_i] < T.int64(0),
+                                        rxplaceholder_2[v_i]
+                                        + T.Select(
+                                            v_i == T.int64(3),
                                             T.int64(10),
-                                            T.if_then_else(
-                                                v_ax0 == T.int64(2),
+                                            T.Select(
+                                                v_i == T.int64(2),
                                                 T.int64(10),
-                                                T.if_then_else(
-                                                    v_ax0 == T.int64(1),
+                                                T.Select(
+                                                    v_i == T.int64(1),
                                                     T.int64(9),
-                                                    T.if_then_else(
-                                                        v_ax0 == T.int64(0),
+                                                    T.Select(
+                                                        v_i == T.int64(0),
                                                         T.int64(8),
                                                         T.int64(-1),
                                                     ),
                                                 ),
                                             ),
                                         ),
-                                        rxplaceholder_2[v_ax0],
+                                        rxplaceholder_2[v_i],
                                     ),
                                     T.int64(-1),
                                 ),
-                                T.if_then_else(
-                                    v_ax0 == T.int64(3),
+                                T.Select(
+                                    v_i == T.int64(3),
                                     T.int64(10),
-                                    T.if_then_else(
-                                        v_ax0 == T.int64(2),
+                                    T.Select(
+                                        v_i == T.int64(2),
                                         T.int64(10),
-                                        T.if_then_else(
-                                            v_ax0 == T.int64(1),
+                                        T.Select(
+                                            v_i == T.int64(1),
                                             T.int64(9),
-                                            T.if_then_else(
-                                                v_ax0 == T.int64(0), T.int64(8), T.int64(-1)
+                                            T.Select(
+                                                v_i == T.int64(0), T.int64(8), T.int64(-1)
                                             ),
                                         ),
                                     ),
                                 )
                                 - T.int64(1),
                             )
-                            - rxplaceholder_3[v_ax0]
+                            - rxplaceholder_3[v_i]
                             - T.int64(1)
                         )
-                        // (T.int64(0) - rxplaceholder_3[v_ax0]),
+                        // (rxplaceholder_3[v_i] * T.int64(-1)),
                         (
                             T.min(
                                 T.max(
-                                    T.if_then_else(
-                                        rxplaceholder_2[v_ax0] < T.int64(0),
-                                        rxplaceholder_2[v_ax0]
-                                        + T.if_then_else(
-                                            v_ax0 == T.int64(3),
+                                    T.Select(
+                                        rxplaceholder_2[v_i] < T.int64(0),
+                                        rxplaceholder_2[v_i]
+                                        + T.Select(
+                                            v_i == T.int64(3),
                                             T.int64(10),
-                                            T.if_then_else(
-                                                v_ax0 == T.int64(2),
+                                            T.Select(
+                                                v_i == T.int64(2),
                                                 T.int64(10),
-                                                T.if_then_else(
-                                                    v_ax0 == T.int64(1),
+                                                T.Select(
+                                                    v_i == T.int64(1),
                                                     T.int64(9),
-                                                    T.if_then_else(
-                                                        v_ax0 == T.int64(0),
+                                                    T.Select(
+                                                        v_i == T.int64(0),
                                                         T.int64(8),
                                                         T.int64(-1),
                                                     ),
                                                 ),
                                             ),
                                         ),
-                                        rxplaceholder_2[v_ax0],
+                                        rxplaceholder_2[v_i],
                                     ),
                                     T.int64(0),
                                 ),
-                                T.if_then_else(
-                                    v_ax0 == T.int64(3),
+                                T.Select(
+                                    v_i == T.int64(3),
                                     T.int64(10),
-                                    T.if_then_else(
-                                        v_ax0 == T.int64(2),
+                                    T.Select(
+                                        v_i == T.int64(2),
                                         T.int64(10),
-                                        T.if_then_else(
-                                            v_ax0 == T.int64(1),
+                                        T.Select(
+                                            v_i == T.int64(1),
                                             T.int64(9),
-                                            T.if_then_else(
-                                                v_ax0 == T.int64(0), T.int64(8), T.int64(-1)
+                                            T.Select(
+                                                v_i == T.int64(0), T.int64(8), T.int64(-1)
                                             ),
                                         ),
                                     ),
                                 ),
                             )
-                            + rxplaceholder_3[v_ax0]
+                            + rxplaceholder_3[v_i]
                             - T.min(
                                 T.max(
-                                    T.if_then_else(
-                                        rxplaceholder_1[v_ax0] < T.int64(0),
-                                        rxplaceholder_1[v_ax0]
-                                        + T.if_then_else(
-                                            v_ax0 == T.int64(3),
+                                    T.Select(
+                                        rxplaceholder_1[v_i] < T.int64(0),
+                                        rxplaceholder_1[v_i]
+                                        + T.Select(
+                                            v_i == T.int64(3),
                                             T.int64(10),
-                                            T.if_then_else(
-                                                v_ax0 == T.int64(2),
+                                            T.Select(
+                                                v_i == T.int64(2),
                                                 T.int64(10),
-                                                T.if_then_else(
-                                                    v_ax0 == T.int64(1),
+                                                T.Select(
+                                                    v_i == T.int64(1),
                                                     T.int64(9),
-                                                    T.if_then_else(
-                                                        v_ax0 == T.int64(0),
+                                                    T.Select(
+                                                        v_i == T.int64(0),
                                                         T.int64(8),
                                                         T.int64(-1),
                                                     ),
                                                 ),
                                             ),
                                         ),
-                                        rxplaceholder_1[v_ax0],
+                                        rxplaceholder_1[v_i],
                                     ),
                                     T.int64(0),
                                 ),
-                                T.if_then_else(
-                                    v_ax0 == T.int64(3),
+                                T.Select(
+                                    v_i == T.int64(3),
                                     T.int64(10),
-                                    T.if_then_else(
-                                        v_ax0 == T.int64(2),
+                                    T.Select(
+                                        v_i == T.int64(2),
                                         T.int64(10),
-                                        T.if_then_else(
-                                            v_ax0 == T.int64(1),
+                                        T.Select(
+                                            v_i == T.int64(1),
                                             T.int64(9),
-                                            T.if_then_else(
-                                                v_ax0 == T.int64(0), T.int64(8), T.int64(-1)
+                                            T.Select(
+                                                v_i == T.int64(0), T.int64(8), T.int64(-1)
                                             ),
                                         ),
                                     ),
@@ -467,7 +465,7 @@ def test_dynamic_strided_slice():
                             )
                             - T.int64(1)
                         )
-                        // rxplaceholder_3[v_ax0],
+                        // rxplaceholder_3[v_i],
                     )
 
         @R.function
@@ -482,7 +480,7 @@ def test_dynamic_strided_slice():
             s_2 = T.int64()
             s_3 = T.int64()
             gv = R.call_tir(
-                Expected.shape_func_dynamic_strided_slice,
+                Expected.shape_func,
                 (x, begin, end, strides),
                 out_sinfo=R.Tensor((4,), dtype="int64"),
             )
@@ -512,7 +510,7 @@ def test_dynamic_strided_slice_symbolic():
             n = T.int64()
             gv: R.Tensor("float32", ndim=2) = R.dynamic_strided_slice(x, begin, end, strides)
             return gv
-    @tvm.script.ir_module
+    @tvm.script.ir_module   
     class Expected:
         @T.prim_func
         def dynamic_strided_slice(
@@ -550,7 +548,7 @@ def test_dynamic_strided_slice_symbolic():
                     ]
 
         @T.prim_func
-        def shape_func_dynamic_strided_slice(
+        def shape_func(
             var_rxplaceholder: T.handle,
             rxplaceholder: T.Buffer((T.int64(2),), "int64"),
             rxplaceholder_1: T.Buffer((T.int64(2),), "int64"),
@@ -561,131 +559,113 @@ def test_dynamic_strided_slice_symbolic():
             n = T.int64()
             rxplaceholder_3 = T.match_buffer(var_rxplaceholder, (T.int64(10), n))
             # with T.block("root"):
-            for ax0 in range(T.int64(2)):
+            for i in range(T.int64(2)):
                 with T.block("T_shape_func_strided_slice_dynamic"):
-                    v_ax0 = T.axis.spatial(T.int64(2), ax0)
-                    T.reads(
-                        rxplaceholder_2[v_ax0], rxplaceholder[v_ax0], rxplaceholder_1[v_ax0]
-                    )
-                    T.writes(T_shape_func_strided_slice_dynamic[v_ax0])
-                    T_shape_func_strided_slice_dynamic[v_ax0] = T.if_then_else(
-                        rxplaceholder_2[v_ax0] < T.int64(0),
+                    v_i = T.axis.spatial(T.int64(2), i)
+                    T.reads(rxplaceholder_2[v_i], rxplaceholder[v_i], rxplaceholder_1[v_i])
+                    T.writes(T_shape_func_strided_slice_dynamic[v_i])
+                    T_shape_func_strided_slice_dynamic[v_i] = T.Select(
+                        rxplaceholder_2[v_i] < T.int64(0),
                         (
                             T.min(
                                 T.max(
-                                    T.if_then_else(
-                                        rxplaceholder[v_ax0] < T.int64(0),
-                                        rxplaceholder[v_ax0]
-                                        + T.if_then_else(
-                                            v_ax0 == T.int64(1),
+                                    T.Select(
+                                        rxplaceholder[v_i] < T.int64(0),
+                                        rxplaceholder[v_i]
+                                        + T.Select(
+                                            v_i == T.int64(1),
                                             n,
-                                            T.if_then_else(
-                                                v_ax0 == T.int64(0),
-                                                T.int64(10),
-                                                T.int64(-1),
+                                            T.Select(
+                                                v_i == T.int64(0), T.int64(10), T.int64(-1)
                                             ),
                                         ),
-                                        rxplaceholder[v_ax0],
+                                        rxplaceholder[v_i],
                                     ),
                                     T.int64(-1),
                                 ),
-                                T.if_then_else(
-                                    v_ax0 == T.int64(1),
+                                T.Select(
+                                    v_i == T.int64(1),
                                     n,
-                                    T.if_then_else(
-                                        v_ax0 == T.int64(0), T.int64(10), T.int64(-1)
-                                    ),
+                                    T.Select(v_i == T.int64(0), T.int64(10), T.int64(-1)),
                                 )
                                 - T.int64(1),
                             )
                             - T.min(
                                 T.max(
-                                    T.if_then_else(
-                                        rxplaceholder_1[v_ax0] < T.int64(0),
-                                        rxplaceholder_1[v_ax0]
-                                        + T.if_then_else(
-                                            v_ax0 == T.int64(1),
+                                    T.Select(
+                                        rxplaceholder_1[v_i] < T.int64(0),
+                                        rxplaceholder_1[v_i]
+                                        + T.Select(
+                                            v_i == T.int64(1),
                                             n,
-                                            T.if_then_else(
-                                                v_ax0 == T.int64(0),
-                                                T.int64(10),
-                                                T.int64(-1),
+                                            T.Select(
+                                                v_i == T.int64(0), T.int64(10), T.int64(-1)
                                             ),
                                         ),
-                                        rxplaceholder_1[v_ax0],
+                                        rxplaceholder_1[v_i],
                                     ),
                                     T.int64(-1),
                                 ),
-                                T.if_then_else(
-                                    v_ax0 == T.int64(1),
+                                T.Select(
+                                    v_i == T.int64(1),
                                     n,
-                                    T.if_then_else(
-                                        v_ax0 == T.int64(0), T.int64(10), T.int64(-1)
-                                    ),
+                                    T.Select(v_i == T.int64(0), T.int64(10), T.int64(-1)),
                                 )
                                 - T.int64(1),
                             )
-                            - rxplaceholder_2[v_ax0]
+                            - rxplaceholder_2[v_i]
                             - T.int64(1)
                         )
-                        // (T.int64(0) - rxplaceholder_2[v_ax0]),
+                        // (rxplaceholder_2[v_i] * T.int64(-1)),
                         (
                             T.min(
                                 T.max(
-                                    T.if_then_else(
-                                        rxplaceholder_1[v_ax0] < T.int64(0),
-                                        rxplaceholder_1[v_ax0]
-                                        + T.if_then_else(
-                                            v_ax0 == T.int64(1),
+                                    T.Select(
+                                        rxplaceholder_1[v_i] < T.int64(0),
+                                        rxplaceholder_1[v_i]
+                                        + T.Select(
+                                            v_i == T.int64(1),
                                             n,
-                                            T.if_then_else(
-                                                v_ax0 == T.int64(0),
-                                                T.int64(10),
-                                                T.int64(-1),
+                                            T.Select(
+                                                v_i == T.int64(0), T.int64(10), T.int64(-1)
                                             ),
                                         ),
-                                        rxplaceholder_1[v_ax0],
+                                        rxplaceholder_1[v_i],
                                     ),
                                     T.int64(0),
                                 ),
-                                T.if_then_else(
-                                    v_ax0 == T.int64(1),
+                                T.Select(
+                                    v_i == T.int64(1),
                                     n,
-                                    T.if_then_else(
-                                        v_ax0 == T.int64(0), T.int64(10), T.int64(-1)
-                                    ),
+                                    T.Select(v_i == T.int64(0), T.int64(10), T.int64(-1)),
                                 ),
                             )
-                            + rxplaceholder_2[v_ax0]
+                            + rxplaceholder_2[v_i]
                             - T.min(
                                 T.max(
-                                    T.if_then_else(
-                                        rxplaceholder[v_ax0] < T.int64(0),
-                                        rxplaceholder[v_ax0]
-                                        + T.if_then_else(
-                                            v_ax0 == T.int64(1),
+                                    T.Select(
+                                        rxplaceholder[v_i] < T.int64(0),
+                                        rxplaceholder[v_i]
+                                        + T.Select(
+                                            v_i == T.int64(1),
                                             n,
-                                            T.if_then_else(
-                                                v_ax0 == T.int64(0),
-                                                T.int64(10),
-                                                T.int64(-1),
+                                            T.Select(
+                                                v_i == T.int64(0), T.int64(10), T.int64(-1)
                                             ),
                                         ),
-                                        rxplaceholder[v_ax0],
+                                        rxplaceholder[v_i],
                                     ),
                                     T.int64(0),
                                 ),
-                                T.if_then_else(
-                                    v_ax0 == T.int64(1),
+                                T.Select(
+                                    v_i == T.int64(1),
                                     n,
-                                    T.if_then_else(
-                                        v_ax0 == T.int64(0), T.int64(10), T.int64(-1)
-                                    ),
+                                    T.Select(v_i == T.int64(0), T.int64(10), T.int64(-1)),
                                 ),
                             )
                             - T.int64(1)
                         )
-                        // rxplaceholder_2[v_ax0],
+                        // rxplaceholder_2[v_i],
                     )
 
         @R.function
@@ -699,7 +679,7 @@ def test_dynamic_strided_slice_symbolic():
             s = T.int64()
             s_1 = T.int64()
             gv = R.call_tir(
-                Expected.shape_func_dynamic_strided_slice,
+                Expected.shape_func,
                 (x, begin, end, strides),
                 out_sinfo=R.Tensor((2,), dtype="int64"),
             )
@@ -713,7 +693,6 @@ def test_dynamic_strided_slice_symbolic():
                 out_sinfo=R.Tensor((s, s_1), dtype="float32"),
             )
             return gv_1
-
     # fmt: on
 
     mod = LegalizeOps()(DynamicStridedSlice)
