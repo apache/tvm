@@ -465,14 +465,14 @@ def test_leakyrelu():
     class LeakyReLU0(Module):
         def __init__(self):
             super().__init__()
-            self.leakyrelu = torch.nn.LeakyReLU()
+            self.leakyrelu = torch.nn.LeakyReLU(0.02)
 
         def forward(self, input):
             return self.leakyrelu(input)
 
     class LeakyReLU1(Module):
         def forward(self, input):
-            return torch.nn.functional.leaky_relu(input)
+            return torch.nn.functional.leaky_relu(input, 0.02)
 
     @tvm.script.ir_module
     class expected:
@@ -482,7 +482,7 @@ def test_leakyrelu():
         ) -> R.Tensor((10, 10), dtype="float32"):
             # block 0
             with R.dataflow():
-                lv: R.Tensor((10, 10), dtype="float32") = R.nn.leakyrelu(input_1)
+                lv: R.Tensor((10, 10), dtype="float32") = R.nn.leakyrelu(input_1, 0.02)
                 gv: R.Tensor((10, 10), dtype="float32") = lv
                 R.output(gv)
             return gv
