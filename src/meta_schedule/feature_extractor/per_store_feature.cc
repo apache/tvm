@@ -222,8 +222,7 @@ int64_t GetVarStride(const std::vector<MultiIndex>& multi_indices, const IntVec&
  * (0, second_dim_size).
  * \return The converted TVM NDArray
  */
-runtime::NDArray AsNDArray(const std::vector<std::vector<double>>& src,
-                           int second_dim_size = -1) {
+runtime::NDArray AsNDArray(const std::vector<std::vector<double>>& src, int second_dim_size = -1) {
   int n = src.size();
   ICHECK(!src.empty() || second_dim_size != -1);
   int m = src.empty() ? second_dim_size : src[0].size();
