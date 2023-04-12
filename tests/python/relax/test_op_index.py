@@ -547,7 +547,7 @@ def test_strided_slice_infer_struct_info_more_input_dtype():
     )
 
 
-def test_strided_slice_infer_struct_info_symbolic_begin_end_stride():
+def test_strided_slice_infer_struct_info_symbolic_begin_end_strides():
     bb = relax.BlockBuilder()
     a = tir.Var("a", "int64")
     x = relax.Var("x", R.Tensor((8, 9), "float32"))
@@ -615,7 +615,7 @@ def test_strided_slice_infer_struct_info_no_axis():
     )
 
 
-def test_strided_slice_begin_end_stride_int64():
+def test_strided_slice_begin_end_strides_int64():
     x = relax.Var("x", R.Tensor((8, 9, 10, 10), "float32"))
     strided_slice = relax.op.strided_slice(
         x, axes=[0, 1, 3], begin=[1, 0, 8], end=[8, 9, 0], strides=[2, 1, -3]
@@ -632,7 +632,7 @@ def test_strided_slice_begin_end_stride_int64():
     assert strided_slice.attrs.strides[2].dtype == "int64"
 
 
-def test_strided_slice_inconsistent_axes_begin_end_stride_length():
+def test_strided_slice_inconsistent_axes_begin_end_strides_length():
     x = relax.Var("x", R.Tensor((8, 9), "float32"))
 
     with pytest.raises(TVMError):
