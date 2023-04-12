@@ -455,6 +455,41 @@ def test_relu():
     verify_model(ReLU0(), input_info, {}, expected)
     verify_model(ReLU1(), input_info, {}, expected)
 
+@tvm.testing.requires_gpu
+def test_leakyrelu():
+    import torch
+    from torch.nn import Module
+
+    torch.set_grad_enabled(False)
+
+    class LeakyReLU0(Module):
+        def __init__(self):
+            super().__init__()
+            self.leakyrelu = torch.nn.LeakyReLU()
+
+        def forward(self, input):
+            return self.leakyrelu(input)
+
+    class LeakyReLU1(Module):
+        def forward(self, input):
+            return torch.nn.functional.leaky_relu(input)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            input_1: R.Tensor((10, 10), dtype="float32")
+        ) -> R.Tensor((10, 10), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="float32") = R.nn.leakyrelu(input_1)
+                gv: R.Tensor((10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    input_info = [([10, 10], "float32")]
+    verify_model(LeakyReLU0(), input_info, {}, expected)
+    verify_model(LeakyReLU1(), input_info, {}, expected)
 
 @tvm.testing.requires_gpu
 def test_relu6():
