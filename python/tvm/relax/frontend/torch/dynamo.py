@@ -159,7 +159,10 @@ def dynamo_capture_subgraphs(model, *params, **kwargs) -> tvm.IRModule:
 
     dynamo.reset()
     compiled_model = torch.compile(model, backend=_capture)
-    compiled_model(*params, **kwargs)
+
+    with torch.no_grad():
+        compiled_model(*params, **kwargs)
+
     return mod
 
 
