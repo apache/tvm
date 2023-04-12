@@ -27,6 +27,7 @@
 #include "../utils.h"
 
 namespace tvm {
+
 namespace tir {
 /*!
  * \brief Get the buffer dimensions for all the read buffers of a block, but marks the reduction
@@ -253,7 +254,7 @@ std::vector<State> MultiLevelTilingNode::TileLoopNest(State state) const {
     sch->Bind(fused, tile_binds[i]);
     tiles[i] = {fused};
   }
-  state->tiles = Array<Array<LoopRV>>{tiles.begin(), tiles.end()};
+  state->tiles = Array{tiles.begin(), tiles.end()};
   if (this->thread_warp_size_ != -1) {
     int64_t low_inclusive = 1;
     int64_t high_inclusive = this->max_threads_per_block_;
