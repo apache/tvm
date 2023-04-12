@@ -866,7 +866,7 @@ def test_sign_int():
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(rxplaceholder[v_ax0, v_ax1])
                     T.writes(T_sign[v_ax0, v_ax1])
-                    T_sign[v_ax0, v_ax1] = T.Select(0 < rxplaceholder[v_ax0, v_ax1], 1, T.Select(rxplaceholder[v_ax0, v_ax1] < 0, -1, 0))
+                    T_sign[v_ax0, v_ax1] = T.Select(T.int64(0) < T.Cast("int64", rxplaceholder[v_ax0, v_ax1]), 1, T.Select(T.Cast("int64", rxplaceholder[v_ax0, v_ax1]) < T.int64(0), -1, 0))
 
         @R.function
         def main(x: R.Tensor((2, 3), dtype="int32")) -> R.Tensor((2, 3), dtype="int32"):
