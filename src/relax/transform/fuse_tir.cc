@@ -117,15 +117,13 @@ class SymbolicMatcher : ExprFunctor<bool(const PrimExpr& n, const PrimExpr& othe
 /*!
  * \brief Substitute a given source buffer with a given target buffer in statements or expressions.
  */
-class FuseTIRBufferSubstitor : private StmtExprMutator {
+class FuseTIRBufferSubstitutor : private StmtExprMutator {
  public:
-  explicit FuseTIRBufferSubstitor(const Map<Buffer, Buffer>& buffer_map,
-                                  const Map<Var, Var>& var_map) {
+  explicit FuseTIRBufferSubstitutor(const Map<Buffer, Buffer>& buffer_map,
+                                    const Map<Var, Var>& var_map) {
     buffer_remap_ = buffer_map;
     var_remap_ = var_map;
-    for (const auto& kv : buffer_map) {
-      const Buffer& src = kv.first;
-      const Buffer& tgt = kv.second;
+    for (const auto& [src, tgt] : buffer_map) {
       var_remap_.Set(src->data, tgt->data);
     }
   }
@@ -246,8 +244,6 @@ class FuseTIRBufferSubstitor : private StmtExprMutator {
   Map<tir::Buffer, tir::Buffer> buffer_remap_;
   /*! \brief Mapping from src tir var to tgt var. */
   Map<tir::Var, tir::Var> var_remap_;
-  /*! \brief The structural equality checker */
-  StructuralEqual structural_equal_;
 
   Array<tir::BufferRegion> UnionAccessRegion(const Array<BufferRegion>& regions) const {
     // For now we only allow Buffer access the same elements.
@@ -262,8 +258,6 @@ class FuseTIRBufferSubstitor : private StmtExprMutator {
       if (it == buffer_region_set.end()) {
         ret.push_back(region);
         buffer_region_set[region->buffer.get()] = region->region;
-      } else {
-        ICHECK(structural_equal_(region->region, it->second));
       }
     }
 
@@ -351,10 +345,8 @@ class FusedTIRConstructor : public ExprVisitor {
         // It's a symbolic shape var, no need to alloc Buffers.
         continue;
       }
-      auto ret = CreateParamsAndBuffers(GetStructInfo(relax_param),  //
-                                        relax_param->name_hint());
-      const Array<tir::Var>& params = ret.first;
-      const Array<tir::Buffer>& buffers = ret.second;
+      auto [params, buffers] = CreateParamsAndBuffers(GetStructInfo(relax_param),  //
+                                                      relax_param->name_hint());
       ICHECK_EQ(params.size(), buffers.size());
       for (size_t i = 0; i < params.size(); ++i) {
         func_info_.buffer_map.Set(params[i], buffers[i]);
@@ -384,10 +376,8 @@ class FusedTIRConstructor : public ExprVisitor {
     // Step 4. Append symbolic vars
     const relax::Var& last_relax_param = func->params.back();
     if (GetStructInfo(last_relax_param)->IsInstance<ShapeStructInfoNode>()) {
-      auto ret =
+      auto [params, buffers] =
           CreateParamsAndBuffers(GetStructInfo(last_relax_param), last_relax_param->name_hint());
-      const Array<tir::Var>& params = ret.first;
-      const Array<tir::Buffer>& buffers = ret.second;
       ICHECK(buffers.empty());
       for (size_t i = 0; i < params.size(); ++i) {
         func_info_.params.push_back(params[i]);
@@ -682,9 +672,7 @@ class FusedTIRConstructor : public ExprVisitor {
              "list.";
       if (index == -1) index = 0;
       for (size_t i = 0; i < tuple->fields.size(); ++i) {
-        auto ret = CreateParamsAndBuffers(tuple->fields[i], name_hint, index);
-        const Array<tir::Var>& ret_params = ret.first;
-        const Array<tir::Buffer>& ret_buffers = ret.second;
+        auto [ret_params, ret_buffers] = CreateParamsAndBuffers(tuple->fields[i], name_hint, index);
         ICHECK_EQ(ret_params.size(), ret_buffers.size());
         // Adding tuple field results to the end of params and buffers.
         params.insert(params.end(), ret_params.begin(), ret_params.end());
@@ -714,19 +702,18 @@ class FusedTIRConstructor : public ExprVisitor {
   tir::PrimFunc ConstructFunc() {
     Map<String, ObjectRef> attr_map;
     attr_map.Set("tir.noalias", tir::const_true());
-    tir::FuseTIRBufferSubstitor substitor(func_info_.buffer_subst_map,
-                                          func_info_.symbolic_var_remap);
+    tir::FuseTIRBufferSubstitutor subst(func_info_.buffer_subst_map, func_info_.symbolic_var_remap);
     ICHECK(func_info_.global_name != "fused");
     // Remove output buffers from func_info_.alloc_buffers
     Array<tir::Buffer> alloc_buffers;
     for (const tir::Buffer& buf : func_info_.alloc_buffers) {
       if (func_info_.output_buffers.count(buf.get()) == 0) {
-        alloc_buffers.push_back(substitor.SubstituteAllocatedBuffer(buf));
+        alloc_buffers.push_back(subst.SubstituteAllocatedBuffer(buf));
       }
     }
     tir::Stmt body = tir::BlockNameDeduplicator()(tir::SeqStmt::Flatten(func_info_.bodies));
 
-    body = substitor.Substitute(body);
+    body = subst.Substitute(body);
     body = tir::Block({}, {}, {}, "root", std::move(body), NullOpt, alloc_buffers);
     body = tir::BlockRealize({}, Bool(true), Downcast<tir::Block>(body));
     tir::PrimFunc func(func_info_.params, body, VoidType(), func_info_.buffer_map,
@@ -804,9 +791,7 @@ class TIRFuseMutator : public ExprMutator {
     // Since TIRFuseMutator will delete bunch of PrimFunc, we create an empty block builder.
     TIRFuseMutator mutator(mod);
     // Step 1. Fuse all primitive relax functions, store the result in `fused_tir_funcs_`
-    for (const auto& kv : mod->functions) {
-      const GlobalVar& gv = kv.first;
-      const BaseFunc& func = kv.second;
+    for (const auto& [gv, func] : mod->functions) {
       // Only fuse primitive relax functions
       if (func->IsInstance<relax::FunctionNode>() && func->HasNonzeroAttr(attr::kPrimitive)) {
         tir::PrimFunc fused_tir = FusedTIRConstructor::GetFusedTIR(mod, gv);
@@ -816,9 +801,7 @@ class TIRFuseMutator : public ExprMutator {
 
     // Step 2. Update all non-primitive relax functions and add it, with the dependent function,
     // into the new IRModule
-    for (const auto& kv : mod->functions) {
-      const GlobalVar& gv = kv.first;
-      const BaseFunc& func = kv.second;
+    for (const auto& [gv, func] : mod->functions) {
       if (func->IsInstance<relax::FunctionNode>() && !func->HasNonzeroAttr(attr::kPrimitive)) {
         relax::Function update_func = Downcast<Function>(mutator.VisitExpr(func));
         mutator.builder_->AddFunction(update_func, gv->name_hint);
