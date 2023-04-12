@@ -25,6 +25,8 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 
+#include "product_normal_form.h"
+
 namespace tvm {
 namespace arith {
 
@@ -115,6 +117,24 @@ bool Analyzer::CanProveEqual(const PrimExpr& lhs, const PrimExpr& rhs) {
   return CanProve(lhs - rhs == 0);
 }
 
+bool Analyzer::CanProveLessEqualThanSymbolicShapeValue(const PrimExpr& lhs, const PrimExpr& shape) {
+  if (this->CanProve(lhs <= shape, ProofStrength::kSymbolicBound)) return true;
+  // no need to do further attempt if shape is already a constant.
+  if (tir::is_const_int(shape)) return false;
+  // collect constant scale and ignore symbolic part
+  // so 32 * n => cscale = 32
+  int64_t cscale = 1;
+  auto fcollect = [&](const PrimExpr& expr) {
+    if (auto* ptr = expr.as<IntImmNode>()) {
+      cscale *= ptr->value;
+    }
+  };
+  UnpackReduction<tir::MulNode>(shape, fcollect);
+  PrimExpr const_shape_bound = IntImm(shape.dtype(), std::abs(cscale));
+  if (this->CanProve(lhs <= const_shape_bound, ProofStrength::kSymbolicBound)) return true;
+  return false;
+}
+
 bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
   // Avoid potentially expensive simplification unless required.
   if (const auto* ptr = expr.as<IntImmNode>()) {
@@ -155,6 +175,7 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
       }
     }
   }
+
   return false;
 }
 
