@@ -98,24 +98,33 @@ EinsumEquation EinsumEquation::FromString(const std::string& equation) {
 }
 
 PrimExpr GetBroadcastedExtent(const PrimExpr& extent1, const PrimExpr& extent2) {
-  int64_t extent1_value = GetConstInt(extent1);
-  int64_t extent2_value = GetConstInt(extent2);
-  if (extent1_value == extent2_value) {
+  const IntImmNode* extent1_imm = extent1.as<IntImmNode>();
+  const IntImmNode* extent2_imm = extent2.as<IntImmNode>();
+  if (extent1_imm != nullptr && extent2_imm != nullptr) {
+    if (extent1_imm->value == extent2_imm->value) {
+      return extent1;
+    } else if (extent1_imm->value == 1 || extent2_imm->value == 1) {
+      return Integer(std::max(extent1_imm->value, extent2_imm->value));
+    }
+    LOG(FATAL) << "Cannot broadcast extents " << extent1 << " and " << extent2;
+    throw;
+  } else if (extent1_imm != nullptr) {
+    return extent2;
+  } else if (extent2_imm != nullptr) {
     return extent1;
-  } else if (extent1_value == 1 || extent2_value == 1) {
-    return Integer(std::max(extent1_value, extent2_value));
+  } else {
+    return max(extent1, extent2);
   }
-  LOG(FATAL) << "Cannot broadcast extents " << extent1 << " and " << extent2;
-  throw;
 }
 
 PrimExpr GetIndexForBroadcastedDim(const Var& index, const PrimExpr& extent,
                                    const PrimExpr& broadcasted_extent) {
-  if (GetConstInt(extent) == GetConstInt(broadcasted_extent)) {
-    return index;
-  } else {
-    return Integer(0);
+  // Check if current dimension is being broadcasted to `broadcasted_extent` (symbolic shape is
+  // handled)
+  if (is_one(extent) && !is_one(broadcasted_extent)) {
+    return make_zero(index.dtype());
   }
+  return index;
 }
 
 /*! \brief The compute builder for Einsum */

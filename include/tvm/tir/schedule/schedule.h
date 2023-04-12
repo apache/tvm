@@ -293,7 +293,26 @@ class ScheduleNode : public runtime::Object {
    * block
    */
   virtual Array<BlockRV> GetConsumers(const BlockRV& block_rv) = 0;
+  /*!
+   * \brief Get the list of output blocks within the given scope
+   * An output block is a block which has atleast one buffer being written
+   * to, but is not allocated within the PrimFunc
+   * \param scope_block_rv The scope block from which output blocks are collected
+   * \return A list of all blocks that write to some output buffer
+   * block
+   */
+  virtual Array<BlockRV> GetOutputBlocks(const BlockRV& scope_block_rv) = 0;
   /******** Schedule: Transform loops ********/
+  /*!
+   * \brief Merge a list of loops into one. The loops under their LCA requires:
+   * 1) Under the same scope
+   * 2) Can't have annotations or thread bindings
+   * 3) Start with 0 and have same extent and same nesting depth
+   * 4) From target loop to their LCA, the inner loop must be the only child of the outer loop
+   * \param loop_rvs The loops to be merged
+   * \return The new loop after merge
+   */
+  virtual LoopRV Merge(const Array<LoopRV>& loop_rvs) = 0;
   /*!
    * \brief Fuse a list of consecutive loops into one. It requires:
    * 1) The loops can't have annotations or thread bindings.
@@ -330,6 +349,12 @@ class ScheduleNode : public runtime::Object {
    * \param ordered_loop_rvs The loops in the new order
    */
   virtual void Reorder(const Array<LoopRV>& ordered_loop_rvs) = 0;
+  /*!
+   * \brief Reorder the itervars inside a block.
+   * \param block_rv The block to be transformed.
+   * \param new_order The new itervar order.
+   */
+  virtual void ReorderBlockIterVar(const BlockRV& block_rv, const Array<Integer> new_order) = 0;
   /*!
    * \brief Create a new unit loop on top of the specific block.
    * \param block_rv The block above which the new loop is created

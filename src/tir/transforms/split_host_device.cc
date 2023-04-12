@@ -51,6 +51,17 @@ class DeviceInfoCollector : public StmtVisitor {
   PrimExpr dyn_shmem_size_{0};
   bool use_dyn_shmem_{false};
 
+  Array<String> GetLaunchParams() const {
+    Array<String> output;
+    for (const auto& axis : thread_axis_) {
+      output.push_back(axis->thread_tag);
+    }
+    if (use_dyn_shmem_) {
+      output.push_back(runtime::launch_param::kUseDynamicSharedMemoryTag);
+    }
+    return output;
+  }
+
  private:
   void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {
@@ -199,8 +210,9 @@ class HostDeviceSplitter : public StmtMutator {
     GlobalVar kernel_symbol_global = global_var_supply->FreshGlobal(kernel_symbol, false);
 
     PrimFunc device_func(params, Substitute(body, remap_vars));
-    device_func =
-        WithAttr(std::move(device_func), tir::attr::kDeviceThreadAxis, dev_info.thread_axis_);
+    device_func = WithAttr(std::move(device_func), tir::attr::kKernelLaunchParams,
+                           dev_info.GetLaunchParams());
+
     device_func = WithAttr(std::move(device_func), tvm::attr::kCallingConv,
                            Integer(CallingConv::kDeviceKernelLaunch));
     device_func = WithAttr(std::move(device_func), tvm::attr::kGlobalSymbol,
@@ -208,10 +220,7 @@ class HostDeviceSplitter : public StmtMutator {
     device_func = WithAttr(std::move(device_func), tir::attr::kNoAlias, Integer(1));
     device_func = WithAttr(std::move(device_func), tvm::attr::kTarget, device_target_);
     device_func = WithAttr(std::move(device_func), tir::attr::kIsGlobalFunc, Integer(1));
-    if (dev_info.use_dyn_shmem_) {
-      device_func =
-          WithAttr(std::move(device_func), tir::attr::kDeviceUseDynSharedMemory, Integer(1));
-    }
+
     (*device_mod_)->Add(kernel_symbol_global, device_func);
 
     // generate calls to the device function
@@ -273,7 +282,7 @@ Pass SplitHostDevice() {
       }
     }
     mod->Update(device_mod);
-    return mod;
+    return ConvertSSA()(mod);
   };
 
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.SplitHostDevice", {});

@@ -195,9 +195,8 @@ namespace transform {
 Pass VerifyMemory() {
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     for (auto kv : mod->functions) {
-      if (auto* n = kv.second.as<PrimFuncNode>()) {
-        auto func = GetRef<PrimFunc>(n);
-        auto errs = VerifyMemory_(func);
+      if (auto func = kv.second.as<PrimFunc>()) {
+        auto errs = VerifyMemory_(func.value());
         if (errs.size() > 0) {
           std::stringstream s;
           for (auto& err : errs) {

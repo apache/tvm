@@ -223,10 +223,9 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
   }
 
   // setup thread tags and param access in launch param tags;
-  if (auto opt = f->GetAttr<Array<tir::IterVar>>(tir::attr::kDeviceThreadAxis)) {
-    auto thread_axis = opt.value();
-    for (size_t i = 0; i < thread_axis.size(); ++i) {
-      func_info.launch_param_tags.push_back(thread_axis[i]->thread_tag);
+  if (auto opt = f->GetAttr<Array<String>>(tir::attr::kKernelLaunchParams)) {
+    for (const auto& thread_tag : opt.value()) {
+      func_info.launch_param_tags.push_back(thread_tag);
     }
   }
   os_param_access << "]";

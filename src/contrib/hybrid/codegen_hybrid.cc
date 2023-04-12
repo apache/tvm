@@ -471,8 +471,8 @@ void CodeGenHybrid::DumpStmt(const Stmt& stmt, const Array<ObjectRef>& inputs,
   stream << "def " << name << "(";
   for (size_t i = 0; i < inputs.size(); ++i) {
     if (i) stream << ", ";
-    if (auto tensor = inputs[i].as<TensorNode>()) {
-      stream << GetTensorID(GetRef<Tensor>(tensor));
+    if (auto tensor = inputs[i].as<Tensor>()) {
+      stream << GetTensorID(tensor.value());
     } else {
       auto var = inputs[i].as<VarNode>();
       ICHECK(var) << "Input should either be a tensor or a variable!";

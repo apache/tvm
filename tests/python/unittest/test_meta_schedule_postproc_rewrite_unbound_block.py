@@ -158,34 +158,16 @@ class Bert_fused_reshape_transpose_reshape_after_rub:
                     ax0 = T.axis.spatial(
                         64,
                         (
-                            (
-                                i0_i1_fused_0_i0_i1_fused_1_fused_0 * 1024
-                                + i0_i1_fused_0_i0_i1_fused_1_fused_1
-                            )
-                            // 32
-                            * 32
-                            + (
-                                i0_i1_fused_0_i0_i1_fused_1_fused_0 * 1024
-                                + i0_i1_fused_0_i0_i1_fused_1_fused_1
-                            )
-                            % 32
+                            i0_i1_fused_0_i0_i1_fused_1_fused_0 * 1024
+                            + i0_i1_fused_0_i0_i1_fused_1_fused_1
                         )
                         // 768,
                     )
                     ax1 = T.axis.spatial(
                         768,
                         (
-                            (
-                                i0_i1_fused_0_i0_i1_fused_1_fused_0 * 1024
-                                + i0_i1_fused_0_i0_i1_fused_1_fused_1
-                            )
-                            // 32
-                            * 32
-                            + (
-                                i0_i1_fused_0_i0_i1_fused_1_fused_0 * 1024
-                                + i0_i1_fused_0_i0_i1_fused_1_fused_1
-                            )
-                            % 32
+                            i0_i1_fused_0_i0_i1_fused_1_fused_0 * 1024
+                            + i0_i1_fused_0_i0_i1_fused_1_fused_1
                         )
                         % 768,
                     )
@@ -213,38 +195,18 @@ class Bert_fused_reshape_transpose_reshape_after_rub_large:
                         ax0 = T.axis.spatial(
                             64,
                             (
-                                (
-                                    i0_i1_fused_0_i0_i1_fused_1_fused_0 * 262144
-                                    + i0_i1_fused_0_i0_i1_fused_1_fused_1 * 1024
-                                    + i0_i1_fused_0_i0_i1_fused_1_fused_2
-                                )
-                                // 32
-                                * 32
-                                + (
-                                    i0_i1_fused_0_i0_i1_fused_1_fused_0 * 262144
-                                    + i0_i1_fused_0_i0_i1_fused_1_fused_1 * 1024
-                                    + i0_i1_fused_0_i0_i1_fused_1_fused_2
-                                )
-                                % 32
+                                i0_i1_fused_0_i0_i1_fused_1_fused_0 * 262144
+                                + i0_i1_fused_0_i0_i1_fused_1_fused_1 * 1024
+                                + i0_i1_fused_0_i0_i1_fused_1_fused_2
                             )
                             // 768,
                         )
                         ax1 = T.axis.spatial(
                             768,
                             (
-                                (
-                                    i0_i1_fused_0_i0_i1_fused_1_fused_0 * 262144
-                                    + i0_i1_fused_0_i0_i1_fused_1_fused_1 * 1024
-                                    + i0_i1_fused_0_i0_i1_fused_1_fused_2
-                                )
-                                // 32
-                                * 32
-                                + (
-                                    i0_i1_fused_0_i0_i1_fused_1_fused_0 * 262144
-                                    + i0_i1_fused_0_i0_i1_fused_1_fused_1 * 1024
-                                    + i0_i1_fused_0_i0_i1_fused_1_fused_2
-                                )
-                                % 32
+                                i0_i1_fused_0_i0_i1_fused_1_fused_0 * 262144
+                                + i0_i1_fused_0_i0_i1_fused_1_fused_1 * 1024
+                                + i0_i1_fused_0_i0_i1_fused_1_fused_2
                             )
                             % 768,
                         )

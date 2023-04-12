@@ -154,7 +154,7 @@ def test_avg_pool2d_grad(executor_kind):
         ceil_mode=False,
         count_include_pad=False,
         executor_kind=executor_kind,
-        dtype="int32",
+        dtype="float16",
     )
 
 

@@ -26,7 +26,7 @@ import tvm.testing
 import tvm.topi.testing
 
 from tvm import te, topi, tir
-from tvm.topi.utils import get_const_tuple
+
 
 in_shape, axis, keepdims, reduce_type, dtype = tvm.testing.parameters(
     ((32,), 0, False, "argmax", "float32"),

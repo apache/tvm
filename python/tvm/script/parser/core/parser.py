@@ -62,6 +62,10 @@ def _deferred(exit_f: Callable[[], None]):
     return context()
 
 
+def _do_nothing(*args, **kwargs):  # pylint: disable=unused-argument
+    pass
+
+
 class VarTableFrame:
     """The variable table frame.
     A frame of variable table stores the variables created in one block or scope.
@@ -188,10 +192,11 @@ class VarTable:
         res : bool
             The existence of the value.
         """
-        for v in self.name2value.values():
-            if v is value:
-                return True
-        return False
+        return any(
+            value.same_as(known_value)
+            for known_value_stack in self.name2value.values()
+            for known_value in known_value_stack
+        )
 
 
 def _dispatch_wrapper(func: dispatch.ParseMethod) -> dispatch.ParseMethod:

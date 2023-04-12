@@ -926,7 +926,7 @@ bool Conv1DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
   if (data == nullptr) return false;
 
   static const Layout kNCW("NCW");
-  static const Layout kOIW("OIW");
+  static const Layout kIOW("IOW");
 
   const Conv1DTransposeAttrs* param = attrs.as<Conv1DTransposeAttrs>();
   ICHECK(param != nullptr);
@@ -938,9 +938,9 @@ bool Conv1DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
       << "Conv only support input layouts that are convertible from NCW."
       << " But got " << in_layout;
 
-  const auto trans_kernel_layout = tir::BijectiveLayout(kernel_layout, kOIW);
+  const auto trans_kernel_layout = tir::BijectiveLayout(kernel_layout, kIOW);
   ICHECK(trans_kernel_layout.defined())
-      << "Conv only support kernel layouts that are convertible from OIW."
+      << "Conv only support kernel layouts that are convertible from IOW."
       << " But got " << kernel_layout;
 
   Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
@@ -979,16 +979,18 @@ bool Conv1DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
       ICHECK_EQ(param->kernel_size.size(), 1);
       // check the size
       ICHECK(reporter->AssertEQ(param->kernel_size[0], wshape[2]))
-          << "Conv1D: shape of weight is inconsistent with kernel_size, "
+          << "Conv1DTraspose: shape of weight is inconsistent with kernel_size, "
           << " kernel_size=" << param->kernel_size << " wshape=" << Array<IndexExpr>(wshape);
     }
     if (param->channels.defined()) {
-      ICHECK(reporter->AssertEQ(param->channels, wshape[1]))
-          << "Conv1D: shape of weight is inconsistent with channels, "
-          << " channels=" << param->channels << " wshape=" << Array<IndexExpr>(wshape);
+      ICHECK(reporter->AssertEQ(indexdiv(param->channels, param->groups), wshape[1]))
+          << "Conv1DTraspose: shape of weight is inconsistent with channels, "
+          << " out_channels // groups != weight.shape[1] "
+          << " out_channels=" << param->channels << " groups=" << param->groups
+          << " wshape=" << Array<IndexExpr>(wshape);
     }
     if (!dshape_ncw[1].as<tir::AnyNode>() && !wshape[0].as<tir::AnyNode>()) {
-      ICHECK(reporter->AssertEQ(indexdiv(dshape_ncw[1], param->groups), wshape[0]));
+      ICHECK(reporter->AssertEQ(dshape_ncw[1], wshape[0]));
     }
     channels = wshape[1];
     dilated_ksize_x = 1 + (wshape[2] - 1) * param->dilation[0];

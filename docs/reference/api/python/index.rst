@@ -42,6 +42,7 @@ Python API
    relay/testing
    autotvm
    auto_scheduler
+   meta_schedule
    rpc
    micro
    contrib

@@ -328,9 +328,8 @@ namespace transform {
 Pass VerifyGPUCode(Map<String, PrimExpr> constraints) {
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     for (auto kv : mod->functions) {
-      if (auto* n = kv.second.as<PrimFuncNode>()) {
-        auto func = GetRef<PrimFunc>(n);
-        auto errs = VerifyGPUCode_(func, constraints);
+      if (auto func = kv.second.as<PrimFunc>()) {
+        auto errs = VerifyGPUCode_(func.value(), constraints);
         if (errs.size() != 0) {
           std::stringstream s;
           for (auto& err : errs) {

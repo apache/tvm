@@ -17,7 +17,7 @@
 import pytest
 
 import tvm
-from tvm.script import tir as T
+from tvm.script import tir as T, ir as I
 import tvm.testing
 
 
@@ -117,6 +117,34 @@ def test_filter_primfunc():
 
     after = tvm.tir.transform.Filter(checker_filter_out_both)(mod)
     assert len(after.functions) == 0
+
+
+class TestFilterRemovesGlobalVarMap(tvm.testing.CompareBeforeAfter):
+    """Filtering out a function should be identical to never adding it
+
+    This test is to guard against hidden state in the IRModule that
+    remains after filtering.  Previously, this was observed in the
+    `IRModuleNode::global_var_map_`, which retained entries of
+    filtered-out functions.
+    """
+
+    transform = tvm.tir.transform.Filter(lambda prim_func: False)
+
+    def before(self):
+        @I.ir_module
+        class module:
+            @T.prim_func
+            def func():
+                T.evaluate(0)
+
+        return module
+
+    def expected(self):
+        @I.ir_module
+        class module:
+            pass
+
+        return module
 
 
 if __name__ == "__main__":
