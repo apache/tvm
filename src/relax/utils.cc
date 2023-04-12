@@ -109,6 +109,44 @@ bool IsLeafOrTuple(const Expr& expr) {
          expr.as<OpNode>() || expr.as<TupleNode>();
 }
 
+class StructInfoCopier : public StructInfoMutator {
+ public:
+  StructInfo Copy(const StructInfo& old_sinfo) { return this->VisitStructInfo(old_sinfo); }
+
+ private:
+  std::unordered_map<tir::Var, tir::Var, ObjectPtrHash, ObjectPtrEqual> symbolic_var_remap_;
+  std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> remapped_vars_;
+
+  Expr VisitStructInfoExprField(const Expr& expr) final {
+    if (auto* shape_expr = expr.as<ShapeExprNode>()) {
+      Array<PrimExpr> values = shape_expr->values.Map(
+          [this](const PrimExpr& expr) { return this->VisitStructInfoExprField(expr); });
+      return ShapeExpr(values, expr->span);
+    }
+    return expr;
+  }
+
+  PrimExpr VisitStructInfoExprField(const PrimExpr& expr) final {
+    if (!expr->IsInstance<tir::VarNode>()) {
+      return expr;
+    }
+    auto var = Downcast<tir::Var>(expr);
+    // avoid repeatedly copy
+    if (remapped_vars_.find(var) != remapped_vars_.end()) {
+      return expr;
+    }
+    if (symbolic_var_remap_.find(var) != symbolic_var_remap_.end()) {
+      return symbolic_var_remap_[var];
+    }
+    // copy symbolic var and remap
+    tir::Var new_var(var->name_hint, var->dtype);
+    symbolic_var_remap_.insert({var, new_var});
+    remapped_vars_.insert(new_var);
+    return new_var;
+  }
+};
+
+/*! \brief Helper to implement CopyWithNewVars.*/
 class FunctionCopier : public ExprMutator {
  public:
   static Function Transform(Function func) {
@@ -116,24 +154,40 @@ class FunctionCopier : public ExprMutator {
     // All variables that are bound inside the original function would be copied
     // to satisfy the restriction in the well-formed check: Variables in Relax
     // must be bound exactly once.
-    return Downcast<Function>(copier.VisitExpr(func));
+    auto new_func = Downcast<Function>(copier.VisitExpr(func));
+    auto new_ret_sinfo = copier.VisitExprDepStructInfoField(func->ret_struct_info);
+    return Function(new_func->params, new_func->body, new_ret_sinfo, new_func->attrs);
   }
 
   Var VisitVarDef_(const DataflowVarNode* var) override {
     Var new_var = ExprMutator::VisitVarDef_(var);
-    Var copied_var = DataflowVar(new_var->name_hint(), GetStructInfo(new_var), new_var->span);
+    StructInfo new_sinfo = this->VisitExprDepStructInfoField(GetStructInfo(new_var));
+    Var copied_var = DataflowVar(new_var->name_hint(), new_sinfo, new_var->span);
     var_remap_[var->vid] = copied_var;
     return copied_var;
   }
 
   Var VisitVarDef_(const VarNode* var) override {
     Var new_var = ExprMutator::VisitVarDef_(var);
-    Var copied_var = Var(new_var->name_hint(), GetStructInfo(new_var), new_var->span);
+    StructInfo new_sinfo = this->VisitExprDepStructInfoField(GetStructInfo(new_var));
+    Var copied_var = Var(new_var->name_hint(), new_sinfo, new_var->span);
     var_remap_[var->vid] = copied_var;
     return copied_var;
   }
+
+  StructInfo VisitExprDepStructInfoField(const StructInfo& struct_info) {
+    return sinfo_copier_.Copy(struct_info);
+  }
+
+ private:
+  StructInfoCopier sinfo_copier_;
 };
 
+/*!
+ * \brief Copy a new Relax function with new remapped vars and symbolic vars.
+ * \param func The Relax function we want to copy.
+ * \return The copied function.
+ */
 Function CopyWithNewVars(Function func) { return FunctionCopier::Transform(func); }
 
 TVM_REGISTER_GLOBAL("relax.CopyWithNewVars").set_body_typed(CopyWithNewVars);
