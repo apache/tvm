@@ -65,3 +65,16 @@ This will:
 - Build a `bundle_static.o` object containing the runtime functions
 - Build a `demo_static` executable which has static link to `bundle_static.o` and
   `model.o`, functions on a cat image, then prints the output results.
+
+
+## Bundle TVM Modules on Windows
+Same as the process above, but instead you can use CMake to build `demo_dynamic`
+on Windows.
+For now, only `demo_dynamic` and `test_dynamic` is supported on Windows.
+
+Type the following command to run the sample code under the current folder,
+after building TVM first.
+
+```powershell
+make.bat demo_dynamic
+```

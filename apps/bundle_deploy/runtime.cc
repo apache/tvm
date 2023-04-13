@@ -37,3 +37,7 @@
 #include "../../src/runtime/thread_pool.cc"
 #include "../../src/runtime/threading_backend.cc"
 #include "../../src/runtime/workspace_pool.cc"
+#ifdef _WIN32
+// For the symbol `CreateDSOLibraryObject`
+#include "../../src/runtime/dso_library.cc"
+#endif
