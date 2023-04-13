@@ -317,6 +317,8 @@ def test_cutlass_partition_conv2d_residual_blocked():
         # Residual
         ((32, 8), (8, 8), False, "bias", "add"),
         ((4, 16), (16, 16), True, "relu", "add_relu"),
+        ((8, 32, 8), (8, 8, 8), False, "bias", "add"),
+        ((5, 3, 32, 8), (8, 8), True, "relu", "add"),
         # Residual fusion without bias - this is supported via the matmul + bias pattern
         # where bias == residual input
         ((4, 16), (16, 16), False, "none", "add"),
