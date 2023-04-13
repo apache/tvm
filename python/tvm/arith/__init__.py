@@ -30,6 +30,7 @@ from .int_solver import solve_linear_equations, solve_linear_inequalities
 from .iter_affine_map import IterMapExpr, IterMark, IterSplitExpr, IterSumExpr
 from .iter_affine_map import (
     detect_iter_map,
+    iter_map_simplify,
     normalize_iter_map_to_expr,
     subspace_divide,
     inverse_affine_iter_map,

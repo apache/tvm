@@ -19,7 +19,7 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 
 from tvm._ffi import register_object as _register_object
 from tvm.error import TVMError, register_error
-from tvm.ir import IRModule, PrimExpr
+from tvm.ir import GlobalVar, IRModule, PrimExpr
 from tvm.runtime import Object, String
 from tvm.tir import Block, Buffer, FloatImm, For, IntImm, PrimFunc
 
@@ -206,6 +206,11 @@ class Schedule(Object):
     def trace(self) -> Optional[Trace]:
         """Returns the internally maintained trace of scheduling program execution"""
         return _ffi_api.ScheduleGetTrace(self)  # type: ignore # pylint: disable=no-member
+
+    @property
+    def func_working_on(self) -> Optional[GlobalVar]:
+        """Returns the GlobalVar of the func that the schedule is currently working on"""
+        return _ffi_api.ScheduleGetFuncWorkingOn(self)  # type: ignore # pylint: disable=no-member
 
     def work_on(self, func_name: str) -> None:
         """Instruct the schedule to work on a function in the IRModule.

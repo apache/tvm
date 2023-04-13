@@ -107,4 +107,8 @@ jenkins_scripts_root = "ci/scripts/jenkins"
 
 cancel_previous_build()
 
-prepare()
+try {
+    prepare('CPU-SMALL-SPOT')
+} catch(Exception ex) {
+  prepare('CPU-SMALL')
+}

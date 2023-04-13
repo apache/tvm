@@ -294,54 +294,54 @@ String DocPrinter::GetString() const {
 void DocPrinter::PrintDoc(const Doc& doc) {
   size_t start_pos = output_.tellp();
 
-  if (const auto* doc_node = doc.as<LiteralDocNode>()) {
-    PrintTypedDoc(GetRef<LiteralDoc>(doc_node));
-  } else if (const auto* doc_node = doc.as<IdDocNode>()) {
-    PrintTypedDoc(GetRef<IdDoc>(doc_node));
-  } else if (const auto* doc_node = doc.as<AttrAccessDocNode>()) {
-    PrintTypedDoc(GetRef<AttrAccessDoc>(doc_node));
-  } else if (const auto* doc_node = doc.as<IndexDocNode>()) {
-    PrintTypedDoc(GetRef<IndexDoc>(doc_node));
-  } else if (const auto* doc_node = doc.as<OperationDocNode>()) {
-    PrintTypedDoc(GetRef<OperationDoc>(doc_node));
-  } else if (const auto* doc_node = doc.as<CallDocNode>()) {
-    PrintTypedDoc(GetRef<CallDoc>(doc_node));
-  } else if (const auto* doc_node = doc.as<LambdaDocNode>()) {
-    PrintTypedDoc(GetRef<LambdaDoc>(doc_node));
-  } else if (const auto* doc_node = doc.as<ListDocNode>()) {
-    PrintTypedDoc(GetRef<ListDoc>(doc_node));
-  } else if (const auto* doc_node = doc.as<TupleDocNode>()) {
-    PrintTypedDoc(GetRef<TupleDoc>(doc_node));
-  } else if (const auto* doc_node = doc.as<DictDocNode>()) {
-    PrintTypedDoc(GetRef<DictDoc>(doc_node));
-  } else if (const auto* doc_node = doc.as<SliceDocNode>()) {
-    PrintTypedDoc(GetRef<SliceDoc>(doc_node));
-  } else if (const auto* doc_node = doc.as<StmtBlockDocNode>()) {
-    PrintTypedDoc(GetRef<StmtBlockDoc>(doc_node));
-  } else if (const auto* doc_node = doc.as<AssignDocNode>()) {
-    PrintTypedDoc(GetRef<AssignDoc>(doc_node));
-  } else if (const auto* doc_node = doc.as<IfDocNode>()) {
-    PrintTypedDoc(GetRef<IfDoc>(doc_node));
-  } else if (const auto* doc_node = doc.as<WhileDocNode>()) {
-    PrintTypedDoc(GetRef<WhileDoc>(doc_node));
-  } else if (const auto* doc_node = doc.as<ForDocNode>()) {
-    PrintTypedDoc(GetRef<ForDoc>(doc_node));
-  } else if (const auto* doc_node = doc.as<ScopeDocNode>()) {
-    PrintTypedDoc(GetRef<ScopeDoc>(doc_node));
-  } else if (const auto* doc_node = doc.as<ExprStmtDocNode>()) {
-    PrintTypedDoc(GetRef<ExprStmtDoc>(doc_node));
-  } else if (const auto* doc_node = doc.as<AssertDocNode>()) {
-    PrintTypedDoc(GetRef<AssertDoc>(doc_node));
-  } else if (const auto* doc_node = doc.as<ReturnDocNode>()) {
-    PrintTypedDoc(GetRef<ReturnDoc>(doc_node));
-  } else if (const auto* doc_node = doc.as<FunctionDocNode>()) {
-    PrintTypedDoc(GetRef<FunctionDoc>(doc_node));
-  } else if (const auto* doc_node = doc.as<ClassDocNode>()) {
-    PrintTypedDoc(GetRef<ClassDoc>(doc_node));
-  } else if (const auto* doc_node = doc.as<CommentDocNode>()) {
-    PrintTypedDoc(GetRef<CommentDoc>(doc_node));
-  } else if (const auto* doc_node = doc.as<DocStringDocNode>()) {
-    PrintTypedDoc(GetRef<DocStringDoc>(doc_node));
+  if (auto doc_node = doc.as<LiteralDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<IdDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<AttrAccessDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<IndexDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<OperationDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<CallDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<LambdaDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<ListDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<TupleDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<DictDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<SliceDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<StmtBlockDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<AssignDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<IfDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<WhileDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<ForDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<ScopeDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<ExprStmtDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<AssertDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<ReturnDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<FunctionDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<ClassDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<CommentDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<DocStringDoc>()) {
+    PrintTypedDoc(doc_node.value());
   } else {
     LOG(FATAL) << "Do not know how to print " << doc->GetTypeKey();
     throw;

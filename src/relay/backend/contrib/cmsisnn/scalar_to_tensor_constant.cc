@@ -72,8 +72,8 @@ class ScalarToTensorConstantMutator : public MixedModeMutator {
       final_call = ReplaceScalarWithTensorVariable(GetRef<Call>(call));
     }
 
-    if (auto* glob_var_node = call->op.as<GlobalVarNode>()) {
-      GlobalVar global_var = GetRef<GlobalVar>(glob_var_node);
+    if (auto opt = call->op.as<GlobalVar>()) {
+      GlobalVar global_var = opt.value();
       Function func = Downcast<Function>(mod_->Lookup(global_var));
       auto new_body = VisitExpr(func->body);
       if (new_body.same_as(func->body)) {
@@ -87,9 +87,8 @@ class ScalarToTensorConstantMutator : public MixedModeMutator {
     }
 
     // Substitute scalar constant with tensor constant in the call to composite function.
-    if (auto* func_node = call->op.as<FunctionNode>()) {
-      Function func = GetRef<Function>(func_node);
-      final_call = ReplaceScalarWithTensorConstant(GetRef<Call>(call), func);
+    if (auto func = call->op.as<Function>()) {
+      final_call = ReplaceScalarWithTensorConstant(GetRef<Call>(call), func.value());
     }
 
     return final_call;

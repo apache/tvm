@@ -81,8 +81,8 @@ class LambdaLifter : public transform::DeviceAwareExprMutator {
 
   Expr DeviceAwareVisitExpr_(const CallNode* call_node) final {
     auto call = Downcast<Call>(DeviceAwareExprMutator::DeviceAwareVisitExpr_(call_node));
-    if (auto var_node = call_node->op.as<VarNode>()) {
-      auto var = GetRef<Var>(var_node);
+    if (auto opt = call_node->op.as<Var>()) {
+      auto var = opt.value();
       if (!letrec_.empty() && var == letrec_.back()) {
         auto it = lambda_map_.find(var);
         ICHECK(it != lambda_map_.end());

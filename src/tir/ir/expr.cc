@@ -513,7 +513,7 @@ TVM_REGISTER_GLOBAL("tir.Call")
         if (const auto* str = it.as<runtime::StringObj>()) {
           prim_expr_args.push_back(StringImm(str->data));
         } else if (const auto* iter_var = it.as<IterVarNode>()) {
-          prim_expr_args.push_back(GetRef<IterVar>(iter_var)->var);
+          prim_expr_args.push_back(iter_var->var);
         } else if (const auto* br = it.as<BufferRegionNode>()) {
           Array<PrimExpr> indices;
           for (Range r : br->region) {

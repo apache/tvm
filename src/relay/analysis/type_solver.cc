@@ -160,7 +160,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
   // default: unify only if structural-equal
   Type VisitTypeDefault_(const Object* op, const Type& tn) final {
     ObjectRef nr = GetRef<ObjectRef>(op);
-    Type t1 = GetRef<Type>(nr.as<tvm::relay::TypeNode>());
+    Type t1 = Downcast<Type>(nr);
     if (!tvm::StructuralEqual()(t1, tn)) {
       return Type(nullptr);
     }
@@ -405,7 +405,7 @@ class TypeSolver::Propagator : public TypeFunctor<void(const Type&)> {
 
   void VisitTypeDefault_(const Object* op) override {
     ObjectRef nr = GetRef<ObjectRef>(op);
-    Type t = GetRef<Type>(nr.as<tvm::relay::TypeNode>());
+    Type t = Downcast<Type>(nr);
     UpdateRelSet(t);
   }
 
@@ -489,7 +489,7 @@ class TypeSolver::Merger : public TypeFunctor<void(const Type&)> {
 
   void VisitTypeDefault_(const Object* op) override {
     ObjectRef nr = GetRef<ObjectRef>(op);
-    Type t = GetRef<Type>(nr.as<tvm::relay::TypeNode>());
+    Type t = Downcast<Type>(nr);
     TransferLinks(t);
   }
 

@@ -654,10 +654,10 @@ struct TensorizeTraits : public UnpackedInstTraits<TensorizeTraits> {
 
   static void UnpackedApplyToSchedule(Schedule sch, ObjectRef block_or_loop_rv, String intrin,
                                       Bool preserve_unit_iters) {
-    if (const auto* block = block_or_loop_rv.as<BlockRVNode>()) {
-      sch->Tensorize(GetRef<BlockRV>(block), intrin, preserve_unit_iters.operator bool());
-    } else if (const auto* loop = block_or_loop_rv.as<LoopRVNode>()) {
-      sch->Tensorize(GetRef<LoopRV>(loop), intrin, preserve_unit_iters.operator bool());
+    if (auto block = block_or_loop_rv.as<BlockRV>()) {
+      sch->Tensorize(block.value(), intrin, preserve_unit_iters.operator bool());
+    } else if (auto loop = block_or_loop_rv.as<LoopRV>()) {
+      sch->Tensorize(loop.value(), intrin, preserve_unit_iters.operator bool());
     } else {
       LOG(FATAL) << "TypeError: Expected Block or Loop, but gets: "
                  << block_or_loop_rv->GetTypeKey();

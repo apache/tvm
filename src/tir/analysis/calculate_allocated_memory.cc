@@ -110,8 +110,8 @@ namespace transform {
 Pass VerifyVTCMLimit(Optional<Target> default_target) {
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     for (auto kv : mod->functions) {
-      if (auto* n = kv.second.as<PrimFuncNode>()) {
-        auto func = GetRef<PrimFunc>(n);
+      if (auto opt = kv.second.as<PrimFunc>()) {
+        auto func = opt.value();
 
         std::optional<int64_t> limit = std::nullopt;
         if (auto func_target = func->GetAttr<Target>(tvm::attr::kTarget)) {

@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,15 +16,20 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# This data file is read during when Jenkins runs job to determine docker images.
-[jenkins]
-ci_arm: tlcpack/ci-arm:20230314-060145-ccc0b9162
-ci_cortexm: tlcpackstaging/ci_cortexm:20230124-233207-fd3f8035c
-ci_cpu: tlcpack/ci_cpu:20230409-060118-a84a2cbe0
-ci_gpu: tlcpack/ci-gpu:20230318-060139-2ff41c615
-ci_hexagon: tlcpack/ci_hexagon:20230127-185848-95fa22308
-ci_i386: tlcpack/ci-i386:20221013-060115-61c9742ea
-ci_lint: tlcpack/ci_lint:20230322-060120-46fb2ff35
-ci_minimal: tlcpack/ci-minimal:20230117-070124-125886350
-ci_riscv: tlcpack/ci-riscv:20221013-060115-61c9742ea
-ci_wasm: tlcpack/ci-wasm:20221013-060115-61c9742ea
+set -e
+set -u
+set -o pipefail
+
+# Install jax and jaxlib
+if [ "$1" == "cuda" ]; then
+    pip3 install --upgrade \
+        jaxlib==0.3.25 \
+        "jax[cuda11_pip]==0.3.25" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+else
+    pip3 install --upgrade \
+        jaxlib==0.3.25 \
+        "jax[cpu]==0.3.25"
+fi
+
+# Install flax
+pip3 install flax==0.6.4

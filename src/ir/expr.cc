@@ -38,14 +38,14 @@ PrimExpr::PrimExpr(float value) : PrimExpr(FloatImm(DataType::Float(32), value))
 
 PrimExpr PrimExpr::FromObject_(ObjectRef ref) {
   using runtime::ObjectTypeChecker;
-  if (auto* ptr = ref.as<tir::IterVarNode>()) {
-    return GetRef<tir::IterVar>(ptr)->var;
+  if (const auto* ptr = ref.as<tir::IterVarNode>()) {
+    return ptr->var;
   }
-  if (auto* ptr = ref.as<te::TensorNode>()) {
-    return GetRef<te::Tensor>(ptr)();
+  if (auto opt = ref.as<te::Tensor>()) {
+    return opt.value()();
   }
-  if (auto* ptr = ref.as<runtime::StringObj>()) {
-    return tir::StringImm(GetRef<runtime::String>(ptr));
+  if (auto opt = ref.as<runtime::String>()) {
+    return tir::StringImm(opt.value());
   }
   if (const auto* buffer_region = ref.as<tir::BufferRegionNode>()) {
     Array<PrimExpr> indices;

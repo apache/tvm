@@ -15,8 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+
+pytest.importorskip("ethosu.vela")
+
 import numpy as np
 
+import tvm
 from tvm import relay
 from tests.python.contrib.test_ethosu.infra import get_tflite_graph
 from tvm.relay.op.contrib.ethosu import partition_for_ethosu
@@ -28,7 +32,6 @@ def test_operations_distribution_ethos():
 
     tflite = pytest.importorskip("tflite")
     tensorflow = pytest.importorskip("tensorflow")
-    pytest.importorskip("ethosu.vela")
 
     import tensorflow as tf
 
@@ -100,7 +103,6 @@ def test_operations_distribution_generic():
 
     tflite = pytest.importorskip("tflite")
     tensorflow = pytest.importorskip("tensorflow")
-    pytest.importorskip("ethosu.vela")
 
     import tensorflow as tf
 
@@ -170,4 +172,4 @@ def test_operations_distribution_generic():
 
 
 if __name__ == "__main__":
-    test_operations_distribution()
+    tvm.testing.main()
