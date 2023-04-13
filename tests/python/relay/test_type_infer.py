@@ -420,7 +420,7 @@ def test_dynamic_function():
     data = relay.var(
         "data", shape=(relay.Any(), relay.Any(), relay.Any(), relay.Any()), dtype="float32"
     )
-    weigth = relay.const(np.full((1, 16, 3, 3), 0.25), dtype="float32")
+    weigth = relay.const(np.full((16, 16, 3, 3), 0.25), dtype="float32")
     x = relay.nn.conv2d(data, weigth, kernel_size=(3, 3), channels=16, groups=2)
     mod = tvm.IRModule.from_expr(x)
     mod = transform.InferType()(mod)
