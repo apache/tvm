@@ -35,9 +35,8 @@ RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(gelu, "nn.gelu", /*require_float_dtype=*/tru
 RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(silu, "nn.silu", /*require_float_dtype=*/true);
 
 /* relax.nn.leakyrelu */
-TVM_REGISTER_NODE_TYPE(LeakyReluAttrs);
 
-Expr leakyrelu(Expr data, float alpha) {
+Expr leakyrelu(Expr data, double alpha) {
   auto attrs = make_object<LeakyReluAttrs>();
   attrs->alpha = alpha;
   static const Op& op = Op::Get("relax.nn.leakyrelu");
@@ -46,41 +45,11 @@ Expr leakyrelu(Expr data, float alpha) {
 
 TVM_REGISTER_GLOBAL("relax.op.nn.leakyrelu").set_body_typed(leakyrelu);
 
-// StructInfo InferStructInfoSoftmax(const Call& call, const BlockBuilder& ctx) {
-//   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
-//   if (data_sinfo->IsUnknownNdim()) {
-//     return data_sinfo;
-//   }
-//   if (!data_sinfo->IsUnknownDtype() && !data_sinfo->dtype.is_float()) {
-//     ctx->ReportFatal(Diagnostic::Error(call) << "Softmax requires the input tensor to have float "
-//                                                 "dtype. However, the given input dtype is "
-//                                              << data_sinfo->dtype);
-//   }
-//   const auto* attrs = call->attrs.as<SoftmaxAttrs>();
-//   NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis);
-
-//   return data_sinfo;
-// }
-
-// InferLayoutOutput InferLayoutSoftmax(const Call& call,
-//                                      const Map<String, Array<String>>& desired_layouts,
-//                                      const VarLayoutMap& var_layout_map) {
-//   ICHECK(NoDesiredLayout(call, desired_layouts));
-//   const auto* attrs = call->attrs.as<SoftmaxAttrs>();
-//   ICHECK(attrs) << "Invalid Call";
-
-//   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
-//   ObjectPtr<SoftmaxAttrs> new_attrs = make_object<SoftmaxAttrs>(*attrs);
-//   new_attrs->axis = FindAxis(layout->layout, attrs->axis);
-//   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
-// }
-
-TVM_REGISTER_OP("relax.nn.softmax")
+TVM_REGISTER_OP("relax.nn.leakyrelu")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
-    .set_attrs_type<SoftmaxAttrs>()
-    // .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSoftmax)
-    // .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSoftmax);
+    .set_attrs_type<LeakyReluAttrs>()
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoUnaryArith</*require_float_dtype=*/true>);
 
 /* relax.nn.softmax */
 TVM_REGISTER_NODE_TYPE(SoftmaxAttrs);

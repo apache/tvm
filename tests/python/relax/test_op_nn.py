@@ -70,7 +70,7 @@ def test_linear_unit_infer_struct_info():
     _check_inference(bb, relax.op.nn.gelu(x2), relax.TensorStructInfo(dtype="float32"))
     _check_inference(bb, relax.op.nn.relu(x3), relax.TensorStructInfo((2, 3), dtype=""))
     _check_inference(bb, relax.op.nn.gelu(x4), relax.TensorStructInfo(dtype=""))
-    _check_inference(bb, relax.op.nn.leakyrelu(x5), relax.TensorStructInfo((3, 4), "float32"))
+    _check_inference(bb, relax.op.nn.leakyrelu(x0), relax.TensorStructInfo((2, 3), "float32"))
     _check_inference(bb, relax.op.nn.leakyrelu(x6), relax.TensorStructInfo((3, 4), dtype=""))
 
 
