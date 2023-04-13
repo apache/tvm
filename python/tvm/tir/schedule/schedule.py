@@ -2629,7 +2629,8 @@ class Schedule(Object):
 
         Note
         ----
-        `unsafe_set_dtype` requires the buffer to be an intermediate buffer defined via `alloc_buffer`.
+        `unsafe_set_dtype` requires the buffer to be an intermediate buffer defined via
+        `alloc_buffer`.
         """
         block = self._normalize_block_arg(block)
         _ffi_api.ScheduleUnsafeSetDType(  # type: ignore # pylint: disable=no-member
