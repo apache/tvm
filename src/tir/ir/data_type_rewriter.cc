@@ -107,25 +107,39 @@ Stmt DataTypeLegalizer::VisitStmt_(const AttrStmtNode* op) {
   return StmtExprMutator::VisitStmt_(op);
 }
 
-Stmt DataTypeLegalizer::VisitStmt_(const LetStmtNode* op) {
+PrimExpr DataTypeLegalizer::VisitExpr_(const LetNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
-  auto new_var = op->var.copy_with_dtype(value.dtype());
+  Var var = op->var;
 
   if (value.dtype() != op->var->dtype) {
-    var_remap_[op->var.get()] = new_var;
+    var = op->var.copy_with_dtype(value.dtype());
+    var_remap_[op->var.get()] = var;
+  }
+
+  PrimExpr new_body = this->VisitExpr(op->body);
+
+  if (value.same_as(op->value) && new_body.same_as(op->body)) {
+    return GetRef<PrimExpr>(op);
+  } else {
+    return Let(var, value, new_body, op->span);
+  }
+}
+
+Stmt DataTypeLegalizer::VisitStmt_(const LetStmtNode* op) {
+  PrimExpr value = this->VisitExpr(op->value);
+  Var var = op->var;
+
+  if (value.dtype() != op->var->dtype) {
+    var = op->var.copy_with_dtype(value.dtype());
+    var_remap_[op->var.get()] = var;
   }
 
   Stmt new_body = this->VisitStmt(op->body);
 
   if (value.same_as(op->value) && new_body.same_as(op->body)) {
     return GetRef<Stmt>(op);
-  } else if (value.dtype() == op->var->dtype) {
-    auto n = CopyOnWrite(op);
-    n->value = std::move(value);
-    n->body = std::move(new_body);
-    return Stmt(n);
   } else {
-    return LetStmt(new_var, value, new_body, op->span);
+    return LetStmt(var, value, new_body, op->span);
   }
 }
 
@@ -542,6 +556,26 @@ PrimExpr IndexDataTypeRewriter::VisitExpr_(const CallNode* op) {
   return Parent::VisitExpr_(op);
 }
 
+PrimExpr IndexDataTypeRewriter::VisitExpr_(const SelectNode* op) {
+  bool is_condition = true;
+  std::swap(is_condition_, is_condition);
+  PrimExpr condition = this->VisitExpr(op->condition);
+  std::swap(is_condition_, is_condition);
+  PrimExpr true_value = this->VisitExpr(op->true_value);
+  PrimExpr false_value = this->VisitExpr(op->false_value);
+
+  if (condition.same_as(op->condition) && true_value.same_as(op->true_value) &&
+      false_value.same_as(op->false_value) && true_value.dtype() == false_value.dtype()) {
+    return GetRef<PrimExpr>(op);
+  } else {
+    int bits = std::max(true_value.dtype().bits(), false_value.dtype().bits());
+    DataType dtype = true_value.dtype().with_bits(bits);
+    if (true_value.dtype() != dtype) true_value = cast(dtype, true_value);
+    if (false_value.dtype() != dtype) false_value = cast(dtype, false_value);
+    return Select(condition, true_value, false_value);
+  }
+}
+
 #undef TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH
 
 IndexDataTypeNormalizer::IndexDataTypeNormalizer(DataType target_data_type)
@@ -552,7 +586,20 @@ PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
   for (const auto& [var, buffer] : func->buffer_map) {
     new_buffer_map.Set(var, VisitBuffer(buffer));
   }
+  // remap params
+  bool is_enabled = true;
+  std::swap(is_enabled_, is_enabled);
+  Array<Var> params = func->params.Map([this](Var param) {
+    if (param.dtype().is_int()) {
+      return Downcast<Var>(this->VisitExpr(param));
+    } else {
+      return param;
+    }
+  });
+  std::swap(is_enabled_, is_enabled);
+
   PrimFuncNode* new_func = func.CopyOnWrite();
+  new_func->params = std::move(params);
   new_func->buffer_map = std::move(new_buffer_map);
   new_func->body = VisitStmt(std::move(new_func->body));
   return func;
