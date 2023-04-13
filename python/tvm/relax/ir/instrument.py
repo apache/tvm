@@ -34,4 +34,5 @@ class WellFormedInstrument:
 
     def run_after_pass(self, mod, pass_info):
         if pass_info.name not in self.skip_pass_name:
+            mod.show()
             assert relax.analysis.well_formed(mod)

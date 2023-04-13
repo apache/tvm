@@ -42,6 +42,7 @@
 #include "../../relay/analysis/graph_partitioner.h"
 #include "../../support/arena.h"
 #include "tvm/relax/expr.h"
+#include "utils.h"
 
 namespace tvm {
 namespace relax {
@@ -343,45 +344,6 @@ class GraphCreator : public ExprVisitor {
   IndexedForwardGraph graph_;
   /*! \brief The graph nodes whose patterns are set */
   std::unordered_set<IndexedForwardGraph::Node*> initialized_nodes_;
-};
-
-/*!
- * \brief Renew the definition of symbolic vars in Relax.
- * \details This mutator is used to prevent the same symbolic var from being used in different
- *          functions, which is malformed.
- */
-class SymbolicVarRenewMutator : public ExprMutator, tir::ExprMutator {
- public:
-  static Function Renew(const Function& function) {
-    SymbolicVarRenewMutator mutator;
-    return Downcast<Function>(mutator.VisitExpr(function));
-  }
-
- private:
-  SymbolicVarRenewMutator() = default;
-  using relax::ExprMutator::VisitExpr;
-  using relax::ExprMutator::VisitExpr_;
-  using tir::ExprMutator::VisitExpr_;
-
-  PrimExpr VisitPrimExpr(const PrimExpr& expr) final { return tir::ExprMutator::VisitExpr(expr); }
-
-  // TODO(Siyuan): enhance the method to the following steps:
-  // 1. Visit and replace all tir::Vars at the definition point
-  // 2. Revisit the function again and update the use side.
-  PrimExpr VisitExpr_(const tir::VarNode* op) final {
-    auto it = var_map_.find(GetRef<tir::Var>(op));
-    if (it != var_map_.end()) {
-      return (*it).second;
-    } else {
-      auto n = make_object<tir::VarNode>(*op);
-      tir::Var v(n);
-      var_map_.Set(GetRef<tir::Var>(op), v);
-      return v;
-    }
-  }
-
- private:
-  Map<tir::Var, tir::Var> var_map_;
 };
 
 /*!

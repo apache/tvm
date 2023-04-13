@@ -28,6 +28,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/tir/expr_functor.h>
 
 #include <algorithm>
 #include <string>
@@ -220,6 +221,67 @@ class VarReplacer : public ExprMutator {
   }
 
   const VarMap& var_remap_;
+};
+
+/*!
+ * \brief Renew the definition of symbolic vars in Relax.
+ * \details This mutator is used to prevent the same symbolic var from being used in different
+ *          functions, which is malformed.
+ */
+class SymbolicVarRenewMutator : public ExprMutator, tir::ExprMutator {
+ public:
+  static Function Renew(const Function& function) {
+    SymbolicVarRenewMutator mutator;
+    return Downcast<Function>(mutator.VisitExpr(function));
+  }
+
+ private:
+  SymbolicVarRenewMutator() = default;
+  using relax::ExprMutator::VisitExpr;
+  using relax::ExprMutator::VisitExpr_;
+  using tir::ExprMutator::VisitExpr_;
+
+  PrimExpr VisitPrimExpr(const PrimExpr& expr) final { return tir::ExprMutator::VisitExpr(expr); }
+
+  // TODO(Siyuan): enhance the method to the following steps:
+  // 1. Visit and replace all tir::Vars at the definition point
+  // 2. Revisit the function again and update the use side.
+  PrimExpr VisitExpr_(const tir::VarNode* op) final {
+    auto it = var_map_.find(GetRef<tir::Var>(op));
+    if (it != var_map_.end()) {
+      return (*it).second;
+    } else {
+      auto n = make_object<tir::VarNode>(*op);
+      tir::Var v(n);
+      var_map_.Set(GetRef<tir::Var>(op), v);
+      return v;
+    }
+  }
+
+  Expr VisitExpr_(const FunctionNode* op) {
+    tvm::Array<Var> params;
+    bool all_params_unchanged = true;
+    for (Var param : op->params) {
+      Var new_param = this->VisitVarDef(param);
+      params.push_back(new_param);
+      if (!param.same_as(new_param)) {
+        var_remap_[param->vid] = new_param;
+        all_params_unchanged = false;
+      }
+    }
+
+    Expr body = this->VisitWithNewScope(op->body, params);
+
+    if (all_params_unchanged && body.same_as(op->body)) {
+      return GetRef<Expr>(op);
+    } else {
+      auto new_ret_sinfo = this->VisitExprDepStructInfoField(op->ret_struct_info);
+      return Function(params, body, new_ret_sinfo, op->attrs);
+    }
+  }
+
+ private:
+  Map<tir::Var, tir::Var> var_map_;
 };
 
 /*!

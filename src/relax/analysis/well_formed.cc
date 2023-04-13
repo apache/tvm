@@ -200,7 +200,6 @@ class WellFormedChecker : public relax::ExprVisitor,
     // set current visited function.
     // for nested functions, we only set the outermost function.
     if (cur_visited_func_ == nullptr) {
-      VLOG(2) << "new assignment";
       cur_visited_func_ = op;
     }
 
@@ -252,14 +251,16 @@ class WellFormedChecker : public relax::ExprVisitor,
     symbolic_var_set_ = prev_symbolic_var_set;
 
     if (cur_visited_func_ == op) {
-      VLOG(2) << "recycle";
       cur_visited_func_ = nullptr;
     }
   }
 
   void VisitExpr_(const CallNode* op) final {
     if (IsLeafOrTuple(op->op)) {
+      const FunctionNode* prev_visited_func = cur_visited_func_;
+      cur_visited_func_ = nullptr;  // close the symbolic var dup check
       this->VisitExpr(op->op);
+      cur_visited_func_ = prev_visited_func;
     } else {
       Malformed(Diagnostic::Error(op) << "The called expression must be a leaf expression");
     }
@@ -413,8 +414,13 @@ class WellFormedChecker : public relax::ExprVisitor,
       this->Malformed(Diagnostic::Error(var)
                       << "Symbolic Var " << var->name_hint << " is not defined.");
     }
+
+    // don't perform the check
+    if (cur_visited_func_ == nullptr) {
+      return;
+    }
+
     // check across functions presence
-    VLOG(2) << "cur visited" << cur_visited_func_ << std::endl;
     auto it = symbolic_var_func_map_.find(var);
     if (it != symbolic_var_func_map_.end() && it->second != cur_visited_func_) {
       // TODO(relax-team): Complete this error info after we integrate printer
