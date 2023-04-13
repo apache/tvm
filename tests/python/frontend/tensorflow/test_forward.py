@@ -751,8 +751,7 @@ def test_forward_convolution():
             "VALID",
             "NCHW",
             [4, 66, 16, 16],
-        )
-                    
+        )          
     _test_convolution("conv", [4, 8, 8, 176], [1, 1, 176, 32], [1, 1], [1, 1], "SAME", "NHWC")
     _test_convolution("conv", [4, 17, 17, 19], [3, 3, 19, 19], [1, 1], [2, 2], "VALID", "NHWC")
     _test_convolution("conv", [4, 17, 17, 124], [1, 1, 124, 19], [1, 1], [1, 1], "SAME", "NHWC")
@@ -937,7 +936,6 @@ def test_forward_convolution():
         "NHWC",
         [4, 16, 16, 66],
     )
-    
     # Explicit padding
     if package_version.parse(tf.VERSION) >= package_version.parse("2.4.1"):
         _test_convolution(
