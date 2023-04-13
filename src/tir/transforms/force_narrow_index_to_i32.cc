@@ -24,6 +24,7 @@
  */
 
 #include <tvm/tir/data_type_rewriter.h>
+#include <tvm/tir/op.h>
 #include <tvm/tir/transform.h>
 
 namespace tvm {
@@ -47,6 +48,15 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
  private:
   explicit Int32DTypeNarrower(PrimFunc func)
       : IndexDataTypeNormalizer(DataType::Int(32)), func_(std::move(func)) {}
+
+  PrimExpr VisitExpr_(const IntImmNode* op) final {
+    // ignore the enabled condition and always rewrite i64
+    if (op->dtype == DataType::Int(64)) {
+      ICHECK_LE(op->value, Downcast<Integer>(max_value(target_data_type_))->value);
+      return IntImm(DataType::Int(32), op->value);
+    }
+    return GetRef<IntImm>(op);
+  }
 
   Stmt VisitStmt_(const BlockNode* block) final {
     Block block_ = Downcast<Block>(IndexDataTypeNormalizer::VisitStmt_(block));
