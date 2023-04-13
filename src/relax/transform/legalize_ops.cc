@@ -124,8 +124,6 @@ class LegalizeMutator : public ExprMutator {
       return visited_call;
     }
 
-    auto op = GetRef<Op>(op_node);
-
     // Priority: customize > default.
     // Check if it has customize legalization registered.
     if (cmap_.defined() && cmap_.value().count(op->name)) {
