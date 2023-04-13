@@ -35,7 +35,7 @@ def find_example_resource():
         ("/", os.path.join(base_path, "web", "dist", "wasm", "tvmjs_runtime.wasi.js")),
         ("/", index_page),
     ]
-    allow_format = ("json", "bin", "js", "wasm", "html", "css")
+    allow_format = ("json", "bin", "js", "wasm", "html", "css", "model")
 
     # recursively apend things in www, up to two levels
     resource_bases = [

@@ -57,6 +57,8 @@ NDArray AllocShapeHeap(void* ctx_ptr, int64_t size) {
   // TODO(relax-team): visit and consider other possible choices.
   if (vm->devices[0].device_type == kDLHexagon) {
     host_device_index = 0;
+  } else {
+    ICHECK_EQ(vm->devices[host_device_index].device_type, kDLCPU);
   }
   auto* alloc = vm->allocators[host_device_index];
   return alloc->Empty({size}, DLDataType{kDLInt, 64, 1}, vm->devices[host_device_index]);

@@ -117,6 +117,11 @@ CodeGenWebGPU::CodeGenWebGPU(Target target) : target_(target) {}
 runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_readonly_decl) {
   // clear previous generated state.
   this->InitFuncState(f);
+  // reserve keywords
+  name_supply_->ReserveName("var");
+  name_supply_->ReserveName("let");
+  name_supply_->ReserveName("const");
+
   // skip the first underscore, so SSA variable starts from
   name_supply_->FreshName("v_");
   // Setup the thread group info.

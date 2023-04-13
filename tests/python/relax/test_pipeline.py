@@ -53,6 +53,20 @@ def test_pipeline_with_kv_cache():
     @tvm.script.ir_module
     class Mod:
         @R.function
+        def create_kv_cache(reserve_slots: R.Shape(["m"])):
+            # just allocate minimum slot since it is only used to signal dtype
+            m = T.int64()
+            init_data = R.ones((1, 4), "float32")
+            kv_cache = R.call_packed(
+                "vm.builtin.attention_kv_cache_create",
+                init_data,
+                R.shape([m, 4]),
+                0,
+                sinfo_args=[R.Object],
+            )
+            return kv_cache
+
+        @R.function
         def main(
             x: R.Tensor((1, 4), "float32"),
             y: R.Tensor((1, 4), "float32"),
@@ -84,11 +98,10 @@ def test_pipeline_with_kv_cache():
 
     num_steps = 8
     cache_np = np.empty((num_steps, 4), dtype="float32")
-
-    fcreate_cache = tvm.get_global_func("vm.builtin.attention_kv_cache_create")
-    kv_cache = fcreate_cache(tvm.nd.empty((2, 4), device=tvm.cpu(), dtype="float32"))
-
     vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    kv_cache = vm["create_kv_cache"](tvm.runtime.ShapeTuple([1]))
+
     for i in range(num_steps):
         x_np = np.random.rand(1, 4).astype(np.float32)
         y_np = np.random.rand(1, 4).astype(np.float32)
