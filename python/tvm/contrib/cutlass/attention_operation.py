@@ -19,44 +19,86 @@
 from .library import *
 
 
-def instantiate_attention_template(attrs, func_args):
+def instantiate_attention_template(attrs):
     """Return CUTLASS host code for fused multi head attention
     based on a template and the provided attribute map."""
 
     bias_template = {
         "B11S'": """
-  CHECK(${arg3}->ndim == 2); // B, 1, 1, S'
+  CHECK(${bias}->ndim == 2); // B, 1, 1, S'
 
-  p.attn_bias_ptr = reinterpret_cast<T *>(${arg3}->data);
+  p.attn_bias_ptr = reinterpret_cast<T *>(${bias}->data);
   p.bias_strideM = 0; // 0
   p.bias_strideH = 0; // 0
   p.bias_strideB = p.num_keys; // S'
 """,
         "B1SS'": """
-  CHECK(${arg3}->ndim == 3); // B, 1, S, S'
+  CHECK(${bias}->ndim == 3); // B, 1, S, S'
 
-  p.attn_bias_ptr = reinterpret_cast<T *>(${arg3}->data);
+  p.attn_bias_ptr = reinterpret_cast<T *>(${bias}->data);
   p.bias_strideM = p.num_keys; // S'
   p.bias_strideH = 0; // 0
   p.bias_strideB = p.bias_strideM * p.num_queries; // S' * S
 """,
         "BNSS'": """
-  CHECK(${arg3}->ndim == 4); // B, N, S, S'
+  CHECK(${bias}->ndim == 4); // B, N, S, S'
 
-  p.attn_bias_ptr = reinterpret_cast<T *>(${arg3}->data);
+  p.attn_bias_ptr = reinterpret_cast<T *>(${bias}->data);
   p.bias_strideM = p.num_keys; // S'
   p.bias_strideH = p.bias_strideM * p.num_queries; // S' * S
   p.bias_strideB = p.bias_strideH * p.num_heads; // S' * S * N
 """,
     }
 
+    qkv_template = {
+        "default": """
+  p.query_ptr = reinterpret_cast<T *>(${query}->data);
+  p.key_ptr = reinterpret_cast<T *>(${key}->data);
+  p.value_ptr = reinterpret_cast<T *>(${value}->data);
+  CHECK(${query}->ndim == 4); // B, S, N, H
+  CHECK(${key}->ndim == 4); // B, S', N, H
+  CHECK(${value}->ndim == 4); // B, S', N, H'
+
+  // stride for N
+  p.q_strideH = p.head_dim; // H
+  p.k_strideH = p.head_dim; // H
+  p.v_strideH = p.head_dim_value; // H'
+
+  // stride for S
+  p.q_strideM = p.q_strideH * p.num_heads; // H * N
+  p.k_strideM = p.k_strideH * p.num_heads; // H * N
+  p.v_strideM = p.v_strideH * p.num_heads; // H' * N
+
+  // stride for B
+  p.q_strideB = p.q_strideM * p.num_queries; // H * N * S
+  p.k_strideB = p.k_strideM * p.num_keys; // H * N * S'
+  p.v_strideB = p.v_strideM * p.num_keys; // H'* N * S'
+""",
+        "qkv_stacked": """
+  p.query_ptr = reinterpret_cast<T *>(${qkv}->data);
+  p.key_ptr = reinterpret_cast<T *>(${qkv}->data) + p.head_dim * p.num_heads;
+  p.value_ptr = reinterpret_cast<T *>(${qkv}->data) + p.head_dim * p.num_heads * 2;
+  CHECK(${qkv}->ndim == 3); // B, S, NH + NH + NH'
+
+  // stride for N
+  p.q_strideH = p.head_dim; // H
+  p.k_strideH = p.head_dim; // H
+  p.v_strideH = p.head_dim_value; // H'
+
+  // stride for S
+  p.q_strideM = p.k_strideM = p.v_strideM =
+    p.q_strideH * p.num_heads +
+    p.k_strideH * p.num_heads +
+    p.v_strideH * p.num_heads; // H * N + H * N + H * N'
+
+  // stride for B
+  p.q_strideB = p.k_strideB = p.v_strideB =
+    p.q_strideM * p.num_queries; // (H * N + H * N + H * N') * S
+""",
+    }
+
     template = """
   using T = ${data_type};
-
-  CHECK(${arg0}->ndim == 4); // B, S, N, H
-  CHECK(${arg1}->ndim == 4); // B, S', N, H
-  CHECK(${arg2}->ndim == 4); // B, S', N, H'
-  CHECK(out0->ndim == 4); // B, S, N, H'
 
   using Attention =
       AttentionKernel<T,
@@ -70,10 +112,6 @@ def instantiate_attention_template(attrs, func_args):
       >;
 
   typename Attention::Params p;
-
-  p.query_ptr = reinterpret_cast<T *>(${arg0}->data);
-  p.key_ptr = reinterpret_cast<T *>(${arg1}->data);
-  p.value_ptr = reinterpret_cast<T *>(${arg2}->data);
   p.logsumexp_ptr = nullptr;
   p.output_ptr = reinterpret_cast<T *>(out0->data);
   p.output_accum_ptr = nullptr;
@@ -92,22 +130,11 @@ def instantiate_attention_template(attrs, func_args):
   p.num_keys = ${num_keys}; // S'
   p.scale = ${scale};
 
-  // stride for N
-  p.q_strideH = p.head_dim; // H
-  p.k_strideH = p.head_dim; // H
-  p.v_strideH = p.head_dim_value; // H'
 
-  // stride for S
-  p.q_strideM = p.q_strideH * p.num_heads; // H * N
-  p.k_strideM = p.k_strideH * p.num_heads; // H * N
-  p.v_strideM = p.v_strideH * p.num_heads; // H' * N
   p.o_strideM = p.head_dim_value * p.num_heads; // H' * N
+  CHECK(out0->ndim == 4); // B, S, N, H'
 
-  // stride for B
-  p.q_strideB = p.q_strideM * p.num_queries; // H * N * S
-  p.k_strideB = p.k_strideM * p.num_keys; // H * N * S'
-  p.v_strideB = p.v_strideM * p.num_keys; // H'* N * S'
-
+  ${qkv_template}
   ${bias_template}
 
   constexpr auto kernel_fn = attention_kernel_batched_impl<Attention>;
@@ -126,9 +153,10 @@ def instantiate_attention_template(attrs, func_args):
 
     template = substitute_template(
         template,
-        {"bias_template": bias_template[attrs["bias_layout"]] if "bias_layout" in attrs else ""},
+        {
+            "qkv_template": qkv_template[attrs["qkv_layout"]],
+            "bias_template": bias_template[attrs["bias_layout"]] if "bias_layout" in attrs else "",
+        },
     )
 
-    for i, arg in enumerate(func_args):
-        attrs["arg{}".format(i)] = arg
     return substitute_template(template, attrs)

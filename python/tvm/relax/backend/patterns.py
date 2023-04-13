@@ -19,7 +19,7 @@
 
 from typing import Dict, Mapping, Tuple, Union
 
-from tvm.relax.dpl.pattern import DFPattern, is_op, wildcard
+from tvm.relax.dpl.pattern import DFPattern, is_op, is_tuple_get_item, wildcard
 
 
 def _with_bias_activation_pattern(
@@ -168,6 +168,11 @@ def make_attention_pattern(with_bias: bool = False):
     """
     Create pattern for fused multi head attention.
 
+    Parameters
+    ----------
+    with_bias: bool
+        Whether or not to include bias addition
+
     Returns
     -------
     pattern: DFPattern
@@ -189,4 +194,46 @@ def make_attention_pattern(with_bias: bool = False):
     else:
         out = is_op("relax.nn.attention")(query, key, value)
 
+    return out, annotations
+
+
+def make_stacked_attention_pattern(with_bias: bool = False):
+    """
+    Create pattern for fused multi head attention with stacked input.
+
+    Parameters
+    ----------
+    with_bias: bool
+        Whether or not to include bias addition
+
+    Returns
+    -------
+    pattern: DFPattern
+        The resulting pattern describing a fused multi head attention.
+
+    annotations: Mapping[str, DFPattern]
+        A mapping from name to sub pattern. It can be used to extract
+        important expressions from match result, to power the partition
+        check function and codegen.
+    """
+    stacked_qkv = wildcard()
+    qkv_tuple = is_op("relax.split")(stacked_qkv)
+    query_reshape_list = wildcard()
+    key_reshape_list = wildcard()
+    value_reshape_list = wildcard()
+    query = is_op("relax.reshape")(is_tuple_get_item(qkv_tuple, 0), query_reshape_list)
+    key = is_op("relax.reshape")(is_tuple_get_item(qkv_tuple, 1), key_reshape_list)
+    value = is_op("relax.reshape")(is_tuple_get_item(qkv_tuple, 2), value_reshape_list)
+    annotations = {
+        "stacked_qkv": stacked_qkv,
+        "query_reshape_list": query_reshape_list,
+        "key_reshape_list": key_reshape_list,
+        "value_reshape_list": value_reshape_list,
+    }
+    if with_bias:
+        bias = wildcard()
+        annotations["bias"] = bias
+        out = is_op("relax.nn.attention_bias")(query, key, value, bias)
+    else:
+        out = is_op("relax.nn.attention")(query, key, value)
     return out, annotations

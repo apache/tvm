@@ -500,12 +500,6 @@ def instantiate_template(func_name, annotations, func_args):
         if k in annotations:
             attrs[k] = annotations[k]
 
-    arg0_shape = annotations["arg0_shape"]
-    arg1_shape = annotations["arg1_shape"]
-    attrs["ElementInputA"] = DataTypeTag[dtype_map[annotations["arg0_dtype"]]]
-    attrs["ElementInputB"] = DataTypeTag[dtype_map[annotations["arg1_dtype"]]]
-    attrs["ElementOutput"] = DataTypeTag[dtype_map[annotations["ret_dtype"]]]
-
     headers = []
 
     if "relu" in func_name:
@@ -649,12 +643,12 @@ def instantiate_template(func_name, annotations, func_args):
         if "conv2d_transpose" in func_name:
             headers.append("cutlass/conv/kernel/default_conv2d_dgrad.h")
             activation_shape = output_shape
-            output_shape = arg0_shape
+            output_shape = annotations["arg0_shape"]
         elif "backward" in func_name:
             headers.append("cutlass/conv/kernel/default_conv2d_wgrad.h")
-            activation_shape = arg1_shape
+            activation_shape = annotations["arg1_shape"]
             weight_shape = output_shape
-            output_shape = arg0_shape
+            output_shape = annotations["arg0_shape"]
         elif "residual" in func_name:
             headers.append("cutlass/conv/kernel/default_conv2d_fprop_with_broadcast.h")
         else:
@@ -731,13 +725,26 @@ def instantiate_template(func_name, annotations, func_args):
         ), "Cutlass may generate nan occasionally when scale == 0.0"
         attrs["arch"] = "cutlass::arch::Sm{}".format(annotations["arch"])
         attrs["kSupportsDropout"] = False
-        if len(func_args) > 3:
+        attrs["qkv_layout"] = annotations["qkv_layout"]
+        if attrs["qkv_layout"] == "default":
+            attrs["query"] = func_args[0]
+            attrs["key"] = func_args[1]
+            attrs["value"] = func_args[2]
+            if len(func_args) > 3:
+                attrs["bias"] = func_args[3]
+        elif attrs["qkv_layout"] == "qkv_stacked":
+            attrs["qkv"] = func_args[0]
+            if len(func_args) > 4:
+                attrs["bias"] = func_args[4]
+        else:
+            raise NotImplementedError()
+        if "bias" in attrs:
             attrs["kSupportsBias"] = True
-            if len(annotations["arg3_shape"]) == 4:
+            if len(annotations["bias_shape"]) == 4:
                 attrs["bias_layout"] = "BNSS'"
-            elif len(annotations["arg3_shape"]) == 3:
+            elif len(annotations["bias_shape"]) == 3:
                 attrs["bias_layout"] = "B1SS'"
-            elif len(annotations["arg3_shape"]) == 2:
+            elif len(annotations["bias_shape"]) == 2:
                 attrs["bias_layout"] = "B11S'"
             else:
                 raise NotImplementedError()
@@ -745,7 +752,7 @@ def instantiate_template(func_name, annotations, func_args):
             # To support negative scale in current Cutlass implementation,
             # kSupportsBias should be set true, or there are nan's as result.
             attrs["kSupportsBias"] = attrs["scale"] < 0
-        code = instantiate_attention_template(attrs, func_args)
+        code = instantiate_attention_template(attrs)
         return CodegenResult(code, headers)
 
     raise ValueError("Do not have a template for {}".format(func_name))

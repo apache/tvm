@@ -592,10 +592,10 @@ def attention_bias_size(request):
     return request.param
 
 
-def test_attention_bias_offload(attention_bias_size, attention_dtype):
+def test_attention_bias_offload(attention_bias_size):
     b, (s, s_kv), n, (h, h_v), bias_shape, bias_reshape = attention_bias_size
     q, k, v, bias, ref = get_numpy_attention_ref(
-        b, s, s_kv, n, h, h_v, bias_shape, bias_reshape, "none", attention_dtype
+        b, s, s_kv, n, h, h_v, bias_shape, bias_reshape, "none", "float32"
     )
 
     mod = get_relax_attention_module(q, k, v, bias)
@@ -620,10 +620,10 @@ def attention_scale(request):
     return request.param
 
 
-def test_attention_scale_offload(attention_scale_size, attention_scale, attention_dtype):
+def test_attention_scale_offload(attention_scale_size, attention_scale):
     b, (s, s_kv), n, (h, h_v), bias_shape, bias_reshape = attention_scale_size
     q, k, v, bias, ref = get_numpy_attention_ref(
-        b, s, s_kv, n, h, h_v, bias_shape, bias_reshape, attention_scale, attention_dtype
+        b, s, s_kv, n, h, h_v, bias_shape, bias_reshape, attention_scale, "float32"
     )
 
     mod = get_relax_attention_module(q, k, v, bias, attention_scale)
@@ -631,6 +631,86 @@ def test_attention_scale_offload(attention_scale_size, attention_scale, attentio
         out = get_result_with_relax_cutlass_offload(mod, q, k, v)
     else:
         out = get_result_with_relax_cutlass_offload(mod, q, k, v, bias)
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
+@memoize("topi.tests.test_codegen_cutlass.test_stacked_attention_offload")
+def get_numpy_stacked_attention_ref(b, s, n, h, h_v, bias_shape, bias_reshape, qk_scale, dtype):
+    qkv = np.random.randn(b, s, n * h + n * h + n * h_v).astype(dtype)
+    split_qkv = np.split(qkv, [n * h, n * h * 2], axis=2)
+    q = np.reshape(split_qkv[0], (b, s, n, h))
+    k = np.reshape(split_qkv[1], (b, s, n, h))
+    v = np.reshape(split_qkv[2], (b, s, n, h_v))
+    qt = q.transpose(0, 2, 1, 3)  # b, n, s, h
+    kt = k.transpose(0, 2, 3, 1)  # b, n, h, s
+    if not qk_scale == "none":
+        score = qt @ kt * qk_scale  # b, n, s, s
+    else:
+        score = qt @ kt / np.sqrt(q.shape[-1])  # b, n, s, s
+    if not bias_shape == "none":
+        bias = np.random.randn(*bias_shape).astype(dtype)
+        score = score + bias.reshape(*bias_reshape)  # b, n, s, s
+    else:
+        bias = None
+    attn = tvm.topi.testing.softmax_python(score, -1)
+    vt = v.transpose(0, 2, 1, 3)  # b, n, s, h_v
+    ref = attn @ vt  # b, n, s, h_v
+    return qkv, bias, ref.transpose(0, 2, 1, 3)  # b, s, n, h_v
+
+
+def get_relax_stacked_attention_module(qkv, b, s, n, h, h_v, bias=None, qk_scale=None):
+    dtype = str(qkv.dtype)
+
+    from tvm.script.ir_builder import IRBuilder
+    from tvm.script.ir_builder import relax as relax_builder, tir as T
+
+    if qk_scale is not None:
+        qk_scale = T.FloatImm("float32", qk_scale)
+
+    with IRBuilder() as builder:
+        with relax_builder.function():
+            R.func_name("main")
+            qkv = R.arg("qkv", R.Tensor(qkv.shape, dtype))
+            if bias is not None:
+                bias = R.arg("bias", R.Tensor(bias.shape, dtype))
+            with R.dataflow() as frame:
+                qkv_tuple = R.split(qkv, [n * h, n * h * 2], axis=2)
+                q = R.reshape(qkv_tuple[0], [b, s, n, h])
+                k = R.reshape(qkv_tuple[1], [b, s, n, h])
+                v = R.reshape(qkv_tuple[2], [b, s, n, h_v])
+                result = R.emit(R.nn.attention(q, k, v, bias, qk_scale))
+                R.output(result)
+
+            R.func_ret_value(frame.output_vars[0])
+
+    func = builder.get()
+    return tvm.IRModule({"main": func})
+
+
+@pytest.fixture(
+    params=[
+        # B, S, N, H, bias_shape, bias_reshape, scale
+        (4, 8, 32, (64, 32), "none", "none", "none"),
+        (4, 8, 32, (64, 32), (4, 32, 8, 8), (4, 32, 8, 8), 0.5),
+    ]
+)
+def stacked_attention_size(request):
+    return request.param
+
+
+def test_stacked_attention_offload(stacked_attention_size):
+    b, s, n, (h, h_v), bias_shape, bias_reshape, scale = stacked_attention_size
+    qkv, bias, ref = get_numpy_stacked_attention_ref(
+        b, s, n, h, h_v, bias_shape, bias_reshape, scale, "float32"
+    )
+    if scale == "none":
+        mod = get_relax_stacked_attention_module(qkv, b, s, n, h, h_v, bias)
+    else:
+        mod = get_relax_stacked_attention_module(qkv, b, s, n, h, h_v, bias, scale)
+    if bias is None:
+        out = get_result_with_relax_cutlass_offload(mod, qkv)
+    else:
+        out = get_result_with_relax_cutlass_offload(mod, qkv, bias)
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
