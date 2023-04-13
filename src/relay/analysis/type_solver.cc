@@ -25,8 +25,8 @@
 
 #include <tvm/ir/type_functor.h>
 #include <tvm/node/structural_equal.h>
-#include <tvm/tir/op.h>
 #include <tvm/tir/expr_functor.h>
+#include <tvm/tir/op.h>
 
 #include <memory>
 #include <string>
@@ -79,14 +79,13 @@ class TypeSolver::Reporter : public TypeReporterNode {
 
 class TypeSolver::AnyChecker : public tir::ExprVisitor {
  public:
-  void VisitExpr_(const AnyNode* op) final {
-    found_ = true;
-  }
+  void VisitExpr_(const AnyNode* op) final { found_ = true; }
 
   bool Check(const PrimExpr& expr) {
     tir::ExprVisitor::VisitExpr(expr);
     return found_;
   }
+
  private:
   bool found_{false};
 };
