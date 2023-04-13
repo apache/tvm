@@ -484,7 +484,7 @@ def test_dynamic_strided_slice():
                 (x, begin, end, strides),
                 out_sinfo=R.Tensor((4,), dtype="int64"),
             )
-            gv1: R.Shape(ndim=4) = R.call_packed(
+            gv1: R.Shape(ndim=4) = R.call_pure_packed(
                 "vm.builtin.tensor_to_shape", gv, sinfo_args=(R.Shape(ndim=4),)
             )
             gv2: R.Shape([s, s_1, s_2, s_3]) = R.match_cast(
@@ -683,7 +683,7 @@ def test_dynamic_strided_slice_symbolic():
                 (x, begin, end, strides),
                 out_sinfo=R.Tensor((2,), dtype="int64"),
             )
-            gv1: R.Shape(ndim=2) = R.call_packed(
+            gv1: R.Shape(ndim=2) = R.call_pure_packed(
                 "vm.builtin.tensor_to_shape", gv, sinfo_args=(R.Shape(ndim=2),)
             )
             gv2: R.Shape([s, s_1]) = R.match_cast(gv1, R.Shape([s, s_1]))

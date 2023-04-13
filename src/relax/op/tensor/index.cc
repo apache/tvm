@@ -313,7 +313,8 @@ TVM_REGISTER_OP("relax.dynamic_strided_slice")
     .add_argument("begin", "Tensor", "The indices to begin with in the slicing.")
     .add_argument("end", "Tensor", "Indices indicating end of the slice.")
     .add_argument("strides", "Tensor", "The stride values.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoDynStridedSlice);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoDynStridedSlice)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 }  // namespace relax
 }  // namespace tvm
