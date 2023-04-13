@@ -169,12 +169,15 @@ def test_avg_max_pooling_single(
     # hardcoded padding values are used for each case.
     padding = (1, 1, 1, 0) if upscale == "NONE" else (0, 0, 0, 0)
 
-    ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
+    dtype = "int8"
+
+    ifm = relay.var("ifm", shape=ifm_shape, dtype=dtype)
     pooling = make_ethosu_pooling(
         ifm,
         pooling_type,
         pool_shape,
         ofm_channels,
+        dtype,
         strides,
         padding,
         activation,
@@ -232,6 +235,7 @@ def test_sum_pooling_single(
         pooling_type="SUM",
         pool_shape=(1, 1),
         ofm_channels=1,
+        ofm_dtype="int32",
         strides=(1, 1),
         padding=(0, 0, 0, 0),
         activation=activation,
@@ -276,13 +280,15 @@ def test_correct_stride_with_multiple_pooling():
     pool_shape = (1, 1)
     strides = (1, 1)
     padding = (0, 0, 0, 0)
+    dtype = "int8"
 
-    ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
+    ifm = relay.var("ifm", shape=ifm_shape, dtype=dtype)
     op = make_ethosu_pooling(
         ifm,
         pooling_type,
         pool_shape,
         ofm_channels,
+        dtype,
         strides,
         padding,
         ifm_layout="NHWC",
@@ -293,6 +299,7 @@ def test_correct_stride_with_multiple_pooling():
         pooling_type,
         pool_shape,
         ofm_channels,
+        dtype,
         strides,
         padding,
         ifm_layout="NHCWB16",
