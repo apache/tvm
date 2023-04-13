@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#include "transform/utils.h"
+
 #include <tvm/relax/expr_functor.h>
 
 namespace tvm {
@@ -109,6 +111,7 @@ bool IsLeafOrTuple(const Expr& expr) {
          expr.as<OpNode>() || expr.as<TupleNode>();
 }
 
+/*! \brief Helper to implement CopyWithNewVars.*/
 class FunctionCopier : public ExprMutator {
  public:
   static Function Transform(Function func) {
@@ -116,7 +119,8 @@ class FunctionCopier : public ExprMutator {
     // All variables that are bound inside the original function would be copied
     // to satisfy the restriction in the well-formed check: Variables in Relax
     // must be bound exactly once.
-    return Downcast<Function>(copier.VisitExpr(func));
+    auto new_func = Downcast<Function>(copier.VisitExpr(func));
+    return SymbolicVarRenewMutator::Renew(new_func);
   }
 
   Var VisitVarDef_(const DataflowVarNode* var) override {
@@ -134,6 +138,11 @@ class FunctionCopier : public ExprMutator {
   }
 };
 
+/*!
+ * \brief Copy a new Relax function with new remapped vars and symbolic vars.
+ * \param func The Relax function we want to copy.
+ * \return The copied function.
+ */
 Function CopyWithNewVars(Function func) { return FunctionCopier::Transform(func); }
 
 TVM_REGISTER_GLOBAL("relax.CopyWithNewVars").set_body_typed(CopyWithNewVars);
