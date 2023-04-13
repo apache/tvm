@@ -579,9 +579,9 @@ def test_reshape_symbolic():
             for i0, i1 in T.grid(a // T.int64(2), b * T.int64(2)):
                 with T.block("T_reshape"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(rxplaceholder[(ax0 * (b * T.int64(2)) + ax1) // b % a, (ax0 * (b * T.int64(2)) + ax1) % b])
+                    T.reads(rxplaceholder[(ax0 * b * T.int64(2) + ax1) // b % a, (ax0 * b * T.int64(2) + ax1) % b])
                     T.writes(T_reshape[ax0, ax1])
-                    T_reshape[ax0, ax1] = rxplaceholder[(ax0 * (b * T.int64(2)) + ax1) // b % a, (ax0 * (b * T.int64(2)) + ax1) % b]
+                    T_reshape[ax0, ax1] = rxplaceholder[(ax0 * b * T.int64(2) + ax1) // b % a, (ax0 * b * T.int64(2) + ax1) % b]
     # fmt: on
 
     mod = LegalizeOps()(Reshape)
@@ -623,13 +623,13 @@ def test_reshape_symbolic():
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads(
                         rxplaceholder[
-                            (ax0 * (b * T.int64(2)) + ax1) // b % a,
-                            (ax0 * (b * T.int64(2)) + ax1) % b,
+                            (ax0 * b * T.int64(2) + ax1) // b % a,
+                            (ax0 * b * T.int64(2) + ax1) % b,
                         ]
                     )
                     T.writes(T_reshape[ax0, ax1])
                     T_reshape[ax0, ax1] = rxplaceholder[
-                        (ax0 * (b * T.int64(2)) + ax1) // b % a, (ax0 * (b * T.int64(2)) + ax1) % b
+                        (ax0 * b * T.int64(2) + ax1) // b % a, (ax0 * b * T.int64(2) + ax1) % b
                     ]
 
     mod2 = LegalizeOps()(Reshape2)
@@ -661,14 +661,14 @@ def test_reshape_symbolic():
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(
                         rxplaceholder[
-                            (v_ax0 * (b * T.int64(2)) + v_ax1) // b % T.int64(10),
-                            (v_ax0 * (b * T.int64(2)) + v_ax1) % b,
+                            (v_ax0 * b * T.int64(2) + v_ax1) // b % T.int64(10),
+                            (v_ax0 * b * T.int64(2) + v_ax1) % b,
                         ]
                     )
                     T.writes(T_reshape[v_ax0, v_ax1])
                     T_reshape[v_ax0, v_ax1] = rxplaceholder[
-                        (v_ax0 * (b * T.int64(2)) + v_ax1) // b % T.int64(10),
-                        (v_ax0 * (b * T.int64(2)) + v_ax1) % b,
+                        (v_ax0 * b * T.int64(2) + v_ax1) // b % T.int64(10),
+                        (v_ax0 * b * T.int64(2) + v_ax1) % b,
                     ]
 
         @R.function

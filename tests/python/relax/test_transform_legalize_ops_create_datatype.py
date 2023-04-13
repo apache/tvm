@@ -640,7 +640,7 @@ def test_tril():
                     i0_1, i1_1, i2_1 = T.axis.remap("SSS", [i0, i1, i2])
                     T.reads(rxplaceholder[i0_1, i1_1, i2_1])
                     T.writes(trilu[i0_1, i1_1, i2_1])
-                    trilu[i0_1, i1_1, i2_1] = T.Select(i2_1 - T.int64(1) <= i1_1, rxplaceholder[i0_1, i1_1, i2_1], T.float32(0))
+                    trilu[i0_1, i1_1, i2_1] = T.Select(i2_1 <= i1_1 + T.int64(1), rxplaceholder[i0_1, i1_1, i2_1], T.float32(0))
     # fmt: on
 
     mod = LegalizeOps()(Tril)
@@ -713,7 +713,7 @@ def test_triu():
                     i0_1, i1_1, i2_1 = T.axis.remap("SSS", [i0, i1, i2])
                     T.reads(rxplaceholder[i0_1, i1_1, i2_1])
                     T.writes(trilu[i0_1, i1_1, i2_1])
-                    trilu[i0_1, i1_1, i2_1] = T.Select(i1_1 <= i2_1 - T.int64(1), rxplaceholder[i0_1, i1_1, i2_1], T.float32(0))
+                    trilu[i0_1, i1_1, i2_1] = T.Select(i1_1 < i2_1, rxplaceholder[i0_1, i1_1, i2_1], T.float32(0))
     # fmt: on
 
     mod = LegalizeOps()(Triu)
