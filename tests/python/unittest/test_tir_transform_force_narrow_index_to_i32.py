@@ -216,5 +216,26 @@ def test_fail_on_buffer_map():
         tvm.tir.transform.ForceNarrowIndexToInt32()(mod)["main"]
 
 
+def test_pod_params_and_select():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(
+            A: T.Buffer((T.int64(4),), "float32"), B: T.Buffer((T.int64(4),), "float32"), n: T.int64
+        ):
+            for i in T.serial(T.int64(4)):
+                B[i] = T.Select(T.int64(1) <= i, A[i + n], T.Cast("float32", i))
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32"), n: T.int32):
+            for i in range(4):
+                B[i] = T.Select(1 <= i, A[i + n], T.Cast("float32", i))
+
+    after = tvm.tir.transform.ForceNarrowIndexToInt32()(Before)
+    tvm.ir.assert_structural_equal(Expected, after)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
