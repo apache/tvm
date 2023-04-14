@@ -40,7 +40,6 @@ def build(mod):
         ([0, 2, 10, 14], [0, 5, 1, 1], [1, 1, -1, -2]),
     ],
 )
-@pytest.mark.skip("Skip for regresion")
 def test_dynamic_strided_slice(begin, end, strides):
     # fmt: off
     @tvm.script.ir_module
@@ -51,8 +50,6 @@ def test_dynamic_strided_slice(begin, end, strides):
             return gv
     # fmt: on
     mod = LegalizeOps()(DynamicStridedSlice)
-    with tvm.target.Target(target):
-        mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
     vm = build(mod)
 
     x_np = np.random.rand(8, 9, 10, 10).astype(np.float32)
