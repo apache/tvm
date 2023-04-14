@@ -499,10 +499,11 @@ TVM_DLL Pass RewriteCUDAGraph();
  *  on MetaSchedule schedule rules but directly samples from the search space instead of using the
  *  tuning algorithm. User can specify the number of valid counts to try and whether to use runner
  *  for evaluation.
+ * \param valid_count The number of valid counts to try.
+ * \param runner The runner to evaluate the generated schedules.
  * \return The Pass.
  */
-
-TVM_DLL Pass FewShotTuning(int valid_count, ObjectRef runner);
+TVM_DLL Pass FewShotTuning(Integer valid_count, ObjectRef runner);
 
 }  // namespace transform
 }  // namespace relax

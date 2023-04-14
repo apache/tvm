@@ -26,7 +26,7 @@ namespace relax {
 namespace transform {
 
 tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& target,
-                                  int valid_count, Optional<meta_schedule::Runner> runner) {
+                                  int64_t valid_count, Optional<meta_schedule::Runner> runner) {
   // fetch a local builder
   static const auto* f_get_local_builder =
       runtime::Registry::Get("meta_schedule.builder.get_local_builder");
@@ -128,9 +128,10 @@ tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& 
   }
 }
 
-Pass FewShotTuning(int valid_count, ObjectRef runner) {
+Pass FewShotTuning(Integer valid_count, ObjectRef runner) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
       [=](IRModule m, PassContext pc) {
+        CHECK(valid_count.defined() && valid_count->value > 0) << "Valid_count must be positive.";
         // get the target from context.
         tvm::Target target = tvm::Target::Current();
         ICHECK(target.defined()) << "Target is not set in current context";
@@ -144,7 +145,7 @@ Pass FewShotTuning(int valid_count, ObjectRef runner) {
           if (func->IsInstance<tir::PrimFuncNode>() &&
               !func->HasNonzeroAttr(tir::attr::kIsScheduled)) {
             result.Set(gv, FewShotTunePrimFunc(GetRef<tir::PrimFunc>(func.as<tir::PrimFuncNode>()),
-                                               target, valid_count, runner_));
+                                               target, valid_count->value, runner_));
           } else {
             result.Set(gv, func);
           }
