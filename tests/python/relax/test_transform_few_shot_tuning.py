@@ -16,6 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name,,missing-function-docstring
 import tvm
+from tvm.tir.tensor_intrin.cuda import *
+from tvm.tir.tensor_intrin.x86 import *
 from tvm.relax.transform import FewShotTuning
 from tvm.script import tir as T
 import tvm.testing

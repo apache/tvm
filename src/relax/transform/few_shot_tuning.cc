@@ -56,6 +56,7 @@ tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& 
       /*num_threads=*/num_threads,  // use all available local threads
       /*rand_state=*/-1,            // -1 means use random seed
       /*logger=*/nullptr);
+  task->Initialize();
   task->search_strategy.value()->PreTuning(
       /*max_trials=*/valid_count, /*num_trials_per_iter=*/valid_count,
       /*design_spaces=*/task->space_generator.value()->GenerateDesignSpace(mod),
@@ -113,19 +114,18 @@ tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& 
     LOG(WARNING) << "No valid schedule found";
     return prim_func;
   }
+  int best_idx = 0;
   if (runner.defined()) {
-    int best_idx = 0;
     for (int i = 1; i < costs.size(); ++i) {
       if (costs[i] < costs[best_idx]) {
         best_idx = i;
       }
     }
-    return WithAttr(Downcast<tir::PrimFunc>(results[best_idx]->Lookup("main")),
-                    tvm::tir::attr::kIsScheduled, Bool(true));
   } else {
-    int best_idx = rand_r(0) % results.size();
-    return Downcast<tir::PrimFunc>(results[best_idx]->Lookup("main"));
+    best_idx = results.size() - 1;
   }
+  return WithAttr(Downcast<tir::PrimFunc>(results[best_idx]->Lookup("main")),
+                  tvm::tir::attr::kIsScheduled, Bool(true));
 }
 
 Pass FewShotTuning(Integer valid_count, ObjectRef runner) {
