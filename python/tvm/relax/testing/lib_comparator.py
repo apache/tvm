@@ -119,7 +119,7 @@ class LibCompareVMInstrument:
         # not always true, true for most ops.
         ret_indices = (len(args) - 1,)
         for i, arg in enumerate(args):
-            arr = tvm.nd.empty(arg.shape, device=self.device)
+            arr = tvm.nd.empty(arg.shape, arg.dtype, device=self.device)
             # copy from cpu since we look at different device
             if i not in ret_indices:
                 arr.copyfrom(arg.copyto(tvm.cpu()))

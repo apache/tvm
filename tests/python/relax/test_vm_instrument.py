@@ -49,6 +49,21 @@ def get_exec(data_shape):
     return relax.build(mod, target)
 
 
+def get_exec_int32(data_shape):
+    builder = relax.BlockBuilder()
+
+    with builder.function("main"):
+        model = nn.ReLU()
+        data = nn.Placeholder(data_shape, dtype="int32", name="data")
+        output = model(data)
+        params = [data] + model.parameters()
+        builder.emit_func_output(output, params=params)
+
+    mod = builder.get()
+    target = "llvm"
+    return relax.build(mod, target)
+
+
 def test_conv2d_cpu():
     data_np = np.random.randn(1, 64).astype("float32")
     ex = get_exec(data_np.shape)
@@ -74,8 +89,8 @@ def test_conv2d_cpu():
 
 
 def test_lib_comparator():
-    data_np = np.random.randn(1, 64).astype("float32")
-    ex = get_exec(data_np.shape)
+    data_np = np.random.randn(1, 64).astype("int32")
+    ex = get_exec_int32(data_np.shape)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     # compare against library module
     cmp = LibCompareVMInstrument(vm.module.imported_modules[0], tvm.cpu(), verbose=False)
