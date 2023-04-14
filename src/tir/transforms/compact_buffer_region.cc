@@ -417,7 +417,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       PrimExpr min, extent;
       if (collect_inbound_) {
         min = dom_analyzer_.Simplify(tvm::max(0, range->min));
-	extent = range->extent;
+        extent = range->extent;
         // Apply stronger symbolic proof to help us remove symbolic min here.
         if (!dom_analyzer_.CanProveLessEqualThanSymbolicShapeValue(extent, original_shape[i])) {
           extent = tvm::min(original_shape[i], range->extent);
