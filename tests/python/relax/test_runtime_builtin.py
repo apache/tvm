@@ -155,7 +155,7 @@ def test_attention_kv_cache():
     fappend = tvm.get_global_func("vm.builtin.attention_kv_cache_append")
     fview = tvm.get_global_func("vm.builtin.attention_kv_cache_view")
 
-    cache = fcreate(tvm.nd.empty((2, 2), dtype="int32"))
+    cache = fcreate(tvm.nd.empty((1, 2), dtype="int32"), tvm.runtime.ShapeTuple([2, 2]), 0)
     num_steps = 0
     for i in range(num_steps):
         cache = fappend(cache, tvm.nd.array(i * np.ones((1, 2).astype("int32"))))

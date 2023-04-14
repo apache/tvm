@@ -143,13 +143,16 @@ class RuntimeContext implements Disposable {
   arrayGetItem : PackedFunc;
   arrayGetSize : PackedFunc;
   arrayMake : PackedFunc;
-  getSysLib: PackedFunc;
-  arrayCacheGet: PackedFunc;
-  arrayCacheUpdate: PackedFunc;
-  arrayCacheRemove: PackedFunc;
-  arrayCacheClear: PackedFunc;
-  arrayDecodeStorage: PackedFunc;
-  paramModuleFromCache: PackedFunc;
+  getSysLib : PackedFunc;
+  arrayCacheGet : PackedFunc;
+  arrayCacheUpdate : PackedFunc;
+  arrayCacheRemove : PackedFunc;
+  arrayCacheClear : PackedFunc;
+  arrayDecodeStorage : PackedFunc;
+  paramModuleFromCache : PackedFunc;
+  makeShapeTuple : PackedFunc;
+  ndarrayCreateView : PackedFunc;
+  sampleTopPFromLogits : PackedFunc;
 
   private autoDisposeScope: Array<Array<Disposable | undefined>> = [];
 
@@ -164,12 +167,14 @@ class RuntimeContext implements Disposable {
     this.arrayCacheClear = getGlobalFunc("tvmjs.ndarray_cache.clear");
     this.arrayDecodeStorage = getGlobalFunc("tvmjs.array.decode_storage");
     this.paramModuleFromCache = getGlobalFunc("tvmjs.param_module_from_cache");
-
+    this.makeShapeTuple = getGlobalFunc("runtime.ShapeTuple");
+    this.ndarrayCreateView = getGlobalFunc("runtime.TVMArrayCreateView");
+    this.sampleTopPFromLogits = getGlobalFunc("vm.builtin.sample_top_p_from_logits");
   }
 
   dispose(): void {
     // call array cache clear to clear all cached items
-    this.arrayCacheClear();
+    this.arrayCacheClear.dispose();
     this.arrayGetItem.dispose();
     this.arrayGetSize.dispose();
     this.arrayMake.dispose();
@@ -179,6 +184,9 @@ class RuntimeContext implements Disposable {
     this.arrayCacheClear.dispose();
     this.arrayDecodeStorage.dispose();
     this.paramModuleFromCache.dispose();
+    this.makeShapeTuple.dispose();
+    this.ndarrayCreateView.dispose();
+    this.sampleTopPFromLogits.dispose();
   }
 
   beginScope() : void {
@@ -419,12 +427,14 @@ export class NDArray implements Disposable {
   private dltensor: Pointer;
   private dataPtr: Pointer;
   private lib: FFILibrary;
+  private ctx: RuntimeContext;
   private dlDataType: DLDataType;
 
-  constructor(handle: Pointer, isView: boolean, lib: FFILibrary) {
+  constructor(handle: Pointer, isView: boolean, lib: FFILibrary, ctx: RuntimeContext) {
     this.handle = handle;
     this.isView = isView;
     this.lib = lib;
+    this.ctx = ctx;
 
     if (this.isView) {
       this.dltensor = handle;
@@ -468,6 +478,16 @@ export class NDArray implements Disposable {
 
     // byte_offset
     this.byteOffset = lib.memory.loadI64(this.dltensor + arrayOffsetByteOffset);
+  }
+
+  /**
+   * Create a view of the array.
+   * @param shape The shape of the view.
+   * @returns The new sliced ndarray.
+   */
+  view(shape: Array<number>) : NDArray {
+    const shapeArray = shape.map((value) => new Scalar(value, "int"));
+    return this.ctx.ndarrayCreateView(this, this.ctx.makeShapeTuple(...shapeArray));
   }
 
  /**
@@ -870,7 +890,11 @@ export class VirtualMachine implements Disposable {
     this.mod.getFunction("vm_initialization")(
       new Scalar(device.deviceType, "int"),
       new Scalar(device.deviceId, "int"),
-      new Scalar(VMAllocatorKind.POOLED_ALLOCATOR, "int")
+      new Scalar(VMAllocatorKind.POOLED_ALLOCATOR, "int"),
+      // explicitly specify host device type
+      new Scalar(DeviceStrToEnum.cpu, "int"),
+      new Scalar(0, "int"),
+      new Scalar(VMAllocatorKind.POOLED_ALLOCATOR, "int"),
     );
   }
 
@@ -1581,7 +1605,7 @@ export class Instance implements Disposable {
       )
     );
     const ret = this.ctx.attachToCurrentScope(
-      new NDArray(this.memory.loadPointer(outPtr), false, this.lib)
+      new NDArray(this.memory.loadPointer(outPtr), false, this.lib, this.ctx)
     );
     this.lib.recycleCallStack(stack);
     return ret;
@@ -1612,6 +1636,18 @@ export class Instance implements Disposable {
       input[i] = low + Math.random() * scale;
     }
     return ret.copyFrom(input);
+  }
+
+  /**
+   * Sample index via top-p sampling.
+   *
+   * @param logits The input logits before normalization.
+   * @param temperature  The temperature factor, will take argmax if temperature = 0.0
+   * @param top_p The top_p
+   * @returns The sampled index.
+   */
+  sampleTopPFromLogits(logits: NDArray, temperature: number, top_p: number): number {
+    return this.ctx.sampleTopPFromLogits(logits, temperature, top_p, Math.random());
   }
 
   /**
@@ -1668,6 +1704,15 @@ export class Instance implements Disposable {
     return this.ctx.arrayMake(...inputs) as TVMArray;
   }
 
+  /**
+   * Create a shape tuple to pass to runtime.
+   * @param shape The shape .
+   * @returns The created shape tuple.
+   */
+  makeShapeTuple(shape: Array<number>) : TVMObject {
+    const shapeArray = shape.map((value) => new Scalar(value, "int"));
+    return this.ctx.makeShapeTuple(...shapeArray);
+  }
   /**
    * Get type index from type key.
    * @param typeKey The type key.
@@ -2131,13 +2176,13 @@ export class Instance implements Disposable {
         }
       case ArgTypeCode.TVMNDArrayHandle: {
         return this.ctx.attachToCurrentScope(
-          new NDArray(this.memory.loadPointer(rvaluePtr), false, this.lib)
+          new NDArray(this.memory.loadPointer(rvaluePtr), false, this.lib, this.ctx)
         );
       }
       case ArgTypeCode.TVMDLTensorHandle: {
         assert(callbackArg);
         // no need to attach as we are only looking at view
-        return new NDArray(this.memory.loadPointer(rvaluePtr), true, this.lib);
+        return new NDArray(this.memory.loadPointer(rvaluePtr), true, this.lib, this.ctx);
       }
       case ArgTypeCode.TVMPackedFuncHandle: {
         return this.ctx.attachToCurrentScope(
