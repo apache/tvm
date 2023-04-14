@@ -23,7 +23,7 @@ import numpy as np  # type: ignore
 import tvm
 from tvm._ffi import base as _base
 
-from tvm.runtime import Device, PackedFunc, container, Object
+from tvm.runtime import Device, PackedFunc, Object
 from tvm.runtime.profiling import Report
 
 from ..rpc.base import RPC_SESS_MASK
@@ -227,7 +227,7 @@ class VirtualMachine(object):
             field_args: List[Any] = []
             for field in arg:
                 self._convert(field, field_args)
-            cargs.append(container.tuple_object(field_args))
+            cargs.append(tuple(field_args))
         elif isinstance(arg, (_base.numeric_types, bool)):
             dtype = _gettype(arg)
             value = tvm.nd.array(np.array(arg, dtype=dtype), device=tvm.cpu(0))

@@ -782,7 +782,7 @@ def set_input_attempt_get(vm: relax.VirtualMachine, device: tvm.runtime.Device) 
 def make_vm(mod, exec_mode) -> Tuple[relax.VirtualMachine, tvm.runtime.Device]:
     """Returns a local VM for the given mod and the device"""
     target = tvm.target.Target("llvm", host="llvm")
-    exec = relax.build(TestVMSetInput, target, exec_mode=exec_mode)
+    exec = relax.build(mod, target, exec_mode=exec_mode)
     exec.export_library("exec.so")
     exec_loaded = tvm.runtime.load_module("exec.so")
     os.remove("exec.so")
@@ -828,6 +828,23 @@ def run_on_rpc(
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_set_input(exec_mode):
     set_input_trial(*make_vm(TestVMSetInput, exec_mode))
+
+
+@pytest.mark.parametrize("exec_mode", EXEC_MODE)
+def test_set_input_tuple(exec_mode):
+    @tvm.script.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tuple([R.Tensor((32,), "float32"), R.Tensor((32,), "float32")])) -> R.Tensor:
+            y = x[0]
+            return y
+
+    vm, device = make_vm(Module, exec_mode)
+    device = tvm.cpu(0)
+    a = tvm.nd.empty((32,), "float32", device=device)
+    b = tvm.nd.empty((32,), "float32", device=device)
+    vm.set_input("main", (a, b))
+    vm.invoke_stateful("main")
 
 
 def save_function_kwargs_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
