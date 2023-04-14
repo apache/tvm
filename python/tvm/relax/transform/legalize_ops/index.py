@@ -21,7 +21,7 @@ import logging
 from tvm import topi, tir, te
 from ...op import call_pure_packed
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr, ExternFunc
+from ...expr import Call, Expr
 from ...struct_info import ShapeStructInfo
 from .common import register_legalize
 
