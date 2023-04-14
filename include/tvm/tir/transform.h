@@ -754,17 +754,6 @@ TVM_DLL Pass InstrumentProfileIntrinsics();
  */
 TVM_DLL Pass DefaultGPUSchedule();
 
-/*!
- * \brief The pass is designed for few shot tuning for static shape PrimFuncs. It examines all the
- *  blocks within the PrimFunc and conducts loop fusion, splitting, and other transformations based
- *  on MetaSchedule schedule rules but directly samples from the search space instead of using the
- *  tuning algorithm. User can specify the number of valid counts to try and whether to use runner
- *  for evaluation.
- * \return The Pass.
- */
-
-TVM_DLL Pass FewShotTuning(int valid_count, ObjectRef runner);
-
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm

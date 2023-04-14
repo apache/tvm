@@ -17,14 +17,16 @@
  * under the License.
  */
 
+#include <tvm/relax/transform.h>
+
 #include "../../meta_schedule/utils.h"
 
 namespace tvm {
-namespace tir {
+namespace relax {
 namespace transform {
 
-PrimFunc FewShotTunePrimFunc(const PrimFunc& prim_func, const Target& target, int valid_count,
-                             Optional<meta_schedule::Runner> runner) {
+tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& target,
+                                  int valid_count, Optional<meta_schedule::Runner> runner) {
   // fetch a local builder
   static const auto* f_get_local_builder =
       runtime::Registry::Get("meta_schedule.builder.get_local_builder");
@@ -118,11 +120,11 @@ PrimFunc FewShotTunePrimFunc(const PrimFunc& prim_func, const Target& target, in
         best_idx = i;
       }
     }
-    return WithAttr(Downcast<PrimFunc>(results[best_idx]->Lookup("main")),
+    return WithAttr(Downcast<tir::PrimFunc>(results[best_idx]->Lookup("main")),
                     tvm::tir::attr::kIsScheduled, Bool(true));
   } else {
     int best_idx = rand_r(0) % results.size();
-    return Downcast<PrimFunc>(results[best_idx]->Lookup("main"));
+    return Downcast<tir::PrimFunc>(results[best_idx]->Lookup("main"));
   }
 }
 
@@ -139,7 +141,8 @@ Pass FewShotTuning(int valid_count, ObjectRef runner) {
           if (runner.defined()) {
             runner_ = Downcast<meta_schedule::Runner>(runner);
           }
-          if (func->IsInstance<tir::PrimFuncNode>() && !func->HasNonzeroAttr(attr::kIsScheduled)) {
+          if (func->IsInstance<tir::PrimFuncNode>() &&
+              !func->HasNonzeroAttr(tir::attr::kIsScheduled)) {
             result.Set(gv, FewShotTunePrimFunc(GetRef<tir::PrimFunc>(func.as<tir::PrimFuncNode>()),
                                                target, valid_count, runner_));
           } else {
@@ -158,9 +161,8 @@ Pass FewShotTuning(int valid_count, ObjectRef runner) {
                           /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.FewShotTuning").set_body_typed(FewShotTuning);
+TVM_REGISTER_GLOBAL("relax.transform.FewShotTuning").set_body_typed(FewShotTuning);
 
 }  // namespace transform
-
-}  // namespace tir
+}  // namespace relax
 }  // namespace tvm

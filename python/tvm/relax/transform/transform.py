@@ -811,7 +811,9 @@ def MetaScheduleTuneIRMod(
     )  # type: ignore
 
 
-def FewShotTuning(valid_count: int = 1, runner: tvm.meta_schedule.runner.Runner = None):
+def FewShotTuning(
+    valid_count: int = 1, runner: tvm.meta_schedule.runner.Runner = None
+) -> tvm.ir.transform.Pass:
     """The pass is designed for few shot tuning for static shape PrimFuncs. It examines all the
     blocks within the PrimFunc and conducts loop fusion, splitting, and other transformations based
     on MetaSchedule schedule rules but directly samples from the search space instead of using the
@@ -827,7 +829,7 @@ def FewShotTuning(valid_count: int = 1, runner: tvm.meta_schedule.runner.Runner 
 
     Returns
     -------
-    ret: tvm.transform.Pass
+    ret: tvm.ir.transform.Pass
     """
     return _ffi_api.FewShotTuning(valid_count, runner)  # type: ignore
 
