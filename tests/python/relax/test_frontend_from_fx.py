@@ -589,6 +589,83 @@ def test_maxpool2d():
 
 
 @tvm.testing.requires_gpu
+def test_avgpool2d():
+    import torch
+    from torch.nn import Module
+
+    torch.set_grad_enabled(False)
+    torch.random.manual_seed(0)
+
+    input_info = [([1, 3, 10, 10], "float32")]
+
+    class AvgPool2d(Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = torch.nn.AvgPool2d(kernel_size=[1, 1])
+
+        def forward(self, input):
+            return self.pool(input)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.avg_pool2d(
+                    input_1,
+                    pool_size=[1, 1],
+                    strides=[1, 1],
+                    dilation=[1, 1],
+                    padding=[0, 0, 0, 0],
+                    layout="NCHW",
+                    out_layout="NCHW",
+                )
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    class AvgPool2d2(Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = torch.nn.AvgPool2d(kernel_size=[4, 4], stride=2, padding=2, ceil_mode=True)
+
+        def forward(self, input):
+            return self.pool(input)
+
+    class AvgPool2d3(Module):
+        def forward(self, input):
+            return torch.nn.functional.avg_pool2d(
+                input, kernel_size=[4, 4], stride=2, padding=2, ceil_mode=True
+            )
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv = R.nn.avg_pool2d(
+                    input_1,
+                    pool_size=[4, 4],
+                    strides=[2, 2],
+                    dilation=[1, 1],
+                    padding=[2, 2, 2, 2],
+                    ceil_mode=True,
+                    layout="NCHW",
+                    out_layout="NCHW",
+                )
+                gv = lv
+                R.output(gv)
+            return gv
+
+    verify_model(AvgPool2d(), input_info, {}, expected1)
+    verify_model(AvgPool2d2(), input_info, {}, expected2)
+    verify_model(AvgPool2d3(), input_info, {}, expected2)
+
+
+@tvm.testing.requires_gpu
 def test_adaptive_avgpool2d():
     import torch
     from torch.nn import Module
@@ -900,6 +977,132 @@ def test_functional_layernorm():
         "w2": model.bias.numpy(),
     }
     verify_model(model, input_info, binding, expected1)
+
+
+@tvm.testing.requires_gpu
+def test_cross_entropy():
+    import torch
+    from torch.nn import Module
+
+    torch.set_grad_enabled(False)
+    torch.random.manual_seed(0)
+
+    input_info = [([3, 2], "float32"), ([3], "int32")]
+
+    class CrossEntropy1(Module):
+        def __init__(self):
+            super().__init__()
+            self.loss = torch.nn.CrossEntropyLoss()
+
+        def forward(self, logits, targets):
+            return self.loss(logits, targets)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((3, 2), dtype="float32"), inp_1: R.Tensor((3,), dtype="int32")
+        ) -> R.Tensor((), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((3, 2), dtype="float32") = R.nn.log_softmax(inp_0, axis=-1)
+                lv1: R.Tensor((), dtype="float32") = R.nn.nll_loss(
+                    lv, inp_1, reduction="mean", ignore_index=-100
+                )
+                gv: R.Tensor((), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    class CrossEntropy2(Module):
+        def __init__(self):
+            super().__init__()
+            self.weight = torch.nn.Parameter(torch.ones((2,)))
+            self.loss = torch.nn.CrossEntropyLoss(weight=self.weight)
+
+        def forward(self, logits, targets):
+            return self.loss(logits, targets)
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((3, 2), dtype="float32"),
+            inp_1: R.Tensor((3,), dtype="int32"),
+            w1: R.Tensor((2,), dtype="float32"),
+        ) -> R.Tensor((), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((3, 2), dtype="float32") = R.nn.log_softmax(inp_0, axis=-1)
+                lv1: R.Tensor((), dtype="float32") = R.nn.nll_loss(
+                    lv,
+                    inp_1,
+                    w1,
+                    reduction="mean",
+                    ignore_index=-100,
+                )
+                gv: R.Tensor((), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    class CrossEntropy3(Module):
+        def __init__(self):
+            super().__init__()
+            self.loss = torch.nn.CrossEntropyLoss(ignore_index=1, reduction="sum")
+
+        def forward(self, logits, targets):
+            return self.loss(logits, targets)
+
+    @tvm.script.ir_module
+    class expected3:
+        @R.function
+        def main(
+            inp_0: R.Tensor((3, 2), dtype="float32"), inp_1: R.Tensor((3,), dtype="int32")
+        ) -> R.Tensor((), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((3, 2), dtype="float32") = R.nn.log_softmax(inp_0, axis=-1)
+                lv1: R.Tensor((), dtype="float32") = R.nn.nll_loss(
+                    lv, inp_1, reduction="sum", ignore_index=1
+                )
+                gv: R.Tensor((), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    verify_model(CrossEntropy1(), input_info, {}, expected1)
+    model = CrossEntropy2()
+    binding = {"w1": model.loss.weight.numpy()}
+    verify_model(model, input_info, binding, expected2)
+    verify_model(CrossEntropy3(), input_info, {}, expected3)
+
+
+@tvm.testing.requires_gpu
+def test_functional_cross_entropy():
+    import torch
+    from torch.nn import Module
+
+    torch.set_grad_enabled(False)
+    torch.random.manual_seed(0)
+
+    input_info = [([3, 10], "float32"), ([3], "int32")]
+
+    class CrossEntropy(Module):
+        def forward(self, logits, targets):
+            return torch.nn.functional.cross_entropy(logits, targets)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((3, 10), dtype="float32"), inp_1: R.Tensor((3,), dtype="int32")
+        ) -> R.Tensor((), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((3, 10), dtype="float32") = R.nn.log_softmax(inp_0, axis=-1)
+                lv1: R.Tensor((), dtype="float32") = R.nn.nll_loss(
+                    lv, inp_1, reduction="mean", ignore_index=-100
+                )
+                gv: R.Tensor((), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    model = CrossEntropy()
+    verify_model(model, input_info, {}, expected1)
 
 
 @tvm.testing.requires_gpu
