@@ -491,6 +491,7 @@ void CodeGenWebGPU::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  //
       // vec3<f32>(buf[index[0]], buf[index[1]], buf[index[2]]);
       std::string index_vid = SSAGetID(PrintExpr(index), index.dtype());
       PrintType(element_dtype.with_lanes(value_dtype.lanes()), os);
+      os << "(";
       for (int i = 0; i < lanes; ++i) {
         if (i != 0) os << ", ";
         os << buffer_vid << "[" << index_vid << "[" << i << "]]";
