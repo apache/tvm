@@ -1238,6 +1238,7 @@ class SoftmaxRewriter(DFPatternCallback):
         params = self.params_class(post.op.body)
 
         ifm = post.args[0]
+        ifm_dtype = ifm.checked_type.dtype
         bhw = np.prod(params.ifm.shape[:-1])
         depth = params.ifm.shape[-1]
 
@@ -1257,6 +1258,7 @@ class SoftmaxRewriter(DFPatternCallback):
             ofm_zero_point=int(params.ofm.q_params.zero_point),
             pool_shape=(1, depth),
             ofm_channels=1,
+            ofm_dtype=ifm_dtype,
         )
 
         # PASS 1 - Sub+LUT(exp)
@@ -1316,6 +1318,7 @@ class SoftmaxRewriter(DFPatternCallback):
             pool_shape=(1, 1),
             ofm_channels=1,
             upscale="NONE",
+            ofm_dtype="int32",
         )
 
         # PASS 4 - CLZ
@@ -1660,7 +1663,7 @@ class SoftmaxRewriter(DFPatternCallback):
             ifm2_channels=1,
             reversed_operands=False,
             rounding_mode="NATURAL",
-            ofm_dtype="int8",
+            ofm_dtype=ifm_dtype,
         )
 
         reshape = relay.reshape(shr30_op, params.ofm.shape)
