@@ -333,6 +333,24 @@ def test_call_te():
     assert len(rx_func.body.blocks[0].bindings) == 1
 
 
+def test_call_te_unique_tensor_name():
+    bb = rx.BlockBuilder()
+    x = rx.Var("x", R.Tensor((2, 3), "float32"))
+    y = rx.Var("y", R.Tensor((3, 4), "float32"))
+    with bb.function("main", [x, y]):
+        gv = bb.emit_te(topi.nn.matmul, x, y)
+        bb.emit_func_output(gv)
+
+    f_matmul = bb.get()["matmul"]
+    param_A = f_matmul.params[0]
+    param_B = f_matmul.params[1]
+    buffer_A = f_matmul.buffer_map[param_A]
+    buffer_B = f_matmul.buffer_map[param_B]
+    assert param_A.name != param_B.name
+    assert buffer_A.name != buffer_B.name
+    assert buffer_A.data.name != buffer_B.data.name
+
+
 def test_call_te_with_unsupported_shape_arg():
     bb = rx.BlockBuilder()
     x = rx.Var("x", rx.TensorStructInfo((200,), "float32"))
