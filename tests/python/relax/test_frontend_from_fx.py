@@ -2708,6 +2708,40 @@ def test_unwrap_unit_return_tuple():
 
 
 @tvm.testing.requires_gpu
+def test_no_bind_return_tuple():
+    import torch.fx as fx
+    from torch.nn import Module
+    from tvm.relax.frontend.torch import from_fx
+
+    class Identity(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x, y):
+            return (x, y)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32"),
+            inp_1: R.Tensor((256, 256), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((256, 256), dtype="float32"), R.Tensor((256, 256), dtype="float32")):
+            with R.dataflow():
+                gv: R.Tensor((256, 256), dtype="float32") = inp_0
+                gv1: R.Tensor((256, 256), dtype="float32") = inp_1
+                R.output(gv, gv1)
+            return (gv, gv1)
+
+    graph_model = fx.symbolic_trace(Identity())
+    mod = from_fx(
+        graph_model, [([256, 256], "float32"), ([256, 256], "float32")], no_bind_return_tuple=True
+    )
+    mod.show()
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+@tvm.testing.requires_gpu
 def test_argmax():
     import torch
     from torch.nn import Module

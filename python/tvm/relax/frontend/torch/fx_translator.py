@@ -1193,6 +1193,7 @@ class TorchFXImporter:
         input_info: List[Tuple[Tuple[int], str]],
         keep_params_as_input: bool,
         unwrap_unit_return_tuple: bool,
+        no_bind_return_tuple: bool,
     ) -> tvm.IRModule:
         """Convert a PyTorch FX GraphModule to a Relax program."""
         from torch import fx
@@ -1244,12 +1245,16 @@ class TorchFXImporter:
                     elif node.op == "output":
                         args = self.retrieve_args(node)
                         assert len(args) == 1
-                        if (
-                            unwrap_unit_return_tuple
-                            and isinstance(args[0], (tuple, list, relax.Tuple))
-                            and len(args[0]) == 1
-                        ):
-                            output = self.block_builder.emit_output(args[0][0])
+
+                        # return tuple
+                        if isinstance(args[0], (tuple, list, relax.Tuple)):
+                            # unit tuple
+                            if unwrap_unit_return_tuple and len(args[0]) == 1:
+                                output = self.block_builder.emit_output(args[0][0])
+                            elif no_bind_return_tuple:
+                                output = []
+                                for ret in args[0]:
+                                    output.append(self.block_builder.emit_output(ret))
                         else:
                             output = self.block_builder.emit_output(args[0])
                         break
@@ -1289,6 +1294,7 @@ def from_fx(
     *,
     keep_params_as_input: bool = False,
     unwrap_unit_return_tuple: bool = False,
+    no_bind_return_tuple: bool = False,
 ) -> tvm.IRModule:
     """Convert a PyTorch FX GraphModule to a Relax program
 
@@ -1306,6 +1312,10 @@ def from_fx(
     unwrap_unit_return_tuple : bool
         A boolean flag indicating if to the return value when it is an unit tuple.
         When the return value is not a unit tuple, no unwrap will take place.
+
+    no_bind_return_tuple : bool
+        A boolean flag indicating whether to bind the return tuple as a relax var.
+        If the flag is true and the return value is a tuple, it will not bind it to a var.
 
     Returns
     -------
@@ -1375,5 +1385,5 @@ def from_fx(
     check the placeholder rows in the beginning of the tabular.
     """
     return TorchFXImporter().from_fx(
-        model, input_info, keep_params_as_input, unwrap_unit_return_tuple
+        model, input_info, keep_params_as_input, unwrap_unit_return_tuple, no_bind_return_tuple
     )
