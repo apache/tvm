@@ -687,6 +687,8 @@ void CodeGenSPIRV::VisitStmt_(const AllocateNode* op) {
   this->VisitStmt(op->body);
 }
 
+void CodeGenSPIRV::VisitStmt_(const DeclBufferNode* op) { this->VisitStmt(op->body); }
+
 void CodeGenSPIRV::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == tir::attr::thread_extent) {
     IterVar iv = Downcast<IterVar>(op->node);
