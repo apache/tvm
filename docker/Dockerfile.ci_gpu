@@ -143,7 +143,7 @@ RUN bash /install/ubuntu_install_universal.sh
 
 # PAPI profiling deps
 COPY install/ubuntu_install_papi.sh /install/ubuntu_install_papi.sh
-# RUN bash /install/ubuntu_install_papi.sh "cuda rocm"
+RUN bash /install/ubuntu_install_papi.sh "cuda rocm"
 
 # sccache
 COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
