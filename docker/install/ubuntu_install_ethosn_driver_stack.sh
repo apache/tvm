@@ -34,18 +34,14 @@ cleanup()
 
 trap cleanup 0
 
-# Ubuntu 16.04 dependencies
-apt-get update
-
-apt-install-and-clear -y \
+apt-get update && apt-install-and-clear -y \
     bsdmainutils \
     build-essential \
-    cmake \
     cpp \
     git \
     linux-headers-generic \
-    python-dev \
-    python3 \
+    python3.8-dev \
+    python3.8 \
     scons \
     wget \
     openssh-client
@@ -54,4 +50,4 @@ cd "$tmpdir"
 git clone --branch "$repo_revision" "$repo_url" "$repo_dir"
 
 cd "$repo_dir"/driver
-scons install_prefix="$install_path" install
+scons -k install_prefix="$install_path" install

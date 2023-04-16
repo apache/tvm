@@ -20,9 +20,7 @@ set -e
 set -u
 set -o pipefail
 
-# Install ROCm cross compilation toolchain.
-wget -qO - https://repo.radeon.com/rocm/rocm.gpg.key | sudo apt-key add -
-echo 'deb [arch=amd64] https://repo.radeon.com/rocm/apt/4.3/ ubuntu main' | sudo tee /etc/apt/sources.list.d/rocm.list
-apt-get update && apt-install-and-clear -y \
-    rocm-dev \
-    lld-12
+# Install ROCm, https://docs.amd.com/bundle/ROCm-Installation-Guide-v5.3/page/How_to_Install_ROCm.html#_How_to_Install
+sudo apt-get update
+wget https://repo.radeon.com/amdgpu-install/5.3/ubuntu/jammy/amdgpu-install_5.3.50300-1_all.deb
+sudo apt-install-and-clear -y ./amdgpu-install_5.3.50300-1_all.deb
