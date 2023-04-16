@@ -195,9 +195,11 @@ TVM_DLL Pass FoldConstant();
  *
  * \param cmap The customized operator legalization function map. The customized function
  * will override the default one.
+ * \param enable_warning A boolean value indicating if to print warnings for TIR functions not
+ * showing up in the database.
  * \return The Pass.
  */
-TVM_DLL Pass LegalizeOps(Optional<Map<String, PackedFunc>> cmap);
+TVM_DLL Pass LegalizeOps(Optional<Map<String, PackedFunc>> cmap, bool enable_warning = false);
 
 /*!
  * \brief Lift transformation of the parameters of a function.

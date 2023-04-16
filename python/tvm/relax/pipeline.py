@@ -26,49 +26,66 @@ from tvm import meta_schedule as ms
 from . import transform
 
 
-@tvm.transform.module_pass(opt_level=0)
-def zero_pipeline(mod: tvm.ir.IRModule, ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
-    """Pipeline that applies pre-tuned logs.
+def zero_pipeline(*, enable_warning: bool = False):
+    """Wrapper function that returns the zero pipeline.
 
     Parameters
     ----------
-    mod : tvm.ir.IRModule
-        Input IRModule.
-
-    ctx : tvm.transform.PassContext
-        The pass context
-
-    Returns
-    -------
-    mod: tvm.ir.IRModule
-        The result transformed module.
+    enable_warning : bool
+        A boolean value indicating if to print warnings
+        * in LegalizeOps pass, for CallNode whose op's legalization function is
+        not registered,
+        * in MetaScheduleApplyDatabase pass, for TIR functions now showing up in
+        the database. By default we don't print warning.
     """
-    seq = tvm.transform.Sequential(
-        [
-            transform.LegalizeOps(),
-            transform.AnnotateTIROpPattern(),
-            transform.FoldConstant(),
-            transform.FuseOps(),
-            transform.FuseTIR(),
-        ]
-    )
-    mod = seq(mod)
-    if ms.Database.current():
-        mod = transform.MetaScheduleApplyDatabase()(mod)
-    return mod
+
+    @tvm.transform.module_pass(opt_level=0)
+    def f_zero_pipeline(mod: tvm.ir.IRModule, ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
+        """Pipeline that applies pre-tuned logs.
+
+        Parameters
+        ----------
+        mod : tvm.ir.IRModule
+            Input IRModule.
+
+        ctx : tvm.transform.PassContext
+            The pass context
+
+        Returns
+        -------
+        mod: tvm.ir.IRModule
+            The result transformed module.
+        """
+        seq = tvm.transform.Sequential(
+            [
+                transform.LegalizeOps(enable_warning=enable_warning),
+                transform.AnnotateTIROpPattern(),
+                transform.FoldConstant(),
+                transform.FuseOps(),
+                transform.FuseTIR(),
+            ]
+        )
+        mod = seq(mod)
+        if ms.Database.current():
+            mod = transform.MetaScheduleApplyDatabase(enable_warning=enable_warning)(mod)
+        return mod
+
+    return f_zero_pipeline
 
 
 # global map of pre-built pipelines
 PIPELINE_MAP = {"zero": zero_pipeline}
 
 
-def get_pipeline(name: str = "zero") -> tvm.transform.Pass:
+def get_pipeline(name: str = "zero", **kwargs) -> tvm.transform.Pass:
     """Get pre-build pipeline by name
 
     Parameters
     ----------
     name : Optional[str]
         Name of the pipeline
+    kwargs : Dict[str, object]
+        Keyword args for configuring the pipeline.
 
     Returns
     -------
@@ -77,7 +94,7 @@ def get_pipeline(name: str = "zero") -> tvm.transform.Pass:
     """
 
     if name in PIPELINE_MAP:
-        return PIPELINE_MAP[name]
+        return PIPELINE_MAP[name](**kwargs)
     else:
         raise ValueError(
             f"Unknown pre-built pipeline {name}," f"candidates are {list(PIPELINE_MAP.keys())}"

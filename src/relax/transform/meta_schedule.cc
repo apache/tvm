@@ -83,7 +83,7 @@ class MetaScheduleTuner {
   const runtime::PackedFunc* normalize_mod_func_;
 };
 
-Pass MetaScheduleApplyDatabase(Optional<String> work_dir) {
+Pass MetaScheduleApplyDatabase(Optional<String> work_dir, bool enable_warning = false) {
   using tvm::meta_schedule::Database;
   Target target = Target::Current(false);
   const runtime::PackedFunc* normalize_mod_func_ =
@@ -123,7 +123,7 @@ Pass MetaScheduleApplyDatabase(Optional<String> work_dir) {
           new_prim_func = WithAttr(std::move(new_prim_func), tir::attr::kIsScheduled, Bool(true));
           result.Set(gv, new_prim_func);
           continue;
-        } else {
+        } else if (enable_warning) {
           LOG(WARNING) << "Tuning record is not found for primfunc: " << gv->name_hint;
         }
       }
