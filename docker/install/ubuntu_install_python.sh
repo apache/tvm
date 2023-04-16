@@ -56,6 +56,10 @@ elif [ "${release}" == "focal" ]; then
     if [ "${PYTHON_VERSION}" == "3.7" ]; then
         add-apt-repository -y ppa:deadsnakes/ppa
     fi
+elif [ "${release}" == "jammy" ]; then
+    if [ "${PYTHON_VERSION}" == "3.8" ]; then
+        add-apt-repository -y ppa:deadsnakes/ppa
+    fi
 else
     echo "Don't know which version of python to install for lsb-release ${release}"
     exit 2
@@ -71,6 +75,7 @@ apt-install-and-clear -y \
     python${PYTHON_VERSION}-venv
 
 update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${PYTHON_VERSION} 1
+update-alternatives --install /usr/bin/python python /usr/bin/python${PYTHON_VERSION} 1
 
 # Allow disabling user site-packages, even with sudo; this makes it harder to repro CI failures
 # locally because it's hard to tell what might be in this directory.

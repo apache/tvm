@@ -16,7 +16,7 @@
 # under the License.
 
 # CI docker CPU env
-FROM ubuntu:18.04
+FROM ubuntu:22.04
 
 COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
 
@@ -34,21 +34,21 @@ RUN bash /install/ubuntu_install_cmake_source.sh
 COPY install/ubuntu_install_googletest.sh /install/ubuntu_install_googletest.sh
 RUN bash /install/ubuntu_install_googletest.sh
 
-ENV TVM_VENV /venv/apache-tvm-py3.7
+ENV TVM_VENV /venv/apache-tvm-py3.8
 COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
 COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
-RUN bash /install/ubuntu_install_python.sh 3.7
+RUN bash /install/ubuntu_install_python.sh 3.8
 ENV PATH ${TVM_VENV}/bin:$PATH
 ENV PYTHONNOUSERSITE 1  # Disable .local directory from affecting CI.
 
 COPY install/ubuntu_install_python_package.sh /install/ubuntu_install_python_package.sh
 RUN bash /install/ubuntu_install_python_package.sh
 
-COPY install/ubuntu1804_install_llvm.sh /install/ubuntu1804_install_llvm.sh
-RUN bash /install/ubuntu1804_install_llvm.sh
+COPY install/ubuntu2204_install_llvm.sh /install/ubuntu2204_install_llvm.sh
+RUN bash /install/ubuntu2204_install_llvm.sh
 
 COPY install/ubuntu_install_llvm_from_source.sh /install/ubuntu_install_llvm_from_source.sh
-RUN bash /install/ubuntu_install_llvm_from_source.sh 15.0.7 8b5fcb24b4128cf04df1b0b9410ce8b1a729cb3c544e6da885d234280dedeac6
+RUN bash /install/ubuntu_install_llvm_from_source.sh 16.0.1 ab7e3b95adb88fd5b669ca8c1d3c1e8d2a601c4478290d3ae31d8d70e96f2064
 
 COPY install/ubuntu_install_dnnl.sh /install/ubuntu_install_dnnl.sh
 RUN bash /install/ubuntu_install_dnnl.sh
@@ -124,9 +124,10 @@ RUN bash /install/ubuntu_install_boost.sh
 COPY install/ubuntu_install_caffe.sh /install/ubuntu_install_caffe.sh
 RUN bash /install/ubuntu_install_caffe.sh
 
+# TODO (tvm-team): Upgrade NPU build for ubuntu22.04
 # Github Arm(R) Ethos(TM)-N NPU driver
 COPY install/ubuntu_install_ethosn_driver_stack.sh /install/ubuntu_install_ethosn_driver_stack.sh
-RUN bash /install/ubuntu_install_ethosn_driver_stack.sh
+# RUN bash /install/ubuntu_install_ethosn_driver_stack.sh
 
 # Vitis-AI PyXIR CI deps
 COPY install/ubuntu_install_vitis_ai_packages_ci.sh /install/ubuntu_install_vitis_ai_packages_ci.sh

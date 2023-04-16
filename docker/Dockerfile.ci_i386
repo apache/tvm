@@ -18,7 +18,7 @@
 # CI docker i386 env
 # tag: v0.53
 
-FROM i386/ubuntu:18.04
+FROM i386/ubuntu:22.04
 
 COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
 
@@ -49,10 +49,10 @@ ENV CARGO_HOME /opt/rust
 ENV PATH $PATH:$CARGO_HOME/bin
 ENV PYTHONNOUSERSITE 1  # Disable .local directory from affecting CI.
 
-ENV TVM_VENV /venv/apache-tvm-py3.7
+ENV TVM_VENV /venv/apache-tvm-py3.8
 COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
 COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
-RUN bash /install/ubuntu_install_python.sh 3.7
+RUN bash /install/ubuntu_install_python.sh 3.8
 ENV PATH ${TVM_VENV}/bin:$PATH
 
 COPY install/ubuntu_install_python_package.sh /install/ubuntu_install_python_package.sh
