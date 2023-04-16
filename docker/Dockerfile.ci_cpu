@@ -78,7 +78,7 @@ RUN bash /install/ubuntu_install_redis.sh
 # Golang environment
 COPY install/ubuntu_install_golang.sh /install/ubuntu_install_golang.sh
 RUN bash /install/ubuntu_install_golang.sh
-ENV PATH $PATH:/usr/lib/go-1.10/bin
+ENV PATH $PATH:/usr/lib/go-1.18/bin
 
 # NNPACK deps
 COPY install/ubuntu_install_nnpack.sh /install/ubuntu_install_nnpack.sh
@@ -127,7 +127,7 @@ RUN bash /install/ubuntu_install_caffe.sh
 # TODO (tvm-team): Upgrade NPU build for ubuntu22.04
 # Github Arm(R) Ethos(TM)-N NPU driver
 COPY install/ubuntu_install_ethosn_driver_stack.sh /install/ubuntu_install_ethosn_driver_stack.sh
-# RUN bash /install/ubuntu_install_ethosn_driver_stack.sh
+RUN bash /install/ubuntu_install_ethosn_driver_stack.sh
 
 # Vitis-AI PyXIR CI deps
 COPY install/ubuntu_install_vitis_ai_packages_ci.sh /install/ubuntu_install_vitis_ai_packages_ci.sh

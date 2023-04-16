@@ -23,7 +23,7 @@ set -x
 
 sudo apt-install-and-clear -y --no-install-recommends \
      libsdl2-dev ca-certificates gnupg software-properties-common wget \
-     git cmake ninja-build gperf \
+     git ninja-build gperf \
      ccache dfu-util device-tree-compiler wget \
      python3-dev python3-pip python3-setuptools python3-tk python3-wheel python3-venv \
      xz-utils file make gcc gcc-multilib g++-multilib apt-transport-https libudev-dev \
@@ -47,6 +47,8 @@ release=$(lsb_release -sc)
 if [ "${release}" == "bionic" ]; then
      python_cmd="python3"
 elif [ "${release}" == "focal" ]; then
+     python_cmd="python3.8"
+elif [ "${release}" == "jammy" ]; then
      python_cmd="python3.8"
 else
     echo "Don't know which version of python to use for Zephyr."

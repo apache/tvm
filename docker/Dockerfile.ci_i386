@@ -18,7 +18,7 @@
 # CI docker i386 env
 # tag: v0.53
 
-FROM i386/ubuntu:22.04
+FROM i386/ubuntu:20.04
 
 COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
 

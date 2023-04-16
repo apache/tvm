@@ -29,7 +29,7 @@ set -o pipefail
 pip3 install \
     onnx==1.13.1 \
     onnxruntime==1.13.1 \
-    onnxoptimizer==0.3.10
+    onnxoptimizer==0.2.7
 
 # torch depends on a number of other packages, but unhelpfully, does
 # not expose that in the wheel!!!
