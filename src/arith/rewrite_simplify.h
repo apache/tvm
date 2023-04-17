@@ -40,7 +40,7 @@ namespace arith {
 
 using namespace tir;
 
-/* Record of
+/* \brief Usage counters for RewriteSimplifier
  *
  * These are intended for debug and testing purposes, to ensure that
  * PrimExpr simplifications and TIR passes do not require an excessive
