@@ -44,8 +44,8 @@ RUN bash /install/ubuntu_install_tensorflow.sh
 COPY install/ubuntu_install_java.sh /install/ubuntu_install_java.sh
 RUN bash /install/ubuntu_install_java.sh
 
-COPY install/ubuntu_install_llvm.sh /install/ubuntu_install_llvm.sh
-RUN bash /install/ubuntu_install_llvm.sh
+COPY install/ubuntu2204_install_llvm.sh /install/ubuntu2204_install_llvm.sh
+RUN bash /install/ubuntu2204_install_llvm.sh
 
 COPY install/ubuntu_install_gradle.sh /install/ubuntu_install_gradle.sh
 RUN bash /install/ubuntu_install_gradle.sh
@@ -70,7 +70,7 @@ RUN cd /usr && \
     mkdir -p build && \
     cd build && \
     cmake \
-        -DUSE_LLVM=llvm-config-8 \
+        -DUSE_LLVM=llvm-config-15 \
         -DUSE_RPC=ON \
         -DUSE_SORT=ON \
         -DUSE_GRAPH_EXECUTOR=ON \

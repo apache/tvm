@@ -20,25 +20,35 @@ set -e
 set -u
 set -o pipefail
 
-echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-13 main\
+echo deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-13 main\
      >> /etc/apt/sources.list.d/llvm.list
-echo deb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic-13 main\
-     >> /etc/apt/sources.list.d/llvm.list
-
-echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-15 main\
-     >> /etc/apt/sources.list.d/llvm.list
-echo deb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic-15 main\
+echo deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-13 main\
      >> /etc/apt/sources.list.d/llvm.list
 
-echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic main\
+echo deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-14 main\
      >> /etc/apt/sources.list.d/llvm.list
-echo deb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic main\
+echo deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-14 main\
+     >> /etc/apt/sources.list.d/llvm.list
+
+echo deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-15 main\
+     >> /etc/apt/sources.list.d/llvm.list
+echo deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-15 main\
+     >> /etc/apt/sources.list.d/llvm.list
+
+echo deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-16 main\
+     >> /etc/apt/sources.list.d/llvm.list
+echo deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-16 main\
+     >> /etc/apt/sources.list.d/llvm.list
+
+echo deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy main\
+     >> /etc/apt/sources.list.d/llvm.list
+echo deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy main\
      >> /etc/apt/sources.list.d/llvm.list
 
 wget -q -O - http://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -
-
-# llvm 14 has unmet dependents: libstdc++-7-dev libgcc-7-dev libobjc-7-dev libffi6
 apt-get update && apt-install-and-clear -y \
-     llvm-13 llvm-15 \
+     llvm-13 llvm-14 llvm-15 llvm-16 \
      clang-13 libclang-13-dev \
-     clang-15 libclang-15-dev
+     clang-14 libclang-14-dev \
+     clang-15 libclang-15-dev \
+     clang-16 libclang-16-dev

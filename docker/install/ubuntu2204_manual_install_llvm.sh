@@ -20,7 +20,7 @@ set -e
 set -u
 set -o pipefail
 
-git clone --depth 1 --branch release/11.x https://github.com/llvm/llvm-project.git
+git clone --depth 1 --branch release/15.x https://github.com/llvm/llvm-project.git
 pushd llvm-project
 mkdir build
 pushd build

@@ -47,8 +47,9 @@ RUN bash /install/ubuntu_install_python_package.sh
 COPY install/ubuntu2204_install_llvm.sh /install/ubuntu2204_install_llvm.sh
 RUN bash /install/ubuntu2204_install_llvm.sh
 
-COPY install/ubuntu_install_llvm_from_source.sh /install/ubuntu_install_llvm_from_source.sh
-RUN bash /install/ubuntu_install_llvm_from_source.sh 16.0.1 ab7e3b95adb88fd5b669ca8c1d3c1e8d2a601c4478290d3ae31d8d70e96f2064
+# LLVM 13, 14, 15, and 16 are installed in ubuntu2204_install_llvm.sh
+# COPY install/ubuntu_install_llvm_from_source.sh /install/ubuntu_install_llvm_from_source.sh
+# RUN bash /install/ubuntu_install_llvm_from_source.sh 16.0.1 ab7e3b95adb88fd5b669ca8c1d3c1e8d2a601c4478290d3ae31d8d70e96f2064
 
 COPY install/ubuntu_install_dnnl.sh /install/ubuntu_install_dnnl.sh
 RUN bash /install/ubuntu_install_dnnl.sh
@@ -124,7 +125,6 @@ RUN bash /install/ubuntu_install_boost.sh
 COPY install/ubuntu_install_caffe.sh /install/ubuntu_install_caffe.sh
 RUN bash /install/ubuntu_install_caffe.sh
 
-# TODO (tvm-team): Upgrade NPU build for ubuntu22.04
 # Github Arm(R) Ethos(TM)-N NPU driver
 COPY install/ubuntu_install_ethosn_driver_stack.sh /install/ubuntu_install_ethosn_driver_stack.sh
 RUN bash /install/ubuntu_install_ethosn_driver_stack.sh

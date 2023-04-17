@@ -20,34 +20,27 @@ set -e
 set -u
 set -o pipefail
 
-repo_url="https://github.com/Arm-software/ethos-n-driver-stack"
-repo_dir="ethosn-driver"
-repo_revision="22.11"
-install_path="/opt/arm/$repo_dir"
-
-tmpdir=$(mktemp -d)
-
-cleanup()
-{
-  rm -rf "$tmpdir"
-}
-
-trap cleanup 0
-
-apt-get update && apt-install-and-clear -y \
-    bsdmainutils \
-    build-essential \
-    cpp \
-    git \
-    linux-headers-generic \
-    python3.8-dev \
-    python3.8 \
-    scons \
-    wget \
-    openssh-client
-
-cd "$tmpdir"
-git clone --branch "$repo_revision" "$repo_url" "$repo_dir"
-
-cd "$repo_dir"/driver
-scons -i install_prefix="$install_path" install
+# install libraries for python package on ubuntu
+pip3 install --upgrade \
+    "Pygments>=2.4.0" \
+    attrs \
+    cloudpickle \
+    cython \
+    decorator \
+    mypy \
+    numpy==1.21.* \
+    orderedset \
+    packaging \
+    Pillow==9.1.0 \
+    psutil \
+    pytest \
+    git+https://github.com/tlc-pack/tlcpack-sphinx-addon.git@768ec1dce349fe4708f6ad68be1ebb3f3dabafa1 \
+    pytest-profiling \
+    pytest-xdist \
+    pytest-rerunfailures==10.2 \
+    requests \
+    Jinja2 \
+    junitparser==2.4.2 \
+    six \
+    tornado \
+    pytest-lazy-fixture

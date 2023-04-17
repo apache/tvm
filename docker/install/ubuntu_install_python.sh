@@ -49,8 +49,7 @@ apt-install-and-clear -y software-properties-common
 release=$(lsb_release -sc)
 if [ "${release}" == "bionic" ]; then
     if [ "${PYTHON_VERSION}" == "3.8" ]; then
-        echo "Only 3.7 is supported for bionic in this script."
-        exit -1
+        add-apt-repository -y ppa:deadsnakes/ppa
     fi
 elif [ "${release}" == "focal" ]; then
     if [ "${PYTHON_VERSION}" == "3.7" ]; then

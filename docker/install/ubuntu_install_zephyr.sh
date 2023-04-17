@@ -32,7 +32,7 @@ sudo apt-install-and-clear -y --no-install-recommends \
 wget --no-verbose https://apt.kitware.com/keys/kitware-archive-latest.asc
 sudo apt-key add kitware-archive-latest.asc
 
-echo deb https://apt.kitware.com/ubuntu/ bionic main\
+echo deb https://apt.kitware.com/ubuntu/ jammy main\
      >> /etc/apt/sources.list.d/kitware.list
 sudo apt-get update
 
