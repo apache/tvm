@@ -417,6 +417,14 @@ def test_dynamic_function():
     mod = transform.InferType()(mod)
     assert mod["main"].params[0].checked_type == s_tt
 
+    data = relay.var(
+        "data", shape=(relay.Any(), relay.Any(), relay.Any(), relay.Any()), dtype="float32"
+    )
+    weigth = relay.const(np.full((16, 16, 3, 3), 0.25), dtype="float32")
+    x = relay.nn.conv2d(data, weigth, kernel_size=(3, 3), channels=16, groups=2)
+    mod = tvm.IRModule.from_expr(x)
+    mod = transform.InferType()(mod)
+
 
 def test_custom_op_infer():
     """Tests infer type for custom_op"""
