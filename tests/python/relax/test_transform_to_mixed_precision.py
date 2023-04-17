@@ -23,12 +23,15 @@ from tvm.relax.transform import ToMixedPrecision
 from tvm.script.parser import ir as I, relax as R
 
 
-def _assert_test(input, expected, expected2):
-    mod = ToMixedPrecision()(input)
-    tvm.ir.assert_structural_equal(mod, expected)
-    mod = ToMixedPrecision(out_dtype="float16")(input)
-    print(mod.script())
-    tvm.ir.assert_structural_equal(mod, expected2)
+def _assert_test(input, expected=None, expected2=None):
+    if expected:
+        mod = ToMixedPrecision()(input)
+        tvm.ir.assert_structural_equal(mod, expected)
+
+    if expected2:
+        mod = ToMixedPrecision(out_dtype="float16")(input)
+        print(mod.script())
+        tvm.ir.assert_structural_equal(mod, expected2)
 
 
 def test_conv2d():
@@ -839,6 +842,58 @@ def test_conv2d_bias_conv2d():
     Expected = relax.transform.BindParams("main", binding)(Expected)
     Expected2 = relax.transform.BindParams("main", binding)(Expected2)
     _assert_test(Input, Expected, Expected2)
+
+
+def test_tuple_get():
+    @tvm.script.ir_module
+    class Module:
+        @R.function
+        def main(
+            x: R.Tensor((1, 4, 64, 64), dtype="float32"),
+            w: R.Tensor((512, 4, 3, 3), dtype="float32"),
+            bias: R.Tensor((512, 1, 1), dtype="float32"),
+        ) -> R.Tensor((1, 256, 64, 64), dtype="float32"):
+            with R.dataflow():
+                conv = R.nn.conv2d(
+                    x,
+                    w,
+                    strides=[1, 1],
+                    padding=[0, 0, 1, 1],
+                )
+                bias_out = R.add(conv, bias)
+                split = R.split(bias_out, indices_or_sections=2, axis=1)
+                out = R.add(split[0], split[1])
+                R.output(out)
+            return out
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((1, 4, 64, 64), dtype="float32"),
+            w: R.Tensor((512, 4, 3, 3), dtype="float32"),
+            bias: R.Tensor((512, 1, 1), dtype="float32"),
+        ) -> R.Tensor((1, 256, 64, 64), dtype="float32"):
+            with R.dataflow():
+                lv = R.astype(x, dtype="float16")
+                lv1 = R.astype(w, dtype="float16")
+                conv = R.nn.conv2d(
+                    lv,
+                    lv1,
+                    strides=[1, 1],
+                    padding=[0, 0, 1, 1],
+                    out_dtype="float16",
+                )
+                lv2 = R.astype(conv, dtype="float32")
+                bias_out = R.add(lv2, bias)
+                split = R.split(bias_out, indices_or_sections=2, axis=1)
+                lv3 = split[0]
+                lv4 = split[1]
+                out = R.add(lv3, lv4)
+                R.output(out)
+            return out
+
+    _assert_test(Module, expected2=Expected)
 
 
 if __name__ == "__main__":
