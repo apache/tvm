@@ -2737,7 +2737,6 @@ def test_no_bind_return_tuple():
     mod = from_fx(
         graph_model, [([256, 256], "float32"), ([256, 256], "float32")], no_bind_return_tuple=True
     )
-    mod.show()
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
