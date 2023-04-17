@@ -247,11 +247,19 @@ def attention_patterns():
         ),
         (
             "cutlass.stacked_attention",
-            *make_stacked_attention_pattern(),
+            *make_stacked_attention_pattern(start_op="split"),
         ),
         (
             "cutlass.stacked_attention",
-            *make_stacked_attention_pattern(with_bias=True),
+            *make_stacked_attention_pattern(start_op="split", with_bias=True),
+        ),
+        (
+            "cutlass.stacked_attention",
+            *make_stacked_attention_pattern(start_op="strided_slice"),
+        ),
+        (
+            "cutlass.stacked_attention",
+            *make_stacked_attention_pattern(start_op="strided_slice", with_bias=True),
         ),
     ]
 

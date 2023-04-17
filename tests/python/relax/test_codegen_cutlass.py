@@ -660,7 +660,7 @@ def get_numpy_stacked_attention_ref(b, s, n, h, h_v, bias_shape, bias_reshape, q
     return qkv, bias, ref.transpose(0, 2, 1, 3)  # b, s, n, h_v
 
 
-def get_relax_stacked_attention_module(qkv, b, s, n, h, h_v, bias=None, qk_scale=None):
+def get_relax_stacked_attention_module(qkv, b, s, n, h, h_v, op, bias=None, qk_scale=None):
     dtype = str(qkv.dtype)
 
     from tvm.script.ir_builder import IRBuilder
@@ -676,10 +676,23 @@ def get_relax_stacked_attention_module(qkv, b, s, n, h, h_v, bias=None, qk_scale
             if bias is not None:
                 bias = R.arg("bias", R.Tensor(bias.shape, dtype))
             with R.dataflow() as frame:
-                qkv_tuple = R.split(qkv, [n * h, n * h * 2], axis=2)
-                q = R.reshape(qkv_tuple[0], [b, s, n, h])
-                k = R.reshape(qkv_tuple[1], [b, s, n, h])
-                v = R.reshape(qkv_tuple[2], [b, s, n, h_v])
+                if op == "split":
+                    qkv_tuple = R.split(qkv, [n * h, n * h * 2], axis=2)
+                    q = R.reshape(qkv_tuple[0], [b, s, n, h])
+                    k = R.reshape(qkv_tuple[1], [b, s, n, h])
+                    v = R.reshape(qkv_tuple[2], [b, s, n, h_v])
+                elif op == "strided_slice":
+                    qkv_tuple = R.split(qkv, [n * h, n * h * 2], axis=2)
+                    q = R.reshape(R.strided_slice(qkv, [2], [0], [n * h], [1]), [b, s, n, h])
+                    k = R.reshape(
+                        R.strided_slice(qkv, [2], [n * h], [n * h * 2], [1]), [b, s, n, h]
+                    )
+                    v = R.reshape(
+                        R.strided_slice(qkv, [2], [n * h * 2], [n * h * 2 + n * h_v], [1]),
+                        [b, s, n, h_v],
+                    )
+                else:
+                    raise NotImplementedError()
                 result = R.emit(R.nn.attention(q, k, v, bias, qk_scale))
                 R.output(result)
 
@@ -700,15 +713,31 @@ def stacked_attention_size(request):
     return request.param
 
 
-def test_stacked_attention_offload(stacked_attention_size):
+def test_stacked_attention_split_offload(stacked_attention_size):
     b, s, n, (h, h_v), bias_shape, bias_reshape, scale = stacked_attention_size
     qkv, bias, ref = get_numpy_stacked_attention_ref(
         b, s, n, h, h_v, bias_shape, bias_reshape, scale, "float32"
     )
     if scale == "none":
-        mod = get_relax_stacked_attention_module(qkv, b, s, n, h, h_v, bias)
+        mod = get_relax_stacked_attention_module(qkv, b, s, n, h, h_v, "split", bias)
     else:
-        mod = get_relax_stacked_attention_module(qkv, b, s, n, h, h_v, bias, scale)
+        mod = get_relax_stacked_attention_module(qkv, b, s, n, h, h_v, "split", bias, scale)
+    if bias is None:
+        out = get_result_with_relax_cutlass_offload(mod, qkv)
+    else:
+        out = get_result_with_relax_cutlass_offload(mod, qkv, bias)
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
+def test_stacked_attention_strided_slice_offload(stacked_attention_size):
+    b, s, n, (h, h_v), bias_shape, bias_reshape, scale = stacked_attention_size
+    qkv, bias, ref = get_numpy_stacked_attention_ref(
+        b, s, n, h, h_v, bias_shape, bias_reshape, scale, "float32"
+    )
+    if scale == "none":
+        mod = get_relax_stacked_attention_module(qkv, b, s, n, h, h_v, "strided_slice", bias)
+    else:
+        mod = get_relax_stacked_attention_module(qkv, b, s, n, h, h_v, "strided_slice", bias, scale)
     if bias is None:
         out = get_result_with_relax_cutlass_offload(mod, qkv)
     else:
