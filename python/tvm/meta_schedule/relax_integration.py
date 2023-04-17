@@ -358,6 +358,7 @@ def compile_relax(
     mod: IRModule,
     target: Union[Target, str],
     params: Optional[Dict[str, NDArray]],
+    enable_warning: bool = False,
 ) -> "relax.Executable":
     """Compile a relax program with a MetaSchedule database.
 
@@ -371,6 +372,9 @@ def compile_relax(
         The compilation target
     params : Optional[Dict[str, tvm.runtime.NDArray]]
         The associated parameters of the program
+    enable_warning : bool
+        A boolean value indicating if to print warnings for TIR functions not
+        showing up in the database. By default we don't print warning.
 
     Returns
     -------
@@ -388,6 +392,6 @@ def compile_relax(
         mod = BindParams("main", params)(mod)
 
     with target, database, PassContext(opt_level=3):
-        relax_mod = MetaScheduleApplyDatabase()(mod)
+        relax_mod = MetaScheduleApplyDatabase(enable_warning=enable_warning)(mod)
         relax_ex = relax_build(relax_mod, target=target)
     return relax_ex

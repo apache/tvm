@@ -631,7 +631,9 @@ def LiftTransformParams() -> tvm.ir.transform.Pass:
     return _ffi_api.LiftTransformParams()  # type: ignore
 
 
-def LegalizeOps(customize_legalize_map: Optional[Dict[str, LegalizeFunc]] = None):
+def LegalizeOps(
+    customize_legalize_map: Optional[Dict[str, LegalizeFunc]] = None, enable_warning: bool = False
+):
     """Legalize high-level operator calls in Relax functions to call_tir
     with corresponding low-level TIR PrimFuncs.
 
@@ -655,6 +657,11 @@ def LegalizeOps(customize_legalize_map: Optional[Dict[str, LegalizeFunc]] = None
     customize_legalize_map : Optional[Dict[str, LegalizeFunc]]
         The customized operator legalization function map. The customized function will override
         the default one.
+
+    enable_warning : bool
+        A boolean value indicating if to print warnings for CallNode whose op's
+        legalization function is not registered. By default we don't print
+        warnings.
 
     Returns
     -------
@@ -730,22 +737,29 @@ def LegalizeOps(customize_legalize_map: Optional[Dict[str, LegalizeFunc]] = None
                         T_multiply[v_ax0, v_ax1] = A[v_ax0, v_ax1] * B[v_ax0, v_ax1]
     """
 
-    return _ffi_api.LegalizeOps(customize_legalize_map)  # type: ignore
+    return _ffi_api.LegalizeOps(customize_legalize_map, enable_warning)  # type: ignore
 
 
 def MetaScheduleApplyDatabase(
-    work_dir: Optional[str] = None,
+    work_dir: Optional[str] = None, enable_warning: bool = False
 ) -> tvm.ir.transform.Pass:
     """Apply the best schedule from tuning database.
+
+    Parameters
+    ----------
     work_dir : Optional[str]
        work directory to deduce default database if database is not provided
        (it will be ignored when an user passes database)
+    enable_warning : bool
+        A boolean value indicating if to print warnings for TIR functions not
+        showing up in the database. By default we don't print warning.
+
     Returns
     -------
     ret : tvm.transform.Pass
         The registered pass
     """
-    return _ffi_api.MetaScheduleApplyDatabase(work_dir)  # type: ignore
+    return _ffi_api.MetaScheduleApplyDatabase(work_dir, enable_warning)  # type: ignore
 
 
 def MetaScheduleTuneTIR(

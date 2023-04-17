@@ -55,8 +55,12 @@ bool KnowAllShapeValues(const StructInfo& sinfo) {
 
 class LegalizeMutator : public ExprMutator {
  public:
-  explicit LegalizeMutator(const IRModule& mod, const Optional<Map<String, PackedFunc>>& cmap)
-      : ExprMutator(mod), mod_(std::move(mod)), cmap_(std::move(cmap)) {}
+  explicit LegalizeMutator(const IRModule& mod, const Optional<Map<String, PackedFunc>>& cmap,
+                           bool enable_warning)
+      : ExprMutator(mod),
+        mod_(std::move(mod)),
+        cmap_(std::move(cmap)),
+        enable_warning_(enable_warning) {}
 
   IRModule Transform() {
     for (const auto& [gv, func] : mod_->functions) {
@@ -107,7 +111,7 @@ class LegalizeMutator : public ExprMutator {
     }
 
     // No legalization.
-    if (op != call_tir_op && op != call_dps_packed_op) {
+    if (enable_warning_ && op != call_tir_op && op != call_dps_packed_op) {
       LOG(WARNING) << "No legalization func for " << op->name << " is found.";
     }
     return visited_call;
@@ -117,13 +121,20 @@ class LegalizeMutator : public ExprMutator {
   IRModule mod_;
   /*! \brief The customized legalization function map. */
   Optional<Map<String, PackedFunc>> cmap_;
+  /*!
+   * \brief A boolean value indicating if to print warnings for CallNode whose op's
+   * legalization function is not registered.
+   */
+  bool enable_warning_;
 };
 
 namespace transform {
 
-Pass LegalizeOps(Optional<Map<String, PackedFunc>> cmap) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule mod, PassContext pc) { return LegalizeMutator(mod, cmap).Transform(); };
+Pass LegalizeOps(Optional<Map<String, PackedFunc>> cmap, bool enable_warning) {
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
+                                                                            PassContext pc) {
+    return LegalizeMutator(mod, cmap, enable_warning).Transform();
+  };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,
                           /*pass_name=*/"LegalizeOps",
