@@ -348,7 +348,10 @@ def gen_call_tir_inputs(
 
             tir.stmt_functor.post_order_visit(expr, _visit_expr)
 
+        n_tensor = 0
+
         def _convert_te_arg_helper(arg):
+            nonlocal n_tensor
             if isinstance(arg, Expr):  # type: ignore
                 if isinstance(arg.struct_info, TensorStructInfo):
                     assert isinstance(
@@ -357,7 +360,9 @@ def gen_call_tir_inputs(
                     for shape_value in arg.struct_info.shape.values:
                         _copy_undefined_var(shape_value)
 
-                    arg = te_tensor(arg, tir_var_map)
+                    name = chr(ord("A") + n_tensor) if n_tensor < 26 else f"input{n_tensor}"
+                    arg = te_tensor(arg, tir_var_map, name)
+                    n_tensor += 1
                     te_args_list.append(arg)
                     return arg
                 if isinstance(arg.struct_info, ShapeStructInfo):
