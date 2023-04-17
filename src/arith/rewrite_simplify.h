@@ -144,8 +144,6 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
         << maximum_rewrite_steps_ << ")";
   }
 
-  bool is_currently_visiting_{false};
-
   // counter to record recursive rewrite depth.
   int64_t recur_depth_{0};
   // internal variable map
