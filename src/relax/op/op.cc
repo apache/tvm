@@ -540,7 +540,7 @@ RELAY_REGISTER_OP("relax.memory.kill_storage")
     .add_argument("storage", "Expr", "The storage to be killed.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
     // deallocation also isn't considered a "visible effect" as far as purity is concerned
-    .set_attr<Bool>("FPurity", Bool(false));
+    .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeMemKillStorage(Expr storage) {
   static const Op& op = Op::Get("relax.memory.kill_storage");
@@ -556,7 +556,7 @@ RELAY_REGISTER_OP("relax.memory.kill_tensor")
     .add_argument("tensor", "Expr", "The tensor to be killed.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
     // memory deallocation also isn't considered a "visible effect" as far as purity is concerned
-    .set_attr<Bool>("FPurity", Bool(false));
+    .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeMemKillTensor(Expr tensor) {
   static const Op& op = Op::Get("relax.memory.kill_tensor");
