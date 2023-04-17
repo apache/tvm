@@ -820,7 +820,7 @@ BufferTouch ControlFlowGraph::ControlFlowBlock::MakeBufferTouch(ControlFlowGraph
   return buffer_touch;
 }
 
-ControlFlowGraph::ControlFlowGraph(const tir::Stmt& stmt, int max_simplification_steps,
+ControlFlowGraph::ControlFlowGraph(const tir::Stmt& stmt, int64_t max_simplification_steps,
                                    size_t max_revisits)
     : max_revisits_(max_revisits), max_simplification_steps_(max_simplification_steps) {
   ControlFlowGraphBuilder::Build(this, stmt);
