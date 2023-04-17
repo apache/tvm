@@ -22,12 +22,18 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/function.h>
+#include <tvm/tir/stmt_functor.h>
+
+#include "../../meta_schedule/module_equality.h"
 
 namespace tvm {
 namespace relax {
 namespace backend {
 
-using tvm::meta_schedule::ExtractedTask;
+using meta_schedule::ExtractedTask;
+using meta_schedule::ModuleEqual;
+using meta_schedule::ModuleEquality;
+using meta_schedule::ModuleHash;
 
 /*!
  * \brief Extract the Meta-Schedule tuning task from a given IRModule.
@@ -42,22 +48,45 @@ using tvm::meta_schedule::ExtractedTask;
  *   Then we will have a ExtractedTask for all three functions, whose weight
  *   is 5 + 3 + 2 = 10.
  */
+class BlockCounter : public tir::StmtVisitor {
+ public:
+  static size_t GetBlockCount(const tir::PrimFunc& func) {
+    BlockCounter counter;
+    counter(func->body);
+    return counter.count;
+  }
+
+ private:
+  void VisitStmt_(const tir::BlockNode* op) final {
+    ++count;
+    StmtVisitor::VisitStmt_(op);
+  }
+  size_t count{0};
+};
+
 class TaskExtractor : public ExprVisitor {
  public:
-  static Array<ExtractedTask> ExtractTask(IRModule mod, Target target) {
-    TaskExtractor extractor(mod, target);
+  static Array<ExtractedTask> ExtractTask(IRModule mod, Target target, String mod_eq_name) {
+    TaskExtractor extractor(mod, target, mod_eq_name);
     // We go through each Relax function in the module.
     for (const auto& kv : mod->functions) {
       if (const auto* func = kv.second.as<FunctionNode>()) {
         extractor(GetRef<Function>(func));
       }
     }
-    return std::move(extractor.tasks_);
+    Array<ExtractedTask> tasks;
+    for (const auto& it : extractor.func2task_) {
+      tasks.push_back(it.second);
+    }
+    return tasks;
   }
 
  private:
-  explicit TaskExtractor(IRModule mod, Target target)
-      : mod_(std::move(mod)), target_(std::move(target)) {
+  explicit TaskExtractor(IRModule mod, Target target, String mod_eq_name)
+      : mod_(std::move(mod)),
+        target_(std::move(target)),
+        mod_eq_(ModuleEquality::Create(mod_eq_name)),
+        func2task_(/*bucket_count*/ 0, ModuleHash(*mod_eq_), ModuleEqual(*mod_eq_)) {
     normalize_mod_func_ = runtime::Registry::Get("tvm.meta_schedule.normalize_mod");
     ICHECK(normalize_mod_func_) << "Normalization function is not found.";
   }
@@ -75,33 +104,44 @@ class TaskExtractor : public ExprVisitor {
 
     const GlobalVar& global_var = Downcast<GlobalVar>(call->args[0]);
     const tir::PrimFunc& func = Downcast<tir::PrimFunc>(mod_->Lookup(global_var));
-
-    auto it = func2task_.find(func);
+    IRModule mod = (*normalize_mod_func_)(func);
+    size_t weight = 1;
+    auto it = func2task_.find(mod);
     if (it != func2task_.end()) {
       it->second->weight += 1;
-      return;
+      const tir::PrimFunc& alt_func = Downcast<tir::PrimFunc>(it->first->Lookup("main"));
+      // When anchor-block based equality is used, tuning tasks "nn_conv2d_add_nn_relu" and
+      // "nn_conv2d_add_add_nn_relu", for example, can be identified as equal. Thus, one of them
+      // will be selected to tune by the code below.
+      //
+      // To make sure that we tune "nn_conv2d_add_nn_relu" and not "nn_conv2d_add_add_nn_relu", we
+      // count the PrinFunc number of blocks and leave only the function with the smallest number of
+      // blocks. This way, "nn_conv2d_add_nn_relu" will have a smaller number of blocks than
+      // "nn_conv2d_add_add_nn_relu" and will be selected to tune.
+      if (BlockCounter::GetBlockCount(func) < BlockCounter::GetBlockCount(alt_func)) {
+        weight += it->second->weight;
+        func2task_.erase(it->first);
+      }
     }
 
-    IRModule tir_mod = (*normalize_mod_func_)(func);
     ExtractedTask task(/*task_name=*/global_var->name_hint,  //
-                       /*mod=*/tir_mod,                      //
+                       /*mod=*/mod,                          //
                        /*target=*/target_,                   //
-                       /*dispatched=*/{tir_mod},             //
-                       /*weight=*/1);
-    tasks_.push_back(task);
-    func2task_.emplace(func, task);
+                       /*dispatched=*/{mod},                 //
+                       /*weight=*/weight);
+    func2task_.emplace(mod, task);
   }
 
   IRModule mod_;
   Target target_;
-  Array<ExtractedTask> tasks_;
-  std::unordered_map<tir::PrimFunc, ExtractedTask, StructuralHash, StructuralEqual> func2task_;
+  std::unique_ptr<ModuleEquality> mod_eq_;
+  std::unordered_map<IRModule, ExtractedTask, ModuleHash, ModuleEqual> func2task_;
   const runtime::PackedFunc* normalize_mod_func_;
 };
 
 TVM_REGISTER_GLOBAL("relax.backend.MetaScheduleExtractTask")
-    .set_body_typed([](IRModule mod, Target target) {
-      return TaskExtractor::ExtractTask(std::move(mod), std::move(target));
+    .set_body_typed([](IRModule mod, Target target, String mod_eq_name) {
+      return TaskExtractor::ExtractTask(std::move(mod), std::move(target), std::move(mod_eq_name));
     });
 
 }  // namespace backend

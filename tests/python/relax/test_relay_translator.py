@@ -74,6 +74,7 @@ def relax_build_and_run(mod, target, dev, params, data):
         db = ms.relax_integration.tune_relax(
             mod=mod,
             target=target,
+            params=params,
             task_scheduler="round-robin",
             num_trials_per_iter=32,
             max_trials_per_task=32,
@@ -99,7 +100,6 @@ def verify_e2e_translation(target_str, layout, batch_size, image_shape):
     input_shape = (1, *image_shape)
     data = tvm.nd.array(np.random.rand(*input_shape).astype(np.float32), dev)
     relax_mod = relay_translator.from_relay(relay_mod["main"], target, params)
-    assert relax_mod["main"].attrs["global_symbol"] == "main"
 
     _, _, relay_out = relay_build_and_run(relay_mod, target, dev, params, data)
     _, _, relax_out = relax_build_and_run(relax_mod, target, dev, params, data)
@@ -123,7 +123,7 @@ def test_verify_e2e_translation_gpu(layout, batch_size, image_shape):
     verify_e2e_translation("cuda", layout, batch_size, image_shape)
 
 
-def verify_extracted_tasks(target_str, layout, batch_size, image_shape):
+def verify_extracted_tasks(target_str, layout, batch_size, image_shape, module_equality):
     target = Target(target_str)
     relay_mod, params = get_resnet(batch_size, "float32", layout, image_shape)
     relax_mod = relay_translator.from_relay(
@@ -143,17 +143,20 @@ def verify_extracted_tasks(target_str, layout, batch_size, image_shape):
             "relay.backend.use_meta_schedule": True,
             "relay.FuseOps.max_depth": 1,  # Disable relay fusion
         },
+        module_equality=module_equality,
     )
     relax_tasks = ms.relax_integration.extract_tasks(
         relax_mod,
         target=target,
         params=params,
+        module_equality=module_equality,
     )
     # TODO (yongwww, yuchen): tophub guides relay passes, which causes inconsistent tasks
     # assert len(relay_tasks) == len(relax_tasks)
     # TODO: Can we compare extracted tasks as well?
 
 
+@pytest.mark.parametrize("module_equality", ["structural", "ignore-ndarray", "anchor-block"])
 @pytest.mark.parametrize(
     "layout, batch_size, image_shape",
     [
@@ -161,16 +164,17 @@ def verify_extracted_tasks(target_str, layout, batch_size, image_shape):
         ("NHWC", 1, (224, 224, 3)),
     ],
 )
-def test_verify_extracted_tasks_cpu(layout, batch_size, image_shape):
-    verify_extracted_tasks("llvm --num-cores=16", layout, batch_size, image_shape)
+def test_verify_extracted_tasks_cpu(layout, batch_size, image_shape, module_equality):
+    verify_extracted_tasks("llvm --num-cores=16", layout, batch_size, image_shape, module_equality)
 
 
 @tvm.testing.requires_gpu
+@pytest.mark.parametrize("module_equality", ["structural", "ignore-ndarray", "anchor-block"])
 @pytest.mark.parametrize(
     "layout, batch_size, image_shape", [("NCHW", 1, (3, 224, 224)), ("NHWC", 1, (224, 224, 3))]
 )
-def test_verify_extracted_tasks_gpu(layout, batch_size, image_shape):
-    verify_extracted_tasks("cuda", layout, batch_size, image_shape)
+def test_verify_extracted_tasks_gpu(layout, batch_size, image_shape, module_equality):
+    verify_extracted_tasks("cuda", layout, batch_size, image_shape, module_equality)
 
 
 def translate_and_build_vms(relay_mod, target_str="llvm", translate_op_with_tir=None):
