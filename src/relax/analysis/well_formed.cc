@@ -63,7 +63,7 @@
  *        and purity is not forced (kForcePure is true),
  *        the body may not contain any impure call
  *        (only checked if check_struct_info is true).
- *    17. If a function's purity is forced, kForcePure cannot be true
+ *    17. If a function's purity is forced, kIsPure cannot be false
  */
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
