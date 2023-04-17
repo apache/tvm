@@ -78,8 +78,8 @@ Expr DeGlobal(const Optional<IRModule>& mod, const Expr& e) {
 
   if (mod.defined() && x) {
     BaseFunc base_func = mod.value()->Lookup(GetRef<GlobalVar>(x));
-    if (auto* n = base_func.as<FunctionNode>()) {
-      return GetRef<Function>(n);
+    if (auto func = base_func.as<Function>()) {
+      return func.value();
     } else {
       return e;
     }
@@ -236,9 +236,9 @@ struct ReverseAD : ExprMutator {
   }
 
   Expr VisitCheckpoint(const CallNode* call) {
-    const OpNode* op_node = call->op.as<OpNode>();
-    ICHECK(op_node) << "expected op in call";
-    Op op_ref = GetRef<Op>(op_node);
+    auto optional = call->op.as<Op>();
+    ICHECK(optional) << "expected op in call";
+    Op op_ref = optional.value();
     ICHECK(op_ref->name == "annotation.checkpoint") << "expected checkpoint annotation";
     auto x = call->args[0];
     return LetList::With([&](LetList* ll) {
@@ -261,14 +261,14 @@ struct ReverseAD : ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* call) final {
-    if (const OpNode* op_node = call->op.as<OpNode>()) {
-      Op op_ref = GetRef<Op>(op_node);
+    if (auto optional = call->op.as<Op>()) {
+      Op op_ref = optional.value();
 
       if (op_ref->name == "annotation.checkpoint") {
         return VisitCheckpoint(call);
       }
 
-      ICHECK(rev_map.count(op_ref)) << op_node->name << " does not have reverse mode defined";
+      ICHECK(rev_map.count(op_ref)) << op_ref->name << " does not have reverse mode defined";
       return LetList::With([&](LetList* ll) {
         std::vector<Var> args;
         for (const auto& arg : call->args) {

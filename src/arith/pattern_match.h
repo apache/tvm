@@ -914,7 +914,6 @@ inline std::enable_if_t<(std::is_base_of_v<Pattern<TPattern>, TPattern> && ... &
 matches_one_of(const TPattern&... patterns) {
   return PMatchesOneOf<TPattern...>(patterns...);
 }
-
 }  // namespace arith
 }  // namespace tvm
 #endif  // TVM_ARITH_PATTERN_MATCH_H_

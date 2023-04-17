@@ -1282,6 +1282,47 @@ def test_compute_at_simplify_static_bound(use_block_name):
     verify_trace_roundtrip(sch=sch, mod=static_bound)
 
 
+def test_compute_at_simplify_symbolic_predicate():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(x: T.handle, y: T.handle, n: T.int64):
+            X = T.match_buffer(x, (T.int64(8), n * 32), "float32")
+            Y = T.match_buffer(y, (T.int64(8), n * 32), "float32")
+            for i, k in T.grid(T.int64(8), n * 32):
+                with T.block("Y"):
+                    vi, vk = T.axis.remap("SS", [i, k])
+                    Y[vi, vk] = X[vi, vk]
+
+    @tvm.script.ir_module
+    class After:
+        @T.prim_func
+        def main(x: T.handle, y: T.handle, n: T.int64):
+            X = T.match_buffer(x, (T.int64(8), n * T.int64(32)))
+            Y = T.match_buffer(y, (T.int64(8), n * T.int64(32)))
+            X_global = T.alloc_buffer((T.int64(8), n * T.int64(32)))
+
+            for i, k_0 in T.grid(T.int64(8), n):
+                for ax0 in range(T.int64(32)):
+                    with T.block("X_global"):
+                        v0 = T.axis.spatial(T.int64(8), i)
+                        v1 = T.axis.spatial(n * T.int64(32), k_0 * T.int64(32) + ax0)
+                        X_global[v0, v1] = X[v0, v1]
+                for k_1 in range(T.int64(32)):
+                    with T.block("Y"):
+                        vi = T.axis.spatial(T.int64(8), i)
+                        vk = T.axis.spatial(n * T.int64(32), k_0 * T.int64(32) + k_1)
+                        Y[vi, vk] = X_global[vi, vk]
+
+    sch = tir.Schedule(Before, debug_mask="all")
+    block = sch.get_block("Y")
+    i, k = sch.get_loops(sch.get_block("Y"))
+    ko, ki = sch.split(k, [None, 32])
+    XX = sch.cache_read(block, 0, "global")
+    sch.compute_at(XX, ko)
+    tvm.ir.assert_structural_equal(sch.mod, After)
+
+
 def test_compute_at_non_perfect_channel_group(use_block_name):
     @T.prim_func
     def grouped_channel_bias(

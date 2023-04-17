@@ -59,6 +59,7 @@ class CodeGenMetal final : public CodeGenC {
 
  private:
   int thread_index_bits_{32};
+  int thread_work_dim_{0};
   Target target_;
 };
 }  // namespace codegen

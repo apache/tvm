@@ -224,8 +224,8 @@ RELAY_REGISTER_OP("memory.kill")
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
 static void FlattenTupleTypeAux(const Type& type, std::vector<TensorType>* out) {
-  if (auto tt = type.as<TensorTypeNode>()) {
-    out->push_back(GetRef<TensorType>(tt));
+  if (auto tt = type.as<TensorType>()) {
+    out->push_back(tt.value());
   } else if (auto tuple_ty = type.as<TupleTypeNode>()) {
     for (auto field : tuple_ty->fields) {
       FlattenTupleTypeAux(field, out);

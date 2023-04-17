@@ -81,7 +81,6 @@ URL_MAP = {
     "https://gist.githubusercontent.com/zhreshold/4d0b62f3d01426887599d4f7ede23ee5/raw/596b27d23537e5a1b5751d2b0481ef172f58b539/imagenet1000_clsid_to_human.txt": f"{BASE}/2022-10-05/imagenet1000_clsid_to_human.txt",
     "https://gist.githubusercontent.com/zhreshold/bcda4716699ac97ea44f791c24310193/raw/fa7ef0e9c9a5daea686d6473a62aacd1a5885849/cat.png": f"{BASE}/zhreshold/bcda4716699ac97ea44f791c24310193/raw/fa7ef0e9c9a5daea686d6473a62aacd1a5885849/cat.png",
     "https://github.com/ARM-software/ML-zoo/raw/48a22ee22325d15d2371a6df24eb7d67e21dcc97/models/keyword_spotting/cnn_small/tflite_int8/cnn_s_quantized.tflite": f"{BASE}/ARM-software/ML-zoo/raw/48a22ee22325d15d2371a6df24eb7d67e21dcc97/models/keyword_spotting/cnn_small/tflite_int8/cnn_s_quantized.tflite",
-    "https://github.com/ARM-software/ML-zoo/raw/master/models/keyword_spotting/cnn_small/tflite_int8//cnn_s_quantized.tflite": f"{BASE}/ARM-software/ML-zoo/raw/master/models/keyword_spotting/cnn_small/tflite_int8//cnn_s_quantized.tflite",
     "https://github.com/czh978/models_for_tvm_test/raw/main/tflite_graph_with_postprocess.pb": f"{BASE}/czh978/models_for_tvm_test/raw/main/tflite_graph_with_postprocess.pb",
     "https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true": f"{BASE}/dmlc/mxnet.js/blob/main/data/cat.png"
     + quote("?raw=true"),
@@ -142,7 +141,7 @@ URL_MAP = {
     "https://github.com/shicai/MobileNet-Caffe/blob/master/mobilenet_v2.caffemodel?raw=true": f"{BASE}/shicai/MobileNet-Caffe/blob/master/mobilenet_v2.caffemodel"
     + quote("?raw=true"),
     "https://github.com/shicai/MobileNet-Caffe/raw/master/mobilenet_v2_deploy.prototxt": f"{BASE}/shicai/MobileNet-Caffe/raw/master/mobilenet_v2_deploy.prototxt",
-    "https://github.com/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/examples/micro_speech/micro_speech.tflite": f"{BASE}/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/examples/micro_speech/micro_speech.tflite",
+    "https://github.com/tensorflow/tflite-micro/raw/a56087ffa2703b4d5632f024a8a4c899815c31bb/tensorflow/lite/micro/examples/micro_speech/micro_speech.tflite": f"{BASE}/tensorflow/tflite-micro/raw/a56087ffa2703b4d5632f024a8a4c899815c31bb/tensorflow/lite/micro/examples/micro_speech/micro_speech.tflite",
     "https://github.com/mlcommons/tiny/raw/v0.7/benchmark/training/visual_wake_words/trained_models/vww_96_int8.tflite": f"{BASE}/mlcommons/tiny/raw/v0.7/benchmark/training/visual_wake_words/trained_models/vww_96_int8.tflite",
     "https://github.com/uwsampl/web-data/raw/main/vta/models/synset.txt": f"{BASE}/2022-10-05/synset.txt",
     "https://homes.cs.washington.edu/~cyulin/media/gnn_model/gcn_cora.torch": f"{BASE}/gcn_cora.torch",

@@ -417,7 +417,7 @@ class IterVar(Object, ExprOp, Scriptable):
     ThreadIndex = 1
     CommReduce = 2
     Ordered = 3
-    DimInfo = 4
+    Opaque = 4
     Unrolled = 5
     Vectorized = 6
     Parallelized = 7

@@ -19,7 +19,7 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 
 from tvm._ffi import register_object as _register_object
 from tvm.error import TVMError, register_error
-from tvm.ir import IRModule, PrimExpr
+from tvm.ir import GlobalVar, IRModule, PrimExpr
 from tvm.runtime import Object, String
 from tvm.tir import Block, Buffer, FloatImm, For, IntImm, PrimFunc
 
@@ -206,6 +206,11 @@ class Schedule(Object):
     def trace(self) -> Optional[Trace]:
         """Returns the internally maintained trace of scheduling program execution"""
         return _ffi_api.ScheduleGetTrace(self)  # type: ignore # pylint: disable=no-member
+
+    @property
+    def func_working_on(self) -> Optional[GlobalVar]:
+        """Returns the GlobalVar of the func that the schedule is currently working on"""
+        return _ffi_api.ScheduleGetFuncWorkingOn(self)  # type: ignore # pylint: disable=no-member
 
     def work_on(self, func_name: str) -> None:
         """Instruct the schedule to work on a function in the IRModule.
@@ -540,7 +545,108 @@ class Schedule(Object):
         block = self._normalize_block_arg(block)
         return list(_ffi_api.ScheduleGetConsumers(self, block))  # type: ignore # pylint: disable=no-member
 
+    @type_checked
+    def get_output_blocks(
+        self,
+        scope_block: Union[BlockRV, str],
+    ) -> List[BlockRV]:
+        """Get the list of output blocks within the given scope
+        An output block is a block which has atleast one buffer being written
+        to, but is not allocated within the PrimFunc
+
+        Parameters
+        ----------
+        scope_block : Union[BlockRV, str],
+            The scope block from which output blocks are collected
+
+        Returns
+        -------
+        output_blocks : List[BlockRV]
+            A list of all blocks that write to some output buffer
+
+        """
+        scope_block = self._normalize_block_arg(scope_block)
+        return list(_ffi_api.ScheduleGetOutputBlocks(self, scope_block))  # type: ignore # pylint: disable=no-member
+
     ########## Schedule: Transform loops ##########
+    @type_checked
+    def merge(
+        self,
+        *loops: List[LoopRV],
+    ) -> LoopRV:
+        """Merge a list of loops into one. The loops under their LCA requires:
+        1) Under the same scope.
+        2) Can't have annotations or thread bindings.
+        3) Start with 0 and have same extent and same nesting depth.
+        4) From target loop to their LCA, The inner loop must be the only child of the outer loop.
+
+        Parameters
+        ----------
+        *loops : List[LoopRV]
+            The loops to be merged
+
+        Returns
+        -------
+        fused_loop : LoopRV
+            The new loop after merge
+
+        Examples
+        --------
+
+        Before applying merge, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_merge(a: T.handle, b: T.handle, c: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                C = T.match_buffer(c, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+                for i, j in T.grid(128, 128):
+                    with T.block("C"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        C[vi, vj] = A[vi, vj] * 2.0
+
+        Create the schedule and do fuse:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_fuse)
+            i1, _ = sch.get_loops(sch.get_block("B"))
+            i2, _ = sch.get_loops(sch.get_block("C"))
+            sch.merge(i1, i2)
+            print(sch.mod["main"].script())
+
+        After applying fuse, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_fuse(a: T.handle, b: T.handle, c: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                C = T.match_buffer(c, (128, 128))
+                # the 2 loops are merged into 1
+                for i_m in range(128):
+                    for j in range(128):
+                        with T.block("B"):
+                            vi, vj = T.axis.remap("SS", [i_m, j])
+                            T.reads(A[vi, vj])
+                            T.writes(B[vi, vj])
+                            B[vi, vj] = A[vi, vj] * T.float32(2)
+                    for j in range(128):
+                        with T.block("C"):
+                            vi, vj = T.axis.remap("SS", [i_m, j])
+                            T.reads(A[vi, vj])
+                            T.writes(C[vi, vj])
+                            C[vi, vj] = A[vi, vj] * T.float32(2)
+        """
+        return _ffi_api.ScheduleMerge(self, loops)  # type: ignore # pylint: disable=no-member
+
     @type_checked
     def fuse(
         self,
@@ -751,6 +857,70 @@ class Schedule(Object):
 
         """
         _ffi_api.ScheduleReorder(self, ordered_loops)  # type: ignore # pylint: disable=no-member
+
+    @type_checked
+    def reorder_block_iter_var(self, block: BlockRV, new_order: List[int]) -> None:
+        """Reorder the itervars inside a given block.
+
+        Parameters
+        ----------
+        block : BlockRV
+            The block to be transformed.
+        new_order : List[int]
+            The new block itervar order.
+
+        Examples
+        --------
+
+        Before reorder_block_iter_var, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def matmul(
+                A: T.Buffer((128, 128), "float32"),
+                B: T.Buffer((128, 128), "float32"),
+                C: T.Buffer((128, 128), "float32"),
+            ) -> None:
+                for i, j, k in T.grid(128, 128, 128):
+                    with T.block("C"):
+                        vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                        with T.init():
+                            C[vi, vj] = 0.0
+                        C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+        Create the schedule and do reorder_block_iter_var:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(matmul)
+            C = sch.get_block("C")
+            sch.reorder_block_iter_var(C, [2, 1, 0])
+
+        After applying reorder_block_iter_var, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def matmul_after_reorder_block_iter_var(
+                A: T.Buffer((128, 128), "float32"),
+                B: T.Buffer((128, 128), "float32"),
+                C: T.Buffer((128, 128), "float32"),
+            ):
+                for i, j, k in T.grid(128, 128, 128):
+                    with T.block("C"):
+                        vk, vj, vi = T.axis.remap("RSS", [k, j, i])
+                        T.reads(A[vi, vk], B[vj, vk])
+                        T.writes(C[vi, vj])
+                        with T.init():
+                            C[vi, vj] = T.float32(0)
+                        C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+        See Also
+        --------
+        reorder
+        """
+        _ffi_api.ScheduleReorderBlockIterVar(self, block, new_order)  # type: ignore # pylint: disable=no-member
 
     @type_checked
     def add_unit_loop(self, block_or_loop: Union[LoopRV, BlockRV]) -> LoopRV:
@@ -2462,7 +2632,7 @@ class Schedule(Object):
         Examples
         --------
 
-        Before set_dtype, in TensorIR, the IR is:
+        Before unsafe_set_dtype, in TensorIR, the IR is:
 
         .. code-block:: python
 
@@ -2481,12 +2651,12 @@ class Schedule(Object):
                         vi, vj = T.axis.remap("SS", [i, j]
                         C[vi, vj] = B[vi, vj] + 1.0
 
-        Create the schedule and do set_dtype:
+        Create the schedule and do unsafe_set_dtype:
 
         .. code-block:: python
 
             sch = tir.Schedule(before_set_dtype)
-            sch.set_dtype("B", buffer_index=0, dtype="float16")
+            sch.unsafe_set_dtype("B", buffer_index=0, dtype="float16")
             print(sch.mod["main"].script())
 
         After applying set_dtype, the IR becomes:
@@ -2510,7 +2680,8 @@ class Schedule(Object):
 
         Note
         ----
-        `set_dtype` requires the buffer to be an intermediate buffer defined via `alloc_buffer`.
+        `unsafe_set_dtype` requires the buffer to be an intermediate buffer defined via
+        `alloc_buffer`.
         """
         block = self._normalize_block_arg(block)
         _ffi_api.ScheduleUnsafeSetDType(  # type: ignore # pylint: disable=no-member

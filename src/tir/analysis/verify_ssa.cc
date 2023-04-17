@@ -146,9 +146,8 @@ namespace transform {
 Pass VerifySSA() {
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     for (auto kv : mod->functions) {
-      if (auto* n = kv.second.as<PrimFuncNode>()) {
-        auto func = GetRef<PrimFunc>(n);
-        ICHECK(VerifySSA(func)) << "RuntimeError: IR is not in SSA form" << func;
+      if (auto func = kv.second.as<PrimFunc>()) {
+        ICHECK(VerifySSA(func.value())) << "RuntimeError: IR is not in SSA form" << func;
       }
     }
     return mod;

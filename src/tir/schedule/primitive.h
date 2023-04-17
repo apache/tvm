@@ -148,6 +148,15 @@ Array<StmtSRef> GetProducers(const ScheduleState& self, const StmtSRef& block_sr
  * \return A list of blocks, the consumers of the given block
  */
 Array<StmtSRef> GetConsumers(const ScheduleState& self, const StmtSRef& block_sref);
+/*!
+ * \brief Get the list of output blocks within the given scope
+ * An output block is a block which has atleast one buffer being written
+ * to, but is not allocated within the PrimFunc
+ * \param scope_block_rv The scope block from which output blocks are collected
+ * \return A list of all blocks that write to some output buffer
+ * block
+ */
+Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const StmtSRef& scope_sref);
 /******** Schedule: Transform loops ********/
 /*!
  * Split a loop into a list of consecutive loops. It requires:
@@ -161,6 +170,19 @@ Array<StmtSRef> GetConsumers(const ScheduleState& self, const StmtSRef& block_sr
  */
 TVM_DLL Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
                               const Array<PrimExpr>& factors, bool preserve_unit_iters);
+
+/*!
+ * \brief Merge a list of loops into one. The loops under their LCA requires:
+ * 1) Under the same scope
+ * 2) Can't have annotations or thread bindings
+ * 3) Start with 0 and have same extent and same nesting depth
+ * 4) From target loop to their LCA, the inner loop must be the only child of the outer loop
+ * \param self The state of the schedule
+ * \param loop_srefs An array of srefs to the loops to be merged
+ * \return The new loop after merge
+ */
+TVM_DLL StmtSRef Merge(ScheduleState self, const Array<StmtSRef>& loop_srefs);
+
 /*!
  * \brief Fuse a list of consecutive loops into one. It requires:
  * 1) The loops can't have annotations or thread bindings.
@@ -188,6 +210,15 @@ TVM_DLL StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs,
  * \param ordered_loop_srefs An array of srefs which indicates the new order of loops
  */
 TVM_DLL void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs);
+
+/*!
+ * \brief Reorder itervars inside a block.
+ * \param self The state of the schedule.
+ * \param block_sref The sref of block to be transformed.
+ * \param new_order The new itervar order.
+ */
+TVM_DLL void ReorderBlockIterVar(ScheduleState self, const StmtSRef& block_sref,
+                                 const Array<Integer>& new_order);
 
 /*!
  * \brief Create a new unit loop on top of the specific block or loop.
