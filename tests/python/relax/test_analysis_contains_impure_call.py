@@ -92,6 +92,10 @@ def test_ignoring_recursive_call():
         body.blocks[0].bindings[1],
         body.blocks[0].bindings[-1],
     ]
+    # Note: we construct the function in this way so that we keep the old vars
+    # with their current StructInfo. That would get fixed during normalization.
+    # However, this situation is meant to correspond to an intermediate state
+    # that might arise within a pass.
     new_body = rx.SeqExpr([rx.BindingBlock(new_bindings)], body.body)
 
     # if we didn't ignore the recursive call, the fact the var's StructInfo
