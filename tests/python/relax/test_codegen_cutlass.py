@@ -682,7 +682,6 @@ def get_relax_stacked_attention_module(qkv, b, s, n, h, h_v, op, bias=None, qk_s
                     k = R.reshape(qkv_tuple[1], [b, s, n, h])
                     v = R.reshape(qkv_tuple[2], [b, s, n, h_v])
                 elif op == "strided_slice":
-                    qkv_tuple = R.split(qkv, [n * h, n * h * 2], axis=2)
                     q = R.reshape(R.strided_slice(qkv, [2], [0], [n * h], [1]), [b, s, n, h])
                     k = R.reshape(
                         R.strided_slice(qkv, [2], [n * h], [n * h * 2], [1]), [b, s, n, h]
