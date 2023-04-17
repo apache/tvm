@@ -152,7 +152,10 @@ def write_csv(
             )
         )
         for item in data:
-            pr = item["associatedPullRequests"]["nodes"][0]
+            nodes = item["associatedPullRequests"]["nodes"]
+            if len(nodes) == 0:
+                continue
+            pr = nodes[0]
             if not filter(pr):
                 continue
             tags = tags_from_title(pr["title"])
@@ -162,16 +165,15 @@ def write_csv(
                 actual_tags += items
             tags = actual_tags
             tags = [t.lower() for t in tags]
-            category = ""
-            if len(tags) == 1:
-                category = tags[0]
+            category = tags[0] if len(tags) > 0 else ""
+            author = pr["author"] if pr["author"] else "ghost"
             writer.writerow(
                 (
                     category,
                     "",
                     item["committedDate"],
                     f'https://github.com/apache/tvm/pull/{pr["number"]}',
-                    pr["author"]["login"],
+                    author,
                     ", ".join(tags),
                     pr["title"],
                     pr["additions"],
