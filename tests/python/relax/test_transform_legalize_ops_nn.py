@@ -1050,18 +1050,18 @@ def test_leakyrelu():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(Expected.leakyrelu, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.leaky_relu, (x,), R.Tensor((2, 3), dtype="float32"))
             return gv
 
         @T.prim_func
-        def leakyrelu(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), compute: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+        def leaky_relu(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), compute: T.Buffer((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.block("compute"):
                     i0_1, i1_1 = T.axis.remap("SS", [i0, i1])
                     T.reads(rxplaceholder[i0_1, i1_1])
                     T.writes(compute[i0_1, i1_1])
-                    compute[i0_1, i1_1] = T.Select(rxplaceholder[i0_1, i1_1] > T.float32(0), rxplaceholder[i0_1, i1_1], \
+                    compute[i0_1, i1_1] = T.Select(T.float32(0) < rxplaceholder[i0_1, i1_1], rxplaceholder[i0_1, i1_1], \
                                                    rxplaceholder[i0_1, i1_1] * T.float32(0.02))
     # fmt: on
 
@@ -1088,11 +1088,11 @@ def test_leakyrelu_symbolic():
             m = T.int64()
             n = T.int64()
             alpha = T.float32()
-            gv = R.call_tir(Expected.leakyrelu, (x,), R.Tensor((m, n), dtype="float32"))
+            gv = R.call_tir(Expected.leaky_relu, (x,), R.Tensor((m, n), dtype="float32"))
             return gv
 
         @T.prim_func
-        def leakyrelu(var_rxplaceholder: T.handle, var_compute: T.handle):
+        def leaky_relu(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.func_attr({"tir.noalias": True})
             m = T.int64()
             n = T.int64()
@@ -1104,7 +1104,7 @@ def test_leakyrelu_symbolic():
                     i0_1, i1_1 = T.axis.remap("SS", [i0, i1])
                     T.reads(rxplaceholder[i0_1, i1_1])
                     T.writes(compute[i0_1, i1_1])
-                    compute[i0_1, i1_1] = T.Select(rxplaceholder[i0_1, i1_1] > T.float32(0), rxplaceholder[i0_1, i1_1], \
+                    compute[i0_1, i1_1] = T.Select(T.float32(0) < rxplaceholder[i0_1, i1_1], rxplaceholder[i0_1, i1_1], \
                                                     rxplaceholder[i0_1, i1_1] * alpha)
     # fmt: on
 
