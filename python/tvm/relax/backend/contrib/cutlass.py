@@ -232,6 +232,25 @@ def residual_block_patterns():
     return patterns
 
 
+def _check_stacked_attention(context: PatternCheckContext) -> bool:
+    """Check if the given stacked attention workload can be offloaded to CUTLASS."""
+    if _has_leaking_intermediate_variables(context):
+        return False
+    if not context.annotated_expr["stacked_qkv"].struct_info.ndim == 3:
+        return False
+    if "split" in context.annotated_expr:
+        split_op = context.annotated_expr["split"]
+        if not split_op.attrs.axis == 2:
+            return False
+    else:
+        for name in ["query", "key", "value"]:
+            assert f"strided_slice_{name}" in context.annotated_expr
+            strided_slice_op = context.annotated_expr[f"strided_slice_{name}"]
+            if not (len(strided_slice_op.attrs.axes) == 1 and strided_slice_op.attrs.axes[0] == 2):
+                return False
+    return True
+
+
 def attention_patterns():
     """
     Returns a list of all attention patterns in cutlass BYOC backend.
@@ -248,18 +267,22 @@ def attention_patterns():
         (
             "cutlass.stacked_attention",
             *make_stacked_attention_pattern(start_op="split"),
+            _check_stacked_attention,
         ),
         (
             "cutlass.stacked_attention",
             *make_stacked_attention_pattern(start_op="split", with_bias=True),
+            _check_stacked_attention,
         ),
         (
             "cutlass.stacked_attention",
             *make_stacked_attention_pattern(start_op="strided_slice"),
+            _check_stacked_attention,
         ),
         (
             "cutlass.stacked_attention",
             *make_stacked_attention_pattern(start_op="strided_slice", with_bias=True),
+            _check_stacked_attention,
         ),
     ]
 

@@ -1045,7 +1045,7 @@ class PatternBasedPartitioner : ExprVisitor {
 
     Map<Var, Expr> matched_bindings;
     for (const auto& [pat, match] : matched_result) {
-      if (pat->IsInstance<CallPatternNode>()) {
+      if (pat->IsInstance<CallPatternNode>() || pat->IsInstance<TupleGetItemPatternNode>()) {
         matched_bindings.Set(value_to_bound_var_[match], match);
       }
     }

@@ -220,15 +220,16 @@ def make_stacked_attention_pattern(start_op: str, with_bias: bool = False):
         check function and codegen.
     """
     stacked_qkv = wildcard()
+    ops = {}
     if start_op == "split":
-        qkv_tuple = is_op("relax.split")(stacked_qkv)
+        ops["split"] = qkv_tuple = is_op("relax.split")(stacked_qkv)
         query_raw = is_tuple_get_item(qkv_tuple, 0)
         key_raw = is_tuple_get_item(qkv_tuple, 1)
         value_raw = is_tuple_get_item(qkv_tuple, 2)
     elif start_op == "strided_slice":
-        query_raw = is_op("relax.strided_slice")(stacked_qkv)
-        key_raw = is_op("relax.strided_slice")(stacked_qkv)
-        value_raw = is_op("relax.strided_slice")(stacked_qkv)
+        ops["strided_slice_query"] = query_raw = is_op("relax.strided_slice")(stacked_qkv)
+        ops["strided_slice_key"] = key_raw = is_op("relax.strided_slice")(stacked_qkv)
+        ops["strided_slice_value"] = value_raw = is_op("relax.strided_slice")(stacked_qkv)
     else:
         raise NotImplementedError()
     query_reshape_list = wildcard()
@@ -242,6 +243,7 @@ def make_stacked_attention_pattern(start_op: str, with_bias: bool = False):
         "query_reshape_list": query_reshape_list,
         "key_reshape_list": key_reshape_list,
         "value_reshape_list": value_reshape_list,
+        **ops,
     }
     if with_bias:
         bias = wildcard()
