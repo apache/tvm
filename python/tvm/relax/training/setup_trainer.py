@@ -50,7 +50,7 @@ class SetupTrainer:
                 ...
                 return backbone_result, updated_states
 
-    Here each of input_instances, parameters, states, backbone_result and output_of_states can
+    Here each of input_instances, parameters, states, backbone_result and updated_states can
     denote a number of parameters. The length of parameters and the length of states is specified
     by param_num and state_num respectively.
 

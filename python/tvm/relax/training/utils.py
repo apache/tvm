@@ -42,14 +42,11 @@ def AppendLoss(
 
     .. code-block:: python
         @R.function
-        def backbone(input_of_backbones, input_of_states):
-            # input_of_backbones, input_of_states denote a number of parameters
-            #
-            # You can return the updated model states in `output_of_states`, such as `running_mean`
-            # and `running_var` in `batch_norm`
-            #
-            # input_of_states, output_of_states can be empty
-            return prediction_outputs, output_of_states
+        def backbone(input_instances, parameters, states):
+            # Predicts the result
+            # Should contain only one DataflowBlock
+            ...
+            return backbone_result, updated_states
 
         @R.function
         def loss(backbone_prediction_outputs, targets):
@@ -57,8 +54,12 @@ def AppendLoss(
             # loss should be a scalar Var
             return loss
 
-    The length of `prediction_outputs` and `backbone_prediction_outputs` is specified by
-    `num_backbone_outputs`.
+    Here each of input_instances, parameters, states, backbone_result and updated_states can
+    denote a number of parameters.
+
+    `states` denote the states that we need to maintain as the training process proceeds, such as
+    the running mean and the running var of the batch norm operator. The updated states is returned
+    in `updated_states`. States can be empty if there is no state that needs to be updated.
 
     The appended result contains only one DataflowBlock containing all bindings in backbone and
     loss. It will be like:

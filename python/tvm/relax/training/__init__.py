@@ -22,4 +22,5 @@ from . import utils
 from . import loss
 
 from .setup_trainer import SetupTrainer
+from .trainer import Trainer
 from .utils import AppendLoss
