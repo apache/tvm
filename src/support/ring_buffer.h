@@ -61,6 +61,9 @@ class RingBuffer {
       if (head_ptr_ + bytes_available_ > old_size) {
         // copy the ring overflow part into the tail.
         size_t ncopy = head_ptr_ + bytes_available_ - old_size;
+        if (old_size + ncopy > ring_.size()) {
+          ring_.resize(old_size + ncopy);
+        }
         memcpy(&ring_[0] + old_size, &ring_[0], ncopy);
       }
     } else if (ring_.size() > n * 8 && ring_.size() > kInitCapacity) {
