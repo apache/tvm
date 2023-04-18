@@ -17,18 +17,54 @@
 # under the License.
 
 import argparse
-import os
 import pickle
 from pathlib import Path
 import csv
 import sys
 from collections import defaultdict
-from typing import Callable, Dict, List, Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(REPO_ROOT / "tests" / "scripts"))
 sys.path.append(str(REPO_ROOT / "tests" / "scripts" / "github"))
 sys.path.append(str(REPO_ROOT / "tests" / "scripts" / "jenkins"))
+
+# Tag dictionary used to create a mapping relation to categorize PRs owning same tag.
+TAG_DICT = {"metaschedule": "MetaSchedule",
+            "cuda": "cuda & cutlass & tensorrt", "cutlass": "cuda & cutlass & tensorrt",
+            "tensorrt": "cuda & cutlass & tensorrt",
+            "ethosn": "Ethosn",
+            "hexagon": "Hexagon",
+            "metal": "metal",
+            "cmsis-nn": "CMSIS-NN",
+            "clml": "OpenCL & CLML", "opencl": "OpenCL & CLML",
+            "adreno": "Adreno",
+            "acl": "ArmComputeLibrary",
+            "rocm": "ROCm",
+            "crt": "CRT",
+            "micronpu": "micoNPU",
+            "microtvm": "microTVM",
+            "web": "web", "wasm": "web",
+            "runtime": "Runtime",
+            "aot": "AOT",
+            "arith": "Arith",
+            "byoc": "BYOC",
+            "community": "Community",
+            "tensorir": "TIR", "tir": "TIR",
+            "tensorflow": "Frontend", "tflite": "Frontend", "paddle": "Frontend",
+            "oneflow": "Frontend", "pytorch": "Frontend", "torch": "Frontend",
+            "keras": "Frontend", "frontend": "Frontend",
+            "onnx": "Frontend",
+            "roofline": "Misc", "rpc": "Misc", "transform": "Misc",
+            "tophub": "Misc", "vta": "Misc", "ux": "Misc", "APP": "Misc",
+            "docker": "Docker",
+            "doc": "Docs", "docs": "Docs",
+            "llvm": "LLVM", "sve": "LLVM",
+            "ci": "CI", "test": "CI", "tests": "CI", "testing": "CI", "unittest": "CI",
+            "bugfix": "BugFix", "fix": "BugFix", "bug": "BugFix", "hotfix": "BugFix",
+            "relay": "Relay",
+            "tvmscript": "TVMScript", "tvmscripts": "TVMScript",
+            "tvmc": "TVMC",
+            "topi": "TOPI",}
 
 
 def strip_header(title: str, header: str) -> str:
@@ -44,10 +80,12 @@ def sprint(*args):
 
 
 def create_pr_dict(cache: Path):
+def create_pr_dict(cache: Path):
     with open(cache, "rb") as f:
         data = pickle.load(f)
 
     sprint(data[1])
+    pr_dict = {}
     pr_dict = {}
     for item in data:
         prs = item["associatedPullRequests"]["nodes"]
@@ -57,8 +95,11 @@ def create_pr_dict(cache: Path):
         pr = prs[0]
         pr_dict[pr["number"]] = pr
     return pr_dict
+        pr_dict[pr["number"]] = pr
+    return pr_dict
 
 
+def categorize_csv_file(csv_path: str):
 def categorize_csv_file(csv_path: str):
     category_dict = {"metaschedule": "MetaSchedule",
                      "cuda": "cuda & cutlass & tensorrt", "cutlass": "cuda & cutlass & tensorrt", "tensorrt": "cuda & cutlass & tensorrt",
@@ -95,13 +136,24 @@ def categorize_csv_file(csv_path: str):
     headings = defaultdict(lambda: defaultdict(list))
     sprint("Opening CSV")
     with open(csv_path) as f:
+    with open(csv_path) as f:
         input_file = csv.DictReader(f)
 
         i = 0
         blank_cate_set = {"Misc"}
+        blank_cate_set = {"Misc"}
         for row in input_file:
             # print(row)
+            # print(row)
             category = row["category"].strip()
+            tags = row["pr_title_tags"].split("/")
+            tags = ["misc"] if len(tags) == 0 else tags
+
+            categories = map(lambda t: TAG_DICT.get(t.lower(), "Misc"), tags)
+            categories = list(categories)
+            categories = list(set(categories) - blank_cate_set)
+            category = "Misc" if len(categories) == 0 else categories[0]
+
             tags = row["pr_title_tags"].split("/")
             tags = ["misc"] if len(tags) == 0 else tags
             categories = map(lambda t: category_dict.get(t.lower(), "Misc"), tags)
@@ -151,7 +203,7 @@ if __name__ == "__main__":
     keys = list(sorted(keys))
     keys = list(sorted(keys, key=sorter))
 
-    # 4. Generate markdown by loop categorized categorized csv file dict
+    # 4. Generate markdown by loop categorized csv file dict
     def pr_title(number, heading):
         # print(f"number:{number}, heading:{heading}, len(pr_dict):{len(pr_dict)}")
         try:
@@ -187,5 +239,6 @@ if __name__ == "__main__":
 
         output += "\n"
 
+    # 5. Print markdown-format output
     # 5. Print markdown-format output
     print(output)

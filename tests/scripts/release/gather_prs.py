@@ -182,6 +182,7 @@ def write_csv(
                     pr["changedFiles"],
                 )
             )
+    print(f"{filename} generated!")
 
 
 if __name__ == "__main__":
