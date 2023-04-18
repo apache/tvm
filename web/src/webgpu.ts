@@ -36,7 +36,7 @@ export interface GPUDeviceDetectOutput {
  */
 export async function detectGPUDevice(): Promise<GPUDeviceDetectOutput | undefined> {
   if (typeof navigator !== "undefined" && navigator.gpu !== undefined) {
-    const adapter = await navigator.gpu.requestAdapter();
+    const adapter = await navigator.gpu.requestAdapter({"powerPreference":"high-performance"});
     if (adapter == null) {
       throw Error("Cannot find adapter that matches the request");
     }
