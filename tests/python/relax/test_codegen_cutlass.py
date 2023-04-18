@@ -744,5 +744,36 @@ def test_stacked_attention_strided_slice_offload(stacked_attention_size):
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
+def test_invalid_residual():
+    @tvm.script.ir_module
+    class Module:
+        @R.function
+        def main(
+            x: R.Tensor((2, 64, 64, 8), dtype="float16"),
+            w: R.Tensor((8, 3, 3, 8), dtype="float16"),
+            bias: R.Tensor((1, 1, 8), dtype="float16"),
+            residual: R.Tensor((2, 1, 1, 8), dtype="float16"),
+        ) -> R.Tensor((1, 256, 64, 64), dtype="float16"):
+            with R.dataflow():
+                conv = R.nn.conv2d(
+                    x,
+                    w,
+                    padding=[1, 1, 1, 1],
+                    out_dtype="float16",
+                    data_layout="NHWC",
+                    kernel_layout="OHWI",
+                )
+                bias_out = R.add(conv, bias)
+                out = R.add(bias_out, residual)
+                R.output(out)
+            return out
+
+    rewritten = partition_for_cutlass(Module)
+    func_names = [gv.name_hint for gv in rewritten.functions.keys()]
+
+    assert "fused_relax_nn_conv2d_relax_add_relax_add_cutlass" not in func_names
+    assert "fused_relax_nn_conv2d_relax_add_cutlass" in func_names
+
+
 if __name__ == "__main__":
     tvm.testing.main()
