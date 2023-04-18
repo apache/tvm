@@ -176,18 +176,21 @@ runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>)> GetRewriter(
         }
       }
 
-      PrimExpr begin{0};
-      Array<PrimExpr> strides{1};
+      int ind = 0;
+      Array<IntImm> sections;
+      for (int i = 0; i < static_cast<int>(indices.size()) - 1; ++i) {
+        auto width = GetTensorSInfo(rhs[i])->GetShape().value()[rhs_dim - 1].as<IntImmNode>();
+        ind += width->value;
+        sections.push_back(IntImm(DataType::Int(64), ind));
+      }
+
       int lhs_dim = GetTensorSInfo(inp)->ndim;
-      int slice_axis = std::max<int>(lhs_dim, rhs_dim) - 1;
+      int split_axis = std::max<int>(lhs_dim, rhs_dim) - 1;
+      auto chunks = split(matmul_combined, sections, split_axis);
 
       for (size_t i = 0; i < indices.size(); ++i) {
-        auto width = GetTensorSInfo(rhs[i])->GetShape().value()[rhs_dim - 1];
         auto bound_var = matchings[pattern_to_replace[indices[i]]];
-        auto slice =
-            strided_slice(matmul_combined, {slice_axis}, {begin}, {begin + width}, strides);
-        replacements.Set(bound_var, slice);
-        begin += width;
+        replacements.Set(bound_var, TupleGetItem(chunks, i));
       }
     }
 
