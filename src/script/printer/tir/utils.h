@@ -201,6 +201,15 @@ ExprDoc BufferDecl(const tir::Buffer& buffer, const String& method, const Array<
 ExprDoc BufferAttn(const tir::Buffer& buffer, const ObjectPath& p, const Frame& frame,
                    const IRDocsifier& d);
 
+/*!
+ * \brief Print the creation of a Var
+ * \param var The Var to be printed
+ * \param var_p The object path of the Var
+ * \param d The IRDocsifier
+ * \return The ExprDoc corresponding to the Var creation
+ */
+ExprDoc PrintVarCreation(const tir::Var& var, const ObjectPath& var_p, const IRDocsifier& d);
+
 /*! \brief A Var occurrence counter visitor */
 class OccurrenceCounter : public tir::StmtExprVisitor {
  public:

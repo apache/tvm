@@ -85,8 +85,8 @@ class ElseBranchStripper : public StmtExprMutator {
  private:
   Stmt VisitStmt_(const IfThenElseNode* op) override {
     IfThenElse ret = Downcast<IfThenElse>(StmtExprMutator::VisitStmt_(op));
-    auto as_eval = ret->else_case.as<EvaluateNode>();
-    if (as_eval && new_else_clauses_.count(GetRef<Evaluate>(as_eval))) {
+    if (auto as_eval = ret->else_case.as<Evaluate>();
+        as_eval && new_else_clauses_.count(as_eval.value())) {
       return IfThenElse(ret->condition, ret->then_case);
     } else {
       return std::move(ret);

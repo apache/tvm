@@ -54,6 +54,19 @@ class Matmul:
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 
+@tvm.script.ir_module
+class FullModule:
+    @T.prim_func
+    def main(T_full: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
+            with T.block("T_full"):
+                v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                T.reads()
+                T.writes(T_full[v_ax0, v_ax1])
+                T_full[v_ax0, v_ax1] = T.float32(1)
+
+
 # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,disable=unused-argument
 
 
@@ -163,6 +176,19 @@ def test_meta_schedule_xgb_model():
         [_dummy_result() for i in range(update_sample_count)],
     )
     model.predict(TuneContext(), [_dummy_candidate() for i in range(predict_sample_count)])
+
+
+def test_meta_schedule_xgb_model_no_feature():
+    model = XGBModel(num_warmup_samples=0)
+    tune_ctx = TuneContext(
+        FullModule,
+        target="llvm --num-cores 16",
+        space_generator="post-order-apply",
+        search_strategy="evolutionary",
+    )
+    candidate = MeasureCandidate(Schedule(FullModule), [])
+    model.update(tune_ctx, [candidate], [_dummy_result()])
+    model.predict(tune_ctx, [candidate])
 
 
 def test_meta_schedule_xgb_model_reload():

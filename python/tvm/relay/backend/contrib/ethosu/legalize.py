@@ -626,6 +626,7 @@ class PoolingRewriter(DFPatternCallback):
             ofm_zero_point=params.ofm.q_params.zero_point,
             pool_shape=params.pool_shape,
             ofm_channels=params.ofm.shape[channels_map[str(params.ofm.layout)]],
+            ofm_dtype=params.ofm.dtype,
             strides=params.strides,
             padding=params.padding,
             activation=activation,
@@ -975,10 +976,8 @@ class AbsRewriter(UnaryElementwiseRewriter):
 
 class MeanRewriter(DFPatternCallback):
     """Convert ethosu.mean composite functions to an equivalent legalization:
-    - Case 1 (axis == [1, 2] and keepsdims == True):
-        ethosu_depthwise_conv2d + ethosu_binary_elementwise
-    - Case 2 (ifm qparams == ofm qparams): ethosu_pooling
-    - Case 3 (else): ethosu_depthwise_conv2d
+    - Case 1 (ifm qparams == ofm qparams): ethosu_pooling
+    - Case 2 (else): ethosu_depthwise_conv2d
     """
 
     def __init__(self):
@@ -1021,56 +1020,7 @@ class MeanRewriter(DFPatternCallback):
             filter_height = 1
             reduced_op = relay.reshape(reduced_op, ifm_shape)
 
-        if axis == [1, 2] and params.keepdims:
-            weight_scale = 1
-            weight_values = np.ones([out_channels, filter_height, filter_width, 1])
-            scale_bias = vela_api.pack_biases(
-                biases=np.zeros(ifm_shape[-1]),
-                ifm_scale=params.ifm.q_params.scale_f32,
-                ifm_dtype=np.dtype(params.ifm.dtype),
-                weight_scales=np.array([weight_scale], dtype=np.float),
-                ofm_scale=params.ofm.q_params.scale_f32,
-                is_activation_tanh_or_sigmoid=False,
-            )
-
-            reduced_op = ethosu_ops.ethosu_depthwise_conv2d(
-                ifm=reduced_op,
-                weight=relay.const(weight_values, params.ifm.dtype),
-                scale_bias=relay.const(scale_bias, "uint8"),
-                lut=lut,
-                ifm_scale=float(params.ifm.q_params.scale_f32),
-                ifm_zero_point=int(params.ifm.q_params.zero_point),
-                weight_zero_point=0,
-                ofm_scale=float(params.ofm.q_params.scale_f32),
-                ofm_zero_point=int(params.ofm.q_params.zero_point),
-                kernel_shape=(filter_height, filter_width),
-                ofm_channels=out_channels,
-                ofm_dtype="int16",
-            )
-
-            n = int(filter_height * filter_width)
-            eps = 1 / (256 * (n + 1)) if n % 2 == 0 else 0
-
-            scalar_tensor = relay.const(np.ones([1, 1, 1, 1], dtype="int16"), dtype="int16")
-
-            reduced_op = ethosu_ops.ethosu_binary_elementwise(
-                ifm=reduced_op,
-                ifm2=scalar_tensor,
-                lut=lut,
-                operator_type="MUL",
-                ifm_scale=float(params.ofm.q_params.scale_f32),
-                ifm_zero_point=int(params.ofm.q_params.zero_point),
-                ifm2_scale=1 / (n - eps),
-                ifm2_zero_point=0,
-                ofm_scale=float(params.ofm.q_params.scale_f32),
-                ofm_zero_point=int(params.ofm.q_params.zero_point),
-                ifm_channels=out_channels,
-                ifm2_channels=out_channels,
-                reversed_operands=False,
-                ofm_dtype="int8",
-                rounding_mode="NATURAL",
-            )
-        elif (
+        if (
             params.ifm.q_params.scale_f32 == params.ofm.q_params.scale_f32
             and params.ifm.q_params.zero_point == params.ofm.q_params.zero_point
         ):
@@ -1084,6 +1034,7 @@ class MeanRewriter(DFPatternCallback):
                 ofm_zero_point=0,
                 pool_shape=(filter_height, filter_width),
                 ofm_channels=out_channels,
+                ofm_dtype=params.ofm.dtype,
                 rounding_mode="TRUNCATE",
             )
         else:
@@ -1112,6 +1063,7 @@ class MeanRewriter(DFPatternCallback):
                 kernel_shape=(filter_height, filter_width),
                 ofm_channels=out_channels,
                 rounding_mode="NATURAL",
+                ofm_dtype=params.ofm.dtype,
             )
 
         # Reshape to original ofm shape
@@ -1168,6 +1120,7 @@ class SumRewriter(DFPatternCallback):
             ofm_zero_point=0,
             pool_shape=(1, 1),
             ofm_channels=1,
+            ofm_dtype="int32",
             activation=activation,
             clip_min=clip_min,
             clip_max=clip_max,
@@ -1319,6 +1272,7 @@ class Resize2dRewriter(DFPatternCallback):
             ofm_zero_point=int(params.ofm.q_params.zero_point),
             pool_shape=pool_shape,
             ofm_channels=in_channels,
+            ofm_dtype=params.ofm.dtype,
             strides=[1, 1],
             padding=padding,
             upscale="NEAREST",

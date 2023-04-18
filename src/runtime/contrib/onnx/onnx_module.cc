@@ -35,6 +35,9 @@ class ONNXSourceModuleNode : public runtime::ModuleNode {
       : code_(code), symbol_(symbol), const_vars_(const_vars) {}
   const char* type_key() const { return "onnx"; }
 
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final { return ModulePropertyMask::kRunnable; };
+
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "get_symbol") {
       return PackedFunc(

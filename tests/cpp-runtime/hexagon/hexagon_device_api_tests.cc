@@ -134,6 +134,9 @@ TEST_F(HexagonDeviceAPITest, alloc_scalar) {
 
   void* hexscalar = hexapi->AllocDataSpace(hex_dev, 0, new int64_t, int8, global_vtcm_scope);
   CHECK(hexscalar != nullptr);
+
+  hexscalar = hexapi->AllocDataSpace(hex_dev, 0, nullptr, int8, global_vtcm_scope);
+  CHECK(hexscalar != nullptr);
 }
 
 // alloc and free of the same buffer on different devices should throw

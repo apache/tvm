@@ -464,8 +464,8 @@ def _conv(opname):
             if opname == "conv":
                 attr["kernel_layout"] = "HWIO" if attr["data_format"] == "NHWC" else "OIHW"
             elif opname == "conv_transpose":
-                # conv_transpose in TVM has weights be IOHW for NCHW
-                attr["kernel_layout"] = "HWIO" if attr["data_format"] == "NHWC" else "IOHW"
+                # conv_transpose has weights be IOHW, because the attr["data_format"] always be NCHW
+                attr["kernel_layout"] = "IOHW"
             else:
                 attr["kernel_layout"] = "HWOI" if attr["data_format"] == "NHWC" else "OIHW"
 
@@ -693,7 +693,10 @@ def _conv3d(opname):
             raise tvm.error.OpAttributeInvalid(msg.format(attr["padding"]))
 
         if "kernel_layout" not in attr:
-            attr["kernel_layout"] = "DHWIO" if attr["data_format"] == "NDHWC" else "OIDHW"
+            if opname == "conv":
+                attr["kernel_layout"] = "DHWIO" if attr["data_format"] == "NDHWC" else "OIDHW"
+            elif opname == "conv_transpose":
+                attr["kernel_layout"] = "DHWOI" if attr["data_format"] == "NDHWC" else "IODHW"
 
         use_bias = len(inputs) == (3 if opname != "conv_transpose" else 4)
         channel_axis = 1 if attr["data_format"] == "NCDHW" else 4

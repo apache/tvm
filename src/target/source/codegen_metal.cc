@@ -130,12 +130,14 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
   ICHECK_EQ(name_supply_->FreshName("threadIdx"), "threadIdx");
   ICHECK_EQ(name_supply_->FreshName("blockIdx"), "blockIdx");
   int work_dim = 0;
-  auto thread_axis = f->GetAttr<Array<tir::IterVar>>(tir::attr::kDeviceThreadAxis).value();
-
-  for (IterVar iv : thread_axis) {
-    runtime::ThreadScope scope = runtime::ThreadScope::Create(iv->thread_tag);
-    work_dim = std::max(work_dim, scope.dim_index + 1);
+  auto launch_params = f->GetAttr<Array<String>>(tir::attr::kKernelLaunchParams).value();
+  for (const auto& tag : launch_params) {
+    if (tag != runtime::launch_param::kUseDynamicSharedMemoryTag) {
+      runtime::ThreadScope scope = runtime::ThreadScope::Create(tag);
+      work_dim = std::max(work_dim, scope.dim_index + 1);
+    }
   }
+
   if (work_dim != 0) {
     // use ushort by default for now
     stream << "  ";
@@ -145,16 +147,8 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
     PrintType(DataType::UInt(thread_index_bits_, work_dim), stream);
     stream << " threadIdx [[thread_position_in_threadgroup]]\n";
   }
-  // bind thread axis
-  for (IterVar iv : thread_axis) {
-    ICHECK(!var_idmap_.count(iv->var.get()));
-    std::string vname = iv->thread_tag;
-    if (work_dim <= 1) {
-      vname = vname.substr(0, iv->thread_tag.length() - 2);
-    }
-    var_idmap_[iv->var.get()] =
-        CastFromTo(vname, DataType::UInt(thread_index_bits_), iv->var.dtype());
-  }
+  thread_work_dim_ = work_dim;
+
   // the function scope.
   stream << ") {\n";
   int func_scope = this->BeginScope();
@@ -166,8 +160,14 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
 
 void CodeGenMetal::BindThreadIndex(const IterVar& iv) {
   ICHECK(!var_idmap_.count(iv->var.get()));
+  // if we only have threadIdx.x
+  // metal will directly print as threadIdx
+  std::string vname = iv->thread_tag;
+  if (thread_work_dim_ <= 1) {
+    vname = vname.substr(0, iv->thread_tag.length() - 2);
+  }
   var_idmap_[iv->var.get()] =
-      CastFromTo(iv->thread_tag, DataType::UInt(thread_index_bits_), iv->var.dtype());
+      CastFromTo(vname, DataType::UInt(thread_index_bits_), iv->var.dtype());
 }
 
 void CodeGenMetal::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
@@ -358,7 +358,11 @@ runtime::Module BuildMetal(IRModule mod, Target target) {
     code << fsource;
   }
 
-  return MetalModuleCreate(code.str(), fmt, ExtractFuncInfo(mod), source.str());
+  std::string code_str = code.str();
+  if (const auto* f = Registry::Get("tvm_callback_metal_postproc")) {
+    code_str = (*f)(code_str).operator std::string();
+  }
+  return MetalModuleCreate(code_str, fmt, ExtractFuncInfo(mod), source.str());
 }
 
 TVM_REGISTER_GLOBAL("target.build.metal").set_body_typed(BuildMetal);

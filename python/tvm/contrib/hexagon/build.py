@@ -29,6 +29,7 @@ import stat
 import random
 import string
 import subprocess
+import sys
 import tempfile
 from typing import Union
 
@@ -87,6 +88,67 @@ def _get_test_directory_name() -> str:
     date_str = datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
     random_str = "".join(random.choice(string.ascii_lowercase) for _ in range(10))
     return f"{date_str}-{random_str}"
+
+
+def _get_adb_path() -> str:
+    """Define path to adb
+
+    Order of search:
+      1. From PATH
+      2. From ANDROID_SDK_ROOT
+      3. From ANDROID_HOME
+      3. From default android sdk installation directory (platform specific)
+    """
+
+    def check_execution(exe_path):
+        try:
+            ret_code = subprocess.call(
+                [exe_path, "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
+        except FileNotFoundError:
+            ret_code = -1
+
+        return ret_code == 0
+
+    # Check if adb available via PATH
+    if check_execution("adb"):
+        return "adb"
+
+    # Check if adb available via env vars or default directories
+    list_of_paths = [
+        os.environ.get("ANDROID_SDK_ROOT", default=""),
+        os.environ.get("ANDROID_HOME", default=""),
+    ]
+
+    if sys.platform == "darwin":
+        list_of_paths += [
+            os.path.join(pathlib.Path.home(), "Library", "Android", "sdk", "platform-tools")
+        ]
+    if sys.platform == "win32":
+        list_of_paths += [
+            os.path.join(
+                pathlib.Path.home(), "AppData", "Local", "Android", "sdk", "platform-tools"
+            )
+        ]
+    if sys.platform == "linux":
+        list_of_paths += [os.path.join(pathlib.Path.home(), "Android", "Sdk", "platform-tools")]
+
+    list_of_paths = [path for path in list_of_paths if path != ""]
+
+    found_path = None
+    for candidate_path in list_of_paths:
+        adb_path = os.path.join(candidate_path, "adb")
+        if os.path.isfile(adb_path) and check_execution(adb_path):
+            found_path = adb_path
+            break
+
+    if found_path is None:
+        raise RuntimeError(
+            "ADB was not found. It should be available via PATH, ANDROID_SDK_ROOT "
+            "or ANDROID_HOME env var."
+        )
+
+    return found_path
 
 
 class HexagonLauncherRPC(metaclass=abc.ABCMeta):
@@ -301,7 +363,8 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         assert self._serial_number != "", "Android serial number is not set."
 
         adb_socket = rpc_info["adb_server_socket"] if rpc_info["adb_server_socket"] else "tcp:5037"
-        self._adb_device_sub_cmd = ["adb", "-L", adb_socket, "-s", self._serial_number]
+        adb_exe = _get_adb_path()
+        self._adb_device_sub_cmd = [adb_exe, "-L", adb_socket, "-s", self._serial_number]
         self.forwarded_ports_ = []
         self._hexagon_debug = hexagon_debug
         self._clear_logcat = clear_logcat

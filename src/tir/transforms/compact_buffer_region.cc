@@ -54,7 +54,14 @@ Region SimplifyAndNarrowBufferRegionFromNDIntSet(
     const arith::IntSet& int_set = nd_int_set[i];
     Range range = int_set.CoverRange(Range(/*begin=*/0, /*end=*/original_shape[i]));
     PrimExpr min = analyzer->Simplify(tvm::max(0, range->min));
-    PrimExpr extent = analyzer->Simplify(tvm::min(original_shape[i], range->extent));
+    PrimExpr extent = range->extent;
+
+    // Apply stronger symbolic proof to help us remove symbolic min here.
+    if (!analyzer->CanProveLessEqualThanSymbolicShapeValue(range->extent, original_shape[i])) {
+      extent = tvm::min(original_shape[i], range->extent);
+    }
+
+    extent = analyzer->Simplify(extent);
 
     // Check the buffer region is not loop dependent, since loop dependent
     // allocation is not supported yet.
@@ -89,6 +96,7 @@ NDIntSet NDIntSetEval(Region region, PrimExpr predicate,
   }
   Optional<Array<arith::IntSet>> eval_res =
       arith::EstimateRegionUpperBound(region, var_dom, predicate, analyzer);
+
   if (eval_res.defined()) {
     return NDIntSet(eval_res.value().begin(), eval_res.value().end());
   }
@@ -133,14 +141,6 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   }
 
   void VisitExpr_(const VarNode* op) final { VisitBufferVar(GetRef<Var>(op)); }
-
-  void VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
-
-  void VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
 
   void VisitStmt_(const ForNode* op) final {
     ancestor_loops_.push_back(op);
@@ -211,8 +211,9 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   }
 
   void VisitStmt_(const BlockNode* op) final {
-    // Step 0. Check there is no init part.
+    // Step 0. Check there is no init part and block is opaque
     ICHECK(!op->init.defined());
+    ICHECK_EQ(op->iter_vars.size(), 0) << "CompactBufferRegion only works on opaque blocks";
     // Step 1. Record and update current read/write region annotations
     std::unordered_map<Buffer, std::vector<BufferRegion>, ObjectPtrHash, ObjectPtrEqual>
         cur_access_annotations;
@@ -289,6 +290,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       // Step 2. Relax the access region
       NDIntSet nd_int_set =
           NDIntSetEval(buffer_region->region, predicate_in_scope, dom_map_, &dom_analyzer_);
+
       // Step 3. Restore the non-relaxed ancestor loops domain
       for (size_t i = 0; i < n_ancestor_loops; ++i) {
         const VarNode* v = ancestor_loops_[i]->loop_var.get();

@@ -62,8 +62,9 @@ class Stage : public ObjectRef {
   /*!
    * \brief create a new schedule for op.
    * \param op The operator in the schedule
+   * \param sch The schedule which current stage belongs to
    */
-  explicit Stage(Operation op);
+  explicit Stage(Operation op, const ScheduleNode* sch);
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -446,6 +447,26 @@ class Schedule : public ObjectRef {
 };
 
 /*!
+ * \brief Context helper to collect debug information of Schedule.
+ *
+ *  Attach With<ScheduleContext>(schedule_instance, primitive_name)
+ *  inside function body of schedule primitives to collect the
+ *  snapshot of schedule status and corresponding primitive name
+ */
+class ScheduleContext {
+ private:
+  friend class With<ScheduleContext>;
+  ScheduleContext(const ScheduleNode* sch_node, String current_primitive_name);
+  void EnterWithScope();
+  void ExitWithScope();
+
+  /*! \brief Schedule instance to store information for debug */
+  Schedule sch_;
+  /*! \brief String representing which primitive has been applied to sch_ */
+  String current_primitive_name_;
+};
+
+/*!
  * \brief The schedule relation between IterVars
  *  can be Split, Fuse.
  */
@@ -546,6 +567,8 @@ class StageNode : public Object {
   IterVar attach_ivar;
   /*! \brief The stage this node attaches to */
   Stage attach_stage;
+  /*! \brief The schedule current stage is attached to */
+  const ScheduleNode* attach_sch;
   /*! \brief The thread storage scope level of the stage */
   std::string scope;
   /*! \brief Whether this is an output stage */
@@ -615,12 +638,30 @@ class ScheduleNode : public Object {
    *  This is created on demand and can be invalidated.
    */
   std::unordered_map<const Object*, Stage> op2stage_cache_;
+  /*!
+   * \brief list of all transformed schedules
+   * User can display the optimization strategy via TEDD step by step to check
+   * the order and effect of primitives. Set "te.keep_schedule_record" in
+   * PassContext config as true to enable recording.
+   */
+  Array<Schedule> schedule_record;
+  /*!
+   * \brief list of all applied primitive names.
+   */
+  Array<String> primitive_record;
+  /*!
+   * \brief Flag to keep schedule record or not.
+   */
+  Optional<Bool> keep_schedule_record;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("outputs", &outputs);
     v->Visit("stages", &stages);
     v->Visit("groups", &groups);
     v->Visit("stage_map", &stage_map);
+    v->Visit("schedule_record", &schedule_record);
+    v->Visit("primitive_record", &primitive_record);
+    v->Visit("keep_schedule_record", &keep_schedule_record);
   }
 
   /*! \brief Initialize temp cache. */

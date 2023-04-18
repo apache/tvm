@@ -39,10 +39,8 @@ class UpdatePointerStorageScope : public StmtExprMutator {
       const std::unordered_map<const VarNode*, String>& new_storage_scopes);
 
   virtual PrimExpr VisitExpr_(const VarNode*);
-  virtual PrimExpr VisitExpr_(const LoadNode*);
   virtual PrimExpr VisitExpr_(const BufferLoadNode*);
   virtual Stmt VisitStmt_(const AllocateNode*);
-  virtual Stmt VisitStmt_(const StoreNode*);
   virtual Stmt VisitStmt_(const BufferStoreNode*);
 
  private:

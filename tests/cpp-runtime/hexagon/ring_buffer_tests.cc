@@ -40,7 +40,7 @@ class RingBufferTest : public ::testing::Test {
 
   int finished = 42;
   int inflight = 43;
-  uint32_t size = 4;
+  uint32_t size = 8;
   uint32_t half = size / 2;
   RingBuffer<int>* ring_buff = nullptr;
 };
@@ -160,11 +160,11 @@ TEST_F(RingBufferTest, half_in_flight) {
 
   // mark it inflight and check
   *ptr = inflight;
-  ASSERT_EQ(ring_buff->InFlight(), 3);
+  ASSERT_EQ(ring_buff->InFlight(), half + 1);
 
   // mark it finished and check also blocked
   *ptr = finished;
-  ASSERT_EQ(ring_buff->InFlight(), 3);
+  ASSERT_EQ(ring_buff->InFlight(), half + 1);
 }
 
 TEST_F(RingBufferTest, half_in_flight_blocked) {
@@ -190,12 +190,22 @@ TEST_F(RingBufferTest, half_in_flight_blocked) {
 }
 
 class QueuedRingBufferTest : public RingBufferTest {
-  void SetUp() override { queued_ring_buff = new QueuedRingBuffer<int>(size, in_flight); }
+  void SetUp() override {
+    queued_ring_buff = new QueuedRingBuffer<int>(MAX_QUEUES, size, in_flight);
+  }
   void TearDown() override { delete queued_ring_buff; }
 
  public:
+  int MAX_QUEUES = 2;
   QueuedRingBuffer<int>* queued_ring_buff = nullptr;
 };
+
+TEST_F(QueuedRingBufferTest, invalid_queue) {
+  ASSERT_THROW(queued_ring_buff->Next(MAX_QUEUES), InternalError);
+  ASSERT_THROW(queued_ring_buff->InFlight(MAX_QUEUES), InternalError);
+  ASSERT_THROW(queued_ring_buff->StartGroup(MAX_QUEUES), InternalError);
+  ASSERT_THROW(queued_ring_buff->EndGroup(MAX_QUEUES), InternalError);
+}
 
 TEST_F(QueuedRingBufferTest, two_queues) {
   int* q0 = queued_ring_buff->Next(0);
@@ -213,6 +223,191 @@ TEST_F(QueuedRingBufferTest, two_queues) {
   ASSERT_EQ(queued_ring_buff->InFlight(1), 1);
 
   *q1 = finished;
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 0);
+  ASSERT_EQ(queued_ring_buff->InFlight(1), 0);
+}
+
+TEST_F(QueuedRingBufferTest, group_end_before_group_start) {
+  ASSERT_THROW(queued_ring_buff->EndGroup(0), InternalError);
+}
+
+TEST_F(QueuedRingBufferTest, group_restart) {
+  queued_ring_buff->StartGroup(0);
+  ASSERT_THROW(queued_ring_buff->StartGroup(0), InternalError);
+}
+
+TEST_F(QueuedRingBufferTest, zero_size_group) {
+  queued_ring_buff->StartGroup(0);
+  ASSERT_THROW(queued_ring_buff->EndGroup(0), InternalError);
+}
+
+TEST_F(QueuedRingBufferTest, in_flight_before_group_end) {
+  queued_ring_buff->StartGroup(0);
+  ASSERT_THROW(queued_ring_buff->InFlight(0), InternalError);
+}
+
+TEST_F(QueuedRingBufferTest, group_of_one) {
+  queued_ring_buff->StartGroup(0);
+  int* g0_0 = queued_ring_buff->Next(0);
+  *g0_0 = inflight;
+  queued_ring_buff->EndGroup(0);
+
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 1);
+  *g0_0 = finished;
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 0);
+}
+
+TEST_F(QueuedRingBufferTest, group_of_two) {
+  queued_ring_buff->StartGroup(0);
+  int* g0_0 = queued_ring_buff->Next(0);
+  *g0_0 = inflight;
+  int* g0_1 = queued_ring_buff->Next(0);
+  *g0_1 = inflight;
+  queued_ring_buff->EndGroup(0);
+
+  // neither done => group in flight
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 1);
+
+  // half done => group in flight
+  *g0_0 = finished;
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 1);
+
+  // both done => group finished
+  *g0_1 = finished;
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 0);
+}
+
+TEST_F(QueuedRingBufferTest, group_of_three) {
+  queued_ring_buff->StartGroup(0);
+  int* g0_0 = queued_ring_buff->Next(0);
+  *g0_0 = inflight;
+  int* g0_1 = queued_ring_buff->Next(0);
+  *g0_1 = inflight;
+  int* g0_2 = queued_ring_buff->Next(0);
+  *g0_2 = inflight;
+  queued_ring_buff->EndGroup(0);
+
+  // neither done => group in flight
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 1);
+
+  // 1/3 done => group in flight
+  *g0_0 = finished;
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 1);
+
+  // 2/3 done => group in flight
+  *g0_1 = finished;
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 1);
+
+  // all done => group finished
+  *g0_2 = finished;
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 0);
+}
+
+TEST_F(QueuedRingBufferTest, two_groups_of_two) {
+  queued_ring_buff->StartGroup(0);
+  int* g0_0 = queued_ring_buff->Next(0);
+  *g0_0 = inflight;
+  int* g0_1 = queued_ring_buff->Next(0);
+  *g0_1 = inflight;
+  queued_ring_buff->EndGroup(0);
+
+  queued_ring_buff->StartGroup(0);
+  int* g1_0 = queued_ring_buff->Next(0);
+  *g1_0 = inflight;
+  int* g1_1 = queued_ring_buff->Next(0);
+  *g1_1 = inflight;
+  queued_ring_buff->EndGroup(0);
+
+  // two groups in flight
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 2);
+
+  // group 0 half done => two groups in flight
+  *g0_0 = finished;
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 2);
+
+  // group 0 done => one group in flight
+  *g0_1 = finished;
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 1);
+
+  // group 1 half done => one group in flight
+  *g1_0 = finished;
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 1);
+
+  // group 1 done => zero groups in flight
+  *g1_1 = finished;
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 0);
+}
+
+TEST_F(QueuedRingBufferTest, two_queues_two_groups_of_two) {
+  queued_ring_buff->StartGroup(0);
+  int* q0g0_0 = queued_ring_buff->Next(0);
+  *q0g0_0 = inflight;
+  int* q0g0_1 = queued_ring_buff->Next(0);
+  *q0g0_1 = inflight;
+  queued_ring_buff->EndGroup(0);
+
+  queued_ring_buff->StartGroup(1);
+  int* q1g0_0 = queued_ring_buff->Next(1);
+  *q1g0_0 = inflight;
+  int* q1g0_1 = queued_ring_buff->Next(1);
+  *q1g0_1 = inflight;
+  queued_ring_buff->EndGroup(1);
+
+  queued_ring_buff->StartGroup(0);
+  int* q0g1_0 = queued_ring_buff->Next(0);
+  *q0g1_0 = inflight;
+  int* q0g1_1 = queued_ring_buff->Next(0);
+  *q0g1_1 = inflight;
+  queued_ring_buff->EndGroup(0);
+
+  queued_ring_buff->StartGroup(1);
+  int* q1g1_0 = queued_ring_buff->Next(1);
+  *q1g1_0 = inflight;
+  int* q1g1_1 = queued_ring_buff->Next(1);
+  *q1g1_1 = inflight;
+  queued_ring_buff->EndGroup(1);
+
+  // two queues with two groups in flight each
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 2);
+  ASSERT_EQ(queued_ring_buff->InFlight(1), 2);
+
+  // queue 0 group 0 half done => no change
+  *q0g0_0 = finished;
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 2);
+  ASSERT_EQ(queued_ring_buff->InFlight(1), 2);
+
+  // queue 0 group 0 done => queue 0 with one group in flight
+  *q0g0_1 = finished;
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 1);
+  ASSERT_EQ(queued_ring_buff->InFlight(1), 2);
+
+  // queue 1 group 0 half done => no change
+  *q1g0_0 = finished;
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 1);
+  ASSERT_EQ(queued_ring_buff->InFlight(1), 2);
+
+  // queue 1 group 0 done => queue 1 with one group in flight
+  *q1g0_1 = finished;
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 1);
+  ASSERT_EQ(queued_ring_buff->InFlight(1), 1);
+
+  // queue 0 group 1 half done => no change
+  *q0g1_0 = finished;
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 1);
+  ASSERT_EQ(queued_ring_buff->InFlight(1), 1);
+
+  // queue 0 group 1 done => queue 0 with zero groups in flight
+  *q0g1_1 = finished;
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 0);
+  ASSERT_EQ(queued_ring_buff->InFlight(1), 1);
+
+  // queue 1 group 1 half done => no change
+  *q1g1_0 = finished;
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 0);
+  ASSERT_EQ(queued_ring_buff->InFlight(1), 1);
+
+  // queue 1 group 1 done => queue 1 with zero groups in flight
+  *q1g1_1 = finished;
   ASSERT_EQ(queued_ring_buff->InFlight(0), 0);
   ASSERT_EQ(queued_ring_buff->InFlight(1), 0);
 }

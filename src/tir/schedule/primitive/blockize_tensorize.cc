@@ -288,7 +288,7 @@ BlockRealize GenerateInner(bool is_write_reduction,
 Stmt GenerateOuterInit(const Stmt& block_init, const BlockRealize& inner_realize,
                        const std::vector<const ForNode*>& loops, String block_name) {
   const Block& inner_block = inner_realize->block;
-  Map<Var, PrimExpr> subst_map;
+  Map<Var, Var> subst_map;
   // Step 1: Create new block vars for the block inside the init stmt of outer block
   // A iter is used in the block if
   // 1) It is data parallel
@@ -654,10 +654,10 @@ struct TensorizeTraits : public UnpackedInstTraits<TensorizeTraits> {
 
   static void UnpackedApplyToSchedule(Schedule sch, ObjectRef block_or_loop_rv, String intrin,
                                       Bool preserve_unit_iters) {
-    if (const auto* block = block_or_loop_rv.as<BlockRVNode>()) {
-      sch->Tensorize(GetRef<BlockRV>(block), intrin, preserve_unit_iters.operator bool());
-    } else if (const auto* loop = block_or_loop_rv.as<LoopRVNode>()) {
-      sch->Tensorize(GetRef<LoopRV>(loop), intrin, preserve_unit_iters.operator bool());
+    if (auto block = block_or_loop_rv.as<BlockRV>()) {
+      sch->Tensorize(block.value(), intrin, preserve_unit_iters.operator bool());
+    } else if (auto loop = block_or_loop_rv.as<LoopRV>()) {
+      sch->Tensorize(loop.value(), intrin, preserve_unit_iters.operator bool());
     } else {
       LOG(FATAL) << "TypeError: Expected Block or Loop, but gets: "
                  << block_or_loop_rv->GetTypeKey();

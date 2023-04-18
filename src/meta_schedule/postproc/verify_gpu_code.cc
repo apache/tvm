@@ -131,8 +131,8 @@ class VerifyGPUCodeNode : public PostprocNode {
 
   bool Verify(const IRModule& mod) const {
     for (const auto& kv : mod->functions) {
-      if (const auto* prim_func = kv.second.as<tir::PrimFuncNode>()) {
-        if (!tir::VerifyGPUCode(GetRef<tir::PrimFunc>(prim_func), this->target_constraints_)) {
+      if (auto prim_func = kv.second.as<tir::PrimFunc>()) {
+        if (!tir::VerifyGPUCode(prim_func.value(), this->target_constraints_)) {
           return false;
         }
       }
@@ -162,12 +162,14 @@ class VerifyGPUCodeNode : public PostprocNode {
           pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());
           pass_list.push_back(tir::transform::ConvertBlocksToOpaque());
           pass_list.push_back(tir::transform::UnifyThreadBinding());
+          pass_list.push_back(tir::transform::ManifestSharedMemoryLocalStage());
           pass_list.push_back(tir::transform::CompactBufferAllocation());
+          pass_list.push_back(tir::transform::LowerAutoCopy());
           pass_list.push_back(tir::transform::LowerMatchBuffer());
           pass_list.push_back(tir::transform::InjectSoftwarePipeline());
           pass_list.push_back(tir::transform::LowerOpaqueBlock());
           pass_list.push_back(tir::transform::FlattenBuffer());
-          pass_list.push_back(tir::transform::BF16Legalize());
+          pass_list.push_back(tir::transform::BF16ComputeLegalize());
           pass_list.push_back(tir::transform::NarrowDataType(32));
           pass_list.push_back(tir::transform::Simplify());
           // Phase 2

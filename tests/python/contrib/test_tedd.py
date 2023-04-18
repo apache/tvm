@@ -16,8 +16,12 @@
 # under the License.
 import re
 
+import tvm
 from tvm import te
 from tvm import topi
+from tvm import relay
+from tvm.relay import testing
+from tvm.relay.backend import Runtime, Executor
 
 
 def findany(pattern, str):
@@ -79,8 +83,8 @@ def test_itervar_relationship_graph():
         findany(r"subgraph cluster_Stage_0", str)
         findany(r"subgraph cluster_Stage_1", str)
         # Check itervars and their types
-        findany(r"\(kDataPar\)\<br/\>range\(min=0, ext=n\)", str)
-        findany(r"\(kCommReduce\)\<br/\>range\(min=0, ext=m\)", str)
+        findany(r"\(kDataPar\)\<br/\>T.Range\(0, n\)", str)
+        findany(r"\(kCommReduce\)\<br/\>T.Range\(0, m\)", str)
         # Check the split node
         findany(r"Split_Relation_1_0 +.+\>Split", str)
         # Check all edges to/from the split node
@@ -144,7 +148,57 @@ def test_schedule_tree():
         verify()
 
 
+@tvm.testing.requires_llvm
+def test_tedd_with_schedule_record():
+    """Test to build a nn model and check if all schedules could be generated"""
+
+    def check_schedule(executor):
+        from tvm.contrib import tedd
+
+        error = {}
+        for func_name, func_meta in executor.function_metadata.items():
+            # check converted op only
+            if "main" not in func_name:
+                primfunc = list(func_meta.relay_primfuncs.values())[0]
+                schs = primfunc.attrs["schedule"].schedule_record
+                for index in range(len(schs)):
+                    try:
+                        sch = schs[index].normalize()
+                        tedd.viz_dataflow_graph(sch, False, "", True)
+                        tedd.viz_itervar_relationship_graph(sch, False, "", True)
+                        tedd.viz_schedule_tree(sch, False, "", True)
+                    except:
+                        if func_name not in error:
+                            error[func_name] = []
+                        error[func_name].append(index)
+
+        assert error == {}, str(error)
+
+    if checkdependency():
+        relay_mod, params = testing.mobilenet.get_workload(batch_size=1, dtype="float32")
+        target_llvm = tvm.target.Target("llvm")
+        config = {"te.keep_schedule_record": True}
+
+        with tvm.transform.PassContext(opt_level=3, config=config):
+            aot_executor_factory = relay.build(
+                relay_mod,
+                target_llvm,
+                runtime=Runtime("cpp"),
+                executor=Executor("aot"),
+                params=params,
+            )
+            graph_executor_factory = relay.build(
+                relay_mod,
+                target_llvm,
+                params=params,
+            )
+
+        check_schedule(aot_executor_factory)
+        check_schedule(graph_executor_factory)
+
+
 if __name__ == "__main__":
     test_dfg()
     test_itervar_relationship_graph()
     test_schedule_tree()
+    test_tedd_with_schedule_record()

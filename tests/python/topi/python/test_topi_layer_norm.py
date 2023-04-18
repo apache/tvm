@@ -55,7 +55,7 @@ def test_layer_norm(target, dev, shape, axis, episilon=1e-5, dtype="float32", rt
     b_tvm = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), dev)
     f = tvm.build(s, [data, gamma, beta, B], target)
     f(data_tvm, gamma_tvm, beta_tvm, b_tvm)
-    tvm.testing.assert_allclose(b_tvm.asnumpy(), b_np, rtol=rtol, atol=atol)
+    tvm.testing.assert_allclose(b_tvm.numpy(), b_np, rtol=rtol, atol=atol)
 
 
 if __name__ == "__main__":

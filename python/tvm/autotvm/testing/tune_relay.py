@@ -212,7 +212,7 @@ def main():
             if ARGS.num_trials > 0:
                 for i, task in enumerate(tasks):
                     prefix = "[Task %2d/%2d] " % (i + 1, len(tasks))
-                    tuner_obj = XGBTuner(task, loss_type="rank")
+                    tuner_obj = XGBTuner(task, loss_type="reg")
                     n_trial = min(len(task.config_space), ARGS.num_trials)
                     tuner_obj.tune(
                         n_trial=n_trial,

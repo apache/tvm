@@ -1049,7 +1049,7 @@ def function_pass(pass_func=None, opt_level=None, name=None, required=None):
         info = tvm.transform.PassInfo(opt_level, fname, required)
         if inspect.isclass(pass_arg):
             return _wrap_class_function_pass(pass_arg, info)
-        if not isinstance(pass_arg, (types.FunctionType, types.LambdaType)):
+        if not callable(pass_arg):
             raise TypeError("pass_func must be a callable for Module pass")
         return _ffi_api.MakeFunctionPass(pass_arg, info)
 

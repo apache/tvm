@@ -402,22 +402,28 @@ class BlockInfoCollector : private StmtVisitor {
 class StateCreator : private StmtVisitor {
  public:
   /*!
-   * \brief The entry function
-   * \param self The schedule state to be completed
+   * \brief ScheduleState Creator
+   * \param mod The module being scheduled.
+   * \param debug_mask Do extra correctness checking after the class creation
+   * and each time after calling the Replace method.
+   * \param enable_check Whether to enable prequisite checks for schedule primitives.
    */
-  static ObjectPtr<ScheduleStateNode> Create(IRModule mod, int debug_mask) {
+  static ObjectPtr<ScheduleStateNode> Create(IRModule mod, int debug_mask, bool enable_check) {
     ObjectPtr<ScheduleStateNode> n = make_object<ScheduleStateNode>();
     ScheduleStateNode* self = n.get();
     // Set `n->mod`
     n->mod = std::move(mod);
     // Set `n->debug_mask`
     n->debug_mask = debug_mask;
+    // Set `n->enable_check`
+    n->enable_check = enable_check;
     // Set `n->stmt2ref` and `n->block_info`
     StateCreator creator(self);
     for (const auto& kv : n->mod->functions) {
       const BaseFunc& base_func = kv.second;
-      if (const auto* func = base_func.as<PrimFuncNode>()) {
-        VerifyWellFormed(GetRef<PrimFunc>(func));
+      if (auto opt = base_func.as<PrimFunc>()) {
+        auto func = opt.value();
+        VerifyWellFormed(func);
         creator.VisitStmt(func->body);
         BlockInfoCollector::Collect(self, func->body);
       }
@@ -426,6 +432,10 @@ class StateCreator : private StmtVisitor {
   }
 
  private:
+  /*!
+   * \brief The entry function
+   * \param self The schedule state to be completed
+   */
   explicit StateCreator(ScheduleStateNode* self) : self_(self) {}
 
   /*!
@@ -481,9 +491,9 @@ class StateCreator : private StmtVisitor {
 
 /**************** Constructor ****************/
 
-ScheduleState::ScheduleState(IRModule mod, int debug_mask) {
+ScheduleState::ScheduleState(IRModule mod, int debug_mask, bool enable_check) {
   CHECK_GE(debug_mask, -1) << "ValueError: negative `debug_mask` other than -1 is not supported";
-  data_ = StateCreator::Create(mod, debug_mask);
+  data_ = StateCreator::Create(mod, debug_mask, enable_check);
 }
 
 /**************** Replace ****************/
@@ -1108,8 +1118,8 @@ TVM_DLL Array<Bool> GetCachedFlags(const ScheduleState& self, const StmtSRef& bl
 
 TVM_REGISTER_NODE_TYPE(ScheduleStateNode);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleState")
-    .set_body_typed([](IRModule mod, int debug_mask) -> ScheduleState {
-      return ScheduleState(mod, debug_mask);
+    .set_body_typed([](IRModule mod, int debug_mask, bool enable_check) -> ScheduleState {
+      return ScheduleState(mod, debug_mask, enable_check);
     });
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleStateGetBlockScope")
     .set_body_method<ScheduleState>(&ScheduleStateNode::GetBlockScope);

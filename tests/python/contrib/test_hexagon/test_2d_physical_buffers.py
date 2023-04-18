@@ -331,7 +331,7 @@ class TestElementWise:
             assert len(buffer.shape) == expected_physical_dimensions
 
     def test_lower(self, schedule_args):
-        return tvm.lower(*schedule_args)
+        assert tvm.lower(*schedule_args)
 
     @requires_hexagon_toolchain
     def test_build(self, schedule_args, target_host, input_layout, working_layout, output_layout):

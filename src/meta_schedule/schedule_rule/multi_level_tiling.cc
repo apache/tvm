@@ -186,15 +186,15 @@ std::vector<State> MultiLevelTilingNode::AddWriteReuse(State state) const {
   return results;
 }
 
-Array<tir::LoopRV> MultiLevelTilingNode::SplitLoop(const Schedule& sch, BlockRV block, LoopRV loop,
-                                                   int n_tiles) const {
+std::pair<Array<tir::ExprRV>, Array<tir::LoopRV>> MultiLevelTilingNode::SplitLoop(
+    const Schedule& sch, BlockRV block, LoopRV loop, int n_tiles) const {
   Array<tir::ExprRV> factors = sch->SamplePerfectTile(
       /*loop=*/loop,
       /*n=*/n_tiles,
       /*max_innermost_factor=*/max_innermost_factor);
   Array<tir::LoopRV> splits = sch->Split(/*loop=*/loop,
                                          /*factors=*/{factors.begin(), factors.end()});
-  return splits;
+  return {factors, splits};
 }
 
 std::vector<State> MultiLevelTilingNode::TileLoopNest(State state) const {
@@ -207,6 +207,9 @@ std::vector<State> MultiLevelTilingNode::TileLoopNest(State state) const {
   // Step 2. For each loop axis, tile it
   int64_t spatial_loop_product = 1;
   std::vector<Array<LoopRV>> tiles(s_indices_.size() + r_indices_.size());
+  state->tile_factors.resize(tiles.size());
+  std::vector<Array<tir::ExprRV>> tile_factors;
+  tile_factors.resize(tiles.size());
   for (int i = 0, n = loops.size(); i < n; ++i) {
     LoopRV loop = loops[i];
     const std::vector<int>* idx = nullptr;
@@ -231,14 +234,16 @@ std::vector<State> MultiLevelTilingNode::TileLoopNest(State state) const {
     if (n_tiles == 1) {
       tiles[idx->at(0)].push_back(loop);
     } else {
-      auto splits = SplitLoop(sch, block_rv, loop, n_tiles);
+      auto [factors, splits] = SplitLoop(sch, block_rv, loop, n_tiles);
 
       // Put every tile to its slot
       for (int j = 0; j < n_tiles; ++j) {
         tiles[idx->at(j)].push_back(splits[j]);
+        tile_factors[idx->at(j)].push_back(factors[j]);
       }
     }
   }
+  state->tile_factors = std::move(tile_factors);
   // Step 3. Reorder to organize the tiles
   sch->Reorder(support::ConcatArrayList<LoopRV>(tiles.begin(), tiles.end()));
   // Step 4. Bind the tiles to threads

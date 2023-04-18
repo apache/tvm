@@ -52,7 +52,6 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tir.is_entry_func", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.add_lower_pass", Array<Array<ObjectRef>>);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.debug_keep_trivial_loop", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.use_async_copy", Bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tir.merge_async_commit_queue_scope", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.instrument_lwp", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.vtcm_capacity", Integer);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.ptx_ldg32", Bool);
@@ -98,8 +97,8 @@ void GetBinds(const Array<ObjectRef>& args, bool compact,
   *out_binds = binds;
 
   for (const ObjectRef& x : args) {
-    if (const te::TensorNode* tensor_node = x.as<te::TensorNode>()) {
-      te::Tensor x_ref = GetRef<te::Tensor>(tensor_node);
+    if (auto tensor_node = x.as<te::Tensor>()) {
+      te::Tensor x_ref = tensor_node.value();
       if (out_binds->find(x_ref) == out_binds->end()) {
         tir::Buffer buf = tir::BufferWithOffsetAlignment(x_ref->shape, x_ref->dtype,
                                                          x_ref->op->name, -1, 0, compact);
@@ -184,8 +183,7 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
 
     CHECK_GE(phase_num_val, 0);
 
-    const tvm::transform::PassNode* pass_node = phase_pass[1].as<tvm::transform::PassNode>();
-    tvm::transform::Pass pass = GetRef<tvm::transform::Pass>(pass_node);
+    auto pass = Downcast<tvm::transform::Pass>(phase_pass[1]);
     // Copy the pass into the correct phase
     if (phase_num_val == 0) {
       user_lower_phase0.push_back(pass);
@@ -214,11 +212,12 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   pass_list.push_back(tir::transform::UnifyThreadBinding());
   pass_list.push_back(tir::transform::ManifestSharedMemoryLocalStage());
   pass_list.push_back(tir::transform::CompactBufferAllocation());
+  pass_list.push_back(tir::transform::LowerAutoCopy());
   pass_list.push_back(tir::transform::LowerMatchBuffer());
   pass_list.push_back(tir::transform::InjectSoftwarePipeline());
   pass_list.push_back(tir::transform::LowerOpaqueBlock());
   pass_list.push_back(tir::transform::FlattenBuffer());
-  pass_list.push_back(tir::transform::BF16Legalize());
+  pass_list.push_back(tir::transform::BF16ComputeLegalize());
   pass_list.push_back(tir::transform::NarrowDataType(32));
   pass_list.push_back(tir::transform::Simplify());
 
@@ -545,22 +544,13 @@ runtime::Module build(const IRModule& funcs, const Target& target_arg,
   return TIRToRuntime(inputs, target_host);
 }
 
-int64_t GetVTCMCapacity(Target target, const transform::PassContext& pass_ctx) {
-  if (!target.defined()) target = Target::Current(/*allow_not_defined=*/true);
-  if (target.defined() && target->kind->name == "hexagon") {
-    auto value = Downcast<Integer>(target->attrs.at("vtcm-capacity"))->value;
-    if (value > 0) return value;
-  }
-  return pass_ctx->GetConfig<Integer>("tir.vtcm_capacity", Integer(0)).value()->value;
-}
-
 transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) {
   transform::PassContext pass_ctx = transform::PassContext::Current();
 
   Array<Pass> mixed_pass_list;
 
   // VerifyVTCMLimit must occur before LowerVtcmAlloc
-  mixed_pass_list.push_back(tir::transform::VerifyVTCMLimit(GetVTCMCapacity(target, pass_ctx)));
+  mixed_pass_list.push_back(tir::transform::VerifyVTCMLimit(target));
   // LowerVtcmAlloc must occur after any transformations that modify memory allocation locations
   mixed_pass_list.push_back(tir::transform::LowerVtcmAlloc());
 
@@ -605,6 +595,7 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   } else {
     mixed_pass_list.push_back(tir::transform::MakePackedAPI());
   }
+  mixed_pass_list.push_back(tir::transform::BF16StorageLegalize());
   mixed_pass_list.push_back(tir::transform::SplitHostDevice());
 
   return transform::Sequential(mixed_pass_list);

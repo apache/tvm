@@ -254,8 +254,8 @@ class HoistInfoCollector : public StmtExprVisitor {
     Var var;
     if (const auto* node_iter_var = op->node.as<IterVarNode>()) {
       var = node_iter_var->var;
-    } else if (const auto* node_var = op->node.as<VarNode>()) {
-      var = GetRef<Var>(node_var);
+    } else if (auto opt = op->node.as<Var>()) {
+      var = opt.value();
     } else {
       return Parent::VisitStmt_(op);
     }

@@ -17,7 +17,7 @@
 
 # CI docker GPU env
 # tag: v0.60
-FROM nvidia/cuda:11.0.3-cudnn8-devel-ubuntu18.04
+FROM nvidia/cuda:11.7.1-cudnn8-devel-ubuntu18.04
 
 COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
 
@@ -88,6 +88,9 @@ RUN bash /install/ubuntu_install_coreml.sh
 
 COPY install/ubuntu_install_tensorflow.sh /install/ubuntu_install_tensorflow.sh
 RUN bash /install/ubuntu_install_tensorflow.sh
+
+COPY install/ubuntu_install_jax.sh /install/ubuntu_install_jax.sh
+RUN bash /install/ubuntu_install_jax.sh "cuda"
 
 COPY install/ubuntu_install_darknet.sh /install/ubuntu_install_darknet.sh
 RUN bash /install/ubuntu_install_darknet.sh

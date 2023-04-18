@@ -477,11 +477,19 @@ class BasePaddingCompare(tvm.testing.CompareBeforeAfter):
 
     index_map = tvm.testing.parameter(lambda i: [i // 4, i % 4])
 
+    assume_injective_transform = tvm.testing.parameter(False)
+
     @pytest.fixture
-    def transform(self, pad_value, transformed_buffer, index_map):
+    def transform(self, pad_value, transformed_buffer, index_map, assume_injective_transform):
         def transform(mod):
             sch = tir.Schedule(mod)
-            sch.transform_layout("block", transformed_buffer, index_map, pad_value=pad_value)
+            sch.transform_layout(
+                "block",
+                transformed_buffer,
+                index_map,
+                pad_value=pad_value,
+                assume_injective_transform=assume_injective_transform,
+            )
             return sch.mod
 
         return transform
@@ -576,6 +584,28 @@ class TestErrorIfPaddingForbidden(BasePaddingCompare):
                 A[vi] = 0
 
     expected = tvm.tir.schedule.schedule.ScheduleError
+
+
+class TestImplicitPaddingAssumeInjective(BasePaddingCompare):
+    """When pad_value is None and assume_injective_transform is set, the buffer can be implicitly
+    padded. The padded region is not accessed because the original loop extent is not changed.
+    """
+
+    assume_injective_transform = tvm.testing.parameter(True)
+
+    def before():
+        A = T.alloc_buffer(14, "int32")
+        for i in T.serial(14):
+            with T.block("block"):
+                vi = T.axis.remap("S", [i])
+                A[vi] = 0
+
+    def expected():
+        A = T.alloc_buffer([4, 4], "int32")
+        for i in T.serial(14):
+            with T.block("block"):
+                vi = T.axis.remap("S", [i])
+                A[vi // 4, vi % 4] = 0
 
 
 class TestErrorOnWrongPaddingType(BasePaddingCompare):
@@ -1017,6 +1047,42 @@ def test_index_map_dtype_legalize():
     sch.transform_layout(
         sch.get_block("block"), buffer="A", index_map=lambda h: [h // 8, h % 8], pad_value=0
     )
+
+
+def test_index_map_dtype_legalize_with_constant():
+    """Legalization of inverse containing a constant output
+
+    The index map `lambda i,j: [i, j//8, j % 8]` has an inverse `lambda i,j,k: [i, 8*j+k]`.
+    """
+
+    @T.prim_func
+    def func(A: T.Buffer(T.int64(16), "int32")):
+        for i in T.grid(T.int64(16)):
+            with T.block("block"):
+                vi = T.axis.remap("S", [i])
+                A[vi] = 0
+
+    sch = tir.Schedule(func)
+
+    # Triggering the error requires an IndexMap that introduces padding
+    func = lambda i: [
+        # And a constant to be one of the output indices.
+        tir.const(0, i.dtype),
+        (i + 1) // 8,
+        (i + 1) % 8,
+    ]
+
+    # Previously, the legalization was only handled by propagating the
+    # dtype of the indices to the transformed indices.  As a result,
+    # output indices whose value did not depend on the input index
+    # would be left with the incorrect dtype.
+
+    # Prior to the bugfix, this resulted in the following error is
+    # raised from the IterVar constructor.
+    #
+    # TVMError: Check failed: dom->extent.dtype() == var.dtype() (int64 vs. int32) :
+    # The dtype of the extent of an IterVar (int64) must match its associated Var's dtype (int32)
+    sch.transform_layout(block="block", buffer="A", index_map=func, pad_value=0)
 
 
 if __name__ == "__main__":

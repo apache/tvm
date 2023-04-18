@@ -324,6 +324,8 @@ PrimExpr cast(const DataType& t, PrimExpr value, Span span) {
 // reinterpret
 PrimExpr reinterpret(const DataType& t, PrimExpr value, Span span) {
   if (value.dtype() == t) return value;
+  ICHECK(value.dtype().bits() * value.dtype().lanes() == t.bits() * t.lanes())
+      << "Bitcast requires size match " << t << " vs " << value.dtype();
   return tir::Call(t, tir::builtin::reinterpret(), {value}, span);
 }
 

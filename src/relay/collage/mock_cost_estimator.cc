@@ -88,8 +88,7 @@ Cost MockCostEstimatorNode::Estimate(const IRModule& mod, const Target& target) 
   double op_cost = static_cast<double>(target_costs_.at(target->kind->name)->value);
   double cost = 0.0;
   for (const auto& kv : mod->functions) {
-    if (const auto* function_node = kv.second.as<FunctionNode>()) {
-      auto function = GetRef<Function>(function_node);
+    if (const auto* function = kv.second.as<FunctionNode>()) {
       if (kv.first->name_hint == "main") {
         // Only tensor args are allowed to main.
         for (const auto& param : function->params) {

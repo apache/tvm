@@ -70,6 +70,14 @@ def _parse_debug_mask(debug_mask: Union[str, int]) -> int:
     return debug_mask
 
 
+def _parse_enable_checks(enable_checks: bool) -> bool:
+    if not isinstance(enable_checks, bool):
+        raise TypeError(
+            "enable_checks only accepts bool value, got {} instead".format(type(enable_checks))
+        )
+    return enable_checks
+
+
 @register_object("tir.ScheduleState")
 class ScheduleState(Object):
     """The state of scheduling, which exposes a `Replace` method as
@@ -81,6 +89,7 @@ class ScheduleState(Object):
     3) The dependency information of each block scope (block_info)
     4) A reverse mapping from the AST nodes to that in the sref tree (get_sref)
     5) A debug flag, if set, extra checking is enabled (debug_mask)
+    6) A enable check flag, if False, some prerequisite checks are disabled.
 
     Parameters
     ----------
@@ -89,6 +98,9 @@ class ScheduleState(Object):
     debug_mask : int
         Do extra correctness checking after the object construction
         and each time after calling the Replace method.
+    enable_check : bool
+        Indicates whether we enable prerequisite checks for some schedule primitives or not,
+        defaults to `True`.
     """
 
     mod: IRModule
@@ -99,6 +111,7 @@ class ScheduleState(Object):
         mod: Union[PrimFunc, IRModule],
         *,
         debug_mask: Union[str, int] = "none",
+        enable_check: bool = True,
     ) -> None:
         """Construct a schedule state from an IRModule or a PrimFunc
 
@@ -118,6 +131,7 @@ class ScheduleState(Object):
             _ffi_api.ScheduleState,  # type: ignore # pylint: disable=no-member
             _parse_mod(mod),
             _parse_debug_mask(debug_mask),
+            _parse_enable_checks(enable_check),
         )
 
     def get_sref(self, stmt: Union[Block, For]) -> Optional[StmtSRef]:

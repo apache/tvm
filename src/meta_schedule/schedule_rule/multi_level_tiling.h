@@ -94,6 +94,8 @@ class StateNode : public Object {
   tir::BlockRV block_rv;
   /*! \brief The loop tiles */
   Array<Array<tir::LoopRV>> tiles;
+  /*! \brief The factors of the loop tiles. */
+  Array<Array<tir::ExprRV>> tile_factors;
   /*! \brief The mapping from buffer index to read cache block. */
   std::unordered_map<int, tir::BlockRV> read_reuse;
   /*! \brief The mapping from buffer index to write cache block. */
@@ -163,8 +165,10 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
  protected:
   virtual std::vector<State> ApplySubRules(std::vector<State> states);
 
-  virtual Array<tir::LoopRV> SplitLoop(const tir::Schedule& sch, tir::BlockRV block,
-                                       tir::LoopRV loop, int n_tiles) const;
+  virtual std::pair<Array<tir::ExprRV>, Array<tir::LoopRV>> SplitLoop(const tir::Schedule& sch,
+                                                                      tir::BlockRV block,
+                                                                      tir::LoopRV loop,
+                                                                      int n_tiles) const;
 
   // Annotate a block to use cooperative fetching
   void AnnotateCooperativeFetching(tir::Schedule* sch, const tir::BlockRV& block) const;

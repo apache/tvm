@@ -24,6 +24,7 @@ import tvm
 from tvm.ir import PrimType
 from tvm.tir import Buffer, IterVar, PrimExpr, Var
 
+from ...ir_builder import ir as I
 from ...ir_builder import tir as T
 from ...ir_builder.base import IRBuilder
 from ...ir_builder.base import IRBuilderFrame as Frame
@@ -143,9 +144,9 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
         IRBuilder.name(var_name, value)
         return value
     elif isinstance(value, PrimExpr):
-        var = Var("", value.dtype)
+        frame = T.LetStmt(value)
+        var = frame.var
         IRBuilder.name(var_name, var)
-        frame = T.let(var, value)
         frame.add_callback(partial(frame.__exit__, None, None, None))
         frame.__enter__()
         return var
@@ -294,7 +295,7 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
     if not isinstance(ann_var, Var):
         self.report_error(node.annotation, "Annotation should be Var")
     self.eval_assign(target=lhs, source=ann_var, bind_value=bind_assign_value)
-    frame = T.let(ann_var, rhs)
+    frame = T.LetStmt(rhs, var=ann_var)
     frame.add_callback(partial(frame.__exit__, None, None, None))
     frame.__enter__()
 
@@ -433,10 +434,12 @@ def visit_if(self: Parser, node: doc.If) -> None:
     with self.var_table.with_frame():
         with T.If(self.eval_expr(node.test)):
             with T.Then():
-                self.visit_body(node.body)
+                with self.var_table.with_frame():
+                    self.visit_body(node.body)
             if node.orelse:
                 with T.Else():
-                    self.visit_body(node.orelse)
+                    with self.var_table.with_frame():
+                        self.visit_body(node.orelse)
 
 
 @dispatch.register(token="tir", type_name="Assert")
@@ -471,3 +474,28 @@ def visit_return(self: Parser, node: doc.Return) -> None:
         The doc AST return node.
     """
     self.report_error(node, "Return is not allowed.")
+
+
+@dispatch.register(token="tir", type_name="tvm_declare_function")
+def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> None:
+    """The function declaration step for tir
+
+    Parameters
+    ----------
+    self : Parser
+        The visiting parser.
+
+    node : doc.Return
+        The doc AST return node.
+    """
+
+    ret_type = None
+    if node.returns is not None:
+        ret_type = self.eval_expr(node.returns)
+        if callable(ret_type):
+            ret_type = PrimType(ret_type().dtype)
+
+    # Only ret_type is needed for func_signature.
+    func_signature = tvm.tir.PrimFunc([], None, ret_type=ret_type)
+    global_var = I.decl_function(node.name, func_signature)
+    self.var_table.add(node.name, global_var)

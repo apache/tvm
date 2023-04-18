@@ -1336,30 +1336,46 @@ class MeanParams:
                 return axis in ([0], [1], [0, 1])
             return axis in ([1], [2], [1, 2])
 
-        tensor_params = [self.ifm, self.ofm]
-        if not check_valid_dtypes(tensor_params, supported_dtypes=[np.int8]):
+        def check_single_axis_across_height(num_dims, axis):
+            return len(axis) == 1 and (num_dims in (2, 3) and axis == [0] or axis == [1])
+
+        same_quantization = (
+            self.ifm.q_params.scale_f32 == self.ofm.q_params.scale_f32
+            and self.ifm.q_params.zero_point == self.ofm.q_params.zero_point
+        )
+
+        # IFM must be int8 or uint8
+        if not check_valid_dtypes([self.ifm], [np.int8, np.uint8]):
             return False
-        if self.ifm.dtype != self.ofm.dtype:
+        # OFM must be int8, uint8 or int16
+        if not check_valid_dtypes([self.ofm], [np.int8, np.uint8, np.int16]):
             return False
+        # Input tensor must be at least 2D
         if not len(self.ifm.shape) in [2, 3, 4]:
             return False
+        # Axis indices must correspond to height and width axes
         if not check_axis(len(self.ifm.shape), self.axis):
             return False
 
-        # MEAN has further restrictions on the input size, depending on legalization method.
         input_size = self.height * self.width
+
+        # Product of height and width must be no greater than 65536
         if input_size > 65536:
             return False
-        if (
-            self.ifm.q_params.scale_f32 != self.ofm.q_params.scale_f32
-            or self.ifm.q_params.zero_point != self.ofm.q_params.zero_point
-        ) and input_size > 4096:
+        # Product of height and width must be no greater than 4096 when:
+        #   IFM and OFM have different scale or zero point; or
+        #   'keep_dims' is True
+        if input_size > 4096 and (not same_quantization or self.keepdims):
             return False
-        if self.axis == [1, 2] and self.keepdims and self.ifm.dtype == "int8" and input_size > 256:
-            return False
-        # Large kernel height reshape only when axis is [1, 2]
-        if self.axis != [1, 2] and self.height > 64:
-            return False
+        # For single axis averages across the height dimension:
+        if check_single_axis_across_height(len(self.ifm.shape), self.axis):
+            # IFM height must be no greater than 256 if the IFM and OFM scale and zero point match
+            if self.height > 256 and same_quantization:
+                return False
+            # IFM height must be no greater than 64 if the IFM and OFM scale or zero point
+            # do not match
+            if self.height > 64 and not same_quantization:
+                return False
         return True
 
 
@@ -1671,7 +1687,18 @@ class Resize2dParams:
             return False
         if self.method not in ("nearest_neighbor", "linear"):
             return False
-        if self.coordinate_transformation_mode not in ("asymmetric", "align_corners"):
+        if self.coordinate_transformation_mode not in (
+            "asymmetric",
+            "align_corners",
+            "half_pixel",
+        ):
+            return False
+        if (
+            self.coordinate_transformation_mode == "half_pixel"
+            and self.rounding_method != "round_prefer_ceil"
+            or self.coordinate_transformation_mode != "half_pixel"
+            and self.rounding_method != ""
+        ):
             return False
         if not check_compatible_size(
             self.coordinate_transformation_mode,
@@ -1679,8 +1706,6 @@ class Resize2dParams:
             self.size,
             self.ifm.shape[1:3],
         ):
-            return False
-        if self.rounding_method != "":
             return False
         if self.out_dtype and self.out_dtype != "int8":
             return False

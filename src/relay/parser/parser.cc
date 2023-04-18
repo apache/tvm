@@ -1366,8 +1366,8 @@ class Parser {
       }
       // TODO(@jroesch): not sure about this being the right way to handle nulls.
       case TokenType::kIdentifier: {
-        if (auto text = next->data.as<tvm::StringObj>()) {
-          std::string id = GetRef<String>(text);
+        if (auto text = next->data.as<tvm::String>()) {
+          std::string id = text.value();
           if (id == "nullptr") {
             Match(TokenType::kIdentifier);
             return ObjectRef();

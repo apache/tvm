@@ -391,31 +391,29 @@ def test_binary_add_with_non_4d_shapes(
     )
 
 
-@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/12634")
 @pytest.mark.parametrize(
     "accel_type",
     ACCEL_TYPES,
 )
 @pytest.mark.parametrize(
-    "ifm_shape, axis, keep_dims, use_same_quantization",
+    "ifm_shape, axis, keep_dims, use_same_quantization, dtype",
     [
-        # mean to depthwise + multiply
-        [(1, 8, 16, 16), (1, 2), True, False],
-        [(1, 3, 4), (0, 1), True, False],
-        [(1, 65, 2, 1), (1, 2), True, False],  # special case when h > 64
         # mean to average pool
-        [(1, 8, 16, 16), (2,), False, True],
-        [(3, 3, 4), (0,), True, True],
-        [(8, 5), (0,), False, True],
+        [(1, 8, 16, 16), (2,), False, True, "int8"],
+        [(1, 8, 16, 16), (2,), False, True, "uint8"],
+        [(3, 3, 4), (0,), True, True, "int8"],
+        [(8, 5), (0,), False, True, "int8"],
         # mean to depthwise
-        [(1, 8, 16, 16), (2,), True, False],
-        [(1, 8, 16, 16), (2, 1), False, False],
-        [(8, 4), (0,), False, False],
+        [(1, 8, 16, 16), (2,), True, False, "int8"],
+        [(1, 8, 16, 16), (2,), True, False, "uint8"],
+        [(1, 8, 16, 16), (2, 1), False, False, "int8"],
+        [(8, 4), (0,), False, False, "int8"],
+        [(1, 65, 2, 1), (1, 2), True, False, "int8"],  # special case when h > 64
+        [(1, 65, 2, 1), (1, 2), True, False, "uint8"],  # special case when h > 64
     ],
 )
-def test_mean(accel_type, ifm_shape, axis, keep_dims, use_same_quantization):
+def test_mean(accel_type, ifm_shape, axis, keep_dims, use_same_quantization, dtype):
     np.random.seed(0)
-    dtype = "int8"
 
     def create_mod_from_tflite():
         class Model(tf.Module):
@@ -462,12 +460,14 @@ def test_mean(accel_type, ifm_shape, axis, keep_dims, use_same_quantization):
             input_zero_point=relay.const(0, dtype="int32"),
             output_scale=relay.const(1.0, dtype="float32"),
             output_zero_point=relay.const(0, dtype="int32"),
+            out_dtype=dtype,
         )
 
         func = relay.Function(relay.analysis.free_vars(requantize), requantize)
         mod = tvm.IRModule.from_expr(func)
 
-        input_data = {"input": np.random.randint(low=-127, high=128, size=ifm_shape, dtype=dtype)}
+        low, high = (0, 256) if dtype == "uint8" else (-127, 128)
+        input_data = {"input": np.random.randint(low=low, high=high, size=ifm_shape, dtype=dtype)}
         output_data = generate_ref_data(mod, input_data)
         return mod, input_data, output_data
 
@@ -518,6 +518,63 @@ def test_ethosu_sum(accel_type, ifm_shape, axis, keepdims, relu):
         accel_type,
         enable_cascader=is_u55_accel_type(accel_type),
     )
+
+
+# Case to check reduce_sum operation with different input types.
+@pytest.mark.parametrize("dtype", ["int8", "int32"])
+def test_add_reduce_sum(dtype):
+    ifm_shape = (1, 2, 2, 4)
+    accel_type = "ethos-u55-256"
+    np.random.seed(0)
+
+    def create_model():
+        ifm = relay.var("ifm", shape=ifm_shape, dtype=dtype)
+        ifm2 = relay.var("ifm2", shape=ifm_shape, dtype=dtype)
+        ifm_scale = 0.0 if dtype == "int32" else 1.0
+        op = infra.make_ethosu_binary_elementwise(
+            ifm,
+            ifm2,
+            ifm_shape[3],
+            ifm_shape[3],
+            "ADD",
+            dtype,
+            ifm_scale=ifm_scale,
+            ifm2_scale=ifm_scale,
+        )
+        op = infra.make_ethosu_pooling(
+            ifm=op,
+            pooling_type="SUM",
+            pool_shape=(1, 1),
+            ofm_channels=1,
+            ofm_dtype="int32",
+            strides=(1, 1),
+            padding=(0, 0, 0, 0),
+            rounding_mode="NATURAL",
+        )
+        return tvm.IRModule.from_expr(relay.Function([ifm, ifm2], op))
+
+    def generate_output_data(input_data):
+        lhs = input_data["ifm"]
+        rhs = input_data["ifm2"]
+        # reduce_sum output type is int32.
+        output_dtype = "int32"
+        add = lhs + rhs
+        return [np.sum(add, axis=3).astype(output_dtype)]
+
+    cpu_mod = create_model()
+
+    # Generate reference data
+    in_min, in_max = -10, 19
+    lhs = np.random.randint(in_min, in_max, size=ifm_shape, dtype=dtype)
+    rhs = np.random.randint(in_min, in_max, size=ifm_shape, dtype=dtype)
+    input_data = {
+        "ifm": lhs,
+        "ifm2": rhs,
+    }
+    output_data = {"output": generate_output_data(input_data)[0]}
+    ethosu_mod = infra.create_ethosu_partition(cpu_mod)
+
+    infra.compare_ethosu_with_reference(ethosu_mod, input_data, output_data, accel_type)
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -1085,17 +1142,27 @@ def test_tflite_squeeze(accel_type, ifm_shape, axis):
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize(
-    "ifm_shape,size",
-    [[(1, 2, 2, 1), (4, 4)], [(1, 4, 7, 3), (8, 14)], [(1, 3, 5, 3), (3, 5)]],
+    "ifm_shape,size,half_pixel",
+    [
+        [(1, 2, 2, 1), (4, 4), False],
+        [(1, 2, 2, 1), (4, 4), True],
+        [(1, 4, 7, 3), (8, 14), False],
+        [(1, 3, 5, 3), (3, 5), False],
+        [(1, 6, 6, 96), (12, 12), False],
+        [(1, 6, 6, 96), (12, 12), True],
+    ],
 )
-def test_tflite_resize2d_nearest_neighbor(accel_type, ifm_shape, size):
+def test_tflite_resize2d_nearest_neighbor(accel_type, ifm_shape, size, half_pixel):
     np.random.seed(0)
     align_corners = False
 
     @tf.function
     def resize_model(x):
         return tf.compat.v1.image.resize_nearest_neighbor(
-            x, size, align_corners=align_corners, half_pixel_centers=False
+            x,
+            size,
+            align_corners=align_corners,
+            half_pixel_centers=half_pixel,
         )
 
     infra.compare_tvm_with_tflite(

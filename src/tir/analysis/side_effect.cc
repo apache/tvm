@@ -37,11 +37,6 @@ class ExprSideEffect : public ExprVisitor {
     ExprVisitor::VisitExpr(e);
   }
 
-  void VisitExpr_(const LoadNode* op) final {
-    this->UpdateEffect(CallEffectKind::kReadState);
-    ExprVisitor::VisitExpr_(op);
-  }
-
   void VisitExpr_(const BufferLoadNode* op) final {
     this->UpdateEffect(CallEffectKind::kReadState);
     ExprVisitor::VisitExpr_(op);
@@ -50,8 +45,8 @@ class ExprSideEffect : public ExprVisitor {
   void VisitExpr_(const CallNode* op) final {
     static auto op_call_effect = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
 
-    if (auto* ptr_op = op->op.as<OpNode>()) {
-      this->UpdateEffect(static_cast<CallEffectKind>(op_call_effect[GetRef<Op>(ptr_op)]->value));
+    if (auto opt = op->op.as<Op>()) {
+      this->UpdateEffect(static_cast<CallEffectKind>(op_call_effect[opt.value()]->value));
     } else {
       this->UpdateEffect(CallEffectKind::kOpaque);
     }

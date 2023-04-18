@@ -17,13 +17,13 @@
 # pylint: disable=invalid-name,consider-using-enumerate,redefined-outer-name
 """Injective transformation operators"""
 from __future__ import absolute_import as _abs
+
 import tvm
-from tvm import te
-from tvm import topi
+from tvm import te, topi
 from tvm.te import hybrid
-from . import cpp
-from . import tag
-from .utils import within_index, make_idx, const_vector
+
+from . import cpp, tag
+from .utils import const_vector, make_idx, within_index
 
 
 def expand_dims(a, axis, num_newaxis=1):
@@ -636,7 +636,7 @@ def tile(a, reps):
     return cpp.tile(a, reps)
 
 
-def layout_transform(array, src_layout, dst_layout):
+def layout_transform(array, src_layout, dst_layout, schedule_rule="None"):
     """Transform the layout according to src_layout and dst_layout
 
     Parameters
@@ -649,8 +649,11 @@ def layout_transform(array, src_layout, dst_layout):
 
     dst_layout : str
         the destination layout.
+
+    schedule_rule : str
+        the schedule rule to apply if any
     """
-    return cpp.layout_transform(array, src_layout, dst_layout)
+    return cpp.layout_transform(array, src_layout, dst_layout, schedule_rule)
 
 
 def shape(array, dtype="int32"):

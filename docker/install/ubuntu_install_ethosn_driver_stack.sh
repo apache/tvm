@@ -47,7 +47,8 @@ apt-install-and-clear -y \
     python-dev \
     python3 \
     scons \
-    wget
+    wget \
+    openssh-client
 
 cd "$tmpdir"
 git clone --branch "$repo_revision" "$repo_url" "$repo_dir"

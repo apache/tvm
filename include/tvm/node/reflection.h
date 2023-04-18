@@ -244,7 +244,7 @@ class ReflectionVTable::Registry {
  *    static constexpr const std::nullptr_t VisitAttrs = nullptr;
  *
  *    static void SHashReduce(const runtime::StringObj* key, SHashReducer hash_reduce) {
- *      hash_reduce->SHashReduceHashedValue(runtime::String::HashBytes(key->data, key->size));
+ *      hash_reduce->SHashReduceHashedValue(runtime::String::StableHashBytes(key->data, key->size));
  *    }
  *
  *    static bool SEqualReduce(const runtime::StringObj* lhs,

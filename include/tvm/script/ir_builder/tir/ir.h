@@ -283,11 +283,15 @@ AssertFrame Assert(PrimExpr condition, String message);
 
 /*!
  * \brief The let binding.
- * \param var The variable to bind.
  * \param value The value to be bound.
+ * \param type_annotation  The type annotation of the let binding.
+ *                         Usually it is used for fine-grained var typing,
+ *                         particularly, PointerType.
+ * \param var The variable to be bound. If not specified, a new variable will be created.
  * \return The created LetFrame.
  */
-LetFrame Let(Var var, PrimExpr value);
+LetFrame LetStmt(PrimExpr value, Optional<Type> type_annotation = NullOpt,
+                 Optional<Var> var = NullOpt);
 
 /*!
  * \brief The realization.
@@ -387,6 +391,14 @@ DeclBufferFrame DeclBuffer(Array<PrimExpr> shape, DataType dtype, String buffer_
 LaunchThreadFrame LaunchThread(Var var, PrimExpr extent);
 
 /*!
+ * \brief Launch a new thread.
+ * \param thread_tag The thread type tag.
+ * \param extent The extent of environment thread.
+ * \return The result LaunchThreadFrame.
+ */
+LaunchThreadFrame LaunchThread(String thread_tag, PrimExpr extent);
+
+/*!
  * \brief Bind a var to thread env.
  * \param thread_tag The thread type tag.
  * \return The result variable which gets bound to the thread env.
@@ -416,16 +428,39 @@ void Evaluate(PrimExpr value);
 
 /*!
  * \brief Create a TIR var that represents a pointer
+ *
  * \param dtype The data type of the pointer.
+ *
  * \param storage_scope The storage scope of the pointer.
+ *
+ * \param is_size_var Whether the pointer is a size var.
+ *
+ * \param is_unknown_type Used to distinguish between
+ * `PrimType(DataType::Handle())` and
+ * `PointerType(PrimType(DataType::Void()))`.  If true, resolve dtype
+ * of `Void()` as `PrimType`, and if false resolve dtype of `Void()`
+ * as a `PointerType`.
+ *
  * \return The pointer.
  */
-Var Handle(runtime::DataType dtype = runtime::DataType::Void(), String storage_scope = "global");
+inline Var Handle(runtime::DataType dtype = runtime::DataType::Void(),
+                  String storage_scope = "global", bool is_size_var = false,
+                  bool is_unknown_type = false) {
+  Type type_annotation{nullptr};
+  if (is_unknown_type && storage_scope == "global") {
+    type_annotation = PrimType(runtime::DataType::Handle());
+  } else {
+    type_annotation = PointerType(PrimType(dtype), storage_scope);
+  }
+  return is_size_var ? tvm::tir::SizeVar("", type_annotation) : tvm::tir::Var("", type_annotation);
+}
 
-#define TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                             \
-  inline PrimExpr FuncName(Optional<PrimExpr> expr = NullOpt) {                        \
-    DataType dtype = DType;                                                            \
-    return expr.defined() ? tvm::cast(dtype, expr.value()) : tvm::tir::Var("", dtype); \
+#define TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                                \
+  inline PrimExpr FuncName(Optional<PrimExpr> expr = NullOpt, bool is_size_var = false) { \
+    DataType dtype = DType;                                                               \
+    return expr.defined()                                                                 \
+               ? tvm::cast(dtype, expr.value())                                           \
+               : (is_size_var ? tvm::tir::SizeVar("", dtype) : tvm::tir::Var("", dtype)); \
   }
 
 #define TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST_SIZES(DType, FDType) \

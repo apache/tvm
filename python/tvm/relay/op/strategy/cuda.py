@@ -1396,3 +1396,14 @@ def dft_strategy_cuda(attrs, inputs, out_type, target):
         name="dft.cuda",
     )
     return strategy
+
+
+@layout_transform_strategy.register(["cuda", "gpu"])
+def layout_transform_strategy_cuda(attrs, inputs, out_type, target):
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_layout_transform(topi.layout_transform, schedule_rule="layout_transform"),
+        schedule_injective,
+        name="layout_transform.cuda",
+    )
+    return strategy

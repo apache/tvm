@@ -325,8 +325,8 @@ std::pair<OpPatternKind, std::string> SubExprKindAndLabel(const Expr& sub_expr) 
   class Visitor : public ExprFunctor<std::pair<OpPatternKind, std::string>(const Expr&)> {
    private:
     std::pair<OpPatternKind, std::string> VisitExpr_(const CallNode* call_node) final {
-      if (const auto* op_node = call_node->op.as<OpNode>()) {
-        auto op = GetRef<Op>(op_node);
+      if (auto optional = call_node->op.as<Op>()) {
+        auto op = optional.value();
         static auto fpattern = Op::GetAttrMap<TOpPattern>("TOpPattern");
         if (fpattern.count(op) == 0) {
           VLOG(1) << "no TOpPattern known for " << op->name << ", considering opaque";
