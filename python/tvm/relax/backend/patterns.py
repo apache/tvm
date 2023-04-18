@@ -197,12 +197,15 @@ def make_attention_pattern(with_bias: bool = False):
     return out, annotations
 
 
-def make_stacked_attention_pattern(with_bias: bool = False):
+def make_stacked_attention_pattern(start_op: str, with_bias: bool = False):
     """
     Create pattern for fused multi head attention with stacked input.
 
     Parameters
     ----------
+    start_op: str
+        The starting op for pattern, i.e. `R.split` or `R.strided_slice`.
+
     with_bias: bool
         Whether or not to include bias addition
 
@@ -217,13 +220,23 @@ def make_stacked_attention_pattern(with_bias: bool = False):
         check function and codegen.
     """
     stacked_qkv = wildcard()
-    qkv_tuple = is_op("relax.split")(stacked_qkv)
+    if start_op == "split":
+        qkv_tuple = is_op("relax.split")(stacked_qkv)
+        query_raw = is_tuple_get_item(qkv_tuple, 0)
+        key_raw = is_tuple_get_item(qkv_tuple, 1)
+        value_raw = is_tuple_get_item(qkv_tuple, 2)
+    elif start_op == "strided_slice":
+        query_raw = is_op("relax.strided_slice")(stacked_qkv)
+        key_raw = is_op("relax.strided_slice")(stacked_qkv)
+        value_raw = is_op("relax.strided_slice")(stacked_qkv)
+    else:
+        raise NotImplementedError()
     query_reshape_list = wildcard()
     key_reshape_list = wildcard()
     value_reshape_list = wildcard()
-    query = is_op("relax.reshape")(is_tuple_get_item(qkv_tuple, 0), query_reshape_list)
-    key = is_op("relax.reshape")(is_tuple_get_item(qkv_tuple, 1), key_reshape_list)
-    value = is_op("relax.reshape")(is_tuple_get_item(qkv_tuple, 2), value_reshape_list)
+    query = is_op("relax.reshape")(query_raw, query_reshape_list)
+    key = is_op("relax.reshape")(key_raw, key_reshape_list)
+    value = is_op("relax.reshape")(value_raw, value_reshape_list)
     annotations = {
         "stacked_qkv": stacked_qkv,
         "query_reshape_list": query_reshape_list,
