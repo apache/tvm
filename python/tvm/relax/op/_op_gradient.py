@@ -573,7 +573,7 @@ def mean_grad(
     Backward:
         Returns `[broadcast_to(y_output_grad, x.shape) / prod(x.shape[i] for i in axis)]`.
 
-        If `keepdims=False`, the meaned axis will be added back.
+        If `keepdims=False`, the mean axis will be added back.
     """
     axis = orig_call.attrs.axis
     keepdims = orig_call.attrs.keepdims
@@ -749,7 +749,7 @@ def cumsum_grad(
         `y = relax.cumsum(x, axis)`
 
     Backward:
-        The "reversed" cumsum along the same axis. Implement by some tricks now.
+        The "reversed" cumsum along the same axis. Implemented by some tricks now.
     """
 
     axis = orig_call.attrs["axis"]
@@ -786,7 +786,7 @@ def take_grad(
         `y = relax.take(x, indices, axis)`
 
     Backward:
-        Returns .
+        Returns [x_grad, no_grad].
 
         The second parameter, the indices, is not differentiable.
     """

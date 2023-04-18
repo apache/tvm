@@ -659,7 +659,7 @@ def batch_norm(
     beta: Expr,
     moving_mean: Expr,
     moving_var: Expr,
-    axis: int,
+    axis: int = 1,
     epsilon: float = 1e-5,
     center: bool = True,
     scale: bool = True,
@@ -667,6 +667,7 @@ def batch_norm(
 ) -> Expr:
     r"""
     Batch normalization layer (Ioffe and Szegedy, 2014).
+
     Normalizes the input at each batch, i.e. applies a transformation
     that maintains the mean activation close to 0 and the activation
     standard deviation close to 1.
@@ -676,14 +677,14 @@ def batch_norm(
         data\_mean[i] = mean(data[:,i,:,...]) \\
         data\_var[i] = var(data[:,i,:,...])
 
+    Both *mean* and *var* returns a scalar by treating the input as a vector.
+
     Then compute the normalized output, which has the same shape as input, as following:
 
     .. math::
 
         out[:,i,:,...] = \frac{data[:,i,:,...] - data\_mean[i]}{\sqrt{data\_var[i]+\epsilon}}
             * gamma[i] + beta[i]
-
-    Both *mean* and *var* returns a scalar by treating the input as a vector.
 
     Assume the input has size *k* on axis 1, then both ``gamma`` and ``beta``
     have shape *(k,)*.
@@ -703,7 +704,19 @@ def batch_norm(
 
     .. note::
 
-        This operator can be optimized away for inference.
+        This operator has two modes:
+        - Training mode.
+            - Use the mean and var computed from THIS batch to normalize.
+            - Update and then return the running mean and running var.
+        - Inference mode.
+            - Use the running_mean and running_var parameters to normalize.
+            - Do not update the running mean and running var. Just return the original value.
+
+        In the legalization stage, this operator will be legalized to the training mode by default.
+
+        You can use tvm.relax.transform.DecomposeOpsForInference to decompose the operator, so it
+        executes the inference mode computation. Similarly, use
+        tvm.relax.transform.DecomposeOpsForTraining to execute the training mode computation.
 
     Parameters
     ----------
