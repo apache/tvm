@@ -1061,7 +1061,7 @@ def test_leakyrelu():
                     i0_1, i1_1 = T.axis.remap("SS", [i0, i1])
                     T.reads(rxplaceholder[i0_1, i1_1])
                     T.writes(compute[i0_1, i1_1])
-                    compute[i0_1, i1_1] = T.select(rxplaceholder[i0_1, i1_1] > T.float32(0), rxplaceholder[i0_1, i1_1], \
+                    compute[i0_1, i1_1] = T.Select(rxplaceholder[i0_1, i1_1] > T.float32(0), rxplaceholder[i0_1, i1_1], \
                                                    rxplaceholder[i0_1, i1_1] * T.float32(0.02))
     # fmt: on
 
@@ -1104,7 +1104,7 @@ def test_leakyrelu_symbolic():
                     i0_1, i1_1 = T.axis.remap("SS", [i0, i1])
                     T.reads(rxplaceholder[i0_1, i1_1])
                     T.writes(compute[i0_1, i1_1])
-                    compute[i0_1, i1_1] = T.select(rxplaceholder[i0_1, i1_1] > T.float32(0), rxplaceholder[i0_1, i1_1], \
+                    compute[i0_1, i1_1] = T.Select(rxplaceholder[i0_1, i1_1] > T.float32(0), rxplaceholder[i0_1, i1_1], \
                                                     rxplaceholder[i0_1, i1_1] * alpha)
     # fmt: on
 
