@@ -35,6 +35,7 @@ RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(gelu, "nn.gelu", /*require_float_dtype=*/tru
 RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(silu, "nn.silu", /*require_float_dtype=*/true);
 
 /* relax.nn.leakyrelu */
+TVM_REGISTER_NODE_TYPE(LeakyReluAttrs);
 
 Expr leakyrelu(Expr data, double alpha) {
   auto attrs = make_object<LeakyReluAttrs>();
