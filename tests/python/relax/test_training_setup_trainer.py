@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
-import tvm.testing
-import numpy as np
 
 import tvm
+import tvm.testing
+
 from tvm import relax, TVMError
 from tvm.ir.base import assert_structural_equal
-from tvm.relax.training import SetupTrainer, Trainer
+from tvm.relax.training import SetupTrainer
 from tvm.relax.training.optimizer import SGD, MomentumSGD
 from tvm.relax.training.loss import MSELoss
 from tvm.script import ir as I, relax as R
@@ -163,7 +163,7 @@ def test_states():
                 lv1: R.Tensor((2, 2), dtype="float64") = R.multiply(R.const(0.10000000000000001, "float64"), y_v_new)
                 y_new: R.Tensor((2, 2), dtype="float64") = R.subtract(y, lv1)
                 params_new: R.Tuple(R.Tensor((2, 2), dtype="float64")) = (y_new,)
-                optim_states_new: R.Tuple(R.Tensor((), dtype="int64"), R.Tensor((2, 2), dtype="float64")) = num_steps_new, y_v_new
+                optim_states_new: R.Tuple(R.Tensor((), dtype="int64"), R.Tensor((2, 2), dtype="float64")) = (num_steps_new, y_v_new)
                 R.output(params_new, optim_states_new)
             return (params_new, optim_states_new)
     # fmt: on
