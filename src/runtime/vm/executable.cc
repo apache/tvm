@@ -116,9 +116,8 @@ PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Obje
       Map<String, NDArray> map = args[0];
       LoadLateBoundConstantsFromMap(map);
     });
-  } else {
-    LOG(FATAL) << "Unknown packed function: " << name;
   }
+  return nullptr;
 }
 
 const VMFunction& Executable::GetVMFunctionWithName(const std::string& func_name) const {
