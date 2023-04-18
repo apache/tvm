@@ -114,7 +114,7 @@ class SpanNode : public Object {
   }
 
   static constexpr const char* _type_key = "Span";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SpanNode, Object);
+  TVM_DECLARE_BASE_OBJECT_INFO(SpanNode, Object);
 };
 
 class Span : public ObjectRef {
@@ -125,6 +125,31 @@ class Span : public ObjectRef {
   TVM_DLL Span Merge(const Span& other) const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(Span, ObjectRef, SpanNode);
+};
+
+class MultiSpanNode : public SpanNode {
+ public:
+  Map<Span, ObjectRef> spans;
+
+  // override attr visitor
+  void VisitAttrs(AttrVisitor* v) { v->Visit("spans", &spans); }
+
+  bool SEqualReduce(const MultiSpanNode* other, SEqualReducer equal) const {
+    return equal(spans, other->spans);
+  }
+
+  static constexpr const char* _type_key = "MultiSpan";
+  TVM_DECLARE_FINAL_OBJECT_INFO(MultiSpanNode, SpanNode);
+};
+
+/*!
+ * \brief Attaches multiple disjoint Span to a given IR node.
+ */
+class MultiSpan : public Span {
+ public:
+  TVM_DLL MultiSpan(Map<Span, ObjectRef> spans);
+
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(MultiSpan, Span, MultiSpanNode);
 };
 
 /*! \brief A program source in any language.

@@ -88,6 +88,14 @@ Span Span::Merge(const Span& other) const {
 
 TVM_REGISTER_NODE_TYPE(SpanNode);
 
+MultiSpan::MultiSpan(Map<Span, ObjectRef> spans) {
+  auto n = make_object<MultiSpanNode>();
+  n->spans = spans;
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(MultiSpanNode);
+
 TVM_REGISTER_GLOBAL("ir.Span").set_body_typed([](SourceName source_name, int line, int end_line,
                                                  int column, int end_column) {
   return Span(source_name, line, end_line, column, end_column);
