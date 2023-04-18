@@ -486,6 +486,24 @@ class FunctionCreator : public ExprMutator {
     }
   }
 
+  /*!
+   * \brief Build a MultiSpan that contains all Span from fused Call nodes.
+   */
+  MultiSpan BuildMultiSpanForCallSite() {
+    Map<Span, ObjectRef> spans;
+    for (Binding binding : bindings_) {
+      const auto* var_binding = binding.as<VarBindingNode>();
+      if (!var_binding->value->IsInstance<CallNode>()) {
+        continue;
+      }
+      Call call = Downcast<Call>(var_binding->value);
+      if (call->span.defined()) {
+        spans.Set(call->span, call);
+      }
+    }
+    return MultiSpan(spans);
+  }
+
   /*! \brief The original bindings of the function */
   Array<Binding> bindings_;
   /*! \brief The parameters of the function */
@@ -701,6 +719,9 @@ class OperatorFusor : public ExprMutator {
       }
       const Function& func = func_info.function_.value();
 
+      // Create a new span for the call site.
+      Span new_span = it_creator->second.BuildMultiSpanForCallSite();
+
       // If this binding belongs to a group whose output is a tuple, the original bound variable
       // needs to be remapped to the output of TupleGetItem after the corresponding tuple is
       // emitted.
@@ -730,7 +751,8 @@ class OperatorFusor : public ExprMutator {
       //  - If this binding is an output binding, emit an output variable.
       //  - Otherwise, emit a dataflow variable.
       Var new_var;
-      Call call_to_emit = Call(gv, UpdateArgs(func_info.arguments_));
+      Call call_to_emit = Call(gv, UpdateArgs(func_info.arguments_), {}, {}, new_span);
+      LOG(INFO) << "Created fused call " << call_to_emit << " with span " << new_span;
 
       if (var_binding->var->IsInstance<DataflowVarNode>()) {
         new_var = builder_->Emit(call_to_emit);
@@ -1088,7 +1110,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
   Expr VisitExpr_(const CallNode* call_node) final {
     if (auto const* gvar = call_node->op.as<GlobalVarNode>()) {
       if (auto it = gvar_map_.find(gvar); it != gvar_map_.end()) {
-        return Call(it->second, call_node->args);
+        return Call(it->second, call_node->args, {}, {}, call_node->span);
       }
       auto func = builder_->GetContextIRModule()->Lookup(GetRef<GlobalVar>(gvar));
       if (auto composite_name = func->GetAttr<String>(attr::kComposite)) {
@@ -1100,7 +1122,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
         builder_->GetContextIRModule()->Remove(GetRef<GlobalVar>(gvar));
         auto new_gvar = builder_->AddFunction(new_func, gsymbol);
         gvar_map_[gvar] = new_gvar;
-        return Call(new_gvar, call_node->args);
+        return Call(new_gvar, call_node->args, {}, {}, call_node->span);
       }
     }
     return ExprMutator::VisitExpr_(call_node);
