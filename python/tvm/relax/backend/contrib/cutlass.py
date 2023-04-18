@@ -243,10 +243,18 @@ def _check_stacked_attention(context: PatternCheckContext) -> bool:
         if not split_op.attrs.axis == 2:
             return False
     else:
+        last_end = 0
         for name in ["query", "key", "value"]:
             assert f"strided_slice_{name}" in context.annotated_expr
             strided_slice_op = context.annotated_expr[f"strided_slice_{name}"]
-            if not (len(strided_slice_op.attrs.axes) == 1 and strided_slice_op.attrs.axes[0] == 2):
+            if list(strided_slice_op.attrs.axes) != [2]:
+                return False
+            if list(strided_slice_op.attrs.begin) != [last_end]:
+                return False
+            if not len(strided_slice_op.attrs.end) == 1:
+                return False
+            last_end = strided_slice_op.attrs.end[0]
+            if list(strided_slice_op.attrs.strides) != [1]:
                 return False
     return True
 
