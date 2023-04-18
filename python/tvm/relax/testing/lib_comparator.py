@@ -118,11 +118,15 @@ class LibCompareVMInstrument:
         new_args = []
         # not always true, true for most ops.
         ret_indices = (len(args) - 1,)
+        temp_args = []
         for i, arg in enumerate(args):
             arr = tvm.nd.empty(arg.shape, arg.dtype, device=self.device)
             # copy from cpu since we look at different device
             if i not in ret_indices:
-                arr.copyfrom(arg.copyto(tvm.cpu()))
+                temp_cpu = arg.copyto(tvm.cpu())
+                temp_args.append(temp_cpu)
+                arr.copyfrom(temp_cpu)
             new_args.append(arr)
-
+        # wait until all copy complete before we release temp_cpu
+        self.device.sync()
         self.compare(name, args, new_args, ret_indices)
