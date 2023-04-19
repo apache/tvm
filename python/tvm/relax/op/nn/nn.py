@@ -659,7 +659,7 @@ def batch_norm(
     beta: Expr,
     moving_mean: Expr,
     moving_var: Expr,
-    axis: int = 1,
+    axis: int,
     epsilon: float = 1e-5,
     center: bool = True,
     scale: bool = True,
