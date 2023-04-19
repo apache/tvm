@@ -297,6 +297,10 @@ def build(
     passes.append(relax.transform.ToNonDataflow())
     passes.append(relax.transform.CallTIRRewrite())
     passes.append(relax.transform.StaticPlanBlockMemory())
+
+    if tvm.transform.PassContext.current().config.get("relax.backend.use_cuda_graph", False):
+        passes.append(relax.transform.RewriteCUDAGraph())
+
     passes.append(relax.transform.VMBuiltinLower())
     passes.append(relax.transform.VMShapeLower())
     passes.append(relax.transform.AttachGlobalSymbol())
