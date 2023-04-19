@@ -71,6 +71,8 @@ class XGBoostCostModel(CostModel):
                      The cost model predicts the normalized flops.
         If is 'rank', use pairwise rank loss to train cost model.
                      The cost model predicts relative rank score.
+        If is 'rank-binary', use pairwise rank loss with binarized labels to train cost model.
+                     The cost model predicts relative rank score.
     num_threads: int, optional
         The number of threads.
     log_interval: int, optional
@@ -80,7 +82,13 @@ class XGBoostCostModel(CostModel):
     """
 
     def __init__(
-        self, task, feature_type, loss_type, num_threads=None, log_interval=25, upper_model=None
+        self,
+        task,
+        feature_type,
+        loss_type="reg",
+        num_threads=None,
+        log_interval=25,
+        upper_model=None,
     ):
         global xgb
         super(XGBoostCostModel, self).__init__()
@@ -103,6 +111,8 @@ class XGBoostCostModel(CostModel):
         self.num_threads = num_threads
         self.log_interval = log_interval
 
+        self.loss_type = loss_type
+
         if loss_type == "reg":
             self.xgb_params = {
                 "max_depth": 3,
@@ -114,7 +124,7 @@ class XGBoostCostModel(CostModel):
                 "alpha": 0,
                 "objective": "reg:linear",
             }
-        elif loss_type == "rank":
+        elif loss_type in ("rank", "rank-binary"):
             self.xgb_params = {
                 "max_depth": 3,
                 "gamma": 0.0001,
@@ -217,6 +227,7 @@ class XGBoostCostModel(CostModel):
                         xgb_average_recalln_curve_score(plan_size),
                     ],
                     verbose_eval=self.log_interval,
+                    loss_type=self.loss_type,
                 )
             ],
         )
@@ -301,6 +312,7 @@ class XGBoostCostModel(CostModel):
                         xgb_average_recalln_curve_score(plan_size),
                     ],
                     verbose_eval=self.log_interval,
+                    loss_type=self.loss_type,
                 )
             ],
         )
@@ -453,6 +465,20 @@ def _extract_curve_feature_log(arg):
     return x, y
 
 
+def _binarize_evals(evals):
+    """binarize evaluation labels"""
+    bin_evals = []
+    for evalset in evals:
+        # binarize labels in xgb.dmatrix copy
+        barray = evalset[0].get_data().copy()
+        blabel = evalset[0].get_label().copy()
+        blabel[blabel < 0.5] = 0.0
+        blabel[blabel >= 0.5] = 1.0
+        # pylint: disable=R1721
+        bin_evals.append(tuple([xgb.DMatrix(barray, blabel)] + [e for e in evalset[1:]]))
+    return bin_evals
+
+
 class XGBoostCallback(TrainingCallback):
     """Base class for XGBoost callbacks."""
 
@@ -475,6 +501,7 @@ class CustomCallback(XGBoostCallback):
         stopping_rounds,
         metric,
         fevals,
+        loss_type="reg",
         evals=(),
         log_file=None,
         maximize=False,
@@ -490,6 +517,7 @@ class CustomCallback(XGBoostCallback):
         self.log_file = log_file
         self.maximize = maximize
         self.verbose_eval = verbose_eval
+        self.loss_type = loss_type
         self.skip_every = skip_every
         self.state = {}
 
@@ -533,8 +561,19 @@ class CustomCallback(XGBoostCallback):
             return False
 
         ##### evaluation #####
+        mod_evals = self.evals
+        if self.loss_type == "rank-binary":
+            mod_evals = _binarize_evals(self.evals)
+
+        if self.loss_type == "rank" and int(xgb.__version__[0]) >= 2:
+            # since xgboost pr#8931
+            raise RuntimeError(
+                "Use 'rank-binary' instead of 'rank' loss_type with xgboost %s >= 2.0.0"
+                % xgb.__version__
+            )
+
         for feval in self.fevals:
-            bst_eval = model.eval_set(self.evals, epoch, feval)
+            bst_eval = model.eval_set(mod_evals, epoch, feval)
             res = [x.split(":") for x in bst_eval.split()]
             for kv in res[1:]:
                 res_dict[kv[0]] = [float(kv[1])]

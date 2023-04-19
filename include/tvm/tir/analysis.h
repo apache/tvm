@@ -26,6 +26,7 @@
 
 #include <tvm/ir/module.h>
 #include <tvm/ir/transform.h>
+#include <tvm/target/target.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op_attr_types.h>
@@ -348,12 +349,13 @@ TVM_DLL Pass VerifyGPUCode(Map<String, PrimExpr> constraints);
 /*!
  * \brief Pass to checks if the size of the allocated vtcm memory satisfies the limit
  *
- * \param limit The limit to check.
+ * \param target The target whose VTCM limit should be used for any
+ * functions not already annotated with `tvm::attr::kTarget`.
  *
  * \returns The pass.
  * \sa tvm::tir::CalculateAllocatedBytes
  */
-TVM_DLL Pass VerifyVTCMLimit(const Integer& limit);
+TVM_DLL Pass VerifyVTCMLimit(Optional<Target> target = NullOpt);
 
 /*!
  * \brief Statically check TIR code for out of bounds array access.

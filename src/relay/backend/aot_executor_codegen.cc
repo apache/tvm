@@ -1103,7 +1103,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       lowered_mod = transform::RemoveStandaloneReshapes()(lowered_mod);
     }
     auto lowered_main = lowered_mod->Lookup("main");
-    auto lowered_main_func = GetRef<Function>(lowered_main.as<FunctionNode>());
+    auto lowered_main_func = Downcast<Function>(lowered_main);
 
     // Post-lowering storage map for writing main func
     AOTOnDemandAllocator final_aot_allocator;

@@ -53,6 +53,8 @@ class XGBTuner(ModelBasedTuner):
         The cost model predicts the normalized flops.
         If is 'rank', use pairwise rank loss to train cost model.
         The cost model predicts relative rank score.
+        If is 'rank-binary', use pairwise rank loss with binarized labels to train cost model.
+        The cost model predicts relative rank score.
 
     num_threads: int, optional
         The number of threads.
@@ -77,7 +79,7 @@ class XGBTuner(ModelBasedTuner):
         task,
         plan_size=64,
         feature_type="itervar",
-        loss_type="rank",
+        loss_type="reg",
         num_threads=None,
         optimizer="sa",
         diversity_filter_ratio=None,

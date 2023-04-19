@@ -267,11 +267,10 @@ Pass InstrumentProfileIntrinsics() {
     if (reset_start_id) lwp::start_id = 0;
     std::vector<std::pair<GlobalVar, PrimFunc>> updates;
     for (const auto& kv : mptr->functions) {
-      if (auto* n = kv.second.as<PrimFuncNode>()) {
-        PrimFunc func = GetRef<PrimFunc>(n);
-        auto updated_func =
-            lwp::AddProfileBuiltins(func, max_instr_depth.IntValue(), min_instr_height.IntValue(),
-                                    instr_siblings, disable_func_instrumentation);
+      if (auto func = kv.second.as<PrimFunc>()) {
+        auto updated_func = lwp::AddProfileBuiltins(func.value(), max_instr_depth.IntValue(),
+                                                    min_instr_height.IntValue(), instr_siblings,
+                                                    disable_func_instrumentation);
         updates.push_back({kv.first, updated_func});
       }
     }

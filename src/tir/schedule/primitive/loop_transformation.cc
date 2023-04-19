@@ -120,6 +120,7 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
                                /*input_iters=*/loop_var2extent_,
                                /*input_pred=*/op->predicate,
                                /*check_level=*/arith::IterMapLevel::Surjective,
+                               /*analyzer=*/&analzyer_,
                                /*simplify_trivial_iterators=*/!preserve_unit_iters_);
     if (v.same_as(op->iter_values)) {
       return GetRef<Stmt>(op);
@@ -134,6 +135,8 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
   MapNode* opaque_blocks_;
   /*! \brief The range of loops */
   Map<Var, Range> loop_var2extent_;
+  /*! \brief Internal analyzer */
+  arith::Analyzer analzyer_;
   /*! \brief Whether or not to simplify unit iterators */
   bool preserve_unit_iters_;
 };
@@ -1059,10 +1062,10 @@ struct AddUnitLoopTraits : public UnpackedInstTraits<AddUnitLoopTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static LoopRV UnpackedApplyToSchedule(Schedule sch, ObjectRef rv) {
-    if (const auto* block = rv.as<BlockRVNode>()) {
-      return sch->AddUnitLoop(GetRef<BlockRV>(block));
-    } else if (const auto* loop = rv.as<LoopRVNode>()) {
-      return sch->AddUnitLoop(GetRef<LoopRV>(loop));
+    if (auto block = rv.as<BlockRV>()) {
+      return sch->AddUnitLoop(block.value());
+    } else if (auto loop = rv.as<LoopRV>()) {
+      return sch->AddUnitLoop(loop.value());
     } else {
       LOG(FATAL) << "TypeError: AddUnitLoop expects a loop or block";
       throw;

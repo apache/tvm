@@ -239,15 +239,16 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           Op::GetAttrMap<tir::TScriptDtypePrintLocation>("TScriptDtypePrintLocation");
       tir::ScriptDtypePrintLocation dtype_print_location = tir::ScriptDtypePrintLocation::kNone;
       ExprDoc prefix{nullptr};
-      if (const auto* op = call->op.as<OpNode>()) {
-        String name = op_names.get(GetRef<Op>(op), op->name);
-        if (op_names.count(GetRef<Op>(op)) == 0) {
+      if (auto optional_op = call->op.as<Op>()) {
+        auto op = optional_op.value();
+        String name = op_names.get(op, op->name);
+        if (op_names.count(op) == 0) {
           LOG(WARNING) << "No TScriptPrinterName attribute for " << op->name;
         }
         prefix = TIR(d, name);
-        if (dtype_locations.count(GetRef<Op>(op))) {
-          dtype_print_location = static_cast<tir::ScriptDtypePrintLocation>(
-              dtype_locations[GetRef<Op>(op)].IntValue());
+        if (dtype_locations.count(op)) {
+          dtype_print_location =
+              static_cast<tir::ScriptDtypePrintLocation>(dtype_locations[op].IntValue());
         }
       } else if (const auto* gv = call->op.as<GlobalVarNode>()) {
         prefix = LiteralDoc::Str(gv->name_hint, call_p->Attr("op"));
@@ -321,18 +322,20 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       return OperationDoc(OperationDocNode::Kind::kDiv, {a, b});
     });
 
-#define TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(NodeType, NodeObj, NodeFunc, OpString, OpKind)   \
-  TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)                                                      \
-      .set_dispatch<tir::NodeType>("",                                                            \
-                                   [](tir::NodeType node, ObjectPath p, IRDocsifier d) -> Doc {   \
-                                     ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));        \
-                                     ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));        \
-                                     PrimExpr ret = tvm::NodeFunc(node->a, node->b);              \
-                                     if (!ret->IsInstance<tir::NodeObj>()) {                      \
-                                       return TIR(d, OpString)->Call({a, b});                     \
-                                     }                                                            \
-                                     return OperationDoc(OperationDocNode::Kind::OpKind, {a, b}); \
-                                   });
+#define TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(NodeType, NodeObj, NodeFunc, OpString, OpKind) \
+  TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)                                                    \
+      .set_dispatch<tir::NodeType>(                                                             \
+          "", [](tir::NodeType node, ObjectPath p, IRDocsifier d) -> Doc {                      \
+            ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));                               \
+            ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));                               \
+            PrimExpr ret = tvm::NodeFunc(node->a, node->b);                                     \
+            if (const auto* ret_node = ret.as<tvm::tir::NodeObj>()) {                           \
+              if (ret_node->a.same_as(node->a) && ret_node->b.same_as(node->b)) {               \
+                return OperationDoc(OperationDocNode::Kind::OpKind, {a, b});                    \
+              }                                                                                 \
+            }                                                                                   \
+            return TIR(d, OpString)->Call({a, b});                                              \
+          });
 
 TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Add, AddNode, add, "Add", kAdd);
 TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Sub, SubNode, sub, "Sub", kSub);

@@ -221,7 +221,7 @@ class AOTMainLowerer : public MixedModeVisitor {
     IRModule lowered_mod = GetRef<IRModule>(mod.CopyOnWrite());
 
     auto lowered_main = lowered_mod->Lookup("main");
-    auto lowered_main_func = GetRef<Function>(lowered_main.as<FunctionNode>());
+    auto lowered_main_func = Downcast<Function>(lowered_main);
 
     // Assign StorageInfo to all the Relay exprs and get the return SIDs
     std::tie(expr_storage_map_, return_sid_) = CreateStorage(lowered_main_func);

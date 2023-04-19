@@ -108,10 +108,10 @@ void AppendADT(std::ostream& os, const ADT& adt, const DLDevice& host_device, bo
 
 void AppendRuntimeObject(std::ostream& os, const ObjectRef& object, const DLDevice& host_device,
                          bool show_contents) {
-  if (const auto* adt_obj = object.as<ADTObj>()) {
-    AppendADT(os, GetRef<ADT>(adt_obj), host_device, show_contents);
-  } else if (const auto* nd_array_cont = object.as<NDArray::Container>()) {
-    AppendNDArray(os, GetRef<NDArray>(nd_array_cont), host_device, show_contents);
+  if (auto adt = object.as<ADT>()) {
+    AppendADT(os, adt.value(), host_device, show_contents);
+  } else if (auto nd_array_cont = object.as<NDArray>()) {
+    AppendNDArray(os, nd_array_cont.value(), host_device, show_contents);
   } else {
     os << "?";
   }

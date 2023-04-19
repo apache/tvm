@@ -44,10 +44,9 @@ CallGraph::CallGraph(IRModule module) {
   n->module = std::move(module);
   auto gvar_funcs = n->module->functions;
   for (const auto& it : gvar_funcs) {
-    if (const auto* fn = it.second.as<FunctionNode>()) {
-      auto func = GetRef<Function>(fn);
+    if (auto func = it.second.as<Function>()) {
       // Add the global function to gradually build up the call graph.
-      n->AddToCallGraph(it.first, func);
+      n->AddToCallGraph(it.first, func.value());
     }
   }
   data_ = std::move(n);
@@ -76,9 +75,8 @@ void CallGraphNode::AddToCallGraph(const GlobalVar& gv, const Function& func) {
             LookupGlobalVar(Downcast<GlobalVar>(props.attrs.metadata["prim_shape_fn_var"]));
         cg_node->AddCalledGlobal(callee_cg_node);
       }
-    } else if (const auto* global_var_node = expr.as<GlobalVarNode>()) {
-      auto callee = GetRef<GlobalVar>(global_var_node);
-      CallGraphEntry* callee_cg_node = LookupGlobalVar(callee);
+    } else if (auto callee = expr.as<GlobalVar>()) {
+      CallGraphEntry* callee_cg_node = LookupGlobalVar(callee.value());
       cg_node->AddCalledGlobal(callee_cg_node);
     }
   });

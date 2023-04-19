@@ -96,7 +96,7 @@ To cut a release candidate, one needs to first cut a branch using selected versi
 	# Update version numbers
 	# ...
 	git add .
-	git commit -m"Bump version numbers to v0.6.0"
+	git commit -m "Bump version numbers to v0.6.0"
 
 	# Replace v0.6 with the relevant version
 	git branch v0.6

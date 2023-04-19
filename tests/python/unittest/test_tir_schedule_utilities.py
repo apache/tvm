@@ -193,6 +193,7 @@ def test_tir_schedule_work_on():
         sch.get_block(name="init")
     sch.work_on(func_name="vector_add")
     sch.get_block(name="init")
+    assert sch.func_working_on == sch.mod.get_global_var("vector_add")
 
 
 def test_tir_schedule_get_loops(use_block_name):

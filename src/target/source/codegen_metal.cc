@@ -147,6 +147,8 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
     PrintType(DataType::UInt(thread_index_bits_, work_dim), stream);
     stream << " threadIdx [[thread_position_in_threadgroup]]\n";
   }
+  thread_work_dim_ = work_dim;
+
   // the function scope.
   stream << ") {\n";
   int func_scope = this->BeginScope();
@@ -158,8 +160,14 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
 
 void CodeGenMetal::BindThreadIndex(const IterVar& iv) {
   ICHECK(!var_idmap_.count(iv->var.get()));
+  // if we only have threadIdx.x
+  // metal will directly print as threadIdx
+  std::string vname = iv->thread_tag;
+  if (thread_work_dim_ <= 1) {
+    vname = vname.substr(0, iv->thread_tag.length() - 2);
+  }
   var_idmap_[iv->var.get()] =
-      CastFromTo(iv->thread_tag, DataType::UInt(thread_index_bits_), iv->var.dtype());
+      CastFromTo(vname, DataType::UInt(thread_index_bits_), iv->var.dtype());
 }
 
 void CodeGenMetal::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)

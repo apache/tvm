@@ -3332,6 +3332,25 @@ def let_expression():
     return func
 
 
+def test_void_ptr_vs_handle():
+    """Distinguish between void* and handle
+
+    In the future, perhaps these should be de-duplicated by forbidding
+    one of the two C++ representations.
+    """
+    # Generates PointerType(PrimType(DataType::Void()))
+    @T.prim_func
+    def void_ptr(out_ret_value: T.handle("void")):
+        T.evaluate(out_ret_value)
+
+    # Generates PrimType(DataType::Handle())
+    @T.prim_func
+    def handle(out_ret_value: T.handle):
+        T.evaluate(out_ret_value)
+
+    assert not tvm.ir.structural_equal(void_ptr, handle)
+
+
 def void_ptr():
     @T.prim_func
     def func(out_ret_value: T.handle("void")):
@@ -3692,6 +3711,17 @@ def tvm_shfl_builtins():
     return func
 
 
+def make_packed_api_result():
+    @T.prim_func
+    def func(A: T.Buffer(64, "float32")):
+        T.func_attr({"global_symbol": "main", "target": T.target("cuda")})
+        bx = T.launch_thread("blockIdx.x", 64)
+        T.evaluate(A[bx])
+
+    mod = tvm.IRModule.from_expr(func)
+    return tvm.tir.transform.MakePackedAPI()(mod)
+
+
 def tvm_struct_set_generated_in_cpp():
     """Ensure same dtype for tvm_struct_set in Python/C++
 
@@ -3827,6 +3857,7 @@ ir_generator = tvm.testing.parameter(
     merge_shape_var_def,
     if_then_else_var,
     tvm_shfl_builtins,
+    make_packed_api_result,
     tvm_struct_set_generated_in_cpp,
     ir_module_with_attrs,
     nested_seqstmt,

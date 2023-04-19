@@ -415,5 +415,12 @@ def test_proddiv_simplify():
     ck.verify(tdiv(x * (2 * y) * 3, 3 * y * z), tdiv(x * 2, z))
 
 
+def test_floormod_two():
+    ck = CanonicalChecker()
+    flm = tvm.te.floormod
+    x, y = te.var("x"), te.var("y")
+    ck.verify(flm(x * 10 + 1 + y * 2 + 2, 2), 1)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

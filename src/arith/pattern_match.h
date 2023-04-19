@@ -914,24 +914,6 @@ inline std::enable_if_t<(std::is_base_of_v<Pattern<TPattern>, TPattern> && ... &
 matches_one_of(const TPattern&... patterns) {
   return PMatchesOneOf<TPattern...>(patterns...);
 }
-
-/*!
- * \brief Unpack reduction by calling each leaf via fleaf.
- *
- * \param value The expression value.
- * \tparam TNode the reduction node to match.
- * \tparam FLeaf The callback function at leaf.
- */
-template <typename TNode, typename FLeaf>
-inline void UnpackReduction(const PrimExpr& value, FLeaf fleaf) {
-  if (const TNode* node = value.as<TNode>()) {
-    UnpackReduction<TNode, FLeaf>(node->a, fleaf);
-    UnpackReduction<TNode, FLeaf>(node->b, fleaf);
-  } else {
-    fleaf(value);
-  }
-}
-
 }  // namespace arith
 }  // namespace tvm
 #endif  // TVM_ARITH_PATTERN_MATCH_H_
