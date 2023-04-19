@@ -30,6 +30,8 @@ sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
 from cmd_utils import Sh, init_log, REPO_ROOT
 
 
+LOG_PATH = Path("/tmp/sccache_log.txt")
+
 if __name__ == "__main__":
     init_log()
 
@@ -46,6 +48,9 @@ if __name__ == "__main__":
     build_dir = Path(os.getcwd()) / args.build_dir
     build_dir = build_dir.relative_to(REPO_ROOT)
 
+    if LOG_PATH.exists():
+        LOG_PATH.unlink()
+
     if use_sccache:
         if args.sccache_bucket:
             env["SCCACHE_BUCKET"] = args.sccache_bucket
@@ -54,6 +59,8 @@ if __name__ == "__main__":
             logging.info(f"No sccache bucket set, using local cache")
         env["CXX"] = "/opt/sccache/c++"
         env["CC"] = "/opt/sccache/cc"
+        env["SCCACHE_ERROR_LOG"] = str(LOG_PATH)
+        env["SCCACHE_LOG"] = "debug"
 
     else:
         if sccache_exe is None:
@@ -64,10 +71,14 @@ if __name__ == "__main__":
 
     sh = Sh(env)
 
-    if use_sccache:
-        sh.run("sccache --start-server", check=False)
+    def show_stats():
         logging.info("===== sccache stats =====")
         sh.run("sccache --show-stats")
+        sh.run(f"cat {LOG_PATH}")
+
+    if use_sccache:
+        sh.run("sccache --start-server", check=False)
+        show_stats()
 
     executors = int(os.environ.get("CI_NUM_EXECUTORS", 1))
 
@@ -89,5 +100,4 @@ if __name__ == "__main__":
     sh.run(f"cmake --build . -- " + " ".join(ninja_args), cwd=build_dir)
 
     if use_sccache:
-        logging.info("===== sccache stats =====")
-        sh.run("sccache --show-stats")
+        show_stats()
