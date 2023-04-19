@@ -66,7 +66,7 @@ class Trainer:
         trainer.xaiver_uniform_init_params()
         trainer.predict(input_instances)
         trainer.update([input_instances], [labels])
-        trainer.profile_backward([input], [label])
+        trainer.profile_adjoint([input], [label])
     """
 
     BACKBONE_FUNC: str = "backbone"
