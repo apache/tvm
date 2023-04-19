@@ -190,20 +190,20 @@ class SetupTrainer:
         mod = DecomposeOpsForTraining(self.BACKBONE_LOSS_FUNC)(mod)
 
         # Gradient pass.
-        params_num = int(mod.attrs[self.PARAM_NUM_ATTR_KEY])
-        states_num = int(mod.attrs[self.STATE_NUM_ATTR_KEY])
-        inputs_num = len(mod[self.BACKBONE_FUNC].params) - params_num - states_num
-        params = mod[self.BACKBONE_LOSS_FUNC].params[inputs_num : inputs_num + params_num]
+        param_num = int(mod.attrs[self.PARAM_NUM_ATTR_KEY])
+        state_num = int(mod.attrs[self.STATE_NUM_ATTR_KEY])
+        input_num = len(mod[self.BACKBONE_FUNC].params) - param_num - state_num
+        params = mod[self.BACKBONE_LOSS_FUNC].params[input_num : input_num + param_num]
         mod = Gradient(self.BACKBONE_LOSS_FUNC, require_grads=params, target_index=0)(mod)
 
-        # Build Optimizer.
+        # Add optimizer function.
         self._optimizer.init(params)
         mod[self.OPTIMIZER_FUNC] = self._optimizer.get_function()
 
         # Module attrs
         mod = mod.with_attrs(
             {
-                "input_num": inputs_num,
+                "input_num": input_num,
                 "optim_state": self._optimizer.state,
             }
         )
