@@ -166,9 +166,9 @@ class Trainer:
             If params is a list, its length should be param_num. The value of parameters at the
             corresponding index will be updated.
 
-            If params is a map, it should map name to value. The name should be the same as the
-            parameter name in the backbone function. The values of the corresponding parameters
-            will be updated.
+            If params is a dict, it should map variable name to value. The name should be the same
+            as the parameter name in the backbone function. The values of the corresponding
+            parameters will be updated.
         """
         if isinstance(params, list):
             if len(params) != self._param_num:
@@ -200,9 +200,9 @@ class Trainer:
             If states is a list, its length should be state_num. The value of states at the
             corresponding index will be updated.
 
-            If params is a map, it should map name to value. The name should be the same as the
-            state name in the backbone function. The values of the corresponding states will be
-            updated.
+            If params is a dict, it should map variable name to value. The name should be the same
+            as the state name in the backbone function. The values of the corresponding states will
+            be updated.
         """
         if isinstance(states, list):
             if len(states) != self._state_num:

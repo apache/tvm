@@ -43,14 +43,16 @@ def AppendLoss(
     .. code-block:: python
         @R.function
         def backbone(input_instances, parameters, states):
-            # Predicts the result
-            # Should contain only one DataflowBlock
-            ...
+            with R.dataflow():
+                # Predicts the result
+                ...
             return backbone_result, updated_states
 
         @R.function
-        def loss(backbone_prediction_outputs, targets):
-            # backbone_prediction_outputs, targets denote a number of parameters
+        def loss(backbone_result, targets):
+            with R.dataflow():
+                # calculate the loss between backbone_result and targets
+                ...
             # loss should be a scalar Var
             return loss
 
@@ -66,9 +68,11 @@ def AppendLoss(
 
     .. code-block:: python
         @R.function
-        def backbone_loss(input_of_backbones, input_of_states, targets):
-            # backbone_loss contains all bindings in backbone and loss
-            return loss, output_of_states
+        def backbone_loss(input_instances, parameters, states, targets):
+            with R.dataflow():
+                # all bindings in backbone and loss
+                ...
+            return loss, updated_states
 
     Parameters
     ----------
