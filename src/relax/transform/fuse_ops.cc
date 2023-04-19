@@ -752,7 +752,6 @@ class OperatorFusor : public ExprMutator {
       //  - Otherwise, emit a dataflow variable.
       Var new_var;
       Call call_to_emit = Call(gv, UpdateArgs(func_info.arguments_), {}, {}, new_span);
-      LOG(INFO) << "Created fused call " << call_to_emit << " with span " << new_span;
 
       if (var_binding->var->IsInstance<DataflowVarNode>()) {
         new_var = builder_->Emit(call_to_emit);
