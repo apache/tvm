@@ -60,13 +60,12 @@ class Trainer:
         ex = relax.build(train_mod, target)
         vm = relax.VirtualMachine(ex, dev)
 
-        trainer = training.Trainer(train_mod, vm, dev)
+        trainer = training.Trainer(train_mod, vm, dev, False)
 
-        trainer = Trainer(MLP, 2, setup_trainer)
         trainer.xaiver_uniform_init_params()
         trainer.predict(input_instances)
         trainer.update([input_instances], [labels])
-        trainer.profile_adjoint([input], [label])
+        trainer.profile_adjoint([input_instances], [labels])
     """
 
     BACKBONE_FUNC: str = "backbone"
