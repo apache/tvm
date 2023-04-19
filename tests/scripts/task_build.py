@@ -61,6 +61,11 @@ if __name__ == "__main__":
         env["CC"] = "/opt/sccache/cc"
         env["SCCACHE_ERROR_LOG"] = str(LOG_PATH)
         env["SCCACHE_LOG"] = "debug"
+        env["AWS_REGION"] = "us-west-2"
+        env["AWS_DEFAULT_REGION"] = "us-west-2"
+        env["SCCACHE_REGION"] = "us-west-2"
+        # env["SCCACHE_REGION"] = "auto"
+        env["SCCACHE_S3_NO_CREDENTIALS"] = "1"
 
     else:
         if sccache_exe is None:
