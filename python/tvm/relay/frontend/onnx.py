@@ -3460,7 +3460,7 @@ class Constant(OnnxOpConverter):
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
         if "value" not in attr:
-            raise tvm.errors.OpAttributeRequired("no value in Constant")
+            raise tvm.error.OpAttributeRequired("no value in Constant")
         value = attr.pop("value")
         # Constants may rarely have string types. These are likely exported
         # from other frameworks and not actually used in TVM. We'll just use

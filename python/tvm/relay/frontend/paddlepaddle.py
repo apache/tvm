@@ -502,7 +502,13 @@ def convert_dropout(g, op, block):
     """Operator converter for dropout."""
 
     x = g.get_node(op.input("X")[0])
-    g.add_node(op.output("Out")[0], x)
+    dropout_prob = op.attr("dropout_prob")
+    dropout_implementation = op.attr("dropout_implementation")
+    if dropout_implementation == "downgrade_in_infer":
+        out = _op.nn.dropout(x, dropout_prob) * _expr.const(1 - dropout_prob, dtype="float32")
+    else:
+        out = _op.nn.dropout(x, dropout_prob)
+    g.add_node(op.output("Out")[0], out)
 
 
 def convert_dot(g, op, block):
@@ -897,8 +903,9 @@ def convert_hard_sigmoid(g, op, block):
     """Operator converter for hard_sigmoid."""
 
     slope = op.attr("slope")
+    offset = op.attr("offset")
     x = g.get_node(op.input("X")[0])
-    out = x * _expr.const(slope) + _expr.const(0.5)
+    out = x * _expr.const(slope) + _expr.const(offset)
     out = _op.clip(out, 0, 1)
     g.add_node(op.output("Out")[0], out)
 
@@ -1425,7 +1432,8 @@ def convert_pixel_shuffle(g, op, block):
 
     x = g.get_node(op.input("X")[0])
     upscale_factor = op.attr("upscale_factor")
-    out = _op.nn.depth_to_space(x, upscale_factor, mode="CRD")
+    data_format = op.attr("data_format")
+    out = _op.nn.depth_to_space(x, block_size=upscale_factor, layout=data_format, mode="CRD")
     g.add_node(op.output("Out")[0], out)
 
 

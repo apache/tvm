@@ -25,6 +25,7 @@
 #define TVM_ARITH_IR_MUTATOR_WITH_ANALYZER_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include <utility>
@@ -63,8 +64,34 @@ class IRMutatorWithAnalyzer : public tir::StmtExprMutator {
  protected:
   /*! \brief internal analyzer field. */
   Analyzer* analyzer_;
+  // the following two fields are useful in case we want
+  // note however that iter map analysis are usually more
+  // expensive and we only encourage doing them during
+  // necessary cases like layout remapping
+  /*! \brief Recorded loop iterators */
+  Map<Var, Range> iter_vars_;
+  /*! \brief iterator predicates */
+  Array<PrimExpr> iter_predicates_;
+  /*!
+   * \brief Run callback while trying to record iter predicate
+   * \param conditon Condition to be checked.
+   * \param callback The callback to be called.
+   */
+  template <typename FLambda>
+  void WithRecordIterPredicate(PrimExpr condition, FLambda callback) {
+    auto f_use_itervar = [this](const tir::VarNode* v) {
+      return iter_vars_.count(GetRef<tir::Var>(v));
+    };
+    // simple heuristics for detecting predicate
+    if (tir::UsesVar(condition, f_use_itervar)) {
+      iter_predicates_.push_back(condition);
+      callback();
+      iter_predicates_.pop_back();
+    } else {
+      callback();
+    }
+  }
 };
-
 }  // namespace arith
 }  // namespace tvm
 #endif  // TVM_ARITH_IR_MUTATOR_WITH_ANALYZER_H_

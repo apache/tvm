@@ -295,7 +295,7 @@ Array<ScheduleRule> ScheduleRule::DefaultMicro() {
   };
 }
 
-Array<ScheduleRule> GetNeonSpecificRules() {
+Array<ScheduleRule> GetARMNeonSpecificRules() {
   return {
       ScheduleRule::MultiLevelTilingWithIntrin(
           /*intrin_name=*/String("dot_4x4_i8i8s32_neon"),
@@ -311,7 +311,7 @@ Array<ScheduleRule> GetNeonSpecificRules() {
   };
 }
 
-Array<ScheduleRule> GetDotprodSpecificRules() {
+Array<ScheduleRule> GetARMDotprodSpecificRules() {
   return {
       ScheduleRule::MultiLevelTilingWithIntrin(
           /*intrin_name=*/String("dot_4x4_i8i8s32_sdot"),
@@ -363,8 +363,8 @@ Array<ScheduleRule> ScheduleRule::DefaultARM(const String& type) {
       ScheduleRule::AddRFactor(
           /*max_jobs_per_core=*/8,
           /*max_innermost_factor=*/Integer(32)),
-      "neon" == type ? GetNeonSpecificRules() : Array<ScheduleRule>{},
-      "dotprod" == type ? GetDotprodSpecificRules() : Array<ScheduleRule>{},
+      "neon" == type ? GetARMNeonSpecificRules() : Array<ScheduleRule>{},
+      "dotprod" == type ? GetARMDotprodSpecificRules() : Array<ScheduleRule>{},
       ScheduleRule::MultiLevelTiling(
           /*structure=*/"SSRSRS",
           /*tile_binds=*/NullOpt,

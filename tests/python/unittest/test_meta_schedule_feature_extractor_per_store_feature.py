@@ -704,6 +704,28 @@ def test_cpu_fusion():
     )
 
 
+def test_empty_feature():
+    @T.prim_func
+    def full(T_full: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+        for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
+            with T.block("T_full"):
+                v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                T.reads()
+                T.writes(T_full[v_ax0, v_ax1])
+                T_full[v_ax0, v_ax1] = T.float32(1)
+
+    def _create_schedule():
+        return tir.Schedule(full, debug_mask="all")
+
+    extractor = ms.feature_extractor.PerStoreFeature()
+    (feature,) = extractor.extract_from(
+        _make_context(tvm.target.Target("llvm")),
+        candidates=[_make_candidate(_create_schedule)],
+    )
+    feature = feature.numpy()
+    assert feature.shape == (0, N_FEATURES)
+
+
 def test_gpu():
     def _create_schedule():
         func = matmul

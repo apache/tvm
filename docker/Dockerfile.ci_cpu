@@ -108,6 +108,10 @@ RUN bash /install/ubuntu_install_tensorflow.sh
 COPY install/ubuntu_install_tflite.sh /install/ubuntu_install_tflite.sh
 RUN bash /install/ubuntu_install_tflite.sh
 
+# JAX deps
+COPY install/ubuntu_install_jax.sh /install/ubuntu_install_jax.sh
+RUN bash /install/ubuntu_install_jax.sh "cpu"
+
 # Compute Library
 COPY install/ubuntu_download_arm_compute_lib_binaries.sh /install/ubuntu_download_arm_compute_lib_binaries.sh
 RUN bash /install/ubuntu_download_arm_compute_lib_binaries.sh

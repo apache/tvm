@@ -581,8 +581,8 @@ class ConcretizeLikeRewrite : public DFPatternRewrite {
     const TensorTypeNode* like_ty = pre->checked_type().as<TensorTypeNode>();
     Array<Integer> cshape;
     for (const auto& dim : like_ty->shape) {
-      if (const auto* imm = dim.as<IntImmNode>()) {
-        cshape.push_back(Integer(GetRef<IntImm>(imm)));
+      if (auto imm = dim.as<IntImm>()) {
+        cshape.push_back(Integer(imm.value()));
       } else {
         // shape is not static, don't concretize
         return post;

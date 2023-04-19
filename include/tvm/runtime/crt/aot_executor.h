@@ -100,7 +100,7 @@ int TVMAotExecutor_GetInputIndex(TVMAotExecutor* executor, const char* name);
  * \param name Output for retrieving name.
  * \return Pointer to input name in `name`.
  */
-int TVMAotExecutor_GetInputName(TVMAotExecutor* executor, int index, char** name);
+int TVMAotExecutor_GetInputName(TVMAotExecutor* executor, int index, const char** name);
 
 /*!
  * \brief Run the generated program.

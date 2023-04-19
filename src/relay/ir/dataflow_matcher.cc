@@ -128,8 +128,8 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
     return matches;
   }
   auto attributes = attr_pattern->attrs.as<DictAttrsNode>()->dict;
-  if (const auto* op_node = expr.as<OpNode>()) {
-    Op op = GetRef<Op>(op_node);
+  if (auto optional = expr.as<Op>()) {
+    Op op = optional.value();
     for (auto kv : attributes) {
       auto attr_name = kv.first;
       auto attr_value = kv.second;

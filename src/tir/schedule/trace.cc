@@ -78,13 +78,13 @@ Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
       auto it = rv_map.find(input.get());
       ICHECK(it != rv_map.end()) << "IndexError: Random variable doesn't exist: " << input;
       result.push_back(GetRef<ObjectRef>(it->second));
-    } else if (const auto* expr = input.as<PrimExprNode>()) {  // RV: Expr
-      result.push_back(Substitute(GetRef<PrimExpr>(expr), f_subst_with_rv_map));
-    } else if (const auto* index_map = input.as<IndexMapNode>()) {
-      result.push_back(Substitute(GetRef<IndexMap>(index_map), f_subst_with_rv_map));
-    } else if (input->IsInstance<ArrayNode>()) {
+    } else if (auto expr = input.as<PrimExpr>()) {  // RV: Expr
+      result.push_back(Substitute(expr.value(), f_subst_with_rv_map));
+    } else if (auto index_map = input.as<IndexMap>()) {
+      result.push_back(Substitute(index_map.value(), f_subst_with_rv_map));
+    } else if (auto arr = input.as<Array<ObjectRef>>()) {
       // Recursively convert elements of the array into a new list of ObjectRefs.
-      result.push_back(TranslateInputRVs(Downcast<Array<ObjectRef>>(input), rv_map));
+      result.push_back(TranslateInputRVs(arr.value(), rv_map));
     } else {
       ICHECK(false) << "TypeError: Cannot recognize the type of an input random variable: "
                     << input->GetTypeKey();
