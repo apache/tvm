@@ -89,11 +89,10 @@ def test_simple():
         with R.dataflow():
             lv = R.concat((y, y_1, y_2), axis=1)
             lv1 = R.matmul(x, lv, out_dtype="float32")
-            lv2 = R.split(lv1, indices_or_sections=[640, 1280], axis=1)
-            lv_1 = lv2[0]
-            lv1_1 = lv2[1]
-            lv2_1 = lv2[2]
-            lv3 = R.concat((lv_1, lv1_1, lv2_1), axis=1)
+            lv_1 = R.strided_slice(lv1, axes=[1], begin=[0], end=[640], strides=[1])
+            lv1_1 = R.strided_slice(lv1, axes=[1], begin=[640], end=[1280], strides=[1])
+            lv2 = R.strided_slice(lv1, axes=[1], begin=[1280], end=[1920], strides=[1])
+            lv3 = R.concat((lv_1, lv1_1, lv2), axis=1)
             R.output(lv3)
         return lv3
 
@@ -113,11 +112,10 @@ def test_simple():
         with R.dataflow():
             lv = R.concat((y, y_1, y_2), axis=1)
             lv1 = R.matmul(x, lv, out_dtype="float32")
-            lv2 = R.split(lv1, indices_or_sections=[640, 1280], axis=2)
-            lv_1 = lv2[0]
-            lv1_1 = lv2[1]
-            lv2_1 = lv2[2]
-            lv3 = R.concat((lv_1, lv1_1, lv2_1), axis=1)
+            lv_1 = R.strided_slice(lv1, axes=[2], begin=[0], end=[640], strides=[1])
+            lv1_1 = R.strided_slice(lv1, axes=[2], begin=[640], end=[1280], strides=[1])
+            lv2 = R.strided_slice(lv1, axes=[2], begin=[1280], end=[1920], strides=[1])
+            lv3 = R.concat((lv_1, lv1_1, lv2), axis=1)
             R.output(lv3)
         return lv3
 
@@ -143,10 +141,9 @@ def test_bias():
             lv1 = R.matmul(x, lv, out_dtype="float32")
             lv2 = R.concat((bias, bias_1, bias_2), axis=0)
             lv3 = R.add(lv1, lv2)
-            lv4 = R.split(lv3, indices_or_sections=[640, 1280], axis=1)
-            lv1_1 = lv4[0]
-            lv3_1 = lv4[1]
-            lv5 = lv4[2]
+            lv1_1 = R.strided_slice(lv3, axes=[1], begin=[0], end=[640], strides=[1])
+            lv3_1 = R.strided_slice(lv3, axes=[1], begin=[640], end=[1280], strides=[1])
+            lv5 = R.strided_slice(lv3, axes=[1], begin=[1280], end=[1920], strides=[1])
             lv6 = R.concat((lv1_1, lv3_1, lv5), axis=1)
             R.output(lv6)
         return lv6
@@ -168,13 +165,12 @@ def test_bias():
         with R.dataflow():
             lv = R.concat((y, y_1, y_2), axis=1)
             lv1 = R.matmul(x, lv, out_dtype="float32")
-            lv2 = R.split(lv1, indices_or_sections=[640, 1280], axis=1)
-            lv_1 = lv2[0]
+            lv_1 = R.strided_slice(lv1, axes=[1], begin=[0], end=[640], strides=[1])
             lv1_1 = R.add(lv_1, bias)
-            lv2_1 = lv2[1]
-            lv3 = lv2[2]
+            lv2 = R.strided_slice(lv1, axes=[1], begin=[640], end=[1280], strides=[1])
+            lv3 = R.strided_slice(lv1, axes=[1], begin=[1280], end=[1920], strides=[1])
             lv4 = R.add(lv3, bias_1)
-            lv5 = R.concat((lv1_1, lv2_1, lv4), axis=1)
+            lv5 = R.concat((lv1_1, lv2, lv4), axis=1)
             R.output(lv5)
         return lv5
 
@@ -196,11 +192,10 @@ def test_activation():
             lv = R.concat((y, y_1, y_2), axis=1)
             lv1 = R.matmul(x, lv, out_dtype="float32")
             lv2 = R.nn.relu(lv1)
-            lv3 = R.split(lv2, indices_or_sections=[640, 1280], axis=1)
-            lv1_1 = lv3[0]
-            lv3_1 = lv3[1]
-            lv5 = lv3[2]
-            lv6 = R.concat((lv1_1, lv3_1, lv5), axis=1)
+            lv1_1 = R.strided_slice(lv2, axes=[1], begin=[0], end=[640], strides=[1])
+            lv3 = R.strided_slice(lv2, axes=[1], begin=[640], end=[1280], strides=[1])
+            lv5 = R.strided_slice(lv2, axes=[1], begin=[1280], end=[1920], strides=[1])
+            lv6 = R.concat((lv1_1, lv3, lv5), axis=1)
             R.output(lv6)
         return lv6
 
@@ -219,12 +214,11 @@ def test_activation():
         with R.dataflow():
             lv = R.concat((y, y_1, y_2), axis=1)
             lv1 = R.matmul(x, lv, out_dtype="float32")
-            lv2 = R.split(lv1, indices_or_sections=[640, 1280], axis=1)
-            lv_1 = lv2[0]
+            lv_1 = R.strided_slice(lv1, axes=[1], begin=[0], end=[640], strides=[1])
             lv1_1 = R.nn.gelu(lv_1)
-            lv2_1 = lv2[1]
-            lv3 = R.nn.relu(lv2_1)
-            lv4 = lv2[2]
+            lv2 = R.strided_slice(lv1, axes=[1], begin=[640], end=[1280], strides=[1])
+            lv3 = R.nn.relu(lv2)
+            lv4 = R.strided_slice(lv1, axes=[1], begin=[1280], end=[1920], strides=[1])
             lv5 = R.nn.relu(lv4)
             lv6 = R.concat((lv1_1, lv3, lv5), axis=1)
             R.output(lv6)
@@ -245,13 +239,11 @@ def test_activation():
         with R.dataflow():
             lv = R.concat((y, y_1, y_2), axis=1)
             lv1 = R.matmul(x, lv, out_dtype="float32")
-            lv2 = R.split(lv1, indices_or_sections=[640, 1280], axis=1)
-
-            lv_1 = lv2[0]
+            lv_1 = R.strided_slice(lv1, axes=[1], begin=[0], end=[640], strides=[1])
             lv1_1 = R.nn.relu(lv_1)
-            lv2_1 = lv2[1]
-            lv3 = lv2[2]
-            lv4 = R.concat((lv1_1, lv2_1, lv3), axis=1)
+            lv2 = R.strided_slice(lv1, axes=[1], begin=[640], end=[1280], strides=[1])
+            lv3 = R.strided_slice(lv1, axes=[1], begin=[1280], end=[1920], strides=[1])
+            lv4 = R.concat((lv1_1, lv2, lv3), axis=1)
             R.output(lv4)
         return lv4
 
@@ -278,11 +270,10 @@ def test_bias_activation():
             lv2 = R.concat((bias, bias_1, bias_2), axis=0)
             lv3 = R.add(lv1, lv2)
             lv4 = R.nn.relu(lv3)
-            lv5 = R.split(lv4, indices_or_sections=[640, 1280], axis=1)
-            lv2_1 = lv5[0]
-            lv5_1 = lv5[1]
-            lv8 = lv5[2]
-            lv9 = R.concat((lv2_1, lv5_1, lv8), axis=1)
+            lv2_1 = R.strided_slice(lv4, axes=[1], begin=[0], end=[640], strides=[1])
+            lv5 = R.strided_slice(lv4, axes=[1], begin=[640], end=[1280], strides=[1])
+            lv8 = R.strided_slice(lv4, axes=[1], begin=[1280], end=[1920], strides=[1])
+            lv9 = R.concat((lv2_1, lv5, lv8), axis=1)
             R.output(lv9)
         return lv9
 
@@ -306,13 +297,12 @@ def test_bias_activation():
             lv1 = R.matmul(x, lv, out_dtype="float32")
             lv2 = R.concat((bias, bias_1, bias_2), axis=0)
             lv3 = R.add(lv1, lv2)
-            lv4 = R.split(lv3, indices_or_sections=[640, 1280], axis=1)
-            lv1_1 = lv4[0]
+            lv1_1 = R.strided_slice(lv3, axes=[1], begin=[0], end=[640], strides=[1])
             lv2_1 = R.nn.relu(lv1_1)
-            lv4_1 = lv4[1]
-            lv6 = lv4[2]
+            lv4 = R.strided_slice(lv3, axes=[1], begin=[640], end=[1280], strides=[1])
+            lv6 = R.strided_slice(lv3, axes=[1], begin=[1280], end=[1920], strides=[1])
             lv7 = R.nn.relu(lv6)
-            lv8 = R.concat((lv2_1, lv4_1, lv7), axis=1)
+            lv8 = R.concat((lv2_1, lv4, lv7), axis=1)
             R.output(lv8)
         return lv8
 
@@ -333,15 +323,14 @@ def test_bias_activation():
         with R.dataflow():
             lv = R.concat((y, y_1, y_2), axis=1)
             lv1 = R.matmul(x, lv, out_dtype="float32")
-            lv2 = R.split(lv1, indices_or_sections=[640, 1280], axis=1)
-            lv_1 = lv2[0]
+            lv_1 = R.strided_slice(lv1, axes=[1], begin=[0], end=[640], strides=[1])
             lv1_1 = R.add(lv_1, bias)
-            lv2_1 = R.nn.relu(lv1_1)
-            lv3 = lv2[1]
-            lv4 = lv2[2]
+            lv2 = R.nn.relu(lv1_1)
+            lv3 = R.strided_slice(lv1, axes=[1], begin=[640], end=[1280], strides=[1])
+            lv4 = R.strided_slice(lv1, axes=[1], begin=[1280], end=[1920], strides=[1])
             lv5 = R.add(lv4, bias_1)
             lv6 = R.nn.relu(lv5)
-            lv7 = R.concat((lv2_1, lv3, lv6), axis=1)
+            lv7 = R.concat((lv2, lv3, lv6), axis=1)
             R.output(lv7)
         return lv7
 
@@ -381,12 +370,11 @@ def test_rhs_batched():
         with R.dataflow():
             lv = R.concat((w0, w2), axis=2)
             lv1 = R.matmul(x, lv, out_dtype="float32")
-            lv2 = R.split(lv1, indices_or_sections=[640], axis=2)
-            lv0 = lv2[0]
+            lv0 = R.strided_slice(lv1, axes=[2], begin=[0], end=[640], strides=[1])
             lv1_1 = R.matmul(x, w1, out_dtype="void")
-            lv2_1 = lv2[1]
+            lv2 = R.strided_slice(lv1, axes=[2], begin=[640], end=[1280], strides=[1])
             lv3 = R.matmul(x, w3, out_dtype="void")
-            out = lv0, lv1_1, lv2_1, lv3
+            out = lv0, lv1_1, lv2, lv3
             R.output(out)
         return out
 
@@ -461,18 +449,16 @@ def test_multiple_combine():
         with R.dataflow():
             lv = R.concat((w0, w1, w2), axis=1)
             lv1 = R.matmul(x1, lv, out_dtype="float32")
-            lv2 = R.split(lv1, indices_or_sections=[640, 1280], axis=2)
-            lv0 = lv2[0]
-            lv1_1 = lv2[1]
+            lv0 = R.strided_slice(lv1, axes=[2], begin=[0], end=[640], strides=[1])
+            lv1_1 = R.strided_slice(lv1, axes=[2], begin=[640], end=[1280], strides=[1])
             lv_1 = R.concat((w3, w4), axis=1)
             lv1_2 = R.matmul(x2, lv_1, out_dtype="float32")
-            lv2_1 = R.concat((b0, b1), axis=0)
-            lv3 = R.add(lv1_2, lv2_1)
-            lv4 = R.split(lv3, indices_or_sections=[640], axis=2)
-            lv5 = lv4[0]
-            lv2_2 = lv2[2]
-            lv6 = lv4[1]
-            out = lv0, lv1_1, lv2_2, lv5, lv6
+            lv2 = R.concat((b0, b1), axis=0)
+            lv3 = R.add(lv1_2, lv2)
+            lv5 = R.strided_slice(lv3, axes=[2], begin=[0], end=[640], strides=[1])
+            lv2_1 = R.strided_slice(lv1, axes=[2], begin=[1280], end=[1920], strides=[1])
+            lv6 = R.strided_slice(lv3, axes=[2], begin=[640], end=[1280], strides=[1])
+            out = lv0, lv1_1, lv2_1, lv5, lv6
             R.output(out)
         return out
 
