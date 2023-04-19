@@ -1105,7 +1105,7 @@ def test_tuple_get_reshape():
                 R.output(lv645)
             return lv645
 
-    print(Module)
+    print(relax.transform.FuseTIR()(Module))
 
 
 if __name__ == "__main__":
