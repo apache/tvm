@@ -47,6 +47,10 @@ def _te_mean(x: te.Tensor, axis: List[tir.IntImm], keepdims: bool) -> te.Tensor:
 def _te_variance(x: te.Tensor, axis: List[tir.IntImm], keepdims: bool) -> te.Tensor:
     dev = x - _te_mean(x, axis, True)
     return _te_mean(dev * dev, axis, keepdims)
+    # This version has better memory locality and performance
+    # But may trigger some precision problems, so we will use the previous version now
+    # mean = _te_mean(x, axis, keepdims)
+    # return _te_mean(x * x, axis, keepdims) - mean * mean
 
 
 @register_legalize("relax.mean")

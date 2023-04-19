@@ -14,13 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
-
 import tvm
 from tvm.relax.transform import LegalizeOps
 from tvm.script import relax as R, tir as T, ir as I
 import tvm.testing
-from tvm.tir.op import div
 
 
 def test_nll_loss_backward():
@@ -207,7 +204,6 @@ def test_nll_loss_backward_no_batch():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-@pytest.mark.skip("Regression to be fixed in the generated after merge.")
 def test_max_pool2d_backward():
     # fmt: off
     @tvm.script.ir_module
@@ -219,15 +215,9 @@ def test_max_pool2d_backward():
 
     @I.ir_module
     class Expected:
-        @R.function
-        def main(output_grad: R.Tensor((3, 2, 6, 5), dtype="float32"), data: R.Tensor((3, 2, 10, 10), dtype="float32")) -> R.Tensor((3, 2, 10, 10), dtype="float32"):
-            cls = Expected
-            gv = R.call_tir(cls.max_pool2d_backward, (output_grad, data), out_sinfo=R.Tensor((3, 2, 10, 10), dtype="float32"))
-            return gv
-
         @T.prim_func
-        def max_pool2d_backward(rxplaceholder: T.Buffer((T.int64(3), T.int64(2), T.int64(6), T.int64(5)), "float32"), rxplaceholder_1: T.Buffer((T.int64(3), T.int64(2), T.int64(10), T.int64(10)), "float32"), T_pool_grad: T.Buffer((T.int64(3), T.int64(2), T.int64(10), T.int64(10)), "float32")):
-            T.func_attr({"tir.noalias": True})
+        def max_pool2d_backward(A: T.Buffer((T.int64(3), T.int64(2), T.int64(6), T.int64(5)), "float32"), B: T.Buffer((T.int64(3), T.int64(2), T.int64(10), T.int64(10)), "float32"), T_pool_grad: T.Buffer((T.int64(3), T.int64(2), T.int64(10), T.int64(10)), "float32")):
+            T.func_attr({"tir.noalias": T.bool(True)})
             # with T.block("root"):
             pad_temp = T.alloc_buffer((T.int64(3), T.int64(2), T.int64(15), T.int64(13)))
             maxpool_grad_argmax_v0 = T.alloc_buffer((T.int64(3), T.int64(2), T.int64(6), T.int64(5)), "int64")
@@ -235,29 +225,35 @@ def test_max_pool2d_backward():
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(3), T.int64(2), T.int64(15), T.int64(13)):
                 with T.block("pad_temp"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                    T.reads(rxplaceholder_1[v_ax0, v_ax1, v_ax2 - T.int64(2), v_ax3 - T.int64(1)])
+                    T.reads(B[v_ax0, v_ax1, v_ax2 - T.int64(2), v_ax3 - T.int64(1)])
                     T.writes(pad_temp[v_ax0, v_ax1, v_ax2, v_ax3])
-                    pad_temp[v_ax0, v_ax1, v_ax2, v_ax3] = T.if_then_else(T.int64(2) <= v_ax2 and v_ax2 < T.int64(12) and T.int64(1) <= v_ax3 and v_ax3 < T.int64(11), rxplaceholder_1[v_ax0, v_ax1, v_ax2 - T.int64(2), v_ax3 - T.int64(1)], T.float32(-3.4028234663852886e+38))
+                    pad_temp[v_ax0, v_ax1, v_ax2, v_ax3] = T.if_then_else(T.int64(2) <= v_ax2 and v_ax2 < T.int64(12) and T.int64(1) <= v_ax3 and v_ax3 < T.int64(11), B[v_ax0, v_ax1, v_ax2 - T.int64(2), v_ax3 - T.int64(1)], T.float32(-3.4028234663852886e+38))
             for ax0, ax1, ax2, ax3, dh, dw in T.grid(T.int64(3), T.int64(2), T.int64(6), T.int64(5), T.int64(5), T.int64(5)):
                 with T.block("maxpool_grad_argmax"):
                     v_ax0, v_ax1, v_ax2, v_ax3, v_dh, v_dw = T.axis.remap("SSSSRR", [ax0, ax1, ax2, ax3, dh, dw])
                     T.reads(pad_temp[v_ax0, v_ax1, v_ax2 * T.int64(2) + v_dh, v_ax3 * T.int64(2) + v_dw])
                     T.writes(maxpool_grad_argmax_v0[v_ax0, v_ax1, v_ax2, v_ax3], maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3])
                     with T.init():
-                        maxpool_grad_argmax_v0[v_ax0, v_ax1, v_ax2, v_ax3] = -1
+                        maxpool_grad_argmax_v0[v_ax0, v_ax1, v_ax2, v_ax3] = T.int64(-1)
                         maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3] = T.float32(-3.4028234663852886e+38)
-                    v_maxpool_grad_argmax_v0: T.int64 = T.Select(maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3] > pad_temp[v_ax0, v_ax1, v_ax2 * T.int64(2) + v_dh, v_ax3 * T.int64(2) + v_dw] or maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3] == pad_temp[v_ax0, v_ax1, v_ax2 * T.int64(2) + v_dh, v_ax3 * T.int64(2) + v_dw] and  maxpool_grad_argmax_v0[v_ax0, v_ax1, v_ax2, v_ax3] < v_ax0 * T.int64(390) + v_ax1 * T.int64(195) + v_ax2 * T.int64(26) + v_dh * T.int64(13) + v_ax3 * T.int64(2) + v_dw, maxpool_grad_argmax_v0[v_ax0, v_ax1, v_ax2, v_ax3], v_ax0 * T.int64(390) + v_ax1 * T.int64(195) + v_ax2 * T.int64(26) + v_dh * T.int64(13) + v_ax3 * T.int64(2) + v_dw)
+                    v_maxpool_grad_argmax_v0: T.int64 = T.Select(maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3] > pad_temp[v_ax0, v_ax1, v_ax2 * T.int64(2) + v_dh, v_ax3 * T.int64(2) + v_dw] or maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3] == pad_temp[v_ax0, v_ax1, v_ax2 * T.int64(2) + v_dh, v_ax3 * T.int64(2) + v_dw] and maxpool_grad_argmax_v0[v_ax0, v_ax1, v_ax2, v_ax3] < v_ax0 * T.int64(390) + v_ax1 * T.int64(195) + v_ax2 * T.int64(26) + v_dh * T.int64(13) + v_ax3 * T.int64(2) + v_dw, maxpool_grad_argmax_v0[v_ax0, v_ax1, v_ax2, v_ax3], v_ax0 * T.int64(390) + v_ax1 * T.int64(195) + v_ax2 * T.int64(26) + T.Cast("int64", v_dh) * T.int64(13) + v_ax3 * T.int64(2) + T.Cast("int64", v_dw))
                     v_maxpool_grad_argmax_v1: T.float32 = T.Select(maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3] > pad_temp[v_ax0, v_ax1, v_ax2 * T.int64(2) + v_dh, v_ax3 * T.int64(2) + v_dw], maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3], pad_temp[v_ax0, v_ax1, v_ax2 * T.int64(2) + v_dh, v_ax3 * T.int64(2) + v_dw])
                     maxpool_grad_argmax_v0[v_ax0, v_ax1, v_ax2, v_ax3] = v_maxpool_grad_argmax_v0
                     maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3] = v_maxpool_grad_argmax_v1
             for ax0, ax1, ax2, ax3, wh, ww in T.grid(T.int64(3), T.int64(2), T.int64(10), T.int64(10), T.int64(3), T.int64(3)):
                 with T.block("T_pool_grad"):
                     v_ax0, v_ax1, v_ax2, v_ax3, v_wh, v_ww = T.axis.remap("SSSSRR", [ax0, ax1, ax2, ax3, wh, ww])
-                    T.reads(maxpool_grad_argmax_v0[v_ax0, v_ax1, div((v_ax2 + T.int64(2)), T.int64(2)) - v_wh, div((v_ax3 + T.int64(1)), T.int64(2)) - v_ww], rxplaceholder[v_ax0, v_ax1, div((v_ax2 + T.int64(2)), T.int64(2)) - v_wh, div((v_ax3 + T.int64(1)), T.int64(2)) - v_ww])
+                    T.reads(maxpool_grad_argmax_v0[v_ax0, v_ax1, T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh, T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww], A[v_ax0, v_ax1, T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh, T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww])
                     T.writes(T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3])
                     with T.init():
                         T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3] = T.float32(0)
-                    T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3] = T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3] + T.if_then_else(T.Select(v_ax2 < T.int64(3), T.int64(0), div((v_ax2 - T.int64(3)), T.int64(2)) + T.int64(1)) <= div((v_ax2 + T.int64(2)), T.int64(2)) - v_wh and T.Select(v_ax3 < T.int64(4), T.int64(0), div((v_ax3 - T.int64(4)), T.int64(2)) + T.int64(1)) <= div((v_ax3 + T.int64(1)), T.int64(2)) - v_ww and T.Cast("int64", maxpool_grad_argmax_v0[v_ax0, v_ax1, div((v_ax2 + T.int64(2)), T.int64(2)) - v_wh, div((v_ax3 + T.int64(1)), T.int64(2)) - v_ww]) == v_ax0 * T.int64(390) + v_ax1 * T.int64(195) + v_ax2 * T.int64(13) + v_ax3 + T.int64(27), rxplaceholder[v_ax0, v_ax1, div((v_ax2 + T.int64(2)), T.int64(2)) - v_wh, div((v_ax3 + T.int64(1)), T.int64(2)) - v_ww], T.float32(0))
+                    T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3] = T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3] + T.if_then_else(T.Select(v_ax2 < T.int64(3), T.int64(0), T.Div(v_ax2 - T.int64(3), T.int64(2)) + T.int64(1)) <= T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh and T.Select(v_ax3 < T.int64(4), T.int64(0), T.Div(v_ax3 - T.int64(4), T.int64(2)) + T.int64(1)) <= T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww and maxpool_grad_argmax_v0[v_ax0, v_ax1, T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh, T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww] == v_ax0 * T.int64(390) + v_ax1 * T.int64(195) + v_ax2 * T.int64(13) + v_ax3 + T.int64(27), A[v_ax0, v_ax1, T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh, T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww], T.float32(0))
+
+        @R.function
+        def main(output_grad: R.Tensor((3, 2, 6, 5), dtype="float32"), data: R.Tensor((3, 2, 10, 10), dtype="float32")) -> R.Tensor((3, 2, 10, 10), dtype="float32"):
+            cls = Expected
+            gv = R.call_tir(cls.max_pool2d_backward, (output_grad, data), out_sinfo=R.Tensor((3, 2, 10, 10), dtype="float32"))
+            return gv
     # fmt: on
 
     mod = LegalizeOps()(MaxPool2DBackward)
