@@ -88,7 +88,9 @@ from . import block_builder
 from . import op
 from . import struct_info
 from . import backend
+from . import training
 from . import frontend
+
 
 # VM
 from .vm_build import build, Executable
