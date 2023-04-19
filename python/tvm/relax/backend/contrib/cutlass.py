@@ -20,7 +20,7 @@
 from typing import Mapping, Sequence
 
 from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
-from tvm.relax import DataflowVar, Var, transform
+from tvm.relax import DataflowVar, Var, transform, Call
 from tvm.relax.transform import PatternCheckContext
 
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
@@ -82,6 +82,26 @@ def _has_dependency(from_var: Var, to_var: Var, var_usages: Mapping[Var, Sequenc
     return False
 
 
+def _check_residual(root_call: Call, context: PatternCheckContext) -> bool:
+    if "residual" in context.annotated_expr:
+        residual = context.annotated_expr["residual"]
+        if not isinstance(residual, Var):
+            residual = context.value_to_bound_var[residual]
+
+        root_var = context.value_to_bound_var[root_call]
+        if _has_dependency(from_var=residual, to_var=root_var, var_usages=context.var_usages):
+            # If residual depends on the result of the root call, this cannot be handled by cutlass.
+            return False
+
+        shape1 = [int(s) for s in root_var.struct_info.shape]
+        shape2 = [int(s) for s in residual.struct_info.shape]
+
+        if shape1 != shape2:
+            return False
+
+    return True
+
+
 def _check_conv2d(context: PatternCheckContext) -> bool:
     """Check if the given conv2d workload can be offloaded to CUTLASS."""
     if _has_leaking_intermediate_variables(context):
@@ -98,14 +118,8 @@ def _check_conv2d(context: PatternCheckContext) -> bool:
     ):
         return False
 
-    if "residual" in context.annotated_expr:
-        residual = context.annotated_expr["residual"]
-        if not isinstance(residual, Var):
-            residual = context.value_to_bound_var[residual]
-        conv2d_var = context.value_to_bound_var[conv2d_call]
-        if _has_dependency(from_var=residual, to_var=conv2d_var, var_usages=context.var_usages):
-            # If residual depends on the result of conv2d, this cannot be handled by cutlass.
-            return False
+    if not _check_residual(conv2d_call, context):
+        return False
 
     # pylint: disable=invalid-name
     IC = data.struct_info.shape.values[3]
@@ -125,6 +139,9 @@ def _check_matmul(context: PatternCheckContext) -> bool:
     lhs_dtype = lhs.struct_info.dtype
     rhs_dtype = rhs.struct_info.dtype
     if not _is_supported_dtype(lhs_dtype, rhs_dtype):
+        return False
+
+    if not _check_residual(lhs, context):
         return False
 
     lhs_shape = lhs.struct_info.shape.values
