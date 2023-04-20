@@ -24,7 +24,7 @@ from tvm.script import tir as T
 
 @T.prim_func
 def _func():
-    T.evaluate(0)
+    T.evaluate(-1)
     T.evaluate(1)
     T.evaluate(2)
     T.evaluate(3)
@@ -49,7 +49,7 @@ def test_annotation_multi_object_paths():
 
 @T.prim_func
 def main():
-    T.evaluate(0)
+    T.evaluate(-1)
     T.evaluate(1)  # annotation 1
     T.evaluate(2)
     T.evaluate(3)  # annotation 3
@@ -75,7 +75,7 @@ def test_annotate_from_multi_obj():
 
 @T.prim_func
 def main():
-    T.evaluate(0)
+    T.evaluate(-1)
     T.evaluate(1)  # annotation 1
     T.evaluate(2)
     T.evaluate(3)  # annotation 3
