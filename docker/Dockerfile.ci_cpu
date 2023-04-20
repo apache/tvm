@@ -47,10 +47,6 @@ RUN bash /install/ubuntu_install_python_package.sh
 COPY install/ubuntu2204_install_llvm.sh /install/ubuntu2204_install_llvm.sh
 RUN bash /install/ubuntu2204_install_llvm.sh
 
-# LLVM 13, 14, 15, and 16 are installed in ubuntu2204_install_llvm.sh
-# COPY install/ubuntu_install_llvm_from_source.sh /install/ubuntu_install_llvm_from_source.sh
-# RUN bash /install/ubuntu_install_llvm_from_source.sh 16.0.1 ab7e3b95adb88fd5b669ca8c1d3c1e8d2a601c4478290d3ae31d8d70e96f2064
-
 COPY install/ubuntu_install_dnnl.sh /install/ubuntu_install_dnnl.sh
 RUN bash /install/ubuntu_install_dnnl.sh
 
