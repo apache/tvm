@@ -560,7 +560,7 @@ def build(node_type) {
           script: "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh build",
           label: 'Create i386 cmake config',
         )
-        cmake_build(ci_i386, 'build', '-j2')
+        cmake_build(ci_i386, 'build', '-j1')
         make_standalone_crt(ci_i386, 'build')
         make_cpp_tests(ci_i386, 'build')
         sh(
