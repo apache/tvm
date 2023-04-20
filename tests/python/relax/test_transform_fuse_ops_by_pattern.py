@@ -18,6 +18,7 @@ import numpy as np
 import pytest
 
 import tvm
+import tvm.testing
 from tvm import relax
 from tvm.relax.dpl.pattern import (
     is_op,
@@ -29,6 +30,26 @@ from tvm.relax.transform import PatternCheckContext
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
+
+
+@relax.expr_functor.mutator
+class AddSpansForTestMutator(relax.expr_functor.PyExprMutator):
+    """Adds a Span("attr://test", <n>, 0, 0, 0), <n> autoincrementing, to all Call in main."""
+
+    def __init__(self):
+        super().__init__()
+        self.n = 0
+
+    def visit_call_(self, call: relax.Call) -> relax.Expr:
+        n = self.n
+        self.n += 1
+        return relax.Call(
+            call.op,
+            call.args,
+            call.attrs,
+            call.sinfo_args,
+            relax.Span(relax.SourceName("attr://test"), n, 0, 0, 0),
+        )
 
 
 @tvm.script.ir_module
@@ -412,29 +433,86 @@ def check(mod, patterns, expected, bind_constants=True, annotate_codegen=False):
     partitioned = relax.transform.FuseOpsByPattern(patterns, bind_constants, annotate_codegen)(mod)
     tvm.ir.assert_structural_equal(partitioned, expected)
 
+    return partitioned
+
+
+def check_multi_span(span_dict):
+    def _check_op_name_match(name, node):
+        if isinstance(node.op, relax.GlobalVar):
+            assert node.op.name_hint == name
+        elif isinstance(node.op, tvm.ir.op.Op):
+            assert node.op.name == name
+        else:
+            assert False, f"don't know how to check name on {node}"
+
+    for fused_node, src_nodes in span_dict.items():
+        _check_op_name_match(*fused_node)
+
+        expected_dict = {}
+        for name, call in src_nodes:
+            _check_op_name_match(name, call)
+            expected_dict[f"Op({name})@{call.handle.value:#x}"] = call.span
+
+        assert {str(k): v for k, v in fused_node[1].span.spans.items()} == expected_dict
+
 
 def test_partition_conv2d_relu():
     check(Conv2dReLUx2, [("dnnl.conv2d_relu", conv2d_relu_pat)], Conv2dReLUx2Partitioned)
 
 
 def test_partition_multiple_patterns():
-    check(
-        Conv2dConv2dReLU,
+    mod = tvm.IRModule({"main": AddSpansForTestMutator().visit_expr(Conv2dConv2dReLU["main"])})
+    partitioned = check(
+        mod,
         [("dnnl.conv2d_relu", conv2d_relu_pat), ("dnnl.conv2d", conv2d_pat)],
         Conv2dConv2dReLUPartitioned,
+    )
+    check_multi_span(
+        {
+            ("fused_relax_nn_conv2d", partitioned["main"].body.blocks[0].bindings[0].value): (
+                ("relax.nn.conv2d", mod["main"].body.blocks[0].bindings[0].value),
+            ),
+            (
+                "fused_relax_nn_conv2d_relax_nn_relu",
+                partitioned["main"].body.blocks[0].bindings[1].value,
+            ): (
+                ("relax.nn.conv2d", mod["main"].body.blocks[0].bindings[1].value),
+                ("relax.nn.relu", mod["main"].body.blocks[0].bindings[2].value),
+            ),
+        }
     )
 
 
 def test_partition_order():
-    check(
-        Conv2dReLUx2,
+    mod = tvm.IRModule({"main": AddSpansForTestMutator().visit_expr(Conv2dReLUx2["main"])})
+    partitioned = check(
+        mod,
         [("dnnl.conv2d", conv2d_pat), ("dnnl.conv2d_relu", conv2d_relu_pat)],
         Conv2dReLUx2Partitioned_only_conv2d,
+    )
+    check_multi_span(
+        {
+            ("fused_relax_nn_conv2d", partitioned["main"].body.blocks[0].bindings[0].value): (
+                ("relax.nn.conv2d", mod["main"].body.blocks[0].bindings[0].value),
+            )
+        }
     )
 
 
 def test_branch_tuple_output():
-    check(BranchTupleOutput, [("dnnl.conv2d_relu", conv2d_relu_pat)], BranchTupleOutputPartitioned)
+    mod = tvm.IRModule({"main": AddSpansForTestMutator().visit_expr(BranchTupleOutput["main"])})
+    partitioned = check(mod, [("dnnl.conv2d_relu", conv2d_relu_pat)], BranchTupleOutputPartitioned)
+    check_multi_span(
+        {
+            (
+                "fused_relax_nn_conv2d_relax_nn_relu",
+                partitioned["main"].body.blocks[0].bindings[0].value,
+            ): (
+                ("relax.nn.conv2d", mod["main"].body.blocks[0].bindings[0].value),
+                ("relax.nn.relu", mod["main"].body.blocks[0].bindings[1].value),
+            )
+        }
+    )
 
 
 def test_cyclic_dependency():
@@ -452,35 +530,74 @@ def test_cyclic_dependency():
 
 def test_bind_params():
     weight_np = np.random.randn(64, 64, 3, 3).astype("float32")
-    mod = tvm.transform.Sequential(
+    mod = tvm.IRModule({"main": AddSpansForTestMutator().visit_expr(Conv2dReLU["main"])})
+    mod = relax.transform.BindParams("main", {"weight1": weight_np})(mod)
+
+    partitioned = tvm.transform.Sequential(
         [
-            relax.transform.BindParams("main", {"weight1": weight_np}),
             relax.transform.FuseOpsByPattern(
                 [("dnnl.conv2d_relu", conv2d_relu_pat)], bind_constants=True
             ),
         ]
-    )(Conv2dReLU)
+    )(mod)
 
-    assert "fused_relax_nn_conv2d_relax_nn_relu" in [var.name_hint for var in mod.functions.keys()]
+    assert "fused_relax_nn_conv2d_relax_nn_relu" in [
+        var.name_hint for var in partitioned.functions.keys()
+    ]
 
-    for gvar, f in mod.functions.items():
+    for gvar, f in partitioned.functions.items():
         if gvar.name_hint == "fused_relax_nn_conv2d_relax_nn_relu":
             conv2d = f.body.blocks[0].bindings[0].value
             assert isinstance(conv2d.args[1], relax.Constant)
 
+    check_multi_span(
+        {
+            (
+                "fused_relax_nn_conv2d_relax_nn_relu",
+                partitioned["main"].body.blocks[0].bindings[0].value,
+            ): (
+                ("relax.nn.conv2d", mod["main"].body.blocks[0].bindings[0].value),
+                ("relax.nn.relu", mod["main"].body.blocks[0].bindings[1].value),
+            )
+        }
+    )
+
 
 def test_annotate_codegen():
-    check(
-        Conv2dReLU,
+    mod = tvm.IRModule({"main": AddSpansForTestMutator().visit_expr(Conv2dReLU["main"])})
+    partitioned = check(
+        mod,
         [("dnnl.conv2d_relu", conv2d_relu_pat)],
         Conv2dReLU_composite_annotated,
         annotate_codegen=True,
     )
 
+    check_multi_span(
+        {
+            (
+                "fused_relax_nn_conv2d_relax_nn_relu_dnnl",
+                partitioned["main"].body.blocks[0].bindings[0].value,
+            ): (
+                ("relax.nn.conv2d", mod["main"].body.blocks[0].bindings[0].value),
+                ("relax.nn.relu", mod["main"].body.blocks[0].bindings[1].value),
+            )
+        }
+    )
+
 
 def test_multiple_calls_same_extern():
     pat = make_fused_bias_activation_pattern("relax.nn.conv2d", with_bias=False, activation=None)
-    check(Conv2dx2, [("cutlass.conv2d", pat)], Conv2dx2_partitioned, annotate_codegen=True)
+    mod = tvm.IRModule({"main": AddSpansForTestMutator().visit_expr(Conv2dx2["main"])})
+    partitioned = check(mod, [("cutlass.conv2d", pat)], Conv2dx2_partitioned, annotate_codegen=True)
+
+    check_multi_span(
+        {
+            (
+                "fused_relax_nn_conv2d_cutlass",
+                partitioned["main"].body.blocks[0].bindings[0].value,
+            ): (("relax.nn.conv2d", mod["main"].body.blocks[0].bindings[0].value),)
+        }
+    )
 
 
 def test_ignore_call_tir():
@@ -555,7 +672,7 @@ def test_ignore_call_tir():
             return relu1
 
     pat = make_fused_bias_activation_pattern("relax.nn.conv2d", with_bias=False, activation=None)
-    check(Conv2dReLUCallTIR, [("cutlass.conv2d", pat)], Conv2dReLUCallTIR_partitioned)
+    partitioned = check(Conv2dReLUCallTIR, [("cutlass.conv2d", pat)], Conv2dReLUCallTIR_partitioned)
 
 
 def test_unused():
@@ -603,7 +720,16 @@ def test_unused():
             return gv
 
     pat = make_fused_bias_activation_pattern("relax.nn.conv2d", with_bias=False, activation=None)
-    check(Conv2dReLU, [("cutlass.conv2d", pat)], Conv2dReLU_partitioned)
+    mod = tvm.IRModule({"main": AddSpansForTestMutator().visit_expr(Conv2dReLU["main"])})
+    partitioned = check(mod, [("cutlass.conv2d", pat)], Conv2dReLU_partitioned)
+
+    check_multi_span(
+        {
+            ("fused_relax_nn_conv2d", partitioned["main"].body.blocks[0].bindings[0].value): (
+                ("relax.nn.conv2d", mod["main"].body.blocks[0].bindings[0].value),
+            )
+        }
+    )
 
 
 def test_check_pattern():
@@ -668,11 +794,23 @@ def test_bind_constants():
             return gv
 
     pat = make_fused_bias_activation_pattern("relax.nn.conv2d", with_bias=False, activation=None)
-    check(
-        Conv2dWithConstantWeight,
+    mod = tvm.IRModule(
+        {"main": AddSpansForTestMutator().visit_expr(Conv2dWithConstantWeight["main"])}
+    )
+
+    partitioned = check(
+        mod,
         [("cutlass.conv2d", pat)],
         Conv2dWithConstantWeight_partitioned,
         bind_constants=False,
+    )
+
+    check_multi_span(
+        {
+            ("fused_relax_nn_conv2d", partitioned["main"].body.blocks[0].bindings[0].value): (
+                ("relax.nn.conv2d", mod["main"].body.blocks[0].bindings[0].value),
+            )
+        }
     )
 
 
@@ -737,16 +875,32 @@ def test_split():
                 R.output(gv)
             return gv
 
-    mod = tvm.IRModule({"main": func})
+    mod = tvm.IRModule({"main": AddSpansForTestMutator().visit_expr(func)})
 
     split = is_op("relax.split")(wildcard())
     it1 = is_tuple_get_item(split, 0)
     it2 = is_tuple_get_item(split, 1)
     add = is_op("relax.add")(it1, it2)
 
-    check(mod, [("x.split", split)], Expected1)
-    check(mod, [("x.split", add)], Expected2)
+    partitioned = check(mod, [("x.split", split)], Expected1)
+    check_multi_span(
+        {
+            ("fused_relax_split", partitioned["main"].body.blocks[0].bindings[0].value): (
+                ("relax.split", mod["main"].body.blocks[0].bindings[0].value),
+            )
+        }
+    )
+
+    partitioned = check(mod, [("x.split", add)], Expected2)
+    check_multi_span(
+        {
+            ("fused_relax_split_relax_add", partitioned["main"].body.blocks[0].bindings[0].value): (
+                ("relax.split", mod["main"].body.blocks[0].bindings[0].value),
+                ("relax.add", mod["main"].body.blocks[0].bindings[3].value),
+            )
+        }
+    )
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()
