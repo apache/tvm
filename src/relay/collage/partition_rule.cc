@@ -173,6 +173,7 @@ std::vector<CandidatePartition> PrimitivePartitionRuleNode::AllCandidates(
   std::vector<CandidatePartition> result;
   FunctionAttrsMap attrs;
   attrs.Set(attr::kPrimitive, Integer(1));
+  attrs.Set(attr::kInline, Integer(1));
   if (spec->target_.IsExternalCodegen()) {
     // The spec name will be the target kind name which is 1:1 with the "Compiler" attribute name.
     attrs.Set(attr::kCompiler, spec->spec_name_);
