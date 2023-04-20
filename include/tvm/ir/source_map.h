@@ -129,7 +129,7 @@ class Span : public ObjectRef {
 
 class MultiSpanNode : public SpanNode {
  public:
-  Map<Span, ObjectRef> spans;
+  Map<String, Span> spans;
 
   // override attr visitor
   void VisitAttrs(AttrVisitor* v) { v->Visit("spans", &spans); }
@@ -147,7 +147,7 @@ class MultiSpanNode : public SpanNode {
  */
 class MultiSpan : public Span {
  public:
-  TVM_DLL MultiSpan(Map<Span, ObjectRef> spans);
+  TVM_DLL MultiSpan(Map<String, Span> spans);
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(MultiSpan, Span, MultiSpanNode);
 };

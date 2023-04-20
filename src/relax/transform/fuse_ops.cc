@@ -490,7 +490,7 @@ class FunctionCreator : public ExprMutator {
    * \brief Build a MultiSpan that contains all Span from fused Call nodes.
    */
   MultiSpan BuildMultiSpanForCallSite() {
-    Map<Span, ObjectRef> spans;
+    Map<String, Span> spans;
     for (Binding binding : bindings_) {
       const auto* var_binding = binding.as<VarBindingNode>();
       if (!var_binding->value->IsInstance<CallNode>()) {
@@ -498,7 +498,9 @@ class FunctionCreator : public ExprMutator {
       }
       Call call = Downcast<Call>(var_binding->value);
       if (call->span.defined()) {
-        spans.Set(call->span, call);
+        std::stringstream ss;
+        ss << call->op << "@" << call.get();
+        spans.Set(String(ss.str()), call->span);
       }
     }
     return MultiSpan(spans);
