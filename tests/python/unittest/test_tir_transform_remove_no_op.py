@@ -23,7 +23,7 @@ import pytest
 
 
 def nop():
-    return tvm.tir.Evaluate(0)
+    return tvm.tir.Evaluate(1)
 
 
 def test_remove_no_op():

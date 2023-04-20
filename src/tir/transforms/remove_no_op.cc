@@ -178,31 +178,6 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
     }
   }
 
-  Stmt VisitStmt_(const SeqStmtNode* op) final {
-    auto ret = Downcast<SeqStmt>(StmtMutator::VisitSeqStmt_(op, true));
-
-    bool need_compact = std::any_of(ret->seq.begin(), ret->seq.end(),
-                                    [](const auto& stmt) { return is_no_op(stmt); });
-
-    if (need_compact) {
-      Array<Stmt> filtered;
-      for (Stmt stmt : ret->seq) {
-        if (!is_no_op(stmt)) {
-          filtered.push_back(std::move(stmt));
-        }
-      }
-      ret = SeqStmt(filtered);
-    }
-
-    if (ret->size() == 0) {
-      return Evaluate(0);
-    } else if (ret->size() == 1) {
-      return ret->seq[0];
-    } else {
-      return std::move(ret);
-    }
-  }
-
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     BufferStore store = GetRef<BufferStore>(op);
 
