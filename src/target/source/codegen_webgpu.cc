@@ -192,40 +192,38 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
 
   // Store all pod arguments in a single buffer of int32
   // do bitcast to change to other data types
-  if (pod_args.size() != 0) {
-    std::string type_pod_args = name_supply_->FreshName("PODArgs");
-    std::string val_pod_args = name_supply_->FreshName("podArgs");
+  // always pass gridDimX in to get around of the 65535 gridDim
+  // restrictions in some platforms
+  std::string type_pod_args = name_supply_->FreshName("PODArgs");
+  std::string val_pod_args = name_supply_->FreshName("podArgs");
+  std::string packGridDimX = name_supply_->FreshName("packGridDimX");
 
-    this->decl_stream << "\nstruct " << type_pod_args << " {\n";
+  this->decl_stream << "\nstruct " << type_pod_args << " {\n";
 
-    for (size_t i = 0; i < pod_args.size(); ++i) {
-      Var v = pod_args[i];
-      ICHECK(!v.dtype().is_handle());
-      std::string vid = AllocVarID(v.get());
+  for (size_t i = 0; i < pod_args.size(); ++i) {
+    Var v = pod_args[i];
+    ICHECK(!v.dtype().is_handle());
+    std::string vid = AllocVarID(v.get());
 
-      if (v.dtype() == DataType::Int(32)) {
-        this->decl_stream << "  " << vid << ": i32";
-      } else if (v.dtype() == DataType::UInt(32)) {
-        this->decl_stream << "  " << vid << ": u32";
-      } else if (v.dtype() == DataType::Float(32)) {
-        this->decl_stream << "  " << vid << ": f32";
-      } else {
-        LOG(FATAL) << "Do not support pod argument type " << v.dtype();
-      }
-      if (i + 1 != pod_args.size()) {
-        this->decl_stream << ",\n";
-      } else {
-        this->decl_stream << "\n}\n";
-      }
-      // value ref
-      std::ostringstream vref;
-      vref << val_pod_args << "." << vid;
-      var_idmap_[v.get()] = vref.str();
+    if (v.dtype() == DataType::Int(32)) {
+      this->decl_stream << "  " << vid << ": i32";
+    } else if (v.dtype() == DataType::UInt(32)) {
+      this->decl_stream << "  " << vid << ": u32";
+    } else if (v.dtype() == DataType::Float(32)) {
+      this->decl_stream << "  " << vid << ": f32";
+    } else {
+      LOG(FATAL) << "Do not support pod argument type " << v.dtype();
     }
-
-    this->decl_stream << "@group(0) @binding(" << num_buffer++ << ") "
-                      << "var<uniform> " << val_pod_args << " : " << type_pod_args << ";\n\n";
+    this->decl_stream << ",\n";
+    // value ref
+    std::ostringstream vref;
+    vref << val_pod_args << "." << vid;
+    var_idmap_[v.get()] = vref.str();
   }
+  this->decl_stream << "  " << packGridDimX << ": u32\n}\n";
+
+  this->decl_stream << "@group(0) @binding(" << num_buffer++ << ") "
+                    << "var<uniform> " << val_pod_args << " : " << type_pod_args << ";\n\n";
 
   // setup thread tags and param access in launch param tags;
   if (auto opt = f->GetAttr<Array<String>>(tir::attr::kKernelLaunchParams)) {
@@ -249,6 +247,9 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
                << "  @builtin(num_workgroups) gridDim : vec3<u32>,\n"
                << "  @builtin(local_invocation_id) threadIdx : vec3<u32>\n"
                << ") {\n";
+  // skip out of bound grids
+  this->stream << "  if (blockIdx.z * gridDim.x + blockIdx.x > "  // NOLINT(*)
+               << val_pod_args << "." << packGridDimX << ") { return; }\n";
   // the function scope.
   int func_scope = this->BeginScope();
   this->PrintStmt(f->body);
