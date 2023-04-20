@@ -280,7 +280,6 @@ TEST(IRF, StmtMutator) {
     auto* ref2 = body2.get();
     auto* extentptr = body.as<AllocateNode>()->extents.get();
     // construct a recursive SeqStmt.
-    body = SeqStmt({body});
     body = SeqStmt({body, body2});
     body = SeqStmt({body, body2});
     body = v(std::move(body));
@@ -296,7 +295,7 @@ TEST(IRF, StmtMutator) {
     Stmt body2 = Evaluate(1);
     auto* extentptr = body.as<AllocateNode>()->extents.get();
     // construct a recursive SeqStmt.
-    body = SeqStmt({body});
+    body = SeqStmt({body, body2});
     auto bref = body;
     body = SeqStmt({body, body2});
     body = v(std::move(body));

@@ -238,7 +238,7 @@ def test_without_device_api_unpacked_api(non_device_api_main_func):
     """Test a graph without the Device API with the unpacked internal calls"""
 
     main_func = non_device_api_main_func(interface_api="c", use_unpacked_api=True)
-    body = main_func.body.seq[1].seq[0].seq[0].value
+    body = main_func.body.value
     assert (
         repr(body)
         == 'T.tvm_check_return(0, -1, T.call_extern("int32", '
@@ -252,7 +252,7 @@ def test_without_device_api_packed_api(non_device_api_main_func):
 
     main_func = non_device_api_main_func(interface_api="packed", use_unpacked_api=False)
 
-    body = main_func.body.seq[1].seq[0].seq[0].value
+    body = main_func.body.value
     assert repr(body) == (
         'T.call_cpacked("tvmgen_default_fused_multiply", '
         "T.tvm_stack_make_array(x_buffer_var, T.tvm_stack_make_shape(10, 10), "

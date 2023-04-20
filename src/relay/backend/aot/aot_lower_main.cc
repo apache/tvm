@@ -417,7 +417,7 @@ class AOTMainLowerer : public MixedModeVisitor {
    * runner function needs to be legalized by the LegalizePackedCalls pass.
    */
   tir::PrimFunc CreateMainFunc(String mod_name) {
-    tir::Stmt body = tir::SeqStmt(stmts_);
+    tir::Stmt body = tir::SeqStmt::Flatten(stmts_);
     // Allocate the sids
     std::unordered_map<int, bool> allocated;
     std::vector<std::pair<int64_t, int64_t>> sids_to_allocate;
@@ -674,7 +674,7 @@ class AOTMainLowerer : public MixedModeVisitor {
       }));
     }
 
-    tir::Stmt body = tir::SeqStmt({func_call});
+    tir::Stmt body = tir::SeqStmt::Flatten(func_call);
     stmts_.push_back(body);
   }
 
@@ -717,7 +717,7 @@ class AOTMainLowerer : public MixedModeVisitor {
                                         {tvm::tir::StringImm(device_hook_name), context})));
       device_hooks.push_back(device_hook);
     }
-    return tir::SeqStmt(device_hooks);
+    return tir::SeqStmt::Flatten(device_hooks);
   }
 
   /*!

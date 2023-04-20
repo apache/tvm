@@ -437,11 +437,11 @@ Stmt StmtMutator::VisitStmt_(const PrefetchNode* op) {
 Stmt StmtMutator::VisitStmt_(const SeqStmtNode* op) {
   Array<Stmt> seq = Internal::Mutate(this, op->seq);
   if (seq.same_as(op->seq)) {
-    return GetRef<Stmt>(op);
+    return SeqStmt::Flatten(GetRef<Stmt>(op));
   } else {
-    auto n = CopyOnWrite(op);
-    n->seq = std::move(seq);
-    return Stmt(n);
+    auto node = CopyOnWrite(op);
+    node->seq = std::move(seq);
+    return SeqStmt::Flatten(SeqStmt(node));
   }
 }
 
