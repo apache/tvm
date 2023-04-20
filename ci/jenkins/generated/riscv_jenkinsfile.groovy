@@ -60,9 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-
-// Generated at 2023-04-06T08:57:35.073423
-
+// Generated at 2023-04-20T02:23:14.854378
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -635,9 +633,12 @@ def shard_run_test_RISC_V_1_of_1(node_type='CPU-SMALL-SPOT', on_demand=false) {
 
 
 
-def shard_run_test_CSINN_1_of_1() {
+def shard_run_test_CSINN_1_of_1(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
+    if (on_demand==true) {
+        node_type = 'CPU-SMALL'
+    }
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-csinn") {
         try {
           init_git()
@@ -707,7 +708,11 @@ def test() {
       }
     },
     'test: CSINN 1 of 1': {
+      try {
       shard_run_test_CSINN_1_of_1()
+      } catch (Exception ex) {
+        shard_run_test_CSINN_1_of_1(on_demand = true)
+      }
     },
     )
   }
