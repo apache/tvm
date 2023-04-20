@@ -376,6 +376,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     return name_supply_->FreshName(prefix, /*add_prefix*/ false, /*add_underscore*/ false);
   }
 
+  /*! \brief A custom structural hashing that ignores NDArray raw data. */
   class StructuralHashIgnoreNDarray : public BaseValueHash {
    public:
     using BaseValueHash::operator();
@@ -402,6 +403,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   /*!
    * \brief A hashmap to store the mapping of Relax functions and TIR PrimFuncs
    * in context_mod to their GlobalVar to avoid generating duplicated functions.
+   * We use a custom hash to avoid hashing constants that may be bound to each BaseFunc.
    */
   std::unique_ptr<
       std::unordered_map<BaseFunc, GlobalVar, StructuralHashIgnoreNDarray, StructuralEqual>>
