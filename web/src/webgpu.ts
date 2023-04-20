@@ -542,15 +542,13 @@ export class WebGPUContext {
 
     assert(paramWriteAccess.length == bufferArgIndices.length);
     // POD arguments are pass in the end
-    if (podArgIndices.length != 0) {
-      layoutEntries.push({
-        binding: bufferArgIndices.length,
-        visibility: GPUShaderStage.COMPUTE,
-        buffer :  {
-          type: "uniform"
-        }
-      });
-    }
+    layoutEntries.push({
+      binding: bufferArgIndices.length,
+      visibility: GPUShaderStage.COMPUTE,
+      buffer :  {
+        type: "uniform"
+      }
+    });
 
     const bindGroupLayout = this.device.createBindGroupLayout({
       entries: layoutEntries
@@ -615,38 +613,36 @@ export class WebGPUContext {
         }
 
         // push pod buffer
-        if (podArgIndices.length != 0) {
-          const sizeOfI32 = 4;
-          const podArgBuffer = this.getPodArgsBuffer((podArgIndices.length + 1) * sizeOfI32);
-          const i32View = new Int32Array(podArgIndices.length + 1);
-          const u32View = new Uint32Array(i32View.buffer);
-          const f32View = new Float32Array(i32View.buffer);
+        const sizeOfI32 = 4;
+        const podArgBuffer = this.getPodArgsBuffer((podArgIndices.length + 1) * sizeOfI32);
+        const i32View = new Int32Array(podArgIndices.length + 1);
+        const u32View = new Uint32Array(i32View.buffer);
+        const f32View = new Float32Array(i32View.buffer);
 
-          for (let i = 0; i < podArgIndices.length; ++i) {
-            const value = args[podArgIndices[i]];
-            const dtype = finfo.arg_types[podArgIndices[i]];
-            if (dtype.startsWith("int")) {
-              i32View[i] = value;
-            } else if (dtype.startsWith("uint")) {
-              u32View[i] = value;
-            } else if (dtype.startsWith("float")) {
-              f32View[i] = value;
-            } else {
-              throw Error("Unknown pod dtype " + dtype);
-            }
+        for (let i = 0; i < podArgIndices.length; ++i) {
+          const value = args[podArgIndices[i]];
+          const dtype = finfo.arg_types[podArgIndices[i]];
+          if (dtype.startsWith("int")) {
+            i32View[i] = value;
+          } else if (dtype.startsWith("uint")) {
+            u32View[i] = value;
+          } else if (dtype.startsWith("float")) {
+            f32View[i] = value;
+          } else {
+            throw Error("Unknown pod dtype " + dtype);
           }
-          // always pass in dim z launching grid size in
-          u32View[podArgIndices.length] = packDimX;
-          this.device.queue.writeBuffer(podArgBuffer, 0, i32View.buffer);
-
-          bindGroupEntries.push({
-            binding: bufferArgIndices.length,
-            resource: {
-              buffer: podArgBuffer,
-              size: i32View.buffer.byteLength
-            }
-          });
         }
+        // always pass in dim z launching grid size in
+        u32View[podArgIndices.length] = packDimX;
+        this.device.queue.writeBuffer(podArgBuffer, 0, i32View.buffer);
+
+        bindGroupEntries.push({
+          binding: bufferArgIndices.length,
+          resource: {
+            buffer: podArgBuffer,
+            size: i32View.buffer.byteLength
+          }
+        });
 
         compute.setBindGroup(0, this.device.createBindGroup({
           layout: bindGroupLayout,
@@ -749,6 +745,10 @@ export class WebGPUContext {
 
   // DeviceAPI
   private deviceAllocDataSpace(nbytes: number): GPUPointer {
+    // allocate 0 bytes buffer as 1 bytes buffer.
+    if (nbytes == 0) {
+      nbytes = 1;
+    }
     const buffer = this.device.createBuffer({
       size: nbytes,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
