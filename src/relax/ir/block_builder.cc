@@ -36,6 +36,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "../../node/ndarray_hash_equal.h"
+
 // Block builder have three categories of logics that are interdependent with each other.
 //
 // The logics are somewhat interdependent with each other.
@@ -374,11 +376,23 @@ class BlockBuilderImpl : public BlockBuilderNode {
     return name_supply_->FreshName(prefix, /*add_prefix*/ false, /*add_underscore*/ false);
   }
 
+  /*! \brief A custom structural hashing that ignores NDArray raw data. */
+  class StructuralHashIgnoreNDarray : public BaseValueHash {
+   public:
+    using BaseValueHash::operator();
+
+    uint64_t operator()(const ObjectRef& key) const {
+      return SHashHandlerIgnoreNDArray().Hash(key, false);
+    }
+  };
+
   /*!
    * \brief A hashmap to store the mapping of Relax functions and TIR PrimFuncs
    * in context_mod to their GlobalVar to avoid generating duplicated functions.
+   * We use a custom hash to avoid hashing constants that may be bound to each BaseFunc.
    */
-  std::unique_ptr<std::unordered_map<BaseFunc, GlobalVar, StructuralHash, StructuralEqual>>
+  std::unique_ptr<
+      std::unordered_map<BaseFunc, GlobalVar, StructuralHashIgnoreNDarray, StructuralEqual>>
       ctx_func_dedup_map_ = nullptr;
 
   /*!
@@ -387,7 +401,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   void LazyInitCtxFuncDedupMap() {
     if (ctx_func_dedup_map_ != nullptr) return;
     ctx_func_dedup_map_ = std::make_unique<
-        std::unordered_map<BaseFunc, GlobalVar, StructuralHash, StructuralEqual>>();
+        std::unordered_map<BaseFunc, GlobalVar, StructuralHashIgnoreNDarray, StructuralEqual>>();
     for (const auto& kv : context_mod_->functions) {
       const GlobalVar gv = kv.first;
       const BaseFunc func = kv.second;
