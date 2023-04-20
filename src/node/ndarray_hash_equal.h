@@ -20,11 +20,19 @@
 #define TVM_NODE_NDARRAY_HASH_EQUAL_H_
 
 #include <tvm/runtime/ndarray.h>
+#include <tvm/node/structural_hash.h>
 
 namespace tvm {
 
 class SEqualReducer;
 class SHashReducer;
+
+/*! \brief A custom hash handler that ignores NDArray raw data. */
+class SHashHandlerIgnoreNDArray : public SHashHandlerDefault {
+ protected:
+  void DispatchSHash(const ObjectRef& object, bool map_free_vars) override;
+};
+
 
 /*!
  * \brief Test two NDArrays for equality.

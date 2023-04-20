@@ -384,20 +384,6 @@ class BlockBuilderImpl : public BlockBuilderNode {
     uint64_t operator()(const ObjectRef& key) const {
       return SHashHandlerIgnoreNDArray().Hash(key, false);
     }
-
-   private:
-    class SHashHandlerIgnoreNDArray : public SHashHandlerDefault {
-     protected:
-      void DispatchSHash(const ObjectRef& object, bool map_free_vars) override {
-        ICHECK(object.defined());
-        if (auto ndarray = object.as<runtime::NDArray::Container>()) {
-          SHashReducer hash_reduce(this, map_free_vars);
-          NDArrayHash(ndarray, &hash_reduce, false);
-        } else {
-          SHashHandlerDefault::DispatchSHash(object, map_free_vars);
-        }
-      }
-    };
   };
 
   /*!
