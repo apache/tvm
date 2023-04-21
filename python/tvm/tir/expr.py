@@ -49,16 +49,24 @@ def div_ambiguity_error():
 
 
 def _dtype_is_int(value):
+    from tvm.tir.stmt import BufferRegion
+
     if isinstance(value, int):
         return True
+    elif isinstance(value, BufferRegion):
+        return DataType(value.buffer.dtype).type_code == DataTypeCode.INT
     return (
         isinstance(value, ExprOp) and DataType(value.dtype).type_code == DataTypeCode.INT
     )  # type: ignore
 
 
 def _dtype_is_float(value):
+    from tvm.tir.stmt import BufferRegion
+
     if isinstance(value, float):
         return True
+    elif isinstance(value, BufferRegion):
+        return DataType(value.buffer.dtype).type_code == DataTypeCode.FLOAT
     return (
         isinstance(value, ExprOp) and DataType(value.dtype).type_code == DataTypeCode.FLOAT
     )  # type: ignore
@@ -120,7 +128,12 @@ class ExprOp(object):
         return _ffi_api._OpFloorMod(other, self, None)  # type: ignore
 
     def __neg__(self):
-        neg_one = const(-1, self.dtype)  # type: ignore
+        from tvm.tir.stmt import BufferRegion
+        
+        if isinstance(self, BufferRegion):
+            neg_one = const(-1, self.buffer.dtype)  # type: ignore
+        else:
+            neg_one = const(-1, self.dtype)  # type: ignore
         return self.__mul__(neg_one)
 
     def __lshift__(self, other):
