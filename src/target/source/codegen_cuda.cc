@@ -64,6 +64,15 @@ class ThreadIdxExtractor : public tir::StmtVisitor {
       if (iv->var->name_hint == "threadIdx.z" || iv->thread_tag == "threadIdx.z") {
         threadIdx_z_ext = op->value;
       }
+      if (iv->var->name_hint == "blockIdx.x" || iv->thread_tag == "blockIdx.x") {
+        blockIdx_x_ext = op->value;
+      }
+      if (iv->var->name_hint == "blockIdx.y" || iv->thread_tag == "blockIdx.y") {
+        blockIdx_y_ext = op->value;
+      }
+      if (iv->var->name_hint == "blockIdx.z" || iv->thread_tag == "blockIdx.z") {
+        blockIdx_z_ext = op->value;
+      }
     }
     StmtVisitor::VisitStmt_(op);
   }
@@ -72,6 +81,9 @@ class ThreadIdxExtractor : public tir::StmtVisitor {
   PrimExpr threadIdx_x_ext = Integer(1);
   PrimExpr threadIdx_y_ext = Integer(1);
   PrimExpr threadIdx_z_ext = Integer(1);
+  PrimExpr blockIdx_x_ext = Integer(1);
+  PrimExpr blockIdx_y_ext = Integer(1);
+  PrimExpr blockIdx_z_ext = Integer(1);
 };
 
 void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f) {
@@ -87,6 +99,7 @@ void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f) {
     }
     stream << " __launch_bounds__(" << threadIdx_ext_int->value << ")";
   }
+  stream << "\n// intended to be called with\n// dim3 block(" << extractor.threadIdx_x_ext << ", " << extractor.threadIdx_y_ext << ", " << extractor.threadIdx_z_ext << ");\n// dim3 grid(" << extractor.blockIdx_x_ext << ", " << extractor.blockIdx_y_ext << ", " << extractor.blockIdx_z_ext << ");\n";
 }
 
 std::string CodeGenCUDA::Finish() {
