@@ -50,7 +50,6 @@ pushd build
 cmake \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_MODULE_PATH="/llvm-project-${LLVM_VERSION}.src/cmake/Modules" \
-    -DCLANG_PLUGIN_SUPPORT=OFF \
     -DCMAKE_INSTALL_PREFIX=/usr \
     -DLLVM_TARGETS_TO_BUILD="AArch64;ARM;X86" \
     -DLLVM_INCLUDE_DOCS=OFF \
@@ -85,7 +84,6 @@ cmake \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=/usr \
     -DCMAKE_MODULE_PATH="/llvm-project-${LLVM_VERSION}.src/cmake/Modules" \
-    -DCLANG_PLUGIN_SUPPORT=OFF \
     -DCLANG_INCLUDE_TESTS=OFF \
     -DCLANG_INCLUDE_DOCS=OFF \
     -DLLVM_INCLUDE_TESTS=OFF \
