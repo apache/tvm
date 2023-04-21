@@ -1387,5 +1387,29 @@ def test_shape_expr_arg():
     _check(Before, Expected)
 
 
+def test_skipping_primvalue():
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(inp: R.Tensor((2, 2), dtype="float32")) -> R.Tensor((2, 2), dtype="float32"):
+            with R.dataflow():
+                lv = R.call_packed(
+                    "my_func1", inp, R.prim_value(0), sinfo_args=[R.Tensor((2, 2), dtype="float32")]
+                )
+                lv1 = R.call_packed(
+                    "my_func2", lv, R.str("str"), sinfo_args=[R.Tensor((2, 2), dtype="float32")]
+                )
+                gv = R.call_packed(
+                    "my_func3",
+                    lv1,
+                    R.dtype("float32"),
+                    sinfo_args=[R.Tensor((2, 2), dtype="float32")],
+                )
+                R.output(gv)
+            return gv
+
+    _check(Module, Module)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
