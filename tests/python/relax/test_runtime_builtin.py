@@ -16,6 +16,8 @@
 # under the License.
 import tvm
 import tvm.testing
+from tvm.contrib import tvmjs, utils
+
 import pytest
 import numpy as np
 
@@ -164,6 +166,26 @@ def test_attention_kv_cache():
     for i in range(num_steps):
         assert res[i][0] == i
         assert res[i][1] == i
+
+
+def test_ndarray_cache():
+    fload = tvm.get_global_func("vm.builtin.ndarray_cache.load")
+    fget_params = tvm.get_global_func("vm.builtin.param_array_from_cache")
+
+    param_dict = {
+        "x_0": np.array([1, 2, 3], dtype="int32"),
+        "x_1": np.random.uniform(size=[10, 20]).astype("float32"),
+    }
+
+    temp = utils.tempdir()
+    tvmjs.dump_ndarray_cache(param_dict, temp.path, encode_format="f32-to-bf16")
+    fload(str(temp.path), tvm.cpu().device_type, 0)
+    res = fget_params("x", 2)
+    for i, v in enumerate(res):
+        v_np = param_dict[f"x_{i}"]
+        if v_np.dtype == "float32":
+            v_np = tvmjs._convert_bf16_to_f32(tvmjs._convert_f32_to_bf16(v_np))
+        np.testing.assert_allclose(v.numpy(), v_np, atol=1e-6, rtol=1e-6)
 
 
 if __name__ == "__main__":

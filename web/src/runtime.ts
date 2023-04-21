@@ -161,12 +161,12 @@ class RuntimeContext implements Disposable {
     this.arrayGetSize = getGlobalFunc("runtime.ArraySize");
     this.arrayMake = getGlobalFunc("runtime.Array");
     this.getSysLib = getGlobalFunc("runtime.SystemLib");
-    this.arrayCacheGet = getGlobalFunc("tvmjs.ndarray_cache.get");
-    this.arrayCacheRemove = getGlobalFunc("tvmjs.ndarray_cache.remove");
-    this.arrayCacheUpdate = getGlobalFunc("tvmjs.ndarray_cache.update");
-    this.arrayCacheClear = getGlobalFunc("tvmjs.ndarray_cache.clear");
+    this.arrayCacheGet = getGlobalFunc("vm.builtin.ndarray_cache.get");
+    this.arrayCacheRemove = getGlobalFunc("vm.builtin.ndarray_cache.remove");
+    this.arrayCacheUpdate = getGlobalFunc("vm.builtin.ndarray_cache.update");
+    this.arrayCacheClear = getGlobalFunc("vm.builtin.ndarray_cache.clear");
     this.arrayDecodeStorage = getGlobalFunc("tvmjs.array.decode_storage");
-    this.paramModuleFromCache = getGlobalFunc("tvmjs.param_module_from_cache");
+    this.paramModuleFromCache = getGlobalFunc("vm.builtin.param_module_from_cache");
     this.makeShapeTuple = getGlobalFunc("runtime.ShapeTuple");
     this.ndarrayCreateView = getGlobalFunc("runtime.TVMArrayCreateView");
     this.sampleTopPFromLogits = getGlobalFunc("vm.builtin.sample_top_p_from_logits");
