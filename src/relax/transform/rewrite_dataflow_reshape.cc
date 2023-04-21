@@ -23,11 +23,24 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/tir/analysis.h>
+#include <tvm/tir/function.h>
 
 #include "../op/tensor/manipulate.h"
 
 namespace tvm {
 namespace relax {
+
+std::vector<size_t> GetUsedArgsIndices(const tir::PrimFunc& fn, size_t num_args) {
+  std::vector<size_t> indices;
+  for (size_t i = 0; i < num_args; ++i) {
+    auto buffer_var = fn->buffer_map[fn->params[i]]->data;
+    if (tir::UsesVar(fn->body, [=](const tir::VarNode* var) { return var == buffer_var.get(); })) {
+      indices.push_back(i);
+    }
+  }
+  return indices;
+}
 
 class DataflowReshapeRewriter : public ExprMutator {
  public:
@@ -63,11 +76,22 @@ class DataflowReshapeRewriter : public ExprMutator {
     // We bring the calls of reshape PrimFunc back to calls of high-level
     // relax.reshape op, which will be lowered to calls of the ExternFunc
     // vm.builtin.reshape in the VMBuiltinLower pass.
-    Array<Expr> args = Downcast<Tuple>(call->args[1])->fields;
-    ICHECK_EQ(args.size(), 1);
+
+    auto prim_fn = Downcast<tir::PrimFunc>(mod_->Lookup(Downcast<GlobalVar>(call->args[0])));
+    auto arg_tuple = Downcast<Tuple>(call->args[1])->fields;
+    auto used_arg_indices = GetUsedArgsIndices(prim_fn, arg_tuple.size());
+
+    // The number of inputs to call_tir(reshape, (...)) might not be one, since FuseOps
+    // can generate a fused TupleGetItem + reshape function whose input is a tuple. FuseTIR
+    // then flattens the tuple input so that the fused TIR reshape function ends up having
+    // multiple input buffers. But only one of them should be accessed and reshaped.
+    ICHECK_EQ(used_arg_indices.size(), 1);
+
+    auto arg = arg_tuple[used_arg_indices[0]];
+
     TensorStructInfo res_sinfo = Downcast<TensorStructInfo>(call->struct_info_);
     ICHECK(res_sinfo->shape.defined());
-    return reshape(args[0], res_sinfo->shape.value());
+    return reshape(arg, res_sinfo->shape.value());
   }
 
   bool IsCallingTIRReshape(const CallNode* call) {
