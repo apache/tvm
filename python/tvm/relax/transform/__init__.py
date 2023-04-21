@@ -21,3 +21,4 @@ from .transform import *
 
 # Import to register the legalization functions.
 from . import legalize_ops
+from . import tuning_api

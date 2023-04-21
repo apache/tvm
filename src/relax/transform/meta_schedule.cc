@@ -41,23 +41,27 @@ class MetaScheduleTuner {
         work_dir_(work_dir),
         max_trials_global_(max_trials_global),
         params_(params) {
-    candgen_func_ = runtime::Registry::Get("relax.tuning_api.default_generate_candidate");
-    ICHECK(candgen_func_) << "Default candidate generation function is not found.";
+    // candgen_func_ = runtime::Registry::Get("relax.tuning_api.default_generate_candidate");
+    // ICHECK(candgen_func_) << "Default candidate generation function is not found.";
     normalize_mod_func_ = runtime::Registry::Get("tvm.meta_schedule.normalize_mod");
     ICHECK(normalize_mod_func_) << "Normalization function is not found.";
   }
 
   // TODO(@sunggg): Currently, only supports basic arguments.
   IRModule TuneIRMod(IRModule mod, transform::PassContext ctx) {
-    Trace trace = Downcast<Trace>(ctx->GetCurrentTrace());
-    ctx->PopTrace();
     Choice choice("tvm.meta_schedule.tune_relax", {params_, target_, work_dir_, max_trials_global_},
                   "relax.tuning_api.Choice.default_constr_func", {});
     Knob knob("meta_schedule.tune_irmod", {{"0", choice}});
+    knob->Apply(mod, "0");
+    /*
+    // TODO(@sunggg): revisit when we have a solution for large params
+    Trace trace = Downcast<Trace>(ctx->GetCurrentTrace());
+    ctx->PopTrace();
     Array<Trace> candidates = (*candgen_func_)(Array<Knob>({knob}), trace);
     ICHECK(candidates.size() == 1);
     Trace best_trace = candidates[0];
     ctx->PushTrace(best_trace);
+    */
     // since we separate tuning from application, return original IRModule
     return mod;
   }
@@ -66,13 +70,16 @@ class MetaScheduleTuner {
   tir::PrimFunc TuneTIR(tir::PrimFunc f, transform::PassContext ctx) {
     // TODO(@sunggg): Whenever we tune tir, assume we start a new trace w/o pushing to the trace
     // stack. Revisit later when we collect more usecases.
-    Trace trace = Trace((*normalize_mod_func_)(f), {}, {});
-
     Choice choice("tvm.meta_schedule.tune_tir", {target_, work_dir_, max_trials_global_},
                   "relax.tuning_api.Choice.default_constr_func", {});
     Knob knob("meta_schedule.tune_primfunc", {{"0", choice}});
+    knob->Apply((*normalize_mod_func_)(f), "0");
+    /*
+    // TODO(@sunggg): revisit when we have a solution for large params
+    Trace trace = Trace((*normalize_mod_func_)(f), {}, {});
     Array<Trace> candidates = (*candgen_func_)(Array<Knob>({knob}), trace);
     ICHECK(candidates.size() == 1);
+    */
     // since we separate tuning from application, return original IRModule
     return f;
   }
@@ -82,7 +89,7 @@ class MetaScheduleTuner {
   String work_dir_;
   Integer max_trials_global_;
   Map<String, runtime::NDArray> params_;
-  const runtime::PackedFunc* candgen_func_;
+  // const runtime::PackedFunc* candgen_func_;
   const runtime::PackedFunc* normalize_mod_func_;
 };
 
