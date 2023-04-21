@@ -253,7 +253,9 @@ class GraphCreator : public ExprVisitor {
     IndexedForwardGraph::Node* leaf_node = nullptr;
     if (it != graph_.node_map.end()) {
       leaf_node = it->second;
-    } else if (leaf_expr->IsInstance<ConstantNode>() || leaf_expr->IsInstance<ShapeExprNode>()) {
+    } else if (leaf_expr->IsInstance<ConstantNode>() || leaf_expr->IsInstance<ShapeExprNode>() ||
+               leaf_expr->IsInstance<PrimValueNode>() || leaf_expr->IsInstance<StringImmNode>() ||
+               leaf_expr->IsInstance<DataTypeImmNode>()) {
       leaf_node = CreateNode(leaf_expr.get());
       // Since we never fuse constants, the pattern of the constant is set to `kOpaque`.
       SetNodePattern(leaf_node, OpPatternKind::kOpaque);
