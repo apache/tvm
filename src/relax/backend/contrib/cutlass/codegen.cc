@@ -24,12 +24,14 @@
 #include "../../../../relay/backend/contrib/cutlass/codegen.h"
 
 #include <tvm/ir/module.h>
+#include <tvm/ir/name_supply.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/nn.h>
 #include <tvm/relax/type.h>
 
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "../../../../relay/backend/contrib/codegen_c/codegen_c.h"
@@ -50,7 +52,13 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
                        public relay::contrib::CodegenCBase {
  public:
   CodegenCutlass(const std::string& id, const Map<Var, Expr>& bindings)
-      : ext_func_id_(id), bindings_(bindings) {}
+      : ext_func_id_(id), bindings_(bindings), name_sup_("") {}
+
+  void AddParm(Var param) {
+    ext_func_args_.push_back(param);
+    auto v_name = name_sup_->FreshName(param->name_hint());
+    var_name_map_[param.get()] = v_name;
+  }
 
   std::string JIT(const OutputType& out) final {
     std::vector<std::string> arg_types, arg_names;
@@ -64,7 +72,7 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
       } else {
         LOG(FATAL) << "Unimplemented";
       }
-      arg_names.push_back(arg->name_hint());
+      arg_names.push_back(var_name_map_.at(arg.get()));
     }
 
     code_stream_ << EmitSignature(out, ext_func_id_, arg_names) << "{\n";
@@ -92,9 +100,10 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
 
  protected:
   OutputType VisitExpr_(const VarNode* node) final {
-    ext_func_args_.push_back(GetRef<Var>(node));
     Output output;
-    output.name = node->name_hint();
+    auto it = var_name_map_.find(node);
+    ICHECK(it != var_name_map_.end());
+    output.name = it->second;
     return {output};
   }
 
@@ -217,6 +226,14 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
   Map<Var, Expr> bindings_;
   /*! \brief Required header-file names. */
   Array<String> headers_;
+  /*!
+   * \brief A mapping from a variable to its unique name.
+   * We use this since sometimes different parameters to the same function end up having the same
+   * name_hint.
+   */
+  std::unordered_map<const VarNode*, std::string> var_name_map_;
+  /*! \brief A name supply to generate a unique name for each parameter. */
+  NameSupply name_sup_;
 };
 
 class CutlassModuleCodegen {
@@ -244,6 +261,11 @@ class CutlassModuleCodegen {
     func_names_.push_back(sid);
 
     CodegenCutlass builder(sid, AnalyzeVar2Value(function));
+
+    for (const auto& p : function->params) {
+      builder.AddParm(p);
+    }
+
     auto out = builder.VisitExpr(function->body);
     return {builder.JIT(out), builder.GetHeaders()};
   }
