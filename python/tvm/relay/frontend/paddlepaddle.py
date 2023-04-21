@@ -178,8 +178,12 @@ def convert_argsort(g, op, block):
 def convert_assign(g, op, block):
     """Operator converter for assign."""
 
-    out = g.get_node(op.input("X")[0])
-    g.add_node(op.output("Out")[0], out)
+    output = op.attr("output")
+    if output:
+        output = g.get_node(op.input("X")[0])
+    else:    
+        out = g.get_node(op.input("X")[0])
+        g.add_node(op.output("Out")[0], out)
 
 
 def convert_assign_value(g, op, block):
