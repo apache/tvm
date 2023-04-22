@@ -20,6 +20,7 @@ import shutil
 import os
 import logging
 import sys
+import requests
 import multiprocessing
 
 from pathlib import Path
@@ -29,6 +30,15 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
 from cmd_utils import Sh, init_log, REPO_ROOT
 
+def get_ec2_instance_type():
+    try:
+        response = requests.get("http://169.254.169.254/latest/meta-data/instance-type", timeout=1)
+        if response.status_code == 200:
+            return response.text
+        else:
+            return "Failed to retrieve instance type"
+    except requests.exceptions.RequestException:
+        return "Not running on an EC2 instance"
 
 if __name__ == "__main__":
     init_log()
@@ -71,15 +81,17 @@ if __name__ == "__main__":
 
     executors = int(os.environ.get("CI_NUM_EXECUTORS", 1))
     build_platform = os.environ.get("PLATFORM", None)
+    instance_type = get_ec2_instance_type()
     sh.run(f"echo build_platform={build_platform}", cwd=build_dir)
     sh.run(f"echo CI_NUM_EXECUTORS={executors}", cwd=build_dir)
+    sh.run(f"echo instance_type={instance_type}", cwd=build_dir)
 
     nproc = multiprocessing.cpu_count()
 
     available_cpus = nproc // executors
     num_cpus = max(available_cpus, 1)
 
-    if build_platform == "i386":
+    if build_platform == "i386" or "r5." in instance_type:
         sh.run("cmake ..", cwd=build_dir)
     else:
         sh.run("cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo ..", cwd=build_dir)
