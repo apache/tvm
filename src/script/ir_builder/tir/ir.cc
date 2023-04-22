@@ -45,7 +45,7 @@ Buffer BufferDecl(Array<PrimExpr> shape, DataType dtype, String buffer_name, Opt
     buffer_data = data.value();
   }
   if (!elem_offset.defined() && offset_factor) {
-    DataType shape_dtype = shape.empty() ? DataType::Int(32) : shape[0]->dtype;
+    DataType shape_dtype = shape.empty() ? tvm::tir::DefaultIndexType() : shape[0]->dtype;
     elem_offset = tvm::tir::Var("elem_offset", shape_dtype);
   }
   return Buffer(buffer_data, dtype, shape, strides.value_or(Array<PrimExpr>()),
