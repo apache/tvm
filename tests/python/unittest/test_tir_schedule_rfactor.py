@@ -1413,7 +1413,7 @@ def test_reduction_rfactor_zero_dim():
     assert s.get(rf_block).same_as(s.get(s.get_block("B_rf")))
     assert s.get(B).same_as(s.get(s.get_block("B")))
     verify_trace_roundtrip(s, mod=rowsum_zero_dim)
-test_reduction_rfactor_zero_dim()
+
 
 def test_reduction_rfactor_outermost_loop_multiple_children_fail():  # pylint: disable=invalid-name
     s = tir.Schedule(multiple_reduction_blocks, debug_mask="all")
@@ -1640,5 +1640,5 @@ def test_reduction_rfactor_topi_argmin():
     verify_trace_roundtrip(s, mod=argmin_topi)
 
 
-# if __name__ == "__main__":
-#     tvm.testing.main()
+if __name__ == "__main__":
+    tvm.testing.main()
