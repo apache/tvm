@@ -14,10 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""The Relax training APIs."""
+"""FFI APIs for tvm.relax.training"""
+import tvm._ffi
 
-from . import optimizer
-from . import utils
-from . import loss
-
-from .utils import AppendLoss
+tvm._ffi._init_api("relax.training", __name__)
