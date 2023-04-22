@@ -70,13 +70,17 @@ if __name__ == "__main__":
         sh.run("sccache --show-stats")
 
     executors = int(os.environ.get("CI_NUM_EXECUTORS", 1))
+    build_platform = os.environ.get("PLATFORM", None)
 
     nproc = multiprocessing.cpu_count()
 
     available_cpus = nproc // executors
     num_cpus = max(available_cpus, 1)
 
-    sh.run("cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo ..", cwd=build_dir)
+    if build_platform == "i386":
+        sh.run("cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..", cwd=build_dir)
+    else:
+        sh.run("cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo ..", cwd=build_dir)
 
     target = ""
     if args.cmake_target:
@@ -84,7 +88,7 @@ if __name__ == "__main__":
 
     verbose = os.environ.get("VERBOSE", "true").lower() in {"1", "true", "yes"}
     ninja_args = [target, f"-j{num_cpus}"]
-    if verbose:
+    if verbose and build_platform != "i386":
         ninja_args.append("-v")
     sh.run(f"cmake --build . -- " + " ".join(ninja_args), cwd=build_dir)
 
