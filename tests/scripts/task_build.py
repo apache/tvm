@@ -71,6 +71,8 @@ if __name__ == "__main__":
 
     executors = int(os.environ.get("CI_NUM_EXECUTORS", 1))
     build_platform = os.environ.get("PLATFORM", None)
+    sh.run(f"echo build_platform={build_platform}", cwd=build_dir)
+    sh.run(f"echo CI_NUM_EXECUTORS={executors}", cwd=build_dir)
 
     nproc = multiprocessing.cpu_count()
 
