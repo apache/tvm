@@ -886,6 +886,41 @@ def test_matmul_4_5_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_matmul_batching_dim_1():
+    # fmt: off
+    @tvm.script.ir_module
+    class Matmul:
+        @R.function
+        def main(x: R.Tensor((1, 1, 4, 5), "float32"), y: R.Tensor((1, 1, 5, 7), "float32")) -> R.Tensor((1, 1, 4, 7), "float32"):
+            gv: R.Tensor((1, 1, 4, 7), "float32") = R.matmul(x, y, out_dtype="float32")
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def matmul(A: T.Buffer((T.int64(1), T.int64(1), T.int64(4), T.int64(5)), "float32"), B: T.Buffer((T.int64(1), T.int64(1), T.int64(5), T.int64(7)), "float32"), matmul_1: T.Buffer((T.int64(1), T.int64(1), T.int64(4), T.int64(7)), "float32")):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            for i0, i1, i2, i3, k in T.grid(T.int64(1), T.int64(1), T.int64(4), T.int64(7), T.int64(5)):
+                with T.block("matmul"):
+                    v_i0, v_i1, v_i2, v_i3, v_k = T.axis.remap("SSSSR", [i0, i1, i2, i3, k])
+                    T.reads(A[v_i0, v_i1, v_i2, v_k], B[v_i0, v_i1, v_k, v_i3])
+                    T.writes(matmul_1[v_i0, v_i1, v_i2, v_i3])
+                    with T.init():
+                        matmul_1[v_i0, v_i1, v_i2, v_i3] = T.float32(0)
+                    matmul_1[v_i0, v_i1, v_i2, v_i3] = matmul_1[v_i0, v_i1, v_i2, v_i3] + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_k, v_i3]
+
+        @R.function
+        def main(x: R.Tensor((1, 1, 4, 5), dtype="float32"), y: R.Tensor((1, 1, 5, 7), dtype="float32")) -> R.Tensor((1, 1, 4, 7), dtype="float32"):
+            cls = Expected
+            gv = R.call_tir(cls.matmul, (x, y), out_sinfo=R.Tensor((1, 1, 4, 7), dtype="float32"))
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(Matmul)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 def test_einsum():
     # fmt: off
     @I.ir_module
