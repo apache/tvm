@@ -482,12 +482,12 @@ def rowsum_transformed(a: T.handle, b: T.handle) -> None:
 
 @T.prim_func
 def rowsum_zero_dim(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128])
+    A = T.match_buffer(a, [T.int64(128)])
     B = T.match_buffer(b, [])
 
-    for k0 in range(128):
+    for k0 in range(T.int64(128)):
         with T.block("B"):
-            k = T.axis.R(128, k0)
+            k = T.axis.R(T.int64(128), k0)
             with T.init():
                 B[()] = 0.0
             B[()] = B[()] + A[k]
@@ -495,18 +495,18 @@ def rowsum_zero_dim(a: T.handle, b: T.handle) -> None:
 
 @T.prim_func
 def rowsum_zero_dim_rfactor(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128])
+    A = T.match_buffer(a, [T.int64(128)])
     B = T.match_buffer(b, [])
-    B_rf = T.alloc_buffer([128])
+    B_rf = T.alloc_buffer([T.int64(128)])
 
-    for i in range(128):
+    for i in range(T.int64(128)):
         with T.block("B_rf"):
-            vi0 = T.axis.S(128, i)
+            vi0 = T.axis.S(T.int64(128), i)
             B_rf[vi0] = A[vi0]
 
-    for i in range(128):
+    for i in range(T.int64(128)):
         with T.block("B"):
-            vi0_1 = T.axis.R(128, i)
+            vi0_1 = T.axis.R(T.int64(128), i)
             with T.init():
                 B[()] = 0.0
             B[()] = B[()] + B_rf[vi0_1]
@@ -1413,7 +1413,7 @@ def test_reduction_rfactor_zero_dim():
     assert s.get(rf_block).same_as(s.get(s.get_block("B_rf")))
     assert s.get(B).same_as(s.get(s.get_block("B")))
     verify_trace_roundtrip(s, mod=rowsum_zero_dim)
-
+test_reduction_rfactor_zero_dim()
 
 def test_reduction_rfactor_outermost_loop_multiple_children_fail():  # pylint: disable=invalid-name
     s = tir.Schedule(multiple_reduction_blocks, debug_mask="all")
@@ -1640,5 +1640,5 @@ def test_reduction_rfactor_topi_argmin():
     verify_trace_roundtrip(s, mod=argmin_topi)
 
 
-if __name__ == "__main__":
-    tvm.testing.main()
+# if __name__ == "__main__":
+#     tvm.testing.main()
