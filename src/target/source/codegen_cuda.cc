@@ -99,7 +99,10 @@ void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f) {
     }
     stream << " __launch_bounds__(" << threadIdx_ext_int->value << ")";
   }
-  stream << "\n// intended to be called with\n// dim3 block(" << extractor.threadIdx_x_ext << ", " << extractor.threadIdx_y_ext << ", " << extractor.threadIdx_z_ext << ");\n// dim3 grid(" << extractor.blockIdx_x_ext << ", " << extractor.blockIdx_y_ext << ", " << extractor.blockIdx_z_ext << ");\n";
+  stream << "\n// intended to be called with\n// dim3 block(" << extractor.threadIdx_x_ext << ", "
+         << extractor.threadIdx_y_ext << ", " << extractor.threadIdx_z_ext << ");\n// dim3 grid("
+         << extractor.blockIdx_x_ext << ", " << extractor.blockIdx_y_ext << ", "
+         << extractor.blockIdx_z_ext << ");\n";
 }
 
 std::string CodeGenCUDA::Finish() {
