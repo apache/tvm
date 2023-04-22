@@ -78,7 +78,7 @@ if __name__ == "__main__":
     num_cpus = max(available_cpus, 1)
 
     if build_platform == "i386":
-        sh.run("cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..", cwd=build_dir)
+        sh.run("cmake ..", cwd=build_dir)
     else:
         sh.run("cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo ..", cwd=build_dir)
 
@@ -88,7 +88,7 @@ if __name__ == "__main__":
 
     verbose = os.environ.get("VERBOSE", "true").lower() in {"1", "true", "yes"}
     ninja_args = [target, f"-j{num_cpus}"]
-    if verbose and build_platform != "i386":
+    if verbose:
         ninja_args.append("-v")
     sh.run(f"cmake --build . -- " + " ".join(ninja_args), cwd=build_dir)
 

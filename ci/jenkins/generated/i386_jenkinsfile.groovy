@@ -491,11 +491,11 @@ def make_standalone_crt(image, build_dir) {
   sh (
     script: """
       set -eux
-      ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
+      ${docker_run} --env PLATFORM ${image} python3 ./tests/scripts/task_build.py \
         --sccache-bucket tvm-sccache-prod \
         --cmake-target standalone_crt \
         --build-dir build
-      ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
+      ${docker_run} --env PLATFORM ${image} python3 ./tests/scripts/task_build.py \
         --sccache-bucket tvm-sccache-prod \
         --cmake-target crttest \
         --build-dir build
@@ -508,7 +508,7 @@ def make_cpp_tests(image, build_dir) {
   sh (
     script: """
       set -eux
-      ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
+      ${docker_run} --env PLATFORM ${image} python3 ./tests/scripts/task_build.py \
         --sccache-bucket tvm-sccache-prod \
         --cmake-target cpptest \
         --build-dir ${build_dir}
@@ -519,7 +519,7 @@ def make_cpp_tests(image, build_dir) {
 
 def cmake_build(image, path, make_flag) {
   sh (
-    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --build-dir ${path}",
+    script: "${docker_run} --env CI_NUM_EXECUTORS --env PLATFORM ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --build-dir ${path}",
     label: 'Run cmake build',
   )
 }

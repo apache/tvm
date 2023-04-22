@@ -205,7 +205,8 @@ from_dtype, to_dtype = tvm.testing.parameters(
     ("float32", "int32"),
     ("float32", "float64"),
     ("float32", "bool"),
-    ("float64", "float16"),
+    # disable this due to llvm5+ bug https://github.com/llvm/llvm-project/issues/56204
+    # ("float64", "float16"),
     ("float64", "float32"),
     ("bool", "float32"),
     ("bool", "int32"),

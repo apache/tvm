@@ -3642,7 +3642,8 @@ class PyTorchOpConverter:
         return out
 
     def einsum(self, inputs, input_types):
-        equation, data = inputs
+        equation = inputs[0]
+        data = inputs[1]
         return _op.einsum(data, equation)
 
     def dot(self, inputs, _):
