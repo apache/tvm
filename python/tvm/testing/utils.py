@@ -972,6 +972,9 @@ requires_hexagon = Feature(
 # Mark a test as requiring the CMSIS NN library
 requires_cmsisnn = Feature("cmsisnn", "CMSIS NN", cmake_flag="USE_CMSISNN")
 
+# Mark a test as requiring the CSI-NN2 library
+requires_csinn2 = Feature("csinn2", "CSI-NN2", cmake_flag="USE_CSINN_DEVICE_RUNTIME")
+
 
 def _corstone300_compile_time_check():
     if shutil.which("arm-none-eabi-gcc") is None:
@@ -1239,7 +1242,6 @@ def requires_package(*packages):
 
 
 def parametrize_targets(*args):
-
     """Parametrize a test over a specific set of targets.
 
     Use this decorator when you want your test to be run over a
@@ -1503,7 +1505,6 @@ def parameters(*value_sets, ids=None):
 
     outputs = []
     for param_values in zip(*value_sets):
-
         # Optional cls parameter in case a parameter is defined inside a
         # class scope.
         def fixture_func(*_cls, request):
@@ -2029,7 +2030,6 @@ class CompareBeforeAfter:
             return inner
 
         if hasattr(transform, "_pytestfixturefunction"):
-
             if not hasattr(cls, "_transform_orig"):
                 cls._transform_orig = transform
 
@@ -2050,7 +2050,6 @@ class CompareBeforeAfter:
                 return apply(transform(self))
 
         else:
-
             raise TypeError(
                 "Expected transform to be a tvm.ir.transform.Pass, or a method returning a Pass"
             )

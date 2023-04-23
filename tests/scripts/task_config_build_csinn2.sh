@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,17 +15,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import
-"""Contrib modules."""
-from .register import get_pattern_table, register_pattern_table
 
-from .arm_compute_lib import *
-from .dnnl import *
-from .bnns import *
-from .coreml import *
-from .ethosn import *
-from .libtorch import *
-from .tensorrt import *
-from .cutlass import *
-from .clml import *
-from .csinn import *
+set -euxo pipefail
+
+BUILD_DIR=$1
+mkdir -p "$BUILD_DIR"
+cd "$BUILD_DIR"
+cp ../cmake/config.cmake .
+
+echo set\(USE_RPC ON\) >> config.cmake
+echo set\(USE_LLVM llvm-config-10\) >> config.cmake
+echo set\(USE_OPENMP gnu\) >> config.cmake
+echo set\(USE_CSINN "/opt/csi-nn2"\) >> config.cmake
+echo set\(USE_CSINN_DEVICE_RUNTIME X86\) >> config.cmake
