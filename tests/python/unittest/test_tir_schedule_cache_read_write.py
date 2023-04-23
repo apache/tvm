@@ -112,6 +112,88 @@ def elementwise_reindex_cache_write(
 
 
 @T.prim_func
+def reduce(A: T.Buffer((128, 128, 128, 128), "float32"), C: T.Buffer((128, 128), "float32")):
+    B = T.alloc_buffer((128, 128, 128), dtype="float32")
+    for i, j, k in T.grid(128, 128, 128):
+        for l in range(128):
+            with T.block("B"):
+                vi, vj, vk, vl = T.axis.remap("SSSR", [i, j, k, l])
+                with T.init():
+                    B[vi, vj, vk] = T.float32(0)
+                B[vi, vj, vk] = B[vi, vj, vk] + A[vi, vj, vk, vl]
+        with T.block("C"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                C[vi, vj] = T.float32(0)
+            C[vi, vj] = C[vi, vj] + B[vi, vj, vk]
+
+
+@T.prim_func
+def reduce_reindex_cache_write_0(
+    A: T.Buffer((128, 128, 128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+):
+    B = T.alloc_buffer((128, 128, 128))
+    B_shared = T.alloc_buffer((128, 128, 128), scope="shared")
+    for i, j, k in T.grid(128, 128, 128):
+        for l in range(128):
+            with T.block("B"):
+                vi, vj, vk, vl = T.axis.remap("SSSR", [i, j, k, l])
+                T.reads(A[vi, vj, vk, vl])
+                T.writes(B_shared[vj, vi, vk])
+                with T.init():
+                    B_shared[vj, vi, vk] = T.float32(0)
+                B_shared[vj, vi, vk] = B_shared[vj, vi, vk] + A[vi, vj, vk, vl]
+        with T.block("B_shared"):
+            vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+            T.reads(B_shared[vj, vi, vk])
+            T.writes(B[vi, vj, vk])
+            B[vi, vj, vk] = B_shared[vj, vi, vk]
+        with T.block("C"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            T.reads(B[vi, vj, vk])
+            T.writes(C[vi, vj])
+            with T.init():
+                C[vi, vj] = T.float32(0)
+            C[vi, vj] = C[vi, vj] + B[vi, vj, vk]
+
+
+@T.prim_func
+def reduce_reindex_cache_write_1(
+    A: T.Buffer((128, 128, 128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+):
+    B = T.alloc_buffer((128, 128, 128))
+    B_shared = T.alloc_buffer((128, 128, 128), scope="shared")
+    C_shared = T.alloc_buffer((128, 128), scope="shared")
+    for i, j, k in T.grid(128, 128, 128):
+        for l in range(128):
+            with T.block("B"):
+                vi, vj, vk, vl = T.axis.remap("SSSR", [i, j, k, l])
+                T.reads(A[vi, vj, vk, vl])
+                T.writes(B_shared[vj, vi, vk])
+                with T.init():
+                    B_shared[vj, vi, vk] = T.float32(0)
+                B_shared[vj, vi, vk] = B_shared[vj, vi, vk] + A[vi, vj, vk, vl]
+        with T.block("B_shared"):
+            vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+            T.reads(B_shared[vj, vi, vk])
+            T.writes(B[vi, vj, vk])
+            B[vi, vj, vk] = B_shared[vj, vi, vk]
+        with T.block("C"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            T.reads(B[vi, vj, vk])
+            T.writes(C_shared[vj, vi])
+            with T.init():
+                C_shared[vj, vi] = T.float32(0)
+            C_shared[vj, vi] = C_shared[vj, vi] + B[vi, vj, vk]
+    for i, j in T.grid(128, 128):
+        with T.block("C_shared"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(C_shared[vj, vi])
+            T.writes(C[vi, vj])
+            C[vi, vj] = C_shared[vj, vi]
+
+
+@T.prim_func
 def func_nested_seq(b: T.handle, c: T.handle) -> None:
     A = T.alloc_buffer((128, 128))
     B = T.match_buffer(b, (128, 128))
@@ -1457,6 +1539,15 @@ def test_reindex_cache_write():
     sch.reindex_cache_write("B", 0, "shared", lambda i, j: (j, i))
     tvm.ir.assert_structural_equal(elementwise_reindex_cache_write, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise)
+
+
+def test_reindex_cache_write_reduce():
+    sch = tir.Schedule(reduce, debug_mask="all")
+    sch.reindex_cache_write("B", 0, "shared", lambda i, j, k, l: (j, i, k))
+    tvm.ir.assert_structural_equal(reduce_reindex_cache_write_0, sch.mod["main"])
+    sch.reindex_cache_write("C", 0, "shared", lambda i, j, k: [j, i])
+    tvm.ir.assert_structural_equal(reduce_reindex_cache_write_1, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=reduce)
 
 
 def test_reindex_cache_write_fail_not_match():

@@ -39,6 +39,7 @@ def _extract_ethosu_pooling_params(attrs, args):
     ofm_zero_point = attrs.ofm_zero_point
     pool_shape = attrs.pool_shape
     ofm_channels = attrs.ofm_channels
+    ofm_dtype = attrs.ofm_dtype
     strides = attrs.strides
     padding = attrs.padding
     activation = attrs.activation
@@ -59,6 +60,7 @@ def _extract_ethosu_pooling_params(attrs, args):
         ofm_zero_point,
         pool_shape,
         ofm_channels,
+        ofm_dtype,
         strides,
         padding,
         activation,
@@ -100,6 +102,7 @@ def ethosu_pooling(
     ofm_zero_point: int,
     pool_shape: Tuple[int, int],
     ofm_channels: int,
+    ofm_dtype: str,
     strides: Tuple[int, int] = (1, 1),
     padding: Tuple[int, int, int, int] = (0, 0, 0, 0),
     activation: str = "NONE",
@@ -121,7 +124,7 @@ def ethosu_pooling(
     lut : tvm.relay.Expr
          The look-up table of values to use if activation = "LUT".
     pooling_type: str
-        The type of the pooling. "AVG" - average pool,   "MAX" - max pool.
+        The type of the pooling. "AVG" - average pool, "MAX" - max pool, "SUM" - reduce sum pool.
     ifm_scale : float
         The quantization scale for the Input Feature Map tensor.
     ifm_zero_point : int
@@ -134,6 +137,10 @@ def ethosu_pooling(
         The 2 dimensional pool shape as (pool_shape_height, pool_shape_width).
     ofm_channels : int
         The number of the Output Feature Map channels
+    ofm_dtype : str
+        The Output Feature Map tensor data type.
+            "AVG" or "MAX" pooling - can be "int8", "uint8", or "int16".
+            "SUM" pooling - can be "int32".
     strides : tuple of int, optional
         The 2 dimensional strides as (stride_height, stride_width).
     padding : tuple of int, optional
@@ -179,6 +186,7 @@ def ethosu_pooling(
         ofm_zero_point,
         pool_shape,
         ofm_channels,
+        ofm_dtype,
         strides,
         padding,
         activation,

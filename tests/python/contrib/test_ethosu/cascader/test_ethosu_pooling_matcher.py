@@ -49,6 +49,7 @@ def test_ethosu_pooling_matcher(pool_shape, stride, padding, ifm_layout, ofm_lay
         ofm_zero_point=0,
         pool_shape=pool_shape,
         ofm_channels=ofm_channels,
+        ofm_dtype="int8",
         strides=stride,
         padding=padding,
         activation="NONE",

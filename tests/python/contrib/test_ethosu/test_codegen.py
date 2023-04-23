@@ -391,31 +391,29 @@ def test_binary_add_with_non_4d_shapes(
     )
 
 
-@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/12634")
 @pytest.mark.parametrize(
     "accel_type",
     ACCEL_TYPES,
 )
 @pytest.mark.parametrize(
-    "ifm_shape, axis, keep_dims, use_same_quantization",
+    "ifm_shape, axis, keep_dims, use_same_quantization, dtype",
     [
-        # mean to depthwise + multiply
-        [(1, 8, 16, 16), (1, 2), True, False],
-        [(1, 3, 4), (0, 1), True, False],
-        [(1, 65, 2, 1), (1, 2), True, False],  # special case when h > 64
         # mean to average pool
-        [(1, 8, 16, 16), (2,), False, True],
-        [(3, 3, 4), (0,), True, True],
-        [(8, 5), (0,), False, True],
+        [(1, 8, 16, 16), (2,), False, True, "int8"],
+        [(1, 8, 16, 16), (2,), False, True, "uint8"],
+        [(3, 3, 4), (0,), True, True, "int8"],
+        [(8, 5), (0,), False, True, "int8"],
         # mean to depthwise
-        [(1, 8, 16, 16), (2,), True, False],
-        [(1, 8, 16, 16), (2, 1), False, False],
-        [(8, 4), (0,), False, False],
+        [(1, 8, 16, 16), (2,), True, False, "int8"],
+        [(1, 8, 16, 16), (2,), True, False, "uint8"],
+        [(1, 8, 16, 16), (2, 1), False, False, "int8"],
+        [(8, 4), (0,), False, False, "int8"],
+        [(1, 65, 2, 1), (1, 2), True, False, "int8"],  # special case when h > 64
+        [(1, 65, 2, 1), (1, 2), True, False, "uint8"],  # special case when h > 64
     ],
 )
-def test_mean(accel_type, ifm_shape, axis, keep_dims, use_same_quantization):
+def test_mean(accel_type, ifm_shape, axis, keep_dims, use_same_quantization, dtype):
     np.random.seed(0)
-    dtype = "int8"
 
     def create_mod_from_tflite():
         class Model(tf.Module):
@@ -462,12 +460,14 @@ def test_mean(accel_type, ifm_shape, axis, keep_dims, use_same_quantization):
             input_zero_point=relay.const(0, dtype="int32"),
             output_scale=relay.const(1.0, dtype="float32"),
             output_zero_point=relay.const(0, dtype="int32"),
+            out_dtype=dtype,
         )
 
         func = relay.Function(relay.analysis.free_vars(requantize), requantize)
         mod = tvm.IRModule.from_expr(func)
 
-        input_data = {"input": np.random.randint(low=-127, high=128, size=ifm_shape, dtype=dtype)}
+        low, high = (0, 256) if dtype == "uint8" else (-127, 128)
+        input_data = {"input": np.random.randint(low=low, high=high, size=ifm_shape, dtype=dtype)}
         output_data = generate_ref_data(mod, input_data)
         return mod, input_data, output_data
 
@@ -546,6 +546,7 @@ def test_add_reduce_sum(dtype):
             pooling_type="SUM",
             pool_shape=(1, 1),
             ofm_channels=1,
+            ofm_dtype="int32",
             strides=(1, 1),
             padding=(0, 0, 0, 0),
             rounding_mode="NATURAL",

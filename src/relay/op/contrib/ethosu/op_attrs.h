@@ -349,6 +349,7 @@ struct EthosuPoolingAttrs : public tvm::AttrsNode<EthosuPoolingAttrs> {
   int ofm_zero_point;
   Array<IndexExpr> pool_shape;
   IndexExpr ofm_channels;
+  String ofm_dtype;
   Array<IndexExpr> strides;
   Array<IndexExpr> padding;
   String activation;
@@ -376,6 +377,10 @@ struct EthosuPoolingAttrs : public tvm::AttrsNode<EthosuPoolingAttrs> {
     TVM_ATTR_FIELD(ofm_channels)
         .describe(" The number of the Output Feature Map channels.")
         .set_default(NullValue<IndexExpr>());
+    TVM_ATTR_FIELD(ofm_dtype).describe(
+        "The Output Feature Map tensor data type. "
+        "'AVG' or 'MAX' pooling - can be 'int8', 'uint8', or 'int16'. "
+        "'SUM' pooling - can be 'int32'.");
     TVM_ATTR_FIELD(strides)
         .set_default(Array<IndexExpr>({1, 1}))
         .describe("The 2 dimensional strides as (stride_height, stride_width).");

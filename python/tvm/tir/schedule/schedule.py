@@ -868,6 +868,57 @@ class Schedule(Object):
             The block to be transformed.
         new_order : List[int]
             The new block itervar order.
+
+        Examples
+        --------
+
+        Before reorder_block_iter_var, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def matmul(
+                A: T.Buffer((128, 128), "float32"),
+                B: T.Buffer((128, 128), "float32"),
+                C: T.Buffer((128, 128), "float32"),
+            ) -> None:
+                for i, j, k in T.grid(128, 128, 128):
+                    with T.block("C"):
+                        vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                        with T.init():
+                            C[vi, vj] = 0.0
+                        C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+        Create the schedule and do reorder_block_iter_var:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(matmul)
+            C = sch.get_block("C")
+            sch.reorder_block_iter_var(C, [2, 1, 0])
+
+        After applying reorder_block_iter_var, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def matmul_after_reorder_block_iter_var(
+                A: T.Buffer((128, 128), "float32"),
+                B: T.Buffer((128, 128), "float32"),
+                C: T.Buffer((128, 128), "float32"),
+            ):
+                for i, j, k in T.grid(128, 128, 128):
+                    with T.block("C"):
+                        vk, vj, vi = T.axis.remap("RSS", [k, j, i])
+                        T.reads(A[vi, vk], B[vj, vk])
+                        T.writes(C[vi, vj])
+                        with T.init():
+                            C[vi, vj] = T.float32(0)
+                        C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+        See Also
+        --------
+        reorder
         """
         _ffi_api.ScheduleReorderBlockIterVar(self, block, new_order)  # type: ignore # pylint: disable=no-member
 
@@ -2581,7 +2632,7 @@ class Schedule(Object):
         Examples
         --------
 
-        Before set_dtype, in TensorIR, the IR is:
+        Before unsafe_set_dtype, in TensorIR, the IR is:
 
         .. code-block:: python
 
@@ -2600,12 +2651,12 @@ class Schedule(Object):
                         vi, vj = T.axis.remap("SS", [i, j]
                         C[vi, vj] = B[vi, vj] + 1.0
 
-        Create the schedule and do set_dtype:
+        Create the schedule and do unsafe_set_dtype:
 
         .. code-block:: python
 
             sch = tir.Schedule(before_set_dtype)
-            sch.set_dtype("B", buffer_index=0, dtype="float16")
+            sch.unsafe_set_dtype("B", buffer_index=0, dtype="float16")
             print(sch.mod["main"].script())
 
         After applying set_dtype, the IR becomes:
@@ -2629,7 +2680,8 @@ class Schedule(Object):
 
         Note
         ----
-        `set_dtype` requires the buffer to be an intermediate buffer defined via `alloc_buffer`.
+        `unsafe_set_dtype` requires the buffer to be an intermediate buffer defined via
+        `alloc_buffer`.
         """
         block = self._normalize_block_arg(block)
         _ffi_api.ScheduleUnsafeSetDType(  # type: ignore # pylint: disable=no-member

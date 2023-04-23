@@ -65,7 +65,7 @@ return
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-04-05T10:53:33.841974
+// Generated at 2023-04-12T10:38:06.713545
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -635,7 +635,7 @@ def deploy() {
       parallel(
   'Upload built Docker images': {
     if (env.DEPLOY_DOCKER_IMAGES == 'yes' && rebuild_docker_images && upstream_revision != null) {
-      node(node_type) {
+      node('CPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/deploy-docker") {
           timeout(time: max_time, unit: 'MINUTES') {
             init_git()
@@ -680,7 +680,7 @@ def deploy() {
   },
   'Tag tlcpackstaging to tlcpack': {
     if (env.DEPLOY_DOCKER_IMAGES == 'yes') {
-      node(node_type) {
+      node('CPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/tag-images") {
           timeout(time: max_time, unit: 'MINUTES') {
             init_git()

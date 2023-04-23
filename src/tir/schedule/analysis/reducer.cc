@@ -394,16 +394,15 @@ void ExtractReductionUpdates(const Optional<ScheduleState>& self, Block block,
   if (p_seq == nullptr && p_buf_store == nullptr) {
     ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/5);
   }
-  SeqStmt seq =
-      p_seq != nullptr ? GetRef<SeqStmt>(p_seq) : SeqStmt({GetRef<BufferStore>(p_buf_store)});
-  if (static_cast<int>(seq->seq.size()) != n_buffers) {
+  Array<Stmt> seq = p_seq != nullptr ? p_seq->seq : Array<Stmt>{GetRef<BufferStore>(p_buf_store)};
+  if (static_cast<int>(seq.size()) != n_buffers) {
     ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/6);
   }
 
   // Step 2.
   // - Create BufferStores according to the variables being stored.
   // - Construct the mapping from reduction buffers to the index.
-  for (const Stmt& stmt : seq->seq) {
+  for (const Stmt& stmt : seq) {
     const auto* buf_store = stmt.as<BufferStoreNode>();
     if (buf_store == nullptr) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/5);
