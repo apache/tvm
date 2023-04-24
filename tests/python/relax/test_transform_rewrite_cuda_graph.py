@@ -39,6 +39,7 @@ def test_rewrite_cuda_graph():
 
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
+            R.func_attr({"ForcePure": True})
             cls = Before
             storage: R.Object = R.memory.alloc_storage(R.shape([32]), 0, "global", "float32")
             alloc: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage, 0, R.shape([2, 4]), "float32")
@@ -82,6 +83,7 @@ def test_rewrite_cuda_graph():
 
         @R.function
         def cuda_graph_alloc() -> R.Tuple(R.Object, R.Object, R.Object):
+            R.func_attr({"ForcePure": True})
             storage: R.Object = R.memory.alloc_storage(R.shape([32]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             storage1: R.Object = R.memory.alloc_storage(R.shape([32]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             storage2: R.Object = R.memory.alloc_storage(R.shape([32]), R.prim_value(0), R.str("global"), R.dtype("float32"))
@@ -90,6 +92,7 @@ def test_rewrite_cuda_graph():
 
         @R.function
         def cuda_graph_capture(alloc: R.Tensor((2, 4), dtype="float32"), alloc1: R.Tensor((2, 4), dtype="float32"), storage: R.Object, storage2: R.Object) -> R.Tuple(R.Tensor((2, 4), dtype="float32")):
+            R.func_attr({"ForcePure": True})
             cls = Expected
             _2: R.Tuple = cls.exp(alloc, alloc1)
             _3: R.Tuple = R.memory.kill_tensor(alloc)
@@ -104,6 +107,8 @@ def test_rewrite_cuda_graph():
 
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
+            # this comes after RemovePurityChecking, so we expect purity to be forced
+            R.func_attr({"ForcePure": True})
             cls = Expected
             gv: R.Tuple(R.Object, R.Object, R.Object) = R.call_builtin_with_ctx("vm.builtin.cuda_graph.get_cached_alloc", (cls.cuda_graph_alloc, R.prim_value(0)), sinfo_args=(R.Tuple(R.Object, R.Object, R.Object),))
             storage: R.Object = gv[0]
@@ -149,6 +154,7 @@ def test_tuple():
 
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((2, 4), dtype="float32"):
+            R.func_attr({"ForcePure": True})
             cls = Before
             storage: R.Object = R.memory.alloc_storage(R.shape([32]), 0, "global", "float32")
             alloc: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage, 0, R.shape([2, 4]), "float32")
@@ -188,6 +194,7 @@ def test_tuple():
 
         @R.function
         def cuda_graph_alloc() -> R.Tuple(R.Object, R.Object):
+            R.func_attr({"ForcePure": True})
             storage: R.Object = R.memory.alloc_storage(R.shape([32]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             storage1: R.Object = R.memory.alloc_storage(R.shape([32]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             gv: R.Tuple(R.Object, R.Object) = (storage, storage1)
@@ -195,6 +202,7 @@ def test_tuple():
 
         @R.function
         def cuda_graph_capture(alloc: R.Tensor((2, 4), dtype="float32"), alloc1: R.Tensor((2, 4), dtype="float32"), storage: R.Object) -> R.Tuple(R.Tensor((2, 4), dtype="float32")):
+            R.func_attr({"ForcePure": True})
             cls = Expected
             _: R.Tuple = cls.exp(alloc, alloc1)
             lv0: R.Tuple(R.Tensor((2, 4), dtype="float32")) = (alloc1,)
@@ -210,6 +218,7 @@ def test_tuple():
 
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((2, 4), dtype="float32"):
+            R.func_attr({"ForcePure": True})
             cls = Expected
             gv: R.Tuple(R.Object, R.Object) = R.call_builtin_with_ctx("vm.builtin.cuda_graph.get_cached_alloc", (cls.cuda_graph_alloc, R.prim_value(0)), sinfo_args=(R.Tuple(R.Object, R.Object),))
             storage: R.Object = gv[0]
