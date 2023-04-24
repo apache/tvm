@@ -86,6 +86,9 @@ def _check_residual(root_call: Call, context: PatternCheckContext) -> bool:
     if "residual" in context.annotated_expr:
         residual = context.annotated_expr["residual"]
         if not isinstance(residual, Var):
+            if not residual in context.value_to_bound_var:
+                return False
+
             residual = context.value_to_bound_var[residual]
 
         root_var = context.value_to_bound_var[root_call]
@@ -141,7 +144,7 @@ def _check_matmul(context: PatternCheckContext) -> bool:
     if not _is_supported_dtype(lhs_dtype, rhs_dtype):
         return False
 
-    if not _check_residual(lhs, context):
+    if not _check_residual(context.annotated_expr["root"], context):
         return False
 
     lhs_shape = lhs.struct_info.shape.values
