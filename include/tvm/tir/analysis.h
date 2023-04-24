@@ -267,7 +267,13 @@ TVM_DLL size_t CalculateWorkspaceBytes(const PrimFunc& func,
  * \brief Calculate the allocated memory per scope in bytes needed inside the TIR PrimFunc
  * \param func The TIR PrimFunc for which the the allocated memory size to be calculated
  */
-TVM_DLL tvm::Map<String, Integer> CalculateAllocatedBytes(const PrimFunc& func);
+TVM_DLL tvm::Map<String, tvm::Map<String, Integer>> CalculateAllocatedBytes(const PrimFunc& func);
+
+/*!
+ * \brief Calculate the allocated memory per scope in bytes for each function inside the module
+ * \param mod The IRModule for which the the allocated memory size has to be calculated
+ */
+TVM_DLL tvm::Map<String, tvm::Map<String, Integer>> CalculateAllocatedBytes(const IRModule& mod);
 
 /*!
  * \brief Detect the lowest common ancestor(LCA) of buffer access, including both high-level
