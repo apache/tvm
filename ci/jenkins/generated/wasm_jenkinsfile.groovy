@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-02-02T20:12:16.748767
+// Generated at 2023-04-24T11:53:08.987337
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -150,7 +150,7 @@ def init_git() {
     update_upstream_revision("HEAD")
   } else {
     // This is PR branch so merge with latest main.
-    merge_with_main()
+    // merge_with_main()
   }
 
   sh(
