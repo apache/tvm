@@ -215,7 +215,6 @@ class TestKeras:
         if package_version.parse(keras_mod.__version__.split("-tf")[0]) <= package_version.parse(
             "2.3.1"
         ):
-        if package_version.parse(keras_mod.__version__.split('-tf')[0]) <= package_version.parse("2.3.1"):
             data = keras_mod.layers.Input(shape=(2, 3, 4))
             x = keras_mod.layers.LeakyReLU(alpha=None)(data)
             keras_model = keras_mod.models.Model(data, x)
