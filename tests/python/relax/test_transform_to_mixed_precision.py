@@ -990,5 +990,102 @@ def test_conv2d_bias_fp32():
     _assert_test(Input_bound, expected2=Expected_no_bias_cast)
 
 
+def test_convert_sig():
+    @tvm.script.ir_module
+    class Input:
+        @R.function
+        def main(
+            x: R.Tensor((1, 4, 64, 64), dtype="float32"),
+            w: R.Tensor((512, 4, 3, 3), dtype="float32"),
+            bias: R.Tensor((512,), dtype="float32"),
+        ) -> R.Tensor((1, 512, 64, 64), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv142: R.Tensor((1, 4, 64, 64), dtype="float32") = R.nn.conv2d(
+                    x,
+                    w,
+                    strides=[1, 1],
+                    padding=[0, 0, 0, 0],
+                    out_dtype="float32",
+                )
+                lv143: R.Tensor((1, 4, 1, 1), dtype="float32") = R.reshape(bias, (1, 512, 1, 1))
+                lv144: R.Tensor((1, 4, 64, 64), dtype="float32") = R.add(lv142, lv143)
+                R.output(lv144)
+            return lv144
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((1, 4, 64, 64), dtype="float32"),
+            w: R.Tensor((512, 4, 3, 3), dtype="float32"),
+            bias: R.Tensor((512,), dtype="float32"),
+        ) -> R.Tensor((1, 512, 64, 64), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1, 4, 64, 64), dtype="float16") = R.astype(x, dtype="float16")
+                lv1: R.Tensor((512, 4, 3, 3), dtype="float16") = R.astype(w, dtype="float16")
+                lv142: R.Tensor((1, 512, 62, 62), dtype="float16") = R.nn.conv2d(
+                    lv,
+                    lv1,
+                    strides=[1, 1],
+                    padding=[0, 0, 0, 0],
+                    out_dtype="float16",
+                )
+                lv2: R.Tensor((512,), dtype="float16") = R.astype(bias, dtype="float16")
+                lv143: R.Tensor((1, 512, 1, 1), dtype="float16") = R.reshape(
+                    lv2, R.shape([1, 512, 1, 1])
+                )
+                lv3: R.Tensor((1, 512, 62, 62), dtype="float16") = R.add(lv142, lv143)
+                lv144: R.Tensor((1, 512, 62, 62), dtype="float32") = R.astype(lv3, dtype="float32")
+                R.output(lv144)
+            return lv144
+
+    @tvm.script.ir_module
+    class Expected_no_bias_cast:
+        @R.function
+        def main(
+            x: R.Tensor((1, 4, 64, 64), dtype="float32"),
+            w: R.Tensor((512, 4, 3, 3), dtype="float32"),
+            bias: R.Tensor((512,), dtype="float32"),
+        ) -> R.Tensor((1, 512, 64, 64), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1, 4, 64, 64), dtype="float16") = R.astype(x, dtype="float16")
+                lv1: R.Tensor((512, 4, 3, 3), dtype="float16") = R.astype(w, dtype="float16")
+                lv142: R.Tensor((1, 512, 62, 62), dtype="float16") = R.nn.conv2d(
+                    lv,
+                    lv1,
+                    strides=[1, 1],
+                    padding=[0, 0, 0, 0],
+                    out_dtype="float16",
+                )
+                lv143: R.Tensor((1, 512, 1, 1), dtype="float32") = R.reshape(
+                    bias, R.shape([1, 512, 1, 1])
+                )
+                lv2: R.Tensor((1, 512, 62, 62), dtype="float32") = R.astype(lv142, dtype="float32")
+                lv144: R.Tensor((1, 512, 62, 62), dtype="float32") = R.add(lv2, lv143)
+                R.output(lv144)
+            return lv144
+
+    binding_np = {
+        "w": np.random.uniform(size=(512, 4, 3, 3)).astype("float32"),
+        "bias": np.random.uniform(size=(512,)).astype("float32"),
+    }
+    binding = {k: tvm.nd.array(v) for k, v in binding_np.items()}
+
+    print(ToMixedPrecision(out_dtype="float16", fp16_input_names=["w", "bias"])(Input))
+    # Input_bound = relax.transform.BindParams("main", binding)(Input)
+    # Expected = relax.transform.BindParams("main", binding)(Expected)
+
+    # _assert_test(Input_bound, expected2=Expected)
+
+    # binding_np["bias"][0] = 70000  # Out of fp16 range
+    # binding = {k: tvm.nd.array(v) for k, v in binding_np.items()}
+    # Input_bound = relax.transform.BindParams("main", binding)(Input)
+    # Expected_no_bias_cast = relax.transform.BindParams("main", binding)(Expected_no_bias_cast)
+
+    # _assert_test(Input_bound, expected2=Expected_no_bias_cast)
+
+
 if __name__ == "__main__":
-    tvm.testing.main()
+    # tvm.testing.main()
+    test_convert_sig()
