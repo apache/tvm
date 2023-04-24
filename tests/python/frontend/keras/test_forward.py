@@ -211,13 +211,16 @@ class TestKeras:
             keras_model = keras_mod.models.Model(data, x)
             verify_keras_frontend(keras_model)
             verify_keras_frontend(keras_model, need_transpose=False, layout="NHWC")
-        # test invalid attribute alpha=None for LeakyReLU    
+        # test invalid attribute alpha=None for LeakyReLU
+        if package_version.parse(keras_mod.__version__.split("-tf")[0]) <= package_version.parse(
+            "2.3.1"
+        ):
         if package_version.parse(keras_mod.__version__.split('-tf')[0]) <= package_version.parse("2.3.1"):
             data = keras_mod.layers.Input(shape=(2, 3, 4))
             x = keras_mod.layers.LeakyReLU(alpha=None)(data)
             keras_model = keras_mod.models.Model(data, x)
             with pytest.raises(tvm.error.OpAttributeInvalid):
-                verify_keras_frontend(keras_model)        
+                verify_keras_frontend(keras_model)
 
     def test_forward_dense(self, keras_mod):
         """test_forward_dense"""
