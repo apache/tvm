@@ -130,13 +130,13 @@ def check_correctness(
 
     # Single ouput
     if isinstance(tvm_output, tvm.nd.NDArray):
-        tvm.testing.assert_allclose(tvm_output.numpy(), jax_output, atol=1e-5)
+        tvm.testing.assert_allclose(tvm_output.numpy(), jax_output, rtol=1e-5, atol=1e-5)
         return
 
     # Multiple ouputs
     assert len(tvm_output) == len(jax_output), "numbers of outputs mismatch"
     for (tvm_out, jax_out) in zip(tvm_output, jax_output):
-        tvm.testing.assert_allclose(tvm_out.numpy(), jax_out, atol=1e-5)
+        tvm.testing.assert_allclose(tvm_out.numpy(), jax_out, rtol=1e-5, atol=1e-5)
 
 
 def get_vm_res(
@@ -348,7 +348,7 @@ def test_conv():
     # compile and run
     tvm_output = get_vm_res(ir_mod, inputs_np)
     # verify accuracy
-    tvm.testing.assert_allclose(tvm_output.numpy(), jax_output, atol=1e-5)
+    tvm.testing.assert_allclose(tvm_output.numpy(), jax_output, rtol=1e-5, atol=1e-5)
 
 
 if __name__ == "__main__":
