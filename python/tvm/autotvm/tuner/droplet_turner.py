@@ -21,7 +21,9 @@ import numpy as np
 from scipy import stats
 from .tuner import Tuner
 from .model_based_tuner import knob2point
+
 LOGGER = logging.getLogger("autotvm")
+
 
 class DropletTuner(Tuner):
     """Tuner with droplet algorithm.
@@ -58,7 +60,7 @@ class DropletTuner(Tuner):
 
     def search_space(self, factor=1):
         search_space = []
-        for i in range(2**len(self.dims)-1, 0, -1):
+        for i in range(2 ** len(self.dims) - 1, 0, -1):
             search_space += [self.num_to_bin(i, factor)] + [self.num_to_bin(i, -factor)]
         return search_space
 
@@ -68,8 +70,10 @@ class DropletTuner(Tuner):
         for p in new_positions:
             if len(next_set) > self.batch:
                 break
-            new_p = [(x+y) % self.dims[i] if (x+y > 0) else 0 for i, (x, y)
-                    in enumerate(zip(p, self.best_choice[1]))]
+            new_p = [
+                (x + y) % self.dims[i] if (x + y > 0) else 0
+                for i, (x, y) in enumerate(zip(p, self.best_choice[1]))
+            ]
             idx_p = knob2point(new_p, self.dims)
             if idx_p not in self.visited:
                 self.visited.add(idx_p)
@@ -101,8 +105,9 @@ class DropletTuner(Tuner):
         found_best_pos = False
         for i, (_, res) in enumerate(zip(inputs, results)):
             try:
-                if np.mean(self.best_choice[2]) > np.mean(res.costs) and \
-                    self.p_value(self.best_choice[2], res.costs):
+                if np.mean(self.best_choice[2]) > np.mean(res.costs) and self.p_value(
+                    self.best_choice[2], res.costs
+                ):
                     self.best_choice = (self.next[i][0], self.next[i][1], res.costs)
                     found_best_pos = True
             except TypeError:
@@ -111,7 +116,7 @@ class DropletTuner(Tuner):
             else:
                 continue
 
-        self.next = self.next[self.batch:-1]
+        self.next = self.next[self.batch : -1]
         if found_best_pos:
             self.next += self.next_pos(self.search_space())
             self.execution = 1
