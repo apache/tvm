@@ -15,12 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """Unit tests for various models and operators"""
+from packaging import version as package_version
 import numpy as np
 import tvm
 from tvm import relay
 from tvm.contrib import graph_executor
 import tvm.testing
-from packaging import version as package_version
 import pytest
 
 try:
