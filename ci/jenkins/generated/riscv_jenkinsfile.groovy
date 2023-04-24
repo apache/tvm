@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-04-24T11:43:39.850644
+// Generated at 2023-04-24T13:05:44.338831
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -609,8 +609,8 @@ def shard_run_test_RISC_V_1_of_1(node_type='CPU-SMALL-SPOT', on_demand=false) {
                 )
 
               ci_setup(ci_riscv)
-              cpp_unittest(ci_cortexm)
-              micro_cpp_unittest(ci_cortexm)
+              cpp_unittest(ci_riscv)
+              micro_cpp_unittest(ci_riscv)
               sh (
                 script: "${docker_run} ${ci_riscv} ./tests/scripts/task_riscv_microtvm.sh",
                 label: 'Run microTVM tests',
