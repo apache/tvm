@@ -23,6 +23,7 @@
   condition='!skip_ci && is_docs_only_build != 1',
   ws='tvm/build-riscv',
   docker_image='ci_riscv',
+  platform="riscv",
 ) %}
   sh (
     script: "${docker_run} ${ci_riscv} ./tests/scripts/task_config_build_riscv.sh build",
