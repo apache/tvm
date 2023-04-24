@@ -14,9 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=import-outside-toplevel, unused-argument
 
-# pylint: disable=invalid-name, inconsistent-return-statements, unidiomatic-typecheck
-# pylint: disable=import-outside-toplevel, unused-argument, no-member
 """StableHLO frontend of Relax."""
 from typing import Callable, Dict, List, Tuple, Union, Any
 
@@ -352,7 +351,21 @@ class StableHLOImporter:
         }
 
     def from_stablehlo(self, model, input_info: List[Tuple[Tuple[int], str]]) -> tvm.IRModule:
-        """Convert a StableHLO Module to a Relax program."""
+        """Convert a StableHLO Module to a Relax program.
+
+        Parameters
+        ----------
+        model : mlir.ir.Module
+            The StableHLO Module to convert.
+
+        input_info : List[Tuple[Tuple[int], str]]
+            A list of shapes and data types of input tensors.
+
+        Returns
+        -------
+        output : tvm.IRModule
+            The result IRModule with entry function "main"
+        """
         from jaxlib import mlir
         from jaxlib.mlir.dialects import stablehlo
 
@@ -372,6 +385,7 @@ class StableHLOImporter:
 
         # TODO (yongwww): Handle mlir.ir.Module with multiple functions
         # Initialize the block builder with a function and a dataflow block.
+        # Raise error if the input stablehlo op is impure
         func_name = "main"
         self.block_builder = relax.BlockBuilder()
 
