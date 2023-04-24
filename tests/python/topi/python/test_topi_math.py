@@ -206,6 +206,7 @@ from_dtype, to_dtype = tvm.testing.parameters(
     ("float32", "float64"),
     ("float32", "bool"),
     # disable this due to llvm5+ bug https://github.com/llvm/llvm-project/issues/56204
+    # TODO (yongwww): pattern match f64->f16 to f64->f32->f16 as a workaround
     # ("float64", "float16"),
     ("float64", "float32"),
     ("bool", "float32"),
