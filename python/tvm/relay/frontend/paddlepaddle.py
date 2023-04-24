@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, import-self, len-as-condition, unused-argument, too-many-lines
-# pylint: disable=import-outside-toplevel
+# pylint: disable=import-outside-toplevel, broad-exception-raised, use-list-literal, superfluous-parens
 """Paddle: PArallel Distributed Deep LEarning."""
 
 import warnings
@@ -859,7 +859,7 @@ def convert_grid_sampler(g, op, block):
         axes = [0, 4, 1, 2, 3]
         grid = _op.transform.transpose(grid, axes)
     else:
-        msg = f"only 4D and 5D are supported."
+        msg = "only 4D and 5D are supported."
         raise ValueError(msg)
 
     out = _op.image.grid_sample(x, grid, mode, layout, padding_mode, align_corners)

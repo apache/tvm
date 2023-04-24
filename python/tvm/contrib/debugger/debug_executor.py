@@ -271,7 +271,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
         elif isinstance(node, int):
             node_index = node
         else:
-            raise RuntimeError(f"Require node index or name only.")
+            raise RuntimeError("Require node index or name only.")
 
         self._debug_get_output(node_index, out)
 

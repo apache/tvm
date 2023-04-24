@@ -76,26 +76,47 @@ disable=
     attribute-defined-outside-init,
     bad-continuation,
     bad-option-value,
+    broad-exception-raised,
+    consider-iterating-dictionary,
+    consider-using-dict-items,
+    consider-using-enumerate,
+    consider-using-f-string,
+    consider-using-generator,
     consider-using-get,
+    consider-using-in,
+    consider-using-max-builtin,
+    consider-using-min-builtin,
+    consider-using-with,
     design,
     fixme,
     global-statement,
+    global-variable-not-assigned,
+    implicit-str-concat,
     import-error,
     locally-disabled,
     locally-enabled,
+    logging-fstring-interpolation,
     no-else-return,
     no-member,
     no-name-in-module,
     no-self-use,
     pointless-except,
     protected-access,
+    raise-missing-from,
     similarities,
     star-args,
+    super-with-arguments,
     suppressed-message,
     too-many-lines,
     unbalanced-tuple-unpacking,
     undefined-variable,
+    unspecified-encoding,
     unsubscriptable-object,
+    unnecessary-dunder-call,
+    unnecessary-lambda-assignment,
+    use-a-generator,
+    use-dict-literal,
+    use-maxsplit-arg,
     useless-object-inheritance,
     useless-suppression
 
@@ -268,13 +289,13 @@ module-rgx=(([a-z_][a-z0-9_]*)|([A-Z][a-zA-Z0-9]+))$
 const-rgx=(([A-Z_][A-Z0-9_]*)|(__.*__))$
 
 # Naming hint for constant names
-const-naming-style=snake_case
+const-naming-style=UPPER_CASE
 
 # Regular expression matching correct inline iteration names
 inlinevar-rgx=[A-Za-z_][A-Za-z0-9_]*$
 
 # Naming hint for inline iteration names
-inlinevar-naming-style=snake_case
+inlinevar-naming-style=any
 
 # Regular expression matching correct method names
 method-rgx=[a-z_][a-z0-9_]{2,30}$
@@ -282,11 +303,14 @@ method-rgx=[a-z_][a-z0-9_]{2,30}$
 # Naming hint for method names
 method-naming-style=snake_case
 
+# Naming style matching correct class constant names.
+class-const-naming-style=PascalCase
+
 # Regular expression matching correct class attribute names
 class-attribute-rgx=([A-Za-z_][A-Za-z0-9_]{2,30}|(__.*__))$
 
 # Naming hint for class attribute names
-class-attribute-naming-style=snake_case
+class-attribute-naming-style=any
 
 # Regular expression matching correct argument names
 argument-rgx=[a-z_][a-z0-9_]{2,30}$

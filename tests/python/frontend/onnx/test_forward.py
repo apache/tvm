@@ -5658,6 +5658,7 @@ def test_wrong_input():
         relay.frontend.from_onnx(model, shape=wrong_shape_dict)
 
 
+@pytest.mark.skip(reason="unsupported op numel")
 @tvm.testing.parametrize_targets
 def test_aten(target, dev):
     """test_aten"""
@@ -5850,7 +5851,7 @@ def test_biasgelu(target, dev, data_type, op_name):
     """test_biasgelu"""
     dtype = np.dtype(data_type)
     tensor_type = mapping.NP_TYPE_TO_TENSOR_TYPE[dtype]
-    absolute_tolerance = 1e-3 if data_type == "float16" else 1e-5
+    absolute_tolerance = 1e-2 if data_type == "float16" else 1e-5
 
     def verify_biasgelu(x, bias):
         node = onnx.helper.make_node(

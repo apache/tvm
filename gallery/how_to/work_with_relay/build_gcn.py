@@ -253,7 +253,7 @@ def prepare_params(g, data):
     )  # Only support float32 as feature for now
 
     # Generate adjacency matrix
-    adjacency = nx.to_scipy_sparse_matrix(g)
+    adjacency = nx.to_scipy_sparse_array(g)
     params["g_data"] = adjacency.data.astype("float32")
     params["indices"] = adjacency.indices.astype("int32")
     params["indptr"] = adjacency.indptr.astype("int32")

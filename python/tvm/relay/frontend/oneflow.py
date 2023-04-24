@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, import-self, len-as-condition, unused-argument, too-many-lines
-# pylint: disable=import-outside-toplevel
+# pylint: disable=import-outside-toplevel, used-before-assignment, use-implicit-booleaness-not-comparison
 """OneFlow: OneFlow is a performance-centered and open-source deep learning framework."""
 
 import os

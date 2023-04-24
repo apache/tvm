@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=use-list-literal, consider-using-with, f-string-without-interpolation
 """Common functions for AOT test cases"""
 import sys
 import datetime
@@ -370,7 +371,7 @@ def _emit_main_c_interface_call(
     if debug_last_error:
         main_file.write(f'\tprintf("ERROR: %s\\n", TVMGetLastError());\n')
     main_file.write(f'\tprintf("{AOT_FAILURE_TOKEN}\\n");\n')
-    main_file.write(f"\treturn -1;\n")
+    main_file.write("\treturn -1;\n")
     main_file.write("}\n")
 
 

@@ -17,7 +17,7 @@
 # pylint: disable=import-self, too-many-lines, len-as-condition, no-else-return, unused-variable, too-many-nested-blocks
 # pylint: disable=consider-iterating-dictionary, invalid-name, unused-argument, unused-variable, broad-except
 # pylint: disable=import-outside-toplevel, simplifiable-if-expression, cell-var-from-loop, unnecessary-lambda
-# pylint: disable=missing-function-docstring, redefined-builtin
+# pylint: disable=missing-function-docstring, redefined-builtin, use-implicit-booleaness-not-comparison
 """PT: PyTorch frontend."""
 import functools
 import itertools
@@ -3678,7 +3678,7 @@ class PyTorchOpConverter:
             axes = [0, 4, 1, 2, 3]
             grid = _op.transform.transpose(inputs[1], axes)
         else:
-            msg = f"only 4D and 5D are supported."
+            msg = "only 4D and 5D are supported."
             raise ValueError(msg)
 
         if interpolate_mode == 0:
