@@ -263,6 +263,10 @@ def test_meta_schedule_integration_extract_from_bert_base():
         assert expected_shape == shape, t.task_name
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently torch.jit.trace fails on AArch64",
+)
 @tvm.testing.requires_package("torch")
 def test_meta_schedule_integration_extract_from_resnet_with_filter_func():
     @register_func("relay.backend.tir_converter.remove_purely_spatial", override=True)
