@@ -63,6 +63,8 @@ def test_scale_by(primFunc, size):
     mod = tvm.tir.transform.ConvertBlocksToOpaque()(mod)
     mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
     sizes = tvm.tir.analysis.calculate_allocated_bytes(mod["main"])
+    assert "main" in sizes, 'Calls with PrimFunc is expected to return with function key as "main"'
+    sizes = sizes["main"]
     assert sizes.get("global.vtcm", 0) == size
 
 
@@ -104,6 +106,8 @@ def test_matmul_mix_scope(scope, size):
     mod = tvm.tir.transform.ConvertBlocksToOpaque()(mod)
     mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
     sizes = tvm.tir.analysis.calculate_allocated_bytes(mod["main"])
+    assert "main" in sizes, 'Calls with PrimFunc is expected to return with function key as "main"'
+    sizes = sizes["main"]
     assert sizes.get(scope, 0) == size
 
 

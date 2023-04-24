@@ -216,17 +216,14 @@ def calculate_allocated_bytes(
     -------
     result : Union[Dict[str, int], Dict[str, Dict[str, int]]]
         Allocated memory size per scope in bytes for each function in the IRModule returned as a
-        dict with function names as keys and a dictionary of allcoated sizes as values. If a single
+        dict with function names as keys and a dict of allocated sizes as values. If a single
         PrimFunc is passed, the function name is returned as "main"
     """
     if not isinstance(func_or_mod, (PrimFunc, IRModule)):
         raise TypeError(
             f"Expected argument to be PrimFunc or IRModule, but received {type(func_or_mod)}"
         )
-    allocated_mem = _ffi_api.calculate_allocated_bytes(func_or_mod)  # type: ignore
-    if isinstance(func_or_mod, PrimFunc):
-        return allocated_mem["main"]
-    return allocated_mem
+    return _ffi_api.calculate_allocated_bytes(func_or_mod)  # type: ignore
 
 
 def detect_buffer_access_lca(func: PrimFunc) -> Dict[Buffer, Stmt]:
