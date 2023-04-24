@@ -137,16 +137,16 @@ class StableHLOImporter:
 
     @staticmethod
     def _promote_binary_op_args(lhs, rhs):
+        if not isinstance(lhs, relax.Expr) and not isinstance(rhs, relax.Expr):
+            msg = "Both the lhs and the rhs are not expressions."
+            raise AssertionError(msg)
         if isinstance(lhs, relax.Expr) and isinstance(rhs, relax.Expr):
             return lhs, rhs
         if isinstance(lhs, relax.Expr):
             assert isinstance(lhs.struct_info, relax.TensorStructInfo)
             return lhs, relax.const(rhs, lhs.struct_info.dtype)
-        if isinstance(rhs, relax.Expr):
-            assert isinstance(rhs.struct_info, relax.TensorStructInfo)
-            return relax.const(lhs, rhs.struct_info.dtype), rhs
-        else:
-            assert False
+        assert isinstance(rhs.struct_info, relax.TensorStructInfo)
+        return relax.const(lhs, rhs.struct_info.dtype), rhs
 
     def _call_binary_op(self, op, lhs, rhs):
         lhs, rhs = StableHLOImporter._promote_binary_op_args(lhs, rhs)
