@@ -3104,42 +3104,50 @@ def test_tflite_softmax(ifm_shape):
     def verify(ext_func):
         out_op = ext_func.body
         ops = []
-        expected_op_names = [
-            "reshape",
-            "reshape",
-            "contrib.ethosu.pooling",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.pooling",
-            "contrib.ethosu.unary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "contrib.ethosu.binary_elementwise",
-            "reshape",
+        # List of expected operations and their type if it exists
+        expected_ops = [
+            ("reshape", None),
+            ("reshape", None),
+            ("contrib.ethosu.pooling", "MAX"),
+            ("contrib.ethosu.binary_elementwise", "SUB"),
+            ("contrib.ethosu.binary_elementwise", "SHR"),
+            ("contrib.ethosu.pooling", "SUM"),
+            ("contrib.ethosu.unary_elementwise", "CLZ"),
+            ("contrib.ethosu.binary_elementwise", "SUB"),
+            ("contrib.ethosu.binary_elementwise", "SHL"),
+            ("contrib.ethosu.binary_elementwise", "SUB"),
+            ("contrib.ethosu.binary_elementwise", "SHL"),
+            ("contrib.ethosu.binary_elementwise", "ADD"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "ADD"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "SUB"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "ADD"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "SUB"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "ADD"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "SUB"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "ADD"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "SUB"),
+            ("contrib.ethosu.binary_elementwise", "SHR"),
+            ("reshape", None),
         ]
+
+        def get_op_type(op):
+            if hasattr(op.attrs, "pooling_type"):
+                return op.attrs.pooling_type
+            elif hasattr(op.attrs, "operator_type"):
+                return op.attrs.operator_type
+            return None
 
         def _visit(stmt):
             if isinstance(stmt, relay.expr.Call):
@@ -3158,8 +3166,9 @@ def test_tflite_softmax(ifm_shape):
         assert ofm.dtype == dtype
 
         # check operations
-        op_names = [op.op.name for op in ops]
-        assert expected_op_names == op_names
+
+        ops = [(op.op.name, get_op_type(op)) for op in ops]
+        assert expected_ops == ops
 
     softmax_pattern_table = [
         (
