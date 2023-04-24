@@ -392,8 +392,8 @@ class TestSubIndex(BaseCompare):
         TestCase(fld(x + 5, 3) - fld(x, 3), fld(flm(x, 3) + 5, 3)),
         TestCase(fld(x + 5, 3) - fld(x + 2, 3), fld(flm(x + 2, 3), 3) + 1),
         TestCase(fld(y, 3) * 3 - y, 0 - flm(y, 3)),
-        TestCase(y - fld(y - 6, 5) * 5, flm(y + (-6), 5) + 6),
-        TestCase(fld(y - 6, 5) * 5 - y, (-6) - flm(y + (-6), 5)),
+        TestCase(y - fld(y - 6, 5) * 5, flm(y + 4, 5) + 6),
+        TestCase(fld(y - 6, 5) * 5 - y, (-6) - flm(y + 4, 5)),
         TestCase(y - fld(y + z, 5) * 5, flm(y + z, 5) - z),
         TestCase(fld(y + z, 5) * 5 - y, z - flm(y + z, 5)),
         TestCase(y - fld(y - z, 5) * 5, flm(y - z, 5) + z),
@@ -554,13 +554,15 @@ class TestFloormodIndex(BaseCompare):
         TestCase(flm(x + 10, 2), flm(x, 2)),
         TestCase(flm(x + y * 10, 2), flm(x, 2)),
         TestCase(flm(x + y * 360, 16), flm(x + y * 8, 16)),
-        TestCase(flm(x * 10 + 1 + y * 2 + 2, 2), 1),
         TestCase(flm(x * (-10), 2), 0),
         TestCase(flm(x * (-10) + y, 2), flm(y, 2)),
         TestCase(flm(x + (-10), 2), flm(x, 2)),
         TestCase(flm(x + y * (-10), 2), flm(x, 2)),
         TestCase(flm(x * 32 + y, 64), flm(x, 2) * 32 + y, [y >= 0, y < 32]),
         TestCase(flm(x * 32 - y, 64), flm(x * 32 - y, 64), [y >= 0, y < 32]),
+        # NOTE: the followng case is covered by canonical simplify
+        # long range simplifcation in general can be covered by canonical simplify
+        # TestCase(flm(x * 10 + 1 + y * 2 + 2, 2), 1),
     )
 
 
@@ -574,13 +576,14 @@ class TestFloorModTwo(BaseCompare):
     require identifying more related terms in order to apply.
 
     (x + c1)//2 - (x+c2)//2 => (x%2)*( c1%2 - c1%2 ) + (c1//2 - c2//2)
+
+    We should not introduce extra negative coeficient to iterators
+    however during simplification
     """
 
     x, y, z = te.var("x"), te.var("y"), te.var("z")
     test_case = tvm.testing.parameter(
         # Removing offsets from floormod
-        TestCase(flm(x + 1, 2), flm(x, 2) * (-1) + 1),
-        TestCase(flm(x + 5, 2), flm(x, 2) * (-1) + 1),
         TestCase(flm(x, 2) + flm(x + 1, 2), 1),
         TestCase(flm(x + 1, 2) + flm(x, 2), 1),
         # Difference of floordiv yields floormod
@@ -592,8 +595,13 @@ class TestFloorModTwo(BaseCompare):
         # Sum of floordiv and floormod to yield floordiv
         TestCase(fld(x + 1, 2) - flm(x, 2), fld(x, 2)),
         TestCase(fld(x, 2) + flm(x, 2), fld(x + 1, 2)),
-        # Removal of floormod where possible
-        TestCase(flm(x + 1, 2) * 8192, x * (-8192) + 8192, [x >= 0, x < 2]),
+        # regression: although we can rewrite (x + 1) %2 => 1 - x%2
+        # doing so would introduce negative co-efficient to iterators
+        # which makes later iter map detection harder, in principle we
+        # should not introduce additional negative signs of iterator in rewriting
+        TestCase(flm(x + 1, 2), flm(x + 1, 2)),
+        TestCase(flm(x + 5, 2), flm(x + 1, 2)),
+        TestCase(flm(x + 1, 2) * 8192, flm(x + 1, 2) * 8192, [x >= 0, x < 2]),
     )
 
 
