@@ -108,12 +108,18 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
   return TensorStructInfo(ShapeExpr(output_shape), q_sinfo->dtype);
 }
 
+Call InferMixedPrecisionAttention(const Call& call, const DataType& out_dtype) {
+  return Downcast<Call>(attention(call->args[0], call->args[1], call->args[2], NullOpt, NullOpt));
+}
+
 TVM_REGISTER_OP("relax.nn.attention")
     .set_attrs_type<AttentionAttrs>()
     .set_num_inputs(3)
     .add_argument("query", "Tensor", "The input queries tensor.")
     .add_argument("key", "Tensor", "The input keys tensor.")
     .add_argument("value", "Tensor", "The input values tensor.")
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
+    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention);
 
 TVM_REGISTER_OP("relax.nn.attention_bias")
@@ -123,6 +129,8 @@ TVM_REGISTER_OP("relax.nn.attention_bias")
     .add_argument("key", "Tensor", "The input keys tensor.")
     .add_argument("value", "Tensor", "The input values tensor.")
     .add_argument("bias", "Tensor", "The input bias tensor.")
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
+    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention);
 
 }  // namespace relax
