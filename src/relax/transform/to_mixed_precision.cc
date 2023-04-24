@@ -26,6 +26,7 @@
 #include <tvm/relax/transform.h>
 
 #include <array>
+#include <cstdint>
 
 #include "../op/nn/convolution.h"
 #include "../op/tensor/datatype.h"
@@ -318,25 +319,75 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     return new_args;
   }
 
-  // Util function to check if any of the tensors in the args is fp32
-  bool AnyArgIsFP32(const NType& cur_type) {
-    bool result = false;
-    auto fvisitleaf = [&](const String& dtype) {
-      if (dtype == "float32") {
-        result = true;
-      }
-    };
-    ForEachLeaf<String>(cur_type, fvisitleaf);
-    return result;
+  template <typename T>
+  bool CheckInFP16Range(const std::vector<uint8_t>& bytes, size_t num_elem) {
+    const T* ptr = reinterpret_cast<const T*>(bytes.data());
+    constexpr float fp16_max = 65504;
+    for (size_t i = 0; i < num_elem; ++i) {
+      if (std::abs(ptr[i]) > fp16_max) return false;
+    }
+    return true;
   }
 
-  bool AnyArgIsFP32(const Array<Expr>& args) {
+  bool AllFP16Castable(const Array<Expr>& args) {
+    auto is_fp16 = [](StructInfo sinfo) {
+      if (auto tensor_sinfo = sinfo.as<TensorStructInfoNode>();
+          tensor_sinfo && tensor_sinfo->dtype == DataType::Float(16)) {
+        return true;
+      }
+      return false;
+    };
+
+    auto is_in_fp16_range = [this](const ConstantNode* constant) {
+      const auto& data = constant->data;
+      if (data->dtype.lanes > 1) {
+        // Skip vectorized types for now.
+        return false;
+      }
+
+      if (data.DataType() == DataType::Float(16)) {
+        return true;
+      }
+
+      auto shape = data.Shape();
+      size_t size_1d = 1;
+      for (size_t i = 0; i < shape.size(); ++i) {
+        size_1d *= shape[i];
+      }
+      auto elem_bytes = data->dtype.bits / 8;
+      std::vector<uint8_t> bytes(size_1d * elem_bytes);
+      data.CopyToBytes(bytes.data(), bytes.size());
+
+      if (data.DataType() == DataType::Float(32)) {
+        return CheckInFP16Range<float>(bytes, size_1d);
+      } else if (data.DataType() == DataType::Float(64)) {
+        return CheckInFP16Range<double>(bytes, size_1d);
+      } else if (data.DataType() == DataType::Int(8)) {
+        return CheckInFP16Range<std::int8_t>(bytes, size_1d);
+      } else if (data.DataType() == DataType::Int(16)) {
+        return CheckInFP16Range<std::int16_t>(bytes, size_1d);
+      } else if (data.DataType() == DataType::Int(32)) {
+        return CheckInFP16Range<std::int32_t>(bytes, size_1d);
+      } else if (data.DataType() == DataType::Int(64)) {
+        return CheckInFP16Range<std::int64_t>(bytes, size_1d);
+      }
+      return false;
+    };
+
     for (const Expr& arg : args) {
-      if (IsNestedTensor(arg)) {
-        if (AnyArgIsFP32(NTypeFrom(arg))) return true;
+      auto sinfo = GetStructInfo(arg);
+      auto constant = arg.as<ConstantNode>();
+      auto tuple = arg.as<TupleNode>();
+
+      if (!IsNestedTensor(arg) || is_fp16(sinfo) || (constant && is_in_fp16_range(constant)) ||
+          (tuple && AllFP16Castable(tuple->fields))) {
+        continue;
+      } else {
+        return false;
       }
     }
-    return false;
+
+    return true;
   }
 
   void CastIfFp16Only(const Var& var) {
@@ -421,7 +472,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
       auto f = attr_map[op];
       new_call = make_object<CallNode>(*(f(Call(new_call), output_dtype_).get()));
     } else if (policy == kFollow) {
-      to = AnyArgIsFP32(new_call->args) ? fp32_ : fp16_;
+      to = AllFP16Castable(new_call->args) ? fp16_ : fp32_;
     } else if (policy == kNever) {
       to = fp32_;
     } else {

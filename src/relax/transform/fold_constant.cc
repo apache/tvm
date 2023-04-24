@@ -248,7 +248,8 @@ class ConstantFolder : public ExprMutator {
       // Check if we can them to call_tir
       if (legalize_map.count(op)) {
         // Get the legalized expression
-        Expr legalized_expr = builder_->Normalize(legalize_map[op](builder_, post_call));
+        Call post_call_normalized = Downcast<Call>(builder_->Normalize(post_call));
+        Expr legalized_expr = builder_->Normalize(legalize_map[op](builder_, post_call_normalized));
         // If the legalized expression is call_tir, try to fold it.
         const CallNode* call = legalized_expr.as<CallNode>();
         if (call && call->op.same_as(call_tir_op)) {
