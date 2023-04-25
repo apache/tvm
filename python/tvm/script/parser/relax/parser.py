@@ -21,7 +21,7 @@ import numbers
 from typing import Any, Dict, Optional
 
 from tvm import relax, tir
-from tvm.ir import make_node, GlobalVar, structural_equal
+from tvm.ir import make_node, DictAttrs, GlobalVar, structural_equal
 from tvm.relax import Expr, StructInfo
 from tvm.relax.utils import convert_to_expr
 from tvm.script.ir_builder.relax.frame import BlockFrame
@@ -202,28 +202,12 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                 self.visit_body(node.body)
 
 
-@dispatch.register(token="relax", type_name="tvm_declare_function")
-def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar:
-    with self.var_table.with_frame():
-        collect_symbolic_var_from_params(self, node)
-
-        if node.returns is None:
-            # Use ObjectStructInfo as unknown return type
-            # NOTE: Cannot use VoidStructInfo here because the return type can be refined later.
-            ret_sinfo = relax.ObjectStructInfo()
-        else:
-            ret_sinfo = eval_struct_info(self, node.returns, eval_str=True)
-        params = []
-        for arg in node.args.args:
-            if arg.annotation is None:
-                self.report_error(arg, "Type annotation is required for function parameters.")
-            param_sinfo = eval_struct_info(self, arg.annotation, eval_str=True)
-            params.append(relax.Var(arg.arg, param_sinfo))
-
-    # find a call to R.func_attr to see if purity should be indicated
-    # namely, find a call to R.func_attr({..., "IsPure": val, ...})
-    # (we don't need any other attributes at the function declaration stage)
-    attrs = None
+def find_purity_annotation(node: doc.FunctionDef) -> Optional[DictAttrs]:
+    """
+    If func_attrs is defined in the function body, check if IsPure is specified.
+    Returns a DictAttrs node containing the IsPure modifier if present, otherwise None.
+    This allows for specifying the purity in the function signature.
+    """
     for item in node.body:
         if (
             isinstance(item, doc.Expr)
@@ -242,7 +226,30 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
                 val = item.value.args[0].values[index]
                 if isinstance(val, doc.Constant):
                     purity = bool(val.value)
-                    attrs = make_node("DictAttrs", IsPure=purity)
+                    return make_node("DictAttrs", IsPure=purity)
+    return None
+
+
+@dispatch.register(token="relax", type_name="tvm_declare_function")
+def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar:
+    with self.var_table.with_frame():
+        collect_symbolic_var_from_params(self, node)
+
+        if node.returns is None:
+            # Use ObjectStructInfo as unknown return type
+            # NOTE: Cannot use VoidStructInfo here because the return type can be refined later.
+            ret_sinfo = relax.ObjectStructInfo()
+        else:
+            ret_sinfo = eval_struct_info(self, node.returns, eval_str=True)
+        params = []
+        for arg in node.args.args:
+            if arg.annotation is None:
+                self.report_error(arg, "Type annotation is required for function parameters.")
+            param_sinfo = eval_struct_info(self, arg.annotation, eval_str=True)
+            params.append(relax.Var(arg.arg, param_sinfo))
+
+    # purity is the only attribute we need at the function declaration stage
+    attrs = find_purity_annotation(node)
 
     func_signature = relax.Function.create_empty(params, ret_sinfo, attrs=attrs)
     return I.decl_function(node.name, func_signature)
