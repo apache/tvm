@@ -91,7 +91,11 @@ if __name__ == "__main__":
     ninja_args = [target, f"-j{num_cpus}"]
     if verbose:
         ninja_args.append("-v")
-    sh.run(f"cmake --build . -- " + " ".join(ninja_args), cwd=build_dir)
+
+    if build_platform == "i386":
+        sh.run(f"make -j{num_cpus}", cwd=build_dir)
+    else:
+        sh.run(f"cmake --build . -- " + " ".join(ninja_args), cwd=build_dir)
 
     if use_sccache:
         logging.info("===== sccache stats =====")
