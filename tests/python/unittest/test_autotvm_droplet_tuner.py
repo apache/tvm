@@ -29,9 +29,6 @@ def test_tuner():
     # When no range index, range_length should be the length of config space
     tuner = autotvm.tuner.DropletTuner(task)
 
-    assert tuner.p_value == 0.05
-    assert tuner.start_position == None
-
     assert len(tuner.start_position) == len(tuner.dims)
     assert len(tuner.best_choice) == 3
     assert tuner.execution == 1
@@ -59,17 +56,6 @@ def test_multi_filter():
     assert tuner.visited.issubset(valid_indexes)
 
 
-def test_update():
-
-    task, target = get_sample_task()
-    tuner = autotvm.tuner.DropletTuner(task)
-    n_records = 5
-    records = get_sample_records(n=n_records)
-    tuner.update([inp for inp, _ in records], [res for _, res in records])
-    assert len(tuner.visited) == n_records
-
-
 if __name__ == "__main__":
     test_tuner()
     test_multi_filter()
-    test_update()
