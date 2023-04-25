@@ -174,12 +174,13 @@ class ParamModuleNode : public runtime::ModuleNode {
 
   static Array<NDArray> GetParams(const std::string& prefix, int num_params) {
     Array<NDArray> params;
-    for (int i = 0; i < num_params; ++i) {
+    for (int i = 0; i < num_params || num_params == -1; ++i) {
       std::string name = prefix + "_" + std::to_string(i);
       auto opt = NDArrayCache::Get(name);
       if (opt) {
         params.push_back(opt.value());
       } else {
+        if (num_params == -1) return params;
         LOG(FATAL) << "Cannot find " << name << " in cache";
       }
     }

@@ -180,7 +180,7 @@ def test_ndarray_cache():
     temp = utils.tempdir()
     tvmjs.dump_ndarray_cache(param_dict, temp.path, encode_format="f32-to-bf16")
     fload(str(temp.path), tvm.cpu().device_type, 0)
-    res = fget_params("x", 2)
+    res = fget_params("x", -1)
     for i, v in enumerate(res):
         v_np = param_dict[f"x_{i}"]
         if v_np.dtype == "float32":
