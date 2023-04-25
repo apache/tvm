@@ -39,6 +39,7 @@ def test_rewrite_cuda_graph():
 
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
+            # ForcePure is expected because purity checking should be disabled before this pass
             R.func_attr({"ForcePure": True})
             cls = Before
             storage: R.Object = R.memory.alloc_storage(R.shape([32]), 0, "global", "float32")
