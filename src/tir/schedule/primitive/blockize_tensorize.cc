@@ -604,6 +604,15 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
     BlockNode* block = block_realize.CopyOnWrite()->block.CopyOnWrite();
     block->body = impl_block->body;
     block->match_buffers = std::move(match_buffer_regions);
+    for (auto [key, val] : impl_block->annotations) {
+      if (block->annotations.count(key) && block->annotations[key] != val) {
+        LOG(WARNING) << "Conflict of annotation \"" << key << "\". Tensor intrinsic and schedule "
+                     << "has different values : " << block->annotations[key] << " vs " << val << " "
+                     << "The value from tensor intrinsic is skipped.";
+        continue;
+      }
+      block->annotations.Set(key, val);
+    }
   }
   if (old_block.defined()) {
     self->Replace(sref, block_realize->block, {{old_block.value(), block_realize->block}});
