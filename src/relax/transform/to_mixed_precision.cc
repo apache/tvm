@@ -445,9 +445,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     return VisitVar_(GetRef<Var>(op));
   }
 
-  Var VisitVarDef(const Var& var) {
-    return GetRemapped(var);
-  }
+  Var VisitVarDef(const Var& var) { return GetRemapped(var); }
 
   Expr VisitExpr_(const DataflowVarNode* op) final {
     if (!builder_->CurrentBlockIsDataFlow()) {
