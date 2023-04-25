@@ -14,32 +14,34 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
+# pylint: disable=invalid-name,missing-module-docstring,missing-function-docstring,missing-class-docstring
 from typing import List
 import tempfile
 import pytest
 
 import tvm
 from tvm import meta_schedule as ms
-from tvm.meta_schedule.schedule_rule import ApplyCustomRule
+from tvm.meta_schedule.schedule_rule import ApplyCustomRule, MultiLevelTiling
+from tvm.meta_schedule.testing.space_generation import generate_design_space
 from tvm.script import tir as T
 
 
-@tvm.script.ir_module
-class Matmul:
+def create_matmul(rule_name: str):
     @T.prim_func
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
+    def func(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main"})
         A = T.match_buffer(a, (1024, 1024), "float32")
         B = T.match_buffer(b, (1024, 1024), "float32")
         C = T.match_buffer(c, (1024, 1024), "float32")
         for i, j, k in T.grid(1024, 1024, 1024):
             with T.block("matmul"):
-                T.block_attr({"schedule_rule": "test_apply_custom_rule"})
+                T.block_attr({"schedule_rule": rule_name})
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+
+    return func
 
 
 @tvm.register_func("meta_schedule.cpu.test_apply_custom_rule")
@@ -53,13 +55,31 @@ def test_custom_rule():
             sch_rules = [ApplyCustomRule()]
             space_gen = ms.space_generator.PostOrderApply(sch_rules=sch_rules)
             ms.tune_tir(
-                mod=Matmul,
+                mod=create_matmul(rule_name="test_apply_custom_rule"),
                 target="llvm -num-cores=1",
                 work_dir=tmpdir,
                 max_trials_global=10,
                 space=space_gen,
             )
     assert "ValueError: Intended for meta_schedule.cpu.test_apply_custom_rule" in str(e_info.value)
+
+
+def test_custom_rule_with_none():
+    """Should ignore custom_rule and apply MultiLevelTiling"""
+    schs = generate_design_space(
+        "llvm",
+        mod=create_matmul(rule_name="None"),
+        target=tvm.target.Target("llvm -num-cores=1"),
+        types=None,
+        sch_rules=[ApplyCustomRule(), MultiLevelTiling("SSR")],
+    )
+    assert len(schs) == 1
+    tiling_annotations = [
+        inst
+        for inst in schs[0].trace.insts
+        if inst.kind.name == "Annotate" and inst.attrs[0] == "meta_schedule.tiling_structure"
+    ]
+    assert len(tiling_annotations) == 1, "Tiling rule was not applied"
 
 
 if __name__ == "__main__":

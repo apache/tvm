@@ -142,7 +142,8 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
           continue;
         }
         if (!ScheduleRule::IsApplyCustomRule(sch_rule)) {
-          if (tir::GetAnn<String>(sch->GetSRef(block_rv), "schedule_rule").defined()) {
+          auto sch_rule = tir::GetAnn<String>(sch->GetSRef(block_rv), "schedule_rule");
+          if (sch_rule.defined() && sch_rule.value() != "None") {
             stack.emplace_back(sch, blocks);
             continue;
           }
