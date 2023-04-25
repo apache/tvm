@@ -29,8 +29,6 @@
 #include <tvm/relax/expr.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/index_map.h>
-
-#include "tvm/runtime/container/optional.h"
 namespace tvm {
 namespace relax {
 namespace transform {
@@ -481,6 +479,8 @@ TVM_DLL Pass DeadCodeElimination(Array<runtime::String> entry_functions);
  * \brief Automatic mixed precision pass. Currently the pass assumes the input module to be fp32
  * only, and will automatically cast fp32 to fp16 for certain ops.
  * \param out_dtype The output data type of gemm/conv, which is the data type of the accumulator.
+ * \param fp16_input_names The names of function parameters whose dtype should become fp16. The
+ * function signature would change accordingly.
  * \return The Pass.
  */
 TVM_DLL Pass ToMixedPrecision(const DataType& out_dtype,

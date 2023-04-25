@@ -33,8 +33,6 @@
 #include "../op/tensor/datatype.h"
 #include "../op/tensor/linear_algebra.h"
 #include "infer_amp_utils.h"
-#include "tvm/relax/struct_info.h"
-#include "tvm/runtime/data_type.h"
 #include "utils.h"
 
 namespace tvm {
