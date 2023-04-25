@@ -79,16 +79,38 @@ void AllocationCalculator<T>::VisitStmt_(const T* op) {
   _current_size[storage_scope] -= size;
 }
 
-tvm::Map<String, Integer> CalculateAllocatedBytes(const PrimFunc& func) {
-  return AllocationCalculator<AllocateNode>()(func);
+tvm::Map<String, tvm::Map<String, Integer> > CalculateAllocatedBytes(const PrimFunc& func) {
+  tvm::Map<String, tvm::Map<String, Integer> > results;
+  results.Set("main", AllocationCalculator<AllocateNode>()(func));
+  return results;
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.calculate_allocated_bytes").set_body_typed([](PrimFunc func) {
-  return CalculateAllocatedBytes(func);
-});
+tvm::Map<String, tvm::Map<String, Integer> > CalculateAllocatedBytes(const IRModule& mod) {
+  tvm::Map<String, tvm::Map<String, Integer> > results;
+  for (const auto& kv : mod->functions) {
+    if (auto prim_func = kv.second.as<tir::PrimFunc>()) {
+      String func_name = kv.first->name_hint;
+      results.Set(func_name, AllocationCalculator<AllocateNode>()(prim_func.value()));
+    }
+  }
+  return results;
+}
+
+TVM_REGISTER_GLOBAL("tir.analysis.calculate_allocated_bytes")
+    .set_body_typed([](ObjectRef obj) -> tvm::Map<String, tvm::Map<String, Integer> > {
+      if (auto func = obj.as<PrimFunc>()) {
+        return CalculateAllocatedBytes(func.value());
+      } else if (auto mod = obj.as<IRModule>()) {
+        return CalculateAllocatedBytes(mod.value());
+      } else {
+        LOG(FATAL) << "TypeError: Expect the input to be either PrimFunc or IRModule, but gets: "
+                   << obj->GetTypeKey();
+        throw;
+      }
+    });
 
 bool VerifyVTCMLimit(const PrimFunc& func, Integer limit) {
-  auto sizes = CalculateAllocatedBytes(func);
+  auto sizes = CalculateAllocatedBytes(func)["main"];
   const auto vtcm_allocated = sizes.Get("global.vtcm").value_or(0);
   if (limit.IntValue() > 0 && vtcm_allocated.IntValue() > limit.IntValue()) {
     return false;
@@ -121,7 +143,7 @@ Pass VerifyVTCMLimit(Optional<Target> default_target) {
         }
 
         if (limit.has_value() && limit.value() > 0) {
-          auto sizes = CalculateAllocatedBytes(func);
+          auto sizes = CalculateAllocatedBytes(func)["main"];
           const auto vtcm_allocated = sizes.Get("global.vtcm").value_or(0);
           if (vtcm_allocated.IntValue() > limit.value()) {
             LOG(FATAL) << "RuntimeError: The global.vtcm memory allocation limit has been exceeded "
