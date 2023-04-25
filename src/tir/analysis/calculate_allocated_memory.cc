@@ -27,6 +27,7 @@
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/transform.h>
 #include <tvm/tir/usmp/utils.h>
 
 #include <algorithm>
@@ -109,6 +110,18 @@ TVM_REGISTER_GLOBAL("tir.analysis.calculate_allocated_bytes")
       }
     });
 
+bool VerifyVTCMLimit(const IRModule& mod, Integer limit) {
+  auto all_sizes = CalculateAllocatedBytes(mod);
+  for (const auto& kv : all_sizes) {
+    auto sizes = kv.second;
+    const auto vtcm_allocated = sizes.Get("global.vtcm").value_or(0);
+    if (limit.IntValue() > 0 && vtcm_allocated.IntValue() > limit.IntValue()) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool VerifyVTCMLimit(const PrimFunc& func, Integer limit) {
   auto sizes = CalculateAllocatedBytes(func)["main"];
   const auto vtcm_allocated = sizes.Get("global.vtcm").value_or(0);
@@ -126,6 +139,26 @@ int64_t GetVTCMCapacity(Target target, const transform::PassContext& pass_ctx) {
   }
   return pass_ctx->GetConfig<Integer>("tir.vtcm_capacity", Integer(0)).value()->value;
 }
+
+Array<tvm::transform::Pass> GetVTCMCompactionPasses() {
+  auto pass_list = Array<tvm::transform::Pass>();
+  pass_list.push_back(tir::transform::LowerInitBlock());
+  pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());
+  pass_list.push_back(tir::transform::ConvertBlocksToOpaque());
+  pass_list.push_back(tir::transform::CompactBufferAllocation());
+  pass_list.push_back(tir::transform::LowerMatchBuffer());
+  pass_list.push_back(tir::transform::InjectSoftwarePipeline());
+  pass_list.push_back(tir::transform::LowerOpaqueBlock());
+  pass_list.push_back(tir::transform::FlattenBuffer());
+  pass_list.push_back(tir::transform::Simplify());
+  pass_list.push_back(tir::transform::VectorizeLoop(true));
+  pass_list.push_back(tir::transform::StorageRewrite());
+  return pass_list;
+}
+
+TVM_REGISTER_GLOBAL("tir.analysis.get_vtcm_compaction_passes").set_body_typed([]() {
+  return GetVTCMCompactionPasses();
+});
 
 namespace transform {
 
