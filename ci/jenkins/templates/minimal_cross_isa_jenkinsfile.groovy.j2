@@ -23,6 +23,7 @@
   condition='!skip_ci && is_docs_only_build != 1',
   ws='tvm/build-cpu-minimal-cross-isa',
   docker_image='ci_minimal',
+  platform="arm",
 ) %}
   sh (
     script: "${docker_run} ${ci_minimal} ./tests/scripts/task_config_build_minimal_cross_isa.sh build",

@@ -70,7 +70,7 @@ def {{ method_name }}(node_type='{{ node }}-SPOT', on_demand=false) {
 {% endfor %}
 {% endmacro %}
 
-{% macro invoke_build(name, condition, node, docker_image, ws) %}
+{% macro invoke_build(name, condition, node, docker_image, ws, platform) %}
 def build(node_type) {
   stage('Build') {
     if ({{ condition }}) {
@@ -79,7 +79,12 @@ def build(node_type) {
           init_git()
           docker_init({{ docker_image }})
           timeout(time: max_time, unit: 'MINUTES') {
-            {{ caller() | trim | indent(width=6) }}
+
+            withEnv([
+              'PLATFORM={{ platform }}',
+              ], {
+              {{ caller() | trim | indent(width=6) }}
+            })
           }
         }
       }
