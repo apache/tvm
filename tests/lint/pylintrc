@@ -73,6 +73,7 @@ enable=indexing-exception,old-raise-syntax
 # no Warning level messages displayed, use"--disable=all --enable=classes
 # --disable=W"
 disable=
+    abstract-method,
     attribute-defined-outside-init,
     bad-continuation,
     bad-option-value,

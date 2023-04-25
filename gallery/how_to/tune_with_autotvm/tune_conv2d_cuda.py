@@ -205,12 +205,16 @@ measure_option = autotvm.measure_option(
 # Begin tuning, log records to file `conv2d.log`
 # During tuning we will also try many invalid configs, so you are expected to
 # see many error reports. As long as you can see non-zero GFLOPS, it is okay.
-tuner = autotvm.tuner.XGBTuner(task)
-tuner.tune(
-    n_trial=5,
-    measure_option=measure_option,
-    callbacks=[autotvm.callback.log_to_file("conv2d.log")],
-)
+
+# We do not run the tuning in our webpage server since it takes too long.
+# Uncomment the following lines to run it by yourself.
+
+# tuner = autotvm.tuner.XGBTuner(task)
+# tuner.tune(
+#     n_trial=5,
+#     measure_option=measure_option,
+#     callbacks=[autotvm.callback.log_to_file("conv2d.log")],
+# )
 
 #########################################################################
 # Finally we can inspect the best config from log file, check correctness,
