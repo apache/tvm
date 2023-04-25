@@ -51,7 +51,7 @@ class DropletTuner(Tuner):
         self.visited = set([self.space.knob2point(start_position)])
         self.execution, self.total_execution, self.batch = 1, max(self.dims), 16
         self.pvalue, self.step = pvalue, 1
-        self.next = [(self.space.knob2point(start_position), start_position)] + self.speculation()
+        self.next = [(self.space.knob2point(start_position), start_position)]
 
     def num_to_bin(self, value, factor=1):
         bin_format = str(0) * (len(self.dims) - len(bin(value)[2:])) + bin(value)[2:]
@@ -89,16 +89,15 @@ class DropletTuner(Tuner):
         for i in range(batch_size):
             if i >= len(self.next):
                 break
-            ret.append(self.space.get(self.next[i][0]))
+            if self.space.is_index_valid(self.next[i][0]):
+                ret.append(self.space.get(self.next[i][0]))
         return ret
 
     def speculation(self):
         # Gradient descending direction prediction and search space filling
-        new_points = []
-        while len(new_points) < self.batch and self.execution < self.total_execution:
+        while len(self.next) < self.batch and self.execution < self.total_execution:
             self.execution += self.step
-            new_points += self.next_pos(self.search_space(self.execution))
-        return new_points
+            self.next += self.next_pos(self.search_space(self.execution))
 
     def update(self, inputs, results):
         found_best_pos = False
@@ -119,7 +118,7 @@ class DropletTuner(Tuner):
         if found_best_pos:
             self.next += self.next_pos(self.search_space())
             self.execution = 1
-        self.next += self.speculation()
+        self.speculation()
 
     def has_next(self):
         return len(self.next) > 0

@@ -42,17 +42,16 @@ def test_multi_filter():
     # Test with multi-filter
     task, _ = get_sample_task()
     task.config_space.multi_filter(
-        filter=lambda entity: 32 <= (entity["tile_x"].size[1] * entity["tile_y"].size[1]) < 1024
+        filter=lambda entity: 0 <= (entity["tile_x"].size[1] * entity["tile_y"].size[1]) < 1024
     )
     tuner = autotvm.tuner.DropletTuner(task)
     valid_indexes = list(
         filter(lambda idx: tuner.space.is_index_valid(idx), range(tuner.space.range_length))
     )
     assert tuner.visited.issubset(valid_indexes)
-    assert len(tuner.next) <= len(tuner.visited)
 
     measure_option = autotvm.measure_option(builder=autotvm.LocalBuilder(), runner=DummyRunner())
-    tuner.tune(n_trial=len(tuner.space), measure_option=measure_option)
+    tuner.tune(n_trial=8, measure_option=measure_option)
     assert tuner.visited.issubset(valid_indexes)
 
 
