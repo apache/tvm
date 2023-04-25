@@ -22,7 +22,7 @@ from tvm import autotvm
 
 def test_tuner():
     """Test Droplet Tuner"""
-    
+
     task, _ = get_sample_task()
     measure_option = autotvm.measure_option(builder=autotvm.LocalBuilder(), runner=DummyRunner())
 
@@ -38,12 +38,10 @@ def test_tuner():
     assert tuner.batch == 16
     assert tuner.total_execution == max(tuner.dims)
     assert tuner.step == 1
-
     assert not tuner.has_next()
 
 
 def test_multi_filter():
-    
     # Test with multi-filter
     task, _ = get_sample_task()
     task.config_space.multi_filter(

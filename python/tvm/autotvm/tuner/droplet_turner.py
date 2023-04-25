@@ -20,7 +20,6 @@ import logging
 import numpy as np
 from scipy import stats
 from .tuner import Tuner
-from .model_based_tuner import knob2point
 
 LOGGER = logging.getLogger("autotvm")
 
@@ -49,10 +48,10 @@ class DropletTuner(Tuner):
         # start position
         start_position = [0] * len(self.dims) if start_position is None else start_position
         self.best_choice = (-1, [0] * len(self.dims), [99999])
-        self.visited = set([knob2point(start_position, self.dims)])
+        self.visited = set([self.space.knob2point(start_position)])
         self.execution, self.total_execution, self.batch = 1, max(self.dims), 16
         self.pvalue, self.step = pvalue, 1
-        self.next = [(knob2point(start_position, self.dims), start_position)] + self.speculation()
+        self.next = [(self.space.knob2point(start_position), start_position)] + self.speculation()
 
     def num_to_bin(self, value, factor=1):
         bin_format = str(0) * (len(self.dims) - len(bin(value)[2:])) + bin(value)[2:]
@@ -74,7 +73,7 @@ class DropletTuner(Tuner):
                 (x + y) % self.dims[i] if (x + y > 0) else 0
                 for i, (x, y) in enumerate(zip(p, self.best_choice[1]))
             ]
-            idx_p = knob2point(new_p, self.dims)
+            idx_p = self.space.knob2point(new_p)
             if idx_p not in self.visited:
                 self.visited.add(idx_p)
                 next_set.append((idx_p, new_p))
