@@ -201,20 +201,29 @@ def calculate_constant_bytes(func: PrimFunc, constant_byte_alignment: int) -> in
     return _ffi_api.calculate_constant_bytes(func, constant_byte_alignment)  # type: ignore
 
 
-def calculate_allocated_bytes(func: PrimFunc) -> Dict[str, int]:
+def calculate_allocated_bytes(
+    func_or_mod: Union[PrimFunc, IRModule]
+) -> Union[Dict[str, int], Dict[str, Dict[str, int]]]:
     """Calculate allocated memory per memory scope required by TIR PrimFuncs.
 
     Parameters
     ----------
-    func: tvm.tir.PrimFunc
-        The function to be detected.
+    func_or_mod: Union[PrimFunc, IRModule]
+        The function or module to be detected. If a module is passed, allocated
+        memory is calcualted for all PrimFuncs inside the module
 
     Returns
     -------
-    result : Dict[String, int]
-        Allocated memory size per scope in bytes.
+    result : Union[Dict[str, int], Dict[str, Dict[str, int]]]
+        Allocated memory size per scope in bytes for each function in the IRModule returned as a
+        dict with function names as keys and a dict of allocated sizes as values. If a single
+        PrimFunc is passed, the function name is returned as "main"
     """
-    return _ffi_api.calculate_allocated_bytes(func)  # type: ignore
+    if not isinstance(func_or_mod, (PrimFunc, IRModule)):
+        raise TypeError(
+            f"Expected argument to be PrimFunc or IRModule, but received {type(func_or_mod)}"
+        )
+    return _ffi_api.calculate_allocated_bytes(func_or_mod)  # type: ignore
 
 
 def detect_buffer_access_lca(func: PrimFunc) -> Dict[Buffer, Stmt]:
