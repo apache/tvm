@@ -336,33 +336,35 @@ runtime::Module BuildMetal(IRModule mod, Target target) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
 
-  std::stringstream code;
-  std::stringstream source;
-  std::string fmt = "metal";
+  std::ostringstream source_maker;
+  std::unordered_map<std::string, std::string> smap;
+  const auto* fmetal_compile = Registry::Get("tvm_callback_metal_compile");
+  std::string fmt = fmetal_compile ? "metallib" : "metal";
+
   for (auto kv : mod->functions) {
     ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenMetal: Can only take PrimFunc";
-    code << "// Function: " << kv.first->name_hint << std::endl;
+    auto global_symbol = kv.second->GetAttr<String>(tvm::attr::kGlobalSymbol);
+    ICHECK(global_symbol.defined());
+    std::string func_name = global_symbol.value();
+
+    source_maker << "// Function: " << func_name << "\n";
     CodeGenMetal cg(target);
     cg.Init(output_ssa);
     auto f = Downcast<PrimFunc>(kv.second);
     auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
     ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenMetal: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
+
     cg.AddFunction(f);
     std::string fsource = cg.Finish();
-    if (const auto* f = Registry::Get("tvm_callback_metal_compile")) {
-      source << fsource;
-      fsource = (*f)(fsource).operator std::string();
-      fmt = "metallib";
+    source_maker << fsource << "\n";
+    if (fmetal_compile) {
+      fsource = (*fmetal_compile)(fsource).operator std::string();
     }
-    code << fsource;
+    smap[func_name] = fsource;
   }
 
-  std::string code_str = code.str();
-  if (const auto* f = Registry::Get("tvm_callback_metal_postproc")) {
-    code_str = (*f)(code_str).operator std::string();
-  }
-  return MetalModuleCreate(code_str, fmt, ExtractFuncInfo(mod), source.str());
+  return MetalModuleCreate(smap, ExtractFuncInfo(mod), fmt, source_maker.str());
 }
 
 TVM_REGISTER_GLOBAL("target.build.metal").set_body_typed(BuildMetal);
