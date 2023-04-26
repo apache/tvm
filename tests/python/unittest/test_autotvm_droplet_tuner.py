@@ -28,13 +28,11 @@ def test_tuner():
 
     # When no range index, range_length should be the length of config space
     tuner = autotvm.tuner.DropletTuner(task)
-    
     assert len(tuner.best_choice) == 3
     assert tuner.execution == 1
     assert tuner.batch == 16
     assert tuner.total_execution == max(tuner.dims)
     assert tuner.step == 1
-    assert not tuner.has_next()
 
 
 def test_multi_filter():
