@@ -32,6 +32,7 @@ from tvm.relay.dataflow_pattern import CallPattern
 from tvm.relay.backend.contrib.ethosu import op as ethosu_ops  # type: ignore
 from tvm.relay.backend.contrib.ethosu import vela_api
 from tvm.relay.backend.contrib.ethosu import util
+from tvm.relay.backend.contrib.ethosu.softmax_rewriter import SoftmaxRewriter
 from tvm.relay.op.contrib import ethosu as ethosu_patterns  # type: ignore
 
 
@@ -1479,6 +1480,7 @@ class LegalizeEthosU:
             LeakyReLURewriter(),
             MeanRewriter(),
             SumRewriter(),
+            SoftmaxRewriter(),
             ConcatRewriter(),
             SigmoidRewriter(),
             RequantizeRewriter(),

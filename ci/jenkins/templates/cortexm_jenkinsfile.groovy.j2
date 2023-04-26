@@ -23,6 +23,7 @@
   condition='!skip_ci && is_docs_only_build != 1',
   ws='tvm/build-cortexm',
   docker_image='ci_cortexm',
+  platform="cortexm",
 ) %}
   sh (
     script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_config_build_cortexm.sh build",

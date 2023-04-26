@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-04-12T10:38:06.835649
+// Generated at 2023-04-24T11:43:39.904210
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -112,7 +112,7 @@ properties([
 upstream_revision = null
 
 // command to start a docker container
-docker_run = 'docker/bash.sh --env CI --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM --env SKIP_SLOW_TESTS --env TEST_STEP_NAME'
+docker_run = 'docker/bash.sh --env CI --env PLATFORM --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM --env SKIP_SLOW_TESTS --env TEST_STEP_NAME'
 docker_build = 'docker/build.sh'
 // timeout in minutes
 max_time = 180
@@ -552,7 +552,11 @@ def build(node_type) {
           init_git()
           docker_init(ci_gpu)
           timeout(time: max_time, unit: 'MINUTES') {
-            sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
+
+            withEnv([
+              'PLATFORM=gpu',
+              ], {
+              sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
         cmake_build("${ci_gpu} --no-gpu", 'build', '-j2')
         make_standalone_crt("${ci_gpu} --no-gpu", 'build')
         sh(
@@ -570,6 +574,7 @@ def build(node_type) {
             script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu2 --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/crttest build/standalone_crt build/build.ninja",
             label: 'Upload artifacts to S3',
           )
+            })
           }
         }
       }

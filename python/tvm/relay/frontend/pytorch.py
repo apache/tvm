@@ -880,7 +880,7 @@ class PyTorchOpConverter:
             dtype = _convert_dtype_value(inputs[3])
         else:
             # if dtype is None, use the dtype of the input tensor
-            dtype = self.infer_type(input[0])
+            dtype = self.infer_type(inputs[0])
 
         return self.full_impl(data, fill_value, dtype)
 

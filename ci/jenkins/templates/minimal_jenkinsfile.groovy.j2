@@ -23,6 +23,7 @@
   condition='!skip_ci && is_docs_only_build != 1',
   ws='tvm/build-cpu-minimal',
   docker_image='ci_minimal',
+  platform="minimal",
 ) %}
   sh (
     script: "${docker_run} ${ci_minimal} ./tests/scripts/task_config_build_minimal.sh build",
