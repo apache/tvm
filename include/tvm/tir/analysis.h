@@ -184,6 +184,22 @@ TVM_DLL bool VerifyMemory(const PrimFunc& func);
  */
 TVM_DLL bool VerifyGPUCode(const PrimFunc& func, Map<String, PrimExpr> constraints);
 
+/**
+ * @brief Utility function to get the list of lowering passes to be applied to calculate the
+ * compacted VTCM allocation size
+ *
+ * @return returns list of passes
+ */
+TVM_DLL Array<tvm::transform::Pass> GetVTCMCompactionPasses();
+
+/*!
+ * \brief Verifies that the VTCM usage for all prim_funcs in the given IRModule
+ * \param mod The module to be checked
+ * \param limit The limit to check.
+ * \return true if the VTCM usage is within the provided limit.
+ */
+TVM_DLL bool VerifyVTCMLimit(const IRModule& mod, Integer limit);
+
 /*!
  * \brief Verifies that the VTCM usage of the given prim_func is within the provided limit.
  * \param func The function to be checked.
