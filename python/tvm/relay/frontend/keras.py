@@ -1390,9 +1390,9 @@ def from_keras(model, shape=None, layout="NCHW"):
         Input shapes of the model, optional
 
     layout: str
-        One of 'NCHW' or 'NHWC', indicates how data should be arranged in
-        the output model. Default layout is 'NCHW' as it in general
-        performs better across TVM.
+        One of 'NWC', 'NCHW', 'NHWC', 'NDHWC' indicates how data should
+        be arranged in the output model. Default layout is 'NCHW' as it
+        in general performs better across TVM.
 
     Returns
     -------
@@ -1409,6 +1409,9 @@ def from_keras(model, shape=None, layout="NCHW"):
     def _convert_input_layer(keras_layer):
         input_name = keras_layer.name
         input_shape = shape[input_name] if shape is not None and input_name in shape else None
+        input_dim = len(input_shape) if input_shape else 0
+        if input_dim != 0 and len(layout) != input_dim:
+            raise ValueError(f"the input dimension {input_dim} mismatches the layout {layout}.")
         etab.set_expr(input_name, new_var(input_name, shape=input_shape))
 
     def _convert_layer(keras_layer, etab, scope=""):
