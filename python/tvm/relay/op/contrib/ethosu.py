@@ -2006,6 +2006,63 @@ def pad_pattern():
     return pattern
 
 
+class SoftMaxParams:
+    """
+    This class will parse a call to a ethos-u.softmax composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.softmax"
+
+    def __init__(self, func_body: Call):
+        from tvm.relay.backend.contrib.ethosu.util import QuantizeArgs
+        from tvm.relay.backend.contrib.ethosu.util import DequantizeArgs
+
+        quantize = func_body
+        softmax_op = quantize.args[0]
+        dequantize = softmax_op.args[0]
+
+        layout = "NHWC"
+
+        self.ifm = TensorParams(
+            dequantize.args[DequantizeArgs.IFM.value],
+            layout,
+            dequantize.args[DequantizeArgs.IFM_SCALE.value],
+            dequantize.args[DequantizeArgs.IFM_ZERO_POINT.value],
+        )
+        self.ofm = TensorParams(
+            quantize,
+            layout,
+            quantize.args[QuantizeArgs.OFM_SCALE.value],
+            quantize.args[QuantizeArgs.OFM_ZERO_POINT.value],
+        )
+
+        self.operator_type = "SOFTMAX"
+
+    def is_valid(self):
+        """Checks whether Softmax has compatible attributes with HW"""
+        tensor_params = [self.ifm, self.ofm]
+        if not check_valid_dtypes(tensor_params, supported_dtypes=[np.int8]):
+            return False
+        if self.ifm.dtype != self.ofm.dtype:
+            return False
+        if not check_dimensions(self.ifm):
+            return False
+        if self.ifm.shape != self.ofm.shape:
+            return False
+        return True
+
+
+def softmax_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for Softmax.
+    """
+    pattern = is_op("qnn.dequantize")(wildcard(), is_constant(), is_constant())
+    pattern = is_op("nn.softmax")(pattern)
+    pattern = is_op("qnn.quantize")(pattern, is_constant(), is_constant())
+    return pattern
+
+
 @register_pattern_table("ethos-u")
 def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]:
     return [
@@ -2109,6 +2166,11 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             SumParams.composite_name,
             sum_pattern(),
             lambda pat: SumParams(pat).is_valid(),
+        ),
+        (
+            SoftMaxParams.composite_name,
+            softmax_pattern(),
+            lambda pat: SoftMaxParams(pat).is_valid(),
         ),
         (
             LeakyReLUParams.composite_name,

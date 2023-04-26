@@ -3076,5 +3076,125 @@ def test_tflite_hard_swish(ifm_shape):
     assert tuple(func_body.args[1].checked_type.shape) == (256,)
 
 
+@pytest.mark.parametrize("ifm_shape", [(1, 12), (1, 12, 32)])
+def test_tflite_softmax(ifm_shape):
+    dtype = "int8"
+
+    def create_tflite_graph():
+        @tf.function
+        def softmax(x):
+            return tf.nn.softmax(x)
+
+        concrete_func = softmax.get_concrete_function(tf.TensorSpec(ifm_shape, dtype=tf.float32))
+        # Convert the model
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        return tflite_model
+
+    def verify(ext_func):
+        out_op = ext_func.body
+        ops = []
+        # List of expected operations and their type if it exists
+        expected_ops = [
+            ("reshape", None),
+            ("reshape", None),
+            ("contrib.ethosu.pooling", "MAX"),
+            ("contrib.ethosu.binary_elementwise", "SUB"),
+            ("contrib.ethosu.binary_elementwise", "SHR"),
+            ("contrib.ethosu.pooling", "SUM"),
+            ("contrib.ethosu.unary_elementwise", "CLZ"),
+            ("contrib.ethosu.binary_elementwise", "SUB"),
+            ("contrib.ethosu.binary_elementwise", "SHL"),
+            ("contrib.ethosu.binary_elementwise", "SUB"),
+            ("contrib.ethosu.binary_elementwise", "SHL"),
+            ("contrib.ethosu.binary_elementwise", "ADD"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "ADD"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "SUB"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "ADD"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "SUB"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "ADD"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "SUB"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "ADD"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "SUB"),
+            ("contrib.ethosu.binary_elementwise", "SHR"),
+            ("reshape", None),
+        ]
+
+        def get_op_type(op):
+            if hasattr(op.attrs, "pooling_type"):
+                return op.attrs.pooling_type
+            elif hasattr(op.attrs, "operator_type"):
+                return op.attrs.operator_type
+            return None
+
+        def _visit(stmt):
+            if isinstance(stmt, relay.expr.Call):
+                ops.append(stmt)
+
+        relay.analysis.post_order_visit(out_op, _visit)
+
+        # check IFM
+        ifm = ops[0].args[0].checked_type
+        assert list(ifm.shape) == list(ifm_shape)
+        assert str(ifm.dtype) == dtype
+
+        # check OFM
+        ofm = out_op.checked_type
+        assert list(ofm.shape) == list(ifm_shape)
+        assert ofm.dtype == dtype
+
+        # check operations
+
+        ops = [(op.op.name, get_op_type(op)) for op in ops]
+        assert expected_ops == ops
+
+    softmax_pattern_table = [
+        (
+            ethosu.SoftMaxParams.composite_name,
+            ethosu.softmax_pattern(),
+            lambda pat: ethosu.SoftMaxParams(pat).is_valid(),
+        )
+    ]
+
+    tflite_graph = create_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+
+    mod, params = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"input": ifm_shape},
+        dtype_dict={"input": dtype},
+    )
+    mod["main"] = bind_params_by_name(mod["main"], params)
+    mod = partition_ethosu_by_table(mod, softmax_pattern_table)
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        legalize.SoftmaxRewriter(), mod["tvmgen_default_ethos_u_main_0"]
+    )
+    mod = relay.transform.InferType()(mod)
+
+    verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
 if __name__ == "__main__":
     tvm.testing.main()
