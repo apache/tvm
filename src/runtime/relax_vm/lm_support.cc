@@ -165,7 +165,24 @@ NDArray AttentionKVCacheView(AttentionKVCache cache, ShapeTuple shape) {
   return cache->View(shape);
 }
 
-TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_view").set_body_typed(AttentionKVCacheView);
+TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_view")
+    .set_body([](TVMArgs args, TVMRetValue* rv) {
+      CHECK(args.size() == 1 || args.size() == 2)
+          << "ValueError: `vm.builtin.attention_kv_cache_view` expects 1 or 2 arguments, but got "
+          << args.size() << ".";
+      AttentionKVCache cache = args[0];
+      if (args.size() == 2) {
+        ShapeTuple shape = args[1];
+        *rv = cache->View(shape);
+      } else {
+        std::vector<ShapeTuple::index_type> shape;
+        shape.push_back(cache->fill_count);
+        for (int i = 1; i < cache->data->ndim; ++i) {
+          shape.push_back(cache->data->shape[i]);
+        }
+        *rv = cache->View(ShapeTuple(shape));
+      }
+    });
 
 void AttentionKVCacheArrayClear(Array<AttentionKVCache> caches) {
   for (AttentionKVCache cache : caches) {
