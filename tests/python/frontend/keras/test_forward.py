@@ -17,11 +17,6 @@
 """Unit tests for various models and operators"""
 from packaging import version as package_version
 import numpy as np
-import tvm
-from tvm import relay
-from tvm.contrib import graph_executor
-import tvm.testing
-import pytest
 
 try:
     import tensorflow.compat.v1 as tf
@@ -32,6 +27,11 @@ from tensorflow import keras as tf_keras
 
 # prevent Keras from using up all gpu memory
 import keras
+
+import tvm
+from tvm import relay
+from tvm.contrib import graph_executor
+import tvm.testing
 
 if tf.executing_eagerly():
     GPUS = tf.config.experimental.list_physical_devices("GPU")

@@ -33,14 +33,7 @@ import numpy as np
 
 from PIL import Image
 
-import tvm
-import tvm.relay.testing.tf as tf_testing
-from tvm.contrib.download import download_testdata
-from tvm import relay, ir
-from tvm.contrib import graph_executor
 from tflite.BuiltinOperator import BuiltinOperator
-from relay.utils.tag_span import _set_span, _create_span, _verify_structural_equal_with_span
-
 
 try:
     import tensorflow.compat.v1 as tf
@@ -67,6 +60,13 @@ try:
     from tensorflow import lite as interpreter_wrapper
 except ImportError:
     from tensorflow.contrib import lite as interpreter_wrapper
+
+import tvm
+import tvm.relay.testing.tf as tf_testing
+from tvm.contrib.download import download_testdata
+from tvm import relay, ir
+from tvm.contrib import graph_executor
+from relay.utils.tag_span import _set_span, _create_span, _verify_structural_equal_with_span
 
 
 #######################################################################

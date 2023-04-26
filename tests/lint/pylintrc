@@ -106,6 +106,7 @@ disable=
     raise-missing-from,
     similarities,
     star-args,
+    superfluous-parens,
     super-with-arguments,
     suppressed-message,
     too-many-lines,

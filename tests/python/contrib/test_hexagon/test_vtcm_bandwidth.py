@@ -18,9 +18,9 @@
 """Test theoretical bandwith for data transfers to VTCM for different strategies."""
 
 import numpy as np
+import pytest
 
 import tvm
-import pytest
 from tvm.script import tir as T
 from tvm.tir.tensor_intrin.hexagon import DMA_READ_128_i8
 
