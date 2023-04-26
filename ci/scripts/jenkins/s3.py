@@ -36,7 +36,9 @@ class Action(Enum):
 
 
 def show_md5(item: str) -> None:
-    if not Path(item).is_dir():
+    if not Path(item).exists():
+        logging.warning(f"The path doesn't exist: {item}")
+    elif not Path(item).is_dir():
         sh.run(f"md5sum {item}")
 
 
