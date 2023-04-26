@@ -1372,11 +1372,24 @@ export class Instance implements Disposable {
    */
   async fetchNDArrayCache(ndarrayCacheUrl: string, device: DLDevice) : Promise<any> {
     const jsonUrl = new URL("ndarray-cache.json", ndarrayCacheUrl).href;
-    var list;
-    try {
-      list = await (await fetch(jsonUrl)).json();
-    } catch(err) {
-      this.env.logger("Cannot fetch " + jsonUrl);
+    const request = new Request(jsonUrl);
+    const cache = await caches.open("tvmjs");
+    let result = await cache.match(request);
+    if (result === undefined) {
+      await cache.add(request);
+      result = await cache.match(request);
+    }
+    if (result === undefined) {
+      this.env.logger("Error: Cannot cache " + jsonUrl + ", reloading will be slow");
+      try {
+        result = await fetch(request);
+      } catch(err) {
+        this.env.logger("Cannot fetch " + jsonUrl);
+      }
+    }
+    let list;
+    if (result instanceof Response) {
+      list = await result.json();
     }
     await this.fetchNDArrayCacheInternal(
       ndarrayCacheUrl,
