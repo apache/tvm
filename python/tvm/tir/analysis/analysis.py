@@ -18,6 +18,7 @@
 # pylint: disable=invalid-name
 from typing import Dict, List, Union
 
+import tvm
 from tvm import Object
 from tvm.ir import IRModule
 from tvm.tir.expr import Var
@@ -384,3 +385,15 @@ def find_anchor_block(mod: IRModule) -> Block:
         The anchor block if found, None otherwise.
     """
     return _ffi_api.find_anchor_block(mod)  # type: ignore # pylint: disable=no-member
+
+
+def get_vtcm_compaction_passes() -> List[tvm.transform.Pass]:
+    """Utility function to get the list of lowering passes to be applied to calculate thecompacted
+    VTCM allocation size
+
+    Returns
+    -------
+    result : List[tvm.transform.Pass]
+        returns list of passes
+    """
+    return _ffi_api.get_vtcm_compaction_passes()  # type: ignore # pylint: disable=no-member
