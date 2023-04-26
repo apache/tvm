@@ -119,7 +119,9 @@ tune_option = auto_scheduler.TuningOptions(
 # file and apply it.
 
 # Run auto-tuning (search)
-task.tune(tune_option)
+# We do not run the tuning in our webpage server since it takes too long.
+# Uncomment the following line to run it by yourself.
+# task.tune(tune_option)
 # Apply the best schedule
 sch, args = task.apply_best(log_file)
 
@@ -208,5 +210,6 @@ def resume_search(task, log_file):
     # Kill the measurement process
     del measure_ctx
 
-
-resume_search(task, log_file)
+# We do not run the tuning in our webpage server since it takes too long.
+# Uncomment the following line to run it by yourself.
+# resume_search(task, log_file)

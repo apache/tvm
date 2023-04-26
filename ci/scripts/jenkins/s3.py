@@ -36,9 +36,7 @@ class Action(Enum):
 
 
 def show_md5(item: str) -> None:
-    if not Path(item).exists():
-        logging.warning(f"The path doesn't exist: {item}")
-    elif not Path(item).is_dir():
+    if not Path(item).is_dir():
         sh.run(f"md5sum {item}")
 
 
@@ -120,14 +118,19 @@ if __name__ == "__main__":
 
     if args.items is None:
         if args.action == "upload":
-            logging.error(f"Cannot upload without --items")
+            logging.error("Cannot upload without --items")
             exit(1)
         else:
             # Download the whole prefix
             items = ["."]
 
     else:
-        items = args.items
+        items = []
+        for item in args.items:
+            if not Path(item).exists():
+                logging.warning(f"The path doesn't exist: {item}")
+            else:
+                items.append(item)
 
     for item in items:
         if action == Action.DOWNLOAD:
