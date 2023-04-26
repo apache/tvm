@@ -20,7 +20,7 @@
 from collections import namedtuple
 from typing import Optional
 import numpy as np  # type: ignore
-from ethosu.vela import api as vapi # type: ignore
+from ethosu.vela import api as vapi  # type: ignore
 
 import tvm
 from tvm.relay.backend.contrib.ethosu import vela_api

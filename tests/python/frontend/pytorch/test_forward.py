@@ -24,6 +24,12 @@ from packaging import version as package_version
 
 import pytest
 import numpy as np
+
+import torch
+from torch.nn import Module
+from torch.nn import functional as F
+import torchvision
+
 import tvm
 import tvm.testing
 from tvm import relay
@@ -31,11 +37,6 @@ from tvm.contrib import graph_executor
 from tvm.contrib.nvcc import have_fp16
 from tvm.contrib import cudnn, utils
 from relay.utils.tag_span import _create_span, _set_span, _verify_structural_equal_with_span
-
-import torch
-from torch.nn import Module
-from torch.nn import functional as F
-import torchvision
 
 sys.setrecursionlimit(10000)
 if torch.cuda.is_available():
@@ -4924,7 +4925,7 @@ def test_stft():
             pad_mode=pad_mode,
             normalized=normalized,
             onesided=onesided,
-            return_complex=False
+            return_complex=False,
         )
 
     input_t = torch.rand([1, 12]).float()
