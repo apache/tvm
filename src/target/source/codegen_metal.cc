@@ -24,6 +24,7 @@
 
 #include <algorithm>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "../../runtime/metal/metal_module.h"
