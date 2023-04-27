@@ -239,6 +239,7 @@ search_policy = auto_scheduler.SketchPolicy(
 # After some measurement trials, we can load the best schedule from the log
 # file and apply it.
 
+
 def tune_and_evaluate(tune_option, search_policy):
     # Run auto-tuning (search)
     task.tune(tune_option, search_policy)
@@ -275,10 +276,13 @@ def tune_and_evaluate(tune_option, search_policy):
     print(
         "Execution time of this operator: %.3f ms"
         % (
-            np.median(evaluator(X_tvm, W_data_tvm, W_indices_tvm, W_indptr_tvm, B_tvm, Y_tvm).results)
+            np.median(
+                evaluator(X_tvm, W_data_tvm, W_indices_tvm, W_indptr_tvm, B_tvm, Y_tvm).results
+            )
             * 1000
         )
     )
+
 
 # Notice: We do not run the tuning in our webpage server since it takes too long.
 # Uncomment the following line to run it by yourself.

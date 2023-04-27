@@ -115,7 +115,7 @@ dataset = dgl.data.CoraGraphDataset()
 dgl_g = dataset[0]
 num_layers = 1
 num_hidden = 16
-features = dgl_g.ndata['feat']
+features = dgl_g.ndata["feat"]
 infeat_dim = features.shape[1]
 num_classes = dataset.num_classes
 
@@ -232,9 +232,7 @@ import networkx as nx
 
 def prepare_params(g):
     params = {}
-    params["infeats"] = g.ndata['feat'].numpy().astype(
-        "float32"
-    )  # Only support float32 as feature for now
+    params["infeats"] = g.ndata["feat"].numpy().astype("float32")
 
     # Generate adjacency matrix
     nx_graph = dgl.to_networkx(g)
