@@ -52,9 +52,10 @@ class MetaScheduleTuner {
 
   // TODO(@sunggg): Currently, only supports basic arguments.
   IRModule TuneIRMod(IRModule mod, transform::PassContext ctx) {
-    Choice choice("tvm.meta_schedule.tune_relax",
-                  {params_, target_, work_dir_, max_trials_global_, max_trials_global_, op_names_},
-                  "relax.tuning_api.Choice.default_constr_func", {});
+    Choice choice(
+        "tvm.meta_schedule.tune_relax",
+        {params_, target_, work_dir_, max_trials_global_, max_trials_per_task_, op_names_},
+        "relax.tuning_api.Choice.default_constr_func", {});
     Knob knob("meta_schedule.tune_irmod", {{"0", choice}});
     knob->Apply(mod, "0");
     /*

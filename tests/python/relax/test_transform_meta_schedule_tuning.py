@@ -136,7 +136,7 @@ def test_ms_tuning_primfunc():
                 params={},
                 work_dir=work_dir,
                 max_trials_global=4,
-                max_trials_per_task=4,
+                max_trials_per_task=2,
                 op_names=["matmul"],
             )
             tuning_pass(mod)
@@ -144,6 +144,8 @@ def test_ms_tuning_primfunc():
             db = ms.database.JSONDatabase(
                 work_dir + "/database_workload.json", work_dir + "/database_tuning_record.json"
             )
+
+            assert len(db.get_all_tuning_records()) == 2
 
             for rec in db.get_all_tuning_records():
                 assert rec.workload.mod["main"].attrs["global_symbol"] == "tir_matmul"
