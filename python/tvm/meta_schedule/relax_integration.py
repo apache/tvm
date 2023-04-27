@@ -164,7 +164,7 @@ def tune_relax(
     work_dir: str,
     max_trials_global: int,
     max_trials_per_task: Optional[int] = None,
-    op_names:Optional[List[str]] = None,
+    op_names: Optional[List[str]] = None,
     *,
     num_trials_per_iter: int = 64,
     builder: Builder.BuilderType = "local",
