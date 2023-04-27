@@ -180,12 +180,13 @@ def _vmcodegen(
     raise ValueError("Unknown exec_mode %s" % exec_mode)
 
 
-def _autodetect_system_lib_req(target: tvm.target.Target):
+def _autodetect_system_lib_req(target: tvm.target.Target, system_lib):
     """Automatically detect system lib requirement"""
     host = target if target.host is None else target.host
-    system_lib = False
-    if "wasm" in host.attrs.get("mtriple", ""):
-        system_lib = True
+    if system_lib is None:
+        system_lib = False
+        if "wasm" in host.attrs.get("mtriple", ""):
+            system_lib = True
     if system_lib:
         # use packed-func to avoid relay dep.
         return tvm.get_global_func("relay.backend.CreateRuntime")("cpp", {"system-lib": system_lib})
@@ -198,6 +199,8 @@ def _vmlink(
     tir_mod: Optional[tvm.IRModule] = None,
     ext_libs: List[tvm.runtime.Module] = None,
     params: Optional[Dict[str, list]] = None,
+    *,
+    system_lib: Optional[bool] = None,
 ):
     """
     Internal codegen function to make executable.
@@ -236,7 +239,9 @@ def _vmlink(
         ext_libs = []
     lib = None
     if tir_mod is not None:
-        lib = tvm.build(tir_mod, target=target, runtime=_autodetect_system_lib_req(target))
+        lib = tvm.build(
+            tir_mod, target=target, runtime=_autodetect_system_lib_req(target, system_lib)
+        )
     return Executable(_ffi_api.VMLink(builder, target, lib, ext_libs, params))  # type: ignore
 
 
@@ -245,6 +250,8 @@ def build(
     target: Union[str, tvm.target.Target],
     params: Optional[Dict[str, list]] = None,
     exec_mode: str = "bytecode",
+    *,
+    system_lib: Optional[bool] = None,
 ) -> Executable:
     """
     Build an IRModule to VM executable.
@@ -269,6 +276,11 @@ def build(
 
     exec_mode: {"bytecode", "compiled"}
         The execution mode.
+
+    system_lib: Optional[bool]
+        Whether to build system lib that is being packed statically and
+        auto registers generated functions to the system.
+        By default auto detects based on the target.
 
     Returns
     -------
@@ -322,7 +334,7 @@ def build(
     builder = relax.ExecBuilder()
     leftover_mod = _vmcodegen(builder, new_mod, exec_mode=exec_mode)
     tir_mod = _filter_tir(leftover_mod)
-    return _vmlink(builder, target, tir_mod, ext_libs, params)
+    return _vmlink(builder, target, tir_mod, ext_libs, params, system_lib=system_lib)
 
 
 def _filter_tir(mod: tvm.IRModule) -> tvm.IRModule:
