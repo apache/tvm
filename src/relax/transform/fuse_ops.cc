@@ -1079,11 +1079,20 @@ class CompositeFunctionAnnotator : public ExprMutator {
 
   IRModule Run() {
     auto mod = builder_->GetContextIRModule();
-    auto gvar = mod->GetGlobalVar("main");
-    auto func = Downcast<Function>(mod->Lookup(gvar));
-    auto new_func =
-        Function(func->params, VisitExpr(func->body), func->ret_struct_info, func->attrs);
-    builder_->UpdateFunction(gvar, new_func);
+    auto all_functions = mod->functions;
+    for (const auto& entry : all_functions) {
+      if (const auto* func = entry.second.as<FunctionNode>()) {
+        if (func->GetAttr<String>(attr::kComposite).defined()) {
+          continue;
+        }
+        auto new_body = VisitExpr(func->body);
+        if (!new_body.same_as(func->body)) {
+          auto new_func = Function(func->params, VisitExpr(func->body), func->ret_struct_info,
+                                   func->attrs, func->span);
+          builder_->UpdateFunction(entry.first, new_func);
+        }
+      }
+    }
     return builder_->GetContextIRModule();
   }
 
