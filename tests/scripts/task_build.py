@@ -70,8 +70,6 @@ if __name__ == "__main__":
 
     executors = int(os.environ.get("CI_NUM_EXECUTORS", 1))
     build_platform = os.environ.get("PLATFORM", None)
-    sh.run(f"echo os.environ.get build_platform={build_platform}", cwd=build_dir)
-    sh.run(f"echo CI_NUM_EXECUTORS={executors}", cwd=build_dir)
 
     nproc = multiprocessing.cpu_count()
 
@@ -93,7 +91,10 @@ if __name__ == "__main__":
         ninja_args.append("-v")
 
     if build_platform == "i386":
-        sh.run(f"make -j{num_cpus}", cwd=build_dir)
+        if args.cmake_target:
+            sh.run(f"make {args.cmake_target} -j{num_cpus}", cwd=build_dir)
+        else:
+            sh.run(f"make -j{num_cpus}", cwd=build_dir)
     else:
         sh.run(f"cmake --build . -- " + " ".join(ninja_args), cwd=build_dir)
 
