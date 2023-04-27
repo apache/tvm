@@ -914,19 +914,25 @@ def DeadCodeElimination(entry_functions: Optional[List[str]] = None) -> tvm.ir.t
     return _ffi_api.DeadCodeElimination(entry_functions)  # type: ignore
 
 
-def ToMixedPrecision(out_dtype="float32") -> tvm.ir.transform.Pass:
+def ToMixedPrecision(
+    out_dtype="float32", fp16_input_names: Optional[List[str]] = None
+) -> tvm.ir.transform.Pass:
     """Automatic mixed precision pass. Currently the pass assumes the input module to be fp32
     only, and will automatically cast fp32 to fp16 for certain ops.
     Parameters
     ----------
     out_dtype : str
         The output data type of gemm/conv, which is the data type of the accumulator.
+    fp16_input_names : List[str]
+        The names of function parameters whose dtype should become fp16. The  function signature
+        would change accordingly.
+
     Returns
     -------
     ret : tvm.transform.Pass
         The registered pass for mixed precision.
     """
-    return _ffi_api.ToMixedPrecision(out_dtype)  # type: ignore
+    return _ffi_api.ToMixedPrecision(out_dtype, fp16_input_names)  # type: ignore
 
 
 def SplitCallTIRByPattern(patterns, fcodegen) -> tvm.ir.transform.Pass:

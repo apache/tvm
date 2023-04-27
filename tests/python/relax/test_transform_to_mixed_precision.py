@@ -990,5 +990,51 @@ def test_conv2d_bias_fp32():
     _assert_test(Input_bound, expected2=Expected_no_bias_cast)
 
 
+def test_convert_sig():
+    @tvm.script.ir_module
+    class Input:
+        @R.function
+        def main(
+            x: R.Tensor((1, 4, 64, 64), dtype="float32"),
+            w: R.Tensor((512, 4, 3, 3), dtype="float32"),
+            bias: R.Tensor((512,), dtype="float32"),
+        ) -> R.Tensor((1, 512, 64, 64), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv142: R.Tensor((1, 4, 64, 64), dtype="float32") = R.nn.conv2d(
+                    x,
+                    w,
+                    strides=[1, 1],
+                    padding=[0, 0, 0, 0],
+                    out_dtype="float32",
+                )
+                lv143: R.Tensor((1, 4, 1, 1), dtype="float32") = R.reshape(bias, (1, 512, 1, 1))
+                lv144: R.Tensor((1, 4, 64, 64), dtype="float32") = R.add(lv142, lv143)
+                R.output(lv144)
+            return lv144
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((1, 4, 64, 64), dtype="float32"),
+            w: R.Tensor((512, 4, 3, 3), dtype="float16"),
+            bias: R.Tensor((512,), dtype="float16"),
+        ) -> R.Tensor((1, 512, 64, 64), dtype="float32"):
+            with R.dataflow():
+                lv = R.astype(x, dtype="float16")
+                lv142 = R.nn.conv2d(
+                    lv, w, strides=[1, 1], padding=[0, 0, 0, 0], out_dtype="float16"
+                )
+                lv143 = R.reshape(bias, R.shape([1, 512, 1, 1]))
+                lv1 = R.add(lv142, lv143)
+                lv144 = R.astype(lv1, dtype="float32")
+                R.output(lv144)
+            return lv144
+
+    mod = ToMixedPrecision(out_dtype="float16", fp16_input_names=["w", "bias"])(Input)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

@@ -27,6 +27,7 @@
 
 #include <array>
 #include <cstdint>
+#include <unordered_set>
 
 #include "../op/nn/convolution.h"
 #include "../op/tensor/datatype.h"
@@ -273,13 +274,30 @@ class DTypeDecisionCollector : public ExprVisitor {
 
 class ToMixedPrecisionRewriter : public ExprMutator {
  public:
-  explicit ToMixedPrecisionRewriter(const VarDTypeMap* only_fp16_map, DataType output_dtype)
-      : only_fp16_map_(only_fp16_map), output_dtype_(output_dtype) {}
+  explicit ToMixedPrecisionRewriter(const VarDTypeMap* only_fp16_map, DataType output_dtype,
+                                    const std::unordered_set<std::string>& fp16_input_names)
+      : only_fp16_map_(only_fp16_map),
+        output_dtype_(output_dtype),
+        fp16_input_names_(fp16_input_names) {}
 
  private:
   Var GetRemapped(const Var& var) {
     auto it = var_remap_.find(var->vid);
-    return it == var_remap_.end() ? var : it->second;
+    if (it != var_remap_.end()) {
+      return it->second;
+    } else {
+      if (fp16_input_names_.count(var->name_hint())) {
+        auto sinfo = GetStructInfo(var);
+        if (auto tensor_sinfo = sinfo.as<TensorStructInfoNode>()) {
+          TensorStructInfo fp16_sinfo(tensor_sinfo->shape.value(), DataType::Float(16),
+                                      tensor_sinfo->span);
+          Var fp16_var(var->vid, fp16_sinfo, var->span);
+          var_remap_[var->vid] = fp16_var;
+          return fp16_var;
+        }
+      }
+      return var;
+    }
   }
 
   Array<Expr> RemapArgs(const Array<Expr>& args) {
@@ -427,6 +445,8 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     return VisitVar_(GetRef<Var>(op));
   }
 
+  Var VisitVarDef(const Var& var) { return GetRemapped(var); }
+
   Expr VisitExpr_(const DataflowVarNode* op) final {
     if (!builder_->CurrentBlockIsDataFlow()) {
       return ExprMutator::VisitExpr_(op);
@@ -561,22 +581,28 @@ class ToMixedPrecisionRewriter : public ExprMutator {
   DataType fp32_ = DataType(DataType::TypeCode::kFloat, 32, 1);
   DataType output_dtype_;
   Array<Var> params_;
+  std::unordered_set<std::string> fp16_input_names_;
 
   const Op& wrap_param_op = Op::Get("relax.wrap_param");
 };
 
-Expr ToMixedPrecision(const Function& f, const DataType& out_dtype) {
+Expr ToMixedPrecision(const Function& f, const DataType& out_dtype,
+                      Optional<Array<String>> fp16_input_names) {
   VarDTypeMap only_fp16_map = std::move(DTypeDecisionCollector::Collect(f, out_dtype));
-  ToMixedPrecisionRewriter mutator(&only_fp16_map, out_dtype);
+  std::unordered_set<std::string> fp16_input_names_set;
+  if (fp16_input_names) {
+    fp16_input_names_set.insert(fp16_input_names.value().begin(), fp16_input_names.value().end());
+  }
+  ToMixedPrecisionRewriter mutator(&only_fp16_map, out_dtype, fp16_input_names_set);
   return mutator(f);
 }
 
 namespace transform {
 
-Pass ToMixedPrecision(const DataType& out_dtype) {
+Pass ToMixedPrecision(const DataType& out_dtype, Optional<Array<String>> fp16_input_names) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(ToMixedPrecision(f, out_dtype));
+        return Downcast<Function>(ToMixedPrecision(f, out_dtype, fp16_input_names));
       };
   return CreateFunctionPass(pass_func, 0, "ToMixedPrecision", {});
 }
