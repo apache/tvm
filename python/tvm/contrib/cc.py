@@ -83,6 +83,36 @@ def create_shared(output, objects, options=None, cc=None):
         raise ValueError("Unsupported platform")
 
 
+def _linux_ar(output, objects):
+    cmd = ["ar", "-crs", output]
+    cmd += objects
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    (out, _) = proc.communicate()
+    if proc.returncode != 0:
+        msg = "AR error:\n"
+        msg += py_str(out)
+        msg += "\nCommand line: " + " ".join(cmd)
+        raise RuntimeError(msg)
+
+
+def create_staticlib(output, objects):
+    """Create shared library.
+
+    Parameters
+    ----------
+    output : str
+        The target shared library.
+
+    objects : List[str]
+        List of object files.
+    """
+
+    if _is_linux_like():
+        return _linux_ar(output, objects)
+    else:
+        raise ValueError("Unsupported platform")
+
+
 def create_executable(output, objects, options=None, cc=None):
     """Create executable binary.
 
