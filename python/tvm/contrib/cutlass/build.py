@@ -790,8 +790,15 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
             arg["arg0_shape"] = signature["arg0_shape"]
             arg["arg0_dtype"] = signature["arg0_dtype"]
             arg["arg1_shape"] = q_shape = signature["arg1_shape"]
-            arg["arg2_shape"] = k_shape = signature["arg2_shape"]
-            arg["arg3_shape"] = v_shape = signature["arg3_shape"]
+
+            if "arg2_shape" not in signature:
+                arg["arg2_shape"] = k_shape = signature["arg1_shape"]
+                arg["arg3_shape"] = v_shape = signature["arg1_shape"]
+            else:
+                assert "arg3_shape" in signature
+                arg["arg2_shape"] = k_shape = signature["arg2_shape"]
+                arg["arg3_shape"] = v_shape = signature["arg3_shape"]
+
             if "arg4_dtype" in signature:
                 arg["bias_dtype"] = signature["arg4_dtype"]
             if "arg4_shape" in signature:
