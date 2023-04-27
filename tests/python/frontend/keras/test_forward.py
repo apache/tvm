@@ -212,11 +212,13 @@ class TestKeras:
             verify_keras_frontend(keras_model)
             verify_keras_frontend(keras_model, need_transpose=False, layout="NHWC")
 
-    def test_forward_activations_special(self, keras_mod):
-        # test invalid attribute alpha=None for LeakyReLU,
-        # after version 2.3.1 in keras, keras add check to reject the valid api call:  LeakyReLU(alpha=None),
-        # (related issue: https://github.com/tensorflow/tensorflow/pull/47017)
-        # Thus, it's necessary to check the keras version for avoiding crash when call  LeakyReLU(alpha=None)
+    def test_forward_activations_except(self, keras_mod):
+        """
+        test invalid attribute alpha=None for LeakyReLU,
+        after version 2.3.1 in keras, keras add check to reject the valid api call: LeakyReLU(alpha=None),
+        (related issue: https://github.com/tensorflow/tensorflow/pull/47017)
+        Thus, it's necessary to check the keras version for avoiding crash when call LeakyReLU(alpha=None)
+        """
         if package_version.parse(keras_mod.__version__.split("-tf")[0]) <= package_version.parse(
             "2.3.1"
         ):
@@ -765,7 +767,7 @@ if __name__ == "__main__":
         sut.test_forward_merge_dot(keras_mod=k)
         sut.test_forward_merge(keras_mod=k)
         sut.test_forward_activations(keras_mod=k)
-        sut.test_forward_activations_special(keras_mod=k)
+        sut.test_forward_activations_except(keras_mod=k)
         sut.test_forward_dense(keras_mod=k)
         sut.test_forward_permute(keras_mod=k)
         sut.test_forward_sequential(keras_mod=k)
