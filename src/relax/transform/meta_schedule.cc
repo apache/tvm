@@ -28,7 +28,6 @@
 
 #include "../src/meta_schedule/module_equality.h"
 #include "../src/meta_schedule/trace_apply.h"
-#include "tvm/runtime/container/optional.h"
 
 namespace tvm {
 namespace relax {

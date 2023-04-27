@@ -796,6 +796,11 @@ def MetaScheduleTuneIRMod(
        work directory
     max_trials_gloabl: int
        maximum number of total trials allowed for tuning
+    max_trials_per_task: int
+       maximum number of trials per task
+    op_names: Optional[List[str]]
+       A list of operator names to specify which op to tune
+
     Returns
     -------
     ret: tvm.ir.transform.Pass
