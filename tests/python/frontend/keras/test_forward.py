@@ -214,8 +214,8 @@ class TestKeras:
 
     def test_forward_activations_except(self, keras_mod):
         """
-        test invalid attribute alpha=None for LeakyReLU,
-        after version 2.3.1 in keras, checking was added to reject the invalid api call: 
+        test invalid attribute alpha=None for LeakyReLU.
+        after version 2.3.1 in keras, checking was added to reject the invalid api call:
         LeakyReLU(alpha=None), (issue: https://github.com/tensorflow/tensorflow/pull/47017)
         Thus, it's necessary to check the keras version to avoid crash at LeakyReLU(alpha=None)
         """
