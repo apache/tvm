@@ -182,6 +182,28 @@ def test_block():
     tvm.ir.assert_structural_equal(func, expected)
 
 
+def test_i16_buffer():
+    @T.prim_func
+    def before(A: T.Buffer((128,), "int16"), B: T.Buffer((128,), "int16")):
+        for i in T.serial(0, T.int64(16)):
+            for j in T.serial(0, T.int64(16)):
+                with T.block():
+                    vi = T.axis.spatial(T.int64(128), i * 8 + j)
+                    B[vi] = A[vi] + T.int16(1)
+
+    @T.prim_func
+    def expected(A: T.Buffer((128,), "int16"), B: T.Buffer((128,), "int16")):
+        for i in T.serial(0, 16):
+            for j in T.serial(0, 16):
+                with T.block():
+                    vi = T.axis.spatial(128, i * 8 + j)
+                    B[vi] = A[vi] + T.int16(1)
+
+    mod = tvm.IRModule.from_expr(before)
+    after = tvm.tir.transform.ForceNarrowIndexToInt32()(mod)["main"]
+    tvm.ir.assert_structural_equal(after, expected)
+
+
 def test_fail_on_buffer_map():
     @T.prim_func
     def func(A: T.Buffer((128,), "int64"), B: T.Buffer((128,), "int64")):

@@ -605,6 +605,10 @@ PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
   return func;
 }
 
+bool IndexDataTypeNormalizer::CanRewriteDType(DataType dtype) const {
+  return dtype.is_int() && dtype.bits() >= 32;
+}
+
 PrimExpr IndexDataTypeNormalizer::VisitExpr_(const IntImmNode* op) {
   if (is_enabled_) {
     ICHECK_LE(op->value, Downcast<Integer>(max_value(target_data_type_))->value);
@@ -614,7 +618,8 @@ PrimExpr IndexDataTypeNormalizer::VisitExpr_(const IntImmNode* op) {
 }
 
 PrimExpr IndexDataTypeNormalizer::VisitExpr_(const VarNode* op) {
-  if (is_enabled_ && op->dtype != target_data_type_ && !var_remap_.count(op)) {
+  if (is_enabled_ && CanRewriteDType(op->dtype) && op->dtype != target_data_type_ &&
+      !var_remap_.count(op)) {
     var_remap_[op] = GetRef<Var>(op).copy_with_dtype(target_data_type_);
   }
   return DataTypeLegalizer::VisitExpr_(op);
@@ -624,7 +629,7 @@ PrimExpr IndexDataTypeNormalizer::VisitExpr_(const CastNode* op) {
   // Unwrap the cast only when the dtype of this cast is integer dtype.
   // When the dtype of this cast is not integer dtype, it means that this cast
   // has some other purpose, and we should not unwrap the cast.
-  if (is_enabled_ && op->dtype.is_int()) {
+  if (is_enabled_ && CanRewriteDType(op->dtype)) {
     PrimExpr value = IndexDataTypeNormalizer::VisitExpr(op->value);
     return value->dtype == target_data_type_ ? value : Cast(target_data_type_, value);
   }
