@@ -765,6 +765,7 @@ if __name__ == "__main__":
         sut.test_forward_merge_dot(keras_mod=k)
         sut.test_forward_merge(keras_mod=k)
         sut.test_forward_activations(keras_mod=k)
+        sut.test_forward_activations_special(keras_mod=k)
         sut.test_forward_dense(keras_mod=k)
         sut.test_forward_permute(keras_mod=k)
         sut.test_forward_sequential(keras_mod=k)
