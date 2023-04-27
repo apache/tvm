@@ -14,16 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""The tvm.meta_schedule.postproc package."""
-from .disallow_dynamic_loop import DisallowDynamicLoop
-from .disallow_async_strided_mem_copy import DisallowAsyncStridedMemCopy
-from .postproc import Postproc, PyPostproc
-from .rewrite_cooperative_fetch import RewriteCooperativeFetch
-from .rewrite_layout import RewriteLayout
-from .rewrite_parallel_vectorize_unroll import RewriteParallelVectorizeUnroll
-from .rewrite_reduction_block import RewriteReductionBlock
-from .filter_loop_splits import FilterLoopSplits
-from .rewrite_tensorize import RewriteTensorize
-from .rewrite_unbound_block import RewriteUnboundBlock
-from .verify_gpu_code import VerifyGPUCode
-from .verify_vtcm_limit import VerifyVTCMLimit
+"""A postprocessor that that filters splitting loops according to filter conditions."""
+
+from tvm._ffi.registry import register_object
+from .. import _ffi_api
+from .postproc import Postproc
+
+
+@register_object("meta_schedule.FilterLoopSplits")
+class FilterLoopSplits(Postproc):
+    """A postprocessor that filters splitting loops according to filter conditions."""
+
+    def __init__(self, filter) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.PostprocFilterLoopSplits,  # type: ignore # pylint: disable=no-member
+            filter,
+        )

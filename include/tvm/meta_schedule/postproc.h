@@ -53,7 +53,20 @@ class PostprocNode : public runtime::Object {
    * \param sch The schedule to be post processed.
    * \return Whether the postprocessor was successfully applied.
    */
-  virtual bool Apply(const tir::Schedule& sch) = 0;
+  virtual bool Apply(const tir::Schedule& sch, const tir::Schedule& orig) = 0;
+  using FFilter = runtime::TypedPackedFunc<Bool(const tir::Schedule&, const Map<tir::StmtSRef, Array<Integer>>&)>;
+
+  virtual FFilter GetFilter() { 
+     FFilter pass_func;
+
+    //  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+      // [=](Function f, IRModule m, PassContext pc) {
+      //   return Downcast<Function>(relay::fold_scale_axis::BackwardFoldScaleAxis(f));
+      // };
+    
+    return pass_func; 
+  };
+
 
   /*!
    * \brief Clone the postprocessor.
@@ -93,6 +106,11 @@ class Postproc : public runtime::ObjectRef {
    */
   using FAsString = runtime::TypedPackedFunc<String()>;
   /*!
+   * \brief Get the postprocessor function as TODO.
+   * \return The string of the postprocessor function.
+   */
+  using FFilter = runtime::TypedPackedFunc<Bool(const tir::Schedule&, const Map<tir::StmtSRef, Array<Integer>>&)>;
+  /*!
    * \brief Create a postprocessor with customized methods on the python-side.
    * \param f_initialize_with_tune_context The packed function of `InitializeWithTuneContext`.
    * \param f_apply The packed function of `Apply`.
@@ -131,6 +149,11 @@ class Postproc : public runtime::ObjectRef {
    * \return The postprocessor created.
    */
   TVM_DLL static Postproc RewriteReductionBlock();
+  /*!
+   * \brief Create a postprocessor that filters splitting loops according to filter conditions.
+   * \return The postprocessor created.
+   */
+  TVM_DLL static Postproc FilterLoopSplits(FFilter filter); // TODO Alternative DisallowFilteredSplits
   /*!
    * \brief Create a postprocessor that adds thread binding to unbound blocks
    * \param max_threadblocks The max number of threadblocks in the cuda device.
@@ -200,7 +223,7 @@ class PyPostprocNode : public PostprocNode {
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final;
-  bool Apply(const tir::Schedule& sch) final;
+  bool Apply(const tir::Schedule& sch, const tir::Schedule& orig) final;
   Postproc Clone() const final;
 
   static constexpr const char* _type_key = "meta_schedule.PyPostproc";

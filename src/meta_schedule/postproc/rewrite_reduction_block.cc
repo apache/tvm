@@ -112,7 +112,7 @@ class RewriteReductionBlockNode : public PostprocNode {
   // Inherited from PostprocNode
   void InitializeWithTuneContext(const TuneContext& context) final {}
   // Inherited from PostprocNode
-  bool Apply(const tir::Schedule& sch) final;
+  bool Apply(const tir::Schedule& sch, const tir::Schedule& orig) final;
 
   Postproc Clone() const {
     ObjectPtr<RewriteReductionBlockNode> n = make_object<RewriteReductionBlockNode>(*this);
@@ -125,7 +125,7 @@ class RewriteReductionBlockNode : public PostprocNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(RewriteReductionBlockNode, PostprocNode);
 };
 
-bool RewriteReductionBlockNode::Apply(const tir::Schedule& sch) {
+bool RewriteReductionBlockNode::Apply(const tir::Schedule& sch, const tir::Schedule& orig) {
   for (;;) {
     std::vector<std::pair<tir::StmtSRef, String>> results =
         tir::ReductionBlockFinder::Find(sch->state());

@@ -20,12 +20,14 @@
 #define TVM_TIR_SCHEDULE_TRACE_H_
 
 #include <tvm/tir/schedule/instruction.h>
+#include <tvm/tir/schedule/schedule.h>
 
 namespace tvm {
 namespace tir {
 
 // Forward declaration
 class Trace;
+// class LoopRV;
 
 /*!
  * \brief A callback that allows users to mutate decisions on the fly
@@ -103,7 +105,8 @@ class TraceNode : public runtime::Object {
    * when applying instructions.
    * \sa FTraceDecisionProvider
    */
-  void ApplyToSchedule(Schedule sch, bool remove_postproc,
+  Map<StmtSRef, Array<Integer>> ApplyToSchedule(Schedule sch, bool remove_postproc,
+  // Map<ObjectRef, Array<Integer>> ApplyToSchedule(Schedule sch, bool remove_postproc,
                        FTraceDecisionProvider decision_provider = nullptr) const;
   /*!
    * \brief Serialize the trace as a JSON-style object

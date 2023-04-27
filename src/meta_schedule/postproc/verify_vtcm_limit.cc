@@ -46,7 +46,7 @@ class VerifyVTCMLimitNode : public PostprocNode {
     return true;
   }
 
-  bool Apply(const tir::Schedule& sch) final {
+  bool Apply(const tir::Schedule& sch, const tir::Schedule& orig) final {
     IRModule mod = sch->mod();
     for (const auto& kv : mod->functions) {
       const GlobalVar& g_var = kv.first;

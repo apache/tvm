@@ -318,6 +318,27 @@ class Schedule(Object):
         return result
 
     @type_checked
+    def get_split_factors(
+        self,
+        loop: LoopRV,
+    ) -> [List[int]]:
+        """Returns:
+        - the corresponding factors that a loop has;
+
+        Parameters
+        ----------
+        loop : LoopRV
+            The lop random variable
+
+        Returns
+        -------
+        result : [List[int]]
+            The corresponding result
+        """
+        result = _ffi_api.ScheduleSplitFactors(self, loop)  # type: ignore # pylint: disable=no-member
+        return result
+
+    @type_checked
     def get_sref(self, rand_var_or_stmt: Union[BlockRV, LoopRV, Block, For]) -> Optional[StmtSRef]:
         """Returns the corresponding sref to the given
         1) LoopRV

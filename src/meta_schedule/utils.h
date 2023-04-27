@@ -319,19 +319,64 @@ struct ThreadedTraceApply {
    * \return The schedule created, or NullOpt if any postprocessor fails
    */
   Optional<tir::Schedule> Apply(const IRModule& mod, const tir::Trace& trace,
-                                TRandState* rand_state) {
+                                TRandState* rand_state/*, filter*/) {
     tir::Schedule sch =
         tir::Schedule::Traced(mod,
                               /*rand_state=*/ForkSeed(rand_state),
                               /*debug_mode=*/0,
                               /*error_render_level=*/tir::ScheduleErrorRenderLevel::kNone);
 
-    trace->ApplyToSchedule(sch, /*remove_postproc=*/true);
-    sch->EnterPostproc();
 
+  auto block_c = sch->GetBlock("DepthwiseConv2d");
+  auto loops_c = sch->GetLoops(block_c);
+
+  tir::Schedule orig = sch->Copy();
+  auto block = orig->GetBlock("DepthwiseConv2d");
+  auto loops = orig->GetLoops(block);
+  for(auto& l: loops) {
+    // std::cout << "orig loop " << l << " sref " << orig->GetSRef(l) << std::endl << std::flush;
+  }
+
+  // std::unordered_map<tir::StmtSRef, tir::StmtSRef> sch_to_orig; 
+  Map<tir::StmtSRef, tir::StmtSRef> sch_to_orig; 
+  for(size_t i = 0; i < loops_c.size(); ++i) {
+    sch_to_orig.Set(sch->GetSRef(loops_c[i]), orig->GetSRef(loops[i]));
+    // sch_to_orig[sch->Get(loops_c[i])] = sch->Get(loops[i]);
+  }
+
+
+
+    Map<tir::StmtSRef, Array<Integer>> data = trace->ApplyToSchedule(sch, /*remove_postproc=*/true);
+    // Map<ObjectRef, Array<Integer>> data = trace->ApplyToSchedule(sch, /*remove_postproc=*/true);
+    // Map<tir::LoopRV, Array<Integer>> ldata;
+    // for (auto& o : data){
+    //   ldata.Set(Downcast<tir::LoopRV>(o.first), o.second);
+    // }
+
+    Map<tir::StmtSRef, Array<Integer>> ldata;
+    for (auto& o : data) {
+      ldata.Set(sch_to_orig[o.first], o.second);
+    }
+
+    // using FFilter = runtime::TypedPackedFunc<Bool(const tir::Schedule&, const Map<tir::StmtSRef, Array<Integer>>&)>;
+    // using FFilter = runtime::TypedPackedFunc<Bool(const tir::Schedule&, const Map<tir::StmtSRef, Array<Integer>>&)>;
+
+    auto filter = items_[0].postproc->GetFilter();
+      
+    if(!filter(orig, ldata)) {
+    // if(!filter(orig, data)) {
+      std::cout << "ICE FILTERED" << std::endl << std::flush;
+      return NullOpt;
+    }
+
+    sch->EnterPostproc();
+  
     for (int i = 0; i < n_; ++i) {
       Item& item = items_[i];
-      if (!item.postproc->Apply(sch)) {
+      // if (item.postproc->IsInstance<FilterLoopSplitsNode>()) {
+      //   // ldata;
+      // }
+      if (!item.postproc->Apply(sch, orig)) {
         item.fail_counter++;
         return NullOpt;
       }

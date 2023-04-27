@@ -159,8 +159,10 @@ void TaskSchedulerNode::Tune(Array<TuneContext> ctxs, Array<FloatImm> task_weigh
     TVM_PY_LOG(INFO, this->logger) << "Initializing Task #" << i << ": " << ctx->task_name;
     TVM_PY_LOG(INFO, ctx->logger) << "Initializing Task #" << i << ": " << ctx->task_name;
     this->tasks_.push_back(TaskRecord(ctx, weight));
+    // std::cout << "TaskSchedulerNode::Tune" << std::endl << std::flush;
     Array<tir::Schedule> design_spaces =
         ctx->space_generator.value()->GenerateDesignSpace(ctx->mod.value());
+    // std::cout << "TaskSchedulerNode::Tune design_spaces size " <<  design_spaces.size() << std::endl << std::flush;
     TVM_PY_LOG(INFO, ctx->logger) << "Total " << design_spaces.size()
                                   << " design space(s) generated";
     for (int i = 0, n = design_spaces.size(); i < n; ++i) {

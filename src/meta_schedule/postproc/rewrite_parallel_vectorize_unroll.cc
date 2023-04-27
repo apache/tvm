@@ -410,7 +410,7 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
  public:
   void InitializeWithTuneContext(const TuneContext& context) final {}
 
-  bool Apply(const Schedule& sch) final {
+  bool Apply(const Schedule& sch, const tir::Schedule& orig) final {
     tir::ParsedAnnotation parsed_root;
     tir::BlockRV root_rv{nullptr};
     while (tir::FindAnnotatedRootBlock(sch, &parsed_root, &root_rv)) {

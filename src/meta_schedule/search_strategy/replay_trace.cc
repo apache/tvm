@@ -106,6 +106,8 @@ class ReplayTraceNode : public SearchStrategyNode {
 
   void PreTuning(int max_trials, int num_trials_per_iter, const Array<tir::Schedule>& design_spaces,
                  const Optional<Database>& database, const Optional<CostModel>& cost_model) final {
+                  
+    std::cout << "PreTuning design_spaces size: " <<  design_spaces.size() << std::endl << std::flush; 
     ICHECK(!design_spaces.empty());
     CHECK(this->state_ == nullptr)
         << "ValueError: `PreTuning` is already invoked without corresponding `PostTuning`.";
@@ -114,6 +116,7 @@ class ReplayTraceNode : public SearchStrategyNode {
     for (const tir::Schedule& space : design_spaces) {
       design_space_traces.push_back(space->trace().value()->Simplified(true));
     }
+    std::cout << "PreTuning design_space_traces size: " <<  design_space_traces.size() << std::endl << std::flush; 
     this->state_ =
         std::make_unique<State>(this, design_space_traces, max_trials, num_trials_per_iter);
   }
@@ -143,10 +146,12 @@ class ReplayTraceNode : public SearchStrategyNode {
   }
 };
 
-inline Optional<Array<MeasureCandidate>> ReplayTraceNode::State::GenerateMeasureCandidates() {
+inline Optional<Array<MeasureCandidate>> ReplayTraceNode::State::GenerateMeasureCandidates(/*filter*/) { // TODO
   if (st >= max_trials) {
     return NullOpt;
   }
+  // std::cout << "ReplayTraceNode::State::GenerateMeasureCandidates() design_spaces size: " << design_spaces.size() << std::endl << std::flush;
+  // std::cout << "ReplayTraceNode::State::GenerateMeasureCandidates() trace: " << design_spaces[0] << std::endl << std::flush;
   ed = std::min(ed, max_trials);
   ICHECK_LT(st, ed);
   std::vector<TRandState> per_thread_rand_state = ForkSeed(&self->rand_state_, self->num_threads_);
@@ -154,28 +159,37 @@ inline Optional<Array<MeasureCandidate>> ReplayTraceNode::State::GenerateMeasure
   ThreadedTraceApply pp(self->postprocs_);
   auto f_worker = [this, &per_thread_rand_state, &per_task_result, &pp](int thread_id,
                                                                         int task_id) -> void {
+    std::ostringstream stream;
     TRandState& rand_state = per_thread_rand_state[thread_id];
     IRModule mod = this->per_thread_mod_[thread_id];
 
     for (int fail_count = 0; fail_count < self->max_fail_count; fail_count++) {
       int design_space_index = tir::SampleInt(&rand_state, 0, design_spaces.size());
+      // stream << "ReplayTraceNode::State::GenerateMeasureCandidates() design_space_index: " <<design_space_index << std::endl;
+
       tir::Trace trace = design_spaces[design_space_index];
-      tir::Trace new_trace = tir::Trace(trace->insts, {});
-      if (Optional<tir::Schedule> opt_sch = pp.Apply(mod, new_trace, &rand_state)) {
+      tir::Trace new_trace = tir::Trace(trace->insts, {}); // Filter here
+      // stream << "ReplayTraceNode::State::GenerateMeasureCandidates() new_trace: " << new_trace << std::endl;
+      if (Optional<tir::Schedule> opt_sch = pp.Apply(mod, new_trace, &rand_state/*, filter*/)) {
         tir::Schedule sch = opt_sch.value();
+        tir::Trace new_trace_after = sch->trace().value();
+        // stream << "ReplayTraceNode::State::GenerateMeasureCandidates() sch->trace(): " << new_trace_after << std::endl;
+
         Array<ArgInfo> args_info = ArgInfo::FromEntryFunc(sch->mod(), /*remove_preproc=*/true);
         per_task_result.Set(task_id, MeasureCandidate(sch, args_info));
         break;
       }
     }
+    // std::cout << stream.str() << std::endl << std::flush;
   };
-  support::parallel_for_dynamic(0, ed - st, self->num_threads_, f_worker);
+  support::parallel_for_dynamic(0, ed - st, 1 /*self->num_threads_*/, f_worker);
   Array<MeasureCandidate> filtered;
   filtered.reserve(ed - st);
   for (MeasureCandidate result : per_task_result)
     if (result.defined()) {
       filtered.push_back(result);
     }
+  // std::cout << "ReplayTraceNode::State::GenerateMeasureCandidates() filtered size: " << filtered.size() << std::endl << std::flush;
   return filtered;
 }
 

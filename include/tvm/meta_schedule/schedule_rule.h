@@ -160,7 +160,8 @@ class ScheduleRule : public runtime::ObjectRef {
                                                Optional<Array<Integer>> vector_load_lens,    //
                                                Optional<Map<String, ObjectRef>> reuse_read,  //
                                                Optional<Map<String, ObjectRef>> reuse_write,
-                                               Optional<runtime::PackedFunc> filter_fn = NullOpt);
+                                               Optional<runtime::PackedFunc> filter_fn = NullOpt,
+                                               Optional<runtime::PackedFunc> filter_out_fn = NullOpt);
 
   /*!
    * \brief Extension of MultiLevelTiling for auto-tensorization with a single intrinsic.

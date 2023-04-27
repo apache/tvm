@@ -64,7 +64,7 @@ class RewriteTensorizeNode : public PostprocNode {
  public:
   void InitializeWithTuneContext(const TuneContext& context) final {}
 
-  bool Apply(const tir::Schedule& sch) final;
+  bool Apply(const tir::Schedule& sch, const tir::Schedule& orig) final;
 
   void VisitAttrs(tvm::AttrVisitor* v) {}
 
@@ -79,7 +79,7 @@ class RewriteTensorizeNode : public PostprocNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(RewriteTensorizeNode, PostprocNode);
 };
 
-bool RewriteTensorizeNode::Apply(const tir::Schedule& sch) {
+bool RewriteTensorizeNode::Apply(const tir::Schedule& sch, const tir::Schedule& orig) {
   // The rewriting jobs, 3-tuple (block_name, func_name, job_func)
   std::vector<std::tuple<String, String, std::function<void(tir::BlockRV)>>> jobs;
   for (const auto& kv : sch->mod()->functions) {

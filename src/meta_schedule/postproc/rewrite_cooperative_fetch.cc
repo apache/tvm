@@ -125,7 +125,7 @@ class RewriteCooperativeFetchNode : public PostprocNode {
   }
 
   // Inherited from PostprocNode
-  bool Apply(const tir::Schedule& sch) final;
+  bool Apply(const tir::Schedule& sch, const tir::Schedule& orig) final;
 
   Postproc Clone() const {
     ObjectPtr<RewriteCooperativeFetchNode> n = make_object<RewriteCooperativeFetchNode>(*this);
@@ -141,7 +141,7 @@ class RewriteCooperativeFetchNode : public PostprocNode {
   int thread_warp_size_ = -1;
 };
 
-bool RewriteCooperativeFetchNode::Apply(const tir::Schedule& sch) {
+bool RewriteCooperativeFetchNode::Apply(const tir::Schedule& sch, const tir::Schedule& orig) {
   tir::Trace trace = sch->trace().value();
   int64_t thread_extent_x = -1;
   int64_t thread_extent_y = -1;

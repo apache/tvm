@@ -164,6 +164,12 @@ class ScheduleNode : public runtime::Object {
    */
   virtual For Get(const LoopRV& loop_rv) const = 0;
   /*!
+   * \brief Get the splitting factors for loop corresponding to the specific LoopRV
+   * \param loop_rv The LoopRV to be looked up
+   * \return The splitting factors
+   */
+  virtual Array<Integer> GetSplitFactors(const LoopRV& loop_rv) const = 0;
+  /*!
    * \brief Get the expr corresponding to the specific random variable
    * \param expr_rv The random variable to be looked up
    * \return The corresponding expr
