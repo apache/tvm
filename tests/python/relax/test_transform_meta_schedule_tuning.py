@@ -130,6 +130,24 @@ def test_ms_tuning_primfunc():
             out_mod = application_pass(mod)
             assert not tvm.ir.structural_equal(mod, out_mod)
 
+    with tempfile.TemporaryDirectory() as work_dir:
+        with target, PassContext(opt_level=0):
+            tuning_pass = relax.transform.MetaScheduleTuneIRMod(
+                params={},
+                work_dir=work_dir,
+                max_trials_global=4,
+                max_trials_per_task=4,
+                op_names=["matmul"],
+            )
+            tuning_pass(mod)
+
+            db = ms.database.JSONDatabase(
+                work_dir + "/database_workload.json", work_dir + "/database_tuning_record.json"
+            )
+
+            for rec in db.get_all_tuning_records():
+                assert rec.workload.mod["main"].attrs["global_symbol"] == "tir_matmul"
+
 
 @tvm.script.ir_module
 class DefaultScheduledModule:

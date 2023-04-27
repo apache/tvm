@@ -164,7 +164,7 @@ def tune_relax(
     work_dir: str,
     max_trials_global: int,
     max_trials_per_task: Optional[int] = None,
-    op_names = None,
+    op_names:Optional[List[str]] = None,
     *,
     num_trials_per_iter: int = 64,
     builder: Builder.BuilderType = "local",
@@ -239,7 +239,7 @@ def tune_relax(
 
         for task in all_tasks:
             for op_name in op_names:
-                if op_name in task.mod.task_name:
+                if op_name in task.task_name:
                     selected_tasks.append(task)
 
     tasks, task_weights = extracted_tasks_to_tune_contexts(
@@ -342,6 +342,8 @@ def _tune_relax(
     """
     if isinstance(max_trials_global, IntImm):
         max_trials_global = int(max_trials_global)
+    if isinstance(max_trials_per_task, IntImm):
+        max_trials_per_task = int(max_trials_per_task)
 
     tune_relax(
         mod,
