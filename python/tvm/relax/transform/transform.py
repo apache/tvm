@@ -799,7 +799,8 @@ def MetaScheduleTuneIRMod(
     max_trials_per_task: int
        maximum number of trials per task
     op_names: Optional[List[str]]
-       A list of operator names to specify which op to tune
+       A list of operator names to specify which op to tune. When it is None, all operators
+        are tuned.
 
     Returns
     -------
