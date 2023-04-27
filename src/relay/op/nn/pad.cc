@@ -177,7 +177,7 @@ Array<te::Tensor> PadCompute(const Attrs& attrs, const Array<te::Tensor>& inputs
     pad_after.push_back(pad_width[i][1]);
   }
   te::Tensor cast_pad_value = topi::cast(inputs[1], inputs[0]->dtype);
-  const PrimExpr& pad_value = cast_pad_value(Array<PrimExpr>());
+  const PrimExpr& pad_value = cast_pad_value(Array<PrimExpr>(inputs[1]->shape.size(), 0));
   return Array<te::Tensor>{topi::pad(inputs[0], pad_before, pad_after, pad_value, "T_pad",
                                      topi::kElementWise, param->pad_mode)};
 }
