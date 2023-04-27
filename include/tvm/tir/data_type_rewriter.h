@@ -153,6 +153,9 @@ class IndexDataTypeNormalizer : public IndexDataTypeRewriter {
   PrimExpr VisitExpr_(const VarNode* op) override;
   PrimExpr VisitExpr_(const CastNode* op) override;
 
+  /*! \brief Specifies which data type we can rewrite */
+  virtual bool CanRewriteDType(DataType dtype) const;
+
   DataType target_data_type_ = DataType::Int(64);
 };
 
