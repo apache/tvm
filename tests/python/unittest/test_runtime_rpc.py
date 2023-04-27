@@ -25,7 +25,6 @@ import time
 
 import pytest
 import numpy as np
-import platform
 from tvm import rpc
 from tvm.relay.backend import Runtime
 from tvm.contrib import utils, cc
@@ -177,10 +176,7 @@ def test_rpc_large_array():
     check_remote()
 
 
-@pytest.mark.skipif(
-    platform.machine() == "i386",
-    reason="Flaky on i386",
-)
+@tvm.testing.skip_if_32bit(reason="skipping test for i386.")
 @tvm.testing.requires_rpc
 def test_rpc_echo():
     def check(remote):
