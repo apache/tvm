@@ -211,13 +211,18 @@ class TestKeras:
             keras_model = keras_mod.models.Model(data, x)
             verify_keras_frontend(keras_model)
             verify_keras_frontend(keras_model, need_transpose=False, layout="NHWC")
-        # test invalid attribute alpha=None for LeakyReLU
+
+    def test_forward_activations_special(self, keras_mod):
+        # test invalid attribute alpha=None for LeakyReLU,
+        # after version 2.3.1 in keras, keras add check to reject the valid api call:  LeakyReLU(alpha=None),
+        # (related issue: https://github.com/tensorflow/tensorflow/pull/47017)
+        # Thus, it's necessary to check the keras version for avoiding crash when call  LeakyReLU(alpha=None)
         if package_version.parse(keras_mod.__version__.split("-tf")[0]) <= package_version.parse(
             "2.3.1"
         ):
             data = keras_mod.layers.Input(shape=(2, 3, 4))
-            x = keras_mod.layers.LeakyReLU(alpha=None)(data)
-            keras_model = keras_mod.models.Model(data, x)
+            layer = keras_mod.layers.LeakyReLU(alpha=None)(data)
+            keras_model = keras_mod.models.Model(data, layer)
             with pytest.raises(tvm.error.OpAttributeInvalid):
                 verify_keras_frontend(keras_model)
 
