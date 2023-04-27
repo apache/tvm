@@ -174,11 +174,15 @@ Pass MetaScheduleApplyDatabase(Optional<String> work_dir, bool enable_warning = 
 }
 
 Pass MetaScheduleTuneIRMod(Map<String, runtime::NDArray> params, String work_dir,
-                           Integer max_trials_global) {
+                           Integer max_trials_global,
+                           Optional<Integer> max_trials_per_task = NullOpt,
+                           Optional<Array<String>> op_names = NullOpt) {
   Target target = Target::Current(false);
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule m,
                                                                             PassContext ctx) {
-    return MetaScheduleTuner(target, work_dir, max_trials_global, params).TuneIRMod(m, ctx);
+    auto max_trials_task = max_trials_per_task.value_or(max_trials_global);
+    return MetaScheduleTuner(target, work_dir, max_trials_global, max_trials_task, op_names, params)
+        .TuneIRMod(m, ctx);
   };
   return CreateModulePass(/*pass function*/ pass_func, /*opt level*/ 0,
                           /*pass name*/ "MetaScheduleTuneIRModule",
@@ -186,14 +190,12 @@ Pass MetaScheduleTuneIRMod(Map<String, runtime::NDArray> params, String work_dir
                           /*traceable*/ true);
 }
 
-Pass MetaScheduleTuneTIR(String work_dir, Integer max_trials_global,
-                         Optional<Integer> max_trials_per_task = NullOpt,
-                         Optional<Array<String>> op_names = NullOpt) {
+Pass MetaScheduleTuneTIR(String work_dir, Integer max_trials_global) {
   Target target = Target::Current(false);
   runtime::TypedPackedFunc<tir::PrimFunc(tir::PrimFunc, IRModule, PassContext)> pass_func =
       [=](tir::PrimFunc f, IRModule mod, PassContext ctx) {
-        auto max_trials_task = max_trials_per_task.value_or(max_trials_global);
-        return MetaScheduleTuner(target, work_dir, max_trials_global).TuneTIR(f, ctx);
+        return MetaScheduleTuner(target, work_dir, max_trials_global, max_trials_global, NullOpt)
+            .TuneTIR(f, ctx);
       };
   return tir::transform::CreatePrimFuncPass(/*pass function*/ pass_func, /*opt level*/ 0,
                                             /*pass name*/ "MetaScheduleTuneTIR",
