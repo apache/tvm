@@ -30,6 +30,7 @@ from ..patterns import (
     make_matmul_pattern,
     make_residual_block_pattern,
     make_stacked_attention_pattern,
+    make_layer_norm_pattern,
 )
 
 
@@ -315,12 +316,43 @@ def attention_patterns():
     ]
 
 
+def _check_layer_norm(context: PatternCheckContext) -> bool:
+    attrs = context.matched_expr.attrs
+
+    if not attrs.center or not attrs.scale:
+        return False
+
+    if len(attrs.axes) != 1:
+        # Contiguous inner-most axes can be supported, but reject it for now for simplicity.
+        return False
+
+    axis = int(attrs.axes[0])
+    rank = len(context.matched_expr.struct_info.shape)
+
+    if axis < 0:
+        axis += rank
+
+    return axis == rank - 1
+
+
+def layer_norm_pattern():
+    """Create a layer norm pattern for CUTLASS."""
+    return [
+        (
+            "cutlass.layer_norm",
+            *make_layer_norm_pattern(),
+            _check_layer_norm,
+        ),
+    ]
+
+
 register_patterns(
     [
         *conv2d_patterns(),
         *matmul_patterns(),
         *residual_block_patterns(),
         *attention_patterns(),
+        *layer_norm_pattern(),
     ]
 )
 
